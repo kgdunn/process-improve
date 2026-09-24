@@ -336,6 +336,22 @@ The third item of #374, double cross-validation for PLS, is already provided by
   dev"` is `NaN` under Welch (JSON `null` through the tool layer), because Welch
   forms no pooled estimate and a number there would imply one.
 
+- **`MidCourseCorrector.predict` (#541).** The monitoring question at a decision
+  point: the final quality of a running batch, predicted from its initial
+  conditions, the samples recorded so far and the planned remaining schedule,
+  with a prediction interval built from the model's error *at that decision
+  point*, the SPE of the batch so far against its limit (`in_control`), the
+  candidate row's T2 against the per-decision-point score covariance, and the
+  condition number of the score-estimation operator. A corrector built with only
+  the model, the nominal schedule and `mv_tags` can predict but not correct.
+
+  `limits_at(k)` now also reports `rmse_k`: the training batches re-projected
+  under the same missingness pattern, their predicted quality against their
+  measured quality, on N - A - 1 degrees of freedom (the construction of
+  `PLS.prediction_interval`; at the full row it equals the training RMSE), and
+  the condition numbers of the monitoring and candidate operators.
+  `evaluate_control_policies` records each batch's no-change prediction and
+  interval half-width at the first decision point.
 
 ### Changed
 
@@ -389,6 +405,25 @@ The third item of #374, double cross-validation for PLS, is already provided by
   after the split across the `dense` and `nipals` paths; the only field that
   differs is `fitting_info_.timing`, and two runs of *identical* code differ in
   exactly that field and no other.
+- **The no-correction dead band of `MidCourseCorrector.correct` is measured
+  against the interval at the decision point (#541).** It was measured against
+  an interval built from the full-row training RMSE, which cannot see that a
+  score estimate resting on a few observed columns is far less certain than
+  one resting on the whole row, nor that the estimator can be ill-conditioned
+  early in the batch; that interval declared nonsensical early projections
+  precise and let them trigger harmful corrections. The band now comes from
+  `predict`, so an early decision point is held to a correspondingly wider
+  interval. With the interval calibrated at the decision point,
+  `evaluate_control_policies` and the two agent tools default to
+  `dead_band=1.0` (the class default: correct only when the whole interval
+  falls short of the target) instead of the 2.5 that compensated for the old
+  interval.
+
+  The no-change prediction and the movement penalty use the currently planned
+  remainder (the implemented schedule after an earlier decision point) rather
+  than always the nominal schedule. `correct` reports `y_hat_no_change`,
+  `half_width` and `condition_number` on every outcome, and the `y_target`
+  check moved from the constructor to `correct`.
 
 ### Deprecated
 
@@ -557,6 +592,10 @@ The third item of #374, double cross-validation for PLS, is already provided by
   different interval with nothing to signal it. Unknown values now raise
   `ValueError` naming the two accepted ones.
 
+- **`midcourse_correction` with `n_knots` at the last decision point (#541).**
+  It failed when a tag had a single remaining free sample; the knot
+  parameterisation now collapses to that one sample.
+
 ### Documentation
 
 - **README: mixing scaled numeric and categorical columns (#399).** The
@@ -570,6 +609,14 @@ The third item of #374, double cross-validation for PLS, is already provided by
   one, discards it, and returns the array it was given, mutated in place. Every
   caller in the package passes a private copy, which is why the aliasing has not
   bitten, but the contract is now stated rather than left in the body.
+
+- Two attributions corrected (#541). The SPE limit's docstring called the
+  moment-matched weighted chi-square approximation (Box, 1954; Nomikos and
+  MacGregor, 1995) "Jackson-Mudholkar"; that limit needs the eigenvalues of
+  the residual covariance, which a batchwise-unfolded matrix with far more
+  columns than rows cannot supply, and was never what the function computed.
+  `batch_dtw` dated Kassidas, MacGregor and Taylor to 2004; the DOI it cites
+  is their 1998 AIChE Journal paper.
 
 ### Tests
 

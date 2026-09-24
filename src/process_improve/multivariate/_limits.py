@@ -117,9 +117,13 @@ def spe_calculation(spe_values: np.ndarray, conf_level: float = 0.95) -> float:
 
     Notes
     -----
-    When the squared SPE values have no relative spread (a perfect-fit
-    training set where ``A == K``, or an all-equal SPE column), the
-    Jackson-Mudholkar chi-square approximation degenerates. In that case
+    The limit is the weighted chi-square approximation matched to the mean
+    and the variance of the squared SPE values (Box, 1954), which Nomikos and
+    MacGregor (1995) adopted for batch monitoring. It is not the
+    Jackson-Mudholkar (1979) limit, which needs the eigenvalues of the
+    residual covariance matrix. When the squared SPE values have no relative
+    spread (a perfect-fit training set where ``A == K``, or an all-equal SPE
+    column), the approximation degenerates. In that case
     the limit falls back to ``sqrt(center_spe)``: there is no spread to
     bound, so any value above the centre is by construction out of family.
     See SEC-21 (#270), sub-item 3.
