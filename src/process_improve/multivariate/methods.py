@@ -60,7 +60,7 @@ from ._null import (
 )
 from ._opls import OPLS
 from ._pca import PCA
-from ._pls import PLS
+from ._pls import PLS, compare_cv_criteria, pseudo_validation_set
 from ._plsda import PLSDA
 from ._preprocessing import MCUVScaler, center, scale
 from ._prm import PRM
@@ -71,6 +71,7 @@ from .plots import (
     coefficient_plot,
     confusion_matrix_plot,
     correlation_loadings_plot,
+    cv_criteria_plot,
     effect_summary_plot,
     explained_variance_plot,
     loading_plot,
@@ -106,9 +107,11 @@ __all__ = [
     "check_random_state",
     "class_enrichment",
     "coefficient_plot",
+    "compare_cv_criteria",
     "confusion_matrix_plot",
     "correlation_loadings_plot",
     "count_discoveries_under_null",
+    "cv_criteria_plot",
     "detect_outliers_esd",
     "effect_summary_plot",
     "eigenvalue_summary",
@@ -126,6 +129,7 @@ __all__ = [
     "pipeline_null",
     "predictions_vs_observed_plot",
     "project_variables",
+    "pseudo_validation_set",
     "quick_regress",
     "randomization_test_mbpls",
     "regress_a_space_on_b_row",

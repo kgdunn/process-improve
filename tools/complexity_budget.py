@@ -59,8 +59,16 @@ BUDGET: dict[str, int] = {
     # is really there rather than pretending the count did not move. #191 makes it
     # 84 with `PRM.__init__`, which like `PLSDA.__init__` mirrors `PLS.__init__`
     # and adds its own options (the three that control the reweighting loop), so
-    # its width is inherited rather than invented.
-    "PLR0913": 84,
+    # its width is inherited rather than invented. #605 makes it 86 with
+    # `PLS.compare_cv_criteria` and `PLS.pseudo_validation_set`, the two public
+    # entry points of latent-structure validation. Each of their settings controls a
+    # named criterion (two permutation counts, a significance level, an angle
+    # threshold, a confidence level) or is one of the published `pcvpls` options
+    # (segments, scope), the same kind of first-class option as
+    # `select_n_components`' own. The width stops there: the function forms forward
+    # `**kwargs`, and the implementation takes a settings dataclass, so the
+    # signature is written once.
+    "PLR0913": 86,
     # 30: #541 moved the SPE validity gate and the no-change prediction out of
     # `MidCourseCorrector.correct` into `predict`, so `correct` no longer breaches
     # PLR0915; the per-batch loop of `evaluate_control_policies` went into

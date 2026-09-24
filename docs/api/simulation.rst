@@ -1,14 +1,22 @@
 Simulation
 ==========
 
-Fake-data generators and process simulators: a bioreactor batch generator, and a
-hidden-response-surface simulator an agent can probe one experiment at a time
-without being able to read the model behind it.
+Fake-data generators and process simulators: a bioreactor batch generator, a
+generator of data with a known latent structure, and a hidden-response-surface
+simulator an agent can probe one experiment at a time without being able to read the
+model behind it.
 
 Bioreactor batch simulator
 --------------------------
 
 .. automodule:: process_improve.simulation.batch
+   :members:
+   :show-inheritance:
+
+Known latent structure
+----------------------
+
+.. automodule:: process_improve.simulation.latent
    :members:
    :show-inheritance:
 

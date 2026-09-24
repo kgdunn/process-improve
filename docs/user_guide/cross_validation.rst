@@ -277,6 +277,183 @@ variation *in its own units* the model predicts.
 
 ``MBPLS.select_n_components`` returns the same two columns, on the same footing.
 
+Validating the latent structure, not only the predictions
+----------------------------------------------------------
+
+A PLS model can predict Y well while some of its components are not a reproducible
+property of the process, and a component can be real and stable without improving
+the prediction. :math:`Q^2` only answers the first question. A model used for SPE
+and :math:`T^2` monitoring, or inverted to find operating conditions, also depends
+on the second. ``compare_cv_criteria`` runs one cross-validation and reports both,
+component by component, with the number of components each criterion recommends.
+
+.. code-block:: python
+
+   from process_improve.multivariate import compare_cv_criteria, cv_criteria_plot
+
+   result = compare_cv_criteria(X, Y, max_components=6, cv=7, random_state=0)
+   print(result.recommendations[["n_components", "question"]])
+   print(result.table[["q2y", "r_cv", "r_cv_p", "slope_ratio", "cov_perm_p", "angle_subspace_deg"]])
+   cv_criteria_plot(result)
+
+The same function is available as ``PLS.compare_cv_criteria``, which fits with
+the class it is called on.
+
+Each selection rule answers one question.
+
+.. list-table::
+   :header-rows: 1
+   :widths: 24 38 38
+
+   * - Rule
+     - Question
+     - Evidence
+   * - ``q2_max``, ``q2_1se``, ``van_der_voet``
+     - Does the model predict Y?
+     - Held-out residuals of Y.
+   * - ``score_correlation``
+     - Does each component's inner relation hold on new rows?
+     - Correlation of the held-out :math:`t_a` and :math:`u_a` scores, against a
+       null from permuted Y.
+   * - ``covariance_permutation``
+     - Is each component's covariance larger than chance?
+     - Largest singular value of the deflated :math:`\mathbf{X}_a^\top\mathbf{Y}_a`,
+       against permuted rows of :math:`\mathbf{Y}_a`.
+   * - ``subspace_stability``
+     - Does the latent space survive a change of rows?
+     - Largest principal angle between the fold and the full-data weights.
+
+The predictive rules never return fewer than one component. The structural rules
+count the leading components that pass and return 0 when none does. Two components
+of nearly equal strength can swap from fold to fold: the span of the first is then
+unstable while the span of the pair is not, and ``subspace_stability`` counts the
+pair as two.
+
+The monitoring question, whether the SPE limit is right for rows the model has not
+seen, is answered by a limit rather than by a component count.
+``result.spe_limits`` holds, per component count, the SPE limit fitted to the
+training residuals (``full_data``, the one the model reports) and the limit fitted
+to the Procrustes pseudo-validation SPE (``pseudo_validation``). Training residuals
+are smaller than the residuals of new rows, so the first limit is too tight. On
+simulated data with two latent variables and 16 variables, the full-data limit at
+95% flagged 17% of fresh rows with 30 training rows and 10% with 60, while the
+pseudo-validation limit flagged 4% to 5%. The ``pv_spe_limit_ratio`` column is the
+ratio of the two limits.
+
+With missing values, a row's SPE is summed over its observed cells only, so it is
+smaller than the SPE of the same row with nothing missing. The pseudo-validation limit
+is a limit for complete rows: each held-out row's squared SPE is scaled by
+:math:`K / K_\text{observed}` before the limit is fitted, and the SPE of a new row with
+gaps should be scaled the same way before the comparison. On the simulated data with
+60 rows and 15% or 30% of the cells missing, the model's own limit flagged 19% or 34%
+of fresh complete rows at a nominal 5%, and the refitted limit 3.5% or 2.8%.
+
+How Q2 and the held-out correlation are related
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The ``slope_ratio`` column, :math:`s_a`, is the slope of the held-out residual on
+the held-out score :math:`t_a` relative to the slope the fold model fitted. It is
+exactly 1 on the training rows, and on held-out rows
+
+.. math::
+
+   \text{PRESS}_{a-1} - \text{PRESS}_a
+   = (2 s_a - 1)\sum_k \|\tilde{\mathbf{c}}_{ak}\|^2\,\mathbf{t}_{ak}^\top\mathbf{t}_{ak}.
+
+PRESS therefore falls, and :math:`Q^2` rises, only when :math:`s_a > 1/2`. The
+held-out correlation is positive as soon as :math:`s_a > 0`. A component with
+:math:`0 < s_a < 1/2` points the right way on new rows, but its fitted slope is
+more than twice too steep. Tested against its permutation null, the correlation
+does not keep such a component either: in simulations with a real but weak
+component, 4 of 83 components in this band reached :math:`p < 0.05`, no more than
+chance. The band marks a direction that is real but cannot yet be told from noise
+with this many rows.
+
+Points to keep in mind when reading the table
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+- The held-out correlation is calibrated by permutation (``n_cv_permutations``).
+  The normal approximation :math:`N(0, 1/N)` is too narrow for a pooled
+  cross-validated correlation, because every held-out score is a weighted sum of
+  the other folds' responses. On an X with two strong latent variables it fired
+  about three times as often as its nominal 5% under a null Y.
+- The angles are scaled by the delete-d jackknife, :math:`\tan\theta \to
+  \sqrt{G-1}\,\mathrm{rms}(\tan\theta_k)` for :math:`G` folds. Raw fold angles
+  shrink as the number of folds grows, because the fold models share most of their
+  rows with the full-data model; the scaled angles agree between 7-fold and
+  leave-one-out cross-validation.
+- A stable direction is not the same as a direction related to Y. With a noise Y,
+  the first weight vector :math:`\mathbf{w} \propto \mathbf{X}^\top\mathbf{y}` is
+  still drawn towards the dominant directions of X, so ``subspace_stability`` can
+  pass where the two tests of a Y relationship do not.
+- The SPE limits concern the X model only; they say nothing about whether a
+  component predicts Y.
+- Strong variation in X that Y does not see leaks into the first PLS weight vector
+  in a finite sample, and a second component is then needed to cancel it. On
+  simulated data with 60 rows, one Y-related latent variable and a stronger
+  Y-orthogonal one, the first weight vector was tilted by a median of 9 degrees
+  towards the Y-orthogonal direction, and two components predicted 4000 fresh rows
+  better than one in 25 of 30 data sets. The predictive rules and the covariance test
+  mostly chose two components, which is the right answer for prediction, though the
+  process has one Y-related latent variable. This is the motivation for O-PLS, which
+  moves the Y-orthogonal variation out of the predictive component.
+- Missing values (NaN) are handled as the NIPALS fit handles them: each held-out row
+  is scored from its observed cells the way NIPALS scores an incomplete training
+  row, and a missing Y cell is left out of every sum. A row whose X is entirely
+  missing, or a column that is, raises ``ValueError``.
+- CV-ANOVA (``cv_anova_p``, one response) is a monotone function of :math:`Q^2` for
+  fixed degrees of freedom, so it ranks models as :math:`Q^2` does.
+
+Checking the criteria on a process with a known structure
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The simulated results quoted in this section come from
+:class:`~process_improve.simulation.latent.LatentStructure`, which draws data from a linear
+latent-variable process whose structure is set by the caller, and from fresh rows of the
+same process, which are the ground truth for any cross-validated estimate. The best that
+any linear model can do on those fresh rows is known in closed form.
+
+.. code-block:: python
+
+   from process_improve.multivariate import compare_cv_criteria
+   from process_improve.simulation import LatentStructure
+
+   # Two latent variables drive y, so a PLS model should need two components.
+   process = LatentStructure(x_sd=[3.0, 1.0], y_coefficients=[1.0, 1.0])
+   train = process.sample(60, random_state=0)
+   result = compare_cv_criteria(train.X, train.Y, max_components=5, random_state=0)
+   print(result.recommendations["n_components"])   # 2 from every rule
+   print(process.population_r2())                  # the Q2 a perfect linear model reaches
+
+The script ``scripts/cv_criteria_recovery.py`` repeats this for every scenario quoted
+above, 30 data sets each, and prints how often each rule recovers the simulated count.
+
+Procrustes pseudo-validation set
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Ordinary cross-validation assesses the fold models, not the model fitted to all
+rows. ``pseudo_validation_set`` (Kucheryavskiy, Rodionova and Pomerantsev, 2023)
+converts the variation between the fold models into a data set, ``X_pv``, that the
+full-data model can be applied to as if it were an independent test set.
+
+.. code-block:: python
+
+   from process_improve.multivariate import pseudo_validation_set
+
+   pv = pseudo_validation_set(X, y, n_components=2, random_state=0)
+   diagnostics = pv.global_model.diagnose(pv.X_pv)
+   alarm_rate = (diagnostics.spe > pv.global_model.spe_limit(0.95)).mean()
+
+For every row, the full-data model gives ``X_pv`` the row's fold-model SPE and its
+fold-model scores rescaled per component by the D ratio
+:math:`\mathbf{c}_{ka}^\top\mathbf{c}_a / \mathbf{c}_a^\top\mathbf{c}_a`. The SPE of
+``X_pv`` is therefore the row-wise cross-validated X residual. That residual
+decreases almost monotonically with the number of components (see the note on
+row-wise cross-validation of X above), so the pseudo-validation set is used for
+alarm rates against the full-data limits, not to choose the number of components
+from its SPE. See :doc:`permutation_nulls` for permutation tests of whether a model
+predicts anything at all.
+
 PLS Beta Coefficient Error Bars
 --------------------------------
 
