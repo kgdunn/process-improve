@@ -466,6 +466,13 @@ The third item of #374, double cross-validation for PLS, is already provided by
 
 ### Fixed
 
+- **The `ilp` and `all` extras hold `pulp` below 4.** pulp 4.0.0 (Python 3.12
+  and later) rebuilt its API on a Rust core: `LpVariable` takes a single core
+  variable, and `PULP_CBC_CMD` and `LpStatus` are gone. `solve_omars_ilp`, the ILP
+  path of `generate_omars`, uses all three, so a fresh install on Python 3.12 or
+  3.13 resolved pulp 4 and the solver raised `TypeError` on its first variable.
+  The extras now require `pulp>=2.8,<4` until the solver is ported.
+
 - **`PLS(tol=...)` is no longer dropped when the data has missing cells (#588).**
   The missing-data branch of the settings resolution hard-coded the NIPALS
   tolerance to `epsqrt` while taking the iteration cap from the constructor, so
