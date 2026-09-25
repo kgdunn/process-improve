@@ -17,7 +17,7 @@ import pytest
 from scipy.stats import chi2_contingency
 
 from process_improve.multivariate._common import SpecificationWarning
-from process_improve.multivariate.methods import CA
+from process_improve.multivariate.methods import CA, MCA
 
 
 @pytest.fixture
@@ -184,3 +184,178 @@ class TestApi:
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
             np.testing.assert_allclose(CA().fit_transform(smoke), CA().fit(smoke).row_coordinates_)
+
+
+# ---------------------------------------------------------------------------
+# MCA (#177)
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture
+def batches() -> pd.DataFrame:
+    """Categorical batch attributes with real associations: grade A goes with s1 and days."""
+    return pd.DataFrame(
+        {
+            "grade": list("AAAAABBBBCCCCCAB"),
+            "supplier": [
+                "s1",
+                "s1",
+                "s1",
+                "s2",
+                "s1",
+                "s2",
+                "s2",
+                "s1",
+                "s2",
+                "s3",
+                "s3",
+                "s3",
+                "s2",
+                "s3",
+                "s1",
+                "s3",
+            ],
+            "shift": [
+                *("day", "day", "day", "day", "night", "day", "night", "night", "day"),
+                *("night", "night", "night", "night", "day", "day", "night"),
+            ],
+        }
+    )
+
+
+class TestMCAAgainstReferences:
+    def test_eigenvalues_and_total_inertia(self, batches: pd.DataFrame) -> None:
+        """Total inertia of an indicator matrix is (J - Q) / Q whatever the data: here (8 - 3) / 3."""
+        mca = MCA(n_components=3).fit(batches)
+        np.testing.assert_allclose(mca.eigenvalues_, [0.72518, 0.472534, 0.261829], atol=1e-6)
+        assert mca.total_inertia_ == pytest.approx(5 / 3)
+
+    def test_coordinates_against_prince(self, batches: pd.DataFrame) -> None:
+        """The first three observations and the grade levels, against prince 0.21."""
+        mca = MCA(n_components=3).fit(batches)
+        rows = np.array([[-1.08248, -0.51280, -0.02134]] * 3)
+        signs = np.sign(np.sum(mca.row_coordinates_.to_numpy()[:3] * rows, axis=0))
+        np.testing.assert_allclose(mca.row_coordinates_.to_numpy()[:3] * signs, rows, atol=1e-5)
+        grades = np.array([[-1.09064, -0.54237, -0.03352], [0.14226, 1.23813, 0.58788], [1.16651, -0.58728, -0.54766]])
+        found = mca.column_coordinates_.loc[["grade=A", "grade=B", "grade=C"]].to_numpy()
+        np.testing.assert_allclose(found * signs, grades, atol=1e-5)
+
+    def test_only_j_minus_q_axes_carry_inertia(self, batches: pd.DataFrame) -> None:
+        """An indicator matrix has J - Q real axes; CA's null-axis rule must find exactly those."""
+        with pytest.warns(SpecificationWarning, match="has 5 with any inertia"):
+            assert MCA(n_components=7).fit(batches).n_components_ == 5
+
+
+class TestMCACorrections:
+    def test_benzecri_against_prince(self, batches: pd.DataFrame) -> None:
+        mca = MCA(n_components=3, correction="benzecri").fit(batches)
+        np.testing.assert_allclose(100 * mca.corrected_explained_inertia_, [88.7944, 11.2056, 0.0], atol=1e-4)
+
+    def test_greenacre_sums_over_every_axis(self, batches: pd.DataFrame) -> None:
+        """The adjusted total is the Burt matrix's inertia, a sum over *all* axes.
+
+        prince 0.21 sums only over the axes kept, which reports 87.85% here instead of
+        79.76% and makes the answer depend on ``n_components``. Computed directly from
+        Greenacre's formula instead, with every eigenvalue.
+        """
+        every = MCA(n_components=5).fit(batches).eigenvalues_
+        n_vars, n_levels = 3, 8
+        adjusted = np.where(every > 1 / n_vars, (n_vars / (n_vars - 1)) ** 2 * (every - 1 / n_vars) ** 2, 0.0)
+        total = n_vars / (n_vars - 1) * (np.sum(every**2) - (n_levels - n_vars) / n_vars**2)
+        mca = MCA(n_components=2, correction="greenacre").fit(batches)
+        np.testing.assert_allclose(mca.corrected_explained_inertia_, adjusted[:2] / total)
+        np.testing.assert_allclose(100 * mca.corrected_explained_inertia_, [79.7588, 10.0653], atol=1e-4)
+
+    @pytest.mark.parametrize("correction", ["benzecri", "greenacre"])
+    def test_a_correction_does_not_depend_on_how_many_axes_are_kept(
+        self, batches: pd.DataFrame, correction: str
+    ) -> None:
+        one = MCA(n_components=1, correction=correction).fit(batches)
+        three = MCA(n_components=3, correction=correction).fit(batches)
+        np.testing.assert_allclose(one.corrected_explained_inertia_, three.corrected_explained_inertia_[:1])
+
+    def test_unassociated_variables_give_zero_shares_not_nan(self) -> None:
+        """Every eigenvalue at or below 1/Q corrects to zero; prince divides that by zero and reports NaN."""
+        balanced = pd.DataFrame(
+            {
+                "grade": list("AABBCCABCABC"),
+                "supplier": ["s1", "s2"] * 6,
+                "shift": [
+                    "day",
+                    "day",
+                    "night",
+                    "night",
+                    "day",
+                    "night",
+                    "night",
+                    "day",
+                    "day",
+                    "night",
+                    "day",
+                    "night",
+                ],
+            }
+        )
+        mca = MCA(n_components=2, correction="benzecri").fit(balanced)
+        assert np.all(np.isfinite(mca.corrected_explained_inertia_))
+
+    def test_no_correction_keeps_the_raw_shares(self, batches: pd.DataFrame) -> None:
+        mca = MCA(n_components=2).fit(batches)
+        np.testing.assert_array_equal(mca.corrected_explained_inertia_, mca.explained_inertia_)
+
+    def test_unknown_correction_refused(self, batches: pd.DataFrame) -> None:
+        with pytest.raises(ValueError, match="correction must be one of"):
+            MCA(correction="burt").fit(batches)
+
+
+class TestMCASupplementary:
+    def test_transforming_the_fitted_data_gives_the_fitted_coordinates(self, batches: pd.DataFrame) -> None:
+        mca = MCA(n_components=3).fit(batches)
+        np.testing.assert_allclose(mca.transform(batches), mca.row_coordinates_)
+
+    def test_a_supplementary_outcome_lands_by_the_attributes_that_go_with_it(self, batches: pd.DataFrame) -> None:
+        """The issue's use case: which attribute combinations go with good and bad batches.
+
+        Here "good" is exactly the grade-A batches, so it must land on grade A, and it
+        must do so without having shaped the axes.
+        """
+        mca = MCA(n_components=2).fit(batches)
+        before = mca.row_coordinates_.copy()
+        outcome = pd.DataFrame({"outcome": np.where(batches["grade"] == "A", "good", "bad")})
+        placed = mca.transform_columns(outcome)
+        np.testing.assert_allclose(placed.loc["outcome=good"], mca.column_coordinates_.loc["grade=A"], atol=1e-10)
+        pd.testing.assert_frame_equal(mca.row_coordinates_, before)
+
+    def test_an_unseen_level_is_refused(self, batches: pd.DataFrame) -> None:
+        """Dropping it would leave the row's profile summing to less than one, misplacing it."""
+        mca = MCA().fit(batches)
+        new = batches.iloc[:1].copy()
+        new["grade"] = "Z"
+        with pytest.raises(ValueError, match=r"levels \['Z'\] that the model was not fitted on"):
+            mca.transform(new)
+
+    def test_the_variables_must_match(self, batches: pd.DataFrame) -> None:
+        with pytest.raises(ValueError, match="Expected the variables"):
+            MCA().fit(batches).transform(batches[["shift", "grade", "supplier"]])
+
+
+class TestMCAInputs:
+    def test_missing_values_are_refused_with_a_way_forward(self, batches: pd.DataFrame) -> None:
+        gapped = batches.copy()
+        gapped.iloc[2, 1] = None
+        with pytest.raises(ValueError, match="fill the gaps with an explicit level"):
+            MCA().fit(gapped)
+
+    def test_one_variable_is_refused(self, batches: pd.DataFrame) -> None:
+        with pytest.raises(ValueError, match="at least two categorical variables"):
+            MCA().fit(batches[["grade"]])
+
+    def test_levels_are_named_by_variable(self, batches: pd.DataFrame) -> None:
+        assert "supplier=s2" in MCA().fit(batches).column_coordinates_.index
+
+    def test_numeric_codes_are_treated_as_categories(self, batches: pd.DataFrame) -> None:
+        coded = batches.replace({"A": 1, "B": 2, "C": 3})
+        assert "grade=1" in MCA().fit(coded).column_coordinates_.index
+
+    def test_map_plot_is_inherited(self, batches: pd.DataFrame) -> None:
+        assert len(MCA().fit(batches).map_plot().data) == 2
