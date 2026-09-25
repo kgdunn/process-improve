@@ -883,6 +883,11 @@ def analyze_descriptive(  # noqa: PLR0913
         (default 1, ordinary leave-one-out). Raising it to 2 also demotes a
         correlation carried by a single pair of high-leverage observations, which
         leave-one-out cannot detect.
+    discriminator : bool or None
+        .. deprecated:: 1.77.0
+            Old spelling of ``find_predictive``. Kept for one release with the
+            same meaning; will be removed in 2.0.0. Passing both ``find_predictive``
+            and ``discriminator`` raises ``ValueError``.
 
     Returns
     -------
@@ -892,7 +897,8 @@ def analyze_descriptive(  # noqa: PLR0913
     Raises
     ------
     ValueError
-        If ``validated`` did not pass validation.
+        If ``validated`` did not pass validation, or if both ``find_predictive``
+        and the deprecated ``discriminator`` are supplied together.
     """
     if not validated.ok or validated.normalized_df is None or validated.covariates is None:
         raise ValueError(
