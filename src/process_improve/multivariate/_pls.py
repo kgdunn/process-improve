@@ -1561,7 +1561,7 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
         out-of-fold prediction error for every component count
         ``1, 2, ..., max_components``. Reports per-fold and pooled RMSECV plus
         the validated cumulative R² curves, and recommends a component count
-        from one of three rules (see ``selection_rule`` below).
+        from one of four rules (see ``selection_rule`` below).
 
         The defaults are the research-backed combination: the
         one-standard-error rule on top of repeated, shuffled K-fold CV, with

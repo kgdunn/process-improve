@@ -618,6 +618,16 @@ The third item of #374, double cross-validation for PLS, is already provided by
   `batch_dtw` dated Kassidas, MacGregor and Taylor to 2004; the DOI it cites
   is their 1998 AIChE Journal paper.
 
+- **A small audit swept up stale docstrings in the public API.**
+  `hotellings_t2_limit` now lists the `n_components < 0` case in its `Raises`
+  section (the code has raised on it for a while). `PLS.select_n_components`
+  said it "recommends a component count from one of three rules" but its
+  own `selection_rule` parameter lists four (`"1se"`, `"min"`,
+  `"q2_increment"`, `"randomization"`); the intro line now says four.
+  `analyze_descriptive` documents the deprecated `discriminator` keyword
+  it still accepts (renamed to `find_predictive` in v1.77.0), so a caller
+  reading `help()` sees the parameter that inspect shows.
+
 ### Tests
 
 - **`robust_regression` is now tested with pandas `Series` inputs (#213).** It
