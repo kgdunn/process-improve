@@ -466,6 +466,13 @@ The third item of #374, double cross-validation for PLS, is already provided by
 
 ### Fixed
 
+- **The `ilp` and `all` extras hold `pulp` below 4.** pulp 4.0.0 (Python 3.12
+  and later) rebuilt its API on a Rust core: `LpVariable` takes a single core
+  variable, and `PULP_CBC_CMD` and `LpStatus` are gone. `solve_omars_ilp`, the ILP
+  path of `generate_omars`, uses all three, so a fresh install on Python 3.12 or
+  3.13 resolved pulp 4 and the solver raised `TypeError` on its first variable.
+  The extras now require `pulp>=2.8,<4` until the solver is ported.
+
 - **`PLS(tol=...)` is no longer dropped when the data has missing cells (#588).**
   The missing-data branch of the settings resolution hard-coded the NIPALS
   tolerance to `epsqrt` while taking the iteration cap from the constructor, so
@@ -617,6 +624,22 @@ The third item of #374, double cross-validation for PLS, is already provided by
   columns than rows cannot supply, and was never what the function computed.
   `batch_dtw` dated Kassidas, MacGregor and Taylor to 2004; the DOI it cites
   is their 1998 AIChE Journal paper.
+
+- **Mid-course correction: literature attributions and two explanations
+  corrected against the sources and re-measured.** The docstrings of
+  `batch.control`, the simulator, the agent tools and recipe, and the
+  batch-control user guide now say what Flores-Cerrillo and MacGregor (2004),
+  Yabuki and MacGregor (1997), Garcia-Munoz, Kourti and MacGregor (2004) and
+  Golshan et al. (2010) did, and no longer say that published mid-course gains
+  are model predictions. The oracle-from-k gap is described as model error,
+  foresight (the oracle runs with each batch's own seed) and the corrector's
+  own limits, not model error alone; `optimal_trajectory` is described as a
+  multi-start local search, a lower bound on the true optimum. Late decision
+  points lose their gain because the model stops seeing the leverage, not
+  because the process loses it: the oracle still gains 1.6 g/L on the same
+  batches from day 7, and the user guide's sweep now shows the predicted,
+  executed and oracle gains side by side. The model's understated gains are no
+  longer attributed to regression toward the mean.
 
 ### Tests
 
