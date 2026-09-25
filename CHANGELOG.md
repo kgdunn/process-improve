@@ -13,6 +13,33 @@ those changes.
 
 ### Added
 
+- **`PLS(missing_data_settings={"md_method": "tsr"})` and `"pmp"`: fitting to incomplete
+  data by imputation (#189).** Both raised `NotImplementedError`. They now fill the
+  missing cells by EM on a principal-component model of X and Y *together*, refitted
+  every round from the completed data, and fit PLS once to the result. The default
+  `"nipals"` path, which skips missing cells rather than estimating them, is unchanged.
+
+  ```python
+  model = PLS(n_components=3, missing_data_settings={"md_method": "tsr"}).fit(X, Y)
+  model.fitting_info_["md_rounds"], model.fitting_info_["md_converged"]
+  ```
+
+  Measured against the model the complete data would have given, `"tsr"` lands 2.0 to
+  2.9 times closer than `"nipals"` on synthetic data with clear low-rank structure
+  (5-45% of cells missing at random), and 1.1 to 1.5 times closer on the LDPE process
+  data. The gain grows with how much of the data the components capture, since a
+  missing cell can only be rebuilt from what they describe.
+
+  The first implementation rebuilt the missing cells from the PLS model itself, and
+  about one fit in seven never converged. PLS chooses its components for their
+  covariance with Y rather than to reproduce X, so alternating "fit, rebuild" is not
+  an EM and nothing makes it settle; on LDPE it was also only a coin flip against
+  `"nipals"`. Imputing from the joint model converged on every fixture where that
+  cycled, was more accurate, and runs about 7.5 times faster.
+
+  MBPLS and MBPCA, the other half of #189, already fitted incomplete data through
+  their masked-NIPALS paths; that is verified, and needed no change.
+
 - **`PCA(tol=..., max_iter=...)` and `TPLS(tol=...)`: the loop settings are now
   constructor parameters (#588).** Six iterative estimators spelled their
   convergence tolerance and iteration cap five different ways, and these two were
