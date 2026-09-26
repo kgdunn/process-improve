@@ -131,6 +131,16 @@ class TestSupplementaryPoints:
         with pytest.raises(ValueError, match="sums to zero"):
             ca.transform(np.zeros((1, 4)))
 
+    @pytest.mark.parametrize("bad", [-1.0, np.nan, np.inf])
+    def test_supplementary_counts_must_be_finite_and_non_negative(self, smoke: pd.DataFrame, bad: float) -> None:
+        """A negative or missing count has no profile, and would silently distort one if let through."""
+        ca = CA().fit(smoke)
+        counts = np.array([[40.0, 10.0, 5.0, bad]])
+        with pytest.raises(ValueError, match="finite, non-negative"):
+            ca.transform(counts)
+        with pytest.raises(ValueError, match="finite, non-negative"):
+            ca.transform_columns(np.array([[1.0], [2.0], [3.0], [4.0], [bad]]))
+
 
 class TestDegenerateTables:
     def test_an_independent_table_is_explained_not_mapped(self) -> None:
@@ -471,6 +481,21 @@ class TestFAMDInputs:
         with pytest.raises(ValueError, match="constant"):
             FAMD().fit(batch_record.assign(setpoint=5.0))
 
+    def test_n_components_must_be_positive(self, batch_record: pd.DataFrame) -> None:
+        with pytest.raises(ValueError, match="at least 1"):
+            FAMD(n_components=0).fit(batch_record)
+
+    def test_a_table_with_no_variation_is_refused(self) -> None:
+        """Single-level categorical columns centre to exactly zero: there is nothing to analyse."""
+        with pytest.raises(ValueError, match="no variation"):
+            FAMD().fit(pd.DataFrame({"grade": ["A"] * 6, "supplier": ["s1"] * 6}))
+
+    def test_asking_for_more_axes_than_exist_warns_and_keeps_the_rest(self, batch_record: pd.DataFrame) -> None:
+        """Two numeric columns and two three-level ones span 2 + 2 + 2 = 6 axes."""
+        with pytest.warns(SpecificationWarning, match="keeping 6"):
+            famd = FAMD(n_components=50).fit(batch_record)
+        assert famd.n_components_ == 6
+
     def test_categorical_must_name_real_columns(self, batch_record: pd.DataFrame) -> None:
         with pytest.raises(ValueError, match="not in the data"):
             FAMD(categorical=["colour"]).fit(batch_record)
@@ -482,6 +507,10 @@ class TestFAMDInputs:
         unseen = batch_record.iloc[:1].assign(grade="Z")
         with pytest.raises(ValueError, match="not fitted on"):
             famd.transform(unseen)
+        gapped = batch_record.copy()
+        gapped.iloc[0, 0] = np.nan
+        with pytest.raises(ValueError, match="must not have missing values"):
+            famd.transform(gapped)
 
     def test_map_plot(self, batch_record: pd.DataFrame) -> None:
         fig = FAMD().fit(batch_record).map_plot()
