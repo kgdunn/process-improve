@@ -13,6 +13,32 @@ those changes.
 
 ### Added
 
+- **`GPA`: generalized Procrustes analysis for several configurations of the same
+  objects (#180).** A sensory panel scores the same products, each assessor on their
+  own use of the scale; two instruments measure the same parts in their own frames.
+  Their configurations differ by position, orientation and size, none of which says
+  anything about the objects. `GPA` removes exactly those differences (Gower 1975,
+  with ten Berge's optimal scaling) and reports what is left: a consensus, and a
+  residual for every object in every configuration.
+
+  ```python
+  configs = GPA.configurations_from_long(panel)   # a validated sensory panel
+  gpa = GPA().fit(configs)
+  gpa.residuals_.sum()                            # which assessor disagrees
+  gpa.scale_factors_                              # who uses a narrow range
+  gpa.consensus_test(random_state=0).p_value      # is there a consensus at all?
+  gpa.map_plot()
+  ```
+
+  The permutation test (Wakeling, Raats and MacFie 1992) matters because GPA always
+  finds a consensus: four configurations of pure noise share about half their
+  variation after alignment. On a synthetic panel with planted faults, the random
+  scorer has the largest residual, the assessor using 40% of the range the largest
+  scale factor, and a pair of swapped attribute words is absorbed as a reflection, on
+  all 20 seeds tried. With two configurations GPA's loss matches scipy's Procrustes
+  exactly, scaled and unscaled. Configurations may have different numbers of columns,
+  as free-choice profiling needs.
+
 - **`PCA(tol=..., max_iter=...)` and `TPLS(tol=...)`: the loop settings are now
   constructor parameters (#588).** Six iterative estimators spelled their
   convergence tolerance and iteration cap five different ways, and these two were
