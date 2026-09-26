@@ -25,6 +25,7 @@ Hall/CRC, 2017. The staff-by-smoking table used in the tests is his.
 from __future__ import annotations
 
 import warnings
+from collections.abc import Mapping
 
 import numpy as np
 import pandas as pd
@@ -843,6 +844,20 @@ class FAMD(TransformerMixin, BaseEstimator):
         return _map_plot(self, axis_x, axis_y, settings, "FAMD map")
 
 
+def _as_frame(X: DataMatrix | Mapping[str, pd.DataFrame]) -> pd.DataFrame:
+    """Return one frame from a frame, an array, or a dict of blocks that share their rows."""
+    if not isinstance(X, Mapping):
+        return X if isinstance(X, pd.DataFrame) else pd.DataFrame(np.asarray(X))
+    blocks = [pd.DataFrame(block) for block in X.values()]
+    if any(not block.index.equals(blocks[0].index) for block in blocks):
+        raise ValueError("Every block must have the same row index, in the same order.")
+    frame = pd.concat(blocks, axis=1)
+    repeated = frame.columns[frame.columns.duplicated()]
+    if len(repeated):
+        raise ValueError(f"Column names must be unique across blocks; {sorted(map(str, set(repeated)))} repeat.")
+    return frame
+
+
 class MFA(TransformerMixin, BaseEstimator):
     r"""Multiple factor analysis: one balanced analysis of several groups of variables.
 
@@ -860,13 +875,18 @@ class MFA(TransformerMixin, BaseEstimator):
     observation's partial points shows how much its blocks disagree about it.
 
     :class:`~process_improve.multivariate.methods.MBPCA` answers a related question
-    with a different weighting: block width rather than first eigenvalue.
+    with a different weighting: it gives each block the same *total* inertia, where MFA
+    gives each block's *leading direction* the same inertia. The two agree exactly when
+    every block's first eigenvalue is the same share of its total, as it is for
+    one-dimensional blocks.
 
     Parameters
     ----------
-    groups : dict[str, list[str]]
-        Group name to the columns in it. Every column must be numeric and appear in
-        exactly one group; columns in no group are ignored.
+    groups : dict[str, list[str]], optional
+        Group name to the columns in it, when the data comes as one frame. Every
+        column must be numeric and appear in exactly one group; columns in no group
+        are ignored. Leave it out to pass the data as a dict of blocks instead, the
+        form :class:`~process_improve.multivariate.methods.MBPCA` takes.
     n_components : int, optional
         Number of axes to keep, default 2.
     scale : bool, optional
@@ -884,6 +904,8 @@ class MFA(TransformerMixin, BaseEstimator):
         Sum over every axis.
     explained_inertia_ : np.ndarray of shape (n_components,)
         Share of the total inertia on each kept axis.
+    groups_ : dict[str, list[str]]
+        The groups used: ``groups``, or the blocks' names and columns.
     group_weights_ : pd.Series
         The weight each group's columns were multiplied by: one over its first
         eigenvalue.
@@ -910,21 +932,34 @@ class MFA(TransformerMixin, BaseEstimator):
     Examples
     --------
     >>> mfa = MFA({"spectra": wavelengths, "lab": assays}).fit(batches)   # doctest: +SKIP
+    >>> mfa = MFA().fit({"spectra": spectra, "lab": lab})     # as for MBPCA   # doctest: +SKIP
     >>> mfa.eigenvalues_[0]        # near 2 means both blocks agree        # doctest: +SKIP
     >>> mfa.group_coordinates_                                            # doctest: +SKIP
     """
 
-    def __init__(self, groups: dict[str, list[str]], n_components: int = 2, scale: bool = True):
+    def __init__(self, groups: dict[str, list[str]] | None = None, n_components: int = 2, scale: bool = True):
         self.groups = groups
         self.n_components = n_components
         self.scale = scale
 
+    def _resolve_groups(self, X: DataMatrix | Mapping[str, pd.DataFrame]) -> dict[str, list[str]]:
+        """Take the groups from a dict of blocks, or from ``groups``, but never from both."""
+        if isinstance(X, Mapping):
+            if self.groups is not None:
+                raise ValueError("Pass either a dict of blocks or groups=, not both.")
+            return {name: list(pd.DataFrame(block).columns) for name, block in X.items()}
+        if self.groups is None:
+            raise ValueError("Say which columns form each group with groups=, or pass a dict of blocks.")
+        if not isinstance(self.groups, dict):
+            raise TypeError(f"groups must be a dict of group name to column names; got {type(self.groups).__name__}.")
+        return {name: list(columns) for name, columns in self.groups.items()}
+
     def _check_groups(self, frame: pd.DataFrame) -> None:
         """Refuse groups that overlap, name missing columns, hold non-numeric data, or are empty."""
-        if not isinstance(self.groups, dict) or len(self.groups) < 2:
-            raise ValueError("groups must be a dict with at least two groups; with one, MFA is just a PCA.")
+        if len(self.groups_) < 2:
+            raise ValueError("MFA needs at least two groups; with one, it is just a PCA.")
         seen: dict[str, str] = {}
-        for name, columns in self.groups.items():
+        for name, columns in self.groups_.items():
             if not columns:
                 raise ValueError(f"Group {name!r} has no columns.")
             for column in columns:
@@ -941,7 +976,7 @@ class MFA(TransformerMixin, BaseEstimator):
 
     def _group_block(self, frame: pd.DataFrame, name: str) -> np.ndarray:
         """Centre (and scale) one group's columns with the fitted statistics, then weight it."""
-        values = frame[self.groups[name]].to_numpy(dtype=float)
+        values = frame[self.groups_[name]].to_numpy(dtype=float)
         centred = (values - self._means[name]) / self._spreads[name]
         return centred * np.sqrt(self.group_weights_[name])
 
@@ -949,7 +984,7 @@ class MFA(TransformerMixin, BaseEstimator):
         """Store each group's centre and spread, and weight it by one over its first eigenvalue."""
         self._means, self._spreads = {}, {}
         weights = {}
-        for name, columns in self.groups.items():
+        for name, columns in self.groups_.items():
             values = frame[columns].to_numpy(dtype=float)
             self._means[name] = values.mean(axis=0)
             spread = values.std(axis=0) if self.scale else np.ones(values.shape[1])
@@ -983,8 +1018,9 @@ class MFA(TransformerMixin, BaseEstimator):
 
         Parameters
         ----------
-        X : pd.DataFrame of shape (n_observations, n_columns)
-            The observations; column names must match those in ``groups``.
+        X : pd.DataFrame of shape (n_observations, n_columns), or dict[str, pd.DataFrame]
+            One frame whose column names match those in ``groups``, or a dict of
+            blocks with the same row index, one per group.
         y : ignored
             Accepted for :class:`~sklearn.pipeline.Pipeline` compatibility.
 
@@ -996,19 +1032,23 @@ class MFA(TransformerMixin, BaseEstimator):
         Raises
         ------
         ValueError
-            If the groups are invalid, a cell is missing, ``n_components`` is not
-            positive, or a group has no variation.
+            If the groups are invalid or missing, the blocks do not share their rows,
+            a cell is missing, ``n_components`` is not positive, or a group has no
+            variation.
+        TypeError
+            If ``groups`` is given but is not a dict.
         """
         if int(self.n_components) < 1:
             raise ValueError(f"n_components must be at least 1; got {self.n_components}.")
-        frame = X if isinstance(X, pd.DataFrame) else pd.DataFrame(np.asarray(X))
+        self.groups_ = self._resolve_groups(X)
+        frame = _as_frame(X)
         self._check_groups(frame)
-        used = [column for columns in self.groups.values() for column in columns]
+        used = [column for columns in self.groups_.values() for column in columns]
         if frame[used].isna().any().any():
             raise ValueError("MFA needs complete data; impute or drop the rows with missing values first.")
 
         self._weigh_groups(frame)
-        blocks = {name: self._group_block(frame, name) for name in self.groups}
+        blocks = {name: self._group_block(frame, name) for name in self.groups_}
         combined = np.hstack(list(blocks.values()))
         left, singular, right_t = np.linalg.svd(combined / np.sqrt(len(frame)), full_matrices=False)
         eigenvalues = singular**2
@@ -1035,7 +1075,7 @@ class MFA(TransformerMixin, BaseEstimator):
 
         # A column's loading, undone of its group's weight and scaled to the axis's
         # spread: for standardised columns, its correlation with the axis.
-        column_weights = self.group_weights_.to_numpy().repeat([len(c) for c in self.groups.values()])
+        column_weights = self.group_weights_.to_numpy().repeat([len(c) for c in self.groups_.values()])
         self.column_coordinates_ = pd.DataFrame(
             self._loadings * singular[:keep] / np.sqrt(column_weights)[:, np.newaxis], index=used, columns=axes
         )
@@ -1047,8 +1087,9 @@ class MFA(TransformerMixin, BaseEstimator):
 
         Parameters
         ----------
-        X : pd.DataFrame
-            Observations with every column the groups name.
+        X : pd.DataFrame, or dict[str, pd.DataFrame]
+            Observations with every column the groups name, in either of the forms
+            :meth:`fit` takes.
 
         Returns
         -------
@@ -1061,14 +1102,14 @@ class MFA(TransformerMixin, BaseEstimator):
             If a grouped column is absent or a cell is missing.
         """
         check_is_fitted(self, "row_coordinates_")
-        frame = X if isinstance(X, pd.DataFrame) else pd.DataFrame(np.asarray(X))
-        used = [column for columns in self.groups.values() for column in columns]
+        frame = _as_frame(X)
+        used = [column for columns in self.groups_.values() for column in columns]
         missing = [column for column in used if column not in frame.columns]
         if missing:
             raise ValueError(f"New observations lack the columns {missing}.")
         if frame[used].isna().any().any():
             raise ValueError("New observations must not have missing values.")
-        combined = np.hstack([self._group_block(frame, name) for name in self.groups])
+        combined = np.hstack([self._group_block(frame, name) for name in self.groups_])
         return pd.DataFrame(combined @ self._loadings, index=frame.index, columns=self.row_coordinates_.columns)
 
     def map_plot(self, axis_x: int = 1, axis_y: int = 2, settings: dict | None = None) -> go.Figure:

@@ -24,6 +24,7 @@ those changes.
 
   ```python
   mfa = MFA({"spectra": wavelengths, "lab": assays}).fit(batches)
+  mfa = MFA().fit({"spectra": spectra, "lab": lab})   # or MBPCA's dict of blocks
   mfa.eigenvalues_[0]            # between 1 and the number of groups
   mfa.group_coordinates_         # which group each axis belongs to
   mfa.partial_row_coordinates_   # where each group alone places each sample
@@ -34,6 +35,10 @@ those changes.
   position is the average of its per-group partial positions, so their spread shows
   where the blocks disagree about it. Because the weight divides each group's own size
   back out, even an unscaled analysis is unchanged when one group changes units.
+  `MBPCA` balances blocks differently: it gives each block the same *total* inertia,
+  where MFA gives each block's *leading direction* the same inertia. The two agree
+  exactly when every block's leading direction holds the same share of that block's
+  inertia (one-dimensional blocks, for instance), and the tests check that they do.
   Checked against `prince` (eigenvalues, row and partial coordinates) and against
   those identities.
 
