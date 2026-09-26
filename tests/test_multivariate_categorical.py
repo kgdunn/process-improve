@@ -17,7 +17,7 @@ import pytest
 from scipy.stats import chi2_contingency
 
 from process_improve.multivariate._common import SpecificationWarning
-from process_improve.multivariate.methods import CA, FAMD, MCA, MFA
+from process_improve.multivariate.methods import CA, FAMD, MBPCA, MCA, MFA
 
 
 @pytest.fixture
@@ -584,6 +584,38 @@ class TestMFABalancesTheGroups:
             assert mfa.group_weights_[name] == pytest.approx(1 / leading)
 
 
+class TestMFAAgainstMBPCA:
+    def test_the_two_weightings_agree_when_blocks_share_their_first_eigenvalue_share(self) -> None:
+        """MBPCA divides a block by its width, MFA by its first eigenvalue: equal when their ratio is.
+
+        Both blocks here have eigenvalues 3 and 1 over four columns, so the leading
+        direction holds 75% of each and the two weightings differ by one constant.
+        MBPCA's NIPALS and MFA's SVD are independent implementations, so agreeing to
+        rounding error checks each against the other.
+        """
+        rng = np.random.default_rng(1)
+
+        def centred(values: np.ndarray) -> np.ndarray:
+            return values - values.mean()
+
+        def orthogonal_to(values: np.ndarray, other: np.ndarray) -> np.ndarray:
+            values, other = centred(values), centred(other)
+            return values - (values @ other) / (other @ other) * other
+
+        first = centred(rng.normal(size=50))
+        second = centred(0.7 * first + rng.normal(size=50))
+        blocks = {
+            "a": pd.DataFrame({"a0": first, "a1": first, "a2": first, "a3": orthogonal_to(rng.normal(size=50), first)}),
+            "b": pd.DataFrame(
+                {"b0": second, "b1": second, "b2": second, "b3": orthogonal_to(rng.normal(size=50), second)}
+            ),
+        }
+        mbpca = MBPCA(n_components=2).fit(blocks).super_scores_.to_numpy()
+        mfa = MFA(n_components=2).fit(blocks).row_coordinates_.to_numpy()
+        for axis in range(2):
+            assert abs(np.corrcoef(mbpca[:, axis], mfa[:, axis])[0, 1]) == pytest.approx(1.0, abs=1e-9)
+
+
 class TestMFAIdentities:
     def test_each_observation_is_the_mean_of_its_partial_points(self, blocks: pd.DataFrame) -> None:
         mfa = MFA(GROUPS, n_components=3).fit(blocks)
@@ -651,6 +683,33 @@ class TestMFAInputs:
     def test_invalid_groups_are_refused(self, blocks: pd.DataFrame, groups: dict, message: str) -> None:
         with pytest.raises(ValueError, match=message):
             MFA(groups).fit(blocks)
+
+    def test_a_dict_of_blocks_gives_the_same_fit_as_one_frame_with_groups(self, blocks: pd.DataFrame) -> None:
+        """The MBPCA input form, so the two weightings can be compared on the same data."""
+        as_blocks = {name: blocks[columns] for name, columns in GROUPS.items()}
+        from_blocks, from_groups = MFA().fit(as_blocks), MFA(GROUPS).fit(blocks)
+        assert from_blocks.groups_ == GROUPS
+        np.testing.assert_allclose(from_blocks.eigenvalues_, from_groups.eigenvalues_)
+        np.testing.assert_allclose(from_blocks.transform(as_blocks), from_groups.row_coordinates_)
+
+    def test_blocks_and_groups_together_are_refused(self, blocks: pd.DataFrame) -> None:
+        with pytest.raises(ValueError, match="not both"):
+            MFA(GROUPS).fit({name: blocks[columns] for name, columns in GROUPS.items()})
+
+    def test_one_frame_needs_groups(self, blocks: pd.DataFrame) -> None:
+        with pytest.raises(ValueError, match="groups="):
+            MFA().fit(blocks)
+        with pytest.raises(TypeError, match="must be a dict"):
+            MFA([GROUPS["spectra"], GROUPS["lab"]]).fit(blocks)
+
+    def test_blocks_must_share_their_rows(self, blocks: pd.DataFrame) -> None:
+        shuffled = blocks[GROUPS["lab"]].iloc[::-1]
+        with pytest.raises(ValueError, match="same row index"):
+            MFA().fit({"spectra": blocks[GROUPS["spectra"]], "lab": shuffled})
+
+    def test_column_names_must_be_unique_across_blocks(self, blocks: pd.DataFrame) -> None:
+        with pytest.raises(ValueError, match="unique across blocks"):
+            MFA().fit({"a": blocks[["spec1", "spec2"]], "b": blocks[["spec2", "lab1"]]})
 
     def test_a_categorical_column_points_to_famd(self, blocks: pd.DataFrame) -> None:
         with_grade = blocks.assign(grade=list("ABABABABABAB"))
