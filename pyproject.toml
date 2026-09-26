@@ -80,8 +80,11 @@ mcp = ["mcp>=2.0"]
 fast = ["numba>=0.63.1"]
 
 # Integer-programming OMARS design generator (generate_omars). PuLP bundles the
-# CBC solver in its wheels, so no system package is required.
-ilp = ["pulp>=2.8"]
+# CBC solver in its wheels, so no system package is required. Held below 4:
+# pulp 4.0 rebuilt its API on a Rust core (``LpVariable`` takes a single core
+# variable; ``PULP_CBC_CMD`` and ``LpStatus`` are gone), and designs_omars_ilp
+# is not yet ported to it.
+ilp = ["pulp>=2.8,<4"]
 
 # Mid-course correction QP solver (batch.control). osqp ships prebuilt wheels
 # for every platform CI tests, so no system package is required.
@@ -104,7 +107,7 @@ all = [
     "openpyxl>=3.1.5",
     "osqp>=1.0",
     "plotly>=6.5.2",
-    "pulp>=2.8",
+    "pulp>=2.8,<4",
     "pyDOE3>=1.0",
     "ridgeplot>=0.5.0",
     "scikit-image>=0.25.2",
