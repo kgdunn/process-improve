@@ -141,3 +141,28 @@ jobs:
       # Strip the default --cov / --pdb / -n auto / --exitfirst options;
       # for -O detection we want the full failure surface, not the first one.
       run: uv run python -O -m pytest -o "addopts=" -v --tb=short
+
+  test-free-threaded:
+    # Free-threaded CPython (PEP 703), #43. Every dependency ships wheels for it,
+    # numba included since 0.67, so the package installs and the whole suite runs.
+    # pandas 2.x's parser extension does not yet declare free-threading support,
+    # so importing pandas would turn the GIL back on; PYTHON_GIL=0 keeps it off, so
+    # this job exercises the package the way a free-threaded user runs it.
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v7
+    - name: Set up the project environment
+      uses: ./.github/actions/setup-env
+      with:
+        python-version: "3.14t"
+    - name: Check that the interpreter is the free-threaded build
+      run: >-
+        uv run python -c "import sys, sysconfig;
+        free = sysconfig.get_config_var('Py_GIL_DISABLED');
+        print(sys.version); sys.exit(0 if free else 'not a free-threaded build')"
+    - name: Test with pytest, without the GIL
+      env:
+        PYTHON_GIL: "0"
+      # Coverage is gated in the main matrix; here the question is only whether
+      # everything passes.
+      run: uv run pytest --no-cov
