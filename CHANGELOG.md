@@ -13,6 +13,27 @@ those changes.
 
 ### Added
 
+- **`FAMD`: factor analysis of mixed numeric and categorical data (#178).** Real
+  process records mix continuous readings with categorical context (grade, supplier,
+  line, shift). Until now a user could drop the categorical columns and lose them, or
+  one-hot encode them by hand into a PCA, where they end up over- or under-weighted
+  against the numeric ones, because PCA has no notion of balancing the two. `FAMD`
+  gives every variable an equal say: a numeric column contributes an inertia of 1 and a
+  categorical column with k levels contributes k - 1, exactly as in MCA.
+
+  ```python
+  famd = FAMD(n_components=2, categorical=["line"]).fit(batch_record)
+  famd.explained_inertia_, famd.column_coordinates_
+  famd.map_plot()
+  ```
+
+  Checked against `prince` and against the two identities the method is defined by:
+  with every column numeric it is exactly PCA of the correlation matrix, and with every
+  column categorical its eigenvalues are exactly Q times MCA's, which cross-checks it
+  against `MCA` from an independent derivation. Numeric codes for categories (a line
+  numbered 1, 2, 3) can be declared with `categorical=`, since left numeric they would
+  be scaled as a quantity.
+
 - **`MCA`: multiple correspondence analysis for categorical variables (#177).** Batch
   records carry categorical attributes (grade, supplier, line, shift), and audits,
   checklists and failure logs are almost entirely categorical; the multivariate module

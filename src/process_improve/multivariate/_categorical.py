@@ -1,5 +1,5 @@
 # (c) Kevin Dunn, 2010-2026. MIT License. Based on own private work over the years.
-"""Latent-variable methods for categorical and count data (#176, #177).
+"""Latent-variable methods for categorical and count data (#176, #177, #178).
 
 Every other method in :mod:`process_improve.multivariate` assumes a continuous
 numeric matrix. Count data is everywhere in quality work nevertheless: defect type
@@ -359,57 +359,62 @@ class CA(TransformerMixin, BaseEstimator):
         ValueError
             If an axis is outside ``1 .. n_components_``.
         """
-        check_is_fitted(self, "row_coordinates_")
+        return _map_plot(self, axis_x, axis_y, settings, "Correspondence analysis map")
 
-        class Settings(BaseModel):
-            """Validated display settings for the correspondence analysis map."""
 
-            title: str = "Correspondence analysis map"
-            row_color: str | None = None
-            column_color: str | None = None
-            html_image_height: float = 600.0
-            html_aspect_ratio_w_over_h: float = 1.0
-            template: str = DEFAULT_THEME
+def _map_plot(model: CA | FAMD, axis_x: int, axis_y: int, settings: dict | None, default_title: str) -> go.Figure:
+    """Plot a fitted model's row and column coordinates on one pair of axes, at a 1:1 ratio."""
+    check_is_fitted(model, "row_coordinates_")
 
-        setdict = Settings(**(settings or {})).model_dump()
-        for axis in (axis_x, axis_y):
-            if not 1 <= axis <= self.n_components_:
-                raise ValueError(f"Axes run from 1 to {self.n_components_}; got {axis}.")
+    class Settings(BaseModel):
+        """Validated display settings for a categorical-methods map."""
 
-        fig = go.Figure()
-        for frame, name, colour, symbol in (
-            (self.row_coordinates_, "rows", setdict["row_color"], "circle"),
-            (self.column_coordinates_, "columns", setdict["column_color"], "triangle-up"),
-        ):
-            fig.add_trace(
-                go.Scatter(
-                    x=frame[axis_x],
-                    y=frame[axis_y],
-                    mode="markers+text",
-                    text=[str(label) for label in frame.index],
-                    textposition="top center",
-                    name=name,
-                    marker={"color": colour, "symbol": symbol, "size": 10},
-                    hovertemplate="%{text}: (%{x:.3f}, %{y:.3f})<extra>" + name + "</extra>",
-                )
+        title: str = default_title
+        row_color: str | None = None
+        column_color: str | None = None
+        html_image_height: float = 600.0
+        html_aspect_ratio_w_over_h: float = 1.0
+        template: str = DEFAULT_THEME
+
+    setdict = Settings(**(settings or {})).model_dump()
+    for axis in (axis_x, axis_y):
+        if not 1 <= axis <= model.n_components_:
+            raise ValueError(f"Axes run from 1 to {model.n_components_}; got {axis}.")
+
+    fig = go.Figure()
+    for frame, name, colour, symbol in (
+        (model.row_coordinates_, "rows", setdict["row_color"], "circle"),
+        (model.column_coordinates_, "columns", setdict["column_color"], "triangle-up"),
+    ):
+        fig.add_trace(
+            go.Scatter(
+                x=frame[axis_x],
+                y=frame[axis_y],
+                mode="markers+text",
+                text=[str(label) for label in frame.index],
+                textposition="top center",
+                name=name,
+                marker={"color": colour, "symbol": symbol, "size": 10},
+                hovertemplate="%{text}: (%{x:.3f}, %{y:.3f})<extra>" + name + "</extra>",
             )
-        share = 100 * self.explained_inertia_
-        fig.update_layout(
-            template=setdict["template"],
-            title_text=setdict["title"],
-            xaxis={"title_text": f"Axis {axis_x} ({share[axis_x - 1]:.1f}% of inertia)", "zeroline": True},
-            # Equal scaling: distances on this map are the point of it, so neither axis
-            # may be stretched relative to the other.
-            yaxis={
-                "title_text": f"Axis {axis_y} ({share[axis_y - 1]:.1f}% of inertia)",
-                "zeroline": True,
-                "scaleanchor": "x",
-                "scaleratio": 1,
-            },
-            width=setdict["html_aspect_ratio_w_over_h"] * setdict["html_image_height"],
-            height=setdict["html_image_height"],
         )
-        return fig
+    share = 100 * model.explained_inertia_
+    fig.update_layout(
+        template=setdict["template"],
+        title_text=setdict["title"],
+        xaxis={"title_text": f"Axis {axis_x} ({share[axis_x - 1]:.1f}% of inertia)", "zeroline": True},
+        # Equal scaling: distances on this map are the point of it, so neither axis may
+        # be stretched relative to the other.
+        yaxis={
+            "title_text": f"Axis {axis_y} ({share[axis_y - 1]:.1f}% of inertia)",
+            "zeroline": True,
+            "scaleanchor": "x",
+            "scaleratio": 1,
+        },
+        width=setdict["html_aspect_ratio_w_over_h"] * setdict["html_image_height"],
+        height=setdict["html_image_height"],
+    )
+    return fig
 
 
 #: Eigenvalue corrections :class:`MCA` offers, by name.
@@ -611,3 +616,228 @@ class MCA(CA):
         check_is_fitted(self, "variables_")
         frame = X if isinstance(X, pd.DataFrame) else pd.DataFrame(np.asarray(X))
         return super().transform_columns(_indicator(frame))
+
+
+class FAMD(TransformerMixin, BaseEstimator):
+    r"""Factor analysis of mixed data: one analysis of numeric and categorical columns together.
+
+    Real process records mix continuous readings (temperature, pressure, flow) with
+    categorical context (grade, supplier, line, shift). A PCA cannot take the
+    categorical columns without one-hot encoding them by hand, after which they are
+    over- or under-weighted against the numeric ones, because PCA has no notion of
+    balancing the two. FAMD gives every variable an equal say: each numeric column
+    is standardised, so it contributes an inertia of 1, and each categorical column
+    with :math:`k` levels contributes :math:`k - 1`, exactly as it would in MCA.
+
+    Concretely the numeric columns are centred and scaled to unit (population)
+    variance, each level's indicator :math:`\delta` becomes
+    :math:`\delta / \sqrt{p} - \sqrt{p}` for a level of frequency :math:`p`, and the
+    combined matrix :math:`Z` is decomposed as :math:`Z / \sqrt{n} = U S V^T`. FAMD
+    is exactly PCA of the correlation matrix when every column is numeric, and
+    exactly MCA (eigenvalues scaled by :math:`Q`) when every column is categorical.
+
+    Parameters
+    ----------
+    n_components : int, optional
+        Number of axes to keep, default 2.
+    categorical : list of str, optional
+        Columns to treat as categorical even though they are numeric, such as a line
+        or shift coded 1, 2, 3. Without it, numeric dtypes are numeric and everything
+        else (strings, categoricals, booleans) is categorical.
+
+    Attributes
+    ----------
+    n_components_ : int
+        Axes actually kept.
+    eigenvalues_ : np.ndarray of shape (n_components,)
+        Inertia of each kept axis.
+    total_inertia_ : float
+        Numeric columns plus, for each categorical column, its levels minus one.
+    explained_inertia_ : np.ndarray of shape (n_components,)
+        Share of the total inertia on each kept axis.
+    numeric_, categorical_ : list[str]
+        How each column was treated.
+    row_coordinates_ : pd.DataFrame
+        One row per observation, one column per axis.
+    column_coordinates_ : pd.DataFrame
+        One row per numeric column and per categorical level (``"variable=level"``):
+        for a numeric column, its correlation with the axis.
+    row_contributions_, column_contributions_ : pd.DataFrame
+        Share of each axis's inertia from each observation, and from each numeric
+        column or level; each column sums to 1.
+    row_cos2_ : pd.DataFrame
+        Share of each observation's own inertia each axis represents.
+
+    References
+    ----------
+    J. Pages, "Analyse factorielle de donnees mixtes", Revue de Statistique Appliquee,
+    52 (2004), 93-111.
+
+    Examples
+    --------
+    >>> famd = FAMD(n_components=2, categorical=["line"]).fit(batch_record)  # doctest: +SKIP
+    >>> famd.explained_inertia_                                              # doctest: +SKIP
+    >>> famd.map_plot()                                                      # doctest: +SKIP
+    """
+
+    def __init__(self, n_components: int = 2, categorical: list[str] | None = None):
+        self.n_components = n_components
+        self.categorical = categorical
+
+    def _split(self, frame: pd.DataFrame) -> tuple[list[str], list[str]]:
+        """Decide which columns are numeric and which categorical."""
+        forced = [str(c) for c in (self.categorical or [])]
+        unknown = sorted(set(forced) - {str(c) for c in frame.columns})
+        if unknown:
+            raise ValueError(f"categorical names columns that are not in the data: {unknown}.")
+        numeric_dtype = frame.select_dtypes(include="number").columns
+        numeric = [str(c) for c in frame.columns if c in numeric_dtype and str(c) not in forced]
+        categorical = [str(c) for c in frame.columns if str(c) not in numeric]
+        return numeric, categorical
+
+    def _transformed(self, frame: pd.DataFrame) -> np.ndarray:
+        """Apply the fitted standardisation and level weighting to ``frame``."""
+        blocks = []
+        if self.numeric_:
+            values = frame[self.numeric_].to_numpy(dtype=float)
+            blocks.append((values - self._means) / self._spreads)
+        if self.categorical_:
+            indicator = _indicator(frame[self.categorical_].astype(str), self._levels).to_numpy()
+            blocks.append(indicator / np.sqrt(self._frequencies) - np.sqrt(self._frequencies))
+        return np.hstack(blocks)
+
+    def fit(self, X: DataMatrix, y: object = None) -> FAMD:  # noqa: ARG002
+        """Fit to a table mixing numeric and categorical columns.
+
+        Parameters
+        ----------
+        X : pd.DataFrame of shape (n_observations, n_columns)
+            The mixed table.
+        y : ignored
+            Accepted for :class:`~sklearn.pipeline.Pipeline` compatibility.
+
+        Returns
+        -------
+        FAMD
+            ``self``, fitted.
+
+        Raises
+        ------
+        ValueError
+            If ``n_components`` is not positive, a cell is missing, a numeric column
+            is constant, or ``categorical`` names a column that is not there.
+        """
+        if int(self.n_components) < 1:
+            raise ValueError(f"n_components must be at least 1; got {self.n_components}.")
+        frame = X if isinstance(X, pd.DataFrame) else pd.DataFrame(np.asarray(X))
+        frame = frame.set_axis([str(c) for c in frame.columns], axis=1)
+        if frame.isna().any().any():
+            raise ValueError(
+                f"Columns {frame.columns[frame.isna().any()].tolist()} have missing values. Impute the numeric "
+                "ones, give the categorical ones an explicit level, or drop those rows."
+            )
+        self.numeric_, self.categorical_ = self._split(frame)
+
+        if self.numeric_:
+            values = frame[self.numeric_].to_numpy(dtype=float)
+            self._means = values.mean(axis=0)
+            # Population variance, so that each standardised column carries an inertia of
+            # exactly 1: that is what puts a numeric column on the same footing as a level.
+            self._spreads = values.std(axis=0)
+            constant = [name for name, s in zip(self.numeric_, self._spreads, strict=True) if s == 0]
+            if constant:
+                raise ValueError(f"Numeric columns {constant} are constant, so they carry no information. Drop them.")
+        if self.categorical_:
+            categories = frame[self.categorical_].astype(str)
+            self._levels = {column: sorted(categories[column].unique()) for column in self.categorical_}
+            self._frequencies = _indicator(categories, self._levels).to_numpy().mean(axis=0)
+
+        transformed = self._transformed(frame)
+        n_rows = transformed.shape[0]
+        left, singular, right_t = np.linalg.svd(transformed / np.sqrt(n_rows), full_matrices=False)
+        eigenvalues = singular**2
+        rank = int(np.sum(eigenvalues > _NULL_INERTIA))
+        if rank == 0:
+            raise ValueError("The table has no variation to analyse: every observation is the same.")
+        left, right = _flip_signs(left[:, :rank], right_t.T[:, :rank])
+
+        keep = int(self.n_components)
+        if keep > rank:
+            warnings.warn(
+                f"Asked for {keep} axes, but this table has {rank} with any inertia; keeping {rank}.",
+                SpecificationWarning,
+                stacklevel=2,
+            )
+            keep = rank
+
+        column_names = [*self.numeric_, *[f"{c}={level}" for c in self.categorical_ for level in self._levels[c]]]
+        axes = list(range(1, keep + 1))
+        all_rows = transformed @ right
+        self.n_components_ = keep
+        self.eigenvalues_ = eigenvalues[:keep]
+        self.total_inertia_ = float(eigenvalues.sum())
+        self.explained_inertia_ = self.eigenvalues_ / self.total_inertia_
+        self.row_coordinates_ = pd.DataFrame(all_rows[:, :keep], index=frame.index, columns=axes)
+        self.column_coordinates_ = pd.DataFrame(right[:, :keep] * singular[:keep], index=column_names, columns=axes)
+        self.row_contributions_ = pd.DataFrame(
+            all_rows[:, :keep] ** 2 / n_rows / self.eigenvalues_, index=frame.index, columns=axes
+        )
+        self.column_contributions_ = pd.DataFrame(right[:, :keep] ** 2, index=column_names, columns=axes)
+        self.row_cos2_ = pd.DataFrame(
+            all_rows[:, :keep] ** 2 / np.maximum((all_rows**2).sum(axis=1, keepdims=True), np.finfo(float).tiny),
+            index=frame.index,
+            columns=axes,
+        )
+        self._loadings = right[:, :keep]
+        self._columns = list(frame.columns)
+        return self
+
+    def transform(self, X: DataMatrix) -> pd.DataFrame:
+        """Place new observations on the fitted map.
+
+        Parameters
+        ----------
+        X : pd.DataFrame
+            The same columns as the fit, with levels the fit has seen.
+
+        Returns
+        -------
+        pd.DataFrame
+            One row per observation, one column per axis.
+
+        Raises
+        ------
+        ValueError
+            If the columns differ from the fit's, or a level is unseen or missing.
+        """
+        check_is_fitted(self, "row_coordinates_")
+        frame = X if isinstance(X, pd.DataFrame) else pd.DataFrame(np.asarray(X))
+        frame = frame.set_axis([str(c) for c in frame.columns], axis=1)
+        if list(frame.columns) != self._columns:
+            raise ValueError(f"Expected the columns {self._columns}; got {list(frame.columns)}.")
+        if frame.isna().any().any():
+            raise ValueError("New observations must not have missing values.")
+        return pd.DataFrame(
+            self._transformed(frame) @ self._loadings, index=frame.index, columns=self.row_coordinates_.columns
+        )
+
+    def map_plot(self, axis_x: int = 1, axis_y: int = 2, settings: dict | None = None) -> go.Figure:
+        """Draw observations and variables on one pair of axes.
+
+        The column points are numeric columns (their correlations with the axes, so
+        inside the unit circle) and categorical levels; the observations spread
+        wider. Read a numeric column's direction, not its distance from an
+        observation.
+
+        Parameters
+        ----------
+        axis_x, axis_y : int, optional
+            The axes to plot, counted from 1. Defaults 1 and 2.
+        settings : dict, optional
+            As for :meth:`CA.map_plot`, with the title defaulting to "FAMD map".
+
+        Returns
+        -------
+        go.Figure
+        """
+        return _map_plot(self, axis_x, axis_y, settings, "FAMD map")

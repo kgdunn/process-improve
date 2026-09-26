@@ -17,7 +17,7 @@ import pytest
 from scipy.stats import chi2_contingency
 
 from process_improve.multivariate._common import SpecificationWarning
-from process_improve.multivariate.methods import CA, MCA
+from process_improve.multivariate.methods import CA, FAMD, MCA
 
 
 @pytest.fixture
@@ -359,3 +359,129 @@ class TestMCAInputs:
 
     def test_map_plot_is_inherited(self, batches: pd.DataFrame) -> None:
         assert len(MCA().fit(batches).map_plot().data) == 2
+
+
+# ---------------------------------------------------------------------------
+# FAMD (#178)
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture
+def batch_record(batches: pd.DataFrame) -> pd.DataFrame:
+    """Numeric readings alongside the categorical attributes: temperature and pressure track grade."""
+    return pd.DataFrame(
+        {
+            "temperature": [
+                *(80.1, 81.3, 79.8, 82.0, 80.5, 75.2, 74.8, 76.1),
+                *(75.5, 70.3, 69.8, 71.2, 70.9, 69.5, 80.8, 75.0),
+            ],
+            "pressure": [2.1, 2.3, 2.0, 2.4, 2.2, 1.8, 1.7, 1.9, 1.8, 1.4, 1.3, 1.5, 1.6, 1.2, 2.2, 1.9],
+            "grade": batches["grade"],
+            "supplier": batches["supplier"],
+        }
+    )
+
+
+class TestFAMDAgainstReferences:
+    def test_eigenvalues_against_prince(self, batch_record: pd.DataFrame) -> None:
+        famd = FAMD(n_components=3).fit(batch_record)
+        np.testing.assert_allclose(famd.eigenvalues_, [3.659437, 1.420221, 0.58708], atol=1e-6)
+
+    def test_total_inertia_counts_each_variable_fairly(self, batch_record: pd.DataFrame) -> None:
+        """One per numeric column, levels minus one per categorical column: 2 + 2 + 2.
+
+        This is FAMD's whole point, and it holds only with population variance: the
+        sample variance would put the total at 5.875 and tilt the balance.
+        """
+        assert FAMD().fit(batch_record).total_inertia_ == pytest.approx(6.0)
+
+    def test_coordinates_against_prince(self, batch_record: pd.DataFrame) -> None:
+        famd = FAMD(n_components=3).fit(batch_record)
+        rows = np.array([[1.98877, 0.92202, 0.05145], [2.41886, 0.90349, 0.01531], [1.80937, 0.93273, 0.06818]])
+        np.testing.assert_allclose(np.abs(famd.row_coordinates_.to_numpy()[:3]), rows, atol=1e-5)
+        numeric = np.array([[0.99004, 0.02490, 0.01494], [0.96600, 0.05085, 0.04141]])
+        np.testing.assert_allclose(
+            np.abs(famd.column_coordinates_.loc[["temperature", "pressure"]]), numeric, atol=1e-5
+        )
+
+
+class TestFAMDReducesToPCAAndMCA:
+    """The issue's defining claim, checked as two exact identities."""
+
+    def test_all_numeric_is_pca_of_the_correlation_matrix(self, batch_record: pd.DataFrame) -> None:
+        numeric = batch_record[["temperature", "pressure"]]
+        expected = np.sort(np.linalg.eigvalsh(np.corrcoef(numeric.to_numpy().T)))[::-1]
+        np.testing.assert_allclose(FAMD().fit(numeric).eigenvalues_, expected)
+
+    def test_all_categorical_is_mca_scaled_by_q(self, batch_record: pd.DataFrame) -> None:
+        """FAMD's matrix on categorical data is sqrt(Q) times CA's standardised residuals.
+
+        So its eigenvalues are exactly Q times MCA's and its observations sit sqrt(Q)
+        times further out. This cross-checks FAMD against MCA from an independent
+        derivation, not just against a reference table.
+        """
+        categorical, n_vars = batch_record[["grade", "supplier"]], 2
+        famd, mca = FAMD(n_components=3).fit(categorical), MCA(n_components=3).fit(categorical)
+        np.testing.assert_allclose(famd.eigenvalues_, n_vars * mca.eigenvalues_)
+        # Absolute tolerance: several observations sit exactly on an axis's zero, where
+        # 0.0 against 2e-16 is an infinite relative error but no disagreement at all.
+        np.testing.assert_allclose(
+            np.abs(famd.row_coordinates_), np.sqrt(n_vars) * np.abs(mca.row_coordinates_), atol=1e-12
+        )
+
+
+class TestFAMDBehaviour:
+    def test_numeric_coordinates_are_correlations(self, batch_record: pd.DataFrame) -> None:
+        famd = FAMD().fit(batch_record)
+        for column in ("temperature", "pressure"):
+            correlation = np.corrcoef(batch_record[column], famd.row_coordinates_[1])[0, 1]
+            assert famd.column_coordinates_.loc[column, 1] == pytest.approx(correlation)
+
+    def test_contributions_account_for_everything(self, batch_record: pd.DataFrame) -> None:
+        famd = FAMD(n_components=3).fit(batch_record)
+        np.testing.assert_allclose(famd.row_contributions_.sum(), 1.0)
+        np.testing.assert_allclose(famd.column_contributions_.sum(), 1.0)
+
+    def test_transforming_the_fitted_data_gives_the_fitted_coordinates(self, batch_record: pd.DataFrame) -> None:
+        famd = FAMD(n_components=3).fit(batch_record)
+        np.testing.assert_allclose(famd.transform(batch_record), famd.row_coordinates_)
+
+    def test_numeric_codes_can_be_declared_categorical(self, batch_record: pd.DataFrame) -> None:
+        """A line coded 1, 2, 3 is a category, not a quantity; left numeric it would be scaled as one."""
+        coded = batch_record.assign(line=[1, 2, 3] * 5 + [1])
+        famd = FAMD(categorical=["line"]).fit(coded)
+        assert "line" in famd.categorical_
+        assert "line=2" in famd.column_coordinates_.index
+        assert FAMD().fit(coded).numeric_ == ["temperature", "pressure", "line"]
+
+    def test_booleans_are_categorical(self, batch_record: pd.DataFrame) -> None:
+        famd = FAMD().fit(batch_record.assign(rework=[True, False] * 8))
+        assert "rework" in famd.categorical_
+
+
+class TestFAMDInputs:
+    def test_missing_values_are_refused(self, batch_record: pd.DataFrame) -> None:
+        gapped = batch_record.copy()
+        gapped.iloc[3, 0] = np.nan
+        with pytest.raises(ValueError, match="Impute the numeric ones"):
+            FAMD().fit(gapped)
+
+    def test_a_constant_numeric_column_is_refused(self, batch_record: pd.DataFrame) -> None:
+        with pytest.raises(ValueError, match="constant"):
+            FAMD().fit(batch_record.assign(setpoint=5.0))
+
+    def test_categorical_must_name_real_columns(self, batch_record: pd.DataFrame) -> None:
+        with pytest.raises(ValueError, match="not in the data"):
+            FAMD(categorical=["colour"]).fit(batch_record)
+
+    def test_new_data_must_match(self, batch_record: pd.DataFrame) -> None:
+        famd = FAMD().fit(batch_record)
+        with pytest.raises(ValueError, match="Expected the columns"):
+            famd.transform(batch_record[["pressure", "temperature", "grade", "supplier"]])
+        unseen = batch_record.iloc[:1].assign(grade="Z")
+        with pytest.raises(ValueError, match="not fitted on"):
+            famd.transform(unseen)
+
+    def test_map_plot(self, batch_record: pd.DataFrame) -> None:
+        fig = FAMD().fit(batch_record).map_plot()
+        assert fig.layout.title.text == "FAMD map"
