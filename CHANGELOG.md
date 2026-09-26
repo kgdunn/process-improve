@@ -13,6 +13,72 @@ those changes.
 
 ### Added
 
+- **`FAMD`: factor analysis of mixed numeric and categorical data (#178).** Real
+  process records mix continuous readings with categorical context (grade, supplier,
+  line, shift). Until now a user could drop the categorical columns and lose them, or
+  one-hot encode them by hand into a PCA, where they end up over- or under-weighted
+  against the numeric ones, because PCA has no notion of balancing the two. `FAMD`
+  gives every variable an equal say: a numeric column contributes an inertia of 1 and a
+  categorical column with k levels contributes k - 1, exactly as in MCA.
+
+  ```python
+  famd = FAMD(n_components=2, categorical=["line"]).fit(batch_record)
+  famd.explained_inertia_, famd.column_coordinates_
+  famd.map_plot()
+  ```
+
+  Checked against `prince` and against the two identities the method is defined by:
+  with every column numeric it is exactly PCA of the correlation matrix, and with every
+  column categorical its eigenvalues are exactly Q times MCA's, which cross-checks it
+  against `MCA` from an independent derivation. Numeric codes for categories (a line
+  numbered 1, 2, 3) can be declared with `categorical=`, since left numeric they would
+  be scaled as a quantity.
+
+- **`MCA`: multiple correspondence analysis for categorical variables (#177).** Batch
+  records carry categorical attributes (grade, supplier, line, shift), and audits,
+  checklists and failure logs are almost entirely categorical; the multivariate module
+  had nothing for any of them. `MCA` is correspondence analysis of the one-hot indicator
+  matrix, built on `CA`, so it inherits its map, contributions and cos2.
+
+  ```python
+  mca = MCA(n_components=2, correction="greenacre").fit(batch_attributes)
+  mca.corrected_explained_inertia_
+  mca.transform_columns(outcomes)   # where do good and bad batches land?
+  ```
+
+  A supplementary categorical variable is placed without shaping the axes, which answers
+  the question the issue was written for: which combinations of attributes go with poor
+  outcomes. The raw eigenvalues of an indicator matrix understate the real association,
+  so `correction="benzecri"` or `"greenacre"` rescales them. Greenacre's adjusted total
+  is the Burt matrix's inertia, a sum over *every* axis; the `prince` library sums only
+  the axes kept, reporting 87.8% where the correct figure is 79.8% and letting the
+  answer change with `n_components`. That is avoided here, as is the NaN prince returns
+  when no eigenvalue exceeds 1/Q.
+
+- **`CA`: correspondence analysis for contingency tables (#176).** Every other method in
+  `multivariate` assumes a continuous matrix, so a table of counts (defect type against
+  line, failure mode against asset, rejection reason against supplier) had no home. A PCA
+  of such a table is wrong: it weights each cell by its size, not by how far it departs
+  from independence. `CA` uses the chi-squared distance, which divides by the expected
+  frequency, so a rare category departing strongly counts for as much as a common one
+  departing a little.
+
+  ```python
+  from process_improve.multivariate.methods import CA
+
+  ca = CA(n_components=2).fit(defects_by_line)
+  ca.explained_inertia_, ca.row_contributions_, ca.row_cos2_
+  ca.map_plot()
+  ```
+
+  Checked against Greenacre's published staff-by-smoking analysis and against the
+  `prince` library, and against the identities that define the method: total inertia is
+  chi-squared over n, and distance on the map is the chi-squared distance between
+  profiles. Supplementary rows and columns are placed by the transition formula without
+  moving the axes. An axis with no inertia is not kept, and a table showing no
+  association at all says so rather than reporting its floating-point noise as "82% on
+  axis 1".
+
 - **`PCA(tol=..., max_iter=...)` and `TPLS(tol=...)`: the loop settings are now
   constructor parameters (#588).** Six iterative estimators spelled their
   convergence tolerance and iteration cap five different ways, and these two were
