@@ -1,4 +1,4 @@
-"""Latent-variable methods for categorical and count data (#176).
+"""Latent-variable methods for categorical, mixed and multi-block data (#176-#179).
 
 Reference values come from two independent sources: Greenacre's published analysis
 of his staff-by-smoking table, and the ``prince`` library (0.21), which reproduces
@@ -17,7 +17,7 @@ import pytest
 from scipy.stats import chi2_contingency
 
 from process_improve.multivariate._common import SpecificationWarning
-from process_improve.multivariate.methods import CA, FAMD, MCA
+from process_improve.multivariate.methods import CA, FAMD, MCA, MFA
 
 
 @pytest.fixture
@@ -485,3 +485,202 @@ class TestFAMDInputs:
     def test_map_plot(self, batch_record: pd.DataFrame) -> None:
         fig = FAMD().fit(batch_record).map_plot()
         assert fig.layout.title.text == "FAMD map"
+
+
+@pytest.fixture
+def blocks() -> pd.DataFrame:
+    """Twelve samples: four spectral readings and two lab results, mostly one driver.
+
+    The ``prince`` (0.21) reference values below were computed from this table with the
+    groups in :data:`GROUPS`.
+    """
+    return pd.DataFrame(
+        {
+            "spec1": [-0.572, -0.198, 0.267, -0.115, -0.699, 0.267, 1.427, 1.260, -0.742, -0.855, -0.823, 0.147],
+            "spec2": [0.397, -0.104, 0.417, -0.172, -0.673, 0.428, 1.001, 0.884, -0.752, -1.103, -0.559, 0.148],
+            "spec3": [-0.322, 0.093, -0.405, 0.343, 0.158, 0.093, -0.900, -0.713, 0.783, 1.171, 1.061, 0.547],
+            "spec4": [0.846, 0.394, 0.783, -0.378, -0.537, 0.624, 0.789, 1.105, -0.532, -0.987, -1.097, -0.223],
+            "lab1": [0.033, -0.849, 2.151, -0.038, -0.907, 0.594, 3.400, 2.554, -1.091, -3.633, -1.221, 0.424],
+            "lab2": [1.004, -0.618, 1.822, -1.320, -0.662, 0.935, 0.049, 2.002, 0.189, -0.633, -0.378, -1.091],
+        }
+    )
+
+
+GROUPS = {"spectra": ["spec1", "spec2", "spec3", "spec4"], "lab": ["lab1", "lab2"]}
+
+
+def _driven_groups(seed: int, widths: tuple[int, ...], *, shared: bool) -> tuple[pd.DataFrame, dict[str, list[str]]]:
+    """Build groups of noisy copies of one driver each: the same driver for all when ``shared``."""
+    rng = np.random.default_rng(seed)
+    common = rng.normal(size=60)
+    columns, groups = {}, {}
+    for number, width in enumerate(widths):
+        driver = common if shared else rng.normal(size=60)
+        groups[f"g{number}"] = [f"g{number}_{i}" for i in range(width)]
+        columns.update({name: driver + rng.normal(scale=0.3, size=60) for name in groups[f"g{number}"]})
+    return pd.DataFrame(columns), groups
+
+
+class TestMFAAgainstPrince:
+    def test_eigenvalues_and_total_inertia(self, blocks: pd.DataFrame) -> None:
+        mfa = MFA(GROUPS, n_components=3).fit(blocks)
+        np.testing.assert_allclose(mfa.eigenvalues_, [1.888801, 0.369139, 0.077757], atol=1e-6)
+        assert mfa.total_inertia_ == pytest.approx(2.40674, abs=1e-5)
+
+    def test_row_and_partial_coordinates(self, blocks: pd.DataFrame) -> None:
+        mfa = MFA(GROUPS, n_components=3).fit(blocks)
+        rows = np.array([[0.62168, 0.64592, 0.54650], [0.43613, 0.26752, 0.51972], [1.61944, 0.64999, 0.18662]])
+        np.testing.assert_allclose(np.abs(mfa.row_coordinates_.to_numpy()[:3]), rows, atol=1e-5)
+        partial = mfa.partial_row_coordinates_
+        np.testing.assert_allclose(np.abs(partial["spectra"].iloc[0]), [0.68311, 0.10375, 1.39513], atol=1e-5)
+        np.testing.assert_allclose(np.abs(partial["lab"].iloc[0]), [0.56026, 1.18809, 0.30214], atol=1e-5)
+
+
+class TestMFABalancesTheGroups:
+    """What the group weighting is for, shown where plain PCA gets it wrong."""
+
+    def test_a_wide_group_does_not_outvote_a_narrow_one(self) -> None:
+        """Forty columns on one driver against two on an unrelated one.
+
+        PCA of the concatenated table hands its first axis to the wide group, with 19
+        times the inertia of the narrow group's axis; the narrow group makes up 0.1% of
+        it. MFA caps each group's leading direction at an inertia of 1,
+        so the two drivers come out as equals: an eigenvalue near 1 each, and one axis
+        owned by each group.
+        """
+        data, groups = _driven_groups(seed=0, widths=(40, 2), shared=False)
+        standardised = ((data - data.mean()) / data.std(ddof=0)).to_numpy()
+        pca_eigenvalues = np.linalg.eigvalsh(standardised.T @ standardised / len(data))[::-1]
+        assert pca_eigenvalues[0] / pca_eigenvalues[1] > 15
+
+        mfa = MFA(groups).fit(data)
+        np.testing.assert_allclose(mfa.eigenvalues_, [1.0, 1.0], atol=0.15)
+        assert set(mfa.group_contributions_.idxmax()) == {"g0", "g1"}
+
+    @pytest.mark.parametrize("n_groups", [2, 3])
+    def test_first_eigenvalue_approaches_the_number_of_groups_when_they_agree(self, n_groups: int) -> None:
+        """Each group adds at most 1 to an axis, so full agreement sums to the group count."""
+        data, groups = _driven_groups(seed=1, widths=(5, 3, 2)[:n_groups], shared=True)
+        eigenvalue = MFA(groups).fit(data).eigenvalues_[0]
+        assert n_groups - 0.1 < eigenvalue <= n_groups
+
+    def test_a_change_of_units_in_one_group_changes_nothing(self, blocks: pd.DataFrame) -> None:
+        """Even unscaled, since the weight divides the group's own size back out.
+
+        Reporting the lab results in thousandths would otherwise hand them the whole
+        analysis: unscaled PCA's leading eigenvalue grows 700,000-fold.
+        """
+        in_thousandths = blocks.assign(**{column: 1000 * blocks[column] for column in GROUPS["lab"]})
+        before = MFA(GROUPS, scale=False).fit(blocks)
+        after = MFA(GROUPS, scale=False).fit(in_thousandths)
+        np.testing.assert_allclose(after.eigenvalues_, before.eigenvalues_)
+        np.testing.assert_allclose(after.row_coordinates_, before.row_coordinates_)
+
+    def test_group_weights_are_one_over_each_groups_first_eigenvalue(self, blocks: pd.DataFrame) -> None:
+        mfa = MFA(GROUPS).fit(blocks)
+        for name, columns in GROUPS.items():
+            leading = np.linalg.eigvalsh(np.corrcoef(blocks[columns].to_numpy().T))[-1]
+            assert mfa.group_weights_[name] == pytest.approx(1 / leading)
+
+
+class TestMFAIdentities:
+    def test_each_observation_is_the_mean_of_its_partial_points(self, blocks: pd.DataFrame) -> None:
+        mfa = MFA(GROUPS, n_components=3).fit(blocks)
+        mean_partial = sum(mfa.partial_row_coordinates_.values()) / len(GROUPS)
+        np.testing.assert_allclose(mean_partial, mfa.row_coordinates_)
+
+    def test_group_coordinates_lie_in_the_unit_interval_and_sum_to_the_eigenvalues(self, blocks: pd.DataFrame) -> None:
+        mfa = MFA(GROUPS, n_components=3).fit(blocks)
+        assert ((mfa.group_coordinates_ >= 0) & (mfa.group_coordinates_ <= 1)).all().all()
+        np.testing.assert_allclose(mfa.group_coordinates_.sum(), mfa.eigenvalues_)
+
+    def test_column_coordinates_are_correlations(self, blocks: pd.DataFrame) -> None:
+        mfa = MFA(GROUPS, n_components=3).fit(blocks)
+        for column in blocks.columns:
+            for axis in (1, 2, 3):
+                correlation = np.corrcoef(blocks[column], mfa.row_coordinates_[axis])[0, 1]
+                assert mfa.column_coordinates_.loc[column, axis] == pytest.approx(correlation)
+
+    def test_contributions_account_for_everything(self, blocks: pd.DataFrame) -> None:
+        mfa = MFA(GROUPS, n_components=3).fit(blocks)
+        np.testing.assert_allclose(mfa.column_contributions_.sum(), 1.0)
+        np.testing.assert_allclose(mfa.group_contributions_.sum(), 1.0)
+
+    def test_first_eigenvalue_lies_between_one_and_the_number_of_groups(self, blocks: pd.DataFrame) -> None:
+        assert 1 <= MFA(GROUPS).fit(blocks).eigenvalues_[0] <= len(GROUPS)
+
+
+class TestMFANewObservations:
+    def test_transforming_the_fitted_data_gives_the_fitted_coordinates(self, blocks: pd.DataFrame) -> None:
+        mfa = MFA(GROUPS).fit(blocks)
+        np.testing.assert_allclose(mfa.transform(blocks), mfa.row_coordinates_)
+
+    def test_new_observations_use_the_fitted_centre_and_scale(self, blocks: pd.DataFrame) -> None:
+        """Three samples on their own land where they did in the fit, not re-centred on themselves."""
+        mfa = MFA(GROUPS).fit(blocks)
+        np.testing.assert_allclose(mfa.transform(blocks.iloc[:3]), mfa.row_coordinates_.iloc[:3])
+
+    def test_new_data_must_have_every_grouped_column(self, blocks: pd.DataFrame) -> None:
+        mfa = MFA(GROUPS).fit(blocks)
+        with pytest.raises(ValueError, match="lack the columns"):
+            mfa.transform(blocks.drop(columns="lab2"))
+
+    def test_new_data_must_be_complete(self, blocks: pd.DataFrame) -> None:
+        mfa = MFA(GROUPS).fit(blocks)
+        gapped = blocks.copy()
+        gapped.iloc[0, 0] = np.nan
+        with pytest.raises(ValueError, match="must not have missing values"):
+            mfa.transform(gapped)
+
+
+class TestMFAInputs:
+    def test_columns_in_no_group_are_ignored(self, blocks: pd.DataFrame) -> None:
+        with_extra = blocks.assign(operator=list("ABCABCABCABC"))
+        np.testing.assert_allclose(MFA(GROUPS).fit(with_extra).eigenvalues_, MFA(GROUPS).fit(blocks).eigenvalues_)
+
+    @pytest.mark.parametrize(
+        ("groups", "message"),
+        [
+            ({"spectra": GROUPS["spectra"]}, "at least two groups"),
+            ({"spectra": GROUPS["spectra"], "lab": []}, "has no columns"),
+            ({"spectra": GROUPS["spectra"], "lab": ["lab1", "viscosity"]}, "not in the data"),
+            ({"spectra": GROUPS["spectra"], "lab": ["lab1", "spec1"]}, "is in both group"),
+        ],
+    )
+    def test_invalid_groups_are_refused(self, blocks: pd.DataFrame, groups: dict, message: str) -> None:
+        with pytest.raises(ValueError, match=message):
+            MFA(groups).fit(blocks)
+
+    def test_a_categorical_column_points_to_famd(self, blocks: pd.DataFrame) -> None:
+        with_grade = blocks.assign(grade=list("ABABABABABAB"))
+        with pytest.raises(ValueError, match="use FAMD"):
+            MFA({**GROUPS, "context": ["grade"]}).fit(with_grade)
+
+    def test_missing_values_are_refused(self, blocks: pd.DataFrame) -> None:
+        gapped = blocks.copy()
+        gapped.iloc[2, 4] = np.nan
+        with pytest.raises(ValueError, match="complete data"):
+            MFA(GROUPS).fit(gapped)
+
+    def test_a_constant_column_is_refused(self, blocks: pd.DataFrame) -> None:
+        with pytest.raises(ValueError, match="constant column"):
+            MFA({**GROUPS, "lab": ["lab1", "lab2", "setpoint"]}).fit(blocks.assign(setpoint=5.0))
+
+    def test_an_unscaled_group_with_no_variation_is_refused(self, blocks: pd.DataFrame) -> None:
+        constant = blocks.assign(setpoint=5.0, target=2.0)
+        with pytest.raises(ValueError, match="no variation"):
+            MFA({**GROUPS, "fixed": ["setpoint", "target"]}, scale=False).fit(constant)
+
+    def test_n_components_must_be_positive(self, blocks: pd.DataFrame) -> None:
+        with pytest.raises(ValueError, match="at least 1"):
+            MFA(GROUPS, n_components=0).fit(blocks)
+
+    def test_asking_for_more_axes_than_exist_warns_and_keeps_the_rest(self, blocks: pd.DataFrame) -> None:
+        with pytest.warns(SpecificationWarning, match="keeping 6"):
+            mfa = MFA(GROUPS, n_components=10).fit(blocks)
+        assert mfa.n_components_ == 6
+
+    def test_map_plot(self, blocks: pd.DataFrame) -> None:
+        fig = MFA(GROUPS).fit(blocks).map_plot()
+        assert fig.layout.title.text == "MFA map"
+        assert fig.layout.xaxis.title.text.startswith("Axis 1")
