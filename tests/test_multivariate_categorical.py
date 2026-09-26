@@ -354,7 +354,8 @@ class TestMCAInputs:
         assert "supplier=s2" in MCA().fit(batches).column_coordinates_.index
 
     def test_numeric_codes_are_treated_as_categories(self, batches: pd.DataFrame) -> None:
-        coded = batches.replace({"A": 1, "B": 2, "C": 3})
+        coded = batches.assign(grade=batches["grade"].map({"A": 1, "B": 2, "C": 3}))
+        assert pd.api.types.is_integer_dtype(coded["grade"])
         assert "grade=1" in MCA().fit(coded).column_coordinates_.index
 
     def test_map_plot_is_inherited(self, batches: pd.DataFrame) -> None:
