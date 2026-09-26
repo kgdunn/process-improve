@@ -110,6 +110,20 @@ Multi-block PCA / consensus-PCA. Same dict-of-DataFrames API as
    :undoc-members:
    :show-inheritance:
 
+GPA
+~~~
+
+Generalized Procrustes analysis: several configurations of the same objects (an
+assessor's scores, an instrument's measurements) are centred, rotated and scaled onto
+one consensus. The residuals show which configuration disagrees about which object,
+and :meth:`GPA.consensus_test` shows whether the consensus is more than alignment
+alone would produce. Takes the same dict-of-DataFrames input as :class:`MBPCA`;
+:meth:`GPA.configurations_from_long` builds it from a sensory panel.
+
+.. autoclass:: GPA
+   :members: fit, transform, consensus_test, configurations_from_long, map_plot
+   :show-inheritance:
+
 Analysis
 --------
 
