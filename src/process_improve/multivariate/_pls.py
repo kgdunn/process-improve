@@ -47,6 +47,7 @@ from ._diagnostics import (
 from ._diagnostics import (
     target_projection as _target_projection,
 )
+from ._impute import impute_low_rank
 from ._nipals import quick_regress, ssq, terminate_check
 from ._preprocessing import MCUVScaler, _uncentred_columns, _warn_scaling_traps
 from ._projection import coerce_observed_mask, operator_for_pattern, project_rows
@@ -59,10 +60,11 @@ from .plots import (
 
 logger = logging.getLogger(__name__)
 
-# The ``md_method`` values ``_fit_nipals`` recognises. Deliberately smaller than
+# The ``md_method`` values ``fit`` recognises. Deliberately smaller than
 # ``_projection.PROJECTION_METHODS``: that tuple is the projection-time set, which also
-# offers ``"scp"``. Only ``"nipals"`` is implemented here; the other two are recognised so
-# a caller asking for them gets NotImplementedError rather than a silent NIPALS fit.
+# offers ``"scp"``. ``"scp"`` has no fit-time meaning of its own, because it is how NIPALS
+# already scores an incomplete row during the fit, so asking for it is refused rather than
+# quietly running NIPALS under another name.
 _FIT_TIME_MD_METHODS = frozenset({"nipals", "tsr", "pmp"})
 
 
@@ -79,8 +81,6 @@ def _check_md_method(settings: dict) -> None:
             "This is the fit-time setting, a smaller set than the method= accepted by "
             "project() and the contribution helpers."
         )
-    if md_method != "nipals":
-        raise NotImplementedError(f"{md_method.upper()} for PLS not implemented yet")
 
 
 def _vandervoet_randomization(
@@ -285,18 +285,41 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
         deliberately un-centred fit stays quiet inside a ``Pipeline`` or a
         grid search.
     missing_data_settings : dict or None, default=None
-        Settings for the NIPALS fit when the data has missing cells. Keys:
+        How to fit when the data has missing cells. Keys:
 
-        - ``md_method``: ``"nipals"`` (the default, and the only one
-          implemented), or ``"tsr"`` / ``"pmp"``, which are recognised and
-          raise :class:`NotImplementedError`. Any other value is refused. This
-          is a different and smaller set than the ``method=`` accepted by
-          :meth:`project` and the contribution helpers, which do implement
-          ``"tsr"``, ``"scp"`` and ``"pmp"``.
-        - ``md_tol`` and ``md_max_iter``: the NIPALS convergence tolerance and
-          iteration cap. They default to this model's ``tol`` and ``max_iter``,
-          so set those instead unless you need the fit and the missing-data
-          path to differ.
+        - ``md_method``, one of:
+
+          - ``"nipals"`` (the default): NIPALS skips each missing cell in its
+            sums, so an incomplete row simply contributes less. Cheapest, and
+            no imputation happens.
+          - ``"tsr"``: trimmed score regression. The missing cells are filled
+            by EM on a principal-component model of X and Y *together*,
+            refitted every round from the completed data, and PLS is then
+            fitted once to the result. Measured against the model the complete
+            data would have given: on synthetic data with clear low-rank
+            structure it lands 2.0 to 2.9 times closer than ``"nipals"``
+            (5-45% of cells missing at random, closer on 17-19 trials in 20);
+            on the LDPE process data 1.1 to 1.5 times closer (9-12 in 12). The
+            gain grows with how much of the data the components capture,
+            because a missing cell can only be rebuilt from what they describe.
+            Roughly five times the cost of a ``"nipals"`` fit.
+          - ``"pmp"``: the same loop, estimating each row by least-squares
+            projection onto the components instead of by regression. Close to
+            ``"tsr"`` throughout, and slower to settle as more goes missing.
+
+          Any other value is refused, including ``"scp"``: that is a
+          projection-time method (see :meth:`project`), and at fit time it is
+          simply what NIPALS already does.
+        - ``md_tol`` and ``md_max_iter``: for ``"nipals"``, the NIPALS
+          convergence tolerance and iteration cap; for ``"tsr"`` / ``"pmp"``,
+          the tolerance on the largest change in any imputed cell (in standard
+          deviations) and the cap on imputation rounds. Both default to this
+          model's ``tol`` and ``max_iter``, so set those instead unless the two
+          need to differ.
+
+        With ``"tsr"`` / ``"pmp"``, R², SPE and the other diagnostics are still
+        computed on the *observed* cells only: an imputed cell is fitted by
+        construction, so counting it would flatter the model.
 
     Attributes (after fitting)
     --------------------------
@@ -492,8 +515,13 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
     y_scores_: np.ndarray | pd.DataFrame
     y_weights_: np.ndarray | pd.DataFrame
     y_loadings_: np.ndarray | pd.DataFrame
-    # Fitted diagnostics: per-component arrays or scalar totals.
-    fitting_info_: dict[str, np.ndarray | int | float]
+    # Fitted diagnostics: per-component arrays or scalar totals, plus, for an imputed
+    # fit, which estimator ran (a string) and whether it converged.
+    fitting_info_: dict[str, np.ndarray | int | float | str]
+    # Declared here rather than at their first assignment, because an imputed fit
+    # refits them from helper methods defined above ``fit``.
+    _x_scaler: MCUVScaler | None
+    _y_scaler: MCUVScaler | None
 
     # ENG-18: public DataFrame views built lazily from the private ndarrays.
     scores_ = _LazyFrame("_scores", index="_sample_index", columns="_component_names")
@@ -697,6 +725,102 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
                     self.y_scores_[:, a] = (Y_deflated @ c_a / denom).flatten()
                 Y_deflated = Y_deflated - (self._scores[:, [a]] @ c_a.T)
 
+    def _fit_imputed(
+        self,
+        X: pd.DataFrame,
+        Y: pd.DataFrame,
+        A: int,
+        settings: dict,
+        sample_weight: np.ndarray | None = None,
+    ) -> tuple[pd.DataFrame, pd.DataFrame]:
+        """Fill the missing cells from a model of ``[X Y]`` jointly, then fit once (#189).
+
+        The missing cells are estimated by
+        :func:`~process_improve.multivariate._impute.impute_low_rank`: EM on a
+        principal-component model of the joint matrix, the model-building algorithm
+        ``PCA(algorithm="tsr")`` also runs. PLS is then fitted to the completed data,
+        scaled by the completed data's own statistics.
+
+        The first version of this rebuilt the missing cells from the PLS model itself,
+        alternating fit and rebuild. That is the wrong tool twice over. PLS picks its
+        components for their covariance with Y, not to reproduce X, so it rebuilds X
+        only as well as those components happen to span it: on the LDPE data at three
+        components it was a coin flip against plain NIPALS. And the alternation is not
+        an EM, so nothing made it converge: on a synthetic fixture about one fit in
+        seven cycled indefinitely. The joint model converged on all of those, and
+        beat NIPALS on 9 to 12 of 12 LDPE trials where the PLS-based loop managed 5 to 8.
+
+        Parameters
+        ----------
+        X, Y : pd.DataFrame
+            The training blocks in their original units, NaN where missing.
+        A : int
+            Number of components, used for the imputation model as well as for PLS.
+        settings : dict
+            Resolved missing-data settings: ``md_method`` (``"tsr"`` or ``"pmp"``),
+            and ``md_tol`` and ``md_max_iter`` for the imputation rounds.
+        sample_weight : np.ndarray of shape (n_samples,), optional
+            Applied to the PLS fit. The imputation models the data as given.
+
+        Returns
+        -------
+        tuple[pd.DataFrame, pd.DataFrame]
+            ``X`` and ``Y`` in the fitted model's scaled space, still NaN where they
+            were missing, so the diagnostics are computed on observed cells only.
+        """
+        method = settings["md_method"].lower()
+        joint = pd.concat([X, Y], axis=1).to_numpy(dtype=float)
+        # A column with nothing observed has nothing to estimate it from. NIPALS gives
+        # such a column no weight, so it is held out of the imputation and set to a
+        # constant, which scaling then reduces to zero: the same outcome, without
+        # making the choice of md_method decide whether the data is fittable.
+        empty = np.all(np.isnan(joint), axis=0)
+        imputation = impute_low_rank(
+            joint[:, ~empty], A, method=method, tol=settings["md_tol"], max_iter=settings["md_max_iter"]
+        )
+        completed = np.zeros_like(joint)
+        completed[:, ~empty] = imputation.completed
+
+        if not imputation.converged:
+            warnings.warn(
+                f"PLS {method.upper()}: the imputed cells were still moving by {imputation.shift:.3g} "
+                f"standard deviations after {imputation.rounds} rounds (md_tol={settings['md_tol']:g}). "
+                "Raise md_max_iter, or loosen md_tol if that change is already negligible for your data.",
+                SpecificationWarning,
+                stacklevel=3,
+            )
+
+        n_x = X.shape[1]
+        completed_x = pd.DataFrame(completed[:, :n_x], index=X.index, columns=X.columns)
+        completed_y = pd.DataFrame(completed[:, n_x:], index=Y.index, columns=Y.columns)
+        x_scaled, y_scaled = self._rescaled(completed_x, completed_y, sample_weight)
+        complete_data = {"md_method": "nipals", "md_tol": self.tol, "md_max_iter": self.max_iter}
+        self._fit_nipals(x_scaled, y_scaled, A, complete_data, sample_weight=sample_weight)
+        self.fitting_info_.update(
+            {
+                "md_method": method,
+                "md_rounds": imputation.rounds,
+                "md_converged": imputation.converged,
+                "md_shift": imputation.shift,
+            }
+        )
+        return self._scaled_as_fitted(X, Y)
+
+    def _rescaled(
+        self, X: pd.DataFrame, Y: pd.DataFrame, sample_weight: np.ndarray | None
+    ) -> tuple[np.ndarray, np.ndarray]:
+        """Refit the scalers on complete blocks and return them scaled; identity when ``scale=False``."""
+        if self.scale:
+            self._x_scaler, self._y_scaler = self._make_scalers(X, Y, sample_weight)
+        x_scaled, y_scaled = self._scaled_as_fitted(X, Y)
+        return x_scaled.to_numpy(dtype=float), y_scaled.to_numpy(dtype=float)
+
+    def _scaled_as_fitted(self, X: pd.DataFrame, Y: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame]:
+        """Put X and Y into the current scaled space, with the scalers as they stand."""
+        if self._x_scaler is None or self._y_scaler is None:
+            return X, Y
+        return self._x_scaler.transform(X), self._y_scaler.transform(Y)
+
     def _make_scalers(
         self,
         X: pd.DataFrame,
@@ -849,8 +973,11 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
         # On already-scaled input (center ~ 0, scale ~ 1) this is a no-op, so
         # callers who pre-scale (scale=False) or pass MCUVScaler output are
         # unaffected. MCUVScaler is NaN-aware and leaves constant columns at 1.
-        self._x_scaler: MCUVScaler | None = None
-        self._y_scaler: MCUVScaler | None = None
+        self._x_scaler = None
+        self._y_scaler = None
+        # An imputed fit (md_method "tsr" / "pmp") re-estimates the scaling from the
+        # completed data every round, so it needs the blocks before this first scaling.
+        unscaled_x, unscaled_y = X, Y
         if self.scale:
             self._x_scaler, self._y_scaler = self._make_scalers(X, Y, sample_weight)
             X = self._x_scaler.transform(X)
@@ -891,14 +1018,18 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
         # here also means a partial dict (say ``{"md_tol": 1e-3}``) can no longer leave
         # ``md_max_iter`` absent, which used to raise ``KeyError`` from ``_fit_nipals``.
         #
-        # ``md_method`` defaults to NIPALS because TSR / PMP for PLS are still
-        # NotImplementedError in ``_fit_nipals``; NIPALS handles per-cell NaN directly via
-        # skipna sums inside its iterations. The resolved settings stay local: mutating the
-        # constructor parameter would leak into clone() (#505).
-        settings = {"md_method": "nipals", "md_tol": self.tol, "md_max_iter": self.max_iter}
+        # ``md_method`` defaults to NIPALS, the cheapest path: it handles per-cell NaN
+        # directly via skipna sums inside its iterations, with no imputation. The resolved
+        # settings stay local: mutating the constructor parameter would leak into clone()
+        # (#505).
+        settings: dict[str, typing.Any] = {"md_method": "nipals", "md_tol": self.tol, "md_max_iter": self.max_iter}
         if isinstance(self.missing_data_settings, dict):
             settings.update(self.missing_data_settings)
-        self._fit_nipals(X, Y, A, settings, sample_weight=sample_weight)
+        _check_md_method(settings)
+        if settings["md_method"].lower() == "nipals":
+            self._fit_nipals(X, Y, A, settings, sample_weight=sample_weight)
+        else:
+            X, Y = self._fit_imputed(unscaled_x, unscaled_y, A, settings, sample_weight=sample_weight)
 
         # --- Common post-fit path: wrap numpy arrays into pandas ---
 
