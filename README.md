@@ -167,7 +167,10 @@ pip install 'process-improve[fast]'            # adds numba (JIT speedups for ba
 pip install 'process-improve[all]'             # everything above (the pre-1.24.11 closure)
 ```
 
-Requires Python 3.10 or newer. The core install pulls in `numpy`, `pandas`,
+Requires Python 3.10 or newer. CI also runs the whole test suite on free-threaded
+CPython 3.14 (`python3.14t`) with the GIL off. On that build, pandas 2.x turns the
+GIL back on when it is imported unless `PYTHON_GIL=0` is set, as the CI job does.
+The core install pulls in `numpy`, `pandas`,
 `scikit-learn`, `statsmodels`, `patsy`, `pydantic`, `pyyaml`, and
 `tqdm` (`scipy` arrives transitively via scikit-learn and statsmodels).
 Heavier optional surfaces (plotting, designed experiments, batch IO,
