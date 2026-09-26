@@ -9,14 +9,20 @@ import numpy as np
 from scipy import stats
 from statsmodels.regression.linear_model import RegressionResultsWrapper
 
+from .aliasing import estimable_effects
+
 
 def _run_lenth_method(ols_result: RegressionResultsWrapper) -> dict[str, Any]:
     """Lenth's method (PSE) for unreplicated factorials.
 
     Not available in mainstream Python libraries - custom (~30 lines).
+
+    The method assumes each effect is a separate estimate, so exactly aliased
+    terms enter once, as their alias chain (#16), not once per term with
+    the chain's effect shared out between them.
     """
-    params = ols_result.params.drop("Intercept", errors="ignore")
-    effects = 2.0 * params.values  # coded ±1 → effect = 2 * coefficient
+    params = estimable_effects(ols_result).coefficients
+    effects = 2.0 * params.to_numpy()  # coded ±1 → effect = 2 * coefficient
     abs_effects = np.abs(effects)
 
     # Step 1: initial median

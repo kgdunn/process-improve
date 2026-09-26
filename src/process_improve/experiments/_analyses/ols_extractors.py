@@ -11,6 +11,8 @@ import pandas as pd
 import statsmodels.api as sm
 from statsmodels.regression.linear_model import RegressionResultsWrapper
 
+from .aliasing import estimable_effects
+
 
 def _run_anova(ols_result: RegressionResultsWrapper, anova_type: int = 2) -> dict[str, Any]:
     """ANOVA table via statsmodels."""
@@ -37,13 +39,21 @@ def _run_effects(ols_result: RegressionResultsWrapper) -> dict[str, Any]:
     Also returns ``effect_std_errors`` (twice the coefficient standard
     error) when residual degrees of freedom are available; consumers such
     as the Pareto plot use this to draw effect-level error bars.
+
+    Exactly aliased terms are reported as one effect per alias chain, named
+    ``"A:B + C:D"``, since the design determines only their sum (#16). The
+    chains are listed under ``alias_chains``, and terms aliased with the
+    intercept under ``confounded_with_mean``; both keys appear only when
+    there is aliasing.
     """
-    params = ols_result.params.drop("Intercept", errors="ignore")
-    effects = (2.0 * params).to_dict()
-    result: dict[str, Any] = {"effects": effects}
-    if int(ols_result.df_resid) > 0:
-        bse = ols_result.bse.drop("Intercept", errors="ignore")
-        result["effect_std_errors"] = {str(k): float(2.0 * v) for k, v in bse.items()}
+    estimable = estimable_effects(ols_result)
+    result: dict[str, Any] = {"effects": (2.0 * estimable.coefficients).to_dict()}
+    if estimable.std_errors is not None:
+        result["effect_std_errors"] = {str(k): float(2.0 * v) for k, v in estimable.std_errors.items()}
+    if estimable.chains:
+        result["alias_chains"] = estimable.chains
+    if estimable.confounded_with_mean:
+        result["confounded_with_mean"] = estimable.confounded_with_mean
     return result
 
 

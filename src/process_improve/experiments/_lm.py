@@ -478,7 +478,9 @@ class Model(OLS):
         for p_name in params.index.values:
             aliasing = f'<span style="font-size: 130%; font-weight: 700">{p_name}</span>' if websafe else p_name
             suffix = ""
-            for alias in self.aliasing[(p_name,)]:
+            # Stored under the term's factors, ("A", "B") for "A:B"; ``get`` rather than
+            # indexing, which on the defaultdict would add an empty entry per lookup.
+            for alias in self.aliasing.get(tuple(p_name.split(":")), []):
                 # Subtract "-1" because the first list entry tracks the sign
                 if (len(alias) - 1) <= aliasing_up_to_level:
                     aliasing += f" {alias[0]} {':'.join(alias[1:])}"
