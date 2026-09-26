@@ -466,6 +466,26 @@ The third item of #374, double cross-validation for PLS, is already provided by
 
 ### Fixed
 
+- **Aliased terms no longer lose their aliases in the summary, or split their effect
+  on the Pareto chart (#16).** In a half fraction with D = ABC, the A:B column *is*
+  the C:D column. Two things went wrong with that.
+  - `lm()`'s aliasing pattern listed `A + B:C:D` for the main effects but a bare `A:B`
+    for every interaction. The aliases were stored under the term's factors
+    (`("A", "B")`) and looked up under its name (`("A:B",)`). Each such lookup on the
+    `defaultdict` also added an empty entry to `model.aliasing`.
+  - `analyze_experiment`'s effects, which feed the Pareto chart and Lenth's method,
+    came from the rank-deficient pseudo-inverse fit. That fit shares a chain's effect
+    evenly between its terms, so the chart drew two half-size bars, A:B and C:D, where
+    the design measured one effect, and Lenth's method counted it twice.
+
+  Exactly aliased terms are now reported as one effect per alias chain, named for what
+  it contains (`"A:B + C:D"`, or `"A:B - C:D"` for an anti-alias). Its size and standard
+  error are those of the chain's estimable sum. The chains are listed under
+  `alias_chains`, and terms aliased with the intercept under `confounded_with_mean`. On
+  a half fraction with a true A:B effect of 6, the Pareto bar now reads 5.96 where it
+  read 2.98 twice. Designs without exact aliasing give exactly the output they did
+  before, with no new keys.
+
 - **`PLS(tol=...)` is no longer dropped when the data has missing cells (#588).**
   The missing-data branch of the settings resolution hard-coded the NIPALS
   tolerance to `epsqrt` while taking the iteration cap from the constructor, so
