@@ -13,6 +13,30 @@ those changes.
 
 ### Added
 
+- **`CA`: correspondence analysis for contingency tables (#176).** Every other method in
+  `multivariate` assumes a continuous matrix, so a table of counts (defect type against
+  line, failure mode against asset, rejection reason against supplier) had no home. A PCA
+  of such a table is wrong: it weights each cell by its size, not by how far it departs
+  from independence. `CA` uses the chi-squared distance, which divides by the expected
+  frequency, so a rare category departing strongly counts for as much as a common one
+  departing a little.
+
+  ```python
+  from process_improve.multivariate.methods import CA
+
+  ca = CA(n_components=2).fit(defects_by_line)
+  ca.explained_inertia_, ca.row_contributions_, ca.row_cos2_
+  ca.map_plot()
+  ```
+
+  Checked against Greenacre's published staff-by-smoking analysis and against the
+  `prince` library, and against the identities that define the method: total inertia is
+  chi-squared over n, and distance on the map is the chi-squared distance between
+  profiles. Supplementary rows and columns are placed by the transition formula without
+  moving the axes. An axis with no inertia is not kept, and a table showing no
+  association at all says so rather than reporting its floating-point noise as "82% on
+  axis 1".
+
 - **`PCA(tol=..., max_iter=...)` and `TPLS(tol=...)`: the loop settings are now
   constructor parameters (#588).** Six iterative estimators spelled their
   convergence tolerance and iteration cap five different ways, and these two were
