@@ -131,6 +131,16 @@ class TestSupplementaryPoints:
         with pytest.raises(ValueError, match="sums to zero"):
             ca.transform(np.zeros((1, 4)))
 
+    @pytest.mark.parametrize("bad", [-1.0, np.nan, np.inf])
+    def test_supplementary_counts_must_be_finite_and_non_negative(self, smoke: pd.DataFrame, bad: float) -> None:
+        """A negative or missing count has no profile, and would silently distort one if let through."""
+        ca = CA().fit(smoke)
+        counts = np.array([[40.0, 10.0, 5.0, bad]])
+        with pytest.raises(ValueError, match="finite, non-negative"):
+            ca.transform(counts)
+        with pytest.raises(ValueError, match="finite, non-negative"):
+            ca.transform_columns(np.array([[1.0], [2.0], [3.0], [4.0], [bad]]))
+
 
 class TestDegenerateTables:
     def test_an_independent_table_is_explained_not_mapped(self) -> None:
