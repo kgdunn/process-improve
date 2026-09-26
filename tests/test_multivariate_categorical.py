@@ -1,0 +1,372 @@
+"""Latent-variable methods for categorical and count data (#176).
+
+Reference values come from two independent sources: Greenacre's published analysis
+of his staff-by-smoking table, and the ``prince`` library (0.21), which reproduces
+those published figures exactly. Beyond matching them, the tests pin the identities
+that define correspondence analysis, since a method can match one table by accident
+but not an identity.
+"""
+
+from __future__ import annotations
+
+import warnings
+
+import numpy as np
+import pandas as pd
+import pytest
+from scipy.stats import chi2_contingency
+
+from process_improve.multivariate._common import SpecificationWarning
+from process_improve.multivariate.methods import CA, MCA
+
+
+@pytest.fixture
+def smoke() -> pd.DataFrame:
+    """Greenacre's staff group (rows) by smoking category (columns) table."""
+    return pd.DataFrame(
+        [[4, 2, 3, 2], [4, 3, 7, 4], [25, 10, 12, 4], [18, 24, 33, 13], [10, 6, 7, 2]],
+        index=["SM", "JM", "SE", "JE", "SC"],
+        columns=["none", "light", "medium", "heavy"],
+    )
+
+
+def _align(found: pd.DataFrame, reference: np.ndarray) -> np.ndarray:
+    """Flip each axis of ``found`` to agree in sign with ``reference``; SVD signs are arbitrary."""
+    values = found.to_numpy()
+    return values * np.sign(np.sum(values * reference, axis=0))
+
+
+class TestAgainstPublishedValues:
+    def test_principal_inertias(self, smoke: pd.DataFrame) -> None:
+        ca = CA(n_components=3).fit(smoke)
+        np.testing.assert_allclose(ca.eigenvalues_, [0.074759, 0.010017, 0.000414], atol=5e-7)
+        assert ca.total_inertia_ == pytest.approx(0.08519, abs=5e-6)
+
+    def test_principal_coordinates(self, smoke: pd.DataFrame) -> None:
+        """Against prince 0.21, rounded there to five decimals."""
+        rows = np.array(
+            [
+                [0.06577, 0.19374, 0.07098],
+                [-0.25896, 0.24330, -0.03371],
+                [0.38059, 0.01066, -0.00516],
+                [-0.23295, -0.05774, 0.00331],
+                [0.20109, -0.07891, -0.00808],
+            ]
+        )
+        columns = np.array(
+            [
+                [0.39331, 0.03049, -0.00089],
+                [-0.09946, -0.14106, 0.02200],
+                [-0.19632, -0.00736, -0.02566],
+                [-0.29378, 0.19777, 0.02621],
+            ]
+        )
+        ca = CA(n_components=3).fit(smoke)
+        np.testing.assert_allclose(_align(ca.row_coordinates_, rows), rows, atol=1e-5)
+        # The columns share the rows' axes, so the rows' sign alignment must fix them too.
+        signs = np.sign(np.sum(ca.row_coordinates_.to_numpy() * rows, axis=0))
+        np.testing.assert_allclose(ca.column_coordinates_.to_numpy() * signs, columns, atol=1e-5)
+
+
+class TestDefiningIdentities:
+    def test_total_inertia_is_chi_squared_over_n(self, smoke: pd.DataFrame) -> None:
+        chi2 = chi2_contingency(smoke.to_numpy(), correction=False)[0]
+        assert CA().fit(smoke).total_inertia_ == pytest.approx(chi2 / smoke.to_numpy().sum(), rel=1e-12)
+
+    def test_map_distance_is_the_chi_squared_distance(self, smoke: pd.DataFrame) -> None:
+        """On the full-dimensional map, Euclidean distance between rows is their chi-squared distance.
+
+        This is the property that makes the map worth reading, so it is checked
+        directly from the profiles rather than trusted.
+        """
+        ca = CA(n_components=3).fit(smoke)
+        counts = smoke.to_numpy(dtype=float)
+        profiles = counts / counts.sum(axis=1, keepdims=True)
+        column_mass = counts.sum(axis=0) / counts.sum()
+        coords = ca.row_coordinates_.to_numpy()
+        for i in range(len(smoke)):
+            for j in range(i + 1, len(smoke)):
+                chi2_distance = np.sqrt(np.sum((profiles[i] - profiles[j]) ** 2 / column_mass))
+                assert np.linalg.norm(coords[i] - coords[j]) == pytest.approx(chi2_distance, rel=1e-10)
+
+    def test_contributions_and_cos2_account_for_everything(self, smoke: pd.DataFrame) -> None:
+        ca = CA(n_components=3).fit(smoke)
+        np.testing.assert_allclose(ca.row_contributions_.sum(), 1.0)
+        np.testing.assert_allclose(ca.column_contributions_.sum(), 1.0)
+        # Over every axis, a category's cos2 accounts for all of its own inertia.
+        np.testing.assert_allclose(ca.row_cos2_.sum(axis=1), 1.0)
+        np.testing.assert_allclose(ca.column_cos2_.sum(axis=1), 1.0)
+
+    def test_scaling_every_count_changes_nothing(self, smoke: pd.DataFrame) -> None:
+        """CA reads profiles, not counts, so the same table in other units maps identically."""
+        np.testing.assert_allclose(CA().fit(smoke).row_coordinates_, CA().fit(smoke * 7).row_coordinates_)
+
+    def test_transposing_swaps_rows_and_columns(self, smoke: pd.DataFrame) -> None:
+        ca, transposed = CA().fit(smoke), CA().fit(smoke.T)
+        np.testing.assert_allclose(ca.eigenvalues_, transposed.eigenvalues_)
+        np.testing.assert_allclose(np.abs(ca.row_coordinates_), np.abs(transposed.column_coordinates_))
+
+
+class TestSupplementaryPoints:
+    def test_transforming_the_fitted_table_gives_the_fitted_coordinates(self, smoke: pd.DataFrame) -> None:
+        """The transition formula, checked where its answer is already known."""
+        ca = CA(n_components=3).fit(smoke)
+        np.testing.assert_allclose(ca.transform(smoke), ca.row_coordinates_)
+        np.testing.assert_allclose(ca.transform_columns(smoke), ca.column_coordinates_)
+
+    def test_a_supplementary_row_does_not_move_the_axes(self, smoke: pd.DataFrame) -> None:
+        """Placed on the map, it takes no part in defining it."""
+        ca = CA().fit(smoke)
+        before = ca.row_coordinates_.copy()
+        placed = ca.transform(pd.DataFrame([[40, 10, 5, 1]], columns=smoke.columns, index=["new"]))
+        assert list(placed.index) == ["new"]
+        pd.testing.assert_frame_equal(ca.row_coordinates_, before)
+
+    def test_supplementary_shape_is_checked(self, smoke: pd.DataFrame) -> None:
+        ca = CA().fit(smoke)
+        with pytest.raises(ValueError, match="expected 4"):
+            ca.transform(np.ones((2, 3)))
+        with pytest.raises(ValueError, match="expected 5"):
+            ca.transform_columns(np.ones((4, 2)))
+        with pytest.raises(ValueError, match="sums to zero"):
+            ca.transform(np.zeros((1, 4)))
+
+    @pytest.mark.parametrize("bad", [-1.0, np.nan, np.inf])
+    def test_supplementary_counts_must_be_finite_and_non_negative(self, smoke: pd.DataFrame, bad: float) -> None:
+        """A negative or missing count has no profile, and would silently distort one if let through."""
+        ca = CA().fit(smoke)
+        counts = np.array([[40.0, 10.0, 5.0, bad]])
+        with pytest.raises(ValueError, match="finite, non-negative"):
+            ca.transform(counts)
+        with pytest.raises(ValueError, match="finite, non-negative"):
+            ca.transform_columns(np.array([[1.0], [2.0], [3.0], [4.0], [bad]]))
+
+
+class TestDegenerateTables:
+    def test_an_independent_table_is_explained_not_mapped(self) -> None:
+        """Its inertia is floating-point noise; reporting shares of it would present noise as structure."""
+        independent = pd.DataFrame(np.outer([10, 20, 30], [1, 2, 3, 4]).astype(float))
+        with pytest.raises(ValueError, match="no association between its rows and columns"):
+            CA().fit(independent)
+
+    def test_a_rank_deficient_table_keeps_only_its_real_axes(self) -> None:
+        """Two rows with one profile leave a single axis; a second would be noise over noise."""
+        table = pd.DataFrame([[10, 20, 30], [20, 40, 60], [30, 10, 5]], dtype=float)
+        with pytest.warns(SpecificationWarning, match="has 1 with any inertia"):
+            ca = CA(n_components=2).fit(table)
+        assert ca.n_components_ == 1
+        np.testing.assert_allclose(ca.explained_inertia_, [1.0])
+
+    @pytest.mark.parametrize(
+        ("table", "message"),
+        [
+            ([[1.0, -2.0], [3.0, 4.0]], "negative"),
+            ([[1.0, np.nan], [3.0, 4.0]], "finite"),
+            ([[0.0, 0.0], [3.0, 4.0]], "sum to zero"),
+            ([[1.0, 2.0, 3.0]], "at least two rows"),
+        ],
+    )
+    def test_invalid_tables_are_refused(self, table: list, message: str) -> None:
+        with pytest.raises(ValueError, match=message):
+            CA().fit(pd.DataFrame(table))
+
+    def test_n_components_must_be_positive(self, smoke: pd.DataFrame) -> None:
+        with pytest.raises(ValueError, match="at least 1"):
+            CA(n_components=0).fit(smoke)
+
+
+class TestApi:
+    def test_refitting_gives_the_same_signs(self, smoke: pd.DataFrame) -> None:
+        pd.testing.assert_frame_equal(CA().fit(smoke).row_coordinates_, CA().fit(smoke).row_coordinates_)
+
+    def test_labels_survive(self, smoke: pd.DataFrame) -> None:
+        ca = CA().fit(smoke)
+        assert list(ca.row_coordinates_.index) == list(smoke.index)
+        assert list(ca.column_coordinates_.index) == list(smoke.columns)
+
+    def test_map_plot(self, smoke: pd.DataFrame) -> None:
+        fig = CA().fit(smoke).map_plot()
+        assert [trace.name for trace in fig.data] == ["rows", "columns"]
+        with pytest.raises(ValueError, match="Axes run from 1 to 2"):
+            CA().fit(smoke).map_plot(axis_y=3)
+
+    def test_fit_transform(self, smoke: pd.DataFrame) -> None:
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            np.testing.assert_allclose(CA().fit_transform(smoke), CA().fit(smoke).row_coordinates_)
+
+
+# ---------------------------------------------------------------------------
+# MCA (#177)
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture
+def batches() -> pd.DataFrame:
+    """Categorical batch attributes with real associations: grade A goes with s1 and days."""
+    return pd.DataFrame(
+        {
+            "grade": list("AAAAABBBBCCCCCAB"),
+            "supplier": [
+                "s1",
+                "s1",
+                "s1",
+                "s2",
+                "s1",
+                "s2",
+                "s2",
+                "s1",
+                "s2",
+                "s3",
+                "s3",
+                "s3",
+                "s2",
+                "s3",
+                "s1",
+                "s3",
+            ],
+            "shift": [
+                *("day", "day", "day", "day", "night", "day", "night", "night", "day"),
+                *("night", "night", "night", "night", "day", "day", "night"),
+            ],
+        }
+    )
+
+
+class TestMCAAgainstReferences:
+    def test_eigenvalues_and_total_inertia(self, batches: pd.DataFrame) -> None:
+        """Total inertia of an indicator matrix is (J - Q) / Q whatever the data: here (8 - 3) / 3."""
+        mca = MCA(n_components=3).fit(batches)
+        np.testing.assert_allclose(mca.eigenvalues_, [0.72518, 0.472534, 0.261829], atol=1e-6)
+        assert mca.total_inertia_ == pytest.approx(5 / 3)
+
+    def test_coordinates_against_prince(self, batches: pd.DataFrame) -> None:
+        """The first three observations and the grade levels, against prince 0.21."""
+        mca = MCA(n_components=3).fit(batches)
+        rows = np.array([[-1.08248, -0.51280, -0.02134]] * 3)
+        signs = np.sign(np.sum(mca.row_coordinates_.to_numpy()[:3] * rows, axis=0))
+        np.testing.assert_allclose(mca.row_coordinates_.to_numpy()[:3] * signs, rows, atol=1e-5)
+        grades = np.array([[-1.09064, -0.54237, -0.03352], [0.14226, 1.23813, 0.58788], [1.16651, -0.58728, -0.54766]])
+        found = mca.column_coordinates_.loc[["grade=A", "grade=B", "grade=C"]].to_numpy()
+        np.testing.assert_allclose(found * signs, grades, atol=1e-5)
+
+    def test_only_j_minus_q_axes_carry_inertia(self, batches: pd.DataFrame) -> None:
+        """An indicator matrix has J - Q real axes; CA's null-axis rule must find exactly those."""
+        with pytest.warns(SpecificationWarning, match="has 5 with any inertia"):
+            assert MCA(n_components=7).fit(batches).n_components_ == 5
+
+
+class TestMCACorrections:
+    def test_benzecri_against_prince(self, batches: pd.DataFrame) -> None:
+        mca = MCA(n_components=3, correction="benzecri").fit(batches)
+        np.testing.assert_allclose(100 * mca.corrected_explained_inertia_, [88.7944, 11.2056, 0.0], atol=1e-4)
+
+    def test_greenacre_sums_over_every_axis(self, batches: pd.DataFrame) -> None:
+        """The adjusted total is the Burt matrix's inertia, a sum over *all* axes.
+
+        prince 0.21 sums only over the axes kept, which reports 87.85% here instead of
+        79.76% and makes the answer depend on ``n_components``. Computed directly from
+        Greenacre's formula instead, with every eigenvalue.
+        """
+        every = MCA(n_components=5).fit(batches).eigenvalues_
+        n_vars, n_levels = 3, 8
+        adjusted = np.where(every > 1 / n_vars, (n_vars / (n_vars - 1)) ** 2 * (every - 1 / n_vars) ** 2, 0.0)
+        total = n_vars / (n_vars - 1) * (np.sum(every**2) - (n_levels - n_vars) / n_vars**2)
+        mca = MCA(n_components=2, correction="greenacre").fit(batches)
+        np.testing.assert_allclose(mca.corrected_explained_inertia_, adjusted[:2] / total)
+        np.testing.assert_allclose(100 * mca.corrected_explained_inertia_, [79.7588, 10.0653], atol=1e-4)
+
+    @pytest.mark.parametrize("correction", ["benzecri", "greenacre"])
+    def test_a_correction_does_not_depend_on_how_many_axes_are_kept(
+        self, batches: pd.DataFrame, correction: str
+    ) -> None:
+        one = MCA(n_components=1, correction=correction).fit(batches)
+        three = MCA(n_components=3, correction=correction).fit(batches)
+        np.testing.assert_allclose(one.corrected_explained_inertia_, three.corrected_explained_inertia_[:1])
+
+    def test_unassociated_variables_give_zero_shares_not_nan(self) -> None:
+        """Every eigenvalue at or below 1/Q corrects to zero; prince divides that by zero and reports NaN."""
+        balanced = pd.DataFrame(
+            {
+                "grade": list("AABBCCABCABC"),
+                "supplier": ["s1", "s2"] * 6,
+                "shift": [
+                    "day",
+                    "day",
+                    "night",
+                    "night",
+                    "day",
+                    "night",
+                    "night",
+                    "day",
+                    "day",
+                    "night",
+                    "day",
+                    "night",
+                ],
+            }
+        )
+        mca = MCA(n_components=2, correction="benzecri").fit(balanced)
+        assert np.all(np.isfinite(mca.corrected_explained_inertia_))
+
+    def test_no_correction_keeps_the_raw_shares(self, batches: pd.DataFrame) -> None:
+        mca = MCA(n_components=2).fit(batches)
+        np.testing.assert_array_equal(mca.corrected_explained_inertia_, mca.explained_inertia_)
+
+    def test_unknown_correction_refused(self, batches: pd.DataFrame) -> None:
+        with pytest.raises(ValueError, match="correction must be one of"):
+            MCA(correction="burt").fit(batches)
+
+
+class TestMCASupplementary:
+    def test_transforming_the_fitted_data_gives_the_fitted_coordinates(self, batches: pd.DataFrame) -> None:
+        mca = MCA(n_components=3).fit(batches)
+        np.testing.assert_allclose(mca.transform(batches), mca.row_coordinates_)
+
+    def test_a_supplementary_outcome_lands_by_the_attributes_that_go_with_it(self, batches: pd.DataFrame) -> None:
+        """The issue's use case: which attribute combinations go with good and bad batches.
+
+        Here "good" is exactly the grade-A batches, so it must land on grade A, and it
+        must do so without having shaped the axes.
+        """
+        mca = MCA(n_components=2).fit(batches)
+        before = mca.row_coordinates_.copy()
+        outcome = pd.DataFrame({"outcome": np.where(batches["grade"] == "A", "good", "bad")})
+        placed = mca.transform_columns(outcome)
+        np.testing.assert_allclose(placed.loc["outcome=good"], mca.column_coordinates_.loc["grade=A"], atol=1e-10)
+        pd.testing.assert_frame_equal(mca.row_coordinates_, before)
+
+    def test_an_unseen_level_is_refused(self, batches: pd.DataFrame) -> None:
+        """Dropping it would leave the row's profile summing to less than one, misplacing it."""
+        mca = MCA().fit(batches)
+        new = batches.iloc[:1].copy()
+        new["grade"] = "Z"
+        with pytest.raises(ValueError, match=r"levels \['Z'\] that the model was not fitted on"):
+            mca.transform(new)
+
+    def test_the_variables_must_match(self, batches: pd.DataFrame) -> None:
+        with pytest.raises(ValueError, match="Expected the variables"):
+            MCA().fit(batches).transform(batches[["shift", "grade", "supplier"]])
+
+
+class TestMCAInputs:
+    def test_missing_values_are_refused_with_a_way_forward(self, batches: pd.DataFrame) -> None:
+        gapped = batches.copy()
+        gapped.iloc[2, 1] = None
+        with pytest.raises(ValueError, match="fill the gaps with an explicit level"):
+            MCA().fit(gapped)
+
+    def test_one_variable_is_refused(self, batches: pd.DataFrame) -> None:
+        with pytest.raises(ValueError, match="at least two categorical variables"):
+            MCA().fit(batches[["grade"]])
+
+    def test_levels_are_named_by_variable(self, batches: pd.DataFrame) -> None:
+        assert "supplier=s2" in MCA().fit(batches).column_coordinates_.index
+
+    def test_numeric_codes_are_treated_as_categories(self, batches: pd.DataFrame) -> None:
+        coded = batches.assign(grade=batches["grade"].map({"A": 1, "B": 2, "C": 3}))
+        assert pd.api.types.is_integer_dtype(coded["grade"])
+        assert "grade=1" in MCA().fit(coded).column_coordinates_.index
+
+    def test_map_plot_is_inherited(self, batches: pd.DataFrame) -> None:
+        assert len(MCA().fit(batches).map_plot().data) == 2

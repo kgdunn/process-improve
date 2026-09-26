@@ -47,6 +47,33 @@ inherited, so a fitted ``PRM`` also has scores, loadings, VIP, Hotelling's T2 an
    :members: fit, outlier_summary
    :show-inheritance:
 
+CA
+~~
+
+Correspondence analysis of a two-way contingency table: "PCA for a table of counts".
+Each row's profile is compared with the average profile by the chi-squared distance,
+so a rare category that departs strongly from independence counts for as much as a
+common one that departs a little. On the map, rows with similar profiles sit
+together, and a row lying out toward a column co-occurs with it more often than
+independence would predict.
+
+.. autoclass:: CA
+   :members: fit, transform, transform_columns, map_plot
+   :show-inheritance:
+
+MCA
+~~~
+
+Multiple correspondence analysis: correspondence analysis of the one-hot indicator
+matrix of several categorical variables, "PCA for categorical data". Observations with
+similar combinations of levels plot together, and so do levels that tend to occur
+together. The raw eigenvalues of an indicator matrix understate the real association,
+so ``correction`` reports each axis's share on the Benzecri or Greenacre scale.
+
+.. autoclass:: MCA
+   :members: fit, transform, transform_columns
+   :show-inheritance:
+
 TPLS
 ~~~~
 
