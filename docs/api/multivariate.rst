@@ -85,6 +85,19 @@ matrix when every column is numeric, and exactly MCA when every column is catego
    :members: fit, transform, map_plot
    :show-inheritance:
 
+MFA
+~~~
+
+Multiple factor analysis: one balanced analysis of several groups of variables
+measured on the same observations. Each group is weighted by one over its first
+eigenvalue, so a wide block (a spectrum) cannot outvote a narrow one (a lab panel)
+by column count, and each observation's position is the average of one partial
+position per group.
+
+.. autoclass:: MFA
+   :members: fit, transform, map_plot
+   :show-inheritance:
+
 TPLS
 ~~~~
 
