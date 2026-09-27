@@ -348,6 +348,90 @@ def _select_n_components(
     )
 
 
+def _vandervoet_randomization(
+    per_obs_sse: np.ndarray,
+    *,
+    total_rmsecv: np.ndarray,
+    n_permutations: int = 999,
+    alpha: float = 0.01,
+    random_state: int | np.random.Generator | None = None,
+) -> tuple[int, np.ndarray]:
+    """Van der Voet (1994) randomization test for PLS component selection.
+
+    Compares every candidate model against the reference (argmin-RMSECV)
+    model under the null that the two have the same predictive ability.
+    For each observation the paired difference of squared residuals
+    ``D_i = sse[a, i] - sse[a*, i]`` is computed; under the null its sign
+    is random, so the permutation distribution of ``T = sum_i D_i`` is
+    obtained by flipping each ``D_i``'s sign with probability 1/2 over
+    ``n_permutations`` draws. The *p*-value is the right-tail probability
+    of seeing a sum as large as the observed one (``T_obs >= T_perm``);
+    the recommendation is the smallest ``a`` whose ``p > alpha`` -
+    statistically indistinguishable from the reference, but more
+    parsimonious.
+
+    Parameters
+    ----------
+    per_obs_sse : np.ndarray of shape (n_components, n_samples)
+        Out-of-fold per-observation squared total residual at every
+        component count, summed across Y columns. Rows that are NaN
+        (observation never held out) are dropped.
+    total_rmsecv : np.ndarray of shape (n_components,)
+        Pooled total RMSECV per component count; used to pick the
+        reference model ``a*`` = ``nanargmin(total_rmsecv) + 1``.
+    n_permutations : int, default 999
+        Number of sign-flip permutations.
+    alpha : float, default 0.01
+        Significance level. Smaller values are more parsimonious.
+    random_state : int, numpy.random.Generator or None, optional
+        Seed or generator for reproducible permutations.
+
+    Returns
+    -------
+    recommended : int
+        Smallest 1-based component count with ``p > alpha``.
+    p_values : np.ndarray of shape (n_components,)
+        Right-tail *p*-value per candidate; the reference model gets
+        ``1.0`` by construction (paired differences are all zero).
+
+    References
+    ----------
+    Van der Voet, H. (1994). Comparing the predictive accuracy of
+    models using a simple randomization test. *Chemom. Intell. Lab.
+    Syst.*, 25(2), 313-323.
+    """
+    a_count = per_obs_sse.shape[0]
+    a_ref = int(np.nanargmin(total_rmsecv))
+    rng = np.random.default_rng(random_state)
+    p_values = np.zeros(a_count)
+    p_values[a_ref] = 1.0
+    sse_ref = per_obs_sse[a_ref]
+    for a in range(a_count):
+        if a == a_ref:
+            continue
+        d = per_obs_sse[a] - sse_ref
+        # Drop observations with NaN (a custom splitter may have left some
+        # rows unheld), since the paired difference is undefined there.
+        d = d[np.isfinite(d)]
+        if d.size == 0:
+            p_values[a] = 1.0
+            continue
+        t_obs = float(d.sum())
+        signs = rng.choice([-1.0, 1.0], size=(n_permutations, d.size))
+        t_perm = (signs * d).sum(axis=1)
+        # Right-tail probability under the null. Add 1 to both numerator
+        # and denominator (the "permutation test +1" correction) so the
+        # p-value is strictly positive even at the extreme.
+        p_values[a] = float((np.sum(t_perm >= t_obs) + 1) / (n_permutations + 1))
+
+    recommended = a_ref + 1  # fall back to the reference if nothing qualifies
+    for a in range(a_count):
+        if p_values[a] > alpha:
+            recommended = a + 1
+            break
+    return recommended, p_values
+
+
 def _equal_weight_r2_total(per_target: np.ndarray) -> np.ndarray:
     r"""Pool per-target validated :math:`R^2_Y` with every target weighted equally.
 
