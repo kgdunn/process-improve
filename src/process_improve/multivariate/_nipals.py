@@ -241,3 +241,106 @@ def internal_pls_nipals_fit_one_pc(
         q_i = -q_i
 
     return dict(t_i=t_i, u_i=u_i, w_i=w_i, q_i=q_i)
+
+
+def _kernel_pls(
+    kernel_xx: np.ndarray, kernel_xy: np.ndarray, n_components: int
+) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+    """Recompute PLS parameters from the association matrices ``X'X`` and ``X'Y``.
+
+    Implements the Dayal-MacGregor (1997) kernel algorithm, which extracts the
+    PLS weights, loadings and regression matrix directly from the kernels,
+    without access to the original ``X`` / ``Y`` blocks. ``X'X`` is not deflated;
+    each direction ``r`` is orthogonalised against the earlier loadings so that
+    the score inner product is ``r' (X'X) r``.
+
+    Parameters
+    ----------
+    kernel_xx : np.ndarray of shape (K, K)
+        The X-space association matrix ``X'X`` (scaled data).
+    kernel_xy : np.ndarray of shape (K, M)
+        The cross association matrix ``X'Y`` (scaled data).
+    n_components : int
+        Number of latent variables ``A`` to extract.
+
+    Returns
+    -------
+    weights : np.ndarray of shape (K, A)
+        The X-space weights ``W`` (each column unit norm).
+    loadings : np.ndarray of shape (K, A)
+        The X-space loadings ``P``.
+    direct_weights : np.ndarray of shape (K, A)
+        The direct weights ``R = W (P'W)^-1`` such that scores ``T = X R``.
+    y_loadings : np.ndarray of shape (M, A)
+        The Y-space loadings ``C`` (also called ``Q``).
+    score_ssq : np.ndarray of shape (A,)
+        The score sums-of-squares ``r' (X'X) r`` per component; divide by
+        ``N - 1`` to recover the score variances used for Hotelling's T2 scaling.
+    """
+    K = kernel_xx.shape[0]
+    M = kernel_xy.shape[1]
+    A = n_components
+    weights = np.zeros((K, A))
+    loadings = np.zeros((K, A))
+    direct = np.zeros((K, A))
+    y_loadings = np.zeros((M, A))
+    score_ssq = np.zeros(A)
+
+    xy = kernel_xy.copy()
+    for a in range(A):
+        if M == 1:
+            w = xy[:, 0].copy()
+        else:
+            # Dominant eigenvector of X'Y (X'Y)' via the small M x M problem.
+            eigvals, eigvecs = np.linalg.eigh(xy.T @ xy)
+            q_dom = eigvecs[:, int(np.argmax(eigvals))]
+            w = xy @ q_dom
+        norm_w = float(np.linalg.norm(w))
+        if norm_w < epsqrt:
+            # No further usable covariance; leave the remaining columns at zero.
+            break
+        w = w / norm_w
+        r = w.copy()
+        for j in range(a):
+            r = r - float(loadings[:, j] @ w) * direct[:, j]
+        tt = float(r @ kernel_xx @ r)
+        if tt < epsqrt:
+            break
+        p = (kernel_xx @ r) / tt
+        c = (xy.T @ r) / tt  # (M,)
+        weights[:, a] = w
+        loadings[:, a] = p
+        direct[:, a] = r
+        y_loadings[:, a] = c
+        score_ssq[a] = tt
+        # Deflate X'Y only: X'Y <- X'Y - (X'X r) c' = X'Y - tt * p c'.
+        xy = xy - tt * np.outer(p, c)
+    return weights, loadings, direct, y_loadings, score_ssq
+
+
+def _sign_align(current: np.ndarray, previous: np.ndarray) -> np.ndarray:
+    """Flip the sign of each column of ``current`` to best match ``previous``.
+
+    PCA / PLS components are defined only up to a sign; the recomputed loadings
+    can flip between updates, which makes score time-series jump. Aligning the
+    sign to the previous iteration keeps the score traces continuous. Returns the
+    per-column signs (``+1`` / ``-1``) actually applied, so the caller can flip
+    the matching scores as well.
+
+    Parameters
+    ----------
+    current : np.ndarray of shape (K, A)
+        The freshly recomputed loadings / weights (modified in place).
+    previous : np.ndarray of shape (K, A)
+        The loadings / weights from the previous update.
+
+    Returns
+    -------
+    np.ndarray of shape (A,)
+        The signs applied to each column.
+    """
+    signs = np.ones(current.shape[1])
+    for a in range(current.shape[1]):
+        if float(current[:, a] @ previous[:, a]) < 0:
+            signs[a] = -1.0
+    return signs
