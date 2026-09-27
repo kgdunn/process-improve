@@ -13,6 +13,49 @@ those changes.
 
 ### Added
 
+- **`compare_cv_criteria`, `pseudo_validation_set` and `cv_criteria_plot`: validate a
+  PLS model's latent structure, not only its predictions (#605).** Cross-validated
+  Q2 asks whether the model predicts Y. A model used for SPE / T2 monitoring or for
+  inversion also needs components that are a reproducible property of the process,
+  and the two questions can have different answers. `compare_cv_criteria` runs one
+  K-fold loop and reports, per component, Q2 with the 1-SE rule, van der Voet and
+  CV-ANOVA beside:
+  - the held-out t-u score correlation, calibrated by permuting Y (kernel-PLS
+    refits keep this under a second on typical data);
+  - the out-of-sample slope ratio `s_a`, for which `PRESS[a-1] - PRESS[a] =
+    (2 s_a - 1) w_a` holds exactly, so Q2 rises only when `s_a > 1/2`;
+  - a sequential covariance permutation test on the deflated `X_a'Y_a`;
+  - jackknife-scaled per-component and subspace angles of the weights, which,
+    unlike raw fold angles, do not shrink as the number of folds grows;
+  - Procrustes cross-validation (Kucheryavskiy et al., 2023) D ratios,
+    out-of-sample SPE / T2 alarm rates against the full-data model's limits, and
+    `spe_limits`: the SPE limit refitted to the held-out (pseudo-validation) SPE.
+    The full-data limit is fitted to training residuals and is too tight for new
+    rows; on simulated data with 16 variables it flagged 17% of fresh rows at a
+    nominal 5% with 30 training rows, where the refitted limit flagged 4%. The
+    refitted limit is for complete rows: a held-out row with gaps has its squared
+    SPE scaled by `K / n_observed`.
+
+  Each selection rule reports its own recommended number of components; a pair of
+  components that swap inside a stable span counts as two for
+  `subspace_stability`. Missing values (NaN) in X and Y are handled as the NIPALS
+  fit handles them: held-out rows are scored from their observed cells, and missing
+  Y cells are left out of every sum, with the PRESS identity still exact.
+  `pseudo_validation_set` builds the Procrustes pseudo-validation set for any
+  component count, with the missing cells of X; `PLS.compare_cv_criteria` and
+  `PLS.pseudo_validation_set` are the classmethod forms.
+  `_vandervoet_randomization` now also accepts a numpy Generator.
+
+- **`simulation.LatentStructure`: data with a known latent structure (#605).** A linear
+  process `X = T P' + E`, `Y = T B + F` whose number of latent variables, their
+  strengths, and which of them drive Y are set by the caller; `sample` draws rows,
+  optionally with cells missing at random, and fresh draws give the ground truth.
+  The best linear predictor on new rows is returned in closed form
+  (`population_coefficients`, `population_r2`). The loadings are Hadamard columns,
+  so every X column has the same variance and autoscaling leaves the structure
+  intact. `scripts/cv_criteria_recovery.py` uses it to check every
+  `compare_cv_criteria` rule against the simulated truth.
+
 - **`PCA(tol=..., max_iter=...)` and `TPLS(tol=...)`: the loop settings are now
   constructor parameters (#588).** Six iterative estimators spelled their
   convergence tolerance and iteration cap five different ways, and these two were
