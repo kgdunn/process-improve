@@ -61,6 +61,19 @@ independence would predict.
    :members: fit, transform, transform_columns, map_plot
    :show-inheritance:
 
+MCA
+~~~
+
+Multiple correspondence analysis: correspondence analysis of the one-hot indicator
+matrix of several categorical variables, "PCA for categorical data". Observations with
+similar combinations of levels plot together, and so do levels that tend to occur
+together. The raw eigenvalues of an indicator matrix understate the real association,
+so ``correction`` reports each axis's share on the Benzecri or Greenacre scale.
+
+.. autoclass:: MCA
+   :members: fit, transform, transform_columns
+   :show-inheritance:
+
 TPLS
 ~~~~
 
