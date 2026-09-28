@@ -6274,11 +6274,21 @@ class TestPlsMissingDataSettingsResolution:
             PLS(n_components=2, missing_data_settings={"md_method": bad}).fit(x, y)
 
     @pytest.mark.parametrize("method", ["tsr", "pmp"])
-    def test_recognised_but_unbuilt_methods_still_raise_not_implemented(self, method: str) -> None:
-        """``tsr`` and ``pmp`` are named in the fit-time set so they keep their own error."""
+    def test_imputing_methods_run_themselves_not_nipals(self, method: str) -> None:
+        """``tsr`` and ``pmp`` are built now (#189), so they must not be NIPALS under another name.
+
+        This used to pin the ``NotImplementedError`` they raised while stubbed. What it
+        guarded then still matters: asking for a method must run that method. On gapped
+        data an imputed fit and NIPALS reach different models, and the fit says which ran.
+        """
         x, y = self._xy(gapped=True)
-        with pytest.raises(NotImplementedError, match=f"{method.upper()} for PLS"):
-            PLS(n_components=2, missing_data_settings={"md_method": method}).fit(x, y)
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            imputed = PLS(n_components=2, missing_data_settings={"md_method": method}).fit(x, y)
+            nipals = PLS(n_components=2).fit(x, y)
+        assert imputed.fitting_info_["md_method"] == method
+        assert imputed.fitting_info_["md_rounds"] >= 1
+        assert not np.allclose(imputed.beta_coefficients_.to_numpy(), nipals.beta_coefficients_.to_numpy())
 
     def test_default_construction_is_unchanged(self) -> None:
         """The defaults resolve to what the old code resolved to.
