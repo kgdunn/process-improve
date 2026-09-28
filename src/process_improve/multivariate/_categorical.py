@@ -1,5 +1,5 @@
 # (c) Kevin Dunn, 2010-2026. MIT License. Based on own private work over the years.
-"""Latent-variable methods for categorical and count data (#176).
+"""Latent-variable methods for categorical and count data (#176, #177).
 
 Every other method in :mod:`process_improve.multivariate` assumes a continuous
 numeric matrix. Count data is everywhere in quality work nevertheless: defect type
@@ -215,6 +215,9 @@ class CA(TransformerMixin, BaseEstimator):
 
         self.n_components_ = keep
         self.eigenvalues_ = eigenvalues[:keep]
+        # Every axis with inertia, kept or not: a correction that sums over all of them
+        # must not change with how many the caller chose to look at.
+        self._all_eigenvalues = eigenvalues
         self.total_inertia_ = float(eigenvalues.sum())
         self.explained_inertia_ = self.eigenvalues_ / self.total_inertia_
         self.row_masses_ = pd.Series(row_mass, index=table.index, name="mass")
@@ -407,3 +410,204 @@ class CA(TransformerMixin, BaseEstimator):
             height=setdict["html_image_height"],
         )
         return fig
+
+
+#: Eigenvalue corrections :class:`MCA` offers, by name.
+MCA_CORRECTIONS = (None, "benzecri", "greenacre")
+
+
+def _indicator(frame: pd.DataFrame, levels: dict[str, list] | None = None) -> pd.DataFrame:
+    """One-hot encode every column, as ``"variable=level"``.
+
+    With ``levels`` given, encode against those levels (the fitted ones), so a
+    supplementary row lines up with the fitted categories; a level the fit never saw
+    is refused rather than silently dropped, because dropping it would leave that
+    row's profile summing to less than one and misplace it on the map.
+
+    Raises
+    ------
+    ValueError
+        If a cell is missing, or holds a level not in ``levels``.
+    """
+    if frame.isna().any().any():
+        missing = frame.columns[frame.isna().any()].tolist()
+        raise ValueError(
+            f"Columns {missing} have missing values. MCA needs every observation to have a level in every "
+            "variable; fill the gaps with an explicit level (for example 'unknown') if their absence "
+            "is itself informative, or drop those rows."
+        )
+    blocks = []
+    for column in frame.columns:
+        values = frame[column].astype(str)
+        known = sorted(values.unique()) if levels is None else levels[str(column)]
+        unseen = sorted(set(values) - set(known))
+        if unseen:
+            raise ValueError(f"Column {column!r} has levels {unseen} that the model was not fitted on.")
+        blocks.append(pd.DataFrame({f"{column}={level}": (values == level).astype(float) for level in known}))
+    return pd.concat(blocks, axis=1).set_axis(frame.index, axis=0)
+
+
+class MCA(CA):
+    r"""Multiple correspondence analysis of several categorical variables.
+
+    "PCA for categorical data": each observation is described by several categorical
+    variables (grade, supplier, line, shift). MCA is correspondence analysis of the
+    one-hot indicator matrix, so observations with similar combinations of levels
+    plot together, and levels that tend to occur together plot together.
+
+    The raw eigenvalues of an indicator matrix are notoriously pessimistic: with
+    :math:`Q` variables, much of the inertia is an artefact of the coding, and the
+    first axes look as if they explain a small share when they explain nearly all of
+    the real association. ``correction`` reports that share honestly.
+
+    Parameters
+    ----------
+    n_components : int, optional
+        Number of axes to keep, default 2. At most :math:`J - Q` axes carry inertia,
+        with :math:`J` the total number of levels.
+    correction : {None, "benzecri", "greenacre"}, optional
+        How to express each axis's share of the inertia:
+
+        - ``None`` (default): the raw shares of the indicator matrix's inertia.
+        - ``"benzecri"``: each eigenvalue above :math:`1/Q` becomes
+          :math:`(Q/(Q-1))^2 (\lambda - 1/Q)^2`, the rest zero, and shares are taken of
+          their sum. Known to be optimistic.
+        - ``"greenacre"``: the same adjusted eigenvalues as a share of the adjusted
+          total inertia :math:`\frac{Q}{Q-1}(\sum \lambda^2 - (J-Q)/Q^2)`, the sum taken
+          over *every* axis. More conservative; the shares need not sum to 100%.
+
+    Attributes
+    ----------
+    corrected_eigenvalues_ : np.ndarray of shape (n_components,)
+        The eigenvalues after ``correction``; the raw ones when it is None.
+    corrected_explained_inertia_ : np.ndarray of shape (n_components,)
+        Share of the (corrected) inertia on each kept axis.
+    variables_ : list[str]
+        The categorical variables, in the order they were encoded.
+
+    All the attributes of :class:`CA` are present as well. Its "rows" are the
+    observations and its "columns" the levels, named ``"variable=level"``.
+
+    References
+    ----------
+    M. Greenacre, "From simple to multiple correspondence analysis", in M. Greenacre
+    and J. Blasius (eds.), Multiple Correspondence Analysis and Related Methods,
+    Chapman and Hall/CRC, 2006.
+
+    Examples
+    --------
+    >>> mca = MCA(n_components=2, correction="greenacre").fit(batch_attributes)  # doctest: +SKIP
+    >>> mca.corrected_explained_inertia_                                         # doctest: +SKIP
+    >>> mca.transform_columns(batch_attributes[["outcome"]])  # a supplementary label  # doctest: +SKIP
+    """
+
+    def __init__(self, n_components: int = 2, correction: str | None = None):
+        super().__init__(n_components=n_components)
+        self.correction = correction
+
+    def fit(self, X: DataMatrix, y: object = None) -> MCA:  # noqa: ARG002
+        """Fit to a table of categorical variables, one column per variable.
+
+        Parameters
+        ----------
+        X : pd.DataFrame of shape (n_observations, n_variables)
+            Each column a categorical variable; values of any type are compared as
+            strings.
+        y : ignored
+            Accepted for :class:`~sklearn.pipeline.Pipeline` compatibility.
+
+        Returns
+        -------
+        MCA
+            ``self``, fitted.
+
+        Raises
+        ------
+        ValueError
+            If ``correction`` is not recognised, fewer than two variables are given,
+            or a cell is missing.
+        """
+        if self.correction not in MCA_CORRECTIONS:
+            raise ValueError(f"correction must be one of {MCA_CORRECTIONS}; got {self.correction!r}.")
+        frame = X if isinstance(X, pd.DataFrame) else pd.DataFrame(np.asarray(X))
+        if frame.shape[1] < 2:
+            raise ValueError(
+                "MCA needs at least two categorical variables; with one, use CA on its cross-tabulation "
+                "against another variable, or simply its frequency table."
+            )
+        indicator = _indicator(frame)
+        super().fit(indicator)
+        self.variables_ = [str(column) for column in frame.columns]
+        self._levels = {str(column): sorted(frame[column].astype(str).unique()) for column in frame.columns}
+
+        n_vars, n_levels = len(self.variables_), indicator.shape[1]
+        raw = self.eigenvalues_
+        if self.correction is None:
+            self.corrected_eigenvalues_ = raw.copy()
+            self.corrected_explained_inertia_ = self.explained_inertia_.copy()
+            return self
+
+        threshold = 1.0 / n_vars
+        factor = (n_vars / (n_vars - 1)) ** 2
+        self.corrected_eigenvalues_ = np.where(raw > threshold, factor * (raw - threshold) ** 2, 0.0)
+        if self.correction == "benzecri":
+            every = self._all_eigenvalues
+            total = float(np.sum(np.where(every > threshold, factor * (every - threshold) ** 2, 0.0)))
+        else:
+            # The Burt matrix's inertia is the sum of squared eigenvalues over *every* axis.
+            burt_inertia = float(np.sum(self._all_eigenvalues**2))
+            total = n_vars / (n_vars - 1) * (burt_inertia - (n_levels - n_vars) / n_vars**2)
+        # No eigenvalue above 1/Q means the variables are unassociated beyond what the
+        # coding forces: every corrected eigenvalue is zero, and so is its total. That is
+        # a finding, reported as zero shares, not 0/0.
+        self.corrected_explained_inertia_ = (
+            self.corrected_eigenvalues_ / total if total > 0 else np.zeros_like(self.corrected_eigenvalues_)
+        )
+        return self
+
+    def transform(self, X: DataMatrix) -> pd.DataFrame:
+        """Place observations on the fitted map, from their levels.
+
+        Parameters
+        ----------
+        X : pd.DataFrame of shape (n_observations, n_variables)
+            The same variables as the fit, with levels the fit has seen.
+
+        Returns
+        -------
+        pd.DataFrame
+            Principal coordinates, one row per observation.
+
+        Raises
+        ------
+        ValueError
+            If the variables differ from the fit's, or a level is unseen or missing.
+        """
+        check_is_fitted(self, "variables_")
+        frame = X if isinstance(X, pd.DataFrame) else pd.DataFrame(np.asarray(X))
+        if [str(column) for column in frame.columns] != self.variables_:
+            raise ValueError(f"Expected the variables {self.variables_}; got {list(frame.columns)}.")
+        return super().transform(_indicator(frame, self._levels))
+
+    def transform_columns(self, X: DataMatrix) -> pd.DataFrame:
+        """Place the levels of *supplementary* categorical variables on the fitted map.
+
+        Each level lands at the barycentre of the observations that have it, so a
+        supplementary outcome label (good / bad batch) shows which combinations of the
+        fitted attributes go with each outcome, without the outcome shaping the axes.
+
+        Parameters
+        ----------
+        X : pd.DataFrame of shape (n_observations, n_supplementary)
+            One row per fitted observation, in the same order; one column per
+            supplementary categorical variable.
+
+        Returns
+        -------
+        pd.DataFrame
+            Principal coordinates, one row per supplementary level, named
+            ``"variable=level"``.
+        """
+        check_is_fitted(self, "variables_")
+        frame = X if isinstance(X, pd.DataFrame) else pd.DataFrame(np.asarray(X))
+        return super().transform_columns(_indicator(frame))

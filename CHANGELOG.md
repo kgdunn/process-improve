@@ -13,6 +13,27 @@ those changes.
 
 ### Added
 
+- **`MCA`: multiple correspondence analysis for categorical variables (#177).** Batch
+  records carry categorical attributes (grade, supplier, line, shift), and audits,
+  checklists and failure logs are almost entirely categorical; the multivariate module
+  had nothing for any of them. `MCA` is correspondence analysis of the one-hot indicator
+  matrix, built on `CA`, so it inherits its map, contributions and cos2.
+
+  ```python
+  mca = MCA(n_components=2, correction="greenacre").fit(batch_attributes)
+  mca.corrected_explained_inertia_
+  mca.transform_columns(outcomes)   # where do good and bad batches land?
+  ```
+
+  A supplementary categorical variable is placed without shaping the axes, which answers
+  the question the issue was written for: which combinations of attributes go with poor
+  outcomes. The raw eigenvalues of an indicator matrix understate the real association,
+  so `correction="benzecri"` or `"greenacre"` rescales them. Greenacre's adjusted total
+  is the Burt matrix's inertia, a sum over *every* axis; the `prince` library sums only
+  the axes kept, reporting 87.8% where the correct figure is 79.8% and letting the
+  answer change with `n_components`. That is avoided here, as is the NaN prince returns
+  when no eigenvalue exceeds 1/Q.
+
 - **`CA`: correspondence analysis for contingency tables (#176).** Every other method in
   `multivariate` assumes a continuous matrix, so a table of counts (defect type against
   line, failure mode against asset, rejection reason against supplier) had no home. A PCA
