@@ -42,3 +42,6 @@ uv.lock
 
 # Build artifacts (uv build)
 dist/
+
+# Pyodide for the web/ smoke test (npm install --no-save)
+web/node_modules/
