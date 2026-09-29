@@ -1,5 +1,5 @@
 # (c) Kevin Dunn, 2010-2026. MIT License. Based on own private work over the years.
-"""Latent-variable methods for categorical and count data (#176, #177).
+"""Latent-variable methods for categorical, count, mixed and grouped data (#176-#179).
 
 Every other method in :mod:`process_improve.multivariate` assumes a continuous
 numeric matrix. Count data is everywhere in quality work nevertheless: defect type
@@ -25,6 +25,7 @@ Hall/CRC, 2017. The staff-by-smoking table used in the tests is his.
 from __future__ import annotations
 
 import warnings
+from collections.abc import Mapping
 
 import numpy as np
 import pandas as pd
@@ -359,57 +360,62 @@ class CA(TransformerMixin, BaseEstimator):
         ValueError
             If an axis is outside ``1 .. n_components_``.
         """
-        check_is_fitted(self, "row_coordinates_")
+        return _map_plot(self, axis_x, axis_y, settings, "Correspondence analysis map")
 
-        class Settings(BaseModel):
-            """Validated display settings for the correspondence analysis map."""
 
-            title: str = "Correspondence analysis map"
-            row_color: str | None = None
-            column_color: str | None = None
-            html_image_height: float = 600.0
-            html_aspect_ratio_w_over_h: float = 1.0
-            template: str = DEFAULT_THEME
+def _map_plot(model: CA | FAMD | MFA, axis_x: int, axis_y: int, settings: dict | None, default_title: str) -> go.Figure:
+    """Plot a fitted model's row and column coordinates on one pair of axes, at a 1:1 ratio."""
+    check_is_fitted(model, "row_coordinates_")
 
-        setdict = Settings(**(settings or {})).model_dump()
-        for axis in (axis_x, axis_y):
-            if not 1 <= axis <= self.n_components_:
-                raise ValueError(f"Axes run from 1 to {self.n_components_}; got {axis}.")
+    class Settings(BaseModel):
+        """Validated display settings for a categorical-methods map."""
 
-        fig = go.Figure()
-        for frame, name, colour, symbol in (
-            (self.row_coordinates_, "rows", setdict["row_color"], "circle"),
-            (self.column_coordinates_, "columns", setdict["column_color"], "triangle-up"),
-        ):
-            fig.add_trace(
-                go.Scatter(
-                    x=frame[axis_x],
-                    y=frame[axis_y],
-                    mode="markers+text",
-                    text=[str(label) for label in frame.index],
-                    textposition="top center",
-                    name=name,
-                    marker={"color": colour, "symbol": symbol, "size": 10},
-                    hovertemplate="%{text}: (%{x:.3f}, %{y:.3f})<extra>" + name + "</extra>",
-                )
+        title: str = default_title
+        row_color: str | None = None
+        column_color: str | None = None
+        html_image_height: float = 600.0
+        html_aspect_ratio_w_over_h: float = 1.0
+        template: str = DEFAULT_THEME
+
+    setdict = Settings(**(settings or {})).model_dump()
+    for axis in (axis_x, axis_y):
+        if not 1 <= axis <= model.n_components_:
+            raise ValueError(f"Axes run from 1 to {model.n_components_}; got {axis}.")
+
+    fig = go.Figure()
+    for frame, name, colour, symbol in (
+        (model.row_coordinates_, "rows", setdict["row_color"], "circle"),
+        (model.column_coordinates_, "columns", setdict["column_color"], "triangle-up"),
+    ):
+        fig.add_trace(
+            go.Scatter(
+                x=frame[axis_x],
+                y=frame[axis_y],
+                mode="markers+text",
+                text=[str(label) for label in frame.index],
+                textposition="top center",
+                name=name,
+                marker={"color": colour, "symbol": symbol, "size": 10},
+                hovertemplate="%{text}: (%{x:.3f}, %{y:.3f})<extra>" + name + "</extra>",
             )
-        share = 100 * self.explained_inertia_
-        fig.update_layout(
-            template=setdict["template"],
-            title_text=setdict["title"],
-            xaxis={"title_text": f"Axis {axis_x} ({share[axis_x - 1]:.1f}% of inertia)", "zeroline": True},
-            # Equal scaling: distances on this map are the point of it, so neither axis
-            # may be stretched relative to the other.
-            yaxis={
-                "title_text": f"Axis {axis_y} ({share[axis_y - 1]:.1f}% of inertia)",
-                "zeroline": True,
-                "scaleanchor": "x",
-                "scaleratio": 1,
-            },
-            width=setdict["html_aspect_ratio_w_over_h"] * setdict["html_image_height"],
-            height=setdict["html_image_height"],
         )
-        return fig
+    share = 100 * model.explained_inertia_
+    fig.update_layout(
+        template=setdict["template"],
+        title_text=setdict["title"],
+        xaxis={"title_text": f"Axis {axis_x} ({share[axis_x - 1]:.1f}% of inertia)", "zeroline": True},
+        # Equal scaling: distances on this map are the point of it, so neither axis may
+        # be stretched relative to the other.
+        yaxis={
+            "title_text": f"Axis {axis_y} ({share[axis_y - 1]:.1f}% of inertia)",
+            "zeroline": True,
+            "scaleanchor": "x",
+            "scaleratio": 1,
+        },
+        width=setdict["html_aspect_ratio_w_over_h"] * setdict["html_image_height"],
+        height=setdict["html_image_height"],
+    )
+    return fig
 
 
 #: Eigenvalue corrections :class:`MCA` offers, by name.
@@ -611,3 +617,513 @@ class MCA(CA):
         check_is_fitted(self, "variables_")
         frame = X if isinstance(X, pd.DataFrame) else pd.DataFrame(np.asarray(X))
         return super().transform_columns(_indicator(frame))
+
+
+class FAMD(TransformerMixin, BaseEstimator):
+    r"""Factor analysis of mixed data: one analysis of numeric and categorical columns together.
+
+    Real process records mix continuous readings (temperature, pressure, flow) with
+    categorical context (grade, supplier, line, shift). A PCA cannot take the
+    categorical columns without one-hot encoding them by hand, after which they are
+    over- or under-weighted against the numeric ones, because PCA has no notion of
+    balancing the two. FAMD gives every variable an equal say: each numeric column
+    is standardised, so it contributes an inertia of 1, and each categorical column
+    with :math:`k` levels contributes :math:`k - 1`, exactly as it would in MCA.
+
+    Concretely the numeric columns are centred and scaled to unit (population)
+    variance, each level's indicator :math:`\delta` becomes
+    :math:`\delta / \sqrt{p} - \sqrt{p}` for a level of frequency :math:`p`, and the
+    combined matrix :math:`Z` is decomposed as :math:`Z / \sqrt{n} = U S V^T`. FAMD
+    is exactly PCA of the correlation matrix when every column is numeric, and
+    exactly MCA (eigenvalues scaled by :math:`Q`) when every column is categorical.
+
+    Parameters
+    ----------
+    n_components : int, optional
+        Number of axes to keep, default 2.
+    categorical : list of str, optional
+        Columns to treat as categorical even though they are numeric, such as a line
+        or shift coded 1, 2, 3. Without it, numeric dtypes are numeric and everything
+        else (strings, categoricals, booleans) is categorical.
+
+    Attributes
+    ----------
+    n_components_ : int
+        Axes actually kept.
+    eigenvalues_ : np.ndarray of shape (n_components,)
+        Inertia of each kept axis.
+    total_inertia_ : float
+        Numeric columns plus, for each categorical column, its levels minus one.
+    explained_inertia_ : np.ndarray of shape (n_components,)
+        Share of the total inertia on each kept axis.
+    numeric_, categorical_ : list[str]
+        How each column was treated.
+    row_coordinates_ : pd.DataFrame
+        One row per observation, one column per axis.
+    column_coordinates_ : pd.DataFrame
+        One row per numeric column and per categorical level (``"variable=level"``):
+        for a numeric column, its correlation with the axis.
+    row_contributions_, column_contributions_ : pd.DataFrame
+        Share of each axis's inertia from each observation, and from each numeric
+        column or level; each column sums to 1.
+    row_cos2_ : pd.DataFrame
+        Share of each observation's own inertia each axis represents.
+
+    References
+    ----------
+    J. Pages, "Analyse factorielle de donnees mixtes", Revue de Statistique Appliquee,
+    52 (2004), 93-111.
+
+    Examples
+    --------
+    >>> famd = FAMD(n_components=2, categorical=["line"]).fit(batch_record)  # doctest: +SKIP
+    >>> famd.explained_inertia_                                              # doctest: +SKIP
+    >>> famd.map_plot()                                                      # doctest: +SKIP
+    """
+
+    def __init__(self, n_components: int = 2, categorical: list[str] | None = None):
+        self.n_components = n_components
+        self.categorical = categorical
+
+    def _split(self, frame: pd.DataFrame) -> tuple[list[str], list[str]]:
+        """Decide which columns are numeric and which categorical."""
+        forced = [str(c) for c in (self.categorical or [])]
+        unknown = sorted(set(forced) - {str(c) for c in frame.columns})
+        if unknown:
+            raise ValueError(f"categorical names columns that are not in the data: {unknown}.")
+        numeric_dtype = frame.select_dtypes(include="number").columns
+        numeric = [str(c) for c in frame.columns if c in numeric_dtype and str(c) not in forced]
+        categorical = [str(c) for c in frame.columns if str(c) not in numeric]
+        return numeric, categorical
+
+    def _transformed(self, frame: pd.DataFrame) -> np.ndarray:
+        """Apply the fitted standardisation and level weighting to ``frame``."""
+        blocks = []
+        if self.numeric_:
+            values = frame[self.numeric_].to_numpy(dtype=float)
+            blocks.append((values - self._means) / self._spreads)
+        if self.categorical_:
+            indicator = _indicator(frame[self.categorical_].astype(str), self._levels).to_numpy()
+            blocks.append(indicator / np.sqrt(self._frequencies) - np.sqrt(self._frequencies))
+        return np.hstack(blocks)
+
+    def fit(self, X: DataMatrix, y: object = None) -> FAMD:  # noqa: ARG002
+        """Fit to a table mixing numeric and categorical columns.
+
+        Parameters
+        ----------
+        X : pd.DataFrame of shape (n_observations, n_columns)
+            The mixed table.
+        y : ignored
+            Accepted for :class:`~sklearn.pipeline.Pipeline` compatibility.
+
+        Returns
+        -------
+        FAMD
+            ``self``, fitted.
+
+        Raises
+        ------
+        ValueError
+            If ``n_components`` is not positive, a cell is missing, a numeric column
+            is constant, or ``categorical`` names a column that is not there.
+        """
+        if int(self.n_components) < 1:
+            raise ValueError(f"n_components must be at least 1; got {self.n_components}.")
+        frame = X if isinstance(X, pd.DataFrame) else pd.DataFrame(np.asarray(X))
+        frame = frame.set_axis([str(c) for c in frame.columns], axis=1)
+        if frame.isna().any().any():
+            raise ValueError(
+                f"Columns {frame.columns[frame.isna().any()].tolist()} have missing values. Impute the numeric "
+                "ones, give the categorical ones an explicit level, or drop those rows."
+            )
+        self.numeric_, self.categorical_ = self._split(frame)
+
+        if self.numeric_:
+            values = frame[self.numeric_].to_numpy(dtype=float)
+            self._means = values.mean(axis=0)
+            # Population variance, so that each standardised column carries an inertia of
+            # exactly 1: that is what puts a numeric column on the same footing as a level.
+            self._spreads = values.std(axis=0)
+            constant = [name for name, s in zip(self.numeric_, self._spreads, strict=True) if s == 0]
+            if constant:
+                raise ValueError(f"Numeric columns {constant} are constant, so they carry no information. Drop them.")
+        if self.categorical_:
+            categories = frame[self.categorical_].astype(str)
+            self._levels = {column: sorted(categories[column].unique()) for column in self.categorical_}
+            self._frequencies = _indicator(categories, self._levels).to_numpy().mean(axis=0)
+
+        transformed = self._transformed(frame)
+        n_rows = transformed.shape[0]
+        left, singular, right_t = np.linalg.svd(transformed / np.sqrt(n_rows), full_matrices=False)
+        eigenvalues = singular**2
+        rank = int(np.sum(eigenvalues > _NULL_INERTIA))
+        if rank == 0:
+            raise ValueError("The table has no variation to analyse: every observation is the same.")
+        left, right = _flip_signs(left[:, :rank], right_t.T[:, :rank])
+
+        keep = int(self.n_components)
+        if keep > rank:
+            warnings.warn(
+                f"Asked for {keep} axes, but this table has {rank} with any inertia; keeping {rank}.",
+                SpecificationWarning,
+                stacklevel=2,
+            )
+            keep = rank
+
+        column_names = [*self.numeric_, *[f"{c}={level}" for c in self.categorical_ for level in self._levels[c]]]
+        axes = list(range(1, keep + 1))
+        all_rows = transformed @ right
+        self.n_components_ = keep
+        self.eigenvalues_ = eigenvalues[:keep]
+        self.total_inertia_ = float(eigenvalues.sum())
+        self.explained_inertia_ = self.eigenvalues_ / self.total_inertia_
+        self.row_coordinates_ = pd.DataFrame(all_rows[:, :keep], index=frame.index, columns=axes)
+        self.column_coordinates_ = pd.DataFrame(right[:, :keep] * singular[:keep], index=column_names, columns=axes)
+        self.row_contributions_ = pd.DataFrame(
+            all_rows[:, :keep] ** 2 / n_rows / self.eigenvalues_, index=frame.index, columns=axes
+        )
+        self.column_contributions_ = pd.DataFrame(right[:, :keep] ** 2, index=column_names, columns=axes)
+        self.row_cos2_ = pd.DataFrame(
+            all_rows[:, :keep] ** 2 / np.maximum((all_rows**2).sum(axis=1, keepdims=True), np.finfo(float).tiny),
+            index=frame.index,
+            columns=axes,
+        )
+        self._loadings = right[:, :keep]
+        self._columns = list(frame.columns)
+        return self
+
+    def transform(self, X: DataMatrix) -> pd.DataFrame:
+        """Place new observations on the fitted map.
+
+        Parameters
+        ----------
+        X : pd.DataFrame
+            The same columns as the fit, with levels the fit has seen.
+
+        Returns
+        -------
+        pd.DataFrame
+            One row per observation, one column per axis.
+
+        Raises
+        ------
+        ValueError
+            If the columns differ from the fit's, or a level is unseen or missing.
+        """
+        check_is_fitted(self, "row_coordinates_")
+        frame = X if isinstance(X, pd.DataFrame) else pd.DataFrame(np.asarray(X))
+        frame = frame.set_axis([str(c) for c in frame.columns], axis=1)
+        if list(frame.columns) != self._columns:
+            raise ValueError(f"Expected the columns {self._columns}; got {list(frame.columns)}.")
+        if frame.isna().any().any():
+            raise ValueError("New observations must not have missing values.")
+        return pd.DataFrame(
+            self._transformed(frame) @ self._loadings, index=frame.index, columns=self.row_coordinates_.columns
+        )
+
+    def map_plot(self, axis_x: int = 1, axis_y: int = 2, settings: dict | None = None) -> go.Figure:
+        """Draw observations and variables on one pair of axes.
+
+        The column points are numeric columns (their correlations with the axes, so
+        inside the unit circle) and categorical levels; the observations spread
+        wider. Read a numeric column's direction, not its distance from an
+        observation.
+
+        Parameters
+        ----------
+        axis_x, axis_y : int, optional
+            The axes to plot, counted from 1. Defaults 1 and 2.
+        settings : dict, optional
+            As for :meth:`CA.map_plot`, with the title defaulting to "FAMD map".
+
+        Returns
+        -------
+        go.Figure
+        """
+        return _map_plot(self, axis_x, axis_y, settings, "FAMD map")
+
+
+def _as_frame(X: DataMatrix | Mapping[str, pd.DataFrame]) -> pd.DataFrame:
+    """Return one frame from a frame, an array, or a dict of blocks that share their rows."""
+    if not isinstance(X, Mapping):
+        return X if isinstance(X, pd.DataFrame) else pd.DataFrame(np.asarray(X))
+    blocks = [pd.DataFrame(block) for block in X.values()]
+    if any(not block.index.equals(blocks[0].index) for block in blocks):
+        raise ValueError("Every block must have the same row index, in the same order.")
+    frame = pd.concat(blocks, axis=1)
+    repeated = frame.columns[frame.columns.duplicated()]
+    if len(repeated):
+        raise ValueError(f"Column names must be unique across blocks; {sorted(map(str, set(repeated)))} repeat.")
+    return frame
+
+
+class MFA(TransformerMixin, BaseEstimator):
+    r"""Multiple factor analysis: one balanced analysis of several groups of variables.
+
+    Process data arrives in blocks (a spectrum, a lab panel, the process conditions)
+    measured on the same observations. Concatenating them into one PCA lets the widest
+    block win: a 600-wavelength spectrum outvotes a dozen lab results simply by having
+    more columns. MFA first analyses each group on its own and divides it by the square
+    root of its first eigenvalue, so that no group's leading direction can carry more
+    than an inertia of 1, then runs one PCA on the balanced whole.
+
+    Two properties make the result readable. The first eigenvalue lies between 1 and
+    the number of groups: near the number of groups means every block agrees on the
+    dominant direction, near 1 means only one does. And each observation's position is
+    the average of its *partial* positions, one per group, so the spread of an
+    observation's partial points shows how much its blocks disagree about it.
+
+    :class:`~process_improve.multivariate.methods.MBPCA` answers a related question
+    with a different weighting: it gives each block the same *total* inertia, where MFA
+    gives each block's *leading direction* the same inertia. The two agree exactly when
+    every block's first eigenvalue is the same share of its total, as it is for
+    one-dimensional blocks.
+
+    Parameters
+    ----------
+    groups : dict[str, list[str]], optional
+        Group name to the columns in it, when the data comes as one frame. Every
+        column must be numeric and appear in exactly one group; columns in no group
+        are ignored. Leave it out to pass the data as a dict of blocks instead, the
+        form :class:`~process_improve.multivariate.methods.MBPCA` takes.
+    n_components : int, optional
+        Number of axes to keep, default 2.
+    scale : bool, optional
+        Scale every column to unit variance before the groups are formed, default
+        True. Set False only when the columns within each group share units, a
+        spectrum for instance, where scaling would inflate the noisy wavelengths.
+
+    Attributes
+    ----------
+    n_components_ : int
+        Axes actually kept.
+    eigenvalues_ : np.ndarray of shape (n_components,)
+        Inertia of each kept axis; the first lies between 1 and the number of groups.
+    total_inertia_ : float
+        Sum over every axis.
+    explained_inertia_ : np.ndarray of shape (n_components,)
+        Share of the total inertia on each kept axis.
+    groups_ : dict[str, list[str]]
+        The groups used: ``groups``, or the blocks' names and columns.
+    group_weights_ : pd.Series
+        The weight each group's columns were multiplied by: one over its first
+        eigenvalue.
+    row_coordinates_ : pd.DataFrame
+        One row per observation, one column per axis.
+    partial_row_coordinates_ : dict[str, pd.DataFrame]
+        Per group, where that group alone would place each observation. Their average
+        over groups is :attr:`row_coordinates_`.
+    column_coordinates_ : pd.DataFrame
+        Correlation of each column with each axis (for ``scale=True``).
+    group_coordinates_ : pd.DataFrame
+        One row per group: the inertia it contributes to each axis. Each lies between
+        0 and 1, and a group near 1 on an axis has that axis as its own leading
+        direction.
+    column_contributions_, group_contributions_ : pd.DataFrame
+        Share of each axis's inertia from each column, and from each group; each
+        column sums to 1.
+
+    References
+    ----------
+    B. Escofier and J. Pages, "Multiple factor analysis (AFMULT package)",
+    Computational Statistics and Data Analysis, 18 (1994), 121-140.
+
+    Examples
+    --------
+    >>> mfa = MFA({"spectra": wavelengths, "lab": assays}).fit(batches)   # doctest: +SKIP
+    >>> mfa = MFA().fit({"spectra": spectra, "lab": lab})     # as for MBPCA   # doctest: +SKIP
+    >>> mfa.eigenvalues_[0]        # near 2 means both blocks agree        # doctest: +SKIP
+    >>> mfa.group_coordinates_                                            # doctest: +SKIP
+    """
+
+    def __init__(self, groups: dict[str, list[str]] | None = None, n_components: int = 2, scale: bool = True):
+        self.groups = groups
+        self.n_components = n_components
+        self.scale = scale
+
+    def _resolve_groups(self, X: DataMatrix | Mapping[str, pd.DataFrame]) -> dict[str, list[str]]:
+        """Take the groups from a dict of blocks, or from ``groups``, but never from both."""
+        if isinstance(X, Mapping):
+            if self.groups is not None:
+                raise ValueError("Pass either a dict of blocks or groups=, not both.")
+            return {name: list(pd.DataFrame(block).columns) for name, block in X.items()}
+        if self.groups is None:
+            raise ValueError("Say which columns form each group with groups=, or pass a dict of blocks.")
+        if not isinstance(self.groups, dict):
+            raise TypeError(f"groups must be a dict of group name to column names; got {type(self.groups).__name__}.")
+        return {name: list(columns) for name, columns in self.groups.items()}
+
+    def _check_groups(self, frame: pd.DataFrame) -> None:
+        """Refuse groups that overlap, name missing columns, hold non-numeric data, or are empty."""
+        if len(self.groups_) < 2:
+            raise ValueError("MFA needs at least two groups; with one, it is just a PCA.")
+        seen: dict[str, str] = {}
+        for name, columns in self.groups_.items():
+            if not columns:
+                raise ValueError(f"Group {name!r} has no columns.")
+            for column in columns:
+                if column not in frame.columns:
+                    raise ValueError(f"Group {name!r} names column {column!r}, which is not in the data.")
+                if column in seen:
+                    raise ValueError(f"Column {column!r} is in both group {seen[column]!r} and group {name!r}.")
+                seen[column] = name
+                if not pd.api.types.is_numeric_dtype(frame[column]) or pd.api.types.is_bool_dtype(frame[column]):
+                    raise ValueError(
+                        f"Column {column!r} in group {name!r} is not numeric. MFA here takes numeric groups; "
+                        "for a table mixing numeric and categorical columns use FAMD."
+                    )
+
+    def _group_block(self, frame: pd.DataFrame, name: str) -> np.ndarray:
+        """Centre (and scale) one group's columns with the fitted statistics, then weight it."""
+        values = frame[self.groups_[name]].to_numpy(dtype=float)
+        centred = (values - self._means[name]) / self._spreads[name]
+        return centred * np.sqrt(self.group_weights_[name])
+
+    def _weigh_groups(self, frame: pd.DataFrame) -> None:
+        """Store each group's centre and spread, and weight it by one over its first eigenvalue."""
+        self._means, self._spreads = {}, {}
+        weights = {}
+        for name, columns in self.groups_.items():
+            values = frame[columns].to_numpy(dtype=float)
+            self._means[name] = values.mean(axis=0)
+            spread = values.std(axis=0) if self.scale else np.ones(values.shape[1])
+            if np.any(spread == 0):
+                raise ValueError(f"Group {name!r} has a constant column; drop it before fitting.")
+            self._spreads[name] = spread
+            centred = (values - self._means[name]) / spread
+            leading = np.linalg.svd(centred / np.sqrt(len(values)), compute_uv=False)[0] ** 2
+            # Relative to the data's own size, so that an unscaled group measured in
+            # tiny units is not mistaken for a constant one.
+            if leading <= _NULL_INERTIA * np.mean(values**2):
+                raise ValueError(f"Group {name!r} has no variation, so there is nothing to weight it by.")
+            weights[name] = 1.0 / leading
+        self.group_weights_ = pd.Series(weights, name="weight")
+
+    def _per_group(self, blocks: dict[str, np.ndarray], index: pd.Index, axes: list[int]) -> None:
+        """Split the global solution back into each group's partial points and inertia."""
+        self.partial_row_coordinates_ = {}
+        group_inertia, offset = {}, 0
+        for name, block in blocks.items():
+            rows = self._loadings[offset : offset + block.shape[1]]
+            # Scaled by the number of groups so that the partial points average to the global one.
+            self.partial_row_coordinates_[name] = pd.DataFrame(len(blocks) * block @ rows, index=index, columns=axes)
+            group_inertia[name] = (rows**2).sum(axis=0) * self.eigenvalues_
+            offset += block.shape[1]
+        self.group_coordinates_ = pd.DataFrame(group_inertia, index=axes).T
+        self.group_contributions_ = self.group_coordinates_ / self.eigenvalues_
+
+    def fit(self, X: DataMatrix, y: object = None) -> MFA:  # noqa: ARG002
+        """Fit to a table whose columns are organised into ``groups``.
+
+        Parameters
+        ----------
+        X : pd.DataFrame of shape (n_observations, n_columns), or dict[str, pd.DataFrame]
+            One frame whose column names match those in ``groups``, or a dict of
+            blocks with the same row index, one per group.
+        y : ignored
+            Accepted for :class:`~sklearn.pipeline.Pipeline` compatibility.
+
+        Returns
+        -------
+        MFA
+            ``self``, fitted.
+
+        Raises
+        ------
+        ValueError
+            If the groups are invalid or missing, the blocks do not share their rows,
+            a cell is missing, ``n_components`` is not positive, or a group has no
+            variation.
+        TypeError
+            If ``groups`` is given but is not a dict.
+        """
+        if int(self.n_components) < 1:
+            raise ValueError(f"n_components must be at least 1; got {self.n_components}.")
+        self.groups_ = self._resolve_groups(X)
+        frame = _as_frame(X)
+        self._check_groups(frame)
+        used = [column for columns in self.groups_.values() for column in columns]
+        if frame[used].isna().any().any():
+            raise ValueError("MFA needs complete data; impute or drop the rows with missing values first.")
+
+        self._weigh_groups(frame)
+        blocks = {name: self._group_block(frame, name) for name in self.groups_}
+        combined = np.hstack(list(blocks.values()))
+        left, singular, right_t = np.linalg.svd(combined / np.sqrt(len(frame)), full_matrices=False)
+        eigenvalues = singular**2
+        rank = int(np.sum(eigenvalues > _NULL_INERTIA))
+        left, right = _flip_signs(left[:, :rank], right_t.T[:, :rank])
+
+        keep = int(self.n_components)
+        if keep > rank:
+            warnings.warn(
+                f"Asked for {keep} axes, but this table has {rank} with any inertia; keeping {rank}.",
+                SpecificationWarning,
+                stacklevel=2,
+            )
+            keep = rank
+
+        axes = list(range(1, keep + 1))
+        self.n_components_ = keep
+        self.eigenvalues_ = eigenvalues[:keep]
+        self.total_inertia_ = float(eigenvalues.sum())
+        self.explained_inertia_ = self.eigenvalues_ / self.total_inertia_
+        self._loadings = right[:, :keep]
+        self.row_coordinates_ = pd.DataFrame(combined @ self._loadings, index=frame.index, columns=axes)
+        self._per_group(blocks, frame.index, axes)
+
+        # A column's loading, undone of its group's weight and scaled to the axis's
+        # spread: for standardised columns, its correlation with the axis.
+        column_weights = self.group_weights_.to_numpy().repeat([len(c) for c in self.groups_.values()])
+        self.column_coordinates_ = pd.DataFrame(
+            self._loadings * singular[:keep] / np.sqrt(column_weights)[:, np.newaxis], index=used, columns=axes
+        )
+        self.column_contributions_ = pd.DataFrame(self._loadings**2, index=used, columns=axes)
+        return self
+
+    def transform(self, X: DataMatrix) -> pd.DataFrame:
+        """Place new observations on the fitted map.
+
+        Parameters
+        ----------
+        X : pd.DataFrame, or dict[str, pd.DataFrame]
+            Observations with every column the groups name, in either of the forms
+            :meth:`fit` takes.
+
+        Returns
+        -------
+        pd.DataFrame
+            One row per observation, one column per axis.
+
+        Raises
+        ------
+        ValueError
+            If a grouped column is absent or a cell is missing.
+        """
+        check_is_fitted(self, "row_coordinates_")
+        frame = _as_frame(X)
+        used = [column for columns in self.groups_.values() for column in columns]
+        missing = [column for column in used if column not in frame.columns]
+        if missing:
+            raise ValueError(f"New observations lack the columns {missing}.")
+        if frame[used].isna().any().any():
+            raise ValueError("New observations must not have missing values.")
+        combined = np.hstack([self._group_block(frame, name) for name in self.groups_])
+        return pd.DataFrame(combined @ self._loadings, index=frame.index, columns=self.row_coordinates_.columns)
+
+    def map_plot(self, axis_x: int = 1, axis_y: int = 2, settings: dict | None = None) -> go.Figure:
+        """Draw the observations and the columns' correlations on one pair of axes.
+
+        Parameters
+        ----------
+        axis_x, axis_y : int, optional
+            The axes to plot, counted from 1. Defaults 1 and 2.
+        settings : dict, optional
+            As for :meth:`CA.map_plot`, with the title defaulting to "MFA map".
+
+        Returns
+        -------
+        go.Figure
+        """
+        return _map_plot(self, axis_x, axis_y, settings, "MFA map")

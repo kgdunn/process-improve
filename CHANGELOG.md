@@ -27,6 +27,56 @@ those changes.
   trip under real WebAssembly. Build it locally with
   `uv run python scripts/build_web_app.py --serve`.
 
+- **`MFA`: multiple factor analysis for several groups of variables (#179).** Process
+  data arrives in blocks measured on the same samples: a spectrum, a lab panel, the
+  process conditions. Concatenated into one PCA, the widest block wins by column count
+  alone; with forty spectral columns against two lab results on unrelated drivers, PCA's
+  first axis belongs to the spectrum, with 19 times the inertia of the lab results' axis,
+  and the lab results make up 0.1% of it. `MFA`
+  weights each group by one over its own first eigenvalue, so no group's leading
+  direction can carry more than an inertia of 1, then analyses the balanced whole.
+
+  ```python
+  mfa = MFA({"spectra": wavelengths, "lab": assays}).fit(batches)
+  mfa = MFA().fit({"spectra": spectra, "lab": lab})   # or MBPCA's dict of blocks
+  mfa.eigenvalues_[0]            # between 1 and the number of groups
+  mfa.group_coordinates_         # which group each axis belongs to
+  mfa.partial_row_coordinates_   # where each group alone places each sample
+  ```
+
+  The first eigenvalue reads directly as agreement: near the number of groups when
+  every block shares the dominant direction, near 1 when only one does. Each sample's
+  position is the average of its per-group partial positions, so their spread shows
+  where the blocks disagree about it. Because the weight divides each group's own size
+  back out, even an unscaled analysis is unchanged when one group changes units.
+  `MBPCA` balances blocks differently: it gives each block the same *total* inertia,
+  where MFA gives each block's *leading direction* the same inertia. The two agree
+  exactly when every block's leading direction holds the same share of that block's
+  inertia (one-dimensional blocks, for instance), and the tests check that they do.
+  Checked against `prince` (eigenvalues, row and partial coordinates) and against
+  those identities.
+
+- **`FAMD`: factor analysis of mixed numeric and categorical data (#178).** Real
+  process records mix continuous readings with categorical context (grade, supplier,
+  line, shift). Until now a user could drop the categorical columns and lose them, or
+  one-hot encode them by hand into a PCA, where they end up over- or under-weighted
+  against the numeric ones, because PCA has no notion of balancing the two. `FAMD`
+  gives every variable an equal say: a numeric column contributes an inertia of 1 and a
+  categorical column with k levels contributes k - 1, exactly as in MCA.
+
+  ```python
+  famd = FAMD(n_components=2, categorical=["line"]).fit(batch_record)
+  famd.explained_inertia_, famd.column_coordinates_
+  famd.map_plot()
+  ```
+
+  Checked against `prince` and against the two identities the method is defined by:
+  with every column numeric it is exactly PCA of the correlation matrix, and with every
+  column categorical its eigenvalues are exactly Q times MCA's, which cross-checks it
+  against `MCA` from an independent derivation. Numeric codes for categories (a line
+  numbered 1, 2, 3) can be declared with `categorical=`, since left numeric they would
+  be scaled as a quantity.
+
 - **`MCA`: multiple correspondence analysis for categorical variables (#177).** Batch
   records carry categorical attributes (grade, supplier, line, shift), and audits,
   checklists and failure logs are almost entirely categorical; the multivariate module
