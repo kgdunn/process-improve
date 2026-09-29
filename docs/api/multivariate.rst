@@ -74,6 +74,17 @@ so ``correction`` reports each axis's share on the Benzecri or Greenacre scale.
    :members: fit, transform, transform_columns
    :show-inheritance:
 
+FAMD
+~~~~
+
+Factor analysis of mixed data: one analysis of numeric and categorical columns
+together, with each variable given an equal say. It is exactly PCA of the correlation
+matrix when every column is numeric, and exactly MCA when every column is categorical.
+
+.. autoclass:: FAMD
+   :members: fit, transform, map_plot
+   :show-inheritance:
+
 TPLS
 ~~~~
 
