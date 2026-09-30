@@ -157,6 +157,11 @@ Two arguments there are doing real work:
 
 ## Installation
 
+**No install at all:** the [designed-experiments app](https://kgdunn.github.io/process-improve/app/)
+runs this package in your browser (Pyodide / WebAssembly). You can design an experiment,
+download it as a workbook, fill in the results and upload it back for the analysis.
+Your data stay on your machine.
+
 ```bash
 pip install process-improve                    # core (numpy, pandas, sklearn, statsmodels, patsy, pydantic, pyyaml, tqdm)
 pip install 'process-improve[plotting]'        # adds matplotlib, plotly, seaborn, ridgeplot

@@ -362,6 +362,9 @@ convention = "numpy"
     "INP001",  # __init__.py not needed for standalone fixture scripts
     "T201",    # print() is expected when these scripts are run manually
 ]
+"web/**" = [
+    "INP001",  # loaded into Pyodide by web/worker.js, not imported as a package
+]
 "scripts/**" = [
     "ANN001",  # Type annotations not needed in helper scripts
     "ANN201",  # Return type annotations not needed in helper scripts
