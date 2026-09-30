@@ -115,6 +115,10 @@ class TestMeda:
         # The labels travel with the values.
         pd.testing.assert_frame_equal(seriated, plain.loc[order, order])
 
+    def test_seriating_two_variables_keeps_their_order(self) -> None:
+        X = _blocks()[["a1", "b1"]]
+        assert list(meda(_fit_pca(X, 1), X, seriate=True).index) == ["a1", "b1"]
+
     def test_pls_uses_the_direct_weights(self) -> None:
         """For PLS the scores come from W(P'W)^-1 and the reconstruction from P."""
         X = _blocks()
@@ -183,6 +187,12 @@ class TestOmeda:
         weights = np.where(X.index.isin(group), 7.0, -0.5)
         np.testing.assert_allclose(omeda(pca, X, weights=weights), omeda(pca, X, group, rest))
 
+    def test_one_sided_weights_mirror_the_group_alone(self) -> None:
+        """Weights of -1 on the group, and nothing positive, give the group-vs-centre result negated."""
+        X, pca, group, _ = self._shifted()
+        weights = -X.index.isin(group).astype(float)
+        pd.testing.assert_series_equal(omeda(pca, X, weights=weights), -omeda(pca, X, group=group))
+
     def test_group_alone_compares_against_the_model_centre(self) -> None:
         X, pca, group, _ = self._shifted()
         o = omeda(pca, X, group=group)
@@ -241,6 +251,13 @@ class TestModelMethodsAndPlots:
         assert list(trace.x) == list(expected.columns)
         np.testing.assert_allclose(np.asarray(trace.z), expected.to_numpy())
         assert (trace.zmin, trace.zmax) == (-1.0, 1.0)
+
+    def test_meda_plot_draws_onto_an_existing_figure(self) -> None:
+        X = _blocks()
+        existing = go.Figure()
+        fig = _fit_pca(X, 2).meda_plot(X, fig=existing)
+        assert fig is existing
+        assert [trace.type for trace in fig.data] == ["heatmap"]
 
     def test_meda_plot_settings(self) -> None:
         X = _blocks()
