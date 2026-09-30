@@ -9,6 +9,7 @@ Column/Expt conversion) is handled by ``designs_utils.build_design_result``.
 
 from __future__ import annotations
 
+import itertools
 from typing import TYPE_CHECKING
 
 import numpy as np
@@ -26,6 +27,54 @@ except ImportError:  # pragma: no cover - exercised via env-without-pyDOE3
 if TYPE_CHECKING:
     from process_improve.experiments.factor import Factor
 
+# Minimum-aberration 2^(k-p) fractional factorials for 5 to 11 factors, keyed by the number of
+# factors and then by the run count 2^(k-p). Letters name factors by position, in the textbook
+# convention A, B, ..., H, J, K, L (I stands for the identity), and the derived factors are the
+# last p. The half fraction, with the last factor equal to the product of all the others, is
+# built for any k, so it is not listed. The designs are the standard ones (Montgomery, "Design
+# and Analysis of Experiments", Chapter 8); an exhaustive search over every generator set
+# confirmed that each has minimum aberration, and the tests pin its word-length pattern.
+_MIN_ABERRATION: dict[int, dict[int, tuple[str, ...]]] = {
+    5: {8: ("D=AB", "E=AC")},
+    6: {16: ("E=ABC", "F=BCD"), 8: ("D=AB", "E=AC", "F=BC")},
+    7: {
+        32: ("F=ABCD", "G=ABDE"),
+        16: ("E=ABC", "F=BCD", "G=ACD"),
+        8: ("D=AB", "E=AC", "F=BC", "G=ABC"),
+    },
+    8: {
+        64: ("G=ABCD", "H=ABEF"),
+        32: ("F=ABC", "G=ABD", "H=BCDE"),
+        16: ("E=BCD", "F=ACD", "G=ABC", "H=ABD"),
+    },
+    9: {
+        128: ("H=ACDFG", "J=BCEFG"),
+        64: ("G=ABCD", "H=ACEF", "J=CDEF"),
+        32: ("F=BCDE", "G=ACDE", "H=ABDE", "J=ABCE"),
+        16: ("E=ABC", "F=BCD", "G=ACD", "H=ABD", "J=ABCD"),
+    },
+    10: {
+        256: ("J=ABCDEF", "K=ABCDGH"),
+        128: ("H=ABCG", "J=BCDE", "K=ACDF"),
+        64: ("G=BCDF", "H=ACDF", "J=ABDE", "K=ABCE"),
+        32: ("F=ABCD", "G=ABCE", "H=ABDE", "J=ACDE", "K=BCDE"),
+        16: ("E=ABC", "F=BCD", "G=ACD", "H=ABD", "J=ABCD", "K=AB"),
+    },
+    11: {
+        512: ("K=ABCDEF", "L=ABCGHJ"),
+        256: ("J=ABCDE", "K=ABCFG", "L=ABDFH"),
+        128: ("H=ABCG", "J=BCDE", "K=ACDF", "L=ABCDEFG"),
+        64: ("G=CDE", "H=ABCD", "J=ABF", "K=BDEF", "L=ADEF"),
+        32: ("F=ABC", "G=BCD", "H=CDE", "J=ACD", "K=ADE", "L=BDE"),
+        16: ("E=ABC", "F=BCD", "G=ACD", "H=ABD", "J=ABCD", "K=AB", "L=AC"),
+    },
+}
+_TABLE_LETTERS = "ABCDEFGHJKL"
+_MAX_TABULATED_FACTORS = 11
+
+# (derived factor index, base factor indices): one generator, e.g. D=ABC is (3, [0, 1, 2]).
+_Generator = tuple[int, list[int]]
+
 
 def dispatch_fractional_factorial(
     factors: list[Factor],
@@ -39,8 +88,10 @@ def dispatch_fractional_factorial(
     factors : list[Factor]
         Continuous factors (all treated as 2-level).
     resolution : int or None
-        Desired minimum resolution (3, 4, or 5).  Ignored when *generators*
-        is provided.
+        Desired minimum resolution (3 or more). The design is the minimum-aberration
+        fraction with the fewest runs that reaches it, so its resolution can be higher.
+        When neither *resolution* nor *generators* is given, the design is the half
+        fraction 2^(k-1), of resolution k. Ignored when *generators* is provided.
     generators : list[str] or None
         Explicit generator strings, e.g. ``["D=ABC", "E=AC"]``.  When given,
         these are translated into the pyDOE3 generator notation.
@@ -49,29 +100,130 @@ def dispatch_fractional_factorial(
     -------
     tuple[np.ndarray, dict]
         Coded design matrix (-1 / +1) and metadata dict with keys
-        ``"generators_used"`` and ``"resolution"``.
+        ``"generators_used"``, ``"defining_relation"`` and ``"resolution"``, the
+        resolution the design achieves. A design with more than 11 factors that needs
+        pyDOE3's search reports ``"resolution"`` only.
+
+    Raises
+    ------
+    ValueError
+        If fewer than 3 factors are given without generators, if *resolution* is below 3
+        or above the number of factors, or if no checked design reaches it.
     """
+    factor_names = [f.name for f in factors]
     k = len(factors)
-    meta: dict = {}
 
     if generators:
-        coded_matrix = _fracfact_from_generators(factors, generators)
-        meta["generators_used"] = generators
-    elif resolution is not None:
-        coded_matrix = fracfact_by_res(k, resolution)
-        meta["resolution"] = resolution
+        derived_idx, rhs_indices = _parse_generators(factor_names, generators)
+        coded_matrix = _fracfact_from_indices(k, derived_idx, rhs_indices)
+        parsed = [(lhs, rhs) for lhs, (rhs, _negated) in zip(derived_idx, rhs_indices, strict=True)]
+        generators_used = list(generators)
     else:
-        # Default: highest resolution that halves the runs
-        res = min(k, 5)
-        coded_matrix = fracfact_by_res(k, res)
-        meta["resolution"] = res
+        if k < 3:
+            raise ValueError(f"A fractional factorial needs at least 3 factors, got {k}; use a full factorial.")
+        if resolution is not None and not 3 <= resolution <= k:
+            raise ValueError(
+                f"A fractional factorial in {k} factors has a resolution from 3 to {k} (the half fraction); "
+                f"got resolution={resolution}. Use a full factorial for more."
+            )
+        if resolution is None:
+            parsed = [(k - 1, list(range(k - 1)))]  # the half fraction
+        else:
+            chosen = _minimum_aberration_generators(k, resolution)
+            if chosen is None:
+                return _fracfact_by_res_checked(k, resolution)
+            parsed = chosen
+        coded_matrix = _fracfact_from_indices(k, [lhs for lhs, _ in parsed], [(rhs, False) for _, rhs in parsed])
+        generators_used = [f"{factor_names[lhs]}={''.join(factor_names[i] for i in rhs)}" for lhs, rhs in parsed]
 
-    # Ensure the matrix has the right number of columns
-    if coded_matrix.shape[1] != k:
-        # fracfact_by_res may return more/fewer columns; trim or error
-        coded_matrix = coded_matrix[:, :k]
-
+    words = _defining_words(parsed)
+    meta = {
+        "generators_used": generators_used,
+        "defining_relation": ["I=" + "".join(factor_names[i] for i in sorted(word)) for word in words],
+        "resolution": min(len(word) for word in words),
+    }
     return coded_matrix, meta
+
+
+def _minimum_aberration_generators(k: int, resolution: int) -> list[_Generator] | None:
+    """Choose the fewest-run minimum-aberration fraction of resolution at least *resolution*.
+
+    The half fraction is the answer whenever no smaller fraction reaches *resolution*.
+    Returns None for more than 11 factors when a smaller fraction might exist; pyDOE3
+    then searches for one.
+    """
+    half_fraction = [(k - 1, list(range(k - 1)))]
+    for _n_runs, entry in sorted(_MIN_ABERRATION.get(k, {}).items()):
+        candidate = [(_TABLE_LETTERS.index(g[0]), [_TABLE_LETTERS.index(c) for c in g[2:]]) for g in entry]
+        if min(len(word) for word in _defining_words(candidate)) >= resolution:
+            return candidate
+    # The table lists every fraction up to 11 factors. Beyond that, a quarter fraction
+    # reaches at most resolution floor(2k/3), and smaller fractions no more than that.
+    if k <= _MAX_TABULATED_FACTORS or resolution > 2 * k // 3:
+        return half_fraction
+    return None
+
+
+def _defining_words(generators: list[_Generator]) -> list[frozenset[int]]:
+    """Return every word of the defining relation, shortest first.
+
+    A generator's word is its derived factor times its base factors; the defining
+    relation holds every product of those words (symmetric differences, since each
+    factor squares to the identity).
+    """
+    generator_words = []
+    for lhs, rhs in generators:
+        letters = {lhs}
+        for index in rhs:
+            letters ^= {index}  # a repeated base factor cancels
+        generator_words.append(frozenset(letters))
+    # No product is the identity: each generator word holds its own derived factor.
+    words: set[frozenset[int]] = set()
+    for size in range(1, len(generator_words) + 1):
+        for subset in itertools.combinations(generator_words, size):
+            product: frozenset[int] = frozenset()
+            for generator_word in subset:
+                product ^= generator_word
+            words.add(product)
+    return sorted(words, key=lambda word: (len(word), sorted(word)))
+
+
+def _shortest_word_length(coded: np.ndarray) -> int:
+    """Return the resolution of a coded fraction: the fewest columns whose product is constant.
+
+    Shortest candidates are tried first, so the first constant product found is the
+    answer. A fraction always has one, since its columns outnumber its base factors.
+    """
+    k = coded.shape[1]
+    return next(
+        size
+        for size in range(1, k + 1)
+        for columns in itertools.combinations(range(k), size)
+        if np.all(np.prod(coded[:, columns], axis=1) == np.prod(coded[0, columns]))
+    )
+
+
+def _fracfact_by_res_checked(k: int, resolution: int) -> tuple[np.ndarray, dict]:
+    """Search with pyDOE3 beyond the table, then measure the resolution it reached.
+
+    ``fracfact_by_res`` does not always reach the resolution it is asked for: for 7 to
+    11 factors at resolution V it returned resolution IV designs. So its design is
+    measured from the columns instead of being taken on trust.
+    """
+    try:
+        coded_matrix = fracfact_by_res(k, resolution)[:, :k]
+    except ValueError as exc:
+        raise ValueError(
+            f"No resolution-{resolution} fraction for {k} factors is tabulated, and pyDOE3 found none ({exc}). "
+            "Pass explicit generators instead."
+        ) from exc
+    achieved = _shortest_word_length(coded_matrix)
+    if achieved < resolution:
+        raise ValueError(
+            f"No resolution-{resolution} fraction for {k} factors is tabulated, and pyDOE3's design only reaches "
+            f"resolution {achieved}. Pass explicit generators instead."
+        )
+    return coded_matrix, {"resolution": achieved}
 
 
 def _parse_generator_word(word: str, factor_names: list[str]) -> list[int]:
@@ -118,6 +270,8 @@ def _parse_generators(factor_names: list[str], generators: list[str]) -> tuple[l
         if len(lhs) != 1:
             raise ValueError(f"Generator {g!r}: the left-hand side must be exactly one factor.")
         rhs = _parse_generator_word(rhs_word, factor_names)
+        if not rhs:
+            raise ValueError(f"Generator {g!r}: the right-hand side names no factors.")
         if lhs[0] in rhs:
             raise ValueError(f"Generator {g!r}: the left-hand factor may not appear on the right-hand side.")
         if lhs[0] in derived_idx:
@@ -134,22 +288,15 @@ def _parse_generators(factor_names: list[str], generators: list[str]) -> tuple[l
     return derived_idx, rhs_indices
 
 
-def _fracfact_from_generators(factors: list[Factor], generators: list[str]) -> np.ndarray:
-    """Build a coded fractional-factorial matrix from explicit generators.
+def _fracfact_from_indices(k: int, derived_idx: list[int], rhs_indices: list[tuple[list[int], bool]]) -> np.ndarray:
+    """Build the coded matrix for parsed generators, with column ``i`` belonging to factor ``i``.
 
-    The previous implementation handed pyDOE3 the base factors followed by the
-    derived ones and returned the columns in that order, while the caller
-    assigns column ``i`` to ``factors[i]``: whenever a generator's left-hand
-    factor was not the LAST factor (e.g. ``"B=AC"`` with factors A, B, C), the
-    factor columns were silently swapped. It also lower-cased raw factor names
-    into the pyDOE3 string, so any multi-character name was misread as a
-    product of single-letter factors. Generators are now parsed against the
-    real factor names, translated to canonical single letters for pyDOE3, and
-    the resulting columns are re-ordered back to the caller's factor order.
+    pyDOE3 is handed canonical single letters (so multi-character factor names are
+    never misread as products) and returns the base factors followed by the derived
+    ones. The columns are then put back in factor order: returning pyDOE3's order
+    once swapped columns silently whenever a derived factor was not the last one
+    (e.g. ``"B=AC"`` with factors A, B, C).
     """
-    factor_names = [f.name for f in factors]
-    k = len(factors)
-    derived_idx, rhs_indices = _parse_generators(factor_names, generators)
     base_idx = [i for i in range(k) if i not in derived_idx]
 
     letters = "abcdefghijklmnopqrstuvwxyz"
@@ -161,10 +308,9 @@ def _fracfact_from_generators(factors: list[Factor], generators: list[str]) -> n
         word = "".join(base_letter[i] for i in rhs)
         tokens.append(f"-{word}" if negated else word)
 
+    # One non-empty token per factor, so pyDOE3 returns exactly k columns, in the order
+    # (bases..., derived...); map them back to factor order.
     coded = fracfact(" ".join(tokens))
-    if coded.shape[1] != k:
-        raise ValueError(f"pyDOE3 returned {coded.shape[1]} columns for {k} factors; the generators are inconsistent.")
-    # pyDOE3 column order is (bases..., derived...); map back to factor order.
     reordered = np.empty_like(coded)
     for position, factor_index in enumerate(base_idx + derived_idx):
         reordered[:, factor_index] = coded[:, position]
