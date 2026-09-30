@@ -13,6 +13,20 @@ those changes.
 
 ### Added
 
+- **A no-install browser app for designed experiments.** A static page runs the
+  process-improve wheel in the browser with [Pyodide](https://pyodide.org) (CPython on
+  WebAssembly). No Python install and no server are needed, and no data leave the
+  machine. It generates a full factorial, Plackett-Burman, definitive screening,
+  Box-Behnken, central composite or D-optimal design and downloads it as an `.xlsx`
+  workbook. Upload the filled-in workbook to get the fitted model, coefficients with 95%
+  intervals, the ANOVA table and a lack-of-fit test. A partly filled workbook is analysed
+  on its completed runs. The workbook stores its design in a hidden sheet, so it is the
+  only state. The model is chosen from a fixed list and never read from the file as a
+  formula, so an e-mailed workbook cannot run code. The docs workflow publishes the app at
+  `/app` on every merge to `main`. A Node + Pyodide CI job (`web-app`) runs the round
+  trip under real WebAssembly. Build it locally with
+  `uv run python scripts/build_web_app.py --serve`.
+
 - **`MFA`: multiple factor analysis for several groups of variables (#179).** Process
   data arrives in blocks measured on the same samples: a spectrum, a lab panel, the
   process conditions. Concatenated into one PCA, the widest block wins by column count

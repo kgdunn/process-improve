@@ -64,6 +64,29 @@ jobs:
     - name: Type-check with mypy
       run: uv run mypy src/process_improve
 
+  # The no-install browser app (web/) runs the wheel under Pyodide. This
+  # builds the wheel and drives a design -> analyse round trip under real
+  # Pyodide in Node, so a new dependency with no WebAssembly build, or an
+  # import that reaches for one, fails here and not on a reader's screen.
+  web-app:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v7
+    - name: Install uv
+      uses: astral-sh/setup-uv@v7
+      with:
+        python-version: "3.13"
+    - uses: actions/setup-node@v4
+      with:
+        node-version: "22"
+    - name: Build the wheel
+      run: uv build --wheel --out-dir dist/web
+    - name: Install Pyodide for Node
+      working-directory: web
+      run: npm install --no-save --no-package-lock pyodide@0.28.3
+    - name: Round trip under Pyodide
+      run: node web/test-wasm.mjs dist/web/process_improve-*.whl
+
   test:
     strategy:
       fail-fast: false
