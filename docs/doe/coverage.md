@@ -6,7 +6,7 @@ Current implementation status across every agent-facing DoE tool.
 
 | Tool | Status | Implementation | Open gaps |
 |---|---|---|---|
-| `generate_design` | **Implemented** | Unified dispatcher in `experiments/designs.py`; per-family handlers in `designs_factorial.py`, `designs_screening.py`, `designs_response_surface.py`, `designs_optimal.py`, `designs_mixture.py`. Covers all 11 design types (full/fractional factorial, PB, BBD, CCD, DSD, D/I/A-optimal, mixture, Taguchi). | I/A-optimal require `pyoptex`; hard-to-change factors without `pyoptex` are ignored with a warning. Constraints are enforced by D-optimal and mixture designs (other types flag `constraints_enforced=False`); mixture constraints must be linear. |
+| `generate_design` | **Implemented** | Unified dispatcher in `experiments/designs.py`; per-family handlers in `designs_factorial.py`, `designs_screening.py`, `designs_response_surface.py`, `designs_optimal.py`, `designs_mixture.py`. Covers all 11 design types (full/fractional factorial, PB, BBD, CCD, DSD, D/I/A-optimal, mixture, Taguchi). | Hard-to-change factors (split-plot) need `pyoptex` and no constraints; otherwise they are ignored with a warning. Constraints are enforced by D-optimal and mixture designs (other types flag `constraints_enforced=False`); mixture constraints must be linear. |
 | `evaluate_design` | **Implemented** | `experiments/evaluate.py` - 14 metrics: `d/i/g_efficiency`, `prediction_variance`, `vif`, `condition_number`, `power`, `degrees_of_freedom`, `alias_structure`, `confounding`, `resolution`, `defining_relation`, `clear_effects`, `minimum_aberration`. | - |
 | `analyze_experiment` | **Implemented** | `analysis.py` - 13 analysis types via statsmodels/scipy. | Split-plot ANOVA (mixed-model mapping). |
 | `optimize_responses` | **Partial** | `optimization.py` - desirability, steepest ascent/descent, stationary point, canonical analysis. | Ridge analysis, Pareto front (stubs). |
@@ -25,9 +25,9 @@ Current implementation status across every agent-facing DoE tool.
 | Box-Behnken | `designs_response_surface.py::dispatch_box_behnken` via `pyDOE3.bbdesign`. | `TestBoxBehnken`, `TestBoxBehnkenProperties`. |
 | Central Composite Design (face-centered, rotatable, inscribed, orthogonal) | `designs_response_surface.py::dispatch_ccd` via `pyDOE3.ccdesign`. | `TestCCD`, `TestCCDProperties`. |
 | Definitive Screening Design | `designs_response_surface.py::dispatch_dsd` - Paley conference-matrix construction (see caveat below). | `TestDSD`, `TestDSDProperties`. |
-| D-optimal | `designs_optimal.py::dispatch_d_optimal` - `pyoptex` coordinate exchange when available, otherwise point exchange on a 3-level candidate set. With `constraints`, `designs_constrained.py::constrained_d_optimal`: Fedorov exchange over a feasible candidate set (grid plus boundary crossings); no `pyoptex` needed. | `TestDOptimal`, `tests/test_designs_constrained.py`. |
-| I-optimal | `designs_optimal.py::dispatch_i_optimal` via `pyoptex`. | `TestIOptimal`, `test_designs_optimal_pyoptex.py` (run in CI; `pyoptex` is in the dev dependency group). |
-| A-optimal | `designs_optimal.py::dispatch_a_optimal` via `pyoptex`. | `TestAOptimal`, `test_designs_optimal_pyoptex.py` (run in CI; `pyoptex` is in the dev dependency group). |
+| D-optimal | `designs_optimal.py::dispatch_d_optimal` - `pyoptex` coordinate exchange when available and no constraints are given; otherwise `designs_constrained.py::constrained_optimal_design`: Fedorov exchange over a feasible candidate set (grid plus boundary crossings) for the requested model. | `TestDOptimal`, `tests/test_designs_constrained.py`. |
+| I-optimal | `designs_optimal.py::dispatch_i_optimal` - as D-optimal; the candidate exchange minimises `trace(M^-1 W)` with `W` the moment matrix of the (constrained) region, sampled uniformly. | `TestIOptimal`, `test_designs_optimal_pyoptex.py` (run in CI; `pyoptex` is in the dev dependency group). |
+| A-optimal | `designs_optimal.py::dispatch_a_optimal` - as D-optimal; the candidate exchange minimises `trace(M^-1)`. | `TestAOptimal`, `test_designs_optimal_pyoptex.py` (run in CI; `pyoptex` is in the dev dependency group). |
 | Mixture (simplex-lattice, simplex-centroid, extreme vertices) | `designs_mixture.py::dispatch_mixture` - auto-selects based on budget on the full simplex; with component bounds or linear constraints, `designs_mixture_constrained.py` builds the extreme-vertices design or a D-optimal subset of its candidate blends for a Scheffé model. | `TestMixture`, `tests/test_mixture_constrained.py`. |
 | Taguchi orthogonal arrays | `designs_screening.py::dispatch_taguchi` via `pyDOE3.taguchi_design`. | `TestTaguchi`. |
 
@@ -55,7 +55,7 @@ All 14 metrics live in `experiments/evaluate.py` behind the `_METRIC_REGISTRY`:
 ## Caveats
 
 - **DSD conference matrix.** `_conference_matrix` in `designs_response_surface.py` uses Paley's construction when `m − 1` is an odd prime (covers `m ∈ {4, 6, 8, 12, 14, 18, 20, 24, 30, 32, 38, 42, 44, 48, 54, 60, 62, 68, 72, 74, 80, 84, 90, 98, …}`). For other *m* (including `m ∈ {10, 16, 22, 26, 28, 34, 36, 40, 46, 50, 52, 56, …}`) the function falls back to a cyclic approximation that does **not** satisfy `Cᵀ C = (m − 1) I`, and logs a warning. Main-effects orthogonality of the resulting DSD may be degraded in those sizes.
-- **Optimal designs without `pyoptex`.** D-optimal has a point-exchange fallback; I/A-optimal raise `ImportError` instead. Hard-to-change factors (split-plot structure) are currently ignored with a `logger.warning` when `pyoptex` is not available.
+- **Optimal designs without `pyoptex`.** D-, I- and A-optimal designs use the built-in candidate exchange. Hard-to-change factors (split-plot structure) are ignored with a `logger.warning` and a `hard_to_change_ignored` flag when `pyoptex` is not available or constraints are given.
 - **Taguchi OA auto-selection** picks the smallest standard array that covers the requested factor count and level counts, but the underlying `pyDOE3.taguchi_design` requires the number of `levels_per_factor` entries to match the OA column count exactly, so requesting a Taguchi design with fewer factors than any available OA will fail. Users typically pick *k* to match one of the standard arrays (3, 4, 7, 11, 15, …).
 
 ## Reliance on `pyoptex`
@@ -64,9 +64,9 @@ All 14 metrics live in `experiments/evaluate.py` behind the `_METRIC_REGISTRY`:
 (D/I/A-optimal coordinate exchange and split-plot structures) in
 `designs_optimal.py`. For **end users** it is an optional, undeclared
 dependency: the core install never pulls it in, and the integration degrades
-cleanly when it is absent (D-optimal falls back to point exchange; I/A-optimal
-raise a clear `ImportError`; hard-to-change factors are ignored with a warning
-and a `hard_to_change_ignored` metadata flag). This keeps the coupling to a
+cleanly when it is absent (D-, I- and A-optimal use the built-in candidate
+exchange in `designs_constrained.py`; hard-to-change factors are ignored with a
+warning and a `hard_to_change_ignored` metadata flag). This keeps the coupling to a
 single, well-isolated adapter module.
 
 **How the gated tests get exercised.** In the uv-managed development
@@ -76,7 +76,7 @@ list, and `[tool.uv] override-dependencies` relaxes its over-strict
 job runs `uv sync --dev --all-extras`, so the pyoptex-backed tests
 (`test_designs_optimal_pyoptex.py` and the gated classes in
 `test_design_generation.py`) run as blocking checks across the whole matrix.
-The no-pyoptex fallback and ImportError paths stay covered too: the tests in
+The no-pyoptex paths stay covered too: the tests in
 `test_designs_screening_optimal.py` force `_PYOPTEX_AVAILABLE = False` via
 monkeypatch instead of relying on the package being absent.
 
@@ -85,8 +85,8 @@ declaring `pyoptex` in the `expt`/`all` extras would make combinations like
 `[expt] + [plotting]` unresolvable for pip users. The upstream fix for the
 plotly pin (mborn1/pyoptex#49, `plotly>=5.24,<7`) is merged but not yet in a
 PyPI release; `numba~=0.61` is still pinned strictly even upstream. Until a
-release ships relaxed pins, end users who want I/A-optimal install `pyoptex`
-in a separate environment (`pip install pyoptex`).
+release ships relaxed pins, end users who want split-plot designs install
+`pyoptex` in a separate environment (`pip install pyoptex`).
 
 **Why not vendor it.** The slice used here (`doe/fixed_structure`) is
 Cython-compiled. Vendoring is permitted (`pyoptex` is BSD-3-Clause) but would
@@ -97,10 +97,10 @@ packaging release lag, not a code problem, so vendoring is the wrong trade.
 **Exit criterion.** Once `pyoptex` publishes a release with the relaxed pins,
 move it into the `expt`/`all` extras as a normal dependency and drop the
 `[tool.uv]` overrides (the numba override can only go once upstream relaxes
-`numba~=0.61`). If `pyoptex` instead goes unmaintained, the clean replacement
-is a minimal numpy coordinate-exchange for I/A-optimal (reusing the existing
-`point_exchange` pattern in `optimal.py`), not a transplant of the upstream
-Cython.
+`numba~=0.61`). If `pyoptex` instead goes unmaintained, the built-in candidate
+exchange already covers D/I/A-optimality; what would remain is split-plot
+structure, which fits the same exchange as a restriction on which swaps are
+allowed (see #631 for the fixed-block version).
 
 ## No Silent Fallbacks
 

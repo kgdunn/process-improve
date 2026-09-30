@@ -32,7 +32,12 @@ from typing import TYPE_CHECKING
 import numpy as np
 
 from process_improve._random import check_random_state
-from process_improve.experiments.designs_constrained import fedorov_exchange, parse_constraint
+from process_improve.experiments.designs_constrained import (
+    ConstrainedOptions,
+    fedorov_exchange,
+    make_criterion,
+    parse_constraint,
+)
 
 if TYPE_CHECKING:
     from process_improve.experiments.factor import Constraint, Factor
@@ -212,7 +217,7 @@ def constrained_mixture_design(
     factors: list[Factor],
     budget: int | None,
     constraints: list[Constraint] | None = None,
-    model_type: str = "scheffe_quadratic",
+    options: ConstrainedOptions | None = None,
     random_state: int | np.random.Generator | None = None,
 ) -> tuple[np.ndarray, dict]:
     """Generate a mixture design over component bounds and linear constraints.
@@ -228,10 +233,12 @@ def constrained_mixture_design(
         all candidate blends is chosen; blends may be replicated.
     constraints : list[Constraint] or None
         Linear inequalities in the proportions, e.g. ``"x1 + x2 <= 0.7"``.
-    model_type : str
-        ``"scheffe_linear"``, ``"scheffe_quadratic"`` or ``"scheffe_special_cubic"``,
-        or the process-design names ``"main_effects"``, ``"interactions"`` and
-        ``"quadratic"``, which map to linear, quadratic and quadratic.
+    options : ConstrainedOptions or None
+        ``model_type``: ``"scheffe_linear"``, ``"scheffe_quadratic"`` or
+        ``"scheffe_special_cubic"``, or the process-design names ``"main_effects"``,
+        ``"interactions"`` and ``"quadratic"``, which map to linear, quadratic and
+        quadratic. ``criterion``: ``"d_optimal"`` (default), ``"i_optimal"`` (average
+        prediction variance over the constrained simplex) or ``"a_optimal"``.
     random_state : int, numpy.random.Generator or None
         Seed for the exchange's random starts.
 
@@ -246,7 +253,9 @@ def constrained_mixture_design(
         If the region is empty, a constraint is not linear, or the region cannot
         support the model (for example a region that is a single blend).
     """
-    model = scheffe_model(model_type)
+    opts = options if options is not None else ConstrainedOptions(model_type="scheffe_quadratic")
+    model = scheffe_model(opts.model_type)
+    rng = check_random_state(random_state)
     a_mat, b_vec = mixture_inequalities(factors, constraints)
     candidates = mixture_candidates(a_mat, b_vec)
     n_parameters = scheffe_matrix(np.ones((1, len(factors))), model).shape[1]
@@ -265,10 +274,17 @@ def constrained_mixture_design(
             )
             budget = n_parameters
         pool = _unique_rows(np.vstack(list(candidates.values())))
+
+        def region_rows() -> np.ndarray:
+            from process_improve.experiments.region import DesignRegion  # noqa: PLC0415
+
+            return scheffe_matrix(DesignRegion(factors, constraints).sample(20_000, rng), model)
+
+        criterion = make_criterion(opts.criterion, n_parameters, region_rows)
         rows, logdet = fedorov_exchange(
-            scheffe_matrix(pool, model), budget, np.empty((0, n_parameters)), check_random_state(random_state)
+            scheffe_matrix(pool, model), budget, np.empty((0, n_parameters)), rng, criterion
         )
-        design, method = pool[rows], "d_optimal_extreme_vertices"
+        design, method = pool[rows], f"{opts.criterion}_extreme_vertices"
 
     if np.linalg.matrix_rank(scheffe_matrix(design, model)) < n_parameters:
         raise ValueError(
@@ -284,5 +300,9 @@ def constrained_mixture_design(
         "constraints_enforced": True,
     }
     if logdet is not None:
-        meta["log_det_information"] = logdet
+        meta["optimality_criterion"] = opts.criterion
+        if opts.criterion == "d_optimal":
+            meta["log_det_information"] = logdet
+        else:
+            meta["trace_criterion"] = -logdet  # the exchange maximises -trace
     return design, meta

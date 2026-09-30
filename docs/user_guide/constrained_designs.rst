@@ -140,6 +140,40 @@ grid corners and the constraint crossings) are added, since that is where the wo
 case of a second-order model sits. Pass ``region=DesignRegion(factors, constraints)``
 to evaluate a design held as a plain DataFrame.
 
+Choosing the criterion: D, I or A
+---------------------------------
+
+The exchange maximises one number, and the three criteria ask different questions:
+
+* **D-optimal** (``design_type="d_optimal"``) maximises ``det(X'X)``: the model
+  coefficients are estimated jointly as precisely as possible.
+* **I-optimal** (``"i_optimal"``) minimises the average prediction variance over the
+  region, which is what I-efficiency measures. It suits a study whose purpose is
+  prediction or optimisation.
+* **A-optimal** (``"a_optimal"``) minimises the summed variance of the coefficients.
+
+For the I-optimal design the average is taken over the constrained region itself,
+sampled uniformly, so the design is chosen for the same region ``evaluate_design``
+uses to judge it:
+
+.. code-block:: python
+
+   for design_type in ["d_optimal", "i_optimal"]:
+       r = generate_design(factors, design_type=design_type, budget=10, constraints=[heat], model_type="quadratic")
+       m = evaluate_design(r, model="quadratic", metric=["d_efficiency", "i_efficiency", "g_efficiency"])
+       print(design_type, {k: round(v, 1) for k, v in m.items() if k.endswith("efficiency")})
+   # d_optimal {'d_efficiency': 29.6, 'i_efficiency': 120.3, 'g_efficiency': 73.3}
+   # i_optimal {'d_efficiency': 27.4, 'i_efficiency': 168.5, 'g_efficiency': 62.7}
+
+Each design is best on its own criterion. The I-optimal design places more runs in the
+interior, so its average prediction variance is lower by a factor of 1.4, at the cost
+of a slightly less precise joint estimate of the coefficients and a larger worst case
+at the boundary.
+
+These designs come from the built-in exchange and do not need pyoptex. When pyoptex is
+installed and no constraints are given, it is used instead; it is still needed for
+split-plot designs (``hard_to_change``).
+
 Optimising inside the region
 ----------------------------
 

@@ -67,11 +67,12 @@ def dispatch_mixture(
     if bounded or constraints:
         if any(f.type != FactorType.mixture for f in factors):
             raise ValueError("Constrained mixture designs need every factor to be a mixture component.")
+        from process_improve.experiments.designs_constrained import ConstrainedOptions  # noqa: PLC0415
         from process_improve.experiments.designs_mixture_constrained import (  # noqa: PLC0415
             constrained_mixture_design,
         )
 
-        return constrained_mixture_design(factors, budget, constraints, model_type, random_state)
+        return constrained_mixture_design(factors, budget, constraints, ConstrainedOptions(model_type), random_state)
 
     # Simplex-centroid has 2^k - 1 points
     n_centroid = 2**k - 1

@@ -13,6 +13,17 @@ those changes.
 
 ### Added
 
+- **I-optimal and A-optimal designs without pyoptex, and over constrained regions.**
+  The candidate exchange from the constrained D-optimal design now takes a
+  `Criterion`: D maximises `log det(X'X)`; A minimises `trace((X'X)^-1)`; I
+  minimises `trace((X'X)^-1 W)`, with `W` the moment matrix of the (constrained)
+  region, i.e. the average prediction variance that `evaluate_design` reports. Each
+  swap is scored in closed form (two Sherman-Morrison updates), so all swaps are
+  scored in a few matrix products. `generate_design(design_type="i_optimal")` and
+  `"a_optimal"` no longer raise `ImportError` without pyoptex, honour `constraints`
+  and `fixed_runs`, and work for mixture factors. pyoptex is still used, when
+  installed and no constraints are given, and is still needed for split-plot designs.
+
 - **Constrained mixture designs, Scheffé models, and one `DesignRegion` shared by
   design, evaluation and optimisation.** Mixture components with bounds inside (0, 1)
   or linear constraints (`Constraint("polymer + solvent <= 0.85")`) now get a design
@@ -59,6 +70,15 @@ those changes.
   expression is parsed into an arithmetic tree and never passed to `eval`. Other design
   types now log a warning and set `constraints_enforced=False` instead of ignoring
   constraints silently. See the new user-guide page "Designs over a Constrained Region".
+
+### Changed
+
+- **The D-optimal fallback without pyoptex is model-aware.** It used a point
+  exchange on a 3-level grid that scored a first-order model whatever `model_type`
+  asked for, so a quadratic request could get a design with too few levels. It is
+  replaced by the candidate exchange, which scores the requested model and allows
+  replicated runs. `metadata["backend"]` reads `"candidate_exchange"` instead of
+  `"point_exchange_fallback"`, and `fixed_runs` no longer needs pyoptex.
 
 ## [1.96.0] - 2026-09-30
 

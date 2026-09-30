@@ -373,8 +373,7 @@ def generate_design(  # noqa: PLR0913
         Ignored by the classical (non-optimal) design families.
     fixed_runs : pandas.DataFrame or None
         Runs to hold fixed while the optimizer fills the rest (design augmentation), for the
-        optimal families only (``"d_optimal"``, ``"i_optimal"``, ``"a_optimal"``, which use
-        pyoptex). One row per fixed run, one column per factor, in the same coding as the returned
+        optimal families only (``"d_optimal"``, ``"i_optimal"``, ``"a_optimal"``). One row per fixed run, one column per factor, in the same coding as the returned
         design: continuous factors in coded ``[-1, 1]`` units, categorical factors as level labels.
         The fixed runs occupy the first rows of the result and ``budget`` counts them, so
         ``budget`` must exceed ``len(fixed_runs)``. A common use is to seed a centre point. Raises

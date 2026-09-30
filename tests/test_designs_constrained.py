@@ -8,13 +8,14 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from process_improve.experiments import Constraint, Factor, generate_design
+from process_improve.experiments import Constraint, Factor, evaluate_design, generate_design
 from process_improve.experiments.designs_constrained import (
     MAX_EXPRESSION_LENGTH,
     ConstrainedOptions,
+    Criterion,
     _Region,
     build_candidates,
-    constrained_d_optimal,
+    constrained_optimal_design,
     fedorov_exchange,
     model_matrix,
     parse_constraint,
@@ -188,16 +189,80 @@ class TestGenerateDesign:
 class TestErrors:
     def test_conflicting_constraints(self) -> None:
         with pytest.raises(ValueError, match="No point in the factor box"):
-            constrained_d_optimal([TEMP, DOSE], 8, [Constraint(expression="T >= 200")])
+            constrained_optimal_design([TEMP, DOSE], 8, [Constraint(expression="T >= 200")])
 
     def test_region_too_small_for_the_model(self) -> None:
         """A region that is a thin sliver along T = 100 cannot estimate a T effect."""
         with pytest.raises(ValueError, match="cannot support"):
-            constrained_d_optimal(
+            constrained_optimal_design(
                 [TEMP, DOSE], 8, [Constraint(expression="T <= 100")], ConstrainedOptions(model_type="main_effects")
             )
 
     def test_mixture_factors_are_refused(self) -> None:
         mix = [Factor(name="x1", type="mixture"), Factor(name="x2", type="mixture")]
         with pytest.raises(ValueError, match="mixture"):
-            constrained_d_optimal(mix, 4, [Constraint(expression="x1 <= 0.5")])
+            constrained_optimal_design(mix, 4, [Constraint(expression="x1 <= 0.5")])
+
+
+# ---------------------------------------------------------------------------
+# I- and A-optimality in the candidate exchange
+# ---------------------------------------------------------------------------
+
+
+class TestCriteria:
+    @pytest.mark.parametrize("name", ["d_optimal", "a_optimal", "i_optimal"])
+    def test_swap_gains_match_recomputing_the_criterion(self, name: str) -> None:
+        """The closed-form gain of each swap equals the change found by rebuilding X'X from scratch."""
+        rng = np.random.default_rng(0)
+        f_cand, rows = rng.normal(size=(30, 5)), rng.choice(30, 10, replace=False)
+        region_rows = rng.normal(size=(200, 5))
+        criterion = {"d_optimal": Criterion.d(), "a_optimal": Criterion.a(5), "i_optimal": Criterion.i(region_rows)}[
+            name
+        ]
+        x = f_cand[rows]
+        gains = criterion.swap_gains(np.linalg.inv(x.T @ x), x, f_cand)
+        for i, j in [(0, 3), (4, 17), (9, 29)]:
+            swapped = x.copy()
+            swapped[i] = f_cand[j]
+            if name == "d_optimal":  # the D gain is the determinant ratio minus one
+                expected = np.linalg.det(swapped.T @ swapped) / np.linalg.det(x.T @ x) - 1
+            else:
+                expected = criterion.value(swapped.T @ swapped) - criterion.value(x.T @ x)
+            assert gains[i, j] == pytest.approx(expected, rel=1e-9, abs=1e-12)
+
+    def test_each_criterion_wins_on_its_own_measure(self) -> None:
+        region = _Region([TEMP, DOSE], [], parse_constraint(HEAT.expression, {"T", "D"}))
+        coded, cats, _ = build_candidates(region)
+        f = model_matrix(region, coded, cats, "quadratic")
+        no_fixed = np.empty((0, f.shape[1]))
+        i_crit = Criterion.i(f)
+        d_rows, _ = fedorov_exchange(f, 10, no_fixed, np.random.default_rng(0), Criterion.d())
+        i_rows, _ = fedorov_exchange(f, 10, no_fixed, np.random.default_rng(0), i_crit)
+        info = {k: f[r].T @ f[r] for k, r in {"d": d_rows, "i": i_rows}.items()}
+        assert i_crit.value(info["i"]) >= i_crit.value(info["d"]) - 1e-9
+        assert Criterion.d().value(info["d"]) >= Criterion.d().value(info["i"]) - 1e-9
+
+    def test_i_optimal_constrained_design_has_the_better_i_efficiency(self) -> None:
+        """The I-optimal design minimises the region-average variance that evaluate_design reports."""
+        common = {"budget": 10, "constraints": [HEAT], "model_type": "quadratic"}
+        d_design = generate_design([TEMP, DOSE], design_type="d_optimal", **common)
+        i_design = generate_design([TEMP, DOSE], design_type="i_optimal", **common)
+        heat = 3 * i_design.design_actual["T"] + 5 * i_design.design_actual["D"]
+        assert (heat <= 600 + 1e-6).all()
+        assert i_design.metadata["optimality_criterion"] == "i_optimal"
+        kwargs = {"model": "quadratic", "metric": "i_efficiency", "n_samples": 20_000}
+        assert evaluate_design(i_design, **kwargs)["i_efficiency"] > evaluate_design(d_design, **kwargs)["i_efficiency"]
+
+    def test_i_optimal_mixture(self) -> None:
+        mix = [
+            Factor(name="x1", type="mixture", low=0.1, high=0.5),
+            Factor(name="x2", type="mixture", low=0.1, high=0.7),
+            Factor(name="x3", type="mixture", low=0.05, high=0.3),
+        ]
+        result = generate_design(mix, design_type="i_optimal", budget=10)
+        assert result.metadata["method"] == "i_optimal_extreme_vertices"
+        np.testing.assert_allclose(result.design_actual[["x1", "x2", "x3"]].sum(axis=1), 1.0)
+
+    def test_unknown_criterion(self) -> None:
+        with pytest.raises(ValueError, match="Unknown criterion"):
+            constrained_optimal_design([TEMP, DOSE], 8, [], ConstrainedOptions(criterion="e_optimal"))
