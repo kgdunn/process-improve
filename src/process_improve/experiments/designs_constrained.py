@@ -80,23 +80,29 @@ def _compile(node: ast.expr, names: set[str]) -> _Evaluator:
     Only numbers, factor names, ``+ - * / **``, unary signs and the functions in
     ``_FUNCTIONS`` are accepted; anything else raises ``ValueError``.
     """
-    match node:
-        case ast.Constant(value=value) if isinstance(value, int | float) and not isinstance(value, bool):
-            number = float(value)
-            return lambda _env: number
-        case ast.Name(id=name):
-            if name not in names:
-                raise ValueError(f"Unknown name {name!r}; constraints may use the continuous factors {sorted(names)}.")
-            return lambda env: env[name]
-        case ast.BinOp(left=left, op=op, right=right) if type(op) in _BINARY_OPS:
-            fn, lhs, rhs = _BINARY_OPS[type(op)], _compile(left, names), _compile(right, names)
-            return lambda env: fn(lhs(env), rhs(env))
-        case ast.UnaryOp(op=op, operand=operand) if type(op) in _UNARY_OPS:
-            unary, inner = _UNARY_OPS[type(op)], _compile(operand, names)
-            return lambda env: unary(inner(env))
-        case ast.Call(func=ast.Name(id=fname), args=[arg], keywords=[]) if fname in _FUNCTIONS:
-            func, inner = _FUNCTIONS[fname], _compile(arg, names)
-            return lambda env: func(inner(env))
+    if isinstance(node, ast.Constant) and isinstance(node.value, int | float) and not isinstance(node.value, bool):
+        number = float(node.value)
+        return lambda _env: number
+    if isinstance(node, ast.Name):
+        name = node.id
+        if name not in names:
+            raise ValueError(f"Unknown name {name!r}; constraints may use the continuous factors {sorted(names)}.")
+        return lambda env: env[name]
+    if isinstance(node, ast.BinOp) and type(node.op) in _BINARY_OPS:
+        fn, lhs, rhs = _BINARY_OPS[type(node.op)], _compile(node.left, names), _compile(node.right, names)
+        return lambda env: fn(lhs(env), rhs(env))
+    if isinstance(node, ast.UnaryOp) and type(node.op) in _UNARY_OPS:
+        unary, operand = _UNARY_OPS[type(node.op)], _compile(node.operand, names)
+        return lambda env: unary(operand(env))
+    if (
+        isinstance(node, ast.Call)
+        and isinstance(node.func, ast.Name)
+        and node.func.id in _FUNCTIONS
+        and len(node.args) == 1
+        and not node.keywords
+    ):
+        func, argument = _FUNCTIONS[node.func.id], _compile(node.args[0], names)
+        return lambda env: func(argument(env))
     raise ValueError(f"Unsupported syntax in constraint: {ast.unparse(node)!r}.")
 
 
@@ -136,14 +142,13 @@ def parse_constraint(expression: str, names: set[str]) -> list[_Evaluator]:
         tree = ast.parse(expression, mode="eval").body
     except SyntaxError as err:
         raise ValueError(f"Constraint {expression!r} is not a valid expression: {err.msg}.") from err
-    match tree:
-        case ast.Compare(left=left, ops=ops, comparators=comparators):
-            terms = [_compile(left, names)] + [_compile(c, names) for c in comparators]
-        case _:
-            raise ValueError(f"Constraint {expression!r} must be an inequality, e.g. 'A + B <= 10'.")
+    compare = tree if isinstance(tree, ast.Compare) else None
+    if compare is None:
+        raise ValueError(f"Constraint {expression!r} must be an inequality, e.g. 'A + B <= 10'.")
+    terms = [_compile(compare.left, names)] + [_compile(c, names) for c in compare.comparators]
 
     inequalities = []
-    for op, lhs, rhs in zip(ops, terms[:-1], terms[1:], strict=True):
+    for op, lhs, rhs in zip(compare.ops, terms[:-1], terms[1:], strict=True):
         flip = _FLIP.get(type(op))
         if flip is None:
             raise ValueError(
