@@ -11,6 +11,26 @@ those changes.
 
 ## [Unreleased]
 
+### Added
+
+- **MEDA and oMEDA: what a fitted PCA or PLS model says about the variables, and
+  about two groups of observations (#373).**
+  - `meda(model, X)`, or `model.meda(X)`, returns the K x K map of how well each
+    variable is predicted from each other one through the model (Camacho, 2010). It
+    shows the relationships the model represents, where a correlation matrix mixes
+    in the directions the model discards. `signed=False` gives the goodness of
+    prediction itself, and `seriate=True` puts related variables next to each other.
+  - `omeda(model, X, group, reference)`, or `model.omeda(...)`, ranks the variables
+    that separate two groups of observations along the model's directions, with the
+    sign of each difference (Camacho, 2011). `weights` takes a general dummy vector.
+  - `meda_plot` and `omeda_plot` draw them, and are methods of PCA and PLS as well.
+
+  ```python
+  pca = PCA(n_components=3).fit(X_scaled)
+  pca.meda_plot(X_scaled)                                   # blocks of related variables
+  pca.omeda(X_scaled, group=cluster, reference=rest)        # what separates the cluster
+  ```
+
 ## [1.96.0] - 2026-09-30
 
 ### Added
