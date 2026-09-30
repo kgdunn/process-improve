@@ -22,6 +22,7 @@ Examples
 
 from __future__ import annotations
 
+import logging
 from collections.abc import Callable
 from typing import Any
 
@@ -37,6 +38,8 @@ except ImportError:  # pragma: no cover - exercised via env-without-pyDOE3
 
 from process_improve.experiments.designs_utils import build_design_result
 from process_improve.experiments.factor import Constraint, DesignResult, Factor, FactorType
+
+logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
 # Dispatch handlers - each returns (coded_matrix, metadata_dict)
@@ -148,6 +151,7 @@ def _dispatch_d_optimal(
         constraints=kwargs.get("constraints"),
         model_type=kwargs.get("model_type", "interactions"),
         fixed_runs=kwargs.get("fixed_runs"),
+        random_state=kwargs.get("random_state"),
     )
 
 
@@ -346,7 +350,11 @@ def generate_design(  # noqa: PLR0913
         given, those generators define the cube; otherwise a minimum-aberration
         half-fraction is chosen automatically.
     constraints : list[Constraint] or None
-        Constraints on the factor space.
+        Inequalities on the continuous factors, in actual units, e.g.
+        ``Constraint(expression="3*T + 5*D <= 600")``. Honoured by
+        ``"d_optimal"`` (chosen automatically when constraints are given): the
+        runs are selected from a candidate set of feasible points, so every run
+        satisfies every constraint. Other design types do not enforce them.
     hard_to_change : list[str] or None
         Names of hard-to-change factors (triggers split-plot structure).
     model_type : str
@@ -422,9 +430,14 @@ def generate_design(  # noqa: PLR0913
         "constraints": constraints,
         "model_type": model_type,
         "fixed_runs": fixed_runs,
+        "random_state": random_seed,
     }
 
     coded_matrix, meta = dispatch_fn(factors, **dispatch_kwargs)
+    if constraints and not meta.get("constraints_enforced"):
+        # Only the constrained D-optimal path honours constraints; say so on the result.
+        logger.warning("design_type=%r does not enforce constraints; use design_type='d_optimal'.", design_type)
+        meta["constraints_enforced"] = False
 
     # --- Determine center-point handling -----------------------------------
     # Designs that embed their own center points (CCD, Box-Behnken)

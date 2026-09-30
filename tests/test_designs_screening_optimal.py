@@ -92,27 +92,20 @@ class TestDOptimalDispatch:
         design, _meta = dispatch_d_optimal(_continuous(2))
         assert design.shape[0] > 0
 
-    def test_constraints_emit_warning(self, caplog: pytest.LogCaptureFixture) -> None:
-        """Passing constraints logs an experimental-feature warning."""
-        from process_improve.experiments.factor import Constraint
+    def test_constraints_are_enforced(self) -> None:
+        """Constraints route to the constrained exchange and every run satisfies them.
 
-        constraints = [Constraint(expression="X1 + X2 <= 10")]
-        with caplog.at_level("WARNING"):
-            dispatch_d_optimal(_continuous(2), budget=6, constraints=constraints)
-        assert any("Constraint enforcement" in rec.message for rec in caplog.records)
-
-    def test_constraints_recorded_as_not_enforced_in_meta(self) -> None:
-        """Passing constraints records constraints_enforced=False on the result meta.
-
-        Enforcement is not implemented, so the flag lets a caller detect that the
-        returned design does not honour the constraints, rather than relying only
-        on an easy-to-miss log line.
+        This held regardless of pyoptex: the constrained path is built in. It replaced
+        a warning that constraints were noted but not enforced.
         """
         from process_improve.experiments.factor import Constraint
 
         constraints = [Constraint(expression="X1 + X2 <= 10")]
-        _design, meta = dispatch_d_optimal(_continuous(2), budget=6, constraints=constraints)
-        assert meta.get("constraints_enforced") is False
+        design, meta = dispatch_d_optimal(_continuous(2), budget=6, constraints=constraints, random_state=0)
+        assert meta["constraints_enforced"] is True
+        assert meta["backend"] == "constrained_exchange"
+        actual = 5.0 + 5.0 * design  # coded [-1, 1] -> actual [0, 10]
+        assert (actual.sum(axis=1) <= 10 + 1e-9).all()
 
     def test_hard_to_change_ignored_flag_without_pyoptex(self) -> None:
         """Without pyoptex the split-plot request is dropped and recorded on the meta."""
