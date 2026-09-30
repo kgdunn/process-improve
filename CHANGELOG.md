@@ -11,6 +11,8 @@ those changes.
 
 ## [Unreleased]
 
+## [1.96.0] - 2026-09-30
+
 ### Added
 
 - **`GPA`: generalized Procrustes analysis for several configurations of the same
@@ -6009,7 +6011,8 @@ this entry records them together.
 - Reworked the README with a sharper value proposition and a
   "Why not scikit-learn?" comparison table.
 
-[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.95.1...HEAD
+[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.96.0...HEAD
+[1.96.0]: https://github.com/kgdunn/process-improve/compare/v1.94.0...v1.96.0
 [1.95.1]: https://github.com/kgdunn/process-improve/compare/v1.95.0...v1.95.1
 [1.95.0]: https://github.com/kgdunn/process-improve/compare/v1.94.0...v1.95.0
 [1.94.0]: https://github.com/kgdunn/process-improve/compare/v1.93.1...v1.94.0
