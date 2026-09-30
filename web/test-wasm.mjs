@@ -43,7 +43,6 @@ const factors = [
   { name: "F", low: 10, high: 20, units: "" },
 ];
 for (const design_type of Object.keys(catalogue.result.designs)) {
-  if (design_type === "fractional_factorial") continue; // kgdunn/process-improve#620
   const reply = call("api_make_design", { design_type, factors, budget: 14 });
   assert.ok(reply.ok, `${design_type}: ${reply.error}`);
   console.log(`ok  ${design_type}: ${reply.result.n_runs} runs`);
