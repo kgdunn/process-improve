@@ -168,6 +168,7 @@ def _dispatch_i_optimal(
         constraints=kwargs.get("constraints"),
         model_type=kwargs.get("model_type", "interactions"),
         fixed_runs=kwargs.get("fixed_runs"),
+        random_state=kwargs.get("random_state"),
     )
 
 
@@ -184,6 +185,7 @@ def _dispatch_a_optimal(
         constraints=kwargs.get("constraints"),
         model_type=kwargs.get("model_type", "interactions"),
         fixed_runs=kwargs.get("fixed_runs"),
+        random_state=kwargs.get("random_state"),
     )
 
 

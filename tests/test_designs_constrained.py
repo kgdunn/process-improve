@@ -263,6 +263,13 @@ class TestCriteria:
         assert result.metadata["method"] == "i_optimal_extreme_vertices"
         np.testing.assert_allclose(result.design_actual[["x1", "x2", "x3"]].sum(axis=1), 1.0)
 
+    @pytest.mark.parametrize("design_type", ["d_optimal", "i_optimal", "a_optimal"])
+    def test_random_seed_reproduces_the_design(self, design_type: str) -> None:
+        kwargs = {"design_type": design_type, "budget": 9, "constraints": [HEAT], "random_seed": 5}
+        first = generate_design([TEMP, DOSE], **kwargs)
+        second = generate_design([TEMP, DOSE], **kwargs)
+        pd.testing.assert_frame_equal(first.design_actual, second.design_actual)
+
     def test_unknown_criterion(self) -> None:
         with pytest.raises(ValueError, match="Unknown criterion"):
             constrained_optimal_design([TEMP, DOSE], 8, [], ConstrainedOptions(criterion="e_optimal"))
