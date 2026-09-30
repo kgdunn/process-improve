@@ -246,6 +246,18 @@ class TestBeyondTheTable:
         with pytest.raises(ValueError, match="only reaches resolution 4"):
             _fraction(12, resolution=5)
 
+    def test_pydoe3_finding_nothing_raises(self) -> None:
+        """Sixty factors at resolution 40 would need more base factors than pyDOE3 can name."""
+        factors = [Factor(name=f"X{i}", low=-1, high=1) for i in range(60)]
+        with pytest.raises(ValueError, match="pyDOE3 found none"):
+            generate_design(factors, design_type="fractional_factorial", resolution=40, n_center_points=0)
+
+    def test_more_base_factors_than_letters_raises(self) -> None:
+        """The half fraction of 28 factors has 27 base factors; pyDOE3 names at most 26."""
+        factors = [Factor(name=f"X{i}", low=-1, high=1) for i in range(28)]
+        with pytest.raises(ValueError, match="At most 26 base factors"):
+            generate_design(factors, design_type="fractional_factorial", n_center_points=0)
+
     def test_only_the_half_fraction_reaches_a_high_resolution(self) -> None:
         """No quarter fraction of 12 factors passes resolution floor(2 * 12 / 3) = 8."""
         result = _fraction(12, resolution=9)
@@ -254,6 +266,12 @@ class TestBeyondTheTable:
 
 
 class TestInvalidRequests:
+    @pytest.mark.parametrize("generator", ["D=", "D=-"])
+    def test_generator_naming_no_factors(self, generator: str) -> None:
+        """An empty right-hand side used to reach pyDOE3 and fail there with an IndexError."""
+        with pytest.raises(ValueError, match="names no factors"):
+            _fraction(4, generators=[generator])
+
     def test_fewer_than_three_factors(self) -> None:
         with pytest.raises(ValueError, match="at least 3 factors"):
             _fraction(2)

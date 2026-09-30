@@ -177,26 +177,30 @@ def _defining_words(generators: list[_Generator]) -> list[frozenset[int]]:
         for index in rhs:
             letters ^= {index}  # a repeated base factor cancels
         generator_words.append(frozenset(letters))
+    # No product is the identity: each generator word holds its own derived factor.
     words: set[frozenset[int]] = set()
     for size in range(1, len(generator_words) + 1):
         for subset in itertools.combinations(generator_words, size):
             product: frozenset[int] = frozenset()
             for generator_word in subset:
                 product ^= generator_word
-            if product:
-                words.add(product)
+            words.add(product)
     return sorted(words, key=lambda word: (len(word), sorted(word)))
 
 
 def _shortest_word_length(coded: np.ndarray) -> int:
-    """Return the resolution of a coded design: the fewest columns whose product is constant."""
-    n_runs, k = coded.shape
-    for size in range(1, k + 1):
-        for columns in itertools.combinations(range(k), size):
-            product = np.prod(coded[:, columns], axis=1)
-            if np.all(product == product[0]):
-                return size
-    raise ValueError(f"The {n_runs}-run design has no defining relation; it is not a fraction.")
+    """Return the resolution of a coded fraction: the fewest columns whose product is constant.
+
+    Shortest candidates are tried first, so the first constant product found is the
+    answer. A fraction always has one, since its columns outnumber its base factors.
+    """
+    k = coded.shape[1]
+    return next(
+        size
+        for size in range(1, k + 1)
+        for columns in itertools.combinations(range(k), size)
+        if np.all(np.prod(coded[:, columns], axis=1) == np.prod(coded[0, columns]))
+    )
 
 
 def _fracfact_by_res_checked(k: int, resolution: int) -> tuple[np.ndarray, dict]:
@@ -266,6 +270,8 @@ def _parse_generators(factor_names: list[str], generators: list[str]) -> tuple[l
         if len(lhs) != 1:
             raise ValueError(f"Generator {g!r}: the left-hand side must be exactly one factor.")
         rhs = _parse_generator_word(rhs_word, factor_names)
+        if not rhs:
+            raise ValueError(f"Generator {g!r}: the right-hand side names no factors.")
         if lhs[0] in rhs:
             raise ValueError(f"Generator {g!r}: the left-hand factor may not appear on the right-hand side.")
         if lhs[0] in derived_idx:
@@ -282,25 +288,15 @@ def _parse_generators(factor_names: list[str], generators: list[str]) -> tuple[l
     return derived_idx, rhs_indices
 
 
-def _fracfact_from_generators(factors: list[Factor], generators: list[str]) -> np.ndarray:
-    """Build a coded fractional-factorial matrix from explicit generators.
-
-    The previous implementation handed pyDOE3 the base factors followed by the
-    derived ones and returned the columns in that order, while the caller
-    assigns column ``i`` to ``factors[i]``: whenever a generator's left-hand
-    factor was not the LAST factor (e.g. ``"B=AC"`` with factors A, B, C), the
-    factor columns were silently swapped. It also lower-cased raw factor names
-    into the pyDOE3 string, so any multi-character name was misread as a
-    product of single-letter factors. Generators are now parsed against the
-    real factor names, translated to canonical single letters for pyDOE3, and
-    the resulting columns are re-ordered back to the caller's factor order.
-    """
-    derived_idx, rhs_indices = _parse_generators([f.name for f in factors], generators)
-    return _fracfact_from_indices(len(factors), derived_idx, rhs_indices)
-
-
 def _fracfact_from_indices(k: int, derived_idx: list[int], rhs_indices: list[tuple[list[int], bool]]) -> np.ndarray:
-    """Build the coded matrix for parsed generators, with columns in factor order."""
+    """Build the coded matrix for parsed generators, with column ``i`` belonging to factor ``i``.
+
+    pyDOE3 is handed canonical single letters (so multi-character factor names are
+    never misread as products) and returns the base factors followed by the derived
+    ones. The columns are then put back in factor order: returning pyDOE3's order
+    once swapped columns silently whenever a derived factor was not the last one
+    (e.g. ``"B=AC"`` with factors A, B, C).
+    """
     base_idx = [i for i in range(k) if i not in derived_idx]
 
     letters = "abcdefghijklmnopqrstuvwxyz"
@@ -312,10 +308,9 @@ def _fracfact_from_indices(k: int, derived_idx: list[int], rhs_indices: list[tup
         word = "".join(base_letter[i] for i in rhs)
         tokens.append(f"-{word}" if negated else word)
 
+    # One non-empty token per factor, so pyDOE3 returns exactly k columns, in the order
+    # (bases..., derived...); map them back to factor order.
     coded = fracfact(" ".join(tokens))
-    if coded.shape[1] != k:
-        raise ValueError(f"pyDOE3 returned {coded.shape[1]} columns for {k} factors; the generators are inconsistent.")
-    # pyDOE3 column order is (bases..., derived...); map back to factor order.
     reordered = np.empty_like(coded)
     for position, factor_index in enumerate(base_idx + derived_idx):
         reordered[:, factor_index] = coded[:, position]

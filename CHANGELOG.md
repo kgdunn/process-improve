@@ -31,6 +31,8 @@ those changes.
   - Beyond 11 factors pyDOE3's search is still used, but its design's resolution is now
     measured, and a design short of the request raises a `ValueError` instead of being
     mislabelled.
+  - An explicit generator whose right-hand side names no factors, such as `"D="`, raises
+    a `ValueError` saying so, instead of an `IndexError` from inside pyDOE3.
 
 ## [1.96.0] - 2026-09-30
 
