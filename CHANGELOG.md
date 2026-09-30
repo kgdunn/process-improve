@@ -11,6 +11,21 @@ those changes.
 
 ## [Unreleased]
 
+### Fixed
+
+- **`MBPLS` and `MBPCA` sign each component like `PLS` and `PCA` do: the
+  largest-magnitude X loading is positive (#586).** Their old convention looked at the
+  super weight (super loading for `MBPCA`), which a sign flip of the whole component
+  leaves unchanged, so it could not fix the sign.
+  - `MBPLS`'s scores and weights changed sign when Y did, and one-block models often
+    had the opposite sign to `PLS` or `PCA` on some component.
+  - With missing cells a super weight can be negative, and then the old flip fired
+    and negated it together with the scores. The model then disagreed with itself:
+    `transform` and `predict` on the training blocks did not reproduce
+    `super_scores_` and `predictions_`.
+  - Some components of existing fits change sign. Scores, loadings, contributions and
+    predictions are otherwise unchanged, apart from the corrected missing-data fits.
+
 ## [1.96.0] - 2026-09-30
 
 ### Added
