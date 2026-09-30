@@ -11,6 +11,7 @@ import pytest
 from process_improve.experiments import Constraint, Factor, generate_design
 from process_improve.experiments.designs_constrained import (
     MAX_EXPRESSION_LENGTH,
+    ConstrainedOptions,
     _Region,
     build_candidates,
     constrained_d_optimal,
@@ -192,7 +193,9 @@ class TestErrors:
     def test_region_too_small_for_the_model(self) -> None:
         """A region that is a thin sliver along T = 100 cannot estimate a T effect."""
         with pytest.raises(ValueError, match="cannot support"):
-            constrained_d_optimal([TEMP, DOSE], 8, [Constraint(expression="T <= 100")], model_type="main_effects")
+            constrained_d_optimal(
+                [TEMP, DOSE], 8, [Constraint(expression="T <= 100")], ConstrainedOptions(model_type="main_effects")
+            )
 
     def test_mixture_factors_are_refused(self) -> None:
         mix = [Factor(name="x1", type="mixture"), Factor(name="x2", type="mixture")]

@@ -355,13 +355,32 @@ def fedorov_exchange(
 # ---------------------------------------------------------------------------
 
 
-def constrained_d_optimal(  # noqa: PLR0913
+@dataclass
+class ConstrainedOptions:
+    """Optional settings for :func:`constrained_d_optimal`.
+
+    Parameters
+    ----------
+    model_type : str
+        ``"main_effects"``, ``"interactions"`` or ``"quadratic"``.
+    fixed_runs : pandas.DataFrame or None
+        Runs kept in the design (continuous in coded units, categorical as labels),
+        already validated by the caller. They count towards the budget.
+    n_levels : int or None
+        Grid levels per continuous factor. ``None`` picks 5, 4 or 3, whichever is
+        the finest that keeps the grid under ``MAX_CANDIDATES`` points.
+    """
+
+    model_type: str = "interactions"
+    fixed_runs: pd.DataFrame | None = None
+    n_levels: int | None = None
+
+
+def constrained_d_optimal(
     factors: list[Factor],
     budget: int,
     constraints: list[Constraint],
-    model_type: str = "interactions",
-    fixed_runs: pd.DataFrame | None = None,
-    n_levels: int | None = None,
+    options: ConstrainedOptions | None = None,
     random_state: int | np.random.Generator | None = None,
 ) -> tuple[np.ndarray, dict]:
     """Generate a D-optimal design whose runs all satisfy ``constraints``.
@@ -375,14 +394,9 @@ def constrained_d_optimal(  # noqa: PLR0913
     constraints : list[Constraint]
         Inequalities in actual units over the continuous factors, e.g.
         ``Constraint(expression="3*T + 5*D <= 600")``.
-    model_type : str
-        ``"main_effects"``, ``"interactions"`` or ``"quadratic"``.
-    fixed_runs : pandas.DataFrame or None
-        Runs kept in the design (continuous in coded units, categorical as labels),
-        already validated by the caller. They count towards ``budget``.
-    n_levels : int or None
-        Grid levels per continuous factor. ``None`` picks 5, 4 or 3, whichever is
-        the finest that keeps the grid under ``MAX_CANDIDATES`` points.
+    options : ConstrainedOptions or None
+        Model type, fixed runs and grid resolution; defaults to an interactions
+        model with no fixed runs and an automatic grid.
     random_state : int, numpy.random.Generator or None
         Seed for the random starts of the exchange.
 
@@ -398,6 +412,8 @@ def constrained_d_optimal(  # noqa: PLR0913
         feasible region cannot support the requested model.
     """
     rng = check_random_state(random_state)
+    opts = options if options is not None else ConstrainedOptions()
+    model_type, fixed_runs = opts.model_type, opts.fixed_runs
     if any(f.type == FactorType.mixture for f in factors):
         raise ValueError("Constraints on mixture factors are not supported by the constrained D-optimal design.")
 
@@ -407,7 +423,7 @@ def constrained_d_optimal(  # noqa: PLR0913
     inequalities = [g for c in constraints for g in parse_constraint(c.expression, names)]
     region = _Region(continuous, categorical, inequalities)
 
-    coded, cats, counts = build_candidates(region, n_levels)
+    coded, cats, counts = build_candidates(region, opts.n_levels)
     if counts["n_candidates"] == 0:
         raise ValueError("No point in the factor box satisfies all the constraints; check them for conflicts.")
 

@@ -480,12 +480,14 @@ def dispatch_d_optimal(  # noqa: PLR0913
     budget = _floor_budget_at_model_size(factors, budget, model_type)
 
     if constraints:
-        from process_improve.experiments.designs_constrained import constrained_d_optimal  # noqa: PLC0415
+        from process_improve.experiments.designs_constrained import (  # noqa: PLC0415
+            ConstrainedOptions,
+            constrained_d_optimal,
+        )
 
         prior = _prepare_prior_runs(fixed_runs, factors, budget) if fixed_runs is not None else None
-        matrix, meta = constrained_d_optimal(
-            factors, budget, constraints, model_type=model_type, fixed_runs=prior, random_state=random_state
-        )
+        options = ConstrainedOptions(model_type=model_type, fixed_runs=prior)
+        matrix, meta = constrained_d_optimal(factors, budget, constraints, options, random_state=random_state)
         if hard_to_change:
             logger.warning("hard_to_change factors are ignored when constraints are given.")
             meta["hard_to_change_ignored"] = list(hard_to_change)
