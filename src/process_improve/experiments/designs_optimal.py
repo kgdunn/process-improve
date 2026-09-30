@@ -474,6 +474,21 @@ def dispatch_d_optimal(  # noqa: PLR0913
     -------
     tuple[np.ndarray, dict]
     """
+    from process_improve.experiments.factor import FactorType  # noqa: PLC0415
+
+    if factors and all(f.type == FactorType.mixture for f in factors):
+        # Proportions summing to 1 need a Scheffé model and the simplex geometry, which
+        # the process-factor backends below know nothing about.
+        from process_improve.experiments.designs_mixture_constrained import (  # noqa: PLC0415
+            constrained_mixture_design,
+            scheffe_matrix,
+        )
+
+        if fixed_runs is not None or hard_to_change:
+            raise ValueError("fixed_runs and hard_to_change are not supported for mixture designs.")
+        n_terms = scheffe_matrix(np.ones((1, len(factors))), model_type).shape[1]
+        return constrained_mixture_design(factors, budget or n_terms + 3, constraints, model_type, random_state)
+
     k = len(factors)
     if budget is None:
         budget = 2 * k + 1

@@ -112,3 +112,122 @@ Combining with other options
   ignored and recorded as ``metadata["hard_to_change_ignored"]``.
 * Other design types do not enforce constraints. They log a warning and set
   ``metadata["constraints_enforced"] = False``.
+
+Judging the design over its own region
+--------------------------------------
+
+A constrained design should be judged on the settings it may visit. The I-efficiency
+averages the prediction variance over the region, and the G-efficiency takes its
+worst case. Over the full box, both are dominated by the cut-off corner, where the
+model has to extrapolate. ``generate_design`` records the region in
+``result.metadata["region"]``, and ``evaluate_design`` uses it by default:
+
+.. code-block:: python
+
+   from process_improve.experiments import evaluate_design
+
+   inside = evaluate_design(result, model="quadratic", metric=["i_efficiency", "g_efficiency"])
+   cube = evaluate_design(result, model="quadratic", metric=["i_efficiency", "g_efficiency"], region="cuboidal")
+   print(f"{inside['i_efficiency']:.0f} {inside['g_efficiency']:.0f}")  # 120 73
+   print(f"{cube['i_efficiency']:.0f} {cube['g_efficiency']:.1f}")      # 42 3.5
+
+The design's worst-case prediction variance inside the region is about a twentieth of
+its worst case over the box. The box figure describes settings the plant cannot run,
+so it says nothing about the design's quality for this process.
+
+The region is sampled uniformly by rejection, and its boundary points (the feasible
+grid corners and the constraint crossings) are added, since that is where the worst
+case of a second-order model sits. Pass ``region=DesignRegion(factors, constraints)``
+to evaluate a design held as a plain DataFrame.
+
+Optimising inside the region
+----------------------------
+
+An optimum is only useful if the process can run it. Passing the same region to
+``optimize_responses`` turns each constraint into an SLSQP inequality constraint and
+starts the search from feasible points. Here, a fitted quadratic model whose maximum
+over the box is the forbidden corner:
+
+.. code-block:: python
+
+   from process_improve.experiments import DesignRegion, optimize_responses
+
+   model = {
+       "response_name": "y",
+       "factor_names": ["T", "D"],
+       "coefficients": [
+           {"term": "Intercept", "coefficient": 60.0},
+           {"term": "T", "coefficient": 8.0},
+           {"term": "D", "coefficient": 6.0},
+           {"term": "I(T ** 2)", "coefficient": -2.0},
+           {"term": "I(D ** 2)", "coefficient": -3.0},
+       ],
+   }
+   goal = [{"response": "y", "goal": "maximize", "low": 40, "high": 75}]
+   ranges = {"T": {"low": 100, "high": 150}, "D": {"low": 20, "high": 60}}
+   region = DesignRegion.from_dict(result.metadata["region"])
+
+   best = optimize_responses([model], goal, factor_ranges=ranges, region=region)["desirability"]
+   print(f"{best['optimal_actual']['T']:.1f} {best['optimal_actual']['D']:.1f}", best["within_region"])
+   # 140.7 35.6 True: on the heat line 3*T + 5*D = 600
+
+Without ``region`` the same call returns (150 degC, 60 min), with a heat load of 750.
+``method="pareto_front"`` accepts ``region`` too; the other methods ignore it and log
+a warning.
+
+Constrained mixtures
+--------------------
+
+In a formulation the components are proportions that sum to one, and each is usually
+bounded: at least 10% polymer, at most 30% filler. Bounds and linear constraints cut
+the simplex down to a polygon (a polytope in more than three components), and the
+design is built from its geometry.
+
+.. code-block:: python
+
+   factors = [
+       Factor(name="polymer", type="mixture", low=0.10, high=0.50),
+       Factor(name="solvent", type="mixture", low=0.10, high=0.70),
+       Factor(name="filler", type="mixture", low=0.05, high=0.30),
+   ]
+   cap = Constraint(expression="polymer + solvent <= 0.85")
+
+   ev = generate_design(factors, constraints=[cap])
+   print(ev.metadata["method"], ev.n_runs, ev.metadata["n_vertices"])  # extreme_vertices 11 5
+
+   dopt = generate_design(factors, budget=12, constraints=[cap])
+   print(dopt.metadata["method"])  # d_optimal_extreme_vertices
+
+* **Extreme vertices.** In ``q`` components, a vertex is a blend where ``q - 1``
+  constraints hold with equality. Every such choice of constraints is solved as one
+  linear system, all of them in a single batched call, and the feasible solutions are
+  the vertices.
+* **Without a budget** the classical extreme-vertices design is returned: the
+  vertices and the centroid, plus the edge midpoints for a quadratic model and the
+  face centroids for a special cubic one.
+* **With a budget** a D-optimal subset is chosen from the vertices, edge midpoints,
+  face centroids, centroid and axial check blends, by the same exchange as above.
+  Blends can repeat, which gives replicates for a pure-error estimate.
+
+Mixture constraints must be linear in the proportions, since the vertex enumeration
+relies on flat faces. On the full simplex (no bounds, no constraints) the classical
+simplex-lattice and simplex-centroid designs are used, as before.
+
+Analyse the runs with a Scheffé model. It has no intercept, because the proportions
+sum to one:
+
+.. code-block:: python
+
+   from process_improve.experiments import analyze_experiment
+
+   # x: the design's proportions; y: the measured response
+   fit = analyze_experiment(x, y, model="scheffe_quadratic", analysis_type=["coefficients", "anova"])
+   # formula: y ~ -1 + (polymer + solvent + filler) ** 2
+
+``"scheffe_linear"``, ``"scheffe_quadratic"`` and ``"scheffe_special_cubic"`` are
+accepted by ``analyze_experiment`` and ``evaluate_design``. statsmodels recognises
+that the proportions carry an implicit intercept, so R-squared is centred and the
+model degrees of freedom are one less than the number of terms, as for a model with an
+intercept. ``evaluate_design`` defaults to the Scheffé quadratic model for a mixture
+design and samples its constrained simplex. ``optimize_responses`` with the mixture
+region searches the polytope and returns a blend that sums to one.

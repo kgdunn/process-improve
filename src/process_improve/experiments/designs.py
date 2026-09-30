@@ -193,7 +193,13 @@ def _dispatch_mixture(
 ) -> tuple[np.ndarray, dict]:
     from process_improve.experiments.designs_mixture import dispatch_mixture  # noqa: PLC0415
 
-    return dispatch_mixture(factors, budget=kwargs.get("budget"))
+    return dispatch_mixture(
+        factors,
+        budget=kwargs.get("budget"),
+        constraints=kwargs.get("constraints"),
+        model_type=kwargs.get("model_type", "interactions"),
+        random_state=kwargs.get("random_state"),
+    )
 
 
 def _dispatch_taguchi(
@@ -435,9 +441,16 @@ def generate_design(  # noqa: PLR0913
 
     coded_matrix, meta = dispatch_fn(factors, **dispatch_kwargs)
     if constraints and not meta.get("constraints_enforced"):
-        # Only the constrained D-optimal path honours constraints; say so on the result.
+        # Only the constrained D-optimal and mixture paths honour constraints; say so on the result.
         logger.warning("design_type=%r does not enforce constraints; use design_type='d_optimal'.", design_type)
         meta["constraints_enforced"] = False
+    all_mixture = all(f.type == FactorType.mixture for f in factors)
+    if all_mixture or meta.get("constraints_enforced"):
+        # Record the region the runs were placed in, so evaluate_design and
+        # optimize_responses can work over the same region (see DesignRegion).
+        from process_improve.experiments.region import DesignRegion  # noqa: PLC0415
+
+        meta["region"] = DesignRegion(factors, constraints if meta.get("constraints_enforced") else None).to_dict()
 
     # --- Determine center-point handling -----------------------------------
     # Designs that embed their own center points (CCD, Box-Behnken)
@@ -463,7 +476,7 @@ def generate_design(  # noqa: PLR0913
     extra_center_points = 0 if design_type in designs_with_embedded_centers else n_center_points
 
     # Mixture designs return proportions (actual units), not coded
-    is_actual = design_type == "mixture"
+    is_actual = design_type == "mixture" or all_mixture
 
     # Extract resolution/generators/defining_relation from metadata
     result_generators = generators or meta.get("generators_used")
