@@ -174,6 +174,44 @@ These designs come from the built-in exchange and do not need pyoptex. When pyop
 installed and no constraints are given, it is used instead; it is still needed for
 split-plot designs (``hard_to_change``).
 
+Choosing runs from a list: candidate sets
+-----------------------------------------
+
+Sometimes the region is not a formula but a list: the operating points in the plant
+records, the discrete settings a piece of equipment offers, or the blends that can be
+made up from stock. Pass them as ``candidates`` and the optimal design is chosen from
+those rows only:
+
+.. code-block:: python
+
+   import numpy as np
+   import pandas as pd
+
+   rng = np.random.default_rng(0)
+   history = pd.DataFrame(
+       {"T": rng.uniform(100, 150, 30).round(1), "D": rng.uniform(20, 60, 30).round(1)},
+       index=[f"batch_{i:02d}" for i in range(30)],
+   )
+   result = generate_design(
+       factors, budget=8, candidates=history, constraints=[heat], model_type="interactions"
+   )
+   m = result.metadata
+   print(m["n_candidates_supplied"], m["n_candidates_infeasible"], m["n_candidates"])  # 30 13 17
+   print(m["selected_candidates"])
+   # {'batch_02': 2, 'batch_20': 2, 'batch_29': 2, 'batch_05': 1, 'batch_06': 1}
+
+The 13 records that break the heat budget are dropped, and the eight runs are chosen
+from the remaining 17. ``selected_candidates`` names the chosen rows by their index
+label, so the design can be read as "rerun batches 2, 20 and 29 twice, and batches 5
+and 6 once".
+
+The candidates are given in actual units, one column per factor (labels for
+categorical factors, proportions for mixtures). A candidate set replaces the generated
+grid, so for an I-optimal design it is also the region the average prediction variance
+is taken over. Without ``design_type``, a candidate set selects ``"d_optimal"``.
+Candidates outside the factors' ``low``/``high`` range are kept with a warning, since
+the coding extrapolates beyond plus or minus one.
+
 Optimising inside the region
 ----------------------------
 

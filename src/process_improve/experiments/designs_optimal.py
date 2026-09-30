@@ -382,6 +382,7 @@ class _OptimalRequest:
     model_type: str
     fixed_runs: pd.DataFrame | None
     random_state: int | np.random.Generator | None
+    candidates: pd.DataFrame | None = None
 
 
 def _dispatch_mixture_optimal(criterion: str, req: _OptimalRequest) -> tuple[np.ndarray, dict]:
@@ -395,7 +396,7 @@ def _dispatch_mixture_optimal(criterion: str, req: _OptimalRequest) -> tuple[np.
     if req.fixed_runs is not None or req.hard_to_change:
         raise ValueError("fixed_runs and hard_to_change are not supported for mixture designs.")
     n_terms = scheffe_matrix(np.ones((1, len(req.factors))), req.model_type).shape[1]
-    options = ConstrainedOptions(model_type=req.model_type, criterion=criterion)
+    options = ConstrainedOptions(model_type=req.model_type, criterion=criterion, candidates=req.candidates)
     return constrained_mixture_design(
         req.factors, req.budget or n_terms + 3, req.constraints, options, req.random_state
     )
@@ -405,7 +406,7 @@ def _dispatch_optimal(criterion: str, req: _OptimalRequest) -> tuple[np.ndarray,
     """Route a D-, I- or A-optimal request to the backend that can honour it.
 
     - Mixture factors go to the constrained-simplex engine with a Scheffé model.
-    - Constraints, or no pyoptex, go to the built-in candidate exchange
+    - Constraints, a user candidate set, or no pyoptex, go to the built-in candidate exchange
       (:func:`~process_improve.experiments.designs_constrained.constrained_optimal_design`),
       which handles every criterion, categorical factors and fixed runs, but not
       split-plot structure: ``hard_to_change`` is then ignored and recorded.
@@ -419,14 +420,16 @@ def _dispatch_optimal(criterion: str, req: _OptimalRequest) -> tuple[np.ndarray,
     budget = req.budget if req.budget is not None else 2 * len(req.factors) + 1
     budget = _floor_budget_at_model_size(req.factors, budget, req.model_type)
 
-    if req.constraints or not _PYOPTEX_AVAILABLE:
+    if req.constraints or req.candidates is not None or not _PYOPTEX_AVAILABLE:
         from process_improve.experiments.designs_constrained import (  # noqa: PLC0415
             ConstrainedOptions,
             constrained_optimal_design,
         )
 
         prior = _prepare_prior_runs(req.fixed_runs, req.factors, budget) if req.fixed_runs is not None else None
-        options = ConstrainedOptions(model_type=req.model_type, criterion=criterion, fixed_runs=prior)
+        options = ConstrainedOptions(
+            model_type=req.model_type, criterion=criterion, fixed_runs=prior, candidates=req.candidates
+        )
         matrix, meta = constrained_optimal_design(req.factors, budget, req.constraints or [], options, req.random_state)
         if req.hard_to_change:
             reason = (
@@ -473,6 +476,11 @@ _DISPATCH_PARAMETERS = """
         towards ``budget``.
     random_state : int, numpy.random.Generator or None
         Seed for the candidate exchange's random starts.
+    candidates : pd.DataFrame or None
+        Settings to choose the runs from, in actual units (proportions for a
+        mixture), one column per factor. Replaces the generated grid; rows breaking
+        a constraint are dropped. ``metadata["selected_candidates"]`` counts how often
+        each row (by index label) was picked.
 
     Returns
     -------
@@ -490,9 +498,12 @@ def dispatch_d_optimal(  # noqa: PLR0913
     model_type: str = "interactions",
     fixed_runs: pd.DataFrame | None = None,
     random_state: int | np.random.Generator | None = None,
+    candidates: pd.DataFrame | None = None,
 ) -> tuple[np.ndarray, dict]:
     """Generate a D-optimal design (maximises ``det(X'X)``, the precision of the coefficients jointly)."""
-    req = _OptimalRequest(factors, budget, hard_to_change, constraints, model_type, fixed_runs, random_state)
+    req = _OptimalRequest(
+        factors, budget, hard_to_change, constraints, model_type, fixed_runs, random_state, candidates
+    )
     return _dispatch_optimal("d_optimal", req)
 
 
@@ -504,9 +515,12 @@ def dispatch_i_optimal(  # noqa: PLR0913
     model_type: str = "interactions",
     fixed_runs: pd.DataFrame | None = None,
     random_state: int | np.random.Generator | None = None,
+    candidates: pd.DataFrame | None = None,
 ) -> tuple[np.ndarray, dict]:
     """Generate an I-optimal design (minimises the average prediction variance over the region)."""
-    req = _OptimalRequest(factors, budget, hard_to_change, constraints, model_type, fixed_runs, random_state)
+    req = _OptimalRequest(
+        factors, budget, hard_to_change, constraints, model_type, fixed_runs, random_state, candidates
+    )
     return _dispatch_optimal("i_optimal", req)
 
 
@@ -518,9 +532,12 @@ def dispatch_a_optimal(  # noqa: PLR0913
     model_type: str = "interactions",
     fixed_runs: pd.DataFrame | None = None,
     random_state: int | np.random.Generator | None = None,
+    candidates: pd.DataFrame | None = None,
 ) -> tuple[np.ndarray, dict]:
     """Generate an A-optimal design (minimises the summed variance of the coefficients)."""
-    req = _OptimalRequest(factors, budget, hard_to_change, constraints, model_type, fixed_runs, random_state)
+    req = _OptimalRequest(
+        factors, budget, hard_to_change, constraints, model_type, fixed_runs, random_state, candidates
+    )
     return _dispatch_optimal("a_optimal", req)
 
 
