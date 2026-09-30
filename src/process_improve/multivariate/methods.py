@@ -65,6 +65,7 @@ from ._pls import PLS, compare_cv_criteria, pseudo_validation_set
 from ._plsda import PLSDA
 from ._preprocessing import MCUVScaler, center, scale
 from ._prm import PRM
+from ._procrustes import GPA
 from ._resampling import Resampler
 from ._tpls import TPLS, DataFrameDict, make_tpls_scorer
 from .plots import (
@@ -86,6 +87,7 @@ __all__ = [
     "ASCA",
     "CA",
     "FAMD",
+    "GPA",
     "MBPCA",
     "MBPLS",
     "MCA",
