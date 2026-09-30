@@ -155,15 +155,7 @@ def make_design(spec: dict) -> dict:
         raise ValueError("The response name must be a variable name different from every factor.")
 
     kwargs = _design_options(spec, design_type)
-    try:
-        result = generate_design(factors, design_type=design_type, **kwargs)
-    except ValueError as exc:
-        if design_type == "fractional_factorial" and "not possible" in str(exc):
-            raise ValueError(
-                "pyDOE3 cannot build this fractional factorial for "
-                f"{len(factors)} factors (kgdunn/process-improve#620). Use the full factorial instead."
-            ) from exc
-        raise
+    result = generate_design(factors, design_type=design_type, **kwargs)
 
     names = [f.name for f in factors]
     runs = pd.DataFrame(result.design_actual[names].to_numpy(), columns=names)

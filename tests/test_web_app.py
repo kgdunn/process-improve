@@ -156,8 +156,6 @@ def test_app_imports_without_native_only_extras():
         import json, bootstrap
         factors = [{{"name": n, "low": 0, "high": 1}} for n in "ABC"]
         for design in bootstrap.DESIGNS:
-            if design == "fractional_factorial":
-                continue
             reply = json.loads(bootstrap.api_make_design(json.dumps({{"design_type": design, "factors": factors}})))
             assert reply["ok"], (design, reply)
         """
