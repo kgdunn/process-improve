@@ -11,6 +11,9 @@ Designed Experiments
    :undoc-members:
    :show-inheritance:
 
+.. automodule:: process_improve.experiments.designs_constrained
+   :members: constrained_d_optimal, parse_constraint, build_candidates, model_matrix, fedorov_exchange
+
 .. automodule:: process_improve.experiments.designs_omars_ilp
    :members: generate_omars, solve_omars_ilp, OmarsSearchReport
    :show-inheritance:
