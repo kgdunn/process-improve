@@ -170,6 +170,7 @@ def build_design_result(  # noqa: PLR0913
     alpha: float | None = None,
     metadata: dict | None = None,
     is_actual: bool = False,
+    n_leading_fixed: int = 0,
 ) -> DesignResult:
     """Post-process a raw design matrix into a complete DesignResult.
 
@@ -214,6 +215,10 @@ def build_design_result(  # noqa: PLR0913
         If ``True``, *coded_matrix* contains actual-unit values (e.g.
         mixture proportions).  Both the coded and actual ``Expt`` will
         contain these values directly.
+    n_leading_fixed : int
+        Number of leading rows that are runs already performed (the fixed runs
+        of an augmentation). They keep their place at the top of the run sheet;
+        only the remaining rows are randomised.
 
     Returns
     -------
@@ -234,7 +239,10 @@ def build_design_result(  # noqa: PLR0913
     #    optimal designs whose run order is part of the solution, e.g. split-plot).
     if random_seed is not None:
         rng = np.random.default_rng(random_seed)
-        perm = rng.permutation(n_runs)
+        # Runs already performed (fixed runs of an augmentation) stay first, in their
+        # given order; only the new runs are shuffled.
+        n_keep = n_leading_fixed if n_replicates == 1 else 0
+        perm = np.concatenate([np.arange(n_keep), n_keep + rng.permutation(n_runs - n_keep)])
         matrix_randomized = matrix[perm]
         run_order = (perm + 1).tolist()
     else:

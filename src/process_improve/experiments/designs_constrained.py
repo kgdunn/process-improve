@@ -470,7 +470,7 @@ def fedorov_exchange(
             rows[i] = j
         x = np.vstack([f_fixed, f_cand[rows]])
         value = criterion.value(x.T @ x)
-        if value > best_value:
+        if value > best_value or len(best_rows) == 0:  # keep a design even if every start is singular
             best_rows, best_value = rows.copy(), value
     return best_rows, best_value
 
@@ -586,6 +586,30 @@ def selection_counts(labels: list, rows: np.ndarray) -> dict[str, int]:
     return {str(label): int(n) for label, n in chosen.items()}
 
 
+def _budget_for_fixed_runs(f_fixed: np.ndarray, n_parameters: int, budget: int) -> int:
+    """Raise ``budget`` so the free runs can supply the rank the fixed runs lack, warning when it does.
+
+    Fixed runs that repeat a point (three centre runs, say) carry less information than
+    their count: the floor on the budget counts runs, not rank, so it can leave too few
+    free runs to estimate the model at all.
+    """
+    n_fixed = len(f_fixed)
+    missing_rank = n_parameters - (np.linalg.matrix_rank(f_fixed) if n_fixed else 0)
+    if budget - n_fixed >= missing_rank:
+        return budget
+    logger.warning(
+        "The %d fixed run(s) span only %d of the %d model coefficients, so at least %d more run(s) are "
+        "needed; raising the budget from %d to %d.",
+        n_fixed,
+        n_parameters - missing_rank,
+        n_parameters,
+        missing_rank,
+        budget,
+        n_fixed + missing_rank,
+    )
+    return n_fixed + missing_rank
+
+
 #: Uniform draws used to estimate the region's moment matrix for I-optimality.
 _N_MOMENT_SAMPLES = 20_000
 
@@ -686,8 +710,15 @@ def constrained_optimal_design(
             "grid (n_levels), or loosen the constraints."
         )
 
-    criterion = make_criterion(opts.criterion, f_cand.shape[1], region_rows)
+    p = f_cand.shape[1]
+    budget = _budget_for_fixed_runs(f_fixed, p, budget)
+    criterion = make_criterion(opts.criterion, p, region_rows)
     rows, value = fedorov_exchange(f_cand, budget - n_fixed, f_fixed, rng, criterion)
+    if len(rows) != budget - n_fixed or np.linalg.matrix_rank(np.vstack([f_fixed, f_cand[rows]])) < p:
+        raise ValueError(
+            f"No design of {budget} runs from these candidates can estimate the '{model_type}' model "
+            f"({p} coefficients). Use a simpler model or more distinct candidate points."
+        )
 
     design = pd.DataFrame(coded[rows], columns=[f.name for f in continuous])
     for j, f in enumerate(categorical):

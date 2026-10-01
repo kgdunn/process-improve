@@ -281,9 +281,13 @@ def _auto_select_by_budget(factors: list[Factor], k: int, budget: float) -> str:
     """Pick the unconstrained design family that fits ``budget`` runs for ``k`` process factors."""
     if k <= 5 and budget >= 2**k:
         return "full_factorial"
-    # Fewer runs than main effects: only a supersaturated design screens them all.
-    if k >= 3 and budget < k + 1 and all(f.type == FactorType.continuous for f in factors):
-        return "supersaturated"
+    # Fewer runs than main effects: a supersaturated design screens them all, when one exists
+    # for this budget without fully aliased factors; otherwise fall through as before.
+    if all(f.type == FactorType.continuous for f in factors):
+        from process_improve.experiments.designs_supersaturated import supersaturated_available  # noqa: PLC0415
+
+        if supersaturated_available(k, budget):
+            return "supersaturated"
     if k >= 6 and budget <= 2 * k + 1:
         return "plackett_burman"
     if budget >= 2 ** (k - 1):
@@ -527,4 +531,5 @@ def generate_design(  # noqa: PLR0913
         alpha=result_alpha,
         metadata=meta,
         is_actual=is_actual,
+        n_leading_fixed=int(meta.get("n_fixed_runs", 0)),
     )
