@@ -22,21 +22,26 @@ solves that choice as a quadratic program in the scaled space of a fitted
 With the quadratic caps the problem is a convex quadratically-constrained QP.
 The workhorse is the penalty-form pure QP solved with `osqp
 <https://osqp.org>`_ (the ``control`` extra); the hard-cap mode wraps the
-same QP in an outer scalar iteration on the two penalty multipliers, which is
-exact for this convex problem and converges in a handful of inner solves at
-this size (a few dozen decision variables).
+same QP in an outer iteration on the two penalty multipliers. For this convex
+problem, whenever some schedule lies strictly inside both caps, there are
+multipliers at which the penalised optimum is the capped one, and the
+iteration finds them to within 1% of each cap in a handful of inner solves at
+this size (a few dozen decision variables at most).
 
 The formulation follows the latent-variable batch control literature.
 Flores-Cerrillo and MacGregor (2004) give the quality-tracking objective, the
-movement-suppression term, the soft T2 term, and the SPE check on the
-measurements so far that gates whether a correction is computed at all;
-Yabuki and MacGregor (1997) give the no-correction dead band, their
-"no-control region"; Garcia-Munoz, Kourti and MacGregor (2004) give the
-per-decision-point score covariance and limits, and the prediction interval
-at a decision point is built in the same spirit, from the training batches
-re-projected under that point's missingness pattern; Arteaga and Ferrer (2002)
-give the trimmed score regression used to estimate the scores of a partially
-observed row, which Golshan et al. (2010) also apply in the LV-MPC setting.
+movement-suppression term and the soft T2 term, and they check the SPE of the
+measurements so far before a correction is computed, suggesting that the
+schedule from the last decision point be kept when that check fails, which is
+what the gate here does. The dead band plays the role of the "no-control
+region" of Yabuki and MacGregor (1997). Garcia-Munoz, Kourti and MacGregor
+(2004) compute Hotelling's T2 of on-line score estimates against the
+covariance of the reference batches' estimates at each time, as Nomikos and
+MacGregor (1995) suggested; the per-decision-point limits here, and the
+prediction interval at a decision point, are built the same way, from the
+training batches re-projected under that point's missingness pattern.
+Arteaga and Ferrer (2002) give the trimmed score regression used to estimate
+the scores of a partially observed row.
 
 Two departures from Flores-Cerrillo and MacGregor are deliberate. Their
 optimisation is over an adjustment to the scores, with the remaining
@@ -44,18 +49,20 @@ trajectories recovered by inverting the PLS model, which is what keeps those
 trajectories consistent with past operation. Here the decision variables are
 the future MV columns themselves, so actuator bounds and rate limits apply
 exactly in engineering units, and the terms that hold the answer inside the
-model's region are stated explicitly instead. Second, the SPE of the
-*candidate* row is penalised and capped, not only checked on the
-measurements so far, because a candidate written directly in the MV columns
-can leave the model plane in a way a score adjustment cannot.
+model's region are stated explicitly instead. Golshan et al. (2010) give both
+forms for latent-variable MPC: over a correction to the scores, and directly
+over the future manipulated variables. Second, the SPE of the *candidate* row
+is penalised and capped, not only checked on the measurements so far: a
+trajectory reconstructed from adjusted scores lies on the model plane by
+construction, and one written directly in the MV columns need not.
 
-A practical caveat: models of this kind are identified on *recorded* (noisy,
-realised) trajectories, while the corrector outputs *setpoints*. That is the
-standard identification practice, and it attenuates the apparent gain
-slightly (the regression sees the control error as input noise); the
-executed-policy evaluation in :func:`evaluate_control_policies`
-(:mod:`process_improve.simulation`) measures the realised effect rather than
-trusting the model's own prediction.
+A practical caveat: models of this kind are identified on *recorded*
+trajectories (the realised values plus measurement noise), while the
+corrector outputs *setpoints*. The substitution is sound where the control
+loops track their setpoints; the executed-policy evaluation in
+:func:`evaluate_control_policies` (:mod:`process_improve.simulation`)
+measures the realised effect rather than trusting the model's own
+prediction.
 
 References
 ----------
@@ -70,6 +77,9 @@ methods, different interpretations, some examples", Journal of Chemometrics,
 Garcia-Munoz, S., Kourti, T. and MacGregor, J.F., "Model Predictive
 Monitoring for Batch Processes", Industrial & Engineering Chemistry
 Research, 43, 5929-5941, 2004.
+
+Nomikos, P. and MacGregor, J.F., "Multivariate SPC Charts for Monitoring
+Batch Processes", Technometrics, 37, 41-59, 1995.
 
 Yabuki, Y. and MacGregor, J.F., "Product quality control in semibatch
 reactors using midcourse correction policies", Industrial & Engineering
@@ -643,10 +653,11 @@ class MidCourseCorrector:
     answers the monitoring question at a decision point (the predicted final
     quality with its interval, and the validity statistics of the batch so
     far). :meth:`correct` adds the decision: it checks the batch-so-far
-    against the model (the SPE validity gate of Flores-Cerrillo and
-    MacGregor, 2004), applies the no-correction dead band (Yabuki and
-    MacGregor, 1997) in target mode, builds the per-decision-point reference
-    limits (Garcia-Munoz et al., 2004), solves the QP, and returns the full
+    against the model (the SPE check of Flores-Cerrillo and MacGregor, 2004,
+    keeping the current schedule when it fails), applies the no-correction
+    dead band (in the role of the no-control region of Yabuki and MacGregor,
+    1997) in target mode, builds the per-decision-point reference limits
+    (Garcia-Munoz et al., 2004), solves the QP, and returns the full
     corrected schedule ready to implement (or to hand to
     :meth:`process_improve.simulation.BioreactorSimulator.simulate_batch`).
 
@@ -778,13 +789,15 @@ class MidCourseCorrector:
         and the *candidate* pattern (monitoring plus the future MV columns,
         which the optimiser treats as observed) for the QP's SPE cap and the
         score covariance behind its T2 term. Limits: the g-chi-squared SPE
-        limit of Nomikos and MacGregor on each pattern's training SPE values,
-        and the F-distribution T2 limit on the candidate-pattern score
-        estimates with their own covariance (Garcia-Munoz et al., 2004).
+        limit (Box's approximation, as Nomikos and MacGregor, 1995, use it)
+        on each pattern's training SPE values, and the F-distribution T2
+        limit on the candidate-pattern score estimates with their own
+        covariance (Garcia-Munoz et al., 2004).
 
         Also returned: ``rmse_k`` (Series over the targets, original units),
         the prediction error of the model at this decision point, from the
-        candidate-pattern estimates of the training batches; and the
+        candidate-pattern estimates of the training batches (an in-sample
+        error, since the model was fitted on those batches); and the
         condition numbers of the two pattern operators. Results are cached
         per ``k``.
         """
@@ -886,7 +899,10 @@ class MidCourseCorrector:
         uses the model's prediction error *at this decision point*
         (``limits_at(k).rmse_k``) with the leverage of the estimated scores,
         so it is wide early in the batch, when the estimate rests on few
-        observed columns, and narrows as the batch runs.
+        observed columns, and narrows as the batch runs. It is the prediction
+        interval of a least-squares regression of the quality on the scores,
+        with the scores treated as known; check its coverage on held-out
+        batches before relying on it.
 
         Parameters
         ----------
@@ -1173,9 +1189,12 @@ def _oracle_remaining(  # noqa: PLR0913 - explicit oracle inputs
     Direct search (Nelder-Mead, then Powell from the same start) over
     ``n_knots`` linearly interpolated knot values per manipulated variable
     from sample ``k`` onward, with the identical seed, so the disturbances
-    match the batch being corrected. This is the ceiling for any mid-course
-    scheme at that decision point, because the objective is the true process,
-    not a model of it.
+    match the batch being corrected. It estimates the ceiling for any
+    mid-course scheme at that decision point: the objective is the true
+    process, not a model of it, and the disturbances still to come are
+    known to it, as they are to no scheme running on a plant. The search is
+    local, within the full operating bounds and without rate limits, so the
+    value is a lower bound on that ceiling.
     """
     from scipy.optimize import minimize  # noqa: PLC0415
 
@@ -1308,13 +1327,18 @@ def evaluate_control_policies(  # noqa: PLR0913, PLR0915, C901 - one executed co
       run the nominal schedule.
     - **oracle-from-k**: for every batch the mid-course policy corrected,
       the remaining schedule is instead optimised against the simulator
-      itself at the same decision point (:func:`_oracle_remaining`). This is
-      the ceiling for any mid-course scheme at that decision point; the gap
-      to the mid-course row is the price of using an empirical model with
-      limited historical excitation.
-    - **adapted**: every batch runs the true optimal schedule for its own
-      initial conditions from time zero
-      (``simulator.optimal_trajectory``), the perfect-feedforward ceiling.
+      itself at the same decision point, with the batch's own seed
+      (:func:`_oracle_remaining`). This estimates the ceiling for any
+      mid-course scheme at that decision point. The gap to the mid-course
+      row mixes the error of an empirical model with limited historical
+      excitation, the oracle's knowledge of the disturbances still to come,
+      and the corrector's own limits (movement penalty, validity caps,
+      tighter bounds and rate limits).
+    - **adapted**: every batch runs the schedule that maximises the
+      disturbance-free titer for its own initial conditions, found before
+      the batch starts from the simulator's own equations
+      (``simulator.optimal_trajectory``): feedforward adaptation with a
+      perfect process model, an estimate of the feedforward ceiling.
 
     Parameters
     ----------
@@ -1340,10 +1364,11 @@ def evaluate_control_policies(  # noqa: PLR0913, PLR0915, C901 - one executed co
         Fit one model per feed class (labels from the training campaign;
         test batches are assigned to the nearest class centroid in
         standardised Z). With ``False``, or when class labels are
-        unavailable, a single global model is used; the executed experiments
-        behind this module found the global linear model averages the
-        class-dependent gain direction away, so per-class models are the
-        default.
+        unavailable, a single global model is used. The effect of a schedule
+        change depends on the feed class and one linear model averages it:
+        on the default configuration the global model corrects five batches
+        for a mean executed gain of about 0.5 g/L, against eight batches and
+        about 1.4 g/L per class, so per-class models are the default.
     target_side, dead_band, weights, bounds, rate_limits, spe_cap, t2_cap, n_knots, method, ridge
         Corrector settings, passed to :class:`MidCourseCorrector`. ``bounds``
         defaults to the simulator's operating bounds tightened inward by

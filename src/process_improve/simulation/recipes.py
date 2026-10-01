@@ -148,8 +148,10 @@ _MIDCOURSE_CORRECTION = AnalysisRecipe(
                 "decision_point=8, y_target=8.0, random_state=0). Report the realised mean and spread per "
                 "policy and the mean realised gain of the corrected batches. If the discussion needs the "
                 "ceilings (what a perfect feedforward or a mechanistic optimiser could still recover), "
-                "re-run with include_ceilings=True and present the gap honestly: it is the price of an "
-                "empirical model restricted to the region its history explored."
+                "re-run with include_ceilings=True. The gap to the oracle mixes three things: the error of "
+                "an empirical model restricted to the region its history explored, the oracle's knowledge "
+                "of the disturbances still to come (it runs with each batch's own seed), and the "
+                "corrector's own limits (movement penalty, validity caps, tighter bounds and rate limits)."
             ),
             tools=["evaluate_batch_control_policy"],
         ),
