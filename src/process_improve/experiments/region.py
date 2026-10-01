@@ -363,15 +363,18 @@ class DesignRegion:
             def propose(m: int) -> np.ndarray:
                 return rng.uniform(-1.0, 1.0, size=(m, k))
 
-        def seeds() -> np.ndarray:
-            try:
-                return self.support_points()
-            except ValueError:  # a box too large for a boundary grid
-                return np.empty((0, k))
-
         bounds = tuple(np.array(self.bounds, dtype=float).T)
-        sampler = UniformSampler(self._inequalities, bounds, propose, seeds, on_simplex=self.kind == "mixture")
+        sampler = UniformSampler(
+            self._inequalities, bounds, propose, self.seed_points, on_simplex=self.kind == "mixture"
+        )
         return sampler.draw(n, rng)
+
+    def seed_points(self) -> np.ndarray:
+        """Return :meth:`support_points`, or none for a box too large for a boundary grid."""
+        try:
+            return self.support_points()
+        except ValueError:
+            return np.empty((0, len(self.names)))
 
     def support_points(self) -> np.ndarray:
         """Return points on the region's boundary, in design units: where worst-case variance sits.

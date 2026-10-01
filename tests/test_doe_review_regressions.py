@@ -6,12 +6,14 @@ Each test reproduces a reviewer's failure scenario and checks the corrected beha
 from __future__ import annotations
 
 import logging
+from typing import ClassVar
 
 import numpy as np
 import pandas as pd
 import pytest
 
 from process_improve.experiments import Constraint, Factor, designs_optimal, evaluate_design, generate_design
+from process_improve.experiments.optimization import optimize_responses
 from process_improve.experiments.region import DesignRegion
 
 
@@ -176,3 +178,41 @@ class TestSequencesInThinRegionsStopEarly:
             space_filling_design(factors, 200, "sobol", thin, random_state=0)
         points, _meta = space_filling_design(factors, 20, "maximin", thin, random_state=0)
         assert DesignRegion(factors, thin).feasible(points).all()
+
+
+class TestBoxRegionHonoursWiderSearchBounds:
+    """A box region's constraints apply on top of search_bounds; its own [-1, 1] cube is not re-imposed."""
+
+    REGION = DesignRegion(
+        [Factor(name="T", low=100, high=150), Factor(name="D", low=20, high=60)], [Constraint(expression="D <= 50")]
+    )
+    # y = 60 + 8T + 6D - 2T^2 - 3D^2 (coded): T peaks at 2, the edge of the search box; 'D <= 50' is coded D <= 0.5.
+    MODEL: ClassVar[dict] = {
+        "response_name": "y",
+        "factor_names": ["T", "D"],
+        "coefficients": [
+            {"term": "Intercept", "coefficient": 60.0},
+            {"term": "T", "coefficient": 8.0},
+            {"term": "D", "coefficient": 6.0},
+            {"term": "I(T ** 2)", "coefficient": -2.0},
+            {"term": "I(D ** 2)", "coefficient": -3.0},
+        ],
+    }
+    MAXIMISE: ClassVar[list] = [{"response": "y", "goal": "maximize", "low": 40, "high": 75}]
+
+    def test_desirability_finds_an_optimum_outside_the_coded_cube(self) -> None:
+        out = optimize_responses([self.MODEL], self.MAXIMISE, search_bounds=(-2, 2), region=self.REGION)
+        optimum = out["desirability"]
+        assert optimum["optimal_coded"]["T"] == pytest.approx(2.0, abs=1e-3)
+        assert optimum["optimal_coded"]["D"] == pytest.approx(0.5, abs=1e-3)
+        assert optimum["within_region"] is True
+
+    def test_pareto_front_spans_the_search_box(self) -> None:
+        cost = {**self.MODEL, "response_name": "cost", "coefficients": [{"term": "T", "coefficient": 1.0}]}
+        goals = [*self.MAXIMISE, {"response": "cost", "goal": "minimize"}]
+        out = optimize_responses(
+            [self.MODEL, cost], goals, method="pareto_front", search_bounds=(-2, 2), region=self.REGION
+        )
+        t_values = [point["coded"]["T"] for point in out["pareto_front"]["front"]]
+        assert min(t_values) < -1.5
+        assert max(t_values) > 1.5
