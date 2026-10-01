@@ -163,3 +163,16 @@ class TestThinRegionsAreSampled:
         region = DesignRegion([Factor(name=n, low=0, high=1) for n in "AB"], [Constraint(expression="A + B >= 3")])
         with pytest.raises(ValueError, match="No point inside the region"):
             region.sample(100, np.random.default_rng(0))
+
+
+class TestSequencesInThinRegionsStopEarly:
+    def test_sobol_raises_instead_of_exhausting_memory(self) -> None:
+        """'A + B >= 19.99' keeps 5 in 10 million of the box: the sequence stops at 2**22 points."""
+        from process_improve.experiments.designs_space_filling import space_filling_design
+
+        factors = [Factor(name=n, low=0, high=10) for n in "AB"]
+        thin = [Constraint(expression="A + B >= 19.99")]
+        with pytest.raises(ValueError, match="method='maximin'"):
+            space_filling_design(factors, 200, "sobol", thin, random_state=0)
+        points, _meta = space_filling_design(factors, 20, "maximin", thin, random_state=0)
+        assert DesignRegion(factors, thin).feasible(points).all()
