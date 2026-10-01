@@ -194,10 +194,12 @@ class TestDesignRegion:
         assert region.feasible(np.array([[1.0, 1.0], [-1.0, -1.0], [1.0, -0.5]])).tolist() == [False, True, True]
         assert region.is_constrained
 
-    def test_a_region_too_thin_to_sample_is_reported(self) -> None:
+    def test_a_region_too_thin_for_rejection_is_still_sampled(self) -> None:
+        """Half a part in a trillion of the square: hit-and-run from the boundary points takes over."""
         region = DesignRegion([Factor(name=n, low=0, high=1) for n in "AB"], [Constraint(expression="A + B <= 1e-6")])
-        with pytest.raises(ValueError, match="too small a part"):
-            region.sample(100, np.random.default_rng(0))
+        points = region.sample(100, np.random.default_rng(0))
+        assert region.feasible(points).all()
+        assert len(np.unique(points.round(15), axis=0)) > 50  # spread out, not one repeated seed
 
 
 # ---------------------------------------------------------------------------

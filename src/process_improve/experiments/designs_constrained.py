@@ -33,6 +33,7 @@ import pandas as pd
 
 from process_improve._random import check_random_state
 from process_improve.experiments.factor import FactorType
+from process_improve.experiments.region import UniformSampler
 
 if TYPE_CHECKING:
     from process_improve.experiments.factor import Constraint, Factor
@@ -577,7 +578,7 @@ def _candidate_pool(
         coded, cats, counts, labels = _user_candidates(region, opts.candidates)
         return coded, cats, counts, labels, lambda: model_matrix(region, coded, cats, opts.model_type)
     coded, cats, counts = build_candidates(region, opts.n_levels)
-    return coded, cats, counts, None, lambda: _uniform_rows(region, opts.model_type, rng)
+    return coded, cats, counts, None, lambda: _uniform_rows(region, opts.model_type, rng, coded)
 
 
 def selection_counts(labels: list, rows: np.ndarray) -> dict[str, int]:
@@ -614,18 +615,25 @@ def _budget_for_fixed_runs(f_fixed: np.ndarray, n_parameters: int, budget: int) 
 _N_MOMENT_SAMPLES = 20_000
 
 
-def _uniform_rows(region: _Region, model_type: str, rng: np.random.Generator) -> np.ndarray:
-    """Model rows at points drawn uniformly from the feasible region (rejection from the coded box)."""
+def _uniform_rows(region: _Region, model_type: str, rng: np.random.Generator, seeds: np.ndarray) -> np.ndarray:
+    """Model rows at points drawn uniformly from the feasible region.
+
+    Thin regions are handled by hit-and-run started from the feasible candidates
+    (``seeds``), so the moment matrix covers the whole region, not the few points a
+    rejection pass happens to hit.
+    """
     k = len(region.continuous)
-    kept: list[np.ndarray] = []
-    for _ in range(100):
-        points = rng.uniform(-1.0, 1.0, size=(_N_MOMENT_SAMPLES, k))
-        kept.append(points[region.slack(points) <= _FEASIBILITY_TOL])
-        if sum(len(p) for p in kept) >= _N_MOMENT_SAMPLES:
-            break
-    coded = np.vstack(kept)[:_N_MOMENT_SAMPLES]
-    if len(coded) == 0:
-        raise ValueError("Could not sample the feasible region to build the I-optimality moment matrix.")
+
+    def coded_inequality(g: Callable) -> Callable[[np.ndarray], np.ndarray]:
+        return lambda x: np.broadcast_to(np.asarray(g(region.actual(x)), dtype=float), (len(x),))
+
+    sampler = UniformSampler(
+        [coded_inequality(g) for g in region.inequalities],
+        (np.full(k, -1.0), np.full(k, 1.0)),
+        lambda m: rng.uniform(-1.0, 1.0, size=(m, k)),
+        seeds=lambda: seeds,
+    )
+    coded = sampler.draw(_N_MOMENT_SAMPLES, rng)
     cats = np.empty((len(coded), 0), dtype=int)
     if region.categorical:
         cats = np.column_stack([rng.integers(len(f.levels or []), size=len(coded)) for f in region.categorical])

@@ -11,7 +11,8 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from process_improve.experiments import Factor, designs_optimal, generate_design
+from process_improve.experiments import Constraint, Factor, designs_optimal, evaluate_design, generate_design
+from process_improve.experiments.region import DesignRegion
 
 
 def _continuous(k: int, low: float = 0, high: float = 1) -> list[Factor]:
@@ -110,3 +111,55 @@ class TestScheffeAnalysisTestsMeaningfulHypotheses:
         result = self._analyse(fitted, "lenth_method")
         assert result["lenth_method"] is None
         assert "anova" in result["note"]
+
+
+@pytest.mark.usefixtures("no_pyoptex")
+class TestThinRegionsAreSampled:
+    """Regions far below 1% of the box, which generate_design accepts, must also evaluate and sample."""
+
+    def test_evaluate_a_thin_box_region(self) -> None:
+        factors = [Factor(name=n, low=0, high=10) for n in "ABC"]  # 'A + B + C <= 3' is 0.45% of the box
+        result = generate_design(
+            factors, design_type="d_optimal", budget=10, constraints=[Constraint(expression="A + B + C <= 3")]
+        )
+        assert evaluate_design(result, metric="i_efficiency")["i_efficiency"] > 0
+
+    def test_six_factor_region_of_65_parts_per_million(self) -> None:
+        factors = [Factor(name=f"A{i}", low=0, high=1) for i in range(6)]
+        constraint = Constraint(expression=" + ".join(f"A{i}" for i in range(6)) + " <= 0.6")
+        result = generate_design(factors, design_type="i_optimal", model_type="main_effects", constraints=[constraint])
+        metrics = evaluate_design(result, model="main_effects", metric=["i_efficiency", "g_efficiency"])
+        assert metrics["g_efficiency"] > 0
+        assert generate_design(factors, design_type="maximin", budget=12, constraints=[constraint]).n_runs == 12
+
+    def test_thin_mixture_region(self) -> None:
+        factors = [Factor(name=n, type="mixture", low=0, high=1) for n in "ABC"]  # 0.24% of the simplex
+        cap = Constraint(expression="A + B <= 0.05")
+        result = generate_design(factors, design_type="i_optimal", model_type="scheffe_linear", constraints=[cap])
+        assert evaluate_design(result, model="scheffe_linear", metric="i_efficiency")["i_efficiency"] > 0
+
+    @pytest.mark.parametrize("seed", [0, 1])
+    def test_sample_is_uniform_where_the_answer_is_known(self, seed: int) -> None:
+        """A + ... + A5 <= 0.6 on [0, 1]^6 is a simplex corner: every coordinate has mean 0.6 / 7."""
+        region = DesignRegion(
+            [Factor(name=f"A{i}", low=0, high=1) for i in range(6)],
+            [Constraint(expression=" + ".join(f"A{i}" for i in range(6)) + " <= 0.6")],
+        )
+        points = region.sample(20_000, np.random.default_rng(seed))
+        assert region.feasible(points).all()
+        assert (0.5 + 0.5 * points).mean() == pytest.approx(0.6 / 7, abs=0.002)
+
+    def test_non_convex_region(self) -> None:
+        """Shrinkage on the chord handles a thin ring, which affine chords cannot describe."""
+        region = DesignRegion(
+            [Factor(name=n, low=-1, high=1) for n in "AB"],
+            [Constraint(expression="A**2 + B**2 <= 1"), Constraint(expression="A**2 + B**2 >= 0.99")],
+        )
+        points = region.sample(20_000, np.random.default_rng(0))
+        assert region.feasible(points).all()
+        assert np.abs(points.mean(axis=0)).max() < 0.1  # spread round the ring, not stuck where it started
+
+    def test_empty_region_is_reported(self) -> None:
+        region = DesignRegion([Factor(name=n, low=0, high=1) for n in "AB"], [Constraint(expression="A + B >= 3")])
+        with pytest.raises(ValueError, match="No point inside the region"):
+            region.sample(100, np.random.default_rng(0))
