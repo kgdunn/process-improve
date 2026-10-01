@@ -37,10 +37,11 @@ class EvaluateDesignInput(BaseModel):
         "d_efficiency",
         description=(
             "One or more metric names to compute. Default: 'd_efficiency'. "
-            "Options include d_efficiency, i_efficiency, g_efficiency, "
-            "prediction_variance, vif, condition_number, power, "
-            "degrees_of_freedom, alias_structure, confounding, resolution, "
-            "defining_relation, clear_effects, minimum_aberration."
+            "Options: d_efficiency, i_efficiency, g_efficiency, a_optimality, "
+            "e_optimality, fds, prediction_variance, vif, condition_number, "
+            "correlation, power, degrees_of_freedom, alias_structure, alias_matrix, "
+            "confounding, resolution, defining_relation, clear_effects, "
+            "minimum_aberration, moment_aberration."
         ),
     )
     effect_size: float | None = Field(

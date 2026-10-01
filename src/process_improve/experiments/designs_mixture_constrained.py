@@ -291,7 +291,8 @@ def constrained_mixture_design(
         ``"scheffe_special_cubic"``, or the process-design names ``"main_effects"``,
         ``"interactions"`` and ``"quadratic"``, which map to linear, quadratic and
         quadratic. ``criterion``: ``"d_optimal"`` (default), ``"i_optimal"`` (average
-        prediction variance over the constrained simplex) or ``"a_optimal"``.
+        prediction variance over the constrained simplex), ``"a_optimal"`` or
+        ``"e_optimal"``.
     random_state : int, numpy.random.Generator or None
         Seed for the exchange's random starts.
 

@@ -791,7 +791,7 @@ def constrained_optimal_design(
     options: ConstrainedOptions | None = None,
     random_state: int | np.random.Generator | None = None,
 ) -> tuple[np.ndarray, dict]:
-    """Generate a D-, I- or A-optimal design from a candidate set, with every run satisfying ``constraints``.
+    """Generate a D-, I-, A- or E-optimal design from a candidate set, with every run satisfying ``constraints``.
 
     This is also the optimal-design backend when pyoptex is not installed, with
     ``constraints`` empty.

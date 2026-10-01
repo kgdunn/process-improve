@@ -392,10 +392,13 @@ def generate_design(  # noqa: PLR0913
         half-fraction is chosen automatically.
     constraints : list[Constraint] or None
         Inequalities on the continuous factors, in actual units, e.g.
-        ``Constraint(expression="3*T + 5*D <= 600")``. Honoured by
-        ``"d_optimal"`` (chosen automatically when constraints are given): the
-        runs are selected from a candidate set of feasible points, so every run
-        satisfies every constraint. Other design types do not enforce them.
+        ``Constraint(expression="3*T + 5*D <= 600")``. Honoured by the optimal
+        families (``"d_optimal"``, chosen automatically when constraints are given,
+        ``"i_optimal"``, ``"a_optimal"`` and ``"e_optimal"``), whose runs are selected
+        from a candidate set of feasible points; by ``"mixture"`` (linear constraints
+        in the proportions); and by the ``"sobol"``, ``"halton"`` and ``"maximin"``
+        space-filling designs. Other design types do not enforce them and set
+        ``metadata["constraints_enforced"] = False``.
     hard_to_change : list[str] or None
         Names of hard-to-change factors (triggers split-plot structure).
     model_type : str
