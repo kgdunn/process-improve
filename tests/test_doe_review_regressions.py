@@ -310,3 +310,23 @@ class TestSpecialCubicForFiveOrMoreComponents:
     def test_optimal_designs(self, design_type: str) -> None:
         result = generate_design(self._mixture(5), design_type=design_type, model_type="special_cubic", budget=27)
         assert result.n_runs == 27
+
+
+class TestInputsAreValidatedUpFront:
+    @pytest.mark.parametrize("model_type", ["linear", "cubic", "scheffe_quadratic"])
+    def test_unknown_model_type_for_process_factors(self, model_type: str) -> None:
+        """An unknown model was floored as interactions but optimised as main effects."""
+        with pytest.raises(ValueError, match="main_effects, interactions, quadratic"):
+            generate_design(_continuous(4), design_type="d_optimal", budget=8, model_type=model_type)
+
+    def test_linear_is_still_accepted_for_mixtures(self) -> None:
+        factors = [Factor(name=f"x{i}", type="mixture", low=0, high=1) for i in range(3)]
+        assert generate_design(factors, design_type="d_optimal", model_type="linear", budget=6).n_runs == 6
+
+    @pytest.mark.parametrize("design_type", [None, "d_optimal", "mixture"])
+    def test_mixture_process_gets_one_clear_answer(self, design_type: str | None) -> None:
+        """Each engine's error used to send the user to the other."""
+        factors = [*(Factor(name=f"x{i}", type="mixture", low=0, high=1) for i in range(3))]
+        factors.append(Factor(name="T", low=20, high=80))
+        with pytest.raises(ValueError, match=r"Mixture-process designs .*\['T'\].*cross"):
+            generate_design(factors, design_type=design_type, budget=15)

@@ -214,6 +214,25 @@ _SPACE_FILLING = ("latin_hypercube", "maximin_lhs", "uniform", "sobol", "halton"
 #: Design types chosen by an optimality criterion; the only ones that take fixed_runs or candidates.
 _OPTIMAL_FAMILIES = frozenset({"d_optimal", "i_optimal", "a_optimal", "e_optimal"})
 
+
+def _refuse_mixture_process(factors: list[Factor]) -> None:
+    """Raise one clear error for mixture components mixed with process factors, which no engine here supports.
+
+    The proportions must sum to 1 while the process factors range freely, so neither
+    the mixture engine nor the factor-box engines can place the runs. Crossing a
+    mixture design with a design in the process factors is the classical answer.
+    """
+    is_mixture = [f.type == FactorType.mixture for f in factors]
+    if any(is_mixture) and not all(is_mixture):
+        process = [f.name for f, m in zip(factors, is_mixture, strict=True) if not m]
+        raise ValueError(
+            f"Mixture-process designs (mixture components together with process factors {process}) are not "
+            "supported. Generate a mixture design for the components and a design for the process factors, "
+            "then cross them: every blend at every process setting, e.g. "
+            "mixture.design_actual.merge(process.design_actual, how='cross')."
+        )
+
+
 _DESIGN_REGISTRY: dict[str, Callable[..., tuple[np.ndarray, dict]]] = {
     "full_factorial": _dispatch_full_factorial,
     "fractional_factorial": _dispatch_fractional_factorial,
@@ -443,16 +462,18 @@ def generate_design(  # noqa: PLR0913
     if design_type not in _DESIGN_REGISTRY:
         raise ValueError(f"Unknown design_type={design_type!r}.  Choose from: {', '.join(sorted(_DESIGN_REGISTRY))}.")
 
+    families = ", ".join(sorted(_OPTIMAL_FAMILIES))
     if candidates is not None and design_type not in _OPTIMAL_FAMILIES:
         raise ValueError(
-            f"candidates is only supported for the optimal design families (d_optimal, i_optimal, "
-            f"a_optimal); got design_type={design_type!r}."
+            f"candidates is only supported for the optimal design families ({families}); "
+            f"got design_type={design_type!r}."
         )
     if fixed_runs is not None and design_type not in _OPTIMAL_FAMILIES:
         raise ValueError(
-            f"fixed_runs (design augmentation) is only supported for the optimal design families "
-            f"(d_optimal, i_optimal, a_optimal); got design_type={design_type!r}."
+            f"fixed_runs (design augmentation) is only supported for the optimal design families ({families}); "
+            f"got design_type={design_type!r}."
         )
+    _refuse_mixture_process(factors)
 
     # --- Dispatch ----------------------------------------------------------
     dispatch_fn = _DESIGN_REGISTRY[design_type]

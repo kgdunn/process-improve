@@ -63,10 +63,10 @@ def dispatch_mixture(
     k = len(factors)
     if k < 2:
         raise ValueError("Mixture designs require at least 2 components.")
+    if any(f.type != FactorType.mixture for f in factors):
+        raise ValueError("A mixture design needs every factor to be a mixture component (type='mixture').")
     bounded = any((f.low or 0.0) > 0.0 or (f.high if f.high is not None else 1.0) < 1.0 for f in factors)
     if bounded or constraints:
-        if any(f.type != FactorType.mixture for f in factors):
-            raise ValueError("Constrained mixture designs need every factor to be a mixture component.")
         from process_improve.experiments.designs_constrained import ConstrainedOptions  # noqa: PLC0415
         from process_improve.experiments.designs_mixture_constrained import (  # noqa: PLC0415
             constrained_mixture_design,

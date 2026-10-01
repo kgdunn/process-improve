@@ -826,7 +826,10 @@ def constrained_optimal_design(
     opts = options if options is not None else ConstrainedOptions()
     model_type, fixed_runs = opts.model_type, opts.fixed_runs
     if any(f.type == FactorType.mixture for f in factors):
-        raise ValueError("Mixture factors need the mixture design engine; use generate_design(design_type='mixture').")
+        raise ValueError(
+            "Mixture components need the mixture engine: give only mixture factors, and generate_design routes "
+            "them there. Mixture-process designs are not supported."
+        )
 
     continuous = [f for f in factors if f.type != FactorType.categorical]
     categorical = [f for f in factors if f.type == FactorType.categorical]
