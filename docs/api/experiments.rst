@@ -20,6 +20,12 @@ Designed Experiments
 .. automodule:: process_improve.experiments.designs_mixture_constrained
    :members: constrained_mixture_design, extreme_vertices, mixture_candidates, mixture_inequalities, scheffe_matrix
 
+.. automodule:: process_improve.experiments.designs_supersaturated
+   :members: dispatch_supersaturated, hadamard, e_s2, e_s2_lower_bound, n_fully_aliased
+
+.. automodule:: process_improve.experiments.designs_space_filling
+   :members: space_filling_design
+
 .. automodule:: process_improve.experiments.designs_omars_ilp
    :members: generate_omars, solve_omars_ilp, OmarsSearchReport
    :show-inheritance:

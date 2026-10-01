@@ -168,6 +168,18 @@ def _dispatch_supersaturated(
     return dispatch_supersaturated(factors, budget=kwargs.get("budget"))
 
 
+def _dispatch_space_filling(
+    method: str,
+    factors: list[Factor],
+    **kwargs: Any,  # noqa: ANN401
+) -> tuple[np.ndarray, dict]:
+    from process_improve.experiments.designs_space_filling import space_filling_design  # noqa: PLC0415
+
+    return space_filling_design(
+        factors, kwargs.get("budget"), method, kwargs.get("constraints"), kwargs.get("random_state")
+    )
+
+
 def _dispatch_mixture(
     factors: list[Factor],
     **kwargs: Any,  # noqa: ANN401
@@ -196,6 +208,9 @@ def _dispatch_taguchi(
 # Registry
 # ---------------------------------------------------------------------------
 
+#: Space-filling design types (see designs_space_filling.py); none adds centre points.
+_SPACE_FILLING = ("latin_hypercube", "maximin_lhs", "uniform", "sobol", "halton", "maximin")
+
 #: Design types chosen by an optimality criterion; the only ones that take fixed_runs or candidates.
 _OPTIMAL_FAMILIES = frozenset({"d_optimal", "i_optimal", "a_optimal", "e_optimal"})
 
@@ -215,6 +230,7 @@ _DESIGN_REGISTRY: dict[str, Callable[..., tuple[np.ndarray, dict]]] = {
     "mixture": _dispatch_mixture,
     "taguchi": _dispatch_taguchi,
     "supersaturated": _dispatch_supersaturated,
+    **{name: functools.partial(_dispatch_space_filling, name) for name in _SPACE_FILLING},
 }
 
 
@@ -311,7 +327,9 @@ def generate_design(  # noqa: PLR0913
         One of ``"full_factorial"``, ``"fractional_factorial"``,
         ``"plackett_burman"``, ``"box_behnken"``, ``"ccd"``, ``"dsd"``,
         ``"omars"``, ``"omars_ilp"``, ``"d_optimal"``, ``"i_optimal"``,
-        ``"a_optimal"``, ``"e_optimal"``, ``"mixture"``, ``"taguchi"``, ``"supersaturated"``.
+        ``"a_optimal"``, ``"e_optimal"``, ``"mixture"``, ``"taguchi"``, ``"supersaturated"``, and the
+        space-filling types ``"latin_hypercube"``, ``"maximin_lhs"``, ``"uniform"``, ``"sobol"``,
+        ``"halton"`` and ``"maximin"`` (``budget`` runs, default ``10 * k``).
         If ``None``, the design type is chosen automatically based on the
         factor count, budget, and constraints.
     budget : int or None
@@ -472,6 +490,7 @@ def generate_design(  # noqa: PLR0913
         "mixture",
         "supersaturated",  # the point is the fewest runs; centre points would spend them on nothing
         *_OPTIMAL_FAMILIES,
+        *_SPACE_FILLING,
     }
 
     # Optimal designs from pyoptex produce a pre-optimized run order

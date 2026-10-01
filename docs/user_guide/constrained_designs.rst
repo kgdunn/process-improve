@@ -151,6 +151,31 @@ The exchange maximises one number, and the three criteria ask different question
   region, which is what I-efficiency measures. It suits a study whose purpose is
   prediction or optimisation.
 * **A-optimal** (``"a_optimal"``) minimises the summed variance of the coefficients.
+* **E-optimal** (``"e_optimal"``) maximises the smallest eigenvalue of ``X'X``, so no
+  combination of the coefficients is left poorly estimated.
+
+On the heat-budget example, with ten runs for a quadratic model, each design is best on
+its own measure:
+
+.. list-table::
+   :header-rows: 1
+
+   * - Design
+     - D-efficiency (higher is better)
+     - Summed coefficient variance (lower is better)
+     - Smallest eigenvalue (higher is better)
+   * - D-optimal
+     - 29.6
+     - 5.67
+     - 0.272
+   * - A-optimal
+     - 27.8
+     - 4.95
+     - 0.322
+   * - E-optimal
+     - 26.0
+     - 5.09
+     - 0.325
 
 For the I-optimal design the average is taken over the constrained region itself,
 sampled uniformly, so the design is chosen for the same region ``evaluate_design``
