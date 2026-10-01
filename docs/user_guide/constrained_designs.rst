@@ -301,10 +301,11 @@ design is built from its geometry.
   the vertices.
 * **Without a budget** the classical extreme-vertices design is returned: the
   vertices and the centroid, plus the edge midpoints for a quadratic model and the
-  face centroids for a special cubic one.
+  centroids of the 2-dimensional faces for a special cubic one. Those faces are the
+  constrained counterpart of ternary blends, which the ``x_i x_j x_k`` terms need.
 * **With a budget** a D-optimal subset is chosen from the vertices, edge midpoints,
-  face centroids, centroid and axial check blends, by the same exchange as above.
-  Blends can repeat, which gives replicates for a pure-error estimate.
+  2-face and facet centroids, centroid and axial check blends, by the same exchange
+  as above. Blends can repeat, which gives replicates for a pure-error estimate.
 
 Mixture constraints must be linear in the proportions, since the vertex enumeration
 relies on flat faces. On the full simplex (no bounds, no constraints) the classical
@@ -325,6 +326,15 @@ sum to one:
 accepted by ``analyze_experiment`` and ``evaluate_design``. statsmodels recognises
 that the proportions carry an implicit intercept, so R-squared is centred and the
 model degrees of freedom are one less than the number of terms, as for a model with an
-intercept. ``evaluate_design`` defaults to the Scheffé quadratic model for a mixture
+intercept.
+
+A blending coefficient tested against zero asks whether a pure component gives a
+response of zero, which is rarely the question. So for a Scheffé model the ANOVA tests
+the linear blending terms jointly (do the components blend differently at all?) and
+each non-linear blending term, such as ``polymer:solvent``, on its own. Effects are
+reported in the Cox direction (each linear coefficient minus the mean of the others),
+and Lenth's method is not applied.
+
+``evaluate_design`` defaults to the Scheffé quadratic model for a mixture
 design and samples its constrained simplex. ``optimize_responses`` with the mixture
 region searches the polytope and returns a blend that sums to one.
