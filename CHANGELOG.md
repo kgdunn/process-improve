@@ -36,6 +36,29 @@ those changes.
   types now log a warning and set `constraints_enforced=False` instead of ignoring
   constraints silently. See the new user-guide page "Designs over a Constrained Region".
 
+### Fixed
+
+- **`generate_design(..., "fractional_factorial")` builds its designs from a table of
+  minimum-aberration generators (#620).** It used pyDOE3's `fracfact_by_res`, which
+  failed with "design not possible" for 3, 4 and 5 factors, and for 7 to 11 factors at
+  resolution V returned resolution IV designs labelled V. A fractional-cube CCD asking
+  for resolution V could get one of those cubes, with its two-factor interactions
+  aliased.
+  - `resolution` is a minimum: the design is the fewest-run minimum-aberration fraction
+    that reaches it, e.g. 16 runs with `E = ABCD` for 5 factors at resolution V. The
+    table covers 3 to 11 factors, and exhaustive search confirmed each entry has minimum
+    aberration.
+  - Without `resolution` or `generators`, the design is the half fraction 2^(k-1), of
+    resolution k, as the automatic design choice already assumed. For 7 or more factors
+    that is more runs than before; pass `resolution` for a smaller design.
+  - The result reports the resolution the design reaches, with its generators and
+    defining relation, for explicit generators too.
+  - Beyond 11 factors pyDOE3's search is still used, but its design's resolution is now
+    measured, and a design short of the request raises a `ValueError` instead of being
+    mislabelled.
+  - An explicit generator whose right-hand side names no factors, such as `"D="`, raises
+    a `ValueError` saying so, instead of an `IndexError` from inside pyDOE3.
+
 ## [1.96.0] - 2026-09-30
 
 ### Added

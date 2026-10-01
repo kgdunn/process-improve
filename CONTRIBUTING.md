@@ -105,7 +105,14 @@ independent gates, so a clean `ruff check .` says nothing about formatting. Run
 both before pushing, or install the pre-commit hooks, which run the same pair.
 Keep the `ruff-pre-commit` `rev` in `.pre-commit-config.yaml` in step with the
 `ruff` pin in `pyproject.toml`; if they diverge, code formatted locally can
-still be rejected by CI.
+still be rejected by CI. `tests/test_tooling_versions.py` enforces this for ruff
+and mypy, so an update of either hook fails until its pin moves with it.
+
+[pre-commit.ci](https://pre-commit.ci) runs the same hooks on every pull request
+and pushes the fixes it can make, so a contributor without the hooks installed
+still lands formatted code. Its quarterly autoupdate PRs bump the hook
+revisions; when one moves ruff or mypy past its pin, finish that PR by moving
+the pin in `pyproject.toml` too.
 
 ## Code style
 
