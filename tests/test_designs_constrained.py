@@ -10,6 +10,7 @@ import pytest
 
 from process_improve.experiments import Constraint, Factor, evaluate_design, generate_design
 from process_improve.experiments.designs_constrained import (
+    MAX_CANDIDATES,
     MAX_EXPRESSION_LENGTH,
     ConstrainedOptions,
     Criterion,
@@ -112,10 +113,12 @@ class TestCandidates:
         assert f.shape[1] == _n_model_parameters([TEMP, DOSE, cat], model_type)
         assert np.linalg.matrix_rank(f) == f.shape[1]
 
-    def test_grid_too_large_is_refused(self) -> None:
+    def test_grid_too_large_to_list_is_sampled(self) -> None:
         region = _Region([Factor(name=f"X{i}", low=0, high=1) for i in range(12)], [], [])
-        with pytest.raises(ValueError, match="exceeds"):
-            build_candidates(region)
+        coded, _cats, counts = build_candidates(region)
+        assert counts["grid_sampled"]
+        assert len(coded) <= MAX_CANDIDATES
+        assert set(np.unique(coded)) == {-1.0, 0.0, 1.0}  # still points of the 3-level grid
 
 
 # ---------------------------------------------------------------------------

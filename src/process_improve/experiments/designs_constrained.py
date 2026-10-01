@@ -42,6 +42,8 @@ logger = logging.getLogger(__name__)
 
 #: Upper limit on the candidate grid; a larger grid is refused before allocation.
 MAX_CANDIDATES = 100_000
+#: Points drawn from a grid too large to list: the exchange's cost grows with this.
+_SAMPLED_CANDIDATES = 30_000
 #: Longest constraint expression accepted, which also bounds the parse depth.
 MAX_EXPRESSION_LENGTH = 500
 #: Slack when testing ``g(x) <= 0``, so points found on a boundary are kept.
@@ -189,19 +191,44 @@ class _Region:
         return np.max(g, axis=0) if g else np.full(coded.shape[0], -np.inf)
 
 
-def _grid_levels(region: _Region, n_levels: int | None) -> int:
-    """Pick the continuous grid resolution: the finest of 5, 4, 3 under ``MAX_CANDIDATES``."""
+def _grid_levels(region: _Region, n_levels: int | None, model_type: str) -> tuple[int, bool]:
+    """Pick the continuous grid resolution, and whether the grid is too large to list in full.
+
+    The finest of 5, 4 and 3 levels whose full grid stays under ``MAX_CANDIDATES``
+    points is used; models without squared terms may also drop to 2 levels, which is
+    all they need. When even the coarsest grid is too large (11 or more factors at 3
+    levels, 17 or more at 2), the grid is sampled instead (see :func:`_lattice_points`).
+    """
     n_cat = int(np.prod([len(f.levels or []) for f in region.categorical]))
-    choices = [n_levels] if n_levels is not None else [5, 4, 3]
+    coarsest = 3 if model_type == "quadratic" else 2
+    choices = [n_levels] if n_levels is not None else list(range(5, coarsest - 1, -1))
     for n in choices:
         if n < 2:
             raise ValueError("n_levels must be at least 2.")
         if n ** len(region.continuous) * n_cat <= MAX_CANDIDATES:
-            return n
-    raise ValueError(
-        f"A candidate grid with {choices[-1]} levels on {len(region.continuous)} continuous factor(s) "
-        f"exceeds {MAX_CANDIDATES} points. Reduce the number of factors or n_levels."
-    )
+            return n, False
+    return choices[-1], True
+
+
+def _lattice_points(shape: list[int], k_cont: int, sampled: bool, rng: np.random.Generator) -> np.ndarray:
+    """Index vectors of the candidate grid: all of it, or ``MAX_CANDIDATES`` random points of it.
+
+    A sampled grid on an odd number of levels also holds the centre and the face
+    centres (one factor at an extreme, the rest at the middle), the points a quadratic
+    model leans on and a random sample would rarely contain.
+    """
+    if not sampled:
+        return np.indices(shape).reshape(len(shape), -1).T
+    idx = np.column_stack([rng.integers(n, size=_SAMPLED_CANDIDATES) for n in shape])
+    levels = shape[0] if k_cont else 0
+    if levels % 2:
+        middle = np.full((2 * k_cont + 1, len(shape)), levels // 2)
+        middle[:, k_cont:] = 0
+        for axis in range(k_cont):
+            middle[1 + 2 * axis, axis], middle[2 + 2 * axis, axis] = 0, levels - 1
+        idx = np.vstack([middle, idx])
+    _, first = np.unique(idx, axis=0, return_index=True)
+    return idx[np.sort(first)]
 
 
 def _boundary_points(region: _Region, grid: np.ndarray, cat_idx: np.ndarray, step: float) -> tuple:
@@ -235,8 +262,24 @@ def _boundary_points(region: _Region, grid: np.ndarray, cat_idx: np.ndarray, ste
     return np.vstack(points), np.vstack(cats)
 
 
-def build_candidates(region: _Region, n_levels: int | None = None) -> tuple[np.ndarray, np.ndarray, dict]:
+def build_candidates(
+    region: _Region,
+    n_levels: int | None = None,
+    model_type: str = "quadratic",
+    rng: np.random.Generator | None = None,
+) -> tuple[np.ndarray, np.ndarray, dict]:
     """Return the feasible candidate points in coded units.
+
+    Parameters
+    ----------
+    region : _Region
+        Factors and constraints.
+    n_levels : int or None
+        Grid levels per continuous factor; ``None`` picks them (see :func:`_grid_levels`).
+    model_type : str
+        The model the design is for: without squared terms, 2 levels may be used.
+    rng : numpy.random.Generator or None
+        Draws the sample of a grid too large to list; a fixed seed when ``None``.
 
     Returns
     -------
@@ -244,10 +287,15 @@ def build_candidates(region: _Region, n_levels: int | None = None) -> tuple[np.n
         Coded continuous values ``(n, k_cont)``, categorical level indices
         ``(n, k_cat)``, and counts for the metadata.
     """
-    levels = _grid_levels(region, n_levels)
+    levels, sampled = _grid_levels(region, n_levels, model_type)
     shape = [levels] * len(region.continuous) + [len(f.levels or []) for f in region.categorical]
-    idx = np.indices(shape).reshape(len(shape), -1).T
     k_cont = len(region.continuous)
+    rng = rng if rng is not None else np.random.default_rng(0)
+    idx = _lattice_points(shape, k_cont, sampled, rng)
+    if sampled:
+        logger.info(
+            "The %d-level grid on %d factors is too large to list; sampling %d points.", levels, k_cont, len(idx)
+        )
     grid = np.linspace(-1.0, 1.0, levels)[idx[:, :k_cont]]
     cat_idx = idx[:, k_cont:]
 
@@ -263,6 +311,7 @@ def build_candidates(region: _Region, n_levels: int | None = None) -> tuple[np.n
     counts = {
         "n_levels": levels,
         "n_grid_points": grid.shape[0],
+        "grid_sampled": sampled,
         "n_boundary_points": extra.shape[0],
         "n_candidates": unique.size,
     }
@@ -577,8 +626,9 @@ class ConstrainedOptions:
         Runs kept in the design (continuous in coded units, categorical as labels),
         already validated by the caller. They count towards the budget.
     n_levels : int or None
-        Grid levels per continuous factor. ``None`` picks 5, 4 or 3, whichever is
-        the finest that keeps the grid under ``MAX_CANDIDATES`` points.
+        Grid levels per continuous factor. ``None`` picks the finest of 5, 4 and 3
+        (and 2, for a model without squared terms) that keeps the grid under
+        ``MAX_CANDIDATES`` points, and samples the coarsest grid when none does.
     candidates : pandas.DataFrame or None
         Settings the runs must be chosen from, in actual units (proportions for a
         mixture), one column per factor, instead of a generated grid. Rows that
@@ -658,7 +708,7 @@ def _candidate_pool(
     if opts.candidates is not None:
         coded, cats, counts, labels = _user_candidates(region, opts.candidates)
         return coded, cats, counts, labels, lambda: model_matrix(region, coded, cats, opts.model_type)
-    coded, cats, counts = build_candidates(region, opts.n_levels)
+    coded, cats, counts = build_candidates(region, opts.n_levels, opts.model_type, rng)
     return coded, cats, counts, None, lambda: _uniform_rows(region, opts.model_type, rng, coded)
 
 
@@ -795,8 +845,8 @@ def constrained_optimal_design(
     if np.linalg.matrix_rank(np.vstack([f_fixed, f_cand])) < f_cand.shape[1]:
         raise ValueError(
             f"The feasible region ({counts['n_candidates']} candidate points) cannot support a "
-            f"'{model_type}' model with {f_cand.shape[1]} coefficients. Use a simpler model, a finer "
-            "grid (n_levels), or loosen the constraints."
+            f"'{model_type}' model with {f_cand.shape[1]} coefficients. Use a simpler model, supply "
+            "candidates, or loosen the constraints."
         )
 
     p = f_cand.shape[1]

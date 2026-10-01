@@ -240,3 +240,43 @@ class TestEOptimalExchangeDoesNotStopEarly:
 
         repeated, split = np.array([4.0, 4.0, 9.0]), np.array([4.0, 6.0, 7.0])
         assert _phi_p(repeated) < _phi_p(split) < 4.0
+
+
+class TestManyFactorsOnTheBuiltInEngine:
+    """Eleven or more factors used to exceed the candidate cap at 3 levels and always raised."""
+
+    @staticmethod
+    def _region(k: int) -> object:
+        from process_improve.experiments.designs_constrained import _Region
+
+        return _Region(_continuous(k), [], [])
+
+    @pytest.mark.parametrize(
+        ("k", "model", "expected"),
+        [(10, "quadratic", (3, False)), (11, "quadratic", (3, True)), (16, "interactions", (2, False))],
+    )
+    def test_level_choice(self, k: int, model: str, expected: tuple[int, bool]) -> None:
+        """Models without squares drop to 2 levels; a grid still too large is sampled, not refused."""
+        from process_improve.experiments.designs_constrained import _grid_levels
+
+        assert _grid_levels(self._region(k), None, model) == expected
+
+    def test_a_sampled_odd_grid_keeps_the_centre_and_face_centres(self) -> None:
+        from process_improve.experiments.designs_constrained import build_candidates
+
+        coded, _cats, counts = build_candidates(self._region(12), model_type="quadratic")
+        assert counts["grid_sampled"]
+        rows = {tuple(r) for r in coded.round(9)}
+        assert tuple(np.zeros(12)) in rows
+        for axis in range(12):
+            for end in (-1.0, 1.0):
+                face = np.zeros(12)
+                face[axis] = end
+                assert tuple(face) in rows
+
+    @pytest.mark.usefixtures("no_pyoptex")
+    @pytest.mark.parametrize("design_type", ["d_optimal", pytest.param("e_optimal", marks=pytest.mark.slow)])
+    def test_eleven_factors_generate(self, design_type: str) -> None:
+        result = generate_design(_continuous(11), design_type=design_type, model_type="main_effects", budget=16)
+        assert result.n_runs == 16
+        assert result.metadata["n_levels"] == 2
