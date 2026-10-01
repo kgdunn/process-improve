@@ -39,7 +39,14 @@ from ._common import (
     _nz,
     _reject_sparse,
     _select_n_components,
+    _vandervoet_randomization,
     epsqrt,
+)
+from ._cv_criteria import (
+    _compare_cv_criteria,
+    _CompareSettings,
+    _pseudo_validation_set,
+    _PseudoValidationSettings,
 )
 from ._diagnostics import (
     selectivity_ratio as _selectivity_ratio,
@@ -47,6 +54,7 @@ from ._diagnostics import (
 from ._diagnostics import (
     target_projection as _target_projection,
 )
+from ._impute import impute_low_rank
 from ._nipals import quick_regress, ssq, terminate_check
 from ._preprocessing import MCUVScaler, _uncentred_columns, _warn_scaling_traps
 from ._projection import coerce_observed_mask, operator_for_pattern, project_rows
@@ -59,10 +67,11 @@ from .plots import (
 
 logger = logging.getLogger(__name__)
 
-# The ``md_method`` values ``_fit_nipals`` recognises. Deliberately smaller than
+# The ``md_method`` values ``fit`` recognises. Deliberately smaller than
 # ``_projection.PROJECTION_METHODS``: that tuple is the projection-time set, which also
-# offers ``"scp"``. Only ``"nipals"`` is implemented here; the other two are recognised so
-# a caller asking for them gets NotImplementedError rather than a silent NIPALS fit.
+# offers ``"scp"``. ``"scp"`` has no fit-time meaning of its own, because it is how NIPALS
+# already scores an incomplete row during the fit, so asking for it is refused rather than
+# quietly running NIPALS under another name.
 _FIT_TIME_MD_METHODS = frozenset({"nipals", "tsr", "pmp"})
 
 
@@ -79,92 +88,6 @@ def _check_md_method(settings: dict) -> None:
             "This is the fit-time setting, a smaller set than the method= accepted by "
             "project() and the contribution helpers."
         )
-    if md_method != "nipals":
-        raise NotImplementedError(f"{md_method.upper()} for PLS not implemented yet")
-
-
-def _vandervoet_randomization(
-    per_obs_sse: np.ndarray,
-    *,
-    total_rmsecv: np.ndarray,
-    n_permutations: int = 999,
-    alpha: float = 0.01,
-    random_state: int | None = None,
-) -> tuple[int, np.ndarray]:
-    """Van der Voet (1994) randomization test for PLS component selection.
-
-    Compares every candidate model against the reference (argmin-RMSECV)
-    model under the null that the two have the same predictive ability.
-    For each observation the paired difference of squared residuals
-    ``D_i = sse[a, i] - sse[a*, i]`` is computed; under the null its sign
-    is random, so the permutation distribution of ``T = sum_i D_i`` is
-    obtained by flipping each ``D_i``'s sign with probability 1/2 over
-    ``n_permutations`` draws. The *p*-value is the right-tail probability
-    of seeing a sum as large as the observed one (``T_obs >= T_perm``);
-    the recommendation is the smallest ``a`` whose ``p > alpha`` -
-    statistically indistinguishable from the reference, but more
-    parsimonious.
-
-    Parameters
-    ----------
-    per_obs_sse : np.ndarray of shape (n_components, n_samples)
-        Out-of-fold per-observation squared total residual at every
-        component count, summed across Y columns. Rows that are NaN
-        (observation never held out) are dropped.
-    total_rmsecv : np.ndarray of shape (n_components,)
-        Pooled total RMSECV per component count; used to pick the
-        reference model ``a*`` = ``nanargmin(total_rmsecv) + 1``.
-    n_permutations : int, default 999
-        Number of sign-flip permutations.
-    alpha : float, default 0.01
-        Significance level. Smaller values are more parsimonious.
-    random_state : int, optional
-        Seed for reproducible permutations.
-
-    Returns
-    -------
-    recommended : int
-        Smallest 1-based component count with ``p > alpha``.
-    p_values : np.ndarray of shape (n_components,)
-        Right-tail *p*-value per candidate; the reference model gets
-        ``1.0`` by construction (paired differences are all zero).
-
-    References
-    ----------
-    Van der Voet, H. (1994). Comparing the predictive accuracy of
-    models using a simple randomization test. *Chemom. Intell. Lab.
-    Syst.*, 25(2), 313-323.
-    """
-    a_count = per_obs_sse.shape[0]
-    a_ref = int(np.nanargmin(total_rmsecv))
-    rng = np.random.default_rng(random_state)
-    p_values = np.zeros(a_count)
-    p_values[a_ref] = 1.0
-    sse_ref = per_obs_sse[a_ref]
-    for a in range(a_count):
-        if a == a_ref:
-            continue
-        d = per_obs_sse[a] - sse_ref
-        # Drop observations with NaN (a custom splitter may have left some
-        # rows unheld), since the paired difference is undefined there.
-        d = d[np.isfinite(d)]
-        if d.size == 0:
-            p_values[a] = 1.0
-            continue
-        t_obs = float(d.sum())
-        signs = rng.choice([-1.0, 1.0], size=(n_permutations, d.size))
-        t_perm = (signs * d).sum(axis=1)
-        # Right-tail probability under the null. Add 1 to both numerator
-        # and denominator (the "permutation test +1" correction) so the
-        # p-value is strictly positive even at the extreme.
-        p_values[a] = float((np.sum(t_perm >= t_obs) + 1) / (n_permutations + 1))
-
-    recommended = a_ref + 1  # fall back to the reference if nothing qualifies
-    for a in range(a_count):
-        if p_values[a] > alpha:
-            recommended = a + 1
-            break
-    return recommended, p_values
 
 
 def _format_labels(labels: list, limit: int = 4) -> str:
@@ -285,18 +208,41 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
         deliberately un-centred fit stays quiet inside a ``Pipeline`` or a
         grid search.
     missing_data_settings : dict or None, default=None
-        Settings for the NIPALS fit when the data has missing cells. Keys:
+        How to fit when the data has missing cells. Keys:
 
-        - ``md_method``: ``"nipals"`` (the default, and the only one
-          implemented), or ``"tsr"`` / ``"pmp"``, which are recognised and
-          raise :class:`NotImplementedError`. Any other value is refused. This
-          is a different and smaller set than the ``method=`` accepted by
-          :meth:`project` and the contribution helpers, which do implement
-          ``"tsr"``, ``"scp"`` and ``"pmp"``.
-        - ``md_tol`` and ``md_max_iter``: the NIPALS convergence tolerance and
-          iteration cap. They default to this model's ``tol`` and ``max_iter``,
-          so set those instead unless you need the fit and the missing-data
-          path to differ.
+        - ``md_method``, one of:
+
+          - ``"nipals"`` (the default): NIPALS skips each missing cell in its
+            sums, so an incomplete row simply contributes less. Cheapest, and
+            no imputation happens.
+          - ``"tsr"``: trimmed score regression. The missing cells are filled
+            by EM on a principal-component model of X and Y *together*,
+            refitted every round from the completed data, and PLS is then
+            fitted once to the result. Measured against the model the complete
+            data would have given: on synthetic data with clear low-rank
+            structure it lands 2.0 to 2.9 times closer than ``"nipals"``
+            (5-45% of cells missing at random, closer on 17-19 trials in 20);
+            on the LDPE process data 1.1 to 1.5 times closer (9-12 in 12). The
+            gain grows with how much of the data the components capture,
+            because a missing cell can only be rebuilt from what they describe.
+            Roughly five times the cost of a ``"nipals"`` fit.
+          - ``"pmp"``: the same loop, estimating each row by least-squares
+            projection onto the components instead of by regression. Close to
+            ``"tsr"`` throughout, and slower to settle as more goes missing.
+
+          Any other value is refused, including ``"scp"``: that is a
+          projection-time method (see :meth:`project`), and at fit time it is
+          simply what NIPALS already does.
+        - ``md_tol`` and ``md_max_iter``: for ``"nipals"``, the NIPALS
+          convergence tolerance and iteration cap; for ``"tsr"`` / ``"pmp"``,
+          the tolerance on the largest change in any imputed cell (in standard
+          deviations) and the cap on imputation rounds. Both default to this
+          model's ``tol`` and ``max_iter``, so set those instead unless the two
+          need to differ.
+
+        With ``"tsr"`` / ``"pmp"``, R², SPE and the other diagnostics are still
+        computed on the *observed* cells only: an imputed cell is fitted by
+        construction, so counting it would flatter the model.
 
     Attributes (after fitting)
     --------------------------
@@ -492,8 +438,13 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
     y_scores_: np.ndarray | pd.DataFrame
     y_weights_: np.ndarray | pd.DataFrame
     y_loadings_: np.ndarray | pd.DataFrame
-    # Fitted diagnostics: per-component arrays or scalar totals.
-    fitting_info_: dict[str, np.ndarray | int | float]
+    # Fitted diagnostics: per-component arrays or scalar totals, plus, for an imputed
+    # fit, which estimator ran (a string) and whether it converged.
+    fitting_info_: dict[str, np.ndarray | int | float | str]
+    # Declared here rather than at their first assignment, because an imputed fit
+    # refits them from helper methods defined above ``fit``.
+    _x_scaler: MCUVScaler | None
+    _y_scaler: MCUVScaler | None
 
     # ENG-18: public DataFrame views built lazily from the private ndarrays.
     scores_ = _LazyFrame("_scores", index="_sample_index", columns="_component_names")
@@ -697,6 +648,102 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
                     self.y_scores_[:, a] = (Y_deflated @ c_a / denom).flatten()
                 Y_deflated = Y_deflated - (self._scores[:, [a]] @ c_a.T)
 
+    def _fit_imputed(
+        self,
+        X: pd.DataFrame,
+        Y: pd.DataFrame,
+        A: int,
+        settings: dict,
+        sample_weight: np.ndarray | None = None,
+    ) -> tuple[pd.DataFrame, pd.DataFrame]:
+        """Fill the missing cells from a model of ``[X Y]`` jointly, then fit once (#189).
+
+        The missing cells are estimated by
+        :func:`~process_improve.multivariate._impute.impute_low_rank`: EM on a
+        principal-component model of the joint matrix, the model-building algorithm
+        ``PCA(algorithm="tsr")`` also runs. PLS is then fitted to the completed data,
+        scaled by the completed data's own statistics.
+
+        The first version of this rebuilt the missing cells from the PLS model itself,
+        alternating fit and rebuild. That is the wrong tool twice over. PLS picks its
+        components for their covariance with Y, not to reproduce X, so it rebuilds X
+        only as well as those components happen to span it: on the LDPE data at three
+        components it was a coin flip against plain NIPALS. And the alternation is not
+        an EM, so nothing made it converge: on a synthetic fixture about one fit in
+        seven cycled indefinitely. The joint model converged on all of those, and
+        beat NIPALS on 9 to 12 of 12 LDPE trials where the PLS-based loop managed 5 to 8.
+
+        Parameters
+        ----------
+        X, Y : pd.DataFrame
+            The training blocks in their original units, NaN where missing.
+        A : int
+            Number of components, used for the imputation model as well as for PLS.
+        settings : dict
+            Resolved missing-data settings: ``md_method`` (``"tsr"`` or ``"pmp"``),
+            and ``md_tol`` and ``md_max_iter`` for the imputation rounds.
+        sample_weight : np.ndarray of shape (n_samples,), optional
+            Applied to the PLS fit. The imputation models the data as given.
+
+        Returns
+        -------
+        tuple[pd.DataFrame, pd.DataFrame]
+            ``X`` and ``Y`` in the fitted model's scaled space, still NaN where they
+            were missing, so the diagnostics are computed on observed cells only.
+        """
+        method = settings["md_method"].lower()
+        joint = pd.concat([X, Y], axis=1).to_numpy(dtype=float)
+        # A column with nothing observed has nothing to estimate it from. NIPALS gives
+        # such a column no weight, so it is held out of the imputation and set to a
+        # constant, which scaling then reduces to zero: the same outcome, without
+        # making the choice of md_method decide whether the data is fittable.
+        empty = np.all(np.isnan(joint), axis=0)
+        imputation = impute_low_rank(
+            joint[:, ~empty], A, method=method, tol=settings["md_tol"], max_iter=settings["md_max_iter"]
+        )
+        completed = np.zeros_like(joint)
+        completed[:, ~empty] = imputation.completed
+
+        if not imputation.converged:
+            warnings.warn(
+                f"PLS {method.upper()}: the imputed cells were still moving by {imputation.shift:.3g} "
+                f"standard deviations after {imputation.rounds} rounds (md_tol={settings['md_tol']:g}). "
+                "Raise md_max_iter, or loosen md_tol if that change is already negligible for your data.",
+                SpecificationWarning,
+                stacklevel=3,
+            )
+
+        n_x = X.shape[1]
+        completed_x = pd.DataFrame(completed[:, :n_x], index=X.index, columns=X.columns)
+        completed_y = pd.DataFrame(completed[:, n_x:], index=Y.index, columns=Y.columns)
+        x_scaled, y_scaled = self._rescaled(completed_x, completed_y, sample_weight)
+        complete_data = {"md_method": "nipals", "md_tol": self.tol, "md_max_iter": self.max_iter}
+        self._fit_nipals(x_scaled, y_scaled, A, complete_data, sample_weight=sample_weight)
+        self.fitting_info_.update(
+            {
+                "md_method": method,
+                "md_rounds": imputation.rounds,
+                "md_converged": imputation.converged,
+                "md_shift": imputation.shift,
+            }
+        )
+        return self._scaled_as_fitted(X, Y)
+
+    def _rescaled(
+        self, X: pd.DataFrame, Y: pd.DataFrame, sample_weight: np.ndarray | None
+    ) -> tuple[np.ndarray, np.ndarray]:
+        """Refit the scalers on complete blocks and return them scaled; identity when ``scale=False``."""
+        if self.scale:
+            self._x_scaler, self._y_scaler = self._make_scalers(X, Y, sample_weight)
+        x_scaled, y_scaled = self._scaled_as_fitted(X, Y)
+        return x_scaled.to_numpy(dtype=float), y_scaled.to_numpy(dtype=float)
+
+    def _scaled_as_fitted(self, X: pd.DataFrame, Y: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame]:
+        """Put X and Y into the current scaled space, with the scalers as they stand."""
+        if self._x_scaler is None or self._y_scaler is None:
+            return X, Y
+        return self._x_scaler.transform(X), self._y_scaler.transform(Y)
+
     def _make_scalers(
         self,
         X: pd.DataFrame,
@@ -849,8 +896,11 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
         # On already-scaled input (center ~ 0, scale ~ 1) this is a no-op, so
         # callers who pre-scale (scale=False) or pass MCUVScaler output are
         # unaffected. MCUVScaler is NaN-aware and leaves constant columns at 1.
-        self._x_scaler: MCUVScaler | None = None
-        self._y_scaler: MCUVScaler | None = None
+        self._x_scaler = None
+        self._y_scaler = None
+        # An imputed fit (md_method "tsr" / "pmp") re-estimates the scaling from the
+        # completed data every round, so it needs the blocks before this first scaling.
+        unscaled_x, unscaled_y = X, Y
         if self.scale:
             self._x_scaler, self._y_scaler = self._make_scalers(X, Y, sample_weight)
             X = self._x_scaler.transform(X)
@@ -891,14 +941,18 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
         # here also means a partial dict (say ``{"md_tol": 1e-3}``) can no longer leave
         # ``md_max_iter`` absent, which used to raise ``KeyError`` from ``_fit_nipals``.
         #
-        # ``md_method`` defaults to NIPALS because TSR / PMP for PLS are still
-        # NotImplementedError in ``_fit_nipals``; NIPALS handles per-cell NaN directly via
-        # skipna sums inside its iterations. The resolved settings stay local: mutating the
-        # constructor parameter would leak into clone() (#505).
-        settings = {"md_method": "nipals", "md_tol": self.tol, "md_max_iter": self.max_iter}
+        # ``md_method`` defaults to NIPALS, the cheapest path: it handles per-cell NaN
+        # directly via skipna sums inside its iterations, with no imputation. The resolved
+        # settings stay local: mutating the constructor parameter would leak into clone()
+        # (#505).
+        settings: dict[str, typing.Any] = {"md_method": "nipals", "md_tol": self.tol, "md_max_iter": self.max_iter}
         if isinstance(self.missing_data_settings, dict):
             settings.update(self.missing_data_settings)
-        self._fit_nipals(X, Y, A, settings, sample_weight=sample_weight)
+        _check_md_method(settings)
+        if settings["md_method"].lower() == "nipals":
+            self._fit_nipals(X, Y, A, settings, sample_weight=sample_weight)
+        else:
+            X, Y = self._fit_imputed(unscaled_x, unscaled_y, A, settings, sample_weight=sample_weight)
 
         # --- Common post-fit path: wrap numpy arrays into pandas ---
 
@@ -2037,6 +2091,266 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
         )
 
     @classmethod
+    def compare_cv_criteria(  # noqa: PLR0913 - each setting controls a named criterion (#605)
+        cls,
+        X: DataMatrix,
+        Y: DataMatrix | pd.Series,
+        *,
+        max_components: int | None = None,
+        cv: int | BaseCrossValidator = 7,
+        random_state: int | np.random.Generator | None = None,
+        n_permutations: int = 999,
+        n_cv_permutations: int = 199,
+        alpha: float = 0.05,
+        angle_threshold: float = 30.0,
+        conf_level: float = 0.95,
+        **pls_kwargs,
+    ) -> Bunch:
+        r"""Compare predictive and latent-structure validation criteria for a PLS model.
+
+        Runs one K-fold cross-validation (one fit of this class per fold at
+        ``max_components``, truncated for smaller counts) and reports, for every number of
+        components, criteria that each answer a different question, together with the
+        number of components each one recommends. Disagreement between them is the point:
+        a component can predict Y without being stable, or be stable and real without
+        improving the prediction.
+
+        Missing values (NaN) are handled as the NIPALS fit handles them. Every held-out
+        row is scored the way NIPALS scores a training row, from its observed cells, and
+        a missing Y cell is left out of PRESS, of the slope ratio and of the score
+        correlation. The PRESS identity and ``s_a = 1`` in sample stay exact.
+
+        Parameters
+        ----------
+        X : array-like of shape (n_samples, n_features)
+            Predictor block, on its raw scale, NaN where missing. Each training fold is
+            autoscaled with its own :class:`MCUVScaler`, as in
+            :meth:`PLS.select_n_components`.
+        Y : array-like of shape (n_samples,) or (n_samples, n_targets)
+            Response block, NaN where missing. A row with no observed response still helps
+            fit X.
+        max_components : int, optional
+            Largest number of components to evaluate. Capped at one fewer than the
+            smallest training fold, and at the number of features.
+        cv : int or sklearn splitter, default=7
+            Number of shuffled K-fold segments, or a splitter that holds out every row
+            exactly once (``KFold``, ``LeaveOneOut``, ``GroupKFold``, ...). With an integer
+            ``random_state`` the folds are those of
+            ``PLS.select_n_components(..., cv=cv, n_repeats=1, random_state=random_state)``.
+        random_state : int, numpy.random.Generator or None, default=None
+            Seed for the fold assignment and for the permutation tests.
+        n_permutations : int, default=999
+            Permutations for the van der Voet and the covariance tests (cheap: no refits).
+        n_cv_permutations : int, default=199
+            Permutations of the rows of Y used to calibrate the held-out score correlation
+            of each component. Each one repeats the cross-validation with kernel PLS refits from the
+            folds' ``X'X`` and ``X'Y`` (fast for tens to hundreds of features). With ``0``
+            the normal approximation
+            :math:`r \sim N(0, 1/N)` is used instead; it is quick but too permissive,
+            because fold models share rows and a strong low-rank X widens the null
+            distribution of a pooled cross-validated correlation.
+        alpha : float, default=0.05
+            Significance level for the tests and for the score-correlation threshold.
+            :meth:`PLS.select_n_components` uses 0.01 for van der Voet.
+        angle_threshold : float, default=30.0
+            Jackknife-scaled subspace angle, in degrees, above which the leading weights
+            are judged unstable.
+        conf_level : float, default=0.95
+            Confidence level of the SPE and Hotelling's :math:`T^2` limits whose
+            out-of-sample alarm rates are checked.
+        **pls_kwargs
+            Passed to every fit of this class (for example ``max_iter``, ``tol``).
+            ``scale=False`` is rejected: every fold is autoscaled.
+
+        Returns
+        -------
+        result : sklearn.utils.Bunch
+            With these fields:
+
+            - ``table`` (pandas.DataFrame, indexed by ``n_components``), with columns:
+
+              - ``r2y``, ``q2y``, ``q2y_se``: in-sample :math:`R^2_Y` (pooled in scaled
+                units), cross-validated :math:`Q^2_Y` (every target weighted equally, which
+                for one target is the ordinary :math:`Q^2`), and its standard error across
+                folds.
+              - ``vdv_p``: van der Voet *p*-value against the minimum-PRESS model.
+              - ``cv_anova_p``: CV-ANOVA *p*-value for the whole model, one response only
+                (NaN otherwise). It is a monotone function of :math:`Q^2`.
+              - ``r_train``, ``r_cv``, ``r_cv_threshold``, ``r_cv_p``: correlation of
+                :math:`t_a` and :math:`u_a` on the training rows; the same correlation
+                pooled over the held-out rows (about the training-fold centre, so it is
+                unaffected by sign flips between folds); the :math:`1-\alpha` quantile of
+                its null distribution under permuted Y; and its one-sided permutation
+                *p*-value.
+              - ``slope_ratio``: :math:`s_a`, the held-out slope of the deflated response
+                on :math:`t_a` relative to the training slope. PRESS falls exactly when
+                :math:`s_a > 1/2`; see the module notes.
+              - ``cov_perm_p``: sequential permutation *p*-value for the covariance of
+                component ``a``.
+              - ``angle_component_deg``, ``angle_subspace_deg``: angle between each fold's
+                weight vector :math:`w_a` and the full-data one, and the largest principal
+                angle between the spans of the first ``a`` weights, each scaled by the
+                delete-d jackknife (:math:`\tan\theta \to \sqrt{G-1}\,\text{rms}(\tan\theta_k)`)
+                so that it estimates how far the full-data direction may lie from the
+                population one. Raw fold angles shrink as the number of folds grows (fold
+                models share most of their rows); the scaled ones do not. A large
+                component angle with a small subspace angle means the components swap or
+                mix inside a stable space: loadings are then not interpretable one by one,
+                but SPE, :math:`T^2` and inversion, which depend on the span, are.
+              - ``d_ratio_median``, ``d_ratio_min``: Procrustes D ratios
+                :math:`c_{ka}^\top c_a / c_a^\top c_a` across folds; a negative minimum
+                means some fold reversed the component's inner relation.
+              - ``pv_spe_alarm_rate``, ``pv_t2_alarm_rate``: fraction of the Procrustes
+                pseudo-validation rows above the full-data model's SPE and :math:`T^2`
+                limits at ``conf_level``; nominally ``1 - conf_level``.
+              - ``pv_spe_limit_ratio``: the SPE limit fitted to the pseudo-validation
+                (held-out) SPE, divided by the full-data limit. The full-data limit is
+                fitted to training residuals, which are smaller than those of new rows,
+                so the ratio is above 1, and more so the fewer rows per variable.
+
+            - ``recommendations`` (pandas.DataFrame): one row per selection rule
+              (``q2_max``, ``q2_1se``, ``van_der_voet``, ``score_correlation``,
+              ``covariance_permutation``, ``subspace_stability``) with the recommended
+              ``n_components``, the ``rule`` and the ``question`` it answers. The
+              structural rules count leading components that pass, stopping at the first
+              failure, and can return 0. For ``subspace_stability``, a pair of components
+              that swap inside a stable span (the span of the first fails, the span of
+              both passes) counts as two.
+            - ``press`` (pandas.Series): cross-validated PRESS in original Y units.
+            - ``press_baseline`` (float): PRESS of predicting each held-out row by its
+              training fold's mean.
+            - ``d_ratios`` (pandas.DataFrame): Procrustes D ratio per fold and component.
+            - ``spe_limits`` (pandas.DataFrame, indexed by ``n_components``): the SPE limit
+              at ``conf_level`` fitted to the training residuals (``full_data``, what
+              ``global_model`` reports) and to the pseudo-validation SPE
+              (``pseudo_validation``). Use the second to monitor new rows. It is a limit
+              for complete rows: a held-out row with missing cells has its squared SPE
+              scaled by ``K / n_observed`` before the fit, and the SPE of a new row with
+              gaps should be scaled the same way before the comparison.
+            - ``cv_splits`` (list of (train, test) index arrays): the folds used.
+            - ``global_model`` (PLS): the model fitted to all rows with
+              ``max_components`` components.
+            - ``alpha``, ``conf_level``, ``angle_threshold``, ``alarm_rate_upper``
+              (float): the settings used, and the binomial upper bound for the alarm
+              rates.
+
+        Raises
+        ------
+        ValueError
+            For a row whose X is entirely missing, a column that is entirely missing, a
+            training fold with fewer than two observed values in a column, a splitter that
+            does not hold out every row exactly once, or an out-of-range setting.
+
+        See Also
+        --------
+        select_n_components : Choose the number of components from prediction alone.
+        pseudo_validation_set : Build the Procrustes pseudo-validation set explicitly.
+        process_improve.multivariate.plots.cv_criteria_plot : Plot the ``table``.
+
+        Examples
+        --------
+        >>> result = PLS.compare_cv_criteria(X, y, max_components=6, random_state=0)
+        >>> result.recommendations["n_components"]
+        >>> result.table[["q2y", "r_cv", "slope_ratio", "angle_subspace_deg"]]
+        """
+        settings = _CompareSettings(
+            max_components=max_components,
+            cv=cv,
+            random_state=random_state,
+            n_permutations=n_permutations,
+            n_cv_permutations=n_cv_permutations,
+            alpha=alpha,
+            angle_threshold=angle_threshold,
+            conf_level=conf_level,
+        )
+        return _compare_cv_criteria(cls, X, Y, settings, pls_kwargs)
+
+    @classmethod
+    def pseudo_validation_set(  # noqa: PLR0913 - mirrors the published pcvpls settings (#605)
+        cls,
+        X: DataMatrix,
+        Y: DataMatrix | pd.Series,
+        *,
+        n_components: int,
+        cv: int | BaseCrossValidator = 7,
+        scope: typing.Literal["global", "local"] = "global",
+        random_state: int | np.random.Generator | None = None,
+        **pls_kwargs,
+    ) -> Bunch:
+        r"""Build a Procrustes pseudo-validation set for a PLS model.
+
+        Procrustes cross-validation (Kucheryavskiy, Rodionova and Pomerantsev, 2023) turns
+        the variation between cross-validation fold models into a data set, ``X_pv``, of
+        the same size as ``X``, which the model fitted to all rows can be applied to like an
+        independent test set. For every held-out row, the full-data model returns:
+
+        * scores equal to the row's scores in its fold model, multiplied per component by
+          the D ratio :math:`c_{ka}^\top c_a / c_a^\top c_a`;
+        * an SPE equal to the row's SPE in its fold model.
+
+        With one response and ``scope="global"``, the full-data model's predictions for
+        ``X_pv`` also equal the fold models' predictions for the held-out rows. ``Y_pv``
+        is ``Y`` unchanged.
+
+        With missing values in X, the held-out rows are scored from their observed cells,
+        ``X_pv`` has the same missing cells as ``X``, and the properties above are exact
+        for the complete rows.
+
+        Parameters
+        ----------
+        X : array-like of shape (n_samples, n_features)
+            Predictor block, raw scale, NaN where missing.
+        Y : array-like of shape (n_samples,) or (n_samples, n_targets)
+            Response block, NaN where missing.
+        n_components : int
+            Number of components of the model being validated.
+        cv : int or sklearn splitter, default=7
+            Number of shuffled K-fold segments, or a splitter that holds out every row
+            exactly once.
+        scope : {"global", "local"}, default="global"
+            ``"global"`` (the published default) fits the fold models on rows of the fully
+            autoscaled data without re-centring them; the prediction property above is
+            then exact. ``"local"`` autoscales each training fold separately, as
+            :meth:`PLS.select_n_components` does; scores and SPE are still reproduced
+            exactly, predictions approximately.
+        random_state : int, numpy.random.Generator or None, default=None
+            Seed for the fold assignment and the random directions of the residual part.
+        **pls_kwargs
+            Passed to every fit of this class. ``scale=False`` is rejected.
+
+        Returns
+        -------
+        result : sklearn.utils.Bunch
+            With these fields:
+
+            - ``X_pv`` (pandas.DataFrame): pseudo-validation predictors, on the raw scale
+              of ``X``.
+            - ``Y_pv`` (pandas.DataFrame): ``Y``, unchanged.
+            - ``scores`` (pandas.DataFrame): the scores the full-data model gives ``X_pv``.
+            - ``local_spe`` (pandas.Series): SPE of each held-out row in its fold model;
+              the full-data model gives ``X_pv`` the same values. A limit fitted to these,
+              ``spe_calculation(pv.local_spe, conf_level=0.95)``, is calibrated for new
+              rows; the full-data model's own limit is too tight for them.
+            - ``d_ratios`` (pandas.DataFrame): D ratio per fold and component.
+            - ``cv_splits`` (list of (train, test) index arrays): the folds used.
+            - ``global_model`` (PLS): the model fitted to all rows; apply it to ``X_pv``
+              with ``diagnose``.
+            - ``scope`` (str): the scope used.
+
+        See Also
+        --------
+        compare_cv_criteria : Uses the same construction to report alarm rates per component.
+
+        Examples
+        --------
+        >>> pv = PLS.pseudo_validation_set(X, y, n_components=2, random_state=0)
+        >>> diagnostics = pv.global_model.diagnose(pv.X_pv)
+        >>> (diagnostics.spe > pv.global_model.spe_limit()).mean()   # out-of-sample SPE alarm rate
+        """
+        settings = _PseudoValidationSettings(n_components=n_components, cv=cv, scope=scope, random_state=random_state)
+        return _pseudo_validation_set(cls, X, Y, settings, pls_kwargs)
+
+    @classmethod
     def nested_cv(  # noqa: PLR0913, PLR0915
         cls,
         X: DataMatrix,
@@ -2702,3 +3016,64 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
         lower = pd.DataFrame(y_hat.values - half_width, index=y_hat.index, columns=y_hat.columns)
         upper = pd.DataFrame(y_hat.values + half_width, index=y_hat.index, columns=y_hat.columns)
         return Bunch(y_hat=y_hat, lower=lower, upper=upper, conf_level=conf_level)
+
+
+def compare_cv_criteria(X: DataMatrix, Y: DataMatrix | pd.Series, **kwargs) -> Bunch:
+    """Compare predictive and latent-structure validation criteria for a PLS model.
+
+    Function form of :meth:`PLS.compare_cv_criteria`, which documents the settings and
+    the returned fields: Q2, the 1-SE rule, van der Voet and CV-ANOVA beside the
+    held-out score correlation, the out-of-sample slope ratio, a covariance permutation
+    test, weight-subspace angles and Procrustes cross-validation, per component, with
+    the number of components each rule recommends.
+
+    Parameters
+    ----------
+    X : array-like of shape (n_samples, n_features)
+        Predictor block, on its raw scale.
+    Y : array-like of shape (n_samples,) or (n_samples, n_targets)
+        Response block.
+    **kwargs
+        The keyword arguments of :meth:`PLS.compare_cv_criteria`.
+
+    Returns
+    -------
+    sklearn.utils.Bunch
+        See :meth:`PLS.compare_cv_criteria`.
+
+    Examples
+    --------
+    >>> from process_improve.multivariate import compare_cv_criteria
+    >>> result = compare_cv_criteria(X, y, max_components=6, random_state=0)
+    >>> result.recommendations["n_components"]
+    """
+    return PLS.compare_cv_criteria(X, Y, **kwargs)
+
+
+def pseudo_validation_set(X: DataMatrix, Y: DataMatrix | pd.Series, **kwargs) -> Bunch:
+    """Build a Procrustes pseudo-validation set for a PLS model.
+
+    Function form of :meth:`PLS.pseudo_validation_set`, which documents the settings
+    and the returned fields.
+
+    Parameters
+    ----------
+    X : array-like of shape (n_samples, n_features)
+        Predictor block, raw scale.
+    Y : array-like of shape (n_samples,) or (n_samples, n_targets)
+        Response block.
+    **kwargs
+        The keyword arguments of :meth:`PLS.pseudo_validation_set`; ``n_components`` is
+        required.
+
+    Returns
+    -------
+    sklearn.utils.Bunch
+        See :meth:`PLS.pseudo_validation_set`.
+
+    Examples
+    --------
+    >>> pv = pseudo_validation_set(X, y, n_components=2, random_state=0)
+    >>> pv.global_model.diagnose(pv.X_pv).spe
+    """
+    return PLS.pseudo_validation_set(X, Y, **kwargs)

@@ -11,7 +11,237 @@ those changes.
 
 ## [Unreleased]
 
+### Fixed
+
+- **`generate_design(..., "fractional_factorial")` builds its designs from a table of
+  minimum-aberration generators (#620).** It used pyDOE3's `fracfact_by_res`, which
+  failed with "design not possible" for 3, 4 and 5 factors, and for 7 to 11 factors at
+  resolution V returned resolution IV designs labelled V. A fractional-cube CCD asking
+  for resolution V could get one of those cubes, with its two-factor interactions
+  aliased.
+  - `resolution` is a minimum: the design is the fewest-run minimum-aberration fraction
+    that reaches it, e.g. 16 runs with `E = ABCD` for 5 factors at resolution V. The
+    table covers 3 to 11 factors, and exhaustive search confirmed each entry has minimum
+    aberration.
+  - Without `resolution` or `generators`, the design is the half fraction 2^(k-1), of
+    resolution k, as the automatic design choice already assumed. For 7 or more factors
+    that is more runs than before; pass `resolution` for a smaller design.
+  - The result reports the resolution the design reaches, with its generators and
+    defining relation, for explicit generators too.
+  - Beyond 11 factors pyDOE3's search is still used, but its design's resolution is now
+    measured, and a design short of the request raises a `ValueError` instead of being
+    mislabelled.
+  - An explicit generator whose right-hand side names no factors, such as `"D="`, raises
+    a `ValueError` saying so, instead of an `IndexError` from inside pyDOE3.
+
+## [1.96.0] - 2026-09-30
+
 ### Added
+
+- **`GPA`: generalized Procrustes analysis for several configurations of the same
+  objects (#180).** A sensory panel scores the same products, each assessor on their
+  own use of the scale; two instruments measure the same parts in their own frames.
+  Their configurations differ by position, orientation and size, none of which says
+  anything about the objects. `GPA` removes exactly those differences (Gower 1975,
+  with ten Berge's optimal scaling) and reports what is left: a consensus, and a
+  residual for every object in every configuration.
+
+  ```python
+  configs = GPA.configurations_from_long(panel)   # a validated sensory panel
+  gpa = GPA().fit(configs)
+  gpa.residuals_.sum()                            # which assessor disagrees
+  gpa.scale_factors_                              # who uses a narrow range
+  gpa.consensus_test(random_state=0).p_value      # is there a consensus at all?
+  gpa.map_plot()
+  ```
+
+  The permutation test (Wakeling, Raats and MacFie 1992) matters because GPA always
+  finds a consensus: four configurations of pure noise share about half their
+  variation after alignment. On a synthetic panel with planted faults, the random
+  scorer has the largest residual, the assessor using 40% of the range the largest
+  scale factor, and a pair of swapped attribute words is absorbed as a reflection, on
+  all 20 seeds tried. With two configurations GPA's loss matches scipy's Procrustes
+  exactly, scaled and unscaled. Configurations may have different numbers of columns,
+  as free-choice profiling needs.
+
+- **A no-install browser app for designed experiments.** A static page runs the
+  process-improve wheel in the browser with [Pyodide](https://pyodide.org) (CPython on
+  WebAssembly). No Python install and no server are needed, and no data leave the
+  machine. It generates a full factorial, Plackett-Burman, definitive screening,
+  Box-Behnken, central composite or D-optimal design and downloads it as an `.xlsx`
+  workbook. Upload the filled-in workbook to get the fitted model, coefficients with 95%
+  intervals, the ANOVA table and a lack-of-fit test. A partly filled workbook is analysed
+  on its completed runs. The workbook stores its design in a hidden sheet, so it is the
+  only state. The model is chosen from a fixed list and never read from the file as a
+  formula, so an e-mailed workbook cannot run code. The docs workflow publishes the app at
+  `/app` on every merge to `main`. A Node + Pyodide CI job (`web-app`) runs the round
+  trip under real WebAssembly. Build it locally with
+  `uv run python scripts/build_web_app.py --serve`.
+
+- **`MFA`: multiple factor analysis for several groups of variables (#179).** Process
+  data arrives in blocks measured on the same samples: a spectrum, a lab panel, the
+  process conditions. Concatenated into one PCA, the widest block wins by column count
+  alone; with forty spectral columns against two lab results on unrelated drivers, PCA's
+  first axis belongs to the spectrum, with 19 times the inertia of the lab results' axis,
+  and the lab results make up 0.1% of it. `MFA`
+  weights each group by one over its own first eigenvalue, so no group's leading
+  direction can carry more than an inertia of 1, then analyses the balanced whole.
+
+  ```python
+  mfa = MFA({"spectra": wavelengths, "lab": assays}).fit(batches)
+  mfa = MFA().fit({"spectra": spectra, "lab": lab})   # or MBPCA's dict of blocks
+  mfa.eigenvalues_[0]            # between 1 and the number of groups
+  mfa.group_coordinates_         # which group each axis belongs to
+  mfa.partial_row_coordinates_   # where each group alone places each sample
+  ```
+
+  The first eigenvalue reads directly as agreement: near the number of groups when
+  every block shares the dominant direction, near 1 when only one does. Each sample's
+  position is the average of its per-group partial positions, so their spread shows
+  where the blocks disagree about it. Because the weight divides each group's own size
+  back out, even an unscaled analysis is unchanged when one group changes units.
+  `MBPCA` balances blocks differently: it gives each block the same *total* inertia,
+  where MFA gives each block's *leading direction* the same inertia. The two agree
+  exactly when every block's leading direction holds the same share of that block's
+  inertia (one-dimensional blocks, for instance), and the tests check that they do.
+  Checked against `prince` (eigenvalues, row and partial coordinates) and against
+  those identities.
+
+- **`FAMD`: factor analysis of mixed numeric and categorical data (#178).** Real
+  process records mix continuous readings with categorical context (grade, supplier,
+  line, shift). Until now a user could drop the categorical columns and lose them, or
+  one-hot encode them by hand into a PCA, where they end up over- or under-weighted
+  against the numeric ones, because PCA has no notion of balancing the two. `FAMD`
+  gives every variable an equal say: a numeric column contributes an inertia of 1 and a
+  categorical column with k levels contributes k - 1, exactly as in MCA.
+
+  ```python
+  famd = FAMD(n_components=2, categorical=["line"]).fit(batch_record)
+  famd.explained_inertia_, famd.column_coordinates_
+  famd.map_plot()
+  ```
+
+  Checked against `prince` and against the two identities the method is defined by:
+  with every column numeric it is exactly PCA of the correlation matrix, and with every
+  column categorical its eigenvalues are exactly Q times MCA's, which cross-checks it
+  against `MCA` from an independent derivation. Numeric codes for categories (a line
+  numbered 1, 2, 3) can be declared with `categorical=`, since left numeric they would
+  be scaled as a quantity.
+
+- **`MCA`: multiple correspondence analysis for categorical variables (#177).** Batch
+  records carry categorical attributes (grade, supplier, line, shift), and audits,
+  checklists and failure logs are almost entirely categorical; the multivariate module
+  had nothing for any of them. `MCA` is correspondence analysis of the one-hot indicator
+  matrix, built on `CA`, so it inherits its map, contributions and cos2.
+
+  ```python
+  mca = MCA(n_components=2, correction="greenacre").fit(batch_attributes)
+  mca.corrected_explained_inertia_
+  mca.transform_columns(outcomes)   # where do good and bad batches land?
+  ```
+
+  A supplementary categorical variable is placed without shaping the axes, which answers
+  the question the issue was written for: which combinations of attributes go with poor
+  outcomes. The raw eigenvalues of an indicator matrix understate the real association,
+  so `correction="benzecri"` or `"greenacre"` rescales them. Greenacre's adjusted total
+  is the Burt matrix's inertia, a sum over *every* axis; the `prince` library sums only
+  the axes kept, reporting 87.8% where the correct figure is 79.8% and letting the
+  answer change with `n_components`. That is avoided here, as is the NaN prince returns
+  when no eigenvalue exceeds 1/Q.
+
+- **`CA`: correspondence analysis for contingency tables (#176).** Every other method in
+  `multivariate` assumes a continuous matrix, so a table of counts (defect type against
+  line, failure mode against asset, rejection reason against supplier) had no home. A PCA
+  of such a table is wrong: it weights each cell by its size, not by how far it departs
+  from independence. `CA` uses the chi-squared distance, which divides by the expected
+  frequency, so a rare category departing strongly counts for as much as a common one
+  departing a little.
+
+  ```python
+  from process_improve.multivariate.methods import CA
+
+  ca = CA(n_components=2).fit(defects_by_line)
+  ca.explained_inertia_, ca.row_contributions_, ca.row_cos2_
+  ca.map_plot()
+  ```
+
+  Checked against Greenacre's published staff-by-smoking analysis and against the
+  `prince` library, and against the identities that define the method: total inertia is
+  chi-squared over n, and distance on the map is the chi-squared distance between
+  profiles. Supplementary rows and columns are placed by the transition formula without
+  moving the axes. An axis with no inertia is not kept, and a table showing no
+  association at all says so rather than reporting its floating-point noise as "82% on
+  axis 1".
+
+- **`PLS(missing_data_settings={"md_method": "tsr"})` and `"pmp"`: fitting to incomplete
+  data by imputation (#189).** Both raised `NotImplementedError`. They now fill the
+  missing cells by EM on a principal-component model of X and Y *together*, refitted
+  every round from the completed data, and fit PLS once to the result. The default
+  `"nipals"` path, which skips missing cells rather than estimating them, is unchanged.
+
+  ```python
+  model = PLS(n_components=3, missing_data_settings={"md_method": "tsr"}).fit(X, Y)
+  model.fitting_info_["md_rounds"], model.fitting_info_["md_converged"]
+  ```
+
+  Measured against the model the complete data would have given, `"tsr"` lands 2.0 to
+  2.9 times closer than `"nipals"` on synthetic data with clear low-rank structure
+  (5-45% of cells missing at random), and 1.1 to 1.5 times closer on the LDPE process
+  data. The gain grows with how much of the data the components capture, since a
+  missing cell can only be rebuilt from what they describe.
+
+  The first implementation rebuilt the missing cells from the PLS model itself, and
+  about one fit in seven never converged. PLS chooses its components for their
+  covariance with Y rather than to reproduce X, so alternating "fit, rebuild" is not
+  an EM and nothing makes it settle; on LDPE it was also only a coin flip against
+  `"nipals"`. Imputing from the joint model converged on every fixture where that
+  cycled, was more accurate, and runs about 7.5 times faster.
+
+  MBPLS and MBPCA, the other half of #189, already fitted incomplete data through
+  their masked-NIPALS paths; that is verified, and needed no change.
+
+- **`compare_cv_criteria`, `pseudo_validation_set` and `cv_criteria_plot`: validate a
+  PLS model's latent structure, not only its predictions (#605).** Cross-validated
+  Q2 asks whether the model predicts Y. A model used for SPE / T2 monitoring or for
+  inversion also needs components that are a reproducible property of the process,
+  and the two questions can have different answers. `compare_cv_criteria` runs one
+  K-fold loop and reports, per component, Q2 with the 1-SE rule, van der Voet and
+  CV-ANOVA beside:
+  - the held-out t-u score correlation, calibrated by permuting Y (kernel-PLS
+    refits keep this under a second on typical data);
+  - the out-of-sample slope ratio `s_a`, for which `PRESS[a-1] - PRESS[a] =
+    (2 s_a - 1) w_a` holds exactly, so Q2 rises only when `s_a > 1/2`;
+  - a sequential covariance permutation test on the deflated `X_a'Y_a`;
+  - jackknife-scaled per-component and subspace angles of the weights, which,
+    unlike raw fold angles, do not shrink as the number of folds grows;
+  - Procrustes cross-validation (Kucheryavskiy et al., 2023) D ratios,
+    out-of-sample SPE / T2 alarm rates against the full-data model's limits, and
+    `spe_limits`: the SPE limit refitted to the held-out (pseudo-validation) SPE.
+    The full-data limit is fitted to training residuals and is too tight for new
+    rows; on simulated data with 16 variables it flagged 17% of fresh rows at a
+    nominal 5% with 30 training rows, where the refitted limit flagged 4%. The
+    refitted limit is for complete rows: a held-out row with gaps has its squared
+    SPE scaled by `K / n_observed`.
+
+  Each selection rule reports its own recommended number of components; a pair of
+  components that swap inside a stable span counts as two for
+  `subspace_stability`. Missing values (NaN) in X and Y are handled as the NIPALS
+  fit handles them: held-out rows are scored from their observed cells, and missing
+  Y cells are left out of every sum, with the PRESS identity still exact.
+  `pseudo_validation_set` builds the Procrustes pseudo-validation set for any
+  component count, with the missing cells of X; `PLS.compare_cv_criteria` and
+  `PLS.pseudo_validation_set` are the classmethod forms.
+  `_vandervoet_randomization` now also accepts a numpy Generator.
+
+- **`simulation.LatentStructure`: data with a known latent structure (#605).** A linear
+  process `X = T P' + E`, `Y = T B + F` whose number of latent variables, their
+  strengths, and which of them drive Y are set by the caller; `sample` draws rows,
+  optionally with cells missing at random, and fresh draws give the ground truth.
+  The best linear predictor on new rows is returned in closed form
+  (`population_coefficients`, `population_r2`). The loadings are Hadamard columns,
+  so every X column has the same variance and autoscaling leaves the structure
+  intact. `scripts/cv_criteria_recovery.py` uses it to check every
+  `compare_cv_criteria` rule against the simulated truth.
 
 - **`PCA(tol=..., max_iter=...)` and `TPLS(tol=...)`: the loop settings are now
   constructor parameters (#588).** Six iterative estimators spelled their
@@ -472,6 +702,26 @@ The third item of #374, double cross-validation for PLS, is already provided by
   path of `generate_omars`, uses all three, so a fresh install on Python 3.12 or
   3.13 resolved pulp 4 and the solver raised `TypeError` on its first variable.
   The extras now require `pulp>=2.8,<4` until the solver is ported.
+
+- **Aliased terms no longer lose their aliases in the summary, or split their effect
+  on the Pareto chart (#16).** In a half fraction with D = ABC, the A:B column *is*
+  the C:D column. Two things went wrong with that.
+  - `lm()`'s aliasing pattern listed `A + B:C:D` for the main effects but a bare `A:B`
+    for every interaction. The aliases were stored under the term's factors
+    (`("A", "B")`) and looked up under its name (`("A:B",)`). Each such lookup on the
+    `defaultdict` also added an empty entry to `model.aliasing`.
+  - `analyze_experiment`'s effects, which feed the Pareto chart and Lenth's method,
+    came from the rank-deficient pseudo-inverse fit. That fit shares a chain's effect
+    evenly between its terms, so the chart drew two half-size bars, A:B and C:D, where
+    the design measured one effect, and Lenth's method counted it twice.
+
+  Exactly aliased terms are now reported as one effect per alias chain, named for what
+  it contains (`"A:B + C:D"`, or `"A:B - C:D"` for an anti-alias). Its size and standard
+  error are those of the chain's estimable sum. The chains are listed under
+  `alias_chains`, and terms aliased with the intercept under `confounded_with_mean`. On
+  a half fraction with a true A:B effect of 6, the Pareto bar now reads 5.96 where it
+  read 2.98 twice. Designs without exact aliasing give exactly the output they did
+  before, with no new keys.
 
 - **`PLS(tol=...)` is no longer dropped when the data has missing cells (#588).**
   The missing-data branch of the settings resolution hard-coded the NIPALS
@@ -5827,7 +6077,8 @@ this entry records them together.
 - Reworked the README with a sharper value proposition and a
   "Why not scikit-learn?" comparison table.
 
-[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.95.1...HEAD
+[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.96.0...HEAD
+[1.96.0]: https://github.com/kgdunn/process-improve/compare/v1.94.0...v1.96.0
 [1.95.1]: https://github.com/kgdunn/process-improve/compare/v1.95.0...v1.95.1
 [1.95.0]: https://github.com/kgdunn/process-improve/compare/v1.94.0...v1.95.0
 [1.94.0]: https://github.com/kgdunn/process-improve/compare/v1.93.1...v1.94.0
