@@ -318,9 +318,11 @@ class Criterion:
     ``"i_optimal"`` minimise ``trace(M^-1 W)``: with ``W = I`` that is the summed
     variance of the coefficients (A), and with ``W`` the average of ``f(x) f(x)'``
     over the region it is the average prediction variance over the region (I), which
-    is what ``evaluate_design`` reports as I-efficiency.
+    is what ``evaluate_design`` reports as I-efficiency. ``"e_optimal"`` maximises the
+    smallest eigenvalue of ``M``, which bounds the variance of the worst-estimated
+    linear combination of the coefficients.
 
-    Use :meth:`d`, :meth:`a` or :meth:`i` to build one.
+    Use :meth:`d`, :meth:`a`, :meth:`i` or :meth:`e` to build one.
     """
 
     name: str
@@ -341,14 +343,29 @@ class Criterion:
         """I-optimality, with the moment matrix estimated from model rows sampled uniformly in the region."""
         return cls("i_optimal", region_rows.T @ region_rows / len(region_rows))
 
+    @classmethod
+    def e(cls) -> Criterion:
+        """E-optimality."""
+        return cls("e_optimal")
+
     def value(self, info: np.ndarray) -> float:
-        """Score an information matrix; higher is better (``log det``, or ``-trace(M^-1 W)``)."""
+        """Score an information matrix; higher is better (``log det``, ``-trace(M^-1 W)``, or ``lambda_min``)."""
+        if self.name == "e_optimal":
+            return float(np.linalg.eigvalsh(info)[0])
         if self.weights is None:
             sign, logdet = np.linalg.slogdet(info)
             return float(logdet) if sign > 0 else -np.inf
         if np.linalg.matrix_rank(info) < info.shape[0]:
             return -np.inf
         return -float(np.trace(np.linalg.solve(info, self.weights)))
+
+    def best_swap(self, info: np.ndarray, f_design: np.ndarray, f_cand: np.ndarray) -> tuple[int, int, float]:
+        """Return ``(i, j, gain)`` for the best single swap: design row ``i`` out, candidate ``j`` in."""
+        if self.name == "e_optimal":
+            return _best_e_swap(info, f_design, f_cand)
+        gains = self.swap_gains(np.linalg.pinv(info), f_design, f_cand)
+        i, j = np.unravel_index(np.argmax(gains), gains.shape)
+        return int(i), int(j), float(gains[i, j])
 
     def swap_gains(self, m_inv: np.ndarray, f_design: np.ndarray, f_cand: np.ndarray) -> np.ndarray:
         """Return the gain of every swap (design run ``i`` out, candidate ``j`` in), shape ``(n_design, n_cand)``.
@@ -381,6 +398,44 @@ class Criterion:
         return np.where(denominator > 1e-10, gain, -np.inf)
 
 
+#: Swaps whose E-criterion gain is computed exactly, after screening by the first-order estimate.
+_E_SWAPS_CHECKED = 25
+
+
+def _best_e_swap(info: np.ndarray, f_design: np.ndarray, f_cand: np.ndarray) -> tuple[int, int, float]:
+    """Best swap for E-optimality: screen every pair to first order, then score the most promising exactly.
+
+    The smallest eigenvalue has no rank-two update as cheap as the determinant's, but
+    its derivative is: for the unit eigenvector ``v`` of ``lambda_min``, adding ``f``
+    raises it by about ``(v'f)**2`` and removing ``f`` lowers it by about the same. That
+    ranks all swaps in one product. The top ``_E_SWAPS_CHECKED`` are then scored by an
+    exact eigenvalue computation, so a swap is only taken when it truly helps, which
+    keeps the exchange monotone even where ``lambda_min`` is repeated.
+    """
+    eigenvalues, eigenvectors = np.linalg.eigh(info)
+    v, current = eigenvectors[:, 0], eigenvalues[0]
+    estimate = (f_cand @ v)[None, :] ** 2 - (f_design @ v)[:, None] ** 2
+    best = (0, 0, 0.0)
+    for flat in np.argsort(estimate, axis=None)[::-1][:_E_SWAPS_CHECKED]:
+        i, j = np.unravel_index(flat, estimate.shape)
+        swapped = info - np.outer(f_design[i], f_design[i]) + np.outer(f_cand[j], f_cand[j])
+        gain = float(np.linalg.eigvalsh(swapped)[0] - current)
+        if gain > best[2]:
+            best = (int(i), int(j), gain)
+    return best
+
+
+def criterion_metadata(criterion: Criterion, value: float) -> dict[str, float]:
+    """Report the criterion value under a name that says what it is."""
+    if criterion.name == "d_optimal":
+        return {"log_det_information": value}
+    if criterion.name == "e_optimal":
+        return {"min_eigenvalue": value}
+    # trace((X'X)^-1 W): the summed coefficient variance (A), or the average
+    # prediction variance over the region in units of sigma^2 (I).
+    return {"trace_criterion": -value}
+
+
 def fedorov_exchange(
     f_cand: np.ndarray,
     n_free: int,
@@ -409,9 +464,8 @@ def fedorov_exchange(
         rows = _greedy_start(f_cand, f_fixed, n_free, rng)
         for _ in range(_MAX_EXCHANGES):
             x = np.vstack([f_fixed, f_cand[rows]])
-            gains = criterion.swap_gains(np.linalg.pinv(x.T @ x), f_cand[rows], f_cand)
-            i, j = np.unravel_index(np.argmax(gains), gains.shape)
-            if not gains[i, j] > 1e-9:  # also stops on NaN
+            i, j, gain = criterion.best_swap(x.T @ x, f_cand[rows], f_cand)
+            if not gain > 1e-9:  # also stops on NaN
                 break
             rows[i] = j
         x = np.vstack([f_fixed, f_cand[rows]])
@@ -436,7 +490,7 @@ class ConstrainedOptions:
         ``"main_effects"``, ``"interactions"`` or ``"quadratic"`` (a mixture design maps
         these to Scheffé models).
     criterion : str
-        ``"d_optimal"`` (default), ``"i_optimal"`` or ``"a_optimal"``.
+        ``"d_optimal"`` (default), ``"i_optimal"``, ``"a_optimal"`` or ``"e_optimal"``.
     fixed_runs : pandas.DataFrame or None
         Runs kept in the design (continuous in coded units, categorical as labels),
         already validated by the caller. They count towards the budget.
@@ -562,7 +616,9 @@ def make_criterion(name: str, n_parameters: int, region_rows: Callable[[], np.nd
         return Criterion.a(n_parameters)
     if name == "i_optimal":
         return Criterion.i(region_rows())
-    raise ValueError(f"Unknown criterion {name!r}; choose 'd_optimal', 'i_optimal' or 'a_optimal'.")
+    if name == "e_optimal":
+        return Criterion.e()
+    raise ValueError(f"Unknown criterion {name!r}; choose 'd_optimal', 'i_optimal', 'a_optimal' or 'e_optimal'.")
 
 
 def constrained_optimal_design(
@@ -649,12 +705,7 @@ def constrained_optimal_design(
     if constraints:
         meta["constraints"] = [c.expression for c in constraints]
         meta["constraints_enforced"] = True
-    if criterion.weights is None:
-        meta["log_det_information"] = value
-    else:
-        # trace((X'X)^-1 W): the summed coefficient variance (A), or the average
-        # prediction variance over the region in units of sigma^2 (I).
-        meta["trace_criterion"] = -value
+    meta.update(criterion_metadata(criterion, value))
     if n_fixed:
         meta["n_fixed_runs"] = n_fixed
     if labels is not None:
