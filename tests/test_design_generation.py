@@ -480,7 +480,9 @@ class TestCCD:
         )
         # 2^(6-1)=32-run cube + 12 axial + 6 centre.
         assert result.n_runs == 32 + 12 + 6
-        assert result.resolution == 5
+        # The minimum-aberration 32-run cube, F = ABCDE, is resolution VI: more than asked.
+        assert result.generators == ["F=ABCDE"]
+        assert result.resolution == 6
 
     def test_invalid_cube_value(self) -> None:
         """An unknown cube value is rejected."""

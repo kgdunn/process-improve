@@ -336,6 +336,10 @@ def generate_design(  # noqa: PLR0913
         Number of blocks.
     resolution : int or None
         Desired minimum resolution for fractional factorials (III=3, IV=4, V=5).
+        The design is the minimum-aberration fraction with the fewest runs that
+        reaches it. Without *resolution* or *generators*, a fractional factorial
+        is the half fraction 2^(k-1), of resolution k. The result reports the
+        resolution the design achieves.
     generators : list[str] or None
         Explicit generators for fractional factorials,
         e.g. ``["D=ABC", "E=AC"]``.
@@ -480,7 +484,8 @@ def generate_design(  # noqa: PLR0913
 
     # Extract resolution/generators/defining_relation from metadata
     result_generators = generators or meta.get("generators_used")
-    result_resolution = resolution or meta.get("resolution")
+    # The design's own resolution, which can exceed the minimum asked for.
+    result_resolution = meta.get("resolution") or resolution
     result_alpha = meta.pop("alpha_value", None)
 
     return build_design_result(
