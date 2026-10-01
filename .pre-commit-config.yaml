@@ -1,3 +1,19 @@
+# pre-commit.ci (https://pre-commit.ci) runs these hooks on every pull request and
+# pushes the fixes it can make (#39). It works once its GitHub App is installed on the
+# repository; this section only tunes it.
+ci:
+    autofix_prs: true
+    autofix_commit_msg: "style: apply pre-commit fixes"
+    # Quarterly: a bump of ruff-pre-commit or mirrors-mypy must move the matching pin in
+    # pyproject.toml too (tests/test_tooling_versions.py fails the PR until it does), so
+    # each autoupdate PR needs a person to finish it.
+    autoupdate_schedule: quarterly
+    autoupdate_commit_msg: "chore(deps): update pre-commit hooks"
+    # CI's typecheck job runs mypy over src/process_improve with every dependency
+    # installed. This hook's isolated environment has none of them, so on pre-commit.ci
+    # it would only repeat a weaker version of that check.
+    skip: [mypy]
+
 repos:
     - repo: https://github.com/pre-commit/pre-commit-hooks
       rev: v6.0.0

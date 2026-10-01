@@ -40,16 +40,18 @@ def _continuous(n: int) -> list[Factor]:
 class TestFractionalFactorialDispatch:
     """Lower-level fractional factorial dispatch."""
 
-    def test_default_resolution_when_unspecified(self) -> None:
-        """No resolution and no generators picks the default min(k, 5) resolution."""
+    def test_default_is_the_half_fraction(self) -> None:
+        """No resolution and no generators gives the half fraction 2^(k-1), of resolution k."""
         coded, meta = dispatch_fractional_factorial(_continuous(6))
-        assert coded.shape[1] == 6
-        assert meta["resolution"] == 5
+        assert coded.shape == (32, 6)
+        assert meta["resolution"] == 6
+        assert meta["generators_used"] == ["X6=X1X2X3X4X5"]
 
-    def test_default_resolution_capped_at_five(self) -> None:
+    def test_default_reports_the_resolution_reached(self) -> None:
+        """Seven factors used to give 32 runs labelled resolution V, which were resolution IV."""
         coded, meta = dispatch_fractional_factorial(_continuous(7))
-        assert coded.shape[1] == 7
-        assert meta["resolution"] == 5
+        assert coded.shape == (64, 7)
+        assert meta["resolution"] == 7
 
     def test_explicit_resolution(self) -> None:
         coded, meta = dispatch_fractional_factorial(_continuous(5), resolution=3)

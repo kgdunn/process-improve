@@ -20,7 +20,7 @@ Current implementation status across every agent-facing DoE tool.
 | Design | Implementation | Tests |
 |---|---|---|
 | Full factorial 2^k | `designs_factorial.py` via `pyDOE3.ff2n`. | `tests/test_design_generation.py::TestFullFactorial`, `tests/test_design_properties.py::TestFullFactorialProperties`. |
-| Fractional factorial (resolution III/IV/V, explicit generators) | `designs_screening.py::dispatch_fractional_factorial` via `pyDOE3.fracfact` / `fracfact_by_res`. | `TestFractionalFactorial`, `TestFractionalFactorialProperties`. |
+| Fractional factorial (resolution III and up, explicit generators) | `designs_screening.py::dispatch_fractional_factorial`: a table of minimum-aberration generators up to 11 factors, built with `pyDOE3.fracfact`; `pyDOE3.fracfact_by_res` beyond that, with its resolution checked. | `TestFractionalFactorial`, `TestFractionalFactorialProperties`, `tests/test_experiments_fractional_factorial.py`. |
 | Plackett-Burman (N ∈ {8, 12, 16, 20, 24, …}) | `designs_screening.py::dispatch_plackett_burman` via `pyDOE3.pbdesign`. | `TestPlackettBurman`, `TestPlackettBurmanProperties`. |
 | Box-Behnken | `designs_response_surface.py::dispatch_box_behnken` via `pyDOE3.bbdesign`. | `TestBoxBehnken`, `TestBoxBehnkenProperties`. |
 | Central Composite Design (face-centered, rotatable, inscribed, orthogonal) | `designs_response_surface.py::dispatch_ccd` via `pyDOE3.ccdesign`. | `TestCCD`, `TestCCDProperties`. |
