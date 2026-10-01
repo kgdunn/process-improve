@@ -177,27 +177,57 @@ def _unique_rows(points: np.ndarray) -> np.ndarray:
     return points[np.sort(first)]
 
 
-def mixture_candidates(a_mat: np.ndarray, b_vec: np.ndarray) -> dict[str, np.ndarray]:
-    """Return candidate blends by kind: vertices, edge midpoints, face centroids, centroid, axial blends.
+def _face_rank(a_mat: np.ndarray, shared: np.ndarray) -> int:
+    """Rank of the constraints in ``shared`` together with ``sum(x) = 1``: ``q`` minus the face's dimension."""
+    return int(np.linalg.matrix_rank(np.vstack([a_mat[shared], np.ones(a_mat.shape[1])])))
 
-    Two vertices share an edge when the constraints active at both, together with
-    ``sum(x) = 1``, have rank ``q - 1``: the set of points satisfying them is a line.
+
+def _plane_centroids(vertices: np.ndarray, active: np.ndarray, a_mat: np.ndarray, adjacent: np.ndarray) -> list:
+    """Centroids of the region's 2-dimensional faces: the constrained analogue of ternary blends.
+
+    A vertex and two of its neighbours span a 2-face when the constraints active at
+    all three leave a plane (rank ``q - 2``). Its centroid averages every vertex on
+    which those constraints are active, so each face is found once whichever corner
+    it is reached from.
+    """
+    q, seen, centroids = a_mat.shape[1], set(), []
+    for i in range(len(vertices)):
+        for j, k in itertools.combinations(np.flatnonzero(adjacent[i]), 2):
+            shared = active[i] & active[j] & active[k]
+            if _face_rank(a_mat, shared) != q - 2:
+                continue
+            members = tuple(np.flatnonzero(active[:, shared].all(axis=1)))
+            if members not in seen:
+                seen.add(members)
+                centroids.append(vertices[list(members)].mean(axis=0))
+    return centroids
+
+
+def mixture_candidates(a_mat: np.ndarray, b_vec: np.ndarray) -> dict[str, np.ndarray]:
+    """Return candidate blends by kind.
+
+    The kinds are vertices, edge midpoints, centroids of the 2-dimensional faces
+    (``plane_centroid``, the points the ``x_i x_j x_k`` terms of a special cubic model
+    need), centroids of the facets (``face_centroid``), the overall centroid, and
+    axial blends halfway from each vertex to it. Two vertices share an edge when the
+    constraints active at both, together with ``sum(x) = 1``, have rank ``q - 1``: the
+    set of points satisfying them is a line.
     """
     vertices = extreme_vertices(a_mat, b_vec)
     if len(vertices) == 0:
         raise ValueError("No mixture satisfies all the constraints; check them for conflicts.")
     q = a_mat.shape[1]
     active = np.abs(vertices @ a_mat.T - b_vec) <= 1e-9
-    edges = [
-        (vertices[i] + vertices[j]) / 2
-        for i, j in itertools.combinations(range(len(vertices)), 2)
-        if np.linalg.matrix_rank(np.vstack([a_mat[active[i] & active[j]], np.ones(q)])) == q - 1
-    ]
+    adjacent = np.zeros((len(vertices), len(vertices)), dtype=bool)
+    for i, j in itertools.combinations(range(len(vertices)), 2):
+        adjacent[i, j] = adjacent[j, i] = _face_rank(a_mat, active[i] & active[j]) == q - 1
+    edges = [(vertices[i] + vertices[j]) / 2 for i, j in zip(*np.nonzero(np.triu(adjacent)), strict=True)]
     faces = [vertices[active[:, r]].mean(axis=0) for r in range(a_mat.shape[0]) if active[:, r].sum() > 2]
     centroid = vertices.mean(axis=0, keepdims=True)
     return {
         "vertex": vertices,
         "edge_midpoint": _unique_rows(np.array(edges).reshape(-1, q)),
+        "plane_centroid": _unique_rows(np.array(_plane_centroids(vertices, active, a_mat, adjacent)).reshape(-1, q)),
         "face_centroid": _unique_rows(np.array(faces).reshape(-1, q)),
         "centroid": centroid,
         "axial_blend": (vertices + centroid) / 2,
@@ -232,7 +262,7 @@ def _user_blends(
 _EV_DESIGN = {
     "scheffe_linear": ("vertex", "centroid"),
     "scheffe_quadratic": ("vertex", "edge_midpoint", "centroid"),
-    "scheffe_special_cubic": ("vertex", "edge_midpoint", "face_centroid", "centroid"),
+    "scheffe_special_cubic": ("vertex", "edge_midpoint", "plane_centroid", "centroid"),
 }
 
 
@@ -252,7 +282,7 @@ def constrained_mixture_design(
     budget : int or None
         Number of runs. ``None`` returns the classical extreme-vertices design for the
         model: vertices and centroid, plus edge midpoints for a quadratic model, plus
-        face centroids for a special cubic one. With a budget, a D-optimal subset of
+        the centroids of the 2-dimensional faces for a special cubic one. With a budget, a D-optimal subset of
         all candidate blends is chosen; blends may be replicated.
     constraints : list[Constraint] or None
         Linear inequalities in the proportions, e.g. ``"x1 + x2 <= 0.7"``.

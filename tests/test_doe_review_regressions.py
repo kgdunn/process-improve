@@ -280,3 +280,33 @@ class TestManyFactorsOnTheBuiltInEngine:
         result = generate_design(_continuous(11), design_type=design_type, model_type="main_effects", budget=16)
         assert result.n_runs == 16
         assert result.metadata["n_levels"] == 2
+
+
+class TestSpecialCubicForFiveOrMoreComponents:
+    """The x_i x_j x_k terms need 2-face centroids; facet centroids alone left q >= 5 rank-deficient."""
+
+    @staticmethod
+    def _mixture(q: int, low: float = 0.0) -> list[Factor]:
+        return [Factor(name=f"x{i + 1}", type="mixture", low=low, high=1) for i in range(q)]
+
+    def test_plane_centroids_of_the_simplex_are_the_ternary_blends(self) -> None:
+        from process_improve.experiments.designs_mixture_constrained import (
+            mixture_candidates,
+            mixture_inequalities,
+        )
+
+        planes = mixture_candidates(*mixture_inequalities(self._mixture(5), []))["plane_centroid"]
+        assert len(planes) == 10  # C(5, 3)
+        np.testing.assert_allclose(np.sort(planes, axis=1)[:, -3:], 1 / 3)
+
+    @pytest.mark.parametrize(("q", "n_runs"), [(5, 26), (6, 42)])
+    def test_extreme_vertices_design(self, q: int, n_runs: int) -> None:
+        """Vertices, binary and ternary blends and the centroid: the simplex-centroid points up to order 3."""
+        result = generate_design(self._mixture(q, 0.01), design_type="mixture", model_type="special_cubic")
+        assert result.n_runs == n_runs
+
+    @pytest.mark.usefixtures("no_pyoptex")
+    @pytest.mark.parametrize("design_type", ["d_optimal", "i_optimal"])
+    def test_optimal_designs(self, design_type: str) -> None:
+        result = generate_design(self._mixture(5), design_type=design_type, model_type="special_cubic", budget=27)
+        assert result.n_runs == 27
