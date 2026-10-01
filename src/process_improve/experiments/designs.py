@@ -159,6 +159,15 @@ def _dispatch_optimal_family(
     return _dispatch_optimal(criterion, request)
 
 
+def _dispatch_supersaturated(
+    factors: list[Factor],
+    **kwargs: Any,  # noqa: ANN401
+) -> tuple[np.ndarray, dict]:
+    from process_improve.experiments.designs_supersaturated import dispatch_supersaturated  # noqa: PLC0415
+
+    return dispatch_supersaturated(factors, budget=kwargs.get("budget"))
+
+
 def _dispatch_mixture(
     factors: list[Factor],
     **kwargs: Any,  # noqa: ANN401
@@ -205,6 +214,7 @@ _DESIGN_REGISTRY: dict[str, Callable[..., tuple[np.ndarray, dict]]] = {
     "e_optimal": functools.partial(_dispatch_optimal_family, "e_optimal"),
     "mixture": _dispatch_mixture,
     "taguchi": _dispatch_taguchi,
+    "supersaturated": _dispatch_supersaturated,
 }
 
 
@@ -248,17 +258,20 @@ def _auto_select(
     if constraints or hard_to_change:
         return "d_optimal"
 
-    effective_budget = budget if budget is not None else float("inf")
+    return _auto_select_by_budget(factors, k, budget if budget is not None else float("inf"))
 
-    if k <= 5 and effective_budget >= 2**k:
+
+def _auto_select_by_budget(factors: list[Factor], k: int, budget: float) -> str:
+    """Pick the unconstrained design family that fits ``budget`` runs for ``k`` process factors."""
+    if k <= 5 and budget >= 2**k:
         return "full_factorial"
-
-    if k >= 6 and effective_budget <= 2 * k + 1:
+    # Fewer runs than main effects: only a supersaturated design screens them all.
+    if k >= 3 and budget < k + 1 and all(f.type == FactorType.continuous for f in factors):
+        return "supersaturated"
+    if k >= 6 and budget <= 2 * k + 1:
         return "plackett_burman"
-
-    if effective_budget >= 2 ** (k - 1):
+    if budget >= 2 ** (k - 1):
         return "fractional_factorial"
-
     return "d_optimal"
 
 
@@ -298,7 +311,7 @@ def generate_design(  # noqa: PLR0913
         One of ``"full_factorial"``, ``"fractional_factorial"``,
         ``"plackett_burman"``, ``"box_behnken"``, ``"ccd"``, ``"dsd"``,
         ``"omars"``, ``"omars_ilp"``, ``"d_optimal"``, ``"i_optimal"``,
-        ``"a_optimal"``, ``"e_optimal"``, ``"mixture"``, ``"taguchi"``.
+        ``"a_optimal"``, ``"e_optimal"``, ``"mixture"``, ``"taguchi"``, ``"supersaturated"``.
         If ``None``, the design type is chosen automatically based on the
         factor count, budget, and constraints.
     budget : int or None
@@ -457,6 +470,7 @@ def generate_design(  # noqa: PLR0913
         "omars",
         "omars_ilp",
         "mixture",
+        "supersaturated",  # the point is the fewest runs; centre points would spend them on nothing
         *_OPTIMAL_FAMILIES,
     }
 
