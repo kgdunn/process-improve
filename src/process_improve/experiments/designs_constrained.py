@@ -360,10 +360,17 @@ class Criterion:
             return -np.inf
         return -float(np.trace(np.linalg.solve(info, self.weights)))
 
-    def best_swap(self, info: np.ndarray, f_design: np.ndarray, f_cand: np.ndarray) -> tuple[int, int, float]:
+    @property
+    def n_phases(self) -> int:
+        """Exchange phases: E-optimality climbs ``phi_p`` first, then polishes ``lambda_min``."""
+        return 2 if self.name == "e_optimal" else 1
+
+    def best_swap(
+        self, info: np.ndarray, f_design: np.ndarray, f_cand: np.ndarray, phase: int = 0
+    ) -> tuple[int, int, float]:
         """Return ``(i, j, gain)`` for the best single swap: design row ``i`` out, candidate ``j`` in."""
         if self.name == "e_optimal":
-            return _best_e_swap(info, f_design, f_cand)
+            return _best_e_swap(info, f_design, f_cand, polish=phase > 0)
         gains = self.swap_gains(np.linalg.pinv(info), f_design, f_cand)
         i, j = np.unravel_index(np.argmax(gains), gains.shape)
         return int(i), int(j), float(gains[i, j])
@@ -399,31 +406,104 @@ class Criterion:
         return np.where(denominator > 1e-10, gain, -np.inf)
 
 
-#: Swaps whose E-criterion gain is computed exactly, after screening by the first-order estimate.
-_E_SWAPS_CHECKED = 25
+#: Exponent of Kiefer's ``phi_p``, the smooth stand-in for ``lambda_min`` that ranks E-optimal swaps.
+_E_P = 8
+#: Work allowed per E-optimal iteration for exact scoring, in (swaps x coefficients^2): all swaps when they fit.
+_E_EXACT_WORK = 4_000_000
 
 
-def _best_e_swap(info: np.ndarray, f_design: np.ndarray, f_cand: np.ndarray) -> tuple[int, int, float]:
-    """Best swap for E-optimality: screen every pair to first order, then score the most promising exactly.
+def _phi_p(eigenvalues: np.ndarray) -> np.ndarray:
+    """Kiefer's ``phi_p = (sum lambda_k^-p)^(-1/p)`` along the last axis of ascending eigenvalues.
 
-    The smallest eigenvalue has no rank-two update as cheap as the determinant's, but
-    its derivative is: for the unit eigenvector ``v`` of ``lambda_min``, adding ``f``
-    raises it by about ``(v'f)**2`` and removing ``f`` lowers it by about the same. That
-    ranks all swaps in one product. The top ``_E_SWAPS_CHECKED`` are then scored by an
-    exact eigenvalue computation, so a swap is only taken when it truly helps, which
-    keeps the exchange monotone even where ``lambda_min`` is repeated.
+    It sits just below ``lambda_min`` and rises whenever any small eigenvalue rises,
+    so it separates designs that tie on ``lambda_min``. Written through the ratios
+    ``lambda_min / lambda_k <= 1`` so the powers cannot overflow.
+    """
+    floor = 1e-12 * max(float(np.max(eigenvalues)), 1.0)
+    lam = np.maximum(eigenvalues, floor)
+    ratio = lam[..., :1] / lam
+    return lam[..., 0] * np.sum(ratio**_E_P, axis=-1) ** (-1.0 / _E_P)
+
+
+def _exact_e_scores(
+    info: np.ndarray, f_design: np.ndarray, f_cand: np.ndarray, pairs: tuple[np.ndarray, np.ndarray]
+) -> tuple[np.ndarray, np.ndarray]:
+    """``lambda_min`` and ``phi_p`` after each swap in ``pairs`` (design rows, candidate rows), in chunks."""
+    p = info.shape[0]
+    chunk = max(1, 2_000_000 // p**2)  # about 16 MB of matrices at a time
+    lam_min, phi = [], []
+    for start in range(0, len(pairs[0]), chunk):
+        a = f_design[pairs[0][start : start + chunk]]
+        b = f_cand[pairs[1][start : start + chunk]]
+        swapped = info[None] - a[:, :, None] * a[:, None, :] + b[:, :, None] * b[:, None, :]
+        eigenvalues = np.linalg.eigvalsh(swapped)
+        lam_min.append(eigenvalues[:, 0])
+        phi.append(_phi_p(eigenvalues))
+    return np.concatenate(lam_min), np.concatenate(phi)
+
+
+def _best_e_swap(
+    info: np.ndarray, f_design: np.ndarray, f_cand: np.ndarray, *, polish: bool = False
+) -> tuple[int, int, float]:
+    """Best swap for E-optimality: rank every swap by the gradient of ``phi_p``, then score the best exactly.
+
+    The exchange runs in two phases. The first climbs ``phi_p`` itself, a smooth
+    stand-in for ``lambda_min`` that can trade a little of the smallest eigenvalue for
+    a lot of the next ones, and so escapes designs where no swap raises
+    ``lambda_min`` alone. The second (``polish=True``) then takes only swaps that
+    raise ``lambda_min``, or hold it and raise ``phi_p``. Each phase climbs one
+    objective, so neither can cycle. Two things make ``lambda_min`` hard to climb one
+    swap at a time:
+
+    - **Ties.** On a +/-1 grid thousands of swaps share a first-order estimate, so a
+      short list of "most promising" swaps can miss the one that helps. The list
+      scored exactly is therefore large (every swap when ``_E_EXACT_WORK`` allows),
+      and batched eigenvalue solves keep that cheap.
+    - **Repeated eigenvalues.** If ``lambda_min`` has multiplicity 2 or more, no single
+      swap can raise it: adding ``b b'`` gives ``lambda_1(M + b b') <= lambda_2(M)``
+      (Weyl interlacing). A swap that keeps ``lambda_min`` and raises ``phi_p``
+      splits the repeated eigenvalue, so a later swap can lift it.
+
+    Swaps are ranked by the first-order change in ``phi_p``, which weights each
+    eigen-direction by ``(lambda_min / lambda_k)^(p+1)``: the directions at or near the
+    minimum count fully, the rest hardly at all.
+
+    Returns
+    -------
+    tuple[int, int, float]
+        Design row out, candidate row in, and the gain: in ``phi_p`` in the first phase;
+        when polishing, in ``lambda_min`` when it rises, otherwise in ``phi_p`` with
+        ``lambda_min`` held. A gain of 0 means no swap helps.
     """
     eigenvalues, eigenvectors = np.linalg.eigh(info)
-    v, current = eigenvectors[:, 0], eigenvalues[0]
-    estimate = (f_cand @ v)[None, :] ** 2 - (f_design @ v)[:, None] ** 2
-    best = (0, 0, 0.0)
-    for flat in np.argsort(estimate, axis=None)[::-1][:_E_SWAPS_CHECKED]:
-        i, j = np.unravel_index(flat, estimate.shape)
-        swapped = info - np.outer(f_design[i], f_design[i]) + np.outer(f_cand[j], f_cand[j])
-        gain = float(np.linalg.eigvalsh(swapped)[0] - current)
-        if gain > best[2]:
-            best = (int(i), int(j), gain)
-    return best
+    current, current_phi = float(eigenvalues[0]), float(_phi_p(eigenvalues))
+    weights = (max(current, 1e-12) / np.maximum(eigenvalues, 1e-12)) ** (_E_P + 1)
+    added = (f_cand @ eigenvectors) ** 2 @ weights
+    removed = (f_design @ eigenvectors) ** 2 @ weights
+    estimate = added[None, :] - removed[:, None]
+
+    n_exact = max(2000, _E_EXACT_WORK // info.shape[0] ** 2)
+    order = np.argsort(estimate, axis=None)[::-1][:n_exact]
+    rows_out, rows_in = np.unravel_index(order, estimate.shape)
+    pairs = (rows_out, rows_in)
+    lam_min, phi = _exact_e_scores(info, f_design, f_cand, pairs)
+
+    phi_tol = 1e-9 * max(1.0, abs(current_phi))
+    if not polish:
+        best = int(np.argmax(phi))
+        gain = float(phi[best] - current_phi)
+        return (int(pairs[0][best]), int(pairs[1][best]), gain) if gain > phi_tol else (0, 0, 0.0)
+    tol = 1e-9 * max(1.0, abs(current))
+    if (lam_min > current + tol).any():
+        best = int(np.argmax(np.where(lam_min > current + tol, lam_min + 1e-12 * phi, -np.inf)))
+        return int(pairs[0][best]), int(pairs[1][best]), float(lam_min[best] - current)
+    holds = lam_min >= current - tol
+    if holds.any():
+        best = int(np.argmax(np.where(holds, phi, -np.inf)))
+        gain = float(phi[best] - current_phi)
+        if gain > phi_tol:
+            return int(pairs[0][best]), int(pairs[1][best]), gain
+    return 0, 0, 0.0
 
 
 def criterion_metadata(criterion: Criterion, value: float) -> dict[str, float]:
@@ -463,12 +543,13 @@ def fedorov_exchange(
     best_rows, best_value = np.empty(0, dtype=int), -np.inf
     for _ in range(_N_STARTS):
         rows = _greedy_start(f_cand, f_fixed, n_free, rng)
-        for _ in range(_MAX_EXCHANGES):
-            x = np.vstack([f_fixed, f_cand[rows]])
-            i, j, gain = criterion.best_swap(x.T @ x, f_cand[rows], f_cand)
-            if not gain > 1e-9:  # also stops on NaN
-                break
-            rows[i] = j
+        for phase in range(criterion.n_phases):
+            for _ in range(_MAX_EXCHANGES):
+                x = np.vstack([f_fixed, f_cand[rows]])
+                i, j, gain = criterion.best_swap(x.T @ x, f_cand[rows], f_cand, phase)
+                if not gain > 1e-9:  # also stops on NaN
+                    break
+                rows[i] = j
         x = np.vstack([f_fixed, f_cand[rows]])
         value = criterion.value(x.T @ x)
         if value > best_value or len(best_rows) == 0:  # keep a design even if every start is singular

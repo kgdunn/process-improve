@@ -216,3 +216,27 @@ class TestBoxRegionHonoursWiderSearchBounds:
         t_values = [point["coded"]["T"] for point in out["pareto_front"]["front"]]
         assert min(t_values) < -1.5
         assert max(t_values) > 1.5
+
+
+@pytest.mark.usefixtures("no_pyoptex")
+class TestEOptimalExchangeDoesNotStopEarly:
+    @pytest.mark.slow
+    @pytest.mark.parametrize("seed", [42, 2, 3])
+    def test_five_factors_in_eight_runs_reach_the_regular_fraction(self, seed: int) -> None:
+        """The 2^(5-2) fraction has lambda_min = 8; seeds used to stop at 4.67, 4.0 and 5.65."""
+        result = generate_design(
+            _continuous(5, -1, 1), design_type="e_optimal", budget=8, model_type="main_effects", random_seed=seed
+        )
+        assert result.metadata["min_eigenvalue"] == pytest.approx(8.0)
+
+    @pytest.mark.slow
+    def test_a_repeated_smallest_eigenvalue_is_split_and_raised(self) -> None:
+        """Four factors, interactions, 12 runs stalled at lambda_min = 4 with multiplicity 2-3."""
+        result = generate_design(_continuous(4, -1, 1), design_type="e_optimal", budget=12, model_type="interactions")
+        assert result.metadata["min_eigenvalue"] == pytest.approx(8.0)
+
+    def test_phi_p_separates_designs_that_tie_on_lambda_min(self) -> None:
+        from process_improve.experiments.designs_constrained import _phi_p
+
+        repeated, split = np.array([4.0, 4.0, 9.0]), np.array([4.0, 6.0, 7.0])
+        assert _phi_p(repeated) < _phi_p(split) < 4.0

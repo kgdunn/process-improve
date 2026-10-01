@@ -13,6 +13,7 @@ from process_improve.experiments.designs_constrained import (
     MAX_EXPRESSION_LENGTH,
     ConstrainedOptions,
     Criterion,
+    _phi_p,
     _Region,
     build_candidates,
     constrained_optimal_design,
@@ -276,15 +277,21 @@ class TestCriteria:
 
 
 class TestEOptimal:
-    def test_best_swap_gain_is_exact(self) -> None:
-        """The screened swap's reported gain is the true change in the smallest eigenvalue."""
+    @pytest.mark.parametrize(("phase", "measure"), [(0, "phi_p"), (1, "lambda_min")])
+    def test_best_swap_gain_is_exact(self, phase: int, measure: str) -> None:
+        """The swap's reported gain is the true change in phi_p (climbing) or lambda_min (polishing)."""
         rng = np.random.default_rng(3)
         f_cand, rows = rng.normal(size=(40, 6)), rng.choice(40, 12, replace=False)
         x = f_cand[rows]
-        i, j, gain = Criterion.e().best_swap(x.T @ x, x, f_cand)
+        i, j, gain = Criterion.e().best_swap(x.T @ x, x, f_cand, phase)
         swapped = x.copy()
         swapped[i] = f_cand[j]
-        assert gain == pytest.approx(np.linalg.eigvalsh(swapped.T @ swapped)[0] - np.linalg.eigvalsh(x.T @ x)[0])
+
+        def score(design: np.ndarray) -> float:
+            eigenvalues = np.linalg.eigvalsh(design.T @ design)
+            return float(_phi_p(eigenvalues)) if measure == "phi_p" else float(eigenvalues[0])
+
+        assert gain == pytest.approx(score(swapped) - score(x))
         assert gain > 0
 
     def test_each_of_d_a_e_wins_on_its_own_measure(self) -> None:
