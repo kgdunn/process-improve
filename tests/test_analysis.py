@@ -433,6 +433,36 @@ class TestModelSelection:
         assert {"X00", "X05"} <= set(ms["selected_terms"])
         assert len(ms["selected_terms"]) <= 5
 
+    @pytest.mark.parametrize("criterion", ["aic", "bic"])
+    def test_other_criteria(self, criterion: str) -> None:
+        from process_improve.experiments._analyses.model_selection import _run_model_selection
+
+        rng = np.random.default_rng(2)
+        x = pd.DataFrame(list(itertools.product([-1.0, 1.0], repeat=3)) * 3, columns=list("ABC"))
+        x["y"] = 4 + 3 * x.A - 2 * x.C + rng.normal(0, 0.3, len(x))
+        ms = _run_model_selection(x, "y", list("ABC"), "main_effects", criterion)["model_selection"]
+        assert ms["criterion"] == criterion
+        assert ms["selected_terms"] == ["A", "C"]
+
+    def test_squares_need_their_main_effect(self) -> None:
+        """A quadratic search adds I(A ** 2) only once A is in (strong heredity)."""
+        rng = np.random.default_rng(4)
+        levels = [-1.0, 0.0, 1.0]
+        x = pd.DataFrame(list(itertools.product(levels, repeat=2)) * 2, columns=list("AB"))
+        y = 10 + 2 * x.A - 3 * x.A**2 + rng.normal(0, 0.2, len(x))
+        ms = analyze_experiment(x, pd.Series(y, name="y"), model="quadratic", analysis_type="model_selection")[
+            "model_selection"
+        ]
+        assert "I(A ** 2)" in ms["selected_terms"]
+        assert "A" in ms["selected_terms"]
+
+    def test_a_formula_model_is_searched_as_interactions_with_a_note(self) -> None:
+        ms = analyze_experiment(
+            _three_factor_data(), response_column="y", model="A + B + A:B", analysis_type="model_selection"
+        )["model_selection"]
+        assert ms["candidate_model"] == "interactions"
+        assert "searched as 'interactions'" in ms["note"]
+
     def test_unknown_criterion(self) -> None:
         from process_improve.experiments._analyses.model_selection import _run_model_selection
 

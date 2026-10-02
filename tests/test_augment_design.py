@@ -459,6 +459,13 @@ class TestAddRunsOptimal:
 
         assert run(7) == run(7)
 
+    def test_a_model_the_grid_cannot_support_is_refused(self) -> None:
+        """One factor on a 5-level grid cannot estimate a quintic: A**5 is a combination of lower powers there."""
+        df = pd.DataFrame({"A": [-1.0, 1.0]})
+        quintic = "A + I(A ** 2) + I(A ** 3) + I(A ** 4) + I(A ** 5)"
+        with pytest.raises(ValueError, match="cannot support"):
+            augment_design(df, "add_runs_optimal", target_model=quintic, n_additional_runs=6)
+
     def test_custom_formula_still_works(self) -> None:
         result = augment_design(
             _full_factorial_df(2), "add_runs_optimal", target_model="A + B + A:B + I(A ** 2)", n_additional_runs=2
