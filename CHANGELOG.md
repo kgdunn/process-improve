@@ -341,6 +341,18 @@ those changes.
   `TypeError`). Columns were matched to terms by position, so a categorical factor with
   three levels raised `IndexError`; they are now matched through patsy's term slices. A
   plain `Expt` without a title no longer raises `AttributeError`.
+- **`analyze_omars` warns on a design without the OMARS structure, and checks its
+  options.** The staged protocol estimates the main effects without adjusting for the
+  second-order terms, so it is valid only when the main effects are balanced, mutually
+  orthogonal and orthogonal to the second-order block; on a three-level design with runs
+  missing it declared a null main effect active in 162 of 200 simulations, with no
+  warning. It now checks the structure, warns with a `RuntimeWarning` when it is absent,
+  and records the checks in `details["design_structure"]`; the docstring no longer
+  claims it accepts any coded design. `effects_to_drop` is checked against the design's
+  factors before the analysis (a typo was accepted when the second-order gate stayed
+  shut, and a valid label outside the heredity candidates was refused), `"B:A"` means
+  `"A:B"`, and a significance level outside (0, 1) or a negative `max_subset_terms`
+  raises `ValueError`.
 - **Model selection scores AICc as Hurvich and Tsai do, and searches Scheffe models
   without an intercept.** The penalty counted the regression coefficients but not the
   error variance, so it was too weak near saturation and changed the model chosen. A
