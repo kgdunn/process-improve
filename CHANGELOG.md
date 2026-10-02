@@ -256,6 +256,15 @@ those changes.
 
 ### Fixed
 
+- **The trade-off table no longer reports existing designs as impossible.** When the
+  minimum-aberration search would exceed its limit (12 factors in 32, 64 or 128 runs;
+  11 factors in 64 or 128 runs), the cell was blank and the `trade_off_table` tool
+  reported `exists: False`, "too many factors for the budget". Those cells now use the
+  tabulated minimum-aberration design when there is one (`2^(11-5) IV` in 64 runs,
+  `2^(11-4) V` in 128), and are otherwise marked `"?"` with `exists: None` and a reason;
+  the search limit raises the new `SearchLimitError`, a `ValueError`. Messages that read
+  "8 n_runs cannot accommodate 8 n_factors" now say runs and factors.
+
 - **The `create_factorial_design` tool follows `n_factors` and returns plain names.**
   `factor_names` with a different length from `n_factors` silently decided the design
   (two names with `n_factors=3` gave a 4-run, two-factor design still reported as three

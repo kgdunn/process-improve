@@ -659,6 +659,17 @@ class TestTradeOffTable:
         assert cell["exists"] is False
         assert "cannot accommodate" in cell["reason"]
 
+    def test_existing_design_beyond_the_search_is_not_reported_impossible(self) -> None:
+        """2^(12-7) designs exist; the cell used to read exists: False, 'too many factors for the budget'."""
+        result = execute_tool_call("trade_off_table", {"runs": [32, 64], "factors": [12]})
+        result["cells"] += execute_tool_call("trade_off_table", {"runs": [64], "factors": [11]})["cells"]
+        cells = {(c["runs"], c["factors"]): c for c in result["cells"]}
+        assert cells[32, 12]["exists"] is None
+        assert result["table"]["32"]["12"] == "?"
+        assert "The design exists" in cells[32, 12]["reason"]
+        assert cells[64, 11]["exists"] is True
+        assert cells[64, 11]["label"] == "2^(11-5) IV"
+
     def test_over_budget_cell_reports_replication(self) -> None:
         """A budget larger than the full factorial is replication, not an error."""
         result = execute_tool_call("trade_off_table", {"runs": [32], "factors": [3]})

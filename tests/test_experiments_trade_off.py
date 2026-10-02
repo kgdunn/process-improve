@@ -10,6 +10,7 @@ from __future__ import annotations
 import pytest
 
 from process_improve.experiments.trade_off import (
+    SearchLimitError,
     _alias_chains,
     get_trade_off_table_entry,
     minimum_aberration_generators,
@@ -187,8 +188,23 @@ class TestMinimumAberrationGenerators:
 
     def test_search_refuses_an_intractable_request(self):
         """A huge search space is refused with an actionable message."""
-        with pytest.raises(ValueError, match="above the limit"):
+        with pytest.raises(SearchLimitError, match="above the limit"):
             minimum_aberration_generators(64, 30)
+
+    @pytest.mark.parametrize(("n_runs", "n_factors", "label"), [(64, 11, "2^(11-5) IV"), (128, 11, "2^(11-4) V")])
+    def test_large_cells_fall_back_to_the_catalogue(self, n_runs, n_factors, label):
+        """Past the search limit the tabulated minimum-aberration design is used (Chen, Sun and Wu 1993)."""
+        assert get_trade_off_table_entry(n_runs=n_runs, n_factors=n_factors, display=False).label == label
+
+    def test_existing_but_unsearched_cell_is_not_blank(self):
+        """12 factors fit into 32 runs (at resolution IV); a blank cell would say they cannot."""
+        table = trade_off_table(runs=[32], factors=[12], display=False)
+        assert table.loc[32, 12] == "?"
+
+    def test_messages_say_runs_and_factors(self):
+        """The messages used to read '8 n_runs cannot accommodate 8 n_factors'."""
+        with pytest.raises(ValueError, match=r"^8 runs cannot accommodate 8 factors: only 7 factors fit into 8 runs"):
+            get_trade_off_table_entry(n_runs=8, n_factors=8, display=False)
 
     def test_result_is_cached_and_stable(self):
         assert minimum_aberration_generators(16, 7) is minimum_aberration_generators(16, 7)
