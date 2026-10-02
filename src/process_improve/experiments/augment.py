@@ -30,6 +30,7 @@ from patsy import dmatrix
 
 from process_improve._random import check_random_state
 from process_improve.experiments._blocking import confounding_blocks, exchange_blocks, is_regular_two_level
+from process_improve.experiments.designs_response_surface import orthogonal_alpha
 from process_improve.experiments.evaluate import (
     _defining_relation_from_generators,
     _word_to_str,
@@ -432,10 +433,8 @@ def _compute_alpha(
     elif alpha == "face_centered":
         return 1.0
     elif alpha == "orthogonal":
-        # Orthogonal block alpha for CCD
-        n_axial = 2 * k
-        n_total = n_factorial + n_axial
-        return float(np.sqrt(k * (np.sqrt(n_total) - np.sqrt(n_factorial)) / 2))
+        # Quadratic columns mutually orthogonal, counting every existing run and the 2k new axial runs.
+        return orthogonal_alpha(n_factorial, len(design) + 2 * k)
     else:
         raise ValueError(f"Unknown alpha type: {alpha!r}. Use 'rotatable', 'face_centered', 'orthogonal', or numeric.")
 

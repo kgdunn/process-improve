@@ -322,6 +322,33 @@ def _screening_transition_rules() -> list[TransitionRule]:
 # ---------------------------------------------------------------------------
 
 
+def _mixture_optimization_stage(spec: DOEProblemSpec, stage_number: int) -> ExperimentalStage:
+    """Quadratic Scheffe stage for an all-mixture problem.
+
+    Components cannot be dropped after screening the way process factors can (the
+    proportions must still sum to 1), and a CCD or Box-Behnken design in the components
+    would not give proportions, so every component stays in a mixture design.
+    """
+    q = len(spec.factor_names)
+    return ExperimentalStage(
+        stage_number=stage_number,
+        stage_name="Optimization",
+        design_type="mixture",
+        design_params={"model_type": "scheffe_quadratic"},
+        factors=spec.factor_names,
+        estimated_runs=q * (q + 1) // 2 + 1,
+        purpose="Fit a quadratic Scheffe blending model over the mixture region, to locate the best blend.",
+        success_criteria={"min_r_squared": 0.7, "adequate_precision": 4.0},
+        transition_rules=[
+            TransitionRule(
+                condition="Model is adequate (R² > 0.7, adequate precision > 4)",
+                action="proceed_to_confirmation",
+                fallback="augment_design_or_transform_response",
+            ),
+        ],
+    )
+
+
 def _select_rsm_design(
     spec: DOEProblemSpec,
     classification: dict[str, Any],
@@ -331,6 +358,8 @@ def _select_rsm_design(
     """Select the RSM optimisation design."""
     if not spec.goal_includes_optimization and classification["n_factors"] > 5:
         return None
+    if spec.has_mixture and spec.n_continuous == 0:
+        return _mixture_optimization_stage(spec, stage_number=2 if has_screening else 1)
 
     # Determine RSM factor count (screening narrows to ~3)
     n_rsm = min(classification["n_factors"], 3) if has_screening else classification["n_factors"]
