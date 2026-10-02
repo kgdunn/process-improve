@@ -122,6 +122,11 @@ those changes.
   replaced by the candidate exchange, which scores the requested model and allows
   replicated runs. `metadata["backend"]` reads `"candidate_exchange"` instead of
   `"point_exchange_fallback"`, and `fixed_runs` no longer needs pyoptex.
+- **The browser app's tables sort by column.** Clicking a column header in the
+  design run list, the coefficient table or the ANOVA table sorts the rows
+  ascending, and a second click sorts them descending, for example by standard
+  order, by a factor or by p-value. Formatted values such as `< 0.0001` sort as
+  numbers, unfilled responses stay last, and the headers work from the keyboard.
 
 ### Fixed
 
