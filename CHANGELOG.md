@@ -148,6 +148,15 @@ those changes.
 
 ### Changed
 
+- **Optimal designs use the built-in exchange by default, whether or not pyoptex is
+  installed.** With pyoptex importable (as in CI and the docs build), unconstrained D-,
+  I- and A-optimal designs came from pyoptex, and from the built-in exchange otherwise,
+  so the same call returned different designs on different installs. pyoptex now runs
+  only for split-plot designs (`hard_to_change`), or when asked for with the new
+  `backend="pyoptex"` argument of `generate_design`. Asking for pyoptex where it cannot
+  work (constraints, a candidate set, E-optimality) raises; ignoring `hard_to_change`
+  logs the true reason.
+
 - **The D-optimal fallback without pyoptex is model-aware.** It used a point
   exchange on a 3-level grid that scored a first-order model whatever `model_type`
   asked for, so a quadratic request could get a design with too few levels. It is

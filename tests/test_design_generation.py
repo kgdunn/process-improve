@@ -603,7 +603,7 @@ class TestDOptimal:
     def test_pyoptex_backend(self) -> None:
         """D-optimal via pyoptex should report the backend in metadata."""
         factors = _continuous_factors(2, "AB")
-        result = generate_design(factors, design_type="d_optimal", budget=8, n_center_points=0)
+        result = generate_design(factors, design_type="d_optimal", budget=8, n_center_points=0, backend="pyoptex")
         assert result.metadata.get("backend") == "pyoptex"
         assert result.metadata.get("metric_value") is not None
 
@@ -628,7 +628,7 @@ class TestIOptimal:
     def test_basic(self) -> None:
         """I-optimal should produce the requested number of runs."""
         factors = _continuous_factors(2, "AB")
-        result = generate_design(factors, design_type="i_optimal", budget=8, n_center_points=0)
+        result = generate_design(factors, design_type="i_optimal", budget=8, n_center_points=0, backend="pyoptex")
         assert result.n_runs == 8
         assert result.n_factors == 2
         assert result.metadata.get("backend") == "pyoptex"
@@ -654,7 +654,7 @@ class TestAOptimal:
     def test_basic(self) -> None:
         """A-optimal should produce the requested number of runs."""
         factors = _continuous_factors(2, "AB")
-        result = generate_design(factors, design_type="a_optimal", budget=8, n_center_points=0)
+        result = generate_design(factors, design_type="a_optimal", budget=8, n_center_points=0, backend="pyoptex")
         assert result.n_runs == 8
         assert result.n_factors == 2
         assert result.metadata.get("backend") == "pyoptex"

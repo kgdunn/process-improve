@@ -182,6 +182,7 @@ def _dispatch_optimal_family(
         fixed_runs=kwargs.get("fixed_runs"),
         random_state=kwargs.get("random_state"),
         candidates=kwargs.get("candidates"),
+        backend=kwargs.get("backend", "auto"),
     )
     return _dispatch_optimal(criterion, request)
 
@@ -391,6 +392,7 @@ def generate_design(  # noqa: PLR0913
     random_seed: int | None = None,
     candidates: pd.DataFrame | None = None,
     random_state: int | np.random.Generator | None = 42,
+    backend: str = "auto",
 ) -> DesignResult:
     """Generate an experimental design matrix.
 
@@ -483,6 +485,11 @@ def generate_design(  # noqa: PLR0913
         Seeds the run-order randomisation and any random search (default 42, so the
         same call gives the same design). ``None`` draws fresh entropy; see
         :doc:`/development/reproducibility`.
+    backend : {"auto", "exchange", "pyoptex"}
+        Engine for the optimal families. ``"auto"`` (default) uses the built-in
+        candidate exchange, and the optional pyoptex package only for a split-plot
+        design (``hard_to_change``), so the same call gives the same design whether or
+        not pyoptex is installed. ``"pyoptex"`` asks for pyoptex's coordinate exchange.
 
     Returns
     -------
@@ -556,6 +563,7 @@ def generate_design(  # noqa: PLR0913
         "fixed_runs": fixed_runs,
         "random_state": random_state,
         "candidates": candidates,
+        "backend": backend,
     }
 
     coded_matrix, meta = dispatch_fn(factors, **dispatch_kwargs)

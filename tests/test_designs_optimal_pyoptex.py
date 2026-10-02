@@ -170,7 +170,7 @@ class TestDispatchDefaults:
             Factor(name="A", low=0, high=10),
             Factor(name="B", type="categorical", levels=["red", "green", "blue"]),
         ]
-        design, meta = dispatch_d_optimal(factors, budget=9)
+        design, meta = dispatch_d_optimal(factors, budget=9, backend="pyoptex")
         assert design.shape == (9, 2)
         assert meta["backend"] == "pyoptex"
 
@@ -190,6 +190,7 @@ class TestRunOrderPreservation:
             budget=6,
             random_state=999,
             n_center_points=0,
+            backend="pyoptex",
         )
         assert result.metadata.get("backend") == "pyoptex"
         assert result.run_order == list(range(1, 7))
@@ -339,3 +340,27 @@ class TestPyoptexHonoursRandomSeed:
         np.random.seed(5)  # noqa: NPY002
         generate_design(list(self.FACTORS), design_type="d_optimal", budget=10, random_state=42)
         assert np.random.random() == expected  # noqa: NPY002
+
+
+class TestDefaultBackend:
+    """Without hard_to_change, the design does not depend on whether pyoptex is installed."""
+
+    def test_default_is_the_built_in_exchange(self) -> None:
+        result = generate_design(_continuous(3), design_type="i_optimal", budget=10, n_center_points=0)
+        assert result.metadata["backend"] == "candidate_exchange"
+
+    def test_split_plot_still_uses_pyoptex(self) -> None:
+        result = generate_design(_continuous(3), design_type="d_optimal", budget=12, hard_to_change=["A"])
+        assert result.metadata["backend"] == "pyoptex"
+
+    def test_pyoptex_cannot_take_constraints(self) -> None:
+        from process_improve.experiments.factor import Constraint
+
+        with pytest.raises(ValueError, match="cannot be used here: constraints"):
+            generate_design(
+                _continuous(2),
+                design_type="d_optimal",
+                budget=8,
+                constraints=[Constraint(expression="A + B <= 10")],
+                backend="pyoptex",
+            )

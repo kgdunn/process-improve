@@ -196,9 +196,10 @@ interior, so its average prediction variance is lower by a factor of 1.4, at the
 of a slightly less precise joint estimate of the coefficients and a larger worst case
 at the boundary.
 
-These designs come from the built-in exchange and do not need pyoptex. When pyoptex is
-installed and no constraints are given, it is used instead; it is still needed for
-split-plot designs (``hard_to_change``).
+These designs come from the built-in exchange, which is the default for every optimal
+design, so the same call gives the same design whether or not the optional pyoptex
+package is installed. pyoptex is used for split-plot designs (``hard_to_change``), or
+when asked for with ``backend="pyoptex"``.
 
 Choosing runs from a list: candidate sets
 -----------------------------------------
