@@ -10,7 +10,7 @@ PCA
 ~~~
 
 .. autoclass:: PCA
-   :members: fit, transform, fit_transform, predict, score, select_n_components, score_contributions, group_contributions, detect_outliers
+   :members: fit, transform, fit_transform, predict, score, select_n_components, score_contributions, group_contributions, meda, omeda, detect_outliers
    :undoc-members:
    :show-inheritance:
 
@@ -18,7 +18,7 @@ PLS
 ~~~
 
 .. autoclass:: PLS
-   :members: fit, transform, fit_transform, predict, score, select_n_components, compare_cv_criteria, pseudo_validation_set, score_contributions, group_contributions, detect_outliers, cross_validate
+   :members: fit, transform, fit_transform, predict, score, select_n_components, compare_cv_criteria, pseudo_validation_set, score_contributions, group_contributions, meda, omeda, detect_outliers, cross_validate
    :undoc-members:
    :show-inheritance:
 
@@ -256,6 +256,10 @@ also bound as a convenience method on the model after :meth:`fit`.
 
 .. autofunction:: group_contributions
 
+.. autofunction:: meda
+
+.. autofunction:: omeda
+
 .. autofunction:: eigenvalue_summary
 
 .. autofunction:: project_variables
@@ -291,6 +295,10 @@ Plots
 .. autofunction:: explained_variance_plot
 
 .. autofunction:: correlation_loadings_plot
+
+.. autofunction:: meda_plot
+
+.. autofunction:: omeda_plot
 
 .. autofunction:: predictions_vs_observed_plot
 
