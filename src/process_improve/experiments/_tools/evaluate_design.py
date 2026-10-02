@@ -25,12 +25,23 @@ class EvaluateDesignInput(BaseModel):
             "factor name to coded value. Example: [{'A': -1, 'B': -1}, ...]"
         ),
     )
-    model: Literal["main_effects", "interactions", "quadratic"] | None = Field(
+    model: (
+        Literal[
+            "main_effects",
+            "interactions",
+            "quadratic",
+            "scheffe_linear",
+            "scheffe_quadratic",
+            "scheffe_special_cubic",
+        ]
+        | None
+    ) = Field(
         None,
         description=(
             "Model type to evaluate against. 'main_effects' = main effects only, "
             "'interactions' = main effects + 2-factor interactions (default), "
-            "'quadratic' = interactions + squared terms."
+            "'quadratic' = interactions + squared terms; the 'scheffe_*' models are for "
+            "mixture proportions (the default when a mixture region is given)."
         ),
     )
     metric: str | list[str] = Field(
@@ -56,21 +67,37 @@ class EvaluateDesignInput(BaseModel):
         None,
         description="Estimated noise standard deviation.",
     )
+    region: dict[str, Any] | Literal["cuboidal", "spherical"] | None = Field(
+        None,
+        description=(
+            "Region the prediction-variance metrics (average_prediction_variance, g_efficiency, fds) are taken "
+            "over: pass metadata['region'] from generate_design for a constrained or mixture design, or "
+            "'cuboidal' / 'spherical'. Default: the cube."
+        ),
+    )
+    random_state: int = Field(
+        42,
+        description="Seed for the region sampler (default: 42).",
+    )
 
 
 @tool_spec(
     name="evaluate_design",
     description=(
         "Evaluate the quality of an experimental design matrix by computing metrics such as "
-        "D-efficiency, G-efficiency, I-efficiency, VIF, condition number, alias structure, "
+        "D-efficiency, G-efficiency, the average prediction variance (I-criterion), VIF, condition "
+        "number, alias structure, "
         "confounding pattern, resolution, power, prediction variance, degrees of freedom, "
         "clear effects, and minimum aberration. "
         "The design_matrix should be a list of dictionaries with factor names as keys and "
-        "coded values (-1/+1) as values. "
+        "coded values (-1/+1) as values (proportions for a mixture). For a constrained or mixture "
+        "design, pass the region from generate_design's metadata so the prediction variance is judged "
+        "over the settings the design may use. "
         "Use this after generating a design to check if it meets quality criteria, or to "
         "compare alternative designs."
     ),
     input_model=EvaluateDesignInput,
+    rng={"uses_rng": True, "seed_param": "random_state", "default_seed": 42},
     examples="""
     # "What is the D-efficiency of my 2^3 factorial design?"
         -> ``evaluate_design(design_matrix=[{"A":-1,"B":-1,"C":-1}, ...],
@@ -79,6 +106,11 @@ class EvaluateDesignInput(BaseModel):
     # "Check VIF and condition number"
         -> ``evaluate_design(design_matrix=[...],
                 metric=["vif", "condition_number"], model="interactions")``
+
+    # "How well does my constrained design predict inside its region?"
+        -> ``evaluate_design(design_matrix=[...], model="quadratic",
+                metric=["average_prediction_variance", "g_efficiency"],
+                region=<metadata["region"] returned by generate_design>)``
 
     # "What is the power to detect an effect of size 2 with noise SD of 1?"
         -> ``evaluate_design(design_matrix=[...],
@@ -90,8 +122,10 @@ def evaluate_design_tool(spec: EvaluateDesignInput) -> dict[str, Any]:
     """Evaluate design quality."""
     try:
         from process_improve.experiments.evaluate import evaluate_design  # noqa: PLC0415
+        from process_improve.experiments.region import DesignRegion  # noqa: PLC0415
 
         df = pd.DataFrame(spec.design_matrix)
+        region = DesignRegion.from_dict(spec.region) if isinstance(spec.region, dict) else spec.region
         result = evaluate_design(
             df,
             model=spec.model,
@@ -99,6 +133,8 @@ def evaluate_design_tool(spec: EvaluateDesignInput) -> dict[str, Any]:
             effect_size=spec.effect_size,
             alpha=spec.alpha,
             sigma=spec.sigma,
+            region=region,
+            random_state=spec.random_state,
         )
         return clean(result)
     except _TOOL_EXPECTED_EXCEPTIONS as e:

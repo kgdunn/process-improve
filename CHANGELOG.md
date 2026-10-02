@@ -19,6 +19,10 @@ those changes.
   `omars` and `omars_ilp` types it was missing (a test keeps its choices equal to
   `generate_design`'s), and returns the design's `metadata`, including the `region` that
   `evaluate_design` and `optimize_responses` work over.
+- **The `evaluate_design` and `optimize_responses` agent tools take that `region`**, so
+  an agent can judge a constrained or mixture design over the settings it may use and
+  keep the recommended optimum inside them; `evaluate_design` also accepts the Scheffé
+  mixture models and a `random_state`.
 
 - **Space-filling designs**: `design_type="latin_hypercube"`, `"maximin_lhs"`,
   `"uniform"` (minimal centred L2 discrepancy), `"sobol"`, `"halton"` and `"maximin"`.

@@ -107,6 +107,14 @@ class OptimizeResponsesInput(BaseModel):
             "is usually smaller, since dominated and duplicate solutions are dropped."
         ),
     )
+    region: dict[str, Any] | None = Field(
+        None,
+        description=(
+            "Region the optimum must lie in, for 'desirability' and 'pareto_front': pass metadata['region'] "
+            "from generate_design, so the recommended settings satisfy the design's constraints (and sum "
+            "to 1 for a mixture). The result then reports 'within_region'."
+        ),
+    )
 
 
 def _as_bounds(
@@ -171,6 +179,12 @@ def _as_bounds(
         -> ``optimize_responses(fitted_models=[model], method="ridge_analysis",
                 n_steps=10, search_bounds=[-1.41, 1.41])``
 
+    # "Best settings that respect the design's constraint 3*T + 5*D <= 600"
+        -> ``optimize_responses(fitted_models=[model],
+                goals=[{"response": "yield", "goal": "maximize", "low": 40, "high": 75}],
+                factor_ranges={"T": {"low": 100, "high": 150}, "D": {"low": 20, "high": 60}},
+                region=<metadata["region"] returned by generate_design>)``
+
     # "Show me the trade-off between yield and cost, not a single weighted answer"
         -> ``optimize_responses(fitted_models=[model1, model2],
                 goals=[{"response": "yield", "goal": "maximize"},
@@ -183,6 +197,7 @@ def optimize_responses_tool(spec: OptimizeResponsesInput) -> dict[str, Any]:
     """Optimize experimental responses."""
     try:
         from process_improve.experiments.optimization import optimize_responses  # noqa: PLC0415
+        from process_improve.experiments.region import DesignRegion  # noqa: PLC0415
 
         result = optimize_responses(
             fitted_models=spec.fitted_models,
@@ -197,6 +212,7 @@ def optimize_responses_tool(spec: OptimizeResponsesInput) -> dict[str, Any]:
             desirability_weights=spec.desirability_weights,
             ridge_direction=spec.ridge_direction,
             n_pareto_points=spec.n_pareto_points,
+            region=DesignRegion.from_dict(spec.region) if spec.region is not None else None,
         )
         return clean(result)
     except _TOOL_EXPECTED_EXCEPTIONS as e:

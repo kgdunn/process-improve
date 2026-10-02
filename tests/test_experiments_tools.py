@@ -647,3 +647,53 @@ def test_generate_design_tool_enforces_constraints_and_returns_the_region() -> N
     import json
 
     json.dumps(out)  # JSON-serialisable for MCP transport
+
+
+def test_region_round_trips_through_the_tools() -> None:
+    """generate_design -> evaluate_design -> optimize_responses, all inside the constrained region."""
+    from process_improve.experiments._tools.evaluate_design import EvaluateDesignInput, evaluate_design_tool
+    from process_improve.experiments._tools.generate_design import GenerateDesignInput, generate_design_tool
+    from process_improve.experiments._tools.optimize_responses import OptimizeResponsesInput, optimize_responses_tool
+
+    factors = [{"name": "T", "low": 100, "high": 150}, {"name": "D", "low": 20, "high": 60}]
+    design = generate_design_tool(
+        GenerateDesignInput(
+            factors=factors,
+            design_type="d_optimal",
+            budget=10,
+            model_type="quadratic",
+            constraints=["3*T + 5*D <= 600"],
+        )
+    )
+    region = design["metadata"]["region"]
+    coded = [{k: r[k] for k in ("T", "D")} for r in design["design_coded"]]
+    inside = evaluate_design_tool(
+        EvaluateDesignInput(design_matrix=coded, model="quadratic", metric="g_efficiency", region=region)
+    )
+    cube = evaluate_design_tool(
+        EvaluateDesignInput(design_matrix=coded, model="quadratic", metric="g_efficiency", region="cuboidal")
+    )
+    assert inside["g_efficiency"] > 10 * cube["g_efficiency"]
+
+    model = {
+        "response_name": "y",
+        "factor_names": ["T", "D"],
+        "coefficients": [
+            {"term": "Intercept", "coefficient": 60.0},
+            {"term": "T", "coefficient": 8.0},
+            {"term": "D", "coefficient": 6.0},
+            {"term": "I(T ** 2)", "coefficient": -2.0},
+            {"term": "I(D ** 2)", "coefficient": -3.0},
+        ],
+    }
+    best = optimize_responses_tool(
+        OptimizeResponsesInput(
+            fitted_models=[model],
+            goals=[{"response": "y", "goal": "maximize", "low": 40, "high": 75}],
+            factor_ranges={"T": {"low": 100, "high": 150}, "D": {"low": 20, "high": 60}},
+            region=region,
+        )
+    )
+    optimum = best["desirability"]["optimal_actual"]
+    assert best["desirability"]["within_region"]
+    assert 3 * optimum["T"] + 5 * optimum["D"] <= 600 + 1e-6
