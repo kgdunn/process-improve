@@ -12,7 +12,7 @@ Designed Experiments
    :show-inheritance:
 
 .. automodule:: process_improve.experiments.designs_constrained
-   :members: constrained_d_optimal, ConstrainedOptions, parse_constraint, build_candidates, model_matrix, fedorov_exchange
+   :members: constrained_optimal_design, ConstrainedOptions, Criterion, parse_constraint, build_candidates, model_matrix, fedorov_exchange
 
 .. automodule:: process_improve.experiments.region
    :members: DesignRegion
