@@ -312,3 +312,30 @@ class TestFixedRuns:
         assert meta["backend"] == "candidate_exchange"
         assert meta["n_fixed_runs"] == 1
         assert list(design[0]) == ["A", 0.0, 0.0]
+
+
+# ---------------------------------------------------------------------------
+# random_seed reaches pyoptex (#640)
+# ---------------------------------------------------------------------------
+
+
+class TestPyoptexHonoursRandomSeed:
+    """pyoptex draws restarts from numpy's global RNG; the design must depend on random_seed only."""
+
+    FACTORS = (Factor(name="A", low=-1, high=1), Factor(name="B", low=-1, high=1), Factor(name="C", low=-1, high=1))
+
+    def _design(self, global_seed: int, random_seed: int) -> pd.DataFrame:
+        np.random.seed(global_seed)  # noqa: NPY002 - the caller's global state, which must not matter
+        return generate_design(
+            list(self.FACTORS), design_type="d_optimal", budget=10, random_seed=random_seed
+        ).design_actual
+
+    def test_same_seed_same_design_whatever_the_global_state(self) -> None:
+        pd.testing.assert_frame_equal(self._design(1, 42), self._design(2, 42))
+
+    def test_the_callers_global_state_is_restored(self) -> None:
+        np.random.seed(5)  # noqa: NPY002
+        expected = np.random.random()  # noqa: NPY002
+        np.random.seed(5)  # noqa: NPY002
+        generate_design(list(self.FACTORS), design_type="d_optimal", budget=10, random_seed=42)
+        assert np.random.random() == expected  # noqa: NPY002

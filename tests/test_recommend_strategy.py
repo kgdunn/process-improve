@@ -7,6 +7,7 @@ import json
 import pytest
 
 from process_improve.experiments.factor import (
+    Constraint,
     Factor,
     Response,
     ResponseGoal,
@@ -657,9 +658,64 @@ class TestScreeningDesignParams:
     def test_plackett_burman_has_no_centre_points(self):
         assert _screening_design_params("plackett_burman", 6) == {"n_center_points": 0}
 
-    @pytest.mark.parametrize(("n", "fake_factor"), [(6, True), (7, False)])
-    def test_definitive_screening_adds_a_fake_factor_for_an_even_count(self, n, fake_factor):
-        assert _screening_design_params("definitive_screening", n) == {"fake_factor": fake_factor}
+    def test_definitive_screening_needs_no_parameters(self):
+        """``fake_factor`` is not a generate_design argument; the DSD handles an even count itself (#638)."""
+        assert _screening_design_params("dsd", 16) == {}
+
+    def test_supersaturated_carries_its_run_count(self):
+        assert _screening_design_params("supersaturated", 6) == {"budget": 6}
 
     def test_unknown_design_type_carries_no_parameters(self):
         assert _screening_design_params("d_optimal", 6) == {}
+
+
+# ---------------------------------------------------------------------------
+# Every recommended stage can be generated (#638)
+# ---------------------------------------------------------------------------
+
+
+def _continuous(k: int) -> list[Factor]:
+    return [Factor(name=f"X{i}", low=0, high=10) for i in range(k)]
+
+
+_SCENARIOS = {
+    "3 factors": {"factors": _continuous(3)},
+    "5 factors": {"factors": _continuous(5)},
+    "8 factors, roomy budget": {"factors": _continuous(8), "budget": 80},
+    "8 factors, very tight budget": {"factors": _continuous(8), "budget": 18},
+    "10 factors in 6 runs": {"factors": _continuous(10), "budget": 6},
+    "12 factors, curvature prior": {"factors": _continuous(12), "prior_knowledge": "we know the ranges well"},
+    "bounded mixture": {
+        "factors": [Factor(name=f"m{i}", type="mixture", low=0.1, high=0.8) for i in range(3)],
+    },
+    "constrained": {
+        "factors": _continuous(3),
+        "constraints": [Constraint(expression="X0 + X1 <= 15")],
+    },
+}
+
+
+@pytest.mark.parametrize("domain", [d.value for d in DomainType])
+@pytest.mark.parametrize("scenario", list(_SCENARIOS))
+def test_every_stage_but_confirmation_is_a_generate_design_call(scenario: str, domain: str) -> None:
+    """The agent flow is recommend_strategy, then generate_design with each stage's type and parameters."""
+    from process_improve.experiments import generate_design
+
+    inputs = _SCENARIOS[scenario]
+    strategy = recommend_strategy(**inputs, domain=domain)
+    for stage in strategy["stages"]:
+        if stage["stage_name"] == "Confirmation":
+            assert stage["design_type"] == "replicates_at_optimum"
+            continue
+        factors = [f for f in inputs["factors"] if f.name in stage["factors"]]
+        result = generate_design(
+            factors, design_type=stage["design_type"], constraints=inputs.get("constraints"), **stage["design_params"]
+        )
+        assert result.n_runs > 0
+
+
+def test_a_budget_below_k_plus_1_recommends_a_supersaturated_design() -> None:
+    strategy = recommend_strategy(factors=_continuous(10), budget=6)
+    screening = next(s for s in strategy["stages"] if s["stage_name"] == "Screening")
+    assert screening["design_type"] == "supersaturated"
+    assert screening["design_params"] == {"budget": 6}

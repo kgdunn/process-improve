@@ -128,7 +128,12 @@ Interpreting the Output
      - Ordered list of experimental stages.  Each stage contains
        ``stage_number``, ``stage_name``, ``design_type``, ``design_params``,
        ``factors``, ``estimated_runs``, ``purpose``, ``success_criteria``,
-       and ``transition_rules``.
+       and ``transition_rules``.  ``design_type`` and ``design_params`` are a
+       ``generate_design`` call: ``generate_design(factors,
+       design_type=stage["design_type"], **stage["design_params"])`` builds the
+       stage.  The confirmation stage (``"replicates_at_optimum"``) is the
+       exception: its runs are replicates at the optimum that
+       ``optimize_responses`` finds.
    * - ``total_estimated_runs``
      - Sum of estimated runs across all stages.
    * - ``budget_allocation``
@@ -290,7 +295,7 @@ Comparing two domains on the same factors shows how design choices differ:
 ::
 
    fermentation: plackett_burman, 8 screening runs
-   cell_culture: definitive_screening, 15 screening runs
+   cell_culture: dsd, 15 screening runs
 
 Fermentation uses Plackett-Burman (efficient, many-factor screening), while
 cell culture uses a Definitive Screening Design because it combines screening

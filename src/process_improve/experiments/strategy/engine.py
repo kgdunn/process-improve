@@ -157,12 +157,16 @@ def _classify_problem(spec: DOEProblemSpec) -> dict[str, Any]:
 
 
 def _mixture_screening_stage(spec: DOEProblemSpec, n: int) -> ExperimentalStage:
-    """Screening stage when all factors are mixture components (simplex lattice)."""
+    """Screening stage when all factors are mixture components.
+
+    ``"mixture"`` builds a simplex lattice on the full simplex, and the extreme
+    vertices of the region when the components have bounds or constraints.
+    """
     return ExperimentalStage(
         stage_number=1,
         stage_name="Screening",
-        design_type="simplex_lattice",
-        design_params={"model": "scheffe_linear"},
+        design_type="mixture",
+        design_params={"model_type": "scheffe_linear"},
         factors=spec.factor_names,
         estimated_runs=max(n + 1, 6),  # Minimum for simplex lattice
         purpose="Screen mixture components to identify significant proportions.",
@@ -192,14 +196,32 @@ def _factorial_screening_stage(spec: DOEProblemSpec, n: int) -> ExperimentalStag
     )
 
 
+def _supersaturated_runs(n: int, classification: dict[str, Any]) -> int | None:
+    """Most runs within a budget below ``n + 1`` that give an unaliased supersaturated design, if any.
+
+    Such a budget cannot estimate every main effect, so the screening design has to
+    be supersaturated: the factors must all be continuous, run at two levels.
+    """
+    from process_improve.experiments.designs_supersaturated import supersaturated_available  # noqa: PLC0415
+
+    budget = classification["budget"]
+    if budget is None or budget >= n + 1 or classification["n_continuous"] != n:
+        return None
+    return next((runs for runs in range(int(budget), 3, -1) if supersaturated_available(n, runs)), None)
+
+
 def _large_factor_screening_choice(n: int, classification: dict[str, Any], template: dict[str, Any]) -> tuple[str, int]:
     """Choose (design_type, estimated_runs) when the factorial/mixture rules do not apply.
 
-    Preserves the original ordered decision chain: definitive screening (very tight
-    budget, curvature preference, or moderate prior confidence) takes precedence, then
-    Plackett-Burman (explicit preference or 6+ factors with adequate budget), then an
-    explicit fractional-factorial preference, with Plackett-Burman as the default.
+    A budget below ``n + 1`` gets a supersaturated design when one exists for it.
+    Otherwise the original ordered decision chain holds: definitive screening (very
+    tight budget, curvature preference, or moderate prior confidence) takes
+    precedence, then Plackett-Burman (explicit preference or 6+ factors with adequate
+    budget), then an explicit fractional-factorial preference, with Plackett-Burman as
+    the default. The returned key is a ``generate_design`` design type.
     """
+    if (runs := _supersaturated_runs(n, classification)) is not None:
+        return "supersaturated", runs
     prefer_curvature = template.get("prefer_curvature_detection", False)
     domain_pref = template.get("screening_preference")
 
@@ -209,7 +231,7 @@ def _large_factor_screening_choice(n: int, classification: dict[str, Any], templ
         or domain_pref == "definitive_screening"
         or classification["prior_confidence"] >= 0.6
     ):
-        return "definitive_screening", estimate_screening_runs(n, "definitive_screening")
+        return "dsd", estimate_screening_runs(n, "definitive_screening")
     if domain_pref == "plackett_burman" or (n >= 6 and not classification["is_tight_budget"]):
         return "plackett_burman", estimate_screening_runs(n, "plackett_burman")
     if domain_pref == "fractional_factorial":
@@ -217,14 +239,18 @@ def _large_factor_screening_choice(n: int, classification: dict[str, Any], templ
     return "plackett_burman", estimate_screening_runs(n, "plackett_burman")
 
 
-def _screening_design_params(design_type: str, n: int) -> dict[str, Any]:
-    """Build the design-specific parameter dict for a large-factor screening stage."""
+def _screening_design_params(design_type: str, runs: int) -> dict[str, Any]:
+    """Build the ``generate_design`` keyword arguments for a large-factor screening stage.
+
+    A definitive screening design needs none: ``generate_design`` handles an even
+    number of factors itself.
+    """
     if design_type == "fractional_factorial":
         return {"resolution": 4, "n_center_points": 3}
     if design_type == "plackett_burman":
         return {"n_center_points": 0}  # PB typically without center points
-    if design_type == "definitive_screening":
-        return {"fake_factor": n % 2 == 0}  # DSD needs odd factor count
+    if design_type == "supersaturated":
+        return {"budget": runs}
     return {}
 
 
@@ -255,7 +281,7 @@ def _select_screening_design(
         stage_number=1,
         stage_name="Screening",
         design_type=design_type,
-        design_params=_screening_design_params(design_type, n),
+        design_params=_screening_design_params(design_type, runs),
         factors=spec.factor_names,
         estimated_runs=runs,
         purpose=f"Screen {n} candidate factors to identify the vital few.",
@@ -338,6 +364,7 @@ def _select_rsm_design(
     params: dict[str, Any] = {"n_center_points": n_center_points}
     if "ccd" in design_type:
         params["alpha"] = "face_centered" if design_type == "ccd_face_centered" else "rotatable"
+        design_type = "ccd"  # the face-centred variant is a CCD with alpha="face_centered"
 
     stage_number = 2 if has_screening else 1
     factor_label = f"the {n_rsm} significant factors" if has_screening else f"all {n_rsm} factors"

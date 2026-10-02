@@ -29,13 +29,7 @@ import numpy as np
 import pandas as pd
 from patsy import dmatrix
 
-try:
-    from pyDOE3 import fullfact
-except ImportError:  # pragma: no cover - exercised via env-without-pyDOE3
-    from process_improve._extras import _MissingExtra
-
-    fullfact = _MissingExtra("pyDOE3", "expt")  # type: ignore[assignment]
-
+from process_improve._random import check_random_state
 from process_improve.experiments.evaluate import (
     _defining_relation_from_generators,
     _word_to_str,
@@ -62,6 +56,7 @@ class _AugmentContext:
     fold_on: str | None
     alpha: str | float | None
     generators: list[str] | None
+    random_state: int | np.random.Generator | None = 42
 
 
 # ---------------------------------------------------------------------------
@@ -469,74 +464,68 @@ def _build_model_rhs(factor_names: list[str], model: str) -> str:
     return rhs
 
 
-def _greedy_d_optimal_select(
-    current: pd.DataFrame,
-    candidates: pd.DataFrame,
-    n_to_add: int,
-    factor_names: list[str],
-    model: str,
-) -> tuple[pd.DataFrame, list[pd.DataFrame]]:
-    """Greedily select *n_to_add* D-optimal points from *candidates*."""
-    rhs = _build_model_rhs(factor_names, model)
-    new_rows: list[pd.DataFrame] = []
+def _model_rows(rhs: str, factor_names: list[str], existing: pd.DataFrame, candidates: np.ndarray) -> tuple:
+    """Model-matrix rows for the existing runs and the candidates, from one patsy build.
 
-    for _ in range(min(n_to_add, len(candidates))):
-        best_idx = -1
-        best_det = -np.inf
-
-        for idx in candidates.index:
-            trial = pd.concat([current, candidates.iloc[[idx]]], ignore_index=True)
-            X_trial = np.asarray(dmatrix(rhs, trial, return_type="dataframe"), dtype=float)
-            sign, logdet = np.linalg.slogdet(X_trial.T @ X_trial)
-            det_val = logdet if sign > 0 else -np.inf
-            if det_val > best_det:
-                best_det = det_val
-                best_idx = idx
-
-        if best_idx < 0:
-            break
-
-        new_row = candidates.loc[[best_idx]]
-        current = pd.concat([current, new_row], ignore_index=True)
-        new_rows.append(new_row)
-        candidates = candidates.drop(best_idx).reset_index(drop=True)
-
-    return current, new_rows
+    Building both from one frame keeps any stateful transform in a custom formula
+    (``center(A)``, say) on a single scale.
+    """
+    stacked = pd.concat([existing, pd.DataFrame(candidates, columns=factor_names)], ignore_index=True)
+    rows = np.asarray(dmatrix(rhs, stacked, return_type="dataframe"), dtype=float)
+    return rows[: len(existing)], rows[len(existing) :]
 
 
 def _augment_add_runs_optimal(ctx: _AugmentContext) -> dict[str, Any]:
-    """Add D-optimal runs to the existing design."""
+    """Add D-optimal runs to the existing design, which stays fixed.
+
+    The runs come from a Fedorov exchange over a candidate grid in coded units, with
+    the existing runs as fixed rows. Unlike a one-run-at-a-time greedy search, the
+    exchange can start from a design that cannot yet estimate the target model, as
+    every screening design aimed at a quadratic model is. When the requested runs
+    cannot supply the rank the existing runs lack, more are added, and the
+    explanation says so. Candidates may repeat, which replicates a run where the
+    criterion wants it.
+    """
+    from process_improve.experiments.designs_constrained import (  # noqa: PLC0415
+        Criterion,
+        _budget_for_fixed_runs,
+        _Region,
+        build_candidates,
+        fedorov_exchange,
+    )
+    from process_improve.experiments.factor import Factor  # noqa: PLC0415
+
     if ctx.n_additional_runs is None:
         raise ValueError("n_additional_runs is required for add_runs_optimal.")
 
-    df = ctx.existing_design[ctx.factor_names].copy()
-    k = len(ctx.factor_names)
+    df = ctx.existing_design[ctx.factor_names].astype(float)
     model = ctx.target_model or "interactions"
+    rhs = _build_model_rhs(ctx.factor_names, model)  # validated before patsy sees it (SEC-14)
 
-    # Generate candidate set: 3-level full factorial (-1, 0, +1)
-    candidates_raw = fullfact([3] * k) - 1.0
-    candidates = pd.DataFrame(candidates_raw, columns=ctx.factor_names)
+    region = _Region([Factor(name=n, low=-1, high=1) for n in ctx.factor_names], [], [])
+    grid_model = model if model in ("main_effects", "interactions") else "quadratic"
+    coded, _cats, _counts = build_candidates(region, None, grid_model)
+    f_fixed, f_cand = _model_rows(rhs, ctx.factor_names, df, coded)
+    n_parameters = f_cand.shape[1]
+    if np.linalg.matrix_rank(np.vstack([f_fixed, f_cand])) < n_parameters:
+        raise ValueError(f"The candidate grid cannot support the {model!r} model; use a simpler target_model.")
 
-    # Remove candidates that are already in the design (within tolerance)
-    existing_tuples = set(map(tuple, np.round(df.values, 8)))
-    mask = ~candidates.apply(lambda row: tuple(np.round(row.values, 8)) in existing_tuples, axis=1)
-    candidates = candidates[mask].reset_index(drop=True)
+    total = _budget_for_fixed_runs(f_fixed, n_parameters, len(df) + ctx.n_additional_runs)
+    n_new = total - len(df)
+    rows, _value = fedorov_exchange(f_cand, n_new, f_fixed, check_random_state(ctx.random_state), Criterion.d())
+    new_runs_df = pd.DataFrame(coded[rows], columns=ctx.factor_names)
+    augmented = pd.concat([df, new_runs_df], ignore_index=True)
 
-    if len(candidates) == 0:
-        raise ValueError("No candidate points available after filtering existing design points.")
-
-    augmented, new_rows = _greedy_d_optimal_select(
-        df,
-        candidates,
-        ctx.n_additional_runs,
-        ctx.factor_names,
-        model,
-    )
-    new_runs_df = pd.concat(new_rows, ignore_index=True) if new_rows else pd.DataFrame(columns=ctx.factor_names)
     notes = [
-        f"Added {len(new_rows)} D-optimal run(s) to maximize information for the {model} model.",
+        f"Added {n_new} D-optimal run(s) to maximize information for the {model} model.",
         "Existing runs were preserved; only new runs were optimized.",
     ]
+    if n_new > ctx.n_additional_runs:
+        notes.append(
+            f"The {len(df)} existing run(s) span only {int(np.linalg.matrix_rank(f_fixed))} of the "
+            f"{n_parameters} coefficients of the {model} model, so {n_new} runs were needed rather than "
+            f"the {ctx.n_additional_runs} requested."
+        )
     explanation, before_m, after_m = _explain_changes(
         ctx.existing_design,
         augmented,
@@ -709,6 +698,7 @@ def augment_design(  # noqa: PLR0913
     fold_on: str | None = None,
     alpha: str | float | None = None,
     generators: list[str] | None = None,
+    random_state: int | np.random.Generator | None = 42,
 ) -> dict[str, Any]:
     """Extend or modify an existing experimental design.
 
@@ -741,6 +731,9 @@ def augment_design(  # noqa: PLR0913
     generators : list[str] or None
         Generator strings from the original design (e.g. ``["D=ABC"]``).
         Needed for meaningful alias analysis in foldover/semifold.
+    random_state : int, numpy.random.Generator or None, default 42
+        Seeds the exchange's random starts for ``"add_runs_optimal"``; the default
+        keeps the result reproducible, and ``None`` draws fresh starts.
 
     Returns
     -------
@@ -785,6 +778,7 @@ def augment_design(  # noqa: PLR0913
         fold_on=fold_on,
         alpha=alpha,
         generators=generators,
+        random_state=random_state,
     )
 
     handler = _AUGMENT_REGISTRY[augmentation_type]

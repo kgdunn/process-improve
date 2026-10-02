@@ -398,7 +398,7 @@ def analyze_experiment(  # noqa: PLR0912, PLR0913, PLR0915, C901
         elif t == "curvature_test":
             results.update(_run_curvature_test(ols_result, df, response_col, factor_cols))
         elif t == "model_selection":
-            results.update(_run_model_selection(df, response_col, factor_cols))
+            results.update(_run_model_selection(df, response_col, factor_cols, model=model))
         elif t == "box_cox":
             results.update(_run_box_cox(df, response_col))
         elif t == "lenth_method":

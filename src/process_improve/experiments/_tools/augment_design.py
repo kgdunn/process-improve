@@ -72,6 +72,10 @@ class AugmentDesignInput(BaseModel):
             "(e.g. ['D=ABC']). Needed for foldover/semifold alias analysis."
         ),
     )
+    random_state: int | None = Field(
+        42,
+        description="Seed for the exchange's random starts (add_runs_optimal). Default 42, for reproducible runs.",
+    )
 
 
 @tool_spec(
@@ -106,6 +110,7 @@ class AugmentDesignInput(BaseModel):
                 n_additional_runs=6, target_model="interactions")``
     """,
     category="experiments",
+    rng={"uses_rng": True, "seed_param": "random_state", "default_seed": 42},
 )
 def augment_design_tool(spec: AugmentDesignInput) -> dict[str, Any]:
     """Augment an existing design."""
@@ -121,6 +126,7 @@ def augment_design_tool(spec: AugmentDesignInput) -> dict[str, Any]:
             fold_on=spec.fold_on,
             alpha=spec.alpha,
             generators=spec.generators,
+            random_state=spec.random_state,
         )
         return clean(result)
     except _TOOL_EXPECTED_EXCEPTIONS as e:

@@ -96,9 +96,13 @@ class ExperimentalStage(BaseModel):
     stage_name : str
         Human-readable name, e.g. ``"Screening"``, ``"Optimization"``.
     design_type : str
-        Design type key, e.g. ``"plackett_burman"``, ``"ccd"``, ``"bbd"``.
+        A ``generate_design`` design type, e.g. ``"plackett_burman"``, ``"ccd"``,
+        ``"box_behnken"``, so ``generate_design(factors, design_type=stage.design_type,
+        **stage.design_params)`` builds the stage. The one exception is the
+        confirmation stage, ``"replicates_at_optimum"``: its runs are replicates at the
+        optimum that ``optimize_responses`` finds, not a design built from the ranges.
     design_params : dict
-        Design-specific parameters (resolution, n_center_points, alpha, etc.).
+        ``generate_design`` keyword arguments (resolution, n_center_points, alpha, etc.).
     factors : list[str]
         Factor names involved in this stage.
     estimated_runs : int

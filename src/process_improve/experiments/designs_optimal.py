@@ -18,6 +18,7 @@ Mixture factors always use ``designs_mixture_constrained.py``.
 
 from __future__ import annotations
 
+import contextlib
 import logging
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
@@ -25,7 +26,11 @@ from typing import TYPE_CHECKING
 import numpy as np
 import pandas as pd
 
+from process_improve._random import check_random_state
+
 if TYPE_CHECKING:
+    from collections.abc import Iterator
+
     from process_improve.experiments.factor import Constraint, Factor
 
 logger = logging.getLogger(__name__)
@@ -221,6 +226,24 @@ class _PyoptexOptions:
     hard_to_change: list[str] | None = None
     n_tries: int = 10
     fixed_runs: pd.DataFrame | None = None
+    random_state: int | np.random.Generator | None = None
+
+
+@contextlib.contextmanager
+def _global_numpy_seed(rng: np.random.Generator) -> Iterator[None]:
+    """Seed numpy's global RNG from ``rng`` for the duration of the block, then restore the caller's state.
+
+    pyoptex draws its coordinate-exchange restarts from the global RNG, which a
+    caller's ``random_state`` cannot otherwise reach. Restoring the state afterwards
+    means the design neither depends on nor disturbs any global seeding the caller
+    has done.
+    """
+    saved = np.random.get_state()  # noqa: NPY002
+    np.random.seed(int(rng.integers(2**32)))  # noqa: NPY002 - pyoptex reads the legacy global RNG
+    try:
+        yield
+    finally:
+        np.random.set_state(saved)  # noqa: NPY002
 
 
 def _prepare_prior_runs(fixed_runs: pd.DataFrame, factors: list[Factor], budget: int) -> pd.DataFrame:
@@ -350,7 +373,8 @@ def _run_pyoptex(
 
     fn = default_fn(pyoptex_factors, metric, y2x)
     params = create_parameters(pyoptex_factors, fn, nruns=budget, prior=prior)
-    design_df, state = create_fixed_structure_design(params, n_tries=n_tries)
+    with _global_numpy_seed(check_random_state(opts.random_state)):
+        design_df, state = create_fixed_structure_design(params, n_tries=n_tries)
 
     meta = {
         "optimality_criterion": criterion,
@@ -450,7 +474,10 @@ def _dispatch_optimal(criterion: str, req: _OptimalRequest) -> tuple[np.ndarray,
         criterion=criterion,
         budget=budget,
         options=_PyoptexOptions(
-            model_type=req.model_type, hard_to_change=req.hard_to_change, fixed_runs=req.fixed_runs
+            model_type=req.model_type,
+            hard_to_change=req.hard_to_change,
+            fixed_runs=req.fixed_runs,
+            random_state=req.random_state,
         ),
     )
 
