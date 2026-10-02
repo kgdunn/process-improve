@@ -164,3 +164,24 @@ class TestManufacture:
     def test_vector_throughput_rejected(self):
         with pytest.raises(ValueError, match="parallel"):
             manufacture(t=np.array([300.0, 325.0]))
+
+
+@pytest.mark.parametrize("simulator", [popcorn, grocery, manufacture])
+@pytest.mark.parametrize("bad", ["abc", None, "120"])
+def test_non_numeric_input_raises_the_documented_value_error(simulator, bad):
+    """A string or None reached numpy's isfinite and raised TypeError, not the documented ValueError."""
+    with pytest.raises(ValueError, match="finite"):
+        simulator(bad)
+
+
+@pytest.mark.parametrize(
+    ("call", "expected"),
+    [
+        (lambda: popcorn(t=135, random_state=13), 95),
+        (lambda: manufacture(p=1.5, t=320, random_state=42), 600),
+    ],
+)
+def test_docstring_examples_show_what_the_call_returns(call, expected):
+    """The examples showed 94 and 601; they are skipped by doctest, so nothing checked them."""
+    assert call() == expected
+    assert f"\n    {expected}\n" in (popcorn.__doc__ if expected == 95 else manufacture.__doc__)
