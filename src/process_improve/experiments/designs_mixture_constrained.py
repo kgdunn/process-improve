@@ -34,6 +34,7 @@ import pandas as pd
 from scipy.stats import qmc
 
 from process_improve._random import check_random_state
+from process_improve.experiments._uniform_sampling import UniformSampler, _linear_row
 from process_improve.experiments.designs_constrained import (
     ConstrainedOptions,
     criterion_metadata,
@@ -57,6 +58,8 @@ _MODEL_ALIASES = {
     "quadratic": "scheffe_quadratic",
     "special_cubic": "scheffe_special_cubic",
 }
+#: Uniform blends that estimate the region's moment matrix for I-optimality.
+_N_REGION_SAMPLES = 20_000
 #: Largest number of constraint subsets solved when enumerating vertices.
 MAX_VERTEX_SUBSETS = 500_000
 _TOL = 1e-9
@@ -205,6 +208,29 @@ def _plane_centroids(vertices: np.ndarray, active: np.ndarray, a_mat: np.ndarray
     return centroids
 
 
+def _uniform_blends(
+    a_mat: np.ndarray, b_vec: np.ndarray, low: np.ndarray, vertices: np.ndarray, rng: np.random.Generator
+) -> np.ndarray:
+    """20,000 blends drawn uniformly from the constrained simplex ``a_mat @ x <= b_vec``.
+
+    Proposals come from the smallest simplex holding the lower bounds (the
+    L-pseudocomponent simplex), where a flat Dirichlet draw is uniform; a region too
+    thin for rejection is sampled by hit-and-run from its extreme vertices. Built from
+    :class:`~process_improve.experiments._uniform_sampling.UniformSampler` directly,
+    not through :class:`~process_improve.experiments.region.DesignRegion`, which
+    imports this module.
+    """
+    q = len(low)
+    sampler = UniformSampler(
+        [_linear_row(a, float(b)) for a, b in zip(a_mat, b_vec, strict=True)],
+        (low, np.ones(q)),
+        lambda m: low + (1.0 - low.sum()) * rng.dirichlet(np.ones(q), size=m),
+        seeds=lambda: vertices,
+        on_simplex=True,
+    )
+    return sampler.draw(_N_REGION_SAMPLES, rng)
+
+
 def mixture_candidates(a_mat: np.ndarray, b_vec: np.ndarray) -> dict[str, np.ndarray]:
     """Return candidate blends by kind.
 
@@ -326,9 +352,8 @@ def constrained_mixture_design(
         pool = _unique_rows(np.vstack(list(candidates.values())))
 
         def region_rows() -> np.ndarray:
-            from process_improve.experiments.region import DesignRegion  # noqa: PLC0415
-
-            return scheffe_matrix(DesignRegion(factors, constraints).sample(20_000, rng), model)
+            low = np.array([f.low or 0.0 for f in factors], dtype=float)
+            return scheffe_matrix(_uniform_blends(a_mat, b_vec, low, candidates["vertex"], rng), model)
 
     if budget is None:
         design = _unique_rows(np.vstack([candidates[kind] for kind in _EV_DESIGN[model]]))
