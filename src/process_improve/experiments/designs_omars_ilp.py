@@ -73,7 +73,9 @@ import itertools
 import logging
 import math
 import operator
+import os
 import re
+import threading
 import time
 import warnings
 from dataclasses import dataclass
@@ -85,6 +87,21 @@ from scipy.optimize import Bounds, LinearConstraint, OptimizeResult, milp
 from process_improve.experiments.designs_omars import _second_order_terms, is_omars
 
 logger = logging.getLogger(__name__)
+
+# HiGHS thread-pool bookkeeping for _run_milp: whether this thread's pool was
+# already started multi-threaded by other code, and whether this process is a
+# fork child, whose inherited pool has no threads behind it.
+_thread_state = threading.local()
+_fork_state = {"in_child": False}
+
+
+def _after_fork_in_child() -> None:
+    _fork_state["in_child"] = True
+    _thread_state.multi_threaded = False
+
+
+if hasattr(os, "register_at_fork"):  # absent on Windows
+    os.register_at_fork(after_in_child=_after_fork_in_child)
 
 if TYPE_CHECKING:
     from process_improve.experiments.factor import DesignResult, Factor
@@ -589,12 +606,19 @@ def _no_good_row(n_candidates: int, excluded: list[int]) -> np.ndarray:
 def _run_milp(cost: np.ndarray, constraints: list[LinearConstraint], options: dict[str, Any]) -> OptimizeResult:
     """Solve the binary selection problem with HiGHS on a single thread.
 
-    HiGHS sizes one thread pool per process at its first solve, and a process
-    forked after a multi-threaded HiGHS solve hangs in its own next solve.
-    Solving with ``threads=1`` keeps this module from creating that pool.  If
-    some earlier code in the process already started HiGHS with more threads,
-    a ``threads=1`` request is refused with model status "Not Set" before any
-    work is done, and the solve is repeated without it.
+    HiGHS keeps one thread pool per calling thread, sized at that thread's
+    first solve, and a process forked after a multi-threaded HiGHS solve hangs
+    in its own next solve.  Solving with ``threads=1`` keeps this module from
+    creating such a pool.  If earlier code on this thread already started HiGHS
+    with more threads, a ``threads=1`` request is refused with model status
+    "Not Set" before any work is done:
+
+    * in the process that owns that pool, the solve is repeated without
+      ``threads``, and later solves on the thread skip the refused attempt;
+    * in a forked child, the inherited pool has no threads behind it and a
+      solve on it would hang, so the pool is reset first (see
+      :func:`_reset_highs_scheduler`).  If that is not possible the "Not Set"
+      result is returned, which reads as ``"Not Solved"``.
     """
     n_candidates = cost.shape[0]
 
@@ -611,11 +635,37 @@ def _run_milp(cost: np.ndarray, constraints: list[LinearConstraint], options: di
                 options={**options, **extra},
             )
 
+    if getattr(_thread_state, "multi_threaded", False):
+        return solve({})
     result = solve({"threads": 1})
-    if result.x is None and _highs_status(result) == _HIGHS_NOT_SET:
-        logger.info("HiGHS already runs multi-threaded in this process; solving without threads=1.")
-        result = solve({})
-    return result
+    if result.x is not None or _highs_status(result) != _HIGHS_NOT_SET:
+        return result
+    if _fork_state["in_child"]:
+        if _reset_highs_scheduler():
+            return solve({"threads": 1})
+        logger.warning("HiGHS's thread pool was inherited from the parent process and cannot be reset; not solving.")
+        return result
+    logger.info("HiGHS already runs multi-threaded on this thread; solving without threads=1 from now on.")
+    _thread_state.multi_threaded = True
+    return solve({})
+
+
+def _reset_highs_scheduler() -> bool:
+    """Discard the HiGHS thread pool a forked child inherited; return True on success.
+
+    The reset lives in SciPy's private HiGHS bindings (present in SciPy 1.15 to
+    1.18), so its absence is handled rather than assumed.
+    """
+    try:
+        from scipy.optimize._highspy import _core  # noqa: PLC0415
+    except ImportError:
+        return False
+    highs = getattr(_core, "_Highs", None)
+    reset = getattr(highs, "resetGlobalScheduler", None)
+    if reset is None:
+        return False
+    reset(False)
+    return True
 
 
 def _highs_status(result: OptimizeResult) -> int | None:

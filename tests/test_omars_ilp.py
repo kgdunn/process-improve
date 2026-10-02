@@ -6,6 +6,7 @@ import math
 import subprocess
 import sys
 import textwrap
+import threading
 import warnings
 
 import numpy as np
@@ -559,13 +560,54 @@ def test_status_labels(monkeypatch: pytest.MonkeyPatch, status: int, message: st
         assert (design, chosen) == (None, [])
 
 
+@pytest.fixture
+def fresh_highs_state(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Isolate the module's per-thread and per-fork HiGHS bookkeeping from other tests."""
+    monkeypatch.setattr(omars_ilp, "_thread_state", threading.local())
+    monkeypatch.setitem(omars_ilp._fork_state, "in_child", False)
+
+
+_NOT_SET = _as(4, "(HiGHS Status 0: Not Set)", keep_x=False)
+
+
+@pytest.mark.usefixtures("fresh_highs_state")
 def test_scheduler_conflict_retries_without_threads(monkeypatch: pytest.MonkeyPatch) -> None:
-    """HiGHS refuses threads=1 with "Not Set" when it already runs multi-threaded."""
-    spy = _spy(monkeypatch, {0: _as(4, "(HiGHS Status 0: Not Set)", keep_x=False)})
+    """HiGHS refuses threads=1 with "Not Set" when this thread already runs it multi-threaded.
+
+    The refused attempt is made once; later solves on the thread go straight to the
+    existing pool.
+    """
+    spy = _spy(monkeypatch, {0: _NOT_SET})
     design, status, _ = omars_ilp.solve_omars_ilp(omars_ilp._half_pool(3), n_half=3)
     assert status == "Optimal"
     assert is_omars(design)
-    assert [options.get("threads") for options in spy.options] == [1, None]
+    omars_ilp.solve_omars_ilp(omars_ilp._half_pool(3), n_half=3)
+    assert [options.get("threads") for options in spy.options] == [1, None, None]
+
+
+@pytest.mark.usefixtures("fresh_highs_state")
+def test_forked_child_resets_the_inherited_pool(monkeypatch: pytest.MonkeyPatch) -> None:
+    """In a fork child the inherited pool has no threads; it is reset, never solved on."""
+    monkeypatch.setitem(omars_ilp._fork_state, "in_child", True)
+    monkeypatch.setattr(omars_ilp, "_reset_highs_scheduler", lambda: True)
+    spy = _spy(monkeypatch, {0: _NOT_SET})
+    _, status, _ = omars_ilp.solve_omars_ilp(omars_ilp._half_pool(3), n_half=3)
+    assert status == "Optimal"
+    assert [options.get("threads") for options in spy.options] == [1, 1]
+
+
+@pytest.mark.usefixtures("fresh_highs_state")
+def test_forked_child_without_a_reset_does_not_solve(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setitem(omars_ilp._fork_state, "in_child", True)
+    monkeypatch.setattr(omars_ilp, "_reset_highs_scheduler", lambda: False)
+    spy = _spy(monkeypatch, {0: _NOT_SET})
+    assert omars_ilp.solve_omars_ilp(omars_ilp._half_pool(3), n_half=3) == (None, "Not Solved", [])
+    assert len(spy.options) == 1
+
+
+def test_scheduler_reset_is_available() -> None:
+    """The private SciPy hook the fork-child path relies on exists in the tested SciPy releases."""
+    assert omars_ilp._reset_highs_scheduler() is True
 
 
 def test_selection_violating_its_constraints_is_a_bug(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -731,6 +773,40 @@ def test_forked_child_can_solve_after_the_parent() -> None:
         """
     )
     assert out.split() != ["hung"]
+    assert out.strip() in {"Optimal", "Node limit"}
+
+
+@pytest.mark.slow
+@pytest.mark.skipif(sys.platform != "linux", reason="the fork start method is only the default on Linux")
+def test_forked_child_solves_after_parent_ran_highs_multi_threaded() -> None:
+    """Regression: the child used to retry on the inherited pool and hang."""
+    out = _run_isolated(
+        """
+        import multiprocessing as mp
+        import numpy as np
+        from scipy.optimize import linprog
+        from process_improve.experiments import designs_omars_ilp as omars_ilp
+
+        pool = omars_ilp._half_pool(5)
+        objective = np.random.default_rng(1).standard_normal(len(pool))
+
+        def solve(queue):
+            queue.put(omars_ilp.solve_omars_ilp(pool, n_half=15, objective=objective)[1])
+
+        if __name__ == "__main__":
+            linprog(c=[1, 1], A_ub=[[-1, -1]], b_ub=[-1], method="highs")
+            omars_ilp.solve_omars_ilp(pool, n_half=15, objective=objective)
+            context = mp.get_context("fork")
+            queue = context.Queue()
+            child = context.Process(target=solve, args=(queue,))
+            child.start()
+            child.join(120)
+            hung = child.is_alive()
+            if hung:
+                child.kill()
+            print("hung" if hung else queue.get())
+        """
+    )
     assert out.strip() in {"Optimal", "Node limit"}
 
 
