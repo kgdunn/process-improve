@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import itertools
+
 import numpy as np
 import pandas as pd
 import pytest
@@ -419,6 +421,49 @@ class TestAddRunsOptimal:
         d_after = evaluate_design(aug, model="interactions", metric="d_efficiency")["d_efficiency"]
         assert d_after is not None
         assert d_after > 0
+
+    @staticmethod
+    def _half_fraction() -> pd.DataFrame:
+        """Return the 2^(4-1) design with D = ABC, which cannot estimate a quadratic model (#637)."""
+        base = pd.DataFrame(list(itertools.product([-1.0, 1.0], repeat=3)), columns=list("ABC"))
+        base["D"] = base.A * base.B * base.C
+        return base
+
+    def test_screening_design_is_augmented_towards_a_quadratic_model(self) -> None:
+        """The greedy search used to add 0 runs here, since every candidate scored -inf."""
+        result = augment_design(
+            self._half_fraction(), "add_runs_optimal", target_model="quadratic", n_additional_runs=8
+        )
+        assert result["n_runs_after"] == 16
+        aug = pd.DataFrame(result["augmented_design"])
+        pairs = [aug[a] * aug[b] for a, b in itertools.combinations("ABCD", 2)]
+        x = np.column_stack([np.ones(16), aug, *pairs, aug**2])
+        assert np.linalg.matrix_rank(x) == 15  # every quadratic coefficient is now estimable
+
+    def test_too_few_runs_are_topped_up_and_explained(self) -> None:
+        result = augment_design(
+            self._half_fraction(), "add_runs_optimal", target_model="quadratic", n_additional_runs=4
+        )
+        assert result["n_runs_after"] == 15  # 8 existing runs of rank 8, so 7 more for 15 coefficients
+        assert "span only 8 of the 15 coefficients" in str(result["explanation"])
+
+    def test_random_state_makes_it_reproducible(self) -> None:
+        def run(seed: int) -> list:
+            return augment_design(
+                self._half_fraction(),
+                "add_runs_optimal",
+                target_model="quadratic",
+                n_additional_runs=8,
+                random_state=seed,
+            )["new_runs"]
+
+        assert run(7) == run(7)
+
+    def test_custom_formula_still_works(self) -> None:
+        result = augment_design(
+            _full_factorial_df(2), "add_runs_optimal", target_model="A + B + A:B + I(A ** 2)", n_additional_runs=2
+        )
+        assert result["n_runs_after"] == 6
 
 
 # ---------------------------------------------------------------------------
