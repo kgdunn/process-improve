@@ -433,8 +433,8 @@ def _pyoptex_blocker(criterion: str, req: _OptimalRequest) -> str | None:
         return "constraints are given (pyoptex does not enforce them)"
     if req.candidates is not None:
         return "a candidate set is given"
-    if criterion == "e_optimal":
-        return "pyoptex has no E-optimality criterion"
+    if criterion in ("e_optimal", "g_optimal", "k_optimal"):
+        return f"pyoptex has no {criterion[0].upper()}-optimality criterion"
     if not _PYOPTEX_AVAILABLE:
         return f"pyoptex is not installed. {_PYOPTEX_INSTALL_HINT}"
     return None

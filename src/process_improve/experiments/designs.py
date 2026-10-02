@@ -237,10 +237,10 @@ def _dispatch_taguchi(
 # ---------------------------------------------------------------------------
 
 #: Space-filling design types (see designs_space_filling.py); none adds centre points.
-_SPACE_FILLING = ("latin_hypercube", "maximin_lhs", "uniform", "sobol", "halton", "maximin")
+_SPACE_FILLING = ("latin_hypercube", "maximin_lhs", "uniform", "sobol", "halton", "maximin", "maxpro")
 
 #: Design types chosen by an optimality criterion; the only ones that take fixed_runs or candidates.
-_OPTIMAL_FAMILIES = frozenset({"d_optimal", "i_optimal", "a_optimal", "e_optimal"})
+_OPTIMAL_FAMILIES = frozenset({"d_optimal", "i_optimal", "a_optimal", "e_optimal", "g_optimal", "k_optimal"})
 
 
 #: Design types that accept categorical factors: the optimal families with any number of
@@ -301,6 +301,8 @@ _DESIGN_REGISTRY: dict[str, Callable[..., tuple[np.ndarray, dict]]] = {
     "i_optimal": functools.partial(_dispatch_optimal_family, "i_optimal"),
     "a_optimal": functools.partial(_dispatch_optimal_family, "a_optimal"),
     "e_optimal": functools.partial(_dispatch_optimal_family, "e_optimal"),
+    "g_optimal": functools.partial(_dispatch_optimal_family, "g_optimal"),
+    "k_optimal": functools.partial(_dispatch_optimal_family, "k_optimal"),
     "mixture": _dispatch_mixture,
     "taguchi": _dispatch_taguchi,
     "supersaturated": _dispatch_supersaturated,
@@ -407,9 +409,11 @@ def generate_design(  # noqa: PLR0913
         One of ``"full_factorial"``, ``"fractional_factorial"``,
         ``"plackett_burman"``, ``"box_behnken"``, ``"ccd"``, ``"dsd"``,
         ``"omars"``, ``"omars_ilp"``, ``"d_optimal"``, ``"i_optimal"``,
-        ``"a_optimal"``, ``"e_optimal"``, ``"mixture"``, ``"taguchi"``, ``"supersaturated"``, and the
+        ``"a_optimal"``, ``"e_optimal"``, ``"g_optimal"`` (smallest worst-case prediction
+        variance over the region), ``"k_optimal"`` (best-conditioned ``X'X``), ``"mixture"``,
+        ``"taguchi"``, ``"supersaturated"``, and the
         space-filling types ``"latin_hypercube"``, ``"maximin_lhs"``, ``"uniform"``, ``"sobol"``,
-        ``"halton"`` and ``"maximin"`` (``budget`` runs, default ``10 * k``).
+        ``"halton"``, ``"maximin"`` and ``"maxpro"`` (``budget`` runs, default ``10 * k``).
         If ``None``, the design type is chosen automatically based on the
         factor count, budget, and constraints; an automatically chosen fractional
         factorial for six or more factors is the smallest one of resolution IV.
@@ -449,15 +453,15 @@ def generate_design(  # noqa: PLR0913
         families (``"d_optimal"``, chosen automatically when constraints are given,
         ``"i_optimal"``, ``"a_optimal"`` and ``"e_optimal"``), whose runs are selected
         from a candidate set of feasible points; by ``"mixture"`` (linear constraints
-        in the proportions); and by the ``"sobol"``, ``"halton"`` and ``"maximin"``
-        space-filling designs. Other design types do not enforce them and set
+        in the proportions); and by the ``"sobol"``, ``"halton"``, ``"maximin"`` and
+        ``"maxpro"`` space-filling designs. Other design types do not enforce them and set
         ``metadata["constraints_enforced"] = False``.
     hard_to_change : list[str] or None
         Names of hard-to-change factors (triggers split-plot structure).
     model_type : str
         Model the optimal designs (``"d_optimal"``, ``"i_optimal"``,
-        ``"a_optimal"``, ``"e_optimal"``) are built for: ``"main_effects"``, ``"interactions"``
-        (default), or ``"quadratic"``.  With a categorical factor present,
+        ``"a_optimal"``, ``"e_optimal"``, ``"g_optimal"``, ``"k_optimal"``) are built
+        for: ``"main_effects"``, ``"interactions"`` (default), or ``"quadratic"``.  With a categorical factor present,
         ``"quadratic"`` builds a partial response-surface model (quadratics on
         the continuous factors only; the categorical enters as a main effect
         plus its interactions), since a categorical factor has no square.

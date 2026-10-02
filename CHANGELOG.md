@@ -13,6 +13,22 @@ those changes.
 
 ### Added
 
+- **G-optimal and K-optimal designs** (`design_type="g_optimal"` and `"k_optimal"`), so
+  the built-in exchange covers the D, A, E, G, I and K criteria. G-optimality minimises
+  the largest prediction variance over the region (constrained or mixture regions
+  included), found by I-lambda optimality (Hernandez and Nachtsheim 2018): rounds of the
+  fast trace exchange whose weights move, by Lawson's rule, to where the variance is
+  largest, then an exact polish of the maximum. For a first-order model it recovers the
+  2^k factorial (G-efficiency 100%). K-optimality minimises the condition number of
+  `X'X` (Ye and Zhou 2013). Both work with constraints, candidate sets, fixed runs and
+  mixtures.
+- **Maximum projection (MaxPro) space-filling designs** (`design_type="maxpro"`; Joseph,
+  Gul and Ba 2015), which keep runs apart in every projection onto a subset of factors.
+  On 20 runs in 4 factors the smallest distance between runs in any two-factor
+  projection is 0.24 against 0.09 for a Latin hypercube; a plain maximin design, which
+  sits on a grid, has coincident projections. MaxPro works on the box (Latin hypercube
+  swaps, then a bounded continuous search) and in constrained and mixture regions.
+
 - **The `generate_design` agent tool exposes the whole design surface.** It takes
   `constraints` (expressions in actual units), `candidates`, `fixed_runs`, `model_type`,
   `n_blocks`, `hard_to_change`, `generators`, `cube` and a numeric `alpha`, offers the

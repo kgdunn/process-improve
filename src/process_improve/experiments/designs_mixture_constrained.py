@@ -368,10 +368,9 @@ def constrained_mixture_design(
                 n_parameters,
             )
             budget = n_parameters
-        criterion = make_criterion(opts.criterion, n_parameters, region_rows)
-        rows, logdet = fedorov_exchange(
-            scheffe_matrix(pool, model), budget, np.empty((0, n_parameters)), rng, criterion
-        )
+        f_pool = scheffe_matrix(pool, model)
+        criterion = make_criterion(opts.criterion, n_parameters, region_rows, f_pool)
+        rows, logdet = fedorov_exchange(f_pool, budget, np.empty((0, n_parameters)), rng, criterion)
         design = pool[rows]
         method = f"{opts.criterion}_{'user_candidates' if labels is not None else 'extreme_vertices'}"
 
