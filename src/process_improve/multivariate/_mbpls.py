@@ -237,19 +237,38 @@ def _block_projections(
     return local_w, local_t, t_b_summary
 
 
+def _block_loadings(
+    x_def: dict[str, np.ndarray], t_super: np.ndarray, context: _MBPLSLoopContext
+) -> dict[str, np.ndarray]:
+    """Regress every block on the super score, giving the loadings that deflate it."""
+    t_super_col = t_super.reshape(-1, 1)
+    loadings: dict[str, np.ndarray] = {}
+    for name in context.block_names:
+        if context.algo == "nipals":
+            loadings[name] = quick_regress(x_def[name], t_super_col).flatten()
+        else:
+            loadings[name] = x_def[name].T @ t_super / _nz(float(t_super @ t_super))
+    return loadings
+
+
 def _apply_sign_convention(
-    component: _MBPLSComponent,
-    block_names: Sequence[str],
+    component: _MBPLSComponent, x_def: dict[str, np.ndarray], context: _MBPLSLoopContext
 ) -> _MBPLSComponent:
-    """Flip the component so the largest element of the super weight is positive."""
-    w_s = component.super_weight
-    flip_idx = int(np.argmax(np.abs(w_s)))
-    if w_s[flip_idx] >= 0:
+    """Flip the component so its largest-magnitude X loading, over all blocks, is positive.
+
+    This is single-block PLS's convention, so the fitted signs do not depend on the seed,
+    and a one-block model has PLS's signs (#586). The super weight is not flipped, and
+    cannot decide the sign: its element for block b is proportional to ``t_b' u``, which
+    flipping the whole component leaves unchanged. (With no missing data that is
+    ``||X_b' u||``, never negative, so the old convention keyed on it never fired.)
+    """
+    loadings = _block_loadings(x_def, component.super_score, context)
+    stacked = np.nan_to_num(np.concatenate([loadings[name] for name in context.block_names]))
+    if stacked[int(np.argmax(np.abs(stacked)))] >= 0:
         return component
     return component._replace(
-        block_weights={name: -component.block_weights[name] for name in block_names},
-        block_scores={name: -component.block_scores[name] for name in block_names},
-        super_weight=-w_s,
+        block_weights={name: -weights for name, weights in component.block_weights.items()},
+        block_scores={name: -scores for name, scores in component.block_scores.items()},
         super_score=-component.super_score,
         super_y_score=-component.super_y_score,
         super_y_loading=-component.super_y_loading,
@@ -320,7 +339,7 @@ def _fit_one_component(
         super_y_loading=c_a,
         iterations=itern,
     )
-    return _apply_sign_convention(component, context.block_names)
+    return _apply_sign_convention(component, x_def, context)
 
 
 def _deflate(
@@ -332,15 +351,9 @@ def _deflate(
     deflating.
     """
     t_super = component.super_score
-    t_super_col = t_super.reshape(-1, 1)
-    loadings: dict[str, np.ndarray] = {}
+    loadings = _block_loadings(x_def, t_super, context)
     for name in context.block_names:
-        if context.algo == "nipals":
-            p_b = quick_regress(x_def[name], t_super_col).flatten()
-        else:
-            p_b = x_def[name].T @ t_super / _nz(float(t_super @ t_super))
-        x_def[name] = x_def[name] - np.outer(t_super, p_b)
-        loadings[name] = p_b
+        x_def[name] = x_def[name] - np.outer(t_super, loadings[name])
     return x_def, y_def - np.outer(t_super, component.super_y_loading), loadings
 
 
