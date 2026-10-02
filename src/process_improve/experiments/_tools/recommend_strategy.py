@@ -33,7 +33,10 @@ class RecommendStrategyInput(BaseModel):
     )
     constraints: list[dict[str, Any]] | None = Field(
         None,
-        description="Factor-space constraints. Each entry: expression (str), optional type ('linear'|'nonlinear').",
+        description=(
+            "Factor-space constraints. Each entry: expression (str), optional type ('linear'|'nonlinear'), "
+            "which is informational only."
+        ),
     )
     hard_to_change_factors: list[str] | None = Field(
         None,
