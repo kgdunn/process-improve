@@ -16,16 +16,16 @@ from typing import TYPE_CHECKING
 import numpy as np
 
 from process_improve.experiments._finite_fields import hadamard_matrix
+from process_improve.experiments.designs_utils import categorical_codes
 
 try:
-    from pyDOE3 import fracfact, fracfact_by_res, pbdesign, taguchi_design
+    from pyDOE3 import fracfact, fracfact_by_res, pbdesign
 except ImportError:  # pragma: no cover - exercised via env-without-pyDOE3
     from process_improve._extras import _MissingExtra
 
     fracfact = _MissingExtra("pyDOE3", "expt")  # type: ignore[assignment]
     fracfact_by_res = _MissingExtra("pyDOE3", "expt")  # type: ignore[assignment]
     pbdesign = _MissingExtra("pyDOE3", "expt")  # type: ignore[assignment]
-    taguchi_design = _MissingExtra("pyDOE3", "expt")  # type: ignore[assignment]
 
 if TYPE_CHECKING:
     from process_improve.experiments.factor import Factor
@@ -370,64 +370,78 @@ def dispatch_plackett_burman(factors: list[Factor]) -> tuple[np.ndarray, dict]:
     }
 
 
+def _is_strength_two(array: np.ndarray) -> bool:
+    """Whether every pair of columns shows every level combination equally often."""
+    for i, j in itertools.combinations(range(array.shape[1]), 2):
+        _, counts = np.unique(array[:, [i, j]], axis=0, return_counts=True)
+        if len(counts) != (array[:, i].max() + 1) * (array[:, j].max() + 1) or counts.min() != counts.max():
+            return False
+    return True
+
+
+def _taguchi_codes(factor: Factor, n_levels: int) -> np.ndarray:
+    """Coded settings for a factor's ``n_levels`` levels: equally spaced, or its own ``levels`` coded to [-1, 1]."""
+    if factor.type.value != "categorical" and factor.levels:
+        low, high = float(factor.low), float(factor.high)  # type: ignore[arg-type]
+        values = np.unique(np.asarray(factor.levels, dtype=float))
+        return (values - (low + high) / 2.0) / ((high - low) / 2.0)
+    return categorical_codes(n_levels)
+
+
 def dispatch_taguchi(factors: list[Factor]) -> tuple[np.ndarray, dict]:
     """Generate a Taguchi orthogonal-array design.
 
-    Selects the smallest standard orthogonal array that accommodates all
-    factors and their levels.
+    Uses the smallest of pyDOE3's standard arrays that has a column for every factor:
+    two levels for a continuous factor, the number of its ``levels`` for a categorical
+    factor or a continuous factor given explicit levels. Each factor takes its own
+    column (one with its level count, or else one whose levels divide evenly into its
+    own, as a 6-level column carries a 3-level factor); the other columns are left
+    unused. The chosen columns are checked to be balanced in every pair (strength 2)
+    before use. No centre points are added.
 
     Parameters
     ----------
     factors : list[Factor]
-        Factors with ``levels`` or 2-level continuous factors.
+        Continuous factors (two levels, or the values in ``levels``) and categorical factors.
 
     Returns
     -------
     tuple[np.ndarray, dict]
-        Coded design matrix (-1 / +1 for 2-level factors) and metadata.
+        Coded design matrix (-1 / +1 for two levels, equally spaced codes otherwise) and
+        metadata with the ``orthogonal_array`` and the array ``columns`` used.
     """
-    from pyDOE3 import list_orthogonal_arrays  # noqa: PLC0415
+    from pyDOE3 import get_orthogonal_array, list_orthogonal_arrays  # noqa: PLC0415
 
-    k = len(factors)
-    levels_per_factor: list[list[float]] = []
-    for f in factors:
-        if f.levels is not None and f.type.value == "categorical":
-            levels_per_factor.append(list(range(len(f.levels))))
-        else:
-            levels_per_factor.append([-1, +1])
-
-    n_levels = [len(lv) for lv in levels_per_factor]
-    available = list_orthogonal_arrays()
-
-    # Pick the smallest OA that fits
-    selected_oa = None
-    for oa_name in available:
-        # Parse e.g. "L8(2^7)" to get max_factors and max levels
-        parts = oa_name.split("(")
-        # Check if this OA can accommodate our factors
-        # Simple heuristic: need at least k columns and matching level counts
-        inner = parts[1].rstrip(")")
-        segments = inner.split(" ")
-        total_columns = 0
-        max_level = 0
-        for seg in segments:
-            base, exp = seg.split("^")
-            total_columns += int(exp)
-            max_level = max(max_level, int(base))
-
-        if total_columns >= k and all(nl <= max_level for nl in n_levels):
-            selected_oa = oa_name
-            break
-
-    if selected_oa is None:
-        raise ValueError(
-            f"No standard Taguchi orthogonal array found for {k} factors "
-            f"with levels {n_levels}. Consider using a different design type."
-        )
-
-    coded_matrix = taguchi_design(selected_oa, levels_per_factor)
-
-    # Trim to the number of factors we actually need
-    coded_matrix = coded_matrix[:, :k]
-
-    return coded_matrix, {"orthogonal_array": selected_oa}
+    needed = [len(f.levels) if f.levels else 2 for f in factors]
+    order = sorted(range(len(factors)), key=lambda i: -needed[i])
+    for name in list_orthogonal_arrays():  # in order of run count
+        array = get_orthogonal_array(name)
+        # Column level counts come from the array itself: some pyDOE3 names do not match
+        # their arrays (its "L27(2^1 3^12)" is all three-level, its "L36(3^23)" has eleven
+        # two-level columns).
+        free = [int(array[:, j].max()) + 1 for j in range(array.shape[1])]
+        columns: dict[int, int] = {}
+        for i in order:
+            open_columns = [c for c in range(len(free)) if c not in columns.values()]
+            # A column of exactly the factor's level count, or else one whose levels split
+            # evenly into the factor's (a 6-level column carries a 2- or 3-level factor).
+            column = next((c for c in open_columns if free[c] == needed[i]), None)
+            if column is None:
+                column = next((c for c in open_columns if free[c] % needed[i] == 0), None)
+            if column is None:
+                break
+            columns[i] = column
+        if len(columns) < len(factors):
+            continue
+        chosen = [columns[i] for i in range(len(factors))]
+        levels = np.column_stack([array[:, chosen[i]] % needed[i] for i in range(len(factors))])
+        # pyDOE3's "L64(2^31)" is not orthogonal, so the chosen columns are checked, not trusted.
+        if _is_strength_two(levels):
+            coded = np.column_stack([_taguchi_codes(f, needed[i])[levels[:, i]] for i, f in enumerate(factors)]).astype(
+                float
+            )
+            return coded, {"orthogonal_array": name, "columns": chosen}
+    raise ValueError(
+        f"No standard orthogonal array has columns for {len(factors)} factors with {sorted(needed)} levels; "
+        "use 'full_factorial' or an optimal design instead."
+    )

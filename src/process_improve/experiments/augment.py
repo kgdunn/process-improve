@@ -19,7 +19,6 @@ Example
 
 from __future__ import annotations
 
-import itertools
 import logging
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -30,6 +29,7 @@ import pandas as pd
 from patsy import dmatrix
 
 from process_improve._random import check_random_state
+from process_improve.experiments._blocking import confounding_blocks, exchange_blocks, is_regular_two_level
 from process_improve.experiments.evaluate import (
     _defining_relation_from_generators,
     _word_to_str,
@@ -608,64 +608,42 @@ def _augment_upgrade_to_rsm(ctx: _AugmentContext) -> dict[str, Any]:
 
 
 def _augment_add_blocks(ctx: _AugmentContext) -> dict[str, Any]:
-    """Retroactively assign blocks by confounding with high-order interactions."""
+    """Assign existing runs to blocks: by confounding interaction words in a regular two-level design, else by exchange.
+
+    See :mod:`process_improve.experiments._blocking`. In a two-level factorial the block
+    contrasts are chosen so that no main effect is confounded with blocks (and as few
+    two-factor interactions as possible); every block contrast, including the products
+    of the generators, is reported.
+    """
     df = ctx.existing_design[ctx.factor_names].copy()
     n_blocks = ctx.n_additional_runs if ctx.n_additional_runs is not None else 2
-    k = len(ctx.factor_names)
-
     if n_blocks < 2:
         raise ValueError("Number of blocks must be at least 2.")
-
-    # Determine how many confounding columns needed: 2^b blocks requires b columns
-    b = int(np.ceil(np.log2(n_blocks)))
-    n_blocks_actual = 2**b  # round up to power of 2
-
-    # Choose the highest-order interactions for confounding
-    # Generate all interactions from order k down to order 2
-    confounding_columns: list[tuple[str, np.ndarray]] = []
-    for order in range(k, 1, -1):
-        for combo in itertools.combinations(range(k), order):
-            if len(confounding_columns) >= b:
-                break
-            col_product = np.ones(len(df))
-            for idx in combo:
-                col_product *= df.iloc[:, idx].to_numpy()
-            word = "".join(ctx.factor_names[i] for i in combo)
-            confounding_columns.append((word, col_product))
-        if len(confounding_columns) >= b:
-            break
-
-    if len(confounding_columns) < b:
-        raise ValueError(
-            f"Cannot create {n_blocks_actual} blocks with {k} factors. "
-            f"Need {b} confounding columns but only found {len(confounding_columns)}."
-        )
-
-    # Assign blocks using signs of confounding columns
-    block_assignment = np.zeros(len(df), dtype=int)
-    for i, (_word, col) in enumerate(confounding_columns[:b]):
-        block_assignment += (col > 0).astype(int) * (2**i)
-    block_assignment += 1  # 1-based
-
+    numeric = df.to_numpy(dtype=float)
+    if is_regular_two_level(numeric):
+        blocking = confounding_blocks(numeric, n_blocks, ctx.factor_names)
+        notes = [
+            f"Assigned {n_blocks} blocks with generators {', '.join(blocking.generators)}.",
+            f"Confounded with blocks: {', '.join(blocking.confounded_with)} (no main effect).",
+        ]
+    else:
+        blocking = exchange_blocks(numeric, n_blocks, check_random_state(ctx.random_state))
+        notes = [
+            (
+                f"Assigned {n_blocks} blocks by exchange, keeping the {blocking.model} model estimable with a "
+                "separate mean in every block."
+            ),
+        ]
     augmented = df.copy()
-    augmented["Block"] = block_assignment.tolist()
-
-    confounded_words = [word for word, _ in confounding_columns[:b]]
-    notes = [
-        f"Assigned {n_blocks_actual} blocks by confounding with: {', '.join(confounded_words)}.",
-        f"Block effect is aliased with the {', '.join(confounded_words)} interaction(s).",
-        "Block effects should be orthogonal to main effects and low-order interactions.",
-    ]
-    explanation = "\n".join(notes)
-
+    augmented["Block"] = blocking.labels.tolist()
     return {
         "augmented_design": augmented.to_dict(orient="records"),
         "new_runs": [],
         "n_runs_before": len(ctx.existing_design),
         "n_runs_after": len(augmented),
-        "n_blocks": n_blocks_actual,
-        "confounded_with": confounded_words,
-        "explanation": explanation,
+        "n_blocks": n_blocks,
+        "confounded_with": blocking.confounded_with,
+        "explanation": "\n".join(notes),
     }
 
 

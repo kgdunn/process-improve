@@ -84,6 +84,7 @@ from typing import TYPE_CHECKING, Any
 import numpy as np
 from scipy.optimize import Bounds, LinearConstraint, OptimizeResult, milp
 
+from process_improve._random import check_random_state
 from process_improve.experiments.designs_omars import _second_order_terms, is_omars
 
 logger = logging.getLogger(__name__)
@@ -1695,18 +1696,30 @@ def _dispatch_omars_ilp(factors: list[Factor], **kwargs: Any) -> tuple[np.ndarra
 
     Returns the raw coded matrix (with its single centre run) and metadata;
     :func:`process_improve.experiments.generate_design` handles post-processing.
+
+    The design is sized for the full second-order model when the budget leaves error
+    degrees of freedom for it, and otherwise for main effects plus pure quadratics, so
+    a budget between those sizes (17 runs for 6 factors) still gives an OMARS design.
     """
-    return _search_best_omars(
+    budget = kwargs.get("budget")
+    k = len(factors)
+    model = (
+        "full_second_order" if budget is None or budget > _model_params(k, "full_second_order") else "main_quadratic"
+    )
+    random_state = kwargs.get("random_state", 42)
+    seed = random_state if isinstance(random_state, int) else int(check_random_state(random_state).integers(2**31))
+    designed, meta = _search_best_omars(
         factors,
-        n_runs=kwargs.get("budget"),
+        n_runs=budget,
         n_runs_range=None,
         selection_criterion="dominance",
         satisfice=None,
         n_restarts=50,
-        model="full_second_order",
+        model=model,
         solver_options=None,
         tol=1e-9,
         verify=True,
-        random_seed=42,
+        random_seed=seed,
         center_runs=1,
     )
+    return designed, {**meta, "model": model}

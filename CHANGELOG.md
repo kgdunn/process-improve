@@ -244,6 +244,41 @@ those changes.
   axial distance, an unknown name raises `ValueError` (both cube types), and the centre
   runs are the number asked for. Designs with a named `alpha` and two or more centre
   runs are unchanged.
+- **Categorical factors work in every design family that can carry them.** A two-level
+  categorical factor in a DSD, OMARS, fractional factorial or Plackett-Burman design
+  failed with `All values must be present in levels`, as did any categorical factor in a
+  Taguchi design. Coded designs now map level codes to labels in one place. DSDs use the
+  DSD-augment method of Jones and Nachtsheim (2013), which keeps every main effect
+  orthogonal to the second-order effects (two centre runs instead of one). Centre runs
+  cycle a categorical factor through its levels. Families that cannot place a categorical
+  factor (CCD, Box-Behnken, OMARS, supersaturated, space-filling) say so and name the
+  ones that can.
+- **General full factorials.** `design_type="full_factorial"` built only the 2^k design:
+  a categorical factor with more than two levels failed, and a continuous factor's
+  `levels` were ignored. Each factor now takes its own levels, giving the mixed-level
+  full factorial.
+- **Taguchi designs work for any number of factors their arrays can hold.** pyDOE3 needs
+  one level list per array column, so 4 to 6 factors (L8) and most other counts failed;
+  factor levels were not mapped to labels, and 3 centre points were added. Each factor
+  now takes its own array column (a column with more levels can carry a factor whose
+  levels divide into it, so a 6-level column holds a 2- or 3-level factor), the columns
+  are checked to be balanced in pairs before use, and no centre points are added. The
+  checks matter: pyDOE3's `L64(2^31)` is not orthogonal, and its `L27` and `L36` names do
+  not match their arrays.
+- **Automatic choice no longer picks a half fraction for six or more factors.** With no
+  budget it returned the 2^(k-1) design, 515 runs for 10 factors; it now returns the
+  smallest resolution IV fraction (35 runs for 10 factors, centre points included).
+- **Blocks no longer bias the factor effects.** `generate_design(n_blocks=...)` labelled
+  the randomised runs 1, 2, 1, 2, ... in turn, so the blocks were neither orthogonal to
+  the factors nor run as blocks. A regular two-level factorial is now blocked by
+  confounding interaction words with blocks, chosen so that no main effect and as few
+  two-factor interactions as possible are confounded (minimum aberration blocking); any
+  other design is blocked by exchanging runs between equal blocks to keep the most
+  information for the factor effects. Runs are randomised within each block and the
+  blocks run in turn; `metadata["blocking"]` names the method and every confounded
+  contrast. `augment_design(..., "add_blocks")` uses the same routine: with 4 blocks of a
+  2^4 design it used ABCD and ABC, whose product D (a main effect) was confounded with
+  blocks.
 - **Plackett-Burman designs exist for 24 to 99 factors.** pyDOE3 stops with an
   `AssertionError` at 24 to 27, 32 to 35, 40 to 43, 48 to 59 factors and beyond; those
   sizes now use a Hadamard matrix from the finite-field module (Paley I and II, doubling),

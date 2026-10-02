@@ -357,18 +357,20 @@ def dsd_conference_order(n_factors: int) -> int:
     return conference_order_at_least(n_factors + n_factors % 2)
 
 
-def dsd_run_count(n_factors: int) -> int:
-    """Return the number of runs in the definitive screening design for ``n_factors`` continuous factors.
+def dsd_run_count(n_factors: int, n_categorical: int = 0) -> int:
+    """Return the number of runs in the definitive screening design for ``n_factors`` factors.
 
     ``2m + 1`` for the conference order ``m`` of :func:`dsd_conference_order`: the familiar
     ``2k + 1`` for even ``k`` and ``2k + 3`` for odd ``k``, except where the order steps up.
+    Two-level categorical factors (counted in ``n_factors``) need two centre runs instead
+    of one (Jones and Nachtsheim 2013).
 
     Examples
     --------
-    >>> dsd_run_count(6), dsd_run_count(7), dsd_run_count(22)
-    (13, 17, 49)
+    >>> dsd_run_count(6), dsd_run_count(7), dsd_run_count(22), dsd_run_count(6, n_categorical=2)
+    (13, 17, 49, 14)
     """
-    return 2 * dsd_conference_order(n_factors) + 1
+    return 2 * dsd_conference_order(n_factors) + (2 if n_categorical else 1)
 
 
 def dispatch_dsd(factors: list[Factor]) -> tuple[np.ndarray, dict]:
@@ -388,16 +390,25 @@ def dispatch_dsd(factors: list[Factor]) -> tuple[np.ndarray, dict]:
     Every matrix is checked against ``C'C = (m - 1) I`` before use; no approximate
     matrix is ever used.
 
+    Two-level categorical factors use the DSD-augment method of Jones and Nachtsheim
+    (2013): a categorical factor takes a conference-matrix column like any other, its
+    two zeros (one in each half of the foldover) become ``+z`` and ``-z``, and the
+    single centre run becomes two, with the categorical factors at ``+b`` and ``-b``.
+    The signs are chosen to maximise the determinant of the main-effects information
+    matrix. Every main effect stays orthogonal to every second-order effect; the
+    categorical main effects are slightly correlated with each other.
+
     Parameters
     ----------
     factors : list[Factor]
-        Continuous factors, at least three.
+        At least three factors: continuous, or categorical with exactly two levels.
 
     Returns
     -------
     tuple[np.ndarray, dict]
-        Coded design matrix and metadata: ``construction`` (the conference-matrix
-        construction) and ``conference_order``.
+        Coded design matrix (categorical factors at -1 / +1) and metadata:
+        ``construction``, ``conference_order`` and, with categorical factors,
+        ``n_categorical``.
 
     References
     ----------
@@ -407,9 +418,51 @@ def dispatch_dsd(factors: list[Factor]) -> tuple[np.ndarray, dict]:
     .. [2] Xiao, L., Lin, D. K. J. and Bai, F. (2012).  "Constructing
        definitive screening designs using conference matrices."  *Journal
        of Quality Technology*, 44(1):2-8.
+    .. [3] Jones, B. and Nachtsheim, C. J. (2013).  "Definitive screening
+       designs with added two-level categorical factors."  *Journal of Quality
+       Technology*, 45(2):121-129.
     """
     k = len(factors)
+    categorical = [j for j, f in enumerate(factors) if f.type.value == "categorical"]
+    for j in categorical:
+        if len(factors[j].levels or []) != 2:
+            raise ValueError(
+                f"Factor {factors[j].name!r} has {len(factors[j].levels or [])} levels; definitive screening "
+                "designs take two-level categorical factors only (Jones and Nachtsheim 2013). Use "
+                'design_type="d_optimal" or "i_optimal" for a factor with more levels.'
+            )
     m = dsd_conference_order(k)
     conference, construction = conference_matrix(m)
-    coded_matrix = np.vstack([conference, -conference, np.zeros((1, m))]).astype(float)[:, :k]
-    return coded_matrix, {"construction": construction, "conference_order": m}
+    folded = np.vstack([conference, -conference]).astype(float)[:, :k]
+    meta: dict = {"construction": construction, "conference_order": m}
+    if not categorical:
+        return np.vstack([folded, np.zeros((1, k))]), meta
+    meta["n_categorical"] = len(categorical)
+    return _dsd_augment(folded, categorical), meta
+
+
+#: Up to this many categorical factors, every sign choice of the DSD-augment method is tried.
+_MAX_EXHAUSTIVE_CATEGORICAL = 7
+
+
+def _dsd_augment(folded: np.ndarray, categorical: list[int]) -> np.ndarray:
+    """Jones and Nachtsheim's (2013) DSD-augment: resolve the categorical columns' zeros and add two centre runs."""
+    n_half, k = folded.shape[0] // 2, folded.shape[1]
+    zero_rows = [int(np.flatnonzero(folded[:n_half, j] == 0)[0]) for j in categorical]
+    c = len(categorical)
+    if c <= _MAX_EXHAUSTIVE_CATEGORICAL:
+        candidates = (np.array(signs) for signs in itertools.product((-1.0, 1.0), repeat=2 * c))
+    else:  # one-at-a-time flips of an alternating pattern, linear in c (the paper uses an exchange here)
+        seed = np.where(np.arange(2 * c) % 2 == 0, 1.0, -1.0)
+        candidates = (seed * np.where(np.arange(2 * c) == i, -1.0, 1.0) for i in range(-1, 2 * c))
+    best, best_value = folded, -np.inf
+    for signs in candidates:
+        design = np.vstack([folded, np.zeros((2, k))])
+        for position, (j, row) in enumerate(zip(categorical, zero_rows, strict=True)):
+            design[row, j], design[row + n_half, j] = signs[position], -signs[position]
+            design[-2, j], design[-1, j] = signs[c + position], -signs[c + position]
+        model = np.column_stack([np.ones(len(design)), design])
+        value = float(np.linalg.slogdet(model.T @ model)[1])
+        if value > best_value + 1e-12:
+            best, best_value = design, value
+    return best

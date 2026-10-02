@@ -23,6 +23,7 @@ Examples
 from __future__ import annotations
 
 import functools
+import itertools
 import logging
 from collections.abc import Callable
 from typing import Any
@@ -37,7 +38,7 @@ except ImportError:  # pragma: no cover - exercised via env-without-pyDOE3
 
     ff2n = _MissingExtra("pyDOE3", "expt")  # type: ignore[assignment]
 
-from process_improve.experiments.designs_utils import build_design_result
+from process_improve.experiments.designs_utils import build_design_result, categorical_codes
 from process_improve.experiments.factor import Constraint, DesignResult, Factor, FactorType
 
 logger = logging.getLogger(__name__)
@@ -47,14 +48,39 @@ logger = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 
 
+def _factor_codes(factor: Factor) -> np.ndarray:
+    """Coded settings a full factorial gives ``factor``.
+
+    -1 and +1 for a continuous factor; its ``levels`` (actual values inside
+    ``[low, high]``) coded to ``[-1, 1]`` when given; the level codes of a categorical
+    factor (see :func:`~process_improve.experiments.designs_utils.categorical_codes`).
+    """
+    if factor.type == FactorType.categorical:
+        return categorical_codes(len(factor.levels or []))
+    if not factor.levels:
+        return np.array([-1.0, 1.0])
+    low, high = float(factor.low), float(factor.high)  # type: ignore[arg-type]
+    values = np.unique(np.asarray(factor.levels, dtype=float))
+    if values.min() < low or values.max() > high:
+        raise ValueError(f"Factor {factor.name!r}: levels {values.tolist()} must lie within low={low} and high={high}.")
+    return (values - (low + high) / 2.0) / ((high - low) / 2.0)
+
+
 def _dispatch_full_factorial(
     factors: list[Factor],
     **kwargs: Any,  # noqa: ANN401
 ) -> tuple[np.ndarray, dict]:
-    """Full 2^k factorial using pyDOE3.ff2n (returns -1/+1)."""
-    k = len(factors)
-    coded_matrix = ff2n(k)
-    return coded_matrix, {}
+    """Full factorial: every combination of every factor's levels, first factor changing fastest.
+
+    Two-level factors give pyDOE3's ``ff2n`` 2^k design; a continuous factor with
+    ``levels`` or a categorical factor with more than two levels gives the general
+    (mixed-level) full factorial.
+    """
+    sets = [_factor_codes(f) for f in factors]
+    if all(len(codes) == 2 and codes.tolist() == [-1.0, 1.0] for codes in sets):
+        return ff2n(len(factors)), {}
+    grid = np.array(list(itertools.product(*sets[::-1])))[:, ::-1]
+    return grid, {"levels_per_factor": [len(codes) for codes in sets]}
 
 
 def _dispatch_fractional_factorial(
@@ -136,7 +162,7 @@ def _dispatch_omars_ilp(
 ) -> tuple[np.ndarray, dict]:
     from process_improve.experiments.designs_omars_ilp import _dispatch_omars_ilp as _run  # noqa: PLC0415
 
-    return _run(factors, budget=kwargs.get("budget"))
+    return _run(factors, budget=kwargs.get("budget"), random_state=kwargs.get("random_state"))
 
 
 def _dispatch_optimal_family(
@@ -213,6 +239,33 @@ _SPACE_FILLING = ("latin_hypercube", "maximin_lhs", "uniform", "sobol", "halton"
 
 #: Design types chosen by an optimality criterion; the only ones that take fixed_runs or candidates.
 _OPTIMAL_FAMILIES = frozenset({"d_optimal", "i_optimal", "a_optimal", "e_optimal"})
+
+
+#: Design types that accept categorical factors: the optimal families with any number of
+#: levels, the full factorial and Taguchi arrays with the levels the design provides,
+#: and the two-level designs with two-level categorical factors.
+_CATEGORICAL_ANY_LEVELS = frozenset({"full_factorial", "taguchi", *_OPTIMAL_FAMILIES})
+_CATEGORICAL_TWO_LEVELS = frozenset({"fractional_factorial", "plackett_burman", "dsd"})
+
+
+def _refuse_unsupported_categorical(factors: list[Factor], design_type: str) -> None:
+    """Raise one clear message when ``design_type`` cannot place a categorical factor."""
+    categorical = [f for f in factors if f.type == FactorType.categorical]
+    if not categorical or design_type in _CATEGORICAL_ANY_LEVELS:
+        return
+    if design_type in _CATEGORICAL_TWO_LEVELS:
+        many = [f.name for f in categorical if len(f.levels or []) != 2]
+        if not many:
+            return
+        raise ValueError(
+            f"design_type={design_type!r} takes two-level categorical factors only; {many} have more levels. "
+            "Use 'full_factorial', 'taguchi' or an optimal design ('d_optimal', 'i_optimal')."
+        )
+    raise ValueError(
+        f"design_type={design_type!r} needs continuous factors, but {[f.name for f in categorical]} are "
+        "categorical. Use 'd_optimal' or 'i_optimal' (any levels), 'dsd', 'fractional_factorial' or "
+        "'plackett_burman' (two-level categorical factors), 'full_factorial' or 'taguchi'."
+    )
 
 
 def _refuse_mixture_process(factors: list[Factor]) -> None:
@@ -354,7 +407,8 @@ def generate_design(  # noqa: PLR0913
         space-filling types ``"latin_hypercube"``, ``"maximin_lhs"``, ``"uniform"``, ``"sobol"``,
         ``"halton"`` and ``"maximin"`` (``budget`` runs, default ``10 * k``).
         If ``None``, the design type is chosen automatically based on the
-        factor count, budget, and constraints.
+        factor count, budget, and constraints; an automatically chosen fractional
+        factorial for six or more factors is the smallest one of resolution IV.
     budget : int or None
         Maximum number of runs the experimenter can afford.
     n_center_points : int
@@ -456,6 +510,10 @@ def generate_design(  # noqa: PLR0913
         design_type = (
             "d_optimal" if candidates is not None else _auto_select(factors, budget, constraints, hard_to_change)
         )
+        if design_type == "fractional_factorial" and resolution is None and generators is None and len(factors) >= 6:
+            # Screening many factors: the smallest resolution IV fraction (main effects clear of
+            # two-factor interactions), not the half fraction (512 runs for 10 factors).
+            resolution = 4
 
     if design_type not in _DESIGN_REGISTRY:
         raise ValueError(f"Unknown design_type={design_type!r}.  Choose from: {', '.join(sorted(_DESIGN_REGISTRY))}.")
@@ -472,6 +530,7 @@ def generate_design(  # noqa: PLR0913
             f"got design_type={design_type!r}."
         )
     _refuse_mixture_process(factors)
+    _refuse_unsupported_categorical(factors, design_type)
 
     # --- Dispatch ----------------------------------------------------------
     dispatch_fn = _DESIGN_REGISTRY[design_type]
@@ -516,6 +575,7 @@ def generate_design(  # noqa: PLR0913
         "omars_ilp",
         "mixture",
         "supersaturated",  # the point is the fewest runs; centre points would spend them on nothing
+        "taguchi",  # an orthogonal array is complete as it stands
         *_OPTIMAL_FAMILIES,
         *_SPACE_FILLING,
     }
