@@ -467,17 +467,17 @@ def dispatch_dsd(factors: list[Factor], budget: int | None = None) -> tuple[np.n
 
     References
     ----------
-    .. [1] Jones, B. and Nachtsheim, C. J. (2011).  "A class of three-level
-       designs for definitive screening in the presence of second-order
-       effects."  *Journal of Quality Technology*, 43(1):1-15.
-    .. [2] Xiao, L., Lin, D. K. J. and Bai, F. (2012).  "Constructing
-       definitive screening designs using conference matrices."  *Journal
-       of Quality Technology*, 44(1):2-8.
-    .. [3] Jones, B. and Nachtsheim, C. J. (2013).  "Definitive screening
-       designs with added two-level categorical factors."  *Journal of Quality
-       Technology*, 45(2):121-129.
-    .. [4] Jones, B. and Nachtsheim, C. J. (2017).  "Effective design-based model
-       selection for definitive screening designs."  *Technometrics*, 59(3):319-329.
+    * Jones, B. and Nachtsheim, C. J. (2011).  "A class of three-level
+      designs for definitive screening in the presence of second-order
+      effects."  *Journal of Quality Technology*, 43(1):1-15.
+    * Xiao, L., Lin, D. K. J. and Bai, F. (2012).  "Constructing
+      definitive screening designs using conference matrices."  *Journal
+      of Quality Technology*, 44(1):2-8.
+    * Jones, B. and Nachtsheim, C. J. (2013).  "Definitive screening
+      designs with added two-level categorical factors."  *Journal of Quality
+      Technology*, 45(2):121-129.
+    * Jones, B. and Nachtsheim, C. J. (2017).  "Effective design-based model
+      selection for definitive screening designs."  *Technometrics*, 59(3):319-329.
     """
     k = len(factors)
     categorical = [j for j, f in enumerate(factors) if f.type.value == "categorical"]

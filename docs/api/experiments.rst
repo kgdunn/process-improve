@@ -11,6 +11,21 @@ Designed Experiments
    :undoc-members:
    :show-inheritance:
 
+.. automodule:: process_improve.experiments.factor
+   :members: Factor, Constraint, Response, ResponseGoal, DesignResult
+
+.. automodule:: process_improve.experiments.designs_screening
+   :members: dispatch_fractional_factorial, dispatch_plackett_burman, plackett_burman_runs, dispatch_taguchi
+
+.. automodule:: process_improve.experiments.designs_response_surface
+   :members: dispatch_ccd, orthogonal_alpha, dispatch_box_behnken, dispatch_dsd, dsd_conference_order, dsd_run_count
+
+.. automodule:: process_improve.experiments.designs_optimal
+   :members: dispatch_d_optimal, dispatch_i_optimal, dispatch_a_optimal
+
+.. automodule:: process_improve.experiments.designs_mixture
+   :members: dispatch_mixture
+
 .. automodule:: process_improve.experiments.designs_constrained
    :members: constrained_optimal_design, ConstrainedOptions, Criterion, parse_constraint, build_candidates, model_matrix, fedorov_exchange
 
@@ -39,6 +54,12 @@ Designed Experiments
    :members:
    :undoc-members:
    :show-inheritance:
+
+.. automodule:: process_improve.experiments.omars
+   :members: analyze_omars, OmarsResult
+
+.. automodule:: process_improve.experiments.visualization.api
+   :members: visualize_doe, main_effects_plot
 
 .. automodule:: process_improve.experiments.evaluate
    :members:
