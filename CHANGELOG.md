@@ -333,6 +333,14 @@ those changes.
   model's significance left every term out of both lists while its residual tests ran
   on rounding noise. Each now behaves as documented or raises a `ValueError` naming the
   fix, and terms that cannot be tested are listed under `not_estimable_terms`.
+- **`lm` keeps correlated terms that are not aliased, and handles categorical factors.**
+  It treated any two model columns correlated beyond 0.995 as aliases and dropped one,
+  so a square in actual units (`T` and `T**2` at 300, 305 and 310) was removed and the
+  curvature model fitted with R-squared 0.000 instead of 0.997; the default
+  `alias_threshold` now detects only exact aliasing, and `None` drops nothing (it raised
+  `TypeError`). Columns were matched to terms by position, so a categorical factor with
+  three levels raised `IndexError`; they are now matched through patsy's term slices. A
+  plain `Expt` without a title no longer raises `AttributeError`.
 - **Model selection scores AICc as Hurvich and Tsai do, and searches Scheffe models
   without an intercept.** The penalty counted the regression coefficients but not the
   error variance, so it was too weak near saturation and changed the model chosen. A
