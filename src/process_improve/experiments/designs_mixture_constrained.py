@@ -35,6 +35,7 @@ import pandas as pd
 from process_improve._random import check_random_state
 from process_improve.experiments.designs_constrained import (
     ConstrainedOptions,
+    criterion_metadata,
     fedorov_exchange,
     make_criterion,
     parse_constraint,
@@ -354,8 +355,5 @@ def constrained_mixture_design(
         meta["selected_candidates"] = selection_counts(labels, rows)
     if logdet is not None:
         meta["optimality_criterion"] = opts.criterion
-        if opts.criterion == "d_optimal":
-            meta["log_det_information"] = logdet
-        else:
-            meta["trace_criterion"] = -logdet  # the exchange maximises -trace
+        meta.update(criterion_metadata(criterion, logdet))
     return design, meta

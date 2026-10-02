@@ -32,8 +32,16 @@ class GenerateDesignInput(BaseModel):
             "d_optimal",
             "i_optimal",
             "a_optimal",
+            "e_optimal",
             "mixture",
             "taguchi",
+            "supersaturated",
+            "latin_hypercube",
+            "maximin_lhs",
+            "uniform",
+            "sobol",
+            "halton",
+            "maximin",
         ]
         | None
     ) = Field(
@@ -76,8 +84,9 @@ class GenerateDesignInput(BaseModel):
     description=(
         "Generate an experimental design matrix for a designed experiment. "
         "Supports full factorial, fractional factorial, Plackett-Burman, Box-Behnken, "
-        "Central Composite (CCD), Definitive Screening (DSD), D-optimal, mixture, "
-        "and Taguchi designs. "
+        "Central Composite (CCD), Definitive Screening (DSD), D/I/A/E-optimal, mixture, "
+        "Taguchi, supersaturated (fewer runs than factors) and space-filling designs "
+        "(Latin hypercube, maximin, uniform, Sobol, Halton). "
         "Each factor needs a name and type ('continuous', 'categorical', or 'mixture'). "
         "Continuous factors require 'low' and 'high' bounds. Categorical factors require 'levels'. "
         "If design_type is not specified, one is auto-selected based on the number of factors and budget. "

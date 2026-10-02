@@ -30,6 +30,9 @@ Current implementation status across every agent-facing DoE tool.
 | A-optimal | `designs_optimal.py::dispatch_a_optimal` - as D-optimal; the candidate exchange minimises `trace(M^-1)`. | `TestAOptimal`, `test_designs_optimal_pyoptex.py` (run in CI; `pyoptex` is in the dev dependency group). |
 | Mixture (simplex-lattice, simplex-centroid, extreme vertices) | `designs_mixture.py::dispatch_mixture` - auto-selects based on budget on the full simplex; with component bounds or linear constraints, `designs_mixture_constrained.py` builds the extreme-vertices design or a D-optimal subset of its candidate blends for a Scheffé model. | `TestMixture`, `tests/test_mixture_constrained.py`. |
 | Taguchi orthogonal arrays | `designs_screening.py::dispatch_taguchi` via `pyDOE3.taguchi_design`. | `TestTaguchi`. |
+| E-optimal | `designs_constrained.py` candidate exchange; maximises the smallest eigenvalue of `X'X`. | `tests/test_designs_constrained.py::TestEOptimal`. |
+| Supersaturated | `designs_supersaturated.py::dispatch_supersaturated` - Lin's half-fraction of a Hadamard matrix (pyDOE3, or Paley `I + C`). | `tests/test_designs_supersaturated.py`. |
+| Space-filling (LHS, maximin LHS, uniform, Sobol, Halton, maximin) | `designs_space_filling.py::space_filling_design`; Sobol, Halton and maximin also in constrained and mixture regions. | `tests/test_designs_space_filling.py`. |
 
 ## `evaluate_design` Metrics
 

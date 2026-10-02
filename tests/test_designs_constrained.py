@@ -272,4 +272,42 @@ class TestCriteria:
 
     def test_unknown_criterion(self) -> None:
         with pytest.raises(ValueError, match="Unknown criterion"):
-            constrained_optimal_design([TEMP, DOSE], 8, [], ConstrainedOptions(criterion="e_optimal"))
+            constrained_optimal_design([TEMP, DOSE], 8, [], ConstrainedOptions(criterion="g_optimal"))
+
+
+class TestEOptimal:
+    def test_best_swap_gain_is_exact(self) -> None:
+        """The screened swap's reported gain is the true change in the smallest eigenvalue."""
+        rng = np.random.default_rng(3)
+        f_cand, rows = rng.normal(size=(40, 6)), rng.choice(40, 12, replace=False)
+        x = f_cand[rows]
+        i, j, gain = Criterion.e().best_swap(x.T @ x, x, f_cand)
+        swapped = x.copy()
+        swapped[i] = f_cand[j]
+        assert gain == pytest.approx(np.linalg.eigvalsh(swapped.T @ swapped)[0] - np.linalg.eigvalsh(x.T @ x)[0])
+        assert gain > 0
+
+    def test_each_of_d_a_e_wins_on_its_own_measure(self) -> None:
+        common = {"budget": 10, "constraints": [HEAT], "model_type": "quadratic"}
+        metrics = ["d_efficiency", "a_optimality", "e_optimality"]
+        scores = {
+            name: evaluate_design(
+                generate_design([TEMP, DOSE], design_type=name, **common), model="quadratic", metric=metrics
+            )
+            for name in ("d_optimal", "a_optimal", "e_optimal")
+        }
+        assert max(scores, key=lambda n: scores[n]["d_efficiency"]) == "d_optimal"
+        assert min(scores, key=lambda n: scores[n]["a_optimality"]) == "a_optimal"
+        assert max(scores, key=lambda n: scores[n]["e_optimality"]) == "e_optimal"
+
+    def test_metadata_matches_evaluate_design(self) -> None:
+        result = generate_design([TEMP, DOSE], design_type="e_optimal", budget=10, model_type="quadratic")
+        assert result.metadata["backend"] == "candidate_exchange"  # pyoptex has no E metric
+        reported = evaluate_design(result, model="quadratic", metric="e_optimality")["e_optimality"]
+        assert result.metadata["min_eigenvalue"] == pytest.approx(reported)
+
+    def test_e_optimal_mixture(self) -> None:
+        mix = [Factor(name=n, type="mixture", low=0.1, high=0.6) for n in ("x1", "x2", "x3")]
+        result = generate_design(mix, design_type="e_optimal", budget=9)
+        assert result.metadata["method"] == "e_optimal_extreme_vertices"
+        assert result.metadata["min_eigenvalue"] > 0

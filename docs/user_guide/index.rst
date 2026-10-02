@@ -11,6 +11,7 @@ User Guide
    design_evaluation
    omars_designs
    constrained_designs
+   screening_and_space_filling
    sensory_panel
    sensory_diagnostics
    chemistry
