@@ -30,8 +30,10 @@ from typing import TYPE_CHECKING, Any
 
 import numpy as np
 import pandas as pd
+from scipy.stats import qmc
 
 from process_improve._random import check_random_state
+from process_improve.experiments._uniform_sampling import UniformSampler
 from process_improve.experiments.factor import FactorType
 
 if TYPE_CHECKING:
@@ -41,6 +43,9 @@ logger = logging.getLogger(__name__)
 
 #: Upper limit on the candidate grid; a larger grid is refused before allocation.
 MAX_CANDIDATES = 100_000
+#: Points taken from a grid too large to list (a power of two, for the Sobol sequence): the exchange's cost grows
+#: with this.
+_SAMPLED_CANDIDATES = 2**15
 #: Longest constraint expression accepted, which also bounds the parse depth.
 MAX_EXPRESSION_LENGTH = 500
 #: Slack when testing ``g(x) <= 0``, so points found on a boundary are kept.
@@ -188,19 +193,47 @@ class _Region:
         return np.max(g, axis=0) if g else np.full(coded.shape[0], -np.inf)
 
 
-def _grid_levels(region: _Region, n_levels: int | None) -> int:
-    """Pick the continuous grid resolution: the finest of 5, 4, 3 under ``MAX_CANDIDATES``."""
+def _grid_levels(region: _Region, n_levels: int | None, model_type: str) -> tuple[int, bool]:
+    """Pick the continuous grid resolution, and whether the grid is too large to list in full.
+
+    The finest of 5, 4 and 3 levels whose full grid stays under ``MAX_CANDIDATES``
+    points is used; models without squared terms may also drop to 2 levels, which is
+    all they need. When even the coarsest grid is too large (11 or more factors at 3
+    levels, 17 or more at 2), the grid is sampled instead (see :func:`_lattice_points`).
+    """
     n_cat = int(np.prod([len(f.levels or []) for f in region.categorical]))
-    choices = [n_levels] if n_levels is not None else [5, 4, 3]
+    coarsest = 3 if model_type == "quadratic" else 2
+    choices = [n_levels] if n_levels is not None else list(range(5, coarsest - 1, -1))
     for n in choices:
         if n < 2:
             raise ValueError("n_levels must be at least 2.")
         if n ** len(region.continuous) * n_cat <= MAX_CANDIDATES:
-            return n
-    raise ValueError(
-        f"A candidate grid with {choices[-1]} levels on {len(region.continuous)} continuous factor(s) "
-        f"exceeds {MAX_CANDIDATES} points. Reduce the number of factors or n_levels."
-    )
+            return n, False
+    return choices[-1], True
+
+
+def _lattice_points(shape: list[int], k_cont: int, sampled: bool) -> np.ndarray:
+    """Index vectors of the candidate grid: all of it, or ``_SAMPLED_CANDIDATES`` well-spread points of it.
+
+    The sample is the unscrambled Sobol sequence rounded down onto the grid: evenly
+    spread over the grid, and deterministic without drawing on any random generator.
+    A sampled grid on an odd number of levels also holds the centre and the face
+    centres (one factor at an extreme, the rest at the middle), the points a quadratic
+    model leans on and a random sample would rarely contain.
+    """
+    if not sampled:
+        return np.indices(shape).reshape(len(shape), -1).T
+    unit = qmc.Sobol(d=len(shape), scramble=False).random_base2(int(np.log2(_SAMPLED_CANDIDATES)))
+    idx = np.minimum((unit * shape).astype(int), np.array(shape) - 1)
+    levels = shape[0] if k_cont else 0
+    if levels % 2:
+        middle = np.full((2 * k_cont + 1, len(shape)), levels // 2)
+        middle[:, k_cont:] = 0
+        for axis in range(k_cont):
+            middle[1 + 2 * axis, axis], middle[2 + 2 * axis, axis] = 0, levels - 1
+        idx = np.vstack([middle, idx])
+    _, first = np.unique(idx, axis=0, return_index=True)
+    return idx[np.sort(first)]
 
 
 def _boundary_points(region: _Region, grid: np.ndarray, cat_idx: np.ndarray, step: float) -> tuple:
@@ -234,8 +267,19 @@ def _boundary_points(region: _Region, grid: np.ndarray, cat_idx: np.ndarray, ste
     return np.vstack(points), np.vstack(cats)
 
 
-def build_candidates(region: _Region, n_levels: int | None = None) -> tuple[np.ndarray, np.ndarray, dict]:
+def build_candidates(
+    region: _Region, n_levels: int | None = None, model_type: str = "quadratic"
+) -> tuple[np.ndarray, np.ndarray, dict]:
     """Return the feasible candidate points in coded units.
+
+    Parameters
+    ----------
+    region : _Region
+        Factors and constraints.
+    n_levels : int or None
+        Grid levels per continuous factor; ``None`` picks them (see :func:`_grid_levels`).
+    model_type : str
+        The model the design is for: without squared terms, 2 levels may be used.
 
     Returns
     -------
@@ -243,10 +287,14 @@ def build_candidates(region: _Region, n_levels: int | None = None) -> tuple[np.n
         Coded continuous values ``(n, k_cont)``, categorical level indices
         ``(n, k_cat)``, and counts for the metadata.
     """
-    levels = _grid_levels(region, n_levels)
+    levels, sampled = _grid_levels(region, n_levels, model_type)
     shape = [levels] * len(region.continuous) + [len(f.levels or []) for f in region.categorical]
-    idx = np.indices(shape).reshape(len(shape), -1).T
     k_cont = len(region.continuous)
+    idx = _lattice_points(shape, k_cont, sampled)
+    if sampled:
+        logger.info(
+            "The %d-level grid on %d factors is too large to list; sampling %d points.", levels, k_cont, len(idx)
+        )
     grid = np.linspace(-1.0, 1.0, levels)[idx[:, :k_cont]]
     cat_idx = idx[:, k_cont:]
 
@@ -262,6 +310,7 @@ def build_candidates(region: _Region, n_levels: int | None = None) -> tuple[np.n
     counts = {
         "n_levels": levels,
         "n_grid_points": grid.shape[0],
+        "grid_sampled": sampled,
         "n_boundary_points": extra.shape[0],
         "n_candidates": unique.size,
     }
@@ -359,10 +408,17 @@ class Criterion:
             return -np.inf
         return -float(np.trace(np.linalg.solve(info, self.weights)))
 
-    def best_swap(self, info: np.ndarray, f_design: np.ndarray, f_cand: np.ndarray) -> tuple[int, int, float]:
+    @property
+    def n_phases(self) -> int:
+        """Exchange phases: E-optimality climbs ``phi_p`` first, then polishes ``lambda_min``."""
+        return 2 if self.name == "e_optimal" else 1
+
+    def best_swap(
+        self, info: np.ndarray, f_design: np.ndarray, f_cand: np.ndarray, phase: int = 0
+    ) -> tuple[int, int, float]:
         """Return ``(i, j, gain)`` for the best single swap: design row ``i`` out, candidate ``j`` in."""
         if self.name == "e_optimal":
-            return _best_e_swap(info, f_design, f_cand)
+            return _best_e_swap(info, f_design, f_cand, polish=phase > 0)
         gains = self.swap_gains(np.linalg.pinv(info), f_design, f_cand)
         i, j = np.unravel_index(np.argmax(gains), gains.shape)
         return int(i), int(j), float(gains[i, j])
@@ -398,31 +454,104 @@ class Criterion:
         return np.where(denominator > 1e-10, gain, -np.inf)
 
 
-#: Swaps whose E-criterion gain is computed exactly, after screening by the first-order estimate.
-_E_SWAPS_CHECKED = 25
+#: Exponent of Kiefer's ``phi_p``, the smooth stand-in for ``lambda_min`` that ranks E-optimal swaps.
+_E_P = 8
+#: Work allowed per E-optimal iteration for exact scoring, in (swaps x coefficients^2): all swaps when they fit.
+_E_EXACT_WORK = 4_000_000
 
 
-def _best_e_swap(info: np.ndarray, f_design: np.ndarray, f_cand: np.ndarray) -> tuple[int, int, float]:
-    """Best swap for E-optimality: screen every pair to first order, then score the most promising exactly.
+def _phi_p(eigenvalues: np.ndarray) -> np.ndarray:
+    """Kiefer's ``phi_p = (sum lambda_k^-p)^(-1/p)`` along the last axis of ascending eigenvalues.
 
-    The smallest eigenvalue has no rank-two update as cheap as the determinant's, but
-    its derivative is: for the unit eigenvector ``v`` of ``lambda_min``, adding ``f``
-    raises it by about ``(v'f)**2`` and removing ``f`` lowers it by about the same. That
-    ranks all swaps in one product. The top ``_E_SWAPS_CHECKED`` are then scored by an
-    exact eigenvalue computation, so a swap is only taken when it truly helps, which
-    keeps the exchange monotone even where ``lambda_min`` is repeated.
+    It sits just below ``lambda_min`` and rises whenever any small eigenvalue rises,
+    so it separates designs that tie on ``lambda_min``. Written through the ratios
+    ``lambda_min / lambda_k <= 1`` so the powers cannot overflow.
+    """
+    floor = 1e-12 * max(float(np.max(eigenvalues)), 1.0)
+    lam = np.maximum(eigenvalues, floor)
+    ratio = lam[..., :1] / lam
+    return lam[..., 0] * np.sum(ratio**_E_P, axis=-1) ** (-1.0 / _E_P)
+
+
+def _exact_e_scores(
+    info: np.ndarray, f_design: np.ndarray, f_cand: np.ndarray, pairs: tuple[np.ndarray, np.ndarray]
+) -> tuple[np.ndarray, np.ndarray]:
+    """``lambda_min`` and ``phi_p`` after each swap in ``pairs`` (design rows, candidate rows), in chunks."""
+    p = info.shape[0]
+    chunk = max(1, 2_000_000 // p**2)  # about 16 MB of matrices at a time
+    lam_min, phi = [], []
+    for start in range(0, len(pairs[0]), chunk):
+        a = f_design[pairs[0][start : start + chunk]]
+        b = f_cand[pairs[1][start : start + chunk]]
+        swapped = info[None] - a[:, :, None] * a[:, None, :] + b[:, :, None] * b[:, None, :]
+        eigenvalues = np.linalg.eigvalsh(swapped)
+        lam_min.append(eigenvalues[:, 0])
+        phi.append(_phi_p(eigenvalues))
+    return np.concatenate(lam_min), np.concatenate(phi)
+
+
+def _best_e_swap(
+    info: np.ndarray, f_design: np.ndarray, f_cand: np.ndarray, *, polish: bool = False
+) -> tuple[int, int, float]:
+    """Best swap for E-optimality: rank every swap by the gradient of ``phi_p``, then score the best exactly.
+
+    The exchange runs in two phases. The first climbs ``phi_p`` itself, a smooth
+    stand-in for ``lambda_min`` that can trade a little of the smallest eigenvalue for
+    a lot of the next ones, and so escapes designs where no swap raises
+    ``lambda_min`` alone. The second (``polish=True``) then takes only swaps that
+    raise ``lambda_min``, or hold it and raise ``phi_p``. Each phase climbs one
+    objective, so neither can cycle. Two things make ``lambda_min`` hard to climb one
+    swap at a time:
+
+    - **Ties.** On a +/-1 grid thousands of swaps share a first-order estimate, so a
+      short list of "most promising" swaps can miss the one that helps. The list
+      scored exactly is therefore large (every swap when ``_E_EXACT_WORK`` allows),
+      and batched eigenvalue solves keep that cheap.
+    - **Repeated eigenvalues.** If ``lambda_min`` has multiplicity 2 or more, no single
+      swap can raise it: adding ``b b'`` gives ``lambda_1(M + b b') <= lambda_2(M)``
+      (Weyl interlacing). A swap that keeps ``lambda_min`` and raises ``phi_p``
+      splits the repeated eigenvalue, so a later swap can lift it.
+
+    Swaps are ranked by the first-order change in ``phi_p``, which weights each
+    eigen-direction by ``(lambda_min / lambda_k)^(p+1)``: the directions at or near the
+    minimum count fully, the rest hardly at all.
+
+    Returns
+    -------
+    tuple[int, int, float]
+        Design row out, candidate row in, and the gain: in ``phi_p`` in the first phase;
+        when polishing, in ``lambda_min`` when it rises, otherwise in ``phi_p`` with
+        ``lambda_min`` held. A gain of 0 means no swap helps.
     """
     eigenvalues, eigenvectors = np.linalg.eigh(info)
-    v, current = eigenvectors[:, 0], eigenvalues[0]
-    estimate = (f_cand @ v)[None, :] ** 2 - (f_design @ v)[:, None] ** 2
-    best = (0, 0, 0.0)
-    for flat in np.argsort(estimate, axis=None)[::-1][:_E_SWAPS_CHECKED]:
-        i, j = np.unravel_index(flat, estimate.shape)
-        swapped = info - np.outer(f_design[i], f_design[i]) + np.outer(f_cand[j], f_cand[j])
-        gain = float(np.linalg.eigvalsh(swapped)[0] - current)
-        if gain > best[2]:
-            best = (int(i), int(j), gain)
-    return best
+    current, current_phi = float(eigenvalues[0]), float(_phi_p(eigenvalues))
+    weights = (max(current, 1e-12) / np.maximum(eigenvalues, 1e-12)) ** (_E_P + 1)
+    added = (f_cand @ eigenvectors) ** 2 @ weights
+    removed = (f_design @ eigenvectors) ** 2 @ weights
+    estimate = added[None, :] - removed[:, None]
+
+    n_exact = max(2000, _E_EXACT_WORK // info.shape[0] ** 2)
+    order = np.argsort(estimate, axis=None)[::-1][:n_exact]
+    rows_out, rows_in = np.unravel_index(order, estimate.shape)
+    pairs = (rows_out, rows_in)
+    lam_min, phi = _exact_e_scores(info, f_design, f_cand, pairs)
+
+    phi_tol = 1e-9 * max(1.0, abs(current_phi))
+    if not polish:
+        best = int(np.argmax(phi))
+        gain = float(phi[best] - current_phi)
+        return (int(pairs[0][best]), int(pairs[1][best]), gain) if gain > phi_tol else (0, 0, 0.0)
+    tol = 1e-9 * max(1.0, abs(current))
+    if (lam_min > current + tol).any():
+        best = int(np.argmax(np.where(lam_min > current + tol, lam_min + 1e-12 * phi, -np.inf)))
+        return int(pairs[0][best]), int(pairs[1][best]), float(lam_min[best] - current)
+    holds = lam_min >= current - tol
+    if holds.any():
+        best = int(np.argmax(np.where(holds, phi, -np.inf)))
+        gain = float(phi[best] - current_phi)
+        if gain > phi_tol:
+            return int(pairs[0][best]), int(pairs[1][best]), gain
+    return 0, 0, 0.0
 
 
 def criterion_metadata(criterion: Criterion, value: float) -> dict[str, float]:
@@ -462,15 +591,16 @@ def fedorov_exchange(
     best_rows, best_value = np.empty(0, dtype=int), -np.inf
     for _ in range(_N_STARTS):
         rows = _greedy_start(f_cand, f_fixed, n_free, rng)
-        for _ in range(_MAX_EXCHANGES):
-            x = np.vstack([f_fixed, f_cand[rows]])
-            i, j, gain = criterion.best_swap(x.T @ x, f_cand[rows], f_cand)
-            if not gain > 1e-9:  # also stops on NaN
-                break
-            rows[i] = j
+        for phase in range(criterion.n_phases):
+            for _ in range(_MAX_EXCHANGES):
+                x = np.vstack([f_fixed, f_cand[rows]])
+                i, j, gain = criterion.best_swap(x.T @ x, f_cand[rows], f_cand, phase)
+                if not gain > 1e-9:  # also stops on NaN
+                    break
+                rows[i] = j
         x = np.vstack([f_fixed, f_cand[rows]])
         value = criterion.value(x.T @ x)
-        if value > best_value:
+        if value > best_value or len(best_rows) == 0:  # keep a design even if every start is singular
             best_rows, best_value = rows.copy(), value
     return best_rows, best_value
 
@@ -495,8 +625,9 @@ class ConstrainedOptions:
         Runs kept in the design (continuous in coded units, categorical as labels),
         already validated by the caller. They count towards the budget.
     n_levels : int or None
-        Grid levels per continuous factor. ``None`` picks 5, 4 or 3, whichever is
-        the finest that keeps the grid under ``MAX_CANDIDATES`` points.
+        Grid levels per continuous factor. ``None`` picks the finest of 5, 4 and 3
+        (and 2, for a model without squared terms) that keeps the grid under
+        ``MAX_CANDIDATES`` points, and samples the coarsest grid when none does.
     candidates : pandas.DataFrame or None
         Settings the runs must be chosen from, in actual units (proportions for a
         mixture), one column per factor, instead of a generated grid. Rows that
@@ -576,8 +707,8 @@ def _candidate_pool(
     if opts.candidates is not None:
         coded, cats, counts, labels = _user_candidates(region, opts.candidates)
         return coded, cats, counts, labels, lambda: model_matrix(region, coded, cats, opts.model_type)
-    coded, cats, counts = build_candidates(region, opts.n_levels)
-    return coded, cats, counts, None, lambda: _uniform_rows(region, opts.model_type, rng)
+    coded, cats, counts = build_candidates(region, opts.n_levels, opts.model_type)
+    return coded, cats, counts, None, lambda: _uniform_rows(region, opts.model_type, rng, coded)
 
 
 def selection_counts(labels: list, rows: np.ndarray) -> dict[str, int]:
@@ -586,22 +717,53 @@ def selection_counts(labels: list, rows: np.ndarray) -> dict[str, int]:
     return {str(label): int(n) for label, n in chosen.items()}
 
 
+def _budget_for_fixed_runs(f_fixed: np.ndarray, n_parameters: int, budget: int) -> int:
+    """Raise ``budget`` so the free runs can supply the rank the fixed runs lack, warning when it does.
+
+    Fixed runs that repeat a point (three centre runs, say) carry less information than
+    their count: the floor on the budget counts runs, not rank, so it can leave too few
+    free runs to estimate the model at all.
+    """
+    n_fixed = len(f_fixed)
+    missing_rank = n_parameters - (np.linalg.matrix_rank(f_fixed) if n_fixed else 0)
+    if budget - n_fixed >= missing_rank:
+        return budget
+    logger.warning(
+        "The %d fixed run(s) span only %d of the %d model coefficients, so at least %d more run(s) are "
+        "needed; raising the budget from %d to %d.",
+        n_fixed,
+        n_parameters - missing_rank,
+        n_parameters,
+        missing_rank,
+        budget,
+        n_fixed + missing_rank,
+    )
+    return n_fixed + missing_rank
+
+
 #: Uniform draws used to estimate the region's moment matrix for I-optimality.
 _N_MOMENT_SAMPLES = 20_000
 
 
-def _uniform_rows(region: _Region, model_type: str, rng: np.random.Generator) -> np.ndarray:
-    """Model rows at points drawn uniformly from the feasible region (rejection from the coded box)."""
+def _uniform_rows(region: _Region, model_type: str, rng: np.random.Generator, seeds: np.ndarray) -> np.ndarray:
+    """Model rows at points drawn uniformly from the feasible region.
+
+    Thin regions are handled by hit-and-run started from the feasible candidates
+    (``seeds``), so the moment matrix covers the whole region, not the few points a
+    rejection pass happens to hit.
+    """
     k = len(region.continuous)
-    kept: list[np.ndarray] = []
-    for _ in range(100):
-        points = rng.uniform(-1.0, 1.0, size=(_N_MOMENT_SAMPLES, k))
-        kept.append(points[region.slack(points) <= _FEASIBILITY_TOL])
-        if sum(len(p) for p in kept) >= _N_MOMENT_SAMPLES:
-            break
-    coded = np.vstack(kept)[:_N_MOMENT_SAMPLES]
-    if len(coded) == 0:
-        raise ValueError("Could not sample the feasible region to build the I-optimality moment matrix.")
+
+    def coded_inequality(g: Callable) -> Callable[[np.ndarray], np.ndarray]:
+        return lambda x: np.broadcast_to(np.asarray(g(region.actual(x)), dtype=float), (len(x),))
+
+    sampler = UniformSampler(
+        [coded_inequality(g) for g in region.inequalities],
+        (np.full(k, -1.0), np.full(k, 1.0)),
+        lambda m: rng.uniform(-1.0, 1.0, size=(m, k)),
+        seeds=lambda: seeds,
+    )
+    coded = sampler.draw(_N_MOMENT_SAMPLES, rng)
     cats = np.empty((len(coded), 0), dtype=int)
     if region.categorical:
         cats = np.column_stack([rng.integers(len(f.levels or []), size=len(coded)) for f in region.categorical])
@@ -628,7 +790,7 @@ def constrained_optimal_design(
     options: ConstrainedOptions | None = None,
     random_state: int | np.random.Generator | None = None,
 ) -> tuple[np.ndarray, dict]:
-    """Generate a D-, I- or A-optimal design from a candidate set, with every run satisfying ``constraints``.
+    """Generate a D-, I-, A- or E-optimal design from a candidate set, with every run satisfying ``constraints``.
 
     This is also the optimal-design backend when pyoptex is not installed, with
     ``constraints`` empty.
@@ -663,7 +825,10 @@ def constrained_optimal_design(
     opts = options if options is not None else ConstrainedOptions()
     model_type, fixed_runs = opts.model_type, opts.fixed_runs
     if any(f.type == FactorType.mixture for f in factors):
-        raise ValueError("Mixture factors need the mixture design engine; use generate_design(design_type='mixture').")
+        raise ValueError(
+            "Mixture components need the mixture engine: give only mixture factors, and generate_design routes "
+            "them there. Mixture-process designs are not supported."
+        )
 
     continuous = [f for f in factors if f.type != FactorType.categorical]
     categorical = [f for f in factors if f.type == FactorType.categorical]
@@ -682,12 +847,19 @@ def constrained_optimal_design(
     if np.linalg.matrix_rank(np.vstack([f_fixed, f_cand])) < f_cand.shape[1]:
         raise ValueError(
             f"The feasible region ({counts['n_candidates']} candidate points) cannot support a "
-            f"'{model_type}' model with {f_cand.shape[1]} coefficients. Use a simpler model, a finer "
-            "grid (n_levels), or loosen the constraints."
+            f"'{model_type}' model with {f_cand.shape[1]} coefficients. Use a simpler model, supply "
+            "candidates, or loosen the constraints."
         )
 
-    criterion = make_criterion(opts.criterion, f_cand.shape[1], region_rows)
+    p = f_cand.shape[1]
+    budget = _budget_for_fixed_runs(f_fixed, p, budget)
+    criterion = make_criterion(opts.criterion, p, region_rows)
     rows, value = fedorov_exchange(f_cand, budget - n_fixed, f_fixed, rng, criterion)
+    if len(rows) != budget - n_fixed or np.linalg.matrix_rank(np.vstack([f_fixed, f_cand[rows]])) < p:
+        raise ValueError(
+            f"No design of {budget} runs from these candidates can estimate the '{model_type}' model "
+            f"({p} coefficients). Use a simpler model or more distinct candidate points."
+        )
 
     design = pd.DataFrame(coded[rows], columns=[f.name for f in continuous])
     for j, f in enumerate(categorical):

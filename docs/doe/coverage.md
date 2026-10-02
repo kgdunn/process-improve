@@ -6,10 +6,10 @@ Current implementation status across every agent-facing DoE tool.
 
 | Tool | Status | Implementation | Open gaps |
 |---|---|---|---|
-| `generate_design` | **Implemented** | Unified dispatcher in `experiments/designs.py`; per-family handlers in `designs_factorial.py`, `designs_screening.py`, `designs_response_surface.py`, `designs_optimal.py`, `designs_mixture.py`. Covers all 11 design types (full/fractional factorial, PB, BBD, CCD, DSD, D/I/A-optimal, mixture, Taguchi). | Hard-to-change factors (split-plot) need `pyoptex` and no constraints; otherwise they are ignored with a warning. Constraints are enforced by D-optimal and mixture designs (other types flag `constraints_enforced=False`); mixture constraints must be linear. |
-| `evaluate_design` | **Implemented** | `experiments/evaluate.py` - 14 metrics: `d/i/g_efficiency`, `prediction_variance`, `vif`, `condition_number`, `power`, `degrees_of_freedom`, `alias_structure`, `confounding`, `resolution`, `defining_relation`, `clear_effects`, `minimum_aberration`. | - |
+| `generate_design` | **Implemented** | Unified dispatcher in `experiments/designs.py`; per-family handlers in `designs_factorial.py`, `designs_screening.py`, `designs_response_surface.py`, `designs_optimal.py`, `designs_mixture.py`. Covers all 21 design types (full/fractional factorial, PB, BBD, CCD, DSD, OMARS, D/I/A/E-optimal, mixture, Taguchi, supersaturated, and six space-filling designs). | Hard-to-change factors (split-plot) need `pyoptex` and no constraints; otherwise they are ignored with a warning. Constraints are enforced by the optimal families, mixture designs and the Sobol, Halton and maximin space-filling designs (other types flag `constraints_enforced=False`); mixture constraints must be linear. Mixture-process designs are not supported. |
+| `evaluate_design` | **Implemented** | `experiments/evaluate.py` - 20 metrics: `d/i/g_efficiency`, `a_optimality`, `e_optimality`, `fds`, `prediction_variance`, `vif`, `condition_number`, `correlation`, `power`, `degrees_of_freedom`, `alias_structure`, `alias_matrix`, `confounding`, `resolution`, `defining_relation`, `clear_effects`, `minimum_aberration`, `moment_aberration`. I-, G-efficiency and FDS are taken over the design's recorded (constrained) region. | - |
 | `analyze_experiment` | **Implemented** | `analysis.py` - 13 analysis types via statsmodels/scipy. | Split-plot ANOVA (mixed-model mapping). |
-| `optimize_responses` | **Partial** | `optimization.py` - desirability, steepest ascent/descent, stationary point, canonical analysis. | Ridge analysis, Pareto front (stubs). |
+| `optimize_responses` | **Implemented** | `optimization.py` - desirability, steepest ascent/descent, stationary point, canonical analysis, ridge analysis, Pareto front; desirability and Pareto front can be kept inside a `DesignRegion`. | - |
 | `augment_design` | **Implemented** | `augment.py` - foldover, semifold, axial, replicate, D-optimal. | - |
 | `visualize_doe` | **Implemented** | `visualization/` - 20 plot types, dual Plotly/ECharts backends. | - |
 | `doe_knowledge` | **Implemented** | `knowledge/` - YAML knowledge graph, in-memory query engine. | Interpretation guides and worked examples (YAML stubs). |
@@ -36,7 +36,7 @@ Current implementation status across every agent-facing DoE tool.
 
 ## `evaluate_design` Metrics
 
-All 14 metrics live in `experiments/evaluate.py` behind the `_METRIC_REGISTRY`:
+All 20 metrics live in `experiments/evaluate.py` behind the `_METRIC_REGISTRY`:
 
 | Metric | Function | Notes |
 |---|---|---|
@@ -54,11 +54,17 @@ All 14 metrics live in `experiments/evaluate.py` behind the `_METRIC_REGISTRY`:
 | Defining relation | `_compute_defining_relation` | Full closure under GF(2) multiplication. |
 | Clear effects | `_compute_clear_effects` | Effects whose aliases are all higher-order. |
 | Minimum aberration | `_compute_minimum_aberration` | Wordlength pattern (A_3, A_4, …). |
+| A-optimality | `_compute_a_optimality` | `trace((X'X)^-1)` (lower is better). |
+| E-optimality | `_compute_e_optimality` | Smallest eigenvalue of `X'X` (higher is better). |
+| FDS | `_compute_fds` | Fraction-of-design-space curve of the prediction variance, over the region. |
+| Correlation | `_compute_correlation` | Pairwise correlation among the model's second-order terms. |
+| Alias matrix | `_compute_alias_matrix` | `(X1'X1)^-1 X1' X2`: bias of the fitted terms from omitted ones. |
+| Moment aberration | `_compute_moment_aberration` | Moment aberration pattern, strength and resolution (Xu 2003). |
 
 ## Caveats
 
 - **DSD conference matrix.** `_conference_matrix` in `designs_response_surface.py` uses Paley's construction when `m − 1` is an odd prime (covers `m ∈ {4, 6, 8, 12, 14, 18, 20, 24, 30, 32, 38, 42, 44, 48, 54, 60, 62, 68, 72, 74, 80, 84, 90, 98, …}`). For other *m* (including `m ∈ {10, 16, 22, 26, 28, 34, 36, 40, 46, 50, 52, 56, …}`) the function falls back to a cyclic approximation that does **not** satisfy `Cᵀ C = (m − 1) I`, and logs a warning. Main-effects orthogonality of the resulting DSD may be degraded in those sizes.
-- **Optimal designs without `pyoptex`.** D-, I- and A-optimal designs use the built-in candidate exchange. Hard-to-change factors (split-plot structure) are ignored with a `logger.warning` and a `hard_to_change_ignored` flag when `pyoptex` is not available or constraints are given.
+- **Optimal designs without `pyoptex`.** D-, I-, A- and E-optimal designs use the built-in candidate exchange. Hard-to-change factors (split-plot structure) are ignored with a `logger.warning` and a `hard_to_change_ignored` flag when `pyoptex` is not available or constraints are given.
 - **Taguchi OA auto-selection** picks the smallest standard array that covers the requested factor count and level counts, but the underlying `pyDOE3.taguchi_design` requires the number of `levels_per_factor` entries to match the OA column count exactly, so requesting a Taguchi design with fewer factors than any available OA will fail. Users typically pick *k* to match one of the standard arrays (3, 4, 7, 11, 15, …).
 
 ## Reliance on `pyoptex`
@@ -67,7 +73,7 @@ All 14 metrics live in `experiments/evaluate.py` behind the `_METRIC_REGISTRY`:
 (D/I/A-optimal coordinate exchange and split-plot structures) in
 `designs_optimal.py`. For **end users** it is an optional, undeclared
 dependency: the core install never pulls it in, and the integration degrades
-cleanly when it is absent (D-, I- and A-optimal use the built-in candidate
+cleanly when it is absent (D-, I-, A- and E-optimal use the built-in candidate
 exchange in `designs_constrained.py`; hard-to-change factors are ignored with a
 warning and a `hard_to_change_ignored` metadata flag). This keeps the coupling to a
 single, well-isolated adapter module.

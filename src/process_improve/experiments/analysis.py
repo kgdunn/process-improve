@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import logging
 import warnings
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -35,6 +36,12 @@ from process_improve.experiments._analyses.curvature import _run_curvature_test
 from process_improve.experiments._analyses.diagnostics import _run_residual_diagnostics
 from process_improve.experiments._analyses.lack_of_fit import _run_lack_of_fit
 from process_improve.experiments._analyses.lenth import _run_lenth_method
+from process_improve.experiments._analyses.mixture import (
+    run_mixture_anova,
+    run_mixture_effects,
+    run_mixture_lenth,
+    run_mixture_significance,
+)
 from process_improve.experiments._analyses.model_selection import _run_model_selection
 from process_improve.experiments._analyses.ols_extractors import (
     _run_anova,
@@ -145,6 +152,18 @@ _ANALYSIS_REGISTRY: dict[str, str] = {
     "prediction": "prediction",
     "confirmation_test": "confirmation_test",
 }
+
+
+def _mixture_handlers(
+    ols_result: RegressionResultsWrapper, components: list[str], alpha: float
+) -> dict[str, Callable[[], dict[str, Any]]]:
+    """Analyses that differ for a Scheffe mixture model, keyed by analysis type."""
+    return {
+        "anova": lambda: run_mixture_anova(ols_result, components),
+        "significance": lambda: run_mixture_significance(ols_result, components, alpha),
+        "effects": lambda: run_mixture_effects(ols_result, components),
+        "lenth_method": run_mixture_lenth,
+    }
 
 
 # ---------------------------------------------------------------------------
@@ -358,8 +377,13 @@ def analyze_experiment(  # noqa: PLR0912, PLR0913, PLR0915, C901
         warnings.warn(message, category=RuntimeWarning, stacklevel=2)
 
     # --- Dispatch requested analyses -----------------------------------
+    # A Scheffe mixture model needs its own ANOVA, significance and effects: the
+    # usual ones test each blending coefficient against zero, which means nothing.
+    mixture_handlers = _mixture_handlers(ols_result, factor_cols, significance_level) if model in SCHEFFE_MODELS else {}
     for t in types:
-        if t == "anova":
+        if t in mixture_handlers:
+            results.update(mixture_handlers[t]())
+        elif t == "anova":
             results.update(_run_anova(ols_result))
         elif t == "effects":
             results.update(_run_effects(ols_result))

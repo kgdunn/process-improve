@@ -131,6 +131,21 @@ def _smallest_unaliased(k: int) -> np.ndarray:
     return first
 
 
+def supersaturated_available(k: int, budget: float) -> bool:
+    """Whether ``budget`` runs give an unaliased supersaturated design for ``k`` factors.
+
+    Automatic design selection asks this before choosing a supersaturated design,
+    so a budget with no such design falls through to the other families instead of
+    raising.
+    """
+    if k < 3 or budget >= k + 1 or budget != int(budget) or int(budget) % 2:
+        return False
+    n = int(budget)
+    if 2 * n - 2 < k or (h := hadamard(2 * n)) is None:
+        return False
+    return n_fully_aliased(_lin_half_fraction(h, k)) == 0
+
+
 def dispatch_supersaturated(factors: list[Factor], budget: int | None = None) -> tuple[np.ndarray, dict]:
     """Generate a supersaturated design: ``k`` two-level factors in fewer than ``k + 1`` runs.
 

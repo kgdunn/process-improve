@@ -10,9 +10,11 @@ import pytest
 
 from process_improve.experiments import Constraint, Factor, evaluate_design, generate_design
 from process_improve.experiments.designs_constrained import (
+    MAX_CANDIDATES,
     MAX_EXPRESSION_LENGTH,
     ConstrainedOptions,
     Criterion,
+    _phi_p,
     _Region,
     build_candidates,
     constrained_optimal_design,
@@ -111,10 +113,12 @@ class TestCandidates:
         assert f.shape[1] == _n_model_parameters([TEMP, DOSE, cat], model_type)
         assert np.linalg.matrix_rank(f) == f.shape[1]
 
-    def test_grid_too_large_is_refused(self) -> None:
+    def test_grid_too_large_to_list_is_sampled(self) -> None:
         region = _Region([Factor(name=f"X{i}", low=0, high=1) for i in range(12)], [], [])
-        with pytest.raises(ValueError, match="exceeds"):
-            build_candidates(region)
+        coded, _cats, counts = build_candidates(region)
+        assert counts["grid_sampled"]
+        assert len(coded) <= MAX_CANDIDATES
+        assert set(np.unique(coded)) == {-1.0, 0.0, 1.0}  # still points of the 3-level grid
 
 
 # ---------------------------------------------------------------------------
@@ -276,15 +280,21 @@ class TestCriteria:
 
 
 class TestEOptimal:
-    def test_best_swap_gain_is_exact(self) -> None:
-        """The screened swap's reported gain is the true change in the smallest eigenvalue."""
+    @pytest.mark.parametrize(("phase", "measure"), [(0, "phi_p"), (1, "lambda_min")])
+    def test_best_swap_gain_is_exact(self, phase: int, measure: str) -> None:
+        """The swap's reported gain is the true change in phi_p (climbing) or lambda_min (polishing)."""
         rng = np.random.default_rng(3)
         f_cand, rows = rng.normal(size=(40, 6)), rng.choice(40, 12, replace=False)
         x = f_cand[rows]
-        i, j, gain = Criterion.e().best_swap(x.T @ x, x, f_cand)
+        i, j, gain = Criterion.e().best_swap(x.T @ x, x, f_cand, phase)
         swapped = x.copy()
         swapped[i] = f_cand[j]
-        assert gain == pytest.approx(np.linalg.eigvalsh(swapped.T @ swapped)[0] - np.linalg.eigvalsh(x.T @ x)[0])
+
+        def score(design: np.ndarray) -> float:
+            eigenvalues = np.linalg.eigvalsh(design.T @ design)
+            return float(_phi_p(eigenvalues)) if measure == "phi_p" else float(eigenvalues[0])
+
+        assert gain == pytest.approx(score(swapped) - score(x))
         assert gain > 0
 
     def test_each_of_d_a_e_wins_on_its_own_measure(self) -> None:

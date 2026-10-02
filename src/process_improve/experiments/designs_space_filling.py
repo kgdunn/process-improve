@@ -57,6 +57,8 @@ SPACE_FILLING_METHODS = BOX_ONLY + ANY_REGION
 _MORRIS_MITCHELL_P = 15
 _LHS_STARTS = 20
 _EXCHANGE_PASSES = 10
+#: Most Sobol or Halton points drawn while looking for feasible ones (memory stays below ~0.5 GB).
+_MAX_SEQUENCE_DRAWS = 2**22
 
 
 # ---------------------------------------------------------------------------
@@ -125,12 +127,16 @@ def _sequence_in_region(region: DesignRegion, n: int, method: str, rng: np.rando
     low = np.array([b[0] for b in region.bounds])
     kept: list[np.ndarray] = []
     size = int(2 ** np.ceil(np.log2(max(n, 64))))
-    while sum(len(p) for p in kept) < n:
+    while (found := sum(len(p) for p in kept)) < n:
+        if engine.num_generated + size > _MAX_SEQUENCE_DRAWS:
+            raise ValueError(
+                f"Only {found} of the first {engine.num_generated} {method} points fall inside the region, "
+                f"short of the {n} runs asked for: the region is too small a part of the factor space for a "
+                "sequence. Use method='maximin', which samples the region directly."
+            )
         u = engine.random_base2(int(np.log2(size))) if method == "sobol" else engine.random(size)
         points = low + (1.0 - low.sum()) * _to_simplex(u) if region.kind == "mixture" else 2.0 * u - 1.0
         kept.append(points[region.feasible(points)])
-        if engine.num_generated > 2**22 and not sum(len(p) for p in kept):
-            raise ValueError("No point of the sequence fell inside the region; check the constraints.")
         size = engine.num_generated  # double the total each round
     return np.vstack(kept)[:n]
 
@@ -207,8 +213,9 @@ def space_filling_design(
     Raises
     ------
     ValueError
-        For an unknown method, a categorical factor, or a box-only method asked for
-        a constrained or mixture region.
+        For an unknown method, a categorical factor, a box-only method asked for a
+        constrained or mixture region, or a ``"sobol"`` / ``"halton"`` request in a
+        region too thin to fill from the first ``2**22`` points of the sequence.
     """
     if method not in SPACE_FILLING_METHODS:
         raise ValueError(f"Unknown space-filling method {method!r}; choose from {', '.join(SPACE_FILLING_METHODS)}.")

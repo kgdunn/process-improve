@@ -29,18 +29,8 @@ from typing import Any, Literal
 
 import numpy as np
 
+from process_improve.experiments._uniform_sampling import _TOL, UniformSampler, _Inequality, _linear_row
 from process_improve.experiments.factor import Constraint, Factor, FactorType
-
-#: Smallest acceptable fraction of feasible draws when sampling by rejection.
-_MIN_ACCEPTANCE = 1e-4
-_TOL = 1e-9
-
-_Inequality = Callable[[np.ndarray], np.ndarray]
-
-
-def _linear_row(a: np.ndarray, b: float) -> _Inequality:
-    """Return ``g(x) = x @ a - b``, feasible where ``<= 0``."""
-    return lambda x: np.atleast_2d(x) @ a - b
 
 
 class DesignRegion:
@@ -158,36 +148,43 @@ class DesignRegion:
         return ok
 
     def sample(self, n: int, rng: np.random.Generator) -> np.ndarray:
-        """Draw ``n`` points uniformly from the region, in design units, by rejection.
+        """Draw ``n`` points uniformly from the region, in design units.
 
         A box region is sampled from the coded cube. A mixture region is sampled from
         the smallest simplex holding the lower bounds (the L-pseudocomponent simplex),
         where a flat Dirichlet draw is uniform, so tight lower bounds cost nothing.
+        When the constraints leave too small a part of that set for rejection to be
+        cheap, hit-and-run chains started from the region's support points take over
+        (see :class:`UniformSampler`).
 
         Raises
         ------
         ValueError
-            If fewer than 1 in 10,000 draws are feasible: the region is then too thin
-            for rejection sampling to be reliable.
+            If no point of the region can be found.
         """
-        k, drawn = len(self.names), 0
-        kept: list[np.ndarray] = []
-        while sum(len(p) for p in kept) < n:
-            batch = max(n, 10_000)
-            if self.kind == "mixture":
-                low = np.array([f.low for f in self.factors], dtype=float)
-                points = low + (1.0 - low.sum()) * rng.dirichlet(np.ones(k), size=batch)
-            else:
-                points = rng.uniform(-1.0, 1.0, size=(batch, k))
-            kept.append(points[self.feasible(points)])
-            drawn += batch
-            accepted = sum(len(p) for p in kept)
-            if drawn >= 100 * batch or (drawn >= 10 * batch and accepted < _MIN_ACCEPTANCE * drawn):
-                raise ValueError(
-                    f"Only {accepted} of {drawn} random points fell inside the region; it is too small a "
-                    "part of the factor space to sample reliably. Check the constraints."
-                )
-        return np.vstack(kept)[:n]
+        k = len(self.names)
+        if self.kind == "mixture":
+            low = np.array([f.low for f in self.factors], dtype=float)
+
+            def propose(m: int) -> np.ndarray:
+                return low + (1.0 - low.sum()) * rng.dirichlet(np.ones(k), size=m)
+        else:
+
+            def propose(m: int) -> np.ndarray:
+                return rng.uniform(-1.0, 1.0, size=(m, k))
+
+        bounds = tuple(np.array(self.bounds, dtype=float).T)
+        sampler = UniformSampler(
+            self._inequalities, bounds, propose, self.seed_points, on_simplex=self.kind == "mixture"
+        )
+        return sampler.draw(n, rng)
+
+    def seed_points(self) -> np.ndarray:
+        """Return :meth:`support_points`, or none for a box too large for a boundary grid."""
+        try:
+            return self.support_points()
+        except ValueError:
+            return np.empty((0, len(self.names)))
 
     def support_points(self) -> np.ndarray:
         """Return points on the region's boundary, in design units: where worst-case variance sits.
