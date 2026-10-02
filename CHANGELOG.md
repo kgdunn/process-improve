@@ -427,6 +427,18 @@ those changes.
     `super_scores_` and `predictions_`.
   - Some components of existing fits change sign. Scores, loadings, contributions and
     predictions are otherwise unchanged, apart from the corrected missing-data fits.
+- **Uniform samples of a constrained region reach all of it.** These samples drive
+  space-filling designs, the I-optimality average and `evaluate_design`'s prediction
+  variance. A piecewise-linear constraint such as `abs(a - 0.95) >= 0.01` passed the
+  affine test, so hit-and-run never visited the part beyond its kink; the test now also
+  checks the box corners and a thousand further points. In long thin regions (a mixture
+  sliver `x1 + 3*x2 <= 0.05`) the chains started near the centre and barely moved along
+  the region, so the 5-95% range of `x3` came out as 0.15-0.76 instead of 0.05-0.93;
+  chains now start from the rejection hits when there are any and step along directions
+  drawn from the region's shape. A region made of separate pieces is now shared between
+  them by size to within about 0.01 (it varied by 0.06 from seed to seed).
+  `DesignRegion.sample` on categorical factors alone returns an `(n, 0)` array instead
+  of raising `IndexError`.
 
 ## [1.96.0] - 2026-09-30
 

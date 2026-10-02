@@ -148,7 +148,7 @@ class DesignRegion:
         return ok
 
     def sample(self, n: int, rng: np.random.Generator) -> np.ndarray:
-        """Draw ``n`` points uniformly from the region, in design units.
+        """Draw ``n`` points uniformly from the region, in design units: an ``(n, 0)`` array without continuous factors.
 
         A box region is sampled from the coded cube. A mixture region is sampled from
         the smallest simplex holding the lower bounds (the L-pseudocomponent simplex),
@@ -163,6 +163,8 @@ class DesignRegion:
             If no point of the region can be found.
         """
         k = len(self.names)
+        if k == 0:  # only categorical factors: no continuous dimension to sample
+            return np.empty((n, 0))
         if self.kind == "mixture":
             low = np.array([f.low for f in self.factors], dtype=float)
 
