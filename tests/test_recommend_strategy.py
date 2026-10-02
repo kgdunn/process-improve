@@ -921,3 +921,15 @@ def test_mixture_stages_build_their_estimated_runs(q: int, bounds: tuple[float, 
     for stage in strategy["stages"]:
         if stage["design_type"] == "mixture":
             assert _build(factors, stage).n_runs == stage["estimated_runs"]
+
+
+def test_domain_considerations_and_extra_stages_reach_the_output() -> None:
+    """The pharma note promised a design-space stage that never appeared, and the considerations were unused."""
+    strategy = recommend_strategy(
+        factors=_continuous(6), responses=_maximise(), domain="pharma_formulation", detail_level="novice"
+    )
+    template = get_domain_template("pharma_formulation")
+    for consideration in template["special_considerations"]:
+        assert consideration in strategy["risks"]
+    assert any("design space" in line and "not scheduled" in line for line in strategy["reasoning"])
+    assert not any("strategy includes a design space" in line for line in strategy["reasoning"])

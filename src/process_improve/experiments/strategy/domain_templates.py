@@ -29,8 +29,9 @@ from typing import Any
 #   min_center_points : int - minimum center points for variability estimation
 #   prefer_curvature_detection : bool - prefer DSD over PB when possible
 #   notes : dict[str, str] - detail_level -> domain-specific advice
-#   extra_stages : list[str] - additional stages specific to this domain
-#   special_considerations : list[str] - domain-specific warnings/notes
+#   extra_stages : list[str] - stages this domain usually adds, which the plan names but does
+#       not schedule (they appear in the reasoning)
+#   special_considerations : list[str] - domain-specific warnings, appended to the risks
 
 DOMAIN_TEMPLATES: dict[str, dict[str, Any]] = {
     "pharma_formulation": {
@@ -43,7 +44,7 @@ DOMAIN_TEMPLATES: dict[str, dict[str, Any]] = {
         "notes": {
             "novice": (
                 "Pharmaceutical formulation studies follow Quality by Design (QbD) principles. "
-                "The strategy includes a design space definition stage for regulatory submissions. "
+                "Regulatory submissions also need the design space defined, from the models these stages fit. "
                 "Factors are called Critical Process Parameters (CPPs) or Critical Material "
                 "Attributes (CMAs), and responses are Critical Quality Attributes (CQAs)."
             ),

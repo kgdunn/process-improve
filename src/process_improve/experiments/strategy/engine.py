@@ -897,8 +897,13 @@ def _build_assumptions(spec: DOEProblemSpec, has_screening: bool) -> list[str]:
     return assumptions
 
 
-def _build_risks(spec: DOEProblemSpec, classification: dict[str, Any], budget_warnings: list[str]) -> list[str]:
-    """Build the list of risks for the strategy."""
+def _build_risks(
+    spec: DOEProblemSpec,
+    classification: dict[str, Any],
+    budget_warnings: list[str],
+    template: dict[str, Any],
+) -> list[str]:
+    """Build the list of risks for the strategy, ending with the domain's special considerations."""
     risks = list(budget_warnings)
     if classification["is_tight_budget"]:
         risks.append("Tight budget may result in underpowered designs with low effect detection probability.")
@@ -908,6 +913,7 @@ def _build_risks(spec: DOEProblemSpec, classification: dict[str, Any], budget_wa
         risks.append("Mixture constraints require specialised designs and Scheffe polynomial models.")
     if classification["n_factors"] >= 8:
         risks.append("With 8+ factors, screening may miss important interactions (resolution III/IV limitation).")
+    risks.extend(template.get("special_considerations", []))
     if not risks:
         risks.append("Standard risks: ensure randomisation, verify measurement system, check for outliers.")
     return risks
@@ -969,6 +975,10 @@ def _build_reasoning(
     domain_notes = template.get("notes", {}).get(spec.detail_level, "")
     if domain_notes:
         reasoning.append(f"Domain note ({domain}): {domain_notes}")
+    extra_stages = template.get("extra_stages", [])
+    if extra_stages:
+        names = ", ".join(stage.replace("_", " ") for stage in extra_stages)
+        reasoning.append(f"Studies in this domain usually add stages that are not scheduled here: {names}.")
 
     return reasoning
 
@@ -1160,7 +1170,7 @@ def recommend_strategy(  # noqa: C901, PLR0913
         total_estimated_runs=total_runs,
         budget_allocation=budget_dict,
         assumptions=_build_assumptions(spec, has_screening),
-        risks=_build_risks(spec, classification, budget_warnings),
+        risks=_build_risks(spec, classification, budget_warnings, template),
         alternative_strategies=_build_alternatives(spec, classification),
         domain=domain_enum.value,
         detail_level=detail_level,
