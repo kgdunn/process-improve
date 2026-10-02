@@ -28,7 +28,7 @@ from typing import Any
 
 import numpy as np
 import pandas as pd
-from patsy import build_design_matrices, dmatrix
+from patsy import EvalFactor, ModelDesc, Term, build_design_matrices, dmatrix
 from patsy.design_info import DesignInfo
 from scipy import stats
 from statsmodels.stats.outliers_influence import variance_inflation_factor
@@ -146,7 +146,7 @@ def _build_model_matrix(
     design_info : patsy.DesignInfo
         The patsy design info describing the expansion.  Pass it to
         :func:`patsy.build_design_matrices` to expand *new* factor-space points
-        through the identical model (see :func:`_expand_points`).
+        through the identical model (see :func:`_prediction_variance_of_frame`).
     """
     if model is None:
         model = "interactions"
@@ -250,32 +250,6 @@ def _prediction_variance_at_points(X_points: np.ndarray, XtX_inv: np.ndarray) ->
     return np.sum((X_points @ XtX_inv) * X_points, axis=1)
 
 
-def _expand_points(ctx: _EvalContext, points: np.ndarray) -> np.ndarray:
-    """Expand raw factor-space points through the *fitted* model matrix.
-
-    Uses the stored patsy :class:`~patsy.design_info.DesignInfo` so the columns
-    of the returned matrix match :attr:`_EvalContext.X` exactly (same terms,
-    same order).  This is what keeps region / grid evaluation consistent with
-    the fit; rebuilding from an inferred shorthand model is what previously
-    produced a column-count mismatch for explicit reduced formulas.
-
-    Parameters
-    ----------
-    ctx : _EvalContext
-        The shared evaluation context (carries the fitted ``design_info``).
-    points : ndarray of shape (M, k)
-        Raw factor-space points, one column per factor in ``ctx.factor_names``.
-
-    Returns
-    -------
-    ndarray of shape (M, p)
-        The model matrix for *points*, with the same columns as ``ctx.X``.
-    """
-    df_points = pd.DataFrame(np.asarray(points, dtype=float), columns=ctx.factor_names)
-    (expanded,) = build_design_matrices([ctx.design_info], df_points, return_type="matrix")
-    return np.asarray(expanded, dtype=float)
-
-
 def _cube_vertices(k: int) -> np.ndarray:
     """Return all ``2**k`` cube vertices (corners) of ``[-1, 1]^k``."""
     return np.array(list(itertools.product([-1.0, 1.0], repeat=k)), dtype=float)
@@ -332,89 +306,92 @@ def _region_points(
     return pts
 
 
-def _region_prediction_variance(ctx: _EvalContext) -> np.ndarray:
+def _region_prediction_variance(ctx: _EvalContext) -> tuple[np.ndarray, np.ndarray]:
     """Prediction variance ``d(x) = x' (X'X)^-1 x`` over the design region.
 
     Single source of truth for the region-based metrics (I / G efficiency and
-    the FDS curve): all of them read from this one sorted array, sampled with
-    the region settings carried on *ctx*.
+    the FDS curve), sampled with the region settings carried on *ctx*.
+
+    Returns
+    -------
+    interior : ndarray
+        ``d(x)`` at the uniform sample of the region. The region average (the
+        I-criterion) and the FDS curve are read from this sample alone: the I-criterion
+        is the integral over the region, which boundary points would bias upward.
+    boundary : ndarray
+        ``d(x)`` at the boundary points added when ``include_vertices`` is set (the cube
+        vertices, crossed with every combination of categorical levels; or the support
+        points of a :class:`DesignRegion`), where the worst case usually sits. Used only
+        for the maximum (G). Empty when ``include_vertices`` is off.
     """
     assert ctx.XtX_inv is not None  # callers guard on ``ctx.is_singular``
     if isinstance(ctx.region, DesignRegion):
-        return _prediction_variance_in_region(ctx, ctx.region)
+        interior_df, boundary_df = _points_in_design_region(ctx, ctx.region)
+    else:
+        interior_df, boundary_df = _points_in_box_region(ctx, ctx.region)
+    return _prediction_variance_of_frame(ctx, interior_df), _prediction_variance_of_frame(ctx, boundary_df)
 
-    # Categorical factors are label columns; they cannot be sampled on the
-    # numeric [-1, 1] region. When any is present, sample each categorical
-    # uniformly over its observed levels and each quantitative factor over the
-    # region, then expand through the fitted model. All-continuous designs keep
-    # the original fast path unchanged.
-    cat_levels = {
-        f: ctx.design_df[f].unique() for f in ctx.factor_names if not pd.api.types.is_numeric_dtype(ctx.design_df[f])
-    }
-    if not cat_levels:
-        points = _region_points(
-            ctx.factor_names,
-            region=ctx.region,
-            n_samples=ctx.n_samples,
-            include_vertices=ctx.include_vertices,
-            random_state=ctx.random_state,
-        )
-        X_region = _expand_points(ctx, points)
-        return _prediction_variance_at_points(X_region, ctx.XtX_inv)
 
-    rng = check_random_state(ctx.random_state)
-    data: dict[str, np.ndarray] = {}
-    for f in ctx.factor_names:
-        if f in cat_levels:
-            data[f] = rng.choice(cat_levels[f], size=ctx.n_samples)
-        else:
-            data[f] = rng.uniform(-1.0, 1.0, size=ctx.n_samples)
-    df_points = pd.DataFrame(data)
-
-    # Represent the region corners (where the worst-case prediction variance for
-    # a second-order model usually sits) by crossing the quantitative-factor cube
-    # vertices with a random categorical level.
-    if ctx.include_vertices:
-        cont_names = [f for f in ctx.factor_names if f not in cat_levels]
-        if cont_names:
-            corners = _cube_vertices(len(cont_names))
-            corner: dict[str, np.ndarray] = {}
-            col = 0
-            for f in ctx.factor_names:
-                if f in cat_levels:
-                    corner[f] = rng.choice(cat_levels[f], size=corners.shape[0])
-                else:
-                    corner[f] = corners[:, col]
-                    col += 1
-            df_points = pd.concat([df_points, pd.DataFrame(corner)], ignore_index=True)
-
-    (expanded,) = build_design_matrices([ctx.design_info], df_points, return_type="matrix")
+def _prediction_variance_of_frame(ctx: _EvalContext, points: pd.DataFrame) -> np.ndarray:
+    """Expand factor-space points (one column per factor) through the fitted model and return ``d(x)``."""
+    assert ctx.XtX_inv is not None
+    if points.empty:
+        return np.empty(0)
+    (expanded,) = build_design_matrices([ctx.design_info], points[ctx.factor_names], return_type="matrix")
     return _prediction_variance_at_points(np.asarray(expanded, dtype=float), ctx.XtX_inv)
 
 
-def _prediction_variance_in_region(ctx: _EvalContext, region: DesignRegion) -> np.ndarray:
-    """Prediction variance over a constrained or mixture region, sampled uniformly inside it.
+def _points_in_box_region(ctx: _EvalContext, region: str) -> tuple[pd.DataFrame, pd.DataFrame]:
+    """Uniform sample and corner points of the cuboidal or spherical region.
+
+    The quantitative factors are sampled over *region* (which is validated); each
+    categorical factor (a label column) uniformly over its observed levels. The corners
+    are every cube vertex of the quantitative factors crossed with every combination of
+    categorical levels, so no (vertex, level) pair is missed.
+    """
+    cat_levels = {
+        f: list(ctx.design_df[f].unique())
+        for f in ctx.factor_names
+        if not pd.api.types.is_numeric_dtype(ctx.design_df[f])
+    }
+    cont_names = [f for f in ctx.factor_names if f not in cat_levels]
+    rng = check_random_state(ctx.random_state)
+    points = _region_points(cont_names, region, ctx.n_samples, include_vertices=False, random_state=rng)
+    interior: dict[str, Any] = {f: points[:, j] for j, f in enumerate(cont_names)}
+    for f, levels in cat_levels.items():
+        interior[f] = rng.choice(np.asarray(levels, dtype=object), size=ctx.n_samples)
+
+    if not ctx.include_vertices:
+        return pd.DataFrame(interior), pd.DataFrame()
+    axes = [(-1.0, 1.0)] * len(cont_names) + list(cat_levels.values())
+    boundary = pd.DataFrame(list(itertools.product(*axes)), columns=cont_names + list(cat_levels))
+    return pd.DataFrame(interior), boundary
+
+
+def _points_in_design_region(ctx: _EvalContext, region: DesignRegion) -> tuple[pd.DataFrame, pd.DataFrame]:
+    """Uniform sample and support points of a constrained or mixture region.
 
     The region's boundary points (extreme vertices and edge midpoints for a mixture;
     constraint crossings and feasible grid corners for a box) stand in for the cube
     vertices, since that is where the worst-case variance of a constrained design sits.
     Categorical factors are sampled uniformly over their observed levels.
     """
-    assert ctx.XtX_inv is not None  # callers guard on ``ctx.is_singular``
     missing = [n for n in region.names if n not in ctx.factor_names]
     if missing:
         raise ValueError(f"The region names factors {missing} that are not columns of the design.")
     rng = check_random_state(ctx.random_state)
-    points = region.sample(ctx.n_samples, rng)
+    frames = [region.sample(ctx.n_samples, rng)]
     if ctx.include_vertices:
         with contextlib.suppress(ValueError):  # a grid too large for support points: sample only
-            points = np.vstack([points, region.support_points()])
-    data: dict[str, np.ndarray] = {n: points[:, j] for j, n in enumerate(region.names)}
-    for f in ctx.factor_names:
-        if f not in data:
-            data[f] = rng.choice(ctx.design_df[f].unique(), size=len(points))
-    (expanded,) = build_design_matrices([ctx.design_info], pd.DataFrame(data)[ctx.factor_names], return_type="matrix")
-    return _prediction_variance_at_points(np.asarray(expanded, dtype=float), ctx.XtX_inv)
+            frames.append(region.support_points())
+    out: list[pd.DataFrame] = []
+    for points in frames:
+        data: dict[str, Any] = {n: points[:, j] for j, n in enumerate(region.names)}
+        for f in ctx.factor_names:
+            if f not in data:
+                data[f] = rng.choice(ctx.design_df[f].unique(), size=len(points))
+        out.append(pd.DataFrame(data))
+    return out[0], out[1] if len(out) > 1 else pd.DataFrame()
 
 
 def _region_label(region: str | DesignRegion) -> str:
@@ -443,8 +420,7 @@ def _compute_g_efficiency(ctx: _EvalContext) -> dict[str, Any]:
     if ctx.is_singular:
         return {"g_efficiency": None, "note": "Design is rank-deficient for the specified model."}
 
-    pv = _region_prediction_variance(ctx)
-    max_pv = float(np.max(pv))
+    max_pv = float(np.max(np.concatenate(_region_prediction_variance(ctx))))
 
     g_eff = 100.0 * ctx.p / (ctx.N * max_pv) if max_pv > 0 else None
     return {
@@ -461,7 +437,8 @@ def _compute_average_prediction_variance(ctx: _EvalContext) -> dict[str, Any]:
     """
     if ctx.is_singular:
         return {"average_prediction_variance": None, "note": "Design is rank-deficient for the specified model."}
-    return {"average_prediction_variance": float(np.mean(_region_prediction_variance(ctx)))}
+    interior, _boundary = _region_prediction_variance(ctx)
+    return {"average_prediction_variance": float(np.mean(interior))}
 
 
 def _compute_i_efficiency(ctx: _EvalContext) -> dict[str, Any]:
@@ -469,8 +446,8 @@ def _compute_i_efficiency(ctx: _EvalContext) -> dict[str, Any]:
     if ctx.is_singular:
         return {"i_efficiency": None, "note": "Design is rank-deficient for the specified model."}
 
-    pv = _region_prediction_variance(ctx)
-    avg_pv = float(np.mean(pv))
+    interior, _boundary = _region_prediction_variance(ctx)
+    avg_pv = float(np.mean(interior))
 
     i_eff = 100.0 * ctx.p / (ctx.N * avg_pv) if avg_pv > 0 else None
     return {
@@ -583,23 +560,24 @@ def _compute_correlation(ctx: _EvalContext) -> dict[str, Any]:
 def _omitted_two_factor_interactions(ctx: _EvalContext) -> tuple[np.ndarray, list[str]]:
     """Build the two-factor-interaction columns *not* already in the model.
 
-    Returns the ``(N, q)`` matrix of raw ``x_i * x_j`` products and the matching
-    ``"A:B"`` term names, for every factor pair whose interaction is absent from
-    the fitted model matrix.
+    Returns the ``(N, q)`` matrix of the interaction columns and their names, for
+    every factor pair whose interaction is absent from the fitted model. The columns
+    are built by patsy next to the model's own terms, so a categorical factor is
+    contrast-coded exactly as it is in ``X`` (``"A:C[T.y]"``), and a quantitative
+    pair gives the product ``x_a * x_b`` (``"A:B"``).
     """
-    present = {c.replace(" ", "") for c in ctx.column_names}
-    cols: list[np.ndarray] = []
-    names: list[str] = []
-    factors = ctx.factor_names
-    values = {f: ctx.design_df[f].to_numpy(dtype=float) for f in factors}
-    for a, b in itertools.combinations(factors, 2):
-        if f"{a}:{b}" in present or f"{b}:{a}" in present:
-            continue
-        cols.append(values[a] * values[b])
-        names.append(f"{a}:{b}")
-    if not cols:
+    present = {frozenset(f.name() for f in term.factors) for term in ctx.design_info.terms}
+    omitted = [
+        Term([EvalFactor(a), EvalFactor(b)])
+        for a, b in itertools.combinations(ctx.factor_names, 2)
+        if frozenset((a, b)) not in present
+    ]
+    if not omitted:
         return np.empty((ctx.N, 0)), []
-    return np.column_stack(cols), names
+    dm = dmatrix(ModelDesc([], [*ctx.design_info.terms, *omitted]), ctx.design_df, return_type="dataframe")
+    slices = [dm.design_info.term_slices[term] for term in omitted]
+    columns = [i for sl in slices for i in range(sl.start, sl.stop)]
+    return np.asarray(dm, dtype=float)[:, columns], [dm.columns[i] for i in columns]
 
 
 def _compute_alias_matrix(ctx: _EvalContext) -> dict[str, Any]:
@@ -669,14 +647,23 @@ def _compute_fds(ctx: _EvalContext) -> dict[str, Any]:
     (the endpoints are the minimum and maximum prediction variance) - suitable
     for drawing a smooth FDS plot.  The coarse 11-point ``quantiles`` summary is
     always present for backward compatibility.
+
+    The curve, the quantiles and the average come from the uniform sample of the
+    region, since the FDS curve is the distribution over the region; boundary points
+    would bias it upward. Its value at fraction 1 is the maximum over the region,
+    which the boundary points added by ``include_vertices`` help locate, so the curve
+    ends at ``max_prediction_variance``, the value ``g_efficiency`` uses.
     """
     if ctx.is_singular:
         return {"fds": None, "note": "Design is rank-deficient for the specified model."}
 
-    pv = np.sort(_region_prediction_variance(ctx))
+    pv, boundary = _region_prediction_variance(ctx)
+    pv = np.sort(pv)
     avg = float(pv.mean())
-    mx = float(pv.max())
-    quantiles = {f"{q:g}": float(v) for q, v in zip(_FDS_QUANTILES, np.quantile(pv, _FDS_QUANTILES), strict=True)}
+    mx = float(np.max(np.concatenate([pv, boundary])))
+    quantile_values = np.quantile(pv, _FDS_QUANTILES)
+    quantile_values[-1] = mx  # fraction 1 is the maximum over the region
+    quantiles = {f"{q:g}": float(v) for q, v in zip(_FDS_QUANTILES, quantile_values, strict=True)}
     payload: dict[str, Any] = {
         "region": _region_label(ctx.region),
         "n_samples": ctx.n_samples,
@@ -694,6 +681,7 @@ def _compute_fds(ctx: _EvalContext) -> dict[str, Any]:
             raise ValueError(f"fds_resolution must be at least 2, got {ctx.fds_resolution}.")
         fractions = np.linspace(0.0, 1.0, ctx.fds_resolution)
         curve = np.quantile(pv, fractions)  # non-decreasing; endpoints are min and max
+        curve[-1] = mx
         payload["curve"] = {
             "fraction": fractions.tolist(),
             "prediction_variance": curve.tolist(),
@@ -1279,6 +1267,51 @@ def _resolve_metrics(metric: str | list[str]) -> list[str]:
     return metrics
 
 
+#: Coded settings beyond this many units are taken as a sign of actual (uncoded) units. A
+#: rotatable or orthogonal central composite design stays inside it for any usual size.
+_CODED_LIMIT_FLOOR = 3.0
+
+
+def _validate_inputs(
+    design_df: pd.DataFrame,
+    factor_names: list[str],
+    alpha: float,
+    sigma: float | None,
+    n_samples: int,
+) -> None:
+    """Reject inputs that would give NaN or silently wrong metrics; warn on uncoded settings."""
+    if not 0.0 < alpha < 1.0:
+        raise ValueError(f"alpha must lie strictly between 0 and 1; got alpha={alpha!r}.")
+    if sigma is not None and not sigma > 0:
+        raise ValueError(f"sigma must be positive; got sigma={sigma!r}.")
+    if n_samples < 1:
+        raise ValueError(f"n_samples must be at least 1; got n_samples={n_samples!r}.")
+
+    missing = design_df[factor_names].isna()
+    if missing.any().any():
+        rows = list(design_df.index[missing.any(axis=1)])
+        cols = [c for c in factor_names if missing[c].any()]
+        raise ValueError(
+            f"The design has missing factor settings in rows {rows} (columns {cols}). "
+            "Fill them in or drop those runs before evaluating the design."
+        )
+
+    numeric = [f for f in factor_names if pd.api.types.is_numeric_dtype(design_df[f])]
+    if numeric:
+        limit = max(_CODED_LIMIT_FLOOR, 2 ** (len(numeric) / 4), np.sqrt(len(numeric)))
+        largest = design_df[numeric].abs().max()
+        uncoded = [f for f in numeric if largest[f] > limit]
+        if uncoded:
+            warnings.warn(
+                f"evaluate_design expects factor settings in coded units (-1 and +1 at the low and high "
+                f"levels), but columns {uncoded} reach |x| = {float(largest[uncoded].max()):g}. In actual "
+                "units the efficiencies and the region-based metrics are on the wrong scale; pass the "
+                "DesignResult, or code the columns first.",
+                category=UserWarning,
+                stacklevel=3,
+            )
+
+
 # ---------------------------------------------------------------------------
 # Public API
 # ---------------------------------------------------------------------------
@@ -1305,7 +1338,11 @@ def evaluate_design(  # noqa: PLR0913
     design_matrix : DataFrame or DesignResult
         The design to evaluate.  If a :class:`DesignResult` is passed, the
         coded design matrix and any generator / defining-relation metadata
-        are extracted automatically.
+        are extracted automatically.  A DataFrame must be in coded units (-1 and
+        +1 at the low and high levels; proportions for mixture components), since
+        the efficiencies and the region are defined on that scale; settings far
+        outside it raise a ``UserWarning``.  Categorical factors are label columns.
+        A run with a missing factor setting raises ``ValueError``.
     model : str or None
         Model type: ``"main_effects"``, ``"interactions"``, ``"quadratic"``, a
         Scheffé mixture model (``"scheffe_linear"``, ``"scheffe_quadratic"``,
@@ -1347,10 +1384,16 @@ def evaluate_design(  # noqa: PLR0913
         it was generated with constraints or mixture factors, and the cube
         otherwise.
     n_samples : int
-        Number of random samples drawn over the region (default 100,000).
+        Number of random samples drawn uniformly over the region (default
+        100,000; at least 1).  The region average and the FDS curve are taken
+        over this sample.
     include_vertices : bool
-        When *True* (default), all ``2**k`` cube vertices are added to the
-        region sample so the worst-case (G) value at a corner is represented.
+        When *True* (default), boundary points are added for the maximum, so the
+        worst-case (G) value is represented: for the cuboidal or spherical region
+        the ``2**k`` cube vertices of the quantitative factors, crossed with every
+        combination of categorical levels; for a :class:`DesignRegion`, its
+        support points (extreme vertices and edge midpoints for a mixture).  They
+        are used only for the maximum, not for the region average.
     random_seed : int or None
         Deprecated since 1.97.0 and removed in 2.0; use ``random_state``.
     fds_resolution : int or None
@@ -1367,7 +1410,15 @@ def evaluate_design(  # noqa: PLR0913
     -------
     dict[str, Any]
         Results keyed by metric name.  The structure of each value depends
-        on the metric - see individual metric documentation.
+        on the metric - see individual metric documentation.  A metric that
+        needs to explain its result (for example a rank-deficient model) adds
+        its note to ``result["notes"][metric_name]``.
+
+    Raises
+    ------
+    ValueError
+        If *alpha* is not in (0, 1), *sigma* is not positive, *n_samples* is
+        below 1, or a factor setting is missing.
 
     Examples
     --------
@@ -1403,6 +1454,7 @@ def evaluate_design(  # noqa: PLR0913
             factor_names.remove(col)
             design_df = design_df.drop(columns=[col])
 
+    _validate_inputs(design_df, factor_names, alpha, sigma, n_samples)
     metrics = _resolve_metrics(metric)
     logger.debug("evaluate_design: model=%r, metrics=%s", model, metrics)
 

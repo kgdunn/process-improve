@@ -11,8 +11,9 @@ import itertools
 import numpy as np
 import pandas as pd
 import pytest
+from patsy import build_design_matrices, dmatrix
 
-from process_improve.experiments import Factor, evaluate_design, generate_design
+from process_improve.experiments import Factor, evaluate_all, evaluate_design, generate_design
 from process_improve.experiments.factor import DesignResult
 
 
@@ -165,3 +166,114 @@ def test_each_metric_keeps_its_own_note() -> None:
         assert "note" not in out
         assert "rank-deficient" in out["notes"]["d_efficiency"]
         assert "fractional factorial" in out["notes"]["resolution"]
+
+
+# ---------------------------------------------------------------------------
+# Categorical factors: alias matrix and the region
+# ---------------------------------------------------------------------------
+
+
+def _with_categorical(base: pd.DataFrame, levels: str = "xy") -> pd.DataFrame:
+    return pd.concat([base.assign(C=lev) for lev in levels], ignore_index=True)
+
+
+class TestCategoricalFactor:
+    def test_alias_matrix_with_a_categorical_factor(self) -> None:
+        d = _with_categorical(_two_level(2))
+        out = evaluate_design(d, model="main_effects", metric="alias_matrix")["alias_matrix"]
+        assert out["model_terms"] == ["Intercept", "C[T.y]", "A", "B"]
+        assert out["alias_terms"] == ["A:B", "A:C[T.y]", "B:C[T.y]"]
+        # Reference: the same matrix from an explicit 0/1 dummy for C (A:C[T.y] is half aliased with A).
+        c = (d.C == "y").astype(float).to_numpy()
+        x1 = np.column_stack([np.ones(len(d)), c, d.A, d.B])
+        x2 = np.column_stack([d.A * d.B, d.A * c, d.B * c])
+        expected = np.linalg.solve(x1.T @ x1, x1.T @ x2)
+        np.testing.assert_allclose(out["matrix"], expected, atol=1e-12)
+
+    def test_evaluate_all_runs_with_a_categorical_factor(self) -> None:
+        d = _with_categorical(_two_level(2))
+        out = evaluate_all(d, model="main_effects", n_samples=2000)
+        assert out["alias_matrix"]["alias_terms"] == ["A:B", "A:C[T.y]", "B:C[T.y]"]
+
+    def test_region_is_honoured_with_a_categorical_factor(self) -> None:
+        base = pd.DataFrame(list(itertools.product([-1, 0, 1], repeat=2)), columns=list("AB"))
+        d = _with_categorical(base)
+        mod = "A + B + C + A:B + I(A**2) + I(B**2)"
+        cube = evaluate_design(d, model=mod, metric="g_efficiency", region="cuboidal", n_samples=5000)
+        ball = evaluate_design(d, model=mod, metric="g_efficiency", region="spherical", n_samples=5000)
+        assert ball["max_prediction_variance"] > cube["max_prediction_variance"]
+        with pytest.raises(ValueError, match="Unknown region"):
+            evaluate_design(d, model=mod, metric="g_efficiency", region="bogus")
+
+    def test_every_vertex_is_crossed_with_every_level(self) -> None:
+        rows = [(a, b, c) for c in "xy" for a in (-1, 0, 1) for b in (-1, 0, 1)]
+        rows += [(-1, -1, "z"), (1, 1, "z"), (1, -1, "z"), (0, 0, "z")]
+        d = pd.DataFrame(rows, columns=["A", "B", "C"])
+        mod = "(A+B+C)**2+I(A**2)+I(B**2)"
+        out = evaluate_design(d, model=mod, metric="g_efficiency", n_samples=2000)
+        dm = dmatrix(mod, d, return_type="dataframe")
+        xtx_inv = np.linalg.inv(np.asarray(dm).T @ np.asarray(dm))
+        corners = pd.DataFrame(
+            [(a, b, c) for a in (-1, 1) for b in (-1, 1) for c in "xyz"],
+            columns=["A", "B", "C"],
+        )
+        p = np.asarray(build_design_matrices([dm.design_info], corners)[0])
+        assert out["max_prediction_variance"] == pytest.approx(np.max(np.sum(p @ xtx_inv * p, axis=1)))
+
+
+# ---------------------------------------------------------------------------
+# Region average is taken over the uniform sample only
+# ---------------------------------------------------------------------------
+
+
+def test_vertices_do_not_bias_the_average_prediction_variance() -> None:
+    """The I-criterion is an integral over the region; the corners only serve the maximum."""
+    d = _two_level(3)
+    # Exact average of x'(X'X)^-1 x over [-1, 1]^3 for the main-effects model of a 2^3: (1 + 3/3) / 8.
+    exact = (1 + 3 * (1 / 3)) / 8
+    out = evaluate_design(d, model="main_effects", metric=["average_prediction_variance", "fds"], n_samples=50)
+    with_vertices = out["average_prediction_variance"]
+    without = evaluate_design(
+        d, model="main_effects", metric="average_prediction_variance", n_samples=50, include_vertices=False
+    )["average_prediction_variance"]
+    assert with_vertices == pytest.approx(without)
+    assert with_vertices == pytest.approx(exact, rel=0.15)
+    assert out["fds"]["max_prediction_variance"] == pytest.approx(0.5)  # a corner: (1 + 3) / 8
+    assert out["fds"]["average_prediction_variance"] == pytest.approx(with_vertices)
+
+
+# ---------------------------------------------------------------------------
+# Input validation
+# ---------------------------------------------------------------------------
+
+
+class TestInputValidation:
+    def test_missing_factor_setting_raises(self) -> None:
+        d = _two_level(3).astype(float)
+        d.iloc[0, 0] = np.nan
+        with pytest.raises(ValueError, match=r"missing.*'A'"):
+            evaluate_design(d, model="main_effects", metric="d_efficiency")
+
+    @pytest.mark.parametrize("alpha", [0.0, 1.0, 1.5, -0.1])
+    def test_alpha_outside_unit_interval_raises(self, alpha: float) -> None:
+        with pytest.raises(ValueError, match="alpha"):
+            evaluate_design(_two_level(3), model="main_effects", metric="power", alpha=alpha, effect_size=1)
+
+    @pytest.mark.parametrize("sigma", [0.0, -1.0])
+    def test_non_positive_sigma_raises(self, sigma: float) -> None:
+        with pytest.raises(ValueError, match="sigma"):
+            evaluate_design(_two_level(3), model="main_effects", metric="power", sigma=sigma, effect_size=1)
+
+    def test_zero_samples_raises(self) -> None:
+        with pytest.raises(ValueError, match="n_samples"):
+            evaluate_design(_two_level(3), model="main_effects", metric="g_efficiency", n_samples=0)
+
+    def test_actual_units_warn(self) -> None:
+        with pytest.warns(UserWarning, match="coded units"):
+            evaluate_design(_two_level(3) * 5 + 5, model="main_effects", metric="d_efficiency")
+
+    def test_rotatable_ccd_does_not_warn(self, recwarn: pytest.WarningsRecorder) -> None:
+        fs = [Factor(name=n, low=-1, high=1) for n in "ABCDEF"]
+        r = generate_design(fs, design_type="ccd", alpha="rotatable", n_center_points=2)
+        evaluate_design(r, model="quadratic", metric="d_efficiency")
+        assert not [w for w in recwarn if "coded units" in str(w.message)]

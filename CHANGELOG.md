@@ -272,6 +272,27 @@ those changes.
   structure and clear effects now come from the whole design, with a note saying why. A
   resolution II fraction reports `roman="II"` (not `"2"`) and a wordlength pattern that
   starts at `A_2` instead of hiding the length-2 word.
+- **`evaluate_design` handles categorical factors in the alias matrix and the region.**
+  `metric="alias_matrix"`, and so `evaluate_all` and `metric="all"`, raised "could not
+  convert string to float" for any design with a categorical factor; the omitted
+  interactions are now built by patsy next to the model's terms, contrast-coded as in the
+  model (`"A:C[T.y]"`). With a categorical factor present, `region` was ignored
+  (`"spherical"` gave the cube's answer and a misspelt region was accepted), and each cube
+  vertex was crossed with one random level, so the maximum prediction variance was
+  underestimated and G-efficiency overstated; the region is now honoured and validated, and
+  every vertex is crossed with every combination of levels.
+- **The region average and the FDS curve are no longer biased by the added vertices.**
+  The `2**k` cube vertices (or a region's support points), added so the maximum is seen,
+  were pooled into the sample that the average prediction variance, `i_efficiency` and the
+  FDS curve are taken over; they sit where the variance is highest, which raised the
+  average by 1% at the default 100,000 samples and by 88% at 1,000 samples for eight
+  factors. They now serve only the maximum (G-efficiency and the FDS curve's end point).
+- **`evaluate_design` checks its inputs.** A run with a missing factor setting was
+  dropped silently by patsy, so N and the efficiencies described a different design and
+  `alias_matrix` crashed; it now raises `ValueError` naming the rows. `alpha` outside
+  (0, 1), a non-positive `sigma` and `n_samples < 1` raise instead of giving NaN or a NumPy
+  error, and a DataFrame that looks like it is in actual rather than coded units warns
+  (a 2^3 factorial in 0 to 10 units reported a D-efficiency of 1118%).
 - **Each metric's note is kept under its own name.** Metrics returned a shared top-level
   `"note"`, so asking for two metrics kept only the last note, attributed to the wrong
   metric. `evaluate_design` now returns them as `result["notes"][metric_name]`.
