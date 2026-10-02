@@ -305,7 +305,7 @@ class TestDomainTemplates:
 
     def test_pharma_prefers_dsd(self):
         template = get_domain_template("pharma_formulation")
-        assert template["screening_preference"] == "definitive_screening"
+        assert template["screening_preference"] == "dsd"
 
     def test_fermentation_prefers_pb(self):
         template = get_domain_template("fermentation")
@@ -313,7 +313,7 @@ class TestDomainTemplates:
 
     def test_cell_culture_prefers_dsd(self):
         template = get_domain_template("cell_culture")
-        assert template["screening_preference"] == "definitive_screening"
+        assert template["screening_preference"] == "dsd"
 
     def test_general_no_preference(self):
         template = get_domain_template("general")
@@ -352,7 +352,7 @@ class TestScreeningStrategy:
         result = recommend_strategy(factors=seven_factors, budget=40)
         screening = [s for s in result["stages"] if s["stage_name"] == "Screening"]
         assert len(screening) == 1
-        assert screening[0]["design_type"] in ("plackett_burman", "definitive_screening", "fractional_factorial")
+        assert screening[0]["design_type"] in ("plackett_burman", "dsd", "fractional_factorial")
 
     def test_mixture_factors(self):
         factors = [Factor(name=f"x{i}", type="mixture", low=0, high=1) for i in range(4)]

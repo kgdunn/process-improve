@@ -22,8 +22,9 @@ from typing import Any
 # ---------------------------------------------------------------------------
 #
 # Each template is a dict with the following keys:
-#   screening_preference : str - preferred screening design type
-#   rsm_preference : str - preferred RSM design type
+#   screening_preference : str - preferred screening design, a generate_design design type
+#   rsm_preference : str - preferred RSM design: a generate_design design type, or
+#       "ccd_face_centered" for a CCD with alpha="face_centered" (see NON_GENERATE_DESIGN_IDS)
 #   budget_weights : dict - stage -> fraction of total budget
 #   min_confirmation : int - minimum confirmation runs
 #   min_center_points : int - minimum center points for variability estimation
@@ -35,7 +36,7 @@ from typing import Any
 
 DOMAIN_TEMPLATES: dict[str, dict[str, Any]] = {
     "pharma_formulation": {
-        "screening_preference": "definitive_screening",
+        "screening_preference": "dsd",
         "rsm_preference": "ccd_face_centered",
         "budget_weights": {"screening": 0.25, "optimization": 0.45, "confirmation": 0.15},
         "min_confirmation": 5,
@@ -169,7 +170,7 @@ DOMAIN_TEMPLATES: dict[str, dict[str, Any]] = {
         ],
     },
     "cell_culture": {
-        "screening_preference": "definitive_screening",
+        "screening_preference": "dsd",
         "rsm_preference": "box_behnken",
         "budget_weights": {"screening": 0.35, "optimization": 0.45, "confirmation": 0.10},
         "min_confirmation": 3,

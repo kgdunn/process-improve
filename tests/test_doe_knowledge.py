@@ -159,7 +159,8 @@ class TestDesignSelection:
         )
         assert result["n_results"] >= 1
         rule = result["results"][0]
-        assert "split_plot" in rule["recommendation"]["primary"]
+        assert rule["recommendation"]["primary"] == "d_optimal"
+        assert "hard_to_change" in rule["recommendation"]["rationale"]
 
     def test_design_selection_fallback_to_keyword(self):
         """When no context matches, falls back to keyword search."""
@@ -461,7 +462,7 @@ def test_min_run_examples_are_the_designs_the_library_builds() -> None:
         resolution = {"III": 3, "IV": 4, "V": 5}[roman]
         built = generate_design(factors(int(k)), design_type="fractional_factorial", resolution=resolution)
         assert built.n_runs - 3 == runs, key  # generate_design adds 3 centre points by default
-    for design_id, design_type in (("omars", "omars"), ("definitive_screening", "dsd")):
+    for design_id, design_type in (("omars", "omars"), ("dsd", "dsd")):
         for k, runs in _design_type(design_id).min_runs["examples"].items():
             assert generate_design(factors(int(k)), design_type=design_type).n_runs == runs, (design_id, k)
 

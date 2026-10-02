@@ -16,6 +16,18 @@ from pydantic import BaseModel, Field
 
 from process_improve.experiments.factor import Constraint, Factor, Response
 
+#: Ids a strategy can name that are not ``generate_design`` design types, and what each one means.
+NON_GENERATE_DESIGN_IDS: dict[str, str] = {
+    "replicates_at_optimum": (
+        "The confirmation stage: replicate runs at the optimum that optimize_responses finds, not a design "
+        "built from the factor ranges."
+    ),
+    "ccd_face_centered": (
+        "A domain template's RSM preference for design_type='ccd' with alpha='face_centered'; stages carry "
+        "the generate_design form."
+    ),
+}
+
 # ---------------------------------------------------------------------------
 # Enums
 # ---------------------------------------------------------------------------

@@ -151,7 +151,7 @@
     - main_effects
   can_augment_to:
     - {target: fractional_factorial, method: "Use active factors in a resolution V fraction"}
-    - {target: definitive_screening, method: "Re-screen active factors in a DSD"}
+    - {target: dsd, method: "Re-screen active factors in a DSD"}
     - {target: ccd, method: "Follow up active factors with RSM"}
   advantages:
     - "Very run-efficient for screening"
@@ -276,7 +276,7 @@
     - "Box & Wilson (1951)"
     - "Myers, Montgomery & Anderson-Cook (2016), Ch. 7"
 
-- id: definitive_screening
+- id: dsd
   display_name: "Definitive Screening Design (DSD)"
   category: screening
   description:

@@ -331,10 +331,10 @@ def _large_factor_screening_choice(n: int, classification: dict[str, Any], templ
     if (
         classification["is_very_tight_budget"]
         or prefer_curvature
-        or domain_pref == "definitive_screening"
+        or domain_pref == "dsd"
         or classification["prior_confidence"] >= 0.6
     ):
-        return "dsd", estimate_screening_runs(n, "definitive_screening")
+        return "dsd", estimate_screening_runs(n, "dsd")
     if domain_pref == "plackett_burman" or (n >= 6 and not classification["is_tight_budget"]):
         return "plackett_burman", estimate_screening_runs(n, "plackett_burman")
     if domain_pref == "fractional_factorial":
