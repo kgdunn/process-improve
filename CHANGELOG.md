@@ -244,6 +244,16 @@ those changes.
   axial distance, an unknown name raises `ValueError` (both cube types), and the centre
   runs are the number asked for. Designs with a named `alpha` and two or more centre
   runs are unchanged, except for `"orthogonal"` and `"inscribed"` below.
+- **`generate_design` refuses inputs it used to turn into a wrong design.** Two factors
+  with the same name collapsed into one column of the design; they now raise
+  `ValueError`. Mixture components given to a family that places runs in the factor box
+  (full and fractional factorials, Plackett-Burman, CCD, Box-Behnken, DSD, OMARS,
+  supersaturated, Latin hypercube) came back as coded +/-1 rows labelled as proportions,
+  with row sums from -3 to 3; they now raise and name the families that handle mixtures
+  (`"mixture"`, the optimal families, `"sobol"`, `"halton"`, `"maximin"`).
+- **`recommend_strategy` gives an all-mixture problem a mixture optimisation stage.** The
+  optimisation stage was a CCD or Box-Behnken design on the first three components. It is
+  now a `"mixture"` design for a quadratic Scheffe model in every component.
 - **`alpha="orthogonal"` (the CCD default) now gives an orthogonal design.** It used the
   distance that makes a cube block and an axial block orthogonal to the model
   (orthogonal *blocking*), so the quadratic coefficients stayed correlated: 1.886 for

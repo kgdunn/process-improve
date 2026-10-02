@@ -727,3 +727,12 @@ def test_a_budget_below_k_plus_1_recommends_a_supersaturated_design() -> None:
     screening = next(s for s in strategy["stages"] if s["stage_name"] == "Screening")
     assert screening["design_type"] == "supersaturated"
     assert screening["design_params"] == {"budget": 6}
+
+
+def test_an_all_mixture_problem_optimises_with_a_mixture_design() -> None:
+    """The optimisation stage was a CCD on the components, which gave coded +/-alpha rows, not proportions."""
+    inputs = _SCENARIOS["bounded mixture"]
+    strategy = recommend_strategy(**inputs)
+    stage = next(s for s in strategy["stages"] if s["stage_name"] == "Optimization")
+    assert stage["design_type"] == "mixture"
+    assert stage["factors"] == [f.name for f in inputs["factors"]]
