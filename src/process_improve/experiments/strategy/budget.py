@@ -16,6 +16,7 @@ Sources:
 from __future__ import annotations
 
 import math
+from collections.abc import Callable
 from typing import Any
 
 # ---------------------------------------------------------------------------
@@ -47,7 +48,33 @@ _CCD_FACTORIAL_RUNS: dict[int, int] = {
 # ---------------------------------------------------------------------------
 
 
-def estimate_screening_runs(n_factors: int, design_type: str) -> int:  # noqa: PLR0911
+def _fractional_factorial_runs(n_factors: int) -> int:
+    """Smallest 2^(k-p) with resolution IV or more; conservative beyond 7 factors."""
+    if n_factors <= 4:
+        return 2**n_factors  # full factorial feasible
+    if n_factors <= 7:
+        return 16  # 2^(5-1) is resolution V; 2^(6-2) and 2^(7-3) are resolution IV
+    return 32 if n_factors <= 11 else 64
+
+
+def _plackett_burman_runs(n_factors: int) -> int:
+    """Next multiple of 4 at or above ``k + 1``."""
+    return int(math.ceil((n_factors + 1) / 4) * 4)
+
+
+#: Run-count estimate per screening design, keyed by generate_design type (and the old DSD name).
+_SCREENING_RUNS: dict[str, Callable[[int], int]] = {
+    "plackett_burman": _plackett_burman_runs,
+    "dsd": lambda k: 2 * k + 1,
+    "definitive_screening": lambda k: 2 * k + 1,
+    "fractional_factorial": _fractional_factorial_runs,
+    "full_factorial": lambda k: 2**k,
+    # Lin's half-fraction of the smallest Hadamard order N with N - 2 >= k: N / 2 runs
+    "supersaturated": lambda k: int(math.ceil((k + 2) / 4) * 2),
+}
+
+
+def estimate_screening_runs(n_factors: int, design_type: str) -> int:
     """Estimate the number of runs for a screening design.
 
     Parameters
@@ -55,44 +82,16 @@ def estimate_screening_runs(n_factors: int, design_type: str) -> int:  # noqa: P
     n_factors : int
         Number of factors to screen.
     design_type : str
-        One of ``"plackett_burman"``, ``"definitive_screening"``,
-        ``"fractional_factorial"``, ``"full_factorial"``.
+        One of ``"plackett_burman"``, ``"dsd"`` (or ``"definitive_screening"``),
+        ``"fractional_factorial"``, ``"full_factorial"``, ``"supersaturated"``.
+        Any other value gets the Plackett-Burman estimate.
 
     Returns
     -------
     int
         Estimated run count including center points.
     """
-    if design_type == "plackett_burman":
-        # Next multiple of 4 >= k + 1
-        n = n_factors + 1
-        return int(math.ceil(n / 4) * 4)
-
-    if design_type == "definitive_screening":
-        return 2 * n_factors + 1
-
-    if design_type == "fractional_factorial":
-        # Smallest 2^(k-p) with resolution >= IV
-        if n_factors <= 4:
-            return 2**n_factors  # full factorial feasible
-        if n_factors == 5:
-            return 16  # 2^(5-1) = 16, resolution V
-        if n_factors == 6:
-            return 16  # 2^(6-2) = 16, resolution IV
-        if n_factors == 7:
-            return 16  # 2^(7-3) = 16, resolution IV (with minimum aberration)
-        # k >= 8: 2^(k-p) where p gives resolution >= IV
-        # Conservative: use 32 runs for 8-11 factors, 64 for 12+
-        if n_factors <= 11:
-            return 32
-        return 64
-
-    if design_type == "full_factorial":
-        return 2**n_factors
-
-    # Fallback: PB estimate
-    n = n_factors + 1
-    return int(math.ceil(n / 4) * 4)
+    return _SCREENING_RUNS.get(design_type, _plackett_burman_runs)(n_factors)
 
 
 def estimate_rsm_runs(n_factors: int, design_type: str, n_center_points: int = 3) -> int:
