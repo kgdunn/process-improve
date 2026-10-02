@@ -288,6 +288,31 @@ def _refuse_mixture_process(factors: list[Factor]) -> None:
         )
 
 
+def _refuse_mixture_in_box_family(factors: list[Factor], design_type: str) -> None:
+    """Raise when mixture components are given to a family that places runs in the factor box.
+
+    Those families return coded +/-1 settings, which are not proportions and do not sum to 1.
+    """
+    from process_improve.experiments.designs_space_filling import ANY_REGION  # noqa: PLC0415
+
+    if not any(f.type == FactorType.mixture for f in factors):
+        return
+    allowed = {"mixture", *_OPTIMAL_FAMILIES, *ANY_REGION}
+    if design_type not in allowed:
+        raise ValueError(
+            f"design_type={design_type!r} places runs in a box of factor settings, so it cannot give mixture "
+            f"proportions that sum to 1. Use one of {sorted(allowed)}."
+        )
+
+
+def _refuse_duplicate_names(factors: list[Factor]) -> None:
+    """Raise when two factors share a name: their columns would silently collapse into one."""
+    names = [f.name for f in factors]
+    duplicates = sorted({name for name in names if names.count(name) > 1})
+    if duplicates:
+        raise ValueError(f"Factor names must be unique; {duplicates} appear more than once.")
+
+
 _DESIGN_REGISTRY: dict[str, Callable[..., tuple[np.ndarray, dict]]] = {
     "full_factorial": _dispatch_full_factorial,
     "fractional_factorial": _dispatch_fractional_factorial,
@@ -543,7 +568,9 @@ def generate_design(  # noqa: PLR0913
             f"fixed_runs (design augmentation) is only supported for the optimal design families ({families}); "
             f"got design_type={design_type!r}."
         )
+    _refuse_duplicate_names(factors)
     _refuse_mixture_process(factors)
+    _refuse_mixture_in_box_family(factors, design_type)
     _refuse_unsupported_categorical(factors, design_type)
 
     # --- Dispatch ----------------------------------------------------------

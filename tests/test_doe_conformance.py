@@ -12,10 +12,11 @@ import itertools
 import math
 
 import numpy as np
+import pandas as pd
 import pytest
 from scipy.stats import qmc
 
-from process_improve.experiments import generate_design
+from process_improve.experiments import augment_design, generate_design
 from process_improve.experiments.designs_supersaturated import e_s2, e_s2_lower_bound
 from process_improve.experiments.factor import Constraint, Factor
 
@@ -190,6 +191,27 @@ class TestCentralComposite:
         assert math.isclose(np.abs(x).max(), alpha)
         # Rotatability: fourth moments [iiii] = 3 [iijj] (Box and Hunter 1957).
         assert math.isclose((x[:, 0] ** 4).sum(), 3 * (x[:, 0] ** 2 * x[:, 1] ** 2).sum())
+
+    @staticmethod
+    def _squares_orthogonal(x: np.ndarray) -> bool:
+        """Whether the centred squared columns are mutually orthogonal: quadratic coefficients uncorrelated."""
+        q = x**2 - (x**2).mean(axis=0)
+        gram = q.T @ q
+        return bool(np.allclose(gram - np.diag(np.diag(gram)), 0, atol=1e-9))
+
+    @pytest.mark.parametrize(
+        ("k", "cube", "n_center"), [(2, "full", 3), (3, "full", 3), (4, "full", 4), (5, "fractional", 6)]
+    )
+    def test_orthogonal(self, k: int, cube: str, n_center: int) -> None:
+        """alpha='orthogonal' used the orthogonal-blocking distance (1.886 for k=3 with 3 centre runs, not 1.353)."""
+        result = generate_design(_factors(k), "ccd", alpha="orthogonal", cube=cube, n_center_points=n_center)
+        assert self._squares_orthogonal(_coded(result, k))
+
+    def test_orthogonal_axial_runs_added_to_a_factorial(self) -> None:
+        names = [f"x{i}" for i in range(3)]
+        base = generate_design(_factors(3), "full_factorial", n_center_points=3).design[names]
+        result = augment_design(base, "add_axial_points", alpha="orthogonal")
+        assert self._squares_orthogonal(pd.DataFrame(result["augmented_design"])[names].to_numpy(dtype=float))
 
 
 class TestMixture:
