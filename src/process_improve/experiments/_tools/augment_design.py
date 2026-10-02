@@ -72,6 +72,14 @@ class AugmentDesignInput(BaseModel):
             "(e.g. ['D=ABC']). Needed for foldover/semifold alias analysis."
         ),
     )
+    factor_names: list[str] | None = Field(
+        None,
+        description=(
+            "The factor columns of existing_design. Default: every column except RunOrder and Block, refusing "
+            "any that does not look like a coded factor (such as a measured response). Name the factors when "
+            "the design also carries responses."
+        ),
+    )
     random_state: int | None = Field(
         42,
         ge=0,
@@ -131,6 +139,7 @@ def augment_design_tool(spec: AugmentDesignInput) -> dict[str, Any]:
             alpha=spec.alpha,
             generators=spec.generators,
             random_state=spec.random_state,
+            factor_names=spec.factor_names,
         )
         return clean(result)
     except _TOOL_EXPECTED_EXCEPTIONS as e:

@@ -271,6 +271,33 @@ class TestSemifold:
         assert "A" in result["explanation"]
 
 
+class TestFactorColumns:
+    """A response carried with the design must not be augmented as a factor."""
+
+    @staticmethod
+    def _with_response() -> pd.DataFrame:
+        design = _full_factorial_df(3).astype(float)
+        design["y"] = [10.0, 12, 11, 15, 9, 14, 13, 16]
+        return design
+
+    def test_response_column_is_refused_by_default(self) -> None:
+        """Axial runs on y and a foldover with y = -10 used to come back without a word."""
+        with pytest.raises(ValueError, match=r"Column\(s\) \['y'\] do not look like factors"):
+            augment_design(self._with_response(), "add_axial_points")
+
+    @pytest.mark.parametrize("augmentation_type", ["add_axial_points", "foldover", "add_center_points"])
+    def test_factor_names_keep_the_response_out(self, augmentation_type: str) -> None:
+        """Naming the factors gives 2k = 6 axial runs on A, B and C, as for the design without y."""
+        with_y = augment_design(self._with_response(), augmentation_type, factor_names=["A", "B", "C"])
+        without_y = augment_design(_full_factorial_df(3).astype(float), augmentation_type)
+        assert with_y["new_runs"] == without_y["new_runs"]
+        assert set(with_y["augmented_design"][0]) == {"A", "B", "C"}
+
+    def test_unknown_factor_name_is_refused(self) -> None:
+        with pytest.raises(ValueError, match="factor_names must name distinct columns"):
+            augment_design(_full_factorial_df(2), "foldover", factor_names=["A", "Z"])
+
+
 class TestAliasingExplanation:
     """The explanation must not call an effect independently estimable while it is still aliased."""
 

@@ -778,6 +778,37 @@ _AUGMENT_REGISTRY: dict[str, Callable[[_AugmentContext], dict[str, Any]]] = {
 # ---------------------------------------------------------------------------
 
 
+def _resolve_factor_names(design: pd.DataFrame, factor_names: list[str] | None) -> list[str]:
+    """Return the factor columns of *design*, refusing columns that are not coded factors.
+
+    Raises
+    ------
+    ValueError
+        If *factor_names* names a missing column or repeats one, or, when it is
+        None, if a candidate column is non-numeric or does not take values on
+        both sides of 0, as a coded factor does.
+    """
+    if factor_names is not None:
+        missing = [n for n in factor_names if n not in design.columns]
+        if missing or len(set(factor_names)) != len(factor_names) or not factor_names:
+            msg = f"factor_names must name distinct columns of the design; got {factor_names}, missing {missing}."
+            raise ValueError(msg)
+        return list(factor_names)
+
+    names = [c for c in design.columns if c not in ("RunOrder", "Block")]
+    not_coded = [
+        c for c in names if not pd.api.types.is_numeric_dtype(design[c]) or not (design[c].min() < 0 < design[c].max())
+    ]
+    if not_coded:
+        msg = (
+            f"Column(s) {not_coded} do not look like factors in coded units (numeric, with values on both sides "
+            "of 0); a response column would be augmented as if it were a factor. Pass factor_names=[...] naming "
+            "the factor columns, or drop the other columns."
+        )
+        raise ValueError(msg)
+    return names
+
+
 def augment_design(  # noqa: PLR0913
     existing_design: pd.DataFrame,
     augmentation_type: str,
@@ -787,6 +818,7 @@ def augment_design(  # noqa: PLR0913
     alpha: str | float | None = None,
     generators: list[str] | None = None,
     random_state: int | np.random.Generator | None = 42,
+    factor_names: list[str] | None = None,
 ) -> dict[str, Any]:
     """Extend or modify an existing experimental design.
 
@@ -794,6 +826,7 @@ def augment_design(  # noqa: PLR0913
     ----------
     existing_design : DataFrame
         The current design matrix with factor columns in coded units (-1/+1).
+        Only the factor columns are augmented and returned; see *factor_names*.
     augmentation_type : str
         One of ``"foldover"``, ``"semifold"``, ``"add_center_points"``,
         ``"add_axial_points"``, ``"add_runs_optimal"``, ``"upgrade_to_rsm"``,
@@ -824,6 +857,13 @@ def augment_design(  # noqa: PLR0913
     random_state : int, numpy.random.Generator or None, default 42
         Seeds the exchange's random starts for ``"add_runs_optimal"``; the default
         keeps the result reproducible, and ``None`` draws fresh starts.
+    factor_names : list[str] or None
+        The factor columns. ``None`` takes every column except ``RunOrder`` and
+        ``Block``, and then refuses a column that does not look like a coded
+        factor (non-numeric, or without values on both sides of 0), such as a
+        response measured on the runs: augmenting it as a factor would add axial
+        runs on it or negate it in a foldover. Name the factors to keep other
+        columns out.
 
     Returns
     -------
@@ -837,8 +877,9 @@ def augment_design(  # noqa: PLR0913
     Raises
     ------
     ValueError
-        If *augmentation_type* is unknown, or if required parameters
-        are missing for the requested augmentation.
+        If *augmentation_type* is unknown, if required parameters are missing
+        for the requested augmentation, or if a column would be treated as a
+        factor without looking like one (see *factor_names*).
 
     Examples
     --------
@@ -857,7 +898,7 @@ def augment_design(  # noqa: PLR0913
         available = sorted(_AUGMENT_REGISTRY.keys())
         raise ValueError(f"Unknown augmentation_type={augmentation_type!r}. Choose from: {', '.join(available)}.")
 
-    factor_names = [c for c in existing_design.columns if c not in ("RunOrder", "Block")]
+    factor_names = _resolve_factor_names(existing_design, factor_names)
 
     ctx = _AugmentContext(
         existing_design=existing_design,
