@@ -21,7 +21,7 @@ pip install -e ".[dev,all]"
 
 `dev` brings in the test runner, linter, formatter, type checker, and the
 documentation toolchain. `all` brings in the optional runtime dependencies
-(`pyDOE3`, `pulp`, `plotly`, `numba`, ...) that the gated public-API surfaces
+(`pyDOE3`, `plotly`, `numba`, ...) that the gated public-API surfaces
 need. Install both: with `dev` alone a large part of the suite fails on
 `ImportError` rather than skipping, because those tests exercise the extras.
 CI installs the equivalent with `uv sync --dev --all-extras`.

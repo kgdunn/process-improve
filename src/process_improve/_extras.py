@@ -1,6 +1,6 @@
 """ENG-13 (#295): clean errors when an optional extra is not installed.
 
-``process_improve`` ships a small core (numpy, pandas, scikit-learn,
+``process_improve`` ships a small core (numpy, pandas, scipy, scikit-learn,
 statsmodels, patsy, pydantic, pyyaml, tqdm) and gates heavier
 optional dependencies behind extras::
 
@@ -9,7 +9,6 @@ optional dependencies behind extras::
     pip install 'process-improve[batch]'       # scikit-image + openpyxl + ruptures
     pip install 'process-improve[mcp]'         # mcp
     pip install 'process-improve[fast]'        # numba (JIT)
-    pip install 'process-improve[ilp]'         # pulp (OMARS design generator)
     pip install 'process-improve[control]'     # osqp (mid-course correction QP)
     pip install 'process-improve[all]'         # everything above
 
