@@ -58,7 +58,11 @@ class OptimizeResponsesInput(BaseModel):
     )
     step_size: float = Field(
         0.5,
-        description="Step size in coded units for steepest ascent/descent (default 0.5).",
+        gt=0.0,
+        description=(
+            "Euclidean distance in coded units between successive points of a steepest ascent/descent path "
+            "(default 0.5)."
+        ),
     )
     n_steps: int = Field(
         10,

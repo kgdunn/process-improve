@@ -498,7 +498,11 @@ def _steepest_path(  # noqa: PLR0913
     factor_names : list[str]
         Ordered factor names.
     step_size : float
-        Step magnitude in coded units (default 0.5).
+        Euclidean distance, in coded units, between successive points on the
+        path (default 0.5). Each step moves every factor in proportion to its
+        linear coefficient, so a factor moves by ``step_size * b_j / ||b||``;
+        this is not the textbook convention of a unit step in the factor with
+        the largest coefficient. Must be positive.
     n_steps : int
         Number of steps to take away from the design centre (default 10).
         The returned ``steps`` list has ``n_steps + 1`` entries because it
@@ -512,7 +516,19 @@ def _steepest_path(  # noqa: PLR0913
     -------
     dict
         ``steps`` list and ``direction_vector``.
+
+    Raises
+    ------
+    ValueError
+        If *step_size* is not a positive finite number or *n_steps* < 1: a
+        negative step would walk the path the wrong way.
     """
+    if not (np.isfinite(step_size) and step_size > 0):
+        msg = f"step_size must be a positive number of coded units; got {step_size}."
+        raise ValueError(msg)
+    if n_steps < 1:
+        msg = f"n_steps must be at least 1; got {n_steps}."
+        raise ValueError(msg)
     evaluator = _build_model_evaluator(coefficients, factor_names)
 
     # Extract linear coefficients only
@@ -1160,6 +1176,39 @@ def _ridge_analysis(
     }
 
 
+def _ridge_within_bounds(
+    coefficients: list[dict[str, Any]],
+    factor_names: list[str],
+    search_bounds: tuple[float, float] | dict[str, tuple[float, float]] | None,
+    direction: str,
+    n_radii: int,
+) -> dict[str, Any]:
+    """Trace the ridge out to the farthest bound, flagging the points that leave the search box.
+
+    The ridge lives on spheres around the design centre, so it can follow a box
+    only as far as its largest ``|bound|``. Bounds that differ between factors, or
+    that are not symmetric about 0, are therefore not followed: each path entry
+    carries ``inside_search_bounds`` instead, and a warning says so.
+    """
+    box = _resolve_search_bounds(search_bounds, factor_names)
+    max_radius = max(max(abs(low), abs(high)) for low, high in box)
+    ridge = _ridge_analysis(coefficients, factor_names, direction=direction, n_radii=n_radii, max_radius=max_radius)
+    for entry in ridge.get("path", []):
+        entry["inside_search_bounds"] = all(
+            low - 1e-9 <= entry["coded"][name] <= high + 1e-9
+            for name, (low, high) in zip(factor_names, box, strict=True)
+        )
+    if len(set(box)) > 1 or box[0][0] != -box[0][1]:
+        warnings.warn(
+            f"ridge_analysis traces spheres around the design centre out to radius {max_radius}, the "
+            "largest |bound|; it cannot follow search_bounds that differ between factors or are not symmetric "
+            "about 0. Path points outside the bounds have inside_search_bounds=False.",
+            UserWarning,
+            stacklevel=3,
+        )
+    return ridge
+
+
 # ---------------------------------------------------------------------------
 # Pareto front
 # ---------------------------------------------------------------------------
@@ -1734,7 +1783,8 @@ def optimize_responses(  # noqa: PLR0913, C901
         Maps factor name to ``{"low": float, "high": float}`` in actual
         units.  Used for coded ↔ actual conversion.
     step_size : float
-        Step magnitude for steepest ascent/descent (coded units).
+        Step length for steepest ascent/descent: the Euclidean distance, in
+        coded units, between successive points on the path. Must be positive.
     n_steps : int
         Number of steps along a path: the steepest ascent/descent steps, or the
         radii reported by ridge analysis over and above the centre.
@@ -1753,7 +1803,10 @@ def optimize_responses(  # noqa: PLR0913, C901
     search_bounds : tuple, dict, or None
         The coded region to search, and the region against which a stationary
         point is judged inside or outside. Defaults to the factorial cube,
-        ``(-1, 1)`` on every factor.
+        ``(-1, 1)`` on every factor. ``"ridge_analysis"`` traces spheres out to
+        the largest ``|bound|`` and flags each path point with
+        ``inside_search_bounds``, since a sphere cannot follow bounds that
+        differ between factors or are asymmetric.
 
         That default suits a two-level design but understates a central
         composite design, whose axial runs sit at plus or minus alpha: leaving
@@ -1889,15 +1942,8 @@ def optimize_responses(  # noqa: PLR0913, C901
         )
 
     elif method == "ridge_analysis":
-        box = _resolve_search_bounds(search_bounds, factor_names)
         result["ridge_analysis"] = _add_actual_units(
-            _ridge_analysis(
-                coefficients,
-                factor_names,
-                direction=ridge_direction,
-                n_radii=n_steps,
-                max_radius=max(max(abs(low), abs(high)) for low, high in box),
-            ),
+            _ridge_within_bounds(coefficients, factor_names, search_bounds, ridge_direction, n_steps),
             factor_ranges,
             "path",
         )

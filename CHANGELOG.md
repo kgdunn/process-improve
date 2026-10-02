@@ -256,6 +256,14 @@ those changes.
 
 ### Fixed
 
+- **Steepest-ascent and ridge paths check their inputs and say what they follow.**
+  `step_size=-1` walked a steepest-ascent path downhill and `n_steps=-3` returned an
+  empty path; both now raise. The docstring states that `step_size` is the Euclidean
+  distance between successive points, not a unit step in the factor with the largest
+  coefficient. Ridge analysis traces spheres out to the largest `|bound|` and so cannot
+  follow `search_bounds` that differ between factors or are asymmetric; each path point
+  now carries `inside_search_bounds`, with a warning when the bounds are of that kind.
+
 - **Canonical analysis recognises ridge systems.** A zero eigenvalue of `B` was given a
   sign: y = 10 + 2A - A^2 (eigenvalues -1 and 0) was classed a `"saddle_point"`, its
   flat axis labelled convex, and `stationary_point` reported a singular matrix although

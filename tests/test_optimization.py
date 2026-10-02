@@ -329,6 +329,53 @@ class TestCanonicalAnalysis:
         assert "error" in result
 
 
+class TestPathInputs:
+    """Inputs that used to reverse or empty a path, or ignore the bounds, without a word."""
+
+    @staticmethod
+    def _model() -> dict:
+        return {"response_name": "y", "factor_names": FACTOR_NAMES_2F, "coefficients": _linear_2f_coeffs()}
+
+    @pytest.mark.parametrize(("step_size", "n_steps"), [(-1.0, 3), (0.0, 3), (float("nan"), 3), (0.5, 0), (0.5, -3)])
+    def test_steepest_path_rejects_a_non_positive_step_or_count(self, step_size: float, n_steps: int) -> None:
+        """step_size=-1 walked steepest ascent downhill; n_steps=-3 returned an empty path."""
+        with pytest.raises(ValueError, match=r"step_size|n_steps"):
+            optimize_responses([self._model()], method="steepest_ascent", step_size=step_size, n_steps=n_steps)
+
+    def test_step_size_is_a_euclidean_distance(self) -> None:
+        """The documented convention: successive points are step_size apart."""
+        steps = optimize_responses([self._model()], method="steepest_ascent", step_size=0.5, n_steps=2)
+        coded = [np.array(list(s["coded"].values())) for s in steps["steepest_path"]["steps"]]
+        assert np.linalg.norm(coded[2] - coded[1]) == pytest.approx(0.5)
+
+    def test_ridge_flags_points_outside_asymmetric_bounds(self) -> None:
+        """The ridge follows spheres; with A bounded to (0, 2) it reaches A = -1.96, which is now flagged."""
+        model = {
+            "response_name": "y",
+            "factor_names": FACTOR_NAMES_2F,
+            "coefficients": [
+                {"term": "Intercept", "coefficient": 0.0},
+                {"term": "A", "coefficient": -1.0},
+                {"term": "B", "coefficient": 0.2},
+                {"term": "I(A ** 2)", "coefficient": -1.0},
+                {"term": "I(B ** 2)", "coefficient": -1.0},
+            ],
+        }
+        bounds = {"A": (0.0, 2.0), "B": (-2.0, 2.0)}
+        with pytest.warns(UserWarning, match="cannot follow search_bounds"):
+            out = optimize_responses([model], method="ridge_analysis", search_bounds=bounds, n_steps=4)
+        path = out["ridge_analysis"]["path"]
+        assert path[0]["inside_search_bounds"] is True
+        assert path[-1]["coded"]["A"] < 0
+        assert path[-1]["inside_search_bounds"] is False
+
+    def test_ridge_with_symmetric_bounds_does_not_warn(self) -> None:
+        """The usual case, one symmetric pair for every factor, is traced as before and stays inside."""
+        model = {"response_name": "y", "factor_names": FACTOR_NAMES_2F, "coefficients": _quadratic_2f_coeffs()}
+        out = optimize_responses([model], method="ridge_analysis", search_bounds=(-1.41, 1.41))
+        assert all(entry["inside_search_bounds"] for entry in out["ridge_analysis"]["path"])
+
+
 class TestRidgeSystems:
     """A zero eigenvalue of B is a ridge, not a saddle (Myers, Montgomery and Anderson-Cook, sec. 6.4)."""
 
