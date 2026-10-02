@@ -63,6 +63,7 @@ References
 from __future__ import annotations
 
 import itertools
+import logging
 import math
 import time
 import warnings
@@ -79,6 +80,8 @@ try:
     _PULP_AVAILABLE = True
 except ImportError:  # pragma: no cover - exercised via env-without-pulp
     _PULP_AVAILABLE = False
+
+logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
     from process_improve.experiments.factor import DesignResult, Factor
@@ -397,7 +400,7 @@ def solve_omars_ilp(  # noqa: PLR0913
     with warnings.catch_warnings():
         warnings.simplefilter("ignore", DeprecationWarning)
         solver = pulp.PULP_CBC_CMD(msg=bool(options.get("msg", False)), timeLimit=int(options.get("time_limit", 60)))
-        problem.solve(solver)
+        _solve_retrying_once(problem, solver)
     status = pulp.LpStatus[problem.status]
 
     # Accept only a genuine feasible/optimal integer solution (sol_status > 0);
@@ -408,6 +411,22 @@ def solve_omars_ilp(  # noqa: PLR0913
     if not chosen:
         return None, status, []
     return _foldover(half_pool[chosen]), status, chosen
+
+
+def _solve_retrying_once(problem: pulp.LpProblem, solver: pulp.LpSolver) -> None:
+    """Solve *problem*, retrying once when the CBC binary itself fails.
+
+    pulp's bundled CBC binary can exit nonzero for no reason in the model (seen on
+    Apple Silicon, where it runs under Rosetta), which pulp raises as
+    ``PulpSolverError``. The retry solves the same problem with the same options, so a
+    seeded result is unchanged. A second failure is real, for example a binary that
+    cannot run at all, and propagates.
+    """
+    try:
+        problem.solve(solver)
+    except pulp.PulpSolverError:
+        logger.warning("The CBC solver failed on the OMARS selection problem; retrying once.")
+        problem.solve(solver)
 
 
 def _half_bounds(
