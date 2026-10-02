@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import numpy as np
 import pandas as pd
+import statsmodels.formula.api as smf
 from sklearn.utils import Bunch
 from statsmodels.regression.linear_model import RegressionResultsWrapper
 
@@ -64,6 +65,42 @@ def alias_chains(ols_result: RegressionResultsWrapper) -> list[list[tuple[str, f
     return chains
 
 
+def _chain_label(chain: list[tuple[str, float]]) -> str:
+    """Name a chain by its members, signed: ``"A:B + C:D"``, or ``"A:B - C:D"`` for an anti-alias."""
+    (leader, _), *rest = chain
+    return leader + "".join(f" {'+' if factor > 0 else '-'} {term}" for term, factor in rest)
+
+
+def chain_reduced_fit(ols_result: RegressionResultsWrapper) -> tuple[RegressionResultsWrapper, dict[str, str]]:
+    """Refit on one column per alias chain, so each chain is tested once, under its chain name.
+
+    The pseudo-inverse fit of a model with exactly aliased terms lists every member of
+    a chain as a separate term with the same test, so an ANOVA counts the chain's sum of
+    squares and degrees of freedom once per member. Dropping all but each chain's
+    leader (and every term aliased with the intercept) leaves a full-rank fit with the
+    same residuals, whose leader coefficient is the chain's coefficient.
+
+    Parameters
+    ----------
+    ols_result : RegressionResultsWrapper
+        A statsmodels OLS result fitted from a formula.
+
+    Returns
+    -------
+    tuple[RegressionResultsWrapper, dict[str, str]]
+        The reduced fit (``ols_result`` itself when nothing is aliased) and a map from each
+        retained leader's column name to its chain name.
+    """
+    chains = alias_chains(ols_result)
+    drop = [term for chain in chains for term, _ in chain[1:]]
+    if not drop:
+        return ols_result, {}
+    labels = {chain[0][0]: _chain_label(chain) for chain in chains if len(chain) > 1 and chain[0][0] != "Intercept"}
+    model = ols_result.model
+    reduced = smf.ols(model.formula, data=model.data.frame, drop_cols=drop).fit()
+    return reduced, labels
+
+
 def estimable_effects(ols_result: RegressionResultsWrapper) -> Bunch:
     """Return one coefficient per alias chain, the part of the fit the design determines.
 
@@ -99,7 +136,7 @@ def estimable_effects(ols_result: RegressionResultsWrapper) -> Bunch:
         if leader == "Intercept":
             confounded.extend(term for term, _ in rest)
             continue
-        label = leader + "".join(f" {'+' if factor > 0 else '-'} {term}" for term, factor in rest)
+        label = _chain_label(chain)
         members = [position[term] for term, _ in chain]
         weights = np.array([factor for _, factor in chain])
         labels.append(label)

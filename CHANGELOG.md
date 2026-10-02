@@ -152,6 +152,25 @@ those changes.
 
 ### Changed
 
+- **`analyze_experiment` models the blocks of a blocked design.** A `Block` column was
+  dropped from the model, so block-to-block differences went into the residual and
+  masked real effects (in one blocked 2^3, p = 0.23 for an effect with p = 7e-8 once
+  blocks are in). With two or more blocks the named non-mixture models now carry
+  sum-coded block contrasts (`Block1`, ...), tested together as one `"Block"` ANOVA
+  row (Montgomery, chapter 7); lack of fit and the curvature test take pure error
+  within blocks, effects and significance leave the blocks out, and a new point without
+  a block is predicted for the average block. A Scheffe model or an explicit formula
+  that does not name `Block` warns that the blocks are not modelled. Drop the column to
+  analyse without blocks.
+- **`analyze_experiment` fits a Scheffe quadratic model to mixture data by default.**
+  With `model=None` it fitted the intercept `interactions` model even when every run's
+  settings sum to 1, a rank-deficient fit with meaningless effects; it now does what
+  `evaluate_design` does, and `model_summary["model"]` names the model fitted.
+- **Notes from separate analyses no longer overwrite each other.** The mixture ANOVA,
+  effects and Lenth notes, and the saturated-model ANOVA note, all went to one `note`
+  key, so only the last survived. They are now `anova_note`, `effects_note`,
+  `lenth_note` and `significance_note`.
+
 - **The browser app offers I-optimal designs**, which no longer need pyoptex.
 
 - **Optimal designs use the built-in exchange by default, whether or not pyoptex is
@@ -255,6 +274,72 @@ those changes.
   `pip install 'process-improve[ilp]'` keeps working until then.
 
 ### Fixed
+
+- **`analyze_experiment` effects are the change from a factor's low to its high level
+  whatever its units.** Effects and Lenth's method were always twice the coefficient,
+  which is the effect only for a numeric factor coded -1/+1: a factor in actual units
+  (150 and 170) got twice its slope (1.05 instead of 10.5), and a two-level categorical
+  factor got twice its treatment-coded difference, with a sign set by the alphabetical
+  reference level. Factors are now coded to -1/+1 for the effects (a numeric factor
+  from its own minimum and maximum unless already coded, a categorical one from its
+  first to its second level), the mapping is reported under `effects_coding`, and a
+  categorical factor with more than two levels raises, since it has no single effect.
+- **The curvature test uses pure error.** It divided the centre-versus-factorial
+  contrast by the residual mean square of the fitted model, which contains that same
+  curvature, so real curvature inflated its own error: on Montgomery's Example 6.6 with
+  the centre points shifted by 1 it gave p = 0.083 instead of 0.0017. It is now
+  Montgomery's `SS_curvature / MS_pure_error` on `(1, df_pure_error)` degrees of freedom,
+  pure error coming from the replicated runs, and reports `F_statistic`, `ss_curvature`,
+  `ms_pure_error` and `df_pure_error`.
+- **Response transforms in `analyze_experiment` are checked and reused.** An unknown name
+  (`"Log"`) was ignored, Box-Cox was skipped silently when any response was not
+  positive, and a log or square root of a non-positive value silently dropped runs or
+  made every statistic NaN; these now raise `ValueError`. A confirmation run was compared,
+  on the raw scale, with a prediction interval on the transformed scale, so a run at
+  the true mean was reported outside it; it is now transformed the same way first, and
+  predictions and the confirmation test say which scale they are on. `model_summary`
+  reports the `transform` and the Box-Cox `box_cox_lambda`.
+- **The Box-Cox `lambda` comes from the model.** It was chosen to make the response's own
+  distribution look normal, ignoring the factors, which recommended `lambda = 0.33` for
+  data that are additive on the original scale. It now maximises the profile likelihood
+  of the fitted model (Box and Cox 1964; Montgomery, section 15.1.1), is reported with
+  its 95% interval (`lambda_ci`), and the recommendation is "no transform" when that
+  interval holds 1.
+- **Cox-direction mixture effects include the non-linear blending terms.** The effect of a
+  component was `beta_i - mean(beta_j)` whatever the model, which is the Cox effect
+  only for the linear model: on Cornell's yarn-elongation data it gave x1 the wrong
+  sign and x3 five times its size. It is now the change in the fitted response along
+  the Cox direction through the design's centroid, over the span the design's component
+  ranges allow (`effect_reference`, `effect_range`).
+- **The ANOVA and significance test an alias chain once.** Exactly aliased terms each
+  had their own ANOVA row, so in a replicated 2^(4-1) the degrees of freedom summed to 18
+  for 16 runs, and both `A:B` and `C:D` were listed as significant. Both now use one
+  column per chain, named as the effects name it (`"A:B + C:D"`). The ANOVA reports its
+  sum-of-squares type (`anova_type`, Type II) and fills `mean_sq`, which was always
+  `None`.
+- **Lenth's method follows Lenth (1989).** The simultaneous margin of error used a
+  Bonferroni quantile instead of Lenth's `gamma = (1 + 0.95**(1/m)) / 2`, and the
+  pseudo standard error kept effects equal to `2.5 s0`, which Lenth trims. It also takes
+  `significance_level`.
+- **Smaller `analyze_experiment` defects.** Lack of fit and the curvature test ignored
+  `significance_level`; runs with a missing response were counted in the pure-error
+  degrees of freedom and made model selection return the full model with a NaN
+  criterion (they are now left out up front, with a warning); `observed_at_new` of the
+  wrong length was ignored or raised `IndexError`; a formula for another column
+  (`"z ~ A + B"`) silently fitted that column, and columns a formula does not name were
+  used to group replicates; a formula expanding past `settings.max_formula_terms` was
+  fitted (70 s for 16384 terms); an unnamed `responses` Series raised a confusing
+  formula error; `model="quadratic"` squared categorical factors; and a saturated
+  model's significance left every term out of both lists while its residual tests ran
+  on rounding noise. Each now behaves as documented or raises a `ValueError` naming the
+  fix, and terms that cannot be tested are listed under `not_estimable_terms`.
+- **Model selection scores AICc as Hurvich and Tsai do, and searches Scheffe models
+  without an intercept.** The penalty counted the regression coefficients but not the
+  error variance, so it was too weak near saturation and changed the model chosen. A
+  Scheffe model was searched as the intercept `interactions` model, which is
+  rank-deficient on mixture data; the linear blending terms are now always kept and the
+  search chooses among the non-linear ones. `n_terms` counts the intercept, as
+  `model_summary` does.
 
 - **`analyze_experiment` accepts a response named `yield`.** The commonest response in
   chemistry is a Python keyword, which a model formula cannot name, so the call failed

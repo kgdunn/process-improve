@@ -13,11 +13,14 @@ mean something are:
 - **Is there non-linear blending?** Each ``x_i x_j`` (and ``x_i x_j x_k``) term is
   tested against zero, as in any regression; those hypotheses are meaningful.
 
-Effects are reported in the Cox direction: moving from the centroid towards a pure
-component while the others keep their relative proportions. For the linear blending
-coefficients the effect of component ``i`` is ``beta_i - mean(beta_j, j != i)``
-(Cornell 2002, section 5.10). The "effect = 2 x coefficient" of a coded factor, and
-Lenth's method built on it, have no meaning for mixtures and are not computed.
+Effects are reported in the Cox direction: component ``i`` moves along the line through
+a reference blend on which the other components keep their relative proportions, and
+the effect is the change in the fitted model's response over the feasible span of that
+line (Cornell 2002, section 5.10; Piepel 1982). It is computed from the full fitted
+model, so the non-linear blending terms count too; for the linear model on the whole
+simplex it reduces to ``beta_i - mean(beta_j, j != i)``. The "effect = 2 x coefficient"
+of a coded factor, and Lenth's method built on it, have no meaning for mixtures and are
+not computed.
 """
 
 from __future__ import annotations
@@ -25,6 +28,7 @@ from __future__ import annotations
 from typing import Any
 
 import numpy as np
+import pandas as pd
 from statsmodels.regression.linear_model import RegressionResultsWrapper
 
 
@@ -63,7 +67,7 @@ def _nonlinear_terms(ols_result: RegressionResultsWrapper, components: list[str]
 def run_mixture_anova(ols_result: RegressionResultsWrapper, components: list[str]) -> dict[str, Any]:
     """Mixture ANOVA: the linear blending block, each non-linear blending term, and the residual."""
     if ols_result.df_resid <= 0:
-        return {"anova_table": [], "note": "Saturated model - no residual degrees of freedom for ANOVA."}
+        return {"anova_table": [], "anova_note": "Saturated model - no residual degrees of freedom for ANOVA."}
     mse = float(ols_result.mse_resid)
     rows = [_linear_block_test(ols_result, components)]
     for term in _nonlinear_terms(ols_result, components):
@@ -90,7 +94,7 @@ def run_mixture_anova(ols_result: RegressionResultsWrapper, components: list[str
     )
     return {
         "anova_table": rows,
-        "note": (
+        "anova_note": (
             "Mixture model: the linear blending terms are tested together (H0: all components blend "
             "equally), not each against zero. Non-linear blending terms are tested individually."
         ),
@@ -107,24 +111,67 @@ def run_mixture_significance(
     return {
         "significant_terms": [t for t in nonlinear if pvals[t] < alpha],
         "not_significant_terms": [t for t in nonlinear if pvals[t] >= alpha],
+        "not_estimable_terms": [t for t in nonlinear if not np.isfinite(pvals[t])],
         "linear_blending_differs": None if linear is None else bool(linear["p_value"] < alpha),
         "linear_blending_p_value": None if linear is None else linear["p_value"],
         "significance_level": alpha,
     }
 
 
+def _cox_span(reference: np.ndarray, low: np.ndarray, high: np.ndarray, i: int) -> tuple[float, float]:
+    """Feasible span of ``x_i`` on the Cox line through ``reference``, within the component bounds."""
+    start, stop = float(low[i]), float(high[i])
+    rest = 1.0 - reference[i]
+    for j, share in enumerate(reference):
+        if j == i or share <= 0:
+            continue
+        # x_j = share * (1 - x_i) / rest must stay within [low_j, high_j].
+        start = max(start, 1.0 - high[j] * rest / share)
+        stop = min(stop, 1.0 - low[j] * rest / share)
+    return start, stop
+
+
+def _cox_blend(reference: np.ndarray, i: int, x_i: float) -> np.ndarray:
+    """Return the blend on the Cox line through ``reference`` where component ``i`` equals ``x_i``."""
+    blend = reference * (1.0 - x_i) / (1.0 - reference[i])
+    blend[i] = x_i
+    return blend
+
+
 def run_mixture_effects(ols_result: RegressionResultsWrapper, components: list[str]) -> dict[str, Any]:
-    """Cox-direction effects of the linear blending coefficients."""
+    """Cox-direction effects of the components, from the full fitted model.
+
+    The reference blend is the centroid of the distinct blends in the design, which is
+    the simplex centroid for a symmetric design over the whole simplex. Each component
+    is moved over the span of its Cox line that stays within the range every component
+    takes in the design, so a constrained region is not extrapolated beyond. The effect
+    is the fitted response at the end of that span minus the response at its start.
+    """
     linear = _linear_names(ols_result, components)
-    beta = np.array([float(ols_result.params[c]) for c in linear])
-    q = len(beta)
-    effects = {c: float(beta[i] - (beta.sum() - beta[i]) / (q - 1)) for i, c in enumerate(linear)}
+    blends = ols_result.model.data.frame[linear].astype(float)
+    distinct = blends.round(10).drop_duplicates().to_numpy()
+    total = distinct.sum(axis=1, keepdims=True)
+    reference = (distinct / total).mean(axis=0)
+    low = blends.min().to_numpy()
+    high = blends.max().to_numpy()
+
+    effects: dict[str, float] = {}
+    spans: dict[str, list[float]] = {}
+    for i, component in enumerate(linear):
+        start, stop = _cox_span(reference, low, high, i)
+        ends = pd.DataFrame([_cox_blend(reference, i, start), _cox_blend(reference, i, stop)], columns=linear)
+        predicted = np.asarray(ols_result.predict(ends), dtype=float)
+        effects[component] = float(predicted[1] - predicted[0])
+        spans[component] = [start, stop]
     return {
         "effects": effects,
         "effect_direction": "cox",
-        "note": (
-            "Mixture model: each effect is the linear blending coefficient minus the mean of the others "
-            "(Cox direction from the centroid). Effects of non-linear blending terms are not defined."
+        "effect_reference": {c: float(v) for c, v in zip(linear, reference, strict=True)},
+        "effect_range": spans,
+        "effects_note": (
+            "Mixture model: each effect is the change in the fitted response as the component moves along "
+            "its Cox direction (the other components keeping their relative proportions) through the "
+            "reference blend, over the span listed in effect_range. Non-linear blending terms are included."
         ),
     }
 
@@ -133,7 +180,7 @@ def run_mixture_lenth() -> dict[str, Any]:
     """Lenth's method is for coded two-level factors; refuse it for mixtures, with the reason."""
     return {
         "lenth_method": None,
-        "note": (
+        "lenth_note": (
             "Lenth's method needs effects of coded two-level factors; mixture components have none. "
             "Use the mixture ANOVA (analysis_type='anova') instead."
         ),
