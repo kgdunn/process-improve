@@ -65,21 +65,17 @@ from __future__ import annotations
 import itertools
 import logging
 import math
+import operator
+import re
 import time
 import warnings
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
 import numpy as np
+from scipy.optimize import Bounds, LinearConstraint, OptimizeResult, milp
 
 from process_improve.experiments.designs_omars import _second_order_terms, is_omars
-
-try:
-    import pulp
-
-    _PULP_AVAILABLE = True
-except ImportError:  # pragma: no cover - exercised via env-without-pulp
-    _PULP_AVAILABLE = False
 
 logger = logging.getLogger(__name__)
 
@@ -119,6 +115,40 @@ _ENUM_MAX_HALF = {3: 18, 4: 12}
 _ENUM_MAX_LEAVES = 4_000_000
 # Batch size for the vectorised scoring of enumerated count vectors.
 _ENUM_SCORE_CHUNK = 65_536
+
+# Keys accepted in ``solver_options``, and their defaults.  ``node_limit`` caps
+# the branch-and-bound nodes of each randomized-objective solve.  A node budget
+# ends a solve at the same point on every run, so a fixed seed reproduces the
+# design; a wall-clock limit would not.  ``time_limit`` is only a safety cap.
+_SOLVER_OPTION_KEYS = ("msg", "time_limit", "node_limit")
+_DEFAULT_TIME_LIMIT = 60.0
+_DEFAULT_NODE_LIMIT = 100
+# HiGHS stores the node limit in a C int.
+_MAX_NODE_LIMIT = 2**31 - 1
+
+# ``solver_status`` labels.  ``"Node limit"`` and ``"Time limit"`` carry the best
+# design found when the limit stopped the solve, so they are usable designs
+# whose optimality is not proven.
+_STATUS_OPTIMAL = "Optimal"
+_STATUS_NODE_LIMIT = "Node limit"
+_STATUS_TIME_LIMIT = "Time limit"
+_STATUS_INFEASIBLE = "Infeasible"
+_STATUS_NOT_SOLVED = "Not Solved"
+_STATUS_ENUMERATED = "Enumerated"
+# HiGHS model-status codes, as scipy reports them in ``"(HiGHS Status N: ...)"``.
+# The scipy status integer alone is ambiguous: a node limit is status 1 on
+# scipy < 1.15 and status 4 from 1.15 on, where 4 also means "solver error".
+_HIGHS_STATUS_LABELS = {
+    7: _STATUS_OPTIMAL,
+    8: _STATUS_INFEASIBLE,
+    9: _STATUS_INFEASIBLE,  # "unbounded or infeasible"; the binaries are bounded
+    13: _STATUS_TIME_LIMIT,
+    14: _STATUS_NODE_LIMIT,  # iteration limit; HiGHS < 1.8 reports the node limit this way
+    16: _STATUS_NODE_LIMIT,  # solution limit; HiGHS >= 1.8 reports the node limit this way
+}
+_HIGHS_STATUS_PATTERN = re.compile(r"HiGHS Status (\d+)")
+# HiGHS model status 0 ("Not Set"): the solve never ran.  See _run_milp.
+_HIGHS_NOT_SET = 0
 
 
 @dataclass
@@ -165,6 +195,26 @@ class OmarsSearchReport:
     enumerated_designs : int
         Number of feasible designs enumerated on the exhaustive path (0 on the
         multistart path).
+    node_limit : int or None
+        Branch-and-bound node budget of each randomized-objective solve
+        (``None`` means unlimited).
+    time_limit : float
+        Wall-clock cap, in seconds, on each ILP solve.
+    node_limited_solves : int
+        Number of ILP solves that the node budget stopped before optimality
+        was proven.  These are expected and deterministic.
+    time_limited_solves : int
+        Number of ILP solves that the wall-clock cap stopped.  When this is
+        nonzero the search depends on machine speed, so a fixed
+        ``random_seed`` may not reproduce the design.
+    rank_deficient_designs : int
+        Number of distinct OMARS designs found, but set aside because the
+        sizing model is not estimable from them (rank below the parameter
+        count).
+    size_proven_minimal : bool or None
+        ``True`` when the solver proved that no smaller design exists in the
+        searched window, ``False`` when a limit stopped the minimise-size solve
+        first, and ``None`` when the run size was pinned by ``n_runs``.
     """
 
     n_factors: int = 0
@@ -176,6 +226,21 @@ class OmarsSearchReport:
     total_solve_seconds: float = 0.0
     search_mode: str = ""
     enumerated_designs: int = 0
+    node_limit: int | None = _DEFAULT_NODE_LIMIT
+    time_limit: float = _DEFAULT_TIME_LIMIT
+    node_limited_solves: int = 0
+    time_limited_solves: int = 0
+    rank_deficient_designs: int = 0
+    size_proven_minimal: bool | None = None
+
+
+@dataclass(frozen=True)
+class _SolverSettings:
+    """Validated ``solver_options``: see :func:`_solver_settings`."""
+
+    msg: bool
+    time_limit: float
+    node_limit: int | None
 
 
 def _half_pool(n_factors: int) -> np.ndarray:
@@ -319,8 +384,10 @@ def solve_omars_ilp(  # noqa: PLR0913
     """Select a half-design from *half_pool* and return the foldover OMARS design.
 
     Exactly one of *n_half* (exact half count) or *half_bounds* (inclusive
-    ``(min, max)`` half count) sets the size constraint.  The returned design
-    has ``2 * n_half + 1`` runs.
+    ``(min, max)`` half count) sets the size constraint; *n_half* wins if both
+    are given.  The returned design has ``2 * h + 1`` runs for ``h`` selected
+    half-runs.  The integer program is solved with HiGHS, through
+    ``scipy.optimize.milp``.
 
     Parameters
     ----------
@@ -338,95 +405,238 @@ def solve_omars_ilp(  # noqa: PLR0913
         Per-candidate linear cost of shape ``(n_candidates,)``.  When given, the
         solver minimises ``sum_r objective[r] * s_r`` instead of running a pure
         feasibility (or minimise-size) search.  A random objective drives the
-        solver to a different vertex of the OMARS-feasibility polytope, which is
-        how :func:`generate_omars` samples diverse, high-quality designs.  Takes
-        precedence over *minimize_size*.
+        solver towards a different feasible OMARS design, which is how
+        :func:`generate_omars` samples diverse, high-quality designs.  Takes
+        precedence over *minimize_size*.  Only solves with an *objective* are
+        subject to the ``node_limit`` solver option.
     exclude_solutions : list[list[int]], optional
         Previously found half-index sets to forbid via no-good cuts.
     solver_options : dict, optional
-        ``{"msg": bool, "time_limit": int seconds}``.
+        Any of the keys:
+
+        * ``"msg"`` (bool, default ``False``): print the HiGHS log to standard
+          output.
+        * ``"time_limit"`` (float, default ``60.0``): wall-clock cap in seconds
+          on the solve; ``math.inf`` removes it.  A solve stopped by this cap
+          depends on machine speed.
+        * ``"node_limit"`` (int or None, default ``100``): branch-and-bound
+          node budget for a solve with an *objective*.  The budget stops the
+          solve at the same point on every run, so results stay
+          reproducible; ``None`` solves to proven optimality.
 
     Returns
     -------
     tuple
         ``(design or None, solver_status, chosen_half_indices)``.  ``None`` means
-        the solver returned no feasible selection.
+        the solver returned no feasible selection.  *solver_status* is one of
+        ``"Optimal"``, ``"Node limit"`` or ``"Time limit"`` (a limit stopped the
+        solve; the best selection found is returned), ``"Infeasible"``, or
+        ``"Not Solved"``.
 
     Raises
     ------
-    ImportError
-        If PuLP (the ``ilp`` extra) is not installed.
+    TypeError
+        If *solver_options* is not a dict, or one of its values has the wrong
+        type.
+    ValueError
+        If neither *n_half* nor *half_bounds* is given, or *solver_options* has
+        an unknown key or an out-of-range value.
     """
-    if not _PULP_AVAILABLE:
-        from process_improve._extras import require_extra  # noqa: PLC0415
+    settings = _solver_settings(solver_options)
+    size_bounds = _size_bounds(n_half, half_bounds)
+    n_candidates = half_pool.shape[0]
 
-        raise require_extra("pulp", "ilp")
-
-    options = solver_options or {}
-    n_candidates, n_factors = half_pool.shape
-
-    # PuLP 3.x deprecates the LpVariable constructor and PULP_CBC_CMD in favour
-    # of a 4.0 API; both still work and keep us compatible back to pulp 2.8, so
-    # silence the (very repetitive) deprecation noise here.
-    with warnings.catch_warnings():
-        warnings.simplefilter("ignore", DeprecationWarning)
-        s = [pulp.LpVariable(f"s_{r}", cat="Binary") for r in range(n_candidates)]
-    problem = pulp.LpProblem("omars_foldover", pulp.LpMinimize)
+    options: dict[str, Any] = {"disp": settings.msg, "time_limit": settings.time_limit}
     if objective is not None:
-        problem += pulp.lpSum(float(objective[r]) * s[r] for r in range(n_candidates)), "objective"
+        cost = np.asarray(objective, dtype=float)
+        if settings.node_limit is not None:
+            options["node_limit"] = settings.node_limit
     else:
-        problem += (pulp.lpSum(s) if minimize_size else 0), "objective"
+        # Minimise-size and feasibility solves close at the root node, so they
+        # need no node budget, and a node-limited minimise-size solve could not
+        # prove that its size is the smallest.
+        cost = np.full(n_candidates, 1.0 if minimize_size else 0.0)
 
-    # Main-effect orthogonality over the half-design (the only non-automatic
-    # OMARS condition; balance and clear-of-second-order hold by the foldover).
-    for i, j in itertools.combinations(range(n_factors), 2):
-        coefficients = half_pool[:, i] * half_pool[:, j]
-        nonzero = np.flatnonzero(coefficients)
-        if nonzero.size:
-            problem.addConstraint(pulp.lpSum(float(coefficients[r]) * s[r] for r in nonzero) == 0, f"me_orth_{i}_{j}")
-
-    if n_half is not None:
-        problem += pulp.lpSum(s) == n_half, "half_size"
-    elif half_bounds is not None:
-        low, high = half_bounds
-        problem += pulp.lpSum(s) >= low, "half_size_lo"
-        problem += pulp.lpSum(s) <= high, "half_size_hi"
-    else:  # pragma: no cover - defensive: caller always sets one
-        raise ValueError("solve_omars_ilp requires either n_half or half_bounds.")
-
-    for cut, excluded in enumerate(exclude_solutions or []):
-        problem += pulp.lpSum(s[r] for r in excluded) <= len(excluded) - 1, f"nogood_{cut}"
-
-    with warnings.catch_warnings():
-        warnings.simplefilter("ignore", DeprecationWarning)
-        solver = pulp.PULP_CBC_CMD(msg=bool(options.get("msg", False)), timeLimit=int(options.get("time_limit", 60)))
-        _solve_retrying_once(problem, solver)
-    status = pulp.LpStatus[problem.status]
-
-    # Accept only a genuine feasible/optimal integer solution (sol_status > 0);
-    # a time-limited "no solution found" leaves the variables meaningless.
-    if problem.sol_status <= 0:
+    constraints = _selection_constraints(half_pool, size_bounds, exclude_solutions)
+    result = _run_milp(cost, constraints, options)
+    status = _status_label(result)
+    logger.debug(
+        "OMARS ILP solve: %s, %s nodes, %d candidates.", status, getattr(result, "mip_node_count", None), n_candidates
+    )
+    if result.x is None:
         return None, status, []
-    chosen = [r for r in range(n_candidates) if (s[r].value() or 0) > 0.5]
+    chosen = [int(r) for r in np.flatnonzero(result.x > 0.5)]
     if not chosen:
         return None, status, []
+    _check_selection(half_pool, chosen, size_bounds, exclude_solutions)
     return _foldover(half_pool[chosen]), status, chosen
 
 
-def _solve_retrying_once(problem: pulp.LpProblem, solver: pulp.LpSolver) -> None:
-    """Solve *problem*, retrying once when the CBC binary itself fails.
+def _solver_settings(solver_options: dict[str, Any] | None) -> _SolverSettings:
+    """Validate *solver_options* and fill in the defaults."""
+    if solver_options is None:
+        solver_options = {}
+    if not isinstance(solver_options, dict):
+        msg = f"solver_options must be a dict or None, got {type(solver_options).__name__}."
+        raise TypeError(msg)
+    unknown = sorted(str(key) for key in set(solver_options) - set(_SOLVER_OPTION_KEYS))
+    if unknown:
+        msg = f"solver_options accepts only the keys {list(_SOLVER_OPTION_KEYS)}, got unknown {unknown}."
+        raise ValueError(msg)
+    return _SolverSettings(
+        msg=bool(solver_options.get("msg", False)),
+        time_limit=_checked_time_limit(solver_options.get("time_limit", _DEFAULT_TIME_LIMIT)),
+        node_limit=_checked_node_limit(solver_options.get("node_limit", _DEFAULT_NODE_LIMIT)),
+    )
 
-    pulp's bundled CBC binary can exit nonzero for no reason in the model (seen on
-    Apple Silicon, where it runs under Rosetta), which pulp raises as
-    ``PulpSolverError``. The retry solves the same problem with the same options, so a
-    seeded result is unchanged. A second failure is real, for example a binary that
-    cannot run at all, and propagates.
-    """
+
+def _checked_time_limit(value: object) -> float:
+    """Return ``solver_options["time_limit"]`` as positive seconds (``inf`` allowed)."""
+    if isinstance(value, bool) or not isinstance(value, (int, float, np.integer, np.floating)):
+        msg = f"solver_options['time_limit'] must be a number of seconds, got {value!r}."
+        raise TypeError(msg)
+    seconds = float(value)
+    if math.isnan(seconds) or seconds <= 0:
+        msg = f"solver_options['time_limit'] must be positive, got {value!r}."
+        raise ValueError(msg)
+    return seconds
+
+
+def _checked_node_limit(value: object) -> int | None:
+    """Return ``solver_options["node_limit"]`` as a positive int, or ``None`` for no limit."""
+    if value is None:
+        return None
+    if isinstance(value, bool):
+        msg = f"solver_options['node_limit'] must be an integer or None, got {value!r}."
+        raise TypeError(msg)
     try:
-        problem.solve(solver)
-    except pulp.PulpSolverError:
-        logger.warning("The CBC solver failed on the OMARS selection problem; retrying once.")
-        problem.solve(solver)
+        # operator.index accepts Python and NumPy integers and rejects floats,
+        # which HiGHS would refuse with an opaque error.
+        nodes = operator.index(value)  # type: ignore[arg-type]
+    except TypeError:
+        msg = f"solver_options['node_limit'] must be an integer or None, got {value!r}."
+        raise TypeError(msg) from None
+    if not 1 <= nodes <= _MAX_NODE_LIMIT:
+        msg = f"solver_options['node_limit'] must be between 1 and {_MAX_NODE_LIMIT}, got {value!r}."
+        raise ValueError(msg)
+    return nodes
+
+
+def _size_bounds(n_half: int | None, half_bounds: tuple[int, int] | None) -> tuple[int, int]:
+    """Inclusive ``(min, max)`` half-run count from *n_half* or *half_bounds*."""
+    if n_half is not None:
+        return n_half, n_half
+    if half_bounds is not None:
+        low, high = half_bounds
+        return low, high
+    raise ValueError("solve_omars_ilp requires either n_half or half_bounds.")
+
+
+def _selection_constraints(
+    half_pool: np.ndarray, size_bounds: tuple[int, int], exclude_solutions: list[list[int]] | None
+) -> list[LinearConstraint]:
+    """Linear constraints on the binary "include this half-run" variables.
+
+    Main-effect orthogonality over the half-design is the only OMARS condition
+    the foldover does not satisfy automatically (balance and clear-of-second-order
+    hold by construction), so each factor pair ``i < j`` contributes the equality
+    ``sum_r x[r, i] x[r, j] s_r = 0``.  The coefficients are integers, so the
+    equalities are exact.  Then come the size window and one no-good cut per
+    excluded selection (see :func:`_no_good_row`).
+    """
+    n_candidates, n_factors = half_pool.shape
+    constraints = []
+    pairs = list(itertools.combinations(range(n_factors), 2))
+    if pairs:
+        orthogonality = np.array([half_pool[:, i] * half_pool[:, j] for i, j in pairs])
+        constraints.append(LinearConstraint(orthogonality, 0.0, 0.0))
+    constraints.append(LinearConstraint(np.ones((1, n_candidates)), *size_bounds))
+    for excluded in exclude_solutions or []:
+        row = _no_good_row(n_candidates, excluded)
+        constraints.append(LinearConstraint(row[np.newaxis, :], -np.inf, len(excluded) - 1))
+    return constraints
+
+
+def _no_good_row(n_candidates: int, excluded: list[int]) -> np.ndarray:
+    """Coefficients of the no-good cut ``sum_{r in excluded} s_r <= len(excluded) - 1``."""
+    # np.add.at counts a repeated index twice, as the sum over *excluded* does.
+    row = np.zeros(n_candidates)
+    np.add.at(row, np.asarray(excluded, dtype=int), 1.0)
+    return row
+
+
+def _run_milp(cost: np.ndarray, constraints: list[LinearConstraint], options: dict[str, Any]) -> OptimizeResult:
+    """Solve the binary selection problem with HiGHS on a single thread.
+
+    HiGHS sizes one thread pool per process at its first solve, and a process
+    forked after a multi-threaded HiGHS solve hangs in its own next solve.
+    Solving with ``threads=1`` keeps this module from creating that pool.  If
+    some earlier code in the process already started HiGHS with more threads,
+    a ``threads=1`` request is refused with model status "Not Set" before any
+    work is done, and the solve is repeated without it.
+    """
+    n_candidates = cost.shape[0]
+
+    def solve(extra: dict[str, Any]) -> OptimizeResult:
+        # milp pops keys out of the dict it is given, so pass a fresh one.
+        with warnings.catch_warnings():
+            # scipy forwards "threads" to HiGHS but warns that it does not know it.
+            warnings.filterwarnings("ignore", message="Unrecognized options detected", category=RuntimeWarning)
+            return milp(
+                cost,
+                integrality=np.ones(n_candidates),
+                bounds=Bounds(0, 1),
+                constraints=constraints,
+                options={**options, **extra},
+            )
+
+    result = solve({"threads": 1})
+    if result.x is None and _highs_status(result) == _HIGHS_NOT_SET:
+        logger.info("HiGHS already runs multi-threaded in this process; solving without threads=1.")
+        result = solve({})
+    return result
+
+
+def _highs_status(result: OptimizeResult) -> int | None:
+    """HiGHS model-status code quoted in a ``milp`` result message, if any."""
+    match = _HIGHS_STATUS_PATTERN.search(str(getattr(result, "message", "")))
+    return int(match.group(1)) if match else None
+
+
+def _status_label(result: OptimizeResult) -> str:
+    """Map a ``milp`` result to a ``solver_status`` label."""
+    code = _highs_status(result)
+    if code is not None:
+        return _HIGHS_STATUS_LABELS.get(code, _STATUS_NOT_SOLVED)
+    return _STATUS_OPTIMAL if result.status == 0 else _STATUS_NOT_SOLVED
+
+
+def _check_selection(
+    half_pool: np.ndarray, chosen: list[int], size_bounds: tuple[int, int], exclude_solutions: list[list[int]] | None
+) -> None:
+    """Re-check a solver selection against the constraints it was solved under.
+
+    The solver works to floating-point tolerances; this check is exact for the
+    integer-coded pool, so a selection that slipped through a tolerance is
+    caught here instead of reaching the caller as a non-OMARS design.
+    """
+    selected = half_pool[chosen]
+    gram = selected.T @ selected
+    off_diagonal = gram - np.diag(np.diag(gram))
+    tolerance = 1e-9 * max(1.0, float(np.abs(selected).sum()))
+    problems = []
+    if np.abs(off_diagonal).max(initial=0.0) > tolerance:
+        problems.append("the main effects are not orthogonal")
+    if not size_bounds[0] <= len(chosen) <= size_bounds[1]:
+        problems.append(f"{len(chosen)} half-runs lie outside {size_bounds}")
+    problems.extend(
+        f"an excluded selection {sorted(excluded)} was returned"
+        for excluded in exclude_solutions or []
+        if _no_good_row(half_pool.shape[0], excluded)[chosen].sum() > len(excluded) - 1
+    )
+    if problems:
+        msg = f"internal: the HiGHS selection violates its constraints ({'; '.join(problems)}). Please report this."
+        raise RuntimeError(msg)
 
 
 def _half_bounds(
@@ -837,20 +1047,36 @@ def _search_best_omars(  # noqa: C901, PLR0912, PLR0913, PLR0915
         target_half = (n_runs - center_runs) // 2
 
     pool = _half_pool(n_factors)
-    report = OmarsSearchReport(n_factors=n_factors, half_pool_size=pool.shape[0], n_restarts=n_restarts)
+    solver_settings = _solver_settings(solver_options)
+    report = OmarsSearchReport(
+        n_factors=n_factors,
+        half_pool_size=pool.shape[0],
+        n_restarts=n_restarts,
+        node_limit=solver_settings.node_limit,
+        time_limit=solver_settings.time_limit,
+    )
     candidates: list[_Candidate] = []
     seen: set[frozenset[int]] = set()
     extra_centers = np.zeros((center_runs - 1, n_factors))
+    half_window: tuple[int, int] | None = None
+    last_status = _STATUS_NOT_SOLVED
 
     def _solve(**solve_kwargs: Any) -> tuple[np.ndarray | None, str, list[int]]:  # noqa: ANN401
+        nonlocal last_status
         started = time.perf_counter()
         result = solve_omars_ilp(pool, solver_options=solver_options, **solve_kwargs)
         report.ilp_iterations += 1
         report.total_solve_seconds += time.perf_counter() - started
+        last_status = result[1]
+        if last_status == _STATUS_NODE_LIMIT:
+            report.node_limited_solves += 1
+        elif last_status == _STATUS_TIME_LIMIT:
+            report.time_limited_solves += 1
+            logger.info("An OMARS ILP solve stopped at its %.3g s time limit.", solver_settings.time_limit)
         return result
 
     def _record(coded: np.ndarray, indices: list[int], status: str) -> bool:
-        """Verify and retain a distinct OMARS design; return True if it was new."""
+        """Verify and retain a distinct, estimable OMARS design; return True if it was new."""
         key = frozenset(indices)
         if key in seen:
             return False
@@ -860,6 +1086,12 @@ def _search_best_omars(  # noqa: C901, PLR0912, PLR0913, PLR0915
         # Score the design the caller will actually receive: the foldover plus
         # the extra centre runs appended during post-processing.
         scored = np.vstack([coded, extra_centers])
+        if _model_rank(scored, model) < n_params:
+            # A valid OMARS design that cannot fit the sizing model.  Its
+            # D-efficiency (0) and correlation (often finite) would let some
+            # criteria crown it, so it never enters the ranking.
+            report.rank_deficient_designs += 1
+            return False
         candidates.append(
             _Candidate(
                 coded=coded,
@@ -874,16 +1106,21 @@ def _search_best_omars(  # noqa: C901, PLR0912, PLR0913, PLR0915
         return True
 
     # Find the target half-size: pinned exactly, or the smallest feasible size in
-    # the window (the minimize-size solution becomes the first candidate).
+    # the window (the minimize-size solution becomes the first candidate).  The
+    # solver's selection has already passed the exact constraint check in
+    # solve_omars_ilp, so its size is a genuinely feasible one.
     if target_half is None:
-        coded, status, indices = _solve(
-            half_bounds=_half_bounds(
-                n_runs_range, n_params, pool.shape[0], _min_half_runs(n_factors, model), center_runs
-            ),
-            minimize_size=True,
-        )
+        half_window = _half_bounds(n_runs_range, n_params, pool.shape[0], _min_half_runs(n_factors, model), center_runs)
+        coded, status, indices = _solve(half_bounds=half_window, minimize_size=True)
         if coded is not None:
             target_half = len(indices)
+            report.size_proven_minimal = status == _STATUS_OPTIMAL
+            if not report.size_proven_minimal:
+                logger.info(
+                    "The OMARS minimise-size solve stopped early (%s); %d runs may not be the smallest.",
+                    status,
+                    2 * target_half + center_runs,
+                )
             _record(coded, indices, status)
 
     # Exhaustive path: when the design class at this size is small enough,
@@ -896,15 +1133,24 @@ def _search_best_omars(  # noqa: C901, PLR0912, PLR0913, PLR0915
         count_matrix, overflow = _enumerate_feasible_counts(pool, target_half, _ENUM_MAX_LEAVES)
         n_enumerated = count_matrix.shape[0]
         if not overflow:
+            target = _describe_target(n_runs, 2 * target_half + center_runs)
             if n_enumerated == 0:
-                target = f"n_runs={n_runs}" if n_runs is not None else f"n_runs_range={n_runs_range}"
                 msg = (
-                    f"No feasible OMARS design exists for {target} with center_runs={center_runs} "
+                    f"No feasible OMARS design exists at {target} with center_runs={center_runs} "
                     "(exhaustive enumeration). Try a different n_runs or a wider n_runs_range."
                 )
                 raise ValueError(msg)
             d_eff, a_opt, max_corr = _score_count_vectors(count_matrix, pool, center_runs, model, tol=tol)
-            keep = np.ones(n_enumerated, dtype=bool)
+            # d_eff is exactly 0 for a singular model matrix: such a design cannot
+            # fit the sizing model and never enters the ranking.
+            keep = d_eff > 0.0
+            report.rank_deficient_designs = int(n_enumerated - keep.sum())
+            if not keep.any():
+                msg = (
+                    f"None of the {n_enumerated} OMARS designs at {target} can estimate the {model} "
+                    f"model (every model matrix has rank below {n_params}). Ask for more runs."
+                )
+                raise ValueError(msg)
             if satisfice:
                 _satisfice([], satisfice)  # validate the threshold keys
                 d_min = satisfice.get("d_efficiency")
@@ -914,7 +1160,7 @@ def _search_best_omars(  # noqa: C901, PLR0912, PLR0913, PLR0915
                 if correlation_max is not None:
                     keep &= max_corr <= correlation_max
                 if not keep.any():
-                    finite_corr = max_corr[np.isfinite(max_corr)]
+                    finite_corr = max_corr[(d_eff > 0.0) & np.isfinite(max_corr)]
                     best_corr = float(finite_corr.min()) if finite_corr.size else float("inf")
                     msg = (
                         f"No feasible OMARS design met the satisfice thresholds {satisfice}. "
@@ -938,7 +1184,7 @@ def _search_best_omars(  # noqa: C901, PLR0912, PLR0913, PLR0915
                     d_efficiency=float(d_eff[best]),
                     a_optimality=float(a_opt[best]),
                     max_second_order_correlation=float(max_corr[best]),
-                    solver_status="Enumerated",
+                    solver_status=_STATUS_ENUMERATED,
                 )
             ]
             if verify and not is_omars(coded, tol=tol):  # pragma: no cover - defensive
@@ -959,11 +1205,13 @@ def _search_best_omars(  # noqa: C901, PLR0912, PLR0913, PLR0915
         if coded is not None:
             _record(coded, indices, status)
 
-        # Randomized-objective multistart.  Each random linear objective sends the
-        # solver to a different vertex of the OMARS-feasibility polytope, so the
-        # retained set spans the high-D-efficiency / low-A members a pure
-        # feasibility search never reaches.  Deterministic for a fixed random_seed.
-        # Early-stop once the feasible set stops yielding new designs.
+        # Randomized-objective multistart.  Each random linear objective steers
+        # the solver towards a different feasible OMARS design, so the retained
+        # set spans the high-D-efficiency / low-A members a pure feasibility
+        # search never reaches.  The node budget ends each solve at the same
+        # point on every run, so the search is deterministic for a fixed
+        # random_seed.  Early-stop once the feasible set stops yielding new
+        # designs.
         rng = np.random.default_rng(random_seed)
         stall = 0
         for _ in range(n_restarts):
@@ -976,14 +1224,30 @@ def _search_best_omars(  # noqa: C901, PLR0912, PLR0913, PLR0915
                 stall += 1
 
     if not exhausted:
-        report.feasible_designs = len(candidates)
+        report.feasible_designs = len(candidates) + report.rank_deficient_designs
     if not candidates:
-        target = f"n_runs={n_runs}" if n_runs is not None else f"n_runs_range={n_runs_range}"
-        msg = (
-            f"No feasible OMARS design was found for {target}. "
-            "Try a different n_runs (n_runs - center_runs must be a positive even number), "
-            "or a wider n_runs_range."
-        )
+        if target_half is None:
+            window = half_window or (0, 0)
+            target = _describe_target(n_runs, 2 * window[0] + center_runs, 2 * window[1] + center_runs)
+            msg = (
+                f"No feasible OMARS design was found at {target} with center_runs={center_runs}: the "
+                f"minimise-size solve ended with status {last_status!r}. Widen n_runs_range"
+                + (", or raise solver_options['time_limit']." if last_status == _STATUS_TIME_LIMIT else ".")
+            )
+        elif report.rank_deficient_designs:
+            target = _describe_target(n_runs, 2 * target_half + center_runs)
+            msg = (
+                f"{report.rank_deficient_designs} OMARS design(s) were found at {target}, but the {model} "
+                f"model cannot be estimated from any of them (model matrix rank below {n_params}). "
+                "Raise n_restarts, or ask for more runs."
+            )
+        else:
+            target = _describe_target(n_runs, 2 * target_half + center_runs)
+            msg = (
+                f"No feasible OMARS design was found at {target} with center_runs={center_runs}: the last "
+                f"solve ended with status {last_status!r}. Raise solver_options['time_limit'] or "
+                "solver_options['node_limit'], or try a different n_runs."
+            )
         raise ValueError(msg)
 
     # Satisfice first (drop designs below the acceptability thresholds), then
@@ -999,7 +1263,7 @@ def _search_best_omars(  # noqa: C901, PLR0912, PLR0913, PLR0915
             msg = (
                 f"No feasible OMARS design met the satisfice thresholds {satisfice}. "
                 f"The best among {len(candidates)} candidate(s) reached d_efficiency={best_d:.3f} and "
-                f"max_second_order_correlation={best_corr:.3f}. Relax the thresholds, raise max_candidates, "
+                f"max_second_order_correlation={best_corr:.3f}. Relax the thresholds, raise n_restarts, "
                 "or widen n_runs_range."
             )
             raise ValueError(msg)
@@ -1024,13 +1288,22 @@ def _search_best_omars(  # noqa: C901, PLR0912, PLR0913, PLR0915
         "d_efficiency": winner.d_efficiency,
         "a_optimality": winner.a_optimality,
         "max_second_order_correlation": winner.max_second_order_correlation,
-        "solver": (solver_options or {}).get("solver", "pulp"),
+        "solver": "highs",
         "solver_status": winner.solver_status,
         "search_mode": report.search_mode,
         "omars_verified": is_omars(winner.coded, tol=tol),
         "omars_search": report,
     }
     return winner.coded, metadata
+
+
+def _describe_target(n_runs: int | None, low: int, high: int | None = None) -> str:
+    """Name the run size a search was asked for, for error messages."""
+    if n_runs is not None:
+        return f"n_runs={n_runs}"
+    if high is None or high == low:
+        return f"{low} runs"
+    return f"{low} to {high} runs"
 
 
 def generate_omars(  # noqa: PLR0913
