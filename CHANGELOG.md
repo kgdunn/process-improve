@@ -11,6 +11,20 @@ those changes.
 
 ## [Unreleased]
 
+### Documentation
+
+- **`randomization_test_mbpls` docstring now matches its actual default.** The
+  Returns section claimed "the default 999 permutations cannot resolve below
+  0.1%", but the signature's default is `n_permutations=200`, whose p-value
+  floor is ~0.5%. The docstring is updated to describe the real default and
+  to tell the caller to raise `n_permutations` for finer resolution. No
+  behaviour change.
+- **`PCA.select_n_components` Returns section lists all supported CV schemes.**
+  The entries for `cv_scheme` and `cv_scores` only mentioned `"ekf"` and
+  `"row_wise"`, but the method also supports `"ckf"`, `"ek"`, `"sacv"` and
+  `"gcv"` (echoed in the returned `cv_scheme` and backing the
+  `per_fold_press` alias). No behaviour change.
+
 ### Fixed
 
 - **`generate_design(..., "fractional_factorial")` builds its designs from a table of
