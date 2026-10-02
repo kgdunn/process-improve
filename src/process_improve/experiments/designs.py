@@ -22,6 +22,7 @@ Examples
 
 from __future__ import annotations
 
+import functools
 import logging
 from collections.abc import Callable
 from typing import Any
@@ -138,13 +139,14 @@ def _dispatch_omars_ilp(
     return _run(factors, budget=kwargs.get("budget"))
 
 
-def _dispatch_d_optimal(
+def _dispatch_optimal_family(
+    criterion: str,
     factors: list[Factor],
     **kwargs: Any,  # noqa: ANN401
 ) -> tuple[np.ndarray, dict]:
-    from process_improve.experiments.designs_optimal import dispatch_d_optimal  # noqa: PLC0415
+    from process_improve.experiments.designs_optimal import _dispatch_optimal, _OptimalRequest  # noqa: PLC0415
 
-    return dispatch_d_optimal(
+    request = _OptimalRequest(
         factors,
         budget=kwargs.get("budget"),
         hard_to_change=kwargs.get("hard_to_change"),
@@ -154,41 +156,27 @@ def _dispatch_d_optimal(
         random_state=kwargs.get("random_state"),
         candidates=kwargs.get("candidates"),
     )
+    return _dispatch_optimal(criterion, request)
 
 
-def _dispatch_i_optimal(
+def _dispatch_supersaturated(
     factors: list[Factor],
     **kwargs: Any,  # noqa: ANN401
 ) -> tuple[np.ndarray, dict]:
-    from process_improve.experiments.designs_optimal import dispatch_i_optimal  # noqa: PLC0415
+    from process_improve.experiments.designs_supersaturated import dispatch_supersaturated  # noqa: PLC0415
 
-    return dispatch_i_optimal(
-        factors,
-        budget=kwargs.get("budget"),
-        hard_to_change=kwargs.get("hard_to_change"),
-        constraints=kwargs.get("constraints"),
-        model_type=kwargs.get("model_type", "interactions"),
-        fixed_runs=kwargs.get("fixed_runs"),
-        random_state=kwargs.get("random_state"),
-        candidates=kwargs.get("candidates"),
-    )
+    return dispatch_supersaturated(factors, budget=kwargs.get("budget"))
 
 
-def _dispatch_a_optimal(
+def _dispatch_space_filling(
+    method: str,
     factors: list[Factor],
     **kwargs: Any,  # noqa: ANN401
 ) -> tuple[np.ndarray, dict]:
-    from process_improve.experiments.designs_optimal import dispatch_a_optimal  # noqa: PLC0415
+    from process_improve.experiments.designs_space_filling import space_filling_design  # noqa: PLC0415
 
-    return dispatch_a_optimal(
-        factors,
-        budget=kwargs.get("budget"),
-        hard_to_change=kwargs.get("hard_to_change"),
-        constraints=kwargs.get("constraints"),
-        model_type=kwargs.get("model_type", "interactions"),
-        fixed_runs=kwargs.get("fixed_runs"),
-        random_state=kwargs.get("random_state"),
-        candidates=kwargs.get("candidates"),
+    return space_filling_design(
+        factors, kwargs.get("budget"), method, kwargs.get("constraints"), kwargs.get("random_state")
     )
 
 
@@ -220,6 +208,12 @@ def _dispatch_taguchi(
 # Registry
 # ---------------------------------------------------------------------------
 
+#: Space-filling design types (see designs_space_filling.py); none adds centre points.
+_SPACE_FILLING = ("latin_hypercube", "maximin_lhs", "uniform", "sobol", "halton", "maximin")
+
+#: Design types chosen by an optimality criterion; the only ones that take fixed_runs or candidates.
+_OPTIMAL_FAMILIES = frozenset({"d_optimal", "i_optimal", "a_optimal", "e_optimal"})
+
 _DESIGN_REGISTRY: dict[str, Callable[..., tuple[np.ndarray, dict]]] = {
     "full_factorial": _dispatch_full_factorial,
     "fractional_factorial": _dispatch_fractional_factorial,
@@ -229,11 +223,14 @@ _DESIGN_REGISTRY: dict[str, Callable[..., tuple[np.ndarray, dict]]] = {
     "dsd": _dispatch_dsd,
     "omars": _dispatch_omars,
     "omars_ilp": _dispatch_omars_ilp,
-    "d_optimal": _dispatch_d_optimal,
-    "i_optimal": _dispatch_i_optimal,
-    "a_optimal": _dispatch_a_optimal,
+    "d_optimal": functools.partial(_dispatch_optimal_family, "d_optimal"),
+    "i_optimal": functools.partial(_dispatch_optimal_family, "i_optimal"),
+    "a_optimal": functools.partial(_dispatch_optimal_family, "a_optimal"),
+    "e_optimal": functools.partial(_dispatch_optimal_family, "e_optimal"),
     "mixture": _dispatch_mixture,
     "taguchi": _dispatch_taguchi,
+    "supersaturated": _dispatch_supersaturated,
+    **{name: functools.partial(_dispatch_space_filling, name) for name in _SPACE_FILLING},
 }
 
 
@@ -277,17 +274,20 @@ def _auto_select(
     if constraints or hard_to_change:
         return "d_optimal"
 
-    effective_budget = budget if budget is not None else float("inf")
+    return _auto_select_by_budget(factors, k, budget if budget is not None else float("inf"))
 
-    if k <= 5 and effective_budget >= 2**k:
+
+def _auto_select_by_budget(factors: list[Factor], k: int, budget: float) -> str:
+    """Pick the unconstrained design family that fits ``budget`` runs for ``k`` process factors."""
+    if k <= 5 and budget >= 2**k:
         return "full_factorial"
-
-    if k >= 6 and effective_budget <= 2 * k + 1:
+    # Fewer runs than main effects: only a supersaturated design screens them all.
+    if k >= 3 and budget < k + 1 and all(f.type == FactorType.continuous for f in factors):
+        return "supersaturated"
+    if k >= 6 and budget <= 2 * k + 1:
         return "plackett_burman"
-
-    if effective_budget >= 2 ** (k - 1):
+    if budget >= 2 ** (k - 1):
         return "fractional_factorial"
-
     return "d_optimal"
 
 
@@ -327,7 +327,9 @@ def generate_design(  # noqa: PLR0913
         One of ``"full_factorial"``, ``"fractional_factorial"``,
         ``"plackett_burman"``, ``"box_behnken"``, ``"ccd"``, ``"dsd"``,
         ``"omars"``, ``"omars_ilp"``, ``"d_optimal"``, ``"i_optimal"``,
-        ``"a_optimal"``, ``"mixture"``, ``"taguchi"``.
+        ``"a_optimal"``, ``"e_optimal"``, ``"mixture"``, ``"taguchi"``, ``"supersaturated"``, and the
+        space-filling types ``"latin_hypercube"``, ``"maximin_lhs"``, ``"uniform"``, ``"sobol"``,
+        ``"halton"`` and ``"maximin"`` (``budget`` runs, default ``10 * k``).
         If ``None``, the design type is chosen automatically based on the
         factor count, budget, and constraints.
     budget : int or None
@@ -383,7 +385,7 @@ def generate_design(  # noqa: PLR0913
         Ignored by the classical (non-optimal) design families.
     fixed_runs : pandas.DataFrame or None
         Runs to hold fixed while the optimizer fills the rest (design augmentation), for the
-        optimal families only (``"d_optimal"``, ``"i_optimal"``, ``"a_optimal"``). One row per
+        optimal families only (``"d_optimal"``, ``"i_optimal"``, ``"a_optimal"``, ``"e_optimal"``). One row per
         fixed run, one column per factor, in the same coding as the returned design: continuous
         factors in coded ``[-1, 1]`` units, categorical factors as level labels.
         The fixed runs occupy the first rows of the result and ``budget`` counts them, so
@@ -437,12 +439,12 @@ def generate_design(  # noqa: PLR0913
     if design_type not in _DESIGN_REGISTRY:
         raise ValueError(f"Unknown design_type={design_type!r}.  Choose from: {', '.join(sorted(_DESIGN_REGISTRY))}.")
 
-    if candidates is not None and design_type not in {"d_optimal", "i_optimal", "a_optimal"}:
+    if candidates is not None and design_type not in _OPTIMAL_FAMILIES:
         raise ValueError(
             f"candidates is only supported for the optimal design families (d_optimal, i_optimal, "
             f"a_optimal); got design_type={design_type!r}."
         )
-    if fixed_runs is not None and design_type not in {"d_optimal", "i_optimal", "a_optimal"}:
+    if fixed_runs is not None and design_type not in _OPTIMAL_FAMILIES:
         raise ValueError(
             f"fixed_runs (design augmentation) is only supported for the optimal design families "
             f"(d_optimal, i_optimal, a_optimal); got design_type={design_type!r}."
@@ -490,16 +492,15 @@ def generate_design(  # noqa: PLR0913
         "omars",
         "omars_ilp",
         "mixture",
-        "d_optimal",
-        "i_optimal",
-        "a_optimal",
+        "supersaturated",  # the point is the fewest runs; centre points would spend them on nothing
+        *_OPTIMAL_FAMILIES,
+        *_SPACE_FILLING,
     }
 
     # Optimal designs from pyoptex produce a pre-optimized run order
     # (especially important for split-plot).  Skip randomization for these.
-    optimal_designs = {"d_optimal", "i_optimal", "a_optimal"}
     effective_seed: int | None = random_seed
-    if design_type in optimal_designs and meta.get("backend") == "pyoptex":
+    if design_type in _OPTIMAL_FAMILIES and meta.get("backend") == "pyoptex":
         effective_seed = None  # signal to build_design_result to skip randomization
     extra_center_points = 0 if design_type in designs_with_embedded_centers else n_center_points
 

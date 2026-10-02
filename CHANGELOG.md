@@ -13,6 +13,22 @@ those changes.
 
 ### Added
 
+- **Space-filling designs**: `design_type="latin_hypercube"`, `"maximin_lhs"`,
+  `"uniform"` (minimal centred L2 discrepancy), `"sobol"`, `"halton"` and `"maximin"`.
+  The last three also work in constrained regions and constrained mixtures: the
+  sequences are mapped onto the region (a uniform-preserving map onto the simplex for
+  mixtures) and filtered, and maximin picks runs from a dense sample of the region by a
+  farthest-point build and exchanges. The metadata reports the smallest and mean
+  nearest-neighbour distances and, on the plain box, the discrepancy.
+- **Supersaturated designs** (`design_type="supersaturated"`, chosen automatically when
+  the budget is below `k + 1`): Lin's half-fraction of a Hadamard matrix, trying every
+  branching column. Paley's Hadamard matrices are preferred, since the Kronecker-built
+  ones for 16, 24 and 32 runs leave identical columns. The metadata reports `E(s^2)`
+  against its lower bound; Lin's 12-run design for 22 factors reaches it.
+- **E-optimal designs** (`design_type="e_optimal"`): maximise the smallest eigenvalue of
+  `X'X`. Swaps are ranked by the eigenvalue's derivative and the best are scored
+  exactly. Works with constraints, candidate sets, fixed runs and mixtures.
+
 - **Optimal designs chosen from a user-supplied candidate set.**
   `generate_design(..., candidates=df)` picks the runs from the rows of `df`: plant
   history, the settings a piece of equipment offers, or the blends that can be made

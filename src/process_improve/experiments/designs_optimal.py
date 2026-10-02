@@ -1,6 +1,6 @@
 # (c) Kevin Dunn, 2010-2026. MIT License.
 
-"""Optimal designs: D-optimal, I-optimal, A-optimal.
+"""Optimal designs: D-optimal, I-optimal, A-optimal, E-optimal.
 
 Two engines, chosen per request by :func:`_dispatch_optimal`:
 
@@ -420,7 +420,8 @@ def _dispatch_optimal(criterion: str, req: _OptimalRequest) -> tuple[np.ndarray,
     budget = req.budget if req.budget is not None else 2 * len(req.factors) + 1
     budget = _floor_budget_at_model_size(req.factors, budget, req.model_type)
 
-    if req.constraints or req.candidates is not None or not _PYOPTEX_AVAILABLE:
+    # pyoptex has no E-optimality metric, so E always uses the built-in exchange.
+    if req.constraints or req.candidates is not None or criterion == "e_optimal" or not _PYOPTEX_AVAILABLE:
         from process_improve.experiments.designs_constrained import (  # noqa: PLC0415
             ConstrainedOptions,
             constrained_optimal_design,
