@@ -70,6 +70,20 @@ class TestAgainstTheTextbookTable:
         assert table.loc[4, 5] == ""
         assert table.loc[8, 9] == ""
 
+    def test_existing_design_whose_search_is_refused_is_not_blank(self):
+        """2^(11-5) in 64 runs exists; a refused search must not show it as impossible."""
+        table = trade_off_table(runs=(64,), factors=(11,), display=False)
+        assert table.loc[64, 11] == "2^(11-5) (not searched)"
+
+    @pytest.mark.parametrize("bad", [12, 0])
+    def test_table_rejects_a_run_count_that_is_not_a_power_of_two(self, bad):
+        with pytest.raises(ValueError, match="power of 2"):
+            trade_off_table(runs=(bad,), factors=(3,), display=False)
+
+    def test_table_rejects_too_few_factors(self):
+        with pytest.raises(ValueError, match="at least 2"):
+            trade_off_table(runs=(8,), factors=(1,), display=False)
+
     def test_table_shape_follows_its_arguments(self):
         table = trade_off_table(runs=(8, 16), factors=(4, 5), display=False)
         assert table.shape == (2, 2)
@@ -172,6 +186,10 @@ class TestInputChecks:
     def test_too_many_factors_for_the_budget_rejected(self):
         """8 runs hold at most 7 factors (3 base + 4 interaction columns)."""
         with pytest.raises(ValueError, match="cannot accommodate"):
+            get_trade_off_table_entry(n_runs=8, n_factors=8, display=False)
+
+    def test_messages_say_runs_and_factors_in_prose(self):
+        with pytest.raises(ValueError, match="^8 runs cannot accommodate 8 factors: only 7 factors fit into 8 runs"):
             get_trade_off_table_entry(n_runs=8, n_factors=8, display=False)
 
     def test_more_factors_than_single_letter_names_rejected(self):

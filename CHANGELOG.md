@@ -260,6 +260,14 @@ those changes.
   counted after dropping missing cells, and every value other than the low level, a
   missing one included, was then coded as the high level, so one empty cell turned a
   resolution IV fraction into "resolution 1". A missing value now raises `ValueError`.
+- **`trade_off_table` no longer shows existing fractions as impossible.** Every
+  `ValueError` blanked a cell, including the refusal of a minimum-aberration search that
+  would score too many generator sets, so 2^(11-5) in 64 runs and 2^(11-4) in 128 runs
+  read as designs that do not exist. Such a cell is now labelled
+  `"2^(k-p) (not searched)"` (and `exists` is true in the `trade_off_table` tool); only
+  more than `runs - 1` factors is blank. A run count that is not a power of two, or a
+  factor count below 2, now raises instead of giving a blank row. Messages and docstrings
+  in the module that read "11 n_factors in 64 runs" now say "factors" and "runs".
 - **`recommend_strategy` gives an all-mixture problem a mixture optimisation stage.** The
   optimisation stage was a CCD or Box-Behnken design on the first three components. It is
   now a `"mixture"` design for a quadratic Scheffe model in every component.

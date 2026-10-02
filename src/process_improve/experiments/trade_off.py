@@ -1,8 +1,8 @@
 # (c) Kevin Dunn, 2010-2026. MIT License.
 
-"""The fractional-factorial trade-off: n_runs against n_factors.
+"""The fractional-factorial trade-off: runs against factors.
 
-The central question when screening many n_factors is how few n_runs you can get
+The central question when screening many factors is how few runs you can get
 away with, and what you pay for that saving. This module answers it in two
 ways, mirroring the R ``pid`` package:
 
@@ -14,7 +14,7 @@ ways, mirroring the R ``pid`` package:
 
 Unlike the R version, which looks designs up in the ``FrF2`` catalogue, the
 generators here are derived by a **minimum-aberration search**: for a given
-number of n_runs and n_factors, every admissible set of generators is scored on
+number of runs and factors, every admissible set of generators is scored on
 its word-length pattern and the best is kept. The search reproduces the table
 in the course notes exactly, and extends past its printed edge.
 
@@ -54,6 +54,10 @@ _FACTOR_NAMES = tuple(letter for letter in ascii_uppercase if letter != "I")
 _MAX_CANDIDATE_SETS = 500_000
 
 
+class _SearchTooLargeError(ValueError):
+    """The minimum-aberration search was refused because it would score too many generator sets."""
+
+
 @dataclass
 class TradeOffTableEntry:
     """What you get, and what you give up, at a given (runs, factors) pair.
@@ -66,7 +70,7 @@ class TradeOffTableEntry:
         Number of factors studied.
     n_generators : int
         The ``p`` in ``2^(k-p)``: how many factors are added on top of the
-        ``k - p`` base n_factors. Zero for a full factorial.
+        ``k - p`` base factors. Zero for a full factorial.
     resolution : int or None
         Design resolution as an integer (3, 4, 5, ...), or ``None`` for a full
         factorial, which has no defining relation and so no resolution.
@@ -108,13 +112,13 @@ def _factor_names(k: int) -> list[str]:
     """Return the first *k* single-letter factor names, skipping ``I``."""
     if k > len(_FACTOR_NAMES):
         raise ValueError(
-            f"At most {len(_FACTOR_NAMES)} n_factors can be given single-letter names; {k} were requested."
+            f"At most {len(_FACTOR_NAMES)} factors can be given single-letter names; {k} were requested."
         )
     return list(_FACTOR_NAMES[:k])
 
 
 def _candidate_words(n_base: int) -> list[str]:
-    """Every interaction of two or more of the *n_base* base n_factors.
+    """Every interaction of two or more of the *n_base* base factors.
 
     These are the columns of the base factorial that an extra factor can be
     assigned to. Sorted by word length, then alphabetically, so that ties in
@@ -145,7 +149,7 @@ def _word_length_pattern(generators: tuple[str, ...], factor_names: list[str], k
 def minimum_aberration_generators(n_runs: int, n_factors: int) -> tuple[str, ...]:
     """Find the minimum-aberration generators for a ``2^(k-p)`` design.
 
-    Every way of assigning the ``p`` extra n_factors to interaction columns of
+    Every way of assigning the ``p`` extra factors to interaction columns of
     the base factorial is enumerated, scored by its word-length pattern, and
     the best-scoring one is returned. Ties are broken in favour of the
     generator set that comes first by word length and then alphabetically.
@@ -167,7 +171,7 @@ def minimum_aberration_generators(n_runs: int, n_factors: int) -> tuple[str, ...
     ValueError
         If *n_runs* is not a power of two, if the design is not fractional
         (``n_factors <= log2(n_runs)``), if there are too few interaction columns
-        to hold the extra n_factors, or if the search space is too large to
+        to hold the extra factors, or if the search space is too large to
         enumerate.
 
     Examples
@@ -186,21 +190,21 @@ def minimum_aberration_generators(n_runs: int, n_factors: int) -> tuple[str, ...
     n_extra = n_factors - n_base
     if n_extra <= 0:
         raise ValueError(
-            f"{n_factors} n_factors in {n_runs} n_runs is not a fractional factorial: "
+            f"{n_factors} factors in {n_runs} runs is not a fractional factorial: "
             f"{n_runs} runs accommodate a full 2^{n_base} factorial."
         )
 
     candidates = _candidate_words(n_base)
     if n_extra > len(candidates):
         raise ValueError(
-            f"{n_runs} n_runs cannot accommodate {n_factors} n_factors: only "
-            f"{n_base + len(candidates)} factors fit into {n_runs} n_runs."
+            f"{n_runs} runs cannot accommodate {n_factors} factors: only "
+            f"{n_base + len(candidates)} factors fit into {n_runs} runs."
         )
 
     n_sets = math.comb(len(candidates), n_extra)
     if n_sets > _MAX_CANDIDATE_SETS:
-        raise ValueError(
-            f"The minimum-aberration search for {n_factors} n_factors in {n_runs} runs would have to "
+        raise _SearchTooLargeError(
+            f"The minimum-aberration search for {n_factors} factors in {n_runs} runs would have to "
             f"score {n_sets:,} generator sets, above the limit of {_MAX_CANDIDATE_SETS:,}. "
             "Supply the generators yourself, via the `generators` argument of `generate_design`."
         )
@@ -254,7 +258,7 @@ def get_trade_off_table_entry(n_runs: int = 8, n_factors: int = 7, display: bool
     """Report the resolution, generators and aliasing at a (runs, factors) pair.
 
     Answers the screening question "if I can afford *n_runs* experiments and I
-    want to study *n_factors* n_factors, what do I lose?". The loss is aliasing:
+    want to study *n_factors* factors, what do I lose?". The loss is aliasing:
     effects that the design cannot tell apart.
 
     Parameters
@@ -277,7 +281,7 @@ def get_trade_off_table_entry(n_runs: int = 8, n_factors: int = 7, display: bool
     ------
     ValueError
         If *n_runs* or *n_factors* is not an integer, if *n_runs* is not a power of
-        two, if *n_factors* is below 2, or if the n_factors cannot fit into the
+        two, if *n_factors* is below 2, or if the factors cannot fit into the
         run budget.
 
     Examples
@@ -365,11 +369,19 @@ def _format_entry(result: TradeOffTableEntry) -> str:
 
 
 def _cell_label(n_runs: int, n_factors: int) -> str:
-    """Label for one cell of the trade-off table; empty when no design exists."""
+    """Label for one cell of the trade-off table.
+
+    Empty when no design exists (more than ``n_runs - 1`` factors). A design that exists
+    but whose minimum-aberration search is too large to run is labelled
+    ``"2^(k-p) (not searched)"``.
+    """
+    if n_factors > n_runs - 1:
+        return ""
     try:
         return get_trade_off_table_entry(n_runs=n_runs, n_factors=n_factors, display=False).label
-    except ValueError:
-        return ""
+    except _SearchTooLargeError:
+        n_generators = n_factors - (n_runs.bit_length() - 1)
+        return f"2^({n_factors}-{n_generators}) (not searched)"
 
 
 def trade_off_table(
@@ -386,7 +398,9 @@ def trade_off_table(
     Reading the table: going down a column costs more experiments but buys
     resolution; going across a row studies more factors for the same money,
     at the cost of heavier aliasing. Blank cells are designs that do not
-    exist (too many factors for that many runs).
+    exist (more than ``runs - 1`` factors). A cell labelled ``"(not searched)"``
+    is a fraction that exists, but whose minimum-aberration search would score too
+    many generator sets to run here; pass generators to ``generate_design`` for it.
 
     Parameters
     ----------
@@ -405,6 +419,11 @@ def trade_off_table(
         label such as ``"2^(5-2) III"``, ``"2^3 (full)"`` or ``"2^3 (twice)"``;
         impossible combinations are the empty string.
 
+    Raises
+    ------
+    ValueError
+        If a run count is not a power of two, or a factor count is below 2.
+
     Examples
     --------
     >>> table = trade_off_table()
@@ -417,6 +436,11 @@ def trade_off_table(
     --------
     get_trade_off_table_entry : generators and alias chains for a single cell of this table.
     """
+    for n_runs in runs:
+        _check_runs(n_runs)
+    for n_factors in factors:
+        if int(n_factors) != n_factors or n_factors < 2:
+            raise ValueError(f"Each factor count must be an integer of at least 2; got {n_factors}.")
     cells = {n_runs: {n_factors: _cell_label(n_runs, n_factors) for n_factors in factors} for n_runs in runs}
 
     table = pd.DataFrame(cells).T
