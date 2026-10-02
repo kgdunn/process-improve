@@ -35,10 +35,15 @@ Quick start
    print(result.metadata["n_runs_selected"], result.metadata["expected_error_df"])
    print(result.metadata["omars_verified"])  # True
 
-   # The design is ready for the staged OMARS analysis.
+   # The design is ready for the staged OMARS analysis. A simulated response
+   # stands in for the measurements here.
+   import numpy as np
+
    design = result.design[result.factor_names]
-   # ... collect responses y, then:
-   analysis = analyze_omars(design, y)  # analysis.success is True
+   rng = np.random.default_rng(1)
+   y = 3 * design["A"] - 2 * design["B"] + 1.5 * design["A"] ** 2 + rng.normal(0, 0.5, len(design))
+   analysis = analyze_omars(design, y)
+   print(analysis.success, analysis.active_main_effects)  # True ['A', 'B']
 
 You can pin an exact run size or search a window:
 
