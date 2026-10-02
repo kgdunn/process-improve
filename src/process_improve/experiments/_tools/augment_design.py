@@ -82,15 +82,18 @@ class AugmentDesignInput(BaseModel):
 @tool_spec(
     name="augment_design",
     description=(
-        "Extend or modify an existing experimental design. Supports foldover (de-alias all "
-        "2-factor interactions), semifold (de-alias specific interactions with fewer runs), "
+        "Extend or modify an existing experimental design. Supports foldover (separates main effects "
+        "from 2-factor interactions: resolution III becomes IV, while 2-factor interactions aliased "
+        "through even-length words stay aliased), semifold (half the runs; partially de-aliases the "
+        "effects aliased through words containing the fold factor, leaving them correlated), "
         "adding center points (test for curvature), adding axial/star points (upgrade to CCD "
         "for response surface modeling), D-optimal augmentation (add runs to maximize information), "
         "upgrade to RSM (convert screening design to response surface design), add blocks "
         "(retroactively confound block effects with high-order interactions), and replication "
         "(improve precision estimates). "
         "Always returns the augmented design matrix plus an explanation of what changed in the "
-        "alias structure and design properties."
+        "alias structure (which effects are now uncorrelated, which only partially de-aliased, and "
+        "which still fully aliased) and in the design properties."
     ),
     input_model=AugmentDesignInput,
     examples="""

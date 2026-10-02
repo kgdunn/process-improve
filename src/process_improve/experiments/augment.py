@@ -19,7 +19,9 @@ Example
 
 from __future__ import annotations
 
+import itertools
 import logging
+import warnings
 from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any
@@ -32,6 +34,7 @@ from process_improve._random import check_random_state
 from process_improve.experiments._blocking import confounding_blocks, exchange_blocks, is_regular_two_level
 from process_improve.experiments.designs_response_surface import orthogonal_alpha
 from process_improve.experiments.evaluate import (
+    _ROMAN,
     _defining_relation_from_generators,
     _word_to_str,
     evaluate_design,
@@ -65,38 +68,129 @@ class _AugmentContext:
 # ---------------------------------------------------------------------------
 
 
-def _safe_evaluate(design: pd.DataFrame, generators: list[str] | None, model: str | None = None) -> dict[str, Any]:
-    """Evaluate design metrics, returning empty dict on failure."""
+def _safe_evaluate(design: pd.DataFrame, model: str | None = None) -> dict[str, Any]:
+    """Evaluate D-efficiency and degrees of freedom, returning an empty dict (with a warning) on failure."""
     try:
-        metrics = ["d_efficiency", "degrees_of_freedom"]
-        if generators:
-            metrics.extend(["alias_structure", "resolution"])
-        return evaluate_design(design, model=model, metric=metrics)
+        return evaluate_design(design, model=model, metric=["d_efficiency", "degrees_of_freedom"])
     except (ValueError, KeyError, np.linalg.LinAlgError) as exc:
-        # Evaluation may not apply to every design; return no metrics but log so
-        # the failure is not silent, and let unexpected error types propagate.
-        logger.warning("Design evaluation skipped: %s", exc)
+        # Evaluation may not apply to every design; return no metrics, say so, and let
+        # unexpected error types propagate.
+        warnings.warn(f"Design metrics were not computed: {exc}", UserWarning, stacklevel=5)
         return {}
+
+
+#: Below this, two effect columns count as uncorrelated; above 1 minus it, as fully aliased.
+_ALIAS_TOL = 1e-9
+
+
+def _effect_columns(design: pd.DataFrame, factor_names: list[str]) -> dict[str, np.ndarray]:
+    """Centred, unit-length columns of every main effect and two-factor interaction.
+
+    A column that is constant (an effect aliased with the intercept) is left out,
+    since it has no correlation to report.
+    """
+    x = design[factor_names].to_numpy(dtype=float)
+    raw = {name: x[:, i] for i, name in enumerate(factor_names)}
+    for (i, a), (j, b) in itertools.combinations(enumerate(factor_names), 2):
+        raw[f"{a}:{b}"] = x[:, i] * x[:, j]
+    columns = {}
+    for name, column in raw.items():
+        centred = column - column.mean()
+        norm = float(np.linalg.norm(centred))
+        if norm > _ALIAS_TOL:
+            columns[name] = centred / norm
+    return columns
+
+
+def _alias_changes(before: pd.DataFrame, after: pd.DataFrame, factor_names: list[str]) -> list[str]:
+    """Describe how the aliasing among main effects and two-factor interactions changed.
+
+    Pairs of effects whose columns are identical (up to sign) in the existing design
+    are aliased; each pair is then looked up in the augmented design. A pair is only
+    reported as separated when the two columns are uncorrelated there: a pair that
+    is merely correlated (a semifold leaves ``|r| = 1/3``) still cannot be estimated
+    independently, and a pair the new runs do not touch stays fully aliased.
+    Interactions of three or more factors are not considered.
+    """
+    cols_before = _effect_columns(before, factor_names)
+    cols_after = _effect_columns(after, factor_names)
+    names = [n for n in cols_before if n in cols_after]
+    pairs = [
+        (a, b)
+        for a, b in itertools.combinations(names, 2)
+        if abs(float(cols_before[a] @ cols_before[b])) > 1 - _ALIAS_TOL
+    ]
+    if not pairs:
+        return []
+
+    r_after = {(a, b): abs(float(cols_after[a] @ cols_after[b])) for a, b in pairs}
+    still = [f"{a} = {b}" for (a, b), r in r_after.items() if r > 1 - _ALIAS_TOL]
+    partial = [f"{a} with {b} (|r| = {r:.2f})" for (a, b), r in r_after.items() if _ALIAS_TOL < r <= 1 - _ALIAS_TOL]
+    involved = {name for pair in pairs for name in pair}
+    cleared = [n for n in names if n in involved and all(r <= _ALIAS_TOL for pair, r in r_after.items() if n in pair)]
+
+    lines = ["Aliasing among main effects and two-factor interactions (higher-order interactions not considered):"]
+    if cleared:
+        lines.append(f"  Now uncorrelated with every effect they were aliased with: {', '.join(cleared)}.")
+    if partial:
+        lines.append(
+            "  Partially de-aliased, still correlated and so not estimable independently of each other: "
+            f"{'; '.join(partial)}."
+        )
+    if still:
+        lines.append(f"  Still fully aliased: {'; '.join(still)}.")
+    return lines
+
+
+def _resolution_lines(resolution_before: int | None, resolution_after: int | str | None) -> list[str]:
+    """Report the resolution change; *resolution_after* is an int, ``"full"``, or None when not regular."""
+    if resolution_before is None:
+        return []
+    before = _ROMAN.get(resolution_before, str(resolution_before))
+    if resolution_after == "full":
+        return [f"Resolution {before} -> no defining words remain: the augmented design is a full factorial."]
+    if not isinstance(resolution_after, int):
+        return []
+    if resolution_after == resolution_before:
+        return [f"Resolution unchanged at {before}."]
+    return [f"Resolution changed from {before} to {_ROMAN.get(resolution_after, str(resolution_after))}."]
 
 
 def _explain_changes(  # noqa: PLR0913
     before: pd.DataFrame,
     after: pd.DataFrame,
     factor_names: list[str],
-    augmentation_type: str,
-    generators_before: list[str] | None = None,
-    generators_after: list[str] | None = None,
+    generators: list[str] | None = None,
     extra_notes: list[str] | None = None,
+    resolution_after: int | str | None = None,
 ) -> tuple[str, dict[str, Any], dict[str, Any]]:
     """Generate before/after comparison narrative.
+
+    Parameters
+    ----------
+    before, after : DataFrame
+        The existing and the augmented design.
+    factor_names : list[str]
+        Factor columns.
+    generators : list[str] or None
+        The existing design's generators, from which its resolution is read.
+    extra_notes : list[str] or None
+        Handler-specific lines.
+    resolution_after : int, "full" or None
+        The augmented design's resolution, ``"full"`` for a full factorial, or
+        None when it is not a regular fraction (or not known).
 
     Returns
     -------
     tuple[str, dict, dict]
         (explanation_text, before_metrics, after_metrics)
     """
-    before_metrics = _safe_evaluate(before[factor_names], generators_before)
-    after_metrics = _safe_evaluate(after[factor_names], generators_after)
+    before_metrics = _safe_evaluate(before[factor_names])
+    after_metrics = _safe_evaluate(after[factor_names])
+    resolution_before = _resolution(generators, factor_names)
+    if resolution_before is not None:
+        before_metrics["resolution"] = resolution_before
+        after_metrics["resolution"] = resolution_after if isinstance(resolution_after, int) else None
 
     lines: list[str] = []
 
@@ -111,14 +205,7 @@ def _explain_changes(  # noqa: PLR0913
     if d_before is not None and d_after is not None:
         lines.append(f"D-efficiency: {d_before:.1f}% -> {d_after:.1f}%.")
 
-    # Resolution
-    res_before = before_metrics.get("resolution")
-    res_after = after_metrics.get("resolution")
-    if res_before is not None and res_after is not None:
-        if res_after > res_before:
-            lines.append(f"Resolution improved from {res_before} to {res_after}.")
-        elif res_after == res_before:
-            lines.append(f"Resolution unchanged at {res_before}.")
+    lines.extend(_resolution_lines(resolution_before, resolution_after))
 
     # Degrees of freedom
     dof_before = before_metrics.get("degrees_of_freedom", {})
@@ -126,22 +213,23 @@ def _explain_changes(  # noqa: PLR0913
     if "residual" in dof_before and "residual" in dof_after:
         lines.append(f"Residual degrees of freedom: {dof_before['residual']} -> {dof_after['residual']}.")
 
-    # Alias diff
-    aliases_before = set(before_metrics.get("alias_structure", []))
-    aliases_after = set(after_metrics.get("alias_structure", []))
-    removed = aliases_before - aliases_after
-    if removed:
-        lines.append("De-aliased effects:")
-        for chain in sorted(removed):
-            effect = chain.split(" = ")[0].strip()
-            lines.append(f"  {effect} is now independently estimable.")
+    alias_lines = _alias_changes(before, after, factor_names)
+    lines.extend(alias_lines)
 
     # Extra notes from the handler
     if extra_notes:
         lines.extend(extra_notes)
 
-    explanation = " ".join(lines) if not removed and not extra_notes else "\n".join(lines)
+    explanation = " ".join(lines) if not alias_lines and not extra_notes else "\n".join(lines)
     return explanation, before_metrics, after_metrics
+
+
+def _resolution(generators: list[str] | None, factor_names: list[str]) -> int | None:
+    """Resolution of the regular fraction *generators* define: its shortest defining word."""
+    if not generators:
+        return None
+    words = _defining_relation_from_generators(generators, factor_names)
+    return min((len(w) for w in words), default=None)
 
 
 # ---------------------------------------------------------------------------
@@ -158,16 +246,20 @@ def _augment_foldover(ctx: _AugmentContext) -> dict[str, Any]:
     # Compute new defining relation after foldover
     notes: list[str] = []
     generators_after = None
+    resolution_after: int | str | None = None
     if ctx.generators:
         words = _defining_relation_from_generators(ctx.generators, ctx.factor_names)
-        # After full foldover, odd-length words are eliminated (confounded with
-        # the block indicator).  Even-length words survive.
+        # Negating every factor flips the sign of every odd-length word in the second
+        # half, so the odd words no longer hold in the combined design (each is now
+        # confounded with the contrast between the two halves). Even-length words hold
+        # in both halves and survive: the 2FI chains they create are still aliased.
         surviving = [w for w in words if len(w) % 2 == 0]
         if surviving:
             generators_after = [f"I={_word_to_str(w, ctx.factor_names)}" for w in surviving]
             notes.append(f"New defining relation: {', '.join(generators_after)}.")
+            resolution_after = min(len(w) for w in surviving)
         else:
-            notes.append("All defining words eliminated - design is now full resolution.")
+            resolution_after = "full"
 
         eliminated = [w for w in words if len(w) % 2 != 0]
         if eliminated:
@@ -175,13 +267,7 @@ def _augment_foldover(ctx: _AugmentContext) -> dict[str, Any]:
             notes.append(f"Eliminated defining words: {', '.join(eliminated_strs)}.")
 
     explanation, before_m, after_m = _explain_changes(
-        ctx.existing_design,
-        augmented,
-        ctx.factor_names,
-        ctx.augmentation_type,
-        ctx.generators,
-        generators_after,
-        notes,
+        ctx.existing_design, augmented, ctx.factor_names, ctx.generators, notes, resolution_after
     )
 
     return {
@@ -221,26 +307,27 @@ def _augment_semifold(ctx: _AugmentContext) -> dict[str, Any]:
     generators_after = None
     if ctx.generators:
         words = _defining_relation_from_generators(ctx.generators, ctx.factor_names)
-        # Semifold on factor F eliminates words that contain F
+        # The added half repeats half of the runs with the fold factor's sign switched.
+        # A word without it holds in every run and survives. A word containing it holds
+        # in the original runs and is reversed in the added ones, so it no longer holds
+        # anywhere: effects aliased through it become partially aliased (Mee and Peralta,
+        # 2000), correlated rather than independent, and the combined design is not a
+        # regular fraction.
         surviving = [w for w in words if fold_idx not in w]
-        eliminated = [w for w in words if fold_idx in w]
+        broken = [w for w in words if fold_idx in w]
         if surviving:
             generators_after = [f"I={_word_to_str(w, ctx.factor_names)}" for w in surviving]
-            notes.append(f"Surviving defining words: {', '.join(generators_after)}.")
-        else:
-            notes.append("All defining words eliminated - design is now full resolution.")
-        if eliminated:
-            eliminated_strs = [_word_to_str(w, ctx.factor_names) for w in eliminated]
-            notes.append(f"De-aliased by removing words: {', '.join(eliminated_strs)}.")
+            notes.append(f"Defining words that still hold in every run: {', '.join(generators_after)}.")
+        if broken:
+            broken_strs = [_word_to_str(w, ctx.factor_names) for w in broken]
+            notes.append(
+                f"Words containing {fold_factor} ({', '.join(broken_strs)}) now hold in only part of the runs: "
+                "effects aliased through them are partially de-aliased, not independent. The combined design is "
+                "not a regular fraction, so it has no resolution in the usual sense."
+            )
 
     explanation, before_m, after_m = _explain_changes(
-        ctx.existing_design,
-        augmented,
-        ctx.factor_names,
-        ctx.augmentation_type,
-        ctx.generators,
-        generators_after,
-        notes,
+        ctx.existing_design, augmented, ctx.factor_names, ctx.generators, notes
     )
 
     return {
@@ -304,10 +391,9 @@ def _augment_add_center_points(ctx: _AugmentContext) -> dict[str, Any]:
         ctx.existing_design,
         augmented,
         ctx.factor_names,
-        ctx.augmentation_type,
-        ctx.generators,
         ctx.generators,
         notes,
+        _resolution(ctx.generators, ctx.factor_names),
     )
 
     return {
@@ -342,10 +428,9 @@ def _augment_replicate(ctx: _AugmentContext) -> dict[str, Any]:
         ctx.existing_design,
         augmented,
         ctx.factor_names,
-        ctx.augmentation_type,
-        ctx.generators,
         ctx.generators,
         notes,
+        _resolution(ctx.generators, ctx.factor_names),
     )
 
     return {
@@ -382,13 +467,7 @@ def _augment_add_axial_points(ctx: _AugmentContext) -> dict[str, Any]:
         "Consider adding center points if not already present.",
     ]
     explanation, before_m, after_m = _explain_changes(
-        ctx.existing_design,
-        augmented,
-        ctx.factor_names,
-        ctx.augmentation_type,
-        ctx.generators,
-        ctx.generators,
-        notes,
+        ctx.existing_design, augmented, ctx.factor_names, ctx.generators, notes
     )
 
     return {
@@ -526,13 +605,7 @@ def _augment_add_runs_optimal(ctx: _AugmentContext) -> dict[str, Any]:
             f"the {ctx.n_additional_runs} requested."
         )
     explanation, before_m, after_m = _explain_changes(
-        ctx.existing_design,
-        augmented,
-        ctx.factor_names,
-        ctx.augmentation_type,
-        ctx.generators,
-        ctx.generators,
-        notes,
+        ctx.existing_design, augmented, ctx.factor_names, ctx.generators, notes
     )
 
     return {
@@ -585,13 +658,7 @@ def _augment_upgrade_to_rsm(ctx: _AugmentContext) -> dict[str, Any]:
         notes.append(f"Existing {n_existing_centers} center point(s) were preserved.")
 
     explanation, before_m, after_m = _explain_changes(
-        ctx.existing_design,
-        augmented,
-        ctx.factor_names,
-        ctx.augmentation_type,
-        ctx.generators,
-        ctx.generators,
-        notes,
+        ctx.existing_design, augmented, ctx.factor_names, ctx.generators, notes
     )
 
     return {

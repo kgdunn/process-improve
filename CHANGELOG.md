@@ -256,6 +256,18 @@ those changes.
 
 ### Fixed
 
+- **`augment_design` no longer calls still-aliased effects "independently estimable".**
+  The explanation compared alias-chain strings, so any change to a chain, even dropping
+  a three-factor term, was reported as de-aliasing: the foldover of the 2^(5-2) with
+  D = AB, E = AC (I = BCDE afterwards) said "B:C is now independently estimable" while
+  B:C and D:E stayed identical, a semifold was called "full resolution" although its
+  effects remain correlated at |r| = 1/3, and the resolution was never reported. The
+  explanation now compares each aliased pair of main effects and two-factor
+  interactions in the augmented design, listing those now uncorrelated, those only
+  partially de-aliased (with |r|), and those still fully aliased; it reports the
+  resolution from the generators (III to IV for that foldover), and says a semifold is
+  not a regular fraction. A failed metric evaluation now warns instead of logging.
+
 - **The trade-off table no longer reports existing designs as impossible.** When the
   minimum-aberration search would exceed its limit (12 factors in 32, 64 or 128 runs;
   11 factors in 64 or 128 runs), the cell was blank and the `trade_off_table` tool

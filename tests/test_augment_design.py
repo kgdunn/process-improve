@@ -271,6 +271,68 @@ class TestSemifold:
         assert "A" in result["explanation"]
 
 
+class TestAliasingExplanation:
+    """The explanation must not call an effect independently estimable while it is still aliased."""
+
+    @staticmethod
+    def _correlation(design: list[dict], a: str, b: str) -> float:
+        frame = pd.DataFrame(design)
+
+        def column(effect: str) -> np.ndarray:
+            return np.prod([frame[f].to_numpy(float) for f in effect.split(":")], axis=0)
+
+        return float(np.corrcoef(column(a), column(b))[0, 1])
+
+    def test_foldover_of_resolution_iii_reports_iv_and_the_surviving_chains(self) -> None:
+        """2^(5-2) with D=AB, E=AC folds to I=BCDE (Montgomery sec. 8.6): resolution III -> IV.
+
+        Main effects separate from the two-factor interactions; B:C = D:E stays aliased, which the
+        explanation used to call 'now independently estimable'.
+        """
+        design = _fractional_factorial_df(["D=AB", "E=AC"], names="ABCDE")
+        result = augment_design(design, "foldover", generators=["D=AB", "E=AC"])
+        explanation = result["explanation"]
+        assert result["defining_relation"] == ["I=BCDE"]
+        assert result["before_metrics"]["resolution"] == 3
+        assert result["after_metrics"]["resolution"] == 4
+        assert "Resolution changed from III to IV." in explanation
+        assert "independently estimable" not in explanation
+        assert "Now uncorrelated with every effect they were aliased with: A, B, C, D, E," in explanation
+        assert "Still fully aliased: B:C = D:E; B:D = C:E; B:E = C:D." in explanation
+        assert abs(self._correlation(result["augmented_design"], "B:C", "D:E")) == pytest.approx(1.0)
+
+    def test_foldover_that_removes_every_word_is_a_full_factorial(self) -> None:
+        """Folding 2^(3-1) with C=AB eliminates I=ABC, leaving the full 2^3."""
+        result = augment_design(_fractional_factorial_df(["C=AB"], names="ABC"), "foldover", generators=["C=AB"])
+        assert result["defining_relation"] is None
+        assert "the augmented design is a full factorial" in result["explanation"]
+
+    def test_semifold_reports_partial_aliasing_not_full_resolution(self) -> None:
+        """A semifold of 2^(4-1) leaves A:B and C:D correlated at |r| = 1/3 (Mee and Peralta, 2000)."""
+        design = _fractional_factorial_df(["D=ABC"], names="ABCD")
+        result = augment_design(design, "semifold", generators=["D=ABC"], fold_on="A")
+        explanation = result["explanation"]
+        assert "full resolution" not in explanation
+        assert "independently estimable" not in explanation
+        assert "A:B with C:D (|r| = 0.33)" in explanation
+        assert "not a regular fraction" in explanation
+        assert abs(self._correlation(result["augmented_design"], "A:B", "C:D")) == pytest.approx(1 / 3)
+
+    def test_upgrade_to_rsm_keeps_two_factor_chains_aliased(self) -> None:
+        """Axial and centre runs are zero on every interaction column, so A:B = C:D survives."""
+        design = _fractional_factorial_df(["D=ABC"], names="ABCD")
+        result = augment_design(design, "upgrade_to_rsm", generators=["D=ABC"])
+        assert "Still fully aliased: A:B = C:D; A:C = B:D; A:D = B:C." in result["explanation"]
+        assert "independently estimable" not in result["explanation"]
+
+    def test_center_points_leave_the_resolution_unchanged(self) -> None:
+        """Adding centre runs changes no aliasing."""
+        design = _fractional_factorial_df(["D=ABC"], names="ABCD")
+        result = augment_design(design, "add_center_points", generators=["D=ABC"], n_additional_runs=3)
+        assert result["after_metrics"]["resolution"] == 4
+        assert "Resolution unchanged at IV." in result["explanation"]
+
+
 # ---------------------------------------------------------------------------
 # Add axial points
 # ---------------------------------------------------------------------------
