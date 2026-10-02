@@ -37,6 +37,11 @@ dependencies = [
     "pydantic>=2.12.5",
     "pyyaml>=6.0",
     "scikit-learn>=1.7.2",
+    # Declared directly because generate_omars solves its ILP with
+    # scipy.optimize.milp (HiGHS). 1.15 is the oldest release CI runs (Python
+    # 3.10 resolves 1.15.3); older releases bundle HiGHS 1.2, which reports a
+    # node-limited stop differently and is not tested here.
+    "scipy>=1.15",
     "statsmodels>=0.14.6",
     "tqdm>=4.67.1",
 ]
@@ -79,12 +84,11 @@ mcp = ["mcp>=2.0"]
 # falls back to a no-op so the function executes as plain Python.
 fast = ["numba>=0.63.1"]
 
-# Integer-programming OMARS design generator (generate_omars). PuLP bundles the
-# CBC solver in its wheels, so no system package is required. Held below 4:
-# pulp 4.0 rebuilt its API on a Rust core (``LpVariable`` takes a single core
-# variable; ``PULP_CBC_CMD`` and ``LpStatus`` are gone), and designs_omars_ilp
-# is not yet ported to it.
-ilp = ["pulp>=2.8,<4"]
+# Deprecated since 1.97.0 and empty; will be removed in 2.0.0. generate_omars
+# used to need pulp's CBC solver from this extra. It now solves its ILP with
+# SciPy's HiGHS, a core dependency, so there is nothing to install. The empty
+# extra keeps existing ``pip install 'process-improve[ilp]'`` commands working.
+ilp = []
 
 # Mid-course correction QP solver (batch.control). osqp ships prebuilt wheels
 # for every platform CI tests, so no system package is required.
@@ -107,7 +111,6 @@ all = [
     "openpyxl>=3.1.5",
     "osqp>=1.0",
     "plotly>=6.5.2",
-    "pulp>=2.8,<4",
     "pyDOE3>=1.0",
     "ridgeplot>=0.5.0",
     "scikit-image>=0.25.2",

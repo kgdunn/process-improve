@@ -2,45 +2,23 @@
 
 from __future__ import annotations
 
-import importlib.util
-import logging
+import math
+import subprocess
+import sys
+import textwrap
+import threading
+import warnings
 
 import numpy as np
 import pytest
+from scipy.optimize import OptimizeResult
 
 from process_improve.experiments import Factor, analyze_omars, generate_design
+from process_improve.experiments import designs_omars_ilp as omars_ilp
 from process_improve.experiments.designs_omars import is_omars
 
-_HAS_PULP = importlib.util.find_spec("pulp") is not None
-
-
-def _solver_executes() -> bool:
-    """Probe that pulp's default CBC solver binary actually runs here.
-
-    Importability is not enough: pulp ships a bundled CBC binary that can be
-    present but non-executable (for example an Intel-only build on an Apple
-    Silicon CI runner), which raises PulpSolverError only at solve time.
-    """
-    if not _HAS_PULP:
-        return False
-    import pulp
-
-    try:
-        probe = pulp.LpProblem("probe", pulp.LpMinimize)
-        x = pulp.LpVariable("x", 0, 1)
-        probe += x
-        probe.solve(pulp.PULP_CBC_CMD(msg=False))
-    except pulp.PulpSolverError:
-        return False
-    return True
-
-
-pytestmark = pytest.mark.skipif(
-    not _solver_executes(),
-    reason="pulp (the 'ilp' extra) is not installed or its CBC solver binary cannot run on this platform",
-)
-
-# Keep the solver fast and deterministic across the suite.
+# A generous wall-clock cap that never binds in these tests: the node budget,
+# not the clock, decides where each solve stops, so results are deterministic.
 _SOLVER = {"time_limit": 30, "msg": False}
 
 
@@ -65,7 +43,7 @@ def test_exposed_in_experiments_namespace() -> None:
     assert exported is generate_omars
 
 
-@pytest.mark.parametrize("k", [3, 4])
+@pytest.mark.parametrize("k", [3, pytest.param(4, marks=pytest.mark.slow)])  # k=4 enumerates ~250k designs
 def test_generated_design_is_omars(k: int) -> None:
     from process_improve.experiments import generate_omars
 
@@ -75,7 +53,7 @@ def test_generated_design_is_omars(k: int) -> None:
     assert result.metadata["family"] == "omars_ilp"
 
 
-@pytest.mark.parametrize("k", [3, 4])
+@pytest.mark.parametrize("k", [3, pytest.param(4, marks=pytest.mark.slow)])  # k=4 enumerates ~250k designs
 def test_design_supports_analyze_omars(k: int) -> None:
     """The headline reason the generator exists: the design must leave error df."""
     from process_improve.experiments import generate_omars
@@ -441,72 +419,429 @@ def test_omars_without_budget_is_minimal_foldover() -> None:
     assert result.n_runs == 9  # the minimal four-factor member (the DSD)
 
 
-def test_missing_solver_raises_install_hint(monkeypatch: pytest.MonkeyPatch) -> None:
-    from process_improve.experiments import designs_omars_ilp as module
+# ---------------------------------------------------------------------------
+# The HiGHS solve (solve_omars_ilp)
+# ---------------------------------------------------------------------------
 
-    monkeypatch.setattr(module, "_PULP_AVAILABLE", False)
-    pool = np.array([[1.0, 0.0, 0.0], [0.0, 1.0, 0.0]])
-    with pytest.raises(ImportError, match="ilp"):
-        module.solve_omars_ilp(pool, n_half=1)
+# A main-effect-orthogonal half-design of 15 runs from _half_pool(5) whose
+# foldover is a valid OMARS design but cannot fit the full second-order model
+# (rank 16 of 21).  It is the selection a plain feasibility solve returns at
+# this size on HiGHS 1.12, frozen here so the tests below do not depend on the
+# solver version.
+_RANK_DEFICIENT_K5 = [0, 1, 2, 3, 8, 26, 35, 53, 62, 71, 79, 80, 81, 98, 116]
 
 
-def _flaky_solver(monkeypatch: pytest.MonkeyPatch, failures: int) -> list[str]:
-    """Make CBC fail with ``PulpSolverError`` on its first *failures* runs, then solve normally.
+class _MilpSpy:
+    """Stand-in for ``designs_omars_ilp.milp``: records each call, then solves for real.
 
-    Returns the list of attempts, which grows by one per call to ``LpProblem.solve``.
+    *override* maps a call number (from 0) to a function that rewrites the real
+    result, so a test can present the code with any status HiGHS can return.
     """
-    import pulp
 
-    attempts: list[str] = []
-    real_solve = pulp.LpProblem.solve
+    def __init__(self, real_milp, override=None) -> None:
+        self.real_milp = real_milp
+        self.override = override or {}
+        self.options: list[dict] = []
 
-    def solve(problem: pulp.LpProblem, *args: object, **kwargs: object) -> int:
-        attempts.append(problem.name)
-        if len(attempts) <= failures:
-            raise pulp.PulpSolverError("Pulp: Error while trying to execute cbc")
-        return real_solve(problem, *args, **kwargs)
+    def __call__(self, c, **kwargs) -> OptimizeResult:
+        call = len(self.options)
+        self.options.append(dict(kwargs["options"]))
+        # Record what the module sent, but solve without "threads": HiGHS keeps one
+        # thread pool per calling thread, and another test in this process (a
+        # default linprog, say) may already have started it multi-threaded, which
+        # would make a real threads=1 solve fail with "Not Set".
+        options = {key: value for key, value in kwargs["options"].items() if key != "threads"}
+        result = self.real_milp(c, **{**kwargs, "options": options})
+        if call in self.override:
+            result = self.override[call](result)
+        return result
 
-    monkeypatch.setattr(pulp.LpProblem, "solve", solve)
-    return attempts
+
+def _spy(monkeypatch: pytest.MonkeyPatch, override=None) -> _MilpSpy:
+    # Start each spied test from clean per-thread and per-fork HiGHS bookkeeping.
+    monkeypatch.setattr(omars_ilp, "_thread_state", threading.local())
+    monkeypatch.setitem(omars_ilp._fork_state, "in_child", False)
+    spy = _MilpSpy(omars_ilp.milp, override)
+    monkeypatch.setattr(omars_ilp, "milp", spy)
+    return spy
 
 
-class TestTransientSolverError:
-    """A CBC run that exits nonzero once is retried, not fatal (#623)."""
+def _as(status: int, message: str, *, keep_x: bool = True):
+    """Rewrite a real milp result to report *status* and *message* (optionally without x)."""
 
-    def test_one_failure_is_retried_and_logged(self, monkeypatch: pytest.MonkeyPatch, caplog) -> None:
-        from process_improve.experiments import designs_omars_ilp as module
+    def rewrite(result: OptimizeResult) -> OptimizeResult:
+        return OptimizeResult(x=result.x if keep_x else None, status=status, message=message)
 
-        attempts = _flaky_solver(monkeypatch, failures=1)
-        with caplog.at_level(logging.WARNING, logger=module.__name__):
-            design, status, _ = module.solve_omars_ilp(module._half_pool(3), n_half=3, solver_options=_SOLVER)
-        assert status == "Optimal"
-        assert design is not None
+    return rewrite
+
+
+def test_solve_returns_a_verified_foldover() -> None:
+    design, status, chosen = omars_ilp.solve_omars_ilp(omars_ilp._half_pool(3), n_half=3, solver_options=_SOLVER)
+    assert status == "Optimal"
+    assert len(chosen) == 3
+    assert design.shape == (7, 3)
+    assert is_omars(design)
+
+
+def test_seeded_objective_reproduces_the_selection() -> None:
+    pool = omars_ilp._half_pool(4)
+    objective = np.random.default_rng(7).standard_normal(len(pool))
+    first = omars_ilp.solve_omars_ilp(pool, n_half=10, objective=objective, solver_options=_SOLVER)
+    second = omars_ilp.solve_omars_ilp(pool, n_half=10, objective=objective, solver_options=_SOLVER)
+    assert first[2] == second[2]
+    np.testing.assert_array_equal(first[0], second[0])
+
+
+def test_infeasible_size_returns_no_design() -> None:
+    """Fourteen half-runs cannot be chosen from a 13-run pool of binaries."""
+    assert omars_ilp.solve_omars_ilp(omars_ilp._half_pool(3), n_half=14) == (None, "Infeasible", [])
+
+
+def test_solve_requires_a_size() -> None:
+    with pytest.raises(ValueError, match="either n_half or half_bounds"):
+        omars_ilp.solve_omars_ilp(omars_ilp._half_pool(3))
+
+
+def test_half_bounds_window_is_respected() -> None:
+    _, _, chosen = omars_ilp.solve_omars_ilp(omars_ilp._half_pool(3), half_bounds=(5, 7), minimize_size=True)
+    assert len(chosen) == 5
+
+
+def test_no_good_cut_excludes_a_previous_selection() -> None:
+    pool = omars_ilp._half_pool(3)
+    _, _, first = omars_ilp.solve_omars_ilp(pool, n_half=4, solver_options=_SOLVER)
+    design, _, second = omars_ilp.solve_omars_ilp(pool, n_half=4, exclude_solutions=[first], solver_options=_SOLVER)
+    assert sorted(second) != sorted(first)
+    assert is_omars(design)
+
+
+def test_options_reach_highs(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Every solve is single-threaded; only objective solves carry the node budget."""
+    spy = _spy(monkeypatch)
+    pool = omars_ilp._half_pool(3)
+    objective = np.random.default_rng(0).standard_normal(len(pool))
+    user_options = {"time_limit": 0.5, "msg": False}
+    omars_ilp.solve_omars_ilp(pool, half_bounds=(6, 8), minimize_size=True, solver_options=user_options)
+    omars_ilp.solve_omars_ilp(pool, n_half=6, solver_options=user_options)
+    omars_ilp.solve_omars_ilp(pool, n_half=6, objective=objective, solver_options=user_options)
+    omars_ilp.solve_omars_ilp(pool, n_half=6, objective=objective, solver_options={"node_limit": 7, "msg": True})
+    omars_ilp.solve_omars_ilp(pool, n_half=6, objective=objective, solver_options={"node_limit": None})
+    minimize, feasibility, default_nodes, custom_nodes, unlimited = spy.options
+    assert all(options["threads"] == 1 for options in spy.options)
+    # A fractional limit reaches HiGHS unchanged; it used to be truncated to 0.
+    assert minimize["time_limit"] == 0.5
+    assert "node_limit" not in minimize
+    assert "node_limit" not in feasibility
+    assert default_nodes["node_limit"] == 100
+    assert custom_nodes["node_limit"] == 7
+    assert custom_nodes["disp"] is True
+    assert minimize["disp"] is False
+    assert "node_limit" not in unlimited
+    # milp pops keys out of the options dict it receives; the caller's dict is untouched.
+    assert user_options == {"time_limit": 0.5, "msg": False}
+
+
+@pytest.mark.parametrize(
+    ("status", "message", "keep_x", "label"),
+    [
+        (4, "The HiGHS status code was not recognized. (HiGHS Status 16: Solution limit reached)", True, "Node limit"),
+        (1, "Iteration limit reached. (HiGHS Status 14: Iteration limit reached)", True, "Node limit"),
+        (1, "Time limit reached. (HiGHS Status 13: Time limit reached)", True, "Time limit"),
+        (1, "Time limit reached. (HiGHS Status 13: model_status is Time limit reached)", False, "Time limit"),
+        (2, "The problem is infeasible. (HiGHS Status 8: model_status is Infeasible)", False, "Infeasible"),
+        (4, "The HiGHS status code was not recognized. (HiGHS Status 15: Unknown)", False, "Not Solved"),
+        (0, "Optimization terminated successfully.", True, "Optimal"),
+        (4, "Something unexpected.", False, "Not Solved"),
+    ],
+)
+def test_status_labels(monkeypatch: pytest.MonkeyPatch, status: int, message: str, keep_x: bool, label: str) -> None:
+    """A design is returned whenever HiGHS hands one back, whatever stopped the solve."""
+    _spy(monkeypatch, {0: _as(status, message, keep_x=keep_x)})
+    pool = omars_ilp._half_pool(4)
+    objective = np.random.default_rng(3).standard_normal(len(pool))
+    design, solver_status, chosen = omars_ilp.solve_omars_ilp(pool, n_half=10, objective=objective)
+    assert solver_status == label
+    if keep_x:
         assert is_omars(design)
-        assert len(attempts) == 2
-        assert "retrying once" in caplog.text
+        assert len(chosen) == 10
+    else:
+        assert (design, chosen) == (None, [])
 
-    def test_retry_gives_the_same_design(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        """The retry solves the same problem with the same options, so seeded results hold."""
-        from process_improve.experiments import designs_omars_ilp as module
 
-        pool = module._half_pool(3)
-        objective = np.random.default_rng(7).standard_normal(len(pool))
-        clean, _, clean_chosen = module.solve_omars_ilp(pool, n_half=4, objective=objective, solver_options=_SOLVER)
-        _flaky_solver(monkeypatch, failures=1)
-        retried, _, retried_chosen = module.solve_omars_ilp(pool, n_half=4, objective=objective, solver_options=_SOLVER)
-        assert retried_chosen == clean_chosen
-        np.testing.assert_array_equal(retried, clean)
+@pytest.fixture
+def fresh_highs_state(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Isolate the module's per-thread and per-fork HiGHS bookkeeping from other tests."""
+    monkeypatch.setattr(omars_ilp, "_thread_state", threading.local())
+    monkeypatch.setitem(omars_ilp._fork_state, "in_child", False)
 
-    def test_second_failure_propagates(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        """A solver that cannot run at all still fails, after exactly one retry."""
-        import pulp
 
-        from process_improve.experiments import designs_omars_ilp as module
+_NOT_SET = _as(4, "(HiGHS Status 0: Not Set)", keep_x=False)
 
-        attempts = _flaky_solver(monkeypatch, failures=2)
-        with pytest.raises(pulp.PulpSolverError):
-            module.solve_omars_ilp(module._half_pool(3), n_half=3, solver_options=_SOLVER)
-        assert len(attempts) == 2
+
+@pytest.mark.usefixtures("fresh_highs_state")
+def test_scheduler_conflict_retries_without_threads(monkeypatch: pytest.MonkeyPatch) -> None:
+    """HiGHS refuses threads=1 with "Not Set" when this thread already runs it multi-threaded.
+
+    The refused attempt is made once; later solves on the thread go straight to the
+    existing pool.
+    """
+    spy = _spy(monkeypatch, {0: _NOT_SET})
+    design, status, _ = omars_ilp.solve_omars_ilp(omars_ilp._half_pool(3), n_half=3)
+    assert status == "Optimal"
+    assert is_omars(design)
+    omars_ilp.solve_omars_ilp(omars_ilp._half_pool(3), n_half=3)
+    assert [options.get("threads") for options in spy.options] == [1, None, None]
+
+
+@pytest.mark.usefixtures("fresh_highs_state")
+def test_forked_child_resets_the_inherited_pool(monkeypatch: pytest.MonkeyPatch) -> None:
+    """In a fork child the inherited pool has no threads; it is reset, never solved on."""
+    spy = _spy(monkeypatch, {0: _NOT_SET})
+    monkeypatch.setitem(omars_ilp._fork_state, "in_child", True)
+    monkeypatch.setattr(omars_ilp, "_reset_highs_scheduler", lambda: True)
+    _, status, _ = omars_ilp.solve_omars_ilp(omars_ilp._half_pool(3), n_half=3)
+    assert status == "Optimal"
+    assert [options.get("threads") for options in spy.options] == [1, 1]
+
+
+@pytest.mark.usefixtures("fresh_highs_state")
+def test_forked_child_without_a_reset_does_not_solve(monkeypatch: pytest.MonkeyPatch) -> None:
+    spy = _spy(monkeypatch, {0: _NOT_SET})
+    monkeypatch.setitem(omars_ilp._fork_state, "in_child", True)
+    monkeypatch.setattr(omars_ilp, "_reset_highs_scheduler", lambda: False)
+    assert omars_ilp.solve_omars_ilp(omars_ilp._half_pool(3), n_half=3) == (None, "Not Solved", [])
+    assert len(spy.options) == 1
+
+
+def test_scheduler_reset_is_available() -> None:
+    """The private SciPy hook the fork-child path relies on exists in the tested SciPy releases."""
+    assert omars_ilp._reset_highs_scheduler() is True
+
+
+def test_selection_violating_its_constraints_is_a_bug(monkeypatch: pytest.MonkeyPatch) -> None:
+    def all_runs(result: OptimizeResult) -> OptimizeResult:
+        return OptimizeResult(x=np.ones_like(result.x), status=0, message="(HiGHS Status 7: Optimal)")
+
+    _spy(monkeypatch, {0: all_runs})
+    with pytest.raises(RuntimeError, match="internal: the HiGHS selection violates its constraints"):
+        omars_ilp.solve_omars_ilp(omars_ilp._half_pool(3), n_half=3)
+
+
+def test_single_factor_pool_has_no_orthogonality_rows() -> None:
+    design, status, chosen = omars_ilp.solve_omars_ilp(omars_ilp._half_pool(1), n_half=1)
+    assert (status, chosen) == ("Optimal", [0])
+    np.testing.assert_array_equal(design, [[1.0], [-1.0], [0.0]])
+
+
+def test_non_orthogonal_selection_is_a_bug(monkeypatch: pytest.MonkeyPatch) -> None:
+    pool = omars_ilp._half_pool(3)
+    row = int(np.flatnonzero((pool == [1, 1, 1]).all(axis=1))[0])
+
+    def correlated(result: OptimizeResult) -> OptimizeResult:
+        x = np.zeros_like(result.x)
+        x[row] = 1.0
+        return OptimizeResult(x=x, status=0, message="(HiGHS Status 7: Optimal)")
+
+    _spy(monkeypatch, {0: correlated})
+    with pytest.raises(RuntimeError, match="the main effects are not orthogonal"):
+        omars_ilp.solve_omars_ilp(pool, half_bounds=(1, 6))
+
+
+def test_every_factor_leaves_its_middle_level() -> None:
+    """A factor at 0 in every half-run is trivially orthogonal but not three-level; the ILP forbids it."""
+    pool = omars_ilp._half_pool(3)
+    for seed in range(20):
+        objective = np.random.default_rng(seed).standard_normal(len(pool))
+        design, _, _ = omars_ilp.solve_omars_ilp(pool, n_half=3, objective=objective, solver_options=_SOLVER)
+        assert np.all(np.abs(design).sum(axis=0) > 0)
+        assert is_omars(design)
+
+
+def test_selection_with_an_unvaried_factor_is_a_bug(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The exact check also catches a factor that never leaves its middle level."""
+    pool = omars_ilp._half_pool(3)
+    # (1, 0, 0) and (0, 1, 0): orthogonal, but the third factor never moves.
+    rows = [int(np.flatnonzero((pool == run).all(axis=1))[0]) for run in ([1, 0, 0], [0, 1, 0])]
+
+    def degenerate(result: OptimizeResult) -> OptimizeResult:
+        x = np.zeros_like(result.x)
+        x[rows] = 1.0
+        return OptimizeResult(x=x, status=0, message="(HiGHS Status 7: Optimal)")
+
+    _spy(monkeypatch, {0: degenerate})
+    with pytest.raises(RuntimeError, match="a factor never leaves its middle level"):
+        omars_ilp.solve_omars_ilp(pool, half_bounds=(2, 6))
+
+
+def test_empty_selection_is_infeasible() -> None:
+    """Zero half-runs leave every factor at its middle level, which the coverage rows forbid."""
+    assert omars_ilp.solve_omars_ilp(omars_ilp._half_pool(3), n_half=0) == (None, "Infeasible", [])
+
+
+@pytest.mark.parametrize(
+    ("options", "error", "match"),
+    [
+        ([("time_limit", 30)], TypeError, "solver_options must be a dict"),
+        ({"solver": "cbc"}, ValueError, r"accepts only the keys \['msg', 'time_limit', 'node_limit'\]"),
+        ({"time_limit": True}, TypeError, "time_limit'] must be a number of seconds"),
+        ({"time_limit": "30"}, TypeError, "time_limit'] must be a number of seconds"),
+        ({"time_limit": 0}, ValueError, "time_limit'] must be positive"),
+        ({"time_limit": -1.0}, ValueError, "time_limit'] must be positive"),
+        ({"time_limit": math.nan}, ValueError, "time_limit'] must be positive"),
+        ({"node_limit": 100.0}, TypeError, "node_limit'] must be an integer or None"),
+        ({"node_limit": True}, TypeError, "node_limit'] must be an integer or None"),
+        ({"node_limit": 0}, ValueError, "node_limit'] must be between 1 and 2147483647"),
+        ({"node_limit": 2**31}, ValueError, "node_limit'] must be between 1 and 2147483647"),
+    ],
+)
+def test_solver_options_are_validated(options, error: type[Exception], match: str) -> None:
+    with pytest.raises(error, match=match):
+        omars_ilp.solve_omars_ilp(omars_ilp._half_pool(3), n_half=3, solver_options=options)
+
+
+def test_solver_options_accept_numpy_and_unbounded_values() -> None:
+    settings = omars_ilp._solver_settings({"time_limit": math.inf, "node_limit": np.int64(5), "msg": False})
+    assert settings == omars_ilp._SolverSettings(msg=False, time_limit=math.inf, node_limit=5)
+    assert omars_ilp._solver_settings(None).node_limit == 100
+
+
+def test_solver_options_are_validated_before_an_exhaustive_search() -> None:
+    """A pinned size takes the solver-free exhaustive path, which still checks the options."""
+    from process_improve.experiments import generate_omars
+
+    with pytest.raises(ValueError, match="accepts only the keys"):
+        generate_omars(_factors(3), n_runs=15, solver_options={"timeLimit": 30})
+
+
+def test_no_warning_escapes_a_multistart() -> None:
+    """SciPy warns about the "threads" option it forwards; the module silences exactly that."""
+    from process_improve.experiments import generate_omars
+
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        result = generate_omars(
+            _factors(5), n_runs=25, model="main_quadratic", n_restarts=2, max_candidates=0, solver_options=_SOLVER
+        )
+    assert result.metadata["search_mode"] == "multistart"
+    assert result.metadata["solver"] == "highs"
+
+
+def _run_isolated(code: str) -> str:
+    """Run *code* in a fresh interpreter, so HiGHS's process-wide state cannot leak between tests."""
+    completed = subprocess.run(  # noqa: S603 - fixed interpreter and test-controlled code
+        [sys.executable, "-c", textwrap.dedent(code)], capture_output=True, text=True, timeout=300, check=False
+    )
+    assert completed.returncode == 0, completed.stderr
+    return completed.stdout
+
+
+@pytest.mark.slow
+def test_omars_solves_after_highs_ran_multi_threaded() -> None:
+    """An earlier default-threads HiGHS solve in the process must not break generate_omars."""
+    out = _run_isolated(
+        """
+        from scipy.optimize import linprog
+        from process_improve.experiments import Factor, generate_omars
+        linprog(c=[1, 1], A_ub=[[-1, -1]], b_ub=[-1], method="highs")
+        factors = [Factor(name=c, low=-1, high=1) for c in "ABCDE"]
+        result = generate_omars(factors, n_runs=25, model="main_quadratic", n_restarts=2, max_candidates=0)
+        print(result.metadata["n_runs_selected"], result.metadata["omars_verified"])
+        """
+    )
+    assert out.split() == ["25", "True"]
+
+
+@pytest.mark.slow
+@pytest.mark.skipif(sys.platform != "linux", reason="the fork start method is only the default on Linux")
+def test_forked_child_can_solve_after_the_parent() -> None:
+    """A multi-threaded HiGHS solve in a parent makes a forked child hang; ours runs on one thread."""
+    out = _run_isolated(
+        """
+        import multiprocessing as mp
+        import numpy as np
+        from process_improve.experiments import designs_omars_ilp as omars_ilp
+
+        pool = omars_ilp._half_pool(5)
+
+        def solve(queue):
+            objective = np.random.default_rng(1).standard_normal(len(pool))
+            queue.put(omars_ilp.solve_omars_ilp(pool, n_half=15, objective=objective)[1])
+
+        if __name__ == "__main__":
+            omars_ilp.solve_omars_ilp(pool, n_half=15, objective=np.random.default_rng(0).standard_normal(len(pool)))
+            context = mp.get_context("fork")
+            queue = context.Queue()
+            child = context.Process(target=solve, args=(queue,))
+            child.start()
+            child.join(120)
+            hung = child.is_alive()
+            if hung:
+                child.kill()
+            print("hung" if hung else queue.get())
+        """
+    )
+    assert out.split() != ["hung"]
+    assert out.strip() in {"Optimal", "Node limit"}
+
+
+@pytest.mark.slow
+@pytest.mark.skipif(sys.platform != "linux", reason="the fork start method is only the default on Linux")
+def test_forked_child_solves_after_parent_ran_highs_multi_threaded() -> None:
+    """Regression: the child used to retry on the inherited pool and hang."""
+    out = _run_isolated(
+        """
+        import multiprocessing as mp
+        import numpy as np
+        from scipy.optimize import linprog
+        from process_improve.experiments import designs_omars_ilp as omars_ilp
+
+        pool = omars_ilp._half_pool(5)
+        objective = np.random.default_rng(1).standard_normal(len(pool))
+
+        def solve(queue):
+            queue.put(omars_ilp.solve_omars_ilp(pool, n_half=15, objective=objective)[1])
+
+        if __name__ == "__main__":
+            linprog(c=[1, 1], A_ub=[[-1, -1]], b_ub=[-1], method="highs")
+            omars_ilp.solve_omars_ilp(pool, n_half=15, objective=objective)
+            context = mp.get_context("fork")
+            queue = context.Queue()
+            child = context.Process(target=solve, args=(queue,))
+            child.start()
+            child.join(120)
+            hung = child.is_alive()
+            if hung:
+                child.kill()
+            print("hung" if hung else queue.get())
+        """
+    )
+    assert out.strip() in {"Optimal", "Node limit"}
+
+
+@pytest.mark.slow
+def test_omars_does_not_need_pulp() -> None:
+    """The generator runs with pulp unimportable: HiGHS ships with SciPy."""
+    out = _run_isolated(
+        """
+        import sys
+
+        class Blocker:
+            def find_spec(self, name, path=None, target=None):
+                if name == "pulp" or name.startswith("pulp."):
+                    raise ImportError("pulp is blocked in this test")
+
+        sys.meta_path.insert(0, Blocker())
+        from process_improve.experiments import Factor, generate_omars
+        result = generate_omars([Factor(name=c, low=-1, high=1) for c in "ABC"])
+        print(result.metadata["solver"], "pulp" in sys.modules)
+        """
+    )
+    assert out.split() == ["highs", "False"]
+
+
+# ---------------------------------------------------------------------------
+# Search diagnostics, estimability and error messages
+# ---------------------------------------------------------------------------
 
 
 def test_search_report_records_diagnostics() -> None:
@@ -523,6 +858,272 @@ def test_search_report_records_diagnostics() -> None:
     assert report.search_mode == "exhaustive"
     assert report.enumerated_designs == report.feasible_designs
     assert result.metadata["search_mode"] == "exhaustive"
+    assert result.metadata["solver"] == "highs"
+    assert result.metadata["solver_status"] == "Enumerated"
+    # The minimise-size solve proved its size, and the enumeration set aside the
+    # designs that cannot fit the model.
+    assert report.size_proven_minimal is True
+    assert 0 < report.rank_deficient_designs < report.enumerated_designs
+    assert (report.node_limit, report.time_limit) == (100, 30.0)
+    assert report.time_limited_solves == 0
+    assert report.run_sizes_searched == 1
+
+
+def test_pinned_size_is_not_reported_as_minimal() -> None:
+    from process_improve.experiments import generate_omars
+
+    result = generate_omars(_factors(3), n_runs=15, solver_options=_SOLVER)
+    assert result.metadata["omars_search"].size_proven_minimal is None
+
+
+def test_multistart_is_deterministic_and_estimable() -> None:
+    """A short multistart: the same seed gives the same design, and the winner fits its model."""
+    from process_improve.experiments import generate_omars
+
+    def run():
+        return generate_omars(
+            _factors(5), n_runs=25, model="main_quadratic", n_restarts=3, max_candidates=0, solver_options=_SOLVER
+        )
+
+    first, second = run(), run()
+    np.testing.assert_array_equal(_coded(first), _coded(second))
+    assert first.metadata["search_mode"] == "multistart"
+    assert first.metadata["model_rank"] == first.metadata["model_params"]
+    report = first.metadata["omars_search"]
+    assert report.feasible_designs >= 1
+    assert report.size_proven_minimal is None
+
+
+def test_limit_stopped_solves_are_counted(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Node-limited solves are routine; time-limited ones mean the result may vary by machine."""
+    from process_improve.experiments import generate_omars
+
+    node = _as(4, "(HiGHS Status 16: Solution limit reached)")
+    clock = _as(1, "(HiGHS Status 13: Time limit reached)")
+    _spy(monkeypatch, {1: node, 2: clock, 3: node})
+    result = generate_omars(
+        _factors(5), n_runs=25, model="main_quadratic", n_restarts=3, max_candidates=0, solver_options=_SOLVER
+    )
+    report = result.metadata["omars_search"]
+    assert (report.node_limited_solves, report.time_limited_solves) == (2, 1)
+
+
+def test_unproven_minimum_size_is_reported(monkeypatch: pytest.MonkeyPatch) -> None:
+    from process_improve.experiments import generate_omars
+
+    _spy(monkeypatch, {0: _as(1, "(HiGHS Status 13: Time limit reached)")})
+    result = generate_omars(_factors(3), solver_options=_SOLVER)
+    report = result.metadata["omars_search"]
+    assert report.size_proven_minimal is False
+    assert report.time_limited_solves == 1
+
+
+def _always_returns(monkeypatch: pytest.MonkeyPatch, result: tuple) -> None:
+    """Make every solve in the search return *result*."""
+    monkeypatch.setattr(omars_ilp, "solve_omars_ilp", lambda *_args, **_kwargs: result)
+
+
+def test_rank_deficient_designs_never_win(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A valid OMARS design that cannot fit the model is set aside, and the error says why."""
+    from process_improve.experiments import generate_omars
+
+    pool = omars_ilp._half_pool(5)
+    design = omars_ilp._foldover(pool[_RANK_DEFICIENT_K5])
+    assert is_omars(design)
+    assert omars_ilp._model_rank(design) < omars_ilp._full_second_order_params(5)
+    _always_returns(monkeypatch, (design, "Optimal", _RANK_DEFICIENT_K5))
+    with pytest.raises(ValueError, match=r"1 OMARS design\(s\) were found at n_runs=31, but the full_second_order"):
+        generate_omars(_factors(5), n_runs=31, n_restarts=2, max_candidates=0)
+
+
+def test_automatic_size_moves_up_when_nothing_fits(monkeypatch: pytest.MonkeyPatch) -> None:
+    """With the size chosen automatically, a rank-deficient smallest size is not the answer.
+
+    Every solve at 31 runs returns the rank-deficient design; the search moves
+    to 33 runs, where the real solver finds designs that fit the model.
+    """
+    from process_improve.experiments import generate_omars
+
+    real_solve = omars_ilp.solve_omars_ilp
+    pool = omars_ilp._half_pool(5)
+    stuck = (omars_ilp._foldover(pool[_RANK_DEFICIENT_K5]), "Optimal", _RANK_DEFICIENT_K5)
+
+    def solve(half_pool, **kwargs):
+        if kwargs.get("minimize_size") or kwargs.get("n_half") == len(_RANK_DEFICIENT_K5):
+            return stuck
+        return real_solve(half_pool, **kwargs)
+
+    monkeypatch.setattr(omars_ilp, "solve_omars_ilp", solve)
+    result = generate_omars(_factors(5), n_restarts=2, max_candidates=0, solver_options=_SOLVER)
+    report = result.metadata["omars_search"]
+    assert result.metadata["n_runs_selected"] == 33
+    assert result.metadata["model_rank"] == result.metadata["model_params"] == 21
+    assert report.run_sizes_searched == 2
+    assert report.rank_deficient_designs >= 1
+    # The minimum was proven at 31 runs, but the design has 33.
+    assert report.size_proven_minimal is False
+
+
+def _singular_at(monkeypatch: pytest.MonkeyPatch, n_half: int | None) -> None:
+    """Score every enumerated design of *n_half* half-runs (all of them if None) as rank-deficient."""
+    real_score = omars_ilp._score_count_vectors
+
+    def score(count_matrix, *args, **kwargs):
+        d_eff, a_opt, max_corr = real_score(count_matrix, *args, **kwargs)
+        if n_half is None or int(count_matrix[0].sum()) == n_half:
+            d_eff = np.zeros_like(d_eff)
+        return d_eff, a_opt, max_corr
+
+    monkeypatch.setattr(omars_ilp, "_score_count_vectors", score)
+
+
+def test_exhaustive_search_moves_up_when_nothing_fits(monkeypatch: pytest.MonkeyPatch) -> None:
+    from process_improve.experiments import generate_omars
+
+    _singular_at(monkeypatch, 6)  # three factors start at 6 half-runs (13 runs)
+    result = generate_omars(_factors(3), solver_options=_SOLVER)
+    report = result.metadata["omars_search"]
+    assert result.metadata["n_runs_selected"] == 15
+    assert report.search_mode == "exhaustive"
+    assert report.run_sizes_searched == 2
+    assert report.rank_deficient_designs > 0
+
+
+def test_exhaustive_rank_deficiency_at_a_pinned_size(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A complete enumeration saw every design, so the advice is more runs, not more restarts."""
+    from process_improve.experiments import generate_omars
+
+    _singular_at(monkeypatch, None)
+    with pytest.raises(ValueError, match=r"at n_runs=15, but the full_second_order model .* Ask for more runs\.$"):
+        generate_omars(_factors(3), n_runs=15)
+
+
+def test_rank_deficient_everywhere_names_the_window(monkeypatch: pytest.MonkeyPatch) -> None:
+    from process_improve.experiments import generate_omars
+
+    pool = omars_ilp._half_pool(5)
+    _always_returns(monkeypatch, (omars_ilp._foldover(pool[_RANK_DEFICIENT_K5]), "Optimal", _RANK_DEFICIENT_K5))
+    with pytest.raises(ValueError, match=r"1 OMARS design\(s\) were found at 31 to 43 runs, but the full_second"):
+        generate_omars(_factors(5), n_restarts=1, max_candidates=0)
+
+
+@pytest.mark.slow
+def test_exhaustive_search_skips_rank_deficient_designs() -> None:
+    """Regression: four factors at the automatic size used to return a rank-14 design.
+
+    Ranked by correlation first, the exhaustive winner was a design the full
+    second-order model (15 parameters) cannot be fitted to, with D-efficiency 0.
+    """
+    from process_improve.experiments import generate_omars
+
+    result = generate_omars(_factors(4), selection_criterion="min_second_order_correlation", solver_options=_SOLVER)
+    assert result.metadata["model_rank"] == result.metadata["model_params"] == 15
+    assert result.metadata["d_efficiency"] > 0
+    assert result.metadata["omars_search"].rank_deficient_designs > 0
+
+
+def test_no_design_in_auto_window_names_the_window(monkeypatch: pytest.MonkeyPatch) -> None:
+    from process_improve.experiments import generate_omars
+
+    _always_returns(monkeypatch, (None, "Time limit", []))
+    with pytest.raises(ValueError, match="at 13 to 25 runs") as raised:
+        generate_omars(_factors(3))
+    assert "n_runs_range=None" not in str(raised.value)
+    assert "time_limit" in str(raised.value)
+
+
+def test_no_design_at_pinned_size_names_the_status(monkeypatch: pytest.MonkeyPatch) -> None:
+    from process_improve.experiments import generate_omars
+
+    _always_returns(monkeypatch, (None, "Node limit", []))
+    with pytest.raises(ValueError, match="at n_runs=31 with center_runs=1: the last solve ended with status 'Node"):
+        generate_omars(_factors(5), n_runs=31, n_restarts=2, max_candidates=0)
+
+
+# ---------------------------------------------------------------------------
+# Run-size windows and input validation
+# ---------------------------------------------------------------------------
+
+
+def test_window_beyond_the_distinct_pool_uses_repeated_half_runs() -> None:
+    """Three factors have 13 distinct half-runs; 31 runs need 15, which only the enumeration can repeat."""
+    from process_improve.experiments import generate_omars
+
+    result = generate_omars(_factors(3), n_runs_range=(31, 37), solver_options=_SOLVER)
+    assert result.metadata["n_runs_selected"] == 31
+    assert result.metadata["search_mode"] == "exhaustive"
+    assert result.metadata["omars_search"].size_proven_minimal is None
+    assert is_omars(_coded(result))
+
+
+def test_pinned_size_beyond_reach_is_refused() -> None:
+    from process_improve.experiments import generate_omars
+
+    with pytest.raises(ValueError, match=r"n_runs=39 needs 19 half-runs, but there are only 13 distinct"):
+        generate_omars(_factors(3), n_runs=39)
+
+
+@pytest.mark.parametrize(
+    ("window", "match"),
+    [((25, 13), r"min <= max, got \(25, 13\)"), ((5, 9), r"n_runs_range=\(5, 9\) ends below 13 runs")],
+)
+def test_unusable_run_window_is_refused(window: tuple[int, int], match: str) -> None:
+    from process_improve.experiments import generate_omars
+
+    with pytest.raises(ValueError, match=match):
+        generate_omars(_factors(3), n_runs_range=window)
+
+
+def test_rank_screen_does_not_depend_on_the_is_omars_tolerance() -> None:
+    """A loose ``tol`` used to mark full-rank enumerated designs as singular and push the size up."""
+    from process_improve.experiments import generate_omars
+
+    result = generate_omars(_factors(3), tol=0.05, solver_options=_SOLVER)
+    assert result.metadata["n_runs_selected"] == 13
+    assert result.metadata["omars_search"].run_sizes_searched == 1
+
+
+def test_enumeration_counts_only_designs_where_every_factor_varies() -> None:
+    from process_improve.experiments import generate_omars
+
+    result = generate_omars(_factors(3), solver_options=_SOLVER)
+    pool = omars_ilp._half_pool(3)
+    counts, overflow = omars_ilp._enumerate_feasible_counts(pool, 6, omars_ilp._ENUM_MAX_LEAVES)
+    covered = int((counts @ np.abs(pool) > 0).all(axis=1).sum())
+    assert not overflow
+    assert covered < counts.shape[0]
+    assert result.metadata["omars_search"].enumerated_designs == covered
+
+
+def test_infeasible_status_gets_matching_advice(monkeypatch: pytest.MonkeyPatch) -> None:
+    from process_improve.experiments import generate_omars
+
+    _always_returns(monkeypatch, (None, "Infeasible", []))
+    with pytest.raises(ValueError, match="No selection of distinct half-runs satisfies") as raised:
+        generate_omars(_factors(3))
+    assert "time_limit" not in str(raised.value)
+
+
+@pytest.mark.parametrize(
+    ("options", "error", "match"),
+    [
+        ({"msg": "no"}, TypeError, r"solver_options\['msg'\] must be True or False"),
+        ({"msg": 1}, TypeError, r"solver_options\['msg'\] must be True or False"),
+    ],
+)
+def test_msg_must_be_a_bool(options, error: type[Exception], match: str) -> None:
+    with pytest.raises(error, match=match):
+        omars_ilp.solve_omars_ilp(omars_ilp._half_pool(3), n_half=3, solver_options=options)
+
+
+def test_huge_time_limit_means_no_limit() -> None:
+    assert omars_ilp._solver_settings({"time_limit": 10**400}).time_limit == math.inf
+
+
+@pytest.mark.parametrize("excluded", [[], [-1], [99], [1.7], [[0, 1]]])
+def test_exclude_solutions_are_validated(excluded) -> None:
+    with pytest.raises(ValueError, match="exclude_solutions entries must be non-empty lists"):
+        omars_ilp.solve_omars_ilp(omars_ilp._half_pool(3), n_half=3, exclude_solutions=[excluded])
 
 
 def test_generate_omars_rejects_categorical_factor() -> None:

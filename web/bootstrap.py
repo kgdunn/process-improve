@@ -39,8 +39,9 @@ RUN_SHEET = "Runs"
 SPEC_VERSION = 1
 
 #: Design types the page offers. Each one is pure numpy / scipy, so it runs
-#: under WebAssembly. Excluded: ``omars_ilp`` (needs the native CBC solver in
-#: pulp) and ``i_optimal`` (needs pyoptex).
+#: under WebAssembly. Excluded: ``omars_ilp`` (its HiGHS multistart needs
+#: scipy >= 1.15, newer than Pyodide's, and takes too long for a page) and
+#: ``i_optimal`` (needs pyoptex).
 DESIGNS: dict[str, dict[str, Any]] = {
     "full_factorial": {
         "label": "Full factorial (2-level)",
