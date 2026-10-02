@@ -31,6 +31,7 @@ from typing import TYPE_CHECKING
 
 import numpy as np
 import pandas as pd
+from scipy.stats import qmc
 
 from process_improve._random import check_random_state
 from process_improve.experiments.designs_constrained import (
@@ -97,11 +98,12 @@ def _linear_coefficients(expression: str, names: list[str]) -> list[tuple[np.nda
     """Return ``(a, c)`` pairs with ``g(x) = a @ x + c <= 0`` for each inequality in ``expression``.
 
     The coefficients are read off by evaluating ``g`` at the origin and the unit vectors,
-    then checked at random points; a constraint that is not affine is refused, because
+    then checked at points spread through the cube (the unscrambled Halton sequence, so
+    no random generator is involved); a constraint that is not affine is refused, because
     the vertex enumeration below relies on flat faces.
     """
     q = len(names)
-    probe = np.vstack([np.zeros(q), np.eye(q), np.random.default_rng(0).uniform(0, 1, size=(8, q))])
+    probe = np.vstack([np.zeros(q), np.eye(q), qmc.Halton(d=q, scramble=False).random(9)[1:]])
     env = {n: probe[:, j] for j, n in enumerate(names)}
     pairs = []
     for g in parse_constraint(expression, set(names)):

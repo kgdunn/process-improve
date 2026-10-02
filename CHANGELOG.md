@@ -125,7 +125,7 @@ those changes.
   free runs can estimate the model.
 - **Large candidate grids are sampled instead of refused.** Models without squared
   terms use a 2-level grid, so up to 16 factors are listed in full; beyond that, or for
-  a quadratic model on 11 or more factors, 30,000 grid points are sampled (with the
+  a quadratic model on 11 or more factors, 32,768 grid points are taken from an unscrambled Sobol sequence (with the
   centre and face centres). No candidate set above `MAX_CANDIDATES` is allocated, as
   before.
 - **Automatic design choice may return a supersaturated design** when the budget is

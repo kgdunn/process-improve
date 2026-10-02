@@ -30,6 +30,7 @@ from typing import TYPE_CHECKING, Any
 
 import numpy as np
 import pandas as pd
+from scipy.stats import qmc
 
 from process_improve._random import check_random_state
 from process_improve.experiments.factor import FactorType
@@ -42,8 +43,9 @@ logger = logging.getLogger(__name__)
 
 #: Upper limit on the candidate grid; a larger grid is refused before allocation.
 MAX_CANDIDATES = 100_000
-#: Points drawn from a grid too large to list: the exchange's cost grows with this.
-_SAMPLED_CANDIDATES = 30_000
+#: Points taken from a grid too large to list (a power of two, for the Sobol sequence): the exchange's cost grows
+#: with this.
+_SAMPLED_CANDIDATES = 2**15
 #: Longest constraint expression accepted, which also bounds the parse depth.
 MAX_EXPRESSION_LENGTH = 500
 #: Slack when testing ``g(x) <= 0``, so points found on a boundary are kept.
@@ -210,16 +212,19 @@ def _grid_levels(region: _Region, n_levels: int | None, model_type: str) -> tupl
     return choices[-1], True
 
 
-def _lattice_points(shape: list[int], k_cont: int, sampled: bool, rng: np.random.Generator) -> np.ndarray:
-    """Index vectors of the candidate grid: all of it, or ``MAX_CANDIDATES`` random points of it.
+def _lattice_points(shape: list[int], k_cont: int, sampled: bool) -> np.ndarray:
+    """Index vectors of the candidate grid: all of it, or ``_SAMPLED_CANDIDATES`` well-spread points of it.
 
+    The sample is the unscrambled Sobol sequence rounded down onto the grid: evenly
+    spread over the grid, and deterministic without drawing on any random generator.
     A sampled grid on an odd number of levels also holds the centre and the face
     centres (one factor at an extreme, the rest at the middle), the points a quadratic
     model leans on and a random sample would rarely contain.
     """
     if not sampled:
         return np.indices(shape).reshape(len(shape), -1).T
-    idx = np.column_stack([rng.integers(n, size=_SAMPLED_CANDIDATES) for n in shape])
+    unit = qmc.Sobol(d=len(shape), scramble=False).random_base2(int(np.log2(_SAMPLED_CANDIDATES)))
+    idx = np.minimum((unit * shape).astype(int), np.array(shape) - 1)
     levels = shape[0] if k_cont else 0
     if levels % 2:
         middle = np.full((2 * k_cont + 1, len(shape)), levels // 2)
@@ -263,10 +268,7 @@ def _boundary_points(region: _Region, grid: np.ndarray, cat_idx: np.ndarray, ste
 
 
 def build_candidates(
-    region: _Region,
-    n_levels: int | None = None,
-    model_type: str = "quadratic",
-    rng: np.random.Generator | None = None,
+    region: _Region, n_levels: int | None = None, model_type: str = "quadratic"
 ) -> tuple[np.ndarray, np.ndarray, dict]:
     """Return the feasible candidate points in coded units.
 
@@ -278,8 +280,6 @@ def build_candidates(
         Grid levels per continuous factor; ``None`` picks them (see :func:`_grid_levels`).
     model_type : str
         The model the design is for: without squared terms, 2 levels may be used.
-    rng : numpy.random.Generator or None
-        Draws the sample of a grid too large to list; a fixed seed when ``None``.
 
     Returns
     -------
@@ -290,8 +290,7 @@ def build_candidates(
     levels, sampled = _grid_levels(region, n_levels, model_type)
     shape = [levels] * len(region.continuous) + [len(f.levels or []) for f in region.categorical]
     k_cont = len(region.continuous)
-    rng = rng if rng is not None else np.random.default_rng(0)
-    idx = _lattice_points(shape, k_cont, sampled, rng)
+    idx = _lattice_points(shape, k_cont, sampled)
     if sampled:
         logger.info(
             "The %d-level grid on %d factors is too large to list; sampling %d points.", levels, k_cont, len(idx)
@@ -708,7 +707,7 @@ def _candidate_pool(
     if opts.candidates is not None:
         coded, cats, counts, labels = _user_candidates(region, opts.candidates)
         return coded, cats, counts, labels, lambda: model_matrix(region, coded, cats, opts.model_type)
-    coded, cats, counts = build_candidates(region, opts.n_levels, opts.model_type, rng)
+    coded, cats, counts = build_candidates(region, opts.n_levels, opts.model_type)
     return coded, cats, counts, None, lambda: _uniform_rows(region, opts.model_type, rng, coded)
 
 

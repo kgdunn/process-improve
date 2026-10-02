@@ -29,6 +29,7 @@ from dataclasses import dataclass
 from typing import Any, Literal
 
 import numpy as np
+from scipy.stats import qmc
 
 from process_improve.experiments.factor import Constraint, Factor, FactorType
 
@@ -54,12 +55,13 @@ def _affine_form(g: _Inequality, low: np.ndarray, high: np.ndarray) -> tuple[np.
 
     The form is fitted on ``k + 1`` random points and must then reproduce ``g`` on
     ``_AFFINE_CHECKS`` more. A non-affine constraint (``T * D <= 900``, say) that
-    passes that check would have to match a hyperplane at random points, which
-    happens with probability zero. A fixed internal seed keeps this deterministic.
+    passes that check would have to match a hyperplane at points in general
+    position, which it cannot. The points are the unscrambled Halton sequence: spread
+    through the box, and deterministic without a random generator.
     """
     k = len(low)
     span = np.where(np.isfinite(high - low), high - low, 1.0)
-    points = low + span * np.random.default_rng(0).uniform(size=(k + 1 + _AFFINE_CHECKS, k))
+    points = low + span * qmc.Halton(d=k, scramble=False).random(k + 2 + _AFFINE_CHECKS)[1:]
     values = np.asarray(g(points), dtype=float)
     design = np.column_stack([points, np.ones(len(points))])
     coef = np.linalg.lstsq(design, values, rcond=None)[0]
