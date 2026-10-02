@@ -161,15 +161,29 @@ class TestBoxBehnkenProperties:
     """Structural invariants of the Box-Behnken design."""
 
     @_settings
-    @given(k=st.integers(min_value=3, max_value=6))
-    def test_non_center_rows_have_two_zero_coordinates(self, k: int) -> None:
-        """Every non-center BB run has exactly two coordinates at 0 and the rest at ±1."""
+    @given(k=st.integers(min_value=3, max_value=7))
+    def test_non_center_rows_vary_one_block_of_factors(self, k: int) -> None:
+        """Every non-centre run varies one block of factors (pairs up to 5 factors, triples at 6 and 7)."""
         x = _coded(generate_design(_factors(k), design_type="box_behnken", n_center_points=0))
         non_center_rows = x[~np.all(x == 0, axis=1)]
-        # Each BB non-center run varies two factors at ±1 and sets the remaining (k-2)
-        # factors to 0, so for every non-center row we expect exactly (k-2) zeros.
-        zeros_per_row = (non_center_rows == 0).sum(axis=1)
-        assert np.all(zeros_per_row == k - 2)
+        varying_per_row = (non_center_rows != 0).sum(axis=1)
+        assert np.all(varying_per_row == (3 if k in (6, 7) else 2))
+        assert np.all(np.isin(non_center_rows, (-1.0, 0.0, 1.0)))
+
+    @pytest.mark.parametrize(("k", "n_runs"), [(3, 12), (4, 24), (5, 40), (6, 48), (7, 56)])
+    def test_run_counts_match_the_published_designs(self, k: int, n_runs: int) -> None:
+        """Box and Behnken (1960): 12, 24, 40, 48 and 56 runs before centre points."""
+        x = _coded(generate_design(_factors(k), design_type="box_behnken", n_center_points=0))
+        assert len(x) == n_runs
+
+    @pytest.mark.parametrize("k", [6, 7])
+    def test_six_and_seven_factor_designs_fit_the_quadratic_model(self, k: int) -> None:
+        """Main effects orthogonal to every other column; the full quadratic model has full rank."""
+        x = _coded(generate_design(_factors(k), design_type="box_behnken", n_center_points=3))
+        pairs = [x[:, i] * x[:, j] for i in range(k) for j in range(i + 1, k)]
+        model = np.column_stack([np.ones(len(x)), x, x**2, *pairs])
+        assert np.linalg.matrix_rank(model) == model.shape[1]
+        assert np.abs(x.T @ np.column_stack([np.ones(len(x)), x**2, *pairs])).max() == 0
 
     @_settings
     @given(k=st.integers(min_value=3, max_value=6))

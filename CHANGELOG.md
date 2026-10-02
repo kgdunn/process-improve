@@ -230,6 +230,13 @@ those changes.
   factors: 21 or 22 factors take 49 runs. `dsd_run_count` gives the run count, and
   `recommend_strategy` now uses it (a 7-factor DSD has 17 runs, not 15). Designs for
   sizes that were already exact are unchanged.
+- **Box-Behnken designs with six and seven factors are the published ones.** pyDOE3
+  puts a two-level factorial in every pair of factors at any size, which is Box and
+  Behnken's design for three to five factors but costs 60 and 84 runs at six and seven
+  against their 48 and 56. Six and seven factors now use the published blocks of three
+  factors, so `generate_design` agrees with the run counts `recommend_strategy` and the
+  knowledge base already quote. Eight or more factors keep the all-pairs design and say
+  so in `metadata["construction"]`. (Ported from #501.)
 - **Plackett-Burman designs exist for 24 to 99 factors.** pyDOE3 stops with an
   `AssertionError` at 24 to 27, 32 to 35, 40 to 43, 48 to 59 factors and beyond; those
   sizes now use a Hadamard matrix from the finite-field module (Paley I and II, doubling),
