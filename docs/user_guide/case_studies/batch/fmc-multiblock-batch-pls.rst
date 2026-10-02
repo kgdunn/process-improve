@@ -142,8 +142,8 @@ space.
 .. code-block:: text
 
    MBPLS Z -> Y: R2Y cumulative = 0.292, 0.364; R2X per block after 2 components = Zchem 0.296, Zop 0.356
-   batch 20, block Zchem: t1 contributions = Z1 -0.08, Z2 +0.03, Z3 -0.00, Z4 +0.04, Z5 +0.00, Z6 +0.03, Z7 -0.05, ...
-   batch 20, block Zop: t1 contributions = Level1 -0.08, Temp1 +0.02, Temp2 -0.01, Time4 -0.25, Time1 -0.04, Time2 -0.38, ...
+   batch 20, block Zchem: t1 contributions = Z1 +0.08, Z2 -0.03, Z3 +0.00, Z4 -0.04, Z5 -0.00, Z6 -0.03, Z7 +0.05, ...
+   batch 20, block Zop: t1 contributions = Level1 +0.08, Temp1 -0.02, Temp2 +0.01, Time4 +0.25, Time1 +0.04, Time2 +0.38, ...
 
 Together the blocks explain 36% of the quality block, more than either alone,
 and the per-block contributions show that batch 20 is unusual in its
@@ -257,8 +257,8 @@ operating-condition block.
    batches classed good that the trajectory block places with the abnormal batches: [2, 3, 5, 6, 7]
    of these, placed with the good batches by both initial-condition blocks: [2, 3, 6, 7]
    their nearest abnormal batches in the trajectory block: [42, 43, 44, 47, 50]
-   Zop contribution from the neighbours' average to the anomalous batches' average: Level1 -0.05, Temp1 +0.02,
-       Temp2 +0.00, Time4 +0.05, Time1 -0.00, Time2 +0.06, Time3 +0.11, TempSlope +0.06, WgtCake -0.05
+   Zop contribution from the neighbours' average to the anomalous batches' average: Level1 +0.05, Temp1 -0.02,
+       Temp2 -0.00, Time4 -0.05, Time1 +0.00, Time2 -0.06, Time3 -0.11, TempSlope -0.06, WgtCake +0.05
 
 The four batches share their neighbours' heavy charge and high collector
 level (``WgtCake`` and ``Level1`` pull towards the abnormal side) and differ

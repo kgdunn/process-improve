@@ -10,6 +10,7 @@ User Guide
    doe_strategy
    design_evaluation
    omars_designs
+   constrained_designs
    sensory_panel
    sensory_diagnostics
    chemistry

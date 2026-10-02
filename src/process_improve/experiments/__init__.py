@@ -23,6 +23,7 @@ from process_improve.experiments.omars_trade_off import (
     omars_trade_off_table,
 )
 from process_improve.experiments.optimization import optimize_responses
+from process_improve.experiments.region import DesignRegion
 from process_improve.experiments.simulations import grocery, manufacture, popcorn
 from process_improve.experiments.strategy import recommend_strategy
 from process_improve.experiments.structures import (
@@ -39,6 +40,7 @@ from process_improve.experiments.visualization import main_effects_plot, visuali
 __all__ = [
     "Column",
     "Constraint",
+    "DesignRegion",
     "DesignResult",
     "Expt",
     "Factor",

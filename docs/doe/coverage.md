@@ -6,7 +6,7 @@ Current implementation status across every agent-facing DoE tool.
 
 | Tool | Status | Implementation | Open gaps |
 |---|---|---|---|
-| `generate_design` | **Implemented** | Unified dispatcher in `experiments/designs.py`; per-family handlers in `designs_factorial.py`, `designs_screening.py`, `designs_response_surface.py`, `designs_optimal.py`, `designs_mixture.py`. Covers all 11 design types (full/fractional factorial, PB, BBD, CCD, DSD, D/I/A-optimal, mixture, Taguchi). | I/A-optimal require `pyoptex`; hard-to-change factors without `pyoptex` are ignored with a warning. |
+| `generate_design` | **Implemented** | Unified dispatcher in `experiments/designs.py`; per-family handlers in `designs_factorial.py`, `designs_screening.py`, `designs_response_surface.py`, `designs_optimal.py`, `designs_mixture.py`. Covers all 11 design types (full/fractional factorial, PB, BBD, CCD, DSD, D/I/A-optimal, mixture, Taguchi). | I/A-optimal require `pyoptex`; hard-to-change factors without `pyoptex` are ignored with a warning. Constraints are enforced by D-optimal and mixture designs (other types flag `constraints_enforced=False`); mixture constraints must be linear. |
 | `evaluate_design` | **Implemented** | `experiments/evaluate.py` - 14 metrics: `d/i/g_efficiency`, `prediction_variance`, `vif`, `condition_number`, `power`, `degrees_of_freedom`, `alias_structure`, `confounding`, `resolution`, `defining_relation`, `clear_effects`, `minimum_aberration`. | - |
 | `analyze_experiment` | **Implemented** | `analysis.py` - 13 analysis types via statsmodels/scipy. | Split-plot ANOVA (mixed-model mapping). |
 | `optimize_responses` | **Partial** | `optimization.py` - desirability, steepest ascent/descent, stationary point, canonical analysis. | Ridge analysis, Pareto front (stubs). |
@@ -25,10 +25,10 @@ Current implementation status across every agent-facing DoE tool.
 | Box-Behnken | `designs_response_surface.py::dispatch_box_behnken` via `pyDOE3.bbdesign`. | `TestBoxBehnken`, `TestBoxBehnkenProperties`. |
 | Central Composite Design (face-centered, rotatable, inscribed, orthogonal) | `designs_response_surface.py::dispatch_ccd` via `pyDOE3.ccdesign`. | `TestCCD`, `TestCCDProperties`. |
 | Definitive Screening Design | `designs_response_surface.py::dispatch_dsd` - Paley conference-matrix construction (see caveat below). | `TestDSD`, `TestDSDProperties`. |
-| D-optimal | `designs_optimal.py::dispatch_d_optimal` - `pyoptex` coordinate exchange when available, otherwise point exchange on a 3-level candidate set. | `TestDOptimal`. |
+| D-optimal | `designs_optimal.py::dispatch_d_optimal` - `pyoptex` coordinate exchange when available, otherwise point exchange on a 3-level candidate set. With `constraints`, `designs_constrained.py::constrained_d_optimal`: Fedorov exchange over a feasible candidate set (grid plus boundary crossings); no `pyoptex` needed. | `TestDOptimal`, `tests/test_designs_constrained.py`. |
 | I-optimal | `designs_optimal.py::dispatch_i_optimal` via `pyoptex`. | `TestIOptimal`, `test_designs_optimal_pyoptex.py` (run in CI; `pyoptex` is in the dev dependency group). |
 | A-optimal | `designs_optimal.py::dispatch_a_optimal` via `pyoptex`. | `TestAOptimal`, `test_designs_optimal_pyoptex.py` (run in CI; `pyoptex` is in the dev dependency group). |
-| Mixture (simplex-lattice, simplex-centroid) | `designs_mixture.py::dispatch_mixture` - auto-selects based on budget. | `TestMixture`. |
+| Mixture (simplex-lattice, simplex-centroid, extreme vertices) | `designs_mixture.py::dispatch_mixture` - auto-selects based on budget on the full simplex; with component bounds or linear constraints, `designs_mixture_constrained.py` builds the extreme-vertices design or a D-optimal subset of its candidate blends for a Scheffé model. | `TestMixture`, `tests/test_mixture_constrained.py`. |
 | Taguchi orthogonal arrays | `designs_screening.py::dispatch_taguchi` via `pyDOE3.taguchi_design`. | `TestTaguchi`. |
 
 ## `evaluate_design` Metrics

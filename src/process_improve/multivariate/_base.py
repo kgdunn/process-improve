@@ -35,7 +35,13 @@ from ._diagnostics import (
     group_contributions as _group_contributions,
 )
 from ._diagnostics import (
+    meda as _meda,
+)
+from ._diagnostics import (
     observation_contributions as _observation_contributions,
+)
+from ._diagnostics import (
+    omeda as _omeda,
 )
 from ._diagnostics import (
     project_variables as _project_variables,
@@ -75,6 +81,12 @@ from .plots import (
 )
 from .plots import (
     loading_plot as _loading_plot,
+)
+from .plots import (
+    meda_plot as _meda_plot,
+)
+from .plots import (
+    omeda_plot as _omeda_plot,
 )
 from .plots import (
     score_plot as _score_plot,
@@ -215,6 +227,8 @@ class _LatentVariableModel(_RenameGetattrMixin, _HotellingsT2LimitMixin, BaseEst
     loading_plot = _model_method(_loading_plot)
     explained_variance_plot = _model_method(_explained_variance_plot)
     correlation_loadings_plot = _model_method(_correlation_loadings_plot)
+    meda_plot = _model_method(_meda_plot)
+    omeda_plot = _model_method(_omeda_plot)
     spe_limit = _model_method(_spe_limit)
     score_limit = _model_method(_score_limit)
     vip = _model_method(_vip)
@@ -224,6 +238,8 @@ class _LatentVariableModel(_RenameGetattrMixin, _HotellingsT2LimitMixin, BaseEst
     spe_contributions = _model_method(_spe_contributions)
     score_contributions = _model_method(_score_contributions)
     group_contributions = _model_method(_group_contributions)
+    meda = _model_method(_meda)
+    omeda = _model_method(_omeda)
     eigenvalue_summary = _model_method(_eigenvalue_summary)
     project_variables = _model_method(_project_variables)
 

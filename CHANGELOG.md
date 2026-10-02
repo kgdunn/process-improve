@@ -13,6 +13,71 @@ those changes.
 
 ### Added
 
+- **Constrained mixture designs, Scheffé models, and one `DesignRegion` shared by
+  design, evaluation and optimisation.** Mixture components with bounds inside (0, 1)
+  or linear constraints (`Constraint("polymer + solvent <= 0.85")`) now get a design
+  built from the geometry of the constrained simplex, instead of the full-simplex
+  lattice that ignored the bounds.
+
+  - `generate_design` enumerates the **extreme vertices** of the region (every choice
+    of `q - 1` active constraints solved as one batched linear system). Without a
+    budget it returns the classical extreme-vertices design; with one, a D-optimal
+    subset of vertices, edge midpoints, face centroids, centroid and axial blends.
+    `design_type="d_optimal"` with mixture factors uses the same engine.
+  - `analyze_experiment` and `evaluate_design` accept `"scheffe_linear"`,
+    `"scheffe_quadratic"` and `"scheffe_special_cubic"` (no intercept; R-squared and
+    model df stay centred because statsmodels detects the implicit constant).
+  - `DesignRegion(factors, constraints)` holds the region, tests feasibility and
+    samples it uniformly. `generate_design` records it in `metadata["region"]`.
+  - `evaluate_design` computes I-efficiency, G-efficiency and the FDS curve **over the
+    recorded region** instead of the box: for the heat-budget example the G-efficiency
+    is 73% inside the region against 3.5% over the box, whose worst case is a corner
+    the design may not visit. `region=` overrides it.
+  - `optimize_responses(..., region=...)` keeps the desirability optimum and the Pareto
+    front inside the region (SLSQP constraints, feasible starts), and for a mixture
+    returns a blend that sums to one. The result carries `within_region`.
+
+- **Constraints on the factor region are now enforced for D-optimal designs.**
+  `generate_design(..., constraints=[Constraint("3*T + 5*D <= 600")])` used to accept
+  constraints and return a design that ignored them, flagged only by
+  `constraints_enforced=False`. The design is now chosen from a candidate set of
+  feasible points, so every run satisfies every constraint.
+
+  ```python
+  factors = [Factor(name="T", low=100, high=150), Factor(name="D", low=20, high=60)]
+  heat = Constraint(expression="3*T + 5*D <= 600")
+  result = generate_design(factors, budget=10, constraints=[heat], model_type="quadratic")
+  result.metadata["constraints_enforced"]  # True
+  ```
+
+  The candidate set is a grid plus the points where each constraint boundary crosses a
+  grid edge, found by bisection, so runs land on the constraint line rather than on the
+  nearest grid point inside it. Runs are selected by a Fedorov exchange on the model
+  matrix of the requested `model_type` (main effects, interactions, quadratic), with
+  categorical factors and `fixed_runs` supported and pyoptex not required. Linear,
+  chained (`400 <= 3*T + 5*D <= 600`) and nonlinear inequalities are accepted; the
+  expression is parsed into an arithmetic tree and never passed to `eval`. Other design
+  types now log a warning and set `constraints_enforced=False` instead of ignoring
+  constraints silently. See the new user-guide page "Designs over a Constrained Region".
+
+- **MEDA and oMEDA: what a fitted PCA or PLS model says about the variables, and
+  about two groups of observations (#373).**
+  - `meda(model, X)`, or `model.meda(X)`, returns the K x K map of how well each
+    variable is predicted from each other one through the model (Camacho, 2010). It
+    shows the relationships the model represents, where a correlation matrix mixes
+    in the directions the model discards. `signed=False` gives the goodness of
+    prediction itself, and `seriate=True` puts related variables next to each other.
+  - `omeda(model, X, group, reference)`, or `model.omeda(...)`, ranks the variables
+    that separate two groups of observations along the model's directions, with the
+    sign of each difference (Camacho, 2011). `weights` takes a general dummy vector.
+  - `meda_plot` and `omeda_plot` draw them, and are methods of PCA and PLS as well.
+
+  ```python
+  pca = PCA(n_components=3).fit(X_scaled)
+  pca.meda_plot(X_scaled)                                   # blocks of related variables
+  pca.omeda(X_scaled, group=cluster, reference=rest)        # what separates the cluster
+  ```
+
 - **`generate_omars` and `solve_omars_ilp` take `solver_options["node_limit"]`.** It caps
   the branch-and-bound nodes of each randomized-objective solve (default 100; `None`
   solves each one to proven optimality). A node budget ends a solve at the same point on
@@ -126,6 +191,19 @@ those changes.
 
 - **`solver_options["time_limit"]` keeps its fraction.** It was truncated with `int()`, so
   `0.5` meant zero seconds.
+
+- **`MBPLS` and `MBPCA` sign each component like `PLS` and `PCA` do: the
+  largest-magnitude X loading is positive (#586).** Their old convention looked at the
+  super weight (super loading for `MBPCA`), which a sign flip of the whole component
+  leaves unchanged, so it could not fix the sign.
+  - `MBPLS`'s scores and weights changed sign when Y did, and one-block models often
+    had the opposite sign to `PLS` or `PCA` on some component.
+  - With missing cells a super weight can be negative, and then the old flip fired
+    and negated it together with the scores. The model then disagreed with itself:
+    `transform` and `predict` on the training blocks did not reproduce
+    `super_scores_` and `predictions_`.
+  - Some components of existing fits change sign. Scores, loadings, contributions and
+    predictions are otherwise unchanged, apart from the corrected missing-data fits.
 
 ## [1.96.0] - 2026-09-30
 
