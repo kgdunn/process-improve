@@ -176,6 +176,27 @@ def _unique_rows(points: np.ndarray) -> np.ndarray:
     return points[np.sort(first)]
 
 
+def _uniform_blends(
+    a_mat: np.ndarray, b_vec: np.ndarray, low: np.ndarray, n: int, rng: np.random.Generator
+) -> np.ndarray:
+    """``n`` blends drawn uniformly from the constrained simplex ``a_mat @ x <= b_vec``.
+
+    Rejection from the smallest simplex holding the lower bounds (the
+    L-pseudocomponent simplex), where a flat Dirichlet draw is uniform. Kept here,
+    not in :mod:`~process_improve.experiments.region`, which imports this module.
+    """
+    kept: list[np.ndarray] = []
+    for _ in range(200):
+        x = low + (1.0 - low.sum()) * rng.dirichlet(np.ones(len(low)), size=max(n, 10_000))
+        kept.append(x[np.all(x @ a_mat.T <= b_vec + 1e-9, axis=1)])
+        if sum(len(k) for k in kept) >= n:
+            break
+    blends = np.vstack(kept)
+    if not len(blends):
+        raise ValueError("Could not sample the constrained mixture region for the I-optimality moment matrix.")
+    return blends[:n]
+
+
 def mixture_candidates(a_mat: np.ndarray, b_vec: np.ndarray) -> dict[str, np.ndarray]:
     """Return candidate blends by kind: vertices, edge midpoints, face centroids, centroid, axial blends.
 
@@ -292,9 +313,8 @@ def constrained_mixture_design(
         pool = _unique_rows(np.vstack(list(candidates.values())))
 
         def region_rows() -> np.ndarray:
-            from process_improve.experiments.region import DesignRegion  # noqa: PLC0415
-
-            return scheffe_matrix(DesignRegion(factors, constraints).sample(20_000, rng), model)
+            low = np.array([f.low or 0.0 for f in factors], dtype=float)
+            return scheffe_matrix(_uniform_blends(a_mat, b_vec, low, 20_000, rng), model)
 
     if budget is None:
         design = _unique_rows(np.vstack([candidates[kind] for kind in _EV_DESIGN[model]]))
