@@ -279,6 +279,12 @@ those changes.
   contrast. `augment_design(..., "add_blocks")` uses the same routine: with 4 blocks of a
   2^4 design it used ABCD and ABC, whose product D (a main effect) was confounded with
   blocks.
+- **`generate_design(..., "omars", budget=N)` accepts any budget above 2k + 1 runs.** It
+  always sized the search for the full second-order model, which a foldover design can
+  estimate only from k^2 + k + 1 runs (43 for 6 factors), so 17 to 41 runs for 6
+  factors were refused with a message about error degrees of freedom. Smaller budgets
+  now give an OMARS design sized for main effects and pure quadratics, recorded in
+  `metadata["model"]`, and the caller's seed reaches the search (it was fixed at 42).
 - **Plackett-Burman designs exist for 24 to 99 factors.** pyDOE3 stops with an
   `AssertionError` at 24 to 27, 32 to 35, 40 to 43, 48 to 59 factors and beyond; those
   sizes now use a Hadamard matrix from the finite-field module (Paley I and II, doubling),

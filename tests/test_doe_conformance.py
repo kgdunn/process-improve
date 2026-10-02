@@ -243,3 +243,19 @@ class TestSpaceFilling:
         """The first 2^m Sobol points put 2^(m-1) points in each half of every factor's range."""
         x = _coded(generate_design(_factors(3), "sobol", budget=16, random_seed=3), 3)
         assert np.all((x > 0).sum(axis=0) == 8)
+
+
+@pytest.mark.slow
+@pytest.mark.parametrize(("k", "budget"), [(4, 13), (4, 17)])
+def test_omars_budget_below_the_full_model_size_still_gives_omars(k: int, budget: int) -> None:
+    """A foldover estimates the full second-order model only from k^2 + k + 1 runs (21 for 4 factors).
+
+    A smaller budget used to be refused as having no error degrees of freedom; it now
+    gets an OMARS design sized for main effects plus pure quadratics.
+    """
+    result = generate_design(_factors(k), "omars", budget=budget)
+    x = _coded(result, k)
+    assert result.n_runs == budget
+    assert result.metadata["model"] == "main_quadratic"
+    second = np.column_stack([x[:, i] * x[:, j] for i in range(k) for j in range(i, k)])
+    assert np.abs(x.T @ second).max() < 1e-9

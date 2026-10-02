@@ -511,12 +511,13 @@ class TestAddBlocks:
             augment_design(df, "add_blocks", n_additional_runs=1)
 
     def test_four_blocks(self) -> None:
-        """4 blocks should use 2 confounding columns."""
+        """4 blocks: two generators and their product, three contrasts, none of them a main effect."""
         df = _full_factorial_df(4)  # 16 runs
         result = augment_design(df, "add_blocks", n_additional_runs=4)
         aug = pd.DataFrame(result["augmented_design"])
         assert len(aug["Block"].unique()) == 4
-        assert len(result["confounded_with"]) == 2
+        assert len(result["confounded_with"]) == 3
+        assert all(len(word) >= 2 for word in result["confounded_with"])
 
 
 # ---------------------------------------------------------------------------

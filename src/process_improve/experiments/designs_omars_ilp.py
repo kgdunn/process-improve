@@ -1697,15 +1697,15 @@ def _dispatch_omars_ilp(factors: list[Factor], **kwargs: Any) -> tuple[np.ndarra
     Returns the raw coded matrix (with its single centre run) and metadata;
     :func:`process_improve.experiments.generate_design` handles post-processing.
 
-    The design is sized for the full second-order model when the budget leaves error
-    degrees of freedom for it, and otherwise for main effects plus pure quadratics, so
-    a budget between those sizes (17 runs for 6 factors) still gives an OMARS design.
+    The design is sized for the full second-order model when the budget reaches the
+    ``k**2 + k + 1`` runs a foldover needs to estimate it, and otherwise for main effects
+    plus pure quadratics, so any budget above ``2k + 1`` runs (17 or 31 runs for 6
+    factors) gives an OMARS design.
     """
     budget = kwargs.get("budget")
     k = len(factors)
-    model = (
-        "full_second_order" if budget is None or budget > _model_params(k, "full_second_order") else "main_quadratic"
-    )
+    # A foldover estimates the full second-order model only from k**2 + k + 1 runs (see _min_half_runs).
+    model = "full_second_order" if budget is None or budget >= _min_runs(k, "full_second_order") else "main_quadratic"
     random_state = kwargs.get("random_state", 42)
     seed = random_state if isinstance(random_state, int) else int(check_random_state(random_state).integers(2**31))
     designed, meta = _search_best_omars(
