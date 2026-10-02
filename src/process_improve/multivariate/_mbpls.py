@@ -1540,8 +1540,9 @@ def randomization_test_mbpls(
           uncorrected ``n_exceed / n_permutations`` can report exactly 0, and no
           finite permutation set can license the claim that the true tail
           probability is zero. The floor is ``100 / (n_permutations + 1)``, so
-          the default 999 permutations cannot resolve below 0.1%. This matches
-          the convention already used by the Van der Voet test in
+          the default 200 permutations cannot resolve below ~0.5%; raise
+          ``n_permutations`` for finer resolution. This matches the convention
+          already used by the Van der Voet test in
           :mod:`~process_improve.multivariate._pls` (#513).
 
     References
