@@ -148,6 +148,36 @@ def _floor_budget_at_model_size(factors: list[Factor], budget: int, model_type: 
     return budget
 
 
+def _check_hard_to_change(req: _OptimalRequest) -> None:
+    """Refuse ``hard_to_change`` names that are not factors of the design."""
+    unknown = sorted(set(req.hard_to_change or []) - {f.name for f in req.factors})
+    if unknown:
+        raise ValueError(
+            f"hard_to_change names {unknown} are not factors of the design; use names from "
+            f"{[f.name for f in req.factors]}."
+        )
+
+
+def _settled_budget(req: _OptimalRequest) -> int | None:
+    """Return the budget to build with: one asked for, floored at the model size, or a default covering fixed runs.
+
+    Without a budget or fixed runs this is ``None`` (the default ``2 * k + 1`` applies).
+    With fixed runs and no budget, the default also leaves room for the coefficients the
+    fixed runs do not estimate, so it never falls at or below the number of fixed runs.
+    """
+    if req.budget is not None:
+        return _floor_budget_at_model_size(req.factors, req.budget, req.model_type)
+    if req.fixed_runs is None or not len(req.fixed_runs):
+        return None
+    k = len(req.factors)
+    n_parameters = _n_model_parameters(req.factors, req.model_type)
+    with contextlib.suppress(ValueError, KeyError, TypeError):  # invalid fixed runs are reported later, in full
+        prior = _prepare_prior_runs(req.fixed_runs, req.factors, len(req.fixed_runs) + n_parameters)
+        rank = int(np.linalg.matrix_rank(_coded_rows(req.factors, prior, req.model_type)))
+        return max(2 * k + 1, n_parameters, len(prior) + max(n_parameters - rank, 1))
+    return max(2 * k + 1, n_parameters, len(req.fixed_runs) + 1)
+
+
 #: Map our optimality-criterion strings to pyoptex metric constructors.
 _PYOPTEX_METRIC_MAP: dict = {}
 if _PYOPTEX_AVAILABLE:  # pragma: no branch - false only in env-without-pyoptex
@@ -529,36 +559,6 @@ def _dispatch_mixture_optimal(criterion: str, req: _OptimalRequest) -> tuple[np.
     return constrained_mixture_design(
         req.factors, req.budget or n_terms + 3, req.constraints, options, req.random_state
     )
-
-
-def _check_hard_to_change(req: _OptimalRequest) -> None:
-    """Refuse ``hard_to_change`` names that are not factors of the design."""
-    unknown = sorted(set(req.hard_to_change or []) - {f.name for f in req.factors})
-    if unknown:
-        raise ValueError(
-            f"hard_to_change names {unknown} are not factors of the design; use names from "
-            f"{[f.name for f in req.factors]}."
-        )
-
-
-def _settled_budget(req: _OptimalRequest) -> int | None:
-    """Return the budget to build with: one asked for, floored at the model size, or a default covering fixed runs.
-
-    Without a budget or fixed runs this is ``None`` (the default ``2 * k + 1`` applies).
-    With fixed runs and no budget, the default also leaves room for the coefficients the
-    fixed runs do not estimate, so it never falls at or below the number of fixed runs.
-    """
-    if req.budget is not None:
-        return _floor_budget_at_model_size(req.factors, req.budget, req.model_type)
-    if req.fixed_runs is None or not len(req.fixed_runs):
-        return None
-    k = len(req.factors)
-    n_parameters = _n_model_parameters(req.factors, req.model_type)
-    with contextlib.suppress(ValueError, KeyError, TypeError):  # invalid fixed runs are reported later, in full
-        prior = _prepare_prior_runs(req.fixed_runs, req.factors, len(req.fixed_runs) + n_parameters)
-        rank = int(np.linalg.matrix_rank(_coded_rows(req.factors, prior, req.model_type)))
-        return max(2 * k + 1, n_parameters, len(prior) + max(n_parameters - rank, 1))
-    return max(2 * k + 1, n_parameters, len(req.fixed_runs) + 1)
 
 
 def _dispatch_optimal(criterion: str, req: _OptimalRequest) -> tuple[np.ndarray, dict]:
