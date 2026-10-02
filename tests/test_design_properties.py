@@ -358,3 +358,35 @@ class TestEvaluateDesignProperties:
             return float(val)  # type: ignore[arg-type]
 
         assert _as_float(p_large) >= _as_float(p_small) - 1e-9
+
+
+# ---------------------------------------------------------------------------
+# Central composite design: alpha and centre runs
+# ---------------------------------------------------------------------------
+
+
+class TestCCDAxialDistance:
+    """The axial distance asked for is the one built, for both cube types."""
+
+    @pytest.mark.parametrize("k", [2, 3, 4])
+    def test_numeric_alpha_is_honoured_for_a_full_cube(self, k: int) -> None:
+        result = generate_design(_factors(k), design_type="ccd", alpha=1.3, n_center_points=0)
+        x = _coded(result)
+        assert result.alpha == 1.3
+        assert sorted(np.unique(np.round(np.abs(x), 12))) == [0.0, 1.0, 1.3]
+        assert len(x) == 2**k + 2 * k
+
+    def test_numeric_rotatable_alpha_gives_the_rotatable_design(self) -> None:
+        named = _coded(generate_design(_factors(3), design_type="ccd", alpha="rotatable", n_center_points=0))
+        numeric = _coded(generate_design(_factors(3), design_type="ccd", alpha=8**0.25, n_center_points=0))
+        assert sorted(map(tuple, np.round(named, 10))) == sorted(map(tuple, np.round(numeric, 10)))
+
+    @pytest.mark.parametrize("cube", ["full", "fractional"])
+    def test_unknown_alpha_raises(self, cube: str) -> None:
+        with pytest.raises(ValueError, match="Unknown alpha"):
+            generate_design(_factors(5), design_type="ccd", alpha="rotateable", cube=cube)
+
+    @pytest.mark.parametrize("n_center", [0, 1, 2, 5])
+    def test_centre_run_count_is_the_one_asked_for(self, n_center: int) -> None:
+        x = _coded(generate_design(_factors(3), design_type="ccd", n_center_points=n_center))
+        assert int(np.all(x == 0, axis=1).sum()) == n_center

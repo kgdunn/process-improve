@@ -47,15 +47,10 @@ def dispatch_ccd(  # noqa: PLR0913
     n_center_points : int
         Number of center points (split between cube and axial portions).
     alpha : str, float, or None
-        Axial distance.  Accepted string values: ``"rotatable"``,
-        ``"face_centered"``, ``"orthogonal"``.  A numeric value sets
-        alpha directly.  Defaults to ``"orthogonal"``.
-
-        .. note::
-           A numeric ``alpha`` is only honored when ``cube="fractional"``.
-           For ``cube="full"`` (the default) the underlying pyDOE3
-           ``ccdesign`` call does not accept an arbitrary axial distance,
-           so a numeric value is silently treated as ``"orthogonal"``.
+        Axial distance: ``"rotatable"`` (``F ** 0.25`` for ``F`` cube runs),
+        ``"face_centered"`` (1), ``"inscribed"`` (axial runs at +/-1, the cube
+        shrunk inside), ``"orthogonal"`` (the default), or a positive number used as
+        the distance itself. Any other value raises ``ValueError``.
     cube : str
         How to build the cube (factorial) portion: ``"full"`` (default) uses
         the complete 2^k factorial; ``"fractional"`` uses a resolution-V (or
@@ -86,45 +81,57 @@ def dispatch_ccd(  # noqa: PLR0913
         raise ValueError(f"cube must be 'full' or 'fractional', got {cube!r}.")
 
     k = len(factors)
+    kind = _axial_kind(alpha)
+    # Centre runs are split between the cube and axial blocks, as pyDOE3 does.
+    n_center_cube = n_center_points // 2
+    n_center_axial = n_center_points - n_center_cube
 
-    # Map alpha string to pyDOE3 face and alpha parameters.
-    # pyDOE3 alpha accepts: "orthogonal"/"o", "rotatable"/"r"
-    # pyDOE3 face accepts: "circumscribed"/"ccc", "inscribed"/"cci", "faced"/"ccf"
-    face = "circumscribed"
-    alpha_str = "orthogonal"
-    if isinstance(alpha, str):
-        alpha_lower = alpha.lower()
-        if alpha_lower in ("face_centered", "face centered", "ccf", "faced"):
-            face = "faced"
-            alpha_str = "orthogonal"
-        elif alpha_lower in ("inscribed", "cci"):
-            face = "inscribed"
-            alpha_str = "orthogonal"
-        elif alpha_lower in ("rotatable", "r"):
-            face = "circumscribed"
-            alpha_str = "rotatable"
-        else:
-            # "orthogonal" or default
-            face = "circumscribed"
-            alpha_str = "orthogonal"
-    elif isinstance(alpha, (int, float)):
-        alpha_str = "orthogonal"
-        face = "circumscribed"
+    if isinstance(kind, float):
+        # An axial distance pyDOE3 cannot take: build the 2^k cube, the 2k axial runs and the centre runs here.
+        cube_runs = np.array(list(itertools.product((-1.0, 1.0), repeat=k)))[:, ::-1]
+        star = np.zeros((2 * k, k))
+        for i in range(k):
+            star[2 * i : 2 * i + 2, i] = (-kind, kind)
+        coded_matrix = np.vstack([cube_runs, np.zeros((n_center_cube, k)), star, np.zeros((n_center_axial, k))])
+        return coded_matrix, {"alpha_value": kind, "face": "user"}
 
-    # Split center points between cube and axial portions
-    n_center_cube = max(1, n_center_points // 2)
-    n_center_axial = max(1, n_center_points - n_center_cube)
-
+    face = {"faced": "faced", "inscribed": "inscribed"}.get(kind, "circumscribed")
+    alpha_str = "rotatable" if kind == "rotatable" else "orthogonal"
     coded_matrix = ccdesign(k, center=(n_center_cube, n_center_axial), alpha=alpha_str, face=face)
-
-    # Determine actual alpha value used
-    alpha_value: float | None = None
-    if face == "ccf":
-        alpha_value = 1.0
-    elif coded_matrix.shape[0] > 0:
-        alpha_value = float(np.max(np.abs(coded_matrix)))
-
+    alpha_value = float(np.max(np.abs(coded_matrix))) if coded_matrix.size else None
     return coded_matrix, {"alpha_value": alpha_value, "face": face}
+
+
+#: Accepted spellings of each named axial distance.
+_ALPHA_NAMES = {
+    "faced": ("face_centered", "face centered", "face_centred", "ccf", "faced"),
+    "inscribed": ("inscribed", "cci"),
+    "rotatable": ("rotatable", "r"),
+    "orthogonal": ("orthogonal", "o"),
+}
+
+
+def _axial_kind(alpha: str | float | None) -> str | float:
+    """Resolve ``alpha`` to ``"faced"``, ``"inscribed"``, ``"rotatable"``, ``"orthogonal"`` or a positive number.
+
+    Raises
+    ------
+    ValueError
+        For an unknown name or a non-positive number, instead of silently using the
+        orthogonal distance.
+    """
+    if alpha is None:
+        return "orthogonal"
+    if isinstance(alpha, (int, float)) and not isinstance(alpha, bool):
+        if not alpha > 0:
+            raise ValueError(f"A numeric alpha (the axial distance) must be positive; got {alpha}.")
+        return float(alpha)
+    if isinstance(alpha, str):
+        for kind, names in _ALPHA_NAMES.items():
+            if alpha.lower() in names:
+                return kind
+    options = ", ".join(repr(names[0]) for names in _ALPHA_NAMES.values())
+    raise ValueError(f"Unknown alpha {alpha!r} for a central composite design; use {options} or a positive number.")
 
 
 def _resolve_fractional_axial_distance(
@@ -157,21 +164,20 @@ def _resolve_fractional_axial_distance(
     tuple[float, str]
         The axial distance and a short label for the design metadata.
     """
-    if isinstance(alpha, (int, float)) and not isinstance(alpha, bool):
-        return float(alpha), "user"
-
-    alpha_lower = alpha.lower() if isinstance(alpha, str) else None
-    if alpha_lower in ("face_centered", "face centered", "ccf", "faced"):
+    kind = _axial_kind(alpha)
+    if isinstance(kind, float):
+        return kind, "user"
+    if kind == "faced":
         return 1.0, "faced"
-    if alpha_lower in ("rotatable", "r"):
+    if kind == "rotatable":
         return float(n_cube_runs**0.25), "rotatable"
-    if alpha_lower in ("inscribed", "cci"):
+    if kind == "inscribed":
         raise ValueError(
             "alpha='inscribed' is not supported with cube='fractional'; "
             "use 'face_centered', 'rotatable', 'orthogonal', or a numeric alpha."
         )
 
-    # "orthogonal", None, or any other string: orthogonal axial distance.
+    # Orthogonal axial distance.
     n_center_cube = n_center_points // 2
     n_center_axial = n_center_points - n_center_cube
     n_axial = 2 * k

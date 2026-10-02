@@ -237,6 +237,13 @@ those changes.
   factors, so `generate_design` agrees with the run counts `recommend_strategy` and the
   knowledge base already quote. Eight or more factors keep the all-pairs design and say
   so in `metadata["construction"]`. (Ported from #501.)
+- **Central composite designs honour `alpha` and `n_center_points` exactly.** With the
+  default full cube, a numeric `alpha` was silently replaced by the orthogonal distance,
+  and a misspelt name (`"rotateable"`) silently meant orthogonal too; `n_center_points`
+  of 0 or 1 still gave 2 centre runs. A numeric `alpha` now builds the design with that
+  axial distance, an unknown name raises `ValueError` (both cube types), and the centre
+  runs are the number asked for. Designs with a named `alpha` and two or more centre
+  runs are unchanged.
 - **Plackett-Burman designs exist for 24 to 99 factors.** pyDOE3 stops with an
   `AssertionError` at 24 to 27, 32 to 35, 40 to 43, 48 to 59 factors and beyond; those
   sizes now use a Hadamard matrix from the finite-field module (Paley I and II, doubling),
