@@ -577,6 +577,26 @@ def test_selection_violating_its_constraints_is_a_bug(monkeypatch: pytest.Monkey
         omars_ilp.solve_omars_ilp(omars_ilp._half_pool(3), n_half=3)
 
 
+def test_single_factor_pool_has_no_orthogonality_rows() -> None:
+    design, status, chosen = omars_ilp.solve_omars_ilp(omars_ilp._half_pool(1), n_half=1)
+    assert (status, chosen) == ("Optimal", [0])
+    np.testing.assert_array_equal(design, [[1.0], [-1.0], [0.0]])
+
+
+def test_non_orthogonal_selection_is_a_bug(monkeypatch: pytest.MonkeyPatch) -> None:
+    pool = omars_ilp._half_pool(3)
+    row = int(np.flatnonzero((pool == [1, 1, 1]).all(axis=1))[0])
+
+    def correlated(result: OptimizeResult) -> OptimizeResult:
+        x = np.zeros_like(result.x)
+        x[row] = 1.0
+        return OptimizeResult(x=x, status=0, message="(HiGHS Status 7: Optimal)")
+
+    _spy(monkeypatch, {0: correlated})
+    with pytest.raises(RuntimeError, match="the main effects are not orthogonal"):
+        omars_ilp.solve_omars_ilp(pool, half_bounds=(1, 6))
+
+
 def test_every_factor_leaves_its_middle_level() -> None:
     """A factor at 0 in every half-run is trivially orthogonal but not three-level; the ILP forbids it."""
     pool = omars_ilp._half_pool(3)
@@ -856,6 +876,40 @@ def test_automatic_size_moves_up_when_nothing_fits(monkeypatch: pytest.MonkeyPat
     assert result.metadata["model_rank"] == result.metadata["model_params"] == 21
     assert report.run_sizes_searched == 2
     assert report.rank_deficient_designs >= 1
+
+
+def _singular_at(monkeypatch: pytest.MonkeyPatch, n_half: int | None) -> None:
+    """Score every enumerated design of *n_half* half-runs (all of them if None) as rank-deficient."""
+    real_score = omars_ilp._score_count_vectors
+
+    def score(count_matrix, *args, **kwargs):
+        d_eff, a_opt, max_corr = real_score(count_matrix, *args, **kwargs)
+        if n_half is None or int(count_matrix[0].sum()) == n_half:
+            d_eff = np.zeros_like(d_eff)
+        return d_eff, a_opt, max_corr
+
+    monkeypatch.setattr(omars_ilp, "_score_count_vectors", score)
+
+
+def test_exhaustive_search_moves_up_when_nothing_fits(monkeypatch: pytest.MonkeyPatch) -> None:
+    from process_improve.experiments import generate_omars
+
+    _singular_at(monkeypatch, 6)  # three factors start at 6 half-runs (13 runs)
+    result = generate_omars(_factors(3), solver_options=_SOLVER)
+    report = result.metadata["omars_search"]
+    assert result.metadata["n_runs_selected"] == 15
+    assert report.search_mode == "exhaustive"
+    assert report.run_sizes_searched == 2
+    assert report.rank_deficient_designs > 0
+
+
+def test_exhaustive_rank_deficiency_at_a_pinned_size(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A complete enumeration saw every design, so the advice is more runs, not more restarts."""
+    from process_improve.experiments import generate_omars
+
+    _singular_at(monkeypatch, None)
+    with pytest.raises(ValueError, match=r"at n_runs=15, but the full_second_order model .* Ask for more runs\.$"):
+        generate_omars(_factors(3), n_runs=15)
 
 
 def test_rank_deficient_everywhere_names_the_window(monkeypatch: pytest.MonkeyPatch) -> None:

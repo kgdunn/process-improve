@@ -95,9 +95,8 @@ those changes.
   before its size is used.
 
 - **With the run size chosen automatically, `generate_omars` moves up the window when
-  the smallest feasible size has no usable design.** Seven factors sized for
-  `model="main_quadratic"` find only rank-deficient designs at 17 runs for some seeds;
-  the search now tries the next size instead of failing.
+  the smallest feasible size has no usable design.** If every design found at that size
+  is rank-deficient, the search tries the next size instead of failing.
   `metadata["omars_search"].run_sizes_searched` counts the sizes tried. A pinned
   `n_runs` is still searched alone.
 

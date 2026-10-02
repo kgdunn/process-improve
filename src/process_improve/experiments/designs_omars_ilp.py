@@ -1279,11 +1279,13 @@ def _search_best_omars(  # noqa: C901, PLR0912, PLR0913, PLR0915
                 + (", or raise solver_options['time_limit']." if last_status == _STATUS_TIME_LIMIT else ".")
             )
         elif report.rank_deficient_designs:
+            exhausted_all = report.search_mode == "exhaustive"
             target = _describe_target(n_runs, 2 * sizes[0] + center_runs, 2 * sizes[-1] + center_runs)
+            # An exhaustive search saw every design, so more restarts cannot help.
+            advice = "Ask for more runs." if exhausted_all else "Raise n_restarts, or ask for more runs."
             msg = (
                 f"{report.rank_deficient_designs} OMARS design(s) were found at {target}, but the {model} "
-                f"model cannot be estimated from any of them (model matrix rank below {n_params}). "
-                "Raise n_restarts, or ask for more runs."
+                f"model cannot be estimated from any of them (model matrix rank below {n_params}). {advice}"
             )
         else:
             target = _describe_target(n_runs, 2 * sizes[0] + center_runs, 2 * sizes[-1] + center_runs)
