@@ -436,12 +436,16 @@ def dispatch_d_optimal(  # noqa: PLR0913
     constraints: list[Constraint] | None = None,
     model_type: str = "interactions",
     fixed_runs: pd.DataFrame | None = None,
+    random_state: int | np.random.Generator | None = None,
 ) -> tuple[np.ndarray, dict]:
     """Generate a D-optimal design.
 
-    Uses pyoptex's coordinate-exchange algorithm when available (much better
-    quality, supports split-plot).  Falls back to the built-in point-exchange
-    when pyoptex is not installed.
+    With ``constraints``, the design is chosen from a feasible candidate set by
+    :func:`~process_improve.experiments.designs_constrained.constrained_d_optimal`,
+    so every run satisfies every constraint. Otherwise it uses pyoptex's
+    coordinate-exchange algorithm when available (much better quality, supports
+    split-plot), and falls back to the built-in point-exchange when pyoptex is
+    not installed.
 
     Parameters
     ----------
@@ -452,14 +456,19 @@ def dispatch_d_optimal(  # noqa: PLR0913
     hard_to_change : list[str] or None
         Names of hard-to-change factors (triggers split-plot via pyoptex).
     constraints : list[Constraint] or None
-        Factor-space constraints (logged as warning; not yet enforced).
+        Inequalities in actual units over the continuous factors, e.g.
+        ``"3*T + 5*D <= 600"``. Enforced: every returned run satisfies them.
+        Split-plot structure (``hard_to_change``) is not available together
+        with constraints; it is ignored and recorded in the metadata.
     model_type : str
         Model assumption: ``"main_effects"``, ``"interactions"``, or ``"quadratic"``.
     fixed_runs : pd.DataFrame or None
         Runs to hold fixed while the optimizer fills the rest (design
-        augmentation). Requires pyoptex; a value here raises ``ImportError``
-        when pyoptex is not installed. Occupies the first rows of the returned
-        design and counts towards ``budget``.
+        augmentation). Without constraints this requires pyoptex, and a value
+        here raises ``ImportError`` when pyoptex is not installed. Occupies the
+        first rows of the returned design and counts towards ``budget``.
+    random_state : int, numpy.random.Generator or None
+        Seed for the constrained exchange's random starts.
 
     Returns
     -------
@@ -470,15 +479,22 @@ def dispatch_d_optimal(  # noqa: PLR0913
         budget = 2 * k + 1
     budget = _floor_budget_at_model_size(factors, budget, model_type)
 
+    if constraints:
+        from process_improve.experiments.designs_constrained import (  # noqa: PLC0415
+            ConstrainedOptions,
+            constrained_d_optimal,
+        )
+
+        prior = _prepare_prior_runs(fixed_runs, factors, budget) if fixed_runs is not None else None
+        options = ConstrainedOptions(model_type=model_type, fixed_runs=prior)
+        matrix, meta = constrained_d_optimal(factors, budget, constraints, options, random_state=random_state)
+        if hard_to_change:
+            logger.warning("hard_to_change factors are ignored when constraints are given.")
+            meta["hard_to_change_ignored"] = list(hard_to_change)
+        return matrix, meta
+
     if fixed_runs is not None and not _PYOPTEX_AVAILABLE:
         raise ImportError(f"fixed_runs (design augmentation) requires pyoptex. {_PYOPTEX_INSTALL_HINT}")
-
-    if constraints:
-        logger.warning(
-            "Constraint enforcement in optimal designs is experimental. "
-            "Constraints are noted but may not be fully enforced. "
-            "Consider filtering infeasible runs manually."
-        )
 
     if _PYOPTEX_AVAILABLE:
         matrix, meta = _run_pyoptex(
@@ -487,10 +503,6 @@ def dispatch_d_optimal(  # noqa: PLR0913
             budget=budget,
             options=_PyoptexOptions(model_type=model_type, hard_to_change=hard_to_change, fixed_runs=fixed_runs),
         )
-        # Record that constraints were not enforced so the DesignResult carries
-        # the fact programmatically, not only as an easy-to-miss log line.
-        if constraints:
-            meta["constraints_enforced"] = False
         return matrix, meta
 
     if hard_to_change:
@@ -499,8 +511,6 @@ def dispatch_d_optimal(  # noqa: PLR0913
             _PYOPTEX_INSTALL_HINT,
         )
     matrix, meta = _run_point_exchange_fallback(factors, budget)
-    if constraints:
-        meta["constraints_enforced"] = False
     if hard_to_change:
         # The randomized fallback cannot honour the split-plot request; surface
         # it on the result rather than only in the log.

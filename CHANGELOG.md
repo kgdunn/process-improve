@@ -11,6 +11,31 @@ those changes.
 
 ## [Unreleased]
 
+### Added
+
+- **Constraints on the factor region are now enforced for D-optimal designs.**
+  `generate_design(..., constraints=[Constraint("3*T + 5*D <= 600")])` used to accept
+  constraints and return a design that ignored them, flagged only by
+  `constraints_enforced=False`. The design is now chosen from a candidate set of
+  feasible points, so every run satisfies every constraint.
+
+  ```python
+  factors = [Factor(name="T", low=100, high=150), Factor(name="D", low=20, high=60)]
+  heat = Constraint(expression="3*T + 5*D <= 600")
+  result = generate_design(factors, budget=10, constraints=[heat], model_type="quadratic")
+  result.metadata["constraints_enforced"]  # True
+  ```
+
+  The candidate set is a grid plus the points where each constraint boundary crosses a
+  grid edge, found by bisection, so runs land on the constraint line rather than on the
+  nearest grid point inside it. Runs are selected by a Fedorov exchange on the model
+  matrix of the requested `model_type` (main effects, interactions, quadratic), with
+  categorical factors and `fixed_runs` supported and pyoptex not required. Linear,
+  chained (`400 <= 3*T + 5*D <= 600`) and nonlinear inequalities are accepted; the
+  expression is parsed into an arithmetic tree and never passed to `eval`. Other design
+  types now log a warning and set `constraints_enforced=False` instead of ignoring
+  constraints silently. See the new user-guide page "Designs over a Constrained Region".
+
 ### Fixed
 
 - **`generate_design(..., "fractional_factorial")` builds its designs from a table of
