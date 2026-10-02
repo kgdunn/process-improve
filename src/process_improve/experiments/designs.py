@@ -456,7 +456,7 @@ def generate_design(  # noqa: PLR0913
         Names of hard-to-change factors (triggers split-plot structure).
     model_type : str
         Model the optimal designs (``"d_optimal"``, ``"i_optimal"``,
-        ``"a_optimal"``) are built for: ``"main_effects"``, ``"interactions"``
+        ``"a_optimal"``, ``"e_optimal"``) are built for: ``"main_effects"``, ``"interactions"``
         (default), or ``"quadratic"``.  With a categorical factor present,
         ``"quadratic"`` builds a partial response-surface model (quadratics on
         the continuous factors only; the categorical enters as a main effect
@@ -568,8 +568,12 @@ def generate_design(  # noqa: PLR0913
 
     coded_matrix, meta = dispatch_fn(factors, **dispatch_kwargs)
     if constraints and not meta.get("constraints_enforced"):
-        # Only the constrained D-optimal and mixture paths honour constraints; say so on the result.
-        logger.warning("design_type=%r does not enforce constraints; use design_type='d_optimal'.", design_type)
+        # Only the optimal, mixture and sobol/halton/maximin paths honour constraints; say so on the result.
+        logger.warning(
+            "design_type=%r does not enforce constraints; use an optimal design ('d_optimal', 'i_optimal', ...), "
+            "'mixture', or the 'sobol', 'halton' or 'maximin' space-filling designs.",
+            design_type,
+        )
         meta["constraints_enforced"] = False
     all_mixture = all(f.type == FactorType.mixture for f in factors)
     if all_mixture or meta.get("constraints_enforced"):

@@ -148,6 +148,8 @@ those changes.
 
 ### Changed
 
+- **The browser app offers I-optimal designs**, which no longer need pyoptex.
+
 - **Optimal designs use the built-in exchange by default, whether or not pyoptex is
   installed.** With pyoptex importable (as in CI and the docs build), unconstrained D-,
   I- and A-optimal designs came from pyoptex, and from the built-in exchange otherwise,

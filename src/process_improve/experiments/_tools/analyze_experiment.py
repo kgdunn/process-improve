@@ -73,7 +73,7 @@ class AnalyzeExperimentInput(BaseModel):
         "Supports ANOVA, effects, coefficients with p-values, significance testing, "
         "residual diagnostics (Shapiro-Wilk, Durbin-Watson, Breusch-Pagan, Cook's distance), "
         "lack-of-fit test, curvature test (center points vs factorial points), "
-        "stepwise model selection (AIC/BIC), Box-Cox transformation, "
+        "stepwise model selection with effect heredity (AICc by default, or AIC/BIC), Box-Cox transformation, "
         "Lenth's method (PSE for unreplicated factorials), confidence intervals, "
         "prediction with prediction intervals, and confirmation run testing. "
         "Always returns a model summary with R-squared, adj-R-squared, pred-R-squared, and adequate precision. "
