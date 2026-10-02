@@ -18,8 +18,8 @@ those changes.
   solves each one to proven optimality). A node budget ends a solve at the same point on
   every run, so a fixed `random_seed` reproduces the design, which a wall-clock limit
   does not guarantee. `OmarsSearchReport` gains `node_limit`, `time_limit`,
-  `node_limited_solves`, `time_limited_solves`, `rank_deficient_designs` and
-  `size_proven_minimal`.
+  `node_limited_solves`, `time_limited_solves`, `rank_deficient_designs`,
+  `size_proven_minimal` and `run_sizes_searched`.
 
 ### Changed
 
@@ -86,6 +86,20 @@ those changes.
   set aside on both the exhaustive and multistart paths, and counted in
   `metadata["omars_search"].rank_deficient_designs`. When every design found is
   rank-deficient, a `ValueError` says so.
+
+- **`generate_omars` requires every factor to leave its middle level.** The integer
+  program only asked for orthogonal main effects, which a factor left at 0 in every
+  half-run satisfies trivially. The solver could return such a selection; it then failed
+  the `is_omars` check, but a minimise-size solve had already fixed the run size from it.
+  Each factor now has a coverage constraint, and every selection is checked exactly
+  before its size is used.
+
+- **With the run size chosen automatically, `generate_omars` moves up the window when
+  the smallest feasible size has no usable design.** Seven factors sized for
+  `model="main_quadratic"` find only rank-deficient designs at 17 runs for some seeds;
+  the search now tries the next size instead of failing.
+  `metadata["omars_search"].run_sizes_searched` counts the sizes tried. A pinned
+  `n_runs` is still searched alone.
 
 - **`generate_omars` errors name the run sizes searched.** A search that found no design
   at the automatic size reported `n_runs_range=None`. The message now gives the run

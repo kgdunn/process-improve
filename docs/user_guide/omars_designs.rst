@@ -67,19 +67,23 @@ For a design coded to :math:`\{-1, 0, +1\}`:
 - **Quadratics are estimable** because the centre run makes each :math:`x_i^2`
   column take the value 0 at least once (so it is not constant).
 
-The only condition that is **not** automatic is the mutual orthogonality of the
+The condition that is **not** automatic is the mutual orthogonality of the
 main effects.  That condition is *linear* in the binary "include half-run"
 variables :math:`s_r`: for every pair of factors :math:`i < j`,
 
 .. math::
 
-   \sum_r \left( x_{r,i}\, x_{r,j} \right) s_r = 0 ,
+   \sum_r \left( x_{r,i}\, x_{r,j} \right) s_r = 0 .
 
-and the run count is :math:`N = 2\sum_r s_r + 1`.  The ILP therefore selects a
-half-design from the :math:`(3^k - 1)/2` distinct non-mirror three-level runs
-subject to only :math:`k(k-1)/2` equality constraints.  Because the
-coefficients are integers, the equalities are exact (no numerical tolerance
-enters the optimisation); a floating-point :func:`~process_improve.experiments.is_omars`
+Each factor must also reach an outer level in at least one half-run,
+:math:`\sum_r |x_{r,i}|\, s_r \ge 1`; a factor left at its middle level
+throughout has an all-zero column, which is orthogonal to everything but is not
+a three-level factor.  The run count is :math:`N = 2\sum_r s_r + 1`.  The ILP
+therefore selects a half-design from the :math:`(3^k - 1)/2` distinct non-mirror
+three-level runs subject to only :math:`k(k-1)/2` equality constraints and
+:math:`k` coverage constraints.  Because the coefficients are integers, the
+constraints are exact.  Every selection the solver returns is re-checked
+exactly, and a floating-point :func:`~process_improve.experiments.is_omars`
 re-check guards every accepted design as a sanity check.
 
 The estimability frontier
@@ -123,8 +127,11 @@ Choosing the run size and the design
   be even, and ``n_runs`` must reach the **estimability frontier** described
   above; a smaller value is rejected rather than silently producing a design
   that cannot fit the model.
-- Otherwise the solver minimises the run count within a window to return the
-  smallest feasible design that still leaves error degrees of freedom.
+- Otherwise the solver minimises the run count within a window to find the
+  smallest feasible design that still leaves error degrees of freedom.  A
+  feasible size is not always a usable one: when no design found at that size
+  can estimate the model, the search moves up the window one size at a time
+  (``omars_search.run_sizes_searched`` counts the sizes tried).
 - Candidate designs are then collected at that run size, in one of two ways
   (``metadata["search_mode"]`` says which):
 

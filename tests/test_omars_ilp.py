@@ -577,9 +577,35 @@ def test_selection_violating_its_constraints_is_a_bug(monkeypatch: pytest.Monkey
         omars_ilp.solve_omars_ilp(omars_ilp._half_pool(3), n_half=3)
 
 
-def test_empty_selection_is_no_design() -> None:
-    """Zero half-runs is feasible for HiGHS, but it is not a design."""
-    assert omars_ilp.solve_omars_ilp(omars_ilp._half_pool(3), n_half=0) == (None, "Optimal", [])
+def test_every_factor_leaves_its_middle_level() -> None:
+    """A factor at 0 in every half-run is trivially orthogonal but not three-level; the ILP forbids it."""
+    pool = omars_ilp._half_pool(3)
+    for seed in range(20):
+        objective = np.random.default_rng(seed).standard_normal(len(pool))
+        design, _, _ = omars_ilp.solve_omars_ilp(pool, n_half=3, objective=objective, solver_options=_SOLVER)
+        assert np.all(np.abs(design).sum(axis=0) > 0)
+        assert is_omars(design)
+
+
+def test_selection_with_an_unvaried_factor_is_a_bug(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The exact check also catches a factor that never leaves its middle level."""
+    pool = omars_ilp._half_pool(3)
+    # (1, 0, 0) and (0, 1, 0): orthogonal, but the third factor never moves.
+    rows = [int(np.flatnonzero((pool == run).all(axis=1))[0]) for run in ([1, 0, 0], [0, 1, 0])]
+
+    def degenerate(result: OptimizeResult) -> OptimizeResult:
+        x = np.zeros_like(result.x)
+        x[rows] = 1.0
+        return OptimizeResult(x=x, status=0, message="(HiGHS Status 7: Optimal)")
+
+    _spy(monkeypatch, {0: degenerate})
+    with pytest.raises(RuntimeError, match="a factor never leaves its middle level"):
+        omars_ilp.solve_omars_ilp(pool, half_bounds=(2, 6))
+
+
+def test_empty_selection_is_infeasible() -> None:
+    """Zero half-runs leave every factor at its middle level, which the coverage rows forbid."""
+    assert omars_ilp.solve_omars_ilp(omars_ilp._half_pool(3), n_half=0) == (None, "Infeasible", [])
 
 
 @pytest.mark.parametrize(
@@ -736,6 +762,7 @@ def test_search_report_records_diagnostics() -> None:
     assert 0 < report.rank_deficient_designs < report.enumerated_designs
     assert (report.node_limit, report.time_limit) == (100, 30.0)
     assert report.time_limited_solves == 0
+    assert report.run_sizes_searched == 1
 
 
 def test_pinned_size_is_not_reported_as_minimal() -> None:
@@ -803,6 +830,41 @@ def test_rank_deficient_designs_never_win(monkeypatch: pytest.MonkeyPatch) -> No
     _always_returns(monkeypatch, (design, "Optimal", _RANK_DEFICIENT_K5))
     with pytest.raises(ValueError, match=r"1 OMARS design\(s\) were found at n_runs=31, but the full_second_order"):
         generate_omars(_factors(5), n_runs=31, n_restarts=2, max_candidates=0)
+
+
+def test_automatic_size_moves_up_when_nothing_fits(monkeypatch: pytest.MonkeyPatch) -> None:
+    """With the size chosen automatically, a rank-deficient smallest size is not the answer.
+
+    Every solve at 31 runs returns the rank-deficient design; the search moves
+    to 33 runs, where the real solver finds designs that fit the model.
+    """
+    from process_improve.experiments import generate_omars
+
+    real_solve = omars_ilp.solve_omars_ilp
+    pool = omars_ilp._half_pool(5)
+    stuck = (omars_ilp._foldover(pool[_RANK_DEFICIENT_K5]), "Optimal", _RANK_DEFICIENT_K5)
+
+    def solve(half_pool, **kwargs):
+        if kwargs.get("minimize_size") or kwargs.get("n_half") == len(_RANK_DEFICIENT_K5):
+            return stuck
+        return real_solve(half_pool, **kwargs)
+
+    monkeypatch.setattr(omars_ilp, "solve_omars_ilp", solve)
+    result = generate_omars(_factors(5), n_restarts=2, max_candidates=0, solver_options=_SOLVER)
+    report = result.metadata["omars_search"]
+    assert result.metadata["n_runs_selected"] == 33
+    assert result.metadata["model_rank"] == result.metadata["model_params"] == 21
+    assert report.run_sizes_searched == 2
+    assert report.rank_deficient_designs >= 1
+
+
+def test_rank_deficient_everywhere_names_the_window(monkeypatch: pytest.MonkeyPatch) -> None:
+    from process_improve.experiments import generate_omars
+
+    pool = omars_ilp._half_pool(5)
+    _always_returns(monkeypatch, (omars_ilp._foldover(pool[_RANK_DEFICIENT_K5]), "Optimal", _RANK_DEFICIENT_K5))
+    with pytest.raises(ValueError, match=r"1 OMARS design\(s\) were found at 31 to 43 runs, but the full_second"):
+        generate_omars(_factors(5), n_restarts=1, max_candidates=0)
 
 
 @pytest.mark.slow
