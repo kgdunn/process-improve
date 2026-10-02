@@ -10,8 +10,11 @@ Two engines, chosen per request by :func:`_dispatch_optimal`:
   conflicts with this project's ``plotly>=6.5.2``; install it separately
   (``pip install pyoptex``) in its own environment.
 - The built-in candidate exchange in ``designs_constrained.py`` otherwise: a
-  Fedorov exchange over a grid of candidate points for D, I or A-optimality, with
-  constraints, categorical factors and fixed runs, but no split-plot structure.
+  Fedorov exchange over a grid of candidate points for D-, I-, A- or E-optimality,
+  with constraints, categorical factors and fixed runs, but no split-plot structure.
+
+pyoptex's continuous factors take the levels ``{-1, 0, 1}``, or five levels from -1 to
+1 under a quadratic model.
 
 Mixture factors always use ``designs_mixture_constrained.py``.
 """
@@ -20,7 +23,7 @@ from __future__ import annotations
 
 import contextlib
 import logging
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import TYPE_CHECKING
 
 import numpy as np
@@ -155,11 +158,32 @@ if _PYOPTEX_AVAILABLE:  # pragma: no branch - false only in env-without-pyoptex
     }
 
 
+#: Levels pyoptex may give a continuous factor under a quadratic model (A- and I-optimal designs need the
+#: interior ones). Without squared terms pyoptex's default, ``{-1, 0, 1}``, is kept.
+_QUADRATIC_LEVELS = np.linspace(-1.0, 1.0, 5)
+#: Ratio of the whole-plot to the run-to-run variance assumed for a split-plot design.
+_WHOLE_PLOT_VARIANCE_RATIO = 0.5
+
+
+def _whole_plot_count(factors: list[Factor], hard_to_change: list[str], n_runs: int, model_type: str) -> int:
+    """Default number of whole plots: ``max(4, n_runs // 3)``, raised to one more than the whole-plot terms.
+
+    The whole-plot terms are the coefficients of the model in the hard-to-change factors
+    alone (intercept, their main effects, interactions and squares). With fewer whole
+    plots than those, they cannot be estimated; one more leaves a degree of freedom for
+    the whole-plot variance. Never more than ``n_runs``.
+    """
+    htc = [f for f in factors if f.name in set(hard_to_change)]
+    n_terms = _n_model_parameters(htc, model_type)
+    return min(n_runs, max(4, n_runs // 3, n_terms + 1))
+
+
 def _convert_factors_to_pyoptex(
     factors: list[Factor],
     hard_to_change: list[str] | None = None,
     n_runs: int | None = None,
     n_whole_plots: int | None = None,
+    model_type: str = "interactions",
 ) -> list:
     """Translate our ``Factor`` objects into ``pyoptex.doe.fixed_structure.Factor`` objects.
 
@@ -173,8 +197,13 @@ def _convert_factors_to_pyoptex(
     n_runs : int or None
         Total number of runs (needed when building the split-plot structure).
     n_whole_plots : int or None
-        Number of whole plots.  Defaults to ``max(4, n_runs // 3)`` when
-        *hard_to_change* is given.
+        Number of whole plots. Defaults to ``max(4, n_runs // 3)``, raised to one more
+        than the number of model terms in the hard-to-change factors alone (see
+        :func:`_whole_plot_count`), when *hard_to_change* is given.
+    model_type : str
+        The model: it sets the default number of whole plots, and for ``"quadratic"``
+        the continuous factors may take the five levels ``_QUADRATIC_LEVELS`` instead of
+        pyoptex's ``{-1, 0, 1}``, since A- and I-optimal designs need interior levels.
 
     Returns
     -------
@@ -185,16 +214,17 @@ def _convert_factors_to_pyoptex(
     random_effect = None
     if hard_to_change and n_runs:
         if n_whole_plots is None:
-            n_whole_plots = max(4, n_runs // 3)
+            n_whole_plots = _whole_plot_count(factors, hard_to_change, n_runs, model_type)
         # Build a balanced whole-plot assignment: e.g. 12 runs, 4 plots → [0,0,0, 1,1,1, 2,2,2, 3,3,3]
         runs_per_plot = max(1, n_runs // n_whole_plots)
         z_array = np.repeat(np.arange(n_whole_plots), runs_per_plot)
         # Pad if n_runs doesn't divide evenly
         if len(z_array) < n_runs:
             z_array = np.concatenate([z_array, np.full(n_runs - len(z_array), n_whole_plots - 1)])
-        random_effect = RandomEffect(z_array[:n_runs], ratio=0.5)
+        random_effect = RandomEffect(z_array[:n_runs], ratio=_WHOLE_PLOT_VARIANCE_RATIO)
 
     htc_set = set(hard_to_change) if hard_to_change else set()
+    continuous_levels = _QUADRATIC_LEVELS if model_type == "quadratic" else None
     pyoptex_factors = []
     for f in factors:
         if f.type == FactorType.categorical:
@@ -203,6 +233,13 @@ def _convert_factors_to_pyoptex(
                 random_effect if f.name in htc_set else None,
                 type="categorical",
                 levels=f.levels,
+            )
+        elif continuous_levels is not None:
+            pf = PyoptexFactor(
+                f.name,
+                random_effect if f.name in htc_set else None,
+                type="continuous",
+                levels=continuous_levels,
             )
         else:
             pf = PyoptexFactor(
@@ -331,18 +368,29 @@ def _run_pyoptex(
     Returns
     -------
     tuple[np.ndarray, dict]
-        Coded design matrix (-1 / +1 for continuous, labels for categorical)
-        and metadata dict.
+        Coded design matrix (levels in ``[-1, 1]`` for continuous factors, labels for
+        categorical ones) and metadata. ``metric_value`` is pyoptex's own criterion
+        value; without split-plot structure, ``log_det_information`` or
+        ``trace_criterion`` give it on the candidate exchange's scale. A split-plot
+        design records each run's whole plot (``whole_plot``), ``n_whole_plots`` and
+        ``whole_plot_variance_ratio``.
     """
     opts = options if options is not None else _PyoptexOptions()
     model_type = opts.model_type
     hard_to_change = opts.hard_to_change
     n_tries = opts.n_tries
 
+    prior = None
+    requested_budget = budget
+    if opts.fixed_runs is not None:
+        prior = _prepare_prior_runs(opts.fixed_runs, factors, budget)
+        budget = _budget_for_fixed_rank(factors, prior, model_type, budget)
+
     pyoptex_factors = _convert_factors_to_pyoptex(
         factors,
         hard_to_change=hard_to_change,
         n_runs=budget,
+        model_type=model_type,
     )
 
     # Build the model per factor. A categorical factor has no pure-quadratic
@@ -367,10 +415,6 @@ def _run_pyoptex(
     metric_cls = _PYOPTEX_METRIC_MAP[criterion]
     metric = metric_cls()
 
-    prior = None
-    if opts.fixed_runs is not None:
-        prior = _prepare_prior_runs(opts.fixed_runs, factors, budget)
-
     fn = default_fn(pyoptex_factors, metric, y2x)
     params = create_parameters(pyoptex_factors, fn, nruns=budget, prior=prior)
     with _global_numpy_seed(check_random_state(opts.random_state)):
@@ -383,11 +427,72 @@ def _run_pyoptex(
         "backend": "pyoptex",
     }
     if hard_to_change:
+        z_array = next(pf.re.Z for pf in pyoptex_factors if pf.re is not None)
         meta["hard_to_change"] = hard_to_change
+        whole_plot = [int(z) for z in z_array]
+        meta["whole_plot"] = whole_plot
+        meta["n_whole_plots"] = len(set(whole_plot))
+        meta["whole_plot_variance_ratio"] = _WHOLE_PLOT_VARIANCE_RATIO
+    else:
+        meta.update(_exchange_scale_metadata(factors, design_df, criterion, model_type))
     if prior is not None:
         meta["n_fixed_runs"] = len(prior)
+    if budget != requested_budget:
+        meta["budget_requested"] = requested_budget
 
     return design_df.values, meta
+
+
+def _coded_rows(factors: list[Factor], design: pd.DataFrame, model_type: str) -> np.ndarray:
+    """Model rows (the candidate exchange's coding) of a design: coded continuous values, categorical labels."""
+    from process_improve.experiments.designs_constrained import _Region, model_matrix  # noqa: PLC0415
+    from process_improve.experiments.factor import FactorType  # noqa: PLC0415
+
+    continuous = [f for f in factors if f.type != FactorType.categorical]
+    categorical = [f for f in factors if f.type == FactorType.categorical]
+    region = _Region(continuous, categorical, [])
+    coded = design[[f.name for f in continuous]].to_numpy(dtype=float).reshape(len(design), len(continuous))
+    labels = {f.name: [str(lv) for lv in f.levels or []] for f in categorical}
+    cats = np.array([[labels[f.name].index(str(v)) for v in design[f.name]] for f in categorical], dtype=int).T.reshape(
+        len(design), len(categorical)
+    )
+    return model_matrix(region, coded, cats, model_type)
+
+
+def _budget_for_fixed_rank(factors: list[Factor], prior: pd.DataFrame, model_type: str, budget: int) -> int:
+    """Raise ``budget`` so the free runs can supply the rank the fixed runs lack (see the candidate exchange)."""
+    from process_improve.experiments.designs_constrained import _budget_for_fixed_runs  # noqa: PLC0415
+
+    model = model_type if model_type in _PYOPTEX_MODEL_MAP else "interactions"
+    f_fixed = _coded_rows(factors, prior, model)
+    return _budget_for_fixed_runs(f_fixed, f_fixed.shape[1], budget)
+
+
+def _exchange_scale_metadata(factors: list[Factor], design: pd.DataFrame, criterion: str, model_type: str) -> dict:
+    """Return the criterion value under the candidate exchange's key and scale, so the backends can be compared.
+
+    pyoptex reports ``metric_value`` on its own scale: ``det(X'X)^(1/p)`` for D and
+    ``-trace`` for A and I, in its own coding. This adds ``log_det_information`` or
+    ``trace_criterion``, computed in the candidate exchange's coding (I-optimality
+    averaged over a fixed uniform sample of the factor box).
+    """
+    from process_improve.experiments.designs_constrained import (  # noqa: PLC0415
+        _Region,
+        _uniform_rows,
+        criterion_metadata,
+        make_criterion,
+    )
+    from process_improve.experiments.factor import FactorType  # noqa: PLC0415
+
+    model = model_type if model_type in _PYOPTEX_MODEL_MAP else "interactions"
+    rows = _coded_rows(factors, design, model)
+    continuous = [f for f in factors if f.type != FactorType.categorical]
+    region = _Region(continuous, [f for f in factors if f.type == FactorType.categorical], [])
+    rng = np.random.default_rng(0)  # a fixed sample, so the reported value does not vary between calls
+    chosen = make_criterion(
+        criterion, rows.shape[1], lambda: _uniform_rows(region, model, rng, np.zeros((1, len(continuous))))
+    )
+    return criterion_metadata(chosen, chosen.value(rows.T @ rows))
 
 
 # ---------------------------------------------------------------------------
@@ -426,8 +531,38 @@ def _dispatch_mixture_optimal(criterion: str, req: _OptimalRequest) -> tuple[np.
     )
 
 
+def _check_hard_to_change(req: _OptimalRequest) -> None:
+    """Refuse ``hard_to_change`` names that are not factors of the design."""
+    unknown = sorted(set(req.hard_to_change or []) - {f.name for f in req.factors})
+    if unknown:
+        raise ValueError(
+            f"hard_to_change names {unknown} are not factors of the design; use names from "
+            f"{[f.name for f in req.factors]}."
+        )
+
+
+def _settled_budget(req: _OptimalRequest) -> int | None:
+    """Return the budget to build with: one asked for, floored at the model size, or a default covering fixed runs.
+
+    Without a budget or fixed runs this is ``None`` (the default ``2 * k + 1`` applies).
+    With fixed runs and no budget, the default also leaves room for the coefficients the
+    fixed runs do not estimate, so it never falls at or below the number of fixed runs.
+    """
+    if req.budget is not None:
+        return _floor_budget_at_model_size(req.factors, req.budget, req.model_type)
+    if req.fixed_runs is None or not len(req.fixed_runs):
+        return None
+    k = len(req.factors)
+    n_parameters = _n_model_parameters(req.factors, req.model_type)
+    with contextlib.suppress(ValueError, KeyError, TypeError):  # invalid fixed runs are reported later, in full
+        prior = _prepare_prior_runs(req.fixed_runs, req.factors, len(req.fixed_runs) + n_parameters)
+        rank = int(np.linalg.matrix_rank(_coded_rows(req.factors, prior, req.model_type)))
+        return max(2 * k + 1, n_parameters, len(prior) + max(n_parameters - rank, 1))
+    return max(2 * k + 1, n_parameters, len(req.fixed_runs) + 1)
+
+
 def _dispatch_optimal(criterion: str, req: _OptimalRequest) -> tuple[np.ndarray, dict]:
-    """Route a D-, I- or A-optimal request to the backend that can honour it.
+    """Route a D-, I-, A- or E-optimal request to the backend that can honour it.
 
     - Mixture factors go to the constrained-simplex engine with a Scheffé model.
     - Constraints, a user candidate set, or no pyoptex, go to the built-in candidate exchange
@@ -445,6 +580,14 @@ def _dispatch_optimal(criterion: str, req: _OptimalRequest) -> tuple[np.ndarray,
             f"model_type={req.model_type!r} is not supported for {criterion}; choose from "
             f"{', '.join(_PYOPTEX_MODEL_MAP)} (Scheffé models apply to mixture components only)."
         )
+    _check_hard_to_change(req)
+    settled = _settled_budget(req)
+    if settled != req.budget:
+        # Build with the budget the model and the fixed runs need, and record the one asked for.
+        matrix, meta = _dispatch_optimal(criterion, replace(req, budget=settled))
+        if req.budget is not None:
+            meta["budget_requested"] = req.budget
+        return matrix, meta
 
     budget = req.budget if req.budget is not None else 2 * len(req.factors) + 1
     budget = _floor_budget_at_model_size(req.factors, budget, req.model_type)
@@ -493,14 +636,20 @@ _DISPATCH_PARAMETERS = """
         Factor specifications. All-mixture factors get a Scheffé-model design over
         the (possibly constrained) simplex.
     budget : int or None
-        Number of runs.  Defaults to ``2 * n_factors + 1``.
+        Number of runs. Defaults to ``2 * n_factors + 1``, or with ``fixed_runs`` to
+        enough runs beyond them to estimate the model. A budget too small to estimate
+        the model is raised, with a warning, and recorded in
+        ``metadata["budget_requested"]``.
     hard_to_change : list[str] or None
-        Names of hard-to-change factors: a split-plot design via pyoptex. Ignored,
-        and recorded as ``hard_to_change_ignored``, when constraints are given or
-        pyoptex is not installed.
+        Names of hard-to-change factors: a split-plot design via pyoptex. A name that
+        is not a factor raises ``ValueError``. Ignored, with a warning, and recorded as
+        ``hard_to_change_ignored``, whenever the built-in exchange builds the design:
+        with constraints, a candidate set or E-optimality, or without pyoptex.
     constraints : list[Constraint] or None
         Inequalities in actual units over the continuous factors, e.g.
-        ``"3*T + 5*D <= 600"``. Enforced: every returned run satisfies them.
+        ``"3*T + 5*D <= 600"``. Enforced: every run the optimizer places satisfies
+        them. Fixed runs outside the region are kept as given, with a warning, and
+        counted in ``metadata["n_fixed_runs_outside_region"]``.
     model_type : str
         Model assumption: ``"main_effects"``, ``"interactions"``, or ``"quadratic"``.
     fixed_runs : pd.DataFrame or None

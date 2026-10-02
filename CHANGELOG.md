@@ -510,6 +510,24 @@ those changes.
   `metadata["n_fixed_runs_outside_region"]`, and the docstrings say they are kept as
   given; a budget raised to make room for the free runs is recorded in
   `metadata["budget_requested"]`.
+- **Optimal designs: pyoptex designs use interior levels, split-plot designs report
+  their whole plots, and budgets are honest.** Under a quadratic model pyoptex chose
+  each continuous factor from `{-1, 0, 1}` only, so A- and I-optimal designs lost up to
+  19% of their criterion (a 6-run, 2-factor A-optimal trace of 5.0 against 4.185); they
+  now have five levels from -1 to 1. Split-plot designs fixed the number of whole plots
+  at `max(4, n_runs // 3)`, so 16 runs with two hard-to-change factors and a quadratic
+  model (6 whole-plot terms) failed with "rank collinearity"; the default is now at least
+  one more than the whole-plot terms, and the metadata records each run's whole plot
+  (`whole_plot`), `n_whole_plots` and `whole_plot_variance_ratio`, which a split-plot
+  analysis needs. A `hard_to_change` name that is not a factor raises instead of
+  producing an ordinary design labelled split-plot. pyoptex's `metric_value` is on its
+  own scale (`det(X'X)^(1/p)`, `-trace`), so its designs now also report
+  `log_det_information` or `trace_criterion` as the built-in exchange does. A budget
+  raised to the model size is recorded in `metadata["budget_requested"]`; fixed runs
+  that span too little of the model raise the budget on the pyoptex path too, where they
+  failed inside pyoptex; and without a budget, fixed runs get a default that leaves room
+  beyond them (8 fixed runs and the default `2k + 1 = 7` used to raise). The docstrings
+  name E-optimality and every case in which `hard_to_change` is ignored.
 
 ## [1.96.0] - 2026-09-30
 

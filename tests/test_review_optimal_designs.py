@@ -8,7 +8,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from process_improve.experiments import Constraint, Factor
+from process_improve.experiments import Constraint, Factor, designs_optimal
 from process_improve.experiments.designs_constrained import ConstrainedOptions, constrained_optimal_design
 from process_improve.experiments.designs_optimal import dispatch_d_optimal
 from process_improve.experiments.optimal import point_exchange
@@ -80,3 +80,74 @@ class TestConstrainedCandidates:
 def _grid(levels: int) -> np.ndarray:
     values = np.linspace(-1, 1, levels)
     return np.array(list(itertools.product(values, values)))
+
+
+class TestDispatchOptimal:
+    def test_unknown_hard_to_change_name_is_refused(self) -> None:
+        with pytest.raises(ValueError, match="not factors of the design"):
+            dispatch_d_optimal(_box(3), 12, hard_to_change=["Zzz"])
+
+    def test_budget_below_the_model_is_recorded(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setattr(designs_optimal, "_PYOPTEX_AVAILABLE", False)
+        design, meta = dispatch_d_optimal(_box(3), 5, model_type="interactions")
+        assert len(design) == 7  # intercept, 3 main effects, 3 interactions
+        assert meta["budget_requested"] == 5
+
+    def test_default_budget_leaves_room_beyond_the_fixed_runs(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Eight fixed runs and no budget: the default 2k + 1 = 7 used to be refused as too small."""
+        monkeypatch.setattr(designs_optimal, "_PYOPTEX_AVAILABLE", False)
+        fixed = pd.DataFrame(list(itertools.product([-1.0, 1.0], repeat=3)), columns=["x0", "x1", "x2"])
+        design, meta = dispatch_d_optimal(_box(3), None, model_type="interactions", fixed_runs=fixed)
+        assert len(design) > len(fixed)
+        assert meta["n_fixed_runs"] == 8
+        assert "budget_requested" not in meta
+
+
+@pytest.fixture
+def pyoptex() -> None:
+    pytest.importorskip("pyoptex")
+    if not designs_optimal._PYOPTEX_AVAILABLE:
+        pytest.skip("pyoptex is not importable")
+
+
+@pytest.mark.usefixtures("pyoptex")
+class TestPyoptexBackend:
+    def test_quadratic_model_offers_interior_levels(self) -> None:
+        """With only {-1, 0, 1} the 6-run, 2-factor A-optimal trace was 5.0; 4.185 with the levels +/-0.5."""
+        design, meta = designs_optimal._run_pyoptex(
+            _box(2), "a_optimal", 6, designs_optimal._PyoptexOptions(model_type="quadratic", random_state=0)
+        )
+        assert meta["trace_criterion"] == pytest.approx(4.185, abs=1e-3)
+        assert {0.5, -0.5} & set(np.round(np.asarray(design, dtype=float).ravel(), 6))
+
+    def test_criterion_is_reported_on_the_exchange_scale(self) -> None:
+        """For D, ``metric_value`` is det(X'X)^(1/p); ``log_det_information`` matches the exchange's."""
+        _, meta = designs_optimal._run_pyoptex(
+            _box(2), "d_optimal", 6, designs_optimal._PyoptexOptions(model_type="quadratic", random_state=1)
+        )
+        _, exchange = constrained_optimal_design(_box(2), 6, [], ConstrainedOptions(model_type="quadratic"), 1)
+        assert meta["log_det_information"] == pytest.approx(exchange["log_det_information"], abs=1e-6)
+        assert meta["metric_value"] == pytest.approx(np.exp(meta["log_det_information"] / 6))
+
+    def test_split_plot_has_enough_whole_plots_and_records_them(self) -> None:
+        """Two hard-to-change factors, quadratic, 16 runs: 5 whole plots cannot estimate their 6 terms."""
+        design, meta = designs_optimal._dispatch_optimal(
+            "d_optimal", designs_optimal._OptimalRequest(_box(4), 16, ["x0", "x1"], None, "quadratic", None, 0)
+        )
+        assert meta["n_whole_plots"] >= 7
+        assert len(meta["whole_plot"]) == 16
+        assert meta["whole_plot_variance_ratio"] == 0.5
+        frame = pd.DataFrame(np.asarray(design, dtype=float)[:, :2], columns=["x0", "x1"])
+        frame["plot"] = meta["whole_plot"]
+        spread = frame.groupby("plot")[["x0", "x1"]].agg(lambda v: v.max() - v.min())
+        assert (spread == 0).all().all()  # hard-to-change factors are constant within each whole plot
+
+    def test_fixed_runs_short_of_rank_raise_the_budget(self) -> None:
+        """Six identical fixed runs and a budget of 8 failed inside pyoptex with 'rank collinearity'."""
+        factors = [Factor(name="a", low=10, high=20), Factor(name="b", low=0, high=1)]
+        fixed = pd.DataFrame({"a": [0.0] * 6, "b": [0.0] * 6})
+        design, meta = designs_optimal._run_pyoptex(
+            factors, "d_optimal", 8, designs_optimal._PyoptexOptions(model_type="interactions", fixed_runs=fixed)
+        )
+        assert len(design) == 6 + 3
+        assert meta["budget_requested"] == 8
