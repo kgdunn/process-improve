@@ -268,6 +268,15 @@ those changes.
   more than `runs - 1` factors is blank. A run count that is not a power of two, or a
   factor count below 2, now raises instead of giving a blank row. Messages and docstrings
   in the module that read "11 n_factors in 64 runs" now say "factors" and "runs".
+- **The OMARS trade-off table and `dispatch_omars` say what their bounds cover.**
+  `omars_minimum_runs`, `get_omars_trade_off_table_entry` and `omars_trade_off_table`
+  give the smallest *foldover* size for each capability class; a non-foldover OMARS
+  design can do better (a 19-run, four-factor one estimates the full second-order model,
+  against 21 runs for a foldover), and the docstrings now say so. They also say that
+  `exists` does not mean `generate_omars` builds the size: it refuses the saturated size
+  and repeats half-runs only for three and four factors, so 39 runs for three factors is
+  listed but not built. `dispatch_omars` no longer calls its `2k + 3`-run design for odd
+  `k` the minimal OMARS design; `2k + 1` runs suffice.
 - **`recommend_strategy` gives an all-mixture problem a mixture optimisation stage.** The
   optimisation stage was a CCD or Box-Behnken design on the first three components. It is
   now a `"mixture"` design for a quadratic Scheffe model in every component.
