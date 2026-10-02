@@ -11,6 +11,50 @@ those changes.
 
 ## [Unreleased]
 
+### Added
+
+- **`generate_omars` and `solve_omars_ilp` take `solver_options["node_limit"]`.** It caps
+  the branch-and-bound nodes of each randomized-objective solve (default 100; `None`
+  solves each one to proven optimality). A node budget ends a solve at the same point on
+  every run, so a fixed `random_seed` reproduces the design, which a wall-clock limit
+  does not guarantee. `OmarsSearchReport` gains `node_limit`, `time_limit`,
+  `node_limited_solves`, `time_limited_solves`, `rank_deficient_designs` and
+  `size_proven_minimal`.
+
+### Changed
+
+- **`generate_omars` solves its integer program with HiGHS, through
+  `scipy.optimize.milp`, instead of pulp's bundled CBC binary (#623).** CBC is a native
+  executable that pulp runs in a subprocess; on Apple Silicon it runs under Rosetta and
+  could exit nonzero for no reason in the model, which aborted the search. HiGHS runs in
+  process and ships with SciPy, which is now a declared core dependency (`scipy>=1.15`),
+  so OMARS needs no extra. What changes for callers:
+  - Designs from the multistart path (five or more factors, or three and four factors
+    beyond the exhaustive caps) can differ from 1.96.0 for the same `random_seed`. Within
+    one SciPy version the search is deterministic; another SciPy release ships another
+    HiGHS and may pick another design. Measured on one machine: the five-factor default
+    and the 25-run, five-factor `main_quadratic` design are unchanged; the six-factor
+    default rose from D-efficiency 26.5 to 31.6 and took 111 s instead of 154 s.
+  - The five-factor multistart is slower, about 14 s instead of 10 s for the default
+    call.
+  - `metadata["solver"]` is `"highs"`; it was `"pulp"`. `solver_status` reads
+    `"Optimal"`, `"Node limit"`, `"Time limit"`, `"Infeasible"`, `"Not Solved"` or
+    `"Enumerated"`. A solve stopped by a limit still returns the best design it found.
+  - `solver_options` accepts only `"msg"`, `"time_limit"` and `"node_limit"`, and checks
+    their values. Unknown keys used to be ignored; they now raise `ValueError`.
+  - `time_limit` (float seconds, default 60) is now a safety cap. A solve it stops depends
+    on machine speed, and `time_limited_solves` counts those.
+  - HiGHS runs on one thread, because a process forked after a multi-threaded HiGHS solve
+    hangs in its next solve.
+  - Every selection the solver returns is re-checked exactly against its constraints
+    before it is used.
+
+### Deprecated
+
+- **The `ilp` extra is deprecated since 1.97.0 and will be removed in 2.0.0.** It is now
+  empty: `generate_omars` no longer needs pulp, so there is no replacement to install.
+  `pip install 'process-improve[ilp]'` keeps working until then.
+
 ### Fixed
 
 - **`generate_design(..., "fractional_factorial")` builds its designs from a table of
@@ -34,12 +78,21 @@ those changes.
   - An explicit generator whose right-hand side names no factors, such as `"D="`, raises
     a `ValueError` saying so, instead of an `IndexError` from inside pyDOE3.
 
-- **`generate_omars` retries a CBC solve once when the solver binary itself fails
-  (#623).** pulp's bundled CBC can exit nonzero for no reason in the model, most often
-  on Apple Silicon, where it runs under Rosetta. One such failure used to abort the
-  whole search, including a multistart that had finished most of its restarts. The
-  retry solves the same problem with the same options, so seeded results do not change.
-  It logs a warning, and a second failure still raises `PulpSolverError`.
+- **`generate_omars` no longer returns a design that cannot fit its model.** A foldover
+  can be a valid OMARS design and still leave the model it was sized for
+  rank-deficient. Such designs could win the selection, with D-efficiency 0: four
+  factors at the automatic size with `selection_criterion="min_second_order_correlation"`
+  returned a rank-14 design for the 15-parameter full second-order model. They are now
+  set aside on both the exhaustive and multistart paths, and counted in
+  `metadata["omars_search"].rank_deficient_designs`. When every design found is
+  rank-deficient, a `ValueError` says so.
+
+- **`generate_omars` errors name the run sizes searched.** A search that found no design
+  at the automatic size reported `n_runs_range=None`. The message now gives the run
+  window or the pinned `n_runs`, and the status the last solve ended with.
+
+- **`solver_options["time_limit"]` keeps its fraction.** It was truncated with `int()`, so
+  `0.5` meant zero seconds.
 
 ## [1.96.0] - 2026-09-30
 

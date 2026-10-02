@@ -17,10 +17,9 @@ conference-foldover member produced by ``generate_design(design_type="omars")``
 
 .. note::
 
-   ``generate_omars`` requires the optional ``ilp`` extra (PuLP, which bundles
-   the CBC solver)::
-
-       pip install 'process-improve[ilp]'
+   ``generate_omars`` solves its ILP with HiGHS, through ``scipy.optimize.milp``,
+   which is part of the core install, so no extra is needed.  The ``ilp`` extra
+   that used to supply the CBC solver is deprecated and now installs nothing.
 
 Quick start
 -----------
@@ -41,12 +40,12 @@ Quick start
    # ... collect responses y, then:
    analysis = analyze_omars(design, y)  # analysis.success is True
 
-You can pin an exact (odd) run size or search a window:
+You can pin an exact run size or search a window:
 
 .. code-block:: python
 
-   result = generate_omars(factors, n_runs=29)
-   result = generate_omars(factors, n_runs_range=(27, 41))
+   result = generate_omars(factors, n_runs=33)
+   result = generate_omars(factors, n_runs_range=(31, 41))
 
 The method
 ----------
@@ -120,21 +119,39 @@ sized for, which lowers the frontier to the definitive screening design's
 Choosing the run size and the design
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-- When ``n_runs`` is given it is used directly. It must be odd, and it must
-  reach the **estimability frontier** described above; a smaller value is
-  rejected rather than silently producing a design that cannot fit the model.
+- When ``n_runs`` is given it is used directly.  ``n_runs - center_runs`` must
+  be even, and ``n_runs`` must reach the **estimability frontier** described
+  above; a smaller value is rejected rather than silently producing a design
+  that cannot fit the model.
 - Otherwise the solver minimises the run count within a window to return the
   smallest feasible design that still leaves error degrees of freedom.
-- Several distinct designs are then enumerated at that run size by adding
-  *no-good cuts* (forbidding a previously found selection), and the winner is
-  chosen by ``selection_criterion``:
+- Candidate designs are then collected at that run size, in one of two ways
+  (``metadata["search_mode"]`` says which):
+
+  - ``"exhaustive"``: when the design class is small enough (three or four
+    factors at moderate sizes), every feasible design is enumerated, so the
+    selection below is exact.
+  - ``"multistart"``: otherwise the ILP is solved repeatedly with random linear
+    objectives (``n_restarts`` of them).  Each objective steers the solver
+    towards a different feasible design.  Each of these solves stops after a
+    fixed number of branch-and-bound nodes (``solver_options["node_limit"]``,
+    default 100) and returns the best design found by then, which ends it at
+    the same point on every run, so a fixed ``random_seed`` reproduces the
+    design.
+
+  A valid OMARS design can still leave the model it was sized for
+  rank-deficient; such designs are set aside before the selection.  The
+  winner is chosen by ``selection_criterion``:
 
   - ``"dominance"`` (default) keeps the Pareto front on D-efficiency (higher is
     better) and the maximum second-order correlation (lower is better), then
     prefers the smallest, most efficient design.
-  - ``"d_efficiency"`` maximises the D-efficiency of the full second-order model.
+  - ``"d_efficiency"`` maximises the D-efficiency of the model the design is
+    sized for.
   - ``"min_second_order_correlation"`` minimises the largest second-order
     correlation.
+  - ``"a_optimal"`` minimises the summed coefficient variance
+    :math:`\operatorname{tr}\left((X^\top X)^{-1}\right)` of that model.
 
 - Optionally, ``satisfice`` sets *acceptability thresholds* that are applied
   **before** the dominance/criterion step: a design is kept only if it clears
@@ -150,8 +167,11 @@ Choosing the run size and the design
 
 The returned :class:`~process_improve.experiments.DesignResult` records the
 provenance and a search report under ``metadata`` (``family``, ``sparsity``,
-``expected_error_df``, ``d_efficiency``, ``max_second_order_correlation`` and an
-``omars_search`` report with the ILP iteration count and solver time).
+``expected_error_df``, ``d_efficiency``, ``max_second_order_correlation``,
+``solver_status`` and an ``omars_search`` report).  The report counts the ILP
+solves and their time, the solves a node or time limit stopped, and the
+rank-deficient designs set aside, and it says whether the run size was proven to
+be the smallest in the window.
 
 Performance: iterations and timing by factor count
 --------------------------------------------------
@@ -228,8 +248,8 @@ Limitations
 - **Foldover family only.**  ``generate_omars`` builds the (dominant) foldover
   OMARS family.  The rarer non-foldover members from the enumerated catalogue
   are a documented future extension.
-- **Odd run counts.**  A foldover design has :math:`2h + 1` runs, so ``n_runs``
-  must be odd.
+- **Run-count parity.**  A foldover design has :math:`2h` half-runs and mirrors
+  plus its centre runs, so ``n_runs - center_runs`` must be even.
 - **Second-order aliasing remains.**  Reaching the estimability frontier makes
   the full second-order model *fittable*; it does not make the second-order
   block orthogonal.  The quadratics and interactions stay mutually aliased -
