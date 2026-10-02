@@ -63,13 +63,14 @@ function readFactors() {
 }
 
 // ---------------------------------------------------------------- design step
-let catalogue = null;
-
+// The design list, its hints and which settings each design takes are in the
+// HTML, so the form is right from the first paint, before Python has loaded.
 function showOptions() {
-  const info = catalogue.designs[$("#design-type").value];
-  $("#design-hint").textContent = info.hint;
+  const option = $("#design-type").selectedOptions[0];
+  const allowed = option.dataset.options.split(" ");
+  $("#design-hint").textContent = option.dataset.hint;
   for (const el of document.querySelectorAll("[data-option]")) {
-    el.hidden = !info.options.includes(el.dataset.option);
+    el.hidden = !allowed.includes(el.dataset.option);
   }
 }
 
@@ -265,12 +266,16 @@ drop.ondrop = (e) => {
   if (e.dataTransfer.files[0]) readUpload(e.dataTransfer.files[0]);
 };
 
+showOptions();
+
+// Python is ready once the catalogue answers. Any design the loaded package
+// does not offer is dropped from the list rather than failing on Generate.
 call("api_catalogue").then((reply) => {
   if (!reply.ok) return;
-  catalogue = reply.result;
   const select = $("#design-type");
-  for (const [key, info] of Object.entries(catalogue.designs)) select.add(new Option(info.label, key));
-  select.value = "box_behnken";
+  for (const option of [...select.options]) {
+    if (!(option.value in reply.result.designs)) option.remove();
+  }
   showOptions();
   $("#generate").disabled = false;
   $("#upload").disabled = false;

@@ -31,7 +31,24 @@
 
     <div class="row">
       <label>Design type
-        <select id="design-type"></select>
+        <!-- Mirrors bootstrap.DESIGNS (label, hint, options) so the form is
+             right before Python loads; tests/test_web_app.py keeps them in step. -->
+        <select id="design-type" autocomplete="off">
+          <option value="full_factorial" data-options="n_center_points"
+            data-hint="Every combination of low and high. 2^k runs, plus center points.">Full factorial (2-level)</option>
+          <option value="fractional_factorial" data-options="n_center_points"
+            data-hint="A fraction of the full factorial; main effects are aliased with interactions.">Fractional factorial (2-level)</option>
+          <option value="plackett_burman" data-options=""
+            data-hint="Main effects only, in a multiple of 4 runs.">Plackett-Burman screening</option>
+          <option value="dsd" data-options="" selected
+            data-hint="Three levels, 2k+1 runs; main effects clear of two-factor interactions.">Definitive screening (DSD)</option>
+          <option value="box_behnken" data-options="n_center_points"
+            data-hint="Response surface with every run inside the factor ranges (3 or more factors).">Box-Behnken</option>
+          <option value="ccd" data-options="n_center_points alpha"
+            data-hint="Response surface: factorial corners, axial points and center points.">Central composite (CCD)</option>
+          <option value="d_optimal" data-options="budget model_type"
+            data-hint="Best estimates of the chosen model's coefficients for a fixed number of runs.">D-optimal</option>
+        </select>
       </label>
       <label>Response name
         <input id="response" value="y" size="8">

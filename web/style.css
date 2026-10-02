@@ -80,6 +80,20 @@ button:disabled { opacity: 0.5; cursor: progress; }
 .factors { border-collapse: collapse; margin-bottom: 4px; }
 .factors th { text-align: left; font-weight: 600; font-size: 0.85rem; color: var(--muted); padding: 0 6px 4px 0; }
 .factors td { padding: 2px 6px 2px 0; }
+/* Fixed layout so the five columns share the width rather than each input
+   asking for its own: on a phone the Units column used to run off the edge. */
+.factors { width: 100%; max-width: 560px; table-layout: fixed; }
+.factors th:nth-child(1) { width: 28%; }
+.factors th:nth-child(2), .factors th:nth-child(3) { width: 24%; }
+.factors th:nth-child(5) { width: 2rem; }
+.factors input { width: 100%; min-width: 0; }
+@media (max-width: 480px) {
+  .factors td { padding-right: 4px; }
+  /* Factor names are short; the units ("degC", "L/min") need the room. */
+  .factors th:nth-child(1) { width: 20%; }
+  .factors th:nth-child(2), .factors th:nth-child(3) { width: 22%; }
+  .factors input { padding: 6px; }
+}
 .scroll { overflow-x: auto; margin: 12px 0; }
 table.data { border-collapse: collapse; font-size: 0.9rem; font-variant-numeric: tabular-nums; }
 table.data th, table.data td { border-bottom: 1px solid var(--line); padding: 4px 10px; text-align: right; }
