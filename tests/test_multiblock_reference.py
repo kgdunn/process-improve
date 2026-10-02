@@ -1765,10 +1765,13 @@ class TestFMCReference:
         assert found.neighbours == [42, 43, 44, 47, 50]
         assert (found.placed.loc[found.anomalous, "X"] == "abnormal").all()
         assert (found.placed.loc[found.anomalous, ["Zchem", "Zop"]] == "good").all().all()
+        # A contribution's sign follows the component's arbitrary sign, so the claims are
+        # checked relative to Time3: the pattern, not its orientation, is the finding.
         move = found.zop_move
-        assert move.idxmax() == "Time3"  # the longer cool-down is the largest single difference
-        assert (move[["Time2", "Time3", "Time4", "TempSlope"]] > 0).all()  # the later phases were run differently
-        assert (move[["Level1", "WgtCake"]] < 0).all()  # the charge and the first phase were not
+        assert move.abs().idxmax() == "Time3"  # the longer cool-down is the largest single difference
+        direction = np.sign(move["Time3"])
+        assert (np.sign(move[["Time2", "Time4", "TempSlope"]]) == direction).all()  # later phases run differently
+        assert (np.sign(move[["Level1", "WgtCake"]]) == -direction).all()  # the charge and first phase were not
 
     @pytest.mark.usefixtures("fmc_data")
     def test_script_runs_end_to_end(self, fmc_script, tmp_path) -> None:
@@ -1849,3 +1852,134 @@ class TestMultiblockDeterministicStart:
             warnings.simplefilter("error")
             MBPCA(n_components=2, algorithm="nipals").fit(x_blocks)
             MBPLS(n_components=2, algorithm="nipals").fit(x_blocks, y_df)
+
+
+def _ldpe_blocks() -> tuple[dict[str, pd.DataFrame], pd.DataFrame]:
+    """Return the LDPE data as three process blocks and the quality block (complete data)."""
+    import pathlib
+
+    folder = pathlib.Path(__file__).parents[1] / "src" / "process_improve" / "datasets" / "multivariate" / "LDPE"
+    values = pd.read_csv(folder / "LDPE.csv", index_col=0)
+    blocks = {
+        "zone1": values.iloc[:, [0, 1, 2, 5, 7, 9, 11]],
+        "zone2": values.iloc[:, [3, 4, 6, 8, 10, 12]],
+        "pressure": values.iloc[:, [13]],
+    }
+    return blocks, values.iloc[:, 14:]
+
+
+def _gappy_blocks() -> tuple[dict[str, pd.DataFrame], pd.DataFrame]:
+    """Return two small blocks with 30-60% of their cells missing, and a response.
+
+    On this data the MBPLS super weight of block ``b`` for the first component is
+    negative and the largest in size, which the old convention (keyed on the super
+    weight) acted on.
+    """
+    rng = np.random.default_rng(0)
+    n_rows = 14
+    x1, x2 = rng.standard_normal((n_rows, 3)), rng.standard_normal((n_rows, 3))
+    y = rng.standard_normal((n_rows, 1))
+    fraction = rng.uniform(0.3, 0.6)
+    for x in (x1, x2):
+        x[rng.random(x.shape) < fraction] = np.nan
+    for x in (x1, x2):  # keep at least one value in every row and every column
+        for i in range(n_rows):
+            if np.all(np.isnan(x[i])):
+                x[i, 0] = rng.standard_normal()
+        for j in range(3):
+            if np.all(np.isnan(x[:, j])):
+                x[0, j] = rng.standard_normal()
+    blocks = {"a": pd.DataFrame(x1, columns=list("pqr")), "b": pd.DataFrame(x2, columns=list("stu"))}
+    return blocks, pd.DataFrame(y, columns=["y"])
+
+
+class TestMultiblockSignConvention:
+    """#586: each component is signed so its largest-magnitude X loading is positive.
+
+    That is the PLS and PCA convention. The old one was keyed on the super weight
+    (MBPCA: the super loading), whose element for block b is proportional to
+    ``t_b' u``. Flipping a whole component leaves that unchanged, so it could not
+    pin the sign: MBPLS's X side changed sign with Y's, and one-block models often
+    disagreed with PLS and PCA. On complete data it is never negative, so the flip
+    never fired. With missing cells it can be negative, and there the flip negated
+    the super weight together with the scores, leaving a model whose ``transform``
+    and ``predict`` disagreed with its own fitted values.
+    """
+
+    def test_mbpls_x_side_does_not_depend_on_the_sign_of_y(self) -> None:
+        from process_improve.multivariate.methods import MBPLS
+
+        x_blocks, y_df = _ldpe_blocks()
+        model = MBPLS(n_components=3).fit(x_blocks, y_df)
+        mirrored = MBPLS(n_components=3).fit(x_blocks, -y_df)
+        np.testing.assert_allclose(mirrored.super_scores_.values, model.super_scores_.values, atol=1e-8)
+        for name in model.block_names_:
+            np.testing.assert_allclose(
+                mirrored.block_weights_[name].values, model.block_weights_[name].values, atol=1e-8
+            )
+            np.testing.assert_allclose(mirrored.block_scores_[name].values, model.block_scores_[name].values, atol=1e-8)
+        # Only the Y side mirrors Y.
+        np.testing.assert_allclose(mirrored.super_y_loadings_.values, -model.super_y_loadings_.values, atol=1e-8)
+
+    def test_one_block_models_have_the_signs_of_pls_and_pca(self) -> None:
+        """A single block reduces MBPLS to PLS and MBPCA to PCA, signs included.
+
+        On this data the old convention left component 1 of MBPCA and component 2
+        of MBPLS with the opposite sign.
+        """
+        from process_improve.multivariate.methods import MBPCA, MBPLS, PLS
+
+        rng = np.random.default_rng(0)
+        x = pd.DataFrame(
+            rng.standard_normal((30, 3)) @ rng.standard_normal((3, 7)) + 0.5 * rng.standard_normal((30, 7)),
+            columns=[f"x{i}" for i in range(7)],
+        )
+        x = MCUVScaler().fit_transform(x)
+        y = pd.DataFrame(x.values @ rng.standard_normal((7, 2)) + rng.standard_normal((30, 2)), columns=["y1", "y2"])
+        y = MCUVScaler().fit_transform(y)
+
+        mbpca, pca = MBPCA(n_components=4).fit({"all": x}), PCA(n_components=4).fit(x)
+        mbpls, pls = MBPLS(n_components=3).fit({"all": x}, y), PLS(n_components=3).fit(x, y)
+        for multiblock, single, n_components in ((mbpca, pca, 4), (mbpls, pls, 3)):
+            for a in range(n_components):
+                r = np.corrcoef(multiblock.super_scores_.iloc[:, a], single.scores_.iloc[:, a])[0, 1]
+                assert r > 1 - 1e-8, (type(multiblock).__name__, a + 1, r)
+
+    def test_largest_x_loading_is_positive(self) -> None:
+        from process_improve.multivariate.methods import MBPCA, MBPLS
+
+        x_blocks, y_df = _ldpe_blocks()
+        mbpls = MBPLS(n_components=3).fit(x_blocks, y_df)
+        mbpca = MBPCA(n_components=3).fit(x_blocks)
+        for a in range(3):
+            loadings = np.concatenate([mbpls.block_loadings_[name].values[:, a] for name in mbpls.block_names_])
+            assert loadings[np.argmax(np.abs(loadings))] > 0
+            # MBPCA deflates with the block loading scaled by the super loading and sqrt(K_b).
+            deflating = np.concatenate(
+                [
+                    mbpca.block_loadings_[name].values[:, a]
+                    * mbpca.super_loadings_.values[b, a]
+                    * np.sqrt(mbpca.block_widths_[name])
+                    for b, name in enumerate(mbpca.block_names_)
+                ]
+            )
+            assert deflating[np.argmax(np.abs(deflating))] > 0
+
+    def test_super_weights_are_not_negative_on_complete_data(self) -> None:
+        """Why the old convention never fired without missing data: ``t_b' u`` is ``||X_b' u||``."""
+        from process_improve.multivariate.methods import MBPCA, MBPLS
+
+        x_blocks, y_df = _ldpe_blocks()
+        assert (MBPLS(n_components=3).fit(x_blocks, y_df).super_weights_.values >= 0).all()
+        assert (MBPCA(n_components=3).fit(x_blocks).super_loadings_.values >= 0).all()
+
+    def test_gappy_mbpls_agrees_with_its_own_transform_and_predict(self) -> None:
+        """Missing cells can make a super weight negative; the model must stay self-consistent."""
+        from process_improve.multivariate.methods import MBPLS
+
+        x_blocks, y_df = _gappy_blocks()
+        model = MBPLS(n_components=2).fit(x_blocks, y_df)
+        weights = model.super_weights_.values[:, 0]
+        assert weights[np.argmax(np.abs(weights))] < 0  # the case the old convention flipped
+        np.testing.assert_allclose(model.transform(x_blocks).values, model.super_scores_.values, atol=1e-10)
+        np.testing.assert_allclose(model.predict(x_blocks).predictions.values, model.predictions_.values, atol=1e-10)

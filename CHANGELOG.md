@@ -13,6 +13,29 @@ those changes.
 
 ### Added
 
+- **Constraints on the factor region are now enforced for D-optimal designs.**
+  `generate_design(..., constraints=[Constraint("3*T + 5*D <= 600")])` used to accept
+  constraints and return a design that ignored them, flagged only by
+  `constraints_enforced=False`. The design is now chosen from a candidate set of
+  feasible points, so every run satisfies every constraint.
+
+  ```python
+  factors = [Factor(name="T", low=100, high=150), Factor(name="D", low=20, high=60)]
+  heat = Constraint(expression="3*T + 5*D <= 600")
+  result = generate_design(factors, budget=10, constraints=[heat], model_type="quadratic")
+  result.metadata["constraints_enforced"]  # True
+  ```
+
+  The candidate set is a grid plus the points where each constraint boundary crosses a
+  grid edge, found by bisection, so runs land on the constraint line rather than on the
+  nearest grid point inside it. Runs are selected by a Fedorov exchange on the model
+  matrix of the requested `model_type` (main effects, interactions, quadratic), with
+  categorical factors and `fixed_runs` supported and pyoptex not required. Linear,
+  chained (`400 <= 3*T + 5*D <= 600`) and nonlinear inequalities are accepted; the
+  expression is parsed into an arithmetic tree and never passed to `eval`. Other design
+  types now log a warning and set `constraints_enforced=False` instead of ignoring
+  constraints silently. See the new user-guide page "Designs over a Constrained Region".
+
 - **MEDA and oMEDA: what a fitted PCA or PLS model says about the variables, and
   about two groups of observations (#373).**
   - `meda(model, X)`, or `model.meda(X)`, returns the K x K map of how well each
@@ -30,7 +53,6 @@ those changes.
   pca.meda_plot(X_scaled)                                   # blocks of related variables
   pca.omeda(X_scaled, group=cluster, reference=rest)        # what separates the cluster
   ```
-
 ### Fixed
 
 - **`generate_design(..., "fractional_factorial")` builds its designs from a table of
@@ -53,6 +75,26 @@ those changes.
     mislabelled.
   - An explicit generator whose right-hand side names no factors, such as `"D="`, raises
     a `ValueError` saying so, instead of an `IndexError` from inside pyDOE3.
+
+- **`generate_omars` retries a CBC solve once when the solver binary itself fails
+  (#623).** pulp's bundled CBC can exit nonzero for no reason in the model, most often
+  on Apple Silicon, where it runs under Rosetta. One such failure used to abort the
+  whole search, including a multistart that had finished most of its restarts. The
+  retry solves the same problem with the same options, so seeded results do not change.
+  It logs a warning, and a second failure still raises `PulpSolverError`.
+
+- **`MBPLS` and `MBPCA` sign each component like `PLS` and `PCA` do: the
+  largest-magnitude X loading is positive (#586).** Their old convention looked at the
+  super weight (super loading for `MBPCA`), which a sign flip of the whole component
+  leaves unchanged, so it could not fix the sign.
+  - `MBPLS`'s scores and weights changed sign when Y did, and one-block models often
+    had the opposite sign to `PLS` or `PCA` on some component.
+  - With missing cells a super weight can be negative, and then the old flip fired
+    and negated it together with the scores. The model then disagreed with itself:
+    `transform` and `predict` on the training blocks did not reproduce
+    `super_scores_` and `predictions_`.
+  - Some components of existing fits change sign. Scores, loadings, contributions and
+    predictions are otherwise unchanged, apart from the corrected missing-data fits.
 
 ## [1.96.0] - 2026-09-30
 
