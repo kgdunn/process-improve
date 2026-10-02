@@ -12,6 +12,7 @@ precision, and confirmation run testing.
 
 from __future__ import annotations
 
+import keyword
 import logging
 import warnings
 from collections.abc import Callable
@@ -281,6 +282,15 @@ def analyze_experiment(  # noqa: PLR0912, PLR0913, PLR0915, C901
 
     if response_col not in df.columns:
         raise ValueError(f"Response column '{response_col}' not found in data.")
+    reported_response = response_col
+    if keyword.iskeyword(response_col):
+        # "yield" is the commonest response in chemistry, and a Python keyword, which a
+        # formula cannot name. Fit under a stand-in name and report the real one.
+        alias = f"{response_col}_"
+        while alias in df.columns:
+            alias += "_"
+        df = df.rename(columns={response_col: alias})
+        response_col = alias
 
     # Factor columns = everything except the response and the design-bookkeeping
     # columns. A DesignResult carries "RunOrder" (and optionally "Block"); if a
@@ -291,6 +301,8 @@ def analyze_experiment(  # noqa: PLR0912, PLR0913, PLR0915, C901
     factor_cols = [c for c in df.columns if c not in _NON_FACTOR_COLS]
     for col in factor_cols:
         validate_identifier_is_safe(col)
+        if keyword.iskeyword(col):
+            raise ValueError(f"Factor column {col!r} is a Python keyword, which a model formula cannot use; rename it.")
 
     # --- Apply transform -----------------------------------------------
     if transform == "log":
@@ -349,7 +361,7 @@ def analyze_experiment(  # noqa: PLR0912, PLR0913, PLR0915, C901
 
     results: dict[str, Any] = {
         "model_summary": {
-            "formula": formula,
+            "formula": formula.replace(f"{response_col} ~", f"{reported_response} ~", 1),
             "r_squared": float(ols_result.rsquared),
             "r_squared_adj": float(ols_result.rsquared_adj),
             "r_squared_pred": pred_r2,
@@ -398,7 +410,12 @@ def analyze_experiment(  # noqa: PLR0912, PLR0913, PLR0915, C901
         elif t == "curvature_test":
             results.update(_run_curvature_test(ols_result, df, response_col, factor_cols))
         elif t == "model_selection":
-            results.update(_run_model_selection(df, response_col, factor_cols, model=model))
+            selection = _run_model_selection(df, response_col, factor_cols, model=model)
+            chosen = selection["model_selection"]
+            chosen["selected_formula"] = chosen["selected_formula"].replace(
+                f"{response_col} ~", f"{reported_response} ~", 1
+            )
+            results.update(selection)
         elif t == "box_cox":
             results.update(_run_box_cox(df, response_col))
         elif t == "lenth_method":

@@ -272,6 +272,12 @@ those changes.
 
 ### Fixed
 
+- **`analyze_experiment` accepts a response named `yield`.** The commonest response in
+  chemistry is a Python keyword, which a model formula cannot name, so the call failed
+  with "formula side 'yield' is not a valid expression". The response is now fitted
+  under a stand-in name and reported under its own; a factor named with a keyword gets a
+  clear message.
+
 - **Definitive screening designs are exact at every size (#629).** A DSD is built from a
   conference matrix `C` with `C'C = (m - 1) I`; the code had one only when `m - 1` was a
   prime, and otherwise used a cyclic matrix that is not a conference matrix. 9 or 10
