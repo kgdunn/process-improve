@@ -558,17 +558,27 @@ def _apply_budget_constraints(
 
 
 def _compute_strategy_id(spec: DOEProblemSpec) -> str:
-    """Compute a deterministic strategy ID from the input spec."""
+    """Compute a deterministic strategy ID from every input that can change the strategy.
+
+    The factors are hashed in order with their types, ranges and levels, because the
+    order picks the optimisation stage's placeholder factors.
+    """
     canonical = json.dumps(
         {
-            "factors": sorted(spec.factor_names),
-            "n_factors": spec.n_factors,
-            "responses": sorted(r.name for r in spec.responses),
+            "factors": [f.model_dump(mode="json") for f in spec.factors],
+            "responses": sorted(
+                (r.model_dump(mode="json") for r in spec.responses), key=lambda r: json.dumps(r, sort_keys=True)
+            ),
             "budget": spec.budget,
+            "constraints": [c.model_dump(mode="json") for c in spec.constraints or []],
+            "prior_knowledge": spec.prior_knowledge.raw_text if spec.prior_knowledge else "",
+            "existing_data": spec.existing_data_summary,
             "domain": spec.domain.value,
+            "detail_level": spec.detail_level,
             "htc": sorted(spec.hard_to_change_factors or []),
         },
         sort_keys=True,
+        default=str,
     )
     return hashlib.sha256(canonical.encode()).hexdigest()[:12]
 

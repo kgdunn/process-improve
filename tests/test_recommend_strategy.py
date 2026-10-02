@@ -463,6 +463,20 @@ class TestOutputStructure:
         r2 = recommend_strategy(factors=seven_factors, budget=40)
         assert r1["strategy_id"] == r2["strategy_id"]
 
+    def test_strategy_id_changes_with_every_input_that_changes_the_strategy(self, seven_factors, basic_responses):
+        """The id hashed only names, budget, domain and hard-to-change factors, so different plans shared it."""
+        base = {"factors": seven_factors, "responses": basic_responses}
+        variants = [
+            {},
+            {"prior_knowledge": "Published: A and B are significant."},
+            {"constraints": [Constraint(expression="A + B <= 150")]},
+            {"detail_level": "novice"},
+            {"factors": [*seven_factors[:-1], Factor(name="G", low=0, high=50)]},
+            {"responses": [Response(name="Yield", goal="minimize"), Response(name="Purity", goal="maximize")]},
+        ]
+        ids = [recommend_strategy(**{**base, **variant})["strategy_id"] for variant in variants]
+        assert len(set(ids)) == len(ids)
+
     def test_json_serializable(self, seven_factors, basic_responses):
         result = recommend_strategy(factors=seven_factors, responses=basic_responses, budget=40)
         serialized = json.dumps(result)
