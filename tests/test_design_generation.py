@@ -364,6 +364,34 @@ class TestCCD:
         result = generate_design(factors, design_type="ccd", alpha="inscribed")
         assert result.n_factors == 2
 
+    def test_inscribed_reports_the_axial_to_cube_ratio(self) -> None:
+        """The inscribed CCD shrinks the cube to +/-1/alpha; alpha is the ratio, not the 1.0 of the axial runs."""
+        factors = _continuous_factors(3, "ABC")
+        result = generate_design(factors, design_type="ccd", alpha="inscribed")
+        coded = result.design[result.factor_names].to_numpy(dtype=float)
+        cube = coded[np.all(coded != 0, axis=1)]
+        assert result.alpha == pytest.approx(8**0.25)
+        assert np.allclose(np.abs(cube), 1 / result.alpha)
+        assert result.metadata["face"] == "inscribed"
+        assert result.metadata["alpha_rule"] == "inscribed"
+
+    @pytest.mark.parametrize(
+        ("alpha", "face", "rule"),
+        [("rotatable", "circumscribed", "rotatable"), ("face_centered", "faced", "face_centered"), (1.5, "circumscribed", "user")],
+    )
+    @pytest.mark.parametrize("cube", ["full", "fractional"])
+    def test_face_names_the_geometry_in_both_cube_types(self, alpha: str | float, face: str, rule: str, cube: str) -> None:
+        """'face' meant the geometry for a full cube but the alpha rule for a fractional one."""
+        result = generate_design(_continuous_factors(5, "ABCDE"), design_type="ccd", alpha=alpha, cube=cube)
+        assert result.metadata["face"] == face
+        assert result.metadata["alpha_rule"] == rule
+
+    @pytest.mark.parametrize("alpha", ["rotatable", "face_centered", "inscribed", None, 1.5])
+    def test_one_factor_raises_value_error(self, alpha: str | float | None) -> None:
+        """pyDOE3 guards n > 1 with an assert, so the outcome depended on python -O."""
+        with pytest.raises(ValueError, match="at least 2 factors"):
+            generate_design(_continuous_factors(1, "A"), design_type="ccd", alpha=alpha)
+
     def test_orthogonal_default(self) -> None:
         """An explicit 'orthogonal' alpha is accepted."""
         factors = _continuous_factors(2, "AB")

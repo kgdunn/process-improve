@@ -288,6 +288,15 @@ those changes.
   resolution (256 runs for twelve factors at resolution V), falling back to the half
   fraction; beyond the minimum-aberration table the design is not guaranteed to have
   minimum aberration. A defining relation of more than ten generators is not listed.
+- **Central composite designs report alpha and their geometry consistently, and refuse
+  one factor.** The inscribed design reported `alpha = 1.0`, the axial runs' distance,
+  rather than the axial-to-cube ratio (1.68 for three factors); it now reports the ratio.
+  `metadata["face"]` named the geometry for a full cube but the alpha rule for a
+  fractional one; it now always names the geometry (`"circumscribed"`, `"faced"`,
+  `"inscribed"`), and the new `metadata["alpha_rule"]` says how alpha was chosen. A
+  fractional cube's defining relation keeps the signs of negated generators. A
+  one-factor CCD with a named alpha failed on pyDOE3's `assert` (and returned a design
+  under `python -O`); every one-factor CCD now raises `ValueError`.
 - **`recommend_strategy` gives an all-mixture problem a mixture optimisation stage.** The
   optimisation stage was a CCD or Box-Behnken design on the first three components. It is
   now a `"mixture"` design for a quadratic Scheffe model in every component.
