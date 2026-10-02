@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import importlib.util
-import sys
+import logging
 
 import numpy as np
 import pytest
@@ -269,13 +269,6 @@ def test_multistart_reaches_catalogue_quality() -> None:
     assert report.feasible_designs > 1
 
 
-@pytest.mark.skipif(
-    sys.platform == "darwin",
-    reason="pulp's bundled CBC (an Intel binary run under Rosetta on Apple Silicon "
-    "CI runners) intermittently exits nonzero under this test's 40+ rapid solver "
-    "spawns; the property it checks is platform-independent and stays covered on "
-    "Linux and Windows",
-)
 @pytest.mark.slow
 def test_more_restarts_is_never_worse() -> None:
     """Adding restarts can only match or improve the selected design's quality.
@@ -455,6 +448,65 @@ def test_missing_solver_raises_install_hint(monkeypatch: pytest.MonkeyPatch) -> 
     pool = np.array([[1.0, 0.0, 0.0], [0.0, 1.0, 0.0]])
     with pytest.raises(ImportError, match="ilp"):
         module.solve_omars_ilp(pool, n_half=1)
+
+
+def _flaky_solver(monkeypatch: pytest.MonkeyPatch, failures: int) -> list[str]:
+    """Make CBC fail with ``PulpSolverError`` on its first *failures* runs, then solve normally.
+
+    Returns the list of attempts, which grows by one per call to ``LpProblem.solve``.
+    """
+    import pulp
+
+    attempts: list[str] = []
+    real_solve = pulp.LpProblem.solve
+
+    def solve(problem: pulp.LpProblem, *args: object, **kwargs: object) -> int:
+        attempts.append(problem.name)
+        if len(attempts) <= failures:
+            raise pulp.PulpSolverError("Pulp: Error while trying to execute cbc")
+        return real_solve(problem, *args, **kwargs)
+
+    monkeypatch.setattr(pulp.LpProblem, "solve", solve)
+    return attempts
+
+
+class TestTransientSolverError:
+    """A CBC run that exits nonzero once is retried, not fatal (#623)."""
+
+    def test_one_failure_is_retried_and_logged(self, monkeypatch: pytest.MonkeyPatch, caplog) -> None:
+        from process_improve.experiments import designs_omars_ilp as module
+
+        attempts = _flaky_solver(monkeypatch, failures=1)
+        with caplog.at_level(logging.WARNING, logger=module.__name__):
+            design, status, _ = module.solve_omars_ilp(module._half_pool(3), n_half=3, solver_options=_SOLVER)
+        assert status == "Optimal"
+        assert design is not None
+        assert is_omars(design)
+        assert len(attempts) == 2
+        assert "retrying once" in caplog.text
+
+    def test_retry_gives_the_same_design(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """The retry solves the same problem with the same options, so seeded results hold."""
+        from process_improve.experiments import designs_omars_ilp as module
+
+        pool = module._half_pool(3)
+        objective = np.random.default_rng(7).standard_normal(len(pool))
+        clean, _, clean_chosen = module.solve_omars_ilp(pool, n_half=4, objective=objective, solver_options=_SOLVER)
+        _flaky_solver(monkeypatch, failures=1)
+        retried, _, retried_chosen = module.solve_omars_ilp(pool, n_half=4, objective=objective, solver_options=_SOLVER)
+        assert retried_chosen == clean_chosen
+        np.testing.assert_array_equal(retried, clean)
+
+    def test_second_failure_propagates(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """A solver that cannot run at all still fails, after exactly one retry."""
+        import pulp
+
+        from process_improve.experiments import designs_omars_ilp as module
+
+        attempts = _flaky_solver(monkeypatch, failures=2)
+        with pytest.raises(pulp.PulpSolverError):
+            module.solve_omars_ilp(module._half_pool(3), n_half=3, solver_options=_SOLVER)
+        assert len(attempts) == 2
 
 
 def test_search_report_records_diagnostics() -> None:
