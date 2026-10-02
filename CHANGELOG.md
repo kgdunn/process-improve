@@ -105,7 +105,24 @@ those changes.
 
 - **`generate_omars` errors name the run sizes searched.** A search that found no design
   at the automatic size reported `n_runs_range=None`. The message now gives the run
-  window or the pinned `n_runs`, and the status the last solve ended with.
+  window or the pinned `n_runs`, the status the last solve ended with, and advice that
+  fits that status: more time or nodes for a limit, a different size for a proven
+  infeasibility.
+
+- **`generate_omars` checks the run window.** `n_runs_range` with min above max, or ending
+  below the smallest estimable size, raises `ValueError` instead of returning a design
+  outside the window. A window, or a pinned `n_runs`, that needs more half-runs than the
+  `(3**k - 1) / 2` distinct ones is served by the exhaustive search, which repeats
+  half-runs, for three and four factors (three factors with `n_runs_range=(31, 37)` used
+  to report that no design exists); beyond its reach it raises a `ValueError` that says
+  why.
+
+- **The exhaustive search counts only OMARS designs, and its rank screen no longer
+  depends on `tol`.** Enumerated designs in which a factor never leaves its middle level
+  are dropped before scoring, so `enumerated_designs` and `rank_deficient_designs`
+  describe genuine OMARS designs. The singular-matrix screen used the `is_omars`
+  tolerance, so a loose `tol` marked full-rank designs as rank-deficient and moved the
+  size up; it now uses a fixed threshold.
 
 - **`solver_options["time_limit"]` keeps its fraction.** It was truncated with `int()`, so
   `0.5` meant zero seconds.

@@ -952,6 +952,8 @@ def test_automatic_size_moves_up_when_nothing_fits(monkeypatch: pytest.MonkeyPat
     assert result.metadata["model_rank"] == result.metadata["model_params"] == 21
     assert report.run_sizes_searched == 2
     assert report.rank_deficient_designs >= 1
+    # The minimum was proven at 31 runs, but the design has 33.
+    assert report.size_proven_minimal is False
 
 
 def _singular_at(monkeypatch: pytest.MonkeyPatch, n_half: int | None) -> None:
@@ -1028,6 +1030,92 @@ def test_no_design_at_pinned_size_names_the_status(monkeypatch: pytest.MonkeyPat
     _always_returns(monkeypatch, (None, "Node limit", []))
     with pytest.raises(ValueError, match="at n_runs=31 with center_runs=1: the last solve ended with status 'Node"):
         generate_omars(_factors(5), n_runs=31, n_restarts=2, max_candidates=0)
+
+
+# ---------------------------------------------------------------------------
+# Run-size windows and input validation
+# ---------------------------------------------------------------------------
+
+
+def test_window_beyond_the_distinct_pool_uses_repeated_half_runs() -> None:
+    """Three factors have 13 distinct half-runs; 31 runs need 15, which only the enumeration can repeat."""
+    from process_improve.experiments import generate_omars
+
+    result = generate_omars(_factors(3), n_runs_range=(31, 37), solver_options=_SOLVER)
+    assert result.metadata["n_runs_selected"] == 31
+    assert result.metadata["search_mode"] == "exhaustive"
+    assert result.metadata["omars_search"].size_proven_minimal is None
+    assert is_omars(_coded(result))
+
+
+def test_pinned_size_beyond_reach_is_refused() -> None:
+    from process_improve.experiments import generate_omars
+
+    with pytest.raises(ValueError, match=r"n_runs=39 needs 19 half-runs, but there are only 13 distinct"):
+        generate_omars(_factors(3), n_runs=39)
+
+
+@pytest.mark.parametrize(
+    ("window", "match"),
+    [((25, 13), r"min <= max, got \(25, 13\)"), ((5, 9), r"n_runs_range=\(5, 9\) ends below 13 runs")],
+)
+def test_unusable_run_window_is_refused(window: tuple[int, int], match: str) -> None:
+    from process_improve.experiments import generate_omars
+
+    with pytest.raises(ValueError, match=match):
+        generate_omars(_factors(3), n_runs_range=window)
+
+
+def test_rank_screen_does_not_depend_on_the_is_omars_tolerance() -> None:
+    """A loose ``tol`` used to mark full-rank enumerated designs as singular and push the size up."""
+    from process_improve.experiments import generate_omars
+
+    result = generate_omars(_factors(3), tol=0.05, solver_options=_SOLVER)
+    assert result.metadata["n_runs_selected"] == 13
+    assert result.metadata["omars_search"].run_sizes_searched == 1
+
+
+def test_enumeration_counts_only_designs_where_every_factor_varies() -> None:
+    from process_improve.experiments import generate_omars
+
+    result = generate_omars(_factors(3), solver_options=_SOLVER)
+    pool = omars_ilp._half_pool(3)
+    counts, overflow = omars_ilp._enumerate_feasible_counts(pool, 6, omars_ilp._ENUM_MAX_LEAVES)
+    covered = int((counts @ np.abs(pool) > 0).all(axis=1).sum())
+    assert not overflow
+    assert covered < counts.shape[0]
+    assert result.metadata["omars_search"].enumerated_designs == covered
+
+
+def test_infeasible_status_gets_matching_advice(monkeypatch: pytest.MonkeyPatch) -> None:
+    from process_improve.experiments import generate_omars
+
+    _always_returns(monkeypatch, (None, "Infeasible", []))
+    with pytest.raises(ValueError, match="No selection of distinct half-runs satisfies") as raised:
+        generate_omars(_factors(3))
+    assert "time_limit" not in str(raised.value)
+
+
+@pytest.mark.parametrize(
+    ("options", "error", "match"),
+    [
+        ({"msg": "no"}, TypeError, r"solver_options\['msg'\] must be True or False"),
+        ({"msg": 1}, TypeError, r"solver_options\['msg'\] must be True or False"),
+    ],
+)
+def test_msg_must_be_a_bool(options, error: type[Exception], match: str) -> None:
+    with pytest.raises(error, match=match):
+        omars_ilp.solve_omars_ilp(omars_ilp._half_pool(3), n_half=3, solver_options=options)
+
+
+def test_huge_time_limit_means_no_limit() -> None:
+    assert omars_ilp._solver_settings({"time_limit": 10**400}).time_limit == math.inf
+
+
+@pytest.mark.parametrize("excluded", [[], [-1], [99], [1.7], [[0, 1]]])
+def test_exclude_solutions_are_validated(excluded) -> None:
+    with pytest.raises(ValueError, match="exclude_solutions entries must be non-empty lists"):
+        omars_ilp.solve_omars_ilp(omars_ilp._half_pool(3), n_half=3, exclude_solutions=[excluded])
 
 
 def test_generate_omars_rejects_categorical_factor() -> None:

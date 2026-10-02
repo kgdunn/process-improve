@@ -131,7 +131,10 @@ Choosing the run size and the design
   smallest feasible design that still leaves error degrees of freedom.  A
   feasible size is not always a usable one: when no design found at that size
   can estimate the model, the search moves up the window one size at a time
-  (``omars_search.run_sizes_searched`` counts the sizes tried).
+  (``omars_search.run_sizes_searched`` counts the sizes tried).  A size that
+  needs more half-runs than the :math:`(3^k - 1)/2` distinct ones can only be
+  built by repeating half-runs, which the exhaustive search does for three and
+  four factors.
 - Candidate designs are then collected at that run size, in one of two ways
   (``metadata["search_mode"]`` says which):
 

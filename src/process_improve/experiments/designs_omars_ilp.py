@@ -139,6 +139,9 @@ _ENUM_MAX_HALF = {3: 18, 4: 12}
 _ENUM_MAX_LEAVES = 4_000_000
 # Batch size for the vectorised scoring of enumerated count vectors.
 _ENUM_SCORE_CHUNK = 65_536
+# Relative eigenvalue threshold below which an enumerated design's model Gram
+# matrix counts as singular (rank-deficient).
+_SINGULAR_RTOL = 1e-9
 
 # Keys accepted in ``solver_options``, and their defaults.  ``node_limit`` caps
 # the branch-and-bound nodes of each randomized-objective solve.  A node budget
@@ -238,9 +241,12 @@ class OmarsSearchReport:
         sizing model is not estimable from them (rank below the parameter
         count).
     size_proven_minimal : bool or None
-        ``True`` when the solver proved that no smaller design exists in the
-        searched window, ``False`` when a limit stopped the minimise-size solve
-        first, and ``None`` when the run size was pinned by ``n_runs``.
+        ``True`` when the returned run size was proven to be the smallest
+        feasible one in the window.  ``False`` when a limit stopped the
+        minimise-size solve first, or when no design at the proven minimum could
+        estimate the model and the search moved up.  ``None`` when the run size
+        was pinned by ``n_runs`` or lies beyond the distinct half-runs (see
+        *n_runs_range* in :func:`generate_omars`).
     run_sizes_searched : int
         Number of run sizes searched.  More than one means that no design at
         the smallest feasible size could estimate the sizing model, so the
@@ -476,6 +482,7 @@ def solve_omars_ilp(  # noqa: PLR0913
     settings = _solver_settings(solver_options)
     size_bounds = _size_bounds(n_half, half_bounds)
     n_candidates = half_pool.shape[0]
+    _check_exclusions(exclude_solutions, n_candidates)
 
     options: dict[str, Any] = {"disp": settings.msg, "time_limit": settings.time_limit}
     if objective is not None:
@@ -514,8 +521,12 @@ def _solver_settings(solver_options: dict[str, Any] | None) -> _SolverSettings:
     if unknown:
         msg = f"solver_options accepts only the keys {list(_SOLVER_OPTION_KEYS)}, got unknown {unknown}."
         raise ValueError(msg)
+    msg_flag = solver_options.get("msg", False)
+    if not isinstance(msg_flag, (bool, np.bool_)):
+        msg = f"solver_options['msg'] must be True or False, got {msg_flag!r}."
+        raise TypeError(msg)
     return _SolverSettings(
-        msg=bool(solver_options.get("msg", False)),
+        msg=bool(msg_flag),
         time_limit=_checked_time_limit(solver_options.get("time_limit", _DEFAULT_TIME_LIMIT)),
         node_limit=_checked_node_limit(solver_options.get("node_limit", _DEFAULT_NODE_LIMIT)),
     )
@@ -526,7 +537,10 @@ def _checked_time_limit(value: object) -> float:
     if isinstance(value, bool) or not isinstance(value, (int, float, np.integer, np.floating)):
         msg = f"solver_options['time_limit'] must be a number of seconds, got {value!r}."
         raise TypeError(msg)
-    seconds = float(value)
+    try:
+        seconds = float(value)
+    except OverflowError:  # an int too large for a float: no practical limit
+        seconds = math.inf
     if math.isnan(seconds) or seconds <= 0:
         msg = f"solver_options['time_limit'] must be positive, got {value!r}."
         raise ValueError(msg)
@@ -551,6 +565,19 @@ def _checked_node_limit(value: object) -> int | None:
         msg = f"solver_options['node_limit'] must be between 1 and {_MAX_NODE_LIMIT}, got {value!r}."
         raise ValueError(msg)
     return nodes
+
+
+def _check_exclusions(exclude_solutions: list[list[int]] | None, n_candidates: int) -> None:
+    """Each excluded selection must be a non-empty list of pool row indices."""
+    for excluded in exclude_solutions or []:
+        rows = np.asarray(excluded)
+        valid = rows.ndim == 1 and rows.size > 0 and np.issubdtype(rows.dtype, np.integer)
+        if not valid or rows.min() < 0 or rows.max() >= n_candidates:
+            msg = (
+                "exclude_solutions entries must be non-empty lists of half-pool row indices in "
+                f"[0, {n_candidates}), got {excluded!r}."
+            )
+            raise ValueError(msg)
 
 
 def _size_bounds(n_half: int | None, half_bounds: tuple[int, int] | None) -> tuple[int, int]:
@@ -1004,7 +1031,9 @@ def _score_count_vectors(
         gram = (chunk @ b_flat).reshape(n_chunk, n_params, n_params)
         gram += center_runs * b_center
         eig = np.linalg.eigvalsh(gram)
-        singular = eig[:, 0] <= tol * np.maximum(1.0, eig[:, -1])
+        # A fixed relative threshold, not the caller's is_omars tolerance: the
+        # Gram matrix is integer, so a singular one has eigenvalues at round-off.
+        singular = eig[:, 0] <= _SINGULAR_RTOL * eig[:, -1]
         with np.errstate(divide="ignore", invalid="ignore"):
             log_det = np.where(singular, -np.inf, np.log(np.where(eig > 0, eig, 1.0)).sum(axis=1))
             d_chunk = np.where(singular, 0.0, 100.0 * np.exp(log_det / n_params) / n_total)
@@ -1182,11 +1211,53 @@ def _search_best_omars(  # noqa: C901, PLR0912, PLR0913, PLR0915
     # the window (the minimize-size solution becomes the first candidate).  The
     # solver's selection has already passed the exact constraint check in
     # solve_omars_ilp, so its size is a genuinely feasible one.
+    enum_cap = _ENUM_MAX_HALF.get(n_factors, 0)
+    if target_half is not None and target_half > max(pool.shape[0], enum_cap):
+        msg = (
+            f"n_runs={n_runs} needs {target_half} half-runs, but there are only {pool.shape[0]} distinct "
+            f"three-level half-runs for {n_factors} factors, and repeating half-runs is supported only "
+            + (
+                f"up to {enum_cap} half-runs ({2 * enum_cap + center_runs} runs). "
+                if enum_cap
+                else "for three and four factors. "
+            )
+            + "Use a smaller n_runs."
+        )
+        raise ValueError(msg)
+    probed_half: int | None = None
+    probe_rank_deficient = 0
+    requested_high = 0
+    if n_runs is None and n_runs_range is not None and n_runs_range[0] > n_runs_range[1]:
+        msg = f"n_runs_range must be (min, max) with min <= max, got {tuple(n_runs_range)}."
+        raise ValueError(msg)
     if target_half is None:
         half_window = _half_bounds(n_runs_range, n_params, pool.shape[0], _min_half_runs(n_factors, model), center_runs)
+        requested_high = half_window[0] + 6 if n_runs_range is None else (n_runs_range[1] - center_runs) // 2
+        if n_runs_range is not None and requested_high < half_window[0]:
+            msg = (
+                f"n_runs_range={tuple(n_runs_range)} ends below {2 * half_window[0] + center_runs} runs, the smallest "
+                f"size at which the {model} model is estimable with error degrees of freedom for "
+                f"{n_factors} factors and center_runs={center_runs}."
+            )
+            raise ValueError(msg)
+    if target_half is None and half_window is not None and half_window[0] > pool.shape[0]:
+        # Every size in the window needs more distinct half-runs than the pool
+        # has, so a selection without repeats cannot reach it; only the
+        # exhaustive search, which repeats half-runs, can.
+        high = min(requested_high, enum_cap)
+        if high < half_window[0]:
+            msg = (
+                f"The run sizes in n_runs_range={n_runs_range} need more than the {pool.shape[0]} distinct "
+                f"three-level half-runs for {n_factors} factors, and repeating half-runs is not supported "
+                "there. Ask for fewer runs."
+            )
+            raise ValueError(msg)
+        target_half = half_window[0]
+        half_window = (half_window[0], high)
+    elif target_half is None and half_window is not None:
         coded, status, indices = _solve(half_bounds=half_window, minimize_size=True)
         if coded is not None:
-            target_half = len(indices)
+            target_half = probed_half = len(indices)
             report.size_proven_minimal = status == _STATUS_OPTIMAL
             if not report.size_proven_minimal:
                 logger.info(
@@ -1195,6 +1266,7 @@ def _search_best_omars(  # noqa: C901, PLR0912, PLR0913, PLR0915
                     2 * target_half + center_runs,
                 )
             _record(coded, indices, status)
+            probe_rank_deficient = report.rank_deficient_designs
 
     # Search the target size.  When the size was chosen automatically and no
     # design there can estimate the sizing model, move up one half-run at a
@@ -1226,8 +1298,16 @@ def _search_best_omars(  # noqa: C901, PLR0912, PLR0913, PLR0915
         # criteria live up to their names (issues #497, #498, #499).
         if half <= _ENUM_MAX_HALF.get(n_factors, 0):
             count_matrix, overflow = _enumerate_feasible_counts(pool, half, _ENUM_MAX_LEAVES)
-            n_enumerated = count_matrix.shape[0]
             if not overflow:
+                # The enumeration replaces whatever the solver found at this
+                # size, including the minimise-size design and its count.
+                candidates.clear()
+                if half == probed_half:
+                    report.rank_deficient_designs -= probe_rank_deficient
+                # Keep only designs in which every factor reaches an outer level,
+                # the condition the ILP's coverage rows impose.
+                count_matrix = count_matrix[(count_matrix @ np.abs(pool) > 0).all(axis=1)]
+                n_enumerated = count_matrix.shape[0]
                 report.search_mode = "exhaustive"
                 report.enumerated_designs += n_enumerated
                 report.feasible_designs += n_enumerated
@@ -1236,7 +1316,7 @@ def _search_best_omars(  # noqa: C901, PLR0912, PLR0913, PLR0915
                         continue
                     msg = (
                         f"No feasible OMARS design exists at {target} with center_runs={center_runs} "
-                        "(exhaustive enumeration). Try a different n_runs or a wider n_runs_range."
+                        "(exhaustive enumeration). Try a different n_runs."
                     )
                     raise ValueError(msg)
                 d_eff, a_opt, max_corr = _score_count_vectors(count_matrix, pool, center_runs, model, tol=tol)
@@ -1261,8 +1341,8 @@ def _search_best_omars(  # noqa: C901, PLR0912, PLR0913, PLR0915
                             f"No feasible OMARS design met the satisfice thresholds {satisfice}. "
                             f"The best among {n_enumerated} enumerated design(s) reached "
                             f"d_efficiency={float(d_eff.max()):.3f} and "
-                            f"max_second_order_correlation={best_corr:.3f}. Relax the thresholds "
-                            "or widen n_runs_range."
+                            f"max_second_order_correlation={best_corr:.3f}. Relax the thresholds, "
+                            "or ask for more runs (a larger n_runs, or a higher lower bound in n_runs_range)."
                         )
                         raise ValueError(msg)
                 kept_idx = np.flatnonzero(keep)
@@ -1322,11 +1402,14 @@ def _search_best_omars(  # noqa: C901, PLR0912, PLR0913, PLR0915
     if not candidates:
         if target_half is None:
             window = half_window or (0, 0)
-            target = _describe_target(n_runs, 2 * window[0] + center_runs, 2 * window[1] + center_runs)
+            target = (
+                f"n_runs_range={tuple(n_runs_range)}"
+                if n_runs_range is not None
+                else _describe_target(n_runs, 2 * window[0] + center_runs, 2 * window[1] + center_runs)
+            )
             msg = (
                 f"No feasible OMARS design was found at {target} with center_runs={center_runs}: the "
-                f"minimise-size solve ended with status {last_status!r}. Widen n_runs_range"
-                + (", or raise solver_options['time_limit']." if last_status == _STATUS_TIME_LIMIT else ".")
+                f"minimise-size solve ended with status {last_status!r}. {_no_design_advice(last_status)}"
             )
         elif report.rank_deficient_designs:
             exhausted_all = report.search_mode == "exhaustive"
@@ -1341,10 +1424,14 @@ def _search_best_omars(  # noqa: C901, PLR0912, PLR0913, PLR0915
             target = _describe_target(n_runs, 2 * sizes[0] + center_runs, 2 * sizes[-1] + center_runs)
             msg = (
                 f"No feasible OMARS design was found at {target} with center_runs={center_runs}: the last "
-                f"solve ended with status {last_status!r}. Raise solver_options['time_limit'] or "
-                "solver_options['node_limit'], or try a different n_runs."
+                f"solve ended with status {last_status!r}. {_no_design_advice(last_status)}"
             )
         raise ValueError(msg)
+
+    if probed_half is not None and target_half != probed_half:
+        # The smallest feasible size was proven, but the design comes from a
+        # larger one, so the returned size is not proven minimal.
+        report.size_proven_minimal = False
 
     # Satisfice first (drop designs below the acceptability thresholds), then
     # pick from the survivors by dominance / the chosen criterion.  On the
@@ -1360,7 +1447,7 @@ def _search_best_omars(  # noqa: C901, PLR0912, PLR0913, PLR0915
                 f"No feasible OMARS design met the satisfice thresholds {satisfice}. "
                 f"The best among {len(candidates)} candidate(s) reached d_efficiency={best_d:.3f} and "
                 f"max_second_order_correlation={best_corr:.3f}. Relax the thresholds, raise n_restarts, "
-                "or widen n_runs_range."
+                "or ask for more runs (a larger n_runs, or a higher lower bound in n_runs_range)."
             )
             raise ValueError(msg)
 
@@ -1391,6 +1478,16 @@ def _search_best_omars(  # noqa: C901, PLR0912, PLR0913, PLR0915
         "omars_search": report,
     }
     return winner.coded, metadata
+
+
+def _no_design_advice(status: str) -> str:
+    """Return what a caller can change when a solve ended with *status* and no design."""
+    if status == _STATUS_INFEASIBLE:
+        return (
+            "No selection of distinct half-runs satisfies the OMARS constraints at this size; "
+            "try a different n_runs or n_runs_range."
+        )
+    return "Raise solver_options['time_limit'] or solver_options['node_limit'], or try a different n_runs."
 
 
 def _describe_target(n_runs: int | None, low: int, high: int | None = None) -> str:
@@ -1442,7 +1539,12 @@ def generate_omars(  # noqa: PLR0913
     n_runs_range : tuple[int, int], optional
         Inclusive ``(min, max)`` total-run-size window to search when *n_runs*
         is ``None``.  The search starts at the smallest feasible size and moves
-        up the window only if no design at a size can estimate the *model*.
+        up the window only if no design at a size can estimate the *model*.  A
+        window that ends below the smallest estimable size raises
+        ``ValueError``.  Sizes needing more half-runs than the
+        ``(3**k - 1) / 2`` distinct ones are reachable only by repeating
+        half-runs, which the exhaustive search does for three and four
+        factors.
     selection_criterion : {"dominance", "d_efficiency", "min_second_order_correlation", "a_optimal"}
         How to choose among the feasible designs.  When the design class at the
         chosen size is small enough (currently up to four factors at moderate
@@ -1480,7 +1582,8 @@ def generate_omars(  # noqa: PLR0913
         Higher values explore more of the feasible set and approach the
         catalogue-optimal designs more closely, at a roughly linear cost in
         runtime.  The search early-stops once the feasible set stops yielding new
-        designs, so small factor counts finish quickly regardless.  Default 50,
+        designs, so small factor counts finish quickly regardless.  The budget
+        applies at each run size the search visits.  Default 50,
         which reaches catalogue-competitive D-efficiency for up to seven factors.
         Deterministic for a fixed *random_seed*, as long as no solve hits
         ``solver_options["time_limit"]`` (see *random_seed*).
