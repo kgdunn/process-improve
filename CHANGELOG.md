@@ -256,6 +256,10 @@ those changes.
   design: `full_factorial(3, names=["A", "B"])` returned a 4-run, 2-factor design and
   repeated names collapsed into one column. A mismatch or a repeated name now raises
   `ValueError`, and the docstring documents the returned list of `Column` objects.
+- **`moment_aberration` refuses a design with a missing value.** The two levels were
+  counted after dropping missing cells, and every value other than the low level, a
+  missing one included, was then coded as the high level, so one empty cell turned a
+  resolution IV fraction into "resolution 1". A missing value now raises `ValueError`.
 - **`recommend_strategy` gives an all-mixture problem a mixture optimisation stage.** The
   optimisation stage was a CCD or Box-Behnken design on the first three components. It is
   now a `"mixture"` design for a quadratic Scheffe model in every component.
