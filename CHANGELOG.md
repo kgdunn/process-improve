@@ -300,6 +300,29 @@ those changes.
   and total degrees of freedom now come from the rank, corrected for the mean only when
   the model spans the constant (an intercept, or a Scheffé model), and `pure_error` and
   `lack_of_fit` are always reported (0 without replicates).
+- **VIF and power are meaningful for Scheffé mixture models.** `metric="vif"` called
+  statsmodels, which centres the columns; the centred linear blending columns of a
+  mixture are exactly collinear, so every linear term read about 1e15 (with warnings),
+  and the value depended on the installed statsmodels. VIFs are now computed from the
+  model matrix as `c_jj * sum((x_j - mean_j)^2)`, which is the classical `1 / (1 - R^2)`
+  with an intercept and finite for any estimable Scheffé model. `metric="power"` no
+  longer reports power for testing a linear blending coefficient against zero, a
+  hypothesis the mixture analysis never tests, and says so in a note.
+- **`evaluate_design` speaks the same model names as `generate_design` for mixtures.**
+  Over a mixture region, `model="special_cubic"` was rejected as an unknown formula name
+  and `"interactions"` fitted an intercept model that is rank-deficient on a simplex;
+  they now map to the Scheffé models as in `generate_design`. Without a model, a mixture
+  design is evaluated for the Scheffé model it was generated for (now recorded as
+  `metadata["model_type"]` for the simplex designs too), not always the quadratic one.
+- **Blocks are no longer dropped without a word.** A blocked design was evaluated as if
+  unblocked, overstating the residual degrees of freedom, power and efficiencies, and a
+  formula naming the block column was refused. A formula may now include `Block` (as a
+  categorical factor), and when it does not, `result["notes"]["blocks"]` says the blocks
+  were left out.
+- **`effect_size` in power calculations is documented as an anticipated coefficient.**
+  It is half the high-minus-low effect of a two-level factor, which the docstring and
+  the agent tool's schema now say; the G-efficiency docstring names its convention
+  (`p / (N max d)`, of which JMP reports the square root).
 - **Each metric's note is kept under its own name.** Metrics returned a shared top-level
   `"note"`, so asking for two metrics kept only the last note, attributed to the wrong
   metric. `evaluate_design` now returns them as `result["notes"][metric_name]`.

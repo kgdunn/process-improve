@@ -9,11 +9,13 @@ than coded -1/+1 units.
 
 from __future__ import annotations
 
+import contextlib
 import itertools
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 import numpy as np
 
+from process_improve.experiments.designs_mixture_constrained import scheffe_model
 from process_improve.experiments.factor import FactorType
 
 if TYPE_CHECKING:
@@ -85,7 +87,11 @@ def dispatch_mixture(
         matrix = _simplex_centroid(k)
         method = "simplex_centroid"
 
-    return matrix, {"method": method}
+    meta: dict[str, Any] = {"method": method}
+    # Record the Scheffé model asked for, so evaluate_design defaults to it.
+    with contextlib.suppress(ValueError):
+        meta["model_type"] = scheffe_model(model_type)
+    return matrix, meta
 
 
 def _simplex_lattice(k: int, degree: int = 2) -> np.ndarray:

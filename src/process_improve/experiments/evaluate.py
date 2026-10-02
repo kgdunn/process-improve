@@ -21,6 +21,7 @@ from __future__ import annotations
 import contextlib
 import itertools
 import logging
+import re
 import warnings
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -31,11 +32,10 @@ import pandas as pd
 from patsy import EvalFactor, ModelDesc, Term, build_design_matrices, dmatrix
 from patsy.design_info import DesignInfo
 from scipy import stats
-from statsmodels.stats.outliers_influence import variance_inflation_factor
 
 from process_improve._random import check_random_state, resolve_deprecated_seed
 from process_improve.experiments._moment_aberration import NotTwoLevelError, moment_aberration
-from process_improve.experiments.designs_mixture_constrained import SCHEFFE_MODELS, scheffe_formula_rhs
+from process_improve.experiments.designs_mixture_constrained import SCHEFFE_MODELS, scheffe_formula_rhs, scheffe_model
 from process_improve.experiments.factor import DesignResult
 from process_improve.experiments.models import validate_formula_is_safe, validate_identifier_is_safe
 from process_improve.experiments.region import DesignRegion
@@ -100,6 +100,7 @@ class _EvalContext:
     random_state: int | np.random.Generator | None = 42
     fds_resolution: int | None = None
     design_type: str | None = None
+    is_scheffe: bool = False  # a Scheffé mixture model (no intercept; linear blending terms)
 
 
 # ---------------------------------------------------------------------------
@@ -225,6 +226,7 @@ def _build_context(req: _EvalRequest) -> _EvalContext:
         random_state=req.random_state,
         fds_resolution=req.fds_resolution,
         design_type=req.design_type,
+        is_scheffe=req.model in SCHEFFE_MODELS,
     )
 
 
@@ -415,8 +417,31 @@ def _resolve_region(
     return "cuboidal"
 
 
+def _mixture_model(model: str | None, design_matrix: pd.DataFrame | DesignResult) -> str:
+    """Name the Scheffé model to evaluate a mixture design with.
+
+    The process-model names that ``generate_design`` accepts for a mixture
+    (``"quadratic"``, ``"special_cubic"``, ...) map to their Scheffé models, as they do
+    there; an explicit formula is kept. Without a model, the one the design was
+    generated for is used, else the Scheffé quadratic model.
+    """
+    if model is None:
+        recorded = design_matrix.metadata.get("model_type") if isinstance(design_matrix, DesignResult) else None
+        model = recorded or "scheffe_quadratic"
+    with contextlib.suppress(ValueError):  # not a model name: an explicit formula
+        return scheffe_model(model)
+    return model
+
+
 def _compute_g_efficiency(ctx: _EvalContext) -> dict[str, Any]:
-    """G-efficiency: 100 * p / (N * max prediction variance over design region)."""
+    """G-efficiency: ``100 * p / (N * max d(x))``, the maximum taken over the design region.
+
+    This is the definition of Atkinson, Donev and Tobias and of Montgomery: ``p`` over the
+    maximum scaled prediction variance ``N d(x)``. JMP and SAS PROC OPTEX report its
+    square root, ``100 * sqrt(p / (N * max d(x)))``, so below 100 the two disagree (82.8
+    against 91.0 for a 3^2 factorial under the quadratic model); ``max_prediction_variance``
+    is returned so either can be formed.
+    """
     if ctx.is_singular:
         return {"g_efficiency": None, "note": "Design is rank-deficient for the specified model."}
 
@@ -708,17 +733,22 @@ def _compute_prediction_variance(ctx: _EvalContext) -> dict[str, Any]:
 
 
 def _compute_vif(ctx: _EvalContext) -> dict[str, Any]:
-    """Variance Inflation Factor for each model term (excluding intercept)."""
+    """Variance inflation factor of each model term (excluding the intercept).
+
+    ``VIF_j = c_jj * sum_i (x_ij - mean_j)^2`` with ``c = (X'X)^-1``. For a model with an
+    intercept this is the classical ``1 / (1 - R_j^2)``, with ``R_j^2`` from regressing
+    column ``j`` on the other columns. A Scheffé mixture model has no intercept, and its
+    linear blending columns sum to one, so the classical form (which centres the columns)
+    is undefined for them; the same expression is reported, as JMP does: it is finite
+    whenever the model is estimable, and the cross-product terms read as usual.
+    """
     if ctx.is_singular:
         return {"vif": None, "note": "Design is rank-deficient for the specified model."}
 
-    vif_dict: dict[str, float] = {}
-    for i, name in enumerate(ctx.column_names):
-        if name.lower() == "intercept" or name == "1":
-            continue
-        vif_val = variance_inflation_factor(ctx.X, i)
-        vif_dict[name] = float(vif_val)
-    return {"vif": vif_dict}
+    assert ctx.XtX_inv is not None
+    centred_ss = ((ctx.X - ctx.X.mean(axis=0)) ** 2).sum(axis=0)
+    vif = np.diag(ctx.XtX_inv) * centred_ss
+    return {"vif": {name: float(vif[i]) for i, name in enumerate(ctx.column_names) if not _is_intercept_col(name)}}
 
 
 def _compute_condition_number(ctx: _EvalContext) -> dict[str, float]:
@@ -728,7 +758,17 @@ def _compute_condition_number(ctx: _EvalContext) -> dict[str, float]:
 
 
 def _compute_power(ctx: _EvalContext) -> dict[str, Any]:
-    """Statistical power for detecting each model term."""
+    """Power of the t-test (an F-test on 1 df) of each model coefficient against zero.
+
+    ``effect_size`` is the anticipated *coefficient* in coded units (what JMP calls the
+    anticipated coefficient), not the high-minus-low effect: for a two-level factor
+    coded -1 / +1 a high-minus-low effect of ``delta`` is a coefficient of ``delta / 2``.
+    The noncentrality is ``effect_size**2 / (sigma**2 c_jj)``, with ``c = (X'X)^-1``.
+
+    For a Scheffé mixture model the linear blending coefficients are left out: they are
+    the expected responses of the pure components, and testing one against zero is not
+    a meaningful hypothesis (the mixture analysis tests them jointly, for equality).
+    """
     if ctx.is_singular:
         return {"power": None, "note": "Design is rank-deficient for the specified model."}
 
@@ -740,33 +780,36 @@ def _compute_power(ctx: _EvalContext) -> dict[str, Any]:
 
     assert ctx.XtX_inv is not None  # guaranteed by not is_singular
     diag_inv = np.diag(ctx.XtX_inv)
+    f_crit = stats.f.ppf(1.0 - ctx.alpha, dfn=1, dfd=df_resid)
+    terms = [
+        (i, name)
+        for i, name in enumerate(ctx.column_names)
+        if not _is_intercept_col(name) and not (ctx.is_scheffe and name in ctx.factor_names)
+    ]
 
+    def power_at(coefficient: float, i: int) -> float:
+        ncp = coefficient**2 / (sigma**2 * diag_inv[i])
+        return float(1.0 - stats.ncf.cdf(f_crit, dfn=1, dfd=df_resid, nc=ncp))
+
+    result: dict[str, Any]
     if ctx.effect_size is not None:
-        # Single power value per term
-        power_dict: dict[str, float] = {}
-        for i, name in enumerate(ctx.column_names):
-            if name.lower() == "intercept" or name == "1":
-                continue
-            ncp = (ctx.effect_size**2) / (sigma**2 * diag_inv[i])
-            f_crit = stats.f.ppf(1.0 - ctx.alpha, dfn=1, dfd=df_resid)
-            pwr = 1.0 - stats.ncf.cdf(f_crit, dfn=1, dfd=df_resid, nc=ncp)
-            power_dict[name] = float(pwr)
-        return {"power": power_dict}
-
-    # No effect_size: generate power curves over a range of effect sizes
-    effect_sizes = np.linspace(0.5 * sigma, 3.0 * sigma, 20)
-    power_curves: dict[str, list[dict[str, float]]] = {}
-    for i, name in enumerate(ctx.column_names):
-        if name.lower() == "intercept" or name == "1":
-            continue
-        curve = []
-        for es in effect_sizes:
-            ncp = (es**2) / (sigma**2 * diag_inv[i])
-            f_crit = stats.f.ppf(1.0 - ctx.alpha, dfn=1, dfd=df_resid)
-            pwr = 1.0 - stats.ncf.cdf(f_crit, dfn=1, dfd=df_resid, nc=ncp)
-            curve.append({"effect_size": float(es), "power": float(pwr)})
-        power_curves[name] = curve
-    return {"power_curves": power_curves, "sigma": float(sigma)}
+        result = {"power": {name: power_at(ctx.effect_size, i) for i, name in terms}}
+    else:
+        # No effect_size: power curves over a range of coefficients
+        effect_sizes = np.linspace(0.5 * sigma, 3.0 * sigma, 20)
+        result = {
+            "power_curves": {
+                name: [{"effect_size": float(es), "power": power_at(float(es), i)} for es in effect_sizes]
+                for i, name in terms
+            },
+            "sigma": float(sigma),
+        }
+    if ctx.is_scheffe:
+        result["note"] = (
+            "The linear blending terms are not tested against zero, so they have no power here; the "
+            "mixture analysis tests them jointly for equality."
+        )
+    return result
 
 
 def _spans_constant(X: np.ndarray) -> bool:
@@ -1281,6 +1324,34 @@ def _resolve_metrics(metric: str | list[str]) -> list[str]:
     return metrics
 
 
+def _separate_run_columns(
+    design_df: pd.DataFrame, factor_names: list[str], model: str | None
+) -> tuple[pd.DataFrame, list[str], str | None]:
+    """Drop ``RunOrder``, and keep ``Block`` only when the model formula uses it.
+
+    A formula that names ``Block`` (``"A + B + Block"``) gets it as a categorical
+    factor (its values become labels). Otherwise the block column is dropped, and when the design has more than
+    one block a note says that the metrics ignore the blocks, which overstates the
+    residual degrees of freedom by ``n_blocks - 1``.
+    """
+    factor_names = [f for f in factor_names if f not in ("RunOrder", "Block")]
+    design_df = design_df.drop(columns=["RunOrder"], errors="ignore")
+    if "Block" not in design_df.columns:
+        return design_df, factor_names, None
+    if model is not None and re.search(r"\bBlock\b", model):
+        return design_df.assign(Block=design_df["Block"].astype(str)), [*factor_names, "Block"], None
+    n_blocks = int(design_df["Block"].nunique())
+    design_df = design_df.drop(columns=["Block"])
+    if n_blocks < 2:
+        return design_df, factor_names, None
+    note = (
+        f"The design has {n_blocks} blocks, which the model leaves out, so the residual degrees of freedom, "
+        "power and efficiencies are those of an unblocked design. Write the model as a formula with "
+        "'+ Block' to include them as a categorical factor."
+    )
+    return design_df, factor_names, note
+
+
 #: Coded settings beyond this many units are taken as a sign of actual (uncoded) units. A
 #: rotatable or orthogonal central composite design stays inside it for any usual size.
 _CODED_LIMIT_FLOOR = 3.0
@@ -1360,9 +1431,15 @@ def evaluate_design(  # noqa: PLR0913
     model : str or None
         Model type: ``"main_effects"``, ``"interactions"``, ``"quadratic"``, a
         Scheffé mixture model (``"scheffe_linear"``, ``"scheffe_quadratic"``,
-        ``"scheffe_special_cubic"``), or an explicit patsy formula.  ``None``
-        defaults to ``"scheffe_quadratic"`` over a mixture region and to
-        ``"interactions"`` otherwise.
+        ``"scheffe_special_cubic"``), or an explicit patsy formula.  Over a
+        mixture region the process-model names map to Scheffé models as in
+        :func:`generate_design` (``"interactions"`` and ``"quadratic"`` to
+        ``"scheffe_quadratic"``, ``"special_cubic"`` to
+        ``"scheffe_special_cubic"``), and ``None`` means the model the design was
+        generated for, else ``"scheffe_quadratic"``; otherwise ``None`` means
+        ``"interactions"``.  A formula may name a ``Block`` column (``"A + B +
+        Block"``) to include the blocks as a categorical factor; otherwise the
+        blocks are left out and a note says so.
     metric : str or list[str]
         One or more metric names to compute, or the special value ``"all"`` to
         compute every metric.  Valid names: ``"d_efficiency"``,
@@ -1374,13 +1451,18 @@ def evaluate_design(  # noqa: PLR0913
         ``"clear_effects"``, ``"minimum_aberration"``, ``"moment_aberration"``.
         ``"i_efficiency"`` still works but is deprecated (since 1.97.0, removed in
         2.0): it divides ``p / N`` by the average prediction variance and so is not
-        bounded by 100. The optimality-criterion
+        bounded by 100. ``"g_efficiency"`` is ``100 * p / (N * max d(x))``
+        (Atkinson, Donev and Tobias; Montgomery), where JMP reports its square
+        root. The optimality-criterion
         metrics also accept the opposite suffix as an alias (e.g.
         ``"d_optimality"`` for ``"d_efficiency"``, ``"a_efficiency"`` for
         ``"a_optimality"``); the result is keyed under the canonical name.
     effect_size : float or None
-        Expected effect size for power calculation.  When *None*, a power
-        curve over a range of effect sizes is returned instead.
+        Anticipated size of a model *coefficient* in coded units, for the power
+        calculation (JMP's "anticipated coefficient").  For a two-level factor
+        coded -1 / +1 this is half the high-minus-low effect.  When *None*, a
+        power curve over coefficients from ``0.5 * sigma`` to ``3 * sigma`` is
+        returned instead.
     alpha : float
         Significance level for power calculation (default 0.05).
     sigma : float or None
@@ -1460,22 +1542,15 @@ def evaluate_design(  # noqa: PLR0913
         design_df = pd.DataFrame(design_matrix)
         factor_names = list(design_df.columns)
 
-    # Drop non-factor columns
-    for col in ["RunOrder", "Block"]:
-        if col in design_df.columns and col not in factor_names:
-            design_df = design_df.drop(columns=[col])
-        elif col in factor_names:
-            factor_names.remove(col)
-            design_df = design_df.drop(columns=[col])
-
+    design_df, factor_names, block_note = _separate_run_columns(design_df, factor_names, model)
     _validate_inputs(design_df, factor_names, alpha, sigma, n_samples)
     metrics = _resolve_metrics(metric)
     logger.debug("evaluate_design: model=%r, metrics=%s", model, metrics)
 
     # --- Region, and the Scheffé default for mixtures (an intercept is redundant there) ---
     region = _resolve_region(region, design_matrix)
-    if model is None and isinstance(region, DesignRegion) and region.kind == "mixture":
-        model = "scheffe_quadratic"
+    if isinstance(region, DesignRegion) and region.kind == "mixture":
+        model = _mixture_model(model, design_matrix)
 
     # --- Build context ---
     ctx = _build_context(
@@ -1507,6 +1582,8 @@ def evaluate_design(  # noqa: PLR0913
         if note:
             notes[m] = note
         results.update(result)
+    if block_note:
+        notes["blocks"] = block_note
     if notes:
         results["notes"] = notes
 

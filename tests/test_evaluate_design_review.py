@@ -7,11 +7,13 @@ definition, not against the implementation.
 from __future__ import annotations
 
 import itertools
+import warnings
 
 import numpy as np
 import pandas as pd
 import pytest
 from patsy import build_design_matrices, dmatrix
+from scipy import stats
 
 from process_improve.experiments import Factor, evaluate_all, evaluate_design, generate_design
 from process_improve.experiments.factor import DesignResult
@@ -277,3 +279,121 @@ class TestInputValidation:
         r = generate_design(fs, design_type="ccd", alpha="rotatable", n_center_points=2)
         evaluate_design(r, model="quadratic", metric="d_efficiency")
         assert not [w for w in recwarn if "coded units" in str(w.message)]
+
+
+# ---------------------------------------------------------------------------
+# Degrees of freedom from the rank of X
+# ---------------------------------------------------------------------------
+
+
+class TestDegreesOfFreedom:
+    def test_rank_deficient_model_uses_the_rank(self) -> None:
+        d = pd.DataFrame(list(itertools.product([-1, 1], repeat=2)) * 2, columns=list("AB"))
+        out = evaluate_design(d, model="quadratic", metric="degrees_of_freedom")["degrees_of_freedom"]
+        # Rank 4 (the squares equal the intercept): model 3, residual 4, all of it pure error.
+        assert out == {"model": 3, "residual": 4, "total": 7, "pure_error": 4, "lack_of_fit": 0}
+
+    def test_no_intercept_model(self) -> None:
+        d = pd.DataFrame(list(itertools.product([-1, 1], repeat=2)) + [(0, 0)] * 3, columns=list("AB"))
+        out = evaluate_design(d, model="A + B - 1", metric="degrees_of_freedom")["degrees_of_freedom"]
+        assert out == {"model": 2, "residual": 5, "total": 7, "pure_error": 2, "lack_of_fit": 3}
+
+    def test_scheffe_model_carries_the_mean_in_its_linear_terms(self) -> None:
+        """The linear blending terms span the constant, so the ANOVA is corrected for the mean (Cornell)."""
+        m = pd.DataFrame(
+            [(1, 0, 0), (0, 1, 0), (0, 0, 1), (0.5, 0.5, 0), (0.5, 0, 0.5), (0, 0.5, 0.5), (1 / 3, 1 / 3, 1 / 3)] * 2,
+            columns=["x1", "x2", "x3"],
+        )
+        out = evaluate_design(m, model="scheffe_quadratic", metric="degrees_of_freedom")["degrees_of_freedom"]
+        assert out == {"model": 5, "residual": 8, "total": 13, "pure_error": 7, "lack_of_fit": 1}
+
+    def test_unreplicated_design_reports_zero_pure_error(self) -> None:
+        out = evaluate_design(_two_level(3), model="main_effects", metric="degrees_of_freedom")["degrees_of_freedom"]
+        assert out == {"model": 3, "residual": 4, "total": 7, "pure_error": 0, "lack_of_fit": 4}
+
+
+# ---------------------------------------------------------------------------
+# VIF and power for Scheffe mixture models
+# ---------------------------------------------------------------------------
+
+
+_CENTROID = pd.DataFrame(
+    [(1, 0, 0), (0, 1, 0), (0, 0, 1), (0.5, 0.5, 0), (0.5, 0, 0.5), (0, 0.5, 0.5), (1 / 3, 1 / 3, 1 / 3)],
+    columns=["x1", "x2", "x3"],
+)
+
+
+class TestScheffeModels:
+    def test_vif_is_finite_and_defined_from_the_inverse(self) -> None:
+        with warnings.catch_warnings():
+            warnings.simplefilter("error")
+            vif = evaluate_design(_CENTROID, model="scheffe_quadratic", metric="vif")["vif"]
+        x = np.asarray(dmatrix("-1 + (x1 + x2 + x3) ** 2", _CENTROID))
+        c = np.diag(np.linalg.inv(x.T @ x))
+        ss = ((x - x.mean(axis=0)) ** 2).sum(axis=0)
+        np.testing.assert_allclose(list(vif.values()), c * ss)
+        assert max(vif.values()) < 100
+
+    def test_vif_matches_the_classical_definition_with_an_intercept(self) -> None:
+        rng = np.random.default_rng(1)
+        d = pd.DataFrame(rng.uniform(-1, 1, (12, 3)), columns=list("ABC"))
+        vif = evaluate_design(d, model="main_effects", metric="vif")["vif"]
+        for name in "ABC":
+            others = np.column_stack([np.ones(12), d.drop(columns=name)])
+            fitted = others @ np.linalg.lstsq(others, d[name], rcond=None)[0]
+            r2 = 1 - np.sum((d[name] - fitted) ** 2) / np.sum((d[name] - d[name].mean()) ** 2)
+            assert vif[name] == pytest.approx(1 / (1 - r2))
+
+    def test_power_skips_the_linear_blending_terms(self) -> None:
+        out = evaluate_design(pd.concat([_CENTROID] * 2), model="scheffe_quadratic", metric="power", effect_size=2.0)
+        assert set(out["power"]) == {"x1:x2", "x1:x3", "x2:x3"}
+        assert "linear blending" in out["notes"]["power"]
+
+    def test_process_model_names_map_to_scheffe_models_for_a_mixture(self) -> None:
+        fs = [Factor(name=f"x{i}", type="mixture") for i in range(3)]
+        r = generate_design(fs, design_type="mixture", model_type="special_cubic")
+        assert r.metadata["model_type"] == "scheffe_special_cubic"
+        by_alias = evaluate_design(r, model="special_cubic", metric="d_efficiency")
+        by_name = evaluate_design(r, model="scheffe_special_cubic", metric="d_efficiency")
+        default = evaluate_design(r, metric="d_efficiency")
+        assert by_alias["d_efficiency"] == pytest.approx(by_name["d_efficiency"])
+        assert default["d_efficiency"] == pytest.approx(by_name["d_efficiency"])
+        quad = evaluate_design(r, model="interactions", metric="d_efficiency")
+        assert quad["d_efficiency"] == pytest.approx(
+            evaluate_design(r, model="scheffe_quadratic", metric="d_efficiency")["d_efficiency"]
+        )
+
+
+# ---------------------------------------------------------------------------
+# Blocks
+# ---------------------------------------------------------------------------
+
+
+class TestBlocks:
+    def _blocked(self) -> pd.DataFrame:
+        d = _two_level(3)
+        d["Block"] = np.where(d.A * d.B * d.C > 0, 1, 2)
+        return d
+
+    def test_formula_may_reference_the_block(self) -> None:
+        out = evaluate_design(self._blocked(), model="A + B + C + Block", metric="degrees_of_freedom")
+        assert out["degrees_of_freedom"]["model"] == 4
+        assert out["degrees_of_freedom"]["residual"] == 3
+
+    def test_ignored_blocks_are_reported(self) -> None:
+        out = evaluate_design(self._blocked(), model="interactions", metric="degrees_of_freedom")
+        assert out["degrees_of_freedom"]["residual"] == 1
+        assert "+ Block" in out["notes"]["blocks"]
+
+    def test_single_block_is_not_reported(self) -> None:
+        d = _two_level(3).assign(Block=1)
+        out = evaluate_design(d, model="interactions", metric="degrees_of_freedom")
+        assert "notes" not in out
+
+
+def test_power_is_for_an_anticipated_coefficient() -> None:
+    """effect_size is a coefficient: a high-minus-low effect of 2 in a 2^3 is effect_size=1."""
+    power = evaluate_design(_two_level(3), model="main_effects", metric="power", effect_size=1.0)["power"]["A"]
+    # Coefficient 1 in a 2^3: c_jj = 1/8, so the noncentrality is 8; 4 residual df.
+    expected = 1 - stats.ncf.cdf(stats.f.ppf(0.95, 1, 4), 1, 4, 8.0)
+    assert power == pytest.approx(expected)
