@@ -70,6 +70,13 @@ def test_full_factorial_rejects_non_positive_nfactors(bad: int) -> None:
         full_factorial(bad)
 
 
+@pytest.mark.parametrize(("nfactors", "names"), [(3, ["A", "B"]), (2, ["A", "B", "C"]), (2, ["A", "A"])])
+def test_full_factorial_rejects_names_that_do_not_match_nfactors(nfactors: int, names: list[str]) -> None:
+    """The names must be nfactors distinct names; a mismatch used to change the design size silently."""
+    with pytest.raises(ValueError, match="distinct names"):
+        full_factorial(nfactors, names=names)
+
+
 def test_full_factorial_one_factor_still_works() -> None:
     """``full_factorial(1)`` is the boundary case and must still produce a
     two-row, one-column design.

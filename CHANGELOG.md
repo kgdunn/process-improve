@@ -251,6 +251,11 @@ those changes.
   supersaturated, Latin hypercube) came back as coded +/-1 rows labelled as proportions,
   with row sums from -3 to 3; they now raise and name the families that handle mixtures
   (`"mixture"`, the optimal families, `"sobol"`, `"halton"`, `"maximin"`).
+- **`full_factorial(nfactors, names=...)` checks that the names match the factor count.**
+  The names were zipped with the factors without a check, so their number decided the
+  design: `full_factorial(3, names=["A", "B"])` returned a 4-run, 2-factor design and
+  repeated names collapsed into one column. A mismatch or a repeated name now raises
+  `ValueError`, and the docstring documents the returned list of `Column` objects.
 - **`recommend_strategy` gives an all-mixture problem a mixture optimisation stage.** The
   optimisation stage was a CCD or Box-Behnken design on the first three components. It is
   now a `"mixture"` design for a quadratic Scheffe model in every component.
