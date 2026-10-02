@@ -615,6 +615,13 @@ class TestDOptimal:
             vals = result.design[col].values
             assert np.all(np.abs(vals) <= 1.0 + 1e-10)
 
+    @pytest.mark.parametrize("given", [{"expression": "A + B <= 0.5"}, "A + B <= 0.5"])
+    def test_constraints_as_dicts_or_expressions(self, given: dict | str) -> None:
+        """A JSON round trip of a Constraint (a recommend_strategy stage's design_params) gives a dict."""
+        factors = [Factor(name=n, low=0, high=1) for n in "AB"]
+        result = generate_design(factors, design_type="d_optimal", budget=6, constraints=[given])
+        assert (result.design_actual["A"] + result.design_actual["B"]).max() <= 0.5 + 1e-9
+
 
 # ---------------------------------------------------------------------------
 # I-Optimal (pyoptex)

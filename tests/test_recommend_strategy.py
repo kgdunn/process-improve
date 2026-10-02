@@ -365,7 +365,8 @@ class TestScreeningStrategy:
         result = recommend_strategy(factors=seven_factors, hard_to_change_factors=["A", "B"])
         for stage in result["stages"]:
             if stage["stage_name"] in ("Screening", "Optimization"):
-                assert stage["design_params"].get("split_plot") is True
+                assert stage["design_type"] == "d_optimal"
+                assert stage["design_params"]["hard_to_change"] == ["A", "B"]
 
 
 # ---------------------------------------------------------------------------
@@ -743,9 +744,8 @@ def test_every_stage_but_confirmation_is_a_generate_design_call(scenario: str, d
             assert stage["design_type"] == "replicates_at_optimum"
             continue
         factors = [f for f in inputs["factors"] if f.name in stage["factors"]]
-        result = generate_design(
-            factors, design_type=stage["design_type"], constraints=inputs.get("constraints"), **stage["design_params"]
-        )
+        params = {"constraints": inputs.get("constraints"), **stage["design_params"]}
+        result = generate_design(factors, design_type=stage["design_type"], **params)
         assert result.n_runs > 0
 
 
@@ -763,3 +763,161 @@ def test_an_all_mixture_problem_optimises_with_a_mixture_design() -> None:
     stage = next(s for s in strategy["stages"] if s["stage_name"] == "Optimization")
     assert stage["design_type"] == "mixture"
     assert stage["factors"] == [f.name for f in inputs["factors"]]
+
+
+# ---------------------------------------------------------------------------
+# The recommended stages build what the plan says (#138, #139, #141-#145, #149)
+# ---------------------------------------------------------------------------
+
+
+def _stage_factors(factors: list[Factor], stage: dict) -> list[Factor]:
+    return [f for f in factors if f.name in stage["factors"]]
+
+
+def _build(factors: list[Factor], stage: dict):
+    from process_improve.experiments import generate_design
+
+    return generate_design(_stage_factors(factors, stage), design_type=stage["design_type"], **stage["design_params"])
+
+
+def _maximise() -> list[Response]:
+    return [Response(name="y", goal="maximize")]
+
+
+_OPTIMAL = {"d_optimal", "i_optimal", "a_optimal", "e_optimal"}
+
+
+@pytest.mark.parametrize("domain", [d.value for d in DomainType])
+@pytest.mark.parametrize("k", [2, 3, 4, 5, 6, 8, 12])
+def test_estimated_runs_are_the_runs_the_stage_builds(k: int, domain: str) -> None:
+    """A budget lowered estimated_runs without changing the design, which then needed 2-5 times more runs."""
+    factors = _continuous(k)
+    for budget in (None, 8, 15, 25, 40, 100):
+        strategy = recommend_strategy(factors=factors, responses=_maximise(), budget=budget, domain=domain)
+        for stage in strategy["stages"]:
+            if stage["design_type"] == "replicates_at_optimum":
+                assert stage["estimated_runs"] == stage["design_params"]["n_replicates"]
+            elif stage["design_type"] in _OPTIMAL:
+                # The budget sets an optimal design's size; building one per case would take minutes.
+                assert stage["estimated_runs"] == stage["design_params"]["budget"]
+            else:
+                assert _build(factors, stage).n_runs == stage["estimated_runs"], (budget, stage)
+        total = sum(s["estimated_runs"] for s in strategy["stages"])
+        assert strategy["total_estimated_runs"] == total
+        if budget is not None and total > budget:
+            assert any(f"Budget of {budget} runs is below the smallest plan" in r for r in strategy["risks"])
+
+
+@pytest.mark.parametrize(("k", "budget"), [(5, 25), (6, 20)])
+def test_a_tight_budget_changes_the_design_not_just_its_run_count(k: int, budget: int) -> None:
+    """Five factors in 25 runs: smaller designs, not the ideal ones with a lower estimate; six in 20: a single DSD."""
+    factors = _continuous(k)
+    strategy = recommend_strategy(factors=factors, responses=_maximise(), budget=budget)
+    assert strategy["total_estimated_runs"] <= budget
+    for stage in strategy["stages"]:
+        if stage["design_type"] != "replicates_at_optimum":
+            assert _build(factors, stage).n_runs == stage["estimated_runs"]
+    assert any(f"Budget of {budget} runs" in r for r in strategy["risks"])
+
+
+def test_a_budget_below_every_plan_says_so() -> None:
+    """The reproducer: five factors in 15 runs used to report 15 runs for designs that build 39."""
+    strategy = recommend_strategy(factors=_continuous(5), responses=_maximise(), budget=15)
+    assert strategy["total_estimated_runs"] == 16  # a 13-run DSD and 3 confirmation runs
+    assert any("Budget of 15 runs is below the smallest plan" in r for r in strategy["risks"])
+
+
+def test_an_infeasible_budget_is_reported_not_hidden() -> None:
+    strategy = recommend_strategy(factors=_continuous(3), responses=_maximise(), budget=8)
+    assert strategy["total_estimated_runs"] > 8
+    assert any("Budget of 8 runs is below the smallest plan" in r for r in strategy["risks"])
+
+
+def test_the_constrained_optimisation_stage_builds_a_feasible_quadratic_design() -> None:
+    factors = [Factor(name=n, low=0, high=1) for n in "ABC"]
+    constraints = [Constraint(expression="A + B <= 1.5")]
+    strategy = recommend_strategy(factors=factors, responses=_maximise(), constraints=constraints)
+    stage = next(s for s in strategy["stages"] if s["stage_name"] == "Optimization")
+    assert stage["design_type"] == "d_optimal"
+    assert stage["design_params"]["model_type"] == "quadratic"
+    result = _build(factors, stage)
+    assert result.n_runs == stage["estimated_runs"]
+    actual = result.design_actual
+    assert (actual["A"] + actual["B"]).max() <= 1.5 + 1e-9
+    assert all(actual[name].round(6).nunique() >= 3 for name in "ABC")  # three levels: a quadratic is estimable
+
+
+def test_hard_to_change_factors_give_a_split_plot_generate_design_call() -> None:
+    factors = [Factor(name=n, low=0, high=1) for n in "ABCD"]
+    strategy = recommend_strategy(factors=factors, responses=_maximise(), hard_to_change_factors=["A"])
+    split = [s for s in strategy["stages"] if "hard_to_change" in s["design_params"]]
+    assert split
+    for stage in split:
+        assert stage["design_params"]["hard_to_change"] == ["A"]
+        assert stage["design_type"] == "d_optimal"
+        assert _build(factors, stage).n_runs == stage["estimated_runs"]
+
+
+def test_an_unknown_hard_to_change_factor_is_refused() -> None:
+    with pytest.raises(ValueError, match="Zebra"):
+        recommend_strategy(factors=_continuous(4), hard_to_change_factors=["Zebra"])
+
+
+@pytest.mark.parametrize("domain", ["food_science", "cell_culture"])
+def test_two_factors_never_get_a_box_behnken_design(domain: str) -> None:
+    """A Box-Behnken design does not exist for two factors."""
+    factors = [Factor(name=n, low=0, high=1) for n in "AB"]
+    stage = recommend_strategy(factors=factors, responses=_maximise(), domain=domain)["stages"][0]
+    assert stage["design_type"] == "ccd"
+    assert stage["design_params"]["alpha"] == "face_centered"
+    assert _build(factors, stage).n_runs == stage["estimated_runs"]
+
+
+def test_a_three_level_categorical_factor_gets_designs_that_build() -> None:
+    factors = [Factor(name="A", type="categorical", levels=["x", "y", "z"]), *_continuous(3)]
+    strategy = recommend_strategy(factors=factors, responses=_maximise())
+    for stage in strategy["stages"]:
+        if stage["design_type"] != "replicates_at_optimum":
+            assert _build(factors, stage).n_runs == stage["estimated_runs"]
+
+
+def test_mixture_components_with_process_factors_are_refused() -> None:
+    factors = [Factor(name=n, type="mixture", low=0, high=1) for n in "ABC"] + [Factor(name="T", low=0, high=1)]
+    with pytest.raises(ValueError, match="Mixture-process"):
+        recommend_strategy(factors=factors, responses=_maximise())
+
+
+def test_known_significant_factors_are_the_ones_optimised() -> None:
+    names = ["Temperature", "pH", "Stirring", "Time", "Feed", "Salt"]
+    factors = [Factor(name=n, low=0, high=1) for n in names]
+    text = "Published literature confirms Temperature and pH are significant."
+    strategy = recommend_strategy(factors=factors, responses=_maximise(), prior_knowledge=text)
+    stage = strategy["stages"][0]
+    assert stage["stage_name"] == "Optimization"
+    assert stage["factors"] == ["Temperature", "pH"]
+    assert _build(factors, stage).n_runs == stage["estimated_runs"]
+
+
+def test_after_screening_the_optimisation_factors_are_marked_as_placeholders() -> None:
+    strategy = recommend_strategy(factors=_continuous(6), responses=_maximise())
+    stage = next(s for s in strategy["stages"] if s["stage_name"] == "Optimization")
+    assert "screening finds" in stage["purpose"]
+
+
+def test_one_factor_with_a_goal_gets_an_optimisation_stage() -> None:
+    factors = [Factor(name="T", low=0, high=1)]
+    strategy = recommend_strategy(factors=factors, responses=_maximise())
+    stage = next(s for s in strategy["stages"] if s["stage_name"] == "Optimization")
+    design = _build(factors, stage)
+    assert design.n_runs == stage["estimated_runs"]
+    assert design.design["T"].round(6).nunique() == 3
+
+
+@pytest.mark.parametrize("q", [3, 4, 5])
+@pytest.mark.parametrize("bounds", [(0.0, 1.0), (0.05, 0.8)])
+def test_mixture_stages_build_their_estimated_runs(q: int, bounds: tuple[float, float]) -> None:
+    factors = [Factor(name=f"M{i}", type="mixture", low=bounds[0], high=bounds[1]) for i in range(q)]
+    strategy = recommend_strategy(factors=factors, responses=_maximise())
+    for stage in strategy["stages"]:
+        if stage["design_type"] == "mixture":
+            assert _build(factors, stage).n_runs == stage["estimated_runs"]

@@ -25,7 +25,7 @@ from __future__ import annotations
 import functools
 import itertools
 import logging
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from typing import Any
 
 import numpy as np
@@ -305,6 +305,27 @@ def _refuse_mixture_in_box_family(factors: list[Factor], design_type: str) -> No
         )
 
 
+def _as_constraints(constraints: Sequence[Constraint | dict | str] | None) -> list[Constraint] | None:
+    """Accept constraints as ``Constraint`` objects, their dict form or bare expressions.
+
+    The dict form is what a JSON round trip of a ``Constraint`` gives, for example the
+    ``design_params`` of a stage from ``recommend_strategy``.
+    """
+    if constraints is None:
+        return None
+    out: list[Constraint] = []
+    for c in constraints:
+        if isinstance(c, Constraint):
+            out.append(c)
+        elif isinstance(c, dict):
+            out.append(Constraint(**c))
+        elif isinstance(c, str):
+            out.append(Constraint(expression=c))
+        else:
+            raise TypeError(f"A constraint must be a Constraint, a dict or an expression string; got {c!r}.")
+    return out
+
+
 def _refuse_duplicate_names(factors: list[Factor]) -> None:
     """Raise when two factors share a name: their columns would silently collapse into one."""
     names = [f.name for f in factors]
@@ -470,7 +491,8 @@ def generate_design(  # noqa: PLR0913
         half-fraction is chosen automatically.
     constraints : list[Constraint] or None
         Inequalities on the continuous factors, in actual units, e.g.
-        ``Constraint(expression="3*T + 5*D <= 600")``. Honoured by the optimal
+        ``Constraint(expression="3*T + 5*D <= 600")``; a dict of ``Constraint`` fields or
+        a bare expression string is accepted too. Honoured by the optimal
         families (``"d_optimal"``, chosen automatically when constraints are given,
         ``"i_optimal"``, ``"a_optimal"`` and ``"e_optimal"``), whose runs are selected
         from a candidate set of feasible points; by ``"mixture"`` (linear constraints
@@ -543,6 +565,7 @@ def generate_design(  # noqa: PLR0913
     random_state = resolve_deprecated_seed(random_state, random_seed, "generate_design")
     if not factors:
         raise ValueError("At least one factor must be provided.")
+    constraints = _as_constraints(constraints)
 
     if design_type is None:
         # A candidate set means "choose runs from these", which only the optimal families do.
