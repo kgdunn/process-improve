@@ -14,7 +14,7 @@ those changes.
 ### Added
 
 - **Space-filling designs**: `design_type="latin_hypercube"`, `"maximin_lhs"`,
-  `"uniform"` (minimal centred L2 discrepancy), `"sobol"`, `"halton"` and `"maximin"`.
+  `"uniform"` (low centred L2 discrepancy), `"sobol"`, `"halton"` and `"maximin"`.
   The last three also work in constrained regions and constrained mixtures: the
   sequences are mapped onto the region (a uniform-preserving map onto the simplex for
   mixtures) and filtered, and maximin picks runs from a dense sample of the region by a
@@ -457,6 +457,19 @@ those changes.
   where both failed with a `TypeError`. Fully aliased factors are reported by a
   `UserWarning`, which callers can catch, instead of a log message, and the run counts
   it and the errors suggest are all supersaturated.
+- **Space-filling designs: `"uniform"` and `"maximin_lhs"` reach what they promise, and
+  the run count is checked.** `"uniform"` used a scrambled Latin hypercube, whose random
+  offset inside each slice raised the centred discrepancy by half (0.0046 against 0.0030
+  for 10 runs in 2 factors) and made the one-factor design a plain Latin hypercube; it is
+  now a U-type design on the slice centres, as in Fang's uniform designs. `"maximin_lhs"`
+  stopped after a fixed `200 * k` swap attempts whatever `n`, leaving the smallest
+  distance 15% short at 50 runs in 5 factors; it now places runs at the slice centres
+  (Morris and Mitchell) and swaps, each swap scored in `O(n)`, until `3 * n * k` attempts
+  in a row fail. Fewer than 2 runs, or a fractional run count, raise a `ValueError` that
+  says so, where they failed deep inside numpy or returned an infinite distance. The
+  docstrings and user guide now say that `metadata["centered_l2_discrepancy"]` is the
+  squared discrepancy `CD^2`, and that `"maximin"` on a box of 8 or more factors puts
+  every run on the levels -1, 0 and +1 (use `"maximin_lhs"` when projections matter).
 
 ## [1.96.0] - 2026-09-30
 
