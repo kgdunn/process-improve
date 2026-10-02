@@ -162,6 +162,11 @@ those changes.
   such requests used to return designs that were not mixtures: D-optimal blends summing
   to anything from 0 to 3, or, with `design_type="mixture"`, the process factor run as
   a fourth component between 0 and 1.
+- **The browser app's tables sort by column.** Clicking a column header in the
+  design run list, the coefficient table or the ANOVA table sorts the rows
+  ascending, and a second click sorts them descending, for example by standard
+  order, by a factor or by p-value. Formatted values such as `< 0.0001` sort as
+  numbers, unfilled responses stay last, and the headers work from the keyboard.
 
 ### Fixed
 
