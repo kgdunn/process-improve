@@ -35,17 +35,24 @@ class TestCreateFactorialDesign:
         assert "error" not in result
         assert result["n_runs"] == 8
         assert result["n_factors"] == 3
-        # Names may have a "[coded]" suffix - just check the supplied stems are present.
-        joined = " ".join(result["factor_names"])
-        for stem in ("Temperature", "Pressure", "Time"):
-            assert stem in joined
+        assert result["factor_names"] == ["Temperature", "Pressure", "Time"]
+        assert set(result["design"][0]) == {"Temperature", "Pressure", "Time"}
 
     def test_default_factor_names(self) -> None:
         """Without explicit names the wrapper should still succeed."""
         result = execute_tool_call("create_factorial_design", {"n_factors": 2})
         assert "error" not in result
         assert result["n_runs"] == 4
-        assert len(result["factor_names"]) == 2
+        assert result["factor_names"] == ["A", "B"]
+        assert set(result["design"][0]) == {"A", "B"}
+
+    @pytest.mark.parametrize("names", [["T", "P"], ["T", "P", "Q", "R"], ["T", "T", "P"]])
+    def test_names_must_match_n_factors(self, names: list[str]) -> None:
+        """Two names with n_factors=3 used to give a 2-factor design reported as 3 factors."""
+        from process_improve.tool_safety import ToolInputInvalidError
+
+        with pytest.raises(ToolInputInvalidError):
+            execute_tool_call("create_factorial_design", {"n_factors": 3, "factor_names": names})
 
     def test_invalid_n_factors_returns_error(self) -> None:
         """A bad n_factors is rejected by the pydantic Field constraint."""

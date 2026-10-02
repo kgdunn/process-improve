@@ -256,6 +256,13 @@ those changes.
 
 ### Fixed
 
+- **The `create_factorial_design` tool follows `n_factors` and returns plain names.**
+  `factor_names` with a different length from `n_factors` silently decided the design
+  (two names with `n_factors=3` gave a 4-run, two-factor design still reported as three
+  factors); the schema now refuses it, and duplicate names. Factors were also returned
+  as `"A [coded]"`, so a formula such as `y ~ A*B` did not match them; they now carry
+  the names given, as in `generate_design`.
+
 - **Agent tool schemas reject malformed bounds and negative seeds.** `optimize_responses`
   accepted `search_bounds=[-1.5]`, which escaped as an `IndexError`, and silently
   dropped the third value of `[-1.5, 1.5, 99]`; a bound is now exactly two numbers,
