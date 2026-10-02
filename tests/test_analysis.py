@@ -2,11 +2,14 @@
 
 from __future__ import annotations
 
+import itertools
 import warnings
 
+import numpy as np
 import pandas as pd
 import pytest
 
+from process_improve.experiments import Factor, generate_design
 from process_improve.experiments.analysis import (
     analyze_experiment,
     build_formula,
@@ -386,6 +389,55 @@ class TestModelSelection:
         assert "selected_formula" in ms
         assert "criterion" in ms
         assert ms["direction"] == "backward"
+
+    def test_candidates_follow_the_requested_model(self) -> None:
+        """A main-effects request never selects an interaction, whatever the data say (#639)."""
+        ms = analyze_experiment(
+            _three_factor_data(), response_column="y", model="main_effects", analysis_type="model_selection"
+        )["model_selection"]
+        assert all(":" not in term for term in ms["selected_terms"])
+        assert ms["candidate_model"] == "main_effects"
+
+    def test_interaction_and_its_parents_are_found_by_backward_search(self) -> None:
+        rng = np.random.default_rng(1)
+        x = pd.DataFrame(list(itertools.product([-1.0, 1.0], repeat=4)), columns=list("ABCD"))
+        y = 5 + 2 * x.A + 1.5 * x.B + 1.2 * x.A * x.B + rng.normal(0, 0.3, len(x))
+        ms = analyze_experiment(x, pd.Series(y, name="y"), model="interactions", analysis_type="model_selection")[
+            "model_selection"
+        ]
+        assert ms["selected_formula"] == "y ~ A + B + A:B"
+        assert ms["direction"] == "backward"
+
+    def test_heredity_never_leaves_an_orphan_interaction(self) -> None:
+        """A:B alone in the truth: strong heredity brings in A and B, or drops A:B."""
+        rng = np.random.default_rng(3)
+        x = pd.DataFrame(list(itertools.product([-1.0, 1.0], repeat=3)) * 2, columns=list("ABC"))
+        y = 3 * x.A * x.B + rng.normal(0, 0.2, len(x))
+        terms = analyze_experiment(x, pd.Series(y, name="y"), model="interactions", analysis_type="model_selection")[
+            "model_selection"
+        ]["selected_terms"]
+        for term in terms:
+            assert set(term.split(":")) <= set(terms)
+
+    @pytest.mark.parametrize("seed", range(5))
+    def test_supersaturated_design_finds_the_active_factors(self, seed: int) -> None:
+        """16 factors in 12 runs: forward search under AICc finds X00 and X05 (#639)."""
+        factors = [Factor(name=f"X{i:02d}", low=-1, high=1) for i in range(16)]
+        x = generate_design(factors, design_type="supersaturated", budget=12).design_actual[[f.name for f in factors]]
+        y = 10 + 4 * x["X00"] - 3 * x["X05"] + np.random.default_rng(seed).normal(0, 0.5, len(x))
+        ms = analyze_experiment(x, pd.Series(y, name="y"), model="main_effects", analysis_type="model_selection")[
+            "model_selection"
+        ]
+        assert ms["direction"] == "forward"
+        assert ms["criterion"] == "aicc"
+        assert {"X00", "X05"} <= set(ms["selected_terms"])
+        assert len(ms["selected_terms"]) <= 5
+
+    def test_unknown_criterion(self) -> None:
+        from process_improve.experiments._analyses.model_selection import _run_model_selection
+
+        with pytest.raises(ValueError, match="aicc, aic, bic"):
+            _run_model_selection(_three_factor_data(), "y", ["A", "B", "C"], "main_effects", "cp")
 
 
 # ---------------------------------------------------------------------------
