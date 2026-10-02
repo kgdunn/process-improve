@@ -446,13 +446,21 @@ class _MilpSpy:
     def __call__(self, c, **kwargs) -> OptimizeResult:
         call = len(self.options)
         self.options.append(dict(kwargs["options"]))
-        result = self.real_milp(c, **kwargs)
+        # Record what the module sent, but solve without "threads": HiGHS keeps one
+        # thread pool per calling thread, and another test in this process (a
+        # default linprog, say) may already have started it multi-threaded, which
+        # would make a real threads=1 solve fail with "Not Set".
+        options = {key: value for key, value in kwargs["options"].items() if key != "threads"}
+        result = self.real_milp(c, **{**kwargs, "options": options})
         if call in self.override:
             result = self.override[call](result)
         return result
 
 
 def _spy(monkeypatch: pytest.MonkeyPatch, override=None) -> _MilpSpy:
+    # Start each spied test from clean per-thread and per-fork HiGHS bookkeeping.
+    monkeypatch.setattr(omars_ilp, "_thread_state", threading.local())
+    monkeypatch.setitem(omars_ilp._fork_state, "in_child", False)
     spy = _MilpSpy(omars_ilp.milp, override)
     monkeypatch.setattr(omars_ilp, "milp", spy)
     return spy
@@ -588,9 +596,9 @@ def test_scheduler_conflict_retries_without_threads(monkeypatch: pytest.MonkeyPa
 @pytest.mark.usefixtures("fresh_highs_state")
 def test_forked_child_resets_the_inherited_pool(monkeypatch: pytest.MonkeyPatch) -> None:
     """In a fork child the inherited pool has no threads; it is reset, never solved on."""
+    spy = _spy(monkeypatch, {0: _NOT_SET})
     monkeypatch.setitem(omars_ilp._fork_state, "in_child", True)
     monkeypatch.setattr(omars_ilp, "_reset_highs_scheduler", lambda: True)
-    spy = _spy(monkeypatch, {0: _NOT_SET})
     _, status, _ = omars_ilp.solve_omars_ilp(omars_ilp._half_pool(3), n_half=3)
     assert status == "Optimal"
     assert [options.get("threads") for options in spy.options] == [1, 1]
@@ -598,9 +606,9 @@ def test_forked_child_resets_the_inherited_pool(monkeypatch: pytest.MonkeyPatch)
 
 @pytest.mark.usefixtures("fresh_highs_state")
 def test_forked_child_without_a_reset_does_not_solve(monkeypatch: pytest.MonkeyPatch) -> None:
+    spy = _spy(monkeypatch, {0: _NOT_SET})
     monkeypatch.setitem(omars_ilp._fork_state, "in_child", True)
     monkeypatch.setattr(omars_ilp, "_reset_highs_scheduler", lambda: False)
-    spy = _spy(monkeypatch, {0: _NOT_SET})
     assert omars_ilp.solve_omars_ilp(omars_ilp._half_pool(3), n_half=3) == (None, "Not Solved", [])
     assert len(spy.options) == 1
 
