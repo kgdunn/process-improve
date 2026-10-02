@@ -57,10 +57,13 @@ def box_cox_profile(y: np.ndarray, exog: np.ndarray, alpha: float = 0.05) -> tup
     exog = np.asarray(exog, dtype=float)
     n = len(y)
     log_gm = float(np.mean(np.log(y)))
-    residual_maker = np.identity(n) - exog @ np.linalg.pinv(exog)
+    # An orthonormal basis of the model's column space (rank-deficient models too).
+    u, singular, _ = np.linalg.svd(exog, full_matrices=False)
+    basis = u[:, singular > singular.max(initial=0.0) * max(exog.shape) * np.finfo(float).eps]
 
     def sse(lmbda: float) -> float:
-        resid = residual_maker @ _scaled_power(y, lmbda, log_gm)
+        z = _scaled_power(y, lmbda, log_gm)
+        resid = z - basis @ (basis.T @ z)
         return max(float(resid @ resid), 1e-300)
 
     grid = np.round(np.arange(_LAMBDA_RANGE[0], _LAMBDA_RANGE[1] + _LAMBDA_STEP / 2, _LAMBDA_STEP), 6)
