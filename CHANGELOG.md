@@ -494,6 +494,22 @@ those changes.
   6931 at 10) is replaced by a D-optimal one with five runs more than the model has
   terms. With user candidates, `n_candidates` now counts the feasible supplied blends,
   and the docstring says that no budget means `n_terms + 3` runs.
+- **The built-in candidate exchange searches better and checks its inputs.** Its
+  restarts began from almost the same greedy design, since the first of many candidates
+  tied at the largest variance was always taken: a 14-run, 3-factor quadratic A-optimal
+  design reached trace 2.39 or 2.42 from every seed, never the 2.30 design in its own
+  candidate set, which most seeds now reach. Ties are now broken at random. Two linear
+  constraints that meet off the grid lines left that vertex out of the candidates, so a
+  4-run design for `a + 2*b <= 1.1, 2*a + b <= 1.1` was 94% D-efficient; the vertices
+  of the region cut by its linear constraints are now candidates
+  (`metadata["n_vertex_points"]`). Unconstrained D-optimal designs without squared terms
+  use the 2-level grid, which holds an optimum, instead of 5 levels: the same designs,
+  100 times faster at 7 factors. `constrained_optimal_design` refuses an unknown
+  `model_type` (`"quad"` gave a main-effects design labelled `"quad"`). Fixed runs
+  outside the constrained region are counted in
+  `metadata["n_fixed_runs_outside_region"]`, and the docstrings say they are kept as
+  given; a budget raised to make room for the free runs is recorded in
+  `metadata["budget_requested"]`.
 
 ## [1.96.0] - 2026-09-30
 
