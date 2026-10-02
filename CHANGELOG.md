@@ -112,6 +112,13 @@ those changes.
   - An explicit generator whose right-hand side names no factors, such as `"D="`, raises
     a `ValueError` saying so, instead of an `IndexError` from inside pyDOE3.
 
+- **`generate_omars` retries a CBC solve once when the solver binary itself fails
+  (#623).** pulp's bundled CBC can exit nonzero for no reason in the model, most often
+  on Apple Silicon, where it runs under Rosetta. One such failure used to abort the
+  whole search, including a multistart that had finished most of its restarts. The
+  retry solves the same problem with the same options, so seeded results do not change.
+  It logs a warning, and a second failure still raises `PulpSolverError`.
+
 ## [1.96.0] - 2026-09-30
 
 ### Added
