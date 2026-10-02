@@ -49,8 +49,10 @@ def dispatch_ccd(  # noqa: PLR0913
     alpha : str, float, or None
         Axial distance: ``"rotatable"`` (``F ** 0.25`` for ``F`` cube runs),
         ``"face_centered"`` (1), ``"inscribed"`` (axial runs at +/-1, the cube
-        shrunk inside), ``"orthogonal"`` (the default), or a positive number used as
-        the distance itself. Any other value raises ``ValueError``.
+        shrunk inside a rotatable design), ``"orthogonal"`` (the default: the
+        distance that makes the quadratic columns mutually orthogonal, see
+        :func:`orthogonal_alpha`), or a positive number used as the distance
+        itself. Any other value raises ``ValueError``.
     cube : str
         How to build the cube (factorial) portion: ``"full"`` (default) uses
         the complete 2^k factorial; ``"fractional"`` uses a resolution-V (or
@@ -82,6 +84,9 @@ def dispatch_ccd(  # noqa: PLR0913
 
     k = len(factors)
     kind = _axial_kind(alpha)
+    label = "orthogonal" if kind == "orthogonal" else "user"
+    if kind == "orthogonal":
+        kind = orthogonal_alpha(2**k, 2**k + 2 * k + n_center_points)
     # Centre runs are split between the cube and axial blocks, as pyDOE3 does.
     n_center_cube = n_center_points // 2
     n_center_axial = n_center_points - n_center_cube
@@ -93,13 +98,36 @@ def dispatch_ccd(  # noqa: PLR0913
         for i in range(k):
             star[2 * i : 2 * i + 2, i] = (-kind, kind)
         coded_matrix = np.vstack([cube_runs, np.zeros((n_center_cube, k)), star, np.zeros((n_center_axial, k))])
-        return coded_matrix, {"alpha_value": kind, "face": "user"}
+        return coded_matrix, {"alpha_value": kind, "face": label}
 
     face = {"faced": "faced", "inscribed": "inscribed"}.get(kind, "circumscribed")
-    alpha_str = "rotatable" if kind == "rotatable" else "orthogonal"
-    coded_matrix = ccdesign(k, center=(n_center_cube, n_center_axial), alpha=alpha_str, face=face)
+    coded_matrix = ccdesign(k, center=(n_center_cube, n_center_axial), alpha="rotatable", face=face)
     alpha_value = float(np.max(np.abs(coded_matrix))) if coded_matrix.size else None
     return coded_matrix, {"alpha_value": alpha_value, "face": face}
+
+
+def orthogonal_alpha(n_cube_runs: int, n_runs: int) -> float:
+    """Axial distance that makes the quadratic columns of a central composite design mutually orthogonal.
+
+    ``alpha = (F * (sqrt(N) - sqrt(F)) ** 2 / 4) ** (1 / 4)`` for ``F`` cube runs and ``N``
+    runs in all, centre runs included (Box and Hunter 1957; Myers, Montgomery and
+    Anderson-Cook, *Response Surface Methodology*, section 7.4). With it the centred
+    squared columns are orthogonal, so the quadratic coefficients are estimated
+    independently of one another.
+
+    Parameters
+    ----------
+    n_cube_runs : int
+        Runs in the cube (factorial) portion, full or fractional.
+    n_runs : int
+        Every run of the design: cube, ``2k`` axial runs and centre runs.
+
+    Returns
+    -------
+    float
+        The axial distance in coded units.
+    """
+    return float((n_cube_runs * (np.sqrt(n_runs) - np.sqrt(n_cube_runs)) ** 2 / 4) ** 0.25)
 
 
 #: Accepted spellings of each named axial distance.
@@ -149,15 +177,15 @@ def _resolve_fractional_axial_distance(
     ----------
     alpha : str, float, or None
         ``"face_centered"`` (alpha = 1), ``"rotatable"``
-        (alpha = n_cube_runs ** 0.25), ``"orthogonal"`` / None (the orthogonal
-        formula), or a numeric value used directly.
+        (alpha = n_cube_runs ** 0.25), ``"orthogonal"`` / None
+        (:func:`orthogonal_alpha`), or a numeric value used directly.
     n_cube_runs : int
         Number of runs in the (fractional) cube portion.
     k : int
         Number of factors.
     n_center_points : int
-        Total number of center points; split between the cube and axial blocks
-        for the orthogonal-alpha formula.
+        Total number of center points, which count towards the run total in
+        :func:`orthogonal_alpha`.
 
     Returns
     -------
@@ -177,12 +205,7 @@ def _resolve_fractional_axial_distance(
             "use 'face_centered', 'rotatable', 'orthogonal', or a numeric alpha."
         )
 
-    # Orthogonal axial distance.
-    n_center_cube = n_center_points // 2
-    n_center_axial = n_center_points - n_center_cube
-    n_axial = 2 * k
-    a = (k * (1 + n_center_axial / n_axial) / (1 + n_center_cube / n_cube_runs)) ** 0.5
-    return float(a), "orthogonal"
+    return orthogonal_alpha(n_cube_runs, n_cube_runs + 2 * k + n_center_points), "orthogonal"
 
 
 def _dispatch_ccd_fractional(
