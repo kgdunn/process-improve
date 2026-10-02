@@ -13,6 +13,21 @@ those changes.
 
 ### Added
 
+- **`omars_trade_off_table(..., anchors=True)` marks where the two standard designs
+  fall**, so a column shows the span of the OMARS family for that factor count: the
+  definitive screening design, the smallest member, and the Box-Behnken design, among the
+  largest. Each is marked on the row of its own run count by appending `" | DSD"` or
+  `" | BBD"` to the cell. Rows are added where a Box-Behnken run count is not already a
+  budget (15, 27, 46, 54 and 62 for three to seven factors), and a column is left blank
+  below its Box-Behnken cell, where every remaining row would repeat `Full` on more runs.
+  The default, `False`, leaves the table exactly as it was. Three supporting functions
+  are public: `definitive_screening_runs(k)`, `box_behnken_runs(k)` (returning `None`
+  where Box and Behnken published no design) and `omars_anchor_entry(design, k)`, the
+  counterpart of `get_omars_trade_off_table_entry` for a named design. A named design is
+  classified without the `2h + 1` parity gate, since it carries the centre replication of
+  its published form: `get_omars_trade_off_table_entry(46, 5)` reports no design at that
+  budget, while `omars_anchor_entry("bbd", 5)` reports the 46-run Box-Behnken design.
+  (Ported from #501.)
 - **Space-filling designs**: `design_type="latin_hypercube"`, `"maximin_lhs"`,
   `"uniform"` (minimal centred L2 discrepancy), `"sobol"`, `"halton"` and `"maximin"`.
   The last three also work in constrained regions and constrained mixtures: the
