@@ -13,6 +13,26 @@ those changes.
 
 ### Added
 
+- **Optimal designs chosen from a user-supplied candidate set.**
+  `generate_design(..., candidates=df)` picks the runs from the rows of `df`: plant
+  history, the settings a piece of equipment offers, or the blends that can be made
+  up. Rows are in actual units (labels for categorical factors, proportions for
+  mixtures); rows breaking a constraint are dropped; a row may be picked more than
+  once. `metadata["selected_candidates"]` counts the picks per index label, so the
+  design reads as "rerun batches 2, 20 and 29 twice". Works for D-, I- and
+  A-optimality (for I, the average is over the candidate set), and for mixtures.
+
+- **I-optimal and A-optimal designs without pyoptex, and over constrained regions.**
+  The candidate exchange from the constrained D-optimal design now takes a
+  `Criterion`: D maximises `log det(X'X)`; A minimises `trace((X'X)^-1)`; I
+  minimises `trace((X'X)^-1 W)`, with `W` the moment matrix of the (constrained)
+  region, i.e. the average prediction variance that `evaluate_design` reports. Each
+  swap is scored in closed form (two Sherman-Morrison updates), so all swaps are
+  scored in a few matrix products. `generate_design(design_type="i_optimal")` and
+  `"a_optimal"` no longer raise `ImportError` without pyoptex, honour `constraints`
+  and `fixed_runs`, and work for mixture factors. pyoptex is still used, when
+  installed and no constraints are given, and is still needed for split-plot designs.
+
 - **Constrained mixture designs, Scheffé models, and one `DesignRegion` shared by
   design, evaluation and optimisation.** Mixture components with bounds inside (0, 1)
   or linear constraints (`Constraint("polymer + solvent <= 0.85")`) now get a design
@@ -87,6 +107,13 @@ those changes.
   `size_proven_minimal` and `run_sizes_searched`.
 
 ### Changed
+
+- **The D-optimal fallback without pyoptex is model-aware.** It used a point
+  exchange on a 3-level grid that scored a first-order model whatever `model_type`
+  asked for, so a quadratic request could get a design with too few levels. It is
+  replaced by the candidate exchange, which scores the requested model and allows
+  replicated runs. `metadata["backend"]` reads `"candidate_exchange"` instead of
+  `"point_exchange_fallback"`, and `fixed_runs` no longer needs pyoptex.
 
 - **`generate_omars` solves its integer program with HiGHS, through
   `scipy.optimize.milp`, instead of pulp's bundled CBC binary (#623).** CBC is a native

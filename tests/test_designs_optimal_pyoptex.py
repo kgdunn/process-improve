@@ -302,10 +302,13 @@ class TestFixedRuns:
         assert float(head.iloc[1]["x1"]) == pytest.approx(1.0)
         assert float(head.iloc[1]["x2"]) == pytest.approx(-1.0)
 
-    def test_fixed_runs_requires_pyoptex(self, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_fixed_runs_without_pyoptex(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """The candidate exchange keeps the fixed runs, so augmentation no longer needs pyoptex."""
         from process_improve.experiments import designs_optimal
 
         monkeypatch.setattr(designs_optimal, "_PYOPTEX_AVAILABLE", False)
         centre = pd.DataFrame([{"cat": "A", "x1": 0.0, "x2": 0.0}])
-        with pytest.raises(ImportError, match="requires pyoptex"):
-            designs_optimal.dispatch_d_optimal(_mixed_factors(), budget=14, fixed_runs=centre)
+        design, meta = designs_optimal.dispatch_d_optimal(_mixed_factors(), budget=14, fixed_runs=centre)
+        assert meta["backend"] == "candidate_exchange"
+        assert meta["n_fixed_runs"] == 1
+        assert list(design[0]) == ["A", 0.0, 0.0]

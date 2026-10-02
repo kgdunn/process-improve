@@ -2,14 +2,18 @@
 
 """Optimal designs: D-optimal, I-optimal, A-optimal.
 
-Uses ``pyoptex`` (coordinate exchange) when available for high-quality
-optimal designs with support for split-plot structures.  Falls back to the
-built-in ``point_exchange()`` in ``optimal.py`` for D-optimal when
-``pyoptex`` is not installed.  ``pyoptex`` is not a process-improve extra
-because it pins ``plotly~=5.24`` (< 6), which conflicts with this project's
-``plotly>=6.5.2``; install it separately (``pip install pyoptex``) in its own
-environment. Without it, I-/A-optimal and ``hard_to_change`` split-plot
-requests are unavailable.
+Two engines, chosen per request by :func:`_dispatch_optimal`:
+
+- ``pyoptex`` (coordinate exchange), when installed and no constraints are given.
+  It also builds split-plot designs for ``hard_to_change`` factors. ``pyoptex`` is
+  not a process-improve extra because it pins ``plotly~=5.24`` (< 6), which
+  conflicts with this project's ``plotly>=6.5.2``; install it separately
+  (``pip install pyoptex``) in its own environment.
+- The built-in candidate exchange in ``designs_constrained.py`` otherwise: a
+  Fedorov exchange over a grid of candidate points for D, I or A-optimality, with
+  constraints, categorical factors and fixed runs, but no split-plot structure.
+
+Mixture factors always use ``designs_mixture_constrained.py``.
 """
 
 from __future__ import annotations
@@ -20,15 +24,6 @@ from typing import TYPE_CHECKING
 
 import numpy as np
 import pandas as pd
-
-try:
-    from pyDOE3 import fullfact
-except ImportError:  # pragma: no cover - exercised via env-without-pyDOE3
-    from process_improve._extras import _MissingExtra
-
-    fullfact = _MissingExtra("pyDOE3", "expt")  # type: ignore[assignment]
-
-from process_improve.experiments.optimal import point_exchange
 
 if TYPE_CHECKING:
     from process_improve.experiments.factor import Constraint, Factor
@@ -372,61 +367,127 @@ def _run_pyoptex(
 
 
 # ---------------------------------------------------------------------------
-# Fallback: point-exchange from candidate set (no pyoptex needed)
+# Routing: pyoptex, or the built-in candidate exchange
 # ---------------------------------------------------------------------------
 
 
-def _run_point_exchange_fallback(
-    factors: list[Factor],
-    budget: int,
-) -> tuple[np.ndarray, dict]:
-    """D-optimal via built-in point exchange on a 3-level candidate set.
+@dataclass
+class _OptimalRequest:
+    """Everything an optimal-design request carries, whichever criterion it is for."""
 
-    This is the fallback when pyoptex is not installed.
+    factors: list[Factor]
+    budget: int | None
+    hard_to_change: list[str] | None
+    constraints: list[Constraint] | None
+    model_type: str
+    fixed_runs: pd.DataFrame | None
+    random_state: int | np.random.Generator | None
+    candidates: pd.DataFrame | None = None
 
-    Parameters
-    ----------
-    factors : list[Factor]
-        Factor specifications.
-    budget : int
-        Number of runs to select.
 
-    Returns
-    -------
-    tuple[np.ndarray, dict]
+def _dispatch_mixture_optimal(criterion: str, req: _OptimalRequest) -> tuple[np.ndarray, dict]:
+    """Optimal mixture design over the (possibly constrained) simplex, for a Scheffé model."""
+    from process_improve.experiments.designs_constrained import ConstrainedOptions  # noqa: PLC0415
+    from process_improve.experiments.designs_mixture_constrained import (  # noqa: PLC0415
+        constrained_mixture_design,
+        scheffe_matrix,
+    )
+
+    if req.fixed_runs is not None or req.hard_to_change:
+        raise ValueError("fixed_runs and hard_to_change are not supported for mixture designs.")
+    n_terms = scheffe_matrix(np.ones((1, len(req.factors))), req.model_type).shape[1]
+    options = ConstrainedOptions(model_type=req.model_type, criterion=criterion, candidates=req.candidates)
+    return constrained_mixture_design(
+        req.factors, req.budget or n_terms + 3, req.constraints, options, req.random_state
+    )
+
+
+def _dispatch_optimal(criterion: str, req: _OptimalRequest) -> tuple[np.ndarray, dict]:
+    """Route a D-, I- or A-optimal request to the backend that can honour it.
+
+    - Mixture factors go to the constrained-simplex engine with a Scheffé model.
+    - Constraints, a user candidate set, or no pyoptex, go to the built-in candidate exchange
+      (:func:`~process_improve.experiments.designs_constrained.constrained_optimal_design`),
+      which handles every criterion, categorical factors and fixed runs, but not
+      split-plot structure: ``hard_to_change`` is then ignored and recorded.
+    - Otherwise pyoptex's coordinate exchange runs, which supports split-plot designs.
     """
-    k = len(factors)
-    # SEC-19 (#268): a 3-level full factorial allocates 3**k candidate
-    # rows. Cap k against the central setting so a request for
-    # ``len(factors) >= 20`` (3.5B rows) is rejected before allocation.
-    from process_improve.config import settings  # noqa: PLC0415
+    from process_improve.experiments.factor import FactorType  # noqa: PLC0415
 
-    if k > settings.max_factors_combinatorial:
-        raise ValueError(
-            f"d-optimal fallback would build a 3**{k} candidate set; "
-            f"that exceeds the SEC-19 cap of "
-            f"{settings.max_factors_combinatorial} factors. "
-            "Increase settings.max_factors_combinatorial if intentional."
+    if req.factors and all(f.type == FactorType.mixture for f in req.factors):
+        return _dispatch_mixture_optimal(criterion, req)
+
+    budget = req.budget if req.budget is not None else 2 * len(req.factors) + 1
+    budget = _floor_budget_at_model_size(req.factors, budget, req.model_type)
+
+    if req.constraints or req.candidates is not None or not _PYOPTEX_AVAILABLE:
+        from process_improve.experiments.designs_constrained import (  # noqa: PLC0415
+            ConstrainedOptions,
+            constrained_optimal_design,
         )
-    # Build candidate set: 3-level full factorial (-1, 0, +1)
-    candidates_raw = fullfact([3] * k)
-    candidates = candidates_raw - 1.0
 
-    candidates_df = pd.DataFrame(candidates, columns=[f.name for f in factors])
-    # `dispatch_d_optimal` has already floored the budget at the model's
-    # parameter count; ``k + 1`` is the floor for the first-order model that
-    # `point_exchange` itself scores, kept here for a direct internal call.
-    # The candidate set caps the size from above: the search picks distinct
-    # rows, so it cannot return more runs than there are candidates.
-    n_points = max(min(budget, candidates_df.shape[0]), k + 1)
+        prior = _prepare_prior_runs(req.fixed_runs, req.factors, budget) if req.fixed_runs is not None else None
+        options = ConstrainedOptions(
+            model_type=req.model_type, criterion=criterion, fixed_runs=prior, candidates=req.candidates
+        )
+        matrix, meta = constrained_optimal_design(req.factors, budget, req.constraints or [], options, req.random_state)
+        if req.hard_to_change:
+            reason = (
+                "constraints are given" if req.constraints else f"pyoptex is not installed. {_PYOPTEX_INSTALL_HINT}"
+            )
+            logger.warning("hard_to_change factors (split-plot) are ignored because %s", reason)
+            meta["hard_to_change_ignored"] = list(req.hard_to_change)
+        return matrix, meta
 
-    design_df, d_opt = point_exchange(candidates_df, number_points=n_points)
-    return design_df.values, {"d_optimality": float(d_opt), "backend": "point_exchange_fallback"}
+    return _run_pyoptex(
+        req.factors,
+        criterion=criterion,
+        budget=budget,
+        options=_PyoptexOptions(
+            model_type=req.model_type, hard_to_change=req.hard_to_change, fixed_runs=req.fixed_runs
+        ),
+    )
 
 
 # ---------------------------------------------------------------------------
 # Public dispatch functions
 # ---------------------------------------------------------------------------
+
+_DISPATCH_PARAMETERS = """
+    Parameters
+    ----------
+    factors : list[Factor]
+        Factor specifications. All-mixture factors get a Scheffé-model design over
+        the (possibly constrained) simplex.
+    budget : int or None
+        Number of runs.  Defaults to ``2 * n_factors + 1``.
+    hard_to_change : list[str] or None
+        Names of hard-to-change factors: a split-plot design via pyoptex. Ignored,
+        and recorded as ``hard_to_change_ignored``, when constraints are given or
+        pyoptex is not installed.
+    constraints : list[Constraint] or None
+        Inequalities in actual units over the continuous factors, e.g.
+        ``"3*T + 5*D <= 600"``. Enforced: every returned run satisfies them.
+    model_type : str
+        Model assumption: ``"main_effects"``, ``"interactions"``, or ``"quadratic"``.
+    fixed_runs : pd.DataFrame or None
+        Runs to hold fixed while the optimizer fills the rest (design
+        augmentation). Occupies the first rows of the returned design and counts
+        towards ``budget``.
+    random_state : int, numpy.random.Generator or None
+        Seed for the candidate exchange's random starts.
+    candidates : pd.DataFrame or None
+        Settings to choose the runs from, in actual units (proportions for a
+        mixture), one column per factor. Replaces the generated grid; rows breaking
+        a constraint are dropped. ``metadata["selected_candidates"]`` counts how often
+        each row (by index label) was picked.
+
+    Returns
+    -------
+    tuple[np.ndarray, dict]
+        The coded design and its metadata; ``metadata["backend"]`` names the engine
+        (``"pyoptex"`` or ``"candidate_exchange"``).
+"""
 
 
 def dispatch_d_optimal(  # noqa: PLR0913
@@ -437,100 +498,13 @@ def dispatch_d_optimal(  # noqa: PLR0913
     model_type: str = "interactions",
     fixed_runs: pd.DataFrame | None = None,
     random_state: int | np.random.Generator | None = None,
+    candidates: pd.DataFrame | None = None,
 ) -> tuple[np.ndarray, dict]:
-    """Generate a D-optimal design.
-
-    With ``constraints``, the design is chosen from a feasible candidate set by
-    :func:`~process_improve.experiments.designs_constrained.constrained_d_optimal`,
-    so every run satisfies every constraint. Otherwise it uses pyoptex's
-    coordinate-exchange algorithm when available (much better quality, supports
-    split-plot), and falls back to the built-in point-exchange when pyoptex is
-    not installed.
-
-    Parameters
-    ----------
-    factors : list[Factor]
-        Factor specifications.
-    budget : int or None
-        Number of runs.  Defaults to ``2 * n_factors + 1``.
-    hard_to_change : list[str] or None
-        Names of hard-to-change factors (triggers split-plot via pyoptex).
-    constraints : list[Constraint] or None
-        Inequalities in actual units over the continuous factors, e.g.
-        ``"3*T + 5*D <= 600"``. Enforced: every returned run satisfies them.
-        Split-plot structure (``hard_to_change``) is not available together
-        with constraints; it is ignored and recorded in the metadata.
-    model_type : str
-        Model assumption: ``"main_effects"``, ``"interactions"``, or ``"quadratic"``.
-    fixed_runs : pd.DataFrame or None
-        Runs to hold fixed while the optimizer fills the rest (design
-        augmentation). Without constraints this requires pyoptex, and a value
-        here raises ``ImportError`` when pyoptex is not installed. Occupies the
-        first rows of the returned design and counts towards ``budget``.
-    random_state : int, numpy.random.Generator or None
-        Seed for the constrained exchange's random starts.
-
-    Returns
-    -------
-    tuple[np.ndarray, dict]
-    """
-    from process_improve.experiments.factor import FactorType  # noqa: PLC0415
-
-    if factors and all(f.type == FactorType.mixture for f in factors):
-        # Proportions summing to 1 need a Scheffé model and the simplex geometry, which
-        # the process-factor backends below know nothing about.
-        from process_improve.experiments.designs_mixture_constrained import (  # noqa: PLC0415
-            constrained_mixture_design,
-            scheffe_matrix,
-        )
-
-        if fixed_runs is not None or hard_to_change:
-            raise ValueError("fixed_runs and hard_to_change are not supported for mixture designs.")
-        n_terms = scheffe_matrix(np.ones((1, len(factors))), model_type).shape[1]
-        return constrained_mixture_design(factors, budget or n_terms + 3, constraints, model_type, random_state)
-
-    k = len(factors)
-    if budget is None:
-        budget = 2 * k + 1
-    budget = _floor_budget_at_model_size(factors, budget, model_type)
-
-    if constraints:
-        from process_improve.experiments.designs_constrained import (  # noqa: PLC0415
-            ConstrainedOptions,
-            constrained_d_optimal,
-        )
-
-        prior = _prepare_prior_runs(fixed_runs, factors, budget) if fixed_runs is not None else None
-        options = ConstrainedOptions(model_type=model_type, fixed_runs=prior)
-        matrix, meta = constrained_d_optimal(factors, budget, constraints, options, random_state=random_state)
-        if hard_to_change:
-            logger.warning("hard_to_change factors are ignored when constraints are given.")
-            meta["hard_to_change_ignored"] = list(hard_to_change)
-        return matrix, meta
-
-    if fixed_runs is not None and not _PYOPTEX_AVAILABLE:
-        raise ImportError(f"fixed_runs (design augmentation) requires pyoptex. {_PYOPTEX_INSTALL_HINT}")
-
-    if _PYOPTEX_AVAILABLE:
-        matrix, meta = _run_pyoptex(
-            factors,
-            criterion="d_optimal",
-            budget=budget,
-            options=_PyoptexOptions(model_type=model_type, hard_to_change=hard_to_change, fixed_runs=fixed_runs),
-        )
-        return matrix, meta
-
-    if hard_to_change:
-        logger.warning(
-            "pyoptex is not installed - hard_to_change factors will be ignored. %s",
-            _PYOPTEX_INSTALL_HINT,
-        )
-    matrix, meta = _run_point_exchange_fallback(factors, budget)
-    if hard_to_change:
-        # The randomized fallback cannot honour the split-plot request; surface
-        # it on the result rather than only in the log.
-        meta["hard_to_change_ignored"] = list(hard_to_change)
-    return matrix, meta
+    """Generate a D-optimal design (maximises ``det(X'X)``, the precision of the coefficients jointly)."""
+    req = _OptimalRequest(
+        factors, budget, hard_to_change, constraints, model_type, fixed_runs, random_state, candidates
+    )
+    return _dispatch_optimal("d_optimal", req)
 
 
 def dispatch_i_optimal(  # noqa: PLR0913
@@ -540,56 +514,14 @@ def dispatch_i_optimal(  # noqa: PLR0913
     constraints: list[Constraint] | None = None,
     model_type: str = "interactions",
     fixed_runs: pd.DataFrame | None = None,
+    random_state: int | np.random.Generator | None = None,
+    candidates: pd.DataFrame | None = None,
 ) -> tuple[np.ndarray, dict]:
-    """Generate an I-optimal design (minimizes average prediction variance).
-
-    Requires pyoptex.
-
-    Parameters
-    ----------
-    factors : list[Factor]
-        Factor specifications.
-    budget : int or None
-        Number of runs.  Defaults to ``2 * n_factors + 1``.
-    hard_to_change : list[str] or None
-        Names of hard-to-change factors.
-    constraints : list[Constraint] or None
-        Factor-space constraints. Not enforced by the pyoptex path: when a
-        value is given, the returned metadata carries
-        ``constraints_enforced=False`` to record that.
-    model_type : str
-        Model assumption.
-    fixed_runs : pd.DataFrame or None
-        Runs to hold fixed while the optimizer fills the rest (design
-        augmentation). Occupies the first rows of the returned design and
-        counts towards ``budget``.
-
-    Returns
-    -------
-    tuple[np.ndarray, dict]
-
-    Raises
-    ------
-    ImportError
-        If pyoptex is not installed.
-    """
-    if not _PYOPTEX_AVAILABLE:
-        raise ImportError(f"I-optimal design generation requires pyoptex. {_PYOPTEX_INSTALL_HINT}")
-
-    k = len(factors)
-    if budget is None:
-        budget = 2 * k + 1
-    budget = _floor_budget_at_model_size(factors, budget, model_type)
-
-    matrix, meta = _run_pyoptex(
-        factors,
-        criterion="i_optimal",
-        budget=budget,
-        options=_PyoptexOptions(model_type=model_type, hard_to_change=hard_to_change, fixed_runs=fixed_runs),
+    """Generate an I-optimal design (minimises the average prediction variance over the region)."""
+    req = _OptimalRequest(
+        factors, budget, hard_to_change, constraints, model_type, fixed_runs, random_state, candidates
     )
-    if constraints:
-        meta["constraints_enforced"] = False
-    return matrix, meta
+    return _dispatch_optimal("i_optimal", req)
 
 
 def dispatch_a_optimal(  # noqa: PLR0913
@@ -599,53 +531,15 @@ def dispatch_a_optimal(  # noqa: PLR0913
     constraints: list[Constraint] | None = None,
     model_type: str = "interactions",
     fixed_runs: pd.DataFrame | None = None,
+    random_state: int | np.random.Generator | None = None,
+    candidates: pd.DataFrame | None = None,
 ) -> tuple[np.ndarray, dict]:
-    """Generate an A-optimal design (minimizes trace of variance matrix).
-
-    Requires pyoptex.
-
-    Parameters
-    ----------
-    factors : list[Factor]
-        Factor specifications.
-    budget : int or None
-        Number of runs.  Defaults to ``2 * n_factors + 1``.
-    hard_to_change : list[str] or None
-        Names of hard-to-change factors.
-    constraints : list[Constraint] or None
-        Factor-space constraints. Not enforced by the pyoptex path: when a
-        value is given, the returned metadata carries
-        ``constraints_enforced=False`` to record that.
-    model_type : str
-        Model assumption.
-    fixed_runs : pd.DataFrame or None
-        Runs to hold fixed while the optimizer fills the rest (design
-        augmentation). Occupies the first rows of the returned design and
-        counts towards ``budget``.
-
-    Returns
-    -------
-    tuple[np.ndarray, dict]
-
-    Raises
-    ------
-    ImportError
-        If pyoptex is not installed.
-    """
-    if not _PYOPTEX_AVAILABLE:
-        raise ImportError(f"A-optimal design generation requires pyoptex. {_PYOPTEX_INSTALL_HINT}")
-
-    k = len(factors)
-    if budget is None:
-        budget = 2 * k + 1
-    budget = _floor_budget_at_model_size(factors, budget, model_type)
-
-    matrix, meta = _run_pyoptex(
-        factors,
-        criterion="a_optimal",
-        budget=budget,
-        options=_PyoptexOptions(model_type=model_type, hard_to_change=hard_to_change, fixed_runs=fixed_runs),
+    """Generate an A-optimal design (minimises the summed variance of the coefficients)."""
+    req = _OptimalRequest(
+        factors, budget, hard_to_change, constraints, model_type, fixed_runs, random_state, candidates
     )
-    if constraints:
-        meta["constraints_enforced"] = False
-    return matrix, meta
+    return _dispatch_optimal("a_optimal", req)
+
+
+for _fn in (dispatch_d_optimal, dispatch_i_optimal, dispatch_a_optimal):
+    _fn.__doc__ = (_fn.__doc__ or "") + "\n" + _DISPATCH_PARAMETERS

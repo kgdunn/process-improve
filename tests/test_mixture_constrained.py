@@ -19,6 +19,7 @@ from process_improve.experiments import (
     optimize_responses,
 )
 from process_improve.experiments.analysis import build_formula
+from process_improve.experiments.designs_constrained import ConstrainedOptions
 from process_improve.experiments.designs_mixture_constrained import (
     constrained_mixture_design,
     extreme_vertices,
@@ -97,14 +98,14 @@ class TestInputErrors:
 class TestDesigns:
     def test_extreme_vertices_design_on_the_full_simplex_is_the_simplex_centroid(self) -> None:
         """With no bounds, vertices + edge midpoints + centroid are the degree-2 simplex-centroid points."""
-        design, meta = constrained_mixture_design(FULL, None, model_type="quadratic")
+        design, meta = constrained_mixture_design(FULL, None, options=ConstrainedOptions("quadratic"))
         expected = {(1, 0, 0), (0, 1, 0), (0, 0, 1), (0.5, 0.5, 0), (0.5, 0, 0.5), (0, 0.5, 0.5), (1 / 3, 1 / 3, 1 / 3)}
         assert {tuple(np.round(r, 9)) for r in design} == {tuple(np.round(r, 9)) for r in expected}
         assert meta["method"] == "extreme_vertices"
 
     @pytest.mark.parametrize("model", ["scheffe_linear", "scheffe_quadratic", "scheffe_special_cubic"])
     def test_d_optimal_runs_are_feasible_blends(self, model: str) -> None:
-        design, meta = constrained_mixture_design(BOUNDED, 14, [CAP], model, random_state=0)
+        design, meta = constrained_mixture_design(BOUNDED, 14, [CAP], ConstrainedOptions(model), random_state=0)
         assert design.shape == (14, 3)
         np.testing.assert_allclose(design.sum(axis=1), 1.0)
         assert _feasible(design, BOUNDED, [CAP]).all()
@@ -113,7 +114,9 @@ class TestDesigns:
 
     def test_budget_below_the_model_is_raised(self, caplog: pytest.LogCaptureFixture) -> None:
         with caplog.at_level(logging.WARNING):
-            design, _ = constrained_mixture_design(BOUNDED, 3, None, "scheffe_quadratic", random_state=0)
+            design, _ = constrained_mixture_design(
+                BOUNDED, 3, None, ConstrainedOptions("scheffe_quadratic"), random_state=0
+            )
         assert len(design) == 6
         assert "raising the budget to 6" in caplog.text
 
