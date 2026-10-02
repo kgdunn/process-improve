@@ -470,6 +470,30 @@ those changes.
   docstrings and user guide now say that `metadata["centered_l2_discrepancy"]` is the
   squared discrepancy `CD^2`, and that `"maximin"` on a box of 8 or more factors puts
   every run on the levels -1, 0 and +1 (use `"maximin_lhs"` when projections matter).
+- **Mixture designs are sized to the Scheffé model and never quietly exceed the budget.**
+  On the full simplex the design ignored `model_type`: without a budget it was the
+  `2^q - 1`-run simplex centroid (1023 runs for a 10-term linear model at 10
+  components), and with one it was the `{q, 2}` lattice, which cannot fit a special
+  cubic model (rank 6 of 7 at 3 components) and could exceed the budget. The default is
+  now the pure components and the overall centroid, plus the binary blends for a
+  quadratic model and the ternary blends for a special cubic one (the 7-run simplex
+  centroid at 3 components, as before). A smaller budget gives a D-optimal subset, and a
+  budget below the number of terms is raised to it, with a warning, and recorded in
+  `metadata["budget_requested"]`. `_simplex_lattice` lists the lattice points directly,
+  so the 91-point `{13, 2}` lattice is no longer refused.
+- **Constrained mixture regions: complete vertices, fast enumeration, model-sized
+  default designs.** The vertex search dropped a vertex whenever a constraint was
+  written with small coefficients (`0.003*x1 >= 0.0003`), giving a false "cannot
+  support the model" error or a design missing a vertex; constraints are now scaled to
+  unit length first. Constraints implied by the others (`x_i <= 1` with zero lower
+  bounds) are dropped before enumerating, so 10 components with three constraints give
+  their 40 vertices at once instead of being refused, and adjacent vertices are found
+  without a rank test for every pair (a 100-run maximin design over a 10-component
+  mixture took over 10 s in vertex enumeration alone). Without a budget, a design of
+  more than three runs per model term (211 runs for 21 terms at 6 bounded components,
+  6931 at 10) is replaced by a D-optimal one with five runs more than the model has
+  terms. With user candidates, `n_candidates` now counts the feasible supplied blends,
+  and the docstring says that no budget means `n_terms + 3` runs.
 
 ## [1.96.0] - 2026-09-30
 

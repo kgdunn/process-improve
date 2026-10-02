@@ -296,20 +296,25 @@ design is built from its geometry.
    print(dopt.metadata["method"])  # d_optimal_extreme_vertices
 
 * **Extreme vertices.** In ``q`` components, a vertex is a blend where ``q - 1``
-  constraints hold with equality. Every such choice of constraints is solved as one
-  linear system, all of them in a single batched call, and the feasible solutions are
-  the vertices.
-* **Without a budget** the classical extreme-vertices design is returned: the
-  vertices and the centroid, plus the edge midpoints for a quadratic model and the
-  centroids of the 2-dimensional faces for a special cubic one. Those faces are the
-  constrained counterpart of ternary blends, which the ``x_i x_j x_k`` terms need.
+  constraints hold with equality. Constraints implied by the others are dropped, every
+  choice of ``q - 1`` of the rest is solved as one linear system, in batches, and the
+  feasible solutions are the vertices.
+* **Without a budget** the vertices and the centroid are returned, plus the edge
+  midpoints for a quadratic model and the centroids of the 2-dimensional faces for a
+  special cubic one. Those faces are the constrained counterpart of ternary blends,
+  which the ``x_i x_j x_k`` terms need. When that is more than three runs per model
+  term, as it soon is with many bounded components, a D-optimal design with five runs
+  more than the model has terms is returned instead.
 * **With a budget** a D-optimal subset is chosen from the vertices, edge midpoints,
   2-face and facet centroids, centroid and axial check blends, by the same exchange
   as above. Blends can repeat, which gives replicates for a pure-error estimate.
 
 Mixture constraints must be linear in the proportions, since the vertex enumeration
-relies on flat faces. On the full simplex (no bounds, no constraints) the classical
-simplex-lattice and simplex-centroid designs are used, as before.
+relies on flat faces. On the full simplex (no bounds, no constraints) the design is
+sized to the model: the pure components and the overall centroid for a linear model,
+plus the binary 50:50 blends for a quadratic one (the ``{q, 2}`` simplex lattice), plus
+the ternary blends for a special cubic one. With three components that is the 7-run
+simplex centroid. A budget below that size gives a D-optimal subset instead.
 
 Analyse the runs with a Scheffé model. It has no intercept, because the proportions
 sum to one:
