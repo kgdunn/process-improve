@@ -784,8 +784,10 @@ def _resolve_factor_names(design: pd.DataFrame, factor_names: list[str] | None) 
     ------
     ValueError
         If *factor_names* names a missing column or repeats one, or, when it is
-        None, if a candidate column is non-numeric or does not take values on
-        both sides of 0, as a coded factor does.
+        None, if a candidate column is non-numeric, or lies wholly on one side
+        of 0 while reaching beyond [-1, 1]. A coded factor is either spread
+        across 0 or held at a level within [-1, 1]; a measured response such as
+        a yield of 10 to 16 is neither.
     """
     if factor_names is not None:
         missing = [n for n in factor_names if n not in design.columns]
@@ -795,14 +797,19 @@ def _resolve_factor_names(design: pd.DataFrame, factor_names: list[str] | None) 
         return list(factor_names)
 
     names = [c for c in design.columns if c not in ("RunOrder", "Block")]
-    not_coded = [
-        c for c in names if not pd.api.types.is_numeric_dtype(design[c]) or not (design[c].min() < 0 < design[c].max())
-    ]
+
+    def looks_coded(column: pd.Series) -> bool:
+        if not pd.api.types.is_numeric_dtype(column):
+            return False
+        low, high = float(column.min()), float(column.max())
+        return low < 0 < high or max(abs(low), abs(high)) <= 1.0
+
+    not_coded = [c for c in names if not looks_coded(design[c])]
     if not_coded:
         msg = (
-            f"Column(s) {not_coded} do not look like factors in coded units (numeric, with values on both sides "
-            "of 0); a response column would be augmented as if it were a factor. Pass factor_names=[...] naming "
-            "the factor columns, or drop the other columns."
+            f"Column(s) {not_coded} do not look like factors in coded units (numeric, and either spread across 0 "
+            "or within [-1, 1]); a response column would be augmented as if it were a factor. Pass "
+            "factor_names=[...] naming the factor columns, or drop the other columns."
         )
         raise ValueError(msg)
     return names
@@ -860,10 +867,10 @@ def augment_design(  # noqa: PLR0913
     factor_names : list[str] or None
         The factor columns. ``None`` takes every column except ``RunOrder`` and
         ``Block``, and then refuses a column that does not look like a coded
-        factor (non-numeric, or without values on both sides of 0), such as a
-        response measured on the runs: augmenting it as a factor would add axial
-        runs on it or negate it in a foldover. Name the factors to keep other
-        columns out.
+        factor (non-numeric, or all on one side of 0 and beyond [-1, 1]), such
+        as a response measured on the runs: augmenting it as a factor would add
+        axial runs on it or negate it in a foldover. Name the factors to keep
+        other columns out.
 
     Returns
     -------

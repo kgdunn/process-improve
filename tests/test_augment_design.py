@@ -309,6 +309,13 @@ class TestFactorColumns:
         assert with_y["new_runs"] == without_y["new_runs"]
         assert set(with_y["augmented_design"][0]) == {"A", "B", "C"}
 
+    def test_factor_held_at_one_level_is_still_a_factor(self) -> None:
+        """A factor held at -1 in the first runs is within the coded range, so it is augmented, not refused."""
+        design = _full_factorial_df(2).astype(float)
+        design["C"] = -1.0
+        result = augment_design(design, "add_runs_optimal", n_additional_runs=4, target_model="main_effects")
+        assert set(result["new_runs"][0]) == {"A", "B", "C"}
+
     def test_unknown_factor_name_is_refused(self) -> None:
         with pytest.raises(ValueError, match="factor_names must name distinct columns"):
             augment_design(_full_factorial_df(2), "foldover", factor_names=["A", "Z"])

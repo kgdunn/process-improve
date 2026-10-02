@@ -265,8 +265,8 @@ those changes.
   except `RunOrder` and `Block` was taken as a factor, so a design carrying its measured
   response got axial runs on it, had it negated by a foldover, or set to 0 in new centre
   runs. A new `factor_names` argument (also on the agent tool) names the factors; without
-  it, a column that is non-numeric or has no values on both sides of 0 is refused with a
-  `ValueError` that suggests naming them.
+  it, a column that is non-numeric, or lies on one side of 0 and beyond [-1, 1], is
+  refused with a `ValueError` that suggests naming them.
 
 - **`augment_design(..., "upgrade_to_rsm")` checks the model it claims to support.** It
   always said "The design now supports estimation of a full quadratic model", yet on a
