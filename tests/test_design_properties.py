@@ -16,6 +16,7 @@ from hypothesis import HealthCheck, given, settings
 from hypothesis import strategies as st
 
 from process_improve.experiments.designs import generate_design
+from process_improve.experiments.designs_response_surface import dsd_run_count
 from process_improve.experiments.evaluate import evaluate_design
 from process_improve.experiments.factor import Factor
 
@@ -233,7 +234,7 @@ class TestDSDProperties:
     @_settings
     @given(k=st.integers(min_value=3, max_value=14))
     def test_run_count_matches_jones_nachtsheim(self, k: int) -> None:
-        """Even k -> 2k+1 runs; odd k -> 2k+3 runs (Jones-Nachtsheim 2011)."""
+        """Even k -> 2k+1 runs; odd k -> 2k+3 runs (Jones-Nachtsheim 2011), for k up to 14."""
         result = generate_design(_factors(k), design_type="dsd", n_center_points=0)
         expected = 2 * k + 1 if k % 2 == 0 else 2 * k + 3
         assert result.n_runs == expected
@@ -258,18 +259,21 @@ class TestDSDProperties:
         # first k columns still see 3 zeros per column.
         assert np.all(zeros_per_column == 3)
 
-    @_settings
-    @given(k=st.sampled_from([3, 4, 5, 6, 7, 8, 12, 13, 14, 18, 19, 20]))
-    def test_paley_construction_is_orthogonal(self, k: int) -> None:
-        """When a Paley conference matrix is used, main effects are exactly orthogonal."""
+    @pytest.mark.parametrize("k", range(3, 37))
+    def test_main_effects_exactly_orthogonal(self, k: int) -> None:
+        """Main effects are orthogonal at every size, including those that need GF(p^n) or doubling (#629)."""
         result = generate_design(_factors(k), design_type="dsd", n_center_points=0)
-        if not result.metadata.get("construction", "").startswith("paley"):
-            # Cyclic fallback is known-approximate, not covered by this invariant.
-            return
         x = _coded(result)
         gram = x.T @ x
-        off_diag = gram - np.diag(np.diag(gram))
-        assert np.abs(off_diag).max() < 1e-9
+        assert np.array_equal(gram, np.diag(np.diag(gram)))
+        assert result.n_runs == dsd_run_count(k)
+
+    @pytest.mark.parametrize("k", [9, 10, 15, 16, 25, 26, 27, 28])
+    def test_main_effects_orthogonal_to_second_order(self, k: int) -> None:
+        """Every main-effect column is orthogonal to every quadratic and two-factor interaction column."""
+        x = _coded(generate_design(_factors(k), design_type="dsd", n_center_points=0))
+        second = [x[:, i] * x[:, j] for i in range(k) for j in range(i, k)]
+        assert np.abs(x.T @ np.column_stack(second)).max() == 0
 
 
 # ---------------------------------------------------------------------------

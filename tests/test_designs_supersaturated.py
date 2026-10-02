@@ -21,16 +21,18 @@ def _factors(k: int) -> list[Factor]:
     return [Factor(name=f"X{i + 1}", low=0, high=10) for i in range(k)]
 
 
-@pytest.mark.parametrize("order", [4, 8, 12, 16, 20, 24, 28, 32, 40, 44, 48, 60, 68, 72, 84])
+@pytest.mark.parametrize("order", [*range(4, 92, 4), *range(96, 116, 4)])
 def test_hadamard_orders(order: int) -> None:
-    """pyDOE3 and Paley's I + C between them cover these orders; the first column is all +1."""
+    """Every order up to 112 except 92 is built (28 needs GF(27), 36 Paley II); the first column is all +1."""
     h = hadamard(order)
-    if order == 28:  # neither construction reaches 28 (27 is not prime, pyDOE3 has no 28)
-        assert h is None
-        return
     assert h is not None
     np.testing.assert_array_equal(h.T @ h, order * np.eye(order))
     assert (h[:, 0] == 1).all()
+
+
+def test_hadamard_order_92_is_not_built() -> None:
+    """Order 92 needs Williamson's construction, which is not implemented."""
+    assert hadamard(92) is None
 
 
 @pytest.mark.parametrize(("k", "budget"), [(10, 6), (16, 10), (22, 12), (30, 16), (40, 22)])

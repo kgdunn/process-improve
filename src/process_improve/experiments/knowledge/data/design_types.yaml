@@ -278,16 +278,20 @@
   description:
     novice: >
       A modern screening design that can also detect curvature and some
-      interactions. Needs only 2k+1 runs for k factors.
+      interactions. Needs only 2k+1 runs for an even number k of factors
+      (2k+3 for an odd number).
     intermediate: >
-      Jones & Nachtsheim (2011) DSDs use 2k+1 runs for k continuous factors
+      Jones & Nachtsheim (2011) DSDs use 2k+1 runs for an even number k of
+      continuous factors and 2k+3 for an odd number
       (three levels each). They are resolution III+ because main effects are not
       aliased with two-factor interactions or quadratic effects. If at most 3
       factors are active, DSDs can estimate the full quadratic model for those
       factors.
     expert: >
-      DSDs are constructed by conference matrices. For k continuous factors the
-      design has 2k+1 runs with the property that main effects are orthogonal
+      DSDs are constructed by conference matrices. For an even number k of
+      continuous factors the design has 2k+1 runs (2k+3 for odd k; 49 runs for
+      21 or 22 factors, since no conference matrix of order 22 exists), with the
+      property that main effects are orthogonal
       to all two-factor interactions and quadratic effects. Interactions are
       partially aliased with each other. Fake-factor variants (adding dummy
       columns) can improve estimation. Categorical factors can be incorporated
@@ -295,7 +299,7 @@
   suitable_for:
     - "6–30 continuous factors"
     - "When curvature detection is needed during screening"
-    - "When budget allows 2k+1 runs but not full RSM"
+    - "When budget allows about 2k+1 runs but not full RSM"
   properties:
     resolution: "III+"
     orthogonal: "Main effects orthogonal to 2FI and quadratic"
@@ -303,8 +307,8 @@
     supports_quadratic: "Partial (if <= 3 active factors)"
     supports_interaction: "Partial (if <= 3 active factors)"
   min_runs:
-    formula: "2k + 1"
-    examples: {"6": 13, "8": 17, "10": 21, "12": 25}
+    formula: "2k + 1 (even k), 2k + 3 (odd k)"
+    examples: {"6": 13, "7": 17, "8": 17, "10": 21, "12": 25}
   supports_models:
     - main_effects
     - "quadratic (limited active factors)"
@@ -314,7 +318,7 @@
   advantages:
     - "Screens and detects curvature in one design"
     - "Main effects orthogonal to 2FI and quadratic"
-    - "Efficient run count (2k+1)"
+    - "Efficient run count (2k+1 for even k)"
   disadvantages:
     - "Requires three levels per factor"
     - "Cannot estimate full quadratic model if more than ~3 factors are active"

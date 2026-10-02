@@ -9,10 +9,13 @@ Column/Expt conversion) is handled by ``designs_utils.build_design_result``.
 
 from __future__ import annotations
 
+import contextlib
 import itertools
 from typing import TYPE_CHECKING
 
 import numpy as np
+
+from process_improve.experiments._finite_fields import hadamard_matrix
 
 try:
     from pyDOE3 import fracfact, fracfact_by_res, pbdesign, taguchi_design
@@ -317,8 +320,29 @@ def _fracfact_from_indices(k: int, derived_idx: list[int], rhs_indices: list[tup
     return reordered
 
 
+def plackett_burman_runs(n_factors: int) -> int:
+    """Return the number of runs in the Plackett-Burman design for ``n_factors`` factors.
+
+    The smallest multiple of 4 above ``n_factors`` for which a Hadamard matrix is
+    built here (every order up to 200 except 92, 116, 156, 172, 184 and 188, which
+    step up to the next multiple of 4).
+    """
+    n = 4 * (n_factors // 4 + 1)
+    while hadamard_matrix(n) is None:
+        n += 4
+    return n
+
+
 def dispatch_plackett_burman(factors: list[Factor]) -> tuple[np.ndarray, dict]:
     """Generate a Plackett-Burman screening design.
+
+    The ``N``-run design is ``k`` columns of a normalised Hadamard matrix of order
+    ``N``, the smallest multiple of 4 above ``k`` that can be built (see
+    :func:`plackett_burman_runs`). For the orders pyDOE3 covers (powers of 2, and 12 or
+    20 times a power of 2) its matrices are used, which for 12, 20 and 24 runs are the
+    cyclic designs Plackett and Burman (1946) published. The other orders (28, 36, 44,
+    52, ...) come from the finite-field constructions in
+    :mod:`process_improve.experiments._finite_fields`, checked against ``H'H = N I``.
 
     Parameters
     ----------
@@ -328,11 +352,22 @@ def dispatch_plackett_burman(factors: list[Factor]) -> tuple[np.ndarray, dict]:
     Returns
     -------
     tuple[np.ndarray, dict]
-        Coded design matrix (-1 / +1) and metadata.
+        Coded design matrix (-1 / +1) and metadata, including the ``construction``.
     """
     k = len(factors)
-    coded_matrix = pbdesign(k)
-    return coded_matrix, {"note": f"Plackett-Burman design for {k} factors in {coded_matrix.shape[0]} runs"}
+    n = plackett_burman_runs(k)
+    coded_matrix = None
+    with contextlib.suppress(AssertionError, IndexError, ValueError):  # pyDOE3 asserts on orders it lacks
+        coded_matrix = pbdesign(k)
+    if coded_matrix is not None and coded_matrix.shape[0] == n:
+        construction = "pyDOE3"
+    else:
+        hadamard, construction = hadamard_matrix(n)  # type: ignore[misc]  # not None: n was chosen so
+        coded_matrix = hadamard[:, 1 : k + 1].astype(float)
+    return coded_matrix, {
+        "construction": construction,
+        "note": f"Plackett-Burman design for {k} factors in {n} runs",
+    }
 
 
 def dispatch_taguchi(factors: list[Factor]) -> tuple[np.ndarray, dict]:

@@ -14,6 +14,7 @@ import json
 import re
 from typing import Any, Literal, cast
 
+from process_improve.experiments.designs_response_surface import dsd_run_count
 from process_improve.experiments.factor import Constraint, Factor, Response
 from process_improve.experiments.strategy.budget import (
     allocate_budget,
@@ -580,7 +581,7 @@ def _build_alternatives(spec: DOEProblemSpec, classification: dict[str, Any]) ->
 
     if n >= 6:
         alternatives.append(
-            f"Definitive Screening Design ({2 * n + 1} runs) to combine screening and curvature detection."
+            f"Definitive Screening Design ({dsd_run_count(n)} runs) to combine screening and curvature detection."
         )
     if n <= 5:
         alternatives.append(f"Full factorial 2^{n} ({2**n} runs) if budget allows complete information.")

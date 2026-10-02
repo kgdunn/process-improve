@@ -13,6 +13,8 @@ from typing import TYPE_CHECKING
 
 import numpy as np
 
+from process_improve.experiments._finite_fields import conference_matrix, conference_order_at_least
+
 try:
     from pyDOE3 import bbdesign, ccdesign
 except ImportError:  # pragma: no cover - exercised via env-without-pyDOE3
@@ -296,34 +298,66 @@ def dispatch_box_behnken(
     return coded_matrix, {}
 
 
+def dsd_conference_order(n_factors: int) -> int:
+    """Return the order of the conference matrix a definitive screening design for ``n_factors`` factors is built from.
+
+    ``n_factors`` itself when it is even and ``n_factors + 1`` when it is odd, stepped up
+    to the next order where a conference matrix can be built: none exists at 22 or 34,
+    so 21 and 22 factors use order 24, and 33 and 34 factors use order 38 (36 needs a
+    construction not implemented here). The extra columns are fake factors, dropped
+    from the design.
+
+    Raises
+    ------
+    ValueError
+        For fewer than 3 factors.
+    """
+    if n_factors < 3:
+        raise ValueError("Definitive Screening Designs require at least 3 factors.")
+    return conference_order_at_least(n_factors + n_factors % 2)
+
+
+def dsd_run_count(n_factors: int) -> int:
+    """Return the number of runs in the definitive screening design for ``n_factors`` continuous factors.
+
+    ``2m + 1`` for the conference order ``m`` of :func:`dsd_conference_order`: the familiar
+    ``2k + 1`` for even ``k`` and ``2k + 3`` for odd ``k``, except where the order steps up.
+
+    Examples
+    --------
+    >>> dsd_run_count(6), dsd_run_count(7), dsd_run_count(22)
+    (13, 17, 49)
+    """
+    return 2 * dsd_conference_order(n_factors) + 1
+
+
 def dispatch_dsd(factors: list[Factor]) -> tuple[np.ndarray, dict]:
     """Generate a Definitive Screening Design (DSD).
 
-    Follows the conference-matrix-based construction of Jones & Nachtsheim
-    (2011).  For *k* factors the DSD has ``2k + 1`` runs when *k* is even
-    (using a conference matrix of order *k*) and ``2k + 3`` runs when *k*
-    is odd (using a conference matrix of order ``k + 1`` and dropping the
-    last column; Xiao, Lin & Bai 2012).  The design can estimate all main
-    effects and quadratic effects and detect two-factor interactions with
-    minimal confounding, provided the underlying conference matrix is
-    genuine (``C.T @ C == (m-1) * I``).
+    The conference-matrix construction of Jones and Nachtsheim (2011), as given by
+    Xiao, Lin and Bai (2012): with ``C`` a conference matrix of order ``m``
+    (``C'C = (m - 1) I``), the design is ``[C; -C; 0]`` with ``2m + 1`` runs, and its
+    first ``k`` columns are the factors. ``m`` is ``k`` for even ``k`` and ``k + 1`` for
+    odd ``k``, stepped up where no conference matrix of that order can be built (see
+    :func:`dsd_conference_order`). Main effects are then orthogonal to each other and
+    to every quadratic and two-factor interaction column.
 
-    The Paley construction used by :func:`_conference_matrix` produces a
-    genuine conference matrix whenever ``m - 1`` is an odd prime.  For other
-    *m* the function falls back to a cyclic approximation and logs a
-    warning; the resulting DSD will still run but its main-effects
-    orthogonality may be degraded.
+    Conference matrices come from :mod:`process_improve.experiments._finite_fields`:
+    Paley's construction over GF(q) for every prime power ``q = m - 1`` (including 9,
+    25, 27, 49) and the doubling of an antisymmetric matrix (orders 16, 40, 56, ...).
+    Every matrix is checked against ``C'C = (m - 1) I`` before use; no approximate
+    matrix is ever used.
 
     Parameters
     ----------
     factors : list[Factor]
-        Continuous factors.
+        Continuous factors, at least three.
 
     Returns
     -------
     tuple[np.ndarray, dict]
-        Coded design matrix and metadata.  Metadata includes the name of
-        the conference-matrix construction that was used.
+        Coded design matrix and metadata: ``construction`` (the conference-matrix
+        construction) and ``conference_order``.
 
     References
     ----------
@@ -335,134 +369,7 @@ def dispatch_dsd(factors: list[Factor]) -> tuple[np.ndarray, dict]:
        of Quality Technology*, 44(1):2-8.
     """
     k = len(factors)
-    if k < 3:
-        raise ValueError("Definitive Screening Designs require at least 3 factors.")
-
-    # For even k, use a conference matrix of order k (-> 2k + 1 runs).
-    # For odd k, use a conference matrix of order k + 1 and drop the last
-    # column so the design has k factors and 2(k+1) + 1 = 2k + 3 runs.
-    m = k if k % 2 == 0 else k + 1
-    C, construction = _conference_matrix(m)
-
-    zero_row = np.zeros((1, m))
-    coded_matrix = np.vstack([C, -C, zero_row])
-
-    if k % 2 == 1:
-        coded_matrix = coded_matrix[:, :k]
-
-    return coded_matrix, {"construction": construction}
-
-
-def _is_prime(n: int) -> bool:
-    """Return True iff *n* is a (positive) prime."""
-    if n < 2:
-        return False
-    if n < 4:
-        return True
-    if n % 2 == 0:
-        return False
-    i = 3
-    while i * i <= n:
-        if n % i == 0:
-            return False
-        i += 2
-    return True
-
-
-def _paley_conference_matrix(q: int) -> np.ndarray:
-    """Build a conference matrix of order ``q + 1`` via Paley's construction.
-
-    Requires *q* to be an odd prime.  Works for both ``q ≡ 1 (mod 4)``
-    (symmetric conference matrix, "Paley type II") and ``q ≡ 3 (mod 4)``
-    (skew-symmetric conference matrix, "Paley type I").  In both cases
-    ``C.T @ C == q * I``.
-
-    Parameters
-    ----------
-    q : int
-        An odd prime.
-
-    Returns
-    -------
-    np.ndarray
-        ``(q + 1) x (q + 1)`` matrix with 0s on the diagonal and ±1
-        off-diagonal.
-    """
-    # Legendre symbol χ : GF(q) -> {-1, 0, 1}
-    quadratic_residues = {(x * x) % q for x in range(1, q)}
-    chi = np.zeros(q, dtype=int)
-    for x in range(1, q):
-        chi[x] = 1 if x in quadratic_residues else -1
-
-    # Jacobsthal matrix Q[a, b] = χ(b - a)
-    q_matrix = np.zeros((q, q), dtype=int)
-    for a in range(q):
-        for b in range(q):
-            q_matrix[a, b] = chi[(b - a) % q]
-
-    n = q + 1
-    c_matrix = np.zeros((n, n), dtype=int)
-    c_matrix[0, 1:] = 1
-    if q % 4 == 1:
-        # Symmetric Paley conference matrix.
-        c_matrix[1:, 0] = 1
-    else:
-        # Skew-symmetric Paley conference matrix (q ≡ 3 mod 4).
-        c_matrix[1:, 0] = -1
-    c_matrix[1:, 1:] = q_matrix
-    return c_matrix
-
-
-def _cyclic_conference_matrix(k: int) -> np.ndarray:
-    """Legacy cyclic approximation of a conference matrix.
-
-    Does **not** satisfy ``C.T @ C == (k - 1) * I`` in general; used only as
-    a fallback when no Paley construction is available for the requested
-    order.
-    """
-    c_matrix = np.zeros((k, k))
-    half = (k - 1) // 2
-    sequence = [1] * half + [-1] * (k - 1 - half)
-    for i in range(k):
-        for j in range(k):
-            if i != j:
-                idx = (j - i - 1) % (k - 1) if j > i else (j - i) % (k - 1)
-                c_matrix[i, j] = sequence[idx]
-    return c_matrix
-
-
-def _conference_matrix(m: int) -> tuple[np.ndarray, str]:
-    """Construct an ``m x m`` conference matrix.
-
-    Uses Paley's construction when ``m - 1`` is an odd prime (covering
-    ``m ∈ {4, 6, 8, 12, 14, 18, 20, 24, 30, 32, 38, 42, 44, 48, 54, 60, 62,
-    68, 72, 74, 80, 84, 90, 98, ...}``), which returns a genuine conference
-    matrix with ``C.T @ C == (m - 1) * I``.  For other orders (e.g.
-    ``m ∈ {10, 16, 22, 26, 28, 34, 36, 40, ...}``) no Paley construction
-    with a prime *q* is available; the function falls back to a cyclic
-    approximation and logs a warning.
-
-    Parameters
-    ----------
-    m : int
-        Desired order of the conference matrix.
-
-    Returns
-    -------
-    tuple[np.ndarray, str]
-        The matrix and a short string identifying the construction used
-        (e.g. ``"paley_q=13"`` or ``"cyclic_fallback"``).
-    """
-    q = m - 1
-    if q >= 3 and q % 2 == 1 and _is_prime(q):
-        return _paley_conference_matrix(q).astype(float), f"paley_q={q}"
-
-    logger.warning(
-        "No Paley conference-matrix construction known for order m=%d "
-        "(q = m - 1 = %d is not an odd prime); falling back to a cyclic "
-        "approximation. The resulting DSD's main-effects orthogonality "
-        "may be degraded.",
-        m,
-        q,
-    )
-    return _cyclic_conference_matrix(m), "cyclic_fallback"
+    m = dsd_conference_order(k)
+    conference, construction = conference_matrix(m)
+    coded_matrix = np.vstack([conference, -conference, np.zeros((1, m))]).astype(float)[:, :k]
+    return coded_matrix, {"construction": construction, "conference_order": m}

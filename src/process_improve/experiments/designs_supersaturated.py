@@ -17,9 +17,11 @@ a different design, so all are tried and the one with the smallest ``E(s^2)``, t
 smallest ``max |s_ij|``, is kept. When fewer than ``N - 2`` factors are needed, the
 columns that contribute most to ``E(s^2)`` are dropped one at a time.
 
-Hadamard matrices come from pyDOE3's Plackett-Burman construction, and, for orders
-``N`` where ``N - 1`` is a prime congruent to 3 mod 4, from Paley's construction
-``H = I + C`` with ``C`` the skew conference matrix (which adds 44, 60, 68, 72, 84).
+Hadamard matrices come from Paley's construction ``H = I + C`` (``C`` the skew
+conference matrix, for ``N - 1`` a prime power congruent to 3 mod 4), pyDOE3's
+Plackett-Burman construction, and the other finite-field constructions in
+:mod:`process_improve.experiments._finite_fields`; every order up to 200 except 92,
+116, 156, 172, 184 and 188 is covered.
 """
 
 from __future__ import annotations
@@ -31,6 +33,7 @@ from typing import TYPE_CHECKING
 
 import numpy as np
 
+from process_improve.experiments._finite_fields import hadamard_matrix, paley_conference_matrix, prime_power
 from process_improve.experiments.factor import FactorType
 
 if TYPE_CHECKING:
@@ -43,22 +46,23 @@ _MAX_ORDER = 200
 
 
 def hadamard(order: int) -> np.ndarray | None:
-    """Return a normalised Hadamard matrix of ``order`` (first column all +1), or ``None`` if none is built here."""
-    from pyDOE3 import pbdesign  # noqa: PLC0415
+    """Return a normalised Hadamard matrix of ``order`` (first column all +1), or ``None`` if none is built here.
 
-    from process_improve.experiments.designs_response_surface import (  # noqa: PLC0415
-        _is_prime,
-        _paley_conference_matrix,
-    )
+    Paley's type I matrix comes first where it exists: its cyclic structure gives
+    half-fractions without identical columns, where the Sylvester-type matrices for 16,
+    24 and 32 always have some. pyDOE3's Plackett-Burman matrices come next, then the
+    other finite-field constructions (Paley II and doubling) for the remaining orders.
+    """
+    from pyDOE3 import pbdesign  # noqa: PLC0415
 
     candidates = []
     q = order - 1
-    if q % 4 == 3 and _is_prime(q):
-        # Paley first: its cyclic structure gives half-fractions without identical columns,
-        # where the Kronecker-built (Sylvester-type) matrices for 16, 24, 32 always have some.
-        candidates.append(np.eye(order) + _paley_conference_matrix(q))
+    if q >= 3 and q % 4 == 3 and prime_power(q) is not None:
+        candidates.append(np.eye(order) + paley_conference_matrix(q))
     with contextlib.suppress(AssertionError, ValueError, IndexError):  # pyDOE3 asserts on unsupported orders
         candidates.append(np.column_stack([np.ones(order), pbdesign(order - 1)]))
+    if (built := hadamard_matrix(order)) is not None:
+        candidates.append(built[0])
     for h in candidates:
         if h.shape == (order, order) and np.array_equal(h.T @ h, order * np.eye(order)):
             return h * h[:, [0]]  # multiply rows so the first column is all +1

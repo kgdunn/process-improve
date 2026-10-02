@@ -218,6 +218,25 @@ those changes.
 
 ### Fixed
 
+- **Definitive screening designs are exact at every size (#629).** A DSD is built from a
+  conference matrix `C` with `C'C = (m - 1) I`; the code had one only when `m - 1` was a
+  prime, and otherwise used a cyclic matrix that is not a conference matrix. 9 or 10
+  factors then had main effects correlated at r = 0.89, and 15, 16, 21, 22 and 25 to 36
+  factors were affected likewise, with only a logged warning. Conference matrices now
+  come from a new finite-field module: Paley's construction over GF(q) for every prime
+  power `q = m - 1` (9, 25, 27, 49, ...) and the doubling of an antisymmetric matrix
+  (orders 16, 40, 56, ...), each checked before use. Where no matrix of the order can be
+  built (none exists at 22 or 34), the design steps up to the next order with fake
+  factors: 21 or 22 factors take 49 runs. `dsd_run_count` gives the run count, and
+  `recommend_strategy` now uses it (a 7-factor DSD has 17 runs, not 15). Designs for
+  sizes that were already exact are unchanged.
+- **Plackett-Burman designs exist for 24 to 99 factors.** pyDOE3 stops with an
+  `AssertionError` at 24 to 27, 32 to 35, 40 to 43, 48 to 59 factors and beyond; those
+  sizes now use a Hadamard matrix from the finite-field module (Paley I and II, doubling),
+  in the smallest multiple of 4 above the factor count (92 runs is not built, so 88 to
+  91 factors take 96). Sizes pyDOE3 covers are unchanged. The supersaturated designs
+  gain the same Hadamard orders (28, 36, 52, 76, 100, ...).
+
 - **`augment_design(..., "add_runs_optimal")` adds runs to a design that cannot yet fit
   the target model (#637).** It added one run at a time by `log det(X'X)`, which is
   `-inf` for every candidate while the design is singular, so a 2^(4-1) screening design
