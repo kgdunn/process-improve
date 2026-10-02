@@ -733,16 +733,36 @@ class TestGoalMatching:
         with pytest.raises(ValueError, match="correspond one to one"):
             optimize_responses(self._models(), goals=goals, method="desirability")
 
-    def test_unnamed_goals_fall_back_to_position(self, caplog: pytest.LogCaptureFixture) -> None:
+    def test_unnamed_goals_fall_back_to_position(self) -> None:
         """Without names on both sides, position is the only reading available."""
         goals = [
             {"goal": "maximize", "low": -1.0, "high": 1.0},
             {"goal": "minimize", "low": -1.0, "high": 1.0},
         ]
-        with caplog.at_level("WARNING"):
+        with pytest.warns(UserWarning, match="by position") as record:
             out = optimize_responses(self._models(), goals=goals, method="desirability")
-        assert "by position" in caplog.text
+        assert len([w for w in record if "by position" in str(w.message)]) == 1
+        assert record[0].filename == __file__
         assert out["desirability"]["optimal_coded"]["A"] == pytest.approx(1.0, abs=1e-4)
+
+    @pytest.mark.parametrize("method", ["desirability", "pareto_front"])
+    def test_mismatched_names_raise_instead_of_pairing_by_position(self, method: str) -> None:
+        """'Yield' is not 'yield': pairing by position would minimise yield and maximise cost."""
+        goals = [
+            {"response": "Cost", "goal": "minimize", "low": -1.0, "high": 1.0},
+            {"response": "yield", "goal": "maximize", "low": -1.0, "high": 1.0},
+        ]
+        with pytest.raises(ValueError, match=r"\['Cost'\] match no model.*\['cost'\] match no goal"):
+            optimize_responses(self._models(), goals=goals, method=method)
+
+    def test_duplicate_goal_names_raise(self) -> None:
+        """Two goals for one response leave the other response without one."""
+        goals = [
+            {"response": "yield", "goal": "maximize", "low": -1.0, "high": 1.0},
+            {"response": "yield", "goal": "minimize", "low": -1.0, "high": 1.0},
+        ]
+        with pytest.raises(ValueError, match="one to one"):
+            optimize_responses(self._models(), goals=goals, method="desirability")
 
 
 class TestResponseImportanceNaming:

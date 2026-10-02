@@ -256,6 +256,15 @@ those changes.
 
 ### Fixed
 
+- **`optimize_responses` refuses goals whose `response` names do not match the models.**
+  When both sides named their responses but the names did not pair up one to one (a typo
+  or a case difference such as `"Y1"` for `"y1"`), the goals were paired by list
+  position with only a log line, so goals listed in a different order from the models
+  optimised each response against another one's goal. That is now a `ValueError` naming
+  the unmatched names. Pairing by position when names are left out, and a `region`
+  ignored by a method that cannot use it, are now reported with a `UserWarning` rather
+  than a log record that an application's logging setup could hide.
+
 - **Desirability goals and importances are checked before optimising.** Swapped limits
   (`low=80, high=60`) turned a ramp into a step, a target outside `[low, high]` could
   never reach d = 1, a negative `weight` returned d = 2, a negative importance pushed

@@ -539,13 +539,12 @@ def _align_goals_to_models(
 ) -> list[dict[str, Any]]:
     """Return *goals* reordered to match *fitted_models*.
 
-    Goals were previously consumed in list order while ``goal["response"]`` was
-    documented as the key that ties a goal to its model. Passing the two lists
-    in different orders therefore optimised the wrong thing without complaint.
-
-    When every model names its response and every goal names a matching one, the
-    goals are reordered by name. Otherwise the original positional order is kept,
-    with a warning, since that is the only interpretation left.
+    When every model names its response and every goal names one, the goals are
+    reordered by name, and names that do not pair up one to one are an error:
+    pairing them by position instead would optimise each response against another
+    response's goal whenever the lists are in different orders. When either side
+    leaves a name out, the goals are taken in list order, with a warning when there
+    is more than one response, since position is then the only reading left.
 
     Parameters
     ----------
@@ -562,7 +561,9 @@ def _align_goals_to_models(
     Raises
     ------
     ValueError
-        If the two lists differ in length.
+        If the two lists differ in length, or if both sides name every response
+        but the names do not correspond one to one (a typo, a case difference, or
+        a duplicate).
     """
     if len(goals) != len(fitted_models):
         msg = f"Got {len(fitted_models)} fitted model(s) but {len(goals)} goal(s); they must correspond one to one."
@@ -572,23 +573,29 @@ def _align_goals_to_models(
     goal_names = [g.get("response") for g in goals]
 
     if any(n is None for n in model_names) or any(n is None for n in goal_names):
-        logger.warning(
-            "Matching goals to fitted models by position: not every model has 'response_name' and not every "
-            "goal has 'response'. Name both to have them matched by name instead."
-        )
+        if len(goals) > 1:
+            warnings.warn(
+                "Matching goals to fitted models by position: not every model has 'response_name' and not every "
+                "goal has 'response'. Name both to have them matched by name instead.",
+                UserWarning,
+                stacklevel=4,
+            )
         return goals
 
+    model_keys = [str(n) for n in model_names]
     by_name = {str(g["response"]): g for g in goals}
-    if len(by_name) != len(goals) or set(by_name) != {str(n) for n in model_names}:
-        logger.warning(
-            "Matching goals to fitted models by position: the goal 'response' names %s do not correspond "
-            "one to one with the model 'response_name' values %s.",
-            sorted(str(n) for n in goal_names),
-            sorted(str(n) for n in model_names),
+    if len(by_name) != len(goals) or len(set(model_keys)) != len(model_keys) or set(by_name) != set(model_keys):
+        unmatched_goals = sorted(set(by_name) - set(model_keys))
+        unmatched_models = sorted(set(model_keys) - set(by_name))
+        msg = (
+            f"The goals' 'response' names {[str(n) for n in goal_names]} do not correspond one to one with the "
+            f"models' 'response_name' values {model_keys}: goal name(s) {unmatched_goals} match no model and "
+            f"model name(s) {unmatched_models} match no goal, and each name must appear once on each side. "
+            "Fix the names (they are case-sensitive), or leave 'response' out of every goal to pair them by position."
         )
-        return goals
+        raise ValueError(msg)
 
-    return [by_name[str(n)] for n in model_names]
+    return [by_name[key] for key in model_keys]
 
 
 @dataclass
@@ -649,7 +656,12 @@ def _search_space(
 def _region_for_method(region: DesignRegion | None, method: str) -> DesignRegion | None:
     """Return ``region`` for the methods that search inside one, warning and dropping it otherwise."""
     if region is not None and method not in {"desirability", "pareto_front"}:
-        logger.warning("region is honoured by 'desirability' and 'pareto_front' only; ignored by %r.", method)
+        warnings.warn(
+            f"region is honoured by 'desirability' and 'pareto_front' only; it is ignored by {method!r}, "
+            "which works over search_bounds instead.",
+            UserWarning,
+            stacklevel=3,
+        )
         return None
     return region
 
@@ -694,6 +706,8 @@ def _optimize_desirability(  # noqa: PLR0913
     random_state: int | np.random.Generator | None = 42,
     search_bounds: tuple[float, float] | dict[str, tuple[float, float]] | None = None,
     region: DesignRegion | None = None,
+    *,
+    align_goals: bool = True,
 ) -> dict[str, Any]:
     """Optimise composite desirability using scipy SLSQP.
 
@@ -715,6 +729,9 @@ def _optimize_desirability(  # noqa: PLR0913
         Coded region to search. Defaults to the factorial cube, (-1, 1).
     region : DesignRegion or None
         Constraints the optimum must satisfy; see :func:`_search_space`.
+    align_goals : bool
+        False when the caller has already aligned *goals* with
+        :func:`_align_goals_to_models`, so a positional pairing is not warned about twice.
 
     Returns
     -------
@@ -722,7 +739,8 @@ def _optimize_desirability(  # noqa: PLR0913
         Optimal settings, predicted responses, individual and composite
         desirability, and ``within_region`` when a region is given.
     """
-    goals = _align_goals_to_models(fitted_models, goals)
+    if align_goals:
+        goals = _align_goals_to_models(fitted_models, goals)
     evaluators = [_build_model_evaluator(m["coefficients"], factor_names) for m in fitted_models]
 
     def neg_composite(x: np.ndarray) -> float:
@@ -1436,6 +1454,7 @@ def _desirability_result(  # noqa: PLR0913
         importances,
         search_bounds=search_bounds,
         region=region,
+        align_goals=False,
     )
 
     if fitted_results is not None:
@@ -1492,7 +1511,9 @@ def optimize_responses(  # noqa: PLR0913, C901
         - ``"response"`` (str) - response name. Matched against each model's
           ``"response_name"``; when both sides name their responses the goals
           are reordered to match, so the two lists need not be in the same
-          order. When either side omits a name, goals are taken in list order.
+          order, and names that do not pair up one to one raise a
+          ``ValueError``. When either side omits a name, goals are taken in
+          list order, with a warning.
         - ``"goal"`` (str) - ``"maximize"``, ``"minimize"``, or
           ``"target"``.
         - ``"target"`` (float, optional) - target value (required when
