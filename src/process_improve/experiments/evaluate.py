@@ -769,11 +769,28 @@ def _compute_power(ctx: _EvalContext) -> dict[str, Any]:
     return {"power_curves": power_curves, "sigma": float(sigma)}
 
 
+def _spans_constant(X: np.ndarray) -> bool:
+    """Whether the constant column lies in the column space of *X*.
+
+    True for a model with an intercept, and for a Scheffé mixture model, whose linear
+    blending terms sum to one (so its ANOVA is corrected for the mean, as in Cornell).
+    """
+    ones = np.ones(X.shape[0])
+    fitted = X @ np.linalg.lstsq(X, ones, rcond=None)[0]
+    return bool(np.allclose(fitted, ones, atol=1e-8))
+
+
 def _compute_degrees_of_freedom(ctx: _EvalContext) -> dict[str, Any]:
-    """Degrees of freedom breakdown."""
-    df_model = ctx.p - 1  # excluding intercept
-    df_residual = ctx.N - ctx.p
-    df_total = ctx.N - 1
+    """Degrees-of-freedom breakdown, from the rank of ``X``.
+
+    ``model = rank - m``, ``residual = N - rank`` and ``total = N - m``, where ``m`` is
+    1 when the model spans the constant (an intercept, or a Scheffé model) and 0
+    otherwise. The residual splits into ``pure_error`` (replicated runs, ``N`` minus the
+    number of distinct settings) and ``lack_of_fit``; both are always reported, as 0
+    when there are no replicates. A rank-deficient model says so in a note.
+    """
+    rank = int(np.linalg.matrix_rank(ctx.X))
+    mean_df = int(_spans_constant(ctx.X))
 
     # Detect replicates by counting distinct factor-setting rows. Round the
     # quantitative columns to absorb floating-point noise; categorical (label)
@@ -783,21 +800,18 @@ def _compute_degrees_of_freedom(ctx: _EvalContext) -> dict[str, Any]:
     if numeric_cols:
         design_sub[numeric_cols] = design_sub[numeric_cols].round(10)
     n_distinct = len(design_sub.drop_duplicates())
-    has_replicates = n_distinct < ctx.N
 
     result: dict[str, Any] = {
         "degrees_of_freedom": {
-            "model": df_model,
-            "residual": df_residual,
-            "total": df_total,
+            "model": rank - mean_df,
+            "residual": ctx.N - rank,
+            "total": ctx.N - mean_df,
+            "pure_error": ctx.N - n_distinct,
+            "lack_of_fit": n_distinct - rank,
         }
     }
-    if has_replicates:
-        df_pure_error = ctx.N - n_distinct
-        df_lack_of_fit = n_distinct - ctx.p if n_distinct > ctx.p else 0
-        result["degrees_of_freedom"]["pure_error"] = df_pure_error
-        result["degrees_of_freedom"]["lack_of_fit"] = df_lack_of_fit
-
+    if rank < ctx.p:
+        result["note"] = f"The model has {ctx.p} columns but rank {rank}; degrees of freedom are counted from the rank."
     return result
 
 

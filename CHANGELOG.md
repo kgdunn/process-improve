@@ -293,6 +293,13 @@ those changes.
   (0, 1), a non-positive `sigma` and `n_samples < 1` raise instead of giving NaN or a NumPy
   error, and a DataFrame that looks like it is in actual rather than coded units warns
   (a 2^3 factorial in 0 to 10 units reported a D-efficiency of 1118%).
+- **`metric="degrees_of_freedom"` counts from the rank of the model matrix.** It used the
+  column count and assumed an intercept, so a rank-deficient model (a quadratic model on a
+  replicated 2^2) reported fewer residual degrees of freedom than pure-error ones, and
+  `"A + B - 1"` reported one model degree of freedom for two terms. The model, residual
+  and total degrees of freedom now come from the rank, corrected for the mean only when
+  the model spans the constant (an intercept, or a Scheffé model), and `pure_error` and
+  `lack_of_fit` are always reported (0 without replicates).
 - **Each metric's note is kept under its own name.** Metrics returned a shared top-level
   `"note"`, so asking for two metrics kept only the last note, attributed to the wrong
   metric. `evaluate_design` now returns them as `result["notes"][metric_name]`.
