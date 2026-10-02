@@ -30,9 +30,16 @@ import math
 from typing import TYPE_CHECKING
 
 import numpy as np
+import pandas as pd
 
 from process_improve._random import check_random_state
-from process_improve.experiments.designs_constrained import fedorov_exchange, parse_constraint
+from process_improve.experiments.designs_constrained import (
+    ConstrainedOptions,
+    fedorov_exchange,
+    make_criterion,
+    parse_constraint,
+    selection_counts,
+)
 
 if TYPE_CHECKING:
     from process_improve.experiments.factor import Constraint, Factor
@@ -169,6 +176,27 @@ def _unique_rows(points: np.ndarray) -> np.ndarray:
     return points[np.sort(first)]
 
 
+def _uniform_blends(
+    a_mat: np.ndarray, b_vec: np.ndarray, low: np.ndarray, n: int, rng: np.random.Generator
+) -> np.ndarray:
+    """``n`` blends drawn uniformly from the constrained simplex ``a_mat @ x <= b_vec``.
+
+    Rejection from the smallest simplex holding the lower bounds (the
+    L-pseudocomponent simplex), where a flat Dirichlet draw is uniform. Kept here,
+    not in :mod:`~process_improve.experiments.region`, which imports this module.
+    """
+    kept: list[np.ndarray] = []
+    for _ in range(200):
+        x = low + (1.0 - low.sum()) * rng.dirichlet(np.ones(len(low)), size=max(n, 10_000))
+        kept.append(x[np.all(x @ a_mat.T <= b_vec + 1e-9, axis=1)])
+        if sum(len(k) for k in kept) >= n:
+            break
+    blends = np.vstack(kept)
+    if not len(blends):
+        raise ValueError("Could not sample the constrained mixture region for the I-optimality moment matrix.")
+    return blends[:n]
+
+
 def mixture_candidates(a_mat: np.ndarray, b_vec: np.ndarray) -> dict[str, np.ndarray]:
     """Return candidate blends by kind: vertices, edge midpoints, face centroids, centroid, axial blends.
 
@@ -200,6 +228,26 @@ def mixture_candidates(a_mat: np.ndarray, b_vec: np.ndarray) -> dict[str, np.nda
 # Public entry point
 # ---------------------------------------------------------------------------
 
+
+def _user_blends(
+    factors: list[Factor], candidates: pd.DataFrame, a_mat: np.ndarray, b_vec: np.ndarray
+) -> tuple[np.ndarray, list]:
+    """Return the supplied blends that sum to 1 and satisfy every constraint, with their index labels."""
+    names = [f.name for f in factors]
+    missing = [n for n in names if n not in candidates.columns]
+    if missing:
+        raise ValueError(f"candidates is missing columns for mixture components: {missing}.")
+    blends = candidates[names].apply(pd.to_numeric, errors="coerce").to_numpy(dtype=float)
+    if np.isnan(blends).any():
+        raise ValueError("candidates has missing or non-numeric proportions.")
+    if not np.allclose(blends.sum(axis=1), 1.0, atol=1e-6):
+        raise ValueError("Every candidate blend must sum to 1 (proportions, not amounts).")
+    keep = np.all(blends @ a_mat.T <= b_vec + 1e-9, axis=1)
+    if not keep.any():
+        raise ValueError("No candidate blend satisfies the component bounds and constraints.")
+    return blends[keep], list(candidates.index[keep])
+
+
 #: Point kinds in the classical extreme-vertices design, by Scheffé model.
 _EV_DESIGN = {
     "scheffe_linear": ("vertex", "centroid"),
@@ -212,7 +260,7 @@ def constrained_mixture_design(
     factors: list[Factor],
     budget: int | None,
     constraints: list[Constraint] | None = None,
-    model_type: str = "scheffe_quadratic",
+    options: ConstrainedOptions | None = None,
     random_state: int | np.random.Generator | None = None,
 ) -> tuple[np.ndarray, dict]:
     """Generate a mixture design over component bounds and linear constraints.
@@ -228,10 +276,12 @@ def constrained_mixture_design(
         all candidate blends is chosen; blends may be replicated.
     constraints : list[Constraint] or None
         Linear inequalities in the proportions, e.g. ``"x1 + x2 <= 0.7"``.
-    model_type : str
-        ``"scheffe_linear"``, ``"scheffe_quadratic"`` or ``"scheffe_special_cubic"``,
-        or the process-design names ``"main_effects"``, ``"interactions"`` and
-        ``"quadratic"``, which map to linear, quadratic and quadratic.
+    options : ConstrainedOptions or None
+        ``model_type``: ``"scheffe_linear"``, ``"scheffe_quadratic"`` or
+        ``"scheffe_special_cubic"``, or the process-design names ``"main_effects"``,
+        ``"interactions"`` and ``"quadratic"``, which map to linear, quadratic and
+        quadratic. ``criterion``: ``"d_optimal"`` (default), ``"i_optimal"`` (average
+        prediction variance over the constrained simplex) or ``"a_optimal"``.
     random_state : int, numpy.random.Generator or None
         Seed for the exchange's random starts.
 
@@ -246,10 +296,25 @@ def constrained_mixture_design(
         If the region is empty, a constraint is not linear, or the region cannot
         support the model (for example a region that is a single blend).
     """
-    model = scheffe_model(model_type)
+    opts = options if options is not None else ConstrainedOptions(model_type="scheffe_quadratic")
+    model = scheffe_model(opts.model_type)
+    rng = check_random_state(random_state)
     a_mat, b_vec = mixture_inequalities(factors, constraints)
     candidates = mixture_candidates(a_mat, b_vec)
     n_parameters = scheffe_matrix(np.ones((1, len(factors))), model).shape[1]
+    labels: list | None = None
+    if opts.candidates is not None:
+        pool, labels = _user_blends(factors, opts.candidates, a_mat, b_vec)
+        budget = budget if budget is not None else n_parameters + 3
+
+        def region_rows() -> np.ndarray:
+            return scheffe_matrix(pool, model)  # the supplied blends stand for the region
+    else:
+        pool = _unique_rows(np.vstack(list(candidates.values())))
+
+        def region_rows() -> np.ndarray:
+            low = np.array([f.low or 0.0 for f in factors], dtype=float)
+            return scheffe_matrix(_uniform_blends(a_mat, b_vec, low, 20_000, rng), model)
 
     if budget is None:
         design = _unique_rows(np.vstack([candidates[kind] for kind in _EV_DESIGN[model]]))
@@ -264,11 +329,12 @@ def constrained_mixture_design(
                 n_parameters,
             )
             budget = n_parameters
-        pool = _unique_rows(np.vstack(list(candidates.values())))
+        criterion = make_criterion(opts.criterion, n_parameters, region_rows)
         rows, logdet = fedorov_exchange(
-            scheffe_matrix(pool, model), budget, np.empty((0, n_parameters)), check_random_state(random_state)
+            scheffe_matrix(pool, model), budget, np.empty((0, n_parameters)), rng, criterion
         )
-        design, method = pool[rows], "d_optimal_extreme_vertices"
+        design = pool[rows]
+        method = f"{opts.criterion}_{'user_candidates' if labels is not None else 'extreme_vertices'}"
 
     if np.linalg.matrix_rank(scheffe_matrix(design, model)) < n_parameters:
         raise ValueError(
@@ -283,6 +349,13 @@ def constrained_mixture_design(
         "constraints": [c.expression for c in constraints or []],
         "constraints_enforced": True,
     }
+    if labels is not None:
+        meta["candidate_source"] = "user"
+        meta["selected_candidates"] = selection_counts(labels, rows)
     if logdet is not None:
-        meta["log_det_information"] = logdet
+        meta["optimality_criterion"] = opts.criterion
+        if opts.criterion == "d_optimal":
+            meta["log_det_information"] = logdet
+        else:
+            meta["trace_criterion"] = -logdet  # the exchange maximises -trace
     return design, meta

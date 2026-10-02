@@ -28,7 +28,7 @@ def no_pyoptex(monkeypatch: pytest.MonkeyPatch) -> None:
 
     The dispatch functions read the module-level ``_PYOPTEX_AVAILABLE`` flag
     at call time, so patching the attribute is sufficient to exercise the
-    point-exchange fallback and the ImportError branches in any environment.
+    built-in candidate-exchange backend in any environment.
     """
     monkeypatch.setattr(designs_optimal, "_PYOPTEX_AVAILABLE", False)
 
@@ -82,13 +82,14 @@ class TestTaguchiDispatch:
 
 @pytest.mark.usefixtures("no_pyoptex")
 class TestDOptimalDispatch:
-    """D-optimal dispatch fallback paths (pyoptex forced off)."""
+    """D-optimal dispatch without pyoptex: the built-in candidate exchange."""
 
     def test_fallback_returns_design_and_metadata(self) -> None:
         design, meta = dispatch_d_optimal(_continuous(3), budget=8)
         assert design.shape[1] == 3
-        assert meta["backend"] == "point_exchange_fallback"
-        assert isinstance(meta["d_optimality"], float)
+        assert meta["backend"] == "candidate_exchange"
+        assert meta["optimality_criterion"] == "d_optimal"
+        assert isinstance(meta["log_det_information"], float)
 
     def test_default_budget(self) -> None:
         design, _meta = dispatch_d_optimal(_continuous(2))
@@ -105,7 +106,7 @@ class TestDOptimalDispatch:
         constraints = [Constraint(expression="X1 + X2 <= 10")]
         design, meta = dispatch_d_optimal(_continuous(2), budget=6, constraints=constraints, random_state=0)
         assert meta["constraints_enforced"] is True
-        assert meta["backend"] == "constrained_exchange"
+        assert meta["backend"] == "candidate_exchange"
         actual = 5.0 + 5.0 * design  # coded [-1, 1] -> actual [0, 10]
         assert (actual.sum(axis=1) <= 10 + 1e-9).all()
 
@@ -117,13 +118,12 @@ class TestDOptimalDispatch:
     def test_hard_to_change_without_pyoptex_warns(self, caplog: pytest.LogCaptureFixture) -> None:
         with caplog.at_level("WARNING"):
             dispatch_d_optimal(_continuous(2), budget=6, hard_to_change=["X1"])
-        assert any("pyoptex is not installed" in rec.message for rec in caplog.records)
+        assert any("pyoptex is not installed" in rec.getMessage() for rec in caplog.records)
+        assert any("pip install pyoptex" in rec.getMessage() for rec in caplog.records)
 
-    def test_sec19_cap_rejects_large_candidate_set(self) -> None:
-        """More factors than settings.max_factors_combinatorial is rejected
-        before the 3**k candidate set is allocated (SEC-19 / #268).
-        """
-        with pytest.raises(ValueError, match="SEC-19 cap"):
+    def test_candidate_grid_cap_rejects_large_candidate_set(self) -> None:
+        """A candidate grid above MAX_CANDIDATES is refused before it is allocated (SEC-19 / #268)."""
+        with pytest.raises(ValueError, match="exceeds"):
             dispatch_d_optimal(_continuous(16), budget=40)
 
     def test_budget_clamped_to_minimum_model_size(self) -> None:
@@ -137,60 +137,38 @@ class TestDOptimalDispatch:
         assert design.shape[0] == 7
         assert np.linalg.matrix_rank(np.column_stack([np.ones(design.shape[0]), design])) == 4
 
-    def test_budget_capped_to_candidate_set(self) -> None:
-        """A budget above the 3**k candidate set is capped to its size."""
+    def test_budget_above_the_number_of_candidates_replicates_runs(self) -> None:
+        """The exchange may pick a candidate twice, so a large budget gives replicates, not a short design."""
         design, _meta = dispatch_d_optimal(_continuous(2), budget=50)
-        assert design.shape[1] == 2
-        assert design.shape[0] <= 9  # 3**2 candidate rows
+        assert design.shape == (50, 2)
+        assert len(np.unique(design, axis=0)) < 50
 
     @pytest.mark.parametrize(("model_type", "n_runs"), [("main_effects", 8), ("interactions", 8), ("quadratic", 10)])
     def test_model_type_sets_the_budget_floor_on_the_fallback_path(self, model_type: str, n_runs: int) -> None:
-        """model_type is no longer inert on this path: it sets the estimability floor.
-
-        A quadratic model over three factors has 10 coefficients, so a budget of
-        8 is raised to 10; the other two models fit inside 8 and are left alone.
-        The point-exchange criterion itself is still first-order.
-        """
+        """A quadratic model over three factors has 10 coefficients, so a budget of 8 is raised to 10."""
         design, meta = dispatch_d_optimal(_continuous(3), budget=8, model_type=model_type)
-        assert design.shape[1] == 3
-        assert design.shape[0] == n_runs
-        assert meta["backend"] == "point_exchange_fallback"
+        assert design.shape == (n_runs, 3)
+        assert meta["backend"] == "candidate_exchange"
+
+    def test_the_criterion_follows_the_model(self) -> None:
+        """The old point-exchange fallback scored a first-order model whatever was asked for.
+
+        A quadratic model needs a third level on every factor to estimate its squares.
+        """
+        design, _meta = dispatch_d_optimal(_continuous(3), budget=14, model_type="quadratic", random_state=0)
+        assert all(len(np.unique(design[:, j].round(9))) >= 3 for j in range(3))
 
 
 @pytest.mark.usefixtures("no_pyoptex")
-class TestOptimalRequiresPyoptex:
-    """I-optimal and A-optimal raise a clear error without pyoptex."""
+class TestOptimalWithoutPyoptex:
+    """I-optimal and A-optimal designs no longer need pyoptex."""
 
-    def test_i_optimal_raises_import_error(self) -> None:
-        with pytest.raises(ImportError, match="pyoptex"):
-            dispatch_i_optimal(_continuous(3), budget=8)
-
-    def test_a_optimal_raises_import_error(self) -> None:
-        with pytest.raises(ImportError, match="pyoptex"):
-            dispatch_a_optimal(_continuous(3), budget=8)
-
-
-class TestOptimalMissingPyoptexMessage:
-    """The not-installed error explains how to install pyoptex and why it is not
-    a declared extra (its plotly<6 pin conflicts with the project's plotly>=6.5.2).
-
-    Forcing the availability flag off lets this run regardless of whether
-    pyoptex is present in the test environment, so the remediation message is
-    always covered.
-    """
-
-    def test_i_optimal_error_explains_install(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        from process_improve.experiments import designs_optimal
-
-        monkeypatch.setattr(designs_optimal, "_PYOPTEX_AVAILABLE", False)
-        with pytest.raises(ImportError, match=r"pip install pyoptex") as info:
-            dispatch_i_optimal(_continuous(3), budget=8)
-        assert "plotly" in str(info.value)
-
-    def test_a_optimal_error_explains_install(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        from process_improve.experiments import designs_optimal
-
-        monkeypatch.setattr(designs_optimal, "_PYOPTEX_AVAILABLE", False)
-        with pytest.raises(ImportError, match=r"pip install pyoptex") as info:
-            dispatch_a_optimal(_continuous(3), budget=8)
-        assert "plotly" in str(info.value)
+    @pytest.mark.parametrize(
+        ("dispatch", "name"), [(dispatch_i_optimal, "i_optimal"), (dispatch_a_optimal, "a_optimal")]
+    )
+    def test_candidate_exchange_builds_the_design(self, dispatch: object, name: str) -> None:
+        design, meta = dispatch(_continuous(3), budget=10, model_type="quadratic", random_state=0)  # type: ignore[operator]
+        assert design.shape == (10, 3)
+        assert meta["backend"] == "candidate_exchange"
+        assert meta["optimality_criterion"] == name
+        assert meta["trace_criterion"] > 0
