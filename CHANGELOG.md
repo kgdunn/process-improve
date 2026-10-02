@@ -439,6 +439,11 @@ those changes.
   them by size to within about 0.01 (it varied by 0.06 from seed to seed).
   `DesignRegion.sample` on categorical factors alone returns an `(n, 0)` array instead
   of raising `IndexError`.
+- **`optimal.point_exchange` returns the D-optimal design it promises.** It offered each
+  candidate once, in a single pass, and stopped there: for four runs from the 3^3 grid
+  half of all seeds returned a design with `det(X'X)` of 64 or less instead of the half
+  fraction's 256. It now repeats the passes until none swaps a row, keeps the best of
+  five random starts, and documents its parameters.
 
 ## [1.96.0] - 2026-09-30
 
