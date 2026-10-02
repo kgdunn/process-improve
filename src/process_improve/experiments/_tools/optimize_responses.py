@@ -115,6 +115,14 @@ class OptimizeResponsesInput(BaseModel):
             "to 1 for a mixture). The result then reports 'within_region'."
         ),
     )
+    random_state: int = Field(
+        42,
+        ge=0,
+        description=(
+            "Seed for the random starting points of 'desirability' and 'pareto_front' (default 42). "
+            "Try another seed to check that the optimum does not depend on where the search began."
+        ),
+    )
 
 
 def _as_bounds(
@@ -148,6 +156,7 @@ def _as_bounds(
         "to see the region where every response is simultaneously within specification."
     ),
     input_model=OptimizeResponsesInput,
+    rng={"uses_rng": True, "seed_param": "random_state", "default_seed": 42},
     examples="""
     # "Find the stationary point of my quadratic model"
         -> ``optimize_responses(fitted_models=[{"response_name": "yield",
@@ -213,6 +222,7 @@ def optimize_responses_tool(spec: OptimizeResponsesInput) -> dict[str, Any]:
             ridge_direction=spec.ridge_direction,
             n_pareto_points=spec.n_pareto_points,
             region=DesignRegion.from_dict(spec.region) if spec.region is not None else None,
+            random_state=spec.random_state,
         )
         return clean(result)
     except _TOOL_EXPECTED_EXCEPTIONS as e:

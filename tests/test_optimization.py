@@ -627,6 +627,25 @@ class TestOptimizeDesirability:
         assert out_a["composite_desirability"] > 0.5
         assert out_c["composite_desirability"] > 0.5
 
+    @pytest.mark.parametrize("method", ["desirability", "pareto_front"])
+    def test_random_state_reaches_the_multistart(self, method: str, monkeypatch: pytest.MonkeyPatch) -> None:
+        """optimize_responses passes its random_state to the multistart search (reproducibility.rst rule 1)."""
+        from process_improve.experiments import optimization
+
+        seen: list[object] = []
+
+        def spy(random_state: object) -> np.random.Generator:
+            seen.append(random_state)
+            return np.random.default_rng(0)
+
+        monkeypatch.setattr(optimization, "check_random_state", spy)
+        model = {"response_name": "y", "coefficients": _quadratic_2f_coeffs(), "factor_names": FACTOR_NAMES_2F}
+        models = [model, dict(model, response_name="z")]
+        goals = [{"response": n, "goal": "maximize", "low": 30.0, "high": 50.0} for n in ("y", "z")]
+        rng = np.random.default_rng(7)
+        optimize_responses(models, goals=goals, method=method, random_state=rng)
+        assert seen == [rng]
+
 
 # ---------------------------------------------------------------------------
 # Where the optimum actually lands

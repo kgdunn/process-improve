@@ -256,6 +256,12 @@ those changes.
 
 ### Fixed
 
+- **`optimize_responses` takes a `random_state`.** The multistart search behind
+  `"desirability"` and `"pareto_front"` draws random starting points but was always
+  seeded with 42, so a caller could not vary the starts to check that an optimum does
+  not depend on them. The seed (an int, a `Generator` or `None`, default 42) is now a
+  parameter of the function and of the agent tool.
+
 - **`optimize_responses` refuses goals whose `response` names do not match the models.**
   When both sides named their responses but the names did not pair up one to one (a typo
   or a case difference such as `"Y1"` for `"y1"`), the goals were paired by list

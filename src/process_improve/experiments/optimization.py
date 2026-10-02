@@ -1426,6 +1426,7 @@ def _desirability_result(  # noqa: PLR0913
     significance_level: float,
     search_bounds: tuple[float, float] | dict[str, tuple[float, float]] | None = None,
     region: DesignRegion | None = None,
+    random_state: int | np.random.Generator | None = 42,
 ) -> dict[str, Any]:
     """Assemble the full desirability result: optimum, intervals, and plot input.
 
@@ -1452,6 +1453,7 @@ def _desirability_result(  # noqa: PLR0913
         factor_names,
         factor_ranges,
         importances,
+        random_state=random_state,
         search_bounds=search_bounds,
         region=region,
         align_goals=False,
@@ -1489,6 +1491,7 @@ def optimize_responses(  # noqa: PLR0913, C901
     ridge_direction: str = "maximize",
     n_pareto_points: int = 21,
     region: DesignRegion | None = None,
+    random_state: int | np.random.Generator | None = 42,
 ) -> dict[str, Any]:
     """Find optimal factor settings for one or multiple responses.
 
@@ -1586,6 +1589,11 @@ def optimize_responses(  # noqa: PLR0913, C901
         replace *search_bounds*, and the optimum sums to 1. The desirability
         result then carries ``within_region``. Other methods ignore it, with a
         warning.
+    random_state : int, Generator, or None
+        Seed for the random starting points of the multistart search used by
+        ``"desirability"`` and ``"pareto_front"``; the other methods are
+        deterministic. The default of 42 keeps results reproducible; try another
+        seed to check that an optimum does not depend on where the search began.
 
     Returns
     -------
@@ -1683,6 +1691,7 @@ def optimize_responses(  # noqa: PLR0913, C901
             significance_level=significance_level,
             search_bounds=search_bounds,
             region=region,
+            random_state=random_state,
         )
 
     elif method == "ridge_analysis":
@@ -1710,6 +1719,7 @@ def optimize_responses(  # noqa: PLR0913, C901
                 factor_names,
                 n_points=n_pareto_points,
                 search_bounds=search_bounds,
+                random_state=random_state,
                 region=region,
             ),
             factor_ranges,
