@@ -486,6 +486,7 @@ def _compute_alpha(
     design: pd.DataFrame,
     factor_names: list[str],
     alpha: str | float | None,
+    n_new_centers: int = 0,
 ) -> float:
     """Compute the axial distance alpha.
 
@@ -497,6 +498,9 @@ def _compute_alpha(
         Factor column names.
     alpha : str, float, or None
         ``"rotatable"``, ``"face_centered"``, ``"orthogonal"``, or numeric.
+    n_new_centers : int
+        Centre runs added alongside the axial runs, which the orthogonal
+        distance has to count.
     """
     if isinstance(alpha, (int, float)):
         return float(alpha)
@@ -513,7 +517,7 @@ def _compute_alpha(
         return 1.0
     elif alpha == "orthogonal":
         # Quadratic columns mutually orthogonal, counting every existing run and the 2k new axial runs.
-        return orthogonal_alpha(n_factorial, len(design) + 2 * k)
+        return orthogonal_alpha(n_factorial, len(design) + 2 * k + n_new_centers)
     else:
         raise ValueError(f"Unknown alpha type: {alpha!r}. Use 'rotatable', 'face_centered', 'orthogonal', or numeric.")
 
@@ -619,32 +623,58 @@ def _augment_add_runs_optimal(ctx: _AugmentContext) -> dict[str, Any]:
     }
 
 
+#: upgrade_to_rsm tops the centre runs up to this many, the usual three to five for a CCD.
+_RSM_CENTER_RUNS = 5
+
+
+def _model_support(design: pd.DataFrame, factor_names: list[str], model: str) -> tuple[int, int, list[str]]:
+    """Return the model's coefficient count, the rank the design gives it, and the terms that cannot all be estimated.
+
+    The terms are those with weight in the null space of the model matrix: some
+    combination of their columns is zero on every run, so they are aliased.
+    """
+    rhs = _build_model_rhs(factor_names, model)
+    frame = dmatrix(rhs, design[factor_names].astype(float), return_type="dataframe")
+    x = frame.to_numpy(dtype=float)
+    _u, singular, vt = np.linalg.svd(x, full_matrices=True)
+    rank = int((singular > singular.max() * max(x.shape) * np.finfo(float).eps).sum())
+    null_space = vt[rank:]
+    aliased = [
+        str(term)
+        for term, w in zip(frame.columns, np.abs(null_space).max(axis=0, initial=0.0), strict=True)
+        if w > 1e-8
+    ]
+    return x.shape[1], rank, aliased
+
+
 def _augment_upgrade_to_rsm(ctx: _AugmentContext) -> dict[str, Any]:
-    """Upgrade a screening/factorial design to an RSM (CCD) design."""
+    """Upgrade a screening/factorial design to an RSM (CCD) design.
+
+    Adds 2k axial runs and tops the centre runs up to five, then checks that the
+    target model (default quadratic) can be estimated. It cannot when the cube is
+    a resolution III or IV fraction, whose aliased two-factor interactions are zero
+    on every axial and centre run; that is reported, with a warning, rather than
+    claimed away.
+    """
     df = ctx.existing_design[ctx.factor_names].copy()
     k = len(ctx.factor_names)
+    model = ctx.target_model or "quadratic"
 
-    # Detect existing center points
+    # Detect existing center points, and top them up to a fixed total
     center_mask = (df.abs() < 1e-10).all(axis=1)
     n_existing_centers = int(center_mask.sum())
+    n_new_centers = max(0, _RSM_CENTER_RUNS - n_existing_centers)
 
     # Add axial points
     alpha_val = ctx.alpha if ctx.alpha is not None else "rotatable"
-    alpha_numeric = _compute_alpha(df, ctx.factor_names, alpha_val)
+    alpha_numeric = _compute_alpha(df, ctx.factor_names, alpha_val, n_new_centers)
 
     axial = np.zeros((2 * k, k))
     for i in range(k):
         axial[2 * i, i] = alpha_numeric
         axial[2 * i + 1, i] = -alpha_numeric
     axial_df = pd.DataFrame(axial, columns=ctx.factor_names)
-
-    # Add center points if needed (target 3-5 total)
-    n_target_centers = max(3, 5 - n_existing_centers)
-    n_new_centers = max(0, n_target_centers - n_existing_centers)
-    center_df = pd.DataFrame(
-        np.zeros((n_new_centers, k)),
-        columns=ctx.factor_names,
-    )
+    center_df = pd.DataFrame(np.zeros((n_new_centers, k)), columns=ctx.factor_names)
 
     new_runs = pd.concat([axial_df, center_df], ignore_index=True)
     augmented = pd.concat([df, new_runs], ignore_index=True)
@@ -652,10 +682,22 @@ def _augment_upgrade_to_rsm(ctx: _AugmentContext) -> dict[str, Any]:
     notes = [
         f"Upgraded to Central Composite Design (CCD) with alpha = {alpha_numeric:.4f}.",
         f"Added {2 * k} axial points and {n_new_centers} center point(s).",
-        "The design now supports estimation of a full quadratic (second-order) model.",
     ]
     if n_existing_centers > 0:
         notes.append(f"Existing {n_existing_centers} center point(s) were preserved.")
+    n_coefficients, rank, aliased = _model_support(augmented, ctx.factor_names, model)
+    if rank == n_coefficients:
+        notes.append(f"The design now supports the {model} model: all {n_coefficients} coefficients are estimable.")
+    else:
+        message = (
+            f"The {model} model has {n_coefficients} coefficients but the upgraded design supports only {rank}: "
+            f"{', '.join(aliased)} cannot all be estimated. Axial and centre runs are zero on every interaction "
+            "column, so interactions aliased in the cube stay aliased; a central composite design needs a "
+            "resolution V cube. Add runs that separate those interactions first (for a half fraction, its "
+            "other half), or use 'add_runs_optimal' with this target_model."
+        )
+        notes.append(message)
+        warnings.warn(message, UserWarning, stacklevel=3)
 
     explanation, before_m, after_m = _explain_changes(
         ctx.existing_design, augmented, ctx.factor_names, ctx.generators, notes
@@ -667,6 +709,8 @@ def _augment_upgrade_to_rsm(ctx: _AugmentContext) -> dict[str, Any]:
         "n_runs_before": len(ctx.existing_design),
         "n_runs_after": len(augmented),
         "alpha": float(alpha_numeric),
+        "n_estimable": rank,
+        "n_coefficients": n_coefficients,
         "explanation": explanation,
         "before_metrics": before_m,
         "after_metrics": after_m,
@@ -756,8 +800,10 @@ def augment_design(  # noqa: PLR0913
         ``"add_blocks"``, ``"replicate"``.
     target_model : str or None
         Desired model after augmentation: ``"main_effects"``,
-        ``"interactions"``, ``"quadratic"``.  Used by ``"add_runs_optimal"``
-        and ``"upgrade_to_rsm"``.
+        ``"interactions"``, ``"quadratic"``. ``"add_runs_optimal"`` chooses
+        runs for it (default ``"interactions"``); ``"upgrade_to_rsm"`` checks
+        that the upgraded design can estimate it (default ``"quadratic"``),
+        warning and listing the aliased terms when it cannot.
     n_additional_runs : int or None
         Budget for additional runs.  Interpretation depends on the
         augmentation type (number of center points, number of D-optimal

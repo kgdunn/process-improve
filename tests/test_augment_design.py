@@ -321,7 +321,8 @@ class TestAliasingExplanation:
     def test_upgrade_to_rsm_keeps_two_factor_chains_aliased(self) -> None:
         """Axial and centre runs are zero on every interaction column, so A:B = C:D survives."""
         design = _fractional_factorial_df(["D=ABC"], names="ABCD")
-        result = augment_design(design, "upgrade_to_rsm", generators=["D=ABC"])
+        with pytest.warns(UserWarning, match="supports only 12"):
+            result = augment_design(design, "upgrade_to_rsm", generators=["D=ABC"])
         assert "Still fully aliased: A:B = C:D; A:C = B:D; A:D = B:C." in result["explanation"]
         assert "independently estimable" not in result["explanation"]
 
@@ -427,6 +428,42 @@ class TestUpgradeToRSM:
         # Should have original 3 + some new, but not an unreasonable number
         assert n_centers >= 3
         assert n_centers <= 8
+
+    def test_resolution_iv_cube_warns_that_the_quadratic_is_not_estimable(self) -> None:
+        """On a 2^(4-1) IV cube A:B = C:D survives the upgrade: 15 coefficients, rank 12 (MMA sec. 7.4)."""
+        design = _fractional_factorial_df(["D=ABC"], names="ABCD")
+        with pytest.warns(UserWarning, match="supports only 12") as record:
+            result = augment_design(design, "upgrade_to_rsm", generators=["D=ABC"])
+        assert record[0].filename == __file__
+        assert (result["n_coefficients"], result["n_estimable"]) == (15, 12)
+        assert "A:B, A:C, A:D, B:C, B:D, C:D cannot all be estimated" in result["explanation"]
+        assert "full quadratic" not in result["explanation"]
+
+    def test_target_model_drives_the_check(self) -> None:
+        """The same cube supports a main-effects model, so asking for one does not warn."""
+        design = _fractional_factorial_df(["D=ABC"], names="ABCD")
+        result = augment_design(design, "upgrade_to_rsm", target_model="main_effects")
+        assert result["n_estimable"] == result["n_coefficients"] == 5
+        assert "supports the main_effects model" in result["explanation"]
+
+    def test_full_cube_supports_the_quadratic(self) -> None:
+        """A 2^3 cube with axial and centre runs estimates all 10 quadratic coefficients."""
+        result = augment_design(_full_factorial_df(3), "upgrade_to_rsm")
+        assert result["n_estimable"] == result["n_coefficients"] == 10
+
+    @pytest.mark.parametrize(("existing", "added"), [(0, 5), (1, 4), (2, 3), (5, 0), (7, 0)])
+    def test_centre_runs_are_topped_up_to_five(self, existing: int, added: int) -> None:
+        """The total used to fall as existing centres rose: 0 -> 5 total, 1 -> 4, 2 -> 3."""
+        design = pd.concat([_full_factorial_df(2), pd.DataFrame({"A": [0.0] * existing, "B": [0.0] * existing})])
+        result = augment_design(design.reset_index(drop=True), "upgrade_to_rsm", alpha="face_centered")
+        assert result["n_runs_after"] - result["n_runs_before"] == 4 + added
+
+    def test_orthogonal_alpha_counts_the_new_centre_runs(self) -> None:
+        """alpha='orthogonal' must make the centred squared columns orthogonal in the final design."""
+        result = augment_design(_full_factorial_df(3), "upgrade_to_rsm", alpha="orthogonal")
+        squares = pd.DataFrame(result["augmented_design"]).to_numpy(float) ** 2
+        centred = squares - squares.mean(axis=0)
+        assert centred[:, 0] @ centred[:, 1] == pytest.approx(0.0, abs=1e-9)
 
     def test_explanation_mentions_ccd(self) -> None:
         """Explanation should mention CCD or Central Composite."""

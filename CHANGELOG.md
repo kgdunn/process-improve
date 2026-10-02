@@ -256,6 +256,16 @@ those changes.
 
 ### Fixed
 
+- **`augment_design(..., "upgrade_to_rsm")` checks the model it claims to support.** It
+  always said "The design now supports estimation of a full quadratic model", yet on a
+  resolution IV cube such as the 2^(4-1) with D = ABC the interactions A:B = C:D,
+  A:C = B:D and A:D = B:C stay aliased (they are zero on every axial and centre run), so
+  the 15-term quadratic has rank 12. The upgrade now checks the `target_model` (default
+  quadratic), reports `n_coefficients` and `n_estimable`, and warns, naming the aliased
+  terms, when they differ. Centre runs are topped up to five in total (the count used to
+  fall as existing centre runs rose), and `alpha="orthogonal"` now counts the centre
+  runs the upgrade adds.
+
 - **`augment_design` no longer calls still-aliased effects "independently estimable".**
   The explanation compared alias-chain strings, so any change to a chain, even dropping
   a three-factor term, was reported as de-aliasing: the foldover of the 2^(5-2) with
