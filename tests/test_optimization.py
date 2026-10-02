@@ -329,6 +329,50 @@ class TestCanonicalAnalysis:
         assert "error" in result
 
 
+class TestRidgeSystems:
+    """A zero eigenvalue of B is a ridge, not a saddle (Myers, Montgomery and Anderson-Cook, sec. 6.4)."""
+
+    @staticmethod
+    def _model(b_a: float, b_b: float, b_bb: float) -> dict:
+        """Build 10 + b_a*A + b_b*B - A^2 + b_bb*B^2, flat along B when b_bb is 0."""
+        return {
+            "response_name": "y",
+            "factor_names": FACTOR_NAMES_2F,
+            "coefficients": [
+                {"term": "Intercept", "coefficient": 10.0},
+                {"term": "A", "coefficient": b_a},
+                {"term": "B", "coefficient": b_b},
+                {"term": "I(A ** 2)", "coefficient": -1.0},
+                {"term": "I(B ** 2)", "coefficient": b_bb},
+            ],
+        }
+
+    @pytest.mark.parametrize("b_bb", [0.0, 1e-12])
+    def test_stationary_ridge_of_maxima(self, b_bb: float) -> None:
+        """The surface 10 + 2A - A^2 has a line of maxima at A = 1; it used to be called a saddle."""
+        out = optimize_responses([self._model(2.0, 0.0, b_bb)], method="canonical_analysis")
+        assert out["canonical_analysis"]["classification"] == "stationary_ridge"
+        assert out["canonical_analysis"]["ridge_of"] == "maxima"
+        assert out["canonical_analysis"]["canonical_form_description"][1].endswith("(flat)")
+        point = out["stationary_point"]
+        assert point["classification"] == "stationary_ridge"
+        assert point["stationary_point_coded"] == pytest.approx({"A": 1.0, "B": 0.0})
+        assert point["predicted_response"] == pytest.approx(11.0)
+
+    def test_rising_ridge_has_no_stationary_point(self) -> None:
+        """Adding a linear B term makes the response keep rising along the flat direction."""
+        out = optimize_responses([self._model(2.0, 1.0, 0.0)], method="canonical_analysis")
+        assert out["canonical_analysis"]["classification"] == "rising_ridge"
+        assert out["stationary_point"]["classification"] == "rising_ridge"
+        assert "No stationary point" in out["stationary_point"]["error"]
+
+    def test_curved_surfaces_are_unchanged(self) -> None:
+        """A small but real eigenvalue keeps its sign: this is a maximum, not a ridge."""
+        out = optimize_responses([self._model(2.0, 0.0, -0.01)], method="stationary_point")["stationary_point"]
+        assert out["classification"] == "maximum"
+        assert out["stationary_point_coded"] == pytest.approx({"A": 1.0, "B": 0.0})
+
+
 # ---------------------------------------------------------------------------
 # Steepest ascent / descent
 # ---------------------------------------------------------------------------

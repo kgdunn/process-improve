@@ -282,6 +282,49 @@ def _extract_b_and_B(  # noqa: N802
 # ---------------------------------------------------------------------------
 
 
+#: An eigenvalue of *B* this small, relative to the largest in magnitude, is
+#: zero: the surface is flat along its eigenvector (a ridge), not curved.
+_FLAT_EIGENVALUE_TOL = 1e-8
+
+
+@dataclass
+class _SurfaceShape:
+    """The shape of a second-order surface ``b0 + b'x + x'Bx``, read off the eigenvalues of *B*."""
+
+    classification: str
+    flat: np.ndarray  # True for an eigenvalue that counts as zero
+    drifts: bool  # b has a component along a flat direction, so there is no stationary point
+    ridge_of: str | None = None  # "maxima" or "minima" for a ridge system, else None
+
+
+def _surface_shape(b: np.ndarray, eigenvalues: np.ndarray, eigenvectors: np.ndarray) -> _SurfaceShape:
+    """Classify the surface, treating eigenvalues that are zero to rounding as a ridge.
+
+    All curved directions bending down gives a maximum, all bending up a
+    minimum, and both a saddle. When some eigenvalue is zero the surface is a
+    ridge system (Myers, Montgomery and Anderson-Cook, *Response Surface
+    Methodology*, sec. 6.4): a *stationary ridge*, a line or plane of equal
+    optima, when *b* has no component along the flat directions, and a *rising
+    ridge*, with no stationary point, when it has one and the response keeps
+    changing along them.
+    """
+    scale = float(np.abs(eigenvalues).max())
+    flat = np.abs(eigenvalues) <= _FLAT_EIGENVALUE_TOL * scale
+    drifts = bool(
+        np.linalg.norm(eigenvectors[:, flat].T @ b) > _FLAT_EIGENVALUE_TOL * max(1.0, float(np.linalg.norm(b)))
+    )
+    curved = eigenvalues[~flat]
+    if np.all(curved < 0):
+        kind, ridge_of = "maximum", "maxima"
+    elif np.all(curved > 0):
+        kind, ridge_of = "minimum", "minima"
+    else:
+        return _SurfaceShape("saddle_point", flat, drifts)
+    if not flat.any():
+        return _SurfaceShape(kind, flat, drifts)
+    return _SurfaceShape("rising_ridge" if drifts else "stationary_ridge", flat, drifts, ridge_of)
+
+
 def _find_stationary_point(
     coefficients: list[dict[str, Any]],
     factor_names: list[str],
@@ -312,13 +355,21 @@ def _find_stationary_point(
     Returns
     -------
     dict
-        ``stationary_point_coded``, ``predicted_response``, ``classification``,
-        ``eigenvalues`` (list of floats, spectrum of the pure-quadratic
-        matrix ``B``), and ``inside_design_space`` (bool, whether the
-        stationary point falls inside ``search_bounds``). Also includes
-        ``stationary_point_actual`` when ``factor_ranges`` is provided.
-        Returns a dict with a single ``error`` key instead when the model
-        has no quadratic/interaction terms or ``B`` is singular.
+        ``stationary_point_coded``, ``predicted_response``, ``classification``
+        (``"maximum"``, ``"minimum"``, ``"saddle_point"`` or
+        ``"stationary_ridge"``), ``eigenvalues`` (list of floats, spectrum of
+        the pure-quadratic matrix ``B``), and ``inside_design_space`` (bool,
+        whether the stationary point falls inside ``search_bounds``). Also
+        includes ``stationary_point_actual`` when ``factor_ranges`` is provided.
+        For a stationary ridge, where an eigenvalue is zero and every point
+        along its eigenvector is equally good, the point reported is the one
+        nearest the design centre and ``ridge_of`` says whether the ridge is
+        one of ``"maxima"`` or ``"minima"``.
+
+        Returns a dict with an ``error`` key instead when the model has no
+        quadratic or interaction terms, or when there is no stationary point
+        (a rising ridge, or a saddle that drifts along a flat direction); the
+        latter also carries ``classification`` and ``eigenvalues``.
     """
     b0, b, B = _extract_b_and_B(coefficients, factor_names)
 
@@ -326,23 +377,26 @@ def _find_stationary_point(
     if np.allclose(B, 0):
         return {"error": "Model has no quadratic or interaction terms - cannot find stationary point."}
 
-    try:
-        # Solve 2*B*x_s = -b
-        x_s = np.linalg.solve(2.0 * B, -b)
-    except np.linalg.LinAlgError:
-        return {"error": "Singular B matrix - stationary point does not exist."}
+    eigenvalues, eigenvectors = np.linalg.eigh(B)
+    shape = _surface_shape(b, eigenvalues, eigenvectors)
+    if shape.drifts:
+        return {
+            "error": (
+                "No stationary point: B has a zero eigenvalue and the linear terms keep the response changing along "
+                "its eigenvector (a rising ridge). Use 'ridge_analysis' or steepest ascent/descent to follow it."
+            ),
+            "classification": shape.classification,
+            "eigenvalues": [float(e) for e in eigenvalues],
+        }
+
+    # Solve 2*B*x_s = -b in the eigenbasis. Along a flat direction b has no
+    # component, so any step there is equally stationary; take none, which gives
+    # the stationary point nearest the centre.
+    curved = ~shape.flat
+    x_s = eigenvectors[:, curved] @ (-0.5 * (eigenvectors[:, curved].T @ b) / eigenvalues[curved])
 
     # Predicted response at stationary point
     y_s = float(b0 + b @ x_s + x_s @ B @ x_s)
-
-    # Classification from eigenvalues
-    eigenvalues = np.linalg.eigvalsh(B)
-    if np.all(eigenvalues < 0):
-        classification = "maximum"
-    elif np.all(eigenvalues > 0):
-        classification = "minimum"
-    else:
-        classification = "saddle_point"
 
     # Is the stationary point inside the region the experiment covered? The
     # default region is the factorial cube; a central composite design reaches
@@ -353,10 +407,12 @@ def _find_stationary_point(
     result: dict[str, Any] = {
         "stationary_point_coded": {n: float(x_s[i]) for i, n in enumerate(factor_names)},
         "predicted_response": y_s,
-        "classification": classification,
+        "classification": shape.classification,
         "eigenvalues": [float(e) for e in eigenvalues],
         "inside_design_space": inside_design_space,
     }
+    if shape.ridge_of is not None:
+        result["ridge_of"] = shape.ridge_of
 
     if factor_ranges:
         result["stationary_point_actual"] = _coded_to_actual(result["stationary_point_coded"], factor_ranges)
@@ -381,10 +437,13 @@ def _canonical_analysis(
     Returns
     -------
     dict
-        ``eigenvalues``, ``eigenvectors``, ``classification``,
-        ``canonical_form_description``.
+        ``eigenvalues``, ``eigenvectors``, ``classification`` (``"maximum"``,
+        ``"minimum"``, ``"saddle_point"``, ``"stationary_ridge"`` or
+        ``"rising_ridge"``), and ``canonical_form_description``, which labels
+        each canonical axis concave, convex, or flat (a zero eigenvalue). A
+        ridge also carries ``ridge_of``, ``"maxima"`` or ``"minima"``.
     """
-    _b0, _b, B = _extract_b_and_B(coefficients, factor_names)
+    _b0, b, B = _extract_b_and_B(coefficients, factor_names)
 
     if np.allclose(B, 0):
         return {"error": "Model has no quadratic or interaction terms - canonical analysis not applicable."}
@@ -395,27 +454,23 @@ def _canonical_analysis(
     order = np.argsort(-np.abs(eigenvalues))
     eigenvalues = eigenvalues[order]
     eigenvectors = eigenvectors[:, order]
-
-    if np.all(eigenvalues < 0):
-        classification = "maximum"
-    elif np.all(eigenvalues > 0):
-        classification = "minimum"
-    else:
-        classification = "saddle_point"
+    shape = _surface_shape(b, eigenvalues, eigenvectors)
 
     desc_parts = []
-    for i, ev in enumerate(eigenvalues):
-        w_name = f"W{i + 1}"
-        direction = "concave" if ev < 0 else "convex"
-        desc_parts.append(f"{w_name}: eigenvalue={ev:.4f} ({direction})")
+    for i, (ev, is_flat) in enumerate(zip(eigenvalues, shape.flat, strict=True)):
+        direction = "flat" if is_flat else ("concave" if ev < 0 else "convex")
+        desc_parts.append(f"W{i + 1}: eigenvalue={ev:.4f} ({direction})")
 
-    return {
+    result: dict[str, Any] = {
         "eigenvalues": [float(e) for e in eigenvalues],
         "eigenvectors": [[float(v) for v in eigenvectors[:, i]] for i in range(len(eigenvalues))],
-        "classification": classification,
+        "classification": shape.classification,
         "canonical_form_description": desc_parts,
         "factor_names": factor_names,
     }
+    if shape.ridge_of is not None:
+        result["ridge_of"] = shape.ridge_of
+    return result
 
 
 # ---------------------------------------------------------------------------

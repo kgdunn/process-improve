@@ -256,6 +256,15 @@ those changes.
 
 ### Fixed
 
+- **Canonical analysis recognises ridge systems.** A zero eigenvalue of `B` was given a
+  sign: y = 10 + 2A - A^2 (eigenvalues -1 and 0) was classed a `"saddle_point"`, its
+  flat axis labelled convex, and `stationary_point` reported a singular matrix although
+  the whole line A = 1 is a ridge of maxima. An eigenvalue that is zero to rounding is
+  now treated as flat (Myers, Montgomery and Anderson-Cook, sec. 6.4): the surface is a
+  `"stationary_ridge"`, with `ridge_of` set to `"maxima"` or `"minima"` and the ridge
+  point nearest the centre reported, or a `"rising_ridge"`, with no stationary point,
+  when the linear terms keep the response changing along the flat axis.
+
 - **`analyze_experiment`'s result can be passed straight to `optimize_responses`.** The
   agent tool documented this pipeline, but the result had no `factor_names` or
   `response_name`, so the call failed with the bare message `'factor_names'`. The result
