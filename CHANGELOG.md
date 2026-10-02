@@ -339,6 +339,12 @@ those changes.
   factors were refused with a message about error degrees of freedom. Smaller budgets
   now give an OMARS design sized for main effects and pure quadratics, recorded in
   `metadata["model"]`, and the caller's seed reaches the search (it was fixed at 42).
+- **`budget` gives a definitive screening design fake factors.** It was ignored: a DSD
+  always had the minimal 2k + 1 (or 2k + 3) runs, which leave no error degrees of freedom
+  for the analysis. A larger budget now builds the DSD from a larger conference matrix
+  and leaves out the extra columns (fake factors, Jones and Nachtsheim 2017), so 6
+  factors in 17 runs give `analyze_omars` 2 error degrees of freedom free of every
+  second-order effect. A budget below the minimal design raises.
 - **Plackett-Burman designs exist for 24 to 99 factors.** pyDOE3 stops with an
   `AssertionError` at 24 to 27, 32 to 35, 40 to 43, 48 to 59 factors and beyond; those
   sizes now use a Hadamard matrix from the finite-field module (Paley I and II, doubling),

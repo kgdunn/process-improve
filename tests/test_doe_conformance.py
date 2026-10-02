@@ -325,3 +325,20 @@ class TestMaxPro:
         mixture = [Factor(name=c, type="mixture", low=0.1, high=0.7) for c in "abc"]
         blends = generate_design(mixture, "maxpro", budget=10, random_state=1).design_actual[["a", "b", "c"]]
         np.testing.assert_allclose(blends.sum(axis=1), 1.0)
+
+
+class TestDSDFakeFactors:
+    """Jones and Nachtsheim (2017): a budget above the minimal DSD adds fake factors for error degrees of freedom."""
+
+    @pytest.mark.parametrize(("budget", "runs", "fake"), [(None, 13, 0), (16, 13, 0), (17, 17, 2), (24, 21, 4)])
+    def test_budget_adds_fake_factors(self, budget: int | None, runs: int, fake: int) -> None:
+        result = generate_design(_factors(6), "dsd", budget=budget)
+        assert result.n_runs == runs
+        assert result.metadata["fake_factors"] == fake
+        x = _coded(result, 6)
+        second = np.column_stack([x[:, i] * x[:, j] for i in range(6) for j in range(i, 6)])
+        assert np.abs(x.T @ second).max() == 0
+
+    def test_budget_below_the_minimal_design_raises(self) -> None:
+        with pytest.raises(ValueError, match="needs at least 13 runs"):
+            generate_design(_factors(6), "dsd", budget=11)
