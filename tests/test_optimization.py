@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import re
+
 import numpy as np
 import pytest
 
@@ -195,6 +197,33 @@ class TestExtractBandB:
         _b0, _b, b_mat = _extract_b_and_B(_quadratic_2f_coeffs(), FACTOR_NAMES_2F)
         assert b_mat[0, 1] == pytest.approx(0.75)
         assert b_mat[1, 0] == pytest.approx(0.75)
+
+    @pytest.mark.parametrize("method", ["stationary_point", "canonical_analysis", "ridge_analysis"])
+    def test_three_factor_term_is_refused_not_dropped(self, method: str) -> None:
+        """A:B:C used to be skipped, so the 'stationary point' was not stationary for the fitted model."""
+        coefficients = [
+            {"term": "Intercept", "coefficient": 0.0},
+            *({"term": f, "coefficient": 1.0} for f in "ABC"),
+            *({"term": f"I({f} ** 2)", "coefficient": -1.0} for f in "ABC"),
+            {"term": "A:B:C", "coefficient": 5.0},
+        ]
+        model = {"response_name": "y", "factor_names": ["A", "B", "C"], "coefficients": coefficients}
+        with pytest.raises(ValueError, match=r"second-order model.*\['A:B:C'\]"):
+            optimize_responses([model], method=method)
+
+    @pytest.mark.parametrize("term", ["I(A ** 3)", "C(A)[T.1]", "Z"])
+    @pytest.mark.parametrize("method", ["stationary_point", "steepest_ascent"])
+    def test_unrecognised_term_names_itself(self, term: str, method: str) -> None:
+        """Terms that are not products of the factors used to surface as a bare KeyError."""
+        model = {"response_name": "y", "factor_names": FACTOR_NAMES_2F, "coefficients": _quadratic_2f_coeffs()}
+        model["coefficients"].append({"term": term, "coefficient": 1.0})
+        with pytest.raises(ValueError, match=re.escape(f"[{term!r}]")):
+            optimize_responses([model], method=method)
+
+    def test_three_factor_term_is_evaluated_by_desirability(self) -> None:
+        """The general evaluator multiplies any number of factors, so desirability keeps working."""
+        coefficients = [{"term": "Intercept", "coefficient": 1.0}, {"term": "A:B:C", "coefficient": 2.0}]
+        assert evaluate_model(coefficients, ["A", "B", "C"], {"A": 0.5, "B": -1.0, "C": 2.0}) == pytest.approx(-1.0)
 
 
 # ---------------------------------------------------------------------------

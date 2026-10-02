@@ -106,6 +106,59 @@ def _parse_term(term: str) -> tuple[str, ...]:
     return (term,)
 
 
+def _parsed_terms(
+    coefficients: list[dict[str, Any]],
+    factor_names: list[str],
+    *,
+    max_order: int | None = None,
+) -> list[tuple[tuple[str, ...], float]]:
+    """Parse every coefficient's term, refusing terms the model evaluation cannot represent.
+
+    Parameters
+    ----------
+    coefficients : list[dict]
+        Each with ``"term"`` and ``"coefficient"``.
+    factor_names : list[str]
+        The factors a term may be built from.
+    max_order : int or None
+        The largest number of factors a term may multiply together; 2 for the
+        second-order analyses, which work with ``b`` and ``B`` only. ``None``
+        allows any product.
+
+    Returns
+    -------
+    list[tuple[tuple[str, ...], float]]
+        The parsed components of each term, with its coefficient.
+
+    Raises
+    ------
+    ValueError
+        If a term names something other than a product of factors (a cubic
+        ``I(A ** 3)``, a categorical ``C(A)[T.1]``, a misspelt factor), or has more
+        than *max_order* components (``A:B:C`` in a second-order analysis, which
+        would otherwise be dropped and the analysis run on a truncated model).
+    """
+    parsed = [(_parse_term(entry["term"]), float(entry["coefficient"])) for entry in coefficients]
+    known = set(factor_names)
+    unknown = [e["term"] for e, (parts, _) in zip(coefficients, parsed, strict=True) if not set(parts) <= known]
+    if unknown:
+        msg = (
+            f"Cannot evaluate the model term(s) {unknown}: a term must be the intercept, a factor, a product of "
+            f"factors such as 'A:B', or a square such as 'I(A ** 2)', over the factors {factor_names}."
+        )
+        raise ValueError(msg)
+    if max_order is not None:
+        too_high = [e["term"] for e, (parts, _) in zip(coefficients, parsed, strict=True) if len(parts) > max_order]
+        if too_high:
+            msg = (
+                f"This analysis needs a second-order model, with linear, two-factor interaction and squared "
+                f"terms only; the model also has {too_high}. Use method='desirability' or 'pareto_front', "
+                "which evaluate any polynomial, or refit without those terms."
+            )
+            raise ValueError(msg)
+    return parsed
+
+
 def _build_model_evaluator(
     coefficients: list[dict[str, Any]],
     factor_names: list[str],
@@ -127,11 +180,7 @@ def _build_model_evaluator(
         same order as *factor_names*.
     """
     name_to_idx = {n: i for i, n in enumerate(factor_names)}
-    parsed: list[tuple[tuple[str, ...], float]] = []
-    for entry in coefficients:
-        term = entry["term"]
-        coef = float(entry["coefficient"])
-        parsed.append((_parse_term(term), coef))
+    parsed = _parsed_terms(coefficients, factor_names)
 
     def _eval(x: np.ndarray) -> float:
         y = 0.0
@@ -196,6 +245,12 @@ def _extract_b_and_B(  # noqa: N802
     For a second-order model ``y = b0 + b'x + x'Bx``, returns
     ``(b0, b, B)`` where *B* is symmetric with off-diagonal elements
     equal to half the interaction coefficients.
+
+    Raises
+    ------
+    ValueError
+        If a term is not part of a second-order model in *factor_names*; see
+        :func:`_parsed_terms`.
     """
     k = len(factor_names)
     name_to_idx = {n: i for i, n in enumerate(factor_names)}
@@ -203,11 +258,7 @@ def _extract_b_and_B(  # noqa: N802
     b = np.zeros(k)
     B = np.zeros((k, k))
 
-    for entry in coefficients:
-        term = entry["term"]
-        coef = float(entry["coefficient"])
-        components = _parse_term(term)
-
+    for components, coef in _parsed_terms(coefficients, factor_names, max_order=2):
         if len(components) == 0:
             b0 = coef
         elif len(components) == 1:

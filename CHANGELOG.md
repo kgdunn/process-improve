@@ -256,6 +256,13 @@ those changes.
 
 ### Fixed
 
+- **Second-order analyses refuse terms they cannot represent.** `stationary_point`,
+  `canonical_analysis` and `ridge_analysis` silently dropped three-factor terms such as
+  `A:B:C`, so the reported stationary point was not stationary for the fitted model, and
+  a term that is not a product of the factors (`I(A ** 3)`, `C(A)[T.1]`) failed with a
+  bare `KeyError`. Both now raise a `ValueError` naming the terms; `desirability` and
+  `pareto_front` keep evaluating products of any number of factors.
+
 - **Desirability optimisation finds tight specification windows, and says when it
   cannot.** A Derringer-Suich desirability is exactly 0, with zero gradient, outside its
   limits, so when every start landed there the search stayed put and reported D = 0
