@@ -175,6 +175,11 @@ those changes.
   ascending, and a second click sorts them descending, for example by standard
   order, by a factor or by p-value. Formatted values such as `< 0.0001` sort as
   numbers, unfilled responses stay last, and the headers work from the keyboard.
+- **The browser app opens ready to use, and fits a phone.** Definitive screening
+  is selected when the page opens, with only the settings it takes on show,
+  before Python has finished loading; previously the design list stayed empty
+  and every setting showed until then. The factor table now fits narrow screens,
+  so the Units column no longer runs off the right edge.
 
 - **`generate_omars` solves its integer program with HiGHS, through
   `scipy.optimize.milp`, instead of pulp's bundled CBC binary (#623).** CBC is a native
