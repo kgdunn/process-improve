@@ -33,8 +33,8 @@ import pandas as pd
 from scipy.stats import qmc
 
 from process_improve._random import check_random_state
+from process_improve.experiments._uniform_sampling import UniformSampler
 from process_improve.experiments.factor import FactorType
-from process_improve.experiments.region import UniformSampler
 
 if TYPE_CHECKING:
     from process_improve.experiments.factor import Constraint, Factor

@@ -42,7 +42,7 @@ from scipy import optimize
 
 from process_improve._random import check_random_state
 from process_improve.experiments._desirability import composite_desirability, individual_desirability
-from process_improve.experiments.region import UniformSampler
+from process_improve.experiments._uniform_sampling import UniformSampler
 
 if TYPE_CHECKING:
     from process_improve.experiments.region import DesignRegion
