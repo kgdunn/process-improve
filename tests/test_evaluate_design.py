@@ -167,20 +167,30 @@ class TestGEfficiency:
 # ---------------------------------------------------------------------------
 
 
-class TestIEfficiency:
-    """Test I-efficiency metric."""
+class TestAveragePredictionVariance:
+    """The I-criterion, and the deprecated I-efficiency percentage."""
 
-    def test_orthogonal_design(self) -> None:
-        """Orthogonal design should have high I-efficiency."""
+    def test_two_by_two_factorial(self) -> None:
+        """For a 2^2 main-effects design, f(x)'(X'X)^-1 f(x) = (1 + x1^2 + x2^2) / 4; its cube mean is 5/12."""
         df = _full_factorial_df(2)
-        result = evaluate_design(df, model="main_effects", metric="i_efficiency")
-        assert result["i_efficiency"] is not None
-        assert result["i_efficiency"] > 80.0
+        result = evaluate_design(df, model="main_effects", metric="average_prediction_variance", n_samples=200_000)
+        assert result["average_prediction_variance"] == pytest.approx(5 / 12, abs=0.005)
 
-    def test_returns_average_prediction_variance(self) -> None:
-        """I-efficiency result should include average_prediction_variance."""
+    def test_i_optimality_alias(self) -> None:
         df = _full_factorial_df(2)
-        result = evaluate_design(df, model="main_effects", metric="i_efficiency")
+        assert "average_prediction_variance" in evaluate_design(df, model="main_effects", metric="i_optimality")
+
+    def test_i_efficiency_still_works_with_a_warning(self) -> None:
+        """Deprecated: the percentage p / (N * APV) is not bounded by 100."""
+        df = _full_factorial_df(2)
+        with pytest.warns(DeprecationWarning, match="i_efficiency"):
+            result = evaluate_design(df, model="main_effects", metric="i_efficiency")
+        assert result["i_efficiency"] == pytest.approx(100 * 3 / (4 * result["average_prediction_variance"]))
+
+    def test_all_metrics_leave_out_the_deprecated_one(self) -> None:
+        df = _full_factorial_df(3)
+        result = evaluate_design(df, model="main_effects", metric="all", n_samples=1000)
+        assert "i_efficiency" not in result
         assert "average_prediction_variance" in result
 
 
@@ -958,8 +968,10 @@ class TestReducedFormulaRegression:
     def test_i_g_efficiency_explicit_pure_quadratic(self) -> None:
         """i/g efficiency for an 11-term reduced formula no longer raises (size 11 vs 21)."""
         df = _coded(generate_design(_rsm_factors(), design_type="box_behnken", n_center_points=6))
-        result = evaluate_design(df, model=_PURE_QUADRATIC_5, metric=["i_efficiency", "g_efficiency"], random_state=1)
-        assert result["i_efficiency"] is not None
+        result = evaluate_design(
+            df, model=_PURE_QUADRATIC_5, metric=["average_prediction_variance", "g_efficiency"], random_state=1
+        )
+        assert result["average_prediction_variance"] is not None
         assert result["g_efficiency"] is not None
         assert result["average_prediction_variance"] > 0
         assert result["max_prediction_variance"] >= result["average_prediction_variance"]
@@ -1083,11 +1095,11 @@ class TestRegionAndMetricEdgeCases:
         assert fds["include_vertices"] is False
         assert fds["max_prediction_variance"] > 0
 
-    def test_i_efficiency_singular_returns_none(self) -> None:
-        """i_efficiency is None for a rank-deficient design."""
+    def test_average_prediction_variance_singular_returns_none(self) -> None:
+        """The average prediction variance is None for a rank-deficient design."""
         df = _full_factorial_df(2)
-        result = evaluate_design(df, model="quadratic", metric="i_efficiency")
-        assert result["i_efficiency"] is None
+        result = evaluate_design(df, model="quadratic", metric="average_prediction_variance")
+        assert result["average_prediction_variance"] is None
 
     def test_alias_and_fds_singular_return_none(self) -> None:
         """alias_matrix and fds are None for a rank-deficient design."""
@@ -1227,11 +1239,18 @@ def test_generate_and_evaluate_mixed_level_design() -> None:
     metrics = evaluate_design(
         design,
         model="quadratic",
-        metric=["d_efficiency", "i_efficiency", "g_efficiency", "condition_number", "degrees_of_freedom", "fds"],
+        metric=[
+            "d_efficiency",
+            "average_prediction_variance",
+            "g_efficiency",
+            "condition_number",
+            "degrees_of_freedom",
+            "fds",
+        ],
     )
     assert metrics["d_efficiency"] is not None
     assert metrics["d_efficiency"] > 0
-    assert metrics["i_efficiency"] is not None
+    assert metrics["average_prediction_variance"] is not None
     assert metrics["g_efficiency"] is not None
     assert np.isfinite(metrics["condition_number"])
     assert metrics["degrees_of_freedom"]["model"] > 0

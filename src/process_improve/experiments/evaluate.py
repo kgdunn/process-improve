@@ -21,6 +21,7 @@ from __future__ import annotations
 import contextlib
 import itertools
 import logging
+import warnings
 from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any
@@ -438,8 +439,19 @@ def _compute_g_efficiency(ctx: _EvalContext) -> dict[str, Any]:
     }
 
 
+def _compute_average_prediction_variance(ctx: _EvalContext) -> dict[str, Any]:
+    """I-criterion: the prediction variance ``f(x)'(X'X)^-1 f(x)`` averaged over the design region.
+
+    In units of the error variance, and lower is better. This is what JMP reports as the
+    "average variance of prediction" and what an I-optimal design minimises.
+    """
+    if ctx.is_singular:
+        return {"average_prediction_variance": None, "note": "Design is rank-deficient for the specified model."}
+    return {"average_prediction_variance": float(np.mean(_region_prediction_variance(ctx)))}
+
+
 def _compute_i_efficiency(ctx: _EvalContext) -> dict[str, Any]:
-    """I-efficiency: 100 * p / (N * average prediction variance over design region)."""
+    """Compute the deprecated ``100 * p / (N * average prediction variance)``, which is not bounded by 100."""
     if ctx.is_singular:
         return {"i_efficiency": None, "note": "Design is rank-deficient for the specified model."}
 
@@ -1147,6 +1159,7 @@ def _compute_moment_aberration(ctx: _EvalContext) -> dict[str, Any]:
 
 _METRIC_REGISTRY: dict[str, Callable[[_EvalContext], Any]] = {
     "d_efficiency": _compute_d_efficiency,
+    "average_prediction_variance": _compute_average_prediction_variance,
     "i_efficiency": _compute_i_efficiency,
     "g_efficiency": _compute_g_efficiency,
     "a_optimality": _compute_a_optimality,
@@ -1176,13 +1189,39 @@ _METRIC_REGISTRY: dict[str, Callable[[_EvalContext], Any]] = {
 #: *before* validation, so both spellings work and the returned dict still keys
 #: the result under the canonical name. Aliases are deliberately kept out of
 #: ``_METRIC_REGISTRY`` so ``metric="all"`` does not compute anything twice.
+#: Metrics kept for compatibility but left out of ``metric="all"``; asking for one warns.
+#: ``i_efficiency`` divided ``p / N`` by the average prediction variance, which, unlike
+#: D- and G-efficiency, has no upper bound of 100 (181% for a design in a small region).
+_DEPRECATED_METRICS: dict[str, str] = {
+    "i_efficiency": (
+        "metric 'i_efficiency' is deprecated since 1.97.0 and will be removed in 2.0; use "
+        "'average_prediction_variance' (the I-criterion, lower is better). The percentage was not bounded by 100."
+    ),
+}
+
 _METRIC_ALIASES: dict[str, str] = {
     "d_optimality": "d_efficiency",
-    "i_optimality": "i_efficiency",
+    "i_optimality": "average_prediction_variance",
+    "i_criterion": "average_prediction_variance",
     "g_optimality": "g_efficiency",
     "a_efficiency": "a_optimality",
     "e_efficiency": "e_optimality",
 }
+
+
+def _resolve_metrics(metric: str | list[str]) -> list[str]:
+    """Return the canonical metric names asked for; warn for a deprecated one, raise for an unknown one."""
+    if metric == "all":
+        return [m for m in _METRIC_REGISTRY if m not in _DEPRECATED_METRICS]
+    # Resolve accepted spelling variants to their canonical registry keys.
+    metrics = [_METRIC_ALIASES.get(m, m) for m in ([metric] if isinstance(metric, str) else metric)]
+    unknown = [m for m in metrics if m not in _METRIC_REGISTRY]
+    if unknown:
+        raise ValueError(f"Unknown metric(s): {unknown}. Available metrics: {sorted(_METRIC_REGISTRY)}")
+    for m in metrics:
+        if m in _DEPRECATED_METRICS:
+            warnings.warn(_DEPRECATED_METRICS[m], category=DeprecationWarning, stacklevel=3)
+    return metrics
 
 
 # ---------------------------------------------------------------------------
@@ -1221,13 +1260,15 @@ def evaluate_design(  # noqa: PLR0913
     metric : str or list[str]
         One or more metric names to compute, or the special value ``"all"`` to
         compute every metric.  Valid names: ``"d_efficiency"``,
-        ``"i_efficiency"``, ``"g_efficiency"``, ``"a_optimality"``,
+        ``"average_prediction_variance"`` (the I-criterion), ``"g_efficiency"``, ``"a_optimality"``,
         ``"e_optimality"``, ``"correlation"``, ``"alias_matrix"``, ``"fds"``,
         ``"prediction_variance"``, ``"vif"``, ``"condition_number"``,
         ``"power"``, ``"degrees_of_freedom"``, ``"alias_structure"``,
         ``"confounding"``, ``"resolution"``, ``"defining_relation"``,
         ``"clear_effects"``, ``"minimum_aberration"``, ``"moment_aberration"``.
-        The optimality-criterion
+        ``"i_efficiency"`` still works but is deprecated (since 1.97.0, removed in
+        2.0): it divides ``p / N`` by the average prediction variance and so is not
+        bounded by 100. The optimality-criterion
         metrics also accept the opposite suffix as an alias (e.g.
         ``"d_optimality"`` for ``"d_efficiency"``, ``"a_efficiency"`` for
         ``"a_optimality"``); the result is keyed under the canonical name.
@@ -1240,7 +1281,7 @@ def evaluate_design(  # noqa: PLR0913
         Estimated noise standard deviation.  Defaults to 1.0 when needed
         but not provided.
     region : {"cuboidal", "spherical"}, DesignRegion, or None
-        Design region over which the region-based metrics (``i_efficiency``,
+        Design region over which the region-based metrics (``average_prediction_variance``,
         ``g_efficiency``, ``fds``) integrate the prediction variance.
         ``"cuboidal"`` is ``[-1, 1]^k``; ``"spherical"`` is the ball of radius
         ``sqrt(k)``. A :class:`~process_improve.experiments.DesignRegion`
@@ -1305,22 +1346,8 @@ def evaluate_design(  # noqa: PLR0913
             factor_names.remove(col)
             design_df = design_df.drop(columns=[col])
 
-    # --- Normalize metric to list ---
-    if metric == "all":
-        metrics = list(_METRIC_REGISTRY)
-    elif isinstance(metric, str):
-        metrics = [metric]
-    else:
-        metrics = list(metric)
-    # Resolve accepted spelling variants to their canonical registry keys.
-    metrics = [_METRIC_ALIASES.get(m, m) for m in metrics]
+    metrics = _resolve_metrics(metric)
     logger.debug("evaluate_design: model=%r, metrics=%s", model, metrics)
-
-    # Validate metric names
-    unknown = [m for m in metrics if m not in _METRIC_REGISTRY]
-    if unknown:
-        available = sorted(_METRIC_REGISTRY.keys())
-        raise ValueError(f"Unknown metric(s): {unknown}. Available metrics: {available}")
 
     # --- Region, and the Scheffé default for mixtures (an intercept is redundant there) ---
     region = _resolve_region(region, design_matrix)

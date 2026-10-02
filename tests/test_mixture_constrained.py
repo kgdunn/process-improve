@@ -228,9 +228,9 @@ class TestEvaluateOverRegion:
 
     def test_mixture_design_defaults_to_scheffe_quadratic(self) -> None:
         result = generate_design(BOUNDED, budget=10, random_state=0)
-        metrics = evaluate_design(result, metric=["d_efficiency", "i_efficiency"], n_samples=5000)
+        metrics = evaluate_design(result, metric=["d_efficiency", "average_prediction_variance"], n_samples=5000)
         assert metrics["d_efficiency"] > 0
-        assert metrics["i_efficiency"] is not None
+        assert metrics["average_prediction_variance"] is not None
 
     def test_explicit_region_on_a_dataframe(self) -> None:
         design = pd.DataFrame(
@@ -244,7 +244,9 @@ class TestEvaluateOverRegion:
     def test_region_with_unknown_factor(self) -> None:
         design = pd.DataFrame({"A": [0.2, 0.5, 0.8], "B": [0.8, 0.5, 0.2]})
         with pytest.raises(ValueError, match="not columns of the design"):
-            evaluate_design(design, model="scheffe_linear", metric="i_efficiency", region=DesignRegion(BOUNDED))
+            evaluate_design(
+                design, model="scheffe_linear", metric="average_prediction_variance", region=DesignRegion(BOUNDED)
+            )
 
 
 # ---------------------------------------------------------------------------

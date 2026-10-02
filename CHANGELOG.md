@@ -226,6 +226,14 @@ those changes.
   `numpy.random.Generator` or `None` (fresh entropy), and its default (42) gives the
   same designs as before. Passing `random_seed` still works, with a
   `DeprecationWarning`; passing both raises.
+- **The `i_efficiency` metric of `evaluate_design` is deprecated since 1.97.0 and will
+  be removed in 2.0.0; use `"average_prediction_variance"`.** I-efficiency divided
+  `p / N` by the average prediction variance, which, unlike D- and G-efficiency, is not
+  bounded by 100: a design in a small constrained region scored 181%. The new metric
+  reports the I-criterion itself (the prediction variance averaged over the region, in
+  units of the error variance; lower is better), which is what JMP reports and what an
+  I-optimal design minimises. `"i_optimality"` is now an alias for it, and
+  `metric="all"` leaves the deprecated percentage out.
 
 - **The `ilp` extra is deprecated since 1.97.0 and will be removed in 2.0.0.** It is now
   empty: `generate_omars` no longer needs pulp, so there is no replacement to install.

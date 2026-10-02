@@ -37,7 +37,7 @@ class EvaluateDesignInput(BaseModel):
         "d_efficiency",
         description=(
             "One or more metric names to compute. Default: 'd_efficiency'. "
-            "Options: d_efficiency, i_efficiency, g_efficiency, a_optimality, "
+            "Options: d_efficiency, average_prediction_variance, g_efficiency, a_optimality, "
             "e_optimality, fds, prediction_variance, vif, condition_number, "
             "correlation, power, degrees_of_freedom, alias_structure, alias_matrix, "
             "confounding, resolution, defining_relation, clear_effects, "
