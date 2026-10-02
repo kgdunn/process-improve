@@ -30,14 +30,19 @@ mutual orthogonality of the main effects, which is linear in the binary
 
 So the ILP selects a half-design from the ``(3**k - 1) / 2`` distinct non-mirror
 three-level runs subject to a handful of linear equalities - only ``k(k-1)/2``
-of them - which keeps it tractable up to seven factors.  Because the
-coefficients are integers, the equalities are exact; the floating-point
-:func:`is_omars` re-check only guards against mistakes.  A pure feasibility
-solve, however, returns an arbitrary OMARS design that is usually far from the
-most efficient member.  To search for a high-quality design the solve is
-repeated with random linear objectives (a multistart): each random objective
-sends the solver to a different vertex of the feasibility polytope, so the
-retained designs span the high-D-efficiency / low-A members.  The best is then
+of them - which keeps it tractable up to seven factors.  The ILP is solved
+with HiGHS, through ``scipy.optimize.milp``.  Because the coefficients are
+integers, the equalities are exact; every selection the solver returns is
+re-checked exactly, and the floating-point :func:`is_omars` re-check only
+guards against mistakes.  A pure feasibility solve, however, returns an
+arbitrary OMARS design that is usually far from the most efficient member.  To
+search for a high-quality design the solve is repeated with random linear
+objectives (a multistart): each random objective steers the solver towards a
+different feasible design, so the retained designs span the high-D-efficiency
+/ low-A members.  Each of these solves stops after a fixed number of
+branch-and-bound nodes, which ends it at the same point on every run, so the
+search is reproducible for a fixed seed.  Designs from which the sizing model
+cannot be estimated are set aside.  The best of the rest is then
 chosen by a satisficing-and-dominance rule over D-efficiency and the maximum
 second-order correlation, following the selection philosophy of Nunez Ares and
 Goos (2020).  This makes the generator competitive with their enumerated
@@ -182,7 +187,9 @@ class OmarsSearchReport:
         probe, the baseline feasibility solve, and every randomized-objective
         restart.
     feasible_designs : int
-        Number of distinct verified OMARS designs found and ranked.
+        Number of distinct verified OMARS designs found (enumerated, on the
+        exhaustive path).  The ``rank_deficient_designs`` among them are set
+        aside; the rest are ranked.
     run_size : int
         Run count of the winning design.
     total_solve_seconds : float
@@ -1378,14 +1385,15 @@ def generate_omars(  # noqa: PLR0913
         Default 1.
     n_restarts : int, optional
         Number of randomized-objective ILP solves used to search for a
-        high-quality design.  Each restart drives the solver to a different
+        high-quality design.  Each restart steers the solver towards a different
         feasible OMARS design; the best one (by *selection_criterion*) is kept.
         Higher values explore more of the feasible set and approach the
         catalogue-optimal designs more closely, at a roughly linear cost in
         runtime.  The search early-stops once the feasible set stops yielding new
         designs, so small factor counts finish quickly regardless.  Default 50,
         which reaches catalogue-competitive D-efficiency for up to seven factors.
-        Deterministic for a fixed *random_seed*.
+        Deterministic for a fixed *random_seed*, as long as no solve hits
+        ``solver_options["time_limit"]`` (see *random_seed*).
     max_candidates : int, optional
         Legacy alias retained for backward compatibility.  It now sets a floor on
         *n_restarts* (the effective restart budget is ``max(n_restarts,
@@ -1402,13 +1410,24 @@ def generate_omars(  # noqa: PLR0913
         part of the model the run count is chosen for.  The D-efficiency reported
         in the metadata is read from this same model.
     solver_options : dict, optional
-        Passed to the solver: ``{"msg": bool, "time_limit": int seconds}``.
+        Settings for the HiGHS solves, any of: ``"msg"`` (bool, default
+        ``False``) prints the HiGHS log to standard output; ``"time_limit"``
+        (float seconds, default ``60.0``) caps each solve's wall-clock time;
+        ``"node_limit"`` (int or None, default ``100``) caps the
+        branch-and-bound nodes of each randomized-objective solve, and
+        ``None`` solves each one to proven optimality.  Unknown keys raise
+        ``ValueError``.  See :func:`solve_omars_ilp`.
     tol : float, optional
         Tolerance for the floating-point :func:`is_omars` re-check.
     random_seed : int, optional
         Seed for both the randomized-objective search (which design is found) and
         the run-order randomisation of the returned design.  A fixed seed makes
-        the whole call reproducible.
+        the whole call reproducible on a given SciPy version: the node budget,
+        not the clock, ends each solve.  A solve stopped by the wall-clock
+        ``time_limit`` instead depends on machine speed;
+        ``metadata["omars_search"].time_limited_solves`` counts them.  Another
+        SciPy release ships another HiGHS, which may return a different design
+        for the same seed.
     verify : bool, optional
         When ``True`` (default) every selected design is re-checked with
         :func:`is_omars` before it is accepted.
@@ -1424,9 +1443,12 @@ def generate_omars(  # noqa: PLR0913
     ValueError
         If fewer than three factors are given, the factor count exceeds the
         combinatorial cap, *model* is not recognised, *n_runs* is too small or
-        incompatible with *center_runs*, or no feasible design is found.
-    ImportError
-        If PuLP (the ``ilp`` extra) is not installed.
+        incompatible with *center_runs*, *solver_options* has an unknown key
+        or an out-of-range value, or no feasible design from which the sizing
+        model can be estimated is found.
+    TypeError
+        If *solver_options* is not a dict, or one of its values has the wrong
+        type.
 
     Examples
     --------
