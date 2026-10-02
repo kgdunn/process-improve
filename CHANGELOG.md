@@ -256,6 +256,14 @@ those changes.
 
 ### Fixed
 
+- **`analyze_experiment`'s result can be passed straight to `optimize_responses`.** The
+  agent tool documented this pipeline, but the result had no `factor_names` or
+  `response_name`, so the call failed with the bare message `'factor_names'`. The result
+  now carries both, and a fitted model missing `coefficients` or `factor_names` raises a
+  `ValueError` that names the key. The single-response methods (`stationary_point`,
+  `canonical_analysis`, `steepest_ascent`, `steepest_descent`, `ridge_analysis`)
+  analysed the first of several models and ignored the rest; they now raise.
+
 - **Second-order analyses refuse terms they cannot represent.** `stationary_point`,
   `canonical_analysis` and `ridge_analysis` silently dropped three-factor terms such as
   `A:B:C`, so the reported stationary point was not stationary for the fitted model, and

@@ -397,6 +397,41 @@ class TestOptimizeResponses:
         result = self._rising_plane_call(search_bounds=[1.0, -1.0])
         assert "low < high" in result["error"]
 
+    def test_analyze_experiment_result_feeds_optimize_responses(self) -> None:
+        """The documented generate -> analyze -> optimize pipeline, with no hand-editing of the result."""
+        design = execute_tool_call(
+            "generate_design",
+            {
+                "factors": [{"name": "T", "low": 150, "high": 200}, {"name": "P", "low": 1, "high": 5}],
+                "design_type": "ccd",
+            },
+        )
+        rows = [
+            dict(r, y=40 + 5 * r["T"] - 2 * r["P"] - 3 * r["T"] ** 2 - 1.5 * r["P"] ** 2 + 1.5 * r["T"] * r["P"])
+            for r in design["design_coded"]
+        ]
+        fitted = execute_tool_call(
+            "analyze_experiment",
+            {"design_matrix": rows, "response_column": "y", "model": "quadratic", "analysis_type": ["coefficients"]},
+        )
+        assert fitted["response_name"] == "y"
+        assert fitted["factor_names"] == ["T", "P"]
+        result = execute_tool_call("optimize_responses", {"fitted_models": [fitted], "method": "stationary_point"})
+        assert result["stationary_point"]["classification"] == "maximum"
+        # Solve 2 B x = -b for b = (5, -2), B = [[-3, 0.75], [0.75, -1.5]].
+        assert result["stationary_point"]["stationary_point_coded"]["T"] == pytest.approx(16 / 21)
+
+    def test_model_without_factor_names_names_the_key(self) -> None:
+        """The error says what is missing, not just the bare key."""
+        result = execute_tool_call(
+            "optimize_responses",
+            {
+                "fitted_models": [{"coefficients": [{"term": "Intercept", "coefficient": 1.0}]}],
+                "method": "stationary_point",
+            },
+        )
+        assert "has no 'factor_names'" in result["error"]
+
     def test_invalid_method_returns_error(self) -> None:
         """Unknown method is rejected by the pydantic Literal."""
         from process_improve.tool_safety import ToolInputInvalidError

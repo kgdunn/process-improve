@@ -1204,6 +1204,26 @@ class TestDispatcher:
         with pytest.raises(ValueError, match="At least one"):
             optimize_responses([], method="stationary_point")
 
+    @pytest.mark.parametrize(
+        "method", ["stationary_point", "canonical_analysis", "steepest_ascent", "steepest_descent", "ridge_analysis"]
+    )
+    def test_single_response_method_refuses_several_models(self, method: str) -> None:
+        """These methods analysed fitted_models[0] and silently ignored the rest."""
+        models = [
+            {"response_name": name, "coefficients": _quadratic_2f_coeffs(), "factor_names": FACTOR_NAMES_2F}
+            for name in ("y1", "y2")
+        ]
+        with pytest.raises(ValueError, match=f"method='{method}' analyses one response; got 2 models"):
+            optimize_responses(models, method=method)
+
+    @pytest.mark.parametrize("missing", ["factor_names", "coefficients"])
+    def test_missing_model_key_is_named(self, missing: str) -> None:
+        """A model without factor_names used to fail with KeyError('factor_names')."""
+        model = {"response_name": "y", "coefficients": _quadratic_2f_coeffs(), "factor_names": FACTOR_NAMES_2F}
+        del model[missing]
+        with pytest.raises(ValueError, match=f"fitted_models\\[0\\] has no '{missing}'"):
+            optimize_responses([model], method="stationary_point")
+
     def test_desirability_without_goals_raises(self) -> None:
         """Desirability method without goals raises ValueError."""
         model = {

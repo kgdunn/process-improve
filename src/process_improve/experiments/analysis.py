@@ -226,8 +226,10 @@ def analyze_experiment(  # noqa: PLR0912, PLR0913, PLR0915, C901
     Returns
     -------
     dict[str, Any]
-        Results keyed by analysis type.  Always includes ``"model_summary"``
-        with the keys:
+        Results keyed by analysis type. Always includes ``"response_name"``,
+        ``"factor_names"`` (the factor columns, in order), so that the result
+        with ``"coefficients"`` can be passed to ``optimize_responses`` as a
+        fitted model, and ``"model_summary"`` with the keys:
 
         - ``formula`` - the resolved patsy formula that was fitted.
         - ``r_squared`` - R^2 of the fit.
@@ -360,6 +362,9 @@ def analyze_experiment(  # noqa: PLR0912, PLR0913, PLR0915, C901
     rank_deficient = model_rank < n_terms
 
     results: dict[str, Any] = {
+        # So the result can be passed to optimize_responses as a fitted model as it is.
+        "response_name": reported_response,
+        "factor_names": list(factor_cols),
         "model_summary": {
             "formula": formula.replace(f"{response_col} ~", f"{reported_response} ~", 1),
             "r_squared": float(ols_result.rsquared),
@@ -373,7 +378,7 @@ def analyze_experiment(  # noqa: PLR0912, PLR0913, PLR0915, C901
             "df_model": int(ols_result.df_model),
             "df_residual": int(ols_result.df_resid),
             "mse_residual": float(ols_result.mse_resid),
-        }
+        },
     }
 
     if rank_deficient:

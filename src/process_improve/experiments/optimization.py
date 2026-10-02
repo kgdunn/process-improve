@@ -1500,6 +1500,54 @@ def _intervals_at_point(
     return intervals
 
 
+#: Methods that analyse the surface of one fitted model.
+_SINGLE_RESPONSE_METHODS = {
+    "stationary_point",
+    "canonical_analysis",
+    "steepest_ascent",
+    "steepest_descent",
+    "ridge_analysis",
+}
+
+
+def _check_fitted_models(fitted_models: list[dict[str, Any]], method: str) -> None:
+    """Check that *fitted_models* carries what *method* needs, naming what is missing.
+
+    Raises
+    ------
+    ValueError
+        If the list is empty, a model lacks ``"coefficients"`` or
+        ``"factor_names"``, or a single-response method gets more than one model
+        (it would otherwise analyse the first and ignore the rest).
+    """
+    if not fitted_models:
+        msg = "At least one fitted model is required."
+        raise ValueError(msg)
+    for i, model in enumerate(fitted_models):
+        if not isinstance(model, dict):
+            msg = f"fitted_models[{i}] must be a dict; got {type(model).__name__}."
+            raise TypeError(msg)
+        if "coefficients" not in model:
+            msg = (
+                f"fitted_models[{i}] has no 'coefficients'. Run analyze_experiment with 'coefficients' among its "
+                "analysis_type values, and pass its result."
+            )
+            raise ValueError(msg)
+        if "factor_names" not in model:
+            msg = (
+                f"fitted_models[{i}] has no 'factor_names', the ordered factors its coefficients refer to "
+                "(analyze_experiment returns them alongside 'coefficients'). Add e.g. 'factor_names': ['A', 'B']."
+            )
+            raise ValueError(msg)
+    if method in _SINGLE_RESPONSE_METHODS and len(fitted_models) > 1:
+        names = [m.get("response_name", f"model {i}") for i, m in enumerate(fitted_models)]
+        msg = (
+            f"method={method!r} analyses one response; got {len(fitted_models)} models ({names}). "
+            "Call it once per response, or use 'desirability' or 'pareto_front' to optimise them together."
+        )
+        raise ValueError(msg)
+
+
 def _desirability_result(  # noqa: PLR0913
     *,
     fitted_models: list[dict[str, Any]],
@@ -1583,7 +1631,12 @@ def optimize_responses(  # noqa: PLR0913, C901
     Parameters
     ----------
     fitted_models : list[dict]
-        Each dict describes a fitted model with keys:
+        One model for the single-response methods (``"stationary_point"``,
+        ``"canonical_analysis"``, ``"steepest_ascent"``, ``"steepest_descent"``,
+        ``"ridge_analysis"``), one or more for ``"desirability"`` and two or more
+        for ``"pareto_front"``. The result of ``analyze_experiment(...,
+        analysis_type="coefficients")`` can be passed as it is. Each dict
+        describes a fitted model with keys:
 
         - ``"response_name"`` (str) - name of the response.
         - ``"coefficients"`` (list[dict]) - coefficient list, each with
@@ -1689,9 +1742,12 @@ def optimize_responses(  # noqa: PLR0913, C901
     Raises
     ------
     ValueError
-        If *method* is unknown, if *fitted_models* is empty, if a method that
-        needs goals is called without them, or if both *response_importance*
-        and *desirability_weights* are given.
+        If *method* is unknown, if *fitted_models* is empty or a model lacks
+        ``"coefficients"`` or ``"factor_names"``, if a single-response method
+        (``"stationary_point"``, ``"canonical_analysis"``, ``"steepest_ascent"``,
+        ``"steepest_descent"``, ``"ridge_analysis"``) gets more than one model, if
+        a method that needs goals is called without them, or if both
+        *response_importance* and *desirability_weights* are given.
 
     Examples
     --------
@@ -1721,9 +1777,7 @@ def optimize_responses(  # noqa: PLR0913, C901
         msg = f"Unknown method {method!r}. Available: {available}"
         raise ValueError(msg)
 
-    if not fitted_models:
-        msg = "At least one fitted model is required."
-        raise ValueError(msg)
+    _check_fitted_models(fitted_models, method)
 
     if desirability_weights is not None:
         if response_importance is not None:

@@ -20,9 +20,10 @@ class OptimizeResponsesInput(BaseModel):
         ...,
         min_length=1,
         description=(
-            "One or more fitted models from analyze_experiment. Each entry must "
-            "include 'coefficients' (list of {term, coefficient}), 'factor_names' "
-            "(list of strings), and optionally 'response_name', 'mse_residual', 'r_squared'."
+            "One or more fitted models: the result of analyze_experiment with 'coefficients' among its "
+            "analysis_type values can be passed as it is. Each entry must include 'coefficients' (list of "
+            "{term, coefficient}) and 'factor_names' (list of strings), and optionally 'response_name'. "
+            "stationary_point, canonical_analysis, steepest_ascent/descent and ridge_analysis take exactly one model."
         ),
     )
     goals: list[dict[str, Any]] | None = Field(
@@ -148,8 +149,8 @@ def _as_bounds(
         "what to use when the stationary point falls outside the region the experiment covered, or is a "
         "saddle), and 'pareto_front' (the set of non-dominated compromises across two or more responses, "
         "when the trade-off itself is the thing worth seeing rather than one desirability-weighted point). "
-        "Each fitted_model must include coefficients (as returned by analyze_experiment with "
-        "analysis_type='coefficients'), factor_names, and response_name. "
+        "Each fitted_model must include coefficients and factor_names, which analyze_experiment returns "
+        "(with analysis_type='coefficients'), and response_name; its result can be passed as it is. "
         "For desirability, each goal specifies whether to maximize, minimize, or target a value. "
         "The desirability result also carries a 'responses' list, pairing each model's coefficients "
         "with its specification limits, which can be passed straight to visualize_doe(plot_type='overlay') "
