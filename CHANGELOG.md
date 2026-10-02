@@ -147,6 +147,35 @@ those changes.
 
 ### Fixed
 
+- **`augment_design(..., "add_runs_optimal")` adds runs to a design that cannot yet fit
+  the target model (#637).** It added one run at a time by `log det(X'X)`, which is
+  `-inf` for every candidate while the design is singular, so a 2^(4-1) screening design
+  aimed at a quadratic model gained no runs and the result still reported success. The
+  new runs now come from the Fedorov exchange with the existing runs fixed. When the
+  request cannot supply the rank the existing runs lack, more runs are added and the
+  explanation says so. The candidate grid is capped (6 factors: 0.5 s, from 10.5 s).
+  `augment_design` and its tool take `random_state` (default 42).
+- **`recommend_strategy` stages are valid `generate_design` calls (#638).** It
+  recommended `"simplex_lattice"`, `"definitive_screening"` (with a `fake_factor`
+  parameter) and `"ccd_face_centered"`, which `generate_design` rejects. They are now
+  `"mixture"` (with `model_type`), `"dsd"` and `"ccd"` with `alpha="face_centered"`. A
+  budget below `k + 1` continuous factors gets a supersaturated screening design when an
+  unaliased one exists. The confirmation stage, `"replicates_at_optimum"`, is documented
+  as the one stage not built by `generate_design`.
+- **`analysis_type="model_selection"` searches the requested model, with heredity, by
+  AICc (#639).** It always added every two-factor interaction, eliminated backward from
+  fits with more terms than runs, took the first improving step, and could keep an
+  interaction without its main effects; in a 16-factor, 12-run supersaturated design it
+  dropped a true effect and kept dozens of interactions. Each step now takes the best
+  single addition or removal that respects strong heredity. The default criterion is
+  AICc, which equals AIC for large N and stops a search near saturation. The search
+  runs forward when the full model leaves no residual degrees of freedom. The result
+  adds `selected_terms` and `candidate_model`.
+- **Optimal designs built by pyoptex honour `random_seed` (#640).** pyoptex draws its
+  restarts from numpy's global RNG, so the same seed gave different designs depending on
+  the caller's global state. The global RNG is now seeded from `random_seed` for the
+  pyoptex call only, and the caller's state is restored afterwards.
+
 - **`generate_design(..., "fractional_factorial")` builds its designs from a table of
   minimum-aberration generators (#620).** It used pyDOE3's `fracfact_by_res`, which
   failed with "design not possible" for 3, 4 and 5 factors, and for 7 to 11 factors at
