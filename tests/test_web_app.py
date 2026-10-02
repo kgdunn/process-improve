@@ -8,6 +8,7 @@ CI; these tests are the fast half that runs with the rest of the suite.
 from __future__ import annotations
 
 import base64
+import html.parser
 import importlib.util
 import io
 import json
@@ -129,6 +130,49 @@ def test_bad_factor_input_is_reported(app, factors, message):
     reply = call(app, "api_make_design", {"design_type": "box_behnken", "factors": factors})
     assert not reply["ok"]
     assert message in reply["error"]
+
+
+class _DesignOptions(html.parser.HTMLParser):
+    """Collect the <option>s of the page's design-type <select>."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.inside = False
+        self.options: list[dict] = []
+
+    def handle_starttag(self, tag, attrs):
+        attrs = dict(attrs)
+        if tag == "select":
+            self.inside = attrs.get("id") == "design-type"
+        elif tag == "option" and self.inside:
+            self.options.append({**attrs, "label": ""})
+
+    def handle_endtag(self, tag):
+        if tag == "select":
+            self.inside = False
+
+    def handle_data(self, data):
+        if self.inside and self.options:
+            self.options[-1]["label"] += data.strip()
+
+
+def test_page_design_list_matches_bootstrap(app):
+    """The page lists the designs in HTML so the form is right before Python loads.
+
+    That copy must say what ``bootstrap.DESIGNS`` says, or a reader would see one
+    design's settings and generate another's.
+    """
+    parser = _DesignOptions()
+    parser.feed((WEB / "index.html").read_text(encoding="utf-8"))
+    in_page = {o["value"]: o for o in parser.options}
+    assert list(in_page) == list(app.DESIGNS)
+    for key, info in app.DESIGNS.items():
+        option = in_page[key]
+        assert option["label"] == info["label"], key
+        assert option["data-hint"] == info["hint"], key
+        assert option["data-options"].split() == info["options"], key
+    selected = [o["value"] for o in parser.options if "selected" in o]
+    assert selected == ["dsd"], "the page opens with definitive screening selected"
 
 
 def test_foreign_file_is_reported(app):
