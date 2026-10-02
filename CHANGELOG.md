@@ -256,6 +256,16 @@ those changes.
 
 ### Fixed
 
+- **Desirability optimisation finds tight specification windows, and says when it
+  cannot.** A Derringer-Suich desirability is exactly 0, with zero gradient, outside its
+  limits, so when every start landed there the search stayed put and reported D = 0
+  with `optimizer_success=True`, although D = 1 was reachable in the search box (limits
+  of [1.9, 2.0] on y = A + B, met only at the corner (1, 1)). The search now first
+  maximises the smallest unclipped ramp, which is smooth everywhere and reaches the
+  region where every d > 0 when there is one; when there is none it reports the
+  setting closest to meeting every limit, with a `UserWarning`. Settings, predictions
+  and desirabilities in the result are plain Python floats rather than `np.float64`.
+
 - **`optimize_responses` takes a `random_state`.** The multistart search behind
   `"desirability"` and `"pareto_front"` draws random starting points but was always
   seeded with 42, so a caller could not vary the starts to check that an optimum does

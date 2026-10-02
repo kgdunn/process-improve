@@ -598,6 +598,22 @@ class TestOptimizeDesirability:
         d_result = result["desirability"]
         assert "optimal_actual" in d_result
 
+    def test_result_values_are_plain_python_floats(self) -> None:
+        """Settings print as 189.47, not np.float64(189.47), and serialise without conversion."""
+        model = {"response_name": "yield", "coefficients": _quadratic_2f_coeffs(), "factor_names": FACTOR_NAMES_2F}
+        goals = [{"response": "yield", "goal": "maximize", "low": 30.0, "high": 50.0}]
+        out = optimize_responses([model], goals=goals, method="desirability", factor_ranges=FACTOR_RANGES_2F)
+        d_result = out["desirability"]
+        for key in ("optimal_actual", "optimal_coded", "predicted_responses", "individual_desirability"):
+            assert all(type(v) is float for v in d_result[key].values()), key
+        assert type(d_result["composite_desirability"]) is float
+        assert "np.float64" not in repr(d_result["optimal_actual"])
+
+        stationary = optimize_responses([model], method="stationary_point", factor_ranges=FACTOR_RANGES_2F)
+        assert all(type(v) is float for v in stationary["stationary_point"]["stationary_point_actual"].values())
+        path = optimize_responses([model], method="steepest_ascent", factor_ranges=FACTOR_RANGES_2F)
+        assert all(type(v) is float for v in path["steepest_path"]["steps"][1]["actual"].values())
+
     def test_random_state_is_configurable(self) -> None:
         """SEC-33 (#282) sub-item 5: ``random_state`` is now a public kwarg.
 
@@ -681,6 +697,43 @@ class TestDesirabilityOptimumLocation:
         assert out["optimal_coded"]["B"] == pytest.approx(-1.0, abs=1e-4)
         assert out["predicted_responses"]["y"] == pytest.approx(2.0, abs=1e-4)
         assert out["composite_desirability"] == pytest.approx(1.0, abs=1e-4)
+
+    def test_tight_limits_are_found_when_every_random_start_scores_zero(self) -> None:
+        """Limits [1.9, 2.0] on y = A + B: only the corner (1, 1) meets them.
+
+        Every random start lands where d = 0 and the gradient is 0, so the search
+        used to stay there and report D = 0 with optimizer_success=True.
+        """
+        model = self._plane("y", intercept=0.0, slope_a=1.0, slope_b=1.0)
+        goals = [{"response": "y", "goal": "maximize", "low": 1.9, "high": 2.0}]
+        out = optimize_responses([model], goals=goals, method="desirability")["desirability"]
+        assert out["composite_desirability"] == pytest.approx(1.0, abs=1e-6)
+        assert out["optimal_coded"]["A"] == pytest.approx(1.0, abs=1e-4)
+        assert out["optimal_coded"]["B"] == pytest.approx(1.0, abs=1e-4)
+
+    def test_narrow_target_window_between_two_responses_is_found(self) -> None:
+        """Two responses whose acceptable windows overlap only in a thin sliver of the box."""
+        y1 = self._plane("y1", intercept=0.0, slope_a=1.0, slope_b=1.0)
+        y2 = self._plane("y2", intercept=0.0, slope_a=1.0, slope_b=-1.0)
+        goals = [
+            {"response": "y1", "goal": "target", "low": 1.2, "target": 1.3, "high": 1.4},
+            {"response": "y2", "goal": "target", "low": 0.5, "target": 0.6, "high": 0.7},
+        ]
+        out = optimize_responses([y1, y2], goals=goals, method="desirability")["desirability"]
+        assert out["composite_desirability"] == pytest.approx(1.0, abs=1e-4)
+        assert out["optimal_coded"]["A"] == pytest.approx(0.95, abs=1e-3)
+        assert out["optimal_coded"]["B"] == pytest.approx(0.35, abs=1e-3)
+
+    def test_unreachable_limits_warn_and_report_the_closest_setting(self) -> None:
+        """When no setting in the box gives D > 0, say so, and report the nearest miss rather than the centre."""
+        model = self._plane("y", intercept=0.0, slope_a=1.0, slope_b=1.0)
+        goals = [{"response": "y", "goal": "maximize", "low": 5.0, "high": 6.0}]
+        with pytest.warns(UserWarning, match="composite desirability is 0") as record:
+            out = optimize_responses([model], goals=goals, method="desirability")["desirability"]
+        assert record[0].filename == __file__
+        assert out["composite_desirability"] == 0.0
+        assert out["optimal_coded"]["A"] == pytest.approx(1.0, abs=1e-4)
+        assert out["optimal_coded"]["B"] == pytest.approx(1.0, abs=1e-4)
 
     def test_two_responses_compromise_between_their_optima(self) -> None:
         """Conflicting responses settle strictly between their individual optima.

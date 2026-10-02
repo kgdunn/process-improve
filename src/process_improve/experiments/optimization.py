@@ -308,17 +308,7 @@ def _find_stationary_point(
     }
 
     if factor_ranges:
-        actual = {}
-        for i, name in enumerate(factor_names):
-            if name in factor_ranges:
-                lo = factor_ranges[name]["low"]
-                hi = factor_ranges[name]["high"]
-                center = (lo + hi) / 2.0
-                half_range = (hi - lo) / 2.0
-                actual[name] = center + x_s[i] * half_range
-            else:
-                actual[name] = float(x_s[i])
-        result["stationary_point_actual"] = actual
+        result["stationary_point_actual"] = _coded_to_actual(result["stationary_point_coded"], factor_ranges)
 
     return result
 
@@ -448,17 +438,7 @@ def _steepest_path(  # noqa: PLR0913
         }
 
         if factor_ranges:
-            actual = {}
-            for i, name in enumerate(factor_names):
-                if name in factor_ranges:
-                    lo = factor_ranges[name]["low"]
-                    hi = factor_ranges[name]["high"]
-                    center = (lo + hi) / 2.0
-                    half_range = (hi - lo) / 2.0
-                    actual[name] = center + x_coded[i] * half_range
-                else:
-                    actual[name] = float(x_coded[i])
-            step_entry["actual"] = actual
+            step_entry["actual"] = _coded_to_actual(step_entry["coded"], factor_ranges)
 
         steps.append(step_entry)
 
@@ -697,6 +677,64 @@ def _within_region(region: DesignRegion | None, factor_names: list[str], x: np.n
     return bool(region.feasible(point, tol=1e-6)[0])
 
 
+def _ramp_values(y_values: Sequence[float], goals: list[dict[str, Any]]) -> np.ndarray:
+    """Return the unclipped linear desirability ramps, all positive exactly where every d is.
+
+    A maximise goal contributes ``(y - low) / (high - low)``, a minimise goal
+    ``(high - y) / (high - low)``, and a target goal both of its sides. Unlike the
+    desirabilities themselves, these keep a slope outside the acceptable limits,
+    so they show which way to move from a setting where some response scores 0.
+    """
+    pieces: list[float] = []
+    for y, goal in zip(y_values, goals, strict=True):
+        low, high = float(goal["low"]), float(goal["high"])
+        if goal["goal"] == "maximize":
+            pieces.append((y - low) / (high - low))
+        elif goal["goal"] == "minimize":
+            pieces.append((high - y) / (high - low))
+        else:
+            target = float(goal["target"])
+            pieces.extend(((y - low) / (target - low), (high - y) / (high - target)))
+    return np.array(pieces)
+
+
+def _closest_to_specification(
+    evaluators: list[Callable[[np.ndarray], float]],
+    goals: list[dict[str, Any]],
+    space: _SearchSpace,
+    accept: Callable[[np.ndarray], bool],
+) -> np.ndarray | None:
+    """Return the setting that maximises the smallest unclipped ramp, a start with every d > 0 if one exists.
+
+    A Derringer-Suich desirability is exactly 0, with zero gradient, wherever its
+    response lies outside the acceptable limits, so a gradient search started there
+    cannot leave. Tight limits can leave the region where the composite is positive
+    small enough for every random start to miss it. Maximising ``t`` subject to
+    every ramp being at least ``t`` (and ``t <= 1``, beyond which every
+    desirability is already 1) is smooth everywhere and reaches that region
+    whenever the search finds a setting with ``t > 0``; when none exists, the
+    result is the setting that comes closest to meeting every limit.
+    """
+    n = len(space.bounds)
+
+    def ramps(z: np.ndarray) -> np.ndarray:
+        return _ramp_values([f(z[:n]) for f in evaluators], goals)
+
+    constraints = [{"type": "ineq", "fun": lambda z: ramps(z) - z[n]}]
+    constraints += [{**c, "fun": lambda z, c=c: c["fun"](z[:n])} for c in space.constraints]
+    best: tuple[float, np.ndarray] | None = None
+    for x0 in space.starts:
+        z0 = np.append(x0, min(1.0, float(ramps(np.append(x0, 0.0)).min())))
+        res = optimize.minimize(
+            lambda z: -z[n], z0, method="SLSQP", bounds=[*space.bounds, (None, 1.0)], constraints=constraints
+        )
+        x = res.x[:n]
+        t = float(ramps(res.x).min())
+        if np.all(np.isfinite(res.x)) and accept(x) and (best is None or t > best[0]):
+            best = (t, x)
+    return None if best is None else best[1]
+
+
 def _optimize_desirability(  # noqa: PLR0913
     fitted_models: list[dict[str, Any]],
     goals: list[dict[str, Any]],
@@ -741,15 +779,13 @@ def _optimize_desirability(  # noqa: PLR0913
     """
     if align_goals:
         goals = _align_goals_to_models(fitted_models, goals)
+    for goal in goals:
+        check_goal(goal)
     evaluators = [_build_model_evaluator(m["coefficients"], factor_names) for m in fitted_models]
 
     def neg_composite(x: np.ndarray) -> float:
         """Return the negated composite desirability at coded settings ``x``, for minimization."""
-        d_vals = []
-        for evaluator, goal in zip(evaluators, goals, strict=True):
-            y_pred = evaluator(x)
-            d = individual_desirability(y_pred, goal)
-            d_vals.append(d)
+        d_vals = [individual_desirability(f(x), goal) for f, goal in zip(evaluators, goals, strict=True)]
         return -composite_desirability(d_vals, importances)
 
     # Multi-start: try centre + random points.
@@ -761,31 +797,41 @@ def _optimize_desirability(  # noqa: PLR0913
     # Start from the centre of the searched region, then sample across it, so
     # that widening the bounds actually widens where the search looks.
     space = _search_space(factor_names, search_bounds, region, rng, n_starts=10)
-    best_result = _multistart_slsqp(
-        neg_composite, space, lambda x: _within_region(region, factor_names, x) is not False
-    )
-    best_value = np.inf if best_result is None else best_result.fun
+
+    def accept(x: np.ndarray) -> bool:
+        return _within_region(region, factor_names, x) is not False
+
+    # Start first from the setting closest to meeting every limit: from there the
+    # search can climb even when every other start sits where some d is 0, and on a
+    # tie at D = 0 it is the setting reported.
+    if (closest := _closest_to_specification(evaluators, goals, space, accept)) is not None:
+        space.starts.insert(0, closest)
+    best_result = _multistart_slsqp(neg_composite, space, accept)
 
     if best_result is None:
         msg = "optimization produced no result" if region is None else "no start converged inside the region"
         raise RuntimeError(msg)
 
     x_opt = best_result.x
-    composite_d = -best_value
+    composite_d = float(-best_result.fun)
+    if composite_d <= 0.0:
+        warnings.warn(
+            "No setting in the search region was found where every response has a desirability above 0, so "
+            "the composite desirability is 0. The setting reported is the one that came closest to meeting every "
+            "goal's limits; widen search_bounds or relax the limits.",
+            UserWarning,
+            stacklevel=4,
+        )
 
     # Evaluate individual responses and desirabilities at optimum
-    predictions = {}
-    individual_d = {}
-    for evaluator, model_dict, goal in zip(evaluators, fitted_models, goals, strict=True):
-        resp_name = model_dict.get("response_name", "response")
-        y_pred = float(evaluator(x_opt))
-        predictions[resp_name] = y_pred
-        individual_d[resp_name] = individual_desirability(y_pred, goal)
-
+    names = [m.get("response_name", "response") for m in fitted_models]
+    predictions = {name: float(f(x_opt)) for name, f in zip(names, evaluators, strict=True)}
     result: dict[str, Any] = {
         "optimal_coded": {n: float(x_opt[i]) for i, n in enumerate(factor_names)},
         "predicted_responses": predictions,
-        "individual_desirability": individual_d,
+        "individual_desirability": {
+            name: float(individual_desirability(predictions[name], g)) for name, g in zip(names, goals, strict=True)
+        },
         "composite_desirability": composite_d,
         "optimizer_success": bool(best_result.success),
     }
@@ -793,17 +839,7 @@ def _optimize_desirability(  # noqa: PLR0913
         result["within_region"] = _within_region(region, factor_names, x_opt)
 
     if factor_ranges:
-        actual = {}
-        for i, name in enumerate(factor_names):
-            if name in factor_ranges:
-                lo = factor_ranges[name]["low"]
-                hi = factor_ranges[name]["high"]
-                center = (lo + hi) / 2.0
-                half_range = (hi - lo) / 2.0
-                actual[name] = center + x_opt[i] * half_range
-            else:
-                actual[name] = float(x_opt[i])
-        result["optimal_actual"] = actual
+        result["optimal_actual"] = _coded_to_actual(result["optimal_coded"], factor_ranges)
 
     return result
 
@@ -1329,17 +1365,15 @@ def _add_actual_units(
 
 
 def _coded_to_actual(coded: dict[str, float], factor_ranges: dict[str, dict[str, float]]) -> dict[str, float]:
-    """Convert coded factor settings to actual units."""
+    """Convert coded factor settings to actual units, as plain Python floats."""
     actual = {}
     for name, coded_val in coded.items():
         if name in factor_ranges:
-            lo = factor_ranges[name]["low"]
-            hi = factor_ranges[name]["high"]
-            center = (lo + hi) / 2.0
-            half_range = (hi - lo) / 2.0
-            actual[name] = center + coded_val * half_range
+            lo = float(factor_ranges[name]["low"])
+            hi = float(factor_ranges[name]["high"])
+            actual[name] = (lo + hi) / 2.0 + float(coded_val) * (hi - lo) / 2.0
         else:
-            actual[name] = coded_val
+            actual[name] = float(coded_val)
     return actual
 
 
