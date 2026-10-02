@@ -214,6 +214,25 @@ _SPACE_FILLING = ("latin_hypercube", "maximin_lhs", "uniform", "sobol", "halton"
 #: Design types chosen by an optimality criterion; the only ones that take fixed_runs or candidates.
 _OPTIMAL_FAMILIES = frozenset({"d_optimal", "i_optimal", "a_optimal", "e_optimal"})
 
+
+def _refuse_mixture_process(factors: list[Factor]) -> None:
+    """Raise one clear error for mixture components mixed with process factors, which no engine here supports.
+
+    The proportions must sum to 1 while the process factors range freely, so neither
+    the mixture engine nor the factor-box engines can place the runs. Crossing a
+    mixture design with a design in the process factors is the classical answer.
+    """
+    is_mixture = [f.type == FactorType.mixture for f in factors]
+    if any(is_mixture) and not all(is_mixture):
+        process = [f.name for f, m in zip(factors, is_mixture, strict=True) if not m]
+        raise ValueError(
+            f"Mixture-process designs (mixture components together with process factors {process}) are not "
+            "supported. Generate a mixture design for the components and a design for the process factors, "
+            "then cross them: every blend at every process setting, e.g. "
+            "mixture.design_actual.merge(process.design_actual, how='cross')."
+        )
+
+
 _DESIGN_REGISTRY: dict[str, Callable[..., tuple[np.ndarray, dict]]] = {
     "full_factorial": _dispatch_full_factorial,
     "fractional_factorial": _dispatch_fractional_factorial,
@@ -281,9 +300,13 @@ def _auto_select_by_budget(factors: list[Factor], k: int, budget: float) -> str:
     """Pick the unconstrained design family that fits ``budget`` runs for ``k`` process factors."""
     if k <= 5 and budget >= 2**k:
         return "full_factorial"
-    # Fewer runs than main effects: only a supersaturated design screens them all.
-    if k >= 3 and budget < k + 1 and all(f.type == FactorType.continuous for f in factors):
-        return "supersaturated"
+    # Fewer runs than main effects: a supersaturated design screens them all, when one exists
+    # for this budget without fully aliased factors; otherwise fall through as before.
+    if all(f.type == FactorType.continuous for f in factors):
+        from process_improve.experiments.designs_supersaturated import supersaturated_available  # noqa: PLC0415
+
+        if supersaturated_available(k, budget):
+            return "supersaturated"
     if k >= 6 and budget <= 2 * k + 1:
         return "plackett_burman"
     if budget >= 2 ** (k - 1):
@@ -369,10 +392,13 @@ def generate_design(  # noqa: PLR0913
         half-fraction is chosen automatically.
     constraints : list[Constraint] or None
         Inequalities on the continuous factors, in actual units, e.g.
-        ``Constraint(expression="3*T + 5*D <= 600")``. Honoured by
-        ``"d_optimal"`` (chosen automatically when constraints are given): the
-        runs are selected from a candidate set of feasible points, so every run
-        satisfies every constraint. Other design types do not enforce them.
+        ``Constraint(expression="3*T + 5*D <= 600")``. Honoured by the optimal
+        families (``"d_optimal"``, chosen automatically when constraints are given,
+        ``"i_optimal"``, ``"a_optimal"`` and ``"e_optimal"``), whose runs are selected
+        from a candidate set of feasible points; by ``"mixture"`` (linear constraints
+        in the proportions); and by the ``"sobol"``, ``"halton"`` and ``"maximin"``
+        space-filling designs. Other design types do not enforce them and set
+        ``metadata["constraints_enforced"] = False``.
     hard_to_change : list[str] or None
         Names of hard-to-change factors (triggers split-plot structure).
     model_type : str
@@ -439,16 +465,18 @@ def generate_design(  # noqa: PLR0913
     if design_type not in _DESIGN_REGISTRY:
         raise ValueError(f"Unknown design_type={design_type!r}.  Choose from: {', '.join(sorted(_DESIGN_REGISTRY))}.")
 
+    families = ", ".join(sorted(_OPTIMAL_FAMILIES))
     if candidates is not None and design_type not in _OPTIMAL_FAMILIES:
         raise ValueError(
-            f"candidates is only supported for the optimal design families (d_optimal, i_optimal, "
-            f"a_optimal); got design_type={design_type!r}."
+            f"candidates is only supported for the optimal design families ({families}); "
+            f"got design_type={design_type!r}."
         )
     if fixed_runs is not None and design_type not in _OPTIMAL_FAMILIES:
         raise ValueError(
-            f"fixed_runs (design augmentation) is only supported for the optimal design families "
-            f"(d_optimal, i_optimal, a_optimal); got design_type={design_type!r}."
+            f"fixed_runs (design augmentation) is only supported for the optimal design families ({families}); "
+            f"got design_type={design_type!r}."
         )
+    _refuse_mixture_process(factors)
 
     # --- Dispatch ----------------------------------------------------------
     dispatch_fn = _DESIGN_REGISTRY[design_type]
@@ -527,4 +555,5 @@ def generate_design(  # noqa: PLR0913
         alpha=result_alpha,
         metadata=meta,
         is_actual=is_actual,
+        n_leading_fixed=int(meta.get("n_fixed_runs", 0)),
     )

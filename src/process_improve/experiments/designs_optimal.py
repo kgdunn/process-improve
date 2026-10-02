@@ -94,8 +94,8 @@ def _n_model_parameters(factors: list[Factor], model_type: str) -> int:
     factors : list[Factor]
         Factor specifications.
     model_type : str
-        ``"main_effects"``, ``"interactions"`` or ``"quadratic"``. An unknown
-        value is treated as ``"interactions"``, matching ``_run_pyoptex``.
+        ``"main_effects"``, ``"interactions"`` or ``"quadratic"``, as validated by
+        ``_dispatch_optimal``.
 
     Returns
     -------
@@ -416,6 +416,11 @@ def _dispatch_optimal(criterion: str, req: _OptimalRequest) -> tuple[np.ndarray,
 
     if req.factors and all(f.type == FactorType.mixture for f in req.factors):
         return _dispatch_mixture_optimal(criterion, req)
+    if req.model_type not in _PYOPTEX_MODEL_MAP:
+        raise ValueError(
+            f"model_type={req.model_type!r} is not supported for {criterion}; choose from "
+            f"{', '.join(_PYOPTEX_MODEL_MAP)} (Scheffé models apply to mixture components only)."
+        )
 
     budget = req.budget if req.budget is not None else 2 * len(req.factors) + 1
     budget = _floor_budget_at_model_size(req.factors, budget, req.model_type)

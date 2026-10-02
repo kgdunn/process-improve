@@ -10,6 +10,7 @@ import numpy as np
 import pytest
 
 from process_improve.experiments import designs_optimal
+from process_improve.experiments.designs_constrained import MAX_CANDIDATES
 from process_improve.experiments.designs_optimal import (
     dispatch_a_optimal,
     dispatch_d_optimal,
@@ -121,10 +122,14 @@ class TestDOptimalDispatch:
         assert any("pyoptex is not installed" in rec.getMessage() for rec in caplog.records)
         assert any("pip install pyoptex" in rec.getMessage() for rec in caplog.records)
 
-    def test_candidate_grid_cap_rejects_large_candidate_set(self) -> None:
-        """A candidate grid above MAX_CANDIDATES is refused before it is allocated (SEC-19 / #268)."""
-        with pytest.raises(ValueError, match="exceeds"):
-            dispatch_d_optimal(_continuous(16), budget=40)
+    @pytest.mark.slow
+    def test_candidate_grid_never_exceeds_the_cap(self) -> None:
+        """No candidate set above MAX_CANDIDATES is allocated (SEC-19 / #268): coarser levels, or a sample."""
+        _design, meta = dispatch_d_optimal(_continuous(16), budget=40, model_type="main_effects")
+        assert meta["n_candidates"] <= MAX_CANDIDATES
+        _design, meta = dispatch_d_optimal(_continuous(12), budget=100, model_type="quadratic")
+        assert meta["grid_sampled"]
+        assert meta["n_candidates"] <= MAX_CANDIDATES
 
     def test_budget_clamped_to_minimum_model_size(self) -> None:
         """A budget below the model size is raised to it, so the model is estimable.

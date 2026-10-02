@@ -19,15 +19,21 @@ those changes.
   sequences are mapped onto the region (a uniform-preserving map onto the simplex for
   mixtures) and filtered, and maximin picks runs from a dense sample of the region by a
   farthest-point build and exchanges. The metadata reports the smallest and mean
-  nearest-neighbour distances and, on the plain box, the discrepancy.
+  nearest-neighbour distances and, on the plain box, the discrepancy. In a region too
+  thin to fill from the first 2**22 points of a sequence, `"sobol"` and `"halton"`
+  raise and point to `"maximin"`.
 - **Supersaturated designs** (`design_type="supersaturated"`, chosen automatically when
-  the budget is below `k + 1`): Lin's half-fraction of a Hadamard matrix, trying every
+  the budget is below `k + 1` and a design without fully aliased factors exists for it):
+  Lin's half-fraction of a Hadamard matrix, trying every
   branching column. Paley's Hadamard matrices are preferred, since the Kronecker-built
   ones for 16, 24 and 32 runs leave identical columns. The metadata reports `E(s^2)`
   against its lower bound; Lin's 12-run design for 22 factors reaches it.
 - **E-optimal designs** (`design_type="e_optimal"`): maximise the smallest eigenvalue of
-  `X'X`. Swaps are ranked by the eigenvalue's derivative and the best are scored
-  exactly. Works with constraints, candidate sets, fixed runs and mixtures.
+  `X'X`. No single swap can raise a repeated smallest eigenvalue, so the exchange first
+  climbs Kiefer's `phi_p`, a smooth stand-in that separates such ties, then polishes the
+  smallest eigenvalue itself; swaps are ranked by the gradient of `phi_p` and scored
+  exactly in batches. Five factors in eight runs reach the regular 2^(5-2) fraction from
+  any seed. Works with constraints, candidate sets, fixed runs and mixtures.
 
 - **Optimal designs chosen from a user-supplied candidate set.**
   `generate_design(..., candidates=df)` picks the runs from the rows of `df`: plant
@@ -58,20 +64,31 @@ those changes.
   - `generate_design` enumerates the **extreme vertices** of the region (every choice
     of `q - 1` active constraints solved as one batched linear system). Without a
     budget it returns the classical extreme-vertices design; with one, a D-optimal
-    subset of vertices, edge midpoints, face centroids, centroid and axial blends.
+    subset of vertices, edge midpoints, centroids of the 2-dimensional faces (the
+    analogue of ternary blends, which a special cubic model needs for any number of
+    components), facet centroids, centroid and axial blends.
     `design_type="d_optimal"` with mixture factors uses the same engine.
   - `analyze_experiment` and `evaluate_design` accept `"scheffe_linear"`,
     `"scheffe_quadratic"` and `"scheffe_special_cubic"` (no intercept; R-squared and
-    model df stay centred because statsmodels detects the implicit constant).
+    model df stay centred because statsmodels detects the implicit constant). For these
+    models the ANOVA tests the linear blending terms jointly (do the components blend
+    differently at all?) and each non-linear blending term on its own, effects are
+    reported in the Cox direction, and Lenth's method is declined, since a blending
+    coefficient tested against zero answers no useful question.
   - `DesignRegion(factors, constraints)` holds the region, tests feasibility and
-    samples it uniformly. `generate_design` records it in `metadata["region"]`.
+    samples it uniformly. `generate_design` records it in `metadata["region"]`. A
+    region too thin for rejection sampling (below a few parts per thousand of the box
+    or simplex) is sampled by hit-and-run chains: chords are cut exactly by affine
+    constraints, and non-linear ones are handled by slice-sampler shrinkage.
   - `evaluate_design` computes I-efficiency, G-efficiency and the FDS curve **over the
     recorded region** instead of the box: for the heat-budget example the G-efficiency
     is 73% inside the region against 3.5% over the box, whose worst case is a corner
     the design may not visit. `region=` overrides it.
   - `optimize_responses(..., region=...)` keeps the desirability optimum and the Pareto
     front inside the region (SLSQP constraints, feasible starts), and for a mixture
-    returns a blend that sums to one. The result carries `within_region`.
+    returns a blend that sums to one. A box region's constraints apply on top of
+    `search_bounds`, which may reach beyond the coded cube. The result carries
+    `within_region`.
 
 - **Constraints on the factor region are now enforced for D-optimal designs.**
   `generate_design(..., constraints=[Constraint("3*T + 5*D <= 600")])` used to accept
@@ -121,7 +138,30 @@ those changes.
   asked for, so a quadratic request could get a design with too few levels. It is
   replaced by the candidate exchange, which scores the requested model and allows
   replicated runs. `metadata["backend"]` reads `"candidate_exchange"` instead of
-  `"point_exchange_fallback"`, and `fixed_runs` no longer needs pyoptex.
+  `"point_exchange_fallback"`, and `fixed_runs` no longer needs pyoptex. The fixed runs
+  stay in the first rows, and when they repeat points the budget is raised until the
+  free runs can estimate the model.
+- **Large candidate grids are sampled instead of refused.** Models without squared
+  terms use a 2-level grid, so up to 16 factors are listed in full; beyond that, or for
+  a quadratic model on 11 or more factors, 32,768 grid points are taken from an unscrambled Sobol sequence (with the
+  centre and face centres). No candidate set above `MAX_CANDIDATES` is allocated, as
+  before.
+- **Automatic design choice may return a supersaturated design** when the budget is
+  below `k + 1` continuous factors and an unaliased design exists for it (for example
+  10 factors in 6 runs); otherwise the previous choice stands.
+- **`design_type="i_optimal"` and `"a_optimal"` no longer raise `ImportError`** without
+  pyoptex; they use the built-in candidate exchange.
+- **`evaluate_design` measures I- and G-efficiency over the recorded region** of a
+  constrained design, not the full box. Pass `region=` to choose another.
+- **The optimal design families validate `model_type`.** An unknown value (such as
+  `"linear"` for process factors) used to set the budget as an interactions model while
+  the built-in exchange optimised main effects; it now raises. Mixtures keep their
+  aliases (`"linear"`, `"special_cubic"`, the `scheffe_*` names).
+- **Mixture components together with process factors raise one clear `ValueError`**,
+  which explains how to cross a mixture design with a process design. Without pyoptex
+  such requests used to return designs that were not mixtures: D-optimal blends summing
+  to anything from 0 to 3, or, with `design_type="mixture"`, the process factor run as
+  a fourth component between 0 and 1.
 - **The browser app's tables sort by column.** Clicking a column header in the
   design run list, the coefficient table or the ANOVA table sorts the rows
   ascending, and a second click sorts them descending, for example by standard

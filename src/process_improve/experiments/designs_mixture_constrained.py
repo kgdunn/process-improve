@@ -31,8 +31,10 @@ from typing import TYPE_CHECKING
 
 import numpy as np
 import pandas as pd
+from scipy.stats import qmc
 
 from process_improve._random import check_random_state
+from process_improve.experiments._uniform_sampling import UniformSampler, _linear_row
 from process_improve.experiments.designs_constrained import (
     ConstrainedOptions,
     criterion_metadata,
@@ -56,6 +58,8 @@ _MODEL_ALIASES = {
     "quadratic": "scheffe_quadratic",
     "special_cubic": "scheffe_special_cubic",
 }
+#: Uniform blends that estimate the region's moment matrix for I-optimality.
+_N_REGION_SAMPLES = 20_000
 #: Largest number of constraint subsets solved when enumerating vertices.
 MAX_VERTEX_SUBSETS = 500_000
 _TOL = 1e-9
@@ -97,11 +101,12 @@ def _linear_coefficients(expression: str, names: list[str]) -> list[tuple[np.nda
     """Return ``(a, c)`` pairs with ``g(x) = a @ x + c <= 0`` for each inequality in ``expression``.
 
     The coefficients are read off by evaluating ``g`` at the origin and the unit vectors,
-    then checked at random points; a constraint that is not affine is refused, because
+    then checked at points spread through the cube (the unscrambled Halton sequence, so
+    no random generator is involved); a constraint that is not affine is refused, because
     the vertex enumeration below relies on flat faces.
     """
     q = len(names)
-    probe = np.vstack([np.zeros(q), np.eye(q), np.random.default_rng(0).uniform(0, 1, size=(8, q))])
+    probe = np.vstack([np.zeros(q), np.eye(q), qmc.Halton(d=q, scramble=False).random(9)[1:]])
     env = {n: probe[:, j] for j, n in enumerate(names)}
     pairs = []
     for g in parse_constraint(expression, set(names)):
@@ -177,48 +182,80 @@ def _unique_rows(points: np.ndarray) -> np.ndarray:
     return points[np.sort(first)]
 
 
-def _uniform_blends(
-    a_mat: np.ndarray, b_vec: np.ndarray, low: np.ndarray, n: int, rng: np.random.Generator
-) -> np.ndarray:
-    """``n`` blends drawn uniformly from the constrained simplex ``a_mat @ x <= b_vec``.
+def _face_rank(a_mat: np.ndarray, shared: np.ndarray) -> int:
+    """Rank of the constraints in ``shared`` together with ``sum(x) = 1``: ``q`` minus the face's dimension."""
+    return int(np.linalg.matrix_rank(np.vstack([a_mat[shared], np.ones(a_mat.shape[1])])))
 
-    Rejection from the smallest simplex holding the lower bounds (the
-    L-pseudocomponent simplex), where a flat Dirichlet draw is uniform. Kept here,
-    not in :mod:`~process_improve.experiments.region`, which imports this module.
+
+def _plane_centroids(vertices: np.ndarray, active: np.ndarray, a_mat: np.ndarray, adjacent: np.ndarray) -> list:
+    """Centroids of the region's 2-dimensional faces: the constrained analogue of ternary blends.
+
+    A vertex and two of its neighbours span a 2-face when the constraints active at
+    all three leave a plane (rank ``q - 2``). Its centroid averages every vertex on
+    which those constraints are active, so each face is found once whichever corner
+    it is reached from.
     """
-    kept: list[np.ndarray] = []
-    for _ in range(200):
-        x = low + (1.0 - low.sum()) * rng.dirichlet(np.ones(len(low)), size=max(n, 10_000))
-        kept.append(x[np.all(x @ a_mat.T <= b_vec + 1e-9, axis=1)])
-        if sum(len(k) for k in kept) >= n:
-            break
-    blends = np.vstack(kept)
-    if not len(blends):
-        raise ValueError("Could not sample the constrained mixture region for the I-optimality moment matrix.")
-    return blends[:n]
+    q, seen, centroids = a_mat.shape[1], set(), []
+    for i in range(len(vertices)):
+        for j, k in itertools.combinations(np.flatnonzero(adjacent[i]), 2):
+            shared = active[i] & active[j] & active[k]
+            if _face_rank(a_mat, shared) != q - 2:
+                continue
+            members = tuple(np.flatnonzero(active[:, shared].all(axis=1)))
+            if members not in seen:
+                seen.add(members)
+                centroids.append(vertices[list(members)].mean(axis=0))
+    return centroids
+
+
+def _uniform_blends(
+    a_mat: np.ndarray, b_vec: np.ndarray, low: np.ndarray, vertices: np.ndarray, rng: np.random.Generator
+) -> np.ndarray:
+    """20,000 blends drawn uniformly from the constrained simplex ``a_mat @ x <= b_vec``.
+
+    Proposals come from the smallest simplex holding the lower bounds (the
+    L-pseudocomponent simplex), where a flat Dirichlet draw is uniform; a region too
+    thin for rejection is sampled by hit-and-run from its extreme vertices. Built from
+    :class:`~process_improve.experiments._uniform_sampling.UniformSampler` directly,
+    not through :class:`~process_improve.experiments.region.DesignRegion`, which
+    imports this module.
+    """
+    q = len(low)
+    sampler = UniformSampler(
+        [_linear_row(a, float(b)) for a, b in zip(a_mat, b_vec, strict=True)],
+        (low, np.ones(q)),
+        lambda m: low + (1.0 - low.sum()) * rng.dirichlet(np.ones(q), size=m),
+        seeds=lambda: vertices,
+        on_simplex=True,
+    )
+    return sampler.draw(_N_REGION_SAMPLES, rng)
 
 
 def mixture_candidates(a_mat: np.ndarray, b_vec: np.ndarray) -> dict[str, np.ndarray]:
-    """Return candidate blends by kind: vertices, edge midpoints, face centroids, centroid, axial blends.
+    """Return candidate blends by kind.
 
-    Two vertices share an edge when the constraints active at both, together with
-    ``sum(x) = 1``, have rank ``q - 1``: the set of points satisfying them is a line.
+    The kinds are vertices, edge midpoints, centroids of the 2-dimensional faces
+    (``plane_centroid``, the points the ``x_i x_j x_k`` terms of a special cubic model
+    need), centroids of the facets (``face_centroid``), the overall centroid, and
+    axial blends halfway from each vertex to it. Two vertices share an edge when the
+    constraints active at both, together with ``sum(x) = 1``, have rank ``q - 1``: the
+    set of points satisfying them is a line.
     """
     vertices = extreme_vertices(a_mat, b_vec)
     if len(vertices) == 0:
         raise ValueError("No mixture satisfies all the constraints; check them for conflicts.")
     q = a_mat.shape[1]
     active = np.abs(vertices @ a_mat.T - b_vec) <= 1e-9
-    edges = [
-        (vertices[i] + vertices[j]) / 2
-        for i, j in itertools.combinations(range(len(vertices)), 2)
-        if np.linalg.matrix_rank(np.vstack([a_mat[active[i] & active[j]], np.ones(q)])) == q - 1
-    ]
+    adjacent = np.zeros((len(vertices), len(vertices)), dtype=bool)
+    for i, j in itertools.combinations(range(len(vertices)), 2):
+        adjacent[i, j] = adjacent[j, i] = _face_rank(a_mat, active[i] & active[j]) == q - 1
+    edges = [(vertices[i] + vertices[j]) / 2 for i, j in zip(*np.nonzero(np.triu(adjacent)), strict=True)]
     faces = [vertices[active[:, r]].mean(axis=0) for r in range(a_mat.shape[0]) if active[:, r].sum() > 2]
     centroid = vertices.mean(axis=0, keepdims=True)
     return {
         "vertex": vertices,
         "edge_midpoint": _unique_rows(np.array(edges).reshape(-1, q)),
+        "plane_centroid": _unique_rows(np.array(_plane_centroids(vertices, active, a_mat, adjacent)).reshape(-1, q)),
         "face_centroid": _unique_rows(np.array(faces).reshape(-1, q)),
         "centroid": centroid,
         "axial_blend": (vertices + centroid) / 2,
@@ -253,7 +290,7 @@ def _user_blends(
 _EV_DESIGN = {
     "scheffe_linear": ("vertex", "centroid"),
     "scheffe_quadratic": ("vertex", "edge_midpoint", "centroid"),
-    "scheffe_special_cubic": ("vertex", "edge_midpoint", "face_centroid", "centroid"),
+    "scheffe_special_cubic": ("vertex", "edge_midpoint", "plane_centroid", "centroid"),
 }
 
 
@@ -273,7 +310,7 @@ def constrained_mixture_design(
     budget : int or None
         Number of runs. ``None`` returns the classical extreme-vertices design for the
         model: vertices and centroid, plus edge midpoints for a quadratic model, plus
-        face centroids for a special cubic one. With a budget, a D-optimal subset of
+        the centroids of the 2-dimensional faces for a special cubic one. With a budget, a D-optimal subset of
         all candidate blends is chosen; blends may be replicated.
     constraints : list[Constraint] or None
         Linear inequalities in the proportions, e.g. ``"x1 + x2 <= 0.7"``.
@@ -282,7 +319,8 @@ def constrained_mixture_design(
         ``"scheffe_special_cubic"``, or the process-design names ``"main_effects"``,
         ``"interactions"`` and ``"quadratic"``, which map to linear, quadratic and
         quadratic. ``criterion``: ``"d_optimal"`` (default), ``"i_optimal"`` (average
-        prediction variance over the constrained simplex) or ``"a_optimal"``.
+        prediction variance over the constrained simplex), ``"a_optimal"`` or
+        ``"e_optimal"``.
     random_state : int, numpy.random.Generator or None
         Seed for the exchange's random starts.
 
@@ -315,7 +353,7 @@ def constrained_mixture_design(
 
         def region_rows() -> np.ndarray:
             low = np.array([f.low or 0.0 for f in factors], dtype=float)
-            return scheffe_matrix(_uniform_blends(a_mat, b_vec, low, 20_000, rng), model)
+            return scheffe_matrix(_uniform_blends(a_mat, b_vec, low, candidates["vertex"], rng), model)
 
     if budget is None:
         design = _unique_rows(np.vstack([candidates[kind] for kind in _EV_DESIGN[model]]))

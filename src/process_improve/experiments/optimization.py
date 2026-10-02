@@ -42,6 +42,7 @@ from scipy import optimize
 
 from process_improve._random import check_random_state
 from process_improve.experiments._desirability import composite_desirability, individual_desirability
+from process_improve.experiments._uniform_sampling import UniformSampler
 
 if TYPE_CHECKING:
     from process_improve.experiments.region import DesignRegion
@@ -607,8 +608,8 @@ def _search_space(
     random points in it. With a box region its constraints become inequality
     constraints on top of that box. A mixture region replaces the box: its component
     bounds become the bounds, ``sum(x) = 1`` an equality constraint, and its linear
-    constraints inequalities. The starts are then drawn uniformly from the region
-    itself, since a start outside it can leave SLSQP stranded at an infeasible point.
+    constraints inequalities. The starts are then drawn uniformly from the feasible
+    set itself, since a start outside it can leave SLSQP stranded at an infeasible point.
     """
     bounds = _resolve_search_bounds(search_bounds, factor_names)
     lows, highs = np.array(bounds).T
@@ -627,7 +628,13 @@ def _search_space(
     ]
     if region.kind == "mixture":
         constraints.append({"type": "eq", "fun": lambda x: float(x.sum() - 1.0)})
-    samples = region.sample(n_starts, rng)
+    if region.kind == "mixture":
+        samples = region.sample(n_starts, rng)
+    else:  # uniform over the search box cut by the constraints, which may reach beyond the coded cube
+        box = (lows[idx], highs[idx])
+        samples = UniformSampler(
+            region.inequalities, box, lambda m: rng.uniform(*box, size=(m, len(idx))), seeds=region.seed_points
+        ).draw(n_starts, rng)
     starts = [np.empty(len(factor_names)) for _ in range(n_starts)]
     for start, sample in zip(starts, samples, strict=True):
         start[idx] = sample
@@ -660,10 +667,17 @@ def _multistart_slsqp(
 
 
 def _within_region(region: DesignRegion | None, factor_names: list[str], x: np.ndarray) -> bool | None:
-    """Whether ``x`` (model column order) lies in ``region``; ``None`` without a region."""
+    """Whether ``x`` (model column order) lies in ``region``; ``None`` without a region.
+
+    A box region's own ``[-1, 1]`` cube is not imposed: the search box
+    (``search_bounds``) bounds the search, and the region adds its constraints on top.
+    """
     if region is None:
         return None
-    return bool(region.feasible(x[[factor_names.index(n) for n in region.names]][None, :], tol=1e-6)[0])
+    point = x[[factor_names.index(n) for n in region.names]][None, :]
+    if region.kind == "box":
+        return all(float(g(point)[0]) <= 1e-6 for g in region.inequalities)
+    return bool(region.feasible(point, tol=1e-6)[0])
 
 
 def _optimize_desirability(  # noqa: PLR0913
@@ -1231,16 +1245,21 @@ def _pareto_front(  # noqa: PLR0913 - the models, the goals, the naming and the 
     def utility(x: np.ndarray) -> np.ndarray:
         return _as_utilities(raw(x), senses)
 
-    def best_of(objective: Callable[[np.ndarray], float]) -> np.ndarray:
+    def best_of(objective: Callable[[np.ndarray], float]) -> np.ndarray | None:
         # SLSQP's default ftol of 1e-6 leaves front points a visible distance
         # short of the true frontier. These objectives cost microseconds to
         # evaluate, so there is nothing to buy by stopping early.
         res = _multistart_slsqp(
             objective, space, lambda x: _within_region(region, factor_names, x) is not False, _SLSQP_OPTIONS
         )
-        return space.starts[0] if res is None else res.x
+        return None if res is None else res.x
 
-    payoff_raw, payoff_utility = _payoff_table(best_of, raw, utility, senses, len(names))
+    def anchor(objective: Callable[[np.ndarray], float]) -> np.ndarray:
+        if (x := best_of(objective)) is None:
+            raise RuntimeError("Pareto front: no start converged inside the region for a single objective.")
+        return x
+
+    payoff_raw, payoff_utility = _payoff_table(anchor, raw, utility, senses, len(names))
     ideal_utility = payoff_utility.diagonal().copy()
     nadir_utility = payoff_utility.min(axis=0)
     spread = np.where(np.abs(ideal_utility - nadir_utility) > _SPREAD_FLOOR, ideal_utility - nadir_utility, 1.0)
@@ -1250,7 +1269,8 @@ def _pareto_front(  # noqa: PLR0913 - the models, the goals, the naming and the 
         return float(gap.max() + _PARETO_AUGMENT * gap.sum())
 
     weights = _simplex_weights(len(names), n_points)
-    points = np.array([best_of(functools.partial(chebyshev, w=w)) for w in weights])
+    found = [best_of(functools.partial(chebyshev, w=w)) for w in weights]
+    points = np.array([x for x in found if x is not None])  # a weight with no feasible optimum adds no point
     keep = _non_dominated(np.array([utility(x) for x in points]))
     front = _front_entries(points[keep], raw, factor_names, names)
 
