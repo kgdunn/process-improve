@@ -648,7 +648,7 @@ def lm(  # noqa: C901, PLR0915
     else:
         # Map each model column to its patsy term: a categorical term spans several
         # columns, and patsy orders the terms in the model matrix its own way.
-        spec = getattr(pre_model.data, "model_spec", None) or getattr(pre_model.data, "design_info", None)
+        spec: Any = getattr(pre_model.data, "model_spec", None) or pre_model.data.design_info
         column_terms: list[Any] = [None] * n_terms
         for term, columns in spec.term_slices.items():
             column_terms[columns] = [term] * (columns.stop - columns.start)
