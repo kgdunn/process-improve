@@ -71,6 +71,7 @@ class _EvalRequest:
     include_vertices: bool = True
     random_state: int | np.random.Generator | None = 42
     fds_resolution: int | None = None
+    design_type: str | None = None
 
 
 @dataclass
@@ -98,13 +99,25 @@ class _EvalContext:
     include_vertices: bool = True
     random_state: int | np.random.Generator | None = 42
     fds_resolution: int | None = None
+    design_type: str | None = None
 
 
 # ---------------------------------------------------------------------------
 # Model matrix construction
 # ---------------------------------------------------------------------------
 
-_ROMAN = {3: "III", 4: "IV", 5: "V", 6: "VI", 7: "VII", 8: "VIII"}
+_ROMAN_DIGITS = ((10, "X"), (9, "IX"), (5, "V"), (4, "IV"), (1, "I"))
+
+
+def _roman(n: int) -> str:
+    """Write a design resolution as a Roman numeral (``2 -> "II"``, ``12 -> "XII"``)."""
+    if n < 1:
+        return str(n)
+    out = ""
+    for value, digits in _ROMAN_DIGITS:
+        count, n = divmod(n, value)
+        out += digits * count
+    return out
 
 
 def _build_model_matrix(
@@ -211,6 +224,7 @@ def _build_context(req: _EvalRequest) -> _EvalContext:
         include_vertices=req.include_vertices,
         random_state=req.random_state,
         fds_resolution=req.fds_resolution,
+        design_type=req.design_type,
     )
 
 
@@ -854,55 +868,74 @@ def _multiply_words(w1: frozenset[int], w2: frozenset[int]) -> frozenset[int]:
     return w1.symmetric_difference(w2)
 
 
-def _defining_relation_from_generators(generators: list[str], factor_names: list[str]) -> list[frozenset[int]]:
-    """Compute the full defining relation from generator strings.
+_SignedWord = tuple[frozenset[int], int]
 
-    Each generator like ``"D=ABC"`` produces the word ``ABCD``.  The full
-    defining relation is the closure under GF(2) multiplication of all
-    generator words and their products (all non-empty subsets).
+
+def _generator_sign(lhs: str, rhs: str) -> int:
+    """Return -1 when exactly one side of a generator is negated (``D=-ABC``), else +1."""
+    return -1 if lhs.strip().startswith("-") != rhs.strip().startswith("-") else 1
+
+
+def _signed_defining_relation(generators: list[str], factor_names: list[str]) -> list[_SignedWord]:
+    """Compute the full defining relation, with the sign of every word.
+
+    Each generator like ``"D=ABC"`` produces the word ``ABCD``; ``"D=-ABC"`` produces
+    ``-ABCD``, since its runs satisfy ``ABCD = -1``.  The full defining relation is the
+    closure under GF(2) multiplication of the generator words (all non-empty subsets);
+    the sign of a product is the product of the signs.
     """
-    # Parse each generator into a defining word
-    base_words: list[frozenset[int]] = []
+    base_words: list[_SignedWord] = []
     for gen in generators:
-        parts = gen.split("=")
-        lhs = parts[0].strip()
-        rhs = parts[1].strip() if len(parts) > 1 else ""
-        lhs_idx = _parse_word(lhs, factor_names)
-        rhs_idx = _parse_word(rhs, factor_names)
-        word = _multiply_words(lhs_idx, rhs_idx)
-        base_words.append(word)
+        lhs, _, rhs = gen.partition("=")
+        word = _multiply_words(_parse_word(lhs, factor_names), _parse_word(rhs, factor_names))
+        base_words.append((word, _generator_sign(lhs, rhs)))
 
-    # Generate all non-empty subsets and their products
-    all_words: set[frozenset[int]] = set()
+    signed: dict[frozenset[int], int] = {}
     for r in range(1, len(base_words) + 1):
         for subset in itertools.combinations(base_words, r):
             product: frozenset[int] = frozenset()
-            for w in subset:
+            sign = 1
+            for w, s in subset:
                 product = _multiply_words(product, w)
+                sign *= s
             if product:  # exclude identity
-                all_words.add(product)
+                signed[product] = sign
 
-    return sorted(all_words, key=lambda w: (len(w), sorted(w)))
+    return sorted(signed.items(), key=lambda ws: (len(ws[0]), sorted(ws[0])))
+
+
+def _defining_relation_from_generators(generators: list[str], factor_names: list[str]) -> list[frozenset[int]]:
+    """Compute the words of the full defining relation from generator strings, without their signs.
+
+    See :func:`_signed_defining_relation`; the word lengths (resolution, wordlength
+    pattern) do not depend on the signs.
+    """
+    return [word for word, _sign in _signed_defining_relation(generators, factor_names)]
+
+
+def _signed_word_str(word: frozenset[int], sign: int, factor_names: list[str]) -> str:
+    """Render a word with a leading ``-`` when its sign is negative."""
+    return ("-" if sign < 0 else "") + _word_to_str(word, factor_names)
+
+
+def _defining_relation_strings(generators: list[str], factor_names: list[str]) -> list[str]:
+    """Return the defining relation as ``"I=ABCD"`` / ``"I=-ABCD"`` strings, signs included."""
+    return [f"I={_signed_word_str(w, s, factor_names)}" for w, s in _signed_defining_relation(generators, factor_names)]
 
 
 def _compute_defining_relation(ctx: _EvalContext) -> dict[str, Any]:
-    """Compute or return the defining relation."""
+    """Compute the defining relation from the generators, else return the recorded one."""
+    if ctx.generators:
+        return {"defining_relation": _defining_relation_strings(ctx.generators, ctx.factor_names)}
     if ctx.defining_relation:
         return {"defining_relation": ctx.defining_relation}
-
-    if not ctx.generators:
-        return {"defining_relation": None, "note": "No generators available. Not a fractional factorial design."}
-
-    words = _defining_relation_from_generators(ctx.generators, ctx.factor_names)
-    relation = [f"I={_word_to_str(w, ctx.factor_names)}" for w in words]
-    return {"defining_relation": relation}
+    return {"defining_relation": None, "note": "No generators available. Not a fractional factorial design."}
 
 
 def _compute_resolution(ctx: _EvalContext) -> dict[str, Any]:
     """Design resolution = minimum word length in the defining relation."""
     if ctx.resolution is not None:
-        roman = _ROMAN.get(ctx.resolution, str(ctx.resolution))
-        return {"resolution": ctx.resolution, "roman": roman}
+        return {"resolution": ctx.resolution, "roman": _roman(ctx.resolution)}
 
     if not ctx.generators:
         return {"resolution": None, "roman": None, "note": "Not a fractional factorial design."}
@@ -912,61 +945,70 @@ def _compute_resolution(ctx: _EvalContext) -> dict[str, Any]:
         return {"resolution": None, "roman": None, "note": "No defining relation words found."}
 
     res = min(len(w) for w in words)
-    roman = _ROMAN.get(res, str(res))
-    return {"resolution": res, "roman": roman}
+    return {"resolution": res, "roman": _roman(res)}
+
+
+def _generator_chains_apply(ctx: _EvalContext) -> bool:
+    """Whether the generators' alias chains describe the whole design.
+
+    They do for a (fractional) factorial, centre points included. The axial runs of a
+    central composite design (or any other runs added to a fractional cube) break part
+    of that aliasing, so for those designs the chains are found from the design itself.
+    """
+    return bool(ctx.generators) and (ctx.design_type is None or "factorial" in ctx.design_type)
+
+
+def _cube_only_note(ctx: _EvalContext) -> str:
+    return (
+        f"The generators describe only the fractional cube of this {ctx.design_type!r} design; its other runs "
+        "break part of the cube's aliasing, so the aliasing is found from the correlations of the whole design."
+    )
 
 
 def _compute_alias_structure(ctx: _EvalContext) -> dict[str, Any]:
     """Alias structure: which effects are aliased with which others.
 
-    Uses GF(2) arithmetic when generators are available; falls back to
+    Uses GF(2) arithmetic when the generators describe the whole design; falls back to
     correlation-based detection otherwise.
     """
-    if ctx.generators:
+    if _generator_chains_apply(ctx):
         return _alias_structure_from_generators(ctx)
-    return _alias_structure_from_correlation(ctx)
+    result = _alias_structure_from_correlation(ctx)
+    if ctx.generators:
+        result["note"] = _cube_only_note(ctx)
+    return result
+
+
+def _generator_alias_chains(ctx: _EvalContext) -> list[tuple[frozenset[int], list[_SignedWord]]]:
+    """Alias chain (signed aliases) of every main effect and two-factor interaction."""
+    assert ctx.generators is not None  # callers check ``_generator_chains_apply``
+    names = ctx.factor_names
+    words = _signed_defining_relation(ctx.generators, names)
+    effects = [frozenset([i]) for i in range(len(names))]
+    effects += [frozenset(pair) for pair in itertools.combinations(range(len(names)), 2)]
+    chains: list[tuple[frozenset[int], list[_SignedWord]]] = []
+    for effect in effects:
+        aliases = [(_multiply_words(effect, w), s) for w, s in words]
+        aliases.sort(key=lambda a: (len(_word_to_str(a[0], names)), _word_to_str(a[0], names)))
+        chains.append((effect, aliases))
+    return chains
 
 
 def _alias_structure_from_generators(ctx: _EvalContext) -> dict[str, Any]:
     """Compute alias chains using GF(2) multiplication against the defining relation."""
-    # Only reached when ``ctx.generators`` is truthy (see ``_compute_alias_structure``).
-    assert ctx.generators is not None
-    words = _defining_relation_from_generators(ctx.generators, ctx.factor_names)
-    if not words:
+    assert ctx.generators is not None  # only reached when the generators apply
+    if not _defining_relation_from_generators(ctx.generators, ctx.factor_names):
         return {"alias_structure": []}
-
-    # Build alias chains for main effects and 2-factor interactions
-    alias_chains: list[str] = []
-    k = len(ctx.factor_names)
-
-    # Main effects
-    for i in range(k):
-        effect = frozenset([i])
-        effect_name = ctx.factor_names[i]
-        aliases = []
-        for w in words:
-            alias = _multiply_words(effect, w)
-            alias_name = _word_to_str(alias, ctx.factor_names)
-            aliases.append(alias_name)
-        # Sort by word length
-        aliases.sort(key=lambda s: (len(s), s))
-        chain = f"{effect_name} = " + " + ".join(aliases)
-        alias_chains.append(chain)
-
-    # 2-factor interactions
-    for i, j in itertools.combinations(range(k), 2):
-        effect = frozenset([i, j])
-        effect_name = _word_to_str(effect, ctx.factor_names)
-        aliases = []
-        for w in words:
-            alias = _multiply_words(effect, w)
-            alias_name = _word_to_str(alias, ctx.factor_names)
-            aliases.append(alias_name)
-        aliases.sort(key=lambda s: (len(s), s))
-        chain = f"{effect_name} = " + " + ".join(aliases)
-        alias_chains.append(chain)
-
+    names = ctx.factor_names
+    alias_chains = [
+        f"{_word_to_str(effect, names)} = " + " + ".join(_signed_word_str(w, s, names) for w, s in aliases)
+        for effect, aliases in _generator_alias_chains(ctx)
+    ]
     return {"alias_structure": alias_chains}
+
+
+#: Correlation above which two columns are treated as fully aliased.
+_FULL_ALIAS_THRESHOLD = 0.995
 
 
 def _is_intercept_col(name: str) -> bool:
@@ -1011,7 +1053,7 @@ def _alias_structure_from_correlation(ctx: _EvalContext) -> dict[str, Any]:
     for i in range(X_full.shape[1]):
         if _is_intercept_col(col_names[i]) or not nonzero[i]:
             continue
-        aliases = _find_correlated_aliases(X_full, col_names, i, nonzero, threshold=0.995)
+        aliases = _find_correlated_aliases(X_full, col_names, i, nonzero, threshold=_FULL_ALIAS_THRESHOLD)
         if aliases:
             alias_parts = [f"{sign}{name}" for sign, name in aliases]
             alias_chains.append(f"{col_names[i]} = " + " + ".join(alias_parts))
@@ -1043,58 +1085,73 @@ def _compute_confounding(ctx: _EvalContext) -> dict[str, Any]:
     return {"confounding": confounding_list}
 
 
-def _effect_order(term: str, factor_names: list[str]) -> int:
-    """Determine the order of an effect term (1=main, 2=2FI, etc.)."""
-    if ":" in term:
-        return term.count(":") + 1
-    if term in factor_names:
-        return 1
-    return len(term)  # approximate for single-char factor names
+def _clear_effects_from_correlation(ctx: _EvalContext) -> tuple[list[str], list[str]]:
+    """Clear main effects and 2FIs, read from the correlations of the design's own columns.
 
-
-def _compute_clear_effects(ctx: _EvalContext) -> dict[str, Any]:
-    """Identify clear effects per Wu & Hamada's definition.
-
-    An effect (a main effect or a two-factor interaction) is *clear* when it
-    is aliased with no other main effect AND no two-factor interaction, i.e.
-    every alias has order >= 3. The previous rule only required the aliases
-    to be of *higher* order than the effect itself, which declared every main
-    effect of a resolution-III design "clear" (A = BC has order 2 > 1) -
-    exactly the designs whose whole point is that the main effects are NOT
-    clear of two-factor interactions.
+    Builds every main-effect and two-factor-interaction column (categorical factors
+    contrast-coded by patsy) and calls a term clear when none of its columns is fully
+    correlated (``|r| > 0.995``) with a column of another main effect or 2FI. A term
+    whose column is constant (aliased with the intercept) is not estimable, so not clear.
     """
-    alias_result = _compute_alias_structure(ctx)
-    alias_chains = alias_result.get("alias_structure", [])
+    names = ctx.factor_names
+    rhs = f"({' + '.join(names)}) ** 2" if len(names) > 1 else names[0]
+    dm = dmatrix(rhs, ctx.design_df[names], return_type="dataframe")
+    X = np.asarray(dm, dtype=float)
+    terms: list[tuple[tuple[str, ...], list[int]]] = [
+        (tuple(f.name() for f in term.factors), list(range(sl.start, sl.stop)))
+        for term, sl in dm.design_info.term_slices.items()
+        if term.factors
+    ]
+    std = X.std(axis=0)
+    live = std > np.sqrt(np.finfo(float).eps)
+    Z = np.zeros_like(X)
+    Z[:, live] = (X[:, live] - X[:, live].mean(axis=0)) / std[live]
+    aliased = np.abs(Z.T @ Z / X.shape[0]) > _FULL_ALIAS_THRESHOLD
 
     clear_main: list[str] = []
     clear_2fi: list[str] = []
-
-    for chain in alias_chains:
-        if " = " not in chain:
+    for factors, cols in terms:
+        if not live[cols].all():
             continue
-        effect, aliases_str = chain.split(" = ", 1)
-        effect = effect.strip()
-        order = _effect_order(effect, ctx.factor_names)
+        others = [c for other, other_cols in terms if other != factors for c in other_cols if live[c]]
+        if aliased[np.ix_(cols, others)].any():
+            continue
+        (clear_main if len(factors) == 1 else clear_2fi).append(":".join(factors))
+    return clear_main, clear_2fi
 
-        alias_terms = [a.strip().lstrip("+-") for a in aliases_str.strip().split(" + ")]
-        min_alias_order = 3
-        all_clear = all(_effect_order(a, ctx.factor_names) >= min_alias_order for a in alias_terms)
 
-        if all_clear and order == 1:
-            clear_main.append(effect)
-        elif all_clear and order == 2:
-            clear_2fi.append(effect)
+def _compute_clear_effects(ctx: _EvalContext) -> dict[str, Any]:
+    """Identify clear effects per Wu & Hamada's definition (2009, Sec. 5.2).
 
-    return {
-        "clear_effects": {
-            "main_effects": clear_main,
-            "two_factor_interactions": clear_2fi,
-        }
-    }
+    An effect (a main effect or a two-factor interaction) is *clear* when it is
+    aliased with no other main effect and no two-factor interaction; an effect
+    aliased with nothing (a full factorial) is clear. The effect orders are read
+    from the sets of factors in each word, so the result does not depend on how
+    long the factor names are. Two-factor interactions are named ``"A:B"``.
+
+    With generators that describe the whole design, the aliases come from the
+    defining relation; otherwise from the correlations of the design's columns.
+    """
+    if _generator_chains_apply(ctx):
+        names = ctx.factor_names
+        clear = [effect for effect, aliases in _generator_alias_chains(ctx) if all(len(w) >= 3 for w, _ in aliases)]
+        clear_main = [names[next(iter(e))] for e in clear if len(e) == 1]
+        clear_2fi = [":".join(names[i] for i in sorted(e)) for e in clear if len(e) == 2]
+        return {"clear_effects": {"main_effects": clear_main, "two_factor_interactions": clear_2fi}}
+
+    clear_main, clear_2fi = _clear_effects_from_correlation(ctx)
+    result: dict[str, Any] = {"clear_effects": {"main_effects": clear_main, "two_factor_interactions": clear_2fi}}
+    if ctx.generators:
+        result["note"] = _cube_only_note(ctx)
+    return result
 
 
 def _compute_minimum_aberration(ctx: _EvalContext) -> dict[str, Any]:
-    """Wordlength pattern (A_3, A_4, ...) from the defining relation."""
+    """Wordlength pattern (A_3, A_4, ...) from the defining relation.
+
+    The pattern starts at ``A_3``, or at the shortest word when a word is shorter
+    than three letters (a resolution II or I design), so that word is not hidden.
+    """
     if not ctx.generators:
         return {
             "minimum_aberration": {
@@ -1113,14 +1170,12 @@ def _compute_minimum_aberration(ctx: _EvalContext) -> dict[str, Any]:
         }
 
     lengths = [len(w) for w in words]
-    max_len = max(lengths) if lengths else 0
-    # Wordlength pattern: A_i = number of words of length i, starting at i=3
-    pattern = [lengths.count(i) for i in range(3, max_len + 1)]
-
+    start = min(3, *lengths)
+    pattern_range = range(start, max(lengths) + 1)
     return {
         "minimum_aberration": {
-            "wordlength_pattern": pattern,
-            "wordlength_pattern_labels": [f"A_{i}" for i in range(3, max_len + 1)],
+            "wordlength_pattern": [lengths.count(i) for i in pattern_range],
+            "wordlength_pattern_labels": [f"A_{i}" for i in pattern_range],
         }
     }
 
@@ -1327,8 +1382,10 @@ def evaluate_design(  # noqa: PLR0913
     generators: list[str] | None = None
     defining_relation: list[str] | None = None
     resolution: int | None = None
+    design_type: str | None = None
 
     if isinstance(design_matrix, DesignResult):
+        design_type = design_matrix.design_type
         generators = design_matrix.generators
         defining_relation = design_matrix.defining_relation
         resolution = design_matrix.resolution
@@ -1371,14 +1428,21 @@ def evaluate_design(  # noqa: PLR0913
             include_vertices=include_vertices,
             random_state=resolve_deprecated_seed(random_state, random_seed, "evaluate_design"),
             fds_resolution=fds_resolution,
+            design_type=design_type,
         )
     )
 
-    # --- Compute requested metrics ---
+    # --- Compute requested metrics; each metric's note is kept under its own name ---
     results: dict[str, Any] = {}
+    notes: dict[str, str] = {}
     for m in metrics:
-        result = _METRIC_REGISTRY[m](ctx)
+        result = dict(_METRIC_REGISTRY[m](ctx))
+        note = result.pop("note", None)
+        if note:
+            notes[m] = note
         results.update(result)
+    if notes:
+        results["notes"] = notes
 
     return results
 

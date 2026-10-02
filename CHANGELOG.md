@@ -256,6 +256,26 @@ those changes.
 
 ### Fixed
 
+- **`evaluate_design(metric="clear_effects")` follows Wu and Hamada's definition for
+  every design.** Effect orders were guessed from the length of the alias string, so with
+  factor names longer than one letter every main effect of a resolution III fraction was
+  reported clear (`PressConc` counted as a ninth-order term) and no two-factor interaction
+  could ever be. Effects aliased with nothing were never listed: a 2^3 full factorial, or
+  a 2^(5-1) resolution V fraction passed as a DataFrame, had no clear main effects. Orders
+  now come from the set of factors in each word, every main effect and two-factor
+  interaction is checked, and the interactions are named `"A:B"`.
+- **Alias metrics keep the sign of a negative generator, and describe the design that
+  was run.** `generators=["D=-ABC"]` gave the defining relation `I=ABCD` (in
+  `evaluate_design` and in `DesignResult.defining_relation`) and the chain `A = BCD`; they
+  are now `I=-ABCD` and `A = -BCD`. A central composite design on a fractional cube
+  reported the cube's chains (`A = BCDE`), which its axial runs partly break; its alias
+  structure and clear effects now come from the whole design, with a note saying why. A
+  resolution II fraction reports `roman="II"` (not `"2"`) and a wordlength pattern that
+  starts at `A_2` instead of hiding the length-2 word.
+- **Each metric's note is kept under its own name.** Metrics returned a shared top-level
+  `"note"`, so asking for two metrics kept only the last note, attributed to the wrong
+  metric. `evaluate_design` now returns them as `result["notes"][metric_name]`.
+
 - **`analyze_experiment` accepts a response named `yield`.** The commonest response in
   chemistry is a Python keyword, which a model formula cannot name, so the call failed
   with "formula side 'yield' is not a valid expression". The response is now fitted

@@ -140,10 +140,16 @@ def dispatch_fractional_factorial(
         coded_matrix = _fracfact_from_indices(k, [lhs for lhs, _ in parsed], [(rhs, False) for _, rhs in parsed])
         generators_used = [f"{factor_names[lhs]}={''.join(factor_names[i] for i in rhs)}" for lhs, rhs in parsed]
 
+    from process_improve.experiments.evaluate import _signed_defining_relation  # noqa: PLC0415
+
     words = _defining_words(parsed)
+    # A negated generator (D=-ABC) makes its words negative: the runs satisfy ABCD = -1.
+    negative = {word for word, sign in _signed_defining_relation(generators_used, factor_names) if sign < 0}
     meta = {
         "generators_used": generators_used,
-        "defining_relation": ["I=" + "".join(factor_names[i] for i in sorted(word)) for word in words],
+        "defining_relation": [
+            ("I=-" if word in negative else "I=") + "".join(factor_names[i] for i in sorted(word)) for word in words
+        ],
         "resolution": min(len(word) for word in words),
     }
     return coded_matrix, meta
