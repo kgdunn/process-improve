@@ -168,6 +168,19 @@ class TestPriorKnowledgeParsing:
         pk = _parse_prior_knowledge("Some random text without keywords", [])
         assert 0.1 <= pk.confidence <= 0.5
 
+    @pytest.mark.parametrize(
+        "text",
+        [
+            "Published studies confirmed Temperature and pH are significant, as expected.",
+            "Temperature was confirmed significant in a validated study; the role of Salt is unknown.",
+        ],
+    )
+    def test_strongest_evidence_sets_the_confidence(self, text):
+        """A weak cue ('expected', 'unknown') used to cap the confidence although the text reports confirmed results."""
+        pk = _parse_prior_knowledge(text, ["Temperature", "pH", "Salt"])
+        assert pk.confidence == 0.9
+        assert pk.has_supporting_data
+
     def test_significant_factor_regex_runs_in_linear_time(self):
         r"""SEC-29 (#278) regression guard.
 

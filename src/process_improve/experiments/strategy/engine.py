@@ -72,7 +72,14 @@ def _parse_prior_knowledge(
     text: str | None,
     factor_names: list[str],
 ) -> PriorKnowledge:
-    """Map free-text prior knowledge to a structured confidence level."""
+    """Map free-text prior knowledge to a structured confidence level.
+
+    The strongest evidence cue in the text sets the confidence: confirmed, validated or
+    published results (0.9) outrank reported or preliminary data (0.7), which outrank
+    suspicion or theory (0.4), which outrank a statement of no prior knowledge (0.1). A
+    weaker cue elsewhere in the text, such as one factor whose role is "unknown", does
+    not lower the confidence that the strongest cue sets.
+    """
     if not text or not text.strip():
         return PriorKnowledge(raw_text="", confidence=0.0)
 
@@ -84,20 +91,20 @@ def _parse_prior_knowledge(
             "relevant prose."
         )
 
-    # Score based on keyword matching
+    # Score based on keyword matching, strongest evidence first
     confidence = 0.0
     has_supporting_data = False
 
-    if _NO_KEYWORDS.search(text):
-        confidence = 0.1
-    elif _LOW_KEYWORDS.search(text):
-        confidence = 0.4
+    if _HIGH_KEYWORDS.search(text):
+        confidence = 0.9
+        has_supporting_data = True
     elif _MEDIUM_KEYWORDS.search(text):
         confidence = 0.7
         has_supporting_data = "data" in text.lower() or "study" in text.lower()
-    elif _HIGH_KEYWORDS.search(text):
-        confidence = 0.9
-        has_supporting_data = True
+    elif _LOW_KEYWORDS.search(text):
+        confidence = 0.4
+    elif _NO_KEYWORDS.search(text):
+        confidence = 0.1
     else:
         # No clear keywords - assign moderate-low confidence
         confidence = 0.3
