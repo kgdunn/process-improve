@@ -443,12 +443,18 @@ class ConstrainedOptions:
     n_levels : int or None
         Grid levels per continuous factor. ``None`` picks 5, 4 or 3, whichever is
         the finest that keeps the grid under ``MAX_CANDIDATES`` points.
+    candidates : pandas.DataFrame or None
+        Settings the runs must be chosen from, in actual units (proportions for a
+        mixture), one column per factor, instead of a generated grid. Rows that
+        break a constraint are dropped, and the I-optimality average is taken over
+        the remaining rows.
     """
 
     model_type: str = "interactions"
     criterion: str = "d_optimal"
     fixed_runs: pd.DataFrame | None = None
     n_levels: int | None = None
+    candidates: pd.DataFrame | None = None
 
 
 def _fixed_rows(region: _Region, fixed_runs: pd.DataFrame | None, model_type: str, n_columns: int) -> np.ndarray:
@@ -464,6 +470,66 @@ def _fixed_rows(region: _Region, fixed_runs: pd.DataFrame | None, model_type: st
     if n_outside:
         logger.warning("%d fixed run(s) lie outside the constrained region; they are kept as given.", n_outside)
     return model_matrix(region, fixed_coded, fixed_cats, model_type)
+
+
+def _user_candidates(region: _Region, candidates: pd.DataFrame) -> tuple[np.ndarray, np.ndarray, dict, list]:
+    """Code a user's candidate settings, drop the infeasible and repeated ones.
+
+    Returns
+    -------
+    tuple
+        Coded continuous values, categorical level indices, counts for the
+        metadata, and the ``candidates`` index label of each kept row.
+    """
+    names = [f.name for f in region.continuous] + [f.name for f in region.categorical]
+    missing = [n for n in names if n not in candidates.columns]
+    if missing:
+        raise ValueError(f"candidates is missing columns for factors: {missing}.")
+    actual = candidates[[f.name for f in region.continuous]].apply(pd.to_numeric, errors="coerce")
+    if actual.isna().any().any():
+        raise ValueError("candidates has missing or non-numeric values in a continuous factor column.")
+    low = np.array([f.low for f in region.continuous], dtype=float)
+    high = np.array([f.high for f in region.continuous], dtype=float)
+    coded = (actual.to_numpy(dtype=float) - (low + high) / 2.0) / ((high - low) / 2.0)
+    cats = np.zeros((len(candidates), len(region.categorical)), dtype=int)
+    for j, f in enumerate(region.categorical):
+        labels = [str(lv) for lv in f.levels or []]
+        values = candidates[f.name].astype(str)
+        unknown = sorted(set(values) - set(labels))
+        if unknown:
+            raise ValueError(f"candidates has unknown levels {unknown} for categorical factor {f.name!r}.")
+        cats[:, j] = [labels.index(v) for v in values]
+    if (np.abs(coded) > 1.0 + 1e-9).any():
+        logger.warning("Some candidates lie outside the factors' low/high range; they are kept (coded beyond +/-1).")
+
+    feasible = region.slack(coded) <= _FEASIBILITY_TOL
+    _, first = np.unique(np.hstack([coded.round(9), cats]), axis=0, return_index=True)
+    keep = np.zeros(len(coded), dtype=bool)
+    keep[first] = True
+    keep &= feasible
+    counts = {
+        "n_candidates_supplied": len(candidates),
+        "n_candidates_infeasible": int((~feasible).sum()),
+        "n_candidates": int(keep.sum()),
+    }
+    return coded[keep], cats[keep], counts, list(candidates.index[keep])
+
+
+def _candidate_pool(
+    region: _Region, opts: ConstrainedOptions, rng: np.random.Generator
+) -> tuple[np.ndarray, np.ndarray, dict, list | None, Callable[[], np.ndarray]]:
+    """Return the candidates (a generated grid, or the user's), and the rows I-optimality averages over."""
+    if opts.candidates is not None:
+        coded, cats, counts, labels = _user_candidates(region, opts.candidates)
+        return coded, cats, counts, labels, lambda: model_matrix(region, coded, cats, opts.model_type)
+    coded, cats, counts = build_candidates(region, opts.n_levels)
+    return coded, cats, counts, None, lambda: _uniform_rows(region, opts.model_type, rng)
+
+
+def selection_counts(labels: list, rows: np.ndarray) -> dict[str, int]:
+    """Count how often each supplied candidate (by index label) was chosen."""
+    chosen = pd.Series([labels[r] for r in rows]).value_counts(sort=False)
+    return {str(label): int(n) for label, n in chosen.items()}
 
 
 #: Uniform draws used to estimate the region's moment matrix for I-optimality.
@@ -549,9 +615,9 @@ def constrained_optimal_design(
     inequalities = [g for c in constraints for g in parse_constraint(c.expression, names)]
     region = _Region(continuous, categorical, inequalities)
 
-    coded, cats, counts = build_candidates(region, opts.n_levels)
+    coded, cats, counts, labels, region_rows = _candidate_pool(region, opts, rng)
     if counts["n_candidates"] == 0:
-        raise ValueError("No point in the factor box satisfies all the constraints; check them for conflicts.")
+        raise ValueError("No candidate point satisfies all the constraints; check them for conflicts.")
 
     f_cand = model_matrix(region, coded, cats, model_type)
     f_fixed = _fixed_rows(region, fixed_runs, model_type, f_cand.shape[1])
@@ -564,7 +630,7 @@ def constrained_optimal_design(
             "grid (n_levels), or loosen the constraints."
         )
 
-    criterion = make_criterion(opts.criterion, f_cand.shape[1], lambda: _uniform_rows(region, model_type, rng))
+    criterion = make_criterion(opts.criterion, f_cand.shape[1], region_rows)
     rows, value = fedorov_exchange(f_cand, budget - n_fixed, f_fixed, rng, criterion)
 
     design = pd.DataFrame(coded[rows], columns=[f.name for f in continuous])
@@ -591,5 +657,8 @@ def constrained_optimal_design(
         meta["trace_criterion"] = -value
     if n_fixed:
         meta["n_fixed_runs"] = n_fixed
+    if labels is not None:
+        meta["candidate_source"] = "user"
+        meta["selected_candidates"] = selection_counts(labels, rows)
     values = design.to_numpy() if categorical else design.to_numpy(dtype=float)
     return values, meta

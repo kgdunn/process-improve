@@ -152,6 +152,7 @@ def _dispatch_d_optimal(
         model_type=kwargs.get("model_type", "interactions"),
         fixed_runs=kwargs.get("fixed_runs"),
         random_state=kwargs.get("random_state"),
+        candidates=kwargs.get("candidates"),
     )
 
 
@@ -169,6 +170,7 @@ def _dispatch_i_optimal(
         model_type=kwargs.get("model_type", "interactions"),
         fixed_runs=kwargs.get("fixed_runs"),
         random_state=kwargs.get("random_state"),
+        candidates=kwargs.get("candidates"),
     )
 
 
@@ -186,6 +188,7 @@ def _dispatch_a_optimal(
         model_type=kwargs.get("model_type", "interactions"),
         fixed_runs=kwargs.get("fixed_runs"),
         random_state=kwargs.get("random_state"),
+        candidates=kwargs.get("candidates"),
     )
 
 
@@ -309,6 +312,7 @@ def generate_design(  # noqa: PLR0913
     model_type: str = "interactions",
     fixed_runs: pd.DataFrame | None = None,
     random_seed: int = 42,
+    candidates: pd.DataFrame | None = None,
 ) -> DesignResult:
     """Generate an experimental design matrix.
 
@@ -387,6 +391,15 @@ def generate_design(  # noqa: PLR0913
         ``ValueError`` if given for a non-optimal ``design_type``.
     random_seed : int
         Seed for reproducible randomization (default 42).
+    candidates : pandas.DataFrame or None
+        The settings the runs must be chosen from, for the optimal families only: for
+        example historical operating points, the discrete settings a piece of
+        equipment offers, or blends that can actually be made up. One row per
+        candidate, one column per factor, in actual units (categorical factors as
+        labels, mixtures as proportions). Replaces the generated candidate grid, so it
+        also defines the region I-optimality averages over. Rows that break a
+        constraint are dropped. A candidate may be chosen more than once, and
+        ``metadata["selected_candidates"]`` counts the picks per index label.
 
     Returns
     -------
@@ -416,11 +429,19 @@ def generate_design(  # noqa: PLR0913
         raise ValueError("At least one factor must be provided.")
 
     if design_type is None:
-        design_type = _auto_select(factors, budget, constraints, hard_to_change)
+        # A candidate set means "choose runs from these", which only the optimal families do.
+        design_type = (
+            "d_optimal" if candidates is not None else _auto_select(factors, budget, constraints, hard_to_change)
+        )
 
     if design_type not in _DESIGN_REGISTRY:
         raise ValueError(f"Unknown design_type={design_type!r}.  Choose from: {', '.join(sorted(_DESIGN_REGISTRY))}.")
 
+    if candidates is not None and design_type not in {"d_optimal", "i_optimal", "a_optimal"}:
+        raise ValueError(
+            f"candidates is only supported for the optimal design families (d_optimal, i_optimal, "
+            f"a_optimal); got design_type={design_type!r}."
+        )
     if fixed_runs is not None and design_type not in {"d_optimal", "i_optimal", "a_optimal"}:
         raise ValueError(
             f"fixed_runs (design augmentation) is only supported for the optimal design families "
@@ -443,6 +464,7 @@ def generate_design(  # noqa: PLR0913
         "model_type": model_type,
         "fixed_runs": fixed_runs,
         "random_state": random_seed,
+        "candidates": candidates,
     }
 
     coded_matrix, meta = dispatch_fn(factors, **dispatch_kwargs)

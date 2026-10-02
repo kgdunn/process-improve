@@ -13,6 +13,15 @@ those changes.
 
 ### Added
 
+- **Optimal designs chosen from a user-supplied candidate set.**
+  `generate_design(..., candidates=df)` picks the runs from the rows of `df`: plant
+  history, the settings a piece of equipment offers, or the blends that can be made
+  up. Rows are in actual units (labels for categorical factors, proportions for
+  mixtures); rows breaking a constraint are dropped; a row may be picked more than
+  once. `metadata["selected_candidates"]` counts the picks per index label, so the
+  design reads as "rerun batches 2, 20 and 29 twice". Works for D-, I- and
+  A-optimality (for I, the average is over the candidate set), and for mixtures.
+
 - **I-optimal and A-optimal designs without pyoptex, and over constrained regions.**
   The candidate exchange from the constrained D-optimal design now takes a
   `Criterion`: D maximises `log det(X'X)`; A minimises `trace((X'X)^-1)`; I

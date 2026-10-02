@@ -30,6 +30,7 @@ import math
 from typing import TYPE_CHECKING
 
 import numpy as np
+import pandas as pd
 
 from process_improve._random import check_random_state
 from process_improve.experiments.designs_constrained import (
@@ -37,6 +38,7 @@ from process_improve.experiments.designs_constrained import (
     fedorov_exchange,
     make_criterion,
     parse_constraint,
+    selection_counts,
 )
 
 if TYPE_CHECKING:
@@ -226,6 +228,26 @@ def mixture_candidates(a_mat: np.ndarray, b_vec: np.ndarray) -> dict[str, np.nda
 # Public entry point
 # ---------------------------------------------------------------------------
 
+
+def _user_blends(
+    factors: list[Factor], candidates: pd.DataFrame, a_mat: np.ndarray, b_vec: np.ndarray
+) -> tuple[np.ndarray, list]:
+    """Return the supplied blends that sum to 1 and satisfy every constraint, with their index labels."""
+    names = [f.name for f in factors]
+    missing = [n for n in names if n not in candidates.columns]
+    if missing:
+        raise ValueError(f"candidates is missing columns for mixture components: {missing}.")
+    blends = candidates[names].apply(pd.to_numeric, errors="coerce").to_numpy(dtype=float)
+    if np.isnan(blends).any():
+        raise ValueError("candidates has missing or non-numeric proportions.")
+    if not np.allclose(blends.sum(axis=1), 1.0, atol=1e-6):
+        raise ValueError("Every candidate blend must sum to 1 (proportions, not amounts).")
+    keep = np.all(blends @ a_mat.T <= b_vec + 1e-9, axis=1)
+    if not keep.any():
+        raise ValueError("No candidate blend satisfies the component bounds and constraints.")
+    return blends[keep], list(candidates.index[keep])
+
+
 #: Point kinds in the classical extreme-vertices design, by Scheffé model.
 _EV_DESIGN = {
     "scheffe_linear": ("vertex", "centroid"),
@@ -280,6 +302,19 @@ def constrained_mixture_design(
     a_mat, b_vec = mixture_inequalities(factors, constraints)
     candidates = mixture_candidates(a_mat, b_vec)
     n_parameters = scheffe_matrix(np.ones((1, len(factors))), model).shape[1]
+    labels: list | None = None
+    if opts.candidates is not None:
+        pool, labels = _user_blends(factors, opts.candidates, a_mat, b_vec)
+        budget = budget if budget is not None else n_parameters + 3
+
+        def region_rows() -> np.ndarray:
+            return scheffe_matrix(pool, model)  # the supplied blends stand for the region
+    else:
+        pool = _unique_rows(np.vstack(list(candidates.values())))
+
+        def region_rows() -> np.ndarray:
+            low = np.array([f.low or 0.0 for f in factors], dtype=float)
+            return scheffe_matrix(_uniform_blends(a_mat, b_vec, low, 20_000, rng), model)
 
     if budget is None:
         design = _unique_rows(np.vstack([candidates[kind] for kind in _EV_DESIGN[model]]))
@@ -294,17 +329,12 @@ def constrained_mixture_design(
                 n_parameters,
             )
             budget = n_parameters
-        pool = _unique_rows(np.vstack(list(candidates.values())))
-
-        def region_rows() -> np.ndarray:
-            low = np.array([f.low or 0.0 for f in factors], dtype=float)
-            return scheffe_matrix(_uniform_blends(a_mat, b_vec, low, 20_000, rng), model)
-
         criterion = make_criterion(opts.criterion, n_parameters, region_rows)
         rows, logdet = fedorov_exchange(
             scheffe_matrix(pool, model), budget, np.empty((0, n_parameters)), rng, criterion
         )
-        design, method = pool[rows], f"{opts.criterion}_extreme_vertices"
+        design = pool[rows]
+        method = f"{opts.criterion}_{'user_candidates' if labels is not None else 'extreme_vertices'}"
 
     if np.linalg.matrix_rank(scheffe_matrix(design, model)) < n_parameters:
         raise ValueError(
@@ -319,6 +349,9 @@ def constrained_mixture_design(
         "constraints": [c.expression for c in constraints or []],
         "constraints_enforced": True,
     }
+    if labels is not None:
+        meta["candidate_source"] = "user"
+        meta["selected_candidates"] = selection_counts(labels, rows)
     if logdet is not None:
         meta["optimality_criterion"] = opts.criterion
         if opts.criterion == "d_optimal":

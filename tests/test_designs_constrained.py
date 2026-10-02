@@ -188,7 +188,7 @@ class TestGenerateDesign:
 
 class TestErrors:
     def test_conflicting_constraints(self) -> None:
-        with pytest.raises(ValueError, match="No point in the factor box"):
+        with pytest.raises(ValueError, match="No candidate point satisfies"):
             constrained_optimal_design([TEMP, DOSE], 8, [Constraint(expression="T >= 200")])
 
     def test_region_too_small_for_the_model(self) -> None:
