@@ -74,6 +74,7 @@ class AugmentDesignInput(BaseModel):
     )
     random_state: int | None = Field(
         42,
+        ge=0,
         description="Seed for the exchange's random starts (add_runs_optimal). Default 42, for reproducible runs.",
     )
 

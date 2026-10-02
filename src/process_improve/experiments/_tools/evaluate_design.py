@@ -77,6 +77,7 @@ class EvaluateDesignInput(BaseModel):
     )
     random_state: int = Field(
         42,
+        ge=0,
         description="Seed for the region sampler (default: 42).",
     )
 

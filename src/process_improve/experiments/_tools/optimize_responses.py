@@ -3,12 +3,15 @@
 
 from __future__ import annotations
 
-from typing import Any, Literal
+from typing import Annotated, Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
 from process_improve.experiments._tools import _TOOL_EXPECTED_EXCEPTIONS, _register, logger
 from process_improve.tool_spec import clean, tool_spec
+
+#: A coded (low, high) pair, as JSON: exactly two numbers.
+_Pair = Annotated[list[float], Field(min_length=2, max_length=2)]
 
 
 class OptimizeResponsesInput(BaseModel):
@@ -86,7 +89,7 @@ class OptimizeResponsesInput(BaseModel):
         lt=1.0,
         description="Alpha for intervals reported at the optimum (default 0.05, giving 95% intervals).",
     )
-    search_bounds: list[float] | dict[str, list[float]] | None = Field(
+    search_bounds: _Pair | dict[str, _Pair] | None = Field(
         None,
         description=(
             "Coded region to search, as [low, high] applied to every factor, or a mapping from factor "

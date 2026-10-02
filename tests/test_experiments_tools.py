@@ -328,6 +328,33 @@ class TestAnalyzeExperiment:
 # ---------------------------------------------------------------------------
 
 
+@pytest.mark.parametrize(
+    ("tool", "args"),
+    [
+        ("generate_design", {"random_seed": -1}),
+        ("generate_design", {"random_state": -1}),
+        ("augment_design", {"random_state": -1}),
+        ("evaluate_design", {"random_state": -1}),
+        ("optimize_responses", {"random_state": -1}),
+    ],
+)
+def test_negative_seed_is_rejected_by_the_schema(tool: str, args: dict) -> None:
+    """A negative seed reached numpy and came back as 'expected non-negative integer'."""
+    base = {
+        "generate_design": {"factors": [{"name": "A", "low": 0, "high": 1}, {"name": "B", "low": 0, "high": 1}]},
+        "augment_design": {"existing_design": [{"A": -1, "B": -1}, {"A": 1, "B": 1}], "augmentation_type": "foldover"},
+        "evaluate_design": {"design_matrix": [{"A": -1, "B": -1}, {"A": 1, "B": 1}]},
+        "optimize_responses": {
+            "fitted_models": [
+                {"factor_names": ["A"], "coefficients": [{"term": "A", "coefficient": 1.0}], "response_name": "y"}
+            ],
+            "method": "steepest_ascent",
+        },
+    }[tool]
+    with pytest.raises(ToolInputInvalidError):
+        execute_tool_call(tool, {**base, **args})
+
+
 class TestOptimizeResponses:
     def test_stationary_point_quadratic(self) -> None:
         """Stationary-point optimisation on a small quadratic model."""
@@ -391,6 +418,12 @@ class TestOptimizeResponses:
         """Omitting it leaves the previous behaviour in place."""
         result = self._rising_plane_call()
         assert result["desirability"]["optimal_coded"]["A"] == pytest.approx(1.0, abs=1e-4)
+
+    @pytest.mark.parametrize("bounds", [[-1.5], [-1.5, 1.5, 99.0], {"A": [-2.0]}, {"A": [-2.0, 2.0, 3.0]}])
+    def test_search_bounds_must_be_a_pair(self, bounds: object) -> None:
+        """One number escaped as an IndexError; three had the third silently dropped."""
+        with pytest.raises(ToolInputInvalidError):
+            self._rising_plane_call(search_bounds=bounds)
 
     def test_malformed_search_bounds_returns_an_error(self) -> None:
         """A reversed pair is reported, not silently accepted."""

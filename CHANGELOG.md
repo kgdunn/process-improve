@@ -256,6 +256,13 @@ those changes.
 
 ### Fixed
 
+- **Agent tool schemas reject malformed bounds and negative seeds.** `optimize_responses`
+  accepted `search_bounds=[-1.5]`, which escaped as an `IndexError`, and silently
+  dropped the third value of `[-1.5, 1.5, 99]`; a bound is now exactly two numbers,
+  for one factor or all. A negative `random_state` (or `random_seed`) for
+  `generate_design`, `augment_design`, `evaluate_design` or `optimize_responses` is
+  refused by the schema instead of failing inside numpy.
+
 - **Steepest-ascent and ridge paths check their inputs and say what they follow.**
   `step_size=-1` walked a steepest-ascent path downhill and `n_steps=-3` returned an
   empty path; both now raise. The docstring states that `step_size` is the Euclidean

@@ -125,10 +125,12 @@ class GenerateDesignInput(BaseModel):
     )
     random_state: int = Field(
         42,
+        ge=0,
         description="Seed for the run order and any random search (default: 42).",
     )
     random_seed: int | None = Field(
         None,
+        ge=0,
         description="Deprecated since 1.97.0, removed in 2.0: use random_state.",
         json_schema_extra={"deprecated": True},
     )
