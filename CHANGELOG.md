@@ -256,6 +256,11 @@ those changes.
 
 ### Fixed
 
+- **`augment_design` refuses a run count that is not a positive whole number.**
+  `add_runs_optimal` with `n_additional_runs=0` or `-2` still appended a run, and
+  `replicate` with 0 or `add_center_points` with a negative count failed inside pandas
+  or numpy. All of them now raise a `ValueError` naming `n_additional_runs`.
+
 - **`augment_design` no longer augments a response column as a factor.** Every column
   except `RunOrder` and `Block` was taken as a factor, so a design carrying its measured
   response got axial runs on it, had it negated by a foldover, or set to 0 in new centre

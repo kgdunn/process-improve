@@ -411,8 +411,7 @@ def _augment_replicate(ctx: _AugmentContext) -> dict[str, Any]:
     """Append one or more complete copies of the existing design.
 
     The number of copies is ``ctx.n_additional_runs`` (default 1 when
-    ``ctx.n_additional_runs`` is ``None``). Passing 0 is not supported and
-    raises ``ValueError`` from the underlying ``pd.concat`` call.
+    ``ctx.n_additional_runs`` is ``None``); :func:`augment_design` refuses 0.
     """
     df = ctx.existing_design[ctx.factor_names].copy()
     n_copies = ctx.n_additional_runs if ctx.n_additional_runs is not None else 1
@@ -838,9 +837,10 @@ def augment_design(  # noqa: PLR0913
         that the upgraded design can estimate it (default ``"quadratic"``),
         warning and listing the aliased terms when it cannot.
     n_additional_runs : int or None
-        Budget for additional runs.  Interpretation depends on the
-        augmentation type (number of center points, number of D-optimal
-        runs, number of blocks, ...). For ``"replicate"``, this is the
+        Budget for additional runs, a positive whole number. Interpretation
+        depends on the augmentation type (number of center points, number of
+        D-optimal runs, number of blocks, ...). A regular two-level design
+        splits into 2, 4, 8, ... blocks; another count raises. For ``"replicate"``, this is the
         number of complete copies of the existing design that are appended
         (each copy adds ``len(existing_design)`` runs); the default of
         ``None`` becomes 1 complete copy.
@@ -898,6 +898,14 @@ def augment_design(  # noqa: PLR0913
         available = sorted(_AUGMENT_REGISTRY.keys())
         raise ValueError(f"Unknown augmentation_type={augmentation_type!r}. Choose from: {', '.join(available)}.")
 
+    if n_additional_runs is not None and (
+        isinstance(n_additional_runs, bool) or int(n_additional_runs) != n_additional_runs or n_additional_runs < 1
+    ):
+        msg = (
+            f"n_additional_runs must be a positive whole number (runs, centre points, copies or blocks); "
+            f"got {n_additional_runs!r}."
+        )
+        raise ValueError(msg)
     factor_names = _resolve_factor_names(existing_design, factor_names)
 
     ctx = _AugmentContext(

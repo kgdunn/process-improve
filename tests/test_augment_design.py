@@ -271,6 +271,22 @@ class TestSemifold:
         assert "A" in result["explanation"]
 
 
+@pytest.mark.parametrize("augmentation_type", ["add_runs_optimal", "add_center_points", "replicate", "add_blocks"])
+@pytest.mark.parametrize("n_additional_runs", [0, -2, 1.5])
+def test_non_positive_run_count_is_refused(augmentation_type: str, n_additional_runs: float) -> None:
+    """add_runs_optimal with 0 or -2 added a run anyway; replicate and centre points failed inside pandas or numpy."""
+    with pytest.raises(ValueError, match="n_additional_runs must be a positive whole number"):
+        augment_design(
+            _full_factorial_df(3), augmentation_type, n_additional_runs=n_additional_runs, target_model="interactions"
+        )
+
+
+def test_block_count_that_is_not_a_power_of_two_is_refused() -> None:
+    """Three blocks used to become four without a word; it is now refused."""
+    with pytest.raises(ValueError, match="2, 4, 8"):
+        augment_design(_full_factorial_df(3), "add_blocks", n_additional_runs=3)
+
+
 class TestFactorColumns:
     """A response carried with the design must not be augmented as a factor."""
 
