@@ -454,6 +454,30 @@ class TestIndividualDesirability:
         with pytest.raises(ValueError, match="Unknown goal"):
             individual_desirability(15.0, goal)
 
+    @pytest.mark.parametrize(
+        ("goal", "match"),
+        [
+            ({"goal": "maximize", "low": 80.0, "high": 60.0}, "low < high"),
+            ({"goal": "maximize", "low": 1.0, "high": 1.0}, "low < high"),
+            ({"goal": "maximize", "low": 0.0, "high": float("inf")}, "finite"),
+            ({"goal": "maximize", "high": 1.0}, "needs both 'low' and 'high'"),
+            ({"goal": "target", "low": 0.0, "high": 50.0, "target": 100.0}, "strictly between"),
+            ({"goal": "target", "low": 0.0, "high": 50.0, "target": 0.0}, "strictly between"),
+            ({"goal": "maximize", "low": 0.0, "high": 1.0, "weight": -1.0}, "positive 'weight'"),
+            ({"goal": "maximize", "low": 0.0, "high": 1.0, "weight": 0.0}, "positive 'weight'"),
+            ({"goal": "target", "low": 0.0, "high": 2.0, "target": 1.0, "weight_high": -2.0}, "positive 'weight_high'"),
+        ],
+    )
+    def test_malformed_goal_raises(self, goal: dict, match: str) -> None:
+        """Derringer-Suich ramps need low < target < high and positive exponents."""
+        with pytest.raises(ValueError, match=match):
+            individual_desirability(0.5, goal)
+
+    def test_error_names_the_response(self) -> None:
+        """A bad goal in a multi-response problem says which response it belongs to."""
+        with pytest.raises(ValueError, match="'purity'"):
+            individual_desirability(0.5, {"response": "purity", "goal": "minimize", "low": 2.0, "high": 1.0})
+
 
 class TestCompositeDesirability:
     """Verify weighted geometric mean composite desirability."""
@@ -480,6 +504,35 @@ class TestCompositeDesirability:
     def test_empty_list(self) -> None:
         """Empty list returns 0."""
         assert composite_desirability([]) == 0.0
+
+    @pytest.mark.parametrize(
+        ("importances", "match"),
+        [
+            ([2.0, -1.0], "non-negative"),
+            ([0.0, 0.0], "at least one positive"),
+            ([1.0], "one per response"),
+        ],
+    )
+    def test_bad_importances_raise(self, importances: list[float], match: str) -> None:
+        """A negative importance can push D above 1; a short list used to fail inside zip()."""
+        with pytest.raises(ValueError, match=match):
+            composite_desirability([0.5, 0.8], importances=importances)
+
+    def test_importance_length_checked_before_optimising(self) -> None:
+        """optimize_responses names the length mismatch rather than surfacing a zip() error."""
+        model = {
+            "response_name": "y",
+            "factor_names": ["A"],
+            "coefficients": [{"term": "Intercept", "coefficient": 0.0}, {"term": "A", "coefficient": 1.0}],
+        }
+        goals = [{"response": n, "goal": "maximize", "low": 0.0, "high": 1.0} for n in ("y", "z")]
+        with pytest.raises(ValueError, match="1 importance\\(s\\) for 2 response"):
+            optimize_responses(
+                [model, dict(model, response_name="z")],
+                goals=goals,
+                method="desirability",
+                response_importance=[1.0],
+            )
 
 
 # ---------------------------------------------------------------------------

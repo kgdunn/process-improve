@@ -41,7 +41,12 @@ from patsy import PatsyError
 from scipy import optimize
 
 from process_improve._random import check_random_state
-from process_improve.experiments._desirability import composite_desirability, individual_desirability
+from process_improve.experiments._desirability import (
+    check_goal,
+    check_importances,
+    composite_desirability,
+    individual_desirability,
+)
 from process_improve.experiments._uniform_sampling import UniformSampler
 
 if TYPE_CHECKING:
@@ -1416,9 +1421,12 @@ def _desirability_result(  # noqa: PLR0913
         overlay plot.
     """
     aligned_goals = _align_goals_to_models(fitted_models, goals)
+    for goal in aligned_goals:
+        check_goal(goal)
     importances = response_importance
     if importances is None:
         importances = [g.get("importance", 1.0) for g in aligned_goals]
+    check_importances(importances, len(fitted_models))
 
     desirability = _optimize_desirability(
         fitted_models,

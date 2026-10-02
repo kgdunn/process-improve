@@ -256,6 +256,14 @@ those changes.
 
 ### Fixed
 
+- **Desirability goals and importances are checked before optimising.** Swapped limits
+  (`low=80, high=60`) turned a ramp into a step, a target outside `[low, high]` could
+  never reach d = 1, a negative `weight` returned d = 2, a negative importance pushed
+  the composite above 1, missing limits silently became 0 and 1, and an importance list
+  of the wrong length failed inside `zip()`. Each now raises a `ValueError` naming the
+  response, as Derringer and Suich's `low < target < high` and positive exponents
+  require.
+
 - **`analyze_experiment` accepts a response named `yield`.** The commonest response in
   chemistry is a Python keyword, which a model formula cannot name, so the call failed
   with "formula side 'yield' is not a valid expression". The response is now fitted
