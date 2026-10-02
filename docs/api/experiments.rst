@@ -14,6 +14,12 @@ Designed Experiments
 .. automodule:: process_improve.experiments.designs_constrained
    :members: constrained_d_optimal, ConstrainedOptions, parse_constraint, build_candidates, model_matrix, fedorov_exchange
 
+.. automodule:: process_improve.experiments.region
+   :members: DesignRegion
+
+.. automodule:: process_improve.experiments.designs_mixture_constrained
+   :members: constrained_mixture_design, extreme_vertices, mixture_candidates, mixture_inequalities, scheffe_matrix
+
 .. automodule:: process_improve.experiments.designs_omars_ilp
    :members: generate_omars, solve_omars_ilp, OmarsSearchReport
    :show-inheritance:

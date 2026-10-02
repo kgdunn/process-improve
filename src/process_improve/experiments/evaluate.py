@@ -18,6 +18,7 @@ Example
 
 from __future__ import annotations
 
+import contextlib
 import itertools
 import logging
 from collections.abc import Callable
@@ -32,8 +33,10 @@ from scipy import stats
 from statsmodels.stats.outliers_influence import variance_inflation_factor
 
 from process_improve.experiments._moment_aberration import NotTwoLevelError, moment_aberration
+from process_improve.experiments.designs_mixture_constrained import SCHEFFE_MODELS, scheffe_formula_rhs
 from process_improve.experiments.factor import DesignResult
 from process_improve.experiments.models import validate_formula_is_safe, validate_identifier_is_safe
+from process_improve.experiments.region import DesignRegion
 
 logger = logging.getLogger(__name__)
 
@@ -61,7 +64,7 @@ class _EvalRequest:
     effect_size: float | None
     alpha: float
     sigma: float | None
-    region: str = "cuboidal"
+    region: str | DesignRegion = "cuboidal"
     n_samples: int = 100_000
     include_vertices: bool = True
     random_seed: int = 42
@@ -88,7 +91,7 @@ class _EvalContext:
     effect_size: float | None
     alpha: float
     sigma: float | None
-    region: str = "cuboidal"
+    region: str | DesignRegion = "cuboidal"
     n_samples: int = 100_000
     include_vertices: bool = True
     random_seed: int = 42
@@ -154,6 +157,8 @@ def _build_model_matrix(
     elif model == "quadratic":
         squared = " + ".join(f"I({f} ** 2)" for f in numeric_factors)
         rhs = f"({joined}) ** 2 + {squared}" if squared else f"({joined}) ** 2"
+    elif model in SCHEFFE_MODELS:
+        rhs = scheffe_formula_rhs(factor_names, model)
     elif "~" in model:
         # Explicit formula with response side - strip LHS
         rhs = model.split("~", 1)[1].strip()
@@ -319,6 +324,8 @@ def _region_prediction_variance(ctx: _EvalContext) -> np.ndarray:
     the region settings carried on *ctx*.
     """
     assert ctx.XtX_inv is not None  # callers guard on ``ctx.is_singular``
+    if isinstance(ctx.region, DesignRegion):
+        return _prediction_variance_in_region(ctx, ctx.region)
 
     # Categorical factors are label columns; they cannot be sampled on the
     # numeric [-1, 1] region. When any is present, sample each categorical
@@ -367,6 +374,52 @@ def _region_prediction_variance(ctx: _EvalContext) -> np.ndarray:
 
     (expanded,) = build_design_matrices([ctx.design_info], df_points, return_type="matrix")
     return _prediction_variance_at_points(np.asarray(expanded, dtype=float), ctx.XtX_inv)
+
+
+def _prediction_variance_in_region(ctx: _EvalContext, region: DesignRegion) -> np.ndarray:
+    """Prediction variance over a constrained or mixture region, sampled uniformly inside it.
+
+    The region's boundary points (extreme vertices and edge midpoints for a mixture;
+    constraint crossings and feasible grid corners for a box) stand in for the cube
+    vertices, since that is where the worst-case variance of a constrained design sits.
+    Categorical factors are sampled uniformly over their observed levels.
+    """
+    assert ctx.XtX_inv is not None  # callers guard on ``ctx.is_singular``
+    missing = [n for n in region.names if n not in ctx.factor_names]
+    if missing:
+        raise ValueError(f"The region names factors {missing} that are not columns of the design.")
+    rng = np.random.default_rng(ctx.random_seed)
+    points = region.sample(ctx.n_samples, rng)
+    if ctx.include_vertices:
+        with contextlib.suppress(ValueError):  # a grid too large for support points: sample only
+            points = np.vstack([points, region.support_points()])
+    data: dict[str, np.ndarray] = {n: points[:, j] for j, n in enumerate(region.names)}
+    for f in ctx.factor_names:
+        if f not in data:
+            data[f] = rng.choice(ctx.design_df[f].unique(), size=len(points))
+    (expanded,) = build_design_matrices([ctx.design_info], pd.DataFrame(data)[ctx.factor_names], return_type="matrix")
+    return _prediction_variance_at_points(np.asarray(expanded, dtype=float), ctx.XtX_inv)
+
+
+def _region_label(region: str | DesignRegion) -> str:
+    """Name the region in results: the string as given, or ``"mixture"`` / ``"constrained"``."""
+    if isinstance(region, str):
+        return region
+    return region.kind if region.kind == "mixture" else "constrained"
+
+
+def _resolve_region(
+    region: str | DesignRegion | None, design_matrix: pd.DataFrame | DesignResult
+) -> str | DesignRegion:
+    """Use the caller's region, else the one ``generate_design`` recorded, else the cube."""
+    if region is not None:
+        return region
+    spec = design_matrix.metadata.get("region") if isinstance(design_matrix, DesignResult) else None
+    if spec:
+        recorded = DesignRegion.from_dict(spec)
+        if recorded.kind == "mixture" or recorded.is_constrained:
+            return recorded
+    return "cuboidal"
 
 
 def _compute_g_efficiency(ctx: _EvalContext) -> dict[str, Any]:
@@ -598,7 +651,7 @@ def _compute_fds(ctx: _EvalContext) -> dict[str, Any]:
     mx = float(pv.max())
     quantiles = {f"{q:g}": float(v) for q, v in zip(_FDS_QUANTILES, np.quantile(pv, _FDS_QUANTILES), strict=True)}
     payload: dict[str, Any] = {
-        "region": ctx.region,
+        "region": _region_label(ctx.region),
         "n_samples": ctx.n_samples,
         "include_vertices": ctx.include_vertices,
         "random_seed": ctx.random_seed,
@@ -1143,7 +1196,7 @@ def evaluate_design(  # noqa: PLR0913
     effect_size: float | None = None,
     alpha: float = 0.05,
     sigma: float | None = None,
-    region: str = "cuboidal",
+    region: str | DesignRegion | None = None,
     n_samples: int = 100_000,
     include_vertices: bool = True,
     random_seed: int = 42,
@@ -1158,8 +1211,11 @@ def evaluate_design(  # noqa: PLR0913
         coded design matrix and any generator / defining-relation metadata
         are extracted automatically.
     model : str or None
-        Model type: ``"main_effects"``, ``"interactions"``, ``"quadratic"``,
-        or an explicit patsy formula.  ``None`` defaults to ``"interactions"``.
+        Model type: ``"main_effects"``, ``"interactions"``, ``"quadratic"``, a
+        Scheffé mixture model (``"scheffe_linear"``, ``"scheffe_quadratic"``,
+        ``"scheffe_special_cubic"``), or an explicit patsy formula.  ``None``
+        defaults to ``"scheffe_quadratic"`` over a mixture region and to
+        ``"interactions"`` otherwise.
     metric : str or list[str]
         One or more metric names to compute, or the special value ``"all"`` to
         compute every metric.  Valid names: ``"d_efficiency"``,
@@ -1181,11 +1237,17 @@ def evaluate_design(  # noqa: PLR0913
     sigma : float or None
         Estimated noise standard deviation.  Defaults to 1.0 when needed
         but not provided.
-    region : {"cuboidal", "spherical"}
+    region : {"cuboidal", "spherical"}, DesignRegion, or None
         Design region over which the region-based metrics (``i_efficiency``,
         ``g_efficiency``, ``fds``) integrate the prediction variance.
-        ``"cuboidal"`` (default) is ``[-1, 1]^k``; ``"spherical"`` is the ball
-        of radius ``sqrt(k)``.
+        ``"cuboidal"`` is ``[-1, 1]^k``; ``"spherical"`` is the ball of radius
+        ``sqrt(k)``. A :class:`~process_improve.experiments.DesignRegion`
+        restricts the average and the maximum to settings that satisfy its
+        constraints (a box) or lie on its constrained simplex (a mixture): a
+        constrained design should not be judged on corners it may not visit.
+        ``None`` (default) uses the region a :class:`DesignResult` recorded when
+        it was generated with constraints or mixture factors, and the cube
+        otherwise.
     n_samples : int
         Number of random samples drawn over the region (default 100,000).
     include_vertices : bool
@@ -1256,6 +1318,11 @@ def evaluate_design(  # noqa: PLR0913
         available = sorted(_METRIC_REGISTRY.keys())
         raise ValueError(f"Unknown metric(s): {unknown}. Available metrics: {available}")
 
+    # --- Region, and the Scheffé default for mixtures (an intercept is redundant there) ---
+    region = _resolve_region(region, design_matrix)
+    if model is None and isinstance(region, DesignRegion) and region.kind == "mixture":
+        model = "scheffe_quadratic"
+
     # --- Build context ---
     ctx = _build_context(
         _EvalRequest(
@@ -1291,7 +1358,7 @@ def evaluate_all(  # noqa: PLR0913
     effect_size: float | None = None,
     alpha: float = 0.05,
     sigma: float | None = None,
-    region: str = "cuboidal",
+    region: str | DesignRegion | None = None,
     n_samples: int = 100_000,
     include_vertices: bool = True,
     random_seed: int = 42,

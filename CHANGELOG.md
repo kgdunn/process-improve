@@ -13,6 +13,30 @@ those changes.
 
 ### Added
 
+- **Constrained mixture designs, Scheffé models, and one `DesignRegion` shared by
+  design, evaluation and optimisation.** Mixture components with bounds inside (0, 1)
+  or linear constraints (`Constraint("polymer + solvent <= 0.85")`) now get a design
+  built from the geometry of the constrained simplex, instead of the full-simplex
+  lattice that ignored the bounds.
+
+  - `generate_design` enumerates the **extreme vertices** of the region (every choice
+    of `q - 1` active constraints solved as one batched linear system). Without a
+    budget it returns the classical extreme-vertices design; with one, a D-optimal
+    subset of vertices, edge midpoints, face centroids, centroid and axial blends.
+    `design_type="d_optimal"` with mixture factors uses the same engine.
+  - `analyze_experiment` and `evaluate_design` accept `"scheffe_linear"`,
+    `"scheffe_quadratic"` and `"scheffe_special_cubic"` (no intercept; R-squared and
+    model df stay centred because statsmodels detects the implicit constant).
+  - `DesignRegion(factors, constraints)` holds the region, tests feasibility and
+    samples it uniformly. `generate_design` records it in `metadata["region"]`.
+  - `evaluate_design` computes I-efficiency, G-efficiency and the FDS curve **over the
+    recorded region** instead of the box: for the heat-budget example the G-efficiency
+    is 73% inside the region against 3.5% over the box, whose worst case is a corner
+    the design may not visit. `region=` overrides it.
+  - `optimize_responses(..., region=...)` keeps the desirability optimum and the Pareto
+    front inside the region (SLSQP constraints, feasible starts), and for a mixture
+    returns a blend that sums to one. The result carries `within_region`.
+
 - **Constraints on the factor region are now enforced for D-optimal designs.**
   `generate_design(..., constraints=[Constraint("3*T + 5*D <= 600")])` used to accept
   constraints and return a design that ignored them, flagged only by

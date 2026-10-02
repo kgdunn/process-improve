@@ -44,6 +44,7 @@ from process_improve.experiments._analyses.ols_extractors import (
     _run_significance,
 )
 from process_improve.experiments._analyses.prediction import _run_confirmation_test, _run_prediction
+from process_improve.experiments.designs_mixture_constrained import SCHEFFE_MODELS, scheffe_formula_rhs
 from process_improve.experiments.models import validate_formula_is_safe, validate_identifier_is_safe
 
 logger = logging.getLogger(__name__)
@@ -67,8 +68,10 @@ def build_formula(
     factors : list[str]
         Factor column names.
     model : str or None
-        ``"main_effects"``, ``"interactions"``, ``"quadratic"``, or an
-        explicit formula string.  *None* defaults to ``"interactions"``.
+        ``"main_effects"``, ``"interactions"``, ``"quadratic"``, a Scheffé mixture
+        model (``"scheffe_linear"``, ``"scheffe_quadratic"``,
+        ``"scheffe_special_cubic"``), or an explicit formula string.  *None*
+        defaults to ``"interactions"``.
 
     Returns
     -------
@@ -90,6 +93,10 @@ def build_formula(
     elif model == "quadratic":
         squared = " + ".join(f"I({f} ** 2)" for f in factors)
         rhs = f"({joined}) ** 2 + {squared}"
+    elif model in SCHEFFE_MODELS:
+        # Mixture components sum to 1, so the intercept is dropped; statsmodels detects
+        # the implicit constant, which keeps R-squared and the model df centred.
+        rhs = scheffe_formula_rhs(factors, model)
     else:
         # Treat as raw RHS
         rhs = model
@@ -171,8 +178,11 @@ def analyze_experiment(  # noqa: PLR0912, PLR0913, PLR0915, C901
         subsequent step. Use ``response_column`` to pick a specific column
         explicitly.
     model : str or None
-        ``"main_effects"``, ``"interactions"``, ``"quadratic"``, an explicit
-        formula, or *None* (defaults to ``"interactions"``).
+        ``"main_effects"``, ``"interactions"``, ``"quadratic"``, a Scheffé mixture
+        model (``"scheffe_linear"``, ``"scheffe_quadratic"``,
+        ``"scheffe_special_cubic"``, fitted without an intercept since the
+        components sum to 1), an explicit formula, or *None* (defaults to
+        ``"interactions"``).
     analysis_type : str or list[str]
         One or more of: ``"anova"``, ``"effects"``, ``"coefficients"``,
         ``"significance"``, ``"residual_diagnostics"``, ``"lack_of_fit"``,

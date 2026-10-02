@@ -32,7 +32,8 @@ import math
 import re
 import warnings
 from collections.abc import Callable, Sequence
-from typing import Any
+from dataclasses import dataclass
+from typing import TYPE_CHECKING, Any
 
 import numpy as np
 import pandas as pd
@@ -41,6 +42,9 @@ from scipy import optimize
 
 from process_improve._random import check_random_state
 from process_improve.experiments._desirability import composite_desirability, individual_desirability
+
+if TYPE_CHECKING:
+    from process_improve.experiments.region import DesignRegion
 
 logger = logging.getLogger(__name__)
 
@@ -581,6 +585,87 @@ def _align_goals_to_models(
     return [by_name[str(n)] for n in model_names]
 
 
+@dataclass
+class _SearchSpace:
+    """Where SLSQP may look: bounds, scipy constraint dicts, and feasible starting points."""
+
+    bounds: list[tuple[float, float]]
+    constraints: list[dict[str, Any]]
+    starts: list[np.ndarray]
+
+
+def _search_space(
+    factor_names: list[str],
+    search_bounds: tuple[float, float] | dict[str, tuple[float, float]] | None,
+    region: DesignRegion | None,
+    rng: np.random.Generator,
+    n_starts: int,
+) -> _SearchSpace:
+    """Translate a search box, and optionally a :class:`DesignRegion`, into SLSQP inputs.
+
+    Without a region the search is the coded box, started from its centre and from
+    random points in it. With a box region its constraints become inequality
+    constraints on top of that box. A mixture region replaces the box: its component
+    bounds become the bounds, ``sum(x) = 1`` an equality constraint, and its linear
+    constraints inequalities. The starts are then drawn uniformly from the region
+    itself, since a start outside it can leave SLSQP stranded at an infeasible point.
+    """
+    bounds = _resolve_search_bounds(search_bounds, factor_names)
+    lows, highs = np.array(bounds).T
+    if region is None:
+        starts = [(lows + highs) / 2.0, *(rng.uniform(lows, highs) for _ in range(n_starts - 1))]
+        return _SearchSpace(bounds, [], starts)
+
+    if set(region.names) != set(factor_names):
+        msg = f"The region's factors {region.names} do not match the model's factors {factor_names}."
+        raise ValueError(msg)
+    idx = [factor_names.index(n) for n in region.names]  # region column j is model column idx[j]
+    if region.kind == "mixture":
+        bounds = [region.bounds[region.names.index(n)] for n in factor_names]
+    constraints: list[dict[str, Any]] = [
+        {"type": "ineq", "fun": lambda x, g=g: -float(g(x[idx][None, :])[0])} for g in region.inequalities
+    ]
+    if region.kind == "mixture":
+        constraints.append({"type": "eq", "fun": lambda x: float(x.sum() - 1.0)})
+    samples = region.sample(n_starts, rng)
+    starts = [np.empty(len(factor_names)) for _ in range(n_starts)]
+    for start, sample in zip(starts, samples, strict=True):
+        start[idx] = sample
+    return _SearchSpace(bounds, constraints, starts)
+
+
+def _region_for_method(region: DesignRegion | None, method: str) -> DesignRegion | None:
+    """Return ``region`` for the methods that search inside one, warning and dropping it otherwise."""
+    if region is not None and method not in {"desirability", "pareto_front"}:
+        logger.warning("region is honoured by 'desirability' and 'pareto_front' only; ignored by %r.", method)
+        return None
+    return region
+
+
+def _multistart_slsqp(
+    objective: Callable[[np.ndarray], float],
+    space: _SearchSpace,
+    accept: Callable[[np.ndarray], bool],
+    options: dict[str, Any] | None = None,
+) -> optimize.OptimizeResult | None:
+    """Run SLSQP from every start in ``space``; return the best accepted result, or ``None``."""
+    best = None
+    for x0 in space.starts:
+        res = optimize.minimize(
+            objective, x0, method="SLSQP", bounds=space.bounds, constraints=space.constraints, options=options
+        )
+        if accept(res.x) and np.isfinite(res.fun) and (best is None or res.fun < best.fun):
+            best = res
+    return best
+
+
+def _within_region(region: DesignRegion | None, factor_names: list[str], x: np.ndarray) -> bool | None:
+    """Whether ``x`` (model column order) lies in ``region``; ``None`` without a region."""
+    if region is None:
+        return None
+    return bool(region.feasible(x[[factor_names.index(n) for n in region.names]][None, :], tol=1e-6)[0])
+
+
 def _optimize_desirability(  # noqa: PLR0913
     fitted_models: list[dict[str, Any]],
     goals: list[dict[str, Any]],
@@ -589,6 +674,7 @@ def _optimize_desirability(  # noqa: PLR0913
     importances: list[float] | None = None,
     random_state: int | np.random.Generator | None = 42,
     search_bounds: tuple[float, float] | dict[str, tuple[float, float]] | None = None,
+    region: DesignRegion | None = None,
 ) -> dict[str, Any]:
     """Optimise composite desirability using scipy SLSQP.
 
@@ -608,12 +694,14 @@ def _optimize_desirability(  # noqa: PLR0913
         same as a goal's ``weight``, which shapes that response's own ramp.
     search_bounds : tuple, dict, or None
         Coded region to search. Defaults to the factorial cube, (-1, 1).
+    region : DesignRegion or None
+        Constraints the optimum must satisfy; see :func:`_search_space`.
 
     Returns
     -------
     dict
         Optimal settings, predicted responses, individual and composite
-        desirability.
+        desirability, and ``within_region`` when a region is given.
     """
     goals = _align_goals_to_models(fitted_models, goals)
     evaluators = [_build_model_evaluator(m["coefficients"], factor_names) for m in fitted_models]
@@ -627,31 +715,22 @@ def _optimize_desirability(  # noqa: PLR0913
             d_vals.append(d)
         return -composite_desirability(d_vals, importances)
 
-    bounds = _resolve_search_bounds(search_bounds, factor_names)
-    lows = np.array([b[0] for b in bounds])
-    highs = np.array([b[1] for b in bounds])
-
     # Multi-start: try centre + random points.
     # SEC-33 (#282): the hard-coded ``42`` moved to the public signature
     # ``random_state=42`` (default preserves the previous deterministic
     # behaviour). Resolved via the ENG-08 helper.
     rng = check_random_state(random_state)
-    best_result = None
-    best_value = np.inf
 
     # Start from the centre of the searched region, then sample across it, so
     # that widening the bounds actually widens where the search looks.
-    centre = (lows + highs) / 2.0
-    starting_points = [centre, *[rng.uniform(lows, highs) for _ in range(9)]]
-
-    for x0 in starting_points:
-        res = optimize.minimize(neg_composite, x0, method="SLSQP", bounds=bounds)
-        if res.fun < best_value:
-            best_value = res.fun
-            best_result = res
+    space = _search_space(factor_names, search_bounds, region, rng, n_starts=10)
+    best_result = _multistart_slsqp(
+        neg_composite, space, lambda x: _within_region(region, factor_names, x) is not False
+    )
+    best_value = np.inf if best_result is None else best_result.fun
 
     if best_result is None:
-        msg = "optimization produced no result"
+        msg = "optimization produced no result" if region is None else "no start converged inside the region"
         raise RuntimeError(msg)
 
     x_opt = best_result.x
@@ -673,6 +752,8 @@ def _optimize_desirability(  # noqa: PLR0913
         "composite_desirability": composite_d,
         "optimizer_success": bool(best_result.success),
     }
+    if region is not None:
+        result["within_region"] = _within_region(region, factor_names, x_opt)
 
     if factor_ranges:
         actual = {}
@@ -1060,6 +1141,7 @@ def _pareto_front(  # noqa: PLR0913 - the models, the goals, the naming and the 
     n_points: int = 21,
     search_bounds: tuple[float, float] | dict[str, tuple[float, float]] | None = None,
     random_state: int | np.random.Generator | None = 42,
+    region: DesignRegion | None = None,
 ) -> dict[str, Any]:
     """Compute the Pareto front of several fitted response-surface models.
 
@@ -1105,6 +1187,8 @@ def _pareto_front(  # noqa: PLR0913 - the models, the goals, the naming and the 
     random_state : int, Generator, or None
         Seed for the extra random starts. The default keeps the result
         reproducible.
+    region : DesignRegion or None
+        Constraints every front point must satisfy.
 
     Returns
     -------
@@ -1132,13 +1216,14 @@ def _pareto_front(  # noqa: PLR0913 - the models, the goals, the naming and the 
     evaluators = [_build_model_evaluator(m["coefficients"], factor_names) for m in fitted_models]
     names = [str(m.get("response_name", f"response_{i + 1}")) for i, m in enumerate(fitted_models)]
 
-    bounds = _resolve_search_bounds(search_bounds, factor_names)
-    lows = np.array([low for low, _ in bounds])
-    highs = np.array([high for _, high in bounds])
-    centre = (lows + highs) / 2.0
-
     rng = check_random_state(random_state)
-    starts = [centre, lows.copy(), highs.copy(), *(rng.uniform(lows, highs) for _ in range(5))]
+    if region is None:
+        bounds = _resolve_search_bounds(search_bounds, factor_names)
+        lows, highs = np.array(bounds).T
+        starts = [(lows + highs) / 2.0, lows.copy(), highs.copy(), *(rng.uniform(lows, highs) for _ in range(5))]
+        space = _SearchSpace(bounds, [], starts)
+    else:
+        space = _search_space(factor_names, search_bounds, region, rng, n_starts=8)
 
     def raw(x: np.ndarray) -> np.ndarray:
         return np.array([evaluator(x) for evaluator in evaluators])
@@ -1150,12 +1235,10 @@ def _pareto_front(  # noqa: PLR0913 - the models, the goals, the naming and the 
         # SLSQP's default ftol of 1e-6 leaves front points a visible distance
         # short of the true frontier. These objectives cost microseconds to
         # evaluate, so there is nothing to buy by stopping early.
-        winner, best = centre, np.inf
-        for x0 in starts:
-            res = optimize.minimize(objective, x0, method="SLSQP", bounds=bounds, options=_SLSQP_OPTIONS)
-            if res.fun < best:
-                winner, best = res.x, res.fun
-        return winner
+        res = _multistart_slsqp(
+            objective, space, lambda x: _within_region(region, factor_names, x) is not False, _SLSQP_OPTIONS
+        )
+        return space.starts[0] if res is None else res.x
 
     payoff_raw, payoff_utility = _payoff_table(best_of, raw, utility, senses, len(names))
     ideal_utility = payoff_utility.diagonal().copy()
@@ -1299,6 +1382,7 @@ def _desirability_result(  # noqa: PLR0913
     fitted_results: list[Any] | None,
     significance_level: float,
     search_bounds: tuple[float, float] | dict[str, tuple[float, float]] | None = None,
+    region: DesignRegion | None = None,
 ) -> dict[str, Any]:
     """Assemble the full desirability result: optimum, intervals, and plot input.
 
@@ -1317,7 +1401,13 @@ def _desirability_result(  # noqa: PLR0913
         importances = [g.get("importance", 1.0) for g in aligned_goals]
 
     desirability = _optimize_desirability(
-        fitted_models, aligned_goals, factor_names, factor_ranges, importances, search_bounds=search_bounds
+        fitted_models,
+        aligned_goals,
+        factor_names,
+        factor_ranges,
+        importances,
+        search_bounds=search_bounds,
+        region=region,
     )
 
     if fitted_results is not None:
@@ -1351,6 +1441,7 @@ def optimize_responses(  # noqa: PLR0913, C901
     desirability_weights: list[float] | None = None,
     ridge_direction: str = "maximize",
     n_pareto_points: int = 21,
+    region: DesignRegion | None = None,
 ) -> dict[str, Any]:
     """Find optimal factor settings for one or multiple responses.
 
@@ -1436,6 +1527,16 @@ def optimize_responses(  # noqa: PLR0913, C901
         Target number of weight vectors for ``method="pareto_front"``. The front
         returned is usually smaller, since dominated and duplicate solutions are
         dropped.
+    region : DesignRegion or None
+        The region the optimum must lie in, for ``"desirability"`` and
+        ``"pareto_front"``: the same constraints the design was built under
+        (``DesignRegion.from_dict(result.metadata["region"])``), so the
+        recommended settings are ones the process can run. For a box region the
+        constraints apply on top of *search_bounds*. For a mixture region the
+        factors are the proportions the Scheffé model was fitted on, their bounds
+        replace *search_bounds*, and the optimum sums to 1. The desirability
+        result then carries ``within_region``. Other methods ignore it, with a
+        warning.
 
     Returns
     -------
@@ -1503,6 +1604,7 @@ def optimize_responses(  # noqa: PLR0913, C901
     coefficients = fitted_models[0]["coefficients"]
 
     result: dict[str, Any] = {"method": method, "factor_names": factor_names}
+    region = _region_for_method(region, method)
 
     if method == "stationary_point":
         result["stationary_point"] = _find_stationary_point(coefficients, factor_names, factor_ranges, search_bounds)
@@ -1531,17 +1633,18 @@ def optimize_responses(  # noqa: PLR0913, C901
             fitted_results=fitted_results,
             significance_level=significance_level,
             search_bounds=search_bounds,
+            region=region,
         )
 
     elif method == "ridge_analysis":
-        region = _resolve_search_bounds(search_bounds, factor_names)
+        box = _resolve_search_bounds(search_bounds, factor_names)
         result["ridge_analysis"] = _add_actual_units(
             _ridge_analysis(
                 coefficients,
                 factor_names,
                 direction=ridge_direction,
                 n_radii=n_steps,
-                max_radius=max(max(abs(low), abs(high)) for low, high in region),
+                max_radius=max(max(abs(low), abs(high)) for low, high in box),
             ),
             factor_ranges,
             "path",
@@ -1558,6 +1661,7 @@ def optimize_responses(  # noqa: PLR0913, C901
                 factor_names,
                 n_points=n_pareto_points,
                 search_bounds=search_bounds,
+                region=region,
             ),
             factor_ranges,
             "front",
