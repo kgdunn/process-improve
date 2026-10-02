@@ -277,6 +277,17 @@ those changes.
   and repeats half-runs only for three and four factors, so 39 runs for three factors is
   listed but not built. `dispatch_omars` no longer calls its `2k + 3`-run design for odd
   `k` the minimal OMARS design; `2k + 1` runs suffice.
+- **Fractional factorials: signed defining relations, generators checked against
+  `resolution`, and resolution requests beyond 11 factors.** A negated generator such as
+  `"D=-AB"` built the right fraction but reported `I=ABD` for it; the defining relation
+  now carries the sign (`["I=-ABD", "I=ACE", "I=-BCDE"]` for `D=-AB, E=AC`). Passing
+  `generators` together with a `resolution` they do not reach raises `ValueError`; the
+  resolution used to be ignored. For more than 11 factors, a resolution request used
+  pyDOE3's search, which reaches resolution IV only, so twelve factors at resolution V
+  to VIII raised. A search over generator sets now finds the fewest runs that reach the
+  resolution (256 runs for twelve factors at resolution V), falling back to the half
+  fraction; beyond the minimum-aberration table the design is not guaranteed to have
+  minimum aberration. A defining relation of more than ten generators is not listed.
 - **`recommend_strategy` gives an all-mixture problem a mixture optimisation stage.** The
   optimisation stage was a CCD or Box-Behnken design on the first three components. It is
   now a `"mixture"` design for a quadratic Scheffe model in every component.
