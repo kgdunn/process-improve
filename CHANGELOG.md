@@ -444,6 +444,19 @@ those changes.
   half of all seeds returned a design with `det(X'X)` of 64 or less instead of the half
   fraction's 256. It now repeats the passes until none swaps a row, keeps the best of
   five random starts, and documents its parameters.
+- **Supersaturated designs stay supersaturated and are scored fairly.** Without a budget,
+  3 to 5 factors got 4 or 6 runs, `k + 1` or more and so not supersaturated, with a
+  negative `E(s^2)` bound and efficiency; no unaliased design exists there, so the call
+  now raises and points to `"plackett_burman"`. In 6, 10, 14, ... runs every `|s_ij|` is
+  at least 2, a floor the Nguyen / Tang-Wu bound misses: designs with every `|s_ij| = 2`,
+  which are optimal, were reported as 36% to 77% efficient and are now at 100%. The
+  bound is never negative. Automatic selection treats the budget as a ceiling: 10
+  factors with 7 to 9 runs get the 6-run design and 22 factors with 13 runs the 12-run
+  design, where they got 15 and 27 Plackett-Burman runs (the new
+  `supersaturated_runs` gives the run count). A budget of `6.0` works and `6.5` raises,
+  where both failed with a `TypeError`. Fully aliased factors are reported by a
+  `UserWarning`, which callers can catch, instead of a log message, and the run counts
+  it and the errors suggest are all supersaturated.
 
 ## [1.96.0] - 2026-09-30
 

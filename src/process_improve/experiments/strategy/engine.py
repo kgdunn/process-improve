@@ -203,12 +203,12 @@ def _supersaturated_runs(n: int, classification: dict[str, Any]) -> int | None:
     Such a budget cannot estimate every main effect, so the screening design has to
     be supersaturated: the factors must all be continuous, run at two levels.
     """
-    from process_improve.experiments.designs_supersaturated import supersaturated_available  # noqa: PLC0415
+    from process_improve.experiments.designs_supersaturated import supersaturated_runs  # noqa: PLC0415
 
     budget = classification["budget"]
     if budget is None or budget >= n + 1 or classification["n_continuous"] != n:
         return None
-    return next((runs for runs in range(int(budget), 3, -1) if supersaturated_available(n, runs)), None)
+    return supersaturated_runs(n, budget)
 
 
 def _large_factor_screening_choice(n: int, classification: dict[str, Any], template: dict[str, Any]) -> tuple[str, int]:

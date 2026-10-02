@@ -392,6 +392,31 @@ def _auto_select_by_budget(factors: list[Factor], k: int, budget: float) -> str:
     return "d_optimal"
 
 
+def _auto_choice(  # noqa: PLR0913
+    factors: list[Factor],
+    budget: int | None,
+    constraints: list[Constraint] | None,
+    hard_to_change: list[str] | None,
+    candidates: pd.DataFrame | None,
+    *,
+    resolution: int | None,
+    generators: list[str] | None,
+) -> tuple[str, int | None, int | None]:
+    """Pick the design family when none is given, with the budget and resolution it then uses."""
+    # A candidate set means "choose runs from these", which only the optimal families do.
+    design_type = "d_optimal" if candidates is not None else _auto_select(factors, budget, constraints, hard_to_change)
+    if design_type == "supersaturated" and budget is not None:
+        # The budget is a ceiling: the largest unaliased supersaturated run count under it.
+        from process_improve.experiments.designs_supersaturated import supersaturated_runs  # noqa: PLC0415
+
+        budget = supersaturated_runs(len(factors), budget)
+    if design_type == "fractional_factorial" and resolution is None and generators is None and len(factors) >= 6:
+        # Screening many factors: the smallest resolution IV fraction (main effects clear of
+        # two-factor interactions), not the half fraction (512 runs for 10 factors).
+        resolution = 4
+    return design_type, budget, resolution
+
+
 # ---------------------------------------------------------------------------
 # Main entry point
 # ---------------------------------------------------------------------------
@@ -531,14 +556,9 @@ def generate_design(  # noqa: PLR0913
         raise ValueError("At least one factor must be provided.")
 
     if design_type is None:
-        # A candidate set means "choose runs from these", which only the optimal families do.
-        design_type = (
-            "d_optimal" if candidates is not None else _auto_select(factors, budget, constraints, hard_to_change)
+        design_type, budget, resolution = _auto_choice(
+            factors, budget, constraints, hard_to_change, candidates, resolution=resolution, generators=generators
         )
-        if design_type == "fractional_factorial" and resolution is None and generators is None and len(factors) >= 6:
-            # Screening many factors: the smallest resolution IV fraction (main effects clear of
-            # two-factor interactions), not the half fraction (512 runs for 10 factors).
-            resolution = 4
 
     if design_type not in _DESIGN_REGISTRY:
         raise ValueError(f"Unknown design_type={design_type!r}.  Choose from: {', '.join(sorted(_DESIGN_REGISTRY))}.")
