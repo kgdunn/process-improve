@@ -747,3 +747,25 @@ def test_analyze_experiment_ignores_runorder_and_block_columns() -> None:
     assert "A" in terms
     assert "B" in terms
     assert "A:B" in terms
+
+
+def test_a_response_named_yield_is_analysed() -> None:
+    """'yield' is the commonest response in chemistry and a Python keyword, which patsy cannot name."""
+    from process_improve.experiments import analyze_experiment
+
+    rng = np.random.default_rng(0)
+    x = np.array([[-1, -1], [1, -1], [-1, 1], [1, 1], [0, 0], [0, 0]], dtype=float)
+    data = pd.DataFrame(x, columns=["A", "B"])
+    data["yield"] = 50 + 3 * x[:, 0] - 2 * x[:, 1] + rng.normal(0, 0.1, len(x))
+    out = analyze_experiment(data, response_column="yield", model="main_effects", analysis_type=["coefficients"])
+    assert out["model_summary"]["formula"].startswith("yield ~")
+    coefficients = {c["term"]: c["coefficient"] for c in out["coefficients"]}
+    assert coefficients["A"] == pytest.approx(3, abs=0.2)
+
+
+def test_a_factor_named_with_a_keyword_raises_clearly() -> None:
+    from process_improve.experiments import analyze_experiment
+
+    data = pd.DataFrame({"lambda": [-1.0, 1.0, -1.0, 1.0], "y": [1.0, 2.0, 1.5, 2.5]})
+    with pytest.raises(ValueError, match="keyword"):
+        analyze_experiment(data, response_column="y", model="main_effects")
