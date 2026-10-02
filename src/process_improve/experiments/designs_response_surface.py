@@ -14,7 +14,7 @@ from typing import TYPE_CHECKING
 
 import numpy as np
 
-from process_improve.experiments._finite_fields import conference_matrix, conference_order_at_least
+from process_improve.experiments._finite_fields import MAX_ORDER, conference_matrix, conference_order_at_least
 
 try:
     from pyDOE3 import bbdesign, ccdesign
@@ -373,7 +373,31 @@ def dsd_run_count(n_factors: int, n_categorical: int = 0) -> int:
     return 2 * dsd_conference_order(n_factors) + (2 if n_categorical else 1)
 
 
-def dispatch_dsd(factors: list[Factor]) -> tuple[np.ndarray, dict]:
+def _dsd_order_for_budget(k: int, n_categorical: int, budget: int | None) -> int:
+    """Conference order for ``k`` factors: the minimal one, or the largest that fits ``budget`` runs.
+
+    Columns beyond ``k`` are fake factors (Jones and Nachtsheim 2017): they are not run as
+    factors, but the foldover keeps them orthogonal to everything, so they give the
+    analysis error degrees of freedom free of any second-order effect.
+    """
+    minimal = dsd_conference_order(k)
+    if budget is None:
+        return minimal
+    extra = 2 if n_categorical else 1
+    if budget < 2 * minimal + extra:
+        raise ValueError(
+            f"A definitive screening design for {k} factors needs at least {2 * minimal + extra} runs; "
+            f"budget={budget} is too small."
+        )
+    order = minimal
+    while order + 2 <= MAX_ORDER and 2 * (order + 2) + extra <= budget:
+        order += 2
+    while conference_order_at_least(order) != order:  # step down to an order that can be built
+        order -= 2
+    return order
+
+
+def dispatch_dsd(factors: list[Factor], budget: int | None = None) -> tuple[np.ndarray, dict]:
     """Generate a Definitive Screening Design (DSD).
 
     The conference-matrix construction of Jones and Nachtsheim (2011), as given by
@@ -398,17 +422,25 @@ def dispatch_dsd(factors: list[Factor]) -> tuple[np.ndarray, dict]:
     matrix. Every main effect stays orthogonal to every second-order effect; the
     categorical main effects are slightly correlated with each other.
 
+    A ``budget`` larger than the minimal design adds fake factors: the conference
+    matrix of the largest buildable order whose design fits the budget is used, and its
+    extra columns are left out. Jones and Nachtsheim (2017) recommend this, because the
+    unused columns give error degrees of freedom free of any second-order effect, which
+    the analysis of a DSD (:func:`process_improve.experiments.analyze_omars`) needs.
+
     Parameters
     ----------
     factors : list[Factor]
         At least three factors: continuous, or categorical with exactly two levels.
+    budget : int or None
+        Largest number of runs. ``None`` gives the minimal design.
 
     Returns
     -------
     tuple[np.ndarray, dict]
         Coded design matrix (categorical factors at -1 / +1) and metadata:
-        ``construction``, ``conference_order`` and, with categorical factors,
-        ``n_categorical``.
+        ``construction``, ``conference_order``, ``fake_factors`` and, with categorical
+        factors, ``n_categorical``.
 
     References
     ----------
@@ -421,6 +453,8 @@ def dispatch_dsd(factors: list[Factor]) -> tuple[np.ndarray, dict]:
     .. [3] Jones, B. and Nachtsheim, C. J. (2013).  "Definitive screening
        designs with added two-level categorical factors."  *Journal of Quality
        Technology*, 45(2):121-129.
+    .. [4] Jones, B. and Nachtsheim, C. J. (2017).  "Effective design-based model
+       selection for definitive screening designs."  *Technometrics*, 59(3):319-329.
     """
     k = len(factors)
     categorical = [j for j, f in enumerate(factors) if f.type.value == "categorical"]
@@ -431,10 +465,10 @@ def dispatch_dsd(factors: list[Factor]) -> tuple[np.ndarray, dict]:
                 "designs take two-level categorical factors only (Jones and Nachtsheim 2013). Use "
                 'design_type="d_optimal" or "i_optimal" for a factor with more levels.'
             )
-    m = dsd_conference_order(k)
+    m = _dsd_order_for_budget(k, len(categorical), budget)
     conference, construction = conference_matrix(m)
     folded = np.vstack([conference, -conference]).astype(float)[:, :k]
-    meta: dict = {"construction": construction, "conference_order": m}
+    meta: dict = {"construction": construction, "conference_order": m, "fake_factors": m - k}
     if not categorical:
         return np.vstack([folded, np.zeros((1, k))]), meta
     meta["n_categorical"] = len(categorical)

@@ -136,7 +136,7 @@ def _dispatch_dsd(
 ) -> tuple[np.ndarray, dict]:
     from process_improve.experiments.designs_response_surface import dispatch_dsd  # noqa: PLC0415
 
-    return dispatch_dsd(factors)
+    return dispatch_dsd(factors, budget=kwargs.get("budget"))
 
 
 def _dispatch_omars(
