@@ -303,7 +303,28 @@ those changes.
   of 0 or 1 still gave 2 centre runs. A numeric `alpha` now builds the design with that
   axial distance, an unknown name raises `ValueError` (both cube types), and the centre
   runs are the number asked for. Designs with a named `alpha` and two or more centre
-  runs are unchanged.
+  runs are unchanged, except for `"orthogonal"` and `"inscribed"` below.
+- **`generate_design` refuses inputs it used to turn into a wrong design.** Two factors
+  with the same name collapsed into one column of the design; they now raise
+  `ValueError`. Mixture components given to a family that places runs in the factor box
+  (full and fractional factorials, Plackett-Burman, CCD, Box-Behnken, DSD, OMARS,
+  supersaturated, Latin hypercube) came back as coded +/-1 rows labelled as proportions,
+  with row sums from -3 to 3; they now raise and name the families that handle mixtures
+  (`"mixture"`, the optimal families, `"sobol"`, `"halton"`, `"maximin"`).
+- **`recommend_strategy` gives an all-mixture problem a mixture optimisation stage.** The
+  optimisation stage was a CCD or Box-Behnken design on the first three components. It is
+  now a `"mixture"` design for a quadratic Scheffe model in every component.
+- **`alpha="orthogonal"` (the CCD default) now gives an orthogonal design.** It used the
+  distance that makes a cube block and an axial block orthogonal to the model
+  (orthogonal *blocking*), so the quadratic coefficients stayed correlated: 1.886 for
+  three factors with three centre runs instead of 1.353. It is now
+  `alpha = (F (sqrt(N) - sqrt(F))^2 / 4)^(1/4)` for `F` cube runs and `N` runs in all,
+  which makes the centred squared columns orthogonal, in `generate_design` (full and
+  fractional cube) and in `augment_design(..., "add_axial_points", alpha="orthogonal")`,
+  whose formula was wrong in another way. The helper is public as
+  `designs_response_surface.orthogonal_alpha`. `alpha="inscribed"` now shrinks the cube
+  inside a rotatable design, the usual inscribed CCD, rather than inside the
+  orthogonal-blocking one.
 - **Categorical factors work in every design family that can carry them.** A two-level
   categorical factor in a DSD, OMARS, fractional factorial or Plackett-Burman design
   failed with `All values must be present in levels`, as did any categorical factor in a
