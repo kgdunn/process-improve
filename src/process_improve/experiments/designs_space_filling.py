@@ -38,7 +38,7 @@ import contextlib
 from typing import TYPE_CHECKING
 
 import numpy as np
-from scipy.spatial.distance import cdist, pdist, squareform
+from scipy.spatial.distance import cdist, pdist
 from scipy.stats import qmc
 
 from process_improve._random import check_random_state
@@ -87,7 +87,7 @@ def _maximin_lhs(n: int, k: int, rng: np.random.Generator) -> np.ndarray:
     starts = [qmc.LatinHypercube(d=k, scramble=False, rng=rng).random(n) for _ in range(_LHS_STARTS)]
     design = min(starts, key=_phi_p)
     half_p = _MORRIS_MITCHELL_P / 2.0
-    sq = squareform(pdist(design, "sqeuclidean"))
+    sq = ((design[:, None, :] - design[None, :, :]) ** 2).sum(axis=2)
     np.fill_diagonal(sq, np.inf)
     terms = sq**-half_p  # each pair's share of phi_p ** p; zero on the diagonal
     others = np.ones(n, dtype=bool)
