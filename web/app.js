@@ -100,7 +100,7 @@ async function generate() {
   $("#design-summary").textContent =
     `${r.n_runs} runs, listed in randomised run order. The workbook will be analysed with the ` +
     `${r.model.replace("_", " ")} model unless you choose another.${warn}`;
-  renderTable($("#design-table"), r.columns, r.rows);
+  renderTable($("#design-table"), r.columns, r.rows, "Run order");
   const blob = new Blob([Uint8Array.from(atob(r.xlsx_base64), (c) => c.charCodeAt(0))], {
     type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
   });
@@ -192,13 +192,57 @@ function table(columns, rows) {
   return wrap;
 }
 
-function renderTable(t, columns, rows) {
-  const head = `<thead><tr>${columns.map((c) => `<th>${escape(c)}</th>`).join("")}</tr></thead>`;
-  const body = rows
+/**
+ * Render a table whose column headers sort it: click once for ascending,
+ * again for descending. Each header is a <button> inside the <th>, so it is
+ * reachable by keyboard, and aria-sort tells a screen reader the current order.
+ * `sortedBy` names the column the rows already arrive sorted on, if any.
+ */
+function renderTable(t, columns, rows, sortedBy = null) {
+  const head = columns
+    .map((c, i) => `<th aria-sort="${c === sortedBy ? "ascending" : "none"}"><button type="button" class="sort" data-col="${i}">${escape(c)}</button></th>`)
+    .join("");
+  t.innerHTML = `<thead><tr>${head}</tr></thead><tbody></tbody>`;
+  t._rows = rows;
+  fillBody(t, rows);
+  t.onclick = (e) => {
+    const button = e.target.closest("button.sort");
+    if (!button) return;
+    const th = button.parentElement;
+    const ascending = th.getAttribute("aria-sort") !== "ascending";
+    for (const other of t.querySelectorAll("th")) other.setAttribute("aria-sort", "none");
+    th.setAttribute("aria-sort", ascending ? "ascending" : "descending");
+    const col = Number(button.dataset.col);
+    const sign = ascending ? 1 : -1;
+    // A stable sort over a copy, so the order the rows arrived in breaks ties.
+    fillBody(
+      t,
+      [...t._rows].sort((a, b) => isBlank(a[col]) - isBlank(b[col]) || sign * compareCells(a[col], b[col])),
+    );
+  };
+}
+
+function fillBody(t, rows) {
+  t.tBodies[0].innerHTML = rows
     .map((row) => `<tr>${row.map((v) => `<td>${escape(typeof v === "number" ? +v.toPrecision(6) : v ?? "")}</td>`).join("")}</tr>`)
     .join("");
-  t.innerHTML = `${head}<tbody>${body}</tbody>`;
 }
+
+/** Blank cells (an unfilled response) sort last in either direction. */
+const isBlank = (v) => v === null || v === undefined || v === "";
+
+/**
+ * Order two non-blank cells: numbers numerically, including text that leads
+ * with one ("< 0.0001", "4.623 to 5.300"), then everything else alphabetically.
+ */
+function compareCells(a, b) {
+  const na = sortNumber(a);
+  const nb = sortNumber(b);
+  if (!Number.isNaN(na) && !Number.isNaN(nb)) return na - nb;
+  return String(a).localeCompare(String(b), undefined, { numeric: true });
+}
+
+const sortNumber = (v) => (typeof v === "number" ? v : parseFloat(String(v).replace(/^[<>≤≥]\s*/, "")));
 
 const escape = (v) => String(v).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
 
