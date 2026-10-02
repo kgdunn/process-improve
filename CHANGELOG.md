@@ -34,9 +34,12 @@ those changes.
     one SciPy version the search is deterministic; another SciPy release ships another
     HiGHS and may pick another design. Measured on one machine: the five-factor default
     and the 25-run, five-factor `main_quadratic` design are unchanged; the six-factor
-    default rose from D-efficiency 26.5 to 31.6 and took 111 s instead of 154 s.
-  - The five-factor multistart is slower, about 14 s instead of 10 s for the default
-    call.
+    default returns a different design (D-efficiency 26.8 instead of 26.5) in 106 s
+    instead of 119 s.
+  - Five-factor searches are slower: the default call takes about 15 s instead of
+    10 s, and the 25-run `main_quadratic` call 18 s instead of 10 s. HiGHS spends
+    longer at the root node of each small solve than CBC did. The trade buys a solver
+    that installs everywhere SciPy does and per-solve work bounded by the node budget.
   - `metadata["solver"]` is `"highs"`; it was `"pulp"`. `solver_status` reads
     `"Optimal"`, `"Node limit"`, `"Time limit"`, `"Infeasible"`, `"Not Solved"` or
     `"Enumerated"`. A solve stopped by a limit still returns the best design it found.

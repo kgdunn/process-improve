@@ -185,69 +185,77 @@ Performance: iterations and timing by factor count
 
 The table below reports, for the automatic smallest-size search at
 ``n_restarts=8``, the size of the candidate half-pool, the run size of the
-smallest design found, the resulting error degrees of freedom, the number of ILP
-solves performed (the *iteration count*: one minimise-size probe plus the
-no-good-cut re-solves), and the cumulative CBC solver time.  The run size is the
+design returned, the resulting error degrees of freedom, how the candidates were
+collected, the number of ILP solves performed (the *iteration count*: the
+minimise-size solve, plus a feasibility solve and the restarts on the multistart
+path) and the wall-clock time of the whole call.  The run size is the
 estimability frontier :math:`k^2 + k + 1` described above, and the error degrees
 of freedom follow as :math:`N - (1 + 2k + k(k-1)/2)`; both are exact.  Times were
-measured single-threaded on an ``x86_64`` machine with CPython 3.11 and CBC (the
-solver bundled with PuLP); they are indicative and will vary by machine, and
-they scale with ``n_restarts``.
+measured on an ``x86_64`` machine with CPython 3.11 and SciPy 1.17.1 (HiGHS
+1.12), single-threaded, with the default ``solver_options``; they are indicative,
+vary by machine, and scale with ``n_restarts``.
 
 .. list-table::
    :header-rows: 1
-   :widths: 8 14 8 10 12 12
+   :widths: 8 12 8 8 12 9 10
 
    * - Factors :math:`k`
      - Half-pool size
      - Runs :math:`N`
      - Error df
+     - Search
      - ILP solves
-     - Solver time (s)
+     - Time (s)
    * - 3
      - 13
      - 13
      - 3
-     - 10
-     - 0.1
+     - exhaustive
+     - 1
+     - < 0.1
    * - 4
      - 40
      - 21
      - 6
-     - 10
-     - 0.4
+     - exhaustive
+     - 1
+     - 11
    * - 5
      - 121
      - 31
      - 10
+     - multistart
      - 10
-     - 2.2
+     - 2.4
    * - 6
      - 364
      - 43
      - 15
+     - multistart
      - 10
-     - 29
+     - 18
    * - 7
      - 1093
      - 57
      - 21
+     - multistart
      - 10
-     - 980
+     - 36
 
-The iteration count is fixed by ``n_restarts`` (each iteration is a full ILP
-solve); the cost per iteration grows with the half-pool size :math:`(3^k - 1)/2`,
-the number of orthogonality constraints :math:`k(k-1)/2`, and the run size the
-frontier demands.  Three to five factors solve in seconds; six takes about half a
-minute.
+On the exhaustive path the time is the enumeration (about 250,000 four-factor
+designs), not the solver.  On the multistart path the iteration count is set by
+``n_restarts`` and can be lower when the search stops early because new solves
+only repeat designs already found.  Each restart is bounded by
+``solver_options["node_limit"]`` (default 100 branch-and-bound nodes), so its cost
+grows with the half-pool size :math:`(3^k - 1)/2` and the run size the frontier
+demands, but not without limit.  At the default ``n_restarts=50`` the five-factor
+search takes about 15 s and the six-factor search under two minutes.
 
-Seven factors is a different order of magnitude: about a quarter of an hour at
-this restart budget, measured with ``solver_options={"time_limit": 120}``.  The
-individual solves average close to that per-solve cap, so the total depends on
-the limit you set as much as on the machine; raise it above its 60 s default
-before reading anything into a seven-factor run.  Beyond seven factors, pin
-``n_runs`` or use ``model="main_quadratic"``, whose frontier is only
-:math:`2k + 1`.
+``solver_options["time_limit"]`` (default 60 s per solve) is a safety cap, not
+the budget: if it stops a solve, the result depends on the machine's speed, and
+``metadata["omars_search"].time_limited_solves`` counts those solves.  Beyond
+seven factors the half-pool triples with each factor; pin ``n_runs`` or use
+``model="main_quadratic"``, whose frontier is only :math:`2k + 1`.
 
 Limitations
 -----------
