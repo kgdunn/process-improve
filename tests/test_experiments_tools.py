@@ -616,3 +616,34 @@ class TestTradeOffTable:
         specs = {s["name"]: s for s in get_experiments_tool_specs()}
         assert "trade_off_table" in specs
         assert specs["trade_off_table"]["input_schema"]["additionalProperties"] is False
+
+
+def test_generate_design_tool_offers_every_design_type() -> None:
+    """The tool's design_type choices are exactly generate_design's registry (omars was missing)."""
+    import typing
+
+    from process_improve.experiments._tools.generate_design import GenerateDesignInput
+    from process_improve.experiments.designs import _DESIGN_REGISTRY
+
+    annotation = GenerateDesignInput.model_fields["design_type"].annotation
+    literal = next(arg for arg in typing.get_args(annotation) if typing.get_origin(arg) is typing.Literal)
+    assert set(typing.get_args(literal)) == set(_DESIGN_REGISTRY)
+
+
+def test_generate_design_tool_enforces_constraints_and_returns_the_region() -> None:
+    from process_improve.experiments._tools.generate_design import GenerateDesignInput, generate_design_tool
+
+    spec = GenerateDesignInput(
+        factors=[{"name": "T", "low": 100, "high": 150}, {"name": "D", "low": 20, "high": 60}],
+        design_type="i_optimal",
+        budget=10,
+        model_type="quadratic",
+        constraints=["3*T + 5*D <= 600"],
+    )
+    out = generate_design_tool(spec)
+    assert "error" not in out, out
+    assert all(3 * r["T"] + 5 * r["D"] <= 600 + 1e-9 for r in out["design_actual"])
+    assert out["metadata"]["region"]["constraints"][0]["expression"] == "3*T + 5*D <= 600"
+    import json
+
+    json.dumps(out)  # JSON-serialisable for MCP transport

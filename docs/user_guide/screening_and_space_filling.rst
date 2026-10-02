@@ -51,7 +51,7 @@ sets the number of runs; the default is ``10 * k``.
 
    box = [Factor(name=n, low=0, high=10) for n in "ABC"]
    for design_type in ["latin_hypercube", "maximin_lhs", "uniform", "sobol", "halton", "maximin"]:
-       m = generate_design(box, design_type=design_type, budget=20, random_seed=0).metadata
+       m = generate_design(box, design_type=design_type, budget=20, random_state=0).metadata
        print(design_type, round(m["min_distance"], 2), round(m["centered_l2_discrepancy"], 4))
 
 .. list-table:: Twenty runs in three factors (coded distances)

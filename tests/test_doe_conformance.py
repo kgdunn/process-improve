@@ -220,14 +220,14 @@ class TestSpaceFilling:
     """Latin hypercube stratification, maximin distance, discrepancy and Sobol balance."""
 
     def test_latin_hypercube_one_run_per_slice(self) -> None:
-        x = _coded(generate_design(_factors(4), "latin_hypercube", budget=20, random_seed=3), 4)
+        x = _coded(generate_design(_factors(4), "latin_hypercube", budget=20, random_state=3), 4)
         for j in range(4):
             slices = np.floor((x[:, j] + 1) / 2 * 20).astype(int)
             assert sorted(slices) == list(range(20))
 
     def test_maximin_spreads_further_than_a_plain_hypercube(self) -> None:
-        lhs = _coded(generate_design(_factors(3), "latin_hypercube", budget=20, random_seed=3), 3)
-        maximin = _coded(generate_design(_factors(3), "maximin", budget=20, random_seed=3), 3)
+        lhs = _coded(generate_design(_factors(3), "latin_hypercube", budget=20, random_state=3), 3)
+        maximin = _coded(generate_design(_factors(3), "maximin", budget=20, random_state=3), 3)
 
         def min_distance(p: np.ndarray) -> float:
             return min(np.linalg.norm(a - b) for a, b in itertools.combinations(p, 2))
@@ -235,13 +235,13 @@ class TestSpaceFilling:
         assert min_distance(maximin) > min_distance(lhs)
 
     def test_uniform_has_lower_discrepancy_than_a_plain_hypercube(self) -> None:
-        lhs = _coded(generate_design(_factors(3), "latin_hypercube", budget=20, random_seed=3), 3)
-        uniform = _coded(generate_design(_factors(3), "uniform", budget=20, random_seed=3), 3)
+        lhs = _coded(generate_design(_factors(3), "latin_hypercube", budget=20, random_state=3), 3)
+        uniform = _coded(generate_design(_factors(3), "uniform", budget=20, random_state=3), 3)
         assert qmc.discrepancy((uniform + 1) / 2) < qmc.discrepancy((lhs + 1) / 2)
 
     def test_sobol_points_are_balanced(self) -> None:
         """The first 2^m Sobol points put 2^(m-1) points in each half of every factor's range."""
-        x = _coded(generate_design(_factors(3), "sobol", budget=16, random_seed=3), 3)
+        x = _coded(generate_design(_factors(3), "sobol", budget=16, random_state=3), 3)
         assert np.all((x > 0).sum(axis=0) == 8)
 
 

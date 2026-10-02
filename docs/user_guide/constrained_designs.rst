@@ -84,7 +84,7 @@ How the design is chosen
 3. **Exchange.** A Fedorov exchange swaps one design run for one candidate at a
    time, taking the swap that increases the determinant of ``X'X`` most, until no
    swap improves it. Five random starts guard against a poor local optimum;
-   ``random_seed`` makes the result reproducible.
+   ``random_state`` makes the result reproducible.
 
 Writing constraints
 -------------------

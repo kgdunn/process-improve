@@ -185,7 +185,7 @@ def make_design(spec: dict) -> dict:
 
 def _design_options(spec: dict, design_type: str) -> dict[str, Any]:
     """Pick the ``generate_design`` keyword arguments this design type accepts."""
-    kwargs: dict[str, Any] = {"random_seed": int(spec.get("random_seed", 42))}
+    kwargs: dict[str, Any] = {"random_state": int(spec.get("random_state", spec.get("random_seed", 42)))}
     allowed = DESIGNS[design_type]["options"]
     if "n_center_points" in allowed:
         kwargs["n_center_points"] = int(spec.get("n_center_points", 3))

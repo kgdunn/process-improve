@@ -9,6 +9,7 @@ from typing import TYPE_CHECKING, cast
 import numpy as np
 import pandas as pd
 
+from process_improve._random import check_random_state
 from process_improve.experiments._blocking import Blocking, confounding_blocks, exchange_blocks, is_regular_two_level
 from process_improve.experiments.structures import Column, Expt, c, gather
 
@@ -217,7 +218,7 @@ def build_design_result(  # noqa: PLR0913
     n_center_points: int = 0,
     n_replicates: int = 1,
     n_blocks: int | None = None,
-    random_seed: int | None = 42,
+    random_state: int | np.random.Generator | None = 42,
     generators: list[str] | None = None,
     defining_relation: list[str] | None = None,
     resolution: int | None = None,
@@ -225,6 +226,7 @@ def build_design_result(  # noqa: PLR0913
     metadata: dict | None = None,
     is_actual: bool = False,
     n_leading_fixed: int = 0,
+    randomize: bool = True,
 ) -> DesignResult:
     """Post-process a raw design matrix into a complete DesignResult.
 
@@ -251,10 +253,8 @@ def build_design_result(  # noqa: PLR0913
         Number of full replicates.
     n_blocks : int or None
         Number of blocks (None = no blocking).
-    random_seed : int or None
-        Seed for reproducible randomization. When ``None`` the original run
-        order of *coded_matrix* is preserved (used for designs whose run order
-        is part of the solution, e.g. split-plot optimal designs).
+    random_state : int, numpy.random.Generator or None
+        Seed for the run-order randomisation (``None``: fresh entropy).
     generators : list[str] or None
         Generator strings (fractional factorials).
     defining_relation : list[str] or None
@@ -273,6 +273,9 @@ def build_design_result(  # noqa: PLR0913
         Number of leading rows that are runs already performed (the fixed runs
         of an augmentation). They keep their place at the top of the run sheet;
         only the remaining rows are randomised.
+    randomize : bool
+        ``False`` keeps the run order of *coded_matrix* (designs whose run order
+        is part of the solution, e.g. split-plot optimal designs).
 
     Returns
     -------
@@ -289,9 +292,9 @@ def build_design_result(  # noqa: PLR0913
     n_runs = matrix.shape[0]
 
     # 3. Blocks, then randomise: the run order is shuffled within each block, blocks in turn.
-    #    When random_seed is None the original order is preserved (used for optimal designs
+    #    Without randomisation the original order is preserved (used for optimal designs
     #    whose run order is part of the solution, e.g. split-plot).
-    rng = np.random.default_rng(random_seed) if random_seed is not None else None
+    rng = check_random_state(random_state) if randomize else None
     blocking = None
     if n_blocks is not None and n_blocks > 1:
         if n_leading_fixed:

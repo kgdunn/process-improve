@@ -160,14 +160,14 @@ controllable and seeded:
      - ``True``
      - Always append the :math:`2^k` cube corners, where the worst-case
        prediction variance usually sits.
-   * - ``random_seed``
+   * - ``random_state``
      - ``42``
      - Seed for the region sampler; fixing it makes the maximum reproducible.
 
 The region **average** (I) is stable across seeds, but the region **maximum**
 (G) is sensitive to the sample: the worst point is often in the interior, so a
 denser sample finds higher worst-case values.  To tighten and reproduce the
-G estimate, raise ``n_samples`` and fix ``random_seed``:
+G estimate, raise ``n_samples`` and fix ``random_state``:
 
 .. code-block:: python
 
@@ -176,7 +176,7 @@ G estimate, raise ``n_samples`` and fix ``random_seed``:
        model=model,
        metric="fds",
        n_samples=120_000,
-       random_seed=1,
+       random_state=1,
    )
    metrics["fds"]["max_prediction_variance"]  # reproducible run to run
 
@@ -201,7 +201,7 @@ endpoints equal the minimum and maximum prediction variance.
        model=model,
        metric="fds",
        fds_resolution=200,
-       random_seed=1,
+       random_state=1,
    )["fds"]
 
    curve = fds["curve"]

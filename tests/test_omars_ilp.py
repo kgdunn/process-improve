@@ -173,8 +173,8 @@ def test_factor_count_above_cap_raises() -> None:
 def test_reproducible_for_fixed_seed() -> None:
     from process_improve.experiments import generate_omars
 
-    a = generate_omars(_factors(3), random_seed=7, solver_options=_SOLVER)
-    b = generate_omars(_factors(3), random_seed=7, solver_options=_SOLVER)
+    a = generate_omars(_factors(3), random_state=7, solver_options=_SOLVER)
+    b = generate_omars(_factors(3), random_state=7, solver_options=_SOLVER)
     np.testing.assert_array_equal(_coded(a), _coded(b))
 
 
@@ -282,10 +282,10 @@ def test_multistart_is_deterministic_for_seed() -> None:
     from process_improve.experiments import generate_omars
 
     a = generate_omars(
-        _factors(5), n_runs=25, model="main_quadratic", n_restarts=20, random_seed=1, solver_options=_SOLVER
+        _factors(5), n_runs=25, model="main_quadratic", n_restarts=20, random_state=1, solver_options=_SOLVER
     )
     b = generate_omars(
-        _factors(5), n_runs=25, model="main_quadratic", n_restarts=20, random_seed=1, solver_options=_SOLVER
+        _factors(5), n_runs=25, model="main_quadratic", n_restarts=20, random_state=1, solver_options=_SOLVER
     )
     np.testing.assert_array_equal(_coded(a), _coded(b))
 

@@ -155,8 +155,8 @@ class TestGenerateDesign:
         assert heat.max() == pytest.approx(600)
 
     def test_reproducible_with_seed(self) -> None:
-        a = generate_design([TEMP, DOSE], budget=8, constraints=[HEAT], random_seed=3)
-        b = generate_design([TEMP, DOSE], budget=8, constraints=[HEAT], random_seed=3)
+        a = generate_design([TEMP, DOSE], budget=8, constraints=[HEAT], random_state=3)
+        b = generate_design([TEMP, DOSE], budget=8, constraints=[HEAT], random_state=3)
         pd.testing.assert_frame_equal(a.design_actual, b.design_actual)
 
     def test_nonlinear_constraints_categorical_and_fixed_run(self) -> None:
@@ -269,7 +269,7 @@ class TestCriteria:
 
     @pytest.mark.parametrize("design_type", ["d_optimal", "i_optimal", "a_optimal"])
     def test_random_seed_reproduces_the_design(self, design_type: str) -> None:
-        kwargs = {"design_type": design_type, "budget": 9, "constraints": [HEAT], "random_seed": 5}
+        kwargs = {"design_type": design_type, "budget": 9, "constraints": [HEAT], "random_state": 5}
         first = generate_design([TEMP, DOSE], **kwargs)
         second = generate_design([TEMP, DOSE], **kwargs)
         pd.testing.assert_frame_equal(first.design_actual, second.design_actual)

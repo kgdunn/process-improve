@@ -32,6 +32,7 @@ from patsy.design_info import DesignInfo
 from scipy import stats
 from statsmodels.stats.outliers_influence import variance_inflation_factor
 
+from process_improve._random import check_random_state, resolve_deprecated_seed
 from process_improve.experiments._moment_aberration import NotTwoLevelError, moment_aberration
 from process_improve.experiments.designs_mixture_constrained import SCHEFFE_MODELS, scheffe_formula_rhs
 from process_improve.experiments.factor import DesignResult
@@ -67,7 +68,7 @@ class _EvalRequest:
     region: str | DesignRegion = "cuboidal"
     n_samples: int = 100_000
     include_vertices: bool = True
-    random_seed: int = 42
+    random_state: int | np.random.Generator | None = 42
     fds_resolution: int | None = None
 
 
@@ -94,7 +95,7 @@ class _EvalContext:
     region: str | DesignRegion = "cuboidal"
     n_samples: int = 100_000
     include_vertices: bool = True
-    random_seed: int = 42
+    random_state: int | np.random.Generator | None = 42
     fds_resolution: int | None = None
 
 
@@ -207,7 +208,7 @@ def _build_context(req: _EvalRequest) -> _EvalContext:
         region=req.region,
         n_samples=req.n_samples,
         include_vertices=req.include_vertices,
-        random_seed=req.random_seed,
+        random_state=req.random_state,
         fds_resolution=req.fds_resolution,
     )
 
@@ -270,7 +271,7 @@ def _region_points(
     region: str,
     n_samples: int,
     include_vertices: bool,
-    random_seed: int,
+    random_state: int | np.random.Generator | None,
 ) -> np.ndarray:
     """Sample raw factor-space points over the design region.
 
@@ -289,7 +290,7 @@ def _region_points(
         worst-case prediction variance for second-order models very often sits
         at (or near) a corner, so the corners are always represented in the
         G / FDS statistics.
-    random_seed : int
+    random_state : int, numpy.random.Generator or None
         Seed for the NumPy random generator (full reproducibility).
 
     Returns
@@ -299,7 +300,7 @@ def _region_points(
         *include_vertices* is set.
     """
     k = len(factor_names)
-    rng = np.random.default_rng(random_seed)
+    rng = check_random_state(random_state)
     if region == "cuboidal":
         pts = rng.uniform(-1.0, 1.0, size=(n_samples, k))
     elif region == "spherical":
@@ -341,12 +342,12 @@ def _region_prediction_variance(ctx: _EvalContext) -> np.ndarray:
             region=ctx.region,
             n_samples=ctx.n_samples,
             include_vertices=ctx.include_vertices,
-            random_seed=ctx.random_seed,
+            random_state=ctx.random_state,
         )
         X_region = _expand_points(ctx, points)
         return _prediction_variance_at_points(X_region, ctx.XtX_inv)
 
-    rng = np.random.default_rng(ctx.random_seed)
+    rng = check_random_state(ctx.random_state)
     data: dict[str, np.ndarray] = {}
     for f in ctx.factor_names:
         if f in cat_levels:
@@ -388,7 +389,7 @@ def _prediction_variance_in_region(ctx: _EvalContext, region: DesignRegion) -> n
     missing = [n for n in region.names if n not in ctx.factor_names]
     if missing:
         raise ValueError(f"The region names factors {missing} that are not columns of the design.")
-    rng = np.random.default_rng(ctx.random_seed)
+    rng = check_random_state(ctx.random_state)
     points = region.sample(ctx.n_samples, rng)
     if ctx.include_vertices:
         with contextlib.suppress(ValueError):  # a grid too large for support points: sample only
@@ -654,7 +655,7 @@ def _compute_fds(ctx: _EvalContext) -> dict[str, Any]:
         "region": _region_label(ctx.region),
         "n_samples": ctx.n_samples,
         "include_vertices": ctx.include_vertices,
-        "random_seed": ctx.random_seed,
+        "random_seed": ctx.random_state if isinstance(ctx.random_state, int) else None,
         "fds_resolution": ctx.fds_resolution,
         "quantiles": quantiles,
         "average_prediction_variance": avg,
@@ -1199,8 +1200,9 @@ def evaluate_design(  # noqa: PLR0913
     region: str | DesignRegion | None = None,
     n_samples: int = 100_000,
     include_vertices: bool = True,
-    random_seed: int = 42,
+    random_seed: int | None = None,
     fds_resolution: int | None = None,
+    random_state: int | np.random.Generator | None = 42,
 ) -> dict[str, Any]:
     """Compute quality metrics for an experimental design.
 
@@ -1253,8 +1255,8 @@ def evaluate_design(  # noqa: PLR0913
     include_vertices : bool
         When *True* (default), all ``2**k`` cube vertices are added to the
         region sample so the worst-case (G) value at a corner is represented.
-    random_seed : int
-        Seed for the region sampler (full reproducibility).
+    random_seed : int or None
+        Deprecated since 1.97.0 and removed in 2.0; use ``random_state``.
     fds_resolution : int or None
         Resolution of the dense FDS curve.  When *None* (default) the ``fds``
         metric returns only the coarse 11-point ``quantiles`` summary.  When set
@@ -1262,6 +1264,8 @@ def evaluate_design(  # noqa: PLR0913
         ``fraction`` / ``prediction_variance`` / ``scaled_prediction_variance``
         arrays is added for smooth plotting; the endpoints are the minimum and
         maximum prediction variance.
+    random_state : int, numpy.random.Generator or None
+        Seed for the region sampler (default 42, so repeated calls agree).
 
     Returns
     -------
@@ -1338,7 +1342,7 @@ def evaluate_design(  # noqa: PLR0913
             region=region,
             n_samples=n_samples,
             include_vertices=include_vertices,
-            random_seed=random_seed,
+            random_state=resolve_deprecated_seed(random_state, random_seed, "evaluate_design"),
             fds_resolution=fds_resolution,
         )
     )
@@ -1361,8 +1365,9 @@ def evaluate_all(  # noqa: PLR0913
     region: str | DesignRegion | None = None,
     n_samples: int = 100_000,
     include_vertices: bool = True,
-    random_seed: int = 42,
+    random_seed: int | None = None,
     fds_resolution: int | None = None,
+    random_state: int | np.random.Generator | None = 42,
 ) -> dict[str, Any]:
     """Compute *every* available metric for a design in one call.
 
@@ -1389,6 +1394,6 @@ def evaluate_all(  # noqa: PLR0913
         region=region,
         n_samples=n_samples,
         include_vertices=include_vertices,
-        random_seed=random_seed,
         fds_resolution=fds_resolution,
+        random_state=resolve_deprecated_seed(random_state, random_seed, "evaluate_all"),
     )

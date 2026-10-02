@@ -38,6 +38,7 @@ except ImportError:  # pragma: no cover - exercised via env-without-pyDOE3
 
     ff2n = _MissingExtra("pyDOE3", "expt")  # type: ignore[assignment]
 
+from process_improve._random import resolve_deprecated_seed
 from process_improve.experiments.designs_utils import build_design_result, categorical_codes
 from process_improve.experiments.factor import Constraint, DesignResult, Factor, FactorType
 
@@ -387,8 +388,9 @@ def generate_design(  # noqa: PLR0913
     hard_to_change: list[str] | None = None,
     model_type: str = "interactions",
     fixed_runs: pd.DataFrame | None = None,
-    random_seed: int = 42,
+    random_seed: int | None = None,
     candidates: pd.DataFrame | None = None,
+    random_state: int | np.random.Generator | None = 42,
 ) -> DesignResult:
     """Generate an experimental design matrix.
 
@@ -466,8 +468,8 @@ def generate_design(  # noqa: PLR0913
         The fixed runs occupy the first rows of the result and ``budget`` counts them, so
         ``budget`` must exceed ``len(fixed_runs)``. A common use is to seed a centre point. Raises
         ``ValueError`` if given for a non-optimal ``design_type``.
-    random_seed : int
-        Seed for reproducible randomization (default 42).
+    random_seed : int or None
+        Deprecated since 1.97.0 and removed in 2.0; use ``random_state``.
     candidates : pandas.DataFrame or None
         The settings the runs must be chosen from, for the optimal families only: for
         example historical operating points, the discrete settings a piece of
@@ -477,6 +479,10 @@ def generate_design(  # noqa: PLR0913
         also defines the region I-optimality averages over. Rows that break a
         constraint are dropped. A candidate may be chosen more than once, and
         ``metadata["selected_candidates"]`` counts the picks per index label.
+    random_state : int, numpy.random.Generator or None
+        Seeds the run-order randomisation and any random search (default 42, so the
+        same call gives the same design). ``None`` draws fresh entropy; see
+        :doc:`/development/reproducibility`.
 
     Returns
     -------
@@ -502,6 +508,7 @@ def generate_design(  # noqa: PLR0913
     >>> result.design_actual
     """
     # --- Validate ----------------------------------------------------------
+    random_state = resolve_deprecated_seed(random_state, random_seed, "generate_design")
     if not factors:
         raise ValueError("At least one factor must be provided.")
 
@@ -547,7 +554,7 @@ def generate_design(  # noqa: PLR0913
         "constraints": constraints,
         "model_type": model_type,
         "fixed_runs": fixed_runs,
-        "random_state": random_seed,
+        "random_state": random_state,
         "candidates": candidates,
     }
 
@@ -582,9 +589,7 @@ def generate_design(  # noqa: PLR0913
 
     # Optimal designs from pyoptex produce a pre-optimized run order
     # (especially important for split-plot).  Skip randomization for these.
-    effective_seed: int | None = random_seed
-    if design_type in _OPTIMAL_FAMILIES and meta.get("backend") == "pyoptex":
-        effective_seed = None  # signal to build_design_result to skip randomization
+    randomize = not (design_type in _OPTIMAL_FAMILIES and meta.get("backend") == "pyoptex")
     extra_center_points = 0 if design_type in designs_with_embedded_centers else n_center_points
 
     # Mixture designs return proportions (actual units), not coded
@@ -603,7 +608,8 @@ def generate_design(  # noqa: PLR0913
         n_center_points=extra_center_points,
         n_replicates=n_replicates,
         n_blocks=n_blocks,
-        random_seed=effective_seed,
+        random_state=random_state,
+        randomize=randomize,
         generators=result_generators,
         defining_relation=meta.get("defining_relation"),
         resolution=result_resolution,

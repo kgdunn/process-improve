@@ -932,7 +932,7 @@ class TestFDS:
     def test_payload_and_scaling(self) -> None:
         """FDS reports region metadata, quantiles, I/G, and the xN SPV variants."""
         df = _coded(generate_design(_rsm_factors(), design_type="box_behnken", n_center_points=6))
-        result = evaluate_design(df, model=_PURE_QUADRATIC_5, metric="fds", random_seed=1)
+        result = evaluate_design(df, model=_PURE_QUADRATIC_5, metric="fds", random_state=1)
         fds = result["fds"]
         assert fds["region"] == "cuboidal"
         assert fds["include_vertices"] is True
@@ -946,7 +946,7 @@ class TestFDS:
     def test_quantiles_monotone(self) -> None:
         """FDS quantiles are non-decreasing in the fraction of design space."""
         df = _coded(generate_design(_rsm_factors(), design_type="box_behnken", n_center_points=6))
-        fds = evaluate_design(df, model=_PURE_QUADRATIC_5, metric="fds", random_seed=1)["fds"]
+        fds = evaluate_design(df, model=_PURE_QUADRATIC_5, metric="fds", random_state=1)["fds"]
         keys = sorted(fds["quantiles"], key=float)
         values = [fds["quantiles"][k] for k in keys]
         assert values == sorted(values)
@@ -958,7 +958,7 @@ class TestReducedFormulaRegression:
     def test_i_g_efficiency_explicit_pure_quadratic(self) -> None:
         """i/g efficiency for an 11-term reduced formula no longer raises (size 11 vs 21)."""
         df = _coded(generate_design(_rsm_factors(), design_type="box_behnken", n_center_points=6))
-        result = evaluate_design(df, model=_PURE_QUADRATIC_5, metric=["i_efficiency", "g_efficiency"], random_seed=1)
+        result = evaluate_design(df, model=_PURE_QUADRATIC_5, metric=["i_efficiency", "g_efficiency"], random_state=1)
         assert result["i_efficiency"] is not None
         assert result["g_efficiency"] is not None
         assert result["average_prediction_variance"] > 0
@@ -971,7 +971,7 @@ class TestAggregate:
     def test_metric_all_includes_every_metric(self) -> None:
         """metric='all' returns keys for every registered metric family."""
         df = _coded(generate_design(_rsm_factors(), design_type="box_behnken", n_center_points=6))
-        result = evaluate_design(df, model=_PURE_QUADRATIC_5, metric="all", effect_size=1.0, random_seed=1)
+        result = evaluate_design(df, model=_PURE_QUADRATIC_5, metric="all", effect_size=1.0, random_state=1)
         for key in ("d_efficiency", "a_optimality", "e_optimality", "correlation", "alias_matrix", "fds", "power"):
             assert key in result
 
@@ -980,8 +980,8 @@ class TestAggregate:
         from process_improve.experiments.evaluate import evaluate_all
 
         df = _coded(generate_design(_rsm_factors(), design_type="box_behnken", n_center_points=6))
-        a = evaluate_all(df, model=_PURE_QUADRATIC_5, effect_size=1.0, random_seed=1)
-        b = evaluate_design(df, model=_PURE_QUADRATIC_5, metric="all", effect_size=1.0, random_seed=1)
+        a = evaluate_all(df, model=_PURE_QUADRATIC_5, effect_size=1.0, random_state=1)
+        b = evaluate_design(df, model=_PURE_QUADRATIC_5, metric="all", effect_size=1.0, random_state=1)
         assert set(a) == set(b)
         assert a["a_optimality"] == pytest.approx(b["a_optimality"])
 
@@ -991,7 +991,7 @@ class TestGoldenMetrics:
 
     Five factors on the 11-term main-effects-plus-pure-quadratics model, all
     designs confined to [-1, 1]^5, region cuboidal with uniform sampling plus
-    the 2^5 vertices (random_seed=1).  Stable/deterministic metrics (A, E,
+    the 2^5 vertices (random_state=1).  Stable/deterministic metrics (A, E,
     max|r|, region-average I, VIF, alias, power) are asserted tightly; the
     Monte-Carlo region maximum (G) is asserted with a modest tolerance.
     """
@@ -1027,7 +1027,7 @@ class TestGoldenMetrics:
             model=_PURE_QUADRATIC_5,
             metric=["a_optimality", "e_optimality", "correlation", "fds", "vif", "alias_matrix", "power"],
             effect_size=1.0,
-            random_seed=1,
+            random_state=1,
             n_samples=100_000,
         )
         assert res["a_optimality"] == pytest.approx(gA, abs=0.01)
@@ -1063,7 +1063,7 @@ class TestRegionAndMetricEdgeCases:
         """region='spherical' samples the circumscribing ball and returns finite I/G."""
         df = _coded(generate_design(_rsm_factors(), design_type="box_behnken", n_center_points=6))
         result = evaluate_design(
-            df, model=_PURE_QUADRATIC_5, metric="fds", region="spherical", n_samples=2000, random_seed=1
+            df, model=_PURE_QUADRATIC_5, metric="fds", region="spherical", n_samples=2000, random_state=1
         )
         assert result["fds"]["region"] == "spherical"
         assert result["fds"]["max_prediction_variance"] >= result["fds"]["average_prediction_variance"] > 0
@@ -1078,7 +1078,7 @@ class TestRegionAndMetricEdgeCases:
         """include_vertices=False omits the cube corners from the region sample."""
         df = _coded(generate_design(_rsm_factors(), design_type="box_behnken", n_center_points=6))
         fds = evaluate_design(
-            df, model=_PURE_QUADRATIC_5, metric="fds", include_vertices=False, n_samples=2000, random_seed=1
+            df, model=_PURE_QUADRATIC_5, metric="fds", include_vertices=False, n_samples=2000, random_state=1
         )["fds"]
         assert fds["include_vertices"] is False
         assert fds["max_prediction_variance"] > 0
@@ -1129,7 +1129,7 @@ class TestFDSResolution:
     def test_default_is_coarse_quantiles_only(self) -> None:
         """With fds_resolution=None the output is the backward-compatible summary."""
         df = _coded(generate_design(_rsm_factors(), design_type="box_behnken", n_center_points=6))
-        fds = evaluate_design(df, model=_PURE_QUADRATIC_5, metric="fds", random_seed=1)["fds"]
+        fds = evaluate_design(df, model=_PURE_QUADRATIC_5, metric="fds", random_state=1)["fds"]
         assert "curve" not in fds
         assert len(fds["quantiles"]) == 11
         assert fds["fds_resolution"] is None
@@ -1138,7 +1138,7 @@ class TestFDSResolution:
         """fds_resolution=200 returns length-200 monotone arrays with min/max endpoints."""
         df = _coded(generate_design(_rsm_factors(), design_type="box_behnken", n_center_points=6))
         n = df.shape[0]
-        fds = evaluate_design(df, model=_PURE_QUADRATIC_5, metric="fds", fds_resolution=200, random_seed=1)["fds"]
+        fds = evaluate_design(df, model=_PURE_QUADRATIC_5, metric="fds", fds_resolution=200, random_state=1)["fds"]
         curve = fds["curve"]
         pv = np.asarray(curve["prediction_variance"])
         frac = np.asarray(curve["fraction"])
@@ -1162,8 +1162,8 @@ class TestFDSResolution:
     def test_max_reproducible_and_published_values(self) -> None:
         """A fixed (n_samples, seed) is reproducible; 120k/seed-1 hits the published maxima."""
         bbd = _coded(generate_design(_rsm_factors(), design_type="box_behnken", n_center_points=6))
-        first = evaluate_design(bbd, model=_PURE_QUADRATIC_5, metric="fds", n_samples=120_000, random_seed=1)
-        second = evaluate_design(bbd, model=_PURE_QUADRATIC_5, metric="fds", n_samples=120_000, random_seed=1)
+        first = evaluate_design(bbd, model=_PURE_QUADRATIC_5, metric="fds", n_samples=120_000, random_state=1)
+        second = evaluate_design(bbd, model=_PURE_QUADRATIC_5, metric="fds", n_samples=120_000, random_state=1)
         assert first["fds"]["max_prediction_variance"] == second["fds"]["max_prediction_variance"]
         assert first["fds"]["max_prediction_variance"] == pytest.approx(0.84, abs=0.01)
 

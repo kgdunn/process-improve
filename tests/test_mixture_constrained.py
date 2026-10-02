@@ -128,7 +128,7 @@ class TestDesigns:
         np.testing.assert_allclose(result.design_actual[["x1", "x2", "x3"]].sum(axis=1), 1.0)
 
     def test_d_optimal_request_with_mixture_factors_uses_the_mixture_engine(self) -> None:
-        result = generate_design(BOUNDED, design_type="d_optimal", budget=10, constraints=[CAP], random_seed=1)
+        result = generate_design(BOUNDED, design_type="d_optimal", budget=10, constraints=[CAP], random_state=1)
         assert result.metadata["method"] == "d_optimal_extreme_vertices"
         assert _feasible(result.design[["x1", "x2", "x3"]].to_numpy(dtype=float), BOUNDED, [CAP]).all()
 
@@ -143,7 +143,7 @@ class TestDesigns:
 
 @pytest.fixture
 def fitted_mixture() -> tuple:
-    result = generate_design(BOUNDED, budget=12, constraints=[CAP], random_seed=3)
+    result = generate_design(BOUNDED, budget=12, constraints=[CAP], random_state=3)
     x = result.design[["x1", "x2", "x3"]].astype(float)
     y = 10 * x.x1 + 6 * x.x2 + 4 * x.x3 + 12 * x.x1 * x.x2 + np.random.default_rng(1).normal(0, 0.05, len(x))
     return result, x, y.rename("y")
@@ -227,7 +227,7 @@ class TestEvaluateOverRegion:
         )
 
     def test_mixture_design_defaults_to_scheffe_quadratic(self) -> None:
-        result = generate_design(BOUNDED, budget=10, random_seed=0)
+        result = generate_design(BOUNDED, budget=10, random_state=0)
         metrics = evaluate_design(result, metric=["d_efficiency", "i_efficiency"], n_samples=5000)
         assert metrics["d_efficiency"] > 0
         assert metrics["i_efficiency"] is not None

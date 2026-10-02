@@ -187,8 +187,8 @@ class TestFullFactorial:
     def test_reproducible_randomization(self) -> None:
         """Same seed should produce the same run order."""
         factors = _continuous_factors(3, "ABC")
-        r1 = generate_design(factors, design_type="full_factorial", random_seed=123, n_center_points=0)
-        r2 = generate_design(factors, design_type="full_factorial", random_seed=123, n_center_points=0)
+        r1 = generate_design(factors, design_type="full_factorial", random_state=123, n_center_points=0)
+        r2 = generate_design(factors, design_type="full_factorial", random_state=123, n_center_points=0)
         assert r1.run_order == r2.run_order
         # run_order should be a permutation
         assert sorted(r1.run_order) == list(range(1, r1.n_runs + 1))
@@ -196,8 +196,8 @@ class TestFullFactorial:
     def test_different_seeds_different_order(self) -> None:
         """Different seeds should produce different run orders."""
         factors = _continuous_factors(4)  # 16 runs to reduce chance of collision
-        r1 = generate_design(factors, design_type="full_factorial", random_seed=1, n_center_points=0)
-        r2 = generate_design(factors, design_type="full_factorial", random_seed=999, n_center_points=0)
+        r1 = generate_design(factors, design_type="full_factorial", random_state=1, n_center_points=0)
+        r2 = generate_design(factors, design_type="full_factorial", random_state=999, n_center_points=0)
         # run_order should be a permutation of original rows (1-based)
         assert sorted(r1.run_order) == list(range(1, r1.n_runs + 1))
         assert sorted(r2.run_order) == list(range(1, r2.n_runs + 1))

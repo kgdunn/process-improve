@@ -225,7 +225,7 @@ class TestEOptimalExchangeDoesNotStopEarly:
     def test_five_factors_in_eight_runs_reach_the_regular_fraction(self, seed: int) -> None:
         """The 2^(5-2) fraction has lambda_min = 8; seeds used to stop at 4.67, 4.0 and 5.65."""
         result = generate_design(
-            _continuous(5, -1, 1), design_type="e_optimal", budget=8, model_type="main_effects", random_seed=seed
+            _continuous(5, -1, 1), design_type="e_optimal", budget=8, model_type="main_effects", random_state=seed
         )
         assert result.metadata["min_eigenvalue"] == pytest.approx(8.0)
 

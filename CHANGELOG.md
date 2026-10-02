@@ -13,6 +13,13 @@ those changes.
 
 ### Added
 
+- **The `generate_design` agent tool exposes the whole design surface.** It takes
+  `constraints` (expressions in actual units), `candidates`, `fixed_runs`, `model_type`,
+  `n_blocks`, `hard_to_change`, `generators`, `cube` and a numeric `alpha`, offers the
+  `omars` and `omars_ilp` types it was missing (a test keeps its choices equal to
+  `generate_design`'s), and returns the design's `metadata`, including the `region` that
+  `evaluate_design` and `optimize_responses` work over.
+
 - **Space-filling designs**: `design_type="latin_hypercube"`, `"maximin_lhs"`,
   `"uniform"` (minimal centred L2 discrepancy), `"sobol"`, `"halton"` and `"maximin"`.
   The last three also work in constrained regions and constrained mixtures: the
@@ -211,6 +218,14 @@ those changes.
     before it is used.
 
 ### Deprecated
+
+- **`random_seed` is deprecated since 1.97.0 and will be removed in 2.0.0; use
+  `random_state`.** It affects `generate_design`, `evaluate_design`, `evaluate_all`,
+  `generate_omars` and the `generate_design` agent tool, the last public functions that
+  did not follow the package's reproducibility contract. `random_state` takes an int, a
+  `numpy.random.Generator` or `None` (fresh entropy), and its default (42) gives the
+  same designs as before. Passing `random_seed` still works, with a
+  `DeprecationWarning`; passing both raises.
 
 - **The `ilp` extra is deprecated since 1.97.0 and will be removed in 2.0.0.** It is now
   empty: `generate_omars` no longer needs pulp, so there is no replacement to install.
