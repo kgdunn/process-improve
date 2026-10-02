@@ -323,6 +323,26 @@ those changes.
   It is half the high-minus-low effect of a two-level factor, which the docstring and
   the agent tool's schema now say; the G-efficiency docstring names its convention
   (`p / (N max d)`, of which JMP reports the square root).
+- **The FDS, power-curve and prediction-variance plots are computed for a model the
+  design can estimate, over all of its factors.** They assumed a full quadratic model,
+  counted `RunOrder` and `Block` as factors (an SPV in the thousands for a generated
+  CCD), and silently switched to a pseudo-inverse when the quadratic model could not be
+  estimated (any two-level design). The power curve also assumed an orthogonal two-level
+  design and clamped the residual degrees of freedom to 1, giving power 0.17 instead of
+  0.57 for a 2^3 under its main-effects model; the prediction-variance contour dropped
+  the factors not plotted from the model, so `hold_values` had no effect. All three now
+  share `evaluate_design`'s machinery for a `model` that `visualize_doe` and the plot
+  classes accept (default: the fitted formula, else the richest of quadratic,
+  interactions and main effects that the design estimates), use each term's own
+  coefficient variance, take `random_state` and `n_samples` for the FDS sample, and raise
+  `ValueError` for a model the design cannot estimate or that leaves no residual degrees
+  of freedom.
+- **Lenth thresholds on the Pareto and half-normal plots sit at the stated level.** The
+  ME and SME lines were drawn at the analysis's alpha = 0.05 but labelled with
+  `1 - confidence_level` (`"ME (α=0.010000000000000009)"` at 0.99); they are now
+  recomputed from the PSE at the plot's level, and the label is formatted (`α=0.01`).
+- **`visualize_doe` rejects an unknown `backend`.** A value such as `"Plotly"` returned no
+  figure without an error; it now raises `ValueError`.
 - **Each metric's note is kept under its own name.** Metrics returned a shared top-level
   `"note"`, so asking for two metrics kept only the last note, attributed to the wrong
   metric. `evaluate_design` now returns them as `result["notes"][metric_name]`.

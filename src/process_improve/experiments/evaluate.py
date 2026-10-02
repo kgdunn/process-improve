@@ -757,6 +757,19 @@ def _compute_condition_number(ctx: _EvalContext) -> dict[str, float]:
     return {"condition_number": cn}
 
 
+def _coefficient_power(
+    coefficient_over_sigma: float | np.ndarray, c_jj: float, df_resid: int, alpha: float
+) -> float | np.ndarray:
+    """Power of the 1-df F-test of one coefficient, ``beta_j = 0``, at level *alpha*.
+
+    The noncentrality is ``(beta_j / sigma)**2 / c_jj``, with ``c_jj`` the coefficient's
+    diagonal element of ``(X'X)^-1``; *df_resid* is the residual degrees of freedom.
+    """
+    f_crit = stats.f.ppf(1.0 - alpha, dfn=1, dfd=df_resid)
+    ncp = np.asarray(coefficient_over_sigma, dtype=float) ** 2 / c_jj
+    return 1.0 - stats.ncf.cdf(f_crit, dfn=1, dfd=df_resid, nc=ncp)
+
+
 def _compute_power(ctx: _EvalContext) -> dict[str, Any]:
     """Power of the t-test (an F-test on 1 df) of each model coefficient against zero.
 
@@ -780,7 +793,6 @@ def _compute_power(ctx: _EvalContext) -> dict[str, Any]:
 
     assert ctx.XtX_inv is not None  # guaranteed by not is_singular
     diag_inv = np.diag(ctx.XtX_inv)
-    f_crit = stats.f.ppf(1.0 - ctx.alpha, dfn=1, dfd=df_resid)
     terms = [
         (i, name)
         for i, name in enumerate(ctx.column_names)
@@ -788,8 +800,7 @@ def _compute_power(ctx: _EvalContext) -> dict[str, Any]:
     ]
 
     def power_at(coefficient: float, i: int) -> float:
-        ncp = coefficient**2 / (sigma**2 * diag_inv[i])
-        return float(1.0 - stats.ncf.cdf(f_crit, dfn=1, dfd=df_resid, nc=ncp))
+        return float(_coefficient_power(coefficient / sigma, diag_inv[i], df_resid, ctx.alpha))
 
     result: dict[str, Any]
     if ctx.effect_size is not None:
