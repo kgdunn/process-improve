@@ -113,6 +113,24 @@ those changes.
   types now log a warning and set `constraints_enforced=False` instead of ignoring
   constraints silently. See the new user-guide page "Designs over a Constrained Region".
 
+- **MEDA and oMEDA: what a fitted PCA or PLS model says about the variables, and
+  about two groups of observations (#373).**
+  - `meda(model, X)`, or `model.meda(X)`, returns the K x K map of how well each
+    variable is predicted from each other one through the model (Camacho, 2010). It
+    shows the relationships the model represents, where a correlation matrix mixes
+    in the directions the model discards. `signed=False` gives the goodness of
+    prediction itself, and `seriate=True` puts related variables next to each other.
+  - `omeda(model, X, group, reference)`, or `model.omeda(...)`, ranks the variables
+    that separate two groups of observations along the model's directions, with the
+    sign of each difference (Camacho, 2011). `weights` takes a general dummy vector.
+  - `meda_plot` and `omeda_plot` draw them, and are methods of PCA and PLS as well.
+
+  ```python
+  pca = PCA(n_components=3).fit(X_scaled)
+  pca.meda_plot(X_scaled)                                   # blocks of related variables
+  pca.omeda(X_scaled, group=cluster, reference=rest)        # what separates the cluster
+  ```
+
 ### Changed
 
 - **The D-optimal fallback without pyoptex is model-aware.** It used a point
@@ -174,6 +192,19 @@ those changes.
   whole search, including a multistart that had finished most of its restarts. The
   retry solves the same problem with the same options, so seeded results do not change.
   It logs a warning, and a second failure still raises `PulpSolverError`.
+
+- **`MBPLS` and `MBPCA` sign each component like `PLS` and `PCA` do: the
+  largest-magnitude X loading is positive (#586).** Their old convention looked at the
+  super weight (super loading for `MBPCA`), which a sign flip of the whole component
+  leaves unchanged, so it could not fix the sign.
+  - `MBPLS`'s scores and weights changed sign when Y did, and one-block models often
+    had the opposite sign to `PLS` or `PCA` on some component.
+  - With missing cells a super weight can be negative, and then the old flip fired
+    and negated it together with the scores. The model then disagreed with itself:
+    `transform` and `predict` on the training blocks did not reproduce
+    `super_scores_` and `predictions_`.
+  - Some components of existing fits change sign. Scores, loadings, contributions and
+    predictions are otherwise unchanged, apart from the corrected missing-data fits.
 
 ## [1.96.0] - 2026-09-30
 
