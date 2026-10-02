@@ -111,9 +111,7 @@ class TradeOffTableEntry:
 def _factor_names(k: int) -> list[str]:
     """Return the first *k* single-letter factor names, skipping ``I``."""
     if k > len(_FACTOR_NAMES):
-        raise ValueError(
-            f"At most {len(_FACTOR_NAMES)} factors can be given single-letter names; {k} were requested."
-        )
+        raise ValueError(f"At most {len(_FACTOR_NAMES)} factors can be given single-letter names; {k} were requested.")
     return list(_FACTOR_NAMES[:k])
 
 

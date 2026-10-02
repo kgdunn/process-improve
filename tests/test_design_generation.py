@@ -72,6 +72,31 @@ class TestFactor:
         assert f.low == 0.0
         assert f.high == 1.0
 
+    @pytest.mark.parametrize(
+        ("kwargs", "match"),
+        [
+            ({"low": float("nan"), "high": 1}, "finite"),
+            ({"low": 0, "high": float("inf")}, "finite"),
+            ({"type": "mixture", "low": 0.8, "high": 0.2}, "must be less than"),
+            ({"type": "mixture", "low": -0.2}, "0 <= low < high <= 1"),
+            ({"type": "mixture", "high": 2}, "0 <= low < high <= 1"),
+            ({"type": "mixture", "low": float("nan")}, "finite"),
+            ({"type": "categorical", "levels": ["a", None]}, "cannot be missing"),
+            ({"type": "categorical", "levels": [1, float("nan")]}, "cannot be missing"),
+            ({"type": "categorical", "levels": ["a", "b", "a"]}, "distinct"),
+        ],
+    )
+    def test_invalid_bounds_and_levels_raise(self, kwargs: dict, match: str) -> None:
+        """NaN bounds turned every row of the design into NaN; bad mixture bounds failed late or not at all."""
+        with pytest.raises(ValueError, match=match):
+            Factor(name="F", **kwargs)
+
+    def test_from_data_on_missing_data_raises(self) -> None:
+        import pandas as pd
+
+        with pytest.raises(ValueError, match="finite"):
+            Factor.from_data(pd.Series([float("nan")] * 3, name="A"))
+
     def test_from_data_continuous_infers_range(self) -> None:
         """from_data should infer low/high from the data when not given."""
         import pandas as pd
@@ -377,10 +402,16 @@ class TestCCD:
 
     @pytest.mark.parametrize(
         ("alpha", "face", "rule"),
-        [("rotatable", "circumscribed", "rotatable"), ("face_centered", "faced", "face_centered"), (1.5, "circumscribed", "user")],
+        [
+            ("rotatable", "circumscribed", "rotatable"),
+            ("face_centered", "faced", "face_centered"),
+            (1.5, "circumscribed", "user"),
+        ],
     )
     @pytest.mark.parametrize("cube", ["full", "fractional"])
-    def test_face_names_the_geometry_in_both_cube_types(self, alpha: str | float, face: str, rule: str, cube: str) -> None:
+    def test_face_names_the_geometry_in_both_cube_types(
+        self, alpha: str | float, face: str, rule: str, cube: str
+    ) -> None:
         """'face' meant the geometry for a full cube but the alpha rule for a fractional one."""
         result = generate_design(_continuous_factors(5, "ABCDE"), design_type="ccd", alpha=alpha, cube=cube)
         assert result.metadata["face"] == face
@@ -843,10 +874,16 @@ class TestAutoSelect:
         assert result == "plackett_burman"
 
     def test_budget_allows_half_fraction(self) -> None:
-        """Auto-select should pick fractional_factorial when budget allows half-fraction."""
+        """Auto-select picks fractional_factorial when the half fraction and its 3 centre points fit."""
         factors = _continuous_factors(5, "ABCDE")
-        result = _auto_select(factors, budget=16, constraints=None, hard_to_change=None)
+        result = _auto_select(factors, budget=19, constraints=None, hard_to_change=None)
         assert result == "fractional_factorial"
+
+    def test_budget_below_half_fraction_with_centre_points(self) -> None:
+        """16 runs hold the 2^(5-1) fraction but not its centre points; the 8-run Plackett-Burman fits."""
+        factors = _continuous_factors(5, "ABCDE")
+        assert _auto_select(factors, budget=16, constraints=None, hard_to_change=None) == "plackett_burman"
+        assert generate_design(factors, budget=16, n_center_points=0).design_type == "fractional_factorial"
 
     def test_auto_select_through_generate_design(self) -> None:
         """generate_design with no design_type should auto-select."""

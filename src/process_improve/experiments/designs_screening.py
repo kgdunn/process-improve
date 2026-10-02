@@ -133,10 +133,8 @@ def dispatch_fractional_factorial(
                 f"A fractional factorial in {k} factors has a resolution from 3 to {k} (the half fraction); "
                 f"got resolution={resolution}. Use a full factorial for more."
             )
-        if resolution is None:
-            parsed = [(k - 1, list(range(k - 1)))]  # the half fraction
-        else:
-            parsed = _minimum_aberration_generators(k, resolution)
+        # Without a resolution, the half fraction.
+        parsed = [(k - 1, list(range(k - 1)))] if resolution is None else _minimum_aberration_generators(k, resolution)
         signs = [1] * len(parsed)
         coded_matrix = _fracfact_from_indices(k, [lhs for lhs, _ in parsed], [(rhs, False) for _, rhs in parsed])
         generators_used = [f"{factor_names[lhs]}={''.join(factor_names[i] for i in rhs)}" for lhs, rhs in parsed]
@@ -204,9 +202,7 @@ def _search_fraction(k: int, resolution: int) -> list[_Generator]:
         if sum(math.comb(n_base, size) for size in sizes) > _SEARCH_NODE_LIMIT:
             continue  # too many candidate words to search at this size
         candidates = [
-            sum(1 << i for i in combo)
-            for size in sizes
-            for combo in itertools.combinations(range(n_base), size)
+            sum(1 << i for i in combo) for size in sizes for combo in itertools.combinations(range(n_base), size)
         ]
         found = _search_generator_words(candidates, n_base, n_extra, resolution)
         if found is not None:
@@ -257,7 +253,9 @@ def _defining_word_masks(generators: list[_Generator], signs: list[int] | None =
 
 def _defining_words(generators: list[_Generator]) -> list[frozenset[int]]:
     """Return every word of the defining relation as a set of factor indices, shortest first."""
-    words = [frozenset(i for i in range(mask.bit_length()) if mask >> i & 1) for mask, _ in _defining_word_masks(generators)]
+    words = [
+        frozenset(i for i in range(mask.bit_length()) if mask >> i & 1) for mask, _ in _defining_word_masks(generators)
+    ]
     return sorted(words, key=lambda word: (len(word), sorted(word)))
 
 

@@ -391,7 +391,8 @@ def _select_rsm_design(
         runs = estimate_rsm_runs(n_rsm, "ccd", n_center_points)
         purpose = "CCD for full quadratic model with rotatability."
 
-    params: dict[str, Any] = {"n_center_points": n_center_points}
+    # A D-optimal design takes no centre points (generate_design refuses them); the others embed them.
+    params: dict[str, Any] = {} if design_type == "d_optimal" else {"n_center_points": n_center_points}
     if "ccd" in design_type:
         params["alpha"] = "face_centered" if design_type == "ccd_face_centered" else "rotatable"
         design_type = "ccd"  # the face-centred variant is a CCD with alpha="face_centered"

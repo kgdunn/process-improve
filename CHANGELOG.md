@@ -141,6 +141,15 @@ those changes.
 
 ### Changed
 
+- **`n_center_points` defaults to `None` and is honoured, or refused, by every design
+  type.** `None` means three centre points for the factorials, Plackett-Burman, CCD and
+  Box-Behnken designs, as before, and the design's own for the rest. For a DSD or OMARS
+  design the value is now the total number of centre runs (it was ignored, leaving one);
+  values below the design's own count keep it. The mixture, optimal, space-filling,
+  supersaturated and Taguchi designs add no centre points, and a positive value for them
+  now raises `ValueError` instead of being ignored. The `generate_design` tool follows
+  the same default.
+
 - **The D-optimal fallback without pyoptex is model-aware.** It used a point
   exchange on a 3-level grid that scored a first-order model whatever `model_type`
   asked for, so a quadratic request could get a design with too few levels. It is
@@ -297,6 +306,50 @@ those changes.
   fractional cube's defining relation keeps the signs of negated generators. A
   one-factor CCD with a named alpha failed on pyDOE3's `assert` (and returned a design
   under `python -O`); every one-factor CCD now raises `ValueError`.
+- **Automatic design selection fits the budget.** `generate_design(design_type=None,
+  budget=...)` compared the budget with the bare design and then added three centre
+  points, so a budget of 8 runs for three factors gave 11. It also picked a
+  Plackett-Burman design larger than the budget (15 runs for a budget of 11), a
+  D-optimal design whose default interactions model raised the run count (16 runs for a
+  budget of 12, where an 8-run Plackett-Burman fits), a fractional factorial for two
+  factors (which then raised), and a fractional factorial or Plackett-Burman design for
+  a categorical factor with three or more levels (which then raised). The choice now
+  counts centre points and replicates, builds an automatically chosen D-optimal design
+  for the largest model the budget can estimate, sends many-level categorical factors to
+  the full factorial or a D-optimal design, and logs a warning when no design fits.
+  Passing `resolution` or `generators` without a design type chooses a fractional
+  factorial.
+- **`generate_design` refuses arguments it used to ignore or misreport.** `resolution`
+  and `generators` given to a design that does not use them (a full factorial, a
+  Plackett-Burman or Box-Behnken design, a full-cube CCD) were reported back as the
+  design's own properties, so a Plackett-Burman design claimed resolution V; they now
+  raise, and the result reports only what the design achieves. A fixed-size design
+  (factorials, Plackett-Burman, Box-Behnken, CCD, Taguchi) that needs more runs than an
+  explicit `budget` raises instead of returning, say, 67 runs for a budget of 16.
+  Negative or zero `n_replicates`, negative `n_center_points` and `n_blocks` below 1
+  raise instead of being treated as the defaults; factors named `"RunOrder"` or
+  `"Block"` raise instead of being overwritten by, or clashing with, the columns the
+  design adds; and `fixed_runs` with `n_replicates > 1`, which repeated runs already made
+  and shuffled them among the new ones, raises. A full factorial through
+  `generate_design` respects the SEC-19 `max_factors_combinatorial` cap, as
+  `full_factorial` already did.
+- **Every design is randomised unless its run order is part of the solution.**
+  `random_seed=None` returned the design in standard order with the centre points last;
+  it now draws a fresh random order. Optimal designs from pyoptex kept the optimiser's
+  order even without `hard_to_change` factors; only a split-plot design does now.
+- **OMARS through `generate_design` treats the budget as a maximum and counts its centre
+  runs.** An even budget raised, suggesting a size above the budget; the design is now
+  the largest foldover within it, and a budget too small names the budget.
+  `generate_omars` reports `sparsity`, `model_rank` and `omars_verified` for the design it
+  returns, extra centre runs included, and honours `n_restarts` below 6 (`max_candidates`
+  sets a floor only when given); a negative `n_restarts` raises.
+- **`Factor` refuses bounds and levels that cannot make a design.** NaN or infinite bounds
+  were accepted (all-missing data in `Factor.from_data` gave them), and the design then
+  came back with every row missing. A mixture component with `low > high`, `low < 0` or
+  `high > 1` was accepted and either ignored or reported as conflicting constraints. A
+  missing or repeated categorical level was accepted. All now raise `ValueError` naming
+  the factor. `Constraint.type` is documented as informational: the engines classify each
+  expression themselves.
 - **`recommend_strategy` gives an all-mixture problem a mixture optimisation stage.** The
   optimisation stage was a CCD or Box-Behnken design on the first three components. It is
   now a `"mixture"` design for a quadratic Scheffe model in every component.

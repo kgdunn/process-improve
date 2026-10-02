@@ -189,7 +189,7 @@ class TestInputChecks:
             get_trade_off_table_entry(n_runs=8, n_factors=8, display=False)
 
     def test_messages_say_runs_and_factors_in_prose(self):
-        with pytest.raises(ValueError, match="^8 runs cannot accommodate 8 factors: only 7 factors fit into 8 runs"):
+        with pytest.raises(ValueError, match=r"^8 runs cannot accommodate 8 factors: only 7 factors fit into 8 runs"):
             get_trade_off_table_entry(n_runs=8, n_factors=8, display=False)
 
     def test_more_factors_than_single_letter_names_rejected(self):
