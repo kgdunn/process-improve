@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import itertools
 import logging
 
 import numpy as np
@@ -9,6 +10,7 @@ import pandas as pd
 import pytest
 
 from process_improve.experiments import Constraint, Factor, evaluate_design, generate_design
+from process_improve.experiments.augment import augment_design
 from process_improve.experiments.designs_constrained import (
     MAX_CANDIDATES,
     MAX_EXPRESSION_LENGTH,
@@ -322,3 +324,80 @@ class TestEOptimal:
         result = generate_design(mix, design_type="e_optimal", budget=9)
         assert result.metadata["method"] == "e_optimal_extreme_vertices"
         assert result.metadata["min_eigenvalue"] > 0
+
+
+# ---------------------------------------------------------------------------
+# Design quality pins: the exchange may get faster, never worse
+# ---------------------------------------------------------------------------
+
+
+def _quality(coded: np.ndarray, factors: list[Factor], constraint: str | None = None) -> tuple[float, float]:
+    """``log det(X'X) / p`` and the I-criterion ``trace((X'X)^-1 W)`` of a quadratic design in coded units.
+
+    ``W`` is the moment matrix over a fixed uniform sample of the (constrained) region,
+    drawn independently of the design's own random state.
+    """
+    region = _Region(factors, [], [])
+    no_cats = np.empty((len(coded), 0), dtype=int)
+    x = model_matrix(region, coded, no_cats, "quadratic")
+    points = np.random.default_rng(12345).uniform(-1, 1, size=(200_000, len(factors)))
+    if constraint is not None:
+        inequalities = parse_constraint(constraint, {f.name for f in factors})
+        env = region.actual(points)
+        points = points[np.all([g(env) <= 0 for g in inequalities], axis=0)]
+    points = points[:50_000]
+    w = model_matrix(region, points, np.empty((len(points), 0), dtype=int), "quadratic")
+    info = x.T @ x
+    return float(np.linalg.slogdet(info)[1]) / x.shape[1], float(np.trace(np.linalg.solve(info, w.T @ w / len(w))))
+
+
+class TestQualityPins:
+    """D-efficiency (``log det / p``) and I trace measured on the exchange before it was made row-wise (1.97.0).
+
+    Each value is a threshold the design must meet or beat, not an equality: a faster
+    exchange may pick different runs, but not a worse design for its own criterion.
+    """
+
+    @pytest.mark.slow
+    @pytest.mark.parametrize(("k", "log_det_per_p"), [(6, 3.341461), (8, 3.169435), (10, 3.331094)])
+    def test_screening_design_augmented_for_a_quadratic_model(self, k: int, log_det_per_p: float) -> None:
+        """The reproducer of the slow ``add_runs_optimal`` report: 16 screening runs plus 40 for a quadratic model."""
+        names = [f"X{i}" for i in range(k)]
+        cube = np.array(list(itertools.product([-1, 1], repeat=k)), dtype=float)
+        base = pd.DataFrame(cube[:: 2 ** (k - 4)][:16], columns=names)
+        result = augment_design(
+            base, "add_runs_optimal", n_additional_runs=40, target_model="quadratic", random_state=0
+        )
+        coded = pd.DataFrame(result["augmented_design"])[names].to_numpy(dtype=float)
+        d_value, _ = _quality(coded, [Factor(name=n, low=-1, high=1) for n in names])
+        assert d_value >= log_det_per_p - 1e-6
+
+    @pytest.mark.slow
+    @pytest.mark.parametrize(
+        ("criterion", "k", "pinned"),
+        [
+            ("d_optimal", 3, 1.870472),
+            ("d_optimal", 5, 2.467193),
+            ("d_optimal", 7, 2.936326),
+            ("i_optimal", 3, 0.346559),
+            ("i_optimal", 5, 0.390857),
+            ("i_optimal", 7, 0.433964),
+        ],
+    )
+    def test_constrained_quadratic_design(self, criterion: str, k: int, pinned: float) -> None:
+        """A corner cut off the box by ``X0 + X1 <= 15``; quadratic model, six runs more than coefficients."""
+        factors = [Factor(name=f"X{i}", low=0, high=10) for i in range(k)]
+        constraint = "X0 + X1 <= 15"
+        budget = 1 + 2 * k + k * (k - 1) // 2 + 6
+        values, _meta = constrained_optimal_design(
+            factors,
+            budget,
+            [Constraint(expression=constraint)],
+            ConstrainedOptions(model_type="quadratic", criterion=criterion),
+            random_state=0,
+        )
+        d_value, i_value = _quality(values.astype(float), factors, constraint)
+        if criterion == "d_optimal":
+            assert d_value >= pinned - 1e-6
+        else:
+            assert i_value <= pinned + 1e-6
