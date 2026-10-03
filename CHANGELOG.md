@@ -11,6 +11,8 @@ those changes.
 
 ## [Unreleased]
 
+## [1.97.0] - 2026-10-03
+
 ### Added
 
 - **`omars_trade_off_table(..., anchors=True)` marks where the two standard designs
@@ -7113,7 +7115,8 @@ this entry records them together.
 - Reworked the README with a sharper value proposition and a
   "Why not scikit-learn?" comparison table.
 
-[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.96.0...HEAD
+[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.97.0...HEAD
+[1.97.0]: https://github.com/kgdunn/process-improve/compare/v1.96.0...v1.97.0
 [1.96.0]: https://github.com/kgdunn/process-improve/compare/v1.94.0...v1.96.0
 [1.95.1]: https://github.com/kgdunn/process-improve/compare/v1.95.0...v1.95.1
 [1.95.0]: https://github.com/kgdunn/process-improve/compare/v1.94.0...v1.95.0
