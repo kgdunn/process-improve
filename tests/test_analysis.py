@@ -1066,16 +1066,32 @@ class TestLenthDefinition:
     def test_pse_and_sme_match_lenth(self) -> None:
         x = _full_factorial(3)
         df = pd.DataFrame(x, columns=list("ABC"))
-        effects = {"A": 1.0, "B": 1.0, "C": 1.0, "A:B": 2.0, "A:C": 2.0, "B:C": 2.0, "A:B:C": 7.5}
+        effects = {"A": 1.0, "B": 1.0, "C": 1.0, "A:B": 2.0, "A:C": 2.0, "B:C": 2.0, "A:B:C": 8.0}
         df["y"] = sum(e / 2 * np.prod([df[f] for f in term.split(":")], axis=0) for term, e in effects.items())
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
             lenth = analyze_experiment(df, response_column="y", model="(A+B+C)**3", analysis_type="lenth_method")[
                 "lenth_method"
             ]
-        # s0 = 1.5 * 2 = 3; 7.5 = 2.5 s0 exactly, so it is trimmed: PSE = 1.5 * median(1, 1, 1, 2, 2, 2).
+        # s0 = 1.5 * 2 = 3, so 8 > 2.5 s0 is trimmed: PSE = 1.5 * median(1, 1, 1, 2, 2, 2).
         assert lenth["PSE"] == pytest.approx(2.25)
         assert lenth["SME"] / lenth["PSE"] == pytest.approx(9.008, abs=1e-3)  # Lenth's table, m = 7
+
+    def test_an_effect_exactly_at_the_cutoff_is_trimmed(self, monkeypatch) -> None:
+        """The trim is strict (|c| < 2.5 s0), checked on exact effects.
+
+        Fitted coefficients carry rounding noise, which decides the side of an effect placed
+        exactly on the cut-off, so the boundary is tested with the coefficients given directly.
+        """
+        from types import SimpleNamespace
+
+        from process_improve.experiments._analyses import lenth as lenth_module
+
+        effects = pd.Series([1.0, 1.0, 1.0, 2.0, 2.0, 2.0, 7.5], index=["A", "B", "C", "A:B", "A:C", "B:C", "A:B:C"])
+        monkeypatch.setattr(lenth_module, "estimable_effects", lambda _fit: SimpleNamespace(coefficients=effects / 2))
+        out = lenth_module._run_lenth_method(None)["lenth_method"]
+        # s0 = 1.5 * 2 = 3, and 7.5 = 2.5 s0 exactly: not strictly below, so it is trimmed.
+        assert out["PSE"] == 2.25
 
 
 class TestReviewedInputs:
