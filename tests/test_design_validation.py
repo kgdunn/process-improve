@@ -119,7 +119,7 @@ def test_dsd_honours_n_center_points_as_the_total(n_center_points: int | None, e
 
 def test_omars_with_a_budget_counts_its_centre_runs() -> None:
     """The ILP path hard-coded one centre run."""
-    result = generate_design(_factors(3), "omars", budget=21, n_center_points=3, random_seed=1)
+    result = generate_design(_factors(3), "omars", budget=21, n_center_points=3, random_state=1)
     assert result.n_runs == 21
     assert _center_rows(result, "ABC") == 3
 
@@ -127,13 +127,13 @@ def test_omars_with_a_budget_counts_its_centre_runs() -> None:
 @pytest.mark.parametrize("budget", [16, 30])
 def test_omars_treats_the_budget_as_an_upper_bound(budget: int) -> None:
     """An even budget raised, suggesting n_runs=budget+1, above the budget."""
-    result = generate_design(_factors(3), "omars", budget=budget, random_seed=1)
+    result = generate_design(_factors(3), "omars", budget=budget, random_state=1)
     assert result.n_runs == budget - 1
 
 
 def test_omars_budget_too_small_names_the_budget() -> None:
     with pytest.raises(ValueError, match="budget=8"):
-        generate_design(_factors(3), "omars", budget=8, random_seed=1)
+        generate_design(_factors(3), "omars", budget=8, random_state=1)
 
 
 @pytest.mark.parametrize(
@@ -189,8 +189,8 @@ def test_auto_selection_routes_many_level_categorical_factors_to_designs_that_ho
 
 
 def test_none_seed_draws_a_random_order() -> None:
-    """random_seed=None returned the standard order with every centre point last."""
-    orders = {tuple(generate_design(_factors(3), "full_factorial", random_seed=None).run_order) for _ in range(5)}
+    """random_state=None returned the standard order with every centre point last."""
+    orders = {tuple(generate_design(_factors(3), "full_factorial", random_state=None).run_order) for _ in range(5)}
     assert orders != {tuple(range(1, 12))}
     assert len(orders) > 1
 
@@ -198,7 +198,7 @@ def test_none_seed_draws_a_random_order() -> None:
 def test_optimal_design_without_split_plot_is_randomised() -> None:
     """The pyoptex backend skipped randomisation even without hard_to_change factors."""
     pytest.importorskip("pyoptex")
-    orders = [generate_design(_factors(3), "d_optimal", budget=10, random_seed=seed).run_order for seed in (1, 2)]
+    orders = [generate_design(_factors(3), "d_optimal", budget=10, random_state=seed).run_order for seed in (1, 2)]
     assert orders[0] != list(range(1, 11)) or orders[1] != list(range(1, 11))
     assert orders[0] != orders[1]
 
@@ -212,6 +212,6 @@ def test_fixed_runs_with_replicates_raise() -> None:
     matrix = np.array([[0.0, 0.0], [0.5, -0.5], [1, 1], [-1, 1], [1, -1], [-1, -1]])
     factors = [Factor(name="A", low=0, high=10), Factor(name="B", low=0, high=10)]
     with pytest.raises(ValueError, match="n_replicates cannot be combined with fixed_runs"):
-        build_design_result(matrix, factors, "d_optimal", n_replicates=2, random_seed=1, n_leading_fixed=2)
-    result = build_design_result(matrix, factors, "d_optimal", random_seed=1, n_leading_fixed=2)
+        build_design_result(matrix, factors, "d_optimal", n_replicates=2, random_state=1, n_leading_fixed=2)
+    result = build_design_result(matrix, factors, "d_optimal", random_state=1, n_leading_fixed=2)
     assert result.design[["A", "B"]].to_numpy()[:2].tolist() == [[0.0, 0.0], [0.5, -0.5]]

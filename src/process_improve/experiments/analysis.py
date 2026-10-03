@@ -639,7 +639,7 @@ def analyze_experiment(  # noqa: PLR0913
         # So the result can be passed to optimize_responses as a fitted model as it is.
         "response_name": reported_response,
         "factor_names": list(factor_cols),
-        "model_summary": _model_summary(ols_result, formula, response_col, reported_response, model, transform_info),
+        "model_summary": _model_summary(ols_result, formula, reported_response, model, transform_info),
     }
 
     fit = _Fit(
@@ -664,10 +664,9 @@ def analyze_experiment(  # noqa: PLR0913
     return results
 
 
-def _model_summary(  # noqa: PLR0913
+def _model_summary(
     ols_result: RegressionResultsWrapper,
     formula: str,
-    response_col: str,
     reported_response: str,
     model: str,
     transform_info: dict[str, Any],
@@ -695,7 +694,8 @@ def _model_summary(  # noqa: PLR0913
         warnings.warn(message, category=RuntimeWarning, stacklevel=3)
 
     return {
-        "formula": formula.replace(f"{response_col} ~", f"{reported_response} ~", 1),
+        # Report the formula under the caller's response name, not the fitted alias.
+        "formula": f"{reported_response} ~{formula.split('~', 1)[1]}",
         "model": model if model in _NAMED_MODELS else "formula",
         **transform_info,
         "r_squared": float(ols_result.rsquared),

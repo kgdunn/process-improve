@@ -75,6 +75,7 @@ def _safe_evaluate(design: pd.DataFrame, model: str | None = None) -> dict[str, 
     except (ValueError, KeyError, np.linalg.LinAlgError) as exc:
         # Evaluation may not apply to every design; return no metrics, say so, and let
         # unexpected error types propagate.
+        logger.warning("Design evaluation skipped: %s", exc)
         warnings.warn(f"Design metrics were not computed: {exc}", UserWarning, stacklevel=5)
         return {}
 
