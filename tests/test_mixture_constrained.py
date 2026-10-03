@@ -303,10 +303,11 @@ class TestOptimizeInRegion:
         points = np.array([[p["coded"]["T"], p["coded"]["D"]] for p in front["pareto_front"]["front"]])
         assert HEAT_REGION.feasible(points, tol=1e-6).all()
 
-    def test_other_methods_warn_and_ignore_the_region(self, caplog: pytest.LogCaptureFixture) -> None:
-        with caplog.at_level(logging.WARNING):
+    def test_other_methods_warn_and_ignore_the_region(self) -> None:
+        # A UserWarning, not a log record, since the caller has to act on it; it points at the call.
+        with pytest.warns(UserWarning, match="ignored by 'stationary_point'") as record:
             optimize_responses([HEAT_MODEL], method="stationary_point", region=HEAT_REGION)
-        assert "ignored by 'stationary_point'" in caplog.text
+        assert record[0].filename == __file__
 
     def test_region_must_match_the_model_factors(self) -> None:
         with pytest.raises(ValueError, match="do not match"):

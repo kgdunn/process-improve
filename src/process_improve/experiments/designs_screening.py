@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import contextlib
 import itertools
+import math
 from typing import TYPE_CHECKING
 
 import numpy as np
@@ -20,12 +21,11 @@ from process_improve.experiments._finite_fields import hadamard_matrix
 from process_improve.experiments.designs_utils import categorical_codes
 
 try:
-    from pyDOE3 import fracfact, fracfact_by_res, pbdesign
+    from pyDOE3 import fracfact, pbdesign
 except ImportError:  # pragma: no cover - exercised via env-without-pyDOE3
     from process_improve._extras import _MissingExtra
 
     fracfact = _MissingExtra("pyDOE3", "expt")  # type: ignore[assignment]
-    fracfact_by_res = _MissingExtra("pyDOE3", "expt")  # type: ignore[assignment]
     pbdesign = _MissingExtra("pyDOE3", "expt")  # type: ignore[assignment]
 
 if TYPE_CHECKING:
@@ -95,7 +95,8 @@ def dispatch_fractional_factorial(
         Desired minimum resolution (3 or more). The design is the minimum-aberration
         fraction with the fewest runs that reaches it, so its resolution can be higher.
         When neither *resolution* nor *generators* is given, the design is the half
-        fraction 2^(k-1), of resolution k. Ignored when *generators* is provided.
+        fraction 2^(k-1), of resolution k. With *generators*, it is checked instead:
+        generators that reach a lower resolution raise ``ValueError``.
     generators : list[str] or None
         Explicit generator strings, e.g. ``["D=ABC", "E=AC"]``.  When given,
         these are translated into the pyDOE3 generator notation.
@@ -105,14 +106,16 @@ def dispatch_fractional_factorial(
     tuple[np.ndarray, dict]
         Coded design matrix (-1 / +1) and metadata dict with keys
         ``"generators_used"``, ``"defining_relation"`` and ``"resolution"``, the
-        resolution the design achieves. A design with more than 11 factors that needs
-        pyDOE3's search reports ``"resolution"`` only.
+        resolution the design achieves. A word of the defining relation that is -1 on
+        every run (from a negated generator such as ``"D=-AB"``) is written ``"I=-ABD"``.
+        A defining relation of more than 1023 words (more than ten generators) is not
+        listed.
 
     Raises
     ------
     ValueError
         If fewer than 3 factors are given without generators, if *resolution* is below 3
-        or above the number of factors, or if no checked design reaches it.
+        or above the number of factors, or if *generators* fall short of *resolution*.
     """
     factor_names = [f.name for f in factors]
     k = len(factors)
@@ -121,6 +124,7 @@ def dispatch_fractional_factorial(
         derived_idx, rhs_indices = _parse_generators(factor_names, generators)
         coded_matrix = _fracfact_from_indices(k, derived_idx, rhs_indices)
         parsed = [(lhs, rhs) for lhs, (rhs, _negated) in zip(derived_idx, rhs_indices, strict=True)]
+        signs = [-1 if negated else 1 for _rhs, negated in rhs_indices]
         generators_used = list(generators)
     else:
         if k < 3:
@@ -130,104 +134,130 @@ def dispatch_fractional_factorial(
                 f"A fractional factorial in {k} factors has a resolution from 3 to {k} (the half fraction); "
                 f"got resolution={resolution}. Use a full factorial for more."
             )
-        if resolution is None:
-            parsed = [(k - 1, list(range(k - 1)))]  # the half fraction
-        else:
-            chosen = _minimum_aberration_generators(k, resolution)
-            if chosen is None:
-                return _fracfact_by_res_checked(k, resolution)
-            parsed = chosen
+        # Without a resolution, the half fraction.
+        parsed = [(k - 1, list(range(k - 1)))] if resolution is None else _minimum_aberration_generators(k, resolution)
+        signs = [1] * len(parsed)
         coded_matrix = _fracfact_from_indices(k, [lhs for lhs, _ in parsed], [(rhs, False) for _, rhs in parsed])
         generators_used = [f"{factor_names[lhs]}={''.join(factor_names[i] for i in rhs)}" for lhs, rhs in parsed]
 
-    words = _defining_words(parsed)
-    meta = {
-        "generators_used": generators_used,
-        "defining_relation": ["I=" + "".join(factor_names[i] for i in sorted(word)) for word in words],
-        "resolution": min(len(word) for word in words),
-    }
+    words = _defining_word_masks(parsed, signs)
+    achieved = min(mask.bit_count() for mask, _ in words)
+    if generators and resolution is not None and achieved < resolution:
+        raise ValueError(
+            f"The generators {list(generators)} give a resolution-{achieved} design, below the resolution={resolution} "
+            "asked for. Pass either generators or resolution, or generators that reach the resolution."
+        )
+    meta: dict = {"generators_used": generators_used, "resolution": achieved}
+    if len(words) <= _MAX_LISTED_WORDS:
+        words.sort(key=lambda item: (item[0].bit_count(), [i for i in range(k) if item[0] >> i & 1]))
+        meta["defining_relation"] = [_format_word(mask, sign, factor_names) for mask, sign in words]
     return coded_matrix, meta
 
 
-def _minimum_aberration_generators(k: int, resolution: int) -> list[_Generator] | None:
-    """Choose the fewest-run minimum-aberration fraction of resolution at least *resolution*.
+#: Longest defining relation listed in the metadata (ten generators); a longer one is
+#: left out, since the generators define it.
+_MAX_LISTED_WORDS = 1023
 
-    The half fraction is the answer whenever no smaller fraction reaches *resolution*.
-    Returns None for more than 11 factors when a smaller fraction might exist; pyDOE3
-    then searches for one.
+
+def _format_word(mask: int, sign: int, factor_names: list[str]) -> str:
+    """Format a defining word as ``"I=ABD"``, or ``"I=-ABD"`` in a fraction where the word is -1."""
+    return ("I=-" if sign < 0 else "I=") + "".join(name for i, name in enumerate(factor_names) if mask >> i & 1)
+
+
+def _minimum_aberration_generators(k: int, resolution: int) -> list[_Generator]:
+    """Choose the fewest-run fraction of resolution at least *resolution*.
+
+    Up to 11 factors the fraction comes from the minimum-aberration table, and the half
+    fraction is the answer whenever no smaller tabulated fraction reaches *resolution*.
+    Beyond 11 factors :func:`_search_fraction` looks for the smallest fraction that
+    reaches it; that fraction is not necessarily of minimum aberration.
     """
     half_fraction = [(k - 1, list(range(k - 1)))]
+    if k > _MAX_TABULATED_FACTORS:
+        return _search_fraction(k, resolution)
     for _n_runs, entry in sorted(_MIN_ABERRATION.get(k, {}).items()):
         candidate = [(_TABLE_LETTERS.index(g[0]), [_TABLE_LETTERS.index(c) for c in g[2:]]) for g in entry]
         if min(len(word) for word in _defining_words(candidate)) >= resolution:
             return candidate
-    # The table lists every fraction up to 11 factors. Beyond that, a quarter fraction
-    # reaches at most resolution floor(2k/3), and smaller fractions no more than that.
-    if k <= _MAX_TABULATED_FACTORS or resolution > 2 * k // 3:
-        return half_fraction
-    return None
+    return half_fraction
 
 
-def _defining_words(generators: list[_Generator]) -> list[frozenset[int]]:
-    """Return every word of the defining relation, shortest first.
+#: Branches the generator search for more than 11 factors may try at one run size
+#: before it moves to the next larger size; it keeps the search to about a second.
+_SEARCH_NODE_LIMIT = 200_000
+
+
+def _search_fraction(k: int, resolution: int) -> list[_Generator]:
+    """Find a 2^(k-p) fraction of resolution at least *resolution*, trying the fewest runs first.
+
+    At each run size ``2^(k-p)`` a depth-first search picks the ``p`` generator words
+    one at a time, keeping only choices that leave every word of the defining relation
+    at least *resolution* letters long. The search at a size gives up after
+    :data:`_SEARCH_NODE_LIMIT` branches, so a smaller fraction may exist when the
+    returned one is larger; the half fraction, of resolution ``k``, always qualifies.
+    """
+    for n_base in range(max(2, k.bit_length()), k - 1):
+        n_extra = k - n_base
+        # A generator word is the derived factor times at least resolution - 1 base factors.
+        sizes = range(max(2, resolution - 1), n_base + 1)
+        if sum(math.comb(n_base, size) for size in sizes) > _SEARCH_NODE_LIMIT:
+            continue  # too many candidate words to search at this size
+        candidates = [
+            sum(1 << i for i in combo) for size in sizes for combo in itertools.combinations(range(n_base), size)
+        ]
+        found = _search_generator_words(candidates, n_base, n_extra, resolution)
+        if found is not None:
+            return [(n_base + j, [i for i in range(n_base) if mask >> i & 1]) for j, mask in enumerate(found)]
+    return [(k - 1, list(range(k - 1)))]  # the half fraction, of resolution k
+
+
+def _search_generator_words(candidates: list[int], n_base: int, n_extra: int, resolution: int) -> list[int] | None:
+    """Depth-first search for *n_extra* generator words (bit masks of base factors), or None."""
+    nodes = 0
+
+    def extend(start: int, words: list[int], chosen: list[int]) -> list[int] | None:
+        nonlocal nodes
+        if len(chosen) == n_extra:
+            return chosen
+        for index in range(start, len(candidates)):
+            nodes += 1
+            if nodes > _SEARCH_NODE_LIMIT:
+                return None
+            generator = candidates[index] | (1 << (n_base + len(chosen)))
+            new_words = [generator] + [word ^ generator for word in words]
+            if all(word.bit_count() >= resolution for word in new_words):
+                found = extend(index + 1, words + new_words, [*chosen, candidates[index]])
+                if found is not None or nodes > _SEARCH_NODE_LIMIT:
+                    return found
+        return None
+
+    return extend(0, [], [])
+
+
+def _defining_word_masks(generators: list[_Generator], signs: list[int] | None = None) -> list[tuple[int, int]]:
+    """Return every word of the defining relation as ``(bit mask of factors, sign)``.
 
     A generator's word is its derived factor times its base factors; the defining
     relation holds every product of those words (symmetric differences, since each
-    factor squares to the identity).
+    factor squares to the identity), and a product's sign is the product of the signs
+    of the generators in it. No product is the identity: each generator word holds its
+    own derived factor.
     """
-    generator_words = []
-    for lhs, rhs in generators:
-        letters = {lhs}
+    words: list[tuple[int, int]] = []
+    for (lhs, rhs), sign in zip(generators, signs or [1] * len(generators), strict=True):
+        mask = 1 << lhs
         for index in rhs:
-            letters ^= {index}  # a repeated base factor cancels
-        generator_words.append(frozenset(letters))
-    # No product is the identity: each generator word holds its own derived factor.
-    words: set[frozenset[int]] = set()
-    for size in range(1, len(generator_words) + 1):
-        for subset in itertools.combinations(generator_words, size):
-            product: frozenset[int] = frozenset()
-            for generator_word in subset:
-                product ^= generator_word
-            words.add(product)
+            mask ^= 1 << index  # a repeated base factor cancels
+        words += [(mask, sign)] + [(word ^ mask, word_sign * sign) for word, word_sign in words]
+    return words
+
+
+def _defining_words(generators: list[_Generator]) -> list[frozenset[int]]:
+    """Return every word of the defining relation as a set of factor indices, shortest first."""
+    words = [
+        frozenset(i for i in range(mask.bit_length()) if mask >> i & 1) for mask, _ in _defining_word_masks(generators)
+    ]
     return sorted(words, key=lambda word: (len(word), sorted(word)))
-
-
-def _shortest_word_length(coded: np.ndarray) -> int:
-    """Return the resolution of a coded fraction: the fewest columns whose product is constant.
-
-    Shortest candidates are tried first, so the first constant product found is the
-    answer. A fraction always has one, since its columns outnumber its base factors.
-    """
-    k = coded.shape[1]
-    return next(
-        size
-        for size in range(1, k + 1)
-        for columns in itertools.combinations(range(k), size)
-        if np.all(np.prod(coded[:, columns], axis=1) == np.prod(coded[0, columns]))
-    )
-
-
-def _fracfact_by_res_checked(k: int, resolution: int) -> tuple[np.ndarray, dict]:
-    """Search with pyDOE3 beyond the table, then measure the resolution it reached.
-
-    ``fracfact_by_res`` does not always reach the resolution it is asked for: for 7 to
-    11 factors at resolution V it returned resolution IV designs. So its design is
-    measured from the columns instead of being taken on trust.
-    """
-    try:
-        coded_matrix = fracfact_by_res(k, resolution)[:, :k]
-    except ValueError as exc:
-        raise ValueError(
-            f"No resolution-{resolution} fraction for {k} factors is tabulated, and pyDOE3 found none ({exc}). "
-            "Pass explicit generators instead."
-        ) from exc
-    achieved = _shortest_word_length(coded_matrix)
-    if achieved < resolution:
-        raise ValueError(
-            f"No resolution-{resolution} fraction for {k} factors is tabulated, and pyDOE3's design only reaches "
-            f"resolution {achieved}. Pass explicit generators instead."
-        )
-    return coded_matrix, {"resolution": achieved}
 
 
 def _parse_generator_word(word: str, factor_names: list[str]) -> list[int]:

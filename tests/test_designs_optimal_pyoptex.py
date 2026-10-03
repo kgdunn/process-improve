@@ -181,19 +181,23 @@ class TestDispatchDefaults:
 
 
 class TestRunOrderPreservation:
-    """pyoptex designs keep their optimized ordering (vital for split-plot)."""
+    """Only split-plot pyoptex designs keep their optimized ordering; the others are randomised."""
 
-    def test_seed_does_not_randomize_pyoptex_design(self) -> None:
-        result = generate_design(
-            _continuous(2),
-            design_type="i_optimal",
-            budget=6,
-            random_state=999,
-            n_center_points=0,
-            backend="pyoptex",
-        )
-        assert result.metadata.get("backend") == "pyoptex"
-        assert result.run_order == list(range(1, 7))
+    def test_pyoptex_design_without_split_plot_is_randomised(self) -> None:
+        """The run order used to be kept for every pyoptex design, so the seed had no effect on it."""
+        orders = [
+            generate_design(
+                _continuous(2),
+                design_type="i_optimal",
+                budget=6,
+                random_state=seed,
+                n_center_points=0,
+                backend="pyoptex",
+            )
+            for seed in (999, 1000)
+        ]
+        assert all(result.metadata.get("backend") == "pyoptex" for result in orders)
+        assert orders[0].run_order != orders[1].run_order
 
 
 # ---------------------------------------------------------------------------

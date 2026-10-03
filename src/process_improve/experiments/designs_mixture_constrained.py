@@ -13,9 +13,11 @@ built from the geometry of that polytope, in three steps:
 2. **Candidate points.** The vertices, the midpoints of the edges joining them, the
    centroid of each constraint face, the overall centroid, and the axial check blends
    halfway between each vertex and the centroid.
-3. **Selection.** Without a run budget the classical extreme-vertices design is
-   returned; with one, a D-optimal subset is chosen for the Scheffé model by the same
-   Fedorov exchange used for constrained process designs.
+3. **Selection.** Without a run budget the vertices, the edge midpoints (for a
+   quadratic model), the 2-face centroids (for a special cubic one) and the overall
+   centroid are returned, unless that is more than three runs per model term; with a
+   budget, or for such a large design, a D-optimal subset is chosen for the Scheffé
+   model by the same Fedorov exchange used for constrained process designs.
 
 The Scheffé models have no intercept, since ``sum(x) = 1`` makes an intercept
 redundant: ``linear`` has one term per component, ``quadratic`` adds ``x_i x_j`` and
@@ -60,8 +62,9 @@ _MODEL_ALIASES = {
 }
 #: Uniform blends that estimate the region's moment matrix for I-optimality.
 _N_REGION_SAMPLES = 20_000
-#: Largest number of constraint subsets solved when enumerating vertices.
+#: Largest number of constraint subsets solved when enumerating vertices, and how many are solved at once.
 MAX_VERTEX_SUBSETS = 500_000
+_VERTEX_CHUNK = 50_000
 _TOL = 1e-9
 
 
@@ -147,31 +150,89 @@ def mixture_inequalities(factors: list[Factor], constraints: list[Constraint] | 
         for a, c in _linear_coefficients(constraint.expression, names):
             rows.append(a[None, :])
             rhs.append(np.array([-c]))
-    return np.vstack(rows), np.concatenate(rhs)
+    return _unit_rows(np.vstack(rows), np.concatenate(rhs))
+
+
+def _unit_rows(a_mat: np.ndarray, b_vec: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+    """Scale each inequality ``a @ x <= b`` so that ``|a| = 1``, leaving the region unchanged.
+
+    The tolerances below are then distances, whatever units a constraint was written in:
+    ``0.003*x1 >= 0.0003`` and ``x1 >= 0.1`` give the same row.
+    """
+    norms = np.linalg.norm(a_mat, axis=1)
+    norms = np.where(norms > 0, norms, 1.0)
+    return a_mat / norms[:, None], b_vec / norms
+
+
+def _drop_redundant_rows(a_mat: np.ndarray, b_vec: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+    """Remove inequalities implied by the others (with ``sum(x) = 1``); the region is unchanged.
+
+    Row ``r`` is implied when the largest ``a_r @ x`` over the region cut by the other
+    rows is at most ``b_r``, found by one linear programme per row. Rows are removed one
+    at a time, so of two identical rows one is kept. The upper bound ``x_i <= 1`` with
+    lower bounds of 0 is the common case: it adds nothing, but would multiply the
+    systems the vertex enumeration solves.
+    """
+    from scipy.optimize import linprog  # noqa: PLC0415
+
+    keep = np.ones(len(a_mat), dtype=bool)
+    q = a_mat.shape[1]
+    for r in range(len(a_mat)):
+        keep[r] = False
+        if not keep.any():
+            keep[r] = True
+            continue
+        result = linprog(
+            -a_mat[r],
+            A_ub=a_mat[keep],
+            b_ub=b_vec[keep],
+            A_eq=np.ones((1, q)),
+            b_eq=[1.0],
+            bounds=[(None, None)] * q,
+            method="highs",
+        )
+        implied = result.status == 0 and -result.fun <= b_vec[r] + _TOL
+        keep[r] = not implied
+    return a_mat[keep], b_vec[keep]
 
 
 def extreme_vertices(a_mat: np.ndarray, b_vec: np.ndarray) -> np.ndarray:
     """Enumerate the vertices of ``{x : A x <= b, sum(x) = 1}``.
 
-    Every subset of ``q - 1`` constraint rows is made active, stacked with the row
-    ``sum(x) = 1`` into a ``q`` by ``q`` system, and all systems are solved in one
-    batched call. Solutions that satisfy every constraint are vertices.
+    Each inequality is first scaled to unit length and the ones implied by the others
+    are dropped (see :func:`_drop_redundant_rows`), which leaves the region unchanged.
+    Every subset of ``q - 1`` remaining rows is then made active, stacked with the row
+    ``sum(x) = 1`` into a ``q`` by ``q`` system, and the systems are solved in batches.
+    With every row of unit length, a system's determinant is at most 1 in size, so the
+    test for a singular system does not depend on how a constraint was scaled.
+    Solutions that satisfy every constraint are vertices.
+
+    Raises
+    ------
+    ValueError
+        If more than ``MAX_VERTEX_SUBSETS`` systems would have to be solved.
     """
-    m, q = a_mat.shape
+    a_mat, b_vec = _unit_rows(np.asarray(a_mat, dtype=float), np.asarray(b_vec, dtype=float))
+    a_red, b_red = _drop_redundant_rows(a_mat, b_vec)
+    m, q = a_red.shape
     n_subsets = math.comb(m, q - 1)
     if n_subsets > MAX_VERTEX_SUBSETS:
         raise ValueError(
-            f"Enumerating the vertices needs {n_subsets} linear solves ({m} constraints, {q} components), "
-            f"more than the limit of {MAX_VERTEX_SUBSETS}. Remove redundant constraints or components."
+            f"Enumerating the vertices needs {n_subsets} linear solves ({m} non-redundant constraints, {q} "
+            f"components), more than the limit of {MAX_VERTEX_SUBSETS}. Remove constraints or components."
         )
-    subsets = np.array(list(itertools.combinations(range(m), q - 1)), dtype=int).reshape(-1, q - 1)
-    systems = np.concatenate([a_mat[subsets], np.ones((len(subsets), 1, q))], axis=1)
-    rhs = np.concatenate([b_vec[subsets], np.ones((len(subsets), 1))], axis=1)
-    solvable = np.abs(np.linalg.det(systems)) > 1e-12
-    points = np.linalg.solve(systems[solvable], rhs[solvable][..., None])[..., 0]
+    found = []
+    combos = itertools.combinations(range(m), q - 1)
+    while chunk := list(itertools.islice(combos, _VERTEX_CHUNK)):
+        subsets = np.array(chunk, dtype=int).reshape(-1, q - 1)
+        systems = np.concatenate([a_red[subsets], np.full((len(subsets), 1, q), 1.0 / np.sqrt(q))], axis=1)
+        rhs = np.concatenate([b_red[subsets], np.full((len(subsets), 1), 1.0 / np.sqrt(q))], axis=1)
+        solvable = np.abs(np.linalg.det(systems)) > 1e-12  # every row has unit length, so this is a relative test
+        points = np.linalg.solve(systems[solvable], rhs[solvable][..., None])[..., 0]
+        found.append(points[np.all(points @ a_mat.T <= b_vec + 1e-9, axis=1)])
+    points = np.vstack(found) if found else np.empty((0, q))
     points[np.abs(points) < 1e-12] = 0.0  # no -0.0 or 1e-17 in a design sheet
-    feasible = np.all(points @ a_mat.T <= b_vec + 1e-9, axis=1)
-    return _unique_rows(points[feasible])
+    return _unique_rows(points)
 
 
 def _unique_rows(points: np.ndarray) -> np.ndarray:
@@ -193,19 +254,36 @@ def _plane_centroids(vertices: np.ndarray, active: np.ndarray, a_mat: np.ndarray
     A vertex and two of its neighbours span a 2-face when the constraints active at
     all three leave a plane (rank ``q - 2``). Its centroid averages every vertex on
     which those constraints are active, so each face is found once whichever corner
-    it is reached from.
+    it is reached from. Each set of shared constraints is examined once, and one with
+    fewer than ``q - 3`` constraints cannot leave a plane, so needs no rank computed.
     """
-    q, seen, centroids = a_mat.shape[1], set(), []
+    q, checked, centroids = a_mat.shape[1], set(), []
     for i in range(len(vertices)):
         for j, k in itertools.combinations(np.flatnonzero(adjacent[i]), 2):
             shared = active[i] & active[j] & active[k]
-            if _face_rank(a_mat, shared) != q - 2:
+            key = shared.tobytes()
+            if key in checked:  # many triples share one set of constraints: each set is looked at once
                 continue
-            members = tuple(np.flatnonzero(active[:, shared].all(axis=1)))
-            if members not in seen:
-                seen.add(members)
-                centroids.append(vertices[list(members)].mean(axis=0))
+            checked.add(key)
+            if shared.sum() < q - 3 or _face_rank(a_mat, shared) != q - 2:
+                continue
+            centroids.append(vertices[active[:, shared].all(axis=1)].mean(axis=0))
     return centroids
+
+
+def _adjacency(active: np.ndarray, a_mat: np.ndarray) -> np.ndarray:
+    """Which vertices share an edge: the constraints active at both leave a line (rank ``q - 1`` with the sum).
+
+    A pair needs at least ``q - 2`` shared active constraints for that, so only those
+    pairs, counted in one matrix product, have their rank computed.
+    """
+    q = a_mat.shape[1]
+    counts = active.astype(int)
+    shared_counts = counts @ counts.T
+    adjacent = np.zeros(shared_counts.shape, dtype=bool)
+    for i, j in zip(*np.nonzero(np.triu(shared_counts >= q - 2, k=1)), strict=True):
+        adjacent[i, j] = adjacent[j, i] = _face_rank(a_mat, active[i] & active[j]) == q - 1
+    return adjacent
 
 
 def _uniform_blends(
@@ -241,14 +319,13 @@ def mixture_candidates(a_mat: np.ndarray, b_vec: np.ndarray) -> dict[str, np.nda
     constraints active at both, together with ``sum(x) = 1``, have rank ``q - 1``: the
     set of points satisfying them is a line.
     """
+    a_mat, b_vec = _unit_rows(np.asarray(a_mat, dtype=float), np.asarray(b_vec, dtype=float))
     vertices = extreme_vertices(a_mat, b_vec)
     if len(vertices) == 0:
         raise ValueError("No mixture satisfies all the constraints; check them for conflicts.")
     q = a_mat.shape[1]
     active = np.abs(vertices @ a_mat.T - b_vec) <= 1e-9
-    adjacent = np.zeros((len(vertices), len(vertices)), dtype=bool)
-    for i, j in itertools.combinations(range(len(vertices)), 2):
-        adjacent[i, j] = adjacent[j, i] = _face_rank(a_mat, active[i] & active[j]) == q - 1
+    adjacent = _adjacency(active, a_mat)
     edges = [(vertices[i] + vertices[j]) / 2 for i, j in zip(*np.nonzero(np.triu(adjacent)), strict=True)]
     faces = [vertices[active[:, r]].mean(axis=0) for r in range(a_mat.shape[0]) if active[:, r].sum() > 2]
     centroid = vertices.mean(axis=0, keepdims=True)
@@ -286,12 +363,34 @@ def _user_blends(
     return blends[keep], list(candidates.index[keep])
 
 
-#: Point kinds in the classical extreme-vertices design, by Scheffé model.
+#: Without a budget, a design of more than this many runs per model term is replaced by a
+#: D-optimal one with ``_EXTRA_RUNS`` runs beyond the number of terms.
+_CLASSICAL_RUNS_PER_TERM = 3
+_EXTRA_RUNS = 5
+#: Point kinds in the design used without a budget, by Scheffé model.
 _EV_DESIGN = {
     "scheffe_linear": ("vertex", "centroid"),
     "scheffe_quadratic": ("vertex", "edge_midpoint", "centroid"),
     "scheffe_special_cubic": ("vertex", "edge_midpoint", "plane_centroid", "centroid"),
 }
+
+
+def _budget_for_a_large_region(
+    budget: int | None, candidates: dict, model: str, n_parameters: int
+) -> tuple[int | None, int | None]:
+    """Return ``(budget, n_runs)``: a missing budget stays missing while the design used without one is small.
+
+    ``n_runs`` is the size of that design (vertices, edge midpoints, 2-face centroids
+    and the centroid, as the model needs), or ``None`` when a budget was given. Above
+    three runs per model term, as with many bounded components, the budget becomes
+    ``n_parameters + _EXTRA_RUNS`` for a D-optimal design.
+    """
+    if budget is not None:
+        return budget, None
+    n_runs = len(_unique_rows(np.vstack([candidates[kind] for kind in _EV_DESIGN[model]])))
+    if n_runs > _CLASSICAL_RUNS_PER_TERM * n_parameters:
+        return n_parameters + _EXTRA_RUNS, n_runs
+    return None, n_runs
 
 
 def constrained_mixture_design(
@@ -308,10 +407,17 @@ def constrained_mixture_design(
     factors : list[Factor]
         Mixture factors; ``low`` and ``high`` are the component bounds as proportions.
     budget : int or None
-        Number of runs. ``None`` returns the classical extreme-vertices design for the
-        model: vertices and centroid, plus edge midpoints for a quadratic model, plus
-        the centroids of the 2-dimensional faces for a special cubic one. With a budget, a D-optimal subset of
-        all candidate blends is chosen; blends may be replicated.
+        Number of runs. ``None`` returns, for the model, the vertices and the overall
+        centroid, plus the edge midpoints for a quadratic model, plus the centroids of
+        the 2-dimensional faces for a special cubic one. (This is not McLean and
+        Anderson's design, which adds the facet centroids instead.) When that is more
+        than three runs per model term, as with many bounded components, a D-optimal
+        design of ``n_terms + 5`` runs is returned instead, and
+        ``metadata["n_runs_vertices_edges_centroid"]`` records the size avoided. With
+        ``options.candidates``, ``None`` means a D-optimal design of ``n_terms + 3``
+        runs. With a budget, a D-optimal subset of all candidate blends is chosen;
+        blends may be replicated. A budget below the number of model terms is raised to
+        it, with a warning, and recorded in ``metadata["budget_requested"]``.
     constraints : list[Constraint] or None
         Linear inequalities in the proportions, e.g. ``"x1 + x2 <= 0.7"``.
     options : ConstrainedOptions or None
@@ -328,6 +434,9 @@ def constrained_mixture_design(
     -------
     tuple[np.ndarray, dict]
         Proportions ``(n_runs, q)`` whose rows sum to 1, and metadata.
+        ``n_vertices`` counts the region's vertices and ``n_candidates`` the distinct
+        blends the runs were chosen from (the feasible supplied ones, with
+        ``options.candidates``).
 
     Raises
     ------
@@ -355,6 +464,8 @@ def constrained_mixture_design(
             low = np.array([f.low or 0.0 for f in factors], dtype=float)
             return scheffe_matrix(_uniform_blends(a_mat, b_vec, low, candidates["vertex"], rng), model)
 
+    requested_budget = budget
+    budget, n_classical = _budget_for_a_large_region(budget, candidates, model, n_parameters)
     if budget is None:
         design = _unique_rows(np.vstack([candidates[kind] for kind in _EV_DESIGN[model]]))
         method, logdet = "extreme_vertices", None
@@ -383,12 +494,17 @@ def constrained_mixture_design(
         "method": method,
         "model_type": model,
         "n_vertices": len(candidates["vertex"]),
-        "n_candidates": int(sum(len(v) for v in candidates.values())),
+        "n_candidates": len(pool),
         "constraints": [c.expression for c in constraints or []],
         "constraints_enforced": True,
     }
+    if requested_budget != budget:
+        # A budget raised to the model's size, or one set because the default design was too large.
+        key = "budget_requested" if requested_budget is not None else "n_runs_vertices_edges_centroid"
+        meta[key] = requested_budget if requested_budget is not None else n_classical
     if labels is not None:
         meta["candidate_source"] = "user"
+        meta["n_candidates_supplied"] = len(opts.candidates)  # type: ignore[arg-type]
         meta["selected_candidates"] = selection_counts(labels, rows)
     if logdet is not None:
         meta["optimality_criterion"] = opts.criterion

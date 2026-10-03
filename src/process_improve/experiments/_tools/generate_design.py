@@ -58,10 +58,14 @@ class GenerateDesignInput(BaseModel):
         ge=1,
         description="Maximum number of experimental runs.",
     )
-    n_center_points: int = Field(
-        3,
+    n_center_points: int | None = Field(
+        None,
         ge=0,
-        description="Number of center point replicates (default: 3).",
+        description=(
+            "Number of centre runs. Default: 3 for factorial, Plackett-Burman, CCD and Box-Behnken designs, "
+            "and the design's own for the others. For a DSD or OMARS design, the total number of centre runs. "
+            "Other design types take no centre points."
+        ),
     )
     n_replicates: int = Field(
         1,
@@ -128,10 +132,12 @@ class GenerateDesignInput(BaseModel):
     )
     random_state: int = Field(
         42,
+        ge=0,
         description="Seed for the run order and any random search (default: 42).",
     )
     random_seed: int | None = Field(
         None,
+        ge=0,
         description="Deprecated since 1.97.0, removed in 2.0: use random_state.",
         json_schema_extra={"deprecated": True},
     )

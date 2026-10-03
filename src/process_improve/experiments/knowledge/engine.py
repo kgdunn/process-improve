@@ -294,14 +294,12 @@ _VALID_TOPICS = {
     "design_properties",
     "design_types",
     "analysis_methods",
-    "interpretation",
     "troubleshooting",
     "diagnostics",
     "optimization",
     "statistical_concepts",
     "screening",
     "response_surface",
-    "worked_examples",
 }
 
 
@@ -574,17 +572,38 @@ def _format_design_type(dt: DesignTypeNode, detail_level: str) -> dict[str, Any]
     }
 
 
+def _topic_hits(graph: KnowledgeGraph, query: str, topic: str) -> list[tuple[str, str]]:
+    """Return the (node_type, node_id) pairs of ``topic``: those matching ``query``, or all without one."""
+    allowed = set(graph.topic_index.get(topic, []))
+    if query:
+        return [(node_type, node_id) for node_type, node_id, _ in _keyword_search(graph, query) if node_id in allowed]
+    collections: list[tuple[str, dict[str, Any]]] = [
+        ("design_type", graph.design_types),
+        ("concept", graph.concepts),
+        ("diagnostic", graph.diagnostics),
+        ("interpretation", graph.interpretation_guides),
+    ]
+    return [(node_type, node_id) for node_type, nodes in collections for node_id in nodes if node_id in allowed]
+
+
 def query_generic(
     graph: KnowledgeGraph,
     query: str,
     detail_level: str,
+    topic: str = "",
 ) -> list[dict[str, Any]]:
-    """Fallback: keyword search across all node types."""
+    """Keyword search across all node types, restricted to the nodes of ``topic`` when one is given.
+
+    With a topic and no query, every node of the topic is returned.
+    """
     results: list[dict[str, Any]] = []
-    keyword_hits = _keyword_search(graph, query)
+    if topic:
+        hits = _topic_hits(graph, query, topic)
+    else:
+        hits = [(node_type, node_id) for node_type, node_id, _ in _keyword_search(graph, query)]
 
     seen = set()
-    for node_type, node_id, _score in keyword_hits[:10]:
+    for node_type, node_id in hits[:10]:
         if (node_type, node_id) in seen:
             continue
         seen.add((node_type, node_id))

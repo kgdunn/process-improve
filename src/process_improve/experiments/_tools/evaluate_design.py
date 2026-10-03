@@ -57,7 +57,10 @@ class EvaluateDesignInput(BaseModel):
     )
     effect_size: float | None = Field(
         None,
-        description="Expected effect size for power calculation.",
+        description=(
+            "Anticipated model coefficient in coded units for the power calculation, i.e. half the "
+            "high-minus-low effect of a two-level factor."
+        ),
     )
     alpha: float = Field(
         0.05,
@@ -77,6 +80,7 @@ class EvaluateDesignInput(BaseModel):
     )
     random_state: int = Field(
         42,
+        ge=0,
         description="Seed for the region sampler (default: 42).",
     )
 

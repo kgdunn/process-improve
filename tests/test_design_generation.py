@@ -72,6 +72,31 @@ class TestFactor:
         assert f.low == 0.0
         assert f.high == 1.0
 
+    @pytest.mark.parametrize(
+        ("kwargs", "match"),
+        [
+            ({"low": float("nan"), "high": 1}, "finite"),
+            ({"low": 0, "high": float("inf")}, "finite"),
+            ({"type": "mixture", "low": 0.8, "high": 0.2}, "must be less than"),
+            ({"type": "mixture", "low": -0.2}, "0 <= low < high <= 1"),
+            ({"type": "mixture", "high": 2}, "0 <= low < high <= 1"),
+            ({"type": "mixture", "low": float("nan")}, "finite"),
+            ({"type": "categorical", "levels": ["a", None]}, "cannot be missing"),
+            ({"type": "categorical", "levels": [1, float("nan")]}, "cannot be missing"),
+            ({"type": "categorical", "levels": ["a", "b", "a"]}, "distinct"),
+        ],
+    )
+    def test_invalid_bounds_and_levels_raise(self, kwargs: dict, match: str) -> None:
+        """NaN bounds turned every row of the design into NaN; bad mixture bounds failed late or not at all."""
+        with pytest.raises(ValueError, match=match):
+            Factor(name="F", **kwargs)
+
+    def test_from_data_on_missing_data_raises(self) -> None:
+        import pandas as pd
+
+        with pytest.raises(ValueError, match="finite"):
+            Factor.from_data(pd.Series([float("nan")] * 3, name="A"))
+
     def test_from_data_continuous_infers_range(self) -> None:
         """from_data should infer low/high from the data when not given."""
         import pandas as pd
@@ -364,6 +389,40 @@ class TestCCD:
         result = generate_design(factors, design_type="ccd", alpha="inscribed")
         assert result.n_factors == 2
 
+    def test_inscribed_reports_the_axial_to_cube_ratio(self) -> None:
+        """The inscribed CCD shrinks the cube to +/-1/alpha; alpha is the ratio, not the 1.0 of the axial runs."""
+        factors = _continuous_factors(3, "ABC")
+        result = generate_design(factors, design_type="ccd", alpha="inscribed")
+        coded = result.design[result.factor_names].to_numpy(dtype=float)
+        cube = coded[np.all(coded != 0, axis=1)]
+        assert result.alpha == pytest.approx(8**0.25)
+        assert np.allclose(np.abs(cube), 1 / result.alpha)
+        assert result.metadata["face"] == "inscribed"
+        assert result.metadata["alpha_rule"] == "inscribed"
+
+    @pytest.mark.parametrize(
+        ("alpha", "face", "rule"),
+        [
+            ("rotatable", "circumscribed", "rotatable"),
+            ("face_centered", "faced", "face_centered"),
+            (1.5, "circumscribed", "user"),
+        ],
+    )
+    @pytest.mark.parametrize("cube", ["full", "fractional"])
+    def test_face_names_the_geometry_in_both_cube_types(
+        self, alpha: str | float, face: str, rule: str, cube: str
+    ) -> None:
+        """'face' meant the geometry for a full cube but the alpha rule for a fractional one."""
+        result = generate_design(_continuous_factors(5, "ABCDE"), design_type="ccd", alpha=alpha, cube=cube)
+        assert result.metadata["face"] == face
+        assert result.metadata["alpha_rule"] == rule
+
+    @pytest.mark.parametrize("alpha", ["rotatable", "face_centered", "inscribed", None, 1.5])
+    def test_one_factor_raises_value_error(self, alpha: str | float | None) -> None:
+        """pyDOE3 guards n > 1 with an assert, so the outcome depended on python -O."""
+        with pytest.raises(ValueError, match="at least 2 factors"):
+            generate_design(_continuous_factors(1, "A"), design_type="ccd", alpha=alpha)
+
     def test_orthogonal_default(self) -> None:
         """An explicit 'orthogonal' alpha is accepted."""
         factors = _continuous_factors(2, "AB")
@@ -615,6 +674,13 @@ class TestDOptimal:
             vals = result.design[col].values
             assert np.all(np.abs(vals) <= 1.0 + 1e-10)
 
+    @pytest.mark.parametrize("given", [{"expression": "A + B <= 0.5"}, "A + B <= 0.5"])
+    def test_constraints_as_dicts_or_expressions(self, given: dict | str) -> None:
+        """A JSON round trip of a Constraint (a recommend_strategy stage's design_params) gives a dict."""
+        factors = [Factor(name=n, low=0, high=1) for n in "AB"]
+        result = generate_design(factors, design_type="d_optimal", budget=6, constraints=[given])
+        assert (result.design_actual["A"] + result.design_actual["B"]).max() <= 0.5 + 1e-9
+
 
 # ---------------------------------------------------------------------------
 # I-Optimal (pyoptex)
@@ -749,13 +815,14 @@ class TestMixture:
         with pytest.raises(ValueError, match="at least 2"):
             generate_design(factors, design_type="mixture")
 
-    def test_simplex_centroid_run_count(self) -> None:
-        """Simplex-centroid for k components has 2^k - 1 runs."""
+    def test_default_run_count_follows_the_model(self) -> None:
+        """The default (quadratic Scheffe) design is the {k, 2} lattice plus the centroid, not 2^k - 1 runs."""
         for k in (3, 4, 5):
             factors = [Factor(name=f"x{i}", type="mixture") for i in range(k)]
             result = generate_design(factors, design_type="mixture")
-            assert result.n_runs == 2**k - 1
-            assert result.metadata["method"] == "simplex_centroid"
+            assert result.n_runs == k * (k + 1) // 2 + 1
+            expected = "simplex_centroid" if k == 3 else "simplex_lattice_degree_2_plus_centroid"
+            assert result.metadata["method"] == expected
 
     def test_values_in_unit_interval(self) -> None:
         """All mixture proportions must lie in [0, 1]."""
@@ -765,14 +832,13 @@ class TestMixture:
         assert proportions.min() >= -1e-12
         assert proportions.max() <= 1.0 + 1e-12
 
-    def test_budget_triggers_simplex_lattice(self) -> None:
-        """Tight budget should downgrade to a simplex-lattice of degree 2."""
+    def test_budget_below_the_default_design_gives_a_d_optimal_subset(self) -> None:
+        """A budget is a ceiling: below the 6-run default design, the runs come from the D-optimal engine."""
         factors = [Factor(name=f"x{i}", type="mixture") for i in range(5)]
-        # Simplex-centroid would need 2^5 - 1 = 31 runs; cap at 10.
-        result = generate_design(factors, design_type="mixture", budget=10)
-        assert result.metadata["method"] == "simplex_lattice_degree_2"
-        # {5, 2} lattice has k*(k+1)/2 = 15 points.
-        assert result.n_runs == 15
+        result = generate_design(factors, design_type="mixture", budget=4, model_type="scheffe_linear")
+        assert result.metadata["method"] == "d_optimal_extreme_vertices"
+        assert result.n_runs == 5  # raised to the 5 model terms, and recorded
+        assert result.metadata["budget_requested"] == 4
 
 
 # ---------------------------------------------------------------------------
@@ -815,10 +881,16 @@ class TestAutoSelect:
         assert result == "plackett_burman"
 
     def test_budget_allows_half_fraction(self) -> None:
-        """Auto-select should pick fractional_factorial when budget allows half-fraction."""
+        """Auto-select picks fractional_factorial when the half fraction and its 3 centre points fit."""
         factors = _continuous_factors(5, "ABCDE")
-        result = _auto_select(factors, budget=16, constraints=None, hard_to_change=None)
+        result = _auto_select(factors, budget=19, constraints=None, hard_to_change=None)
         assert result == "fractional_factorial"
+
+    def test_budget_below_half_fraction_with_centre_points(self) -> None:
+        """16 runs hold the 2^(5-1) fraction but not its centre points; the 8-run Plackett-Burman fits."""
+        factors = _continuous_factors(5, "ABCDE")
+        assert _auto_select(factors, budget=16, constraints=None, hard_to_change=None) == "plackett_burman"
+        assert generate_design(factors, budget=16, n_center_points=0).design_type == "fractional_factorial"
 
     def test_auto_select_through_generate_design(self) -> None:
         """generate_design with no design_type should auto-select."""
