@@ -253,16 +253,22 @@ def _convert_factors_to_pyoptex(
             z_array = np.concatenate([z_array, np.full(n_runs - len(z_array), n_whole_plots - 1)])
         random_effect = RandomEffect(z_array[:n_runs], ratio=_WHOLE_PLOT_VARIANCE_RATIO)
 
+    from process_improve.experiments.designs_utils import sorted_level_ranks  # noqa: PLC0415
+
     htc_set = set(hard_to_change) if hard_to_change else set()
     continuous_levels = _QUADRATIC_LEVELS if model_type == "quadratic" else None
     pyoptex_factors = []
     for f in factors:
         if f.type == FactorType.categorical:
+            # pyoptex effect-codes a categorical factor against its last level. Giving it the
+            # levels in sorted order makes that the level evaluate_design (patsy) and the
+            # candidate exchange use, so all three report the same A-criterion.
+            levels = list(f.levels or [])
             pf = PyoptexFactor(
                 f.name,
                 random_effect if f.name in htc_set else None,
                 type="categorical",
-                levels=f.levels,
+                levels=[levels[i] for i in np.argsort(sorted_level_ranks(levels))],
             )
         elif continuous_levels is not None:
             pf = PyoptexFactor(
@@ -502,9 +508,10 @@ def _exchange_scale_metadata(factors: list[Factor], design: pd.DataFrame, criter
     """Return the criterion value under the candidate exchange's key and scale, so the backends can be compared.
 
     pyoptex reports ``metric_value`` on its own scale: ``det(X'X)^(1/p)`` for D and
-    ``-trace`` for A and I, in its own coding. This adds ``log_det_information`` or
-    ``trace_criterion``, computed in the candidate exchange's coding (I-optimality
-    averaged over a fixed uniform sample of the factor box).
+    ``-trace`` for A and I. This adds ``log_det_information`` or ``trace_criterion``,
+    computed in the candidate exchange's coding (I-optimality averaged over a fixed
+    uniform sample of the factor box). Both effect-code a categorical factor against the
+    same level, so for A-optimality ``trace_criterion`` equals ``-metric_value``.
     """
     from process_improve.experiments.designs_constrained import (  # noqa: PLC0415
         _Region,

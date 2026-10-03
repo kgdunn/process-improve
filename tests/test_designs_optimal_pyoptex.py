@@ -49,7 +49,8 @@ class TestConvertFactors:
         assert converted[0].re is None
         assert converted[1].name == "B"
         assert converted[1].type == "categorical"
-        assert list(converted[1].levels) == ["lo", "mid", "hi"]
+        # Sorted, so pyoptex effect-codes against the level evaluate_design uses (the last sorted).
+        assert list(converted[1].levels) == ["hi", "lo", "mid"]
         assert converted[1].re is None
 
     def test_hard_to_change_builds_random_effect(self) -> None:
