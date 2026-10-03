@@ -7,7 +7,7 @@ import re
 import warnings
 from collections import defaultdict
 from collections.abc import Iterable
-from typing import TYPE_CHECKING, Any, cast
+from typing import TYPE_CHECKING, Any
 
 import numpy as np
 import pandas as pd
@@ -502,22 +502,48 @@ def predict(model: Model, **kwargs: Any) -> Any:  # noqa: ANN401
     return model._OLS.predict(exog=dict(kwargs))
 
 
+#: Correlation beyond which two model columns are exact aliases: one, up to rounding.
+_EXACT_ALIAS = 1.0 - 1e-9
+
+
 def lm(  # noqa: C901, PLR0915
     model_spec: str,
     data: Expt,
     name: str | None = None,
-    alias_threshold: float | None = 0.995,
+    alias_threshold: float | None = _EXACT_ALIAS,
 ) -> Model:
-    """Create a linear model."""
+    """Create a linear model.
+
+    Parameters
+    ----------
+    model_spec : str
+        The model formula, e.g. ``"y ~ A * B"``.
+    data : Expt
+        The data; a plain ``Expt`` or DataFrame works too.
+    name : str or None
+        The model's name; defaults to the data's ``pi_title``, if it has one.
+    alias_threshold : float or None
+        Two model columns whose absolute correlation exceeds this are treated as
+        aliases, and the longer term is dropped from the fit and reported as an alias.
+        The default detects only exact aliasing (a correlation of one up to rounding),
+        as in a fractional factorial; a column that is merely highly correlated, such
+        as a square in actual units, is kept. ``None`` drops nothing.
+
+    Returns
+    -------
+    Model
+        The fitted model.
+    """
 
     def find_aliases(  # noqa: C901, PLR0912
         model: Any,  # noqa: ANN401
-        model_desc: ModelDesc,
-        threshold_correlation: float = 0.995,
+        terms: list[Any],
+        threshold_correlation: float = _EXACT_ALIAS,
     ) -> tuple[dict, list]:
         """
         Find columns which are exactly correlated, or up to at least a level
-        of `threshold_correlation`.
+        of `threshold_correlation`. ``terms`` holds the patsy term of each model
+        column (a categorical term spans several columns).
         Return a dictionary of aliasing and a list of columns to keep.
 
         The columns to keep will be in the order checked. Perhaps this can be
@@ -539,7 +565,6 @@ def lm(  # noqa: C901, PLR0915
         stddev = np.sqrt(d.real)
 
         aliasing = defaultdict(list)
-        terms = model_desc.rhs_termlist
         drop_columns: list[int] = []
         counter = -1
         corrcoef = c.copy()
@@ -617,18 +642,22 @@ def lm(  # noqa: C901, PLR0915
             f"the SEC-19 cap is settings.max_formula_terms="
             f"{settings.max_formula_terms}."
         )
-    model_description = ModelDesc.from_formula(model_spec)
-    # ``alias_threshold`` is ``float | None`` at the public boundary; the inner
-    # ``find_aliases`` uses it in numeric comparisons. The cast is a no-op at
-    # runtime (preserving the original behaviour for any value, including None).
-    aliasing, drop_columns = find_aliases(
-        pre_model, model_description, threshold_correlation=cast("float", alias_threshold)
-    )
-    drop_column_names = [pre_model.data.xnames[i] for i in drop_columns]
+    if alias_threshold is None:
+        aliasing: dict = {}
+        drop_column_names: list[str] = []
+    else:
+        # Map each model column to its patsy term: a categorical term spans several
+        # columns, and patsy orders the terms in the model matrix its own way.
+        spec: Any = getattr(pre_model.data, "model_spec", None) or pre_model.data.design_info
+        column_terms: list[Any] = [None] * n_terms
+        for term, columns in spec.term_slices.items():
+            column_terms[columns] = [term] * (columns.stop - columns.start)
+        aliasing, drop_columns = find_aliases(pre_model, column_terms, threshold_correlation=alias_threshold)
+        drop_column_names = [pre_model.data.xnames[i] for i in drop_columns]
 
     post_model = smf.ols(model_spec, data=data, drop_cols=drop_column_names)
 
-    name = name or data.pi_title
+    name = name or getattr(data, "pi_title", None)
     out = Model(
         OLS_instance=post_model.fit(),
         model_spec=model_spec,

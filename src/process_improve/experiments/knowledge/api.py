@@ -1,8 +1,7 @@
 """Public API for the DOE knowledge graph.
 
 Provides :func:`doe_knowledge` - the single entry-point for retrieving
-DOE concepts, design selection logic, interpretation guidance, diagnostic
-patterns, and worked examples.
+DOE concepts, design selection logic, design types and diagnostic patterns.
 """
 
 from __future__ import annotations
@@ -38,9 +37,10 @@ def doe_knowledge(
         Restrict the search to a specific topic.  Valid values:
 
         ``"design_selection"``, ``"design_properties"``, ``"design_types"``,
-        ``"analysis_methods"``, ``"interpretation"``, ``"troubleshooting"``,
-        ``"diagnostics"``, ``"optimization"``, ``"statistical_concepts"``,
-        ``"screening"``, ``"response_surface"``, ``"worked_examples"``.
+        ``"analysis_methods"``, ``"troubleshooting"``, ``"diagnostics"``,
+        ``"optimization"``, ``"statistical_concepts"``, ``"screening"``,
+        ``"response_surface"``. Results then come only from that topic's
+        entries; without a query, all of them are returned.
     context : dict, optional
         Experimental context for design-selection queries.  Recognised keys:
 
@@ -109,8 +109,8 @@ def doe_knowledge(
     elif topic == "design_types":
         results = query_design_types(graph, query, detail_level)
     elif topic:
-        # Other valid topics: use generic keyword search filtered by topic
-        results = query_generic(graph, query, detail_level)
+        # Other valid topics: keyword search restricted to the topic's entries
+        results = query_generic(graph, query, detail_level, topic=topic)
     else:
         # No topic: broad keyword search
         results = query_generic(graph, query, detail_level)

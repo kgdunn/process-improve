@@ -4,6 +4,7 @@
 
 from __future__ import annotations
 
+import math
 from collections.abc import Sequence
 from dataclasses import dataclass, field
 from enum import Enum
@@ -33,12 +34,14 @@ class Factor(BaseModel):
     type : FactorType
         One of "continuous", "categorical", or "mixture".
     low : float or None
-        Low level for continuous/mixture factors.
+        Low level for continuous/mixture factors: finite, and below *high*. A
+        mixture component's bounds are proportions, ``0 <= low < high <= 1``
+        (default 0 and 1).
     high : float or None
         High level for continuous/mixture factors.
     levels : list or None
-        Explicit levels for categorical factors, or for continuous factors
-        with more than 2 levels.
+        Explicit levels for categorical factors (distinct, none missing), or for
+        continuous factors with more than 2 levels.
     units : str
         Engineering units (e.g. "degC", "bar", "g/L").
 
@@ -61,17 +64,38 @@ class Factor(BaseModel):
         if self.type == FactorType.continuous:
             if self.low is None or self.high is None:
                 raise ValueError(f"Factor '{self.name}': continuous factors require 'low' and 'high'.")
-            if self.low >= self.high:
-                raise ValueError(f"Factor '{self.name}': 'low' ({self.low}) must be less than 'high' ({self.high}).")
+            self._check_bounds()
         elif self.type == FactorType.categorical:
-            if not self.levels or len(self.levels) < 2:
-                raise ValueError(f"Factor '{self.name}': categorical factors require 'levels' with at least 2 entries.")
+            self._check_levels()
         elif self.type == FactorType.mixture:
             if self.low is None:
                 self.low = 0.0
             if self.high is None:
                 self.high = 1.0
+            self._check_bounds()
+            if self.low < 0 or self.high > 1:  # type: ignore[operator]
+                raise ValueError(
+                    f"Factor '{self.name}': a mixture component is a proportion, so its bounds must satisfy "
+                    f"0 <= low < high <= 1; got low={self.low}, high={self.high}."
+                )
         return self
+
+    def _check_bounds(self) -> None:
+        """Raise unless ``low`` and ``high`` are finite with ``low < high``."""
+        low, high = float(self.low), float(self.high)  # type: ignore[arg-type]
+        if not (math.isfinite(low) and math.isfinite(high)):
+            raise ValueError(f"Factor '{self.name}': 'low' ({low}) and 'high' ({high}) must be finite numbers.")
+        if low >= high:
+            raise ValueError(f"Factor '{self.name}': 'low' ({low}) must be less than 'high' ({high}).")
+
+    def _check_levels(self) -> None:
+        """Raise unless a categorical factor has at least two distinct, non-missing levels."""
+        if not self.levels or len(self.levels) < 2:
+            raise ValueError(f"Factor '{self.name}': categorical factors require 'levels' with at least 2 entries.")
+        if any(level is None or (isinstance(level, float) and math.isnan(level)) for level in self.levels):
+            raise ValueError(f"Factor '{self.name}': a categorical level cannot be missing (None or NaN).")
+        if len(pd.unique(pd.Series(self.levels, dtype=object))) != len(self.levels):
+            raise ValueError(f"Factor '{self.name}': categorical levels must be distinct; got {self.levels}.")
 
     @property
     def center(self) -> float | None:
@@ -162,7 +186,9 @@ class Constraint(BaseModel):
         Factor names in the expression must match the ``name`` fields of the
         corresponding ``Factor`` objects.
     type : str
-        Either ``"linear"`` or ``"nonlinear"``.
+        Either ``"linear"`` or ``"nonlinear"``. Informational only: the design
+        engines classify each expression themselves, so the label does not change
+        how the constraint is enforced.
 
     Examples
     --------

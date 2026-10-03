@@ -35,15 +35,14 @@ _BBD_RUNS: dict[int, int] = {
     7: 56,
 }
 
-# CCD factorial portion: 2^k for k <= 5, 2^(k-1) for k >= 6
-_CCD_FACTORIAL_RUNS: dict[int, int] = {
-    2: 4,
-    3: 8,
-    4: 16,
-    5: 32,
-    6: 32,  # half-fraction
-    7: 64,  # half-fraction
-}
+#: Factors from which a CCD's cube is the resolution V half fraction, ``generate_design(...,
+#: cube="fractional")``, which is what ``recommend_strategy`` asks for; fewer take the full 2^k cube.
+_CCD_HALF_FRACTION_FROM = 6
+
+
+def _ccd_factorial_runs(n_factors: int) -> int:
+    """Return the runs in a CCD's cube: 2^k up to five factors, the 2^(k-1) half fraction from six."""
+    return 2 ** (n_factors - 1) if n_factors >= _CCD_HALF_FRACTION_FROM else 2**n_factors
 
 
 # ---------------------------------------------------------------------------
@@ -52,12 +51,16 @@ _CCD_FACTORIAL_RUNS: dict[int, int] = {
 
 
 def _fractional_factorial_runs(n_factors: int) -> int:
-    """Smallest 2^(k-p) with resolution IV or more; conservative beyond 7 factors."""
-    if n_factors <= 4:
-        return 2**n_factors  # full factorial feasible
-    if n_factors <= 7:
-        return 16  # 2^(5-1) is resolution V; 2^(6-2) and 2^(7-3) are resolution IV
-    return 32 if n_factors <= 11 else 64
+    """Return the runs in the smallest two-level design of resolution IV or more, as ``generate_design`` builds.
+
+    A resolution IV fraction needs at least ``2k`` runs, and a regular fraction reaches
+    that bound: 8 runs for four factors, 16 for five to eight, 32 for nine to sixteen, and
+    so on. Three or fewer factors have no resolution IV fraction, so they take the full
+    factorial.
+    """
+    if n_factors <= 3:
+        return 2**n_factors
+    return 2 ** math.ceil(math.log2(2 * n_factors))
 
 
 def _plackett_burman_runs(n_factors: int) -> int:
@@ -118,19 +121,18 @@ def estimate_rsm_runs(n_factors: int, design_type: str, n_center_points: int = 3
     Returns
     -------
     int
-        Estimated run count.
+        Estimated run count. For a CCD it is the size ``generate_design`` builds with
+        ``cube="full"`` up to five factors and ``cube="fractional"`` (a half-fraction
+        cube) from six, which is what ``recommend_strategy`` passes.
     """
     if design_type in ("ccd", "ccd_face_centered"):
-        factorial = _CCD_FACTORIAL_RUNS.get(n_factors, 2**n_factors)
-        axial = 2 * n_factors
-        return factorial + axial + n_center_points
+        return _ccd_factorial_runs(n_factors) + 2 * n_factors + n_center_points
 
     if design_type == "box_behnken":
         base = _BBD_RUNS.get(n_factors, 0)
         if base == 0:
             # BBD not defined for this factor count; fall back to CCD estimate
-            factorial = _CCD_FACTORIAL_RUNS.get(n_factors, 2**n_factors)
-            return factorial + 2 * n_factors + n_center_points
+            return _ccd_factorial_runs(n_factors) + 2 * n_factors + n_center_points
         return base + n_center_points
 
     if design_type == "d_optimal":
@@ -140,8 +142,7 @@ def estimate_rsm_runs(n_factors: int, design_type: str, n_center_points: int = 3
         return math.ceil(1.5 * n_terms)
 
     # Fallback: CCD estimate
-    factorial = _CCD_FACTORIAL_RUNS.get(n_factors, 2**n_factors)
-    return factorial + 2 * n_factors + n_center_points
+    return _ccd_factorial_runs(n_factors) + 2 * n_factors + n_center_points
 
 
 def estimate_confirmation_runs(min_runs: int = 3) -> int:

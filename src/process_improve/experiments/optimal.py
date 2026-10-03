@@ -3,6 +3,11 @@ from collections.abc import Callable
 import numpy as np
 import pandas as pd
 
+#: Most exchange passes over the candidates; each pass that swaps raises ``det(X'X)``.
+_MAX_PASSES = 100
+#: Random starts of the point exchange; the best design found is returned.
+_N_STARTS = 5
+
 
 def _model_matrix(x: pd.DataFrame) -> np.ndarray:
     """Return the model matrix ``[1 | X]`` for a first-order model with intercept.
@@ -102,15 +107,24 @@ def index_to_replace_in_design_row(
 def point_exchange(
     x: pd.DataFrame, number_points: int = 10, random_state: int | None = None
 ) -> tuple[pd.DataFrame, float]:
-    """
-    Return a design that is optimal in terms of D-optimality.
+    """Choose ``number_points`` distinct rows of ``x`` that make ``det(X'X)`` large, by point exchange.
 
-    Start with a random rows from X.
-    For each row, for each factor, try alternate a row from the remaining rows in X.
-    If the D-optimality of the new design is better, keep the new design.
+    Each of five searches starts from ``number_points`` random rows, then offers
+    every row not in the design and swaps it for the design row whose replacement raises
+    the D-criterion most, repeating these passes until one makes no swap. The best of the
+    searches is returned. Each search ends at a local optimum of single-row exchanges,
+    so the result is not guaranteed to be the global optimum; ``random_state`` changes
+    the starts.
 
-    When do you swap a row? E.g. you request 2 points, and the 2 it selected are (-1,-1) and (-1, 1).
-    While the optimum should be the opposite ends, right?
+    Parameters
+    ----------
+    x : pandas.DataFrame
+        Candidate points, one column per factor; duplicated rows are dropped.
+    number_points : int
+        Number of runs to choose, at least ``x.shape[1] + 1`` (the first-order model's
+        coefficients) and at most the number of distinct rows of ``x``.
+    random_state : int or None
+        Seed for the random start.
 
     Returns
     -------
@@ -146,12 +160,24 @@ def point_exchange(
     # A seedable Generator (rather than the global numpy RNG) makes the
     # point-exchange result reproducible; see docs/development/reproducibility.rst.
     rng = np.random.default_rng(random_state)
+    best: tuple[pd.DataFrame, float] | None = None
+    for _start in range(_N_STARTS):
+        design, value = _exchange_passes(x, *_random_start(x, number_points, rng))
+        if best is None or value < best[1]:
+            best = (design, value)
+    if best is None:  # unreachable: _N_STARTS >= 1
+        raise RuntimeError("point_exchange made no start.")
+    # Every exchange swaps one row for another, onto a unique index and only ever
+    # onto a design scoring better than the (finite, full-rank) current one, so the
+    # returned design keeps both the size and the estimability it was seeded with.
+    return best[0].sort_index(), best[1]
+
+
+def _random_start(x: pd.DataFrame, number_points: int, rng: np.random.Generator) -> tuple[pd.DataFrame, float]:
+    """Return ``number_points`` random rows of ``x`` that the model can be fitted to, and their score."""
     max_attempts = 1000
-    # `d_optimality_i` is deliberately NOT pre-initialised: the loop below runs
-    # at least once and always assigns it, and its `else` raises, so a seed
-    # value would only be dead (CodeQL flags it as such).
     for _attempt in range(max_attempts):
-        x = x.sample(frac=1, random_state=rng)
+        shuffled = x.sample(frac=1, random_state=rng)
         # Seed the design at the REQUESTED size. It used to start with
         # only ``x.shape[1]`` (one row per factor) and grow towards
         # `number_points` through the addition branch below, which
@@ -160,42 +186,47 @@ def point_exchange(
         # asking for `number_points` runs silently received fewer, and a
         # design with fewer runs than model parameters cannot be fitted
         # at all. The size is a constraint, not something to optimise.
-        design = x.iloc[0:number_points]
+        design = shuffled.iloc[0:number_points]
         # Score the seed with the SAME criterion used for every comparison
         # below, so the search cannot be misled by an inconsistent start, and
         # so that a rank-deficient seed is rejected here rather than carried
         # through to the returned design.
-        d_optimality_i = optimization_function(design)
-        if np.isfinite(d_optimality_i):
+        value = optimization_function(design)
+        if np.isfinite(value):
+            return design, value
+    msg = (
+        f"Could not find a non-singular starting design after {max_attempts} "
+        "attempts. The candidate set may contain collinear columns."
+    )
+    raise ValueError(msg)
+
+
+def _exchange_passes(x: pd.DataFrame, design: pd.DataFrame, d_optimality_i: float) -> tuple[pd.DataFrame, float]:
+    """Swap candidates into ``design`` while that improves the score; return the design and its score.
+
+    Every candidate outside the design is offered and swapped in wherever that improves
+    the criterion, and the pass is repeated until a whole pass makes no swap. A single
+    pass (the earlier behaviour) offered each candidate once, before later swaps had
+    changed the design, and stopped at a worse design for about half of all seeds.
+    """
+    for _pass in range(_MAX_PASSES):
+        improved = False
+        for label in x.index:
+            if label in design.index:
+                continue
+            candidate_point = x.loc[[label]]
+            design_row_to_replace = index_to_replace_in_design_row(
+                design,
+                candidate_point,
+                current_optimum=d_optimality_i,
+                optimization_function=optimization_function,
+            )
+            if design_row_to_replace is not None:
+                design_index = design.index.tolist()
+                design_index[design_index.index(design_row_to_replace)] = label
+                design = x.loc[design_index]
+                d_optimality_i = optimization_function(design)
+                improved = True
+        if not improved:
             break
-    else:
-        msg = (
-            f"Could not find a non-singular starting design after {max_attempts} "
-            "attempts. The candidate set may contain collinear columns."
-        )
-        raise ValueError(msg)
-
-    for i in range(number_points, x.shape[0]):  # the first `number_points` rows are the starting design
-        candidate_point = x.iloc[[i]]
-
-        # Try to replace the candidate point with each row in the current design
-        design_row_to_replace = index_to_replace_in_design_row(
-            design,
-            candidate_point,
-            current_optimum=d_optimality_i,
-            optimization_function=optimization_function,
-        )
-        if design_row_to_replace is not None:
-            design_index = design.index.tolist()
-            # Replace the row in `design` which as index of `design_row_to_replace`:
-            design_index[design_index.index(design_row_to_replace)] = candidate_point.index[0]
-            design = x.loc[design_index]
-            d_optimality_i = optimization_function(design)
-            # print(f"New D-optimality at {i=} (replc): {d_optimality_i}")
-            continue
-
-    # Every exchange above swaps one row for another, onto a unique index and
-    # only ever onto a design scoring better than the (finite, full-rank)
-    # current one, so the returned design keeps both the size and the
-    # estimability it was seeded with.
-    return design.sort_index(), d_optimality_i
+    return design, d_optimality_i

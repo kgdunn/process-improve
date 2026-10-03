@@ -42,7 +42,9 @@ class TradeOffTableInput(BaseModel):
         "and number of factors, the design that fits and what it costs in aliasing. "
         "Each cell reports the design label (e.g. '2^(7-4) III'), its resolution, and the "
         "generators that build it; cells where the budget exceeds the full factorial report "
-        "replication instead ('2^3 (twice)'), and impossible combinations are blank. "
+        "replication instead ('2^3 (twice)'), and impossible combinations are blank. A cell marked '?' "
+        "(exists: null) is a design that exists but whose minimum-aberration generators are too costly "
+        "to search for and are not tabulated; it is not impossible. "
         "Use this tool when the user is choosing how many experiments to run, asks how many "
         "factors they can screen on a given budget, or asks what they give up by running "
         "fewer experiments. For the full alias chains of one specific design, use "
@@ -64,7 +66,7 @@ class TradeOffTableInput(BaseModel):
 def trade_off_table_tool(spec: TradeOffTableInput) -> dict[str, Any]:
     """Return the runs-against-factors trade-off table, with per-cell detail."""
     try:
-        from process_improve.experiments.trade_off import get_trade_off_table_entry  # noqa: PLC0415
+        from process_improve.experiments.trade_off import SearchLimitError, get_trade_off_table_entry  # noqa: PLC0415
 
         for n_runs in spec.runs:
             if n_runs < 2 or n_runs > _MAX_RUNS or (n_runs & (n_runs - 1)) != 0:
@@ -80,15 +82,23 @@ def trade_off_table_tool(spec: TradeOffTableInput) -> dict[str, Any]:
             for n_factors in spec.factors:
                 try:
                     result = get_trade_off_table_entry(n_runs=n_runs, n_factors=n_factors, display=False)
+                except SearchLimitError as exc:
+                    # The design exists; only its generators were not searched for.
+                    row[str(n_factors)] = "?"
+                    cells.append(
+                        {"runs": n_runs, "factors": n_factors, "label": "?", "exists": None, "reason": str(exc)}
+                    )
+                    continue
                 except ValueError as exc:
-                    # No such design: too many factors for the budget. The cell
-                    # is blank in the table, and the reason is kept in `cells`.
-                    row[str(n_factors)] = ""
+                    # No such design: too many factors for the budget, a blank cell. The
+                    # reason is kept in `cells`.
+                    label = ""
+                    row[str(n_factors)] = label
                     cells.append(
                         {
                             "runs": n_runs,
                             "factors": n_factors,
-                            "label": "",
+                            "label": label,
                             "exists": False,
                             "reason": str(exc),
                         }

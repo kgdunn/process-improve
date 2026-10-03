@@ -81,6 +81,14 @@ def test_golf_loads() -> None:
     assert set(df["N"]) == {1, 9}
 
 
+def test_golf_docstring_does_not_claim_standard_order() -> None:
+    """The rows are not in standard (Yates) order, so coding them by position mislabels runs."""
+    df = datasets.golf()
+    assert df["H"].tolist()[:4] != [1, 3, 1, 3]  # H, the first factor, does not alternate
+    assert "are in standard order" not in (datasets.golf.__doc__ or "")
+    assert "not in standard order" in (datasets.golf.__doc__ or "")
+
+
 def test_solar_loads() -> None:
     """``solar()`` returns the 2^4 factorial with its two responses."""
     df = datasets.solar()

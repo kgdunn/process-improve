@@ -37,7 +37,7 @@ Create any type of experimental design matrix.
 | `factors` | list[Factor] | Name, type (`continuous`/`categorical`/`mixture`), low, high, levels, units |
 | `design_type` | str or None | `full_factorial`, `fractional_factorial`, `plackett_burman`, `box_behnken`, `ccd`, `dsd`, `d_optimal`, `i_optimal`, `mixture`, `taguchi`, `custom`. None = auto-select. |
 | `budget` | int or None | Max runs the user can afford |
-| `n_center_points` | int | Centre point replicates (default 3–5) |
+| `n_center_points` | int or None | Centre runs: default 3 for factorials, Plackett-Burman, CCD and Box-Behnken; the total for DSD and OMARS; refused by designs that add none |
 | `n_replicates` | int | Full replicates |
 | `n_blocks` | int or None | Number of blocks |
 | `resolution` | int or None | Minimum resolution (III, IV, V) |

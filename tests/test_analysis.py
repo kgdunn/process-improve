@@ -727,8 +727,9 @@ def test_analyze_experiment_ignores_runorder_and_block_columns() -> None:
     """RunOrder / Block bookkeeping columns must not become model factors.
 
     A DesignResult frame carries a "RunOrder" (and optionally "Block") column;
-    when the whole frame is passed with the response joined, these must be
-    dropped, matching evaluate_design's filtering, rather than fitted as terms.
+    when the whole frame is passed with the response joined, these must not be
+    crossed with the factors. RunOrder is dropped; the blocks enter once, as a
+    fixed-effect contrast, never in an interaction.
     """
     df = pd.DataFrame(
         {
@@ -742,7 +743,7 @@ def test_analyze_experiment_ignores_runorder_and_block_columns() -> None:
     res = analyze_experiment(df, response_column="y", model="interactions", analysis_type=["coefficients"])
     terms = [c["term"] for c in res["coefficients"]]
     assert not any("RunOrder" in t for t in terms)
-    assert not any("Block" in t for t in terms)
+    assert [t for t in terms if "Block" in t] == ["Block1"]
     # The real factors and their interaction are still present.
     assert "A" in terms
     assert "B" in terms
@@ -769,3 +770,454 @@ def test_a_factor_named_with_a_keyword_raises_clearly() -> None:
     data = pd.DataFrame({"lambda": [-1.0, 1.0, -1.0, 1.0], "y": [1.0, 2.0, 1.5, 2.5]})
     with pytest.raises(ValueError, match="keyword"):
         analyze_experiment(data, response_column="y", model="main_effects")
+
+
+# ---------------------------------------------------------------------------
+# Review findings: statistics checked against the textbook definitions
+# ---------------------------------------------------------------------------
+
+
+def _full_factorial(k: int, replicates: int = 1) -> np.ndarray:
+    """Two-level full factorial in coded units, stacked ``replicates`` times."""
+    return np.vstack([np.array(list(itertools.product([-1.0, 1.0], repeat=k)))] * replicates)
+
+
+class TestEffectsCoding:
+    """Effects are the change from the low to the high level, whatever units the factors are in."""
+
+    def test_categorical_factor_effect_is_the_difference_of_level_means(self) -> None:
+        df = pd.DataFrame({"A": [-1, 1, -1, 1], "B": ["lo", "lo", "hi", "hi"], "y": [28.0, 36.0, 18.0, 31.0]})
+        result = analyze_experiment(df, response_column="y", model="main_effects", analysis_type="effects")
+        coding = result["effects_coding"]["B"]
+        high = df.y[coding["high"] == df.B].mean()
+        low = df.y[coding["low"] == df.B].mean()
+        assert result["effects"]["B"] == pytest.approx(high - low)
+        assert abs(result["effects"]["B"]) == pytest.approx(7.5)
+
+    def test_actual_unit_factor_effect_is_slope_times_range(self) -> None:
+        df = pd.DataFrame({"A": [150, 170, 150, 170], "B": [-1, -1, 1, 1], "y": [28.0, 36.0, 18.0, 31.0]})
+        result = analyze_experiment(df, response_column="y", model="main_effects", analysis_type="effects")
+        assert result["effects"]["A"] == pytest.approx(10.5)  # mean at 170 minus mean at 150
+        assert result["effects"]["B"] == pytest.approx(-7.5)
+        assert result["effects_coding"] == {"A": {"low": 150.0, "high": 170.0}}
+
+    def test_lenth_uses_the_same_coded_effects(self) -> None:
+        x = _full_factorial(3)
+        df = pd.DataFrame(x * 10 + 100, columns=list("ABC"))  # actual units 90 and 110
+        df["y"] = 50 + 4 * x[:, 0] + np.array([0.1, -0.2, 0.3, 0.0, -0.1, 0.2, -0.3, 0.1])
+        lenth = analyze_experiment(df, response_column="y", model="main_effects", analysis_type="lenth_method")
+        effects = {e["term"]: e["effect"] for e in lenth["lenth_method"]["effects"]}
+        assert effects["A"] == pytest.approx(8.0, abs=0.2)
+
+    def test_a_three_level_categorical_has_no_single_effect(self) -> None:
+        df = pd.DataFrame({"A": [-1, 1] * 3, "M": ["a", "a", "b", "b", "c", "c"], "y": [1.0, 2, 3, 4, 5, 7]})
+        with pytest.raises(ValueError, match="two-level"):
+            analyze_experiment(df, response_column="y", model="main_effects", analysis_type="effects")
+
+
+class TestBlocks:
+    """A Block column enters the model as a fixed effect (Montgomery, DAE chapter 7)."""
+
+    @staticmethod
+    def _blocked() -> pd.DataFrame:
+        x = _full_factorial(3, replicates=2)
+        df = pd.DataFrame(x, columns=list("ABC"))
+        df["Block"] = [1] * 8 + [2] * 8
+        rng = np.random.default_rng(0)
+        df["y"] = 20 + 1.0 * df.A + 0.6 * df.B + np.where(df.Block == 2, 6.0, 0.0) + 0.5 * rng.standard_normal(16)
+        return df
+
+    def test_block_variation_is_removed_from_the_error(self) -> None:
+        result = analyze_experiment(
+            self._blocked(), response_column="y", model="main_effects", analysis_type=["anova", "significance"]
+        )
+        rows = {r["source"]: r for r in result["anova_table"]}
+        assert rows["Block"]["df"] == 1
+        assert rows["Block"]["p_value"] < 1e-6
+        assert sum(r["df"] for r in result["anova_table"]) == 15
+        assert set(result["significant_terms"]) == {"A", "B"}
+
+    def test_three_blocks_are_one_anova_row_with_two_df(self) -> None:
+        df = pd.DataFrame(_full_factorial(2, replicates=3), columns=["A", "B"])
+        df["Block"] = ["a"] * 4 + ["b"] * 4 + ["c"] * 4
+        df["y"] = 10 + 2 * df.A + df.Block.map({"a": 0.0, "b": 3.0, "c": -1.0}) + np.linspace(-0.2, 0.2, 12)
+        rows = {
+            r["source"]: r for r in analyze_experiment(df, response_column="y", model="main_effects")["anova_table"]
+        }
+        assert rows["Block"]["df"] == 2
+        assert sum(r["df"] for r in rows.values()) == 11
+
+    def test_prediction_without_a_block_is_for_the_average_block(self) -> None:
+        df = self._blocked()
+        result = analyze_experiment(
+            df,
+            response_column="y",
+            model="main_effects",
+            analysis_type="prediction",
+            new_points=pd.DataFrame({"A": [0.0], "B": [0.0], "C": [0.0]}),
+        )
+        assert result["predictions"][0]["predicted"] == pytest.approx(df.y.mean())
+
+    def test_a_mixture_model_warns_that_blocks_are_not_modelled(self) -> None:
+        df = pd.DataFrame(
+            [(1, 0, 0), (0, 1, 0), (0, 0, 1), (0.5, 0.5, 0), (0.5, 0, 0.5), (0, 0.5, 0.5)] * 2,
+            columns=["x1", "x2", "x3"],
+        )
+        df["Block"] = [1] * 6 + [2] * 6
+        df["y"] = 10 * df.x1 + 12 * df.x2 + 8 * df.x3 + np.arange(12) * 0.01
+        with pytest.warns(UserWarning, match="blocks are not added"):
+            analyze_experiment(df, response_column="y", model="scheffe_linear")
+
+
+class TestTransformedResponse:
+    """The model is fitted on the transformed response; every comparison is made on that scale."""
+
+    @staticmethod
+    def _lognormal() -> pd.DataFrame:
+        rng = np.random.default_rng(2)
+        x = _full_factorial(3, replicates=2)
+        df = pd.DataFrame(x, columns=list("ABC"))
+        df["y"] = np.exp(3 + 0.5 * x[:, 0] + 0.3 * x[:, 1] + 0.05 * rng.standard_normal(len(x)))
+        return df
+
+    def test_confirmation_run_at_the_true_mean_is_inside_the_interval(self) -> None:
+        result = analyze_experiment(
+            self._lognormal(),
+            response_column="y",
+            model="main_effects",
+            transform="log",
+            analysis_type=["prediction", "confirmation_test"],
+            new_points=pd.DataFrame({"A": [1.0], "B": [1.0], "C": [0.0]}),
+            observed_at_new=[float(np.exp(3.8))],
+        )
+        confirmation = result["confirmation_test"]
+        assert confirmation["all_within_PI"] is True
+        assert confirmation["results"][0]["observed_transformed"] == pytest.approx(3.8)
+        assert confirmation["scale"] == "log of the response"
+        assert result["prediction_scale"] == "log of the response"
+
+    def test_box_cox_lambda_is_reported_and_reused(self) -> None:
+        result = analyze_experiment(
+            self._lognormal(),
+            response_column="y",
+            model="main_effects",
+            transform="box_cox",
+            analysis_type="confirmation_test",
+            new_points=pd.DataFrame({"A": [1.0], "B": [1.0], "C": [0.0]}),
+            observed_at_new=[float(np.exp(3.8))],
+        )
+        lmbda = result["model_summary"]["box_cox_lambda"]
+        assert result["model_summary"]["transform"] == "box_cox"
+        assert result["confirmation_test"]["results"][0]["observed_transformed"] == pytest.approx(
+            np.expm1(lmbda * 3.8) / lmbda
+        )
+
+    @pytest.mark.parametrize(
+        ("transform", "values", "match"),
+        [
+            ("Log", [28.0, 36, 18, 31, 29, 27], "Unknown transform"),
+            ("log", [28.0, 36, -18, 31, 29, 27], "positive"),
+            ("log", [28.0, 0, 18, 31, 29, 27], "positive"),
+            ("box_cox", [28.0, 36, -18, 31, 29, 27], "positive"),
+            ("sqrt", [28.0, 36, -18, 31, 29, 27], "non-negative"),
+        ],
+    )
+    def test_a_transform_that_cannot_apply_raises(self, transform: str, values: list[float], match: str) -> None:
+        df = pd.DataFrame({"A": [-1, 1, -1, 1, 0, 0], "B": [-1, -1, 1, 1, 0, 0], "y": values})
+        with pytest.raises(ValueError, match=match):
+            analyze_experiment(df, response_column="y", model="main_effects", transform=transform)
+
+
+class TestCurvaturePureError:
+    """Montgomery, DAE section 6.8: F = SS_curvature / MS_pure_error on (1, nC - 1) df."""
+
+    @staticmethod
+    def _example_6_6(shift: float = 0.0) -> pd.DataFrame:
+        return pd.DataFrame(
+            {
+                "A": [-1, 1, -1, 1, 0, 0, 0, 0, 0],
+                "B": [-1, -1, 1, 1, 0, 0, 0, 0, 0],
+                "y": [39.3, 40.9, 40.0, 41.5, *(np.array([40.3, 40.5, 40.7, 40.2, 40.6]) + shift)],
+            }
+        )
+
+    def test_montgomery_example_6_6(self) -> None:
+        result = analyze_experiment(self._example_6_6(), response_column="y", analysis_type="curvature_test")
+        curvature = result["curvature_test"]
+        assert curvature["ss_curvature"] == pytest.approx(0.0027, abs=1e-4)
+        assert curvature["ms_pure_error"] == pytest.approx(0.043, abs=1e-4)
+        assert curvature["df_pure_error"] == 4
+        assert curvature["F_statistic"] == pytest.approx(0.063, abs=1e-3)
+        assert curvature["significant"] is False
+
+    def test_real_curvature_is_detected_whatever_the_model(self) -> None:
+        df = self._example_6_6(shift=1.0)
+        for model in ("main_effects", "interactions"):
+            curvature = analyze_experiment(df, response_column="y", model=model, analysis_type="curvature_test")[
+                "curvature_test"
+            ]
+            assert curvature["F_statistic"] == pytest.approx(55.36, abs=0.01)
+            assert curvature["p_value"] == pytest.approx(0.00174, abs=1e-5)
+            assert curvature["significant"] is True
+
+    def test_significance_level_sets_the_flag(self) -> None:
+        curvature = analyze_experiment(
+            self._example_6_6(shift=1.0), response_column="y", analysis_type="curvature_test", significance_level=1e-4
+        )["curvature_test"]
+        assert curvature["significant"] is False
+        assert curvature["significance_level"] == 1e-4
+
+
+class TestMixtureAnalysis:
+    """Cornell's yarn-elongation data (Experiments with Mixtures, 3rd ed., Table 2.3)."""
+
+    @staticmethod
+    def _yarn() -> pd.DataFrame:
+        points = {
+            (1, 0, 0): [11.0, 12.4],
+            (0.5, 0.5, 0): [15.0, 14.8, 16.1],
+            (0, 1, 0): [8.8, 10.0],
+            (0, 0.5, 0.5): [10.0, 9.7, 11.8],
+            (0, 0, 1): [16.8, 16.0],
+            (0.5, 0, 0.5): [17.7, 16.4, 16.6],
+        }
+        return pd.DataFrame([(*p, y) for p, ys in points.items() for y in ys], columns=["x1", "x2", "x3", "y"])
+
+    def test_cox_effects_include_the_blending_terms(self) -> None:
+        # Fitted model 11.7 x1 + 9.4 x2 + 16.4 x3 + 19.0 x1x2 + 11.4 x1x3 - 9.6 x2x3: the response
+        # change from the opposite face's midpoint to the vertex is 1.2, -7.5 and 1.1.
+        result = analyze_experiment(
+            self._yarn(), response_column="y", model="scheffe_quadratic", analysis_type="effects"
+        )
+        assert result["effects"] == pytest.approx({"x1": 1.2, "x2": -7.5, "x3": 1.1}, abs=1e-9)
+        assert result["effect_range"] == pytest.approx({c: [0.0, 1.0] for c in ("x1", "x2", "x3")})
+
+    def test_the_default_model_for_mixture_data_is_scheffe(self) -> None:
+        result = analyze_experiment(self._yarn(), response_column="y", analysis_type="anova")
+        assert result["model_summary"]["model"] == "scheffe_quadratic"
+        assert result["model_summary"]["rank_deficient"] is False
+        assert result["anova_table"][0]["source"] == "Linear mixture"
+
+    def test_notes_do_not_overwrite_each_other_and_inestimable_terms_are_listed(self) -> None:
+        df = self._yarn()
+        df = df[(df[["x1", "x2", "x3"]] > 0).sum(axis=1) == 1].iloc[:4]  # vertices only: x1:x2:x3 inestimable
+        df = pd.concat([df, self._yarn().iloc[2:5], self._yarn().iloc[9:12], self._yarn().iloc[14:]], ignore_index=True)
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            result = analyze_experiment(
+                df,
+                response_column="y",
+                model="scheffe_special_cubic",
+                analysis_type=["anova", "significance", "effects", "lenth_method"],
+            )
+        assert "linear blending terms are tested together" in result["anova_note"]
+        assert "Cox direction" in result["effects_note"]
+        assert "Lenth" in result["lenth_note"]
+        assert "note" not in result
+        assert result["not_estimable_terms"] == ["x1:x2:x3"]
+
+
+class TestAliasChainsInTests:
+    """Exactly aliased terms are tested once, so the ANOVA degrees of freedom add up to N - 1."""
+
+    def test_replicated_half_fraction(self) -> None:
+        x = _full_factorial(3)
+        x = np.vstack([np.c_[x, x.prod(axis=1)]] * 2)  # 2^(4-1), D = ABC, twice
+        rng = np.random.default_rng(3)
+        df = pd.DataFrame(x, columns=list("ABCD"))
+        df["y"] = 10 + 3 * x[:, 0] + 2 * x[:, 0] * x[:, 1] + rng.standard_normal(16)
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            result = analyze_experiment(df, response_column="y", analysis_type=["anova", "significance", "effects"])
+        table = result["anova_table"]
+        assert sum(r["df"] for r in table) == 15
+        assert sum(r["sum_sq"] for r in table) == pytest.approx(((df.y - df.y.mean()) ** 2).sum())
+        assert result["significant_terms"] == ["A", "A:B + C:D"]
+        assert {r["source"] for r in table} - {"Residual"} == set(result["effects"])
+
+    def test_anova_reports_its_sum_of_squares_type_and_mean_squares(self) -> None:
+        result = analyze_experiment(_two_factor_with_center(), response_column="y", model="main_effects")
+        assert result["anova_type"] == "II"
+        for row in result["anova_table"]:
+            assert row["mean_sq"] == pytest.approx(row["sum_sq"] / row["df"])
+
+
+class TestSaturatedModel:
+    def test_significance_and_residual_tests_say_there_is_no_error(self) -> None:
+        df = pd.DataFrame(_full_factorial(3), columns=list("ABC"))
+        df["y"] = [60, 72, 54, 68, 52, 83, 45, 80.0]
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            result = analyze_experiment(
+                df, response_column="y", model="(A+B+C)**3", analysis_type=["significance", "residual_diagnostics"]
+            )
+        assert result["significant_terms"] == []
+        assert len(result["not_estimable_terms"]) == 7
+        assert "lenth_method" in result["significance_note"]
+        diagnostics = result["residual_diagnostics"]
+        assert diagnostics["shapiro_wilk"]["p_value"] is None
+        assert diagnostics["breusch_pagan"]["p_value"] is None
+        assert "no residual degrees of freedom" in diagnostics["note"]
+
+
+class TestLenthDefinition:
+    """Lenth (1989): PSE trims strictly below 2.5 s0, and SME uses gamma = (1 + 0.95**(1/m)) / 2."""
+
+    def test_pse_and_sme_match_lenth(self) -> None:
+        x = _full_factorial(3)
+        df = pd.DataFrame(x, columns=list("ABC"))
+        effects = {"A": 1.0, "B": 1.0, "C": 1.0, "A:B": 2.0, "A:C": 2.0, "B:C": 2.0, "A:B:C": 7.5}
+        df["y"] = sum(e / 2 * np.prod([df[f] for f in term.split(":")], axis=0) for term, e in effects.items())
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            lenth = analyze_experiment(df, response_column="y", model="(A+B+C)**3", analysis_type="lenth_method")[
+                "lenth_method"
+            ]
+        # s0 = 1.5 * 2 = 3; 7.5 = 2.5 s0 exactly, so it is trimmed: PSE = 1.5 * median(1, 1, 1, 2, 2, 2).
+        assert lenth["PSE"] == pytest.approx(2.25)
+        assert lenth["SME"] / lenth["PSE"] == pytest.approx(9.008, abs=1e-3)  # Lenth's table, m = 7
+
+
+class TestReviewedInputs:
+    def test_lack_of_fit_uses_the_significance_level(self) -> None:
+        a = 1.414
+        df = pd.DataFrame(
+            {
+                "A": [-1, 1, -1, 1, -a, a, 0, 0, 0, 0, 0, 0, 0],
+                "B": [-1, -1, 1, 1, 0, 0, -a, a, 0, 0, 0, 0, 0],
+                "y": [76.5, 78.0, 77.0, 79.5, 75.6, 78.4, 77.0, 78.5, 79.9, 80.3, 80.0, 79.7, 79.8],
+            }
+        )
+        lof = analyze_experiment(
+            df, response_column="y", model="main_effects", analysis_type="lack_of_fit", significance_level=1e-6
+        )["lack_of_fit"]
+        assert lof["p_value"] < 0.01
+        assert lof["significant"] is False
+
+    def test_missing_responses_are_dropped_before_every_analysis(self) -> None:
+        a = 1.414
+        df = pd.DataFrame(
+            {
+                "A": [-1, 1, -1, 1, -a, a, 0, 0, 0, 0, 0, 0, 0],
+                "B": [-1, -1, 1, 1, 0, 0, -a, a, 0, 0, 0, 0, 0],
+                "y": [76.5, 78.0, 77.0, 79.5, 75.6, 78.4, 77.0, 78.5, np.nan, 80.3, 80.0, 79.7, 79.8],
+            }
+        )
+        with pytest.warns(UserWarning, match="1 run"):
+            result = analyze_experiment(
+                df, response_column="y", model="quadratic", analysis_type=["lack_of_fit", "model_selection"]
+            )
+        assert result["model_summary"]["n_obs"] == 12
+        assert result["lack_of_fit"]["df_pure_error"] == 3
+        assert result["lack_of_fit"]["df_lack_of_fit"] == 3
+        assert np.isfinite(result["model_selection"]["criterion_value"])
+
+    def test_confirmation_needs_one_observation_per_point(self) -> None:
+        new = pd.DataFrame({"A": [0.5, -0.5], "B": [0.5, 0.0]})
+        for observed in ([30.0], [30.0, 31.0, 99.0]):
+            with pytest.raises(ValueError, match="one observation per new point"):
+                analyze_experiment(
+                    _two_factor_with_center(),
+                    response_column="y",
+                    model="main_effects",
+                    analysis_type="confirmation_test",
+                    new_points=new,
+                    observed_at_new=observed,
+                )
+
+    def test_a_formula_for_another_response_raises(self) -> None:
+        df = _two_factor_with_center().assign(z=[1.0, 2, 3, 4, 5, 6, 7])
+        with pytest.raises(ValueError, match="response being analysed is 'y'"):
+            analyze_experiment(df, response_column="y", model="z ~ A + B")
+
+    def test_a_formula_uses_only_the_columns_it_names(self) -> None:
+        df = _two_factor_replicated().assign(z=np.arange(8.0))
+        lof = analyze_experiment(df, response_column="y", model="y ~ A + B", analysis_type="lack_of_fit")["lack_of_fit"]
+        assert lof["df_pure_error"] == 4  # replicates over A and B; z, not in the formula, does not split them
+
+    def test_a_formula_may_name_a_keyword_response(self) -> None:
+        df = _two_factor_with_center().rename(columns={"y": "yield"})
+        result = analyze_experiment(df, response_column="yield", model="yield ~ A + B")
+        assert result["model_summary"]["formula"] == "yield ~ A + B"
+
+    def test_formula_term_cap(self) -> None:
+        names = [chr(65 + i) for i in range(8)]
+        rng = np.random.default_rng(0)
+        df = pd.DataFrame(rng.choice([-1.0, 1.0], size=(32, 8)), columns=names)
+        df["y"] = rng.standard_normal(32)
+        with pytest.raises(ValueError, match="max_formula_terms"):
+            analyze_experiment(df, response_column="y", model="(" + "+".join(names) + ")**8")
+
+    def test_an_unnamed_series_takes_the_response_column_name(self) -> None:
+        df = _two_factor_data()[["A", "B"]]
+        series = pd.Series([28.0, 36, 18, 31])
+        result = analyze_experiment(df, series, response_column="y", model="main_effects", analysis_type="effects")
+        assert result["effects"]["A"] == pytest.approx(10.5)
+        with pytest.raises(ValueError, match="unnamed Series"):
+            analyze_experiment(df, series, analysis_type="effects")
+
+    def test_quadratic_model_skips_squares_of_categorical_factors(self) -> None:
+        df = pd.DataFrame({"A": [-1, 1, -1, 1, 0, 0], "M": ["a", "b", "a", "b", "a", "b"], "y": [1.0, 2, 3, 5, 2, 3]})
+        result = analyze_experiment(df, response_column="y", model="quadratic")
+        assert result["model_summary"]["formula"] == "y ~ (A + M) ** 2 + I(A ** 2)"
+
+
+class TestBoxCoxProfile:
+    """Box and Cox (1964): lambda maximises the profile likelihood of the fitted model."""
+
+    def test_additive_data_need_no_transform(self) -> None:
+        rng = np.random.default_rng(1)
+        x = _full_factorial(3, replicates=2)
+        df = pd.DataFrame(x, columns=list("ABC"))
+        df["y"] = 20 + 15 * x[:, 0] + 3 * x[:, 1] + 0.5 * rng.standard_normal(len(x))
+        box_cox = analyze_experiment(df, response_column="y", model="main_effects", analysis_type="box_cox")["box_cox"]
+        assert box_cox["lambda"] == pytest.approx(0.977, abs=0.002)
+        assert box_cox["lambda_ci"][0] < 1.0 < box_cox["lambda_ci"][1]
+        assert box_cox["recommendation"].startswith("no transform")
+
+    def test_multiplicative_data_recommend_a_log(self) -> None:
+        df = TestTransformedResponse._lognormal()
+        box_cox = analyze_experiment(df, response_column="y", model="main_effects", analysis_type="box_cox")["box_cox"]
+        assert box_cox["lambda_ci"][0] < 0.0 < box_cox["lambda_ci"][1]
+        assert box_cox["recommendation"] == "log transform"
+
+
+class TestModelSelectionCriterion:
+    """AICc of Hurvich and Tsai (1989), and Scheffe models searched without an intercept."""
+
+    def test_aicc_counts_the_error_variance(self) -> None:
+        import statsmodels.formula.api as smf
+
+        from process_improve.experiments._analyses import model_selection as ms
+
+        x = _full_factorial(3)
+        df = pd.DataFrame(x, columns=list("ABC"))
+        df["y"] = 5 + 2 * x[:, 0] + x[:, 1] + 0.3 * np.random.default_rng(0).standard_normal(8)
+        score = ms._Scorer(df, df.y.to_numpy(), ms._candidate_terms(list("ABC"), "main_effects"), "aicc")
+        for included in (frozenset({"A", "B"}), frozenset({"A", "B", "C"})):
+            n, p = 8, 1 + len(included)
+            ssr = smf.ols("y ~ " + " + ".join(sorted(included)), df).fit().ssr
+            hurvich_tsai = n * np.log(ssr / n) + n * (n + p) / (n - p - 2) + n * np.log(2 * np.pi)
+            assert score(included) == pytest.approx(hurvich_tsai)
+        saturated = ms._Scorer(df, df.y.to_numpy(), ms._candidate_terms(list("ABC"), "interactions"), "aicc")
+        assert saturated(frozenset({"A", "B", "C", "A:B", "A:C"})) == np.inf  # n - p - 2 = 0
+
+    def test_scheffe_model_selection_keeps_the_linear_blending_terms_and_no_intercept(self) -> None:
+        df = TestMixtureAnalysis._yarn()
+        with warnings.catch_warnings():
+            warnings.simplefilter("error")
+            result = analyze_experiment(
+                df, response_column="y", model="scheffe_quadratic", analysis_type="model_selection"
+            )
+        chosen = result["model_selection"]
+        assert chosen["selected_formula"].startswith("y ~ -1 + x1 + x2 + x3")
+        assert chosen["candidate_model"] == "scheffe_quadratic"
+        assert "note" not in chosen
+        assert chosen["n_terms"] == len(chosen["selected_terms"])
+
+    def test_n_terms_counts_the_intercept_like_model_summary(self) -> None:
+        result = analyze_experiment(
+            _three_factor_data(), response_column="y", model="main_effects", analysis_type="model_selection"
+        )
+        chosen = result["model_selection"]
+        assert chosen["n_terms"] == len(chosen["selected_terms"]) + 1
