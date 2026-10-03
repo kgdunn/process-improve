@@ -102,6 +102,26 @@ those changes.
   selection criterion. With the highest D-efficiency it used to win under
   `"dominance"` and `"d_efficiency"`, with an infinite maximum correlation.
 
+### Documentation
+
+- **Docstrings that disagreed with the code now describe what it does.** These
+  are wording fixes only; no behaviour changes.
+  - `hotellings_t2_limit` lists the negative-`n_components` case under `Raises`.
+  - `PLS.select_n_components` says it chooses from four rules, not three.
+  - `analyze_descriptive` documents the deprecated `discriminator` keyword it
+    still accepts (use `find_predictive`, since v1.77.0).
+  - `randomization_test_mbpls` gives the p-value floor for its real default of
+    200 permutations (about 0.5%), not for 999.
+  - `PCA.select_n_components` lists all six values of `cv_scheme` it echoes back,
+    and says `cv_scores` aliases `per_fold_press` on every cell-based scheme.
+  - `PCA.__init__` annotates `n_components` as `int | None`, as its docstring and
+    parameter constraints already allowed; the `fitting_info_` comment no longer
+    swaps which algorithms store per-component arrays (SVD, NIPALS) and which
+    store scalar totals (TSR).
+  - `robust_regression` describes `conf_intervals` as one row for its single
+    slope, not K rows.
+  - The `t_value_cdf` examples use `float("inf")`, which needs no numpy import.
+
 ## [1.97.0] - 2026-10-03
 
 ### Added

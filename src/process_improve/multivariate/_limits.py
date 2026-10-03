@@ -41,9 +41,10 @@ def hotellings_t2_limit(conf_level: float = 0.95, n_components: int = 0, n_rows:
     Raises
     ------
     ValueError
-        If ``conf_level`` is outside (0, 1), if ``n_rows`` is not positive, or
-        if ``n_components`` exceeds ``n_rows`` (which would otherwise return a
-        silent NaN from a negative F denominator degrees of freedom).
+        If ``conf_level`` is outside (0, 1), if ``n_rows`` is not positive,
+        if ``n_components`` is negative, or if ``n_components`` exceeds
+        ``n_rows`` (which would otherwise return a silent NaN from a negative
+        F denominator degrees of freedom).
     """
     if not 0.0 < conf_level < 1.0:
         raise ValueError(f"conf_level must lie in (0, 1); got {conf_level}.")
