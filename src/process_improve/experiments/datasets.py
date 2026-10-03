@@ -112,8 +112,9 @@ def golf() -> pd.DataFrame:
     C = Club type
     T = Time of day (on the 24 hour clock)
 
-    The data are in standard order, however the actual experiments were run in
-    random order.
+    The rows are not in standard order (the first factor, H, does not alternate
+    from row to row), so code each factor from its own column, not from the row
+    position. The actual experiments were run in random order.
 
     Coded values for H, N, C and T should be used in the linear regression
     model analysis, with -1 representing the low value and +1 the high value.

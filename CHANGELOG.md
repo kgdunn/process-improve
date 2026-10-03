@@ -170,6 +170,21 @@ those changes.
   effects and Lenth notes, and the saturated-model ANOVA note, all went to one `note`
   key, so only the last survived. They are now `anova_note`, `effects_note`,
   `lenth_note` and `significance_note`.
+- **`recommend_strategy` plans hard-to-change factors as D-optimal split-plot
+  designs.** Their stages carried `split_plot`, `whole_plot_factors` and
+  `subplot_factors`, which `generate_design` rejects with `TypeError`; only the optimal
+  designs build split plots. Such a stage is now `design_type="d_optimal"` with
+  `hard_to_change` naming its whole-plot factors, and an unknown hard-to-change name
+  raises `ValueError`. Mixture components with process factors, which no stage can
+  build, now raise `ValueError` from `recommend_strategy` itself.
+- **The knowledge base names only designs `generate_design` builds.** The
+  definitive screening entry's id is `dsd` (it was `definitive_screening`), the domain
+  templates prefer `dsd`, and the hard-to-change rule recommends `d_optimal` with
+  `hard_to_change` instead of the non-existent `split_plot`. The ids a strategy names
+  that are not design types are listed in `strategy.models.NON_GENERATE_DESIGN_IDS`.
+- **`doe_knowledge` no longer offers the `worked_examples` and `interpretation`
+  topics**, which had no data and returned the same unfiltered list as every other
+  topic; they now raise `ValueError` like any unknown topic.
 
 - **The browser app offers I-optimal designs**, which no longer need pyoptex.
 
@@ -591,6 +606,48 @@ those changes.
   of the wrong length failed inside `zip()`. Each now raises a `ValueError` naming the
   response, as Derringer and Suich's `low < target < high` and positive exponents
   require.
+- **Every `recommend_strategy` stage builds in the runs the plan states.** A budget
+  lowered a stage's `estimated_runs` without changing its design, so five factors in a
+  15-run budget reported 15 runs for designs that build 39, and a very small budget
+  pushed the total above the budget silently. `estimated_runs` is now the size of the
+  design the stage's `design_params` build, and a tight budget changes the designs:
+  fewer centre points, a Plackett-Burman screen, a D-optimal quadratic design with three
+  runs more than the model's coefficients, or one definitive screening design in place
+  of separate screening and optimisation stages. The risks say what was reduced, or that
+  the budget is below the smallest plan. The run estimates in `strategy.budget` match
+  `generate_design` too (a resolution IV fraction has 16 runs for 8 factors and 32 for
+  12 to 15, not 32 and 64), mixture stages estimate the blends they build, and a CCD for
+  six or more factors asks for the half-fraction cube it was estimated with.
+- **`recommend_strategy` stages are complete `generate_design` calls.** The
+  constrained optimisation stage carried neither the constraints, the quadratic model
+  nor a budget, so it built an unconstrained interactions design that broke the
+  constraints; it now carries all three, and mixture stages carry the constraints.
+  Box-Behnken was recommended for two factors, where it does not exist, and is now kept
+  to 3 to 7 factors (a face-centred CCD otherwise); a categorical factor with more than
+  two levels gets D-optimal stages instead of Plackett-Burman and CCD ones; and one
+  factor gets an optimisation stage instead of confirmation runs alone.
+  `generate_design` accepts constraints in their dict form, which is what a JSON round
+  trip of a stage gives, and as bare expressions.
+- **`recommend_strategy` uses the prior knowledge it parses.** Known significant
+  factors that skip screening are now the ones optimised (two named factors of six got
+  a 6-factor Box-Behnken design), and after screening the optimisation stage says its
+  factors are placeholders. The strongest evidence cue sets the confidence, so a stray
+  "expected" or "unknown" no longer caps confirmed, published results at 0.4 or 0.1.
+  `strategy_id` hashes every input, so constraints, prior knowledge, factor ranges,
+  response goals and detail level change it. Each domain's special considerations are
+  added to the risks and its extra stages named in the reasoning; the pharmaceutical
+  note no longer promises a design-space stage the plan does not contain.
+- **Four statements in the DOE knowledge base are corrected.** The rotatable CCD axial
+  distance is `(2^k)^(1/4)` with a full cube, not `k^0.25`; the Plackett-Burman partial
+  alias coefficients are 1/3 (12 runs) and 0.2 or 0.6 (20 runs), not `1/(N-1)`; four
+  factors cannot be placed in four runs at resolution III, and OMARS for three factors
+  has 9 runs, not 13; and a full foldover raises the resolution of a resolution III
+  fraction only. `doe_knowledge` now restricts the `analysis_methods`, `optimization`,
+  `screening` and `response_surface` topics to their own entries.
+- **The teaching simulators raise the documented `ValueError` for a string or `None`**
+  instead of numpy's `TypeError`, and their docstring examples show the values the
+  calls return (95 and 600, not 94 and 601). The `golf()` docstring no longer says the
+  rows are in standard order, which they are not.
 
 - **`analyze_experiment` accepts a response named `yield`.** The commonest response in
   chemistry is a Python keyword, which a model formula cannot name, so the call failed

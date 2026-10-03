@@ -234,3 +234,45 @@ class TestMinimumAberrationGenerators:
     def test_no_generators_means_no_alias_chains(self):
         """A design with no defining relation aliases nothing."""
         assert _alias_chains([], ["A", "B", "C"]) == []
+
+
+# ---------------------------------------------------------------------------
+# generate_design's minimum-aberration table agrees with the search here
+# ---------------------------------------------------------------------------
+
+
+def _table_cases() -> list:
+    """Every (factors, runs) cell of ``_MIN_ABERRATION`` the exhaustive search can also cover.
+
+    Cells whose search scores more than 50,000 generator sets take several seconds each.
+    """
+    import math
+
+    from process_improve.experiments.designs_screening import _MIN_ABERRATION
+    from process_improve.experiments.trade_off import _MAX_CANDIDATE_SETS
+
+    cases = []
+    for k, by_runs in sorted(_MIN_ABERRATION.items()):
+        for n_runs, generators in sorted(by_runs.items()):
+            n_base = n_runs.bit_length() - 1
+            n_sets = math.comb(2**n_base - n_base - 1, k - n_base)
+            if n_sets > _MAX_CANDIDATE_SETS:
+                continue  # the search refuses it, so the search does not cover this cell
+            marks = [pytest.mark.slow] if n_sets > 50_000 else []
+            cases.append(pytest.param(k, n_runs, generators, marks=marks, id=f"{k}-factors-{n_runs}-runs"))
+    return cases
+
+
+@pytest.mark.parametrize(("k", "n_runs", "generators"), _table_cases())
+def test_generate_design_table_has_minimum_aberration(k: int, n_runs: int, generators: tuple[str, ...]) -> None:
+    """The table generate_design uses and the search agree on the word-length pattern, cell by cell.
+
+    A minimum-aberration design is unique only up to relabelling, so the generators may differ;
+    the word-length pattern (A3, A4, ...) is what the criterion ranks, and the two must match.
+    The patterns are those of Chen, Sun and Wu (1993), e.g. (0, 6, 8, 0, 0, 1) for 2^(9-4) in 32 runs.
+    """
+    from process_improve.experiments.trade_off import _factor_names, _word_length_pattern
+
+    names = _factor_names(k)
+    searched = minimum_aberration_generators(n_runs, k)
+    assert _word_length_pattern(generators, names, k) == _word_length_pattern(searched, names, k)

@@ -73,8 +73,10 @@
       define 2^p - 1 words in the defining relation. Resolution equals the
       length of the shortest word. Minimum-aberration fractions minimize the
       number of short words, improving estimability. Foldover adds the mirror
-      image of the fraction, breaking specific alias chains (full foldover
-      raises resolution by one).
+      image of the fraction, breaking specific alias chains: a full foldover of
+      a resolution III fraction gives resolution IV, clearing every main effect
+      of two-factor interactions. Folding over a resolution IV fraction does not
+      raise its resolution, since its defining words all have even length.
   suitable_for:
     - "k >= 4 factors when budget is limited"
     - "Screening or characterization studies"
@@ -87,14 +89,14 @@
     supports_interaction: "Depends on resolution"
   min_runs:
     formula: "2^(k-p)"
-    examples: {"4_res_III": 4, "4_res_IV": 8, "5_res_V": 16, "7_res_IV": 16}
+    examples: {"3_res_III": 4, "4_res_IV": 8, "5_res_V": 16, "7_res_IV": 16}
   supports_models:
     - main_effects
     - "two_factor_interactions (resolution >= V)"
   can_augment_to:
     - {target: full_factorial, method: "Run the complementary fraction"}
     - {target: ccd, method: "Add center + axial points to resolution V fraction"}
-    - {target: fractional_factorial, method: "Foldover to increase resolution"}
+    - {target: fractional_factorial, method: "Foldover a resolution III fraction to reach resolution IV"}
   advantages:
     - "Dramatically reduces run count compared to full factorial"
     - "Orthogonal - clean estimation of non-aliased effects"
@@ -129,8 +131,9 @@
       coincide with resolution III 2^(k-p) fractions. The key N = 12, 20, 24
       designs are the non-geometric PBs with complex, partial aliasing. Each
       main effect is partially confounded with every two-factor interaction not
-      involving that factor, with alias coefficient ±1/(N-1). Foldover can
-      de-alias specific effects.
+      involving that factor; the alias coefficient is the inner product of the
+      two columns divided by N, ±1/3 in the 12-run design and ±0.2 or ±0.6 in
+      the 20-run design. Foldover can de-alias specific effects.
   suitable_for:
     - "Screening 6–47 factors"
     - "Tight budget (want N close to k+1)"
@@ -148,7 +151,7 @@
     - main_effects
   can_augment_to:
     - {target: fractional_factorial, method: "Use active factors in a resolution V fraction"}
-    - {target: definitive_screening, method: "Re-screen active factors in a DSD"}
+    - {target: dsd, method: "Re-screen active factors in a DSD"}
     - {target: ccd, method: "Follow up active factors with RSM"}
   advantages:
     - "Very run-efficient for screening"
@@ -228,7 +231,8 @@
     intermediate: >
       A CCD consists of a 2^k (or 2^(k-p)) factorial, 2k axial (star) points
       at distance alpha from center, and center points. The alpha value controls
-      rotatability (alpha = k^0.25 for rotatable CCD) or face-centering
+      rotatability (alpha = n_F^(1/4), the fourth root of the number of cube
+      runs, so (2^k)^(1/4) with a full factorial cube) or face-centering
       (alpha = 1 for face-centered CCD, which keeps all points at three levels).
     expert: >
       CCD is the workhorse of RSM. The factorial portion can be a full or
@@ -272,7 +276,7 @@
     - "Box & Wilson (1951)"
     - "Myers, Montgomery & Anderson-Cook (2016), Ch. 7"
 
-- id: definitive_screening
+- id: dsd
   display_name: "Definitive Screening Design (DSD)"
   category: screening
   description:
@@ -363,7 +367,7 @@
     supports_interaction: "Partial (second-order terms are mutually aliased)"
   min_runs:
     formula: "2k + 1 (even k) or 2k + 3 (odd k) for the minimal conference-foldover member"
-    examples: {"3": 13, "4": 9, "5": 13, "6": 13}
+    examples: {"3": 9, "4": 9, "5": 13, "6": 13}
   supports_models:
     - main_effects
     - "quadratic (limited active factors)"
