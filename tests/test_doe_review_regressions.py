@@ -106,13 +106,13 @@ class TestScheffeAnalysisTestsMeaningfulHypotheses:
     def test_effects_are_in_the_cox_direction(self, fitted: tuple[pd.DataFrame, pd.Series]) -> None:
         result = self._analyse(fitted, "effects")
         assert result["effect_direction"] == "cox"
-        assert sum(result["effects"].values()) == pytest.approx(0.0, abs=1e-9)  # q/(q-1) times a centred vector
+        assert result["effect_reference"] == pytest.approx({"x1": 1 / 3, "x2": 1 / 3, "x3": 1 / 3})
         assert max(result["effects"], key=result["effects"].get) == "x1"
 
     def test_lenth_is_refused_with_a_reason(self, fitted: tuple[pd.DataFrame, pd.Series]) -> None:
         result = self._analyse(fitted, "lenth_method")
         assert result["lenth_method"] is None
-        assert "anova" in result["note"]
+        assert "anova" in result["lenth_note"]
 
 
 @pytest.mark.usefixtures("no_pyoptex")

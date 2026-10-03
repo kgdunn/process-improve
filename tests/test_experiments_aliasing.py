@@ -162,3 +162,41 @@ class TestAliasChains:
         fit.params["A:B"] += 1.0
         fit.params["C:D"] -= 1.0
         assert estimable_effects(fit).coefficients["A:B + C:D"] == pytest.approx(before)
+
+
+class TestLmAliasDetection:
+    """``lm`` drops only exactly aliased columns, and maps every column to its own term."""
+
+    def test_a_square_in_actual_units_is_correlated_but_not_aliased(self) -> None:
+        from process_improve.experiments.structures import Expt
+
+        temperature = np.array([300, 300, 305, 305, 310, 310.0])
+        data = Expt(pd.DataFrame({"T": temperature, "y": [10.0, 10.2, 14.1, 13.9, 10.1, 9.9]}))
+        model = lm("y ~ T + I(T**2)", data)
+        assert "I(T ** 2)" in model._OLS.params.index
+        assert model._OLS.rsquared == pytest.approx(0.997, abs=1e-3)
+        assert not model.aliasing
+
+    def test_exact_aliases_are_still_found(self) -> None:
+        data = pd.DataFrame({"A": A, "B": B, "C": C, "D": A * B * C})
+        data["y"] = np.arange(8.0)
+        model = lm("y ~ A*B*C*D", data)
+        assert "A:B + C:D" in model.get_aliases()
+
+    def test_a_three_level_categorical_factor(self) -> None:
+        data = pd.DataFrame([(a, m) for a in (-1.0, 1.0) for m in "abc"] * 2, columns=["A", "M"])
+        data["y"] = np.arange(len(data), dtype=float)
+        model = lm("y ~ A + M", data)
+        assert list(model._OLS.params.index) == ["Intercept", "M[T.b]", "M[T.c]", "A"]
+        assert model._OLS.params["M[T.c]"] == pytest.approx(2.0)
+
+    def test_untitled_data_and_no_alias_threshold(self) -> None:
+        from process_improve.experiments.structures import Expt
+
+        data = Expt(pd.DataFrame({"A": A[:4], "y": [1.0, 2, 3, 4]}))
+        assert lm("y ~ A", data)._OLS.params["A"] == pytest.approx(0.5)
+        both = pd.DataFrame({"A": A, "B": A, "y": np.arange(8.0)})
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            kept = lm("y ~ A + B", both, alias_threshold=None)
+        assert list(kept._OLS.params.index) == ["Intercept", "A", "B"]
