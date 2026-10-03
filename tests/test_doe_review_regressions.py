@@ -106,13 +106,13 @@ class TestScheffeAnalysisTestsMeaningfulHypotheses:
     def test_effects_are_in_the_cox_direction(self, fitted: tuple[pd.DataFrame, pd.Series]) -> None:
         result = self._analyse(fitted, "effects")
         assert result["effect_direction"] == "cox"
-        assert sum(result["effects"].values()) == pytest.approx(0.0, abs=1e-9)  # q/(q-1) times a centred vector
+        assert result["effect_reference"] == pytest.approx({"x1": 1 / 3, "x2": 1 / 3, "x3": 1 / 3})
         assert max(result["effects"], key=result["effects"].get) == "x1"
 
     def test_lenth_is_refused_with_a_reason(self, fitted: tuple[pd.DataFrame, pd.Series]) -> None:
         result = self._analyse(fitted, "lenth_method")
         assert result["lenth_method"] is None
-        assert "anova" in result["note"]
+        assert "anova" in result["lenth_note"]
 
 
 @pytest.mark.usefixtures("no_pyoptex")
@@ -124,13 +124,13 @@ class TestThinRegionsAreSampled:
         result = generate_design(
             factors, design_type="d_optimal", budget=10, constraints=[Constraint(expression="A + B + C <= 3")]
         )
-        assert evaluate_design(result, metric="i_efficiency")["i_efficiency"] > 0
+        assert evaluate_design(result, metric="average_prediction_variance")["average_prediction_variance"] > 0
 
     def test_six_factor_region_of_65_parts_per_million(self) -> None:
         factors = [Factor(name=f"A{i}", low=0, high=1) for i in range(6)]
         constraint = Constraint(expression=" + ".join(f"A{i}" for i in range(6)) + " <= 0.6")
         result = generate_design(factors, design_type="i_optimal", model_type="main_effects", constraints=[constraint])
-        metrics = evaluate_design(result, model="main_effects", metric=["i_efficiency", "g_efficiency"])
+        metrics = evaluate_design(result, model="main_effects", metric=["average_prediction_variance", "g_efficiency"])
         assert metrics["g_efficiency"] > 0
         assert generate_design(factors, design_type="maximin", budget=12, constraints=[constraint]).n_runs == 12
 
@@ -138,7 +138,12 @@ class TestThinRegionsAreSampled:
         factors = [Factor(name=n, type="mixture", low=0, high=1) for n in "ABC"]  # 0.24% of the simplex
         cap = Constraint(expression="A + B <= 0.05")
         result = generate_design(factors, design_type="i_optimal", model_type="scheffe_linear", constraints=[cap])
-        assert evaluate_design(result, model="scheffe_linear", metric="i_efficiency")["i_efficiency"] > 0
+        assert (
+            evaluate_design(result, model="scheffe_linear", metric="average_prediction_variance")[
+                "average_prediction_variance"
+            ]
+            > 0
+        )
 
     @pytest.mark.parametrize("seed", [0, 1])
     def test_sample_is_uniform_where_the_answer_is_known(self, seed: int) -> None:
@@ -225,7 +230,7 @@ class TestEOptimalExchangeDoesNotStopEarly:
     def test_five_factors_in_eight_runs_reach_the_regular_fraction(self, seed: int) -> None:
         """The 2^(5-2) fraction has lambda_min = 8; seeds used to stop at 4.67, 4.0 and 5.65."""
         result = generate_design(
-            _continuous(5, -1, 1), design_type="e_optimal", budget=8, model_type="main_effects", random_seed=seed
+            _continuous(5, -1, 1), design_type="e_optimal", budget=8, model_type="main_effects", random_state=seed
         )
         assert result.metadata["min_eigenvalue"] == pytest.approx(8.0)
 

@@ -239,7 +239,7 @@ def build_design_result(  # noqa: PLR0913
     n_center_points: int = 0,
     n_replicates: int = 1,
     n_blocks: int | None = None,
-    random_seed: int | np.random.Generator | None = 42,
+    random_state: int | np.random.Generator | None = 42,
     generators: list[str] | None = None,
     defining_relation: list[str] | None = None,
     resolution: int | None = None,
@@ -274,8 +274,8 @@ def build_design_result(  # noqa: PLR0913
         Number of full replicates.
     n_blocks : int or None
         Number of blocks (None = no blocking).
-    random_seed : int, numpy.random.Generator or None
-        Seed for reproducible randomization; ``None`` draws a fresh, unseeded
+    random_state : int, numpy.random.Generator or None
+        Seed for the run-order randomisation; ``None`` draws a fresh, unseeded
         random order (see :func:`process_improve._random.check_random_state`).
     generators : list[str] or None
         Generator strings (fractional factorials).
@@ -330,7 +330,7 @@ def build_design_result(  # noqa: PLR0913
     # 3. Blocks, then randomise: the run order is shuffled within each block, blocks in turn.
     #    Without randomisation the original order is preserved (used for optimal designs
     #    whose run order is part of the solution, e.g. split-plot).
-    rng = check_random_state(random_seed) if randomize else None
+    rng = check_random_state(random_state) if randomize else None
     blocking = None
     if n_blocks is not None and n_blocks > 1:
         if n_leading_fixed:

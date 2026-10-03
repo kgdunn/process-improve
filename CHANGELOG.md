@@ -13,6 +13,17 @@ those changes.
 
 ### Added
 
+- **The `generate_design` agent tool exposes the whole design surface.** It takes
+  `constraints` (expressions in actual units), `candidates`, `fixed_runs`, `model_type`,
+  `n_blocks`, `hard_to_change`, `generators`, `cube` and a numeric `alpha`, offers the
+  `omars` and `omars_ilp` types it was missing (a test keeps its choices equal to
+  `generate_design`'s), and returns the design's `metadata`, including the `region` that
+  `evaluate_design` and `optimize_responses` work over.
+- **The `evaluate_design` and `optimize_responses` agent tools take that `region`**, so
+  an agent can judge a constrained or mixture design over the settings it may use and
+  keep the recommended optimum inside them; `evaluate_design` also accepts the Scheffé
+  mixture models and a `random_state`.
+
 - **Space-filling designs**: `design_type="latin_hypercube"`, `"maximin_lhs"`,
   `"uniform"` (low centred L2 discrepancy), `"sobol"`, `"halton"` and `"maximin"`.
   The last three also work in constrained regions and constrained mixtures: the
@@ -141,6 +152,51 @@ those changes.
 
 ### Changed
 
+- **`analyze_experiment` models the blocks of a blocked design.** A `Block` column was
+  dropped from the model, so block-to-block differences went into the residual and
+  masked real effects (in one blocked 2^3, p = 0.23 for an effect with p = 7e-8 once
+  blocks are in). With two or more blocks the named non-mixture models now carry
+  sum-coded block contrasts (`Block1`, ...), tested together as one `"Block"` ANOVA
+  row (Montgomery, chapter 7); lack of fit and the curvature test take pure error
+  within blocks, effects and significance leave the blocks out, and a new point without
+  a block is predicted for the average block. A Scheffe model or an explicit formula
+  that does not name `Block` warns that the blocks are not modelled. Drop the column to
+  analyse without blocks.
+- **`analyze_experiment` fits a Scheffe quadratic model to mixture data by default.**
+  With `model=None` it fitted the intercept `interactions` model even when every run's
+  settings sum to 1, a rank-deficient fit with meaningless effects; it now does what
+  `evaluate_design` does, and `model_summary["model"]` names the model fitted.
+- **Notes from separate analyses no longer overwrite each other.** The mixture ANOVA,
+  effects and Lenth notes, and the saturated-model ANOVA note, all went to one `note`
+  key, so only the last survived. They are now `anova_note`, `effects_note`,
+  `lenth_note` and `significance_note`.
+- **`recommend_strategy` plans hard-to-change factors as D-optimal split-plot
+  designs.** Their stages carried `split_plot`, `whole_plot_factors` and
+  `subplot_factors`, which `generate_design` rejects with `TypeError`; only the optimal
+  designs build split plots. Such a stage is now `design_type="d_optimal"` with
+  `hard_to_change` naming its whole-plot factors, and an unknown hard-to-change name
+  raises `ValueError`. Mixture components with process factors, which no stage can
+  build, now raise `ValueError` from `recommend_strategy` itself.
+- **The knowledge base names only designs `generate_design` builds.** The
+  definitive screening entry's id is `dsd` (it was `definitive_screening`), the domain
+  templates prefer `dsd`, and the hard-to-change rule recommends `d_optimal` with
+  `hard_to_change` instead of the non-existent `split_plot`. The ids a strategy names
+  that are not design types are listed in `strategy.models.NON_GENERATE_DESIGN_IDS`.
+- **`doe_knowledge` no longer offers the `worked_examples` and `interpretation`
+  topics**, which had no data and returned the same unfiltered list as every other
+  topic; they now raise `ValueError` like any unknown topic.
+
+- **The browser app offers I-optimal designs**, which no longer need pyoptex.
+
+- **Optimal designs use the built-in exchange by default, whether or not pyoptex is
+  installed.** With pyoptex importable (as in CI and the docs build), unconstrained D-,
+  I- and A-optimal designs came from pyoptex, and from the built-in exchange otherwise,
+  so the same call returned different designs on different installs. pyoptex now runs
+  only for split-plot designs (`hard_to_change`), or when asked for with the new
+  `backend="pyoptex"` argument of `generate_design`. Asking for pyoptex where it cannot
+  work (constraints, a candidate set, E-optimality) raises; ignoring `hard_to_change`
+  logs the true reason.
+
 - **`n_center_points` defaults to `None` and is honoured, or refused, by every design
   type.** `None` means three centre points for the factorials, Plackett-Burman, CCD and
   Box-Behnken designs, as before, and the design's own for the rest. For a DSD or OMARS
@@ -232,11 +288,372 @@ those changes.
 
 ### Deprecated
 
+- **`random_seed` is deprecated since 1.97.0 and will be removed in 2.0.0; use
+  `random_state`.** It affects `generate_design`, `evaluate_design`, `evaluate_all`,
+  `generate_omars` and the `generate_design` agent tool, the last public functions that
+  did not follow the package's reproducibility contract. `random_state` takes an int, a
+  `numpy.random.Generator` or `None` (fresh entropy), and its default (42) gives the
+  same designs as before. Passing `random_seed` still works, with a
+  `DeprecationWarning`; passing both raises.
+- **The `i_efficiency` metric of `evaluate_design` is deprecated since 1.97.0 and will
+  be removed in 2.0.0; use `"average_prediction_variance"`.** I-efficiency divided
+  `p / N` by the average prediction variance, which, unlike D- and G-efficiency, is not
+  bounded by 100: a design in a small constrained region scored 181%. The new metric
+  reports the I-criterion itself (the prediction variance averaged over the region, in
+  units of the error variance; lower is better), which is what JMP reports and what an
+  I-optimal design minimises. `"i_optimality"` is now an alias for it, and
+  `metric="all"` leaves the deprecated percentage out.
+
 - **The `ilp` extra is deprecated since 1.97.0 and will be removed in 2.0.0.** It is now
   empty: `generate_omars` no longer needs pulp, so there is no replacement to install.
   `pip install 'process-improve[ilp]'` keeps working until then.
 
 ### Fixed
+
+- **`evaluate_design(metric="clear_effects")` follows Wu and Hamada's definition for
+  every design.** Effect orders were guessed from the length of the alias string, so with
+  factor names longer than one letter every main effect of a resolution III fraction was
+  reported clear (`PressConc` counted as a ninth-order term) and no two-factor interaction
+  could ever be. Effects aliased with nothing were never listed: a 2^3 full factorial, or
+  a 2^(5-1) resolution V fraction passed as a DataFrame, had no clear main effects. Orders
+  now come from the set of factors in each word, every main effect and two-factor
+  interaction is checked, and the interactions are named `"A:B"`.
+- **Alias metrics keep the sign of a negative generator, and describe the design that
+  was run.** `generators=["D=-ABC"]` gave the defining relation `I=ABCD` (in
+  `evaluate_design` and in `DesignResult.defining_relation`) and the chain `A = BCD`; they
+  are now `I=-ABCD` and `A = -BCD`. A central composite design on a fractional cube
+  reported the cube's chains (`A = BCDE`), which its axial runs partly break; its alias
+  structure and clear effects now come from the whole design, with a note saying why. A
+  resolution II fraction reports `roman="II"` (not `"2"`) and a wordlength pattern that
+  starts at `A_2` instead of hiding the length-2 word.
+- **`evaluate_design` handles categorical factors in the alias matrix and the region.**
+  `metric="alias_matrix"`, and so `evaluate_all` and `metric="all"`, raised "could not
+  convert string to float" for any design with a categorical factor; the omitted
+  interactions are now built by patsy next to the model's terms, contrast-coded as in the
+  model (`"A:C[T.y]"`). With a categorical factor present, `region` was ignored
+  (`"spherical"` gave the cube's answer and a misspelt region was accepted), and each cube
+  vertex was crossed with one random level, so the maximum prediction variance was
+  underestimated and G-efficiency overstated; the region is now honoured and validated, and
+  every vertex is crossed with every combination of levels.
+- **The region average and the FDS curve are no longer biased by the added vertices.**
+  The `2**k` cube vertices (or a region's support points), added so the maximum is seen,
+  were pooled into the sample that the average prediction variance, `i_efficiency` and the
+  FDS curve are taken over; they sit where the variance is highest, which raised the
+  average by 1% at the default 100,000 samples and by 88% at 1,000 samples for eight
+  factors. They now serve only the maximum (G-efficiency and the FDS curve's end point).
+- **`evaluate_design` checks its inputs.** A run with a missing factor setting was
+  dropped silently by patsy, so N and the efficiencies described a different design and
+  `alias_matrix` crashed; it now raises `ValueError` naming the rows. `alpha` outside
+  (0, 1), a non-positive `sigma` and `n_samples < 1` raise instead of giving NaN or a NumPy
+  error, and a DataFrame that looks like it is in actual rather than coded units warns
+  (a 2^3 factorial in 0 to 10 units reported a D-efficiency of 1118%).
+- **`metric="degrees_of_freedom"` counts from the rank of the model matrix.** It used the
+  column count and assumed an intercept, so a rank-deficient model (a quadratic model on a
+  replicated 2^2) reported fewer residual degrees of freedom than pure-error ones, and
+  `"A + B - 1"` reported one model degree of freedom for two terms. The model, residual
+  and total degrees of freedom now come from the rank, corrected for the mean only when
+  the model spans the constant (an intercept, or a Scheffé model), and `pure_error` and
+  `lack_of_fit` are always reported (0 without replicates).
+- **VIF and power are meaningful for Scheffé mixture models.** `metric="vif"` called
+  statsmodels, which centres the columns; the centred linear blending columns of a
+  mixture are exactly collinear, so every linear term read about 1e15 (with warnings),
+  and the value depended on the installed statsmodels. VIFs are now computed from the
+  model matrix as `c_jj * sum((x_j - mean_j)^2)`, which is the classical `1 / (1 - R^2)`
+  with an intercept and finite for any estimable Scheffé model. `metric="power"` no
+  longer reports power for testing a linear blending coefficient against zero, a
+  hypothesis the mixture analysis never tests, and says so in a note.
+- **`evaluate_design` speaks the same model names as `generate_design` for mixtures.**
+  Over a mixture region, `model="special_cubic"` was rejected as an unknown formula name
+  and `"interactions"` fitted an intercept model that is rank-deficient on a simplex;
+  they now map to the Scheffé models as in `generate_design`. Without a model, a mixture
+  design is evaluated for the Scheffé model it was generated for (now recorded as
+  `metadata["model_type"]` for the simplex designs too), not always the quadratic one.
+- **Blocks are no longer dropped without a word.** A blocked design was evaluated as if
+  unblocked, overstating the residual degrees of freedom, power and efficiencies, and a
+  formula naming the block column was refused. A formula may now include `Block` (as a
+  categorical factor), and when it does not, `result["notes"]["blocks"]` says the blocks
+  were left out.
+- **`effect_size` in power calculations is documented as an anticipated coefficient.**
+  It is half the high-minus-low effect of a two-level factor, which the docstring and
+  the agent tool's schema now say; the G-efficiency docstring names its convention
+  (`p / (N max d)`, of which JMP reports the square root).
+- **The FDS, power-curve and prediction-variance plots are computed for a model the
+  design can estimate, over all of its factors.** They assumed a full quadratic model,
+  counted `RunOrder` and `Block` as factors (an SPV in the thousands for a generated
+  CCD), and silently switched to a pseudo-inverse when the quadratic model could not be
+  estimated (any two-level design). The power curve also assumed an orthogonal two-level
+  design and clamped the residual degrees of freedom to 1, giving power 0.17 instead of
+  0.57 for a 2^3 under its main-effects model; the prediction-variance contour dropped
+  the factors not plotted from the model, so `hold_values` had no effect. All three now
+  share `evaluate_design`'s machinery for a `model` that `visualize_doe` and the plot
+  classes accept (default: the fitted formula, else the richest of quadratic,
+  interactions and main effects that the design estimates), use each term's own
+  coefficient variance, take `random_state` and `n_samples` for the FDS sample, and raise
+  `ValueError` for a model the design cannot estimate or that leaves no residual degrees
+  of freedom.
+- **Lenth thresholds on the Pareto and half-normal plots sit at the stated level.** The
+  ME and SME lines were drawn at the analysis's alpha = 0.05 but labelled with
+  `1 - confidence_level` (`"ME (α=0.010000000000000009)"` at 0.99); they are now
+  recomputed from the PSE at the plot's level, and the label is formatted (`α=0.01`).
+- **`visualize_doe` rejects an unknown `backend`.** A value such as `"Plotly"` returned no
+  figure without an error; it now raises `ValueError`.
+- **Each metric's note is kept under its own name.** Metrics returned a shared top-level
+  `"note"`, so asking for two metrics kept only the last note, attributed to the wrong
+  metric. `evaluate_design` now returns them as `result["notes"][metric_name]`.
+- **`analyze_experiment` effects are the change from a factor's low to its high level
+  whatever its units.** Effects and Lenth's method were always twice the coefficient,
+  which is the effect only for a numeric factor coded -1/+1: a factor in actual units
+  (150 and 170) got twice its slope (1.05 instead of 10.5), and a two-level categorical
+  factor got twice its treatment-coded difference, with a sign set by the alphabetical
+  reference level. Factors are now coded to -1/+1 for the effects (a numeric factor
+  from its own minimum and maximum unless already coded, a categorical one from its
+  first to its second level), the mapping is reported under `effects_coding`, and a
+  categorical factor with more than two levels raises, since it has no single effect.
+- **The curvature test uses pure error.** It divided the centre-versus-factorial
+  contrast by the residual mean square of the fitted model, which contains that same
+  curvature, so real curvature inflated its own error: on Montgomery's Example 6.6 with
+  the centre points shifted by 1 it gave p = 0.083 instead of 0.0017. It is now
+  Montgomery's `SS_curvature / MS_pure_error` on `(1, df_pure_error)` degrees of freedom,
+  pure error coming from the replicated runs, and reports `F_statistic`, `ss_curvature`,
+  `ms_pure_error` and `df_pure_error`.
+- **Response transforms in `analyze_experiment` are checked and reused.** An unknown name
+  (`"Log"`) was ignored, Box-Cox was skipped silently when any response was not
+  positive, and a log or square root of a non-positive value silently dropped runs or
+  made every statistic NaN; these now raise `ValueError`. A confirmation run was compared,
+  on the raw scale, with a prediction interval on the transformed scale, so a run at
+  the true mean was reported outside it; it is now transformed the same way first, and
+  predictions and the confirmation test say which scale they are on. `model_summary`
+  reports the `transform` and the Box-Cox `box_cox_lambda`.
+- **The Box-Cox `lambda` comes from the model.** It was chosen to make the response's own
+  distribution look normal, ignoring the factors, which recommended `lambda = 0.33` for
+  data that are additive on the original scale. It now maximises the profile likelihood
+  of the fitted model (Box and Cox 1964; Montgomery, section 15.1.1), is reported with
+  its 95% interval (`lambda_ci`), and the recommendation is "no transform" when that
+  interval holds 1.
+- **Cox-direction mixture effects include the non-linear blending terms.** The effect of a
+  component was `beta_i - mean(beta_j)` whatever the model, which is the Cox effect
+  only for the linear model: on Cornell's yarn-elongation data it gave x1 the wrong
+  sign and x3 five times its size. It is now the change in the fitted response along
+  the Cox direction through the design's centroid, over the span the design's component
+  ranges allow (`effect_reference`, `effect_range`).
+- **The ANOVA and significance test an alias chain once.** Exactly aliased terms each
+  had their own ANOVA row, so in a replicated 2^(4-1) the degrees of freedom summed to 18
+  for 16 runs, and both `A:B` and `C:D` were listed as significant. Both now use one
+  column per chain, named as the effects name it (`"A:B + C:D"`). The ANOVA reports its
+  sum-of-squares type (`anova_type`, Type II) and fills `mean_sq`, which was always
+  `None`.
+- **Lenth's method follows Lenth (1989).** The simultaneous margin of error used a
+  Bonferroni quantile instead of Lenth's `gamma = (1 + 0.95**(1/m)) / 2`, and the
+  pseudo standard error kept effects equal to `2.5 s0`, which Lenth trims. It also takes
+  `significance_level`.
+- **Smaller `analyze_experiment` defects.** Lack of fit and the curvature test ignored
+  `significance_level`; runs with a missing response were counted in the pure-error
+  degrees of freedom and made model selection return the full model with a NaN
+  criterion (they are now left out up front, with a warning); `observed_at_new` of the
+  wrong length was ignored or raised `IndexError`; a formula for another column
+  (`"z ~ A + B"`) silently fitted that column, and columns a formula does not name were
+  used to group replicates; a formula expanding past `settings.max_formula_terms` was
+  fitted (70 s for 16384 terms); an unnamed `responses` Series raised a confusing
+  formula error; `model="quadratic"` squared categorical factors; and a saturated
+  model's significance left every term out of both lists while its residual tests ran
+  on rounding noise. Each now behaves as documented or raises a `ValueError` naming the
+  fix, and terms that cannot be tested are listed under `not_estimable_terms`.
+- **`lm` keeps correlated terms that are not aliased, and handles categorical factors.**
+  It treated any two model columns correlated beyond 0.995 as aliases and dropped one,
+  so a square in actual units (`T` and `T**2` at 300, 305 and 310) was removed and the
+  curvature model fitted with R-squared 0.000 instead of 0.997; the default
+  `alias_threshold` now detects only exact aliasing, and `None` drops nothing (it raised
+  `TypeError`). Columns were matched to terms by position, so a categorical factor with
+  three levels raised `IndexError`; they are now matched through patsy's term slices. A
+  plain `Expt` without a title no longer raises `AttributeError`.
+- **`analyze_omars` warns on a design without the OMARS structure, and checks its
+  options.** The staged protocol estimates the main effects without adjusting for the
+  second-order terms, so it is valid only when the main effects are balanced, mutually
+  orthogonal and orthogonal to the second-order block; on a three-level design with runs
+  missing it declared a null main effect active in 162 of 200 simulations, with no
+  warning. It now checks the structure, warns with a `RuntimeWarning` when it is absent,
+  and records the checks in `details["design_structure"]`; the docstring no longer
+  claims it accepts any coded design. `effects_to_drop` is checked against the design's
+  factors before the analysis (a typo was accepted when the second-order gate stayed
+  shut, and a valid label outside the heredity candidates was refused), `"B:A"` means
+  `"A:B"`, and a significance level outside (0, 1) or a negative `max_subset_terms`
+  raises `ValueError`.
+- **Model selection scores AICc as Hurvich and Tsai do, and searches Scheffe models
+  without an intercept.** The penalty counted the regression coefficients but not the
+  error variance, so it was too weak near saturation and changed the model chosen. A
+  Scheffe model was searched as the intercept `interactions` model, which is
+  rank-deficient on mixture data; the linear blending terms are now always kept and the
+  search chooses among the non-linear ones. `n_terms` counts the intercept, as
+  `model_summary` does.
+- **`augment_design` refuses a run count that is not a positive whole number.**
+  `add_runs_optimal` with `n_additional_runs=0` or `-2` still appended a run, and
+  `replicate` with 0 or `add_center_points` with a negative count failed inside pandas
+  or numpy. All of them now raise a `ValueError` naming `n_additional_runs`.
+
+- **`augment_design` no longer augments a response column as a factor.** Every column
+  except `RunOrder` and `Block` was taken as a factor, so a design carrying its measured
+  response got axial runs on it, had it negated by a foldover, or set to 0 in new centre
+  runs. A new `factor_names` argument (also on the agent tool) names the factors; without
+  it, a column that is non-numeric, or lies on one side of 0 and beyond [-1, 1], is
+  refused with a `ValueError` that suggests naming them.
+
+- **`augment_design(..., "upgrade_to_rsm")` checks the model it claims to support.** It
+  always said "The design now supports estimation of a full quadratic model", yet on a
+  resolution IV cube such as the 2^(4-1) with D = ABC the interactions A:B = C:D,
+  A:C = B:D and A:D = B:C stay aliased (they are zero on every axial and centre run), so
+  the 15-term quadratic has rank 12. The upgrade now checks the `target_model` (default
+  quadratic), reports `n_coefficients` and `n_estimable`, and warns, naming the aliased
+  terms, when they differ. Centre runs are topped up to five in total (the count used to
+  fall as existing centre runs rose), and `alpha="orthogonal"` now counts the centre
+  runs the upgrade adds.
+
+- **`augment_design` no longer calls still-aliased effects "independently estimable".**
+  The explanation compared alias-chain strings, so any change to a chain, even dropping
+  a three-factor term, was reported as de-aliasing: the foldover of the 2^(5-2) with
+  D = AB, E = AC (I = BCDE afterwards) said "B:C is now independently estimable" while
+  B:C and D:E stayed identical, a semifold was called "full resolution" although its
+  effects remain correlated at |r| = 1/3, and the resolution was never reported. The
+  explanation now compares each aliased pair of main effects and two-factor
+  interactions in the augmented design, listing those now uncorrelated, those only
+  partially de-aliased (with |r|), and those still fully aliased; it reports the
+  resolution from the generators (III to IV for that foldover), and says a semifold is
+  not a regular fraction. A failed metric evaluation now warns instead of logging.
+
+- **The trade-off table no longer reports existing designs as impossible.** When the
+  minimum-aberration search would exceed its limit (12 factors in 32, 64 or 128 runs;
+  11 factors in 64 or 128 runs), the cell was blank and the `trade_off_table` tool
+  reported `exists: False`, "too many factors for the budget". Those cells now use the
+  tabulated minimum-aberration design when there is one (`2^(11-5) IV` in 64 runs,
+  `2^(11-4) V` in 128), and are otherwise marked `"?"` with `exists: None` and a reason;
+  the search limit raises the new `SearchLimitError`, a `ValueError`. Messages that read
+  "8 n_runs cannot accommodate 8 n_factors" now say runs and factors.
+
+- **The `create_factorial_design` tool follows `n_factors` and returns plain names.**
+  `factor_names` with a different length from `n_factors` silently decided the design
+  (two names with `n_factors=3` gave a 4-run, two-factor design still reported as three
+  factors); the schema now refuses it, and duplicate names. Factors were also returned
+  as `"A [coded]"`, so a formula such as `y ~ A*B` did not match them; they now carry
+  the names given, as in `generate_design`.
+
+- **Agent tool schemas reject malformed bounds and negative seeds.** `optimize_responses`
+  accepted `search_bounds=[-1.5]`, which escaped as an `IndexError`, and silently
+  dropped the third value of `[-1.5, 1.5, 99]`; a bound is now exactly two numbers,
+  for one factor or all. A negative `random_state` (or `random_seed`) for
+  `generate_design`, `augment_design`, `evaluate_design` or `optimize_responses` is
+  refused by the schema instead of failing inside numpy.
+
+- **Steepest-ascent and ridge paths check their inputs and say what they follow.**
+  `step_size=-1` walked a steepest-ascent path downhill and `n_steps=-3` returned an
+  empty path; both now raise. The docstring states that `step_size` is the Euclidean
+  distance between successive points, not a unit step in the factor with the largest
+  coefficient. Ridge analysis traces spheres out to the largest `|bound|` and so cannot
+  follow `search_bounds` that differ between factors or are asymmetric; each path point
+  now carries `inside_search_bounds`, with a warning when the bounds are of that kind.
+
+- **Canonical analysis recognises ridge systems.** A zero eigenvalue of `B` was given a
+  sign: y = 10 + 2A - A^2 (eigenvalues -1 and 0) was classed a `"saddle_point"`, its
+  flat axis labelled convex, and `stationary_point` reported a singular matrix although
+  the whole line A = 1 is a ridge of maxima. An eigenvalue that is zero to rounding is
+  now treated as flat (Myers, Montgomery and Anderson-Cook, sec. 6.4): the surface is a
+  `"stationary_ridge"`, with `ridge_of` set to `"maxima"` or `"minima"` and the ridge
+  point nearest the centre reported, or a `"rising_ridge"`, with no stationary point,
+  when the linear terms keep the response changing along the flat axis.
+
+- **`analyze_experiment`'s result can be passed straight to `optimize_responses`.** The
+  agent tool documented this pipeline, but the result had no `factor_names` or
+  `response_name`, so the call failed with the bare message `'factor_names'`. The result
+  now carries both, and a fitted model missing `coefficients` or `factor_names` raises a
+  `ValueError` that names the key. The single-response methods (`stationary_point`,
+  `canonical_analysis`, `steepest_ascent`, `steepest_descent`, `ridge_analysis`)
+  analysed the first of several models and ignored the rest; they now raise.
+
+- **Second-order analyses refuse terms they cannot represent.** `stationary_point`,
+  `canonical_analysis` and `ridge_analysis` silently dropped three-factor terms such as
+  `A:B:C`, so the reported stationary point was not stationary for the fitted model, and
+  a term that is not a product of the factors (`I(A ** 3)`, `C(A)[T.1]`) failed with a
+  bare `KeyError`. Both now raise a `ValueError` naming the terms; `desirability` and
+  `pareto_front` keep evaluating products of any number of factors.
+
+- **Desirability optimisation finds tight specification windows, and says when it
+  cannot.** A Derringer-Suich desirability is exactly 0, with zero gradient, outside its
+  limits, so when every start landed there the search stayed put and reported D = 0
+  with `optimizer_success=True`, although D = 1 was reachable in the search box (limits
+  of [1.9, 2.0] on y = A + B, met only at the corner (1, 1)). The search now first
+  maximises the smallest unclipped ramp, which is smooth everywhere and reaches the
+  region where every d > 0 when there is one; when there is none it reports the
+  setting closest to meeting every limit, with a `UserWarning`. Settings, predictions
+  and desirabilities in the result are plain Python floats rather than `np.float64`.
+
+- **`optimize_responses` takes a `random_state`.** The multistart search behind
+  `"desirability"` and `"pareto_front"` draws random starting points but was always
+  seeded with 42, so a caller could not vary the starts to check that an optimum does
+  not depend on them. The seed (an int, a `Generator` or `None`, default 42) is now a
+  parameter of the function and of the agent tool.
+
+- **`optimize_responses` refuses goals whose `response` names do not match the models.**
+  When both sides named their responses but the names did not pair up one to one (a typo
+  or a case difference such as `"Y1"` for `"y1"`), the goals were paired by list
+  position with only a log line, so goals listed in a different order from the models
+  optimised each response against another one's goal. That is now a `ValueError` naming
+  the unmatched names. Pairing by position when names are left out, and a `region`
+  ignored by a method that cannot use it, are now reported with a `UserWarning` rather
+  than a log record that an application's logging setup could hide.
+
+- **Desirability goals and importances are checked before optimising.** Swapped limits
+  (`low=80, high=60`) turned a ramp into a step, a target outside `[low, high]` could
+  never reach d = 1, a negative `weight` returned d = 2, a negative importance pushed
+  the composite above 1, missing limits silently became 0 and 1, and an importance list
+  of the wrong length failed inside `zip()`. Each now raises a `ValueError` naming the
+  response, as Derringer and Suich's `low < target < high` and positive exponents
+  require.
+- **Every `recommend_strategy` stage builds in the runs the plan states.** A budget
+  lowered a stage's `estimated_runs` without changing its design, so five factors in a
+  15-run budget reported 15 runs for designs that build 39, and a very small budget
+  pushed the total above the budget silently. `estimated_runs` is now the size of the
+  design the stage's `design_params` build, and a tight budget changes the designs:
+  fewer centre points, a Plackett-Burman screen, a D-optimal quadratic design with three
+  runs more than the model's coefficients, or one definitive screening design in place
+  of separate screening and optimisation stages. The risks say what was reduced, or that
+  the budget is below the smallest plan. The run estimates in `strategy.budget` match
+  `generate_design` too (a resolution IV fraction has 16 runs for 8 factors and 32 for
+  12 to 15, not 32 and 64), mixture stages estimate the blends they build, and a CCD for
+  six or more factors asks for the half-fraction cube it was estimated with.
+- **`recommend_strategy` stages are complete `generate_design` calls.** The
+  constrained optimisation stage carried neither the constraints, the quadratic model
+  nor a budget, so it built an unconstrained interactions design that broke the
+  constraints; it now carries all three, and mixture stages carry the constraints.
+  Box-Behnken was recommended for two factors, where it does not exist, and is now kept
+  to 3 to 7 factors (a face-centred CCD otherwise); a categorical factor with more than
+  two levels gets D-optimal stages instead of Plackett-Burman and CCD ones; and one
+  factor gets an optimisation stage instead of confirmation runs alone.
+  `generate_design` accepts constraints in their dict form, which is what a JSON round
+  trip of a stage gives, and as bare expressions.
+- **`recommend_strategy` uses the prior knowledge it parses.** Known significant
+  factors that skip screening are now the ones optimised (two named factors of six got
+  a 6-factor Box-Behnken design), and after screening the optimisation stage says its
+  factors are placeholders. The strongest evidence cue sets the confidence, so a stray
+  "expected" or "unknown" no longer caps confirmed, published results at 0.4 or 0.1.
+  `strategy_id` hashes every input, so constraints, prior knowledge, factor ranges,
+  response goals and detail level change it. Each domain's special considerations are
+  added to the risks and its extra stages named in the reasoning; the pharmaceutical
+  note no longer promises a design-space stage the plan does not contain.
+- **Four statements in the DOE knowledge base are corrected.** The rotatable CCD axial
+  distance is `(2^k)^(1/4)` with a full cube, not `k^0.25`; the Plackett-Burman partial
+  alias coefficients are 1/3 (12 runs) and 0.2 or 0.6 (20 runs), not `1/(N-1)`; four
+  factors cannot be placed in four runs at resolution III, and OMARS for three factors
+  has 9 runs, not 13; and a full foldover raises the resolution of a resolution III
+  fraction only. `doe_knowledge` now restricts the `analysis_methods`, `optimization`,
+  `screening` and `response_surface` topics to their own entries.
+- **The teaching simulators raise the documented `ValueError` for a string or `None`**
+  instead of numpy's `TypeError`, and their docstring examples show the values the
+  calls return (95 and 600, not 94 and 601). The `golf()` docstring no longer says the
+  rows are in standard order, which they are not.
+
+- **`analyze_experiment` accepts a response named `yield`.** The commonest response in
+  chemistry is a Python keyword, which a model formula cannot name, so the call failed
+  with "formula side 'yield' is not a valid expression". The response is now fitted
+  under a stand-in name and reported under its own; a factor named with a keyword gets a
+  clear message.
 
 - **Definitive screening designs are exact at every size (#629).** A DSD is built from a
   conference matrix `C` with `C'C = (m - 1) I`; the code had one only when `m - 1` was a

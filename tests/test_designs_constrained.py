@@ -155,8 +155,8 @@ class TestGenerateDesign:
         assert heat.max() == pytest.approx(600)
 
     def test_reproducible_with_seed(self) -> None:
-        a = generate_design([TEMP, DOSE], budget=8, constraints=[HEAT], random_seed=3)
-        b = generate_design([TEMP, DOSE], budget=8, constraints=[HEAT], random_seed=3)
+        a = generate_design([TEMP, DOSE], budget=8, constraints=[HEAT], random_state=3)
+        b = generate_design([TEMP, DOSE], budget=8, constraints=[HEAT], random_state=3)
         pd.testing.assert_frame_equal(a.design_actual, b.design_actual)
 
     def test_nonlinear_constraints_categorical_and_fixed_run(self) -> None:
@@ -246,7 +246,7 @@ class TestCriteria:
         assert i_crit.value(info["i"]) >= i_crit.value(info["d"]) - 1e-9
         assert Criterion.d().value(info["d"]) >= Criterion.d().value(info["i"]) - 1e-9
 
-    def test_i_optimal_constrained_design_has_the_better_i_efficiency(self) -> None:
+    def test_i_optimal_constrained_design_has_the_lower_average_prediction_variance(self) -> None:
         """The I-optimal design minimises the region-average variance that evaluate_design reports."""
         common = {"budget": 10, "constraints": [HEAT], "model_type": "quadratic"}
         d_design = generate_design([TEMP, DOSE], design_type="d_optimal", **common)
@@ -254,8 +254,9 @@ class TestCriteria:
         heat = 3 * i_design.design_actual["T"] + 5 * i_design.design_actual["D"]
         assert (heat <= 600 + 1e-6).all()
         assert i_design.metadata["optimality_criterion"] == "i_optimal"
-        kwargs = {"model": "quadratic", "metric": "i_efficiency", "n_samples": 20_000}
-        assert evaluate_design(i_design, **kwargs)["i_efficiency"] > evaluate_design(d_design, **kwargs)["i_efficiency"]
+        kwargs = {"model": "quadratic", "metric": "average_prediction_variance", "n_samples": 20_000}
+        key = "average_prediction_variance"
+        assert evaluate_design(i_design, **kwargs)[key] < evaluate_design(d_design, **kwargs)[key]
 
     def test_i_optimal_mixture(self) -> None:
         mix = [
@@ -269,7 +270,7 @@ class TestCriteria:
 
     @pytest.mark.parametrize("design_type", ["d_optimal", "i_optimal", "a_optimal"])
     def test_random_seed_reproduces_the_design(self, design_type: str) -> None:
-        kwargs = {"design_type": design_type, "budget": 9, "constraints": [HEAT], "random_seed": 5}
+        kwargs = {"design_type": design_type, "budget": 9, "constraints": [HEAT], "random_state": 5}
         first = generate_design([TEMP, DOSE], **kwargs)
         second = generate_design([TEMP, DOSE], **kwargs)
         pd.testing.assert_frame_equal(first.design_actual, second.design_actual)

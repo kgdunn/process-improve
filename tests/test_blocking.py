@@ -49,7 +49,7 @@ def test_four_blocks_of_a_two_to_the_four_confound_only_one_interaction() -> Non
 
 
 def test_runs_are_randomised_within_blocks_and_blocks_run_in_turn() -> None:
-    result = generate_design(_factors(4), "full_factorial", n_blocks=2, n_center_points=2, random_seed=3)
+    result = generate_design(_factors(4), "full_factorial", n_blocks=2, n_center_points=2, random_state=3)
     blocks = result.design["Block"].tolist()
     assert blocks == sorted(blocks)
     assert blocks.count(1) == blocks.count(2) == 9

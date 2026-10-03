@@ -16,6 +16,7 @@ from typing import TYPE_CHECKING
 
 import numpy as np
 
+from process_improve._extras import require_extra
 from process_improve.experiments._finite_fields import hadamard_matrix
 from process_improve.experiments.designs_utils import categorical_codes
 
@@ -440,7 +441,10 @@ def dispatch_taguchi(factors: list[Factor]) -> tuple[np.ndarray, dict]:
         Coded design matrix (-1 / +1 for two levels, equally spaced codes otherwise) and
         metadata with the ``orthogonal_array`` and the array ``columns`` used.
     """
-    from pyDOE3 import get_orthogonal_array, list_orthogonal_arrays  # noqa: PLC0415
+    try:
+        from pyDOE3 import get_orthogonal_array, list_orthogonal_arrays  # noqa: PLC0415
+    except ImportError as exc:  # pragma: no cover - exercised via env-without-pyDOE3
+        raise require_extra("pyDOE3", "expt") from exc
 
     needed = [len(f.levels) if f.levels else 2 for f in factors]
     order = sorted(range(len(factors)), key=lambda i: -needed[i])

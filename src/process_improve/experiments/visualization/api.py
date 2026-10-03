@@ -26,6 +26,9 @@ if TYPE_CHECKING:
     from process_improve.experiments.models import Model
 
 
+_BACKENDS = ("both", "plotly", "echarts")
+
+
 def visualize_doe(  # noqa: PLR0913
     *,
     plot_type: str,
@@ -38,6 +41,7 @@ def visualize_doe(  # noqa: PLR0913
     confidence_level: float = 0.95,
     factor_labels: dict[str, str] | None = None,
     backend: str = "both",
+    model: str | None = None,
 ) -> dict[str, Any]:
     """Generate a DOE visualisation.
 
@@ -68,14 +72,29 @@ def visualize_doe(  # noqa: PLR0913
         bar/legend entries (e.g. ``{"A": "Temperature [°C]"}``).
     backend : str
         ``"both"``, ``"plotly"``, or ``"echarts"``.
+    model : str or None
+        Model the design-quality plots (``"fds_plot"``, ``"power_curve"``,
+        ``"prediction_variance"``) are computed for, as in
+        :func:`~process_improve.experiments.evaluate_design`.  When *None*, the
+        formula of *analysis_results* is used, else the richest of
+        ``"quadratic"``, ``"interactions"`` and ``"main_effects"`` that the
+        design can estimate.
 
     Returns
     -------
     dict[str, Any]
         Keys: ``plot_type``, ``title``, ``plotly`` (Plotly figure dict),
         ``echarts`` (ECharts option dict), ``data`` (raw computed data).
+
+    Raises
+    ------
+    ValueError
+        If *backend* is not one of ``"both"``, ``"plotly"`` or ``"echarts"``.
     """
     from process_improve.experiments.visualization.plots.registry import create_plot  # noqa: PLC0415
+
+    if backend not in _BACKENDS:
+        raise ValueError(f"backend must be one of {', '.join(map(repr, _BACKENDS))}; got backend={backend!r}.")
 
     plot = create_plot(
         plot_type=plot_type,
@@ -87,6 +106,7 @@ def visualize_doe(  # noqa: PLR0913
         highlight_significant=highlight_significant,
         confidence_level=confidence_level,
         factor_labels=factor_labels,
+        model=model,
     )
 
     spec = plot.to_spec()

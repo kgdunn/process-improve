@@ -34,6 +34,7 @@ from typing import TYPE_CHECKING
 
 import numpy as np
 
+from process_improve._extras import require_extra
 from process_improve.experiments._finite_fields import hadamard_matrix, paley_conference_matrix, prime_power
 from process_improve.experiments.factor import FactorType
 
@@ -52,7 +53,10 @@ def hadamard(order: int) -> np.ndarray | None:
     24 and 32 always have some. pyDOE3's Plackett-Burman matrices come next, then the
     other finite-field constructions (Paley II and doubling) for the remaining orders.
     """
-    from pyDOE3 import pbdesign  # noqa: PLC0415
+    try:
+        from pyDOE3 import pbdesign  # noqa: PLC0415
+    except ImportError as exc:  # pragma: no cover - exercised via env-without-pyDOE3
+        raise require_extra("pyDOE3", "expt") from exc
 
     candidates = []
     q = order - 1

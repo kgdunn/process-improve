@@ -33,6 +33,8 @@ from typing import Any
 import numpy as np
 
 __all__ = [
+    "check_goal",
+    "check_importances",
     "composite_desirability",
     "desirability_maximize",
     "desirability_minimize",
@@ -151,29 +153,69 @@ def individual_desirability(y: float, goal: dict[str, Any]) -> float:
     Raises
     ------
     ValueError
-        If ``goal`` is missing, unrecognised, or a target goal has no target.
+        If the goal is malformed; see :func:`check_goal`.
     """
-    if "goal" not in goal:
-        msg = "Goal dict is missing the required 'goal' key. Use 'maximize', 'minimize', or 'target'."
-        raise ValueError(msg)
-
+    check_goal(goal)
     goal_type = goal["goal"]
-    low = goal.get("low", 0.0)
-    high = goal.get("high", 1.0)
+    low = goal["low"]
+    high = goal["high"]
     weight = goal.get("weight", 1.0)
 
     if goal_type == "maximize":
         return desirability_maximize(y, low, high, weight)
     if goal_type == "minimize":
         return desirability_minimize(y, low, high, weight)
-    if goal_type == "target":
-        if "target" not in goal:
-            msg = "A goal of 'target' requires a 'target' value in the goal dict."
-            raise ValueError(msg)
-        return desirability_target(y, low, goal["target"], high, weight, goal.get("weight_high", weight))
+    return desirability_target(y, low, goal["target"], high, weight, goal.get("weight_high", weight))
 
-    msg = f"Unknown goal type: {goal_type!r}. Use 'maximize', 'minimize', or 'target'."
-    raise ValueError(msg)
+
+def check_goal(goal: dict[str, Any]) -> None:
+    """Check that a desirability goal is one Derringer and Suich define.
+
+    Their ramps need finite limits with ``low < high``, a target strictly between
+    them, and positive exponents. Outside that, the ramp either never reaches 1
+    (a target outside the limits), turns into a step (swapped limits), or leaves
+    [0, 1] altogether (a negative weight), and the optimiser would chase it
+    without complaint.
+
+    Parameters
+    ----------
+    goal : dict
+        A goal as :func:`individual_desirability` takes it. ``goal["response"]``,
+        when present, names the response in the error message.
+
+    Raises
+    ------
+    ValueError
+        If ``goal`` is missing or unrecognised, ``low`` or ``high`` is missing or
+        not finite, ``low >= high``, a target goal has no target or one outside
+        ``(low, high)``, or ``weight`` / ``weight_high`` is not positive.
+    """
+    where = f" for response {goal['response']!r}" if goal.get("response") is not None else ""
+    if "goal" not in goal:
+        msg = f"Goal dict{where} is missing the required 'goal' key. Use 'maximize', 'minimize', or 'target'."
+        raise ValueError(msg)
+    goal_type = goal["goal"]
+    if goal_type not in ("maximize", "minimize", "target"):
+        msg = f"Unknown goal type{where}: {goal_type!r}. Use 'maximize', 'minimize', or 'target'."
+        raise ValueError(msg)
+    if goal.get("low") is None or goal.get("high") is None:
+        msg = f"The {goal_type!r} goal{where} needs both 'low' and 'high': the desirability ramps between them."
+        raise ValueError(msg)
+    low, high = float(goal["low"]), float(goal["high"])
+    if not (np.isfinite(low) and np.isfinite(high)) or low >= high:
+        msg = f"The goal{where} needs finite limits with low < high; got low={low}, high={high}."
+        raise ValueError(msg)
+    if goal_type == "target":
+        if goal.get("target") is None:
+            msg = f"A goal of 'target'{where} requires a 'target' value in the goal dict."
+            raise ValueError(msg)
+        if not low < float(goal["target"]) < high:
+            msg = f"The target{where} must lie strictly between low={low} and high={high}; got {goal['target']}."
+            raise ValueError(msg)
+    for key in ("weight", "weight_high"):
+        if key in goal and not float(goal[key]) > 0:
+            msg = f"The goal{where} needs a positive '{key}'; got {goal[key]}."
+            raise ValueError(msg)
 
 
 def composite_desirability(d_values: list[float], importances: list[float] | None = None) -> float:
@@ -191,24 +233,53 @@ def composite_desirability(d_values: list[float], importances: list[float] | Non
     d_values : list of float
         Individual desirabilities, each in [0, 1].
     importances : list of float, optional
-        Relative importance per response. Defaults to equal importance.
+        Relative importance per response, one per value in *d_values*. Each must
+        be non-negative and at least one positive. Defaults to equal importance.
 
     Returns
     -------
     float
-        Composite desirability in [0, 1]. Zero for an empty input, for any
-        zero individual value, or when the importances sum to zero.
+        Composite desirability in [0, 1]. Zero for an empty input or for any
+        zero individual value.
+
+    Raises
+    ------
+    ValueError
+        If *importances* has the wrong length, a negative entry, or no positive one.
     """
     if not d_values:
         return 0.0
 
     weights = importances if importances is not None else [1.0] * len(d_values)
+    check_importances(weights, len(d_values))
 
     if any(d == 0.0 for d in d_values):
         return 0.0
 
     log_d = sum(w * np.log(d) for d, w in zip(d_values, weights, strict=True))
-    w_sum = sum(weights)
-    if w_sum == 0:
-        return 0.0
-    return float(np.exp(log_d / w_sum))
+    return float(np.exp(log_d / sum(weights)))
+
+
+def check_importances(importances: list[float], n_responses: int) -> None:
+    """Check that *importances* can weight a geometric mean of *n_responses* values.
+
+    Parameters
+    ----------
+    importances : list of float
+        Relative importance per response.
+    n_responses : int
+        How many responses the composite combines.
+
+    Raises
+    ------
+    ValueError
+        If the length differs from *n_responses*, an entry is negative or not
+        finite, or none is positive. A negative importance can push the composite
+        above 1, and all-zero importances leave it undefined.
+    """
+    if len(importances) != n_responses:
+        msg = f"Got {len(importances)} importance(s) for {n_responses} response(s); give one per response."
+        raise ValueError(msg)
+    if any(not np.isfinite(w) or w < 0 for w in importances) or not any(w > 0 for w in importances):
+        msg = f"Importances must be finite and non-negative, with at least one positive; got {list(importances)}."
+        raise ValueError(msg)

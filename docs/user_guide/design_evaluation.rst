@@ -125,7 +125,8 @@ Power
 
 ``power`` reports the statistical power to detect each model term.  Pass
 ``effect_size`` for a single power value per term, or omit it for a power curve
-over a range of effect sizes.
+over a range of effect sizes.  ``effect_size`` is the anticipated coefficient in
+coded units, which for a two-level factor is half its high-minus-low effect.
 
 Fractional-factorial structure
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -158,16 +159,18 @@ controllable and seeded:
      - Number of random points drawn over the region.
    * - ``include_vertices``
      - ``True``
-     - Always append the :math:`2^k` cube corners, where the worst-case
-       prediction variance usually sits.
-   * - ``random_seed``
+     - Append the :math:`2^k` cube corners (crossed with every combination of
+       categorical levels), where the worst-case prediction variance usually
+       sits. They serve the maximum only; the average and the FDS distribution
+       come from the uniform sample.
+   * - ``random_state``
      - ``42``
      - Seed for the region sampler; fixing it makes the maximum reproducible.
 
 The region **average** (I) is stable across seeds, but the region **maximum**
 (G) is sensitive to the sample: the worst point is often in the interior, so a
 denser sample finds higher worst-case values.  To tighten and reproduce the
-G estimate, raise ``n_samples`` and fix ``random_seed``:
+G estimate, raise ``n_samples`` and fix ``random_state``:
 
 .. code-block:: python
 
@@ -176,7 +179,7 @@ G estimate, raise ``n_samples`` and fix ``random_seed``:
        model=model,
        metric="fds",
        n_samples=120_000,
-       random_seed=1,
+       random_state=1,
    )
    metrics["fds"]["max_prediction_variance"]  # reproducible run to run
 
@@ -201,7 +204,7 @@ endpoints equal the minimum and maximum prediction variance.
        model=model,
        metric="fds",
        fds_resolution=200,
-       random_seed=1,
+       random_state=1,
    )["fds"]
 
    curve = fds["curve"]

@@ -40,8 +40,7 @@ SPEC_VERSION = 1
 
 #: Design types the page offers. Each one is pure numpy / scipy, so it runs
 #: under WebAssembly. Excluded: ``omars_ilp`` (its HiGHS multistart needs
-#: scipy >= 1.15, newer than Pyodide's, and takes too long for a page) and
-#: ``i_optimal`` (needs pyoptex).
+#: scipy >= 1.15, newer than Pyodide's, and takes too long for a page).
 DESIGNS: dict[str, dict[str, Any]] = {
     "full_factorial": {
         "label": "Full factorial (2-level)",
@@ -63,7 +62,7 @@ DESIGNS: dict[str, dict[str, Any]] = {
     },
     "dsd": {
         "label": "Definitive screening (DSD)",
-        "hint": "Three levels, 2k+1 runs; main effects clear of two-factor interactions.",
+        "hint": "Three levels, 2k+1 runs (2k+3 for odd k); main effects clear of interactions and quadratics.",
         "model": "main_effects",
         "options": [],
     },
@@ -82,6 +81,12 @@ DESIGNS: dict[str, dict[str, Any]] = {
     "d_optimal": {
         "label": "D-optimal",
         "hint": "Best estimates of the chosen model's coefficients for a fixed number of runs.",
+        "model": "quadratic",
+        "options": ["budget", "model_type"],
+    },
+    "i_optimal": {
+        "label": "I-optimal",
+        "hint": "Most precise predictions, on average over the factor space, for a fixed number of runs.",
         "model": "quadratic",
         "options": ["budget", "model_type"],
     },
@@ -185,7 +190,7 @@ def make_design(spec: dict) -> dict:
 
 def _design_options(spec: dict, design_type: str) -> dict[str, Any]:
     """Pick the ``generate_design`` keyword arguments this design type accepts."""
-    kwargs: dict[str, Any] = {"random_seed": int(spec.get("random_seed", 42))}
+    kwargs: dict[str, Any] = {"random_state": int(spec.get("random_state", spec.get("random_seed", 42)))}
     allowed = DESIGNS[design_type]["options"]
     if "n_center_points" in allowed:
         kwargs["n_center_points"] = int(spec.get("n_center_points", 3))

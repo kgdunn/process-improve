@@ -25,7 +25,7 @@ from __future__ import annotations
 import functools
 import itertools
 import logging
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from typing import Any, NamedTuple
 
 import numpy as np
@@ -38,6 +38,7 @@ except ImportError:  # pragma: no cover - exercised via env-without-pyDOE3
 
     ff2n = _MissingExtra("pyDOE3", "expt")  # type: ignore[assignment]
 
+from process_improve._random import resolve_deprecated_seed
 from process_improve.experiments.designs_utils import build_design_result, categorical_codes, refuse_reserved_names
 from process_improve.experiments.factor import Constraint, DesignResult, Factor, FactorType
 
@@ -196,6 +197,7 @@ def _dispatch_optimal_family(
         fixed_runs=kwargs.get("fixed_runs"),
         random_state=kwargs.get("random_state"),
         candidates=kwargs.get("candidates"),
+        backend=kwargs.get("backend", "auto"),
     )
     return _dispatch_optimal(criterion, request)
 
@@ -316,6 +318,27 @@ def _refuse_mixture_in_box_family(factors: list[Factor], design_type: str) -> No
             f"design_type={design_type!r} places runs in a box of factor settings, so it cannot give mixture "
             f"proportions that sum to 1. Use one of {sorted(allowed)}."
         )
+
+
+def _as_constraints(constraints: Sequence[Constraint | dict | str] | None) -> list[Constraint] | None:
+    """Accept constraints as ``Constraint`` objects, their dict form or bare expressions.
+
+    The dict form is what a JSON round trip of a ``Constraint`` gives, for example the
+    ``design_params`` of a stage from ``recommend_strategy``.
+    """
+    if constraints is None:
+        return None
+    out: list[Constraint] = []
+    for c in constraints:
+        if isinstance(c, Constraint):
+            out.append(c)
+        elif isinstance(c, dict):
+            out.append(Constraint(**c))
+        elif isinstance(c, str):
+            out.append(Constraint(expression=c))
+        else:
+            raise TypeError(f"A constraint must be a Constraint, a dict or an expression string; got {c!r}.")
+    return out
 
 
 def _refuse_duplicate_names(factors: list[Factor]) -> None:
@@ -572,8 +595,10 @@ def generate_design(  # noqa: PLR0913
     hard_to_change: list[str] | None = None,
     model_type: str = "interactions",
     fixed_runs: pd.DataFrame | None = None,
-    random_seed: int | np.random.Generator | None = 42,
+    random_seed: int | None = None,
     candidates: pd.DataFrame | None = None,
+    random_state: int | np.random.Generator | None = 42,
+    backend: str = "auto",
 ) -> DesignResult:
     """Generate an experimental design matrix.
 
@@ -646,7 +671,8 @@ def generate_design(  # noqa: PLR0913
         half-fraction is chosen automatically.
     constraints : list[Constraint] or None
         Inequalities on the continuous factors, in actual units, e.g.
-        ``Constraint(expression="3*T + 5*D <= 600")``. Honoured by the optimal
+        ``Constraint(expression="3*T + 5*D <= 600")``; a dict of ``Constraint`` fields or
+        a bare expression string is accepted too. Honoured by the optimal
         families (``"d_optimal"``, chosen automatically when constraints are given,
         ``"i_optimal"``, ``"a_optimal"`` and ``"e_optimal"``), whose runs are selected
         from a candidate set of feasible points; by ``"mixture"`` (linear constraints
@@ -657,7 +683,7 @@ def generate_design(  # noqa: PLR0913
         Names of hard-to-change factors (triggers split-plot structure).
     model_type : str
         Model the optimal designs (``"d_optimal"``, ``"i_optimal"``,
-        ``"a_optimal"``) are built for: ``"main_effects"``, ``"interactions"``
+        ``"a_optimal"``, ``"e_optimal"``) are built for: ``"main_effects"``, ``"interactions"``
         (default), or ``"quadratic"``.  With a categorical factor present,
         ``"quadratic"`` builds a partial response-surface model (quadratics on
         the continuous factors only; the categorical enters as a main effect
@@ -671,11 +697,8 @@ def generate_design(  # noqa: PLR0913
         The fixed runs occupy the first rows of the result and ``budget`` counts them, so
         ``budget`` must exceed ``len(fixed_runs)``. A common use is to seed a centre point. Raises
         ``ValueError`` if given for a non-optimal ``design_type``.
-    random_seed : int, numpy.random.Generator or None
-        Seed for reproducible randomization (default 42); ``None`` draws a fresh,
-        unseeded run order. Every design is randomised except a split-plot optimal
-        design (``hard_to_change`` with the pyoptex backend), whose run order is part
-        of the solution.
+    random_seed : int or None
+        Deprecated since 1.97.0 and removed in 2.0; use ``random_state``.
     candidates : pandas.DataFrame or None
         The settings the runs must be chosen from, for the optimal families only: for
         example historical operating points, the discrete settings a piece of
@@ -685,6 +708,15 @@ def generate_design(  # noqa: PLR0913
         also defines the region I-optimality averages over. Rows that break a
         constraint are dropped. A candidate may be chosen more than once, and
         ``metadata["selected_candidates"]`` counts the picks per index label.
+    random_state : int, numpy.random.Generator or None
+        Seeds the run-order randomisation and any random search (default 42, so the
+        same call gives the same design). ``None`` draws fresh entropy; see
+        :doc:`/development/reproducibility`.
+    backend : {"auto", "exchange", "pyoptex"}
+        Engine for the optimal families. ``"auto"`` (default) uses the built-in
+        candidate exchange, and the optional pyoptex package only for a split-plot
+        design (``hard_to_change``), so the same call gives the same design whether or
+        not pyoptex is installed. ``"pyoptex"`` asks for pyoptex's coordinate exchange.
 
     Returns
     -------
@@ -713,8 +745,10 @@ def generate_design(  # noqa: PLR0913
     >>> result.design_actual
     """
     # --- Validate ----------------------------------------------------------
+    random_state = resolve_deprecated_seed(random_state, random_seed, "generate_design")
     if not factors:
         raise ValueError("At least one factor must be provided.")
+    constraints = _as_constraints(constraints)
     _check_counts(n_center_points, n_replicates, n_blocks)
 
     auto_selected = design_type is None
@@ -766,14 +800,19 @@ def generate_design(  # noqa: PLR0913
         "constraints": constraints,
         "model_type": model_type,
         "fixed_runs": fixed_runs,
-        "random_state": random_seed,
+        "random_state": random_state,
         "candidates": candidates,
+        "backend": backend,
     }
 
     coded_matrix, meta = dispatch_fn(factors, **dispatch_kwargs)
     if constraints and not meta.get("constraints_enforced"):
-        # Only the constrained D-optimal and mixture paths honour constraints; say so on the result.
-        logger.warning("design_type=%r does not enforce constraints; use design_type='d_optimal'.", design_type)
+        # Only the optimal, mixture and sobol/halton/maximin paths honour constraints; say so on the result.
+        logger.warning(
+            "design_type=%r does not enforce constraints; use an optimal design ('d_optimal', 'i_optimal', ...), "
+            "'mixture', or the 'sobol', 'halton' or 'maximin' space-filling designs.",
+            design_type,
+        )
         meta["constraints_enforced"] = False
     all_mixture = all(f.type == FactorType.mixture for f in factors)
     if all_mixture or meta.get("constraints_enforced"):
@@ -799,7 +838,7 @@ def generate_design(  # noqa: PLR0913
         n_center_points=extra_center_points,
         n_replicates=n_replicates,
         n_blocks=n_blocks,
-        random_seed=random_seed,
+        random_state=random_state,
         generators=meta.get("generators_used"),
         defining_relation=meta.get("defining_relation"),
         resolution=meta.get("resolution"),

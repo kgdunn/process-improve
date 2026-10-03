@@ -1,11 +1,19 @@
 """Tests for the multi-stage DOE budget allocation logic."""
 
+import pytest
+
+from process_improve.experiments.designs import generate_design
+from process_improve.experiments.factor import Factor
 from process_improve.experiments.strategy.budget import (
     allocate_budget,
     estimate_confirmation_runs,
     estimate_rsm_runs,
     estimate_screening_runs,
 )
+
+
+def _factors(k: int) -> list[Factor]:
+    return [Factor(name=f"X{i}", low=0, high=1) for i in range(k)]
 
 
 class TestEstimateScreeningRuns:
@@ -19,10 +27,10 @@ class TestEstimateScreeningRuns:
     def test_definitive_screening(self) -> None:
         assert estimate_screening_runs(4, "definitive_screening") == 9
 
-    def test_fractional_factorial_small_is_full_factorial(self) -> None:
-        # k <= 4: full factorial is feasible
+    def test_fractional_factorial_small(self) -> None:
+        # Three factors have no resolution IV fraction, so the 2^3 full factorial; four take 2^(4-1)_IV.
         assert estimate_screening_runs(3, "fractional_factorial") == 8
-        assert estimate_screening_runs(4, "fractional_factorial") == 16
+        assert estimate_screening_runs(4, "fractional_factorial") == 8
 
     def test_fractional_factorial_mid_range(self) -> None:
         assert estimate_screening_runs(5, "fractional_factorial") == 16
@@ -30,9 +38,19 @@ class TestEstimateScreeningRuns:
         assert estimate_screening_runs(7, "fractional_factorial") == 16
 
     def test_fractional_factorial_large(self) -> None:
+        assert estimate_screening_runs(8, "fractional_factorial") == 16
         assert estimate_screening_runs(10, "fractional_factorial") == 32
         assert estimate_screening_runs(11, "fractional_factorial") == 32
-        assert estimate_screening_runs(14, "fractional_factorial") == 64
+        assert estimate_screening_runs(14, "fractional_factorial") == 32
+        assert estimate_screening_runs(16, "fractional_factorial") == 32
+        assert estimate_screening_runs(17, "fractional_factorial") == 64
+
+    # 16 to 20 factors are left out: generate_design has no resolution IV fraction tabulated for them.
+    @pytest.mark.parametrize("k", [*range(4, 16), 21])
+    def test_fractional_factorial_matches_generate_design(self, k: int) -> None:
+        """The estimate was 32 runs for 8 factors and 64 for 12 to 15, twice what generate_design builds."""
+        built = generate_design(_factors(k), design_type="fractional_factorial", resolution=4, n_center_points=0)
+        assert estimate_screening_runs(k, "fractional_factorial") == built.n_runs
 
     def test_full_factorial(self) -> None:
         assert estimate_screening_runs(4, "full_factorial") == 16
@@ -63,6 +81,13 @@ class TestEstimateRsmRuns:
         assert result > 0
         # 1 + 2*3 + 3*2//2 = 10 terms; ceil(1.5*10) = 15
         assert result == 15
+
+    @pytest.mark.parametrize("k", range(2, 9))
+    def test_ccd_matches_generate_design(self, k: int) -> None:
+        """Six and seven factors were estimated with a half-fraction cube that the plan never asked for."""
+        cube = "fractional" if k >= 6 else "full"  # what recommend_strategy passes
+        built = generate_design(_factors(k), design_type="ccd", n_center_points=3, alpha="rotatable", cube=cube)
+        assert estimate_rsm_runs(k, "ccd", n_center_points=3) == built.n_runs
 
     def test_unknown_design_falls_back_to_ccd(self) -> None:
         result = estimate_rsm_runs(3, "mystery_design", n_center_points=3)

@@ -1907,7 +1907,8 @@ class TestFDSPlotEdgeCases:
         spec = plot.to_spec()
         assert "no design data" in spec.title.lower()
 
-    def test_single_factor(self, design_data_2f: list) -> None:
+    def test_factors_to_plot_does_not_shrink_the_design(self, design_data_2f: list) -> None:
+        """The FDS curve belongs to the whole design, whatever factors_to_plot says."""
         plot = create_plot(
             "fds_plot",
             design_data=design_data_2f,
@@ -1915,7 +1916,7 @@ class TestFDSPlotEdgeCases:
             factors_to_plot=["A"],
         )
         spec = plot.to_spec()
-        assert "need at least 2" in spec.title.lower()
+        assert spec.metadata["n_factors"] == 2
 
 
 class TestPowerCurvePlotEdgeCases:

@@ -212,8 +212,8 @@ class TestFullFactorial:
     def test_reproducible_randomization(self) -> None:
         """Same seed should produce the same run order."""
         factors = _continuous_factors(3, "ABC")
-        r1 = generate_design(factors, design_type="full_factorial", random_seed=123, n_center_points=0)
-        r2 = generate_design(factors, design_type="full_factorial", random_seed=123, n_center_points=0)
+        r1 = generate_design(factors, design_type="full_factorial", random_state=123, n_center_points=0)
+        r2 = generate_design(factors, design_type="full_factorial", random_state=123, n_center_points=0)
         assert r1.run_order == r2.run_order
         # run_order should be a permutation
         assert sorted(r1.run_order) == list(range(1, r1.n_runs + 1))
@@ -221,8 +221,8 @@ class TestFullFactorial:
     def test_different_seeds_different_order(self) -> None:
         """Different seeds should produce different run orders."""
         factors = _continuous_factors(4)  # 16 runs to reduce chance of collision
-        r1 = generate_design(factors, design_type="full_factorial", random_seed=1, n_center_points=0)
-        r2 = generate_design(factors, design_type="full_factorial", random_seed=999, n_center_points=0)
+        r1 = generate_design(factors, design_type="full_factorial", random_state=1, n_center_points=0)
+        r2 = generate_design(factors, design_type="full_factorial", random_state=999, n_center_points=0)
         # run_order should be a permutation of original rows (1-based)
         assert sorted(r1.run_order) == list(range(1, r1.n_runs + 1))
         assert sorted(r2.run_order) == list(range(1, r2.n_runs + 1))
@@ -662,7 +662,7 @@ class TestDOptimal:
     def test_pyoptex_backend(self) -> None:
         """D-optimal via pyoptex should report the backend in metadata."""
         factors = _continuous_factors(2, "AB")
-        result = generate_design(factors, design_type="d_optimal", budget=8, n_center_points=0)
+        result = generate_design(factors, design_type="d_optimal", budget=8, n_center_points=0, backend="pyoptex")
         assert result.metadata.get("backend") == "pyoptex"
         assert result.metadata.get("metric_value") is not None
 
@@ -673,6 +673,13 @@ class TestDOptimal:
         for col in result.factor_names:
             vals = result.design[col].values
             assert np.all(np.abs(vals) <= 1.0 + 1e-10)
+
+    @pytest.mark.parametrize("given", [{"expression": "A + B <= 0.5"}, "A + B <= 0.5"])
+    def test_constraints_as_dicts_or_expressions(self, given: dict | str) -> None:
+        """A JSON round trip of a Constraint (a recommend_strategy stage's design_params) gives a dict."""
+        factors = [Factor(name=n, low=0, high=1) for n in "AB"]
+        result = generate_design(factors, design_type="d_optimal", budget=6, constraints=[given])
+        assert (result.design_actual["A"] + result.design_actual["B"]).max() <= 0.5 + 1e-9
 
 
 # ---------------------------------------------------------------------------
@@ -687,7 +694,7 @@ class TestIOptimal:
     def test_basic(self) -> None:
         """I-optimal should produce the requested number of runs."""
         factors = _continuous_factors(2, "AB")
-        result = generate_design(factors, design_type="i_optimal", budget=8, n_center_points=0)
+        result = generate_design(factors, design_type="i_optimal", budget=8, n_center_points=0, backend="pyoptex")
         assert result.n_runs == 8
         assert result.n_factors == 2
         assert result.metadata.get("backend") == "pyoptex"
@@ -713,7 +720,7 @@ class TestAOptimal:
     def test_basic(self) -> None:
         """A-optimal should produce the requested number of runs."""
         factors = _continuous_factors(2, "AB")
-        result = generate_design(factors, design_type="a_optimal", budget=8, n_center_points=0)
+        result = generate_design(factors, design_type="a_optimal", budget=8, n_center_points=0, backend="pyoptex")
         assert result.n_runs == 8
         assert result.n_factors == 2
         assert result.metadata.get("backend") == "pyoptex"

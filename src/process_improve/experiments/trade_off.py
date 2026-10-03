@@ -38,6 +38,7 @@ import pandas as pd
 if TYPE_CHECKING:
     from collections.abc import Sequence
 
+from process_improve.experiments.designs_screening import _MIN_ABERRATION
 from process_improve.experiments.evaluate import (
     _defining_relation_from_generators,
     _multiply_words,
@@ -52,10 +53,6 @@ _FACTOR_NAMES = tuple(letter for letter in ascii_uppercase if letter != "I")
 # Above this many candidate generator sets the exhaustive minimum-aberration
 # search stops being interactive, so it refuses rather than hanging.
 _MAX_CANDIDATE_SETS = 500_000
-
-
-class _SearchTooLargeError(ValueError):
-    """The minimum-aberration search was refused because it would score too many generator sets."""
 
 
 @dataclass
@@ -143,6 +140,10 @@ def _word_length_pattern(generators: tuple[str, ...], factor_names: list[str], k
     return tuple(counts[3:])
 
 
+class SearchLimitError(ValueError):
+    """The design exists, but finding its minimum-aberration generators would take too long."""
+
+
 @lru_cache(maxsize=256)
 def minimum_aberration_generators(n_runs: int, n_factors: int) -> tuple[str, ...]:
     """Find the minimum-aberration generators for a ``2^(k-p)`` design.
@@ -169,8 +170,11 @@ def minimum_aberration_generators(n_runs: int, n_factors: int) -> tuple[str, ...
     ValueError
         If *n_runs* is not a power of two, if the design is not fractional
         (``n_factors <= log2(n_runs)``), if there are too few interaction columns
-        to hold the extra factors, or if the search space is too large to
-        enumerate.
+        to hold the extra factors.
+    SearchLimitError
+        A subclass of ``ValueError``: the design exists, but the search space
+        is too large to enumerate and the design is not in the tabulated
+        minimum-aberration catalogue.
 
     Examples
     --------
@@ -201,10 +205,16 @@ def minimum_aberration_generators(n_runs: int, n_factors: int) -> tuple[str, ...
 
     n_sets = math.comb(len(candidates), n_extra)
     if n_sets > _MAX_CANDIDATE_SETS:
-        raise _SearchTooLargeError(
-            f"The minimum-aberration search for {n_factors} factors in {n_runs} runs would have to "
-            f"score {n_sets:,} generator sets, above the limit of {_MAX_CANDIDATE_SETS:,}. "
-            "Supply the generators yourself, via the `generators` argument of `generate_design`."
+        # The standard minimum-aberration catalogue, checked by exhaustive search, covers
+        # up to 11 factors and uses the same letters (A, B, ..., H, J, K, L).
+        tabulated = _MIN_ABERRATION.get(n_factors, {}).get(n_runs)
+        if tabulated is not None:
+            return tabulated
+        raise SearchLimitError(
+            f"The design exists ({n_factors} factors fit into {n_runs} runs), but the minimum-aberration "
+            f"search for it would have to score {n_sets:,} generator sets, above the limit of "
+            f"{_MAX_CANDIDATE_SETS:,}, and it is not in the tabulated catalogue. Supply the generators "
+            "yourself, via the `generators` argument of `generate_design`."
         )
 
     names = _factor_names(n_factors)
@@ -367,19 +377,13 @@ def _format_entry(result: TradeOffTableEntry) -> str:
 
 
 def _cell_label(n_runs: int, n_factors: int) -> str:
-    """Label for one cell of the trade-off table.
-
-    Empty when no design exists (more than ``n_runs - 1`` factors). A design that exists
-    but whose minimum-aberration search is too large to run is labelled
-    ``"2^(k-p) (not searched)"``.
-    """
-    if n_factors > n_runs - 1:
-        return ""
+    """Label for one cell of the trade-off table; empty when no design exists, ``"?"`` when not searched."""
     try:
         return get_trade_off_table_entry(n_runs=n_runs, n_factors=n_factors, display=False).label
-    except _SearchTooLargeError:
-        n_generators = n_factors - (n_runs.bit_length() - 1)
-        return f"2^({n_factors}-{n_generators}) (not searched)"
+    except SearchLimitError:
+        return "?"
+    except ValueError:
+        return ""
 
 
 def trade_off_table(
@@ -396,9 +400,9 @@ def trade_off_table(
     Reading the table: going down a column costs more experiments but buys
     resolution; going across a row studies more factors for the same money,
     at the cost of heavier aliasing. Blank cells are designs that do not
-    exist (more than ``runs - 1`` factors). A cell labelled ``"(not searched)"``
-    is a fraction that exists, but whose minimum-aberration search would score too
-    many generator sets to run here; pass generators to ``generate_design`` for it.
+    exist (too many factors for that many runs). A ``"?"`` marks a design that
+    exists but whose minimum-aberration generators are too costly to search
+    for and are not in the tabulated catalogue.
 
     Parameters
     ----------
@@ -415,7 +419,8 @@ def trade_off_table(
     pd.DataFrame
         Rows indexed by run count, columns by factor count. Each cell is a
         label such as ``"2^(5-2) III"``, ``"2^3 (full)"`` or ``"2^3 (twice)"``;
-        impossible combinations are the empty string.
+        impossible combinations are the empty string, and designs too costly to
+        search for are ``"?"``.
 
     Raises
     ------

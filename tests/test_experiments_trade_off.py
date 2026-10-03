@@ -10,6 +10,7 @@ from __future__ import annotations
 import pytest
 
 from process_improve.experiments.trade_off import (
+    SearchLimitError,
     _alias_chains,
     get_trade_off_table_entry,
     minimum_aberration_generators,
@@ -71,9 +72,9 @@ class TestAgainstTheTextbookTable:
         assert table.loc[8, 9] == ""
 
     def test_existing_design_whose_search_is_refused_is_not_blank(self):
-        """2^(11-5) in 64 runs exists; a refused search must not show it as impossible."""
+        """2^(11-5) in 64 runs exists; a refused search falls back to the tabulated catalogue."""
         table = trade_off_table(runs=(64,), factors=(11,), display=False)
-        assert table.loc[64, 11] == "2^(11-5) (not searched)"
+        assert table.loc[64, 11].startswith("2^(11-5)")
 
     @pytest.mark.parametrize("bad", [12, 0])
     def test_table_rejects_a_run_count_that_is_not_a_power_of_two(self, bad):
@@ -205,8 +206,23 @@ class TestMinimumAberrationGenerators:
 
     def test_search_refuses_an_intractable_request(self):
         """A huge search space is refused with an actionable message."""
-        with pytest.raises(ValueError, match="above the limit"):
+        with pytest.raises(SearchLimitError, match="above the limit"):
             minimum_aberration_generators(64, 30)
+
+    @pytest.mark.parametrize(("n_runs", "n_factors", "label"), [(64, 11, "2^(11-5) IV"), (128, 11, "2^(11-4) V")])
+    def test_large_cells_fall_back_to_the_catalogue(self, n_runs, n_factors, label):
+        """Past the search limit the tabulated minimum-aberration design is used (Chen, Sun and Wu 1993)."""
+        assert get_trade_off_table_entry(n_runs=n_runs, n_factors=n_factors, display=False).label == label
+
+    def test_existing_but_unsearched_cell_is_not_blank(self):
+        """12 factors fit into 32 runs (at resolution IV); a blank cell would say they cannot."""
+        table = trade_off_table(runs=[32], factors=[12], display=False)
+        assert table.loc[32, 12] == "?"
+
+    def test_messages_say_runs_and_factors(self):
+        """The messages used to read '8 n_runs cannot accommodate 8 n_factors'."""
+        with pytest.raises(ValueError, match=r"^8 runs cannot accommodate 8 factors: only 7 factors fit into 8 runs"):
+            get_trade_off_table_entry(n_runs=8, n_factors=8, display=False)
 
     def test_result_is_cached_and_stable(self):
         assert minimum_aberration_generators(16, 7) is minimum_aberration_generators(16, 7)
@@ -218,3 +234,45 @@ class TestMinimumAberrationGenerators:
     def test_no_generators_means_no_alias_chains(self):
         """A design with no defining relation aliases nothing."""
         assert _alias_chains([], ["A", "B", "C"]) == []
+
+
+# ---------------------------------------------------------------------------
+# generate_design's minimum-aberration table agrees with the search here
+# ---------------------------------------------------------------------------
+
+
+def _table_cases() -> list:
+    """Every (factors, runs) cell of ``_MIN_ABERRATION`` the exhaustive search can also cover.
+
+    Cells whose search scores more than 50,000 generator sets take several seconds each.
+    """
+    import math
+
+    from process_improve.experiments.designs_screening import _MIN_ABERRATION
+    from process_improve.experiments.trade_off import _MAX_CANDIDATE_SETS
+
+    cases = []
+    for k, by_runs in sorted(_MIN_ABERRATION.items()):
+        for n_runs, generators in sorted(by_runs.items()):
+            n_base = n_runs.bit_length() - 1
+            n_sets = math.comb(2**n_base - n_base - 1, k - n_base)
+            if n_sets > _MAX_CANDIDATE_SETS:
+                continue  # the search refuses it, so the search does not cover this cell
+            marks = [pytest.mark.slow] if n_sets > 50_000 else []
+            cases.append(pytest.param(k, n_runs, generators, marks=marks, id=f"{k}-factors-{n_runs}-runs"))
+    return cases
+
+
+@pytest.mark.parametrize(("k", "n_runs", "generators"), _table_cases())
+def test_generate_design_table_has_minimum_aberration(k: int, n_runs: int, generators: tuple[str, ...]) -> None:
+    """The table generate_design uses and the search agree on the word-length pattern, cell by cell.
+
+    A minimum-aberration design is unique only up to relabelling, so the generators may differ;
+    the word-length pattern (A3, A4, ...) is what the criterion ranks, and the two must match.
+    The patterns are those of Chen, Sun and Wu (1993), e.g. (0, 6, 8, 0, 0, 1) for 2^(9-4) in 32 runs.
+    """
+    from process_improve.experiments.trade_off import _factor_names, _word_length_pattern
+
+    names = _factor_names(k)
+    searched = minimum_aberration_generators(n_runs, k)
+    assert _word_length_pattern(generators, names, k) == _word_length_pattern(searched, names, k)

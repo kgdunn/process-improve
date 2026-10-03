@@ -41,13 +41,15 @@
           <option value="plackett_burman" data-options=""
             data-hint="Main effects only, in a multiple of 4 runs.">Plackett-Burman screening</option>
           <option value="dsd" data-options="" selected
-            data-hint="Three levels, 2k+1 runs; main effects clear of two-factor interactions.">Definitive screening (DSD)</option>
+            data-hint="Three levels, 2k+1 runs (2k+3 for odd k); main effects clear of interactions and quadratics.">Definitive screening (DSD)</option>
           <option value="box_behnken" data-options="n_center_points"
             data-hint="Response surface with every run inside the factor ranges (3 or more factors).">Box-Behnken</option>
           <option value="ccd" data-options="n_center_points alpha"
             data-hint="Response surface: factorial corners, axial points and center points.">Central composite (CCD)</option>
           <option value="d_optimal" data-options="budget model_type"
             data-hint="Best estimates of the chosen model's coefficients for a fixed number of runs.">D-optimal</option>
+          <option value="i_optimal" data-options="budget model_type"
+            data-hint="Most precise predictions, on average over the factor space, for a fixed number of runs.">I-optimal</option>
         </select>
       </label>
       <label>Response name

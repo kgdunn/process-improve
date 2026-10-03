@@ -15,6 +15,7 @@ from typing import TYPE_CHECKING
 
 import numpy as np
 
+from process_improve.experiments.designs_mixture_constrained import scheffe_model
 from process_improve.experiments.factor import FactorType
 
 if TYPE_CHECKING:
@@ -78,7 +79,6 @@ def dispatch_mixture(
     tuple[np.ndarray, dict]
         Design matrix (in proportions, not coded) and metadata.
     """
-    from process_improve.experiments.designs_mixture_constrained import scheffe_model  # noqa: PLC0415
 
     k = len(factors)
     if k < 2:

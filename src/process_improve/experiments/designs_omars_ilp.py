@@ -84,7 +84,7 @@ from typing import TYPE_CHECKING, Any
 import numpy as np
 from scipy.optimize import Bounds, LinearConstraint, OptimizeResult, milp
 
-from process_improve._random import check_random_state
+from process_improve._random import resolve_deprecated_seed
 from process_improve.experiments.designs_omars import _second_order_terms, is_omars
 
 logger = logging.getLogger(__name__)
@@ -236,7 +236,7 @@ class OmarsSearchReport:
     time_limited_solves : int
         Number of ILP solves that the wall-clock cap stopped.  When this is
         nonzero the search depends on machine speed, so a fixed
-        ``random_seed`` may not reproduce the design.
+        ``random_state`` may not reproduce the design.
     rank_deficient_designs : int
         Number of distinct OMARS designs found, but set aside because the
         sizing model is not estimable from them (rank below the parameter
@@ -1088,7 +1088,7 @@ def _search_best_omars(  # noqa: C901, PLR0912, PLR0913, PLR0915
     solver_options: dict[str, Any] | None,
     tol: float,
     verify: bool,
-    random_seed: int,
+    random_seed: int | np.random.Generator | None,
     center_runs: int = 1,
 ) -> tuple[np.ndarray, dict]:
     """Run the design search and return ``(coded_matrix, metadata)`` for the winner.
@@ -1516,8 +1516,9 @@ def generate_omars(  # noqa: PLR0913
     model: str = "full_second_order",
     solver_options: dict[str, Any] | None = None,
     tol: float = 1e-9,
-    random_seed: int = 42,
+    random_seed: int | None = None,
     verify: bool = True,
+    random_state: int | np.random.Generator | None = 42,
 ) -> DesignResult:
     """Generate a foldover OMARS design by exhaustive or integer-programming run selection.
 
@@ -1590,8 +1591,8 @@ def generate_omars(  # noqa: PLR0913
         small factor counts finish quickly regardless.  The budget
         applies at each run size the search visits.  Default 50,
         which reaches catalogue-competitive D-efficiency for up to seven factors.
-        Deterministic for a fixed *random_seed*, as long as no solve hits
-        ``solver_options["time_limit"]`` (see *random_seed*).
+        Deterministic for a fixed *random_state*, as long as no solve hits
+        ``solver_options["time_limit"]`` (see *random_state*).
     max_candidates : int, optional
         Legacy alias retained for backward compatibility.  When given, it sets a
         floor on *n_restarts* (the effective restart budget is ``max(n_restarts,
@@ -1617,7 +1618,12 @@ def generate_omars(  # noqa: PLR0913
         ``ValueError``.  See :func:`solve_omars_ilp`.
     tol : float, optional
         Tolerance for the floating-point :func:`is_omars` re-check.
-    random_seed : int, optional
+    random_seed : int or None
+        Deprecated since 1.97.0 and removed in 2.0; use ``random_state``.
+    verify : bool, optional
+        When ``True`` (default) every selected design is re-checked with
+        :func:`is_omars` before it is accepted.
+    random_state : int, numpy.random.Generator or None, default 42
         Seed for both the randomized-objective search (which design is found) and
         the run-order randomisation of the returned design.  A fixed seed makes
         the whole call reproducible on a given SciPy version: the node budget,
@@ -1626,9 +1632,6 @@ def generate_omars(  # noqa: PLR0913
         ``metadata["omars_search"].time_limited_solves`` counts them.  Another
         SciPy release ships another HiGHS, which may return a different design
         for the same seed.
-    verify : bool, optional
-        When ``True`` (default) every selected design is re-checked with
-        :func:`is_omars` before it is accepted.
 
     Returns
     -------
@@ -1659,6 +1662,7 @@ def generate_omars(  # noqa: PLR0913
     from process_improve.experiments.designs_utils import build_design_result  # noqa: PLC0415
     from process_improve.experiments.factor import FactorType  # noqa: PLC0415
 
+    random_state = resolve_deprecated_seed(random_state, random_seed, "generate_omars")
     categorical = [f.name for f in factors if f.type == FactorType.categorical]
     if categorical:
         raise ValueError(
@@ -1684,7 +1688,7 @@ def generate_omars(  # noqa: PLR0913
         solver_options=solver_options,
         tol=tol,
         verify=verify,
-        random_seed=random_seed,
+        random_seed=random_state,
         center_runs=center_runs,
     )
     return build_design_result(
@@ -1692,7 +1696,7 @@ def generate_omars(  # noqa: PLR0913
         factors=factors,
         design_type="omars",
         n_center_points=center_runs - 1,
-        random_seed=random_seed,
+        random_state=random_state,
         metadata=metadata,
     )
 
@@ -1721,8 +1725,6 @@ def _dispatch_omars_ilp(factors: list[Factor], **kwargs: Any) -> tuple[np.ndarra
     # A foldover estimates the full second-order model only from k**2 + k + center_runs runs (see _min_half_runs).
     full_size = 2 * _min_half_runs(k, "full_second_order") + center_runs
     model = "full_second_order" if n_runs is None or n_runs >= full_size else "main_quadratic"
-    random_state = kwargs.get("random_state", 42)
-    seed = random_state if isinstance(random_state, int) else int(check_random_state(random_state).integers(2**31))
     try:
         designed, meta = _search_best_omars(
             factors,
@@ -1735,7 +1737,7 @@ def _dispatch_omars_ilp(factors: list[Factor], **kwargs: Any) -> tuple[np.ndarra
             solver_options=None,
             tol=1e-9,
             verify=True,
-            random_seed=seed,
+            random_seed=kwargs.get("random_state", 42),
             center_runs=center_runs,
         )
     except ValueError as exc:

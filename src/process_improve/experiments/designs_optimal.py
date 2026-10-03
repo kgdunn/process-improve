@@ -542,6 +542,7 @@ class _OptimalRequest:
     fixed_runs: pd.DataFrame | None
     random_state: int | np.random.Generator | None
     candidates: pd.DataFrame | None = None
+    backend: str = "auto"
 
 
 def _dispatch_mixture_optimal(criterion: str, req: _OptimalRequest) -> tuple[np.ndarray, dict]:
@@ -561,15 +562,30 @@ def _dispatch_mixture_optimal(criterion: str, req: _OptimalRequest) -> tuple[np.
     )
 
 
+def _pyoptex_blocker(criterion: str, req: _OptimalRequest) -> str | None:
+    """Why pyoptex cannot build this request, or ``None`` when it can."""
+    if req.constraints:
+        return "constraints are given (pyoptex does not enforce them)"
+    if req.candidates is not None:
+        return "a candidate set is given"
+    if criterion == "e_optimal":
+        return "pyoptex has no E-optimality criterion"
+    if not _PYOPTEX_AVAILABLE:
+        return f"pyoptex is not installed. {_PYOPTEX_INSTALL_HINT}"
+    return None
+
+
 def _dispatch_optimal(criterion: str, req: _OptimalRequest) -> tuple[np.ndarray, dict]:
     """Route a D-, I-, A- or E-optimal request to the backend that can honour it.
 
     - Mixture factors go to the constrained-simplex engine with a Scheffé model.
-    - Constraints, a user candidate set, or no pyoptex, go to the built-in candidate exchange
+    - By default the built-in candidate exchange runs
       (:func:`~process_improve.experiments.designs_constrained.constrained_optimal_design`),
-      which handles every criterion, categorical factors and fixed runs, but not
-      split-plot structure: ``hard_to_change`` is then ignored and recorded.
-    - Otherwise pyoptex's coordinate exchange runs, which supports split-plot designs.
+      which handles every criterion, constraints, candidate sets, categorical factors and
+      fixed runs, so the design does not depend on whether pyoptex is installed.
+    - pyoptex's coordinate exchange runs for split-plot designs (``hard_to_change``), when
+      it is installed and nothing it cannot honour is asked for, or for
+      ``backend="pyoptex"``. Otherwise ``hard_to_change`` is ignored and recorded.
     """
     from process_improve.experiments.factor import FactorType  # noqa: PLC0415
 
@@ -592,8 +608,15 @@ def _dispatch_optimal(criterion: str, req: _OptimalRequest) -> tuple[np.ndarray,
     budget = req.budget if req.budget is not None else 2 * len(req.factors) + 1
     budget = _floor_budget_at_model_size(req.factors, budget, req.model_type)
 
-    # pyoptex has no E-optimality metric, so E always uses the built-in exchange.
-    if req.constraints or req.candidates is not None or criterion == "e_optimal" or not _PYOPTEX_AVAILABLE:
+    if req.backend not in ("auto", "exchange", "pyoptex"):
+        raise ValueError(f"backend must be 'auto', 'exchange' or 'pyoptex'; got {req.backend!r}.")
+    blocker = _pyoptex_blocker(criterion, req)
+    if req.backend == "pyoptex" and blocker is not None:
+        raise ValueError(f"backend='pyoptex' cannot be used here: {blocker}.")
+    # The built-in exchange is the default, so a design does not depend on which optional
+    # packages are installed; pyoptex runs for split-plot structure or when asked for.
+    use_pyoptex = req.backend == "pyoptex" or (req.backend == "auto" and bool(req.hard_to_change) and blocker is None)
+    if not use_pyoptex:
         from process_improve.experiments.designs_constrained import (  # noqa: PLC0415
             ConstrainedOptions,
             constrained_optimal_design,
@@ -605,9 +628,7 @@ def _dispatch_optimal(criterion: str, req: _OptimalRequest) -> tuple[np.ndarray,
         )
         matrix, meta = constrained_optimal_design(req.factors, budget, req.constraints or [], options, req.random_state)
         if req.hard_to_change:
-            reason = (
-                "constraints are given" if req.constraints else f"pyoptex is not installed. {_PYOPTEX_INSTALL_HINT}"
-            )
+            reason = blocker or "backend='exchange' was requested"
             logger.warning("hard_to_change factors (split-plot) are ignored because %s", reason)
             meta["hard_to_change_ignored"] = list(req.hard_to_change)
         return matrix, meta
@@ -663,6 +684,8 @@ _DISPATCH_PARAMETERS = """
         mixture), one column per factor. Replaces the generated grid; rows breaking
         a constraint are dropped. ``metadata["selected_candidates"]`` counts how often
         each row (by index label) was picked.
+    backend : {"auto", "exchange", "pyoptex"}
+        ``"auto"`` uses the built-in exchange, and pyoptex only for ``hard_to_change``.
 
     Returns
     -------
@@ -681,10 +704,11 @@ def dispatch_d_optimal(  # noqa: PLR0913
     fixed_runs: pd.DataFrame | None = None,
     random_state: int | np.random.Generator | None = None,
     candidates: pd.DataFrame | None = None,
+    backend: str = "auto",
 ) -> tuple[np.ndarray, dict]:
     """Generate a D-optimal design (maximises ``det(X'X)``, the precision of the coefficients jointly)."""
     req = _OptimalRequest(
-        factors, budget, hard_to_change, constraints, model_type, fixed_runs, random_state, candidates
+        factors, budget, hard_to_change, constraints, model_type, fixed_runs, random_state, candidates, backend
     )
     return _dispatch_optimal("d_optimal", req)
 
@@ -698,10 +722,11 @@ def dispatch_i_optimal(  # noqa: PLR0913
     fixed_runs: pd.DataFrame | None = None,
     random_state: int | np.random.Generator | None = None,
     candidates: pd.DataFrame | None = None,
+    backend: str = "auto",
 ) -> tuple[np.ndarray, dict]:
     """Generate an I-optimal design (minimises the average prediction variance over the region)."""
     req = _OptimalRequest(
-        factors, budget, hard_to_change, constraints, model_type, fixed_runs, random_state, candidates
+        factors, budget, hard_to_change, constraints, model_type, fixed_runs, random_state, candidates, backend
     )
     return _dispatch_optimal("i_optimal", req)
 
@@ -715,10 +740,11 @@ def dispatch_a_optimal(  # noqa: PLR0913
     fixed_runs: pd.DataFrame | None = None,
     random_state: int | np.random.Generator | None = None,
     candidates: pd.DataFrame | None = None,
+    backend: str = "auto",
 ) -> tuple[np.ndarray, dict]:
     """Generate an A-optimal design (minimises the summed variance of the coefficients)."""
     req = _OptimalRequest(
-        factors, budget, hard_to_change, constraints, model_type, fixed_runs, random_state, candidates
+        factors, budget, hard_to_change, constraints, model_type, fixed_runs, random_state, candidates, backend
     )
     return _dispatch_optimal("a_optimal", req)
 
