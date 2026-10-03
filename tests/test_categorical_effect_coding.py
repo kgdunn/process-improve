@@ -78,6 +78,106 @@ class TestCodingInvariantMetrics:
             "lack_of_fit": 3,
         }
 
+    def test_prediction_variance_d_ranking_and_dof_agree_between_codings(self) -> None:
+        metrics = ["average_prediction_variance", "g_efficiency", "fds", "degrees_of_freedom"]
+        designs = [_fixed_design(), _fixed_design().iloc[:-3], _fixed_design().iloc[2:]]
+        effect = [evaluate_design(d, metric=[*metrics, "d_efficiency"], n_samples=3000) for d in designs]
+        treatment = [
+            evaluate_design(d, metric=[*metrics, "d_efficiency"], n_samples=3000, categorical_coding="treatment")
+            for d in designs
+        ]
+        for e, t in zip(effect, treatment, strict=True):
+            assert e["average_prediction_variance"] == pytest.approx(t["average_prediction_variance"], rel=1e-9)
+            assert e["g_efficiency"] == pytest.approx(t["g_efficiency"], rel=1e-9)
+            assert e["fds"]["quantiles"] == pytest.approx(t["fds"]["quantiles"], rel=1e-9)
+            assert e["degrees_of_freedom"] == t["degrees_of_freedom"]
+        # The D-efficiency value depends on the coding, but only by a factor common to every design.
+        ratios = [e["d_efficiency"] / t["d_efficiency"] for e, t in zip(effect, treatment, strict=True)]
+        assert ratios == pytest.approx([ratios[0]] * len(ratios), rel=1e-9)
+
+
+# ---------------------------------------------------------------------------
+# Effect coding: the coding-dependent metrics, checked against an explicit matrix
+# ---------------------------------------------------------------------------
+
+
+class TestEffectCoding:
+    def test_default_is_effect_coding_with_sum_term_names(self) -> None:
+        out = evaluate_design(_fixed_design(), model="main_effects", metric="vif")
+        assert set(out["vif"]) == {"A", "B", "C[S.hi]", "C[S.lo]"}
+
+    def test_a_e_and_vif_match_an_explicit_effect_coded_matrix(self) -> None:
+        design = _fixed_design()
+        out = evaluate_design(design, model="interactions", metric=["a_optimality", "e_optimality", "vif"])
+        x = _effect_model_matrix(design)
+        info = x.T @ x
+        assert out["a_optimality"] == pytest.approx(np.trace(np.linalg.inv(info)), rel=1e-9)
+        assert out["e_optimality"] == pytest.approx(np.linalg.eigvalsh(info).min(), rel=1e-9)
+        # VIF of A: 1 / (1 - R^2) of A regressed on the other non-intercept columns.
+        others = np.delete(x, 1, axis=1)
+        a = x[:, 1]
+        resid = a - others @ np.linalg.lstsq(others, a, rcond=None)[0]
+        vif_a = np.sum((a - a.mean()) ** 2) / np.sum(resid**2)
+        assert out["vif"]["A"] == pytest.approx(vif_a, rel=1e-9)
+
+    def test_two_level_categorical_matches_the_same_factor_coded_continuous(self) -> None:
+        base = pd.DataFrame(list(itertools.product([-1.0, 1.0], repeat=3)), columns=list("ABD"))
+        base = pd.concat([base, base.iloc[[0, 3, 6]]], ignore_index=True)
+        labelled = base.assign(D=np.where(base["D"] > 0, "y", "x"))
+        metrics = ["a_optimality", "e_optimality", "vif", "condition_number"]
+        cont = evaluate_design(base, model="interactions", metric=metrics)
+        cat = evaluate_design(labelled, model="interactions", metric=metrics)
+        assert cat["a_optimality"] == pytest.approx(cont["a_optimality"], rel=1e-9)
+        assert cat["e_optimality"] == pytest.approx(cont["e_optimality"], rel=1e-9)
+        assert cat["condition_number"] == pytest.approx(cont["condition_number"], rel=1e-9)
+        assert cat["vif"]["D[S.y]"] == pytest.approx(cont["vif"]["D"], rel=1e-9)
+
+    def test_alias_matrix_terms_and_values_use_the_same_coding(self) -> None:
+        design = _fixed_design().query("C != 'mid'").reset_index(drop=True)
+        out = evaluate_design(design, model="main_effects", metric="alias_matrix")["alias_matrix"]
+        assert out["model_terms"] == ["Intercept", "C[S.lo]", "A", "B"]
+        assert out["alias_terms"] == ["A:B", "A:C[S.lo]", "B:C[S.lo]"]
+        c = np.where(design["C"] == "hi", -1.0, 1.0)
+        x1 = np.column_stack([np.ones(len(design)), c, design["A"], design["B"]])
+        x2 = np.column_stack([design["A"] * design["B"], design["A"] * c, design["B"] * c])
+        np.testing.assert_allclose(out["matrix"], np.linalg.solve(x1.T @ x1, x1.T @ x2), atol=1e-12)
+
+    def test_a_formula_contrast_overrides_the_default(self) -> None:
+        design = _fixed_design().rename(columns={"C": "cat"})
+        out = evaluate_design(design, model="A + B + C(cat, Treatment)", metric="vif")
+        assert set(out["vif"]) == {"A", "B", "C(cat, Treatment)[T.lo]", "C(cat, Treatment)[T.mid]"}
+        bare = evaluate_design(design, model="A + B + cat", metric="vif")
+        assert set(bare["vif"]) == {"A", "B", "cat[S.hi]", "cat[S.lo]"}
+
+    def test_blocks_named_in_the_formula_are_sum_coded(self) -> None:
+        design = _fixed_design().assign(Block=[1, 2] * 7 + [1])
+        out = evaluate_design(design, model="A + B + C + Block", metric=["vif", "a_optimality"])
+        assert "Block[S.1]" in out["vif"]
+        block = np.where(design["Block"] == 1, 1.0, -1.0)
+        x = np.column_stack([_effect_model_matrix(design)[:, :5], block])
+        assert out["a_optimality"] == pytest.approx(np.trace(np.linalg.inv(x.T @ x)), rel=1e-9)
+
+    def test_an_unknown_coding_is_refused(self) -> None:
+        with pytest.raises(ValueError, match="categorical_coding"):
+            evaluate_design(_fixed_design(), categorical_coding="helmert")
+
+    def test_evaluate_all_and_the_tool_pass_the_coding_through(self) -> None:
+        from process_improve.experiments import evaluate_all
+        from process_improve.experiments._tools.evaluate_design import EvaluateDesignInput, evaluate_design_tool
+
+        design = _fixed_design()
+        treat = evaluate_all(design, n_samples=2000, categorical_coding="treatment")
+        assert treat["a_optimality"] == pytest.approx(3.3692546583850933, rel=1e-9)
+        rows = design.to_dict(orient="records")
+        tool = evaluate_design_tool(EvaluateDesignInput(design_matrix=rows, metric="a_optimality"))
+        assert tool["a_optimality"] == pytest.approx(
+            np.trace(np.linalg.inv(_effect_model_matrix(design).T @ _effect_model_matrix(design)))
+        )
+        tool_t = evaluate_design_tool(
+            EvaluateDesignInput(design_matrix=rows, metric="a_optimality", categorical_coding="treatment")
+        )
+        assert tool_t["a_optimality"] == pytest.approx(3.3692546583850933, rel=1e-9)
+
 
 # ---------------------------------------------------------------------------
 # Treatment coding: the values evaluate_design gave before effect coding
@@ -91,6 +191,7 @@ class TestTreatmentCoding:
             model="interactions",
             metric=["d_efficiency", "a_optimality", "e_optimality", "condition_number", "vif", "power"],
             effect_size=1.0,
+            categorical_coding="treatment",
         )
         assert out["d_efficiency"] == pytest.approx(34.35028327680051, rel=1e-9)
         assert out["a_optimality"] == pytest.approx(3.3692546583850933, rel=1e-9)
@@ -169,3 +270,30 @@ def test_exchange_prediction_variance_criteria_are_no_worse(levels: str, criteri
     key, baseline = _INVARIANT_BASELINE[(levels, criterion)]
     mean = float(np.mean([r.metadata[key] for r in _exchange_designs(levels, criterion)]))
     assert mean <= baseline * (1 + 1e-9)
+
+
+# ---------------------------------------------------------------------------
+# The design builders report the criterion evaluate_design computes
+# ---------------------------------------------------------------------------
+
+
+def test_exchange_trace_criterion_equals_evaluate_design() -> None:
+    """The levels are declared out of sorted order, so the shared reference level is checked too."""
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        result = generate_design(_factors(["lo", "mid", "hi"]), design_type="a_optimal", budget=14, random_state=1)
+    a = evaluate_design(result, metric="a_optimality")["a_optimality"]
+    assert result.metadata["trace_criterion"] == pytest.approx(a, rel=1e-9)
+    assert a == pytest.approx(_effect_score(result.design[["A", "B", "C"]], "a_optimal"), rel=1e-9)
+
+
+@pytest.mark.parametrize("levels", [["lo", "mid", "hi"], ["x", "y"]])
+def test_pyoptex_a_optimal_trace_equals_the_effect_coded_recomputation(levels: list[str]) -> None:
+    pytest.importorskip("pyoptex")
+    factors = [*_factors(levels)[:2], Factor(name="cat", type="categorical", levels=levels)]
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        result = generate_design(factors, design_type="a_optimal", budget=14, random_state=1, backend="pyoptex")
+    trace = -result.metadata["metric_value"]  # pyoptex reports -trace, in its own effect coding
+    assert result.metadata["trace_criterion"] == pytest.approx(trace, rel=1e-9)
+    assert evaluate_design(result, metric="a_optimality")["a_optimality"] == pytest.approx(trace, rel=1e-9)

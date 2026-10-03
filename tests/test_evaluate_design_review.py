@@ -183,19 +183,22 @@ class TestCategoricalFactor:
     def test_alias_matrix_with_a_categorical_factor(self) -> None:
         d = _with_categorical(_two_level(2))
         out = evaluate_design(d, model="main_effects", metric="alias_matrix")["alias_matrix"]
-        assert out["model_terms"] == ["Intercept", "C[T.y]", "A", "B"]
-        assert out["alias_terms"] == ["A:B", "A:C[T.y]", "B:C[T.y]"]
-        # Reference: the same matrix from an explicit 0/1 dummy for C (A:C[T.y] is half aliased with A).
-        c = (d.C == "y").astype(float).to_numpy()
+        assert out["model_terms"] == ["Intercept", "C[S.y]", "A", "B"]
+        assert out["alias_terms"] == ["A:B", "A:C[S.y]", "B:C[S.y]"]
+        # Reference: the same matrix from an explicit effect-coded column for C (x = -1, y = +1).
+        c = np.where(d.C == "y", 1.0, -1.0)
         x1 = np.column_stack([np.ones(len(d)), c, d.A, d.B])
         x2 = np.column_stack([d.A * d.B, d.A * c, d.B * c])
         expected = np.linalg.solve(x1.T @ x1, x1.T @ x2)
         np.testing.assert_allclose(out["matrix"], expected, atol=1e-12)
+        # The design is balanced, so in effect coding no main effect is biased by an interaction
+        # (a 0/1 dummy made A:C half aliased with A).
+        assert np.abs(expected).max() < 1e-12
 
     def test_evaluate_all_runs_with_a_categorical_factor(self) -> None:
         d = _with_categorical(_two_level(2))
         out = evaluate_all(d, model="main_effects", n_samples=2000)
-        assert out["alias_matrix"]["alias_terms"] == ["A:B", "A:C[T.y]", "B:C[T.y]"]
+        assert out["alias_matrix"]["alias_terms"] == ["A:B", "A:C[S.y]", "B:C[S.y]"]
 
     def test_region_is_honoured_with_a_categorical_factor(self) -> None:
         base = pd.DataFrame(list(itertools.product([-1, 0, 1], repeat=2)), columns=list("AB"))
