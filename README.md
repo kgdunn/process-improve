@@ -47,7 +47,8 @@ end-to-end, on-line workflows. Highlights (full history in [CHANGELOG.md](CHANGE
 - **A DOE engine that goes past textbook designs.** OMARS designs, D-/I-/A-optimal
   designs, fractional-cube CCDs, design augmentation (`fixed_runs=`), and an
   `evaluate_design` suite scoring any design on efficiency, aliasing, and
-  prediction variance.
+  prediction variance. [Try it in your browser](https://kgdunn.github.io/process-improve/app/),
+  with nothing to install.
 - **Sensory & descriptive panel analysis** (`process_improve.sensory`): validate
   a panel, flag inconsistent assessors with the Mixed Assessor Model, and relate
   attributes to product covariates.
