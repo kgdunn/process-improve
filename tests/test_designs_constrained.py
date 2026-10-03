@@ -277,7 +277,7 @@ class TestCriteria:
 
     def test_unknown_criterion(self) -> None:
         with pytest.raises(ValueError, match="Unknown criterion"):
-            constrained_optimal_design([TEMP, DOSE], 8, [], ConstrainedOptions(criterion="g_optimal"))
+            constrained_optimal_design([TEMP, DOSE], 8, [], ConstrainedOptions(criterion="t_optimal"))
 
 
 class TestEOptimal:

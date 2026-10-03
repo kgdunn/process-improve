@@ -35,6 +35,8 @@ class GenerateDesignInput(BaseModel):
             "i_optimal",
             "a_optimal",
             "e_optimal",
+            "g_optimal",
+            "k_optimal",
             "mixture",
             "taguchi",
             "supersaturated",
@@ -44,6 +46,7 @@ class GenerateDesignInput(BaseModel):
             "sobol",
             "halton",
             "maximin",
+            "maxpro",
         ]
         | None
     ) = Field(
@@ -162,9 +165,9 @@ def _jsonable(value: Any) -> Any:  # noqa: ANN401
     description=(
         "Generate an experimental design matrix for a designed experiment. "
         "Supports full factorial, fractional factorial, Plackett-Burman, Box-Behnken, "
-        "Central Composite (CCD), Definitive Screening (DSD), D/I/A/E-optimal, mixture, "
+        "Central Composite (CCD), Definitive Screening (DSD), D/I/A/E/G/K-optimal, mixture, "
         "OMARS, Taguchi, supersaturated (fewer runs than factors) and space-filling designs "
-        "(Latin hypercube, maximin, uniform, Sobol, Halton). Constraints in actual units, a candidate set, "
+        "(Latin hypercube, maximin, MaxPro, uniform, Sobol, Halton). Constraints in actual units, a candidate set, "
         "fixed runs and blocks are supported. "
         "Each factor needs a name and type ('continuous', 'categorical', or 'mixture'). "
         "Continuous factors require 'low' and 'high' bounds. Categorical factors require 'levels'. "

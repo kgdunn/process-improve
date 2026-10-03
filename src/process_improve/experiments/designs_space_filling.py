@@ -7,7 +7,7 @@ space-filling design assumes no model: it spreads the runs out, which suits comp
 experiments, Gaussian-process or machine-learning surrogates, and exploratory work
 where the shape of the response is unknown.
 
-Six methods, in two groups:
+Seven methods, in two groups:
 
 - **On the factor box only** (projections onto each factor are what they control):
 
@@ -27,6 +27,11 @@ Six methods, in two groups:
   - ``"maximin"``: runs chosen from a dense uniform sample of the region, plus its
     boundary points, by a farthest-point build followed by exchanges that raise the
     smallest distance between runs.
+  - ``"maxpro"``: maximum projection designs (Joseph, Gul and Ba 2015), which keep the
+    runs apart in every projection onto a subset of the factors, not only in the full
+    space. On the box: the best of several Latin hypercubes, improved by swapping
+    values within a column and then by a bounded continuous search. In a constrained
+    or mixture region: runs chosen from a uniform sample of the region by exchange.
 
 Distances are measured in design units: coded ``[-1, 1]`` for a box, proportions for
 a mixture.
@@ -38,7 +43,9 @@ import contextlib
 from typing import TYPE_CHECKING
 
 import numpy as np
+from scipy.optimize import minimize
 from scipy.spatial.distance import cdist, pdist
+from scipy.special import logsumexp
 from scipy.stats import qmc
 
 from process_improve._random import check_random_state
@@ -51,7 +58,7 @@ if TYPE_CHECKING:
 #: Methods that work only on the plain factor box.
 BOX_ONLY = ("latin_hypercube", "maximin_lhs", "uniform")
 #: Methods that also work in constrained and mixture regions.
-ANY_REGION = ("sobol", "halton", "maximin")
+ANY_REGION = ("sobol", "halton", "maximin", "maxpro")
 SPACE_FILLING_METHODS = BOX_ONLY + ANY_REGION
 
 _MORRIS_MITCHELL_P = 15
@@ -199,6 +206,92 @@ def _maximin_in_region(region: DesignRegion, n: int, rng: np.random.Generator) -
 
 
 # ---------------------------------------------------------------------------
+# Maximum projection designs
+# ---------------------------------------------------------------------------
+
+#: Floor on a squared coordinate difference, so coincident projections give a large finite criterion.
+_MAXPRO_FLOOR = 1e-12
+
+
+def maxpro_criterion(points: np.ndarray) -> float:
+    """Joseph, Gul and Ba's (2015) maximum projection criterion (lower is better).
+
+    ``psi(D) = [ (1 / C(n, 2)) * sum_{i<j} 1 / prod_l (x_il - x_jl)^2 ]^(1/k)``. A pair of
+    runs that nearly coincide in any one factor makes its term large, so a small value
+    means the runs are spread in every projection. Computed in log space.
+    """
+    n, k = points.shape
+    i, j = np.triu_indices(n, 1)
+    log_terms = -np.log(np.maximum((points[i] - points[j]) ** 2, _MAXPRO_FLOOR)).sum(axis=1)
+    return float(np.exp((logsumexp(log_terms) - np.log(len(i))) / k))
+
+
+def _log_maxpro_and_gradient(flat: np.ndarray, n: int, k: int) -> tuple[float, np.ndarray]:
+    """``log`` of the sum in the MaxPro criterion and its gradient, for a continuous search on [0, 1]^k."""
+    x = flat.reshape(n, k)
+    i, j = np.triu_indices(n, 1)
+    diff = x[i] - x[j]
+    sq = np.maximum(diff**2, _MAXPRO_FLOOR)
+    log_terms = -np.log(sq).sum(axis=1)
+    total = logsumexp(log_terms)
+    weight = np.exp(log_terms - total)  # each pair's share of the sum
+    pair_grad = weight[:, None] * (-2.0 / np.where(np.abs(diff) > 1e-6, diff, 1e-6))
+    grad = np.zeros_like(x)
+    np.add.at(grad, i, pair_grad)
+    np.add.at(grad, j, -pair_grad)
+    return float(total), grad.ravel()
+
+
+def _maxpro_box(n: int, k: int, rng: np.random.Generator) -> np.ndarray:
+    """MaxPro design on the unit cube: best Latin hypercube, in-column swaps, then a bounded continuous search."""
+    starts = [qmc.LatinHypercube(d=k, rng=rng).random(n) for _ in range(_LHS_STARTS)]
+    design = min(starts, key=maxpro_criterion)
+    current = maxpro_criterion(design)
+    for _ in range(50 * n * k):
+        column, (i, j) = rng.integers(k), rng.choice(n, 2, replace=False)
+        design[[i, j], column] = design[[j, i], column]
+        trial = maxpro_criterion(design)
+        if trial < current:
+            current = trial
+        else:
+            design[[i, j], column] = design[[j, i], column]  # undo
+    result = minimize(
+        _log_maxpro_and_gradient,
+        design.ravel(),
+        args=(n, k),
+        jac=True,
+        method="L-BFGS-B",
+        bounds=[(0.0, 1.0)] * (n * k),
+    )
+    refined = np.clip(result.x.reshape(n, k), 0.0, 1.0)
+    return refined if maxpro_criterion(refined) < current else design
+
+
+def _maxpro_in_region(region: DesignRegion, n: int, rng: np.random.Generator) -> np.ndarray:
+    """MaxPro design from a uniform sample of a constrained or mixture region, by greedy build and exchange."""
+    pool = region.sample(max(2000, 50 * n), rng)
+    chosen = [int(rng.integers(len(pool)))]
+    for _ in range(n - 1):
+        # Add the point whose worst projection onto any chosen run is widest.
+        gaps = np.log(np.maximum((pool[:, None, :] - pool[chosen][None, :, :]) ** 2, _MAXPRO_FLOOR)).sum(axis=2)
+        chosen.append(int(np.argmax(-logsumexp(-gaps, axis=1))))
+    rows = np.array(chosen)
+    current = maxpro_criterion(pool[rows])
+    for _ in range(_EXCHANGE_PASSES):
+        improved = False
+        for i in range(n):
+            for candidate in rng.choice(len(pool), size=min(200, len(pool)), replace=False):
+                trial_rows = rows.copy()
+                trial_rows[i] = candidate
+                trial = maxpro_criterion(pool[trial_rows])
+                if trial < current:
+                    rows, current, improved = trial_rows, trial, True
+        if not improved:
+            break
+    return pool[rows]
+
+
+# ---------------------------------------------------------------------------
 # Public entry point
 # ---------------------------------------------------------------------------
 
@@ -232,7 +325,7 @@ def space_filling_design(
         One of :data:`SPACE_FILLING_METHODS`; see the module docstring.
     constraints : list[Constraint] or None
         Inequalities in actual units (proportions for a mixture). Only the
-        ``"sobol"``, ``"halton"`` and ``"maximin"`` methods accept them.
+        ``"sobol"``, ``"halton"``, ``"maximin"`` and ``"maxpro"`` methods accept them.
     random_state : int, numpy.random.Generator or None
         Seed for the scrambling, the sampling and the swaps.
 
@@ -282,6 +375,8 @@ def space_filling_design(
         points = 2.0 * _unit_cube_design(method, n, k, rng) - 1.0
     elif method == "maximin":
         points = _maximin_in_region(region, n, rng)
+    elif method == "maxpro":
+        points = 2.0 * _maxpro_box(n, k, rng) - 1.0 if on_box else _maxpro_in_region(region, n, rng)
     else:
         points = _sequence_in_region(region, n, method, rng)
 
@@ -293,6 +388,8 @@ def space_filling_design(
     }
     if on_box:
         meta["centered_l2_discrepancy"] = float(qmc.discrepancy((points + 1.0) / 2.0, method="CD"))
+    if method == "maxpro":
+        meta["maxpro_criterion"] = maxpro_criterion(points)
     if constraints:
         meta["constraints"] = [c.expression for c in constraints]
         meta["constraints_enforced"] = True

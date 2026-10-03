@@ -31,8 +31,10 @@ Current implementation status across every agent-facing DoE tool.
 | Mixture (simplex-lattice, simplex-centroid, extreme vertices) | `designs_mixture.py::dispatch_mixture` - on the full simplex, the simplex-centroid points the Scheffé model needs (a D-optimal subset under a smaller budget); with component bounds or linear constraints, `designs_mixture_constrained.py` builds the extreme-vertices design or a D-optimal subset of its candidate blends for a Scheffé model. | `TestMixture`, `tests/test_mixture_constrained.py`. |
 | Taguchi orthogonal arrays | `designs_screening.py::dispatch_taguchi` via `pyDOE3.taguchi_design`. | `TestTaguchi`. |
 | E-optimal | `designs_constrained.py` candidate exchange; maximises the smallest eigenvalue of `X'X`. | `tests/test_designs_constrained.py::TestEOptimal`. |
+| G-optimal | `designs_constrained.py`: I-lambda exchange (Hernandez and Nachtsheim 2018) plus an exact polish of the largest prediction variance over the region. | `tests/test_doe_conformance.py::TestGAndKOptimal`. |
+| K-optimal | `designs_constrained.py`: minimises the condition number of `X'X` (Ye and Zhou 2013). | `tests/test_doe_conformance.py::TestGAndKOptimal`. |
 | Supersaturated | `designs_supersaturated.py::dispatch_supersaturated` - Lin's half-fraction of a Hadamard matrix (pyDOE3, or Paley `I + C`). | `tests/test_designs_supersaturated.py`. |
-| Space-filling (LHS, maximin LHS, uniform, Sobol, Halton, maximin) | `designs_space_filling.py::space_filling_design`; Sobol, Halton and maximin also in constrained and mixture regions. | `tests/test_designs_space_filling.py`. |
+| Space-filling (LHS, maximin LHS, uniform, Sobol, Halton, maximin, MaxPro) | `designs_space_filling.py::space_filling_design`; Sobol, Halton, maximin and MaxPro also in constrained and mixture regions. | `tests/test_designs_space_filling.py`. |
 
 ## `evaluate_design` Metrics
 

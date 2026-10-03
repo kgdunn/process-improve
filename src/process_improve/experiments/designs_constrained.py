@@ -450,6 +450,7 @@ class Criterion:
 
     name: str
     weights: np.ndarray | None = None
+    region_rows: np.ndarray | None = None
 
     @classmethod
     def d(cls) -> Criterion:
@@ -471,10 +472,24 @@ class Criterion:
         """E-optimality."""
         return cls("e_optimal")
 
+    @classmethod
+    def g(cls, region_rows: np.ndarray) -> Criterion:
+        """G-optimality: the largest prediction variance over the model rows ``region_rows``."""
+        return cls("g_optimal", region_rows=region_rows)
+
+    @classmethod
+    def k(cls) -> Criterion:
+        """K-optimality: the condition number of ``X'X`` (Ye and Zhou 2013)."""
+        return cls("k_optimal")
+
     def value(self, info: np.ndarray) -> float:
-        """Score an information matrix; higher is better (``log det``, ``-trace(M^-1 W)``, or ``lambda_min``)."""
-        if self.name == "e_optimal":
-            return float(np.linalg.eigvalsh(info)[0])
+        """Score an information matrix; higher is better.
+
+        ``log det(M)`` (D), ``-trace(M^-1 W)`` (A, I), ``lambda_min`` (E), minus the largest
+        prediction variance over the region (G), and ``-log(lambda_max / lambda_min)`` (K).
+        """
+        if self.name in ("e_optimal", "k_optimal", "g_optimal"):
+            return _spectral_or_minimax_value(self, info)
         if self.weights is None:
             sign, logdet = np.linalg.slogdet(info)
             return float(logdet) if sign > 0 else -np.inf
@@ -493,6 +508,8 @@ class Criterion:
         """Return ``(i, j, gain)`` for the best single swap: design row ``i`` out, candidate ``j`` in."""
         if self.name == "e_optimal":
             return _best_e_swap(info, f_design, f_cand, polish=phase > 0)
+        if self.name == "k_optimal":
+            return _best_k_swap(info, f_design, f_cand)
         gains = self.swap_gains(np.linalg.pinv(info), f_design, f_cand)
         i, j = np.unravel_index(np.argmax(gains), gains.shape)
         return int(i), int(j), float(gains[i, j])
@@ -628,12 +645,154 @@ def _best_e_swap(
     return 0, 0, 0.0
 
 
+def _spectral_or_minimax_value(criterion: Criterion, info: np.ndarray) -> float:
+    """``lambda_min`` (E), ``-log(lambda_max / lambda_min)`` (K), or minus the largest prediction variance (G)."""
+    if criterion.name == "g_optimal":
+        if np.linalg.matrix_rank(info) < info.shape[0]:
+            return -np.inf
+        return -float(_prediction_variance(criterion.region_rows, np.linalg.inv(info)).max())  # type: ignore[arg-type]
+    eigenvalues = np.linalg.eigvalsh(info)
+    if criterion.name == "e_optimal":
+        return float(eigenvalues[0])
+    if eigenvalues[0] <= 1e-12 * max(float(eigenvalues[-1]), 1e-300):
+        return -np.inf
+    return -float(np.log(eigenvalues[-1] / eigenvalues[0]))
+
+
+def _prediction_variance(rows: np.ndarray, m_inv: np.ndarray) -> np.ndarray:
+    """``f(x)' M^-1 f(x)`` for every model row ``f(x)`` in ``rows``."""
+    return np.einsum("ij,jk,ik->i", rows, m_inv, rows)
+
+
+def _swap_eigenvalues(info: np.ndarray, f_design: np.ndarray, f_cand: np.ndarray, pairs: tuple) -> np.ndarray:
+    """Ascending eigenvalues of ``M - a a' + b b'`` for each swap in ``pairs`` (design rows, candidate rows)."""
+    p = info.shape[0]
+    chunk = max(1, 2_000_000 // p**2)
+    out = []
+    for start in range(0, len(pairs[0]), chunk):
+        a = f_design[pairs[0][start : start + chunk]]
+        b = f_cand[pairs[1][start : start + chunk]]
+        out.append(np.linalg.eigvalsh(info[None] - a[:, :, None] * a[:, None, :] + b[:, :, None] * b[:, None, :]))
+    return np.concatenate(out)
+
+
+def _best_k_swap(info: np.ndarray, f_design: np.ndarray, f_cand: np.ndarray) -> tuple[int, int, float]:
+    """Best swap for K-optimality (smallest condition number of ``X'X``).
+
+    Every swap is ranked by the first-order change in ``log(lambda_min) - log(lambda_max)``,
+    ``((v' b)^2 - (v' a)^2) / lambda`` along the extreme eigenvectors ``v``, and the most
+    promising ones are scored exactly with batched eigenvalue solves, as for E-optimality.
+    """
+    eigenvalues, eigenvectors = np.linalg.eigh(info)
+    lam_min, lam_max = max(float(eigenvalues[0]), 1e-12), float(eigenvalues[-1])
+    current = -np.log(lam_max / lam_min)
+
+    def pull(rows: np.ndarray) -> np.ndarray:
+        return (rows @ eigenvectors[:, 0]) ** 2 / lam_min - (rows @ eigenvectors[:, -1]) ** 2 / lam_max
+
+    estimate = pull(f_cand)[None, :] - pull(f_design)[:, None]
+    n_exact = max(2000, _E_EXACT_WORK // info.shape[0] ** 2)
+    order = np.argsort(estimate, axis=None)[::-1][:n_exact]
+    pairs = np.unravel_index(order, estimate.shape)
+    eig = _swap_eigenvalues(info, f_design, f_cand, pairs)
+    with np.errstate(divide="ignore", invalid="ignore"):
+        score = np.where(eig[:, 0] > 1e-12 * eig[:, -1], -np.log(eig[:, -1] / eig[:, 0]), -np.inf)
+    best = int(np.argmax(score))
+    gain = float(score[best] - current)
+    return (int(pairs[0][best]), int(pairs[1][best]), gain) if gain > 1e-12 else (0, 0, 0.0)
+
+
+#: Reweighting rounds of the I-lambda search for G-optimality, and the size of its final polish.
+_G_ROUNDS = 12
+_G_POLISH_CANDIDATES = 400
+_G_POLISH_PASSES = 20
+
+
+def _g_polish(f_cand: np.ndarray, f_fixed: np.ndarray, rows: np.ndarray, region: np.ndarray) -> np.ndarray:
+    """Exact exchange on the largest prediction variance over ``region``: take the best single swap while it helps.
+
+    With ``A = (M - a a')^-1`` after removing design row ``a``, adding candidate ``b`` gives
+    ``d(r) = r' A r - (r' A b)^2 / (1 + b' A b)`` at every region row ``r`` at once.
+    """
+    rows = rows.copy()
+    for _ in range(_G_POLISH_PASSES):
+        x = np.vstack([f_fixed, f_cand[rows]])
+        m_inv = np.linalg.inv(x.T @ x)
+        current = float(_prediction_variance(region, m_inv).max())
+        pool = np.arange(len(f_cand))
+        if len(pool) > _G_POLISH_CANDIDATES:  # the runs that help most sit where the variance is largest
+            pool = np.argsort(_prediction_variance(f_cand, m_inv))[::-1][:_G_POLISH_CANDIDATES]
+        best = (current - 1e-9 * current, -1, -1)
+        for i, row in enumerate(rows):
+            a = f_cand[row]
+            denominator = 1.0 - a @ m_inv @ a
+            if denominator <= 1e-10:
+                continue
+            m_inv_a = m_inv @ a
+            removed = m_inv + np.outer(m_inv_a, m_inv_a) / denominator
+            region_removed = region @ removed
+            base = np.einsum("ij,ij->i", region_removed, region)
+            b = f_cand[pool]
+            cross = region_removed @ b.T
+            scale = 1.0 + np.einsum("ij,jk,ik->i", b, removed, b)
+            worst = (base[:, None] - cross**2 / scale[None, :]).max(axis=0)
+            j = int(np.argmin(worst))
+            if worst[j] < best[0]:
+                best = (float(worst[j]), i, int(pool[j]))
+        if best[1] < 0:
+            break
+        rows[best[1]] = best[2]
+    return rows
+
+
+def _g_exchange(
+    f_cand: np.ndarray, n_free: int, f_fixed: np.ndarray, rng: np.random.Generator, criterion: Criterion
+) -> tuple[np.ndarray, float]:
+    """G-optimal design by I-lambda optimality (Hernandez and Nachtsheim 2018), then an exact polish.
+
+    The largest prediction variance over the region is hard to lower one swap at a time,
+    so each round runs the closed-form trace exchange for a weighted average of the
+    variance (I-lambda), and Lawson's rule then moves weight towards the region points
+    where the variance is largest (``w <- w * d``). The rounds converge on the minimax
+    design; the best design met is kept and polished by exact swaps on the maximum.
+    """
+    region = criterion.region_rows
+    if region is None:
+        raise ValueError("G-optimality needs the region's model rows.")
+    best_rows, best_value = np.empty(0, dtype=int), -np.inf
+    for _ in range(_N_STARTS):
+        rows = _greedy_start(f_cand, f_fixed, n_free, rng)
+        weights = np.full(len(region), 1.0 / len(region))
+        start_rows, start_value = rows.copy(), -np.inf
+        for _ in range(_G_ROUNDS):
+            rows = _climb(f_cand, f_fixed, rows, Criterion("i_optimal", (region * weights[:, None]).T @ region))
+            x = np.vstack([f_fixed, f_cand[rows]])
+            if np.linalg.matrix_rank(x) < x.shape[1]:
+                break
+            variance = _prediction_variance(region, np.linalg.inv(x.T @ x))
+            if -variance.max() > start_value:
+                start_rows, start_value = rows.copy(), -float(variance.max())
+            weights = weights * variance
+            weights /= weights.sum()
+        if np.isfinite(start_value):
+            start_rows = _g_polish(f_cand, f_fixed, start_rows, region)
+        x = np.vstack([f_fixed, f_cand[start_rows]])
+        value = criterion.value(x.T @ x)
+        if value > best_value or len(best_rows) == 0:
+            best_rows, best_value = start_rows, value
+    return best_rows, best_value
+
+
 def criterion_metadata(criterion: Criterion, value: float) -> dict[str, float]:
     """Report the criterion value under a name that says what it is."""
     if criterion.name == "d_optimal":
         return {"log_det_information": value}
     if criterion.name == "e_optimal":
         return {"min_eigenvalue": value}
+    if criterion.name == "g_optimal":
+        return {"max_prediction_variance": -value}
+    if criterion.name == "k_optimal":
+        return {"condition_number": float(np.exp(-value))}
     # trace((X'X)^-1 W): the summed coefficient variance (A), or the average
     # prediction variance over the region in units of sigma^2 (I).
     return {"trace_criterion": -value}
@@ -658,25 +817,33 @@ def fedorov_exchange(
     Returns
     -------
     tuple[np.ndarray, float]
-        Selected candidate indices and the criterion value of the full design:
-        ``log det(X'X)`` for D, ``-trace((X'X)^-1 W)`` for A and I.
+        Selected candidate indices and the criterion value of the full design (see
+        :meth:`Criterion.value`). G-optimality runs its own search, :func:`_g_exchange`.
     """
     criterion = criterion if criterion is not None else Criterion.d()
+    if criterion.name == "g_optimal":
+        return _g_exchange(f_cand, n_free, f_fixed, rng, criterion)
     best_rows, best_value = np.empty(0, dtype=int), -np.inf
     for _ in range(_N_STARTS):
-        rows = _greedy_start(f_cand, f_fixed, n_free, rng)
-        for phase in range(criterion.n_phases):
-            for _ in range(_MAX_EXCHANGES):
-                x = np.vstack([f_fixed, f_cand[rows]])
-                i, j, gain = criterion.best_swap(x.T @ x, f_cand[rows], f_cand, phase)
-                if not gain > 1e-9:  # also stops on NaN
-                    break
-                rows[i] = j
+        rows = _climb(f_cand, f_fixed, _greedy_start(f_cand, f_fixed, n_free, rng), criterion)
         x = np.vstack([f_fixed, f_cand[rows]])
         value = criterion.value(x.T @ x)
         if value > best_value or len(best_rows) == 0:  # keep a design even if every start is singular
             best_rows, best_value = rows.copy(), value
     return best_rows, best_value
+
+
+def _climb(f_cand: np.ndarray, f_fixed: np.ndarray, rows: np.ndarray, criterion: Criterion) -> np.ndarray:
+    """Make the best single swap while it improves ``criterion``, in each of its phases; return the rows."""
+    rows = rows.copy()
+    for phase in range(criterion.n_phases):
+        for _ in range(_MAX_EXCHANGES):
+            x = np.vstack([f_fixed, f_cand[rows]])
+            i, j, gain = criterion.best_swap(x.T @ x, f_cand[rows], f_cand, phase)
+            if not gain > 1e-9:  # also stops on NaN
+                break
+            rows[i] = j
+    return rows
 
 
 # ---------------------------------------------------------------------------
@@ -694,7 +861,8 @@ class ConstrainedOptions:
         ``"main_effects"``, ``"interactions"`` or ``"quadratic"`` (a mixture design maps
         these to Scheffé models).
     criterion : str
-        ``"d_optimal"`` (default), ``"i_optimal"``, ``"a_optimal"`` or ``"e_optimal"``.
+        ``"d_optimal"`` (default), ``"i_optimal"``, ``"a_optimal"``, ``"e_optimal"``,
+        ``"g_optimal"`` or ``"k_optimal"``.
     fixed_runs : pandas.DataFrame or None
         Runs kept in the design (continuous in coded units, categorical as labels),
         already validated by the caller. They count towards the budget.
@@ -862,8 +1030,22 @@ def _uniform_rows(region: _Region, model_type: str, rng: np.random.Generator, se
     return model_matrix(region, coded, cats, model_type)
 
 
-def make_criterion(name: str, n_parameters: int, region_rows: Callable[[], np.ndarray]) -> Criterion:
-    """Build the :class:`Criterion` called ``name``; ``region_rows`` is only evaluated for I-optimality."""
+#: Uniform draws added to the candidates for the G-criterion's maximum (the candidates hold the boundary points).
+_N_G_REGION_SAMPLES = 3000
+
+
+def make_criterion(
+    name: str,
+    n_parameters: int,
+    region_rows: Callable[[], np.ndarray],
+    candidate_rows: np.ndarray | None = None,
+) -> Criterion:
+    """Build the :class:`Criterion` called ``name``.
+
+    ``region_rows`` (model rows drawn uniformly in the region) is only evaluated for
+    I- and G-optimality. G takes its maximum over those rows plus ``candidate_rows``,
+    which hold the vertices and boundary points where the worst case usually sits.
+    """
     if name == "d_optimal":
         return Criterion.d()
     if name == "a_optimal":
@@ -872,7 +1054,16 @@ def make_criterion(name: str, n_parameters: int, region_rows: Callable[[], np.nd
         return Criterion.i(region_rows())
     if name == "e_optimal":
         return Criterion.e()
-    raise ValueError(f"Unknown criterion {name!r}; choose 'd_optimal', 'i_optimal', 'a_optimal' or 'e_optimal'.")
+    if name == "k_optimal":
+        return Criterion.k()
+    if name == "g_optimal":
+        sample = region_rows()[:_N_G_REGION_SAMPLES]
+        rows = sample if candidate_rows is None else np.vstack([candidate_rows, sample])
+        return Criterion.g(np.unique(rows.round(12), axis=0))
+    raise ValueError(
+        f"Unknown criterion {name!r}; choose 'd_optimal', 'i_optimal', 'a_optimal', 'e_optimal', 'g_optimal' or "
+        "'k_optimal'."
+    )
 
 
 def _check_factors_and_model(factors: list[Factor], model_type: str) -> None:
@@ -957,7 +1148,7 @@ def constrained_optimal_design(
 
     p = f_cand.shape[1]
     budget = _budget_for_fixed_runs(f_fixed, p, budget)
-    criterion = make_criterion(opts.criterion, p, region_rows)
+    criterion = make_criterion(opts.criterion, p, region_rows, f_cand)
     rows, value = fedorov_exchange(f_cand, budget - n_fixed, f_fixed, rng, criterion)
     if len(rows) != budget - n_fixed or np.linalg.matrix_rank(np.vstack([f_fixed, f_cand[rows]])) < p:
         raise ValueError(

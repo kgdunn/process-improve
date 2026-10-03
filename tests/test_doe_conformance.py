@@ -285,6 +285,72 @@ def test_omars_budget_below_the_full_model_size_still_gives_omars(k: int, budget
     assert np.abs(x.T @ second).max() < 1e-9
 
 
+class TestGAndKOptimal:
+    """G-optimal: smallest worst-case prediction variance; K-optimal: best-conditioned X'X."""
+
+    @pytest.fixture(scope="class")
+    def designs(self) -> dict:
+        factors = [Factor(name="T", low=100, high=150), Factor(name="D", low=20, high=60)]
+        constraints = [Constraint(expression="3*T + 5*D <= 600")]
+        return {
+            c: generate_design(factors, c, budget=10, model_type="quadratic", constraints=constraints)
+            for c in ("d_optimal", "i_optimal", "a_optimal", "e_optimal", "g_optimal", "k_optimal")
+        }
+
+    def test_g_optimal_has_the_best_g_efficiency(self, designs: dict) -> None:
+        from process_improve.experiments import evaluate_design
+
+        g = {
+            c: evaluate_design(r, model="quadratic", metric="g_efficiency")["g_efficiency"] for c, r in designs.items()
+        }
+        assert max(g, key=g.get) == "g_optimal"
+
+    def test_k_optimal_has_the_smallest_condition_number(self, designs: dict) -> None:
+        def condition(result) -> float:
+            x = result.design[["T", "D"]].to_numpy(dtype=float)
+            model = np.column_stack([np.ones(len(x)), x, x[:, 0] * x[:, 1], x**2])
+            return float(np.linalg.cond(model.T @ model))
+
+        k = {c: condition(r) for c, r in designs.items()}
+        assert min(k, key=k.get) == "k_optimal"
+
+    def test_two_level_factorial_is_g_optimal_for_a_first_order_model(self) -> None:
+        """Kiefer-Wolfowitz: the 2^k factorial attains G-efficiency 100% for a first-order model."""
+        from process_improve.experiments import evaluate_design
+
+        result = generate_design(_factors(3), "g_optimal", budget=8, model_type="main_effects")
+        assert evaluate_design(result, model="main_effects", metric="g_efficiency")["g_efficiency"] == pytest.approx(
+            100
+        )
+
+
+class TestMaxPro:
+    """Joseph, Gul and Ba (2015): runs spread in every two-factor projection."""
+
+    @staticmethod
+    def _smallest_projected_distance(x: np.ndarray) -> float:
+        return min(
+            np.min(np.linalg.norm(x[:, [i, j]][:, None, :] - x[:, [i, j]][None, :, :], axis=2) + np.eye(len(x)) * 9)
+            for i, j in itertools.combinations(range(x.shape[1]), 2)
+        )
+
+    def test_projections_beat_latin_hypercube_and_maximin(self) -> None:
+        maxpro = _coded(generate_design(_factors(4), "maxpro", budget=20, random_state=1), 4)
+        for other in ("latin_hypercube", "maximin_lhs", "maximin"):
+            x = _coded(generate_design(_factors(4), other, budget=20, random_state=1), 4)
+            assert self._smallest_projected_distance(maxpro) > self._smallest_projected_distance(x), other
+
+    def test_constrained_and_mixture_regions(self) -> None:
+        result = generate_design(
+            _factors(3), "maxpro", budget=12, constraints=[Constraint(expression="x0 + x1 <= 12")], random_state=1
+        )
+        actual = result.design_actual
+        assert np.all(actual["x0"] + actual["x1"] <= 12 + 1e-9)
+        mixture = [Factor(name=c, type="mixture", low=0.1, high=0.7) for c in "abc"]
+        blends = generate_design(mixture, "maxpro", budget=10, random_state=1).design_actual[["a", "b", "c"]]
+        np.testing.assert_allclose(blends.sum(axis=1), 1.0)
+
+
 class TestDSDFakeFactors:
     """Jones and Nachtsheim (2017): a budget above the minimal DSD adds fake factors for error degrees of freedom."""
 
