@@ -811,7 +811,16 @@ def _satisfice(candidates: list[_Candidate], thresholds: dict[str, float]) -> li
 
 
 def _select(candidates: list[_Candidate], criterion: str) -> _Candidate:
-    """Pick the winning design under the requested multicriteria rule."""
+    """Pick the winning design under the requested multicriteria rule.
+
+    A design with an infinite maximum second-order correlation (a constant
+    second-order column, so a term it cannot estimate) is ranked last under
+    every criterion: it is returned only when no design with a finite
+    correlation was found.  Without this, ``"dominance"`` and
+    ``"d_efficiency"`` would crown such a design whenever its D-efficiency
+    was the highest, since no finite-correlation design dominates it.
+    """
+    candidates = [c for c in candidates if math.isfinite(c.max_second_order_correlation)] or candidates
     if criterion == "d_efficiency":
         return max(candidates, key=lambda c: (c.d_efficiency, -c.n_runs))
     if criterion == "min_second_order_correlation":
@@ -1062,7 +1071,8 @@ def _pick_exhaustive_winner(d_eff: np.ndarray, a_opt: np.ndarray, max_corr: np.n
     """Index of the winning count vector, mirroring the tie-breaks of :func:`_select`.
 
     All enumerated designs share the same run count, so the run-size terms of
-    the :func:`_select` tie-break tuples drop out.
+    the :func:`_select` tie-break tuples drop out.  As in :func:`_select`, a
+    design with an infinite maximum second-order correlation ranks last.
     """
     if criterion == "d_efficiency":
         keys = (max_corr, -d_eff)
@@ -1072,8 +1082,8 @@ def _pick_exhaustive_winner(d_eff: np.ndarray, a_opt: np.ndarray, max_corr: np.n
         keys = (max_corr, a_opt)
     else:  # "dominance": the Pareto-front member with the highest D-efficiency.
         keys = (max_corr, -d_eff)
-    # np.lexsort sorts by the last key first.
-    return int(np.lexsort(keys)[0])
+    # np.lexsort sorts by the last key first, so the finiteness flag leads.
+    return int(np.lexsort((*keys, np.isinf(max_corr)))[0])
 
 
 def _search_best_omars(  # noqa: C901, PLR0912, PLR0913, PLR0915
@@ -1565,9 +1575,9 @@ def generate_omars(  # noqa: PLR0913
         (lower prediction variance on average), which is the natural choice when
         the design is judged on precision rather than on aliasing.  A design
         containing a constant second-order column (a term the design cannot
-        estimate) scores ``inf`` on the correlation metric, so it is never
-        selected by ``"min_second_order_correlation"`` when an alternative with
-        every term present exists.
+        estimate) scores ``inf`` on the correlation metric and ranks last under
+        every criterion, so it is selected only when no design with every term
+        present was found.
     satisfice : dict, optional
         Acceptability thresholds applied *before* selection: a design is kept
         only if it clears every threshold.  Supported keys are

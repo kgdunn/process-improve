@@ -1168,3 +1168,29 @@ def test_generate_omars_rejects_categorical_factor() -> None:
     ]
     with pytest.raises(ValueError, match="OMARS designs require continuous factors"):
         generate_omars(factors, solver_options=_SOLVER)
+
+
+# ---------------------------------------------------------------------------
+# Selection: designs with a constant second-order column rank last
+# ---------------------------------------------------------------------------
+
+
+def _candidate(d: float, corr: float, a: float = 1.0) -> omars_ilp._Candidate:
+    return omars_ilp._Candidate(np.zeros((1, 3)), 17, [], d, a, corr, "Optimal")
+
+
+@pytest.mark.parametrize("criterion", ["dominance", "d_efficiency", "a_optimal"])
+def test_infinite_correlation_ranks_last(criterion: str) -> None:
+    """A design with a constant second-order column wins only when nothing else was found."""
+    degenerate = _candidate(40.0, math.inf, a=0.5)
+    finite = _candidate(30.0, 0.6)
+    assert omars_ilp._select([degenerate, finite], criterion) is finite
+    assert omars_ilp._select([degenerate], criterion) is degenerate
+
+
+def test_exhaustive_winner_ranks_infinite_correlation_last() -> None:
+    d_eff = np.array([40.0, 30.0])
+    a_opt = np.array([0.5, 1.0])
+    max_corr = np.array([np.inf, 0.6])
+    for criterion in ("dominance", "d_efficiency", "a_optimal"):
+        assert omars_ilp._pick_exhaustive_winner(d_eff, a_opt, max_corr, criterion) == 1
