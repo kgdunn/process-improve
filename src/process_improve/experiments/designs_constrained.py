@@ -391,13 +391,27 @@ def build_candidates(
 def model_matrix(region: _Region, coded: np.ndarray, cats: np.ndarray, model_type: str) -> np.ndarray:
     """Expand points into model columns: intercept, main effects, interactions, squares.
 
-    A categorical factor with ``L`` levels contributes ``L - 1`` indicator columns.
-    The D-criterion does not depend on which full-rank coding is used, so the choice
-    of reference level does not change the selected design.
+    A categorical factor with ``L`` levels contributes ``L - 1`` effect-coded (sum-to-zero)
+    columns, the coding ``evaluate_design`` uses (see
+    :func:`~process_improve.experiments.designs_utils.categorical_effect_columns`): a
+    two-level factor is -1 and +1, and with more levels the last one, in sorted order, is
+    -1 in every column. The levels are taken in sorted order, as patsy reads a label
+    column, so the criterion value reported here is the one ``evaluate_design`` gives
+    for the returned design.
+
+    The D-, I- and G-criteria do not depend on which full-rank coding is used, so they
+    select the same designs under any coding. The A-, E- and K-criteria do depend on
+    it, and here optimise the effect-coded model, the usual convention in DoE software.
     """
+    from process_improve.experiments.designs_utils import (  # noqa: PLC0415
+        categorical_effect_columns,
+        sorted_level_ranks,
+    )
+
     blocks = [coded[:, [j]] for j in range(coded.shape[1])]
     for j, f in enumerate(region.categorical):
-        blocks.append((cats[:, [j]] == np.arange(1, len(f.levels or []))).astype(float))
+        levels = list(f.levels or [])
+        blocks.append(categorical_effect_columns(sorted_level_ranks(levels)[cats[:, j]], len(levels)))
 
     columns = [np.ones((coded.shape[0], 1)), *blocks]
     if model_type in {"interactions", "quadratic"}:
