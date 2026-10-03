@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import itertools
 import math
 import subprocess
 import sys
@@ -563,6 +564,14 @@ def test_options_reach_highs(monkeypatch: pytest.MonkeyPatch) -> None:
     assert custom_nodes["disp"] is True
     assert minimize["disp"] is False
     assert "node_limit" not in unlimited
+    # The randomized-objective solves skip the costly root heuristics and strong
+    # branching; the minimise-size and feasibility solves keep the HiGHS defaults.
+    for options in (default_nodes, custom_nodes, unlimited):
+        assert options["mip_heuristic_run_rins"] is False
+        assert options["mip_heuristic_run_rens"] is False
+        assert options["mip_pscost_minreliable"] == 0
+    for options in (minimize, feasibility):
+        assert not set(options) & set(omars_ilp._RANDOM_OBJECTIVE_HIGHS_OPTIONS)
     # milp pops keys out of the options dict it receives; the caller's dict is untouched.
     assert user_options == {"time_limit": 0.5, "msg": False}
 
@@ -1171,8 +1180,101 @@ def test_generate_omars_rejects_categorical_factor() -> None:
 
 
 # ---------------------------------------------------------------------------
-# Selection: designs with a constant second-order column rank last
+# Search speed-ups: estimability cuts, symmetry dedupe, plateau, local search
 # ---------------------------------------------------------------------------
+
+
+def _main_effects_orthogonal(half: np.ndarray) -> bool:
+    gram = half.T @ half
+    return bool(np.all(gram == np.diag(np.diag(gram))))
+
+
+@pytest.mark.parametrize("model", ["full_second_order", "main_quadratic"])
+def test_estimability_cuts_exclude_the_deficient_selection_and_keep_estimable_ones(model: str) -> None:
+    """Every cut is violated by the rank-deficient selection it came from, and met by estimable designs."""
+    pool = omars_ilp._half_pool(5)
+    features = omars_ilp._even_features(pool, model)
+    deficient = list(_RANK_DEFICIENT_K5)
+    rank = np.linalg.matrix_rank(features[deficient])
+    cuts = omars_ilp._estimability_cuts(features, deficient)
+    if rank == features.shape[1]:
+        assert cuts == []
+        return
+    assert len(cuts) == features.shape[1] - rank
+    for cut in cuts:
+        assert not set(cut) & set(deficient)
+    estimable = generate_omars_selection(5, n_runs=33, model=model)
+    assert np.linalg.matrix_rank(features[estimable]) == features.shape[1]
+    for cut in [*cuts, *omars_ilp._distinct_feature_cuts(features, 5)]:
+        assert set(cut) & set(estimable)
+
+
+def generate_omars_selection(k: int, *, n_runs: int, model: str) -> list[int]:
+    """Half-pool rows of a generated multistart design."""
+    from process_improve.experiments import generate_omars
+
+    result = generate_omars(_factors(k), n_runs=n_runs, model=model, n_restarts=1, solver_options=_SOLVER)
+    pool = omars_ilp._half_pool(k)
+    coded = _coded(result)
+    half = coded[np.abs(coded).sum(axis=1) > 0]
+    rows = {tuple(r): i for i, r in enumerate(pool)}
+    return sorted({rows[tuple(r)] for r in half if tuple(r) in rows})
+
+
+def test_full_rank_selection_gives_no_estimability_cut() -> None:
+    pool = omars_ilp._half_pool(4)
+    features = omars_ilp._even_features(pool, "main_quadratic")
+    assert omars_ilp._estimability_cuts(features, list(range(len(pool)))) == []
+
+
+def test_cover_cut_is_enforced_and_checked(monkeypatch: pytest.MonkeyPatch) -> None:
+    pool = omars_ilp._half_pool(3)
+    _, _, first = omars_ilp.solve_omars_ilp(pool, n_half=4, solver_options=_SOLVER)
+    others = [r for r in range(len(pool)) if r not in first]
+    design, _, chosen = omars_ilp.solve_omars_ilp(pool, n_half=4, require_any=[others], solver_options=_SOLVER)
+    assert design is not None
+    assert set(chosen) & set(others)
+    with pytest.raises(ValueError, match="require_any entries must be non-empty"):
+        omars_ilp.solve_omars_ilp(pool, n_half=4, require_any=[[]])
+    with pytest.raises(RuntimeError, match="none of the required rows"):
+        omars_ilp._check_selection(pool, first, (4, 4), None, [others])
+
+
+def _equivalent_forms(design: np.ndarray, rng: np.random.Generator) -> list[np.ndarray]:
+    """Return the design with its runs shuffled, its factors permuted, and some factors sign-flipped."""
+    forms = []
+    for _ in range(5):
+        signs = rng.choice([-1.0, 1.0], size=design.shape[1])
+        forms.append(design[rng.permutation(design.shape[0])][:, rng.permutation(design.shape[1])] * signs)
+    return forms
+
+
+def test_canonical_key_is_shared_by_equivalent_designs() -> None:
+    from process_improve.experiments import generate_omars
+
+    rng = np.random.default_rng(7)
+    design = omars_ilp._foldover(omars_ilp._half_pool(5)[_RANK_DEFICIENT_K5])
+    key = omars_ilp._canonical_key(design)
+    assert all(omars_ilp._canonical_key(form) == key for form in _equivalent_forms(design, rng))
+    other = _coded(generate_omars(_factors(5), n_runs=31, n_restarts=3, solver_options=_SOLVER))
+    assert omars_ilp._canonical_key(other) != key
+
+
+def test_equal_canonical_keys_mean_equivalent_designs() -> None:
+    """The key encodes a transformed copy of the design, which scores the same as the design."""
+    rng = np.random.default_rng(3)
+    pool = omars_ilp._half_pool(4)
+    for _ in range(20):
+        design = omars_ilp._foldover(pool[rng.choice(len(pool), size=8, replace=False)])
+        codes = np.frombuffer(omars_ilp._canonical_key(design), dtype=np.int64)
+        # Balanced-ternary run codes; shifting by sum(3**j) makes the digits 0, 1, 2.
+        decoded = (((codes[:, None] + 40) // 3 ** np.arange(3, -1, -1)) % 3 - 1).astype(float)
+        assert decoded.shape == design.shape
+        for metric in (omars_ilp._d_efficiency, omars_ilp._a_optimality):
+            assert metric(decoded, "main_quadratic") == pytest.approx(metric(design, "main_quadratic"))
+        assert omars_ilp._max_second_order_correlation_metric(decoded) == pytest.approx(
+            omars_ilp._max_second_order_correlation_metric(design)
+        )
 
 
 def _candidate(d: float, corr: float, a: float = 1.0) -> omars_ilp._Candidate:
@@ -1194,3 +1296,56 @@ def test_exhaustive_winner_ranks_infinite_correlation_last() -> None:
     max_corr = np.array([np.inf, 0.6])
     for criterion in ("dominance", "d_efficiency", "a_optimal"):
         assert omars_ilp._pick_exhaustive_winner(d_eff, a_opt, max_corr, criterion) == 1
+
+
+def test_improves_front() -> None:
+    retained = [_candidate(35.0, 0.6), _candidate(33.0, 0.5)]
+    assert omars_ilp._improves_front(_candidate(36.0, 0.7), retained)
+    assert omars_ilp._improves_front(_candidate(34.0, 0.4), retained)
+    assert not omars_ilp._improves_front(_candidate(34.0, 0.6), retained)
+    assert not omars_ilp._improves_front(_candidate(35.0, 0.6), retained)
+
+
+def test_swap_index_finds_exactly_the_orthogonal_swaps() -> None:
+    """The hashed look-ups return every one-, two- and three-run swap that keeps orthogonality, and no other."""
+    pool = omars_ilp._half_pool(4)
+    _, _, selection = omars_ilp.solve_omars_ilp(pool, n_half=8, solver_options=_SOLVER)
+    outside = [r for r in range(len(pool)) if r not in selection]
+
+    def brute_force(sizes: tuple[int, ...]) -> set[tuple[int, ...]]:
+        found = set()
+        for size in sizes:
+            for out in itertools.combinations(selection, size):
+                for into in itertools.combinations(outside, size):
+                    move = sorted([r for r in selection if r not in out] + list(into))
+                    if _main_effects_orthogonal(pool[move]):
+                        found.add(tuple(move))
+        return found
+
+    index = omars_ilp._SwapIndex(pool)
+    swaps = index.swaps(selection)
+    assert swaps == sorted(swaps)
+    assert set(map(tuple, swaps)) == brute_force((1, 2))
+    assert set(map(tuple, index.triple_swaps(selection))) == brute_force((3,))
+
+
+def test_budget_search_uses_the_plateau_rule() -> None:
+    """The run-budget path stops at a plateau; generate_omars keeps its exact restart budget."""
+    result = generate_design(_factors(5), design_type="omars_ilp", budget=21, random_state=42)
+    report = result.metadata["omars_search"]
+    assert report.plateau == omars_ilp._PLATEAU
+    assert report.n_restarts == omars_ilp._PLATEAU_MAX_RESTARTS
+    assert report.ilp_iterations < 2 + omars_ilp._PLATEAU_MAX_RESTARTS
+    assert is_omars(_coded(result))
+    assert result.metadata["model_rank"] == result.metadata["model_params"]
+    from process_improve.experiments import generate_omars
+
+    plain = generate_omars(_factors(5), n_runs=25, model="main_quadratic", n_restarts=2, solver_options=_SOLVER)
+    assert plain.metadata["omars_search"].plateau is None
+
+
+@pytest.mark.slow
+def test_budget_search_is_deterministic() -> None:
+    first = generate_design(_factors(6), design_type="omars_ilp", budget=17, random_state=5)
+    second = generate_design(_factors(6), design_type="omars_ilp", budget=17, random_state=5)
+    np.testing.assert_array_equal(_coded(first), _coded(second))

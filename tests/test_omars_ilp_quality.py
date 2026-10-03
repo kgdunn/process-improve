@@ -4,10 +4,13 @@ The thresholds below were measured once, from the search as released in 1.97.0
 (50 randomized-objective restarts with the HiGHS defaults, ``random_state=42``),
 for five and six factors at the budgets 17, 19 and 21 and with no budget.  That
 search took about 150 s per six-factor case, so it is not re-run here: the
-tests run only the current search, and each of its reported criteria must be
-no worse than the recorded value (run count and A-optimality no larger,
-D-efficiency no smaller, maximum second-order correlation no larger), within
-1e-9.  The design itself may differ.
+tests run only the current search and hold it to the 1.97.0 design, within
+1e-9, in the order the ``"dominance"`` selection itself uses.  The run count
+may not be larger and the D-efficiency may not be lower.  A design with a
+higher D-efficiency is accepted even when its A-optimality or maximum
+second-order correlation is worse, because the selection would choose it over
+the 1.97.0 design on the same candidates; at an equal D-efficiency neither may
+be worse.  The design itself may differ.
 """
 
 from __future__ import annotations
@@ -39,7 +42,7 @@ def _factors(k: int) -> list[Factor]:
 @pytest.mark.slow
 @pytest.mark.parametrize(("k", "budget"), list(_BASELINE))
 def test_budget_search_is_no_worse_than_the_baseline(k: int, budget: int | None) -> None:
-    """Every reported criterion of the chosen design is no worse than the 1.97.0 search's."""
+    """The chosen design is no worse than the 1.97.0 search's, in the order the selection uses."""
     runs, d_efficiency, a_optimality, max_correlation = _BASELINE[k, budget]
     result = generate_design(_factors(k), design_type="omars_ilp", budget=budget, random_state=42)
     meta = result.metadata
@@ -47,5 +50,13 @@ def test_budget_search_is_no_worse_than_the_baseline(k: int, budget: int | None)
     assert meta["model_rank"] == meta["model_params"]
     assert meta["n_runs_selected"] <= runs
     assert meta["d_efficiency"] >= d_efficiency - _TOL
-    assert meta["a_optimality"] <= a_optimality + _TOL
-    assert meta["max_second_order_correlation"] <= max_correlation + _TOL
+    if meta["d_efficiency"] <= d_efficiency + _TOL:
+        assert meta["a_optimality"] <= a_optimality + _TOL
+        assert meta["max_second_order_correlation"] <= max_correlation + _TOL
+
+
+@pytest.mark.slow
+def test_six_factor_seventeen_run_search_stays_short() -> None:
+    """The 1.97.0 search made 51 ILP solves here; the plateau rule and the estimability cuts end it far sooner."""
+    result = generate_design(_factors(6), design_type="omars_ilp", budget=17, random_state=42)
+    assert result.metadata["omars_search"].ilp_iterations <= 30
