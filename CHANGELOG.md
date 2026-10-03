@@ -11,6 +11,41 @@ those changes.
 
 ## [Unreleased]
 
+### Changed
+
+- **The built-in optimal-design exchange is 8 to 12 times faster on the large cases,
+  with designs no worse.** `augment_design(..., "add_runs_optimal")` on a 16-run
+  screening design with 40 runs for a 10-factor quadratic model took 18.3 s
+  single-threaded and now takes 1.7 s; a 7-factor constrained I-optimal quadratic
+  design took 36.4 s and now takes 3.0 s (D-optimal: 9.9 s to 0.8 s; the 8-factor
+  augmentation: 11.3 s to 1.4 s). Each change, in `designs_constrained.py`:
+
+
+  - For D, A and I the exchange is row-wise (modified Fedorov, Cook and Nachtsheim
+    1980): each run in turn takes its best improving swap, with `(X'X)^-1` and the
+    candidate variances kept current by rank-one updates. It used to rescore every
+    (run, candidate) pair and re-invert `X'X` to make a single swap. The greedy start
+    adds runs by rank-one updates too. Small problems get up to 50 random starts.
+  - The automatic candidate grid is capped at `max(5000, 200 p)` points for `p` model
+    coefficients, so 7 factors no longer list 5^7 = 78,125 points. A quadratic model
+    skips 4 levels for D, A, E and K (no centre), and a grid sampled down to the cap
+    leans towards points with most factors at their extremes for those criteria.
+  - When the grid had fewer than 5 levels or was sampled, the design from each start
+    is polished by moving single coordinates on a 5-level lattice while D, A or I
+    improves, and the best polished design is kept, so runs may sit at +/-0.5.
+    `add_runs_optimal` builds the named models with numpy instead of patsy.
+
+  Designs differ from 1.97.0 for the same `random_state`. Measured on fixed seeds,
+  `log det(X'X) / p` of the augmentation went from 3.341, 3.169 and 3.331 to 3.344,
+  3.191 and 3.343 at 6, 8 and 10 factors, the constrained D-optimal designs at 3, 5
+  and 7 factors from 1.870, 2.467 and 2.936 to 1.870, 2.470 and 2.953, and the I
+  trace of the constrained I-optimal designs from 0.3466, 0.3909 and 0.4340 to 0.3466,
+  0.3855 and 0.4277; tests pin each as a no-worse threshold. Small designs take a
+  little longer than before (a 5-factor constrained I-optimal design: 0.2 s to 1.2 s)
+  for the extra starts. Constrained designs that were polished record
+  `polish_levels` in their metadata. E and K keep the best-swap search; the I-lambda
+  rounds of G-optimality use the row-wise exchange.
+
 ## [1.97.0] - 2026-10-03
 
 ### Added
