@@ -276,6 +276,97 @@ those changes.
 
 ### Fixed
 
+- **`evaluate_design(metric="clear_effects")` follows Wu and Hamada's definition for
+  every design.** Effect orders were guessed from the length of the alias string, so with
+  factor names longer than one letter every main effect of a resolution III fraction was
+  reported clear (`PressConc` counted as a ninth-order term) and no two-factor interaction
+  could ever be. Effects aliased with nothing were never listed: a 2^3 full factorial, or
+  a 2^(5-1) resolution V fraction passed as a DataFrame, had no clear main effects. Orders
+  now come from the set of factors in each word, every main effect and two-factor
+  interaction is checked, and the interactions are named `"A:B"`.
+- **Alias metrics keep the sign of a negative generator, and describe the design that
+  was run.** `generators=["D=-ABC"]` gave the defining relation `I=ABCD` (in
+  `evaluate_design` and in `DesignResult.defining_relation`) and the chain `A = BCD`; they
+  are now `I=-ABCD` and `A = -BCD`. A central composite design on a fractional cube
+  reported the cube's chains (`A = BCDE`), which its axial runs partly break; its alias
+  structure and clear effects now come from the whole design, with a note saying why. A
+  resolution II fraction reports `roman="II"` (not `"2"`) and a wordlength pattern that
+  starts at `A_2` instead of hiding the length-2 word.
+- **`evaluate_design` handles categorical factors in the alias matrix and the region.**
+  `metric="alias_matrix"`, and so `evaluate_all` and `metric="all"`, raised "could not
+  convert string to float" for any design with a categorical factor; the omitted
+  interactions are now built by patsy next to the model's terms, contrast-coded as in the
+  model (`"A:C[T.y]"`). With a categorical factor present, `region` was ignored
+  (`"spherical"` gave the cube's answer and a misspelt region was accepted), and each cube
+  vertex was crossed with one random level, so the maximum prediction variance was
+  underestimated and G-efficiency overstated; the region is now honoured and validated, and
+  every vertex is crossed with every combination of levels.
+- **The region average and the FDS curve are no longer biased by the added vertices.**
+  The `2**k` cube vertices (or a region's support points), added so the maximum is seen,
+  were pooled into the sample that the average prediction variance, `i_efficiency` and the
+  FDS curve are taken over; they sit where the variance is highest, which raised the
+  average by 1% at the default 100,000 samples and by 88% at 1,000 samples for eight
+  factors. They now serve only the maximum (G-efficiency and the FDS curve's end point).
+- **`evaluate_design` checks its inputs.** A run with a missing factor setting was
+  dropped silently by patsy, so N and the efficiencies described a different design and
+  `alias_matrix` crashed; it now raises `ValueError` naming the rows. `alpha` outside
+  (0, 1), a non-positive `sigma` and `n_samples < 1` raise instead of giving NaN or a NumPy
+  error, and a DataFrame that looks like it is in actual rather than coded units warns
+  (a 2^3 factorial in 0 to 10 units reported a D-efficiency of 1118%).
+- **`metric="degrees_of_freedom"` counts from the rank of the model matrix.** It used the
+  column count and assumed an intercept, so a rank-deficient model (a quadratic model on a
+  replicated 2^2) reported fewer residual degrees of freedom than pure-error ones, and
+  `"A + B - 1"` reported one model degree of freedom for two terms. The model, residual
+  and total degrees of freedom now come from the rank, corrected for the mean only when
+  the model spans the constant (an intercept, or a Scheffé model), and `pure_error` and
+  `lack_of_fit` are always reported (0 without replicates).
+- **VIF and power are meaningful for Scheffé mixture models.** `metric="vif"` called
+  statsmodels, which centres the columns; the centred linear blending columns of a
+  mixture are exactly collinear, so every linear term read about 1e15 (with warnings),
+  and the value depended on the installed statsmodels. VIFs are now computed from the
+  model matrix as `c_jj * sum((x_j - mean_j)^2)`, which is the classical `1 / (1 - R^2)`
+  with an intercept and finite for any estimable Scheffé model. `metric="power"` no
+  longer reports power for testing a linear blending coefficient against zero, a
+  hypothesis the mixture analysis never tests, and says so in a note.
+- **`evaluate_design` speaks the same model names as `generate_design` for mixtures.**
+  Over a mixture region, `model="special_cubic"` was rejected as an unknown formula name
+  and `"interactions"` fitted an intercept model that is rank-deficient on a simplex;
+  they now map to the Scheffé models as in `generate_design`. Without a model, a mixture
+  design is evaluated for the Scheffé model it was generated for (now recorded as
+  `metadata["model_type"]` for the simplex designs too), not always the quadratic one.
+- **Blocks are no longer dropped without a word.** A blocked design was evaluated as if
+  unblocked, overstating the residual degrees of freedom, power and efficiencies, and a
+  formula naming the block column was refused. A formula may now include `Block` (as a
+  categorical factor), and when it does not, `result["notes"]["blocks"]` says the blocks
+  were left out.
+- **`effect_size` in power calculations is documented as an anticipated coefficient.**
+  It is half the high-minus-low effect of a two-level factor, which the docstring and
+  the agent tool's schema now say; the G-efficiency docstring names its convention
+  (`p / (N max d)`, of which JMP reports the square root).
+- **The FDS, power-curve and prediction-variance plots are computed for a model the
+  design can estimate, over all of its factors.** They assumed a full quadratic model,
+  counted `RunOrder` and `Block` as factors (an SPV in the thousands for a generated
+  CCD), and silently switched to a pseudo-inverse when the quadratic model could not be
+  estimated (any two-level design). The power curve also assumed an orthogonal two-level
+  design and clamped the residual degrees of freedom to 1, giving power 0.17 instead of
+  0.57 for a 2^3 under its main-effects model; the prediction-variance contour dropped
+  the factors not plotted from the model, so `hold_values` had no effect. All three now
+  share `evaluate_design`'s machinery for a `model` that `visualize_doe` and the plot
+  classes accept (default: the fitted formula, else the richest of quadratic,
+  interactions and main effects that the design estimates), use each term's own
+  coefficient variance, take `random_state` and `n_samples` for the FDS sample, and raise
+  `ValueError` for a model the design cannot estimate or that leaves no residual degrees
+  of freedom.
+- **Lenth thresholds on the Pareto and half-normal plots sit at the stated level.** The
+  ME and SME lines were drawn at the analysis's alpha = 0.05 but labelled with
+  `1 - confidence_level` (`"ME (α=0.010000000000000009)"` at 0.99); they are now
+  recomputed from the PSE at the plot's level, and the label is formatted (`α=0.01`).
+- **`visualize_doe` rejects an unknown `backend`.** A value such as `"Plotly"` returned no
+  figure without an error; it now raises `ValueError`.
+- **Each metric's note is kept under its own name.** Metrics returned a shared top-level
+  `"note"`, so asking for two metrics kept only the last note, attributed to the wrong
+  metric. `evaluate_design` now returns them as `result["notes"][metric_name]`.
+
 - **`analyze_experiment` accepts a response named `yield`.** The commonest response in
   chemistry is a Python keyword, which a model formula cannot name, so the call failed
   with "formula side 'yield' is not a valid expression". The response is now fitted

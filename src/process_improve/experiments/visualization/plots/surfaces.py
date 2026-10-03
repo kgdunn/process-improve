@@ -13,7 +13,6 @@ from typing import Any
 
 import numpy as np
 
-from process_improve._linalg import is_singular
 from process_improve.experiments.visualization.plots.registry import BasePlot, register_plot
 from process_improve.visualization.spec import (
     Annotation,
@@ -435,89 +434,76 @@ class PredictionVariancePlot(BasePlot):
 
     Shows the scaled prediction variance ``n * Var(ŷ) / σ²`` across the
     design space, which depends only on the design geometry, not the
-    response values.
+    response values.  The model (see
+    :func:`~process_improve.experiments.visualization.plots.design_quality.design_model`)
+    is built from every factor of the design; the factors not plotted are held at
+    ``hold_values`` (default: 0 for a quantitative factor, the first level for a
+    categorical one).
 
     Data sources
     ------------
-    Requires ``design_data`` (the design matrix rows) and
-    ``factors_to_plot`` (exactly 2 factors).
+    Requires ``design_data`` (the design matrix rows); ``factors_to_plot``
+    picks the two axes (default: the first two factors).
     """
 
-    def to_spec(self) -> ChartSpec:  # noqa: C901, PLR0912
+    def to_spec(self) -> ChartSpec:
         """Build a prediction-variance ChartSpec.
 
         Returns
         -------
         ChartSpec
+
+        Raises
+        ------
+        ValueError
+            If the design cannot estimate the model, or a plotted factor is not a
+            quantitative factor of the design.
         """
         import pandas as pd  # noqa: PLC0415
+        from patsy import build_design_matrices  # noqa: PLC0415
+
+        from process_improve.experiments.evaluate import _prediction_variance_at_points  # noqa: PLC0415
+        from process_improve.experiments.visualization.plots.design_quality import (  # noqa: PLC0415
+            design_context,
+            design_frame,
+            design_model,
+        )
 
         if not self.design_data:
             return ChartSpec(title="Prediction Variance - no design data")
 
-        df = pd.DataFrame(self.design_data)
-        factors = self.factors_to_plot or [c for c in df.columns if c != self.response_column]
-        if len(factors) < 2:
+        df, factors = design_frame(self)
+        axes = self.factors_to_plot or factors
+        if len(axes) < 2:
             return ChartSpec(title="Prediction Variance - need at least 2 factors")
+        factor_x, factor_y = axes[0], axes[1]
+        for f in (factor_x, factor_y):
+            if f not in factors or not pd.api.types.is_numeric_dtype(df[f]):
+                raise ValueError(f"factors_to_plot names {f!r}, which is not a quantitative factor of the design.")
 
-        factor_x, factor_y = factors[0], factors[1]
+        model = design_model(self, df, factors)
+        ctx = design_context(df, factors, model)
+        assert ctx.XtX_inv is not None  # design_context raises when singular
 
-        # Build model matrix (main effects + interactions + quadratic)
-        X = df[factors].values.astype(float)
-        n, k = X.shape
-
-        # Add intercept, interactions, quadratics for a full second-order
-        X_terms = [np.ones(n)]
-        for i in range(k):
-            X_terms.append(X[:, i])  # noqa: PERF401
-        for i in range(k):
-            for j in range(i + 1, k):
-                X_terms.append(X[:, i] * X[:, j])  # noqa: PERF401
-        for i in range(k):
-            X_terms.append(X[:, i] ** 2)  # noqa: PERF401
-
-        X_model = np.column_stack(X_terms)
-
-        # Fall back to the pseudo-inverse not just for an exactly-singular X'X but
-        # also for an ill-conditioned one, where np.linalg.inv would silently
-        # return overflow-driven garbage.
-        XtX = X_model.T @ X_model
-        XtX_inv = np.linalg.pinv(XtX) if is_singular(XtX) else np.linalg.inv(XtX)
-
-        # Evaluate scaled prediction variance on a grid
+        # Evaluate scaled prediction variance on a grid; rows follow y, columns follow x.
         n_grid = 40
-        x_grid = np.linspace(-1, 1, n_grid).tolist()
-        y_grid = np.linspace(-1, 1, n_grid).tolist()
-
-        fx_idx = factors.index(factor_x) if factor_x in factors else 0
-        fy_idx = factors.index(factor_y) if factor_y in factors else 1
-
-        z_matrix = []
-        for y_val in y_grid:
-            row = []
-            for x_val in x_grid:
-                point = np.zeros(k)
-                point[fx_idx] = x_val
-                point[fy_idx] = y_val
-                # Hold other factors at centre (0)
-                for fi in range(k):
-                    if fi != fx_idx and fi != fy_idx:  # noqa: PLR1714
-                        point[fi] = self.hold_values.get(factors[fi], 0.0)
-
-                # Build model row
-                x_row = [1.0]
-                for i in range(k):
-                    x_row.append(point[i])  # noqa: PERF401
-                for i in range(k):
-                    for j in range(i + 1, k):
-                        x_row.append(point[i] * point[j])  # noqa: PERF401
-                for i in range(k):
-                    x_row.append(point[i] ** 2)  # noqa: PERF401
-
-                x_vec = np.array(x_row)
-                spv = float(n * x_vec @ XtX_inv @ x_vec)
-                row.append(spv)
-            z_matrix.append(row)
+        grid = np.linspace(-1, 1, n_grid)
+        gx, gy = np.meshgrid(grid, grid)
+        points: dict[str, Any] = {}
+        for f in factors:
+            if f == factor_x:
+                points[f] = gx.ravel()
+            elif f == factor_y:
+                points[f] = gy.ravel()
+            elif pd.api.types.is_numeric_dtype(df[f]):
+                points[f] = np.full(gx.size, float(self.hold_values.get(f, 0.0)))
+            else:
+                points[f] = np.full(gx.size, self.hold_values.get(f, df[f].iloc[0]), dtype=object)
+        (expanded,) = build_design_matrices([ctx.design_info], pd.DataFrame(points), return_type="matrix")
+        spv = ctx.N * _prediction_variance_at_points(np.asarray(expanded, dtype=float), ctx.XtX_inv)
+        z_matrix = spv.reshape(n_grid, n_grid).tolist()
+        x_grid = grid.tolist()
+        y_grid = grid.tolist()
 
         contour_layer = LayerSpec(
             mark=MarkType.contour,
@@ -543,4 +529,5 @@ class PredictionVariancePlot(BasePlot):
             panels=[panel],
             title=f"Scaled Prediction Variance: {factor_x} x {factor_y}",
             plot_type="prediction_variance",
+            metadata={"model": model, "hold_values": self.hold_values},
         )
