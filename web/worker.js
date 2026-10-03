@@ -3,7 +3,8 @@
 //
 // Protocol: the page posts {id, fn, payload}; the worker answers {id, reply}
 // where reply is the JSON string the Python function returned, or
-// {id, status} while it is still starting up.
+// {status, state} while it is still starting up, where state is "busy",
+// "ok" or "error" so the page can show a spinner, a tick or an error.
 
 const PYODIDE_VERSION = "0.28.3";
 const PYODIDE_URL = `https://cdn.jsdelivr.net/pyodide/v${PYODIDE_VERSION}/full/`;
@@ -26,7 +27,7 @@ async function wheelSource() {
 }
 
 async function boot() {
-  const say = (status) => self.postMessage({ status });
+  const say = (status, state = "busy") => self.postMessage({ status, state });
   say("Loading Python (WebAssembly)...");
   const pyodide = await loadPyodide({ indexURL: PYODIDE_URL });
 
@@ -52,12 +53,12 @@ await micropip.install(_wheel, deps=False)
   const glue = await (await fetch("bootstrap.py", { cache: "no-store" })).text();
   await pyodide.runPythonAsync(glue);
   const version = pyodide.runPython("from importlib.metadata import version; version('process-improve')");
-  say(`Ready: process-improve ${version}`);
+  say(`Ready: process-improve ${version}`, "ok");
   return pyodide;
 }
 
 const ready = boot();
-ready.catch((err) => self.postMessage({ status: `Could not start Python: ${err.message}`, failed: true }));
+ready.catch((err) => self.postMessage({ status: `Could not start Python: ${err.message}`, state: "error" }));
 
 self.onmessage = async ({ data: { id, fn, payload } }) => {
   try {
