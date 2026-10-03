@@ -366,3 +366,61 @@ def test_single_factor_has_no_second_order_space() -> None:
     assert np.isnan(result.second_order_overall_p_value)
     assert result.active_interactions == []
     assert result.active_quadratics == []
+
+
+# ---------------------------------------------------------------------------
+# Review findings: the staged protocol's preconditions and its options
+# ---------------------------------------------------------------------------
+
+
+def test_a_design_without_the_omars_structure_warns() -> None:
+    """Missing runs break main-effect orthogonality, so a pure quadratic leaks into the main-effect test."""
+    grid = np.array(list(itertools.product([-1, 0, 1], repeat=3)), dtype=float)
+    x = grid[[i for i in range(27) if not (grid[i, 0] == -1 and grid[i, 1] != 0)]]
+    design = pd.DataFrame(x, columns=list("ABC"))
+    y = 5 + 4 * x[:, 0] ** 2 + np.random.default_rng(0).normal(0, 1, len(x))
+    with pytest.warns(RuntimeWarning, match="OMARS structure"):
+        result = analyze_omars(design, y)
+    assert result.details["design_structure"]["main_effects_clear_of_second_order"] is False
+
+
+def test_an_orthogonal_design_does_not_warn() -> None:
+    import warnings
+
+    design = _fccd()
+    with warnings.catch_warnings():
+        warnings.simplefilter("error", RuntimeWarning)
+        result = analyze_omars(design, _response(design))
+    assert all(result.details["design_structure"].values())
+
+
+def test_effects_to_drop_is_checked_whatever_the_data() -> None:
+    design = _fccd()
+    noise = np.random.default_rng(1).normal(0, 1, len(design))
+    with pytest.raises(ValueError, match="unknown second-order terms"):
+        analyze_omars(design, noise, effects_to_drop=["Z^2"])
+    with pytest.raises(ValueError, match="unknown second-order terms"):
+        analyze_omars(design, noise, second_order=False, effects_to_drop=["nonsense"])
+
+
+def test_a_valid_label_outside_the_heredity_candidates_is_accepted() -> None:
+    design = _fccd()
+    result = analyze_omars(design, _response(design), quadratic_heredity="strong", effects_to_drop=["C^2", "B:A"])
+    assert result.success is True
+    assert "A:B" not in result.active_interactions
+
+
+@pytest.mark.parametrize(
+    "options",
+    [
+        {"alpha_main": 5},
+        {"alpha_main": 0.0},
+        {"alpha_second_overall": 1.0},
+        {"alpha_second_subset": -0.1},
+        {"max_subset_terms": -3},
+    ],
+)
+def test_options_outside_their_range_raise(options: dict) -> None:
+    design = _fccd()
+    with pytest.raises(ValueError, match="must"):
+        analyze_omars(design, _response(design), **options)

@@ -146,7 +146,7 @@ Choosing the run size and the design
     towards a different feasible design.  Each of these solves stops after a
     fixed number of branch-and-bound nodes (``solver_options["node_limit"]``,
     default 100) and returns the best design found by then, which ends it at
-    the same point on every run, so a fixed ``random_seed`` reproduces the
+    the same point on every run, so a fixed ``random_state`` reproduces the
     design.
 
   A valid OMARS design can still leave the model it was sized for

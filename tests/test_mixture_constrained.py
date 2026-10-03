@@ -128,7 +128,7 @@ class TestDesigns:
         np.testing.assert_allclose(result.design_actual[["x1", "x2", "x3"]].sum(axis=1), 1.0)
 
     def test_d_optimal_request_with_mixture_factors_uses_the_mixture_engine(self) -> None:
-        result = generate_design(BOUNDED, design_type="d_optimal", budget=10, constraints=[CAP], random_seed=1)
+        result = generate_design(BOUNDED, design_type="d_optimal", budget=10, constraints=[CAP], random_state=1)
         assert result.metadata["method"] == "d_optimal_extreme_vertices"
         assert _feasible(result.design[["x1", "x2", "x3"]].to_numpy(dtype=float), BOUNDED, [CAP]).all()
 
@@ -143,7 +143,7 @@ class TestDesigns:
 
 @pytest.fixture
 def fitted_mixture() -> tuple:
-    result = generate_design(BOUNDED, budget=12, constraints=[CAP], random_seed=3)
+    result = generate_design(BOUNDED, budget=12, constraints=[CAP], random_state=3)
     x = result.design[["x1", "x2", "x3"]].astype(float)
     y = 10 * x.x1 + 6 * x.x2 + 4 * x.x3 + 12 * x.x1 * x.x2 + np.random.default_rng(1).normal(0, 0.05, len(x))
     return result, x, y.rename("y")
@@ -227,10 +227,10 @@ class TestEvaluateOverRegion:
         )
 
     def test_mixture_design_defaults_to_scheffe_quadratic(self) -> None:
-        result = generate_design(BOUNDED, budget=10, random_seed=0)
-        metrics = evaluate_design(result, metric=["d_efficiency", "i_efficiency"], n_samples=5000)
+        result = generate_design(BOUNDED, budget=10, random_state=0)
+        metrics = evaluate_design(result, metric=["d_efficiency", "average_prediction_variance"], n_samples=5000)
         assert metrics["d_efficiency"] > 0
-        assert metrics["i_efficiency"] is not None
+        assert metrics["average_prediction_variance"] is not None
 
     def test_explicit_region_on_a_dataframe(self) -> None:
         design = pd.DataFrame(
@@ -244,7 +244,9 @@ class TestEvaluateOverRegion:
     def test_region_with_unknown_factor(self) -> None:
         design = pd.DataFrame({"A": [0.2, 0.5, 0.8], "B": [0.8, 0.5, 0.2]})
         with pytest.raises(ValueError, match="not columns of the design"):
-            evaluate_design(design, model="scheffe_linear", metric="i_efficiency", region=DesignRegion(BOUNDED))
+            evaluate_design(
+                design, model="scheffe_linear", metric="average_prediction_variance", region=DesignRegion(BOUNDED)
+            )
 
 
 # ---------------------------------------------------------------------------
@@ -301,10 +303,11 @@ class TestOptimizeInRegion:
         points = np.array([[p["coded"]["T"], p["coded"]["D"]] for p in front["pareto_front"]["front"]])
         assert HEAT_REGION.feasible(points, tol=1e-6).all()
 
-    def test_other_methods_warn_and_ignore_the_region(self, caplog: pytest.LogCaptureFixture) -> None:
-        with caplog.at_level(logging.WARNING):
+    def test_other_methods_warn_and_ignore_the_region(self) -> None:
+        # A UserWarning, not a log record, since the caller has to act on it; it points at the call.
+        with pytest.warns(UserWarning, match="ignored by 'stationary_point'") as record:
             optimize_responses([HEAT_MODEL], method="stationary_point", region=HEAT_REGION)
-        assert "ignored by 'stationary_point'" in caplog.text
+        assert record[0].filename == __file__
 
     def test_region_must_match_the_model_factors(self) -> None:
         with pytest.raises(ValueError, match="do not match"):

@@ -65,7 +65,7 @@ class TestBox:
         catalyst = Factor(name="Cat", type="categorical", levels=["A", "B"])
         rng = np.random.default_rng(1)
         pool = pd.DataFrame({"T": rng.uniform(100, 150, 20), "Cat": rng.choice(["A", "B"], 20)})
-        result = generate_design([TEMP, catalyst], budget=6, candidates=pool, random_seed=0)
+        result = generate_design([TEMP, catalyst], budget=6, candidates=pool, random_state=0)
         assert set(result.design_actual["Cat"]) == {"A", "B"}
 
     def test_candidates_outside_the_range_warn(self, caplog: pytest.LogCaptureFixture) -> None:

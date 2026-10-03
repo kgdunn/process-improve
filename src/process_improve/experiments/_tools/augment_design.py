@@ -72,8 +72,17 @@ class AugmentDesignInput(BaseModel):
             "(e.g. ['D=ABC']). Needed for foldover/semifold alias analysis."
         ),
     )
+    factor_names: list[str] | None = Field(
+        None,
+        description=(
+            "The factor columns of existing_design. Default: every column except RunOrder and Block, refusing "
+            "any that does not look like a coded factor (such as a measured response). Name the factors when "
+            "the design also carries responses."
+        ),
+    )
     random_state: int | None = Field(
         42,
+        ge=0,
         description="Seed for the exchange's random starts (add_runs_optimal). Default 42, for reproducible runs.",
     )
 
@@ -81,15 +90,18 @@ class AugmentDesignInput(BaseModel):
 @tool_spec(
     name="augment_design",
     description=(
-        "Extend or modify an existing experimental design. Supports foldover (de-alias all "
-        "2-factor interactions), semifold (de-alias specific interactions with fewer runs), "
+        "Extend or modify an existing experimental design. Supports foldover (separates main effects "
+        "from 2-factor interactions: resolution III becomes IV, while 2-factor interactions aliased "
+        "through even-length words stay aliased), semifold (half the runs; partially de-aliases the "
+        "effects aliased through words containing the fold factor, leaving them correlated), "
         "adding center points (test for curvature), adding axial/star points (upgrade to CCD "
         "for response surface modeling), D-optimal augmentation (add runs to maximize information), "
         "upgrade to RSM (convert screening design to response surface design), add blocks "
         "(retroactively confound block effects with high-order interactions), and replication "
         "(improve precision estimates). "
         "Always returns the augmented design matrix plus an explanation of what changed in the "
-        "alias structure and design properties."
+        "alias structure (which effects are now uncorrelated, which only partially de-aliased, and "
+        "which still fully aliased) and in the design properties."
     ),
     input_model=AugmentDesignInput,
     examples="""
@@ -127,6 +139,7 @@ def augment_design_tool(spec: AugmentDesignInput) -> dict[str, Any]:
             alpha=spec.alpha,
             generators=spec.generators,
             random_state=spec.random_state,
+            factor_names=spec.factor_names,
         )
         return clean(result)
     except _TOOL_EXPECTED_EXCEPTIONS as e:

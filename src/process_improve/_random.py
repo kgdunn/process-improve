@@ -19,6 +19,7 @@ modern ``numpy.random.Generator`` rather than the legacy
 from __future__ import annotations
 
 import numbers
+import warnings
 
 import numpy as np
 
@@ -90,3 +91,33 @@ def check_random_state(
     if isinstance(random_state, numbers.Integral) and not isinstance(random_state, bool):
         return np.random.default_rng(int(random_state))
     raise TypeError(f"random_state must be int | np.random.Generator | None, got {type(random_state).__name__}.")
+
+
+def resolve_deprecated_seed(
+    random_state: int | np.random.Generator | None,
+    random_seed: int | None,
+    owner: str,
+    default: int | None = 42,
+) -> int | np.random.Generator | None:
+    """Return the seed to use when ``owner`` still accepts the deprecated ``random_seed`` keyword.
+
+    ``random_seed`` was the experiments module's name for ``random_state`` before the
+    :doc:`reproducibility contract </development/reproducibility>` fixed the name. It is
+    deprecated since 1.97.0 and will be removed in 2.0.
+
+    Raises
+    ------
+    ValueError
+        If both are given (``random_state`` differs from its default).
+    """
+    if random_seed is None:
+        return random_state
+    warnings.warn(
+        f"process_improve.experiments.{owner}(random_seed=...) is deprecated since 1.97.0 and will be removed in "
+        "2.0; use random_state instead.",
+        category=DeprecationWarning,
+        stacklevel=3,
+    )
+    if not (isinstance(random_state, int) and random_state == default) and random_state is not default:
+        raise ValueError(f"Pass random_state to {owner}, not both random_state and the deprecated random_seed.")
+    return random_seed

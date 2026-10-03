@@ -22,19 +22,21 @@ from typing import Any
 # ---------------------------------------------------------------------------
 #
 # Each template is a dict with the following keys:
-#   screening_preference : str - preferred screening design type
-#   rsm_preference : str - preferred RSM design type
+#   screening_preference : str - preferred screening design, a generate_design design type
+#   rsm_preference : str - preferred RSM design: a generate_design design type, or
+#       "ccd_face_centered" for a CCD with alpha="face_centered" (see NON_GENERATE_DESIGN_IDS)
 #   budget_weights : dict - stage -> fraction of total budget
 #   min_confirmation : int - minimum confirmation runs
 #   min_center_points : int - minimum center points for variability estimation
 #   prefer_curvature_detection : bool - prefer DSD over PB when possible
 #   notes : dict[str, str] - detail_level -> domain-specific advice
-#   extra_stages : list[str] - additional stages specific to this domain
-#   special_considerations : list[str] - domain-specific warnings/notes
+#   extra_stages : list[str] - stages this domain usually adds, which the plan names but does
+#       not schedule (they appear in the reasoning)
+#   special_considerations : list[str] - domain-specific warnings, appended to the risks
 
 DOMAIN_TEMPLATES: dict[str, dict[str, Any]] = {
     "pharma_formulation": {
-        "screening_preference": "definitive_screening",
+        "screening_preference": "dsd",
         "rsm_preference": "ccd_face_centered",
         "budget_weights": {"screening": 0.25, "optimization": 0.45, "confirmation": 0.15},
         "min_confirmation": 5,
@@ -43,7 +45,7 @@ DOMAIN_TEMPLATES: dict[str, dict[str, Any]] = {
         "notes": {
             "novice": (
                 "Pharmaceutical formulation studies follow Quality by Design (QbD) principles. "
-                "The strategy includes a design space definition stage for regulatory submissions. "
+                "Regulatory submissions also need the design space defined, from the models these stages fit. "
                 "Factors are called Critical Process Parameters (CPPs) or Critical Material "
                 "Attributes (CMAs), and responses are Critical Quality Attributes (CQAs)."
             ),
@@ -168,7 +170,7 @@ DOMAIN_TEMPLATES: dict[str, dict[str, Any]] = {
         ],
     },
     "cell_culture": {
-        "screening_preference": "definitive_screening",
+        "screening_preference": "dsd",
         "rsm_preference": "box_behnken",
         "budget_weights": {"screening": 0.35, "optimization": 0.45, "confirmation": 0.10},
         "min_confirmation": 3,

@@ -58,8 +58,28 @@ section {
   background: var(--panel); border: 1px solid var(--line); border-radius: 10px;
   padding: 20px; margin: 20px 0;
 }
-.status { font-size: 0.92rem; color: var(--muted); }
-.status.error, .error { color: var(--error); }
+/* The status box: a changing message, kept visually apart from the page text.
+   data-state picks the icon and the accent: busy (spinner), ok (tick), error. */
+.status {
+  display: flex; align-items: center; gap: 10px; margin: 16px 0 0; padding: 10px 14px;
+  border: 1px solid var(--line); border-left: 4px solid var(--muted); border-radius: 8px;
+  background: var(--panel); color: var(--fg); font-size: 0.92rem;
+}
+.status__icon { flex: none; width: 16px; height: 16px; display: grid; place-items: center; font-weight: 700; }
+.status[data-state="busy"] { border-left-color: var(--accent); }
+.status[data-state="busy"] .status__icon {
+  border: 2px solid var(--line); border-top-color: var(--accent); border-radius: 50%;
+  animation: status-spin 0.9s linear infinite;
+}
+.status[data-state="ok"] { border-left-color: var(--ok); }
+.status[data-state="ok"] .status__icon::before { content: "✓"; color: var(--ok); }
+.status[data-state="error"] { border-left-color: var(--error); color: var(--error); }
+.status[data-state="error"] .status__icon::before { content: "!"; color: var(--error); }
+@keyframes status-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) {
+  .status[data-state="busy"] .status__icon { animation-duration: 3s; }
+}
+.error { color: var(--error); }
 .hint { color: var(--muted); font-size: 0.92rem; }
 .equation { font-family: ui-monospace, "SFMono-Regular", Menlo, monospace; overflow-wrap: anywhere; }
 .row { display: flex; flex-wrap: wrap; gap: 16px; margin: 12px 0; }

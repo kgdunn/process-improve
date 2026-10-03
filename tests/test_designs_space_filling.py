@@ -91,7 +91,7 @@ class TestConstrainedAndMixtureRegions:
 
 class TestGenerateDesign:
     def test_default_size_and_no_centre_points(self) -> None:
-        result = generate_design(BOX, design_type="maximin_lhs", random_seed=0)
+        result = generate_design(BOX, design_type="maximin_lhs", random_state=0)
         assert result.n_runs == 30  # 10 runs per factor
         assert result.design_actual["A"].between(0, 10).all()
 

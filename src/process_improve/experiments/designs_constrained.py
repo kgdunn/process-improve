@@ -1,19 +1,22 @@
 # (c) Kevin Dunn, 2010-2026. MIT License.
 
-"""D-optimal designs over a constrained factor region.
+"""Optimal designs (D, I, A and E) over a constrained factor region, by candidate exchange.
 
 A ``Constraint`` such as ``"3*T + 5*D <= 600"`` cuts a corner off the factor box.
 Classical designs cannot follow that cut, so the design is chosen from a set of
 feasible *candidate* points instead, in three steps:
 
 1. **Candidate set.** A grid over the box, plus the points where each constraint
-   boundary crosses a grid line (found by bisection), minus every infeasible point.
-   The boundary points matter: a D-optimal design pushes its runs to the edge of
-   the region, and without them the nearest grid point can sit well inside it.
+   boundary crosses a grid line (found by bisection) and the vertices where linear
+   constraints meet each other or the box, minus every infeasible point. The boundary
+   points matter: a D-optimal design pushes its runs to the edge of the region, and
+   without them the nearest grid point can sit well inside it.
 2. **Model matrix.** Each candidate is expanded into the columns of the model the
    design is for (intercept, main effects, two-factor interactions, squares).
 3. **Exchange.** A Fedorov exchange swaps design runs for candidates while the
-   determinant of the information matrix ``X'X`` grows, with several random starts.
+   criterion improves (see :class:`Criterion`: the determinant of the information
+   matrix ``X'X`` for D, a weighted trace of its inverse for A and I, its smallest
+   eigenvalue for E), with several random starts.
 
 Constraint expressions are parsed into a small arithmetic tree and evaluated with
 numpy. Nothing is passed to ``eval``, so an expression from an untrusted caller can
@@ -23,7 +26,9 @@ only compute a number.
 from __future__ import annotations
 
 import ast
+import itertools
 import logging
+import math
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
@@ -41,6 +46,8 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
+#: Model types the candidate exchange builds a model matrix for.
+_MODEL_TYPES = ("main_effects", "interactions", "quadratic")
 #: Upper limit on the candidate grid; a larger grid is refused before allocation.
 MAX_CANDIDATES = 100_000
 #: Points taken from a grid too large to list (a power of two, for the Sobol sequence): the exchange's cost grows
@@ -53,6 +60,8 @@ _FEASIBILITY_TOL = 1e-9
 _BISECTION_STEPS = 50
 _MAX_EXCHANGES = 500
 _N_STARTS = 5
+#: A greedy start step picks at random among candidates whose variance is within this fraction of the largest.
+_GREEDY_SLACK = 0.05
 
 # ---------------------------------------------------------------------------
 # 1. Constraint expressions -> vectorised inequality functions g(x) <= 0
@@ -267,10 +276,65 @@ def _boundary_points(region: _Region, grid: np.ndarray, cat_idx: np.ndarray, ste
     return np.vstack(points), np.vstack(cats)
 
 
+#: Most linear systems solved to find the vertices of a region cut by linear constraints.
+_MAX_VERTEX_SYSTEMS = 200_000
+
+
+def _coded_inequality(region: _Region, g: _Evaluator) -> Callable[[np.ndarray], np.ndarray]:
+    """``g`` as a function of coded points ``(n, k)``."""
+    return lambda x: np.broadcast_to(np.asarray(g(region.actual(np.atleast_2d(x))), dtype=float), (len(x),))
+
+
+def _polytope_vertices(region: _Region) -> np.ndarray:
+    """Vertices of the box cut by the region's linear constraints, in coded units.
+
+    A vertex is a point where ``k`` of the hyperplanes (box faces and linear constraint
+    boundaries) meet; each choice of ``k`` is solved, and the solutions inside the
+    region are kept. These are where D-optimal runs go, and two constraints usually
+    meet away from every grid line, where neither the grid nor the boundary crossings
+    reach (Atkinson, Donev and Tobias 2007, ch. 12). Non-linear constraints only filter
+    the result. Returns no points when there is no linear constraint, or when there
+    would be more than ``_MAX_VERTEX_SYSTEMS`` systems to solve.
+    """
+    from process_improve.experiments._uniform_sampling import _affine_form  # noqa: PLC0415
+
+    k = len(region.continuous)
+    ones = np.ones(k)
+    forms = [_affine_form(_coded_inequality(region, g), -ones, ones) for g in region.inequalities]
+    rows = [f for f in forms if f is not None]
+    if not rows or k == 0 or math.comb(2 * k + len(rows), k) > _MAX_VERTEX_SYSTEMS:
+        return np.empty((0, k))
+    a_mat = np.vstack([np.eye(k), -np.eye(k), *[a[None, :] for a, _ in rows]])
+    b_vec = np.concatenate([ones, ones, [b for _, b in rows]])
+    norms = np.linalg.norm(a_mat, axis=1)
+    keep = norms > 0
+    a_mat, b_vec = a_mat[keep] / norms[keep, None], b_vec[keep] / norms[keep]
+    subsets = np.array(list(itertools.combinations(range(len(a_mat)), k)), dtype=int).reshape(-1, k)
+    systems, rhs = a_mat[subsets], b_vec[subsets]
+    solvable = np.abs(np.linalg.det(systems)) > 1e-10
+    points = np.linalg.solve(systems[solvable], rhs[solvable][..., None])[..., 0]
+    points = points[np.all(points @ a_mat.T <= b_vec + 1e-9, axis=1)]
+    points = np.clip(points, -1.0, 1.0)
+    return np.unique(points.round(12), axis=0)
+
+
+def _with_every_level(points: np.ndarray, cat_shape: list[int]) -> tuple[np.ndarray, np.ndarray]:
+    """Pair every point with every combination of categorical levels, unless that is more than ``MAX_CANDIDATES``."""
+    combos = np.indices(cat_shape).reshape(len(cat_shape), -1).T if cat_shape else np.empty((1, 0), dtype=int)
+    if len(points) * len(combos) > MAX_CANDIDATES:
+        return np.empty((0, points.shape[1])), np.empty((0, len(cat_shape)), dtype=int)
+    return np.repeat(points, len(combos), axis=0), np.tile(combos, (len(points), 1))
+
+
 def build_candidates(
     region: _Region, n_levels: int | None = None, model_type: str = "quadratic"
 ) -> tuple[np.ndarray, np.ndarray, dict]:
     """Return the feasible candidate points in coded units.
+
+    The candidates are the grid (see :func:`_grid_levels`), the points where each
+    constraint boundary crosses a grid edge (:func:`_boundary_points`), and the
+    vertices of the region cut by its linear constraints (:func:`_polytope_vertices`),
+    each with every categorical level combination.
 
     Parameters
     ----------
@@ -299,8 +363,9 @@ def build_candidates(
     cat_idx = idx[:, k_cont:]
 
     extra, extra_cat = _boundary_points(region, grid, cat_idx, step=2.0 / (levels - 1))
-    coded = np.vstack([grid, extra])
-    cats = np.vstack([cat_idx, extra_cat])
+    corners, corner_cat = _with_every_level(_polytope_vertices(region), shape[k_cont:])
+    coded = np.vstack([grid, extra, corners])
+    cats = np.vstack([cat_idx, extra_cat, corner_cat])
 
     feasible = region.slack(coded) <= _FEASIBILITY_TOL
     coded, cats = coded[feasible], cats[feasible]
@@ -312,6 +377,7 @@ def build_candidates(
         "n_grid_points": grid.shape[0],
         "grid_sampled": sampled,
         "n_boundary_points": extra.shape[0],
+        "n_vertex_points": corners.shape[0],
         "n_candidates": unique.size,
     }
     return coded[unique], cats[unique], counts
@@ -346,14 +412,22 @@ def model_matrix(region: _Region, coded: np.ndarray, cats: np.ndarray, model_typ
 
 
 def _greedy_start(f_cand: np.ndarray, f_fixed: np.ndarray, n_free: int, rng: np.random.Generator) -> np.ndarray:
-    """Build a non-singular starting design by adding the highest-variance candidate each step."""
+    """Build a non-singular starting design by adding a high-variance candidate each step.
+
+    Each step picks at random among the candidates whose prediction variance is within
+    ``_GREEDY_SLACK`` of the largest. On a grid many candidates tie for the largest
+    variance; always taking the first of them gave nearly the same start every time,
+    so the restarts of the exchange explored almost nothing (one or two distinct local
+    optima from five starts).
+    """
     p = f_cand.shape[1]
     info = f_fixed.T @ f_fixed + 1e-6 * np.eye(p)  # small ridge so the first steps are defined
     rows = [int(rng.integers(f_cand.shape[0]))]
     info += np.outer(f_cand[rows[0]], f_cand[rows[0]])
     for _ in range(n_free - 1):
         variance = np.einsum("ij,ij->i", f_cand @ np.linalg.inv(info), f_cand)
-        best = int(np.argmax(variance))
+        near = np.flatnonzero(variance >= (1.0 - _GREEDY_SLACK) * variance.max())
+        best = int(rng.choice(near))
         rows.append(best)
         info += np.outer(f_cand[best], f_cand[best])
     return np.array(rows)
@@ -376,6 +450,7 @@ class Criterion:
 
     name: str
     weights: np.ndarray | None = None
+    region_rows: np.ndarray | None = None
 
     @classmethod
     def d(cls) -> Criterion:
@@ -397,10 +472,24 @@ class Criterion:
         """E-optimality."""
         return cls("e_optimal")
 
+    @classmethod
+    def g(cls, region_rows: np.ndarray) -> Criterion:
+        """G-optimality: the largest prediction variance over the model rows ``region_rows``."""
+        return cls("g_optimal", region_rows=region_rows)
+
+    @classmethod
+    def k(cls) -> Criterion:
+        """K-optimality: the condition number of ``X'X`` (Ye and Zhou 2013)."""
+        return cls("k_optimal")
+
     def value(self, info: np.ndarray) -> float:
-        """Score an information matrix; higher is better (``log det``, ``-trace(M^-1 W)``, or ``lambda_min``)."""
-        if self.name == "e_optimal":
-            return float(np.linalg.eigvalsh(info)[0])
+        """Score an information matrix; higher is better.
+
+        ``log det(M)`` (D), ``-trace(M^-1 W)`` (A, I), ``lambda_min`` (E), minus the largest
+        prediction variance over the region (G), and ``-log(lambda_max / lambda_min)`` (K).
+        """
+        if self.name in ("e_optimal", "k_optimal", "g_optimal"):
+            return _spectral_or_minimax_value(self, info)
         if self.weights is None:
             sign, logdet = np.linalg.slogdet(info)
             return float(logdet) if sign > 0 else -np.inf
@@ -419,6 +508,8 @@ class Criterion:
         """Return ``(i, j, gain)`` for the best single swap: design row ``i`` out, candidate ``j`` in."""
         if self.name == "e_optimal":
             return _best_e_swap(info, f_design, f_cand, polish=phase > 0)
+        if self.name == "k_optimal":
+            return _best_k_swap(info, f_design, f_cand)
         gains = self.swap_gains(np.linalg.pinv(info), f_design, f_cand)
         i, j = np.unravel_index(np.argmax(gains), gains.shape)
         return int(i), int(j), float(gains[i, j])
@@ -554,12 +645,154 @@ def _best_e_swap(
     return 0, 0, 0.0
 
 
+def _spectral_or_minimax_value(criterion: Criterion, info: np.ndarray) -> float:
+    """``lambda_min`` (E), ``-log(lambda_max / lambda_min)`` (K), or minus the largest prediction variance (G)."""
+    if criterion.name == "g_optimal":
+        if np.linalg.matrix_rank(info) < info.shape[0]:
+            return -np.inf
+        return -float(_prediction_variance(criterion.region_rows, np.linalg.inv(info)).max())  # type: ignore[arg-type]
+    eigenvalues = np.linalg.eigvalsh(info)
+    if criterion.name == "e_optimal":
+        return float(eigenvalues[0])
+    if eigenvalues[0] <= 1e-12 * max(float(eigenvalues[-1]), 1e-300):
+        return -np.inf
+    return -float(np.log(eigenvalues[-1] / eigenvalues[0]))
+
+
+def _prediction_variance(rows: np.ndarray, m_inv: np.ndarray) -> np.ndarray:
+    """``f(x)' M^-1 f(x)`` for every model row ``f(x)`` in ``rows``."""
+    return np.einsum("ij,jk,ik->i", rows, m_inv, rows)
+
+
+def _swap_eigenvalues(info: np.ndarray, f_design: np.ndarray, f_cand: np.ndarray, pairs: tuple) -> np.ndarray:
+    """Ascending eigenvalues of ``M - a a' + b b'`` for each swap in ``pairs`` (design rows, candidate rows)."""
+    p = info.shape[0]
+    chunk = max(1, 2_000_000 // p**2)
+    out = []
+    for start in range(0, len(pairs[0]), chunk):
+        a = f_design[pairs[0][start : start + chunk]]
+        b = f_cand[pairs[1][start : start + chunk]]
+        out.append(np.linalg.eigvalsh(info[None] - a[:, :, None] * a[:, None, :] + b[:, :, None] * b[:, None, :]))
+    return np.concatenate(out)
+
+
+def _best_k_swap(info: np.ndarray, f_design: np.ndarray, f_cand: np.ndarray) -> tuple[int, int, float]:
+    """Best swap for K-optimality (smallest condition number of ``X'X``).
+
+    Every swap is ranked by the first-order change in ``log(lambda_min) - log(lambda_max)``,
+    ``((v' b)^2 - (v' a)^2) / lambda`` along the extreme eigenvectors ``v``, and the most
+    promising ones are scored exactly with batched eigenvalue solves, as for E-optimality.
+    """
+    eigenvalues, eigenvectors = np.linalg.eigh(info)
+    lam_min, lam_max = max(float(eigenvalues[0]), 1e-12), float(eigenvalues[-1])
+    current = -np.log(lam_max / lam_min)
+
+    def pull(rows: np.ndarray) -> np.ndarray:
+        return (rows @ eigenvectors[:, 0]) ** 2 / lam_min - (rows @ eigenvectors[:, -1]) ** 2 / lam_max
+
+    estimate = pull(f_cand)[None, :] - pull(f_design)[:, None]
+    n_exact = max(2000, _E_EXACT_WORK // info.shape[0] ** 2)
+    order = np.argsort(estimate, axis=None)[::-1][:n_exact]
+    pairs = np.unravel_index(order, estimate.shape)
+    eig = _swap_eigenvalues(info, f_design, f_cand, pairs)
+    with np.errstate(divide="ignore", invalid="ignore"):
+        score = np.where(eig[:, 0] > 1e-12 * eig[:, -1], -np.log(eig[:, -1] / eig[:, 0]), -np.inf)
+    best = int(np.argmax(score))
+    gain = float(score[best] - current)
+    return (int(pairs[0][best]), int(pairs[1][best]), gain) if gain > 1e-12 else (0, 0, 0.0)
+
+
+#: Reweighting rounds of the I-lambda search for G-optimality, and the size of its final polish.
+_G_ROUNDS = 12
+_G_POLISH_CANDIDATES = 400
+_G_POLISH_PASSES = 20
+
+
+def _g_polish(f_cand: np.ndarray, f_fixed: np.ndarray, rows: np.ndarray, region: np.ndarray) -> np.ndarray:
+    """Exact exchange on the largest prediction variance over ``region``: take the best single swap while it helps.
+
+    With ``A = (M - a a')^-1`` after removing design row ``a``, adding candidate ``b`` gives
+    ``d(r) = r' A r - (r' A b)^2 / (1 + b' A b)`` at every region row ``r`` at once.
+    """
+    rows = rows.copy()
+    for _ in range(_G_POLISH_PASSES):
+        x = np.vstack([f_fixed, f_cand[rows]])
+        m_inv = np.linalg.inv(x.T @ x)
+        current = float(_prediction_variance(region, m_inv).max())
+        pool = np.arange(len(f_cand))
+        if len(pool) > _G_POLISH_CANDIDATES:  # the runs that help most sit where the variance is largest
+            pool = np.argsort(_prediction_variance(f_cand, m_inv))[::-1][:_G_POLISH_CANDIDATES]
+        best = (current - 1e-9 * current, -1, -1)
+        for i, row in enumerate(rows):
+            a = f_cand[row]
+            denominator = 1.0 - a @ m_inv @ a
+            if denominator <= 1e-10:
+                continue
+            m_inv_a = m_inv @ a
+            removed = m_inv + np.outer(m_inv_a, m_inv_a) / denominator
+            region_removed = region @ removed
+            base = np.einsum("ij,ij->i", region_removed, region)
+            b = f_cand[pool]
+            cross = region_removed @ b.T
+            scale = 1.0 + np.einsum("ij,jk,ik->i", b, removed, b)
+            worst = (base[:, None] - cross**2 / scale[None, :]).max(axis=0)
+            j = int(np.argmin(worst))
+            if worst[j] < best[0]:
+                best = (float(worst[j]), i, int(pool[j]))
+        if best[1] < 0:
+            break
+        rows[best[1]] = best[2]
+    return rows
+
+
+def _g_exchange(
+    f_cand: np.ndarray, n_free: int, f_fixed: np.ndarray, rng: np.random.Generator, criterion: Criterion
+) -> tuple[np.ndarray, float]:
+    """G-optimal design by I-lambda optimality (Hernandez and Nachtsheim 2018), then an exact polish.
+
+    The largest prediction variance over the region is hard to lower one swap at a time,
+    so each round runs the closed-form trace exchange for a weighted average of the
+    variance (I-lambda), and Lawson's rule then moves weight towards the region points
+    where the variance is largest (``w <- w * d``). The rounds converge on the minimax
+    design; the best design met is kept and polished by exact swaps on the maximum.
+    """
+    region = criterion.region_rows
+    if region is None:
+        raise ValueError("G-optimality needs the region's model rows.")
+    best_rows, best_value = np.empty(0, dtype=int), -np.inf
+    for _ in range(_N_STARTS):
+        rows = _greedy_start(f_cand, f_fixed, n_free, rng)
+        weights = np.full(len(region), 1.0 / len(region))
+        start_rows, start_value = rows.copy(), -np.inf
+        for _ in range(_G_ROUNDS):
+            rows = _climb(f_cand, f_fixed, rows, Criterion("i_optimal", (region * weights[:, None]).T @ region))
+            x = np.vstack([f_fixed, f_cand[rows]])
+            if np.linalg.matrix_rank(x) < x.shape[1]:
+                break
+            variance = _prediction_variance(region, np.linalg.inv(x.T @ x))
+            if -variance.max() > start_value:
+                start_rows, start_value = rows.copy(), -float(variance.max())
+            weights = weights * variance
+            weights /= weights.sum()
+        if np.isfinite(start_value):
+            start_rows = _g_polish(f_cand, f_fixed, start_rows, region)
+        x = np.vstack([f_fixed, f_cand[start_rows]])
+        value = criterion.value(x.T @ x)
+        if value > best_value or len(best_rows) == 0:
+            best_rows, best_value = start_rows, value
+    return best_rows, best_value
+
+
 def criterion_metadata(criterion: Criterion, value: float) -> dict[str, float]:
     """Report the criterion value under a name that says what it is."""
     if criterion.name == "d_optimal":
         return {"log_det_information": value}
     if criterion.name == "e_optimal":
         return {"min_eigenvalue": value}
+    if criterion.name == "g_optimal":
+        return {"max_prediction_variance": -value}
+    if criterion.name == "k_optimal":
+        return {"condition_number": float(np.exp(-value))}
     # trace((X'X)^-1 W): the summed coefficient variance (A), or the average
     # prediction variance over the region in units of sigma^2 (I).
     return {"trace_criterion": -value}
@@ -584,25 +817,33 @@ def fedorov_exchange(
     Returns
     -------
     tuple[np.ndarray, float]
-        Selected candidate indices and the criterion value of the full design:
-        ``log det(X'X)`` for D, ``-trace((X'X)^-1 W)`` for A and I.
+        Selected candidate indices and the criterion value of the full design (see
+        :meth:`Criterion.value`). G-optimality runs its own search, :func:`_g_exchange`.
     """
     criterion = criterion if criterion is not None else Criterion.d()
+    if criterion.name == "g_optimal":
+        return _g_exchange(f_cand, n_free, f_fixed, rng, criterion)
     best_rows, best_value = np.empty(0, dtype=int), -np.inf
     for _ in range(_N_STARTS):
-        rows = _greedy_start(f_cand, f_fixed, n_free, rng)
-        for phase in range(criterion.n_phases):
-            for _ in range(_MAX_EXCHANGES):
-                x = np.vstack([f_fixed, f_cand[rows]])
-                i, j, gain = criterion.best_swap(x.T @ x, f_cand[rows], f_cand, phase)
-                if not gain > 1e-9:  # also stops on NaN
-                    break
-                rows[i] = j
+        rows = _climb(f_cand, f_fixed, _greedy_start(f_cand, f_fixed, n_free, rng), criterion)
         x = np.vstack([f_fixed, f_cand[rows]])
         value = criterion.value(x.T @ x)
         if value > best_value or len(best_rows) == 0:  # keep a design even if every start is singular
             best_rows, best_value = rows.copy(), value
     return best_rows, best_value
+
+
+def _climb(f_cand: np.ndarray, f_fixed: np.ndarray, rows: np.ndarray, criterion: Criterion) -> np.ndarray:
+    """Make the best single swap while it improves ``criterion``, in each of its phases; return the rows."""
+    rows = rows.copy()
+    for phase in range(criterion.n_phases):
+        for _ in range(_MAX_EXCHANGES):
+            x = np.vstack([f_fixed, f_cand[rows]])
+            i, j, gain = criterion.best_swap(x.T @ x, f_cand[rows], f_cand, phase)
+            if not gain > 1e-9:  # also stops on NaN
+                break
+            rows[i] = j
+    return rows
 
 
 # ---------------------------------------------------------------------------
@@ -620,7 +861,8 @@ class ConstrainedOptions:
         ``"main_effects"``, ``"interactions"`` or ``"quadratic"`` (a mixture design maps
         these to Scheffé models).
     criterion : str
-        ``"d_optimal"`` (default), ``"i_optimal"``, ``"a_optimal"`` or ``"e_optimal"``.
+        ``"d_optimal"`` (default), ``"i_optimal"``, ``"a_optimal"``, ``"e_optimal"``,
+        ``"g_optimal"`` or ``"k_optimal"``.
     fixed_runs : pandas.DataFrame or None
         Runs kept in the design (continuous in coded units, categorical as labels),
         already validated by the caller. They count towards the budget.
@@ -655,6 +897,18 @@ def _fixed_rows(region: _Region, fixed_runs: pd.DataFrame | None, model_type: st
     if n_outside:
         logger.warning("%d fixed run(s) lie outside the constrained region; they are kept as given.", n_outside)
     return model_matrix(region, fixed_coded, fixed_cats, model_type)
+
+
+def _fixed_run_metadata(region: _Region, fixed_runs: pd.DataFrame, requested_budget: int, budget: int) -> dict:
+    """Metadata on the fixed runs: how many, how many lie outside the region, and any budget they raised."""
+    meta = {"n_fixed_runs": len(fixed_runs)}
+    coded = fixed_runs[[f.name for f in region.continuous]].to_numpy(dtype=float)
+    n_outside = int((region.slack(coded) > _FEASIBILITY_TOL).sum())
+    if n_outside:
+        meta["n_fixed_runs_outside_region"] = n_outside
+    if budget != requested_budget:
+        meta["budget_requested"] = requested_budget
+    return meta
 
 
 def _user_candidates(region: _Region, candidates: pd.DataFrame) -> tuple[np.ndarray, np.ndarray, dict, list]:
@@ -707,7 +961,13 @@ def _candidate_pool(
     if opts.candidates is not None:
         coded, cats, counts, labels = _user_candidates(region, opts.candidates)
         return coded, cats, counts, labels, lambda: model_matrix(region, coded, cats, opts.model_type)
-    coded, cats, counts = build_candidates(region, opts.n_levels, opts.model_type)
+    n_levels = opts.n_levels
+    corners_suffice = opts.criterion == "d_optimal" and opts.model_type != "quadratic" and not region.inequalities
+    if n_levels is None and corners_suffice:
+        # Without squared terms each model row is affine in every single coordinate, so det(X'X) is a convex
+        # quadratic in it and is largest at -1 or +1: some exact D-optimal design uses only the box's corners.
+        n_levels = 2
+    coded, cats, counts = build_candidates(region, n_levels, opts.model_type)
     return coded, cats, counts, None, lambda: _uniform_rows(region, opts.model_type, rng, coded)
 
 
@@ -770,8 +1030,22 @@ def _uniform_rows(region: _Region, model_type: str, rng: np.random.Generator, se
     return model_matrix(region, coded, cats, model_type)
 
 
-def make_criterion(name: str, n_parameters: int, region_rows: Callable[[], np.ndarray]) -> Criterion:
-    """Build the :class:`Criterion` called ``name``; ``region_rows`` is only evaluated for I-optimality."""
+#: Uniform draws added to the candidates for the G-criterion's maximum (the candidates hold the boundary points).
+_N_G_REGION_SAMPLES = 3000
+
+
+def make_criterion(
+    name: str,
+    n_parameters: int,
+    region_rows: Callable[[], np.ndarray],
+    candidate_rows: np.ndarray | None = None,
+) -> Criterion:
+    """Build the :class:`Criterion` called ``name``.
+
+    ``region_rows`` (model rows drawn uniformly in the region) is only evaluated for
+    I- and G-optimality. G takes its maximum over those rows plus ``candidate_rows``,
+    which hold the vertices and boundary points where the worst case usually sits.
+    """
     if name == "d_optimal":
         return Criterion.d()
     if name == "a_optimal":
@@ -780,7 +1054,27 @@ def make_criterion(name: str, n_parameters: int, region_rows: Callable[[], np.nd
         return Criterion.i(region_rows())
     if name == "e_optimal":
         return Criterion.e()
-    raise ValueError(f"Unknown criterion {name!r}; choose 'd_optimal', 'i_optimal', 'a_optimal' or 'e_optimal'.")
+    if name == "k_optimal":
+        return Criterion.k()
+    if name == "g_optimal":
+        sample = region_rows()[:_N_G_REGION_SAMPLES]
+        rows = sample if candidate_rows is None else np.vstack([candidate_rows, sample])
+        return Criterion.g(np.unique(rows.round(12), axis=0))
+    raise ValueError(
+        f"Unknown criterion {name!r}; choose 'd_optimal', 'i_optimal', 'a_optimal', 'e_optimal', 'g_optimal' or "
+        "'k_optimal'."
+    )
+
+
+def _check_factors_and_model(factors: list[Factor], model_type: str) -> None:
+    """Refuse mixture components and a model type the model matrix does not build."""
+    if model_type not in _MODEL_TYPES:
+        raise ValueError(f"model_type={model_type!r} is not supported; choose from {', '.join(_MODEL_TYPES)}.")
+    if any(f.type == FactorType.mixture for f in factors):
+        raise ValueError(
+            "Mixture components need the mixture engine: give only mixture factors, and generate_design routes "
+            "them there. Mixture-process designs are not supported."
+        )
 
 
 def constrained_optimal_design(
@@ -790,17 +1084,21 @@ def constrained_optimal_design(
     options: ConstrainedOptions | None = None,
     random_state: int | np.random.Generator | None = None,
 ) -> tuple[np.ndarray, dict]:
-    """Generate a D-, I-, A- or E-optimal design from a candidate set, with every run satisfying ``constraints``.
+    """Generate a D-, I-, A- or E-optimal design from a candidate set, every chosen run satisfying ``constraints``.
 
     This is also the optimal-design backend when pyoptex is not installed, with
-    ``constraints`` empty.
+    ``constraints`` empty. Runs in ``options.fixed_runs`` are kept as given, even
+    outside the region (with a warning); ``metadata["n_fixed_runs_outside_region"]``
+    counts them.
 
     Parameters
     ----------
     factors : list[Factor]
         Continuous and categorical factors. Mixture factors are not supported here.
     budget : int
-        Total number of runs, including ``fixed_runs``.
+        Total number of runs, including ``fixed_runs``. When the fixed runs leave too
+        few free runs to estimate the model, it is raised (with a warning) and the value
+        asked for is recorded in ``metadata["budget_requested"]``.
     constraints : list[Constraint]
         Inequalities in actual units over the continuous factors, e.g.
         ``Constraint(expression="3*T + 5*D <= 600")``. May be empty.
@@ -818,17 +1116,14 @@ def constrained_optimal_design(
     Raises
     ------
     ValueError
-        If a constraint cannot be parsed, no candidate point is feasible, or the
-        feasible region cannot support the requested model.
+        If ``model_type`` is unknown, a constraint cannot be parsed, no candidate point
+        is feasible, or the feasible region cannot support the requested model.
     """
     rng = check_random_state(random_state)
     opts = options if options is not None else ConstrainedOptions()
     model_type, fixed_runs = opts.model_type, opts.fixed_runs
-    if any(f.type == FactorType.mixture for f in factors):
-        raise ValueError(
-            "Mixture components need the mixture engine: give only mixture factors, and generate_design routes "
-            "them there. Mixture-process designs are not supported."
-        )
+    requested_budget = budget
+    _check_factors_and_model(factors, model_type)
 
     continuous = [f for f in factors if f.type != FactorType.categorical]
     categorical = [f for f in factors if f.type == FactorType.categorical]
@@ -853,7 +1148,7 @@ def constrained_optimal_design(
 
     p = f_cand.shape[1]
     budget = _budget_for_fixed_runs(f_fixed, p, budget)
-    criterion = make_criterion(opts.criterion, p, region_rows)
+    criterion = make_criterion(opts.criterion, p, region_rows, f_cand)
     rows, value = fedorov_exchange(f_cand, budget - n_fixed, f_fixed, rng, criterion)
     if len(rows) != budget - n_fixed or np.linalg.matrix_rank(np.vstack([f_fixed, f_cand[rows]])) < p:
         raise ValueError(
@@ -878,8 +1173,8 @@ def constrained_optimal_design(
         meta["constraints"] = [c.expression for c in constraints]
         meta["constraints_enforced"] = True
     meta.update(criterion_metadata(criterion, value))
-    if n_fixed:
-        meta["n_fixed_runs"] = n_fixed
+    if fixed_runs is not None:
+        meta.update(_fixed_run_metadata(region, fixed_runs, requested_budget, budget))
     if labels is not None:
         meta["candidate_source"] = "user"
         meta["selected_candidates"] = selection_counts(labels, rows)

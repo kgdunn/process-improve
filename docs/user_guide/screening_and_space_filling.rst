@@ -51,7 +51,7 @@ sets the number of runs; the default is ``10 * k``.
 
    box = [Factor(name=n, low=0, high=10) for n in "ABC"]
    for design_type in ["latin_hypercube", "maximin_lhs", "uniform", "sobol", "halton", "maximin"]:
-       m = generate_design(box, design_type=design_type, budget=20, random_seed=0).metadata
+       m = generate_design(box, design_type=design_type, budget=20, random_state=0).metadata
        print(design_type, round(m["min_distance"], 2), round(m["centered_l2_discrepancy"], 4))
 
 .. list-table:: Twenty runs in three factors (coded distances)
@@ -59,16 +59,16 @@ sets the number of runs; the default is ``10 * k``.
 
    * - Design type
      - Smallest distance between runs (higher is more spread)
-     - Centred L2 discrepancy (lower is more uniform)
+     - Squared centred L2 discrepancy (lower is more uniform)
    * - ``latin_hypercube``
      - 0.21
      - 0.0062
    * - ``maximin_lhs``
-     - 0.70
-     - 0.0043
-   * - ``uniform``
-     - 0.57
+     - 0.68
      - 0.0030
+   * - ``uniform``
+     - 0.47
+     - 0.0023
    * - ``sobol``
      - 0.35
      - 0.0051
@@ -80,8 +80,12 @@ sets the number of runs; the default is ``10 * k``.
      - 0.1025
 
 The two columns measure different things. A maximin design keeps runs as far apart as
-possible, which pushes them to the faces and corners of the region; a uniform design
-matches the fraction of runs in every sub-box to that sub-box's volume. The Latin
+possible, which pushes them to the faces and corners of the region; in 8 or more factors
+every run of a ``"maximin"`` design sits on the levels -1, 0 and +1, so runs coincide
+when projected onto a few factors. A uniform design matches the fraction of runs in
+every sub-box to that sub-box's volume. The discrepancy column is Hickernell's squared
+centred L2 discrepancy, ``CD^2``, the value ``scipy.stats.qmc.discrepancy`` returns and
+``metadata["centered_l2_discrepancy"]`` reports. The Latin
 hypercube types also guarantee that each factor's range is cut into ``n`` slices with
 one run in each, which the maximin and sequence designs do not.
 

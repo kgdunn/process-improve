@@ -271,6 +271,119 @@ class TestSemifold:
         assert "A" in result["explanation"]
 
 
+@pytest.mark.parametrize("augmentation_type", ["add_runs_optimal", "add_center_points", "replicate", "add_blocks"])
+@pytest.mark.parametrize("n_additional_runs", [0, -2, 1.5])
+def test_non_positive_run_count_is_refused(augmentation_type: str, n_additional_runs: float) -> None:
+    """add_runs_optimal with 0 or -2 added a run anyway; replicate and centre points failed inside pandas or numpy."""
+    with pytest.raises(ValueError, match="n_additional_runs must be a positive whole number"):
+        augment_design(
+            _full_factorial_df(3), augmentation_type, n_additional_runs=n_additional_runs, target_model="interactions"
+        )
+
+
+def test_block_count_that_is_not_a_power_of_two_is_refused() -> None:
+    """Three blocks used to become four without a word; it is now refused."""
+    with pytest.raises(ValueError, match="2, 4, 8"):
+        augment_design(_full_factorial_df(3), "add_blocks", n_additional_runs=3)
+
+
+class TestFactorColumns:
+    """A response carried with the design must not be augmented as a factor."""
+
+    @staticmethod
+    def _with_response() -> pd.DataFrame:
+        design = _full_factorial_df(3).astype(float)
+        design["y"] = [10.0, 12, 11, 15, 9, 14, 13, 16]
+        return design
+
+    def test_response_column_is_refused_by_default(self) -> None:
+        """Axial runs on y and a foldover with y = -10 used to come back without a word."""
+        with pytest.raises(ValueError, match=r"Column\(s\) \['y'\] do not look like factors"):
+            augment_design(self._with_response(), "add_axial_points")
+
+    @pytest.mark.parametrize("augmentation_type", ["add_axial_points", "foldover", "add_center_points"])
+    def test_factor_names_keep_the_response_out(self, augmentation_type: str) -> None:
+        """Naming the factors gives 2k = 6 axial runs on A, B and C, as for the design without y."""
+        with_y = augment_design(self._with_response(), augmentation_type, factor_names=["A", "B", "C"])
+        without_y = augment_design(_full_factorial_df(3).astype(float), augmentation_type)
+        assert with_y["new_runs"] == without_y["new_runs"]
+        assert set(with_y["augmented_design"][0]) == {"A", "B", "C"}
+
+    def test_factor_held_at_one_level_is_still_a_factor(self) -> None:
+        """A factor held at -1 in the first runs is within the coded range, so it is augmented, not refused."""
+        design = _full_factorial_df(2).astype(float)
+        design["C"] = -1.0
+        result = augment_design(design, "add_runs_optimal", n_additional_runs=4, target_model="main_effects")
+        assert set(result["new_runs"][0]) == {"A", "B", "C"}
+
+    def test_unknown_factor_name_is_refused(self) -> None:
+        with pytest.raises(ValueError, match="factor_names must name distinct columns"):
+            augment_design(_full_factorial_df(2), "foldover", factor_names=["A", "Z"])
+
+
+class TestAliasingExplanation:
+    """The explanation must not call an effect independently estimable while it is still aliased."""
+
+    @staticmethod
+    def _correlation(design: list[dict], a: str, b: str) -> float:
+        frame = pd.DataFrame(design)
+
+        def column(effect: str) -> np.ndarray:
+            return np.prod([frame[f].to_numpy(float) for f in effect.split(":")], axis=0)
+
+        return float(np.corrcoef(column(a), column(b))[0, 1])
+
+    def test_foldover_of_resolution_iii_reports_iv_and_the_surviving_chains(self) -> None:
+        """2^(5-2) with D=AB, E=AC folds to I=BCDE (Montgomery sec. 8.6): resolution III -> IV.
+
+        Main effects separate from the two-factor interactions; B:C = D:E stays aliased, which the
+        explanation used to call 'now independently estimable'.
+        """
+        design = _fractional_factorial_df(["D=AB", "E=AC"], names="ABCDE")
+        result = augment_design(design, "foldover", generators=["D=AB", "E=AC"])
+        explanation = result["explanation"]
+        assert result["defining_relation"] == ["I=BCDE"]
+        assert result["before_metrics"]["resolution"] == 3
+        assert result["after_metrics"]["resolution"] == 4
+        assert "Resolution changed from III to IV." in explanation
+        assert "independently estimable" not in explanation
+        assert "Now uncorrelated with every effect they were aliased with: A, B, C, D, E," in explanation
+        assert "Still fully aliased: B:C = D:E; B:D = C:E; B:E = C:D." in explanation
+        assert abs(self._correlation(result["augmented_design"], "B:C", "D:E")) == pytest.approx(1.0)
+
+    def test_foldover_that_removes_every_word_is_a_full_factorial(self) -> None:
+        """Folding 2^(3-1) with C=AB eliminates I=ABC, leaving the full 2^3."""
+        result = augment_design(_fractional_factorial_df(["C=AB"], names="ABC"), "foldover", generators=["C=AB"])
+        assert result["defining_relation"] is None
+        assert "the augmented design is a full factorial" in result["explanation"]
+
+    def test_semifold_reports_partial_aliasing_not_full_resolution(self) -> None:
+        """A semifold of 2^(4-1) leaves A:B and C:D correlated at |r| = 1/3 (Mee and Peralta, 2000)."""
+        design = _fractional_factorial_df(["D=ABC"], names="ABCD")
+        result = augment_design(design, "semifold", generators=["D=ABC"], fold_on="A")
+        explanation = result["explanation"]
+        assert "full resolution" not in explanation
+        assert "independently estimable" not in explanation
+        assert "A:B with C:D (|r| = 0.33)" in explanation
+        assert "not a regular fraction" in explanation
+        assert abs(self._correlation(result["augmented_design"], "A:B", "C:D")) == pytest.approx(1 / 3)
+
+    def test_upgrade_to_rsm_keeps_two_factor_chains_aliased(self) -> None:
+        """Axial and centre runs are zero on every interaction column, so A:B = C:D survives."""
+        design = _fractional_factorial_df(["D=ABC"], names="ABCD")
+        with pytest.warns(UserWarning, match="supports only 12"):
+            result = augment_design(design, "upgrade_to_rsm", generators=["D=ABC"])
+        assert "Still fully aliased: A:B = C:D; A:C = B:D; A:D = B:C." in result["explanation"]
+        assert "independently estimable" not in result["explanation"]
+
+    def test_center_points_leave_the_resolution_unchanged(self) -> None:
+        """Adding centre runs changes no aliasing."""
+        design = _fractional_factorial_df(["D=ABC"], names="ABCD")
+        result = augment_design(design, "add_center_points", generators=["D=ABC"], n_additional_runs=3)
+        assert result["after_metrics"]["resolution"] == 4
+        assert "Resolution unchanged at IV." in result["explanation"]
+
+
 # ---------------------------------------------------------------------------
 # Add axial points
 # ---------------------------------------------------------------------------
@@ -365,6 +478,42 @@ class TestUpgradeToRSM:
         # Should have original 3 + some new, but not an unreasonable number
         assert n_centers >= 3
         assert n_centers <= 8
+
+    def test_resolution_iv_cube_warns_that_the_quadratic_is_not_estimable(self) -> None:
+        """On a 2^(4-1) IV cube A:B = C:D survives the upgrade: 15 coefficients, rank 12 (MMA sec. 7.4)."""
+        design = _fractional_factorial_df(["D=ABC"], names="ABCD")
+        with pytest.warns(UserWarning, match="supports only 12") as record:
+            result = augment_design(design, "upgrade_to_rsm", generators=["D=ABC"])
+        assert record[0].filename == __file__
+        assert (result["n_coefficients"], result["n_estimable"]) == (15, 12)
+        assert "A:B, A:C, A:D, B:C, B:D, C:D cannot all be estimated" in result["explanation"]
+        assert "full quadratic" not in result["explanation"]
+
+    def test_target_model_drives_the_check(self) -> None:
+        """The same cube supports a main-effects model, so asking for one does not warn."""
+        design = _fractional_factorial_df(["D=ABC"], names="ABCD")
+        result = augment_design(design, "upgrade_to_rsm", target_model="main_effects")
+        assert result["n_estimable"] == result["n_coefficients"] == 5
+        assert "supports the main_effects model" in result["explanation"]
+
+    def test_full_cube_supports_the_quadratic(self) -> None:
+        """A 2^3 cube with axial and centre runs estimates all 10 quadratic coefficients."""
+        result = augment_design(_full_factorial_df(3), "upgrade_to_rsm")
+        assert result["n_estimable"] == result["n_coefficients"] == 10
+
+    @pytest.mark.parametrize(("existing", "added"), [(0, 5), (1, 4), (2, 3), (5, 0), (7, 0)])
+    def test_centre_runs_are_topped_up_to_five(self, existing: int, added: int) -> None:
+        """The total used to fall as existing centres rose: 0 -> 5 total, 1 -> 4, 2 -> 3."""
+        design = pd.concat([_full_factorial_df(2), pd.DataFrame({"A": [0.0] * existing, "B": [0.0] * existing})])
+        result = augment_design(design.reset_index(drop=True), "upgrade_to_rsm", alpha="face_centered")
+        assert result["n_runs_after"] - result["n_runs_before"] == 4 + added
+
+    def test_orthogonal_alpha_counts_the_new_centre_runs(self) -> None:
+        """alpha='orthogonal' must make the centred squared columns orthogonal in the final design."""
+        result = augment_design(_full_factorial_df(3), "upgrade_to_rsm", alpha="orthogonal")
+        squares = pd.DataFrame(result["augmented_design"]).to_numpy(float) ** 2
+        centred = squares - squares.mean(axis=0)
+        assert centred[:, 0] @ centred[:, 1] == pytest.approx(0.0, abs=1e-9)
 
     def test_explanation_mentions_ccd(self) -> None:
         """Explanation should mention CCD or Central Composite."""
@@ -511,12 +660,13 @@ class TestAddBlocks:
             augment_design(df, "add_blocks", n_additional_runs=1)
 
     def test_four_blocks(self) -> None:
-        """4 blocks should use 2 confounding columns."""
+        """4 blocks: two generators and their product, three contrasts, none of them a main effect."""
         df = _full_factorial_df(4)  # 16 runs
         result = augment_design(df, "add_blocks", n_additional_runs=4)
         aug = pd.DataFrame(result["augmented_design"])
         assert len(aug["Block"].unique()) == 4
-        assert len(result["confounded_with"]) == 2
+        assert len(result["confounded_with"]) == 3
+        assert all(len(word) >= 2 for word in result["confounded_with"])
 
 
 # ---------------------------------------------------------------------------

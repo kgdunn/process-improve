@@ -84,7 +84,7 @@ How the design is chosen
 3. **Exchange.** A Fedorov exchange swaps one design run for one candidate at a
    time, taking the swap that increases the determinant of ``X'X`` most, until no
    swap improves it. Five random starts guard against a poor local optimum;
-   ``random_seed`` makes the result reproducible.
+   ``random_state`` makes the result reproducible.
 
 Writing constraints
 -------------------
@@ -116,9 +116,9 @@ Combining with other options
 Judging the design over its own region
 --------------------------------------
 
-A constrained design should be judged on the settings it may visit. The I-efficiency
-averages the prediction variance over the region, and the G-efficiency takes its
-worst case. Over the full box, both are dominated by the cut-off corner, where the
+A constrained design should be judged on the settings it may visit. The average
+prediction variance (the I-criterion, lower is better) averages it over the region, and
+the G-efficiency is based on its worst case. Over the full box, both are dominated by the cut-off corner, where the
 model has to extrapolate. ``generate_design`` records the region in
 ``result.metadata["region"]``, and ``evaluate_design`` uses it by default:
 
@@ -126,13 +126,14 @@ model has to extrapolate. ``generate_design`` records the region in
 
    from process_improve.experiments import evaluate_design
 
-   inside = evaluate_design(result, model="quadratic", metric=["i_efficiency", "g_efficiency"])
-   cube = evaluate_design(result, model="quadratic", metric=["i_efficiency", "g_efficiency"], region="cuboidal")
-   print(f"{inside['i_efficiency']:.0f} {inside['g_efficiency']:.0f}")  # 120 73
-   print(f"{cube['i_efficiency']:.0f} {cube['g_efficiency']:.1f}")      # 42 3.5
+   metrics = ["average_prediction_variance", "g_efficiency"]
+   inside = evaluate_design(result, model="quadratic", metric=metrics)
+   cube = evaluate_design(result, model="quadratic", metric=metrics, region="cuboidal")
+   print(f"{inside['average_prediction_variance']:.2f} {inside['g_efficiency']:.0f}")  # 0.50 73
+   print(f"{cube['average_prediction_variance']:.2f} {cube['g_efficiency']:.1f}")      # 1.44 3.5
 
-The design's worst-case prediction variance inside the region is about a twentieth of
-its worst case over the box. The box figure describes settings the plant cannot run,
+Inside the region the average prediction variance is a third of its value over the
+box, and the worst case is about a twentieth. The box figure describes settings the plant cannot run,
 so it says nothing about the design's quality for this process.
 
 The region is sampled uniformly by rejection, and its boundary points (the feasible
@@ -148,7 +149,7 @@ The exchange maximises one number, and the three criteria ask different question
 * **D-optimal** (``design_type="d_optimal"``) maximises ``det(X'X)``: the model
   coefficients are estimated jointly as precisely as possible.
 * **I-optimal** (``"i_optimal"``) minimises the average prediction variance over the
-  region, which is what I-efficiency measures. It suits a study whose purpose is
+  region, which ``evaluate_design`` reports as ``average_prediction_variance``. It suits a study whose purpose is
   prediction or optimisation.
 * **A-optimal** (``"a_optimal"``) minimises the summed variance of the coefficients.
 * **E-optimal** (``"e_optimal"``) maximises the smallest eigenvalue of ``X'X``, so no
@@ -185,19 +186,20 @@ uses to judge it:
 
    for design_type in ["d_optimal", "i_optimal"]:
        r = generate_design(factors, design_type=design_type, budget=10, constraints=[heat], model_type="quadratic")
-       m = evaluate_design(r, model="quadratic", metric=["d_efficiency", "i_efficiency", "g_efficiency"])
-       print(design_type, {k: round(v, 1) for k, v in m.items() if k.endswith("efficiency")})
-   # d_optimal {'d_efficiency': 29.6, 'i_efficiency': 120.3, 'g_efficiency': 73.3}
-   # i_optimal {'d_efficiency': 27.4, 'i_efficiency': 168.5, 'g_efficiency': 62.7}
+       m = evaluate_design(r, model="quadratic", metric=["d_efficiency", "average_prediction_variance", "g_efficiency"])
+       print(design_type, {k: round(m[k], 3) for k in ("d_efficiency", "average_prediction_variance", "g_efficiency")})
+   # d_optimal {'d_efficiency': 29.57, 'average_prediction_variance': 0.499, 'g_efficiency': 73.341}
+   # i_optimal {'d_efficiency': 27.351, 'average_prediction_variance': 0.356, 'g_efficiency': 62.677}
 
 Each design is best on its own criterion. The I-optimal design places more runs in the
 interior, so its average prediction variance is lower by a factor of 1.4, at the cost
 of a slightly less precise joint estimate of the coefficients and a larger worst case
 at the boundary.
 
-These designs come from the built-in exchange and do not need pyoptex. When pyoptex is
-installed and no constraints are given, it is used instead; it is still needed for
-split-plot designs (``hard_to_change``).
+These designs come from the built-in exchange, which is the default for every optimal
+design, so the same call gives the same design whether or not the optional pyoptex
+package is installed. pyoptex is used for split-plot designs (``hard_to_change``), or
+when asked for with ``backend="pyoptex"``.
 
 Choosing runs from a list: candidate sets
 -----------------------------------------
@@ -296,20 +298,25 @@ design is built from its geometry.
    print(dopt.metadata["method"])  # d_optimal_extreme_vertices
 
 * **Extreme vertices.** In ``q`` components, a vertex is a blend where ``q - 1``
-  constraints hold with equality. Every such choice of constraints is solved as one
-  linear system, all of them in a single batched call, and the feasible solutions are
-  the vertices.
-* **Without a budget** the classical extreme-vertices design is returned: the
-  vertices and the centroid, plus the edge midpoints for a quadratic model and the
-  centroids of the 2-dimensional faces for a special cubic one. Those faces are the
-  constrained counterpart of ternary blends, which the ``x_i x_j x_k`` terms need.
+  constraints hold with equality. Constraints implied by the others are dropped, every
+  choice of ``q - 1`` of the rest is solved as one linear system, in batches, and the
+  feasible solutions are the vertices.
+* **Without a budget** the vertices and the centroid are returned, plus the edge
+  midpoints for a quadratic model and the centroids of the 2-dimensional faces for a
+  special cubic one. Those faces are the constrained counterpart of ternary blends,
+  which the ``x_i x_j x_k`` terms need. When that is more than three runs per model
+  term, as it soon is with many bounded components, a D-optimal design with five runs
+  more than the model has terms is returned instead.
 * **With a budget** a D-optimal subset is chosen from the vertices, edge midpoints,
   2-face and facet centroids, centroid and axial check blends, by the same exchange
   as above. Blends can repeat, which gives replicates for a pure-error estimate.
 
 Mixture constraints must be linear in the proportions, since the vertex enumeration
-relies on flat faces. On the full simplex (no bounds, no constraints) the classical
-simplex-lattice and simplex-centroid designs are used, as before.
+relies on flat faces. On the full simplex (no bounds, no constraints) the design is
+sized to the model: the pure components and the overall centroid for a linear model,
+plus the binary 50:50 blends for a quadratic one (the ``{q, 2}`` simplex lattice), plus
+the ternary blends for a special cubic one. With three components that is the 7-run
+simplex centroid. A budget below that size gives a D-optimal subset instead.
 
 Analyse the runs with a Scheffé model. It has no intercept, because the proportions
 sum to one:

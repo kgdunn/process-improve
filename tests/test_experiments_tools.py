@@ -35,17 +35,24 @@ class TestCreateFactorialDesign:
         assert "error" not in result
         assert result["n_runs"] == 8
         assert result["n_factors"] == 3
-        # Names may have a "[coded]" suffix - just check the supplied stems are present.
-        joined = " ".join(result["factor_names"])
-        for stem in ("Temperature", "Pressure", "Time"):
-            assert stem in joined
+        assert result["factor_names"] == ["Temperature", "Pressure", "Time"]
+        assert set(result["design"][0]) == {"Temperature", "Pressure", "Time"}
 
     def test_default_factor_names(self) -> None:
         """Without explicit names the wrapper should still succeed."""
         result = execute_tool_call("create_factorial_design", {"n_factors": 2})
         assert "error" not in result
         assert result["n_runs"] == 4
-        assert len(result["factor_names"]) == 2
+        assert result["factor_names"] == ["A", "B"]
+        assert set(result["design"][0]) == {"A", "B"}
+
+    @pytest.mark.parametrize("names", [["T", "P"], ["T", "P", "Q", "R"], ["T", "T", "P"]])
+    def test_names_must_match_n_factors(self, names: list[str]) -> None:
+        """Two names with n_factors=3 used to give a 2-factor design reported as 3 factors."""
+        from process_improve.tool_safety import ToolInputInvalidError
+
+        with pytest.raises(ToolInputInvalidError):
+            execute_tool_call("create_factorial_design", {"n_factors": 3, "factor_names": names})
 
     def test_invalid_n_factors_returns_error(self) -> None:
         """A bad n_factors is rejected by the pydantic Field constraint."""
@@ -328,6 +335,33 @@ class TestAnalyzeExperiment:
 # ---------------------------------------------------------------------------
 
 
+@pytest.mark.parametrize(
+    ("tool", "args"),
+    [
+        ("generate_design", {"random_seed": -1}),
+        ("generate_design", {"random_state": -1}),
+        ("augment_design", {"random_state": -1}),
+        ("evaluate_design", {"random_state": -1}),
+        ("optimize_responses", {"random_state": -1}),
+    ],
+)
+def test_negative_seed_is_rejected_by_the_schema(tool: str, args: dict) -> None:
+    """A negative seed reached numpy and came back as 'expected non-negative integer'."""
+    base = {
+        "generate_design": {"factors": [{"name": "A", "low": 0, "high": 1}, {"name": "B", "low": 0, "high": 1}]},
+        "augment_design": {"existing_design": [{"A": -1, "B": -1}, {"A": 1, "B": 1}], "augmentation_type": "foldover"},
+        "evaluate_design": {"design_matrix": [{"A": -1, "B": -1}, {"A": 1, "B": 1}]},
+        "optimize_responses": {
+            "fitted_models": [
+                {"factor_names": ["A"], "coefficients": [{"term": "A", "coefficient": 1.0}], "response_name": "y"}
+            ],
+            "method": "steepest_ascent",
+        },
+    }[tool]
+    with pytest.raises(ToolInputInvalidError):
+        execute_tool_call(tool, {**base, **args})
+
+
 class TestOptimizeResponses:
     def test_stationary_point_quadratic(self) -> None:
         """Stationary-point optimisation on a small quadratic model."""
@@ -392,10 +426,51 @@ class TestOptimizeResponses:
         result = self._rising_plane_call()
         assert result["desirability"]["optimal_coded"]["A"] == pytest.approx(1.0, abs=1e-4)
 
+    @pytest.mark.parametrize("bounds", [[-1.5], [-1.5, 1.5, 99.0], {"A": [-2.0]}, {"A": [-2.0, 2.0, 3.0]}])
+    def test_search_bounds_must_be_a_pair(self, bounds: object) -> None:
+        """One number escaped as an IndexError; three had the third silently dropped."""
+        with pytest.raises(ToolInputInvalidError):
+            self._rising_plane_call(search_bounds=bounds)
+
     def test_malformed_search_bounds_returns_an_error(self) -> None:
         """A reversed pair is reported, not silently accepted."""
         result = self._rising_plane_call(search_bounds=[1.0, -1.0])
         assert "low < high" in result["error"]
+
+    def test_analyze_experiment_result_feeds_optimize_responses(self) -> None:
+        """The documented generate -> analyze -> optimize pipeline, with no hand-editing of the result."""
+        design = execute_tool_call(
+            "generate_design",
+            {
+                "factors": [{"name": "T", "low": 150, "high": 200}, {"name": "P", "low": 1, "high": 5}],
+                "design_type": "ccd",
+            },
+        )
+        rows = [
+            dict(r, y=40 + 5 * r["T"] - 2 * r["P"] - 3 * r["T"] ** 2 - 1.5 * r["P"] ** 2 + 1.5 * r["T"] * r["P"])
+            for r in design["design_coded"]
+        ]
+        fitted = execute_tool_call(
+            "analyze_experiment",
+            {"design_matrix": rows, "response_column": "y", "model": "quadratic", "analysis_type": ["coefficients"]},
+        )
+        assert fitted["response_name"] == "y"
+        assert fitted["factor_names"] == ["T", "P"]
+        result = execute_tool_call("optimize_responses", {"fitted_models": [fitted], "method": "stationary_point"})
+        assert result["stationary_point"]["classification"] == "maximum"
+        # Solve 2 B x = -b for b = (5, -2), B = [[-3, 0.75], [0.75, -1.5]].
+        assert result["stationary_point"]["stationary_point_coded"]["T"] == pytest.approx(16 / 21)
+
+    def test_model_without_factor_names_names_the_key(self) -> None:
+        """The error says what is missing, not just the bare key."""
+        result = execute_tool_call(
+            "optimize_responses",
+            {
+                "fitted_models": [{"coefficients": [{"term": "Intercept", "coefficient": 1.0}]}],
+                "method": "stationary_point",
+            },
+        )
+        assert "has no 'factor_names'" in result["error"]
 
     def test_invalid_method_returns_error(self) -> None:
         """Unknown method is rejected by the pydantic Literal."""
@@ -584,6 +659,17 @@ class TestTradeOffTable:
         assert cell["exists"] is False
         assert "cannot accommodate" in cell["reason"]
 
+    def test_existing_design_beyond_the_search_is_not_reported_impossible(self) -> None:
+        """2^(12-7) designs exist; the cell used to read exists: False, 'too many factors for the budget'."""
+        result = execute_tool_call("trade_off_table", {"runs": [32, 64], "factors": [12]})
+        result["cells"] += execute_tool_call("trade_off_table", {"runs": [64], "factors": [11]})["cells"]
+        cells = {(c["runs"], c["factors"]): c for c in result["cells"]}
+        assert cells[32, 12]["exists"] is None
+        assert result["table"]["32"]["12"] == "?"
+        assert "The design exists" in cells[32, 12]["reason"]
+        assert cells[64, 11]["exists"] is True
+        assert cells[64, 11]["label"] == "2^(11-5) IV"
+
     def test_over_budget_cell_reports_replication(self) -> None:
         """A budget larger than the full factorial is replication, not an error."""
         result = execute_tool_call("trade_off_table", {"runs": [32], "factors": [3]})
@@ -616,3 +702,84 @@ class TestTradeOffTable:
         specs = {s["name"]: s for s in get_experiments_tool_specs()}
         assert "trade_off_table" in specs
         assert specs["trade_off_table"]["input_schema"]["additionalProperties"] is False
+
+
+def test_generate_design_tool_offers_every_design_type() -> None:
+    """The tool's design_type choices are exactly generate_design's registry (omars was missing)."""
+    import typing
+
+    from process_improve.experiments._tools.generate_design import GenerateDesignInput
+    from process_improve.experiments.designs import _DESIGN_REGISTRY
+
+    annotation = GenerateDesignInput.model_fields["design_type"].annotation
+    literal = next(arg for arg in typing.get_args(annotation) if typing.get_origin(arg) is typing.Literal)
+    assert set(typing.get_args(literal)) == set(_DESIGN_REGISTRY)
+
+
+def test_generate_design_tool_enforces_constraints_and_returns_the_region() -> None:
+    from process_improve.experiments._tools.generate_design import GenerateDesignInput, generate_design_tool
+
+    spec = GenerateDesignInput(
+        factors=[{"name": "T", "low": 100, "high": 150}, {"name": "D", "low": 20, "high": 60}],
+        design_type="i_optimal",
+        budget=10,
+        model_type="quadratic",
+        constraints=["3*T + 5*D <= 600"],
+    )
+    out = generate_design_tool(spec)
+    assert "error" not in out, out
+    assert all(3 * r["T"] + 5 * r["D"] <= 600 + 1e-9 for r in out["design_actual"])
+    assert out["metadata"]["region"]["constraints"][0]["expression"] == "3*T + 5*D <= 600"
+    import json
+
+    json.dumps(out)  # JSON-serialisable for MCP transport
+
+
+def test_region_round_trips_through_the_tools() -> None:
+    """generate_design -> evaluate_design -> optimize_responses, all inside the constrained region."""
+    from process_improve.experiments._tools.evaluate_design import EvaluateDesignInput, evaluate_design_tool
+    from process_improve.experiments._tools.generate_design import GenerateDesignInput, generate_design_tool
+    from process_improve.experiments._tools.optimize_responses import OptimizeResponsesInput, optimize_responses_tool
+
+    factors = [{"name": "T", "low": 100, "high": 150}, {"name": "D", "low": 20, "high": 60}]
+    design = generate_design_tool(
+        GenerateDesignInput(
+            factors=factors,
+            design_type="d_optimal",
+            budget=10,
+            model_type="quadratic",
+            constraints=["3*T + 5*D <= 600"],
+        )
+    )
+    region = design["metadata"]["region"]
+    coded = [{k: r[k] for k in ("T", "D")} for r in design["design_coded"]]
+    inside = evaluate_design_tool(
+        EvaluateDesignInput(design_matrix=coded, model="quadratic", metric="g_efficiency", region=region)
+    )
+    cube = evaluate_design_tool(
+        EvaluateDesignInput(design_matrix=coded, model="quadratic", metric="g_efficiency", region="cuboidal")
+    )
+    assert inside["g_efficiency"] > 10 * cube["g_efficiency"]
+
+    model = {
+        "response_name": "y",
+        "factor_names": ["T", "D"],
+        "coefficients": [
+            {"term": "Intercept", "coefficient": 60.0},
+            {"term": "T", "coefficient": 8.0},
+            {"term": "D", "coefficient": 6.0},
+            {"term": "I(T ** 2)", "coefficient": -2.0},
+            {"term": "I(D ** 2)", "coefficient": -3.0},
+        ],
+    }
+    best = optimize_responses_tool(
+        OptimizeResponsesInput(
+            fitted_models=[model],
+            goals=[{"response": "y", "goal": "maximize", "low": 40, "high": 75}],
+            factor_ranges={"T": {"low": 100, "high": 150}, "D": {"low": 20, "high": 60}},
+            region=region,
+        )
+    )
+    optimum = best["desirability"]["optimal_actual"]
+    assert best["desirability"]["within_region"]
+    assert 3 * optimum["T"] + 5 * optimum["D"] <= 600 + 1e-6
