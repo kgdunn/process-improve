@@ -34,8 +34,8 @@ those changes.
   of the same quality and run times unchanged. pyoptex now receives the levels in sorted
   order, so its own trace equals `trace_criterion` and `evaluate_design`'s A-criterion
   (1.186 for all three on a 14-run design whose levels are declared `lo, mid, hi`, where
-  `trace_criterion` reported 3.407 and `evaluate_design` 3.621 before). A `Block` column named in the formula is
-  sum-coded, as `analyze_experiment` codes blocks. Pass `categorical_coding="treatment"`
+  `trace_criterion` reported 3.407 and `evaluate_design` 3.621 before). A `Block` column
+  named in the formula is sum-coded, as `analyze_experiment` codes blocks. Pass `categorical_coding="treatment"`
   for the previous numbers. `analyze_experiment` is unchanged: its coefficients keep
   treatment coding and its effects already run from low to high.
 
