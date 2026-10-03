@@ -16,7 +16,8 @@ feasible *candidate* points instead, in three steps:
 3. **Exchange.** A Fedorov exchange swaps design runs for candidates while the
    criterion improves (see :class:`Criterion`: the determinant of the information
    matrix ``X'X`` for D, a weighted trace of its inverse for A and I, its smallest
-   eigenvalue for E), with several random starts.
+   eigenvalue for E), with several random starts. For D, A and I each run in turn
+   takes its best swap, with ``(X'X)^-1`` kept current by rank-one updates.
 
 Constraint expressions are parsed into a small arithmetic tree and evaluated with
 numpy. Nothing is passed to ``eval``, so an expression from an untrusted caller can
@@ -29,7 +30,7 @@ import ast
 import itertools
 import logging
 import math
-from collections.abc import Callable, Mapping
+from collections.abc import Callable, Iterator, Mapping
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
@@ -59,7 +60,18 @@ MAX_EXPRESSION_LENGTH = 500
 _FEASIBILITY_TOL = 1e-9
 _BISECTION_STEPS = 50
 _MAX_EXCHANGES = 500
+#: Rank-one updates of ``M^-1`` between full re-factorisations, which bound the drift of the updates.
+_REFACTOR_EVERY = 50
+#: ``M^-1`` is also rebuilt when the largest candidate variance falls below this fraction of its value at the last
+#: rebuild, as it does while a singular design is filled in: the rounding error scales with the old, larger values.
+_COLLAPSE = 1e-3
+#: Most passes over the design rows the row-wise exchange makes.
+_MAX_PASSES = 100
 _N_STARTS = 5
+#: Most random starts of the D, A and I exchange, and the work (candidates x coefficients x free runs, summed over
+#: the starts) that sets how many a problem gets between ``_N_STARTS`` and this (see :func:`_n_starts`).
+_MAX_STARTS = 50
+_START_WORK = 400_000_000
 #: A greedy start step picks at random among candidates whose variance is within this fraction of the largest.
 _GREEDY_SLACK = 0.05
 
@@ -411,6 +423,19 @@ def model_matrix(region: _Region, coded: np.ndarray, cats: np.ndarray, model_typ
     return np.hstack(columns)
 
 
+#: Candidate rows handled at a time when a quadratic form is taken over the whole candidate set.
+_CHUNK_ROWS = 8192
+
+
+def _quadratic_forms(rows: np.ndarray, matrix: np.ndarray) -> np.ndarray:
+    """``r' matrix r`` for every row ``r`` of ``rows``, a block of rows at a time to bound the temporaries."""
+    out = np.empty(len(rows))
+    for start in range(0, len(rows), _CHUNK_ROWS):
+        block = rows[start : start + _CHUNK_ROWS]
+        out[start : start + _CHUNK_ROWS] = np.einsum("ij,ij->i", block @ matrix, block)
+    return out
+
+
 def _greedy_start(f_cand: np.ndarray, f_fixed: np.ndarray, n_free: int, rng: np.random.Generator) -> np.ndarray:
     """Build a non-singular starting design by adding a high-variance candidate each step.
 
@@ -418,18 +443,36 @@ def _greedy_start(f_cand: np.ndarray, f_fixed: np.ndarray, n_free: int, rng: np.
     ``_GREEDY_SLACK`` of the largest. On a grid many candidates tie for the largest
     variance; always taking the first of them gave nearly the same start every time,
     so the restarts of the exchange explored almost nothing (one or two distinct local
-    optima from five starts).
+    optima from five starts). Adding a run is a rank-one update of ``M^-1`` and of the
+    variance vector, so a step costs one product of the candidate matrix with a vector.
+    Both are rebuilt from ``M`` every ``_REFACTOR_EVERY`` steps, and whenever the largest
+    variance has fallen by ``_COLLAPSE`` since the last rebuild: the ridge makes the first
+    variances about ``1e6`` times the final ones, and the rounding error they leave behind
+    would otherwise swamp the final values.
     """
     p = f_cand.shape[1]
     info = f_fixed.T @ f_fixed + 1e-6 * np.eye(p)  # small ridge so the first steps are defined
     rows = [int(rng.integers(f_cand.shape[0]))]
     info += np.outer(f_cand[rows[0]], f_cand[rows[0]])
-    for _ in range(n_free - 1):
-        variance = np.einsum("ij,ij->i", f_cand @ np.linalg.inv(info), f_cand)
+    m_inv = np.linalg.inv(info)
+    variance = _quadratic_forms(f_cand, m_inv)
+    refactored, peak = 0, float(variance.max())
+    for step in range(1, n_free):
         near = np.flatnonzero(variance >= (1.0 - _GREEDY_SLACK) * variance.max())
         best = int(rng.choice(near))
         rows.append(best)
-        info += np.outer(f_cand[best], f_cand[best])
+        added = f_cand[best]
+        info += np.outer(added, added)
+        if step == n_free - 1:
+            break
+        m_inv_added = m_inv @ added
+        scale = 1.0 / (1.0 + float(added @ m_inv_added))
+        variance -= scale * (f_cand @ m_inv_added) ** 2
+        m_inv -= scale * np.outer(m_inv_added, m_inv_added)
+        if step - refactored >= _REFACTOR_EVERY or variance.max() < _COLLAPSE * peak:
+            m_inv = np.linalg.inv(info)
+            variance = _quadratic_forms(f_cand, m_inv)
+            refactored, peak = step, float(variance.max())
     return np.array(rows)
 
 
@@ -532,17 +575,236 @@ class Criterion:
         d_j = np.einsum("ij,ij->i", a_cand, f_cand)[None, :]
         d_ij = a_design @ f_cand.T
         if self.weights is None:
-            return d_j - d_i - (d_i * d_j - d_ij**2)
+            return _d_gain(d_i, d_j, d_ij)
         b_design, b_cand = a_design @ self.weights, a_cand @ self.weights
         b_i = np.einsum("ij,ij->i", b_design, a_design)[:, None]
         b_j = np.einsum("ij,ij->i", b_cand, a_cand)[None, :]
         b_ij = b_design @ a_cand.T
-        s = 1.0 + d_j
-        denominator = 1.0 - d_i + d_ij**2 / s
-        numerator = b_i - 2.0 * d_ij * b_ij / s + d_ij**2 * b_j / s**2
-        with np.errstate(divide="ignore", invalid="ignore"):
-            gain = b_j / s - numerator / denominator
-        return np.where(denominator > 1e-10, gain, -np.inf)
+        return _trace_gain((d_i, d_j, d_ij), (b_i, b_j, b_ij))
+
+
+def _d_gain(d_i: float | np.ndarray, d_j: np.ndarray, d_ij: np.ndarray) -> np.ndarray:
+    """Return the relative change in ``det(M)`` from swapping run ``i`` for candidate ``j``."""
+    return d_j - d_i - (d_i * d_j - d_ij**2)
+
+
+def _trace_gain(d: tuple, b: tuple) -> np.ndarray:
+    """Return the fall in ``trace(M^-1 W)`` from swapping run ``i`` for candidate ``j`` (:meth:`Criterion.swap_gains`).
+
+    ``d`` holds ``(d(i), d(j), d(i, j))`` and ``b`` holds ``(b(i), b(j), b(i, j))``, as
+    scalars or arrays that broadcast against each other.
+    """
+    (d_i, d_j, d_ij), (b_i, b_j, b_ij) = d, b
+    s = 1.0 + d_j
+    denominator = 1.0 - d_i + d_ij**2 / s
+    numerator = b_i - 2.0 * d_ij * b_ij / s + d_ij**2 * b_j / s**2
+    with np.errstate(divide="ignore", invalid="ignore"):
+        gain = b_j / s - numerator / denominator
+    return np.where(denominator > 1e-10, gain, -np.inf)
+
+
+#: Criteria whose swap gains have a closed form (:meth:`Criterion.swap_gains`), climbed by :func:`_row_exchange`.
+_CLOSED_FORM_CRITERIA = ("d_optimal", "a_optimal", "i_optimal")
+
+
+def _regularised_inverse(info: np.ndarray) -> np.ndarray:
+    """``M^-1``, with a small ridge when ``M`` is singular so swaps that fill the missing directions score highest."""
+    eigenvalues = np.linalg.eigvalsh(info)
+    largest = max(float(eigenvalues[-1]), 1.0)
+    ridge = 0.0 if eigenvalues[0] > 1e-10 * largest else 1e-8 * largest
+    return np.linalg.inv(info + ridge * np.eye(len(info)))
+
+
+#: Entries of the (design rows x candidates) block of swap-gain terms the row-wise exchange keeps.
+_BLOCK_ENTRIES = 2**20
+#: Most design rows in such a block: each swap updates the terms of the rows after it.
+_BLOCK_ROWS = 32
+
+
+@dataclass
+class _RowTerms:
+    """Swap-gain terms of a block of design rows: ``d(i)``, ``d(i, j)``, and ``b(i)``, ``b(i, j)`` for a trace."""
+
+    d_i: np.ndarray
+    d_ij: np.ndarray
+    b_i: np.ndarray | None = None
+    b_ij: np.ndarray | None = None
+
+    def follow(self, x: np.ndarray, step: tuple, start: int) -> None:
+        """Bring rows ``start:`` (model rows ``x``) up to date after one rank-one update ``step`` of ``A`` and ``B``.
+
+        With ``A <- A - s u u'``, ``d(i, j)`` falls by ``s (u'x)(F u)`` and ``d(i)`` by
+        ``s (u'x)^2``; ``B`` changes by two cross terms and a square term, and so do
+        ``b(i, j)`` and ``b(i)``. Each costs a few passes over the block, where a fresh
+        score would multiply the block by the whole candidate matrix again.
+        """
+        u, g, s, vbv, f_u, f_g = step
+        ux = x @ u
+        self.d_i[start:] -= s * ux**2
+        self.d_ij[start:] -= s * np.multiply.outer(ux, f_u)
+        if self.b_i is not None and self.b_ij is not None:
+            gx = x @ g
+            self.b_i[start:] += s * (s * vbv * ux**2 - 2.0 * ux * gx)
+            self.b_ij[start:] += s * (
+                np.multiply.outer(s * vbv * ux - gx, f_u) - np.multiply.outer(ux, f_g)  # type: ignore[arg-type]
+            )
+
+
+class _ExchangeState:
+    """``M^-1`` of a design and the candidates' variance terms, kept current through each swap.
+
+    For D-optimality the state is ``A = M^-1`` and ``d(j) = f(j)' A f(j)`` for every
+    candidate; the trace criteria also keep ``B = A W A`` and ``b(j) = f(j)' B f(j)``.
+    A swap is two rank-one (Sherman-Morrison) updates, adding the candidate and then
+    removing the run. Each costs one product of the candidate matrix with a vector (two
+    for a trace) instead of a new inverse and a new pass over every (run, candidate)
+    pair; the removal reuses the products the swap was scored with. The state is rebuilt
+    from ``X'X`` every ``_REFACTOR_EVERY`` swaps, and when the largest variance collapses
+    (see ``_COLLAPSE``), to bound rounding drift.
+    """
+
+    def __init__(self, f_cand: np.ndarray, f_fixed: np.ndarray, rows: np.ndarray, weights: np.ndarray | None) -> None:
+        self.f_cand, self.f_fixed, self.rows, self.weights = f_cand, f_fixed, rows.copy(), weights
+        self.refactor()
+
+    def refactor(self) -> None:
+        """Rebuild ``A``, ``d`` (and ``B``, ``b``) from the design's information matrix."""
+        x = np.vstack([self.f_fixed, self.f_cand[self.rows]])
+        self.m_inv = _regularised_inverse(x.T @ x)
+        self.variance = _quadratic_forms(self.f_cand, self.m_inv)
+        if self.weights is not None:
+            self.b_mat = self.m_inv @ self.weights @ self.m_inv
+            self.b_variance = _quadratic_forms(self.f_cand, self.b_mat)
+        self.n_updates, self.peak = 0, float(self.variance.max())
+
+    def terms(self, block: np.ndarray) -> _RowTerms:
+        """Return the swap-gain terms of design rows ``block`` against every candidate, one matrix product each."""
+        x = self.f_cand[self.rows[block]]
+        x_a = x @ self.m_inv
+        terms = _RowTerms(np.einsum("ij,ij->i", x_a, x), x_a @ self.f_cand.T)
+        if self.weights is not None:
+            x_b = x @ self.b_mat
+            terms.b_i, terms.b_ij = np.einsum("ij,ij->i", x_b, x), x_b @ self.f_cand.T
+        return terms
+
+    def best_swaps(self, terms: _RowTerms, rows: slice) -> tuple[np.ndarray, np.ndarray]:
+        """Return the best candidate for block ``rows`` and the gain of each swap (:meth:`Criterion.swap_gains`).
+
+        For D the gain ``d(j) (1 - d(i)) + d(i, j)^2 - d(i)`` is ranked without its last
+        term, in one temporary, where the general form takes several.
+        """
+        d_i = terms.d_i[rows]
+        index = np.arange(len(d_i))
+        if self.weights is None:
+            score = np.square(terms.d_ij[rows])
+            score += np.multiply.outer(1.0 - d_i, self.variance)
+            best = np.argmax(score, axis=1)
+            return best, score[index, best] - d_i
+        gains = _trace_gain(
+            (d_i[:, None], self.variance[None, :], terms.d_ij[rows]),
+            (terms.b_i[rows, None], self.b_variance[None, :], terms.b_ij[rows]),  # type: ignore[index]
+        )
+        best = np.argmax(gains, axis=1)
+        return best, gains[index, best]
+
+    def _rank_one(
+        self, v: np.ndarray, sign: float, f_u: np.ndarray | None = None, f_g: np.ndarray | None = None
+    ) -> tuple:
+        """Add (``sign = 1``) or remove (``sign = -1``) the model row ``v``: ``A <- A - s (A v)(A v)'``.
+
+        ``f_u = F A v`` and ``f_g = F B v`` are computed unless given. Returns the step
+        ``(A v, B v, s, v' B v, f_u, f_g)``, from which the products of another row with
+        the updated ``A`` and ``B`` follow without touching ``F`` again (:meth:`_RowTerms.follow`).
+        """
+        u = self.m_inv @ v
+        s = sign / (1.0 + sign * float(v @ u))
+        f_u = self.f_cand @ u if f_u is None else f_u
+        g, vbv = None, 0.0
+        if self.weights is not None:  # B = A W A takes two cross terms and one square term
+            g = self.b_mat @ v
+            vbv = float(v @ g)
+            f_g = self.f_cand @ g if f_g is None else f_g
+            self.b_variance += s * (s * vbv * f_u**2 - 2.0 * f_u * f_g)
+            cross = np.outer(u, g)
+            self.b_mat += s * (s * vbv * np.outer(u, u) - cross - cross.T)
+        self.variance -= s * f_u**2
+        self.m_inv -= s * np.outer(u, u)
+        return u, g, s, vbv, f_u, f_g
+
+    def swap(self, i: int, j: int, terms: _RowTerms, r: int) -> list[tuple] | None:
+        """Replace design row ``i`` by candidate ``j``; row ``r`` of ``terms`` holds its scored terms.
+
+        Returns the two rank-one steps made, or None when the state was rebuilt instead
+        (and other rows' terms must be scored afresh).
+        """
+        removed = self.f_cand[self.rows[i]]
+        self.rows[i] = j
+        self.n_updates += 1
+        if self.n_updates >= _REFACTOR_EVERY:
+            self.refactor()
+            return None
+        added = self._rank_one(self.f_cand[j], 1.0)
+        u, g, s, vbv, f_u, f_g = added
+        # The removed row's products with the updated A and B, from the ones it was scored with.
+        u_a = float(u @ removed)
+        f_a, f_ba = terms.d_ij[r] - s * u_a * f_u, None
+        if terms.b_ij is not None and g is not None:
+            f_ba = terms.b_ij[r] - s * (f_u * float(g @ removed) + f_g * u_a) + s * s * vbv * u_a * f_u
+        steps = [added, self._rank_one(removed, -1.0, f_a, f_ba)]
+        if self.variance.max() < _COLLAPSE * self.peak:
+            self.refactor()
+            return None
+        return steps
+
+
+def _climb_block(state: _ExchangeState, block: np.ndarray) -> bool:
+    """Swap each row of ``block`` in turn for its best candidate, when that helps; return whether any was swapped.
+
+    The block's terms come from one matrix product. A swap changes ``A``, and the terms
+    of the rows after it follow by rank-one updates (:meth:`_RowTerms.follow`), so every
+    row is scored against the current design without multiplying by the candidates
+    again. Rows are scored a few at a time, one after a swap and twice as many after each
+    group with none, so frequent swaps do not rescore rows that a later swap changes.
+    """
+    terms, r, size, swapped = state.terms(block), 0, 1, False
+    while r < len(block):
+        best, gain = state.best_swaps(terms, slice(r, r + size))
+        better = np.flatnonzero(gain > 1e-9)  # also refuses NaN
+        if not len(better):
+            r, size = r + size, 2 * size
+            continue
+        r += int(better[0])
+        steps = state.swap(int(block[r]), int(best[better[0]]), terms, r)
+        r, size, swapped = r + 1, 1, True
+        if r == len(block):
+            break
+        if steps is None:  # the state was rebuilt: score the rest afresh
+            terms, block, r = state.terms(block[r:]), block[r:], 0
+            continue
+        rest = state.f_cand[state.rows[block[r:]]]
+        for step in steps:
+            terms.follow(rest, step, r)
+    return swapped
+
+
+def _row_exchange(f_cand: np.ndarray, f_fixed: np.ndarray, rows: np.ndarray, criterion: Criterion) -> np.ndarray:
+    """Swap each design row for its best candidate in turn: the modified Fedorov exchange (Cook and Nachtsheim 1980).
+
+    Each row is scored against every candidate and its best improving swap is made at
+    once, where the full Fedorov step scored all ``n x N`` (run, candidate) pairs, and
+    rebuilt ``X'X`` and its inverse, to make one swap. Passes repeat until none improves
+    the criterion. Rows are scored in blocks of up to ``_BLOCK_ROWS`` rows and
+    ``_BLOCK_ENTRIES`` terms (:func:`_climb_block`).
+    """
+    state = _ExchangeState(f_cand, f_fixed, rows, criterion.weights)
+    size = int(np.clip(_BLOCK_ENTRIES // max(len(f_cand), 1), 1, _BLOCK_ROWS))
+    for _ in range(_MAX_PASSES):
+        improved = False
+        for start in range(0, len(rows), size):
+            improved |= _climb_block(state, np.arange(start, min(len(rows), start + size)))
+        if not improved:
+            break
+    return state.rows
 
 
 #: Exponent of Kiefer's ``phi_p``, the smooth stand-in for ``lambda_min`` that ranks E-optimal swaps.
@@ -798,6 +1060,18 @@ def criterion_metadata(criterion: Criterion, value: float) -> dict[str, float]:
     return {"trace_criterion": -value}
 
 
+def _n_starts(criterion: Criterion, f_cand: np.ndarray, n_free: int) -> int:
+    """Random starts for the exchange: more for a small problem, so long as their total work stays near ``_START_WORK``.
+
+    The work of one start grows with candidates x coefficients x free runs. E and K
+    score every swap at each step and keep ``_N_STARTS``.
+    """
+    if criterion.name not in _CLOSED_FORM_CRITERIA:
+        return _N_STARTS
+    work = f_cand.shape[0] * f_cand.shape[1] * max(n_free, 1)
+    return int(np.clip(_START_WORK // work, _N_STARTS, _MAX_STARTS))
+
+
 def fedorov_exchange(
     f_cand: np.ndarray,
     n_free: int,
@@ -807,12 +1081,14 @@ def fedorov_exchange(
 ) -> tuple[np.ndarray, float]:
     """Choose ``n_free`` candidate rows that maximise ``criterion`` (D-optimality by default).
 
-    Each iteration makes the single swap (design run ``i`` out, candidate ``j`` in)
-    that improves the criterion most, scored for all pairs at once by
-    :meth:`Criterion.swap_gains` (Fedorov 1972; Cook and Nachtsheim 1980). Rows in
+    For D, A and I each design run in turn is swapped for the candidate that improves
+    the criterion most (:func:`_row_exchange`, the modified Fedorov exchange of Cook and
+    Nachtsheim 1980), with the gains in the closed form of :meth:`Criterion.swap_gains`
+    (Fedorov 1972). E and K make the best single swap over all pairs at each step. Rows in
     ``f_fixed`` stay in the design and are never swapped out. Candidates may repeat,
-    which gives replicated runs where the criterion wants them. The best of
-    ``_N_STARTS`` random starts is kept.
+    which gives replicated runs where the criterion wants them. The best of several
+    random starts is kept: ``_N_STARTS`` for E and K, and up to ``_MAX_STARTS`` for a
+    small D, A or I problem (see :func:`_n_starts`).
 
     Returns
     -------
@@ -824,8 +1100,7 @@ def fedorov_exchange(
     if criterion.name == "g_optimal":
         return _g_exchange(f_cand, n_free, f_fixed, rng, criterion)
     best_rows, best_value = np.empty(0, dtype=int), -np.inf
-    for _ in range(_N_STARTS):
-        rows = _climb(f_cand, f_fixed, _greedy_start(f_cand, f_fixed, n_free, rng), criterion)
+    for rows in _climbed_starts(f_cand, n_free, f_fixed, rng, criterion):
         x = np.vstack([f_fixed, f_cand[rows]])
         value = criterion.value(x.T @ x)
         if value > best_value or len(best_rows) == 0:  # keep a design even if every start is singular
@@ -833,8 +1108,23 @@ def fedorov_exchange(
     return best_rows, best_value
 
 
+def _climbed_starts(
+    f_cand: np.ndarray, n_free: int, f_fixed: np.ndarray, rng: np.random.Generator, criterion: Criterion
+) -> Iterator[np.ndarray]:
+    """Each random start of the exchange (see :func:`_n_starts`), climbed to a local optimum of ``criterion``."""
+    for _ in range(_n_starts(criterion, f_cand, n_free)):
+        yield _climb(f_cand, f_fixed, _greedy_start(f_cand, f_fixed, n_free, rng), criterion)
+
+
 def _climb(f_cand: np.ndarray, f_fixed: np.ndarray, rows: np.ndarray, criterion: Criterion) -> np.ndarray:
-    """Make the best single swap while it improves ``criterion``, in each of its phases; return the rows."""
+    """Improve ``rows`` by swaps while ``criterion`` improves; return the rows.
+
+    D, A and I (whose swaps have a closed form) use the row-wise exchange,
+    :func:`_row_exchange`. E and K make the best single swap at each step, in each of
+    their phases.
+    """
+    if criterion.name in _CLOSED_FORM_CRITERIA:
+        return _row_exchange(f_cand, f_fixed, rows, criterion)
     rows = rows.copy()
     for phase in range(criterion.n_phases):
         for _ in range(_MAX_EXCHANGES):
