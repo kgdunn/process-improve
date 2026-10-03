@@ -323,11 +323,21 @@ sum to one:
 
 .. code-block:: python
 
+   import numpy as np
+
    from process_improve.experiments import analyze_experiment
 
-   # x: the design's proportions; y: the measured response
-   fit = analyze_experiment(x, y, model="scheffe_quadratic", analysis_type=["coefficients", "anova"])
-   # formula: y ~ -1 + (polymer + solvent + filler) ** 2
+   blends = ev.design_actual[["polymer", "solvent", "filler"]]
+   # A simulated response stands in for the measurements here.
+   rng = np.random.default_rng(1)
+   blends["y"] = (
+       10 * blends["polymer"] + 6 * blends["solvent"] + 3 * blends["filler"]
+       + 8 * blends["polymer"] * blends["solvent"] + rng.normal(0, 0.1, len(blends))
+   )
+   fit = analyze_experiment(
+       blends, response_column="y", model="scheffe_quadratic", analysis_type=["coefficients", "anova"]
+   )
+   print(fit["model_summary"]["formula"])  # y ~ -1 + (polymer + solvent + filler) ** 2
 
 ``"scheffe_linear"``, ``"scheffe_quadratic"`` and ``"scheffe_special_cubic"`` are
 accepted by ``analyze_experiment`` and ``evaluate_design``. statsmodels recognises

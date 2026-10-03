@@ -1061,6 +1061,23 @@ those changes.
   beyond them (8 fixed runs and the default `2k + 1 = 7` used to raise). The docstrings
   name E-optimality and every case in which `hard_to_change` is ignored.
 
+### Documentation
+
+- **A screen-then-optimise case study for the designed-experiments tools.** A simulated
+  reactor with six candidate factors and a heat-release limit is screened with a 17-run
+  definitive screening design and `analyze_omars`, then optimised with D-, I- and
+  G-optimal designs compared over the constrained region, a desirability optimum inside
+  that region and confirmation runs, checked against the simulator's true optimum.
+- **The DoE user-guide examples run in the test suite.** `tests/test_docs_doe_pages.py`
+  runs the Python blocks of each DoE page in order, failing on an error or on the
+  library's own deprecation warnings. Two blocks that used undefined data now simulate
+  it. A new page, "Design families and how each one is checked", lists every family with
+  the conformance test that checks its defining property, replacing `docs/doe/coverage.md`.
+  The API reference adds the factor, screening, response-surface, optimal, mixture, OMARS
+  analysis and plotting modules. The stale `docs/doe/tools.md` and
+  `examples/experiments/case-studies.py` (which imported a module that no longer exists)
+  are removed.
+
 ## [1.96.0] - 2026-09-30
 
 ### Added

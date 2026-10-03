@@ -44,10 +44,19 @@ end-to-end, on-line workflows. Highlights (full history in [CHANGELOG.md](CHANGE
   `AdaptivePLS` (v1.55) fit once, then stream one observation at a time,
   re-learning the correlation structure and reporting how far the process has
   drifted, in units of components.
-- **A DOE engine that goes past textbook designs.** OMARS designs, D-/I-/A-optimal
-  designs, fractional-cube CCDs, design augmentation (`fixed_runs=`), and an
-  `evaluate_design` suite scoring any design on efficiency, aliasing, and
-  prediction variance. [Try it in your browser](https://kgdunn.github.io/process-improve/app/),
+- **A DOE engine that goes past textbook designs.** One call, `generate_design`,
+  builds every family: full and fractional factorials (with minimum-aberration
+  blocking), Plackett-Burman, definitive screening designs (with categorical and
+  fake factors), Box-Behnken, central composite, Taguchi, OMARS, supersaturated,
+  mixture (simplex and constrained extreme vertices), space-filling (Latin
+  hypercube, maximin, MaxPro, Sobol) and D-, I-, A-, E-, G- and K-optimal designs
+  inside linear or non-linear constraints or from your own candidate set. Each
+  construction is checked against its published definition in a conformance test
+  suite. `evaluate_design` scores any design (efficiencies, average prediction
+  variance, FDS, aliasing), and `optimize_responses` finds the best settings for
+  several responses inside the same constrained region. The
+  [screen-then-optimise case study](https://kgdunn.github.io/process-improve/user_guide/case_studies/design-analysis-experiments/screen-then-optimise.html)
+  walks through all of it. [Try it in your browser](https://kgdunn.github.io/process-improve/app/),
   with nothing to install.
 - **Sensory & descriptive panel analysis** (`process_improve.sensory`): validate
   a panel, flag inconsistent assessors with the Mixed Assessor Model, and relate
@@ -75,9 +84,11 @@ practitioners actually use on real plant and lab data:
   monitoring and soft sensing; they follow a drifting process one observation at
   a time and report how far it has moved
 - **Outlier detection** combining Hotelling's T² and SPE with an ESD-based test
-- **Designed experiments** - full-factorial, fractional-factorial, and
-  response-surface designs; OMARS and D-/I-/A-optimal designs; a design-quality
-  scorer (`evaluate_design`); and a multi-stage DOE strategy recommender
+- **Designed experiments** - factorial, screening (Plackett-Burman, DSD,
+  supersaturated), response-surface (CCD, Box-Behnken, OMARS), mixture,
+  space-filling and optimal (D, I, A, E, G, K) designs, in constrained regions
+  too; design evaluation, analysis, augmentation, multi-response optimisation and
+  a multi-stage DOE strategy recommender
 - **Process monitoring** - Shewhart, CUSUM, and Holt-Winters control charts
 - **Batch data analysis** - alignment, feature extraction, and multivariate
   batch monitoring (MBPCA / MBPLS)
