@@ -249,8 +249,16 @@ class TestRunEstimation:
         assert runs == 12  # next mult of 4 >= 12
 
     def test_dsd_runs(self):
-        runs = estimate_screening_runs(7, "definitive_screening")
-        assert runs == 15  # 2*7 + 1
+        # An odd count uses the conference matrix of the next even order: 2*7 + 3.
+        assert estimate_screening_runs(7, "definitive_screening") == 17
+        assert estimate_screening_runs(8, "dsd") == 17
+        # No conference matrix of order 22 exists, so 21 and 22 factors use order 24.
+        assert estimate_screening_runs(22, "dsd") == 49
+
+    def test_pb_runs_match_generated_design(self):
+        # 24 factors need 28 runs, which pyDOE3 cannot build; 89 factors step past 92 to 96.
+        assert estimate_screening_runs(24, "plackett_burman") == 28
+        assert estimate_screening_runs(89, "plackett_burman") == 96
 
     def test_full_factorial_runs(self):
         runs = estimate_screening_runs(3, "full_factorial")
@@ -719,3 +727,12 @@ def test_a_budget_below_k_plus_1_recommends_a_supersaturated_design() -> None:
     screening = next(s for s in strategy["stages"] if s["stage_name"] == "Screening")
     assert screening["design_type"] == "supersaturated"
     assert screening["design_params"] == {"budget": 6}
+
+
+def test_an_all_mixture_problem_optimises_with_a_mixture_design() -> None:
+    """The optimisation stage was a CCD on the components, which gave coded +/-alpha rows, not proportions."""
+    inputs = _SCENARIOS["bounded mixture"]
+    strategy = recommend_strategy(**inputs)
+    stage = next(s for s in strategy["stages"] if s["stage_name"] == "Optimization")
+    assert stage["design_type"] == "mixture"
+    assert stage["factors"] == [f.name for f in inputs["factors"]]

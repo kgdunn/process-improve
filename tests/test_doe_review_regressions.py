@@ -28,18 +28,18 @@ def no_pyoptex(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 class TestAutoSelectFallsBackWhenNoSupersaturatedDesignExists:
-    @pytest.mark.parametrize(
-        ("k", "budget"), [(3, 2), (3, 3), (4, 3), (5, 3), (5, 5), (6, 5), (7, 5), (8, 7), (10, 9), (10, 7), (12, 8)]
-    )
+    @pytest.mark.parametrize(("k", "budget"), [(3, 2), (3, 3), (4, 3), (5, 3), (5, 5), (6, 5), (7, 5), (12, 8)])
     def test_previously_working_budgets_still_return_a_design(self, k: int, budget: int) -> None:
         """No supersaturated design exists for these (odd, too small, or aliased) budgets: fall back as before."""
         result = generate_design(_continuous(k), budget=budget)
         assert result.design_type in {"d_optimal", "plackett_burman"}
 
-    @pytest.mark.parametrize(("k", "budget"), [(10, 6), (8, 6), (22, 12)])
+    @pytest.mark.parametrize(("k", "budget"), [(10, 6), (8, 6), (22, 12), (8, 7), (10, 9), (10, 7)])
     def test_supersaturated_is_chosen_when_an_unaliased_one_exists(self, k: int, budget: int) -> None:
+        """The budget is a ceiling: 9 runs for 10 factors give the 6-run design, not 15 Plackett-Burman runs."""
         result = generate_design(_continuous(k), budget=budget)
         assert result.design_type == "supersaturated"
+        assert result.n_runs <= budget
         assert result.metadata["n_fully_aliased_pairs"] == 0
 
 

@@ -84,6 +84,7 @@ from typing import TYPE_CHECKING, Any
 import numpy as np
 from scipy.optimize import Bounds, LinearConstraint, OptimizeResult, milp
 
+from process_improve._random import check_random_state
 from process_improve.experiments.designs_omars import _second_order_terms, is_omars
 
 logger = logging.getLogger(__name__)
@@ -1453,6 +1454,9 @@ def _search_best_omars(  # noqa: C901, PLR0912, PLR0913, PLR0915
 
     winner = _select(eligible, selection_criterion)
     report.run_size = winner.n_runs
+    # Describe the design the caller receives: the foldover plus the extra centre runs.
+    received = np.vstack([winner.coded, extra_centers])
+    received_rank = _model_rank(received, model)
     metadata = {
         "family": "omars_ilp",
         "construction": "foldover_ilp_selection",
@@ -1462,10 +1466,10 @@ def _search_best_omars(  # noqa: C901, PLR0912, PLR0913, PLR0915
         "sizing_model": model,
         "model_params": n_params,
         "full_second_order_params": _full_second_order_params(n_factors),
-        "model_rank": _model_rank(winner.coded, model),
-        "expected_error_df": winner.n_runs - _model_rank(winner.coded, model),
+        "model_rank": received_rank,
+        "expected_error_df": winner.n_runs - received_rank,
         "min_runs_for_model": 2 * _min_half_runs(n_factors, model) + center_runs,
-        "sparsity": _sparsity(winner.coded),
+        "sparsity": _sparsity(received),
         "selection_criterion": selection_criterion,
         "satisfice": dict(satisfice) if satisfice else None,
         "d_efficiency": winner.d_efficiency,
@@ -1474,7 +1478,7 @@ def _search_best_omars(  # noqa: C901, PLR0912, PLR0913, PLR0915
         "solver": "highs",
         "solver_status": winner.solver_status,
         "search_mode": report.search_mode,
-        "omars_verified": is_omars(winner.coded, tol=tol),
+        "omars_verified": is_omars(received, tol=tol),
         "omars_search": report,
     }
     return winner.coded, metadata
@@ -1508,7 +1512,7 @@ def generate_omars(  # noqa: PLR0913
     satisfice: dict[str, float] | None = None,
     center_runs: int = 1,
     n_restarts: int = 50,
-    max_candidates: int = 6,
+    max_candidates: int | None = None,
     model: str = "full_second_order",
     solver_options: dict[str, Any] | None = None,
     tol: float = 1e-9,
@@ -1581,17 +1585,18 @@ def generate_omars(  # noqa: PLR0913
         feasible OMARS design; the best one (by *selection_criterion*) is kept.
         Higher values explore more of the feasible set and approach the
         catalogue-optimal designs more closely, at a roughly linear cost in
-        runtime.  The search early-stops once the feasible set stops yielding new
-        designs, so small factor counts finish quickly regardless.  The budget
+        runtime; ``0`` runs only the plain feasibility solve at each size.  The
+        search early-stops once the feasible set stops yielding new designs, so
+        small factor counts finish quickly regardless.  The budget
         applies at each run size the search visits.  Default 50,
         which reaches catalogue-competitive D-efficiency for up to seven factors.
         Deterministic for a fixed *random_seed*, as long as no solve hits
         ``solver_options["time_limit"]`` (see *random_seed*).
     max_candidates : int, optional
-        Legacy alias retained for backward compatibility.  It now sets a floor on
-        *n_restarts* (the effective restart budget is ``max(n_restarts,
+        Legacy alias retained for backward compatibility.  When given, it sets a
+        floor on *n_restarts* (the effective restart budget is ``max(n_restarts,
         max_candidates)``), so calls that raised it to enumerate more designs
-        still explore at least that many.  Default 6.
+        still explore at least that many.  Default ``None``: no floor.
     model : {"full_second_order", "main_quadratic"}, optional
         The analysis model the design is sized for.  ``"full_second_order"``
         (default) leaves room for every two-factor interaction, so the smallest
@@ -1636,9 +1641,9 @@ def generate_omars(  # noqa: PLR0913
     ValueError
         If fewer than three factors are given, the factor count exceeds the
         combinatorial cap, *model* is not recognised, *n_runs* is too small or
-        incompatible with *center_runs*, *solver_options* has an unknown key
-        or an out-of-range value, or no feasible design from which the sizing
-        model can be estimated is found.
+        incompatible with *center_runs*, *n_restarts* is negative,
+        *solver_options* has an unknown key or an out-of-range value, or no
+        feasible design from which the sizing model can be estimated is found.
     TypeError
         If *solver_options* is not a dict, or one of its values has the wrong
         type.
@@ -1665,6 +1670,8 @@ def generate_omars(  # noqa: PLR0913
 
     if center_runs < 1:
         raise ValueError("center_runs must be at least 1.")
+    if n_restarts < 0:
+        raise ValueError(f"n_restarts must be >= 0; got {n_restarts}.")
 
     coded, metadata = _search_best_omars(
         factors,
@@ -1672,7 +1679,7 @@ def generate_omars(  # noqa: PLR0913
         n_runs_range=n_runs_range,
         selection_criterion=selection_criterion,
         satisfice=satisfice,
-        n_restarts=max(n_restarts, max_candidates),
+        n_restarts=n_restarts if max_candidates is None else max(n_restarts, max_candidates),
         model=model,
         solver_options=solver_options,
         tol=tol,
@@ -1694,19 +1701,49 @@ def _dispatch_omars_ilp(factors: list[Factor], **kwargs: Any) -> tuple[np.ndarra
     """Registry handler: ``generate_design(design_type="omars_ilp", budget=N)``.
 
     Returns the raw coded matrix (with its single centre run) and metadata;
-    :func:`process_improve.experiments.generate_design` handles post-processing.
+    :func:`process_improve.experiments.generate_design` handles post-processing,
+    appending the other ``center_runs - 1`` centre runs.
+
+    The budget is an upper bound: the design is the largest foldover within it,
+    ``2h + center_runs`` runs, so an even budget with one centre run gives one run
+    fewer. It is sized for the full second-order model when that size reaches the
+    ``k**2 + k + 1`` runs (with one centre run) a foldover needs to estimate it, and
+    otherwise for main effects plus pure quadratics, so any budget of at least
+    ``2k + 2 + center_runs`` runs (15 runs for 6 factors and one centre run) gives an
+    OMARS design.
     """
-    return _search_best_omars(
-        factors,
-        n_runs=kwargs.get("budget"),
-        n_runs_range=None,
-        selection_criterion="dominance",
-        satisfice=None,
-        n_restarts=50,
-        model="full_second_order",
-        solver_options=None,
-        tol=1e-9,
-        verify=True,
-        random_seed=42,
-        center_runs=1,
-    )
+    budget = kwargs.get("budget")
+    center_runs = int(kwargs.get("center_runs", 1))
+    k = len(factors)
+    n_runs = budget
+    if budget is not None and (budget - center_runs) % 2:
+        n_runs = budget - 1  # a foldover has 2h + center_runs runs
+    # A foldover estimates the full second-order model only from k**2 + k + center_runs runs (see _min_half_runs).
+    full_size = 2 * _min_half_runs(k, "full_second_order") + center_runs
+    model = "full_second_order" if n_runs is None or n_runs >= full_size else "main_quadratic"
+    random_state = kwargs.get("random_state", 42)
+    seed = random_state if isinstance(random_state, int) else int(check_random_state(random_state).integers(2**31))
+    try:
+        designed, meta = _search_best_omars(
+            factors,
+            n_runs=n_runs,
+            n_runs_range=None,
+            selection_criterion="dominance",
+            satisfice=None,
+            n_restarts=50,
+            model=model,
+            solver_options=None,
+            tol=1e-9,
+            verify=True,
+            random_seed=seed,
+            center_runs=center_runs,
+        )
+    except ValueError as exc:
+        if budget is None:
+            raise
+        msg = (
+            f"No OMARS design fits budget={budget} with {center_runs} centre run(s): the largest foldover "
+            f"within it has n_runs={n_runs} runs. {exc}"
+        )
+        raise ValueError(msg) from exc
+    return designed, {**meta, "model": model}

@@ -42,7 +42,8 @@ class TradeOffTableInput(BaseModel):
         "and number of factors, the design that fits and what it costs in aliasing. "
         "Each cell reports the design label (e.g. '2^(7-4) III'), its resolution, and the "
         "generators that build it; cells where the budget exceeds the full factorial report "
-        "replication instead ('2^3 (twice)'), and impossible combinations are blank. "
+        "replication instead ('2^3 (twice)'), impossible combinations are blank, and a design "
+        "whose generator search is too large to run here is labelled '(not searched)'. "
         "Use this tool when the user is choosing how many experiments to run, asks how many "
         "factors they can screen on a given budget, or asks what they give up by running "
         "fewer experiments. For the full alias chains of one specific design, use "
@@ -64,7 +65,7 @@ class TradeOffTableInput(BaseModel):
 def trade_off_table_tool(spec: TradeOffTableInput) -> dict[str, Any]:
     """Return the runs-against-factors trade-off table, with per-cell detail."""
     try:
-        from process_improve.experiments.trade_off import get_trade_off_table_entry  # noqa: PLC0415
+        from process_improve.experiments.trade_off import _cell_label, get_trade_off_table_entry  # noqa: PLC0415
 
         for n_runs in spec.runs:
             if n_runs < 2 or n_runs > _MAX_RUNS or (n_runs & (n_runs - 1)) != 0:
@@ -81,15 +82,17 @@ def trade_off_table_tool(spec: TradeOffTableInput) -> dict[str, Any]:
                 try:
                     result = get_trade_off_table_entry(n_runs=n_runs, n_factors=n_factors, display=False)
                 except ValueError as exc:
-                    # No such design: too many factors for the budget. The cell
-                    # is blank in the table, and the reason is kept in `cells`.
-                    row[str(n_factors)] = ""
+                    # No such design (too many factors for the budget, a blank cell), or one
+                    # whose minimum-aberration search is too large to run ("not searched").
+                    # The reason is kept in `cells`.
+                    label = _cell_label(n_runs, n_factors)
+                    row[str(n_factors)] = label
                     cells.append(
                         {
                             "runs": n_runs,
                             "factors": n_factors,
-                            "label": "",
-                            "exists": False,
+                            "label": label,
+                            "exists": n_factors <= n_runs - 1,
                             "reason": str(exc),
                         }
                     )

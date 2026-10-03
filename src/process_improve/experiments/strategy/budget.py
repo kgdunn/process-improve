@@ -19,6 +19,9 @@ import math
 from collections.abc import Callable
 from typing import Any
 
+from process_improve.experiments.designs_response_surface import dsd_run_count
+from process_improve.experiments.designs_screening import plackett_burman_runs
+
 # ---------------------------------------------------------------------------
 # Run estimation look-up tables
 # ---------------------------------------------------------------------------
@@ -58,15 +61,20 @@ def _fractional_factorial_runs(n_factors: int) -> int:
 
 
 def _plackett_burman_runs(n_factors: int) -> int:
-    """Next multiple of 4 at or above ``k + 1``."""
-    return int(math.ceil((n_factors + 1) / 4) * 4)
+    """Smallest multiple of 4 above ``k`` with a Hadamard matrix (what ``generate_design`` builds)."""
+    return plackett_burman_runs(n_factors)
+
+
+def _dsd_runs(n_factors: int) -> int:
+    """Return the runs in the DSD ``generate_design`` builds (it needs at least 3 factors)."""
+    return dsd_run_count(max(n_factors, 3))
 
 
 #: Run-count estimate per screening design, keyed by generate_design type (and the old DSD name).
 _SCREENING_RUNS: dict[str, Callable[[int], int]] = {
     "plackett_burman": _plackett_burman_runs,
-    "dsd": lambda k: 2 * k + 1,
-    "definitive_screening": lambda k: 2 * k + 1,
+    "dsd": _dsd_runs,
+    "definitive_screening": _dsd_runs,
     "fractional_factorial": _fractional_factorial_runs,
     "full_factorial": lambda k: 2**k,
     # Lin's half-fraction of the smallest Hadamard order N with N - 2 >= k: N / 2 runs

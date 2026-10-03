@@ -77,7 +77,7 @@ class TestTaguchiDispatch:
     def test_no_orthogonal_array_raises(self) -> None:
         """A factor with more levels than any standard OA supports raises."""
         factors = [Factor(name="Big", type="categorical", levels=[str(i) for i in range(40)])]
-        with pytest.raises(ValueError, match="No standard Taguchi orthogonal array"):
+        with pytest.raises(ValueError, match="No standard orthogonal array"):
             dispatch_taguchi(factors)
 
 

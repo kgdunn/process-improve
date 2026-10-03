@@ -14,6 +14,7 @@ import json
 import re
 from typing import Any, Literal, cast
 
+from process_improve.experiments.designs_response_surface import dsd_run_count
 from process_improve.experiments.factor import Constraint, Factor, Response
 from process_improve.experiments.strategy.budget import (
     allocate_budget,
@@ -202,12 +203,12 @@ def _supersaturated_runs(n: int, classification: dict[str, Any]) -> int | None:
     Such a budget cannot estimate every main effect, so the screening design has to
     be supersaturated: the factors must all be continuous, run at two levels.
     """
-    from process_improve.experiments.designs_supersaturated import supersaturated_available  # noqa: PLC0415
+    from process_improve.experiments.designs_supersaturated import supersaturated_runs  # noqa: PLC0415
 
     budget = classification["budget"]
     if budget is None or budget >= n + 1 or classification["n_continuous"] != n:
         return None
-    return next((runs for runs in range(int(budget), 3, -1) if supersaturated_available(n, runs)), None)
+    return supersaturated_runs(n, budget)
 
 
 def _large_factor_screening_choice(n: int, classification: dict[str, Any], template: dict[str, Any]) -> tuple[str, int]:
@@ -321,6 +322,33 @@ def _screening_transition_rules() -> list[TransitionRule]:
 # ---------------------------------------------------------------------------
 
 
+def _mixture_optimization_stage(spec: DOEProblemSpec, stage_number: int) -> ExperimentalStage:
+    """Quadratic Scheffe stage for an all-mixture problem.
+
+    Components cannot be dropped after screening the way process factors can (the
+    proportions must still sum to 1), and a CCD or Box-Behnken design in the components
+    would not give proportions, so every component stays in a mixture design.
+    """
+    q = len(spec.factor_names)
+    return ExperimentalStage(
+        stage_number=stage_number,
+        stage_name="Optimization",
+        design_type="mixture",
+        design_params={"model_type": "scheffe_quadratic"},
+        factors=spec.factor_names,
+        estimated_runs=q * (q + 1) // 2 + 1,
+        purpose="Fit a quadratic Scheffe blending model over the mixture region, to locate the best blend.",
+        success_criteria={"min_r_squared": 0.7, "adequate_precision": 4.0},
+        transition_rules=[
+            TransitionRule(
+                condition="Model is adequate (R² > 0.7, adequate precision > 4)",
+                action="proceed_to_confirmation",
+                fallback="augment_design_or_transform_response",
+            ),
+        ],
+    )
+
+
 def _select_rsm_design(
     spec: DOEProblemSpec,
     classification: dict[str, Any],
@@ -330,6 +358,8 @@ def _select_rsm_design(
     """Select the RSM optimisation design."""
     if not spec.goal_includes_optimization and classification["n_factors"] > 5:
         return None
+    if spec.has_mixture and spec.n_continuous == 0:
+        return _mixture_optimization_stage(spec, stage_number=2 if has_screening else 1)
 
     # Determine RSM factor count (screening narrows to ~3)
     n_rsm = min(classification["n_factors"], 3) if has_screening else classification["n_factors"]
@@ -361,7 +391,8 @@ def _select_rsm_design(
         runs = estimate_rsm_runs(n_rsm, "ccd", n_center_points)
         purpose = "CCD for full quadratic model with rotatability."
 
-    params: dict[str, Any] = {"n_center_points": n_center_points}
+    # A D-optimal design takes no centre points (generate_design refuses them); the others embed them.
+    params: dict[str, Any] = {} if design_type == "d_optimal" else {"n_center_points": n_center_points}
     if "ccd" in design_type:
         params["alpha"] = "face_centered" if design_type == "ccd_face_centered" else "rotatable"
         design_type = "ccd"  # the face-centred variant is a CCD with alpha="face_centered"
@@ -580,7 +611,7 @@ def _build_alternatives(spec: DOEProblemSpec, classification: dict[str, Any]) ->
 
     if n >= 6:
         alternatives.append(
-            f"Definitive Screening Design ({2 * n + 1} runs) to combine screening and curvature detection."
+            f"Definitive Screening Design ({dsd_run_count(n)} runs) to combine screening and curvature detection."
         )
     if n <= 5:
         alternatives.append(f"Full factorial 2^{n} ({2**n} runs) if budget allows complete information.")

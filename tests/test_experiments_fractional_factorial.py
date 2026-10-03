@@ -216,6 +216,23 @@ class TestReportedMetadata:
         assert result.resolution == 3
         assert result.defining_relation == ["I=ABD", "I=ACE", "I=BCDE"]
 
+    def test_negated_generators_carry_their_sign_into_the_defining_relation(self) -> None:
+        """D=-AB makes ABD = -1 on every run, and so BCDE = ABD * ACE as well."""
+        result = _fraction(5, generators=["D=-AB", "E=AC"])
+        assert result.defining_relation == ["I=-ABD", "I=ACE", "I=-BCDE"]
+        coded = _coded(result)
+        for word in result.defining_relation:
+            columns = [NAMES.index(letter) for letter in word.lstrip("I=-")]
+            assert np.all(np.prod(coded[:, columns], axis=1) == (-1 if "-" in word else 1))
+
+    def test_generators_short_of_the_requested_resolution_raise(self) -> None:
+        """The resolution used to be ignored when generators were given."""
+        with pytest.raises(ValueError, match="resolution-3 design, below the resolution=4"):
+            _fraction(4, generators=["D=AB"], resolution=4)
+
+    def test_generators_that_reach_the_requested_resolution_are_accepted(self) -> None:
+        assert _fraction(4, generators=["D=ABC"], resolution=4).resolution == 4
+
     def test_fractional_ccd_cube_really_is_resolution_v(self) -> None:
         """A resolution-V cube for 7 factors needs 64 runs.
 
@@ -233,23 +250,33 @@ class TestReportedMetadata:
 
 
 class TestBeyondTheTable:
-    """More than 11 factors: pyDOE3's search, with its resolution checked."""
+    """More than 11 factors: a search for the fewest runs that reach the resolution."""
 
-    def test_resolution_iv_from_pydoe3(self) -> None:
+    def test_resolution_iv(self) -> None:
         result = _fraction(12, resolution=4)
         assert result.n_runs == 32
         assert result.resolution == 4
         assert _measured_resolution(_coded(result)) == 4
 
-    def test_short_of_the_resolution_raises(self) -> None:
-        """pyDOE3's 64-run "resolution V" design for 12 factors is resolution IV."""
-        with pytest.raises(ValueError, match="only reaches resolution 4"):
-            _fraction(12, resolution=5)
+    @pytest.mark.parametrize(
+        ("k", "resolution", "n_runs"),
+        [(12, 5, 256), (12, 6, 256), (12, 8, 1024), (13, 5, 256), (16, 5, 256)],
+    )
+    def test_resolution_v_and_above(self, k: int, resolution: int, n_runs: int) -> None:
+        """These requests raised, because pyDOE3's search reached resolution IV only.
 
-    def test_pydoe3_finding_nothing_raises(self) -> None:
-        """Sixty factors at resolution 40 would need more base factors than pyDOE3 can name."""
+        The largest resolution V fraction in 128 runs has 11 factors, so 256 runs is the
+        fewest for twelve factors; 2^(16-8) in 256 runs is the classical resolution V design.
+        """
+        result = _fraction(k, resolution=resolution)
+        assert result.n_runs == n_runs
+        assert result.resolution >= resolution
+        assert _measured_resolution(_coded(result)) == result.resolution
+
+    def test_too_many_base_factors_raises(self) -> None:
+        """Sixty factors at resolution 40 need the half fraction, with more base factors than pyDOE3 names."""
         factors = [Factor(name=f"X{i}", low=-1, high=1) for i in range(60)]
-        with pytest.raises(ValueError, match="pyDOE3 found none"):
+        with pytest.raises(ValueError, match="At most 26 base factors"):
             generate_design(factors, design_type="fractional_factorial", resolution=40, n_center_points=0)
 
     def test_more_base_factors_than_letters_raises(self) -> None:
