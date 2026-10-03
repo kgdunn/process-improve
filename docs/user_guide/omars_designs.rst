@@ -152,11 +152,16 @@ Choosing the run size and the design
     fixed number of branch-and-bound nodes (``solver_options["node_limit"]``,
     default 100) and returns the best design found by then, which ends it at
     the same point on every run, so a fixed ``random_state`` reproduces the
-    design.
+    design.  Designs that differ only in run order, factor order or factor
+    signs are counted once.  For the ``"dominance"`` and ``"d_efficiency"``
+    criteria, each design found is then improved by a local search that swaps
+    one, two or three half-runs at a time while keeping the main effects
+    orthogonal, moving to a swap whenever it raises the D-efficiency.
 
   A valid OMARS design can still leave the model it was sized for
-  rank-deficient; such designs are set aside before the selection.  The
-  winner is chosen by ``selection_criterion``:
+  rank-deficient; such designs are set aside before the selection, and each
+  one adds a constraint to later solves that excludes every design sharing its
+  rank deficiency.  The winner is chosen by ``selection_criterion``:
 
   - ``"dominance"`` (default) keeps the Pareto front on D-efficiency (higher is
     better) and the maximum second-order correlation (lower is better), then
@@ -167,6 +172,9 @@ Choosing the run size and the design
     correlation.
   - ``"a_optimal"`` minimises the summed coefficient variance
     :math:`\operatorname{tr}\left((X^\top X)^{-1}\right)` of that model.
+
+  Under every criterion, a design with a second-order column that never
+  varies (a term it cannot estimate) ranks last.
 
 - Optionally, ``satisfice`` sets *acceptability thresholds* that are applied
   **before** the dominance/criterion step: a design is kept only if it clears
@@ -234,21 +242,21 @@ vary by machine, and scale with ``n_restarts``.
      - 10
      - multistart
      - 10
-     - 2.4
+     - 2.8
    * - 6
      - 364
      - 43
      - 15
      - multistart
      - 10
-     - 18
+     - 13
    * - 7
      - 1093
      - 57
      - 21
      - multistart
      - 10
-     - 36
+     - 41
 
 On the exhaustive path the time is the enumeration (about 250,000 four-factor
 designs), not the solver.  On the multistart path the iteration count is set by
@@ -256,8 +264,16 @@ designs), not the solver.  On the multistart path the iteration count is set by
 only repeat designs already found.  Each restart is bounded by
 ``solver_options["node_limit"]`` (default 100 branch-and-bound nodes), so its cost
 grows with the half-pool size :math:`(3^k - 1)/2` and the run size the frontier
-demands, but not without limit.  At the default ``n_restarts=50`` the five-factor
-search takes about 15 s and the six-factor search under two minutes.
+demands, but not without limit.  The time beyond the solves is the local search.
+At the default ``n_restarts=50`` the five-factor search takes about 20 s and the
+six-factor search about 70 s.
+
+``generate_design(factors, design_type="omars_ilp", budget=N)`` does not spend a
+fixed number of restarts: it stops at a run size once eight solves in a row have
+returned an estimable design that, after the local search, does not improve the
+Pareto front on D-efficiency and the maximum second-order correlation, with 50
+restarts as the ceiling.  For six factors and ``budget=17`` that is about 20
+solves, under 20 s.
 
 ``solver_options["time_limit"]`` (default 60 s per solve) is a safety cap, not
 the budget: if it stops a solve, the result depends on the machine's speed, and
