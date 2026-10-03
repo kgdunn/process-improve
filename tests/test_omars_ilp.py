@@ -1277,6 +1277,27 @@ def test_equal_canonical_keys_mean_equivalent_designs() -> None:
         )
 
 
+def test_canonical_key_fallback_is_run_order_invariant_and_scores_the_same(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The fallback key, used past _CANONICAL_MAX_TRANSFORMS, ignores run order and encodes an equivalent design.
+
+    With seven or more factors whose columns share a signature, the key orders columns by signature and fixes the
+    signs greedily instead of trying every transform.
+    """
+    monkeypatch.setattr(omars_ilp, "_CANONICAL_MAX_TRANSFORMS", 0)
+    rng = np.random.default_rng(11)
+    pool = omars_ilp._half_pool(4)
+    for _ in range(10):
+        design = omars_ilp._foldover(pool[rng.choice(len(pool), size=8, replace=False)])
+        key = omars_ilp._canonical_key(design)
+        assert omars_ilp._canonical_key(design[rng.permutation(design.shape[0])]) == key
+        assert omars_ilp._canonical_key(-design) == key  # a foldover holds every run's mirror image
+        codes = np.frombuffer(key, dtype=np.int64)
+        decoded = (((codes[:, None] + 40) // 3 ** np.arange(3, -1, -1)) % 3 - 1).astype(float)
+        assert omars_ilp._d_efficiency(decoded, "main_quadratic") == pytest.approx(
+            omars_ilp._d_efficiency(design, "main_quadratic")
+        )
+
+
 def _candidate(d: float, corr: float, a: float = 1.0) -> omars_ilp._Candidate:
     return omars_ilp._Candidate(np.zeros((1, 3)), 17, [], d, a, corr, "Optimal")
 
