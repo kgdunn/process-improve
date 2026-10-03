@@ -209,6 +209,17 @@ those changes.
     hangs in its next solve.
   - Every selection the solver returns is re-checked exactly against its constraints
     before it is used.
+- **Mixture designs are sized to the Scheffé model and never quietly exceed the budget.**
+  On the full simplex the design ignored `model_type`: without a budget it was the
+  `2^q - 1`-run simplex centroid (1023 runs for a 10-term linear model at 10
+  components), and with one it was the `{q, 2}` lattice, which cannot fit a special
+  cubic model (rank 6 of 7 at 3 components) and could exceed the budget. The default is
+  now the pure components and the overall centroid, plus the binary blends for a
+  quadratic model and the ternary blends for a special cubic one (the 7-run simplex
+  centroid at 3 components, as before). A smaller budget gives a D-optimal subset, and a
+  budget below the number of terms is raised to it, with a warning, and recorded in
+  `metadata["budget_requested"]`. `_simplex_lattice` lists the lattice points directly,
+  so the 91-point `{13, 2}` lattice is no longer refused.
 
 ### Deprecated
 
@@ -470,17 +481,6 @@ those changes.
   docstrings and user guide now say that `metadata["centered_l2_discrepancy"]` is the
   squared discrepancy `CD^2`, and that `"maximin"` on a box of 8 or more factors puts
   every run on the levels -1, 0 and +1 (use `"maximin_lhs"` when projections matter).
-- **Mixture designs are sized to the Scheffé model and never quietly exceed the budget.**
-  On the full simplex the design ignored `model_type`: without a budget it was the
-  `2^q - 1`-run simplex centroid (1023 runs for a 10-term linear model at 10
-  components), and with one it was the `{q, 2}` lattice, which cannot fit a special
-  cubic model (rank 6 of 7 at 3 components) and could exceed the budget. The default is
-  now the pure components and the overall centroid, plus the binary blends for a
-  quadratic model and the ternary blends for a special cubic one (the 7-run simplex
-  centroid at 3 components, as before). A smaller budget gives a D-optimal subset, and a
-  budget below the number of terms is raised to it, with a warning, and recorded in
-  `metadata["budget_requested"]`. `_simplex_lattice` lists the lattice points directly,
-  so the 91-point `{13, 2}` lattice is no longer refused.
 - **Constrained mixture regions: complete vertices, fast enumeration, model-sized
   default designs.** The vertex search dropped a vertex whenever a constraint was
   written with small coefficients (`0.003*x1 >= 0.0003`), giving a false "cannot
