@@ -470,6 +470,127 @@ those changes.
   rank-deficient on mixture data; the linear blending terms are now always kept and the
   search chooses among the non-linear ones. `n_terms` counts the intercept, as
   `model_summary` does.
+- **`augment_design` refuses a run count that is not a positive whole number.**
+  `add_runs_optimal` with `n_additional_runs=0` or `-2` still appended a run, and
+  `replicate` with 0 or `add_center_points` with a negative count failed inside pandas
+  or numpy. All of them now raise a `ValueError` naming `n_additional_runs`.
+
+- **`augment_design` no longer augments a response column as a factor.** Every column
+  except `RunOrder` and `Block` was taken as a factor, so a design carrying its measured
+  response got axial runs on it, had it negated by a foldover, or set to 0 in new centre
+  runs. A new `factor_names` argument (also on the agent tool) names the factors; without
+  it, a column that is non-numeric, or lies on one side of 0 and beyond [-1, 1], is
+  refused with a `ValueError` that suggests naming them.
+
+- **`augment_design(..., "upgrade_to_rsm")` checks the model it claims to support.** It
+  always said "The design now supports estimation of a full quadratic model", yet on a
+  resolution IV cube such as the 2^(4-1) with D = ABC the interactions A:B = C:D,
+  A:C = B:D and A:D = B:C stay aliased (they are zero on every axial and centre run), so
+  the 15-term quadratic has rank 12. The upgrade now checks the `target_model` (default
+  quadratic), reports `n_coefficients` and `n_estimable`, and warns, naming the aliased
+  terms, when they differ. Centre runs are topped up to five in total (the count used to
+  fall as existing centre runs rose), and `alpha="orthogonal"` now counts the centre
+  runs the upgrade adds.
+
+- **`augment_design` no longer calls still-aliased effects "independently estimable".**
+  The explanation compared alias-chain strings, so any change to a chain, even dropping
+  a three-factor term, was reported as de-aliasing: the foldover of the 2^(5-2) with
+  D = AB, E = AC (I = BCDE afterwards) said "B:C is now independently estimable" while
+  B:C and D:E stayed identical, a semifold was called "full resolution" although its
+  effects remain correlated at |r| = 1/3, and the resolution was never reported. The
+  explanation now compares each aliased pair of main effects and two-factor
+  interactions in the augmented design, listing those now uncorrelated, those only
+  partially de-aliased (with |r|), and those still fully aliased; it reports the
+  resolution from the generators (III to IV for that foldover), and says a semifold is
+  not a regular fraction. A failed metric evaluation now warns instead of logging.
+
+- **The trade-off table no longer reports existing designs as impossible.** When the
+  minimum-aberration search would exceed its limit (12 factors in 32, 64 or 128 runs;
+  11 factors in 64 or 128 runs), the cell was blank and the `trade_off_table` tool
+  reported `exists: False`, "too many factors for the budget". Those cells now use the
+  tabulated minimum-aberration design when there is one (`2^(11-5) IV` in 64 runs,
+  `2^(11-4) V` in 128), and are otherwise marked `"?"` with `exists: None` and a reason;
+  the search limit raises the new `SearchLimitError`, a `ValueError`. Messages that read
+  "8 n_runs cannot accommodate 8 n_factors" now say runs and factors.
+
+- **The `create_factorial_design` tool follows `n_factors` and returns plain names.**
+  `factor_names` with a different length from `n_factors` silently decided the design
+  (two names with `n_factors=3` gave a 4-run, two-factor design still reported as three
+  factors); the schema now refuses it, and duplicate names. Factors were also returned
+  as `"A [coded]"`, so a formula such as `y ~ A*B` did not match them; they now carry
+  the names given, as in `generate_design`.
+
+- **Agent tool schemas reject malformed bounds and negative seeds.** `optimize_responses`
+  accepted `search_bounds=[-1.5]`, which escaped as an `IndexError`, and silently
+  dropped the third value of `[-1.5, 1.5, 99]`; a bound is now exactly two numbers,
+  for one factor or all. A negative `random_state` (or `random_seed`) for
+  `generate_design`, `augment_design`, `evaluate_design` or `optimize_responses` is
+  refused by the schema instead of failing inside numpy.
+
+- **Steepest-ascent and ridge paths check their inputs and say what they follow.**
+  `step_size=-1` walked a steepest-ascent path downhill and `n_steps=-3` returned an
+  empty path; both now raise. The docstring states that `step_size` is the Euclidean
+  distance between successive points, not a unit step in the factor with the largest
+  coefficient. Ridge analysis traces spheres out to the largest `|bound|` and so cannot
+  follow `search_bounds` that differ between factors or are asymmetric; each path point
+  now carries `inside_search_bounds`, with a warning when the bounds are of that kind.
+
+- **Canonical analysis recognises ridge systems.** A zero eigenvalue of `B` was given a
+  sign: y = 10 + 2A - A^2 (eigenvalues -1 and 0) was classed a `"saddle_point"`, its
+  flat axis labelled convex, and `stationary_point` reported a singular matrix although
+  the whole line A = 1 is a ridge of maxima. An eigenvalue that is zero to rounding is
+  now treated as flat (Myers, Montgomery and Anderson-Cook, sec. 6.4): the surface is a
+  `"stationary_ridge"`, with `ridge_of` set to `"maxima"` or `"minima"` and the ridge
+  point nearest the centre reported, or a `"rising_ridge"`, with no stationary point,
+  when the linear terms keep the response changing along the flat axis.
+
+- **`analyze_experiment`'s result can be passed straight to `optimize_responses`.** The
+  agent tool documented this pipeline, but the result had no `factor_names` or
+  `response_name`, so the call failed with the bare message `'factor_names'`. The result
+  now carries both, and a fitted model missing `coefficients` or `factor_names` raises a
+  `ValueError` that names the key. The single-response methods (`stationary_point`,
+  `canonical_analysis`, `steepest_ascent`, `steepest_descent`, `ridge_analysis`)
+  analysed the first of several models and ignored the rest; they now raise.
+
+- **Second-order analyses refuse terms they cannot represent.** `stationary_point`,
+  `canonical_analysis` and `ridge_analysis` silently dropped three-factor terms such as
+  `A:B:C`, so the reported stationary point was not stationary for the fitted model, and
+  a term that is not a product of the factors (`I(A ** 3)`, `C(A)[T.1]`) failed with a
+  bare `KeyError`. Both now raise a `ValueError` naming the terms; `desirability` and
+  `pareto_front` keep evaluating products of any number of factors.
+
+- **Desirability optimisation finds tight specification windows, and says when it
+  cannot.** A Derringer-Suich desirability is exactly 0, with zero gradient, outside its
+  limits, so when every start landed there the search stayed put and reported D = 0
+  with `optimizer_success=True`, although D = 1 was reachable in the search box (limits
+  of [1.9, 2.0] on y = A + B, met only at the corner (1, 1)). The search now first
+  maximises the smallest unclipped ramp, which is smooth everywhere and reaches the
+  region where every d > 0 when there is one; when there is none it reports the
+  setting closest to meeting every limit, with a `UserWarning`. Settings, predictions
+  and desirabilities in the result are plain Python floats rather than `np.float64`.
+
+- **`optimize_responses` takes a `random_state`.** The multistart search behind
+  `"desirability"` and `"pareto_front"` draws random starting points but was always
+  seeded with 42, so a caller could not vary the starts to check that an optimum does
+  not depend on them. The seed (an int, a `Generator` or `None`, default 42) is now a
+  parameter of the function and of the agent tool.
+
+- **`optimize_responses` refuses goals whose `response` names do not match the models.**
+  When both sides named their responses but the names did not pair up one to one (a typo
+  or a case difference such as `"Y1"` for `"y1"`), the goals were paired by list
+  position with only a log line, so goals listed in a different order from the models
+  optimised each response against another one's goal. That is now a `ValueError` naming
+  the unmatched names. Pairing by position when names are left out, and a `region`
+  ignored by a method that cannot use it, are now reported with a `UserWarning` rather
+  than a log record that an application's logging setup could hide.
+
+- **Desirability goals and importances are checked before optimising.** Swapped limits
+  (`low=80, high=60`) turned a ramp into a step, a target outside `[low, high]` could
+  never reach d = 1, a negative `weight` returned d = 2, a negative importance pushed
+  the composite above 1, missing limits silently became 0 and 1, and an importance list
+  of the wrong length failed inside `zip()`. Each now raises a `ValueError` naming the
+  response, as Derringer and Suich's `low < target < high` and positive exponents
+  require.
 
 - **`analyze_experiment` accepts a response named `yield`.** The commonest response in
   chemistry is a Python keyword, which a model formula cannot name, so the call failed

@@ -537,8 +537,10 @@ def analyze_experiment(  # noqa: PLR0913
     Returns
     -------
     dict[str, Any]
-        Results keyed by analysis type.  Always includes ``"model_summary"``
-        with the keys:
+        Results keyed by analysis type. Always includes ``"response_name"``,
+        ``"factor_names"`` (the factor columns, in order), so that the result
+        with ``"coefficients"`` can be passed to ``optimize_responses`` as a
+        fitted model, and ``"model_summary"`` with the keys:
 
         - ``formula`` - the resolved patsy formula that was fitted.
         - ``model`` - the model fitted: a model name, or ``"formula"``.
@@ -634,7 +636,10 @@ def analyze_experiment(  # noqa: PLR0913
     logger.debug("analyze_experiment: fitted %r on %d observations; analyses=%s", formula, len(df), types)
 
     results: dict[str, Any] = {
-        "model_summary": _model_summary(ols_result, formula, response_col, reported_response, model, transform_info)
+        # So the result can be passed to optimize_responses as a fitted model as it is.
+        "response_name": reported_response,
+        "factor_names": list(factor_cols),
+        "model_summary": _model_summary(ols_result, formula, response_col, reported_response, model, transform_info),
     }
 
     fit = _Fit(

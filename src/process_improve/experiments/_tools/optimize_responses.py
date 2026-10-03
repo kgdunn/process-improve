@@ -3,12 +3,15 @@
 
 from __future__ import annotations
 
-from typing import Any, Literal
+from typing import Annotated, Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
 from process_improve.experiments._tools import _TOOL_EXPECTED_EXCEPTIONS, _register, logger
 from process_improve.tool_spec import clean, tool_spec
+
+#: A coded (low, high) pair, as JSON: exactly two numbers.
+_Pair = Annotated[list[float], Field(min_length=2, max_length=2)]
 
 
 class OptimizeResponsesInput(BaseModel):
@@ -20,9 +23,10 @@ class OptimizeResponsesInput(BaseModel):
         ...,
         min_length=1,
         description=(
-            "One or more fitted models from analyze_experiment. Each entry must "
-            "include 'coefficients' (list of {term, coefficient}), 'factor_names' "
-            "(list of strings), and optionally 'response_name', 'mse_residual', 'r_squared'."
+            "One or more fitted models: the result of analyze_experiment with 'coefficients' among its "
+            "analysis_type values can be passed as it is. Each entry must include 'coefficients' (list of "
+            "{term, coefficient}) and 'factor_names' (list of strings), and optionally 'response_name'. "
+            "stationary_point, canonical_analysis, steepest_ascent/descent and ridge_analysis take exactly one model."
         ),
     )
     goals: list[dict[str, Any]] | None = Field(
@@ -57,7 +61,11 @@ class OptimizeResponsesInput(BaseModel):
     )
     step_size: float = Field(
         0.5,
-        description="Step size in coded units for steepest ascent/descent (default 0.5).",
+        gt=0.0,
+        description=(
+            "Euclidean distance in coded units between successive points of a steepest ascent/descent path "
+            "(default 0.5)."
+        ),
     )
     n_steps: int = Field(
         10,
@@ -81,7 +89,7 @@ class OptimizeResponsesInput(BaseModel):
         lt=1.0,
         description="Alpha for intervals reported at the optimum (default 0.05, giving 95% intervals).",
     )
-    search_bounds: list[float] | dict[str, list[float]] | None = Field(
+    search_bounds: _Pair | dict[str, _Pair] | None = Field(
         None,
         description=(
             "Coded region to search, as [low, high] applied to every factor, or a mapping from factor "
@@ -115,6 +123,14 @@ class OptimizeResponsesInput(BaseModel):
             "to 1 for a mixture). The result then reports 'within_region'."
         ),
     )
+    random_state: int = Field(
+        42,
+        ge=0,
+        description=(
+            "Seed for the random starting points of 'desirability' and 'pareto_front' (default 42). "
+            "Try another seed to check that the optimum does not depend on where the search began."
+        ),
+    )
 
 
 def _as_bounds(
@@ -140,14 +156,15 @@ def _as_bounds(
         "what to use when the stationary point falls outside the region the experiment covered, or is a "
         "saddle), and 'pareto_front' (the set of non-dominated compromises across two or more responses, "
         "when the trade-off itself is the thing worth seeing rather than one desirability-weighted point). "
-        "Each fitted_model must include coefficients (as returned by analyze_experiment with "
-        "analysis_type='coefficients'), factor_names, and response_name. "
+        "Each fitted_model must include coefficients and factor_names, which analyze_experiment returns "
+        "(with analysis_type='coefficients'), and response_name; its result can be passed as it is. "
         "For desirability, each goal specifies whether to maximize, minimize, or target a value. "
         "The desirability result also carries a 'responses' list, pairing each model's coefficients "
         "with its specification limits, which can be passed straight to visualize_doe(plot_type='overlay') "
         "to see the region where every response is simultaneously within specification."
     ),
     input_model=OptimizeResponsesInput,
+    rng={"uses_rng": True, "seed_param": "random_state", "default_seed": 42},
     examples="""
     # "Find the stationary point of my quadratic model"
         -> ``optimize_responses(fitted_models=[{"response_name": "yield",
@@ -213,6 +230,7 @@ def optimize_responses_tool(spec: OptimizeResponsesInput) -> dict[str, Any]:
             ridge_direction=spec.ridge_direction,
             n_pareto_points=spec.n_pareto_points,
             region=DesignRegion.from_dict(spec.region) if spec.region is not None else None,
+            random_state=spec.random_state,
         )
         return clean(result)
     except _TOOL_EXPECTED_EXCEPTIONS as e:
