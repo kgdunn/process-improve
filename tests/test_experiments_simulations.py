@@ -9,6 +9,7 @@ they hold for any RNG stream.
 
 from __future__ import annotations
 
+import inspect
 import math
 
 import numpy as np
@@ -184,4 +185,6 @@ def test_non_numeric_input_raises_the_documented_value_error(simulator, bad):
 def test_docstring_examples_show_what_the_call_returns(call, expected):
     """The examples showed 94 and 601; they are skipped by doctest, so nothing checked them."""
     assert call() == expected
-    assert f"\n    {expected}\n" in (popcorn.__doc__ if expected == 95 else manufacture.__doc__)
+    # Python 3.13 strips the common indentation from docstrings, so compare after cleandoc.
+    doc = inspect.cleandoc(popcorn.__doc__ if expected == 95 else manufacture.__doc__)
+    assert f"\n{expected}\n" in doc
