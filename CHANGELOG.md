@@ -20,7 +20,6 @@ those changes.
   design took 36.4 s and now takes 3.0 s (D-optimal: 9.9 s to 0.8 s; the 8-factor
   augmentation: 11.3 s to 1.4 s). Each change, in `designs_constrained.py`:
 
-
   - For D, A and I the exchange is row-wise (modified Fedorov, Cook and Nachtsheim
     1980): each run in turn takes its best improving swap, with `(X'X)^-1` and the
     candidate variances kept current by rank-one updates. It used to rescore every
