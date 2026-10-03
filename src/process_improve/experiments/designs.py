@@ -734,6 +734,11 @@ def generate_design(  # noqa: PLR0913
                 ),
             },
         )
+        if design_type == "supersaturated" and budget is not None:
+            # The budget is a ceiling: the largest unaliased supersaturated run count under it.
+            from process_improve.experiments.designs_supersaturated import supersaturated_runs  # noqa: PLC0415
+
+            budget = supersaturated_runs(len(factors), budget)
 
     if design_type not in _DESIGN_REGISTRY:
         raise ValueError(f"Unknown design_type={design_type!r}.  Choose from: {', '.join(sorted(_DESIGN_REGISTRY))}.")

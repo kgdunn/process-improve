@@ -14,7 +14,7 @@ those changes.
 ### Added
 
 - **Space-filling designs**: `design_type="latin_hypercube"`, `"maximin_lhs"`,
-  `"uniform"` (minimal centred L2 discrepancy), `"sobol"`, `"halton"` and `"maximin"`.
+  `"uniform"` (low centred L2 discrepancy), `"sobol"`, `"halton"` and `"maximin"`.
   The last three also work in constrained regions and constrained mixtures: the
   sequences are mapped onto the region (a uniform-preserving map onto the simplex for
   mixtures) and filtered, and maximin picks runs from a dense sample of the region by a
@@ -218,6 +218,17 @@ those changes.
     hangs in its next solve.
   - Every selection the solver returns is re-checked exactly against its constraints
     before it is used.
+- **Mixture designs are sized to the Scheffé model and never quietly exceed the budget.**
+  On the full simplex the design ignored `model_type`: without a budget it was the
+  `2^q - 1`-run simplex centroid (1023 runs for a 10-term linear model at 10
+  components), and with one it was the `{q, 2}` lattice, which cannot fit a special
+  cubic model (rank 6 of 7 at 3 components) and could exceed the budget. The default is
+  now the pure components and the overall centroid, plus the binary blends for a
+  quadratic model and the ternary blends for a special cubic one (the 7-run simplex
+  centroid at 3 components, as before). A smaller budget gives a D-optimal subset, and a
+  budget below the number of terms is raised to it, with a warning, and recorded in
+  `metadata["budget_requested"]`. `_simplex_lattice` lists the lattice points directly,
+  so the 91-point `{13, 2}` lattice is no longer refused.
 
 ### Deprecated
 
@@ -526,6 +537,96 @@ those changes.
     `super_scores_` and `predictions_`.
   - Some components of existing fits change sign. Scores, loadings, contributions and
     predictions are otherwise unchanged, apart from the corrected missing-data fits.
+- **Uniform samples of a constrained region reach all of it.** These samples drive
+  space-filling designs, the I-optimality average and `evaluate_design`'s prediction
+  variance. A piecewise-linear constraint such as `abs(a - 0.95) >= 0.01` passed the
+  affine test, so hit-and-run never visited the part beyond its kink; the test now also
+  checks the box corners and a thousand further points. In long thin regions (a mixture
+  sliver `x1 + 3*x2 <= 0.05`) the chains started near the centre and barely moved along
+  the region, so the 5-95% range of `x3` came out as 0.15-0.76 instead of 0.05-0.93;
+  chains now start from the rejection hits when there are any and step along directions
+  drawn from the region's shape. A region made of separate pieces is now shared between
+  them by size to within about 0.01 (it varied by 0.06 from seed to seed).
+  `DesignRegion.sample` on categorical factors alone returns an `(n, 0)` array instead
+  of raising `IndexError`.
+- **`optimal.point_exchange` returns the D-optimal design it promises.** It offered each
+  candidate once, in a single pass, and stopped there: for four runs from the 3^3 grid
+  half of all seeds returned a design with `det(X'X)` of 64 or less instead of the half
+  fraction's 256. It now repeats the passes until none swaps a row, keeps the best of
+  five random starts, and documents its parameters.
+- **Supersaturated designs stay supersaturated and are scored fairly.** Without a budget,
+  3 to 5 factors got 4 or 6 runs, `k + 1` or more and so not supersaturated, with a
+  negative `E(s^2)` bound and efficiency; no unaliased design exists there, so the call
+  now raises and points to `"plackett_burman"`. In 6, 10, 14, ... runs every `|s_ij|` is
+  at least 2, a floor the Nguyen / Tang-Wu bound misses: designs with every `|s_ij| = 2`,
+  which are optimal, were reported as 36% to 77% efficient and are now at 100%. The
+  bound is never negative. Automatic selection treats the budget as a ceiling: 10
+  factors with 7 to 9 runs get the 6-run design and 22 factors with 13 runs the 12-run
+  design, where they got 15 and 27 Plackett-Burman runs (the new
+  `supersaturated_runs` gives the run count). A budget of `6.0` works and `6.5` raises,
+  where both failed with a `TypeError`. Fully aliased factors are reported by a
+  `UserWarning`, which callers can catch, instead of a log message, and the run counts
+  it and the errors suggest are all supersaturated.
+- **Space-filling designs: `"uniform"` and `"maximin_lhs"` reach what they promise, and
+  the run count is checked.** `"uniform"` used a scrambled Latin hypercube, whose random
+  offset inside each slice raised the centred discrepancy by half (0.0046 against 0.0030
+  for 10 runs in 2 factors) and made the one-factor design a plain Latin hypercube; it is
+  now a U-type design on the slice centres, as in Fang's uniform designs. `"maximin_lhs"`
+  stopped after a fixed `200 * k` swap attempts whatever `n`, leaving the smallest
+  distance 15% short at 50 runs in 5 factors; it now places runs at the slice centres
+  (Morris and Mitchell) and swaps, each swap scored in `O(n)`, until `3 * n * k` attempts
+  in a row fail. Fewer than 2 runs, or a fractional run count, raise a `ValueError` that
+  says so, where they failed deep inside numpy or returned an infinite distance. The
+  docstrings and user guide now say that `metadata["centered_l2_discrepancy"]` is the
+  squared discrepancy `CD^2`, and that `"maximin"` on a box of 8 or more factors puts
+  every run on the levels -1, 0 and +1 (use `"maximin_lhs"` when projections matter).
+- **Constrained mixture regions: complete vertices, fast enumeration, model-sized
+  default designs.** The vertex search dropped a vertex whenever a constraint was
+  written with small coefficients (`0.003*x1 >= 0.0003`), giving a false "cannot
+  support the model" error or a design missing a vertex; constraints are now scaled to
+  unit length first. Constraints implied by the others (`x_i <= 1` with zero lower
+  bounds) are dropped before enumerating, so 10 components with three constraints give
+  their 40 vertices at once instead of being refused, and adjacent vertices are found
+  without a rank test for every pair (a 100-run maximin design over a 10-component
+  mixture took over 10 s in vertex enumeration alone). Without a budget, a design of
+  more than three runs per model term (211 runs for 21 terms at 6 bounded components,
+  6931 at 10) is replaced by a D-optimal one with five runs more than the model has
+  terms. With user candidates, `n_candidates` now counts the feasible supplied blends,
+  and the docstring says that no budget means `n_terms + 3` runs.
+- **The built-in candidate exchange searches better and checks its inputs.** Its
+  restarts began from almost the same greedy design, since the first of many candidates
+  tied at the largest variance was always taken: a 14-run, 3-factor quadratic A-optimal
+  design reached trace 2.39 or 2.42 from every seed, never the 2.30 design in its own
+  candidate set, which most seeds now reach. Ties are now broken at random. Two linear
+  constraints that meet off the grid lines left that vertex out of the candidates, so a
+  4-run design for `a + 2*b <= 1.1, 2*a + b <= 1.1` was 94% D-efficient; the vertices
+  of the region cut by its linear constraints are now candidates
+  (`metadata["n_vertex_points"]`). Unconstrained D-optimal designs without squared terms
+  use the 2-level grid, which holds an optimum, instead of 5 levels: the same designs,
+  100 times faster at 7 factors. `constrained_optimal_design` refuses an unknown
+  `model_type` (`"quad"` gave a main-effects design labelled `"quad"`). Fixed runs
+  outside the constrained region are counted in
+  `metadata["n_fixed_runs_outside_region"]`, and the docstrings say they are kept as
+  given; a budget raised to make room for the free runs is recorded in
+  `metadata["budget_requested"]`.
+- **Optimal designs: pyoptex designs use interior levels, split-plot designs report
+  their whole plots, and budgets are honest.** Under a quadratic model pyoptex chose
+  each continuous factor from `{-1, 0, 1}` only, so A- and I-optimal designs lost up to
+  19% of their criterion (a 6-run, 2-factor A-optimal trace of 5.0 against 4.185); they
+  now have five levels from -1 to 1. Split-plot designs fixed the number of whole plots
+  at `max(4, n_runs // 3)`, so 16 runs with two hard-to-change factors and a quadratic
+  model (6 whole-plot terms) failed with "rank collinearity"; the default is now at least
+  one more than the whole-plot terms, and the metadata records each run's whole plot
+  (`whole_plot`), `n_whole_plots` and `whole_plot_variance_ratio`, which a split-plot
+  analysis needs. A `hard_to_change` name that is not a factor raises instead of
+  producing an ordinary design labelled split-plot. pyoptex's `metric_value` is on its
+  own scale (`det(X'X)^(1/p)`, `-trace`), so its designs now also report
+  `log_det_information` or `trace_criterion` as the built-in exchange does. A budget
+  raised to the model size is recorded in `metadata["budget_requested"]`; fixed runs
+  that span too little of the model raise the budget on the pyoptex path too, where they
+  failed inside pyoptex; and without a budget, fixed runs get a default that leaves room
+  beyond them (8 fixed runs and the default `2k + 1 = 7` used to raise). The docstrings
+  name E-optimality and every case in which `hard_to_change` is ignored.
 
 ## [1.96.0] - 2026-09-30
 

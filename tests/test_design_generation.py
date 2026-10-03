@@ -808,13 +808,14 @@ class TestMixture:
         with pytest.raises(ValueError, match="at least 2"):
             generate_design(factors, design_type="mixture")
 
-    def test_simplex_centroid_run_count(self) -> None:
-        """Simplex-centroid for k components has 2^k - 1 runs."""
+    def test_default_run_count_follows_the_model(self) -> None:
+        """The default (quadratic Scheffe) design is the {k, 2} lattice plus the centroid, not 2^k - 1 runs."""
         for k in (3, 4, 5):
             factors = [Factor(name=f"x{i}", type="mixture") for i in range(k)]
             result = generate_design(factors, design_type="mixture")
-            assert result.n_runs == 2**k - 1
-            assert result.metadata["method"] == "simplex_centroid"
+            assert result.n_runs == k * (k + 1) // 2 + 1
+            expected = "simplex_centroid" if k == 3 else "simplex_lattice_degree_2_plus_centroid"
+            assert result.metadata["method"] == expected
 
     def test_values_in_unit_interval(self) -> None:
         """All mixture proportions must lie in [0, 1]."""
@@ -824,14 +825,13 @@ class TestMixture:
         assert proportions.min() >= -1e-12
         assert proportions.max() <= 1.0 + 1e-12
 
-    def test_budget_triggers_simplex_lattice(self) -> None:
-        """Tight budget should downgrade to a simplex-lattice of degree 2."""
+    def test_budget_below_the_default_design_gives_a_d_optimal_subset(self) -> None:
+        """A budget is a ceiling: below the 6-run default design, the runs come from the D-optimal engine."""
         factors = [Factor(name=f"x{i}", type="mixture") for i in range(5)]
-        # Simplex-centroid would need 2^5 - 1 = 31 runs; cap at 10.
-        result = generate_design(factors, design_type="mixture", budget=10)
-        assert result.metadata["method"] == "simplex_lattice_degree_2"
-        # {5, 2} lattice has k*(k+1)/2 = 15 points.
-        assert result.n_runs == 15
+        result = generate_design(factors, design_type="mixture", budget=4, model_type="scheffe_linear")
+        assert result.metadata["method"] == "d_optimal_extreme_vertices"
+        assert result.n_runs == 5  # raised to the 5 model terms, and recorded
+        assert result.metadata["budget_requested"] == 4
 
 
 # ---------------------------------------------------------------------------
