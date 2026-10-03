@@ -10,7 +10,7 @@ const pending = new Map();
 
 worker.onmessage = ({ data }) => {
   if (data.status) {
-    setStatus(data.status, data.failed);
+    setStatus(data.status, data.state);
     return;
   }
   const resolve = pending.get(data.id);
@@ -27,10 +27,11 @@ function call(fn, payload = {}) {
   });
 }
 
-function setStatus(text, failed = false) {
+/** Show a status message; state is "busy" (spinner), "ok" (tick) or "error". */
+function setStatus(text, state = "ok") {
   const el = $("#status");
-  el.textContent = text;
-  el.classList.toggle("error", failed);
+  el.querySelector(".status__text").textContent = text;
+  el.dataset.state = state;
 }
 
 // ---------------------------------------------------------------- factor table
@@ -77,7 +78,7 @@ function showOptions() {
 async function generate() {
   const button = $("#generate");
   button.disabled = true;
-  setStatus("Generating design...");
+  setStatus("Generating design...", "busy");
   const spec = {
     design_type: $("#design-type").value,
     factors: readFactors(),
@@ -90,7 +91,7 @@ async function generate() {
   const reply = await call("api_make_design", spec);
   button.disabled = false;
   if (!reply.ok) {
-    setStatus(reply.error, true);
+    setStatus(reply.error, "error");
     return;
   }
   const r = reply.result;
@@ -117,12 +118,12 @@ let lastWorkbook = null;
 
 async function analyse() {
   if (!lastWorkbook) return;
-  setStatus("Analysing...");
+  setStatus("Analysing...", "busy");
   const reply = await call("api_analyze", { xlsx_base64: lastWorkbook, model: $("#model").value });
   const out = $("#analysis");
   out.hidden = false;
   if (!reply.ok) {
-    setStatus("The workbook could not be analysed.", true);
+    setStatus("The workbook could not be analysed.", "error");
     out.replaceChildren(el("p", "error", reply.error));
     return;
   }

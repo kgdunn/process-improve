@@ -56,7 +56,8 @@ end-to-end, on-line workflows. Highlights (full history in [CHANGELOG.md](CHANGE
   variance, FDS, aliasing), and `optimize_responses` finds the best settings for
   several responses inside the same constrained region. The
   [screen-then-optimise case study](https://kgdunn.github.io/process-improve/user_guide/case_studies/design-analysis-experiments/screen-then-optimise.html)
-  walks through all of it.
+  walks through all of it. [Try it in your browser](https://kgdunn.github.io/process-improve/app/),
+  with nothing to install.
 - **Sensory & descriptive panel analysis** (`process_improve.sensory`): validate
   a panel, flag inconsistent assessors with the Mixed Assessor Model, and relate
   attributes to product covariates.

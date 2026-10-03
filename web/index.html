@@ -17,7 +17,10 @@
       <a href="https://github.com/kgdunn/process-improve">process-improve</a> Python package running
       inside this browser tab. Nothing to install, and your data never leave your machine.
     </p>
-    <p id="status" class="status" role="status" aria-live="polite">Starting Python...</p>
+    <div id="status" class="status" role="status" aria-live="polite" data-state="busy">
+      <span class="status__icon" aria-hidden="true"></span>
+      <span class="status__text">Starting Python...</span>
+    </div>
   </header>
 
   <section aria-labelledby="h-design">
