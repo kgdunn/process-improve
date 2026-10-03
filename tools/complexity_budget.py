@@ -38,12 +38,14 @@ RULES = ("C901", "PLR0912", "PLR0913", "PLR0915")
 #: never raise them. A pull request that pushes a count over its budget has made
 #: the code worse in the specific way #307 is about, and CI says so.
 BUDGET: dict[str, int] = {
-    # 46: #208's `to_spec` in optimization_plots.py no longer branches enough to
-    # breach C901, and its suppression went with it. The ratchet fails on a count
-    # *below* budget precisely so the saving is banked here rather than left as
-    # headroom for the next change to spend silently.
-    "C901": 46,
-    "PLR0912": 26,
+    # 45: #639 rewrote `_run_model_selection` as a heredity-aware stepwise search
+    # split into small helpers, and its C901 suppression went with it. 46 before
+    # that: #208's `to_spec` in optimization_plots.py no longer branches enough to
+    # breach C901. The ratchet fails on a count *below* budget precisely so the
+    # saving is banked here rather than left as headroom for the next change to
+    # spend silently.
+    "C901": 42,
+    "PLR0912": 24,
     # 83, and none of the five moves is a regression any one branch introduced.
     # #598 merged `smooth_trajectories`, whose seven arguments are the two
     # smoothers' settings side by side: naming them beats a settings dict whose
@@ -59,14 +61,22 @@ BUDGET: dict[str, int] = {
     # is really there rather than pretending the count did not move. #191 makes it
     # 84 with `PRM.__init__`, which like `PLSDA.__init__` mirrors `PLS.__init__`
     # and adds its own options (the three that control the reweighting loop), so
-    # its width is inherited rather than invented.
-    "PLR0913": 84,
+    # its width is inherited rather than invented. #605 makes it 86 with
+    # `PLS.compare_cv_criteria` and `PLS.pseudo_validation_set`, the two public
+    # entry points of latent-structure validation. Each of their settings controls a
+    # named criterion (two permutation counts, a significance level, an angle
+    # threshold, a confidence level) or is one of the published `pcvpls` options
+    # (segments, scope), the same kind of first-class option as
+    # `select_n_components`' own. The width stops there: the function forms forward
+    # `**kwargs`, and the implementation takes a settings dataclass, so the
+    # signature is written once.
+    "PLR0913": 86,
     # 30: #541 moved the SPE validity gate and the no-change prediction out of
     # `MidCourseCorrector.correct` into `predict`, so `correct` no longer breaches
     # PLR0915; the per-batch loop of `evaluate_control_policies` went into
     # `_run_decision_points` at the same time, which kept that function under
     # PLR0912 after it gained the no-change record.
-    "PLR0915": 30,
+    "PLR0915": 29,
 }
 
 #: Where the ratchet is headed: half of the 2026-06 baseline of 185, by v2.0.

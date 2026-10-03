@@ -8,11 +8,122 @@ from typing import TYPE_CHECKING, cast
 
 import numpy as np
 import pandas as pd
+from patsy.util import SortAnythingKey
 
+from process_improve._random import check_random_state
+from process_improve.experiments._blocking import Blocking, confounding_blocks, exchange_blocks, is_regular_two_level
 from process_improve.experiments.structures import Column, Expt, c, gather
 
 if TYPE_CHECKING:
     from process_improve.experiments.factor import DesignResult, Factor
+
+
+#: Columns that ``build_design_result`` adds to every design, so no factor may use these names.
+RESERVED_COLUMN_NAMES = ("RunOrder", "Block")
+
+
+def refuse_reserved_names(factors: list[Factor]) -> None:
+    """Raise when a factor is named like a column the design adds (``RunOrder``, ``Block``).
+
+    Raises
+    ------
+    ValueError
+        If a factor name is one of :data:`RESERVED_COLUMN_NAMES`; the design would
+        otherwise overwrite that factor's settings or fail inside pandas.
+    """
+    clash = [f.name for f in factors if f.name in RESERVED_COLUMN_NAMES]
+    if clash:
+        raise ValueError(
+            f"Factor name(s) {clash} are reserved: every design has a 'RunOrder' column, and a blocked "
+            "design a 'Block' column. Rename the factor(s)."
+        )
+
+
+def categorical_codes(n_levels: int) -> np.ndarray:
+    """Coded values that stand for the levels of a categorical factor in a numeric design matrix.
+
+    Level ``i`` of ``n_levels`` is ``np.linspace(-1, 1, n_levels)[i]``: -1 and +1 for a
+    two-level factor, as in every two-level design, and -1, 0, +1 for three levels.
+    """
+    return np.linspace(-1.0, 1.0, n_levels)
+
+
+def categorical_effect_columns(codes: np.ndarray, n_levels: int) -> np.ndarray:
+    """Effect (sum-to-zero) model columns of a categorical factor, one row per run.
+
+    The factor contributes ``n_levels - 1`` columns, each summing to zero over the
+    levels, so its main effect is measured from the average of the levels rather than
+    from a reference level. ``evaluate_design`` builds the same columns with patsy's
+    ``Sum`` contrast, so the two agree exactly when ``codes`` index the levels in the
+    order patsy sorts them (see :func:`sorted_level_ranks`):
+
+    * two levels: the first is -1 and the second +1, like a coded continuous factor
+      and like the effects of ``analyze_experiment`` (patsy ``Sum(omit=0)``);
+    * three or more: level ``j`` is +1 in column ``j`` and the last level is -1 in
+      every column (patsy ``Sum``, also pyoptex's effect encoding).
+
+    Parameters
+    ----------
+    codes : numpy.ndarray
+        Integer level index of each run, from 0 to ``n_levels - 1``.
+    n_levels : int
+        Number of levels of the factor.
+
+    Returns
+    -------
+    numpy.ndarray
+        Array of shape ``(len(codes), n_levels - 1)``.
+    """
+    codes = np.asarray(codes, dtype=int).reshape(-1)
+    if n_levels == 2:
+        return np.where(codes == 0, -1.0, 1.0)[:, None]
+    contrast = np.vstack([np.eye(n_levels - 1), -np.ones((1, n_levels - 1))])
+    return contrast[codes]
+
+
+def sorted_level_ranks(levels: list) -> np.ndarray:
+    """Position of each declared level once the levels are sorted the way patsy sorts labels.
+
+    ``evaluate_design`` reads a categorical factor from its label column, whose levels
+    patsy puts in sorted order; indexing :func:`categorical_effect_columns` by these
+    ranks makes the design builder code the levels the same way.
+
+    Parameters
+    ----------
+    levels : list
+        The factor's levels in declared order.
+
+    Returns
+    -------
+    numpy.ndarray
+        ``ranks[i]`` is the sorted position of ``levels[i]``.
+    """
+    order = sorted(range(len(levels)), key=lambda i: SortAnythingKey(levels[i]))
+    ranks = np.empty(len(levels), dtype=int)
+    ranks[order] = np.arange(len(levels))
+    return ranks
+
+
+def categorical_labels(values: np.ndarray, factor: Factor) -> list:
+    """Map a categorical factor's column of a numeric design matrix to its level labels.
+
+    Raises
+    ------
+    ValueError
+        If a value is not one of :func:`categorical_codes`, such as the 0 of a centre
+        point for a two-level factor.
+    """
+    levels = list(factor.levels or [])
+    codes = categorical_codes(len(levels))
+    index = np.abs(np.asarray(values, dtype=float)[:, None] - codes[None, :]).argmin(axis=1)
+    bad = ~np.isclose(np.asarray(values, dtype=float), codes[index], atol=1e-9)
+    if bad.any():
+        raise ValueError(
+            f"Categorical factor {factor.name!r} has {len(levels)} levels, coded {codes.tolist()}, but the "
+            f"design asks for the setting {float(np.asarray(values, dtype=float)[bad][0])}; this design type "
+            "cannot place a categorical factor there."
+        )
+    return [levels[i] for i in index]
 
 
 def matrix_to_columns(
@@ -45,6 +156,9 @@ def matrix_to_columns(
     for i, factor in enumerate(factors):
         values = matrix[:, i].tolist()
         if factor.type == FactorType.categorical:
+            if matrix.dtype != object:
+                # Numeric designs carry level codes (see categorical_codes); optimal designs carry labels.
+                values = categorical_labels(matrix[:, i], factor)
             # A categorical factor carries labels, not coded numbers. Build it
             # from its levels and mark it not-coded so the coded<->actual affine
             # map (which assumes a numeric low/high range) is skipped and the
@@ -97,8 +211,11 @@ def coded_to_actual(columns: list[Column]) -> list[Column]:
     return [col.to_realworld() for col in columns]
 
 
-def add_center_points(matrix: np.ndarray, n_center: int) -> np.ndarray:
-    """Append center point rows (all zeros) to a coded design matrix.
+def add_center_points(matrix: np.ndarray, n_center: int, factors: list[Factor] | None = None) -> np.ndarray:
+    """Append center point rows to a coded design matrix.
+
+    Continuous factors sit at 0. A categorical factor has no centre, so its centre runs
+    cycle through its levels (the usual practice of a centre point per level).
 
     Parameters
     ----------
@@ -106,6 +223,8 @@ def add_center_points(matrix: np.ndarray, n_center: int) -> np.ndarray:
         Coded design matrix of shape (n_runs, n_factors).
     n_center : int
         Number of center point replicates to add.
+    factors : list[Factor] or None
+        The factors, to find the categorical columns; ``None`` treats every column as continuous.
 
     Returns
     -------
@@ -115,6 +234,10 @@ def add_center_points(matrix: np.ndarray, n_center: int) -> np.ndarray:
     if n_center <= 0:
         return matrix
     center_rows = np.zeros((n_center, matrix.shape[1]))
+    for j, factor in enumerate(factors or []):
+        if factor.levels and factor.type.value == "categorical":
+            codes = categorical_codes(len(factor.levels))
+            center_rows[:, j] = codes[np.arange(n_center) % len(codes)]
     return np.vstack([matrix, center_rows])
 
 
@@ -138,22 +261,32 @@ def replicate_design(matrix: np.ndarray, n_replicates: int) -> np.ndarray:
     return np.tile(matrix, (n_replicates, 1))
 
 
-def assign_blocks(n_runs: int, n_blocks: int) -> list[int]:
-    """Assign runs to blocks using round-robin.
+def _numeric_codes(matrix: np.ndarray, factors: list[Factor]) -> np.ndarray:
+    """Return the design as floats, categorical labels replaced by their level codes."""
+    if matrix.dtype != object:
+        return matrix.astype(float)
+    out = np.empty(matrix.shape)
+    for j, factor in enumerate(factors):
+        if factor.type.value == "categorical" and factor.levels:
+            codes = categorical_codes(len(factor.levels))
+            out[:, j] = [codes[list(factor.levels).index(v)] if v in factor.levels else v for v in matrix[:, j]]
+        else:
+            out[:, j] = matrix[:, j].astype(float)
+    return out
 
-    Parameters
-    ----------
-    n_runs : int
-        Total number of runs.
-    n_blocks : int
-        Number of blocks.
 
-    Returns
-    -------
-    list[int]
-        Block assignment (1-based) for each run.
-    """
-    return [(i % n_blocks) + 1 for i in range(n_runs)]
+def _assign_blocks(
+    matrix: np.ndarray,
+    factors: list[Factor],
+    design_type: str,
+    n_blocks: int,
+    rng: np.random.Generator | None,
+) -> Blocking:
+    """Confound interaction words with blocks in a regular two-level factorial; exchange otherwise."""
+    numeric = _numeric_codes(matrix, factors)
+    if design_type in ("full_factorial", "fractional_factorial") and is_regular_two_level(numeric):
+        return confounding_blocks(numeric, n_blocks, [f.name for f in factors])
+    return exchange_blocks(numeric, n_blocks, rng if rng is not None else np.random.default_rng())
 
 
 def build_design_result(  # noqa: PLR0913
@@ -163,13 +296,15 @@ def build_design_result(  # noqa: PLR0913
     n_center_points: int = 0,
     n_replicates: int = 1,
     n_blocks: int | None = None,
-    random_seed: int | None = 42,
+    random_state: int | np.random.Generator | None = 42,
     generators: list[str] | None = None,
     defining_relation: list[str] | None = None,
     resolution: int | None = None,
     alpha: float | None = None,
     metadata: dict | None = None,
     is_actual: bool = False,
+    n_leading_fixed: int = 0,
+    randomize: bool = True,
 ) -> DesignResult:
     """Post-process a raw design matrix into a complete DesignResult.
 
@@ -196,10 +331,9 @@ def build_design_result(  # noqa: PLR0913
         Number of full replicates.
     n_blocks : int or None
         Number of blocks (None = no blocking).
-    random_seed : int or None
-        Seed for reproducible randomization. When ``None`` the original run
-        order of *coded_matrix* is preserved (used for designs whose run order
-        is part of the solution, e.g. split-plot optimal designs).
+    random_state : int, numpy.random.Generator or None
+        Seed for the run-order randomisation; ``None`` draws a fresh, unseeded
+        random order (see :func:`process_improve._random.check_random_state`).
     generators : list[str] or None
         Generator strings (fractional factorials).
     defining_relation : list[str] or None
@@ -214,32 +348,62 @@ def build_design_result(  # noqa: PLR0913
         If ``True``, *coded_matrix* contains actual-unit values (e.g.
         mixture proportions).  Both the coded and actual ``Expt`` will
         contain these values directly.
+    n_leading_fixed : int
+        Number of leading rows that are runs already performed (the fixed runs
+        of an augmentation). They keep their place at the top of the run sheet;
+        only the remaining rows are randomised. Cannot be combined with
+        ``n_replicates > 1`` or with blocks.
+    randomize : bool
+        When ``False`` the run order of *coded_matrix* is kept (for designs whose
+        run order is part of the solution, e.g. split-plot optimal designs).
 
     Returns
     -------
     DesignResult
+
+    Raises
+    ------
+    ValueError
+        If a factor uses a reserved column name, or *n_leading_fixed* is combined
+        with replicates or blocks.
     """
     from process_improve.experiments.factor import DesignResult  # noqa: PLC0415
 
+    refuse_reserved_names(factors)
+    if n_leading_fixed and n_replicates > 1:
+        raise ValueError(
+            "n_replicates cannot be combined with fixed_runs: replicating the design would repeat runs "
+            "that were already made. Replicate the new runs by raising the budget instead."
+        )
+
     # 1. Add center points (only for coded designs)
-    matrix = add_center_points(coded_matrix, n_center_points) if not is_actual else coded_matrix
+    matrix = add_center_points(coded_matrix, n_center_points, factors) if not is_actual else coded_matrix
 
     # 2. Replicate
     matrix = replicate_design(matrix, n_replicates)
 
     n_runs = matrix.shape[0]
 
-    # 3. Randomize: shuffle the row order of the design matrix.
-    #    When random_seed is None the original order is preserved (used for
-    #    optimal designs whose run order is part of the solution, e.g. split-plot).
-    if random_seed is not None:
-        rng = np.random.default_rng(random_seed)
-        perm = rng.permutation(n_runs)
-        matrix_randomized = matrix[perm]
-        run_order = (perm + 1).tolist()
+    # 3. Blocks, then randomise: the run order is shuffled within each block, blocks in turn.
+    #    Without randomisation the original order is preserved (used for optimal designs
+    #    whose run order is part of the solution, e.g. split-plot).
+    rng = check_random_state(random_state) if randomize else None
+    blocking = None
+    if n_blocks is not None and n_blocks > 1:
+        if n_leading_fixed:
+            raise ValueError("n_blocks cannot be combined with fixed_runs: the fixed runs were already made.")
+        blocking = _assign_blocks(matrix, factors, design_type, n_blocks, rng)
+    if blocking is not None:
+        groups = [np.flatnonzero(blocking.labels == b) for b in range(1, n_blocks + 1)]  # type: ignore[operator]
+        perm = np.concatenate([rng.permutation(g) if rng is not None else g for g in groups])
+    elif rng is not None:
+        # Runs already performed (fixed runs of an augmentation) stay first, in their
+        # given order; only the new runs are shuffled.
+        perm = np.concatenate([np.arange(n_leading_fixed), n_leading_fixed + rng.permutation(n_runs - n_leading_fixed)])
     else:
-        matrix_randomized = matrix
-        run_order = list(range(1, n_runs + 1))
+        perm = np.arange(n_runs)
+    matrix_randomized = matrix[perm]
+    run_order = (perm + 1).tolist()
 
     # 4. Convert to Columns and Expt
     if is_actual:
@@ -266,10 +430,17 @@ def build_design_result(  # noqa: PLR0913
 
     # 5. Blocks
     block_assignments = None
-    if n_blocks is not None and n_blocks > 1:
-        block_assignments = assign_blocks(n_runs, n_blocks)
+    if blocking is not None:
+        block_assignments = blocking.labels[perm].tolist()
         design_coded["Block"] = block_assignments
         design_actual["Block"] = block_assignments
+        metadata = dict(metadata or {})
+        metadata["blocking"] = {
+            "method": blocking.method,
+            "generators": blocking.generators,
+            "confounded_with": blocking.confounded_with,
+            "model": blocking.model,
+        }
 
     return DesignResult(
         design=design_coded,

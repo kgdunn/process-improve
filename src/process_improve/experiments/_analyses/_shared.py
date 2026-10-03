@@ -36,3 +36,15 @@ def _compute_adequate_precision(ols_result: RegressionResultsWrapper) -> float:
     if noise == 0:
         return float("inf")
     return signal / noise
+
+
+#: The design column that names each run's block. Blocks enter a model as sum-coded
+#: (deviation) contrast columns: with two blocks the contrast is a -1/+1 column, which
+#: aliases exactly with the interaction it is confounded with, and setting every
+#: contrast to zero predicts the average over the blocks.
+BLOCK_COL = "Block"
+
+
+def is_block_term(label: str, block_names: tuple[str, ...] | list[str]) -> bool:
+    """Whether a term, or an alias chain led by one, is a block contrast."""
+    return any(label == name or label.startswith(f"{name} ") for name in block_names)

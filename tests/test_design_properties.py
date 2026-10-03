@@ -16,6 +16,7 @@ from hypothesis import HealthCheck, given, settings
 from hypothesis import strategies as st
 
 from process_improve.experiments.designs import generate_design
+from process_improve.experiments.designs_response_surface import dsd_run_count
 from process_improve.experiments.evaluate import evaluate_design
 from process_improve.experiments.factor import Factor
 
@@ -160,15 +161,29 @@ class TestBoxBehnkenProperties:
     """Structural invariants of the Box-Behnken design."""
 
     @_settings
-    @given(k=st.integers(min_value=3, max_value=6))
-    def test_non_center_rows_have_two_zero_coordinates(self, k: int) -> None:
-        """Every non-center BB run has exactly two coordinates at 0 and the rest at ±1."""
+    @given(k=st.integers(min_value=3, max_value=7))
+    def test_non_center_rows_vary_one_block_of_factors(self, k: int) -> None:
+        """Every non-centre run varies one block of factors (pairs up to 5 factors, triples at 6 and 7)."""
         x = _coded(generate_design(_factors(k), design_type="box_behnken", n_center_points=0))
         non_center_rows = x[~np.all(x == 0, axis=1)]
-        # Each BB non-center run varies two factors at ±1 and sets the remaining (k-2)
-        # factors to 0, so for every non-center row we expect exactly (k-2) zeros.
-        zeros_per_row = (non_center_rows == 0).sum(axis=1)
-        assert np.all(zeros_per_row == k - 2)
+        varying_per_row = (non_center_rows != 0).sum(axis=1)
+        assert np.all(varying_per_row == (3 if k in (6, 7) else 2))
+        assert np.all(np.isin(non_center_rows, (-1.0, 0.0, 1.0)))
+
+    @pytest.mark.parametrize(("k", "n_runs"), [(3, 12), (4, 24), (5, 40), (6, 48), (7, 56)])
+    def test_run_counts_match_the_published_designs(self, k: int, n_runs: int) -> None:
+        """Box and Behnken (1960): 12, 24, 40, 48 and 56 runs before centre points."""
+        x = _coded(generate_design(_factors(k), design_type="box_behnken", n_center_points=0))
+        assert len(x) == n_runs
+
+    @pytest.mark.parametrize("k", [6, 7])
+    def test_six_and_seven_factor_designs_fit_the_quadratic_model(self, k: int) -> None:
+        """Main effects orthogonal to every other column; the full quadratic model has full rank."""
+        x = _coded(generate_design(_factors(k), design_type="box_behnken", n_center_points=3))
+        pairs = [x[:, i] * x[:, j] for i in range(k) for j in range(i + 1, k)]
+        model = np.column_stack([np.ones(len(x)), x, x**2, *pairs])
+        assert np.linalg.matrix_rank(model) == model.shape[1]
+        assert np.abs(x.T @ np.column_stack([np.ones(len(x)), x**2, *pairs])).max() == 0
 
     @_settings
     @given(k=st.integers(min_value=3, max_value=6))
@@ -233,7 +248,7 @@ class TestDSDProperties:
     @_settings
     @given(k=st.integers(min_value=3, max_value=14))
     def test_run_count_matches_jones_nachtsheim(self, k: int) -> None:
-        """Even k -> 2k+1 runs; odd k -> 2k+3 runs (Jones-Nachtsheim 2011)."""
+        """Even k -> 2k+1 runs; odd k -> 2k+3 runs (Jones-Nachtsheim 2011), for k up to 14."""
         result = generate_design(_factors(k), design_type="dsd", n_center_points=0)
         expected = 2 * k + 1 if k % 2 == 0 else 2 * k + 3
         assert result.n_runs == expected
@@ -258,18 +273,21 @@ class TestDSDProperties:
         # first k columns still see 3 zeros per column.
         assert np.all(zeros_per_column == 3)
 
-    @_settings
-    @given(k=st.sampled_from([3, 4, 5, 6, 7, 8, 12, 13, 14, 18, 19, 20]))
-    def test_paley_construction_is_orthogonal(self, k: int) -> None:
-        """When a Paley conference matrix is used, main effects are exactly orthogonal."""
+    @pytest.mark.parametrize("k", range(3, 37))
+    def test_main_effects_exactly_orthogonal(self, k: int) -> None:
+        """Main effects are orthogonal at every size, including those that need GF(p^n) or doubling (#629)."""
         result = generate_design(_factors(k), design_type="dsd", n_center_points=0)
-        if not result.metadata.get("construction", "").startswith("paley"):
-            # Cyclic fallback is known-approximate, not covered by this invariant.
-            return
         x = _coded(result)
         gram = x.T @ x
-        off_diag = gram - np.diag(np.diag(gram))
-        assert np.abs(off_diag).max() < 1e-9
+        assert np.array_equal(gram, np.diag(np.diag(gram)))
+        assert result.n_runs == dsd_run_count(k)
+
+    @pytest.mark.parametrize("k", [9, 10, 15, 16, 25, 26, 27, 28])
+    def test_main_effects_orthogonal_to_second_order(self, k: int) -> None:
+        """Every main-effect column is orthogonal to every quadratic and two-factor interaction column."""
+        x = _coded(generate_design(_factors(k), design_type="dsd", n_center_points=0))
+        second = [x[:, i] * x[:, j] for i in range(k) for j in range(i, k)]
+        assert np.abs(x.T @ np.column_stack(second)).max() == 0
 
 
 # ---------------------------------------------------------------------------
@@ -340,3 +358,35 @@ class TestEvaluateDesignProperties:
             return float(val)  # type: ignore[arg-type]
 
         assert _as_float(p_large) >= _as_float(p_small) - 1e-9
+
+
+# ---------------------------------------------------------------------------
+# Central composite design: alpha and centre runs
+# ---------------------------------------------------------------------------
+
+
+class TestCCDAxialDistance:
+    """The axial distance asked for is the one built, for both cube types."""
+
+    @pytest.mark.parametrize("k", [2, 3, 4])
+    def test_numeric_alpha_is_honoured_for_a_full_cube(self, k: int) -> None:
+        result = generate_design(_factors(k), design_type="ccd", alpha=1.3, n_center_points=0)
+        x = _coded(result)
+        assert result.alpha == 1.3
+        assert sorted(np.unique(np.round(np.abs(x), 12))) == [0.0, 1.0, 1.3]
+        assert len(x) == 2**k + 2 * k
+
+    def test_numeric_rotatable_alpha_gives_the_rotatable_design(self) -> None:
+        named = _coded(generate_design(_factors(3), design_type="ccd", alpha="rotatable", n_center_points=0))
+        numeric = _coded(generate_design(_factors(3), design_type="ccd", alpha=8**0.25, n_center_points=0))
+        assert sorted(map(tuple, np.round(named, 10))) == sorted(map(tuple, np.round(numeric, 10)))
+
+    @pytest.mark.parametrize("cube", ["full", "fractional"])
+    def test_unknown_alpha_raises(self, cube: str) -> None:
+        with pytest.raises(ValueError, match="Unknown alpha"):
+            generate_design(_factors(5), design_type="ccd", alpha="rotateable", cube=cube)
+
+    @pytest.mark.parametrize("n_center", [0, 1, 2, 5])
+    def test_centre_run_count_is_the_one_asked_for(self, n_center: int) -> None:
+        x = _coded(generate_design(_factors(3), design_type="ccd", n_center_points=n_center))
+        assert int(np.all(x == 0, axis=1).sum()) == n_center

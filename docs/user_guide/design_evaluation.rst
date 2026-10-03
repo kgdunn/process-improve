@@ -125,7 +125,8 @@ Power
 
 ``power`` reports the statistical power to detect each model term.  Pass
 ``effect_size`` for a single power value per term, or omit it for a power curve
-over a range of effect sizes.
+over a range of effect sizes.  ``effect_size`` is the anticipated coefficient in
+coded units, which for a two-level factor is half its high-minus-low effect.
 
 Fractional-factorial structure
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -133,6 +134,28 @@ Fractional-factorial structure
 For two-level fractional factorials the tool also reports ``alias_structure``,
 ``confounding``, ``resolution``, ``defining_relation``, ``clear_effects``, and
 ``minimum_aberration`` from the generators.
+
+Categorical factors
+~~~~~~~~~~~~~~~~~~~
+
+A categorical factor (a column of level labels) enters the model in effect
+(sum-to-zero) coding, the usual convention in DoE software: a factor with
+:math:`L` levels gives :math:`L - 1` columns that each sum to zero over the
+levels. A two-level factor is coded -1 for its first level and +1 for its
+second (in sorted order), like a coded continuous factor; with more levels, the
+last level in sorted order is -1 in every column. The terms read ``C[S.lo]``.
+The built-in optimal designs (``generate_design``) are built in the same coding,
+so the criterion value a design reports is the one ``evaluate_design`` returns.
+
+The coding matters for some metrics and not others. The A- and E-criteria, VIF,
+the condition number, power and the alias matrix depend on it; the prediction
+variance (``average_prediction_variance``, ``g_efficiency``, ``fds``), the
+ranking of designs by D-efficiency and the degrees of freedom do not. Pass
+``categorical_coding="treatment"`` for 0/1 dummy coding against the first
+level (terms ``C[T.mid]``), which earlier releases used.
+:func:`~process_improve.experiments.analyze_experiment` is not affected: its
+coefficients keep treatment coding, and its effects already run from the low
+level to the high level.
 
 Region Sampling and Reproducibility
 -----------------------------------
@@ -158,16 +181,18 @@ controllable and seeded:
      - Number of random points drawn over the region.
    * - ``include_vertices``
      - ``True``
-     - Always append the :math:`2^k` cube corners, where the worst-case
-       prediction variance usually sits.
-   * - ``random_seed``
+     - Append the :math:`2^k` cube corners (crossed with every combination of
+       categorical levels), where the worst-case prediction variance usually
+       sits. They serve the maximum only; the average and the FDS distribution
+       come from the uniform sample.
+   * - ``random_state``
      - ``42``
      - Seed for the region sampler; fixing it makes the maximum reproducible.
 
 The region **average** (I) is stable across seeds, but the region **maximum**
 (G) is sensitive to the sample: the worst point is often in the interior, so a
 denser sample finds higher worst-case values.  To tighten and reproduce the
-G estimate, raise ``n_samples`` and fix ``random_seed``:
+G estimate, raise ``n_samples`` and fix ``random_state``:
 
 .. code-block:: python
 
@@ -176,7 +201,7 @@ G estimate, raise ``n_samples`` and fix ``random_seed``:
        model=model,
        metric="fds",
        n_samples=120_000,
-       random_seed=1,
+       random_state=1,
    )
    metrics["fds"]["max_prediction_variance"]  # reproducible run to run
 
@@ -201,7 +226,7 @@ endpoints equal the minimum and maximum prediction variance.
        model=model,
        metric="fds",
        fds_resolution=200,
-       random_seed=1,
+       random_state=1,
    )["fds"]
 
    curve = fds["curve"]

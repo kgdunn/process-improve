@@ -16,6 +16,8 @@ from collections.abc import Sequence
 
 import numpy as np
 import pandas as pd
+from scipy.cluster.hierarchy import leaves_list, linkage, optimal_leaf_ordering
+from scipy.spatial.distance import squareform
 from scipy.stats import f as f_dist
 from sklearn.base import BaseEstimator
 from sklearn.utils import Bunch
@@ -1074,6 +1076,253 @@ def _select_rows(X_df: pd.DataFrame, selector: Sequence, name: str) -> pd.DataFr
         )
         raise ValueError(msg)
     return X_df.loc[values]
+
+
+def _complete_through_model(
+    model: BaseEstimator, X: DataMatrix
+) -> tuple[pd.DataFrame, np.ndarray, np.ndarray, np.ndarray]:
+    """Align ``X`` to the fit and return ``(X_aligned, x, R, P)`` with every missing cell filled.
+
+    A missing cell is replaced by the model's reconstruction of it, from the scores that
+    the row's observed cells give (the estimator :func:`spe_contributions` uses), so the
+    cross-products MEDA and oMEDA are built from are of complete data.
+    """
+    X_df, R, P = _contribution_inputs(model, X)
+    x = X_df.to_numpy(dtype=float)
+    missing = np.isnan(x)
+    if missing.any():
+        scores, _ = _scores_and_guides(model, x, R, P, method="scp", ridge=0.0)
+        x = np.where(missing, scores @ P.T, x)
+    return X_df, x, R, P
+
+
+def _meda_index(cross: np.ndarray, modelled: np.ndarray, scale: np.ndarray, *, signed: bool) -> np.ndarray:
+    """Return ``(2 cross - modelled) * modelled / scale``, with ``|modelled|`` when signed, and 0 where scale is 0."""
+    weight = np.abs(modelled) if signed else modelled
+    return np.divide((2.0 * cross - modelled) * weight, scale, out=np.zeros_like(cross), where=scale > 0)
+
+
+def _seriation_order(matrix: np.ndarray) -> np.ndarray:
+    """Order rows and columns so that strongly related variables sit next to each other.
+
+    Average-linkage clustering on the distance ``1 - |m|`` (symmetrised), with the
+    leaves put in the order that maximises the similarity of neighbours (Bar-Joseph,
+    Gifford and Jaakkola, 2001), so each block of related variables is contiguous.
+    Two variables have only one order, up to reversal.
+    """
+    n = matrix.shape[0]
+    if n < 3:
+        return np.arange(n)
+    similarity = np.abs((matrix + matrix.T) / 2.0)
+    distance = np.clip(1.0 - similarity, 0.0, None)
+    np.fill_diagonal(distance, 0.0)
+    condensed = squareform(distance, checks=False)
+    return leaves_list(optimal_leaf_ordering(linkage(condensed, method="average"), condensed))
+
+
+def meda(model: BaseEstimator, X: DataMatrix, *, signed: bool = True, seriate: bool = False) -> pd.DataFrame:
+    r"""Map how the fitted model relates every pair of variables (MEDA).
+
+    MEDA, missing-data methods for exploratory data analysis (Camacho, 2010), asks
+    for each pair of variables how well one is predicted from the other alone,
+    through the model. A correlation matrix answers that from all the directions in
+    the data; MEDA answers it from the model's components only. It therefore shows
+    the relationships the model represents, and adding a component shows which
+    relationships that component brings in.
+
+    Entry :math:`(j, k)` is the goodness of prediction of variable :math:`k` when
+    only variable :math:`j` is known and the scores are estimated from it by
+    regression. With :math:`S = X^\top X` and :math:`S_A = S R P^\top`, the part
+    of it the model reproduces (``R`` gives the scores, ``P`` the reconstruction:
+    both the loadings for PCA, the direct weights and X-loadings for PLS),
+
+    .. math::
+
+        q^2_{jk} = 1 - \frac{\lVert x_k - \hat{x}_{k \mid j}\rVert^2}{\lVert x_k \rVert^2}
+                 = \frac{(2 S_{jk} - S_{A,jk})\, S_{A,jk}}{S_{jj} S_{kk}},
+        \qquad \hat{x}_{k \mid j} = x_j \frac{S_{A,jk}}{S_{jj}}.
+
+    The signed index, the default, replaces the last :math:`S_{A,jk}` by its
+    absolute value, as the MEDA Toolbox does (Camacho et al., 2015). The size is
+    unchanged where the model reproduces the relationship, and the sign then says
+    whether the two variables move together or in opposition. The diagonal is
+    :math:`r_k (2 - r_k)` for the fraction :math:`r_k` of variable :math:`k`'s sum
+    of squares that the model reproduces, which lies in :math:`[0, 1]`.
+
+    Parameters
+    ----------
+    model : PCA or PLS
+        A fitted PCA or PLS model. Every fitted component is used; to see the map
+        at fewer components, fit a model with fewer.
+    X : array-like of shape (n_samples, n_features)
+        Preprocessed data, scaled the same way as the training data, usually the
+        training data itself. A missing cell is filled with the model's
+        reconstruction of it before the cross-products are formed.
+    signed : bool, default=True
+        Return the signed index. ``False`` returns the goodness of prediction
+        :math:`q^2_{jk}` itself.
+    seriate : bool, default=False
+        Reorder the rows and columns so that groups of related variables are
+        contiguous (hierarchical clustering on :math:`1 - |\text{MEDA}|` with
+        optimal leaf ordering). The labels travel with the values.
+
+    Returns
+    -------
+    pd.DataFrame
+        The K x K map, rows and columns labelled by variable. It is symmetric
+        for PCA, and close to symmetric for PLS.
+
+    Examples
+    --------
+    >>> pca = PCA(n_components=3).fit(X_scaled)
+    >>> pca.meda(X_scaled, seriate=True)
+    >>> pca.meda_plot(X_scaled)
+
+    See Also
+    --------
+    omeda : Which variables separate one group of observations from another.
+
+    References
+    ----------
+    Camacho, J. (2010). Missing-data theory in the context of exploratory data
+    analysis. Chemometrics and Intelligent Laboratory Systems 103(1), 8-18.
+
+    Camacho, J., Perez-Villegas, A., Rodriguez-Gomez, R. A. and Jimenez-Manas, E.
+    (2015). Multivariate Exploratory Data Analysis (MEDA) Toolbox for Matlab.
+    Chemometrics and Intelligent Laboratory Systems 143, 49-57.
+    """
+    X_df, x, R, P = _complete_through_model(model, X)
+    cross = x.T @ x
+    modelled = cross @ R @ P.T
+    sums_of_squares = np.diag(cross)
+    values = _meda_index(cross, modelled, np.outer(sums_of_squares, sums_of_squares), signed=signed)
+    names = X_df.columns
+    if seriate:
+        order = _seriation_order(values)
+        values, names = values[np.ix_(order, order)], names[order]
+    return pd.DataFrame(values, index=names, columns=names)
+
+
+def _omeda_dummy(
+    X_df: pd.DataFrame, group: Sequence | None, reference: Sequence | None, weights: Sequence | None
+) -> np.ndarray:
+    """Build oMEDA's dummy: +1 on ``group`` and -1 on ``reference``, or ``weights``; each side peaks at 1 in size."""
+    if weights is not None:
+        if group is not None or reference is not None:
+            msg = "Pass either weights, or group/reference, not both."
+            raise ValueError(msg)
+        dummy = np.asarray(weights, dtype=float).copy()
+        if dummy.ndim != 1 or dummy.size != len(X_df):
+            msg = f"weights must have one entry per row of X ({len(X_df)}), got shape {dummy.shape}."
+            raise ValueError(msg)
+    else:
+        if group is None:
+            msg = "Pass group (optionally with reference), or weights."
+            raise ValueError(msg)
+        dummy = np.zeros(len(X_df), dtype=float)
+        in_group = X_df.index.get_indexer_for(_select_rows(X_df, group, "group").index)
+        dummy[in_group] = 1.0
+        if reference is not None:
+            in_reference = X_df.index.get_indexer_for(_select_rows(X_df, reference, "reference").index)
+            if np.intersect1d(in_group, in_reference).size:
+                msg = "group and reference share observations; each observation belongs to one side."
+                raise ValueError(msg)
+            dummy[in_reference] = -1.0
+    if not np.any(dummy):
+        msg = "The comparison selects no observations: every weight is zero."
+        raise ValueError(msg)
+    # Each side is scaled so its largest weight is 1 in size (Camacho, 2011).
+    positive, negative = dummy > 0, dummy < 0
+    if positive.any():
+        dummy[positive] /= dummy[positive].max()
+    if negative.any():
+        dummy[negative] /= -dummy[negative].min()
+    return dummy
+
+
+def omeda(
+    model: BaseEstimator,
+    X: DataMatrix,
+    group: Sequence | None = None,
+    reference: Sequence | None = None,
+    *,
+    weights: Sequence | None = None,
+) -> pd.Series:
+    r"""Find the variables that separate one group of observations from another (oMEDA).
+
+    Observation-based MEDA (Camacho, 2011) answers the question a pair of clusters
+    on a score plot poses: which variables put these observations here and those
+    there? It compares the groups only along the directions the model trusts, so a
+    variable that differs between them but that the model does not capture scores
+    low.
+
+    A dummy vector :math:`d` marks the comparison: :math:`+1` on ``group``,
+    :math:`-1` on ``reference`` and 0 elsewhere, or ``weights`` with each side
+    rescaled so its largest weight is 1 in size. With :math:`\hat{X} = X R P^\top`
+    the data reconstructed through the model,
+
+    .. math::
+
+        \text{oMEDA}_k = \frac{(2\, x_k^\top d - \hat{x}_k^\top d)\,
+                               \lvert \hat{x}_k^\top d \rvert}{\sqrt{d^\top d}}.
+
+    This is the MEDA index with the dummy in place of a second variable. A
+    positive value means the variable is higher in ``group`` than in ``reference``
+    (or than the model centre, with no reference), a negative value that it is
+    lower. The size grows with the difference and with how well the model
+    reproduces it. The dummy sums the observations rather than averaging them, so
+    a comparison of unequal groups leans towards the larger one, as in the
+    original method.
+
+    Parameters
+    ----------
+    model : PCA or PLS
+        A fitted PCA or PLS model; every fitted component is used.
+    X : array-like of shape (n_samples, n_features)
+        Preprocessed data, scaled the same way as the training data. A missing
+        cell is filled with the model's reconstruction of it.
+    group : sequence, optional
+        Index labels of the observations of interest, or a boolean mask the same
+        length as ``X``. Selection is by label, not by position; pass
+        ``X.index[...]`` to select positionally. Required unless ``weights`` is
+        given.
+    reference : sequence, optional
+        Index labels, or a boolean mask, selecting the observations to compare
+        against. ``None`` (default) compares the group against the model centre.
+    weights : sequence, optional
+        One weight per row of ``X``: a general dummy vector, for comparisons
+        other than two groups. Mutually exclusive with ``group`` / ``reference``.
+
+    Returns
+    -------
+    pd.Series
+        One signed value per variable, named ``"omeda"``.
+
+    Examples
+    --------
+    >>> pca = PCA(n_components=3).fit(X_scaled)
+    >>> # The cluster at the top right of the score plot, against the rest:
+    >>> rest = X_scaled.index.difference(cluster)
+    >>> pca.omeda(X_scaled, group=cluster, reference=rest).sort_values()
+    >>> pca.omeda_plot(X_scaled, group=cluster, reference=rest)
+
+    See Also
+    --------
+    group_contributions : The contributions to one component's score shift.
+    meda : The map of how the model relates the variables to each other.
+
+    References
+    ----------
+    Camacho, J. (2011). Observation-based missing data methods for exploratory data
+    analysis to unveil the connection between observations and variables in latent
+    subspace models. Journal of Chemometrics 25(11), 592-600.
+    """
+    X_df, x, R, P = _complete_through_model(model, X)
+    dummy = _omeda_dummy(X_df, group, reference, weights)
+    observed = x.T @ dummy
+    modelled = (x @ R @ P.T).T @ dummy
+    values = (2.0 * observed - modelled) * np.abs(modelled) / np.sqrt(dummy @ dummy)
+    return pd.Series(values, index=X_df.columns, name="omeda")
 
 
 def eigenvalue_summary(model: BaseEstimator) -> pd.DataFrame:

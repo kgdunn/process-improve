@@ -1,0 +1,124 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Designed Experiments</title>
+  <meta name="description" content="Design an experiment and analyse the results in your browser with process-improve. Nothing to install; your data stay on your machine.">
+  <link rel="icon" href="data:,">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+<main>
+  <header>
+    <h1>Designed experiments</h1>
+    <p class="lede">
+      Design an experiment, run it, and analyse the results, with the
+      <a href="https://github.com/kgdunn/process-improve">process-improve</a> Python package running
+      inside this browser tab. Nothing to install, and your data never leave your machine.
+    </p>
+    <div id="status" class="status" role="status" aria-live="polite" data-state="busy">
+      <span class="status__icon" aria-hidden="true"></span>
+      <span class="status__text">Starting Python...</span>
+    </div>
+  </header>
+
+  <section aria-labelledby="h-design">
+    <h2 id="h-design"><span class="step">1</span> Design</h2>
+
+    <table class="factors" id="factors">
+      <thead><tr><th>Factor</th><th>Low</th><th>High</th><th>Units</th><th><span class="sr">Remove</span></th></tr></thead>
+      <tbody></tbody>
+    </table>
+    <button type="button" id="add-factor" class="link">+ Add factor</button>
+
+    <div class="row">
+      <label>Design type
+        <!-- Mirrors bootstrap.DESIGNS (label, hint, options) so the form is
+             right before Python loads; tests/test_web_app.py keeps them in step. -->
+        <select id="design-type" autocomplete="off">
+          <option value="full_factorial" data-options="n_center_points"
+            data-hint="Every combination of low and high. 2^k runs, plus center points.">Full factorial (2-level)</option>
+          <option value="fractional_factorial" data-options="n_center_points"
+            data-hint="A fraction of the full factorial; main effects are aliased with interactions.">Fractional factorial (2-level)</option>
+          <option value="plackett_burman" data-options=""
+            data-hint="Main effects only, in a multiple of 4 runs.">Plackett-Burman screening</option>
+          <option value="dsd" data-options="" selected
+            data-hint="Three levels, 2k+1 runs (2k+3 for odd k); main effects clear of interactions and quadratics.">Definitive screening (DSD)</option>
+          <option value="box_behnken" data-options="n_center_points"
+            data-hint="Response surface with every run inside the factor ranges (3 or more factors).">Box-Behnken</option>
+          <option value="ccd" data-options="n_center_points alpha"
+            data-hint="Response surface: factorial corners, axial points and center points.">Central composite (CCD)</option>
+          <option value="d_optimal" data-options="budget model_type"
+            data-hint="Best estimates of the chosen model's coefficients for a fixed number of runs.">D-optimal</option>
+          <option value="i_optimal" data-options="budget model_type"
+            data-hint="Most precise predictions, on average over the factor space, for a fixed number of runs.">I-optimal</option>
+        </select>
+      </label>
+      <label>Response name
+        <input id="response" value="y" size="8">
+      </label>
+    </div>
+    <p id="design-hint" class="hint"></p>
+
+    <div class="row" id="options">
+      <label data-option="n_center_points">Center points
+        <input id="n_center_points" type="number" min="0" max="10" value="3">
+      </label>
+      <label data-option="alpha">Axial points
+        <select id="alpha">
+          <option value="face_centered">Face-centred (inside the ranges)</option>
+          <option value="rotatable">Rotatable (outside the ranges)</option>
+          <option value="orthogonal">Orthogonal</option>
+        </select>
+      </label>
+      <label data-option="budget">Runs
+        <input id="budget" type="number" min="3" max="200" value="16">
+      </label>
+      <label data-option="model_type">Model to design for
+        <select id="model_type">
+          <option value="quadratic">Quadratic</option>
+          <option value="interactions">Interactions</option>
+          <option value="main_effects">Main effects</option>
+        </select>
+      </label>
+    </div>
+
+    <button type="button" id="generate" class="primary" disabled>Generate design</button>
+    <div id="design-out" hidden>
+      <p id="design-summary"></p>
+      <div class="scroll"><table id="design-table" class="data"></table></div>
+      <a id="download" class="primary button" download="experiment.xlsx">Download workbook (.xlsx)</a>
+    </div>
+  </section>
+
+  <section aria-labelledby="h-analyse">
+    <h2 id="h-analyse"><span class="step">2</span> Analyse</h2>
+    <p>Run the experiments in the order listed, type each result into the response column, save, and drop the workbook here.
+      A partly filled workbook is fine: the page analyses the completed runs.</p>
+    <label id="drop" class="drop">
+      <input id="upload" type="file" accept=".xlsx" disabled>
+      <span>Drop the filled-in workbook here, or click to choose it</span>
+    </label>
+    <div class="row">
+      <label>Model
+        <select id="model">
+          <option value="">As designed</option>
+          <option value="main_effects">Main effects</option>
+          <option value="interactions">Main effects + two-factor interactions</option>
+          <option value="quadratic">Full quadratic</option>
+        </select>
+      </label>
+    </div>
+    <div id="analysis" hidden></div>
+  </section>
+
+  <footer>
+    <p>How this works: <a href="https://pyodide.org">Pyodide</a> runs CPython compiled to WebAssembly. The page loads it
+      from a public CDN, installs process-improve into it, and runs the same <code>generate_design</code> and
+      <code>analyze_experiment</code> you would call in Python. The workbook is the only state; nothing is uploaded.</p>
+  </footer>
+</main>
+<script src="app.js" type="module"></script>
+</body>
+</html>

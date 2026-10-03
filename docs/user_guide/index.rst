@@ -8,8 +8,11 @@ User Guide
    cross_validation
    showcase
    doe_strategy
+   doe_coverage
    design_evaluation
    omars_designs
+   constrained_designs
+   screening_and_space_filling
    sensory_panel
    sensory_diagnostics
    chemistry

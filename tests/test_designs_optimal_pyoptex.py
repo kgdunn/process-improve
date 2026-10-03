@@ -49,7 +49,8 @@ class TestConvertFactors:
         assert converted[0].re is None
         assert converted[1].name == "B"
         assert converted[1].type == "categorical"
-        assert list(converted[1].levels) == ["lo", "mid", "hi"]
+        # Sorted, so pyoptex effect-codes against the level evaluate_design uses (the last sorted).
+        assert list(converted[1].levels) == ["hi", "lo", "mid"]
         assert converted[1].re is None
 
     def test_hard_to_change_builds_random_effect(self) -> None:
@@ -170,7 +171,7 @@ class TestDispatchDefaults:
             Factor(name="A", low=0, high=10),
             Factor(name="B", type="categorical", levels=["red", "green", "blue"]),
         ]
-        design, meta = dispatch_d_optimal(factors, budget=9)
+        design, meta = dispatch_d_optimal(factors, budget=9, backend="pyoptex")
         assert design.shape == (9, 2)
         assert meta["backend"] == "pyoptex"
 
@@ -181,18 +182,23 @@ class TestDispatchDefaults:
 
 
 class TestRunOrderPreservation:
-    """pyoptex designs keep their optimized ordering (vital for split-plot)."""
+    """Only split-plot pyoptex designs keep their optimized ordering; the others are randomised."""
 
-    def test_seed_does_not_randomize_pyoptex_design(self) -> None:
-        result = generate_design(
-            _continuous(2),
-            design_type="i_optimal",
-            budget=6,
-            random_seed=999,
-            n_center_points=0,
-        )
-        assert result.metadata.get("backend") == "pyoptex"
-        assert result.run_order == list(range(1, 7))
+    def test_pyoptex_design_without_split_plot_is_randomised(self) -> None:
+        """The run order used to be kept for every pyoptex design, so the seed had no effect on it."""
+        orders = [
+            generate_design(
+                _continuous(2),
+                design_type="i_optimal",
+                budget=6,
+                random_state=seed,
+                n_center_points=0,
+                backend="pyoptex",
+            )
+            for seed in (999, 1000)
+        ]
+        assert all(result.metadata.get("backend") == "pyoptex" for result in orders)
+        assert orders[0].run_order != orders[1].run_order
 
 
 # ---------------------------------------------------------------------------
@@ -302,10 +308,64 @@ class TestFixedRuns:
         assert float(head.iloc[1]["x1"]) == pytest.approx(1.0)
         assert float(head.iloc[1]["x2"]) == pytest.approx(-1.0)
 
-    def test_fixed_runs_requires_pyoptex(self, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_fixed_runs_without_pyoptex(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """The candidate exchange keeps the fixed runs, so augmentation no longer needs pyoptex."""
         from process_improve.experiments import designs_optimal
 
         monkeypatch.setattr(designs_optimal, "_PYOPTEX_AVAILABLE", False)
         centre = pd.DataFrame([{"cat": "A", "x1": 0.0, "x2": 0.0}])
-        with pytest.raises(ImportError, match="requires pyoptex"):
-            designs_optimal.dispatch_d_optimal(_mixed_factors(), budget=14, fixed_runs=centre)
+        design, meta = designs_optimal.dispatch_d_optimal(_mixed_factors(), budget=14, fixed_runs=centre)
+        assert meta["backend"] == "candidate_exchange"
+        assert meta["n_fixed_runs"] == 1
+        assert list(design[0]) == ["A", 0.0, 0.0]
+
+
+# ---------------------------------------------------------------------------
+# random_seed reaches pyoptex (#640)
+# ---------------------------------------------------------------------------
+
+
+class TestPyoptexHonoursRandomSeed:
+    """pyoptex draws restarts from numpy's global RNG; the design must depend on random_seed only."""
+
+    FACTORS = (Factor(name="A", low=-1, high=1), Factor(name="B", low=-1, high=1), Factor(name="C", low=-1, high=1))
+
+    def _design(self, global_seed: int, random_seed: int) -> pd.DataFrame:
+        np.random.seed(global_seed)  # noqa: NPY002 - the caller's global state, which must not matter
+        return generate_design(
+            list(self.FACTORS), design_type="d_optimal", budget=10, random_state=random_seed
+        ).design_actual
+
+    def test_same_seed_same_design_whatever_the_global_state(self) -> None:
+        pd.testing.assert_frame_equal(self._design(1, 42), self._design(2, 42))
+
+    def test_the_callers_global_state_is_restored(self) -> None:
+        np.random.seed(5)  # noqa: NPY002
+        expected = np.random.random()  # noqa: NPY002
+        np.random.seed(5)  # noqa: NPY002
+        generate_design(list(self.FACTORS), design_type="d_optimal", budget=10, random_state=42)
+        assert np.random.random() == expected  # noqa: NPY002
+
+
+class TestDefaultBackend:
+    """Without hard_to_change, the design does not depend on whether pyoptex is installed."""
+
+    def test_default_is_the_built_in_exchange(self) -> None:
+        result = generate_design(_continuous(3), design_type="i_optimal", budget=10, n_center_points=0)
+        assert result.metadata["backend"] == "candidate_exchange"
+
+    def test_split_plot_still_uses_pyoptex(self) -> None:
+        result = generate_design(_continuous(3), design_type="d_optimal", budget=12, hard_to_change=["A"])
+        assert result.metadata["backend"] == "pyoptex"
+
+    def test_pyoptex_cannot_take_constraints(self) -> None:
+        from process_improve.experiments.factor import Constraint
+
+        with pytest.raises(ValueError, match="cannot be used here: constraints"):
+            generate_design(
+                _continuous(2),
+                design_type="d_optimal",
+                budget=8,
+                constraints=[Constraint(expression="A + B <= 10")],
+                backend="pyoptex",
+            )

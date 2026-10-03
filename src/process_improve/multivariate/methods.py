@@ -18,11 +18,14 @@ from ..univariate.metrics import detect_outliers_esd
 from ..visualization.themes import REFERENCE_LINE_COLOR
 from ._adaptive import AdaptivePCA, AdaptivePLS
 from ._asca import ASCA
+from ._categorical import CA, FAMD, MCA, MFA
 from ._common import BlockSet, NotEnoughVarianceError, SpecificationWarning, UncentredDataWarning, epsqrt
 from ._diagnostics import (
     eigenvalue_summary,
     group_contributions,
+    meda,
     observation_contributions,
+    omeda,
     project_variables,
     rv2_coefficient,
     rv_coefficient,
@@ -60,10 +63,11 @@ from ._null import (
 )
 from ._opls import OPLS
 from ._pca import PCA
-from ._pls import PLS
+from ._pls import PLS, compare_cv_criteria, pseudo_validation_set
 from ._plsda import PLSDA
 from ._preprocessing import MCUVScaler, center, scale
 from ._prm import PRM
+from ._procrustes import GPA
 from ._resampling import Resampler
 from ._tpls import TPLS, DataFrameDict, make_tpls_scorer
 from .plots import (
@@ -71,9 +75,12 @@ from .plots import (
     coefficient_plot,
     confusion_matrix_plot,
     correlation_loadings_plot,
+    cv_criteria_plot,
     effect_summary_plot,
     explained_variance_plot,
     loading_plot,
+    meda_plot,
+    omeda_plot,
     predictions_vs_observed_plot,
     score_plot,
     spe_plot,
@@ -82,8 +89,13 @@ from .plots import (
 
 __all__ = [
     "ASCA",
+    "CA",
+    "FAMD",
+    "GPA",
     "MBPCA",
     "MBPLS",
+    "MCA",
+    "MFA",
     "OPLS",
     "PCA",
     "PLS",
@@ -106,9 +118,11 @@ __all__ = [
     "check_random_state",
     "class_enrichment",
     "coefficient_plot",
+    "compare_cv_criteria",
     "confusion_matrix_plot",
     "correlation_loadings_plot",
     "count_discoveries_under_null",
+    "cv_criteria_plot",
     "detect_outliers_esd",
     "effect_summary_plot",
     "eigenvalue_summary",
@@ -120,12 +134,17 @@ __all__ = [
     "internal_pls_nipals_fit_one_pc",
     "loading_plot",
     "make_tpls_scorer",
+    "meda",
+    "meda_plot",
     "nan_to_zeros",
     "observation_contributions",
+    "omeda",
+    "omeda_plot",
     "permutation_q2",
     "pipeline_null",
     "predictions_vs_observed_plot",
     "project_variables",
+    "pseudo_validation_set",
     "quick_regress",
     "randomization_test_mbpls",
     "regress_a_space_on_b_row",

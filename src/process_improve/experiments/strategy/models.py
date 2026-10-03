@@ -16,6 +16,18 @@ from pydantic import BaseModel, Field
 
 from process_improve.experiments.factor import Constraint, Factor, Response
 
+#: Ids a strategy can name that are not ``generate_design`` design types, and what each one means.
+NON_GENERATE_DESIGN_IDS: dict[str, str] = {
+    "replicates_at_optimum": (
+        "The confirmation stage: replicate runs at the optimum that optimize_responses finds, not a design "
+        "built from the factor ranges."
+    ),
+    "ccd_face_centered": (
+        "A domain template's RSM preference for design_type='ccd' with alpha='face_centered'; stages carry "
+        "the generate_design form."
+    ),
+}
+
 # ---------------------------------------------------------------------------
 # Enums
 # ---------------------------------------------------------------------------
@@ -96,9 +108,13 @@ class ExperimentalStage(BaseModel):
     stage_name : str
         Human-readable name, e.g. ``"Screening"``, ``"Optimization"``.
     design_type : str
-        Design type key, e.g. ``"plackett_burman"``, ``"ccd"``, ``"bbd"``.
+        A ``generate_design`` design type, e.g. ``"plackett_burman"``, ``"ccd"``,
+        ``"box_behnken"``, so ``generate_design(factors, design_type=stage.design_type,
+        **stage.design_params)`` builds the stage. The one exception is the
+        confirmation stage, ``"replicates_at_optimum"``: its runs are replicates at the
+        optimum that ``optimize_responses`` finds, not a design built from the ranges.
     design_params : dict
-        Design-specific parameters (resolution, n_center_points, alpha, etc.).
+        ``generate_design`` keyword arguments (resolution, n_center_points, alpha, etc.).
     factors : list[str]
         Factor names involved in this stage.
     estimated_runs : int

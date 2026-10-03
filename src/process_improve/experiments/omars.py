@@ -10,10 +10,15 @@ permits a staged analysis that first resolves the main effects and then,
 using a pooled estimate of the error variance, searches the second-order
 space for the small number of active interaction and quadratic terms.
 
-:func:`analyze_omars` implements that staged protocol.  It is design-source
-agnostic: it accepts any coded design matrix (two- or three-level
-quantitative factors) together with a response vector, and does not require
-the design to have been produced by any particular generator.
+:func:`analyze_omars` implements that staged protocol.  It does not require
+the design to have been produced by any particular generator, but the protocol
+is valid only for a design with the OMARS structure: main effects that are
+balanced, mutually orthogonal, and orthogonal to every second-order term. The
+main effects are estimated without adjusting for the second-order terms, and
+the pooled error and the second-order projection both rely on that
+orthogonality, so on any other design (a three-level design with runs missing,
+a Plackett-Burman design) a pure quadratic effect leaks into the main-effect
+tests. :func:`analyze_omars` checks the structure and warns when it is absent.
 
 The procedure, summarised:
 
@@ -50,6 +55,7 @@ implementation of that published methodology.
 from __future__ import annotations
 
 import itertools
+import warnings
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -142,6 +148,75 @@ def _code_design(matrix: np.ndarray) -> np.ndarray:
             raise ValueError(msg)
         coded[:, j] = (col - (hi + lo) / 2.0) / half
     return coded
+
+
+def _orthogonality(coded: np.ndarray, full_so: np.ndarray, tol: float = 1e-8) -> dict[str, bool]:
+    """Check the structure the staged analysis relies on, for the coded design.
+
+    Returns whether the main effects are balanced (each column sums to zero), mutually
+    orthogonal, and orthogonal to every (centred) second-order column.
+    """
+    n_runs = coded.shape[0]
+    scale = tol * n_runs
+    cross = coded.T @ coded
+    return {
+        "main_effects_balanced": bool(np.all(np.abs(coded.sum(axis=0)) <= scale)),
+        "main_effects_orthogonal": bool(np.all(np.abs(cross - np.diag(np.diag(cross))) <= scale)),
+        "main_effects_clear_of_second_order": bool(np.all(np.abs(coded.T @ full_so) <= scale))
+        if full_so.shape[1]
+        else True,
+    }
+
+
+def _validate_options(
+    alphas: dict[str, float],
+    max_subset_terms: int | None,
+    quadratic_heredity: str,
+    interaction_heredity: str,
+) -> None:
+    """Raise ``ValueError`` for an option outside its range."""
+    for name, value in alphas.items():
+        if not 0.0 < value < 1.0:
+            msg = f"{name} must lie strictly between 0 and 1 (for 5% pass 0.05), got {value!r}."
+            raise ValueError(msg)
+    if max_subset_terms is not None and max_subset_terms < 0:
+        msg = f"max_subset_terms must be zero or more, or None to let the routine choose; got {max_subset_terms!r}."
+        raise ValueError(msg)
+    if quadratic_heredity not in _Q_HEREDITY:
+        msg = f"quadratic_heredity must be one of {_Q_HEREDITY}, got {quadratic_heredity!r}."
+        raise ValueError(msg)
+    if interaction_heredity not in _I_HEREDITY:
+        msg = f"interaction_heredity must be one of {_I_HEREDITY}, got {interaction_heredity!r}."
+        raise ValueError(msg)
+
+
+def _canonical_drop_labels(effects_to_drop: list[str], names: list[str]) -> set[str]:
+    """Check ``effects_to_drop`` against every second-order label of the design's factors.
+
+    Quadratics are ``"A^2"``; an interaction may be given in either order (``"B:A"`` is
+    ``"A:B"``) and is returned in the design's column order. A label naming no
+    second-order term of these factors raises ``ValueError``, whatever the data.
+    """
+    position = {name: j for j, name in enumerate(names)}
+    canonical: set[str] = set()
+    unknown: list[str] = []
+    for label in effects_to_drop:
+        if label.endswith("^2") and label[:-2] in position:
+            canonical.add(label)
+            continue
+        parts = label.split(":")
+        if len(parts) == 2 and all(p in position for p in parts) and parts[0] != parts[1]:
+            first, second = sorted(parts, key=position.__getitem__)
+            canonical.add(f"{first}:{second}")
+            continue
+        unknown.append(label)
+    if unknown:
+        msg = (
+            f"effects_to_drop names unknown second-order terms {unknown}; use 'A^2' for a quadratic and "
+            f"'A:B' for an interaction, over the factors {names}."
+        )
+        raise ValueError(msg)
+    return canonical
 
 
 def _hat(matrix: np.ndarray) -> np.ndarray:
@@ -317,6 +392,7 @@ def analyze_omars(  # noqa: C901, PLR0911, PLR0912, PLR0913, PLR0915
         The (single) response, one value per run.
     alpha_main : float, optional
         Significance level for the main-effect t-tests (step 3).  Default 0.05.
+        This and the other two levels must lie strictly between 0 and 1.
     alpha_second_overall : float, optional
         Significance level for the overall second-order F-gate (step 5).
         Default 0.20.
@@ -332,7 +408,8 @@ def analyze_omars(  # noqa: C901, PLR0911, PLR0912, PLR0913, PLR0915
         ``"none"`` considers all interactions.  Default ``"none"``.
     effects_to_drop : list of str, optional
         Second-order effect labels to exclude from the candidate set, e.g.
-        ``["A^2", "B:C"]``.
+        ``["A^2", "B:C"]`` (``"C:B"`` means the same). Every label is checked
+        against the design's factors before the analysis starts.
     force_main_effects : list of str, optional
         Factor names to force into the active set even if statistically
         inactive.  Useful for borderline effects.
@@ -341,8 +418,8 @@ def analyze_omars(  # noqa: C901, PLR0911, PLR0912, PLR0913, PLR0915
         Default ``True``.
     max_subset_terms : int, optional
         Hard cap on the number of second-order terms the subset search may
-        consider.  ``None`` (default) lets the routine choose a cap from the
-        design's estimability.
+        consider, zero or more.  ``None`` (default) lets the routine choose a
+        cap from the design's estimability.
 
     Returns
     -------
@@ -353,7 +430,15 @@ def analyze_omars(  # noqa: C901, PLR0911, PLR0912, PLR0913, PLR0915
     ------
     ValueError
         If inputs are malformed (non-numeric, contain missing values,
-        mismatched lengths, unknown heredity option, or unknown effect label).
+        mismatched lengths, unknown heredity option, unknown effect label, a
+        significance level outside (0, 1), or a negative ``max_subset_terms``).
+
+    Warns
+    -----
+    RuntimeWarning
+        When the design's main effects are not balanced, mutually orthogonal
+        and orthogonal to the second-order terms, which the staged protocol
+        needs. ``details["design_structure"]`` records each of the three checks.
 
     Examples
     --------
@@ -363,12 +448,16 @@ def analyze_omars(  # noqa: C901, PLR0911, PLR0912, PLR0913, PLR0915
     >>> result.active_main_effects                                      # doctest: +SKIP
     ['A', 'C']
     """
-    if quadratic_heredity not in _Q_HEREDITY:
-        msg = f"quadratic_heredity must be one of {_Q_HEREDITY}, got {quadratic_heredity!r}."
-        raise ValueError(msg)
-    if interaction_heredity not in _I_HEREDITY:
-        msg = f"interaction_heredity must be one of {_I_HEREDITY}, got {interaction_heredity!r}."
-        raise ValueError(msg)
+    _validate_options(
+        {
+            "alpha_main": alpha_main,
+            "alpha_second_overall": alpha_second_overall,
+            "alpha_second_subset": alpha_second_subset,
+        },
+        max_subset_terms,
+        quadratic_heredity,
+        interaction_heredity,
+    )
 
     from scipy.stats import f as f_dist  # noqa: PLC0415
     from scipy.stats import t as t_dist  # noqa: PLC0415
@@ -386,12 +475,23 @@ def analyze_omars(  # noqa: C901, PLR0911, PLR0912, PLR0913, PLR0915
         msg = "design_matrix and response must not contain missing or infinite values."
         raise ValueError(msg)
 
+    drop_labels = _canonical_drop_labels(effects_to_drop, names)
     coded = _code_design(raw)
     n_runs, n_factors = coded.shape
     cy = (y - y.mean()).reshape(n_runs, 1)
 
     quad_cols = _quadratic_columns(coded)
     full_so = _full_second_order(coded, quad_cols)
+    structure = _orthogonality(coded, full_so)
+    if not all(structure.values()):
+        failed = ", ".join(key.replace("_", " ") for key, ok in structure.items() if not ok)
+        warnings.warn(
+            f"The design does not have the OMARS structure the staged analysis needs (not: {failed}). The "
+            "main-effect tests and the second-order search are then not valid: second-order effects leak "
+            "into the main effects. Fit the full second-order model by least squares instead.",
+            category=RuntimeWarning,
+            stacklevel=2,
+        )
     intercept = np.ones((n_runs, 1))
     total = np.hstack((intercept, coded, full_so))
 
@@ -399,6 +499,7 @@ def analyze_omars(  # noqa: C901, PLR0911, PLR0912, PLR0913, PLR0915
     error_df = n_runs - np.linalg.matrix_rank(total)
 
     result = OmarsResult()
+    result.details["design_structure"] = structure
     if error_df <= 0:
         result.success = False
         result.details["reason"] = "full second-order model leaves no error degrees of freedom"
@@ -481,12 +582,8 @@ def analyze_omars(  # noqa: C901, PLR0911, PLR0912, PLR0913, PLR0915
     candidate, labels = _heredity_candidates(
         coded, names, quad_cols, active_idx, inactive_idx, quadratic_heredity, interaction_heredity
     )
-    if effects_to_drop:
-        unknown = [lbl for lbl in effects_to_drop if lbl not in labels]
-        if unknown:
-            msg = f"effects_to_drop names unknown second-order terms {unknown}."
-            raise ValueError(msg)
-        keep = [i for i, lbl in enumerate(labels) if lbl not in effects_to_drop]
+    if drop_labels:
+        keep = [i for i, lbl in enumerate(labels) if lbl not in drop_labels]
         candidate = candidate[:, keep]
         labels = [labels[i] for i in keep]
 
