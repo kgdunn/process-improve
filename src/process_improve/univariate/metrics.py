@@ -62,12 +62,12 @@ def t_value_cdf(z: float, v: float) -> float:
 
     Zero fractional area under the curve is at :math:`-\infty`:
 
-    >>> t_value_cdf(-np.inf, v=10)
+    >>> t_value_cdf(float("-inf"), v=10)
     0.0
 
     100% fractional area is at :math:`+\infty`:
 
-    >>> t_value_cdf(np.inf, v=10)
+    >>> t_value_cdf(float("inf"), v=10)
     1.0
 
     See also
