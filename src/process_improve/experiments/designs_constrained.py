@@ -51,8 +51,8 @@ logger = logging.getLogger(__name__)
 _MODEL_TYPES = ("main_effects", "interactions", "quadratic")
 #: Upper limit on the candidate grid; a larger grid is refused before allocation.
 MAX_CANDIDATES = 100_000
-#: Points taken from a grid too large to list (a power of two, for the Sobol sequence): the exchange's cost grows
-#: with this.
+#: Points taken from a grid of requested levels too large to list (a power of two, for the Sobol sequence): the
+#: exchange's cost grows with this. An automatic grid is sampled down to :func:`_candidate_cap` instead.
 _SAMPLED_CANDIDATES = 2**15
 #: Longest constraint expression accepted, which also bounds the parse depth.
 MAX_EXPRESSION_LENGTH = 500
@@ -214,38 +214,81 @@ class _Region:
         return np.max(g, axis=0) if g else np.full(coded.shape[0], -np.inf)
 
 
-def _grid_levels(region: _Region, n_levels: int | None, model_type: str) -> tuple[int, bool]:
+#: The automatic grid holds at most ``max(_MIN_CANDIDATE_CAP, _CANDIDATES_PER_COEFFICIENT * p)`` candidates for a
+#: model with ``p`` coefficients (and never more than ``MAX_CANDIDATES``); a larger grid is sampled down to that.
+_MIN_CANDIDATE_CAP = 5000
+_CANDIDATES_PER_COEFFICIENT = 200
+#: Criteria on the prediction variance over the region, which place runs inside it as well as on its edges.
+_VARIANCE_CRITERIA = ("i_optimal", "g_optimal")
+
+
+def _candidate_cap(region: _Region, model_type: str) -> int:
+    """Most candidates the automatic grid may hold, which grows with the number of model coefficients."""
+    n_parameters = model_matrix(
+        region, np.zeros((1, len(region.continuous))), np.zeros((1, len(region.categorical)), dtype=int), model_type
+    ).shape[1]
+    return min(MAX_CANDIDATES, max(_MIN_CANDIDATE_CAP, _CANDIDATES_PER_COEFFICIENT * n_parameters))
+
+
+def _level_choices(model_type: str, criterion: str) -> list[int]:
+    """Grid resolutions to try, finest first.
+
+    A quadratic model needs 3 levels; for criteria that push runs to the edges of the
+    region (D, A, E, K) an even level count adds no centre and only displaces the
+    middle level, so 4 is skipped. Models without squared terms may use 2 levels.
+    """
+    if model_type != "quadratic":
+        return [5, 4, 3, 2]
+    return [5, 4, 3] if criterion in _VARIANCE_CRITERIA else [5, 3]
+
+
+def _grid_levels(
+    region: _Region, n_levels: int | None, model_type: str, criterion: str = "d_optimal"
+) -> tuple[int, bool]:
     """Pick the continuous grid resolution, and whether the grid is too large to list in full.
 
-    The finest of 5, 4 and 3 levels whose full grid stays under ``MAX_CANDIDATES``
-    points is used; models without squared terms may also drop to 2 levels, which is
-    all they need. When even the coarsest grid is too large (11 or more factors at 3
-    levels, 17 or more at 2), the grid is sampled instead (see :func:`_lattice_points`).
+    With ``n_levels`` given, that grid is used, and sampled when it has more than
+    ``MAX_CANDIDATES`` points. Otherwise the finest of :func:`_level_choices` whose grid
+    stays within :func:`_candidate_cap` is used, and the coarsest is sampled when none
+    does (see :func:`_lattice_points`). The cap grows with the model, so the exchange's
+    cost does too, and not with the number of grid levels: 5 levels on 7 factors are
+    78,125 points, and 3 levels lose nothing for a D-optimal quadratic design on a box.
     """
     n_cat = int(np.prod([len(f.levels or []) for f in region.categorical]))
-    coarsest = 3 if model_type == "quadratic" else 2
-    choices = [n_levels] if n_levels is not None else list(range(5, coarsest - 1, -1))
-    for n in choices:
-        if n < 2:
+    if n_levels is not None:
+        if n_levels < 2:
             raise ValueError("n_levels must be at least 2.")
-        if n ** len(region.continuous) * n_cat <= MAX_CANDIDATES:
+        return n_levels, n_levels ** len(region.continuous) * n_cat > MAX_CANDIDATES
+    cap = _candidate_cap(region, model_type)
+    choices = _level_choices(model_type, criterion)
+    for n in choices:
+        if n ** len(region.continuous) * n_cat <= cap:
             return n, False
     return choices[-1], True
 
 
-def _lattice_points(shape: list[int], k_cont: int, sampled: bool) -> np.ndarray:
-    """Index vectors of the candidate grid: all of it, or ``_SAMPLED_CANDIDATES`` well-spread points of it.
+def _lattice_points(shape: list[int], k_cont: int, n_sampled: int | None, edges: bool = False) -> np.ndarray:
+    """Index vectors of the candidate grid: all of it (``n_sampled`` None), or ``n_sampled`` well-spread points of it.
 
     The sample is the unscrambled Sobol sequence rounded down onto the grid: evenly
     spread over the grid, and deterministic without drawing on any random generator.
+    With ``edges`` (for a 3-level grid), a continuous coordinate takes the middle level
+    with probability ``1 / k_cont`` rather than 1/3, so a typical point has one factor at
+    its middle level and the rest at the extremes: those are the points a D-optimal
+    quadratic design is built from, and a uniform sample of a large grid holds few of
+    them (2% of the points of the 10-factor grid have no factor at its middle level).
     A sampled grid on an odd number of levels also holds the centre and the face
     centres (one factor at an extreme, the rest at the middle), the points a quadratic
     model leans on and a random sample would rarely contain.
     """
-    if not sampled:
+    if n_sampled is None:
         return np.indices(shape).reshape(len(shape), -1).T
-    unit = qmc.Sobol(d=len(shape), scramble=False).random_base2(int(np.log2(_SAMPLED_CANDIDATES)))
+    unit = qmc.Sobol(d=len(shape), scramble=False).random_base2(math.ceil(math.log2(n_sampled)))[:n_sampled]
     idx = np.minimum((unit * shape).astype(int), np.array(shape) - 1)
+    if edges and k_cont:
+        p_middle = min(1.0 / 3.0, 1.0 / k_cont)
+        cont = unit[:, :k_cont]
+        idx[:, :k_cont] = np.where(cont < (1.0 - p_middle) / 2, 0, np.where(cont < (1.0 + p_middle) / 2, 1, 2))
     levels = shape[0] if k_cont else 0
     if levels % 2:
         middle = np.full((2 * k_cont + 1, len(shape)), levels // 2)
@@ -339,7 +382,7 @@ def _with_every_level(points: np.ndarray, cat_shape: list[int]) -> tuple[np.ndar
 
 
 def build_candidates(
-    region: _Region, n_levels: int | None = None, model_type: str = "quadratic"
+    region: _Region, n_levels: int | None = None, model_type: str = "quadratic", criterion: str = "d_optimal"
 ) -> tuple[np.ndarray, np.ndarray, dict]:
     """Return the feasible candidate points in coded units.
 
@@ -356,6 +399,9 @@ def build_candidates(
         Grid levels per continuous factor; ``None`` picks them (see :func:`_grid_levels`).
     model_type : str
         The model the design is for: without squared terms, 2 levels may be used.
+    criterion : str
+        The optimality criterion the design is for: I- and G-optimality may use 4 levels
+        on a quadratic model, the others go from 5 levels to 3 (see :func:`_level_choices`).
 
     Returns
     -------
@@ -363,10 +409,14 @@ def build_candidates(
         Coded continuous values ``(n, k_cont)``, categorical level indices
         ``(n, k_cat)``, and counts for the metadata.
     """
-    levels, sampled = _grid_levels(region, n_levels, model_type)
+    levels, sampled = _grid_levels(region, n_levels, model_type, criterion)
     shape = [levels] * len(region.continuous) + [len(f.levels or []) for f in region.categorical]
     k_cont = len(region.continuous)
-    idx = _lattice_points(shape, k_cont, sampled)
+    n_sampled = None
+    if sampled:
+        n_sampled = _SAMPLED_CANDIDATES if n_levels is not None else _candidate_cap(region, model_type)
+    edges = n_levels is None and levels == 3 and model_type == "quadratic" and criterion not in _VARIANCE_CRITERIA
+    idx = _lattice_points(shape, k_cont, n_sampled, edges)
     if sampled:
         logger.info(
             "The %d-level grid on %d factors is too large to list; sampling %d points.", levels, k_cont, len(idx)
@@ -1158,8 +1208,10 @@ class ConstrainedOptions:
         already validated by the caller. They count towards the budget.
     n_levels : int or None
         Grid levels per continuous factor. ``None`` picks the finest of 5, 4 and 3
-        (and 2, for a model without squared terms) that keeps the grid under
-        ``MAX_CANDIDATES`` points, and samples the coarsest grid when none does.
+        (and 2, for a model without squared terms; 4 is skipped for a quadratic model
+        unless the criterion is I or G) that keeps the grid within
+        ``max(5000, 200 p)`` points for ``p`` model coefficients, and samples the
+        coarsest grid down to that when none does.
     candidates : pandas.DataFrame or None
         Settings the runs must be chosen from, in actual units (proportions for a
         mixture), one column per factor, instead of a generated grid. Rows that
@@ -1257,7 +1309,7 @@ def _candidate_pool(
         # Without squared terms each model row is affine in every single coordinate, so det(X'X) is a convex
         # quadratic in it and is largest at -1 or +1: some exact D-optimal design uses only the box's corners.
         n_levels = 2
-    coded, cats, counts = build_candidates(region, n_levels, opts.model_type)
+    coded, cats, counts = build_candidates(region, n_levels, opts.model_type, opts.criterion)
     return coded, cats, counts, None, lambda: _uniform_rows(region, opts.model_type, rng, coded)
 
 
