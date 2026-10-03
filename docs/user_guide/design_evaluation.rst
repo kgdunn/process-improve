@@ -135,6 +135,28 @@ For two-level fractional factorials the tool also reports ``alias_structure``,
 ``confounding``, ``resolution``, ``defining_relation``, ``clear_effects``, and
 ``minimum_aberration`` from the generators.
 
+Categorical factors
+~~~~~~~~~~~~~~~~~~~
+
+A categorical factor (a column of level labels) enters the model in effect
+(sum-to-zero) coding, the usual convention in DoE software: a factor with
+:math:`L` levels gives :math:`L - 1` columns that each sum to zero over the
+levels. A two-level factor is coded -1 for its first level and +1 for its
+second (in sorted order), like a coded continuous factor; with more levels, the
+last level in sorted order is -1 in every column. The terms read ``C[S.lo]``.
+The built-in optimal designs (``generate_design``) are built in the same coding,
+so the criterion value a design reports is the one ``evaluate_design`` returns.
+
+The coding matters for some metrics and not others. The A- and E-criteria, VIF,
+the condition number, power and the alias matrix depend on it; the prediction
+variance (``average_prediction_variance``, ``g_efficiency``, ``fds``), the
+ranking of designs by D-efficiency and the degrees of freedom do not. Pass
+``categorical_coding="treatment"`` for 0/1 dummy coding against the first
+level (terms ``C[T.mid]``), which earlier releases used.
+:func:`~process_improve.experiments.analyze_experiment` is not affected: its
+coefficients keep treatment coding, and its effects already run from the low
+level to the high level.
+
 Region Sampling and Reproducibility
 -----------------------------------
 
