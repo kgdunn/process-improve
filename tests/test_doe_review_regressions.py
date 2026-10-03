@@ -257,14 +257,22 @@ class TestManyFactorsOnTheBuiltInEngine:
         return _Region(_continuous(k), [], [])
 
     @pytest.mark.parametrize(
-        ("k", "model", "expected"),
-        [(10, "quadratic", (3, False)), (11, "quadratic", (3, True)), (16, "interactions", (2, False))],
+        ("k", "model", "criterion", "expected"),
+        [
+            (5, "quadratic", "d_optimal", (5, False)),
+            (6, "quadratic", "d_optimal", (3, False)),  # 4 levels would drop the centre
+            (6, "quadratic", "i_optimal", (4, False)),
+            (7, "quadratic", "i_optimal", (3, False)),  # 5^7 = 78,125 points used to be listed
+            (10, "quadratic", "d_optimal", (3, True)),
+            (11, "quadratic", "d_optimal", (3, True)),
+            (16, "interactions", "d_optimal", (2, True)),
+        ],
     )
-    def test_level_choice(self, k: int, model: str, expected: tuple[int, bool]) -> None:
-        """Models without squares drop to 2 levels; a grid still too large is sampled, not refused."""
+    def test_level_choice(self, k: int, model: str, criterion: str, expected: tuple[int, bool]) -> None:
+        """The grid is capped at max(5000, 200 p) points; a grid still too large is sampled, not refused."""
         from process_improve.experiments.designs_constrained import _grid_levels
 
-        assert _grid_levels(self._region(k), None, model) == expected
+        assert _grid_levels(self._region(k), None, model, criterion) == expected
 
     def test_a_sampled_odd_grid_keeps_the_centre_and_face_centres(self) -> None:
         from process_improve.experiments.designs_constrained import build_candidates
