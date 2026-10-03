@@ -1,6 +1,6 @@
 # (c) Kevin Dunn, 2010-2026. MIT License.
 
-r"""The OMARS trade-off: which model does a given run budget buy.
+r"""The foldover OMARS trade-off: which model does a given run budget buy.
 
 The two-level trade-off table in :mod:`process_improve.experiments.trade_off`
 answers "I can afford N runs and want k factors, what do I give up?" with a
@@ -39,6 +39,21 @@ follow, and they are the OMARS analogue of resolution:
 
 Alphabetically ``Full < Quad < Satd``, which is also decreasing capability, so
 the ordering is easy to keep straight.
+
+Every bound here is for **foldover** OMARS designs, the class that
+:func:`~process_improve.experiments.generate_omars` builds. OMARS designs in
+general (Nunez Ares and Goos, 2020) need not be foldovers, and a non-foldover
+member can do better: a 19-run, four-factor OMARS design from which the full
+second-order model is estimable exists, against the 21 runs a foldover needs.
+The table therefore gives the smallest foldover size for each class, not the
+smallest OMARS size.
+
+``exists`` says that a foldover OMARS design of that size exists, not that
+:func:`~process_improve.experiments.generate_omars` builds it. That generator
+needs error degrees of freedom, so it refuses the saturated ``Satd`` size (for an
+even ``k``, ``generate_design(design_type="dsd")`` gives that design), and it
+repeats half-runs only for three and four factors, up to a cap. Larger sizes in
+the table, such as 39 runs for three factors, exist but are not built.
 
 Every number here is closed-form, so the table is instant and exact: no integer
 program, no solver, and no dependence on a search budget. The quality of a
@@ -159,7 +174,10 @@ def _check_factors(n_factors: int) -> int:
 
 
 def omars_minimum_runs(n_factors: int, capability: str = "full") -> int:
-    """Return the smallest run count reaching *capability* for *n_factors*.
+    """Return the smallest foldover OMARS run count reaching *capability* for *n_factors*.
+
+    The bound holds for foldover designs ``[H; -H; 0]``; a non-foldover OMARS design
+    can reach a class with fewer runs (see the module docstring).
 
     Parameters
     ----------
@@ -200,6 +218,11 @@ def omars_minimum_runs(n_factors: int, capability: str = "full") -> int:
 
 def get_omars_trade_off_table_entry(n_runs: int, n_factors: int, display: bool = True) -> OmarsTradeOffTableEntry:
     """Report which model a run budget buys, for a foldover OMARS design.
+
+    The capability is that of the foldover class; a non-foldover OMARS design of
+    the same size can support a larger model (see the module docstring). *exists*
+    does not mean that :func:`~process_improve.experiments.generate_omars` builds
+    the size; see the module docstring for the sizes it refuses.
 
     The OMARS counterpart of
     :func:`~process_improve.experiments.trade_off.get_trade_off_table_entry`. Because OMARS main
@@ -320,11 +343,14 @@ def omars_trade_off_table(
     factors: Sequence[int] = DEFAULT_FACTORS,
     display: bool = True,
 ) -> pd.DataFrame:
-    """Return the run-budget against factor-count table for OMARS designs.
+    """Return the run-budget against factor-count table for foldover OMARS designs.
 
     Each cell says which model that budget supports and how much error is left
     to test it with, for example ``"Full df=11"``. Blank cells are budgets that
-    are not a foldover design at all.
+    are not a foldover design at all. The bounds are for foldover designs, and
+    not every listed size is one that
+    :func:`~process_improve.experiments.generate_omars` builds; see the module
+    docstring for both points.
 
     Parameters
     ----------

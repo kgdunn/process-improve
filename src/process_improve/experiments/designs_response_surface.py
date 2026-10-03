@@ -69,7 +69,17 @@ def dispatch_ccd(  # noqa: PLR0913
     Returns
     -------
     tuple[np.ndarray, dict]
-        Coded design matrix and metadata (includes ``alpha_value``).
+        Coded design matrix and metadata: ``alpha_value``, the ratio of the axial
+        distance to the cube's half-width (for the inscribed design, whose cube is
+        shrunk, the axial runs sit at +/-1 and the cube at +/-1/alpha); ``face``, the
+        geometry (``"circumscribed"``, ``"faced"`` or ``"inscribed"``); and
+        ``alpha_rule``, how alpha was chosen (``"orthogonal"``, ``"rotatable"``,
+        ``"face_centered"``, ``"inscribed"`` or ``"user"``).
+
+    Raises
+    ------
+    ValueError
+        If fewer than two factors are given, or *alpha* or *cube* is not recognised.
 
     Notes
     -----
@@ -77,6 +87,8 @@ def dispatch_ccd(  # noqa: PLR0913
     ``center`` parameter).  The caller should set ``n_center_points=0`` in
     ``build_design_result`` to avoid adding duplicate center points.
     """
+    if len(factors) < 2:
+        raise ValueError(f"A central composite design needs at least 2 factors, got {len(factors)}.")
     if cube == "fractional":
         return _dispatch_ccd_fractional(factors, n_center_points, alpha, generators, resolution)
     if cube != "full":
@@ -84,7 +96,7 @@ def dispatch_ccd(  # noqa: PLR0913
 
     k = len(factors)
     kind = _axial_kind(alpha)
-    label = "orthogonal" if kind == "orthogonal" else "user"
+    rule = _ALPHA_NAMES[kind][0] if isinstance(kind, str) else "user"
     if kind == "orthogonal":
         kind = orthogonal_alpha(2**k, 2**k + 2 * k + n_center_points)
     # Centre runs are split between the cube and axial blocks, as pyDOE3 does.
@@ -98,12 +110,22 @@ def dispatch_ccd(  # noqa: PLR0913
         for i in range(k):
             star[2 * i : 2 * i + 2, i] = (-kind, kind)
         coded_matrix = np.vstack([cube_runs, np.zeros((n_center_cube, k)), star, np.zeros((n_center_axial, k))])
-        return coded_matrix, {"alpha_value": kind, "face": label}
+        return coded_matrix, {"alpha_value": kind, "face": _geometry(kind), "alpha_rule": rule}
 
     face = {"faced": "faced", "inscribed": "inscribed"}.get(kind, "circumscribed")
     coded_matrix = ccdesign(k, center=(n_center_cube, n_center_axial), alpha="rotatable", face=face)
-    alpha_value = float(np.max(np.abs(coded_matrix))) if coded_matrix.size else None
-    return coded_matrix, {"alpha_value": alpha_value, "face": face}
+    if face == "inscribed":
+        # The axial runs sit at +/-1 and the cube is shrunk to +/-1/alpha.
+        cube_rows = coded_matrix[np.all(coded_matrix != 0, axis=1)]
+        alpha_value = float(1.0 / np.min(np.abs(cube_rows)))
+    else:
+        alpha_value = float(np.max(np.abs(coded_matrix)))
+    return coded_matrix, {"alpha_value": alpha_value, "face": face, "alpha_rule": rule}
+
+
+def _geometry(alpha: float) -> str:
+    """Name the geometry of a CCD whose cube is at +/-1 and axial runs at +/-alpha."""
+    return "faced" if np.isclose(alpha, 1.0) else "circumscribed"
 
 
 def orthogonal_alpha(n_cube_runs: int, n_runs: int) -> float:
@@ -190,13 +212,13 @@ def _resolve_fractional_axial_distance(
     Returns
     -------
     tuple[float, str]
-        The axial distance and a short label for the design metadata.
+        The axial distance and the rule that chose it, recorded as ``alpha_rule``.
     """
     kind = _axial_kind(alpha)
     if isinstance(kind, float):
         return kind, "user"
     if kind == "faced":
-        return 1.0, "faced"
+        return 1.0, "face_centered"
     if kind == "rotatable":
         return float(n_cube_runs**0.25), "rotatable"
     if kind == "inscribed":
@@ -243,10 +265,6 @@ def _dispatch_ccd_fractional(
         ``generators_used``, ``defining_relation``, and ``resolution``.
     """
     from process_improve.experiments.designs_screening import dispatch_fractional_factorial  # noqa: PLC0415
-    from process_improve.experiments.evaluate import (  # noqa: PLC0415
-        _defining_relation_from_generators,
-        _word_to_str,
-    )
 
     k = len(factors)
     if k < 3:
@@ -261,15 +279,10 @@ def _dispatch_ccd_fractional(
     cube, frac_meta = dispatch_fractional_factorial(factors, resolution=resolution, generators=generators)
     n_cube_runs = cube.shape[0]
 
-    # Record the cube's generators, defining relation, and (true) resolution.
+    # Record the cube's generators, defining relation (signed), and (true) resolution.
     used_generators = frac_meta.get("generators_used") or generators
     res = frac_meta.get("resolution")
-    defining_relation: list[str] | None = None
-    if used_generators:
-        words = _defining_relation_from_generators(used_generators, factor_names)
-        defining_relation = [f"I={_word_to_str(w, factor_names)}" for w in words]
-        if words:
-            res = min(len(w) for w in words)
+    defining_relation: list[str] | None = frac_meta.get("defining_relation")
 
     if res is not None and res < 5:
         raise ValueError(
@@ -277,7 +290,7 @@ def _dispatch_ccd_fractional(
             "full quadratic model is estimable. Supply resolution-V generators or use cube='full'."
         )
 
-    axial_distance, face = _resolve_fractional_axial_distance(alpha, n_cube_runs, k, n_center_points)
+    axial_distance, rule = _resolve_fractional_axial_distance(alpha, n_cube_runs, k, n_center_points)
 
     # Axial (star) runs: 2k rows at +/- axial_distance, zeros elsewhere.
     star = np.zeros((2 * k, k))
@@ -289,7 +302,8 @@ def _dispatch_ccd_fractional(
     coded_matrix = np.vstack([cube, star, center])
     meta = {
         "alpha_value": axial_distance,
-        "face": face,
+        "face": _geometry(axial_distance),
+        "alpha_rule": rule,
         "cube": "fractional",
         "generators_used": used_generators,
         "defining_relation": defining_relation,

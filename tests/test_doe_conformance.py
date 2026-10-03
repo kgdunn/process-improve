@@ -219,11 +219,13 @@ class TestMixture:
 
     @pytest.mark.parametrize("q", [3, 4, 5])
     def test_simplex_centroid(self, q: int) -> None:
+        """A special cubic model needs the pure, binary and ternary blends; the overall centroid is added."""
         factors = [Factor(name=f"x{i}", type="mixture") for i in range(q)]
         actual = generate_design(factors, "mixture", model_type="special_cubic").design_actual
         x = actual[[f"x{i}" for i in range(q)]].to_numpy(dtype=float)
         np.testing.assert_allclose(x.sum(axis=1), 1.0)
-        assert len({tuple(np.round(r, 9)) for r in x}) == 2**q - 1
+        expected = sum(math.comb(q, r) for r in range(1, 4)) + (q > 3)  # the full 2^q - 1 centroid up to q = 4
+        assert len({tuple(np.round(r, 9)) for r in x}) == expected
 
     def test_extreme_vertices_respect_the_bounds(self) -> None:
         factors = [

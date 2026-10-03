@@ -25,7 +25,7 @@ those changes.
   mixture models and a `random_state`.
 
 - **Space-filling designs**: `design_type="latin_hypercube"`, `"maximin_lhs"`,
-  `"uniform"` (minimal centred L2 discrepancy), `"sobol"`, `"halton"` and `"maximin"`.
+  `"uniform"` (low centred L2 discrepancy), `"sobol"`, `"halton"` and `"maximin"`.
   The last three also work in constrained regions and constrained mixtures: the
   sequences are mapped onto the region (a uniform-preserving map onto the simplex for
   mixtures) and filtered, and maximin picks runs from a dense sample of the region by a
@@ -163,6 +163,15 @@ those changes.
   work (constraints, a candidate set, E-optimality) raises; ignoring `hard_to_change`
   logs the true reason.
 
+- **`n_center_points` defaults to `None` and is honoured, or refused, by every design
+  type.** `None` means three centre points for the factorials, Plackett-Burman, CCD and
+  Box-Behnken designs, as before, and the design's own for the rest. For a DSD or OMARS
+  design the value is now the total number of centre runs (it was ignored, leaving one);
+  values below the design's own count keep it. The mixture, optimal, space-filling,
+  supersaturated and Taguchi designs add no centre points, and a positive value for them
+  now raises `ValueError` instead of being ignored. The `generate_design` tool follows
+  the same default.
+
 - **The D-optimal fallback without pyoptex is model-aware.** It used a point
   exchange on a 3-level grid that scored a first-order model whatever `model_type`
   asked for, so a quadratic request could get a design with too few levels. It is
@@ -231,6 +240,17 @@ those changes.
     hangs in its next solve.
   - Every selection the solver returns is re-checked exactly against its constraints
     before it is used.
+- **Mixture designs are sized to the Scheffé model and never quietly exceed the budget.**
+  On the full simplex the design ignored `model_type`: without a budget it was the
+  `2^q - 1`-run simplex centroid (1023 runs for a 10-term linear model at 10
+  components), and with one it was the `{q, 2}` lattice, which cannot fit a special
+  cubic model (rank 6 of 7 at 3 components) and could exceed the budget. The default is
+  now the pure components and the overall centroid, plus the binary blends for a
+  quadratic model and the ternary blends for a special cubic one (the 7-run simplex
+  centroid at 3 components, as before). A smaller budget gives a D-optimal subset, and a
+  budget below the number of terms is raised to it, with a warning, and recorded in
+  `metadata["budget_requested"]`. `_simplex_lattice` lists the lattice points directly,
+  so the 91-point `{13, 2}` lattice is no longer refused.
 
 ### Deprecated
 
@@ -295,6 +315,96 @@ those changes.
   supersaturated, Latin hypercube) came back as coded +/-1 rows labelled as proportions,
   with row sums from -3 to 3; they now raise and name the families that handle mixtures
   (`"mixture"`, the optimal families, `"sobol"`, `"halton"`, `"maximin"`).
+- **`full_factorial(nfactors, names=...)` checks that the names match the factor count.**
+  The names were zipped with the factors without a check, so their number decided the
+  design: `full_factorial(3, names=["A", "B"])` returned a 4-run, 2-factor design and
+  repeated names collapsed into one column. A mismatch or a repeated name now raises
+  `ValueError`, and the docstring documents the returned list of `Column` objects.
+- **`moment_aberration` refuses a design with a missing value.** The two levels were
+  counted after dropping missing cells, and every value other than the low level, a
+  missing one included, was then coded as the high level, so one empty cell turned a
+  resolution IV fraction into "resolution 1". A missing value now raises `ValueError`.
+- **`trade_off_table` no longer shows existing fractions as impossible.** Every
+  `ValueError` blanked a cell, including the refusal of a minimum-aberration search that
+  would score too many generator sets, so 2^(11-5) in 64 runs and 2^(11-4) in 128 runs
+  read as designs that do not exist. Such a cell is now labelled
+  `"2^(k-p) (not searched)"` (and `exists` is true in the `trade_off_table` tool); only
+  more than `runs - 1` factors is blank. A run count that is not a power of two, or a
+  factor count below 2, now raises instead of giving a blank row. Messages and docstrings
+  in the module that read "11 n_factors in 64 runs" now say "factors" and "runs".
+- **The OMARS trade-off table and `dispatch_omars` say what their bounds cover.**
+  `omars_minimum_runs`, `get_omars_trade_off_table_entry` and `omars_trade_off_table`
+  give the smallest *foldover* size for each capability class; a non-foldover OMARS
+  design can do better (a 19-run, four-factor one estimates the full second-order model,
+  against 21 runs for a foldover), and the docstrings now say so. They also say that
+  `exists` does not mean `generate_omars` builds the size: it refuses the saturated size
+  and repeats half-runs only for three and four factors, so 39 runs for three factors is
+  listed but not built. `dispatch_omars` no longer calls its `2k + 3`-run design for odd
+  `k` the minimal OMARS design; `2k + 1` runs suffice.
+- **Fractional factorials: signed defining relations, generators checked against
+  `resolution`, and resolution requests beyond 11 factors.** A negated generator such as
+  `"D=-AB"` built the right fraction but reported `I=ABD` for it; the defining relation
+  now carries the sign (`["I=-ABD", "I=ACE", "I=-BCDE"]` for `D=-AB, E=AC`). Passing
+  `generators` together with a `resolution` they do not reach raises `ValueError`; the
+  resolution used to be ignored. For more than 11 factors, a resolution request used
+  pyDOE3's search, which reaches resolution IV only, so twelve factors at resolution V
+  to VIII raised. A search over generator sets now finds the fewest runs that reach the
+  resolution (256 runs for twelve factors at resolution V), falling back to the half
+  fraction; beyond the minimum-aberration table the design is not guaranteed to have
+  minimum aberration. A defining relation of more than ten generators is not listed.
+- **Central composite designs report alpha and their geometry consistently, and refuse
+  one factor.** The inscribed design reported `alpha = 1.0`, the axial runs' distance,
+  rather than the axial-to-cube ratio (1.68 for three factors); it now reports the ratio.
+  `metadata["face"]` named the geometry for a full cube but the alpha rule for a
+  fractional one; it now always names the geometry (`"circumscribed"`, `"faced"`,
+  `"inscribed"`), and the new `metadata["alpha_rule"]` says how alpha was chosen. A
+  fractional cube's defining relation keeps the signs of negated generators. A
+  one-factor CCD with a named alpha failed on pyDOE3's `assert` (and returned a design
+  under `python -O`); every one-factor CCD now raises `ValueError`.
+- **Automatic design selection fits the budget.** `generate_design(design_type=None,
+  budget=...)` compared the budget with the bare design and then added three centre
+  points, so a budget of 8 runs for three factors gave 11. It also picked a
+  Plackett-Burman design larger than the budget (15 runs for a budget of 11), a
+  D-optimal design whose default interactions model raised the run count (16 runs for a
+  budget of 12, where an 8-run Plackett-Burman fits), a fractional factorial for two
+  factors (which then raised), and a fractional factorial or Plackett-Burman design for
+  a categorical factor with three or more levels (which then raised). The choice now
+  counts centre points and replicates, builds an automatically chosen D-optimal design
+  for the largest model the budget can estimate, sends many-level categorical factors to
+  the full factorial or a D-optimal design, and logs a warning when no design fits.
+  Passing `resolution` or `generators` without a design type chooses a fractional
+  factorial.
+- **`generate_design` refuses arguments it used to ignore or misreport.** `resolution`
+  and `generators` given to a design that does not use them (a full factorial, a
+  Plackett-Burman or Box-Behnken design, a full-cube CCD) were reported back as the
+  design's own properties, so a Plackett-Burman design claimed resolution V; they now
+  raise, and the result reports only what the design achieves. A fixed-size design
+  (factorials, Plackett-Burman, Box-Behnken, CCD, Taguchi) that needs more runs than an
+  explicit `budget` raises instead of returning, say, 67 runs for a budget of 16.
+  Negative or zero `n_replicates`, negative `n_center_points` and `n_blocks` below 1
+  raise instead of being treated as the defaults; factors named `"RunOrder"` or
+  `"Block"` raise instead of being overwritten by, or clashing with, the columns the
+  design adds; and `fixed_runs` with `n_replicates > 1`, which repeated runs already made
+  and shuffled them among the new ones, raises. A full factorial through
+  `generate_design` respects the SEC-19 `max_factors_combinatorial` cap, as
+  `full_factorial` already did.
+- **Every design is randomised unless its run order is part of the solution.**
+  `random_seed=None` returned the design in standard order with the centre points last;
+  it now draws a fresh random order. Optimal designs from pyoptex kept the optimiser's
+  order even without `hard_to_change` factors; only a split-plot design does now.
+- **OMARS through `generate_design` treats the budget as a maximum and counts its centre
+  runs.** An even budget raised, suggesting a size above the budget; the design is now
+  the largest foldover within it, and a budget too small names the budget.
+  `generate_omars` reports `sparsity`, `model_rank` and `omars_verified` for the design it
+  returns, extra centre runs included, and honours `n_restarts` below 6 (`max_candidates`
+  sets a floor only when given); a negative `n_restarts` raises.
+- **`Factor` refuses bounds and levels that cannot make a design.** NaN or infinite bounds
+  were accepted (all-missing data in `Factor.from_data` gave them), and the design then
+  came back with every row missing. A mixture component with `low > high`, `low < 0` or
+  `high > 1` was accepted and either ignored or reported as conflicting constraints. A
+  missing or repeated categorical level was accepted. All now raise `ValueError` naming
+  the factor. `Constraint.type` is documented as informational: the engines classify each
+  expression themselves.
 - **`recommend_strategy` gives an all-mixture problem a mixture optimisation stage.** The
   optimisation stage was a CCD or Box-Behnken design on the first three components. It is
   now a `"mixture"` design for a quadratic Scheffe model in every component.
@@ -471,6 +581,96 @@ those changes.
     `super_scores_` and `predictions_`.
   - Some components of existing fits change sign. Scores, loadings, contributions and
     predictions are otherwise unchanged, apart from the corrected missing-data fits.
+- **Uniform samples of a constrained region reach all of it.** These samples drive
+  space-filling designs, the I-optimality average and `evaluate_design`'s prediction
+  variance. A piecewise-linear constraint such as `abs(a - 0.95) >= 0.01` passed the
+  affine test, so hit-and-run never visited the part beyond its kink; the test now also
+  checks the box corners and a thousand further points. In long thin regions (a mixture
+  sliver `x1 + 3*x2 <= 0.05`) the chains started near the centre and barely moved along
+  the region, so the 5-95% range of `x3` came out as 0.15-0.76 instead of 0.05-0.93;
+  chains now start from the rejection hits when there are any and step along directions
+  drawn from the region's shape. A region made of separate pieces is now shared between
+  them by size to within about 0.01 (it varied by 0.06 from seed to seed).
+  `DesignRegion.sample` on categorical factors alone returns an `(n, 0)` array instead
+  of raising `IndexError`.
+- **`optimal.point_exchange` returns the D-optimal design it promises.** It offered each
+  candidate once, in a single pass, and stopped there: for four runs from the 3^3 grid
+  half of all seeds returned a design with `det(X'X)` of 64 or less instead of the half
+  fraction's 256. It now repeats the passes until none swaps a row, keeps the best of
+  five random starts, and documents its parameters.
+- **Supersaturated designs stay supersaturated and are scored fairly.** Without a budget,
+  3 to 5 factors got 4 or 6 runs, `k + 1` or more and so not supersaturated, with a
+  negative `E(s^2)` bound and efficiency; no unaliased design exists there, so the call
+  now raises and points to `"plackett_burman"`. In 6, 10, 14, ... runs every `|s_ij|` is
+  at least 2, a floor the Nguyen / Tang-Wu bound misses: designs with every `|s_ij| = 2`,
+  which are optimal, were reported as 36% to 77% efficient and are now at 100%. The
+  bound is never negative. Automatic selection treats the budget as a ceiling: 10
+  factors with 7 to 9 runs get the 6-run design and 22 factors with 13 runs the 12-run
+  design, where they got 15 and 27 Plackett-Burman runs (the new
+  `supersaturated_runs` gives the run count). A budget of `6.0` works and `6.5` raises,
+  where both failed with a `TypeError`. Fully aliased factors are reported by a
+  `UserWarning`, which callers can catch, instead of a log message, and the run counts
+  it and the errors suggest are all supersaturated.
+- **Space-filling designs: `"uniform"` and `"maximin_lhs"` reach what they promise, and
+  the run count is checked.** `"uniform"` used a scrambled Latin hypercube, whose random
+  offset inside each slice raised the centred discrepancy by half (0.0046 against 0.0030
+  for 10 runs in 2 factors) and made the one-factor design a plain Latin hypercube; it is
+  now a U-type design on the slice centres, as in Fang's uniform designs. `"maximin_lhs"`
+  stopped after a fixed `200 * k` swap attempts whatever `n`, leaving the smallest
+  distance 15% short at 50 runs in 5 factors; it now places runs at the slice centres
+  (Morris and Mitchell) and swaps, each swap scored in `O(n)`, until `3 * n * k` attempts
+  in a row fail. Fewer than 2 runs, or a fractional run count, raise a `ValueError` that
+  says so, where they failed deep inside numpy or returned an infinite distance. The
+  docstrings and user guide now say that `metadata["centered_l2_discrepancy"]` is the
+  squared discrepancy `CD^2`, and that `"maximin"` on a box of 8 or more factors puts
+  every run on the levels -1, 0 and +1 (use `"maximin_lhs"` when projections matter).
+- **Constrained mixture regions: complete vertices, fast enumeration, model-sized
+  default designs.** The vertex search dropped a vertex whenever a constraint was
+  written with small coefficients (`0.003*x1 >= 0.0003`), giving a false "cannot
+  support the model" error or a design missing a vertex; constraints are now scaled to
+  unit length first. Constraints implied by the others (`x_i <= 1` with zero lower
+  bounds) are dropped before enumerating, so 10 components with three constraints give
+  their 40 vertices at once instead of being refused, and adjacent vertices are found
+  without a rank test for every pair (a 100-run maximin design over a 10-component
+  mixture took over 10 s in vertex enumeration alone). Without a budget, a design of
+  more than three runs per model term (211 runs for 21 terms at 6 bounded components,
+  6931 at 10) is replaced by a D-optimal one with five runs more than the model has
+  terms. With user candidates, `n_candidates` now counts the feasible supplied blends,
+  and the docstring says that no budget means `n_terms + 3` runs.
+- **The built-in candidate exchange searches better and checks its inputs.** Its
+  restarts began from almost the same greedy design, since the first of many candidates
+  tied at the largest variance was always taken: a 14-run, 3-factor quadratic A-optimal
+  design reached trace 2.39 or 2.42 from every seed, never the 2.30 design in its own
+  candidate set, which most seeds now reach. Ties are now broken at random. Two linear
+  constraints that meet off the grid lines left that vertex out of the candidates, so a
+  4-run design for `a + 2*b <= 1.1, 2*a + b <= 1.1` was 94% D-efficient; the vertices
+  of the region cut by its linear constraints are now candidates
+  (`metadata["n_vertex_points"]`). Unconstrained D-optimal designs without squared terms
+  use the 2-level grid, which holds an optimum, instead of 5 levels: the same designs,
+  100 times faster at 7 factors. `constrained_optimal_design` refuses an unknown
+  `model_type` (`"quad"` gave a main-effects design labelled `"quad"`). Fixed runs
+  outside the constrained region are counted in
+  `metadata["n_fixed_runs_outside_region"]`, and the docstrings say they are kept as
+  given; a budget raised to make room for the free runs is recorded in
+  `metadata["budget_requested"]`.
+- **Optimal designs: pyoptex designs use interior levels, split-plot designs report
+  their whole plots, and budgets are honest.** Under a quadratic model pyoptex chose
+  each continuous factor from `{-1, 0, 1}` only, so A- and I-optimal designs lost up to
+  19% of their criterion (a 6-run, 2-factor A-optimal trace of 5.0 against 4.185); they
+  now have five levels from -1 to 1. Split-plot designs fixed the number of whole plots
+  at `max(4, n_runs // 3)`, so 16 runs with two hard-to-change factors and a quadratic
+  model (6 whole-plot terms) failed with "rank collinearity"; the default is now at least
+  one more than the whole-plot terms, and the metadata records each run's whole plot
+  (`whole_plot`), `n_whole_plots` and `whole_plot_variance_ratio`, which a split-plot
+  analysis needs. A `hard_to_change` name that is not a factor raises instead of
+  producing an ordinary design labelled split-plot. pyoptex's `metric_value` is on its
+  own scale (`det(X'X)^(1/p)`, `-trace`), so its designs now also report
+  `log_det_information` or `trace_criterion` as the built-in exchange does. A budget
+  raised to the model size is recorded in `metadata["budget_requested"]`; fixed runs
+  that span too little of the model raise the budget on the pyoptex path too, where they
+  failed inside pyoptex; and without a budget, fixed runs get a default that leaves room
+  beyond them (8 fixed runs and the default `2k + 1 = 7` used to raise). The docstrings
+  name E-optimality and every case in which `hard_to_change` is ignored.
 
 ## [1.96.0] - 2026-09-30
 

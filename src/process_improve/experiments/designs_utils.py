@@ -17,6 +17,27 @@ if TYPE_CHECKING:
     from process_improve.experiments.factor import DesignResult, Factor
 
 
+#: Columns that ``build_design_result`` adds to every design, so no factor may use these names.
+RESERVED_COLUMN_NAMES = ("RunOrder", "Block")
+
+
+def refuse_reserved_names(factors: list[Factor]) -> None:
+    """Raise when a factor is named like a column the design adds (``RunOrder``, ``Block``).
+
+    Raises
+    ------
+    ValueError
+        If a factor name is one of :data:`RESERVED_COLUMN_NAMES`; the design would
+        otherwise overwrite that factor's settings or fail inside pandas.
+    """
+    clash = [f.name for f in factors if f.name in RESERVED_COLUMN_NAMES]
+    if clash:
+        raise ValueError(
+            f"Factor name(s) {clash} are reserved: every design has a 'RunOrder' column, and a blocked "
+            "design a 'Block' column. Rename the factor(s)."
+        )
+
+
 def categorical_codes(n_levels: int) -> np.ndarray:
     """Coded values that stand for the levels of a categorical factor in a numeric design matrix.
 
@@ -254,7 +275,8 @@ def build_design_result(  # noqa: PLR0913
     n_blocks : int or None
         Number of blocks (None = no blocking).
     random_state : int, numpy.random.Generator or None
-        Seed for the run-order randomisation (``None``: fresh entropy).
+        Seed for the run-order randomisation; ``None`` draws a fresh, unseeded
+        random order (see :func:`process_improve._random.check_random_state`).
     generators : list[str] or None
         Generator strings (fractional factorials).
     defining_relation : list[str] or None
@@ -272,16 +294,30 @@ def build_design_result(  # noqa: PLR0913
     n_leading_fixed : int
         Number of leading rows that are runs already performed (the fixed runs
         of an augmentation). They keep their place at the top of the run sheet;
-        only the remaining rows are randomised.
+        only the remaining rows are randomised. Cannot be combined with
+        ``n_replicates > 1`` or with blocks.
     randomize : bool
-        ``False`` keeps the run order of *coded_matrix* (designs whose run order
-        is part of the solution, e.g. split-plot optimal designs).
+        When ``False`` the run order of *coded_matrix* is kept (for designs whose
+        run order is part of the solution, e.g. split-plot optimal designs).
 
     Returns
     -------
     DesignResult
+
+    Raises
+    ------
+    ValueError
+        If a factor uses a reserved column name, or *n_leading_fixed* is combined
+        with replicates or blocks.
     """
     from process_improve.experiments.factor import DesignResult  # noqa: PLC0415
+
+    refuse_reserved_names(factors)
+    if n_leading_fixed and n_replicates > 1:
+        raise ValueError(
+            "n_replicates cannot be combined with fixed_runs: replicating the design would repeat runs "
+            "that were already made. Replicate the new runs by raising the budget instead."
+        )
 
     # 1. Add center points (only for coded designs)
     matrix = add_center_points(coded_matrix, n_center_points, factors) if not is_actual else coded_matrix
@@ -306,8 +342,7 @@ def build_design_result(  # noqa: PLR0913
     elif rng is not None:
         # Runs already performed (fixed runs of an augmentation) stay first, in their
         # given order; only the new runs are shuffled.
-        n_keep = n_leading_fixed if n_replicates == 1 else 0
-        perm = np.concatenate([np.arange(n_keep), n_keep + rng.permutation(n_runs - n_keep)])
+        perm = np.concatenate([np.arange(n_leading_fixed), n_leading_fixed + rng.permutation(n_runs - n_leading_fixed)])
     else:
         perm = np.arange(n_runs)
     matrix_randomized = matrix[perm]

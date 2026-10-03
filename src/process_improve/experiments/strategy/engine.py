@@ -203,12 +203,12 @@ def _supersaturated_runs(n: int, classification: dict[str, Any]) -> int | None:
     Such a budget cannot estimate every main effect, so the screening design has to
     be supersaturated: the factors must all be continuous, run at two levels.
     """
-    from process_improve.experiments.designs_supersaturated import supersaturated_available  # noqa: PLC0415
+    from process_improve.experiments.designs_supersaturated import supersaturated_runs  # noqa: PLC0415
 
     budget = classification["budget"]
     if budget is None or budget >= n + 1 or classification["n_continuous"] != n:
         return None
-    return next((runs for runs in range(int(budget), 3, -1) if supersaturated_available(n, runs)), None)
+    return supersaturated_runs(n, budget)
 
 
 def _large_factor_screening_choice(n: int, classification: dict[str, Any], template: dict[str, Any]) -> tuple[str, int]:
@@ -391,7 +391,8 @@ def _select_rsm_design(
         runs = estimate_rsm_runs(n_rsm, "ccd", n_center_points)
         purpose = "CCD for full quadratic model with rotatability."
 
-    params: dict[str, Any] = {"n_center_points": n_center_points}
+    # A D-optimal design takes no centre points (generate_design refuses them); the others embed them.
+    params: dict[str, Any] = {} if design_type == "d_optimal" else {"n_center_points": n_center_points}
     if "ccd" in design_type:
         params["alpha"] = "face_centered" if design_type == "ccd_face_centered" else "rotatable"
         design_type = "ccd"  # the face-centred variant is a CCD with alpha="face_centered"

@@ -13,11 +13,11 @@ Six methods, in two groups:
 
   - ``"latin_hypercube"``: each factor's range is cut into ``n`` equal slices, and
     each slice is used exactly once (McKay, Beckman and Conover 1979).
-  - ``"maximin_lhs"``: a Latin hypercube whose smallest distance between two runs
-    is made as large as possible, by swapping values within a column while the
-    Morris-Mitchell criterion improves.
-  - ``"uniform"``: a Latin hypercube with minimal centred L2 discrepancy, the
-    criterion of uniform designs (Fang and Wang).
+  - ``"maximin_lhs"``: a Latin hypercube, with each run at the centre of its slices,
+    whose smallest distance between two runs is made large by swapping values within a
+    column while the Morris-Mitchell criterion improves.
+  - ``"uniform"``: a Latin hypercube on the slice centres (a U-type design) with low
+    centred L2 discrepancy, the criterion of uniform designs (Fang and Wang).
 
 - **On any region**, including constrained boxes and constrained mixtures:
 
@@ -56,6 +56,8 @@ SPACE_FILLING_METHODS = BOX_ONLY + ANY_REGION
 
 _MORRIS_MITCHELL_P = 15
 _LHS_STARTS = 20
+#: Upper limit on the maximin Latin hypercube's swap attempts, per cell of the n-by-k design.
+_MAX_SWAPS_PER_CELL = 50
 _EXCHANGE_PASSES = 10
 #: Most Sobol or Halton points drawn while looking for feasible ones (memory stays below ~0.5 GB).
 _MAX_SEQUENCE_DRAWS = 2**22
@@ -74,20 +76,41 @@ def _phi_p(points: np.ndarray) -> float:
 def _maximin_lhs(n: int, k: int, rng: np.random.Generator) -> np.ndarray:
     """Latin hypercube with a large smallest distance: best of several starts, then in-column swaps.
 
-    Swapping two values within one column keeps every slice of every factor used
-    exactly once, so the design stays a Latin hypercube while ``phi_p`` falls.
+    The runs sit at the centres of their slices, as in Morris and Mitchell's (1995)
+    maximin Latin hypercubes: a random offset inside each slice could only bring two
+    runs closer. Swapping two values within one column keeps every slice of every
+    factor used exactly once, so the design stays a Latin hypercube while ``phi_p``
+    falls. Swaps continue until ``3 * n * k`` attempts in a row have failed, or
+    ``_MAX_SWAPS_PER_CELL * n * k`` attempts in all; each is scored in ``O(n)`` from the
+    pairs it changes.
     """
-    starts = [qmc.LatinHypercube(d=k, rng=rng).random(n) for _ in range(_LHS_STARTS)]
+    starts = [qmc.LatinHypercube(d=k, scramble=False, rng=rng).random(n) for _ in range(_LHS_STARTS)]
     design = min(starts, key=_phi_p)
-    current = _phi_p(design)
-    for _ in range(200 * k):
+    half_p = _MORRIS_MITCHELL_P / 2.0
+    sq = ((design[:, None, :] - design[None, :, :]) ** 2).sum(axis=2)
+    np.fill_diagonal(sq, np.inf)
+    terms = sq**-half_p  # each pair's share of phi_p ** p; zero on the diagonal
+    others = np.ones(n, dtype=bool)
+    failures = 0
+    for _ in range(_MAX_SWAPS_PER_CELL * n * k):
+        if failures >= 3 * n * k:
+            break
         column, (i, j) = rng.integers(k), rng.choice(n, 2, replace=False)
-        design[[i, j], column] = design[[j, i], column]
-        trial = _phi_p(design)
-        if trial < current:
-            current = trial
+        values = design[:, column]
+        change = (values[j] - values) ** 2 - (values[i] - values) ** 2  # for row i; row j gets the opposite
+        others[[i, j]] = False
+        new_i, new_j = sq[i, others] + change[others], sq[j, others] - change[others]
+        delta = np.sum(new_i**-half_p) + np.sum(new_j**-half_p) - terms[i, others].sum() - terms[j, others].sum()
+        if delta < -1e-12 * terms.sum():
+            design[[i, j], column] = design[[j, i], column]
+            sq[i, others], sq[j, others] = new_i, new_j
+            sq[others, i], sq[others, j] = new_i, new_j
+            terms[i, others], terms[j, others] = new_i**-half_p, new_j**-half_p
+            terms[others, i], terms[others, j] = terms[i, others], terms[j, others]
+            failures = 0
         else:
-            design[[i, j], column] = design[[j, i], column]  # undo
+            failures += 1
+        others[[i, j]] = True
     return design
 
 
@@ -96,7 +119,9 @@ def _unit_cube_design(method: str, n: int, k: int, rng: np.random.Generator) -> 
     if method == "latin_hypercube":
         return qmc.LatinHypercube(d=k, rng=rng).random(n)
     if method == "uniform":
-        return qmc.LatinHypercube(d=k, optimization="random-cd", rng=rng).random(n)
+        # A U-type design: runs at the slice centres (2i - 1) / 2n, as in Fang's uniform designs;
+        # a random offset inside each slice would raise the discrepancy the search lowers.
+        return qmc.LatinHypercube(d=k, scramble=False, optimization="random-cd", rng=rng).random(n)
     return _maximin_lhs(n, k, rng)
 
 
@@ -178,6 +203,14 @@ def _maximin_in_region(region: DesignRegion, n: int, rng: np.random.Generator) -
 # ---------------------------------------------------------------------------
 
 
+def _run_count(n_runs: float | None, default: int) -> int:
+    """Return ``n_runs`` (``default`` when None) as an int, refusing fewer than 2 runs or a fractional count."""
+    n = default if n_runs is None else n_runs
+    if isinstance(n, bool) or not float(n).is_integer() or n < 2:
+        raise ValueError(f"A space-filling design needs a whole number of runs, at least 2; got {n_runs!r}.")
+    return int(n)
+
+
 def space_filling_design(
     factors: list[Factor],
     n_runs: int | None,
@@ -207,15 +240,26 @@ def space_filling_design(
     -------
     tuple[np.ndarray, dict]
         Coded points (proportions for a mixture) and metadata: the smallest and the
-        mean nearest-neighbour distance between runs, and on the plain box the
-        centred L2 discrepancy (lower is more uniform).
+        mean nearest-neighbour distance between runs, and on the plain box
+        ``centered_l2_discrepancy``, Hickernell's *squared* centred L2 discrepancy
+        ``CD^2`` of the points mapped to ``[0, 1]^k`` (lower is more uniform), as
+        :func:`scipy.stats.qmc.discrepancy` computes it.
 
     Raises
     ------
     ValueError
-        For an unknown method, a categorical factor, a box-only method asked for a
-        constrained or mixture region, or a ``"sobol"`` / ``"halton"`` request in a
-        region too thin to fill from the first ``2**22`` points of the sequence.
+        For an unknown method, a categorical factor, fewer than 2 runs or a fractional
+        run count, a box-only method asked for a constrained or mixture region, or a
+        ``"sobol"`` / ``"halton"`` request in a region too thin to fill from the first
+        ``2**22`` points of the sequence.
+
+    Notes
+    -----
+    On the plain box ``"maximin"`` pushes the runs to the faces and corners, as the
+    maximin criterion does: in 8 or more factors every run sits on the 3-level grid
+    ``{-1, 0, 1}``, so many runs coincide when projected onto a few factors. When the
+    projections matter (a surrogate in which only some factors are active), use
+    ``"maximin_lhs"``, whose runs take ``n`` distinct values in every factor.
     """
     if method not in SPACE_FILLING_METHODS:
         raise ValueError(f"Unknown space-filling method {method!r}; choose from {', '.join(SPACE_FILLING_METHODS)}.")
@@ -232,7 +276,7 @@ def space_filling_design(
             "'maximin', 'sobol' or 'halton'."
         )
     k = len(region.names)
-    n = n_runs if n_runs is not None else 10 * k
+    n = _run_count(n_runs, 10 * k)
 
     if method in BOX_ONLY:
         points = 2.0 * _unit_cube_design(method, n, k, rng) - 1.0

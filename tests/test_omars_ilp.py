@@ -132,6 +132,32 @@ def test_extra_center_runs_are_added() -> None:
     assert is_omars(coded)
 
 
+def test_sparsity_counts_the_extra_center_runs() -> None:
+    """The sparsity pair was computed on the foldover alone, without the extra centre runs."""
+    from process_improve.experiments import generate_omars
+
+    result = generate_omars(_factors(3), center_runs=3, random_seed=3, solver_options=_SOLVER)
+    coded = _coded(result)
+    n_me0, n_ie0 = result.metadata["sparsity"]
+    assert n_me0 == int(np.min(np.sum(coded == 0, axis=0)))
+    interactions = [coded[:, i] * coded[:, j] for i in range(3) for j in range(i + 1, 3)]
+    assert n_ie0 == min(int(np.sum(column == 0)) for column in interactions)
+
+
+def test_n_restarts_is_honoured_and_checked() -> None:
+    """n_restarts below 6 was silently raised to 6, and a negative value was accepted."""
+    from process_improve.experiments import generate_omars
+
+    report = generate_omars(_factors(3), n_restarts=0, solver_options=_SOLVER).metadata["omars_search"]
+    assert report.n_restarts == 0
+    report = generate_omars(_factors(3), n_restarts=0, max_candidates=6, solver_options=_SOLVER).metadata[
+        "omars_search"
+    ]
+    assert report.n_restarts == 6
+    with pytest.raises(ValueError, match="n_restarts must be >= 0"):
+        generate_omars(_factors(3), n_restarts=-5, solver_options=_SOLVER)
+
+
 @pytest.mark.parametrize(
     ("n_runs", "center_runs"),
     [(17, 3), (16, 2), (13, 1), (19, 5)],

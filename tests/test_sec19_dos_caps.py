@@ -57,14 +57,14 @@ class TestCombinatorialGenerators:
             _simplex_lattice(5, degree=2)
 
     def test_simplex_lattice_iteration_cap(self) -> None:
-        """``_simplex_lattice`` rejects ``(degree+1)**k > 1M`` even when
+        """``_simplex_lattice`` rejects a lattice of more than 1M points even when
         ``k`` is under the factor cap.
         """
         from process_improve.experiments.designs_mixture import _simplex_lattice
 
-        # 11**6 ~ 1.77M > 1M but k = 6 < default cap of 15.
-        with pytest.raises(ValueError, match="1M iteration cap"):
-            _simplex_lattice(6, degree=10)
+        # C(24, 10) ~ 1.96M points > 1M, with k = 15 at the default cap of 15.
+        with pytest.raises(ValueError, match="1M cap"):
+            _simplex_lattice(15, degree=10)
 
 
 # ---------------------------------------------------------------------------
