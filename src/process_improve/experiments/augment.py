@@ -24,7 +24,7 @@ import logging
 import warnings
 from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import numpy as np
 import pandas as pd
@@ -40,6 +40,9 @@ from process_improve.experiments.evaluate import (
     evaluate_design,
 )
 from process_improve.experiments.models import validate_formula_is_safe, validate_identifier_is_safe
+
+if TYPE_CHECKING:
+    from process_improve.experiments.designs_constrained import _Region
 
 logger = logging.getLogger(__name__)
 
@@ -557,23 +560,51 @@ def _model_rows(rhs: str, factor_names: list[str], existing: pd.DataFrame, candi
     return rows[: len(existing)], rows[len(existing) :]
 
 
+#: Target models whose columns ``designs_constrained.model_matrix`` builds directly, without patsy.
+_NAMED_MODELS = ("main_effects", "interactions", "quadratic")
+
+
+def _exchange_rows(
+    region: _Region, model: str, rhs: str, factor_names: list[str], existing: pd.DataFrame
+) -> tuple[np.ndarray, Callable[[np.ndarray, np.ndarray], np.ndarray]]:
+    """Return the existing runs' model rows, and a function giving the model rows of coded candidate points.
+
+    A named model is expanded with numpy (the same columns as its patsy formula, in
+    another order, which no criterion depends on), which keeps the exchange's polish
+    cheap; a custom formula goes through patsy, built together with the existing runs
+    so stateful transforms share their scale.
+    """
+    from process_improve.experiments.designs_constrained import model_matrix  # noqa: PLC0415
+
+    if model in _NAMED_MODELS:
+        coded = existing[factor_names].to_numpy(dtype=float)
+        fixed = model_matrix(region, coded, np.empty((len(coded), 0), dtype=int), model)
+        return fixed, lambda points, cats: model_matrix(region, points, cats, model)
+    fixed = _model_rows(rhs, factor_names, existing, np.empty((0, len(factor_names))))[0]
+    return fixed, lambda points, _cats: _model_rows(rhs, factor_names, existing, points)[1]
+
+
 def _augment_add_runs_optimal(ctx: _AugmentContext) -> dict[str, Any]:
     """Add D-optimal runs to the existing design, which stays fixed.
 
     The runs come from a Fedorov exchange over a candidate grid in coded units, with
-    the existing runs as fixed rows. Unlike a one-run-at-a-time greedy search, the
-    exchange can start from a design that cannot yet estimate the target model, as
-    every screening design aimed at a quadratic model is. When the requested runs
-    cannot supply the rank the existing runs lack, more are added, and the
-    explanation says so. Candidates may repeat, which replicates a run where the
-    criterion wants it.
+    the existing runs as fixed rows. For a quadratic model on a 3-level or sampled grid,
+    a coordinate exchange on a 5-level lattice then polishes the design from each start
+    (see ``select_runs``). Unlike a one-run-at-a-time greedy search, the exchange can
+    start from a design that cannot yet estimate the target model, as every screening
+    design aimed at a quadratic model is. When the requested runs cannot supply the
+    rank the existing runs lack, more are added, and the explanation says so.
+    Candidates may repeat, which replicates a run where the criterion wants it.
     """
     from process_improve.experiments.designs_constrained import (  # noqa: PLC0415
+        CandidatePool,
         Criterion,
+        PolishLattice,
         _budget_for_fixed_runs,
         _Region,
         build_candidates,
-        fedorov_exchange,
+        polish_levels,
+        select_runs,
     )
     from process_improve.experiments.factor import Factor  # noqa: PLC0415
 
@@ -586,16 +617,22 @@ def _augment_add_runs_optimal(ctx: _AugmentContext) -> dict[str, Any]:
 
     region = _Region([Factor(name=n, low=-1, high=1) for n in ctx.factor_names], [], [])
     grid_model = model if model in ("main_effects", "interactions") else "quadratic"
-    coded, _cats, _counts = build_candidates(region, None, grid_model)
-    f_fixed, f_cand = _model_rows(rhs, ctx.factor_names, df, coded)
+    coded, cats, counts = build_candidates(region, None, grid_model)
+    f_fixed, rows_of = _exchange_rows(region, model, rhs, ctx.factor_names, df)
+    f_cand = rows_of(coded, cats)
     n_parameters = f_cand.shape[1]
     if np.linalg.matrix_rank(np.vstack([f_fixed, f_cand])) < n_parameters:
         raise ValueError(f"The candidate grid cannot support the {model!r} model; use a simpler target_model.")
 
     total = _budget_for_fixed_runs(f_fixed, n_parameters, len(df) + ctx.n_additional_runs)
     n_new = total - len(df)
-    rows, _value = fedorov_exchange(f_cand, n_new, f_fixed, check_random_state(ctx.random_state), Criterion.d())
-    new_runs_df = pd.DataFrame(coded[rows], columns=ctx.factor_names)
+    levels = polish_levels(counts)
+    lattice = PolishLattice(levels, rows_of) if grid_model == "quadratic" and levels is not None else None
+    pool = CandidatePool(coded, cats, f_cand, lattice)
+    _rows, new_coded, _cats, _value = select_runs(
+        pool, n_new, f_fixed, check_random_state(ctx.random_state), Criterion.d()
+    )
+    new_runs_df = pd.DataFrame(new_coded, columns=ctx.factor_names)
     augmented = pd.concat([df, new_runs_df], ignore_index=True)
 
     notes = [
