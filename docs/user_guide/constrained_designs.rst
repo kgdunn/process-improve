@@ -78,8 +78,9 @@ How the design is chosen
 
 2. **Model matrix.** Each candidate is expanded into the columns of the requested
    ``model_type``: intercept, main effects, two-factor interactions and, for
-   ``"quadratic"``, squared terms. A categorical factor contributes indicator
-   columns.
+   ``"quadratic"``, squared terms. A categorical factor with ``L`` levels
+   contributes ``L - 1`` effect-coded (sum-to-zero) columns, the coding
+   ``evaluate_design`` uses.
 
 3. **Exchange.** A Fedorov exchange swaps one design run for one candidate at a
    time, taking the swap that increases the determinant of ``X'X`` most, until no

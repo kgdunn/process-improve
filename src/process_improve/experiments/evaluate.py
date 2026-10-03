@@ -29,7 +29,8 @@ from typing import Any
 
 import numpy as np
 import pandas as pd
-from patsy import EvalFactor, ModelDesc, Term, build_design_matrices, dmatrix
+from patsy import EvalFactor, ModelDesc, Sum, Term, build_design_matrices, dmatrix
+from patsy import categorical as patsy_categorical
 from patsy.design_info import DesignInfo
 from scipy import stats
 
@@ -72,6 +73,7 @@ class _EvalRequest:
     random_state: int | np.random.Generator | None = 42
     fds_resolution: int | None = None
     design_type: str | None = None
+    categorical_coding: str = "effect"
 
 
 @dataclass
@@ -101,6 +103,12 @@ class _EvalContext:
     fds_resolution: int | None = None
     design_type: str | None = None
     is_scheffe: bool = False  # a Scheffé mixture model (no intercept; linear blending terms)
+    categorical_coding: str = "effect"
+
+    @property
+    def patsy_data(self) -> dict[str, Any] | pd.DataFrame:
+        """The design as patsy reads it: each categorical column carries its contrast."""
+        return _patsy_data(self.design_df, self.categorical_coding)
 
 
 # ---------------------------------------------------------------------------
@@ -121,10 +129,44 @@ def _roman(n: int) -> str:
     return out
 
 
+#: Codings for a categorical (label) factor; see ``categorical_coding`` in :func:`evaluate_design`.
+CATEGORICAL_CODINGS = ("effect", "treatment")
+
+
+def _patsy_data(design_df: pd.DataFrame, categorical_coding: str) -> dict[str, Any] | pd.DataFrame:
+    """Return the data handed to patsy, each categorical (label) column carrying its contrast.
+
+    With ``"effect"`` coding a categorical column gets patsy's ``Sum`` contrast: a
+    two-level factor is coded -1 for its first level (in sorted order) and +1 for its
+    second (``Sum(omit=0)``), and a factor with more levels has the last level at -1 in
+    every column. A ``Block`` column gets plain ``Sum``, as ``analyze_experiment`` codes
+    blocks. The contrast travels with the data, not the formula, so the column names
+    read ``C[S.y]`` and ``A:C[S.y]``, and a formula that names a contrast itself
+    (``C(cat, Treatment)``) overrides it. ``"treatment"`` returns the data unchanged, so
+    patsy's default treatment (0/1) coding applies.
+    """
+    if categorical_coding not in CATEGORICAL_CODINGS:
+        raise ValueError(
+            f"categorical_coding must be one of {', '.join(map(repr, CATEGORICAL_CODINGS))}; "
+            f"got {categorical_coding!r}."
+        )
+    labels = [str(name) for name, column in design_df.items() if not pd.api.types.is_numeric_dtype(column)]
+    if categorical_coding == "treatment" or not labels:
+        return design_df
+    data: dict[str, Any] = {str(name): column for name, column in design_df.items()}
+    for name in labels:
+        column = design_df[name]
+        n_levels = len(column.cat.categories) if isinstance(column.dtype, pd.CategoricalDtype) else column.nunique()
+        contrast = Sum(omit=0) if n_levels == 2 and name != "Block" else Sum
+        data[name] = patsy_categorical.C(column, contrast)
+    return data
+
+
 def _build_model_matrix(
     design_df: pd.DataFrame,
     model: str | None,
     factor_names: list[str],
+    categorical_coding: str = "effect",
 ) -> tuple[np.ndarray, list[str], DesignInfo]:
     """Build the expanded model matrix *X* using patsy.
 
@@ -137,6 +179,8 @@ def _build_model_matrix(
         patsy formula, or *None* (defaults to ``"interactions"``).
     factor_names : list[str]
         Ordered factor names.
+    categorical_coding : {"effect", "treatment"}
+        How a categorical (label) column is coded; see :func:`_patsy_data`.
 
     Returns
     -------
@@ -157,7 +201,7 @@ def _build_model_matrix(
         validate_identifier_is_safe(name)
 
     # A categorical factor is carried as a non-numeric (label) column; patsy
-    # contrast-codes it automatically, so it must NOT be manually expanded into
+    # contrast-codes it (see _patsy_data), so it must NOT be manually expanded into
     # dummy columns by the caller (that is what creates singular within-factor
     # cross terms). Only quantitative factors get a pure-quadratic term - a
     # categorical has no square - so "quadratic" becomes a partial response
@@ -185,7 +229,7 @@ def _build_model_matrix(
     # Patsy evaluates each term as Python, so a custom ``model`` is a code-
     # execution vector. Permit only safe column arithmetic, with I()/Q() (SEC-14).
     validate_formula_is_safe(rhs, design_df.columns, allow_transforms=True)
-    dm = dmatrix(rhs, design_df, return_type="dataframe")
+    dm = dmatrix(rhs, _patsy_data(design_df, categorical_coding), return_type="dataframe")
     X = np.asarray(dm, dtype=float)
     column_names = list(dm.columns)
     return X, column_names, dm.design_info
@@ -193,7 +237,9 @@ def _build_model_matrix(
 
 def _build_context(req: _EvalRequest) -> _EvalContext:
     """Build the shared evaluation context."""
-    X, column_names, design_info = _build_model_matrix(req.design_df, req.model, req.factor_names)
+    X, column_names, design_info = _build_model_matrix(
+        req.design_df, req.model, req.factor_names, req.categorical_coding
+    )
     N, p = X.shape
     XtX = X.T @ X
 
@@ -227,6 +273,7 @@ def _build_context(req: _EvalRequest) -> _EvalContext:
         fds_resolution=req.fds_resolution,
         design_type=req.design_type,
         is_scheffe=req.model in SCHEFFE_MODELS,
+        categorical_coding=req.categorical_coding,
     )
 
 
@@ -588,7 +635,7 @@ def _omitted_two_factor_interactions(ctx: _EvalContext) -> tuple[np.ndarray, lis
     Returns the ``(N, q)`` matrix of the interaction columns and their names, for
     every factor pair whose interaction is absent from the fitted model. The columns
     are built by patsy next to the model's own terms, so a categorical factor is
-    contrast-coded exactly as it is in ``X`` (``"A:C[T.y]"``), and a quantitative
+    contrast-coded exactly as it is in ``X`` (``"A:C[S.y]"``), and a quantitative
     pair gives the product ``x_a * x_b`` (``"A:B"``).
     """
     present = {frozenset(f.name() for f in term.factors) for term in ctx.design_info.terms}
@@ -599,7 +646,7 @@ def _omitted_two_factor_interactions(ctx: _EvalContext) -> tuple[np.ndarray, lis
     ]
     if not omitted:
         return np.empty((ctx.N, 0)), []
-    dm = dmatrix(ModelDesc([], [*ctx.design_info.terms, *omitted]), ctx.design_df, return_type="dataframe")
+    dm = dmatrix(ModelDesc([], [*ctx.design_info.terms, *omitted]), ctx.patsy_data, return_type="dataframe")
     slices = [dm.design_info.term_slices[term] for term in omitted]
     columns = [i for sl in slices for i in range(sl.start, sl.stop)]
     return np.asarray(dm, dtype=float)[:, columns], [dm.columns[i] for i in columns]
@@ -1098,7 +1145,7 @@ def _alias_structure_from_correlation(ctx: _EvalContext) -> dict[str, Any]:
     max_order = min(k, 3)
     rhs = f"({factor_str}) ** {max_order}" if max_order >= 3 else f"({factor_str}) ** 2"
 
-    dm = dmatrix(rhs, ctx.design_df, return_type="dataframe")
+    dm = dmatrix(rhs, ctx.patsy_data, return_type="dataframe")
     X_full = np.asarray(dm, dtype=float)
     col_names = list(dm.columns)
 
@@ -1151,7 +1198,7 @@ def _clear_effects_from_correlation(ctx: _EvalContext) -> tuple[list[str], list[
     """
     names = ctx.factor_names
     rhs = f"({' + '.join(names)}) ** 2" if len(names) > 1 else names[0]
-    dm = dmatrix(rhs, ctx.design_df[names], return_type="dataframe")
+    dm = dmatrix(rhs, _patsy_data(ctx.design_df[names], ctx.categorical_coding), return_type="dataframe")
     X = np.asarray(dm, dtype=float)
     terms: list[tuple[tuple[str, ...], list[int]]] = [
         (tuple(f.name() for f in term.factors), list(range(sl.start, sl.stop)))
@@ -1426,6 +1473,7 @@ def evaluate_design(  # noqa: PLR0913
     random_seed: int | None = None,
     fds_resolution: int | None = None,
     random_state: int | np.random.Generator | None = 42,
+    categorical_coding: str = "effect",
 ) -> dict[str, Any]:
     """Compute quality metrics for an experimental design.
 
@@ -1512,6 +1560,17 @@ def evaluate_design(  # noqa: PLR0913
         maximum prediction variance.
     random_state : int, numpy.random.Generator or None
         Seed for the region sampler (default 42, so repeated calls agree).
+    categorical_coding : {"effect", "treatment"}
+        How a categorical (label) factor enters the model. ``"effect"`` (default) is
+        sum-to-zero effect coding, the usual convention in DoE software and the coding
+        the built-in optimal designs are built in: a two-level factor is -1 and +1 (first
+        and second level in sorted order), and a factor with ``L > 2`` levels gets ``L - 1``
+        columns, the last level at -1 in every column (names such as ``"C[S.lo]"``).
+        ``"treatment"`` is patsy's 0/1 dummy coding against the first level (``"C[T.y]"``),
+        which earlier releases used. The A- and E-criteria, VIF, the condition number,
+        power and the alias matrix depend on the coding; the prediction-variance metrics,
+        D rankings and the degrees of freedom do not. A ``Block`` column named in the
+        formula is sum-coded under ``"effect"``, as ``analyze_experiment`` codes blocks.
 
     Returns
     -------
@@ -1525,7 +1584,7 @@ def evaluate_design(  # noqa: PLR0913
     ------
     ValueError
         If *alpha* is not in (0, 1), *sigma* is not positive, *n_samples* is
-        below 1, or a factor setting is missing.
+        below 1, a factor setting is missing, or *categorical_coding* is unknown.
 
     Examples
     --------
@@ -1581,6 +1640,7 @@ def evaluate_design(  # noqa: PLR0913
             random_state=resolve_deprecated_seed(random_state, random_seed, "evaluate_design"),
             fds_resolution=fds_resolution,
             design_type=design_type,
+            categorical_coding=categorical_coding,
         )
     )
 
@@ -1613,6 +1673,7 @@ def evaluate_all(  # noqa: PLR0913
     random_seed: int | None = None,
     fds_resolution: int | None = None,
     random_state: int | np.random.Generator | None = 42,
+    categorical_coding: str = "effect",
 ) -> dict[str, Any]:
     """Compute *every* available metric for a design in one call.
 
@@ -1641,4 +1702,5 @@ def evaluate_all(  # noqa: PLR0913
         include_vertices=include_vertices,
         fds_resolution=fds_resolution,
         random_state=resolve_deprecated_seed(random_state, random_seed, "evaluate_all"),
+        categorical_coding=categorical_coding,
     )

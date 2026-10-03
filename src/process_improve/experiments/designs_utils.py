@@ -8,6 +8,7 @@ from typing import TYPE_CHECKING, cast
 
 import numpy as np
 import pandas as pd
+from patsy.util import SortAnythingKey
 
 from process_improve._random import check_random_state
 from process_improve.experiments._blocking import Blocking, confounding_blocks, exchange_blocks, is_regular_two_level
@@ -45,6 +46,62 @@ def categorical_codes(n_levels: int) -> np.ndarray:
     two-level factor, as in every two-level design, and -1, 0, +1 for three levels.
     """
     return np.linspace(-1.0, 1.0, n_levels)
+
+
+def categorical_effect_columns(codes: np.ndarray, n_levels: int) -> np.ndarray:
+    """Effect (sum-to-zero) model columns of a categorical factor, one row per run.
+
+    The factor contributes ``n_levels - 1`` columns, each summing to zero over the
+    levels, so its main effect is measured from the average of the levels rather than
+    from a reference level. ``evaluate_design`` builds the same columns with patsy's
+    ``Sum`` contrast, so the two agree exactly when ``codes`` index the levels in the
+    order patsy sorts them (see :func:`sorted_level_ranks`):
+
+    * two levels: the first is -1 and the second +1, like a coded continuous factor
+      and like the effects of ``analyze_experiment`` (patsy ``Sum(omit=0)``);
+    * three or more: level ``j`` is +1 in column ``j`` and the last level is -1 in
+      every column (patsy ``Sum``, also pyoptex's effect encoding).
+
+    Parameters
+    ----------
+    codes : numpy.ndarray
+        Integer level index of each run, from 0 to ``n_levels - 1``.
+    n_levels : int
+        Number of levels of the factor.
+
+    Returns
+    -------
+    numpy.ndarray
+        Array of shape ``(len(codes), n_levels - 1)``.
+    """
+    codes = np.asarray(codes, dtype=int).reshape(-1)
+    if n_levels == 2:
+        return np.where(codes == 0, -1.0, 1.0)[:, None]
+    contrast = np.vstack([np.eye(n_levels - 1), -np.ones((1, n_levels - 1))])
+    return contrast[codes]
+
+
+def sorted_level_ranks(levels: list) -> np.ndarray:
+    """Position of each declared level once the levels are sorted the way patsy sorts labels.
+
+    ``evaluate_design`` reads a categorical factor from its label column, whose levels
+    patsy puts in sorted order; indexing :func:`categorical_effect_columns` by these
+    ranks makes the design builder code the levels the same way.
+
+    Parameters
+    ----------
+    levels : list
+        The factor's levels in declared order.
+
+    Returns
+    -------
+    numpy.ndarray
+        ``ranks[i]`` is the sorted position of ``levels[i]``.
+    """
+    order = sorted(range(len(levels)), key=lambda i: SortAnythingKey(levels[i]))
+    ranks = np.empty(len(levels), dtype=int)
+    ranks[order] = np.arange(len(levels))
+    return ranks
 
 
 def categorical_labels(values: np.ndarray, factor: Factor) -> list:
