@@ -71,6 +71,37 @@ those changes.
   for the previous numbers. `analyze_experiment` is unchanged: its coefficients keep
   treatment coding and its effects already run from low to high.
 
+- **OMARS generation with a run budget is about eight times faster, and its designs are
+  no worse.** `generate_design(factors, design_type="omars_ilp", budget=17)` for six
+  factors took 138 s and 51 HiGHS solves; it now takes about 16 s and 20 solves,
+  single-threaded, for a design with D-efficiency 37.3 against 35.9 (A-optimality 2.72
+  against 3.71, maximum second-order correlation 0.50 against 0.51). Over five and six
+  factors at budgets 17, 19, 21 and none, the D-efficiency is higher in seven cases and
+  equal in one; three of the higher-D designs trade a higher A-optimality or
+  correlation, which the dominance rule accepts. The designs differ from 1.97.0's for
+  the same `random_state`, which still reproduces the design. Five changes, in
+  `designs_omars_ilp.py`:
+  - The randomized-objective solves skip HiGHS's RINS and RENS sub-MIP heuristics and
+    trust pseudocosts without strong branching: 0.8 s a solve instead of 2.7 s at six
+    factors and 17 runs. The feasibility and minimise-size solves keep the defaults.
+  - At six factors and 17 runs, 35 of the 51 solves returned a design that cannot
+    estimate the model. Each such design now adds cover cuts that exclude every design
+    sharing its rank deficiency, and the cuts that two identical quadratic columns imply
+    are imposed up front: 8 of the 20 solves now return one.
+  - Designs that differ only in run order, factor order or factor signs are counted once.
+  - The run-budget search stops once eight solves in a row return an estimable design
+    that does not improve the Pareto front, with 50 restarts as the ceiling.
+    `generate_omars` keeps its exact `n_restarts`.
+  - For the `"dominance"` and `"d_efficiency"` criteria, each design found is improved
+    by a local search over one-, two- and three-run swaps that keep the main effects
+    orthogonal. This more than makes up for the cheaper solves: `generate_omars` for six
+    factors at its default 50 restarts returns D-efficiency 37.4 in about 70 s, against
+    26.8 before.
+
+  A design with a second-order column that never varies now ranks last under every
+  selection criterion. With the highest D-efficiency it used to win under
+  `"dominance"` and `"d_efficiency"`, with an infinite maximum correlation.
+
 ## [1.97.0] - 2026-10-03
 
 ### Added

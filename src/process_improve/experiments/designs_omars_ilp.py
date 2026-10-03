@@ -44,11 +44,16 @@ different feasible design, so the retained designs span the high-D-efficiency
 / low-A members.  Each of these solves stops after a fixed number of
 branch-and-bound nodes, which ends it at the same point on every run, so the
 search is reproducible for a fixed seed.  Designs from which the sizing model
-cannot be estimated are set aside.  The best of the rest is then
-chosen by a satisficing-and-dominance rule over D-efficiency and the maximum
-second-order correlation, following the selection philosophy of Nunez Ares and
-Goos (2020).  This makes the generator competitive with their enumerated
-catalogue without consulting it.
+cannot be estimated are set aside, and each one teaches the solver a cover cut
+that keeps later solves away from every design sharing its rank deficiency
+(:func:`_estimability_cuts`).  Designs that differ only in run order, factor
+order or factor signs are recognised as one (:func:`_canonical_key`).  When
+the selection is driven by D-efficiency, every design found is then improved by
+a local search over run swaps that keep the main effects orthogonal
+(:class:`_SwapIndex`).  The best design is chosen by a satisficing-and-dominance
+rule over D-efficiency and the maximum second-order correlation, following the
+selection philosophy of Nunez Ares and Goos (2020).  This makes the generator
+competitive with their enumerated catalogue without consulting it.
 
 This realises, for OMARS designs, the integer-programming construction of Nunez
 Ares and Goos (2020); the ILP-over-design-points framing is shared with their
@@ -105,6 +110,8 @@ if hasattr(os, "register_at_fork"):  # absent on Windows
     os.register_at_fork(after_in_child=_after_fork_in_child)
 
 if TYPE_CHECKING:
+    from collections.abc import Iterator
+
     from process_improve.experiments.factor import DesignResult, Factor
 
 # Selection criteria understood by :func:`generate_omars`.
@@ -130,6 +137,45 @@ _SATISFICE_KEYS = ("d_efficiency", "max_second_order_correlation")
 # turn up a new distinct design: the feasible set is effectively exhausted (small
 # factor counts) and further solves only repeat designs already retained.
 _RESTART_PATIENCE = 25
+
+# Plateau rule of the run-budget search (``generate_design(design_type="omars_ilp",
+# budget=N)``): stop the multistart once this many consecutive solves have
+# returned an estimable design that does not improve the Pareto front on
+# D-efficiency and the maximum second-order correlation (a design equivalent to
+# one already retained included).  Solves that return a rank-deficient design do
+# not count.  The restart count stays capped at _PLATEAU_MAX_RESTARTS.
+_PLATEAU = 8
+_PLATEAU_MAX_RESTARTS = 50
+
+# Ceiling on the moves of each local-search descent (see _descend in
+# _search_best_omars); a descent normally stops well before it.
+_LOCAL_MAX_STEPS = 50
+# The three-run swaps are searched only while one full scan of them needs at
+# most this many look-ups (456,000 for the 43-run, six-factor design and 3.5
+# million for the 57-run, seven-factor one); larger designs keep to one- and
+# two-run swaps.
+_LOCAL_MAX_TRIPLE_QUERIES = 10_000_000
+
+# Largest number of column reorderings times sign patterns _canonical_key tries
+# for an exact key; six factors with every column alike need 720 * 32.
+_CANONICAL_MAX_TRANSFORMS = 25_000
+
+# HiGHS options for the randomized-objective solves.  These solves stop at a
+# node budget and only need a good design for an arbitrary objective, not a
+# proven optimum, yet most of their time went into the RINS and RENS sub-MIP
+# heuristics at the root node and into strong branching (by default a
+# branching variable's pseudocost is trusted only after several strong-branching
+# probes; 0 trusts it at once).  Without them a six-factor, 17-run solve takes
+# 0.8 s instead of 2.7 s, and the local search (see _descend in
+# _search_best_omars) more than makes up for the somewhat weaker designs.  The
+# root reduced-cost heuristic stays on: without it the designs found are much
+# weaker.  The feasibility and minimise-size solves keep the HiGHS defaults.  A
+# HiGHS too old to know an option skips it.
+_RANDOM_OBJECTIVE_HIGHS_OPTIONS = {
+    "mip_heuristic_run_rins": False,
+    "mip_heuristic_run_rens": False,
+    "mip_pscost_minreliable": 0,
+}
 
 # The exhaustive search enumerates every feasible half-design multiset (counts
 # per sign class, replication allowed) when the class is small enough.  The caps
@@ -163,6 +209,7 @@ _STATUS_TIME_LIMIT = "Time limit"
 _STATUS_INFEASIBLE = "Infeasible"
 _STATUS_NOT_SOLVED = "Not Solved"
 _STATUS_ENUMERATED = "Enumerated"
+_STATUS_LOCAL = "Local search"
 # HiGHS model-status codes, as scipy reports them in ``"(HiGHS Status N: ...)"``.
 # The scipy status integer alone is ambiguous: a node limit is status 1 on
 # scipy < 1.15 and status 4 from 1.15 on, where 4 also means "solver error".
@@ -252,6 +299,12 @@ class OmarsSearchReport:
         Number of run sizes searched.  More than one means that no design at
         the smallest feasible size could estimate the sizing model, so the
         search moved up the window.
+    plateau : int or None
+        The plateau rule of the multistart: it stopped at a size once this many
+        consecutive estimable designs failed to improve the Pareto front on
+        D-efficiency and the maximum second-order correlation.  ``None`` (the
+        :func:`generate_omars` default) means no plateau rule: only
+        *n_restarts* and the restart patience end the multistart.
     """
 
     n_factors: int = 0
@@ -270,6 +323,7 @@ class OmarsSearchReport:
     rank_deficient_designs: int = 0
     size_proven_minimal: bool | None = None
     run_sizes_searched: int = 0
+    plateau: int | None = None
 
 
 @dataclass(frozen=True)
@@ -418,6 +472,7 @@ def solve_omars_ilp(  # noqa: PLR0913
     objective: np.ndarray | None = None,
     exclude_solutions: list[list[int]] | None = None,
     solver_options: dict[str, Any] | None = None,
+    require_any: list[list[int]] | None = None,
 ) -> tuple[np.ndarray | None, str, list[int]]:
     """Select a half-design from *half_pool* and return the foldover OMARS design.
 
@@ -446,9 +501,15 @@ def solve_omars_ilp(  # noqa: PLR0913
         solver towards a different feasible OMARS design, which is how
         :func:`generate_omars` samples diverse, high-quality designs.  Takes
         precedence over *minimize_size*.  Only solves with an *objective* are
-        subject to the ``node_limit`` solver option.
+        subject to the ``node_limit`` solver option, and they run without the
+        RINS and RENS sub-MIP heuristics and with pseudocost branching in place
+        of strong branching, which together took most of each such solve.
     exclude_solutions : list[list[int]], optional
         Previously found half-index sets to forbid via no-good cuts.
+    require_any : list[list[int]], optional
+        Cover cuts: for each listed set of half-pool rows, at least one of them
+        must be selected.  :func:`generate_omars` uses these to steer the
+        search away from rank-deficient designs (see :func:`_estimability_cuts`).
     solver_options : dict, optional
         Any of the keys:
 
@@ -484,10 +545,12 @@ def solve_omars_ilp(  # noqa: PLR0913
     size_bounds = _size_bounds(n_half, half_bounds)
     n_candidates = half_pool.shape[0]
     _check_exclusions(exclude_solutions, n_candidates)
+    _check_exclusions(require_any, n_candidates, "require_any")
 
     options: dict[str, Any] = {"disp": settings.msg, "time_limit": settings.time_limit}
     if objective is not None:
         cost = np.asarray(objective, dtype=float)
+        options.update(_RANDOM_OBJECTIVE_HIGHS_OPTIONS)
         if settings.node_limit is not None:
             options["node_limit"] = settings.node_limit
     else:
@@ -496,7 +559,7 @@ def solve_omars_ilp(  # noqa: PLR0913
         # prove that its size is the smallest.
         cost = np.full(n_candidates, 1.0 if minimize_size else 0.0)
 
-    constraints = _selection_constraints(half_pool, size_bounds, exclude_solutions)
+    constraints = _selection_constraints(half_pool, size_bounds, exclude_solutions, require_any)
     result = _run_milp(cost, constraints, options)
     status = _status_label(result)
     logger.debug(
@@ -507,7 +570,7 @@ def solve_omars_ilp(  # noqa: PLR0913
     # The coverage rows make an empty selection infeasible, so chosen is never
     # empty here; _check_selection would reject one.
     chosen = [int(r) for r in np.flatnonzero(result.x > 0.5)]
-    _check_selection(half_pool, chosen, size_bounds, exclude_solutions)
+    _check_selection(half_pool, chosen, size_bounds, exclude_solutions, require_any)
     return _foldover(half_pool[chosen]), status, chosen
 
 
@@ -568,14 +631,16 @@ def _checked_node_limit(value: object) -> int | None:
     return nodes
 
 
-def _check_exclusions(exclude_solutions: list[list[int]] | None, n_candidates: int) -> None:
-    """Each excluded selection must be a non-empty list of pool row indices."""
+def _check_exclusions(
+    exclude_solutions: list[list[int]] | None, n_candidates: int, name: str = "exclude_solutions"
+) -> None:
+    """Each excluded (or required) selection must be a non-empty list of pool row indices."""
     for excluded in exclude_solutions or []:
         rows = np.asarray(excluded)
         valid = rows.ndim == 1 and rows.size > 0 and np.issubdtype(rows.dtype, np.integer)
         if not valid or rows.min() < 0 or rows.max() >= n_candidates:
             msg = (
-                "exclude_solutions entries must be non-empty lists of half-pool row indices in "
+                f"{name} entries must be non-empty lists of half-pool row indices in "
                 f"[0, {n_candidates}), got {excluded!r}."
             )
             raise ValueError(msg)
@@ -592,7 +657,10 @@ def _size_bounds(n_half: int | None, half_bounds: tuple[int, int] | None) -> tup
 
 
 def _selection_constraints(
-    half_pool: np.ndarray, size_bounds: tuple[int, int], exclude_solutions: list[list[int]] | None
+    half_pool: np.ndarray,
+    size_bounds: tuple[int, int],
+    exclude_solutions: list[list[int]] | None,
+    require_any: list[list[int]] | None = None,
 ) -> list[LinearConstraint]:
     """Linear constraints on the binary "include this half-run" variables.
 
@@ -606,8 +674,9 @@ def _selection_constraints(
       column is all zeros, which is trivially orthogonal but not three-level.
 
     The coefficients are integers, so the constraints are exact.  Then come the
-    size window and one no-good cut per excluded selection (see
-    :func:`_no_good_row`).
+    size window, one no-good cut per excluded selection (see
+    :func:`_no_good_row`), and one cover cut ``sum_{r in rows} s_r >= 1`` per
+    *require_any* entry.
     """
     n_candidates, n_factors = half_pool.shape
     constraints = []
@@ -620,6 +689,10 @@ def _selection_constraints(
     for excluded in exclude_solutions or []:
         row = _no_good_row(n_candidates, excluded)
         constraints.append(LinearConstraint(row[np.newaxis, :], -np.inf, len(excluded) - 1))
+    for rows in require_any or []:
+        cover = np.zeros((1, n_candidates))
+        cover[0, np.asarray(rows, dtype=int)] = 1.0
+        constraints.append(LinearConstraint(cover, 1.0, np.inf))
     return constraints
 
 
@@ -653,8 +726,10 @@ def _run_milp(cost: np.ndarray, constraints: list[LinearConstraint], options: di
     def solve(extra: dict[str, Any]) -> OptimizeResult:
         # milp pops keys out of the dict it is given, so pass a fresh one.
         with warnings.catch_warnings():
-            # scipy forwards "threads" to HiGHS but warns that it does not know it.
-            warnings.filterwarnings("ignore", message="Unrecognized options detected", category=RuntimeWarning)
+            # scipy forwards "threads" and the heuristic switches to HiGHS but warns
+            # that it does not know them (a RuntimeWarning); a HiGHS too old to
+            # know a heuristic switch skips it with an OptimizeWarning.
+            warnings.filterwarnings("ignore", message="Unrecognized options detected", category=Warning)
             return milp(
                 cost,
                 integrality=np.ones(n_candidates),
@@ -711,7 +786,11 @@ def _status_label(result: OptimizeResult) -> str:
 
 
 def _check_selection(
-    half_pool: np.ndarray, chosen: list[int], size_bounds: tuple[int, int], exclude_solutions: list[list[int]] | None
+    half_pool: np.ndarray,
+    chosen: list[int],
+    size_bounds: tuple[int, int],
+    exclude_solutions: list[list[int]] | None,
+    require_any: list[list[int]] | None = None,
 ) -> None:
     """Re-check a solver selection against the constraints it was solved under.
 
@@ -734,6 +813,11 @@ def _check_selection(
         f"an excluded selection {sorted(excluded)} was returned"
         for excluded in exclude_solutions or []
         if _no_good_row(half_pool.shape[0], excluded)[chosen].sum() > len(excluded) - 1
+    )
+    problems.extend(
+        f"none of the required rows {sorted(rows)} was selected"
+        for rows in require_any or []
+        if not set(rows) & set(chosen)
     )
     if problems:
         msg = f"internal: the HiGHS selection violates its constraints ({'; '.join(problems)}). Please report this."
@@ -811,7 +895,16 @@ def _satisfice(candidates: list[_Candidate], thresholds: dict[str, float]) -> li
 
 
 def _select(candidates: list[_Candidate], criterion: str) -> _Candidate:
-    """Pick the winning design under the requested multicriteria rule."""
+    """Pick the winning design under the requested multicriteria rule.
+
+    A design with an infinite maximum second-order correlation (a constant
+    second-order column, so a term it cannot estimate) is ranked last under
+    every criterion: it is returned only when no design with a finite
+    correlation was found.  Without this, ``"dominance"`` and
+    ``"d_efficiency"`` would crown such a design whenever its D-efficiency
+    was the highest, since no finite-correlation design dominates it.
+    """
+    candidates = [c for c in candidates if math.isfinite(c.max_second_order_correlation)] or candidates
     if criterion == "d_efficiency":
         return max(candidates, key=lambda c: (c.d_efficiency, -c.n_runs))
     if criterion == "min_second_order_correlation":
@@ -861,6 +954,300 @@ def _max_second_order_correlation_metric(coded: np.ndarray, tol: float = 1e-9) -
     corr = unit.T @ unit
     off_diagonal = corr - np.diag(np.diag(corr))
     return float(np.abs(off_diagonal).max())
+
+
+def _even_features(half_pool: np.ndarray, model: str) -> np.ndarray:
+    """Second-order model columns of each half-run, without the intercept.
+
+    In a foldover these even columns are the same for ``h`` and ``-h``, so the
+    sizing model is estimable exactly when the selected half-runs' rows of this
+    matrix have full column rank (see :func:`_min_half_runs`).
+    """
+    second_order, names = _second_order_terms(half_pool)
+    if model == "main_quadratic":
+        second_order = second_order[:, [t for t, name in enumerate(names) if "^2" in name]]
+    return second_order
+
+
+def _estimability_cuts(features: np.ndarray, chosen: list[int]) -> list[list[int]]:
+    """Cover cuts that every estimable design satisfies but the rank-deficient *chosen* violates.
+
+    *features* is :func:`_even_features` of the pool.  The sizing model is
+    estimable only when the selected rows of *features* have full column rank,
+    so for every vector ``w`` in the null space of ``features[chosen]`` an
+    estimable design must select at least one pool row ``r`` with
+    ``features[r] @ w != 0``.  One cut is returned per null-space basis
+    vector, each a list of the pool rows it requires one of.  The basis is
+    reduced so each vector is zero on the others' pivot entries, which keeps
+    the vectors sparse and the cuts tight: two identical feature columns ``a``
+    and ``b``, for example, give ``w = e_a - e_b`` and the cut "select a run on
+    which they differ".
+
+    The cuts remove no estimable design, of any size, and each excludes
+    *chosen* together with every other design sharing that null vector, a far
+    stronger cut than a no-good cut on *chosen* alone.  Returns an empty list
+    when *chosen* has full column rank (the deficiency is then elsewhere).
+    """
+    selected = features[chosen]
+    _, singular_values, vt = np.linalg.svd(selected, full_matrices=True)
+    tol = 1e-9 * max(1.0, float(singular_values.max(initial=0.0)))
+    rank = int((singular_values > tol).sum())
+    null = vt[rank:].T  # (n_features, nullity)
+    if null.shape[1] == 0:
+        return []
+    # Pivot on the rows of the null basis that QR with column pivoting picks,
+    # then express the basis so it is the identity on those pivot rows.
+    _, _, pivots = _qr_pivots(null.T)
+    pivot_rows = pivots[: null.shape[1]]
+    reduced = null @ np.linalg.inv(null[pivot_rows])
+    reduced[np.abs(reduced) < 1e-9] = 0.0
+    cuts = []
+    for w in reduced.T:
+        rows = np.flatnonzero(np.abs(features @ w) > 1e-6)
+        if rows.size:
+            cuts.append([int(r) for r in rows])
+    return cuts
+
+
+def _qr_pivots(matrix: np.ndarray) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """QR decomposition with column pivoting, ``matrix[:, p] = q @ r``."""
+    from scipy.linalg import qr  # noqa: PLC0415
+
+    return qr(matrix, mode="economic", pivoting=True)
+
+
+def _distinct_feature_cuts(features: np.ndarray, n_factors: int) -> list[list[int]]:
+    """Cover cuts every estimable design satisfies, known before any solve.
+
+    A selection is rank-deficient when one of its even feature columns is all
+    zero or two of them are identical, so an estimable design must select a
+    run on which each column is nonzero and a run on which each pair of columns
+    differs.  These are the sparsest null vectors (``e_a`` and ``e_a - e_b``)
+    of :func:`_estimability_cuts`, imposed up front rather than learnt one
+    rank-deficient design at a time.  The pairs are taken among the first
+    *n_factors* columns only, the pure quadratics, whose supports most often
+    coincide (two factors set to zero in the same runs): the interaction
+    pairs of the full second-order model are many, rarely the cause, and
+    slow the solves down.
+    """
+    cuts = [np.flatnonzero(features[:, a]) for a in range(features.shape[1])]
+    cuts.extend(
+        np.flatnonzero(features[:, a] != features[:, b]) for a, b in itertools.combinations(range(n_factors), 2)
+    )
+    return [[int(r) for r in rows] for rows in cuts if rows.size]
+
+
+def _canonical_key(coded: np.ndarray) -> bytes:
+    """Return a key shared by designs that differ only in run order, factor order and factor signs.
+
+    Such designs score identically on every criterion, so the search treats
+    them as one design.  The columns are first put in order by a signature
+    that no run reordering, column permutation or sign flip changes (the
+    column's count of nonzero entries, its co-support with the other columns,
+    and the absolute values of the fourth-order moments
+    ``sum_r x_ri x_rj x_ra^2`` that involve it).  The key is then the
+    lexicographically smallest sorted list of run codes over every
+    reordering of columns with equal signatures and every choice of column
+    signs, which makes it exact: two designs share a key exactly when they
+    are equivalent.  When that set of transforms exceeds
+    :data:`_CANONICAL_MAX_TRANSFORMS`, the signs are instead fixed one column
+    at a time in signature order, which keeps the key a transformed copy of
+    the design (equal keys still mean equivalent designs) but can, rarely,
+    give two equivalent designs different keys; that costs only a repeated
+    scoring, never a lost design.
+    """
+    x = np.rint(coded).astype(np.int64)
+    n_cols = x.shape[1]
+    signatures = _column_signatures(x)
+    groups = [[j for j in range(n_cols) if signatures[j] == sig] for sig in sorted(set(signatures))]
+    weights = 3 ** np.arange(n_cols - 1, -1, -1, dtype=np.int64)
+    n_orders = math.prod(math.factorial(len(group)) for group in groups)
+    if n_orders * 2 ** (n_cols - 1) <= _CANONICAL_MAX_TRANSFORMS:
+        orders = np.array([sum(parts, ()) for parts in itertools.product(*(itertools.permutations(g) for g in groups))])
+        # The design holds every run's mirror image, so flipping every sign
+        # leaves it unchanged: the first column's sign can stay fixed.
+        signs = np.array([(1, *rest) for rest in itertools.product((1, -1), repeat=n_cols - 1)], dtype=np.int64)
+        codes = np.einsum("pnj,sj->psn", x[:, orders].transpose(1, 0, 2), signs * weights).reshape(-1, x.shape[0])
+        codes.sort(axis=1)
+        return codes[np.lexsort(codes.T[::-1])[0]].tobytes()
+    ordered = x[:, [j for group in groups for j in group]]
+    for j in range(1, n_cols):
+        codes = ordered[:, : j + 1] @ weights[n_cols - j - 1 :]
+        flipped = ordered[:, : j + 1].copy()
+        flipped[:, j] *= -1
+        if tuple(np.sort(flipped @ weights[n_cols - j - 1 :])) < tuple(np.sort(codes)):
+            ordered[:, j] *= -1
+    return np.sort(ordered @ weights).tobytes()
+
+
+def _column_signatures(x: np.ndarray) -> list[tuple]:
+    """Per column, a summary that run order, column order and column signs leave unchanged."""
+    n_cols = x.shape[1]
+    support = (x != 0).astype(np.int64)
+    co_support = support.T @ support
+    moments = np.abs(np.einsum("ri,rj,ra->aij", x, x, support))
+    signatures = []
+    for j in range(n_cols):
+        others = [i for i in range(n_cols) if i != j]
+        signatures.append(
+            (
+                int(co_support[j, j]),
+                tuple(sorted(co_support[j, others].tolist())),
+                tuple(sorted(moments[:, j, others].ravel().tolist())),
+            )
+        )
+    return signatures
+
+
+def _matches(sorted_keys: np.ndarray, order: np.ndarray, queries: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+    """Pair every query with every key equal to it: ``(query positions, key positions)``, by query.
+
+    *sorted_keys* is ``keys[order]``; the key positions returned index ``keys``.
+    The queries are sorted first, which makes the binary searches several
+    times faster on large key arrays.
+    """
+    query_order = np.argsort(queries, kind="stable")
+    sorted_queries = queries[query_order]
+    low = np.searchsorted(sorted_keys, sorted_queries, side="left")
+    counts = np.searchsorted(sorted_keys, sorted_queries, side="right") - low
+    query = np.repeat(query_order, counts)
+    offsets = np.arange(query.shape[0]) - np.repeat(np.cumsum(counts) - counts, counts)
+    key = order[np.repeat(low, counts) + offsets]
+    by_query = np.argsort(query, kind="stable")
+    return query[by_query], key[by_query]
+
+
+class _SwapIndex:
+    """Find the run swaps that keep a half-design's main effects orthogonal.
+
+    Main-effect orthogonality says the selected half-runs' pair-product
+    vectors ``p_r = (x_ri x_rj)_{i<j}`` sum to zero, so a swap keeps it
+    exactly when the runs taken out and the runs put in have the same
+    pair-product sum.  Sums are matched through a linear 64-bit hash of the
+    vectors (the hash of a sum is the sum of the hashes, modulo ``2**64``),
+    which reduces each search to sorted look-ups; every match is then
+    re-checked on the vectors themselves, so the moves are exact.
+    """
+
+    def __init__(self, half_pool: np.ndarray) -> None:
+        pairs = list(itertools.combinations(range(half_pool.shape[1]), 2))
+        self.products = np.array([half_pool[:, i] * half_pool[:, j] for i, j in pairs], dtype=np.int64).T.reshape(
+            half_pool.shape[0], len(pairs)
+        )
+        weights = np.random.default_rng(0).integers(1, 2**63, size=len(pairs), dtype=np.uint64)
+        # Unsigned arithmetic wraps modulo 2**64, which keeps the hash linear.
+        self.hashes = (self.products.astype(np.uint64) * weights).sum(axis=1, dtype=np.uint64)
+        self.order = np.argsort(self.hashes, kind="stable")
+        self.sorted_hashes = self.hashes[self.order]
+        self._pair_index: tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray] | None = None
+
+    def _pairs(self) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+        """Every pool pair ``a < b`` with its summed hash, sorted by it; built on first use."""
+        if self._pair_index is None:
+            first, second = np.triu_indices(self.hashes.shape[0], k=1)
+            sums = self.hashes[first] + self.hashes[second]
+            order = np.argsort(sums, kind="stable")
+            self._pair_index = (first, second, order, sums[order])
+        return self._pair_index
+
+    def _exact(self, put_in: np.ndarray, out: np.ndarray) -> np.ndarray:
+        """Mask of the rows of *put_in* whose pair-product sum equals that of the same row of *out*."""
+        return (self.products[put_in].sum(axis=1) == self.products[out].sum(axis=1)).all(axis=1)
+
+    def _moves(self, current: list[int], out: np.ndarray, put_in: np.ndarray) -> list[list[int]]:
+        """List the selections *current* minus each row of *out* plus the same row of *put_in*, in row order."""
+        kept = np.ones(self.hashes.shape[0], dtype=bool)
+        moves = []
+        for taken, added in zip(out.tolist(), put_in.tolist(), strict=True):
+            kept[taken] = False
+            moves.append(sorted([*(r for r in current if kept[r]), *added]))
+            kept[taken] = True
+        return moves
+
+    def swaps(self, selection: list[int]) -> list[list[int]]:
+        """Return the selections one or two run swaps away from *selection*, sorted and distinct.
+
+        Whether every factor still reaches an outer level is left to the caller.
+        """
+        current = sorted(selection)
+        chosen = np.zeros(self.hashes.shape[0], dtype=bool)
+        chosen[current] = True
+        outside = np.flatnonzero(~chosen)
+        # One for one: equal pair-product vectors.
+        query, found = _matches(self.sorted_hashes, self.order, self.hashes[current])
+        keep = ~chosen[found]
+        out1 = np.asarray(current)[query[keep], np.newaxis]
+        in1 = found[keep, np.newaxis]
+        # Two for two: p_a + p_b = p_c + p_d, with a < b both outside.
+        c, d = (np.asarray(current)[i] for i in np.triu_indices(len(current), k=1))
+        targets = self.hashes[c] + self.hashes[d]
+        queries = (targets[:, np.newaxis] - self.hashes[outside][np.newaxis, :]).ravel()
+        query, found = _matches(self.sorted_hashes, self.order, queries)
+        pair, first = np.divmod(query, outside.shape[0])
+        first = outside[first]
+        keep = (found > first) & ~chosen[found]
+        out2 = np.column_stack([c[pair[keep]], d[pair[keep]]])
+        in2 = np.column_stack([first[keep], found[keep]])
+        moves: set[tuple[int, ...]] = set()
+        for out, put_in in ((out1, in1), (out2, in2)):
+            exact = self._exact(put_in, out)
+            moves.update(map(tuple, self._moves(current, out[exact], put_in[exact])))
+        return [list(move) for move in sorted(moves)]
+
+    def triple_queries(self, half: int) -> int:
+        """Return the pair look-ups a full scan of the three-run swaps of a *half*-run selection makes."""
+        return math.comb(half, 3) * (self.hashes.shape[0] - half)
+
+    def triple_swaps(self, selection: list[int], chunk: int = 64) -> Iterator[list[int]]:
+        """Yield the selections three run swaps away from *selection*, in a deterministic order.
+
+        For each three runs ``{c, d, e}`` taken out and each run ``a`` put in,
+        the other two runs put in are looked up among the pool pairs by their
+        summed hash, *chunk* triples at a time.  A selection may be yielded
+        more than once.
+        """
+        current = sorted(selection)
+        chosen = np.zeros(self.hashes.shape[0], dtype=bool)
+        chosen[current] = True
+        outside = np.flatnonzero(~chosen)
+        first, second, order, sorted_sums = self._pairs()
+        triples = np.array(list(itertools.combinations(current, 3)), dtype=np.int64).reshape(-1, 3)
+        for start in range(0, triples.shape[0], chunk):
+            out = triples[start : start + chunk]
+            targets = self.hashes[out].sum(axis=1, dtype=np.uint64)
+            queries = (targets[:, np.newaxis] - self.hashes[outside][np.newaxis, :]).ravel()
+            query, found = _matches(sorted_sums, order, queries)
+            triple, a = np.divmod(query, outside.shape[0])
+            a, b, f = outside[a], first[found], second[found]
+            keep = (a < b) & ~chosen[b] & ~chosen[f]
+            put_in = np.column_stack([a[keep], b[keep], f[keep]])
+            taken = out[triple[keep]]
+            exact = self._exact(put_in, taken)
+            yield from self._moves(current, taken[exact], put_in[exact])
+
+
+def _better(candidate: _Candidate, incumbent: _Candidate) -> bool:
+    """Return True when *candidate* beats *incumbent* on D-efficiency, ties going to the lower correlation."""
+    if candidate.d_efficiency > incumbent.d_efficiency + 1e-9:
+        return True
+    return (
+        candidate.d_efficiency >= incumbent.d_efficiency - 1e-9
+        and candidate.max_second_order_correlation < incumbent.max_second_order_correlation - 1e-12
+    )
+
+
+def _improves_front(candidate: _Candidate, retained: list[_Candidate]) -> bool:
+    """Return True when no retained design is at least as good as *candidate* on both front criteria.
+
+    The front is the Pareto front on D-efficiency (higher is better) and the
+    maximum second-order correlation (lower is better) that the ``"dominance"``
+    selection draws from.
+    """
+    return not any(
+        other.d_efficiency >= candidate.d_efficiency
+        and other.max_second_order_correlation <= candidate.max_second_order_correlation
+        for other in retained
+    )
 
 
 def _enumerate_feasible_counts(  # noqa: C901, PLR0915
@@ -1062,7 +1449,8 @@ def _pick_exhaustive_winner(d_eff: np.ndarray, a_opt: np.ndarray, max_corr: np.n
     """Index of the winning count vector, mirroring the tie-breaks of :func:`_select`.
 
     All enumerated designs share the same run count, so the run-size terms of
-    the :func:`_select` tie-break tuples drop out.
+    the :func:`_select` tie-break tuples drop out.  As in :func:`_select`, a
+    design with an infinite maximum second-order correlation ranks last.
     """
     if criterion == "d_efficiency":
         keys = (max_corr, -d_eff)
@@ -1072,8 +1460,8 @@ def _pick_exhaustive_winner(d_eff: np.ndarray, a_opt: np.ndarray, max_corr: np.n
         keys = (max_corr, a_opt)
     else:  # "dominance": the Pareto-front member with the highest D-efficiency.
         keys = (max_corr, -d_eff)
-    # np.lexsort sorts by the last key first.
-    return int(np.lexsort(keys)[0])
+    # np.lexsort sorts by the last key first, so the finiteness flag leads.
+    return int(np.lexsort((*keys, np.isinf(max_corr)))[0])
 
 
 def _search_best_omars(  # noqa: C901, PLR0912, PLR0913, PLR0915
@@ -1090,11 +1478,14 @@ def _search_best_omars(  # noqa: C901, PLR0912, PLR0913, PLR0915
     verify: bool,
     random_seed: int | np.random.Generator | None,
     center_runs: int = 1,
+    plateau: int | None = None,
 ) -> tuple[np.ndarray, dict]:
     """Run the design search and return ``(coded_matrix, metadata)`` for the winner.
 
     *n_runs*, *n_runs_range*, and every reported run count are **totals**,
-    centre runs included.  The returned matrix is a foldover design and
+    centre runs included.  *plateau*, when given, ends the multistart at a
+    size after that many consecutive estimable designs fail to improve the
+    Pareto front (see :data:`_PLATEAU`); *n_restarts* stays the ceiling.  The returned matrix is a foldover design and
     contains exactly one centre run; callers append the remaining
     ``center_runs - 1`` centre rows during post-processing, but all quality
     metrics here are computed with those rows included, so the metadata
@@ -1157,9 +1548,25 @@ def _search_best_omars(  # noqa: C901, PLR0912, PLR0913, PLR0915
         n_restarts=n_restarts,
         node_limit=solver_settings.node_limit,
         time_limit=solver_settings.time_limit,
+        plateau=plateau,
     )
     candidates: list[_Candidate] = []
-    seen: set[frozenset[int]] = set()
+    # Canonical keys (see _canonical_key) of every design met so far, so a
+    # design equivalent to one already seen is neither re-scored nor new.
+    # The value is the retained candidate, or None for a design set aside.
+    seen: dict[bytes, _Candidate | None] = {}
+    # Cuts that keep the solves at the target size away from rank-deficient
+    # designs: the necessary conditions known up front, then the cover cuts
+    # learnt from each rank-deficient design met (_estimability_cuts), or a
+    # no-good cut when the deficiency yields no cover cut.
+    features = _even_features(pool, model)
+    cover_cuts: list[list[int]] = _distinct_feature_cuts(features, n_factors)
+    no_good_cuts: list[list[int]] = []
+    # Local search (_descend) raises the D-efficiency, which is what both of
+    # these criteria select on; ids of the designs it has started from or met.
+    polish = selection_criterion in ("dominance", "d_efficiency")
+    descended: set[int] = set()
+    swap_index = _SwapIndex(pool)
     extra_centers = np.zeros((center_runs - 1, n_factors))
     half_window: tuple[int, int] | None = None
     last_status = _STATUS_NOT_SOLVED
@@ -1167,6 +1574,13 @@ def _search_best_omars(  # noqa: C901, PLR0912, PLR0913, PLR0915
     def _solve(**solve_kwargs: Any) -> tuple[np.ndarray | None, str, list[int]]:  # noqa: ANN401
         nonlocal last_status
         started = time.perf_counter()
+        if "n_half" in solve_kwargs:
+            # Not the minimise-size probe, which looks for the smallest OMARS
+            # design whether or not it is estimable.
+            if cover_cuts:
+                solve_kwargs["require_any"] = list(cover_cuts)
+            if no_good_cuts:
+                solve_kwargs["exclude_solutions"] = list(no_good_cuts)
         result = solve_omars_ilp(pool, solver_options=solver_options, **solve_kwargs)
         report.ilp_iterations += 1
         report.total_solve_seconds += time.perf_counter() - started
@@ -1178,12 +1592,17 @@ def _search_best_omars(  # noqa: C901, PLR0912, PLR0913, PLR0915
             logger.info("An OMARS ILP solve stopped at its %.3g s time limit.", solver_settings.time_limit)
         return result
 
-    def _record(coded: np.ndarray, indices: list[int], status: str) -> bool:
-        """Verify and retain a distinct, estimable OMARS design; return True if it was new."""
-        key = frozenset(indices)
+    def _record(coded: np.ndarray, indices: list[int], status: str, *, learn: bool = True) -> bool:
+        """Verify and retain a distinct, estimable OMARS design; return True if it was new.
+
+        Distinct means not equivalent, under run order, factor order and factor
+        signs, to a design met before.  A rank-deficient design is never new; the
+        cut learnt from it keeps later solves away from it and its subspace.
+        """
+        key = _canonical_key(coded)
         if key in seen:
             return False
-        seen.add(key)
+        seen[key] = None
         if verify and not is_omars(coded, tol=tol):
             return False
         # Score the design the caller will actually receive: the foldover plus
@@ -1194,6 +1613,12 @@ def _search_best_omars(  # noqa: C901, PLR0912, PLR0913, PLR0915
             # D-efficiency (0) and correlation (often finite) would let some
             # criteria crown it, so it never enters the ranking.
             report.rank_deficient_designs += 1
+            if not learn:
+                return False
+            cuts = _estimability_cuts(features, indices)
+            cover_cuts.extend(cuts)
+            if not cuts:
+                no_good_cuts.append(list(indices))
             return False
         candidates.append(
             _Candidate(
@@ -1206,7 +1631,102 @@ def _search_best_omars(  # noqa: C901, PLR0912, PLR0913, PLR0915
                 solver_status=status,
             )
         )
+        seen[key] = candidates[-1]
         return True
+
+    def _multistart(half: int, rng: np.random.Generator) -> None:
+        """Randomized-objective multistart at *half* half-runs; new designs land in *candidates*.
+
+        Each random linear objective steers the solver towards a different
+        feasible OMARS design, so the retained set spans the high-D-efficiency /
+        low-A members a pure feasibility search never reaches.  The node budget
+        ends each solve at the same point on every run, so the search is
+        deterministic for a fixed seed.  The loop ends after *n_restarts*
+        solves, or earlier:
+
+        * after :data:`_RESTART_PATIENCE` consecutive solves without a new
+          estimable design (the feasible set is effectively exhausted);
+        * with *plateau* set, after that many consecutive estimable designs
+          that, polished, do not improve the Pareto front, counting those
+          equivalent to a design already retained (rank-deficient designs do
+          not count);
+        * when a solve proves the problem infeasible: the learnt cuts have then
+          excluded every remaining design at this size, and none was estimable.
+
+        With *polish*, each new estimable design is first improved by
+        :func:`_descend`.
+        """
+        stall = 0
+        flat = 0
+        for _ in range(n_restarts):
+            if stall >= _RESTART_PATIENCE or (plateau is not None and flat >= plateau):
+                return
+            coded, status, indices = _solve(n_half=half, objective=rng.standard_normal(pool.shape[0]))
+            if coded is None and status == _STATUS_INFEASIBLE:
+                return
+            before = len(candidates)
+            if coded is not None and _record(coded, indices, status):
+                stall = 0
+                if polish:
+                    _polish()
+                improved = any(_improves_front(c, candidates[:before]) for c in candidates[before:])
+                flat = 0 if improved else flat + 1
+                continue
+            stall += 1
+            if coded is not None and seen.get(_canonical_key(coded)) is not None:
+                flat += 1  # an estimable design equivalent to one retained
+
+    def _scored_move(selection: list[int], bar: _Candidate) -> _Candidate | None:
+        """Retain the swap result *selection* and return it if it beats *bar*, else None."""
+        if not np.abs(pool[selection]).sum(axis=0).all():
+            return None
+        coded = _foldover(pool[selection])
+        # D-efficiency first: most moves lose on it, and it is cheaper than the canonical key.
+        if _d_efficiency(np.vstack([coded, extra_centers]), model) < bar.d_efficiency - 1e-9:
+            return None
+        key = _canonical_key(coded)
+        if key in seen:
+            # Met before, perhaps in another form: follow it all the same, so
+            # the descent from a start does not depend on what else was seen.
+            known = seen[key]
+            return known if known is not None and _better(known, bar) else None
+        if not _record(coded, selection, _STATUS_LOCAL, learn=False):
+            return None
+        return candidates[-1] if _better(candidates[-1], bar) else None
+
+    def _polish() -> None:
+        """Run :func:`_descend` from every retained design not yet descended from or met on a descent."""
+        for start in candidates.copy():
+            if id(start) not in descended:
+                _descend(start)
+
+    def _descend(start: _Candidate) -> None:
+        """Improve *start* by run swaps that keep the main effects orthogonal.
+
+        A variable-neighbourhood descent: take the best of the one- and
+        two-run swaps (:meth:`_SwapIndex.swaps`) while one improves the D-efficiency
+        (ties going to the lower maximum second-order correlation, see
+        :func:`_better`), and otherwise the first improving three-run swap
+        (:meth:`_SwapIndex.triple_swaps`), until neither improves or
+        :data:`_LOCAL_MAX_STEPS` moves were made.  Every design met on the way
+        is retained, so the selection rule sees them all, and none is used as a
+        start again.
+        """
+        first_new = len(candidates)
+        current = start
+        for _ in range(_LOCAL_MAX_STEPS):
+            best: _Candidate | None = None
+            for selection in swap_index.swaps(current.half_indices):
+                best = _scored_move(selection, best or current) or best
+            if best is None and swap_index.triple_queries(len(current.half_indices)) <= _LOCAL_MAX_TRIPLE_QUERIES:
+                for selection in swap_index.triple_swaps(current.half_indices):
+                    best = _scored_move(selection, current)
+                    if best is not None:
+                        break
+            if best is None:
+                break
+            current = best
+        descended.update(id(c) for c in [start, *candidates[first_new:]])
 
     # Find the target half-size: pinned exactly, or the smallest feasible size in
     # the window (the minimize-size solution becomes the first candidate).  The
@@ -1377,24 +1897,10 @@ def _search_best_omars(  # noqa: C901, PLR0912, PLR0913, PLR0915
         coded, status, indices = _solve(n_half=half)
         if coded is not None:
             _record(coded, indices, status)
-
-        # Randomized-objective multistart.  Each random linear objective steers
-        # the solver towards a different feasible OMARS design, so the retained
-        # set spans the high-D-efficiency / low-A members a pure feasibility
-        # search never reaches.  The node budget ends each solve at the same
-        # point on every run, so the search is deterministic for a fixed
-        # random_seed.  Early-stop once the feasible set stops yielding new
-        # designs.
-        rng = np.random.default_rng(random_seed)
-        stall = 0
-        for _ in range(n_restarts):
-            if stall >= _RESTART_PATIENCE:
-                break
-            coded, status, indices = _solve(n_half=half, objective=rng.standard_normal(pool.shape[0]))
-            if coded is not None and _record(coded, indices, status):
-                stall = 0
-            else:
-                stall += 1
+        if status != _STATUS_INFEASIBLE:
+            _multistart(half, np.random.default_rng(random_seed))
+        if polish:
+            _polish()
         if candidates:
             break
 
@@ -1565,9 +2071,9 @@ def generate_omars(  # noqa: PLR0913
         (lower prediction variance on average), which is the natural choice when
         the design is judged on precision rather than on aliasing.  A design
         containing a constant second-order column (a term the design cannot
-        estimate) scores ``inf`` on the correlation metric, so it is never
-        selected by ``"min_second_order_correlation"`` when an alternative with
-        every term present exists.
+        estimate) scores ``inf`` on the correlation metric and ranks last under
+        every criterion, so it is selected only when no design with every term
+        present was found.
     satisfice : dict, optional
         Acceptability thresholds applied *before* selection: a design is kept
         only if it clears every threshold.  Supported keys are
@@ -1591,6 +2097,9 @@ def generate_omars(  # noqa: PLR0913
         small factor counts finish quickly regardless.  The budget
         applies at each run size the search visits.  Default 50,
         which reaches catalogue-competitive D-efficiency for up to seven factors.
+        For the ``"dominance"`` and ``"d_efficiency"`` criteria each design
+        found is also improved by a local search over run swaps, whose cost
+        does not count against this budget.
         Deterministic for a fixed *random_state*, as long as no solve hits
         ``solver_options["time_limit"]`` (see *random_state*).
     max_candidates : int, optional
@@ -1715,6 +2224,10 @@ def _dispatch_omars_ilp(factors: list[Factor], **kwargs: Any) -> tuple[np.ndarra
     otherwise for main effects plus pure quadratics, so any budget of at least
     ``2k + 2 + center_runs`` runs (15 runs for 6 factors and one centre run) gives an
     OMARS design.
+
+    The multistart stops at a size once :data:`_PLATEAU` consecutive estimable
+    designs fail to improve the Pareto front, with :data:`_PLATEAU_MAX_RESTARTS`
+    restarts as the ceiling.
     """
     budget = kwargs.get("budget")
     center_runs = int(kwargs.get("center_runs", 1))
@@ -1732,13 +2245,14 @@ def _dispatch_omars_ilp(factors: list[Factor], **kwargs: Any) -> tuple[np.ndarra
             n_runs_range=None,
             selection_criterion="dominance",
             satisfice=None,
-            n_restarts=50,
+            n_restarts=_PLATEAU_MAX_RESTARTS,
             model=model,
             solver_options=None,
             tol=1e-9,
             verify=True,
             random_seed=kwargs.get("random_state", 42),
             center_runs=center_runs,
+            plateau=_PLATEAU,
         )
     except ValueError as exc:
         if budget is None:
