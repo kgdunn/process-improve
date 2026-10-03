@@ -17,7 +17,9 @@ feasible *candidate* points instead, in three steps:
    criterion improves (see :class:`Criterion`: the determinant of the information
    matrix ``X'X`` for D, a weighted trace of its inverse for A and I, its smallest
    eigenvalue for E), with several random starts. For D, A and I each run in turn
-   takes its best swap, with ``(X'X)^-1`` kept current by rank-one updates.
+   takes its best swap, with ``(X'X)^-1`` kept current by rank-one updates; when the
+   grid was coarse or sampled, each start's design is then polished by moving single
+   coordinates on a 5-level lattice.
 
 Constraint expressions are parsed into a small arithmetic tree and evaluated with
 numpy. Nothing is passed to ``eval``, so an expression from an untrusted caller can
@@ -1186,6 +1188,189 @@ def _climb(f_cand: np.ndarray, f_fixed: np.ndarray, rows: np.ndarray, criterion:
     return rows
 
 
+@dataclass
+class PolishLattice:
+    """Where :func:`polish_runs` may move a run.
+
+    Parameters
+    ----------
+    n_levels : int
+        Each continuous coordinate (coded) may move to one of ``n_levels`` evenly spaced
+        levels from -1 to +1.
+    model_rows : Callable[[np.ndarray, np.ndarray], np.ndarray]
+        Model rows of points given as coded continuous values and categorical level indices.
+    feasible : Callable[[np.ndarray], np.ndarray] or None
+        True for each coded point that satisfies the constraints; None for the whole box.
+    """
+
+    n_levels: int
+    model_rows: Callable[[np.ndarray, np.ndarray], np.ndarray]
+    feasible: Callable[[np.ndarray], np.ndarray] | None = None
+
+
+#: Levels per factor of the lattice a design from a coarser or sampled grid is polished on.
+_POLISH_LEVELS = 5
+
+
+def polish_levels(counts: dict) -> int | None:
+    """Levels of the lattice to polish on (see :func:`polish_runs`), or None when the candidate grid already holds it.
+
+    A grid coarser than ``_POLISH_LEVELS`` levels, or a sampled one, is polished on the
+    ``_POLISH_LEVELS``-level lattice: runs may then use settings between the grid levels,
+    which can raise the criterion even for D-optimality (a few runs at +/-0.5 when some
+    runs are fixed, for instance).
+    """
+    return _POLISH_LEVELS if counts["grid_sampled"] or counts["n_levels"] < _POLISH_LEVELS else None
+
+
+def _coordinate_moves(coded: np.ndarray, levels: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+    """Every run with one continuous coordinate moved to another level: the points, and the run each came from."""
+    n_runs, n_levels = len(coded), len(levels)
+    owner = np.repeat(np.arange(n_runs), n_levels)
+    points, owners = [np.empty((0, coded.shape[1]))], [np.empty(0, dtype=int)]
+    for axis in range(coded.shape[1]):
+        moved = coded[owner].copy()
+        moved[:, axis] = np.tile(levels, n_runs)
+        changed = ~np.isclose(moved[:, axis], coded[owner, axis])
+        points.append(moved[changed])
+        owners.append(owner[changed])
+    return np.vstack(points), np.concatenate(owners)
+
+
+def polish_runs(
+    coded: np.ndarray, cats: np.ndarray, f_fixed: np.ndarray, criterion: Criterion, lattice: PolishLattice
+) -> tuple[np.ndarray, np.ndarray, int]:
+    """Coordinate exchange on a finer or complete grid, after the candidate exchange on a coarse or sampled one.
+
+    Each run in turn is moved to the best of its neighbours, the points that differ
+    from it in one continuous coordinate (set to another level of ``lattice``), when
+    that improves ``criterion``; passes repeat until no move helps. The gains are those
+    of :meth:`Criterion.swap_gains`, so only D, A and I are polished. This reaches grid
+    points the candidate set left out, at a cost that grows with the number of runs
+    and factors and not with the size of the grid.
+
+    Parameters
+    ----------
+    coded : np.ndarray
+        The free runs, continuous factors in coded units, shape ``(n, k_cont)``.
+    cats : np.ndarray
+        Their categorical level indices, shape ``(n, k_cat)``; these are not moved.
+    f_fixed : np.ndarray
+        Model rows of the runs that stay in the design.
+    criterion : Criterion
+        D, A or I.
+    lattice : PolishLattice
+        The levels, constraints and model rows.
+
+    Returns
+    -------
+    tuple[np.ndarray, np.ndarray, int]
+        The polished runs (coded, categorical) and the number of moves made.
+    """
+    coded, cats = coded.copy(), cats.copy()
+    levels = np.linspace(-1.0, 1.0, lattice.n_levels)
+    x = lattice.model_rows(coded, cats)
+    n_moves = 0
+    for _ in range(_MAX_PASSES):
+        points, owner = _coordinate_moves(coded, levels)
+        if lattice.feasible is not None:
+            keep = lattice.feasible(points)
+            points, owner = points[keep], owner[keep]
+        rows = lattice.model_rows(points, cats[owner])
+        moved, start, size = False, 0, 1
+        m_inv = _regularised_inverse(f_fixed.T @ f_fixed + x.T @ x)
+        while start < len(coded):  # runs a few at a time, as in _climb_block: one after a move, doubling after none
+            group = np.flatnonzero((owner >= start) & (owner < start + size))
+            gains = _paired_gains(criterion, m_inv, x[owner[group]], rows[group])
+            improving = gains > 1e-9  # also refuses NaN
+            if not improving.any():
+                start, size = start + size, 2 * size
+                continue
+            run = int(owner[group[improving]].min())  # the first run with a move that helps takes its best one
+            best = int(group[np.argmax(np.where(owner[group] == run, gains, -np.inf))])
+            m_inv = _swapped_inverse(m_inv, x[run], rows[best])
+            coded[run], x[run] = points[best], rows[best]
+            moved, start, size, n_moves = True, run + 1, 1, n_moves + 1
+        if not moved:
+            break
+    return coded, cats, n_moves
+
+
+def _swapped_inverse(m_inv: np.ndarray, removed: np.ndarray, added: np.ndarray) -> np.ndarray:
+    """``M^-1`` after the model row ``removed`` is replaced by ``added``: two Sherman-Morrison updates."""
+    for v, sign in ((added, 1.0), (removed, -1.0)):
+        u = m_inv @ v
+        m_inv = m_inv - sign / (1.0 + sign * float(v @ u)) * np.outer(u, u)
+    return m_inv
+
+
+def _paired_gains(criterion: Criterion, m_inv: np.ndarray, x_out: np.ndarray, x_in: np.ndarray) -> np.ndarray:
+    """Gain of swapping each row of ``x_out`` for the matching row of ``x_in`` (see :meth:`Criterion.swap_gains`)."""
+    a_out, a_in = x_out @ m_inv, x_in @ m_inv
+    d = (np.einsum("ij,ij->i", a_out, x_out), np.einsum("ij,ij->i", a_in, x_in), np.einsum("ij,ij->i", a_out, x_in))
+    if criterion.weights is None:
+        return _d_gain(*d)
+    b_out = a_out @ criterion.weights
+    b = (
+        np.einsum("ij,ij->i", b_out, a_out),
+        np.einsum("ij,ij->i", a_in @ criterion.weights, a_in),
+        np.einsum("ij,ij->i", b_out, a_in),
+    )
+    return _trace_gain(d, b)
+
+
+@dataclass
+class CandidatePool:
+    """Candidate points, their model rows, and the lattice their runs may be polished on.
+
+    Parameters
+    ----------
+    coded : np.ndarray
+        Continuous factor settings in coded units, shape ``(N, k_cont)``.
+    cats : np.ndarray
+        Categorical level indices, shape ``(N, k_cat)``.
+    rows : np.ndarray
+        Model rows of the candidates, shape ``(N, p)``.
+    lattice : PolishLattice or None
+        Where each start's design is polished (:func:`polish_runs`); None for no polish.
+    """
+
+    coded: np.ndarray
+    cats: np.ndarray
+    rows: np.ndarray
+    lattice: PolishLattice | None = None
+
+
+def select_runs(
+    pool: CandidatePool, n_free: int, f_fixed: np.ndarray, rng: np.random.Generator, criterion: Criterion
+) -> tuple[np.ndarray | None, np.ndarray, np.ndarray, float]:
+    """Choose ``n_free`` runs by :func:`fedorov_exchange`, polishing each start's design when the pool says so.
+
+    The polish can move a run off the candidate set, and the start whose design is best
+    *after* polishing is kept: on the 10-factor augmentation of the 1.97.0 review, the
+    best design before polishing was not the best one after it in three seeds out of four.
+
+    Returns
+    -------
+    tuple
+        The candidate indices chosen (None once polished, as runs may then lie between
+        candidates), the runs' coded settings and categorical levels, and the criterion
+        value of the full design.
+    """
+    lattice = pool.lattice
+    if lattice is None or criterion.name not in _CLOSED_FORM_CRITERIA:
+        rows, value = fedorov_exchange(pool.rows, n_free, f_fixed, rng, criterion)
+        return rows, pool.coded[rows], pool.cats[rows], value
+    best: tuple[np.ndarray | None, np.ndarray, np.ndarray, float] = (None, pool.coded[:0], pool.cats[:0], -np.inf)
+    for rows in _climbed_starts(pool.rows, n_free, f_fixed, rng, criterion):
+        coded, cats, _moves = polish_runs(pool.coded[rows], pool.cats[rows], f_fixed, criterion, lattice)
+        x = np.vstack([f_fixed, lattice.model_rows(coded, cats)])
+        value = criterion.value(x.T @ x)
+        if value > best[3] or not len(best[1]):  # keep a design even if every start is singular
+            best = (None, coded, cats, value)
+    return best
+
+
 # ---------------------------------------------------------------------------
 # Public entry point
 # ---------------------------------------------------------------------------
@@ -1211,7 +1396,8 @@ class ConstrainedOptions:
         (and 2, for a model without squared terms; 4 is skipped for a quadratic model
         unless the criterion is I or G) that keeps the grid within
         ``max(5000, 200 p)`` points for ``p`` model coefficients, and samples the
-        coarsest grid down to that when none does.
+        coarsest grid down to that when none does. A sampled or coarse grid is then
+        polished (see :func:`polish_runs`).
     candidates : pandas.DataFrame or None
         Settings the runs must be chosen from, in actual units (proportions for a
         mixture), one column per factor, instead of a generated grid. Rows that
@@ -1296,6 +1482,29 @@ def _user_candidates(region: _Region, candidates: pd.DataFrame) -> tuple[np.ndar
     return coded[keep], cats[keep], counts, list(candidates.index[keep])
 
 
+def _corners_suffice(region: _Region, opts: ConstrainedOptions) -> bool:
+    """Whether some D-optimal design uses only the corners of the box: no squared terms and no constraints."""
+    return opts.criterion == "d_optimal" and opts.model_type != "quadratic" and not region.inequalities
+
+
+def _polish_lattice(region: _Region, opts: ConstrainedOptions, counts: dict) -> PolishLattice | None:
+    """Return the lattice to polish a design from a generated grid on, or None when there is nothing to add.
+
+    See :func:`polish_levels`. Supplied candidates and an explicit ``n_levels`` are kept
+    to, and a design that only needs the box's corners is not polished.
+    """
+    if opts.candidates is not None or opts.n_levels is not None or opts.criterion not in _CLOSED_FORM_CRITERIA:
+        return None
+    n_levels = polish_levels(counts)
+    if n_levels is None or _corners_suffice(region, opts):
+        return None
+    return PolishLattice(
+        n_levels,
+        lambda coded, cats: model_matrix(region, coded, cats, opts.model_type),
+        lambda coded: region.slack(coded) <= _FEASIBILITY_TOL,
+    )
+
+
 def _candidate_pool(
     region: _Region, opts: ConstrainedOptions, rng: np.random.Generator
 ) -> tuple[np.ndarray, np.ndarray, dict, list | None, Callable[[], np.ndarray]]:
@@ -1304,8 +1513,7 @@ def _candidate_pool(
         coded, cats, counts, labels = _user_candidates(region, opts.candidates)
         return coded, cats, counts, labels, lambda: model_matrix(region, coded, cats, opts.model_type)
     n_levels = opts.n_levels
-    corners_suffice = opts.criterion == "d_optimal" and opts.model_type != "quadratic" and not region.inequalities
-    if n_levels is None and corners_suffice:
+    if n_levels is None and _corners_suffice(region, opts):
         # Without squared terms each model row is affine in every single coordinate, so det(X'X) is a convex
         # quadratic in it and is largest at -1 or +1: some exact D-optimal design uses only the box's corners.
         n_levels = 2
@@ -1491,16 +1699,20 @@ def constrained_optimal_design(
     p = f_cand.shape[1]
     budget = _budget_for_fixed_runs(f_fixed, p, budget)
     criterion = make_criterion(opts.criterion, p, region_rows, f_cand)
-    rows, value = fedorov_exchange(f_cand, budget - n_fixed, f_fixed, rng, criterion)
-    if len(rows) != budget - n_fixed or np.linalg.matrix_rank(np.vstack([f_fixed, f_cand[rows]])) < p:
+    pool = CandidatePool(coded, cats, f_cand, _polish_lattice(region, opts, counts))
+    rows, chosen, chosen_cats, value = select_runs(pool, budget - n_fixed, f_fixed, rng, criterion)
+    chosen_rows = model_matrix(region, chosen, chosen_cats, model_type)
+    if len(chosen) != budget - n_fixed or np.linalg.matrix_rank(np.vstack([f_fixed, chosen_rows])) < p:
         raise ValueError(
             f"No design of {budget} runs from these candidates can estimate the '{model_type}' model "
             f"({p} coefficients). Use a simpler model or more distinct candidate points."
         )
+    if pool.lattice is not None:
+        counts["polish_levels"] = pool.lattice.n_levels
 
-    design = pd.DataFrame(coded[rows], columns=[f.name for f in continuous])
+    design = pd.DataFrame(chosen, columns=[f.name for f in continuous])
     for j, f in enumerate(categorical):
-        design[f.name] = np.asarray(f.levels, dtype=object)[cats[rows, j]]
+        design[f.name] = np.asarray(f.levels, dtype=object)[chosen_cats[:, j]]
     if fixed_runs is not None:
         design = pd.concat([fixed_runs[design.columns].reset_index(drop=True), design], ignore_index=True)
     design = design[[f.name for f in factors]]
@@ -1517,7 +1729,7 @@ def constrained_optimal_design(
     meta.update(criterion_metadata(criterion, value))
     if fixed_runs is not None:
         meta.update(_fixed_run_metadata(region, fixed_runs, requested_budget, budget))
-    if labels is not None:
+    if labels is not None and rows is not None:
         meta["candidate_source"] = "user"
         meta["selected_candidates"] = selection_counts(labels, rows)
     values = design.to_numpy() if categorical else design.to_numpy(dtype=float)
