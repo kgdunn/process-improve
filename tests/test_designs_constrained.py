@@ -12,17 +12,30 @@ import pytest
 from process_improve.experiments import Constraint, Factor, evaluate_design, generate_design
 from process_improve.experiments.augment import augment_design
 from process_improve.experiments.designs_constrained import (
+    _CHUNK_ROWS,
+    _GREEDY_SLACK,
+    _MAX_STARTS,
+    _N_STARTS,
     MAX_CANDIDATES,
     MAX_EXPRESSION_LENGTH,
+    CandidatePool,
     ConstrainedOptions,
     Criterion,
+    PolishLattice,
+    _candidate_cap,
+    _ExchangeState,
+    _greedy_start,
+    _n_starts,
     _phi_p,
+    _quadratic_forms,
     _Region,
     build_candidates,
     constrained_optimal_design,
     fedorov_exchange,
     model_matrix,
     parse_constraint,
+    polish_runs,
+    select_runs,
 )
 from process_improve.experiments.designs_optimal import _n_model_parameters
 
@@ -327,6 +340,181 @@ class TestEOptimal:
 
 
 # ---------------------------------------------------------------------------
+# Row-wise exchange, greedy start, grid cap and polish
+# ---------------------------------------------------------------------------
+
+
+def _criteria(n_parameters: int, rng: np.random.Generator) -> dict[str, Criterion]:
+    return {
+        "d_optimal": Criterion.d(),
+        "a_optimal": Criterion.a(n_parameters),
+        "i_optimal": Criterion.i(rng.normal(size=(200, n_parameters))),
+    }
+
+
+def _cube(k: int) -> list[Factor]:
+    return [Factor(name=f"X{i}", low=-1, high=1) for i in range(k)]
+
+
+class TestRowExchange:
+    @pytest.mark.parametrize("name", ["d_optimal", "a_optimal", "i_optimal"])
+    def test_incremental_updates_match_brute_force_scoring(self, name: str) -> None:
+        """After swaps made by rank-one updates, every swap scores as swap_gains does from a fresh inverse."""
+        rng = np.random.default_rng(2)
+        f_cand, f_fixed = rng.normal(size=(80, 6)), rng.normal(size=(3, 6))
+        criterion = _criteria(6, rng)[name]
+        state = _ExchangeState(f_cand, f_fixed, rng.choice(80, 12, replace=False), criterion.weights)
+        block = np.arange(12)
+        terms = state.terms(block)
+        for row, candidate in [(1, 40), (4, 7), (8, 63)]:
+            steps = state.swap(row, candidate, terms, row)
+            rest = f_cand[state.rows[block[row + 1 :]]]
+            for step in steps or []:
+                terms.follow(rest, step, row + 1)
+
+        x = np.vstack([f_fixed, f_cand[state.rows]])
+        expected = criterion.swap_gains(np.linalg.inv(x.T @ x), f_cand[state.rows], f_cand)
+        best, gain = state.best_swaps(state.terms(block), slice(0, 12))
+        np.testing.assert_allclose(gain, expected.max(axis=1), rtol=1e-8, atol=1e-10)
+        np.testing.assert_array_equal(best, expected.argmax(axis=1))
+        # The rows after the last swap followed it by rank-one updates; they match a fresh score too.
+        fresh = state.terms(block)
+        np.testing.assert_allclose(terms.d_ij[9:], fresh.d_ij[9:], rtol=1e-9, atol=1e-12)
+        np.testing.assert_allclose(state.variance, np.einsum("ij,jk,ik->i", f_cand, np.linalg.inv(x.T @ x), f_cand))
+
+    @pytest.mark.parametrize("name", ["d_optimal", "a_optimal", "i_optimal"])
+    def test_exchange_ends_where_no_single_swap_helps(self, name: str) -> None:
+        """The row-wise climb stops where no swap of one run for one candidate helps, checked by brute force."""
+        region = _Region([TEMP, DOSE], [], parse_constraint(HEAT.expression, {"T", "D"}))
+        coded, cats, _ = build_candidates(region)
+        f = model_matrix(region, coded, cats, "quadratic")
+        criterion = _criteria(f.shape[1], np.random.default_rng(0))[name]
+        if name == "i_optimal":
+            criterion = Criterion.i(f)
+        rows, _value = fedorov_exchange(f, 10, np.empty((0, f.shape[1])), np.random.default_rng(1), criterion)
+        x = f[rows]
+        assert criterion.swap_gains(np.linalg.inv(x.T @ x), x, f).max() <= 1e-9
+
+    def test_greedy_start_takes_a_candidate_near_the_largest_variance_each_step(self) -> None:
+        """Replayed with a fresh inverse at every step, each pick is within the slack of the largest variance."""
+        f = model_matrix(
+            _Region(_cube(4), [], []),
+            build_candidates(_Region(_cube(4), [], []))[0],
+            np.empty((625, 0), dtype=int),
+            "quadratic",
+        )
+        f_fixed = f[:3]
+        rows = _greedy_start(f, f_fixed, 30, np.random.default_rng(4))
+        info = f_fixed.T @ f_fixed + 1e-6 * np.eye(f.shape[1]) + np.outer(f[rows[0]], f[rows[0]])
+        for row in rows[1:]:
+            variance = np.einsum("ij,jk,ik->i", f, np.linalg.inv(info), f)
+            assert variance[row] >= (1 - _GREEDY_SLACK) * variance.max() * (1 - 1e-9)
+            info += np.outer(f[row], f[row])
+
+    def test_quadratic_forms_in_blocks(self) -> None:
+        rng = np.random.default_rng(0)
+        rows, matrix = rng.normal(size=(_CHUNK_ROWS + 123, 4)), rng.normal(size=(4, 4))
+        np.testing.assert_allclose(_quadratic_forms(rows, matrix), np.einsum("ij,jk,ik->i", rows, matrix, rows))
+
+    def test_small_problems_get_more_starts(self) -> None:
+        small, large = np.zeros((100, 10)), np.zeros((50_000, 66))
+        assert _n_starts(Criterion.d(), small, 12) == _MAX_STARTS
+        assert _n_starts(Criterion.d(), large, 55) == _N_STARTS
+        assert _n_starts(Criterion.e(), small, 12) == _N_STARTS  # E scores every swap at each step
+
+
+class TestCandidateCap:
+    def test_seven_factors_no_longer_list_the_5_level_grid(self) -> None:
+        region = _Region(_cube(7), [], [])
+        for criterion in ("d_optimal", "i_optimal"):
+            coded, _cats, counts = build_candidates(region, model_type="quadratic", criterion=criterion)
+            assert counts["n_levels"] == 3
+            assert len(coded) <= _candidate_cap(region, "quadratic")
+
+    def test_sample_for_d_leans_to_the_extremes(self) -> None:
+        """A sampled 3-level grid for D has most points with at most one factor at its middle; for I, few do."""
+        region = _Region(_cube(10), [], [])
+        n_middle = {}
+        for criterion in ("d_optimal", "i_optimal"):
+            coded, _cats, counts = build_candidates(region, model_type="quadratic", criterion=criterion)
+            assert counts["grid_sampled"]
+            assert len(coded) <= _candidate_cap(region, "quadratic")
+            n_middle[criterion] = np.mean((coded == 0).sum(axis=1) <= 1)
+        assert n_middle["d_optimal"] > 0.5
+        assert n_middle["i_optimal"] < 0.2
+
+    def test_explicit_levels_keep_the_old_limit(self) -> None:
+        coded, _cats, counts = build_candidates(_Region(_cube(7), [], []), n_levels=5)
+        assert counts["n_levels"] == 5
+        assert not counts["grid_sampled"]
+        assert len(coded) == 5**7
+
+
+class TestPolish:
+    @pytest.mark.parametrize("name", ["d_optimal", "i_optimal"])
+    def test_polish_only_improves_and_stays_on_the_lattice_and_in_the_region(self, name: str) -> None:
+        region = _Region([TEMP, DOSE], [], parse_constraint(HEAT.expression, {"T", "D"}))
+        coded, cats, _ = build_candidates(region, n_levels=3)
+        f = model_matrix(region, coded, cats, "quadratic")
+        criterion = Criterion.d() if name == "d_optimal" else Criterion.i(f)
+        no_fixed = np.empty((0, f.shape[1]))
+        rows, before = fedorov_exchange(f, 8, no_fixed, np.random.default_rng(0), criterion)
+        lattice = PolishLattice(
+            5,
+            lambda c, k: model_matrix(region, c, k, "quadratic"),
+            lambda c: region.slack(c) <= 1e-9,
+        )
+        polished, _cats, n_moves = polish_runs(coded[rows], cats[rows], no_fixed, criterion, lattice)
+        x = model_matrix(region, polished, cats[rows], "quadratic")
+        assert criterion.value(x.T @ x) >= before - 1e-12
+        assert (region.slack(polished) <= 1e-9).all()
+        moved = ~np.isclose(polished, coded[rows]).all(axis=1)
+        assert moved.sum() <= n_moves
+        on_lattice = np.isclose(polished[:, :, None], np.linspace(-1, 1, 5)).any(axis=2)
+        assert on_lattice[moved].any(axis=1).all()  # a moved run has a coordinate on the 5-level lattice
+
+    def test_select_runs_polishes_every_start_and_reports_runs_not_rows(self) -> None:
+        region = _Region(_cube(3), [], [])
+        coded, cats, _ = build_candidates(region, n_levels=3)
+        f = model_matrix(region, coded, cats, "quadratic")
+        lattice = PolishLattice(5, lambda c, k: model_matrix(region, c, k, "quadratic"))
+        no_fixed = np.empty((0, f.shape[1]))
+        rows, runs, _cats, value = select_runs(
+            CandidatePool(coded, cats, f, lattice), 12, no_fixed, np.random.default_rng(0), Criterion.d()
+        )
+        _plain_rows, plain_value = fedorov_exchange(f, 12, no_fixed, np.random.default_rng(0), Criterion.d())
+        assert rows is None
+        assert runs.shape == (12, 3)
+        assert value >= plain_value - 1e-12  # the polish keeps or improves the best start
+
+    def test_constrained_design_records_the_polish(self) -> None:
+        values, meta = constrained_optimal_design(
+            _cube(6), 34, [], ConstrainedOptions(model_type="quadratic", criterion="d_optimal"), random_state=0
+        )
+        assert meta["n_levels"] == 3  # 5 levels would be 15,625 points, over the cap of 5,600
+        assert meta["polish_levels"] == 5
+        assert np.isclose(values[:, :, None], np.linspace(-1, 1, 5)).any(axis=2).all()
+
+    def test_supplied_candidates_are_not_polished(self) -> None:
+        grid = pd.DataFrame([(t, d) for t in (100, 125, 150) for d in (20, 40, 60)], columns=["T", "D"], dtype=float)
+        _values, meta = constrained_optimal_design(
+            [TEMP, DOSE], 8, [], ConstrainedOptions(model_type="quadratic", candidates=grid), random_state=0
+        )
+        assert "polish_levels" not in meta
+        assert sum(meta["selected_candidates"].values()) == 8
+
+    def test_augmentation_with_a_formula_is_polished_through_patsy(self) -> None:
+        names = [f"X{i}" for i in range(6)]
+        cube = np.array(list(itertools.product([-1, 1], repeat=6)), dtype=float)
+        base = pd.DataFrame(cube[::4][:16], columns=names)
+        formula = " + ".join(names) + " + I(X0 ** 2) + X0:X1"
+        result = augment_design(base, "add_runs_optimal", n_additional_runs=6, target_model=formula, random_state=0)
+        new = pd.DataFrame(result["new_runs"])[names].to_numpy()
+        assert new.shape == (6, 6)
+        assert np.isclose(new[:, :, None], np.linspace(-1, 1, 5)).any(axis=2).all()
+
+
+# ---------------------------------------------------------------------------
 # Design quality pins: the exchange may get faster, never worse
 # ---------------------------------------------------------------------------
 
@@ -356,10 +544,18 @@ class TestQualityPins:
 
     Each value is a threshold the design must meet or beat, not an equality: a faster
     exchange may pick different runs, but not a worse design for its own criterion.
+    Before the change the k = 10 augmentation took 18 s and the k = 7 I-optimal design
+    36 s single-threaded; the cases still over 2 s are marked slow.
     """
 
-    @pytest.mark.slow
-    @pytest.mark.parametrize(("k", "log_det_per_p"), [(6, 3.341461), (8, 3.169435), (10, 3.331094)])
+    @pytest.mark.parametrize(
+        ("k", "log_det_per_p"),
+        [
+            (6, 3.341461),
+            pytest.param(8, 3.169435, marks=pytest.mark.slow),
+            pytest.param(10, 3.331094, marks=pytest.mark.slow),
+        ],
+    )
     def test_screening_design_augmented_for_a_quadratic_model(self, k: int, log_det_per_p: float) -> None:
         """The reproducer of the slow ``add_runs_optimal`` report: 16 screening runs plus 40 for a quadratic model."""
         names = [f"X{i}" for i in range(k)]
@@ -372,7 +568,6 @@ class TestQualityPins:
         d_value, _ = _quality(coded, [Factor(name=n, low=-1, high=1) for n in names])
         assert d_value >= log_det_per_p - 1e-6
 
-    @pytest.mark.slow
     @pytest.mark.parametrize(
         ("criterion", "k", "pinned"),
         [
@@ -381,7 +576,7 @@ class TestQualityPins:
             ("d_optimal", 7, 2.936326),
             ("i_optimal", 3, 0.346559),
             ("i_optimal", 5, 0.390857),
-            ("i_optimal", 7, 0.433964),
+            pytest.param("i_optimal", 7, 0.433964, marks=pytest.mark.slow),
         ],
     )
     def test_constrained_quadratic_design(self, criterion: str, k: int, pinned: float) -> None:
