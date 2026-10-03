@@ -83,6 +83,15 @@ class EvaluateDesignInput(BaseModel):
         ge=0,
         description="Seed for the region sampler (default: 42).",
     )
+    categorical_coding: Literal["effect", "treatment"] = Field(
+        "effect",
+        description=(
+            "How a categorical (label) factor is coded. 'effect' (default): sum-to-zero effect coding, the "
+            "usual convention in DoE software and the coding generate_design's optimal designs use. "
+            "'treatment': 0/1 dummy coding against the first level. A-, E-optimality, VIF, condition number, "
+            "power and the alias matrix depend on the coding; prediction variance and D rankings do not."
+        ),
+    )
 
 
 @tool_spec(
@@ -139,6 +148,7 @@ def evaluate_design_tool(spec: EvaluateDesignInput) -> dict[str, Any]:
             sigma=spec.sigma,
             region=region,
             random_state=spec.random_state,
+            categorical_coding=spec.categorical_coding,
         )
         return clean(result)
     except _TOOL_EXPECTED_EXCEPTIONS as e:

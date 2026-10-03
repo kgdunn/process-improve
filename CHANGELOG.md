@@ -45,6 +45,32 @@ those changes.
   `polish_levels` in their metadata. E and K keep the best-swap search; the I-lambda
   rounds of G-optimality use the row-wise exchange.
 
+- **Categorical factors are effect-coded on the design side**, in `evaluate_design`,
+  `evaluate_all`, the `evaluate_design` tool and the built-in optimal-design exchange. A
+  factor with `L` levels now gives `L - 1` sum-to-zero columns, the usual convention in
+  DoE software: a two-level factor is -1 and +1 (first and second level in sorted order),
+  and with more levels the last level in sorted order is -1 in every column, so terms
+  read `C[S.lo]` instead of `C[T.mid]`. Before, `evaluate_design` used patsy's 0/1
+  treatment coding and the exchange 0/1 indicators against the first *declared* level,
+  so an A-optimal design was reported with a trace it had not minimised, and the two
+  disagreed with each other and with pyoptex. The A- and E-criteria, VIF, the condition
+  number, power and the alias matrix change; the prediction variance (I, G, FDS), the
+  D-efficiency ranking of designs and the degrees of freedom do not. On a 15-run design
+  in two continuous factors and a three-level categorical (interactions model), the
+  A-criterion goes from 3.37 to 1.17, the VIF of a continuous main effect from 3.02 to
+  1.06 and its power at a unit coefficient from 0.41 to 0.83, because a treatment-coded
+  main effect is the slope at the reference level only. The exchange now optimises the
+  A-, E- and K-criteria in effect coding: over five seeds (16 runs, three-level factor)
+  the mean effect-coded trace of A-optimal designs drops from 1.063 to 1.045 and the
+  mean condition number of K-optimal designs from 3.80 to 3.73, with D, I and G designs
+  of the same quality and run times unchanged. pyoptex now receives the levels in sorted
+  order, so its own trace equals `trace_criterion` and `evaluate_design`'s A-criterion
+  (1.186 for all three on a 14-run design whose levels are declared `lo, mid, hi`, where
+  `trace_criterion` reported 3.407 and `evaluate_design` 3.621 before). A `Block` column
+  named in the formula is sum-coded, as `analyze_experiment` codes blocks. Pass `categorical_coding="treatment"`
+  for the previous numbers. `analyze_experiment` is unchanged: its coefficients keep
+  treatment coding and its effects already run from low to high.
+
 ## [1.97.0] - 2026-10-03
 
 ### Added
