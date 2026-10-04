@@ -102,6 +102,19 @@ those changes.
   selection criterion. With the highest D-efficiency it used to win under
   `"dominance"` and `"d_efficiency"`, with an infinite maximum correlation.
 
+### Fixed
+
+- **The OMARS trade-off table now reports even run counts as designs.**
+  `get_omars_trade_off_table_entry` and `omars_trade_off_table` treated every
+  even budget as "not a design", although a foldover with no centre run or with
+  two has an even run count, and `generate_omars(..., center_runs=2)` builds one:
+  at 22 runs and four factors it fits the full second-order model with 7 error
+  degrees of freedom. An even budget now reports the model of the odd budget one
+  run below it, with one more error degree of freedom. The smallest `Quad` size is
+  `2k + 2` (a definitive screening design with a second centre run, one error
+  degree of freedom), so `omars_minimum_runs(k, "quad")` returns `2k + 2` instead
+  of `2k + 3`.
+
 ### Documentation
 
 - **Docstrings that disagreed with the code now describe what it does.** These
