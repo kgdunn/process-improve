@@ -113,8 +113,10 @@ def spe_calculation(spe_values: np.ndarray, conf_level: float = 0.95) -> float:
     Returns
     -------
     float
-        The limit, above which we judge observations in the model to have a different correlation
-        structure than those values which were used to build the model.
+        The SPE limit at the requested confidence level, on the square-root scale
+        (directly comparable to entries of ``model.spe_``, which are stored on the same
+        scale). Observations above it have a different correlation structure than those
+        used to build the model.
 
     Notes
     -----
@@ -245,6 +247,7 @@ def ellipse_coordinates(  # noqa: PLR0913
         Hotelling's T^2 limit and to bound `score_horiz`/`score_vert`.
     scaling_factor_for_scores : pd.Series
         Per-component standard deviations of the scores (``model.scaling_factor_for_scores_``).
+        Required, although the signature defaults to ``None``; omitting it fails.
         Used to scale the ellipse axes.
     n_rows : int
         Number of rows `N` in the data used to fit the model. Required to compute the

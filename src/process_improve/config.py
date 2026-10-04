@@ -167,8 +167,10 @@ class Settings:
     """Single-instance configuration store.
 
     Every attribute is a knob; reads are cached after the first access.
-    Call :meth:`reload` after mutating ``os.environ`` (typically inside a
-    test fixture); call :meth:`override` to set a single knob from code.
+    To set a single knob from code, assign to its property (each knob has a
+    setter, e.g. ``settings.tool_timeout = 30.0``). Call :meth:`reload` after
+    mutating ``os.environ`` (typically inside a test fixture); call
+    :meth:`as_dict` for a snapshot of every knob's current value.
     """
 
     __slots__ = ("_cache",)

@@ -25,9 +25,6 @@ def rho(x: float, k: float = 2.52) -> float:
     """
     Bi-weight rho function.
 
-    Fixed cutoff of k=2.52 is from p 289 of the paper
-    https://onlinelibrary.wiley.com/doi/abs/10.1002/for.1125
-
     The multiplier is the consistency constant c_k (chosen so that
     ``E[rho(Z)] = 1`` for standard-normal Z), NOT the cutoff k. The paper
     treats the two as separate constants; an earlier version of this code
@@ -35,6 +32,24 @@ def rho(x: float, k: float = 2.52) -> float:
     scale estimate derived from rho a factor ``sqrt(2.52 * 0.30612) = 0.878``
     too small, i.e. +/-3S control limits that were really +/-2.63 sigma
     (a ~3x inflation of the false-alarm rate).
+
+    Parameters
+    ----------
+    x : float
+        Value at which to evaluate the bi-weight rho function.
+    k : float, optional
+        Bi-weight cutoff. The default of 2.52 is from p 289 of the referenced
+        paper.
+
+    Returns
+    -------
+    float
+        ``c_k * (1 - (1 - (x / k)**2)**3)`` for ``|x| <= k``; for ``|x| > k``
+        the function saturates at the consistency constant ``c_k``.
+
+    References
+    ----------
+    https://onlinelibrary.wiley.com/doi/abs/10.1002/for.1125
     """
     c_k = BIWEIGHT_RHO_CONSISTENCY
     return c_k if np.abs(x) > k else c_k * (1 - np.power(1 - np.power(x / k, 2), 3))
@@ -133,7 +148,23 @@ def psi(x: float, k: float = 2.0) -> float:
     Pre-clean based on the Huber psi function.
 
     Can be interpreted as replacing unexpected high or low values by a more likely value.
-    From p 288 of the paper
+
+    Parameters
+    ----------
+    x : float
+        Value to clean.
+    k : float, optional
+        Huber tuning constant: the threshold beyond which `x` is clipped to
+        ``k * sign(x)``. The default of 2.0 follows p 288 of the referenced
+        paper.
+
+    Returns
+    -------
+    float
+        `x` itself when ``|x| < k``; otherwise ``k * sign(x)``.
+
+    References
+    ----------
     https://onlinelibrary.wiley.com/doi/abs/10.1002/for.1125
     """
     return x if abs(x) < k else k * np.sign(x)

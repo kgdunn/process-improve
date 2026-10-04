@@ -467,8 +467,10 @@ class TPLS(RegressorMixin, BaseEstimator):
 
         Parameters
         ----------
-        X : {dictionary of dataframes}, keys that must be present: "F", "Z", and "Y"
-            The training input samples. See documentation in the class definition for more information on each matrix.
+        X : DataFrameDict
+            The training input samples. A plain ``dict`` raises :class:`TypeError`. Keys that
+            must be present: ``"F"``, ``"Z"``, and ``"Y"``. See the class docstring for the
+            shape of each block.
 
         y : object, optional
             Must be ``None``. The signature exists only for sklearn API compatibility;
@@ -681,8 +683,9 @@ class TPLS(RegressorMixin, BaseEstimator):
         # Training phase:
         estimator = TPLS(n_components=2).fit(training_data)
 
-        # Testing/inference phase:
-        new_data = {"Z": ..., "F": ...}  # you need at least the F block for a new prediction. "Z" is optional.
+        # Testing/inference phase. A plain dict raises TypeError, so wrap it.
+        # You need at least the F block for a new prediction; "Z" is optional.
+        new_data = DataFrameDict({"Z": ..., "F": ...})
         predictions = estimator.diagnose(new_data)
 
         Parameters
