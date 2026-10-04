@@ -14,6 +14,7 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
+from process_improve.experiments import Factor, generate_omars
 from process_improve.experiments.designs_omars_ilp import (
     _foldover,
     _full_second_order_params,
@@ -22,7 +23,6 @@ from process_improve.experiments.designs_omars_ilp import (
     _model_rank,
 )
 from process_improve.experiments.omars_trade_off import (
-    CAPABILITIES,
     DEFAULT_FACTORS,
     DEFAULT_RUNS,
     box_behnken_runs,
@@ -33,13 +33,13 @@ from process_improve.experiments.omars_trade_off import (
     omars_trade_off_table,
 )
 
-# k -> (satd, quad, full), spelled out from 2k + 1, 2k + 3 and k^2 + k + 1.
+# k -> (satd, quad, full), spelled out from 2k + 1, 2k + 2 and k^2 + k + 1.
 THRESHOLDS = {
-    3: (7, 9, 13),
-    4: (9, 11, 21),
-    5: (11, 13, 31),
-    6: (13, 15, 43),
-    7: (15, 17, 57),
+    3: (7, 8, 13),
+    4: (9, 10, 21),
+    5: (11, 12, 31),
+    6: (13, 14, 43),
+    7: (15, 16, 57),
 }
 
 # The approved rendering: (n_runs, n_factors) -> cell label.
@@ -73,9 +73,11 @@ class TestMinimumRuns:
         assert omars_minimum_runs(k) == omars_minimum_runs(k, "full")
 
     @pytest.mark.parametrize("k", list(range(3, 26)))
-    def test_every_threshold_is_odd(self, k):
-        """A foldover has 2h + 1 runs, so no threshold can be even."""
-        assert all(omars_minimum_runs(k, c) % 2 == 1 for c in CAPABILITIES)
+    def test_only_the_quad_threshold_is_even(self, k):
+        """Satd and Full need one centre run; Quad first arrives with two, one past Satd."""
+        assert omars_minimum_runs(k, "satd") % 2 == 1
+        assert omars_minimum_runs(k, "full") % 2 == 1
+        assert omars_minimum_runs(k, "quad") == omars_minimum_runs(k, "satd") + 1
 
     @pytest.mark.parametrize("k", list(range(3, 26)))
     def test_thresholds_increase_with_capability(self, k):
@@ -160,14 +162,39 @@ class TestSingleCell:
             if result.capability != "satd":
                 assert result.error_df == n_runs - result.model_params
 
-    def test_even_run_counts_are_never_a_design(self):
-        result = get_omars_trade_off_table_entry(20, 4, display=False)
-        assert not result.exists
-        assert result.capability == "none"
-        assert result.tag == ""
-        assert result.label == ""
-        assert result.model is None
-        assert "even" in result.reason
+    @pytest.mark.parametrize(("n_runs", "label"), [(10, "Quad df=1"), (20, "Quad df=11"), (22, "Full df=7")])
+    def test_an_even_budget_is_a_design(self, n_runs, label):
+        """A foldover with no centre run, or with two, has an even run count."""
+        result = get_omars_trade_off_table_entry(n_runs, 4, display=False)
+        assert result.exists
+        assert result.label == label
+        assert result.reason == ""
+
+    @pytest.mark.parametrize("k", [3, 4, 5, 6, 7])
+    def test_an_even_budget_buys_the_odd_model_below_it_with_one_more_df(self, k):
+        """Both see N / 2 distinct second-order rows, except that 2k + 1 is saturated."""
+        for n_runs in range(2 * k + 4, omars_minimum_runs(k) + 8, 2):
+            even = get_omars_trade_off_table_entry(n_runs, k, display=False)
+            odd = get_omars_trade_off_table_entry(n_runs - 1, k, display=False)
+            assert even.model == odd.model
+            assert even.error_df == odd.error_df + 1
+
+    def test_one_run_past_saturated_is_quad_with_one_df(self):
+        """A definitive screening design with a second centre run can test its model."""
+        result = get_omars_trade_off_table_entry(10, 4, display=False)
+        assert result.capability == "quad"
+        assert result.model == "main_quadratic"
+        assert result.error_df == 1
+
+    def test_even_budget_agrees_with_the_generated_design(self):
+        """The table and generate_omars agree on a 22-run, two-centre foldover."""
+        factors = [Factor(name=c, low=-1, high=1) for c in "ABCD"]
+        design = generate_omars(factors, n_runs=22, center_runs=2, model="full_second_order", random_state=0)
+        coded = design.design[design.factor_names].to_numpy(float)
+        entry = get_omars_trade_off_table_entry(22, 4, display=False)
+        assert entry.capability == "full"
+        assert _model_rank(coded) == entry.model_params
+        assert len(coded) - _model_rank(coded) == entry.error_df
 
     def test_below_the_smallest_design_there_is_nothing(self):
         result = get_omars_trade_off_table_entry(7, 4, display=False)
@@ -184,7 +211,7 @@ class TestSingleCell:
     def test_capability_never_goes_backwards_as_runs_grow(self, k):
         seen = [
             get_omars_trade_off_table_entry(n, k, display=False).capability
-            for n in range(1, omars_minimum_runs(k, "full") + 8, 2)
+            for n in range(1, omars_minimum_runs(k, "full") + 8)
         ]
         order = {"none": 0, "satd": 1, "quad": 2, "full": 3}
         ranks = [order[c] for c in seen]
@@ -207,15 +234,19 @@ class TestDisplay:
         assert "OMARS: 17 runs, 4 factors" in out
         assert "Quad:" in out
         assert "main_quadratic (9 parameters), 8 error df" in out
-        assert "Satd 9, Quad 11, Full 21 runs" in out
+        assert "Satd 9, Quad 10, Full 21 runs" in out
         assert "4 more runs would reach Full" in out
+
+    def test_one_run_short_says_run_not_runs(self, capsys):
+        get_omars_trade_off_table_entry(20, 4, display=True)
+        assert "1 more run would reach Full" in capsys.readouterr().out
 
     def test_a_full_cell_is_not_told_to_buy_more_runs(self, capsys):
         get_omars_trade_off_table_entry(21, 4, display=True)
         assert "more runs would reach Full" not in capsys.readouterr().out
 
     def test_an_empty_cell_says_what_the_smallest_design_is(self, capsys):
-        get_omars_trade_off_table_entry(20, 4, display=True)
+        get_omars_trade_off_table_entry(7, 4, display=True)
         out = capsys.readouterr().out
         assert "No design" in out
         assert "smallest design for 4 factors has 9 runs" in out
@@ -412,15 +443,13 @@ class TestAnchorEntry:
     def test_box_behnken_entry_matches_the_cell(self, k, label):
         assert omars_anchor_entry("bbd", k).label == label
 
-    def test_an_even_run_count_is_still_a_design_here(self):
-        """The 2h + 1 gate is right for a budget, not for a named design.
+    def test_an_even_run_count_is_a_design_here_too(self):
+        """A Box-Behnken design carries six centre runs from five factors upwards.
 
-        A Box-Behnken design carries six centre runs from five factors upwards, so its total
-        is even. Asking for that count as a budget correctly reports no design; asking for the
-        named design reports what it is.
+        Its total is then even, and both the budget and the named design report a design.
         """
         assert box_behnken_runs(5) % 2 == 0
-        assert not get_omars_trade_off_table_entry(46, 5, display=False).exists
+        assert get_omars_trade_off_table_entry(46, 5, display=False).exists
         entry = omars_anchor_entry("bbd", 5)
         assert entry.exists
         assert entry.capability == "full"
@@ -434,7 +463,7 @@ class TestAnchorEntry:
 
     @pytest.mark.parametrize("k", DEFAULT_FACTORS)
     def test_the_dsd_never_reaches_full(self, k):
-        """The smallest member of the family cannot support the second-order model."""
+        """The design at the small end of the family cannot support the second-order model."""
         assert omars_anchor_entry("dsd", k).capability != "full"
 
     def test_thresholds_travel_with_an_anchor_too(self):
