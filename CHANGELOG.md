@@ -121,6 +121,17 @@ those changes.
   - `robust_regression` describes `conf_intervals` as one row for its single
     slope, not K rows.
   - The `t_value_cdf` examples use `float("inf")`, which needs no numpy import.
+  - `find_elbow_point` gains `Parameters` and `Raises` sections; `rho` and `psi`
+    gain `Parameters`, `Returns` and `References`, and `rho` says it saturates at
+    the consistency constant `c_k`, not at the cutoff `k`.
+  - `spe_calculation` says its limit is on the square-root scale of `model.spe_`;
+    `ellipse_coordinates` says `scaling_factor_for_scores` is required despite its
+    `None` default.
+  - `TPLS.fit` documents `X` as a `DataFrameDict` (a plain `dict` raises
+    `TypeError`), and the `TPLS.diagnose` example wraps its input accordingly.
+  - `Settings` no longer points at a nonexistent `override` method; it shows the
+    property setter and `as_dict`.
+  - `DEFAULT_THEME` no longer claims importing the package sets the Plotly default.
 
 ## [1.97.0] - 2026-10-03
 
