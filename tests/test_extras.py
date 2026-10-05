@@ -38,25 +38,31 @@ class TestExtraMessage:
 class TestMissingExtraProxy:
     """Stand-in for a not-installed optional module."""
 
-    def test_attribute_access_raises_attribute_error(self) -> None:
-        # __getattr__ must raise AttributeError so ``hasattr`` works
-        # (CodeQL py/non-standard-exception-raised-in-special-method).
+    def test_using_a_missing_module_raises_import_error(self) -> None:
+        # ``go.Figure()`` with plotly missing must fail like ``fracfact()`` with
+        # pyDOE3 missing: one ImportError carrying the install hint.
         stub = _MissingExtra("plotly", "plotting")
-        with pytest.raises(AttributeError, match=r"plotly.*plotting"):
-            _ = stub.Figure
-
-    def test_attribute_access_message_carries_install_hint(self) -> None:
-        stub = _MissingExtra("plotly", "plotting")
-        with pytest.raises(AttributeError) as info:
-            _ = stub.Figure
+        with pytest.raises(ImportError, match=r"plotly.*plotting") as info:
+            stub.Figure()
         assert "pip install 'process-improve[plotting]'" in str(info.value)
         assert "Figure" in str(info.value)
 
-    def test_hasattr_returns_false(self) -> None:
-        # Direct corollary of __getattr__ raising AttributeError.
+    def test_nested_attribute_and_subscript_raise_import_error(self) -> None:
         stub = _MissingExtra("plotly", "plotting")
-        assert hasattr(stub, "Figure") is False
-        assert hasattr(stub, "anything_else_at_all") is False
+        with pytest.raises(ImportError, match=r"layout\.Template"):
+            stub.layout.Template()
+        with pytest.raises(ImportError):
+            _ = stub.templates["pi_tufte"]
+        with pytest.raises(ImportError):
+            stub.templates["pi_tufte"] = None
+
+    def test_dunder_lookup_raises_attribute_error(self) -> None:
+        # Protocol probes (copy, pickle, numpy) must see a missing attribute,
+        # per the data model (CodeQL py/non-standard-exception-raised-in-special-method).
+        stub = _MissingExtra("plotly", "plotting")
+        assert hasattr(stub, "__array__") is False
+        with pytest.raises(AttributeError, match=r"plotly.*plotting"):
+            _ = stub.__deepcopy__
 
     def test_call_raises_import_error(self) -> None:
         # __call__ has no equivalent special-method convention; raise
