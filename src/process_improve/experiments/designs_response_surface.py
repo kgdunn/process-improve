@@ -14,15 +14,8 @@ from typing import TYPE_CHECKING
 
 import numpy as np
 
+from process_improve.experiments._classical import bbdesign, ccdesign
 from process_improve.experiments._finite_fields import MAX_ORDER, conference_matrix, conference_order_at_least
-
-try:
-    from pyDOE3 import bbdesign, ccdesign
-except ImportError:  # pragma: no cover - exercised via env-without-pyDOE3
-    from process_improve._extras import _MissingExtra
-
-    bbdesign = _MissingExtra("pyDOE3", "expt")  # type: ignore[assignment]
-    ccdesign = _MissingExtra("pyDOE3", "expt")  # type: ignore[assignment]
 
 if TYPE_CHECKING:
     from process_improve.experiments.factor import Factor
@@ -83,7 +76,7 @@ def dispatch_ccd(  # noqa: PLR0913
 
     Notes
     -----
-    Center points are embedded in the CCD structure itself (via pyDOE3's
+    Center points are embedded in the CCD structure itself (via ``ccdesign``'s
     ``center`` parameter).  The caller should set ``n_center_points=0`` in
     ``build_design_result`` to avoid adding duplicate center points.
     """
@@ -99,12 +92,12 @@ def dispatch_ccd(  # noqa: PLR0913
     rule = _ALPHA_NAMES[kind][0] if isinstance(kind, str) else "user"
     if kind == "orthogonal":
         kind = orthogonal_alpha(2**k, 2**k + 2 * k + n_center_points)
-    # Centre runs are split between the cube and axial blocks, as pyDOE3 does.
+    # Centre runs are split between the cube and axial blocks, as ccdesign does.
     n_center_cube = n_center_points // 2
     n_center_axial = n_center_points - n_center_cube
 
     if isinstance(kind, float):
-        # An axial distance pyDOE3 cannot take: build the 2^k cube, the 2k axial runs and the centre runs here.
+        # An axial distance ccdesign cannot take: build the 2^k cube, the 2k axial runs and the centre runs here.
         cube_runs = np.array(list(itertools.product((-1.0, 1.0), repeat=k)))[:, ::-1]
         star = np.zeros((2 * k, k))
         for i in range(k):
@@ -192,7 +185,7 @@ def _resolve_fractional_axial_distance(
 ) -> tuple[float, str]:
     """Axial (star-point) distance for a fractional-cube CCD.
 
-    Mirrors pyDOE3's :func:`star` formulas, but uses the actual number of
+    Mirrors the classical axial-distance formulas, but uses the actual number of
     fractional cube runs *n_cube_runs* in place of the full ``2**k``.
 
     Parameters
@@ -316,7 +309,7 @@ def _dispatch_ccd_fractional(
 #: factorial in the factors it names, with every other factor at its centre. Six factors use
 #: their partially balanced design (a pair of factors meets in one or two blocks); seven use
 #: the balanced design on the Fano plane, written cyclically (the published table up to a
-#: relabelling of the factors). Pairing every two factors, as pyDOE3 does for any k, gives the
+#: relabelling of the factors). Pairing every two factors, as ``bbdesign`` does for any k, gives the
 #: published design for three to five factors but 60 and 84 runs at six and seven.
 _BOX_BEHNKEN_BLOCKS: dict[int, tuple[tuple[int, ...], ...]] = {
     6: ((0, 1, 3), (1, 2, 4), (2, 3, 5), (0, 3, 4), (1, 4, 5), (0, 2, 5)),
@@ -330,8 +323,8 @@ def dispatch_box_behnken(
 ) -> tuple[np.ndarray, dict]:
     """Generate a Box-Behnken design.
 
-    Three to five factors: a two-level factorial in every pair of factors (pyDOE3's
-    ``bbdesign``), which is the published design. Six and seven factors: the published
+    Three to five factors: a two-level factorial in every pair of factors
+    (``bbdesign``), which is the published design. Six and seven factors: the published
     blocks of three factors in ``_BOX_BEHNKEN_BLOCKS`` (48 and 56 runs plus centre
     points). Eight or more factors: all pairs again, since Box and Behnken's larger
     designs are not tabulated here; ``metadata["construction"]`` says ``"all_pairs"``.

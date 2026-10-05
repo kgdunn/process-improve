@@ -17,16 +17,9 @@ from typing import TYPE_CHECKING
 import numpy as np
 
 from process_improve._extras import require_extra
+from process_improve.experiments._classical import fracfact, pbdesign
 from process_improve.experiments._finite_fields import hadamard_matrix
 from process_improve.experiments.designs_utils import categorical_codes
-
-try:
-    from pyDOE3 import fracfact, pbdesign
-except ImportError:  # pragma: no cover - exercised via env-without-pyDOE3
-    from process_improve._extras import _MissingExtra
-
-    fracfact = _MissingExtra("pyDOE3", "expt")  # type: ignore[assignment]
-    pbdesign = _MissingExtra("pyDOE3", "expt")  # type: ignore[assignment]
 
 if TYPE_CHECKING:
     from process_improve.experiments.factor import Factor
@@ -99,7 +92,7 @@ def dispatch_fractional_factorial(
         generators that reach a lower resolution raise ``ValueError``.
     generators : list[str] or None
         Explicit generator strings, e.g. ``["D=ABC", "E=AC"]``.  When given,
-        these are translated into the pyDOE3 generator notation.
+        these are translated into ``fracfact`` generator notation.
 
     Returns
     -------
@@ -325,9 +318,9 @@ def _parse_generators(factor_names: list[str], generators: list[str]) -> tuple[l
 def _fracfact_from_indices(k: int, derived_idx: list[int], rhs_indices: list[tuple[list[int], bool]]) -> np.ndarray:
     """Build the coded matrix for parsed generators, with column ``i`` belonging to factor ``i``.
 
-    pyDOE3 is handed canonical single letters (so multi-character factor names are
+    ``fracfact`` is handed canonical single letters (so multi-character factor names are
     never misread as products) and returns the base factors followed by the derived
-    ones. The columns are then put back in factor order: returning pyDOE3's order
+    ones. The columns are then put back in factor order: returning that order
     once swapped columns silently whenever a derived factor was not the last one
     (e.g. ``"B=AC"`` with factors A, B, C).
     """
@@ -342,7 +335,7 @@ def _fracfact_from_indices(k: int, derived_idx: list[int], rhs_indices: list[tup
         word = "".join(base_letter[i] for i in rhs)
         tokens.append(f"-{word}" if negated else word)
 
-    # One non-empty token per factor, so pyDOE3 returns exactly k columns, in the order
+    # One non-empty token per factor, so fracfact returns exactly k columns, in the order
     # (bases..., derived...); map them back to factor order.
     coded = fracfact(" ".join(tokens))
     reordered = np.empty_like(coded)
@@ -369,8 +362,8 @@ def dispatch_plackett_burman(factors: list[Factor]) -> tuple[np.ndarray, dict]:
 
     The ``N``-run design is ``k`` columns of a normalised Hadamard matrix of order
     ``N``, the smallest multiple of 4 above ``k`` that can be built (see
-    :func:`plackett_burman_runs`). For the orders pyDOE3 covers (powers of 2, and 12 or
-    20 times a power of 2) its matrices are used, which for 12, 20 and 24 runs are the
+    :func:`plackett_burman_runs`). For powers of 2 and 12 or 20 times a power of 2, the
+    classical construction (the 12- or 20-run cyclic core, doubled) is used, which for 12, 20 and 24 runs are the
     cyclic designs Plackett and Burman (1946) published. The other orders (28, 36, 44,
     52, ...) come from the finite-field constructions in
     :mod:`process_improve.experiments._finite_fields`, checked against ``H'H = N I``.
@@ -388,10 +381,10 @@ def dispatch_plackett_burman(factors: list[Factor]) -> tuple[np.ndarray, dict]:
     k = len(factors)
     n = plackett_burman_runs(k)
     coded_matrix = None
-    with contextlib.suppress(AssertionError, IndexError, ValueError):  # pyDOE3 asserts on orders it lacks
+    with contextlib.suppress(ValueError):  # no 1-, 12- or 20-run core for this order
         coded_matrix = pbdesign(k)
     if coded_matrix is not None and coded_matrix.shape[0] == n:
-        construction = "pyDOE3"
+        construction = "cyclic"
     else:
         hadamard, construction = hadamard_matrix(n)  # type: ignore[misc]  # not None: n was chosen so
         coded_matrix = hadamard[:, 1 : k + 1].astype(float)

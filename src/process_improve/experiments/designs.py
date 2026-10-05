@@ -31,14 +31,8 @@ from typing import Any, NamedTuple
 import numpy as np
 import pandas as pd
 
-try:
-    from pyDOE3 import ff2n
-except ImportError:  # pragma: no cover - exercised via env-without-pyDOE3
-    from process_improve._extras import _MissingExtra
-
-    ff2n = _MissingExtra("pyDOE3", "expt")  # type: ignore[assignment]
-
 from process_improve._random import resolve_deprecated_seed
+from process_improve.experiments._classical import ff2n
 from process_improve.experiments.designs_utils import build_design_result, categorical_codes, refuse_reserved_names
 from process_improve.experiments.factor import Constraint, DesignResult, Factor, FactorType
 
@@ -73,7 +67,7 @@ def _dispatch_full_factorial(
 ) -> tuple[np.ndarray, dict]:
     """Full factorial: every combination of every factor's levels, first factor changing fastest.
 
-    Two-level factors give pyDOE3's ``ff2n`` 2^k design; a continuous factor with
+    Two-level factors give the 2^k design in standard order (``ff2n``); a continuous factor with
     ``levels`` or a categorical factor with more than two levels gives the general
     (mixed-level) full factorial. More than ``settings.max_factors_combinatorial``
     factors raise ``ValueError`` (SEC-19), as :func:`designs_factorial.full_factorial` does.

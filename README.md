@@ -177,7 +177,7 @@ Your data stay on your machine.
 ```bash
 pip install process-improve                    # core (numpy, pandas, sklearn, statsmodels, patsy, pydantic, pyyaml, tqdm)
 pip install 'process-improve[plotting]'        # adds matplotlib, plotly, seaborn, ridgeplot
-pip install 'process-improve[expt]'            # adds pyDOE3 (designed experiments / DOE)
+pip install 'process-improve[expt]'            # adds pyDOE3 (Taguchi orthogonal arrays; every other design is in the core)
 pip install 'process-improve[batch]'           # adds openpyxl, scikit-image (batch process data IO)
 pip install 'process-improve[mcp]'             # adds the MCP server runtime
 pip install 'process-improve[fast]'            # adds numba (JIT speedups for batch alignment)

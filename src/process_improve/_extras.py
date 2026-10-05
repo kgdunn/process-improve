@@ -5,7 +5,7 @@ statsmodels, patsy, pydantic, pyyaml, tqdm) and gates heavier
 optional dependencies behind extras::
 
     pip install 'process-improve[plotting]'    # matplotlib + plotly + seaborn + ridgeplot
-    pip install 'process-improve[expt]'        # pyDOE3 (DOE / experiments helpers)
+    pip install 'process-improve[expt]'        # pyDOE3 (Taguchi orthogonal arrays)
     pip install 'process-improve[batch]'       # scikit-image + openpyxl + ruptures
     pip install 'process-improve[mcp]'         # mcp
     pip install 'process-improve[fast]'        # numba (JIT)
