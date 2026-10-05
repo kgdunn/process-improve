@@ -197,7 +197,9 @@ def dispatch_supersaturated(factors: list[Factor], budget: int | None = None) ->
         The coded design and metadata: ``e_s2``, its lower bound (see
         :func:`e_s2_lower_bound`) and their ratio ``e_s2_efficiency`` (1 means the design
         attains the bound, so nothing balanced can do better), ``max_abs_s``, and the
-        Hadamard order used.
+        Hadamard order used. The bound is not attainable at every size, so an efficiency
+        below 1 does not by itself mean a better balanced design exists: 15 factors in
+        12 runs report about 0.63.
 
     Raises
     ------
