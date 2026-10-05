@@ -384,7 +384,7 @@ def dispatch_plackett_burman(factors: list[Factor]) -> tuple[np.ndarray, dict]:
     with contextlib.suppress(ValueError):  # no 1-, 12- or 20-run core for this order
         coded_matrix = pbdesign(k)
     if coded_matrix is not None and coded_matrix.shape[0] == n:
-        construction = "cyclic"
+        construction = "classical"  # the 1-, 12- or 20-run core, doubled (Plackett and Burman, 1946)
     else:
         hadamard, construction = hadamard_matrix(n)  # type: ignore[misc]  # not None: n was chosen so
         coded_matrix = hadamard[:, 1 : k + 1].astype(float)
