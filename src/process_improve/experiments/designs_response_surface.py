@@ -456,8 +456,12 @@ def dispatch_dsd(factors: list[Factor], budget: int | None = None) -> tuple[np.n
     two zeros (one in each half of the foldover) become ``+z`` and ``-z``, and the
     single centre run becomes two, with the categorical factors at ``+b`` and ``-b``.
     The signs are chosen to maximise the determinant of the main-effects information
-    matrix. Every main effect stays orthogonal to every second-order effect; the
-    categorical main effects are slightly correlated with each other.
+    matrix. Every main effect stays orthogonal to every second-order effect, and the
+    continuous main effects stay orthogonal to each other. Resolving the zeros costs
+    some orthogonality between a categorical main effect and the other main effects:
+    it is slightly correlated with each continuous main effect (``|r|`` about 0.17 for
+    four continuous factors and one categorical factor in 14 runs) and with the other
+    categorical main effects.
 
     A ``budget`` larger than the minimal design adds fake factors: the conference
     matrix of the largest buildable order whose design fits the budget is used, and its
