@@ -11,6 +11,20 @@ those changes.
 
 ## [Unreleased]
 
+### Fixed
+
+- **A missing `plotting` extra now raises `ImportError`, as a missing `expt` extra
+  does.** Plotting with plotly not installed (`pca.score_plot()`, for example) raised
+  `AttributeError` from the placeholder module, so `except ImportError` did not catch
+  it. Using a missing module now raises `ImportError` with the
+  `pip install 'process-improve[plotting]'` hint and the name that was used
+  (`'Figure'`); protocol lookups such as `__array__` still raise `AttributeError`.
+
+### Documentation
+
+- **The `generate_design` docstring lists G- and K-optimal designs among those that
+  honour `constraints` and accept `fixed_runs`.** Both did already; tests now pin it.
+
 ## [1.97.1] - 2026-10-04
 
 ### Changed
