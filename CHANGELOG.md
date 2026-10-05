@@ -24,6 +24,10 @@ those changes.
 
 - **The `generate_design` docstring lists G- and K-optimal designs among those that
   honour `constraints` and accept `fixed_runs`.** Both did already; tests now pin it.
+- **The definitive screening design docstring says that a categorical factor's main
+  effect is slightly correlated with the continuous main effects** (`|r|` about 0.17 for
+  four continuous factors and one categorical factor), a consequence of the DSD-augment
+  construction. It previously mentioned only the correlation among categorical factors.
 
 ## [1.97.1] - 2026-10-04
 
