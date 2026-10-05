@@ -703,7 +703,8 @@ def generate_design(  # noqa: PLR0913
         ``Constraint(expression="3*T + 5*D <= 600")``; a dict of ``Constraint`` fields or
         a bare expression string is accepted too. Honoured by the optimal
         families (``"d_optimal"``, chosen automatically when constraints are given,
-        ``"i_optimal"``, ``"a_optimal"`` and ``"e_optimal"``), whose runs are selected
+        ``"i_optimal"``, ``"a_optimal"``, ``"e_optimal"``, ``"g_optimal"`` and
+        ``"k_optimal"``), whose runs are selected
         from a candidate set of feasible points; by ``"mixture"`` (linear constraints
         in the proportions); and by the ``"sobol"``, ``"halton"``, ``"maximin"`` and
         ``"maxpro"`` space-filling designs. Other design types do not enforce them and set
@@ -720,7 +721,8 @@ def generate_design(  # noqa: PLR0913
         Ignored by the classical (non-optimal) design families.
     fixed_runs : pandas.DataFrame or None
         Runs to hold fixed while the optimizer fills the rest (design augmentation), for the
-        optimal families only (``"d_optimal"``, ``"i_optimal"``, ``"a_optimal"``, ``"e_optimal"``). One row per
+        optimal families only (``"d_optimal"``, ``"i_optimal"``, ``"a_optimal"``, ``"e_optimal"``,
+        ``"g_optimal"``, ``"k_optimal"``). One row per
         fixed run, one column per factor, in the same coding as the returned design: continuous
         factors in coded ``[-1, 1]`` units, categorical factors as level labels.
         The fixed runs occupy the first rows of the result and ``budget`` counts them, so

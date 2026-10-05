@@ -28,10 +28,25 @@ those changes.
   runs were done. The warning names the fix: centre runs (`n_center_points=3`) or a
   larger budget.
 
+### Fixed
+
+- **A missing `plotting` extra now raises `ImportError`, as a missing `expt` extra
+  does.** Plotting with plotly not installed (`pca.score_plot()`, for example) raised
+  `AttributeError` from the placeholder module, so `except ImportError` did not catch
+  it. Using a missing module now raises `ImportError` with the
+  `pip install 'process-improve[plotting]'` hint and the name that was used
+  (`'Figure'`); protocol lookups such as `__array__` still raise `AttributeError`.
+
 ### Documentation
 
-- The supersaturated `e_s2_efficiency` is measured against a lower bound that is not
-  attainable at every size, so a value below 1 does not by itself mean a better
+- **The `generate_design` docstring lists G- and K-optimal designs among those that
+  honour `constraints` and accept `fixed_runs`.** Both did already; tests now pin it.
+- **The definitive screening design docstring says that a categorical factor's main
+  effect is slightly correlated with the continuous main effects** (`|r|` about 0.17 for
+  four continuous factors and one categorical factor), a consequence of the DSD-augment
+  construction. It previously mentioned only the correlation among categorical factors.
+- **The supersaturated `e_s2_efficiency` is measured against a lower bound that is not
+  attainable at every size**, so a value below 1 does not by itself mean a better
   balanced design exists (15 factors in 12 runs report 0.63). Stated in the
   `dispatch_supersaturated` docstring and the screening user guide.
 

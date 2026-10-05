@@ -315,6 +315,20 @@ class TestGAndKOptimal:
         k = {c: condition(r) for c, r in designs.items()}
         assert min(k, key=k.get) == "k_optimal"
 
+    @pytest.mark.parametrize("criterion", ["g_optimal", "k_optimal"])
+    def test_constraints_are_honoured(self, designs: dict, criterion: str) -> None:
+        result = designs[criterion]
+        assert result.metadata["constraints_enforced"] is True
+        actual = result.design_actual
+        assert (3 * actual["T"] + 5 * actual["D"] <= 600 + 1e-6).all()
+
+    @pytest.mark.parametrize("criterion", ["g_optimal", "k_optimal"])
+    def test_fixed_runs_are_kept(self, criterion: str) -> None:
+        centre = pd.DataFrame({"x0": [0.0], "x1": [0.0], "x2": [0.0]})
+        result = generate_design(_factors(3), criterion, budget=12, model_type="quadratic", fixed_runs=centre)
+        assert result.n_runs == 12
+        np.testing.assert_allclose(_coded(result, 3)[0], 0.0)
+
     def test_two_level_factorial_is_g_optimal_for_a_first_order_model(self) -> None:
         """Kiefer-Wolfowitz: the 2^k factorial attains G-efficiency 100% for a first-order model."""
         from process_improve.experiments import evaluate_design
