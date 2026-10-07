@@ -151,13 +151,12 @@ def _tau_from_training_errors(future_errors: pd.Series) -> float:
         or not positive (the errors carry no usable spread).
     """
     if not _finite(future_errors):
-        # Missing values at or near the start of the series propagate through the
-        # Holt-Winters recursion and leave every training error NaN.
+        # Every training error is NaN when the training period holds no finite observation
+        # to forecast against, or when the warm-up statistics themselves are not finite.
         raise ValueError(
             f"The control-chart scale estimate is undefined: none of the {future_errors.size} "
-            "training-sample errors is finite. Missing values at or near the start of the "
-            "series propagate through the Holt-Winters recursion and leave every error NaN. "
-            "Supply a series without leading gaps, or pass an explicit positive 's'."
+            "training-sample errors is finite, so the series has no finite observation in its "
+            "training period to forecast against. Supply a series with more finite values."
         )
 
     resids = _training_error_radicand(future_errors)
@@ -254,23 +253,27 @@ def _holt_winters_recursion(
         error_i = y[i] - (alpha_prev + beta_prev)
         if np.isnan(error_i):
             # If there is an error, replace it with the median of the last 10 error estimates
-            # or as many points as available. When the gap is at the very start of the series
-            # there is no finite history to take that median over, so `error_i` stays NaN and
-            # propagates through alpha_hat / beta_hat / sigma_hat for the rest of the
-            # recursion; `calculate_limits` raises on that downstream. Filter to the finite
-            # history explicitly rather than letting an all-NaN slice reach a median, which
-            # returns NaN but emits "Mean of empty slice". (#557)
+            # or as many points as available, filtered to the finite ones so an all-NaN slice
+            # never reaches a median (which returns NaN but emits "Mean of empty slice"). (#557)
             #
             # Known limitation, kept for now: the imputed error is a median of ABSOLUTE errors,
             # so it is never negative. Each missing row is treated as an observation above its
             # prediction, which nudges the level up, and over a long gap the trend term
             # compounds that into a drift (with lambdas 0.4 / 0.7, a 40-row gap in N(50, 2) noise
-            # took the level from about 49 to 550). Skipping the update for a missing row
-            # (level += trend, trend and scale held) would remove the bias, but it also changes
-            # the leading-NaN behaviour.
+            # took the level from about 49 to 550). Carrying the forecast forward for every
+            # missing row, as below, would remove the bias; later gaps keep the imputation so
+            # that their results do not change.
             recent_errors = np.abs(error[max(i - 10, 0) : i])
             recent_errors = recent_errors[np.isfinite(recent_errors)]
-            error_i = float(np.median(recent_errors)) if recent_errors.size else np.nan
+            if not recent_errors.size:
+                # No finite error to impute from: a gap that starts at index 1, the first row
+                # with a one-step-ahead error. Imputing NaN used to spread through every later
+                # row and make the whole fit fail. Carry the forecast forward instead (the level
+                # follows the trend; trend and scale are held) and leave this row's error and
+                # cleaned value NaN, so nothing invented reaches the target or the scale.
+                alpha_hat[i], beta_hat[i], sigma_hat[i] = alpha_prev + beta_prev, beta_prev, sigma_prev
+                continue
+            error_i = float(np.median(recent_errors))
         rho_i = error_i / sigma_prev
         prior_variance = np.power(sigma_prev, 2)
         sigma_i = np.sqrt(rho(rho_i) * ld_s * prior_variance + (1.0 - ld_s) * prior_variance)
@@ -388,9 +391,10 @@ class ControlChart:
         Missing values (NaN) in `y` are bridged by imputing a one-step-ahead error equal
         to the median absolute error of the previous 10 rows. That error is never negative,
         so a gap pulls the Holt-Winters level upward, increasingly so for long gaps; fill or
-        drop long runs of missing values before fitting. A missing value at index 1, the
-        first row with a one-step-ahead error, has no earlier error to impute from: every
-        later error is then NaN and ``calculate_limits`` raises ``ValueError``.
+        drop long runs of missing values before fitting. A gap that starts at index 1, the
+        first row with a one-step-ahead error, has no earlier error to impute from: those
+        rows carry the forecast forward instead (the level follows the trend, the trend and
+        scale are held), and their error and cleaned value stay NaN.
         """
         self._given_target = target
         self._given_s = s

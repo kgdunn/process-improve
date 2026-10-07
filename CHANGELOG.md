@@ -27,6 +27,14 @@ those changes.
 
 ### Fixed
 
+- **A missing value at index 1 no longer makes the Holt-Winters chart fail.** Row 0 has
+  no one-step-ahead error, so a gap starting at index 1 had no error history to impute
+  from: its NaN error spread through every later row and `calculate_limits` raised
+  `ValueError`, although a gap at index 0 or 2 fitted. Such a row now carries the forecast
+  forward (the level follows the trend; trend and scale are held) and keeps a NaN error
+  and cleaned value, so nothing imputed reaches the target or the scale. A series with no
+  finite observation to forecast against still raises. Gaps later in the series are
+  bridged as before.
 - **`ControlChart.df["beta_hat"]` is float64 for series shorter than the Holt-Winters
   warm-up.** With N below `warm_up_M` (10 to 20 points) the column was int64, unlike every
   other column and every longer series. The values (all zero) are unchanged.
@@ -42,8 +50,7 @@ those changes.
 - **`ControlChart.calculate_limits` documents how the Holt-Winters chart bridges missing
   values, and its limitations.** A missing value is imputed with the median absolute error
   of the previous 10 rows, which is never negative, so a gap pulls the level upward (more
-  so for long gaps); a missing value at index 1 raises `ValueError`. The behaviour is
-  unchanged.
+  so for long gaps). That imputation is unchanged.
 - **The `generate_design` docstring lists G- and K-optimal designs among those that
   honour `constraints` and accept `fixed_runs`.** Both did already; tests now pin it.
 - **The definitive screening design docstring says that a categorical factor's main

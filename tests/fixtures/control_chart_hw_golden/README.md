@@ -43,6 +43,9 @@ deliberate changes, each listed here with the cases it touched. The file holds o
 per line, so `git log -p` on it shows the exact scope of every regeneration.
 
 - `beta_hat` is float64 rather than int64 when N < `warm_up_M` (`short_n2`, `short_n9`).
+- A gap that starts at index 1 carries the forecast forward instead of making the fit
+  raise (`leading_nans_n40` and `leading_nans_fixed_lambdas_n40`, which were named
+  `..._raise_...` while they recorded the `ValueError`).
 
 ## Regenerating
 

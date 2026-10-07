@@ -553,13 +553,14 @@ def test_get_monitoring_tool_specs_lists_both_tools() -> None:
 
 
 class TestControlChartMissingValues:
-    """NaN handling in the Holt-Winters warm-up window. Regression tests for #557.
+    """NaN handling at the start of a Holt-Winters series. Regression tests for #557.
 
-    A gap at the very start of the series leaves the recursion with no finite error
-    history to fall back on, so every training-sample error stays NaN and the scale
-    estimate is undefined. That must be reported: the previous `max(0.0, resids)`
-    guard turned the NaN into a zero scale, giving control limits of zero width with
-    no exception raised.
+    Row 0 has no one-step-ahead error, so a gap starting at index 1 has no error history
+    to impute from. Its NaN error used to spread through every later row: first the
+    `max(0.0, resids)` guard turned that into a zero scale (limits of zero width), then
+    the fit raised. Such a row now carries the forecast forward, so the series fits. A
+    series with no finite observation to forecast against must still raise, never
+    collapse the limits or leak a RuntimeWarning.
     """
 
     @staticmethod
@@ -586,20 +587,44 @@ class TestControlChartMissingValues:
         assert cc.s == pytest.approx(2.302721, abs=1e-6)
         assert cc._delta_UCL_3sigma > cc._delta_LCL_3sigma
 
-    def test_nan_across_the_warm_up_raises_rather_than_collapsing_the_limits(self) -> None:
-        """Four leading gaps poison every training error, so the scale is undefined."""
+    def test_single_nan_at_index_1_fits(self) -> None:
+        """A lone gap at index 1 used to make the whole fit raise; gaps at 0 or 2 never did."""
         y = self._series()
-        y[:4] = np.nan
+        y[1] = np.nan
         cc = ControlChart(style="robust", variant="HW")
-        with pytest.raises(ValueError, match=r"none of the \d+ training-sample errors is finite"):
+        with warnings.catch_warnings():
+            warnings.simplefilter("error", RuntimeWarning)
             cc.calculate_limits(y, ld_1=0.4, ld_2=0.7)
 
-    def test_nan_warm_up_emits_no_runtime_warning(self) -> None:
-        """The failure is an exception, not a RuntimeWarning leaking from numpy."""
+        assert cc.s == pytest.approx(2.362464, abs=1e-6)
+        # Nothing is invented for the missing row: its error and cleaned value stay NaN.
+        assert np.isnan(cc.df["error"][1])
+        assert np.isnan(cc.df["y_star"][1])
+
+    def test_leading_gap_carries_the_forecast_forward(self) -> None:
+        """Rows 1-3 missing: the level follows the trend, trend and scale are held."""
         y = self._series()
         y[:4] = np.nan
         cc = ControlChart(style="robust", variant="HW")
         with warnings.catch_warnings():
             warnings.simplefilter("error", RuntimeWarning)
-            with pytest.raises(ValueError, match=r"training-sample errors is finite"):
-                cc.calculate_limits(y, ld_1=0.4, ld_2=0.7)
+            cc.calculate_limits(y, ld_1=0.4, ld_2=0.7)
+
+        df = cc.df
+        for i in (1, 2, 3):
+            assert df["alpha_hat"][i] == df["alpha_hat"][i - 1] + df["beta_hat"][i - 1]
+            assert df["beta_hat"][i] == df["beta_hat"][i - 1]
+            assert df["sigma_hat"][i] == df["sigma_hat"][i - 1]
+        assert df["error"][1:4].isna().all()
+        # The limits are estimated, not collapsed: close to the clean series' 2.306.
+        assert cc.s == pytest.approx(2.237908, abs=1e-6)
+        assert cc._delta_UCL_3sigma > cc._delta_LCL_3sigma
+
+    def test_no_finite_observation_to_forecast_still_raises(self) -> None:
+        """Only y[0] is finite: the scale is undefined, reported as an error, not a warning."""
+        y = np.r_[100.0, np.full(39, np.nan)]
+        cc = ControlChart(style="robust", variant="HW")
+        with warnings.catch_warnings():
+            warnings.simplefilter("error", RuntimeWarning)
+            with pytest.raises(ValueError, match=r"none of the \d+ training-sample errors is finite"):
+                cc.calculate_limits(y, target=100.0, s=2.0, ld_1=0.4, ld_2=0.7)

@@ -99,7 +99,7 @@ def _cases() -> list[dict[str, Any]]:
         {"name": "spikes_n45", "y": spikes},
         {"name": "warmup_outlier_n40", "y": _add(_noise(13, 40), 3, 20.0)},
         {"name": "leading_nan_n40", "y": _set(_noise(6, 40, loc=100.0), 0, np.nan)},
-        {"name": "leading_nans_raise_n40", "y": leading_nans},
+        {"name": "leading_nans_n40", "y": leading_nans},
         {"name": "embedded_nans_n50", "y": _set(_noise(7, 50), [20, 21, 37], np.nan)},
         {"name": "nan_run_longer_than_window_n50", "y": _set(_noise(8, 50), slice(20, 32), np.nan)},
         {"name": "inf_then_nan_n40", "y": inf_then_nan},
@@ -131,7 +131,7 @@ def _cases() -> list[dict[str, Any]]:
             "kwargs": {"target": 5.0, "ld_1": 0.5, "ld_2": 0.8},
         },
         {
-            "name": "leading_nans_fixed_lambdas_raise_n40",
+            "name": "leading_nans_fixed_lambdas_n40",
             "y": leading_nans,
             "kwargs": {"ld_1": 0.4, "ld_2": 0.7},
         },
