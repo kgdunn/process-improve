@@ -11,8 +11,33 @@ those changes.
 
 ## [Unreleased]
 
+### Changed
+
+- **The Holt-Winters `ControlChart` fit is 80x to 150x faster, with identical output.**
+  `ControlChart(variant="hw").calculate_limits` ran its recursion through per-row
+  `DataFrame` lookups and `df.loc` writes, 26 times per call for the default lambda grid
+  search, so a 1,000-point series took about half a minute. The recursion now runs over
+  numpy arrays, the warm-up statistics (which do not depend on the lambdas) are computed
+  once per grid search instead of once per cell, and the grid is scored with a vectorised
+  biweight `rho` instead of `np.vectorize`. A 1,000-point fit now takes about 0.2 s. Every
+  number, dtype, column and exception is unchanged (apart from the `beta_hat` dtype fix
+  below): a golden-output test recorded from the previous implementation pins them, and
+  the results are bit-identical. `scripts/benchmark_control_chart_hw.py` reproduces the
+  timings.
+
 ### Fixed
 
+- **A missing value at index 1 no longer makes the Holt-Winters chart fail.** Row 0 has
+  no one-step-ahead error, so a gap starting at index 1 had no error history to impute
+  from: its NaN error spread through every later row and `calculate_limits` raised
+  `ValueError`, although a gap at index 0 or 2 fitted. Such a row now carries the forecast
+  forward (the level follows the trend; trend and scale are held) and keeps a NaN error
+  and cleaned value, so nothing imputed reaches the target or the scale. A series with no
+  finite observation to forecast against still raises. Gaps later in the series are
+  bridged as before.
+- **`ControlChart.df["beta_hat"]` is float64 for series shorter than the Holt-Winters
+  warm-up.** With N below `warm_up_M` (10 to 20 points) the column was int64, unlike every
+  other column and every longer series. The values (all zero) are unchanged.
 - **A missing `plotting` extra now raises `ImportError`, as a missing `expt` extra
   does.** Plotting with plotly not installed (`pca.score_plot()`, for example) raised
   `AttributeError` from the placeholder module, so `except ImportError` did not catch
@@ -22,6 +47,16 @@ those changes.
 
 ### Documentation
 
+- **The Holt-Winters control chart documents where its constants depart from the
+  paper** (Gelper, Fried and Croux, 2010). Equation 13 pairs the biweight cutoff k = 2
+  with the consistency constant c_k = 2.52; `rho` uses 2.52 as the cutoff, with its own
+  c_k = 3.2667, and its docstring had credited that cutoff to the paper. The paper also
+  fixes the startup period at m = 10, where `ControlChart` uses 10 to 20 points. Both are
+  noted next to the constants, which are unchanged.
+- **`ControlChart.calculate_limits` documents how the Holt-Winters chart bridges missing
+  values, and its limitations.** A missing value is imputed with the median absolute error
+  of the previous 10 rows, which is never negative, so a gap pulls the level upward (more
+  so for long gaps). That imputation is unchanged.
 - **The `generate_design` docstring lists G- and K-optimal designs among those that
   honour `constraints` and accept `fixed_runs`.** Both did already; tests now pin it.
 - **The definitive screening design docstring says that a categorical factor's main
