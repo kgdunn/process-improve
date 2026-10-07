@@ -11,6 +11,8 @@ those changes.
 
 ## [Unreleased]
 
+## [1.97.2] - 2026-10-07
+
 ### Changed
 
 - **The Holt-Winters `ControlChart` fit is 80x to 150x faster, with identical output.**
@@ -7311,7 +7313,8 @@ this entry records them together.
 - Reworked the README with a sharper value proposition and a
   "Why not scikit-learn?" comparison table.
 
-[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.97.1...HEAD
+[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.97.2...HEAD
+[1.97.2]: https://github.com/kgdunn/process-improve/compare/v1.97.1...v1.97.2
 [1.97.1]: https://github.com/kgdunn/process-improve/compare/v1.97.0...v1.97.1
 [1.97.0]: https://github.com/kgdunn/process-improve/compare/v1.96.0...v1.97.0
 [1.96.0]: https://github.com/kgdunn/process-improve/compare/v1.94.0...v1.96.0
