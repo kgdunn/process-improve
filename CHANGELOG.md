@@ -47,6 +47,12 @@ those changes.
 
 ### Documentation
 
+- **The Holt-Winters control chart documents where its constants depart from the
+  paper** (Gelper, Fried and Croux, 2010). Equation 13 pairs the biweight cutoff k = 2
+  with the consistency constant c_k = 2.52; `rho` uses 2.52 as the cutoff, with its own
+  c_k = 3.2667, and its docstring had credited that cutoff to the paper. The paper also
+  fixes the startup period at m = 10, where `ControlChart` uses 10 to 20 points. Both are
+  noted next to the constants, which are unchanged.
 - **`ControlChart.calculate_limits` documents how the Holt-Winters chart bridges missing
   values, and its limitations.** A missing value is imputed with the median absolute error
   of the previous 10 rows, which is never negative, so a gap pulls the level upward (more

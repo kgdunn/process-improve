@@ -19,6 +19,15 @@ logger = logging.getLogger(__name__)
 #: (scipy.integrate.quad of rho_norm(z) * phi(z); E = 0.3061160, so
 #: c_k = 3.266736). This makes E[rho(Z)] = 1, the condition for the scale
 #: estimates built from rho to be consistent for sigma on Gaussian data.
+#:
+#: Departure from the paper, kept deliberately: equation (13) of Gelper, Fried and
+#: Croux (2010, p 289) pairs the cutoff k = 2 with c_k = 2.52 ("for the common choice
+#: of k = 2 we have c_k = 2.52"; numerically 1 / E[rho_norm(Z)] = 2.5153 for k = 2).
+#: This module uses 2.52 as the cutoff instead, with the matching c_k above. Both pairs
+#: give consistent scale estimates on Gaussian data, but this biweight saturates later
+#: (at ``|x| > 2.52`` rather than ``|x| > 2``), so it down-weights large forecast errors
+#: less than the paper's. The constants are left unchanged because existing results
+#: and callers depend on them.
 BIWEIGHT_RHO_CONSISTENCY = 3.266736
 
 
@@ -39,8 +48,9 @@ def rho(x: float, k: float = 2.52) -> float:
     x : float
         Value at which to evaluate the bi-weight rho function.
     k : float, optional
-        Bi-weight cutoff. The default of 2.52 is from p 289 of the referenced
-        paper.
+        Bi-weight cutoff. The default of 2.52 is kept for compatibility. In the
+        paper (equation 13, p 289) 2.52 is instead the consistency constant c_k
+        for the cutoff k = 2; see the note on ``BIWEIGHT_RHO_CONSISTENCY``.
 
     Returns
     -------
@@ -419,7 +429,9 @@ class ControlChart:
         self.df["y"] = y.ravel() if isinstance(y, np.ndarray) else pd.Series(y).values.ravel()
         self.N = self.df.shape[0]
 
-        # Between M = 10 and 20 samples required to warm-up (calculate summary statistics)
+        # Between M = 10 and 20 samples required to warm-up (calculate summary statistics).
+        # The paper fixes its startup period at m = 10 (p 291); here it grows with N, to 10%
+        # of the series, capped at 20. Kept as is: existing results depend on it.
         self.warm_up["M"] = self.warm_up_M = int(min(20, max(10, np.ceil(0.10 * self.N))))
 
         if (self.warm_up_M > self.N) and self.variant.strip().lower() == "hw":
