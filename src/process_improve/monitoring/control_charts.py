@@ -354,6 +354,21 @@ class ControlChart:
                 "CUSUM-style history with Shewhart behaviour.)"
             )
 
+        self._reset_fit_state()
+
+    def _reset_fit_state(self) -> None:
+        """
+        Forget everything an earlier fit set; only the constructor arguments survive.
+
+        ``calculate_limits`` starts here, so a chart reused for a new series gives exactly
+        what a fresh chart would. It used to keep the previous series' ``target`` and ``s``
+        and treat them as given, keep its fitted lambdas instead of searching again, and
+        fail outright on a series of a different length.
+        """
+        constructor_arguments = {"style": self.style, "variant": self.variant}
+        self.__dict__.clear()
+        self.__dict__.update(constructor_arguments)
+
         # Will be calculated by the self.calculate_limits() function
         self.target: float | None = None
         self._given_target: float | None = None
@@ -405,7 +420,11 @@ class ControlChart:
         first row with a one-step-ahead error, has no earlier error to impute from: those
         rows carry the forecast forward instead (the level follows the trend, the trend and
         scale are held), and their error and cleaned value stay NaN.
+
+        Every call starts afresh: nothing fitted by an earlier call on the same chart
+        (target, ``s``, lambdas, warm-up statistics) is carried into this one.
         """
+        self._reset_fit_state()
         self._given_target = target
         self._given_s = s
         logger.debug(

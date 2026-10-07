@@ -303,6 +303,63 @@ def test_hw_series_shorter_than_warm_up_has_float_columns() -> None:
     assert (cc.df["beta_hat"] == 0.0).all()
 
 
+def _assert_same(actual, expected, name: str) -> None:
+    """Equality for chart attributes: frames, series, arrays, dicts and NaN-aware scalars."""
+    if isinstance(expected, pd.DataFrame):
+        pd.testing.assert_frame_equal(actual, expected, obj=name)
+    elif isinstance(expected, pd.Series):
+        pd.testing.assert_series_equal(actual, expected, obj=name)
+    elif isinstance(expected, dict):
+        assert actual.keys() == expected.keys(), name
+        for key, value in expected.items():
+            _assert_same(actual[key], value, f"{name}[{key!r}]")
+    elif isinstance(expected, (np.ndarray, list)):
+        np.testing.assert_array_equal(actual, expected, err_msg=name)
+    else:
+        assert type(actual) is type(expected), name
+        assert (pd.isna(actual) and pd.isna(expected)) or actual == expected, (name, actual, expected)
+
+
+_SERIES_A = 50.0 + 2.0 * np.random.default_rng(1).standard_normal(120)
+_SERIES_B = 80.0 + 5.0 * np.random.default_rng(2).standard_normal(60)
+
+
+@pytest.mark.parametrize(
+    ("variant", "first", "first_kwargs", "second_kwargs"),
+    [
+        pytest.param("hw", _SERIES_A, {}, {}, id="new-level-and-length"),
+        pytest.param("hw", _SERIES_A, {"target": 50.0, "s": 2.0, "ld_1": 0.4, "ld_2": 0.7}, {}, id="pinned-then-free"),
+        pytest.param("hw", _SERIES_A, {}, {"target": 80.0, "s": 5.0}, id="free-then-pinned"),
+        pytest.param("hw", np.full(30, 42.0), {}, {}, id="failed-fit-first"),
+        pytest.param("hw", _SERIES_A[:5], {}, {}, id="short-series-first"),
+        pytest.param("xbar.no.subgroup", _SERIES_A, {}, {}, id="xbar"),
+    ],
+)
+def test_reused_chart_matches_a_fresh_one(
+    variant: str, first: np.ndarray, first_kwargs: dict, second_kwargs: dict
+) -> None:
+    """A chart reused for a second series ends in exactly the state of a fresh chart.
+
+    It used to keep the first series' target and s as if they had been given (a mean-80
+    series got the mean-50 series' target), reuse its fitted lambdas instead of searching
+    again, and raise on a second series of a different length.
+    """
+    fresh = ControlChart(variant=variant)
+    fresh.calculate_limits(_SERIES_B, **second_kwargs)
+
+    reused = ControlChart(variant=variant)
+    if np.ptp(first) == 0:
+        with pytest.raises(ValueError, match="zero"):
+            reused.calculate_limits(first, **first_kwargs)
+    else:
+        reused.calculate_limits(first, **first_kwargs)
+    reused.calculate_limits(_SERIES_B, **second_kwargs)
+
+    assert vars(reused).keys() == vars(fresh).keys()
+    for name, value in vars(fresh).items():
+        _assert_same(getattr(reused, name), value, name)
+
+
 def test_cpk_well_centered_process() -> None:
     """Cpk for a well-centered process with wide specs should be high."""
     rng = np.random.default_rng(42)

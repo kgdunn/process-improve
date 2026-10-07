@@ -27,6 +27,12 @@ those changes.
 
 ### Fixed
 
+- **A `ControlChart` reused for a second `calculate_limits` call gives the same result as a
+  fresh one.** It kept the first series' `target` and `s` and treated them as given, so a
+  mean-80 series reported the mean-50 series' target (50.1 instead of 80.1) and scale (1.8
+  instead of 5.3); it reused the first series' fitted lambdas instead of searching again;
+  and it raised `ValueError` on a second series of a different length. Each call now
+  starts from the constructor's state, for both the `hw` and `xbar.no.subgroup` variants.
 - **A missing value at index 1 no longer makes the Holt-Winters chart fail.** Row 0 has
   no one-step-ahead error, so a gap starting at index 1 had no error history to impute
   from: its NaN error spread through every later row and `calculate_limits` raised
