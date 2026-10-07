@@ -11,6 +11,19 @@ those changes.
 
 ## [Unreleased]
 
+### Changed
+
+- **The Holt-Winters `ControlChart` fit is 80x to 150x faster, with identical output.**
+  `ControlChart(variant="hw").calculate_limits` ran its recursion through per-row
+  `DataFrame` lookups and `df.loc` writes, 26 times per call for the default lambda grid
+  search, so a 1,000-point series took about half a minute. The recursion now runs over
+  numpy arrays, the warm-up statistics (which do not depend on the lambdas) are computed
+  once per grid search instead of once per cell, and the grid is scored with a vectorised
+  biweight `rho` instead of `np.vectorize`. A 1,000-point fit now takes about 0.2 s. Every
+  number, dtype, column and exception is unchanged: a golden-output test recorded from the
+  previous implementation pins them, and the results are bit-identical.
+  `scripts/benchmark_control_chart_hw.py` reproduces the timings.
+
 ### Fixed
 
 - **A missing `plotting` extra now raises `ImportError`, as a missing `expt` extra

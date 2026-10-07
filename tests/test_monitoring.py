@@ -272,6 +272,28 @@ def test_psi_boundary_values() -> None:
     assert psi(2.0) == pytest.approx(2.0)
 
 
+def test_rho_array_matches_scalar_rho() -> None:
+    """``_rho_array`` is the scalar ``rho`` applied element-wise, as ``np.vectorize(rho)`` was.
+
+    It scores every cell of the Holt-Winters lambda grid, so a drift from the scalar function
+    could move the chosen lambdas. Covers the cutoff and its neighbouring floats, signed zero,
+    both saturated tails, infinities and NaN, plus a dense sweep of the polynomial branch. A
+    huge |x| must not overflow (and warn) inside the branch that ``np.where`` discards.
+    """
+    from process_improve.monitoring.control_charts import _rho_array, rho
+
+    k = 2.52
+    edges = [0.0, -0.0, k, -k, np.nextafter(k, 0.0), np.nextafter(k, 9.0), 1e200, -1e200, np.inf, -np.inf, np.nan]
+    x = np.concatenate([edges, np.random.default_rng(0).uniform(-4.0, 4.0, 10_000)])
+    expected = np.array([rho(v) for v in x], dtype=float)
+    with warnings.catch_warnings():
+        warnings.simplefilter("error", RuntimeWarning)
+        actual = _rho_array(x)
+    # rho lies in [0, c_k ~ 3.27]; an absolute 1e-15 allows a last-bit libm difference between
+    # the scalar and array power loops on other platforms. On Linux x86_64 they are identical.
+    np.testing.assert_allclose(actual, expected, rtol=1e-15, atol=1e-15, equal_nan=True)
+
+
 def test_cpk_well_centered_process() -> None:
     """Cpk for a well-centered process with wide specs should be high."""
     rng = np.random.default_rng(42)

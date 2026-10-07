@@ -1,7 +1,8 @@
 """Class for ControlChart: robust control charts with a balance between CUSUM and Shewhart properties."""
 
 import logging
-from typing import ClassVar
+from collections.abc import Mapping
+from typing import Any, ClassVar
 
 import numpy as np
 import pandas as pd
@@ -55,12 +56,40 @@ def rho(x: float, k: float = 2.52) -> float:
     return c_k if np.abs(x) > k else c_k * (1 - np.power(1 - np.power(x / k, 2), 3))
 
 
+def _rho_array(x: np.ndarray | pd.Series, k: float = 2.52) -> np.ndarray:
+    """
+    Evaluate the bi-weight :func:`rho` element-wise over an array.
+
+    Replaces ``np.vectorize(rho)``, which calls the scalar function once per element. The
+    polynomial branch is evaluated on ``x`` clipped to ``[-k, k]``: ``np.where`` evaluates both
+    branches, and an unclipped huge ``|x|`` would overflow in ``np.power`` and raise a
+    ``RuntimeWarning`` from values that are then discarded. Saturated entries take ``c_k``
+    directly and NaN propagates, exactly as in :func:`rho`.
+
+    Parameters
+    ----------
+    x : np.ndarray or pd.Series
+        Values at which to evaluate the bi-weight rho function.
+    k : float, optional
+        Bi-weight cutoff, as in :func:`rho`.
+
+    Returns
+    -------
+    np.ndarray
+        ``rho(x)`` for every element of ``x``, as float64.
+    """
+    x = np.asarray(x, dtype=float)
+    c_k = BIWEIGHT_RHO_CONSISTENCY
+    inside = c_k * (1 - np.power(1 - np.power(np.clip(x, -k, k) / k, 2), 3))
+    return np.where(np.abs(x) > k, c_k, inside)
+
+
 def _finite(values: pd.Series | np.ndarray) -> bool:
     """Return ``True`` if at least one entry of ``values`` is finite."""
     return bool(np.isfinite(np.asarray(values, dtype=float)).any())
 
 
-def _training_error_radicand(future_errors: pd.Series, rho_func: np.vectorize) -> float:
+def _training_error_radicand(future_errors: pd.Series) -> float:
     """
     Return tau squared for the training-sample errors, or NaN when it is undefined.
 
@@ -74,8 +103,6 @@ def _training_error_radicand(future_errors: pd.Series, rho_func: np.vectorize) -
     ----------
     future_errors : pd.Series
         One-step-ahead errors over the training samples (those after the warm-up).
-    rho_func : np.vectorize
-        Element-wise bounded loss applied to the standardised errors.
 
     Returns
     -------
@@ -90,10 +117,10 @@ def _training_error_radicand(future_errors: pd.Series, rho_func: np.vectorize) -
     if not np.isfinite(s_t_median_error) or s_t_median_error <= 0:
         return float("nan")
 
-    return float(np.power(s_t_median_error, 2) * np.nanmean(rho_func(future_errors / s_t_median_error)))
+    return float(np.power(s_t_median_error, 2) * np.nanmean(_rho_array(future_errors / s_t_median_error)))
 
 
-def _tau_from_training_errors(future_errors: pd.Series, rho_func: np.vectorize) -> float:
+def _tau_from_training_errors(future_errors: pd.Series) -> float:
     """
     Return the robust scale estimate (tau) for the training-sample errors.
 
@@ -108,8 +135,6 @@ def _tau_from_training_errors(future_errors: pd.Series, rho_func: np.vectorize) 
     ----------
     future_errors : pd.Series
         One-step-ahead errors over the training samples (those after the warm-up).
-    rho_func : np.vectorize
-        Element-wise bounded loss applied to the standardised errors.
 
     Returns
     -------
@@ -132,7 +157,7 @@ def _tau_from_training_errors(future_errors: pd.Series, rho_func: np.vectorize) 
             "Supply a series without leading gaps, or pass an explicit positive 's'."
         )
 
-    resids = _training_error_radicand(future_errors, rho_func)
+    resids = _training_error_radicand(future_errors)
     if not np.isfinite(resids) or resids <= 0:
         raise ValueError(
             f"The control-chart scale estimate is undefined (tau^2 = {resids}), so the control "
@@ -168,6 +193,93 @@ def psi(x: float, k: float = 2.0) -> float:
     https://onlinelibrary.wiley.com/doi/abs/10.1002/for.1125
     """
     return x if abs(x) < k else k * np.sign(x)
+
+
+def _holt_winters_recursion(
+    y: np.ndarray, warm_up: Mapping[str, Any], ld_1: float, ld_2: float, ld_s: float
+) -> dict[str, np.ndarray]:
+    """
+    Run the robust Holt-Winters recursion over ``y``, one time step per row.
+
+    Row ``i`` needs row ``i - 1``, so the recursion stays a loop, but over plain numpy arrays
+    that are read and filled in place, instead of several ``DataFrame`` lookups per row and a
+    ``df.loc`` write of every row. The arithmetic is kept expression for expression, in the
+    same order, on the same ``np.float64`` scalars and through the same scalar :func:`rho` and
+    :func:`psi`, so the results are bit-for-bit those of the per-row pandas implementation it
+    replaces (pinned by ``tests/test_control_chart_hw_golden.py``).
+
+    Parameters
+    ----------
+    y : np.ndarray
+        The observations, as stored in ``ControlChart.df["y"]``.
+    warm_up : Mapping[str, Any]
+        ``ControlChart.warm_up``. Row 0 is set from ``y_zero_robust`` (median of the warm-up
+        window) and the initial level ``alpha_0``, trend ``beta_0`` and strictly positive
+        scale ``sigma_0`` (p 290 of the paper).
+    ld_1 : float
+        Smoothing parameter for the level, lambda_1.
+    ld_2 : float
+        Smoothing parameter for the trend, lambda_2.
+    ld_s : float
+        Smoothing parameter for the scale, lambda_s.
+
+    Returns
+    -------
+    dict[str, np.ndarray]
+        Float64 arrays of length ``len(y)``, keyed by their ``ControlChart.df`` column:
+        ``psi_input``, ``rho_input``, ``y_star``, ``alpha_hat``, ``beta_hat``, ``sigma_hat``
+        and ``error``. ``error[0]`` is NaN: row 0 has no one-step-ahead prediction.
+    """
+    y_zero, alpha_0, beta_0, sigma_0 = (warm_up[key] for key in ("y_zero_robust", "alpha_0", "beta_0", "sigma_0"))
+    n = len(y)
+    psi_input, rho_input, y_star, alpha_hat, beta_hat, sigma_hat, error = (np.full(n, np.nan) for _ in range(7))
+
+    rho_input[0] = (y_zero - alpha_0 - beta_0) / sigma_0
+    psi_input[0] = rho_input[0]
+    y_star[0] = y_zero
+    alpha_hat[0] = alpha_0
+    beta_hat[0] = beta_0
+    sigma_hat[0] = sigma_0
+
+    for i in range(1, n):
+        # Cover the warm-up period, and the rest of the data set. We need that for the residual
+        # calculation later anyway. The previous state is read back from the float64 arrays,
+        # which yields the same np.float64 scalars the per-row DataFrame lookups returned.
+        alpha_prev, beta_prev, sigma_prev = alpha_hat[i - 1], beta_hat[i - 1], sigma_hat[i - 1]
+
+        # Error = observed - predicted. Predicted = one-step-ahead prediction
+        error_i = y[i] - (alpha_prev + beta_prev)
+        if np.isnan(error_i):
+            # If there is an error, replace it with the median of the last 10 error estimates
+            # or as many points as available. When the gap is at the very start of the series
+            # there is no finite history to take that median over, so `error_i` stays NaN and
+            # propagates through alpha_hat / beta_hat / sigma_hat for the rest of the
+            # recursion; `calculate_limits` raises on that downstream. Filter to the finite
+            # history explicitly rather than letting an all-NaN slice reach a median, which
+            # returns NaN but emits "Mean of empty slice". (#557)
+            recent_errors = np.abs(error[max(i - 10, 0) : i])
+            recent_errors = recent_errors[np.isfinite(recent_errors)]
+            error_i = float(np.median(recent_errors)) if recent_errors.size else np.nan
+        rho_i = error_i / sigma_prev
+        prior_variance = np.power(sigma_prev, 2)
+        sigma_i = np.sqrt(rho(rho_i) * ld_s * prior_variance + (1.0 - ld_s) * prior_variance)
+        psi_i = error_i / sigma_i
+        y_star_i = psi(psi_i) * sigma_i + alpha_prev + beta_prev
+        alpha_i = ld_1 * y_star_i + (1 - ld_1) * (alpha_prev + beta_prev)
+        beta_i = ld_2 * (alpha_i - alpha_prev) + (1 - ld_2) * beta_prev
+
+        psi_input[i], rho_input[i], y_star[i] = psi_i, rho_i, y_star_i
+        alpha_hat[i], beta_hat[i], sigma_hat[i], error[i] = alpha_i, beta_i, sigma_i, error_i
+
+    return {
+        "psi_input": psi_input,
+        "rho_input": rho_input,
+        "y_star": y_star,
+        "alpha_hat": alpha_hat,
+        "beta_hat": beta_hat,
+        "sigma_hat": sigma_hat,
+        "error": error,
+    }
 
 
 class ControlChart:
@@ -377,7 +489,6 @@ class ControlChart:
         lambda_1 and lambda_2 values. This is done in a 5x5 grid in the code below.
         """
         self.ld_s = ld_s = 0.2
-        rho_func = np.vectorize(rho)
 
         # ``is not None``: an explicit ld_1=0.0 (or ld_2=0.0) is a legitimate
         # user choice, but 0.0 is falsy and a plain truthiness test silently
@@ -398,9 +509,11 @@ class ControlChart:
             ld_2_index = np.linspace(0.1, 0.9, num=5, endpoint=True)
             residuals, _ = np.meshgrid(ld_1_index, ld_2_index)
 
+            # The warm-up statistics do not depend on the lambdas: estimate them once, not per cell.
+            self._holt_winters_warm_up_statistics()
             for i, ld_1 in enumerate(ld_1_index):
                 for j, ld_2 in enumerate(ld_2_index):
-                    self._holt_winters_warmup_fit(ld_1=ld_1, ld_2=ld_2, ld_s=ld_s)
+                    self._holt_winters_smooth(ld_1=ld_1, ld_2=ld_2, ld_s=ld_s)
 
                     # Apply equation 16 from the paper to the residuals in the 'training' period,
                     # that is the samples after the warm-up period. NaN-aware
@@ -414,7 +527,7 @@ class ControlChart:
                     # An unusable cell records NaN and cannot win the search; the
                     # `np.all(np.isnan(residuals))` check below still catches the case
                     # where every cell is unusable. (#557)
-                    residuals[i, j] = _training_error_radicand(future_errors, rho_func)
+                    residuals[i, j] = _training_error_radicand(future_errors)
 
             if np.all(np.isnan(residuals)):
                 raise ValueError(
@@ -428,11 +541,11 @@ class ControlChart:
             self.ld_1 = best_ld_1
             self.ld_2 = best_ld_2
             self._residuals_HW = residuals
-            self._holt_winters_warmup_fit(ld_1=best_ld_1, ld_2=best_ld_2, ld_s=ld_s)
+            self._holt_winters_smooth(ld_1=best_ld_1, ld_2=best_ld_2, ld_s=ld_s)
 
         # Common code for both branches of if-else above
         future_errors = self.df["error"].iloc[np.asarray(self.train_samples, dtype=int)]
-        self._tau = _tau_from_training_errors(future_errors, rho_func)
+        self._tau = _tau_from_training_errors(future_errors)
         if self.target is None:
             # Estimate the target as the median of the y-star (cleaned) y-values
             self.target = self.df["y_star"].median()
@@ -463,8 +576,22 @@ class ControlChart:
 
         The ideal lambda values (ld_1, ld_2, ld_s) can be found from a grid search.
         """
-        df = self.df
-        y_warm_up = df["y"].iloc[0 : self.warm_up_M]
+        self._holt_winters_warm_up_statistics()
+        self._holt_winters_smooth(ld_1=ld_1, ld_2=ld_2, ld_s=ld_s)
+
+    def _holt_winters_warm_up_statistics(self) -> None:
+        """
+        Estimate the warm-up level, trend and scale (p 290 of the paper) into ``self.warm_up``.
+
+        They depend only on the warm-up window and on a given ``target`` / ``s``, not on the
+        smoothing lambdas, so the lambda grid search estimates them once instead of per cell.
+
+        Raises
+        ------
+        ValueError
+            If the warm-up window has zero (or non-finite) variance.
+        """
+        y_warm_up = self.df["y"].iloc[0 : self.warm_up_M]
         self.warm_up["y_zero_robust"] = y_warm_up.median()
 
         if isinstance(self.target, float):
@@ -513,53 +640,10 @@ class ControlChart:
                 "Supply more representative warm-up data, or pass a positive 's'."
             )
 
-        df.loc[0, "rho_input"] = (
-            self.warm_up["y_zero_robust"] - self.warm_up["alpha_0"] - self.warm_up["beta_0"]
-        ) / self.warm_up["sigma_0"]
-        df.loc[0, "psi_input"] = df["rho_input"][0]
-        df.loc[0, "y_star"] = self.warm_up["y_zero_robust"]
-        df.loc[0, "alpha_hat"] = self.warm_up["alpha_0"]
-        df.loc[0, "beta_hat"] = self.warm_up["beta_0"]
-        df.loc[0, "sigma_hat"] = self.warm_up["sigma_0"]
-
-        for i in range(1, self.N):
-            # Cover the warm-up period, and the rest of the data set. We need that for the residual
-            # calculation later anyway.
-
-            # Error = observed - predicted. Predicted = one-step-ahead prediction
-            error_i = df["y"][i] - (df["alpha_hat"][i - 1] + df["beta_hat"][i - 1])
-            if np.isnan(error_i):
-                # If there is an error, replace it with the median of the last 10 error estimates
-                # or as many points as available. When the gap is at the very start of the series
-                # there is no finite history to take that median over, so `error_i` stays NaN and
-                # propagates through alpha_hat / beta_hat / sigma_hat for the rest of the
-                # recursion; `calculate_limits` raises on that downstream. Filter to the finite
-                # history explicitly rather than letting an all-NaN slice reach pandas' median,
-                # which returns NaN but emits "Mean of empty slice". (#557)
-                recent_errors = df["error"].iloc[max(i - 10, 0) : i].abs().to_numpy(dtype=float)
-                recent_errors = recent_errors[np.isfinite(recent_errors)]
-                error_i = float(np.median(recent_errors)) if recent_errors.size else np.nan
-            rho_i = error_i / df["sigma_hat"][i - 1]
-            prior_variance = np.power(df["sigma_hat"][i - 1], 2)
-            sigma_i = np.sqrt(rho(rho_i) * ld_s * prior_variance + (1.0 - ld_s) * prior_variance)
-            psi_i = error_i / sigma_i
-            y_star_i = psi(psi_i) * sigma_i + df["alpha_hat"][i - 1] + df["beta_hat"][i - 1]
-            alpha_i = ld_1 * y_star_i + (1 - ld_1) * (df["alpha_hat"][i - 1] + df["beta_hat"][i - 1])
-            beta_i = ld_2 * (alpha_i - df["alpha_hat"][i - 1]) + (1 - ld_2) * df["beta_hat"][i - 1]
-            df.loc[i] = [
-                df["y"][i],
-                psi_i,
-                rho_i,
-                y_star_i,
-                alpha_i,
-                beta_i,
-                sigma_i,
-                error_i,
-            ]
-
-            # Checks: for algorithm debugging:
-            # future_errors = df["error"]
-            # S_T_median_error = 1.48 * future_errors.abs().median()  # must handle NaNs!
-            # resids = np.power(S_T_median_error, 2) * \
-            #                      np.nanmean((future_errors / S_T_median_error).apply(rho))
-            # print(np.sqrt(max(0.0, resids)))
+    def _holt_winters_smooth(self, ld_1: float, ld_2: float, ld_s: float) -> None:
+        """Run the Holt-Winters recursion from ``self.warm_up`` and write its columns into ``self.df``."""
+        df = self.df
+        columns = _holt_winters_recursion(df["y"].to_numpy(), self.warm_up, ld_1=ld_1, ld_2=ld_2, ld_s=ld_s)
+        # One write per column per fit; the "y" column, the column order and the index are untouched.
+        for name, values in columns.items():
+            df[name] = values
