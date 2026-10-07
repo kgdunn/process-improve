@@ -294,6 +294,15 @@ def test_rho_array_matches_scalar_rho() -> None:
     np.testing.assert_allclose(actual, expected, rtol=1e-15, atol=1e-15, equal_nan=True)
 
 
+def test_hw_series_shorter_than_warm_up_has_float_columns() -> None:
+    """With N < warm_up_M every fitted column is float64; ``beta_hat`` used to be int64."""
+    cc = ControlChart()
+    cc.calculate_limits(np.array([10.09, 9.08, 3.14, 7.00, 11.47]))
+    assert cc.warm_up_M > cc.N
+    assert (cc.df.dtypes == np.float64).all(), cc.df.dtypes.to_dict()
+    assert (cc.df["beta_hat"] == 0.0).all()
+
+
 def test_cpk_well_centered_process() -> None:
     """Cpk for a well-centered process with wide specs should be high."""
     rng = np.random.default_rng(42)

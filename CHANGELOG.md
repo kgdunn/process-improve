@@ -20,12 +20,16 @@ those changes.
   numpy arrays, the warm-up statistics (which do not depend on the lambdas) are computed
   once per grid search instead of once per cell, and the grid is scored with a vectorised
   biweight `rho` instead of `np.vectorize`. A 1,000-point fit now takes about 0.2 s. Every
-  number, dtype, column and exception is unchanged: a golden-output test recorded from the
-  previous implementation pins them, and the results are bit-identical.
-  `scripts/benchmark_control_chart_hw.py` reproduces the timings.
+  number, dtype, column and exception is unchanged (apart from the `beta_hat` dtype fix
+  below): a golden-output test recorded from the previous implementation pins them, and
+  the results are bit-identical. `scripts/benchmark_control_chart_hw.py` reproduces the
+  timings.
 
 ### Fixed
 
+- **`ControlChart.df["beta_hat"]` is float64 for series shorter than the Holt-Winters
+  warm-up.** With N below `warm_up_M` (10 to 20 points) the column was int64, unlike every
+  other column and every longer series. The values (all zero) are unchanged.
 - **A missing `plotting` extra now raises `ImportError`, as a missing `expt` extra
   does.** Plotting with plotly not installed (`pca.score_plot()`, for example) raised
   `AttributeError` from the placeholder module, so `except ImportError` did not catch
@@ -35,6 +39,11 @@ those changes.
 
 ### Documentation
 
+- **`ControlChart.calculate_limits` documents how the Holt-Winters chart bridges missing
+  values, and its limitations.** A missing value is imputed with the median absolute error
+  of the previous 10 rows, which is never negative, so a gap pulls the level upward (more
+  so for long gaps); a missing value at index 1 raises `ValueError`. The behaviour is
+  unchanged.
 - **The `generate_design` docstring lists G- and K-optimal designs among those that
   honour `constraints` and accept `fixed_runs`.** Both did already; tests now pin it.
 - **The definitive screening design docstring says that a categorical factor's main

@@ -113,6 +113,9 @@ def _training_error_radicand(future_errors: pd.Series) -> float:
     if not _finite(future_errors):
         return float("nan")
 
+    # s_T = 1.48 Med|r_t|, as printed below equation (16) of the paper: 1.48 is the Gaussian
+    # consistency factor of the median absolute error, 1 / Phi^-1(3/4) = 1.4826, rounded. The
+    # robust Shewhart chart below uses the unrounded value.
     s_t_median_error = 1.48 * future_errors.abs().median()
     if not np.isfinite(s_t_median_error) or s_t_median_error <= 0:
         return float("nan")
@@ -257,6 +260,14 @@ def _holt_winters_recursion(
             # recursion; `calculate_limits` raises on that downstream. Filter to the finite
             # history explicitly rather than letting an all-NaN slice reach a median, which
             # returns NaN but emits "Mean of empty slice". (#557)
+            #
+            # Known limitation, kept for now: the imputed error is a median of ABSOLUTE errors,
+            # so it is never negative. Each missing row is treated as an observation above its
+            # prediction, which nudges the level up, and over a long gap the trend term
+            # compounds that into a drift (with lambdas 0.4 / 0.7, a 40-row gap in N(50, 2) noise
+            # took the level from about 49 to 550). Skipping the update for a missing row
+            # (level += trend, trend and scale held) would remove the bias, but it also changes
+            # the leading-NaN behaviour.
             recent_errors = np.abs(error[max(i - 10, 0) : i])
             recent_errors = recent_errors[np.isfinite(recent_errors)]
             error_i = float(np.median(recent_errors)) if recent_errors.size else np.nan
@@ -373,6 +384,13 @@ class ControlChart:
         `target` / `s` are ignored for that small-sample case.
         Otherwise, if `target` and `s` are numeric, those values are used;
         if not, they are estimated.
+
+        Missing values (NaN) in `y` are bridged by imputing a one-step-ahead error equal
+        to the median absolute error of the previous 10 rows. That error is never negative,
+        so a gap pulls the Holt-Winters level upward, increasingly so for long gaps; fill or
+        drop long runs of missing values before fitting. A missing value at index 1, the
+        first row with a one-step-ahead error, has no earlier error to impute from: every
+        later error is then NaN and ``calculate_limits`` raises ``ValueError``.
         """
         self._given_target = target
         self._given_s = s
@@ -407,7 +425,7 @@ class ControlChart:
             self.s = self._tau = self.df["y"].std()
             self.df["y_star"] = self.df["y"].values
             self.df["alpha_hat"] = self.target
-            self.df["beta_hat"] = 0
+            self.df["beta_hat"] = 0.0
             self.df["sigma_hat"] = np.nan
             self.df["error"] = np.nan
             return
@@ -564,14 +582,14 @@ class ControlChart:
         See paper: https://onlinelibrary.wiley.com/doi/abs/10.1002/for.1125.
 
         Calculates the Holt-Winters fitting and control chart parameters, for given values of the
-        smoothing parameters lambda_1 (how must local history for the level is used, with values
+        smoothing parameters lambda_1 (how much local history for the level is used, with values
         approaching 1.0 implying that less history is used), and lambda_2 (history for the trend
         that is used, with lambda_2 approaching 1.0 implying that historical data is less
         interesting), and lambda_s, a similar parameter for the moving variance of the sequence.
 
         lambda_1 = ld_1 = 0.5 (default): value must be between 0 <= ld_1 <= 1.0
         lambda_2 = ld_2 = 0.8 (default): value must be between 0 <= ld_2 <= 1.0
-        lambda_s = ld_s = 0.2 (default): value must be between 0 <= ld_2 <= 1.0, based on values
+        lambda_s = ld_s = 0.2 (default): value must be between 0 <= ld_s <= 1.0, based on values
                                          used in the paper, recommended on page 291.
 
         The ideal lambda values (ld_1, ld_2, ld_s) can be found from a grid search.

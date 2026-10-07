@@ -260,7 +260,7 @@ def _run(case: dict[str, Any]) -> dict[str, Any]:
 def _git_commit() -> str:
     try:
         return subprocess.run(
-            ["git", "rev-parse", "HEAD"],  # noqa: S607
+            ["git", "describe", "--always", "--dirty", "--abbrev=40"],  # noqa: S607
             capture_output=True,
             text=True,
             check=True,
