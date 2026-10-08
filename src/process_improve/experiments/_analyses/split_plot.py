@@ -23,6 +23,9 @@ Tests use Satterthwaite's denominator degrees of freedom, from the REML expected
 information of :math:`(\sigma^2_{wp}, \sigma^2)` and the exact derivatives of
 :math:`\operatorname{cov}(\hat\beta)` with respect to them; a multi-degree-of-freedom
 term combines its eigen-directions as Fai and Cornelius (1996) do, as lmerTest does.
+With the expected information, the df equal Kenward and Roger's (1997, as pbkrtest
+computes them); lmerTest's Satterthwaite df use the observed information instead, and
+differ slightly in an unbalanced design.
 """
 
 from __future__ import annotations

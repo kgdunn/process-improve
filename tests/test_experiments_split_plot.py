@@ -7,6 +7,7 @@ exactly. Unbalanced designs are checked against statsmodels' general ``MixedLM``
 
 from __future__ import annotations
 
+import io
 import warnings
 
 import numpy as np
@@ -163,6 +164,85 @@ class TestAgainstMixedLM:
         # 7 whole plots - intercept - A = 5 whole-plot error df; 23 runs - 7 plots - B - A:B = 14 subplot df.
         assert 4.0 < df_a < 6.5
         assert 12.0 < df_b < 16.0
+
+
+#: An unbalanced split plot (seven whole plots of 2 to 5 runs), at the precision the R
+#: reference values below were computed from.
+_UNBALANCED_CSV = """plot,A,B,y
+0,-1,0.2502,4.9778
+0,-1,0.7944,4.1254
+1,1,0.5514,11.9675
+1,1,-0.5496,12.6876
+1,1,-0.3997,14.4824
+2,-1,0.7471,3.3132
+2,-1,-0.9895,10.1663
+2,-1,0.6425,5.3714
+2,-1,0.5941,4.0726
+3,1,-0.0641,9.3611
+3,1,-0.3939,9.7482
+3,1,-0.4431,9.7261
+3,1,-0.4903,8.4608
+3,1,-0.1098,9.5718
+4,-1,0.0091,7.5652
+4,-1,0.1070,4.3165
+4,-1,0.9910,3.6291
+5,1,0.5853,12.7581
+5,1,0.2444,12.1678
+5,1,0.9779,14.4429
+5,1,-0.5694,13.9784
+6,-1,-0.6796,8.3395
+6,-1,0.2251,6.4470
+"""
+
+
+class TestAgainstLmerTest:
+    """Reference values from R 4.4.2, lme4 1.1.36, lmerTest 3.1.3 and pbkrtest 0.5.3.
+
+    Computed with::
+
+        u <- lmer(y ~ A * B + (1 | plot), data = unb, REML = TRUE)
+        as.data.frame(VarCorr(u))
+        coef(summary(u, ddf = "Satterthwaite")); coef(summary(u, ddf = "Kenward-Roger"))
+
+    The estimates, standard errors and variance components are lme4's. The
+    Satterthwaite df here use the expected information, as Kenward and Roger (1997)
+    do, so they equal pbkrtest's Kenward-Roger df. lmerTest's Satterthwaite df use
+    the observed information instead and are a little larger in an unbalanced design
+    (5.25 and 15.52); in a balanced one all three agree.
+    """
+
+    @pytest.fixture(scope="class")
+    def result(self) -> dict:
+        """Return the split-plot analysis of the unbalanced data."""
+        df = pd.read_csv(io.StringIO(_UNBALANCED_CSV))
+        return analyze_experiment(
+            df, response_column="y", model="y ~ A * B", whole_plot="plot", analysis_type="split_plot"
+        )["split_plot"]
+
+    def test_variance_components_are_lme4s(self, result: dict) -> None:
+        """REML whole-plot and residual variances: 1.919521490 and 1.061817805."""
+        components = result["variance_components"]
+        assert components["whole_plot"] == pytest.approx(1.919521490, rel=1e-6)
+        assert components["residual"] == pytest.approx(1.061817805, rel=1e-6)
+
+    def test_estimates_and_standard_errors_are_lme4s(self, result: dict) -> None:
+        """Fixed effects and their (unadjusted) standard errors."""
+        rows = {row["term"]: row for row in result["coefficients"]}
+        expected = {
+            "Intercept": (9.158297227, 0.5773092658),
+            "A": (2.720163358, 0.5773092658),
+            "B": (-1.642715118, 0.4434929460),
+            "A:B": (1.538946058, 0.4434929460),
+        }
+        for term, (estimate, std_error) in expected.items():
+            assert rows[term]["coefficient"] == pytest.approx(estimate, rel=1e-6)
+            assert rows[term]["std_error"] == pytest.approx(std_error, rel=1e-6)
+
+    def test_df_are_kenward_rogers(self, result: dict) -> None:
+        """Expected-information Satterthwaite df equal pbkrtest's: 4.863386965 and 15.211193371."""
+        rows = {row["term"]: row for row in result["coefficients"]}
+        for term, dof in {"Intercept": 4.863386965, "A": 4.863386965, "B": 15.211193371, "A:B": 15.211193371}.items():
+            assert rows[term]["df"] == pytest.approx(dof, rel=1e-6)
 
 
 class TestBoundary:

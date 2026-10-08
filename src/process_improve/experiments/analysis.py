@@ -578,8 +578,11 @@ def analyze_experiment(  # noqa: PLR0913
         ``residual`` and their ratio ``eta``, which a split-plot design is built
         for), the ``error_df`` of the two strata, ``coefficients`` and per-term
         ``tests`` (each with its ``df``, ``stratum`` and p-value), and the
-        ``significant_terms``. Kenward-Roger's adjustment is not applied; in a
-        balanced design it changes nothing.
+        ``significant_terms``. The degrees of freedom use the expected information,
+        so they equal Kenward and Roger's (as R's pbkrtest gives them); R's lmerTest
+        uses the observed information, and gives slightly larger ones in an
+        unbalanced design. Kenward and Roger's inflation of the standard errors is not
+        applied. In a balanced design all of these agree.
     significance_level : float
         Default 0.05. Used by every test's ``significant`` flag and every interval.
     transform : str or None

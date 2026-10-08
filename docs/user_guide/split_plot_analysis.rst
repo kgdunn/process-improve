@@ -164,8 +164,11 @@ run errors :math:`e` of variance :math:`\sigma^2`.
 * **Satterthwaite's degrees of freedom.** Each test's denominator degrees of freedom
   come from Satterthwaite's approximation, which in a balanced design gives the
   whole-plot and subplot error degrees of freedom exactly. A comparison that spans both
-  strata gets a value in between. Kenward and Roger's adjustment is not applied; in a
-  balanced design it changes nothing.
+  strata gets a value in between. They are computed from the expected information, so
+  they equal Kenward and Roger's degrees of freedom; R's lmerTest uses the observed
+  information instead, and in an unbalanced design gives slightly larger ones. Kenward
+  and Roger's inflation of the standard errors is not applied. In a balanced design
+  all of these agree. The tests check the results against lme4, lmerTest and pbkrtest.
 * **The strata.** A term is in the ``whole_plot`` stratum when its model columns are
   constant within every whole plot, and in the ``subplot`` stratum otherwise. An
   interaction of a hard-to-change factor with an easy one is a subplot term.
