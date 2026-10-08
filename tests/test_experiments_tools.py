@@ -14,6 +14,8 @@ import pathlib
 import pandas as pd
 import pytest
 
+from process_improve.experiments import datasets
+
 # execute_tool_call calls discover_tools(), which imports
 # process_improve.experiments.tools and triggers all @tool_spec
 # registrations - no explicit import is needed here.
@@ -282,6 +284,22 @@ class TestAnalyzeExperiment:
             },
         )
         assert "error" not in result
+
+    def test_split_plot_with_a_named_whole_plot_column(self) -> None:
+        """The tool passes ``whole_plot`` through: BHH's corrosion heats, temperature tested on 3 df."""
+        rows = datasets.corrosion().drop(columns="Position").astype({"Temperature": str}).to_dict("records")
+        result = execute_tool_call(
+            "analyze_experiment",
+            {
+                "design_matrix": rows,
+                "response_column": "Resistance",
+                "analysis_type": "split_plot",
+                "whole_plot": "Heat",
+            },
+        )
+        tests = {row["source"]: row for row in result["split_plot"]["tests"]}
+        assert tests["Temperature"]["df_denominator"] == pytest.approx(3.0)
+        assert result["split_plot"]["significant_terms"] == ["Coating", "Temperature:Coating"]
 
     def test_invalid_response_column_returns_error(self) -> None:
         """Referencing a missing response column should return an error dict."""

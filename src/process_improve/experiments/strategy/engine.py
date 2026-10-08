@@ -908,7 +908,10 @@ def _build_risks(
     if classification["is_tight_budget"]:
         risks.append("Tight budget may result in underpowered designs with low effect detection probability.")
     if spec.has_hard_to_change:
-        risks.append("Hard-to-change factors require split-plot analysis; standard ANOVA gives incorrect p-values.")
+        risks.append(
+            "Hard-to-change factors require split-plot analysis: standard ANOVA gives incorrect p-values. "
+            "Use analyze_experiment(..., analysis_type='split_plot')."
+        )
     if spec.has_mixture:
         risks.append("Mixture constraints require specialised designs and Scheffe polynomial models.")
     if classification["n_factors"] >= 8:
