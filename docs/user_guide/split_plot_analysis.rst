@@ -62,8 +62,8 @@ significant and coating not significant at all. The split-plot analysis tests
 temperature against the variation between heats, on 3 degrees of freedom (6 heats,
 less 3 for the temperature means), and finds it not significant. It tests coating and
 the interaction against the variation between bars within a heat, which is much
-smaller, and finds both significant. These are the F ratios of the book's split-plot
-ANOVA (Table 9.2).
+smaller, and finds both significant. These F ratios follow from the sums of squares
+of the book's split-plot ANOVA (Table 9.2).
 
 The variance components say why:
 
