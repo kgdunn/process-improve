@@ -35,8 +35,10 @@ from patsy.design_info import DesignInfo
 from scipy import stats
 
 from process_improve._random import check_random_state, resolve_deprecated_seed
+from process_improve.experiments._analyses._shared import WHOLE_PLOT_COL
 from process_improve.experiments._moment_aberration import NotTwoLevelError, moment_aberration
 from process_improve.experiments.designs_mixture_constrained import SCHEFFE_MODELS, scheffe_formula_rhs, scheffe_model
+from process_improve.experiments.designs_utils import RESERVED_COLUMN_NAMES
 from process_improve.experiments.factor import DesignResult
 from process_improve.experiments.models import validate_formula_is_safe, validate_identifier_is_safe
 from process_improve.experiments.region import DesignRegion
@@ -1385,15 +1387,15 @@ def _resolve_metrics(metric: str | list[str]) -> list[str]:
 def _separate_run_columns(
     design_df: pd.DataFrame, factor_names: list[str], model: str | None
 ) -> tuple[pd.DataFrame, list[str], str | None]:
-    """Drop ``RunOrder``, and keep ``Block`` only when the model formula uses it.
+    """Drop ``RunOrder`` and ``WholePlot``, and keep ``Block`` only when the model formula uses it.
 
     A formula that names ``Block`` (``"A + B + Block"``) gets it as a categorical
     factor (its values become labels). Otherwise the block column is dropped, and when the design has more than
     one block a note says that the metrics ignore the blocks, which overstates the
     residual degrees of freedom by ``n_blocks - 1``.
     """
-    factor_names = [f for f in factor_names if f not in ("RunOrder", "Block")]
-    design_df = design_df.drop(columns=["RunOrder"], errors="ignore")
+    factor_names = [f for f in factor_names if f not in RESERVED_COLUMN_NAMES]
+    design_df = design_df.drop(columns=["RunOrder", WHOLE_PLOT_COL], errors="ignore")
     if "Block" not in design_df.columns:
         return design_df, factor_names, None
     if model is not None and re.search(r"\bBlock\b", model):

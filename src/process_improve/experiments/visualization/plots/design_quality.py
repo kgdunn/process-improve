@@ -17,6 +17,7 @@ from typing import Any
 import numpy as np
 import pandas as pd
 
+from process_improve.experiments.designs_utils import RESERVED_COLUMN_NAMES
 from process_improve.experiments.evaluate import (
     _build_context,
     _coefficient_power,
@@ -37,7 +38,7 @@ from process_improve.visualization.spec import (
 from process_improve.visualization.types import AnnotationType, MarkType
 
 #: Bookkeeping columns of a generated design, which are not factors.
-_RUN_COLUMNS = ("RunOrder", "Block")
+_RUN_COLUMNS = RESERVED_COLUMN_NAMES
 
 
 # ---------------------------------------------------------------------------

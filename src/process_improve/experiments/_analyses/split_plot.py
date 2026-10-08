@@ -89,8 +89,7 @@ class RemlFit:
         """
         variance = float(contrast @ self.cov_beta @ contrast)
         gradient = np.einsum("i,kij,j->k", contrast, self.dcov, contrast)
-        spread = float(gradient @ self.vc_cov @ gradient)
-        return 2.0 * variance**2 / spread if spread > 0 else np.inf
+        return 2.0 * variance**2 / float(gradient @ self.vc_cov @ gradient)
 
     def wald_test(self, contrasts: np.ndarray) -> tuple[float, float]:
         """F statistic and Satterthwaite denominator df for ``contrasts @ beta = 0`` (q rows).
@@ -229,18 +228,21 @@ def fit_reml(y: np.ndarray, X: np.ndarray, whole_plots: np.ndarray) -> RemlFit:
     sigma2 = float(resid @ h_inv @ resid) / (len(y) - X.shape[1])
     cov_beta = sigma2 * np.linalg.inv(xhx)
 
-    # REML expected information for (s2_wp, s2), with dV/ds2_wp = ZZ' and dV/ds2 = I:
-    # I_kl = tr(P V_k P V_l) / 2, P = V^-1 - V^-1 X C X' V^-1 (Searle, Casella and McCulloch,
-    # 1992, section 6.6). P is symmetric, so each trace is a squared Frobenius norm.
-    v_inv_x_c = (h_inv / sigma2) @ X @ cov_beta
-    proj = h_inv / sigma2 - v_inv_x_c @ X.T @ (h_inv / sigma2)
+    # With C = cov(beta) and G = V^-1 X C, the variance parameters theta = (s2_wp, s2) have
+    # dV/ds2_wp = ZZ' and dV/ds2 = I, so:
+    #   d C / d theta_k = G' (dV/d theta_k) G
+    #   REML expected information I_kl = tr(P V_k P V_l) / 2, with P = V^-1 - G X' V^-1
+    #   (Searle, Casella and McCulloch, 1992, section 6.6). P is symmetric, so each trace
+    #   is a squared Frobenius norm.
+    v_inv = h_inv / sigma2
+    g = v_inv @ X @ cov_beta
+    z_g = Z.T @ g
+    dcov = np.stack([z_g.T @ z_g, g.T @ g])
+
+    proj = v_inv - g @ X.T @ v_inv
     proj_z = proj @ Z
     cross = float(np.sum(proj_z**2))
     info = 0.5 * np.array([[np.sum((Z.T @ proj_z) ** 2), cross], [cross, np.sum(proj**2)]])
-
-    # d cov(beta) / d theta_k = C X' V^-1 V_k V^-1 X C.
-    z_g = Z.T @ v_inv_x_c
-    dcov = np.stack([z_g.T @ z_g, v_inv_x_c.T @ v_inv_x_c])
     return RemlFit(
         beta=beta,
         cov_beta=cov_beta,
@@ -359,7 +361,7 @@ def run_split_plot(
     """
     env = EvalEnvironment([{_CODER: C, _SUM: Sum}])
     y, X = dmatrices(formula, df, eval_env=env, NA_action="raise", return_type="dataframe")
-    labels = df.loc[X.index, whole_plot].to_numpy()
+    labels = df[whole_plot].to_numpy()  # by position: NA_action="raise" keeps every row, in order
     fit = fit_reml(y.to_numpy(dtype=float).ravel(), X.to_numpy(dtype=float), labels)
     whole_plot_columns = _constant_within(X, labels)
     tests = _term_tests(fit, X, whole_plot_columns, blocks)

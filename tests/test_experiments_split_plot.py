@@ -15,8 +15,9 @@ import pytest
 import statsmodels.formula.api as smf
 from patsy import dmatrices
 
-from process_improve.experiments import datasets
+from process_improve.experiments import DesignResult, Factor, datasets, evaluate_design, generate_design
 from process_improve.experiments._analyses.split_plot import _deviance, _score, fit_reml
+from process_improve.experiments._moment_aberration import moment_aberration
 from process_improve.experiments.analysis import analyze_experiment
 
 
@@ -181,6 +182,16 @@ class TestBoundary:
         np.testing.assert_allclose(fit.beta, ols.params.to_numpy(), rtol=1e-12)
         assert fit.sigma2 == pytest.approx(ols.mse_resid, rel=1e-12)
 
+    def test_no_run_to_run_variation_stops_at_the_largest_ratio(self) -> None:
+        """With no error inside the whole plots the deviance falls without end; the search stops at its edge."""
+        df = _unbalanced_split_plot()
+        whole_plot_error = np.random.default_rng(5).normal(0, 2.0, df["plot"].max() + 1)[df["plot"]]
+        df["y"] = 10 + 3 * df["A"] - 2 * df["B"] + whole_plot_error
+        y, X = dmatrices("y ~ A + B", df, return_type="dataframe")
+        fit = fit_reml(y.to_numpy().ravel(), X.to_numpy(), df["plot"].to_numpy())
+        assert fit.sigma2_wp / fit.sigma2 == pytest.approx(1e8)
+        np.testing.assert_allclose(fit.beta[2], -2.0, rtol=1e-6)
+
 
 class TestEstimability:
     """The fit refuses models whose terms or variance components cannot be separated."""
@@ -278,6 +289,13 @@ class TestAnalyzeExperiment:
         for source, row in _tests_by_source(_analyse(shuffled)).items():
             assert row["F"] == pytest.approx(expected[source]["F"], rel=1e-9)
 
+    def test_a_repeated_index_is_read_by_position(self, corrosion: pd.DataFrame) -> None:
+        """Two frames stacked without a new index: the whole plots still line up with their runs."""
+        stacked = corrosion.set_axis(list(range(12)) * 2)
+        expected = _tests_by_source(_analyse(corrosion))
+        for source, row in _tests_by_source(_analyse(stacked)).items():
+            assert row["F"] == pytest.approx(expected[source]["F"], rel=1e-9)
+
     def test_factors_named_like_patsy_functions(self, corrosion: pd.DataFrame) -> None:
         """Factors called ``C`` and ``Sum`` are sum-coded like any other; the analysis is unchanged."""
         renamed = corrosion.rename(columns={"Temperature": "Sum", "Coating": "C"})
@@ -346,3 +364,81 @@ class TestWholePlotArguments:
             warnings.simplefilter("error")
             _analyse(corrosion, whole_plot="Heat", analysis_type=["split_plot", "anova"])
             _analyse(corrosion.drop(columns="Heat"), analysis_type="anova")
+
+
+_FACTORS = [
+    Factor(name="T", low=360, high=380),
+    Factor(name="P", low=1, high=3),
+    Factor(name="R", low=0, high=1),
+]
+
+
+def _split_plot_design(**kwargs) -> DesignResult:
+    """Return a D-optimal split-plot design with ``T`` hard to change (pyoptex)."""
+    pytest.importorskip("pyoptex")
+    kwargs.setdefault("budget", 20)
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        return generate_design(
+            _FACTORS, design_type="d_optimal", hard_to_change=["T"], model_type="interactions", **kwargs
+        )
+
+
+def _assert_hard_to_change_within_whole_plots(design: pd.DataFrame) -> None:
+    """``T`` takes one setting inside every whole plot."""
+    assert (design.groupby("WholePlot")["T"].agg(["min", "max"]).diff(axis=1)["max"] == 0).all()
+
+
+class TestSplitPlotDesigns:
+    """``generate_design(hard_to_change=...)`` labels each run's whole plot in a ``WholePlot`` column."""
+
+    def test_the_column_is_the_metadata_from_one(self) -> None:
+        """``WholePlot`` is ``metadata["whole_plot"] + 1``, and the hard-to-change factor is constant within it."""
+        result = _split_plot_design()
+        assert (result.design["WholePlot"] - 1).tolist() == result.metadata["whole_plot"]
+        assert result.design_actual["WholePlot"].tolist() == result.design["WholePlot"].tolist()
+        assert result.metadata["n_whole_plots"] == result.design["WholePlot"].nunique()
+        _assert_hard_to_change_within_whole_plots(result.design)
+
+    def test_each_replicate_has_its_own_whole_plots(self) -> None:
+        """A replicate is run again from scratch: twice the whole plots, and the metadata covers every run."""
+        single, double = _split_plot_design(budget=8), _split_plot_design(budget=8, n_replicates=2)
+        n_plots = single.metadata["n_whole_plots"]
+        assert double.metadata["n_whole_plots"] == 2 * n_plots
+        assert double.design["WholePlot"].tolist() == [
+            *single.design["WholePlot"].tolist(),
+            *(single.design["WholePlot"] + n_plots).tolist(),
+        ]
+        assert len(double.metadata["whole_plot"]) == len(double.design)
+        _assert_hard_to_change_within_whole_plots(double.design)
+
+    def test_other_designs_have_no_whole_plots(self) -> None:
+        """Only a split-plot design gets the column."""
+        result = generate_design(_FACTORS, design_type="full_factorial")
+        assert "WholePlot" not in result.design.columns
+
+    def test_a_factor_cannot_be_named_wholeplot(self) -> None:
+        """``WholePlot`` is reserved, like ``RunOrder`` and ``Block``."""
+        with pytest.raises(ValueError, match="reserved"):
+            generate_design([*_FACTORS[:2], Factor(name="WholePlot", low=0, high=1)], design_type="full_factorial")
+
+    def test_the_design_is_analysed_without_naming_its_whole_plots(self) -> None:
+        """Responses joined onto the design go straight into ``split_plot``; ``T`` is in the whole-plot stratum."""
+        result = _split_plot_design()
+        design = result.design
+        rng = np.random.default_rng(0)
+        whole_plot_error = rng.normal(0, 3.0, design["WholePlot"].max() + 1)[design["WholePlot"]]
+        y = 50 + 4 * design["T"] + 2 * design["P"] - design["R"] + whole_plot_error + rng.normal(0, 1.0, len(design))
+        analysis = analyze_experiment(design.assign(y=y), response_column="y", analysis_type="split_plot")
+        assert analysis["factor_names"] == ["T", "P", "R"]
+        strata = {row["source"]: row["stratum"] for row in analysis["split_plot"]["tests"]}
+        assert strata == {s: "whole_plot" if s == "T" else "subplot" for s in ["T", "P", "R", "T:P", "T:R", "P:R"]}
+        assert analysis["split_plot"]["n_whole_plots"] == result.metadata["n_whole_plots"]
+
+    def test_design_metrics_ignore_the_column(self) -> None:
+        """``evaluate_design`` and ``moment_aberration`` do not treat ``WholePlot`` as a factor."""
+        result = _split_plot_design()
+        without = result.design.drop(columns="WholePlot")
+        assert evaluate_design(result.design, model="interactions") == evaluate_design(without, model="interactions")
+        coded = result.design.drop(columns="RunOrder")
+        assert moment_aberration(coded).pattern == moment_aberration(coded.drop(columns="WholePlot")).pattern
