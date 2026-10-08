@@ -28,8 +28,48 @@ those changes.
   runs were done. The warning names the fix: centre runs (`n_center_points=3`) or a
   larger budget.
 
+### Documentation
+
+- **The supersaturated `e_s2_efficiency` is measured against a lower bound that is not
+  attainable at every size**, so a value below 1 does not by itself mean a better
+  balanced design exists (15 factors in 12 runs report 0.63). Stated in the
+  `dispatch_supersaturated` docstring and the screening user guide.
+
+## [1.97.2] - 2026-10-07
+
+### Changed
+
+- **The Holt-Winters `ControlChart` fit is 80x to 150x faster, with identical output.**
+  `ControlChart(variant="hw").calculate_limits` ran its recursion through per-row
+  `DataFrame` lookups and `df.loc` writes, 26 times per call for the default lambda grid
+  search, so a 1,000-point series took about half a minute. The recursion now runs over
+  numpy arrays, the warm-up statistics (which do not depend on the lambdas) are computed
+  once per grid search instead of once per cell, and the grid is scored with a vectorised
+  biweight `rho` instead of `np.vectorize`. A 1,000-point fit now takes about 0.2 s. Every
+  number, dtype, column and exception is unchanged (apart from the `beta_hat` dtype fix
+  below): a golden-output test recorded from the previous implementation pins them, and
+  the results are bit-identical. `scripts/benchmark_control_chart_hw.py` reproduces the
+  timings.
+
 ### Fixed
 
+- **A `ControlChart` reused for a second `calculate_limits` call gives the same result as a
+  fresh one.** It kept the first series' `target` and `s` and treated them as given, so a
+  mean-80 series reported the mean-50 series' target (50.1 instead of 80.1) and scale (1.8
+  instead of 5.3); it reused the first series' fitted lambdas instead of searching again;
+  and it raised `ValueError` on a second series of a different length. Each call now
+  starts from the constructor's state, for both the `hw` and `xbar.no.subgroup` variants.
+- **A missing value at index 1 no longer makes the Holt-Winters chart fail.** Row 0 has
+  no one-step-ahead error, so a gap starting at index 1 had no error history to impute
+  from: its NaN error spread through every later row and `calculate_limits` raised
+  `ValueError`, although a gap at index 0 or 2 fitted. Such a row now carries the forecast
+  forward (the level follows the trend; trend and scale are held) and keeps a NaN error
+  and cleaned value, so nothing imputed reaches the target or the scale. A series with no
+  finite observation to forecast against still raises. Gaps later in the series are
+  bridged as before.
+- **`ControlChart.df["beta_hat"]` is float64 for series shorter than the Holt-Winters
+  warm-up.** With N below `warm_up_M` (10 to 20 points) the column was int64, unlike every
+  other column and every longer series. The values (all zero) are unchanged.
 - **A missing `plotting` extra now raises `ImportError`, as a missing `expt` extra
   does.** Plotting with plotly not installed (`pca.score_plot()`, for example) raised
   `AttributeError` from the placeholder module, so `except ImportError` did not catch
@@ -39,16 +79,22 @@ those changes.
 
 ### Documentation
 
+- **The Holt-Winters control chart documents where its constants depart from the
+  paper** (Gelper, Fried and Croux, 2010). Equation 13 pairs the biweight cutoff k = 2
+  with the consistency constant c_k = 2.52; `rho` uses 2.52 as the cutoff, with its own
+  c_k = 3.2667, and its docstring had credited that cutoff to the paper. The paper also
+  fixes the startup period at m = 10, where `ControlChart` uses 10 to 20 points. Both are
+  noted next to the constants, which are unchanged.
+- **`ControlChart.calculate_limits` documents how the Holt-Winters chart bridges missing
+  values, and its limitations.** A missing value is imputed with the median absolute error
+  of the previous 10 rows, which is never negative, so a gap pulls the level upward (more
+  so for long gaps). That imputation is unchanged.
 - **The `generate_design` docstring lists G- and K-optimal designs among those that
   honour `constraints` and accept `fixed_runs`.** Both did already; tests now pin it.
 - **The definitive screening design docstring says that a categorical factor's main
   effect is slightly correlated with the continuous main effects** (`|r|` about 0.17 for
   four continuous factors and one categorical factor), a consequence of the DSD-augment
   construction. It previously mentioned only the correlation among categorical factors.
-- **The supersaturated `e_s2_efficiency` is measured against a lower bound that is not
-  attainable at every size**, so a value below 1 does not by itself mean a better
-  balanced design exists (15 factors in 12 runs report 0.63). Stated in the
-  `dispatch_supersaturated` docstring and the screening user guide.
 
 ## [1.97.1] - 2026-10-04
 
@@ -7291,7 +7337,8 @@ this entry records them together.
 - Reworked the README with a sharper value proposition and a
   "Why not scikit-learn?" comparison table.
 
-[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.97.1...HEAD
+[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.97.2...HEAD
+[1.97.2]: https://github.com/kgdunn/process-improve/compare/v1.97.1...v1.97.2
 [1.97.1]: https://github.com/kgdunn/process-improve/compare/v1.97.0...v1.97.1
 [1.97.0]: https://github.com/kgdunn/process-improve/compare/v1.96.0...v1.97.0
 [1.96.0]: https://github.com/kgdunn/process-improve/compare/v1.94.0...v1.96.0
