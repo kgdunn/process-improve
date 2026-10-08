@@ -17,7 +17,8 @@ import statsmodels.formula.api as smf
 from patsy import dmatrices
 
 from process_improve.experiments import DesignResult, Factor, datasets, evaluate_design, generate_design
-from process_improve.experiments._analyses.split_plot import _deviance, _score, fit_reml
+from process_improve.experiments._analyses.lack_of_fit import _run_lack_of_fit
+from process_improve.experiments._analyses.split_plot import RemlFit, _deviance, _score, fit_reml
 from process_improve.experiments._moment_aberration import moment_aberration
 from process_improve.experiments.analysis import analyze_experiment
 
@@ -243,6 +244,39 @@ class TestAgainstLmerTest:
         rows = {row["term"]: row for row in result["coefficients"]}
         for term, dof in {"Intercept": 4.863386965, "A": 4.863386965, "B": 15.211193371, "A:B": 15.211193371}.items():
             assert rows[term]["df"] == pytest.approx(dof, rel=1e-6)
+
+
+class TestCombinedDegreesOfFreedom:
+    """A multi-df term's directions are combined by matching the F distribution's mean (Fai and Cornelius)."""
+
+    @staticmethod
+    def _fit_with_direction_df(nu_1: float, nu_2: float) -> RemlFit:
+        """Return a two-coefficient fit whose unit directions have Satterthwaite df ``nu_1`` and ``nu_2``.
+
+        With ``cov_beta = I`` and ``vc_cov = I``, direction ``j`` has df ``2 / g_j^2``,
+        where ``g_j`` is the j-th diagonal element of the first derivative matrix.
+        """
+        return RemlFit(
+            beta=np.array([1.0, 2.0]),
+            cov_beta=np.eye(2),
+            sigma2_wp=1.0,
+            sigma2=1.0,
+            vc_cov=np.eye(2),
+            dcov=np.stack([np.diag(np.sqrt([2.0 / nu_1, 2.0 / nu_2])), np.zeros((2, 2))]),
+            whole_plot_error_df=1,
+            subplot_error_df=1,
+        )
+
+    def test_unequal_df_combine_to_the_mean_matching_value(self) -> None:
+        """Direction df (4, 8): E = 4/2 + 8/6 = 10/3, so the term has 2E / (E - 2) = 5 df; F averages the squares."""
+        f_value, dof = self._fit_with_direction_df(4.0, 8.0).wald_test(np.eye(2))
+        assert dof == pytest.approx(5.0, rel=1e-12)
+        assert f_value == pytest.approx((1.0 + 4.0) / 2)
+
+    def test_a_direction_with_two_df_or_fewer_gives_two(self) -> None:
+        """The F distribution has no mean at 2 df or fewer, so the combined df is 2, as lmerTest sets it."""
+        _, dof = self._fit_with_direction_df(2.0, 8.0).wald_test(np.eye(2))
+        assert dof == 2.0
 
 
 class TestBoundary:
@@ -514,6 +548,18 @@ class TestSplitPlotDesigns:
         strata = {row["source"]: row["stratum"] for row in analysis["split_plot"]["tests"]}
         assert strata == {s: "whole_plot" if s == "T" else "subplot" for s in ["T", "P", "R", "T:P", "T:R", "P:R"]}
         assert analysis["split_plot"]["n_whole_plots"] == result.metadata["n_whole_plots"]
+
+    def test_lack_of_fit_without_factor_names_skips_the_bookkeeping_columns(self) -> None:
+        """Without factor columns, lack of fit infers them, leaving out RunOrder, Block and WholePlot."""
+        df = pd.DataFrame(
+            {
+                "A": [-1, 1, -1, 1, -1, 1, -1, 1, 0, 0],
+                "B": [-1, -1, 1, 1, -1, -1, 1, 1, 0, 0],
+                "y": [28.0, 36.0, 18.0, 31.0, 27.0, 37.0, 19.0, 30.0, 29.0, 31.0],
+            }
+        ).assign(RunOrder=range(1, 11), Block=1, WholePlot=[1, 1, 2, 2, 3, 3, 4, 4, 5, 5])
+        ols = smf.ols("y ~ A + B", df).fit()
+        assert _run_lack_of_fit(ols, df, "y") == _run_lack_of_fit(ols, df, "y", ["A", "B"])
 
     def test_design_metrics_ignore_the_column(self) -> None:
         """``evaluate_design`` and ``moment_aberration`` do not treat ``WholePlot`` as a factor."""
