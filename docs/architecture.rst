@@ -42,7 +42,7 @@ Conventions every subpackage follows
   attributes use the trailing-underscore convention (``scores_``, ``spe_``,
   ``hotellings_t2_``) and are set only in ``fit()``, never in ``__init__``.
 - **Optional dependencies live in extras.** Plotting (plotly / ridgeplot),
-  the experiments designed-experiment generators (pyDOE3 / pyoptex), the batch
+  the Taguchi arrays and split-plot designs (pyDOE3 / pyoptex), the batch
   and MCP layers are installed via ``[plotting]`` / ``[expt]`` / ``[batch]`` /
   ``[mcp]`` extras (ENG-13). Modules import them through a ``_MissingExtra``
   stand-in so a missing optional dependency only fails when the feature is

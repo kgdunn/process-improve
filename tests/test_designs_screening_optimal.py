@@ -116,11 +116,11 @@ class TestDOptimalDispatch:
         _design, meta = dispatch_d_optimal(_continuous(2), budget=6, hard_to_change=["X1"])
         assert meta.get("hard_to_change_ignored") == ["X1"]
 
-    def test_hard_to_change_without_pyoptex_warns(self, caplog: pytest.LogCaptureFixture) -> None:
-        with caplog.at_level("WARNING"):
+    def test_hard_to_change_without_pyoptex_warns(self) -> None:
+        # A UserWarning, not only a log record: the design silently lacks split-plot structure otherwise.
+        with pytest.warns(UserWarning, match=r"hard_to_change=\['X1'\] is ignored.*pyoptex is not installed") as info:
             dispatch_d_optimal(_continuous(2), budget=6, hard_to_change=["X1"])
-        assert any("pyoptex is not installed" in rec.getMessage() for rec in caplog.records)
-        assert any("pip install pyoptex" in rec.getMessage() for rec in caplog.records)
+        assert "pip install pyoptex" in str(info[0].message)
 
     @pytest.mark.slow
     def test_candidate_grid_never_exceeds_the_cap(self) -> None:

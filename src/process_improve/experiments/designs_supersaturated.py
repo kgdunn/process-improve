@@ -19,7 +19,7 @@ columns (``|s_ij| = N / 2``), then the smallest ``E(s^2)``, then the smallest
 columns that contribute most to ``E(s^2)`` are dropped one at a time.
 
 Hadamard matrices come from Paley's construction ``H = I + C`` (``C`` the skew
-conference matrix, for ``N - 1`` a prime power congruent to 3 mod 4), pyDOE3's
+conference matrix, for ``N - 1`` a prime power congruent to 3 mod 4), the classical
 Plackett-Burman construction, and the other finite-field constructions in
 :mod:`process_improve.experiments._finite_fields`; every order up to 200 except 92,
 116, 156, 172, 184 and 188 is covered.
@@ -34,7 +34,7 @@ from typing import TYPE_CHECKING
 
 import numpy as np
 
-from process_improve._extras import require_extra
+from process_improve.experiments._classical import pbdesign
 from process_improve.experiments._finite_fields import hadamard_matrix, paley_conference_matrix, prime_power
 from process_improve.experiments.factor import FactorType
 
@@ -50,19 +50,14 @@ def hadamard(order: int) -> np.ndarray | None:
 
     Paley's type I matrix comes first where it exists: its cyclic structure gives
     half-fractions without identical columns, where the Sylvester-type matrices for 16,
-    24 and 32 always have some. pyDOE3's Plackett-Burman matrices come next, then the
+    24 and 32 always have some. The classical Plackett-Burman matrices come next, then the
     other finite-field constructions (Paley II and doubling) for the remaining orders.
     """
-    try:
-        from pyDOE3 import pbdesign  # noqa: PLC0415
-    except ImportError as exc:  # pragma: no cover - exercised via env-without-pyDOE3
-        raise require_extra("pyDOE3", "expt") from exc
-
     candidates = []
     q = order - 1
     if q >= 3 and q % 4 == 3 and prime_power(q) is not None:
         candidates.append(np.eye(order) + paley_conference_matrix(q))
-    with contextlib.suppress(AssertionError, ValueError, IndexError):  # pyDOE3 asserts on unsupported orders
+    with contextlib.suppress(ValueError):  # no 1-, 12- or 20-run core for this order
         candidates.append(np.column_stack([np.ones(order), pbdesign(order - 1)]))
     if (built := hadamard_matrix(order)) is not None:
         candidates.append(built[0])
@@ -202,7 +197,9 @@ def dispatch_supersaturated(factors: list[Factor], budget: int | None = None) ->
         The coded design and metadata: ``e_s2``, its lower bound (see
         :func:`e_s2_lower_bound`) and their ratio ``e_s2_efficiency`` (1 means the design
         attains the bound, so nothing balanced can do better), ``max_abs_s``, and the
-        Hadamard order used.
+        Hadamard order used. The bound is not attainable at every size, so an efficiency
+        below 1 does not by itself mean a better balanced design exists: 15 factors in
+        12 runs report about 0.63.
 
     Raises
     ------

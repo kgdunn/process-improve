@@ -25,22 +25,18 @@ from __future__ import annotations
 import functools
 import itertools
 import logging
+import warnings
 from collections.abc import Callable, Sequence
 from typing import Any, NamedTuple
 
 import numpy as np
 import pandas as pd
 
-try:
-    from pyDOE3 import ff2n
-except ImportError:  # pragma: no cover - exercised via env-without-pyDOE3
-    from process_improve._extras import _MissingExtra
-
-    ff2n = _MissingExtra("pyDOE3", "expt")  # type: ignore[assignment]
-
 from process_improve._random import resolve_deprecated_seed
+from process_improve.experiments._classical import ff2n
 from process_improve.experiments.designs_utils import build_design_result, categorical_codes, refuse_reserved_names
 from process_improve.experiments.factor import Constraint, DesignResult, Factor, FactorType
+from process_improve.experiments.omars import _full_second_order, _quadratic_columns
 
 logger = logging.getLogger(__name__)
 
@@ -73,7 +69,7 @@ def _dispatch_full_factorial(
 ) -> tuple[np.ndarray, dict]:
     """Full factorial: every combination of every factor's levels, first factor changing fastest.
 
-    Two-level factors give pyDOE3's ``ff2n`` 2^k design; a continuous factor with
+    Two-level factors give the 2^k design in standard order (``ff2n``); a continuous factor with
     ``levels`` or a categorical factor with more than two levels gives the general
     (mixed-level) full factorial. More than ``settings.max_factors_combinatorial``
     factors raise ``ValueError`` (SEC-19), as :func:`designs_factorial.full_factorial` does.
@@ -577,6 +573,32 @@ def _extra_center_points(
     return 0
 
 
+def _warn_if_no_error_df(
+    design_type: str, coded_matrix: np.ndarray, extra_center_points: int, n_replicates: int, factors: list[Factor]
+) -> None:
+    """Warn when a DSD or OMARS design leaves ``analyze_omars`` no degrees of freedom to estimate error.
+
+    The staged analysis estimates the error variance from what the full second-order model in the
+    continuous factors cannot fit. The default design for an even number of factors has none left,
+    so the analysis would fail once the responses are in.
+    """
+    columns = [j for j, f in enumerate(factors) if f.type != FactorType.categorical]
+    if design_type not in _OWN_CENTER_RUNS or not columns:
+        return
+    runs = coded_matrix[:, columns].astype(float)
+    runs = np.tile(np.vstack([runs, np.zeros((extra_center_points, len(columns)))]), (n_replicates, 1))
+    second_order = _full_second_order(runs, _quadratic_columns(runs))
+    if runs.shape[0] > np.linalg.matrix_rank(np.hstack([np.ones((runs.shape[0], 1)), runs, second_order])):
+        return
+    warnings.warn(
+        f"This {design_type!r} design leaves no degrees of freedom for error once the full second-order model is "
+        "fitted, so analyze_omars cannot test any effect. Add centre runs (for example n_center_points=3) or "
+        "give a larger budget.",
+        category=UserWarning,
+        stacklevel=3,
+    )
+
+
 # ---------------------------------------------------------------------------
 # Main entry point
 # ---------------------------------------------------------------------------
@@ -642,8 +664,11 @@ def generate_design(  # noqa: PLR0913
         design's own centre runs for the others. CCD and Box-Behnken designs place
         them within the design structure. For a DSD or OMARS design it is the total
         number of centre runs, at least the one the design has (two for a DSD with
-        categorical factors). Any other design type takes no centre points, so a
-        positive value raises ``ValueError``.
+        categorical factors). A DSD or OMARS design that leaves the full second-order
+        model no error degrees of freedom (the default for an even number of factors)
+        warns, since :func:`analyze_omars` could not test its effects; extra centre runs
+        fix that. Any other design type takes no centre points, so a positive value
+        raises ``ValueError``.
     n_replicates : int
         Number of full replicates of the design (default 1 = no replication).
         Cannot be combined with *fixed_runs*.
@@ -829,6 +854,7 @@ def generate_design(  # noqa: PLR0913
         meta["region"] = DesignRegion(factors, constraints if meta.get("constraints_enforced") else None).to_dict()
 
     extra_center_points = _extra_center_points(design_type, n_center_points, coded_matrix, factors)
+    _warn_if_no_error_df(design_type, coded_matrix, extra_center_points, n_replicates, factors)
     if budget is not None and not auto_selected:
         _refuse_over_budget(design_type, (coded_matrix.shape[0] + extra_center_points) * n_replicates, budget)
 
