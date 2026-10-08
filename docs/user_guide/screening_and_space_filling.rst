@@ -31,6 +31,17 @@ The quality measure is ``E(s^2)``, the average over all pairs of columns of
 design for 22 factors reaches the theoretical lower bound for balanced designs. The
 largest ``|s_ij|`` is 4 out of a possible 12, and no pair of columns is fully aliased.
 
+The reported ``e_s2_efficiency`` is the bound divided by ``E(s^2)``. The bound is not
+attainable at every size, so a value below 1 does not by itself mean that a better
+balanced design exists. Fifteen factors in the same 12 runs show the gap:
+
+.. code-block:: python
+
+   fifteen = [Factor(name=f"X{i + 1}", low=0, high=1) for i in range(15)]
+   m = generate_design(fifteen, "supersaturated", budget=12).metadata
+   print(round(m["e_s2"], 2), round(m["e_s2_lower_bound"], 2))   # 5.94 3.74
+   print(round(m["e_s2_efficiency"], 2))                         # 0.63
+
 The construction is Lin's (1993): take a Hadamard matrix of order ``2n``, keep the
 ``n`` rows where one *branching* column is +1, and drop that column. Every branching
 column is tried and the best half-fraction is kept. Hadamard matrices built by

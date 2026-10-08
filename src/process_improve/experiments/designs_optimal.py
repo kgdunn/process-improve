@@ -23,6 +23,7 @@ from __future__ import annotations
 
 import contextlib
 import logging
+import warnings
 from dataclasses import dataclass, replace
 from typing import TYPE_CHECKING
 
@@ -636,7 +637,12 @@ def _dispatch_optimal(criterion: str, req: _OptimalRequest) -> tuple[np.ndarray,
         matrix, meta = constrained_optimal_design(req.factors, budget, req.constraints or [], options, req.random_state)
         if req.hard_to_change:
             reason = blocker or "backend='exchange' was requested"
-            logger.warning("hard_to_change factors (split-plot) are ignored because %s", reason)
+            warnings.warn(
+                f"hard_to_change={list(req.hard_to_change)} is ignored, so this is an ordinary (not a split-plot) "
+                f"design: {reason}. metadata['hard_to_change_ignored'] records it.",
+                category=UserWarning,
+                stacklevel=2,
+            )
             meta["hard_to_change_ignored"] = list(req.hard_to_change)
         return matrix, meta
 

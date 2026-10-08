@@ -10,13 +10,14 @@ from __future__ import annotations
 
 import itertools
 import math
+import warnings
 
 import numpy as np
 import pandas as pd
 import pytest
 from scipy.stats import qmc
 
-from process_improve.experiments import augment_design, generate_design
+from process_improve.experiments import analyze_omars, augment_design, generate_design
 from process_improve.experiments.designs_supersaturated import e_s2, e_s2_lower_bound
 from process_improve.experiments.factor import Constraint, Factor
 
@@ -380,3 +381,29 @@ class TestDSDFakeFactors:
     def test_budget_below_the_minimal_design_raises(self) -> None:
         with pytest.raises(ValueError, match="needs at least 13 runs"):
             generate_design(_factors(6), "dsd", budget=11)
+
+
+class TestNoErrorDegreesOfFreedom:
+    """A DSD or OMARS design with nothing left for error warns when built, not when analyze_omars fails."""
+
+    @pytest.mark.parametrize("design_type", ["dsd", "omars"])
+    def test_even_factor_default_warns(self, design_type: str) -> None:
+        with pytest.warns(UserWarning, match="no degrees of freedom for error.*n_center_points=3"):
+            generate_design(_factors(4), design_type)
+
+    @pytest.mark.parametrize(
+        ("k", "kwargs"),
+        [(5, {}), (4, {"n_center_points": 3}), (6, {"budget": 17}), (4, {"n_replicates": 2})],
+        ids=["odd-factor-default", "centre-runs", "fake-factors", "replicates"],
+    )
+    def test_error_degrees_of_freedom_left_do_not_warn(self, k: int, kwargs: dict) -> None:
+        with warnings.catch_warnings():
+            warnings.filterwarnings("error", message=".*no degrees of freedom for error")
+            generate_design(_factors(k), "dsd", **kwargs)
+
+    def test_analyze_omars_agrees_with_the_warning(self) -> None:
+        with pytest.warns(UserWarning, match="no degrees of freedom for error"):
+            design = generate_design(_factors(4), "dsd").design[[f"x{i}" for i in range(4)]]
+        result = analyze_omars(design, np.random.default_rng(0).normal(size=len(design)))
+        assert not result.success
+        assert result.details["reason"] == "full second-order model leaves no error degrees of freedom"

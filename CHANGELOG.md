@@ -32,6 +32,20 @@ those changes.
 
 ### Changed
 
+- **Full and fractional factorial, Plackett-Burman, Box-Behnken, central composite and
+  supersaturated designs no longer need the `expt` extra.** The pyDOE3 arrays they were
+  built from are now in `experiments/_classical.py` (BSD-3, credited), and tests check
+  them against pyDOE3 element for element, so every design is unchanged. Only the
+  Taguchi orthogonal arrays still need pyDOE3. A Plackett-Burman design's
+  `metadata["construction"]` now reads `"classical"` instead of `"pyDOE3"`.
+- **`hard_to_change` ignored without pyoptex now raises a `UserWarning`**, not only a
+  log line. The design is still built as an ordinary (not split-plot) design, and
+  `metadata["hard_to_change_ignored"]` still records why.
+- **A DSD or OMARS design that leaves no error degrees of freedom warns when it is
+  built.** The default design for an even number of factors leaves the full
+  second-order model nothing for error, so `analyze_omars` used to fail only after the
+  runs were done. The warning names the fix: centre runs (`n_center_points=3`) or a
+  larger budget.
 - **A split-plot design from `generate_design(hard_to_change=...)` has a `WholePlot`
   column**, numbering each run's whole plot from 1, as a blocked design has `Block`. So
   `analysis_type="split_plot"` finds the whole plots by itself, and `WholePlot` is now
@@ -48,6 +62,13 @@ those changes.
   listed the whole plots of one replicate only, so it was shorter than the design, and
   `n_whole_plots` counted one replicate's. Each replicate now has whole plots of its
   own, as it is run again from scratch.
+
+### Documentation
+
+- **The supersaturated `e_s2_efficiency` is measured against a lower bound that is not
+  attainable at every size**, so a value below 1 does not by itself mean a better
+  balanced design exists (15 factors in 12 runs report 0.63). Stated in the
+  `dispatch_supersaturated` docstring and the screening user guide.
 
 ## [1.97.2] - 2026-10-07
 
