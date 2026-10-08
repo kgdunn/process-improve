@@ -17,6 +17,7 @@ from patsy import dmatrices
 
 from process_improve.experiments import datasets
 from process_improve.experiments._analyses.split_plot import _deviance, _score, fit_reml
+from process_improve.experiments.analysis import analyze_experiment
 
 
 def _corrosion() -> pd.DataFrame:
@@ -204,3 +205,144 @@ class TestEstimability:
         y, X = dmatrices("y ~ A + B", df, return_type="dataframe")
         with pytest.raises(ValueError, match="subplot error"):
             fit_reml(y.to_numpy().ravel(), X.to_numpy(), np.arange(len(df)))
+
+
+def _analyse(df: pd.DataFrame, **kwargs) -> dict:
+    """Run ``analyze_experiment`` on the corrosion response, ``split_plot`` by default."""
+    kwargs.setdefault("analysis_type", "split_plot")
+    return analyze_experiment(df, response_column="Resistance", **kwargs)
+
+
+def _tests_by_source(result: dict) -> dict[str, dict]:
+    """Return the split-plot F-tests keyed by term."""
+    return {row["source"]: row for row in result["split_plot"]["tests"]}
+
+
+class TestAnalyzeExperiment:
+    """``analyze_experiment(..., analysis_type="split_plot")`` on the corrosion data."""
+
+    @pytest.fixture
+    def corrosion(self) -> pd.DataFrame:
+        """Return the corrosion data with the heats as the default ``WholePlot`` column."""
+        return _corrosion().drop(columns="Position").rename(columns={"Heat": "WholePlot"})
+
+    def test_reproduces_the_textbook_split_plot_anova(self, corrosion: pd.DataFrame) -> None:
+        """Temperature is tested against the heats and is not significant; coating and the interaction are."""
+        result = _analyse(corrosion)["split_plot"]
+        tests = _tests_by_source({"split_plot": result})
+        assert list(tests) == ["Temperature", "Coating", "Temperature:Coating"]
+        assert [tests[s]["stratum"] for s in tests] == ["whole_plot", "subplot", "subplot"]
+        assert [tests[s]["df"] for s in tests] == [2, 3, 6]
+        np.testing.assert_allclose([tests[s]["df_denominator"] for s in tests], [3, 9, 9], rtol=1e-10)
+        assert round(tests["Temperature"]["F"], 2) == 2.75
+        assert tests["Temperature"]["p_value"] == pytest.approx(0.2093, abs=1e-4)
+        assert result["significant_terms"] == ["Coating", "Temperature:Coating"]
+        assert result["not_significant_terms"] == ["Temperature"]
+        assert result["error_df"] == {"whole_plot": 3, "subplot": 9}
+        assert result["n_whole_plots"] == 6
+        assert result["variance_components"]["eta"] == pytest.approx(1172.1666666666667 / 124.54166666666667)
+
+    def test_ordinary_least_squares_reaches_the_opposite_conclusions(self, corrosion: pd.DataFrame) -> None:
+        """OLS finds temperature significant and coating not: the false positive and negative split plots risk."""
+        with pytest.warns(UserWarning, match="ordinary least squares"):
+            ols = _analyse(corrosion, analysis_type="anova")
+        ols_p = {row["source"]: row["p_value"] for row in ols["anova_table"] if row["p_value"] is not None}
+        reml_p = {source: row["p_value"] for source, row in _tests_by_source(_analyse(corrosion)).items()}
+        assert ols_p["Temperature"] < 0.05 < reml_p["Temperature"]
+        assert reml_p["Coating"] < 0.05 < ols_p["Coating"]
+
+    def test_coefficients_carry_their_stratum_and_df(self, corrosion: pd.DataFrame) -> None:
+        """Each coefficient is labelled in sum coding, with its own df: 3 for temperature, 9 for coating."""
+        coefficients = {row["term"]: row for row in _analyse(corrosion)["split_plot"]["coefficients"]}
+        assert coefficients["Temperature[S.360]"]["stratum"] == "whole_plot"
+        assert coefficients["Temperature[S.360]"]["df"] == pytest.approx(3.0)
+        assert coefficients["Coating[S.C1]"]["stratum"] == "subplot"
+        assert coefficients["Coating[S.C1]"]["df"] == pytest.approx(9.0)
+        row = coefficients["Coating[S.C1]"]
+        assert row["ci_low"] < row["coefficient"] < row["ci_high"]
+        # The intercept is the grand mean in sum coding.
+        assert coefficients["Intercept"]["coefficient"] == pytest.approx(corrosion["Resistance"].mean())
+
+    def test_a_named_column_gives_the_same_analysis(self, corrosion: pd.DataFrame) -> None:
+        """``whole_plot="Heat"`` analyses exactly as the default ``WholePlot`` column does, and is not a factor."""
+        named = _analyse(corrosion.rename(columns={"WholePlot": "Heat"}), whole_plot="Heat")
+        default = _analyse(corrosion)
+        assert named["factor_names"] == default["factor_names"] == ["Temperature", "Coating"]
+        assert named["split_plot"]["tests"] == default["split_plot"]["tests"]
+        assert named["split_plot"]["whole_plot_column"] == "Heat"
+
+    def test_the_run_order_does_not_matter(self, corrosion: pd.DataFrame) -> None:
+        """Shuffling the runs changes nothing: the whole plots come from the labels, not the row order."""
+        shuffled = corrosion.sample(frac=1.0, random_state=1)
+        expected = _tests_by_source(_analyse(corrosion))
+        for source, row in _tests_by_source(_analyse(shuffled)).items():
+            assert row["F"] == pytest.approx(expected[source]["F"], rel=1e-9)
+
+    def test_factors_named_like_patsy_functions(self, corrosion: pd.DataFrame) -> None:
+        """Factors called ``C`` and ``Sum`` are sum-coded like any other; the analysis is unchanged."""
+        renamed = corrosion.rename(columns={"Temperature": "Sum", "Coating": "C"})
+        tests = _tests_by_source(_analyse(renamed))
+        assert list(tests) == ["Sum", "C", "Sum:C"]
+        assert tests["Sum"]["F"] == pytest.approx(_tests_by_source(_analyse(corrosion))["Temperature"]["F"])
+
+    def test_blocks_are_tested_together_in_the_whole_plot_stratum(self, corrosion: pd.DataFrame) -> None:
+        """Heats 1-3 and 4-6 as two blocks: one ``Block`` test, against the whole-plot error, not a factor term."""
+        blocked = corrosion.assign(Block=np.where(corrosion["WholePlot"] <= 3, 1, 2))
+        result = _analyse(blocked)["split_plot"]
+        tests = _tests_by_source({"split_plot": result})
+        assert tests["Block"]["df"] == 1
+        assert tests["Block"]["stratum"] == "whole_plot"
+        assert "Block" not in result["significant_terms"] + result["not_significant_terms"]
+        assert result["error_df"]["whole_plot"] == 2
+
+    def test_a_transform_is_analysed_on_its_scale(self, corrosion: pd.DataFrame) -> None:
+        """``transform="log"`` gives the analysis of the logged response."""
+        logged = corrosion.assign(Resistance=np.log(corrosion["Resistance"]))
+        expected = _tests_by_source(_analyse(logged))
+        for source, row in _tests_by_source(_analyse(corrosion, transform="log")).items():
+            assert row["F"] == pytest.approx(expected[source]["F"], rel=1e-9)
+
+    def test_a_run_with_no_whole_plot_label_is_left_out(self, corrosion: pd.DataFrame) -> None:
+        """A missing label drops that run, with the usual warning."""
+        corrosion = corrosion.astype({"WholePlot": float})
+        corrosion.loc[1, "WholePlot"] = np.nan
+        with pytest.warns(UserWarning, match="1 run"):
+            result = _analyse(corrosion)
+        assert result["model_summary"]["n_obs"] == 23
+
+    def test_a_zero_whole_plot_variance_is_noted(self) -> None:
+        """When REML puts the whole-plot variance at zero, a note says the estimates are OLS's."""
+        df = _unbalanced_split_plot().rename(columns={"plot": "WholePlot"})
+        rng = np.random.default_rng(3)
+        noise = rng.normal(0, 1.0, len(df))
+        df["y"] = 10 + 3 * df["A"] - 2 * df["B"] + noise - pd.Series(noise).groupby(df["WholePlot"]).transform("mean")
+        result = analyze_experiment(df, response_column="y", analysis_type="split_plot")
+        assert result["split_plot"]["variance_components"]["whole_plot"] == 0.0
+        assert "estimated as zero" in result["split_plot_note"]
+
+
+class TestWholePlotArguments:
+    """Where the whole plots come from, and the warning when they are ignored."""
+
+    def test_split_plot_without_whole_plots_is_refused(self) -> None:
+        """No ``WholePlot`` column and no ``whole_plot`` argument: say how to give one."""
+        with pytest.raises(ValueError, match="needs each run's whole plot"):
+            _analyse(_corrosion().drop(columns="Position"))
+
+    def test_an_unknown_column_is_refused(self) -> None:
+        """``whole_plot`` must name a column of the data."""
+        with pytest.raises(ValueError, match="not a column"):
+            _analyse(_corrosion(), whole_plot="Furnace")
+
+    def test_ordinary_least_squares_on_whole_plots_warns(self) -> None:
+        """Any analysis without ``split_plot`` warns when the runs are grouped into whole plots."""
+        with pytest.warns(UserWarning, match="Add 'split_plot' to analysis_type"):
+            _analyse(_corrosion().drop(columns="Position"), whole_plot="Heat", analysis_type="coefficients")
+
+    def test_no_warning_with_split_plot_or_without_whole_plots(self) -> None:
+        """Neither the split-plot analysis nor a design without whole plots warns about them."""
+        corrosion = _corrosion().drop(columns="Position")
+        with warnings.catch_warnings():
+            warnings.simplefilter("error")
+            _analyse(corrosion, whole_plot="Heat", analysis_type=["split_plot", "anova"])
+            _analyse(corrosion.drop(columns="Heat"), analysis_type="anova")
