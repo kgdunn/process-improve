@@ -139,6 +139,14 @@ class TestMetadataDefaults:
         temperature = pd.concat([c(4, 6, lo=4, hi=6, name="T"), c(5, 6, lo=4, hi=6, name="T")])
         assert (temperature.pi_name, temperature.pi_lo, temperature.pi_hi) == ("T", 4, 6)
 
+    def test_concat_drops_metadata_it_cannot_compare(self) -> None:
+        """An array's ``==`` has no single truth value, so concatenating must not raise on it."""
+        first, second = c(1, 2, name="T"), c(3, 4, name="T")
+        first.pi_range = second.pi_range = np.array([1, 4])
+        temperature = pd.concat([first, second])
+        assert temperature.pi_range is None
+        assert temperature.pi_name == "T"
+
     def test_levels_survive_slicing(self) -> None:
         """``pi_levels`` is in ``Column._metadata`` now, so a slice keeps it."""
         moisture = c("Dry", "Wet", "Dry")

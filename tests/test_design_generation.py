@@ -585,6 +585,12 @@ class TestCentreRunsAndReplicates:
         correlation = np.corrcoef((squares - squares.mean(axis=0)).T)
         np.testing.assert_allclose(correlation[np.triu_indices(len(names), 1)], 0.0, atol=1e-12)
 
+    def test_a_categorical_dsd_has_no_centre_runs_to_keep_single(self) -> None:
+        """With no continuous factor no run is at the centre, so replication repeats every run."""
+        factors = [Factor(name=name, type="categorical", levels=["L", "H"]) for name in "ABC"]
+        once = generate_design(factors, "dsd")
+        assert generate_design(factors, "dsd", n_replicates=2).n_runs == 2 * once.n_runs
+
     def test_the_budget_counts_centre_runs_once(self) -> None:
         assert generate_design(_continuous_factors(3, "ABC"), "full_factorial", budget=19, n_replicates=2).n_runs == 19
         with pytest.raises(ValueError, match="budget"):
