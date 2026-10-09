@@ -102,6 +102,17 @@ def test_kernel_pls_reconstructs_beta(synthetic_pls_data: tuple[pd.DataFrame, pd
     np.testing.assert_allclose(beta_raw, batch.beta_coefficients_.to_numpy(), atol=1e-9)
 
 
+@pytest.mark.parametrize(
+    ("kernel_xx", "kernel_xy"),
+    [(np.eye(2), np.zeros((2, 1))), (np.zeros((2, 2)), np.ones((2, 1)))],
+    ids=["no-covariance-with-y", "no-spread-in-x"],
+)
+def test_kernel_pls_extracts_nothing_when_nothing_is_left(kernel_xx: np.ndarray, kernel_xy: np.ndarray) -> None:
+    """With no X'Y covariance, or no X'X spread along it, no component is extracted: every output stays zero."""
+    for part in _kernel_pls(kernel_xx, kernel_xy, n_components=1):
+        np.testing.assert_array_equal(part, np.zeros_like(part))
+
+
 # --------------------------------------------------------------------------- #
 # Initial-fit correctness
 # --------------------------------------------------------------------------- #

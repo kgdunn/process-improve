@@ -390,6 +390,12 @@ def test_quick_regress_still_zeroes_a_genuine_degeneracy() -> None:
     assert coefficients[1] == 0.0
 
 
+def test_quick_regress_refuses_arrays_that_share_no_dimension() -> None:
+    """The vector `x` must match Y's rows (to regress its columns) or its columns (to regress its rows)."""
+    with pytest.raises(ValueError, match=r"^The dimensions of the input arrays are not compatible\.$"):
+        quick_regress(np.ones((3, 2)), np.ones((4, 1)))
+
+
 def test_nipals_unit_normalisation_is_floored() -> None:
     """#513: `_pls` and `_pca` now floor the norm they divide by, as `_mbpls`/`_mbpca` do.
 
