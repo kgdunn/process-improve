@@ -49,3 +49,5 @@ docker run --rm -v "$PWD:/w" process-improve-r:mixed Rscript tests/fixtures/spli
 - `tests/fixtures/split_plot_lmer`: the split-plot REML analysis
   (`analyze_experiment(..., analysis_type="split_plot")`) against lme4, lmerTest and
   pbkrtest.
+- `tests/fixtures/sensmixed_mam`: the mixed assessor model
+  (`sensory.mixed_assessor_model_reml`) against SensMixed, on the TVbo panel.
