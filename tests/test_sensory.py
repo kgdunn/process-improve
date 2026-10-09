@@ -29,6 +29,7 @@ from process_improve.sensory.analysis import (
     relate_observational,
 )
 from process_improve.sensory.ingest import _compare_maps, reshape_to_long
+from process_improve.sensory.panel import _eta_squared, _low_tail_outliers
 from process_improve.univariate.metrics import benjamini_hochberg
 
 PRODUCTS = list("UVWXYZT")
@@ -284,6 +285,70 @@ def test_scorecard_flags_planted_anomaly():
 def test_scorecard_clean_panel_has_no_flags():
     card = panel_scorecard(_panel(anomalous=None))
     assert card.flagged == []
+
+
+@pytest.mark.parametrize(
+    ("scores", "products"),
+    [
+        pytest.param([5.0], ["X"], id="one-score"),
+        pytest.param([5.0, 6.0], ["X", "X"], id="one-product"),
+        pytest.param([5.0, np.nan], ["X", "Y"], id="one-score-once-missing-is-dropped"),
+        pytest.param([5.0, 5.0], ["X", "Y"], id="no-variation"),
+    ],
+)
+def test_discrimination_is_undefined_without_two_products_and_some_spread(scores, products):
+    """Eta-squared needs two products and a nonzero total sum of squares; otherwise it is NaN, not 0 or 1."""
+    assert np.isnan(_eta_squared(pd.Series(scores), pd.Series(products)))
+
+
+def test_discrimination_of_perfectly_separated_products_is_one():
+    assert _eta_squared(pd.Series([1.0, 1.0, 3.0, 3.0]), pd.Series(list("XXYY"))) == pytest.approx(1.0)
+
+
+def test_relative_outliers_need_four_panelists():
+    """The ESD outlier test runs only from four panelists up: the same low value is ignored below that."""
+    agreement = pd.Series([0.1, 0.9, 0.95, 0.92], index=["P1", "P2", "P3", "P4"])
+    assert _low_tail_outliers(agreement) == {"P1"}
+    assert _low_tail_outliers(agreement.iloc[:3]) == set()
+
+
+def _two_session_panel() -> pd.DataFrame:
+    """Return three panelists over two sessions: P1 drifts up a point per session, P2 is steady, P3 never varies."""
+    rows = []
+    for pid in ("P1", "P2", "P3"):
+        for session in (1, 2):
+            for product, level in {"X": 2.0, "Y": 5.0, "Z": 8.0}.items():
+                for attribute in ("sweet", "sour"):
+                    score = {"P1": level + session, "P2": level, "P3": 5.0}[pid]
+                    rows.append(
+                        {
+                            "panelist_id": pid,
+                            "product": product,
+                            "attribute": attribute,
+                            "session": session,
+                            "replicate": 1,
+                            "score": score,
+                        }
+                    )
+    return pd.DataFrame(rows)
+
+
+@pytest.mark.filterwarnings("ignore:Mean of empty slice:RuntimeWarning")
+def test_scorecard_drift_needs_two_sessions_with_different_means():
+    """Drift correlates session order with the session means; a panelist whose means do not move has none."""
+    table = panel_scorecard(_two_session_panel()).table
+    assert table.loc["P1", "drift"] == pytest.approx(1.0)
+    assert np.isnan(table.loc["P2", "drift"])
+    assert table.loc["P2", "agreement"] == pytest.approx(1.0)
+
+
+@pytest.mark.filterwarnings("ignore:Mean of empty slice:RuntimeWarning")
+def test_scorecard_a_panelist_who_never_varies_has_no_agreement_or_discrimination():
+    """With zero spread there is no correlation with the panel and no product effect to measure."""
+    flat = panel_scorecard(_two_session_panel()).table.loc["P3"]
+    assert np.isnan(flat["agreement"])
+    assert np.isnan(flat["discrimination"])
+    assert flat["scale_spread"] == 0.0
 
 
 def test_dropping_panelist_changes_means():
