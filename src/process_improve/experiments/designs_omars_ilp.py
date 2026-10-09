@@ -1602,7 +1602,9 @@ def _search_best_omars(  # noqa: C901, PLR0912, PLR0913, PLR0915
         if key in seen:
             return False
         seen[key] = None
-        if verify and not is_omars(coded, tol=tol):
+        # Solver selections passed the exact constraint check in solve_omars_ilp, and
+        # local-search swaps keep the main effects orthogonal by construction.
+        if verify and not is_omars(coded, tol=tol):  # pragma: no cover - re-check of exactly verified designs
             return False
         # Score the design the caller will actually receive: the foldover plus
         # the extra centre runs appended during post-processing.
