@@ -65,6 +65,9 @@ def regress_a_space_on_b_row(a_space: np.ndarray, b_row: np.ndarray, a_space_pre
 def ssq(X: np.ndarray, axis: int | None = None) -> float | np.ndarray:
     """Calculate the sum of squares of a 2D matrix (not array! and not checked for either: code will simply fail),
     skipping over any NaN (missing) data.
+
+    ``axis`` is 0 (one sum per column), 1 (one per row) or None (the total); any other
+    value raises ValueError rather than returning 0.0.
     """
     N, K = X.shape
     if axis == 0:
@@ -81,11 +84,9 @@ def ssq(X: np.ndarray, axis: int | None = None) -> float | np.ndarray:
 
         return out_ax1
 
-    out = 0.0
     if axis is None:
-        out = np.nansum(X**2)
-
-    return out
+        return np.nansum(X**2)
+    raise ValueError(f"axis must be 0, 1 or None; got {axis}.")
 
 
 def terminate_check(t_a_guess: np.ndarray, t_a: np.ndarray, iterations: int, settings: dict) -> bool:

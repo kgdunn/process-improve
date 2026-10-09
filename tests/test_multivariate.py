@@ -337,6 +337,12 @@ def test_ssq(fixture_mv_utilities: tuple[np.ndarray, np.ndarray]) -> None:
     assert pytest.approx(ssq(x), abs=1e-9) == (1 + 2 * 2 + 3 * 3 + 4 * 4 + 5 * 5 + 6 * 6)
 
 
+def test_ssq_refuses_an_axis_a_matrix_does_not_have() -> None:
+    """A matrix has axes 0 and 1 (or None for the total); any other axis used to give a silent 0.0."""
+    with pytest.raises(ValueError, match=r"^axis must be 0, 1 or None; got 2\.$"):
+        ssq(np.ones((3, 2)), axis=2)
+
+
 def test_quick_regress(fixture_mv_utilities: tuple[np.ndarray, np.ndarray]) -> None:
     """Test the quick_regress function."""
     x, Y = fixture_mv_utilities
