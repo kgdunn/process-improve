@@ -653,6 +653,18 @@ def test_scheduler_reset_is_available() -> None:
     assert omars_ilp._reset_highs_scheduler() is True
 
 
+@pytest.mark.parametrize("missing", ["bindings-module", "reset-method"])
+def test_scheduler_reset_reports_a_missing_private_hook(monkeypatch: pytest.MonkeyPatch, missing: str) -> None:
+    """A SciPy without the private HiGHS bindings, or without the reset in them, gets False rather than an error."""
+    if missing == "bindings-module":
+        monkeypatch.setitem(sys.modules, "scipy.optimize._highspy", None)
+    else:
+        from scipy.optimize._highspy import _core
+
+        monkeypatch.setattr(_core, "_Highs", type("HighsWithoutReset", (), {}))
+    assert omars_ilp._reset_highs_scheduler() is False
+
+
 def test_selection_violating_its_constraints_is_a_bug(monkeypatch: pytest.MonkeyPatch) -> None:
     def all_runs(result: OptimizeResult) -> OptimizeResult:
         return OptimizeResult(x=np.ones_like(result.x), status=0, message="(HiGHS Status 7: Optimal)")
@@ -1491,6 +1503,39 @@ def test_an_infeasible_plain_solve_skips_the_restarts(monkeypatch: pytest.Monkey
     result = generate_omars(_factors(3), selection_criterion="a_optimal", n_restarts=3, solver_options=_SOLVER)
     assert not any("objective" in kwargs for kwargs in calls)
     assert result.metadata["n_runs_selected"] == 13
+    assert is_omars(_coded(result))
+
+
+def test_a_deficiency_no_cover_cut_explains_is_excluded_by_a_no_good_cut(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A design reported rank-deficient whose selection yields no cover cut is excluded from later solves."""
+    from process_improve.experiments import generate_omars
+
+    monkeypatch.setattr(omars_ilp, "_ENUM_MAX_HALF", {})
+    real_rank = omars_ilp._model_rank
+    ranks: list[int] = []
+
+    def first_design_deficient(coded: np.ndarray, model: str = "full_second_order") -> int:
+        ranks.append(real_rank(coded, model))
+        return 0 if len(ranks) == 1 else ranks[-1]
+
+    monkeypatch.setattr(omars_ilp, "_model_rank", first_design_deficient)
+    real_solve = omars_ilp.solve_omars_ilp
+    solves: list[tuple[dict, list[int]]] = []
+
+    def recording_solve(half_pool: np.ndarray, **kwargs):
+        result = real_solve(half_pool, **kwargs)
+        solves.append((kwargs, result[2]))
+        return result
+
+    monkeypatch.setattr(omars_ilp, "solve_omars_ilp", recording_solve)
+    result = generate_omars(
+        _factors(3), n_runs=15, selection_criterion="a_optimal", n_restarts=3, solver_options=_SOLVER
+    )
+    (first_kwargs, first_selection), *later = solves
+    assert "exclude_solutions" not in first_kwargs
+    assert later
+    assert all(kwargs["exclude_solutions"] == [first_selection] for kwargs, _ in later)
+    assert result.metadata["omars_search"].rank_deficient_designs == 1
     assert is_omars(_coded(result))
 
 
