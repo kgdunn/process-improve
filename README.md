@@ -134,7 +134,7 @@ from process_improve.multivariate import PLS
 
 # Hold out runs 41 to 50 and predict their 5 quality measurements, with 95% intervals
 x_scaler, y_scaler = MCUVScaler().fit(process.loc[:40]), MCUVScaler().fit(quality.loc[:40])
-n = PLS.select_n_components(process.loc[:40], quality.loc[:40], max_components=6).n_components
+n = PLS.select_n_components(process.loc[:40], quality.loc[:40], max_components=6, random_state=0).n_components
 pls = PLS(n_components=n).fit(x_scaler.transform(process.loc[:40]), y_scaler.transform(quality.loc[:40]))
 interval = pls.prediction_interval(x_scaler.transform(process.loc[41:50]))
 low, high = y_scaler.inverse_transform(interval.lower), y_scaler.inverse_transform(interval.upper)
