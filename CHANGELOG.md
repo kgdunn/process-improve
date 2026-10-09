@@ -58,6 +58,17 @@ those changes.
   - **Dependency:** `threadpoolctl`, already installed with scikit-learn, is now
     declared directly. The fits run their many small matrix operations on one BLAS
     thread, which is ten times faster.
+- **EWMA control chart: `ControlChart(variant="ewma")`.** The chart plots the
+  exponentially weighted moving average `z_t = w y_t + (1 - w) z_(t-1)`, started at the
+  target, against its exact 3-sigma limits, which start narrow and widen to
+  `target +/- 3 s sqrt(w / (2 - w))`. Set the weight with
+  `calculate_limits(y, ld_1=w)`; the default 0.2 suits small shifts, and `ld_1=1` gives
+  the Shewhart individuals chart. A given `target` and `s` are used as they are; a
+  missing one is estimated as for the Shewhart chart. A missing observation holds the
+  statistic and is never flagged. On a sustained one-sigma shift, with the target and
+  `s` known, the EWMA chart alarms 14 samples after the shift and the Shewhart chart not
+  at all. The `control_chart` agent tool takes `chart_type="ewma"` and also reports the
+  weight and the statistic at each alarm.
 
 ### Changed
 
