@@ -5,6 +5,7 @@ from __future__ import annotations
 import re
 
 import numpy as np
+import pandas as pd
 import pytest
 
 from process_improve.experiments._desirability import (
@@ -1387,3 +1388,69 @@ class TestToolWrapper:
         specs = get_tool_specs(category="experiments")
         names = [s["name"] for s in specs]
         assert "optimize_responses" in names
+
+
+# ---------------------------------------------------------------------------
+# analyze_experiment -> optimize_responses: the coefficients' scale (#513)
+# ---------------------------------------------------------------------------
+
+
+class TestCodedHandoff:
+    """The optimiser evaluates models at coded settings, so it needs coded coefficients."""
+
+    MAXIMISE = ({"goal": "maximize", "low": 10, "high": 25},)
+
+    @staticmethod
+    def _fit(coding: object = "coded", y: list[float] | None = None) -> dict:
+        from process_improve.experiments.analysis import analyze_experiment
+
+        data = pd.DataFrame(
+            {"T": [150, 200, 150, 200, 175, 175], "P": [1, 1, 3, 3, 2, 2], "y": y or [10, 18, 13, 25, 16, 16.8]}
+        )
+        return analyze_experiment(
+            data, response_column="y", model="y ~ T * P", analysis_type="coefficients", coding=coding
+        )
+
+    def test_a_coded_fit_finds_the_best_run_in_actual_units(self) -> None:
+        """Before, actual-unit coefficients were searched from -1 to +1 degC, and gave P = 1 with y = -5."""
+        best = optimize_responses([self._fit()], list(self.MAXIMISE))["desirability"]
+        assert best["optimal_actual"] == pytest.approx({"T": 200.0, "P": 3.0})
+        assert best["predicted_responses"]["y"] == pytest.approx(25.0, abs=0.1)
+
+    def test_an_actual_unit_fit_is_refused(self) -> None:
+        with pytest.raises(ValueError, match=r"in actual units \(T from 150.0 to 200.0.*coding='coded'"):
+            optimize_responses([self._fit("actual")], list(self.MAXIMISE))
+
+    def test_factor_ranges_must_agree_with_the_coding(self) -> None:
+        with pytest.raises(ValueError, match="factor_ranges gives T from 140 to 210"):
+            optimize_responses([self._fit()], list(self.MAXIMISE), factor_ranges={"T": {"low": 140, "high": 210}})
+        agreeing = {"T": {"low": 150, "high": 200}, "P": {"low": 1, "high": 3}}
+        best = optimize_responses([self._fit()], list(self.MAXIMISE), factor_ranges=agreeing)["desirability"]
+        assert best["optimal_actual"] == pytest.approx({"T": 200.0, "P": 3.0})
+
+    def test_models_coded_from_different_ranges_are_refused(self) -> None:
+        """A response missing its T = 200 runs is coded from 150 to 175; a shared range fixes that."""
+        partial = [10, np.nan, 13, np.nan, 16, 16.8]
+        goals = [{"goal": "maximize", "low": 10, "high": 25}] * 2
+        with pytest.raises(ValueError, match="code T from different ranges"):
+            optimize_responses([self._fit(), self._fit(y=partial)], goals)
+        ranges = {"T": {"low": 150, "high": 200}, "P": {"low": 1, "high": 3}}
+        optimize_responses([self._fit(ranges), self._fit(ranges, y=partial)], goals)
+
+    def test_a_ranged_fit_matches_one_on_hand_coded_data(self) -> None:
+        """Coding by ranges and passing nothing else gives what fitting coded data with factor_ranges gave."""
+        from process_improve.experiments.analysis import analyze_experiment
+
+        x = np.array([[-1, -1], [1, -1], [-1, 1], [1, 1], [-1.414, 0], [1.414, 0], [0, -1.414], [0, 1.414], [0, 0]])
+        y = 60 + 4 * x[:, 0] + 2 * x[:, 1] - 3 * x[:, 0] ** 2 - x[:, 1] ** 2 + x[:, 0] * x[:, 1]
+        coded = pd.DataFrame({"T": x[:, 0], "P": x[:, 1], "y": y + np.linspace(-0.2, 0.2, 9)})
+        actual = coded.assign(T=175 + 25 * coded["T"], P=2 + coded["P"])
+        cube = {"T": {"low": 150, "high": 200}, "P": {"low": 1, "high": 3}}
+        kwargs = {"response_column": "y", "model": "quadratic", "analysis_type": "coefficients"}
+        by_hand = optimize_responses(
+            [analyze_experiment(coded, **kwargs)], method="stationary_point", factor_ranges=cube
+        )["stationary_point"]
+        ranged = optimize_responses([analyze_experiment(actual, coding=cube, **kwargs)], method="stationary_point")[
+            "stationary_point"
+        ]
+        assert ranged["stationary_point_actual"] == pytest.approx(by_hand["stationary_point_actual"])

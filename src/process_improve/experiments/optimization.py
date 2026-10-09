@@ -29,6 +29,7 @@ import functools
 import itertools
 import logging
 import math
+import numbers
 import re
 import warnings
 from collections.abc import Callable, Sequence
@@ -1614,6 +1615,63 @@ _SINGLE_RESPONSE_METHODS = {
 }
 
 
+def _span(coding: dict[str, Any]) -> tuple[float, float]:
+    return float(coding["low"]), float(coding["high"])
+
+
+def _ranges_from_coding(
+    fitted_models: list[dict[str, Any]],
+    factor_ranges: dict[str, dict[str, float]] | None,
+) -> dict[str, dict[str, float]] | None:
+    """Check that each model is on the coded scale, and add the factor ranges its coding implies.
+
+    ``analyze_experiment`` reports the scale of its coefficients as ``coding``, and how
+    each factor maps to -1 and +1 as ``factor_coding``. The optimiser evaluates models at
+    coded settings, so a model whose coefficients are in actual units would be searched
+    over the wrong region (-1 to +1 degC, say). A coded model instead says which actual
+    settings its coded optimum stands for. A model without these keys, such as one
+    written out by hand, is taken to be coded, as before.
+
+    Raises
+    ------
+    ValueError
+        If a model's coefficients are in actual units, if two models code a factor from
+        different ranges, or if *factor_ranges* disagrees with a model's coding.
+    """
+    implied: dict[str, dict[str, float]] = {}
+    for i, model in enumerate(fitted_models):
+        coding = model.get("factor_coding") or {}
+        name = model.get("response_name", f"fitted_models[{i}]")
+        if coding and model.get("coding") == "actual":
+            spans = ", ".join(f"{factor} from {how['low']} to {how['high']}" for factor, how in coding.items())
+            msg = (
+                f"The coefficients of {name!r} are in actual units ({spans}), but optimize_responses evaluates "
+                "models at coded settings, -1 to +1. Fit it with analyze_experiment(..., coding='coded'), or with "
+                "coding set to the factor ranges, and pass that result."
+            )
+            raise ValueError(msg)
+        for factor, how in coding.items():
+            if not all(isinstance(how[end], numbers.Real) for end in ("low", "high")):
+                continue  # a categorical factor's two levels: its setting stays coded
+            known = implied.setdefault(factor, {"low": float(how["low"]), "high": float(how["high"])})
+            if not np.allclose(_span(known), _span(how)):
+                msg = (
+                    f"The models code {factor} from different ranges ({known['low']} to {known['high']}, and "
+                    f"{how['low']} to {how['high']} for {name!r}), so a coded setting does not mean the same in "
+                    "each. Fit them all with the same ranges: analyze_experiment(..., coding={...})."
+                )
+                raise ValueError(msg)
+    for factor, given in (factor_ranges or {}).items():
+        if factor in implied and not np.allclose(_span(given), _span(implied[factor])):
+            msg = (
+                f"factor_ranges gives {factor} from {given['low']} to {given['high']}, but the coefficients are coded "
+                f"with {factor} from {implied[factor]['low']} to {implied[factor]['high']}. Leave factor_ranges out, "
+                "or fit with analyze_experiment(..., coding=factor_ranges) so that the two agree."
+            )
+            raise ValueError(msg)
+    return {**implied, **(factor_ranges or {})} or factor_ranges
+
+
 def _check_fitted_models(fitted_models: list[dict[str, Any]], method: str) -> None:
     """Check that *fitted_models* carries what *method* needs, naming what is missing.
 
@@ -1738,9 +1796,12 @@ def optimize_responses(  # noqa: PLR0913, C901
         One model for the single-response methods (``"stationary_point"``,
         ``"canonical_analysis"``, ``"steepest_ascent"``, ``"steepest_descent"``,
         ``"ridge_analysis"``), one or more for ``"desirability"`` and two or more
-        for ``"pareto_front"``. The result of ``analyze_experiment(...,
-        analysis_type="coefficients")`` can be passed as it is. Each dict
-        describes a fitted model with keys:
+        for ``"pareto_front"``. The models are evaluated at coded settings, so
+        their coefficients must be on the coded scale: pass the result of
+        ``analyze_experiment(..., analysis_type="coefficients", coding="coded")``
+        as it is. One fitted with ``coding="actual"`` on factors that are not
+        already coded is refused, since its optimum would be searched for between
+        -1 and +1 in actual units. Each dict describes a fitted model with keys:
 
         - ``"response_name"`` (str) - name of the response.
         - ``"coefficients"`` (list[dict]) - coefficient list, each with
@@ -1749,6 +1810,9 @@ def optimize_responses(  # noqa: PLR0913, C901
         - ``"factor_names"`` (list[str]) - ordered factor names.
         - ``"mse_residual"`` (float, optional) - mean squared error.
         - ``"r_squared"`` (float, optional) - model R-squared.
+        - ``"coding"`` and ``"factor_coding"`` (optional) - the scale of the
+          coefficients and each factor's coded range, as ``analyze_experiment``
+          reports them. A model without them is taken to be coded.
 
     goals : list[dict] or None
         Per-response optimisation goals.  Each dict has keys:
@@ -1781,7 +1845,9 @@ def optimize_responses(  # noqa: PLR0913, C901
         ``"ridge_analysis"``, ``"pareto_front"``.
     factor_ranges : dict or None
         Maps factor name to ``{"low": float, "high": float}`` in actual
-        units.  Used for coded ↔ actual conversion.
+        units.  Used for coded ↔ actual conversion. A coded model from
+        ``analyze_experiment`` supplies the ranges of its own factors, and
+        a range given here for one of them must agree with it.
     step_size : float
         Step length for steepest ascent/descent: the Euclidean distance, in
         coded units, between successive points on the path. Must be positive.
@@ -1854,8 +1920,10 @@ def optimize_responses(  # noqa: PLR0913, C901
         ``"coefficients"`` or ``"factor_names"``, if a single-response method
         (``"stationary_point"``, ``"canonical_analysis"``, ``"steepest_ascent"``,
         ``"steepest_descent"``, ``"ridge_analysis"``) gets more than one model, if
-        a method that needs goals is called without them, or if both
-        *response_importance* and *desirability_weights* are given.
+        a method that needs goals is called without them, if both
+        *response_importance* and *desirability_weights* are given, or if a
+        model's coefficients are in actual units, two models code a factor from
+        different ranges, or *factor_ranges* disagrees with a model's coding.
 
     Examples
     --------
@@ -1886,6 +1954,7 @@ def optimize_responses(  # noqa: PLR0913, C901
         raise ValueError(msg)
 
     _check_fitted_models(fitted_models, method)
+    factor_ranges = _ranges_from_coding(fitted_models, factor_ranges)
 
     if desirability_weights is not None:
         if response_importance is not None:
