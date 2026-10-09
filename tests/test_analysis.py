@@ -1110,7 +1110,10 @@ class TestLenthDefinition:
         from process_improve.experiments._analyses import lenth as lenth_module
 
         effects = pd.Series([1.0, 1.0, 1.0, 2.0, 2.0, 2.0, 7.5], index=["A", "B", "C", "A:B", "A:C", "B:C", "A:B:C"])
-        monkeypatch.setattr(lenth_module, "estimable_effects", lambda _fit: SimpleNamespace(coefficients=effects / 2))
+        estimable = SimpleNamespace(
+            coefficients=effects / 2, spans=pd.Series(2.0, index=effects.index)
+        )  # -1/+1 columns
+        monkeypatch.setattr(lenth_module, "estimable_effects", lambda _fit: estimable)
         out = lenth_module._run_lenth_method(None)["lenth_method"]
         # s0 = 1.5 * 2 = 3, and 7.5 = 2.5 s0 exactly: not strictly below, so it is trimmed.
         assert out["PSE"] == 2.25
