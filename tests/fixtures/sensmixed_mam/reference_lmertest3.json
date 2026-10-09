@@ -1,0 +1,279 @@
+{
+  "generated_with": {
+    "R": "4.4.2",
+    "lmerTest": "3.1.3",
+    "lme4": "1.1.36"
+  },
+  "unbalanced": {
+    "Coloursaturation": {
+      "TVset": {
+        "den_df": 10.5480790324,
+        "f_value": 19.8715216377
+      },
+      "Picture": {
+        "den_df": 62.3571705034,
+        "f_value": 4.05903786929
+      },
+      "TVset:Picture": {
+        "den_df": 62.4781763477,
+        "f_value": 2.3998611903
+      },
+      "Scaling": {
+        "den_df": 25.7752058204,
+        "f_value": 2.40701557774
+      }
+    },
+    "Colourbalance": {
+      "TVset": {
+        "den_df": 10.8390951649,
+        "f_value": 5.43031033413
+      },
+      "Picture": {
+        "den_df": 55.3572909505,
+        "f_value": 1.83943701797
+      },
+      "TVset:Picture": {
+        "den_df": 39.4095966129,
+        "f_value": 4.46497852073
+      },
+      "Scaling": {
+        "den_df": 59.3676291979,
+        "f_value": 0.709912582294
+      }
+    },
+    "Noise": {
+      "TVset": {
+        "den_df": 49.3143563826,
+        "f_value": 43.9272353452
+      },
+      "Picture": {
+        "den_df": 16.2105608321,
+        "f_value": 29.7518094925
+      },
+      "TVset:Picture": {
+        "den_df": 49.291261489,
+        "f_value": 5.45794752768
+      },
+      "Scaling": {
+        "den_df": 57.6329859738,
+        "f_value": 0.577964305912
+      }
+    },
+    "Depth": {
+      "TVset": {
+        "den_df": 10.1407434238,
+        "f_value": 10.9326160759
+      },
+      "Picture": {
+        "den_df": 60.5372724116,
+        "f_value": 3.56030085675
+      },
+      "TVset:Picture": {
+        "den_df": 47.6011500837,
+        "f_value": 2.49847724629
+      },
+      "Scaling": {
+        "den_df": 39.6211705368,
+        "f_value": 0.72126222129
+      }
+    },
+    "Sharpness": {
+      "TVset": {
+        "den_df": 8.8543474483,
+        "f_value": 13.5159850532
+      },
+      "Picture": {
+        "den_df": 55.478153779,
+        "f_value": 3.45165251104
+      },
+      "TVset:Picture": {
+        "den_df": 55.5771377505,
+        "f_value": 7.8168034408
+      },
+      "Scaling": {
+        "den_df": 51.1639418377,
+        "f_value": 1.49170364343
+      }
+    },
+    "Lightlevel": {
+      "TVset": {
+        "den_df": 3.57687136891,
+        "f_value": 64.381379425
+      },
+      "Picture": {
+        "den_df": 48.5214105349,
+        "f_value": 11.7449727108
+      },
+      "TVset:Picture": {
+        "den_df": 48.5729417364,
+        "f_value": 3.61369353817
+      },
+      "Scaling": {
+        "den_df": 7.35188334761,
+        "f_value": 1.26222615906
+      }
+    },
+    "Contrast": {
+      "TVset": {
+        "den_df": 6.45155606808,
+        "f_value": 11.5534057503
+      },
+      "Picture": {
+        "den_df": 52.369284464,
+        "f_value": 3.45472901249
+      },
+      "TVset:Picture": {
+        "den_df": 52.466750057,
+        "f_value": 4.28842133754
+      },
+      "Scaling": {
+        "den_df": 44.7726505343,
+        "f_value": 1.87319134357
+      }
+    },
+    "Sharpnessofmovement": {
+      "TVset": {
+        "den_df": 41.5400356683,
+        "f_value": 0.719717904087
+      },
+      "Picture": {
+        "den_df": 50.4667048596,
+        "f_value": 4.09069198483
+      },
+      "TVset:Picture": {
+        "den_df": 30.9487738985,
+        "f_value": 3.92339835697
+      },
+      "Scaling": {
+        "den_df": 58.8535332889,
+        "f_value": 1.3721281297
+      }
+    },
+    "Flickeringstationary": {
+      "TVset": {
+        "den_df": 50.8790187433,
+        "f_value": 24.5120683765
+      },
+      "Picture": {
+        "den_df": 44.96435753,
+        "f_value": 8.7525285949
+      },
+      "TVset:Picture": {
+        "den_df": 50.7948127566,
+        "f_value": 2.47089206497
+      },
+      "Scaling": {
+        "den_df": 75.3613888651,
+        "f_value": 4.16372910603
+      }
+    },
+    "Flickeringmovement": {
+      "TVset": {
+        "den_df": 47.6492734823,
+        "f_value": 1.92624011447
+      },
+      "Picture": {
+        "den_df": 16.3704650171,
+        "f_value": 2.30852304275
+      },
+      "TVset:Picture": {
+        "den_df": 47.3630723754,
+        "f_value": 0.752141027524
+      },
+      "Scaling": {
+        "den_df": 70.893679193,
+        "f_value": 2.02442849395
+      }
+    },
+    "Distortion": {
+      "TVset": {
+        "den_df": 11.7546434626,
+        "f_value": 14.2323519477
+      },
+      "Picture": {
+        "den_df": 57.2990722098,
+        "f_value": 37.280437915
+      },
+      "TVset:Picture": {
+        "den_df": 48.141457193,
+        "f_value": 26.3977641781
+      },
+      "Scaling": {
+        "den_df": 67.9752400735,
+        "f_value": 2.32345843892
+      }
+    },
+    "Dimglasseffect": {
+      "TVset": {
+        "den_df": 55.3109958118,
+        "f_value": 8.26519886209
+      },
+      "Picture": {
+        "den_df": 64.937830213,
+        "f_value": 13.3077623977
+      },
+      "TVset:Picture": {
+        "den_df": 55.2622797067,
+        "f_value": 2.79755694163
+      },
+      "Scaling": {
+        "den_df": 97.3723755714,
+        "f_value": 5.37543446256
+      }
+    },
+    "Cutting": {
+      "TVset": {
+        "den_df": 6.53896392859,
+        "f_value": 9.14043377915
+      },
+      "Picture": {
+        "den_df": 47.6029420802,
+        "f_value": 4.18484478114
+      },
+      "TVset:Picture": {
+        "den_df": 47.7274941699,
+        "f_value": 5.34266245687
+      },
+      "Scaling": {
+        "den_df": 40.6346258175,
+        "f_value": 2.70401311735
+      }
+    },
+    "Flossyedges": {
+      "TVset": {
+        "den_df": 39.1983213396,
+        "f_value": 24.8410684305
+      },
+      "Picture": {
+        "den_df": 15.6385407627,
+        "f_value": 5.41921193622
+      },
+      "TVset:Picture": {
+        "den_df": 39.4759625815,
+        "f_value": 6.30134598419
+      },
+      "Scaling": {
+        "den_df": 74.6455421359,
+        "f_value": 4.16744305634
+      }
+    },
+    "Elasticeffect": {
+      "TVset": {
+        "den_df": 12.1937074794,
+        "f_value": 22.5224533129
+      },
+      "Picture": {
+        "den_df": 14.9687254699,
+        "f_value": 29.910148255
+      },
+      "TVset:Picture": {
+        "den_df": 93.7589713028,
+        "f_value": 58.013075727
+      },
+      "Scaling": {
+        "den_df": 130.55683568,
+        "f_value": 6.85030055048
+      }
+    }
+  }
+}

@@ -10,6 +10,8 @@ Reference values for `tests/test_sensory_mam_reml.py`, which checks
 | `tvbo.csv` | The TVbo panel: 8 assessors score 12 products, 3 TV sets (`TVset`) by 4 pictures (`Picture`), twice (`Repeat`), on 15 attributes. From Bang and Olufsen; distributed with the R packages lmerTest and SensMixed. |
 | `reference.R` | Runs SensMixed's mixed assessor model on four versions of the panel, and checks that its own step-by-step replica reproduces `sensmixed()`; writes `reference.json`. |
 | `reference.json` | Per case and attribute: the Type I F-tests, the random-term selection, the terms dropped for zero variance, the final variance components, REML criterion and scaling coefficients. `generated_with` records the R and package versions. |
+| `reference_lmertest3.R` | Refits SensMixed's final `unbalanced` models with a current lme4 and lmerTest; writes `reference_lmertest3.json`. |
+| `reference_lmertest3.json` | Their Type I F statistics and Satterthwaite df. |
 
 ## Cases
 
@@ -27,9 +29,13 @@ column lme4 drops as aliased.
 ## What it shows
 
 The F-tests, Satterthwaite df, variance components and scaling coefficients agree with
-SensMixed to about 1e-6 (2e-4 for the df on unbalanced data), for every attribute and case.
-In the one-way case the closed-form `beta` of `mixed_assessor_model` equals SensMixed's to
-1e-11.
+SensMixed to about 1e-6, for every attribute and case, except the df on unbalanced data,
+which agree to 2e-4. Those differences are SensMixed's: lmerTest 2.0 differentiates
+numerically, with a step of 1e-4, and combining the directions of a test on several df
+(Fai and Cornelius) magnifies that error about `df / 2` times. lmerTest 3.1 differentiates
+more accurately, and its df on the same models agree with this package's exact ones to
+3e-6. In the one-way case the closed-form `beta` of `mixed_assessor_model` equals
+SensMixed's to 1e-11.
 
 The random-term selection agrees except where a variance is estimated at zero. SensMixed
 drops a term whose standard deviation lme4 estimates below 1e-7 before testing anything,
@@ -48,4 +54,7 @@ From the repository root, in the `sensmixed` target of `tools/r/Dockerfile` (see
 
 ```bash
 docker run --rm -v "$PWD:/w" process-improve-r:sensmixed Rscript tests/fixtures/sensmixed_mam/reference.R
+docker run --rm -v "$PWD:/w" process-improve-r:mixed Rscript tests/fixtures/sensmixed_mam/reference_lmertest3.R
 ```
+
+The second reads the first's output, so run them in this order.
