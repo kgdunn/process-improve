@@ -224,6 +224,14 @@ def test_median_abs_deviation() -> None:
     assert np.isnan(univariate.median_absolute_deviation(np.array([np.nan, np.nan]), axis=0))
 
 
+def test_mad_of_a_complete_column_ignores_gaps_in_other_columns() -> None:
+    """A NaN in one column sends every column down the per-column path; complete columns are unaffected."""
+    x = np.array([[1.0, 10.0], [2.0, np.nan], [4.0, 30.0], [8.0, 20.0]])
+    per_column = univariate.median_absolute_deviation(x, scale=1)
+    assert per_column[0] == univariate.median_absolute_deviation(x[:, 0], scale=1) == 1.5
+    assert per_column[1] == univariate.median_absolute_deviation(np.array([10.0, 30.0, 20.0]), scale=1) == 10.0
+
+
 def test_t_test_differences() -> None:
     """
     Tests for the t-test of differences.
@@ -298,6 +306,13 @@ def test_t_paried_test_differences() -> None:
     assert row["ConfInt: Lo"][0] == pytest.approx(0.4739104, rel=1e-7)
     assert row["ConfInt: Hi"][0] == pytest.approx(3.8777563, rel=1e-7)
     assert row["Degrees of freedom"][0] == 11
+
+
+def test_paired_t_test_from_df_rejects_groups_of_different_sizes() -> None:
+    """Pairing needs one observation of each group per pair, so the group sizes must match."""
+    df = pd.DataFrame({"Person": ["Sam", "Sam", "Sam", "Jen", "Jen"], "value": [8.8, 6.6, 7.3, 5.4, 4.8]})
+    with pytest.raises(ValueError, match="same number of samples; got 3 and 2"):
+        univariate.ttest_paired_from_df(df, grouper_column="Person", values_column="value")
 
 
 @pytest.fixture
@@ -1221,3 +1236,10 @@ def test_distribution_fit_normal_and_non_normal() -> None:
     exponential_sample = rng.exponential(scale=3.0, size=500)
     fit_bad = univariate.distribution_fit(exponential_sample, distribution="norm")
     assert fit_bad.fits_well is False
+
+
+@pytest.mark.parametrize(("old", "new"), sorted(univariate._RENAMED.items()))
+def test_renamed_univariate_functions_point_to_their_new_name(old: str, new: str) -> None:
+    """Each retired name raises an AttributeError that names its replacement and how to import it."""
+    with pytest.raises(AttributeError, match=rf"'{old}' has been renamed to '{new}'\. Use: from .* import {new}"):
+        getattr(univariate, old)
