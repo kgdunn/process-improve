@@ -1006,6 +1006,57 @@ def test_align_invalid_method_raises():
         align_scores(_scaling_panel(), method="nonsense")
 
 
+def test_align_location_recentres_without_rescaling():
+    """The location lever moves every panelist to the grand mean and leaves the compressor compressed."""
+    scaling = mixed_assessor_model(align_scores(_scaling_panel(), method="location")).scaling
+    scaling = scaling.set_index("panelist_id")
+    assert scaling["offset"].abs().max() < 1e-9
+    assert scaling.loc["P0", "beta"] < 0.7
+
+
+def test_align_scale_rescales_without_recentring():
+    """The scale lever brings every slope to about one and leaves the high rater high."""
+    scaling = mixed_assessor_model(align_scores(_scaling_panel(), method="scale")).scaling
+    scaling = scaling.set_index("panelist_id")
+    assert (scaling["beta"].sub(1).abs() < 0.2).all()
+    assert scaling["offset"].idxmax() == "P2"
+
+
+def test_align_with_the_repeated_median_slope_also_harmonises():
+    """``robust=True`` estimates each slope by repeated medians; the aligned panel still has slopes near one."""
+    aligned = align_scores(_scaling_panel(), method="both", robust=True)
+    beta_after = mixed_assessor_model(aligned).scaling.set_index("panelist_id")["beta"]
+    assert (beta_after.sub(1).abs() < 0.2).all()
+
+
+def _cell_panel(scores: dict[str, list[float]]) -> pd.DataFrame:
+    """Return a one-attribute panel from each panelist's list of product scores."""
+    rows = [
+        {"panelist_id": pid, "session": 1, "product": f"prod{j}", "attribute": "A", "replicate": 1, "score": score}
+        for pid, row in scores.items()
+        for j, score in enumerate(row)
+    ]
+    return pd.DataFrame(rows)
+
+
+@pytest.mark.parametrize(
+    ("scores", "classical_defined"),
+    [
+        pytest.param({"P1": [4.0, 4.0, 4.0], "P2": [6.0, 6.0, 6.0]}, False, id="no-product-effect"),
+        pytest.param({"P1": [3.0, 5.0], "P2": [4.0, 7.0], "P3": [2.0, 6.5]}, True, id="two-products"),
+    ],
+)
+def test_mam_f_test_is_undefined_without_disagreement_to_test_against(scores, classical_defined):
+    """With no product effect there is nothing to scale against, and with two products no disagreement df."""
+    mam = mixed_assessor_model(_cell_panel(scores))
+    ftest = mam.ftests.iloc[0]
+    assert np.isnan(ftest["f_product_mam"])
+    assert np.isnan(ftest["p_product_mam"])
+    assert np.isfinite(ftest["f_product_classical"]) == classical_defined
+    if not classical_defined:
+        assert (mam.scaling["beta"] == 1.0).all()
+
+
 def test_analyze_correction_align_changes_means_and_reports_mam():
     panel = _scaling_panel()
     obs = pd.DataFrame({"product": sorted(panel["product"].unique()), "d": range(panel["product"].nunique())})
