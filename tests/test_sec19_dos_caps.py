@@ -140,6 +140,35 @@ class TestMatrixDimensionCap:
         settings.max_matrix_cols = 4
         _validate_matrix_shape(matrix, "m")  # returns without raising
 
+    @pytest.mark.parametrize(
+        ("tool", "payload", "field"),
+        [
+            ("fit_pca", {"data": [[0.0, 1.0]] * 6, "n_components": 1}, "data"),
+            ("fit_pls", {"x_data": [[0.0, 1.0]] * 6, "y_data": [0.0] * 6, "n_components": 1}, "x_data"),
+            ("fit_pls", {"x_data": [[0.0, 1.0]] * 3, "y_data": [[0.0]] * 6, "n_components": 1}, "y_data"),
+            ("scale_data", {"data": [[0.0, 1.0]] * 6}, "data"),
+            ("detect_multivariate_outliers", {"data": [[0.0, 1.0]] * 6, "n_components": 1}, "data"),
+            ("pca_predict", {"new_data": [[0.0, 1.0]] * 6, "model_params": {}}, "new_data"),
+            ("pls_predict", {"new_data": [[0.0, 1.0]] * 6, "model_params": {}}, "new_data"),
+        ],
+        ids=[
+            "fit_pca-data",
+            "fit_pls-x_data",
+            "fit_pls-y_data",
+            "scale_data-data",
+            "detect_multivariate_outliers-data",
+            "pca_predict-new_data",
+            "pls_predict-new_data",
+        ],
+    )
+    def test_every_matrix_a_tool_takes_is_held_to_the_row_cap(self, tool: str, payload: dict, field: str) -> None:
+        """Each multivariate tool measures each matrix before using it, and returns the cap as its error."""
+        from process_improve.tool_spec import execute_tool_call
+
+        settings.max_matrix_rows = 5
+        result = execute_tool_call(tool, payload)
+        assert result == {"error": f"{field} has 6 rows; the cap is settings.max_matrix_rows=5."}
+
     def test_fit_pca_within_caps_accepted(self) -> None:
         from process_improve.tool_spec import execute_tool_call
 
