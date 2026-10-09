@@ -301,19 +301,13 @@ def _prediction_variance_at_points(X_points: np.ndarray, XtX_inv: np.ndarray) ->
     return np.sum((X_points @ XtX_inv) * X_points, axis=1)
 
 
-def _cube_vertices(k: int) -> np.ndarray:
-    """Return all ``2**k`` cube vertices (corners) of ``[-1, 1]^k``."""
-    return np.array(list(itertools.product([-1.0, 1.0], repeat=k)), dtype=float)
-
-
 def _region_points(
     factor_names: list[str],
     region: str,
     n_samples: int,
-    include_vertices: bool,
     random_state: int | np.random.Generator | None,
 ) -> np.ndarray:
-    """Sample raw factor-space points over the design region.
+    """Sample raw factor-space points uniformly over the design region.
 
     Parameters
     ----------
@@ -325,19 +319,14 @@ def _region_points(
         that circumscribes the unit cube).
     n_samples : int
         Number of random interior samples to draw.
-    include_vertices : bool
-        When *True*, append all ``2**k`` cube vertices to the sample set.  The
-        worst-case prediction variance for second-order models very often sits
-        at (or near) a corner, so the corners are always represented in the
-        G / FDS statistics.
     random_state : int, numpy.random.Generator or None
         Seed for the NumPy random generator (full reproducibility).
 
     Returns
     -------
-    ndarray of shape (M, k)
-        The sampled points, with the cube vertices appended last when
-        *include_vertices* is set.
+    ndarray of shape (n_samples, k)
+        The sampled points. The corners, where the worst-case prediction variance
+        usually sits, are added by the caller, crossed with the categorical levels.
     """
     k = len(factor_names)
     rng = check_random_state(random_state)
@@ -351,9 +340,6 @@ def _region_points(
         pts = directions * radii
     else:
         raise ValueError(f"Unknown region={region!r}.  Choose 'cuboidal' or 'spherical'.")
-
-    if include_vertices and k > 0:
-        pts = np.vstack([pts, _cube_vertices(k)])
     return pts
 
 
@@ -407,7 +393,7 @@ def _points_in_box_region(ctx: _EvalContext, region: str) -> tuple[pd.DataFrame,
     }
     cont_names = [f for f in ctx.factor_names if f not in cat_levels]
     rng = check_random_state(ctx.random_state)
-    points = _region_points(cont_names, region, ctx.n_samples, include_vertices=False, random_state=rng)
+    points = _region_points(cont_names, region, ctx.n_samples, random_state=rng)
     interior: dict[str, Any] = {f: points[:, j] for j, f in enumerate(cont_names)}
     for f, levels in cat_levels.items():
         interior[f] = rng.choice(np.asarray(levels, dtype=object), size=ctx.n_samples)
