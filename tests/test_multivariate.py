@@ -6,6 +6,7 @@ import io
 import pathlib
 import urllib.request
 import warnings
+from collections.abc import Callable
 
 import numpy as np
 import pandas as pd
@@ -20,7 +21,7 @@ from sklearn.base import clone
 from sklearn.cross_decomposition import PLSRegression
 from sklearn.exceptions import NotFittedError
 from sklearn.metrics import mean_squared_error, r2_score
-from sklearn.model_selection import KFold, LeaveOneOut, cross_val_score
+from sklearn.model_selection import KFold, LeaveOneOut, PredefinedSplit, cross_val_score
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import StandardScaler
 from sklearn.utils import Bunch
@@ -1971,6 +1972,118 @@ def test_pls_invalid_calls() -> None:
     sparse_data = csr_matrix([[1, 2], [0, 3], [4, 5]])
     with pytest.raises(TypeError, match=r"This PLS class does not support sparse input."):
         PLS(n_components=2).fit(data_x, sparse_data)
+
+
+def _pls_ten_rows() -> tuple[pd.DataFrame, pd.DataFrame]:
+    """Return a 10 x 4 X and a y that depends on it, small enough for a CV run in a fraction of a second."""
+    rng = np.random.default_rng(1)
+    X = pd.DataFrame(rng.standard_normal((10, 4)))
+    y = pd.DataFrame({"y": X.to_numpy() @ rng.normal(size=4) + 0.1 * rng.standard_normal(10)})
+    return X, y
+
+
+#: Cross-validation settings that keep each select_n_components / nested_cv call cheap.
+_PLS_QUICK_SELECT = {"cv": 5, "n_repeats": 1, "max_components": 2, "n_permutations": 19, "random_state": 0}
+_PLS_QUICK_NESTED = {"inner_cv": 3, "n_inner_repeats": 1, "max_components": 2, "n_permutations": 19, "random_state": 0}
+
+
+@pytest.mark.parametrize(
+    ("action", "error", "message"),
+    [
+        (
+            lambda X, _: PLS(n_components=2).fit(X, pd.DataFrame({"y": np.ones(len(X))})),
+            NotEnoughVarianceError,
+            (
+                r"^There is no variance left in the data array for Y: cannot compute any more components "
+                r"beyond component 0\.$"
+            ),
+        ),
+        (
+            lambda X, y: PLS(n_components=2).fit(X, y.iloc[:9]),
+            ValueError,
+            r"^The X and Y arrays must have the same number of rows: X has 10 and Y has 9\.$",
+        ),
+        (
+            lambda X, y: PLS.select_n_components(X.iloc[:2], y.iloc[:2], cv=2),
+            ValueError,
+            r"^No components can be evaluated; the data or folds are too small\.$",
+        ),
+        (
+            lambda X, y: PLS.select_n_components(X, y, cv=PredefinedSplit(np.full(10, -1))),
+            ValueError,
+            r"^The cross-validation splitter produced no folds\.$",
+        ),
+        (
+            lambda X, y: PLS.nested_cv(X, y, outer_cv=PredefinedSplit(np.full(10, -1))),
+            ValueError,
+            r"^The outer cross-validation splitter produced no folds\.$",
+        ),
+        (
+            lambda X, y: PLS(n_components=2).fit(X, y).cross_validate(X, y.iloc[:9]),
+            ValueError,
+            r"^X and Y must have the same number of rows, got 10 and 9\.$",
+        ),
+        (
+            lambda X, y: PLS(n_components=2).fit(X, y).cross_validate(X, y, conf_level=0.4),
+            ValueError,
+            r"^conf_level must be between 0\.5 and 1\.0, got 0\.4\.$",
+        ),
+    ],
+    ids=[
+        "fit-a-constant-y",
+        "fit-a-short-y",
+        "select-on-two-rows",
+        "select-with-a-splitter-of-no-folds",
+        "nested-with-an-outer-splitter-of-no-folds",
+        "cross-validate-a-short-y",
+        "cross-validate-at-40-percent-confidence",
+    ],
+)
+def test_pls_refuses_input_it_cannot_use(
+    action: Callable[[pd.DataFrame, pd.DataFrame], object], error: type[Exception], message: str
+) -> None:
+    """Each PLS entry point names what it cannot work with, rather than failing further in."""
+    X, y = _pls_ten_rows()
+    with pytest.raises(error, match=message):
+        action(X, y)
+
+
+@pytest.mark.parametrize(
+    ("entry_point", "y_form"),
+    [
+        ("project", "frame"),
+        ("select_n_components", "series"),
+        ("select_n_components", "array"),
+        ("nested_cv", "series"),
+        ("nested_cv", "array"),
+    ],
+    ids=["project", "select-series-y", "select-array-y", "nested-series-y", "nested-array-y"],
+)
+def test_pls_entry_points_read_arrays_as_their_dataframes(entry_point: str, y_form: str) -> None:
+    """An array X, with Y as a Series or an array, gives the same numbers as the same values in DataFrames."""
+    X, y = _pls_ten_rows()
+    other_y = {"frame": y, "series": y["y"], "array": y.to_numpy()}[y_form]
+    model = PLS(n_components=2).fit(X, y)
+    calls = {
+        "project": lambda X_, _: model.project(X_).scores.to_numpy(),
+        "select_n_components": lambda X_, y_: PLS.select_n_components(X_, y_, **_PLS_QUICK_SELECT).rmsecv.to_numpy(),
+        "nested_cv": lambda X_, y_: PLS.nested_cv(X_, y_, **_PLS_QUICK_NESTED).rmsep.to_numpy(),
+    }
+    np.testing.assert_allclose(calls[entry_point](X.to_numpy(), other_y), calls[entry_point](X, y))
+
+
+def test_pls_nested_cv_refuses_when_no_held_out_row_is_predicted() -> None:
+    """With a missing cell in every row, no held-out row gets a prediction, and nested CV says so.
+
+    A held-out row with a missing X cell is scored by a plain product with the direct
+    weights, so its prediction is NaN (#676). Once that is fixed these rows are predicted,
+    and this guard needs another way to leave every row uncovered.
+    """
+    X, y = _pls_ten_rows()
+    for row in range(10):
+        X.iloc[row, row % 4] = np.nan
+    with pytest.raises(RuntimeError, match=r"^Nested CV produced no covered observations; check the outer splitter\.$"):
+        PLS.nested_cv(X, y, outer_cv=5, **_PLS_QUICK_NESTED)
 
 
 @pytest.fixture
