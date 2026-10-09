@@ -39,7 +39,13 @@ from process_improve.sensory.diagnostics import (
     detection_rate,
 )
 from process_improve.sensory.ingest import reshape_to_long
-from process_improve.sensory.mam import MAMResult, align_scores, mixed_assessor_model
+from process_improve.sensory.mam import (
+    MAMRemlResult,
+    MAMResult,
+    align_scores,
+    mixed_assessor_model,
+    mixed_assessor_model_reml,
+)
 from process_improve.sensory.panel import PanelScorecard, apply_correction, panel_scorecard
 from process_improve.sensory.recipes import SENSORY_RECIPES
 from process_improve.sensory.validation import (
@@ -53,6 +59,7 @@ __all__ = [
     "SENSORY_RECIPES",
     "AnalysisResult",
     "ComparisonResult",
+    "MAMRemlResult",
     "MAMResult",
     "PanelScorecard",
     "ValidationResult",
@@ -69,6 +76,7 @@ __all__ = [
     "factorial_anova",
     "find_predictive_descriptors",
     "mixed_assessor_model",
+    "mixed_assessor_model_reml",
     "panel_scorecard",
     "permutation_column_null",
     "product_means",
