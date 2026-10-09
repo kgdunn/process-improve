@@ -1,4 +1,5 @@
 import warnings
+from collections.abc import Callable
 
 import numpy as np
 import pandas as pd
@@ -863,6 +864,94 @@ def test_ols_missing_values_preserve_residual_shape() -> None:
     assert model.coefficients_[0] == pytest.approx(1.75)
 
 
+def test_ols_names_a_series_predictor_after_the_series() -> None:
+    """A Series predictor keeps its name in the model (or is called x1 without one), and fits as an array does."""
+    rng = np.random.default_rng(4)
+    x = np.arange(10.0)
+    y = 2.0 * x + 1.0 + rng.normal(scale=0.1, size=10)
+    named = OLS().fit(pd.Series(x, name="t"), y)
+    unnamed = OLS().fit(pd.Series(x), y)
+    plain = OLS().fit(x, y)
+
+    assert (named.feature_names_in_, unnamed.feature_names_in_) == (["t"], ["x1"])
+    assert "formula: y ~ t" in named.summary()
+    np.testing.assert_allclose(named.coefficients_, plain.coefficients_)
+    assert named.intercept_ == pytest.approx(plain.intercept_)
+
+
+def test_ols_summary_says_when_the_f_statistic_is_not_available() -> None:
+    """A line through two points has no residual degrees of freedom, so there is no F-test to quote."""
+    # statsmodels divides by those zero degrees of freedom on the way; that is the case under test.
+    with np.errstate(divide="ignore", invalid="ignore"):
+        model = OLS().fit([1.0, 2.0], [1.0, 3.0])
+    assert model.is_fitted_
+    assert "F-statistic: not available" in model.summary().splitlines()
+
+
+@pytest.mark.parametrize(
+    ("helper", "value", "expected"),
+    [
+        (OLS._signif_code, np.nan, " "),
+        (OLS._signif_code, 0.005, "** "),
+        (OLS._signif_code, 0.02, "*  "),
+        (OLS._fmt_number, np.nan, "       NaN"),
+        (OLS._fmt_number, 0.0, "   0.00000"),
+        (OLS._fmt_pvalue, np.nan, "       NaN"),
+    ],
+    ids=[
+        "code-for-no-p-value",
+        "code-below-1-percent",
+        "code-below-5-percent",
+        "number-missing",
+        "number-zero",
+        "p-value-missing",
+    ],
+)
+def test_ols_summary_cells_follow_rs_layout(helper: Callable[[float], str], value: float, expected: str) -> None:
+    """Significance codes and number cells read as R's summary(lm()) prints them, NaN included."""
+    assert helper(value) == expected
+
+
+def test_robust_regression_keeps_incomplete_rows_when_na_rm_is_false() -> None:
+    """With na_rm=False an incomplete row stays in: N counts it, and R2 and SE come out NaN.
+
+    The slope and intercept do not move, because the repeated median and the median
+    intercept skip an incomplete pair on their own.
+    """
+    x = np.arange(10.0)
+    y = 2.0 * x + 1.0 + np.random.default_rng(0).normal(scale=0.1, size=10)
+    x[3] = np.nan
+    kept = robust_regression(x, y, na_rm=False)
+    dropped = robust_regression(x, y)
+
+    assert (kept["N"], dropped["N"]) == (10, 9)
+    assert kept["coefficients"][0] == pytest.approx(dropped["coefficients"][0])
+    assert kept["intercept"] == pytest.approx(dropped["intercept"])
+    assert np.isnan(kept["R2"])
+    assert np.isnan(kept["SE"])
+
+
+def test_repeated_median_nowarn_accepts_two_points() -> None:
+    """With nowarn=True two points are enough: the slope is that of the line through them."""
+    with pytest.raises(ValueError, match="More than two samples"):
+        repeated_median_slope(np.array([0.0, 1.0]), np.array([1.0, 3.0]))
+    assert repeated_median_slope(np.array([0.0, 1.0]), np.array([1.0, 3.0]), nowarn=True) == pytest.approx(2.0)
+
+
+def test_the_old_simple_robust_regression_name_says_what_replaced_it() -> None:
+    """The renamed function points to its new name and import, rather than a bare missing attribute."""
+    from process_improve.regression import _robust_regression
+
+    with pytest.raises(
+        AttributeError,
+        match=(
+            r"^'simple_robust_regression' has been renamed to 'robust_regression'\. "
+            r"Use: from process_improve\.regression\.methods import robust_regression$"
+        ),
+    ):
+        _ = _robust_regression.simple_robust_regression
+
+
 # ---------------------------------------------------------------------------
 # Agent-tool wrappers: process_improve.regression.tools
 # ---------------------------------------------------------------------------
@@ -945,6 +1034,12 @@ def test_repeated_median_tool_returns_error_on_bad_input() -> None:
     """Non-numeric input is rejected by the pydantic contract."""
     with pytest.raises(ToolInputInvalidError):
         execute_tool_call("repeated_median", {"x": ["a", "b"], "y": [1.0, 2.0]})
+
+
+def test_repeated_median_tool_reports_the_methods_error() -> None:
+    """Input the contract accepts but the method refuses comes back as the method's message."""
+    result = execute_tool_call("repeated_median", {"x": [1.0, 2.0, 3.0, 4.0], "y": [1.0, 2.0, 3.0]})
+    assert result == {"error": "Vectors x and y must have the same length."}
 
 
 def test_get_regression_tool_specs_lists_both_tools() -> None:
