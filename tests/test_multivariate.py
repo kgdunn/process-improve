@@ -3,7 +3,9 @@
 import copy
 import inspect
 import io
+import logging
 import pathlib
+import re
 import urllib.request
 import warnings
 from collections.abc import Callable
@@ -47,6 +49,7 @@ from process_improve.multivariate.methods import (
     epsqrt,
     explained_variance_plot,
     hotellings_t2_limit,
+    internal_pls_nipals_fit_one_pc,
     make_tpls_scorer,
     nan_to_zeros,
     observation_contributions,
@@ -400,6 +403,29 @@ def test_quick_regress_refuses_arrays_that_share_no_dimension() -> None:
     """The vector `x` must match Y's rows (to regress its columns) or its columns (to regress its rows)."""
     with pytest.raises(ValueError, match=r"^The dimensions of the input arrays are not compatible\.$"):
         quick_regress(np.ones((3, 2)), np.ones((4, 1)))
+
+
+def test_inner_pls_nipals_stops_at_its_iteration_cap(caplog: pytest.LogCaptureFixture) -> None:
+    """Two nearly tied directions in X'Y make the iteration creep; the loop stops at its cap.
+
+    With X the identity and singular values 1 and 0.99, each step shrinks the change by
+    only about 2%, so it is still far above the tolerance after 500 steps. By then the
+    weights already point along the dominant direction.
+    """
+
+    def rotation(angle: float) -> np.ndarray:
+        return np.array([[np.cos(angle), -np.sin(angle)], [np.sin(angle), np.cos(angle)]])
+
+    x_space = np.eye(2)
+    y_space = rotation(np.pi / 5) @ np.diag([1.0, 0.99]) @ rotation(np.pi / 7)
+    everything = np.ones((2, 2), dtype=bool)
+    with caplog.at_level(logging.DEBUG, logger="process_improve.multivariate._nipals"):
+        fitted = internal_pls_nipals_fit_one_pc(x_space, y_space, everything, everything)
+
+    reported = re.search(r"inner loop converged in (\d+) iterations \(max_iter=500\)", caplog.text)
+    assert reported is not None
+    assert int(reported.group(1)) > 500
+    np.testing.assert_allclose(np.abs(fitted["w_i"].ravel()), np.abs(rotation(np.pi / 5)[:, 0]), atol=1e-3)
 
 
 def test_nipals_unit_normalisation_is_floored() -> None:
