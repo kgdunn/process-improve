@@ -363,7 +363,7 @@ class TestRowExchange:
         rng = np.random.default_rng(2)
         f_cand, f_fixed = rng.normal(size=(80, 6)), rng.normal(size=(3, 6))
         criterion = _criteria(6, rng)[name]
-        state = _ExchangeState(f_cand, f_fixed, rng.choice(80, 12, replace=False), criterion.weights)
+        state = _ExchangeState(f_cand, f_fixed, rng.choice(80, 12, replace=False), criterion)
         block = np.arange(12)
         terms = state.terms(block)
         for row, candidate in [(1, 40), (4, 7), (8, 63)]:
@@ -374,7 +374,7 @@ class TestRowExchange:
 
         x = np.vstack([f_fixed, f_cand[state.rows]])
         expected = criterion.swap_gains(np.linalg.inv(x.T @ x), f_cand[state.rows], f_cand)
-        best, gain = state.best_swaps(state.terms(block), slice(0, 12))
+        best, gain = state.best_swaps(state.terms(block), slice(0, 12), block)
         np.testing.assert_allclose(gain, expected.max(axis=1), rtol=1e-8, atol=1e-10)
         np.testing.assert_array_equal(best, expected.argmax(axis=1))
         # The rows after the last swap followed it by rank-one updates; they match a fresh score too.

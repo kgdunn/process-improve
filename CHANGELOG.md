@@ -29,6 +29,18 @@ those changes.
   agent tool. A new user-guide page, "Split-plot experiments", walks through both.
 - **`datasets.corrosion()`**: the corrosion-resistance split plot from Box, Hunter and
   Hunter, chapter 9 (six heats at three temperatures, four coatings per heat).
+- **D-, A- and I-optimal designs in blocks choose their runs for the blocked model
+  (#631).** With `n_blocks`, the candidate exchange treats the blocks as fixed effects:
+  each block gets its own copy of the candidates, a run is only exchanged within its
+  block, and the criterion is that of the factor effects adjusted for the blocks, the
+  model `analyze_experiment` fits. Before, the runs were chosen as if there were no
+  blocks and then split into blocks. The joint design is never worse, and is better
+  where it matters most: a follow-up experiment passed as `fixed_runs` now goes in a
+  new block (the runs already made are the first block, kept first and in their
+  order), 5 to 13% more D-efficient in the tests than augmenting as if the days were
+  one, a combination that used to raise `ValueError`; blocks of two runs gain 2 to 5%.
+  Works with constraints, categorical factors and candidate sets. See "Running the
+  design in blocks" in the constrained-designs guide.
 
 ### Changed
 
@@ -55,6 +67,13 @@ those changes.
   squares treats them as independent, and names `analysis_type="split_plot"`. Drop the
   column to analyse without it. `recommend_strategy`'s split-plot risk now names the
   analysis too.
+- **A D-, A- or I-optimal design with `n_blocks` is a different design**, chosen with
+  the blocks in its model (see Added), and reports
+  `metadata["blocking"]["method"] == "optimal_exchange"`; its `log_det_information` or
+  `trace_criterion` is for the factor effects adjusted for the blocks. E-, G- and
+  K-optimal, mixture, split-plot and replicated designs are still blocked afterwards.
+  When the block effects leave too few runs for the model, the budget is raised with a
+  warning, and `metadata["budget_requested"]` records the budget asked for.
 
 ### Fixed
 

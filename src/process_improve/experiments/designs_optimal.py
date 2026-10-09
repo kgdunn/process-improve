@@ -551,6 +551,7 @@ class _OptimalRequest:
     random_state: int | np.random.Generator | None
     candidates: pd.DataFrame | None = None
     backend: str = "auto"
+    n_blocks: int | None = None
 
 
 def _dispatch_mixture_optimal(criterion: str, req: _OptimalRequest) -> tuple[np.ndarray, dict]:
@@ -632,7 +633,11 @@ def _dispatch_optimal(criterion: str, req: _OptimalRequest) -> tuple[np.ndarray,
 
         prior = _prepare_prior_runs(req.fixed_runs, req.factors, budget) if req.fixed_runs is not None else None
         options = ConstrainedOptions(
-            model_type=req.model_type, criterion=criterion, fixed_runs=prior, candidates=req.candidates
+            model_type=req.model_type,
+            criterion=criterion,
+            fixed_runs=prior,
+            candidates=req.candidates,
+            n_blocks=req.n_blocks,
         )
         matrix, meta = constrained_optimal_design(req.factors, budget, req.constraints or [], options, req.random_state)
         if req.hard_to_change:
@@ -699,6 +704,11 @@ _DISPATCH_PARAMETERS = """
         each row (by index label) was picked.
     backend : {"auto", "exchange", "pyoptex"}
         ``"auto"`` uses the built-in exchange, and pyoptex only for ``hard_to_change``.
+    n_blocks : int or None
+        Blocks the design is run in. With the built-in exchange, the blocks are fixed
+        effects in the model the runs are chosen for, and ``metadata["block_labels"]``
+        gives each run's block (the fixed runs a block of their own). Otherwise the
+        blocks are assigned afterwards, by :func:`~process_improve.experiments.generate_design`.
 
     Returns
     -------
@@ -718,10 +728,20 @@ def dispatch_d_optimal(  # noqa: PLR0913
     random_state: int | np.random.Generator | None = None,
     candidates: pd.DataFrame | None = None,
     backend: str = "auto",
+    n_blocks: int | None = None,
 ) -> tuple[np.ndarray, dict]:
     """Generate a D-optimal design (maximises ``det(X'X)``, the precision of the coefficients jointly)."""
     req = _OptimalRequest(
-        factors, budget, hard_to_change, constraints, model_type, fixed_runs, random_state, candidates, backend
+        factors,
+        budget,
+        hard_to_change,
+        constraints,
+        model_type,
+        fixed_runs,
+        random_state,
+        candidates,
+        backend,
+        n_blocks,
     )
     return _dispatch_optimal("d_optimal", req)
 
@@ -736,10 +756,20 @@ def dispatch_i_optimal(  # noqa: PLR0913
     random_state: int | np.random.Generator | None = None,
     candidates: pd.DataFrame | None = None,
     backend: str = "auto",
+    n_blocks: int | None = None,
 ) -> tuple[np.ndarray, dict]:
     """Generate an I-optimal design (minimises the average prediction variance over the region)."""
     req = _OptimalRequest(
-        factors, budget, hard_to_change, constraints, model_type, fixed_runs, random_state, candidates, backend
+        factors,
+        budget,
+        hard_to_change,
+        constraints,
+        model_type,
+        fixed_runs,
+        random_state,
+        candidates,
+        backend,
+        n_blocks,
     )
     return _dispatch_optimal("i_optimal", req)
 
@@ -754,10 +784,20 @@ def dispatch_a_optimal(  # noqa: PLR0913
     random_state: int | np.random.Generator | None = None,
     candidates: pd.DataFrame | None = None,
     backend: str = "auto",
+    n_blocks: int | None = None,
 ) -> tuple[np.ndarray, dict]:
     """Generate an A-optimal design (minimises the summed variance of the coefficients)."""
     req = _OptimalRequest(
-        factors, budget, hard_to_change, constraints, model_type, fixed_runs, random_state, candidates, backend
+        factors,
+        budget,
+        hard_to_change,
+        constraints,
+        model_type,
+        fixed_runs,
+        random_state,
+        candidates,
+        backend,
+        n_blocks,
     )
     return _dispatch_optimal("a_optimal", req)
 

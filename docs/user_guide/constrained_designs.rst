@@ -240,6 +240,76 @@ is taken over. Without ``design_type``, a candidate set selects ``"d_optimal"``.
 Candidates outside the factors' ``low``/``high`` range are kept with a warning, since
 the coding extrapolates beyond plus or minus one.
 
+Running the design in blocks
+----------------------------
+
+When the runs cannot all be made under the same conditions (on two days, from two lots
+of raw material), pass ``n_blocks``. The analysis then fits a level for each block, so
+what the design has to estimate well is the factor effects once the differences
+between blocks are taken out. The D-, A- and I-optimal designs choose their runs for
+exactly that model: each block gets its own copy of the candidates, a run is only ever
+exchanged for a candidate of its own block, and the criterion is that of the factor
+effects adjusted for the blocks.
+
+.. code-block:: python
+
+   result = generate_design(factors, budget=12, n_blocks=2, constraints=[heat], model_type="quadratic")
+   print(result.metadata["blocking"]["method"])  # optimal_exchange
+   print(result.design_actual.sort_values(["Block", "T", "D"]).to_string(index=False))
+
+.. code-block:: text
+
+    RunOrder     T    D  Block
+           4 100.0 20.0      1
+           6 100.0 40.0      1
+           5 100.0 60.0      1
+           2 125.0 20.0      1
+           3 125.0 45.0      1
+           1 150.0 30.0      1
+          10 100.0 20.0      2
+          11 100.0 40.0      2
+           8 100.0 60.0      2
+          12 125.0 20.0      2
+           7 125.0 45.0      2
+           9 150.0 20.0      2
+
+Each day's six runs cover the region's vertices and edge midpoints, so each block is
+nearly a quadratic design on its own, and a shift from one day to the next moves both
+blocks' averages without biasing the factor effects. The run sheet takes the blocks in
+turn, shuffled within each.
+
+The most useful case is a follow-up experiment. Pass the runs already made as
+``fixed_runs``: with ``n_blocks`` they are the first block, kept first and in their
+order, and the new runs fill the other blocks, chosen knowing that the new day may
+differ from the old one.
+
+.. code-block:: python
+
+   first_day = generate_design(factors, budget=6, constraints=[heat], model_type="interactions").design
+   follow_up = generate_design(
+       factors,
+       budget=12,
+       n_blocks=2,
+       fixed_runs=first_day[["T", "D"]],
+       constraints=[heat],
+       model_type="quadratic",
+   )
+   print(follow_up.design["Block"].tolist())  # [1, 1, 1, 1, 1, 1, 2, 2, 2, 2, 2, 2]
+
+For the analysis with a day effect, this follow-up is 3.7% more D-efficient than the
+same augmentation chosen as if both days were one (13% for a 2x2 factorial followed by
+five runs). Splitting an optimal design into blocks after choosing it, the only option
+before, was within 1% of the joint design for equal blocks over a regular region; the
+gain is in follow-ups, in many small blocks (2 to 5% for blocks of two runs), and it
+cannot hurt.
+
+``metadata["log_det_information"]`` (or ``trace_criterion``) is then the value for the
+factor effects adjusted for the blocks, and ``metadata["blocking"]["method"]`` is
+``"optimal_exchange"``. E-, G- and K-optimal designs, mixtures, split-plot designs and
+replicated designs are still split into blocks after they are chosen (``"exchange"``),
+and cannot be combined with ``fixed_runs``. Each block needs at least two new runs, and
+the budget is raised, with a warning, when the block effects leave too few.
+
 Optimising inside the region
 ----------------------------
 

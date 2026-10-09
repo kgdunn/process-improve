@@ -33,7 +33,7 @@ import itertools
 import logging
 import math
 from collections.abc import Callable, Iterator, Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import TYPE_CHECKING, Any
 
 import numpy as np
@@ -560,6 +560,7 @@ class Criterion:
     name: str
     weights: np.ndarray | None = None
     region_rows: np.ndarray | None = None
+    segment: np.ndarray | None = None
 
     @classmethod
     def d(cls) -> Criterion:
@@ -590,6 +591,20 @@ class Criterion:
     def k(cls) -> Criterion:
         """K-optimality: the condition number of ``X'X`` (Ye and Zhou 2013)."""
         return cls("k_optimal")
+
+    def blocked(self, n_block_columns: int, segment: np.ndarray) -> Criterion:
+        """Return this criterion for a design run in blocks: the factor effects, adjusted for the blocks.
+
+        The model rows gain ``n_block_columns`` block columns, and ``segment`` gives the
+        block of each candidate row; a run is only ever swapped for a candidate of its
+        own block, so the block sizes stay as they started. With them fixed,
+        ``det(M) = det(Z'Z) det(S)``, where ``S`` is the factor information adjusted for
+        the blocks (the Schur complement of the block part ``Z'Z`` of ``M``), so D
+        maximises ``det(S)``. The trace criteria give the block columns no weight, and
+        ``trace(M^-1 W) = trace(S^-1 W)``. Only D, A and I are blocked this way.
+        """
+        weights = None if self.weights is None else np.pad(self.weights, (0, n_block_columns))
+        return replace(self, weights=weights, segment=segment)
 
     def value(self, info: np.ndarray) -> float:
         """Score an information matrix; higher is better.
@@ -729,8 +744,9 @@ class _ExchangeState:
     (see ``_COLLAPSE``), to bound rounding drift.
     """
 
-    def __init__(self, f_cand: np.ndarray, f_fixed: np.ndarray, rows: np.ndarray, weights: np.ndarray | None) -> None:
-        self.f_cand, self.f_fixed, self.rows, self.weights = f_cand, f_fixed, rows.copy(), weights
+    def __init__(self, f_cand: np.ndarray, f_fixed: np.ndarray, rows: np.ndarray, criterion: Criterion) -> None:
+        self.f_cand, self.f_fixed, self.rows = f_cand, f_fixed, rows.copy()
+        self.weights, self.segment = criterion.weights, criterion.segment
         self.refactor()
 
     def refactor(self) -> None:
@@ -753,25 +769,35 @@ class _ExchangeState:
             terms.b_i, terms.b_ij = np.einsum("ij,ij->i", x_b, x), x_b @ self.f_cand.T
         return terms
 
-    def best_swaps(self, terms: _RowTerms, rows: slice) -> tuple[np.ndarray, np.ndarray]:
+    def best_swaps(self, terms: _RowTerms, rows: slice, design_rows: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
         """Return the best candidate for block ``rows`` and the gain of each swap (:meth:`Criterion.swap_gains`).
 
-        For D the gain ``d(j) (1 - d(i)) + d(i, j)^2 - d(i)`` is ranked without its last
-        term, in one temporary, where the general form takes several.
+        ``design_rows`` are those rows' positions in the design. For D the gain
+        ``d(j) (1 - d(i)) + d(i, j)^2 - d(i)`` is ranked without its last term, in one
+        temporary, where the general form takes several. In a blocked design a run only
+        competes with the candidates of its own block.
         """
         d_i = terms.d_i[rows]
         index = np.arange(len(d_i))
         if self.weights is None:
             score = np.square(terms.d_ij[rows])
             score += np.multiply.outer(1.0 - d_i, self.variance)
+            self._keep_in_block(score, design_rows)
             best = np.argmax(score, axis=1)
             return best, score[index, best] - d_i
         gains = _trace_gain(
             (d_i[:, None], self.variance[None, :], terms.d_ij[rows]),
             (terms.b_i[rows, None], self.b_variance[None, :], terms.b_ij[rows]),  # type: ignore[index]
         )
+        self._keep_in_block(gains, design_rows)
         best = np.argmax(gains, axis=1)
         return best, gains[index, best]
+
+    def _keep_in_block(self, scores: np.ndarray, design_rows: np.ndarray) -> None:
+        """Rule out, in place, every swap of a run for a candidate of another block (when the design is blocked)."""
+        if self.segment is not None:
+            own_block = self.segment[self.rows[design_rows]]
+            scores[own_block[:, None] != self.segment[None, :]] = -np.inf
 
     def _rank_one(
         self, v: np.ndarray, sign: float, f_u: np.ndarray | None = None, f_g: np.ndarray | None = None
@@ -834,7 +860,7 @@ def _climb_block(state: _ExchangeState, block: np.ndarray) -> bool:
     """
     terms, r, size, swapped = state.terms(block), 0, 1, False
     while r < len(block):
-        best, gain = state.best_swaps(terms, slice(r, r + size))
+        best, gain = state.best_swaps(terms, slice(r, r + size), block[r : r + size])
         better = np.flatnonzero(gain > 1e-9)  # also refuses NaN
         if not len(better):
             r, size = r + size, 2 * size
@@ -862,7 +888,7 @@ def _row_exchange(f_cand: np.ndarray, f_fixed: np.ndarray, rows: np.ndarray, cri
     the criterion. Rows are scored in blocks of up to ``_BLOCK_ROWS`` rows and
     ``_BLOCK_ENTRIES`` terms (:func:`_climb_block`).
     """
-    state = _ExchangeState(f_cand, f_fixed, rows, criterion.weights)
+    state = _ExchangeState(f_cand, f_fixed, rows, criterion)
     size = int(np.clip(_BLOCK_ENTRIES // max(len(f_cand), 1), 1, _BLOCK_ROWS))
     for _ in range(_MAX_PASSES):
         improved = False
@@ -1179,7 +1205,22 @@ def _climbed_starts(
 ) -> Iterator[np.ndarray]:
     """Each random start of the exchange (see :func:`_n_starts`), climbed to a local optimum of ``criterion``."""
     for _ in range(_n_starts(criterion, f_cand, n_free)):
-        yield _climb(f_cand, f_fixed, _greedy_start(f_cand, f_fixed, n_free, rng), criterion)
+        start = _greedy_start(f_cand, f_fixed, n_free, rng)
+        if criterion.segment is not None:
+            start = _spread_over_blocks(start, criterion.segment)
+        yield _climb(f_cand, f_fixed, start, criterion)
+
+
+def _spread_over_blocks(rows: np.ndarray, segment: np.ndarray) -> np.ndarray:
+    """Deal a start's runs out to the blocks in turn, so the block sizes differ by at most one.
+
+    A blocked exchange's candidates are one copy of the points per block, laid end to
+    end in block order (``segment`` holds each row's block), so a point moves to the
+    ``b``-th block by moving to the same row of the ``b``-th copy.
+    """
+    n_blocks = len(np.unique(segment))
+    n_points = len(segment) // n_blocks
+    return rows % n_points + n_points * (np.arange(len(rows)) % n_blocks)
 
 
 def _climb(f_cand: np.ndarray, f_fixed: np.ndarray, rows: np.ndarray, criterion: Criterion) -> np.ndarray:
@@ -1417,6 +1458,11 @@ class ConstrainedOptions:
         mixture), one column per factor, instead of a generated grid. Rows that
         break a constraint are dropped, and the I-optimality average is taken over
         the remaining rows.
+    n_blocks : int or None
+        Blocks the design is run in. For D, A and I the blocks enter the exchange as
+        fixed effects (see :meth:`Criterion.blocked`), and ``metadata["block_labels"]``
+        gives each run's block; the fixed runs, already made, are a block of their
+        own. Other criteria leave the blocks to be assigned afterwards.
     """
 
     model_type: str = "interactions"
@@ -1424,6 +1470,92 @@ class ConstrainedOptions:
     fixed_runs: pd.DataFrame | None = None
     n_levels: int | None = None
     candidates: pd.DataFrame | None = None
+    n_blocks: int | None = None
+
+
+def block_columns(labels: np.ndarray, n_blocks: int) -> np.ndarray:
+    """Return sum-to-zero columns for the 0-based block ``labels``: ``n_blocks - 1`` of them, the last block -1 in each.
+
+    ``analyze_experiment`` codes blocks this way, so a criterion over these columns is
+    the one the analysis estimates with, and the intercept is the average block.
+    """
+    coding = np.vstack([np.eye(n_blocks - 1), -np.ones((1, n_blocks - 1))])
+    return coding[np.asarray(labels, dtype=int)]
+
+
+def _blocks_in_exchange(opts: ConstrainedOptions, criterion: Criterion) -> bool:
+    """Whether the blocks enter the exchange: there are two or more, and the criterion is D, A or I."""
+    return opts.n_blocks is not None and opts.n_blocks > 1 and criterion.name in _CLOSED_FORM_CRITERIA
+
+
+def _blocked_search(
+    pool: CandidatePool, f_fixed: np.ndarray, criterion: Criterion, n_blocks: int, budget: int
+) -> tuple[CandidatePool, np.ndarray, Criterion, int]:
+    """Set the exchange up for a design run in ``n_blocks`` blocks: return its pool, fixed rows, criterion and budget.
+
+    The fixed runs, already made, are a block of their own, the first; the free runs
+    fill the others in near-equal shares. Each block the free runs fill gets a copy of
+    the candidates, with that block's columns (:func:`block_columns`) and its index as
+    one more categorical column, which the polish never moves. The budget is raised,
+    with a warning, when the block effects leave too few runs to estimate the model.
+
+    Raises
+    ------
+    ValueError
+        If the budget leaves fewer than two new runs for each block they fill.
+    """
+    n_fixed = len(f_fixed)
+    free_blocks = np.arange(1 if n_fixed else 0, n_blocks)
+    f_fixed = np.hstack([f_fixed, block_columns(np.zeros(n_fixed, dtype=int), n_blocks)])
+    n_parameters = pool.rows.shape[1] + n_blocks - 1
+    needed = n_fixed + n_parameters - (int(np.linalg.matrix_rank(f_fixed)) if n_fixed else 0)
+    if budget < needed:
+        logger.warning(
+            "Running the design in %d blocks adds %d block effect(s) to the model's %d coefficients, so it needs at "
+            "least %d runs; raising the budget from %d to %d.",
+            n_blocks,
+            n_blocks - 1,
+            pool.rows.shape[1],
+            needed,
+            budget,
+            needed,
+        )
+        budget = needed
+    if budget - n_fixed < 2 * len(free_blocks):
+        raise ValueError(
+            f"{n_blocks} blocks need at least two new runs in each of the {len(free_blocks)} blocks the new runs "
+            f"fill, but the budget leaves {budget - n_fixed}. Use fewer blocks or a larger budget."
+        )
+    segment = np.repeat(free_blocks, len(pool.rows))
+    copies = len(free_blocks)
+    lattice = pool.lattice
+    if lattice is not None:
+        factor_rows = lattice.model_rows
+        lattice = replace(
+            lattice,
+            model_rows=lambda coded, cats: np.hstack(
+                [factor_rows(coded, cats[:, :-1]), block_columns(cats[:, -1], n_blocks)]
+            ),
+        )
+    blocked_pool = CandidatePool(
+        np.tile(pool.coded, (copies, 1)),
+        np.column_stack([np.tile(pool.cats, (copies, 1)), segment]),
+        np.hstack([np.tile(pool.rows, (copies, 1)), block_columns(segment, n_blocks)]),
+        lattice,
+    )
+    return blocked_pool, f_fixed, criterion.blocked(n_blocks - 1, segment), budget
+
+
+def _adjusted_for_blocks(criterion: Criterion, value: float, labels: np.ndarray, n_blocks: int) -> float:
+    """Return ``value`` for the factor effects adjusted for the blocks (see :meth:`Criterion.blocked`).
+
+    For D, ``log det(M)`` less ``log det(Z'Z)`` of the block columns ``Z`` is
+    ``log det(S)``; the trace criteria already score ``S``.
+    """
+    if criterion.name != "d_optimal":
+        return value
+    z = block_columns(labels, n_blocks)
+    return value - float(np.linalg.slogdet(z.T @ z)[1])
 
 
 def _fixed_rows(region: _Region, fixed_runs: pd.DataFrame | None, model_type: str, n_columns: int) -> np.ndarray:
@@ -1522,7 +1654,23 @@ def _polish_lattice(region: _Region, opts: ConstrainedOptions, counts: dict) -> 
 def _candidate_pool(
     region: _Region, opts: ConstrainedOptions, rng: np.random.Generator
 ) -> tuple[np.ndarray, np.ndarray, dict, list | None, Callable[[], np.ndarray]]:
-    """Return the candidates (a generated grid, or the user's), and the rows I-optimality averages over."""
+    """Return the candidates (a generated grid, or the user's), and the rows I-optimality averages over.
+
+    Raises
+    ------
+    ValueError
+        If no candidate point satisfies the constraints.
+    """
+    coded, cats, counts, labels, region_rows = _candidates_and_region(region, opts, rng)
+    if counts["n_candidates"] == 0:
+        raise ValueError("No candidate point satisfies all the constraints; check them for conflicts.")
+    return coded, cats, counts, labels, region_rows
+
+
+def _candidates_and_region(
+    region: _Region, opts: ConstrainedOptions, rng: np.random.Generator
+) -> tuple[np.ndarray, np.ndarray, dict, list | None, Callable[[], np.ndarray]]:
+    """See :func:`_candidate_pool`, which checks that some candidate is feasible."""
     if opts.candidates is not None:
         coded, cats, counts, labels = _user_candidates(region, opts.candidates)
         return coded, cats, counts, labels, lambda: model_matrix(region, coded, cats, opts.model_type)
@@ -1696,25 +1844,25 @@ def constrained_optimal_design(
     region = _Region(continuous, categorical, inequalities)
 
     coded, cats, counts, labels, region_rows = _candidate_pool(region, opts, rng)
-    if counts["n_candidates"] == 0:
-        raise ValueError("No candidate point satisfies all the constraints; check them for conflicts.")
-
     f_cand = model_matrix(region, coded, cats, model_type)
     f_fixed = _fixed_rows(region, fixed_runs, model_type, f_cand.shape[1])
     n_fixed = len(f_fixed)
-
-    if np.linalg.matrix_rank(np.vstack([f_fixed, f_cand])) < f_cand.shape[1]:
-        raise ValueError(
-            f"The feasible region ({counts['n_candidates']} candidate points) cannot support a "
-            f"'{model_type}' model with {f_cand.shape[1]} coefficients. Use a simpler model, supply "
-            "candidates, or loosen the constraints."
-        )
+    _check_candidates_support_model(counts, f_fixed, f_cand, model_type)
 
     p = f_cand.shape[1]
     budget = _budget_for_fixed_runs(f_fixed, p, budget)
     criterion = make_criterion(opts.criterion, p, region_rows, f_cand)
     pool = CandidatePool(coded, cats, f_cand, _polish_lattice(region, opts, counts))
-    rows, chosen, chosen_cats, value = select_runs(pool, budget - n_fixed, f_fixed, rng, criterion)
+    block_labels = None
+    if _blocks_in_exchange(opts, criterion):
+        n_blocks = int(opts.n_blocks)  # type: ignore[arg-type]
+        search, search_fixed, criterion, budget = _blocked_search(pool, f_fixed, criterion, n_blocks, budget)
+        rows, chosen, chosen_cats, value = select_runs(search, budget - n_fixed, search_fixed, rng, criterion)
+        block_labels = np.concatenate([np.zeros(n_fixed, dtype=int), chosen_cats[:, -1]])
+        rows, chosen_cats = (None if rows is None else rows % len(f_cand)), chosen_cats[:, :-1]
+        value = _adjusted_for_blocks(criterion, value, block_labels, n_blocks)
+    else:
+        rows, chosen, chosen_cats, value = select_runs(pool, budget - n_fixed, f_fixed, rng, criterion)
     chosen_rows = model_matrix(region, chosen, chosen_cats, model_type)
     if len(chosen) != budget - n_fixed or np.linalg.matrix_rank(np.vstack([f_fixed, chosen_rows])) < p:
         raise ValueError(
@@ -1723,13 +1871,6 @@ def constrained_optimal_design(
         )
     if pool.lattice is not None:
         counts["polish_levels"] = pool.lattice.n_levels
-
-    design = pd.DataFrame(chosen, columns=[f.name for f in continuous])
-    for j, f in enumerate(categorical):
-        design[f.name] = np.asarray(f.levels, dtype=object)[chosen_cats[:, j]]
-    if fixed_runs is not None:
-        design = pd.concat([fixed_runs[design.columns].reset_index(drop=True), design], ignore_index=True)
-    design = design[[f.name for f in factors]]
 
     meta = {
         "backend": "candidate_exchange",
@@ -1741,10 +1882,36 @@ def constrained_optimal_design(
         meta["constraints"] = [c.expression for c in constraints]
         meta["constraints_enforced"] = True
     meta.update(criterion_metadata(criterion, value))
+    if block_labels is not None:
+        meta["block_labels"] = (block_labels + 1).tolist()
+    if budget != requested_budget:
+        meta["budget_requested"] = requested_budget
     if fixed_runs is not None:
         meta.update(_fixed_run_metadata(region, fixed_runs, requested_budget, budget))
     if labels is not None and rows is not None:
         meta["candidate_source"] = "user"
         meta["selected_candidates"] = selection_counts(labels, rows)
-    values = design.to_numpy() if categorical else design.to_numpy(dtype=float)
-    return values, meta
+    return _assemble_design(region, factors, chosen, chosen_cats, fixed_runs), meta
+
+
+def _check_candidates_support_model(counts: dict, f_fixed: np.ndarray, f_cand: np.ndarray, model_type: str) -> None:
+    """Raise unless the candidates, with the fixed runs, can estimate the model."""
+    if np.linalg.matrix_rank(np.vstack([f_fixed, f_cand])) < f_cand.shape[1]:
+        raise ValueError(
+            f"The feasible region ({counts['n_candidates']} candidate points) cannot support a "
+            f"'{model_type}' model with {f_cand.shape[1]} coefficients. Use a simpler model, supply "
+            "candidates, or loosen the constraints."
+        )
+
+
+def _assemble_design(
+    region: _Region, factors: list[Factor], chosen: np.ndarray, chosen_cats: np.ndarray, fixed_runs: pd.DataFrame | None
+) -> np.ndarray:
+    """Return the design: the fixed runs, then the chosen ones, continuous factors coded and categorical as labels."""
+    design = pd.DataFrame(chosen, columns=[f.name for f in region.continuous])
+    for j, f in enumerate(region.categorical):
+        design[f.name] = np.asarray(f.levels, dtype=object)[chosen_cats[:, j]]
+    if fixed_runs is not None:
+        design = pd.concat([fixed_runs[design.columns].reset_index(drop=True), design], ignore_index=True)
+    design = design[[f.name for f in factors]]
+    return design.to_numpy() if region.categorical else design.to_numpy(dtype=float)

@@ -77,10 +77,14 @@ def test_too_many_blocks_for_the_runs_raises() -> None:
         exchange_blocks(np.eye(4), 3, np.random.default_rng(1))
 
 
-def test_blocks_with_fixed_runs_raise() -> None:
+def test_blocks_with_fixed_runs_raise_unless_the_exchange_blocks_them() -> None:
+    """E-optimal designs are blocked afterwards, which cannot move runs already made; D-optimal ones block them in."""
     fixed = pd.DataFrame({"x0": [0.0], "x1": [0.0]})
     with pytest.raises(ValueError, match="fixed_runs"):
-        generate_design(_factors(2), "d_optimal", budget=8, fixed_runs=fixed, n_blocks=2)
+        generate_design(_factors(2), "e_optimal", budget=8, fixed_runs=fixed, n_blocks=2)
+    result = generate_design(_factors(2), "d_optimal", budget=8, fixed_runs=fixed, n_blocks=2)
+    assert result.design["Block"].iloc[0] == 1
+    assert (result.design["Block"].iloc[1:] == 2).all()
 
 
 def test_add_blocks_never_confounds_a_main_effect() -> None:
