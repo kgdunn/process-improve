@@ -135,6 +135,7 @@ def _dispatch_ccd(
         generators=kwargs.get("generators"),
         resolution=kwargs.get("resolution"),
         n_replicates=kwargs.get("n_replicates", 1),
+        n_blocks=kwargs.get("blocks"),
     )
 
 
@@ -704,7 +705,12 @@ def generate_design(  # noqa: PLR0913
     n_blocks : int or None
         Number of blocks the runs are made in (days, batches, raw-material lots), with
         a ``Block`` column on the design. A regular two-level factorial confounds chosen
-        interactions with the blocks. A D-, A- or I-optimal design from the built-in
+        interactions with the blocks. A CCD puts its axial runs in a block of their own
+        and its cube runs in the others (``n_blocks`` 2, 3, 5, ...), the cube split by
+        confounding as a factorial is; without *alpha* it takes the axial distance at
+        which the blocks are orthogonal to every model term, squares included
+        (``alpha_rule`` ``"orthogonal_blocks"``; Box and Hunter 1957), and
+        ``metadata["blocking"]["orthogonal"]`` says whether they are. A D-, A- or I-optimal design from the built-in
         exchange chooses its runs for the model with the blocks as fixed effects, so the
         factor effects are estimated as precisely as they can be once block-to-block
         differences are removed (``metadata["blocking"]["method"]`` is
@@ -874,6 +880,8 @@ def generate_design(  # noqa: PLR0913
         # The optimal designs build blocks into the runs they choose; replicated, they are blocked afterwards.
         "n_blocks": n_blocks if n_replicates == 1 else None,
         "n_replicates": n_replicates,
+        # A CCD is blocked by its portions, replicated or not; its axial distance depends on it.
+        "blocks": n_blocks,
     }
 
     coded_matrix, meta = dispatch_fn(factors, **dispatch_kwargs)

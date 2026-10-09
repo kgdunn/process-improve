@@ -12,7 +12,13 @@ from patsy.util import SortAnythingKey
 
 from process_improve._random import check_random_state
 from process_improve.experiments._analyses._shared import BLOCK_COL, WHOLE_PLOT_COL
-from process_improve.experiments._blocking import Blocking, confounding_blocks, exchange_blocks, is_regular_two_level
+from process_improve.experiments._blocking import (
+    Blocking,
+    ccd_blocks,
+    confounding_blocks,
+    exchange_blocks,
+    is_regular_two_level,
+)
 from process_improve.experiments.structures import Column, Expt, c, gather
 
 if TYPE_CHECKING:
@@ -309,6 +315,42 @@ def _run_order(
     return np.arange(n_runs)
 
 
+def _final_rows(flags: list | None, own: np.ndarray, n_replicates: int, n_runs: int) -> np.ndarray | None:
+    """Carry a per-row flag of the dispatched design to the rows of the replicated design.
+
+    The design is the replicated rows, then the design's own centre runs, then the
+    appended centre runs (flagged ``False``), in the order :func:`build_design_result`
+    stacks them.
+    """
+    if flags is None:
+        return None
+    flags_array = np.asarray(flags, dtype=bool)
+    rows = np.concatenate([np.tile(flags_array[~own], n_replicates), flags_array[own]])
+    return np.concatenate([rows, np.zeros(n_runs - len(rows), dtype=bool)])
+
+
+def _design_frames(matrix: np.ndarray, factors: list[Factor], design_type: str, is_actual: bool) -> tuple[Expt, Expt]:
+    """Return the coded and the actual design, each with a ``RunOrder`` column and a 1-based index.
+
+    A design already in actual units (mixture proportions) is the same in both.
+    """
+    if is_actual:
+        actual_columns = matrix_to_columns(matrix, factors, is_actual=True)
+        title = f"{design_type} design (proportions)"
+        frames = (columns_to_expt(actual_columns, title=title), columns_to_expt(actual_columns, title=title))
+    else:
+        coded_columns = matrix_to_columns(matrix, factors)
+        frames = (
+            columns_to_expt(coded_columns, title=f"{design_type} design (coded)"),
+            columns_to_expt(coded_to_actual(coded_columns), title=f"{design_type} design (actual)"),
+        )
+    n_runs = matrix.shape[0]
+    for frame in frames:
+        frame.insert(0, "RunOrder", list(range(1, n_runs + 1)))
+        frame.index = pd.RangeIndex(1, n_runs + 1)
+    return frames
+
+
 def _whole_plot_labels(whole_plot: list[int], n_replicates: int, perm: np.ndarray) -> np.ndarray:
     """Return each run's whole plot, numbered from 1 in run order.
 
@@ -432,9 +474,12 @@ def build_design_result(  # noqa: PLR0913
     rng = check_random_state(random_state) if randomize else None
     metadata = dict(metadata or {})
     exchange_labels = metadata.pop("block_labels", None)
+    axial = _final_rows(metadata.pop("axial_portion", None), own, n_replicates, len(matrix))
     blocking = None
     if n_blocks is not None and n_blocks > 1:
-        if exchange_labels is not None:
+        if axial is not None:
+            blocking = ccd_blocks(_numeric_codes(matrix, factors), axial, n_blocks, [f.name for f in factors])
+        elif exchange_labels is not None:
             blocking = Blocking(np.asarray(exchange_labels), "optimal_exchange", model=metadata.get("model_type"))
         elif n_leading_fixed:
             raise ValueError(
@@ -447,28 +492,9 @@ def build_design_result(  # noqa: PLR0913
     matrix_randomized = matrix[perm]
     run_order = (perm + 1).tolist()
 
-    # 4. Convert to Columns and Expt
-    if is_actual:
-        # Matrix is already in actual units (e.g. mixture proportions)
-        actual_columns = matrix_to_columns(matrix_randomized, factors, is_actual=True)
-        coded_columns = actual_columns  # same for mixture designs
-        design_coded = columns_to_expt(coded_columns, title=f"{design_type} design (proportions)")
-        design_actual = columns_to_expt(actual_columns, title=f"{design_type} design (proportions)")
-    else:
-        coded_columns = matrix_to_columns(matrix_randomized, factors)
-        actual_columns = coded_to_actual(coded_columns)
-        design_coded = columns_to_expt(coded_columns, title=f"{design_type} design (coded)")
-        design_actual = columns_to_expt(actual_columns, title=f"{design_type} design (actual)")
-
+    # 4. Convert to Columns and Expt, with a run-order column and a 1-based index
+    design_coded, design_actual = _design_frames(matrix_randomized, factors, design_type, is_actual)
     factor_names = [f.name for f in factors]
-
-    # Add run order column (sequential 1..N for the experimenter)
-    design_coded.insert(0, "RunOrder", list(range(1, n_runs + 1)))
-    design_actual.insert(0, "RunOrder", list(range(1, n_runs + 1)))
-
-    # Reset index to 1-based
-    design_coded.index = pd.RangeIndex(1, n_runs + 1)
-    design_actual.index = pd.RangeIndex(1, n_runs + 1)
 
     # 5. Blocks
     block_assignments = None
@@ -482,6 +508,8 @@ def build_design_result(  # noqa: PLR0913
             "confounded_with": blocking.confounded_with,
             "model": blocking.model,
         }
+        if blocking.orthogonal is not None:
+            metadata["blocking"]["orthogonal"] = blocking.orthogonal
 
     # 6. Whole plots: a split-plot design's runs carry their whole plot, as Block does.
     if metadata and "whole_plot" in metadata:

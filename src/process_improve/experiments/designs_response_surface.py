@@ -31,6 +31,7 @@ def dispatch_ccd(  # noqa: PLR0913
     generators: list[str] | None = None,
     resolution: int | None = None,
     n_replicates: int = 1,
+    n_blocks: int | None = None,
 ) -> tuple[np.ndarray, dict]:
     """Generate a Central Composite Design (CCD).
 
@@ -62,6 +63,11 @@ def dispatch_ccd(  # noqa: PLR0913
     n_replicates : int
         How many times the cube and axial runs will be replicated (the centre runs
         are not), which the orthogonal axial distance depends on.
+    n_blocks : int or None
+        Blocks the design will be run in: the axial runs in one, the cube runs in the
+        others. Without *alpha*, the axial distance is then the one that blocks the
+        design orthogonally (:func:`blocking_alpha`), recorded as ``alpha_rule``
+        ``"orthogonal_blocks"``.
 
     Returns
     -------
@@ -71,7 +77,8 @@ def dispatch_ccd(  # noqa: PLR0913
         shrunk, the axial runs sit at +/-1 and the cube at +/-1/alpha); ``face``, the
         geometry (``"circumscribed"``, ``"faced"`` or ``"inscribed"``); and
         ``alpha_rule``, how alpha was chosen (``"orthogonal"``, ``"rotatable"``,
-        ``"face_centered"``, ``"inscribed"`` or ``"user"``).
+        ``"face_centered"``, ``"inscribed"``, ``"orthogonal_blocks"`` or ``"user"``);
+        and ``axial_portion``, which rows are the axial runs and their centre runs.
 
     Raises
     ------
@@ -86,30 +93,40 @@ def dispatch_ccd(  # noqa: PLR0913
     """
     if len(factors) < 2:
         raise ValueError(f"A central composite design needs at least 2 factors, got {len(factors)}.")
+    if cube not in ("full", "fractional"):
+        raise ValueError(f"cube must be 'full' or 'fractional', got {cube!r}.")
+    k = len(factors)
     if cube == "fractional":
         cube_runs, cube_meta = _fractional_cube(factors, generators, resolution)
-        axial_distance, rule = _resolve_fractional_axial_distance(
-            alpha, len(cube_runs), len(factors), n_center_points, n_replicates
-        )
-        coded_matrix = _stack_ccd(cube_runs, axial_distance, n_center_points)
-        return coded_matrix, {
-            "alpha_value": axial_distance,
-            "face": _geometry(axial_distance),
-            "alpha_rule": rule,
-            **cube_meta,
-        }
-    if cube != "full":
-        raise ValueError(f"cube must be 'full' or 'fractional', got {cube!r}.")
+    else:
+        cube_runs, cube_meta = np.array(list(itertools.product((-1.0, 1.0), repeat=k)))[:, ::-1], {}
 
-    k = len(factors)
+    if n_blocks is not None and n_blocks > 1 and alpha is None:
+        # Blocked, with no axial distance asked for: the one that blocks orthogonally.
+        n_center_cube = n_center_points // 2
+        distance = blocking_alpha(
+            n_replicates * len(cube_runs), n_center_cube, k, n_center_points - n_center_cube, n_replicates
+        )
+        coded_matrix = _stack_ccd(cube_runs, distance, n_center_points)
+        meta = {"alpha_value": distance, "face": _geometry(distance), "alpha_rule": "orthogonal_blocks"}
+    elif cube == "fractional":
+        distance, rule = _resolve_fractional_axial_distance(alpha, len(cube_runs), k, n_center_points, n_replicates)
+        coded_matrix = _stack_ccd(cube_runs, distance, n_center_points)
+        meta = {"alpha_value": distance, "face": _geometry(distance), "alpha_rule": rule}
+    else:
+        coded_matrix, meta = _full_ccd(k, n_center_points, alpha, n_replicates)
+    # Rows run cube, cube centre runs, axial runs, axial centre runs; mark the axial portion.
+    axial = np.arange(len(coded_matrix)) >= len(cube_runs) + n_center_points // 2
+    return coded_matrix, {**meta, **cube_meta, "axial_portion": axial.tolist()}
+
+
+def _full_ccd(k: int, n_center_points: int, alpha: str | float | None, n_replicates: int) -> tuple[np.ndarray, dict]:
+    """Build a CCD on the full 2^k cube, with *alpha* as :func:`dispatch_ccd` takes it."""
     kind = _axial_kind(alpha)
     rule = _ALPHA_NAMES[kind][0] if isinstance(kind, str) else "user"
     if kind == "orthogonal":
         r = n_replicates
         kind = orthogonal_alpha(r * 2**k, r * (2**k + 2 * k) + n_center_points, n_axial_replicates=r)
-    # Centre runs are split between the cube and axial blocks, as ccdesign does.
-    n_center_cube = n_center_points // 2
-    n_center_axial = n_center_points - n_center_cube
 
     if isinstance(kind, float):
         # An axial distance ccdesign cannot take: build the 2^k cube, the 2k axial runs and the centre runs here.
@@ -117,8 +134,10 @@ def dispatch_ccd(  # noqa: PLR0913
         coded_matrix = _stack_ccd(cube_runs, kind, n_center_points)
         return coded_matrix, {"alpha_value": kind, "face": _geometry(kind), "alpha_rule": rule}
 
+    # Centre runs are split between the cube and axial blocks, as ccdesign does.
+    n_center_cube = n_center_points // 2
     face = {"faced": "faced", "inscribed": "inscribed"}.get(kind, "circumscribed")
-    coded_matrix = ccdesign(k, center=(n_center_cube, n_center_axial), alpha="rotatable", face=face)
+    coded_matrix = ccdesign(k, center=(n_center_cube, n_center_points - n_center_cube), alpha="rotatable", face=face)
     if face == "inscribed":
         # The axial runs sit at +/-1 and the cube is shrunk to +/-1/alpha.
         cube_rows = coded_matrix[np.all(coded_matrix != 0, axis=1)]
@@ -164,6 +183,40 @@ def orthogonal_alpha(n_cube_runs: int, n_runs: int, n_axial_replicates: int = 1)
     """
     gap = np.sqrt(n_runs) - np.sqrt(n_cube_runs)
     return float((n_cube_runs * gap**2 / (4 * n_axial_replicates**2)) ** 0.25)
+
+
+def blocking_alpha(
+    n_cube_runs: int, n_center_cube: int, n_factors: int, n_center_axial: int, n_axial_replicates: int = 1
+) -> float:
+    """Axial distance at which a CCD's cube and axial blocks are orthogonal to the squares too.
+
+    ``alpha**2 = F (2 k s + c_a) / (2 s (F + c_c))`` for ``F`` cube runs and ``c_c`` centre
+    runs in the cube blocks, ``k`` factors whose ``2k`` axial points are each run ``s``
+    times, and ``c_a`` centre runs in the axial block (Box and Hunter 1957; Montgomery,
+    *Design and Analysis of Experiments*, section 11.4). Each block then holds the same
+    share of every factor's sum of squares as of the runs. With two factors, a 2^2 cube
+    and three centre runs in each block it is ``sqrt(2)``, rotatable too.
+
+    Parameters
+    ----------
+    n_cube_runs : int
+        Runs in the cube portion, replicates included.
+    n_center_cube : int
+        Centre runs in the cube blocks.
+    n_factors : int
+        Number of factors ``k``.
+    n_center_axial : int
+        Centre runs in the axial block.
+    n_axial_replicates : int
+        How many times each axial point is run.
+
+    Returns
+    -------
+    float
+        The axial distance in coded units.
+    """
+    f, s = n_cube_runs, n_axial_replicates
+    return float(np.sqrt(f * (2 * n_factors * s + n_center_axial) / (2 * s * (f + n_center_cube))))
 
 
 #: Accepted spellings of each named axial distance.

@@ -78,7 +78,9 @@ class GenerateDesignInput(BaseModel):
         ge=2,
         description=(
             "Number of blocks. A two-level factorial is blocked by confounding high-order interactions "
-            "(never a main effect); other designs by exchange. Runs are randomised within blocks."
+            "(never a main effect). A CCD puts its axial runs in one block and its cube runs in the others "
+            "(2, 3, 5, ... blocks), and without alpha takes the axial distance that blocks it orthogonally. "
+            "Other designs are blocked by exchange. Runs are randomised within blocks."
         ),
     )
     resolution: int | None = Field(
