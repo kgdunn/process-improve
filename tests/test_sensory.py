@@ -6,6 +6,8 @@ mode is a stub and is covered by the not-implemented tests below.
 
 from __future__ import annotations
 
+import re
+
 import numpy as np
 import pandas as pd
 import pytest
@@ -974,6 +976,56 @@ def test_reshape_means_only_is_refused():
             layout="wide_by_attribute",
             mapping={"product": "Sample", "attributes": ["Salty"]},
         )
+
+
+@pytest.mark.parametrize(
+    ("layout", "mapping", "message"),
+    [
+        pytest.param(
+            "wide",
+            {"panelist_id": "Assessor"},
+            "layout must be 'long', 'wide_by_attribute', or 'wide_by_product', got 'wide'.",
+            id="unknown-layout",
+        ),
+        pytest.param(
+            "wide_by_attribute",
+            {"panelist_id": "Who", "product": "Sample"},
+            "mapping['panelist_id'] = 'Who' is not a column in the data.",
+            id="panelist-column-absent",
+        ),
+        pytest.param(
+            "long",
+            {"panelist_id": "Assessor", "product": "Sample", "attribute": "Salty", "score": "value"},
+            "mapping['score'] = 'value' is not a column in the data (required for long layout).",
+            id="long-score-column-absent",
+        ),
+        pytest.param(
+            "wide_by_product",
+            {"panelist_id": "Assessor"},
+            "mapping['attribute'] = None is required for wide_by_product layout.",
+            id="wide-by-product-without-attribute",
+        ),
+        pytest.param(
+            "wide_by_attribute",
+            {"panelist_id": "Assessor", "product": "Sample", "attributes": []},
+            "No attribute columns found for wide_by_attribute layout.",
+            id="no-value-columns",
+        ),
+    ],
+)
+def test_reshape_rejects_a_mapping_it_cannot_follow(layout, mapping, message):
+    """Each mapping error names the role and the column, before any reshaping is attempted."""
+    with pytest.raises(ValueError, match=f"^{re.escape(message)}$"):
+        reshape_to_long(_wide_panel(), layout=layout, mapping=mapping)
+
+
+def test_reshape_wide_keeps_a_mapped_session_column():
+    """A session column named in the mapping is carried into the long table instead of the default of 1."""
+    wide = _wide_panel().assign(Day=lambda frame: frame["Rep"] + 10)
+    mapping = {"panelist_id": "Assessor", "product": "Sample", "replicate": "Rep", "session": "Day"}
+    long_df, checks = reshape_to_long(wide, layout="wide_by_attribute", mapping=mapping)
+    assert checks["ok"]
+    assert sorted(long_df["session"].unique()) == [11, 12]
 
 
 def test_reshape_missing_attribute_column_raises():
