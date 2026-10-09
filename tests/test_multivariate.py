@@ -298,8 +298,9 @@ def test_pca_missing_data_as_numpy(fixture_kamyr_data_missing_value: pd.DataFram
     pca = PCA(n_components=A)
     assert pca.missing_data_settings is None
 
-    # Check that default auto algorithm was used (NIPALS for missing data)
-    model = pca.fit(X_mcuv)
+    # Check that default auto algorithm was used (NIPALS for missing data). MCUVScaler
+    # hands back a DataFrame even for array input, so convert: this test is about an ndarray.
+    model = pca.fit(X_mcuv.to_numpy())
     assert model.algorithm_ == "nipals"
     assert model.has_missing_data_ is True
 
