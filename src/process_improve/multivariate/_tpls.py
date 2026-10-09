@@ -509,10 +509,14 @@ class TPLS(RegressorMixin, BaseEstimator):
         self.r2_frac: list[dict[str, dict[str, np.ndarray]]] = [{key: {} for key in self.required_blocks_}]
         self.feature_importance: dict[str, dict[str, pd.Series]] = {key: {} for key in self.required_blocks_}
 
-        self.d_mats: dict[str, np.ndarray] = {key: self.d_matrix[key].values.copy() for key in group_keys}
-        self.f_mats: dict[str, np.ndarray] = {key: X["F"][key].values.copy() for key in group_keys}
-        self.z_mats: dict[str, np.ndarray] = {key: X["Z"][key].values.copy() for key in X["Z"]}
-        self.y_mats: dict[str, np.ndarray] = {key: X["Y"][key].values.copy() for key in X["Y"]}
+        # Float copies: int64 columns are accepted, and the blocks are deflated in place, which
+        # cannot write a float result back into an integer array.
+        self.d_mats: dict[str, np.ndarray] = {
+            key: self.d_matrix[key].to_numpy(dtype=float, copy=True) for key in group_keys
+        }
+        self.f_mats: dict[str, np.ndarray] = {key: X["F"][key].to_numpy(dtype=float, copy=True) for key in group_keys}
+        self.z_mats: dict[str, np.ndarray] = {key: X["Z"][key].to_numpy(dtype=float, copy=True) for key in X["Z"]}
+        self.y_mats: dict[str, np.ndarray] = {key: X["Y"][key].to_numpy(dtype=float, copy=True) for key in X["Y"]}
 
         # Empty model coefficients
         self.n_substances = sum(self.f_mats[key].shape[1] for key in group_keys)
@@ -717,8 +721,9 @@ class TPLS(RegressorMixin, BaseEstimator):
 
         # Column-name consistency between the new data and the training data is
         # validated per block below (see the ``set(df_f.columns) != ...`` checks).
-        x_f: dict[str, pd.DataFrame] = {key: X["F"][key].copy() for key in X["F"]}
-        x_z: dict[str, pd.DataFrame] = {key: X["Z"][key].copy() for key in X["Z"]}
+        # Float copies, as in fit(): an int64 block is deflated in place below.
+        x_f: dict[str, pd.DataFrame] = {key: X["F"][key].astype(float) for key in X["F"]}
+        x_z: dict[str, pd.DataFrame] = {key: X["Z"][key].astype(float) for key in X["Z"]}
 
         for key, df_f in x_f.items():
             if not self.skip_f_matrix_preprocessing:
@@ -1122,8 +1127,9 @@ class TPLS(RegressorMixin, BaseEstimator):
         y : {pd.DataFrame}
             Returns the input dataframe.
         """
-        # Ensure all columns are dtype "float64" or "int64"
-        if not all(good_cols := [isinstance(col, (np.dtypes.Float64DType, np.dtypes.IntDType)) for col in df.dtypes]):
+        # Ensure all columns are dtype "float64" or "int64". (``np.dtypes.IntDType`` is the
+        # C ``int``, which is int32, so it must not stand in for int64 here.)
+        if not all(good_cols := [isinstance(col, (np.dtypes.Float64DType, np.dtypes.Int64DType)) for col in df.dtypes]):
             bad_columns = df.columns[[not item for item in good_cols]].to_list()
             raise ValueError(
                 f"All columns in the DataFrame must be of type float64 or int64. Bad columns: {bad_columns}"
