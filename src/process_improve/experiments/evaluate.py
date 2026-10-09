@@ -1160,12 +1160,9 @@ def _compute_confounding(ctx: _EvalContext) -> dict[str, Any]:
         return {"confounding": [], "note": "No confounding detected."}
 
     confounding_list: list[dict[str, Any]] = []
+    # Both alias-structure builders write every chain as "effect = alias + alias ...".
     for chain in alias_chains:
-        if " = " not in chain:
-            continue
-        parts = chain.split(" = ", 1)
-        effect = parts[0].strip()
-        aliases_str = parts[1].strip()
+        effect, aliases_str = (part.strip() for part in chain.split(" = ", 1))
         confounded = [a.strip().lstrip("+-") for a in aliases_str.split(" + ")]
         confounding_list.append(
             {
