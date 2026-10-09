@@ -461,17 +461,17 @@ def _select_random(
     records = [_record(term, "zero_variance") for term in model.terms if term in zero]
     active = [term for term in model.terms if term not in zero]
     current = model.fit(active, start=_ratios(model.terms, full)) if zero else full
-    tests: dict = {}
-    for step in range(1, len(active) + 1):
+    step = 0
+    while True:  # each pass eliminates a candidate, or stops
         tests = _likelihood_ratio(model, active, current)
         candidates = [term for term in active if term not in keep]
         worst = max(candidates, key=lambda term: tests[term][1], default=None)
         if worst is None or tests[worst][1] <= alpha:
             break
+        step += 1
         records.append(_record(worst, "eliminated", tests[worst], step))
         current = tests[worst][2]
         active.remove(worst)
-        tests = {}
     records += [_record(term, "kept", tests[term]) for term in active]
     return active, current, records
 
@@ -529,12 +529,18 @@ def _check_reml_inputs(panel: pd.DataFrame, product_factors: Sequence[str], repl
         )
     if len(panel) == 0:
         raise ValueError("mixed_assessor_model_reml was given a panel with no rows, so there is no attribute to fit.")
-    n_cells = panel.groupby(list(product_factors), observed=True).ngroups
-    if n_cells < _MIN_PRODUCTS:
+
+
+def _attribute_frame(panel: pd.DataFrame, attribute: object, product_factors: tuple[str, ...]) -> pd.DataFrame:
+    """Return one attribute's scored rows, checking it has enough products for the MAM."""
+    frame = panel.loc[panel["attribute"] == attribute].dropna(subset=["score"]).reset_index(drop=True)
+    n_products = frame.groupby(list(product_factors), observed=True).ngroups
+    if n_products < _MIN_PRODUCTS:
         raise ValueError(
             f"The MAM needs at least {_MIN_PRODUCTS} products to separate scaling from disagreement; "
-            f"the product factors {list(product_factors)} define {n_cells}."
+            f"attribute {attribute!r} has scores for {n_products} (product factors {list(product_factors)})."
         )
+    return frame
 
 
 def mixed_assessor_model_reml(
@@ -593,8 +599,8 @@ def mixed_assessor_model_reml(
     Raises
     ------
     ValueError
-        If a column is missing, the panel is empty, or the products number fewer
-        than three.
+        If a column is missing, the panel is empty, or an attribute has scores for
+        fewer than three products.
 
     Notes
     -----
@@ -622,7 +628,7 @@ def mixed_assessor_model_reml(
     # than the arithmetic (ten times the run time, measured on four cores).
     with threadpool_limits(limits=1, user_api="blas"):
         for attribute in sorted(panel["attribute"].unique()):
-            frame = panel.loc[panel["attribute"] == attribute].dropna(subset=["score"]).reset_index(drop=True)
+            frame = _attribute_frame(panel, attribute, product_factors)
             rep = replication if replication is not None and frame[replication].unique().size > 1 else None
             model = _AttributeModel(frame, product_terms, rep)
             terms, fit, records = _select_random(model, keep, alpha_random)

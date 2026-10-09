@@ -291,36 +291,31 @@ def _minimise(profile: _Profile, psi: np.ndarray) -> np.ndarray:
     return psi
 
 
-def _information(
-    profile: _Profile, state: _State, free: np.ndarray
-) -> tuple[np.ndarray, np.ndarray, list[slice], np.ndarray]:
-    r"""Return the expected and observed information of the nonzero :math:`\sigma^2_k`, then :math:`\sigma^2`.
+def _information(profile: _Profile, state: _State, free: np.ndarray) -> tuple[np.ndarray, list[slice], np.ndarray]:
+    r"""Return the observed information of the nonzero :math:`\sigma^2_k`, then :math:`\sigma^2`.
 
-    With :math:`V_k = Z_k Z_k^\top` and :math:`V_e = I = Z_e Z_e^\top`, the residual is one
-    more block, ``Z_e = I``. Both informations then come from
-    :math:`W = [Z, I]^\top \tilde P [Z, I]` and :math:`w = [Z, I]^\top \tilde P y`: the
-    expected is :math:`\tfrac12 \operatorname{tr}(P V_k P V_l) = \tfrac12 |W_{kl}|^2 / \sigma^4`
-    and the observed subtracts it from :math:`y^\top P V_k P V_l P y = w_k^\top W_{kl} w_l / \sigma^6`.
-    Also returns ``[Z, I]`` and its blocks, for the derivatives of the covariance.
+    With :math:`V_k = Z_k Z_k^\top`, the residual is one more block, :math:`V_e = I = Z_e Z_e^\top`.
+    Its entries :math:`y^\top P V_k P V_l P y - \tfrac12 \operatorname{tr}(P V_k P V_l)` are
+    then :math:`w_k^\top W_{kl} w_l / \sigma^6 - \tfrac12 |W_{kl}|^2 / \sigma^4`, with
+    :math:`W = [Z, I]^\top \tilde P [Z, I]` and :math:`w = [Z, I]^\top \tilde P y`. Also
+    returns the blocks of ``[Z, I]`` and the matrix itself, for the derivatives of the
+    covariance.
     """
     columns = [np.arange(b.start, b.stop) for b, is_free in zip(profile.blocks, free, strict=True) if is_free]
-    z_ext = np.hstack(
-        [profile.Z[:, np.concatenate(columns)] if columns else np.empty((profile.n, 0)), np.eye(profile.n)]
-    )
+    z_free = profile.Z[:, np.concatenate(columns)] if columns else np.empty((profile.n, 0))
+    z_ext = np.hstack([z_free, np.eye(profile.n)])
     sizes = [len(c) for c in columns] + [profile.n]
     starts = np.cumsum([0, *sizes])[:-1]
     blocks = [slice(start, start + size) for start, size in zip(starts, sizes, strict=True)]
     w_matrix = z_ext.T @ state.p_tilde @ z_ext
     w = z_ext.T @ state.p_y
     sigma2 = state.rss / (profile.n - profile.p)
-    expected = np.empty((len(blocks), len(blocks)))
-    observed = np.empty_like(expected)
+    info = np.empty((len(blocks), len(blocks)))
     for k, bk in enumerate(blocks):
         for m, bm in enumerate(blocks):
             cross = w_matrix[bk, bm]
-            expected[k, m] = 0.5 * np.sum(cross**2) / sigma2**2
-            observed[k, m] = float(w[bk] @ cross @ w[bm]) / sigma2**3 - expected[k, m]
-    return expected, observed, blocks, z_ext
+            info[k, m] = float(w[bk] @ cross @ w[bm]) / sigma2**3 - 0.5 * np.sum(cross**2) / sigma2**2
+    return info, blocks, z_ext
 
 
 def fit_variance_components(
@@ -363,23 +358,16 @@ def fit_variance_components(
     state = profile.evaluate(psi)
     sigma2 = state.rss / (profile.n - profile.p)
     cov_scaled = linalg.inv(state.xvx)
-    expected, observed, blocks, z_ext = _information(profile, state, psi > 0)
+    observed, blocks, z_ext = _information(profile, state, psi > 0)
     # d cov(beta) / d sigma2_k = C X' V^-1 V_k V^-1 X C, with V^-1 X = V~^-1 X / sigma2.
     pieces = z_ext.T @ state.v_inv_x
     dcov = np.array([cov_scaled @ pieces[b].T @ pieces[b] @ cov_scaled for b in blocks])
-    try:
-        linalg.cho_factor(observed)
-        info = observed
-    except linalg.LinAlgError:
-        # Away from a clear maximum the observed information can be indefinite; the
-        # expected information is not.
-        info = expected
     return VarianceComponentFit(
         beta=state.beta,
         cov_beta=sigma2 * cov_scaled,
         variances=psi * sigma2,
         sigma2=float(sigma2),
         reml_criterion=state.criterion,
-        vc_cov=linalg.inv(info),
+        vc_cov=linalg.inv(observed),
         dcov=dcov,
     )
