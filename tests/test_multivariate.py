@@ -2734,6 +2734,16 @@ def test_score_limit_pls() -> None:
     assert np.all(limits > 0)
 
 
+@pytest.mark.parametrize("conf_level", [1.0, 0.0])
+def test_score_limit_refuses_a_confidence_outside_0_1(fixture_pca_for_plots: PCA, conf_level: float) -> None:
+    """A confidence level outside (0, 1) raises ValueError, also under `python -O`.
+
+    It was an `assert`, so `-O` removed the check and the limit came back as inf or NaN.
+    """
+    with pytest.raises(ValueError, match=rf"^conf_level must lie in \(0, 1\); got {conf_level}\.$"):
+        score_limit(fixture_pca_for_plots, conf_level=conf_level)
+
+
 def test_pls_prediction_interval() -> None:
     """PLS.prediction_interval brackets the predictions and widens with confidence."""
     rng = np.random.default_rng(7)
@@ -5468,6 +5478,15 @@ _ELLIPSE_ARGUMENTS = {
             ValueError,
             r"^n_rows must be positive; got 0\.$",
         ),
+        (
+            ellipse_coordinates,
+            {**_ELLIPSE_ARGUMENTS, "scaling_factor_for_scores": None},
+            TypeError,
+            (
+                r"^scaling_factor_for_scores is required: pass the per-component score standard deviations "
+                r"\(model\.scaling_factor_for_scores_\); got None\.$"
+            ),
+        ),
     ],
     ids=[
         "t2-limit-at-100-percent",
@@ -5477,6 +5496,7 @@ _ELLIPSE_ARGUMENTS = {
         "ellipse-vertical-score-0",
         "ellipse-at-100-percent",
         "ellipse-from-no-rows",
+        "ellipse-without-score-scaling",
     ],
 )
 def test_limit_functions_refuse_arguments_out_of_range(
