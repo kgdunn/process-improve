@@ -269,6 +269,30 @@ def test_asca_main_effects_only() -> None:
     assert main.ssq_["residual"] == pytest.approx(full.ssq_["residual"] + full.ssq_["A:B"], rel=1e-9)
 
 
+def test_asca_uses_any_other_model_string_as_a_verbatim_right_hand_side() -> None:
+    """A patsy right-hand side naming only A fits only A, and B's variation lands in the residual."""
+    X, design, _ = _two_factor_design()
+    main = ASCA(n_components=2, model="main_effects").fit(X, design)
+    only_a = ASCA(n_components=2, model="C(A, Sum)").fit(X, design)
+
+    assert only_a.terms_ == ["A"]
+    # The design is balanced, so A's effect does not depend on whether B is in the model.
+    pd.testing.assert_frame_equal(only_a.effect_matrices_["A"], main.effect_matrices_["A"], rtol=0, atol=1e-12)
+    assert only_a.ssq_["residual"] == pytest.approx(main.ssq_["residual"] + main.ssq_["B"], rel=1e-9)
+
+
+def test_asca_reads_a_design_given_as_a_dict_of_columns_as_that_frame() -> None:
+    """A design passed as a dict of columns gives the same decomposition as the frame it describes."""
+    X, design, _ = _two_factor_design()
+    from_frame = ASCA(n_components=2).fit(X, design)
+    from_dict = ASCA(n_components=2).fit(X, design.to_dict(orient="list"))
+
+    assert from_dict.terms_ == from_frame.terms_
+    pd.testing.assert_series_equal(from_dict.ssq_, from_frame.ssq_)
+    for name in from_frame.terms_:
+        pd.testing.assert_frame_equal(from_dict.effect_matrices_[name], from_frame.effect_matrices_[name])
+
+
 def test_asca_effect_summary_plot() -> None:
     """The bar chart carries the shares, and the p-values once they exist."""
     X, design, _ = _two_factor_design()
