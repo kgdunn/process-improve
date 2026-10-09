@@ -120,6 +120,16 @@ def test_fitted_model_pickle_round_trips(factory) -> None:
     assert float(reloaded.hotellings_t2_limit()) == pytest.approx(float(model.hotellings_t2_limit()))
 
 
+@pytest.mark.parametrize(("cls", "name"), [(PCA, "scores_"), (PCA, "loadings_"), (PLS, "scores_")])
+def test_lazy_frames_read_on_the_class_give_the_descriptor(cls: type, name: str) -> None:
+    """On the class there is no data to build a frame from, so the descriptor itself comes back.
+
+    That is what lets help() and Sphinx document the attribute instead of failing on it.
+    """
+    assert getattr(cls, name) is inspect.getattr_static(cls, name)
+    assert not isinstance(getattr(cls, name), pd.DataFrame)
+
+
 @pytest.mark.parametrize("factory", [_fitted_pca, _fitted_pls])
 def test_pickling_leaves_the_models_own_frame_cache_alone(factory) -> None:
     """The DataFrame cache is left out of the pickle, but not taken from the model being pickled.
