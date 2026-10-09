@@ -95,6 +95,13 @@ class TestDataFrameDictConstruction:
         with pytest.raises(error, match=message):
             DataFrameDict(blocks)
 
+    def test_keys_are_always_the_three_blocks(self) -> None:
+        """keys() is Z, F and Y even when a block is left out: it is held as an empty dict."""
+        only_f = DataFrameDict({"F": {"g": pd.DataFrame(np.ones((4, 2)))}})
+        assert list(only_f.keys()) == ["Z", "F", "Y"]
+        assert only_f["Z"] == {}
+        assert only_f["Y"] == {}
+
     def test_repr_lists_the_groups_of_each_block(self) -> None:
         """The repr counts the samples and names the groups in every block."""
         assert repr(_make(1.0)) == (

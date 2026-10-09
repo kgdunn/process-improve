@@ -1046,11 +1046,11 @@ class TPLS(RegressorMixin, BaseEstimator):
         return (self.help.__doc__ or "").replace("        ", "").replace("\n\n", "\n").strip()
 
     def _input_data_checks(self, X: DataFrameDict) -> None:
-        """Check the incoming data."""
-        if not isinstance(X, DataFrameDict):
-            raise TypeError(f"The input data must be a DataFrameDict; got {type(X).__name__}.")
-        if set(X.keys()) != self.required_inputs_:
-            raise ValueError(f"Expected keys: {self.required_inputs_}, got: {set(X.keys())}.")
+        """Check the incoming data.
+
+        ``fit``, the only caller, has already checked that ``X`` is a DataFrameDict, and a
+        DataFrameDict always holds exactly the Z, F and Y blocks, so neither is checked here.
+        """
         # Group names are labels, used exactly as given. Passing them through ``str()`` in some
         # places and not in others meant a non-string group name could never be fitted.
         if set(X["F"]) != set(self.d_matrix):
