@@ -173,7 +173,8 @@ Minimal example::
    model = MBPLS(
        n_components=3,
        algorithm="auto",
-       missing_data_settings={"md_tol": 1e-9, "md_max_iter": 2000},
+       tol=1e-9,
+       max_iter=2000,
    ).fit(x_blocks_with_nans, y_df_with_nans)
 
    assert model.algorithm_ == "nipals"

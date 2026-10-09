@@ -44,10 +44,10 @@ def _with_gaps(X: pd.DataFrame, fraction: float, seed: int) -> pd.DataFrame:
     return X.mask(np.random.default_rng(seed + 1000).random(X.shape) < fraction)
 
 
-def _fit(X: pd.DataFrame, Y: pd.DataFrame, method: str = "nipals", **settings: float) -> PLS:
+def _fit(X: pd.DataFrame, Y: pd.DataFrame, method: str = "nipals", **params: float) -> PLS:
     with warnings.catch_warnings():
         warnings.simplefilter("ignore", SpecificationWarning)
-        return PLS(n_components=RANK, missing_data_settings={"md_method": method, **settings}).fit(X, Y)
+        return PLS(n_components=RANK, missing_data_settings={"md_method": method}, **params).fit(X, Y)
 
 
 def _beta(model: PLS) -> np.ndarray:
@@ -72,7 +72,7 @@ class TestImputationIsWorthIt:
             reference = _beta(PLS(n_components=RANK).fit(X, Y))
             gapped = _with_gaps(X, fraction, seed)
             nipals.append(np.linalg.norm(_beta(_fit(gapped, Y)) - reference))
-            tsr.append(np.linalg.norm(_beta(_fit(gapped, Y, "tsr", md_tol=QUICK)) - reference))
+            tsr.append(np.linalg.norm(_beta(_fit(gapped, Y, "tsr", tol=QUICK)) - reference))
         assert float(np.median(nipals)) > 1.5 * float(np.median(tsr))
 
     @pytest.mark.slow
@@ -88,7 +88,7 @@ class TestImputationIsWorthIt:
         for seed in range(8):
             X, Y = _dataset(seed)
             gapped = _with_gaps(X, 0.30, seed)
-            fitted_centre = _fit(gapped, Y, "tsr", md_tol=QUICK)._x_scaler.center_.to_numpy()
+            fitted_centre = _fit(gapped, Y, "tsr", tol=QUICK)._x_scaler.center_.to_numpy()
             observed_mean = gapped.mean().to_numpy()
             true_centre = X.mean().to_numpy()
             closer += np.linalg.norm(fitted_centre - true_centre) < np.linalg.norm(observed_mean - true_centre)
@@ -108,7 +108,7 @@ class TestConvergence:
         is a genuine EM. These are the exact cases that failed.
         """
         X, Y = _dataset(seed)
-        model = _fit(_with_gaps(X, fraction, seed), Y, "tsr", md_tol=QUICK)
+        model = _fit(_with_gaps(X, fraction, seed), Y, "tsr", tol=QUICK)
         assert model.fitting_info_["md_converged"]
         assert model.fitting_info_["md_rounds"] < 200
 
@@ -129,7 +129,7 @@ class TestExactProperties:
         """Scaling once from the gapped data would leave the centre at the observed mean, exactly."""
         X, Y = _dataset(0)
         gapped = _with_gaps(X, 0.30, 0)
-        centre = _fit(gapped, Y, "tsr", md_tol=QUICK)._x_scaler.center_.to_numpy()
+        centre = _fit(gapped, Y, "tsr", tol=QUICK)._x_scaler.center_.to_numpy()
         assert not np.allclose(centre, gapped.mean().to_numpy())
 
     @pytest.mark.parametrize("method", ["tsr", "pmp"])
@@ -190,7 +190,7 @@ class TestWhatIsImputed:
             reference = _beta(PLS(n_components=RANK).fit(X, Y))
             gapped = Y.copy()
             gapped.iloc[np.random.default_rng(seed).choice(N_ROWS, 8, replace=False), 0] = np.nan
-            imputed.append(np.linalg.norm(_beta(_fit(X, gapped, "tsr", md_tol=QUICK)) - reference))
+            imputed.append(np.linalg.norm(_beta(_fit(X, gapped, "tsr", tol=QUICK)) - reference))
             kept = gapped["y"].notna()
             dropped.append(np.linalg.norm(_beta(PLS(n_components=RANK).fit(X[kept], gapped[kept])) - reference))
         assert float(np.median(imputed)) < float(np.median(dropped))
@@ -219,7 +219,7 @@ class TestTheSurroundingApi:
         weights = np.random.default_rng(0).uniform(0.2, 1.0, N_ROWS)
         with warnings.catch_warnings():
             warnings.simplefilter("ignore", SpecificationWarning)
-            model = PLS(n_components=RANK, missing_data_settings={"md_method": "tsr", "md_tol": QUICK}).fit(
+            model = PLS(n_components=RANK, tol=QUICK, missing_data_settings={"md_method": "tsr"}).fit(
                 _with_gaps(X, 0.20, 0), Y, sample_weight=weights
             )
         assert model.fitting_info_["md_converged"]
@@ -233,8 +233,8 @@ class TestTheSurroundingApi:
 
     def test_non_convergence_warns_and_says_what_to_change(self) -> None:
         X, Y = _dataset(0)
-        with pytest.warns(SpecificationWarning, match="still moving.*Raise md_max_iter"):
-            model = PLS(n_components=RANK, missing_data_settings={"md_method": "tsr", "md_max_iter": 2}).fit(
+        with pytest.warns(SpecificationWarning, match="still moving.*Raise max_iter"):
+            model = PLS(n_components=RANK, max_iter=2, missing_data_settings={"md_method": "tsr"}).fit(
                 _with_gaps(X, 0.20, 0), Y
             )
         assert not model.fitting_info_["md_converged"]
