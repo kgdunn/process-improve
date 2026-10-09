@@ -1272,11 +1272,14 @@ def find_reference_batch(
     # of headroom before enough batches pass, give up with a clear error
     # rather than tripping the inner ``assert conf_level < 1.0`` (which is
     # ``python -O``-strippable).
-    start_cutoff = 0.5
     max_cutoff = 0.95
-    while spe_metrics.shape[0] < requested and start_cutoff <= max_cutoff:
-        spe_metrics = metrics[metrics["SPE"] < pca_second.spe_limit(conf_level=start_cutoff)]
-        start_cutoff += 0.05
+    # Step in whole percent: repeatedly adding 0.05 to a float accumulates rounding
+    # error, which stopped the relaxation at 0.9000000000000004 without ever trying
+    # the 0.95 that the error below reports.
+    for cutoff_percent in range(55, round(max_cutoff * 100) + 1, 5):
+        if spe_metrics.shape[0] >= requested:
+            break
+        spe_metrics = metrics[metrics["SPE"] < pca_second.spe_limit(conf_level=cutoff_percent / 100)]
     if spe_metrics.shape[0] < requested:
         raise ValueError(
             f"Could not find {requested} reference batches even at "

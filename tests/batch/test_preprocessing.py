@@ -330,16 +330,49 @@ def test_find_reference_batch_returns_multiple(dryer_data: dict) -> None:
         "JacketTemperature",
         "DryerTemp",
     ]
+    # 36 dryer batches pass the SPE cutoff at the starting conf_level=0.5, so a request
+    # for 40 has to relax the cutoff (43 pass at 0.55); a request for 3 never did.
     result = find_reference_batch(
         dryer_data,
         columns_to_align=columns_to_align,
         settings={
             "robust": False,
-            "number_of_reference_batches": 3,
+            "number_of_reference_batches": 40,
         },
     )
     assert isinstance(result, list)
-    assert len(result) == 3
+    assert len(result) == 40
+
+
+def test_find_reference_batch_relaxes_the_spe_cutoff_up_to_95_percent(dryer_data: dict) -> None:
+    """The cutoff relaxation reaches conf_level=0.95, the level its error message names.
+
+    On the dryer data 58 batches pass the SPE cutoff at conf_level=0.90 and 60
+    at 0.95. The levels used to be built by adding 0.05 to a float, which
+    stopped at 0.9000000000000004, so asking for 60 failed while claiming 0.95
+    had been tried, and asking for 61 reported only 58 passing batches.
+    """
+    columns_to_align = [
+        "AgitatorPower",
+        "AgitatorTorque",
+        "JacketTemperatureSP",
+        "JacketTemperature",
+        "DryerTemp",
+    ]
+    settings = {"robust": False, "number_of_reference_batches": 60}
+    assert len(find_reference_batch(dryer_data, columns_to_align=columns_to_align, settings=settings)) == 60
+    with pytest.raises(
+        ValueError,
+        match=(
+            r"Could not find 61 reference batches even at conf_level=0\.95; "
+            r"only 60 batches passed the SPE cutoff\."
+        ),
+    ):
+        find_reference_batch(
+            dryer_data,
+            columns_to_align=columns_to_align,
+            settings={**settings, "number_of_reference_batches": 61},
+        )
 
 
 def test_find_reference_batch_rejects_zero_request(dryer_data: dict) -> None:
