@@ -41,6 +41,23 @@ those changes.
   one, a combination that used to raise `ValueError`; blocks of two runs gain 2 to 5%.
   Works with constraints, categorical factors and candidate sets. See "Running the
   design in blocks" in the constrained-designs guide.
+- **`sensory.mixed_assessor_model_reml`, the random-effects Mixed Assessor Model
+  that the R package SensMixed fits, in pure Python (#431).**
+  - **The model:** panelist terms are random; the random terms are chosen by
+    likelihood-ratio tests; the product terms and the panelists' scaling are tested
+    by Type I F-tests on Satterthwaite's degrees of freedom.
+  - **Factorial products:** unlike the closed-form `mixed_assessor_model`, it handles
+    products from a factorial design (`product_factors=("tv_set", "picture")`). Each
+    product term is tested against the panelist variation found for that term.
+  - **Results:** the F-tests, the random-term selection, the variance components and
+    each panelist's `beta`.
+  - **Checked against R:** on the TVbo panel it reproduces SensMixed 2.1 in four
+    cases. F, variance components and `beta` agree to about 1e-6. The df agree with
+    lmerTest 3.1 to 3e-6; SensMixed's own lmerTest 2.0 is less accurate, to 2e-4.
+  - **No R needed:** SensMixed itself no longer runs on a current R.
+  - **Dependency:** `threadpoolctl`, already installed with scikit-learn, is now
+    declared directly. The fits run their many small matrix operations on one BLAS
+    thread, which is ten times faster.
 
 ### Changed
 

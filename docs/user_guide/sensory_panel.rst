@@ -296,6 +296,53 @@ Rescaling does not remove genuine disagreement, so a panelist who truly ranks
 the products differently is better handled by dropping (``drop_panelists`` or
 ``correction="drop"``); align and drop can be combined.
 
+The random-effects MAM
+~~~~~~~~~~~~~~~~~~~~~~
+
+:func:`~process_improve.sensory.mixed_assessor_model` works on replicate-averaged
+cell means, which is exact for a balanced panel and one product factor. When the
+products come from a design (TV sets by pictures, recipes by temperatures), or
+the sessions themselves vary, use
+:func:`~process_improve.sensory.mixed_assessor_model_reml`. It fits the model
+the R package SensMixed fits, and reproduces SensMixed's results:
+
+- **Fixed effects:** every product term (each factor and interaction), plus a
+  ``scaling`` term that gives each panelist a slope on the consensus.
+- **Random effects:** each product term crossed with the panelist, the replicate
+  and both, then those three on their own.
+- **Selection:** terms with zero variance are dropped. The rest are tested by
+  likelihood ratio, and the least significant is eliminated while its p-value
+  exceeds ``alpha_random``. The panelist and product-by-panelist terms are
+  always kept.
+- **Tests:** the final model's terms are tested in sequence, on Satterthwaite's
+  degrees of freedom. Each product term is judged against the panelist
+  variation the selection found for it. For example, a TV-set effect is tested
+  against how much the panelists disagree about TV sets, not about pictures.
+
+.. code-block:: python
+
+   from process_improve.sensory import mixed_assessor_model_reml
+
+   mam = mixed_assessor_model_reml(long_df, product_factors=("tv_set", "picture"))
+   print(mam.anova)  # F-tests per attribute: tv_set, picture, tv_set:picture, scaling
+   print(mam.random_effects.query("status != 'kept'"))  # what the selection removed
+   print(mam.variance_components)  # how much each random term contributes
+   print(mam.scaling)  # each panelist's beta
+
+``replication`` names the replicate column (``"replicate"`` by default). A
+replicate is taken to be a session the whole panel shares, so it gets random
+effects of its own; pass ``replication=None`` to model the panelists only. For
+a balanced panel and one product factor, the product F-test and the ``beta``
+coefficients equal the closed form's.
+
+The fit is exact REML, in Python, with no R needed. The test suite checks it
+against SensMixed 2.1 on the TVbo panel from the R package lmerTest: F, variance
+components and ``beta`` agree to about 1e-6. SensMixed drops a term whose
+variance its optimiser estimates within 1e-7 of zero, and where the optimiser
+stops near zero differs from one attribute to the next. This implementation
+lands exactly on zero, so the two can differ in which zero-variance terms they
+list as dropped. That does not change the final model.
+
 .. _comparing-designed-treatments:
 
 Comparing designed treatments: ANOVA, Tukey HSD and Dunnett

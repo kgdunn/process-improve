@@ -1,0 +1,4992 @@
+{
+  "generated_with": {
+    "R": "3.4.4",
+    "SensMixed": "2.1.0",
+    "lmerTest": "2.0.36",
+    "lme4": "1.1.15"
+  },
+  "dropped_rows": [3, 50, 77, 120, 160],
+  "cases": {
+    "one_way": {
+      "Coloursaturation": {
+        "anova": {
+          "Product": {
+            "sum_sq": 125.858275078,
+            "mean_sq": 11.4416613708,
+            "num_df": 11,
+            "den_df": 70.0000553119,
+            "f_value": 15.1712638021,
+            "p_value": 1.53210777398e-14
+          },
+          "Scaling": {
+            "sum_sq": 25.9657847307,
+            "mean_sq": 3.70939781868,
+            "num_df": 7,
+            "den_df": 70.0000553121,
+            "f_value": 4.91853857849,
+            "p_value": 0.000147273186869
+          }
+        },
+        "random": {
+          "Product:Assessor": {
+            "chi_sq": 9.30158679508,
+            "chi_df": 1,
+            "step": 0,
+            "p_value": 0.0022895546369
+          },
+          "Product:Repeat": {
+            "chi_sq": 0.0946976317086,
+            "chi_df": 1,
+            "step": 1,
+            "p_value": 0.758287939886
+          },
+          "Assessor": {
+            "chi_sq": 13.6820871757,
+            "chi_df": 1,
+            "step": 0,
+            "p_value": 0.000216509833632
+          },
+          "Assessor:Repeat": {
+            "chi_sq": 1.97133837891,
+            "chi_df": 1,
+            "step": 2,
+            "p_value": 0.160305872235
+          }
+        },
+        "zero_variance": ["Repeat"],
+        "beta": {
+          "1": 0.789368406909,
+          "2": 0.278100733432,
+          "3": 1.555149361,
+          "4": 1.30238029444,
+          "5": 1.54576914009,
+          "6": 1.12220906738,
+          "7": 0.389872403644,
+          "8": 1.01715059311
+        },
+        "variance_components": {
+          "Product:Assessor": 0.361542061886,
+          "Assessor": 0.263833533672,
+          "Residual": 0.754166661394
+        },
+        "reml_criterion": 560.754972901
+      },
+      "Colourbalance": {
+        "anova": {
+          "Product": {
+            "sum_sq": 107.312988547,
+            "mean_sq": 9.75572623157,
+            "num_df": 11,
+            "den_df": 70.0000168201,
+            "f_value": 5.39381247956,
+            "p_value": 3.87655724776e-06
+          },
+          "Scaling": {
+            "sum_sq": 34.6234938498,
+            "mean_sq": 4.94621340712,
+            "num_df": 7,
+            "den_df": 70.0000168198,
+            "f_value": 2.73469621519,
+            "p_value": 0.0143978507704
+          }
+        },
+        "random": {
+          "Product:Assessor": {
+            "chi_sq": 17.4279830058,
+            "chi_df": 1,
+            "step": 0,
+            "p_value": 2.98400508055e-05
+          },
+          "Product:Repeat": {
+            "chi_sq": 0.00430535754379,
+            "chi_df": 1,
+            "step": 1,
+            "p_value": 0.947684168701
+          },
+          "Assessor": {
+            "chi_sq": 3.73833112605,
+            "chi_df": 1,
+            "step": 0,
+            "p_value": 0.0531775332465
+          },
+          "Repeat": {
+            "chi_sq": 0.510087080682,
+            "chi_df": 1,
+            "step": 2,
+            "p_value": 0.475101161954
+          },
+          "Assessor:Repeat": {
+            "chi_sq": 5.43209007336,
+            "chi_df": 1,
+            "step": 0,
+            "p_value": 0.0197700039668
+          }
+        },
+        "zero_variance": [],
+        "beta": {
+          "1": 0.76993070898,
+          "2": 0.928487227419,
+          "3": 0.221502096333,
+          "4": 1.3733986334,
+          "5": 1.59859906513,
+          "6": 0.0676811961016,
+          "7": 1.45373829829,
+          "8": 1.58666277434
+        },
+        "variance_components": {
+          "Product:Assessor": 1.42461288248,
+          "Assessor:Repeat": 0.280530185998,
+          "Assessor": 0.799231282454,
+          "Residual": 1.80868843115
+        },
+        "reml_criterion": 743.06379946
+      },
+      "Noise": {
+        "anova": {
+          "Product": {
+            "sum_sq": 528.324552595,
+            "mean_sq": 48.0295047814,
+            "num_df": 11,
+            "den_df": 70.00000114,
+            "f_value": 26.7896783046,
+            "p_value": 0
+          },
+          "Scaling": {
+            "sum_sq": 12.461517207,
+            "mean_sq": 1.78021674385,
+            "num_df": 7,
+            "den_df": 70.0000011394,
+            "f_value": 0.992961182868,
+            "p_value": 0.443678934436
+          }
+        },
+        "random": {
+          "Product:Assessor": {
+            "chi_sq": 7.77647614531,
+            "chi_df": 1,
+            "step": 0,
+            "p_value": 0.00529309461894
+          },
+          "Assessor": {
+            "chi_sq": 4.72600707935,
+            "chi_df": 1,
+            "step": 0,
+            "p_value": 0.0297097804847
+          },
+          "Assessor:Repeat": {
+            "chi_sq": 16.6719599075,
+            "chi_df": 1,
+            "step": 0,
+            "p_value": 4.44329317724e-05
+          }
+        },
+        "zero_variance": ["Product:Repeat", "Repeat"],
+        "beta": {
+          "1": 1.10213399504,
+          "2": 0.760179858052,
+          "3": 0.985440535318,
+          "4": 0.928154983731,
+          "5": 1.23277851266,
+          "6": 1.08136314854,
+          "7": 0.796047221277,
+          "8": 1.11390174538
+        },
+        "variance_components": {
+          "Product:Assessor": 0.785425496306,
+          "Assessor:Repeat": 0.663361786524,
+          "Assessor": 1.75431048536,
+          "Residual": 1.79283618994
+        },
+        "reml_criterion": 738.23687378
+      },
+      "Depth": {
+        "anova": {
+          "Product": {
+            "sum_sq": 62.064805904,
+            "mean_sq": 5.64225508219,
+            "num_df": 11,
+            "den_df": 70.0000280812,
+            "f_value": 6.93990558888,
+            "p_value": 8.84019278891e-08
+          },
+          "Scaling": {
+            "sum_sq": 5.82061132609,
+            "mean_sq": 0.831515903728,
+            "num_df": 7,
+            "den_df": 70.0000280807,
+            "f_value": 1.02275451632,
+            "p_value": 0.423143656864
+          }
+        },
+        "random": {
+          "Product:Assessor": {
+            "chi_sq": 30.482229598,
+            "chi_df": 1,
+            "step": 0,
+            "p_value": 3.36938786876e-08
+          },
+          "Assessor": {
+            "chi_sq": 0.773186838175,
+            "chi_df": 1,
+            "step": 0,
+            "p_value": 0.379232980418
+          },
+          "Repeat": {
+            "chi_sq": 1.04342594404,
+            "chi_df": 1,
+            "step": 1,
+            "p_value": 0.307026024449
+          },
+          "Assessor:Repeat": {
+            "chi_sq": 53.3153208804,
+            "chi_df": 1,
+            "step": 0,
+            "p_value": 2.84082266905e-13
+          }
+        },
+        "zero_variance": ["Product:Repeat"],
+        "beta": {
+          "1": 0.719624161265,
+          "2": 1.30286766096,
+          "3": 1.12693403916,
+          "4": 0.453449290665,
+          "5": 1.483504261,
+          "6": 1.10149001366,
+          "7": 0.865022669468,
+          "8": 0.947107903814
+        },
+        "variance_components": {
+          "Product:Assessor": 1.02795052034,
+          "Assessor:Repeat": 0.964744376597,
+          "Assessor": 0.497804093042,
+          "Residual": 0.813016115266
+        },
+        "reml_criterion": 643.91795062
+      },
+      "Sharpness": {
+        "anova": {
+          "Product": {
+            "sum_sq": 112.060209901,
+            "mean_sq": 10.1872918091,
+            "num_df": 11,
+            "den_df": 70.0000493358,
+            "f_value": 11.6071939185,
+            "p_value": 5.9151572529e-12
+          },
+          "Scaling": {
+            "sum_sq": 4.99712968413,
+            "mean_sq": 0.713875669161,
+            "num_df": 7,
+            "den_df": 70.0000493357,
+            "f_value": 0.813375476119,
+            "p_value": 0.57923051035
+          }
+        },
+        "random": {
+          "Product:Assessor": {
+            "chi_sq": 31.7915324005,
+            "chi_df": 1,
+            "step": 0,
+            "p_value": 1.71639404201e-08
+          },
+          "Product:Repeat": {
+            "chi_sq": 0.0328647385026,
+            "chi_df": 1,
+            "step": 1,
+            "p_value": 0.856142824384
+          },
+          "Assessor": {
+            "chi_sq": 2.37966316257,
+            "chi_df": 1,
+            "step": 0,
+            "p_value": 0.122924049221
+          },
+          "Assessor:Repeat": {
+            "chi_sq": 36.1004021017,
+            "chi_df": 1,
+            "step": 0,
+            "p_value": 1.87408169886e-09
+          }
+        },
+        "zero_variance": ["Repeat"],
+        "beta": {
+          "1": 0.676688308494,
+          "2": 0.821110619251,
+          "3": 1.0911661994,
+          "4": 1.12184594954,
+          "5": 1.27294525601,
+          "6": 0.725591461315,
+          "7": 1.19541586739,
+          "8": 1.0952363386
+        },
+        "variance_components": {
+          "Product:Assessor": 1.15351578187,
+          "Assessor:Repeat": 0.67378792615,
+          "Assessor": 0.858450312864,
+          "Residual": 0.877670510264
+        },
+        "reml_criterion": 661.023195112
+      },
+      "Lightlevel": {
+        "anova": {
+          "Product": {
+            "sum_sq": 254.321266636,
+            "mean_sq": 23.1201151487,
+            "num_df": 11,
+            "den_df": 69.9999709962,
+            "f_value": 43.6528872407,
+            "p_value": 0
+          },
+          "Scaling": {
+            "sum_sq": 23.3750098946,
+            "mean_sq": 3.3392871278,
+            "num_df": 7,
+            "den_df": 69.9999709978,
+            "f_value": 6.30487882592,
+            "p_value": 9.48138990797e-06
+          }
+        },
+        "random": {
+          "Product:Assessor": {
+            "chi_sq": 18.5956994377,
+            "chi_df": 1,
+            "step": 0,
+            "p_value": 1.61584659463e-05
+          },
+          "Product:Repeat": {
+            "chi_sq": 0,
+            "chi_df": 1,
+            "step": 1,
+            "p_value": 1
+          },
+          "Assessor": {
+            "chi_sq": 51.6409762579,
+            "chi_df": 1,
+            "step": 0,
+            "p_value": 6.66362079294e-13
+          },
+          "Assessor:Repeat": {
+            "chi_sq": 0.0252892258429,
+            "chi_df": 1,
+            "step": 2,
+            "p_value": 0.873648495555
+          }
+        },
+        "zero_variance": ["Repeat"],
+        "beta": {
+          "1": 0.888546982052,
+          "2": 0.884320861871,
+          "3": 0.896976470758,
+          "4": 0.95609096207,
+          "5": 1.76584327,
+          "6": 1.05563704283,
+          "7": 0.836474128404,
+          "8": 0.716110282019
+        },
+        "variance_components": {
+          "Product:Assessor": 0.421685519574,
+          "Assessor": 0.970893727628,
+          "Residual": 0.52963541727
+        },
+        "reml_criterion": 536.642640799
+      },
+      "Contrast": {
+        "anova": {
+          "Product": {
+            "sum_sq": 143.964548194,
+            "mean_sq": 13.0876861994,
+            "num_df": 11,
+            "den_df": 70.000008699,
+            "f_value": 11.4686132478,
+            "p_value": 7.6150197259e-12
+          },
+          "Scaling": {
+            "sum_sq": 40.1259943903,
+            "mean_sq": 5.7322849129,
+            "num_df": 7,
+            "den_df": 70.0000086982,
+            "f_value": 5.02314600844,
+            "p_value": 0.000119090972859
+          }
+        },
+        "random": {
+          "Product:Assessor": {
+            "chi_sq": 11.7369231178,
+            "chi_df": 1,
+            "step": 0,
+            "p_value": 0.000612722377365
+          },
+          "Assessor": {
+            "chi_sq": 0.82854552412,
+            "chi_df": 1,
+            "step": 0,
+            "p_value": 0.362693443295
+          },
+          "Repeat": {
+            "chi_sq": 0.0597279481576,
+            "chi_df": 1,
+            "step": 1,
+            "p_value": 0.806926447252
+          },
+          "Assessor:Repeat": {
+            "chi_sq": 25.7722290678,
+            "chi_df": 1,
+            "step": 0,
+            "p_value": 3.84176642658e-07
+          }
+        },
+        "zero_variance": ["Product:Repeat"],
+        "beta": {
+          "1": 0.626602334198,
+          "2": 1.17024327522,
+          "3": 0.10797018429,
+          "4": 1.54457176449,
+          "5": 1.63013012178,
+          "6": 0.435860257708,
+          "7": 1.50340467867,
+          "8": 0.981217383645
+        },
+        "variance_components": {
+          "Product:Assessor": 0.666875401732,
+          "Assessor:Repeat": 0.625908998174,
+          "Assessor": 0.362900602559,
+          "Residual": 1.14117425678
+        },
+        "reml_criterion": 660.610454121
+      },
+      "Sharpnessofmovement": {
+        "anova": {
+          "Product": {
+            "sum_sq": 124.15142676,
+            "mean_sq": 11.2864933419,
+            "num_df": 11,
+            "den_df": 70.0000130888,
+            "f_value": 3.86266318769,
+            "p_value": 0.000227506004995
+          },
+          "Scaling": {
+            "sum_sq": 27.7233209108,
+            "mean_sq": 3.96047441583,
+            "num_df": 7,
+            "den_df": 70.0000130897,
+            "f_value": 1.35542353754,
+            "p_value": 0.238007378004
+          }
+        },
+        "random": {
+          "Product:Assessor": {
+            "chi_sq": 8.47840604627,
+            "chi_df": 1,
+            "step": 0,
+            "p_value": 0.00359386857594
+          },
+          "Assessor": {
+            "chi_sq": 3.73483399043,
+            "chi_df": 1,
+            "step": 0,
+            "p_value": 0.0532889618669
+          },
+          "Assessor:Repeat": {
+            "chi_sq": 11.7707706671,
+            "chi_df": 1,
+            "step": 0,
+            "p_value": 0.000601680624201
+          }
+        },
+        "zero_variance": ["Product:Repeat", "Repeat"],
+        "beta": {
+          "1": 0.494217440418,
+          "2": 0.540623168726,
+          "3": 1.0224133301,
+          "4": 1.87508227484,
+          "5": 0.921937456987,
+          "6": 0.692796453076,
+          "7": 1.64495321179,
+          "8": 0.807976664061
+        },
+        "variance_components": {
+          "Product:Assessor": 1.35769958034,
+          "Assessor:Repeat": 0.80998102231,
+          "Assessor": 1.80463367691,
+          "Residual": 2.92194602362
+        },
+        "reml_criterion": 810.155154095
+      },
+      "Flickeringstationary": {
+        "anova": {
+          "Product": {
+            "sum_sq": 468.279322917,
+            "mean_sq": 42.5708475379,
+            "num_df": 11,
+            "den_df": 158.00001763,
+            "f_value": 9.69255672922,
+            "p_value": 2.84772205816e-13
+          },
+          "Scaling": {
+            "sum_sq": 139.263620093,
+            "mean_sq": 19.8948028704,
+            "num_df": 7,
+            "den_df": 158.000017628,
+            "f_value": 4.52966094382,
+            "p_value": 0.000125178262259
+          }
+        },
+        "random": {
+          "Repeat": {
+            "chi_sq": 0.906818866121,
+            "chi_df": 1,
+            "step": 1,
+            "p_value": 0.340959878408
+          },
+          "Assessor:Repeat": {
+            "chi_sq": 91.0717944405,
+            "chi_df": 1,
+            "step": 0,
+            "p_value": 0
+          }
+        },
+        "zero_variance": ["Product:Assessor", "Product:Repeat", "Assessor"],
+        "beta": {
+          "1": 1.27708589169,
+          "2": 0.875658814301,
+          "3": 0.0657816075986,
+          "4": 1.39801086936,
+          "5": 1.24842244374,
+          "6": 0.234284136193,
+          "7": 1.13255320926,
+          "8": 1.76820302786
+        },
+        "variance_components": {
+          "Assessor:Repeat": 4.76294825772,
+          "Residual": 4.39211744921
+        },
+        "reml_criterion": 846.239065613
+      },
+      "Flickeringmovement": {
+        "anova": {
+          "Product": {
+            "sum_sq": 48.7272079572,
+            "mean_sq": 4.42974617793,
+            "num_df": 11,
+            "den_df": 70.0585904008,
+            "f_value": 2.29527434314,
+            "p_value": 0.0183107959425
+          },
+          "Scaling": {
+            "sum_sq": 53.8696126595,
+            "mean_sq": 7.69565895136,
+            "num_df": 7,
+            "den_df": 70.0585904029,
+            "f_value": 3.98750805015,
+            "p_value": 0.00100899743604
+          }
+        },
+        "random": {
+          "Product:Assessor": {
+            "chi_sq": 20.535797597,
+            "chi_df": 1,
+            "step": 0,
+            "p_value": 5.8526412903e-06
+          },
+          "Repeat": {
+            "chi_sq": 0.0758276487765,
+            "chi_df": 1,
+            "step": 1,
+            "p_value": 0.783033368267
+          },
+          "Assessor:Repeat": {
+            "chi_sq": 187.073436358,
+            "chi_df": 1,
+            "step": 0,
+            "p_value": 1.38408306949e-42
+          }
+        },
+        "zero_variance": ["Product:Repeat", "Assessor"],
+        "beta": {
+          "1": 0.051141828921,
+          "2": 2.11814853922,
+          "3": -0.293606927443,
+          "4": 1.31286651281,
+          "5": 0.898366391857,
+          "6": 1.96897875702,
+          "7": -0.437126894975,
+          "8": 2.38123179259
+        },
+        "variance_components": {
+          "Product:Assessor": 1.73400638963,
+          "Assessor:Repeat": 8.49955204096,
+          "Residual": 1.92994192227
+        },
+        "reml_criterion": 787.756920032
+      },
+      "Distortion": {
+        "anova": {
+          "Product": {
+            "sum_sq": 264.748123695,
+            "mean_sq": 24.068011245,
+            "num_df": 11,
+            "den_df": 70.0000221451,
+            "f_value": 25.0777695882,
+            "p_value": 0
+          },
+          "Scaling": {
+            "sum_sq": 20.5378663497,
+            "mean_sq": 2.93398090711,
+            "num_df": 7,
+            "den_df": 70.0000221458,
+            "f_value": 3.05707423915,
+            "p_value": 0.00724936669384
+          }
+        },
+        "random": {
+          "Product:Assessor": {
+            "chi_sq": 35.4634419214,
+            "chi_df": 1,
+            "step": 0,
+            "p_value": 2.59882711652e-09
+          },
+          "Product:Repeat": {
+            "chi_sq": 6.9780060926e-05,
+            "chi_df": 1,
+            "step": 1,
+            "p_value": 0.993334991881
+          },
+          "Assessor": {
+            "chi_sq": 2.79910944426,
+            "chi_df": 1,
+            "step": 0,
+            "p_value": 0.0943166802831
+          },
+          "Repeat": {
+            "chi_sq": 4.20543912106,
+            "chi_df": 1,
+            "step": 0,
+            "p_value": 0.0402945404265
+          },
+          "Assessor:Repeat": {
+            "chi_sq": 4.44813025601,
+            "chi_df": 1,
+            "step": 0,
+            "p_value": 0.0349394812722
+          }
+        },
+        "zero_variance": [],
+        "beta": {
+          "1": 0.812122150327,
+          "2": 0.684725378893,
+          "3": 1.17312724981,
+          "4": 1.18098083347,
+          "5": 1.27392348466,
+          "6": 0.887740436085,
+          "7": 0.584140642356,
+          "8": 1.40323982441
+        },
+        "variance_components": {
+          "Product:Assessor": 1.39839384124,
+          "Assessor:Repeat": 0.140118722247,
+          "Assessor": 0.380699385394,
+          "Repeat": 0.284208709272,
+          "Residual": 0.959734922212
+        },
+        "reml_criterion": 674.172033539
+      },
+      "Dimglasseffect": {
+        "anova": {
+          "Product": {
+            "sum_sq": 275.909933457,
+            "mean_sq": 25.0827212234,
+            "num_df": 11,
+            "den_df": 70.0000252918,
+            "f_value": 15.4391196296,
+            "p_value": 1.02140518266e-14
+          },
+          "Scaling": {
+            "sum_sq": 200.659980592,
+            "mean_sq": 28.6657115131,
+            "num_df": 7,
+            "den_df": 70.0000252908,
+            "f_value": 17.6445508195,
+            "p_value": 2.91544566267e-13
+          }
+        },
+        "random": {
+          "Product:Assessor": {
+            "chi_sq": 0.0942762261782,
+            "chi_df": 1,
+            "step": 0,
+            "p_value": 0.758809623435
+          },
+          "Assessor": {
+            "chi_sq": 3.86154467934,
+            "chi_df": 1,
+            "step": 0,
+            "p_value": 0.0494048237652
+          },
+          "Assessor:Repeat": {
+            "chi_sq": 18.3371974187,
+            "chi_df": 1,
+            "step": 0,
+            "p_value": 1.85058364431e-05
+          }
+        },
+        "zero_variance": ["Product:Repeat", "Repeat"],
+        "beta": {
+          "1": 0.395946538032,
+          "2": 0.76303477113,
+          "3": 1.80627291977,
+          "4": 0.301042668985,
+          "5": 2.63423746818,
+          "6": 1.63698326179,
+          "7": 0.234360317436,
+          "8": 0.228122054682
+        },
+        "variance_components": {
+          "Product:Assessor": 0.0584273870699,
+          "Assessor:Repeat": 0.613816249339,
+          "Assessor": 1.26996507989,
+          "Residual": 1.62462121061
+        },
+        "reml_criterion": 672.269156834
+      },
+      "Cutting": {
+        "anova": {
+          "Product": {
+            "sum_sq": 162.633993135,
+            "mean_sq": 14.7849084668,
+            "num_df": 11,
+            "den_df": 17.0915526412,
+            "f_value": 12.6430159788,
+            "p_value": 3.9353257093e-06
+          },
+          "Scaling": {
+            "sum_sq": 61.7404053725,
+            "mean_sq": 8.82005791036,
+            "num_df": 7,
+            "den_df": 70.0000131705,
+            "f_value": 7.54229445146,
+            "p_value": 9.37905139553e-07
+          }
+        },
+        "random": {
+          "Product:Assessor": {
+            "chi_sq": 3.98860444756,
+            "chi_df": 1,
+            "step": 0,
+            "p_value": 0.0458089906551
+          },
+          "Product:Repeat": {
+            "chi_sq": 2.8736664517,
+            "chi_df": 1,
+            "step": 0,
+            "p_value": 0.0900395334651
+          },
+          "Assessor": {
+            "chi_sq": 17.7228202405,
+            "chi_df": 1,
+            "step": 0,
+            "p_value": 2.55542543888e-05
+          },
+          "Assessor:Repeat": {
+            "chi_sq": 4.07391684666,
+            "chi_df": 1,
+            "step": 0,
+            "p_value": 0.0435501791379
+          }
+        },
+        "zero_variance": ["Repeat"],
+        "beta": {
+          "1": 0.789697728369,
+          "2": 0.469303608609,
+          "3": 1.44984143469,
+          "4": 0.351540293387,
+          "5": 0.900328527492,
+          "6": 1.03915462355,
+          "7": 1.94865085637,
+          "8": 1.05148292754
+        },
+        "variance_components": {
+          "Product:Assessor": 0.348471188269,
+          "Product:Repeat": 0.147062274274,
+          "Assessor:Repeat": 0.154354227264,
+          "Assessor": 4.53559971416,
+          "Residual": 1.16941309665
+        },
+        "reml_criterion": 657.272548257
+      },
+      "Flossyedges": {
+        "anova": {
+          "Product": {
+            "sum_sq": 172.713347999,
+            "mean_sq": 15.7012134545,
+            "num_df": 11,
+            "den_df": 69.9999767946,
+            "f_value": 9.44972134564,
+            "p_value": 3.72504249668e-10
+          },
+          "Scaling": {
+            "sum_sq": 24.7783970854,
+            "mean_sq": 3.53977101221,
+            "num_df": 7,
+            "den_df": 69.9999767922,
+            "f_value": 2.13039901596,
+            "p_value": 0.0513750719021
+          }
+        },
+        "random": {
+          "Product:Assessor": {
+            "chi_sq": 31.9254872645,
+            "chi_df": 1,
+            "step": 0,
+            "p_value": 1.6020127961e-08
+          },
+          "Product:Repeat": {
+            "chi_sq": 0.0264318792945,
+            "chi_df": 1,
+            "step": 1,
+            "p_value": 0.870850048351
+          },
+          "Assessor": {
+            "chi_sq": 4.50007879839,
+            "chi_df": 1,
+            "step": 0,
+            "p_value": 0.0338932916431
+          },
+          "Repeat": {
+            "chi_sq": 1.67839514292,
+            "chi_df": 1,
+            "step": 2,
+            "p_value": 0.195137836807
+          },
+          "Assessor:Repeat": {
+            "chi_sq": 19.4174686281,
+            "chi_df": 1,
+            "step": 0,
+            "p_value": 1.05041856817e-05
+          }
+        },
+        "zero_variance": [],
+        "beta": {
+          "1": 1.04031822853,
+          "2": 0.949848509961,
+          "3": 1.81074684258,
+          "4": 1.18861007061,
+          "5": 0.951877216826,
+          "6": 0.931258660125,
+          "7": 0.74099777903,
+          "8": 0.386342692346
+        },
+        "variance_components": {
+          "Product:Assessor": 2.1923004249,
+          "Assessor:Repeat": 0.702405370836,
+          "Assessor": 1.8172563014,
+          "Residual": 1.66155306386
+        },
+        "reml_criterion": 770.259735673
+      },
+      "Elasticeffect": {
+        "anova": {
+          "Product": {
+            "sum_sq": 440.955515889,
+            "mean_sq": 40.0868650809,
+            "num_df": 11,
+            "den_df": 70.0000260094,
+            "f_value": 41.9009873256,
+            "p_value": 0
+          },
+          "Scaling": {
+            "sum_sq": 37.5134125726,
+            "mean_sq": 5.35905893894,
+            "num_df": 7,
+            "den_df": 70.0000260114,
+            "f_value": 5.60158197017,
+            "p_value": 3.73793470875e-05
+          }
+        },
+        "random": {
+          "Product:Assessor": {
+            "chi_sq": 14.7406783128,
+            "chi_df": 1,
+            "step": 0,
+            "p_value": 0.000123355896432
+          },
+          "Product:Repeat": {
+            "chi_sq": 0.339548182834,
+            "chi_df": 1,
+            "step": 1,
+            "p_value": 0.560090135499
+          },
+          "Assessor": {
+            "chi_sq": 3.69539739871,
+            "chi_df": 1,
+            "step": 0,
+            "p_value": 0.054562783143
+          },
+          "Assessor:Repeat": {
+            "chi_sq": 5.67097115454,
+            "chi_df": 1,
+            "step": 0,
+            "p_value": 0.017247904882
+          }
+        },
+        "zero_variance": ["Repeat"],
+        "beta": {
+          "1": 0.718341051415,
+          "2": 0.565309596244,
+          "3": 1.32309699099,
+          "4": 1.08594092323,
+          "5": 1.44283437209,
+          "6": 0.825738221775,
+          "7": 0.82792849622,
+          "8": 1.21081034804
+        },
+        "variance_components": {
+          "Product:Assessor": 0.66203973621,
+          "Assessor:Repeat": 0.152982967006,
+          "Assessor": 0.419089761441,
+          "Residual": 0.956704546587
+        },
+        "reml_criterion": 636.889467415
+      }
+    },
+    "factorial": {
+      "Coloursaturation": {
+        "anova": {
+          "TVset": {
+            "sum_sq": 31.6165811716,
+            "mean_sq": 15.8082905858,
+            "num_df": 2,
+            "den_df": 10.6386355057,
+            "f_value": 20.9612690086,
+            "p_value": 0.000203970984496
+          },
+          "Picture": {
+            "sum_sq": 9.44925952296,
+            "mean_sq": 3.14975317432,
+            "num_df": 3,
+            "den_df": 60.9829772143,
+            "f_value": 4.17646824237,
+            "p_value": 0.00936582008603
+          },
+          "TVset:Picture": {
+            "sum_sq": 11.6258345057,
+            "mean_sq": 1.93763908428,
+            "num_df": 6,
+            "den_df": 60.9829772144,
+            "f_value": 2.56924516075,
+            "p_value": 0.0276773940693
+          },
+          "Scaling": {
+            "sum_sq": 14.1854286162,
+            "mean_sq": 2.02648980231,
+            "num_df": 7,
+            "den_df": 26.9583410298,
+            "f_value": 2.68705826598,
+            "p_value": 0.0300981147446
+          }
+        },
+        "random": {
+          "TVset:Assessor": {
+            "chi_sq": 19.8099004638,
+            "chi_df": 1,
+            "step": 0,
+            "p_value": 8.55384660353e-06
+          },
+          "Picture:Assessor:Repeat": {
+            "chi_sq": 2.17057139493,
+            "chi_df": 1,
+            "step": 3,
+            "p_value": 0.140673956295
+          },
+          "TVset:Picture:Assessor": {
+            "chi_sq": 0.553912769908,
+            "chi_df": 1,
+            "step": 0,
+            "p_value": 0.456723331193
+          },
+          "TVset:Picture:Repeat": {
+            "chi_sq": 0.27136928138,
+            "chi_df": 1,
+            "step": 1,
+            "p_value": 0.602414722414
+          },
+          "Assessor": {
+            "chi_sq": 0.330685878032,
+            "chi_df": 1,
+            "step": 0,
+            "p_value": 0.565255497086
+          },
+          "Assessor:Repeat": {
+            "chi_sq": 0.872946898591,
+            "chi_df": 1,
+            "step": 2,
+            "p_value": 0.350140772409
+          }
+        },
+        "zero_variance": ["TVset:Repeat", "TVset:Assessor:Repeat", "Picture:Assessor", "Picture:Repeat", "Repeat"],
+        "beta": {
+          "1": 0.739879752575,
+          "2": 0.171902063654,
+          "3": 1.67081142858,
+          "4": 1.27817931976,
+          "5": 1.71092793673,
+          "6": 0.989039996887,
+          "7": 0.39544468392,
+          "8": 1.04381481789
+        },
+        "variance_components": {
+          "TVset:Picture:Assessor": 0.070505430313,
+          "TVset:Assessor": 0.548588075665,
+          "Assessor": 0.105224003752,
+          "Residual": 0.754166676611
+        },
+        "reml_criterion": 540.945072437
+      },
+      "Colourbalance": {
+        "anova": {
+          "TVset": {
+            "sum_sq": 10.3612049433,
+            "mean_sq": 5.18060247165,
+            "num_df": 2,
+            "den_df": 10.6641249888,
+            "f_value": 5.69594784295,
+            "p_value": 0.0207582513667
+          },
+          "Picture": {
+            "sum_sq": 3.82179600187,
+            "mean_sq": 1.27393200062,
+            "num_df": 3,
+            "den_df": 55.8037513474,
+            "f_value": 1.40065760126,
+            "p_value": 0.252211176503
+          },
+          "TVset:Picture": {
+            "sum_sq": 22.5922976169,
+            "mean_sq": 3.76538293615,
+            "num_df": 6,
+            "den_df": 40.3140629334,
+            "f_value": 4.13994799454,
+            "p_value": 0.00248973518088
+          },
+          "Scaling": {
+            "sum_sq": 5.83839697467,
+            "mean_sq": 0.834056710667,
+            "num_df": 7,
+            "den_df": 57.2063399824,
+            "f_value": 0.91702529735,
+            "p_value": 0.50019743318
+          }
+        },
+        "random": {
+          "TVset:Assessor": {
+            "chi_sq": 6.97297910032,
+            "chi_df": 1,
+            "step": 0,
+            "p_value": 0.00827496194345
+          },
+          "TVset:Repeat": {
+            "chi_sq": 1.04373754945,
+            "chi_df": 1,
+            "step": 3,
+            "p_value": 0.306953807205
+          },
+          "TVset:Assessor:Repeat": {
+            "chi_sq": 17.190763347,
+            "chi_df": 1,
+            "step": 0,
+            "p_value": 3.3807614851e-05
+          },
+          "Picture:Assessor": {
+            "chi_sq": 0.154267573654,
+            "chi_df": 1,
+            "step": 2,
+            "p_value": 0.694490021673
+          },
+          "Picture:Assessor:Repeat": {
+            "chi_sq": 9.3678769788,
+            "chi_df": 1,
+            "step": 0,
+            "p_value": 0.00220821131331
+          },
+          "TVset:Picture:Assessor": {
+            "chi_sq": 8.26612752929,
+            "chi_df": 1,
+            "step": 0,
+            "p_value": 0.00403915679204
+          },
+          "Assessor": {
+            "chi_sq": 0.233179246838,
+            "chi_df": 1,
+            "step": 0,
+            "p_value": 0.629176419756
+          },
+          "Repeat": {
+            "chi_sq": 0.0306171422793,
+            "chi_df": 1,
+            "step": 1,
+            "p_value": 0.861097275559
+          }
+        },
+        "zero_variance": ["Picture:Repeat", "TVset:Picture:Repeat", "Assessor:Repeat"],
+        "beta": {
+          "1": 1.30883811884,
+          "2": 0.988502172323,
+          "3": 0.687813481341,
+          "4": 0.874500757126,
+          "5": 1.43015421436,
+          "6": 0.376077571779,
+          "7": 0.702719809047,
+          "8": 1.63139387519
+        },
+        "variance_components": {
+          "TVset:Picture:Assessor": 0.599011866728,
+          "Picture:Assessor:Repeat": 0.472671928703,
+          "TVset:Assessor:Repeat": 0.73534792319,
+          "TVset:Assessor": 1.66435121039,
+          "Assessor": 0.309335514424,
+          "Residual": 0.909524211685
+        },
+        "reml_criterion": 705.719172566
+      },
+      "Noise": {
+        "anova": {
+          "TVset": {
+            "sum_sq": 136.161675114,
+            "mean_sq": 68.080837557,
+            "num_df": 2,
+            "den_df": 49.7903345705,
+            "f_value": 46.3891018363,
+            "p_value": 4.22595292093e-12
+          },
+          "Picture": {
+            "sum_sq": 137.45406253,
+            "mean_sq": 45.8180208433,
+            "num_df": 3,
+            "den_df": 16.0552110163,
+            "f_value": 31.2196046803,
+            "p_value": 6.21919432175e-07
+          },
+          "TVset:Picture": {
+            "sum_sq": 53.0545815477,
+            "mean_sq": 8.84243025795,
+            "num_df": 6,
+            "den_df": 49.7903345684,
+            "f_value": 6.02507860414,
+            "p_value": 8.5944755523e-05
+          },
+          "Scaling": {
+            "sum_sq": 6.40746133676,
+            "mean_sq": 0.915351619538,
+            "num_df": 7,
+            "den_df": 60.2506813923,
+            "f_value": 0.623704716605,
+            "p_value": 0.73430428656
+          }
+        },
+        "random": {
+          "Picture:Assessor": {
+            "chi_sq": 3.71249273793,
+            "chi_df": 1,
+            "step": 0,
+            "p_value": 0.0540066786639
+          },
+          "Picture:Assessor:Repeat": {
+            "chi_sq": 3.34097265203,
+            "chi_df": 1,
+            "step": 0,
+            "p_value": 0.0675746527515
+          },
+          "TVset:Picture:Assessor": {
+            "chi_sq": 1.84209039876,
+            "chi_df": 1,
+            "step": 0,
+            "p_value": 0.174706137249
+          },
+          "TVset:Picture:Repeat": {
+            "chi_sq": 0.0420374536462,
+            "chi_df": 1,
+            "step": 1,
+            "p_value": 0.837548395252
+          },
+          "Assessor": {
+            "chi_sq": 3.97986083115,
+            "chi_df": 1,
+            "step": 0,
+            "p_value": 0.0460473676155
+          },
+          "Assessor:Repeat": {
+            "chi_sq": 5.95156372127,
+            "chi_df": 1,
+            "step": 0,
+            "p_value": 0.0147042368372
+          }
+        },
+        "zero_variance": ["TVset:Assessor", "TVset:Repeat", "TVset:Assessor:Repeat", "Picture:Repeat", "Repeat"],
+        "beta": {
+          "1": 1.15473024665,
+          "2": 0.840525363165,
+          "3": 0.831583144084,
+          "4": 0.912557459086,
+          "5": 1.24879464571,
+          "6": 1.07784736752,
+          "7": 0.993363737589,
+          "8": 0.940598036195
+        },
+        "variance_components": {
+          "TVset:Picture:Assessor": 0.319335127794,
+          "Picture:Assessor:Repeat": 0.397505795084,
+          "Picture:Assessor": 0.73086728889,
+          "Assessor:Repeat": 0.591088143234,
+          "Assessor": 1.61043440893,
+          "Residual": 1.46760413248
+        },
+        "reml_criterion": 724.065343064
+      },
+      "Depth": {
+        "anova": {
+          "TVset": {
+            "sum_sq": 18.0473133277,
+            "mean_sq": 9.02365666384,
+            "num_df": 2,
+            "den_df": 10.3839966108,
+            "f_value": 11.0989887284,
+            "p_value": 0.00263989645814
+          },
+          "Picture": {
+            "sum_sq": 8.64590488987,
+            "mean_sq": 2.88196829662,
+            "num_df": 3,
+            "den_df": 58.7175067384,
+            "f_value": 3.54478620271,
+            "p_value": 0.0198368836963
+          },
+          "TVset:Picture": {
+            "sum_sq": 13.1043163838,
+            "mean_sq": 2.18405273063,
+            "num_df": 6,
+            "den_df": 58.7175067365,
+            "f_value": 2.68635848444,
+            "p_value": 0.0226163264963
+          },
+          "Scaling": {
+            "sum_sq": 4.95852999307,
+            "mean_sq": 0.708361427581,
+            "num_df": 7,
+            "den_df": 40.75918716,
+            "f_value": 0.871276001877,
+            "p_value": 0.53717211674
+          }
+        },
+        "random": {
+          "TVset:Assessor": {
+            "chi_sq": 7.62197102049,
+            "chi_df": 1,
+            "step": 0,
+            "p_value": 0.00576614330021
+          },
+          "Picture:Assessor": {
+            "chi_sq": 0.121163553674,
+            "chi_df": 1,
+            "step": 1,
+            "p_value": 0.727775932163
+          },
+          "Picture:Assessor:Repeat": {
+            "chi_sq": 1.23242669966,
+            "chi_df": 1,
+            "step": 3,
+            "p_value": 0.266935621355
+          },
+          "TVset:Picture:Assessor": {
+            "chi_sq": 17.4243834574,
+            "chi_df": 1,
+            "step": 0,
+            "p_value": 2.98966108061e-05
+          },
+          "Assessor": {
+            "chi_sq": 0.278897077958,
+            "chi_df": 1,
+            "step": 0,
+            "p_value": 0.59742502366
+          },
+          "Repeat": {
+            "chi_sq": 1.04342594404,
+            "chi_df": 1,
+            "step": 2,
+            "p_value": 0.30702602445
+          },
+          "Assessor:Repeat": {
+            "chi_sq": 53.3153208804,
+            "chi_df": 1,
+            "step": 0,
+            "p_value": 2.84082266905e-13
+          }
+        },
+        "zero_variance": ["TVset:Repeat", "TVset:Assessor:Repeat", "Picture:Repeat", "TVset:Picture:Repeat"],
+        "beta": {
+          "1": 0.881204935645,
+          "2": 1.29735310667,
+          "3": 1.47202188668,
+          "4": 0.316808607487,
+          "5": 1.39424981678,
+          "6": 0.866092005191,
+          "7": 0.834317427798,
+          "8": 0.937952213749
+        },
+        "variance_components": {
+          "TVset:Picture:Assessor": 0.68032631586,
+          "TVset:Assessor": 0.634111896824,
+          "Assessor:Repeat": 0.964744474764,
+          "Assessor": 0.315401940255,
+          "Residual": 0.813016112065
+        },
+        "reml_criterion": 636.2959796
+      },
+      "Sharpness": {
+        "anova": {
+          "TVset": {
+            "sum_sq": 22.7422886793,
+            "mean_sq": 11.3711443397,
+            "num_df": 2,
+            "den_df": 9.74050085504,
+            "f_value": 12.9560522197,
+            "p_value": 0.00180121380746
+          },
+          "Picture": {
+            "sum_sq": 10.8194100286,
+            "mean_sq": 3.60647000953,
+            "num_df": 3,
+            "den_df": 55.5117477446,
+            "f_value": 4.10913909601,
+            "p_value": 0.0105428020163
+          },
+          "TVset:Picture": {
+            "sum_sq": 43.2638009355,
+            "mean_sq": 7.21063348926,
+            "num_df": 6,
+            "den_df": 55.5117477451,
+            "f_value": 8.21565017853,
+            "p_value": 2.23569432545e-06
+          },
+          "Scaling": {
+            "sum_sq": 10.7370519865,
+            "mean_sq": 1.5338645695,
+            "num_df": 7,
+            "den_df": 61.3032611843,
+            "f_value": 1.74765431401,
+            "p_value": 0.114615799853
+          }
+        },
+        "random": {
+          "TVset:Assessor": {
+            "chi_sq": 11.0127147358,
+            "chi_df": 1,
+            "step": 0,
+            "p_value": 0.000904890192429
+          },
+          "TVset:Assessor:Repeat": {
+            "chi_sq": 0.20960746926,
+            "chi_df": 1,
+            "step": 3,
+            "p_value": 0.647075239634
+          },
+          "Picture:Repeat": {
+            "chi_sq": 0.17713599037,
+            "chi_df": 1,
+            "step": 2,
+            "p_value": 0.673846166565
+          },
+          "TVset:Picture:Assessor": {
+            "chi_sq": 13.9024091198,
+            "chi_df": 1,
+            "step": 0,
+            "p_value": 0.000192551504036
+          },
+          "TVset:Picture:Repeat": {
+            "chi_sq": 0.020106450434,
+            "chi_df": 1,
+            "step": 1,
+            "p_value": 0.887240183247
+          },
+          "Assessor": {
+            "chi_sq": 0.744913883915,
+            "chi_df": 1,
+            "step": 0,
+            "p_value": 0.388091318398
+          },
+          "Assessor:Repeat": {
+            "chi_sq": 36.1004021017,
+            "chi_df": 1,
+            "step": 0,
+            "p_value": 1.87408169886e-09
+          }
+        },
+        "zero_variance": ["TVset:Repeat", "Picture:Assessor", "Picture:Assessor:Repeat", "Repeat"],
+        "beta": {
+          "1": 0.604140420233,
+          "2": 0.78018389585,
+          "3": 0.567016903973,
+          "4": 1.40144199993,
+          "5": 1.29419200815,
+          "6": 0.694561029273,
+          "7": 1.61887696945,
+          "8": 1.03958677314
+        },
+        "variance_components": {
+          "TVset:Picture:Assessor": 0.628061672461,
+          "TVset:Assessor": 1.06051654851,
+          "Assessor:Repeat": 0.673787917414,
+          "Assessor": 0.548733185252,
+          "Residual": 0.877670462174
+        },
+        "reml_criterion": 650.010480376
+      },
+      "Lightlevel": {
+        "anova": {
+          "TVset": {
+            "sum_sq": 31.7967008133,
+            "mean_sq": 15.8983504067,
+            "num_df": 2,
+            "den_df": 2.93399905218,
+            "f_value": 30.017534776,
+            "p_value": 0.0111287068245
+          },
+          "Picture": {
+            "sum_sq": 19.8195778057,
+            "mean_sq": 6.60652593523,
+            "num_df": 3,
+            "den_df": 40.3664590508,
+            "f_value": 12.4737231811,
+            "p_value": 6.52631223685e-06
+          },
+          "TVset:Picture": {
+            "sum_sq": 14.5908378834,
+            "mean_sq": 2.4318063139,
+            "num_df": 6,
+            "den_df": 40.366459052,
+            "f_value": 4.59147199104,
+            "p_value": 0.00122085778775
+          },
+          "Scaling": {
+            "sum_sq": 3.02047803942,
+            "mean_sq": 0.431496862774,
+            "num_df": 7,
+            "den_df": 15.8172174316,
+            "f_value": 0.814705409854,
+            "p_value": 0.588557207996
+          }
+        },
+        "random": {
+          "TVset:Assessor": {
+            "chi_sq": 5.1691909434,
+            "chi_df": 1,
+            "step": 0,
+            "p_value": 0.0229909211802
+          },
+          "TVset:Repeat": {
+            "chi_sq": 0.034730858909,
+            "chi_df": 1,
+            "step": 1,
+            "p_value": 0.852160755609
+          },
+          "TVset:Assessor:Repeat": {
+            "chi_sq": 0.55098092636,
+            "chi_df": 1,
+            "step": 3,
+            "p_value": 0.457917164964
+          },
+          "Picture:Assessor": {
+            "chi_sq": 0.3560681183,
+            "chi_df": 1,
+            "step": 2,
+            "p_value": 0.550698052679
+          },
+          "TVset:Picture:Assessor": {
+            "chi_sq": 5.40615720046,
+            "chi_df": 1,
+            "step": 0,
+            "p_value": 0.0200658412445
+          },
+          "Assessor": {
+            "chi_sq": 1.04761585528,
+            "chi_df": 1,
+            "step": 0,
+            "p_value": 0.306056816429
+          }
+        },
+        "zero_variance": ["Picture:Repeat", "Picture:Assessor:Repeat", "TVset:Picture:Repeat", "Repeat", "Assessor:Repeat"],
+        "beta": {
+          "1": 0.935777336772,
+          "2": 1.09430789185,
+          "3": 1.3947580768,
+          "4": 0.825767040608,
+          "5": 1.22320996026,
+          "6": 0.717585728121,
+          "7": 0.80978512465,
+          "8": 0.99880884094
+        },
+        "variance_components": {
+          "TVset:Picture:Assessor": 0.208033919048,
+          "TVset:Assessor": 1.12658100117,
+          "Assessor": 0.613170611315,
+          "Residual": 0.529635445591
+        },
+        "reml_criterion": 531.473449856
+      },
+      "Contrast": {
+        "anova": {
+          "TVset": {
+            "sum_sq": 19.5447212152,
+            "mean_sq": 9.77236060762,
+            "num_df": 2,
+            "den_df": 6.30167772772,
+            "f_value": 10.9951944561,
+            "p_value": 0.00881041091312
+          },
+          "Picture": {
+            "sum_sq": 10.3202667951,
+            "mean_sq": 3.44008893169,
+            "num_df": 3,
+            "den_df": 50.5388434921,
+            "f_value": 3.87055372484,
+            "p_value": 0.014405238835
+          },
+          "TVset:Picture": {
+            "sum_sq": 23.3992413423,
+            "mean_sq": 3.89987355705,
+            "num_df": 6,
+            "den_df": 50.5388434896,
+            "f_value": 4.38787206446,
+            "p_value": 0.00121551548889
+          },
+          "Scaling": {
+            "sum_sq": 12.3273471137,
+            "mean_sq": 1.76104958767,
+            "num_df": 7,
+            "den_df": 43.7846426345,
+            "f_value": 1.98141303219,
+            "p_value": 0.0794985426765
+          }
+        },
+        "random": {
+          "TVset:Assessor": {
+            "chi_sq": 3.45129244519,
+            "chi_df": 1,
+            "step": 0,
+            "p_value": 0.063202330336
+          },
+          "TVset:Assessor:Repeat": {
+            "chi_sq": 6.94469960258,
+            "chi_df": 1,
+            "step": 0,
+            "p_value": 0.00840679534833
+          },
+          "Picture:Assessor:Repeat": {
+            "chi_sq": 0.169819581008,
+            "chi_df": 1,
+            "step": 2,
+            "p_value": 0.680272201522
+          },
+          "TVset:Picture:Assessor": {
+            "chi_sq": 6.5207897521,
+            "chi_df": 1,
+            "step": 0,
+            "p_value": 0.0106620646772
+          },
+          "Assessor": {
+            "chi_sq": 0.00732725199407,
+            "chi_df": 1,
+            "step": 0,
+            "p_value": 0.931784899988
+          },
+          "Repeat": {
+            "chi_sq": 0.0597279481572,
+            "chi_df": 1,
+            "step": 1,
+            "p_value": 0.806926447253
+          },
+          "Assessor:Repeat": {
+            "chi_sq": 5.14167267665,
+            "chi_df": 1,
+            "step": 0,
+            "p_value": 0.0233581324206
+          }
+        },
+        "zero_variance": ["TVset:Repeat", "Picture:Assessor", "Picture:Repeat", "TVset:Picture:Repeat"],
+        "beta": {
+          "1": 0.464392208758,
+          "2": 0.989753868345,
+          "3": 1.0002154546,
+          "4": 1.54104805748,
+          "5": 1.92669735913,
+          "6": 0.39913604363,
+          "7": 0.825534720298,
+          "8": 0.853222287759
+        },
+        "variance_components": {
+          "TVset:Picture:Assessor": 0.409822565231,
+          "TVset:Assessor:Repeat": 0.347035560218,
+          "TVset:Assessor": 1.0192678989,
+          "Assessor:Repeat": 0.531263174099,
+          "Assessor": 0.0445652790127,
+          "Residual": 0.888784700137
+        },
+        "reml_criterion": 646.304441888
+      },
+      "Sharpnessofmovement": {
+        "anova": {
+          "TVset": {
+            "sum_sq": 0.681144171876,
+            "mean_sq": 0.340572085938,
+            "num_df": 2,
+            "den_df": 38.3006977195,
+            "f_value": 0.281752811939,
+            "p_value": 0.756010320493
+          },
+          "Picture": {
+            "sum_sq": 18.7852860825,
+            "mean_sq": 6.2617620275,
+            "num_df": 3,
+            "den_df": 50.8962807112,
+            "f_value": 5.18031022443,
+            "p_value": 0.00335677205481
+          },
+          "TVset:Picture": {
+            "sum_sq": 38.8908081926,
+            "mean_sq": 6.48180136543,
+            "num_df": 6,
+            "den_df": 32.0524970415,
+            "f_value": 5.36234716979,
+            "p_value": 0.000628891698915
+          },
+          "Scaling": {
+            "sum_sq": 16.7472020552,
+            "mean_sq": 2.39245743645,
+            "num_df": 7,
+            "den_df": 58.48620912,
+            "f_value": 1.97926265245,
+            "p_value": 0.0733419190575
+          }
+        },
+        "random": {
+          "TVset:Assessor": {
+            "chi_sq": 0.501038123482,
+            "chi_df": 1,
+            "step": 2,
+            "p_value": 0.479044334573
+          },
+          "TVset:Assessor:Repeat": {
+            "chi_sq": 12.9379636305,
+            "chi_df": 1,
+            "step": 0,
+            "p_value": 0.000321985078884
+          },
+          "Picture:Assessor": {
+            "chi_sq": 1.58158446675,
+            "chi_df": 1,
+            "step": 4,
+            "p_value": 0.208532611414
+          },
+          "Picture:Assessor:Repeat": {
+            "chi_sq": 36.2801158373,
+            "chi_df": 1,
+            "step": 0,
+            "p_value": 1.70898624498e-09
+          },
+          "TVset:Picture:Assessor": {
+            "chi_sq": 7.49227651088,
+            "chi_df": 1,
+            "step": 0,
+            "p_value": 0.00619641723877
+          },
+          "TVset:Picture:Repeat": {
+            "chi_sq": 0.255388509558,
+            "chi_df": 1,
+            "step": 1,
+            "p_value": 0.6133061609
+          },
+          "Assessor": {
+            "chi_sq": 11.6639653759,
+            "chi_df": 1,
+            "step": 0,
+            "p_value": 0.000637223715909
+          },
+          "Assessor:Repeat": {
+            "chi_sq": 0.46433037016,
+            "chi_df": 1,
+            "step": 3,
+            "p_value": 0.495607092419
+          }
+        },
+        "zero_variance": ["TVset:Repeat", "Picture:Repeat", "Repeat"],
+        "beta": {
+          "1": 0.0668045179174,
+          "2": 0.534629126617,
+          "3": 0.944202501208,
+          "4": 1.80615530092,
+          "5": 1.63976280071,
+          "6": 0.925422509416,
+          "7": 1.30332266778,
+          "8": 0.779700575426
+        },
+        "variance_components": {
+          "TVset:Picture:Assessor": 0.806182716649,
+          "Picture:Assessor:Repeat": 2.18068687747,
+          "TVset:Assessor:Repeat": 0.735244660902,
+          "Assessor": 1.93183913127,
+          "Residual": 1.20876197683
+        },
+        "reml_criterion": 778.253318571
+      },
+      "Flickeringstationary": {
+        "anova": {
+          "TVset": {
+            "sum_sq": 72.5189615471,
+            "mean_sq": 36.2594807736,
+            "num_df": 2,
+            "den_df": 52.4530893109,
+            "f_value": 25.3808042204,
+            "p_value": 1.95060912977e-08
+          },
+          "Picture": {
+            "sum_sq": 37.7187634503,
+            "mean_sq": 12.5729211501,
+            "num_df": 3,
+            "den_df": 44.148244392,
+            "f_value": 8.80075619897,
+            "p_value": 0.00010944932318
+          },
+          "TVset:Picture": {
+            "sum_sq": 24.4276381684,
+            "mean_sq": 4.07127302807,
+            "num_df": 6,
+            "den_df": 52.4530893102,
+            "f_value": 2.84979766529,
+            "p_value": 0.0177436370545
+          },
+          "Scaling": {
+            "sum_sq": 44.9667547346,
+            "mean_sq": 6.42382210494,
+            "num_df": 7,
+            "den_df": 79.7259056572,
+            "f_value": 4.49652801733,
+            "p_value": 0.000290627085346
+          }
+        },
+        "random": {
+          "TVset:Assessor": {
+            "chi_sq": 0.0115183763874,
+            "chi_df": 1,
+            "step": 1,
+            "p_value": 0.914532183966
+          },
+          "Picture:Assessor:Repeat": {
+            "chi_sq": 71.0576274086,
+            "chi_df": 1,
+            "step": 0,
+            "p_value": 3.46941733166e-17
+          },
+          "TVset:Picture:Assessor": {
+            "chi_sq": 1.45988053054,
+            "chi_df": 1,
+            "step": 0,
+            "p_value": 0.226949130545
+          },
+          "Repeat": {
+            "chi_sq": 0.912429025431,
+            "chi_df": 1,
+            "step": 2,
+            "p_value": 0.339470747221
+          },
+          "Assessor:Repeat": {
+            "chi_sq": 17.0422698151,
+            "chi_df": 1,
+            "step": 0,
+            "p_value": 3.65568885989e-05
+          }
+        },
+        "zero_variance": ["TVset:Repeat", "TVset:Assessor:Repeat", "Picture:Assessor", "Picture:Repeat", "TVset:Picture:Repeat", "Assessor"],
+        "beta": {
+          "1": 1.7102410114,
+          "2": 0.624881918644,
+          "3": 0.123089254977,
+          "4": 1.34539577452,
+          "5": 1.44945239506,
+          "6": 0.145735330174,
+          "7": 1.18792395097,
+          "8": 1.41328036425
+        },
+        "variance_components": {
+          "TVset:Picture:Assessor": 0.268238078501,
+          "Picture:Assessor:Repeat": 3.57348444637,
+          "Assessor:Repeat": 4.1060199858,
+          "Residual": 1.42861827619
+        },
+        "reml_criterion": 775.181438204
+      },
+      "Flickeringmovement": {
+        "anova": {
+          "TVset": {
+            "sum_sq": 3.14311622174,
+            "mean_sq": 1.57155811087,
+            "num_df": 2,
+            "den_df": 48.4020881324,
+            "f_value": 1.77922718022,
+            "p_value": 0.179628826065
+          },
+          "Picture": {
+            "sum_sq": 5.86642971876,
+            "mean_sq": 1.95547657292,
+            "num_df": 3,
+            "den_df": 14.635968042,
+            "f_value": 2.21387745369,
+            "p_value": 0.129795929607
+          },
+          "TVset:Picture": {
+            "sum_sq": 3.41235627649,
+            "mean_sq": 0.568726046082,
+            "num_df": 6,
+            "den_df": 48.4020881332,
+            "f_value": 0.643878729198,
+            "p_value": 0.6946144847
+          },
+          "Scaling": {
+            "sum_sq": 13.9198370719,
+            "mean_sq": 1.98854815313,
+            "num_df": 7,
+            "den_df": 53.2874749795,
+            "f_value": 2.25131918365,
+            "p_value": 0.0440280252589
+          }
+        },
+        "random": {
+          "Picture:Assessor": {
+            "chi_sq": 6.10449810446,
+            "chi_df": 1,
+            "step": 0,
+            "p_value": 0.0134838238254
+          },
+          "Picture:Assessor:Repeat": {
+            "chi_sq": 28.5704575023,
+            "chi_df": 1,
+            "step": 0,
+            "p_value": 9.03501866233e-08
+          },
+          "TVset:Picture:Assessor": {
+            "chi_sq": 12.708854062,
+            "chi_df": 1,
+            "step": 0,
+            "p_value": 0.000363928369394
+          },
+          "Assessor": {
+            "chi_sq": 5.68434188608e-13,
+            "chi_df": 1,
+            "step": 0,
+            "p_value": 0.999999398438
+          },
+          "Repeat": {
+            "chi_sq": 0.0926266327915,
+            "chi_df": 1,
+            "step": 1,
+            "p_value": 0.760864121719
+          },
+          "Assessor:Repeat": {
+            "chi_sq": 36.6407472499,
+            "chi_df": 1,
+            "step": 0,
+            "p_value": 1.4203157586e-09
+          }
+        },
+        "zero_variance": ["TVset:Assessor", "TVset:Repeat", "TVset:Assessor:Repeat", "Picture:Repeat", "TVset:Picture:Repeat"],
+        "beta": {
+          "1": 0.0219747428856,
+          "2": 1.12395553745,
+          "3": -0.783208489617,
+          "4": 1.9741319046,
+          "5": 2.15636822081,
+          "6": 1.5648996586,
+          "7": -0.0793116164108,
+          "8": 2.02119004169
+        },
+        "variance_components": {
+          "TVset:Picture:Assessor": 0.711027986549,
+          "Picture:Assessor:Repeat": 1.28134809583,
+          "Picture:Assessor": 1.96578534291,
+          "Assessor:Repeat": 7.98704796529,
+          "Assessor": 0,
+          "Residual": 0.883281307941
+        },
+        "reml_criterion": 732.863343036
+      },
+      "Distortion": {
+        "anova": {
+          "TVset": {
+            "sum_sq": 21.7348022237,
+            "mean_sq": 10.8674011118,
+            "num_df": 2,
+            "den_df": 11.812792173,
+            "f_value": 13.5018087303,
+            "p_value": 0.000887942545721
+          },
+          "Picture": {
+            "sum_sq": 87.8191774724,
+            "mean_sq": 29.2730591575,
+            "num_df": 3,
+            "den_df": 59.0442112337,
+            "f_value": 36.3692516387,
+            "p_value": 1.9251267247e-13
+          },
+          "TVset:Picture": {
+            "sum_sq": 132.564416274,
+            "mean_sq": 22.094069379,
+            "num_df": 6,
+            "den_df": 46.7499396356,
+            "f_value": 27.4499759197,
+            "p_value": 9.18154441365e-14
+          },
+          "Scaling": {
+            "sum_sq": 13.0316622681,
+            "mean_sq": 1.8616660383,
+            "num_df": 7,
+            "den_df": 67.9622590654,
+            "f_value": 2.31295951168,
+            "p_value": 0.0354717997648
+          }
+        },
+        "random": {
+          "TVset:Assessor": {
+            "chi_sq": 6.57279703968,
+            "chi_df": 1,
+            "step": 0,
+            "p_value": 0.0103549089204
+          },
+          "TVset:Assessor:Repeat": {
+            "chi_sq": 1.66371896494,
+            "chi_df": 1,
+            "step": 3,
+            "p_value": 0.197101943861
+          },
+          "Picture:Repeat": {
+            "chi_sq": 0.714484453223,
+            "chi_df": 1,
+            "step": 1,
+            "p_value": 0.397959089856
+          },
+          "Picture:Assessor:Repeat": {
+            "chi_sq": 5.82361052648,
+            "chi_df": 1,
+            "step": 0,
+            "p_value": 0.0158124539671
+          },
+          "TVset:Picture:Assessor": {
+            "chi_sq": 20.3492452338,
+            "chi_df": 1,
+            "step": 0,
+            "p_value": 6.45185318594e-06
+          },
+          "Assessor": {
+            "chi_sq": 0.459251639939,
+            "chi_df": 1,
+            "step": 0,
+            "p_value": 0.497973928036
+          },
+          "Repeat": {
+            "chi_sq": 11.458237923,
+            "chi_df": 1,
+            "step": 0,
+            "p_value": 0.000711777595344
+          },
+          "Assessor:Repeat": {
+            "chi_sq": 0.591240873157,
+            "chi_df": 1,
+            "step": 2,
+            "p_value": 0.441939681535
+          }
+        },
+        "zero_variance": ["TVset:Repeat", "Picture:Assessor", "TVset:Picture:Repeat"],
+        "beta": {
+          "1": 0.836840406226,
+          "2": 0.666796353147,
+          "3": 1.20192494671,
+          "4": 1.18641514208,
+          "5": 1.30848159122,
+          "6": 0.980844302433,
+          "7": 0.679724039427,
+          "8": 1.13897321875
+        },
+        "variance_components": {
+          "TVset:Picture:Assessor": 0.903272082285,
+          "Picture:Assessor:Repeat": 0.269811414034,
+          "TVset:Assessor": 0.751726017052,
+          "Assessor": 0.214169284855,
+          "Repeat": 0.294904956982,
+          "Residual": 0.804884836462
+        },
+        "reml_criterion": 666.951238795
+      },
+      "Dimglasseffect": {
+        "anova": {
+          "TVset": {
+            "sum_sq": 6.81307633303,
+            "mean_sq": 3.40653816651,
+            "num_df": 2,
+            "den_df": 55.2769416237,
+            "f_value": 9.88724116544,
+            "p_value": 0.000213401971018
+          },
+          "Picture": {
+            "sum_sq": 13.8151590158,
+            "mean_sq": 4.60505300527,
+            "num_df": 3,
+            "den_df": 63.147236606,
+            "f_value": 13.3658475018,
+            "p_value": 7.42322575631e-07
+          },
+          "TVset:Picture": {
+            "sum_sq": 5.22970997727,
+            "mean_sq": 0.871618329545,
+            "num_df": 6,
+            "den_df": 55.27694162,
+            "f_value": 2.52981185214,
+            "p_value": 0.030986560971
+          },
+          "Scaling": {
+            "sum_sq": 15.425693388,
+            "mean_sq": 2.203670484,
+            "num_df": 7,
+            "den_df": 96.6414845852,
+            "f_value": 6.39600100145,
+            "p_value": 3.44936846242e-06
+          }
+        },
+        "random": {
+          "TVset:Repeat": {
+            "chi_sq": 0.149701328973,
+            "chi_df": 1,
+            "step": 2,
+            "p_value": 0.698820942536
+          },
+          "TVset:Assessor:Repeat": {
+            "chi_sq": 1.46273112457,
+            "chi_df": 1,
+            "step": 3,
+            "p_value": 0.226496069743
+          },
+          "Picture:Assessor": {
+            "chi_sq": 0,
+            "chi_df": 1,
+            "step": 1,
+            "p_value": 1
+          },
+          "Picture:Assessor:Repeat": {
+            "chi_sq": 84.198791037,
+            "chi_df": 1,
+            "step": 0,
+            "p_value": 4.47444183046e-20
+          },
+          "TVset:Picture:Assessor": {
+            "chi_sq": 29.4549786164,
+            "chi_df": 1,
+            "step": 0,
+            "p_value": 5.72308315692e-08
+          },
+          "Assessor": {
+            "chi_sq": 17.3448595985,
+            "chi_df": 1,
+            "step": 0,
+            "p_value": 3.11740330554e-05
+          },
+          "Assessor:Repeat": {
+            "chi_sq": 2.43097600456,
+            "chi_df": 1,
+            "step": 4,
+            "p_value": 0.118958811558
+          }
+        },
+        "zero_variance": ["TVset:Assessor", "Picture:Repeat", "TVset:Picture:Repeat", "Repeat"],
+        "beta": {
+          "1": 0.531238395877,
+          "2": 0.983365777229,
+          "3": 1.340107829,
+          "4": 0.470942439634,
+          "5": 2.63203423642,
+          "6": 1.56710451492,
+          "7": 0.305472067861,
+          "8": 0.169734739056
+        },
+        "variance_components": {
+          "TVset:Picture:Assessor": 0.567204237215,
+          "Picture:Assessor:Repeat": 1.53591373617,
+          "Assessor": 1.39582292959,
+          "Residual": 0.344538795961
+        },
+        "reml_criterion": 606.407563216
+      },
+      "Cutting": {
+        "anova": {
+          "TVset": {
+            "sum_sq": 19.5338755363,
+            "mean_sq": 9.76693776815,
+            "num_df": 2,
+            "den_df": 6.81379879371,
+            "f_value": 8.7114668802,
+            "p_value": 0.0132589656273
+          },
+          "Picture": {
+            "sum_sq": 14.6499460231,
+            "mean_sq": 4.88331534104,
+            "num_df": 3,
+            "den_df": 45.6654111083,
+            "f_value": 4.3555964898,
+            "p_value": 0.00883105181511
+          },
+          "TVset:Picture": {
+            "sum_sq": 35.4111707813,
+            "mean_sq": 5.90186179689,
+            "num_df": 6,
+            "den_df": 45.6654111079,
+            "f_value": 5.26407301814,
+            "p_value": 0.000341852217877
+          },
+          "Scaling": {
+            "sum_sq": 19.8003151959,
+            "mean_sq": 2.82861645656,
+            "num_df": 7,
+            "den_df": 39.6660572461,
+            "f_value": 2.52294006198,
+            "p_value": 0.0302734766398
+          }
+        },
+        "random": {
+          "TVset:Assessor": {
+            "chi_sq": 3.11613919697,
+            "chi_df": 1,
+            "step": 0,
+            "p_value": 0.0775202534661
+          },
+          "TVset:Repeat": {
+            "chi_sq": 9.44733753216,
+            "chi_df": 1,
+            "step": 0,
+            "p_value": 0.0021145583106
+          },
+          "TVset:Assessor:Repeat": {
+            "chi_sq": 1.02161559928,
+            "chi_df": 1,
+            "step": 2,
+            "p_value": 0.31213609078
+          },
+          "Picture:Assessor": {
+            "chi_sq": 0.618877457443,
+            "chi_df": 1,
+            "step": 1,
+            "p_value": 0.43146473586
+          },
+          "TVset:Picture:Assessor": {
+            "chi_sq": 0.277125939616,
+            "chi_df": 1,
+            "step": 0,
+            "p_value": 0.598591195093
+          },
+          "Assessor": {
+            "chi_sq": 7.09760602331,
+            "chi_df": 1,
+            "step": 0,
+            "p_value": 0.00771869790609
+          },
+          "Assessor:Repeat": {
+            "chi_sq": 4.66398231292,
+            "chi_df": 1,
+            "step": 0,
+            "p_value": 0.0308016725043
+          }
+        },
+        "zero_variance": ["Picture:Repeat", "Picture:Assessor:Repeat", "TVset:Picture:Repeat", "Repeat"],
+        "beta": {
+          "1": 0.51348102275,
+          "2": 0.611359882486,
+          "3": 1.70515821312,
+          "4": 0.374658775834,
+          "5": 1.8625027141,
+          "6": 1.01269442451,
+          "7": 0.943149338875,
+          "8": 0.976995628319
+        },
+        "variance_components": {
+          "TVset:Picture:Assessor": 0.0808905749893,
+          "TVset:Assessor": 1.65763307265,
+          "Assessor:Repeat": 0.164315567371,
+          "Assessor": 4.00238144885,
+          "TVset:Repeat": 0.201772942502,
+          "Residual": 1.12115880166
+        },
+        "reml_criterion": 647.59708278
+      },
+      "Flossyedges": {
+        "anova": {
+          "TVset": {
+            "sum_sq": 11.6756242702,
+            "mean_sq": 5.83781213509,
+            "num_df": 2,
+            "den_df": 32.3413608386,
+            "f_value": 22.2686157336,
+            "p_value": 8.29969237559e-07
+          },
+          "Picture": {
+            "sum_sq": 4.37491585965,
+            "mean_sq": 1.45830528655,
+            "num_df": 3,
+            "den_df": 14.9468027883,
+            "f_value": 5.5627757963,
+            "p_value": 0.00910228058245
+          },
+          "TVset:Picture": {
+            "sum_sq": 9.89356347539,
+            "mean_sq": 1.6489272459,
+            "num_df": 6,
+            "den_df": 38.5170482053,
+            "f_value": 6.28991244697,
+            "p_value": 0.000113032753092
+          },
+          "Scaling": {
+            "sum_sq": 6.49708776033,
+            "mean_sq": 0.928155394333,
+            "num_df": 7,
+            "den_df": 78.2577410342,
+            "f_value": 3.5404934827,
+            "p_value": 0.00235005536749
+          }
+        },
+        "random": {
+          "TVset:Assessor": {
+            "chi_sq": 1.39530726974,
+            "chi_df": 1,
+            "step": 4,
+            "p_value": 0.237510869535
+          },
+          "TVset:Assessor:Repeat": {
+            "chi_sq": 31.3519665338,
+            "chi_df": 1,
+            "step": 0,
+            "p_value": 2.15240572088e-08
+          },
+          "Picture:Assessor": {
+            "chi_sq": 10.4531636352,
+            "chi_df": 1,
+            "step": 0,
+            "p_value": 0.00122439574236
+          },
+          "Picture:Repeat": {
+            "chi_sq": 0.00550490400371,
+            "chi_df": 1,
+            "step": 1,
+            "p_value": 0.94085519225
+          },
+          "Picture:Assessor:Repeat": {
+            "chi_sq": 70.8485487876,
+            "chi_df": 1,
+            "step": 0,
+            "p_value": 3.85727301062e-17
+          },
+          "TVset:Picture:Assessor": {
+            "chi_sq": 31.7556094949,
+            "chi_df": 1,
+            "step": 0,
+            "p_value": 1.74843544064e-08
+          },
+          "TVset:Picture:Repeat": {
+            "chi_sq": 0.323301617165,
+            "chi_df": 1,
+            "step": 3,
+            "p_value": 0.569630217059
+          },
+          "Assessor": {
+            "chi_sq": 1.65562518798,
+            "chi_df": 1,
+            "step": 0,
+            "p_value": 0.198195038888
+          },
+          "Repeat": {
+            "chi_sq": 2.52192409063,
+            "chi_df": 1,
+            "step": 5,
+            "p_value": 0.112273517777
+          },
+          "Assessor:Repeat": {
+            "chi_sq": 0.0485405773175,
+            "chi_df": 1,
+            "step": 2,
+            "p_value": 0.825622519601
+          }
+        },
+        "zero_variance": ["TVset:Repeat"],
+        "beta": {
+          "1": 1.42990562015,
+          "2": 0.803402910654,
+          "3": 0.832233155653,
+          "4": 1.7671021771,
+          "5": 0.445511394288,
+          "6": 1.64767093264,
+          "7": 0.599688589156,
+          "8": 0.47448522036
+        },
+        "variance_components": {
+          "TVset:Picture:Assessor": 0.627184790246,
+          "Picture:Assessor:Repeat": 1.5558539128,
+          "TVset:Assessor:Repeat": 0.494534733314,
+          "Picture:Assessor": 3.11996221706,
+          "Assessor": 1.30029736442,
+          "Residual": 0.262154244562
+        },
+        "reml_criterion": 673.098214799
+      },
+      "Elasticeffect": {
+        "anova": {
+          "TVset": {
+            "sum_sq": 35.7762741451,
+            "mean_sq": 17.8881370726,
+            "num_df": 2,
+            "den_df": 12.2427427835,
+            "f_value": 25.1263607576,
+            "p_value": 4.63718135324e-05
+          },
+          "Picture": {
+            "sum_sq": 64.717043668,
+            "mean_sq": 21.5723478893,
+            "num_df": 3,
+            "den_df": 14.7112025784,
+            "f_value": 30.3013440281,
+            "p_value": 1.51900067724e-06
+          },
+          "TVset:Picture": {
+            "sum_sq": 262.178426507,
+            "mean_sq": 43.6964044178,
+            "num_df": 6,
+            "den_df": 31.7145243707,
+            "f_value": 61.377639089,
+            "p_value": 4.4408920985e-16
+          },
+          "Scaling": {
+            "sum_sq": 34.5291344089,
+            "mean_sq": 4.93273348698,
+            "num_df": 7,
+            "den_df": 58.2164478895,
+            "f_value": 6.92870591344,
+            "p_value": 5.34546398356e-06
+          }
+        },
+        "random": {
+          "TVset:Assessor": {
+            "chi_sq": 10.801029261,
+            "chi_df": 1,
+            "step": 0,
+            "p_value": 0.00101443677525
+          },
+          "Picture:Assessor": {
+            "chi_sq": 6.71497909241,
+            "chi_df": 1,
+            "step": 0,
+            "p_value": 0.00956064117889
+          },
+          "Picture:Assessor:Repeat": {
+            "chi_sq": 13.0209053946,
+            "chi_df": 1,
+            "step": 0,
+            "p_value": 0.000308032852139
+          },
+          "TVset:Picture:Assessor": {
+            "chi_sq": 0.00812930426616,
+            "chi_df": 1,
+            "step": 0,
+            "p_value": 0.928157960808
+          },
+          "TVset:Picture:Repeat": {
+            "chi_sq": 1.8762517651,
+            "chi_df": 1,
+            "step": 2,
+            "p_value": 0.17076077131
+          },
+          "Assessor": {
+            "chi_sq": 0.48965642509,
+            "chi_df": 1,
+            "step": 0,
+            "p_value": 0.484080605371
+          },
+          "Assessor:Repeat": {
+            "chi_sq": 0.876201244718,
+            "chi_df": 1,
+            "step": 1,
+            "p_value": 0.349244243068
+          }
+        },
+        "zero_variance": ["TVset:Repeat", "TVset:Assessor:Repeat", "Picture:Repeat", "Repeat"],
+        "beta": {
+          "1": 0.661629536466,
+          "2": 0.564635882988,
+          "3": 1.65254576688,
+          "4": 1.05739742419,
+          "5": 0.999324207056,
+          "6": 0.953797392551,
+          "7": 0.954698289669,
+          "8": 1.1559715002
+        },
+        "variance_components": {
+          "TVset:Picture:Assessor": 0.00997752208298,
+          "Picture:Assessor:Repeat": 0.397760347114,
+          "Picture:Assessor": 0.801113674996,
+          "TVset:Assessor": 0.330778087902,
+          "Assessor": 0.199860904628,
+          "Residual": 0.711927097008
+        },
+        "reml_criterion": 612.639000218
+      }
+    },
+    "unbalanced": {
+      "Coloursaturation": {
+        "anova": {
+          "TVset": {
+            "sum_sq": 27.303369295,
+            "mean_sq": 13.6516846475,
+            "num_df": 2,
+            "den_df": 10.5480818156,
+            "f_value": 19.8715223847,
+            "p_value": 0.000264559755175
+          },
+          "Picture": {
+            "sum_sq": 8.36564567492,
+            "mean_sq": 2.78854855831,
+            "num_df": 3,
+            "den_df": 62.3676199384,
+            "f_value": 4.05903787906,
+            "p_value": 0.010639315873
+          },
+          "TVset:Picture": {
+            "sum_sq": 9.8921907179,
+            "mean_sq": 1.64869845298,
+            "num_df": 6,
+            "den_df": 62.4844847253,
+            "f_value": 2.39986119369,
+            "p_value": 0.0376480412664
+          },
+          "Scaling": {
+            "sum_sq": 11.5752946978,
+            "mean_sq": 1.65361352826,
+            "num_df": 7,
+            "den_df": 25.7752126244,
+            "f_value": 2.40701562415,
+            "p_value": 0.0488008465011
+          }
+        },
+        "random": {
+          "TVset:Assessor": {
+            "chi_sq": 20.6058851468,
+            "chi_df": 1,
+            "step": 0,
+            "p_value": 5.64224018929e-06
+          },
+          "Picture:Assessor:Repeat": {
+            "chi_sq": 0.0420255162987,
+            "chi_df": 1,
+            "step": 1,
+            "p_value": 0.837571141172
+          },
+          "TVset:Picture:Assessor": {
+            "chi_sq": 0.878237256419,
+            "chi_df": 1,
+            "step": 0,
+            "p_value": 0.348684935555
+          },
+          "TVset:Picture:Repeat": {
+            "chi_sq": 0.313535589114,
+            "chi_df": 1,
+            "step": 2,
+            "p_value": 0.57551866724
+          },
+          "Assessor": {
+            "chi_sq": 0.0741193949486,
+            "chi_df": 1,
+            "step": 0,
+            "p_value": 0.785430741379
+          },
+          "Assessor:Repeat": {
+            "chi_sq": 3.32805622919,
+            "chi_df": 1,
+            "step": 0,
+            "p_value": 0.0681073210111
+          }
+        },
+        "zero_variance": ["TVset:Repeat", "TVset:Assessor:Repeat", "Picture:Assessor", "Picture:Repeat", "Repeat"],
+        "beta": {
+          "1": 0.760177517516,
+          "2": 0.179021103376,
+          "3": 1.69364813136,
+          "4": 1.24911918469,
+          "5": 1.64754729999,
+          "6": 1.01318627838,
+          "7": 0.400808764459,
+          "8": 1.05649172022
+        },
+        "variance_components": {
+          "TVset:Picture:Assessor": 0.0848728932406,
+          "TVset:Assessor": 0.561635132785,
+          "Assessor:Repeat": 0.0795290896038,
+          "Assessor": 0.0517245724951,
+          "Residual": 0.686997421899
+        },
+        "reml_criterion": 521.929402286
+      },
+      "Colourbalance": {
+        "anova": {
+          "TVset": {
+            "sum_sq": 9.55215359372,
+            "mean_sq": 4.77607679686,
+            "num_df": 2,
+            "den_df": 10.8391055224,
+            "f_value": 5.43030826003,
+            "p_value": 0.0232390134278
+          },
+          "Picture": {
+            "sum_sq": 4.85347749972,
+            "mean_sq": 1.61782583324,
+            "num_df": 3,
+            "den_df": 55.3611266671,
+            "f_value": 1.83943712784,
+            "p_value": 0.150644152401
+          },
+          "TVset:Picture": {
+            "sum_sq": 23.5622867349,
+            "mean_sq": 3.92704778915,
+            "num_df": 6,
+            "den_df": 39.4124806245,
+            "f_value": 4.46497846537,
+            "p_value": 0.00154374113225
+          },
+          "Scaling": {
+            "sum_sq": 4.37068697831,
+            "mean_sq": 0.624383854044,
+            "num_df": 7,
+            "den_df": 59.3676397292,
+            "f_value": 0.709912537896,
+            "p_value": 0.663684181305
+          }
+        },
+        "random": {
+          "TVset:Assessor": {
+            "chi_sq": 8.88259703979,
+            "chi_df": 1,
+            "step": 0,
+            "p_value": 0.00287901716875
+          },
+          "TVset:Repeat": {
+            "chi_sq": 0.959322117887,
+            "chi_df": 1,
+            "step": 3,
+            "p_value": 0.327357728806
+          },
+          "TVset:Assessor:Repeat": {
+            "chi_sq": 15.4739630386,
+            "chi_df": 1,
+            "step": 0,
+            "p_value": 8.36496204773e-05
+          },
+          "Picture:Assessor": {
+            "chi_sq": 0.183240891745,
+            "chi_df": 1,
+            "step": 2,
+            "p_value": 0.668602736835
+          },
+          "Picture:Assessor:Repeat": {
+            "chi_sq": 7.80758977152,
+            "chi_df": 1,
+            "step": 0,
+            "p_value": 0.0052027249759
+          },
+          "TVset:Picture:Assessor": {
+            "chi_sq": 7.42342370492,
+            "chi_df": 1,
+            "step": 0,
+            "p_value": 0.00643801987261
+          },
+          "Assessor": {
+            "chi_sq": 0.0931899822497,
+            "chi_df": 1,
+            "step": 0,
+            "p_value": 0.760160261499
+          },
+          "Assessor:Repeat": {
+            "chi_sq": 0.0703495005264,
+            "chi_df": 1,
+            "step": 1,
+            "p_value": 0.790828586067
+          }
+        },
+        "zero_variance": ["Picture:Repeat", "TVset:Picture:Repeat", "Repeat"],
+        "beta": {
+          "1": 1.24202444085,
+          "2": 0.97901558463,
+          "3": 0.921042114281,
+          "4": 0.914921547223,
+          "5": 1.32164765977,
+          "6": 0.439251966559,
+          "7": 0.651578916308,
+          "8": 1.53051777038
+        },
+        "variance_components": {
+          "TVset:Picture:Assessor": 0.553825678583,
+          "Picture:Assessor:Repeat": 0.421182416131,
+          "TVset:Assessor:Repeat": 0.685729193814,
+          "TVset:Assessor": 1.97486952216,
+          "Assessor": 0.204981703003,
+          "Residual": 0.879522223814
+        },
+        "reml_criterion": 680.884461014
+      },
+      "Noise": {
+        "anova": {
+          "TVset": {
+            "sum_sq": 151.036231221,
+            "mean_sq": 75.5181156104,
+            "num_df": 2,
+            "den_df": 49.314339049,
+            "f_value": 43.9272339315,
+            "p_value": 1.1098455488e-11
+          },
+          "Picture": {
+            "sum_sq": 153.444688898,
+            "mean_sq": 51.1482296326,
+            "num_df": 3,
+            "den_df": 16.2109236997,
+            "f_value": 29.7518049821,
+            "p_value": 7.97917591111e-07
+          },
+          "TVset:Picture": {
+            "sum_sq": 56.2986374253,
+            "mean_sq": 9.38310623755,
+            "num_df": 6,
+            "den_df": 49.2959239833,
+            "f_value": 5.45794739937,
+            "p_value": 0.00021566001575
+          },
+          "Scaling": {
+            "sum_sq": 6.9553074444,
+            "mean_sq": 0.9936153492,
+            "num_df": 7,
+            "den_df": 57.6329826285,
+            "f_value": 0.577964287502,
+            "p_value": 0.770913951378
+          }
+        },
+        "random": {
+          "Picture:Assessor": {
+            "chi_sq": 11.3115332489,
+            "chi_df": 1,
+            "step": 0,
+            "p_value": 0.00077027140461
+          },
+          "Picture:Assessor:Repeat": {
+            "chi_sq": 2.4867297662,
+            "chi_df": 1,
+            "step": 2,
+            "p_value": 0.114810060978
+          },
+          "TVset:Picture:Assessor": {
+            "chi_sq": 0.827511852848,
+            "chi_df": 1,
+            "step": 0,
+            "p_value": 0.362992990805
+          },
+          "TVset:Picture:Repeat": {
+            "chi_sq": 0.425447741131,
+            "chi_df": 1,
+            "step": 1,
+            "p_value": 0.51423116856
+          },
+          "Assessor": {
+            "chi_sq": 4.04161394177,
+            "chi_df": 1,
+            "step": 0,
+            "p_value": 0.0443913486531
+          },
+          "Assessor:Repeat": {
+            "chi_sq": 15.6281309624,
+            "chi_df": 1,
+            "step": 0,
+            "p_value": 7.70990367667e-05
+          }
+        },
+        "zero_variance": ["TVset:Assessor", "TVset:Repeat", "TVset:Assessor:Repeat", "Picture:Repeat", "Repeat"],
+        "beta": {
+          "1": 1.17498145717,
+          "2": 0.846545348044,
+          "3": 0.80570727542,
+          "4": 0.944056446023,
+          "5": 1.22299455667,
+          "6": 1.08319318695,
+          "7": 0.972541811443,
+          "8": 0.949979918277
+        },
+        "variance_components": {
+          "TVset:Picture:Assessor": 0.228476216695,
+          "Picture:Assessor": 0.989847673083,
+          "Assessor:Repeat": 0.617099844036,
+          "Assessor": 1.60538948959,
+          "Residual": 1.71916391841
+        },
+        "reml_criterion": 707.270573623
+      },
+      "Depth": {
+        "anova": {
+          "TVset": {
+            "sum_sq": 12.5234416735,
+            "mean_sq": 6.26172083677,
+            "num_df": 2,
+            "den_df": 10.1407623059,
+            "f_value": 10.9326224432,
+            "p_value": 0.00294485560043
+          },
+          "Picture": {
+            "sum_sq": 6.11754593955,
+            "mean_sq": 2.03918197985,
+            "num_df": 3,
+            "den_df": 60.539784426,
+            "f_value": 3.56030031675,
+            "p_value": 0.019291654354
+          },
+          "TVset:Picture": {
+            "sum_sq": 8.58610013214,
+            "mean_sq": 1.43101668869,
+            "num_df": 6,
+            "den_df": 47.603798342,
+            "f_value": 2.49847694829,
+            "p_value": 0.0349557499952
+          },
+          "Scaling": {
+            "sum_sq": 2.89174862669,
+            "mean_sq": 0.413106946669,
+            "num_df": 7,
+            "den_df": 39.6212205259,
+            "f_value": 0.721262156891,
+            "p_value": 0.6546403872
+          }
+        },
+        "random": {
+          "TVset:Assessor": {
+            "chi_sq": 9.32961031395,
+            "chi_df": 1,
+            "step": 0,
+            "p_value": 0.00225480300001
+          },
+          "TVset:Assessor:Repeat": {
+            "chi_sq": 5.40297526186e-06,
+            "chi_df": 1,
+            "step": 1,
+            "p_value": 0.998145374785
+          },
+          "Picture:Assessor": {
+            "chi_sq": 0.367395006035,
+            "chi_df": 1,
+            "step": 3,
+            "p_value": 0.544427648332
+          },
+          "Picture:Assessor:Repeat": {
+            "chi_sq": 4.08833606995,
+            "chi_df": 1,
+            "step": 0,
+            "p_value": 0.0431801310813
+          },
+          "TVset:Picture:Assessor": {
+            "chi_sq": 21.6976204487,
+            "chi_df": 1,
+            "step": 0,
+            "p_value": 3.19186967622e-06
+          },
+          "TVset:Picture:Repeat": {
+            "chi_sq": 0.272650990804,
+            "chi_df": 1,
+            "step": 2,
+            "p_value": 0.601558983637
+          },
+          "Assessor": {
+            "chi_sq": 0.244835187149,
+            "chi_df": 1,
+            "step": 0,
+            "p_value": 0.62073549247
+          },
+          "Repeat": {
+            "chi_sq": 0.845676929695,
+            "chi_df": 1,
+            "step": 4,
+            "p_value": 0.357778197162
+          },
+          "Assessor:Repeat": {
+            "chi_sq": 22.6125510464,
+            "chi_df": 1,
+            "step": 0,
+            "p_value": 1.98185675794e-06
+          }
+        },
+        "zero_variance": ["TVset:Repeat", "Picture:Repeat"],
+        "beta": {
+          "1": 0.973145367175,
+          "2": 1.28276572977,
+          "3": 1.40905511004,
+          "4": 0.322474218973,
+          "5": 1.34032064186,
+          "6": 0.864931609086,
+          "7": 0.879690625433,
+          "8": 0.927616697661
+        },
+        "variance_components": {
+          "TVset:Picture:Assessor": 0.707585695711,
+          "Picture:Assessor:Repeat": 0.180912045892,
+          "TVset:Assessor": 0.732014719087,
+          "Assessor:Repeat": 0.913364271147,
+          "Assessor": 0.297524789406,
+          "Residual": 0.572755610041
+        },
+        "reml_criterion": 606.585325999
+      },
+      "Sharpness": {
+        "anova": {
+          "TVset": {
+            "sum_sq": 24.4022287123,
+            "mean_sq": 12.2011143562,
+            "num_df": 2,
+            "den_df": 8.85433416272,
+            "f_value": 13.5159832383,
+            "p_value": 0.00203839498694
+          },
+          "Picture": {
+            "sum_sq": 9.34760172392,
+            "mean_sq": 3.11586724131,
+            "num_df": 3,
+            "den_df": 55.481798714,
+            "f_value": 3.45165270786,
+            "p_value": 0.022516576488
+          },
+          "TVset:Picture": {
+            "sum_sq": 42.3381932125,
+            "mean_sq": 7.05636553541,
+            "num_df": 6,
+            "den_df": 55.5801921783,
+            "f_value": 7.81680390135,
+            "p_value": 4.02300277424e-06
+          },
+          "Scaling": {
+            "sum_sq": 9.42610984607,
+            "mean_sq": 1.34658712087,
+            "num_df": 7,
+            "den_df": 51.1639108538,
+            "f_value": 1.49170382502,
+            "p_value": 0.191258041289
+          }
+        },
+        "random": {
+          "TVset:Assessor": {
+            "chi_sq": 10.1113212256,
+            "chi_df": 1,
+            "step": 0,
+            "p_value": 0.00147361283133
+          },
+          "TVset:Assessor:Repeat": {
+            "chi_sq": 0.107510955942,
+            "chi_df": 1,
+            "step": 2,
+            "p_value": 0.742995868269
+          },
+          "Picture:Repeat": {
+            "chi_sq": 0.0468549634194,
+            "chi_df": 1,
+            "step": 1,
+            "p_value": 0.828629144115
+          },
+          "TVset:Picture:Assessor": {
+            "chi_sq": 12.3751409935,
+            "chi_df": 1,
+            "step": 0,
+            "p_value": 0.000435087947639
+          },
+          "Assessor": {
+            "chi_sq": 0.744799104648,
+            "chi_df": 1,
+            "step": 0,
+            "p_value": 0.388127877345
+          },
+          "Assessor:Repeat": {
+            "chi_sq": 34.3685268687,
+            "chi_df": 1,
+            "step": 0,
+            "p_value": 4.56038496844e-09
+          }
+        },
+        "zero_variance": ["TVset:Repeat", "Picture:Assessor", "Picture:Assessor:Repeat", "TVset:Picture:Repeat", "Repeat"],
+        "beta": {
+          "1": 0.608637508716,
+          "2": 0.777044700727,
+          "3": 0.58617087992,
+          "4": 1.41586563581,
+          "5": 1.27197405392,
+          "6": 0.690193195957,
+          "7": 1.59622357,
+          "8": 1.05389045495
+        },
+        "variance_components": {
+          "TVset:Picture:Assessor": 0.618020298237,
+          "TVset:Assessor": 1.05083491823,
+          "Assessor:Repeat": 0.677455385014,
+          "Assessor": 0.554557717044,
+          "Residual": 0.902717482038
+        },
+        "reml_criterion": 635.720080196
+      },
+      "Lightlevel": {
+        "anova": {
+          "TVset": {
+            "sum_sq": 51.0436102909,
+            "mean_sq": 25.5218051454,
+            "num_df": 2,
+            "den_df": 3.57689370782,
+            "f_value": 64.3813355304,
+            "p_value": 0.00156814729706
+          },
+          "Picture": {
+            "sum_sq": 13.9676948605,
+            "mean_sq": 4.65589828683,
+            "num_df": 3,
+            "den_df": 48.5251068894,
+            "f_value": 11.7449744676,
+            "p_value": 6.65241462128e-06
+          },
+          "TVset:Picture": {
+            "sum_sq": 8.59516164931,
+            "mean_sq": 1.43252694155,
+            "num_df": 6,
+            "den_df": 48.5771956924,
+            "f_value": 3.61369413938,
+            "p_value": 0.0048313051187
+          },
+          "Scaling": {
+            "sum_sq": 3.50256571943,
+            "mean_sq": 0.500366531347,
+            "num_df": 7,
+            "den_df": 7.35193527173,
+            "f_value": 1.2622251976,
+            "p_value": 0.379293130104
+          }
+        },
+        "random": {
+          "TVset:Assessor": {
+            "chi_sq": 3.75051470047,
+            "chi_df": 1,
+            "step": 0,
+            "p_value": 0.0527912530814
+          },
+          "TVset:Assessor:Repeat": {
+            "chi_sq": 0.560501749962,
+            "chi_df": 1,
+            "step": 1,
+            "p_value": 0.454058150518
+          },
+          "TVset:Picture:Assessor": {
+            "chi_sq": 18.0150200089,
+            "chi_df": 1,
+            "step": 0,
+            "p_value": 2.19168875114e-05
+          },
+          "Assessor": {
+            "chi_sq": 3.60557585703,
+            "chi_df": 1,
+            "step": 0,
+            "p_value": 0.0575861218342
+          }
+        },
+        "zero_variance": ["TVset:Repeat", "Picture:Assessor", "Picture:Repeat", "Picture:Assessor:Repeat", "TVset:Picture:Repeat", "Repeat", "Assessor:Repeat"],
+        "beta": {
+          "1": 0.906390916042,
+          "2": 0.974878580437,
+          "3": 1.09673565203,
+          "4": 0.901260492311,
+          "5": 1.53970395402,
+          "6": 0.910670475398,
+          "7": 0.824523664493,
+          "8": 0.845836265268
+        },
+        "variance_components": {
+          "TVset:Picture:Assessor": 0.413763347799,
+          "TVset:Assessor": 0.405553487967,
+          "Assessor": 0.921240325569,
+          "Residual": 0.39641621186
+        },
+        "reml_criterion": 499.931012952
+      },
+      "Contrast": {
+        "anova": {
+          "TVset": {
+            "sum_sq": 20.5988771402,
+            "mean_sq": 10.2994385701,
+            "num_df": 2,
+            "den_df": 6.45149181596,
+            "f_value": 11.5534084113,
+            "p_value": 0.0073742742007
+          },
+          "Picture": {
+            "sum_sq": 9.23929147789,
+            "mean_sq": 3.07976382596,
+            "num_df": 3,
+            "den_df": 52.3740615195,
+            "f_value": 3.45472901746,
+            "p_value": 0.0228588573939
+          },
+          "TVset:Picture": {
+            "sum_sq": 22.9378191435,
+            "mean_sq": 3.82296985724,
+            "num_df": 6,
+            "den_df": 52.4711092677,
+            "f_value": 4.28842133522,
+            "p_value": 0.00137256042074
+          },
+          "Scaling": {
+            "sum_sq": 11.6891682829,
+            "mean_sq": 1.66988118327,
+            "num_df": 7,
+            "den_df": 44.7723521738,
+            "f_value": 1.87319135673,
+            "p_value": 0.0967270829046
+          }
+        },
+        "random": {
+          "TVset:Assessor": {
+            "chi_sq": 3.50082255882,
+            "chi_df": 1,
+            "step": 0,
+            "p_value": 0.0613383563054
+          },
+          "TVset:Assessor:Repeat": {
+            "chi_sq": 5.48033849848,
+            "chi_df": 1,
+            "step": 0,
+            "p_value": 0.0192315345113
+          },
+          "Picture:Assessor:Repeat": {
+            "chi_sq": 0.451966980675,
+            "chi_df": 1,
+            "step": 3,
+            "p_value": 0.501402343712
+          },
+          "TVset:Picture:Assessor": {
+            "chi_sq": 6.29104718349,
+            "chi_df": 1,
+            "step": 0,
+            "p_value": 0.0121349334864
+          },
+          "TVset:Picture:Repeat": {
+            "chi_sq": 0.00926709826729,
+            "chi_df": 1,
+            "step": 1,
+            "p_value": 0.923309497227
+          },
+          "Assessor": {
+            "chi_sq": 0.000982830812291,
+            "chi_df": 1,
+            "step": 0,
+            "p_value": 0.974990310024
+          },
+          "Repeat": {
+            "chi_sq": 0.0219636375525,
+            "chi_df": 1,
+            "step": 2,
+            "p_value": 0.882183873332
+          },
+          "Assessor:Repeat": {
+            "chi_sq": 5.55035916867,
+            "chi_df": 1,
+            "step": 0,
+            "p_value": 0.0184768951314
+          }
+        },
+        "zero_variance": ["TVset:Repeat", "Picture:Assessor", "Picture:Repeat"],
+        "beta": {
+          "1": 0.442419294754,
+          "2": 0.990313437844,
+          "3": 1.0531040461,
+          "4": 1.61668933681,
+          "5": 1.78890517663,
+          "6": 0.382398968881,
+          "7": 0.824195533884,
+          "8": 0.901974205097
+        },
+        "variance_components": {
+          "TVset:Picture:Assessor": 0.410633430379,
+          "TVset:Assessor:Repeat": 0.334975870298,
+          "TVset:Assessor": 1.01707054238,
+          "Assessor:Repeat": 0.588462179545,
+          "Assessor": 0.0166002070537,
+          "Residual": 0.891463211847
+        },
+        "reml_criterion": 630.681460567
+      },
+      "Sharpnessofmovement": {
+        "anova": {
+          "TVset": {
+            "sum_sq": 1.12533065019,
+            "mean_sq": 0.562665325094,
+            "num_df": 2,
+            "den_df": 41.5400683162,
+            "f_value": 0.719717985884,
+            "p_value": 0.49286054081
+          },
+          "Picture": {
+            "sum_sq": 9.59413406718,
+            "mean_sq": 3.19804468906,
+            "num_df": 3,
+            "den_df": 50.4673446444,
+            "f_value": 4.09069153496,
+            "p_value": 0.0112445375076
+          },
+          "TVset:Picture": {
+            "sum_sq": 18.4035426075,
+            "mean_sq": 3.06725710125,
+            "num_df": 6,
+            "den_df": 30.9517226797,
+            "f_value": 3.92339816342,
+            "p_value": 0.00497021286225
+          },
+          "Scaling": {
+            "sum_sq": 7.50897210461,
+            "mean_sq": 1.07271030066,
+            "num_df": 7,
+            "den_df": 58.8536125867,
+            "f_value": 1.37212808857,
+            "p_value": 0.234136716536
+          }
+        },
+        "random": {
+          "TVset:Assessor": {
+            "chi_sq": 0.991763437939,
+            "chi_df": 1,
+            "step": 2,
+            "p_value": 0.31931175648
+          },
+          "TVset:Assessor:Repeat": {
+            "chi_sq": 18.7944876993,
+            "chi_df": 1,
+            "step": 0,
+            "p_value": 1.45587296297e-05
+          },
+          "Picture:Assessor": {
+            "chi_sq": 1.38482357279,
+            "chi_df": 1,
+            "step": 4,
+            "p_value": 0.239281223131
+          },
+          "Picture:Assessor:Repeat": {
+            "chi_sq": 43.446597017,
+            "chi_df": 1,
+            "step": 0,
+            "p_value": 4.3568866317e-11
+          },
+          "TVset:Picture:Assessor": {
+            "chi_sq": 15.8670084248,
+            "chi_df": 1,
+            "step": 0,
+            "p_value": 6.79530371682e-05
+          },
+          "TVset:Picture:Repeat": {
+            "chi_sq": 0.372900900436,
+            "chi_df": 1,
+            "step": 1,
+            "p_value": 0.54142725949
+          },
+          "Assessor": {
+            "chi_sq": 10.0124314421,
+            "chi_df": 1,
+            "step": 0,
+            "p_value": 0.00155487111843
+          },
+          "Assessor:Repeat": {
+            "chi_sq": 0.971189386256,
+            "chi_df": 1,
+            "step": 3,
+            "p_value": 0.324383728454
+          }
+        },
+        "zero_variance": ["TVset:Repeat", "Picture:Repeat", "Repeat"],
+        "beta": {
+          "1": 0.113077242542,
+          "2": 0.624987509476,
+          "3": 1.10863480996,
+          "4": 1.47364294815,
+          "5": 1.71468612927,
+          "6": 0.982992250771,
+          "7": 1.12978910611,
+          "8": 0.85219000372
+        },
+        "variance_components": {
+          "TVset:Picture:Assessor": 1.08241809089,
+          "Picture:Assessor:Repeat": 2.47783369728,
+          "TVset:Assessor:Repeat": 0.794704182018,
+          "Assessor": 1.87438303156,
+          "Residual": 0.781785832965
+        },
+        "reml_criterion": 744.603804767
+      },
+      "Flickeringstationary": {
+        "anova": {
+          "TVset": {
+            "sum_sq": 70.7931955729,
+            "mean_sq": 35.3965977864,
+            "num_df": 2,
+            "den_df": 50.8789763096,
+            "f_value": 24.5120700776,
+            "p_value": 3.50909648006e-08
+          },
+          "Picture": {
+            "sum_sq": 37.9172065502,
+            "mean_sq": 12.6390688501,
+            "num_df": 3,
+            "den_df": 44.9648335815,
+            "f_value": 8.75252879491,
+            "p_value": 0.000110453011766
+          },
+          "TVset:Picture": {
+            "sum_sq": 21.4085172371,
+            "mean_sq": 3.56808620618,
+            "num_df": 6,
+            "den_df": 50.8008151374,
+            "f_value": 2.47089224948,
+            "p_value": 0.0357097184873
+          },
+          "Scaling": {
+            "sum_sq": 42.088365968,
+            "mean_sq": 6.01262370971,
+            "num_df": 7,
+            "den_df": 75.3614127861,
+            "f_value": 4.16372936776,
+            "p_value": 0.000637045386994
+          }
+        },
+        "random": {
+          "TVset:Assessor": {
+            "chi_sq": 0.00251340872455,
+            "chi_df": 1,
+            "step": 1,
+            "p_value": 0.96001567908
+          },
+          "Picture:Assessor:Repeat": {
+            "chi_sq": 64.4875045014,
+            "chi_df": 1,
+            "step": 0,
+            "p_value": 9.71464861833e-16
+          },
+          "TVset:Picture:Assessor": {
+            "chi_sq": 1.92354714987,
+            "chi_df": 1,
+            "step": 0,
+            "p_value": 0.16546615154
+          },
+          "Repeat": {
+            "chi_sq": 0.931526857866,
+            "chi_df": 1,
+            "step": 2,
+            "p_value": 0.334466486071
+          },
+          "Assessor:Repeat": {
+            "chi_sq": 17.0375302467,
+            "chi_df": 1,
+            "step": 0,
+            "p_value": 3.66482469344e-05
+          }
+        },
+        "zero_variance": ["TVset:Repeat", "TVset:Assessor:Repeat", "Picture:Assessor", "Picture:Repeat", "TVset:Picture:Repeat", "Assessor"],
+        "beta": {
+          "1": 1.62241574193,
+          "2": 0.625860194258,
+          "3": 0.160984539044,
+          "4": 1.34883325765,
+          "5": 1.49986493825,
+          "6": 0.176593753035,
+          "7": 1.1792453478,
+          "8": 1.38620222804
+        },
+        "variance_components": {
+          "TVset:Picture:Assessor": 0.344835739684,
+          "Picture:Assessor:Repeat": 3.52595026823,
+          "Assessor:Repeat": 4.07748752363,
+          "Residual": 1.44404767425
+        },
+        "reml_criterion": 761.240955296
+      },
+      "Flickeringmovement": {
+        "anova": {
+          "TVset": {
+            "sum_sq": 3.16062935554,
+            "mean_sq": 1.58031467777,
+            "num_df": 2,
+            "den_df": 47.6494428742,
+            "f_value": 1.92624005905,
+            "p_value": 0.156871322272
+          },
+          "Picture": {
+            "sum_sq": 5.68183499378,
+            "mean_sq": 1.89394499793,
+            "num_df": 3,
+            "den_df": 16.3705792231,
+            "f_value": 2.30852296442,
+            "p_value": 0.114443628123
+          },
+          "TVset:Picture": {
+            "sum_sq": 3.7024029194,
+            "mean_sq": 0.617067153234,
+            "num_df": 6,
+            "den_df": 47.3669880703,
+            "f_value": 0.752141004827,
+            "p_value": 0.610835729828
+          },
+          "Scaling": {
+            "sum_sq": 11.6260886943,
+            "mean_sq": 1.66086981347,
+            "num_df": 7,
+            "den_df": 70.8937890759,
+            "f_value": 2.02442843351,
+            "p_value": 0.0637425247894
+          }
+        },
+        "random": {
+          "Picture:Assessor": {
+            "chi_sq": 5.8153335063,
+            "chi_df": 1,
+            "step": 0,
+            "p_value": 0.0158870405033
+          },
+          "Picture:Assessor:Repeat": {
+            "chi_sq": 29.7368594411,
+            "chi_df": 1,
+            "step": 0,
+            "p_value": 4.94849218118e-08
+          },
+          "TVset:Picture:Assessor": {
+            "chi_sq": 15.2482678064,
+            "chi_df": 1,
+            "step": 0,
+            "p_value": 9.42631683987e-05
+          },
+          "Repeat": {
+            "chi_sq": 0.113429827461,
+            "chi_df": 1,
+            "step": 1,
+            "p_value": 0.736272611623
+          },
+          "Assessor:Repeat": {
+            "chi_sq": 41.1407485736,
+            "chi_df": 1,
+            "step": 0,
+            "p_value": 1.41652148731e-10
+          }
+        },
+        "zero_variance": ["TVset:Assessor", "TVset:Repeat", "TVset:Assessor:Repeat", "Picture:Repeat", "TVset:Picture:Repeat", "Assessor"],
+        "beta": {
+          "1": 0.291060206621,
+          "2": 0.899074045376,
+          "3": -0.254793034416,
+          "4": 1.77663990728,
+          "5": 2.13399198936,
+          "6": 1.21877860469,
+          "7": 0.424386615319,
+          "8": 1.51086166578
+        },
+        "variance_components": {
+          "TVset:Picture:Assessor": 0.846910126386,
+          "Picture:Assessor:Repeat": 1.38018265298,
+          "Picture:Assessor": 1.95654235483,
+          "Assessor:Repeat": 7.7869284427,
+          "Residual": 0.82041418999
+        },
+        "reml_criterion": 721.213585397
+      },
+      "Distortion": {
+        "anova": {
+          "TVset": {
+            "sum_sq": 24.3409092018,
+            "mean_sq": 12.1704546009,
+            "num_df": 2,
+            "den_df": 11.7546523945,
+            "f_value": 14.2323526537,
+            "p_value": 0.000724741974237
+          },
+          "Picture": {
+            "sum_sq": 95.6384185275,
+            "mean_sq": 31.8794728425,
+            "num_df": 3,
+            "den_df": 57.3016668403,
+            "f_value": 37.2804397851,
+            "p_value": 1.70641278885e-13
+          },
+          "TVset:Picture": {
+            "sum_sq": 135.440481184,
+            "mean_sq": 22.5734135307,
+            "num_df": 6,
+            "den_df": 48.1440970956,
+            "f_value": 26.3977634772,
+            "p_value": 1.17461596005e-13
+          },
+          "Scaling": {
+            "sum_sq": 13.9079483922,
+            "mean_sq": 1.98684977031,
+            "num_df": 7,
+            "den_df": 67.9753309524,
+            "f_value": 2.32345853365,
+            "p_value": 0.0347009548188
+          }
+        },
+        "random": {
+          "TVset:Assessor": {
+            "chi_sq": 6.15799547647,
+            "chi_df": 1,
+            "step": 0,
+            "p_value": 0.0130819377165
+          },
+          "TVset:Assessor:Repeat": {
+            "chi_sq": 0.584934435145,
+            "chi_df": 1,
+            "step": 1,
+            "p_value": 0.444384653631
+          },
+          "Picture:Repeat": {
+            "chi_sq": 0.733132813587,
+            "chi_df": 1,
+            "step": 2,
+            "p_value": 0.391869602662
+          },
+          "Picture:Assessor:Repeat": {
+            "chi_sq": 4.25019916564,
+            "chi_df": 1,
+            "step": 0,
+            "p_value": 0.0392457276101
+          },
+          "TVset:Picture:Assessor": {
+            "chi_sq": 18.9163890894,
+            "chi_df": 1,
+            "step": 0,
+            "p_value": 1.36574306017e-05
+          },
+          "Assessor": {
+            "chi_sq": 0.492771984148,
+            "chi_df": 1,
+            "step": 0,
+            "p_value": 0.482693384689
+          },
+          "Repeat": {
+            "chi_sq": 11.1492770326,
+            "chi_df": 1,
+            "step": 0,
+            "p_value": 0.000840644287615
+          },
+          "Assessor:Repeat": {
+            "chi_sq": 1.45739570506,
+            "chi_df": 1,
+            "step": 3,
+            "p_value": 0.227344946267
+          }
+        },
+        "zero_variance": ["TVset:Repeat", "Picture:Assessor", "TVset:Picture:Repeat"],
+        "beta": {
+          "1": 0.828150602074,
+          "2": 0.666783449794,
+          "3": 1.20359742043,
+          "4": 1.18647808009,
+          "5": 1.30379384998,
+          "6": 0.974938542484,
+          "7": 0.675862460592,
+          "8": 1.16039559456
+        },
+        "variance_components": {
+          "TVset:Picture:Assessor": 0.907885856033,
+          "Picture:Assessor:Repeat": 0.244444552199,
+          "TVset:Assessor": 0.738527897619,
+          "Assessor": 0.222397569322,
+          "Repeat": 0.286449110037,
+          "Residual": 0.855125986341
+        },
+        "reml_criterion": 654.365814056
+      },
+      "Dimglasseffect": {
+        "anova": {
+          "TVset": {
+            "sum_sq": 5.81717700345,
+            "mean_sq": 2.90858850173,
+            "num_df": 2,
+            "den_df": 55.3112636732,
+            "f_value": 8.26519949059,
+            "p_value": 0.000723351151281
+          },
+          "Picture": {
+            "sum_sq": 14.0493167934,
+            "mean_sq": 4.68310559781,
+            "num_df": 3,
+            "den_df": 64.9384204646,
+            "f_value": 13.3077614721,
+            "p_value": 7.18329215221e-07
+          },
+          "TVset:Picture": {
+            "sum_sq": 5.90689375309,
+            "mean_sq": 0.984482292182,
+            "num_df": 6,
+            "den_df": 55.2654259024,
+            "f_value": 2.79755714327,
+            "p_value": 0.0189731156407
+          },
+          "Scaling": {
+            "sum_sq": 13.2416023363,
+            "mean_sq": 1.89165747662,
+            "num_df": 7,
+            "den_df": 97.3726474982,
+            "f_value": 5.37543430528,
+            "p_value": 3.13799518332e-05
+          }
+        },
+        "random": {
+          "TVset:Repeat": {
+            "chi_sq": 0.10637555659,
+            "chi_df": 1,
+            "step": 1,
+            "p_value": 0.744308857662
+          },
+          "TVset:Assessor:Repeat": {
+            "chi_sq": 1.41630657348,
+            "chi_df": 1,
+            "step": 2,
+            "p_value": 0.234012280831
+          },
+          "Picture:Assessor:Repeat": {
+            "chi_sq": 77.636345234,
+            "chi_df": 1,
+            "step": 0,
+            "p_value": 1.23869683686e-18
+          },
+          "TVset:Picture:Assessor": {
+            "chi_sq": 29.5212383719,
+            "chi_df": 1,
+            "step": 0,
+            "p_value": 5.53073133082e-08
+          },
+          "Assessor": {
+            "chi_sq": 16.7334660561,
+            "chi_df": 1,
+            "step": 0,
+            "p_value": 4.3015486183e-05
+          },
+          "Assessor:Repeat": {
+            "chi_sq": 2.17676759804,
+            "chi_df": 1,
+            "step": 3,
+            "p_value": 0.140108455702
+          }
+        },
+        "zero_variance": ["TVset:Assessor", "Picture:Assessor", "Picture:Repeat", "TVset:Picture:Repeat", "Repeat"],
+        "beta": {
+          "1": 0.563560299436,
+          "2": 0.991993228309,
+          "3": 1.30384022891,
+          "4": 0.488312903078,
+          "5": 2.45587775564,
+          "6": 1.55455720639,
+          "7": 0.437931302663,
+          "8": 0.203927075561
+        },
+        "variance_components": {
+          "TVset:Picture:Assessor": 0.638186178048,
+          "Picture:Assessor:Repeat": 1.5306385355,
+          "Assessor": 1.37392015315,
+          "Residual": 0.351907840221
+        },
+        "reml_criterion": 600.244451194
+      },
+      "Cutting": {
+        "anova": {
+          "TVset": {
+            "sum_sq": 18.1896688119,
+            "mean_sq": 9.09483440597,
+            "num_df": 2,
+            "den_df": 6.53898415309,
+            "f_value": 9.14042783396,
+            "p_value": 0.0127649823787
+          },
+          "Picture": {
+            "sum_sq": 12.4919136441,
+            "mean_sq": 4.16397121471,
+            "num_df": 3,
+            "den_df": 47.6067082833,
+            "f_value": 4.18484567082,
+            "p_value": 0.0104176705014
+          },
+          "TVset:Picture": {
+            "sum_sq": 31.8960812036,
+            "mean_sq": 5.31601353394,
+            "num_df": 6,
+            "den_df": 47.7312418478,
+            "f_value": 5.3426633078,
+            "p_value": 0.000276621013662
+          },
+          "Scaling": {
+            "sum_sq": 18.8336823284,
+            "mean_sq": 2.69052604692,
+            "num_df": 7,
+            "den_df": 40.6347589944,
+            "f_value": 2.70401395666,
+            "p_value": 0.0213237523349
+          }
+        },
+        "random": {
+          "TVset:Assessor": {
+            "chi_sq": 3.22701655427,
+            "chi_df": 1,
+            "step": 0,
+            "p_value": 0.072432534275
+          },
+          "TVset:Repeat": {
+            "chi_sq": 2.8373102144,
+            "chi_df": 1,
+            "step": 0,
+            "p_value": 0.0920982651799
+          },
+          "TVset:Assessor:Repeat": {
+            "chi_sq": 4.60164743681,
+            "chi_df": 1,
+            "step": 0,
+            "p_value": 0.0319412486482
+          },
+          "Picture:Assessor": {
+            "chi_sq": 0.623784799498,
+            "chi_df": 1,
+            "step": 2,
+            "p_value": 0.429644298221
+          },
+          "Picture:Assessor:Repeat": {
+            "chi_sq": 0,
+            "chi_df": 1,
+            "step": 1,
+            "p_value": 1
+          },
+          "TVset:Picture:Assessor": {
+            "chi_sq": 0.76776123033,
+            "chi_df": 1,
+            "step": 0,
+            "p_value": 0.3809105259
+          },
+          "Assessor": {
+            "chi_sq": 7.12680024613,
+            "chi_df": 1,
+            "step": 0,
+            "p_value": 0.00759401273975
+          },
+          "Assessor:Repeat": {
+            "chi_sq": 0.984140004638,
+            "chi_df": 1,
+            "step": 3,
+            "p_value": 0.32117883861
+          }
+        },
+        "zero_variance": ["Picture:Repeat", "TVset:Picture:Repeat", "Repeat"],
+        "beta": {
+          "1": 0.434010720855,
+          "2": 0.608033339914,
+          "3": 1.76434104462,
+          "4": 0.370968848894,
+          "5": 1.86071628606,
+          "6": 1.09971677394,
+          "7": 0.906904746428,
+          "8": 0.955308239292
+        },
+        "variance_components": {
+          "TVset:Picture:Assessor": 0.132692622107,
+          "TVset:Assessor:Repeat": 0.264870901281,
+          "TVset:Assessor": 1.60704380021,
+          "Assessor": 4.08663214064,
+          "TVset:Repeat": 0.166289564305,
+          "Residual": 0.995011893446
+        },
+        "reml_criterion": 627.781924085
+      },
+      "Flossyedges": {
+        "anova": {
+          "TVset": {
+            "sum_sq": 10.2052252863,
+            "mean_sq": 5.10261264316,
+            "num_df": 2,
+            "den_df": 39.1987850651,
+            "f_value": 24.8410677062,
+            "p_value": 1.07575063524e-07
+          },
+          "Picture": {
+            "sum_sq": 3.33948423838,
+            "mean_sq": 1.11316141279,
+            "num_df": 3,
+            "den_df": 15.6385771202,
+            "f_value": 5.41920775825,
+            "p_value": 0.00942682544745
+          },
+          "TVset:Picture": {
+            "sum_sq": 7.76617050409,
+            "mean_sq": 1.29436175068,
+            "num_df": 6,
+            "den_df": 39.4783901488,
+            "f_value": 6.30134602284,
+            "p_value": 0.000103931503371
+          },
+          "Scaling": {
+            "sum_sq": 5.99225298988,
+            "mean_sq": 0.856036141411,
+            "num_df": 7,
+            "den_df": 74.6457746076,
+            "f_value": 4.16744386354,
+            "p_value": 0.000639453834726
+          }
+        },
+        "random": {
+          "TVset:Assessor": {
+            "chi_sq": 0.40684618772,
+            "chi_df": 1,
+            "step": 4,
+            "p_value": 0.523574611979
+          },
+          "TVset:Assessor:Repeat": {
+            "chi_sq": 30.9815608844,
+            "chi_df": 1,
+            "step": 0,
+            "p_value": 2.60491479523e-08
+          },
+          "Picture:Assessor": {
+            "chi_sq": 11.9638434463,
+            "chi_df": 1,
+            "step": 0,
+            "p_value": 0.000542428670707
+          },
+          "Picture:Repeat": {
+            "chi_sq": 0.0809022864598,
+            "chi_df": 1,
+            "step": 2,
+            "p_value": 0.776078363777
+          },
+          "Picture:Assessor:Repeat": {
+            "chi_sq": 63.5334373359,
+            "chi_df": 1,
+            "step": 0,
+            "p_value": 1.57667699094e-15
+          },
+          "TVset:Picture:Assessor": {
+            "chi_sq": 31.7105733101,
+            "chi_df": 1,
+            "step": 0,
+            "p_value": 1.78945320666e-08
+          },
+          "TVset:Picture:Repeat": {
+            "chi_sq": 0.043241917997,
+            "chi_df": 1,
+            "step": 1,
+            "p_value": 0.835270419628
+          },
+          "Assessor": {
+            "chi_sq": 1.58005461213,
+            "chi_df": 1,
+            "step": 0,
+            "p_value": 0.208752827234
+          },
+          "Repeat": {
+            "chi_sq": 3.08328669236,
+            "chi_df": 1,
+            "step": 0,
+            "p_value": 0.0791005306001
+          },
+          "Assessor:Repeat": {
+            "chi_sq": 0.16393702266,
+            "chi_df": 1,
+            "step": 3,
+            "p_value": 0.685557361161
+          }
+        },
+        "zero_variance": ["TVset:Repeat"],
+        "beta": {
+          "1": 1.41374125583,
+          "2": 0.794953696789,
+          "3": 0.778801269664,
+          "4": 1.78120408849,
+          "5": 0.434658596816,
+          "6": 1.73859793341,
+          "7": 0.589701704512,
+          "8": 0.468341454485
+        },
+        "variance_components": {
+          "TVset:Picture:Assessor": 0.644883091795,
+          "Picture:Assessor:Repeat": 1.45555372076,
+          "TVset:Assessor:Repeat": 0.412763408376,
+          "Picture:Assessor": 3.31629777863,
+          "Assessor": 1.28188329406,
+          "Repeat": 0.338596269758,
+          "Residual": 0.205410359309
+        },
+        "reml_criterion": 644.477413216
+      },
+      "Elasticeffect": {
+        "anova": {
+          "TVset": {
+            "sum_sq": 33.3094066951,
+            "mean_sq": 16.6547033476,
+            "num_df": 2,
+            "den_df": 12.1937023959,
+            "f_value": 22.5224574207,
+            "p_value": 8.04707373889e-05
+          },
+          "Picture": {
+            "sum_sq": 66.3530688078,
+            "mean_sq": 22.1176896026,
+            "num_df": 3,
+            "den_df": 14.9688631243,
+            "f_value": 29.9101528213,
+            "p_value": 1.4406906067e-06
+          },
+          "TVset:Picture": {
+            "sum_sq": 257.393912586,
+            "mean_sq": 42.898985431,
+            "num_df": 6,
+            "den_df": 93.7598958387,
+            "f_value": 58.0130761021,
+            "p_value": 0
+          },
+          "Scaling": {
+            "sum_sq": 35.4591885865,
+            "mean_sq": 5.06559836949,
+            "num_df": 7,
+            "den_df": 130.556874429,
+            "f_value": 6.85030055513,
+            "p_value": 6.20998836798e-07
+          }
+        },
+        "random": {
+          "TVset:Assessor": {
+            "chi_sq": 10.5325216602,
+            "chi_df": 1,
+            "step": 0,
+            "p_value": 0.001172920642
+          },
+          "Picture:Assessor": {
+            "chi_sq": 6.81819640363,
+            "chi_df": 1,
+            "step": 0,
+            "p_value": 0.009023365122
+          },
+          "Picture:Assessor:Repeat": {
+            "chi_sq": 12.5284093049,
+            "chi_df": 1,
+            "step": 0,
+            "p_value": 0.000400810886769
+          },
+          "TVset:Picture:Assessor": {
+            "chi_sq": 3.41060513165e-13,
+            "chi_df": 1,
+            "step": 0,
+            "p_value": 0.999999534032
+          },
+          "TVset:Picture:Repeat": {
+            "chi_sq": 1.75840059404,
+            "chi_df": 1,
+            "step": 2,
+            "p_value": 0.18482413637
+          },
+          "Assessor": {
+            "chi_sq": 0.586965844143,
+            "chi_df": 1,
+            "step": 0,
+            "p_value": 0.443594812227
+          },
+          "Assessor:Repeat": {
+            "chi_sq": 0.592877044594,
+            "chi_df": 1,
+            "step": 1,
+            "p_value": 0.441308734968
+          }
+        },
+        "zero_variance": ["TVset:Repeat", "TVset:Assessor:Repeat", "Picture:Repeat", "Repeat"],
+        "beta": {
+          "1": 0.676987875392,
+          "2": 0.572784641235,
+          "3": 1.64256293187,
+          "4": 1.05724807879,
+          "5": 1.00798222524,
+          "6": 0.955558594817,
+          "7": 0.93229628176,
+          "8": 1.1545793709
+        },
+        "variance_components": {
+          "TVset:Picture:Assessor": 2.87808621977e-14,
+          "Picture:Assessor:Repeat": 0.399078706591,
+          "Picture:Assessor": 0.783154852968,
+          "TVset:Assessor": 0.327524228451,
+          "Assessor": 0.219128447044,
+          "Residual": 0.739470966088
+        },
+        "reml_criterion": 600.729067605
+      }
+    },
+    "no_replicate": {
+      "Coloursaturation": {
+        "anova": {
+          "TVset": {
+            "sum_sq": 18.7640565018,
+            "mean_sq": 9.38202825089,
+            "num_df": 2,
+            "den_df": 10.638645293,
+            "f_value": 20.9612673608,
+            "p_value": 0.000203970254105
+          },
+          "Picture": {
+            "sum_sq": 5.60802083333,
+            "mean_sq": 1.86934027778,
+            "num_df": 3,
+            "den_df": 60.9829666812,
+            "f_value": 4.17646806245,
+            "p_value": 0.00936582272964
+          },
+          "TVset:Picture": {
+            "sum_sq": 6.89979166667,
+            "mean_sq": 1.14996527778,
+            "num_df": 6,
+            "den_df": 60.9829666813,
+            "f_value": 2.56924505006,
+            "p_value": 0.0276774017073
+          },
+          "Scaling": {
+            "sum_sq": 8.41887958823,
+            "mean_sq": 1.20269708403,
+            "num_df": 7,
+            "den_df": 26.9583619848,
+            "f_value": 2.68705811348,
+            "p_value": 0.0300981026679
+          }
+        },
+        "random": {
+          "TVset:Assessor": {
+            "chi_sq": 19.8099004638,
+            "chi_df": 1,
+            "step": 0,
+            "p_value": 8.55384660353e-06
+          },
+          "Assessor": {
+            "chi_sq": 0.330685878033,
+            "chi_df": 1,
+            "step": 0,
+            "p_value": 0.565255497085
+          }
+        },
+        "zero_variance": ["Picture:Assessor"],
+        "beta": {
+          "1": 0.739879751161,
+          "2": 0.17190206062,
+          "3": 1.67081143189,
+          "4": 1.27817931907,
+          "5": 1.71092794145,
+          "6": 0.989039993083,
+          "7": 0.39544468408,
+          "8": 1.04381481865
+        },
+        "variance_components": {
+          "TVset:Assessor": 0.548588122766,
+          "Assessor": 0.105223888924,
+          "Residual": 0.4475887879
+        },
+        "reml_criterion": 229.052366367
+      },
+      "Colourbalance": {
+        "anova": {
+          "TVset": {
+            "sum_sq": 14.7705284804,
+            "mean_sq": 7.38526424021,
+            "num_df": 2,
+            "den_df": 10.3225288612,
+            "f_value": 5.56405497465,
+            "p_value": 0.0229352282458
+          },
+          "Picture": {
+            "sum_sq": 7.40716145833,
+            "mean_sq": 2.46905381944,
+            "num_df": 3,
+            "den_df": 56.4218503781,
+            "f_value": 1.86018410986,
+            "p_value": 0.146752751335
+          },
+          "TVset:Picture": {
+            "sum_sq": 26.1754166667,
+            "mean_sq": 4.36256944444,
+            "num_df": 6,
+            "den_df": 56.4218503789,
+            "f_value": 3.28675798591,
+            "p_value": 0.00764125085568
+          },
+          "Scaling": {
+            "sum_sq": 6.79895724549,
+            "mean_sq": 0.971279606499,
+            "num_df": 7,
+            "den_df": 60.6029675073,
+            "f_value": 0.73176164732,
+            "p_value": 0.645761378656
+          }
+        },
+        "random": {
+          "TVset:Assessor": {
+            "chi_sq": 19.303537838,
+            "chi_df": 1,
+            "step": 0,
+            "p_value": 1.11499562521e-05
+          },
+          "Picture:Assessor": {
+            "chi_sq": 2.67130023695,
+            "chi_df": 1,
+            "step": 1,
+            "p_value": 0.102172521007
+          },
+          "Assessor": {
+            "chi_sq": 0.29315086115,
+            "chi_df": 1,
+            "step": 0,
+            "p_value": 0.58820842358
+          }
+        },
+        "zero_variance": [],
+        "beta": {
+          "1": 1.25969520892,
+          "2": 0.942178661134,
+          "3": 0.851679279119,
+          "4": 0.979402040838,
+          "5": 1.40477205326,
+          "6": 0.320887170098,
+          "7": 0.68623446254,
+          "8": 1.55515112409
+        },
+        "variance_components": {
+          "TVset:Assessor": 2.01805226274,
+          "Assessor": 0.35028229798,
+          "Residual": 1.32731690716
+        },
+        "reml_criterion": 319.482165528
+      },
+      "Noise": {
+        "anova": {
+          "TVset": {
+            "sum_sq": 97.7081770833,
+            "mean_sq": 48.8540885417,
+            "num_df": 2,
+            "den_df": 49.7903270175,
+            "f_value": 46.3891029131,
+            "p_value": 4.22595292093e-12
+          },
+          "Picture": {
+            "sum_sq": 98.6355781994,
+            "mean_sq": 32.8785260665,
+            "num_df": 3,
+            "den_df": 16.0552095104,
+            "f_value": 31.2196046402,
+            "p_value": 6.21919915345e-07
+          },
+          "TVset:Picture": {
+            "sum_sq": 38.07140625,
+            "mean_sq": 6.345234375,
+            "num_df": 6,
+            "den_df": 49.7903270159,
+            "f_value": 6.025078744,
+            "p_value": 8.59447678132e-05
+          },
+          "Scaling": {
+            "sum_sq": 4.59792643913,
+            "mean_sq": 0.656846634161,
+            "num_df": 7,
+            "den_df": 60.2506776504,
+            "f_value": 0.623704730143,
+            "p_value": 0.734304275427
+          }
+        },
+        "random": {
+          "Picture:Assessor": {
+            "chi_sq": 10.8305580639,
+            "chi_df": 1,
+            "step": 0,
+            "p_value": 0.000998385419055
+          },
+          "Assessor": {
+            "chi_sq": 10.7503560115,
+            "chi_df": 1,
+            "step": 0,
+            "p_value": 0.00104259260759
+          }
+        },
+        "zero_variance": ["TVset:Assessor"],
+        "beta": {
+          "1": 1.15473024768,
+          "2": 0.840525364737,
+          "3": 0.831583141074,
+          "4": 0.912557458781,
+          "5": 1.24879464602,
+          "6": 1.07784736745,
+          "7": 0.993363741449,
+          "8": 0.940598032806
+        },
+        "variance_components": {
+          "Picture:Assessor": 0.929620196225,
+          "Assessor": 1.90597891499,
+          "Residual": 1.05313716959
+        },
+        "reml_criterion": 318.832947083
+      },
+      "Depth": {
+        "anova": {
+          "TVset": {
+            "sum_sq": 24.1255257857,
+            "mean_sq": 12.0627628929,
+            "num_df": 2,
+            "den_df": 10.3839988941,
+            "f_value": 11.0989887803,
+            "p_value": 0.00263989502158
+          },
+          "Picture": {
+            "sum_sq": 11.5577864583,
+            "mean_sq": 3.85259548611,
+            "num_df": 3,
+            "den_df": 58.7174664363,
+            "f_value": 3.54478608715,
+            "p_value": 0.0198368907191
+          },
+          "TVset:Picture": {
+            "sum_sq": 17.5177604167,
+            "mean_sq": 2.91962673611,
+            "num_df": 6,
+            "den_df": 58.7174664361,
+            "f_value": 2.68635839686,
+            "p_value": 0.0226163372431
+          },
+          "Scaling": {
+            "sum_sq": 6.62852895196,
+            "mean_sq": 0.946932707422,
+            "num_df": 7,
+            "den_df": 40.7591804145,
+            "f_value": 0.871275974557,
+            "p_value": 0.537172138658
+          }
+        },
+        "random": {
+          "TVset:Assessor": {
+            "chi_sq": 7.62197102049,
+            "chi_df": 1,
+            "step": 0,
+            "p_value": 0.00576614330021
+          },
+          "Picture:Assessor": {
+            "chi_sq": 0.450141799468,
+            "chi_df": 1,
+            "step": 1,
+            "p_value": 0.50226762375
+          },
+          "Assessor": {
+            "chi_sq": 3.69148609955,
+            "chi_df": 1,
+            "step": 0,
+            "p_value": 0.0546908671513
+          }
+        },
+        "zero_variance": [],
+        "beta": {
+          "1": 0.881204930334,
+          "2": 1.29735310685,
+          "3": 1.47202187534,
+          "4": 0.316808611978,
+          "5": 1.39424981972,
+          "6": 0.866092012928,
+          "7": 0.834317428807,
+          "8": 0.93795221405
+        },
+        "variance_components": {
+          "TVset:Assessor": 0.634111883738,
+          "Assessor": 0.79777430682,
+          "Residual": 1.08683440732
+        },
+        "reml_criterion": 295.398952365
+      },
+      "Sharpness": {
+        "anova": {
+          "TVset": {
+            "sum_sq": 27.6455471794,
+            "mean_sq": 13.8227735897,
+            "num_df": 2,
+            "den_df": 9.74047176075,
+            "f_value": 12.9560531911,
+            "p_value": 0.00180122828423
+          },
+          "Picture": {
+            "sum_sq": 13.1520833333,
+            "mean_sq": 4.38402777778,
+            "num_df": 3,
+            "den_df": 55.5117309239,
+            "f_value": 4.10913893016,
+            "p_value": 0.0105428054304
+          },
+          "TVset:Picture": {
+            "sum_sq": 52.5915104167,
+            "mean_sq": 8.76525173611,
+            "num_df": 6,
+            "den_df": 55.511730925,
+            "f_value": 8.21564984695,
+            "p_value": 2.23569795044e-06
+          },
+          "Scaling": {
+            "sum_sq": 13.0519683162,
+            "mean_sq": 1.86456690232,
+            "num_df": 7,
+            "den_df": 61.3031857747,
+            "f_value": 1.74765417433,
+            "p_value": 0.114615856698
+          }
+        },
+        "random": {
+          "TVset:Assessor": {
+            "chi_sq": 11.0127147358,
+            "chi_df": 1,
+            "step": 0,
+            "p_value": 0.000904890192429
+          },
+          "Assessor": {
+            "chi_sq": 2.62136324117,
+            "chi_df": 1,
+            "step": 0,
+            "p_value": 0.105433825426
+          }
+        },
+        "zero_variance": ["Picture:Assessor"],
+        "beta": {
+          "1": 0.604140424815,
+          "2": 0.780183898434,
+          "3": 0.567016937073,
+          "4": 1.40144198228,
+          "5": 1.29419200681,
+          "6": 0.694561031232,
+          "7": 1.6188769427,
+          "8": 1.03958677665
+        },
+        "variance_components": {
+          "TVset:Assessor": 1.06051643824,
+          "Assessor": 0.885627127027,
+          "Residual": 1.06689694661
+        },
+        "reml_criterion": 304.969801282
+      },
+      "Lightlevel": {
+        "anova": {
+          "TVset": {
+            "sum_sq": 28.3876917403,
+            "mean_sq": 14.1938458701,
+            "num_df": 2,
+            "den_df": 2.93395870717,
+            "f_value": 30.017543379,
+            "p_value": 0.0111291767018
+          },
+          "Picture": {
+            "sum_sq": 17.6946614583,
+            "mean_sq": 5.89822048611,
+            "num_df": 3,
+            "den_df": 40.3662424323,
+            "f_value": 12.4737221272,
+            "p_value": 6.52643326982e-06
+          },
+          "TVset:Picture": {
+            "sum_sq": 13.0265104167,
+            "mean_sq": 2.17108506944,
+            "num_df": 6,
+            "den_df": 40.3662424318,
+            "f_value": 4.59147160311,
+            "p_value": 0.00122086922148
+          },
+          "Scaling": {
+            "sum_sq": 2.69664332512,
+            "mean_sq": 0.385234760731,
+            "num_df": 7,
+            "den_df": 15.817019023,
+            "f_value": 0.814705277707,
+            "p_value": 0.588557459089
+          }
+        },
+        "random": {
+          "TVset:Assessor": {
+            "chi_sq": 5.1691909434,
+            "chi_df": 1,
+            "step": 0,
+            "p_value": 0.0229909211802
+          },
+          "Picture:Assessor": {
+            "chi_sq": 0.356068118303,
+            "chi_df": 1,
+            "step": 1,
+            "p_value": 0.550698052678
+          },
+          "Assessor": {
+            "chi_sq": 1.04761585528,
+            "chi_df": 1,
+            "step": 0,
+            "p_value": 0.306056816429
+          }
+        },
+        "zero_variance": [],
+        "beta": {
+          "1": 0.935777326515,
+          "2": 1.09430784625,
+          "3": 1.3947579687,
+          "4": 0.825767068909,
+          "5": 1.22321007809,
+          "6": 0.717585801532,
+          "7": 0.809785130445,
+          "8": 0.99880877955
+        },
+        "variance_components": {
+          "TVset:Assessor": 1.12658063442,
+          "Assessor": 0.613171211416,
+          "Residual": 0.472851681795
+        },
+        "reml_criterion": 253.509496761
+      },
+      "Contrast": {
+        "anova": {
+          "TVset": {
+            "sum_sq": 18.7845257129,
+            "mean_sq": 9.39226285643,
+            "num_df": 2,
+            "den_df": 6.30165596922,
+            "f_value": 10.9951986881,
+            "p_value": 0.00881047205254
+          },
+          "Picture": {
+            "sum_sq": 9.91885416667,
+            "mean_sq": 3.30628472222,
+            "num_df": 3,
+            "den_df": 50.5387927114,
+            "f_value": 3.870553667,
+            "p_value": 0.0144052459099
+          },
+          "TVset:Picture": {
+            "sum_sq": 22.4891145833,
+            "mean_sq": 3.74818576389,
+            "num_df": 6,
+            "den_df": 50.5387927111,
+            "f_value": 4.38787199889,
+            "p_value": 0.0012155172878
+          },
+          "Scaling": {
+            "sum_sq": 11.8478682411,
+            "mean_sq": 1.69255260587,
+            "num_df": 7,
+            "den_df": 43.7845426657,
+            "f_value": 1.98141304988,
+            "p_value": 0.0794985985212
+          }
+        },
+        "random": {
+          "TVset:Assessor": {
+            "chi_sq": 7.36134017016,
+            "chi_df": 1,
+            "step": 0,
+            "p_value": 0.00666411024671
+          },
+          "Assessor": {
+            "chi_sq": 0.447997258211,
+            "chi_df": 1,
+            "step": 0,
+            "p_value": 0.50328756203
+          }
+        },
+        "zero_variance": ["Picture:Assessor"],
+        "beta": {
+          "1": 0.464392244169,
+          "2": 0.989753907747,
+          "3": 1.00021525982,
+          "4": 1.54104805825,
+          "5": 1.92669729439,
+          "6": 0.399136051647,
+          "7": 0.825534868279,
+          "8": 0.853222315701
+        },
+        "variance_components": {
+          "TVset:Assessor": 1.19278513452,
+          "Assessor": 0.310197302932,
+          "Residual": 0.854214928064
+        },
+        "reml_criterion": 285.387301408
+      },
+      "Sharpnessofmovement": {
+        "anova": {
+          "TVset": {
+            "sum_sq": 0.596888417863,
+            "mean_sq": 0.298444208932,
+            "num_df": 2,
+            "den_df": 13.9578533614,
+            "f_value": 0.241377130662,
+            "p_value": 0.788757193281
+          },
+          "Picture": {
+            "sum_sq": 13.5855371098,
+            "mean_sq": 4.52851236994,
+            "num_df": 3,
+            "den_df": 16.4801505411,
+            "f_value": 3.66259183228,
+            "p_value": 0.0342097676408
+          },
+          "TVset:Picture": {
+            "sum_sq": 45.38359375,
+            "mean_sq": 7.56393229167,
+            "num_df": 6,
+            "den_df": 33.3120902527,
+            "f_value": 6.11759323332,
+            "p_value": 0.000212256256022
+          },
+          "Scaling": {
+            "sum_sq": 21.2436203019,
+            "mean_sq": 3.03480290027,
+            "num_df": 7,
+            "den_df": 53.080404225,
+            "f_value": 2.45450236348,
+            "p_value": 0.0294531946245
+          }
+        },
+        "random": {
+          "TVset:Assessor": {
+            "chi_sq": 5.40542182352,
+            "chi_df": 1,
+            "step": 0,
+            "p_value": 0.0200742967239
+          },
+          "Picture:Assessor": {
+            "chi_sq": 13.0580229778,
+            "chi_df": 1,
+            "step": 0,
+            "p_value": 0.000301988030228
+          },
+          "Assessor": {
+            "chi_sq": 4.6769356037,
+            "chi_df": 1,
+            "step": 0,
+            "p_value": 0.0305702346935
+          }
+        },
+        "zero_variance": [],
+        "beta": {
+          "1": -0.0734873450419,
+          "2": 0.534042509876,
+          "3": 0.920598446845,
+          "4": 1.78543327871,
+          "5": 1.87812918158,
+          "6": 1.00004454503,
+          "7": 1.18774492924,
+          "8": 0.767494453749
+        },
+        "variance_components": {
+          "Picture:Assessor": 1.79504914446,
+          "TVset:Assessor": 0.531637547152,
+          "Assessor": 1.7155035848,
+          "Residual": 1.23642288776
+        },
+        "reml_criterion": 343.199491959
+      },
+      "Flickeringstationary": {
+        "anova": {
+          "TVset": {
+            "sum_sq": 49.8756770833,
+            "mean_sq": 24.9378385417,
+            "num_df": 2,
+            "den_df": 49.7634019577,
+            "f_value": 24.6465610337,
+            "p_value": 3.63950790616e-08
+          },
+          "Picture": {
+            "sum_sq": 40.4654039426,
+            "mean_sq": 13.4884679809,
+            "num_df": 3,
+            "den_df": 16.5923165555,
+            "f_value": 13.3309207527,
+            "p_value": 0.000110831229806
+          },
+          "TVset:Picture": {
+            "sum_sq": 16.8003645833,
+            "mean_sq": 2.80006076389,
+            "num_df": 6,
+            "den_df": 49.7634019579,
+            "f_value": 2.76735565514,
+            "p_value": 0.0211871163086
+          },
+          "Scaling": {
+            "sum_sq": 33.8876880553,
+            "mean_sq": 4.84109829361,
+            "num_df": 7,
+            "den_df": 64.885603702,
+            "f_value": 4.78455357566,
+            "p_value": 0.000220135076686
+          }
+        },
+        "random": {
+          "TVset:Assessor": {
+            "chi_sq": 0.00733329821276,
+            "chi_df": 1,
+            "step": 1,
+            "p_value": 0.931756830012
+          },
+          "Picture:Assessor": {
+            "chi_sq": 13.4093788209,
+            "chi_df": 1,
+            "step": 0,
+            "p_value": 0.000250369311641
+          },
+          "Assessor": {
+            "chi_sq": 8.48079174602,
+            "chi_df": 1,
+            "step": 0,
+            "p_value": 0.00358915862131
+          }
+        },
+        "zero_variance": [],
+        "beta": {
+          "1": 1.61309597039,
+          "2": 0.681124430169,
+          "3": 0.110236691308,
+          "4": 1.35719592489,
+          "5": 1.4043667849,
+          "6": 0.165594445305,
+          "7": 1.17550578314,
+          "8": 1.4928799699
+        },
+        "variance_components": {
+          "Picture:Assessor": 1.05850999596,
+          "Assessor": 1.58967255851,
+          "Residual": 1.01181818054
+        },
+        "reml_criterion": 312.230640383
+      },
+      "Flickeringmovement": {
+        "anova": {
+          "TVset": {
+            "sum_sq": 4.10171875,
+            "mean_sq": 2.050859375,
+            "num_df": 2,
+            "den_df": 48.4052384465,
+            "f_value": 1.78031501864,
+            "p_value": 0.179446201641
+          },
+          "Picture": {
+            "sum_sq": 7.57944516658,
+            "mean_sq": 2.52648172219,
+            "num_df": 3,
+            "den_df": 14.3200946608,
+            "f_value": 2.19319442823,
+            "p_value": 0.13325030913
+          },
+          "TVset:Picture": {
+            "sum_sq": 4.45307291667,
+            "mean_sq": 0.742178819444,
+            "num_df": 6,
+            "den_df": 48.4052384459,
+            "f_value": 0.6442724035,
+            "p_value": 0.694306902934
+          },
+          "Scaling": {
+            "sum_sq": 18.1274623483,
+            "mean_sq": 2.58963747833,
+            "num_df": 7,
+            "den_df": 52.7351804205,
+            "f_value": 2.24801883138,
+            "p_value": 0.0444978942586
+          }
+        },
+        "random": {
+          "Picture:Assessor": {
+            "chi_sq": 26.4049624723,
+            "chi_df": 1,
+            "step": 0,
+            "p_value": 2.76828351302e-07
+          },
+          "Assessor": {
+            "chi_sq": 7.87841029765,
+            "chi_df": 1,
+            "step": 0,
+            "p_value": 0.00500284381183
+          }
+        },
+        "zero_variance": ["TVset:Assessor"],
+        "beta": {
+          "1": 0.0217940965191,
+          "2": 1.11779800242,
+          "3": -0.786240837224,
+          "4": 1.97822745225,
+          "5": 2.16415965599,
+          "6": 1.56239699443,
+          "7": -0.0770954872394,
+          "8": 2.01896012286
+        },
+        "variance_components": {
+          "Picture:Assessor": 2.63489793813,
+          "Assessor": 3.40736414804,
+          "Residual": 1.15196431729
+        },
+        "reml_criterion": 326.882830484
+      },
+      "Distortion": {
+        "anova": {
+          "TVset": {
+            "sum_sq": 38.9504372361,
+            "mean_sq": 19.4752186181,
+            "num_df": 2,
+            "den_df": 11.8761972376,
+            "f_value": 13.8065418478,
+            "p_value": 0.000797056870319
+          },
+          "Picture": {
+            "sum_sq": 186.621354167,
+            "mean_sq": 62.2071180556,
+            "num_df": 3,
+            "den_df": 54.9723615257,
+            "f_value": 44.1004127096,
+            "p_value": 1.1768364061e-14
+          },
+          "TVset:Picture": {
+            "sum_sq": 215.050989583,
+            "mean_sq": 35.8418315972,
+            "num_df": 6,
+            "den_df": 54.9723615257,
+            "f_value": 25.4093038725,
+            "p_value": 3.2640556924e-14
+          },
+          "Scaling": {
+            "sum_sq": 26.3144954706,
+            "mean_sq": 3.75921363866,
+            "num_df": 7,
+            "den_df": 64.8750379447,
+            "f_value": 2.66501452101,
+            "p_value": 0.0173424616982
+          }
+        },
+        "random": {
+          "TVset:Assessor": {
+            "chi_sq": 5.84531447341,
+            "chi_df": 1,
+            "step": 0,
+            "p_value": 0.0156185824658
+          },
+          "Picture:Assessor": {
+            "chi_sq": 0.00290624838584,
+            "chi_df": 1,
+            "step": 1,
+            "p_value": 0.957007162871
+          },
+          "Assessor": {
+            "chi_sq": 0.689619484199,
+            "chi_df": 1,
+            "step": 0,
+            "p_value": 0.406293838395
+          }
+        },
+        "zero_variance": [],
+        "beta": {
+          "1": 0.824214942295,
+          "2": 0.671742738609,
+          "3": 1.24223909162,
+          "4": 1.19248782727,
+          "5": 1.29541169239,
+          "6": 0.972044686521,
+          "7": 0.640444305932,
+          "8": 1.16141471536
+        },
+        "variance_components": {
+          "TVset:Assessor": 0.701713232227,
+          "Assessor": 0.255827821497,
+          "Residual": 1.41057904526
+        },
+        "reml_criterion": 322.767805178
+      },
+      "Dimglasseffect": {
+        "anova": {
+          "TVset": {
+            "sum_sq": 14.6227083333,
+            "mean_sq": 7.31135416667,
+            "num_df": 2,
+            "den_df": 70.0000095772,
+            "f_value": 8.39673265954,
+            "p_value": 0.000538747617621
+          },
+          "Picture": {
+            "sum_sq": 122.030625,
+            "mean_sq": 40.676875,
+            "num_df": 3,
+            "den_df": 70.0000095772,
+            "f_value": 46.7154014174,
+            "p_value": 1.11022302463e-16
+          },
+          "TVset:Picture": {
+            "sum_sq": 11.224375,
+            "mean_sq": 1.87072916667,
+            "num_df": 6,
+            "den_df": 70.0000095778,
+            "f_value": 2.1484409499,
+            "p_value": 0.0584497410809
+          },
+          "Scaling": {
+            "sum_sq": 107.546465299,
+            "mean_sq": 15.363780757,
+            "num_df": 7,
+            "den_df": 70.0000095773,
+            "f_value": 17.6445507515,
+            "p_value": 2.91544566267e-13
+          }
+        },
+        "random": {
+          "Picture:Assessor": {
+            "chi_sq": 0.317542418476,
+            "chi_df": 1,
+            "step": 1,
+            "p_value": 0.573088318001
+          },
+          "Assessor": {
+            "chi_sq": 62.0979009507,
+            "chi_df": 1,
+            "step": 0,
+            "p_value": 3.21964677141e-15
+          }
+        },
+        "zero_variance": ["TVset:Assessor"],
+        "beta": {
+          "1": 0.395946538032,
+          "2": 0.76303477113,
+          "3": 1.80627291977,
+          "4": 0.301042668985,
+          "5": 2.63423746818,
+          "6": 1.63698326179,
+          "7": 0.234360317436,
+          "8": 0.228122054682
+        },
+        "variance_components": {
+          "Assessor": 1.57687302416,
+          "Residual": 0.870737995732
+        },
+        "reml_criterion": 273.017382986
+      },
+      "Cutting": {
+        "anova": {
+          "TVset": {
+            "sum_sq": 16.1379355869,
+            "mean_sq": 8.06896779343,
+            "num_df": 2,
+            "den_df": 4.71227205938,
+            "f_value": 12.5788719975,
+            "p_value": 0.0128933831355
+          },
+          "Picture": {
+            "sum_sq": 8.381953125,
+            "mean_sq": 2.793984375,
+            "num_df": 3,
+            "den_df": 45.6654319294,
+            "f_value": 4.35559698784,
+            "p_value": 0.00883104472857
+          },
+          "TVset:Picture": {
+            "sum_sq": 20.26046875,
+            "mean_sq": 3.37674479167,
+            "num_df": 6,
+            "den_df": 45.6654319303,
+            "f_value": 5.26407362005,
+            "p_value": 0.000341851587825
+          },
+          "Scaling": {
+            "sum_sq": 11.3287329403,
+            "mean_sq": 1.61839042005,
+            "num_df": 7,
+            "den_df": 39.6660258641,
+            "f_value": 2.52294053674,
+            "p_value": 0.0302734647334
+          }
+        },
+        "random": {
+          "TVset:Assessor": {
+            "chi_sq": 3.11613919697,
+            "chi_df": 1,
+            "step": 0,
+            "p_value": 0.0775202534662
+          },
+          "Picture:Assessor": {
+            "chi_sq": 0.618877457447,
+            "chi_df": 1,
+            "step": 1,
+            "p_value": 0.431464735858
+          },
+          "Assessor": {
+            "chi_sq": 7.38821165569,
+            "chi_df": 1,
+            "step": 0,
+            "p_value": 0.0065652732778
+          }
+        },
+        "zero_variance": [],
+        "beta": {
+          "1": 0.513480961219,
+          "2": 0.611359914131,
+          "3": 1.70515827,
+          "4": 0.374658780984,
+          "5": 1.86250292844,
+          "6": 1.01269441861,
+          "7": 0.943149114885,
+          "8": 0.976995611726
+        },
+        "variance_components": {
+          "TVset:Assessor": 1.65763376905,
+          "Assessor": 4.08454006417,
+          "Residual": 0.641469902473
+        },
+        "reml_criterion": 284.572708529
+      },
+      "Flossyedges": {
+        "anova": {
+          "TVset": {
+            "sum_sq": 18.298704591,
+            "mean_sq": 9.14935229551,
+            "num_df": 2,
+            "den_df": 6.40475181918,
+            "f_value": 12.6051371817,
+            "p_value": 0.00601867089963
+          },
+          "Picture": {
+            "sum_sq": 14.7570492301,
+            "mean_sq": 4.91901641005,
+            "num_df": 3,
+            "den_df": 11.3227910967,
+            "f_value": 6.77696897494,
+            "p_value": 0.00707161275429
+          },
+          "TVset:Picture": {
+            "sum_sq": 28.61640625,
+            "mean_sq": 4.76940104167,
+            "num_df": 6,
+            "den_df": 39.0046030975,
+            "f_value": 6.57084266326,
+            "p_value": 7.43539342791e-05
+          },
+          "Scaling": {
+            "sum_sq": 9.71300016745,
+            "mean_sq": 1.38757145249,
+            "num_df": 7,
+            "den_df": 57.1759727466,
+            "f_value": 1.91166849227,
+            "p_value": 0.0843148019525
+          }
+        },
+        "random": {
+          "TVset:Assessor": {
+            "chi_sq": 5.19482671188,
+            "chi_df": 1,
+            "step": 0,
+            "p_value": 0.0226542136218
+          },
+          "Picture:Assessor": {
+            "chi_sq": 23.9871838527,
+            "chi_df": 1,
+            "step": 0,
+            "p_value": 9.69790969907e-07
+          },
+          "Assessor": {
+            "chi_sq": 2.05873859238,
+            "chi_df": 1,
+            "step": 0,
+            "p_value": 0.151335401472
+          }
+        },
+        "zero_variance": [],
+        "beta": {
+          "1": 1.40850128434,
+          "2": 0.884526070462,
+          "3": 1.02986895407,
+          "4": 1.60263255241,
+          "5": 0.54218222184,
+          "6": 1.36951701121,
+          "7": 0.679037351436,
+          "8": 0.483734554231
+        },
+        "variance_components": {
+          "Picture:Assessor": 3.16504696493,
+          "TVset:Assessor": 0.590261302143,
+          "Assessor": 1.37187962864,
+          "Residual": 0.725843135513
+        },
+        "reml_criterion": 332.647795788
+      },
+      "Elasticeffect": {
+        "anova": {
+          "TVset": {
+            "sum_sq": 18.3895328077,
+            "mean_sq": 9.19476640385,
+            "num_df": 2,
+            "den_df": 12.2427453977,
+            "f_value": 25.1263601721,
+            "p_value": 4.63717687835e-05
+          },
+          "Picture": {
+            "sum_sq": 33.2655155365,
+            "mean_sq": 11.0885051788,
+            "num_df": 3,
+            "den_df": 14.7112127345,
+            "f_value": 30.301343466,
+            "p_value": 1.51899269163e-06
+          },
+          "TVset:Picture": {
+            "sum_sq": 134.76359375,
+            "mean_sq": 22.4605989583,
+            "num_df": 6,
+            "den_df": 31.7140796705,
+            "f_value": 61.3776440118,
+            "p_value": 4.4408920985e-16
+          },
+          "Scaling": {
+            "sum_sq": 17.7484864827,
+            "mean_sq": 2.53549806895,
+            "num_df": 7,
+            "den_df": 58.2157495903,
+            "f_value": 6.92870649432,
+            "p_value": 5.34567739274e-06
+          }
+        },
+        "random": {
+          "TVset:Assessor": {
+            "chi_sq": 10.801029261,
+            "chi_df": 1,
+            "step": 0,
+            "p_value": 0.00101443677525
+          },
+          "Picture:Assessor": {
+            "chi_sq": 14.1077906649,
+            "chi_df": 1,
+            "step": 0,
+            "p_value": 0.00017262731975
+          },
+          "Assessor": {
+            "chi_sq": 0.489656425089,
+            "chi_df": 1,
+            "step": 0,
+            "p_value": 0.484080605371
+          }
+        },
+        "zero_variance": [],
+        "beta": {
+          "1": 0.661629531071,
+          "2": 0.564635878665,
+          "3": 1.65254578034,
+          "4": 1.05739742308,
+          "5": 0.999324194473,
+          "6": 0.953797396982,
+          "7": 0.954698295172,
+          "8": 1.15597150022
+        },
+        "variance_components": {
+          "Picture:Assessor": 0.999993879146,
+          "TVset:Assessor": 0.33077810508,
+          "Assessor": 0.199860914006,
+          "Residual": 0.365941041237
+        },
+        "reml_criterion": 274.77965503
+      }
+    }
+  }
+}
