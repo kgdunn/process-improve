@@ -66,7 +66,9 @@ class DataFrameDict(dict):
         for block in set(self.partitionable_blocks) & set(self.datadict.keys()):
             for group, df in self.datadict[block].items():
                 if not isinstance(df, pd.DataFrame):
-                    raise TypeError(f"Expected a DataFrame for block {block}, group '{group}'; got instead{type(df)}.")
+                    raise TypeError(
+                        f"Expected a DataFrame for block {block}, group '{group}'; got {type(df).__name__}."
+                    )
                 if df.shape[0] != self.n_samples:
                     raise ValueError(
                         f"DataFrames in block {block} must have the same number of rows ({self.n_samples}). "

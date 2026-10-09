@@ -1,10 +1,10 @@
-"""Equality semantics for ``DataFrameDict`` (regression test for #343).
+"""``DataFrameDict``: its construction guards, item access, and equality semantics.
 
 ``DataFrameDict`` subclasses ``dict`` but stores all of its data in the
 ``self.datadict`` instance attribute, leaving the inherited ``dict`` base
 empty. Before #343 it inherited ``dict.__eq__`` / ``dict.__ne__``, which
 compared the (always-empty) base and therefore reported *every* instance as
-equal regardless of the data it held. These tests pin the value-based
+equal regardless of the data it held. The equality tests pin the value-based
 behaviour.
 """
 
@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import numpy as np
 import pandas as pd
+import pytest
 
 from process_improve.multivariate.methods import DataFrameDict
 
@@ -70,3 +71,26 @@ class TestDataFrameDictEquality:
         # level (__hash__ is None) rather than calling hash() on a known-
         # unhashable instance, which CodeQL flags as py/hash-unhashable-value.
         assert DataFrameDict.__hash__ is None
+
+
+class TestDataFrameDictConstruction:
+    @pytest.mark.parametrize(
+        ("blocks", "error", "message"),
+        [
+            (
+                {"F": {"g": np.ones((4, 2))}},
+                TypeError,
+                r"^Expected a DataFrame for block F, group 'g'; got ndarray\.$",
+            ),
+            (
+                {"F": {"g": pd.DataFrame(np.ones((4, 2)))}, "Y": {"y": pd.DataFrame(np.ones((3, 1)))}},
+                ValueError,
+                r"^DataFrames in block Y must have the same number of rows \(4\)\. Group y has 3 rows\.$",
+            ),
+        ],
+        ids=["group-not-a-dataframe", "group-with-other-row-count"],
+    )
+    def test_a_malformed_group_is_refused(self, blocks: dict, error: type[Exception], message: str) -> None:
+        """Every group must be a DataFrame with as many rows as the first F group."""
+        with pytest.raises(error, match=message):
+            DataFrameDict(blocks)
