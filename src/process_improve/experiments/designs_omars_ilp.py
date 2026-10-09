@@ -1001,12 +1001,10 @@ def _estimability_cuts(features: np.ndarray, chosen: list[int]) -> list[list[int
     pivot_rows = pivots[: null.shape[1]]
     reduced = null @ np.linalg.inv(null[pivot_rows])
     reduced[np.abs(reduced) < 1e-9] = 0.0
-    cuts = []
-    for w in reduced.T:
-        rows = np.flatnonzero(np.abs(features @ w) > 1e-6)
-        if rows.size:
-            cuts.append([int(r) for r in rows])
-    return cuts
+    # No cut is empty: the full pool's even features have full column rank (the unit
+    # runs e_i isolate each square, and the runs e_i + e_j then each interaction), so
+    # every nonzero null vector of the selection is nonzero on some pool row.
+    return [[int(r) for r in np.flatnonzero(np.abs(features @ w) > 1e-6)] for w in reduced.T]
 
 
 def _qr_pivots(matrix: np.ndarray) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
