@@ -216,3 +216,15 @@ class TestLmAliasDetection:
         assert model.get_parameters(drop_intercept=False)[term] == pytest.approx(least_squares(frame))
         assert not model.aliasing
         assert "Aliasing pattern" not in str(summary(model, show=False))
+
+
+class TestTheModelObject:
+    """The ``Model`` wrapper's title, built by ``lm`` or by hand."""
+
+    def test_a_model_fitted_on_a_plain_dataframe_has_an_empty_title(self) -> None:
+        """``lm`` accepts a plain DataFrame, which has no ``pi_title``; the title and summary must still work."""
+        model = lm("y ~ A", _half_fraction())
+        assert model.get_title() == ""
+        text = str(summary(model, show=False))
+        assert text.splitlines()[0].strip() == "OLS Regression Results"
+        assert "Residual std error" in text
