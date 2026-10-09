@@ -762,23 +762,15 @@ class TPLS(RegressorMixin, BaseEstimator):
             for key in self.y_mats
         }
 
+        # DataFrameDict holds every group of every block at one row count (its constructor
+        # and __setitem__ both enforce it), so only the column names need checking here.
         for key, df_f in x_f.items():
-            if df_f.shape[0] != num_obs:
-                raise ValueError(
-                    f"All formula blocks must have the same number of rows; "
-                    f"group [{key}] has {df_f.shape[0]} rows, expected {num_obs}."
-                )
             if set(df_f.columns) != set(self.material_names[key]):
                 raise ValueError(
                     f"Columns in block F, group [{key}] must match training data column names for each material."
                 )
 
         for key, df_z in x_z.items():
-            if df_z.shape[0] != num_obs:
-                raise ValueError(
-                    f"All condition blocks must have the same number of rows; "
-                    f"group [{key}] has {df_z.shape[0]} rows, expected {num_obs}."
-                )
             if set(df_z.columns) != set(self.condition_names[key]):
                 raise ValueError(f"Column names in block Z, group [{key}] must match training data column names.")
 
