@@ -32,6 +32,7 @@ from ._common import (
     _scale_block_contributions,
     _select_n_components,
     epsqrt,
+    resolve_loop_settings,
 )
 from ._diagnostics import _select_rows
 from ._limits import spe_calculation
@@ -126,20 +127,6 @@ def _validate_fit_arguments(X: dict[str, pd.DataFrame], y: pd.DataFrame) -> pd.D
     if y.shape[0] != n_samples:
         raise ValueError(f"y has {y.shape[0]} rows; expected {n_samples} to match X-blocks.")
     return y
-
-
-def _resolve_missing_data_settings(missing_data_settings: dict | None, algo: str) -> dict:
-    """Resolve, and for the ``"nipals"`` path validate, the iterative-algorithm settings."""
-    settings = {"md_tol": epsqrt, "md_max_iter": 1000}
-    if isinstance(missing_data_settings, dict):
-        settings.update(missing_data_settings)
-    settings["md_max_iter"] = int(settings["md_max_iter"])
-    if algo == "nipals":
-        if not settings["md_tol"] < 10:
-            raise ValueError("Tolerance should not be too large.")
-        if not settings["md_tol"] > epsqrt**1.95:
-            raise ValueError("Tolerance must exceed machine precision.")
-    return settings
 
 
 def _reject_degenerate_missingness(X: dict[str, pd.DataFrame], y: pd.DataFrame, block_names: Sequence[str]) -> None:
@@ -494,14 +481,17 @@ class MBPLS(_HotellingsT2LimitMixin, RegressorMixin, BaseEstimator):
         Number of latent variables to extract.
     max_iter : int, default=500
         Maximum NIPALS iterations per latent variable.
-    tol : float or None, default=None
+    tol : float, default=``epsqrt`` (about 1.5e-8)
         Relative convergence tolerance on the change in the Y-block score
         ``u``: the norm of the change between two successive iterations,
-        divided by the norm of the current ``u`` vector (#504). If ``None``,
-        ``epsqrt`` (about 1.49e-8) is used, the same default as PCA / PLS /
-        TPLS. The legacy absolute tolerance ``np.finfo(float).eps ** (6/7)``
-        (about 3.8e-14) sits below the floating-point oscillation floor of a
-        relative criterion, so it would never be reached in practice.
+        divided by the norm of the current ``u`` vector (#504). The same
+        default, and the same meaning, as on PCA / PLS / TPLS. It used to
+        default to ``None`` and be resolved to ``epsqrt`` inside ``fit``; the
+        literal is the default now, which removes a branch and lets
+        ``get_params`` report the value that will actually be used (#588). The
+        legacy absolute tolerance ``np.finfo(float).eps ** (6/7)`` (about
+        3.8e-14) sits below the floating-point oscillation floor of a relative
+        criterion, so it would never be reached in practice.
     algorithm : str, default="auto"
         Algorithm to use for fitting the model.
 
@@ -524,10 +514,9 @@ class MBPLS(_HotellingsT2LimitMixin, RegressorMixin, BaseEstimator):
         the blocks it does have; only a row observed in no block at all is refused.
 
     missing_data_settings : dict or None, default=None
-        Settings for the iterative ``"nipals"`` path. Keys: ``md_tol``
-        (convergence tolerance on the score-vector change between
-        iterations), ``md_max_iter`` (maximum NIPALS iterations per
-        component). Defaults to ``{"md_tol": epsqrt, "md_max_iter": 1000}``.
+        Deprecated keys ``md_tol`` and ``md_max_iter``, which override ``tol``
+        and ``max_iter`` for this fit and warn when used. Deprecated since
+        1.98.0 and removed in 2.0; set ``tol`` and ``max_iter`` instead.
 
     Attributes (after fitting)
     --------------------------
@@ -655,7 +644,7 @@ class MBPLS(_HotellingsT2LimitMixin, RegressorMixin, BaseEstimator):
     _parameter_constraints: typing.ClassVar = {
         "n_components": [int],
         "max_iter": [int],
-        "tol": [float, None],
+        "tol": [float],
         "algorithm": [str],
         "missing_data_settings": [dict, None],
     }
@@ -665,7 +654,7 @@ class MBPLS(_HotellingsT2LimitMixin, RegressorMixin, BaseEstimator):
         n_components: int,
         *,
         max_iter: int = 500,
-        tol: float | None = None,
+        tol: float = epsqrt,
         algorithm: str = "auto",
         missing_data_settings: dict | None = None,
     ):
@@ -696,9 +685,16 @@ class MBPLS(_HotellingsT2LimitMixin, RegressorMixin, BaseEstimator):
         y = _validate_fit_arguments(X, y)
         self._record_data_shape(X, y)
         algo = self._resolve_algorithm(X, y)
-        # Resolve the iterative-algorithm settings. Only the validation inside is load-bearing
-        # today: the resolved ``md_tol`` and ``md_max_iter`` do not yet reach the NIPALS path.
-        _resolve_missing_data_settings(self.missing_data_settings, algo)
+        # The resolved settings now reach the loop. They used to be computed here and
+        # dropped, so a caller's ``missing_data_settings`` was validated and then ignored
+        # (#588).
+        settings = resolve_loop_settings(
+            tol=self.tol,
+            max_iter=self.max_iter,
+            missing_data_settings=self.missing_data_settings,
+            validate=algo == "nipals",
+            estimator_name="MBPLS",
+        )
         if algo == "nipals":
             _reject_degenerate_missingness(X, y, self.block_names_)
 
@@ -711,8 +707,8 @@ class MBPLS(_HotellingsT2LimitMixin, RegressorMixin, BaseEstimator):
             # A row with nothing observed in a block has no score *for that block*; it still has a
             # super score, estimated from the blocks it does have.
             block_has_data={name: _rows_with_data(values) for name, values in x_blocks_pp.items()},
-            tol=epsqrt if self.tol is None else float(self.tol),
-            max_iter=self.max_iter,
+            tol=float(settings["md_tol"]),
+            max_iter=int(settings["md_max_iter"]),
         )
 
         work = _MBPLSArrays.allocate(self.block_widths_, self.n_samples_, self.n_targets_, self.n_components_)
