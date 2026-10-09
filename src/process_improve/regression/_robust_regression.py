@@ -876,10 +876,10 @@ class OLS(RegressorMixin, BaseEstimator):
         out["k"] = self._k_
         if not np.isnan(self.x_ssq_):
             out["x_ssq"] = self.x_ssq_
-        if not (isinstance(self.leverage_, np.ndarray) and self.leverage_.size == 1 and np.isnan(self.leverage_[0])):
-            out["leverage"] = self.leverage_
-        if not (isinstance(self.influence_, np.ndarray) and self.influence_.size == 1 and np.isnan(self.influence_[0])):
-            out["influence"] = self.influence_
+        # A fitted model has at least two rows, so these are always real per-row arrays,
+        # never the one-element NaN placeholders an unfitted model holds.
+        out["leverage"] = self.leverage_
+        out["influence"] = self.influence_
         if isinstance(self.pi_range_, np.ndarray):
             out["pi_range"] = self.pi_range_
         return out
