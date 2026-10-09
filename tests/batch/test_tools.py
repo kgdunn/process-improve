@@ -96,6 +96,29 @@ def test_extract_batch_features_area_with_time_column(two_batch_timeseries: list
     assert by_batch["B1"]["temp_area"] == pytest.approx(309.0)
 
 
+def test_extract_batch_features_slope_with_time_column(two_batch_timeseries: list[dict]) -> None:
+    """Time-dependent feature 'slope' is each tag's slope against the time column, per batch.
+
+    The tool used to pass the time column as ``time_tag``, the name f_area uses,
+    while f_slope calls it ``x_axis_tag``, so every slope request came back as
+    ``{"error": "f_slope() got an unexpected keyword argument 'time_tag'"}``.
+    """
+    result = extract_batch_features(
+        data=two_batch_timeseries,
+        value_columns=["temp", "press"],
+        features=["slope"],
+        time_column="time",
+    )
+
+    assert "error" not in result
+    by_batch = {row["batch"]: row for row in result["feature_matrix"]}
+    # temp climbs 2 per unit time in B1 and falls 2 in B2; press rises 0.1 in both.
+    assert by_batch["B1"]["temp_slope"] == pytest.approx(2.0)
+    assert by_batch["B2"]["temp_slope"] == pytest.approx(-2.0)
+    assert by_batch["B1"]["press_slope"] == pytest.approx(0.1)
+    assert by_batch["B2"]["press_slope"] == pytest.approx(0.1)
+
+
 def test_extract_batch_features_time_feature_without_time_column_returns_error(
     two_batch_timeseries: list[dict],
 ) -> None:

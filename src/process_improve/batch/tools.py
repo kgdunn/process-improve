@@ -46,6 +46,18 @@ _TIME_FEATURE_MAP = {
 }
 
 
+def _time_axis_kwargs(feature_name: str, time_column: str) -> dict[str, str]:
+    """Name the time axis the way each time-dependent feature function spells it.
+
+    ``f_area`` takes it as ``time_tag``. ``f_slope`` takes ``x_axis_tag``, and
+    also needs the same column as ``age_col`` so that it is kept with each
+    batch's samples; passing ``time_tag`` to it raised a TypeError.
+    """
+    if feature_name == "slope":
+        return {"x_axis_tag": time_column, "age_col": time_column}
+    return {"time_tag": time_column}
+
+
 # ---------------------------------------------------------------------------
 # extract_batch_features
 # ---------------------------------------------------------------------------
@@ -150,7 +162,12 @@ def extract_batch_features(spec: ExtractBatchFeaturesInput) -> dict[str, Any]:
                 if spec.time_column is None:
                     return {"error": f"Feature '{feature_name}' requires time_column to be specified."}
                 func = getattr(feat_mod, _TIME_FEATURE_MAP[feature_name])
-                result_df = func(df, time_tag=spec.time_column, tags=spec.value_columns, batch_col=spec.batch_column)
+                result_df = func(
+                    df,
+                    **_time_axis_kwargs(feature_name, spec.time_column),
+                    tags=spec.value_columns,
+                    batch_col=spec.batch_column,
+                )
                 results.append(result_df)
             else:
                 available = sorted(list(_FEATURE_MAP) + list(_TIME_FEATURE_MAP))
