@@ -627,6 +627,35 @@ def test_pca_invalid_calls() -> None:
         PCA(n_components=2).fit(sparse_data)
 
 
+def test_pca_svd_refuses_missing_data() -> None:
+    """The SVD needs every cell, so asking for it on gappy data names the algorithms that cope."""
+    gappy = pd.DataFrame(np.random.default_rng(3).standard_normal((20, 4)))
+    gappy.iloc[0, 0] = np.nan
+    with pytest.raises(
+        ValueError, match=r"^SVD algorithm cannot handle missing data\. Use 'nipals', 'tsr', or 'auto'\.$"
+    ):
+        PCA(n_components=2, algorithm="svd").fit(gappy)
+
+
+#: Each PCA entry point that accepts a plain array, reduced to the numbers it returns.
+_PCA_ARRAY_ENTRY_POINTS = {
+    "fit": lambda _, X: PCA(n_components=2).fit(X).scores_.to_numpy(),
+    "project": lambda model, X: model.project(X).scores.to_numpy(),
+    "minka_mle": lambda _, X: PCA.minka_mle(X),
+    "parallel_analysis": lambda _, X: PCA.parallel_analysis(X, n_simulations=20, random_state=0).null_threshold,
+    "select_n_components": lambda _, X: PCA.select_n_components(X, random_state=0).press.to_numpy(),
+}
+
+
+@pytest.mark.parametrize("entry_point", list(_PCA_ARRAY_ENTRY_POINTS))
+def test_pca_entry_points_read_an_array_as_its_dataframe(entry_point: str) -> None:
+    """A plain array gives the same numbers as the same values in a DataFrame."""
+    frame = pd.DataFrame(np.random.default_rng(5).standard_normal((30, 5)) * [1.0, 2.0, 3.0, 4.0, 5.0] + 10.0)
+    model = PCA(n_components=2).fit(frame)
+    call = _PCA_ARRAY_ENTRY_POINTS[entry_point]
+    np.testing.assert_allclose(call(model, frame.to_numpy()), call(model, frame))
+
+
 def test_pca_columns_with_no_variance() -> None:
     """Create a column with no variance. That column's loadings should be 0."""
     K = 14
@@ -1389,6 +1418,45 @@ def test_pca_select_n_components_ckf_does_not_score_an_unevaluated_count_as_perf
     last_press = float(result.press.iloc[-1])
     assert np.isnan(last_press) or last_press > 0
     assert result.n_components < 5
+
+
+def test_pca_select_n_components_refuses_data_too_small_for_any_component() -> None:
+    """With one row no component count can be cross-validated, and the error says so."""
+    with pytest.raises(ValueError, match=r"^No components can be evaluated; the data is too small\.$"):
+        PCA.select_n_components(np.ones((1, 3)))
+
+
+def test_pca_select_n_components_row_wise_refuses_an_all_nan_press() -> None:
+    """The legacy row-wise scheme cannot score gappy data, and says so rather than recommending."""
+    rng = np.random.default_rng(6)
+    gappy = pd.DataFrame(
+        rng.standard_normal((30, 2)) @ rng.standard_normal((2, 5)) + 0.01 * rng.standard_normal((30, 5))
+    )
+    gappy.iloc[0, 0] = np.nan
+    with (
+        pytest.warns(DeprecationWarning, match=r"cv_scheme='row_wise' is deprecated"),
+        pytest.warns(SpecificationWarning, match=r"legacy whole-row CV scheme"),
+        pytest.raises(
+            RuntimeError,
+            match=r"^Cross-validation produced NaN PRESS for every component count; no recommendation can be made\.$",
+        ),
+    ):
+        PCA.select_n_components(gappy, cv_scheme="row_wise", max_components=3)
+
+
+def test_pca_parallel_analysis_without_scaling_compares_in_the_units_of_x() -> None:
+    """scale=False leaves X in its own units, so variances far above the unit null keep every component.
+
+    The same noise, standardised first, keeps none: the scaling is what puts the observed
+    eigenvalues on the null's footing.
+    """
+    loud_noise = 100.0 * np.random.default_rng(7).standard_normal((30, 5))
+    as_given = PCA.parallel_analysis(loud_noise, scale=False, random_state=0)
+    standardised = PCA.parallel_analysis(loud_noise, random_state=0)
+
+    assert as_given.n_components == 5
+    assert np.all(as_given.observed_eigenvalues > as_given.null_threshold)
+    assert standardised.n_components == 0
 
 
 def test_pca_parallel_analysis_pure_noise_returns_zero() -> None:
