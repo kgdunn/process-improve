@@ -1030,12 +1030,13 @@ class PCA(_LatentVariableModel, TransformerMixin, BaseEstimator):
         # Storage for numpy results (set by _fit_* methods)
         X_values = np.asarray(X.copy())
 
-        # Dispatch
+        # Dispatch. "auto" was resolved and anything unknown refused above, so these three
+        # branches are every value algo can hold.
         if algo == "svd":
             self._fit_svd(X_values, N, K, A)
         elif algo == "nipals":
             self._fit_nipals(X_values, N, K, A, settings)
-        elif algo == "tsr":
+        else:  # "tsr"
             self._fit_tsr(X_values, N, K, A, settings)
 
         # --- Common post-fit path ---
