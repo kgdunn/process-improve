@@ -6,7 +6,12 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from process_improve.monitoring.control_charts import ControlChart
+from process_improve.monitoring import control_charts
+from process_improve.monitoring.control_charts import (
+    ControlChart,
+    _tau_from_training_errors,
+    _training_error_radicand,
+)
 from process_improve.monitoring.metrics import calculate_cpk
 from process_improve.monitoring.tools import (
     get_monitoring_tool_specs,
@@ -455,6 +460,18 @@ def test_calculate_cpk_normal_data_still_returns_finite_value() -> None:
     assert result.cpk > 0
 
 
+@pytest.mark.parametrize(
+    ("trim", "message"),
+    [(-1.0, r"must be non-negative; got -1\.0"), (40.0, r"must be < 40 \(typically <= 10-20\); got 40\.0")],
+    ids=["negative", "40-or-more"],
+)
+def test_calculate_cpk_rejects_trim_percentile_out_of_range(trim: float, message: str) -> None:
+    """``trim_percentile`` is a percentile in [0, 40); anything else is rejected before computing."""
+    data = pd.DataFrame({"value": [1.0, 2.0, 3.0]})
+    with pytest.raises(ValueError, match=message):
+        calculate_cpk(data, "value", specifications=(0.0, 4.0), trim_percentile=trim)
+
+
 class TestHoltWintersControlChartBatchYield:
     """Validate Holt-Winters control chart on batch yield data.
 
@@ -602,6 +619,24 @@ def test_process_capability_tool_returns_error_on_bad_input() -> None:
         execute_tool_call("process_capability", {"values": ["bad", "input"]})
 
 
+def test_control_chart_tool_reports_a_constant_series_as_an_error() -> None:
+    """A constant series passes the schema but has no spread to chart: the tool reports it, never raises."""
+    result = execute_tool_call("control_chart", {"values": [5.0] * 30})
+    assert set(result) == {"error"}
+    assert "zero (or non-finite) variance" in result["error"]
+
+
+def test_process_capability_tool_reports_a_failed_calculation_as_an_error(monkeypatch) -> None:
+    """An expected failure inside the Cpk calculation comes back as the tool's error envelope."""
+
+    def _fail(*_args, **_kwargs):
+        raise ValueError("no usable specification limit")
+
+    monkeypatch.setattr("process_improve.monitoring.metrics.calculate_cpk", _fail)
+    result = execute_tool_call("process_capability", {"values": [1.0, 2.0, 3.0, 4.0, 5.0], "lower_spec": 0.0})
+    assert result == {"error": "no usable specification limit"}
+
+
 def test_get_monitoring_tool_specs_lists_both_tools() -> None:
     """The module-level convenience returns both registered specs."""
     specs = get_monitoring_tool_specs()
@@ -685,3 +720,27 @@ class TestControlChartMissingValues:
             warnings.simplefilter("error", RuntimeWarning)
             with pytest.raises(ValueError, match=r"none of the \d+ training-sample errors is finite"):
                 cc.calculate_limits(y, target=100.0, s=2.0, ld_1=0.4, ld_2=0.7)
+
+
+@pytest.mark.parametrize(
+    "errors",
+    [[np.nan, np.nan, np.nan], [0.0, 0.0, 0.0, 1.5]],
+    ids=["no-finite-error", "zero-median-absolute-error"],
+)
+def test_training_error_radicand_is_nan_when_undefined(errors: list[float]) -> None:
+    """An undefined tau^2 is NaN, so a lambda-grid cell without one cannot win the search (#557)."""
+    assert np.isnan(_training_error_radicand(pd.Series(errors)))
+
+
+def test_scale_estimate_rejects_errors_without_usable_spread() -> None:
+    """Mostly-zero training errors have a zero median: the scale is reported as undefined, not zero (#557)."""
+    with pytest.raises(ValueError, match=r"scale estimate is undefined \(tau\^2 = nan\)"):
+        _tau_from_training_errors(pd.Series([0.0, 0.0, 0.0, 1.5]))
+
+
+def test_hw_grid_search_with_no_usable_cell_raises(monkeypatch) -> None:
+    """When every lambda pair leaves tau^2 undefined, the search reports it instead of picking a NaN cell."""
+    monkeypatch.setattr(control_charts, "_training_error_radicand", lambda _errors: float("nan"))
+    y = 50.0 + np.random.default_rng(5).standard_normal(40)
+    with pytest.raises(ValueError, match="lambda grid search produced no usable residuals"):
+        ControlChart(style="robust", variant="HW").calculate_limits(y)

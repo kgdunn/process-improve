@@ -396,23 +396,22 @@ the presence of missing data:
   data well.
 - **SCP** - Single Component Projection; a simpler alternative.
 
-Enable missing data handling by passing a settings dictionary:
+Choose the algorithm with ``algorithm=``, and its convergence settings with
+``tol`` and ``max_iter``:
 
 .. code-block:: python
 
    model = PCA(
        n_components=3,
-       missing_data_settings={
-           "md_method": "tsr",
-           "md_tol": 1e-6,  # convergence tolerance
-           "md_max_iter": 200,  # maximum iterations
-       },
+       algorithm="tsr",
+       tol=1e-6,  # convergence tolerance
+       max_iter=200,  # maximum iterations
    )
    model.fit(X_with_nans)
 
    # Check convergence
    print(model.fitting_info_["iterations"])
-   print(model.fitting_info_["final_error"])
+   print(model.fitting_info_["timing"])
 
 Troubleshooting
 ---------------

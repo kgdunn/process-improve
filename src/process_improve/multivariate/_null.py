@@ -192,7 +192,10 @@ def check_predictive_signal(  # noqa: PLR0913
             performance a shuffled response reaches one time in twenty.
         ``p_value``
             The fraction of permutations reaching at least ``q2_observed``,
-            computed as ``(1 + count) / (n_perm + 1)``.
+            computed as ``(1 + count) / (n_used + 1)`` where ``n_used`` is the
+            number of permutations that produced a usable :math:`Q^2`
+            (reported as ``n_permutations``), so a permutation whose fit
+            degenerates is left out of both the numerator and the denominator.
         ``n_permutations``
             Permutations that produced a usable :math:`Q^2`.
 
@@ -212,13 +215,17 @@ def check_predictive_signal(  # noqa: PLR0913
     out-of-sample. Develop with ``n_perm`` around 50, then raise it for the
     number you intend to report, keeping the p-value floor below in mind.
 
-    The p-value uses the ``(1 + count) / (n_perm + 1)`` form, which counts the
+    The p-value uses the ``(1 + count) / (n_used + 1)`` form, which counts the
     observed statistic as one of its own null draws so the result can never be
-    exactly zero. That also puts a floor on it: **the smallest attainable
-    p-value is** ``1 / (n_perm + 1)``. The default 500 permutations cannot report
-    anything below 0.002, so choose ``n_perm`` with the threshold you intend to
-    apply in mind, and remember that a multiplicity correction over many
-    attributes needs a floor well below the corrected threshold.
+    exactly zero. ``n_used`` is the number of permutations whose fit produced a
+    usable :math:`Q^2`; it equals ``n_perm`` when every permutation succeeds,
+    and otherwise is smaller (reported as ``n_permutations`` on each row). That
+    also puts a floor on the p-value: **the smallest attainable p-value is**
+    ``1 / (n_used + 1)``, at best ``1 / (n_perm + 1)``. The default 500
+    permutations cannot report anything below 0.002, so choose ``n_perm`` with
+    the threshold you intend to apply in mind, and remember that a multiplicity
+    correction over many attributes needs a floor well below the corrected
+    threshold.
 
     See Also
     --------

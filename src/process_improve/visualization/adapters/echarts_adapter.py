@@ -236,8 +236,8 @@ class EChartsAdapter(AbstractAdapter):
         if mark == MarkType.boxplot:
             return self._boxplot_series(layer), False
 
-        # Fallback
-        return self._scatter_series(layer), False
+        # Every MarkType member is handled above; a member added later renders as a scatter.
+        return self._scatter_series(layer), False  # pragma: no cover - no MarkType member reaches here
 
     def _bar_series(self, layer: LayerSpec) -> dict[str, Any]:
         data = [row[layer.y.field] for row in layer.data] if layer.y else []
@@ -424,9 +424,7 @@ class EChartsAdapter(AbstractAdapter):
         mark_areas: list[list[dict[str, Any]]] = []
 
         for ann in annotations:
-            at = ann.annotation_type
-            if isinstance(at, str):
-                at = AnnotationType(at)
+            at = AnnotationType(ann.annotation_type)
 
             color = ann.style.get("color", DOE_PALETTE["threshold_me"])
             dash = ann.style.get("dash", "solid")
@@ -488,9 +486,9 @@ class EChartsAdapter(AbstractAdapter):
                         ]
                     )
 
-            elif at == AnnotationType.label:
+            else:  # AnnotationType.label, the one member without an ECharts rendering
                 msg = (
-                    "AnnotationType.label is declared in the spec vocabulary but not implemented "
+                    f"AnnotationType.{at.name} is declared in the spec vocabulary but not implemented "
                     "in the ECharts adapter."
                 )
                 raise NotImplementedError(msg)
