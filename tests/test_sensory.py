@@ -32,6 +32,7 @@ from process_improve.sensory.analysis import (
 )
 from process_improve.sensory.ingest import _compare_maps, reshape_to_long
 from process_improve.sensory.panel import _eta_squared, _low_tail_outliers
+from process_improve.sensory.validation import is_validated
 from process_improve.univariate.metrics import benjamini_hochberg
 
 PRODUCTS = list("UVWXYZT")
@@ -238,6 +239,69 @@ def test_validate_unbalanced_panel_warns_but_does_not_block():
 def test_validate_bad_mode_raises():
     with pytest.raises(ValueError, match="mode must be"):
         validate_descriptive(_panel(), _obs(), mode="nonsense")
+
+
+def _with_unparseable_scores() -> tuple[pd.DataFrame, pd.DataFrame]:
+    panel = _panel().astype({"score": object})
+    panel.loc[[0, 1], "score"] = "n/a"
+    return panel, _obs()
+
+
+def _with_two_panelists_skipping_two_products() -> tuple[pd.DataFrame, pd.DataFrame]:
+    """Remove 16 of the 224 grid cells (7.1%): between the 5% warning and 20% error thresholds."""
+    panel = _panel()
+    skipped = panel["panelist_id"].isin(["P1", "P2"]) & panel["product"].isin(PRODUCTS[:2])
+    return panel[~skipped].reset_index(drop=True), _obs()
+
+
+def _with_a_missing_descriptor() -> tuple[pd.DataFrame, pd.DataFrame]:
+    obs = _obs()
+    obs.loc[0, "fat"] = np.nan
+    return _panel(), obs
+
+
+@pytest.mark.parametrize(
+    ("make_inputs", "warning"),
+    [
+        pytest.param(
+            _with_unparseable_scores,
+            "2 score value(s) could not be parsed as numeric and became missing.",
+            id="unparseable-scores",
+        ),
+        pytest.param(
+            _with_two_panelists_skipping_two_products,
+            "Panel is unbalanced: 7.1% of the full grid is missing (warning threshold 5%).",
+            id="moderately-unbalanced",
+        ),
+        pytest.param(
+            _with_a_missing_descriptor,
+            "Covariate table has 1 missing descriptor value(s).",
+            id="missing-descriptor",
+        ),
+    ],
+)
+def test_validate_warns_without_blocking(make_inputs, warning):
+    """Problems the relate can live with are reported as warnings, and validation still succeeds."""
+    panel, obs = make_inputs()
+    result = validate_descriptive(panel, obs, mode="observational")
+    assert result.ok, result.errors
+    assert warning in result.warnings
+
+
+def test_validate_covariates_indexed_by_product():
+    """Without a product column the index is the product label, stripped of stray spaces."""
+    obs = _obs().set_index("product")
+    obs.index = [f" {label} " for label in obs.index]
+    result = validate_descriptive(_panel(), obs, mode="observational")
+    assert result.ok, result.errors
+    assert result.covariates.index.name == "product"
+    assert set(result.covariates.index) == set(PRODUCTS)
+
+
+def test_a_validated_result_is_recognised_by_its_hash():
+    result = validate_descriptive(_panel(), _obs(), mode="observational")
+    assert is_validated(result.content_hash)
+    assert not is_validated("0" * 64)
 
 
 def test_content_hash_is_stable():
