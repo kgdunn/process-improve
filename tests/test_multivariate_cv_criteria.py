@@ -23,6 +23,7 @@ from process_improve.multivariate._cv_criteria import (
     _leading_count,
     _nipals_scores,
     _partition_splits,
+    _permutation_summary,
     _procrustes_scores,
     _score_correlation_null,
     _swapped_pairs,
@@ -152,6 +153,21 @@ def test_cv_anova_is_a_function_of_q2() -> None:
     assert np.all(np.isnan(_cv_anova_pvalues(q2, N=40, M=2)))
     # Degrees of freedom exhausted: undefined, not zero.
     assert np.isnan(_cv_anova_pvalues(np.array([0.5] * 5), N=10, M=1)[-1])
+
+
+def test_cv_anova_calls_a_perfect_prediction_significant() -> None:
+    """A Q2 of 1 leaves no residual for the F-ratio: its p-value is 0, not a division by zero."""
+    assert _cv_anova_pvalues(np.array([1.0, 0.5]), N=40, M=1)[0] == 0.0
+
+
+def test_permutation_summary_leaves_a_component_without_evidence_undefined() -> None:
+    """No observed statistic, or no finite null draw, gives a NaN p-value and threshold, not a number."""
+    null = np.array([[0.1, np.nan, 0.2], [0.3, np.nan, 0.1], [0.2, np.nan, 0.4]])
+    observed = np.array([0.25, 0.5, np.nan])
+    p_values, thresholds = _permutation_summary(null, observed, alpha=0.05)
+    assert p_values[0] == pytest.approx((1 + 1) / (3 + 1))  # one of three null draws beats 0.25
+    assert np.isnan(p_values[1:]).all()
+    assert np.isnan(thresholds[1:]).all()
 
 
 # --- Procrustes cross-validation ---------------------------------------------------------
@@ -404,6 +420,21 @@ def test_invalid_settings_raise(kwargs: dict, message: str) -> None:
     X, Y = _two_component_data(n=30)
     with pytest.raises(ValueError, match=message):
         compare_cv_criteria(X, Y, **kwargs)
+
+
+@pytest.mark.parametrize(
+    ("rows_x", "rows_y", "message"),
+    [
+        (30, 29, r"^X and Y must have the same number of rows; got 30 and 29\.$"),
+        (2, 2, r"^No components can be evaluated; the data or the folds are too small\.$"),
+    ],
+    ids=["y-one-row-short", "two-rows-in-two-folds"],
+)
+def test_data_that_cannot_be_cross_validated_is_refused(rows_x: int, rows_y: int, message: str) -> None:
+    """X and Y must pair up row for row, and each fold must keep enough rows to fit a component."""
+    X, Y = _two_component_data(n=30)
+    with pytest.raises(ValueError, match=message):
+        compare_cv_criteria(X.iloc[:rows_x], Y.iloc[:rows_y], cv=2)
 
 
 # --- Missing values ------------------------------------------------------------------------
