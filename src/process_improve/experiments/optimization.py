@@ -1293,8 +1293,6 @@ def _non_dominated(utilities: np.ndarray) -> np.ndarray:
     """Return a boolean mask of the rows no other row dominates (more is better)."""
     keep = np.ones(len(utilities), dtype=bool)
     for i, row in enumerate(utilities):
-        if not keep[i]:
-            continue
         # Strictly better somewhere, and no worse anywhere: that dominates row i.
         scale = np.maximum(np.abs(row), 1.0)
         better_or_equal = (utilities >= row - _PARETO_TOL * scale).all(axis=1)
