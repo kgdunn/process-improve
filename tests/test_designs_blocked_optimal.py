@@ -170,6 +170,22 @@ class TestTheBlockedDesign:
         assert result.metadata["blocking"]["method"] == "optimal_exchange"
         assert design["Block"].value_counts().tolist() == [8, 8]
 
+    def test_a_candidate_set(self) -> None:
+        """Runs chosen from a list are blocked too, and each selection names a row of the list."""
+        candidates = pd.DataFrame(
+            {"X0": [-1, 0, 1, -1, 0, 1, -1, 0, 1], "X1": [-1, -1, -1, 0, 0, 0, 1, 1, 1]},
+            index=[f"point_{i}" for i in range(9)],
+        )
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            result = generate_design(
+                _factors(2), "d_optimal", budget=12, n_blocks=2, model_type="quadratic", candidates=candidates
+            )
+        selected = result.metadata["selected_candidates"]
+        assert set(selected) <= set(candidates.index)
+        assert sum(selected.values()) == 12
+        assert result.design["Block"].value_counts().tolist() == [6, 6]
+
     def test_a_polished_design_keeps_its_blocks(self) -> None:
         """Six factors: the coarse grid is polished on a finer one, and the moves keep each run's block."""
         result = _blocked(6, 32, 2)
