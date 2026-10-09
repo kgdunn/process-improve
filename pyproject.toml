@@ -43,6 +43,9 @@ dependencies = [
     # node-limited stop differently and is not tested here.
     "scipy>=1.15",
     "statsmodels>=0.14.6",
+    # Already required by scikit-learn; declared because the REML fits of the
+    # sensory mixed assessor model run their small BLAS calls on one thread.
+    "threadpoolctl>=3.5.0",
     "tqdm>=4.67.1",
 ]
 
