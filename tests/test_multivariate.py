@@ -521,6 +521,21 @@ def test_mcuv_scaling(fixture_tablet_spectra_data: tuple[pd.DataFrame, np.ndarra
     assert pytest.approx(X_mcuv.std(), 1e-10) == 1
 
 
+def test_mcuv_round_trips_a_single_column_target_given_as_a_series_and_a_1d_array() -> None:
+    """A Series transforms as its one-column frame, and the 1-D array a regressor predicts inverts to that column."""
+    y = pd.Series([3.0, 5.0, 4.0, 8.0, 10.0], index=list("abcde"), name="yield")
+    scaler = MCUVScaler().fit(y)
+
+    scaled = scaler.transform(y)
+    pd.testing.assert_frame_equal(scaled, scaler.transform(y.to_frame()))
+    assert list(scaled.columns) == ["yield"]
+    assert list(scaled.index) == list("abcde")
+
+    restored = scaler.inverse_transform(scaled["yield"].to_numpy())
+    assert restored.shape == (5, 1)
+    np.testing.assert_allclose(restored["yield"].to_numpy(), y.to_numpy())
+
+
 def test_scale_ddof_matches_mcuvscaler() -> None:
     """``scale(center(X), ddof=1)`` must reproduce ``MCUVScaler`` (both use N-1)."""
     rng = np.random.default_rng(0)
