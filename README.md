@@ -39,18 +39,20 @@ your data never leave it.
 
 ## Ask a question, get one line of code and the chapter that explains it
 
-| You want to know | One call | Learn it in the free textbook |
-| --- | --- | --- |
-| Which design should I run? | `recommend_strategy(factors=factors, budget=30)` | [Comparing design families](https://learnche.org/pid/design-analysis-experiments/comparing-design-families) |
-| Which of my factors matter? | `generate_design(factors, design_type="dsd")` | [Definitive screening designs](https://learnche.org/pid/design-analysis-experiments/definitive-screening-designs) |
-| Which effects are real? | `analyze_experiment(design.design, responses)` | [Significance of effects](https://learnche.org/pid/design-analysis-experiments/full-factorial-designs/assessing-significance-of-main-effects-and-interactions) |
-| Which way is the optimum? | `optimize_responses([fit], method="steepest_ascent")` | [Response surface methods](https://learnche.org/pid/design-analysis-experiments/response-surface-methods) |
-| Is this observation normal? | `pca.diagnose(new).spe` | [Hotelling's T²](https://learnche.org/pid/latent-variable-modelling/principal-component-analysis/hotellings-t2-statistic) |
-| Which variable moved? | `pca.spe_contributions(new)` | [Contribution plots](https://learnche.org/pid/latent-variable-modelling/principal-component-analysis/latent-variable-contribution-plots) |
-| How sure is this prediction? | `pls.prediction_interval(new)` | [Projection to latent structures](https://learnche.org/pid/latent-variable-modelling/projection-to-latent-structures/index) |
-| Which recipe hits my target? | `model.invert(y_desired=20.9)` | [Using a PLS model backwards](https://learnche.org/pid/latent-variable-modelling/projection-to-latent-structures/pls-model-inversion-and-the-orthogonal-space) |
-| Is the process in control? | `ControlChart().calculate_limits(y)` | [Shewhart charts](https://learnche.org/pid/process-monitoring/shewhart-charts) |
-| Is this batch on track? | `BatchMonitor(model).fit(good).monitor(batch)` | [Batch process monitoring](https://learnche.org/pid/product-development-product-improvement/batch-process-monitoring) |
+Under each question is the chapter of the free textbook that explains the method.
+
+| You want to know | One call |
+| --- | --- |
+| **Which design should I run?**<br>[Comparing design families](https://learnche.org/pid/design-analysis-experiments/comparing-design-families) | `recommend_strategy(factors=factors, budget=30)` |
+| **Which of my factors matter?**<br>[Definitive screening designs](https://learnche.org/pid/design-analysis-experiments/definitive-screening-designs) | `generate_design(factors, design_type="dsd")` |
+| **Which effects are real?**<br>[Significance of effects](https://learnche.org/pid/design-analysis-experiments/full-factorial-designs/assessing-significance-of-main-effects-and-interactions) | `analyze_experiment(design.design, responses)` |
+| **Which way is the optimum?**<br>[Response surface methods](https://learnche.org/pid/design-analysis-experiments/response-surface-methods) | `optimize_responses([fit], method="steepest_ascent")` |
+| **Is this observation normal?**<br>[Hotelling's T²](https://learnche.org/pid/latent-variable-modelling/principal-component-analysis/hotellings-t2-statistic) | `pca.diagnose(new).spe` |
+| **Which variable moved?**<br>[Contribution plots](https://learnche.org/pid/latent-variable-modelling/principal-component-analysis/latent-variable-contribution-plots) | `pca.spe_contributions(new)` |
+| **How sure is this prediction?**<br>[Projection to latent structures](https://learnche.org/pid/latent-variable-modelling/projection-to-latent-structures/index) | `pls.prediction_interval(new)` |
+| **Which recipe hits my target?**<br>[Using a PLS model backwards](https://learnche.org/pid/latent-variable-modelling/projection-to-latent-structures/pls-model-inversion-and-the-orthogonal-space) | `model.invert(y_desired=20.9)` |
+| **Is the process in control?**<br>[Shewhart charts](https://learnche.org/pid/process-monitoring/shewhart-charts) | `ControlChart().calculate_limits(y)` |
+| **Is this batch on track?**<br>[Batch process monitoring](https://learnche.org/pid/product-development-product-improvement/batch-process-monitoring) | `BatchMonitor(model).fit(good).monitor(batch)` |
 
 Every Python example in the textbook, over 260 of them, runs in CI against the PyPI release
 of process-improve on each change to the book, so the code you read there is the code you
