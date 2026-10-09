@@ -7,12 +7,15 @@ return a JSON-friendly result dict (or `{"error": ...}` on failure).
 
 from __future__ import annotations
 
+import typing
+
 import pytest
 
 from process_improve.batch.tools import (
     _FEATURE_MAP,
     _TIME_FEATURE_MAP,
     ExtractBatchFeaturesInput,
+    _BatchFeatureName,
     get_batch_tool_specs,
 )
 from process_improve.batch.tools import extract_batch_features as _extract_batch_features
@@ -124,6 +127,27 @@ def test_extract_batch_features_unknown_feature_returns_error(
             value_columns=["temp"],
             features=["bogus"],
         )
+
+
+def test_the_feature_schema_lists_exactly_the_implemented_features() -> None:
+    """The pydantic Literal and the two dispatch maps name the same features, so validated input always dispatches."""
+    assert set(typing.get_args(_BatchFeatureName)) == set(_FEATURE_MAP) | set(_TIME_FEATURE_MAP)
+
+
+def test_extract_batch_features_unvalidated_unknown_feature_returns_error(two_batch_timeseries: list[dict]) -> None:
+    """A feature name that skipped validation is reported in-band, with the names that do exist."""
+    spec = ExtractBatchFeaturesInput.model_construct(
+        data=two_batch_timeseries, value_columns=["temp"], features=["bogus"], batch_column="batch", time_column=None
+    )
+    result = _extract_batch_features(spec)
+    available = sorted([*_FEATURE_MAP, *_TIME_FEATURE_MAP])
+    assert result == {"error": f"Unknown feature: 'bogus'. Available: {available}"}
+
+
+def test_extract_batch_features_with_no_features_returns_an_empty_matrix(two_batch_timeseries: list[dict]) -> None:
+    """An empty feature list is valid and extracts nothing, rather than failing on an empty concatenation."""
+    result = extract_batch_features(data=two_batch_timeseries, value_columns=["temp"], features=[])
+    assert result == {"feature_matrix": [], "n_batches": 0, "n_features": 0, "features_extracted": []}
 
 
 def test_extract_batch_features_bad_data_returns_error() -> None:
