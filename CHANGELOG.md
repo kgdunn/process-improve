@@ -91,8 +91,47 @@ those changes.
   K-optimal, mixture, split-plot and replicated designs are still blocked afterwards.
   When the block effects leave too few runs for the model, the budget is raised with a
   warning, and `metadata["budget_requested"]` records the budget asked for.
+- **`n_center_points` is the number of centre runs in the whole design, for every
+  design type: replicates no longer multiply it (#513).** `n_replicates` repeats the
+  other runs, so a 2^3 factorial with `n_center_points=3, n_replicates=2` has 19 runs,
+  3 at the centre, where it had 22 with 6. A CCD, Box-Behnken or DSD no longer
+  replicates its own centre runs either. The budget check and the automatic choice
+  of design count runs the same way. A replicated CCD's default ("orthogonal") axial
+  distance allows for its single centre runs, so its squares stay orthogonal;
+  `orthogonal_alpha` takes the number of axial replicates for it.
+- **A CCD with `n_blocks` is blocked by its cube and axial portions (#513).** It was
+  split by the generic exchange, which left the blocks correlated with the factors.
+  The axial runs are now a block of their own and the cube runs fill the others
+  (`n_blocks` of 2, 3, 5, ...), the cube split by confounding interactions as a
+  factorial is, each portion keeping its centre runs (Box and Hunter 1957). Without an
+  `alpha`, the CCD takes the axial distance at which the blocks are orthogonal to the
+  squares too (the new `blocking_alpha`, `alpha_rule` `"orthogonal_blocks"`): in two
+  blocks they are then orthogonal to every term of the quadratic model, and two
+  factors get `sqrt(2)`, as in Montgomery's textbook example.
+  `metadata["blocking"]["orthogonal"]` says whether they are, and a split that
+  confounds a two-factor interaction warns.
+- **Effects and Lenth's method give a square its coefficient, not twice it (#513).**
+  An effect is the change in response from the lowest to the highest value of its
+  coded model column: twice the coefficient for a main effect or an interaction, as
+  before, but the coefficient itself for a square such as `I(A**2)`, whose column runs
+  from 0 to 1. The coefficients themselves are unchanged.
 
 ### Fixed
+
+- **`c()` combines all its arguments, as R's `c()` does (#513).** An iterable replaced
+  the entries before it, so `c([1, 2], [3, 4])` gave `[3, 4]` and `c(1, [2, 3])` lost
+  the 1. A string or a tuple was dropped altogether: `c("Dry", "Wet", levels=...)`, the
+  docstring's own example, gave an empty column, and `c(0, 1, "green")` a numeric one.
+  `None` is now a missing value.
+- **An `Expt` or `Column` built directly, or by `pd.concat`, has its `pi_*` metadata
+  (#513).** It raised `AttributeError` from `repr()`, `get_title()` and the model
+  summary. The fields now default to `None`, `pd.concat` keeps a field all its inputs
+  agree on, and slicing a categorical column keeps its `pi_levels`.
+- **`lm` signs aliases correctly, and `alias_threshold=1.0` works (#513).** Signs came
+  from the raw dot product of the uncentred columns, so with A at 10 and 20,
+  `E = 30 - A` read as `+E`, and with 0/1 coding the sign was missing and the summary
+  raised `IndexError`. A threshold of 1 made every column an alias of the intercept.
+  Aliases now come from the correlations of the centred columns.
 
 - **A replicated split-plot design's `metadata["whole_plot"]` covers every run.** It
   listed the whole plots of one replicate only, so it was shorter than the design, and
