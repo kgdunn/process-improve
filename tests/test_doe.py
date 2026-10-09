@@ -146,8 +146,10 @@ def test_create_factors(structure_data) -> None:
     assert C6.pi_lo == 5
     assert C6.pi_range == (5, 6)
 
+    # "green" is an entry too (#513: it used to be dropped silently), so D is categorical.
     D = c(*(structure_data["D"]))
-    assert D.pi_numeric is True
+    assert list(D.values) == [0, 1, "green"]
+    assert D.pi_numeric is False
 
     assert len(y) == 6
     assert y.name == "conversion [%]"

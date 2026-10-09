@@ -221,6 +221,23 @@ def create_names(n: int, letters: bool = True, prefix: str = "X", start_at: int 
     return out
 
 
+def _entries(args: tuple) -> list:
+    """Return the entries of ``c()``'s arguments, in order.
+
+    A scalar or a string is one entry; any other iterable (list, tuple, array, Series)
+    contributes each of its elements, so ``c(1, [2, 3], (4,))`` has four entries.
+    """
+    entries: list = []
+    for arg in args:
+        if isinstance(arg, str | bytes) or not isinstance(arg, Iterable):
+            entries.append(arg)
+        elif isinstance(arg, np.ndarray):
+            entries.extend(arg.ravel().tolist())
+        else:
+            entries.extend(arg)
+    return entries
+
+
 def c(*args, **kwargs) -> Column:  # noqa: C901, PLR0912, PLR0915
     """
     Perform the equivalent of the R function "c(...)", to combine data elements
@@ -263,37 +280,15 @@ def c(*args, **kwargs) -> Column:  # noqa: C901, PLR0912, PLR0915
     M = c("Dry", "Wet", "Dry", "Wet", levels = ("Dry", "Wet"))
 
     """
-    sanitize: list | pd.Series = []
-    numeric = True
     override_coded = kwargs.get("coded")
-
-    if "levels" in kwargs:
-        numeric = False
-
-    for j in args:
-        if isinstance(j, Iterable):
-            if isinstance(j, np.ndarray):
-                sanitize = j.ravel().tolist()
-
-            if isinstance(j, pd.Series):
-                sanitize = j.copy()
-                if "index" not in kwargs:
-                    kwargs["index"] = sanitize.index
-
-            if isinstance(j, list):
-                sanitize = j.copy()
-
-            try:
-                sanitize = [float(j) for j in sanitize]
-            except ValueError:
-                numeric = False
-
-        else:
-            try:
-                sanitize.append(float(j))
-            except ValueError:
-                numeric = False
-                sanitize.append(j)
+    raw_values = _entries(args)
+    if len(args) == 1 and isinstance(args[0], pd.Series) and "index" not in kwargs:
+        kwargs["index"] = args[0].index
+    try:
+        sanitize = [np.nan if value is None else float(value) for value in raw_values]
+        numeric = "levels" not in kwargs
+    except (TypeError, ValueError):
+        sanitize, numeric = raw_values, False
 
     # Index creation
     default_idx = list(range(1, len(sanitize) + 1))
@@ -365,12 +360,6 @@ def c(*args, **kwargs) -> Column:  # noqa: C901, PLR0912, PLR0915
         if not isinstance(levels, Iterable):
             raise TypeError("Levels must be list or tuple of the unique level names.")
         levels_list = list(levels)
-        raw_values: list = []
-        for arg in args:
-            if isinstance(arg, str) or not isinstance(arg, Iterable):
-                raw_values.append(arg)
-            else:
-                raw_values.extend(list(arg))
         extras = {v for v in raw_values if not pd.isna(v)} - set(levels_list)
         if extras:
             raise ValueError(
@@ -378,10 +367,14 @@ def c(*args, **kwargs) -> Column:  # noqa: C901, PLR0912, PLR0915
             )
         out.pi_levels = {out.pi_name: levels_list}
     else:
-        # np.sort handles both ndarray (numeric columns) and pandas
-        # extension arrays (e.g. StringArray for categorical columns).
-        levels = np.sort(out.unique())
-        out.pi_levels = {out.pi_name: levels.tolist()}  # for use with Patsy
+        # np.sort handles both ndarray (numeric columns) and pandas extension arrays
+        # (e.g. StringArray for categorical columns); entries that mix numbers and
+        # text do not compare, so they sort by their text.
+        try:
+            levels = np.sort(out.unique()).tolist()
+        except TypeError:
+            levels = sorted(out.unique(), key=str)
+        out.pi_levels = {out.pi_name: levels}  # for use with Patsy
 
     units = kwargs.get("units", "")
     if units and not (out.pi_is_coded):

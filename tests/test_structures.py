@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import numpy as np
+import pandas as pd
 import pytest
 
 from process_improve.experiments.structures import c, create_names
@@ -71,3 +72,38 @@ class TestColumnConstruction:
     def test_non_iterable_range_raises_type_error(self) -> None:
         with pytest.raises(TypeError, match="iterable"):
             c(1, 2, 3, 4, range=99)
+
+    @pytest.mark.parametrize(
+        ("args", "expected"),
+        [
+            (([1, 2], [3, 4]), [1.0, 2.0, 3.0, 4.0]),
+            ((1, [2, 3]), [1.0, 2.0, 3.0]),
+            (((1, 2), np.array([[3.0], [4.0]])), [1.0, 2.0, 3.0, 4.0]),
+        ],
+    )
+    def test_concatenates_every_argument(self, args: tuple, expected: list) -> None:
+        """Like R's c(), each argument adds its entries; none replaces the earlier ones (#513)."""
+        assert list(c(*args).values) == expected
+
+    def test_strings_are_entries_not_iterables(self) -> None:
+        """Each string is one entry, with or without levels (it used to give an empty column)."""
+        assert list(c("Dry", "Wet", "Dry").values) == ["Dry", "Wet", "Dry"]
+        moisture = c("Dry", "Wet", "Dry", levels=("Dry", "Wet"))
+        assert list(moisture.values) == ["Dry", "Wet", "Dry"]
+        assert moisture.pi_levels[moisture.pi_name] == ["Dry", "Wet"]
+
+    def test_a_single_series_keeps_its_index(self) -> None:
+        col = c(pd.Series([5, 6], index=["a", "b"]))
+        assert list(col.index) == ["a", "b"]
+        assert list(col.values) == [5.0, 6.0]
+
+    def test_a_missing_value_keeps_the_column_numeric(self) -> None:
+        """``None`` is a missing value, as NaN is."""
+        col = c(1, None, 3)
+        assert col.pi_numeric
+        np.testing.assert_array_equal(col.values, [1.0, np.nan, 3.0])
+
+    def test_numbers_and_text_make_a_categorical_column(self) -> None:
+        col = c(0, 1, "green")
+        assert not col.pi_numeric
+        assert col.pi_levels[col.pi_name] == [0, 1, "green"]
