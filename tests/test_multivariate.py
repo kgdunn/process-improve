@@ -21,7 +21,7 @@ from sklearn.base import clone
 from sklearn.cross_decomposition import PLSRegression
 from sklearn.exceptions import NotFittedError
 from sklearn.metrics import mean_squared_error, r2_score
-from sklearn.model_selection import KFold, LeaveOneOut, PredefinedSplit, cross_val_score
+from sklearn.model_selection import BaseCrossValidator, KFold, LeaveOneOut, PredefinedSplit, cross_val_score
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import StandardScaler
 from sklearn.utils import Bunch
@@ -2084,6 +2084,30 @@ def test_pls_nested_cv_refuses_when_no_held_out_row_is_predicted() -> None:
         X.iloc[row, row % 4] = np.nan
     with pytest.raises(RuntimeError, match=r"^Nested CV produced no covered observations; check the outer splitter\.$"):
         PLS.nested_cv(X, y, outer_cv=5, **_PLS_QUICK_NESTED)
+
+
+class _TrainsOnEverythingTestsNothing(BaseCrossValidator):
+    """A splitter of two folds that each train on every row and hold out none."""
+
+    def get_n_splits(self, X: object = None, y: object = None, groups: object = None) -> int:  # noqa: ARG002
+        return 2
+
+    def _iter_test_indices(self, X: object = None, y: object = None, groups: object = None):  # noqa: ARG002
+        yield from (np.array([], dtype=int), np.array([], dtype=int))
+
+
+def test_pls_select_n_components_refuses_folds_that_score_no_rows() -> None:
+    """Folds that hold out no rows leave no prediction error to judge, so nothing is recommended."""
+    X, y = _pls_ten_rows()
+    # With no held-out rows the RMSECV is 0 / 0: that NaN is the condition under test.
+    with (
+        np.errstate(invalid="ignore"),
+        pytest.warns(SpecificationWarning, match=r"scale_inside_folds=False leaks"),
+        pytest.raises(RuntimeError, match=r"^Cross-validation produced NaN total-RMSECV for every component count"),
+    ):
+        PLS.select_n_components(
+            X, y, cv=_TrainsOnEverythingTestsNothing(), scale_inside_folds=False, max_components=2, n_permutations=19
+        )
 
 
 @pytest.fixture
