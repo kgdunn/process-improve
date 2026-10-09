@@ -90,7 +90,10 @@ def spe_limit(model: BaseEstimator, conf_level: float = 0.95) -> float:
     Returns
     -------
     float
-        The squared prediction error limit at the given level of confidence.
+        The SPE limit at the requested confidence level, on the same square-root
+        scale as entries of ``model.spe_`` (see :func:`spe_calculation` for the
+        chi-square approximation underlying it). Compare an observation's
+        ``spe_`` value directly against the returned limit.
     """
     check_is_fitted(model, "spe_")
 
@@ -243,15 +246,18 @@ def ellipse_coordinates(  # noqa: PLR0913
     n_points : int, optional
         Number of points to use in the ellipse; by default 100.
     n_components : int
-        Number of components `A` in the fitted model. Required to look up the
-        Hotelling's T^2 limit and to bound `score_horiz`/`score_vert`.
+        Number of components `A` in the fitted model. Used to bound
+        `score_horiz`/`score_vert` to a valid component index. The Hotelling's
+        T^2 limit for the ellipse itself is computed with 2 degrees of freedom
+        regardless of `A`, since the ellipse is the joint confidence region for
+        the two plotted scores (see Background below).
     scaling_factor_for_scores : pd.Series
         Per-component standard deviations of the scores (``model.scaling_factor_for_scores_``).
         Required, although the signature defaults to ``None``; omitting it fails.
         Used to scale the ellipse axes.
     n_rows : int
         Number of rows `N` in the data used to fit the model. Required to compute the
-        Hotelling's T^2 limit; must be strictly positive.
+        Hotelling's T^2 limit on 2 and ``N - 2`` degrees of freedom; must be strictly positive.
 
     Returns
     -------
