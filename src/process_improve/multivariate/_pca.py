@@ -740,6 +740,38 @@ def _eastment_krzanowski_press(
     return press, per_column_press, float(np.sum(X**2)), np.sum(X**2, axis=0)
 
 
+def _resolve_ekf_aliases(
+    *, n_iter: int | None, tol: float | None, ekf_max_iter: int, ekf_tol: float
+) -> tuple[int, float]:
+    """Map ``select_n_components``' deprecated ``n_iter`` / ``tol`` onto the ekf names (#588).
+
+    ``n_iter`` and ``tol`` named the ekf EM loop's cap and tolerance. They are now
+    ``ekf_max_iter`` and ``ekf_tol``, so that ``tol`` and ``max_iter`` mean the
+    estimator's own per-component loop everywhere in the package. A ``None`` default
+    tells an explicit pass from an absent one, and an explicit one still wins so
+    existing calls keep their behaviour.
+
+    Returns
+    -------
+    tuple[int, float]
+        The ``(ekf_max_iter, ekf_tol)`` the fold loop should use.
+    """
+    for old_name, old_value, new_name in (("n_iter", n_iter, "ekf_max_iter"), ("tol", tol, "ekf_tol")):
+        if old_value is None:
+            continue
+        warnings.warn(
+            f"PCA.select_n_components({old_name}=...) is deprecated since 1.98.0 "
+            f"and will be removed in 2.0; use {new_name}={old_value!r} instead. "
+            f"It was renamed because PCA itself now has tol and max_iter for its "
+            f"per-component loop, which is a different loop from the ekf "
+            f"imputation EM this bounds.",
+            DeprecationWarning,
+            # 1 is this helper, 2 is select_n_components, 3 is the caller's own line.
+            stacklevel=3,
+        )
+    return (ekf_max_iter if n_iter is None else n_iter), (ekf_tol if tol is None else tol)
+
+
 class PCA(_LatentVariableModel, TransformerMixin, BaseEstimator):
     """Principal Component Analysis with support for missing data.
 
@@ -1868,7 +1900,7 @@ class PCA(_LatentVariableModel, TransformerMixin, BaseEstimator):
 
             ``"ek"``, ``"sacv"`` and ``"gcv"`` factorise the matrix directly,
             so they raise on a block with missing cells and they ignore
-            ``scale_inside_folds``, ``n_repeats``, ``n_iter`` and ``tol``.
+            ``scale_inside_folds``, ``n_repeats``, ``ekf_max_iter`` and ``ekf_tol``.
             They also report no per-fold spread, so ``selection_rule="1se"``
             has nothing to work with; ``"min"`` takes the global optimum,
             where ``FactoMineR`` instead stops at the first local worsening,
@@ -2043,30 +2075,7 @@ class PCA(_LatentVariableModel, TransformerMixin, BaseEstimator):
                 stacklevel=2,
             )
 
-        # ``n_iter`` and ``tol`` named the ekf EM loop's cap and tolerance. They are
-        # now ``ekf_max_iter`` and ``ekf_tol``, so that ``tol`` and ``max_iter`` mean
-        # the estimator's own per-component loop everywhere in the package (#588).
-        # A sentinel default distinguishes an explicit pass from an absent one, and an
-        # explicit one still wins so existing calls keep their behaviour.
-        for old_name, old_value, new_name in (
-            ("n_iter", n_iter, "ekf_max_iter"),
-            ("tol", tol, "ekf_tol"),
-        ):
-            if old_value is None:
-                continue
-            warnings.warn(
-                f"PCA.select_n_components({old_name}=...) is deprecated since 1.98.0 "
-                f"and will be removed in 2.0; use {new_name}={old_value!r} instead. "
-                f"It was renamed because PCA itself now has tol and max_iter for its "
-                f"per-component loop, which is a different loop from the ekf "
-                f"imputation EM this bounds.",
-                DeprecationWarning,
-                stacklevel=2,
-            )
-        if n_iter is not None:
-            ekf_max_iter = n_iter
-        if tol is not None:
-            ekf_tol = tol
+        ekf_max_iter, ekf_tol = _resolve_ekf_aliases(n_iter=n_iter, tol=tol, ekf_max_iter=ekf_max_iter, ekf_tol=ekf_tol)
 
         if not isinstance(X, pd.DataFrame):
             X = pd.DataFrame(X)
