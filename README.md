@@ -14,8 +14,6 @@ variable moved, and how sure am I?*
 [![Python versions](https://img.shields.io/python/required-version-toml?tomlFilePath=https%3A%2F%2Fraw.githubusercontent.com%2Fkgdunn%2Fprocess-improve%2Fmain%2Fpyproject.toml&label=python)](https://pypi.org/project/process-improve/)
 [![Downloads](https://static.pepy.tech/badge/process-improve)](https://pepy.tech/project/process-improve)
 [![Downloads per month](https://static.pepy.tech/badge/process-improve/month)](https://pepy.tech/project/process-improve)
-[![CI](https://github.com/kgdunn/process-improve/actions/workflows/run-tests.yml/badge.svg?branch=main&event=push)](https://github.com/kgdunn/process-improve/actions/workflows/run-tests.yml?query=branch%3Amain)
-[![codecov](https://codecov.io/gh/kgdunn/process-improve/branch/main/graph/badge.svg)](https://codecov.io/gh/kgdunn/process-improve)
 [![Docs](https://img.shields.io/badge/docs-kgdunn.github.io-blue.svg)](https://kgdunn.github.io/process-improve/)
 [![License](https://img.shields.io/pypi/l/process-improve.svg)](https://github.com/kgdunn/process-improve/blob/main/LICENSE)
 
@@ -37,6 +35,16 @@ package inside your browser tab (Pyodide / WebAssembly). Design an experiment, d
 run sheet, fill in your results and upload it again: the analysis runs on your machine, and
 your data never leave it.
 
+## Learn the methods
+
+- **Free textbook:** [Process Improvement using Data](https://learnche.org/pid), the
+  companion to this package, from data visualization to latent-variable models, designed
+  experiments and process monitoring.
+- **API reference and user guide:** <https://kgdunn.github.io/process-improve/>
+- **Applied DoE tutorial (8 modules):** <https://kgdunn.github.io/process-improve/applied_doe/index.html>
+- **Every design family and its `design_type`:** <https://kgdunn.github.io/process-improve/user_guide/doe_coverage.html>
+- **Fully worked quickstart:** <https://kgdunn.github.io/process-improve/quickstart.html>
+
 ## Ask a question, get one line of code and the chapter that explains it
 
 Under each question is the chapter of the free textbook that explains the method.
@@ -54,10 +62,6 @@ Under each question is the chapter of the free textbook that explains the method
 | **Is the process in control?**<br>[Shewhart charts](https://learnche.org/pid/process-monitoring/shewhart-charts) | `ControlChart().calculate_limits(y)` |
 | **Is this batch on track?**<br>[Batch process monitoring](https://learnche.org/pid/product-development-product-improvement/batch-process-monitoring) | `BatchMonitor(model).fit(good).monitor(batch)` |
 
-Every Python example in the textbook, over 260 of them, runs in CI against the PyPI release
-of process-improve on each change to the book, so the code you read there is the code you
-can run.
-
 ## Designed experiments in one call
 
 ```python
@@ -73,8 +77,8 @@ print(design.n_runs)  # 9
 run_sheet = design.design_actual  # in your units, ready to run
 ```
 
-Change `design_type` and the same call builds any of these, each checked against its
-published definition by a [conformance test](https://kgdunn.github.io/process-improve/user_guide/doe_coverage.html).
+Change `design_type` and the same call builds any of these, each true to its
+[published definition](https://kgdunn.github.io/process-improve/user_guide/doe_coverage.html).
 Leave `design_type` out and give a `budget`, and one is chosen for you.
 
 <a href="https://kgdunn.github.io/process-improve/user_guide/doe_coverage.html"><picture>
@@ -103,8 +107,7 @@ print([(stage["design_type"], stage["estimated_runs"]) for stage in strategy["st
 
 The examples below use measurements from a low-density polyethylene reactor: 54 runs,
 14 process variables and 5 quality measurements of the polymer. The last four runs come
-from a process upset. Each block runs as it is, in order, and CI checks the numbers in
-the comments.
+from a process upset. Paste the blocks in order and you get the numbers in the comments.
 
 ### Is this observation normal, and which variable moved?
 
@@ -265,9 +268,7 @@ Requires Python 3.10 or newer. The core install pulls in `numpy`, `pandas`, `sci
 `scikit-learn`, `statsmodels`, `patsy`, `pydantic`, `pyyaml`, `threadpoolctl` and `tqdm`.
 Heavier optional surfaces (plotting, Taguchi arrays, batch IO, the MCP server, numba JIT)
 live in extras, so a caller who only needs, say, `detect_multivariate_outliers` does not have
-to install Plotly or numba. CI also runs the whole test suite on free-threaded CPython 3.14
-(`python3.14t`) with the GIL off; on that build, pandas 2.x turns the GIL back on when it is
-imported unless `PYTHON_GIL=0` is set, as the CI job does.
+to install Plotly or numba.
 
 ## Use it from Claude
 
@@ -285,16 +286,6 @@ fractional factorial will often return one that looks right and is a lower resol
 it claims. See [`skills/README.md`](https://github.com/kgdunn/process-improve/blob/main/skills/README.md)
 for the other install routes (local folder, claude.ai upload) and for the MCP server, which
 exposes the same tool registry without the workflow guidance.
-
-## Learn the methods
-
-- **Free textbook:** [Process Improvement using Data](https://learnche.org/pid), the
-  companion to this package, from data visualization to latent-variable models, designed
-  experiments and process monitoring.
-- **API reference and user guide:** <https://kgdunn.github.io/process-improve/>
-- **Applied DoE tutorial (8 modules):** <https://kgdunn.github.io/process-improve/applied_doe/index.html>
-- **Design families and how each one is checked:** <https://kgdunn.github.io/process-improve/user_guide/doe_coverage.html>
-- **Fully worked quickstart:** <https://kgdunn.github.io/process-improve/quickstart.html>
 
 ## Citing process-improve
 
@@ -317,12 +308,9 @@ specific version.
 
 ## Contributing
 
-Bug reports, feature requests and pull requests are welcome. See
-[CONTRIBUTING.md](https://github.com/kgdunn/process-improve/blob/main/CONTRIBUTING.md) for
-development setup, testing and code style, and the
-[architecture overview](https://kgdunn.github.io/process-improve/architecture.html) for a map
-of the codebase. Bugs and feature requests go on the
-[issue tracker](https://github.com/kgdunn/process-improve/issues).
+Bug reports and feature requests go on the
+[issue tracker](https://github.com/kgdunn/process-improve/issues). To contribute code, start
+with [CONTRIBUTING.md](https://github.com/kgdunn/process-improve/blob/main/CONTRIBUTING.md).
 
 ## License
 
