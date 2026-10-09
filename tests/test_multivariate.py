@@ -785,6 +785,14 @@ def test_pca_score() -> None:
     assert s2_np == pytest.approx(s2, abs=1e-12)
 
 
+def test_pca_score_refuses_a_1d_row() -> None:
+    """score() takes a 2-D X, as transform() does: a bare 1-D row is refused, not reshaped."""
+    X = pd.DataFrame(np.random.default_rng(0).standard_normal((20, 4)))
+    model = PCA(n_components=2).fit(X)
+    with pytest.raises(ValueError, match=r"Expected 2D array, got 1D array instead"):
+        model.score(X.iloc[0].to_numpy())
+
+
 def test_pca_select_n_components() -> None:
     """Test PRESS-based component selection on synthetic data with known structure."""
     rng = np.random.default_rng(77)

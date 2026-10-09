@@ -1608,12 +1608,10 @@ class PCA(_LatentVariableModel, TransformerMixin, BaseEstimator):
         >>> print(f"Mean CV score: {scores.mean():.4f}")
         """
         check_is_fitted(self, "loadings_")
-        # transform() runs validate_data; build a DataFrame view here for
-        # the residual computation that matches its shape.
+        # transform() runs validate_data, which refuses anything but a 2-D X, so the
+        # array taken here for the residual computation already has the right shape.
         scores = self.transform(X)
         X_arr = np.asarray(X, dtype=float)
-        if X_arr.ndim == 1:
-            X_arr = X_arr.reshape(1, -1)
         X_hat = scores.values @ self._loadings.T
         residuals = X_arr - X_hat
         return -float(np.mean(residuals**2))
