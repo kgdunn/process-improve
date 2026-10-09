@@ -337,6 +337,7 @@ def build_design_result(  # noqa: PLR0913
     is_actual: bool = False,
     n_leading_fixed: int = 0,
     randomize: bool = True,
+    center_rows: np.ndarray | None = None,
 ) -> DesignResult:
     """Post-process a raw design matrix into a complete DesignResult.
 
@@ -359,9 +360,10 @@ def build_design_result(  # noqa: PLR0913
     design_type : str
         Name of the design type.
     n_center_points : int
-        Number of center point replicates to add.
+        Number of centre runs to append, once: they are not replicated.
     n_replicates : int
-        Number of full replicates.
+        Number of replicates of the design's runs, centre runs excepted, so a
+        replicated design has the centre runs asked for, not that many per replicate.
     n_blocks : int or None
         Number of blocks (None = no blocking).
     random_state : int, numpy.random.Generator or None
@@ -389,6 +391,9 @@ def build_design_result(  # noqa: PLR0913
     randomize : bool
         When ``False`` the run order of *coded_matrix* is kept (for designs whose
         run order is part of the solution, e.g. split-plot optimal designs).
+    center_rows : np.ndarray or None
+        Boolean mask of the rows of *coded_matrix* that are centre runs the design
+        built in (a CCD's, a DSD's). Like the appended ones, they are not replicated.
 
     Returns
     -------
@@ -409,11 +414,13 @@ def build_design_result(  # noqa: PLR0913
             "that were already made. Replicate the new runs by raising the budget instead."
         )
 
-    # 1. Add center points (only for coded designs)
-    matrix = add_center_points(coded_matrix, n_center_points, factors) if not is_actual else coded_matrix
-
-    # 2. Replicate
-    matrix = replicate_design(matrix, n_replicates)
+    # 1. Replicate the runs, then add the centre runs once: n_center_points counts the
+    #    centre runs of the whole design, and a design's own centre runs are not
+    #    replicated either.
+    own = np.zeros(len(coded_matrix), dtype=bool) if center_rows is None else np.asarray(center_rows, dtype=bool)
+    matrix = np.vstack([replicate_design(coded_matrix[~own], n_replicates), coded_matrix[own]])
+    if not is_actual:
+        matrix = add_center_points(matrix, n_center_points, factors)
 
     n_runs = matrix.shape[0]
 

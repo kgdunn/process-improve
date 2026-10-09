@@ -555,6 +555,64 @@ class TestCCD:
 # ---------------------------------------------------------------------------
 
 
+class TestCentreRunsAndReplicates:
+    """``n_center_points`` counts the centre runs of the whole design; replicates repeat the other runs (#513)."""
+
+    @staticmethod
+    def _centre_runs(result, names: str) -> int:
+        coded = result.design[list(names)].to_numpy(dtype=float)
+        return int(np.all(np.isclose(coded, 0.0), axis=1).sum())
+
+    def test_a_replicated_factorial_keeps_its_centre_runs(self) -> None:
+        result = generate_design(_continuous_factors(3, "ABC"), "full_factorial", n_center_points=3, n_replicates=2)
+        assert result.n_runs == 2 * 8 + 3
+        assert self._centre_runs(result, "ABC") == 3
+
+    @pytest.mark.parametrize("design_type", ["ccd", "box_behnken", "dsd"])
+    def test_designs_with_centre_runs_of_their_own(self, design_type: str) -> None:
+        once = generate_design(_continuous_factors(3, "ABC"), design_type, n_center_points=3)
+        twice = generate_design(_continuous_factors(3, "ABC"), design_type, n_center_points=3, n_replicates=2)
+        assert self._centre_runs(twice, "ABC") == self._centre_runs(once, "ABC") == 3
+        assert twice.n_runs == 2 * (once.n_runs - 3) + 3
+
+    @pytest.mark.parametrize(("cube", "names"), [("full", "ABC"), ("fractional", "ABCDE")])
+    def test_a_replicated_ccd_keeps_its_squares_orthogonal(self, cube: str, names: str) -> None:
+        """The orthogonal axial distance allows for replicated cube and axial runs but single centre runs."""
+        result = generate_design(
+            _continuous_factors(len(names), names), "ccd", cube=cube, n_center_points=3, n_replicates=2
+        )
+        squares = result.design[list(names)].to_numpy(dtype=float) ** 2
+        correlation = np.corrcoef((squares - squares.mean(axis=0)).T)
+        np.testing.assert_allclose(correlation[np.triu_indices(len(names), 1)], 0.0, atol=1e-12)
+
+    def test_the_budget_counts_centre_runs_once(self) -> None:
+        assert generate_design(_continuous_factors(3, "ABC"), "full_factorial", budget=19, n_replicates=2).n_runs == 19
+        with pytest.raises(ValueError, match="budget"):
+            generate_design(_continuous_factors(3, "ABC"), "full_factorial", budget=18, n_replicates=2)
+
+
+class TestOrthogonalAlpha:
+    """The axial distance that makes a CCD's squared columns orthogonal."""
+
+    def test_a_design_replicated_whole_keeps_its_alpha(self) -> None:
+        from process_improve.experiments.designs_response_surface import orthogonal_alpha
+
+        assert orthogonal_alpha(16, 34, n_axial_replicates=2) == pytest.approx(orthogonal_alpha(8, 17))
+
+    @pytest.mark.parametrize(("replicates", "n_center"), [(1, 3), (2, 3), (3, 1)])
+    def test_it_makes_the_squares_orthogonal(self, replicates: int, n_center: int) -> None:
+        from process_improve.experiments.designs_response_surface import orthogonal_alpha
+
+        cube = np.array([[a, b] for a in (-1.0, 1.0) for b in (-1.0, 1.0)])
+        n_runs = replicates * (4 + 4) + n_center
+        alpha = orthogonal_alpha(replicates * 4, n_runs, n_axial_replicates=replicates)
+        star = np.array([[-alpha, 0], [alpha, 0], [0, -alpha], [0, alpha]])
+        runs = np.vstack([np.tile(np.vstack([cube, star]), (replicates, 1)), np.zeros((n_center, 2))])
+        squares = runs**2
+        centred = squares - squares.mean(axis=0)
+        assert centred[:, 0] @ centred[:, 1] == pytest.approx(0.0, abs=1e-12)
+
+
 class TestDSD:
     """Test Definitive Screening Design."""
 

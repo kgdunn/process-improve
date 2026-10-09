@@ -30,6 +30,7 @@ def dispatch_ccd(  # noqa: PLR0913
     cube: str = "full",
     generators: list[str] | None = None,
     resolution: int | None = None,
+    n_replicates: int = 1,
 ) -> tuple[np.ndarray, dict]:
     """Generate a Central Composite Design (CCD).
 
@@ -58,6 +59,9 @@ def dispatch_ccd(  # noqa: PLR0913
     resolution : int or None
         Desired minimum cube resolution, used only when ``cube="fractional"``
         and *generators* is not given.
+    n_replicates : int
+        How many times the cube and axial runs will be replicated (the centre runs
+        are not), which the orthogonal axial distance depends on.
 
     Returns
     -------
@@ -83,7 +87,17 @@ def dispatch_ccd(  # noqa: PLR0913
     if len(factors) < 2:
         raise ValueError(f"A central composite design needs at least 2 factors, got {len(factors)}.")
     if cube == "fractional":
-        return _dispatch_ccd_fractional(factors, n_center_points, alpha, generators, resolution)
+        cube_runs, cube_meta = _fractional_cube(factors, generators, resolution)
+        axial_distance, rule = _resolve_fractional_axial_distance(
+            alpha, len(cube_runs), len(factors), n_center_points, n_replicates
+        )
+        coded_matrix = _stack_ccd(cube_runs, axial_distance, n_center_points)
+        return coded_matrix, {
+            "alpha_value": axial_distance,
+            "face": _geometry(axial_distance),
+            "alpha_rule": rule,
+            **cube_meta,
+        }
     if cube != "full":
         raise ValueError(f"cube must be 'full' or 'fractional', got {cube!r}.")
 
@@ -91,7 +105,8 @@ def dispatch_ccd(  # noqa: PLR0913
     kind = _axial_kind(alpha)
     rule = _ALPHA_NAMES[kind][0] if isinstance(kind, str) else "user"
     if kind == "orthogonal":
-        kind = orthogonal_alpha(2**k, 2**k + 2 * k + n_center_points)
+        r = n_replicates
+        kind = orthogonal_alpha(r * 2**k, r * (2**k + 2 * k) + n_center_points, n_axial_replicates=r)
     # Centre runs are split between the cube and axial blocks, as ccdesign does.
     n_center_cube = n_center_points // 2
     n_center_axial = n_center_points - n_center_cube
@@ -99,10 +114,7 @@ def dispatch_ccd(  # noqa: PLR0913
     if isinstance(kind, float):
         # An axial distance ccdesign cannot take: build the 2^k cube, the 2k axial runs and the centre runs here.
         cube_runs = np.array(list(itertools.product((-1.0, 1.0), repeat=k)))[:, ::-1]
-        star = np.zeros((2 * k, k))
-        for i in range(k):
-            star[2 * i : 2 * i + 2, i] = (-kind, kind)
-        coded_matrix = np.vstack([cube_runs, np.zeros((n_center_cube, k)), star, np.zeros((n_center_axial, k))])
+        coded_matrix = _stack_ccd(cube_runs, kind, n_center_points)
         return coded_matrix, {"alpha_value": kind, "face": _geometry(kind), "alpha_rule": rule}
 
     face = {"faced": "faced", "inscribed": "inscribed"}.get(kind, "circumscribed")
@@ -121,28 +133,37 @@ def _geometry(alpha: float) -> str:
     return "faced" if np.isclose(alpha, 1.0) else "circumscribed"
 
 
-def orthogonal_alpha(n_cube_runs: int, n_runs: int) -> float:
+def orthogonal_alpha(n_cube_runs: int, n_runs: int, n_axial_replicates: int = 1) -> float:
     """Axial distance that makes the quadratic columns of a central composite design mutually orthogonal.
 
-    ``alpha = (F * (sqrt(N) - sqrt(F)) ** 2 / 4) ** (1 / 4)`` for ``F`` cube runs and ``N``
-    runs in all, centre runs included (Box and Hunter 1957; Myers, Montgomery and
-    Anderson-Cook, *Response Surface Methodology*, section 7.4). With it the centred
-    squared columns are orthogonal, so the quadratic coefficients are estimated
-    independently of one another.
+    ``alpha = (F * (sqrt(N) - sqrt(F)) ** 2 / (4 * s ** 2)) ** (1 / 4)`` for ``F`` cube runs,
+    each axial point run ``s`` times, and ``N`` runs in all, centre runs included (Box and
+    Hunter 1957; Myers, Montgomery and Anderson-Cook, *Response Surface Methodology*,
+    section 7.4, for ``s = 1``). With it the centred squared columns are orthogonal, so the
+    quadratic coefficients are estimated independently of one another.
+
+    The squares of two factors are both non-zero only on the cube runs, so their
+    product sums to ``F``; each has the sum ``F + 2 s alpha**2``; the centred columns
+    are orthogonal when ``F N = (F + 2 s alpha**2) ** 2``. A design replicated whole
+    (``F``, ``s`` and ``N`` all times ``r``) keeps its alpha; one whose centre runs are
+    not replicated has relatively fewer of them, and a smaller alpha.
 
     Parameters
     ----------
     n_cube_runs : int
-        Runs in the cube (factorial) portion, full or fractional.
+        Runs in the cube (factorial) portion, full or fractional, replicates included.
     n_runs : int
-        Every run of the design: cube, ``2k`` axial runs and centre runs.
+        Every run of the design: cube, axial and centre runs.
+    n_axial_replicates : int
+        How many times each of the ``2k`` axial points is run.
 
     Returns
     -------
     float
         The axial distance in coded units.
     """
-    return float((n_cube_runs * (np.sqrt(n_runs) - np.sqrt(n_cube_runs)) ** 2 / 4) ** 0.25)
+    gap = np.sqrt(n_runs) - np.sqrt(n_cube_runs)
+    return float((n_cube_runs * gap**2 / (4 * n_axial_replicates**2)) ** 0.25)
 
 
 #: Accepted spellings of each named axial distance.
@@ -182,6 +203,7 @@ def _resolve_fractional_axial_distance(
     n_cube_runs: int,
     k: int,
     n_center_points: int,
+    n_replicates: int = 1,
 ) -> tuple[float, str]:
     """Axial (star-point) distance for a fractional-cube CCD.
 
@@ -201,6 +223,8 @@ def _resolve_fractional_axial_distance(
     n_center_points : int
         Total number of center points, which count towards the run total in
         :func:`orthogonal_alpha`.
+    n_replicates : int
+        How many times the cube and axial runs will be replicated (the centre runs are not).
 
     Returns
     -------
@@ -220,89 +244,66 @@ def _resolve_fractional_axial_distance(
             "use 'face_centered', 'rotatable', 'orthogonal', or a numeric alpha."
         )
 
-    return orthogonal_alpha(n_cube_runs, n_cube_runs + 2 * k + n_center_points), "orthogonal"
+    r = n_replicates
+    total = r * (n_cube_runs + 2 * k) + n_center_points
+    return orthogonal_alpha(r * n_cube_runs, total, n_axial_replicates=r), "orthogonal"
 
 
-def _dispatch_ccd_fractional(
-    factors: list[Factor],
-    n_center_points: int,
-    alpha: str | float | None,
-    generators: list[str] | None,
-    resolution: int | None,
+def _fractional_cube(
+    factors: list[Factor], generators: list[str] | None, resolution: int | None
 ) -> tuple[np.ndarray, dict]:
-    """Build a CCD whose cube portion is a resolution-V fractional factorial.
+    """Build the resolution-V (or higher) fractional factorial cube of a CCD.
 
     The cube is generated by reusing
-    :func:`process_improve.experiments.designs_screening.dispatch_fractional_factorial`,
-    then the axial (star) runs and the center runs are stacked on top.
-
-    Parameters
-    ----------
-    factors : list[Factor]
-        Continuous factors (at least 3).
-    n_center_points : int
-        Total number of center runs (added once, not split).
-    alpha : str, float, or None
-        Axial distance specification; see
-        :func:`_resolve_fractional_axial_distance`.
-    generators : list[str] or None
-        Explicit cube generators.  When omitted, a minimum-aberration
-        half-fraction (last factor = product of all the others) is used.
-    resolution : int or None
-        Desired minimum cube resolution; used only when *generators* is None.
+    :func:`process_improve.experiments.designs_screening.dispatch_fractional_factorial`.
+    Without *generators* or *resolution*, it is the minimum-aberration half-fraction (the
+    last factor the product of all the others).
 
     Returns
     -------
     tuple[np.ndarray, dict]
-        Coded design matrix and metadata, including ``alpha_value``,
-        ``generators_used``, ``defining_relation``, and ``resolution``.
+        The cube runs, and ``cube``, ``generators_used``, ``defining_relation`` and
+        ``resolution`` for the metadata.
+
+    Raises
+    ------
+    ValueError
+        For fewer than 3 factors, or a cube of resolution below V.
     """
     from process_improve.experiments.designs_screening import dispatch_fractional_factorial  # noqa: PLC0415
 
-    k = len(factors)
-    if k < 3:
+    if len(factors) < 3:
         raise ValueError("A fractional-cube CCD requires at least 3 factors; use cube='full' for fewer.")
-
     factor_names = [f.name for f in factors]
-
     if generators is None and resolution is None:
-        # Minimum-aberration half-fraction: last factor = product of all the others.
         generators = [f"{factor_names[-1]}={''.join(factor_names[:-1])}"]
-
     cube, frac_meta = dispatch_fractional_factorial(factors, resolution=resolution, generators=generators)
-    n_cube_runs = cube.shape[0]
-
-    # Record the cube's generators, defining relation (signed), and (true) resolution.
-    used_generators = frac_meta.get("generators_used") or generators
     res = frac_meta.get("resolution")
-    defining_relation: list[str] | None = frac_meta.get("defining_relation")
-
     if res is not None and res < 5:
         raise ValueError(
             f"The fractional cube has resolution {res}, but a CCD needs resolution V or higher so the "
             "full quadratic model is estimable. Supply resolution-V generators or use cube='full'."
         )
+    return cube, {
+        "cube": "fractional",
+        "generators_used": frac_meta.get("generators_used") or generators,
+        "defining_relation": frac_meta.get("defining_relation"),
+        "resolution": res,
+    }
 
-    axial_distance, rule = _resolve_fractional_axial_distance(alpha, n_cube_runs, k, n_center_points)
 
-    # Axial (star) runs: 2k rows at +/- axial_distance, zeros elsewhere.
+def _stack_ccd(cube: np.ndarray, axial_distance: float, n_center_points: int) -> np.ndarray:
+    """Stack a CCD: the cube, half the centre runs, the ``2k`` axial runs, the other centre runs.
+
+    The centre runs are split between the cube and axial portions as ``ccdesign`` does,
+    so each portion can be a block of its own.
+    """
+    k = cube.shape[1]
     star = np.zeros((2 * k, k))
     for i in range(k):
         star[2 * i : 2 * i + 2, i] = (-axial_distance, axial_distance)
-
-    center = np.zeros((max(0, n_center_points), k))
-
-    coded_matrix = np.vstack([cube, star, center])
-    meta = {
-        "alpha_value": axial_distance,
-        "face": _geometry(axial_distance),
-        "alpha_rule": rule,
-        "cube": "fractional",
-        "generators_used": used_generators,
-        "defining_relation": defining_relation,
-        "resolution": res,
-    }
-    return coded_matrix, meta
+    n_center_cube = n_center_points // 2
+    return np.vstack([cube, np.zeros((n_center_cube, k)), star, np.zeros((n_center_points - n_center_cube, k))])
 
 
 #: Box and Behnken's (1960) blocks for six and seven factors: each block carries a two-level

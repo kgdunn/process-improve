@@ -62,7 +62,8 @@ class GenerateDesignInput(BaseModel):
         None,
         ge=0,
         description=(
-            "Number of centre runs. Default: 3 for factorial, Plackett-Burman, CCD and Box-Behnken designs, "
+            "Number of centre runs in the whole design; they are not replicated with n_replicates. "
+            "Default: 3 for factorial, Plackett-Burman, CCD and Box-Behnken designs, "
             "and the design's own for the others. For a DSD or OMARS design, the total number of centre runs. "
             "Other design types take no centre points."
         ),
@@ -70,7 +71,7 @@ class GenerateDesignInput(BaseModel):
     n_replicates: int = Field(
         1,
         ge=1,
-        description="Number of full replicates (default: 1).",
+        description="Number of replicates of the design's runs, centre runs excepted (default: 1).",
     )
     n_blocks: int | None = Field(
         None,
