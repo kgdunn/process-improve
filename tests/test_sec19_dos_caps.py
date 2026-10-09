@@ -118,6 +118,28 @@ class TestMatrixDimensionCap:
         assert "error" in result
         assert "max_matrix_cols" in result["error"]
 
+    def test_fit_pca_measures_the_widest_row_against_the_column_cap(self) -> None:
+        """A later row wider than the first sets the frame's width, so it cannot slip past the column cap."""
+        from process_improve.tool_spec import execute_tool_call
+
+        settings.max_matrix_cols = 4
+        data = [[0.0, 1.0], [1.0, 0.0, 2.0, 3.0, 4.0, 5.0], [2.0, 2.0], [3.0, 1.0]]
+        result = execute_tool_call("fit_pca", {"data": data, "n_components": 1})
+        assert result == {"error": "data has 6 columns; the cap is settings.max_matrix_cols=4."}
+
+    @pytest.mark.parametrize(
+        "matrix",
+        [[], [0.0] * 5, [[0.0] * 4] * 5],
+        ids=["empty-has-no-columns", "flat-list-is-one-column", "exactly-at-both-caps"],
+    )
+    def test_the_guard_passes_a_matrix_within_both_caps(self, matrix: list) -> None:
+        """Both caps are inclusive, a flat list counts as one column, and an empty matrix has none."""
+        from process_improve.multivariate.tools import _validate_matrix_shape
+
+        settings.max_matrix_rows = 5
+        settings.max_matrix_cols = 4
+        _validate_matrix_shape(matrix, "m")  # returns without raising
+
     def test_fit_pca_within_caps_accepted(self) -> None:
         from process_improve.tool_spec import execute_tool_call
 
