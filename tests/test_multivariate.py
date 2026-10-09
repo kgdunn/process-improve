@@ -46,6 +46,7 @@ from process_improve.multivariate.methods import (
     ellipse_coordinates,
     epsqrt,
     explained_variance_plot,
+    hotellings_t2_limit,
     make_tpls_scorer,
     nan_to_zeros,
     observation_contributions,
@@ -5409,6 +5410,81 @@ def test_ellipse_coordinates_symmetry() -> None:
     )
     # For equal scaling, max |x| and max |y| should be similar
     assert max(abs(x)) == pytest.approx(max(abs(y)), rel=0.05)
+
+
+#: A valid ellipse_coordinates call, which each row below breaks in one argument.
+_ELLIPSE_ARGUMENTS = {
+    "score_horiz": 1,
+    "score_vert": 2,
+    "conf_level": 0.95,
+    "n_components": 2,
+    "scaling_factor_for_scores": pd.Series([1.0, 1.0]),
+    "n_rows": 10,
+}
+
+
+@pytest.mark.parametrize(
+    ("limit", "arguments", "error", "message"),
+    [
+        (
+            hotellings_t2_limit,
+            {"conf_level": 1.0, "n_components": 2, "n_rows": 10},
+            ValueError,
+            r"^conf_level must lie in \(0, 1\); got 1\.0\.$",
+        ),
+        (
+            hotellings_t2_limit,
+            {"conf_level": 0.95, "n_components": 2, "n_rows": 0},
+            ValueError,
+            r"^n_rows must be positive; got 0\.$",
+        ),
+        (
+            spe_calculation,
+            {"spe_values": np.ones(5), "conf_level": 1.0},
+            ValueError,
+            r"^conf_level must lie in \(0, 1\); got 1\.0\.$",
+        ),
+        (
+            ellipse_coordinates,
+            {**_ELLIPSE_ARGUMENTS, "score_horiz": 3},
+            ValueError,
+            r"^score_horiz must lie in \[1, 2\]; got 3\.$",
+        ),
+        (
+            ellipse_coordinates,
+            {**_ELLIPSE_ARGUMENTS, "score_vert": 0},
+            ValueError,
+            r"^score_vert must lie in \[1, 2\]; got 0\.$",
+        ),
+        (
+            ellipse_coordinates,
+            {**_ELLIPSE_ARGUMENTS, "conf_level": 1.0},
+            ValueError,
+            r"^conf_level must lie in \(0, 1\); got 1\.0\.$",
+        ),
+        (
+            ellipse_coordinates,
+            {**_ELLIPSE_ARGUMENTS, "n_rows": 0},
+            ValueError,
+            r"^n_rows must be positive; got 0\.$",
+        ),
+    ],
+    ids=[
+        "t2-limit-at-100-percent",
+        "t2-limit-from-no-rows",
+        "spe-limit-at-100-percent",
+        "ellipse-horizontal-score-beyond-A",
+        "ellipse-vertical-score-0",
+        "ellipse-at-100-percent",
+        "ellipse-from-no-rows",
+    ],
+)
+def test_limit_functions_refuse_arguments_out_of_range(
+    limit: Callable[..., object], arguments: dict, error: type[Exception], message: str
+) -> None:
+    """Each limit names the argument it cannot use, and the value it was given."""
+    with pytest.raises(error, match=message):
+        limit(**arguments)
 
 
 def test_pls_predict_new_data() -> None:
