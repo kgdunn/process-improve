@@ -2051,13 +2051,13 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
         selection_distribution: pd.Series | None = None
         selection_mode: int | None = None
         selection_is_stable: bool | None = None
-        if selection_rule in ("1se", "min") and n_repeats_effective > 1 and not np.all(np.isnan(per_fold_rmse)):
+        # The fold loop gives every (component count, fold) cell of per_fold_rmse a finite
+        # value, the root of a nansum, so every repeat has folds to judge and casts a vote.
+        if selection_rule in ("1se", "min") and n_repeats_effective > 1:
             votes: list[int] = []
             for r in range(n_repeats_effective):
                 cols = slice(r * first_repeat_fold_count, (r + 1) * first_repeat_fold_count)
                 fold_subset = per_fold_rmse[:, cols]
-                if np.all(np.isnan(fold_subset)):
-                    continue
                 with warnings.catch_warnings():
                     warnings.simplefilter("ignore", RuntimeWarning)
                     mean_r = np.nanmean(fold_subset, axis=1)
@@ -2074,16 +2074,15 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
                     min_q2_increase=min_q2_increase,
                 )
                 votes.append(int(pick))
-            if votes:
-                counts = pd.Series(votes).value_counts().sort_index()
-                dist = (counts / counts.sum()).reindex(component_index, fill_value=0.0)
-                dist.name = "vote_share"
-                dist.index.name = "n_components"
-                selection_distribution = dist
-                # `idxmax` is typed as returning `Hashable`; this index is `component_index`,
-                # which holds component counts, so the cast asserts what the construction guarantees.
-                selection_mode = int(typing.cast("int", dist.idxmax()))
-                selection_is_stable = bool(dist.max() >= stability_threshold)
+            counts = pd.Series(votes).value_counts().sort_index()
+            dist = (counts / counts.sum()).reindex(component_index, fill_value=0.0)
+            dist.name = "vote_share"
+            dist.index.name = "n_components"
+            selection_distribution = dist
+            # `idxmax` is typed as returning `Hashable`; this index is `component_index`,
+            # which holds component counts, so the cast asserts what the construction guarantees.
+            selection_mode = int(typing.cast("int", dist.idxmax()))
+            selection_is_stable = bool(dist.max() >= stability_threshold)
 
         return Bunch(
             n_components=recommended,
