@@ -1284,7 +1284,9 @@ class MBPLS(_HotellingsT2LimitMixin, RegressorMixin, BaseEstimator):
             ``"scaled_total"`` with every target weighted equally),
             ``cv_predictions`` (DataFrame
             of the held-out predictions of the recommended model, averaged
-            over repeats) and ``selection_rule``.
+            over repeats), ``selection_rule``, and ``n_splits`` (the per-repeat
+            fold count: ``cv`` when it was given as an integer, else the number
+            of splits produced by the supplied splitter).
 
         Raises
         ------

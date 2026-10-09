@@ -105,6 +105,24 @@ those changes.
   attainable at every size**, so a value below 1 does not by itself mean a better
   balanced design exists (15 factors in 12 runs report 0.63). Stated in the
   `dispatch_supersaturated` docstring and the screening user guide.
+- **Docstring fixes for public API, no behaviour change.**
+  - `multivariate.ellipse_coordinates`: the `n_components` and `n_rows` parameters
+    were said to feed the Hotelling's T^2 limit, but the ellipse limit is deliberately
+    computed on 2 and `N - 2` degrees of freedom (the joint confidence region for the
+    two plotted scores). `n_components` is used only to bound `score_horiz` and
+    `score_vert`.
+  - `multivariate.spe_limit`: Returns clarified that the limit is on the same
+    square-root scale as `model.spe_`, so values can be compared directly.
+  - `multivariate.check_predictive_signal`: the `p_value` is computed with
+    `n_used` (permutations whose fit produced a usable Q^2), not `n_perm`, so the
+    attainable floor is `1 / (n_used + 1)` and shrinks only when some permutations
+    degenerate.
+  - `multivariate.MBPLS.select_n_components`: the returned Bunch's `n_splits`
+    field is now documented alongside the others.
+  - `multivariate.TPLS.vip` with `block=None`: the returned dict carries four
+    keys (`"D"`, `"F"`, `"Z"`, `"Y"`) for shape-stability, not two. The `"Z"`
+    and `"Y"` entries are always empty dicts since VIP is defined only for the
+    D- and F-blocks.
 
 ## [1.97.2] - 2026-10-07
 
