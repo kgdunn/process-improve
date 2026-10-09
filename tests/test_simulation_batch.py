@@ -26,7 +26,9 @@ import pandas as pd
 import pytest
 from hypothesis import given, settings
 from hypothesis import strategies as st
+from sklearn.utils import Bunch
 
+from process_improve._extras import require_extra
 from process_improve.batch.data_input import check_valid_batch_dict, dict_to_wide
 from process_improve.batch.preprocessing import resample_to_reference
 from process_improve.multivariate import PCA, MCUVScaler
@@ -649,6 +651,203 @@ def test_decompose_batch_quality_variance_tool_runs() -> None:
         "total",
     }
     assert sources["control and measurement noise"]["cv_pct"] < 1.0
+
+
+def _canned_policy_comparison() -> Bunch:
+    """Two test batches as evaluate_control_policies reports them: batch 3 corrected, batch 4 left alone."""
+    batches = pd.DataFrame(
+        {
+            "class_assigned": ["A", "C"],
+            "replay": [7.12341, 9.5],
+            "corrected": [True, False],
+            "reason": ["corrected", "dead_band"],
+            "midcourse": [7.65432, 9.5],
+            "y_hat_predicted": [7.98761, np.nan],
+        },
+        index=pd.Index([3, 4], name="batch_id"),
+    )
+    summary = pd.DataFrame(
+        {"mean": [8.31171, 8.57716], "sd": [1.68012, 1.30472], "min": [7.12341, 7.65432], "max": [9.5, 9.5]},
+        index=["replay", "midcourse"],
+    )
+    return Bunch(
+        batches=batches, summary=summary, n_corrected=1, n_harmed=0, models=Bunch(fit_r2={"A": 0.91234, "C": 0.95})
+    )
+
+
+@pytest.fixture
+def policy_calls(monkeypatch: pytest.MonkeyPatch) -> list:
+    """Replace evaluate_control_policies with a recorder that returns the canned comparison."""
+    from process_improve.batch import control
+
+    calls: list = []
+
+    def recorder(simulator: BioreactorSimulator, **kwargs: object) -> Bunch:
+        calls.append(kwargs)
+        return _canned_policy_comparison()
+
+    monkeypatch.setattr(control, "evaluate_control_policies", recorder)
+    return calls
+
+
+def test_correct_batch_midcourse_tool_reports_every_batch(policy_calls: list) -> None:
+    """The tool forwards its settings and reports each batch, with a prediction only where it corrected."""
+    from process_improve.tool_spec import execute_tool_call
+
+    out = execute_tool_call(
+        "correct_batch_midcourse", {"n_batches": 2, "decision_point": 6, "n_train": 40, "dead_band": 0.5}
+    )
+    assert policy_calls == [
+        {
+            "y_target": 8.0,
+            "n_train": 40,
+            "n_test": 2,
+            "mv_variation": 2.5,
+            "decision_points": (6,),
+            "dead_band": 0.5,
+            "include_adapted": False,
+            "oracle": "none",
+            "random_state": 0,
+        }
+    ]
+    assert out["batches"] == [
+        {
+            "batch_id": "3",
+            "feed_class": "A",
+            "replay_titer_g_L": 7.123,
+            "corrected": True,
+            "outcome": "corrected",
+            "executed_titer_g_L": 7.654,
+            "predicted_titer_g_L": 7.988,
+        },
+        {
+            "batch_id": "4",
+            "feed_class": "C",
+            "replay_titer_g_L": 9.5,
+            "corrected": False,
+            "outcome": "dead_band",
+            "executed_titer_g_L": 9.5,
+            "predicted_titer_g_L": None,
+        },
+    ]
+    assert (out["decision_point"], out["n_corrected"], out["n_harmed"]) == (6, 1, 0)
+    assert out["model_fit_r2_per_class"] == {"A": 0.912, "C": 0.95}
+
+
+def test_evaluate_batch_control_policy_tool_summarises_the_corrected_batches(policy_calls: list) -> None:
+    """With the ceilings requested, both are switched on; only corrected batches are listed, with their gain."""
+    from process_improve.tool_spec import execute_tool_call
+
+    out = execute_tool_call("evaluate_batch_control_policy", {"n_test": 5, "include_ceilings": True})
+    (call,) = policy_calls
+    assert (call["n_test"], call["include_adapted"], call["oracle"]) == (5, True, "corrected")
+    assert out["summary_titer_g_L"] == {
+        "replay": {"mean": 8.312, "sd": 1.68, "min": 7.123, "max": 9.5},
+        "midcourse": {"mean": 8.577, "sd": 1.305, "min": 7.654, "max": 9.5},
+    }
+    assert out["corrected_batches"] == [
+        {
+            "batch_id": "3",
+            "feed_class": "A",
+            "replay_titer_g_L": 7.123,
+            "executed_titer_g_L": 7.654,
+            "realised_gain_g_L": 0.531,
+            "predicted_titer_g_L": 7.988,
+        }
+    ]
+    assert out["mean_realised_gain_of_corrected_g_L"] == 0.531
+
+
+def test_evaluate_batch_control_policy_tool_without_corrections(monkeypatch: pytest.MonkeyPatch) -> None:
+    """When no batch was corrected there is no gain to average, and the tool says None."""
+    from process_improve.batch import control
+    from process_improve.tool_spec import execute_tool_call
+
+    untouched = _canned_policy_comparison()
+    untouched.batches["corrected"] = False
+    monkeypatch.setattr(control, "evaluate_control_policies", lambda _simulator, **_kwargs: untouched)
+    out = execute_tool_call("evaluate_batch_control_policy", {})
+    assert out["corrected_batches"] == []
+    assert out["mean_realised_gain_of_corrected_g_L"] is None
+
+
+@pytest.mark.parametrize(
+    ("tool", "payload", "target", "error"),
+    [
+        (
+            "simulate_batch_campaign",
+            {"n_batches": 10},
+            "process_improve.simulation.batch.BioreactorSimulator.simulate_campaign",
+            ValueError("campaign failed"),
+        ),
+        (
+            "decompose_batch_quality_variance",
+            {"n_batches": 10},
+            "process_improve.simulation.batch.variance_decomposition",
+            ValueError("decomposition failed"),
+        ),
+        (
+            "correct_batch_midcourse",
+            {},
+            "process_improve.batch.control.evaluate_control_policies",
+            ValueError("too few training batches"),
+        ),
+        (
+            "evaluate_batch_control_policy",
+            {},
+            "process_improve.batch.control.evaluate_control_policies",
+            ValueError("too few training batches"),
+        ),
+        (
+            "correct_batch_midcourse",
+            {},
+            "process_improve.batch.control.evaluate_control_policies",
+            require_extra("osqp", "control"),
+        ),
+        (
+            "evaluate_batch_control_policy",
+            {},
+            "process_improve.batch.control.evaluate_control_policies",
+            require_extra("osqp", "control"),
+        ),
+    ],
+    ids=[
+        "campaign-value-error",
+        "decomposition-value-error",
+        "correction-value-error",
+        "policy-comparison-value-error",
+        "correction-without-the-control-extra",
+        "policy-comparison-without-the-control-extra",
+    ],
+)
+def test_simulation_tools_return_an_error_envelope(
+    monkeypatch: pytest.MonkeyPatch, tool: str, payload: dict, target: str, error: Exception
+) -> None:
+    """A failure in the simulation or a missing solver comes back as {"error": message}, not as a raise."""
+    from process_improve.tool_spec import execute_tool_call
+
+    def fail(*_args: object, **_kwargs: object) -> None:
+        raise error
+
+    monkeypatch.setattr(target, fail)
+    assert execute_tool_call(tool, payload) == {"error": str(error)}
+
+
+@pytest.mark.integration
+def test_evaluate_batch_control_policy_tool_runs_end_to_end() -> None:
+    """A real comparison on the smallest campaigns: every listed gain is executed minus replay."""
+    from process_improve.tool_spec import execute_tool_call
+
+    out = execute_tool_call(
+        "evaluate_batch_control_policy", {"n_train": 30, "n_test": 5, "dead_band": 0.0, "random_state": 0}
+    )
+    assert "error" not in out
+    assert set(out["summary_titer_g_L"]) == {"replay", "midcourse"}
+    assert out["n_corrected"] == len(out["corrected_batches"]) > 0
+    for row in out["corrected_batches"]:
+        assert row["realised_gain_g_L"] == pytest.approx(row["executed_titer_g_L"] - row["replay_titer_g_L"], abs=2e-3)
+    gains = [row["realised_gain_g_L"] for row in out["corrected_batches"]]
+    assert out["mean_realised_gain_of_corrected_g_L"] == pytest.approx(np.mean(gains), abs=2e-3)
 
 
 def test_golden_batch_recipe_is_registered_and_matches() -> None:
