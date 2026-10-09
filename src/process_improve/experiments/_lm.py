@@ -559,9 +559,10 @@ def lm(  # noqa: C901, PLR0915
         try:
             d = np.diag(c)
         except ValueError:
-            # scalar covariance
-            # nan if incorrect value (nan, inf, 0), 1 otherwise
-            return c / c  # type: ignore[return-value]  # degenerate scalar-covariance fallback; preserves original runtime behaviour
+            # A one-column model (``y ~ 1``, ``y ~ 0 + A``): ``np.cov`` returns a 0-d
+            # array, which ``np.diag`` rejects. A single column has nothing to be
+            # aliased with, so there is no alias to report and no column to drop.
+            return {}, []
         stddev = np.sqrt(d.real)
 
         aliasing = defaultdict(list)

@@ -9,6 +9,7 @@ A:B interaction of known size, so every output can be checked against the truth.
 from __future__ import annotations
 
 import warnings
+from collections.abc import Callable
 
 import numpy as np
 import pandas as pd
@@ -200,3 +201,18 @@ class TestLmAliasDetection:
             warnings.simplefilter("ignore")
             kept = lm("y ~ A + B", both, alias_threshold=None)
         assert list(kept._OLS.params.index) == ["Intercept", "A", "B"]
+
+    @pytest.mark.parametrize(
+        ("formula", "term", "least_squares"),
+        [
+            pytest.param("y ~ 1", "Intercept", lambda f: f["y"].mean(), id="intercept-only-is-the-mean"),
+            pytest.param("y ~ 0 + A", "A", lambda f: (f["A"] * f["y"]).mean(), id="one-factor-no-intercept"),
+        ],
+    )
+    def test_a_one_column_model_fits(self, formula: str, term: str, least_squares: Callable) -> None:
+        """One model column has a 0-d covariance; the alias search must report no aliases, not crash."""
+        frame = _half_fraction()
+        model = lm(formula, gather(A=c(*frame["A"]), y=c(*frame["y"])))
+        assert model.get_parameters(drop_intercept=False)[term] == pytest.approx(least_squares(frame))
+        assert not model.aliasing
+        assert "Aliasing pattern" not in str(summary(model, show=False))
