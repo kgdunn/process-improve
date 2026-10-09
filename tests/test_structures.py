@@ -6,7 +6,8 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from process_improve.experiments.structures import c, create_names
+from process_improve.experiments import lm
+from process_improve.experiments.structures import Expt, c, create_names, gather
 
 
 class TestCreateNames:
@@ -107,3 +108,38 @@ class TestColumnConstruction:
         col = c(0, 1, "green")
         assert not col.pi_numeric
         assert col.pi_levels[col.pi_name] == [0, 1, "green"]
+
+
+class TestMetadataDefaults:
+    """``pi_*`` metadata on objects that no factory set up (#513)."""
+
+    def test_a_directly_built_expt_has_no_title(self) -> None:
+        """It used to raise AttributeError from repr() and get_title()."""
+        expt = Expt({"A": [1, 2]})
+        assert expt.get_title() == ""
+        assert "Size: 2 experiments" in repr(expt)
+
+    def test_a_model_of_a_directly_built_expt(self) -> None:
+        expt = Expt({"A": [-1, 1, -1, 1, 0], "B": [-1, -1, 1, 1, 0], "y": [1.0, 3.0, 2.0, 5.0, 2.6]})
+        model = lm("y ~ A*B", expt)
+        assert model.get_title() == ""
+        model.summary()
+
+    def test_concat_keeps_the_metadata_its_inputs_share(self) -> None:
+        first, second = (gather(A=c(-1, 1, name="A"), y=c(5, 6, name="y"), title=title) for title in ("Run", "Run"))
+        combined = pd.concat([first, second])
+        assert isinstance(combined, Expt)
+        assert combined.get_title() == "Run"
+
+    def test_concat_drops_the_metadata_its_inputs_disagree_on(self) -> None:
+        first, second = (gather(A=c(-1, 1, name="A"), y=c(5, 6, name="y"), title=title) for title in ("1", "2"))
+        assert pd.concat([first, second]).get_title() == ""
+
+    def test_concatenated_columns_keep_their_shared_metadata(self) -> None:
+        temperature = pd.concat([c(4, 6, lo=4, hi=6, name="T"), c(5, 6, lo=4, hi=6, name="T")])
+        assert (temperature.pi_name, temperature.pi_lo, temperature.pi_hi) == ("T", 4, 6)
+
+    def test_levels_survive_slicing(self) -> None:
+        """``pi_levels`` is in ``Column._metadata`` now, so a slice keeps it."""
+        moisture = c("Dry", "Wet", "Dry")
+        assert moisture[:2].pi_levels == moisture.pi_levels

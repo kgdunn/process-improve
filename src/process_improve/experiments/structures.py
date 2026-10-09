@@ -11,6 +11,28 @@ import numpy as np
 import pandas as pd
 
 
+def _agreed_metadata(result: Column | Expt, concatenation: object) -> None:
+    """Give the result of ``pd.concat`` each ``pi_*`` field on which all its inputs agree.
+
+    pandas propagates ``_metadata`` from a single source object, which a concatenation
+    does not have. As pandas does for ``attrs``, a field is kept when every input of the
+    same type carries the same value, and otherwise left at its default.
+    """
+    inputs = [obj for obj in getattr(concatenation, "objs", ()) if isinstance(obj, type(result))]
+    for name in result._metadata:
+        values = [getattr(obj, name, None) for obj in inputs]
+        if values and all(_equal(value, values[0]) for value in values[1:]):
+            object.__setattr__(result, name, values[0])
+
+
+def _equal(first: object, second: object) -> bool:
+    """Compare two metadata values, treating values that cannot be compared as different."""
+    try:
+        return bool(first == second)
+    except (TypeError, ValueError):
+        return False
+
+
 class Column(pd.Series):
     """Create a column. Can be used as a factor, or a response vector."""
 
@@ -30,25 +52,33 @@ class Column(pd.Series):
         "pi_is_coded",  # is it a coded variables, or in real-world units
         "pi_units",  # string variable, containing the units
         "pi_name",  # name of the column
+        "pi_levels",  # if categorical: {name: levels}, for use with Patsy
     ]
 
-    # Declared for static typing only. These are populated at runtime via the
-    # pandas ``_metadata`` mechanism (bare annotations create no class-level
-    # attribute, so the pandas attribute machinery is untouched).
-    pi_index: bool
-    pi_numeric: bool
-    pi_lo: float | None
-    pi_hi: float | None
-    pi_range: tuple | None
-    pi_center: float | None
-    pi_is_coded: bool
-    pi_units: str | None
-    pi_name: str | None
-    pi_levels: dict
+    # Defaults, so a Column built directly (or by pd.concat) has no metadata rather
+    # than raising AttributeError; c() and the design builders set them. pandas reads
+    # these class attributes like any other, and setting one stores it on the instance.
+    pi_index: bool | None = None
+    pi_numeric: bool | None = None
+    pi_lo: float | None = None
+    pi_hi: float | None = None
+    pi_range: tuple | None = None
+    pi_center: float | None = None
+    pi_is_coded: bool | None = None
+    pi_units: str | None = None
+    pi_name: str | None = None
+    pi_levels: dict | None = None
 
     @property
     def _constructor(self) -> type[Column]:
         return Column
+
+    def __finalize__(self, other: object, method: str | None = None, **kwargs: object) -> Column:
+        """Propagate the metadata, also through ``pd.concat``; see :func:`_agreed_metadata`."""
+        result = super().__finalize__(other, method=method, **kwargs)  # type: ignore[misc]  # in pandas, missing from its stubs
+        if method == "concat":
+            _agreed_metadata(result, other)
+        return result
 
     def to_coded(self, center: float | None = None, range: tuple | None = None) -> Column:  # noqa: A002
         """Convert the column vector to coded units."""
@@ -162,16 +192,23 @@ class Expt(pd.DataFrame):
     # Properties which survive subsetting, etc
     _metadata: ClassVar[list[str]] = ["pi_source", "pi_title", "pi_units"]
 
-    # Declared for static typing only. These are populated at runtime via the
-    # pandas ``_metadata`` mechanism (bare annotations create no class-level
-    # attribute, so the pandas attribute machinery is untouched).
-    pi_source: dict | None
-    pi_title: str | None
-    pi_units: dict | None
+    # Defaults, so an Expt built directly (or by pd.concat) has no metadata rather than
+    # raising AttributeError from repr() or get_title(); gather() and the design builders
+    # set them.
+    pi_source: dict | None = None
+    pi_title: str | None = None
+    pi_units: dict | None = None
 
     @property
     def _constructor(self) -> type[Expt]:
         return Expt
+
+    def __finalize__(self, other: object, method: str | None = None, **kwargs: object) -> Expt:
+        """Propagate the metadata, also through ``pd.concat``; see :func:`_agreed_metadata`."""
+        result = super().__finalize__(other, method=method, **kwargs)  # type: ignore[misc]  # in pandas, missing from its stubs
+        if method == "concat":
+            _agreed_metadata(result, other)
+        return result
 
     def __repr__(self) -> str:
         """Return a string representation of the experiment."""
