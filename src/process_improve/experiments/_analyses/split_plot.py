@@ -272,6 +272,11 @@ def sum_coded(formula: str, categorical: Collection[str]) -> str:
     return f"{response}~{rhs}"
 
 
+def sum_coding_env() -> EvalEnvironment:
+    """Return the patsy namespace a :func:`sum_coded` formula is evaluated in."""
+    return EvalEnvironment([{_CODER: C, _SUM: Sum}])
+
+
 def _readable(label: str) -> str:
     """Undo :func:`sum_coded`'s private names in a term or column label: ``Coating[S.C1]``."""
     return _SUM_CODED.sub(r"\1", label)
@@ -362,8 +367,7 @@ def run_split_plot(
         ``{"split_plot": {...}}``, with ``"split_plot_note"`` when the whole-plot variance
         is estimated as zero. See :func:`~process_improve.experiments.analysis.analyze_experiment`.
     """
-    env = EvalEnvironment([{_CODER: C, _SUM: Sum}])
-    y, X = dmatrices(formula, df, eval_env=env, NA_action="raise", return_type="dataframe")
+    y, X = dmatrices(formula, df, eval_env=sum_coding_env(), NA_action="raise", return_type="dataframe")
     labels = df[whole_plot].to_numpy()  # by position: NA_action="raise" keeps every row, in order
     fit = fit_reml(y.to_numpy(dtype=float).ravel(), X.to_numpy(dtype=float), labels)
     whole_plot_columns = _constant_within(X, labels)
