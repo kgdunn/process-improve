@@ -453,7 +453,7 @@ def test_multiplier_of_a_slack_cap_is_bisected_away(  # noqa: PLR0913
 @pytest.mark.xfail(
     strict=True,
     raises=AssertionError,
-    reason="cap_status reads 'ok' while a cap is violated (issue to be filed)",
+    reason="#681: cap_status reads 'ok' while a cap is violated",
 )
 def test_ok_status_means_both_binding_caps_hold(fitted: BatchPLS) -> None:
     """When both caps bind, an 'ok' status must mean both statistics sit within the 1% cap tolerance.
