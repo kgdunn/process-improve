@@ -22,11 +22,15 @@ from process_improve.sensory import (
     panel_scorecard,
     validate_descriptive,
 )
+from process_improve.sensory import analysis as sensory_analysis
 from process_improve.sensory.analysis import (
+    _attach_fdr,
     _collinear_clusters,
+    _fit_pls_safe,
     _jackknife_correlation,
     find_predictive_descriptors,
     permutation_column_null,
+    product_means,
     relate_designed,
     relate_observational,
 )
@@ -825,6 +829,106 @@ def test_analyze_refuses_unvalidated():
     bad = validate_descriptive(_panel().drop(columns=["score"]), _obs(), mode="observational")
     with pytest.raises(ValueError, match="requires a validated dataset"):
         analyze_descriptive(bad)
+
+
+def test_analyze_drops_the_panelists_it_is_given():
+    validated = validate_descriptive(_panel(), _obs(), mode="observational")
+    result = analyze_descriptive(validated, drop_panelists=["P8", "P3"], find_predictive=False)
+    assert result.dropped == ["P8", "P3"]
+
+
+def test_analyze_a_designed_result_reaches_the_designed_relate():
+    """A hand-built designed-mode result is routed to the designed relate, which is not implemented yet."""
+    validated = validate_descriptive(_panel(), _obs(), mode="observational")
+    designed = sensory.ValidationResult(
+        ok=True, mode="designed", normalized_df=validated.normalized_df, covariates=validated.covariates
+    )
+    with pytest.raises(NotImplementedError, match=r"^Designed \(DoE/OMARS\) relate is not implemented yet"):
+        analyze_descriptive(designed, find_predictive=False)
+
+
+def test_relate_skips_a_descriptor_with_no_spread():
+    """A constant descriptor cannot correlate with anything, so it gets no association row."""
+    validated = validate_descriptive(_panel(), _obs(), mode="observational")
+    agg = sensory_analysis.aggregate_to_product(validated.normalized_df)
+    out = relate_observational(agg, validated.covariates.assign(flat=1.0), find_predictive=False)
+    assert {row["descriptor"] for row in out["associations"]} == {"sodium", "fat"}
+
+
+def test_product_mean_from_one_score_has_no_interval():
+    means = product_means(_panel().iloc[[0]])
+    assert means[["mean", "ci_low", "ci_high"]].iloc[0].isna().tolist() == [False, True, True]
+
+
+def test_attach_fdr_to_no_records_is_a_no_op():
+    assert _attach_fdr([], alpha=0.05) == []
+
+
+class _SingularPLS:
+    """A PLS stand-in whose fit fails like a near-collinear block does, above ``max_ok`` components."""
+
+    max_ok = 0
+
+    def __init__(self, n_components: int) -> None:
+        self.n_components = n_components
+
+    def fit(self, *_data: pd.DataFrame) -> _SingularPLS:
+        if self.n_components > self.max_ok:
+            raise np.linalg.LinAlgError("singular deflation")
+        return self
+
+
+@pytest.mark.parametrize(
+    ("max_ok", "expected_components"),
+    [pytest.param(1, 1, id="steps-down-to-one-component"), pytest.param(0, 0, id="gives-up-below-one")],
+)
+def test_fit_pls_safe_steps_the_components_down(monkeypatch, max_ok, expected_components):
+    """A singular fit is retried with one fewer component; when even one fails there is no model."""
+    monkeypatch.setattr(_SingularPLS, "max_ok", max_ok)
+    monkeypatch.setattr(sensory_analysis, "PLS", _SingularPLS)
+    model, used = _fit_pls_safe(pd.DataFrame({"x": [1.0, 2.0]}), pd.DataFrame({"y": [1.0, 2.0]}), 3)
+    assert used == expected_components
+    assert (model is None) == (expected_components == 0)
+
+
+def _predictive_case() -> tuple[pd.DataFrame, pd.DataFrame]:
+    """Nine products whose attribute A is driven by descriptor d1 (the predictable case of the gate test)."""
+    products = [f"P{i}" for i in range(9)]
+    rng = np.random.default_rng(3)
+    u = np.linspace(0.0, 1.0, 9) + rng.normal(0, 0.02, 9)
+    agg = pd.DataFrame({"A": 2.0 * u + rng.normal(0, 0.05, 9)}, index=products)
+    cov = pd.DataFrame({"d1": u, "d3": rng.normal(0, 1, 9)}, index=products)
+    return agg, cov
+
+
+def test_find_predictive_with_no_fittable_model_flags_nothing(monkeypatch):
+    """When no PLS can be fitted, every descriptor gets a zero selectivity ratio and a p-value of one."""
+    monkeypatch.setattr(sensory_analysis, "PLS", _SingularPLS)
+    disc = find_predictive_descriptors(*_predictive_case(), n_components=1, n_permutations=9)
+    (gate,) = disc["per_attribute"]
+    assert gate["n_components_cv"] == 0
+    assert not gate["predictable"]
+    desc = pd.DataFrame(disc["descriptors"])
+    assert (desc["selectivity_ratio"] == 0.0).all()
+    assert (desc[["p_value", "p_value_fwer"]] == 1.0).all(axis=None)
+    assert not desc["is_predictive"].any()
+
+
+def test_find_predictive_ignores_permutations_it_cannot_fit(monkeypatch):
+    """A permuted response whose fit fails adds nothing to the null; with none left, every p-value is one."""
+    real_fit = sensory_analysis._fit_pls_safe
+    calls: list[int] = []
+
+    def only_the_first_fit(x, y, n_components):
+        calls.append(n_components)
+        return real_fit(x, y, n_components) if len(calls) == 1 else (None, 0)
+
+    monkeypatch.setattr(sensory_analysis, "_fit_pls_safe", only_the_first_fit)
+    disc = find_predictive_descriptors(*_predictive_case(), n_components=1, n_permutations=9)
+    assert disc["per_attribute"][0]["predictable"]
+    assert len(calls) == 1 + 9
+    desc = pd.DataFrame(disc["descriptors"])
+    assert (desc[["p_value", "p_value_fwer"]] == 1.0).all(axis=None)
 
 
 # ---------------------------------------------------------------------------
