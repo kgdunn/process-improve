@@ -555,12 +555,9 @@ def query_generic(
     else:
         hits = [(node_type, node_id) for node_type, node_id, _ in _keyword_search(graph, query)]
 
-    seen = set()
+    # Each (node_type, node_id) pair occurs once: the keyword search scores a dict keyed
+    # by the pair, and the topic collections are dicts keyed by id, one per node type.
     for node_type, node_id in hits[:10]:
-        if (node_type, node_id) in seen:
-            continue
-        seen.add((node_type, node_id))
-
         if node_type == "design_type":
             dt = graph.design_types[node_id]
             results.append(
