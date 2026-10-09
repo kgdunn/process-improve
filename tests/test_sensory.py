@@ -1047,6 +1047,60 @@ def test_tool_panel_check_missing_columns():
     assert any("missing required columns" in e for e in out["errors"])
 
 
+def test_tool_panel_check_without_alignment_returns_no_aligned_panel():
+    from process_improve.tool_spec import execute_tool_call
+
+    out = execute_tool_call("sensory_panel_check", {"panel": _scaling_panel().to_dict(orient="records")})
+    assert out["ok"]
+    assert "aligned_panel" not in out
+
+
+def test_tool_validate_descriptive_dispatch():
+    """The validate tool returns the validation summary, with the same hash as the function."""
+    from process_improve.tool_spec import execute_tool_call
+
+    payload = {
+        "panel": _panel().to_dict(orient="records"),
+        "covariates": _obs().to_dict(orient="records"),
+        "mode": "observational",
+        "score_min": 0,
+        "score_max": 10,
+    }
+    out = execute_tool_call("sensory_validate_descriptive", payload)
+    assert out["ok"]
+    assert out["mode"] == "observational"
+    assert out["errors"] == []
+    assert out["stats"]["n_products"] == len(PRODUCTS)
+    assert out["content_hash"] == validate_descriptive(_panel(), _obs(), mode="observational").content_hash
+
+
+def test_tool_analyze_stops_at_validation_errors():
+    """Data that fails validation is reported as {ok: false, errors} before any analysis runs."""
+    from process_improve.tool_spec import execute_tool_call
+
+    payload = {
+        "panel": _panel().drop(columns=["score"]).to_dict(orient="records"),
+        "covariates": _obs().to_dict(orient="records"),
+        "mode": "observational",
+    }
+    out = execute_tool_call("sensory_analyze_descriptive", payload)
+    assert out["ok"] is False
+    assert any("missing required columns" in e for e in out["errors"])
+    assert set(out) == {"ok", "errors", "warnings"}
+
+
+def test_get_sensory_tool_specs_lists_every_sensory_tool():
+    from process_improve.sensory.tools import get_sensory_tool_specs
+
+    names = [spec["name"] for spec in get_sensory_tool_specs()]
+    assert sorted(names) == [
+        "sensory_analyze_descriptive",
+        "sensory_panel_check",
+        "sensory_reshape_to_long",
+        "sensory_validate_descriptive",
+    ]
+
+
 def _wide_panel(*, seed: int = 0):
     """Wide-by-attribute table: rows = assessor x sample x rep, one column per attribute."""
     rng = np.random.default_rng(seed)
