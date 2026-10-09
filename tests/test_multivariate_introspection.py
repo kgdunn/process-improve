@@ -120,6 +120,22 @@ def test_fitted_model_pickle_round_trips(factory) -> None:
     assert float(reloaded.hotellings_t2_limit()) == pytest.approx(float(model.hotellings_t2_limit()))
 
 
+@pytest.mark.parametrize("factory", [_fitted_pca, _fitted_pls])
+def test_pickling_leaves_the_models_own_frame_cache_alone(factory) -> None:
+    """The DataFrame cache is left out of the pickle, but not taken from the model being pickled.
+
+    `__getstate__` popped the cache from the state sklearn returns, which is the model's
+    own `__dict__`: every pickle emptied the live cache, and `scores_` then came back as a
+    new object.
+    """
+    model = factory()
+    scores = model.scores_
+    reloaded = pickle.loads(pickle.dumps(model))  # noqa: S301 - trusted round-trip of our own object
+    assert model.scores_ is scores
+    assert "_frame_cache" not in reloaded.__dict__
+    pd.testing.assert_frame_equal(reloaded.scores_, scores)
+
+
 def test_convenience_bindings_are_not_partial() -> None:
     """None of the bound convenience callables is a functools.partial."""
     model = _fitted_pca()
