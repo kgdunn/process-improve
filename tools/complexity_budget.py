@@ -45,7 +45,9 @@ BUDGET: dict[str, int] = {
     # saving is banked here rather than left as headroom for the next change to
     # spend silently.
     "C901": 42,
-    "PLR0912": 24,
+    # 24: #604 moved `PCA.fit`'s settings resolution and tolerance checks into the
+    # shared `resolve_loop_settings`, taking `fit` under PLR0912.
+    "PLR0912": 23,
     # 83, and none of the five moves is a regression any one branch introduced.
     # #598 merged `smooth_trajectories`, whose seven arguments are the two
     # smoothers' settings side by side: naming them beats a settings dict whose
