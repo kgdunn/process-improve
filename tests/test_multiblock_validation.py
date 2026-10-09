@@ -77,19 +77,13 @@ def test_fit_refuses_malformed_blocks(
     [
         ({"n_components": 0}, r"^n_components must be positive; got 0\.$"),
         ({"max_iter": 0}, r"^max_iter must be positive; got 0\.$"),
-        (
-            {"algorithm": "nipals", "missing_data_settings": {"md_tol": 10}},
-            r"^Tolerance should not be too large\.$",
-        ),
-        (
-            {"algorithm": "nipals", "missing_data_settings": {"md_tol": 1e-30}},
-            r"^Tolerance must exceed machine precision\.$",
-        ),
+        ({"algorithm": "nipals", "tol": 10.0}, r"^Tolerance should not be too large; got 10\.0\.$"),
+        ({"algorithm": "nipals", "tol": 1e-30}, r"^Tolerance must exceed machine precision; got 1e-30\.$"),
     ],
-    ids=["no-components", "no-iterations", "md-tol-too-large", "md-tol-below-precision"],
+    ids=["no-components", "no-iterations", "tol-too-large", "tol-below-precision"],
 )
 def test_invalid_settings_are_refused(cls: type[MultiblockModel], arguments: dict, message: str) -> None:
-    """Counts must be positive, and a NIPALS tolerance must sit between machine precision and 10."""
+    """Counts must be positive, and the NIPALS tolerance must sit between machine precision and 10."""
     blocks, y = _blocks()
     with pytest.raises(ValueError, match=message):
         _fit(cls, blocks, y, **arguments)
