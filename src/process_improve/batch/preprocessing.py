@@ -781,7 +781,7 @@ def _validate_dtw_settings(settings: dict) -> None:
         )
 
 
-def batch_dtw(  # noqa: C901, PLR0915
+def batch_dtw(  # noqa: PLR0915
     batches: dict[str, pd.DataFrame],
     columns_to_align: list,
     reference_batch: str,
@@ -920,11 +920,8 @@ def batch_dtw(  # noqa: C901, PLR0915
     if reference_batch not in batches:
         raise KeyError(f"`reference_batch` was not found in the dict of batches; got {reference_batch!r}.")
 
-    if not check_valid_batch_dict(
-        {k: v[columns_to_align] for k, v in batches.items()},
-        no_nan=True,
-    ):
-        raise ValueError("One or more batches in the input dict failed validation.")
+    # Raises, naming the batch, when one fails a check.
+    check_valid_batch_dict({k: v[columns_to_align] for k, v in batches.items()}, no_nan=True)
 
     scale_df = determine_scaling(batches=batches, columns_to_align=columns_to_align, settings=settings)
     batches_scaled = apply_scaling(batches, scale_df, columns_to_align)
@@ -1210,8 +1207,8 @@ def find_reference_batch(
     if not isinstance(columns_to_align, list):
         raise TypeError(f"`columns_to_align` must be a list of column names; got {type(columns_to_align).__name__}.")
 
-    if not check_valid_batch_dict({k: v[columns_to_align] for k, v in batches.items()}):
-        raise ValueError("One or more batches in the input dict failed validation.")
+    # Raises, naming the batch, when one fails a check.
+    check_valid_batch_dict({k: v[columns_to_align] for k, v in batches.items()})
 
     # Starts with the average duration batch.
     initial_reference_id = find_average_length(batches, settings)

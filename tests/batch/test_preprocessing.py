@@ -539,6 +539,28 @@ def test_batch_dtw_rejects_bad_arguments(reference_batch: str, settings: dict | 
         batch_dtw(batches, columns_to_align=["a", "b"], reference_batch=reference_batch, settings=settings)
 
 
+@pytest.mark.parametrize(
+    ("call", "broken", "match"),
+    [
+        (
+            lambda batches: batch_dtw(batches, ["a", "b"], reference_batch="x", settings={"show_progress": False}),
+            _warped_batch(36).assign(b=np.nan),
+            r"No missing values allowed\. Missing values found in y\.",
+        ),
+        (
+            lambda batches: find_reference_batch(batches, ["a", "b"]),
+            _warped_batch(36).assign(b="text"),
+            r"All columns must be a numeric type\. Differs in y\.",
+        ),
+    ],
+    ids=["batch-dtw-missing-values", "find-reference-batch-non-numeric"],
+)
+def test_invalid_batches_are_rejected_by_name(call: object, broken: pd.DataFrame, match: str) -> None:
+    """The batch-dict validation raises from the caller and names the offending batch."""
+    with pytest.raises(ValueError, match=match):
+        call({"x": _warped_batch(30), "y": broken})  # type: ignore[operator]
+
+
 class TestScalingRejectsUnsupportedContainers:
     """The scaling functions take a dict of per-batch frames. Regression tests for #560.
 

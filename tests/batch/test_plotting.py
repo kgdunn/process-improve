@@ -1,3 +1,4 @@
+import pandas as pd
 import pytest
 
 from process_improve.batch.plotting import get_rgba_from_triplet, plot_all_batches_per_tag, plot_multitags
@@ -65,6 +66,16 @@ def test_plotting_nylon_bad_highlight_key_raises_clear_value_error(nylon_data: d
             # Plain string instead of a JSON-encoded line-style spec.
             batches_to_highlight={"not-a-json-key": [2, 3]},
         )
+
+
+def test_plot_multitags_rejects_a_non_numeric_tag() -> None:
+    """The tags to plot are validated across the batches, and the failing batch is named."""
+    batches = {
+        1: pd.DataFrame({"temp": [10.0, 11.0], "operator": ["ann", "bob"]}),
+        2: pd.DataFrame({"temp": [12.0, 13.0], "operator": ["cy", "di"]}),
+    }
+    with pytest.raises(ValueError, match=r"All columns must be a numeric type\. Differs in 1\."):
+        plot_multitags(df_dict=batches)
 
 
 def test_plotting_tags(nylon_data: dict) -> None:

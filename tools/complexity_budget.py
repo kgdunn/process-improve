@@ -38,13 +38,16 @@ RULES = ("C901", "PLR0912", "PLR0913", "PLR0915")
 #: never raise them. A pull request that pushes a count over its budget has made
 #: the code worse in the specific way #307 is about, and CI says so.
 BUDGET: dict[str, int] = {
+    # 42: #678 removed the unreachable `raise` after `check_valid_batch_dict` in
+    # `batch_dtw` (the check raises itself and never returns False), taking
+    # `batch_dtw` under C901.
     # 45: #639 rewrote `_run_model_selection` as a heredity-aware stepwise search
     # split into small helpers, and its C901 suppression went with it. 46 before
     # that: #208's `to_spec` in optimization_plots.py no longer branches enough to
     # breach C901. The ratchet fails on a count *below* budget precisely so the
     # saving is banked here rather than left as headroom for the next change to
     # spend silently.
-    "C901": 42,
+    "C901": 41,
     # 24: #604 moved `PCA.fit`'s settings resolution and tolerance checks into the
     # shared `resolve_loop_settings`, taking `fit` under PLR0912.
     "PLR0912": 23,
