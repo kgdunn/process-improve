@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import re
+from collections.abc import Callable
+from typing import Any
 
 import numpy as np
 import pandas as pd
@@ -139,3 +141,72 @@ class TestGather:
         a = c(1, 2, 3, name="A")
         with pytest.raises(ValueError, match=r"^Duplicate column name 'A' in gather\(\)\.$"):
             gather(a, A=a)
+
+
+def _names_an_argument(message: str, arguments: dict[str, object]) -> bool:
+    """Return True if a rejection message identifies one of the arguments, by position, keyword or value."""
+    for key, value in arguments.items():
+        by_key = re.search(rf"\b(argument|position)\s+{re.escape(key)}\b|'{re.escape(key)}'", message, re.IGNORECASE)
+        by_value = re.search(rf"(?<!\w){re.escape(repr(value))}(?!\w)", message)
+        if by_key or by_value:
+            return True
+    return False
+
+
+def _result_or_type_error(call: Callable[[], Any]) -> tuple[Any, str | None]:
+    """Run ``call``; return its result, or ``None`` and the message of the TypeError it raised."""
+    try:
+        return call(), None
+    except TypeError as err:
+        return None, str(err)
+
+
+def _same_values(actual: list, expected: list) -> bool:
+    """Compare element by element, treating two missing values as equal."""
+    return len(actual) == len(expected) and all(
+        (pd.isna(a) and pd.isna(e)) or a == e for a, e in zip(actual, expected, strict=True)
+    )
+
+
+_ISSUE_677 = "#677: c() and gather() silently drop some inputs"
+
+
+@pytest.mark.xfail(strict=True, reason=_ISSUE_677)
+@pytest.mark.parametrize(
+    ("args", "kwargs", "kept"),
+    [
+        pytest.param((1, "a"), {}, [1, "a"], id="text-after-a-number"),
+        pytest.param((1, (2, 3)), {}, [1, 2, 3], id="tuple-after-a-number"),
+        pytest.param((1, [2, 3]), {}, [1, 2, 3], id="number-before-a-list"),
+        pytest.param((1, None), {}, [1, np.nan], id="none-after-a-number"),
+        pytest.param(
+            ("Dry", "Wet", "Dry"),
+            {"levels": ("Dry", "Wet")},
+            ["Dry", "Wet", "Dry"],
+            id="the-docstring-categorical-example",
+        ),
+    ],
+)
+def test_c_keeps_every_input_or_rejects_it_by_name(args: tuple, kwargs: dict, kept: list) -> None:
+    """No input to c() disappears: it is in the column, or a TypeError names it."""
+    column, rejection = _result_or_type_error(lambda: c(*args, **kwargs))
+    if rejection is not None:
+        assert _names_an_argument(rejection, {str(i): arg for i, arg in enumerate(args, start=1)}), rejection
+    else:
+        assert _same_values(list(column), kept), list(column)
+
+
+@pytest.mark.xfail(strict=True, reason=_ISSUE_677)
+@pytest.mark.parametrize(
+    "values",
+    [pytest.param(np.array([4.0, 5.0, 6.0]), id="numpy-array"), pytest.param((4.0, 5.0, 6.0), id="tuple")],
+)
+def test_gather_keeps_every_input_or_rejects_it_by_name(values: object) -> None:
+    """An array or tuple passed to gather() is a column of the result, or a TypeError names it."""
+    a = c(1, 2, 3, name="A")
+    expt, rejection = _result_or_type_error(lambda: gather(A=a, x=values))
+    if rejection is not None:
+        assert _names_an_argument(rejection, {"x": values}), rejection
+    else:
+        assert list(expt.columns) == ["A", "x"]
+        assert list(expt["x"]) == [4.0, 5.0, 6.0]
