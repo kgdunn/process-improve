@@ -164,7 +164,7 @@ class PlotlyAdapter(AbstractAdapter):
     # Layer → Plotly trace
     # ------------------------------------------------------------------
 
-    def _layer_to_trace(self, layer: LayerSpec) -> tuple[BaseTraceType, bool]:  # noqa: C901, PLR0911
+    def _layer_to_trace(self, layer: LayerSpec) -> tuple[BaseTraceType, bool]:  # noqa: PLR0911
         """Convert a :class:`LayerSpec` to a Plotly trace.
 
         Returns
@@ -210,11 +210,8 @@ class PlotlyAdapter(AbstractAdapter):
         if mark == MarkType.scatter:
             return self._scatter_trace(layer, x_vals, y_vals), on_secondary
 
-        if mark == MarkType.text:
-            return self._text_trace(layer, x_vals, y_vals), on_secondary
-
-        # Fallback to scatter
-        return self._scatter_trace(layer, x_vals, y_vals), on_secondary
+        # MarkType.text: ``mark`` is a MarkType, and every other member returns above.
+        return self._text_trace(layer, x_vals, y_vals), on_secondary
 
     def _bar_trace(
         self,
@@ -417,7 +414,7 @@ class PlotlyAdapter(AbstractAdapter):
     # Annotations → Plotly shapes / annotations
     # ------------------------------------------------------------------
 
-    def _add_annotation(  # noqa: C901, PLR0912
+    def _add_annotation(
         self,
         fig: go.Figure,
         ann: Annotation,
@@ -425,9 +422,8 @@ class PlotlyAdapter(AbstractAdapter):
         row: int | None = None,
         col: int | None = None,
     ) -> None:
-        at = ann.annotation_type
-        if isinstance(at, str):
-            at = AnnotationType(at)
+        # A member or its plain string value: AnnotationType is a str-Enum, so both convert.
+        at = AnnotationType(ann.annotation_type)
 
         color = ann.style.get("color", DOE_PALETTE["threshold_me"])
         dash = ann.style.get("dash", "dash")
@@ -509,6 +505,6 @@ class PlotlyAdapter(AbstractAdapter):
                     col=col or "all",
                 )
 
-        elif at == AnnotationType.label:
+        else:  # AnnotationType.label, the one member left
             msg = "AnnotationType.label is declared in the spec vocabulary but not implemented in the Plotly adapter."
             raise NotImplementedError(msg)
