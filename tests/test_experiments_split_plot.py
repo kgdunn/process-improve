@@ -7,8 +7,9 @@ exactly. Unbalanced designs are checked against statsmodels' general ``MixedLM``
 
 from __future__ import annotations
 
-import io
+import json
 import warnings
+from pathlib import Path
 
 import numpy as np
 import pandas as pd
@@ -167,83 +168,74 @@ class TestAgainstMixedLM:
         assert 12.0 < df_b < 16.0
 
 
-#: An unbalanced split plot (seven whole plots of 2 to 5 runs), at the precision the R
-#: reference values below were computed from.
-_UNBALANCED_CSV = """plot,A,B,y
-0,-1,0.2502,4.9778
-0,-1,0.7944,4.1254
-1,1,0.5514,11.9675
-1,1,-0.5496,12.6876
-1,1,-0.3997,14.4824
-2,-1,0.7471,3.3132
-2,-1,-0.9895,10.1663
-2,-1,0.6425,5.3714
-2,-1,0.5941,4.0726
-3,1,-0.0641,9.3611
-3,1,-0.3939,9.7482
-3,1,-0.4431,9.7261
-3,1,-0.4903,8.4608
-3,1,-0.1098,9.5718
-4,-1,0.0091,7.5652
-4,-1,0.1070,4.3165
-4,-1,0.9910,3.6291
-5,1,0.5853,12.7581
-5,1,0.2444,12.1678
-5,1,0.9779,14.4429
-5,1,-0.5694,13.9784
-6,-1,-0.6796,8.3395
-6,-1,0.2251,6.4470
-"""
+#: Reference values from R: the data, the script that computes them and its README.
+_LMER_FIXTURE = Path(__file__).parent / "fixtures" / "split_plot_lmer"
+
+#: lme4 estimates by numerical optimisation, which agrees with the closed form here to
+#: about 2e-7, so this leaves a wide margin; Kenward-Roger's df are exact.
+_R_RTOL = 1e-5
 
 
 class TestAgainstLmerTest:
-    """Reference values from R 4.4.2, lme4 1.1.36, lmerTest 3.1.3 and pbkrtest 0.5.3.
+    """Agreement with lme4, lmerTest and pbkrtest; see ``tests/fixtures/split_plot_lmer``.
 
-    Computed with::
-
-        u <- lmer(y ~ A * B + (1 | plot), data = unb, REML = TRUE)
-        as.data.frame(VarCorr(u))
-        coef(summary(u, ddf = "Satterthwaite")); coef(summary(u, ddf = "Kenward-Roger"))
-
-    The estimates, standard errors and variance components are lme4's. The
-    Satterthwaite df here use the expected information, as Kenward and Roger (1997)
-    do, so they equal pbkrtest's Kenward-Roger df. lmerTest's Satterthwaite df use
-    the observed information instead and are a little larger in an unbalanced design
-    (5.25 and 15.52); in a balanced one all three agree.
+    The estimates, standard errors and variance components are lme4's. The Satterthwaite
+    df here use the expected information, as Kenward and Roger (1997) do, so they equal
+    pbkrtest's Kenward-Roger df. lmerTest's Satterthwaite df use the observed information
+    instead, and are a little larger in an unbalanced design; in a balanced one all agree.
     """
 
     @pytest.fixture(scope="class")
-    def result(self) -> dict:
-        """Return the split-plot analysis of the unbalanced data."""
-        df = pd.read_csv(io.StringIO(_UNBALANCED_CSV))
+    def reference(self) -> dict:
+        """Return the R results written by the fixture's ``reference.R``."""
+        return json.loads((_LMER_FIXTURE / "reference.json").read_text())
+
+    @pytest.fixture(scope="class")
+    def unbalanced(self) -> dict:
+        """Return the split-plot analysis of the unbalanced fixture data."""
+        df = pd.read_csv(_LMER_FIXTURE / "unbalanced.csv")
         return analyze_experiment(
             df, response_column="y", model="y ~ A * B", whole_plot="plot", analysis_type="split_plot"
         )["split_plot"]
 
-    def test_variance_components_are_lme4s(self, result: dict) -> None:
-        """REML whole-plot and residual variances: 1.919521490 and 1.061817805."""
-        components = result["variance_components"]
-        assert components["whole_plot"] == pytest.approx(1.919521490, rel=1e-6)
-        assert components["residual"] == pytest.approx(1.061817805, rel=1e-6)
+    @pytest.fixture(scope="class")
+    def corrosion(self) -> dict:
+        """Return the split-plot analysis of the corrosion experiment."""
+        return _analyse(_corrosion().drop(columns="Position"), whole_plot="Heat")["split_plot"]
 
-    def test_estimates_and_standard_errors_are_lme4s(self, result: dict) -> None:
-        """Fixed effects and their (unadjusted) standard errors."""
-        rows = {row["term"]: row for row in result["coefficients"]}
-        expected = {
-            "Intercept": (9.158297227, 0.5773092658),
-            "A": (2.720163358, 0.5773092658),
-            "B": (-1.642715118, 0.4434929460),
-            "A:B": (1.538946058, 0.4434929460),
-        }
-        for term, (estimate, std_error) in expected.items():
-            assert rows[term]["coefficient"] == pytest.approx(estimate, rel=1e-6)
-            assert rows[term]["std_error"] == pytest.approx(std_error, rel=1e-6)
+    def test_unbalanced_variance_components_are_lme4s(self, unbalanced: dict, reference: dict) -> None:
+        """REML whole-plot and residual variances."""
+        for component, value in reference["unbalanced"]["variance_components"].items():
+            assert unbalanced["variance_components"][component] == pytest.approx(value, rel=_R_RTOL)
 
-    def test_df_are_kenward_rogers(self, result: dict) -> None:
-        """Expected-information Satterthwaite df equal pbkrtest's: 4.863386965 and 15.211193371."""
-        rows = {row["term"]: row for row in result["coefficients"]}
-        for term, dof in {"Intercept": 4.863386965, "A": 4.863386965, "B": 15.211193371, "A:B": 15.211193371}.items():
-            assert rows[term]["df"] == pytest.approx(dof, rel=1e-6)
+    def test_unbalanced_estimates_and_standard_errors_are_lme4s(self, unbalanced: dict, reference: dict) -> None:
+        """Fixed effects and their standard errors."""
+        rows = {row["term"]: row for row in unbalanced["coefficients"]}
+        for term, expected in reference["unbalanced"]["coefficients"].items():
+            row = rows["Intercept" if term == "(Intercept)" else term]
+            assert row["coefficient"] == pytest.approx(expected["estimate"], rel=_R_RTOL)
+            assert row["std_error"] == pytest.approx(expected["std_error"], rel=_R_RTOL)
+
+    def test_unbalanced_df_are_kenward_rogers(self, unbalanced: dict, reference: dict) -> None:
+        """The df equal pbkrtest's, and fall below lmerTest's observed-information Satterthwaite df."""
+        rows = {row["term"]: row for row in unbalanced["coefficients"]}
+        for term, expected in reference["unbalanced"]["coefficients"].items():
+            dof = rows["Intercept" if term == "(Intercept)" else term]["df"]
+            assert dof == pytest.approx(expected["df_kenward_roger"], rel=_R_RTOL)
+            assert dof < expected["df_satterthwaite"]
+
+    def test_corrosion_matches_all_three(self, corrosion: dict, reference: dict) -> None:
+        """The balanced textbook split plot: the variance components, F, df and p agree everywhere."""
+        for component, value in reference["corrosion"]["variance_components"].items():
+            assert corrosion["variance_components"][component] == pytest.approx(value, rel=_R_RTOL)
+        tests = {row["source"]: row for row in corrosion["tests"]}
+        for term, expected in reference["corrosion"]["tests"].items():
+            row = tests[term]
+            assert row["df"] == expected["df"]
+            assert row["F"] == pytest.approx(expected["F"], rel=_R_RTOL)
+            assert row["p_value"] == pytest.approx(expected["p_value"], rel=_R_RTOL)
+            assert row["df_denominator"] == pytest.approx(expected["df_satterthwaite"], rel=_R_RTOL)
+            assert row["df_denominator"] == pytest.approx(expected["df_kenward_roger"], rel=1e-12)
 
 
 class TestCombinedDegreesOfFreedom:
