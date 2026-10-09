@@ -9,6 +9,8 @@ import pandas as pd
 from scipy import stats
 from statsmodels.regression.linear_model import RegressionResultsWrapper
 
+from ._shared import BLOCK_COL, WHOLE_PLOT_COL
+
 
 def pure_error(design_df: pd.DataFrame, response_col: str, group_cols: list[str]) -> tuple[float, int]:
     """Pure-error sum of squares and degrees of freedom from runs replicated over ``group_cols``.
@@ -58,7 +60,7 @@ def _run_lack_of_fit(
     residuals = ols_result.resid
 
     if factor_cols is None:
-        _non_factor = {response_col, "RunOrder", "Block"}
+        _non_factor = {response_col, "RunOrder", BLOCK_COL, WHOLE_PLOT_COL}
         factor_cols = [c for c in design_df.columns if c not in _non_factor]
     if not factor_cols:
         return {"lack_of_fit": {"error": "No factor columns found."}}

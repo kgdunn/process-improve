@@ -13,6 +13,7 @@ User Guide
    omars_designs
    constrained_designs
    screening_and_space_filling
+   split_plot_analysis
    sensory_panel
    sensory_diagnostics
    chemistry

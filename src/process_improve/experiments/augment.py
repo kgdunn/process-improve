@@ -33,6 +33,7 @@ from patsy import dmatrix
 from process_improve._random import check_random_state
 from process_improve.experiments._blocking import confounding_blocks, exchange_blocks, is_regular_two_level
 from process_improve.experiments.designs_response_surface import orthogonal_alpha
+from process_improve.experiments.designs_utils import RESERVED_COLUMN_NAMES
 from process_improve.experiments.evaluate import (
     _defining_relation_from_generators,
     _roman,
@@ -834,7 +835,7 @@ def _resolve_factor_names(design: pd.DataFrame, factor_names: list[str] | None) 
             raise ValueError(msg)
         return list(factor_names)
 
-    names = [c for c in design.columns if c not in ("RunOrder", "Block")]
+    names = [c for c in design.columns if c not in RESERVED_COLUMN_NAMES]
 
     def looks_coded(column: pd.Series) -> bool:
         if not pd.api.types.is_numeric_dtype(column):

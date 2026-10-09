@@ -11,6 +11,25 @@ those changes.
 
 ## [Unreleased]
 
+### Added
+
+- **`analyze_experiment(..., analysis_type="split_plot")` analyses a split-plot
+  experiment correctly (#630).** Ordinary least squares, which every other analysis
+  uses, treats the runs in a whole plot as independent, so the hard-to-change factors
+  looked more significant than they are and the easy ones less. The new analysis fits a
+  random whole-plot effect by REML and tests every coefficient and term on
+  Satterthwaite's denominator degrees of freedom, so whole-plot terms are judged against
+  the whole-plot error. It reports the variance components and their ratio `eta`, the
+  error df of the two strata, and the stratum of each term. In a balanced design it is
+  the classical split-plot ANOVA. On Box, Hunter and Hunter's corrosion experiment, least
+  squares finds temperature significant (p = 0.003) and coating not (p = 0.39); the
+  split-plot analysis finds the reverse (temperature F = 2.75 on 2 and 3 df, p = 0.21;
+  coating p = 0.002), as the book does. The whole plots come from a `WholePlot` column,
+  or the column named by the new `whole_plot` argument, also on the `analyze_experiment`
+  agent tool. A new user-guide page, "Split-plot experiments", walks through both.
+- **`datasets.corrosion()`**: the corrosion-resistance split plot from Box, Hunter and
+  Hunter, chapter 9 (six heats at three temperatures, four coatings per heat).
+
 ### Changed
 
 - **Full and fractional factorial, Plackett-Burman, Box-Behnken, central composite and
@@ -27,6 +46,22 @@ those changes.
   second-order model nothing for error, so `analyze_omars` used to fail only after the
   runs were done. The warning names the fix: centre runs (`n_center_points=3`) or a
   larger budget.
+- **A split-plot design from `generate_design(hard_to_change=...)` has a `WholePlot`
+  column**, numbering each run's whole plot from 1, as a blocked design has `Block`. So
+  `analysis_type="split_plot"` finds the whole plots by itself, and `WholePlot` is now
+  a reserved name that a factor cannot use. `evaluate_design`, `augment_design`, the
+  design-quality plots and `moment_aberration` do not treat the column as a factor.
+- **Any other analysis of runs grouped into whole plots warns** that ordinary least
+  squares treats them as independent, and names `analysis_type="split_plot"`. Drop the
+  column to analyse without it. `recommend_strategy`'s split-plot risk now names the
+  analysis too.
+
+### Fixed
+
+- **A replicated split-plot design's `metadata["whole_plot"]` covers every run.** It
+  listed the whole plots of one replicate only, so it was shorter than the design, and
+  `n_whole_plots` counted one replicate's. Each replicate now has whole plots of its
+  own, as it is run again from scratch.
 
 ### Documentation
 

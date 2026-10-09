@@ -48,6 +48,7 @@ def python_blocks(path: Path) -> list[tuple[int, str]]:
         "design_evaluation.rst",
         "screening_and_space_filling.rst",
         "doe_strategy.rst",
+        "split_plot_analysis.rst",
         pytest.param("omars_designs.rst", marks=pytest.mark.slow),
     ],
 )

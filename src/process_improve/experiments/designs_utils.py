@@ -11,6 +11,7 @@ import pandas as pd
 from patsy.util import SortAnythingKey
 
 from process_improve._random import check_random_state
+from process_improve.experiments._analyses._shared import BLOCK_COL, WHOLE_PLOT_COL
 from process_improve.experiments._blocking import Blocking, confounding_blocks, exchange_blocks, is_regular_two_level
 from process_improve.experiments.structures import Column, Expt, c, gather
 
@@ -18,12 +19,13 @@ if TYPE_CHECKING:
     from process_improve.experiments.factor import DesignResult, Factor
 
 
-#: Columns that ``build_design_result`` adds to every design, so no factor may use these names.
-RESERVED_COLUMN_NAMES = ("RunOrder", "Block")
+#: Columns that ``build_design_result`` adds to a design, so no factor may use these names:
+#: ``RunOrder`` on every design, ``Block`` on a blocked one and ``WholePlot`` on a split-plot one.
+RESERVED_COLUMN_NAMES = ("RunOrder", BLOCK_COL, WHOLE_PLOT_COL)
 
 
 def refuse_reserved_names(factors: list[Factor]) -> None:
-    """Raise when a factor is named like a column the design adds (``RunOrder``, ``Block``).
+    """Raise when a factor is named like a column the design adds (``RunOrder``, ``Block``, ``WholePlot``).
 
     Raises
     ------
@@ -34,8 +36,8 @@ def refuse_reserved_names(factors: list[Factor]) -> None:
     clash = [f.name for f in factors if f.name in RESERVED_COLUMN_NAMES]
     if clash:
         raise ValueError(
-            f"Factor name(s) {clash} are reserved: every design has a 'RunOrder' column, and a blocked "
-            "design a 'Block' column. Rename the factor(s)."
+            f"Factor name(s) {clash} are reserved: every design has a 'RunOrder' column, a blocked design a "
+            "'Block' column and a split-plot design a 'WholePlot' column. Rename the factor(s)."
         )
 
 
@@ -289,6 +291,18 @@ def _assign_blocks(
     return exchange_blocks(numeric, n_blocks, rng if rng is not None else np.random.default_rng())
 
 
+def _whole_plot_labels(whole_plot: list[int], n_replicates: int, perm: np.ndarray) -> np.ndarray:
+    """Return each run's whole plot, numbered from 1 in run order.
+
+    ``whole_plot`` numbers the whole plots of one replicate from 0. A replicate is run
+    again from scratch, so its whole plots are new ones: replicate ``r`` continues the
+    numbering where replicate ``r - 1`` stopped.
+    """
+    labels = np.asarray(whole_plot, dtype=int)
+    n_plots = int(labels.max()) + 1
+    return np.concatenate([labels + r * n_plots for r in range(n_replicates)])[perm] + 1
+
+
 def build_design_result(  # noqa: PLR0913
     coded_matrix: np.ndarray,
     factors: list[Factor],
@@ -314,7 +328,8 @@ def build_design_result(  # noqa: PLR0913
     3. Randomize run order
     4. Convert to Column/Expt (coded + actual)
     5. Assign blocks if requested
-    6. Build DesignResult
+    6. Label the whole plots of a split-plot design
+    7. Build DesignResult
 
     Parameters
     ----------
@@ -441,6 +456,13 @@ def build_design_result(  # noqa: PLR0913
             "confounded_with": blocking.confounded_with,
             "model": blocking.model,
         }
+
+    # 6. Whole plots: a split-plot design's runs carry their whole plot, as Block does.
+    if metadata and "whole_plot" in metadata:
+        whole_plots = _whole_plot_labels(metadata["whole_plot"], n_replicates, perm)
+        design_coded[WHOLE_PLOT_COL] = whole_plots
+        design_actual[WHOLE_PLOT_COL] = whole_plots
+        metadata = {**metadata, "whole_plot": (whole_plots - 1).tolist(), "n_whole_plots": int(whole_plots.max())}
 
     return DesignResult(
         design=design_coded,

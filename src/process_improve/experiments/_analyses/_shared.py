@@ -44,6 +44,10 @@ def _compute_adequate_precision(ols_result: RegressionResultsWrapper) -> float:
 #: contrast to zero predicts the average over the blocks.
 BLOCK_COL = "Block"
 
+#: The design column that names each run's whole plot in a split-plot design. Runs in one
+#: whole plot share its hard-to-change factor settings, and so share that whole plot's error.
+WHOLE_PLOT_COL = "WholePlot"
+
 
 def is_block_term(label: str, block_names: tuple[str, ...] | list[str]) -> bool:
     """Whether a term, or an alias chain led by one, is a block contrast."""

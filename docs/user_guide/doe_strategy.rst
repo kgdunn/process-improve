@@ -340,10 +340,13 @@ its whole-plot factors:
      Whole-plot (hard to change): ['Temperature']
 
 With split-plot designs, runs are grouped within whole-plot factor levels
-to minimize the number of hard-to-change factor resets.  The output risks
-will include a reminder that standard ANOVA gives incorrect p-values for
-split-plot experiments - a restricted maximum likelihood (REML) analysis
-is needed instead.
+to minimize the number of hard-to-change factor resets. The design records each
+run's whole plot in a ``WholePlot`` column. The output risks include a reminder
+that standard ANOVA gives incorrect p-values for split-plot experiments: runs in
+one whole plot share its error, so ordinary least squares makes the
+hard-to-change factors look more significant than they are. Analyse the results
+with ``analysis_type="split_plot"``, a restricted maximum likelihood (REML) fit
+that tests each factor against the right error; see :ref:`split-plot-analysis`.
 
 Multiple Responses
 ------------------

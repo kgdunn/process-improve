@@ -325,7 +325,7 @@ def moment_aberration(design: pd.DataFrame | np.ndarray) -> MomentAberrationResu
     process_improve.experiments.evaluate_design : the ``moment_aberration`` metric.
     """
     frame = pd.DataFrame(design).copy()
-    for label in ("Run", "RunOrder", "Block", "run", "run_order", "block"):
+    for label in ("Run", "RunOrder", "Block", "WholePlot", "run", "run_order", "block"):
         if label in frame.columns:
             frame = frame.drop(columns=[label])
 

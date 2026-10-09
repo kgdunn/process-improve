@@ -1,6 +1,6 @@
 """Tests for the experiments dataset loaders.
 
-``boilingpot()``, ``golf()``, ``pollutant()`` and ``solar()`` load from
+``boilingpot()``, ``corrosion()``, ``golf()``, ``pollutant()`` and ``solar()`` load from
 CSVs bundled with the package; ``oildoe()`` and ``distillateflow()``
 fetch from openmv.net. The bundled data were extracted from the ``.rda``
 files in the companion R package, so the shapes and values below are the
@@ -100,7 +100,20 @@ def test_solar_loads() -> None:
     assert df["y2"].iloc[-1] == pytest.approx(100.0)
 
 
-@pytest.mark.parametrize("name", ["boilingpot", "golf", "pollutant", "solar"])
+def test_corrosion_loads() -> None:
+    """``corrosion()`` is BHH's split-plot: six heats of four bars, each temperature in two heats."""
+    df = datasets.corrosion()
+    assert df.shape == (24, 5)
+    assert list(df.columns) == ["Heat", "Temperature", "Position", "Coating", "Resistance"]
+    assert (df.groupby("Heat")["Temperature"].agg(["min", "max"]).diff(axis=1)["max"] == 0).all()
+    assert df.groupby("Temperature")["Heat"].nunique().to_dict() == {360: 2, 370: 2, 380: 2}
+    assert (df.groupby("Heat")["Coating"].apply(set) == {"C1", "C2", "C3", "C4"}).all()
+    # BHH Table 9.1: the heat-3 bar with coating C4 resisted longest.
+    assert df["Resistance"].max() == 212
+    assert df.loc[df["Resistance"].idxmax(), ["Heat", "Coating"]].tolist() == [3, "C4"]
+
+
+@pytest.mark.parametrize("name", ["boilingpot", "corrosion", "golf", "pollutant", "solar"])
 def test_data_dispatch_matches_direct_loader(name: str) -> None:
     """``data(name)`` returns exactly what the named loader returns."""
     pd.testing.assert_frame_equal(datasets.data(name), getattr(datasets, name)())

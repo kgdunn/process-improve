@@ -32,6 +32,7 @@ from statsmodels.regression.linear_model import RegressionResultsWrapper
 # keep working unchanged.
 from process_improve.experiments._analyses._shared import (
     BLOCK_COL,
+    WHOLE_PLOT_COL,
     _compute_adequate_precision,
     _compute_pred_r_squared,
 )
@@ -56,6 +57,7 @@ from process_improve.experiments._analyses.ols_extractors import (
     _run_significance,
 )
 from process_improve.experiments._analyses.prediction import _run_confirmation_test, _run_prediction
+from process_improve.experiments._analyses.split_plot import run_split_plot, sum_coded
 from process_improve.experiments._analyses.transforms import transform_response, validate_transform
 from process_improve.experiments.designs_mixture_constrained import SCHEFFE_MODELS, scheffe_formula_rhs
 from process_improve.experiments.models import validate_formula_is_safe, validate_identifier_is_safe
@@ -164,6 +166,7 @@ _ANALYSIS_REGISTRY: dict[str, str] = {
     "confidence_intervals": "confidence_intervals",
     "prediction": "prediction",
     "confirmation_test": "confirmation_test",
+    "split_plot": "split_plot",
 }
 
 
@@ -304,6 +307,37 @@ def _add_block_term(df: pd.DataFrame, formula: str, model: str) -> tuple[pd.Data
     return df, f"{response} ~ {' + '.join(names)} + {rhs}", tuple(names)
 
 
+def _whole_plot_column(df: pd.DataFrame, whole_plot: str | None, types: list[str]) -> str:
+    """Name the column of whole-plot labels; warn when the analysis would treat its runs as independent.
+
+    ``whole_plot`` names the column; by default it is ``WholePlot``, which
+    ``generate_design`` adds to a split-plot design, and which need not be present
+    unless ``analysis_type="split_plot"`` is asked for. Every other analysis is ordinary
+    least squares, which treats each run as independent, so a design with whole plots
+    gets a warning.
+    """
+    column = WHOLE_PLOT_COL if whole_plot is None else whole_plot
+    if column not in df.columns:
+        if whole_plot is not None:
+            raise ValueError(f"whole_plot={whole_plot!r} is not a column of the data.")
+        if "split_plot" in types:
+            raise ValueError(
+                f"analysis_type='split_plot' needs each run's whole plot: a {WHOLE_PLOT_COL!r} column, as "
+                "generate_design adds to a split-plot design, or whole_plot='<column>' naming one."
+            )
+        return column
+    if "split_plot" not in types:
+        warnings.warn(
+            f"The runs are grouped into whole plots by the {column!r} column, but analysis_type={types} fits "
+            "ordinary least squares, which treats every run as independent: whole-plot (hard-to-change) effects "
+            "then look more significant than they are, and subplot effects less. Add 'split_plot' to "
+            "analysis_type for the REML analysis, or drop the column to silence this.",
+            category=UserWarning,
+            stacklevel=3,
+        )
+    return column
+
+
 def _check_term_count(formula: str) -> None:
     """Refuse a formula that expands beyond ``settings.max_formula_terms`` terms (SEC-19), as ``lm`` does."""
     from process_improve.config import settings  # noqa: PLC0415
@@ -352,6 +386,7 @@ class _Fit:
     blocks: tuple[str, ...]
     transform_info: dict[str, Any]
     alpha: float
+    whole_plot: str = WHOLE_PLOT_COL
     _coded: tuple[RegressionResultsWrapper, dict[str, Any]] | None = None
     _reduced: tuple[RegressionResultsWrapper, dict[str, str]] | None = None
 
@@ -394,6 +429,14 @@ def _effects(fit: _Fit, *, lenth: bool) -> dict[str, Any]:
     if coding:
         result["effects_coding"] = coding
     return result
+
+
+def _split_plot(fit: _Fit) -> dict[str, Any]:
+    """REML analysis with the whole plots as a random effect; categorical factors sum-coded in a named model."""
+    formula = fit.ols.model.formula
+    if fit.model in _NAMED_MODELS and fit.model not in SCHEFFE_MODELS:
+        formula = sum_coded(formula, [c for c in fit.factor_cols if not _is_numeric(fit.df[c])])
+    return run_split_plot(fit.df, formula, fit.whole_plot, fit.alpha, fit.blocks)
 
 
 def _mixture_handlers(fit: _Fit) -> dict[str, Callable[[], dict[str, Any]]]:
@@ -448,6 +491,7 @@ def _handlers(
         "confidence_intervals": lambda: _run_confidence_intervals(fit.ols, fit.alpha),
         "prediction": prediction,
         "confirmation_test": confirmation,
+        "split_plot": lambda: _split_plot(fit),
     }
     if fit.model in SCHEFFE_MODELS:
         # The usual ANOVA, significance and effects test each blending coefficient
@@ -472,6 +516,7 @@ def analyze_experiment(  # noqa: PLR0913
     new_points: pd.DataFrame | None = None,
     observed_at_new: list[float] | None = None,
     response_column: str | None = None,
+    whole_plot: str | None = None,
 ) -> dict[str, Any]:
     """Fit models, run ANOVA, compute effects, diagnose residuals.
 
@@ -483,6 +528,9 @@ def analyze_experiment(  # noqa: PLR0913
         is added to the named non-mixture models as a fixed effect (sum-coded contrast
         columns ``Block1``, ...; one ``"Block"`` row in the ANOVA), so block-to-block
         differences do not inflate the error; drop the column to analyse without it.
+        A ``WholePlot`` column, which ``generate_design`` adds to a split-plot design,
+        labels each run's whole plot: it is used by ``analysis_type="split_plot"``,
+        and any other analysis warns that it treats the runs as independent.
         Runs with a missing response or factor setting are left out, with a warning.
     responses : DataFrame, Series, or None
         Response column(s).  If *None*, ``response_column`` must name a
@@ -504,7 +552,7 @@ def analyze_experiment(  # noqa: PLR0913
         ``"significance"``, ``"residual_diagnostics"``, ``"lack_of_fit"``,
         ``"curvature_test"``, ``"model_selection"``, ``"box_cox"``,
         ``"lenth_method"``, ``"confidence_intervals"``, ``"prediction"``,
-        ``"confirmation_test"``.
+        ``"confirmation_test"``, ``"split_plot"``.
 
         The ANOVA uses Type II sums of squares (reported as ``anova_type``). The
         ANOVA and significance list exactly aliased terms once, as their alias chain
@@ -514,6 +562,27 @@ def analyze_experiment(  # noqa: PLR0913
         two-level categorical factor from its first level to its second (sorted);
         the mapping is reported under ``effects_coding``. The curvature test uses
         pure error from the replicated runs.
+
+        ``"split_plot"`` is for a design whose hard-to-change factors change only
+        between whole plots. Every other analysis is ordinary least squares, which
+        treats the runs as independent, so it makes the whole-plot effects look more
+        significant than they are and the subplot effects less. This one fits the
+        model with a random whole-plot effect, by REML, and tests each term on
+        Satterthwaite's denominator degrees of freedom, so a whole-plot term is judged
+        against the whole-plot error and a subplot term against the run-to-run error.
+        In a balanced design this is the classical split-plot ANOVA. The tests are
+        marginal (Type III); in a named model the categorical factors are sum-coded
+        for them, so a main effect is averaged over the factors it interacts with
+        (write ``C(name, Sum)`` in an explicit formula for the same). The result,
+        under ``"split_plot"``, has the ``variance_components`` (``whole_plot``,
+        ``residual`` and their ratio ``eta``, which a split-plot design is built
+        for), the ``error_df`` of the two strata, ``coefficients`` and per-term
+        ``tests`` (each with its ``df``, ``stratum`` and p-value), and the
+        ``significant_terms``. The degrees of freedom use the expected information,
+        so they equal Kenward and Roger's (as R's pbkrtest gives them); R's lmerTest
+        uses the observed information, and gives slightly larger ones in an
+        unbalanced design. Kenward and Roger's inflation of the standard errors is not
+        applied. In a balanced design all of these agree.
     significance_level : float
         Default 0.05. Used by every test's ``significant`` flag and every interval.
     transform : str or None
@@ -533,6 +602,10 @@ def analyze_experiment(  # noqa: PLR0913
         Observed values at *new_points* (for confirmation testing), one per row.
     response_column : str or None
         Name of the response column when it lives inside *design_matrix*.
+    whole_plot : str or None
+        The column labelling each run's whole plot, for ``"split_plot"``. ``None``
+        (default) uses the ``WholePlot`` column when there is one. The column is never
+        a factor.
 
     Returns
     -------
@@ -561,7 +634,9 @@ def analyze_experiment(  # noqa: PLR0913
         - ``mse_residual`` - mean squared error of the residuals.
 
         Notes from individual analyses are kept apart, as ``anova_note``,
-        ``effects_note``, ``lenth_note`` and ``significance_note``.
+        ``effects_note``, ``lenth_note``, ``significance_note`` and
+        ``split_plot_note``. The ``model_summary`` is of the least-squares fit, also
+        for ``"split_plot"``.
 
     Examples
     --------
@@ -599,22 +674,28 @@ def analyze_experiment(  # noqa: PLR0913
     # caller passes the whole design frame with the response joined, these must
     # not become factors. This mirrors evaluate_design's filtering so the two
     # public consumers agree on what counts as a factor.
-    _NON_FACTOR_COLS = {response_col, "RunOrder", BLOCK_COL}
-    factor_cols = [c for c in df.columns if c not in _NON_FACTOR_COLS]
-    for col in factor_cols:
-        validate_identifier_is_safe(col)
-        if keyword.iskeyword(col):
-            raise ValueError(f"Factor column {col!r} is a Python keyword, which a model formula cannot use; rename it.")
-
     types = [analysis_type] if isinstance(analysis_type, str) else list(analysis_type)
     unknown = [t for t in types if t not in _ANALYSIS_REGISTRY]
     if unknown:
         available = sorted(_ANALYSIS_REGISTRY.keys())
         raise ValueError(f"Unknown analysis_type(s): {unknown}. Available: {available}")
     validate_transform(transform)
+    whole_plot_col = _whole_plot_column(df, whole_plot, types)
+
+    _NON_FACTOR_COLS = {response_col, "RunOrder", BLOCK_COL, WHOLE_PLOT_COL, whole_plot_col}
+    factor_cols = [c for c in df.columns if c not in _NON_FACTOR_COLS]
+    for col in factor_cols:
+        validate_identifier_is_safe(col)
+        if keyword.iskeyword(col):
+            raise ValueError(f"Factor column {col!r} is a Python keyword, which a model formula cannot use; rename it.")
 
     model, factor_cols = _resolve_model(df, model, response_col, reported_response, factor_cols)
-    used = [response_col, *factor_cols, *([BLOCK_COL] if BLOCK_COL in df.columns else [])]
+    used = [
+        response_col,
+        *factor_cols,
+        *([BLOCK_COL] if BLOCK_COL in df.columns else []),
+        *([whole_plot_col] if "split_plot" in types else []),
+    ]
     df = _drop_incomplete_runs(df, used)
 
     categorical = [c for c in factor_cols if not _is_numeric(df[c])]
@@ -652,6 +733,7 @@ def analyze_experiment(  # noqa: PLR0913
         blocks=blocks,
         transform_info=transform_info,
         alpha=significance_level,
+        whole_plot=whole_plot_col,
     )
     handlers = _handlers(fit, new_points, observed_at_new)
     for t in types:
