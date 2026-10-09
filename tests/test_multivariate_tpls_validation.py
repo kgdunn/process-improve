@@ -70,3 +70,26 @@ def test_a_text_column_is_still_refused_by_name() -> None:
     blocks["Z"]["Z1"]["operator"] = ["A", "B"] * 10
     with pytest.raises(ValueError, match=r"must be of type float64 or int64\. Bad columns: \['operator'\]"):
         TPLS(n_components=2, d_matrix=d_matrix).fit(DataFrameDict(blocks))
+
+
+def test_a_non_string_group_name_fits_when_d_and_f_use_the_same_one() -> None:
+    """A group name is a label, so an integer one works as long as D and F agree on it.
+
+    The key check compared ``str(key)`` from D against F while the per-group check and
+    the fit itself used the raw key, so no non-string group name could ever fit: matching
+    integer keys failed the first check, and a string "1" in F against an integer 1 in D
+    failed the second with a message saying F had no group '1'.
+    """
+    d_matrix, blocks = _synthetic()
+    numbered_d = {1: d_matrix["G"]}
+    numbered = {**blocks, "F": {1: blocks["F"]["G"]}}
+
+    model = TPLS(n_components=2, d_matrix=numbered_d).fit(DataFrameDict(numbered))
+    reference = TPLS(n_components=2, d_matrix=d_matrix).fit(DataFrameDict(blocks))
+    np.testing.assert_allclose(model.t_scores_super, reference.t_scores_super, rtol=1e-12)
+    np.testing.assert_allclose(model.diagnose(DataFrameDict(numbered)).hat["Y1"], reference.hat["Y1"], rtol=1e-10)
+
+    # The string "1" is a different label from the integer 1, and is refused as one.
+    mismatched = {**blocks, "F": {"1": blocks["F"]["G"]}}
+    with pytest.raises(ValueError, match=r"^The keys in F must match the keys in D\.$"):
+        TPLS(n_components=2, d_matrix=numbered_d).fit(DataFrameDict(mismatched))

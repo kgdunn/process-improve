@@ -493,7 +493,7 @@ class TPLS(RegressorMixin, BaseEstimator):
         if not isinstance(X, DataFrameDict):
             raise TypeError(f"X must be a DataFrameDict; got {type(X).__name__}.")
         self._input_data_checks(X)
-        group_keys = [str(key) for key in self.d_matrix]
+        group_keys = list(self.d_matrix)
 
         # Storage for pre-processing and the raw matrices
         self.fitting_statistics: dict[str, list] = {"iterations": [], "convergance_tolerance": [], "milliseconds": []}
@@ -1057,8 +1057,9 @@ class TPLS(RegressorMixin, BaseEstimator):
             raise TypeError(f"The input data must be a DataFrameDict; got {type(X).__name__}.")
         if set(X.keys()) != self.required_inputs_:
             raise ValueError(f"Expected keys: {self.required_inputs_}, got: {set(X.keys())}.")
-        group_keys = [str(key) for key in self.d_matrix]
-        if set(X["F"]) != set(group_keys):
+        # Group names are labels, used exactly as given. Passing them through ``str()`` in some
+        # places and not in others meant a non-string group name could never be fitted.
+        if set(X["F"]) != set(self.d_matrix):
             raise ValueError("The keys in F must match the keys in D.")
 
         for key in X["Y"]:
@@ -1067,9 +1068,7 @@ class TPLS(RegressorMixin, BaseEstimator):
             self._validate_df(X["Z"][key])
         for key in self.d_matrix:
             self._validate_df(self.d_matrix[key])
-            if key not in X["F"]:
-                raise ValueError(f"Block/group name '{key}' in D must also be present in F.")
-            self._validate_df(X["F"][key])  # this also ensures the keys in F are the same as in D
+            self._validate_df(X["F"][key])
 
     def _learn_center_and_scaling_parameters(self, y: pd.DataFrame, label: str = "") -> tuple[pd.Series, pd.Series]:
         """
