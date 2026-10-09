@@ -5653,6 +5653,71 @@ def test_t2_plot_accepts_valid_conf_level(fixture_pca_for_plots: PCA) -> None:
     assert isinstance(fig, go.Figure)
 
 
+@pytest.mark.parametrize(
+    ("plot", "arguments", "message"),
+    [
+        ("score_plot", {"pc_horiz": 4}, r"^The model has 3 components\. Ensure that 1 <= pc_horiz <= 3\.$"),
+        ("score_plot", {"pc_vert": 4}, r"^The model has 3 components\. Ensure that 1 <= pc_vert <= 3\.$"),
+        (
+            "score_plot",
+            {"pc_depth": 4},
+            r"^The model has 3 components\. Ensure that pc_depth is -1 \(no depth axis\) or 1 <= pc_depth <= 3\.$",
+        ),
+        ("score_plot", {"pc_horiz": 1, "pc_vert": 1}, r"^Specify distinct components for each axis\.$"),
+        ("score_plot", {"settings": {"ellipse_conf_level": 1.0}}, r"0\.0 < `ellipse_conf_level` < 1\.0"),
+        ("score_plot", {"settings": {"ellipse_conf_level": 0.0}}, r"0\.0 < `ellipse_conf_level` < 1\.0"),
+        ("spe_plot", {"with_a": 0}, r"^`with_a` must be >= 1, or specified with negative indexing\.$"),
+        ("spe_plot", {"with_a": 4}, r"^`with_a` must be <= the number of components fitted \(3\); got 4\.$"),
+        ("spe_plot", {"settings": {"conf_level": 1.0}}, r"0\.0 < `conf_level` < 1\.0"),
+        ("spe_plot", {"settings": {"conf_level": 0.0}}, r"0\.0 < `conf_level` < 1\.0"),
+    ],
+    ids=[
+        "score-horizontal-axis-beyond-A",
+        "score-vertical-axis-beyond-A",
+        "score-depth-axis-beyond-A",
+        "score-same-component-twice",
+        "score-ellipse-at-100-percent",
+        "score-ellipse-at-0-percent",
+        "spe-after-0-components",
+        "spe-after-more-components-than-fitted",
+        "spe-limit-at-100-percent",
+        "spe-limit-at-0-percent",
+    ],
+)
+def test_score_and_spe_plots_refuse_arguments_out_of_range(
+    fixture_pca_for_plots: PCA, plot: str, arguments: dict, message: str
+) -> None:
+    """Axes must name distinct fitted components, and confidence levels must lie strictly inside (0, 1)."""
+    with pytest.raises(ValueError, match=message):
+        getattr(fixture_pca_for_plots, plot)(**arguments)
+
+
+def test_score_plot_draws_the_ellipse_at_the_confidence_level_asked_for(fixture_pca_for_plots: PCA) -> None:
+    """A 99% ellipse is named as such and drawn outside the default 95% one."""
+    model = fixture_pca_for_plots
+    default = model.score_plot().data[1]
+    wider = model.score_plot(settings={"ellipse_conf_level": 0.99}).data[1]
+    assert (default.name, wider.name) == ("Hotelling's T^2 [95%]", "Hotelling's T^2 [99%]")
+    assert np.max(np.abs(wider.x)) > np.max(np.abs(default.x))
+
+
+def test_spe_plot_draws_the_limit_at_the_confidence_level_asked_for(fixture_pca_for_plots: PCA) -> None:
+    """The limit line sits at the model's SPE limit for the level asked for."""
+    model = fixture_pca_for_plots
+    drawn = max(shape.y0 for shape in model.spe_plot(settings={"conf_level": 0.99}).layout.shapes)
+    assert drawn == pytest.approx(model.spe_limit(conf_level=0.99))
+    assert drawn > model.spe_limit(conf_level=0.95)
+
+
+@pytest.mark.parametrize("plot", ["score_plot", "loading_plot", "spe_plot", "t2_plot"])
+def test_pca_plots_draw_onto_a_figure_they_are_given(fixture_pca_for_plots: PCA, plot: str) -> None:
+    """Passing `fig` adds the traces to that figure, so plots can be layered, and returns it."""
+    canvas = go.Figure()
+    returned = getattr(fixture_pca_for_plots, plot)(fig=canvas)
+    assert returned is canvas
+    assert len(canvas.data) >= 1
+
+
 def test_explained_variance_plot_pca(fixture_pca_for_plots: PCA) -> None:
     """explained_variance_plot returns per-component bars and a cumulative line."""
     model = fixture_pca_for_plots

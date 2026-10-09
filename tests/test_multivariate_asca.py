@@ -292,6 +292,16 @@ def test_asca_effect_summary_plot() -> None:
         effect_summary_plot(ASCA())
 
 
+def test_asca_effect_summary_plot_draws_onto_a_figure_it_is_given() -> None:
+    """Passing `fig` adds the bars to that figure and returns it."""
+    go = pytest.importorskip("plotly.graph_objects")
+    X, design, _ = _two_factor_design()
+    canvas = go.Figure()
+    returned = ASCA(n_components=2).fit(X, design).effect_summary_plot(fig=canvas)
+    assert returned is canvas
+    assert [trace.type for trace in canvas.data] == ["bar"]
+
+
 @pytest.mark.dataset
 def test_asca_on_the_tablet_spectra() -> None:
     """A real dataset: 460 tablet NIR spectra split by two arbitrary but real groupings.

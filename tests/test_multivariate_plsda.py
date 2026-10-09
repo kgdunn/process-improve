@@ -431,6 +431,20 @@ def test_confusion_matrix_plot() -> None:
         confusion_matrix_plot(PLSDA(n_components=2))
 
 
+def test_confusion_matrix_plot_of_a_supplied_matrix() -> None:
+    """A matrix passed in, say a held-out one, is drawn as given, onto the figure passed in.
+
+    The model need not be fitted then, and `show_values=False` leaves the cells unlabelled.
+    """
+    go = pytest.importorskip("plotly.graph_objects")
+    held_out = pd.DataFrame([[5, 1], [2, 7]], index=["high", "low"], columns=["high", "low"])
+    canvas = go.Figure()
+    fig = confusion_matrix_plot(PLSDA(n_components=2), held_out, settings={"show_values": False}, fig=canvas)
+    assert fig is canvas
+    np.testing.assert_allclose(np.asarray(fig.data[0].z), held_out.to_numpy())
+    assert fig.data[0].text is None
+
+
 @pytest.mark.dataset
 def test_plsda_on_the_cheddar_cheese_data() -> None:
     """A real dataset: predict whether a cheese tastes above or below the median.

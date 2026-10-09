@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import copy
 import pathlib
 
 import numpy as np
@@ -538,3 +539,39 @@ def test_cv_criteria_plot_draws_four_panels(two_component_result: object) -> Non
     assert any("SPE limit refitted" in annotation.text for annotation in fig.layout.annotations)
     with pytest.raises(ValueError, match="compare_cv_criteria"):
         cv_criteria_plot(object())
+
+
+@pytest.fixture(scope="module")
+def noise_result() -> object:
+    """compare_cv_criteria on a y unrelated to X: the Y-related rules recommend 0 components."""
+    X, _ = _two_component_data()
+    y = pd.Series(np.random.default_rng(3).standard_normal(len(X)), name="noise")
+    return compare_cv_criteria(X, y, max_components=2, random_state=0, n_permutations=39, n_cv_permutations=19)
+
+
+def test_cv_criteria_plot_names_but_does_not_draw_a_recommendation_of_zero(noise_result: object) -> None:
+    """A rule that recommends no components is captioned in its panel, with no line at 0."""
+    pytest.importorskip("plotly.graph_objects")
+    from process_improve.multivariate.plots import cv_criteria_plot
+
+    picks = noise_result.recommendations["n_components"]
+    assert picks[["score_correlation", "covariance_permutation", "subspace_stability"]].eq(0).all()
+    fig = cv_criteria_plot(noise_result)
+    captions = [annotation.text for annotation in fig.layout.annotations]
+    assert "Recommended: 0 (held-out r, covariance)" in captions
+    assert "Recommended: 0 (subspace)" in captions
+    # Only panel 1's rules recommend a component, so theirs is the only line drawn.
+    assert [shape.x0 for shape in fig.layout.shapes] == [picks["q2_max"]]
+
+
+def test_cv_criteria_plot_has_no_spe_caption_without_a_finite_limit_ratio(noise_result: object) -> None:
+    """Panel 4's caption quotes the refitted SPE limit ratio, so with no finite ratio there is none."""
+    pytest.importorskip("plotly.graph_objects")
+    from process_improve.multivariate.plots import cv_criteria_plot
+
+    without_ratio = copy.copy(noise_result)
+    without_ratio.table = noise_result.table.assign(pv_spe_limit_ratio=np.nan)
+    with_ratio = [annotation.text for annotation in cv_criteria_plot(noise_result).layout.annotations]
+    without = [annotation.text for annotation in cv_criteria_plot(without_ratio).layout.annotations]
+    assert any(text.startswith("SPE limit refitted") for text in with_ratio)
+    assert not any(text.startswith("SPE limit refitted") for text in without)
