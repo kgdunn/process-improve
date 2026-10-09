@@ -7,6 +7,7 @@ import pandas as pd
 import pytest
 
 from process_improve.monitoring.control_charts import ControlChart
+from process_improve.tool_spec import execute_tool_call
 
 RUBBER_COLOUR = pathlib.Path(__file__).parents[1] / "src" / "process_improve" / "datasets" / "monitoring"
 
@@ -170,3 +171,25 @@ def test_rubber_colour_data_matches_pandas_ewm() -> None:
     assert chart.df["ewma_ucl"].iloc[-1] == pytest.approx(238.78 + 10.43234)
     assert chart.idx_outside_3S == [69]
     assert fit_ewma(y, target=238.78, s=10.43234, ld_1=1.0).idx_outside_3S == []
+
+
+def test_control_chart_tool_reports_ewma_limits_and_statistic() -> None:
+    """The tool's EWMA limits are the steady-state ones, and it reports the statistic at each alarm."""
+    rng = np.random.default_rng(9)
+    # A long in-control history, then a sustained one-sigma shift over the last 20 samples.
+    values = [float(v) for v in np.concatenate([rng.normal(50, 2, 80), rng.normal(52, 2, 20)])]
+
+    result = execute_tool_call("control_chart", {"values": values, "chart_type": "ewma"})
+    shewhart = execute_tool_call("control_chart", {"values": values, "chart_type": "shewhart"})
+
+    assert "error" not in result
+    assert result["ewma_weight"] == 0.2
+    # With w = 0.2 the steady-state half-width is s, a third of the Shewhart chart's 3 s.
+    half_width = result["upper_control_limit"] - result["target"]
+    assert half_width == pytest.approx(result["spread"])
+    assert half_width == pytest.approx((shewhart["upper_control_limit"] - shewhart["target"]) / 3)
+    # Target and s come from the same data, yet the EWMA chart flags the shift and the Shewhart chart does not.
+    assert result["out_of_control_indices"] == list(range(91, 100))  # from 11 samples after the shift
+    assert shewhart["out_of_control_indices"] == []
+    assert len(result["out_of_control_ewma"]) == result["n_out_of_control"]
+    assert all(v > result["upper_control_limit"] for v in result["out_of_control_ewma"])

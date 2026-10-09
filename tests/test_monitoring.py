@@ -510,9 +510,9 @@ def test_control_chart_tool_default_holt_winters(in_control_series_with_one_outl
     assert any(abs(v - 15.0) < 1e-9 for v in result["out_of_control_values"])
 
 
-@pytest.mark.parametrize("chart_type", ["shewhart", "holt_winters"])
+@pytest.mark.parametrize("chart_type", ["shewhart", "holt_winters", "ewma"])
 def test_control_chart_tool_supports_each_chart_type(chart_type: str) -> None:
-    """The Shewhart and Holt-Winters chart_types produce a valid result on a generic series.
+    """The Shewhart, Holt-Winters and EWMA chart_types produce a valid result on a generic series.
 
     'cusum' is also documented but its underlying ControlChart variant requires additional
     setup beyond raw values, so it surfaces as an `error` dict here. Covered indirectly by
