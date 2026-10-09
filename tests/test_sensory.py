@@ -28,7 +28,7 @@ from process_improve.sensory.analysis import (
     relate_designed,
     relate_observational,
 )
-from process_improve.sensory.ingest import reshape_to_long
+from process_improve.sensory.ingest import _compare_maps, reshape_to_long
 from process_improve.univariate.metrics import benjamini_hochberg
 
 PRODUCTS = list("UVWXYZT")
@@ -917,6 +917,52 @@ def test_reshape_missing_attribute_column_raises():
             _wide_panel(),
             layout="wide_by_attribute",
             mapping={"panelist_id": "Assessor", "product": "Sample", "attributes": ["Salty", "Sweetness"]},
+        )
+
+
+class _PinnedLabel(str):
+    """A label whose hash is its trailing digit, so a set of these iterates in a known order.
+
+    Plain string hashes change with the interpreter's hash seed, which is what made the
+    round-trip comparison pass or fail at random; pinning them makes both orders testable.
+    """
+
+    __slots__ = ()
+
+    def __hash__(self) -> int:
+        return int(self[-1])
+
+
+_FIRST, _SECOND = _PinnedLabel("label 0"), _PinnedLabel("label 1")
+
+
+@pytest.mark.parametrize(
+    ("before", "after", "expected"),
+    [
+        pytest.param({_FIRST: 5.0, _SECOND: 4.0}, {_SECOND: 4.0}, np.inf, id="lost-label-comes-first"),
+        pytest.param({_FIRST: 5.0, _SECOND: 4.0}, {_FIRST: 5.0}, np.inf, id="lost-label-comes-last"),
+        pytest.param({_SECOND: 4.0}, {_FIRST: 5.0, _SECOND: 4.0}, np.inf, id="invented-label-comes-first"),
+        pytest.param({_FIRST: 5.0}, {_FIRST: 5.0, _SECOND: 4.0}, np.inf, id="invented-label-comes-last"),
+        pytest.param({_FIRST: 5.0}, {_FIRST: np.nan}, np.inf, id="every-score-of-a-label-lost"),
+        pytest.param({_FIRST: np.nan, _SECOND: 4.0}, {_FIRST: np.nan, _SECOND: 4.0}, 0.0, id="unscored-comes-first"),
+        pytest.param({_FIRST: 5.0, _SECOND: np.nan}, {_FIRST: 5.0, _SECOND: np.nan}, 0.0, id="unscored-comes-last"),
+        pytest.param({_FIRST: 5.0, _SECOND: 4.0}, {_FIRST: 5.5, _SECOND: 4.0}, 0.5, id="one-mean-changed"),
+    ],
+)
+def test_round_trip_comparison_does_not_depend_on_label_order(before, after, expected):
+    """A lost or invented label always fails the check; a label with no scores on either side never does."""
+    assert _compare_maps(before, after) == expected
+
+
+def test_reshape_refuses_a_row_without_a_panelist():
+    """A missing panelist id would become the label 'nan'; the round-trip check catches it every time."""
+    wide = _wide_panel()
+    wide.loc[0, "Assessor"] = np.nan
+    with pytest.raises(ValueError, match=r"Round-trip check failed .*per_panelist_max_diff=inf"):
+        reshape_to_long(
+            wide,
+            layout="wide_by_attribute",
+            mapping={"panelist_id": "Assessor", "product": "Sample", "replicate": "Rep"},
         )
 
 

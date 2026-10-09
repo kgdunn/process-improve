@@ -45,9 +45,25 @@ def _series_mean_map(frame: pd.DataFrame, key: str, value: str) -> dict[str, flo
 
 
 def _compare_maps(before: dict[str, float], after: dict[str, float]) -> float:
-    """Return the largest absolute difference between two ``{label: mean}`` maps."""
-    keys = set(before) | set(after)
-    return max((abs(before.get(k, np.nan) - after.get(k, np.nan)) for k in keys), default=0.0)
+    """Return the largest absolute difference between two ``{label: mean}`` maps.
+
+    A label on one side only, or a mean missing (NaN) on one side only, is an infinite
+    difference: the reshape lost or invented that label, or every score it had. A mean
+    missing on both sides belongs to a label with no scores, carried through unchanged.
+    No NaN reaches ``max``: its result over NaN depends on the order of its input, and
+    the order of a set of labels changes with the hash seed, so the round-trip check
+    used to pass or fail at random.
+    """
+    if before.keys() != after.keys():
+        return float("inf")
+    largest = 0.0
+    for label, mean_before in before.items():
+        mean_after = after[label]
+        if np.isnan(mean_before) and np.isnan(mean_after):
+            continue
+        difference = abs(mean_before - mean_after)
+        largest = max(largest, float("inf") if np.isnan(difference) else difference)
+    return largest
 
 
 def reshape_to_long(  # noqa: C901, PLR0912, PLR0915
