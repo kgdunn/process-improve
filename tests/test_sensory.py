@@ -966,6 +966,35 @@ def test_reshape_refuses_a_row_without_a_panelist():
         )
 
 
+def _with_stray_spaces(case: str) -> tuple[pd.DataFrame, str, dict]:
+    """Return a panel whose labels carry stray spaces, with the layout and mapping that reshape it."""
+    wide_mapping = {"panelist_id": "Assessor", "product": "Sample", "replicate": "Rep"}
+    if case == "attribute-header":
+        return _wide_panel().rename(columns={"Salty": "Salty "}), "wide_by_attribute", wide_mapping
+    if case == "panelist-id":
+        return _wide_panel().replace({"Assessor": {"P1": " P1"}}), "wide_by_attribute", wide_mapping
+    long_panel = _panel(anomalous=None).replace({"attribute": {"A": "A "}})
+    mapping = {name: name for name in ("panelist_id", "product", "attribute", "score", "session", "replicate")}
+    return long_panel, "long", mapping
+
+
+@pytest.mark.parametrize(
+    ("case", "column", "label"),
+    [
+        ("attribute-header", "attribute", "Salty"),
+        ("panelist-id", "panelist_id", "P1"),
+        ("long-attribute-label", "attribute", "A"),
+    ],
+)
+def test_reshape_strips_stray_spaces_from_labels(case, column, label):
+    """Labels are written without surrounding spaces, and the round-trip check compares them that way too."""
+    data, layout, mapping = _with_stray_spaces(case)
+    long_df, checks = reshape_to_long(data, layout=layout, mapping=mapping)
+    assert checks["ok"]
+    assert label in set(long_df[column])
+    assert not long_df[column].str.contains(" ").any()
+
+
 def test_validate_hash_is_order_independent():
     wide = _wide_panel()
     long_df, _ = reshape_to_long(
