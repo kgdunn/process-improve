@@ -91,6 +91,9 @@ def robust_regression(spec: RobustRegressionInput) -> dict[str, Any]:
             fit_intercept=spec.fit_intercept,
             conflevel=spec.confidence_level,
         )
+        if result["N"] is None:
+            # The fit hands back its empty result when two or fewer complete pairs remain.
+            return {"error": "robust_regression needs at least three complete (x, y) pairs to fit a line."}
 
         out: dict[str, Any] = {
             "slope": result["coefficients"][0],

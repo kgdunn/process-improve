@@ -919,6 +919,16 @@ def test_robust_regression_tool_returns_error_on_mismatched_lengths() -> None:
     assert "error" in result
 
 
+def test_robust_regression_tool_needs_three_complete_pairs() -> None:
+    """Three values that leave two complete pairs have no line to fit, and the error says so.
+
+    The fit returns its empty result in that case, and the tool used to fail while
+    formatting it, with "'float' object is not iterable".
+    """
+    result = execute_tool_call("robust_regression", {"x": [1.0, 2.0, float("nan")], "y": [1.0, 2.0, 3.0]})
+    assert result == {"error": "robust_regression needs at least three complete (x, y) pairs to fit a line."}
+
+
 def test_repeated_median_tool_matches_underlying_method() -> None:
     """The wrapper's slope must match the underlying repeated_median_slope."""
     rng = np.random.default_rng(13)
