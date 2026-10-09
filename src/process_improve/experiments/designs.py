@@ -194,6 +194,7 @@ def _dispatch_optimal_family(
         random_state=kwargs.get("random_state"),
         candidates=kwargs.get("candidates"),
         backend=kwargs.get("backend", "auto"),
+        n_blocks=kwargs.get("n_blocks"),
     )
     return _dispatch_optimal(criterion, request)
 
@@ -673,7 +674,15 @@ def generate_design(  # noqa: PLR0913
         Number of full replicates of the design (default 1 = no replication).
         Cannot be combined with *fixed_runs*.
     n_blocks : int or None
-        Number of blocks.
+        Number of blocks the runs are made in (days, batches, raw-material lots), with
+        a ``Block`` column on the design. A regular two-level factorial confounds chosen
+        interactions with the blocks. A D-, A- or I-optimal design from the built-in
+        exchange chooses its runs for the model with the blocks as fixed effects, so the
+        factor effects are estimated as precisely as they can be once block-to-block
+        differences are removed (``metadata["blocking"]["method"]`` is
+        ``"optimal_exchange"``); with *fixed_runs*, those runs are the first block, and
+        the new runs fill the others. Any other design is split into near-equal blocks
+        after it is built.
     resolution : int or None
         Desired minimum resolution for fractional factorials (III=3, IV=4, V=5),
         and for the cube of a CCD with ``cube="fractional"``.
@@ -834,6 +843,8 @@ def generate_design(  # noqa: PLR0913
         "random_state": random_state,
         "candidates": candidates,
         "backend": backend,
+        # The optimal designs build blocks into the runs they choose; replicated, they are blocked afterwards.
+        "n_blocks": n_blocks if n_replicates == 1 else None,
     }
 
     coded_matrix, meta = dispatch_fn(factors, **dispatch_kwargs)

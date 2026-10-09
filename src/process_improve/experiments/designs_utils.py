@@ -291,6 +291,24 @@ def _assign_blocks(
     return exchange_blocks(numeric, n_blocks, rng if rng is not None else np.random.default_rng())
 
 
+def _run_order(
+    n_runs: int, blocking: Blocking | None, rng: np.random.Generator | None, n_leading_fixed: int
+) -> np.ndarray:
+    """Return the run order: shuffled within each block, blocks in turn, with runs already made first and unmoved.
+
+    Without ``rng`` the order is kept, for designs whose order is part of the solution
+    (a split-plot design, say). In a blocked design the runs already made are the first block.
+    """
+    if blocking is not None:
+        groups = [np.flatnonzero(blocking.labels == b) for b in np.unique(blocking.labels)]
+        return np.concatenate(
+            [g if rng is None or (n_leading_fixed and b == 0) else rng.permutation(g) for b, g in enumerate(groups)]
+        )
+    if rng is not None:
+        return np.concatenate([np.arange(n_leading_fixed), n_leading_fixed + rng.permutation(n_runs - n_leading_fixed)])
+    return np.arange(n_runs)
+
+
 def _whole_plot_labels(whole_plot: list[int], n_replicates: int, perm: np.ndarray) -> np.ndarray:
     """Return each run's whole plot, numbered from 1 in run order.
 
@@ -402,21 +420,23 @@ def build_design_result(  # noqa: PLR0913
     # 3. Blocks, then randomise: the run order is shuffled within each block, blocks in turn.
     #    Without randomisation the original order is preserved (used for optimal designs
     #    whose run order is part of the solution, e.g. split-plot).
+    #    An optimal design whose exchange built the blocks in brings its own labels, and
+    #    there the fixed runs, already made, are the first block and keep their order.
     rng = check_random_state(random_state) if randomize else None
+    metadata = dict(metadata or {})
+    exchange_labels = metadata.pop("block_labels", None)
     blocking = None
     if n_blocks is not None and n_blocks > 1:
-        if n_leading_fixed:
-            raise ValueError("n_blocks cannot be combined with fixed_runs: the fixed runs were already made.")
-        blocking = _assign_blocks(matrix, factors, design_type, n_blocks, rng)
-    if blocking is not None:
-        groups = [np.flatnonzero(blocking.labels == b) for b in range(1, n_blocks + 1)]  # type: ignore[operator]
-        perm = np.concatenate([rng.permutation(g) if rng is not None else g for g in groups])
-    elif rng is not None:
-        # Runs already performed (fixed runs of an augmentation) stay first, in their
-        # given order; only the new runs are shuffled.
-        perm = np.concatenate([np.arange(n_leading_fixed), n_leading_fixed + rng.permutation(n_runs - n_leading_fixed)])
-    else:
-        perm = np.arange(n_runs)
+        if exchange_labels is not None:
+            blocking = Blocking(np.asarray(exchange_labels), "optimal_exchange", model=metadata.get("model_type"))
+        elif n_leading_fixed:
+            raise ValueError(
+                "n_blocks cannot be combined with fixed_runs here: the fixed runs were already made. A D-, A- or "
+                "I-optimal design from the built-in exchange puts them in a block of their own."
+            )
+        else:
+            blocking = _assign_blocks(matrix, factors, design_type, n_blocks, rng)
+    perm = _run_order(n_runs, blocking, rng, n_leading_fixed)
     matrix_randomized = matrix[perm]
     run_order = (perm + 1).tolist()
 
@@ -449,7 +469,6 @@ def build_design_result(  # noqa: PLR0913
         block_assignments = blocking.labels[perm].tolist()
         design_coded["Block"] = block_assignments
         design_actual["Block"] = block_assignments
-        metadata = dict(metadata or {})
         metadata["blocking"] = {
             "method": blocking.method,
             "generators": blocking.generators,
