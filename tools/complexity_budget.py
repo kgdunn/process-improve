@@ -38,14 +38,17 @@ RULES = ("C901", "PLR0912", "PLR0913", "PLR0915")
 #: never raise them. A pull request that pushes a count over its budget has made
 #: the code worse in the specific way #307 is about, and CI says so.
 BUDGET: dict[str, int] = {
+    # 40: #513's alias fix moved `find_aliases` out of `lm` as a flat function over
+    # centred correlations, so both lose their C901 suppressions (and `find_aliases`
+    # its PLR0912, `lm` its PLR0915). 42 before that.
     # 45: #639 rewrote `_run_model_selection` as a heredity-aware stepwise search
     # split into small helpers, and its C901 suppression went with it. 46 before
     # that: #208's `to_spec` in optimization_plots.py no longer branches enough to
     # breach C901. The ratchet fails on a count *below* budget precisely so the
     # saving is banked here rather than left as headroom for the next change to
     # spend silently.
-    "C901": 42,
-    "PLR0912": 24,
+    "C901": 40,
+    "PLR0912": 23,
     # 83, and none of the five moves is a regression any one branch introduced.
     # #598 merged `smooth_trajectories`, whose seven arguments are the two
     # smoothers' settings side by side: naming them beats a settings dict whose
@@ -71,12 +74,13 @@ BUDGET: dict[str, int] = {
     # `**kwargs`, and the implementation takes a settings dataclass, so the
     # signature is written once.
     "PLR0913": 86,
+    # 28: #513 (see C901). 29 before that.
     # 30: #541 moved the SPE validity gate and the no-change prediction out of
     # `MidCourseCorrector.correct` into `predict`, so `correct` no longer breaches
     # PLR0915; the per-batch loop of `evaluate_control_policies` went into
     # `_run_decision_points` at the same time, which kept that function under
     # PLR0912 after it gained the no-change record.
-    "PLR0915": 29,
+    "PLR0915": 28,
 }
 
 #: Where the ratchet is headed: half of the 2026-06 baseline of 185, by v2.0.
