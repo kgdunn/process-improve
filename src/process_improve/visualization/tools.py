@@ -92,13 +92,10 @@ def _collect_boxes(
         response = value_columns[0]
         boxes: list[BoxStats] = []
         for group_value, sub in df.groupby(group_by, sort=False):
-            vals = sub[response].to_numpy(dtype=float)
-            if vals.size == 0:
-                continue
             boxes.append(
                 _box_from_values(
                     group=str(group_value),
-                    values=vals,
+                    values=sub[response].to_numpy(dtype=float),
                     id_series=id_series,
                     original_index=sub.index.to_numpy(),
                 ),

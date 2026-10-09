@@ -41,6 +41,7 @@ from ._common import (
     _select_n_components,
     _vandervoet_randomization,
     epsqrt,
+    resolve_loop_settings,
 )
 from ._cv_criteria import (
     _compare_cv_criteria,
@@ -179,8 +180,10 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
         relative to their spread; it does not centre for you, because
         ``scale=False`` means "touch nothing". Set ``warn_on_uncentred=False``
         when that fit is deliberate.
-    max_iter : int, default=1000
-        Maximum number of iterations for the NIPALS algorithm.
+    max_iter : int, default=500
+        Maximum number of iterations per component for the NIPALS algorithm.
+        The same default as every other iterative estimator in the package; it
+        was 1000 before 1.98.0 (#588).
     tol : float, default=sqrt(machine epsilon)
         Relative convergence tolerance for the NIPALS algorithm: the change
         between two successive score-vector iterations, relative to the norm
@@ -233,12 +236,13 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
           Any other value is refused, including ``"scp"``: that is a
           projection-time method (see :meth:`project`), and at fit time it is
           simply what NIPALS already does.
-        - ``md_tol`` and ``md_max_iter``: for ``"nipals"``, the NIPALS
-          convergence tolerance and iteration cap; for ``"tsr"`` / ``"pmp"``,
+        - ``md_tol`` and ``md_max_iter``: deprecated since 1.98.0 and removed
+          in 2.0; set ``tol`` and ``max_iter`` instead. Those two bound the
+          NIPALS loop and, for ``"tsr"`` / ``"pmp"``, the imputation as well:
           the tolerance on the largest change in any imputed cell (in standard
-          deviations) and the cap on imputation rounds. Both default to this
-          model's ``tol`` and ``max_iter``, so set those instead unless the two
-          need to differ.
+          deviations) and the cap on imputation rounds. Until removal the old
+          keys still take precedence (for ``"tsr"`` / ``"pmp"``, over the
+          imputation only) and warn.
 
         With ``"tsr"`` / ``"pmp"``, R², SPE and the other diagnostics are still
         computed on the *observed* cells only: an imputed cell is fitted by
@@ -332,7 +336,7 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
         n_components: int,
         *,
         scale: bool = True,
-        max_iter: int = 1000,
+        max_iter: int = 500,
         tol: float = epsqrt,
         copy: bool = True,
         warn_on_uncentred: bool = True,
@@ -708,7 +712,7 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
             warnings.warn(
                 f"PLS {method.upper()}: the imputed cells were still moving by {imputation.shift:.3g} "
                 f"standard deviations after {imputation.rounds} rounds (md_tol={settings['md_tol']:g}). "
-                "Raise md_max_iter, or loosen md_tol if that change is already negligible for your data.",
+                "Raise max_iter, or loosen tol if that change is already negligible for your data.",
                 SpecificationWarning,
                 stacklevel=3,
             )
@@ -930,24 +934,32 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
         if np.any(Y.isna()) or np.any(X.isna()):
             self.has_missing_data_ = True
 
-        # One resolution, whether or not the data has gaps. The defaults come from this
-        # model's own ``tol`` and ``max_iter``, and an explicit ``missing_data_settings``
-        # overrides individual keys on top.
+        # One resolution, whether or not the data has gaps, through the resolver every
+        # iterative estimator shares (#588). ``tol`` and ``max_iter`` supply the values and
+        # an explicit ``missing_data_settings`` overrides individual keys on top.
         #
         # Seeding from ``self`` is what makes ``PLS(tol=...)`` reach the NIPALS loop in
         # both cases: the missing-data branch used to hard-code ``md_tol=epsqrt`` while
         # taking ``md_max_iter`` from the constructor, so a caller's ``tol`` applied to
         # complete data and was dropped as soon as a cell went missing. Filling every key
-        # here also means a partial dict (say ``{"md_tol": 1e-3}``) can no longer leave
+        # also means a partial dict (say ``{"md_tol": 1e-3}``) can no longer leave
         # ``md_max_iter`` absent, which used to raise ``KeyError`` from ``_fit_nipals``.
         #
-        # ``md_method`` defaults to NIPALS, the cheapest path: it handles per-cell NaN
+        # ``md_method`` is set before the resolver so a caller's dict can still override
+        # it: it is the one axis ``missing_data_settings`` still owns, and it is not
+        # deprecated. It defaults to NIPALS, the cheapest path: it handles per-cell NaN
         # directly via skipna sums inside its iterations, with no imputation. The resolved
         # settings stay local: mutating the constructor parameter would leak into clone()
         # (#505).
-        settings: dict[str, typing.Any] = {"md_method": "nipals", "md_tol": self.tol, "md_max_iter": self.max_iter}
-        if isinstance(self.missing_data_settings, dict):
-            settings.update(self.missing_data_settings)
+        settings: dict[str, typing.Any] = {"md_method": "nipals"}
+        settings.update(
+            resolve_loop_settings(
+                tol=self.tol,
+                max_iter=self.max_iter,
+                missing_data_settings=self.missing_data_settings,
+                estimator_name="PLS",
+            )
+        )
         _check_md_method(settings)
         if settings["md_method"].lower() == "nipals":
             self._fit_nipals(X, Y, A, settings, sample_weight=sample_weight)
