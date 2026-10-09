@@ -289,7 +289,9 @@ def _compute_d_efficiency(ctx: _EvalContext) -> dict[str, Any]:
     if ctx.is_singular:
         return {"d_efficiency": None, "note": "Design is rank-deficient for the specified model."}
     sign, logdet = np.linalg.slogdet(ctx.XtX)
-    if sign <= 0:
+    # X'X of full rank is positive definite; this only guards an ill-conditioned matrix
+    # that clears matrix_rank's tolerance yet gets a non-positive sign from slogdet.
+    if sign <= 0:  # pragma: no cover - belt and braces after the rank check
         return {"d_efficiency": None, "note": "X'X has non-positive determinant."}
     d_eff = 100.0 * np.exp(logdet / ctx.p) / ctx.N
     return {"d_efficiency": float(d_eff)}
