@@ -20,7 +20,10 @@ partial_branches =
     # without the optional dependency installed (CI installs everything).
     pragma: no branch
 
-exclude_lines =
+# `exclude_also`, not `exclude_lines`: the latter *replaces* coverage.py's
+# default pattern (a bare `# pragma: no cover`), which left every plain pragma
+# in src/ silently ignored. These patterns add to the default instead.
+exclude_also =
     # Don't complain if tests don't hit defensive assertion code:
     raise NotImplementedError
     # Don't track main entry points
@@ -35,3 +38,7 @@ exclude_lines =
     pragma: no cover - exercised via env-without-
     from process_improve._extras import _MissingExtra
     = _MissingExtra\(
+    # A typing.Protocol body declares an interface; its stubs never run.
+    class .*\bProtocol\):
+    # An @overload stub only describes a signature.
+    @(typing\.)?overload
