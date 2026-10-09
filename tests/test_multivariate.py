@@ -1374,6 +1374,23 @@ def test_pca_select_n_components_ckf_reproducible_and_guarded() -> None:
         PCA.select_n_components(X, max_components=3, cv_scheme="kfold")
 
 
+@pytest.mark.xfail(strict=True, reason="#675: ckf PRESS is 0 when no fold can evaluate the component count")
+def test_pca_select_n_components_ckf_does_not_score_an_unevaluated_count_as_perfect() -> None:
+    """#675: a component count that no column fold can evaluate must not win with a PRESS of 0.
+
+    Five columns in five folds leave four retained columns per fold, too few to determine
+    five scores, so every fold skips A = 5. Those folds are NaN, and the sum over them was
+    taken with ``nansum``, which is 0 for all-NaN: pure noise came out with Q2 = 1 at A = 5,
+    and that count was recommended.
+    """
+    rng = np.random.default_rng(0)
+    noise = MCUVScaler().fit_transform(pd.DataFrame(rng.standard_normal((30, 5))))
+    result = PCA.select_n_components(noise, cv_scheme="ckf")
+    last_press = float(result.press.iloc[-1])
+    assert np.isnan(last_press) or last_press > 0
+    assert result.n_components < 5
+
+
 def test_pca_parallel_analysis_pure_noise_returns_zero() -> None:
     """On pure noise PA correctly retains few components (and may return 0)."""
     rng = np.random.default_rng(3)
