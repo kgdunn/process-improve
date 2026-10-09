@@ -39,6 +39,7 @@ from process_improve.tool_safety import (
     ToolTimeoutError,
     _apply_memory_limit,
     _count_numeric_leaves,
+    _default_mp_context,
     _lookup_input_model,
     _terminate_workers,
     _validate_against_model,
@@ -683,6 +684,29 @@ class TestApplyMemoryLimitInProcess:
         """Windows has no ``resource`` module: the cap is skipped rather than raising ImportError."""
         monkeypatch.setitem(sys.modules, "resource", None)
         assert _apply_memory_limit(64) is None
+
+
+class TestDefaultMpContext:
+    """The worker start method is chosen per platform."""
+
+    @pytest.mark.parametrize("platform", ["win32", "darwin"])
+    def test_fork_is_not_used_off_linux(self, platform: str) -> None:
+        assert _default_mp_context(platform) is None
+
+    def test_linux_forks_where_fork_exists(self) -> None:
+        context = _default_mp_context("linux")
+        if "fork" in multiprocessing.get_all_start_methods():
+            assert context is not None
+            assert context.get_start_method() == "fork"
+        else:
+            assert context is None
+
+    def test_linux_without_fork_falls_back_to_the_default(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        def no_fork(method: str | None = None) -> object:
+            raise ValueError(f"cannot find context for {method!r}")
+
+        monkeypatch.setattr(multiprocessing, "get_context", no_fork)
+        assert _default_mp_context("linux") is None
 
 
 # ---------------------------------------------------------------------------
