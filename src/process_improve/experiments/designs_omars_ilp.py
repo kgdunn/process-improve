@@ -1357,13 +1357,13 @@ def _enumerate_feasible_counts(  # noqa: C901, PLR0915
             comp_cache[total] = cached
         return cached
 
+    # There is always at least one prefix: the all-zero one, which leaves every
+    # balance at zero and the whole budget to the unconstrained singleton tail.
     blocks = []
     for prefix, remaining in prefixes:
         tail = compositions(remaining)
         head = np.tile(np.asarray(prefix, dtype=np.int16), (tail.shape[0], 1))
         blocks.append(np.hstack([head, tail]))
-    if not blocks:
-        return np.empty((0, n_rows), dtype=np.int16), False
     ordered = np.vstack(blocks)
     # Map the DFS ordering back to pool row order.
     inverse = np.argsort(order)
@@ -1810,7 +1810,6 @@ def _search_best_omars(  # noqa: C901, PLR0912, PLR0913, PLR0915
             )
         target_half = half
         report.run_sizes_searched += 1
-        target = _describe_target(n_runs, 2 * half + center_runs)
 
         # Exhaustive path: when the design class at this size is small enough,
         # enumerate every feasible half-design multiset (replication allowed) and
@@ -1827,19 +1826,14 @@ def _search_best_omars(  # noqa: C901, PLR0912, PLR0913, PLR0915
                     report.rank_deficient_designs -= probe_rank_deficient
                 # Keep only designs in which every factor reaches an outer level,
                 # the condition the ILP's coverage rows impose.
+                # At least one design survives: every size searched has at least
+                # n_factors half-runs (the estimability floor of both models), so
+                # one run per unit vector e_i, the rest repeating e_1, is feasible.
                 count_matrix = count_matrix[(count_matrix @ np.abs(pool) > 0).all(axis=1)]
                 n_enumerated = count_matrix.shape[0]
                 report.search_mode = "exhaustive"
                 report.enumerated_designs += n_enumerated
                 report.feasible_designs += n_enumerated
-                if n_enumerated == 0:
-                    if len(sizes) > 1:
-                        continue
-                    msg = (
-                        f"No feasible OMARS design exists at {target} with center_runs={center_runs} "
-                        "(exhaustive enumeration). Try a different n_runs."
-                    )
-                    raise ValueError(msg)
                 d_eff, a_opt, max_corr = _score_count_vectors(count_matrix, pool, center_runs, model, tol=tol)
                 # d_eff is exactly 0 for a singular model matrix: such a design
                 # cannot fit the sizing model and never enters the ranking.
