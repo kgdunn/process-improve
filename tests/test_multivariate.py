@@ -3409,6 +3409,47 @@ def test_target_projection_aligns_with_response() -> None:
     assert abs(corr) > 0.95
 
 
+def test_target_projection_refuses_a_response_x_does_not_predict() -> None:
+    """A response orthogonal to every X column has a zero regression vector, so it has no TP direction."""
+    x1 = np.array([1.0, -1.0, 1.0, -1.0, 0.0, 0.0])
+    x2 = np.array([1.0, 1.0, -1.0, -1.0, 0.0, 0.0])
+    X = pd.DataFrame({"x1": x1, "x2": x2})
+    Y = pd.DataFrame({"y1": x1 + 2.0 * x2, "y2": [0.0, 0.0, 0.0, 0.0, 1.0, -1.0]})
+    model = PLS(n_components=1).fit(X, Y)
+    with pytest.raises(
+        ValueError, match=r"^The regression vector for response 'y2' is ~0; it is not predicted by X\.$"
+    ):
+        target_projection(model, X, response="y2")
+
+
+def test_target_projection_refuses_rows_with_no_spread_along_its_direction() -> None:
+    """Rows all at the training mean score 0 on the TP direction, which leaves no loading to form."""
+    rng = np.random.default_rng(3)
+    X = pd.DataFrame(rng.standard_normal((30, 4)) * [1.0, 5.0, 10.0, 2.0] + 7.0, columns=list("abcd"))
+    y = pd.DataFrame({"y": X.to_numpy() @ [1.0, 0.2, 0.1, -0.5] + rng.standard_normal(30)})
+    model = PLS(n_components=2).fit(X, y)
+    at_the_mean = pd.DataFrame(np.tile(X.mean().to_numpy(), (5, 1)), columns=X.columns)
+    with pytest.raises(
+        ValueError, match=r"^The target-projected scores have ~0 variance; cannot form the TP loading\.$"
+    ):
+        target_projection(model, at_the_mean)
+
+
+def test_target_projection_without_scaling_uses_x_as_given() -> None:
+    """With scale=False the TP scores are X @ w on X as passed, and an array X reads as its DataFrame."""
+    rng = np.random.default_rng(3)
+    X = pd.DataFrame(rng.standard_normal((30, 4)) * [1.0, 5.0, 10.0, 2.0], columns=list("abcd"))
+    X = X - X.mean()
+    y = pd.DataFrame({"y": X.to_numpy() @ [1.0, 0.2, 0.1, -0.5] + rng.standard_normal(30)})
+    model = PLS(n_components=2, scale=False).fit(X, y - y.mean())
+
+    tp = target_projection(model, X)
+    np.testing.assert_allclose(tp.scores.to_numpy(), X.to_numpy() @ tp.weights.to_numpy())
+    from_array = target_projection(model, X.to_numpy())
+    np.testing.assert_allclose(from_array.scores.to_numpy(), tp.scores.to_numpy())
+    np.testing.assert_allclose(from_array.loadings.to_numpy(), tp.loadings.to_numpy())
+
+
 def test_selectivity_ratio_multi_response_and_errors(
     fixture_pls_ldpe_example: dict[str, pd.DataFrame | np.ndarray | float | int],
 ) -> None:
@@ -6181,6 +6222,16 @@ def test_observation_contributions_pls() -> None:
         model.observation_contributions(n_components=5)
 
 
+def test_observation_contributions_for_fewer_components_are_the_leading_columns() -> None:
+    """Asking for the first two components gives the first two columns of the full table."""
+    rng = np.random.default_rng(3)
+    X = pd.DataFrame(rng.standard_normal((35, 6)), columns=[f"V{i}" for i in range(6)])
+    model = PCA(n_components=3).fit(MCUVScaler().fit_transform(X))
+    pd.testing.assert_frame_equal(
+        observation_contributions(model, n_components=2), model.observation_contributions().iloc[:, :2]
+    )
+
+
 @pytest.mark.slow
 def test_eigenvalue_summary_pca(fixture_tablet_spectra_data: tuple[pd.DataFrame, np.ndarray]) -> None:
     """Eigenvalue summary for PCA on a real dataset: tidy table, monotone cumulative."""
@@ -6248,6 +6299,18 @@ def test_project_variables_pls_and_errors() -> None:
     # A supplementary block with the wrong number of rows must raise.
     with pytest.raises(ValueError, match="rows"):
         model.project_variables(pd.DataFrame(rng.standard_normal((10, 2))))
+
+
+def test_project_variables_reads_an_array_as_its_dataframe() -> None:
+    """Supplementary variables passed as an array give the same correlations as the same DataFrame."""
+    rng = np.random.default_rng(6)
+    X = pd.DataFrame(rng.standard_normal((50, 6)), columns=[f"V{i}" for i in range(6)])
+    model = PCA(n_components=3).fit(MCUVScaler().fit_transform(X))
+    supplementary = pd.DataFrame(rng.standard_normal((50, 2)))
+    np.testing.assert_allclose(
+        project_variables(model, supplementary.to_numpy()).to_numpy(),
+        project_variables(model, supplementary).to_numpy(),
+    )
 
 
 def test_diagnostics_unfitted_raise() -> None:
