@@ -228,6 +228,14 @@ during a session, leave it uncommitted; if it is already staged, unstage it with
 `git restore --staged <lockfile>`. The user refreshes lock files manually
 outside of Claude Code sessions.
 
+**No scheduled PR check-ins.** Do not schedule recurring self check-ins
+(`send_later`, routines, `/loop` or anything similar) to poll open PRs for
+merges, CI results or reviews, and do not send "nothing changed" status
+messages. Once the work is pushed and the PR is open, report and end the turn.
+Handle PR events that arrive on their own (a CI failure, a review comment, a
+merge-conflict notice) when they arrive; otherwise the user asks for a status
+when they want one.
+
 ## Communication style
 
 - Lead with the result. Your first sentence answers "what happened" or "what's

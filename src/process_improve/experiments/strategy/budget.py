@@ -16,7 +16,11 @@ Sources:
 from __future__ import annotations
 
 import math
+from collections.abc import Callable
 from typing import Any
+
+from process_improve.experiments.designs_response_surface import dsd_run_count
+from process_improve.experiments.designs_screening import plackett_burman_runs
 
 # ---------------------------------------------------------------------------
 # Run estimation look-up tables
@@ -31,15 +35,14 @@ _BBD_RUNS: dict[int, int] = {
     7: 56,
 }
 
-# CCD factorial portion: 2^k for k <= 5, 2^(k-1) for k >= 6
-_CCD_FACTORIAL_RUNS: dict[int, int] = {
-    2: 4,
-    3: 8,
-    4: 16,
-    5: 32,
-    6: 32,  # half-fraction
-    7: 64,  # half-fraction
-}
+#: Factors from which a CCD's cube is the resolution V half fraction, ``generate_design(...,
+#: cube="fractional")``, which is what ``recommend_strategy`` asks for; fewer take the full 2^k cube.
+_CCD_HALF_FRACTION_FROM = 6
+
+
+def _ccd_factorial_runs(n_factors: int) -> int:
+    """Return the runs in a CCD's cube: 2^k up to five factors, the 2^(k-1) half fraction from six."""
+    return 2 ** (n_factors - 1) if n_factors >= _CCD_HALF_FRACTION_FROM else 2**n_factors
 
 
 # ---------------------------------------------------------------------------
@@ -47,7 +50,42 @@ _CCD_FACTORIAL_RUNS: dict[int, int] = {
 # ---------------------------------------------------------------------------
 
 
-def estimate_screening_runs(n_factors: int, design_type: str) -> int:  # noqa: PLR0911
+def _fractional_factorial_runs(n_factors: int) -> int:
+    """Return the runs in the smallest two-level design of resolution IV or more, as ``generate_design`` builds.
+
+    A resolution IV fraction needs at least ``2k`` runs, and a regular fraction reaches
+    that bound: 8 runs for four factors, 16 for five to eight, 32 for nine to sixteen, and
+    so on. Three or fewer factors have no resolution IV fraction, so they take the full
+    factorial.
+    """
+    if n_factors <= 3:
+        return 2**n_factors
+    return 2 ** math.ceil(math.log2(2 * n_factors))
+
+
+def _plackett_burman_runs(n_factors: int) -> int:
+    """Smallest multiple of 4 above ``k`` with a Hadamard matrix (what ``generate_design`` builds)."""
+    return plackett_burman_runs(n_factors)
+
+
+def _dsd_runs(n_factors: int) -> int:
+    """Return the runs in the DSD ``generate_design`` builds (it needs at least 3 factors)."""
+    return dsd_run_count(max(n_factors, 3))
+
+
+#: Run-count estimate per screening design, keyed by generate_design type (and the old DSD name).
+_SCREENING_RUNS: dict[str, Callable[[int], int]] = {
+    "plackett_burman": _plackett_burman_runs,
+    "dsd": _dsd_runs,
+    "definitive_screening": _dsd_runs,
+    "fractional_factorial": _fractional_factorial_runs,
+    "full_factorial": lambda k: 2**k,
+    # Lin's half-fraction of the smallest Hadamard order N with N - 2 >= k: N / 2 runs
+    "supersaturated": lambda k: int(math.ceil((k + 2) / 4) * 2),
+}
+
+
+def estimate_screening_runs(n_factors: int, design_type: str) -> int:
     """Estimate the number of runs for a screening design.
 
     Parameters
@@ -55,44 +93,16 @@ def estimate_screening_runs(n_factors: int, design_type: str) -> int:  # noqa: P
     n_factors : int
         Number of factors to screen.
     design_type : str
-        One of ``"plackett_burman"``, ``"definitive_screening"``,
-        ``"fractional_factorial"``, ``"full_factorial"``.
+        One of ``"plackett_burman"``, ``"dsd"`` (or ``"definitive_screening"``),
+        ``"fractional_factorial"``, ``"full_factorial"``, ``"supersaturated"``.
+        Any other value gets the Plackett-Burman estimate.
 
     Returns
     -------
     int
         Estimated run count including center points.
     """
-    if design_type == "plackett_burman":
-        # Next multiple of 4 >= k + 1
-        n = n_factors + 1
-        return int(math.ceil(n / 4) * 4)
-
-    if design_type == "definitive_screening":
-        return 2 * n_factors + 1
-
-    if design_type == "fractional_factorial":
-        # Smallest 2^(k-p) with resolution >= IV
-        if n_factors <= 4:
-            return 2**n_factors  # full factorial feasible
-        if n_factors == 5:
-            return 16  # 2^(5-1) = 16, resolution V
-        if n_factors == 6:
-            return 16  # 2^(6-2) = 16, resolution IV
-        if n_factors == 7:
-            return 16  # 2^(7-3) = 16, resolution IV (with minimum aberration)
-        # k >= 8: 2^(k-p) where p gives resolution >= IV
-        # Conservative: use 32 runs for 8-11 factors, 64 for 12+
-        if n_factors <= 11:
-            return 32
-        return 64
-
-    if design_type == "full_factorial":
-        return 2**n_factors
-
-    # Fallback: PB estimate
-    n = n_factors + 1
-    return int(math.ceil(n / 4) * 4)
+    return _SCREENING_RUNS.get(design_type, _plackett_burman_runs)(n_factors)
 
 
 def estimate_rsm_runs(n_factors: int, design_type: str, n_center_points: int = 3) -> int:
@@ -111,19 +121,18 @@ def estimate_rsm_runs(n_factors: int, design_type: str, n_center_points: int = 3
     Returns
     -------
     int
-        Estimated run count.
+        Estimated run count. For a CCD it is the size ``generate_design`` builds with
+        ``cube="full"`` up to five factors and ``cube="fractional"`` (a half-fraction
+        cube) from six, which is what ``recommend_strategy`` passes.
     """
     if design_type in ("ccd", "ccd_face_centered"):
-        factorial = _CCD_FACTORIAL_RUNS.get(n_factors, 2**n_factors)
-        axial = 2 * n_factors
-        return factorial + axial + n_center_points
+        return _ccd_factorial_runs(n_factors) + 2 * n_factors + n_center_points
 
     if design_type == "box_behnken":
         base = _BBD_RUNS.get(n_factors, 0)
         if base == 0:
             # BBD not defined for this factor count; fall back to CCD estimate
-            factorial = _CCD_FACTORIAL_RUNS.get(n_factors, 2**n_factors)
-            return factorial + 2 * n_factors + n_center_points
+            return _ccd_factorial_runs(n_factors) + 2 * n_factors + n_center_points
         return base + n_center_points
 
     if design_type == "d_optimal":
@@ -133,8 +142,7 @@ def estimate_rsm_runs(n_factors: int, design_type: str, n_center_points: int = 3
         return math.ceil(1.5 * n_terms)
 
     # Fallback: CCD estimate
-    factorial = _CCD_FACTORIAL_RUNS.get(n_factors, 2**n_factors)
-    return factorial + 2 * n_factors + n_center_points
+    return _ccd_factorial_runs(n_factors) + 2 * n_factors + n_center_points
 
 
 def estimate_confirmation_runs(min_runs: int = 3) -> int:

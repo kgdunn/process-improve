@@ -45,7 +45,8 @@ class AnalyzeExperimentInput(BaseModel):
             "Options: anova, effects, coefficients, significance, "
             "residual_diagnostics, lack_of_fit, curvature_test, "
             "model_selection, box_cox, lenth_method, confidence_intervals, "
-            "prediction, confirmation_test."
+            "prediction, confirmation_test, split_plot. Use split_plot for a design "
+            "with hard-to-change factors: the others treat every run as independent."
         ),
     )
     significance_level: float = Field(
@@ -64,6 +65,13 @@ class AnalyzeExperimentInput(BaseModel):
         None,
         description="Observed values at new_points (for confirmation testing).",
     )
+    whole_plot: str | None = Field(
+        None,
+        description=(
+            "Column labelling each run's whole plot, for analysis_type='split_plot'. "
+            "Default: the 'WholePlot' column that generate_design adds to a split-plot design."
+        ),
+    )
 
 
 @tool_spec(
@@ -73,9 +81,10 @@ class AnalyzeExperimentInput(BaseModel):
         "Supports ANOVA, effects, coefficients with p-values, significance testing, "
         "residual diagnostics (Shapiro-Wilk, Durbin-Watson, Breusch-Pagan, Cook's distance), "
         "lack-of-fit test, curvature test (center points vs factorial points), "
-        "stepwise model selection (AIC/BIC), Box-Cox transformation, "
+        "stepwise model selection with effect heredity (AICc by default, or AIC/BIC), Box-Cox transformation, "
         "Lenth's method (PSE for unreplicated factorials), confidence intervals, "
-        "prediction with prediction intervals, and confirmation run testing. "
+        "prediction with prediction intervals, confirmation run testing, and the REML analysis of "
+        "split-plot designs (hard-to-change factors) with Satterthwaite degrees of freedom. "
         "Always returns a model summary with R-squared, adj-R-squared, pred-R-squared, and adequate precision. "
         "The design_matrix should contain factor columns with coded values (-1/+1). "
         "The response can be in a separate column or included in design_matrix."
@@ -93,6 +102,10 @@ class AnalyzeExperimentInput(BaseModel):
     # "Use Lenth's method on my unreplicated factorial"
         -> ``analyze_experiment(design_matrix=[...], response_column="y",
                 analysis_type="lenth_method")``
+
+    # "Analyse my split-plot experiment; temperature was hard to change"
+        -> ``analyze_experiment(design_matrix=[...], response_column="y",
+                analysis_type="split_plot")``
     """,
     category="experiments",
 )
@@ -113,6 +126,7 @@ def analyze_experiment_tool(spec: AnalyzeExperimentInput) -> dict[str, Any]:
             transform=spec.transform,
             new_points=np_df,
             observed_at_new=spec.observed_at_new,
+            whole_plot=spec.whole_plot,
         )
         return clean(result)
     except _TOOL_EXPECTED_EXCEPTIONS as e:

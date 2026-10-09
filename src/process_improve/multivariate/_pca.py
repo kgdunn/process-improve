@@ -831,7 +831,7 @@ class PCA(_LatentVariableModel, TransformerMixin, BaseEstimator):
 
     def __init__(
         self,
-        n_components: int,
+        n_components: int | None,
         *,
         algorithm: str = "auto",
         tol: float = epsqrt,
@@ -864,7 +864,7 @@ class PCA(_LatentVariableModel, TransformerMixin, BaseEstimator):
     }
     _RENAME_CONTEXT: typing.ClassVar[str] = "PCA"
 
-    # Fitted diagnostics: per-component arrays (NIPALS/TSR) or scalar totals (SVD).
+    # Fitted diagnostics: per-component arrays (SVD/NIPALS) or scalar totals (TSR).
     fitting_info_: dict[str, np.ndarray | int | float]
 
     # ENG-18: public DataFrame views built lazily from the private ndarrays.
@@ -1919,7 +1919,7 @@ class PCA(_LatentVariableModel, TransformerMixin, BaseEstimator):
             they bound: that EM loop is not the per-component NIPALS loop, which
             ``PCA(tol=..., max_iter=...)`` governs (#588).
         n_iter, tol : int and float, optional
-            Deprecated since 1.96.0 aliases for ``ekf_max_iter`` and ``ekf_tol``;
+            Deprecated since 1.98.0 aliases for ``ekf_max_iter`` and ``ekf_tol``;
             they still take effect and warn, and are removed in 2.0. ``tol`` was
             renamed because ``PCA`` itself gained a ``tol``, and a parameter
             captured here can never reach the ``PCA`` constructor through
@@ -1982,10 +1982,13 @@ class PCA(_LatentVariableModel, TransformerMixin, BaseEstimator):
               shows whether one column is carrying the pooled figure. All
               ``NaN`` under ``cv_scheme="row_wise"``, which has no per-cell
               error to split.
-            - ``cv_scores`` - alias of ``per_fold_press`` under ekf, or
-              per-fold negative MSE from ``cross_val_score`` under row-wise
-              (preserved for back-compat).
-            - ``cv_scheme`` - the scheme used (``"ekf"`` or ``"row_wise"``).
+            - ``cv_scores`` - alias of ``per_fold_press`` under every
+              cell-based scheme (``"ekf"``, ``"ckf"``, ``"ek"``, ``"sacv"``,
+              ``"gcv"``), or per-fold negative MSE from ``cross_val_score``
+              under ``"row_wise"`` (preserved for back-compat).
+            - ``cv_scheme`` - the scheme used, echoed back (one of
+              ``"ekf"``, ``"ckf"``, ``"ek"``, ``"sacv"``, ``"gcv"`` or
+              ``"row_wise"``).
             - ``selection_rule`` - the rule used to pick ``n_components``.
 
             When ``return_consensus=True``, the Bunch additionally carries:
@@ -2052,7 +2055,7 @@ class PCA(_LatentVariableModel, TransformerMixin, BaseEstimator):
             if old_value is None:
                 continue
             warnings.warn(
-                f"PCA.select_n_components({old_name}=...) is deprecated since 1.96.0 "
+                f"PCA.select_n_components({old_name}=...) is deprecated since 1.98.0 "
                 f"and will be removed in 2.0; use {new_name}={old_value!r} instead. "
                 f"It was renamed because PCA itself now has tol and max_iter for its "
                 f"per-component loop, which is a different loop from the ekf "

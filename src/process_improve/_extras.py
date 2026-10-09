@@ -1,15 +1,14 @@
 """ENG-13 (#295): clean errors when an optional extra is not installed.
 
-``process_improve`` ships a small core (numpy, pandas, scikit-learn,
+``process_improve`` ships a small core (numpy, pandas, scipy, scikit-learn,
 statsmodels, patsy, pydantic, pyyaml, tqdm) and gates heavier
 optional dependencies behind extras::
 
     pip install 'process-improve[plotting]'    # matplotlib + plotly + seaborn + ridgeplot
-    pip install 'process-improve[expt]'        # pyDOE3 (DOE / experiments helpers)
+    pip install 'process-improve[expt]'        # pyDOE3 (Taguchi orthogonal arrays)
     pip install 'process-improve[batch]'       # scikit-image + openpyxl + ruptures
     pip install 'process-improve[mcp]'         # mcp
     pip install 'process-improve[fast]'        # numba (JIT)
-    pip install 'process-improve[ilp]'         # pulp (OMARS design generator)
     pip install 'process-improve[control]'     # osqp (mid-course correction QP)
     pip install 'process-improve[all]'         # everything above
 
@@ -59,11 +58,16 @@ def require_extra(missing: str, extra: str) -> ImportError:
 class _MissingExtra:
     """Stand-in for an optional module that was not installed.
 
-    Attribute access raises :class:`AttributeError` (Python's special-method
-    convention -- ``hasattr(stub, 'Figure')`` returns ``False``) with the
-    canonical "install the extra" remediation message in the body. Direct
-    *calls* on the stub raise :class:`ImportError` because that is the
-    natural error class for "you need to install this dependency".
+    Using the stub in any way that needs the real package raises
+    :class:`ImportError` with the canonical "install the extra" message, so a
+    missing ``plotting`` extra fails the same way as a missing ``expt`` extra.
+    Attribute access returns a child stub that remembers the dotted path, so
+    ``go.Figure(...)`` and ``go.layout.Template(...)`` raise ``ImportError`` at
+    the call, and indexing (``pio.templates[name]``) raises it too.
+
+    Dunder lookups (``__array__``, ``__deepcopy__``, ...) raise
+    :class:`AttributeError` instead, so protocol probes such as ``copy``,
+    ``pickle`` and numpy see a missing attribute, per the Python data model.
 
     Lets a module top-level write::
 
@@ -76,21 +80,32 @@ class _MissingExtra:
     who never touch the optional surface.
     """
 
-    __slots__ = ("_extra", "_missing")
+    __slots__ = ("_extra", "_missing", "_path")
 
-    def __init__(self, missing: str, extra: str) -> None:
+    def __init__(self, missing: str, extra: str, path: str = "") -> None:
         self._missing = missing
         self._extra = extra
+        self._path = path
 
-    def __getattr__(self, name: str) -> object:
-        # __getattr__ must raise AttributeError so ``hasattr`` and friends
-        # behave per the Python data model (CodeQL py/non-standard-exception
-        # -raised-in-special-method). The install-hint message is preserved
-        # in the exception text.
-        raise AttributeError(f"{_extra_message(self._missing, self._extra)}\n(Attempted attribute access: {name!r}.)")
+    def _error(self) -> ImportError:
+        hint = f"\n(Attempted to use {self._path!r}.)" if self._path else ""
+        return ImportError(f"{_extra_message(self._missing, self._extra)}{hint}")
+
+    def __getattr__(self, name: str) -> _MissingExtra:
+        if name.startswith("__") and name.endswith("__"):
+            # __getattr__ must raise AttributeError for protocol lookups so
+            # ``hasattr`` and friends behave per the data model (CodeQL
+            # py/non-standard-exception-raised-in-special-method).
+            raise AttributeError(
+                f"{_extra_message(self._missing, self._extra)}\n(Attempted attribute access: {name!r}.)"
+            )
+        return _MissingExtra(self._missing, self._extra, f"{self._path}.{name}" if self._path else name)
 
     def __call__(self, *_args: object, **_kwargs: object) -> object:
-        # __call__ has no equivalent convention; raise ImportError here
-        # because callers that try to use the stub directly are asking
-        # for the missing package.
-        raise require_extra(self._missing, self._extra)
+        raise self._error()
+
+    def __getitem__(self, _key: object) -> object:
+        raise self._error()
+
+    def __setitem__(self, _key: object, _value: object) -> None:
+        raise self._error()

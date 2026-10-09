@@ -10,7 +10,7 @@ PCA
 ~~~
 
 .. autoclass:: PCA
-   :members: fit, transform, fit_transform, predict, score, select_n_components, score_contributions, group_contributions, detect_outliers
+   :members: fit, transform, fit_transform, predict, score, select_n_components, score_contributions, group_contributions, meda, omeda, detect_outliers
    :undoc-members:
    :show-inheritance:
 
@@ -18,7 +18,7 @@ PLS
 ~~~
 
 .. autoclass:: PLS
-   :members: fit, transform, fit_transform, predict, score, select_n_components, score_contributions, group_contributions, detect_outliers, cross_validate
+   :members: fit, transform, fit_transform, predict, score, select_n_components, compare_cv_criteria, pseudo_validation_set, score_contributions, group_contributions, meda, omeda, detect_outliers, cross_validate
    :undoc-members:
    :show-inheritance:
 
@@ -32,6 +32,70 @@ loadings, VIP, Hotelling's T2 and SPE.
 
 .. autoclass:: PLSDA
    :members:
+   :show-inheritance:
+
+PRM
+~~~
+
+Partial Robust M-regression: PLS with a bounded influence per observation, so that
+a handful of outlying rows move the fit a little instead of a lot. Each row carries
+the product of a residual weight and a leverage weight, and the fit and the weights
+are recomputed from each other until they settle. Everything :class:`PLS` offers is
+inherited, so a fitted ``PRM`` also has scores, loadings, VIP, Hotelling's T2 and SPE.
+
+.. autoclass:: PRM
+   :members: fit, outlier_summary
+   :show-inheritance:
+
+CA
+~~
+
+Correspondence analysis of a two-way contingency table: "PCA for a table of counts".
+Each row's profile is compared with the average profile by the chi-squared distance,
+so a rare category that departs strongly from independence counts for as much as a
+common one that departs a little. On the map, rows with similar profiles sit
+together, and a row lying out toward a column co-occurs with it more often than
+independence would predict.
+
+.. autoclass:: CA
+   :members: fit, transform, transform_columns, map_plot
+   :show-inheritance:
+
+MCA
+~~~
+
+Multiple correspondence analysis: correspondence analysis of the one-hot indicator
+matrix of several categorical variables, "PCA for categorical data". Observations with
+similar combinations of levels plot together, and so do levels that tend to occur
+together. The raw eigenvalues of an indicator matrix understate the real association,
+so ``correction`` reports each axis's share on the Benzecri or Greenacre scale.
+
+.. autoclass:: MCA
+   :members: fit, transform, transform_columns
+   :show-inheritance:
+
+FAMD
+~~~~
+
+Factor analysis of mixed data: one analysis of numeric and categorical columns
+together, with each variable given an equal say. It is exactly PCA of the correlation
+matrix when every column is numeric, and exactly MCA when every column is categorical.
+
+.. autoclass:: FAMD
+   :members: fit, transform, map_plot
+   :show-inheritance:
+
+MFA
+~~~
+
+Multiple factor analysis: one balanced analysis of several groups of variables
+measured on the same observations. Each group is weighted by one over its first
+eigenvalue, so a wide block (a spectrum) cannot outvote a narrow one (a lab panel)
+by column count, and each observation's position is the average of one partial
+position per group.
+
+.. autoclass:: MFA
+   :members: fit, transform, map_plot
    :show-inheritance:
 
 TPLS
@@ -97,12 +161,36 @@ Multi-block PCA / consensus-PCA. Same dict-of-DataFrames API as
    :undoc-members:
    :show-inheritance:
 
+GPA
+~~~
+
+Generalized Procrustes analysis: several configurations of the same objects (an
+assessor's scores, an instrument's measurements) are centred, rotated and scaled onto
+one consensus. The residuals show which configuration disagrees about which object,
+and :meth:`GPA.consensus_test` shows whether the consensus is more than alignment
+alone would produce. Takes the same dict-of-DataFrames input as :class:`MBPCA`;
+:meth:`GPA.configurations_from_long` builds it from a sensory panel.
+
+.. autoclass:: GPA
+   :members: fit, transform, consensus_test, configurations_from_long, map_plot
+   :show-inheritance:
+
 Analysis
 --------
 
 .. autofunction:: rv_coefficient
 
 .. autofunction:: rv2_coefficient
+
+Model selection
+---------------
+
+Predictive cross-validation (:math:`Q^2`, the 1-SE rule, van der Voet) placed beside
+tests of the latent structure itself; see :doc:`../user_guide/cross_validation`.
+
+.. autofunction:: compare_cv_criteria
+
+.. autofunction:: pseudo_validation_set
 
 Containers
 ----------
@@ -168,6 +256,10 @@ also bound as a convenience method on the model after :meth:`fit`.
 
 .. autofunction:: group_contributions
 
+.. autofunction:: meda
+
+.. autofunction:: omeda
+
 .. autofunction:: eigenvalue_summary
 
 .. autofunction:: project_variables
@@ -204,9 +296,15 @@ Plots
 
 .. autofunction:: correlation_loadings_plot
 
+.. autofunction:: meda_plot
+
+.. autofunction:: omeda_plot
+
 .. autofunction:: predictions_vs_observed_plot
 
 .. autofunction:: coefficient_plot
+
+.. autofunction:: cv_criteria_plot
 
 .. autofunction:: confusion_matrix_plot
 .. autofunction:: effect_summary_plot

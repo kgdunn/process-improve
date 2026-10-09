@@ -790,7 +790,7 @@ def batch_dtw(  # noqa: C901, PLR0915
     """
     Synchronize, via iterative DTW, with weighting.
 
-    Algorithm: Kassidas et al. (2004):  https://doi.org/10.1002/aic.690440412
+    Algorithm: Kassidas, MacGregor and Taylor (1998): https://doi.org/10.1002/aic.690440412
 
     Parameters
     ----------

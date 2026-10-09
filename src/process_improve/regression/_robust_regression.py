@@ -203,7 +203,8 @@ def robust_regression(  # noqa: PLR0913, PLR0915
         t_value:                  the t-values for the standard errors, one per
                                   coefficient (same meaning as in
                                   ``multiple_linear_regression``)
-        conf_intervals:           K rows x 2 columns (lower, upper) confidence intervals
+        conf_intervals:           1 row x 2 columns (lower, upper) confidence interval for
+                                  the single slope coefficient
         conf_interval_intercept:  (lower, upper) confidence interval for the intercept
         pi_range:                 prediction intervals above and below, over the range of data
         leverage:                 the hat-matrix diagonal (leverage) for each observation

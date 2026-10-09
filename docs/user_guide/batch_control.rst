@@ -35,12 +35,18 @@ The pieces
   is a quadratic program; the hard SPE and T2 caps are quadratic constraints,
   handled by an outer iteration on their penalty weights.
 - :class:`~process_improve.batch.control.MidCourseCorrector` wraps the
-  decision-point workflow: the SPE validity gate (an out-of-family batch is
+  decision-point workflow. Its ``predict`` method answers the monitoring
+  question at a decision point: the predicted final quality with a
+  prediction interval built from the model's error *at that decision point*
+  (the training batches re-projected under the same missingness pattern,
+  against their measured quality), the SPE of the batch so far against its
+  limit, and the condition number of the score estimator. Its ``correct``
+  method adds the decision: the SPE validity gate (an out-of-family batch is
   not corrected, following Flores-Cerrillo and MacGregor, 2004), the
   no-correction dead band (correct only when the projected shortfall is
-  significant against the model's prediction interval, the practical lesson
-  of Yabuki and MacGregor, 1997), and per-decision-point limits built by
-  re-projecting the training batches under the same missingness pattern
+  significant against that interval, the practical lesson of Yabuki and
+  MacGregor, 1997; the default of 1.0 asks that the whole interval fall
+  short of the target), and per-decision-point limits built the same way
   (Garcia-Munoz, Kourti and MacGregor, 2004).
 - :func:`~process_improve.batch.control.evaluate_control_policies` runs the
   whole comparison end to end.
@@ -54,7 +60,7 @@ that depends on the feed class (warmer mid-batch rescues a slow batch and
 hurts a fast one), so the evaluation fits one model per feed class and
 assigns a fresh batch to the nearest class centroid in standardised Z; with
 the class ranges overlapping along the feed-quality axis that assignment is
-right about 80% of the time, and a miss hands the batch the neighbouring
+right about 85% of the time, and a miss hands the batch the neighbouring
 range's model.
 
 The executed comparison
@@ -76,41 +82,41 @@ seed 0; about seven minutes, dominated by the two ceiling policies):
 Policy           Mean    Sd      Min     Max
 ===============  ======  ======  ======  ======
 replay           7.507   1.198   3.655   8.925
-midcourse        7.709   0.781   5.717   8.925
-oracle-from-k    7.828   0.631   6.108   8.925
+midcourse        7.786   0.750   5.652   8.925
+oracle-from-k    7.984   0.509   6.392   8.925
 adapted          7.824   1.013   4.573   9.309
 ===============  ======  ======  ======  ======
 
-Four of the forty batches were corrected, all in the poorest feed class;
-thirty-five were left alone by the dead band and one was stopped by the SPE
-validity gate. Reading the table:
+Eight of the forty batches were corrected, six in the poorest feed class and
+two in the middle one; thirty-one were left alone by the dead band and one was
+stopped by the SPE validity gate. Reading the table:
 
-- The corrected batches gained between +1.53 and +2.67 g/L, mean +2.02 g/L,
+- The corrected batches gained between +0.48 and +2.45 g/L, mean +1.40 g/L,
   and none was harmed. The worst batch in the campaign rose from 3.66 to
-  5.79 g/L.
-- The campaign standard deviation fell from 1.20 to 0.78 g/L, a 35%
-  reduction, with the mean up 0.20 g/L: mid-course correction works on the
+  5.65 g/L.
+- The campaign standard deviation fell from 1.20 to 0.75 g/L, a 37%
+  reduction, with the mean up 0.28 g/L: mid-course correction works on the
   low tail, which is where the money is when the target is a floor.
 - The **oracle-from-k** row re-optimises the remaining schedule of those
   same corrected batches against the simulator itself (the true process) at
   the same decision point: the ceiling for any mid-course scheme there. The
-  data-driven correction captured 63% of the oracle's mean improvement; the
+  data-driven correction captured 58% of the oracle's mean improvement; the
   rest is the price of an empirical model confined to the region its
   history explored.
 - The **adapted** row runs every batch on the true optimal schedule for its
   own initial conditions, computed before the batch starts: the
   perfect-feedforward ceiling. It raises the mean and the best batches, but
-  its minimum (4.57 g/L) is *worse* than the corrected policy's (5.72 g/L):
+  its minimum (4.57 g/L) is *worse* than the corrected policy's (5.65 g/L):
   a schedule fixed at time zero cannot answer a disturbance that develops
   while the batch runs. Feedforward adaptation and mid-course correction
   address the two different variance shares that
   :func:`~process_improve.simulation.variance_decomposition` separates.
 
-The corrector's predictions were conservative: for the four corrected
-batches it predicted 5.0 to 6.7 g/L and the executed titers came out 5.7 to
-7.7 g/L. A latent-variable prediction regresses toward the mean, so a batch
-deep in the tail is predicted less deep; the correction direction still
-held.
+The corrector's predictions were conservative: for the eight corrected batches
+it predicted 4.8 to 6.7 g/L and the executed titers came out 5.7 to 8.5 g/L,
+every gain understated. A latent-variable prediction regresses toward the
+mean, so a batch deep in the tail is predicted less deep; the correction
+direction still held.
 
 Where to put the decision point
 -------------------------------
@@ -121,21 +127,23 @@ mean executed gain over the batches corrected at that point):
 =========  ====  ==============  ===============
 Sample     Day   Corrected       Mean gain [g/L]
 =========  ====  ==============  ===============
-4          2.0   21 (8 harmed)   +0.32
-6          3.0   8 (3 harmed)    +0.82
-8          4.0   4 (0 harmed)    +2.02
-10         5.0   6 (0 harmed)    +0.67
-12         6.0   7 (7 harmed)    -0.05
-14         7.0   7 (7 harmed)    -0.28
+4          2.0   9 (2 harmed)    +1.12
+6          3.0   9 (1 harmed)    +1.42
+8          4.0   8 (0 harmed)    +1.40
+10         5.0   8 (0 harmed)    +0.49
+12         6.0   8 (7 harmed)    -0.04
+14         7.0   8 (8 harmed)    -0.23
 =========  ====  ==============  ===============
 
 The window is real and it is in the middle of the batch. Too early, the
-projections are still uncertain, so the dead band passes batches that did
-not need correcting and the model misdirects some of them. Too late, the
+prediction has not yet separated the batches that will fall short from those
+that will not: at day 2 the dead band admits nine batches, two of them are
+harmed, and the mean gain is below the values at days 3 and 4. Too late, the
 biology has already decided: the remaining schedule has almost no leverage,
 and small model errors turn corrections into damage. On this process the
-useful window is days 4 to 5, just after the growth phase reveals which
-batches are behind.
+useful window is days 3 to 5. Days 3 and 4 give the same mean gain, about
++1.4 g/L, just after the growth phase reveals which batches are behind, and
+day 3 harms one batch where day 4 harms none.
 
 Practical notes
 ---------------

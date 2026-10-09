@@ -272,6 +272,94 @@ def test_psi_boundary_values() -> None:
     assert psi(2.0) == pytest.approx(2.0)
 
 
+def test_rho_array_matches_scalar_rho() -> None:
+    """``_rho_array`` is the scalar ``rho`` applied element-wise, as ``np.vectorize(rho)`` was.
+
+    It scores every cell of the Holt-Winters lambda grid, so a drift from the scalar function
+    could move the chosen lambdas. Covers the cutoff and its neighbouring floats, signed zero,
+    both saturated tails, infinities and NaN, plus a dense sweep of the polynomial branch. A
+    huge |x| must not overflow (and warn) inside the branch that ``np.where`` discards.
+    """
+    from process_improve.monitoring.control_charts import _rho_array, rho
+
+    k = 2.52
+    edges = [0.0, -0.0, k, -k, np.nextafter(k, 0.0), np.nextafter(k, 9.0), 1e200, -1e200, np.inf, -np.inf, np.nan]
+    x = np.concatenate([edges, np.random.default_rng(0).uniform(-4.0, 4.0, 10_000)])
+    expected = np.array([rho(v) for v in x], dtype=float)
+    with warnings.catch_warnings():
+        warnings.simplefilter("error", RuntimeWarning)
+        actual = _rho_array(x)
+    # rho lies in [0, c_k ~ 3.27]; an absolute 1e-15 allows a last-bit libm difference between
+    # the scalar and array power loops on other platforms. On Linux x86_64 they are identical.
+    np.testing.assert_allclose(actual, expected, rtol=1e-15, atol=1e-15, equal_nan=True)
+
+
+def test_hw_series_shorter_than_warm_up_has_float_columns() -> None:
+    """With N < warm_up_M every fitted column is float64; ``beta_hat`` used to be int64."""
+    cc = ControlChart()
+    cc.calculate_limits(np.array([10.09, 9.08, 3.14, 7.00, 11.47]))
+    assert cc.warm_up_M > cc.N
+    assert (cc.df.dtypes == np.float64).all(), cc.df.dtypes.to_dict()
+    assert (cc.df["beta_hat"] == 0.0).all()
+
+
+def _assert_same(actual, expected, name: str) -> None:
+    """Equality for chart attributes: frames, series, arrays, dicts and NaN-aware scalars."""
+    if isinstance(expected, pd.DataFrame):
+        pd.testing.assert_frame_equal(actual, expected, obj=name)
+    elif isinstance(expected, pd.Series):
+        pd.testing.assert_series_equal(actual, expected, obj=name)
+    elif isinstance(expected, dict):
+        assert actual.keys() == expected.keys(), name
+        for key, value in expected.items():
+            _assert_same(actual[key], value, f"{name}[{key!r}]")
+    elif isinstance(expected, (np.ndarray, list)):
+        np.testing.assert_array_equal(actual, expected, err_msg=name)
+    else:
+        assert type(actual) is type(expected), name
+        assert (pd.isna(actual) and pd.isna(expected)) or actual == expected, (name, actual, expected)
+
+
+_SERIES_A = 50.0 + 2.0 * np.random.default_rng(1).standard_normal(120)
+_SERIES_B = 80.0 + 5.0 * np.random.default_rng(2).standard_normal(60)
+
+
+@pytest.mark.parametrize(
+    ("variant", "first", "first_kwargs", "second_kwargs"),
+    [
+        pytest.param("hw", _SERIES_A, {}, {}, id="new-level-and-length"),
+        pytest.param("hw", _SERIES_A, {"target": 50.0, "s": 2.0, "ld_1": 0.4, "ld_2": 0.7}, {}, id="pinned-then-free"),
+        pytest.param("hw", _SERIES_A, {}, {"target": 80.0, "s": 5.0}, id="free-then-pinned"),
+        pytest.param("hw", np.full(30, 42.0), {}, {}, id="failed-fit-first"),
+        pytest.param("hw", _SERIES_A[:5], {}, {}, id="short-series-first"),
+        pytest.param("xbar.no.subgroup", _SERIES_A, {}, {}, id="xbar"),
+    ],
+)
+def test_reused_chart_matches_a_fresh_one(
+    variant: str, first: np.ndarray, first_kwargs: dict, second_kwargs: dict
+) -> None:
+    """A chart reused for a second series ends in exactly the state of a fresh chart.
+
+    It used to keep the first series' target and s as if they had been given (a mean-80
+    series got the mean-50 series' target), reuse its fitted lambdas instead of searching
+    again, and raise on a second series of a different length.
+    """
+    fresh = ControlChart(variant=variant)
+    fresh.calculate_limits(_SERIES_B, **second_kwargs)
+
+    reused = ControlChart(variant=variant)
+    if np.ptp(first) == 0:
+        with pytest.raises(ValueError, match="zero"):
+            reused.calculate_limits(first, **first_kwargs)
+    else:
+        reused.calculate_limits(first, **first_kwargs)
+    reused.calculate_limits(_SERIES_B, **second_kwargs)
+
+    assert vars(reused).keys() == vars(fresh).keys()
+    for name, value in vars(fresh).items():
+        _assert_same(getattr(reused, name), value, name)
+
+
 def test_cpk_well_centered_process() -> None:
     """Cpk for a well-centered process with wide specs should be high."""
     rng = np.random.default_rng(42)
@@ -522,13 +610,14 @@ def test_get_monitoring_tool_specs_lists_both_tools() -> None:
 
 
 class TestControlChartMissingValues:
-    """NaN handling in the Holt-Winters warm-up window. Regression tests for #557.
+    """NaN handling at the start of a Holt-Winters series. Regression tests for #557.
 
-    A gap at the very start of the series leaves the recursion with no finite error
-    history to fall back on, so every training-sample error stays NaN and the scale
-    estimate is undefined. That must be reported: the previous `max(0.0, resids)`
-    guard turned the NaN into a zero scale, giving control limits of zero width with
-    no exception raised.
+    Row 0 has no one-step-ahead error, so a gap starting at index 1 has no error history
+    to impute from. Its NaN error used to spread through every later row: first the
+    `max(0.0, resids)` guard turned that into a zero scale (limits of zero width), then
+    the fit raised. Such a row now carries the forecast forward, so the series fits. A
+    series with no finite observation to forecast against must still raise, never
+    collapse the limits or leak a RuntimeWarning.
     """
 
     @staticmethod
@@ -555,20 +644,44 @@ class TestControlChartMissingValues:
         assert cc.s == pytest.approx(2.302721, abs=1e-6)
         assert cc._delta_UCL_3sigma > cc._delta_LCL_3sigma
 
-    def test_nan_across_the_warm_up_raises_rather_than_collapsing_the_limits(self) -> None:
-        """Four leading gaps poison every training error, so the scale is undefined."""
+    def test_single_nan_at_index_1_fits(self) -> None:
+        """A lone gap at index 1 used to make the whole fit raise; gaps at 0 or 2 never did."""
         y = self._series()
-        y[:4] = np.nan
+        y[1] = np.nan
         cc = ControlChart(style="robust", variant="HW")
-        with pytest.raises(ValueError, match=r"none of the \d+ training-sample errors is finite"):
+        with warnings.catch_warnings():
+            warnings.simplefilter("error", RuntimeWarning)
             cc.calculate_limits(y, ld_1=0.4, ld_2=0.7)
 
-    def test_nan_warm_up_emits_no_runtime_warning(self) -> None:
-        """The failure is an exception, not a RuntimeWarning leaking from numpy."""
+        assert cc.s == pytest.approx(2.362464, abs=1e-6)
+        # Nothing is invented for the missing row: its error and cleaned value stay NaN.
+        assert np.isnan(cc.df["error"][1])
+        assert np.isnan(cc.df["y_star"][1])
+
+    def test_leading_gap_carries_the_forecast_forward(self) -> None:
+        """Rows 1-3 missing: the level follows the trend, trend and scale are held."""
         y = self._series()
         y[:4] = np.nan
         cc = ControlChart(style="robust", variant="HW")
         with warnings.catch_warnings():
             warnings.simplefilter("error", RuntimeWarning)
-            with pytest.raises(ValueError, match=r"training-sample errors is finite"):
-                cc.calculate_limits(y, ld_1=0.4, ld_2=0.7)
+            cc.calculate_limits(y, ld_1=0.4, ld_2=0.7)
+
+        df = cc.df
+        for i in (1, 2, 3):
+            assert df["alpha_hat"][i] == df["alpha_hat"][i - 1] + df["beta_hat"][i - 1]
+            assert df["beta_hat"][i] == df["beta_hat"][i - 1]
+            assert df["sigma_hat"][i] == df["sigma_hat"][i - 1]
+        assert df["error"][1:4].isna().all()
+        # The limits are estimated, not collapsed: close to the clean series' 2.306.
+        assert cc.s == pytest.approx(2.237908, abs=1e-6)
+        assert cc._delta_UCL_3sigma > cc._delta_LCL_3sigma
+
+    def test_no_finite_observation_to_forecast_still_raises(self) -> None:
+        """Only y[0] is finite: the scale is undefined, reported as an error, not a warning."""
+        y = np.r_[100.0, np.full(39, np.nan)]
+        cc = ControlChart(style="robust", variant="HW")
+        with warnings.catch_warnings():
+            warnings.simplefilter("error", RuntimeWarning)
+            with pytest.raises(ValueError, match=r"none of the \d+ training-sample errors is finite"):
+                cc.calculate_limits(y, target=100.0, s=2.0, ld_1=0.4, ld_2=0.7)

@@ -14,9 +14,30 @@ logger = logging.getLogger(__name__)
 
 
 def _run_residual_diagnostics(ols_result: RegressionResultsWrapper) -> dict[str, Any]:
-    """Residual diagnostics: normality, independence, homoscedasticity."""
+    """Residual diagnostics: normality, independence, homoscedasticity.
+
+    A saturated model (no residual degrees of freedom) fits every run exactly, so its
+    residuals are rounding noise: the tests are then not run, their entries are
+    ``None``, and a ``note`` says why.
+    """
     residuals = ols_result.resid.values
     fitted = ols_result.fittedvalues.values
+    if ols_result.df_resid <= 0:
+        return {
+            "residual_diagnostics": {
+                "shapiro_wilk": {"statistic": None, "p_value": None},
+                "durbin_watson": None,
+                "breusch_pagan": {"statistic": None, "p_value": None},
+                "cooks_distance": [None] * len(residuals),
+                "leverage": [float(h) for h in ols_result.get_influence().hat_matrix_diag],
+                "residuals": [float(r) for r in residuals],
+                "fitted_values": [float(f) for f in fitted],
+                "note": (
+                    "Saturated model - no residual degrees of freedom, so the residuals are rounding noise "
+                    "and the residual tests are not run. Fit fewer terms, or use analysis_type='lenth_method'."
+                ),
+            }
+        }
 
     # Shapiro-Wilk normality test
     n = len(residuals)

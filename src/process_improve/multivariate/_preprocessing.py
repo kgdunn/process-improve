@@ -464,3 +464,100 @@ def _warn_scaling_traps(X: DataMatrix, *, scale_inside_folds: bool, fold: str, m
             SpecificationWarning,
             stacklevel=3,
         )
+
+
+class _WeightedMCUVScaler(MCUVScaler):
+    """:class:`MCUVScaler` whose centre and spread are weighted statistics (#191).
+
+    The ordinary mean and standard deviation have a breakdown point of zero: one
+    bad row moves both without limit. That is fine when the rows are trusted, and
+    fatal when they are the thing being guarded against, so Partial Robust
+    M-regression centres and scales with the same weights it fits with. It is a
+    private helper rather than public API because the weights that make it useful
+    come from :class:`~process_improve.multivariate.methods.PRM`'s reweighting
+    loop, not from the caller.
+
+    Everything else - validation, feature names, the constant-column guard, and
+    :meth:`transform` / :meth:`inverse_transform` - is inherited unchanged, so a
+    fitted instance is a drop-in for the base class everywhere PLS reads it.
+    """
+
+    def fit(
+        self,
+        X: DataMatrix,
+        y=None,  # noqa: ANN001, ARG002  # reason: Pipeline threads y through every step's fit
+        sample_weight: np.ndarray | None = None,
+    ) -> _WeightedMCUVScaler:
+        """Compute weighted column means and weighted standard deviations.
+
+        Parameters
+        ----------
+        X : DataMatrix
+            Data of shape (n_samples, n_features).
+        y : ignored
+            Accepted for :class:`~sklearn.pipeline.Pipeline` compatibility.
+        sample_weight : np.ndarray of shape (n_samples,), optional
+            Non-negative row weights. ``None`` (or all-equal weights) reproduces
+            :class:`MCUVScaler` exactly.
+
+        Returns
+        -------
+        _WeightedMCUVScaler
+            ``self``, fitted.
+
+        Raises
+        ------
+        ValueError
+            If ``sample_weight`` has the wrong length, is negative, non-finite,
+            or sums to zero.
+        """
+        # The base fit does the validation, sets n_features_in_ / feature_names_in_,
+        # and gives the unweighted statistics; only center_ / scale_ are replaced.
+        super().fit(X)
+        if sample_weight is None:
+            return self
+
+        weights = np.asarray(sample_weight, dtype=float).ravel()
+        values = np.asarray(X.to_frame() if isinstance(X, pd.Series) else X, dtype=float)
+        if weights.shape[0] != values.shape[0]:
+            raise ValueError(f"sample_weight has {weights.shape[0]} entries; expected {values.shape[0]} to match X.")
+        if not np.all(np.isfinite(weights)):
+            raise ValueError("sample_weight must be finite (no NaN / inf).")
+        if np.any(weights < 0):
+            raise ValueError("sample_weight must be non-negative.")
+
+        # Per column, so a NaN cell drops only its own column's contribution
+        # rather than the whole row (MCUVScaler's missing-data contract).
+        observed = np.isfinite(values)
+        per_column = np.where(observed, weights[:, np.newaxis], 0.0)
+        total = per_column.sum(axis=0)
+        if not np.any(total > 0):
+            raise ValueError("sample_weight must not sum to zero: there would be no data left to centre on.")
+
+        safe_total = np.where(total > 0, total, 1.0)
+        filled = np.where(observed, values, 0.0)
+        center = (per_column * filled).sum(axis=0) / safe_total
+
+        # The weighted analogue of ddof=1, so that equal weights reproduce
+        # MCUVScaler exactly rather than coming out sqrt((n-1)/n) too small.
+        # For reliability weights the unbiased denominator is V1 - V2/V1, which
+        # collapses to n - 1 when every weight is 1. Without this the subclass
+        # would silently disagree with its base class on the very case where
+        # they are supposed to be the same estimator.
+        sum_squared = (per_column**2).sum(axis=0)
+        denominator = safe_total - sum_squared / safe_total
+        # One effective observation leaves no degrees of freedom; fall back to
+        # the biased denominator rather than dividing by zero or going negative.
+        denominator = np.where(denominator > 0, denominator, safe_total)
+        variance = (per_column * (filled - center) ** 2 * observed).sum(axis=0) / denominator
+        spread = np.sqrt(variance)
+
+        # Same guard as the base class: a constant (or unobserved) column scales
+        # by 1.0 rather than dividing by zero, and centres at 0 if it has no data.
+        tiny = float(np.finfo(float).tiny) ** 0.5
+        spread = np.where(~np.isfinite(spread) | (spread <= tiny) | (total <= 0), 1.0, spread)
+        center = np.where(np.isfinite(center) & (total > 0), center, 0.0)
+
+        self.center_ = pd.Series(center, index=self.center_.index)
+        self.scale_ = pd.Series(spread, index=self.scale_.index)
+        return self

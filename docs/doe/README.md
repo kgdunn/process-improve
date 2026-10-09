@@ -12,11 +12,10 @@ These docs capture the tool architecture and question bank that drive developmen
 
 | File | What's in it |
 |---|---|
-| [tools.md](tools.md) | The tool architecture - what each tool does, its inputs/outputs |
 | [questions.md](questions.md) | All 162 questions organized by category (A–P) |
 | [tool-question-mapping.md](tool-question-mapping.md) | Which tool(s) answer which question |
 | [workflows.md](workflows.md) | Common workflow patterns, design type usage, multi-tool chains |
-| [coverage.md](coverage.md) | Implementation status and gap analysis |
+| [../user_guide/doe_coverage.rst](../user_guide/doe_coverage.rst) | Design families and the conformance test that checks each one |
 
 ## Related
 

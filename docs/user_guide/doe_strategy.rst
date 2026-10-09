@@ -128,7 +128,12 @@ Interpreting the Output
      - Ordered list of experimental stages.  Each stage contains
        ``stage_number``, ``stage_name``, ``design_type``, ``design_params``,
        ``factors``, ``estimated_runs``, ``purpose``, ``success_criteria``,
-       and ``transition_rules``.
+       and ``transition_rules``.  ``design_type`` and ``design_params`` are a
+       ``generate_design`` call: ``generate_design(factors,
+       design_type=stage["design_type"], **stage["design_params"])`` builds the
+       stage.  The confirmation stage (``"replicates_at_optimum"``) is the
+       exception: its runs are replicates at the optimum that
+       ``optimize_responses`` finds.
    * - ``total_estimated_runs``
      - Sum of estimated runs across all stages.
    * - ``budget_allocation``
@@ -168,24 +173,28 @@ adjusts stage complexity accordingly:
 
 .. code-block:: python
 
-   for b in [60, 40, 20, None]:
-       result = recommend_strategy(factors=factors, budget=b, domain="fermentation")
-       print(
-           f"Budget={str(b):>4s}: {result['total_estimated_runs']:>2d} runs, "
-           f"{len(result['stages'])} stages"
+   for b in [60, 25, 20, None]:
+       result = recommend_strategy(
+           factors=factors, responses=responses, budget=b, domain="fermentation"
        )
+       designs = [stage["design_type"] for stage in result["stages"]]
+       print(f"Budget={str(b):>4s}: {result['total_estimated_runs']:>2d} runs, {designs}")
 
 ::
 
-   Budget=  60: 30 runs, 3 stages
-   Budget=  40: 30 runs, 3 stages
-   Budget=  20: 18 runs, 3 stages
-   Budget=None: 30 runs, 3 stages
+   Budget=  60: 30 runs, ['plackett_burman', 'ccd', 'replicates_at_optimum']
+   Budget=  25: 24 runs, ['plackett_burman', 'd_optimal', 'replicates_at_optimum']
+   Budget=  20: 20 runs, ['dsd', 'replicates_at_optimum']
+   Budget=None: 30 runs, ['plackett_burman', 'ccd', 'replicates_at_optimum']
 
-With a tight budget, the engine reduces center points, chooses more
-economical designs, and may issue warnings in ``result["risks"]`` about
-underpowered designs.  When ``budget=None``, the ideal allocation is used
-without constraint.
+With a tight budget, the engine changes the designs, not only their run
+counts: it drops center points, replaces a stage's design with a smaller one
+(a Plackett-Burman screen, a D-optimal quadratic design), and, when separate
+screening and optimization stages cannot fit, plans a single Definitive
+Screening Design. ``estimated_runs`` is always the size of the design the
+stage's ``design_params`` build, and ``result["risks"]`` says what was
+reduced, or that the budget is below the smallest plan. When ``budget=None``,
+the ideal designs are used without constraint.
 
 Using Prior Knowledge
 ---------------------
@@ -290,7 +299,7 @@ Comparing two domains on the same factors shows how design choices differ:
 ::
 
    fermentation: plackett_burman, 8 screening runs
-   cell_culture: definitive_screening, 15 screening runs
+   cell_culture: dsd, 17 screening runs
 
 Fermentation uses Plackett-Burman (efficient, many-factor screening), while
 cell culture uses a Definitive Screening Design because it combines screening
@@ -302,13 +311,16 @@ Hard-to-Change Factors
 
 When some factors are expensive or time-consuming to reset between runs
 (e.g. reactor temperature, equipment configuration), flag them with
-``hard_to_change_factors``.  The engine wraps affected stages in a
-split-plot structure:
+``hard_to_change_factors``.  ``generate_design`` builds split-plot structure in
+the optimal designs, so each stage that contains a hard-to-change factor becomes
+a D-optimal split-plot design of the same size, with ``hard_to_change`` naming
+its whole-plot factors:
 
 .. code-block:: python
 
    result = recommend_strategy(
        factors=factors,
+       responses=responses,
        budget=40,
        domain="fermentation",
        hard_to_change_factors=["Temperature"],
@@ -316,22 +328,25 @@ split-plot structure:
 
    for stage in result["stages"]:
        params = stage["design_params"]
-       if params.get("split_plot"):
-           print(f"{stage['stage_name']}: split-plot design")
-           print(f"  Whole-plot (hard to change): {params['whole_plot_factors']}")
-           print(f"  Sub-plot (easy to change):   {params['subplot_factors']}")
+       if "hard_to_change" in params:
+           print(f"{stage['stage_name']}: {stage['design_type']}, {params['model_type']} model")
+           print(f"  Whole-plot (hard to change): {params['hard_to_change']}")
 
 ::
 
-   Screening: split-plot design
+   Screening: d_optimal, main_effects model
      Whole-plot (hard to change): ['Temperature']
-     Sub-plot (easy to change):   ['pH', 'Glucose', 'Yeast extract', 'Agitation', ...]
+   Optimization: d_optimal, quadratic model
+     Whole-plot (hard to change): ['Temperature']
 
 With split-plot designs, runs are grouped within whole-plot factor levels
-to minimize the number of hard-to-change factor resets.  The output risks
-will include a reminder that standard ANOVA gives incorrect p-values for
-split-plot experiments - a restricted maximum likelihood (REML) analysis
-is needed instead.
+to minimize the number of hard-to-change factor resets. The design records each
+run's whole plot in a ``WholePlot`` column. The output risks include a reminder
+that standard ANOVA gives incorrect p-values for split-plot experiments: runs in
+one whole plot share its error, so ordinary least squares makes the
+hard-to-change factors look more significant than they are. Analyse the results
+with ``analysis_type="split_plot"``, a restricted maximum likelihood (REML) fit
+that tests each factor against the right error; see :ref:`split-plot-analysis`.
 
 Multiple Responses
 ------------------

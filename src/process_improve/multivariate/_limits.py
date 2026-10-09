@@ -41,9 +41,10 @@ def hotellings_t2_limit(conf_level: float = 0.95, n_components: int = 0, n_rows:
     Raises
     ------
     ValueError
-        If ``conf_level`` is outside (0, 1), if ``n_rows`` is not positive, or
-        if ``n_components`` exceeds ``n_rows`` (which would otherwise return a
-        silent NaN from a negative F denominator degrees of freedom).
+        If ``conf_level`` is outside (0, 1), if ``n_rows`` is not positive,
+        if ``n_components`` is negative, or if ``n_components`` exceeds
+        ``n_rows`` (which would otherwise return a silent NaN from a negative
+        F denominator degrees of freedom).
     """
     if not 0.0 < conf_level < 1.0:
         raise ValueError(f"conf_level must lie in (0, 1); got {conf_level}.")
@@ -112,14 +113,20 @@ def spe_calculation(spe_values: np.ndarray, conf_level: float = 0.95) -> float:
     Returns
     -------
     float
-        The limit, above which we judge observations in the model to have a different correlation
-        structure than those values which were used to build the model.
+        The SPE limit at the requested confidence level, on the square-root scale
+        (directly comparable to entries of ``model.spe_``, which are stored on the same
+        scale). Observations above it have a different correlation structure than those
+        used to build the model.
 
     Notes
     -----
-    When the squared SPE values have no relative spread (a perfect-fit
-    training set where ``A == K``, or an all-equal SPE column), the
-    Jackson-Mudholkar chi-square approximation degenerates. In that case
+    The limit is the weighted chi-square approximation matched to the mean
+    and the variance of the squared SPE values (Box, 1954), which Nomikos and
+    MacGregor (1995) adopted for batch monitoring. It is not the
+    Jackson-Mudholkar (1979) limit, which needs the eigenvalues of the
+    residual covariance matrix. When the squared SPE values have no relative
+    spread (a perfect-fit training set where ``A == K``, or an all-equal SPE
+    column), the approximation degenerates. In that case
     the limit falls back to ``sqrt(center_spe)``: there is no spread to
     bound, so any value above the centre is by construction out of family.
     See SEC-21 (#270), sub-item 3.
@@ -240,6 +247,7 @@ def ellipse_coordinates(  # noqa: PLR0913
         Hotelling's T^2 limit and to bound `score_horiz`/`score_vert`.
     scaling_factor_for_scores : pd.Series
         Per-component standard deviations of the scores (``model.scaling_factor_for_scores_``).
+        Required, although the signature defaults to ``None``; omitting it fails.
         Used to scale the ellipse axes.
     n_rows : int
         Number of rows `N` in the data used to fit the model. Required to compute the

@@ -18,22 +18,30 @@ Example
 
 from __future__ import annotations
 
+import contextlib
 import itertools
 import logging
+import re
+import warnings
 from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any
 
 import numpy as np
 import pandas as pd
-from patsy import build_design_matrices, dmatrix
+from patsy import EvalFactor, ModelDesc, Sum, Term, build_design_matrices, dmatrix
+from patsy import categorical as patsy_categorical
 from patsy.design_info import DesignInfo
 from scipy import stats
-from statsmodels.stats.outliers_influence import variance_inflation_factor
 
+from process_improve._random import check_random_state, resolve_deprecated_seed
+from process_improve.experiments._analyses._shared import WHOLE_PLOT_COL
 from process_improve.experiments._moment_aberration import NotTwoLevelError, moment_aberration
+from process_improve.experiments.designs_mixture_constrained import SCHEFFE_MODELS, scheffe_formula_rhs, scheffe_model
+from process_improve.experiments.designs_utils import RESERVED_COLUMN_NAMES
 from process_improve.experiments.factor import DesignResult
 from process_improve.experiments.models import validate_formula_is_safe, validate_identifier_is_safe
+from process_improve.experiments.region import DesignRegion
 
 logger = logging.getLogger(__name__)
 
@@ -61,11 +69,13 @@ class _EvalRequest:
     effect_size: float | None
     alpha: float
     sigma: float | None
-    region: str = "cuboidal"
+    region: str | DesignRegion = "cuboidal"
     n_samples: int = 100_000
     include_vertices: bool = True
-    random_seed: int = 42
+    random_state: int | np.random.Generator | None = 42
     fds_resolution: int | None = None
+    design_type: str | None = None
+    categorical_coding: str = "effect"
 
 
 @dataclass
@@ -88,24 +98,77 @@ class _EvalContext:
     effect_size: float | None
     alpha: float
     sigma: float | None
-    region: str = "cuboidal"
+    region: str | DesignRegion = "cuboidal"
     n_samples: int = 100_000
     include_vertices: bool = True
-    random_seed: int = 42
+    random_state: int | np.random.Generator | None = 42
     fds_resolution: int | None = None
+    design_type: str | None = None
+    is_scheffe: bool = False  # a Scheffé mixture model (no intercept; linear blending terms)
+    categorical_coding: str = "effect"
+
+    @property
+    def patsy_data(self) -> dict[str, Any] | pd.DataFrame:
+        """The design as patsy reads it: each categorical column carries its contrast."""
+        return _patsy_data(self.design_df, self.categorical_coding)
 
 
 # ---------------------------------------------------------------------------
 # Model matrix construction
 # ---------------------------------------------------------------------------
 
-_ROMAN = {3: "III", 4: "IV", 5: "V", 6: "VI", 7: "VII", 8: "VIII"}
+_ROMAN_DIGITS = ((10, "X"), (9, "IX"), (5, "V"), (4, "IV"), (1, "I"))
+
+
+def _roman(n: int) -> str:
+    """Write a design resolution as a Roman numeral (``2 -> "II"``, ``12 -> "XII"``)."""
+    if n < 1:
+        return str(n)
+    out = ""
+    for value, digits in _ROMAN_DIGITS:
+        count, n = divmod(n, value)
+        out += digits * count
+    return out
+
+
+#: Codings for a categorical (label) factor; see ``categorical_coding`` in :func:`evaluate_design`.
+CATEGORICAL_CODINGS = ("effect", "treatment")
+
+
+def _patsy_data(design_df: pd.DataFrame, categorical_coding: str) -> dict[str, Any] | pd.DataFrame:
+    """Return the data handed to patsy, each categorical (label) column carrying its contrast.
+
+    With ``"effect"`` coding a categorical column gets patsy's ``Sum`` contrast: a
+    two-level factor is coded -1 for its first level (in sorted order) and +1 for its
+    second (``Sum(omit=0)``), and a factor with more levels has the last level at -1 in
+    every column. A ``Block`` column gets plain ``Sum``, as ``analyze_experiment`` codes
+    blocks. The contrast travels with the data, not the formula, so the column names
+    read ``C[S.y]`` and ``A:C[S.y]``, and a formula that names a contrast itself
+    (``C(cat, Treatment)``) overrides it. ``"treatment"`` returns the data unchanged, so
+    patsy's default treatment (0/1) coding applies.
+    """
+    if categorical_coding not in CATEGORICAL_CODINGS:
+        raise ValueError(
+            f"categorical_coding must be one of {', '.join(map(repr, CATEGORICAL_CODINGS))}; "
+            f"got {categorical_coding!r}."
+        )
+    labels = [str(name) for name, column in design_df.items() if not pd.api.types.is_numeric_dtype(column)]
+    if categorical_coding == "treatment" or not labels:
+        return design_df
+    data: dict[str, Any] = {str(name): column for name, column in design_df.items()}
+    for name in labels:
+        column = design_df[name]
+        n_levels = len(column.cat.categories) if isinstance(column.dtype, pd.CategoricalDtype) else column.nunique()
+        contrast = Sum(omit=0) if n_levels == 2 and name != "Block" else Sum
+        data[name] = patsy_categorical.C(column, contrast)
+    return data
 
 
 def _build_model_matrix(
     design_df: pd.DataFrame,
     model: str | None,
     factor_names: list[str],
+    categorical_coding: str = "effect",
 ) -> tuple[np.ndarray, list[str], DesignInfo]:
     """Build the expanded model matrix *X* using patsy.
 
@@ -118,6 +181,8 @@ def _build_model_matrix(
         patsy formula, or *None* (defaults to ``"interactions"``).
     factor_names : list[str]
         Ordered factor names.
+    categorical_coding : {"effect", "treatment"}
+        How a categorical (label) column is coded; see :func:`_patsy_data`.
 
     Returns
     -------
@@ -128,7 +193,7 @@ def _build_model_matrix(
     design_info : patsy.DesignInfo
         The patsy design info describing the expansion.  Pass it to
         :func:`patsy.build_design_matrices` to expand *new* factor-space points
-        through the identical model (see :func:`_expand_points`).
+        through the identical model (see :func:`_prediction_variance_of_frame`).
     """
     if model is None:
         model = "interactions"
@@ -138,7 +203,7 @@ def _build_model_matrix(
         validate_identifier_is_safe(name)
 
     # A categorical factor is carried as a non-numeric (label) column; patsy
-    # contrast-codes it automatically, so it must NOT be manually expanded into
+    # contrast-codes it (see _patsy_data), so it must NOT be manually expanded into
     # dummy columns by the caller (that is what creates singular within-factor
     # cross terms). Only quantitative factors get a pure-quadratic term - a
     # categorical has no square - so "quadratic" becomes a partial response
@@ -154,6 +219,8 @@ def _build_model_matrix(
     elif model == "quadratic":
         squared = " + ".join(f"I({f} ** 2)" for f in numeric_factors)
         rhs = f"({joined}) ** 2 + {squared}" if squared else f"({joined}) ** 2"
+    elif model in SCHEFFE_MODELS:
+        rhs = scheffe_formula_rhs(factor_names, model)
     elif "~" in model:
         # Explicit formula with response side - strip LHS
         rhs = model.split("~", 1)[1].strip()
@@ -164,7 +231,7 @@ def _build_model_matrix(
     # Patsy evaluates each term as Python, so a custom ``model`` is a code-
     # execution vector. Permit only safe column arithmetic, with I()/Q() (SEC-14).
     validate_formula_is_safe(rhs, design_df.columns, allow_transforms=True)
-    dm = dmatrix(rhs, design_df, return_type="dataframe")
+    dm = dmatrix(rhs, _patsy_data(design_df, categorical_coding), return_type="dataframe")
     X = np.asarray(dm, dtype=float)
     column_names = list(dm.columns)
     return X, column_names, dm.design_info
@@ -172,7 +239,9 @@ def _build_model_matrix(
 
 def _build_context(req: _EvalRequest) -> _EvalContext:
     """Build the shared evaluation context."""
-    X, column_names, design_info = _build_model_matrix(req.design_df, req.model, req.factor_names)
+    X, column_names, design_info = _build_model_matrix(
+        req.design_df, req.model, req.factor_names, req.categorical_coding
+    )
     N, p = X.shape
     XtX = X.T @ X
 
@@ -202,8 +271,11 @@ def _build_context(req: _EvalRequest) -> _EvalContext:
         region=req.region,
         n_samples=req.n_samples,
         include_vertices=req.include_vertices,
-        random_seed=req.random_seed,
+        random_state=req.random_state,
         fds_resolution=req.fds_resolution,
+        design_type=req.design_type,
+        is_scheffe=req.model in SCHEFFE_MODELS,
+        categorical_coding=req.categorical_coding,
     )
 
 
@@ -229,32 +301,6 @@ def _prediction_variance_at_points(X_points: np.ndarray, XtX_inv: np.ndarray) ->
     return np.sum((X_points @ XtX_inv) * X_points, axis=1)
 
 
-def _expand_points(ctx: _EvalContext, points: np.ndarray) -> np.ndarray:
-    """Expand raw factor-space points through the *fitted* model matrix.
-
-    Uses the stored patsy :class:`~patsy.design_info.DesignInfo` so the columns
-    of the returned matrix match :attr:`_EvalContext.X` exactly (same terms,
-    same order).  This is what keeps region / grid evaluation consistent with
-    the fit; rebuilding from an inferred shorthand model is what previously
-    produced a column-count mismatch for explicit reduced formulas.
-
-    Parameters
-    ----------
-    ctx : _EvalContext
-        The shared evaluation context (carries the fitted ``design_info``).
-    points : ndarray of shape (M, k)
-        Raw factor-space points, one column per factor in ``ctx.factor_names``.
-
-    Returns
-    -------
-    ndarray of shape (M, p)
-        The model matrix for *points*, with the same columns as ``ctx.X``.
-    """
-    df_points = pd.DataFrame(np.asarray(points, dtype=float), columns=ctx.factor_names)
-    (expanded,) = build_design_matrices([ctx.design_info], df_points, return_type="matrix")
-    return np.asarray(expanded, dtype=float)
-
-
 def _cube_vertices(k: int) -> np.ndarray:
     """Return all ``2**k`` cube vertices (corners) of ``[-1, 1]^k``."""
     return np.array(list(itertools.product([-1.0, 1.0], repeat=k)), dtype=float)
@@ -265,7 +311,7 @@ def _region_points(
     region: str,
     n_samples: int,
     include_vertices: bool,
-    random_seed: int,
+    random_state: int | np.random.Generator | None,
 ) -> np.ndarray:
     """Sample raw factor-space points over the design region.
 
@@ -284,7 +330,7 @@ def _region_points(
         worst-case prediction variance for second-order models very often sits
         at (or near) a corner, so the corners are always represented in the
         G / FDS statistics.
-    random_seed : int
+    random_state : int, numpy.random.Generator or None
         Seed for the NumPy random generator (full reproducibility).
 
     Returns
@@ -294,7 +340,7 @@ def _region_points(
         *include_vertices* is set.
     """
     k = len(factor_names)
-    rng = np.random.default_rng(random_seed)
+    rng = check_random_state(random_state)
     if region == "cuboidal":
         pts = rng.uniform(-1.0, 1.0, size=(n_samples, k))
     elif region == "spherical":
@@ -311,71 +357,144 @@ def _region_points(
     return pts
 
 
-def _region_prediction_variance(ctx: _EvalContext) -> np.ndarray:
+def _region_prediction_variance(ctx: _EvalContext) -> tuple[np.ndarray, np.ndarray]:
     """Prediction variance ``d(x) = x' (X'X)^-1 x`` over the design region.
 
     Single source of truth for the region-based metrics (I / G efficiency and
-    the FDS curve): all of them read from this one sorted array, sampled with
-    the region settings carried on *ctx*.
+    the FDS curve), sampled with the region settings carried on *ctx*.
+
+    Returns
+    -------
+    interior : ndarray
+        ``d(x)`` at the uniform sample of the region. The region average (the
+        I-criterion) and the FDS curve are read from this sample alone: the I-criterion
+        is the integral over the region, which boundary points would bias upward.
+    boundary : ndarray
+        ``d(x)`` at the boundary points added when ``include_vertices`` is set (the cube
+        vertices, crossed with every combination of categorical levels; or the support
+        points of a :class:`DesignRegion`), where the worst case usually sits. Used only
+        for the maximum (G). Empty when ``include_vertices`` is off.
     """
     assert ctx.XtX_inv is not None  # callers guard on ``ctx.is_singular``
+    if isinstance(ctx.region, DesignRegion):
+        interior_df, boundary_df = _points_in_design_region(ctx, ctx.region)
+    else:
+        interior_df, boundary_df = _points_in_box_region(ctx, ctx.region)
+    return _prediction_variance_of_frame(ctx, interior_df), _prediction_variance_of_frame(ctx, boundary_df)
 
-    # Categorical factors are label columns; they cannot be sampled on the
-    # numeric [-1, 1] region. When any is present, sample each categorical
-    # uniformly over its observed levels and each quantitative factor over the
-    # region, then expand through the fitted model. All-continuous designs keep
-    # the original fast path unchanged.
-    cat_levels = {
-        f: ctx.design_df[f].unique() for f in ctx.factor_names if not pd.api.types.is_numeric_dtype(ctx.design_df[f])
-    }
-    if not cat_levels:
-        points = _region_points(
-            ctx.factor_names,
-            region=ctx.region,
-            n_samples=ctx.n_samples,
-            include_vertices=ctx.include_vertices,
-            random_seed=ctx.random_seed,
-        )
-        X_region = _expand_points(ctx, points)
-        return _prediction_variance_at_points(X_region, ctx.XtX_inv)
 
-    rng = np.random.default_rng(ctx.random_seed)
-    data: dict[str, np.ndarray] = {}
-    for f in ctx.factor_names:
-        if f in cat_levels:
-            data[f] = rng.choice(cat_levels[f], size=ctx.n_samples)
-        else:
-            data[f] = rng.uniform(-1.0, 1.0, size=ctx.n_samples)
-    df_points = pd.DataFrame(data)
-
-    # Represent the region corners (where the worst-case prediction variance for
-    # a second-order model usually sits) by crossing the quantitative-factor cube
-    # vertices with a random categorical level.
-    if ctx.include_vertices:
-        cont_names = [f for f in ctx.factor_names if f not in cat_levels]
-        if cont_names:
-            corners = _cube_vertices(len(cont_names))
-            corner: dict[str, np.ndarray] = {}
-            col = 0
-            for f in ctx.factor_names:
-                if f in cat_levels:
-                    corner[f] = rng.choice(cat_levels[f], size=corners.shape[0])
-                else:
-                    corner[f] = corners[:, col]
-                    col += 1
-            df_points = pd.concat([df_points, pd.DataFrame(corner)], ignore_index=True)
-
-    (expanded,) = build_design_matrices([ctx.design_info], df_points, return_type="matrix")
+def _prediction_variance_of_frame(ctx: _EvalContext, points: pd.DataFrame) -> np.ndarray:
+    """Expand factor-space points (one column per factor) through the fitted model and return ``d(x)``."""
+    assert ctx.XtX_inv is not None
+    if points.empty:
+        return np.empty(0)
+    (expanded,) = build_design_matrices([ctx.design_info], points[ctx.factor_names], return_type="matrix")
     return _prediction_variance_at_points(np.asarray(expanded, dtype=float), ctx.XtX_inv)
 
 
+def _points_in_box_region(ctx: _EvalContext, region: str) -> tuple[pd.DataFrame, pd.DataFrame]:
+    """Uniform sample and corner points of the cuboidal or spherical region.
+
+    The quantitative factors are sampled over *region* (which is validated); each
+    categorical factor (a label column) uniformly over its observed levels. The corners
+    are every cube vertex of the quantitative factors crossed with every combination of
+    categorical levels, so no (vertex, level) pair is missed.
+    """
+    cat_levels = {
+        f: list(ctx.design_df[f].unique())
+        for f in ctx.factor_names
+        if not pd.api.types.is_numeric_dtype(ctx.design_df[f])
+    }
+    cont_names = [f for f in ctx.factor_names if f not in cat_levels]
+    rng = check_random_state(ctx.random_state)
+    points = _region_points(cont_names, region, ctx.n_samples, include_vertices=False, random_state=rng)
+    interior: dict[str, Any] = {f: points[:, j] for j, f in enumerate(cont_names)}
+    for f, levels in cat_levels.items():
+        interior[f] = rng.choice(np.asarray(levels, dtype=object), size=ctx.n_samples)
+
+    if not ctx.include_vertices:
+        return pd.DataFrame(interior), pd.DataFrame()
+    axes = [(-1.0, 1.0)] * len(cont_names) + list(cat_levels.values())
+    boundary = pd.DataFrame(list(itertools.product(*axes)), columns=cont_names + list(cat_levels))
+    return pd.DataFrame(interior), boundary
+
+
+def _points_in_design_region(ctx: _EvalContext, region: DesignRegion) -> tuple[pd.DataFrame, pd.DataFrame]:
+    """Uniform sample and support points of a constrained or mixture region.
+
+    The region's boundary points (extreme vertices and edge midpoints for a mixture;
+    constraint crossings and feasible grid corners for a box) stand in for the cube
+    vertices, since that is where the worst-case variance of a constrained design sits.
+    Categorical factors are sampled uniformly over their observed levels.
+    """
+    missing = [n for n in region.names if n not in ctx.factor_names]
+    if missing:
+        raise ValueError(f"The region names factors {missing} that are not columns of the design.")
+    rng = check_random_state(ctx.random_state)
+    frames = [region.sample(ctx.n_samples, rng)]
+    if ctx.include_vertices:
+        with contextlib.suppress(ValueError):  # a grid too large for support points: sample only
+            frames.append(region.support_points())
+    out: list[pd.DataFrame] = []
+    for points in frames:
+        data: dict[str, Any] = {n: points[:, j] for j, n in enumerate(region.names)}
+        for f in ctx.factor_names:
+            if f not in data:
+                data[f] = rng.choice(ctx.design_df[f].unique(), size=len(points))
+        out.append(pd.DataFrame(data))
+    return out[0], out[1] if len(out) > 1 else pd.DataFrame()
+
+
+def _region_label(region: str | DesignRegion) -> str:
+    """Name the region in results: the string as given, or ``"mixture"`` / ``"constrained"``."""
+    if isinstance(region, str):
+        return region
+    return region.kind if region.kind == "mixture" else "constrained"
+
+
+def _resolve_region(
+    region: str | DesignRegion | None, design_matrix: pd.DataFrame | DesignResult
+) -> str | DesignRegion:
+    """Use the caller's region, else the one ``generate_design`` recorded, else the cube."""
+    if region is not None:
+        return region
+    spec = design_matrix.metadata.get("region") if isinstance(design_matrix, DesignResult) else None
+    if spec:
+        recorded = DesignRegion.from_dict(spec)
+        if recorded.kind == "mixture" or recorded.is_constrained:
+            return recorded
+    return "cuboidal"
+
+
+def _mixture_model(model: str | None, design_matrix: pd.DataFrame | DesignResult) -> str:
+    """Name the Scheffé model to evaluate a mixture design with.
+
+    The process-model names that ``generate_design`` accepts for a mixture
+    (``"quadratic"``, ``"special_cubic"``, ...) map to their Scheffé models, as they do
+    there; an explicit formula is kept. Without a model, the one the design was
+    generated for is used, else the Scheffé quadratic model.
+    """
+    if model is None:
+        recorded = design_matrix.metadata.get("model_type") if isinstance(design_matrix, DesignResult) else None
+        model = recorded or "scheffe_quadratic"
+    with contextlib.suppress(ValueError):  # not a model name: an explicit formula
+        return scheffe_model(model)
+    return model
+
+
 def _compute_g_efficiency(ctx: _EvalContext) -> dict[str, Any]:
-    """G-efficiency: 100 * p / (N * max prediction variance over design region)."""
+    """G-efficiency: ``100 * p / (N * max d(x))``, the maximum taken over the design region.
+
+    This is the definition of Atkinson, Donev and Tobias and of Montgomery: ``p`` over the
+    maximum scaled prediction variance ``N d(x)``. JMP and SAS PROC OPTEX report its
+    square root, ``100 * sqrt(p / (N * max d(x)))``, so below 100 the two disagree (82.8
+    against 91.0 for a 3^2 factorial under the quadratic model); ``max_prediction_variance``
+    is returned so either can be formed.
+    """
     if ctx.is_singular:
         return {"g_efficiency": None, "note": "Design is rank-deficient for the specified model."}
 
-    pv = _region_prediction_variance(ctx)
-    max_pv = float(np.max(pv))
+    max_pv = float(np.max(np.concatenate(_region_prediction_variance(ctx))))
 
     g_eff = 100.0 * ctx.p / (ctx.N * max_pv) if max_pv > 0 else None
     return {
@@ -384,13 +503,25 @@ def _compute_g_efficiency(ctx: _EvalContext) -> dict[str, Any]:
     }
 
 
+def _compute_average_prediction_variance(ctx: _EvalContext) -> dict[str, Any]:
+    """I-criterion: the prediction variance ``f(x)'(X'X)^-1 f(x)`` averaged over the design region.
+
+    In units of the error variance, and lower is better. This is what JMP reports as the
+    "average variance of prediction" and what an I-optimal design minimises.
+    """
+    if ctx.is_singular:
+        return {"average_prediction_variance": None, "note": "Design is rank-deficient for the specified model."}
+    interior, _boundary = _region_prediction_variance(ctx)
+    return {"average_prediction_variance": float(np.mean(interior))}
+
+
 def _compute_i_efficiency(ctx: _EvalContext) -> dict[str, Any]:
-    """I-efficiency: 100 * p / (N * average prediction variance over design region)."""
+    """Compute the deprecated ``100 * p / (N * average prediction variance)``, which is not bounded by 100."""
     if ctx.is_singular:
         return {"i_efficiency": None, "note": "Design is rank-deficient for the specified model."}
 
-    pv = _region_prediction_variance(ctx)
-    avg_pv = float(np.mean(pv))
+    interior, _boundary = _region_prediction_variance(ctx)
+    avg_pv = float(np.mean(interior))
 
     i_eff = 100.0 * ctx.p / (ctx.N * avg_pv) if avg_pv > 0 else None
     return {
@@ -503,23 +634,24 @@ def _compute_correlation(ctx: _EvalContext) -> dict[str, Any]:
 def _omitted_two_factor_interactions(ctx: _EvalContext) -> tuple[np.ndarray, list[str]]:
     """Build the two-factor-interaction columns *not* already in the model.
 
-    Returns the ``(N, q)`` matrix of raw ``x_i * x_j`` products and the matching
-    ``"A:B"`` term names, for every factor pair whose interaction is absent from
-    the fitted model matrix.
+    Returns the ``(N, q)`` matrix of the interaction columns and their names, for
+    every factor pair whose interaction is absent from the fitted model. The columns
+    are built by patsy next to the model's own terms, so a categorical factor is
+    contrast-coded exactly as it is in ``X`` (``"A:C[S.y]"``), and a quantitative
+    pair gives the product ``x_a * x_b`` (``"A:B"``).
     """
-    present = {c.replace(" ", "") for c in ctx.column_names}
-    cols: list[np.ndarray] = []
-    names: list[str] = []
-    factors = ctx.factor_names
-    values = {f: ctx.design_df[f].to_numpy(dtype=float) for f in factors}
-    for a, b in itertools.combinations(factors, 2):
-        if f"{a}:{b}" in present or f"{b}:{a}" in present:
-            continue
-        cols.append(values[a] * values[b])
-        names.append(f"{a}:{b}")
-    if not cols:
+    present = {frozenset(f.name() for f in term.factors) for term in ctx.design_info.terms}
+    omitted = [
+        Term([EvalFactor(a), EvalFactor(b)])
+        for a, b in itertools.combinations(ctx.factor_names, 2)
+        if frozenset((a, b)) not in present
+    ]
+    if not omitted:
         return np.empty((ctx.N, 0)), []
-    return np.column_stack(cols), names
+    dm = dmatrix(ModelDesc([], [*ctx.design_info.terms, *omitted]), ctx.patsy_data, return_type="dataframe")
+    slices = [dm.design_info.term_slices[term] for term in omitted]
+    columns = [i for sl in slices for i in range(sl.start, sl.stop)]
+    return np.asarray(dm, dtype=float)[:, columns], [dm.columns[i] for i in columns]
 
 
 def _compute_alias_matrix(ctx: _EvalContext) -> dict[str, Any]:
@@ -589,19 +721,28 @@ def _compute_fds(ctx: _EvalContext) -> dict[str, Any]:
     (the endpoints are the minimum and maximum prediction variance) - suitable
     for drawing a smooth FDS plot.  The coarse 11-point ``quantiles`` summary is
     always present for backward compatibility.
+
+    The curve, the quantiles and the average come from the uniform sample of the
+    region, since the FDS curve is the distribution over the region; boundary points
+    would bias it upward. Its value at fraction 1 is the maximum over the region,
+    which the boundary points added by ``include_vertices`` help locate, so the curve
+    ends at ``max_prediction_variance``, the value ``g_efficiency`` uses.
     """
     if ctx.is_singular:
         return {"fds": None, "note": "Design is rank-deficient for the specified model."}
 
-    pv = np.sort(_region_prediction_variance(ctx))
+    pv, boundary = _region_prediction_variance(ctx)
+    pv = np.sort(pv)
     avg = float(pv.mean())
-    mx = float(pv.max())
-    quantiles = {f"{q:g}": float(v) for q, v in zip(_FDS_QUANTILES, np.quantile(pv, _FDS_QUANTILES), strict=True)}
+    mx = float(np.max(np.concatenate([pv, boundary])))
+    quantile_values = np.quantile(pv, _FDS_QUANTILES)
+    quantile_values[-1] = mx  # fraction 1 is the maximum over the region
+    quantiles = {f"{q:g}": float(v) for q, v in zip(_FDS_QUANTILES, quantile_values, strict=True)}
     payload: dict[str, Any] = {
-        "region": ctx.region,
+        "region": _region_label(ctx.region),
         "n_samples": ctx.n_samples,
         "include_vertices": ctx.include_vertices,
-        "random_seed": ctx.random_seed,
+        "random_seed": ctx.random_state if isinstance(ctx.random_state, int) else None,
         "fds_resolution": ctx.fds_resolution,
         "quantiles": quantiles,
         "average_prediction_variance": avg,
@@ -614,6 +755,7 @@ def _compute_fds(ctx: _EvalContext) -> dict[str, Any]:
             raise ValueError(f"fds_resolution must be at least 2, got {ctx.fds_resolution}.")
         fractions = np.linspace(0.0, 1.0, ctx.fds_resolution)
         curve = np.quantile(pv, fractions)  # non-decreasing; endpoints are min and max
+        curve[-1] = mx
         payload["curve"] = {
             "fraction": fractions.tolist(),
             "prediction_variance": curve.tolist(),
@@ -640,17 +782,22 @@ def _compute_prediction_variance(ctx: _EvalContext) -> dict[str, Any]:
 
 
 def _compute_vif(ctx: _EvalContext) -> dict[str, Any]:
-    """Variance Inflation Factor for each model term (excluding intercept)."""
+    """Variance inflation factor of each model term (excluding the intercept).
+
+    ``VIF_j = c_jj * sum_i (x_ij - mean_j)^2`` with ``c = (X'X)^-1``. For a model with an
+    intercept this is the classical ``1 / (1 - R_j^2)``, with ``R_j^2`` from regressing
+    column ``j`` on the other columns. A Scheffé mixture model has no intercept, and its
+    linear blending columns sum to one, so the classical form (which centres the columns)
+    is undefined for them; the same expression is reported, as JMP does: it is finite
+    whenever the model is estimable, and the cross-product terms read as usual.
+    """
     if ctx.is_singular:
         return {"vif": None, "note": "Design is rank-deficient for the specified model."}
 
-    vif_dict: dict[str, float] = {}
-    for i, name in enumerate(ctx.column_names):
-        if name.lower() == "intercept" or name == "1":
-            continue
-        vif_val = variance_inflation_factor(ctx.X, i)
-        vif_dict[name] = float(vif_val)
-    return {"vif": vif_dict}
+    assert ctx.XtX_inv is not None
+    centred_ss = ((ctx.X - ctx.X.mean(axis=0)) ** 2).sum(axis=0)
+    vif = np.diag(ctx.XtX_inv) * centred_ss
+    return {"vif": {name: float(vif[i]) for i, name in enumerate(ctx.column_names) if not _is_intercept_col(name)}}
 
 
 def _compute_condition_number(ctx: _EvalContext) -> dict[str, float]:
@@ -659,8 +806,31 @@ def _compute_condition_number(ctx: _EvalContext) -> dict[str, float]:
     return {"condition_number": cn}
 
 
+def _coefficient_power(
+    coefficient_over_sigma: float | np.ndarray, c_jj: float, df_resid: int, alpha: float
+) -> float | np.ndarray:
+    """Power of the 1-df F-test of one coefficient, ``beta_j = 0``, at level *alpha*.
+
+    The noncentrality is ``(beta_j / sigma)**2 / c_jj``, with ``c_jj`` the coefficient's
+    diagonal element of ``(X'X)^-1``; *df_resid* is the residual degrees of freedom.
+    """
+    f_crit = stats.f.ppf(1.0 - alpha, dfn=1, dfd=df_resid)
+    ncp = np.asarray(coefficient_over_sigma, dtype=float) ** 2 / c_jj
+    return 1.0 - stats.ncf.cdf(f_crit, dfn=1, dfd=df_resid, nc=ncp)
+
+
 def _compute_power(ctx: _EvalContext) -> dict[str, Any]:
-    """Statistical power for detecting each model term."""
+    """Power of the t-test (an F-test on 1 df) of each model coefficient against zero.
+
+    ``effect_size`` is the anticipated *coefficient* in coded units (what JMP calls the
+    anticipated coefficient), not the high-minus-low effect: for a two-level factor
+    coded -1 / +1 a high-minus-low effect of ``delta`` is a coefficient of ``delta / 2``.
+    The noncentrality is ``effect_size**2 / (sigma**2 c_jj)``, with ``c = (X'X)^-1``.
+
+    For a Scheffé mixture model the linear blending coefficients are left out: they are
+    the expected responses of the pure components, and testing one against zero is not
+    a meaningful hypothesis (the mixture analysis tests them jointly, for equality).
+    """
     if ctx.is_singular:
         return {"power": None, "note": "Design is rank-deficient for the specified model."}
 
@@ -672,40 +842,58 @@ def _compute_power(ctx: _EvalContext) -> dict[str, Any]:
 
     assert ctx.XtX_inv is not None  # guaranteed by not is_singular
     diag_inv = np.diag(ctx.XtX_inv)
+    terms = [
+        (i, name)
+        for i, name in enumerate(ctx.column_names)
+        if not _is_intercept_col(name) and not (ctx.is_scheffe and name in ctx.factor_names)
+    ]
 
+    def power_at(coefficient: float, i: int) -> float:
+        return float(_coefficient_power(coefficient / sigma, diag_inv[i], df_resid, ctx.alpha))
+
+    result: dict[str, Any]
     if ctx.effect_size is not None:
-        # Single power value per term
-        power_dict: dict[str, float] = {}
-        for i, name in enumerate(ctx.column_names):
-            if name.lower() == "intercept" or name == "1":
-                continue
-            ncp = (ctx.effect_size**2) / (sigma**2 * diag_inv[i])
-            f_crit = stats.f.ppf(1.0 - ctx.alpha, dfn=1, dfd=df_resid)
-            pwr = 1.0 - stats.ncf.cdf(f_crit, dfn=1, dfd=df_resid, nc=ncp)
-            power_dict[name] = float(pwr)
-        return {"power": power_dict}
+        result = {"power": {name: power_at(ctx.effect_size, i) for i, name in terms}}
+    else:
+        # No effect_size: power curves over a range of coefficients
+        effect_sizes = np.linspace(0.5 * sigma, 3.0 * sigma, 20)
+        result = {
+            "power_curves": {
+                name: [{"effect_size": float(es), "power": power_at(float(es), i)} for es in effect_sizes]
+                for i, name in terms
+            },
+            "sigma": float(sigma),
+        }
+    if ctx.is_scheffe:
+        result["note"] = (
+            "The linear blending terms are not tested against zero, so they have no power here; the "
+            "mixture analysis tests them jointly for equality."
+        )
+    return result
 
-    # No effect_size: generate power curves over a range of effect sizes
-    effect_sizes = np.linspace(0.5 * sigma, 3.0 * sigma, 20)
-    power_curves: dict[str, list[dict[str, float]]] = {}
-    for i, name in enumerate(ctx.column_names):
-        if name.lower() == "intercept" or name == "1":
-            continue
-        curve = []
-        for es in effect_sizes:
-            ncp = (es**2) / (sigma**2 * diag_inv[i])
-            f_crit = stats.f.ppf(1.0 - ctx.alpha, dfn=1, dfd=df_resid)
-            pwr = 1.0 - stats.ncf.cdf(f_crit, dfn=1, dfd=df_resid, nc=ncp)
-            curve.append({"effect_size": float(es), "power": float(pwr)})
-        power_curves[name] = curve
-    return {"power_curves": power_curves, "sigma": float(sigma)}
+
+def _spans_constant(X: np.ndarray) -> bool:
+    """Whether the constant column lies in the column space of *X*.
+
+    True for a model with an intercept, and for a Scheffé mixture model, whose linear
+    blending terms sum to one (so its ANOVA is corrected for the mean, as in Cornell).
+    """
+    ones = np.ones(X.shape[0])
+    fitted = X @ np.linalg.lstsq(X, ones, rcond=None)[0]
+    return bool(np.allclose(fitted, ones, atol=1e-8))
 
 
 def _compute_degrees_of_freedom(ctx: _EvalContext) -> dict[str, Any]:
-    """Degrees of freedom breakdown."""
-    df_model = ctx.p - 1  # excluding intercept
-    df_residual = ctx.N - ctx.p
-    df_total = ctx.N - 1
+    """Degrees-of-freedom breakdown, from the rank of ``X``.
+
+    ``model = rank - m``, ``residual = N - rank`` and ``total = N - m``, where ``m`` is
+    1 when the model spans the constant (an intercept, or a Scheffé model) and 0
+    otherwise. The residual splits into ``pure_error`` (replicated runs, ``N`` minus the
+    number of distinct settings) and ``lack_of_fit``; both are always reported, as 0
+    when there are no replicates. A rank-deficient model says so in a note.
+    """
+    rank = int(np.linalg.matrix_rank(ctx.X))
+    mean_df = int(_spans_constant(ctx.X))
 
     # Detect replicates by counting distinct factor-setting rows. Round the
     # quantitative columns to absorb floating-point noise; categorical (label)
@@ -715,21 +903,18 @@ def _compute_degrees_of_freedom(ctx: _EvalContext) -> dict[str, Any]:
     if numeric_cols:
         design_sub[numeric_cols] = design_sub[numeric_cols].round(10)
     n_distinct = len(design_sub.drop_duplicates())
-    has_replicates = n_distinct < ctx.N
 
     result: dict[str, Any] = {
         "degrees_of_freedom": {
-            "model": df_model,
-            "residual": df_residual,
-            "total": df_total,
+            "model": rank - mean_df,
+            "residual": ctx.N - rank,
+            "total": ctx.N - mean_df,
+            "pure_error": ctx.N - n_distinct,
+            "lack_of_fit": n_distinct - rank,
         }
     }
-    if has_replicates:
-        df_pure_error = ctx.N - n_distinct
-        df_lack_of_fit = n_distinct - ctx.p if n_distinct > ctx.p else 0
-        result["degrees_of_freedom"]["pure_error"] = df_pure_error
-        result["degrees_of_freedom"]["lack_of_fit"] = df_lack_of_fit
-
+    if rank < ctx.p:
+        result["note"] = f"The model has {ctx.p} columns but rank {rank}; degrees of freedom are counted from the rank."
     return result
 
 
@@ -788,55 +973,74 @@ def _multiply_words(w1: frozenset[int], w2: frozenset[int]) -> frozenset[int]:
     return w1.symmetric_difference(w2)
 
 
-def _defining_relation_from_generators(generators: list[str], factor_names: list[str]) -> list[frozenset[int]]:
-    """Compute the full defining relation from generator strings.
+_SignedWord = tuple[frozenset[int], int]
 
-    Each generator like ``"D=ABC"`` produces the word ``ABCD``.  The full
-    defining relation is the closure under GF(2) multiplication of all
-    generator words and their products (all non-empty subsets).
+
+def _generator_sign(lhs: str, rhs: str) -> int:
+    """Return -1 when exactly one side of a generator is negated (``D=-ABC``), else +1."""
+    return -1 if lhs.strip().startswith("-") != rhs.strip().startswith("-") else 1
+
+
+def _signed_defining_relation(generators: list[str], factor_names: list[str]) -> list[_SignedWord]:
+    """Compute the full defining relation, with the sign of every word.
+
+    Each generator like ``"D=ABC"`` produces the word ``ABCD``; ``"D=-ABC"`` produces
+    ``-ABCD``, since its runs satisfy ``ABCD = -1``.  The full defining relation is the
+    closure under GF(2) multiplication of the generator words (all non-empty subsets);
+    the sign of a product is the product of the signs.
     """
-    # Parse each generator into a defining word
-    base_words: list[frozenset[int]] = []
+    base_words: list[_SignedWord] = []
     for gen in generators:
-        parts = gen.split("=")
-        lhs = parts[0].strip()
-        rhs = parts[1].strip() if len(parts) > 1 else ""
-        lhs_idx = _parse_word(lhs, factor_names)
-        rhs_idx = _parse_word(rhs, factor_names)
-        word = _multiply_words(lhs_idx, rhs_idx)
-        base_words.append(word)
+        lhs, _, rhs = gen.partition("=")
+        word = _multiply_words(_parse_word(lhs, factor_names), _parse_word(rhs, factor_names))
+        base_words.append((word, _generator_sign(lhs, rhs)))
 
-    # Generate all non-empty subsets and their products
-    all_words: set[frozenset[int]] = set()
+    signed: dict[frozenset[int], int] = {}
     for r in range(1, len(base_words) + 1):
         for subset in itertools.combinations(base_words, r):
             product: frozenset[int] = frozenset()
-            for w in subset:
+            sign = 1
+            for w, s in subset:
                 product = _multiply_words(product, w)
+                sign *= s
             if product:  # exclude identity
-                all_words.add(product)
+                signed[product] = sign
 
-    return sorted(all_words, key=lambda w: (len(w), sorted(w)))
+    return sorted(signed.items(), key=lambda ws: (len(ws[0]), sorted(ws[0])))
+
+
+def _defining_relation_from_generators(generators: list[str], factor_names: list[str]) -> list[frozenset[int]]:
+    """Compute the words of the full defining relation from generator strings, without their signs.
+
+    See :func:`_signed_defining_relation`; the word lengths (resolution, wordlength
+    pattern) do not depend on the signs.
+    """
+    return [word for word, _sign in _signed_defining_relation(generators, factor_names)]
+
+
+def _signed_word_str(word: frozenset[int], sign: int, factor_names: list[str]) -> str:
+    """Render a word with a leading ``-`` when its sign is negative."""
+    return ("-" if sign < 0 else "") + _word_to_str(word, factor_names)
+
+
+def _defining_relation_strings(generators: list[str], factor_names: list[str]) -> list[str]:
+    """Return the defining relation as ``"I=ABCD"`` / ``"I=-ABCD"`` strings, signs included."""
+    return [f"I={_signed_word_str(w, s, factor_names)}" for w, s in _signed_defining_relation(generators, factor_names)]
 
 
 def _compute_defining_relation(ctx: _EvalContext) -> dict[str, Any]:
-    """Compute or return the defining relation."""
+    """Compute the defining relation from the generators, else return the recorded one."""
+    if ctx.generators:
+        return {"defining_relation": _defining_relation_strings(ctx.generators, ctx.factor_names)}
     if ctx.defining_relation:
         return {"defining_relation": ctx.defining_relation}
-
-    if not ctx.generators:
-        return {"defining_relation": None, "note": "No generators available. Not a fractional factorial design."}
-
-    words = _defining_relation_from_generators(ctx.generators, ctx.factor_names)
-    relation = [f"I={_word_to_str(w, ctx.factor_names)}" for w in words]
-    return {"defining_relation": relation}
+    return {"defining_relation": None, "note": "No generators available. Not a fractional factorial design."}
 
 
 def _compute_resolution(ctx: _EvalContext) -> dict[str, Any]:
     """Design resolution = minimum word length in the defining relation."""
     if ctx.resolution is not None:
-        roman = _ROMAN.get(ctx.resolution, str(ctx.resolution))
-        return {"resolution": ctx.resolution, "roman": roman}
+        return {"resolution": ctx.resolution, "roman": _roman(ctx.resolution)}
 
     if not ctx.generators:
         return {"resolution": None, "roman": None, "note": "Not a fractional factorial design."}
@@ -846,61 +1050,70 @@ def _compute_resolution(ctx: _EvalContext) -> dict[str, Any]:
         return {"resolution": None, "roman": None, "note": "No defining relation words found."}
 
     res = min(len(w) for w in words)
-    roman = _ROMAN.get(res, str(res))
-    return {"resolution": res, "roman": roman}
+    return {"resolution": res, "roman": _roman(res)}
+
+
+def _generator_chains_apply(ctx: _EvalContext) -> bool:
+    """Whether the generators' alias chains describe the whole design.
+
+    They do for a (fractional) factorial, centre points included. The axial runs of a
+    central composite design (or any other runs added to a fractional cube) break part
+    of that aliasing, so for those designs the chains are found from the design itself.
+    """
+    return bool(ctx.generators) and (ctx.design_type is None or "factorial" in ctx.design_type)
+
+
+def _cube_only_note(ctx: _EvalContext) -> str:
+    return (
+        f"The generators describe only the fractional cube of this {ctx.design_type!r} design; its other runs "
+        "break part of the cube's aliasing, so the aliasing is found from the correlations of the whole design."
+    )
 
 
 def _compute_alias_structure(ctx: _EvalContext) -> dict[str, Any]:
     """Alias structure: which effects are aliased with which others.
 
-    Uses GF(2) arithmetic when generators are available; falls back to
+    Uses GF(2) arithmetic when the generators describe the whole design; falls back to
     correlation-based detection otherwise.
     """
-    if ctx.generators:
+    if _generator_chains_apply(ctx):
         return _alias_structure_from_generators(ctx)
-    return _alias_structure_from_correlation(ctx)
+    result = _alias_structure_from_correlation(ctx)
+    if ctx.generators:
+        result["note"] = _cube_only_note(ctx)
+    return result
+
+
+def _generator_alias_chains(ctx: _EvalContext) -> list[tuple[frozenset[int], list[_SignedWord]]]:
+    """Alias chain (signed aliases) of every main effect and two-factor interaction."""
+    assert ctx.generators is not None  # callers check ``_generator_chains_apply``
+    names = ctx.factor_names
+    words = _signed_defining_relation(ctx.generators, names)
+    effects = [frozenset([i]) for i in range(len(names))]
+    effects += [frozenset(pair) for pair in itertools.combinations(range(len(names)), 2)]
+    chains: list[tuple[frozenset[int], list[_SignedWord]]] = []
+    for effect in effects:
+        aliases = [(_multiply_words(effect, w), s) for w, s in words]
+        aliases.sort(key=lambda a: (len(_word_to_str(a[0], names)), _word_to_str(a[0], names)))
+        chains.append((effect, aliases))
+    return chains
 
 
 def _alias_structure_from_generators(ctx: _EvalContext) -> dict[str, Any]:
     """Compute alias chains using GF(2) multiplication against the defining relation."""
-    # Only reached when ``ctx.generators`` is truthy (see ``_compute_alias_structure``).
-    assert ctx.generators is not None
-    words = _defining_relation_from_generators(ctx.generators, ctx.factor_names)
-    if not words:
+    assert ctx.generators is not None  # only reached when the generators apply
+    if not _defining_relation_from_generators(ctx.generators, ctx.factor_names):
         return {"alias_structure": []}
-
-    # Build alias chains for main effects and 2-factor interactions
-    alias_chains: list[str] = []
-    k = len(ctx.factor_names)
-
-    # Main effects
-    for i in range(k):
-        effect = frozenset([i])
-        effect_name = ctx.factor_names[i]
-        aliases = []
-        for w in words:
-            alias = _multiply_words(effect, w)
-            alias_name = _word_to_str(alias, ctx.factor_names)
-            aliases.append(alias_name)
-        # Sort by word length
-        aliases.sort(key=lambda s: (len(s), s))
-        chain = f"{effect_name} = " + " + ".join(aliases)
-        alias_chains.append(chain)
-
-    # 2-factor interactions
-    for i, j in itertools.combinations(range(k), 2):
-        effect = frozenset([i, j])
-        effect_name = _word_to_str(effect, ctx.factor_names)
-        aliases = []
-        for w in words:
-            alias = _multiply_words(effect, w)
-            alias_name = _word_to_str(alias, ctx.factor_names)
-            aliases.append(alias_name)
-        aliases.sort(key=lambda s: (len(s), s))
-        chain = f"{effect_name} = " + " + ".join(aliases)
-        alias_chains.append(chain)
-
+    names = ctx.factor_names
+    alias_chains = [
+        f"{_word_to_str(effect, names)} = " + " + ".join(_signed_word_str(w, s, names) for w, s in aliases)
+        for effect, aliases in _generator_alias_chains(ctx)
+    ]
     return {"alias_structure": alias_chains}
+
+
+#: Correlation above which two columns are treated as fully aliased.
+_FULL_ALIAS_THRESHOLD = 0.995
 
 
 def _is_intercept_col(name: str) -> bool:
@@ -934,7 +1147,7 @@ def _alias_structure_from_correlation(ctx: _EvalContext) -> dict[str, Any]:
     max_order = min(k, 3)
     rhs = f"({factor_str}) ** {max_order}" if max_order >= 3 else f"({factor_str}) ** 2"
 
-    dm = dmatrix(rhs, ctx.design_df, return_type="dataframe")
+    dm = dmatrix(rhs, ctx.patsy_data, return_type="dataframe")
     X_full = np.asarray(dm, dtype=float)
     col_names = list(dm.columns)
 
@@ -945,7 +1158,7 @@ def _alias_structure_from_correlation(ctx: _EvalContext) -> dict[str, Any]:
     for i in range(X_full.shape[1]):
         if _is_intercept_col(col_names[i]) or not nonzero[i]:
             continue
-        aliases = _find_correlated_aliases(X_full, col_names, i, nonzero, threshold=0.995)
+        aliases = _find_correlated_aliases(X_full, col_names, i, nonzero, threshold=_FULL_ALIAS_THRESHOLD)
         if aliases:
             alias_parts = [f"{sign}{name}" for sign, name in aliases]
             alias_chains.append(f"{col_names[i]} = " + " + ".join(alias_parts))
@@ -977,58 +1190,73 @@ def _compute_confounding(ctx: _EvalContext) -> dict[str, Any]:
     return {"confounding": confounding_list}
 
 
-def _effect_order(term: str, factor_names: list[str]) -> int:
-    """Determine the order of an effect term (1=main, 2=2FI, etc.)."""
-    if ":" in term:
-        return term.count(":") + 1
-    if term in factor_names:
-        return 1
-    return len(term)  # approximate for single-char factor names
+def _clear_effects_from_correlation(ctx: _EvalContext) -> tuple[list[str], list[str]]:
+    """Clear main effects and 2FIs, read from the correlations of the design's own columns.
 
-
-def _compute_clear_effects(ctx: _EvalContext) -> dict[str, Any]:
-    """Identify clear effects per Wu & Hamada's definition.
-
-    An effect (a main effect or a two-factor interaction) is *clear* when it
-    is aliased with no other main effect AND no two-factor interaction, i.e.
-    every alias has order >= 3. The previous rule only required the aliases
-    to be of *higher* order than the effect itself, which declared every main
-    effect of a resolution-III design "clear" (A = BC has order 2 > 1) -
-    exactly the designs whose whole point is that the main effects are NOT
-    clear of two-factor interactions.
+    Builds every main-effect and two-factor-interaction column (categorical factors
+    contrast-coded by patsy) and calls a term clear when none of its columns is fully
+    correlated (``|r| > 0.995``) with a column of another main effect or 2FI. A term
+    whose column is constant (aliased with the intercept) is not estimable, so not clear.
     """
-    alias_result = _compute_alias_structure(ctx)
-    alias_chains = alias_result.get("alias_structure", [])
+    names = ctx.factor_names
+    rhs = f"({' + '.join(names)}) ** 2" if len(names) > 1 else names[0]
+    dm = dmatrix(rhs, _patsy_data(ctx.design_df[names], ctx.categorical_coding), return_type="dataframe")
+    X = np.asarray(dm, dtype=float)
+    terms: list[tuple[tuple[str, ...], list[int]]] = [
+        (tuple(f.name() for f in term.factors), list(range(sl.start, sl.stop)))
+        for term, sl in dm.design_info.term_slices.items()
+        if term.factors
+    ]
+    std = X.std(axis=0)
+    live = std > np.sqrt(np.finfo(float).eps)
+    Z = np.zeros_like(X)
+    Z[:, live] = (X[:, live] - X[:, live].mean(axis=0)) / std[live]
+    aliased = np.abs(Z.T @ Z / X.shape[0]) > _FULL_ALIAS_THRESHOLD
 
     clear_main: list[str] = []
     clear_2fi: list[str] = []
-
-    for chain in alias_chains:
-        if " = " not in chain:
+    for factors, cols in terms:
+        if not live[cols].all():
             continue
-        effect, aliases_str = chain.split(" = ", 1)
-        effect = effect.strip()
-        order = _effect_order(effect, ctx.factor_names)
+        others = [c for other, other_cols in terms if other != factors for c in other_cols if live[c]]
+        if aliased[np.ix_(cols, others)].any():
+            continue
+        (clear_main if len(factors) == 1 else clear_2fi).append(":".join(factors))
+    return clear_main, clear_2fi
 
-        alias_terms = [a.strip().lstrip("+-") for a in aliases_str.strip().split(" + ")]
-        min_alias_order = 3
-        all_clear = all(_effect_order(a, ctx.factor_names) >= min_alias_order for a in alias_terms)
 
-        if all_clear and order == 1:
-            clear_main.append(effect)
-        elif all_clear and order == 2:
-            clear_2fi.append(effect)
+def _compute_clear_effects(ctx: _EvalContext) -> dict[str, Any]:
+    """Identify clear effects per Wu & Hamada's definition (2009, Sec. 5.2).
 
-    return {
-        "clear_effects": {
-            "main_effects": clear_main,
-            "two_factor_interactions": clear_2fi,
-        }
-    }
+    An effect (a main effect or a two-factor interaction) is *clear* when it is
+    aliased with no other main effect and no two-factor interaction; an effect
+    aliased with nothing (a full factorial) is clear. The effect orders are read
+    from the sets of factors in each word, so the result does not depend on how
+    long the factor names are. Two-factor interactions are named ``"A:B"``.
+
+    With generators that describe the whole design, the aliases come from the
+    defining relation; otherwise from the correlations of the design's columns.
+    """
+    if _generator_chains_apply(ctx):
+        names = ctx.factor_names
+        clear = [effect for effect, aliases in _generator_alias_chains(ctx) if all(len(w) >= 3 for w, _ in aliases)]
+        clear_main = [names[next(iter(e))] for e in clear if len(e) == 1]
+        clear_2fi = [":".join(names[i] for i in sorted(e)) for e in clear if len(e) == 2]
+        return {"clear_effects": {"main_effects": clear_main, "two_factor_interactions": clear_2fi}}
+
+    clear_main, clear_2fi = _clear_effects_from_correlation(ctx)
+    result: dict[str, Any] = {"clear_effects": {"main_effects": clear_main, "two_factor_interactions": clear_2fi}}
+    if ctx.generators:
+        result["note"] = _cube_only_note(ctx)
+    return result
 
 
 def _compute_minimum_aberration(ctx: _EvalContext) -> dict[str, Any]:
-    """Wordlength pattern (A_3, A_4, ...) from the defining relation."""
+    """Wordlength pattern (A_3, A_4, ...) from the defining relation.
+
+    The pattern starts at ``A_3``, or at the shortest word when a word is shorter
+    than three letters (a resolution II or I design), so that word is not hidden.
+    """
     if not ctx.generators:
         return {
             "minimum_aberration": {
@@ -1047,14 +1275,12 @@ def _compute_minimum_aberration(ctx: _EvalContext) -> dict[str, Any]:
         }
 
     lengths = [len(w) for w in words]
-    max_len = max(lengths) if lengths else 0
-    # Wordlength pattern: A_i = number of words of length i, starting at i=3
-    pattern = [lengths.count(i) for i in range(3, max_len + 1)]
-
+    start = min(3, *lengths)
+    pattern_range = range(start, max(lengths) + 1)
     return {
         "minimum_aberration": {
-            "wordlength_pattern": pattern,
-            "wordlength_pattern_labels": [f"A_{i}" for i in range(3, max_len + 1)],
+            "wordlength_pattern": [lengths.count(i) for i in pattern_range],
+            "wordlength_pattern_labels": [f"A_{i}" for i in pattern_range],
         }
     }
 
@@ -1093,6 +1319,7 @@ def _compute_moment_aberration(ctx: _EvalContext) -> dict[str, Any]:
 
 _METRIC_REGISTRY: dict[str, Callable[[_EvalContext], Any]] = {
     "d_efficiency": _compute_d_efficiency,
+    "average_prediction_variance": _compute_average_prediction_variance,
     "i_efficiency": _compute_i_efficiency,
     "g_efficiency": _compute_g_efficiency,
     "a_optimality": _compute_a_optimality,
@@ -1122,13 +1349,112 @@ _METRIC_REGISTRY: dict[str, Callable[[_EvalContext], Any]] = {
 #: *before* validation, so both spellings work and the returned dict still keys
 #: the result under the canonical name. Aliases are deliberately kept out of
 #: ``_METRIC_REGISTRY`` so ``metric="all"`` does not compute anything twice.
+#: Metrics kept for compatibility but left out of ``metric="all"``; asking for one warns.
+#: ``i_efficiency`` divided ``p / N`` by the average prediction variance, which, unlike
+#: D- and G-efficiency, has no upper bound of 100 (181% for a design in a small region).
+_DEPRECATED_METRICS: dict[str, str] = {
+    "i_efficiency": (
+        "metric 'i_efficiency' is deprecated since 1.97.0 and will be removed in 2.0; use "
+        "'average_prediction_variance' (the I-criterion, lower is better). The percentage was not bounded by 100."
+    ),
+}
+
 _METRIC_ALIASES: dict[str, str] = {
     "d_optimality": "d_efficiency",
-    "i_optimality": "i_efficiency",
+    "i_optimality": "average_prediction_variance",
+    "i_criterion": "average_prediction_variance",
     "g_optimality": "g_efficiency",
     "a_efficiency": "a_optimality",
     "e_efficiency": "e_optimality",
 }
+
+
+def _resolve_metrics(metric: str | list[str]) -> list[str]:
+    """Return the canonical metric names asked for; warn for a deprecated one, raise for an unknown one."""
+    if metric == "all":
+        return [m for m in _METRIC_REGISTRY if m not in _DEPRECATED_METRICS]
+    # Resolve accepted spelling variants to their canonical registry keys.
+    metrics = [_METRIC_ALIASES.get(m, m) for m in ([metric] if isinstance(metric, str) else metric)]
+    unknown = [m for m in metrics if m not in _METRIC_REGISTRY]
+    if unknown:
+        raise ValueError(f"Unknown metric(s): {unknown}. Available metrics: {sorted(_METRIC_REGISTRY)}")
+    for m in metrics:
+        if m in _DEPRECATED_METRICS:
+            warnings.warn(_DEPRECATED_METRICS[m], category=DeprecationWarning, stacklevel=3)
+    return metrics
+
+
+def _separate_run_columns(
+    design_df: pd.DataFrame, factor_names: list[str], model: str | None
+) -> tuple[pd.DataFrame, list[str], str | None]:
+    """Drop ``RunOrder`` and ``WholePlot``, and keep ``Block`` only when the model formula uses it.
+
+    A formula that names ``Block`` (``"A + B + Block"``) gets it as a categorical
+    factor (its values become labels). Otherwise the block column is dropped, and when the design has more than
+    one block a note says that the metrics ignore the blocks, which overstates the
+    residual degrees of freedom by ``n_blocks - 1``.
+    """
+    factor_names = [f for f in factor_names if f not in RESERVED_COLUMN_NAMES]
+    design_df = design_df.drop(columns=["RunOrder", WHOLE_PLOT_COL], errors="ignore")
+    if "Block" not in design_df.columns:
+        return design_df, factor_names, None
+    if model is not None and re.search(r"\bBlock\b", model):
+        return design_df.assign(Block=design_df["Block"].astype(str)), [*factor_names, "Block"], None
+    n_blocks = int(design_df["Block"].nunique())
+    design_df = design_df.drop(columns=["Block"])
+    if n_blocks < 2:
+        return design_df, factor_names, None
+    note = (
+        f"The design has {n_blocks} blocks, which the model leaves out, so the residual degrees of freedom, "
+        "power and efficiencies are those of an unblocked design. Write the model as a formula with "
+        "'+ Block' to include them as a categorical factor."
+    )
+    return design_df, factor_names, note
+
+
+#: Coded settings beyond this many units are taken as a sign of actual (uncoded) units. A
+#: rotatable or orthogonal central composite design stays inside it for any usual size.
+_CODED_LIMIT_FLOOR = 3.0
+
+
+def _validate_inputs(
+    design_df: pd.DataFrame,
+    factor_names: list[str],
+    alpha: float,
+    sigma: float | None,
+    n_samples: int,
+) -> None:
+    """Reject inputs that would give NaN or silently wrong metrics; warn on uncoded settings."""
+    if not 0.0 < alpha < 1.0:
+        raise ValueError(f"alpha must lie strictly between 0 and 1; got alpha={alpha!r}.")
+    if sigma is not None and not sigma > 0:
+        raise ValueError(f"sigma must be positive; got sigma={sigma!r}.")
+    if n_samples < 1:
+        raise ValueError(f"n_samples must be at least 1; got n_samples={n_samples!r}.")
+
+    missing = design_df[factor_names].isna()
+    if missing.any().any():
+        rows = list(design_df.index[missing.any(axis=1)])
+        cols = [c for c in factor_names if missing[c].any()]
+        raise ValueError(
+            f"The design has missing factor settings in rows {rows} (columns {cols}). "
+            "Fill them in or drop those runs before evaluating the design."
+        )
+
+    numeric = [f for f in factor_names if pd.api.types.is_numeric_dtype(design_df[f])]
+    if numeric:
+        limit = max(_CODED_LIMIT_FLOOR, 2 ** (len(numeric) / 4), np.sqrt(len(numeric)))
+        largest = design_df[numeric].abs().max()
+        uncoded = [f for f in numeric if largest[f] > limit]
+        if uncoded:
+            warnings.warn(
+                f"evaluate_design expects factor settings in coded units (-1 and +1 at the low and high "
+                f"levels), but columns {uncoded} reach |x| = {float(largest[uncoded].max()):g}. In actual "
+                "units the efficiencies and the region-based metrics are on the wrong scale; pass the "
+                "DesignResult, or code the columns first.",
+                category=UserWarning,
+                stacklevel=3,
+            )
 
 
 # ---------------------------------------------------------------------------
@@ -1143,11 +1469,13 @@ def evaluate_design(  # noqa: PLR0913
     effect_size: float | None = None,
     alpha: float = 0.05,
     sigma: float | None = None,
-    region: str = "cuboidal",
+    region: str | DesignRegion | None = None,
     n_samples: int = 100_000,
     include_vertices: bool = True,
-    random_seed: int = 42,
+    random_seed: int | None = None,
     fds_resolution: int | None = None,
+    random_state: int | np.random.Generator | None = 42,
+    categorical_coding: str = "effect",
 ) -> dict[str, Any]:
     """Compute quality metrics for an experimental design.
 
@@ -1156,43 +1484,75 @@ def evaluate_design(  # noqa: PLR0913
     design_matrix : DataFrame or DesignResult
         The design to evaluate.  If a :class:`DesignResult` is passed, the
         coded design matrix and any generator / defining-relation metadata
-        are extracted automatically.
+        are extracted automatically.  A DataFrame must be in coded units (-1 and
+        +1 at the low and high levels; proportions for mixture components), since
+        the efficiencies and the region are defined on that scale; settings far
+        outside it raise a ``UserWarning``.  Categorical factors are label columns.
+        A run with a missing factor setting raises ``ValueError``.
     model : str or None
-        Model type: ``"main_effects"``, ``"interactions"``, ``"quadratic"``,
-        or an explicit patsy formula.  ``None`` defaults to ``"interactions"``.
+        Model type: ``"main_effects"``, ``"interactions"``, ``"quadratic"``, a
+        Scheffé mixture model (``"scheffe_linear"``, ``"scheffe_quadratic"``,
+        ``"scheffe_special_cubic"``), or an explicit patsy formula.  Over a
+        mixture region the process-model names map to Scheffé models as in
+        :func:`generate_design` (``"interactions"`` and ``"quadratic"`` to
+        ``"scheffe_quadratic"``, ``"special_cubic"`` to
+        ``"scheffe_special_cubic"``), and ``None`` means the model the design was
+        generated for, else ``"scheffe_quadratic"``; otherwise ``None`` means
+        ``"interactions"``.  A formula may name a ``Block`` column (``"A + B +
+        Block"``) to include the blocks as a categorical factor; otherwise the
+        blocks are left out and a note says so.
     metric : str or list[str]
         One or more metric names to compute, or the special value ``"all"`` to
         compute every metric.  Valid names: ``"d_efficiency"``,
-        ``"i_efficiency"``, ``"g_efficiency"``, ``"a_optimality"``,
+        ``"average_prediction_variance"`` (the I-criterion), ``"g_efficiency"``, ``"a_optimality"``,
         ``"e_optimality"``, ``"correlation"``, ``"alias_matrix"``, ``"fds"``,
         ``"prediction_variance"``, ``"vif"``, ``"condition_number"``,
         ``"power"``, ``"degrees_of_freedom"``, ``"alias_structure"``,
         ``"confounding"``, ``"resolution"``, ``"defining_relation"``,
         ``"clear_effects"``, ``"minimum_aberration"``, ``"moment_aberration"``.
-        The optimality-criterion
+        ``"i_efficiency"`` still works but is deprecated (since 1.97.0, removed in
+        2.0): it divides ``p / N`` by the average prediction variance and so is not
+        bounded by 100. ``"g_efficiency"`` is ``100 * p / (N * max d(x))``
+        (Atkinson, Donev and Tobias; Montgomery), where JMP reports its square
+        root. The optimality-criterion
         metrics also accept the opposite suffix as an alias (e.g.
         ``"d_optimality"`` for ``"d_efficiency"``, ``"a_efficiency"`` for
         ``"a_optimality"``); the result is keyed under the canonical name.
     effect_size : float or None
-        Expected effect size for power calculation.  When *None*, a power
-        curve over a range of effect sizes is returned instead.
+        Anticipated size of a model *coefficient* in coded units, for the power
+        calculation (JMP's "anticipated coefficient").  For a two-level factor
+        coded -1 / +1 this is half the high-minus-low effect.  When *None*, a
+        power curve over coefficients from ``0.5 * sigma`` to ``3 * sigma`` is
+        returned instead.
     alpha : float
         Significance level for power calculation (default 0.05).
     sigma : float or None
         Estimated noise standard deviation.  Defaults to 1.0 when needed
         but not provided.
-    region : {"cuboidal", "spherical"}
-        Design region over which the region-based metrics (``i_efficiency``,
+    region : {"cuboidal", "spherical"}, DesignRegion, or None
+        Design region over which the region-based metrics (``average_prediction_variance``,
         ``g_efficiency``, ``fds``) integrate the prediction variance.
-        ``"cuboidal"`` (default) is ``[-1, 1]^k``; ``"spherical"`` is the ball
-        of radius ``sqrt(k)``.
+        ``"cuboidal"`` is ``[-1, 1]^k``; ``"spherical"`` is the ball of radius
+        ``sqrt(k)``. A :class:`~process_improve.experiments.DesignRegion`
+        restricts the average and the maximum to settings that satisfy its
+        constraints (a box) or lie on its constrained simplex (a mixture): a
+        constrained design should not be judged on corners it may not visit.
+        ``None`` (default) uses the region a :class:`DesignResult` recorded when
+        it was generated with constraints or mixture factors, and the cube
+        otherwise.
     n_samples : int
-        Number of random samples drawn over the region (default 100,000).
+        Number of random samples drawn uniformly over the region (default
+        100,000; at least 1).  The region average and the FDS curve are taken
+        over this sample.
     include_vertices : bool
-        When *True* (default), all ``2**k`` cube vertices are added to the
-        region sample so the worst-case (G) value at a corner is represented.
-    random_seed : int
-        Seed for the region sampler (full reproducibility).
+        When *True* (default), boundary points are added for the maximum, so the
+        worst-case (G) value is represented: for the cuboidal or spherical region
+        the ``2**k`` cube vertices of the quantitative factors, crossed with every
+        combination of categorical levels; for a :class:`DesignRegion`, its
+        support points (extreme vertices and edge midpoints for a mixture).  They
+        are used only for the maximum, not for the region average.
+    random_seed : int or None
+        Deprecated since 1.97.0 and removed in 2.0; use ``random_state``.
     fds_resolution : int or None
         Resolution of the dense FDS curve.  When *None* (default) the ``fds``
         metric returns only the coarse 11-point ``quantiles`` summary.  When set
@@ -1200,12 +1560,33 @@ def evaluate_design(  # noqa: PLR0913
         ``fraction`` / ``prediction_variance`` / ``scaled_prediction_variance``
         arrays is added for smooth plotting; the endpoints are the minimum and
         maximum prediction variance.
+    random_state : int, numpy.random.Generator or None
+        Seed for the region sampler (default 42, so repeated calls agree).
+    categorical_coding : {"effect", "treatment"}
+        How a categorical (label) factor enters the model. ``"effect"`` (default) is
+        sum-to-zero effect coding, the usual convention in DoE software and the coding
+        the built-in optimal designs are built in: a two-level factor is -1 and +1 (first
+        and second level in sorted order), and a factor with ``L > 2`` levels gets ``L - 1``
+        columns, the last level at -1 in every column (names such as ``"C[S.lo]"``).
+        ``"treatment"`` is patsy's 0/1 dummy coding against the first level (``"C[T.y]"``),
+        which earlier releases used. The A- and E-criteria, VIF, the condition number,
+        power and the alias matrix depend on the coding; the prediction-variance metrics,
+        D rankings and the degrees of freedom do not. A ``Block`` column named in the
+        formula is sum-coded under ``"effect"``, as ``analyze_experiment`` codes blocks.
 
     Returns
     -------
     dict[str, Any]
         Results keyed by metric name.  The structure of each value depends
-        on the metric - see individual metric documentation.
+        on the metric - see individual metric documentation.  A metric that
+        needs to explain its result (for example a rank-deficient model) adds
+        its note to ``result["notes"][metric_name]``.
+
+    Raises
+    ------
+    ValueError
+        If *alpha* is not in (0, 1), *sigma* is not positive, *n_samples* is
+        below 1, a factor setting is missing, or *categorical_coding* is unknown.
 
     Examples
     --------
@@ -1220,8 +1601,10 @@ def evaluate_design(  # noqa: PLR0913
     generators: list[str] | None = None
     defining_relation: list[str] | None = None
     resolution: int | None = None
+    design_type: str | None = None
 
     if isinstance(design_matrix, DesignResult):
+        design_type = design_matrix.design_type
         generators = design_matrix.generators
         defining_relation = design_matrix.defining_relation
         resolution = design_matrix.resolution
@@ -1231,30 +1614,15 @@ def evaluate_design(  # noqa: PLR0913
         design_df = pd.DataFrame(design_matrix)
         factor_names = list(design_df.columns)
 
-    # Drop non-factor columns
-    for col in ["RunOrder", "Block"]:
-        if col in design_df.columns and col not in factor_names:
-            design_df = design_df.drop(columns=[col])
-        elif col in factor_names:
-            factor_names.remove(col)
-            design_df = design_df.drop(columns=[col])
-
-    # --- Normalize metric to list ---
-    if metric == "all":
-        metrics = list(_METRIC_REGISTRY)
-    elif isinstance(metric, str):
-        metrics = [metric]
-    else:
-        metrics = list(metric)
-    # Resolve accepted spelling variants to their canonical registry keys.
-    metrics = [_METRIC_ALIASES.get(m, m) for m in metrics]
+    design_df, factor_names, block_note = _separate_run_columns(design_df, factor_names, model)
+    _validate_inputs(design_df, factor_names, alpha, sigma, n_samples)
+    metrics = _resolve_metrics(metric)
     logger.debug("evaluate_design: model=%r, metrics=%s", model, metrics)
 
-    # Validate metric names
-    unknown = [m for m in metrics if m not in _METRIC_REGISTRY]
-    if unknown:
-        available = sorted(_METRIC_REGISTRY.keys())
-        raise ValueError(f"Unknown metric(s): {unknown}. Available metrics: {available}")
+    # --- Region, and the Scheffé default for mixtures (an intercept is redundant there) ---
+    region = _resolve_region(region, design_matrix)
+    if isinstance(region, DesignRegion) and region.kind == "mixture":
+        model = _mixture_model(model, design_matrix)
 
     # --- Build context ---
     ctx = _build_context(
@@ -1271,16 +1639,26 @@ def evaluate_design(  # noqa: PLR0913
             region=region,
             n_samples=n_samples,
             include_vertices=include_vertices,
-            random_seed=random_seed,
+            random_state=resolve_deprecated_seed(random_state, random_seed, "evaluate_design"),
             fds_resolution=fds_resolution,
+            design_type=design_type,
+            categorical_coding=categorical_coding,
         )
     )
 
-    # --- Compute requested metrics ---
+    # --- Compute requested metrics; each metric's note is kept under its own name ---
     results: dict[str, Any] = {}
+    notes: dict[str, str] = {}
     for m in metrics:
-        result = _METRIC_REGISTRY[m](ctx)
+        result = dict(_METRIC_REGISTRY[m](ctx))
+        note = result.pop("note", None)
+        if note:
+            notes[m] = note
         results.update(result)
+    if block_note:
+        notes["blocks"] = block_note
+    if notes:
+        results["notes"] = notes
 
     return results
 
@@ -1291,11 +1669,13 @@ def evaluate_all(  # noqa: PLR0913
     effect_size: float | None = None,
     alpha: float = 0.05,
     sigma: float | None = None,
-    region: str = "cuboidal",
+    region: str | DesignRegion | None = None,
     n_samples: int = 100_000,
     include_vertices: bool = True,
-    random_seed: int = 42,
+    random_seed: int | None = None,
     fds_resolution: int | None = None,
+    random_state: int | np.random.Generator | None = 42,
+    categorical_coding: str = "effect",
 ) -> dict[str, Any]:
     """Compute *every* available metric for a design in one call.
 
@@ -1322,6 +1702,7 @@ def evaluate_all(  # noqa: PLR0913
         region=region,
         n_samples=n_samples,
         include_vertices=include_vertices,
-        random_seed=random_seed,
         fds_resolution=fds_resolution,
+        random_state=resolve_deprecated_seed(random_state, random_seed, "evaluate_all"),
+        categorical_coding=categorical_coding,
     )

@@ -17,10 +17,9 @@ conference-foldover member produced by ``generate_design(design_type="omars")``
 
 .. note::
 
-   ``generate_omars`` requires the optional ``ilp`` extra (PuLP, which bundles
-   the CBC solver)::
-
-       pip install 'process-improve[ilp]'
+   ``generate_omars`` solves its ILP with HiGHS, through ``scipy.optimize.milp``,
+   which is part of the core install, so no extra is needed.  The ``ilp`` extra
+   that used to supply the CBC solver is deprecated and now installs nothing.
 
 Quick start
 -----------
@@ -36,17 +35,22 @@ Quick start
    print(result.metadata["n_runs_selected"], result.metadata["expected_error_df"])
    print(result.metadata["omars_verified"])  # True
 
-   # The design is ready for the staged OMARS analysis.
-   design = result.design[result.factor_names]
-   # ... collect responses y, then:
-   analysis = analyze_omars(design, y)  # analysis.success is True
+   # The design is ready for the staged OMARS analysis. A simulated response
+   # stands in for the measurements here.
+   import numpy as np
 
-You can pin an exact (odd) run size or search a window:
+   design = result.design[result.factor_names]
+   rng = np.random.default_rng(1)
+   y = 3 * design["A"] - 2 * design["B"] + 1.5 * design["A"] ** 2 + rng.normal(0, 0.5, len(design))
+   analysis = analyze_omars(design, y)
+   print(analysis.success, analysis.active_main_effects)  # True ['A', 'B']
+
+You can pin an exact run size or search a window:
 
 .. code-block:: python
 
-   result = generate_omars(factors, n_runs=29)
-   result = generate_omars(factors, n_runs_range=(27, 41))
+   result = generate_omars(factors, n_runs=33)
+   result = generate_omars(factors, n_runs_range=(31, 41))
 
 The method
 ----------
@@ -68,19 +72,23 @@ For a design coded to :math:`\{-1, 0, +1\}`:
 - **Quadratics are estimable** because the centre run makes each :math:`x_i^2`
   column take the value 0 at least once (so it is not constant).
 
-The only condition that is **not** automatic is the mutual orthogonality of the
+The condition that is **not** automatic is the mutual orthogonality of the
 main effects.  That condition is *linear* in the binary "include half-run"
 variables :math:`s_r`: for every pair of factors :math:`i < j`,
 
 .. math::
 
-   \sum_r \left( x_{r,i}\, x_{r,j} \right) s_r = 0 ,
+   \sum_r \left( x_{r,i}\, x_{r,j} \right) s_r = 0 .
 
-and the run count is :math:`N = 2\sum_r s_r + 1`.  The ILP therefore selects a
-half-design from the :math:`(3^k - 1)/2` distinct non-mirror three-level runs
-subject to only :math:`k(k-1)/2` equality constraints.  Because the
-coefficients are integers, the equalities are exact (no numerical tolerance
-enters the optimisation); a floating-point :func:`~process_improve.experiments.is_omars`
+Each factor must also reach an outer level in at least one half-run,
+:math:`\sum_r |x_{r,i}|\, s_r \ge 1`; a factor left at its middle level
+throughout has an all-zero column, which is orthogonal to everything but is not
+a three-level factor.  The run count is :math:`N = 2\sum_r s_r + 1`.  The ILP
+therefore selects a half-design from the :math:`(3^k - 1)/2` distinct non-mirror
+three-level runs subject to only :math:`k(k-1)/2` equality constraints and
+:math:`k` coverage constraints.  Because the coefficients are integers, the
+constraints are exact.  Every selection the solver returns is re-checked
+exactly, and a floating-point :func:`~process_improve.experiments.is_omars`
 re-check guards every accepted design as a sanity check.
 
 The estimability frontier
@@ -120,21 +128,53 @@ sized for, which lowers the frontier to the definitive screening design's
 Choosing the run size and the design
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-- When ``n_runs`` is given it is used directly. It must be odd, and it must
-  reach the **estimability frontier** described above; a smaller value is
-  rejected rather than silently producing a design that cannot fit the model.
-- Otherwise the solver minimises the run count within a window to return the
-  smallest feasible design that still leaves error degrees of freedom.
-- Several distinct designs are then enumerated at that run size by adding
-  *no-good cuts* (forbidding a previously found selection), and the winner is
-  chosen by ``selection_criterion``:
+- When ``n_runs`` is given it is used directly.  ``n_runs - center_runs`` must
+  be even, and ``n_runs`` must reach the **estimability frontier** described
+  above; a smaller value is rejected rather than silently producing a design
+  that cannot fit the model.
+- Otherwise the solver minimises the run count within a window to find the
+  smallest feasible design that still leaves error degrees of freedom.  A
+  feasible size is not always a usable one: when no design found at that size
+  can estimate the model, the search moves up the window one size at a time
+  (``omars_search.run_sizes_searched`` counts the sizes tried).  A size that
+  needs more half-runs than the :math:`(3^k - 1)/2` distinct ones can only be
+  built by repeating half-runs, which the exhaustive search does for three and
+  four factors.
+- Candidate designs are then collected at that run size, in one of two ways
+  (``metadata["search_mode"]`` says which):
+
+  - ``"exhaustive"``: when the design class is small enough (three or four
+    factors at moderate sizes), every feasible design is enumerated, so the
+    selection below is exact.
+  - ``"multistart"``: otherwise the ILP is solved repeatedly with random linear
+    objectives (``n_restarts`` of them).  Each objective steers the solver
+    towards a different feasible design.  Each of these solves stops after a
+    fixed number of branch-and-bound nodes (``solver_options["node_limit"]``,
+    default 100) and returns the best design found by then, which ends it at
+    the same point on every run, so a fixed ``random_state`` reproduces the
+    design.  Designs that differ only in run order, factor order or factor
+    signs are counted once.  For the ``"dominance"`` and ``"d_efficiency"``
+    criteria, each design found is then improved by a local search that swaps
+    one, two or three half-runs at a time while keeping the main effects
+    orthogonal, moving to a swap whenever it raises the D-efficiency.
+
+  A valid OMARS design can still leave the model it was sized for
+  rank-deficient; such designs are set aside before the selection, and each
+  one adds a constraint to later solves that excludes every design sharing its
+  rank deficiency.  The winner is chosen by ``selection_criterion``:
 
   - ``"dominance"`` (default) keeps the Pareto front on D-efficiency (higher is
     better) and the maximum second-order correlation (lower is better), then
     prefers the smallest, most efficient design.
-  - ``"d_efficiency"`` maximises the D-efficiency of the full second-order model.
+  - ``"d_efficiency"`` maximises the D-efficiency of the model the design is
+    sized for.
   - ``"min_second_order_correlation"`` minimises the largest second-order
     correlation.
+  - ``"a_optimal"`` minimises the summed coefficient variance
+    :math:`\operatorname{tr}\left((X^\top X)^{-1}\right)` of that model.
+
+  Under every criterion, a design with a second-order column that never
+  varies (a term it cannot estimate) ranks last.
 
 - Optionally, ``satisfice`` sets *acceptability thresholds* that are applied
   **before** the dominance/criterion step: a design is kept only if it clears
@@ -150,77 +190,96 @@ Choosing the run size and the design
 
 The returned :class:`~process_improve.experiments.DesignResult` records the
 provenance and a search report under ``metadata`` (``family``, ``sparsity``,
-``expected_error_df``, ``d_efficiency``, ``max_second_order_correlation`` and an
-``omars_search`` report with the ILP iteration count and solver time).
+``expected_error_df``, ``d_efficiency``, ``max_second_order_correlation``,
+``solver_status`` and an ``omars_search`` report).  The report counts the ILP
+solves and their time, the solves a node or time limit stopped, and the
+rank-deficient designs set aside, and it says whether the run size was proven to
+be the smallest in the window.
 
 Performance: iterations and timing by factor count
 --------------------------------------------------
 
 The table below reports, for the automatic smallest-size search at
 ``n_restarts=8``, the size of the candidate half-pool, the run size of the
-smallest design found, the resulting error degrees of freedom, the number of ILP
-solves performed (the *iteration count*: one minimise-size probe plus the
-no-good-cut re-solves), and the cumulative CBC solver time.  The run size is the
+design returned, the resulting error degrees of freedom, how the candidates were
+collected, the number of ILP solves performed (the *iteration count*: the
+minimise-size solve, plus a feasibility solve and the restarts on the multistart
+path) and the wall-clock time of the whole call.  The run size is the
 estimability frontier :math:`k^2 + k + 1` described above, and the error degrees
 of freedom follow as :math:`N - (1 + 2k + k(k-1)/2)`; both are exact.  Times were
-measured single-threaded on an ``x86_64`` machine with CPython 3.11 and CBC (the
-solver bundled with PuLP); they are indicative and will vary by machine, and
-they scale with ``n_restarts``.
+measured on an ``x86_64`` machine with CPython 3.11 and SciPy 1.17.1 (HiGHS
+1.12), single-threaded, with the default ``solver_options``; they are indicative,
+vary by machine, and scale with ``n_restarts``.
 
 .. list-table::
    :header-rows: 1
-   :widths: 8 14 8 10 12 12
+   :widths: 8 12 8 8 12 9 10
 
    * - Factors :math:`k`
      - Half-pool size
      - Runs :math:`N`
      - Error df
+     - Search
      - ILP solves
-     - Solver time (s)
+     - Time (s)
    * - 3
      - 13
      - 13
      - 3
-     - 10
-     - 0.1
+     - exhaustive
+     - 1
+     - < 0.1
    * - 4
      - 40
      - 21
      - 6
-     - 10
-     - 0.4
+     - exhaustive
+     - 1
+     - 11
    * - 5
      - 121
      - 31
      - 10
+     - multistart
      - 10
-     - 2.2
+     - 2.8
    * - 6
      - 364
      - 43
      - 15
+     - multistart
      - 10
-     - 29
+     - 13
    * - 7
      - 1093
      - 57
      - 21
+     - multistart
      - 10
-     - 980
+     - 41
 
-The iteration count is fixed by ``n_restarts`` (each iteration is a full ILP
-solve); the cost per iteration grows with the half-pool size :math:`(3^k - 1)/2`,
-the number of orthogonality constraints :math:`k(k-1)/2`, and the run size the
-frontier demands.  Three to five factors solve in seconds; six takes about half a
-minute.
+On the exhaustive path the time is the enumeration (about 250,000 four-factor
+designs), not the solver.  On the multistart path the iteration count is set by
+``n_restarts`` and can be lower when the search stops early because new solves
+only repeat designs already found.  Each restart is bounded by
+``solver_options["node_limit"]`` (default 100 branch-and-bound nodes), so its cost
+grows with the half-pool size :math:`(3^k - 1)/2` and the run size the frontier
+demands, but not without limit.  The time beyond the solves is the local search.
+At the default ``n_restarts=50`` the five-factor search takes about 20 s and the
+six-factor search about 70 s.
 
-Seven factors is a different order of magnitude: about a quarter of an hour at
-this restart budget, measured with ``solver_options={"time_limit": 120}``.  The
-individual solves average close to that per-solve cap, so the total depends on
-the limit you set as much as on the machine; raise it above its 60 s default
-before reading anything into a seven-factor run.  Beyond seven factors, pin
-``n_runs`` or use ``model="main_quadratic"``, whose frontier is only
-:math:`2k + 1`.
+``generate_design(factors, design_type="omars_ilp", budget=N)`` does not spend a
+fixed number of restarts: it stops at a run size once eight solves in a row have
+returned an estimable design that, after the local search, does not improve the
+Pareto front on D-efficiency and the maximum second-order correlation, with 50
+restarts as the ceiling.  For six factors and ``budget=17`` that is about 20
+solves, under 20 s.
+
+``solver_options["time_limit"]`` (default 60 s per solve) is a safety cap, not
+the budget: if it stops a solve, the result depends on the machine's speed, and
+``metadata["omars_search"].time_limited_solves`` counts those solves.  Beyond
+seven factors the half-pool triples with each factor; pin ``n_runs`` or use
+``model="main_quadratic"``, whose frontier is only :math:`2k + 1`.
 
 Limitations
 -----------
@@ -228,8 +287,8 @@ Limitations
 - **Foldover family only.**  ``generate_omars`` builds the (dominant) foldover
   OMARS family.  The rarer non-foldover members from the enumerated catalogue
   are a documented future extension.
-- **Odd run counts.**  A foldover design has :math:`2h + 1` runs, so ``n_runs``
-  must be odd.
+- **Run-count parity.**  A foldover design has :math:`2h` half-runs and mirrors
+  plus its centre runs, so ``n_runs - center_runs`` must be even.
 - **Second-order aliasing remains.**  Reaching the estimability frontier makes
   the full second-order model *fittable*; it does not make the second-order
   block orthogonal.  The quadratics and interactions stay mutually aliased -

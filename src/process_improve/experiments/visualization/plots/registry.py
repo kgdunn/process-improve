@@ -149,6 +149,13 @@ class BasePlot(ABC):
         Mapping ``{factor_symbol: full_name}`` used for axis labels and
         legend entries.  If a factor symbol is not present in this map
         the symbol itself is used.
+    model : str or None
+        Model for the design-quality plots (FDS, power curve, prediction
+        variance): ``"main_effects"``, ``"interactions"``, ``"quadratic"`` or a
+        formula, as in :func:`~process_improve.experiments.evaluate_design`.
+        When *None*, the formula of ``analysis_results`` is used, else the
+        richest of ``"quadratic"``, ``"interactions"`` and ``"main_effects"``
+        that the design can estimate.
     """
 
     def __init__(  # noqa: PLR0913
@@ -162,6 +169,7 @@ class BasePlot(ABC):
         highlight_significant: bool = True,
         confidence_level: float = 0.95,
         factor_labels: dict[str, str] | None = None,
+        model: str | None = None,
     ) -> None:
         self.analysis_results = analysis_results or {}
         self.design_data = design_data or []
@@ -171,6 +179,7 @@ class BasePlot(ABC):
         self.highlight_significant = highlight_significant
         self.confidence_level = confidence_level
         self.factor_labels = factor_labels or {}
+        self.model = model
 
     @abstractmethod
     def to_spec(self) -> ChartSpec:

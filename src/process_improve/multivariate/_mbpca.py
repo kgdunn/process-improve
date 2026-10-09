@@ -168,21 +168,41 @@ def _fit_one_component(x_def: dict[str, np.ndarray], context: _MBPCALoopContext)
         t_super = t_b_summary @ p_s / _nz(float(p_s @ p_s))
         itern += 1
 
-    # Sign convention: largest |super_loading| element positive.
-    flip_idx = int(np.argmax(np.abs(p_s)))
-    if p_s[flip_idx] < 0:
-        p_s = -p_s
-        t_super = -t_super
-        for name in context.block_names:
-            local_loadings[name] = -local_loadings[name]
-            local_scores[name] = -local_scores[name]
-
-    return _MBPCAComponent(
+    component = _MBPCAComponent(
         super_scores=t_super,
         super_loadings=p_s,
         block_loadings=local_loadings,
         block_scores=local_scores,
         iterations=itern,
+    )
+    return _apply_sign_convention(component, context)
+
+
+def _deflation_loadings(component: _MBPCAComponent, context: _MBPCALoopContext) -> dict[str, np.ndarray]:
+    """Scale each block loading by its super loading and block size: the loading that deflates it."""
+    return {
+        name: component.block_loadings[name] * component.super_loadings[b_idx] * context.sqrt_kb[name]
+        for b_idx, name in enumerate(context.block_names)
+    }
+
+
+def _apply_sign_convention(component: _MBPCAComponent, context: _MBPCALoopContext) -> _MBPCAComponent:
+    """Flip the component so its largest-magnitude deflation loading, over all blocks, is positive.
+
+    This is single-block PCA's convention, so the fitted signs do not depend on the seed,
+    and a one-block model has PCA's signs (#586). The super loading is not flipped, and
+    cannot decide the sign: its element for block b is proportional to ``t_b' t``, which
+    flipping the whole component leaves unchanged. (With no missing data that is
+    ``||X_b' t||``, never negative, so the old convention keyed on it never fired.)
+    """
+    loadings = _deflation_loadings(component, context)
+    stacked = np.nan_to_num(np.concatenate([loadings[name] for name in context.block_names]))
+    if stacked[int(np.argmax(np.abs(stacked)))] >= 0:
+        return component
+    return component._replace(
+        super_scores=-component.super_scores,
+        block_loadings={name: -loading for name, loading in component.block_loadings.items()},
+        block_scores={name: -scores for name, scores in component.block_scores.items()},
     )
 
 
@@ -190,11 +210,8 @@ def _deflate(
     x_def: dict[str, np.ndarray], component: _MBPCAComponent, context: _MBPCALoopContext
 ) -> dict[str, np.ndarray]:
     """Remove this component from every block, using the super-score and the scaled block loading."""
-    deflated = {}
-    for b_idx, name in enumerate(context.block_names):
-        p_deflate = component.block_loadings[name] * component.super_loadings[b_idx] * context.sqrt_kb[name]
-        deflated[name] = x_def[name] - np.outer(component.super_scores, p_deflate)
-    return deflated
+    loadings = _deflation_loadings(component, context)
+    return {name: x_def[name] - np.outer(component.super_scores, loadings[name]) for name in context.block_names}
 
 
 @dataclasses.dataclass
@@ -322,10 +339,9 @@ class MBPCA(_HotellingsT2LimitMixin, TransformerMixin, BaseEstimator):
           results).
 
     missing_data_settings : dict or None, default=None
-        Settings for the iterative ``"nipals"`` path. Keys: ``md_tol``
-        (convergence tolerance on the score-vector change between
-        iterations), ``md_max_iter`` (maximum NIPALS iterations per
-        component). Defaults to ``{"md_tol": epsqrt, "md_max_iter": 1000}``.
+        Deprecated keys ``md_tol`` and ``md_max_iter``, which override ``tol``
+        and ``max_iter`` for this fit and warn when used. Deprecated since
+        1.98.0 and removed in 2.0; set ``tol`` and ``max_iter`` instead.
 
     Attributes (after fitting)
     --------------------------

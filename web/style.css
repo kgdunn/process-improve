@@ -1,0 +1,142 @@
+:root {
+  --bg: #fbfbfa;
+  --fg: #1d1d1f;
+  --muted: #5f6368;
+  --line: #d9d9d6;
+  --panel: #ffffff;
+  --accent: #1f5fa8;
+  --accent-fg: #ffffff;
+  --error: #b3261e;
+  --ok: #1e7b3a;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #141517;
+    --fg: #e8e8e6;
+    --muted: #a0a4a8;
+    --line: #34373b;
+    --panel: #1c1e21;
+    --accent: #7fb0ea;
+    --accent-fg: #0d1b2a;
+    --error: #f2877f;
+    --ok: #7fd49a;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #141517;
+  --fg: #e8e8e6;
+  --muted: #a0a4a8;
+  --line: #34373b;
+  --panel: #1c1e21;
+  --accent: #7fb0ea;
+  --accent-fg: #0d1b2a;
+  --error: #f2877f;
+  --ok: #7fd49a;
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--fg);
+  font: 16px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+main { max-width: 860px; margin: 0 auto; padding: 24px 16px 48px; }
+h1 { margin: 0 0 8px; font-size: 1.8rem; }
+h2 { display: flex; align-items: center; gap: 10px; font-size: 1.3rem; margin: 0 0 12px; }
+h3 { font-size: 1.05rem; margin: 20px 0 8px; }
+a { color: var(--accent); }
+.lede { color: var(--muted); margin: 0 0 12px; }
+.step {
+  display: inline-grid; place-items: center; width: 28px; height: 28px; border-radius: 50%;
+  background: var(--accent); color: var(--accent-fg); font-size: 0.95rem;
+}
+section {
+  background: var(--panel); border: 1px solid var(--line); border-radius: 10px;
+  padding: 20px; margin: 20px 0;
+}
+/* The status box: a changing message, kept visually apart from the page text.
+   data-state picks the icon and the accent: busy (spinner), ok (tick), error. */
+.status {
+  display: flex; align-items: center; gap: 10px; margin: 16px 0 0; padding: 10px 14px;
+  border: 1px solid var(--line); border-left: 4px solid var(--muted); border-radius: 8px;
+  background: var(--panel); color: var(--fg); font-size: 0.92rem;
+}
+.status__icon { flex: none; width: 16px; height: 16px; display: grid; place-items: center; font-weight: 700; }
+.status[data-state="busy"] { border-left-color: var(--accent); }
+.status[data-state="busy"] .status__icon {
+  border: 2px solid var(--line); border-top-color: var(--accent); border-radius: 50%;
+  animation: status-spin 0.9s linear infinite;
+}
+.status[data-state="ok"] { border-left-color: var(--ok); }
+.status[data-state="ok"] .status__icon::before { content: "✓"; color: var(--ok); }
+.status[data-state="error"] { border-left-color: var(--error); color: var(--error); }
+.status[data-state="error"] .status__icon::before { content: "!"; color: var(--error); }
+@keyframes status-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) {
+  .status[data-state="busy"] .status__icon { animation-duration: 3s; }
+}
+.error { color: var(--error); }
+.hint { color: var(--muted); font-size: 0.92rem; }
+.equation { font-family: ui-monospace, "SFMono-Regular", Menlo, monospace; overflow-wrap: anywhere; }
+.row { display: flex; flex-wrap: wrap; gap: 16px; margin: 12px 0; }
+.row label, label[data-option] { display: flex; flex-direction: column; gap: 4px; font-size: 0.9rem; }
+[hidden] { display: none !important; }
+input, select {
+  font: inherit; color: inherit; background: var(--bg);
+  border: 1px solid var(--line); border-radius: 6px; padding: 6px 8px; max-width: 100%;
+}
+input[type="number"] { width: 7em; }
+button, .button {
+  font: inherit; cursor: pointer; border-radius: 6px; padding: 8px 14px;
+  border: 1px solid var(--line); background: var(--bg); color: inherit; text-decoration: none; display: inline-block;
+}
+.primary { background: var(--accent); color: var(--accent-fg); border-color: var(--accent); }
+button:disabled { opacity: 0.5; cursor: progress; }
+.link { border: none; background: none; color: var(--accent); padding: 4px; }
+.factors { border-collapse: collapse; margin-bottom: 4px; }
+.factors th { text-align: left; font-weight: 600; font-size: 0.85rem; color: var(--muted); padding: 0 6px 4px 0; }
+.factors td { padding: 2px 6px 2px 0; }
+/* Fixed layout so the five columns share the width rather than each input
+   asking for its own: on a phone the Units column used to run off the edge. */
+.factors { width: 100%; max-width: 560px; table-layout: fixed; }
+.factors th:nth-child(1) { width: 28%; }
+.factors th:nth-child(2), .factors th:nth-child(3) { width: 24%; }
+.factors th:nth-child(5) { width: 2rem; }
+.factors input { width: 100%; min-width: 0; }
+@media (max-width: 480px) {
+  .factors td { padding-right: 4px; }
+  /* Factor names are short; the units ("degC", "L/min") need the room. */
+  .factors th:nth-child(1) { width: 20%; }
+  .factors th:nth-child(2), .factors th:nth-child(3) { width: 22%; }
+  .factors input { padding: 6px; }
+}
+.scroll { overflow-x: auto; margin: 12px 0; }
+table.data { border-collapse: collapse; font-size: 0.9rem; font-variant-numeric: tabular-nums; }
+table.data th, table.data td { border-bottom: 1px solid var(--line); padding: 4px 10px; text-align: right; }
+table.data th:first-child, table.data td:first-child { text-align: left; }
+table.data th { padding: 0; }
+button.sort {
+  all: unset; box-sizing: border-box; display: block; width: 100%; padding: 4px 10px;
+  cursor: pointer; font-weight: 600; text-align: inherit; white-space: nowrap;
+}
+button.sort:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+button.sort::after { content: " ↕"; color: var(--muted); font-weight: 400; font-size: 0.8em; }
+th[aria-sort="ascending"] button.sort::after { content: " ▲"; color: var(--accent); }
+th[aria-sort="descending"] button.sort::after { content: " ▼"; color: var(--accent); }
+@media (max-width: 480px) {
+  table.data td, button.sort { padding: 4px 6px; }
+  button.sort { white-space: normal; }
+  button.sort::after { display: block; }
+}
+.drop {
+  display: block; border: 2px dashed var(--line); border-radius: 10px; padding: 28px 16px;
+  text-align: center; color: var(--muted); cursor: pointer;
+}
+.drop.over { border-color: var(--accent); color: var(--fg); }
+.drop input { display: block; margin: 0 auto 8px; }
+.sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+footer { color: var(--muted); font-size: 0.88rem; }
