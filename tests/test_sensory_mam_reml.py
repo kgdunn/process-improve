@@ -19,6 +19,7 @@ from statsmodels.formula.api import ols
 from statsmodels.stats.anova import anova_lm
 
 from process_improve.regression._variance_components import (
+    _MAX_ITERATIONS,
     VarianceComponentFit,
     _minimise,
     fit_variance_components,
@@ -295,25 +296,29 @@ def test_multi_df_test_with_a_direction_below_two_df() -> None:
     assert _two_direction_fit((1.5, 30.0)).f_test(np.eye(2))[1] == 2.0
 
 
-def test_search_stops_without_a_downhill_step() -> None:
-    """When no step lowers the criterion, the search returns where it stands."""
+class _ConstantSlope:
+    """A criterion with score -1 and unit curvature everywhere, whose trial values are fixed."""
 
-    class Uphill:
-        """A criterion that rises whichever way the search steps."""
+    def __init__(self, trial_criterion: float) -> None:
+        self.trial_criterion = trial_criterion
 
-        def evaluate(self, _psi: np.ndarray) -> SimpleNamespace:
-            return SimpleNamespace(criterion=0.0)
+    def evaluate(self, _psi: np.ndarray) -> SimpleNamespace:
+        return SimpleNamespace(criterion=0.0)
 
-        def gradient(self, _state: SimpleNamespace) -> np.ndarray:
-            return np.array([-1.0])
+    def gradient(self, _state: SimpleNamespace) -> np.ndarray:
+        return np.array([-1.0])
 
-        def hessian(self, _state: SimpleNamespace) -> np.ndarray:
-            return np.array([[1.0]])
+    def hessian(self, _state: SimpleNamespace) -> np.ndarray:
+        return np.array([[1.0]])
 
-        def criterion(self, _psi: np.ndarray) -> float:
-            return 1.0
+    def criterion(self, _psi: np.ndarray) -> float:
+        return self.trial_criterion
 
-    np.testing.assert_array_equal(_minimise(Uphill(), np.array([0.5])), [0.5])
+
+@pytest.mark.parametrize(("trial_criterion", "steps"), [(1.0, 0), (-1e9, _MAX_ITERATIONS)])
+def test_search_always_ends(trial_criterion: float, steps: int) -> None:
+    """With no downhill step the search stays put; with endless ones it stops at its cap."""
+    assert _minimise(_ConstantSlope(trial_criterion), np.array([0.5]))[0] == 0.5 + steps
 
 
 def test_independent_columns_drops_the_later_aliased_column() -> None:
