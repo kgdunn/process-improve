@@ -14,6 +14,8 @@ variable moved, and how sure am I?*
 [![Python versions](https://img.shields.io/python/required-version-toml?tomlFilePath=https%3A%2F%2Fraw.githubusercontent.com%2Fkgdunn%2Fprocess-improve%2Fmain%2Fpyproject.toml&label=python)](https://pypi.org/project/process-improve/)
 [![Downloads](https://static.pepy.tech/badge/process-improve)](https://pepy.tech/project/process-improve)
 [![Downloads per month](https://static.pepy.tech/badge/process-improve/month)](https://pepy.tech/project/process-improve)
+[![CI](https://github.com/kgdunn/process-improve/actions/workflows/run-tests.yml/badge.svg?branch=main&event=push)](https://github.com/kgdunn/process-improve/actions/workflows/run-tests.yml?query=branch%3Amain)
+[![codecov](https://codecov.io/gh/kgdunn/process-improve/branch/main/graph/badge.svg)](https://codecov.io/gh/kgdunn/process-improve)
 [![Docs](https://img.shields.io/badge/docs-kgdunn.github.io-blue.svg)](https://kgdunn.github.io/process-improve/)
 [![License](https://img.shields.io/pypi/l/process-improve.svg)](https://github.com/kgdunn/process-improve/blob/main/LICENSE)
 
@@ -306,12 +308,15 @@ in the sidebar with ready-made BibTeX and APA entries:
 Add the `version` field from `CITATION.cff` (or the release tag you installed) when citing a
 specific version.
 
-## Contributing
-
-Bug reports and feature requests go on the
-[issue tracker](https://github.com/kgdunn/process-improve/issues). To contribute code, start
-with [CONTRIBUTING.md](https://github.com/kgdunn/process-improve/blob/main/CONTRIBUTING.md).
-
 ## License
 
 MIT: see [LICENSE](https://github.com/kgdunn/process-improve/blob/main/LICENSE) for details.
+
+## Contributing
+
+Bug reports, feature requests and pull requests are welcome. See
+[CONTRIBUTING.md](https://github.com/kgdunn/process-improve/blob/main/CONTRIBUTING.md) for
+development setup, testing and code style, and the
+[architecture overview](https://kgdunn.github.io/process-improve/architecture.html) for a map
+of the codebase. Bugs and feature requests go on the
+[issue tracker](https://github.com/kgdunn/process-improve/issues).
