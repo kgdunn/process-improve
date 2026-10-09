@@ -4446,6 +4446,24 @@ def test_select_n_components_dispatcher() -> None:
         _select_n_components("not_a_rule", mean_error=mean)  # type: ignore[arg-type]
 
 
+def test_min_rule_falls_back_to_one_component_without_a_finite_error() -> None:
+    """With no finite error at any count, "min" recommends one component, as "1se" does."""
+    from process_improve.multivariate._common import _select_n_components
+
+    nothing = [np.nan, np.nan, np.nan]
+    assert _select_n_components("min", mean_error=nothing) == 1
+    assert _select_n_components("1se", mean_error=nothing, se_error=nothing) == 1
+
+
+def test_equal_weight_r2_total_needs_one_row_per_component() -> None:
+    """The per-target table is (components x targets); a flat vector is refused, naming its shape."""
+    from process_improve.multivariate._common import _equal_weight_r2_total
+
+    np.testing.assert_allclose(_equal_weight_r2_total(np.array([[0.2, 0.4], [0.5, np.nan]])), [0.3, 0.5])
+    with pytest.raises(ValueError, match=r"^per_target must be 2-D \(A x M\); got shape \(3,\)\.$"):
+        _equal_weight_r2_total(np.ones(3))
+
+
 def test_not_enough_variance_error_is_typed_and_runtimeerror() -> None:
     """Rank overflow raises NotEnoughVarianceError, still catchable as RuntimeError."""
     # NotEnoughVarianceError subclasses RuntimeError so existing broad

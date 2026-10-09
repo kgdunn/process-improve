@@ -121,6 +121,26 @@ def test_van_der_voet_pvalues_match_direct_call() -> None:
     np.testing.assert_allclose(result.table["vdv_p"], p_values)
 
 
+def test_van_der_voet_counts_a_component_with_no_finite_difference_as_indistinguishable() -> None:
+    """A count whose residuals were never compared on any row gets p = 1, so parsimony picks it."""
+    per_obs_sse = np.array([[np.nan, np.nan, np.nan], [1.0, 2.0, 3.0], [1.5, 2.5, 3.5]])
+    recommended, p_values = _vandervoet_randomization(
+        per_obs_sse, total_rmsecv=np.array([np.nan, 1.0, 1.2]), n_permutations=19, random_state=0
+    )
+    assert p_values[0] == 1.0
+    assert recommended == 1
+
+
+def test_van_der_voet_keeps_the_reference_when_no_count_qualifies() -> None:
+    """If no p-value exceeds alpha (only possible at alpha = 1) the reference model is recommended."""
+    per_obs_sse = np.array([[3.0, 4.0, 5.0], [1.0, 2.0, 3.0], [1.5, 2.5, 3.5]])
+    recommended, p_values = _vandervoet_randomization(
+        per_obs_sse, total_rmsecv=np.array([1.5, 1.0, 1.2]), n_permutations=19, alpha=1.0, random_state=0
+    )
+    assert p_values[1] == 1.0  # the reference, compared with itself
+    assert recommended == 2
+
+
 def test_cv_anova_is_a_function_of_q2() -> None:
     q2 = np.array([0.8, 0.5, -0.1, 0.0])
     p_values = _cv_anova_pvalues(q2, N=40, M=1)
