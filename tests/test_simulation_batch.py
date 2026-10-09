@@ -138,6 +138,29 @@ def test_cardinal_functions_peak_at_one_and_vanish_at_bounds() -> None:
     assert np.all(values <= 1.0)
 
 
+def test_scalar_cardinal_functions_match_the_vectorised_ones() -> None:
+    """The scalar forms in the integration hot loop agree with the public ones, inside and outside the window."""
+    from process_improve.simulation.batch import _cardinal_ph_f, _cardinal_temperature_f
+
+    temperatures = np.linspace(20.0, 45.0, 251)
+    scalar_t = [_cardinal_temperature_f(t, 27.5, 36.8, 41.5) for t in temperatures]
+    np.testing.assert_allclose(scalar_t, cardinal_temperature(temperatures, 27.5, 36.8, 41.5), rtol=1e-12, atol=0.0)
+    ph_values = np.linspace(5.5, 8.5, 301)
+    scalar_ph = [_cardinal_ph_f(ph, 6.3, 7.1, 7.9) for ph in ph_values]
+    np.testing.assert_allclose(scalar_ph, cardinal_ph(ph_values, 6.3, 7.1, 7.9), rtol=1e-12, atol=0.0)
+    assert scalar_t[0] == scalar_t[-1] == scalar_ph[0] == scalar_ph[-1] == 0.0
+
+
+def test_ctmi_rejects_cardinals_out_of_order() -> None:
+    """t_min, t_opt and t_max must increase; the message echoes them in that order."""
+    with pytest.raises(
+        ValueError,
+        match=r"cardinal_temperature: cardinal temperatures must satisfy t_min < t_opt < t_max; "
+        r"got \(35\.0, 30\.0, 40\.0\)\.",
+    ):
+        cardinal_temperature(30.0, 35.0, 30.0, 40.0)
+
+
 # ---------------------------------------------------------------------------
 # Determinism
 # ---------------------------------------------------------------------------
@@ -352,6 +375,14 @@ def test_nominal_trajectory_is_biphasic(sim: BioreactorSimulator, nominal: pd.Da
     assert nominal["temperature"].is_monotonic_decreasing
 
 
+def test_nominal_trajectory_steps_when_the_shift_has_no_duration() -> None:
+    """With shift_start_day == shift_end_day the temperature steps from the optimum to the hold at that day."""
+    cfg = _config(shift_start_day=4.0, shift_end_day=4.0)
+    temperature = BioreactorSimulator(cfg).nominal_trajectory()["temperature"]
+    np.testing.assert_array_equal(temperature[temperature.index < 4.0], cfg.temp_opt)
+    np.testing.assert_array_equal(temperature[temperature.index >= 4.0], cfg.temp_production)
+
+
 # ---------------------------------------------------------------------------
 # Physical invariants (property-based)
 # ---------------------------------------------------------------------------
@@ -439,6 +470,53 @@ def test_config_rejects_hold_outside_bounds() -> None:
         BioreactorConfig(temp_production=45.0)
 
 
+@pytest.mark.parametrize(
+    ("overrides", "match"),
+    [
+        ({"ic_scale": -1.0}, r"ic_scale must be a finite non-negative number; got -1\.0\."),
+        (
+            {"temp_q_opt": 45.0},
+            (
+                r"Productivity cardinal temperatures must satisfy temp_q_min < temp_q_opt < temp_q_max; "
+                r"got \(22\.0, 45\.0, 40\.5\)\."
+            ),
+        ),
+        ({"ph_opt": 8.0}, r"Cardinal pH values must satisfy ph_min < ph_opt < ph_max; got \(6\.3, 8\.0, 7\.9\)\."),
+        ({"samples_per_batch": 1}, r"samples_per_batch must be at least 2; got 1\."),
+        ({"steps_per_day": 0}, r"steps_per_day must be at least 1; got 0\."),
+        (
+            {"temp_bounds": (39.0, 28.0)},
+            r"temp_bounds must be a finite \(low, high\) pair with low < high; got \(39\.0, 28\.0\)\.",
+        ),
+        (
+            {"ph_bounds": (6.2, 7.6)},
+            r"ph_bounds \(6\.2, 7\.6\) must lie strictly inside the cardinal window \(6\.3, 7\.9\)\.",
+        ),
+        (
+            {"shift_start_day": 5.0, "shift_end_day": 4.0},
+            (
+                r"The nominal temperature shift must satisfy 0 <= shift_start_day <= shift_end_day <= batch_days; "
+                r"got \(5\.0, 4\.0, 10\.0\)\."
+            ),
+        ),
+    ],
+    ids=[
+        "negative-channel-scale",
+        "productivity-cardinals-out-of-order",
+        "ph-cardinals-out-of-order",
+        "single-sample-batch",
+        "no-integration-steps",
+        "temperature-bounds-reversed",
+        "ph-bounds-outside-the-cardinal-window",
+        "shift-ends-before-it-starts",
+    ],
+)
+def test_config_rejects_inconsistent_parameters(overrides: dict, match: str) -> None:
+    """Each parameter relationship the model depends on is checked, and the message names the values."""
+    with pytest.raises(ValueError, match=match):
+        BioreactorConfig(**overrides)
+
+
 def test_simulator_rejects_wrong_config_type() -> None:
     with pytest.raises(TypeError, match="BioreactorConfig"):
         BioreactorSimulator(config="not a config")  # type: ignore[arg-type]
@@ -459,6 +537,14 @@ def test_simulate_batch_rejects_bad_trajectory(sim: BioreactorSimulator, nominal
         sim.simulate_batch(None, not_finite)
     with pytest.raises(TypeError, match="DataFrame"):
         sim.simulate_batch(None, "not a frame")  # type: ignore[arg-type]
+
+
+def test_simulate_batch_rejects_ph_outside_its_bounds(sim: BioreactorSimulator, nominal: pd.DataFrame) -> None:
+    """A requested pH outside the recipe window is refused, with the window and the offending range."""
+    with pytest.raises(
+        ValueError, match=r"trajectory pH must lie within ph_bounds \(6\.6, 7\.6\); got values in \[7\.7, 7\.7\]\."
+    ):
+        sim.simulate_batch(None, nominal.assign(pH=7.7))
 
 
 def test_simulate_batch_rejects_bad_initial_conditions(sim: BioreactorSimulator) -> None:
@@ -515,6 +601,15 @@ def test_variance_decomposition_rejects_bad_arguments(sim: BioreactorSimulator) 
         variance_decomposition("not a simulator")  # type: ignore[arg-type]
     with pytest.raises(ValueError, match="n_batches"):
         variance_decomposition(sim, n_batches=1)
+
+
+def test_variance_decomposition_replays_a_supplied_trajectory(sim: BioreactorSimulator, nominal: pd.DataFrame) -> None:
+    """Every channel campaign replays the schedule given: the nominal reproduces the default, a cooler one differs."""
+    default = variance_decomposition(sim, n_batches=3, random_state=1)
+    supplied = variance_decomposition(sim, n_batches=3, trajectory=nominal, random_state=1)
+    pd.testing.assert_frame_equal(supplied, default)
+    cooler = variance_decomposition(sim, n_batches=3, trajectory=nominal.assign(temperature=30.0), random_state=1)
+    assert cooler.attrs["mean_titer_g_L"] != default.attrs["mean_titer_g_L"]
 
 
 # ---------------------------------------------------------------------------
