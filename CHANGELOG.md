@@ -61,6 +61,31 @@ those changes.
 
 ### Changed
 
+- **`max_iter` defaults to 500 on every iterative estimator (#588).** `PCA`, `PLS` and
+  `OPLS` used 1000; `MBPCA`, `MBPLS` and `TPLS` already used 500. One number now, so a
+  caller carrying a mental model between two estimators is not surprised.
+
+  This was measured before it was changed. Instrumenting every fit in the test suite,
+  20,536 components across 8,717 fits: the median component converges in 6 iterations,
+  p99 is 79, p99.9 is 335, and only 15 exceed 500. Fourteen of those already fail to
+  converge at 1000, so they emit the non-convergence warning today and a lower cap only
+  makes them say so sooner. Exactly one converges in the 501-1000 band, at 803
+  iterations, inside a permutation null where slow convergence is expected because there
+  is no dominant direction to find.
+
+  A caller whose data is well conditioned will not notice. A caller whose data is not
+  already gets a `SpecificationWarning` naming the cap.
+
+- **`MBPCA(tol=...)` and `MBPLS(tol=...)` default to `epsqrt` instead of `None` (#588).**
+  Both declared `tol: float | None = None` and substituted `epsqrt` inside `fit`. Same
+  value, one less branch, and `get_params()["tol"]` now reports what the fit will use
+  rather than `None`, which is what an sklearn caller inspecting a cloned estimator
+  expects.
+
+- **One resolver for the loop settings (#588).** `PCA`, `PLS`, `MBPCA` and `MBPLS` each
+  carried their own copy of the precedence rule and the tolerance-bounds check. They now
+  share `resolve_loop_settings`, so the contract is defined once.
+
 - **Full and fractional factorial, Plackett-Burman, Box-Behnken, central composite and
   supersaturated designs no longer need the `expt` extra.** The pyDOE3 arrays they were
   built from are now in `experiments/_classical.py` (BSD-3, credited), and tests check
@@ -116,6 +141,34 @@ those changes.
   before, but the coefficient itself for a square such as `I(A**2)`, whose column runs
   from 0 to 1. The coefficients themselves are unchanged.
 
+### Deprecated
+
+- **`missing_data_settings["md_tol"]` and `["md_max_iter"]` are deprecated (#588)**, on
+  `PCA`, `PLS`, `MBPCA` and `MBPLS`. Pass `tol` and `max_iter` to the constructor
+  instead. They predate those parameters existing on these estimators, and they describe
+  a convergence setting as a missing-data setting, which it is not: the loop runs, and
+  needs a tolerance, whether or not a cell is missing.
+
+  They still take effect and still override the constructor, because silently demoting a
+  value a caller set would be worse than warning about it. Removal in 2.0.
+
+  `md_method` is **not** deprecated, and neither is `missing_data_settings` itself: that
+  key names the imputation algorithm, which is the one axis the dict still owns. With
+  `md_method="tsr"` or `"pmp"` on `PLS`, `tol` and `max_iter` bound the imputation rounds
+  as well as the NIPALS loop, as they already did by default.
+
+- **`PCA.select_n_components(n_iter=..., tol=...)` are deprecated in favour of
+  `ekf_max_iter` and `ekf_tol` (#588).** They bound the EM loop of the element-wise
+  k-fold imputation, which is a different loop from the per-component NIPALS loop that
+  `PCA(tol=..., max_iter=...)` governs.
+
+  `tol` had become a collision rather than a mere inconsistency: a parameter captured in
+  that signature can never reach the `PCA` constructor through `**pca_kwargs`, so the
+  name meant the EM loop here and the per-component loop everywhere else, with no way to
+  set the latter from here. Once the aliases are removed in 2.0, `tol` and `max_iter`
+  will pass through to `PCA` like any other keyword. Until then the old names still
+  work, still win, and warn.
+
 ### Fixed
 
 - **`c()` combines all its arguments, as R's `c()` does (#513).** An iterable replaced
@@ -133,6 +186,15 @@ those changes.
   raised `IndexError`. A threshold of 1 made every column an alias of the intercept.
   Aliases now come from the correlations of the centred columns.
 
+- **`MBPCA` and `MBPLS` no longer ignore `missing_data_settings` (#588).** Both resolved
+  the dict at the top of `fit` and threw the result away, keeping only the validation it
+  performed on the way, so a caller's settings were checked and then had no effect.
+
+  Measured on `MBPCA` before the change, two components on a 30-row two-block fit:
+  `{"md_tol": 1e-1, "md_max_iter": 3}` ran 180 and 85 iterations, exactly what passing
+  nothing ran, while `tol=1e-1, max_iter=3` ran 3 and 3. The dict now gives 3 and 3 too,
+  with the deprecation warning above. A default fit is unchanged.
+
 - **A replicated split-plot design's `metadata["whole_plot"]` covers every run.** It
   listed the whole plots of one replicate only, so it was shorter than the design, and
   `n_whole_plots` counted one replicate's. Each replicate now has whole plots of its
@@ -144,6 +206,24 @@ those changes.
   attainable at every size**, so a value below 1 does not by itself mean a better
   balanced design exists (15 factors in 12 runs report 0.63). Stated in the
   `dispatch_supersaturated` docstring and the screening user guide.
+- **Docstring fixes for public API, no behaviour change.**
+  - `multivariate.ellipse_coordinates`: the `n_components` and `n_rows` parameters
+    were said to feed the Hotelling's T^2 limit, but the ellipse limit is deliberately
+    computed on 2 and `N - 2` degrees of freedom (the joint confidence region for the
+    two plotted scores). `n_components` is used only to bound `score_horiz` and
+    `score_vert`.
+  - `multivariate.spe_limit`: Returns clarified that the limit is on the same
+    square-root scale as `model.spe_`, so values can be compared directly.
+  - `multivariate.check_predictive_signal`: the `p_value` is computed with
+    `n_used` (permutations whose fit produced a usable Q^2), not `n_perm`, so the
+    attainable floor is `1 / (n_used + 1)` and shrinks only when some permutations
+    degenerate.
+  - `multivariate.MBPLS.select_n_components`: the returned Bunch's `n_splits`
+    field is now documented alongside the others.
+  - `multivariate.TPLS.vip` with `block=None`: the returned dict carries four
+    keys (`"D"`, `"F"`, `"Z"`, `"Y"`) for shape-stability, not two. The `"Z"`
+    and `"Y"` entries are always empty dicts since VIP is defined only for the
+    D- and F-blocks.
 
 ## [1.97.2] - 2026-10-07
 

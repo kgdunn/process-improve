@@ -1394,9 +1394,14 @@ class TPLS(RegressorMixin, BaseEstimator):
         Returns
         -------
         dict
-            If *block* is ``None``: ``{"D": {group: pd.Series, ...}, "F": {group: pd.Series, ...}}``.
-            If *block* is ``"D"`` or ``"F"``: the inner dict ``{group: pd.Series, ...}`` for that block,
-            where each ``pd.Series`` is indexed by feature names.
+            If *block* is ``None``: a four-key dict keyed by block, of the shape
+            ``{"D": {group: pd.Series, ...}, "F": {group: pd.Series, ...},
+            "Z": {}, "Y": {}}``. VIP is defined only for the ``D``- and
+            ``F``-blocks, so the ``"Z"`` and ``"Y"`` entries are always empty
+            dicts; they are kept for shape-stability across every ``vip()``
+            caller. If *block* is ``"D"`` or ``"F"``: the inner dict
+            ``{group: pd.Series, ...}`` for that block, where each
+            ``pd.Series`` is indexed by feature names.
 
         Raises
         ------
