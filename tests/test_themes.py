@@ -76,6 +76,19 @@ def test_set_theme_changes_default(monkeypatch: pytest.MonkeyPatch) -> None:
         assert pio.templates.default == name
 
 
+def test_set_theme_registers_a_theme_missing_from_plotly(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A theme dropped from plotly's registry (e.g. by another library) is registered again on demand."""
+    monkeypatch.setattr(pio.templates, "default", pio.templates.default)
+    template = pio.templates[DEFAULT_THEME]
+    del pio.templates[DEFAULT_THEME]  # plotly's registry has no .get(), so monkeypatch.delitem cannot undo this
+    try:
+        set_theme(DEFAULT_THEME)
+        assert DEFAULT_THEME in pio.templates
+        assert pio.templates.default == DEFAULT_THEME
+    finally:
+        pio.templates[DEFAULT_THEME] = template
+
+
 def test_set_theme_rejects_unknown() -> None:
     """An unknown theme name raises ValueError."""
     with pytest.raises(ValueError, match="Unknown theme"):
