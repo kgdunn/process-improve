@@ -648,7 +648,7 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
             for a in range(A):
                 c_a = self.y_loadings_[:, [a]]
                 denom = float((c_a.T @ c_a).item())
-                if denom > 0:
+                if denom > 0:  # pragma: no branch - a zero y-loading needs Y exactly orthogonal to t_a
                     self.y_scores_[:, a] = (Y_deflated @ c_a / denom).flatten()
                 Y_deflated = Y_deflated - (self._scores[:, [a]] @ c_a.T)
 
