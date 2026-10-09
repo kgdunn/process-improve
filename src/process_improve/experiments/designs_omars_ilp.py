@@ -1574,9 +1574,10 @@ def _search_best_omars(  # noqa: C901, PLR0912, PLR0913, PLR0915
         started = time.perf_counter()
         if "n_half" in solve_kwargs:
             # Not the minimise-size probe, which looks for the smallest OMARS
-            # design whether or not it is estimable.
-            if cover_cuts:
-                solve_kwargs["require_any"] = list(cover_cuts)
+            # design whether or not it is estimable.  The cover cuts are never
+            # empty: the up-front ones include, for every even feature column,
+            # the pool rows on which it is nonzero.
+            solve_kwargs["require_any"] = list(cover_cuts)
             if no_good_cuts:
                 solve_kwargs["exclude_solutions"] = list(no_good_cuts)
         result = solve_omars_ilp(pool, solver_options=solver_options, **solve_kwargs)
