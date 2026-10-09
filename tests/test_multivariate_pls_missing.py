@@ -246,6 +246,24 @@ class TestTheSurroundingApi:
         with pytest.raises(ValueError, match="md_method must be one of"):
             _fit(_with_gaps(X, 0.20, 0), Y, "scp")
 
+    @pytest.mark.xfail(strict=True, reason="#676: held-out rows with a missing X cell get NaN CV predictions")
+    def test_select_n_components_predicts_every_held_out_row(self) -> None:
+        """#676: a held-out row with a missing X cell still gets a cross-validated prediction.
+
+        Each fold's model copes with missing cells, but the held-out rows are scored by a
+        plain product with the direct weights, so one gap makes that row's prediction NaN:
+        21 of these 40 rows.
+        """
+        rng = np.random.default_rng(1)
+        X = pd.DataFrame(rng.standard_normal((40, 6)), columns=[f"x{i}" for i in range(6)])
+        y = pd.DataFrame({"y": X.to_numpy() @ rng.normal(size=6) + 0.5 * rng.standard_normal(40)})
+        gappy = X.mask(rng.random(X.shape) < 0.15)
+
+        result = PLS.select_n_components(
+            gappy, y, cv=5, n_repeats=1, max_components=2, n_permutations=19, random_state=0
+        )
+        assert np.isfinite(result.cv_predictions.to_numpy()).all()
+
 
 class TestImputeLowRank:
     """The imputation primitive on its own, where its properties can be stated exactly."""
