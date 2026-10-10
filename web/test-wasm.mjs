@@ -139,6 +139,34 @@ const refused = roundTrip({ design_type: "dsd", factors: factors(4) }, "quadrati
 assert.ok(!refused.ok && refused.error.includes("cannot fit the quadratic model"), refused.error);
 console.log(`ok  refused: ${refused.error}`);
 
+// The guided page: the worked example through the entry points the page calls, then the
+// charts, with plotly installed late as worker.js installs it on the first chart.
+const example = call("api_catalogue", {}).result.demo;
+const made = call("api_make_design", example.design).result;
+const held = { spec: made.spec, columns: made.columns, rows: made.rows };
+const simulated = call("api_simulate", { ...held, scenario: example.scenario, sigma: example.sigma, seed: example.seed });
+assert.ok(simulated.ok, simulated.error);
+const analysed = call("api_analyze_runs", {
+  ...held,
+  responses: simulated.result.responses,
+  model: example.model,
+  truth: simulated.result.truth,
+});
+assert.ok(analysed.ok, analysed.error);
+for (const c of analysed.result.coefficients) {
+  assert.ok(c.ci_low <= c.true_value && c.true_value <= c.ci_high, `${c.term}: the interval misses the truth`);
+}
+console.log(`ok  worked example: ${analysed.result.equation}`);
+let clock = performance.now();
+await pyodide.runPythonAsync('import micropip\nawait micropip.install("plotly")');
+console.log(`ok  plotly installed after process-improve in ${((performance.now() - clock) / 1000).toFixed(1)} s`);
+clock = performance.now();
+const charts = call("api_plots", { ...held, responses: simulated.result.responses, truth: simulated.result.truth });
+assert.ok(charts.ok, charts.error);
+assert.deepEqual(Object.keys(charts.result.figures).sort(), ["contour", "residuals", "true_contour"]);
+const timing = `${((performance.now() - clock) / 1000).toFixed(2)} s`;
+console.log(`ok  charts: ${Object.keys(charts.result.figures).join(", ")} for Plotly.js ${charts.result.plotly_js}; ${timing}`);
+
 // A workbook's model name is data, never code.
 const hostile = roundTrip({ design_type: "dsd", factors: factors(4) }, "__import__('os')");
 assert.equal(hostile.ok, false);
