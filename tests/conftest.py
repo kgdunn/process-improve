@@ -42,7 +42,9 @@ def pytest_addoption(parser: pytest.Parser) -> None:
 
 
 def _git(*args: str) -> list[str]:
-    result = subprocess.run(["git", *args], cwd=ROOT, check=True, capture_output=True, text=True)  # noqa: S603, S607
+    result = subprocess.run(["git", *args], cwd=ROOT, check=False, capture_output=True, text=True)  # noqa: S603, S607
+    if result.returncode:
+        raise pytest.UsageError(f"git {' '.join(args)} failed: {result.stderr.strip()}")
     return result.stdout.splitlines()
 
 
