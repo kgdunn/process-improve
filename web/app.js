@@ -87,10 +87,12 @@ function addFactor(f = { name: "", low: -1, high: 1, units: "" }) {
 const factorCount = () => document.querySelectorAll("#factors tbody tr").length;
 
 function readFactors() {
+  // A blank box is sent as null, which Python reports, rather than as Number("") = 0.
+  const number = (input) => (input.value.trim() === "" ? null : Number(input.value));
   return [...document.querySelectorAll("#factors tbody tr")].map((tr) => ({
     name: tr.querySelector("[name=name]").value.trim(),
-    low: Number(tr.querySelector("[name=low]").value),
-    high: Number(tr.querySelector("[name=high]").value),
+    low: number(tr.querySelector("[name=low]")),
+    high: number(tr.querySelector("[name=high]")),
     units: tr.querySelector("[name=units]").value.trim(),
   }));
 }

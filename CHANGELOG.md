@@ -345,6 +345,9 @@ those changes.
   - The library's warnings, such as an even-k DSD leaving no error degrees of freedom,
     are shown with the result; numerical noise from numpy and statsmodels is not.
 
+- **The browser app refuses a factor whose low or high value is blank.** A blank box was
+  read as 0, so the design was generated over a range the reader had not entered.
+
 - **The Pareto and half-normal plots draw Lenth's margins at the level the analysis
   used, and recompute them with the analysis's formula.** They looked for that level under
   `alpha`, but `analyze_experiment` stores it as `significance_level`, so an analysis at

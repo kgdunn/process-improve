@@ -406,6 +406,8 @@ def test_model_name_from_the_request_is_never_a_formula(app, model):
         ([FACTORS[0], {**FACTORS[1], "name": "T"}], "unique"),
         ([FACTORS[0], {**FACTORS[1], "name": "a b"}], "variable names"),
         ([FACTORS[0], {**FACTORS[1], "low": 5}], "below the high"),
+        ([FACTORS[0], {**FACTORS[1], "low": None}], "enter a number"),  # a blank box, which the page sends as null
+        ([FACTORS[0], {**FACTORS[1], "high": "abc"}], "enter a number"),
     ],
 )
 def test_bad_factor_input_is_reported(app, factors, message):
