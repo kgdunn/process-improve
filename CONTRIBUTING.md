@@ -40,6 +40,30 @@ A focused subset, for example the multivariate tests:
 pytest tests/test_multivariate.py -v -o "addopts="
 ```
 
+Only the tests your branch can affect, judged from a static import graph of
+`src/` and `tests/` (see `tests/_selection.py`):
+
+```bash
+pytest --no-cov --affected-since=origin/main
+```
+
+It counts committed, staged, unstaged and untracked changes since the merge
+base. A test reaches a changed file through `import` statements, module names
+in string literals, and Python snippets held in strings; a changed data file or
+document affects the code that names it. A change to `pyproject.toml`,
+`pytest.ini` or `.coveragerc`, or a deleted file, runs everything. CI uses the
+same option on pull requests for every job except `coverage`, which runs the
+whole suite in duration-balanced shards:
+
+```bash
+pytest --shard=2/4                     # the second of four shards
+pytest --no-cov --store-durations      # refresh tests/.test_durations.json
+```
+
+The four shards together are exactly the full suite. A stale durations file
+only unbalances them; refresh it when a shard's CI time drifts well away from
+the others.
+
 Tests use real datasets (LDPE, SIMCA) alongside synthetic data; please keep
 the real-dataset tests in place when adding new ones. New methods should have
 tests for both basic functionality and edge cases.
