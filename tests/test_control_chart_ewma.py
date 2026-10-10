@@ -139,7 +139,7 @@ def test_rejects_a_weight_outside_zero_to_one(weight: float) -> None:
 
 def test_rejects_the_holt_winters_trend_weight() -> None:
     """An EWMA chart has a single weight; ``ld_2`` belongs to the Holt-Winters chart."""
-    with pytest.raises(ValueError, match="Holt-Winters chart only"):
+    with pytest.raises(ValueError, match=r"unexpected keyword argument.*'ewma' chart accepts \['ld_1'\]"):
         fit_ewma(shifted_series(), ld_2=0.3)
 
 

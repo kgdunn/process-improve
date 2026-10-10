@@ -208,13 +208,13 @@ def test_calculate_limits_rejects_non_positive_s() -> None:
 
 
 def test_unsupported_variant_cannot_estimate_limits() -> None:
-    """A variant with no fitting routine (e.g. cusum) is rejected at construction.
+    """A variant with no fitting routine (e.g. a moving-range chart) is rejected at construction.
 
     Previously it slipped through every fit branch and surfaced much later as
     a misleading "input is likely constant or too short" error.
     """
     with pytest.raises(ValueError, match="not implemented"):
-        ControlChart(variant="cusum")
+        ControlChart(variant="moving.range")
 
 
 def test_unknown_style_for_xbar_no_subgroup_raises() -> None:
@@ -512,12 +512,7 @@ def test_control_chart_tool_default_holt_winters(in_control_series_with_one_outl
 
 @pytest.mark.parametrize("chart_type", ["shewhart", "holt_winters", "ewma"])
 def test_control_chart_tool_supports_each_chart_type(chart_type: str) -> None:
-    """The Shewhart, Holt-Winters and EWMA chart_types produce a valid result on a generic series.
-
-    'cusum' is also documented but its underlying ControlChart variant requires additional
-    setup beyond raw values, so it surfaces as an `error` dict here. Covered indirectly by
-    `test_control_chart_tool_returns_error_on_bad_input` (the same `except` branch).
-    """
+    """Every chart_type produces a valid result on a generic series."""
     rng = np.random.default_rng(0)
     values = [float(v) for v in rng.normal(loc=0.0, scale=1.0, size=40)]
     result = execute_tool_call("control_chart", {"values": values, "chart_type": chart_type})
