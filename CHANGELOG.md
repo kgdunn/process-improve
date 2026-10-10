@@ -58,8 +58,47 @@ those changes.
   - **Dependency:** `threadpoolctl`, already installed with scikit-learn, is now
     declared directly. The fits run their many small matrix operations on one BLAS
     thread, which is ten times faster.
+- **EWMA control chart: `ControlChart(variant="ewma")`.** The chart plots the
+  exponentially weighted moving average `z_t = w y_t + (1 - w) z_(t-1)`, started at the
+  target, against its exact 3-sigma limits, which start narrow and widen to
+  `target +/- 3 s sqrt(w / (2 - w))`. Set the weight with
+  `calculate_limits(y, ld_1=w)`; the default 0.2 suits small shifts, and `ld_1=1` gives
+  the Shewhart individuals chart. A given `target` and `s` are used as they are; a
+  missing one is estimated as for the Shewhart chart. A missing observation holds the
+  statistic and is never flagged. On a sustained one-sigma shift, with the target and
+  `s` known, the EWMA chart alarms 14 samples after the shift and the Shewhart chart not
+  at all. The `control_chart` agent tool takes `chart_type="ewma"` and also reports the
+  weight and the statistic at each alarm.
+- **CUSUM control chart: `ControlChart(variant="cusum")`.** The tabular CUSUM keeps two
+  one-sided sums, `C+_t = max(0, C+_(t-1) + (y_t - target) - K)` and
+  `C-_t = max(0, C-_(t-1) - (y_t - target) - K)`, and raises an alarm when either exceeds
+  the decision interval `H`; that sum then restarts from zero, as the textbook describes.
+  Set `K = k s` and `H = h s` with `calculate_limits(y, k=..., h=...)` (defaults 0.5 and
+  5). Each alarm in `cusum_alarms` also dates the start of the shift and estimates the new
+  mean. It reproduces Montgomery's tabular CUSUM example (an alarm at period 29, the shift
+  dated to period 23, a new mean of 11.25), and its simulated average run lengths match
+  the published 10.4 samples after a one-sigma shift and 465 in control. The
+  `control_chart` agent tool takes `chart_type="cusum"`. Each variant now accepts only
+  its own tuning parameters, and names them when given another chart's.
 
 ### Changed
+
+- **`analyze_experiment`'s `coding` chooses the scale of the coefficients (#513).** It was
+  accepted and ignored, and its default, `"coded"`, named a scale the coefficients were
+  not on. The default is now `"actual"`, which is what every call already returned.
+  - `coding="coded"` refits the model with each numeric factor mapped from its extremes
+    to -1 and +1, a two-level categorical factor coded as for the effects, and, in a named
+    model, a categorical factor with more levels sum-coded.
+  - A dict such as `{"T": {"low": 150, "high": 200}}` codes from those levels instead,
+    for example a central composite design's cube rather than its axial runs.
+  - The result reports `coding`, and `factor_coding` with each factor's coded range.
+  - The `analyze_experiment` agent tool takes `coding` too.
+
+  This changes more than the units. In a model with interactions, a main effect is tested
+  where the other factors are zero, which on the actual scale can be far outside the
+  experiment. With T at 150 and 200 degC, P's coefficient is -4.5 (p = 0.09) at 0 degC
+  but +2.5 (p = 0.0066, the ANOVA's p) at the centre of the design. A model whose coded
+  refit fits differently, such as an interaction without its main effects, warns.
 
 - **`max_iter` defaults to 500 on every iterative estimator (#588).** `PCA`, `PLS` and
   `OPLS` used 1000; `MBPCA`, `MBPLS` and `TPLS` already used 500. One number now, so a
@@ -188,6 +227,19 @@ those changes.
     that coding would change, such as an interaction without its main effects, is
     tested as given.
 
+
+- **`optimize_responses` no longer optimises coefficients fitted in actual units as if
+  they were coded (#513).** It evaluates models at coded settings, from -1 to +1, and the
+  documentation said an `analyze_experiment` result could be passed as it is. For data
+  in actual units the search therefore ran over -1 to +1 degC. Maximising `y` in a 2^2
+  experiment with T at 150 and 200 degC gave T = 200, P = 1 with a predicted `y` of
+  -5.0, where the best run is T = 200, P = 3 with `y` = 25.
+  - Such a model is now refused, with a pointer to `coding="coded"`.
+  - A coded model supplies `factor_ranges` itself, so the optimum is also reported in
+    actual units. A `factor_ranges` entry that disagrees with it, or two models coded
+    from different ranges, raise rather than mix two scales.
+  - Models without the new keys, written out by hand or Scheffe mixture models, are
+    used as before.
 - **`c()` combines all its arguments, as R's `c()` does (#513).** An iterable replaced
   the entries before it, so `c([1, 2], [3, 4])` gave `[3, 4]` and `c(1, [2, 3])` lost
   the 1. A string or a tuple was dropped altogether: `c("Dry", "Wet", levels=...)`, the
@@ -216,6 +268,15 @@ those changes.
   listed the whole plots of one replicate only, so it was shorter than the design, and
   `n_whole_plots` counted one replicate's. Each replicate now has whole plots of its
   own, as it is run again from scratch.
+
+- **The Shewhart chart (`variant="xbar.no.subgroup"`) keeps a `target` and `s` you
+  give it.** `calculate_limits(y, target=..., s=...)` replaced both with estimates from
+  `y`, although its docstring says given values are used, so a chart could not be drawn
+  from known (Phase I) values. In the new test, a two-sigma shift in the last 20 of 80
+  samples is flagged at sample 70 against the known target 50 and `s` 2, and not at all
+  against the estimates, which the shift itself had pulled. A given value is now used as
+  it is, and only a missing one is estimated; the robust `s` is still the MAD about the
+  data's own median. Without a given `target` or `s` the chart is unchanged.
 
 The fixes below were found while raising test coverage to 96% (#678).
 
@@ -258,6 +319,9 @@ The fixes below were found while raising test coverage to 96% (#678).
   panelist id passed on some runs. Such a label now always fails the check. Labels with
   stray spaces (`"Salty "`) are compared in the stripped form the long table writes, so
   they now reshape cleanly.
+- **`pip install 'process-improve[all]'` installs `ruptures`.** The `batch` extra has
+  needed it since #605, for the change-point detection in `features.f_rupture`, but it was
+  never added to `all`, which the README presents as everything the other extras install.
 
 ### Security
 
@@ -299,11 +363,18 @@ The fixes below were found while raising test coverage to 96% (#678).
   on a float, and the `ColumnTransformer` example, now in `SKLEARN_COMPATIBILITY.md`
   and tested there, needs `OneHotEncoder(sparse_output=False)` under pandas output.
   The README also gains a banner, a recording of the in-browser app, and a table
-  from ten practical questions to one call and a textbook chapter; it no longer
-  lists a CUSUM chart, which does not exist, and its links are absolute, so they
-  work on PyPI too.
+  from ten practical questions to one call and a textbook chapter, and its links are
+  absolute, so they work on PyPI too.
 - **PyPI links the documentation, changelog, in-browser app and textbook**
   (`[project.urls]`).
+- **The README is checked beyond its code blocks.** `tests/test_readme_guards.py`
+  confirms, offline, that every call quoted in its text and tables names a real function,
+  method and keyword, that every link into the repository and the documentation resolves,
+  and that the installation lines match `pyproject.toml`. A weekly job,
+  `tools/check_readme_links.py`, requests every other link and checks that the openmv.net
+  data files still match the bundled copies behind the README's numbers. The checks
+  brought two fixes: the `batch` line now lists `ruptures`, and the `control` extra
+  (`osqp`, the batch mid-course correction solver) is documented.
 
 ## [1.97.2] - 2026-10-07
 
