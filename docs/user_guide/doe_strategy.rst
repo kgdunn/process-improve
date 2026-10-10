@@ -370,9 +370,20 @@ When optimizing for more than one response, define each with its own goal:
 
 The strategy structure is the same - the engine plans the experimental
 stages needed to build models for all responses simultaneously.  After
-running the experiments, use
+running the experiments, fit each response with
+:func:`~process_improve.experiments.analyze_experiment` and
+``coding="coded"``, and pass the results to
 :func:`~process_improve.experiments.optimize_responses` with desirability
 functions to find the best trade-off across responses.
+
+The optimiser evaluates the models at coded settings, from -1 to +1, so it
+needs coefficients on that scale. Fitted in actual units (degrees, minutes,
+bar), a model's coefficients would be searched over -1 to +1 of those units,
+so the optimiser refuses them and says how to refit. Coded coefficients
+carry the ranges they were coded from, so the optimum comes back in actual
+units as well. When the data's extremes are not the levels that should be
+-1 and +1, as with a central composite design's axial runs, give the ranges
+instead: ``coding={"T": {"low": 150, "high": 200}, ...}``.
 
 See Also
 --------
