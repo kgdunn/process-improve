@@ -66,7 +66,9 @@ class DataFrameDict(dict):
         for block in set(self.partitionable_blocks) & set(self.datadict.keys()):
             for group, df in self.datadict[block].items():
                 if not isinstance(df, pd.DataFrame):
-                    raise TypeError(f"Expected a DataFrame for block {block}, group '{group}'; got instead{type(df)}.")
+                    raise TypeError(
+                        f"Expected a DataFrame for block {block}, group '{group}'; got {type(df).__name__}."
+                    )
                 if df.shape[0] != self.n_samples:
                     raise ValueError(
                         f"DataFrames in block {block} must have the same number of rows ({self.n_samples}). "
@@ -493,7 +495,7 @@ class TPLS(RegressorMixin, BaseEstimator):
         if not isinstance(X, DataFrameDict):
             raise TypeError(f"X must be a DataFrameDict; got {type(X).__name__}.")
         self._input_data_checks(X)
-        group_keys = [str(key) for key in self.d_matrix]
+        group_keys = list(self.d_matrix)
 
         # Storage for pre-processing and the raw matrices
         self.fitting_statistics: dict[str, list] = {"iterations": [], "convergance_tolerance": [], "milliseconds": []}
@@ -509,10 +511,14 @@ class TPLS(RegressorMixin, BaseEstimator):
         self.r2_frac: list[dict[str, dict[str, np.ndarray]]] = [{key: {} for key in self.required_blocks_}]
         self.feature_importance: dict[str, dict[str, pd.Series]] = {key: {} for key in self.required_blocks_}
 
-        self.d_mats: dict[str, np.ndarray] = {key: self.d_matrix[key].values.copy() for key in group_keys}
-        self.f_mats: dict[str, np.ndarray] = {key: X["F"][key].values.copy() for key in group_keys}
-        self.z_mats: dict[str, np.ndarray] = {key: X["Z"][key].values.copy() for key in X["Z"]}
-        self.y_mats: dict[str, np.ndarray] = {key: X["Y"][key].values.copy() for key in X["Y"]}
+        # Float copies: int64 columns are accepted, and the blocks are deflated in place, which
+        # cannot write a float result back into an integer array.
+        self.d_mats: dict[str, np.ndarray] = {
+            key: self.d_matrix[key].to_numpy(dtype=float, copy=True) for key in group_keys
+        }
+        self.f_mats: dict[str, np.ndarray] = {key: X["F"][key].to_numpy(dtype=float, copy=True) for key in group_keys}
+        self.z_mats: dict[str, np.ndarray] = {key: X["Z"][key].to_numpy(dtype=float, copy=True) for key in X["Z"]}
+        self.y_mats: dict[str, np.ndarray] = {key: X["Y"][key].to_numpy(dtype=float, copy=True) for key in X["Y"]}
 
         # Empty model coefficients
         self.n_substances = sum(self.f_mats[key].shape[1] for key in group_keys)
@@ -717,8 +723,9 @@ class TPLS(RegressorMixin, BaseEstimator):
 
         # Column-name consistency between the new data and the training data is
         # validated per block below (see the ``set(df_f.columns) != ...`` checks).
-        x_f: dict[str, pd.DataFrame] = {key: X["F"][key].copy() for key in X["F"]}
-        x_z: dict[str, pd.DataFrame] = {key: X["Z"][key].copy() for key in X["Z"]}
+        # Float copies, as in fit(): an int64 block is deflated in place below.
+        x_f: dict[str, pd.DataFrame] = {key: X["F"][key].astype(float) for key in X["F"]}
+        x_z: dict[str, pd.DataFrame] = {key: X["Z"][key].astype(float) for key in X["Z"]}
 
         for key, df_f in x_f.items():
             if not self.skip_f_matrix_preprocessing:
@@ -755,23 +762,15 @@ class TPLS(RegressorMixin, BaseEstimator):
             for key in self.y_mats
         }
 
+        # DataFrameDict holds every group of every block at one row count (its constructor
+        # and __setitem__ both enforce it), so only the column names need checking here.
         for key, df_f in x_f.items():
-            if df_f.shape[0] != num_obs:
-                raise ValueError(
-                    f"All formula blocks must have the same number of rows; "
-                    f"group [{key}] has {df_f.shape[0]} rows, expected {num_obs}."
-                )
             if set(df_f.columns) != set(self.material_names[key]):
                 raise ValueError(
                     f"Columns in block F, group [{key}] must match training data column names for each material."
                 )
 
         for key, df_z in x_z.items():
-            if df_z.shape[0] != num_obs:
-                raise ValueError(
-                    f"All condition blocks must have the same number of rows; "
-                    f"group [{key}] has {df_z.shape[0]} rows, expected {num_obs}."
-                )
             if set(df_z.columns) != set(self.condition_names[key]):
                 raise ValueError(f"Column names in block Z, group [{key}] must match training data column names.")
 
@@ -1047,13 +1046,14 @@ class TPLS(RegressorMixin, BaseEstimator):
         return (self.help.__doc__ or "").replace("        ", "").replace("\n\n", "\n").strip()
 
     def _input_data_checks(self, X: DataFrameDict) -> None:
-        """Check the incoming data."""
-        if not isinstance(X, DataFrameDict):
-            raise TypeError(f"The input data must be a DataFrameDict; got {type(X).__name__}.")
-        if set(X.keys()) != self.required_inputs_:
-            raise ValueError(f"Expected keys: {self.required_inputs_}, got: {set(X.keys())}.")
-        group_keys = [str(key) for key in self.d_matrix]
-        if set(X["F"]) != set(group_keys):
+        """Check the incoming data.
+
+        ``fit``, the only caller, has already checked that ``X`` is a DataFrameDict, and a
+        DataFrameDict always holds exactly the Z, F and Y blocks, so neither is checked here.
+        """
+        # Group names are labels, used exactly as given. Passing them through ``str()`` in some
+        # places and not in others meant a non-string group name could never be fitted.
+        if set(X["F"]) != set(self.d_matrix):
             raise ValueError("The keys in F must match the keys in D.")
 
         for key in X["Y"]:
@@ -1062,9 +1062,7 @@ class TPLS(RegressorMixin, BaseEstimator):
             self._validate_df(X["Z"][key])
         for key in self.d_matrix:
             self._validate_df(self.d_matrix[key])
-            if key not in X["F"]:
-                raise ValueError(f"Block/group name '{key}' in D must also be present in F.")
-            self._validate_df(X["F"][key])  # this also ensures the keys in F are the same as in D
+            self._validate_df(X["F"][key])
 
     def _learn_center_and_scaling_parameters(self, y: pd.DataFrame, label: str = "") -> tuple[pd.Series, pd.Series]:
         """
@@ -1122,8 +1120,9 @@ class TPLS(RegressorMixin, BaseEstimator):
         y : {pd.DataFrame}
             Returns the input dataframe.
         """
-        # Ensure all columns are dtype "float64" or "int64"
-        if not all(good_cols := [isinstance(col, (np.dtypes.Float64DType, np.dtypes.IntDType)) for col in df.dtypes]):
+        # Ensure all columns are dtype "float64" or "int64". (``np.dtypes.IntDType`` is the
+        # C ``int``, which is int32, so it must not stand in for int64 here.)
+        if not all(good_cols := [isinstance(col, (np.dtypes.Float64DType, np.dtypes.Int64DType)) for col in df.dtypes]):
             bad_columns = df.columns[[not item for item in good_cols]].to_list()
             raise ValueError(
                 f"All columns in the DataFrame must be of type float64 or int64. Bad columns: {bad_columns}"

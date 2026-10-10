@@ -1785,10 +1785,11 @@ def _legends_below_panels(fig: go.Figure, panel_legend: dict[tuple[int, int], st
 def _annotate_cv_criteria(fig: go.Figure, result: typing.Any) -> None:  # noqa: ANN401
     """Mark each panel's recommended component counts, and caption the SPE-limit ratio in panel 4."""
     picks: dict[tuple[int, int, int], list[str]] = {}
+    # Every rule compare_cv_criteria recommends by has a panel here, so a new rule that
+    # lacks one fails on this lookup rather than silently going unplotted.
     for rule, n_components in result.recommendations["n_components"].items():
-        if rule in _CV_CRITERIA_PANELS:
-            row, col, label = _CV_CRITERIA_PANELS[rule]
-            picks.setdefault((row, col, int(n_components)), []).append(label)
+        row, col, label = _CV_CRITERIA_PANELS[rule]
+        picks.setdefault((row, col, int(n_components)), []).append(label)
     captions: dict[tuple[int, int], str] = {}
     for (row, col, n_components), labels in sorted(picks.items(), key=lambda item: item[0][2]):
         part = f"{n_components} ({', '.join(labels)})"

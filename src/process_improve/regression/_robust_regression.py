@@ -41,8 +41,7 @@ def _drop_non_finite_pairs(x: np.ndarray, y: np.ndarray) -> tuple[np.ndarray, np
     Parameters
     ----------
     x, y : np.ndarray
-        Equal-length 1-D arrays. Returned unchanged if their shapes differ, which the
-        ``nowarn=True`` path of the caller permits.
+        Equal-length 1-D arrays; the caller refuses vectors of different lengths.
 
     Returns
     -------
@@ -54,9 +53,6 @@ def _drop_non_finite_pairs(x: np.ndarray, y: np.ndarray) -> tuple[np.ndarray, np
     ValueError
         If fewer than three finite pairs remain.
     """
-    if x.shape != y.shape:
-        return x, y
-
     finite = np.isfinite(x) & np.isfinite(y)
     if finite.all():
         return x, y
@@ -87,10 +83,11 @@ def repeated_median_slope(x: np.ndarray, y: np.ndarray, nowarn: bool = False) ->
         Independent variable. Coerced to a 1-D numpy array. Must have at least 3 elements
         (unless ``nowarn=True``).
     y : np.ndarray or sequence
-        Dependent variable. Must have the same length as ``x`` (unless ``nowarn=True``).
+        Dependent variable. Must have the same length as ``x``.
     nowarn : bool, optional
-        If ``True``, skip the length and equal-length input assertions. Default ``False``.
-        The finite-data check is always applied when ``x`` and ``y`` have the same shape.
+        If ``True``, skip the minimum-length check and the SEC-19 cap on the number of
+        points. Default ``False``. The equal-length check and the finite-data check are
+        always applied.
 
     Returns
     -------
@@ -101,8 +98,10 @@ def repeated_median_slope(x: np.ndarray, y: np.ndarray, nowarn: bool = False) ->
     Raises
     ------
     ValueError
-        If fewer than three finite ``(x, y)`` pairs remain after non-finite pairs are
-        dropped, so no repeated median can be formed.
+        If ``x`` and ``y`` differ in length; if, unless ``nowarn=True``, there are two
+        points or fewer or more than the SEC-19 cap; or if fewer than three finite
+        ``(x, y)`` pairs remain after non-finite pairs are dropped, so no repeated median
+        can be formed.
 
     Notes
     -----
@@ -121,11 +120,13 @@ def repeated_median_slope(x: np.ndarray, y: np.ndarray, nowarn: bool = False) ->
     x = x.copy().ravel() if isinstance(x, np.ndarray) else pd.Series(x).values.ravel()
     y = y.copy().ravel() if isinstance(y, np.ndarray) else pd.Series(y).values.ravel()
 
-    if not (nowarn):
-        if len(x) <= 2:
-            raise ValueError("More than two samples are required for this function.")
-        if len(x) != len(y):
-            raise ValueError("Vectors x and y must have the same length.")
+    if not nowarn and len(x) <= 2:
+        raise ValueError("More than two samples are required for this function.")
+    # Checked whatever `nowarn` says: vectors of different lengths have no pairs to
+    # form, and the slope loop below would otherwise fail with an IndexError.
+    if len(x) != len(y):
+        raise ValueError("Vectors x and y must have the same length.")
+    if not nowarn:
         # SEC-19 (#268): O(N^2) kernel; cap N so a 100k-point payload
         # cannot lock up CPU for many minutes.
         from process_improve.config import settings  # noqa: PLC0415
@@ -875,10 +876,10 @@ class OLS(RegressorMixin, BaseEstimator):
         out["k"] = self._k_
         if not np.isnan(self.x_ssq_):
             out["x_ssq"] = self.x_ssq_
-        if not (isinstance(self.leverage_, np.ndarray) and self.leverage_.size == 1 and np.isnan(self.leverage_[0])):
-            out["leverage"] = self.leverage_
-        if not (isinstance(self.influence_, np.ndarray) and self.influence_.size == 1 and np.isnan(self.influence_[0])):
-            out["influence"] = self.influence_
+        # A fitted model has at least two rows, so these are always real per-row arrays,
+        # never the one-element NaN placeholders an unfitted model holds.
+        out["leverage"] = self.leverage_
+        out["influence"] = self.influence_
         if isinstance(self.pi_range_, np.ndarray):
             out["pi_range"] = self.pi_range_
         return out

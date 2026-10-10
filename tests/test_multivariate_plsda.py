@@ -8,6 +8,7 @@ promise that everything `PLS` already offers still works on the subclass.
 from __future__ import annotations
 
 import inspect
+import itertools
 import pathlib
 
 import numpy as np
@@ -18,7 +19,14 @@ from sklearn.model_selection import cross_val_score
 from sklearn.pipeline import Pipeline
 
 from process_improve.multivariate._plsda import _bayes_threshold
-from process_improve.multivariate.methods import PLS, PLSDA, MCUVScaler, confusion_matrix_plot
+from process_improve.multivariate.methods import (
+    PLS,
+    PLSDA,
+    MCUVScaler,
+    NotEnoughVarianceError,
+    SpecificationWarning,
+    confusion_matrix_plot,
+)
 
 
 def _separable(
@@ -142,6 +150,23 @@ def test_bayes_threshold_lands_where_the_densities_cross() -> None:
     assert prior * density(threshold, mean_in, sd_in) == pytest.approx(
         (1 - prior) * density(threshold, mean_out, sd_out), rel=1e-9
     )
+
+    # A prior so small that neither crossing falls between the means: the midpoint stands in.
+    assert _bayes_threshold(mean_in=1.0, sd_in=0.1, mean_out=0.0, sd_out=1.0, prior_in=1e-6) == pytest.approx(0.5)
+
+
+def test_plsda_bayes_rule_handles_a_class_with_one_member() -> None:
+    """A lone member has no spread, so the floor stands in for it, and it is still classified."""
+    rng = np.random.default_rng(0)
+    X = pd.DataFrame(
+        np.vstack([rng.standard_normal((12, 4)), rng.standard_normal((12, 4)) + 3, rng.standard_normal((1, 4)) - 3])
+    )
+    y = np.array(["a"] * 12 + ["b"] * 12 + ["solo"])
+    model = PLSDA(n_components=2, decision_rule="bayes").fit(X, y)
+
+    assert model.class_statistics_.loc["solo", "sd_in"] == pytest.approx(np.sqrt(np.finfo(float).eps))
+    assert np.isfinite(model.thresholds_).all()
+    assert list(model.predict(X.iloc[[24]])) == ["solo"]
 
 
 def test_plsda_bayes_rule_recovers_the_rare_class() -> None:
@@ -268,6 +293,66 @@ def test_plsda_permutation_test_without_cross_validation_is_the_fast_path() -> N
     # A model that memorises the real labels memorises shuffled ones too, which is exactly
     # why this path is not the default: the null sits far above chance.
     assert result.null.mean() > 0.5
+
+
+def _null_fits_that_fail(monkeypatch: pytest.MonkeyPatch, every: int) -> None:
+    """Make every `every`-th null fit raise NotEnoughVarianceError, as a collapsed shuffle does.
+
+    Call 0 is the observed fit, which always succeeds; with ``every=1`` every null fit fails.
+    """
+    original = PLSDA._clone_unfitted
+    calls = itertools.count()
+
+    def clone_that_may_not_fit(self: PLSDA) -> PLSDA:
+        fresh = original(self)
+        call = next(calls)
+        if call > 0 and call % every == 0:
+
+            def refuse(*_args: object, **_kwargs: object) -> PLSDA:
+                raise NotEnoughVarianceError("simulated: nothing left to fit")
+
+            fresh.fit = refuse  # type: ignore[method-assign]
+        return fresh
+
+    monkeypatch.setattr(PLSDA, "_clone_unfitted", clone_that_may_not_fit)
+
+
+def test_plsda_permutation_test_drops_draws_that_cannot_be_fitted(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A shuffle that cannot be fitted is dropped from the null, not scored as zero, and counted."""
+    X, y = _separable(n_per_class=12, n_features=4, seed=6)
+    model = PLSDA(n_components=2).fit(X, y)
+    _null_fits_that_fail(monkeypatch, every=2)
+    with pytest.warns(
+        SpecificationWarning,
+        match=r"^5 of 10 permutations could not be fitted at n_components=2 and were dropped; "
+        r"the p-value is over the remaining 5\.",
+    ):
+        result = model.permutation_test(X, y, n_permutations=10, cv=None, random_state=0)
+    assert (result.n_permutations, result.n_failed) == (5, 5)
+    assert result.null.size == 5
+
+
+def test_plsda_permutation_test_refuses_when_no_draw_can_be_fitted(monkeypatch: pytest.MonkeyPatch) -> None:
+    """With every shuffle unfittable there is no null to compare against, and the error says what to change."""
+    X, y = _separable(n_per_class=12, n_features=4, seed=6)
+    model = PLSDA(n_components=2).fit(X, y)
+    _null_fits_that_fail(monkeypatch, every=1)
+    with pytest.raises(
+        RuntimeError, match=r"^Every one of the 10 permutations failed to fit at n_components=2\..*fewer components"
+    ):
+        model.permutation_test(X, y, n_permutations=10, cv=None, random_state=0)
+
+
+def test_plsda_score_weights_each_sample() -> None:
+    """Weighted accuracy counts each sample by its weight: all on the right ones gives 1, on the wrong ones 0."""
+    X, y = _separable(n_per_class=20, separation=1.0, seed=13)
+    model = PLSDA(n_components=2).fit(X, y)
+    right = model.predict(X) == y
+    assert 0 < right.sum() < len(y)  # some of each, so the weights have something to choose
+
+    assert model.score(X, y, sample_weight=np.ones(len(y))) == pytest.approx(model.score(X, y))
+    assert model.score(X, y, sample_weight=right.astype(float)) == pytest.approx(1.0)
+    assert model.score(X, y, sample_weight=(~right).astype(float)) == pytest.approx(0.0)
 
 
 # ---------------------------------------------------------------------------
@@ -429,6 +514,20 @@ def test_confusion_matrix_plot() -> None:
 
     with pytest.raises(ValueError, match="Model is not fitted"):
         confusion_matrix_plot(PLSDA(n_components=2))
+
+
+def test_confusion_matrix_plot_of_a_supplied_matrix() -> None:
+    """A matrix passed in, say a held-out one, is drawn as given, onto the figure passed in.
+
+    The model need not be fitted then, and `show_values=False` leaves the cells unlabelled.
+    """
+    go = pytest.importorskip("plotly.graph_objects")
+    held_out = pd.DataFrame([[5, 1], [2, 7]], index=["high", "low"], columns=["high", "low"])
+    canvas = go.Figure()
+    fig = confusion_matrix_plot(PLSDA(n_components=2), held_out, settings={"show_values": False}, fig=canvas)
+    assert fig is canvas
+    np.testing.assert_allclose(np.asarray(fig.data[0].z), held_out.to_numpy())
+    assert fig.data[0].text is None
 
 
 @pytest.mark.dataset

@@ -102,6 +102,17 @@ def test_kernel_pls_reconstructs_beta(synthetic_pls_data: tuple[pd.DataFrame, pd
     np.testing.assert_allclose(beta_raw, batch.beta_coefficients_.to_numpy(), atol=1e-9)
 
 
+@pytest.mark.parametrize(
+    ("kernel_xx", "kernel_xy"),
+    [(np.eye(2), np.zeros((2, 1))), (np.zeros((2, 2)), np.ones((2, 1)))],
+    ids=["no-covariance-with-y", "no-spread-in-x"],
+)
+def test_kernel_pls_extracts_nothing_when_nothing_is_left(kernel_xx: np.ndarray, kernel_xy: np.ndarray) -> None:
+    """With no X'Y covariance, or no X'X spread along it, no component is extracted: every output stays zero."""
+    for part in _kernel_pls(kernel_xx, kernel_xy, n_components=1):
+        np.testing.assert_array_equal(part, np.zeros_like(part))
+
+
 # --------------------------------------------------------------------------- #
 # Initial-fit correctness
 # --------------------------------------------------------------------------- #
@@ -587,3 +598,126 @@ def test_adaptive_models_expose_hotellings_t2_limit(
     limit_pls = float(pls.hotellings_t2_limit(conf_level=0.99))
     probe = pls.update(X.iloc[0].to_numpy())
     assert limit_pls == pytest.approx(float(probe.hotellings_t2_limit))
+
+
+# --------------------------------------------------------------------------- #
+# Guards shared by both estimators, and the paths beside them
+# --------------------------------------------------------------------------- #
+
+
+def _fit_either(
+    cls: type[AdaptivePCA | AdaptivePLS], X: pd.DataFrame, Y: pd.DataFrame, **params: object
+) -> AdaptivePCA | AdaptivePLS:
+    """Fit either estimator on the same data: AdaptivePCA takes no Y."""
+    model = cls(n_components=2, **params)
+    return model.fit(X) if cls is AdaptivePCA else model.fit(X, Y)
+
+
+@pytest.mark.parametrize("cls", [AdaptivePCA, AdaptivePLS])
+@pytest.mark.parametrize(
+    ("params", "message"),
+    [
+        ({"forgetting_factor": 1.5}, r"^forgetting_factor must lie in \[0, 1\]; got 1\.5\.$"),
+        ({"gamma": -0.1}, r"^gamma must lie in \[0, 1\]; got -0\.1\.$"),
+    ],
+    ids=["forgetting-factor-above-1", "gamma-below-0"],
+)
+def test_both_estimators_refuse_tuning_constants_outside_0_1(
+    synthetic_pls_data: tuple[pd.DataFrame, pd.DataFrame], cls: type, params: dict, message: str
+) -> None:
+    """The forgetting factor and the injection weight are fractions, checked at fit time."""
+    X, Y = synthetic_pls_data
+    with pytest.raises(ValueError, match=message):
+        _fit_either(cls, X, Y, **params)
+
+
+@pytest.mark.parametrize("cls", [AdaptivePCA, AdaptivePLS])
+def test_an_update_that_empties_the_kernel_leaves_it_at_zero(
+    synthetic_pls_data: tuple[pd.DataFrame, pd.DataFrame], cls: type
+) -> None:
+    """With a forgetting factor of 1 an observation at the centre empties the kernel.
+
+    The kernel is then left at zero rather than rescaled by its zero norm, so the model
+    stays finite.
+    """
+    X, Y = synthetic_pls_data
+    model = _fit_either(cls, X, Y, forgetting_factor=1.0, update_when_out_of_control=True)
+    centre = (model.mx_.copy(),) if cls is AdaptivePCA else (model.mx_.copy(), model.my_.copy())
+    assert model.update(*centre).updated
+    np.testing.assert_array_equal(model.XtX_, np.zeros_like(model.XtX_))
+    if cls is AdaptivePLS:
+        np.testing.assert_array_equal(model.XtY_, np.zeros_like(model.XtY_))
+    assert np.isfinite(model.x_loadings_ if cls is AdaptivePLS else model.loadings_).all(axis=None)
+
+
+def test_a_fixed_spe_limit_stays_at_the_training_limit(synthetic_pca_data: pd.DataFrame) -> None:
+    """adaptive_spe_limit=False keeps the training limit; the default refits it as rows stream in."""
+    training, stream = synthetic_pca_data.iloc[:200], synthetic_pca_data.iloc[200:].to_numpy()
+    fixed = AdaptivePCA(n_components=3, forgetting_factor=0.05, adaptive_spe_limit=False).fit(training)
+    rolling = AdaptivePCA(n_components=3, forgetting_factor=0.05).fit(training)
+
+    fixed_limits = {fixed.update(row).spe_limit for row in stream}
+    rolling_limits = {rolling.update(row).spe_limit for row in stream}
+    assert len(fixed_limits) == 1
+    assert len(rolling_limits) > 1
+
+
+def test_pls_missing_data_projection_is_finite(synthetic_pls_data: tuple[pd.DataFrame, pd.DataFrame]) -> None:
+    """A partially missing observation projects, and predicts, through single-component projection."""
+    X, Y = synthetic_pls_data
+    model = AdaptivePLS(n_components=3).fit(X, Y)
+    row = X.iloc[0].to_numpy().copy()
+    row[1] = np.nan
+    out = model.update(row)
+    assert np.all(np.isfinite(out.scores))
+    assert np.all(np.isfinite(out.prediction))
+    assert np.isfinite(out.spe)
+    assert np.isfinite(out.hotellings_t2)
+
+
+def test_a_missing_response_is_treated_as_no_response(synthetic_pls_data: tuple[pd.DataFrame, pd.DataFrame]) -> None:
+    """A NaN in y_row holds the regression side, exactly as passing no response does."""
+    X, Y = synthetic_pls_data
+    with_nan = AdaptivePLS(n_components=2, forgetting_factor=0.05).fit(X, Y)
+    without = AdaptivePLS(n_components=2, forgetting_factor=0.05).fit(X, Y)
+    row = X.iloc[3].to_numpy()
+    assert with_nan.update(row, y_row=[np.nan]).updated
+    assert without.update(row).updated
+    for attribute in ("XtX_", "XtY_", "my_", "sy_"):
+        np.testing.assert_array_equal(getattr(with_nan, attribute), getattr(without, attribute))
+
+
+def test_prediction_channels_for_several_responses(ldpe_data: tuple[pd.DataFrame, pd.DataFrame]) -> None:
+    """With several responses the channels are keyed by (target, channel), and still add up per target."""
+    X, Y = ldpe_data
+    model = AdaptivePLS(n_components=3, forgetting_factor=0.05, update_when_out_of_control=True).fit(
+        X.iloc[:40], Y.iloc[:40]
+    )
+    model.partial_fit(X.iloc[40:], Y.iloc[40:])
+    channels = model.prediction_channels_
+    assert channels.columns.names == ["target", "channel"]
+    assert list(channels.columns.get_level_values("target").unique()) == list(Y.columns)
+    for target in Y.columns:
+        parts = channels[target]
+        np.testing.assert_allclose(
+            parts["adaptive"], parts["static"] + parts["preprocessing"] + parts["kernel"], atol=1e-9
+        )
+        np.testing.assert_allclose(parts["adaptive"].to_numpy(), model.predictions_[target].to_numpy(), atol=1e-9)
+
+
+def test_adaptation_plot_blanks_the_channels_outside_valid(
+    synthetic_pls_data: tuple[pd.DataFrame, pd.DataFrame],
+) -> None:
+    """Rows marked invalid are left out of the channel traces, and only those rows."""
+    X, Y = synthetic_pls_data
+    model = AdaptivePLS(n_components=3, forgetting_factor=0.05, update_when_out_of_control=True).fit(
+        X.iloc[:90], Y.iloc[:90]
+    )
+    model.partial_fit(X.iloc[90:], Y.iloc[90:])
+    valid = np.ones(90, dtype=bool)
+    valid[:10] = False
+    fig = model.adaptation_plot(valid=valid)
+    for trace in fig.data[:3]:  # preprocessing, kernel and their total
+        values = np.asarray(trace.y, dtype=float)
+        assert np.isnan(values[:10]).all(), trace.name
+        assert np.isfinite(values[10:]).all(), trace.name

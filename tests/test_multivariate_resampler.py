@@ -141,6 +141,22 @@ class TestResamplerDispatch:
         with pytest.raises(ValueError, match="use_jackknife or bootstrap_rounds"):
             r.resample(show_progress=False)
 
+    @pytest.mark.parametrize(
+        ("rows", "settings", "method"),
+        [
+            (0, {}, "jackknife"),
+            (10, {"use_jackknife": False, "bootstrap_rounds": 0}, "bootstrap"),
+            (0, {"use_jackknife": False, "fraction_excluded": 0.2}, "fractional"),
+        ],
+        ids=["jackknife-of-no-rows", "bootstrap-of-no-rounds", "fractional-of-no-rows"],
+    )
+    def test_a_resampling_that_yields_nothing_is_refused(self, rows: int, settings: dict, method: str) -> None:
+        """No rows to leave out, or no rounds to draw, leaves nothing to summarise, and the error says so."""
+        x = DataFrameDict({"F": {"main": pd.DataFrame(np.zeros((rows, 2)), columns=["f1", "f2"])}})
+        r = Resampler(estimator=_StubEstimator(), x=x, accessor=_accessor, **settings)
+        with pytest.raises(ValueError, match=r"^No resamples were generated\. Check your data and parameters\.$"):
+            getattr(r, method)(show_progress=False)
+
 
 # ---------------------------------------------------------------------------
 # Individual resampling methods

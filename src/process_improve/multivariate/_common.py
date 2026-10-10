@@ -398,7 +398,7 @@ def _recommend_n_components_one_se(
     for a, value in enumerate(masked, start=1):
         if value <= threshold:
             return a
-    return best + 1
+    return best + 1  # pragma: no cover - a standard error is never negative, so the minimum meets its threshold
 
 
 def _select_n_components(

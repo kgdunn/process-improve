@@ -175,6 +175,52 @@ def test_operator_for_pattern_empty_mask_rejected() -> None:
         operator_for_pattern(P, P, np.ones(2), np.zeros(4, dtype=bool))
 
 
+@pytest.mark.parametrize(
+    ("arguments", "message"),
+    [
+        (
+            {"observed": np.ones(3, dtype=bool)},
+            r"^observed must be a boolean mask over the 4 features; got shape \(3,\)\.$",
+        ),
+        (
+            {"x_weights": np.ones((3, 2))},
+            r"^x_weights must have the shape of x_loadings \(4, 2\); got \(3, 2\)\.$",
+        ),
+        (
+            {"method": "tsr", "x_residuals": np.ones((10, 3))},
+            r"^x_residuals must be \(n_train, 4\) over the model's features; got shape \(10, 3\)\.$",
+        ),
+    ],
+    ids=["mask-of-another-length", "weights-of-another-shape", "residuals-over-other-features"],
+)
+def test_operator_for_pattern_refuses_inputs_of_the_wrong_shape(arguments: dict, message: str) -> None:
+    """The mask, weights and residuals must all be laid out over the model's 4 features."""
+    loadings = np.array([[1.0, 0.5], [0.5, 1.0], [0.2, 0.3], [0.1, 0.9]])
+    call = {
+        "x_loadings": loadings,
+        "guide": loadings,
+        "score_variances": np.ones(2),
+        "observed": np.ones(4, dtype=bool),
+        **arguments,
+    }
+    with pytest.raises(ValueError, match=message):
+        operator_for_pattern(**call)
+
+
+def test_scp_cannot_estimate_a_score_whose_weights_vanish_where_observed() -> None:
+    """A component whose weights are zero on every observed feature gets a zero row and an infinite condition."""
+    loadings = np.array([[1.0, 0.5], [0.5, 1.0], [0.2, 0.3], [0.1, 0.9]])
+    weights = loadings.copy()
+    weights[[0, 1], 1] = 0.0  # the second component's weight lives only on the unobserved features
+    observed = np.array([True, True, False, False])
+    op = operator_for_pattern(loadings, loadings, np.ones(2), observed, method="scp", x_weights=weights)
+    assert op.condition_number == np.inf
+    np.testing.assert_array_equal(op.matrix[1], np.zeros(2))
+    # The first component's weights are observed, so its row is a real, finite estimator.
+    assert np.all(np.isfinite(op.matrix[0]))
+    assert np.any(op.matrix[0] != 0)
+
+
 def test_scp_matches_adaptive_kernel_shape(fitted_pca: PCA, correlated_data: pd.DataFrame) -> None:
     """SCP via the operator equals the sequential deflation computed by hand."""
     scaled = MCUVScaler().fit_transform(correlated_data)
