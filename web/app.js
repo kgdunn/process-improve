@@ -6,7 +6,24 @@
 // analysis. Each step re-renders from that state, so the worked example drawn at first
 // paint, the live run and an uploaded workbook all show the same way.
 
-import { coefficientFigure, draw, shareContourScale } from "./charts.js";
+import { coefficientFigure, correlationFigure, draw, fdsFigure, prettyTerm, shareContourScale } from "./charts.js";
+import { analyseCode, compareCode, designCode, enteredCode, simulateCode } from "./python.js";
+
+// Where Process Improvement using Data explains each design, method and measure the page uses.
+const BOOK = "https://learnche.org/pid/design-analysis-experiments";
+const BOOK_PAGES = {
+  full_factorial: `${BOOK}/full-factorial-designs/using-two-levels-for-two-or-more-factors#doe-two-level-factorials`,
+  fractional_factorial: `${BOOK}/fractional-factorial-designs/design-resolution#doe-design-resolution`,
+  plackett_burman: `${BOOK}/fractional-factorial-designs/saturated-designs-for-screening#doe-saturated-screening-designs`,
+  dsd: `${BOOK}/definitive-screening-designs#doe-definitive-screening-designs`,
+  box_behnken: `${BOOK}/response-surface-methods#doe-box-behnken-designs`,
+  ccd: `${BOOK}/response-surface-methods#doe-central-composite-designs`,
+  d_optimal: `${BOOK}/optimal-designs#doe-optimal-designs`,
+  i_optimal: `${BOOK}/optimal-designs#doe-optimal-designs`,
+  lenth: `${BOOK}/full-factorial-designs/assessing-significance-of-main-effects-and-interactions#doe-lenth-method`,
+  measures: `${BOOK}/omars-designs#doe-omars-metric-choice`,
+  fds: `${BOOK}/judging-and-comparing-designs#doe-fds-plot`,
+};
 
 const $ = (sel) => document.querySelector(sel);
 const worker = new Worker("worker.js");
@@ -157,9 +174,11 @@ function refreshDesign() {
   $("#budget-hint").textContent = `The model has ${p} coefficients.`;
 
   const hint = $("#design-hint");
-  hint.textContent = option.disabled
-    ? `${option.textContent} takes ${option.dataset.minFactors} to ${option.dataset.maxFactors} factors on this page; you have ${k}.`
-    : option.dataset.hint;
+  if (option.disabled) {
+    hint.textContent = `${option.textContent} takes ${option.dataset.minFactors} to ${option.dataset.maxFactors} factors on this page; you have ${k}.`;
+  } else {
+    hint.replaceChildren(`${option.dataset.hint} `, link(BOOK_PAGES[option.value], "More in the book"));
+  }
   hint.classList.toggle("error", option.disabled);
   $("#generate").disabled = !pythonReady || option.disabled;
 }
@@ -201,6 +220,8 @@ function showDesign(design, warnings = []) {
   renderDesign(warnings);
   renderRuns();
   clearAnalysis();
+  if (design.spec.options) showPython("design", designCode(design.spec));
+  $("#py-run").hidden = true;
 }
 
 function renderDesign(warnings = []) {
@@ -257,6 +278,7 @@ function renderRuns() {
     state.sources[i] = input.value === "" ? null : "entered";
     input.classList.remove("sim");
     describeSource();
+    showPython("run", enteredCode(state.responses));
     scheduleAnalysis();
   };
   describeSource();
@@ -302,6 +324,7 @@ async function simulateResults() {
   state.sources = state.responses.map(() => "simulated");
   renderRuns();
   renderTruth();
+  showPython("run", simulateCode(reply.result));
   await analyseRuns();
 }
 
@@ -409,6 +432,7 @@ function renderAnalysis(reply) {
   const s = r.summary;
   const simulated = r.coefficients.some((c) => c.true_value !== undefined && c.true_value !== null);
   setStatus("Analysis complete.");
+  showPython("analyse", analyseCode(r.spec, r.model));
   const parts = [
     el("p", "equation", r.equation),
     el("p", "hint", "Coefficients are in coded units: each factor runs from -1 at its low value to +1 at its high value."),
@@ -445,8 +469,10 @@ function renderAnalysis(reply) {
     );
   }
   if (r.lenth) {
+    const heading = el("h3", "", "Effects, judged with ");
+    heading.append(link(BOOK_PAGES.lenth, "Lenth's method"));
     parts.push(
-      el("h3", "", "Effects, judged with Lenth's method"),
+      heading,
       el("p", "hint", `Pseudo standard error PSE = ${fmt(r.lenth.PSE)}; margins ME = ${fmt(r.lenth.ME)} and SME = ${fmt(r.lenth.SME)}.`),
       table(
         ["Term", "Effect", "Beyond ME", "Beyond SME"],
@@ -572,6 +598,7 @@ async function showBuiltExample() {
   state.plotlyJs = example.plots.plotly_js;
   renderRuns();
   renderTruth();
+  showPython("run", simulateCode(example.simulation));
   state.analysis = example.analysis;
   renderAnalysis({ ok: true, result: example.analysis, warnings: [] });
   $("#demo-version").textContent = `process-improve ${example.version}`;
@@ -607,6 +634,182 @@ function showScenarioHint() {
   $("#scenario-hint").textContent = $("#scenario").selectedOptions[0].dataset.hint;
 }
 
+// ---------------------------------------------------------------- compare step
+/**
+ * Generate every design the factor count allows, one call each so the page can say how
+ * far it has got, then score them all for one model on the nine measures.
+ */
+async function compareDesigns() {
+  const button = $("#compare");
+  button.disabled = true;
+  const factors = readFactors();
+  const model = $("#compare-model").value;
+  setStatus("Choosing the designs to compare...", "busy");
+  const plan = await call("api_compare_plan", { factors, model });
+  if (!plan.ok) {
+    setStatus(plan.error, "error");
+    button.disabled = false;
+    return;
+  }
+  const made = [];
+  const notes = [...plan.result.notes];
+  for (const [i, item] of plan.result.designs.entries()) {
+    setStatus(`Generating ${item.label}, ${i + 1} of ${plan.result.designs.length}...`, "busy");
+    const reply = await call("api_make_design", item.spec);
+    if (reply.ok) made.push({ ...item, design: reply.result });
+    else notes.push(`${item.label} could not be generated: ${reply.error}`);
+  }
+  setStatus("Scoring the designs...", "busy");
+  const designs = made.map((m) => ({ label: m.label, spec: m.design.spec, columns: m.design.columns, rows: m.design.rows }));
+  const reply = await call("api_compare", { model, designs });
+  button.disabled = false;
+  if (!reply.ok) {
+    setStatus(reply.error, "error");
+    return;
+  }
+  setStatus(`${made.length} designs compared.`);
+  renderComparison(reply.result, made, notes);
+  showPython(
+    "compare",
+    compareCode(
+      factors,
+      made.map((m) => ({ label: m.label, design_type: m.design_type, options: m.design.spec.options })),
+      model,
+    ),
+  );
+  await drawComparison(reply.result, factors.length);
+}
+
+function renderComparison(result, made, notes) {
+  const out = $("#comparison");
+  out.hidden = false;
+  const t = el("table", "data compare", "");
+  const head = el("tr", "", "");
+  head.append(el("th", "", "Measure"), el("th", "", "Better"));
+  result.designs.forEach((label, i) => {
+    const th = el("th", "", label);
+    const use = el("button", "link", "Use this design");
+    use.type = "button";
+    use.onclick = () => useDesign(made[i]);
+    th.append(el("br", "", ""), use);
+    head.append(th);
+  });
+  const thead = el("thead", "", "");
+  thead.append(head);
+  const tbody = el("tbody", "", "");
+  let group = null;
+  result.measures.forEach((m, row) => {
+    // A row no design can fill, such as interaction power for a model without interactions, is left out.
+    if (result.designs.every((label) => result.display[label][row] === "")) return;
+    if (m.group !== group) {
+      group = m.group;
+      const tr = el("tr", "group", "");
+      const td = el("td", "", group);
+      td.colSpan = result.designs.length + 2;
+      tr.append(td);
+      tbody.append(tr);
+    }
+    const tr = el("tr", "", "");
+    const name = el("td", "", "");
+    name.append(m.group === "Feasibility" ? m.label : link(BOOK_PAGES.measures, m.label));
+    name.title = m.description;
+    tr.append(name, el("td", "arrow", m.direction === "higher" ? "↑" : m.direction === "lower" ? "↓" : ""));
+    for (const label of result.designs) tr.append(el("td", "", result.display[label][row]));
+    tbody.append(tr);
+  });
+  t.append(thead, tbody);
+  const wrap = el("div", "scroll", "");
+  wrap.append(t);
+  const designNotes = result.designs.flatMap((label) => result.notes[label].map((n) => `${label}: ${prettyTerm(n)}`));
+  out.replaceChildren(
+    el(
+      "p",
+      "",
+      `Model: ${result.terms.length} terms (${result.terms.join(", ")}). Power is for a coefficient of ` +
+        `${result.effect_size} noise standard deviation at a significance level of ${result.significance_level}. ` +
+        `G is searched over ${result.g_points}.`,
+    ),
+    wrap,
+    el(
+      "p",
+      "",
+      "No design is best on every row, and which row matters depends on what the experiment is for: A/p or E " +
+        "for precise coefficients, I or G for prediction over the region, max |r| for keeping second-order " +
+        "effects apart, and power for detecting an effect of a stated size. Hover over a measure for its " +
+        "definition, or follow its link to the book.",
+    ),
+    ...noteList([...notes, ...designNotes]),
+  );
+}
+
+/** Load a design from the comparison into step 1 and the run sheet, as if it had been generated there. */
+function useDesign(item) {
+  setForm(item.design.spec);
+  $("#demo-banner").hidden = true;
+  showDesign(item.design);
+  setStatus(`${item.design.n_runs} runs of the ${item.label} design are in step 2.`);
+  $("#step-design").scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
+async function drawComparison(result, k) {
+  const box = $("#compare-charts");
+  box.hidden = false;
+  box.replaceChildren();
+  const version = state.plotlyJs;
+  if (!version) return;
+  const fds = el("figure", "chart wide", "");
+  const fdsPlot = el("div", "plot", "");
+  const caption = el(
+    "figcaption",
+    "hint",
+    "Each curve sorts a design's prediction variance, in units of the noise variance, over points spread " +
+      "evenly through the cube: a low, flat curve predicts with the same precision everywhere, and its right " +
+      "end is the worst case, G. Designs that cannot fit the model have no curve. ",
+  );
+  caption.append(link(BOOK_PAGES.fds, "Reading an FDS plot"));
+  fds.append(el("h3", "", "Fraction of design space (FDS)"), fdsPlot, caption);
+  box.append(fds);
+  try {
+    await draw(fdsPlot, fdsFigure(result.fds), version, 380);
+    for (const label of result.designs) {
+      const { terms, matrix } = result.correlations[label];
+      const card = el("figure", "chart", "");
+      const plot = el("div", "plot", "");
+      card.append(el("h3", "", `Correlation map, ${label}`), plot);
+      box.append(card);
+      await draw(plot, correlationFigure(terms, matrix, k), version, 320);
+    }
+    box.append(
+      el(
+        "p",
+        "hint wide",
+        "The correlation maps show |r| between the main effects, the squares and the two-factor interactions, " +
+          "in three blocks; a darker square is a pair of terms the design finds harder to tell apart, and a blank " +
+          "row is a term that does not vary in the design.",
+      ),
+    );
+  } catch (err) {
+    box.append(el("p", "hint", `The charts could not be drawn (${err.message}); the table above holds the numbers.`));
+  }
+}
+
+// ---------------------------------------------------------------- show the Python
+function showPython(key, code) {
+  const panel = $(`#py-${key}`);
+  panel.querySelector("code").textContent = code;
+  panel.hidden = false;
+}
+
+/** The Plotly.js version the build drew its figures with, so charts can be drawn before Python names one. */
+async function readManifest() {
+  try {
+    const res = await fetch("wheels/manifest.json", { cache: "no-store" });
+    if (res.ok) state.plotlyJs ??= (await res.json()).plotly_js ?? null;
+  } catch {
+    /* a plain local preview has no manifest */
+  }
+}
+
 // ---------------------------------------------------------------- rendering helpers
 const fmt = (x) => (x === null || x === undefined ? "" : Number(x).toPrecision(4));
 const pval = (p) => (p === null || p === undefined ? "" : p < 0.0001 ? "< 0.0001" : Number(p).toFixed(4));
@@ -627,6 +830,15 @@ function el(tag, cls, text) {
   if (cls) node.className = cls;
   node.textContent = text;
   return node;
+}
+
+/** A link to the book, opening in a new tab so the page keeps its state. */
+function link(href, text) {
+  const a = el("a", "", text);
+  a.href = href;
+  a.target = "_blank";
+  a.rel = "noopener";
+  return a;
 }
 
 function table(columns, rows) {
@@ -723,6 +935,14 @@ $("#tab-simulate").onclick = () => selectTab("simulate");
 $("#tab-real").onclick = () => selectTab("real");
 $("#download").onclick = downloadWorkbook;
 $("#model").onchange = analyseRuns;
+$("#compare").onclick = compareDesigns;
+for (const button of document.querySelectorAll("details.python .copy")) {
+  button.onclick = async () => {
+    await navigator.clipboard.writeText(button.parentElement.querySelector("code").textContent);
+    button.textContent = "Copied";
+    setTimeout(() => (button.textContent = "Copy the code"), 1500);
+  };
+}
 $("#upload").onchange = (e) => e.target.files[0] && readUpload(e.target.files[0]);
 const drop = $("#drop");
 drop.ondragover = (e) => {
@@ -737,13 +957,14 @@ drop.ondrop = (e) => {
 };
 showScenarioHint();
 refreshDesign();
+readManifest();
 showBuiltExample();
 
 call("api_catalogue").then((reply) => {
   if (!reply.ok) return;
   catalogue = reply.result;
   pythonReady = true;
-  for (const id of ["#upload", "#simulate", "#reroll"]) $(id).disabled = false;
+  for (const id of ["#upload", "#simulate", "#reroll", "#compare"]) $(id).disabled = false;
   refreshDesign();
   resolveReady();
 });

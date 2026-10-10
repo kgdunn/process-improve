@@ -34,7 +34,8 @@ from typing import TYPE_CHECKING, Any
 import numpy as np
 import pandas as pd
 
-from process_improve.experiments import Factor, TrueProcess, analyze_experiment, generate_design
+from process_improve.experiments import Factor, TrueProcess, analyze_experiment, compare_designs, generate_design
+from process_improve.experiments.compare import MODELS as COMPARISON_MODELS
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Iterator
@@ -1057,6 +1058,112 @@ def plots(request: dict) -> dict:
     return {"figures": figures, "contour_factors": pair, "plotly_js": get_plotlyjs_version()}
 
 
+# --------------------------------------------------------------------------- comparing designs
+#: The options each design is compared with: the page's own defaults, so a design in the
+#: comparison is the one step 1 would generate. The CCD is face-centred, to keep its runs
+#: inside the ranges the other designs are scored over.
+COMPARE_OPTIONS: dict[str, dict[str, Any]] = {
+    "full_factorial": {"n_center_points": 3},
+    "fractional_factorial": {"n_center_points": 3},
+    "plackett_burman": {"n_center_points": 3},
+    "dsd": {"n_center_points": 3},
+    "box_behnken": {"n_center_points": 3},
+    "ccd": {"n_center_points": 3, "alpha": "face_centered"},
+    "d_optimal": {},
+    "i_optimal": {},
+}
+
+#: The model an optimal design is built for, in a comparison on each model: the smallest
+#: model the optimal designs take that contains it.
+OPTIMAL_MODEL = {
+    "main_effects": "main_effects",
+    "interactions": "interactions",
+    "main_quadratic": "quadratic",
+    "quadratic": "quadratic",
+}
+
+#: Points the FDS curves are computed from, and points along each curve.
+FDS_SAMPLES = 4096
+FDS_POINTS = 101
+
+
+def compare_plan(request: dict) -> dict:
+    """List the designs a comparison for these factors includes, each as ``make_design`` takes it.
+
+    Every design the factor count allows is included, with the page's default options;
+    the optimal designs are built for the comparison's model (see :data:`OPTIMAL_MODEL`).
+    """
+    model = request.get("model") or "main_quadratic"
+    if model not in COMPARISON_MODELS:
+        raise ValueError(f"Model must be one of {', '.join(COMPARISON_MODELS)}.")
+    factors = _factors(request)
+    k = len(factors)
+    plan = []
+    for design_type, info in DESIGNS.items():
+        if not info["min_factors"] <= k <= info["max_factors"]:
+            continue
+        options = dict(COMPARE_OPTIONS[design_type])
+        if "model_type" in info["options"]:
+            options["model_type"] = OPTIMAL_MODEL[model]
+        spec = {"design_type": design_type, "factors": request["factors"], "response": "y", **options}
+        plan.append({"design_type": design_type, "label": info["label"], "spec": spec})
+    notes = []
+    if model != OPTIMAL_MODEL[model] and any("model_type" in DESIGNS[d["design_type"]]["options"] for d in plan):
+        notes.append(
+            f"The D- and I-optimal designs are built for the {OPTIMAL_MODEL[model]} model, the smallest model "
+            f"they can be built for that contains this one."
+        )
+    return {"model": model, "designs": plan, "notes": notes}
+
+
+def _comparison_formula(model: str, names: list[str]) -> str:
+    """Write the comparison's model as ``evaluate_design`` takes it."""
+    if model == "main_quadratic":
+        return " + ".join([*names, *(f"I({n} ** 2)" for n in names)])
+    return model
+
+
+def compare(request: dict) -> dict:
+    """Score the generated designs for one model on the nine measures, with their FDS curves.
+
+    Each design arrives as the page holds it (its stored specification, columns and rows)
+    and is coded from its own ranges. The FDS curve is each design's prediction variance,
+    in units of the noise variance, sorted over points drawn uniformly from the cube.
+    """
+    from process_improve.experiments import evaluate_design  # noqa: PLC0415
+
+    model = request.get("model") or "main_quadratic"
+    if model not in COMPARISON_MODELS:
+        raise ValueError(f"Model must be one of {', '.join(COMPARISON_MODELS)}.")
+    designs = {}
+    for item in request.get("designs") or []:
+        spec = _checked_spec(item.get("spec") or {})
+        designs[str(item["label"])] = _coded(_runs_frame(item, spec), spec["factors"])
+    with _listening():
+        comparison = compare_designs(designs, model)
+    result = comparison.to_dict()
+    table = comparison.table
+    result["display"] = {label: table[label].tolist() for label in comparison.designs}
+    names = list(next(iter(designs.values())).columns)
+    formula = _comparison_formula(model, names)
+    fds = {}
+    for coded, sized in zip(designs.values(), comparison.designs, strict=True):
+        if not comparison.values[sized]["fits"]:
+            continue
+        with _listening():
+            curve = evaluate_design(
+                coded,
+                model=formula,
+                metric="fds",
+                n_samples=FDS_SAMPLES,
+                fds_resolution=FDS_POINTS,
+                random_state=1,
+            )["fds"]["curve"]
+        fds[sized] = {"fraction": curve["fraction"], "variance": curve["prediction_variance"]}
+    result["fds"] = fds
+    return result
+
+
 # --------------------------------------------------------------------------- JSON entry points
 def api_catalogue(payload: str = "{}") -> str:
     """JSON wrapper around :func:`catalogue`."""
@@ -1096,3 +1203,13 @@ def api_plots(payload: str) -> str:
 def api_read_workbook(payload: str) -> str:
     """JSON wrapper around :func:`read_workbook`."""
     return _reply(read_workbook, payload)
+
+
+def api_compare_plan(payload: str) -> str:
+    """JSON wrapper around :func:`compare_plan`."""
+    return _reply(compare_plan, payload)
+
+
+def api_compare(payload: str) -> str:
+    """JSON wrapper around :func:`compare`."""
+    return _reply(compare, payload)

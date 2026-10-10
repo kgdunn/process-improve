@@ -155,3 +155,85 @@ export function coefficientFigure(coefficients, simulated) {
     height: Math.max(220, 30 * terms.length + 100),
   };
 }
+
+// ColorBrewer's Blues, light at zero and dark at one, as the book draws its correlation maps.
+// Plotly.js's own "Blues" runs the other way, so the scale is written out.
+const BLUES = [
+  [0, "#f7fbff"],
+  [0.125, "#deebf7"],
+  [0.25, "#c6dbef"],
+  [0.375, "#9ecae1"],
+  [0.5, "#6baed6"],
+  [0.625, "#4292c6"],
+  [0.75, "#2171b5"],
+  [0.875, "#08519c"],
+  [1, "#08306b"],
+];
+
+/** Write a model term as the page shows it: ``I(T ** 2)`` as ``T²`` and ``T:P`` as ``T·P``. */
+// Only a colon between two names is a product, so a sentence's own colons are left alone.
+export const prettyTerm = (term) => term.replace(/I\((\w+) \*\* 2\)/g, "$1²").replace(/(\w):(?=\w)/g, "$1·");
+
+/**
+ * FDS curves of several designs on one chart: each design's prediction variance, in units
+ * of the noise variance, sorted over points spread evenly through the cube. The right end
+ * of a curve is its worst case, G.
+ */
+export function fdsFigure(fds) {
+  const data = Object.entries(fds).map(([label, curve]) => ({
+    type: "scatter",
+    mode: "lines",
+    name: label,
+    x: curve.fraction,
+    y: curve.variance,
+    line: { width: 2 },
+    hovertemplate: `${label}: %{y:.3g} or less over %{x:.0%} of the cube<extra></extra>`,
+  }));
+  return {
+    data,
+    layout: {
+      xaxis: { title: { text: "Fraction of the cube" }, tickformat: ".0%", range: [0, 1] },
+      yaxis: { title: { text: "Prediction variance / σ²" }, rangemode: "tozero" },
+      showlegend: true,
+    },
+  };
+}
+
+/**
+ * One design's correlation map: |r| between its main effects, squares and two-factor
+ * interactions, in that order, with lines between the three blocks. A term that does not
+ * vary in the design has no correlation, and its row and column are blank.
+ */
+export function correlationFigure(terms, matrix, k) {
+  const colours = palette();
+  const labels = terms.map(prettyTerm);
+  const n = labels.length;
+  const line = { width: 1, color: colours.muted };
+  const shapes = [k, 2 * k]
+    .filter((b) => b < n)
+    .flatMap((b) => [
+      { type: "line", xref: "x", yref: "y", x0: b - 0.5, x1: b - 0.5, y0: -0.5, y1: n - 0.5, line },
+      { type: "line", xref: "x", yref: "y", x0: -0.5, x1: n - 0.5, y0: b - 0.5, y1: b - 0.5, line },
+    ]);
+  return {
+    data: [
+      {
+        type: "heatmap",
+        x: labels,
+        y: labels,
+        z: matrix,
+        zmin: 0,
+        zmax: 1,
+        colorscale: BLUES,
+        showscale: false,
+        hovertemplate: "%{y} with %{x}: |r| = %{z:.2f}<extra></extra>",
+      },
+    ],
+    layout: {
+      xaxis: { type: "category", tickangle: -45, showgrid: false },
+      yaxis: { type: "category", autorange: "reversed", showgrid: false },
+      shapes,
+      showlegend: false,
+    },
+  };
+}

@@ -113,6 +113,21 @@ those changes.
 
 ### Changed
 
+- **The browser app compares the designs for the reader's own factors, shows the Python
+  behind each step, and links to the book.** Step 4 generates every design the factor
+  count allows, at the size step 1 would give it, and scores them with
+  `compare_designs` on the nine measures for the model the reader picks.
+  - The model is main effects and quadratics by default, the book's model for these
+    measures.
+  - Each measure links to its definition in the book and carries an arrow for its
+    preferred direction.
+  - FDS curves of every design share one chart, and each design has its correlation map.
+  - No design is named best, and any of them can be loaded into step 1.
+
+  Each step has "Show the Python", the process-improve code that does what the step did,
+  checked by a test that runs it and compares the results with the page's. Each design
+  links to the book's section on it.
+
 - **The browser app takes a reader from a design to an analysis with charts, without
   leaving the page.**
   - Step 2 holds the run sheet. Results are typed into it, or simulated from a process

@@ -32,6 +32,7 @@
     <a href="#step-design"><span class="step">1</span> Design</a>
     <a href="#step-run"><span class="step">2</span> Run</a>
     <a href="#step-analyse"><span class="step">3</span> Analyse</a>
+    <a href="#step-compare"><span class="step">4</span> Compare</a>
   </nav>
 
   <p id="demo-banner" class="banner" hidden>
@@ -112,6 +113,12 @@
     <div id="design-out" hidden>
       <div id="design-summary"></div>
     </div>
+    <details class="python" id="py-design" hidden>
+      <summary>Show the Python</summary>
+      <p class="hint">The process-improve code that does what this step just did.</p>
+      <pre><code></code></pre>
+      <button type="button" class="link copy">Copy the code</button>
+    </details>
   </section>
 
   <section id="step-run" aria-labelledby="h-run">
@@ -165,6 +172,12 @@
       <div class="scroll"><table id="design-table" class="data runs"></table></div>
       <button type="button" id="download" class="button">Download workbook (.xlsx)</button>
     </div>
+    <details class="python" id="py-run" hidden>
+      <summary>Show the Python</summary>
+      <p class="hint">The process-improve code that does what this step just did.</p>
+      <pre><code></code></pre>
+      <button type="button" class="link copy">Copy the code</button>
+    </details>
   </section>
 
   <section id="step-analyse" aria-labelledby="h-analyse">
@@ -182,6 +195,41 @@
     </div>
     <div id="analysis" hidden></div>
     <div id="charts" class="charts" hidden></div>
+    <details class="python" id="py-analyse" hidden>
+      <summary>Show the Python</summary>
+      <p class="hint">The process-improve code that does what this step just did.</p>
+      <pre><code></code></pre>
+      <button type="button" class="link copy">Copy the code</button>
+    </details>
+  </section>
+
+  <section id="step-compare" aria-labelledby="h-compare">
+    <h2 id="h-compare"><span class="step">4</span> Compare designs</h2>
+    <p>Which design suits these factors? Here the model is fixed first, and the designs differ only in where they
+      place their runs. Each design is generated as step 1 would make it and scored at its own size, on the nine
+      measures that <a href="https://learnche.org/pid/design-analysis-experiments/omars-designs#doe-omars-metric-choice">Process
+      Improvement using Data</a> defines; the book's
+      <a href="https://learnche.org/pid/design-analysis-experiments/comparing-design-families#doe-omnibus-comparison">comparison
+      of design families</a> reads such a table row by row.</p>
+    <div class="row">
+      <label>Model to compare on
+        <select id="compare-model">
+          <option value="main_quadratic" selected>Main effects and quadratics, the book's model</option>
+          <option value="quadratic">Full quadratic</option>
+          <option value="interactions">Main effects + two-factor interactions</option>
+          <option value="main_effects">Main effects</option>
+        </select>
+      </label>
+    </div>
+    <button type="button" id="compare" class="primary" disabled>Compare the designs for these factors</button>
+    <div id="comparison" hidden></div>
+    <div id="compare-charts" class="charts" hidden></div>
+    <details class="python" id="py-compare" hidden>
+      <summary>Show the Python</summary>
+      <p class="hint">The process-improve code that does what this step just did.</p>
+      <pre><code></code></pre>
+      <button type="button" class="link copy">Copy the code</button>
+    </details>
   </section>
 
   <footer>

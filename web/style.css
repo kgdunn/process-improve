@@ -197,3 +197,22 @@ table.runs input.sim { font-style: italic; color: var(--muted); }
   .charts { grid-template-columns: 1fr; }
   .stepper { gap: 6px 12px; }
 }
+
+/* The comparison: measures grouped as the book groups them, the preferred direction as an arrow. */
+table.compare td:nth-child(2) { text-align: center; color: var(--muted); }
+table.compare th { vertical-align: bottom; padding: 4px 10px; font-weight: 600; text-align: right; }
+table.compare th .link { font-weight: 400; font-size: 0.82rem; padding: 2px 0; }
+table.compare tr.group td {
+  text-align: left; font-weight: 600; color: var(--muted); font-size: 0.8rem; text-transform: uppercase;
+  letter-spacing: 0.04em; padding-top: 10px;
+}
+table.compare td:first-child { white-space: nowrap; }
+.charts > .hint.wide { grid-column: 1 / -1; margin: 0; }
+
+/* Show the Python: the code a step's results came from, ready to copy. */
+details.python { margin: 16px 0 0; border-top: 1px solid var(--line); padding-top: 8px; }
+details.python pre {
+  overflow-x: auto; margin: 8px 0; padding: 10px 12px; border-radius: 6px; font-size: 0.85rem;
+  background: var(--bg); border: 1px solid var(--line);
+}
+details.python code { font-family: ui-monospace, "SFMono-Regular", Menlo, monospace; }

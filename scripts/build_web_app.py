@@ -29,7 +29,7 @@ from typing import Any
 
 ROOT = Path(__file__).resolve().parent.parent
 WEB_SRC = ROOT / "web"
-APP_FILES = ("index.html", "app.js", "charts.js", "worker.js", "bootstrap.py", "style.css")
+APP_FILES = ("index.html", "app.js", "charts.js", "python.js", "worker.js", "bootstrap.py", "style.css")
 
 
 def build_wheel(dist: Path) -> Path:
@@ -90,7 +90,9 @@ def assemble(out_dir: Path) -> str:
         shutil.copy2(WEB_SRC / name, out_dir / name)
     wheel = build_wheel(ROOT / "dist" / "web")
     shutil.copy2(wheel, out_dir / "wheels" / wheel.name)
-    manifest = {"wheel": wheel.name, "plotly": version("plotly")}
+    from plotly.offline import get_plotlyjs_version  # noqa: PLC0415 - the docs environment has plotly
+
+    manifest = {"wheel": wheel.name, "plotly": version("plotly"), "plotly_js": get_plotlyjs_version()}
     (out_dir / "wheels" / "manifest.json").write_text(json.dumps(manifest, indent=2) + "\n")
     (out_dir / "demo.json").write_text(json.dumps(worked_example(), separators=(",", ":")) + "\n")
     return wheel.name
