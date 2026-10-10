@@ -1310,20 +1310,10 @@ def test_reshape_missing_attribute_column_raises():
         )
 
 
-class _PinnedLabel(str):
-    """A label whose hash is its trailing digit, so a set of these iterates in a known order.
-
-    Plain string hashes change with the interpreter's hash seed, which is what made the
-    round-trip comparison pass or fail at random; pinning them makes both orders testable.
-    """
-
-    __slots__ = ()
-
-    def __hash__(self) -> int:
-        return int(self[-1])
-
-
-_FIRST, _SECOND = _PinnedLabel("label 0"), _PinnedLabel("label 1")
+# String hashes change with the interpreter's hash seed, which is what made the round-trip
+# comparison pass or fail at random. Small integers hash to themselves, so a set of these two
+# labels always iterates _FIRST then _SECOND, and both orders of a lost label are testable.
+_FIRST, _SECOND = 0, 1
 
 
 @pytest.mark.parametrize(
