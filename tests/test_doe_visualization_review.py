@@ -9,7 +9,7 @@ import pandas as pd
 import pytest
 from scipy import stats
 
-from process_improve.experiments import Factor, evaluate_design, generate_design
+from process_improve.experiments import Factor, analyze_experiment, evaluate_design, generate_design
 from process_improve.experiments.visualization import visualize_doe
 from process_improve.experiments.visualization.plots.registry import create_plot
 
@@ -156,6 +156,11 @@ class TestPredictionVariancePlot:
 # ---------------------------------------------------------------------------
 
 
+def _sme_quantile(alpha: float, m: int) -> float:
+    """Lenth's simultaneous quantile, ``t(gamma; m/3)`` with ``gamma = (1 + (1 - alpha)**(1/m)) / 2``."""
+    return stats.t.ppf((1 + (1 - alpha) ** (1 / m)) / 2, m / 3)
+
+
 def _lenth_analysis() -> dict:
     effects = {"A": 6.0, "B": -4.0, "C": 0.3, "D": -0.2, "A:B": 0.25, "A:C": 3.0, "B:C": -0.1}
     pse = 0.3
@@ -165,7 +170,8 @@ def _lenth_analysis() -> dict:
         "lenth_method": {
             "PSE": pse,
             "ME": stats.t.ppf(0.975, m / 3) * pse,
-            "SME": stats.t.ppf(1 - 0.025 / m, m / 3) * pse,
+            "SME": _sme_quantile(0.05, m) * pse,
+            "significance_level": 0.05,
             "effects": [{"term": k, "effect": v, "active_ME": abs(v) > 1} for k, v in effects.items()],
         },
     }
@@ -173,13 +179,49 @@ def _lenth_analysis() -> dict:
 
 @pytest.mark.parametrize("plot_type", ["pareto", "half_normal"])
 def test_lenth_thresholds_follow_the_confidence_level(plot_type: str) -> None:
+    """Recomputed at another level, SME uses Lenth's gamma, as ``analyze_experiment`` does, not Bonferroni."""
     analysis = _lenth_analysis()
     m = len(analysis["effects"])
     spec = create_plot(plot_type, analysis_results=analysis, confidence_level=0.99).to_spec()
     by_label = {a.label: a.value for a in spec.panels[0].annotations}
     assert by_label["ME (α=0.01)"] == pytest.approx(stats.t.ppf(0.995, m / 3) * 0.3)  # noqa: RUF001
     if plot_type == "pareto":
-        assert by_label["SME (α=0.01)"] == pytest.approx(stats.t.ppf(1 - 0.005 / m, m / 3) * 0.3)  # noqa: RUF001
+        assert by_label["SME (α=0.01)"] == pytest.approx(_sme_quantile(0.01, m) * 0.3)  # noqa: RUF001
+
+
+def _unreplicated_analysis(significance_level: float) -> dict:
+    """Effects and Lenth's method for a 2^3 factorial with one real effect, from ``analyze_experiment``."""
+    design = pd.DataFrame(list(itertools.product([-1, 1], repeat=3)), columns=["A", "B", "C"])
+    y = 10 + 3 * design["A"] + np.array([0.1, -0.2, 0.05, 0.15, -0.1, 0.2, -0.05, 0.0])
+    return analyze_experiment(
+        design,
+        y.rename("y"),
+        model="interactions",
+        analysis_type=["effects", "lenth_method"],
+        significance_level=significance_level,
+    )
+
+
+def test_lenth_margins_drawn_at_the_analysis_level_are_the_analysis_margins() -> None:
+    """At the level the analysis used, the plot draws its ME and SME as reported, labelled with that level.
+
+    The plot looked for the level under ``alpha``, but the analysis stores it as
+    ``significance_level``, so an analysis at 0.10 was taken to be at 0.05.
+    """
+    analysis = _unreplicated_analysis(0.10)
+    spec = create_plot("pareto", analysis_results=analysis, confidence_level=0.90).to_spec()
+    by_label = {a.label: a.value for a in spec.panels[0].annotations}
+    assert by_label["ME (α=0.1)"] == pytest.approx(analysis["lenth_method"]["ME"])  # noqa: RUF001
+    assert by_label["SME (α=0.1)"] == pytest.approx(analysis["lenth_method"]["SME"])  # noqa: RUF001
+
+
+def test_lenth_margins_recomputed_at_another_level_match_an_analysis_there() -> None:
+    """Margins the plot recomputes at 0.05 equal those of an analysis run at 0.05."""
+    spec = create_plot("pareto", analysis_results=_unreplicated_analysis(0.10), confidence_level=0.95).to_spec()
+    by_label = {a.label: a.value for a in spec.panels[0].annotations}
+    reference = _unreplicated_analysis(0.05)["lenth_method"]
+    assert by_label["ME (α=0.05)"] == pytest.approx(reference["ME"])  # noqa: RUF001
+    assert by_label["SME (α=0.05)"] == pytest.approx(reference["SME"])  # noqa: RUF001
 
 
 def test_default_confidence_labels_are_formatted() -> None:

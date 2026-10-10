@@ -278,6 +278,14 @@ those changes.
   - The library's warnings, such as an even-k DSD leaving no error degrees of freedom,
     are shown with the result; numerical noise from numpy and statsmodels is not.
 
+- **The Pareto and half-normal plots draw Lenth's margins at the level the analysis
+  used, and recompute them with the analysis's formula.** They looked for that level under
+  `alpha`, but `analyze_experiment` stores it as `significance_level`, so an analysis at
+  0.10 was drawn as if at 0.05. Recomputed at another level, SME used a Bonferroni
+  quantile, `t(1 - alpha/(2m), m/3)`, where the analysis uses Lenth's
+  `t((1 + (1 - alpha)**(1/m))/2, m/3)`; the two lines now agree with the analysis's
+  `active_SME` flags.
+
 - **`analyze_experiment` no longer blames the design for badly scaled units.** It took
   the model matrix's rank in the factors' own units. In very unequal units, or with a
   span that is tiny next to its distance from zero, that rank drops in floating point.
