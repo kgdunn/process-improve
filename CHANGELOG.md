@@ -241,6 +241,9 @@ The fixes below were found while raising test coverage to 96% (#678).
   panelist id passed on some runs. Such a label now always fails the check. Labels with
   stray spaces (`"Salty "`) are compared in the stripped form the long table writes, so
   they now reshape cleanly.
+- **`pip install 'process-improve[all]'` installs `ruptures`.** The `batch` extra has
+  needed it since #605, for the change-point detection in `features.f_rupture`, but it was
+  never added to `all`, which the README presents as everything the other extras install.
 
 ### Security
 
@@ -287,6 +290,14 @@ The fixes below were found while raising test coverage to 96% (#678).
   work on PyPI too.
 - **PyPI links the documentation, changelog, in-browser app and textbook**
   (`[project.urls]`).
+- **The README is checked beyond its code blocks.** `tests/test_readme_guards.py`
+  confirms, offline, that every call quoted in its text and tables names a real function,
+  method and keyword, that every link into the repository and the documentation resolves,
+  and that the installation lines match `pyproject.toml`. A weekly job,
+  `tools/check_readme_links.py`, requests every other link and checks that the openmv.net
+  data files still match the bundled copies behind the README's numbers. The checks
+  brought two fixes: the `batch` line now lists `ruptures`, and the `control` extra
+  (`osqp`, the batch mid-course correction solver) is documented.
 
 ## [1.97.2] - 2026-10-07
 

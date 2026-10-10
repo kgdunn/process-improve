@@ -86,6 +86,23 @@ import pytest
 def test_loads_real_data(): ...
 ```
 
+### The README is tested
+
+The README is the first code a new user runs, so CI checks it like code:
+
+- `tests/test_readme.py` runs every Python block of `README.md` and
+  `SKLEARN_COMPATIBILITY.md` in order, and compares each `print(...)  # output`
+  comment with what the line prints. When a change moves a number, update the
+  comment in the same pull request.
+- `tests/test_readme_guards.py` checks the rest of the page, offline: every call
+  quoted in the text or a table names a real function, method and keyword; every
+  link into the repository or the documentation resolves; and the installation
+  lines match `pyproject.toml`, so a new extra has to be documented.
+- `tools/check_readme_links.py` requests every link to another site, and checks
+  that the openmv.net data files still match the bundled copies behind the
+  README's numbers. `.github/workflows/readme-links.yml` runs it weekly and on
+  pull requests that touch the README, and opens an issue when a weekly run fails.
+
 ## Linting and formatting
 
 ```bash
