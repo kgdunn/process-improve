@@ -2,16 +2,18 @@
 
     A link to these docs shared on LinkedIn, Slack or Teams builds its preview from
     Open Graph tags; without them it shows no image and no summary. Every page gets
-    its own title, the package's one-line description and the social card, at the
-    absolute addresses set in conf.py (html_baseurl, html_context). -#}
+    its own title, its own description (from _ext/page_description.py, else the
+    package's one-line summary) and the social card, at the absolute addresses set in
+    conf.py (html_baseurl, html_context). -#}
 {%- extends "!layout.html" %}
 
 {%- block extrahead %}
 {{ super() }}
 {%- set page_title = (title | striptags | e) if title else docstitle | e %}
 {%- if pagename != root_doc %}{% set page_title = page_title ~ " | process-improve" %}{% endif %}
+{%- set summary = page_description or social_description %}
 <meta property="og:title" content="{{ page_title }}" />
-<meta property="og:description" content="{{ social_description | e }}" />
+<meta property="og:description" content="{{ summary | e }}" />
 <meta property="og:type" content="website" />
 <meta property="og:site_name" content="process-improve" />
 {%- if pageurl %}
@@ -22,5 +24,5 @@
 <meta property="og:image:height" content="1280" />
 <meta property="og:image:alt" content="{{ social_image_alt | e }}" />
 <meta name="twitter:card" content="summary_large_image" />
-<meta name="description" content="{{ social_description | e }}" />
+<meta name="description" content="{{ summary | e }}" />
 {%- endblock %}
