@@ -56,6 +56,9 @@ def regress_a_space_on_b_row(a_space: np.ndarray, b_row: np.ndarray, a_space_pre
     Returns               [n_rows x 1] = a_space * b_row^T  / ( b_row * b_row^T)
                                          (n x j) * (j x 1)  /  (1 x j)* (j x 1)  = n x 1
     """
+    # TPLS hands in DataFrames. Without this, every product and sum below is a pandas
+    # operation, about ten times slower, on a function called tens of thousands of times.
+    a_space, b_row, a_space_present_map = np.asarray(a_space), np.asarray(b_row), np.asarray(a_space_present_map)
     denom = np.tile(b_row, (a_space.shape[0], 1))  # tiles, row-by-row the `b_row` row vector, to create `n_rows`
     denominator = np.sum((denom * a_space_present_map) ** 2, axis=1).astype("float")
     denominator[denominator == 0] = np.nan

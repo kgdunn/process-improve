@@ -104,6 +104,10 @@ those changes.
   it now fills a NumPy array, averaging a compression with the same `nanmean` over
   the same samples in the same order. One `batch_dtw` run on the dryer data went
   from 6.9 s to 1.7 s.
+- **TPLS fits are about 3 times faster.** The NIPALS step received pandas frames and
+  did all its arithmetic in pandas; it now converts them to arrays first. Results agree
+  with before to within 1.5e-14 (pandas and NumPy add in a different order), not to the
+  last bit as for the two changes above.
 
 - **`analyze_experiment`'s `coding` chooses the scale of the coefficients (#513).** It was
   accepted and ignored, and its default, `"coded"`, named a scale the coefficients were
