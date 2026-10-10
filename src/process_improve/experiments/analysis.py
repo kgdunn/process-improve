@@ -393,7 +393,6 @@ class _Fit:
     whole_plot: str = WHOLE_PLOT_COL
     _coded: tuple[RegressionResultsWrapper, dict[str, Any]] | None = None
     _reduced: tuple[RegressionResultsWrapper, dict[str, str]] | None = None
-    _centred: RegressionResultsWrapper | None = None
 
     @property
     def group_cols(self) -> list[str]:
@@ -430,21 +429,18 @@ class _Fit:
         as for an interaction without its main effects. When the units are so unequal that
         the fit as given lost rank in floating point, the coded fit, which has not, is used.
         """
-        if self._centred is None:
-            self._centred = self.ols
-            numeric = [c for c in self.factor_cols if _is_numeric(self.df[c])]
-            coded_df = self.df.copy()
-            for col in numeric:
-                coded_df[col] = _code_factor(self.df[col])[0]
-            if self.model not in SCHEFFE_MODELS and not coded_df[numeric].equals(self.df[numeric]):
-                with warnings.catch_warnings():
-                    warnings.simplefilter("ignore")  # the rank warning was already given for the fit
-                    refit = smf.ols(self.ols.model.formula, data=coded_df).fit()
-                scale = 1.0 + float(np.abs(self.ols.fittedvalues).max())
-                same_model = np.allclose(refit.fittedvalues, self.ols.fittedvalues, rtol=0.0, atol=1e-8 * scale)
-                if same_model or _rank(refit) > _rank(self.ols):
-                    self._centred = refit
-        return self._centred
+        numeric = [c for c in self.factor_cols if _is_numeric(self.df[c])]
+        coded_df = self.df.copy()
+        for col in numeric:
+            coded_df[col] = _code_factor(self.df[col])[0]
+        if self.model in SCHEFFE_MODELS or coded_df[numeric].equals(self.df[numeric]):
+            return self.ols
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")  # the rank warning was already given for the fit
+            refit = smf.ols(self.ols.model.formula, data=coded_df).fit()
+        scale = 1.0 + float(np.abs(self.ols.fittedvalues).max())
+        same_model = np.allclose(refit.fittedvalues, self.ols.fittedvalues, rtol=0.0, atol=1e-8 * scale)
+        return refit if same_model or _rank(refit) > _rank(self.ols) else self.ols
 
     def reduced(self) -> tuple[RegressionResultsWrapper, dict[str, str]]:
         """Return the centred fit on one column per alias chain, with the chain name of each retained column."""
