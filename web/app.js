@@ -694,6 +694,8 @@ async function compareDesigns() {
   await drawComparison(reply.result, factors.length);
 }
 
+let comparisonFit = null; // watches whether the comparison table fits its box
+
 function renderComparison(result, made, notes) {
   const out = $("#comparison");
   out.hidden = false;
@@ -718,7 +720,8 @@ function renderComparison(result, made, notes) {
     if (m.group !== group) {
       group = m.group;
       const tr = el("tr", "group", "");
-      const td = el("td", "", group);
+      const td = el("td", "", "");
+      td.append(el("span", "", group)); // a span, so the label can stay in view as the table scrolls
       td.colSpan = result.designs.length + 2;
       tr.append(td);
       tbody.append(tr);
@@ -734,6 +737,14 @@ function renderComparison(result, made, notes) {
   t.append(thead, tbody);
   const wrap = el("div", "scroll", "");
   wrap.append(t);
+  // A phone or a narrow window shows only the first few designs, so say that the rest are there.
+  const more = el("p", "hint", `Scroll the table sideways to see all ${result.designs.length} designs.`);
+  more.hidden = true;
+  comparisonFit?.disconnect();
+  comparisonFit = new ResizeObserver(() => {
+    more.hidden = wrap.scrollWidth <= wrap.clientWidth + 1;
+  });
+  comparisonFit.observe(wrap);
   const designNotes = result.designs.flatMap((label) => result.notes[label].map((n) => `${label}: ${prettyTerm(n)}`));
   out.replaceChildren(
     el(
@@ -743,6 +754,7 @@ function renderComparison(result, made, notes) {
         `${result.effect_size} noise standard deviation at a significance level of ${result.significance_level}. ` +
         `G is searched over ${result.g_points}.`,
     ),
+    more,
     wrap,
     el(
       "p",

@@ -164,6 +164,9 @@ footer { color: var(--muted); font-size: 0.88rem; }
 .stepper {
   position: sticky; top: 0; z-index: 2; display: flex; gap: 6px 18px; flex-wrap: wrap;
   margin: 16px -16px 0; padding: 8px 16px; background: var(--bg); border-bottom: 1px solid var(--line);
+  /* The bar and its rule span the window, so the wider step 4 scrolls under the bar rather than beside it.
+     A border image drawn outside the box does not widen the page. */
+  border-image: linear-gradient(to top, var(--line) 1px, var(--bg) 1px) fill 0 / 0 / 0 100vmax;
 }
 .stepper a { display: inline-flex; align-items: center; gap: 6px; color: var(--fg); text-decoration: none; font-size: 0.95rem; }
 .stepper .step { width: 22px; height: 22px; font-size: 0.8rem; }
@@ -207,6 +210,16 @@ table.compare tr.group td {
   letter-spacing: 0.04em; padding-top: 10px;
 }
 table.compare td { white-space: nowrap; }
+/* The measure names wrap, and they and the group labels stay in view while the designs scroll past. */
+table.compare td:first-child { white-space: normal; min-width: 9rem; }
+table.compare th:first-child, table.compare tr:not(.group) td:first-child {
+  position: sticky; left: 0; z-index: 1; background: var(--panel);
+}
+table.compare tr.group span { position: sticky; left: 10px; display: inline-block; }
+/* Step 4 has a column per design: on a wide screen it takes the room its table needs. */
+@media (min-width: 1000px) {
+  #step-compare { --wide: min(1200px, 100vw - 64px); width: var(--wide); margin-left: calc((100% - var(--wide)) / 2); }
+}
 .charts > .hint.wide { grid-column: 1 / -1; margin: 0; }
 
 /* Show the Python: the code a step's results came from, ready to copy. */
