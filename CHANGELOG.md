@@ -13,6 +13,15 @@ those changes.
 
 ### Added
 
+- **`coding="auto"` for `analyze_experiment`, and the coefficients in actual units next
+  to coded ones.**
+  - `"auto"` is `"coded"`, except for a Scheffe mixture model, which keeps `"actual"`. It
+    becomes the default in 2.0, and can be chosen now.
+  - Whenever the coefficients are refitted on the coded scale, the result also holds
+    them on the factors' own scale, as `coefficients_actual`: the equation to use for
+    predictions in actual units.
+  - `coding_note` says when the change of default will affect a result.
+
 - **`analyze_experiment(..., analysis_type="split_plot")` analyses a split-plot
   experiment correctly (#630).** Ordinary least squares, which every other analysis
   uses, treats the runs in a whole plot as independent, so the hard-to-change factors
@@ -159,6 +168,21 @@ those changes.
   from 0 to 1. The coefficients themselves are unchanged.
 
 ### Deprecated
+
+- **The default of `analyze_experiment`'s `coding` changes from `"actual"` to `"auto"` in
+  2.0, so coefficients on factors not already coded will come back on the -1/+1 scale.**
+  Deprecated since 1.98.0.
+  - Until then, `coding` defaults to `None`, which means `"actual"`.
+  - A call the change would affect issues a `FutureWarning` and carries the same text as
+    `coding_note`, so agents see it too. That is a call asking for coefficients or
+    confidence intervals, of a model that is not a mixture, on factors not already
+    coded. Data already coded, other analyses and mixture models are not affected, and
+    stay silent.
+  - Pass `coding="actual"` to keep the current scale, or `coding="auto"` to change now;
+    either silences the warning.
+  - The warning is a `FutureWarning` because Python shows those to end users, while it
+    hides a `DeprecationWarning`. The deprecation policy gains a section on changing a
+    default.
 
 - **`missing_data_settings["md_tol"]` and `["md_max_iter"]` are deprecated (#588)**, on
   `PCA`, `PLS`, `MBPCA` and `MBPLS`. Pass `tol` and `max_iter` to the constructor

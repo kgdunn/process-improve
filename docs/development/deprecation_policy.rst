@@ -88,6 +88,33 @@ should be updated to emit a ``DeprecationWarning`` rather than
 raising immediately. The helper is a single place to enforce
 the message format.
 
+Changing a default
+------------------
+
+A new default that changes the *numbers* a call returns, rather than
+retiring a name, follows the same schedule. Its risk is different: code
+that keeps running, now on other results, is wrong without being broken.
+So:
+
+- The parameter's default becomes ``None``, which resolves to the old
+  value until ``(X+1).0`` and to the new one from then.
+- The warning is a ``FutureWarning``, not a ``DeprecationWarning``.
+  Python shows a ``FutureWarning`` to end users by default; it hides a
+  ``DeprecationWarning`` outside ``__main__`` and test runs, so the
+  people whose results will change would never see it.
+- It is issued only by calls whose result the new default would change,
+  and passing the parameter, to either value, silences it. A call the
+  change leaves alone stays quiet.
+- Where the result is a dict that an agent or a tool reads, it also
+  carries the warning's text (as ``analyze_experiment``'s
+  ``coding_note`` does), since a warning does not reach them.
+- Where possible, the new behaviour keeps what the old one gave, under
+  an unmistakable name (``coefficients_actual``), so that nobody loses a
+  result they relied on.
+
+``analyze_experiment``'s ``coding`` (``"actual"`` until 2.0, then
+``"auto"``) is the first example.
+
 When a deprecation is unavoidable mid-cycle
 -------------------------------------------
 
