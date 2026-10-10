@@ -85,9 +85,12 @@ DESIGNS: dict[str, dict[str, Any]] = {
     },
     "dsd": {
         "label": "Definitive screening (DSD)",
-        "hint": "Three levels, 2k+1 runs (2k+3 for odd k); main effects clear of interactions and quadratics.",
+        "hint": (
+            "Three levels in 2k+1 runs (2k+3 for odd k), one of them at the center, plus any further center "
+            "runs; main effects clear of interactions and quadratics."
+        ),
         "model": "main_effects",
-        "options": [],
+        "options": ["n_center_points"],
         "min_factors": 3,
         "max_factors": 12,
     },
@@ -117,7 +120,10 @@ DESIGNS: dict[str, dict[str, Any]] = {
     },
     "i_optimal": {
         "label": "I-optimal",
-        "hint": "Most precise predictions, on average over the factor space, for a fixed number of runs.",
+        "hint": (
+            "Most precise predictions, on average over the factor space, for a fixed number of runs. "
+            "The search takes longest of the designs here: up to 20 s at six factors."
+        ),
         "model": "quadratic",
         "options": ["budget", "model_type"],
         "min_factors": 2,

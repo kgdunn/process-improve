@@ -104,8 +104,10 @@ function refreshDesign() {
   for (const choice of resolution.options) choice.disabled = Number(choice.value) > k;
   if (resolution.selectedOptions[0].disabled) resolution.value = String(Math.max(3, Math.min(4, k)));
 
+  // A Box-Behnken design or a rotatable CCD needs a center run to fit the squares; a DSD has one built in.
   const centre = $("#n_center_points");
-  const needsCentre = option.value === "box_behnken" || (option.value === "ccd" && $("#alpha").value === "rotatable");
+  const needsCentre =
+    ["box_behnken", "dsd"].includes(option.value) || (option.value === "ccd" && $("#alpha").value === "rotatable");
   centre.min = needsCentre ? 1 : 0;
   if (needsCentre && Number(centre.value) < 1) centre.value = 1;
 

@@ -258,11 +258,15 @@ those changes.
     interactions. A CCD uses a half-fraction cube from six factors.
   - Each design takes a range of factor counts, and is unavailable outside it, with the
     reason shown; for example, an I-optimal design is limited to six factors, since its
-    search already takes about 10 s under WebAssembly at six.
+    search takes up to 20 s under WebAssembly at six.
   - The summary states the generated design's resolution, generators and fully aliased
     effects, read off the design itself, instead of a fixed hint that called every
     fraction's main effects aliased with interactions. Plackett-Burman designs show their
     center points, which the page added without a control.
+  - A definitive screening design takes center runs, three by default, like the other
+    designs. With only its own center run, an even-k DSD leaves no degrees of freedom to
+    estimate the error, and the warning that says so asked for a control the page did not
+    have.
 
 - **The browser app estimates aliased terms once, as their chain, and analyses saturated
   designs.**

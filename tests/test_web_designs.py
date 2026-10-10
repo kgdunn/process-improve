@@ -124,7 +124,7 @@ GRID: dict[str, list[tuple[int, dict]]] = {
         *[(k, {"n_center_points": 3}) for k in range(2, 12)],
         *[(k, {"n_center_points": 0}) for k in (3, 7, 11)],
     ],
-    "dsd": [(k, {}) for k in range(3, 11)],
+    "dsd": [(k, {"n_center_points": cp}) for k in range(3, 11) for cp in (1, 3)],
     "box_behnken": [(k, {"n_center_points": cp}) for k in range(3, 8) for cp in (1, 3)],
     "ccd": [
         *[
@@ -215,12 +215,12 @@ def _check_plackett_burman(x: np.ndarray, k: int, options: dict, _result: dict) 
     np.testing.assert_allclose(gram, len(core) * np.eye(k), atol=1e-9)
 
 
-def _check_dsd(x: np.ndarray, k: int, _options: dict, _result: dict) -> None:
+def _check_dsd(x: np.ndarray, k: int, options: dict, _result: dict) -> None:
     centre = np.all(np.isclose(x, 0), axis=1)
-    assert centre.sum() == 1
+    assert centre.sum() == options["n_center_points"], "the DSD's own center run, plus any more asked for"
     folded = x[~centre]
-    assert len(x) % 2 == 1
-    assert (len(x) - 1) // 2 >= k
+    assert len(folded) % 2 == 0
+    assert len(folded) // 2 >= k
     runs = {tuple(np.round(r, 9)) for r in folded}
     assert all(tuple(np.round(-r, 9)) in runs for r in folded), "every run has its mirror image"
     np.testing.assert_allclose(sorted(set(np.round(x.ravel(), 9))), [-1, 0, 1])

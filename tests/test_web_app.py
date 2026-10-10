@@ -132,7 +132,7 @@ def test_std_order_rebuilds_the_standard_order_factorial(app):
 
 def test_std_order_rebuilds_the_definitive_screening_foldover(app):
     """Sorted on "Std order", a DSD reads as its conference matrix C, then -C, then the centre run."""
-    spec = {"design_type": "dsd", "factors": FACTORS}
+    spec = {"design_type": "dsd", "factors": FACTORS, "n_center_points": 1}
     standard = coded(run_sheet(call(app, "api_make_design", spec)["result"]).sort_values("Std order"))
     half = (len(standard) - 1) // 2
     np.testing.assert_allclose(standard[:half], -standard[half : 2 * half])
@@ -362,15 +362,17 @@ def test_saturated_fit_of_a_three_level_design_says_nothing_can_be_tested(app):
 
 def test_a_model_the_design_cannot_fit_is_refused_plainly(app):
     """A 9-run DSD in 3 factors cannot fit the 10-term quadratic model, whatever the data."""
-    reply = analyse(app, {"design_type": "dsd", "factors": FACTORS}, model="quadratic")
+    reply = analyse(app, {"design_type": "dsd", "factors": FACTORS, "n_center_points": 1}, model="quadratic")
     assert not reply["ok"]
     assert "cannot fit the quadratic model" in reply["error"]
 
 
 def test_library_warnings_reach_the_page(app):
-    """An even-k DSD has no error degrees of freedom left for the staged analysis, and says so."""
-    reply = call(app, "api_make_design", {"design_type": "dsd", "factors": factors_named("A", "B", "C", "D")})
-    assert any("degrees of freedom" in w for w in reply["warnings"])
+    """An even-k DSD with only its own center run leaves the staged analysis no error df, and says so."""
+    spec = {"design_type": "dsd", "factors": factors_named("A", "B", "C", "D"), "n_center_points": 1}
+    assert any("degrees of freedom" in w for w in call(app, "api_make_design", spec)["warnings"])
+    spec["n_center_points"] = 3
+    assert call(app, "api_make_design", spec)["warnings"] == []
 
 
 def test_face_centred_ccd_stays_inside_the_ranges(app):
