@@ -8,8 +8,11 @@ import warnings
 import numpy as np
 import pandas as pd
 import pytest
+import statsmodels.formula.api as smf
 
 from process_improve.experiments import Factor, generate_design
+from process_improve.experiments._analyses.box_cox import _recommendation, box_cox_transform
+from process_improve.experiments._analyses.lack_of_fit import _run_lack_of_fit
 from process_improve.experiments.analysis import (
     analyze_experiment,
     build_formula,
@@ -122,6 +125,15 @@ class TestModelSummary:
         result = analyze_experiment(df, response_column="y", analysis_type="anova")
         r2 = result["model_summary"]["r_squared"]
         assert 0 <= r2 <= 1
+
+    def test_a_constant_response_has_no_predictive_or_noise_scale(self) -> None:
+        """With no variation to explain, predicted R-squared is 0 and the signal-to-noise ratio is unbounded."""
+        df = _two_factor_data().assign(y=5.0)
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", RuntimeWarning)  # statsmodels' own R-squared is 0/0 here
+            result = analyze_experiment(df, response_column="y", model="main_effects", analysis_type="coefficients")
+        assert result["model_summary"]["r_squared_pred"] == 0.0
+        assert result["model_summary"]["adequate_precision"] == float("inf")
 
 
 class TestRankDeficiency:
@@ -334,6 +346,29 @@ class TestLackOfFit:
         lof = result["lack_of_fit"]
         assert "error" in lof
 
+    def test_replicates_of_a_categorical_factor_give_pure_error(self) -> None:
+        """Label columns group replicates as they are (only numeric columns are rounded)."""
+        df = pd.DataFrame(
+            {"A": [-1, 1, -1, 1] * 2, "M": ["x", "x", "y", "y"] * 2, "y": [28, 36, 18, 31, 27, 34, 19, 30.0]}
+        )
+        result = analyze_experiment(df, response_column="y", model="main_effects", analysis_type="lack_of_fit")
+        lof = result["lack_of_fit"]
+        assert lof["df_pure_error"] == 4
+        assert lof["ss_pure_error"] == pytest.approx(3.5)  # four pairs of replicates differing by 1 or 2
+        assert lof["df_lack_of_fit"] == 1
+
+    def test_a_model_using_every_distinct_setting_leaves_nothing_to_test(self) -> None:
+        """Four distinct settings and four model terms: the residual is all pure error."""
+        result = analyze_experiment(
+            _two_factor_replicated(), response_column="y", model="interactions", analysis_type="lack_of_fit"
+        )
+        assert result["lack_of_fit"] == {"error": "Insufficient degrees of freedom for lack-of-fit test."}
+
+    def test_no_factor_columns(self) -> None:
+        df = _two_factor_replicated()
+        fit = smf.ols("y ~ A + B", data=df).fit()
+        assert _run_lack_of_fit(fit, df, "y", factor_cols=[]) == {"lack_of_fit": {"error": "No factor columns found."}}
+
 
 # ---------------------------------------------------------------------------
 # Curvature test
@@ -368,6 +403,22 @@ class TestCurvatureTest:
             analysis_type="curvature_test",
         )
         assert "error" in result["curvature_test"]
+
+    def test_curvature_needs_factorial_points(self) -> None:
+        """A Box-Behnken design has centre points but no run with every factor at +/-1."""
+        factors = [Factor(name=n, low=-1, high=1) for n in "ABC"]
+        design = generate_design(factors, design_type="box_behnken", n_center_points=3).design[list("ABC")]
+        df = design.assign(y=np.arange(len(design), dtype=float))
+        result = analyze_experiment(df, response_column="y", model="main_effects", analysis_type="curvature_test")
+        assert result["curvature_test"] == {"error": "No factorial points found."}
+
+    def test_curvature_needs_replicated_runs(self) -> None:
+        """One centre run gives no pure error to test the curvature against."""
+        df = _two_factor_with_center().iloc[:5]
+        result = analyze_experiment(df, response_column="y", model="main_effects", analysis_type="curvature_test")
+        assert result["curvature_test"] == {
+            "error": "No pure error: the test needs replicated runs, such as two or more center points."
+        }
 
 
 # ---------------------------------------------------------------------------
@@ -488,6 +539,14 @@ class TestBoxCox:
         assert "lambda" in bc
         assert "recommendation" in bc
         assert len(bc["transformed_values"]) == len(df)
+
+    def test_lambda_zero_is_the_log(self) -> None:
+        y = np.array([1.0, np.e, 10.0])
+        np.testing.assert_allclose(box_cox_transform(y, 0.0), np.log(y))
+
+    def test_an_interval_without_a_named_power_recommends_the_estimate(self) -> None:
+        """No named power (inverse, log, square root) lies in (0.30, 0.36), so lambda itself is suggested."""
+        assert _recommendation(0.33, (0.30, 0.36)) == "power transform (lambda=0.330)"
 
     def test_box_cox_negative_data(self) -> None:
         """Verify Box-Cox returns error for negative data."""
@@ -676,6 +735,19 @@ class TestTransforms:
         )
         assert "coefficients" in result
 
+    def test_inverse_transform_fits_the_reciprocal(self) -> None:
+        df = _two_factor_replicated()
+        result = analyze_experiment(df, response_column="y", transform="inverse", analysis_type="coefficients")
+        expected = smf.ols("inv_y ~ A + B", data=df.assign(inv_y=1.0 / df["y"])).fit().params
+        fitted = {row["term"]: row["coefficient"] for row in result["coefficients"]}
+        assert fitted["A"] == pytest.approx(expected["A"])
+        assert result["model_summary"]["transform"] == "inverse"
+
+    def test_inverse_transform_refuses_a_zero_response(self) -> None:
+        df = _two_factor_replicated().assign(y=[0.0, 2, 3, 4, 5, 6, 7, 8])
+        with pytest.raises(ValueError, match=r"^transform='inverse' is undefined when the response contains zero\."):
+            analyze_experiment(df, response_column="y", transform="inverse", analysis_type="coefficients")
+
 
 # ---------------------------------------------------------------------------
 # Validation
@@ -808,6 +880,28 @@ class TestEffectsCoding:
         lenth = analyze_experiment(df, response_column="y", model="main_effects", analysis_type="lenth_method")
         effects = {e["term"]: e["effect"] for e in lenth["lenth_method"]["effects"]}
         assert effects["A"] == pytest.approx(8.0, abs=0.2)
+
+    @pytest.mark.parametrize("scale", [1.0, 10.0])
+    def test_a_square_is_its_coefficient_not_twice_it(self, scale: float) -> None:
+        """The square's column runs from 0 to 1, so its effect is the coefficient itself (#513).
+
+        A main effect still is twice its coefficient: the change from the low to the high
+        level. ``scale`` puts A in actual units (10, 20, 30), coded to -1, 0, +1 first.
+        """
+        x = np.array(list(itertools.product([-1.0, 0.0, 1.0], repeat=2)))
+        noise = np.array([0.05, -0.02, 0.01, -0.04, 0.03, 0.0, -0.01, 0.02, -0.03])
+        df = pd.DataFrame({"A": 20 + scale * x[:, 0] if scale != 1.0 else x[:, 0], "B": x[:, 1]})
+        df["y"] = 10 + 2 * x[:, 0] + 0.5 * x[:, 1] + 3 * x[:, 0] ** 2 + noise
+        for analysis in ("effects", "lenth_method"):
+            result = analyze_experiment(df, response_column="y", model="quadratic", analysis_type=analysis)
+            effects = (
+                result["effects"]
+                if analysis == "effects"
+                else {e["term"]: e["effect"] for e in result["lenth_method"]["effects"]}
+            )
+            square = next(term for term in effects if "A ** 2" in term)
+            assert effects[square] == pytest.approx(3.0, abs=0.1)
+            assert effects["A"] == pytest.approx(4.0, abs=0.1)
 
     def test_a_three_level_categorical_has_no_single_effect(self) -> None:
         df = pd.DataFrame({"A": [-1, 1] * 3, "M": ["a", "a", "b", "b", "c", "c"], "y": [1.0, 2, 3, 4, 5, 7]})
@@ -1088,7 +1182,10 @@ class TestLenthDefinition:
         from process_improve.experiments._analyses import lenth as lenth_module
 
         effects = pd.Series([1.0, 1.0, 1.0, 2.0, 2.0, 2.0, 7.5], index=["A", "B", "C", "A:B", "A:C", "B:C", "A:B:C"])
-        monkeypatch.setattr(lenth_module, "estimable_effects", lambda _fit: SimpleNamespace(coefficients=effects / 2))
+        estimable = SimpleNamespace(
+            coefficients=effects / 2, spans=pd.Series(2.0, index=effects.index)
+        )  # -1/+1 columns
+        monkeypatch.setattr(lenth_module, "estimable_effects", lambda _fit: estimable)
         out = lenth_module._run_lenth_method(None)["lenth_method"]
         # s0 = 1.5 * 2 = 3, and 7.5 = 2.5 s0 exactly: not strictly below, so it is trimmed.
         assert out["PSE"] == 2.25

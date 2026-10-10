@@ -88,9 +88,7 @@ def _run_lengths(missing: np.ndarray) -> np.ndarray:
     on what an earlier pass left behind.
     """
     lengths = np.zeros(missing.shape, dtype=int)
-    if not missing.any():
-        return lengths
-    # Boundaries of each run of missing values.
+    # Boundaries of each run of missing values; none at all leaves every length 0.
     padded = np.concatenate(([False], missing, [False]))
     edges = np.flatnonzero(padded[1:] != padded[:-1])
     for start, stop in zip(edges[::2], edges[1::2], strict=True):

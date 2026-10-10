@@ -24,16 +24,18 @@ def _validate_matrix_shape(data: list, name: str) -> None:
     """Reject oversize matrix inputs at the MCP boundary (SEC-19 #268).
 
     Caps ``len(data)`` against ``settings.max_matrix_rows`` and the
-    first row's width against ``settings.max_matrix_cols``. A 1 x 1M
+    widest row against ``settings.max_matrix_cols``. A 1 x 1M
     matrix passes the ``max_cells`` budget but blows up SVD; this is
-    the dimension-aware guard.
+    the dimension-aware guard. The widest row, not the first, is what
+    counts: ``pd.DataFrame`` pads short rows with NaN up to the longest
+    one, so a narrow first row followed by a wide one would otherwise
+    build a frame wider than the cap. A flat list is one column, and an
+    empty matrix has no columns.
     """
     n_rows = len(data)
     if n_rows > settings.max_matrix_rows:
         raise ValueError(f"{name} has {n_rows} rows; the cap is settings.max_matrix_rows={settings.max_matrix_rows}.")
-    if n_rows == 0:
-        return
-    n_cols = len(data[0]) if hasattr(data[0], "__len__") else 1
+    n_cols = max((len(row) if hasattr(row, "__len__") else 1 for row in data), default=0)
     if n_cols > settings.max_matrix_cols:
         raise ValueError(
             f"{name} has {n_cols} columns; the cap is settings.max_matrix_cols={settings.max_matrix_cols}."

@@ -132,3 +132,14 @@ def test_select_analysis_recipe_rejects_unknown_kwargs():
 
     with pytest.raises(ToolInputInvalidError):
         execute_tool_call("select_analysis_recipe", {"query": "x", "surprise": True})
+
+
+def test_recipe_module_with_a_missing_dependency_is_skipped_with_a_warning(caplog):
+    """A recipe module that cannot be imported is logged and skipped, so discovery carries on."""
+    import logging
+
+    from process_improve.recipes import _import_recipe_module
+
+    with caplog.at_level(logging.WARNING, logger="process_improve.recipes"):
+        _import_recipe_module("process_improve._no_such_recipe_module")
+    assert "not loaded (missing dependency)" in caplog.text

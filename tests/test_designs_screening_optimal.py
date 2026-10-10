@@ -9,7 +9,7 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-from process_improve.experiments import designs_optimal
+from process_improve.experiments import designs_optimal, designs_screening
 from process_improve.experiments.designs_constrained import MAX_CANDIDATES
 from process_improve.experiments.designs_optimal import (
     dispatch_a_optimal,
@@ -79,6 +79,26 @@ class TestTaguchiDispatch:
         factors = [Factor(name="Big", type="categorical", levels=[str(i) for i in range(40)])]
         with pytest.raises(ValueError, match="No standard orthogonal array"):
             dispatch_taguchi(factors)
+
+    def test_strength_two_needs_every_pair_balanced(self) -> None:
+        """A pair of columns showing (1, 0) twice and (1, 1) never is not balanced."""
+        assert not designs_screening._is_strength_two(np.array([[0, 0], [0, 1], [1, 0], [1, 0]]))
+        assert designs_screening._is_strength_two(np.array([[0, 0], [0, 1], [1, 0], [1, 1]]))
+
+    def test_an_unbalanced_choice_moves_on_to_the_next_array(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """The chosen columns are checked, not trusted: when L4 fails the check, the next array (L8) is used."""
+        real_check = designs_screening._is_strength_two
+        checked: list[int] = []
+
+        def first_check_fails(levels: np.ndarray) -> bool:
+            checked.append(len(levels))
+            return False if len(checked) == 1 else real_check(levels)
+
+        monkeypatch.setattr(designs_screening, "_is_strength_two", first_check_fails)
+        coded, meta = dispatch_taguchi(_continuous(3))
+        assert checked == [4, 8]
+        assert meta["orthogonal_array"] == "L8(2^7)"
+        assert coded.shape == (8, 3)
 
 
 @pytest.mark.usefixtures("no_pyoptex")

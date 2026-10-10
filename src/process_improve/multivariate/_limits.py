@@ -201,6 +201,11 @@ def score_limit(model: BaseEstimator, conf_level: float = 0.95) -> np.ndarray:
         Array of length ``n_components`` with the positive score limit for
         each component.
 
+    Raises
+    ------
+    ValueError
+        If ``conf_level`` is outside (0, 1).
+
     References
     ----------
     Score limits: the limit is ``t_{(1 + conf_level) / 2, N - 1} * s_a``.
@@ -208,7 +213,8 @@ def score_limit(model: BaseEstimator, conf_level: float = 0.95) -> np.ndarray:
     since ``sqrt(F(1, N - 1))`` is exactly the two-sided ``t_{N - 1}``
     quantile.
     """
-    assert 0.0 < conf_level < 1.0, "conf_level must be a value between (0.0, 1.0)"
+    if not 0.0 < conf_level < 1.0:
+        raise ValueError(f"conf_level must lie in (0, 1); got {conf_level}.")
     check_is_fitted(model, "scores_")
 
     scores = np.asarray(model.scores_, dtype=float)
@@ -253,7 +259,8 @@ def ellipse_coordinates(  # noqa: PLR0913
         the two plotted scores (see Background below).
     scaling_factor_for_scores : pd.Series
         Per-component standard deviations of the scores (``model.scaling_factor_for_scores_``).
-        Required, although the signature defaults to ``None``; omitting it fails.
+        Required, although the signature defaults to ``None``; omitting it raises
+        :class:`TypeError`.
         Used to scale the ellipse axes.
     n_rows : int
         Number of rows `N` in the data used to fit the model. Required to compute the
@@ -291,7 +298,11 @@ def ellipse_coordinates(  # noqa: PLR0913
         raise ValueError(f"n_rows must be positive; got {n_rows}.")
     if n_points < 2:
         raise ValueError(f"n_points must be >= 2 to draw an ellipse; got {n_points}.")
-    assert scaling_factor_for_scores is not None  # required for the ellipse scaling
+    if scaling_factor_for_scores is None:
+        raise TypeError(
+            "scaling_factor_for_scores is required: pass the per-component score standard deviations "
+            f"(model.scaling_factor_for_scores_); got {scaling_factor_for_scores}."
+        )
     s_h = scaling_factor_for_scores.iloc[score_horiz - 1]
     s_v = scaling_factor_for_scores.iloc[score_vert - 1]
     # The ellipse is the joint confidence region for the TWO plotted scores,

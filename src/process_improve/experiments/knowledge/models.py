@@ -57,17 +57,6 @@ class DiagnosticNode:
 
 
 @dataclass
-class InterpretationGuide:
-    """Guidance for interpreting DOE output (ANOVA, plots, model adequacy)."""
-
-    id: str
-    topic: str
-    title: str
-    content: dict[str, str]  # detail_level -> text
-    related_questions: list[int] = field(default_factory=list)
-
-
-@dataclass
 class ConceptNode:
     """A statistical concept definition (replication, resolution, etc.)."""
 
@@ -77,20 +66,6 @@ class ConceptNode:
     content: dict[str, str]  # detail_level -> text
     related_to: list[str] = field(default_factory=list)
     related_questions: list[int] = field(default_factory=list)
-
-
-@dataclass
-class WorkedExample:
-    """A worked example demonstrating a DOE concept or workflow."""
-
-    id: str
-    title: str
-    demonstrates: list[str]  # concept IDs
-    topic: str
-    scenario: str
-    steps: list[str]
-    related_questions: list[int] = field(default_factory=list)
-    detail_level: str = "intermediate"
 
 
 # ---------------------------------------------------------------------------
@@ -105,9 +80,7 @@ class KnowledgeGraph:
     design_types: dict[str, DesignTypeNode] = field(default_factory=dict)
     decision_rules: list[DecisionRuleNode] = field(default_factory=list)
     diagnostics: dict[str, DiagnosticNode] = field(default_factory=dict)
-    interpretation_guides: dict[str, InterpretationGuide] = field(default_factory=dict)
     concepts: dict[str, ConceptNode] = field(default_factory=dict)
-    worked_examples: dict[str, WorkedExample] = field(default_factory=dict)
 
     # Indices built at load time
     topic_index: dict[str, list[str]] = field(default_factory=dict)

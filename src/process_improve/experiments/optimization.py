@@ -263,7 +263,7 @@ def _extract_b_and_B(  # noqa: N802
             b0 = coef
         elif len(components) == 1:
             b[name_to_idx[components[0]]] = coef
-        elif len(components) == 2:
+        else:  # two components: _parsed_terms(max_order=2) refuses anything longer
             i = name_to_idx[components[0]]
             j = name_to_idx[components[1]]
             if i == j:
@@ -1293,8 +1293,6 @@ def _non_dominated(utilities: np.ndarray) -> np.ndarray:
     """Return a boolean mask of the rows no other row dominates (more is better)."""
     keep = np.ones(len(utilities), dtype=bool)
     for i, row in enumerate(utilities):
-        if not keep[i]:
-            continue
         # Strictly better somewhere, and no worse anywhere: that dominates row i.
         scale = np.maximum(np.abs(row), 1.0)
         better_or_equal = (utilities >= row - _PARETO_TOL * scale).all(axis=1)
@@ -1948,7 +1946,7 @@ def optimize_responses(  # noqa: PLR0913, C901
             "path",
         )
 
-    elif method == "pareto_front":
+    else:  # "pareto_front", the last of _METHODS, which every call was checked against
         if goals is None:
             msg = "Goals are required for Pareto front optimization."
             raise ValueError(msg)

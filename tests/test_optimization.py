@@ -14,6 +14,7 @@ from process_improve.experiments._desirability import (
     desirability_target,
     individual_desirability,
 )
+from process_improve.experiments.factor import Factor
 from process_improve.experiments.optimization import (
     _build_model_evaluator,
     _canonical_analysis,
@@ -24,6 +25,7 @@ from process_improve.experiments.optimization import (
     evaluate_model,
     optimize_responses,
 )
+from process_improve.experiments.region import DesignRegion
 from process_improve.tool_spec import get_tool_specs
 
 # ---------------------------------------------------------------------------
@@ -956,6 +958,41 @@ class TestGoalMatching:
         with pytest.raises(ValueError, match="one to one"):
             optimize_responses(self._models(), goals=goals, method="desirability")
 
+    def test_one_unnamed_model_and_goal_pair_without_a_warning(self, recwarn: pytest.WarningsRecorder) -> None:
+        """A single model and a single goal can only go together, so pairing them by position is not flagged."""
+        unnamed = {key: value for key, value in self._models()[0].items() if key != "response_name"}
+        goals = [{"goal": "maximize", "low": -1.0, "high": 1.0}]
+        out = optimize_responses([unnamed], goals=goals, method="desirability")
+        assert out["desirability"]["optimal_coded"]["A"] == pytest.approx(1.0, abs=1e-4)
+        assert not [w for w in recwarn if "by position" in str(w.message)]
+
+
+class TestNoConvergedStart:
+    """When every SLSQP start fails, the desirability search says so instead of returning a setting."""
+
+    @pytest.mark.parametrize(
+        ("region", "message"),
+        [
+            pytest.param(None, "optimization produced no result", id="search-box"),
+            pytest.param(
+                DesignRegion([Factor(name="A", low=-1, high=1), Factor(name="B", low=-1, high=1)]),
+                "no start converged inside the region",
+                id="design-region",
+            ),
+        ],
+    )
+    def test_no_start_converging_raises(
+        self, monkeypatch: pytest.MonkeyPatch, region: DesignRegion | None, message: str
+    ) -> None:
+        from process_improve.experiments import optimization
+
+        monkeypatch.setattr(optimization, "_closest_to_specification", lambda *_args: None)
+        monkeypatch.setattr(optimization, "_multistart_slsqp", lambda *_args, **_kwargs: None)
+        model = {"response_name": "y", "coefficients": _quadratic_2f_coeffs(), "factor_names": FACTOR_NAMES_2F}
+        goals = [{"response": "y", "goal": "maximize", "low": 30.0, "high": 45.0}]
+        with pytest.raises(RuntimeError, match=f"^{message}$"):
+            optimize_responses([model], goals=goals, method="desirability", region=region)
+
 
 class TestResponseImportanceNaming:
     """The old kwarg name said 'weights' but carried importances."""
@@ -1070,6 +1107,15 @@ class TestIntervalsAtOptimum:
         goals = [{"response": "y", "goal": "maximize", "low": 30.0, "high": 50.0}]
         with pytest.raises(ValueError, match="correspond one to one"):
             optimize_responses([model], goals=goals, method="desirability", fitted_results=[fitted, fitted])
+
+    def test_a_result_that_cannot_predict_is_reported_for_its_response(self, caplog: pytest.LogCaptureFixture) -> None:
+        """An object that is not a fitted model gives that response an error entry, and a logged warning."""
+        model, _ = self._fit()
+        goals = [{"response": "y", "goal": "maximize", "low": 30.0, "high": 50.0}]
+        with caplog.at_level("WARNING", logger="process_improve.experiments.optimization"):
+            out = optimize_responses([model], goals=goals, method="desirability", fitted_results=[object()])
+        assert set(out["desirability"]["response_intervals"]["y"]) == {"error"}
+        assert "Could not compute intervals for response 'y'" in caplog.text
 
 
 class TestSearchBounds:
@@ -1236,6 +1282,20 @@ class TestFormerStubs:
 
 class TestDispatcher:
     """Verify optimize_responses routes to the correct method."""
+
+    def test_a_model_that_is_not_a_dict_is_rejected(self) -> None:
+        """A string where a model dict belongs is named by position and type."""
+        with pytest.raises(TypeError, match=r"^fitted_models\[0\] must be a dict; got str\.$"):
+            optimize_responses(["y ~ A + B"], method="stationary_point")  # type: ignore[list-item]
+
+    def test_factors_without_a_range_stay_in_coded_units(self) -> None:
+        """Only the factors given a range are converted; the others are reported as coded values."""
+        model = {"response_name": "yield", "coefficients": _quadratic_2f_coeffs(), "factor_names": FACTOR_NAMES_2F}
+        result = optimize_responses([model], method="stationary_point", factor_ranges={"A": {"low": 150, "high": 200}})
+        coded = result["stationary_point"]["stationary_point_coded"]
+        actual = result["stationary_point"]["stationary_point_actual"]
+        assert actual["B"] == coded["B"]
+        assert actual["A"] == pytest.approx(175.0 + 25.0 * coded["A"])
 
     def test_stationary_point_via_dispatcher(self) -> None:
         """Stationary point method produces stationary_point key."""

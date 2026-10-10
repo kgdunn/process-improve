@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import copy
 import pathlib
 
 import numpy as np
@@ -22,6 +23,7 @@ from process_improve.multivariate._cv_criteria import (
     _leading_count,
     _nipals_scores,
     _partition_splits,
+    _permutation_summary,
     _procrustes_scores,
     _score_correlation_null,
     _swapped_pairs,
@@ -120,6 +122,26 @@ def test_van_der_voet_pvalues_match_direct_call() -> None:
     np.testing.assert_allclose(result.table["vdv_p"], p_values)
 
 
+def test_van_der_voet_counts_a_component_with_no_finite_difference_as_indistinguishable() -> None:
+    """A count whose residuals were never compared on any row gets p = 1, so parsimony picks it."""
+    per_obs_sse = np.array([[np.nan, np.nan, np.nan], [1.0, 2.0, 3.0], [1.5, 2.5, 3.5]])
+    recommended, p_values = _vandervoet_randomization(
+        per_obs_sse, total_rmsecv=np.array([np.nan, 1.0, 1.2]), n_permutations=19, random_state=0
+    )
+    assert p_values[0] == 1.0
+    assert recommended == 1
+
+
+def test_van_der_voet_keeps_the_reference_when_no_count_qualifies() -> None:
+    """If no p-value exceeds alpha (only possible at alpha = 1) the reference model is recommended."""
+    per_obs_sse = np.array([[3.0, 4.0, 5.0], [1.0, 2.0, 3.0], [1.5, 2.5, 3.5]])
+    recommended, p_values = _vandervoet_randomization(
+        per_obs_sse, total_rmsecv=np.array([1.5, 1.0, 1.2]), n_permutations=19, alpha=1.0, random_state=0
+    )
+    assert p_values[1] == 1.0  # the reference, compared with itself
+    assert recommended == 2
+
+
 def test_cv_anova_is_a_function_of_q2() -> None:
     q2 = np.array([0.8, 0.5, -0.1, 0.0])
     p_values = _cv_anova_pvalues(q2, N=40, M=1)
@@ -131,6 +153,21 @@ def test_cv_anova_is_a_function_of_q2() -> None:
     assert np.all(np.isnan(_cv_anova_pvalues(q2, N=40, M=2)))
     # Degrees of freedom exhausted: undefined, not zero.
     assert np.isnan(_cv_anova_pvalues(np.array([0.5] * 5), N=10, M=1)[-1])
+
+
+def test_cv_anova_calls_a_perfect_prediction_significant() -> None:
+    """A Q2 of 1 leaves no residual for the F-ratio: its p-value is 0, not a division by zero."""
+    assert _cv_anova_pvalues(np.array([1.0, 0.5]), N=40, M=1)[0] == 0.0
+
+
+def test_permutation_summary_leaves_a_component_without_evidence_undefined() -> None:
+    """No observed statistic, or no finite null draw, gives a NaN p-value and threshold, not a number."""
+    null = np.array([[0.1, np.nan, 0.2], [0.3, np.nan, 0.1], [0.2, np.nan, 0.4]])
+    observed = np.array([0.25, 0.5, np.nan])
+    p_values, thresholds = _permutation_summary(null, observed, alpha=0.05)
+    assert p_values[0] == pytest.approx((1 + 1) / (3 + 1))  # one of three null draws beats 0.25
+    assert np.isnan(p_values[1:]).all()
+    assert np.isnan(thresholds[1:]).all()
 
 
 # --- Procrustes cross-validation ---------------------------------------------------------
@@ -385,6 +422,21 @@ def test_invalid_settings_raise(kwargs: dict, message: str) -> None:
         compare_cv_criteria(X, Y, **kwargs)
 
 
+@pytest.mark.parametrize(
+    ("rows_x", "rows_y", "message"),
+    [
+        (30, 29, r"^X and Y must have the same number of rows; got 30 and 29\.$"),
+        (2, 2, r"^No components can be evaluated; the data or the folds are too small\.$"),
+    ],
+    ids=["y-one-row-short", "two-rows-in-two-folds"],
+)
+def test_data_that_cannot_be_cross_validated_is_refused(rows_x: int, rows_y: int, message: str) -> None:
+    """X and Y must pair up row for row, and each fold must keep enough rows to fit a component."""
+    X, Y = _two_component_data(n=30)
+    with pytest.raises(ValueError, match=message):
+        compare_cv_criteria(X.iloc[:rows_x], Y.iloc[:rows_y], cv=2)
+
+
 # --- Missing values ------------------------------------------------------------------------
 
 
@@ -538,3 +590,39 @@ def test_cv_criteria_plot_draws_four_panels(two_component_result: object) -> Non
     assert any("SPE limit refitted" in annotation.text for annotation in fig.layout.annotations)
     with pytest.raises(ValueError, match="compare_cv_criteria"):
         cv_criteria_plot(object())
+
+
+@pytest.fixture(scope="module")
+def noise_result() -> object:
+    """compare_cv_criteria on a y unrelated to X: the Y-related rules recommend 0 components."""
+    X, _ = _two_component_data()
+    y = pd.Series(np.random.default_rng(3).standard_normal(len(X)), name="noise")
+    return compare_cv_criteria(X, y, max_components=2, random_state=0, n_permutations=39, n_cv_permutations=19)
+
+
+def test_cv_criteria_plot_names_but_does_not_draw_a_recommendation_of_zero(noise_result: object) -> None:
+    """A rule that recommends no components is captioned in its panel, with no line at 0."""
+    pytest.importorskip("plotly.graph_objects")
+    from process_improve.multivariate.plots import cv_criteria_plot
+
+    picks = noise_result.recommendations["n_components"]
+    assert picks[["score_correlation", "covariance_permutation", "subspace_stability"]].eq(0).all()
+    fig = cv_criteria_plot(noise_result)
+    captions = [annotation.text for annotation in fig.layout.annotations]
+    assert "Recommended: 0 (held-out r, covariance)" in captions
+    assert "Recommended: 0 (subspace)" in captions
+    # Only panel 1's rules recommend a component, so theirs is the only line drawn.
+    assert [shape.x0 for shape in fig.layout.shapes] == [picks["q2_max"]]
+
+
+def test_cv_criteria_plot_has_no_spe_caption_without_a_finite_limit_ratio(noise_result: object) -> None:
+    """Panel 4's caption quotes the refitted SPE limit ratio, so with no finite ratio there is none."""
+    pytest.importorskip("plotly.graph_objects")
+    from process_improve.multivariate.plots import cv_criteria_plot
+
+    without_ratio = copy.copy(noise_result)
+    without_ratio.table = noise_result.table.assign(pv_spe_limit_ratio=np.nan)
+    with_ratio = [annotation.text for annotation in cv_criteria_plot(noise_result).layout.annotations]
+    without = [annotation.text for annotation in cv_criteria_plot(without_ratio).layout.annotations]
+    assert any(text.startswith("SPE limit refitted") for text in with_ratio)
+    assert not any(text.startswith("SPE limit refitted") for text in without)

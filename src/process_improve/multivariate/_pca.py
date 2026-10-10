@@ -462,6 +462,7 @@ def _pca_ckf_press(
     26(7), 361-373. DOI 10.1002/cem.2440.
     """
     n_features = Z.shape[1]
+    # No more folds than columns, so np.array_split never hands back an empty fold.
     n_folds = max(1, min(int(n_folds), n_features))
     rng = np.random.default_rng(random_state)
     groups = np.array_split(rng.permutation(n_features), n_folds)
@@ -469,16 +470,16 @@ def _pca_ckf_press(
     # One SVD serves every component count: the rank-a loadings are the first a columns of
     # V, so the whole curve costs one decomposition rather than max_components of them.
     _, _, vt = np.linalg.svd(Z, full_matrices=False)
-    available = min(max_components, vt.shape[0])
+    # Invariant: the only caller, select_n_components, caps max_components at
+    # min(N - 1, K), within the min(N, K) components this SVD returns.
+    assert max_components <= vt.shape[0], "internal: ckf asked for more components than the SVD has"
 
     press = np.zeros(max_components)
     per_fold_press = np.full((max_components, n_folds), np.nan)
     per_column_press = np.zeros((max_components, n_features))
-    for a in range(1, available + 1):
+    for a in range(1, max_components + 1):
         loadings = vt[:a, :].T  # (n_features, a)
         for fold, held_out in enumerate(groups):
-            if held_out.size == 0:
-                continue
             keep = np.setdiff1d(np.arange(n_features), held_out, assume_unique=False)
             if keep.size < a:
                 # Fewer retained columns than components: the least-squares score is not
@@ -491,13 +492,6 @@ def _pca_ckf_press(
             per_column_press[a - 1, held_out] = squared.sum(axis=0)
             per_fold_press[a - 1, fold] = float(squared.sum())
         press[a - 1] = float(np.nansum(per_fold_press[a - 1, :]))
-
-    if available < max_components:
-        # Beyond the rank of Z there is nothing left to fit; carry the last honest value
-        # forward rather than reporting a zero error the model did not earn.
-        press[available:] = press[available - 1] if available else np.nan
-        per_fold_press[available:, :] = per_fold_press[available - 1, :] if available else np.nan
-        per_column_press[available:, :] = per_column_press[available - 1, :] if available else np.nan
 
     per_column_null_ss = (Z**2).sum(axis=0)
     return press, per_fold_press, per_column_press, float(per_column_null_ss.sum()), per_column_null_ss
@@ -1036,12 +1030,13 @@ class PCA(_LatentVariableModel, TransformerMixin, BaseEstimator):
         # Storage for numpy results (set by _fit_* methods)
         X_values = np.asarray(X.copy())
 
-        # Dispatch
+        # Dispatch. "auto" was resolved and anything unknown refused above, so these three
+        # branches are every value algo can hold.
         if algo == "svd":
             self._fit_svd(X_values, N, K, A)
         elif algo == "nipals":
             self._fit_nipals(X_values, N, K, A, settings)
-        elif algo == "tsr":
+        else:  # "tsr"
             self._fit_tsr(X_values, N, K, A, settings)
 
         # --- Common post-fit path ---
@@ -1614,12 +1609,10 @@ class PCA(_LatentVariableModel, TransformerMixin, BaseEstimator):
         >>> print(f"Mean CV score: {scores.mean():.4f}")
         """
         check_is_fitted(self, "loadings_")
-        # transform() runs validate_data; build a DataFrame view here for
-        # the residual computation that matches its shape.
+        # transform() runs validate_data, which refuses anything but a 2-D X, so the
+        # array taken here for the residual computation already has the right shape.
         scores = self.transform(X)
         X_arr = np.asarray(X, dtype=float)
-        if X_arr.ndim == 1:
-            X_arr = X_arr.reshape(1, -1)
         X_hat = scores.values @ self._loadings.T
         residuals = X_arr - X_hat
         return -float(np.mean(residuals**2))

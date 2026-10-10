@@ -439,3 +439,19 @@ class TestBlockValidation:
         _scaled, constants = center_and_scale(transformed, presence)
         with pytest.raises(ValueError, match="must carry the columns"):
             apply_fitted_center_scale(transformed, constants.drop(columns=["divisor"]))
+
+
+@pytest.mark.parametrize(
+    ("values", "lod", "expected"),
+    [
+        ([4.0, 2.0, 0.0], 0.5, 0.25),
+        ([4.0, 2.0, 0.0], np.nan, 1.0),
+        ([np.nan, 0.0, -1.0], np.nan, 1.0),
+    ],
+    ids=["half-the-detection-limit", "half-the-smallest-detected", "nothing-detected"],
+)
+def test_log_offset_rule(values: list[float], lod: float, expected: float) -> None:
+    """The log offset is half the detection limit, else half the smallest value seen, else 1 (log of it is 0)."""
+    from process_improve.chemistry.preprocessing import _log_offset
+
+    assert _log_offset(np.array(values), lod) == expected

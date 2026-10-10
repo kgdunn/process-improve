@@ -29,15 +29,17 @@ def _run_lenth_method(
 ) -> dict[str, Any]:
     """Lenth's method (PSE) for unreplicated factorials.
 
-    ``ols_result`` must be fitted on factors coded to -1/+1, so that an effect is twice
-    the coefficient. The method assumes each effect is a separate estimate, so exactly
+    ``ols_result`` must be fitted on factors coded to -1/+1. An effect is the coefficient
+    times the span of its model column: twice the coefficient for a main effect or an
+    interaction, the coefficient itself for a square. The method assumes each effect is a separate estimate, so exactly
     aliased terms enter once, as their alias chain (#16), not once per term with the
     chain's effect shared out between them. The ``blocks`` contrasts are not factor
     effects and are left out.
     """
-    params = estimable_effects(ols_result).coefficients
-    params = params[[label for label in params.index if not is_block_term(label, blocks)]]
-    effects = 2.0 * params.to_numpy()  # coded ±1 → effect = 2 * coefficient
+    estimable = estimable_effects(ols_result)
+    keep = [label for label in estimable.coefficients.index if not is_block_term(label, blocks)]
+    params = estimable.coefficients[keep]
+    effects = (estimable.spans[keep] * params).to_numpy()
     abs_effects = np.abs(effects)
 
     # Step 1: initial median

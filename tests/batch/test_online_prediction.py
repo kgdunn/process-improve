@@ -57,6 +57,19 @@ def pca_model(small_dryer: dict) -> BatchPCA:
 
 
 @pytest.fixture(scope="module")
+def charge(small_dryer: dict) -> pd.DataFrame:
+    """Return a one-column initial-condition block, one row per batch."""
+    ids = list(small_dryer)
+    return pd.DataFrame({"charge": [float(i) for i in range(len(ids))]}, index=ids)
+
+
+@pytest.fixture(scope="module")
+def pls_with_z(small_dryer: dict, dryer_quality: pd.DataFrame, charge: pd.DataFrame) -> BatchPLS:
+    """Fit a 2-component BatchPLS with the initial-condition block."""
+    return BatchPLS(n_components=N_COMPONENTS).fit(small_dryer, dryer_quality, initial_conditions=charge)
+
+
+@pytest.fixture(scope="module")
 def pls_monitor(pls_model: BatchPLS, small_dryer: dict) -> BatchMonitor:
     """Fit a cumulative-SPE monitor on the PLS model, with the training batches as the reference set."""
     return BatchMonitor(pls_model, conf_level=0.99).fit(small_dryer)
@@ -204,6 +217,76 @@ def test_wrong_columns_raise(pls_model: BatchPLS, small_dryer: dict) -> None:
         pls_model.predict_online_trace(wrong)
 
 
+@pytest.mark.parametrize(
+    ("call", "match"),
+    [
+        (
+            lambda _plain, with_z, _z, batch: with_z.predict_online_trace(batch),
+            r"The model was fitted with initial conditions; they are required here\.",
+        ),
+        (
+            lambda _plain, with_z, z, batch: with_z.predict_online_trace(batch, initial_conditions=z.iloc[:2]),
+            r"initial_conditions for a single batch must have exactly one row\.",
+        ),
+        (
+            lambda plain, _with_z, _z, batch: plain.predict_online(
+                batch, UPTO_K, initial_conditions=pd.Series({"charge": 1.0})
+            ),
+            r"The model was fitted without initial conditions; do not pass any\.",
+        ),
+        (
+            lambda _plain, with_z, _z, batch: with_z.predict_online(batch, UPTO_K),
+            r"The model was fitted with initial conditions; they are required here\.",
+        ),
+        (
+            lambda _plain, with_z, _z, batch: with_z.predict_online(
+                batch, UPTO_K, initial_conditions=pd.Series({"other": 1.0})
+            ),
+            r"initial_conditions is missing 'charge'\.",
+        ),
+    ],
+    ids=[
+        "trace-without-the-z-block",
+        "trace-with-two-z-rows",
+        "z-for-a-model-fitted-without",
+        "batch-so-far-without-the-z-block",
+        "z-missing-a-fitted-name",
+    ],
+)
+def test_initial_conditions_must_match_the_fit(  # noqa: PLR0913
+    pls_model: BatchPLS,
+    pls_with_z: BatchPLS,
+    charge: pd.DataFrame,
+    small_dryer: dict,
+    call: object,
+    match: str,
+) -> None:
+    """Initial conditions are required exactly when the model was fitted with them, one row, every name."""
+    _, batch = first_batch(small_dryer)
+    with pytest.raises(ValueError, match=match):
+        call(pls_model, pls_with_z, charge, batch)  # type: ignore[operator]
+
+
+def test_unfolded_layout_needs_the_two_level_index() -> None:
+    """A flat column index carries no (tag, sequence) layout to describe."""
+    from process_improve.batch._online import unfolded_layout
+
+    with pytest.raises(
+        TypeError, match=r"The model's feature columns must carry the 2-level \(tag, sequence\) index\."
+    ):
+        unfolded_layout(pd.Index(["a", "b"]))
+
+
+def test_scaled_row_names_labels_the_model_does_not_carry(pls_model: BatchPLS) -> None:
+    """A value for a column the model was not fitted on is refused, with the label quoted."""
+    from process_improve.batch._online import scaled_row
+
+    with pytest.raises(
+        ValueError, match=r"observed carries labels that are not model columns, e\.g\. \[\('nope', 0\)\]\."
+    ):
+        scaled_row(pls_model, pd.Series({("nope", 0): 1.0}))
+
+
 # ---------------------------------------------------------------------------
 # online_rmse
 # ---------------------------------------------------------------------------
@@ -235,6 +318,42 @@ def test_online_rmse_validates_the_quality_block(
         pls_model.online_rmse(small_dryer, dryer_quality.rename(columns={"final": "other"}))
     with pytest.raises(ValueError, match="no row"):
         pls_model.online_rmse(small_dryer, dryer_quality.iloc[:-1])
+
+
+@pytest.mark.parametrize(
+    ("batches", "quality", "match"),
+    [
+        (lambda _batches: {}, lambda y: y, r"X is empty; at least one batch is needed\."),
+        (
+            lambda batches: batches,
+            lambda y: pd.concat([y, y.iloc[:1]]),
+            r"Y must have one row per batch identifier; its index is not unique\.",
+        ),
+        (
+            lambda batches: batches,
+            lambda y: y.assign(final=y["final"].where(y.index != y.index[0])),
+            r"Y contains missing values for the batches in X; the error cannot be formed\.",
+        ),
+    ],
+    ids=["no-batches", "duplicate-quality-rows", "missing-quality-value"],
+)
+def test_online_rmse_needs_one_complete_quality_row_per_batch(  # noqa: PLR0913
+    pls_model: BatchPLS, small_dryer: dict, dryer_quality: pd.DataFrame, batches: object, quality: object, match: str
+) -> None:
+    """The error curve needs at least one batch and exactly one finite quality row for each."""
+    with pytest.raises(ValueError, match=match):
+        pls_model.online_rmse(batches(small_dryer), quality(dryer_quality))  # type: ignore[operator]
+
+
+def test_online_rmse_with_initial_conditions(
+    pls_with_z: BatchPLS, small_dryer: dict, dryer_quality: pd.DataFrame, charge: pd.DataFrame
+) -> None:
+    """With a Z block the curve still ends at the fitted RMSE, and every batch needs its Z row."""
+    rmse = pls_with_z.online_rmse(small_dryer, dryer_quality, initial_conditions=charge)
+    np.testing.assert_allclose(rmse.iloc[-1].to_numpy(), pls_with_z.rmse_.iloc[:, -1].to_numpy(), rtol=1e-9)
+    last_id = list(small_dryer)[-1]
+    with pytest.raises(ValueError, match=rf"initial_conditions has no row for batch id\(s\) \[{last_id}\]\."):
+        pls_with_z.online_rmse(small_dryer, dryer_quality, initial_conditions=charge.iloc[:-1])
 
 
 # ---------------------------------------------------------------------------

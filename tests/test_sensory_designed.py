@@ -198,3 +198,84 @@ def test_compact_letter_display_handles_non_interval_pattern() -> None:
 def test_compact_letter_display_all_same_when_nothing_significant() -> None:
     mapping = _compact_letter_display(["A", "B", "C"], set())
     assert mapping["A"] == mapping["B"] == mapping["C"] == "a"
+
+
+def _degenerate_panel() -> pd.DataFrame:
+    """Return a small panel with one well-posed attribute and several that defeat a test.
+
+    ``A`` is scored on every formulation by every panelist and ``NoControl`` on all but
+    the control. ``Unscored`` has no scores at all, ``OneLevel`` is scored on a single
+    formulation, and ``OneControl`` has one control score and no residual degrees of freedom.
+    """
+    rng = np.random.default_rng(5)
+    rows: list[dict[str, object]] = []
+    for pid in ("P1", "P2", "P3"):
+        for form in ("Control", "T1", "T2"):
+            rows.append({"panelist_id": pid, "formulation": form, "attribute": "A", "score": 5 + rng.normal()})
+            rows.append({"panelist_id": pid, "formulation": form, "attribute": "Unscored", "score": np.nan})
+            if form == "T1":
+                rows.append({"panelist_id": pid, "formulation": form, "attribute": "OneLevel", "score": 4.0})
+            if form != "Control":
+                score = 3 + rng.normal()
+                rows.append({"panelist_id": pid, "formulation": form, "attribute": "NoControl", "score": score})
+    rows += [
+        {"panelist_id": "P1", "formulation": "Control", "attribute": "OneControl", "score": 5.0},
+        {"panelist_id": "P1", "formulation": "T1", "attribute": "OneControl", "score": 6.0},
+        {"panelist_id": "P2", "formulation": "T1", "attribute": "OneControl", "score": 6.5},
+    ]
+    return pd.DataFrame(rows)
+
+
+def test_an_attribute_that_cannot_be_fitted_gets_a_failure_row() -> None:
+    """An attribute with no scores is reported as '(model failed)' with a note, and the sweep goes on."""
+    table = factorial_anova(_degenerate_panel(), factors=["formulation"])
+    failed = table[table["attribute"] == "Unscored"]
+    assert list(failed["source"]) == ["(model failed)"]
+    assert failed[["df", "sum_sq", "mean_sq", "F", "p_value"]].isna().all(axis=None)
+    assert failed["note"].iloc[0] != ""
+    assert {"formulation", "panelist_id", "Residual"} <= set(table.loc[table["attribute"] == "A", "source"])
+
+
+def test_tukey_skips_the_attributes_it_cannot_test() -> None:
+    """One level, no scores, or no residual degrees of freedom: nothing to compare, so no rows."""
+    tukey = tukey_hsd(_degenerate_panel(), factor="formulation")
+    assert sorted(tukey["attribute"].unique()) == ["A", "NoControl"]
+
+
+def test_dunnett_skips_attributes_without_a_usable_control() -> None:
+    """No control level, or a single control score, leaves nothing to test against."""
+    dunnett = dunnett_vs_control(_degenerate_panel(), factor="formulation", control="Control")
+    assert sorted(dunnett["attribute"].unique()) == ["A"]
+    assert sorted(dunnett["level"]) == ["T1", "T2"]
+
+
+@pytest.mark.parametrize(
+    ("helper", "run"),
+    [
+        pytest.param("_blocked_error", lambda p: tukey_hsd(p, factor="formulation"), id="tukey-error-model"),
+        pytest.param(
+            "_scipy_dunnett",
+            lambda p: dunnett_vs_control(p, factor="formulation", control="Control"),
+            id="dunnett",
+        ),
+    ],
+)
+def test_a_failing_post_hoc_fit_skips_the_attribute(monkeypatch: pytest.MonkeyPatch, helper: str, run) -> None:
+    """A numerical failure inside a post-hoc test drops that attribute instead of aborting the table."""
+    from process_improve.sensory import designed
+
+    def fail(*args: object, **kwargs: object) -> None:
+        raise np.linalg.LinAlgError("singular")
+
+    monkeypatch.setattr(designed, helper, fail)
+    assert run(_degenerate_panel()).empty
+
+
+def test_a_mean_from_one_score_has_no_interval() -> None:
+    """A single score gives a mean but no confidence interval."""
+    means = compare_products(_degenerate_panel(), factors=["formulation"], control="Control").means
+    cell = means[(means["attribute"] == "OneControl") & (means["formulation"] == "Control")].iloc[0]
+    assert cell["mean"] == 5.0
+    assert cell["n"] == 1
+    assert np.isnan(cell["ci_low"])
+    assert np.isnan(cell["ci_high"])

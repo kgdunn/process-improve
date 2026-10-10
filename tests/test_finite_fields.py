@@ -69,6 +69,94 @@ def test_prime_power() -> None:
     assert ff.prime_power(1) is None
 
 
+#: Every field of order up to 32, prime and extension.
+_FIELDS_UP_TO_32 = [q for q in range(2, 33) if ff.prime_power(q) is not None]
+
+
+@pytest.mark.parametrize("q", _FIELDS_UP_TO_32)
+def test_field_axioms_hold_exhaustively(q: int) -> None:
+    """Every field axiom, checked over all pairs and triples of elements at once.
+
+    Addition is recovered from the subtraction table as a + b = a - (0 - b).
+    """
+    multiply, subtract = ff._field_tables(q)
+    add = subtract[:, subtract[0]]
+    a, b, c = np.ix_(range(q), range(q), range(q))
+    elements = np.arange(q)
+    for table in (add, multiply):
+        assert np.array_equal(table, table.T)  # commutative
+        assert np.array_equal(table[table[a, b], c], table[a, table[b, c]])  # associative
+    assert np.array_equal(add[0], elements)  # 0 is the additive identity
+    assert np.array_equal(multiply[1], elements)  # 1 is the multiplicative identity
+    assert np.array_equal(add[elements, subtract[0]], np.zeros(q, dtype=int))  # a + (0 - a) = 0
+    assert ((multiply[1:, 1:] == 1).sum(axis=1) == 1).all()  # one inverse per non-zero element
+    assert np.array_equal(multiply[a, add[b, c]], add[multiply[a, b], multiply[a, c]])  # distributive
+
+
+@pytest.mark.parametrize("q", [q for q in _FIELDS_UP_TO_32 if q % 2])
+def test_quadratic_character_is_multiplicative_and_sets_the_paley_symmetry(q: int) -> None:
+    """chi(ab) = chi(a) chi(b) for all a, b; the Paley matrix is symmetric exactly when q = 1 (mod 4)."""
+    multiply, _ = ff._field_tables(q)
+    chi = ff.quadratic_character(q)
+    assert np.array_equal(chi[multiply], np.outer(chi, chi))
+    matrix = ff.paley_conference_matrix(q)
+    assert np.array_equal(matrix, matrix.T) == (q % 4 == 1)
+    assert np.array_equal(matrix, -matrix.T) == (q % 4 == 3)
+
+
+@pytest.mark.parametrize("q", [2, 4, 8, 15])
+def test_paley_needs_an_odd_prime_power(q: int) -> None:
+    with pytest.raises(ValueError, match=f"^Paley's construction needs an odd prime power; got q={q}\\.$"):
+        ff.paley_conference_matrix(q)
+
+
+def test_an_odd_order_has_no_conference_matrix() -> None:
+    with pytest.raises(ValueError, match=r"^No conference matrix of order 5 can be built here\.$"):
+        ff.conference_matrix(5)
+
+
+def test_no_buildable_conference_order_above_the_search_limit() -> None:
+    with pytest.raises(ValueError, match=r"^No conference matrix of order between 201 and 200 can be built here\.$"):
+        ff.conference_order_at_least(ff.MAX_ORDER + 1)
+
+
+@pytest.mark.parametrize(("n", "construction"), [(1, "trivial"), (2, "sylvester"), (248, "sylvester(paley_ii_q=61)")])
+def test_hadamard_matrices_outside_the_conference_constructions(n: int, construction: str) -> None:
+    """Orders 1 and 2 are written down; 248 doubles the Paley II matrix of order 124 (Sylvester)."""
+    found = ff.hadamard_matrix(n)
+    assert found is not None
+    matrix, name = found
+    assert name == construction
+    assert ff.is_hadamard_matrix(matrix)
+    assert (matrix[:, 0] == 1).all()
+
+
+@pytest.mark.parametrize(
+    ("check", "build", "message"),
+    [
+        pytest.param(
+            "is_conference_matrix",
+            lambda: ff.conference_matrix(4),
+            r"^The paley_q=3 construction did not give a conference matrix of order 4\.$",
+            id="conference",
+        ),
+        pytest.param(
+            "is_hadamard_matrix",
+            lambda: ff.hadamard_matrix(4),
+            r"^The I\+C\(paley_q=3\) construction did not give a Hadamard matrix of order 4\.$",
+            id="hadamard",
+        ),
+    ],
+)
+def test_a_construction_that_fails_its_own_check_never_reaches_a_design(
+    monkeypatch: pytest.MonkeyPatch, check: str, build, message: str
+) -> None:
+    """Every matrix is verified before it is returned; a failed verification is a RuntimeError, not a design."""
+    monkeypatch.setattr(ff, check, lambda _matrix: False)
+    with pytest.raises(RuntimeError, match=message):
+        build()
+
+
 @pytest.mark.parametrize("k", [24, 27, 33, 43, 51, 59, 89])
 def test_plackett_burman_beyond_pydoe3(k: int) -> None:
     """pyDOE3 asserts at these sizes; the design is now built from a finite-field Hadamard matrix."""
