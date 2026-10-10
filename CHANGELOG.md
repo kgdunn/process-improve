@@ -234,6 +234,14 @@ those changes.
 
 ### Fixed
 
+- **Plots drawn after plotly is installed into a running process use the library's
+  theme.** The themes were registered only when `process_improve.visualization` was
+  imported with plotly already installed, and bound plotly at that import. In a browser
+  under Pyodide, plotly is installed when the first chart is drawn, after the package
+  has been imported, so every figure named a template plotly did not know and failed.
+  `register_themes()` now imports plotly when it runs, and the Plotly adapter registers
+  the themes before drawing if plotly does not have them.
+
 - **The browser app's run sheet lists the runs in their randomised order.** It sorted them
   back into standard order: a 2^3 factorial's eight corners came first, last factor
   fastest, and its three centre runs last, under a "Run order" of 1 to 11.

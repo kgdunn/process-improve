@@ -89,6 +89,47 @@ def test_set_theme_registers_a_theme_missing_from_plotly(monkeypatch: pytest.Mon
         pio.templates[DEFAULT_THEME] = template
 
 
+def test_a_figure_drawn_after_the_themes_were_lost_registers_them_again() -> None:
+    """A figure names the library's theme, so drawing one registers the theme if plotly has lost it."""
+    from process_improve.experiments.visualization.plots import create_plot  # noqa: PLC0415
+
+    template = pio.templates[DEFAULT_THEME]
+    del pio.templates[DEFAULT_THEME]
+    try:
+        figure = create_plot("pareto", analysis_results={"effects": {"A": 2.0, "B": -1.0}}).to_plotly()
+        assert DEFAULT_THEME in pio.templates
+        assert figure["layout"]["template"]
+    finally:
+        pio.templates[DEFAULT_THEME] = template
+
+
+@pytest.mark.slow
+def test_plotly_installed_after_the_package_was_imported() -> None:
+    """In a browser under Pyodide, plotly is installed when the first chart is drawn.
+
+    process-improve is imported first, without plotly, so the themes could not be
+    registered then; the first figure registers them. Run in a subprocess, with plotly
+    hidden from the first import and then made importable.
+    """
+    code = (
+        "import sys;"
+        "sys.modules['plotly'] = None;"  # plotly is not installed yet
+        "import process_improve.experiments, process_improve.visualization.themes;"
+        "del sys.modules['plotly'];"  # now it is
+        "from process_improve.experiments.visualization.plots import create_plot;"
+        "figure = create_plot('pareto', analysis_results={'effects': {'A': 2.0, 'B': -1.0}}).to_plotly();"
+        "import plotly.io as pio;"
+        "assert 'pi_journal' in pio.templates"
+    )
+    result = subprocess.run(  # noqa: S603
+        [sys.executable, "-c", code],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert result.returncode == 0, result.stderr
+
+
 def test_set_theme_rejects_unknown() -> None:
     """An unknown theme name raises ValueError."""
     with pytest.raises(ValueError, match="Unknown theme"):
