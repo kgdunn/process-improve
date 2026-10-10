@@ -50,7 +50,7 @@ SPEC_VERSION = 1
 #: ``min_factors`` is what the construction needs. ``max_factors`` keeps the run
 #: sheet readable and the page responsive: a full factorial in 8 factors has 256
 #: runs, a Box-Behnken design jumps from 59 to 115 runs at 8 factors, and an
-#: I-optimal design for a quadratic in 6 factors already takes about 10 s under
+#: I-optimal design for a quadratic in 6 factors already takes up to 20 s under
 #: WebAssembly.
 DESIGNS: dict[str, dict[str, Any]] = {
     "full_factorial": {
