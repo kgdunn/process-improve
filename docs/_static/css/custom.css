@@ -1,0 +1,169 @@
+/* process-improve docs: brand colours and the landing page (docs/index.rst).
+
+   The colours are the README banner's: blue design points and a red centre
+   point, with the lighter versions the dark banner uses. Everything else reads
+   the theme's own --pst-color-* properties, so light and dark mode both work. */
+
+html[data-theme="light"] {
+  --pst-color-primary: #1f5f8f;
+  --pst-color-primary-highlight: #174a70;
+  --pst-color-secondary: #b03a2e;
+  --pst-color-link: #1f5f8f;
+  --pst-color-link-hover: #b03a2e;
+}
+
+html[data-theme="dark"] {
+  --pst-color-primary: #4f93cf;
+  --pst-color-primary-highlight: #79afdf;
+  --pst-color-secondary: #dc614f;
+  --pst-color-link: #4f93cf;
+  --pst-color-link-hover: #dc614f;
+}
+
+/* -- Landing page ---------------------------------------------------------- */
+
+.pi-landing > h1 {
+  font-size: 3.2rem;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  margin-bottom: 0.4rem;
+}
+
+.pi-landing > h1 .headerlink {
+  display: none;
+}
+
+.pi-tagline {
+  font-size: 1.3rem;
+  line-height: 1.5;
+  color: var(--pst-color-text-muted);
+  max-width: 48rem;
+}
+
+.pi-landing img.pi-banner {
+  width: 100%;
+  max-width: 100%;
+  border: 1px solid var(--pst-color-border);
+  border-radius: 14px;
+  margin: 1.25rem 0 1.5rem;
+}
+
+.pi-install pre {
+  display: inline-block;
+  margin: 0 0 1rem;
+  padding: 0.6rem 1rem;
+  font-size: 1rem;
+  border-radius: 8px;
+}
+
+/* A row of links, drawn as buttons; the first is the main one. */
+.pi-buttons p {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.7rem;
+  margin: 0.25rem 0 2.5rem;
+}
+
+.pi-buttons a {
+  display: inline-block;
+  padding: 0.55rem 1.1rem;
+  border: 1.5px solid var(--pst-color-primary);
+  border-radius: 8px;
+  color: var(--pst-color-primary);
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.pi-buttons a:hover {
+  background: var(--pst-color-primary);
+  color: var(--pst-color-background);
+}
+
+.pi-buttons a:first-child {
+  background: var(--pst-color-primary);
+  color: var(--pst-color-background);
+}
+
+.pi-buttons a:first-child:hover {
+  background: var(--pst-color-primary-highlight);
+  border-color: var(--pst-color-primary-highlight);
+}
+
+/* Cards: each one is a link to the guide for that part of the package. */
+.pi-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(17rem, 1fr));
+  gap: 1rem;
+  margin: 1rem 0 2.5rem;
+}
+
+.pi-card {
+  position: relative;
+  padding: 1.1rem 1.25rem 0.9rem;
+  border: 1px solid var(--pst-color-border);
+  border-radius: 12px;
+  background: var(--pst-color-surface);
+  transition: border-color 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease;
+}
+
+.pi-card:hover {
+  border-color: var(--pst-color-primary);
+  box-shadow: 0 6px 18px rgb(0 0 0 / 8%);
+  transform: translateY(-2px);
+}
+
+.pi-card .pi-icon {
+  font-size: 1.5rem;
+  color: var(--pst-color-primary);
+}
+
+.pi-card p.rubric {
+  margin: 0.45rem 0 0.35rem;
+  font-size: 1.12rem;
+  font-weight: 700;
+}
+
+.pi-card p {
+  margin-bottom: 0.5rem;
+}
+
+/* The card's link covers the whole card. */
+.pi-card a.reference::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+}
+
+.pi-card a.reference {
+  font-weight: 600;
+  text-decoration: none;
+}
+
+/* Two columns, picture and words, for the app and the textbook sections. */
+.pi-feature {
+  display: grid;
+  grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr);
+  gap: 1.75rem;
+  align-items: center;
+  margin: 1rem 0 2.5rem;
+}
+
+.pi-feature img {
+  width: 100%;
+  border: 1px solid var(--pst-color-border);
+  border-radius: 12px;
+}
+
+@media (max-width: 800px) {
+  .pi-landing > h1 {
+    font-size: 2.3rem;
+  }
+
+  .pi-tagline {
+    font-size: 1.12rem;
+  }
+
+  .pi-feature {
+    grid-template-columns: 1fr;
+  }
+}
