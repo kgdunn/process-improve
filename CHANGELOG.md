@@ -92,6 +92,24 @@ those changes.
 
 ### Changed
 
+- **The browser app takes a reader from a design to an analysis with charts, without
+  leaving the page.**
+  - Step 2 holds the run sheet. Results are typed into it, or simulated from a process
+    whose true model is known: reactor yield, main effects only, an interaction, a
+    maximum inside the ranges, nothing active, or a random process. A noise level and
+    "New noise" give another draw, and the true process is behind a reveal. The workbook
+    download and upload still work, and simulated values are marked in the workbook.
+  - Step 3 analyses the runs as soon as they change. Each coefficient is shown with its
+    95% interval and, when the results were simulated, with the true value of what it
+    estimates: the term's own coefficient, or the sum over an alias chain. The charts are
+    the library's own plots, drawn with Plotly: the fitted response surface beside the
+    true one, residuals against fitted values, and Lenth's half-normal plot for a
+    saturated two-level design. plotly is installed on the first chart.
+  - "Run the worked example" generates a Box-Behnken design, simulates it and analyses
+    it, live. The same example, computed through the same entry points when the page is
+    built, is drawn at first paint, so a reader sees a complete analysis while Python
+    loads.
+
 - **`analyze_experiment`'s `coding` chooses the scale of the coefficients (#513).** It was
   accepted and ignored, and its default, `"coded"`, named a scale the coefficients were
   not on. The default is now `"actual"`, which is what every call already returned.

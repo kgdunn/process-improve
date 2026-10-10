@@ -1,5 +1,12 @@
 // The page: builds the form, talks to the Python worker, renders results.
-// All computation happens in worker.js; this file only moves JSON around.
+// All computation happens in worker.js; this file moves JSON around and draws it.
+//
+// The page holds one campaign at a time: a design's runs, a response per run (typed,
+// simulated or read from a workbook), the process they were simulated from, and the
+// analysis. Each step re-renders from that state, so the worked example drawn at first
+// paint, the live run and an uploaded workbook all show the same way.
+
+import { coefficientFigure, draw, shareContourScale } from "./charts.js";
 
 const $ = (sel) => document.querySelector(sel);
 const worker = new Worker("worker.js");
@@ -18,7 +25,7 @@ worker.onmessage = ({ data }) => {
   resolve(JSON.parse(data.reply));
 };
 
-/** Call a Python ``api_*`` function; resolves to its decoded {ok, result|error}. */
+/** Call a Python ``api_*`` function; resolves to its decoded {ok, result|error, warnings}. */
 function call(fn, payload = {}) {
   const id = nextId++;
   return new Promise((resolve) => {
@@ -33,6 +40,26 @@ function setStatus(text, state = "ok") {
   el.querySelector(".status__text").textContent = text;
   el.dataset.state = state;
 }
+
+// ---------------------------------------------------------------- state
+const state = {
+  design: null, // what api_make_design returned, or the runs of an uploaded workbook
+  responses: [], // one per run, in the design's row order: a number, or null while still to run
+  sources: [], // one per run: "simulated", "entered" or null
+  simulation: null, // what api_simulate returned: the true process, its noise and seed
+  analysis: null,
+  plotlyJs: null, // the Plotly.js version the Python plotly package names
+};
+let seed = 1;
+let catalogue = null;
+let pythonReady = false;
+let resolveReady;
+const whenReady = new Promise((resolve) => {
+  resolveReady = resolve;
+});
+
+/** The runs as the Python side expects them back. */
+const held = () => ({ spec: state.design.spec, columns: state.design.columns, rows: state.design.rows });
 
 // ---------------------------------------------------------------- factor table
 const DEFAULT_FACTORS = [
@@ -49,7 +76,7 @@ function addFactor(f = { name: "", low: -1, high: 1, units: "" }) {
     <td><input name="high" type="number" step="any" aria-label="High"></td>
     <td><input name="units" aria-label="Units" size="6"></td>
     <td><button type="button" class="link" aria-label="Remove factor">✕</button></td>`;
-  for (const key of ["name", "low", "high", "units"]) tr.querySelector(`[name=${key}]`).value = f[key];
+  for (const key of ["name", "low", "high", "units"]) tr.querySelector(`[name=${key}]`).value = f[key] ?? "";
   tr.querySelector("button").onclick = () => {
     tr.remove();
     refreshDesign();
@@ -68,11 +95,23 @@ function readFactors() {
   }));
 }
 
+/** Put a design specification (the worked example's, or a workbook's) into the form. */
+function setForm(spec) {
+  $("#factors tbody").replaceChildren();
+  spec.factors.forEach(addFactor);
+  $("#design-type").value = spec.design_type;
+  $("#response").value = spec.response || "y";
+  const options = spec.options || spec;
+  if (options.n_center_points !== undefined) $("#n_center_points").value = options.n_center_points;
+  if (options.alpha) $("#alpha").value = options.alpha;
+  if (options.model_type) $("#model_type").value = options.model_type;
+  refreshDesign();
+}
+
 // ---------------------------------------------------------------- design step
 // The design list, its hints, which settings each design takes and how many
 // factors it accepts are in the HTML, so the form is right from the first paint,
 // before Python has loaded.
-let pythonReady = false;
 let budgetEdited = false;
 let resolutionEdited = false;
 
@@ -125,6 +164,7 @@ function refreshDesign() {
   $("#generate").disabled = !pythonReady || option.disabled;
 }
 
+/** Generate the design the form describes; resolves to true when it is on the page. */
 async function generate() {
   const button = $("#generate");
   button.disabled = true;
@@ -143,51 +183,231 @@ async function generate() {
   button.disabled = false;
   if (!reply.ok) {
     setStatus(reply.error, "error");
-    return;
+    return false;
   }
-  const r = reply.result;
-  setStatus(`${r.n_runs} runs generated.`);
-  const warn = r.outside_range.length
-    ? ` Some runs of ${r.outside_range.join(", ")} lie outside the ranges you entered; check they are safe to run.`
-    : "";
-  const centre = r.facts.center_runs ? `, ${r.facts.center_runs} of them at the center of the ranges` : "";
-  $("#design-summary").replaceChildren(
-    el(
-      "p",
-      "",
-      `${r.n_runs} runs${centre}, listed in randomised run order. The workbook will be analysed with the ` +
-        `${r.model.replace("_", " ")} model unless you choose another.${warn}`,
-    ),
-    ...noteList(r.facts.notes),
-    ...warningList(reply.warnings),
-  );
-  renderTable($("#design-table"), r.columns, r.rows, "Run order");
-  const blob = new Blob([Uint8Array.from(atob(r.xlsx_base64), (c) => c.charCodeAt(0))], {
-    type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-  });
-  const link = $("#download");
-  URL.revokeObjectURL(link.href);
-  link.href = URL.createObjectURL(blob);
-  link.download = `${spec.design_type}-${r.n_runs}-runs.xlsx`;
+  setStatus(`${reply.result.n_runs} runs generated.`);
+  $("#demo-banner").hidden = true;
+  showDesign(reply.result, reply.warnings);
+  return true;
+}
+
+/** Make a new set of runs the campaign: no results yet, nothing simulated, nothing analysed. */
+function showDesign(design, warnings = []) {
+  state.design = design;
+  state.responses = design.rows.map(() => null);
+  state.sources = design.rows.map(() => null);
+  state.simulation = null;
+  state.analysis = null;
+  renderDesign(warnings);
+  renderRuns();
+  clearAnalysis();
+}
+
+function renderDesign(warnings = []) {
+  const r = state.design;
+  const parts = [];
+  if (r.facts) {
+    const centre = r.facts.center_runs ? `, ${r.facts.center_runs} of them at the center of the ranges` : "";
+    const outside = r.outside_range?.length
+      ? ` Some runs of ${r.outside_range.join(", ")} lie outside the ranges you entered; check they are safe to run.`
+      : "";
+    parts.push(
+      el(
+        "p",
+        "",
+        `${r.n_runs} runs${centre}, listed in step 2 in randomised run order. The results will be analysed with ` +
+          `the ${r.model.replace("_", " ")} model unless you choose another.${outside}`,
+      ),
+      ...noteList(r.facts.notes),
+    );
+  } else {
+    parts.push(el("p", "", `${r.rows.length} runs, read from the workbook.`));
+  }
+  parts.push(...warningList(warnings));
+  $("#design-summary").replaceChildren(...parts);
   $("#design-out").hidden = false;
 }
 
-// ---------------------------------------------------------------- analyse step
-let lastWorkbook = null;
+// ---------------------------------------------------------------- run step
+/**
+ * The run sheet, sortable by any column, with the response column as inputs: a reader
+ * types each result as it comes in. Simulated values are marked until they are edited.
+ */
+function renderRuns() {
+  const d = state.design;
+  $("#run-empty").hidden = true;
+  $("#run-out").hidden = false;
+  const t = $("#design-table");
+  const response = d.spec.response;
+  const at = d.columns.indexOf(response);
+  const rows = d.rows.map((row, i) => Object.assign([...row], { index: i }));
+  t._cell = (row, col) => {
+    if (col !== at) return null;
+    const i = row.index;
+    const value = state.responses[i];
+    const cls = state.sources[i] === "simulated" ? "sim" : "";
+    return `<input class="${cls}" type="number" step="any" inputmode="decimal" data-index="${i}" aria-label="${escape(response)}, run ${i + 1}" value="${value ?? ""}">`;
+  };
+  renderTable(t, d.columns, rows, "Run order");
+  t.oninput = (e) => {
+    const input = e.target.closest("input[data-index]");
+    if (!input) return;
+    const i = Number(input.dataset.index);
+    state.responses[i] = input.value === "" ? null : Number(input.value);
+    state.sources[i] = input.value === "" ? null : "entered";
+    input.classList.remove("sim");
+    describeSource();
+    scheduleAnalysis();
+  };
+  describeSource();
+}
 
-async function analyse() {
-  if (!lastWorkbook) return;
+/** Say where the results in the run sheet came from. */
+function describeSource() {
+  const n = state.responses.length;
+  const done = state.responses.filter((v) => v !== null).length;
+  const simulated = state.sources.filter((s) => s === "simulated").length;
+  const sim = state.simulation;
+  let text = done ? `${done} of ${n} results in.` : `No results yet: simulate them, or type them into the ${state.design.spec.response} column.`;
+  if (simulated && sim) {
+    text =
+      `${simulated} of ${n} results simulated from "${sim.label}", with noise of standard deviation ${sim.sigma} ` +
+      `(seed ${sim.seed}). Simulated values are in italics; type over any of them to enter your own.`;
+  }
+  $("#run-source").textContent = text;
+}
+
+/** The true process behind the simulated results, behind a reveal. */
+function renderTruth() {
+  const truth = $("#truth");
+  truth.hidden = !state.simulation;
+  if (state.simulation) $("#truth-equation").textContent = state.simulation.equation;
+}
+
+async function simulateResults() {
+  if (!state.design) return;
+  setStatus("Simulating the results...", "busy");
+  const reply = await call("api_simulate", {
+    ...held(),
+    scenario: $("#scenario").value,
+    sigma: Number($("#sigma").value),
+    seed,
+  });
+  if (!reply.ok) {
+    setStatus(reply.error, "error");
+    return;
+  }
+  state.simulation = reply.result;
+  state.responses = [...reply.result.responses];
+  state.sources = state.responses.map(() => "simulated");
+  renderRuns();
+  renderTruth();
+  await analyseRuns();
+}
+
+function selectTab(name) {
+  for (const tab of ["simulate", "real"]) {
+    $(`#tab-${tab}`).setAttribute("aria-selected", String(tab === name));
+    $(`#panel-${tab}`).hidden = tab !== name;
+  }
+}
+
+async function downloadWorkbook() {
+  if (!state.design) return;
+  const reply = await call("api_workbook", {
+    ...held(),
+    responses: state.responses,
+    sources: state.sources,
+    simulated: state.sources.includes("simulated") ? state.simulation : null,
+  });
+  if (!reply.ok) {
+    setStatus(reply.error, "error");
+    return;
+  }
+  const bytes = Uint8Array.from(atob(reply.result.xlsx_base64), (c) => c.charCodeAt(0));
+  const blob = new Blob([bytes], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+  const link = document.createElement("a");
+  link.href = URL.createObjectURL(blob);
+  link.download = `${state.design.spec.design_type}-${state.responses.length}-runs.xlsx`;
+  document.body.append(link);
+  link.click();
+  link.remove();
+  setTimeout(() => URL.revokeObjectURL(link.href), 10_000);
+}
+
+async function readUpload(file) {
+  const bytes = new Uint8Array(await file.arrayBuffer());
+  let binary = "";
+  for (let i = 0; i < bytes.length; i += 0x8000) binary += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
+  setStatus("Reading the workbook...", "busy");
+  const reply = await call("api_read_workbook", { xlsx_base64: btoa(binary) });
+  if (!reply.ok) {
+    setStatus(reply.error, "error");
+    return;
+  }
+  const r = reply.result;
+  $("#demo-banner").hidden = true;
+  setForm(r.spec);
+  state.design = { spec: r.spec, columns: r.columns, rows: r.rows, model: r.spec.model, facts: null };
+  state.responses = r.responses;
+  state.sources = r.sources;
+  state.simulation = null;
+  renderDesign(reply.warnings);
+  renderRuns();
+  renderTruth();
+  await analyseRuns();
+}
+
+// ---------------------------------------------------------------- analyse step
+let analysisTimer = null;
+let ticket = 0;
+
+/** Analyse a moment after the last keystroke, rather than on every one. */
+function scheduleAnalysis() {
+  clearTimeout(analysisTimer);
+  analysisTimer = setTimeout(analyseRuns, 700);
+}
+
+function clearAnalysis() {
+  $("#analysis").hidden = true;
+  $("#charts").hidden = true;
+  $("#charts").replaceChildren();
+  $("#analyse-empty").hidden = false;
+}
+
+async function analyseRuns() {
+  if (!state.design || !state.responses.some((v) => v !== null)) {
+    clearAnalysis();
+    return;
+  }
+  const mine = ++ticket;
   setStatus("Analysing...", "busy");
-  const reply = await call("api_analyze", { xlsx_base64: lastWorkbook, model: $("#model").value });
+  const request = {
+    ...held(),
+    responses: state.responses,
+    model: $("#model").value,
+    truth: state.sources.includes("simulated") ? state.simulation?.truth : null,
+  };
+  const reply = await call("api_analyze_runs", request);
+  if (mine !== ticket) return;
+  state.analysis = reply.ok ? reply.result : null;
+  renderAnalysis(reply);
+  if (reply.ok) await drawCharts(request, mine);
+}
+
+function renderAnalysis(reply) {
   const out = $("#analysis");
   out.hidden = false;
+  $("#analyse-empty").hidden = true;
   if (!reply.ok) {
-    setStatus("The workbook could not be analysed.", "error");
+    setStatus("The results could not be analysed.", "error");
     out.replaceChildren(el("p", "error", reply.error), ...warningList(reply.warnings));
+    $("#charts").hidden = true;
     return;
   }
   const r = reply.result;
   const s = r.summary;
+  const simulated = r.coefficients.some((c) => c.true_value !== undefined && c.true_value !== null);
   setStatus("Analysis complete.");
   const parts = [
     el("p", "equation", r.equation),
@@ -203,13 +423,27 @@ async function analyse() {
     ...warningList(reply.warnings),
     el("h3", "", "Coefficients"),
     table(
-      ["Term", "Coefficient", "Std. error", "95% interval", "p-value"],
+      ["Term", "Coefficient", "Std. error", "95% interval", "p-value", ...(simulated ? ["True value"] : [])],
       r.coefficients.map((c) => [
-        c.label, fmt(c.coefficient), fmt(c.std_error), c.std_error === null ? "" : `${fmt(c.ci_low)} to ${fmt(c.ci_high)}`,
+        c.label,
+        fmt(c.coefficient),
+        fmt(c.std_error),
+        c.std_error === null ? "" : `${fmt(c.ci_low)} to ${fmt(c.ci_high)}`,
         pval(c.p_value),
+        ...(simulated ? [fmt(c.true_value)] : []),
       ]),
     ),
   ];
+  if (simulated) {
+    parts.push(
+      el(
+        "p",
+        "hint",
+        "The true value is what the coefficient estimates for the process the results were simulated from: the " +
+          "estimate the same fit gives without noise.",
+      ),
+    );
+  }
   if (r.lenth) {
     parts.push(
       el("h3", "", "Effects, judged with Lenth's method"),
@@ -243,15 +477,137 @@ async function analyse() {
   out.replaceChildren(...parts);
 }
 
-async function readUpload(file) {
-  const bytes = new Uint8Array(await file.arrayBuffer());
-  let binary = "";
-  for (let i = 0; i < bytes.length; i += 0x8000) binary += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
-  lastWorkbook = btoa(binary);
-  await analyse();
+// ---------------------------------------------------------------- charts
+const CAPTIONS = {
+  coefficients: (simulated) =>
+    "Each dot is an estimate with its 95% interval; an interval that crosses zero is a term the data cannot tell " +
+    "apart from no effect." +
+    (simulated ? " A diamond marks the true value, so you can see what the analysis recovered and what it missed." : ""),
+  contour: (pair) =>
+    `The fitted model over ${pair.join(" and ")}, the two factors with the largest main effects, with any other ` +
+    "factor at the center of its range; the dots are the runs, in coded units.",
+  true_contour: (pair) => `The process the results were simulated from, over ${pair.join(" and ")}, on the same scale.`,
+  residuals:
+    "What the model leaves unexplained in each run, against its fitted value. A curve or a funnel points to a " +
+    "missing term or a changing noise level.",
+  half_normal:
+    "With no degrees of freedom left to estimate the error, the effects are judged against each other: effects " +
+    "far above the line, past Lenth's margin of error, are likely real.",
+};
+const TITLES = {
+  coefficients: "Coefficients",
+  contour: "Fitted response surface",
+  true_contour: "True response surface",
+  residuals: "Residuals against fitted values",
+  half_normal: "Half-normal plot of the effects",
+};
+
+function chartCard(key, caption, wide = false) {
+  const card = el("figure", wide ? "chart wide" : "chart", "");
+  const plot = el("div", "plot", "");
+  card.append(el("h3", "", TITLES[key]), plot, el("figcaption", "hint", caption));
+  return { card, plot };
 }
 
-// ---------------------------------------------------------------- rendering
+/** Draw the coefficient chart, then the library's plots for the same analysis. */
+async function drawCharts(request, mine, given = null) {
+  const box = $("#charts");
+  box.hidden = false;
+  const simulated = Boolean(request.truth);
+  const coefficients = chartCard("coefficients", CAPTIONS.coefficients(simulated), true);
+  box.replaceChildren(coefficients.card);
+  const figure = coefficientFigure(state.analysis.coefficients, simulated);
+
+  const plots = given ?? (await libraryPlots(request, mine));
+  if (mine !== ticket) return;
+  const version = plots?.plotly_js ?? state.plotlyJs;
+  if (!version) {
+    coefficients.card.append(el("p", "hint", "The charts could not be drawn here; the tables above hold the numbers."));
+    return;
+  }
+  state.plotlyJs = version;
+  try {
+    await draw(coefficients.plot, figure, version, figure.height);
+    if (!plots) return;
+    const figures = Object.fromEntries(Object.entries(plots.figures).map(([k, v]) => [k, JSON.parse(v)]));
+    if (figures.true_contour) shareContourScale(figures.contour, figures.true_contour);
+    for (const key of ["contour", "true_contour", "residuals", "half_normal"]) {
+      if (!figures[key]) continue;
+      const caption = typeof CAPTIONS[key] === "function" ? CAPTIONS[key](plots.contour_factors) : CAPTIONS[key];
+      const card = chartCard(key, caption);
+      box.append(card.card);
+      await draw(card.plot, figures[key], version);
+    }
+  } catch (err) {
+    box.append(el("p", "hint", `The charts could not be drawn (${err.message}); the tables above hold the numbers.`));
+  }
+}
+
+async function libraryPlots(request, mine) {
+  const reply = await call("api_plots", request);
+  if (mine === ticket) setStatus(reply.ok ? "Analysis complete." : `Charts: ${reply.error}`, reply.ok ? "ok" : "error");
+  return reply.ok ? reply.result : null;
+}
+
+// ---------------------------------------------------------------- the worked example
+/** Draw the worked example computed when the page was built, while Python loads. */
+async function showBuiltExample() {
+  let example;
+  try {
+    const res = await fetch("demo.json", { cache: "no-store" });
+    if (!res.ok) return;
+    example = await res.json();
+  } catch {
+    return; // a plain local preview has no demo.json
+  }
+  if (state.design) return; // the reader has already started
+  setForm(example.inputs.design);
+  $("#scenario").value = example.inputs.scenario;
+  $("#sigma").value = example.inputs.sigma;
+  showScenarioHint();
+  showDesign(example.design);
+  state.simulation = example.simulation;
+  state.responses = [...example.simulation.responses];
+  state.sources = state.responses.map(() => "simulated");
+  state.plotlyJs = example.plots.plotly_js;
+  renderRuns();
+  renderTruth();
+  state.analysis = example.analysis;
+  renderAnalysis({ ok: true, result: example.analysis, warnings: [] });
+  $("#demo-version").textContent = `process-improve ${example.version}`;
+  $("#demo-banner").hidden = false;
+  if (!pythonReady) setStatus("Showing the worked example while Python starts...", "busy");
+  const request = { truth: example.simulation.truth };
+  await drawCharts(request, ticket, example.plots);
+}
+
+async function runExample() {
+  const button = $("#run-example");
+  if (!pythonReady) {
+    button.disabled = true;
+    button.textContent = "Waiting for Python to start...";
+    await whenReady;
+    button.textContent = "Run the worked example";
+    button.disabled = false;
+  }
+  const example = catalogue.demo;
+  setForm(example.design);
+  $("#scenario").value = example.scenario;
+  $("#sigma").value = example.sigma;
+  $("#model").value = example.model;
+  showScenarioHint();
+  seed = example.seed;
+  selectTab("simulate");
+  if (!(await generate())) return;
+  await simulateResults();
+  $("#step-analyse").scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
+function showScenarioHint() {
+  $("#scenario-hint").textContent = $("#scenario").selectedOptions[0].dataset.hint;
+}
+
+// ---------------------------------------------------------------- rendering helpers
 const fmt = (x) => (x === null || x === undefined ? "" : Number(x).toPrecision(4));
 const pval = (p) => (p === null || p === undefined ? "" : p < 0.0001 ? "< 0.0001" : Number(p).toFixed(4));
 
@@ -285,7 +641,8 @@ function table(columns, rows) {
  * Render a table whose column headers sort it: click once for ascending,
  * again for descending. Each header is a <button> inside the <th>, so it is
  * reachable by keyboard, and aria-sort tells a screen reader the current order.
- * `sortedBy` names the column the rows already arrive sorted on, if any.
+ * `sortedBy` names the column the rows already arrive sorted on, if any; a table
+ * may give `t._cell(row, col)` to draw a cell itself (the run sheet's inputs).
  */
 function renderTable(t, columns, rows, sortedBy = null) {
   const head = columns
@@ -303,18 +660,18 @@ function renderTable(t, columns, rows, sortedBy = null) {
     th.setAttribute("aria-sort", ascending ? "ascending" : "descending");
     const col = Number(button.dataset.col);
     const sign = ascending ? 1 : -1;
+    const key = (row) => (t._cell && t._cell(row, col) !== null ? state.responses[row.index] : row[col]);
     // A stable sort over a copy, so the order the rows arrived in breaks ties.
-    fillBody(
-      t,
-      [...t._rows].sort((a, b) => isBlank(a[col]) - isBlank(b[col]) || sign * compareCells(a[col], b[col])),
-    );
+    fillBody(t, [...t._rows].sort((a, b) => isBlank(key(a)) - isBlank(key(b)) || sign * compareCells(key(a), key(b))));
   };
 }
 
 function fillBody(t, rows) {
-  t.tBodies[0].innerHTML = rows
-    .map((row) => `<tr>${row.map((v) => `<td>${escape(typeof v === "number" ? +v.toPrecision(6) : v ?? "")}</td>`).join("")}</tr>`)
-    .join("");
+  const cell = (row, v, c) => {
+    const own = t._cell ? t._cell(row, c) : null;
+    return own ?? escape(typeof v === "number" ? +v.toPrecision(6) : v ?? "");
+  };
+  t.tBodies[0].innerHTML = rows.map((row) => `<tr>${row.map((v, c) => `<td>${cell(row, v, c)}</td>`).join("")}</tr>`).join("");
 }
 
 /** Blank cells (an unfilled response) sort last in either direction. */
@@ -349,7 +706,23 @@ $("#budget").oninput = () => {
 $("#resolution").onchange = () => {
   resolutionEdited = true;
 };
-$("#model").onchange = analyse;
+$("#run-example").onclick = runExample;
+$("#simulate").onclick = simulateResults;
+$("#reroll").onclick = () => {
+  seed += 1;
+  simulateResults();
+};
+$("#scenario").onchange = () => {
+  showScenarioHint();
+  if (state.sources.includes("simulated")) simulateResults();
+};
+$("#sigma").onchange = () => {
+  if (state.sources.includes("simulated")) simulateResults();
+};
+$("#tab-simulate").onclick = () => selectTab("simulate");
+$("#tab-real").onclick = () => selectTab("real");
+$("#download").onclick = downloadWorkbook;
+$("#model").onchange = analyseRuns;
 $("#upload").onchange = (e) => e.target.files[0] && readUpload(e.target.files[0]);
 const drop = $("#drop");
 drop.ondragover = (e) => {
@@ -362,18 +735,15 @@ drop.ondrop = (e) => {
   drop.classList.remove("over");
   if (e.dataTransfer.files[0]) readUpload(e.dataTransfer.files[0]);
 };
-
+showScenarioHint();
 refreshDesign();
+showBuiltExample();
 
-// Python is ready once the catalogue answers. Any design the loaded package
-// does not offer is dropped from the list rather than failing on Generate.
 call("api_catalogue").then((reply) => {
   if (!reply.ok) return;
-  const select = $("#design-type");
-  for (const option of [...select.options]) {
-    if (!(option.value in reply.result.designs)) option.remove();
-  }
+  catalogue = reply.result;
   pythonReady = true;
+  for (const id of ["#upload", "#simulate", "#reroll"]) $(id).disabled = false;
   refreshDesign();
-  $("#upload").disabled = false;
+  resolveReady();
 });

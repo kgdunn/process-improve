@@ -9,6 +9,7 @@ import base64
 import importlib.util
 import io
 import json
+import re
 from pathlib import Path
 
 import numpy as np
@@ -140,6 +141,37 @@ def test_the_worked_example_recovers_the_true_process(app, held, simulated):
     assert analysis["model"] == "quadratic"
 
 
+def test_true_values_are_what_each_coefficient_estimates(app, held, simulated):
+    """In a Box-Behnken design every term is estimated on its own, so the true values are the process's."""
+    request = {**held, "responses": simulated["responses"], "truth": simulated["truth"]}
+    analysis = call(app, "api_analyze_runs", request)
+    truth = {t["term"]: t["coefficient"] for t in simulated["truth"]}
+    assert {c["term"]: c["true_value"] for c in analysis["coefficients"]} == {
+        c["term"]: truth.get(c["term"], 0.0) for c in analysis["coefficients"]
+    }, "exact, with no rounding error left on the zeros"
+
+
+def test_an_aliased_estimate_is_set_beside_the_sum_it_estimates(app):
+    """In a 2^(3-1) design F is aliased with T:P, so its estimate is centred on F + T:P."""
+    spec = {
+        "design_type": "fractional_factorial",
+        "resolution": 3,
+        "n_center_points": 0,
+        "factors": [{"name": n, "low": -1, "high": 1} for n in "TPF"],
+    }
+    design = call(app, "api_make_design", spec)
+    held2 = {"spec": design["spec"], "columns": design["columns"], "rows": design["rows"]}
+    sim = call(app, "api_simulate", {**held2, "scenario": "reactor", "sigma": 0.01})
+    analysis = call(
+        app,
+        "api_analyze_runs",
+        {**held2, "responses": sim["responses"], "model": "interactions", "truth": sim["truth"]},
+    )
+    true = {c["label"]: c["true_value"] for c in analysis["coefficients"]}
+    assert true["F + T·P"] == pytest.approx(1.75 + 1.5)
+    assert true["Intercept"] == pytest.approx(62 - 2.25), "F squared is 1 at every run of a two-level design"
+
+
 def test_analysing_the_page_s_runs_matches_analysing_its_workbook(app, held, simulated):
     responses = simulated["responses"]
     in_page = call(app, "api_analyze_runs", {**held, "responses": responses})
@@ -220,3 +252,59 @@ def test_a_true_process_naming_other_factors_is_refused(app, held, simulated):
     answer = reply(app, "api_plots", {**held, "responses": simulated["responses"], "truth": truth})
     assert not answer["ok"]
     assert "['Z']" in answer["error"]
+
+
+# --------------------------------------------------------------------------- the page and its build
+def test_the_page_lists_the_scenarios_bootstrap_simulates(app):
+    """The process list is in the HTML, so it reads right before Python loads; it says what SCENARIOS says."""
+    from tests.test_web_app import _DesignOptions
+
+    parser = _DesignOptions("scenario")
+    parser.feed((WEB / "index.html").read_text(encoding="utf-8"))
+    in_page = {o["value"]: o for o in parser.options}
+    assert list(in_page) == list(app.SCENARIOS)
+    for key, info in app.SCENARIOS.items():
+        assert in_page[key]["label"] == info["label"], key
+        assert in_page[key]["data-hint"] == info["hint"], key
+    assert [o["value"] for o in parser.options if "selected" in o] == [app.DEMO["scenario"]]
+
+
+def test_the_page_s_default_factors_are_the_worked_example_s(app):
+    source = (WEB / "app.js").read_text(encoding="utf-8")
+    block = re.search(r"const DEFAULT_FACTORS = \[(.*?)\];", source, re.DOTALL).group(1)
+    in_page = [
+        {"name": n, "low": float(lo), "high": float(hi), "units": u}
+        for n, lo, hi, u in re.findall(r'name: "(\w+)", low: ([\d.]+), high: ([\d.]+), units: "([^"]*)"', block)
+    ]
+    demo = [{**f, "low": float(f["low"]), "high": float(f["high"])} for f in app.DEMO["design"]["factors"]]
+    assert in_page == demo
+
+
+def test_every_module_the_page_imports_is_published():
+    build = _load("build_web_app", WEB.parent / "scripts" / "build_web_app.py")
+    imported = set(re.findall(r'from "\./([\w.-]+)"', (WEB / "app.js").read_text(encoding="utf-8")))
+    assert imported, "app.js imports charts.js"
+    assert imported <= set(build.APP_FILES)
+
+
+@pytest.mark.slow
+def test_the_built_worked_example_carries_what_the_page_draws():
+    pytest.importorskip("plotly")
+    build = _load("build_web_app", WEB.parent / "scripts" / "build_web_app.py")
+    example = json.loads(json.dumps(build.worked_example()))  # as the page reads it
+    assert example["version"]
+    assert set(example["inputs"]) >= {"design", "scenario", "sigma", "seed", "model"}
+    assert set(example["design"]) >= {"spec", "columns", "rows", "facts", "model", "n_runs"}
+    assert "xlsx_base64" not in example["design"], "the page writes the workbook on demand"
+    assert set(example["simulation"]) >= {"responses", "truth", "equation", "label", "sigma", "seed"}
+    assert all("true_value" in c for c in example["analysis"]["coefficients"])
+    assert set(example["analysis"]) >= {"equation", "summary", "notes", "anova", "pending_runs", "n_completed"}
+    assert set(example["plots"]["figures"]) == {"contour", "true_contour", "residuals"}
+    assert example["plots"]["plotly_js"]
+
+
+def _load(name: str, path: Path):
+    spec = importlib.util.spec_from_file_location(name, path)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module

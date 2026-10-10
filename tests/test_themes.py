@@ -91,7 +91,7 @@ def test_set_theme_registers_a_theme_missing_from_plotly(monkeypatch: pytest.Mon
 
 def test_a_figure_drawn_after_the_themes_were_lost_registers_them_again() -> None:
     """A figure names the library's theme, so drawing one registers the theme if plotly has lost it."""
-    from process_improve.experiments.visualization.plots import create_plot  # noqa: PLC0415
+    from process_improve.experiments.visualization.plots import create_plot
 
     template = pio.templates[DEFAULT_THEME]
     del pio.templates[DEFAULT_THEME]

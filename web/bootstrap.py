@@ -600,8 +600,12 @@ def analyze(request: dict) -> dict:
     return _analysis(runs, spec, request.get("model") or spec.get("model", "interactions"))
 
 
-def _analysis(runs: pd.DataFrame, spec: dict, model: str) -> dict:
-    """Fit the model to the completed runs of a run sheet, from a workbook or from the page."""
+def _analysis(runs: pd.DataFrame, spec: dict, model: str, truth: list[dict] | None = None) -> dict:
+    """Fit the model to the completed runs of a run sheet, from a workbook or from the page.
+
+    With the true process the results were simulated from, each coefficient also
+    carries the true value of what it estimates (see :func:`_add_true_values`).
+    """
     if model not in MODELS:
         raise ValueError(f"Model must be one of {', '.join(MODELS)}.")
     response = spec["response"]
@@ -631,6 +635,8 @@ def _analysis(runs: pd.DataFrame, spec: dict, model: str) -> dict:
         {**c, "label": fit["labels"].get(c["term"], _pretty(c["term"])), "aliases": fit["chains"].get(c["term"], [])}
         for c in out.get("coefficients", [])
     ]
+    if truth:
+        _add_true_values(coefficients, coded, fit["formula"], _true_coefficients(truth, names))
     anova = [{**a, "source": fit["labels"].get(a["source"], _pretty(a["source"]))} for a in out.get("anova_table", [])]
     return {
         "spec": spec,
@@ -916,9 +922,63 @@ def simulate(request: dict) -> dict:
 
 
 def analyze_runs(request: dict) -> dict:
-    """Fit the model to the runs the page holds, with the responses typed or simulated there."""
+    """Fit the model to the runs the page holds, with the responses typed or simulated there.
+
+    ``truth``, the process the results were simulated from, adds each coefficient's true value.
+    """
     spec = _checked_spec(request.get("spec") or {})
-    return _analysis(_runs_frame(request, spec), spec, request.get("model") or spec["model"])
+    model = request.get("model") or spec["model"]
+    return _analysis(_runs_frame(request, spec), spec, model, request.get("truth"))
+
+
+def _true_coefficients(truth: list[dict], names: list[str]) -> dict[str, float]:
+    """Read a simulated process's terms, refusing any that are not terms of the reader's factors."""
+    process = TrueProcess({str(t["term"]): float(t["coefficient"]) for t in truth}, sigma=1.0)
+    missing = [f for f in process.factors if f not in names]
+    if missing:
+        raise ValueError(f"The true process names factors the design does not have: {missing}.")
+    return dict(process.coefficients)
+
+
+def _add_true_values(coefficients: list[dict], coded: pd.DataFrame, formula: str, truth: dict[str, float]) -> None:
+    """Give each coefficient the value the same fit gives on the true process's results without noise.
+
+    That is the true value of what the coefficient estimates: the term's own coefficient
+    when the design separates it from the others, the signed sum over its chain when the
+    design cannot, and the intercept together with any square a two-level design cannot
+    tell apart from it. A term the process has but the model leaves out shifts the
+    estimates it is correlated with, and the true values show by how much.
+    """
+    mean = TrueProcess(truth, sigma=1.0).mean(coded)
+    with _listening():
+        noiseless = analyze_experiment(coded, pd.Series(mean, name="y"), model=formula, analysis_type="coefficients")
+    # Rounded to drop the rounding error of a fit with no noise (a true zero reads 1e-14).
+    expected = {c["term"]: round(c["coefficient"], 9) + 0.0 for c in noiseless["coefficients"]}
+    for c in coefficients:
+        c["true_value"] = expected.get(c["term"])
+
+
+def read_workbook(request: dict) -> dict:
+    """Read an uploaded workbook into the runs, responses and sources the page holds."""
+    runs, stored = _read_workbook(base64.b64decode(request["xlsx_base64"]))
+    spec = _checked_spec(stored)
+    response = spec["response"]
+    if response not in runs.columns:
+        raise ValueError(f"The Runs sheet has no {response!r} column for the results.")
+    values = pd.to_numeric(runs[response], errors="coerce")
+    marks = runs["Source"].fillna("").astype(str) if "Source" in runs else pd.Series("", index=runs.index)
+    sheet = runs.drop(columns=["Source"], errors="ignore")
+    sheet[response] = np.nan
+    return {
+        "spec": spec,
+        "columns": list(sheet.columns),
+        "rows": [list(row) for row in sheet.itertuples(index=False)],
+        "responses": [None if pd.isna(v) else float(v) for v in values],
+        "sources": [
+            None if pd.isna(v) else ("simulated" if mark == "simulated" else "entered")
+            for v, mark in zip(values, marks, strict=True)
+        ],
+    }
 
 
 def workbook(request: dict) -> dict:
@@ -1031,3 +1091,8 @@ def api_workbook(payload: str) -> str:
 def api_plots(payload: str) -> str:
     """JSON wrapper around :func:`plots`."""
     return _reply(plots, payload)
+
+
+def api_read_workbook(payload: str) -> str:
+    """JSON wrapper around :func:`read_workbook`."""
+    return _reply(read_workbook, payload)
