@@ -1334,3 +1334,181 @@ class TestModelSelectionCriterion:
         )
         chosen = result["model_selection"]
         assert chosen["n_terms"] == len(chosen["selected_terms"]) + 1
+
+
+# ---------------------------------------------------------------------------
+# The coefficients' scale: coding="actual", "coded", or ranges (#513)
+# ---------------------------------------------------------------------------
+
+
+def _reactor(kelvin: bool = False) -> pd.DataFrame:
+    """Return a 2^2 factorial in actual units with two centre runs: T in degC (or K), P in bar."""
+    T = np.array([150.0, 200.0, 150.0, 200.0, 175.0, 175.0])
+    return pd.DataFrame(
+        {"T": T + 273.15 if kelvin else T, "P": [1, 1, 3, 3, 2, 2], "y": [10.0, 18.0, 13.0, 25.0, 16.0, 16.8]}
+    )
+
+
+def _terms(result: dict, key: str = "coefficient") -> dict[str, float]:
+    return {row["term"]: row[key] for row in result["coefficients"]}
+
+
+class TestCoding:
+    """``coding`` sets the scale of the coefficients and their confidence intervals."""
+
+    def test_actual_is_the_default_and_is_the_fit_as_given(self) -> None:
+        result = analyze_experiment(_reactor(), response_column="y", model="y ~ T * P", analysis_type="coefficients")
+        assert result["coding"] == "actual"
+        assert _terms(result)["T"] == pytest.approx(0.12)
+        assert result["factor_coding"] == {"T": {"low": 150.0, "high": 200.0}, "P": {"low": 1.0, "high": 3.0}}
+
+    def test_coded_coefficients_are_half_the_effects(self) -> None:
+        result = analyze_experiment(
+            _reactor(),
+            response_column="y",
+            model="y ~ T * P",
+            analysis_type=["coefficients", "effects"],
+            coding="coded",
+        )
+        assert result["coding"] == "coded"
+        coefficients = _terms(result)
+        for term, effect in result["effects"].items():
+            assert coefficients[term] == pytest.approx(effect / 2)
+
+    def test_a_coded_main_effect_is_tested_at_the_centre(self) -> None:
+        """On the actual scale P is tested at 0 degC, and misses what the ANOVA finds."""
+        kwargs = {"response_column": "y", "model": "y ~ T * P", "analysis_type": ["coefficients", "anova"]}
+        actual = analyze_experiment(_reactor(), **kwargs)
+        coded = analyze_experiment(_reactor(), coding="coded", **kwargs)
+        anova_p = next(row["p_value"] for row in coded["anova_table"] if row["source"] == "P")
+        assert _terms(coded, "p_value")["P"] == pytest.approx(anova_p)
+        assert _terms(actual)["P"] < 0 < _terms(coded)["P"]
+        assert _terms(actual, "p_value")["P"] > 0.05 > anova_p
+
+    def test_the_unit_of_temperature_does_not_change_coded_coefficients(self) -> None:
+        kwargs = {"response_column": "y", "model": "y ~ T * P", "analysis_type": "coefficients"}
+        celsius, kelvin = (analyze_experiment(_reactor(k), coding="coded", **kwargs) for k in (False, True))
+        assert _terms(kelvin, "p_value") == pytest.approx(_terms(celsius, "p_value"))
+        actual = [_terms(analyze_experiment(_reactor(k), **kwargs), "p_value")["P"] for k in (False, True)]
+        assert actual[0] != pytest.approx(actual[1], rel=0.1)
+
+    def test_a_range_puts_minus_and_plus_one_at_its_levels(self) -> None:
+        """A central composite design's extremes are its axial runs; a range codes from the cube instead."""
+        x = np.array([[-1, -1], [1, -1], [-1, 1], [1, 1], [-1.414, 0], [1.414, 0], [0, -1.414], [0, 1.414], [0, 0]])
+        y = 60 + 4 * x[:, 0] + 2 * x[:, 1] - 3 * x[:, 0] ** 2 - x[:, 1] ** 2 + x[:, 0] * x[:, 1]
+        y = y + np.array([0.3, -0.2, 0.1, -0.1, 0.2, -0.3, 0.1, 0.2, -0.1])
+        coded_data = pd.DataFrame({"T": x[:, 0], "P": x[:, 1], "y": y})
+        actual_data = coded_data.assign(T=175 + 25 * coded_data["T"], P=2 + coded_data["P"])
+        cube = {"T": {"low": 150, "high": 200}, "P": {"low": 1, "high": 3}}
+        kwargs = {"response_column": "y", "model": "quadratic", "analysis_type": "coefficients"}
+        expected = _terms(analyze_experiment(coded_data, **kwargs))
+        assert _terms(analyze_experiment(actual_data, coding=cube, **kwargs)) == pytest.approx(expected)
+        axial = _terms(analyze_experiment(actual_data, coding="coded", **kwargs))
+        assert axial["T"] == pytest.approx(1.414 * expected["T"])
+
+    def test_coded_data_is_left_as_it_is(self) -> None:
+        kwargs = {"response_column": "y", "model": "interactions", "analysis_type": "coefficients"}
+        coded = analyze_experiment(_two_factor_replicated(), coding="coded", **kwargs)
+        assert coded["coefficients"] == analyze_experiment(_two_factor_replicated(), **kwargs)["coefficients"]
+        assert "factor_coding" not in coded
+
+    def test_categorical_factors(self) -> None:
+        """Two levels are coded -1/+1 as for the effects; more levels get sum-to-zero contrasts."""
+        T = [150.0, 200.0] * 6
+        y = [10.0, 18.0, 12.0, 21.0, 9.0, 16.0, 11.0, 19.0, 12.0, 22.0, 8.0, 15.0]
+        kwargs = {"response_column": "y", "model": "interactions", "analysis_type": "coefficients", "coding": "coded"}
+        two = analyze_experiment(pd.DataFrame({"T": T, "S": ["Dry", "Wet"] * 3 + ["Wet", "Dry"] * 3, "y": y}), **kwargs)
+        assert two["factor_coding"]["S"] == {"low": "Dry", "high": "Wet"}
+        assert "S" in _terms(two)
+        three = analyze_experiment(pd.DataFrame({"T": T, "S": ["a", "a", "b", "b", "c", "c"] * 2, "y": y}), **kwargs)
+        assert {"S[S.a]", "S[S.b]", "T:S[S.a]", "T:S[S.b]"} <= set(_terms(three))
+        assert _terms(three)["Intercept"] == pytest.approx(np.mean(y))  # balanced: the grand mean
+        assert "S" not in three["factor_coding"]
+
+    def test_confidence_intervals_follow_the_coding(self) -> None:
+        result = analyze_experiment(
+            _reactor(),
+            response_column="y",
+            model="y ~ T * P",
+            analysis_type=["coefficients", "confidence_intervals"],
+            coding="coded",
+        )
+        intervals = {row["term"]: (row["ci_low"], row["ci_high"]) for row in result["confidence_intervals"]}
+        for row in result["coefficients"]:
+            assert intervals[row["term"]] == pytest.approx((row["ci_low"], row["ci_high"]))
+
+    def test_other_analyses_do_not_change(self) -> None:
+        kwargs = {"response_column": "y", "model": "y ~ T * P", "analysis_type": ["anova", "effects"]}
+        actual = analyze_experiment(_reactor(), **kwargs)
+        coded = analyze_experiment(_reactor(), coding="coded", **kwargs)
+        assert coded["anova_table"] == actual["anova_table"]
+        assert coded["effects"] == actual["effects"]
+
+    def test_a_model_that_changes_when_coded_warns(self) -> None:
+        """``T:P`` without ``P`` is a different model once P is centred."""
+        with pytest.warns(UserWarning, match="fits the data differently"):
+            analyze_experiment(
+                _reactor(), response_column="y", model="y ~ T + T:P", analysis_type="coefficients", coding="coded"
+            )
+        with warnings.catch_warnings():
+            warnings.simplefilter("error", UserWarning)
+            analyze_experiment(
+                _reactor(), response_column="y", model="y ~ T * P", analysis_type="coefficients", coding="coded"
+            )
+
+    def test_badly_scaled_units_are_blamed_on_the_fit_not_the_model(self) -> None:
+        """A tiny span far from zero loses the fit's rank in floating point; coding repairs it."""
+        x = np.array([[-1, -1], [1, -1], [-1, 1], [1, 1], [-1.414, 0], [1.414, 0], [0, -1.414], [0, 1.414], [0, 0]])
+        y = 60 + 4 * x[:, 0] + 2 * x[:, 1] - 3 * x[:, 0] ** 2 - x[:, 1] ** 2 + np.linspace(-0.2, 0.2, 9)
+        data = pd.DataFrame({"T": 1e6 + 0.01 * x[:, 0], "P": 1e7 + 0.1 * x[:, 1], "y": y})
+        with pytest.warns(UserWarning, match="lost rank in floating point"):
+            result = analyze_experiment(
+                data, response_column="y", model="quadratic", analysis_type="coefficients", coding="coded"
+            )
+        reference = analyze_experiment(
+            pd.DataFrame({"T": x[:, 0] / 1.414, "P": x[:, 1] / 1.414, "y": y}),
+            response_column="y",
+            model="quadratic",
+            analysis_type="coefficients",
+        )
+        assert _terms(result) == pytest.approx(_terms(reference))
+
+    def test_a_mixture_model_has_no_coded_scale(self) -> None:
+        mixture = TestMixtureAnalysis._yarn()
+        with pytest.raises(ValueError, match="mixture model has no coded scale"):
+            analyze_experiment(
+                mixture, response_column="y", model="scheffe_quadratic", analysis_type="coefficients", coding="coded"
+            )
+        actual = analyze_experiment(
+            mixture, response_column="y", model="scheffe_quadratic", analysis_type="coefficients"
+        )
+        assert actual["coding"] == "actual"
+        assert "factor_coding" not in actual  # proportions are not to be recoded by optimize_responses
+
+    def test_a_range_for_a_categorical_factor_is_refused(self) -> None:
+        data = pd.DataFrame({"T": [150.0, 200.0] * 2, "S": ["Dry", "Dry", "Wet", "Wet"], "y": [10.0, 18.0, 13.0, 22.0]})
+        with pytest.raises(ValueError, match="'S', a categorical factor"):
+            analyze_experiment(
+                data,
+                response_column="y",
+                model="main_effects",
+                analysis_type="coefficients",
+                coding={"S": {"low": 0, "high": 1}},
+            )
+
+    @pytest.mark.parametrize(
+        ("coding", "match"),
+        [
+            ("nonsense", "must be 'actual', 'coded'"),
+            (3, "must be 'actual', 'coded'"),
+            ({"Q": {"low": 1, "high": 2}}, "not a factor"),
+            ({"T": {"low": 200, "high": 150}}, "finite low < high"),
+            ({"T": (150, 200)}, "finite low < high"),
+            ({"T": {"low": 150, "high": np.inf}}, "finite low < high"),
+        ],
+    )
+    def test_invalid_coding(self, coding: object, match: str) -> None:
+        with pytest.raises(ValueError, match=match):
+            analyze_experiment(
+                _reactor(), response_column="y", model="y ~ T * P", analysis_type="coefficients", coding=coding
+            )

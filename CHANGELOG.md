@@ -83,6 +83,23 @@ those changes.
 
 ### Changed
 
+- **`analyze_experiment`'s `coding` chooses the scale of the coefficients (#513).** It was
+  accepted and ignored, and its default, `"coded"`, named a scale the coefficients were
+  not on. The default is now `"actual"`, which is what every call already returned.
+  - `coding="coded"` refits the model with each numeric factor mapped from its extremes
+    to -1 and +1, a two-level categorical factor coded as for the effects, and, in a named
+    model, a categorical factor with more levels sum-coded.
+  - A dict such as `{"T": {"low": 150, "high": 200}}` codes from those levels instead,
+    for example a central composite design's cube rather than its axial runs.
+  - The result reports `coding`, and `factor_coding` with each factor's coded range.
+  - The `analyze_experiment` agent tool takes `coding` too.
+
+  This changes more than the units. In a model with interactions, a main effect is tested
+  where the other factors are zero, which on the actual scale can be far outside the
+  experiment. With T at 150 and 200 degC, P's coefficient is -4.5 (p = 0.09) at 0 degC
+  but +2.5 (p = 0.0066, the ANOVA's p) at the centre of the design. A model whose coded
+  refit fits differently, such as an interaction without its main effects, warns.
+
 - **`max_iter` defaults to 500 on every iterative estimator (#588).** `PCA`, `PLS` and
   `OPLS` used 1000; `MBPCA`, `MBPLS` and `TPLS` already used 500. One number now, so a
   caller carrying a mental model between two estimators is not surprised.
@@ -193,6 +210,18 @@ those changes.
 
 ### Fixed
 
+- **`optimize_responses` no longer optimises coefficients fitted in actual units as if
+  they were coded (#513).** It evaluates models at coded settings, from -1 to +1, and the
+  documentation said an `analyze_experiment` result could be passed as it is. For data
+  in actual units the search therefore ran over -1 to +1 degC. Maximising `y` in a 2^2
+  experiment with T at 150 and 200 degC gave T = 200, P = 1 with a predicted `y` of
+  -5.0, where the best run is T = 200, P = 3 with `y` = 25.
+  - Such a model is now refused, with a pointer to `coding="coded"`.
+  - A coded model supplies `factor_ranges` itself, so the optimum is also reported in
+    actual units. A `factor_ranges` entry that disagrees with it, or two models coded
+    from different ranges, raise rather than mix two scales.
+  - Models without the new keys, written out by hand or Scheffe mixture models, are
+    used as before.
 - **`c()` combines all its arguments, as R's `c()` does (#513).** An iterable replaced
   the entries before it, so `c([1, 2], [3, 4])` gave `[3, 4]` and `c(1, [2, 3])` lost
   the 1. A string or a tuple was dropped altogether: `c("Dry", "Wet", levels=...)`, the
