@@ -51,9 +51,10 @@ It counts committed, staged, unstaged and untracked changes since the merge
 base. A test reaches a changed file through `import` statements, module names
 in string literals, and Python snippets held in strings; a changed data file or
 document affects the code that names it. A change to `pyproject.toml`,
-`pytest.ini` or `.coveragerc`, or a deleted file, runs everything. CI uses the
-same option on pull requests for every job except `coverage`, which runs the
-whole suite in duration-balanced shards:
+`pytest.ini` or `.coveragerc`, or a deleted file, runs everything. It is a tool
+for fast local feedback: the analysis is static and cannot see every import-time
+side effect, so CI does not use it. CI runs the whole suite in every job, and
+the `coverage` job splits it into duration-balanced shards:
 
 ```bash
 pytest --shard=2/4                     # the second of four shards

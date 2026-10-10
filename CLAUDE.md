@@ -194,9 +194,16 @@ Workflows in `.github/workflows/`:
 
 - **run-tests.yml**: `lint` (`ruff check .` and `ruff format --check .`, two
   independent gates), `typecheck` (blocking `mypy src/process_improve`), `test`
-  (pytest matrix over Python 3.10-3.13 and ubuntu/windows/macos), and
-  `test-under-dash-O` (the suite under `python -O`, to catch load-bearing
-  asserts). All jobs install with `uv sync --dev --all-extras`.
+  (the full suite without coverage, over Python 3.10-3.13 and
+  ubuntu/windows/macos; ubuntu/3.13 is the `coverage` job instead), `coverage`
+  (the full suite on ubuntu/3.13 with coverage, in duration-balanced shards via
+  `--shard`), `coverage-report` (combines the shards for the 96% gate and the
+  diff-cover patch gate), `test-under-dash-O` (the suite with
+  `PYTHONOPTIMIZE=1`, to catch load-bearing asserts; plain `python -O` would not
+  reach the xdist workers), and `test-free-threaded`. Every job runs the whole
+  suite; `--affected-since` is for local iteration only. `CI passed` is the one
+  check to require in branch protection: it fails unless every other job except
+  `coverage-report` succeeded. All jobs install with `uv sync --dev --all-extras`.
 - **docs.yml**: strict Sphinx build (`-W`, notebooks executed) and GitHub Pages deploy on main.
 - **publish.yml**: tag-gated PyPI publish (see above).
 - **codeql.yml**: weekly and per-PR security scanning.

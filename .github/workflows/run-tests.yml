@@ -29,13 +29,6 @@ concurrency:
   # next commit lands, leaving it marked as cancelled rather than tested.
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
-# On a pull request, the jobs that do not measure coverage run only the test
-# files the change can affect (`--affected-since`, tests/_selection.py); they
-# need `fetch-depth: 0` to find the merge base. A push to main runs everything,
-# and the sharded `coverage` job runs the whole suite on every event.
-env:
-  AFFECTED: ${{ github.event_name == 'pull_request' && format('--affected-since=origin/{0}', github.base_ref) || '' }}
-
 jobs:
   lint:
     runs-on: ubuntu-latest
@@ -152,7 +145,7 @@ jobs:
     # measured once, by the `coverage` job; tracing every line costs these cells
     # about twice the time for a number nothing reads.
     - name: Test with pytest
-      run: uv run pytest --no-cov ${{ env.AFFECTED }}
+      run: uv run pytest --no-cov
 
   # The whole suite on the primary platform, with coverage, split into
   # duration-balanced shards (`--shard`, tests/_selection.py). Adding a shard is
@@ -228,8 +221,6 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v7
-      with:
-        fetch-depth: 0
     - name: Set up the project environment
       uses: ./.github/actions/setup-env
       with:
@@ -241,7 +232,7 @@ jobs:
       # job used to strip `-n auto` and run serially.
       env:
         PYTHONOPTIMIZE: "1"
-      run: uv run pytest --no-cov --tb=short ${{ env.AFFECTED }}
+      run: uv run pytest --no-cov --tb=short
 
   test-free-threaded:
     # Free-threaded CPython (PEP 703), #43. Every dependency ships wheels for it,
@@ -252,8 +243,6 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v7
-      with:
-        fetch-depth: 0
     - name: Set up the project environment
       uses: ./.github/actions/setup-env
       with:
@@ -268,4 +257,23 @@ jobs:
         PYTHON_GIL: "0"
       # Coverage is gated in the `coverage` job; here the question is only whether
       # everything passes.
-      run: uv run pytest --no-cov ${{ env.AFFECTED }}
+      run: uv run pytest --no-cov
+
+  # The one check to require in branch protection: green only when every job
+  # above it succeeded, so a green pull request has passed the whole suite on
+  # every platform. It has to inspect the results itself: a job that merely
+  # `needs` the others is skipped when one fails, and GitHub counts a skipped
+  # required check as passed. `coverage-report` is left out on purpose, so a
+  # coverage dip shows red there without blocking a merge.
+  ci-passed:
+    name: CI passed
+    if: ${{ !cancelled() }}
+    needs: [lint, typecheck, web-app, test, coverage, test-under-dash-O, test-free-threaded]
+    runs-on: ubuntu-latest
+    steps:
+    - name: Check that every job succeeded
+      env:
+        RESULTS: ${{ join(needs.*.result, ' ') }}
+      run: |
+        echo "Job results: $RESULTS"
+        for result in $RESULTS; do [ "$result" = success ] || exit 1; done
