@@ -121,7 +121,9 @@ def test_every_scenario_simulates(app, held, scenario):
     ("change", "message"),
     [
         ({"scenario": "unknown"}, "Unknown process"),
-        ({"sigma": -1}, "sigma must be a positive"),
+        ({"sigma": -1}, "noise standard deviation must be a number above 0"),
+        ({"sigma": 0}, "noise standard deviation must be a number above 0"),  # not read as "not given"
+        ({"sigma": "abc"}, "noise standard deviation must be a number above 0"),
         ({"spec": {"design_type": "rocket"}}, "did not make"),
         ({"columns": ["Run order"]}, "missing the factor column"),
     ],

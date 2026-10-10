@@ -324,6 +324,15 @@ def _relay(heard: list[str]) -> None:
         logging.getLogger("process_improve").warning(message)
 
 
+def _number(value: object) -> float | None:
+    """Return a finite number, or None for a blank (the page sends a blank box as null) or anything else."""
+    try:
+        number = float(value)  # type: ignore[arg-type]
+    except (TypeError, ValueError):
+        return None
+    return number if math.isfinite(number) else None
+
+
 def _factors(spec: dict) -> list[Factor]:
     """Build and check the ``Factor`` list from the specification."""
     raw = spec.get("factors") or []
@@ -334,7 +343,9 @@ def _factors(spec: dict) -> list[Factor]:
         raise ValueError("Factor names must be unique and look like variable names (letters, digits, _).")
     factors = []
     for f, name in zip(raw, names, strict=True):
-        low, high = float(f["low"]), float(f["high"])
+        low, high = _number(f.get("low")), _number(f.get("high"))
+        if low is None or high is None:
+            raise ValueError(f"Factor {name}: enter a number for both the low and the high value.")
         if not low < high:
             raise ValueError(f"Factor {name}: the low value must be below the high value.")
         factors.append(Factor(name=name, low=low, high=high, units=str(f.get("units", ""))))
@@ -888,7 +899,11 @@ def _scenario_process(key: str, names: list[str], request: dict) -> TrueProcess:
     if terms is None:
         terms = _random_terms(len(names), np.random.default_rng(int(request.get("seed", 1))))
     coefficients = {_term_name(t, names): c for t, c in terms.items() if all(i < len(names) for i in t)}
-    return TrueProcess(coefficients, sigma=float(request.get("sigma") or scenario["sigma"]))
+    # A noise of 0 is refused, not read as "not given": the reader would see results with noise they did not ask for.
+    sigma = scenario["sigma"] if request.get("sigma") is None else _number(request["sigma"])
+    if sigma is None or sigma <= 0:
+        raise ValueError("The noise standard deviation must be a number above 0.")
+    return TrueProcess(coefficients, sigma=sigma)
 
 
 def _truth(process: TrueProcess) -> list[dict[str, Any]]:
