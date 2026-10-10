@@ -15,7 +15,7 @@ Package layout
    process_improve/
        multivariate/    # PCA, PLS, TPLS, and multi-block (MBPCA / MBPLS)
        experiments/     # designed experiments: designs, analysis, optimisation
-       monitoring/      # control charts (Shewhart / CUSUM / EWMA-style)
+       monitoring/      # control charts (Shewhart, EWMA, CUSUM, Holt-Winters)
        batch/           # batch data alignment (DTW), features, preprocessing
        regression/      # robust regression (repeated median, Theil-Sen)
        bivariate/       # elbow / peak detection, area-under-curve
