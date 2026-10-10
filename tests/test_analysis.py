@@ -1371,6 +1371,17 @@ class TestCoding:
         assert actual["coding"] == "actual"
         assert "factor_coding" not in actual  # proportions are not to be recoded by optimize_responses
 
+    def test_a_range_for_a_categorical_factor_is_refused(self) -> None:
+        data = pd.DataFrame({"T": [150.0, 200.0] * 2, "S": ["Dry", "Dry", "Wet", "Wet"], "y": [10.0, 18.0, 13.0, 22.0]})
+        with pytest.raises(ValueError, match="'S', a categorical factor"):
+            analyze_experiment(
+                data,
+                response_column="y",
+                model="main_effects",
+                analysis_type="coefficients",
+                coding={"S": {"low": 0, "high": 1}},
+            )
+
     @pytest.mark.parametrize(
         ("coding", "match"),
         [

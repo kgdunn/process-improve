@@ -1454,3 +1454,17 @@ class TestCodedHandoff:
             "stationary_point"
         ]
         assert ranged["stationary_point_actual"] == pytest.approx(by_hand["stationary_point_actual"])
+
+    def test_a_two_level_categorical_factor_stays_coded(self) -> None:
+        """Its coded range has no actual units, so its optimum is reported as -1 or +1."""
+        from process_improve.experiments.analysis import analyze_experiment
+
+        data = pd.DataFrame(
+            {"T": [150.0, 200.0] * 4, "S": ["Dry"] * 4 + ["Wet"] * 4, "y": [10, 18, 11, 19, 14, 22, 15, 23.0]}
+        )
+        fit = analyze_experiment(
+            data, response_column="y", model="main_effects", analysis_type="coefficients", coding="coded"
+        )
+        assert fit["factor_coding"]["S"] == {"low": "Dry", "high": "Wet"}
+        best = optimize_responses([fit], [{"goal": "maximize", "low": 10, "high": 23}])["desirability"]
+        assert best["optimal_actual"] == pytest.approx({"T": 200.0, "S": 1.0})

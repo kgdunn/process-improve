@@ -24,7 +24,9 @@ class OptimizeResponsesInput(BaseModel):
         min_length=1,
         description=(
             "One or more fitted models: the result of analyze_experiment with 'coefficients' among its "
-            "analysis_type values can be passed as it is. Each entry must include 'coefficients' (list of "
+            "analysis_type values, fitted with coding='coded' (models are evaluated at coded settings, -1 to +1; "
+            "one with actual-unit coefficients is refused), can be passed as it is. Each entry must include "
+            "'coefficients' (list of "
             "{term, coefficient}) and 'factor_names' (list of strings), and optionally 'response_name'. "
             "stationary_point, canonical_analysis, steepest_ascent/descent and ridge_analysis take exactly one model."
         ),
@@ -56,7 +58,8 @@ class OptimizeResponsesInput(BaseModel):
         None,
         description=(
             'Factor bounds in actual units, e.g. {"Temperature": {"low": 150, "high": 200}}. '
-            "Used to convert coded settings to actual units in the output."
+            "Used to convert coded settings to actual units in the output. A coded analyze_experiment result "
+            "supplies its own factors' ranges; a range given here must agree with them."
         ),
     )
     step_size: float = Field(

@@ -57,6 +57,18 @@ class AnalyzeExperimentInput(BaseModel):
         None,
         description="Optional response transform before fitting.",
     )
+    coding: Literal["actual", "coded"] | dict[str, dict[str, float]] = Field(
+        "actual",
+        description=(
+            "Scale of the coefficients and confidence_intervals. 'actual' (default): the factors as given. "
+            "'coded': refitted with each factor from -1 at its lowest value to +1 at its highest. Or ranges, "
+            "e.g. {'T': {'low': 150, 'high': 200}}, that map to -1 and +1, such as a central composite design's "
+            "cube levels rather than its axial runs. Use 'coded' or ranges when the coefficients go to "
+            "optimize_responses, which evaluates models at coded settings and refuses actual-unit coefficients; "
+            "it then reports the optimum in actual units without factor_ranges. With interactions, a coded "
+            "main effect is tested at the centre of the design, an actual one where the other factors are zero."
+        ),
+    )
     new_points: list[dict[str, Any]] | None = Field(
         None,
         description="New factor settings for prediction or confirmation.",
@@ -86,7 +98,8 @@ class AnalyzeExperimentInput(BaseModel):
         "prediction with prediction intervals, confirmation run testing, and the REML analysis of "
         "split-plot designs (hard-to-change factors) with Satterthwaite degrees of freedom. "
         "Always returns a model summary with R-squared, adj-R-squared, pred-R-squared, and adequate precision. "
-        "The design_matrix should contain factor columns with coded values (-1/+1). "
+        "Factor columns may be coded (-1/+1) or in actual units; for actual units, set coding='coded' to get "
+        "coefficients on the -1/+1 scale, as optimize_responses needs. "
         "The response can be in a separate column or included in design_matrix."
     ),
     input_model=AnalyzeExperimentInput,
@@ -102,6 +115,11 @@ class AnalyzeExperimentInput(BaseModel):
     # "Use Lenth's method on my unreplicated factorial"
         -> ``analyze_experiment(design_matrix=[...], response_column="y",
                 analysis_type="lenth_method")``
+
+    # "Fit my experiment in actual units, then find the best settings"
+        -> ``analyze_experiment(design_matrix=[{"T":150,"P":1,"y":10}, ...],
+                response_column="y", analysis_type="coefficients", coding="coded")``,
+           then pass the result to ``optimize_responses``
 
     # "Analyse my split-plot experiment; temperature was hard to change"
         -> ``analyze_experiment(design_matrix=[...], response_column="y",
@@ -124,6 +142,7 @@ def analyze_experiment_tool(spec: AnalyzeExperimentInput) -> dict[str, Any]:
             analysis_type=spec.analysis_type,
             significance_level=spec.significance_level,
             transform=spec.transform,
+            coding=spec.coding,
             new_points=np_df,
             observed_at_new=spec.observed_at_new,
             whole_plot=spec.whole_plot,
