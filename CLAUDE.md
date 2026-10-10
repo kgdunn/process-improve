@@ -147,7 +147,11 @@ defaults; pass them manually.
 uv run pytest                                        # full suite, parallel, coverage gate
 uv run pytest tests/test_multivariate.py --no-cov    # one file
 uv run pytest -k "pls" --no-cov                      # by keyword
+uv run pytest --no-cov --affected-since=origin/main  # only tests your branch can affect
 ```
+
+`--affected-since` is for fast local iteration before pushing; CI always runs
+the whole suite. How it selects tests is in `CONTRIBUTING.md`.
 
 Install with `uv sync --dev --all-extras`. Without the extras a large part of
 the suite fails on `ImportError` rather than skipping.
