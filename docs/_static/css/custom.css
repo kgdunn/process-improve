@@ -22,6 +22,16 @@ html[data-theme="dark"] {
 
 /* -- Landing page ---------------------------------------------------------- */
 
+/* docutils gives every ``.. container::`` the class "container", which the theme's
+   Bootstrap styles give a maximum width and no side padding; undo both here. */
+.pi-landing div.container {
+  max-width: none;
+  margin-left: 0;
+  margin-right: 0;
+  padding-left: 0;
+  padding-right: 0;
+}
+
 .pi-landing > h1 {
   font-size: 3.2rem;
   font-weight: 800;
@@ -97,7 +107,7 @@ html[data-theme="dark"] {
   margin: 1rem 0 2.5rem;
 }
 
-.pi-card {
+.pi-landing div.pi-card.container {
   position: relative;
   padding: 1.1rem 1.25rem 0.9rem;
   border: 1px solid var(--pst-color-border);
@@ -117,8 +127,10 @@ html[data-theme="dark"] {
   color: var(--pst-color-primary);
 }
 
-.pi-card p.rubric {
+.pi-landing .pi-card p.rubric {
   margin: 0.45rem 0 0.35rem;
+  padding: 0;
+  border-bottom: none;
   font-size: 1.12rem;
   font-weight: 700;
 }
