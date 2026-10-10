@@ -29,6 +29,13 @@ concurrency:
   # next commit lands, leaving it marked as cancelled rather than tested.
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
+# On a pull request, the jobs that do not measure coverage run only the test
+# files the change can affect (`--affected-since`, tests/_selection.py); they
+# need `fetch-depth: 0` to find the merge base. A push to main runs everything,
+# and the sharded `coverage` job runs the whole suite on every event.
+env:
+  AFFECTED: ${{ github.event_name == 'pull_request' && format('--affected-since=origin/{0}', github.base_ref) || '' }}
+
 jobs:
   lint:
     runs-on: ubuntu-latest
@@ -96,9 +103,13 @@ jobs:
         # Linux (#449). The two intermediate versions run on ubuntu only: that is 8 jobs
         # rather than the 12-job full product, and the OS extremes at min and max Python
         # catch platform problems without doubling the bill.
+        # Python 3.13 on ubuntu is the `coverage` job below, so it is excluded here.
         python-version: ["3.10", "3.13"]
         os: [ubuntu-latest, windows-latest, macos-latest]
         experimental: [false]
+        exclude:
+          - python-version: "3.13"
+            os: ubuntu-latest
         include:
           - python-version: "3.11"
             os: ubuntu-latest
@@ -137,11 +148,62 @@ jobs:
       run: uv build
     - name: Check if the built package can be installed and imported
       run: uv run --isolated --with . --no-project -- python -c "import process_improve"
-    # This is where the actual unit and integration tests start
+    # This is where the actual unit and integration tests start. Coverage is
+    # measured once, by the `coverage` job; tracing every line costs these cells
+    # about twice the time for a number nothing reads.
     - name: Test with pytest
-      run: uv run pytest --cov-report=xml
+      run: uv run pytest --no-cov ${{ env.AFFECTED }}
+
+  # The whole suite on the primary platform, with coverage, split into
+  # duration-balanced shards (`--shard`, tests/_selection.py). Adding a shard is
+  # one more number in the list: `strategy.job-total` follows it.
+  coverage:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4]
+    steps:
+    - uses: actions/checkout@v7
+    - name: Set up the project environment
+      uses: ./.github/actions/setup-env
+      with:
+        python-version: "3.13"
+    # The 96% gate cannot apply to one shard of the suite, so it is switched off
+    # here and `coverage-report` applies it to the combined data. The total this
+    # step prints covers only this shard.
+    - name: Test with pytest, shard ${{ matrix.shard }} of ${{ strategy.job-total }}
+      run: uv run pytest --shard=${{ matrix.shard }}/${{ strategy.job-total }} --cov-fail-under=0
+    - name: Keep this shard's coverage data
+      run: mv .coverage .coverage.shard-${{ matrix.shard }}
+    - uses: actions/upload-artifact@v7
+      with:
+        name: coverage-shard-${{ matrix.shard }}
+        path: .coverage.shard-${{ matrix.shard }}
+        include-hidden-files: true
+        retention-days: 1
+
+  coverage-report:
+    needs: coverage
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v7
+      with:
+        fetch-depth: 0
+    - name: Set up the project environment
+      uses: ./.github/actions/setup-env
+      with:
+        python-version: "3.13"
+    - uses: actions/download-artifact@v8
+      with:
+        pattern: coverage-shard-*
+        merge-multiple: true
+    - name: Combine the shards and apply the 96% gate
+      run: |
+        uv run coverage combine
+        uv run coverage xml
+        uv run coverage report --fail-under=96
     - name: Upload coverage to Codecov
-      if: matrix.os == 'ubuntu-latest' && matrix.python-version == '3.13'
       uses: codecov/codecov-action@v7
       with:
         files: ./coverage.xml
@@ -153,9 +215,7 @@ jobs:
     # pytest.ini. It runs after the Codecov upload so a failure here still reports.
     # uvx runs diff-cover in its own environment: no dev dependency, uv.lock untouched.
     - name: Coverage of the lines this pull request changes
-      if: >-
-        github.event_name == 'pull_request' &&
-        matrix.os == 'ubuntu-latest' && matrix.python-version == '3.13'
+      if: github.event_name == 'pull_request'
       run: >-
         uvx --from diff-cover==10.6.0 diff-cover coverage.xml
         --compare-branch=origin/${{ github.base_ref }} --fail-under=95
@@ -168,14 +228,20 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v7
+      with:
+        fetch-depth: 0
     - name: Set up the project environment
       uses: ./.github/actions/setup-env
       with:
         python-version: "3.13"
     - name: Test with pytest under python -O
-      # Strip the default --cov / --pdb / -n auto / --exitfirst options;
-      # for -O detection we want the full failure surface, not the first one.
-      run: uv run python -O -m pytest -o "addopts=" -v --tb=short
+      # PYTHONOPTIMIZE=1 is `python -O` for every interpreter the run starts.
+      # The flag alone would reach only the controller: xdist workers are fresh
+      # interpreters and would run with their asserts intact, which is why this
+      # job used to strip `-n auto` and run serially.
+      env:
+        PYTHONOPTIMIZE: "1"
+      run: uv run pytest --no-cov --tb=short ${{ env.AFFECTED }}
 
   test-free-threaded:
     # Free-threaded CPython (PEP 703), #43. Every dependency ships wheels for it,
@@ -186,6 +252,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v7
+      with:
+        fetch-depth: 0
     - name: Set up the project environment
       uses: ./.github/actions/setup-env
       with:
@@ -198,6 +266,6 @@ jobs:
     - name: Test with pytest, without the GIL
       env:
         PYTHON_GIL: "0"
-      # Coverage is gated in the main matrix; here the question is only whether
+      # Coverage is gated in the `coverage` job; here the question is only whether
       # everything passes.
-      run: uv run pytest --no-cov
+      run: uv run pytest --no-cov ${{ env.AFFECTED }}
