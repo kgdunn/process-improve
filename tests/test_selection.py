@@ -13,7 +13,8 @@ from tests._selection import affected_test_files, assign_shard, build_import_gra
 FAKE_REPO = {
     "src/process_improve/__init__.py": "",
     "src/process_improve/core.py": "def f(): ...",
-    "src/process_improve/user.py": "from process_improve.core import f",
+    "src/process_improve/user.py": "from process_improve.core import f\ndef uses_f(): return f()",
+    "src/process_improve/facade.py": "from process_improve.core import f\nfrom process_improve.plugin import h",
     "src/process_improve/lazy.py": "MODULES = ['process_improve.plugin']",
     "src/process_improve/plugin.py": "",
     "src/process_improve/loader.py": "PATH = 'tables/table.csv'",
@@ -22,7 +23,8 @@ FAKE_REPO = {
     "src/process_improve/pkg/inner.py": "def g(): ...",
     "tests/__init__.py": "",
     "tests/test_core.py": "from process_improve.core import f",
-    "tests/test_user.py": "from process_improve.user import f",
+    "tests/test_user.py": "from process_improve.user import uses_f",
+    "tests/test_facade.py": "from process_improve.facade import f",
     "tests/test_lazy.py": "import process_improve.lazy",
     "tests/test_loader.py": "from process_improve import loader",
     "tests/test_pkg.py": "from process_improve.pkg import g",
@@ -63,8 +65,17 @@ def test_a_direct_and_a_transitive_importer_are_both_affected(repo: Path) -> Non
     assert _affected(repo, "src/process_improve/core.py") == {
         "tests/test_core.py",
         "tests/test_user.py",  # through user.py
+        "tests/test_facade.py",  # facade.f is core.f
         "tests/test_readme.py",  # opaque: runs code the graph cannot see
     }
+
+
+def test_a_reexported_name_is_followed_to_where_it_is_defined(repo: Path) -> None:
+    # test_facade takes only ``f`` from facade.py, so the module facade.py also
+    # re-exports from does not reach it.
+    affected = _affected(repo, "src/process_improve/plugin.py")
+    assert affected is not None
+    assert "tests/test_facade.py" not in affected
 
 
 def test_a_module_named_in_a_string_literal_is_an_edge(repo: Path) -> None:
