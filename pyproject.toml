@@ -428,6 +428,9 @@ convention = "numpy"
 "docs/conf.py" = [
     "INP001",  # Sphinx conf.py is intentionally not in a package
 ]
+"docs/_ext/**" = [
+    "INP001",  # the docs' own Sphinx extensions, loaded from sys.path by conf.py
+]
 "docs/user_guide/case_studies/**" = [
     "T201",    # print() expected in case-study notebooks
     "ANN001",  # Type annotations not required in didactic code
