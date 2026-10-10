@@ -231,6 +231,32 @@ def test_unknown_style_for_xbar_no_subgroup_raises() -> None:
         cc.calculate_limits(y)
 
 
+@pytest.mark.parametrize("style", ["robust", "regular"])
+def test_xbar_no_subgroup_keeps_a_given_target_and_s(style: str) -> None:
+    """A given target and s are used as they are, and only a missing one is estimated.
+
+    Both used to be replaced by estimates from the data, so a chart could not be drawn
+    from known (Phase I) values, and a shift that had moved the data's own centre was
+    judged against that moved centre.
+    """
+    rng = np.random.default_rng(1)
+    y = np.concatenate([rng.normal(50, 2, 60), rng.normal(54, 2, 20)])  # a two-sigma shift at 60
+
+    def fit(**given: float) -> ControlChart:
+        chart = ControlChart(variant="xbar.no.subgroup", style=style)
+        chart.calculate_limits(y, **given)
+        return chart
+
+    known, estimated = fit(target=50.0, s=2.0), fit()
+    assert (known.target, known.s) == (50.0, 2.0)
+    assert known.idx_outside_3S == np.nonzero(np.abs(y - 50.0) > 6.0)[0].tolist()
+    assert len(known.idx_outside_3S) > len(estimated.idx_outside_3S)
+
+    only_target, only_s = fit(target=50.0), fit(s=2.0)
+    assert (only_target.target, only_target.s) == (50.0, estimated.s)
+    assert (only_s.target, only_s.s) == (estimated.target, 2.0)
+
+
 def test_hw_zero_mad_but_nonconstant_warmup_falls_back_to_std() -> None:
     """Symmetric warm-up residuals give MAD = 0 without being constant.
 
