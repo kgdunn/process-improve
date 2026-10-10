@@ -11,6 +11,7 @@ import base64
 import html.parser
 import importlib.util
 import io
+import itertools
 import json
 import subprocess
 import sys
@@ -20,6 +21,8 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 import pytest
+
+from process_improve.experiments import generate_design
 
 pytest.importorskip("openpyxl")
 pytest.importorskip("pyDOE3")
@@ -65,7 +68,24 @@ def quadratic(runs: pd.DataFrame) -> np.ndarray:
     return (50 + 4 * t - 3 * p + 2 * t * p - 5 * t**2 + noise).to_numpy()
 
 
-@pytest.mark.parametrize("design_type", ["full_factorial", "plackett_burman", "dsd", "box_behnken", "ccd", "d_optimal"])
+ALL_DESIGNS = [
+    "full_factorial",
+    "fractional_factorial",
+    "plackett_burman",
+    "dsd",
+    "box_behnken",
+    "ccd",
+    "d_optimal",
+    "i_optimal",
+]
+
+
+def run_sheet(result: dict) -> pd.DataFrame:
+    """Return the run sheet a reply describes, as the reader sees it."""
+    return pd.DataFrame(result["rows"], columns=result["columns"])
+
+
+@pytest.mark.parametrize("design_type", ALL_DESIGNS)
 def test_every_offered_design_generates(app, design_type):
     reply = call(app, "api_make_design", {"design_type": design_type, "factors": FACTORS, "budget": 14})
     assert reply["ok"], reply.get("error")
@@ -74,6 +94,49 @@ def test_every_offered_design_generates(app, design_type):
     assert result["columns"][:2] == ["Std order", "Run order"]
     run_order = [row[1] for row in result["rows"]]
     assert run_order == sorted(run_order), "rows are listed in the order they are to be run"
+
+
+@pytest.mark.parametrize("design_type", ALL_DESIGNS)
+def test_run_sheet_lists_the_runs_in_their_randomised_order(app, design_type):
+    """Row i of the sheet is the i-th run the library randomised, and "Std order" is where it sits unrandomised.
+
+    ``DesignResult.design_actual`` is already in run order, and ``run_order[i]`` is the
+    standard-order position of its i-th row. Sorting the sheet on that position instead
+    lists the runs unrandomised, centre points last, under a "Run order" of 1..n.
+    """
+    spec = {"design_type": design_type, "factors": FACTORS, "budget": 14}
+    sheet = run_sheet(call(app, "api_make_design", spec)["result"])
+    design = generate_design(app._factors(spec), design_type=design_type, **app._design_options(spec, design_type))
+    names = [f["name"] for f in FACTORS]
+    np.testing.assert_allclose(sheet[names].to_numpy(float), design.design_actual[names].to_numpy(float))
+    assert sheet["Run order"].tolist() == list(range(1, design.n_runs + 1))
+    assert sheet["Std order"].tolist() == design.run_order
+
+
+def coded(sheet: pd.DataFrame) -> np.ndarray:
+    """Return the sheet's factor settings, coded to -1 and +1 from the ranges in ``FACTORS``."""
+    return np.column_stack(
+        [(sheet[f["name"]] - (f["high"] + f["low"]) / 2) / ((f["high"] - f["low"]) / 2) for f in FACTORS]
+    )
+
+
+def test_std_order_rebuilds_the_standard_order_factorial(app):
+    """Sorted on "Std order", a 2^3 factorial reads corner by corner, last factor fastest, then its centre runs."""
+    spec = {"design_type": "full_factorial", "factors": FACTORS, "n_center_points": 3}
+    sheet = run_sheet(call(app, "api_make_design", spec)["result"])
+    standard = sheet.sort_values("Std order")
+    corners = np.array(list(itertools.product([-1, 1], repeat=3)))
+    np.testing.assert_allclose(coded(standard), np.vstack([corners, np.zeros((3, 3))]))
+    assert not np.allclose(coded(sheet), coded(standard)), "the runs are made in a randomised order"
+
+
+def test_std_order_rebuilds_the_definitive_screening_foldover(app):
+    """Sorted on "Std order", a DSD reads as its conference matrix C, then -C, then the centre run."""
+    spec = {"design_type": "dsd", "factors": FACTORS}
+    standard = coded(run_sheet(call(app, "api_make_design", spec)["result"]).sort_values("Std order"))
+    half = (len(standard) - 1) // 2
+    np.testing.assert_allclose(standard[:half], -standard[half : 2 * half])
+    np.testing.assert_allclose(standard[-1], 0)
 
 
 def test_workbook_round_trip_recovers_the_model(app):

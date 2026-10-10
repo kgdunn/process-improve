@@ -234,6 +234,15 @@ those changes.
 
 ### Fixed
 
+- **The browser app's run sheet lists the runs in their randomised order.** It sorted them
+  back into standard order: a 2^3 factorial's eight corners came first, last factor
+  fastest, and its three centre runs last, under a "Run order" of 1 to 11.
+  - `DesignResult.run_order[i]` is the standard-order position of the i-th run, whose
+    rows are already randomised; the page read it as the run order and sorted on it.
+    "Run order" is now the row's position, and "Std order" the library's `run_order`.
+  - `DesignResult.run_order`'s docstring said "Randomized run order", which invites the
+    same misreading; it now says what the list holds.
+
 - **`analyze_experiment` no longer blames the design for badly scaled units.** It took
   the model matrix's rank in the factors' own units. In very unequal units, or with a
   span that is tiny next to its distance from zero, that rank drops in floating point.

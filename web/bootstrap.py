@@ -163,11 +163,12 @@ def make_design(spec: dict) -> dict:
     kwargs = _design_options(spec, design_type)
     result = generate_design(factors, design_type=design_type, **kwargs)
 
+    # The library returns the runs already randomised, and ``run_order[i]`` is the
+    # standard-order position of its i-th run: the sheet keeps the rows as they come.
     names = [f.name for f in factors]
     runs = pd.DataFrame(result.design_actual[names].to_numpy(), columns=names)
-    runs.insert(0, "Run order", result.run_order)
-    runs.insert(0, "Std order", range(1, len(runs) + 1))
-    runs = runs.sort_values("Run order").reset_index(drop=True)
+    runs.insert(0, "Run order", range(1, len(runs) + 1))
+    runs.insert(0, "Std order", result.run_order)
     runs[response] = np.nan
 
     stored = {

@@ -261,7 +261,10 @@ class DesignResult:
     design_actual : Expt
         Design matrix in actual (real-world) units.
     run_order : list[int]
-        Randomized run order (1-based).
+        The standard-order position (1-based) of each run. ``design`` and
+        ``design_actual`` are already in randomised run order, so ``run_order[i]``
+        is where their i-th row sits in the unrandomised design; sorting the rows on
+        it recovers the standard order.
     design_type : str
         Name of the design that was generated.
     n_runs : int
