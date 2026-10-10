@@ -341,15 +341,16 @@ class PlotlyAdapter(AbstractAdapter):
         )
 
     def _heatmap_trace(self, layer: LayerSpec) -> go.Heatmap:
-        x_vals = layer.style.get("x_grid", [])
-        y_vals = layer.style.get("y_grid", [])
-        z_matrix = layer.style.get("z_matrix", [])
+        """Build a heatmap from the layer's grid; ``zmin``, ``zmax`` and ``colorscale`` in its style fix the colours."""
+        style = layer.style
         return go.Heatmap(
-            x=x_vals,
-            y=y_vals,
-            z=z_matrix,
+            x=style.get("x_grid", []),
+            y=style.get("y_grid", []),
+            z=style.get("z_matrix", []),
             name=layer.name,
-            colorscale=_SURFACE_COLORSCALE,
+            colorscale=style.get("colorscale", _SURFACE_COLORSCALE),
+            zmin=style.get("zmin"),
+            zmax=style.get("zmax"),
         )
 
     def _text_trace(
