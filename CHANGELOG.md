@@ -234,6 +234,20 @@ The fixes below were found while raising test coverage to 96% (#678).
     keys (`"D"`, `"F"`, `"Z"`, `"Y"`) for shape-stability, not two. The `"Z"`
     and `"Y"` entries are always empty dicts since VIP is defined only for the
     D- and F-blocks.
+- **Every README example runs as pasted, on real data, and CI checks its output.**
+  The examples read the LDPE reactor and cheddar data from openmv.net, and
+  `tests/test_readme.py` runs them in order (from the bundled copies) and compares
+  each promised `print` output with what was printed. Three examples that failed on
+  the released package are fixed: the PCA block read a missing file and passed a
+  score vector to `score_contributions`, the model-inversion block called `.round`
+  on a float, and the `ColumnTransformer` example, now in `SKLEARN_COMPATIBILITY.md`
+  and tested there, needs `OneHotEncoder(sparse_output=False)` under pandas output.
+  The README also gains a banner, a recording of the in-browser app, and a table
+  from ten practical questions to one call and a textbook chapter; it no longer
+  lists a CUSUM chart, which does not exist, and its links are absolute, so they
+  work on PyPI too.
+- **PyPI links the documentation, changelog, in-browser app and textbook**
+  (`[project.urls]`).
 
 ## [1.97.2] - 2026-10-07
 

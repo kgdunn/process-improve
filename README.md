@@ -1,9 +1,14 @@
 # process-improve
 
-**Multivariate analysis, designed experiments, and process monitoring for Python.**
-Built for the chemometrics, manufacturing, and pharma workflows where you need to
-know not just *what fits*, but *is this observation normal, which variable moved,
-and how sure am I?*
+**Designed experiments, multivariate analysis and process monitoring for Python.**
+Built for the chemometrics, manufacturing and pharma workflows where you need to know
+not just *what fits*, but *which factors matter, is this observation normal, which
+variable moved, and how sure am I?*
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/kgdunn/process-improve/main/docs/_static/readme/banner-dark.png">
+  <img alt="Four experimental designs from one generate_design call: a definitive screening design, a central composite design, a constrained I-optimal design and a MaxPro space-filling design" src="https://raw.githubusercontent.com/kgdunn/process-improve/main/docs/_static/readme/banner-light.png">
+</picture>
 
 [![PyPI version](https://img.shields.io/pypi/v/process-improve.svg)](https://pypi.org/project/process-improve/)
 [![Python versions](https://img.shields.io/python/required-version-toml?tomlFilePath=https%3A%2F%2Fraw.githubusercontent.com%2Fkgdunn%2Fprocess-improve%2Fmain%2Fpyproject.toml&label=python)](https://pypi.org/project/process-improve/)
@@ -12,433 +17,284 @@ and how sure am I?*
 [![CI](https://github.com/kgdunn/process-improve/actions/workflows/run-tests.yml/badge.svg?branch=main&event=push)](https://github.com/kgdunn/process-improve/actions/workflows/run-tests.yml?query=branch%3Amain)
 [![codecov](https://codecov.io/gh/kgdunn/process-improve/branch/main/graph/badge.svg)](https://codecov.io/gh/kgdunn/process-improve)
 [![Docs](https://img.shields.io/badge/docs-kgdunn.github.io-blue.svg)](https://kgdunn.github.io/process-improve/)
-[![License](https://img.shields.io/pypi/l/process-improve.svg)](LICENSE)
+[![License](https://img.shields.io/pypi/l/process-improve.svg)](https://github.com/kgdunn/process-improve/blob/main/LICENSE)
 
----
+**[Try it in your browser](https://kgdunn.github.io/process-improve/app/)** ·
+[Documentation](https://kgdunn.github.io/process-improve/) ·
+[Free textbook](https://learnche.org/pid) ·
+[Design gallery](#designed-experiments-in-one-call)
 
-> **New here?** The [architecture overview](https://kgdunn.github.io/process-improve/architecture.html)
-> ([source](docs/architecture.rst)) is the map of the codebase - package layout, the estimator
-> stack, and the MCP tool layer.
+```bash
+pip install process-improve
+```
 
-## What's new
+## Try it without installing anything
 
-The last few releases extend `process-improve` from offline model-building into
-end-to-end, on-line workflows. Highlights (full history in [CHANGELOG.md](CHANGELOG.md)):
+<a href="https://kgdunn.github.io/process-improve/app/"><img width="600" alt="The designed-experiments app in a browser tab: design a definitive screening experiment, download the run sheet, then upload the results and read the fitted model" src="https://raw.githubusercontent.com/kgdunn/process-improve/main/docs/_static/readme/app-demo.gif"></a>
 
-- **Design, rather than predict.** `PLS.invert()` (v1.61) solves for the inputs
-  that reach a target quality, and returns the *null space* of equally valid
-  recipes. `OPLS` reaches the same designs by separating that freedom while
-  fitting. See the
-  [user guide](https://kgdunn.github.io/process-improve/user_guide/model_inversion.html)
-  or the longer
-  [book chapter](https://learnche.org/pid/latent-variable-modelling/projection-to-latent-structures/pls-model-inversion-and-the-orthogonal-space).
-- **Classification, on the same PLS model you already trust.** `PLSDA`
-  one-hot encodes the labels, fits a PLS on the indicator, and turns the
-  predictions back into labels, so a fitted classifier still has `scores_`,
-  `vip()`, Hotelling's T2, SPE and every plot method. Its `"bayes"` decision
-  rule matters on unbalanced data: a rare class's indicator is pulled toward
-  zero by the rows that want it there, so the usual largest-indicator rule hands
-  almost everything to the common class. On a 1:9 fixture it finds two of eight
-  rare samples at a reported 92.5% accuracy; `"bayes"` finds seven.
-- **Models that keep up with a drifting process.** `AdaptivePCA` and
-  `AdaptivePLS` (v1.55) fit once, then stream one observation at a time,
-  re-learning the correlation structure and reporting how far the process has
-  drifted, in units of components.
-- **A DOE engine that goes past textbook designs.** One call, `generate_design`,
-  builds every family: full and fractional factorials (with minimum-aberration
-  blocking), Plackett-Burman, definitive screening designs (with categorical and
-  fake factors), Box-Behnken, central composite, Taguchi, OMARS, supersaturated,
-  mixture (simplex and constrained extreme vertices), space-filling (Latin
-  hypercube, maximin, MaxPro, Sobol) and D-, I-, A-, E-, G- and K-optimal designs
-  inside linear or non-linear constraints or from your own candidate set. Each
-  construction is checked against its published definition in a conformance test
-  suite. `evaluate_design` scores any design (efficiencies, average prediction
-  variance, FDS, aliasing), and `optimize_responses` finds the best settings for
-  several responses inside the same constrained region. The
-  [screen-then-optimise case study](https://kgdunn.github.io/process-improve/user_guide/case_studies/design-analysis-experiments/screen-then-optimise.html)
-  walks through all of it. [Try it in your browser](https://kgdunn.github.io/process-improve/app/),
-  with nothing to install.
-- **Sensory & descriptive panel analysis** (`process_improve.sensory`): validate
-  a panel, flag inconsistent assessors with the Mixed Assessor Model, and relate
-  attributes to product covariates.
-- **Robust regression** (`process_improve.regression`): repeated-median and
-  Theil-Sen estimators for data with outliers, plus `OLS` and `fit_robust_lm`.
+The [designed-experiments app](https://kgdunn.github.io/process-improve/app/) runs this
+package inside your browser tab (Pyodide / WebAssembly). Design an experiment, download the
+run sheet, fill in your results and upload it again: the analysis runs on your machine, and
+your data never leave it.
 
-## What it does
+## Learn the methods
 
-`process-improve` provides production-grade implementations of the methods
-practitioners actually use on real plant and lab data:
+- **Free textbook:** [Process Improvement using Data](https://learnche.org/pid), the
+  companion to this package, from data visualization to latent-variable models, designed
+  experiments and process monitoring.
+- **API reference and user guide:** <https://kgdunn.github.io/process-improve/>
+- **Applied DoE tutorial (8 modules):** <https://kgdunn.github.io/process-improve/applied_doe/index.html>
+- **Every design family and its `design_type`:** <https://kgdunn.github.io/process-improve/user_guide/doe_coverage.html>
+- **Fully worked quickstart:** <https://kgdunn.github.io/process-improve/quickstart.html>
 
-- **PCA** with SVD and NIPALS, plus native missing-value handling via Trimmed
-  Score Regression
-- **PLS** regression with a fully sklearn-compatible API, VIP scores, and
-  cross-validated diagnostics
-- **PLS-DA** - classification on a PLS model, with a max or Bayesian decision
-  rule, class posteriors, a held-out confusion matrix, and a permutation test
-  that says whether the separation is real
-- **TPLS** - PLS for *T-shaped (multi-block) data structures*
-- **Model inversion** - `PLS.invert()` and `OPLS` solve for the inputs that
-  reach a target quality, return the null space of equally valid designs, and
-  report how far each design sits from the data that support it
-- **Adaptive PCA / PLS** - recursive, self-updating models for on-line process
-  monitoring and soft sensing; they follow a drifting process one observation at
-  a time and report how far it has moved
-- **Outlier detection** combining Hotelling's T² and SPE with an ESD-based test
-- **Designed experiments** - factorial, screening (Plackett-Burman, DSD,
-  supersaturated), response-surface (CCD, Box-Behnken, OMARS), mixture,
-  space-filling and optimal (D, I, A, E, G, K) designs, in constrained regions
-  too; design evaluation, analysis, augmentation, multi-response optimisation and
-  a multi-stage DOE strategy recommender
-- **Process monitoring** - Shewhart, CUSUM, and Holt-Winters control charts
-- **Batch data analysis** - alignment, feature extraction, and multivariate
-  batch monitoring (MBPCA / MBPLS)
-- **Sensory & descriptive panel analysis** - panel validation, the Mixed Assessor
-  Model, and attribute-to-product relations with a genuine-vs-proxy separation
-- **Robust regression** - repeated-median and Theil-Sen estimators for data with
-  outliers
-- **Interactive Plotly diagnostics** bound directly to every fitted model
+## Ask a question, get one line of code and the chapter that explains it
 
-Outputs are `pandas`-native: scores, loadings, and predictions keep your row
-and column labels.
+Under each question is the chapter of the free textbook that explains the method.
 
-It is the companion package to the online textbook
-[Process Improvement using Data](https://learnche.org/pid).
+| You want to know | One call |
+| --- | --- |
+| **Which design should I run?**<br>[Comparing design families](https://learnche.org/pid/design-analysis-experiments/comparing-design-families) | `recommend_strategy(factors=factors, budget=30)` |
+| **Which of my factors matter?**<br>[Definitive screening designs](https://learnche.org/pid/design-analysis-experiments/definitive-screening-designs) | `generate_design(factors, design_type="dsd")` |
+| **Which effects are real?**<br>[Significance of effects](https://learnche.org/pid/design-analysis-experiments/full-factorial-designs/assessing-significance-of-main-effects-and-interactions) | `analyze_experiment(design.design, responses)` |
+| **Which way is the optimum?**<br>[Response surface methods](https://learnche.org/pid/design-analysis-experiments/response-surface-methods) | `optimize_responses([fit], method="steepest_ascent")` |
+| **Is this observation normal?**<br>[Hotelling's T²](https://learnche.org/pid/latent-variable-modelling/principal-component-analysis/hotellings-t2-statistic) | `pca.diagnose(new).spe` |
+| **Which variable moved?**<br>[Contribution plots](https://learnche.org/pid/latent-variable-modelling/principal-component-analysis/latent-variable-contribution-plots) | `pca.spe_contributions(new)` |
+| **How sure is this prediction?**<br>[Projection to latent structures](https://learnche.org/pid/latent-variable-modelling/projection-to-latent-structures/index) | `pls.prediction_interval(new)` |
+| **Which recipe hits my target?**<br>[Using a PLS model backwards](https://learnche.org/pid/latent-variable-modelling/projection-to-latent-structures/pls-model-inversion-and-the-orthogonal-space) | `model.invert(y_desired=20.9)` |
+| **Is the process in control?**<br>[Shewhart charts](https://learnche.org/pid/process-monitoring/shewhart-charts) | `ControlChart().calculate_limits(y)` |
+| **Is this batch on track?**<br>[Batch process monitoring](https://learnche.org/pid/product-development-product-improvement/batch-process-monitoring) | `BatchMonitor(model).fit(good).monitor(batch)` |
+
+## Designed experiments in one call
+
+```python
+from process_improve.experiments import Factor, generate_design
+
+factors = [
+    Factor(name="Temperature", low=150, high=200, units="degC"),
+    Factor(name="Pressure", low=1, high=5, units="bar"),
+    Factor(name="Catalyst", low=0.5, high=2.0, units="g"),
+]
+design = generate_design(factors, design_type="dsd")  # a definitive screening design
+print(design.n_runs)  # 9
+run_sheet = design.design_actual  # in your units, ready to run
+```
+
+Change `design_type` and the same call builds any of these, each true to its
+[published definition](https://kgdunn.github.io/process-improve/user_guide/doe_coverage.html).
+Leave `design_type` out and give a `budget`, and one is chosen for you.
+
+<a href="https://kgdunn.github.io/process-improve/user_guide/doe_coverage.html"><picture>
+  <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/kgdunn/process-improve/main/docs/_static/readme/design-gallery-dark.png">
+  <img width="560" alt="Sixteen designs drawn from generate_design: supersaturated, Plackett-Burman, fractional and full factorial, definitive screening, central composite, Box-Behnken, OMARS, Taguchi, D-optimal, constrained I-optimal, constrained mixture, Latin hypercube, uniform, MaxPro and Sobol" src="https://raw.githubusercontent.com/kgdunn/process-improve/main/docs/_static/readme/design-gallery-light.png">
+</picture></a>
+
+`evaluate_design` scores any design (efficiencies, prediction variance, fraction of design
+space, aliasing), `analyze_experiment` fits it, `augment_design` extends it, and
+`optimize_responses` finds the best settings for several responses at once. Not sure where
+to start? Ask for a whole strategy:
+
+```python
+from process_improve.experiments import Response
+from process_improve.experiments.strategy import recommend_strategy
+
+strategy = recommend_strategy(
+    factors=factors,  # the three factors above
+    responses=[Response(name="Yield", goal="maximize", units="%")],
+    budget=30,
+)
+print([(stage["design_type"], stage["estimated_runs"]) for stage in strategy["stages"]])  # [('full_factorial', 8), ('ccd', 17), ('replicates_at_optimum', 3)]
+```
+
+## Quick start: real data, real answers
+
+The examples below use measurements from a low-density polyethylene reactor: 54 runs,
+14 process variables and 5 quality measurements of the polymer. The last four runs come
+from a process upset. Paste the blocks in order and you get the numbers in the comments.
+
+### Is this observation normal, and which variable moved?
+
+```python
+import pandas as pd
+from process_improve.multivariate import PCA, MCUVScaler
+
+ldpe = pd.read_csv("https://openmv.net/file/LDPE.csv", index_col=0)
+process, quality = ldpe.loc[:, "Tin":"Press"], ldpe.loc[:, "Conv":"SCB"]
+
+# Learn normal operation from the first 50 runs, then check the last four
+scaler = MCUVScaler().fit(process.loc[:50])
+pca = PCA(n_components=3).fit(scaler.transform(process.loc[:50]))
+new = scaler.transform(process.loc[51:])
+
+# SPE above its limit means "unlike anything seen in normal operation"
+print(pca.diagnose(new).spe.round(1).to_list())  # [2.3, 3.7, 5.3, 7.6]
+print(round(pca.spe_limit(conf_level=0.95), 1))  # 3.4
+
+# Which variables moved in run 54? All three belong to the second reactor zone
+print(pca.spe_contributions(new).loc[54].abs().nlargest(3).round(1).to_dict())  # {'z2': 5.9, 'Fi2': 3.1, 'Tcin2': 1.9}
+pca.score_plot()  # interactive Plotly figure
+```
+
+### How sure is this prediction?
+
+```python
+from process_improve.multivariate import PLS
+
+# Hold out runs 41 to 50 and predict their 5 quality measurements, with 95% intervals
+x_scaler, y_scaler = MCUVScaler().fit(process.loc[:40]), MCUVScaler().fit(quality.loc[:40])
+n = PLS.select_n_components(process.loc[:40], quality.loc[:40], max_components=6, random_state=0).n_components
+pls = PLS(n_components=n).fit(x_scaler.transform(process.loc[:40]), y_scaler.transform(quality.loc[:40]))
+interval = pls.prediction_interval(x_scaler.transform(process.loc[41:50]))
+low, high = y_scaler.inverse_transform(interval.lower), y_scaler.inverse_transform(interval.upper)
+
+# Cross-validation picks 3 components, and 48 of the 50 held-out measurements land inside
+inside = (quality.loc[41:50] >= low) & (quality.loc[41:50] <= high)
+print(n, int(inside.to_numpy().sum()))  # 3 48
+
+# The quality is driven by the same reactor zone that moved in the upset
+print(pls.vip().nlargest(3).round(2).to_dict())  # {'z2': 1.38, 'Fi2': 1.38, 'Tmax2': 1.37}
+```
+
+### Which recipe hits my target?
+
+```python
+from process_improve.multivariate import OPLS
+
+# Acetic acid, H2S and lactic acid in 26 cheddar cheeses, and their taste score
+cheese = pd.read_csv("https://openmv.net/file/cheddar-cheese.csv").iloc[4:]
+X, y = cheese[["Acetic", "H2S", "Lactic"]], cheese[["Taste"]]
+model = PLS(n_components=2).fit(X, y)
+
+recipe = model.invert(y_desired=20.9)  # the inputs predicted to give a taste of 20.9
+print(recipe.x_new.round(2).to_list())  # [5.52, 5.56, 1.4]
+print(round(recipe.hotellings_t2, 2))  # 0.06
+print(recipe.null_space_dimension)  # 1
+
+# One free direction: a line of recipes with the same predicted taste
+walk = [model.invert(20.9, null_space_coordinates=[s]).x_new.round(2).to_list() for s in (-1.0, 0.0, 1.0)]
+print(walk)  # [[4.95, 6.1, 1.33], [5.52, 5.56, 1.4], [6.09, 5.02, 1.46]]
+
+# O-PLS separates that freedom while fitting, so inversion becomes one division
+opls = OPLS(n_orthogonal_components=1).fit(X, y)
+print(opls.invert(y_desired=20.9).x_new.round(2).to_list())  # [5.46, 5.62, 1.39]
+```
+
+The freedom along that line is what you spend on cost, supply or a regulatory window; the
+`hotellings_t2` tells you when a recipe has walked past the evidence. The
+[user guide](https://kgdunn.github.io/process-improve/user_guide/model_inversion.html) and the
+[book chapter](https://learnche.org/pid/latent-variable-modelling/projection-to-latent-structures/pls-model-inversion-and-the-orthogonal-space)
+go further.
+
+### Has the process drifted?
+
+```python
+from process_improve.multivariate import AdaptivePCA
+
+# Learn from the first 50 runs in their own units (the model centres and scales itself),
+# then stream the last four, one at a time
+monitor = AdaptivePCA(n_components=3).fit(process.loc[:50])
+alarms = [not monitor.update(row.to_numpy()).in_control for _, row in process.loc[51:].iterrows()]
+print(alarms)  # [False, True, True, True]
+```
+
+`AdaptivePCA` and `AdaptivePLS` keep learning as data arrive, so a model does not go stale
+when the process drifts, and they report how far it has moved from where it was trained.
+
+## What's inside
+
+- **Designed experiments**: factorial, screening (Plackett-Burman, DSD, supersaturated),
+  response-surface (CCD, Box-Behnken, OMARS), mixture, space-filling and optimal (D, I, A, E,
+  G, K) designs, in constrained regions too; design evaluation, analysis (including split
+  plots), augmentation, multi-response optimisation and a multi-stage strategy recommender.
+- **PCA** with SVD and NIPALS, native missing-value handling by Trimmed Score Regression,
+  Hotelling's T² and SPE limits, and score, T² and SPE contributions.
+- **PLS** regression with a scikit-learn API, VIP, cross-validated component selection and
+  prediction intervals; **PLS-DA** classification with a Bayesian decision rule for
+  unbalanced classes and a permutation test that says whether the separation is real.
+- **Model inversion**: `PLS.invert()` and `OPLS` solve for the inputs that reach a target
+  and return the null space of equally valid designs.
+- **Multi-block and T-shaped data**: TPLS (PLS for T-shaped data structures), MBPCA and MBPLS.
+- **On-line models**: `AdaptivePCA` and `AdaptivePLS` for monitoring and soft sensing.
+- **Process monitoring**: Shewhart and Holt-Winters control charts, process capability.
+- **Batch data**: alignment, feature extraction, batch PCA and PLS, on-line batch monitoring.
+- **Sensory panels**: panel validation, the Mixed Assessor Model, attribute-to-product relations.
+- **Robust regression**: repeated-median and Theil-Sen estimators for data with outliers.
+- **Interactive Plotly diagnostics** on every fitted model, and `pandas`-native outputs that
+  keep your row and column labels.
+
+Release notes are in the [changelog](https://github.com/kgdunn/process-improve/blob/main/CHANGELOG.md).
 
 ## Works alongside scikit-learn
 
-`process-improve` is designed to sit *next to* scikit-learn, not replace it. It
-follows the same conventions (`fit`, `predict`, `score`, the `_` suffix on fitted
-attributes), so its estimators drop straight into `Pipeline`, `GridSearchCV`, and
-`cross_val_score`. What it adds is the process-analytics layer on top: the
-diagnostics that tell you whether a new observation is normal, which variable moved, and
-how confident the prediction is.
+`process-improve` sits *next to* scikit-learn, not in place of it. Its estimators follow the
+same conventions (`fit`, `predict`, `score`, the `_` suffix on fitted attributes), so they
+drop into `Pipeline`, `GridSearchCV` and `cross_val_score`. What it adds is the
+process-analytics layer: the diagnostics that tell you whether a new observation is normal,
+which variable moved, and how confident a prediction is.
 
 | Capability                                        | scikit-learn | process-improve |
 | ------------------------------------------------- | :----------: | :-------------: |
 | PCA, PLS with sklearn-style API                   |       ✓      |        ✓        |
 | Missing-data fitting (NIPALS / TSR)               |       -      |        ✓        |
 | Hotelling's T² + SPE outlier limits               |       -      |        ✓        |
-| Variable-level score contributions                |       -      |        ✓        |
-| Cross-validated coefficient confidence intervals  |       -      |        ✓        |
-| Multi-block models (TPLS)                          |       -      |        ✓        |
-| Model inversion: design inputs for a target        |       -      |        ✓        |
+| Variable-level contributions                      |       -      |        ✓        |
+| Prediction intervals for PLS                      |       -      |        ✓        |
+| Multi-block models (TPLS, MBPLS)                  |       -      |        ✓        |
+| Model inversion: design inputs for a target       |       -      |        ✓        |
 | On-line / adaptive monitoring (recursive PCA/PLS) |       -      |        ✓        |
 | Designed experiments, incl. OMARS & optimal       |       -      |        ✓        |
-| Control charts (Shewhart / CUSUM / Holt-Winters)  |       -      |        ✓        |
-| Batch process monitoring (MBPCA / MBPLS)          |       -      |        ✓        |
+| Control charts (Shewhart / Holt-Winters)          |       -      |        ✓        |
+| Batch process monitoring                          |       -      |        ✓        |
 | Plotly diagnostics built in                       |       -      |        ✓        |
 | Labeled `DataFrame` outputs                       |    partial   |        ✓        |
 
-### Mixing scaled numeric and categorical columns
-
-`MCUVScaler` composes with `ColumnTransformer`, so only the columns that need
-centring and scaling get it while categorical columns are encoded alongside:
-
-```python
-from sklearn.compose import make_column_transformer
-from sklearn.pipeline import Pipeline
-from sklearn.preprocessing import OneHotEncoder
-
-from process_improve.multivariate import PLS, MCUVScaler
-
-ct = make_column_transformer(
-    (MCUVScaler(), ["temp", "pressure", "flow"]),
-    (OneHotEncoder(), ["batch_type"]),
-    sparse_threshold=0,  # see below
-)
-ct = ct.set_output(transform="pandas")  # and below
-
-pipe = Pipeline([("ct", ct), ("pls", PLS(n_components=3))]).fit(X, y)
-pipe.named_steps["pls"].x_loadings_.index
-# ['mcuvscaler__temp', ..., 'onehotencoder__batch_type_A', ...]
-```
-
-Two arguments there are doing real work:
-
-- **`sparse_threshold=0`.** `ColumnTransformer` flips its *whole* concatenated
-  output to a sparse matrix once the result is more than 30 percent zeros, which
-  a one-hot block with a dozen levels easily is. NIPALS centres and scales every
-  column, which destroys sparsity, so `PLS` and `PCA` reject sparse input rather
-  than silently densifying it. `OneHotEncoder(sparse_output=False)` does the same
-  job on one step instead of the whole transformer.
-- **`set_output(transform="pandas")`.** Without it the transformer hands over a
-  bare ndarray, so a loading can only be labelled `0`, `1`, `2`; with it,
-  `get_feature_names_out` reaches `x_loadings_.index` and a loading reads as
-  "the one-hot column for `batch_type == B`". The numbers are identical either
-  way.
+`fit()` returns `self`, fitted attributes end with an underscore (`scores_`, `loadings_`,
+`spe_`, `hotellings_t2_`, `r2_cumulative_`, ...), `predict()` returns predictions, and
+`diagnose()` returns an `sklearn.utils.Bunch` with named fields such as `spe` and
+`hotellings_t2`. Pipelines that mix scaled numeric and one-hot encoded columns, and the
+current gaps, are in
+[SKLEARN_COMPATIBILITY.md](https://github.com/kgdunn/process-improve/blob/main/SKLEARN_COMPATIBILITY.md).
 
 ## Installation
 
-**No install at all:** the [designed-experiments app](https://kgdunn.github.io/process-improve/app/)
-runs this package in your browser (Pyodide / WebAssembly). You can design an experiment,
-download it as a workbook, fill in the results and upload it back for the analysis.
-Your data stay on your machine.
-
 ```bash
-pip install process-improve                    # core (numpy, pandas, sklearn, statsmodels, patsy, pydantic, pyyaml, tqdm)
+pip install process-improve                    # core: numpy, pandas, scipy, scikit-learn, statsmodels, ...
 pip install 'process-improve[plotting]'        # adds matplotlib, plotly, seaborn, ridgeplot
 pip install 'process-improve[expt]'            # adds pyDOE3 (Taguchi orthogonal arrays; every other design is in the core)
 pip install 'process-improve[batch]'           # adds openpyxl, scikit-image (batch process data IO)
 pip install 'process-improve[mcp]'             # adds the MCP server runtime
 pip install 'process-improve[fast]'            # adds numba (JIT speedups for batch alignment)
-pip install 'process-improve[all]'             # everything above (the pre-1.24.11 closure)
+pip install 'process-improve[all]'             # everything above
 ```
 
-Requires Python 3.10 or newer. CI also runs the whole test suite on free-threaded
-CPython 3.14 (`python3.14t`) with the GIL off. On that build, pandas 2.x turns the
-GIL back on when it is imported unless `PYTHON_GIL=0` is set, as the CI job does.
-The core install pulls in `numpy`, `pandas`,
-`scikit-learn`, `statsmodels`, `patsy`, `pydantic`, `pyyaml`, and
-`tqdm` (`scipy` arrives transitively via scikit-learn and statsmodels).
-Heavier optional surfaces (plotting, designed experiments, batch IO,
-MCP server, numba JIT) live in extras so a caller who only needs, say,
-`detect_multivariate_outliers` does not have to install Plotly or numba.
+Requires Python 3.10 or newer. The core install pulls in `numpy`, `pandas`, `scipy`,
+`scikit-learn`, `statsmodels`, `patsy`, `pydantic`, `pyyaml`, `threadpoolctl` and `tqdm`.
+Heavier optional surfaces (plotting, Taguchi arrays, batch IO, the MCP server, numba JIT)
+live in extras, so a caller who only needs, say, `detect_multivariate_outliers` does not have
+to install Plotly or numba.
 
 ## Use it from Claude
 
-The designed-experiments tooling ships as a Claude Skill, so you can plan,
-generate, verify and analyse experiments in your own Claude account with no
-server involved:
+The designed-experiments tooling ships as a Claude Skill, so you can plan, generate, verify
+and analyse experiments in your own Claude account with no server involved:
 
 ```
 /plugin marketplace add kgdunn/process-improve
 /plugin install doe-designer@process-improve
 ```
 
-The skill's first rule is that a design matrix is never written out by the
-model: it is generated from a catalogue and then verified, because a language
-model asked to produce a fractional factorial will often return one that looks
-right and is a lower resolution than it claims. See
-[`skills/README.md`](skills/README.md) for the other install routes
-(local folder, claude.ai upload) and for the MCP server, which exposes the same
-tool registry without the workflow guidance.
-
-## Quick start
-
-### PCA - Principal Component Analysis
-
-```python
-import pandas as pd
-from process_improve.multivariate.methods import PCA, MCUVScaler
-
-X = pd.read_csv("your_data.csv", index_col=0)
-X_scaled = MCUVScaler().fit_transform(X)
-
-pca = PCA(n_components=3).fit(X_scaled)
-print(pca.r2_cumulative_)  # cumulative R² per component
-pca.score_plot()  # interactive Plotly figure
-
-# Flag outliers using combined T² and SPE limits at 95% confidence
-outliers = pca.detect_outliers(conf_level=0.95)
-
-# Which variables drove the first observation off?
-contrib = pca.score_contributions(pca.scores_.iloc[0].values)
-```
-
-### PLS - Projection to Latent Structures
-
-```python
-from process_improve.multivariate.methods import PLS, MCUVScaler
-
-# Scale X and Y separately
-scaler_x = MCUVScaler().fit(X)
-scaler_y = MCUVScaler().fit(Y)
-X_s, Y_s = scaler_x.transform(X), scaler_y.transform(Y)
-
-pls = PLS(n_components=3).fit(X_s, Y_s)
-print(pls.beta_coefficients_)  # regression coefficients (K x M)
-print(pls.r2_cumulative_)  # cumulative R² for Y
-print(pls.vip())  # VIP scores per X variable
-
-# Predict new observations (sklearn-compatible: returns just y_hat)
-y_pred = pls.predict(scaler_x.transform(X_new))
-
-# Predict with full per-row diagnostics (scores, T², SPE, plus y_hat)
-result = pls.diagnose(scaler_x.transform(X_new))
-result.y_hat  # point predictions
-result.spe  # squared prediction error
-result.hotellings_t2  # Hotelling's T² for new observations
-
-# Cross-validated component selection: raw blocks in, each fold scales itself
-cv_select = PLS.select_n_components(X, Y, max_components=6)
-print(cv_select.n_components)  # recommended number of components
-print(cv_select.rmsecv)  # RMSECV per component count
-
-# Cross-validation with beta-coefficient confidence intervals
-cv = pls.cross_validate(X_s, Y_s, cv="loo")
-print(cv.beta_ci_lower, cv.beta_ci_upper)  # 95% CI for each beta
-print(cv.significant)  # betas significantly != 0
-print(cv.q_squared)  # cross-validated R² (Q²)
-```
-
-### PLS-DA - classification on a PLS model
-
-```python
-from process_improve.multivariate import PLSDA
-
-# `labels` is any 1-D array of class labels; PLSDA one-hot encodes it for you
-model = PLSDA(n_components=2).fit(X, labels)
-
-model.predict(X_new)  # labels
-model.predict_proba(X_new)  # class posteriors
-model.score(X_test, y_test)  # accuracy (sklearn convention: higher is better)
-
-# Judge it on held-out data, not on the training fit
-cm = model.confusion(X_test, y_test)
-print(cm.matrix, cm.sensitivity, cm.specificity)
-model.confusion_matrix_plot(cm.matrix, {"normalize": True})
-
-# Wide data separates almost anything, so ask whether the separation is real
-print(model.permutation_test(X, labels).p_value)
-
-# On unbalanced classes, take the largest posterior rather than the largest
-# indicator: the rare class's indicator is pulled toward zero by everything else
-balanced = PLSDA(n_components=2, decision_rule="bayes").fit(X, labels)
-print(balanced.thresholds_)  # where each class's two Gaussians cross
-
-# Everything PLS gives you is still here
-model.vip()
-model.score_plot()
-```
-
-### Model inversion - design the inputs for a quality you choose
-
-```python
-from process_improve.multivariate.methods import PLS, OPLS
-
-# X: acetic acid, H2S and lactic acid in 26 cheddar cheeses; y: their taste score
-pls = PLS(n_components=2).fit(X, y)
-
-design = pls.invert(y_desired=20.9)
-print(design.x_new.round(2).to_list())  # [5.52, 5.56, 1.4], in the original units
-print(design.hotellings_t2.round(2))  # 0.06: well inside the calibration data
-print(design.null_space_dimension)  # 1: a line of designs, not a single recipe
-
-# Walk that line. The recipe changes; the predicted taste does not.
-for step in (-1.0, 0.0, 1.0):
-    print(pls.invert(20.9, null_space_coordinates=[step]).x_new.round(2).to_list())
-# [4.95, 6.1, 1.33]
-# [5.52, 5.56, 1.4]
-# [6.09, 5.02, 1.46]
-
-# O-PLS separates that freedom while fitting, so inversion becomes one division.
-opls = OPLS(n_orthogonal_components=1).fit(X, y)
-print(opls.invert(y_desired=20.9).x_new.round(2).to_list())  # [5.46, 5.62, 1.39]
-```
-
-Both routes describe the same set of designs, and differ only in which point on
-it they report. The freedom is what you spend on cost, supply, or a regulatory
-window; the `hotellings_t2` is what tells you when a design has walked past the
-evidence.
-
-### DOE - multi-stage experimental strategy
-
-```python
-from process_improve.experiments.factor import Factor, Response
-from process_improve.experiments.strategy import recommend_strategy
-
-factors = [
-    Factor(name="Temperature", low=25, high=40, units="degC"),
-    Factor(name="pH", low=5.0, high=7.5),
-    Factor(name="Glucose", low=10, high=50, units="g/L"),
-]
-strategy = recommend_strategy(
-    factors=factors,
-    responses=[Response(name="Yield", goal="maximize", units="g/L")],
-    budget=40,
-    domain="fermentation",
-)
-for s in strategy["stages"]:
-    print(s["stage_number"], s["design_type"], s["estimated_runs"])
-```
-
-### One-shot optimal & OMARS designs
-
-Ask for a ready-to-run design table and score it, in two lines:
-
-```python
-from process_improve.experiments import Factor, generate_design, evaluate_design
-
-factors = [
-    Factor(name="A", low=-1, high=1),
-    Factor(name="B", low=-1, high=1),
-    Factor(name="C", low=-1, high=1),
-]
-
-# An OMARS design: main effects clear of every second-order term
-design = generate_design(factors, design_type="omars")
-
-# Or a run-budgeted D-optimal design, then grade its quality
-d_opt = generate_design(factors, design_type="d_optimal", budget=14)
-print(
-    evaluate_design(d_opt, metric="all")
-)  # D/I/G-efficiency, aliasing, prediction variance
-```
-
-### On-line monitoring with Adaptive PCA
-
-A static model goes stale the moment the process drifts. `AdaptivePCA` starts
-from an initial fit, then keeps learning as data streams in - flagging faults and
-reporting exactly how far the process has moved from where it was trained:
-
-```python
-from process_improve.multivariate import AdaptivePCA
-
-# Seed on a block of known-good ("common cause") data
-monitor = AdaptivePCA(n_components=3).fit(X_reference)
-
-# Feed live observations one row at a time
-for _, row in X_stream.iterrows():
-    result = monitor.update(row.to_numpy())
-    if not result.in_control:
-        print(
-            f"Out-of-control point: SPE={result.spe:.2f}, T²={result.hotellings_t2:.2f}"
-        )
-
-# How far has the model drifted from its training subspace? (in units of components)
-print(monitor.distance_.tail())
-print(monitor.center_shift_.tail())  # operating-point migration, in training-SD units
-```
-
-`AdaptivePLS` does the same for regression and soft sensing, and handles
-infrequently-sampled responses: the X-space model adapts every step while the
-regression part waits for the next lab result.
-
-Longer, fully-worked versions of each example live in the
-[Quickstart guide](https://kgdunn.github.io/process-improve/quickstart.html)
-and the [`examples/`](examples/) folder.
-
-New to designed experiments? The
-[**Applied DoE tutorial**](https://kgdunn.github.io/process-improve/applied_doe/index.html)
-is an eight-module worked-solution series.
-
-## API design
-
-PCA and PLS follow scikit-learn conventions: `fit()` returns `self`, fitted
-attributes end with a trailing underscore (`scores_`, `loadings_`, `spe_`,
-`hotellings_t2_`, `r2_cumulative_`, ...), and `predict()` returns an
-`sklearn.utils.Bunch` with named fields (`y_hat`, `spe`, `hotellings_t2`, ...).
-Inputs are accepted as `pandas.DataFrame`, and index/column labels are
-preserved through `fit` and `transform`.
-
-## Documentation & learning resources
-
-- **API reference & user guide:** <https://kgdunn.github.io/process-improve/>
-- **Applied DoE tutorial (8 modules):**
-  <https://kgdunn.github.io/process-improve/applied_doe/index.html>
-- **Model inversion, end to end:** the
-  [user-guide page](https://kgdunn.github.io/process-improve/user_guide/model_inversion.html),
-  and the book chapter it is drawn from,
-  [Using a PLS model backwards](https://learnche.org/pid/latent-variable-modelling/projection-to-latent-structures/pls-model-inversion-and-the-orthogonal-space)
-- **Companion textbook:** [Process Improvement using Data](https://learnche.org/pid)
-- **Local docs build:** `cd docs && make html`
+The skill's first rule is that a design matrix is never written out by the model: it is
+generated from a catalogue and then verified, because a language model asked to produce a
+fractional factorial will often return one that looks right and is a lower resolution than
+it claims. See [`skills/README.md`](https://github.com/kgdunn/process-improve/blob/main/skills/README.md)
+for the other install routes (local folder, claude.ai upload) and for the MCP server, which
+exposes the same tool registry without the workflow guidance.
 
 ## Citing process-improve
 
 If you use this package in academic work, please cite it. The
-[`CITATION.cff`](CITATION.cff) file carries the current version and
-release date, and GitHub renders a *"Cite this repository"* button in
-the sidebar with ready-made BibTeX and APA entries:
+[`CITATION.cff`](https://github.com/kgdunn/process-improve/blob/main/CITATION.cff) file carries
+the current version and release date, and GitHub renders a *"Cite this repository"* button
+in the sidebar with ready-made BibTeX and APA entries:
 
 ```bibtex
 @software{dunn_process_improve,
@@ -449,16 +305,18 @@ the sidebar with ready-made BibTeX and APA entries:
 }
 ```
 
-Add the `version` field from `CITATION.cff` (or the release tag you
-installed) when citing a specific version.
-
-## Contributing
-
-Bug reports, feature requests, and pull requests are welcome. See
-[CONTRIBUTING.md](CONTRIBUTING.md) for development setup, testing, and code
-style. Bugs and feature requests can be filed on the
-[issue tracker](https://github.com/kgdunn/process-improve/issues).
+Add the `version` field from `CITATION.cff` (or the release tag you installed) when citing a
+specific version.
 
 ## License
 
-MIT - see [LICENSE](LICENSE) for details.
+MIT: see [LICENSE](https://github.com/kgdunn/process-improve/blob/main/LICENSE) for details.
+
+## Contributing
+
+Bug reports, feature requests and pull requests are welcome. See
+[CONTRIBUTING.md](https://github.com/kgdunn/process-improve/blob/main/CONTRIBUTING.md) for
+development setup, testing and code style, and the
+[architecture overview](https://kgdunn.github.io/process-improve/architecture.html) for a map
+of the codebase. Bugs and feature requests go on the
+[issue tracker](https://github.com/kgdunn/process-improve/issues).
