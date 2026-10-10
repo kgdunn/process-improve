@@ -1,3 +1,6 @@
+:description: How process-improve retires public API: what counts as public, how a change is
+   announced, warned about and removed across releases, and how to change a default.
+
 Deprecation Policy
 ==================
 
