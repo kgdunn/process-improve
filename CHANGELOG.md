@@ -69,6 +69,17 @@ those changes.
   `s` known, the EWMA chart alarms 14 samples after the shift and the Shewhart chart not
   at all. The `control_chart` agent tool takes `chart_type="ewma"` and also reports the
   weight and the statistic at each alarm.
+- **CUSUM control chart: `ControlChart(variant="cusum")`.** The tabular CUSUM keeps two
+  one-sided sums, `C+_t = max(0, C+_(t-1) + (y_t - target) - K)` and
+  `C-_t = max(0, C-_(t-1) - (y_t - target) - K)`, and raises an alarm when either exceeds
+  the decision interval `H`; that sum then restarts from zero, as the textbook describes.
+  Set `K = k s` and `H = h s` with `calculate_limits(y, k=..., h=...)` (defaults 0.5 and
+  5). Each alarm in `cusum_alarms` also dates the start of the shift and estimates the new
+  mean. It reproduces Montgomery's tabular CUSUM example (an alarm at period 29, the shift
+  dated to period 23, a new mean of 11.25), and its simulated average run lengths match
+  the published 10.4 samples after a one-sigma shift and 465 in control. The
+  `control_chart` agent tool takes `chart_type="cusum"`. Each variant now accepts only
+  its own tuning parameters, and names them when given another chart's.
 
 ### Changed
 
@@ -205,9 +216,8 @@ those changes.
   on a float, and the `ColumnTransformer` example, now in `SKLEARN_COMPATIBILITY.md`
   and tested there, needs `OneHotEncoder(sparse_output=False)` under pandas output.
   The README also gains a banner, a recording of the in-browser app, and a table
-  from ten practical questions to one call and a textbook chapter; it no longer
-  lists a CUSUM chart, which does not exist, and its links are absolute, so they
-  work on PyPI too.
+  from ten practical questions to one call and a textbook chapter, and its links are
+  absolute, so they work on PyPI too.
 - **PyPI links the documentation, changelog, in-browser app and textbook**
   (`[project.urls]`).
 
