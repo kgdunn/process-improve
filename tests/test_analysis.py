@@ -881,6 +881,28 @@ class TestEffectsCoding:
         effects = {e["term"]: e["effect"] for e in lenth["lenth_method"]["effects"]}
         assert effects["A"] == pytest.approx(8.0, abs=0.2)
 
+    @pytest.mark.parametrize("scale", [1.0, 10.0])
+    def test_a_square_is_its_coefficient_not_twice_it(self, scale: float) -> None:
+        """The square's column runs from 0 to 1, so its effect is the coefficient itself (#513).
+
+        A main effect still is twice its coefficient: the change from the low to the high
+        level. ``scale`` puts A in actual units (10, 20, 30), coded to -1, 0, +1 first.
+        """
+        x = np.array(list(itertools.product([-1.0, 0.0, 1.0], repeat=2)))
+        noise = np.array([0.05, -0.02, 0.01, -0.04, 0.03, 0.0, -0.01, 0.02, -0.03])
+        df = pd.DataFrame({"A": 20 + scale * x[:, 0] if scale != 1.0 else x[:, 0], "B": x[:, 1]})
+        df["y"] = 10 + 2 * x[:, 0] + 0.5 * x[:, 1] + 3 * x[:, 0] ** 2 + noise
+        for analysis in ("effects", "lenth_method"):
+            result = analyze_experiment(df, response_column="y", model="quadratic", analysis_type=analysis)
+            effects = (
+                result["effects"]
+                if analysis == "effects"
+                else {e["term"]: e["effect"] for e in result["lenth_method"]["effects"]}
+            )
+            square = next(term for term in effects if "A ** 2" in term)
+            assert effects[square] == pytest.approx(3.0, abs=0.1)
+            assert effects["A"] == pytest.approx(4.0, abs=0.1)
+
     def test_a_three_level_categorical_has_no_single_effect(self) -> None:
         df = pd.DataFrame({"A": [-1, 1] * 3, "M": ["a", "a", "b", "b", "c", "c"], "y": [1.0, 2, 3, 4, 5, 7]})
         with pytest.raises(ValueError, match="two-level"):
@@ -1160,7 +1182,10 @@ class TestLenthDefinition:
         from process_improve.experiments._analyses import lenth as lenth_module
 
         effects = pd.Series([1.0, 1.0, 1.0, 2.0, 2.0, 2.0, 7.5], index=["A", "B", "C", "A:B", "A:C", "B:C", "A:B:C"])
-        monkeypatch.setattr(lenth_module, "estimable_effects", lambda _fit: SimpleNamespace(coefficients=effects / 2))
+        estimable = SimpleNamespace(
+            coefficients=effects / 2, spans=pd.Series(2.0, index=effects.index)
+        )  # -1/+1 columns
+        monkeypatch.setattr(lenth_module, "estimable_effects", lambda _fit: estimable)
         out = lenth_module._run_lenth_method(None)["lenth_method"]
         # s0 = 1.5 * 2 = 3, and 7.5 = 2.5 s0 exactly: not strictly below, so it is trimmed.
         assert out["PSE"] == 2.25

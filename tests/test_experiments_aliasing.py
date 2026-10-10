@@ -224,6 +224,40 @@ class TestLmAliasDetection:
             kept = lm("y ~ A + B", both, alias_threshold=None)
         assert list(kept._OLS.params.index) == ["Intercept", "A", "B"]
 
+    def test_an_alias_in_actual_units_keeps_its_sign(self) -> None:
+        """With A at 10 and 20, ``E = 30 - A`` is a negative alias; the raw dot product (+1600) said positive (#513)."""
+        actual = 15 + 5 * A
+        data = pd.DataFrame({"A": actual, "B": B, "E": 30 - actual, "y": np.arange(8.0)})
+        model = lm("y ~ A + B + E", data)
+        assert model.aliasing[("A",)] == [["-", "E"]]
+        assert list(model._OLS.params.index) == ["Intercept", "A", "B"]
+
+    def test_zero_one_coding_is_signed_not_a_crash(self) -> None:
+        """With 0/1 columns, ``E = 1 - A`` has a zero dot product with A; it used to raise IndexError."""
+        data = pd.DataFrame({"A": (A + 1) / 2, "B": (B + 1) / 2, "E": (1 - A) / 2, "y": np.arange(8.0)})
+        assert lm("y ~ A + B + E", data).aliasing[("A",)] == [["-", "E"]]
+
+    def test_a_threshold_of_one_means_exact_aliases(self) -> None:
+        """``alias_threshold=1.0`` used to make every column an alias of the intercept, then raise."""
+        data = pd.DataFrame({"A": A, "B": B, "C": C, "D": A * B * C, "y": np.arange(8.0)})
+        exact = lm("y ~ A*B*C*D", data, alias_threshold=1.0)
+        assert exact.get_aliases() == lm("y ~ A*B*C*D", data).get_aliases()
+
+    def test_a_negative_generator_aliases_the_intercept_negatively(self) -> None:
+        """With D = -ABC the word ABCD is -1 throughout: I = -ABCD."""
+        data = pd.DataFrame({"A": A, "B": B, "C": C, "D": -A * B * C, "y": np.arange(8.0)})
+        model = lm("y ~ A*B*C*D", data)
+        assert model.aliasing[("Intercept",)] == [["-", "A", "B", "C", "D"]]
+        assert "A - B:C:D" in model.get_aliases(3)
+
+    def test_a_looser_threshold_aliases_highly_correlated_columns(self) -> None:
+        """A threshold below one also catches columns that are correlated but not identical."""
+        noisy = A + np.array([0, 0, 0, 0, 0, 0, 0.2, -0.2])
+        data = pd.DataFrame({"A": A, "N": noisy, "y": np.arange(8.0)})
+        assert np.corrcoef(A, noisy)[0, 1] > 0.99
+        assert not lm("y ~ A + N", data).aliasing
+        assert lm("y ~ A + N", data, alias_threshold=0.99).aliasing[("A",)] == [["+", "N"]]
+
     @pytest.mark.parametrize(
         ("formula", "term", "least_squares"),
         [
@@ -232,7 +266,7 @@ class TestLmAliasDetection:
         ],
     )
     def test_a_one_column_model_fits(self, formula: str, term: str, least_squares: Callable) -> None:
-        """One model column has a 0-d covariance; the alias search must report no aliases, not crash."""
+        """A model with one column has nothing to alias: it fits, and reports no aliases."""
         frame = _half_fraction()
         model = lm(formula, gather(A=c(*frame["A"]), y=c(*frame["y"])))
         assert model.get_parameters(drop_intercept=False)[term] == pytest.approx(least_squares(frame))

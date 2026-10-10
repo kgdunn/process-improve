@@ -11,6 +11,12 @@ Two methods, chosen by the design:
   in a fraction. The words are chosen so that no block contrast is a main effect or
   aliased with one, then so that as few as possible are two-factor interactions, then
   for the longest words (minimum aberration blocking; Sun, Wu and Chen 1997).
+- **Portions** (central composite designs). The axial runs are a block of their own
+  and the cube runs fill the others, split by confounding as above, each portion with
+  its own centre runs (Box and Hunter 1957). The blocks are then orthogonal to every
+  linear and interaction term; they are orthogonal to the squares too when each block
+  holds the share of each factor's sum of squares that it holds of the runs, which
+  :func:`process_improve.experiments.designs_response_surface.blocking_alpha` arranges.
 - **Exchange** (every other design). Runs are assigned to blocks of equal size (or
   sizes differing by one) by swapping the blocks of two runs while that raises
   ``det(Xc'Xc)``, with ``Xc`` the model columns centred within each block: the
@@ -22,6 +28,9 @@ across the blocks in turn.
 
 References
 ----------
+Box, G. E. P. and Hunter, J. S. (1957). Multi-factor experimental designs for exploring
+response surfaces. *Annals of Mathematical Statistics*, 28(1), 195-241.
+
 Sun, D. X., Wu, C. F. J. and Chen, Y. (1997). Optimal blocking schemes for 2^n and
 2^(n-p) designs. *Technometrics*, 39(3), 298-307.
 """
@@ -29,6 +38,7 @@ Sun, D. X., Wu, C. F. J. and Chen, Y. (1997). Optimal blocking schemes for 2^n a
 from __future__ import annotations
 
 import itertools
+import warnings
 from dataclasses import dataclass, field
 
 import numpy as np
@@ -49,6 +59,8 @@ class Blocking:
     generators: list[str] = field(default_factory=list)
     confounded_with: list[str] = field(default_factory=list)
     model: str | None = None
+    #: For a central composite design: whether the blocks are orthogonal to the squares too.
+    orthogonal: bool | None = None
 
 
 def _word(mask: int, names: list[str]) -> str:
@@ -141,6 +153,81 @@ def confounding_blocks(design: np.ndarray, n_blocks: int, names: list[str]) -> B
         generators=[_word(m, names) for m in best],
         confounded_with=[_word(m, names) for m in contrasts],
     )
+
+
+def ccd_blocks(design: np.ndarray, axial: np.ndarray, n_blocks: int, names: list[str]) -> Blocking:
+    """Block a central composite design: its axial runs in the last block, its cube runs in the others.
+
+    ``axial`` marks the axial runs and the axial portion's centre runs. The cube portion
+    and its centre runs form ``n_blocks - 1`` blocks, split by confounding interaction
+    words when there is more than one (:func:`confounding_blocks`).
+
+    Raises
+    ------
+    ValueError
+        If ``n_blocks - 1`` is not a power of 2.
+    """
+    n_cube_blocks = n_blocks - 1
+    if n_cube_blocks < 1 or n_cube_blocks & (n_cube_blocks - 1):
+        raise ValueError(
+            "A central composite design is blocked as its axial runs plus 1, 2, 4, ... blocks of cube runs, "
+            f"so n_blocks must be 2, 3, 5, 9, ...; got n_blocks={n_blocks}."
+        )
+    labels = np.full(len(design), n_blocks)
+    generators: list[str] = []
+    confounded: list[str] = []
+    if n_cube_blocks > 1:
+        cube = confounding_blocks(design[~axial], n_cube_blocks, names)
+        labels[~axial] = cube.labels
+        generators, confounded = cube.generators, cube.confounded_with
+        _warn_on_lost_interactions(design[~axial], cube.labels, names)
+    else:
+        labels[~axial] = 1
+    return Blocking(
+        labels=labels,
+        method="ccd_portions",
+        generators=generators,
+        confounded_with=confounded,
+        orthogonal=squares_orthogonal_to_blocks(design, labels),
+    )
+
+
+def _warn_on_lost_interactions(cube: np.ndarray, labels: np.ndarray, names: list[str]) -> None:
+    """Warn when splitting a CCD's cube confounds a two-factor interaction with blocks.
+
+    An interaction is lost when its column is constant within every cube block; a CCD
+    is run for the full quadratic model, which then cannot estimate it.
+    """
+    corners = ~np.all(cube == 0, axis=1)
+    lost = []
+    for i, j in itertools.combinations(range(cube.shape[1]), 2):
+        product = np.sign(cube[corners, i] * cube[corners, j])
+        if all(len(np.unique(product[labels[corners] == b])) == 1 for b in np.unique(labels[corners])):
+            lost.append(f"{names[i]}:{names[j]}")
+    if lost:
+        warnings.warn(
+            f"Splitting this central composite design's cube into {len(np.unique(labels))} blocks confounds "
+            f"{', '.join(lost)} with blocks, so the full quadratic model cannot estimate "
+            f"{'it' if len(lost) == 1 else 'them'}. Use fewer blocks, or a larger cube.",
+            UserWarning,
+            stacklevel=4,
+        )
+
+
+def squares_orthogonal_to_blocks(design: np.ndarray, labels: np.ndarray, tol: float = 1e-9) -> bool:
+    """Whether the blocks are orthogonal to every factor's square.
+
+    They are when each block holds the same share of each squared column's sum as of
+    the runs, so the centred squares sum to zero within every block.
+    """
+    squares = design.astype(float) ** 2
+    totals = squares.sum(axis=0)
+    for block in np.unique(labels):
+        inside = labels == block
+        share = inside.sum() / len(labels)
+        if not np.allclose(squares[inside].sum(axis=0), share * totals, rtol=tol, atol=tol):
+            return False
+    return True
 
 
 def _n_choose(n: int, r: int) -> int:

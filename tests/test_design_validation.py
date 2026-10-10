@@ -197,10 +197,13 @@ def test_auto_selected_design_fits_the_budget(k: int, budget: int) -> None:
 
 
 def test_auto_selection_counts_replicates() -> None:
-    result = generate_design(_factors(3), budget=22, n_replicates=2)
+    """Two replicates of the 2^3 factorial and 3 centre runs (not replicated, #513) are 19 runs."""
+    result = generate_design(_factors(3), budget=19, n_replicates=2)
     assert result.design_type == "full_factorial"
-    assert result.n_runs == 22
-    assert generate_design(_factors(3), budget=21, n_replicates=2).n_runs <= 21
+    assert result.n_runs == 19
+    smaller = generate_design(_factors(3), budget=18, n_replicates=2)
+    assert smaller.design_type != "full_factorial"
+    assert smaller.n_runs <= 18
 
 
 def test_auto_selection_routes_many_level_categorical_factors_to_designs_that_hold_them() -> None:
