@@ -66,6 +66,14 @@ Designed Experiments
    :undoc-members:
    :show-inheritance:
 
+.. automodule:: process_improve.experiments.compare
+   :members:
+   :show-inheritance:
+
+.. automodule:: process_improve.experiments.true_process
+   :members:
+   :show-inheritance:
+
 .. automodule:: process_improve.experiments.analysis
    :members:
    :undoc-members:

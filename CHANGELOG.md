@@ -13,6 +13,27 @@ those changes.
 
 ### Added
 
+- **`compare_designs` scores designs for one model on the nine measures of design
+  quality** that *Process Improvement using Data* defines ("Nine measures down one
+  column"): A/p, I, E, G, D, the largest correlation between two second-order terms, and
+  the power to detect a main effect, an interaction and a quadratic. Three feasibility
+  rows come first: runs, whether the design can fit the model (its rank, and the terms it
+  cannot separate, when it cannot), and residual degrees of freedom. Each design is scored
+  at its own size and labelled with it (`DSD [n=9]`). The result, a `DesignComparison`,
+  holds the numbers, a table in the book's layout, notes on each design and its
+  correlation map; it names no winner. I uses the exact averages of the model terms over
+  the cube, and G the book's 7-level grid up to five factors. The book's printed values
+  for its twelve-point Box-Behnken example are reproduced to every printed digit.
+- **`TrueProcess(coefficients, sigma)`**, a known second-order process in coded units,
+  simulates a design's results (`simulate(design, random_state=...)`), so an analysis can
+  be checked against the truth it should recover. Terms are named as `analyze_experiment`
+  names them; `A*B`, `B:A`, `A**2` and `A^2` are read too.
+- **A `correlation_map` plot type**: the absolute correlation between a design's main
+  effects, squares and two-factor interactions, in three blocks, as the book draws it,
+  for Plotly and ECharts. Heatmaps now take a fixed colour range and colour scale from
+  their layer's style, and an ECharts heatmap gets category axes and the colour scale it
+  needs to be drawn.
+
 - **`coding="auto"` for `analyze_experiment`, and the coefficients in actual units next
   to coded ones.**
   - `"auto"` is `"coded"`, except for a Scheffe mixture model, which keeps `"actual"`. It
