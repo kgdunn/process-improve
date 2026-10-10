@@ -119,10 +119,13 @@ def estimable_effects(ols_result: RegressionResultsWrapper) -> Bunch:
     Bunch
         ``coefficients`` (a Series, one entry per chain, the intercept excluded),
         ``std_errors`` (the same, or None without residual degrees of freedom),
-        ``chains`` (chain name to its member terms, for chains of two or more) and
+        ``chains`` (chain name to its member terms, for chains of two or more),
         ``confounded_with_mean`` (terms aliased with the intercept, which no
-        effect can be estimated for).
+        effect can be estimated for) and ``spans`` (the range of each chain's leading
+        column over the runs: 2 for a -1/+1 term, 1 for the square of one; an effect is
+        the coefficient times its span).
     """
+    exog = np.asarray(ols_result.model.exog, dtype=float)
     params = ols_result.params.to_numpy(dtype=float)
     position = {str(name): k for k, name in enumerate(ols_result.model.exog_names)}
     covariance = ols_result.cov_params().to_numpy() if int(ols_result.df_resid) > 0 else None
@@ -131,6 +134,7 @@ def estimable_effects(ols_result: RegressionResultsWrapper) -> Bunch:
     errors: list[float] = []
     chains: dict[str, list[str]] = {}
     confounded: list[str] = []
+    spans: list[float] = []
     for chain in alias_chains(ols_result):
         (leader, _), *rest = chain
         if leader == "Intercept":
@@ -141,6 +145,7 @@ def estimable_effects(ols_result: RegressionResultsWrapper) -> Bunch:
         weights = np.array([factor for _, factor in chain])
         labels.append(label)
         coefficients.append(float(weights @ params[members]))
+        spans.append(float(np.ptp(exog[:, members[0]])))
         if covariance is not None:
             errors.append(float(np.sqrt(weights @ covariance[np.ix_(members, members)] @ weights)))
         if rest:
@@ -150,4 +155,5 @@ def estimable_effects(ols_result: RegressionResultsWrapper) -> Bunch:
         std_errors=pd.Series(errors, index=labels, dtype=float) if covariance is not None else None,
         chains=chains,
         confounded_with_mean=confounded,
+        spans=pd.Series(spans, index=labels, dtype=float),
     )

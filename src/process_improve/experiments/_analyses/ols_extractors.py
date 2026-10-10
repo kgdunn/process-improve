@@ -89,14 +89,16 @@ def _run_effects(
     ols_result: RegressionResultsWrapper,
     blocks: tuple[str, ...] = (),
 ) -> dict[str, Any]:
-    """Effects of the factors: twice the coefficient of each coded (-1/+1) model column.
+    """Effects of the factors: each coefficient times the span of its coded model column.
 
     ``ols_result`` must be fitted on factors coded to -1/+1, as
-    :func:`analyze_experiment` arranges, so that twice the coefficient is the change in
-    response from the low to the high level (Box, Hunter and Hunter, chapter 5).
+    :func:`analyze_experiment` arranges. An effect is then the change in response
+    from the lowest to the highest value of its model column: twice the coefficient
+    for a main effect or interaction (Box, Hunter and Hunter, chapter 5), and the
+    coefficient itself for a square, whose column runs from 0 to 1.
 
-    Also returns ``effect_std_errors`` (twice the coefficient standard
-    error) when residual degrees of freedom are available; consumers such
+    Also returns ``effect_std_errors`` (the coefficient standard error times
+    the same span) when residual degrees of freedom are available; consumers such
     as the Pareto plot use this to draw effect-level error bars.
 
     Exactly aliased terms are reported as one effect per alias chain, named
@@ -108,9 +110,10 @@ def _run_effects(
     """
     estimable = estimable_effects(ols_result)
     keep = [label for label in estimable.coefficients.index if not is_block_term(label, blocks)]
-    result: dict[str, Any] = {"effects": (2.0 * estimable.coefficients[keep]).to_dict()}
+    spans = estimable.spans[keep]
+    result: dict[str, Any] = {"effects": (spans * estimable.coefficients[keep]).to_dict()}
     if estimable.std_errors is not None:
-        result["effect_std_errors"] = {str(k): float(2.0 * estimable.std_errors[k]) for k in keep}
+        result["effect_std_errors"] = {str(k): float(spans[k] * estimable.std_errors[k]) for k in keep}
     chains = {label: members for label, members in estimable.chains.items() if label in keep}
     if chains:
         result["alias_chains"] = chains
