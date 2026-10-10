@@ -238,9 +238,145 @@ Setting ``fds_resolution`` is fully backward compatible: when it is ``None``
 (the default) the output is unchanged and the coarse quantile summary is still
 present.
 
+Comparing Designs on Nine Measures
+----------------------------------
+
+:func:`~process_improve.experiments.compare_designs` sets several designs side by
+side for one model. The model is fixed first, so the designs differ only in where
+they place their runs, and each design is scored at its own size: the table labels
+it with its run count rather than dividing the measures by it. The measures are the
+nine that *Process Improvement using Data* defines in `Nine measures down one column
+<https://learnche.org/pid/design-analysis-experiments/omars-designs#doe-omars-metric-choice>`__,
+after three rows that say whether a design can fit the model at all:
+
+.. code-block:: python
+
+   from process_improve.experiments import Factor, compare_designs, generate_design
+
+   factors = [Factor(name=n, low=-1, high=1) for n in "ABCD"]
+   comparison = compare_designs(
+       {
+           "Box-Behnken": generate_design(factors, "box_behnken", n_center_points=3),
+           "CCD": generate_design(factors, "ccd", alpha="face_centered", n_center_points=3),
+           "DSD": generate_design(factors, "dsd", n_center_points=3),
+       },
+       model="main_quadratic",
+   )
+   print(comparison.table.to_string())
+
+.. code-block:: text
+
+                                      Better Box-Behnken [n=27] CCD [n=27] DSD [n=11]
+   Runs                                                      27         27         11
+   Fits the model?                                          yes        yes        yes
+   Residual degrees of freedom                               18         18          2
+   A/p, average coefficient variance       ↓             0.1574     0.2126     0.3004
+   I, average prediction variance          ↓             0.2333     0.2741     0.5012
+   E, smallest eigenvalue of M             ↑              1.453      2.000      2.000
+   G, largest prediction variance          ↓             0.8333     0.6543      1.000
+   D, |M|^(1/p)                            ↑              9.706      9.052      4.352
+   Max |r| between second-order terms      ↓             0.2000     0.6667     0.6055
+   Power, main effect                      ↑             0.9056     0.9797     0.2909
+   Power, interaction                      ↑
+   Power, quadratic                        ↑             0.5891     0.3296     0.1527
+
+The ``main_quadratic`` model has the intercept, the main effects and the pure
+quadratics, :math:`p = 2k + 1` terms; every measure but max :math:`|r|` is read from
+its information matrix :math:`\mathbf{M} = \mathbf{X}^T\mathbf{X}`:
+
+- :math:`A/p` and :math:`I` are averages: of the coefficients' variances, and of the
+  variance of a prediction over the cube :math:`[-1, 1]^k`, both in units of the
+  noise variance :math:`\sigma^2`.
+- :math:`E` and :math:`G` are the worst cases of the same two quantities: the
+  worst-estimated combination of the coefficients has variance :math:`\sigma^2/E`,
+  and :math:`G` is the prediction variance at the worst point of the cube.
+- :math:`D = |\mathbf{M}|^{1/p}` is the joint precision of all the coefficients, and
+  max :math:`|r|` the largest correlation between two second-order terms, which the
+  correlation map below draws.
+- Power is the probability of detecting a coefficient of ``effect_size`` noise
+  standard deviations at ``significance_level``, for the least precisely estimated
+  term of each type the model has. This model has no interactions, so that row is
+  empty.
+
+No design is best on every row. The two twenty-seven-run designs have the same size:
+the Box-Behnken design has the smaller average variances, the smaller max
+:math:`|r|` and more power for a quadratic, while the face-centred CCD has the
+smaller worst cases and more power for a main effect. The eleven-run DSD spends fewer
+runs, and every measure that improves with runs is weaker for it, with two degrees of
+freedom left to estimate the error. Which row matters depends on what the experiment
+is for: :math:`A/p` or :math:`E` for precise coefficients, :math:`I` or :math:`G` for
+prediction over the region, max :math:`|r|` for keeping second-order effects apart,
+and power for detecting an effect of a stated size.
+
+A design that cannot fit the model reports its rank instead of the measures, and
+says which terms it cannot separate: a two-level factorial, for instance, cannot
+tell its squares apart from each other or from the intercept.
+:attr:`~process_improve.experiments.compare.DesignComparison.values` holds every
+number at full precision, and ``to_dict()`` a JSON-ready copy.
+
+The correlation map
+~~~~~~~~~~~~~~~~~~~
+
+The ``correlation_map`` plot draws the absolute correlation between a design's main
+effects, squares and two-factor interactions, in three blocks:
+
+.. code-block:: python
+
+   from process_improve.experiments.visualization.plots import create_plot
+
+   dsd = generate_design(factors, "dsd", n_center_points=3)
+   rows = dsd.design[["A", "B", "C", "D"]].to_dict("records")
+   figure = create_plot("correlation_map", design_data=rows).to_plotly()
+
+A definitive screening design keeps every main effect clear of the other terms, so
+its first block row and column are empty off the diagonal; its second-order terms
+are correlated with each other.
+
+Testing an analysis on a known process
+--------------------------------------
+
+:class:`~process_improve.experiments.TrueProcess` holds a second-order model in coded
+units and a noise standard deviation. Its runs can be simulated for any design and
+analysed as if they had come from the plant, so the estimates can be set beside the
+truth before any experiment is spent:
+
+.. code-block:: python
+
+   import pandas as pd
+
+   from process_improve.experiments import TrueProcess, analyze_experiment
+
+   design = generate_design(factors, "box_behnken", n_center_points=3, random_state=1)
+   process = TrueProcess(
+       {"Intercept": 62, "A": 4, "B": -3.1, "C": 1.75, "A:B": 1.5, "I(C ** 2)": -2.25},
+       sigma=1.0,
+   )
+   y = process.simulate(design, random_state=2)
+   fit = analyze_experiment(design.design[["A", "B", "C", "D"]], y, model="quadratic",
+                            analysis_type="coefficients")
+   estimated = pd.DataFrame(fit["coefficients"]).set_index("term")["coefficient"]
+   print(pd.DataFrame({"true": pd.Series(dict(process.coefficients)), "estimated": estimated})
+         .fillna(0.0).round(2).loc[["Intercept", "A", "B", "C", "D", "A:B", "I(C ** 2)"]])
+
+.. code-block:: text
+
+               true  estimated
+   Intercept  62.00      62.67
+   A           4.00       4.09
+   B          -3.10      -2.66
+   C           1.75       1.24
+   D           0.00      -0.06
+   A:B         1.50       1.28
+   I(C ** 2)  -2.25      -2.99
+
+Factor ``D`` is not in the model, so it has no effect, and its estimate differs from
+zero by the noise alone. The terms are named as ``analyze_experiment`` names them;
+``A*B``, ``B:A``, ``C**2`` and ``C^2`` are accepted too.
+
 See Also
 --------
 
+- :func:`~process_improve.experiments.compare_designs` - several designs, one model.
 - :func:`~process_improve.experiments.evaluate_design` - full API reference.
 - :func:`~process_improve.experiments.evaluate_all` - compute every metric in
   one call.
