@@ -204,6 +204,9 @@ def test_pca_spe_limits() -> None:
     repeats = 50
     outliers_95 = []
     outliers_99 = []
+    # Seeded: unseeded, the 99% mean (10.07, sd 0.29 over 60 runs) left 10 +/- 1 about
+    # once in a thousand runs of each CI job, as it did on macOS in #682.
+    rng = np.random.default_rng(0)
     for _ in range(repeats):
         # The desired mean values of the sample.
         mu = np.array([0.0, 0.0, 0.0])
@@ -211,7 +214,6 @@ def test_pca_spe_limits() -> None:
         # The desired covariance matrix.
         r = np.array([[5.20, -4.98, -1.00], [-4.98, 5.50, 2.94], [-1.00, 2.94, 2.77]])
 
-        rng = np.random.default_rng()
         X = pd.DataFrame(rng.multivariate_normal(mu, r, size=N))
         scaler = MCUVScaler().fit(X)
         mcuv = scaler.fit_transform(X)
@@ -658,7 +660,7 @@ def test_pca_errors_no_variance_to_start() -> None:
 def test_pca_invalid_calls() -> None:
     """Tests various invalid calls, and corresponding error messages."""
     K, N, A = 4, 3, 5
-    rng = np.random.default_rng()
+    rng = np.random.default_rng(0)
     data = pd.DataFrame(rng.uniform(low=-1, high=1, size=(N, K)))
     model = PCA(n_components=A)
     with pytest.warns(
@@ -716,7 +718,7 @@ def test_pca_columns_with_no_variance() -> None:
     K = 14
     N = 29
     A = 4
-    rng = np.random.default_rng()
+    rng = np.random.default_rng(0)
     cols_with_no_variance = [10, 3]
     T = rng.uniform(low=-1, high=1, size=(N, A))
     P = rng.uniform(low=-1, high=1, size=(K, A))
@@ -2006,7 +2008,7 @@ def test_pls_structural_identities_split_under_missing_data(
 def test_pls_invalid_calls() -> None:
     """Tests various invalid calls, and corresponding error messages."""
     K, N, M, A = 4, 3, 2, 5
-    rng = np.random.default_rng()
+    rng = np.random.default_rng(0)
     data_x = pd.DataFrame(rng.uniform(low=-1, high=1, size=(N, K)))
     data_y = pd.DataFrame(rng.uniform(low=-1, high=1, size=(N, M)))
     with pytest.raises(ValueError, match=r"Tolerance `tol`` must be between 1E-16 and 1.0"):
