@@ -143,6 +143,14 @@ def test_rejects_the_holt_winters_trend_weight() -> None:
         fit_ewma(shifted_series(), ld_2=0.3)
 
 
+def test_an_unknown_style_raises_instead_of_drawing_limits() -> None:
+    """A style other than 'robust' or 'regular' estimates no target or s, so no limits are drawn."""
+    chart = ControlChart(variant="ewma", style="Robust")  # the style is case-sensitive
+    with pytest.raises(ValueError, match="could not be estimated"):
+        chart.calculate_limits(shifted_series())
+    assert "ewma" not in chart.df.columns
+
+
 def test_refitting_a_chart_matches_a_fresh_chart() -> None:
     """Nothing from a first fit (target, s, weight) leaks into a second fit on the same chart."""
     y = shifted_series()
