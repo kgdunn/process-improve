@@ -222,6 +222,23 @@ those changes.
     with its own warning: the fit is numerically unreliable, and the factors should be
     coded before analysing.
 
+- **`analyze_experiment`'s ANOVA and significance test each term at the centre of the
+  design, so they no longer depend on the factors' units.** Both now use the numeric
+  factors coded to -1/+1.
+  - **The cause.** A main effect next to its interaction or square was tested where the
+    higher terms are zero, which on the factors as given is wherever their units put
+    zero.
+  - **Significance.** The 2^2 data in the `coding` example, with T at 150 and 200 degC,
+    left P out of the significance list (p = 0.09 in degC, 0.05 in kelvin). The ANOVA
+    beside it gave P p = 0.0066; the list now agrees.
+  - **The ANOVA.** In a quadratic model T's Type II test is adjusted for `T**2`, and
+    `T**2` measured from 0 degC is a different column. That turned T's test into a test
+    of the curvature: p = 0.0007 in degC, where at the centre T is borderline at 0.051.
+  - **What is unchanged.** Data already coded, models without interactions or squares,
+    mixture models, and categorical factors (whose term names stay the same). A model
+    that coding would change, such as an interaction without its main effects, is
+    tested as given.
+
 
 - **`optimize_responses` no longer optimises coefficients fitted in actual units as if
   they were coded (#513).** It evaluates models at coded settings, from -1 to +1, and the

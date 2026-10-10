@@ -463,6 +463,31 @@ class _Fit:
                 self._coded = (self.ols, {})
         return self._coded
 
+    def centred(self) -> RegressionResultsWrapper:
+        """Return the fit with each numeric factor coded to -1/+1, so that its terms are tested at the centre.
+
+        In a model with an interaction or a square, a lower-order term is tested where the
+        terms above it are zero. On the factors as given that is wherever their units put
+        zero (0 degC, say, far outside the experiment, and somewhere else again in kelvin);
+        coded, it is the centre of the design. Only numeric factors are coded, so the term
+        names do not change. The fit itself is kept for a mixture model, whose components
+        are proportions, and when coding would change the model rather than re-express it,
+        as for an interaction without its main effects. When the units are so unequal that
+        the fit as given lost rank in floating point, the coded fit, which has not, is used.
+        """
+        numeric = [c for c in self.factor_cols if _is_numeric(self.df[c])]
+        coded_df = self.df.copy()
+        for col in numeric:
+            coded_df[col] = _code_factor(self.df[col])[0]
+        if self.model in SCHEFFE_MODELS or coded_df[numeric].equals(self.df[numeric]):
+            return self.ols
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")  # the rank warning was already given for the fit
+            refit = smf.ols(self.ols.model.formula, data=coded_df).fit()
+        scale = 1.0 + float(np.abs(self.ols.fittedvalues).max())
+        same_model = np.allclose(refit.fittedvalues, self.ols.fittedvalues, rtol=0.0, atol=1e-8 * scale)
+        return refit if same_model or _rank(refit) > _rank(self.ols) else self.ols
+
     def factor_coding(self) -> tuple[pd.DataFrame, dict[str, Any]]:
         """Return the data on the coefficients' coded scale, and how each factor not already on it was coded."""
         ranges = self.coding if isinstance(self.coding, Mapping) else {}
@@ -494,11 +519,11 @@ class _Fit:
         return self._coefficient_fit
 
     def reduced(self) -> tuple[RegressionResultsWrapper, dict[str, str]]:
-        """Return the fit on one column per alias chain, with the chain name of each retained column."""
+        """Return the centred fit on one column per alias chain, with the chain name of each retained column."""
         if self._reduced is None:
             with warnings.catch_warnings():
                 warnings.simplefilter("ignore")
-                self._reduced = chain_reduced_fit(self.ols)
+                self._reduced = chain_reduced_fit(self.centred())
         return self._reduced
 
 
@@ -679,7 +704,13 @@ def analyze_experiment(  # noqa: PLR0913
         ``"lenth_method"``, ``"confidence_intervals"``, ``"prediction"``,
         ``"confirmation_test"``, ``"split_plot"``.
 
-        The ANOVA uses Type II sums of squares (reported as ``anova_type``). The
+        The ANOVA uses Type II sums of squares (reported as ``anova_type``). The ANOVA
+        and significance test each term at the centre of the design: they are computed
+        with the numeric factors coded to -1/+1, so they do not depend on the factors'
+        units. On the factors as given, a main effect alongside its interaction or square
+        would be tested where those are zero (0 degC, say), and so would differ between
+        degC and kelvin. A model that coding would change, such as an interaction without
+        its main effects, is tested as given. The
         ANOVA and significance list exactly aliased terms once, as their alias chain
         (``"A:B + C:D"``), as the effects do; the coefficients keep one entry per term. Effects and Lenth's
         method use the factors coded to -1/+1: a numeric factor not already coded is
