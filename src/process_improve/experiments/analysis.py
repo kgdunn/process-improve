@@ -511,22 +511,37 @@ def _effects(fit: _Fit, *, lenth: bool) -> dict[str, Any]:
     return result
 
 
-def _warn_if_not_reparametrised(fit: RegressionResultsWrapper, coded: RegressionResultsWrapper) -> None:
-    """Warn when the coded refit is a different model, not the same one in other units.
+def _rank(fit: RegressionResultsWrapper) -> int:
+    return int(getattr(fit.model, "rank", np.linalg.matrix_rank(fit.model.exog)))
 
-    Coding a factor shifts its origin. In a hierarchical model that only re-expresses the
-    same fit, but a model with ``A:B`` and no ``B``, or ``I(A**2)`` and no ``A``, spans a
-    different space once ``A`` and ``B`` are centred, so its fitted values change.
+
+def _warn_if_not_reparametrised(fit: RegressionResultsWrapper, coded: RegressionResultsWrapper) -> None:
+    """Warn when the coded refit fits differently from the fit itself, saying which one to doubt.
+
+    Coding a factor shifts its origin and rescales it. In a hierarchical model that only
+    re-expresses the same fit, so the fitted values agree. They differ for one of two
+    reasons. Factors in units of very different size (pascals beside kelvin, say) can make
+    the fit as given lose rank in floating point, which coding the factors repairs. Or the
+    model is not hierarchical: with ``A:B`` and no ``B``, or ``I(A**2)`` and no ``A``, it
+    spans a different space once ``A`` and ``B`` are centred.
     """
     scale = 1.0 + float(np.abs(fit.fittedvalues).max())
-    if not np.allclose(coded.fittedvalues, fit.fittedvalues, rtol=0.0, atol=1e-8 * scale):
-        warnings.warn(
+    if np.allclose(coded.fittedvalues, fit.fittedvalues, rtol=0.0, atol=1e-8 * scale):
+        return
+    if _rank(coded) > _rank(fit):
+        message = (
+            f"The factors' units are scaled so differently that the fit as given lost rank in floating point "
+            f"({_rank(fit)} of {_rank(coded)} columns), so it, its model_summary and the analyses other than the "
+            "coefficients are unreliable; the coded coefficients are not affected. Code the factors to -1/+1 "
+            "before analysing."
+        )
+    else:
+        message = (
             "On the coded scale this model fits the data differently, so the coded coefficients do not describe "
             "the fit in model_summary. A model with an interaction or a square but not the main effects below it "
-            "is not the same model once its factors are centred; add those main effects, or use coding='actual'.",
-            category=UserWarning,
-            stacklevel=4,
+            "is not the same model once its factors are centred; add those main effects, or use coding='actual'."
         )
+    warnings.warn(message, category=UserWarning, stacklevel=4)
 
 
 def _coefficients(fit: _Fit, analysis: str) -> dict[str, Any]:

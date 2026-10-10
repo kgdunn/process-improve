@@ -1359,6 +1359,23 @@ class TestCoding:
                 _reactor(), response_column="y", model="y ~ T * P", analysis_type="coefficients", coding="coded"
             )
 
+    def test_badly_scaled_units_are_blamed_on_the_fit_not_the_model(self) -> None:
+        """A tiny span far from zero loses the fit's rank in floating point; coding repairs it."""
+        x = np.array([[-1, -1], [1, -1], [-1, 1], [1, 1], [-1.414, 0], [1.414, 0], [0, -1.414], [0, 1.414], [0, 0]])
+        y = 60 + 4 * x[:, 0] + 2 * x[:, 1] - 3 * x[:, 0] ** 2 - x[:, 1] ** 2 + np.linspace(-0.2, 0.2, 9)
+        data = pd.DataFrame({"T": 1e6 + 0.01 * x[:, 0], "P": 1e7 + 0.1 * x[:, 1], "y": y})
+        with pytest.warns(UserWarning, match="lost rank in floating point"):
+            result = analyze_experiment(
+                data, response_column="y", model="quadratic", analysis_type="coefficients", coding="coded"
+            )
+        reference = analyze_experiment(
+            pd.DataFrame({"T": x[:, 0] / 1.414, "P": x[:, 1] / 1.414, "y": y}),
+            response_column="y",
+            model="quadratic",
+            analysis_type="coefficients",
+        )
+        assert _terms(result) == pytest.approx(_terms(reference))
+
     def test_a_mixture_model_has_no_coded_scale(self) -> None:
         mixture = TestMixtureAnalysis._yarn()
         with pytest.raises(ValueError, match="mixture model has no coded scale"):
