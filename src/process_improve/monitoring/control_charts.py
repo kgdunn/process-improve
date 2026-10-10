@@ -522,19 +522,25 @@ class ControlChart:
         """
         Fit the control chart from the data samples, assuming each sample is its own subgroup.
         The `style` attribute ('regular' | 'robust') switches how the average and standard
-        deviation are calculated.
+        deviation are calculated. A ``target`` or ``s`` given to ``calculate_limits`` is kept,
+        and only a missing one is estimated. The robust ``s`` is the MAD about the data's own
+        median, so a given target away from the centre of the data does not inflate it.
 
         Control chart limits assume the data are normally distributed and independent. In
         particular, this last assumption can have consequences if not actually met. Limits may be
         too wide, or too narrow.
 
         """
+        y = self.df["y"]
         if self.style == "regular":
-            self.target = self.df["y"].mean()
-            self.s = self.df["y"].std()
+            centre, spread = y.mean(), y.std()
         elif self.style == "robust":
-            self.target = self.df["y"].median()
-            self.s = (self.df["y"] - self.target).abs().median() * 1.4826
+            centre = y.median()
+            spread = (y - centre).abs().median() * 1.4826
+        else:
+            return  # an unknown style estimates nothing; calculate_limits raises for it
+        self.target = centre if self.target is None else self.target
+        self.s = spread if self.s is None else self.s
 
     def _holt_winters_parameter_fit(self) -> None:
         """

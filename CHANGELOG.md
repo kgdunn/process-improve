@@ -161,6 +161,15 @@ those changes.
   `n_whole_plots` counted one replicate's. Each replicate now has whole plots of its
   own, as it is run again from scratch.
 
+- **The Shewhart chart (`variant="xbar.no.subgroup"`) keeps a `target` and `s` you
+  give it.** `calculate_limits(y, target=..., s=...)` replaced both with estimates from
+  `y`, although its docstring says given values are used, so a chart could not be drawn
+  from known (Phase I) values. In the new test, a two-sigma shift in the last 20 of 80
+  samples is flagged at sample 70 against the known target 50 and `s` 2, and not at all
+  against the estimates, which the shift itself had pulled. A given value is now used as
+  it is, and only a missing one is estimated; the robust `s` is still the MAD about the
+  data's own median. Without a given `target` or `s` the chart is unchanged.
+
 ### Documentation
 
 - **The supersaturated `e_s2_efficiency` is measured against a lower bound that is not
