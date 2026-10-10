@@ -61,7 +61,7 @@ class ImportGraph:
     mentions: defaultdict[str, set[Path]] = field(default_factory=lambda: defaultdict(set))
 
     def importers_of(self, starts: set[Path]) -> set[Path]:
-        """``starts`` plus every file that imports one of them, directly or not."""
+        """Return ``starts`` plus every file that imports one of them, directly or not."""
         reverse: defaultdict[Path, set[Path]] = defaultdict(set)
         for source, targets in self.edges.items():
             for target in targets:
@@ -107,7 +107,7 @@ def _imports(tree: ast.AST, package: str) -> set[str]:
 
 
 def _embedded_imports(literal: str) -> set[str]:
-    """Imports made by Python source held in a string, such as a ``python -c`` snippet."""
+    """Find the imports made by Python source held in a string, such as a ``python -c`` snippet."""
     if "import " not in literal:
         return set()
     try:
@@ -117,7 +117,7 @@ def _embedded_imports(literal: str) -> set[str]:
 
 
 def _parse(path: Path, module: str) -> tuple[set[str], set[str], bool]:
-    """Imported module names, string-literal path components, and whether the file is opaque."""
+    """Return imported module names, string-literal path components, and whether the file is opaque."""
     tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
     package = module if path.name == "__init__.py" else module.rpartition(".")[0]
     imported = _imports(tree, package)
@@ -193,5 +193,5 @@ def assign_shard(tests_per_file: dict[str, int], durations: dict[str, float], sh
 
 
 def load_durations(path: Path) -> dict[str, float]:
-    """Recorded seconds per test file, or nothing when the file is missing."""
+    """Read the recorded seconds per test file; nothing when the file is missing."""
     return json.loads(path.read_text(encoding="utf-8")) if path.exists() else {}
