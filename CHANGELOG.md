@@ -368,6 +368,17 @@ The fixes below were found while raising test coverage to 96% (#678).
 
 ### Documentation
 
+- **The documentation opens on what the package does, and every page has a link
+  preview.**
+  - The landing page shows the banner, the install line, and buttons to the quick
+    start, the browser app, the user guide, the API reference and the textbook,
+    then one card per part of the package, the browser app, the design gallery and
+    the textbook.
+  - A logo (a two-level factorial design with a centre point) and the short title
+    "process-improve", which a phone no longer cuts off; links and buttons use the
+    README's colours in light and dark mode.
+  - Open Graph tags, a description and a canonical link on every page, so a shared
+    link shows the social card.
 - **The supersaturated `e_s2_efficiency` is measured against a lower bound that is not
   attainable at every size**, so a value below 1 does not by itself mean a better
   balanced design exists (15 factors in 12 runs report 0.63). Stated in the

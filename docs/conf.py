@@ -87,11 +87,58 @@ nitpick_ignore = [
 
 html_theme = "pydata_sphinx_theme"
 html_static_path = ["_static"]
+html_css_files = ["css/custom.css"]
+
+# The short title keeps the navbar to one line on a phone; the default,
+# "process-improve <version> documentation", was cut off.
+html_title = "process-improve"
+html_favicon = "_static/logo/favicon.png"
+
+# The docs' address. Sphinx uses it for each page's canonical link, and
+# _templates/layout.html for the absolute addresses that link previews need.
+html_baseurl = "https://kgdunn.github.io/process-improve/"
+
+# What a shared link to any page shows (Open Graph tags in _templates/layout.html).
+html_context = {
+    "social_description": (
+        "process-improve: designed experiments, multivariate models (PCA, PLS) and process "
+        "monitoring in Python, from the free textbook Process Improvement using Data."
+    ),
+    "social_image": html_baseurl + "_static/readme/social-preview.png",
+    "social_image_alt": "process-improve: designed experiments, multivariate models and process monitoring in Python.",
+}
 
 html_theme_options = {
+    # The mark is a two-level factorial design in two factors with a centre point, in the
+    # README banner's colours.
+    "logo": {
+        "text": "process-improve",
+        "image_light": "_static/logo/logo-light.svg",
+        "image_dark": "_static/logo/logo-dark.svg",
+        "alt_text": "process-improve: home",
+    },
     "github_url": "https://github.com/kgdunn/process-improve",
+    "icon_links": [
+        {
+            "name": "PyPI",
+            "url": "https://pypi.org/project/process-improve/",
+            "icon": "fa-brands fa-python",
+        },
+        {
+            "name": "The textbook: Process Improvement using Data",
+            "url": "https://learnche.org/pid",
+            "icon": "fa-solid fa-book-open",
+        },
+    ],
+    "navbar_align": "left",
+    "header_links_before_dropdown": 5,
     "show_toc_level": 2,
     "navigation_with_keys": True,
     "pygments_light_style": "default",
     "pygments_dark_style": "monokai",
+    # The landing page uses the full width: no page outline beside it.
+    "secondary_sidebar_items": {"**": ["page-toc", "sourcelink"], "index": []},
 }
+
+# ...and no section navigation on its left either.
+html_sidebars = {"index": []}
