@@ -1,4 +1,4 @@
-"""Join the frames captured by ``app_demo.js`` into a captioned GIF: design, run, analyse.
+"""Join the frames captured by ``app_demo.js`` into a captioned GIF: design, run, analyse, compare.
 
 Usage::
 
@@ -16,9 +16,10 @@ NAVY, WHITE, SOFT = (44, 95, 124), (255, 255, 255), (214, 228, 236)
 FONTS = Path(mpl.get_data_path()) / "fonts" / "ttf"
 
 STEPS = [  # frame, step number, headline, detail, milliseconds on screen
-    ("demo-1-design.png", "1", "Design", "pick factors and a design type", 2800),
-    ("demo-2-runs.png", "2", "Run", "download the run sheet, fill in your results", 2800),
-    ("demo-3-analysis.png", "3", "Analyse", "upload it: the model is fitted in your browser", 4200),
+    ("demo-1-design.png", "1", "Design", "pick factors and a design type", 2600),
+    ("demo-2-runs.png", "2", "Run", "simulate the results from a known process, or type in your own", 3200),
+    ("demo-3-analysis.png", "3", "Analyse", "fitted in your browser, beside the truth", 4200),
+    ("demo-4-compare.png", "4", "Compare", "every design for your factors, on nine measures", 4200),
 ]
 
 

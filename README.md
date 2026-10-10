@@ -30,12 +30,14 @@ pip install process-improve
 
 ## Try it without installing anything
 
-<a href="https://kgdunn.github.io/process-improve/app/"><img width="600" alt="The designed-experiments app in a browser tab: design a definitive screening experiment, download the run sheet, then upload the results and read the fitted model" src="https://raw.githubusercontent.com/kgdunn/process-improve/main/docs/_static/readme/app-demo.gif"></a>
+<a href="https://kgdunn.github.io/process-improve/app/"><img width="600" alt="The designed-experiments app in a browser tab: a Box-Behnken design, its results simulated from a known process, the fitted coefficients beside the true ones, and every design for the same factors compared on nine measures" src="https://raw.githubusercontent.com/kgdunn/process-improve/main/docs/_static/readme/app-demo.gif"></a>
 
 The [designed-experiments app](https://kgdunn.github.io/process-improve/app/) runs this
-package inside your browser tab (Pyodide / WebAssembly). Design an experiment, download the
-run sheet, fill in your results and upload it again: the analysis runs on your machine, and
-your data never leave it.
+package inside your browser tab (Pyodide / WebAssembly). Design an experiment, then simulate
+its results from a process whose true model is known, or type in your own, and read the
+analysis beside the truth. Compare every design for your factors on the nine measures of
+[Process Improvement using Data](https://learnche.org/pid), and copy the Python behind each
+step. The analysis runs on your machine, and your data never leave it.
 
 ## Learn the methods
 

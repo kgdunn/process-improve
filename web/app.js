@@ -725,7 +725,7 @@ function renderComparison(result, made, notes) {
     el(
       "p",
       "",
-      `Model: ${result.terms.length} terms (${result.terms.join(", ")}). Power is for a coefficient of ` +
+      `Model: ${result.terms.length} terms (${result.terms.map(prettyTerm).join(", ")}). Power is for a coefficient of ` +
         `${result.effect_size} noise standard deviation at a significance level of ${result.significance_level}. ` +
         `G is searched over ${result.g_points}.`,
     ),
