@@ -49,6 +49,9 @@ async function capture(page, selector, name) {
   await page.click("#compare");
   await page.waitForFunction(() => document.querySelectorAll("#compare-charts .main-svg").length > 0, null, { timeout: 600000 });
   await idle(page);
+  // On a wide screen step 4 is wider than the other steps: take its frame at a width where every design fits, at
+  // the same aspect ratio, so the frames scale to the same size.
+  await page.setViewportSize({ width: 1100, height: Math.round((900 * 1100) / 860) });
   await capture(page, "#comparison", "demo-4-compare.png");
   await browser.close();
 })().catch((e) => {
