@@ -143,12 +143,19 @@ def quick_regress(Y: np.ndarray, x: np.ndarray) -> np.ndarray:
     change a ratio of the form ``(x'y)/(x'x)``, made the same call return the right
     answer.
     """
-    Ny, K = Y.shape
-    Nx = x.shape[0]
     # One reference scale for the whole call: the unmasked energy in ``x``. A non-finite
     # or zero value makes every comparison below False, so the degenerate branch is taken,
     # which is the right answer for an ``x`` that is all zero or has already overflowed.
     denom_floor = epsqrt * float(ssq(x))
+    if Y.size and np.isfinite(Y).all():
+        return _quick_regress_complete(Y, x, denom_floor)
+    return _quick_regress_masked(Y, x, denom_floor)
+
+
+def _quick_regress_masked(Y: np.ndarray, x: np.ndarray, denom_floor: float) -> np.ndarray:
+    """:func:`quick_regress` one column (Case A) or row (Case B) at a time, masking missing cells of ``Y``."""
+    Ny, K = Y.shape
+    Nx = x.shape[0]
     if Ny == Nx:  # Case A: b' = (x'Y)/(x'x): (1xN)(NxK) = (1xK)
         b = np.zeros((K, 1))
         for k in np.arange(K):
@@ -182,6 +189,36 @@ def quick_regress(Y: np.ndarray, x: np.ndarray) -> np.ndarray:
 
     else:
         raise ValueError("The dimensions of the input arrays are not compatible.")
+
+
+def _quick_regress_complete(Y: np.ndarray, x: np.ndarray, denom_floor: float) -> np.ndarray:
+    """:func:`quick_regress` for a ``Y`` with no missing or infinite cell, without the Python loop.
+
+    :func:`_quick_regress_masked` spends nearly all its time on per-row
+    ``nan_to_num`` / ``isnan`` calls that change nothing when ``Y`` is complete, and NIPALS
+    calls it thousands of times per fit. Here every coefficient comes from one vectorised
+    product, and the result is **bit-for-bit** the loop's, not merely close to it:
+
+    * each numerator is the same elementwise products summed along a C-contiguous row,
+      which numpy reduces with the same pairwise summation as the loop's 1-D ``np.sum``;
+    * with no cell masked, every coefficient shares one denominator, computed by exactly
+      the call the loop makes for its first column (Case A) or row (Case B).
+
+    ``tests/test_nipals_quick_regress.py`` checks the equality on random blocks.
+    """
+    Ny, K = Y.shape
+    if Ny == x.shape[0]:  # Case A: one coefficient per column of Y
+        numer = np.multiply(Y.T, x.T, order="C").sum(axis=1)
+        temp = ~np.isnan(Y[:, 0]) * x.T
+        denom = np.dot(temp, temp.T)[0][0]
+    elif x.shape[0] == K:  # Case B: one coefficient per row of Y
+        numer = np.multiply(Y, x[:, 0], order="C").sum(axis=1)
+        denom = ssq(~np.isnan(Y[0, :]) * x.T)
+    else:
+        raise ValueError("The dimensions of the input arrays are not compatible.")
+    if not denom > denom_floor:
+        return np.zeros((numer.shape[0], 1))
+    return (numer / denom).reshape(-1, 1)
 
 
 def internal_pls_nipals_fit_one_pc(

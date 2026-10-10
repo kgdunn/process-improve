@@ -92,6 +92,14 @@ those changes.
 
 ### Changed
 
+- **PLS and multiblock fits on complete data are faster, with identical results.** So is
+  `PCA(algorithm="nipals")`; the default PCA already uses an SVD on complete data.
+  The NIPALS regression step handled missing cells one row or column at a time in
+  Python even when there were none. A block with no missing or infinite cell now takes
+  a vectorised path that returns the same numbers to the last bit; a PLS fit on a
+  20 x 5 block went from 157 ms to 24 ms. Data with missing cells use the previous
+  code unchanged.
+
 - **`analyze_experiment`'s `coding` chooses the scale of the coefficients (#513).** It was
   accepted and ignored, and its default, `"coded"`, named a scale the coefficients were
   not on. The default is now `"actual"`, which is what every call already returned.
