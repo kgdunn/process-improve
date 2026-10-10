@@ -390,10 +390,9 @@ class Model(OLS):
             warnings.simplefilter("ignore")
 
             main = "OLS Regression Results"
-            if self.name:
-                main += ": " + str(self.name)
-            elif self.data is not None and self.data.pi_title:
-                main += ": " + str(self.data.pi_title)
+            title = self.name or self.get_title()
+            if title:
+                main += ": " + str(title)
 
             smry = self._OLS.summary(title=main)
             # print(smry)
@@ -446,10 +445,12 @@ class Model(OLS):
         return spec.lhs_termlist[0].name()
 
     def get_title(self) -> str:
-        """Get the model's title, if it has one. Always returns a string."""
-        if self.data is None:
-            return ""
-        return self.data.get_title()
+        """Get the model's title, if it has one. Always returns a string.
+
+        The title is the data's ``pi_title``. ``lm`` also accepts a plain DataFrame,
+        which has none, so a missing attribute is an empty title rather than an error.
+        """
+        return str(getattr(self.data, "pi_title", None) or "")
 
     def get_aliases(
         self,
@@ -559,9 +560,10 @@ def lm(  # noqa: C901, PLR0915
         try:
             d = np.diag(c)
         except ValueError:
-            # scalar covariance
-            # nan if incorrect value (nan, inf, 0), 1 otherwise
-            return c / c  # type: ignore[return-value]  # degenerate scalar-covariance fallback; preserves original runtime behaviour
+            # A one-column model (``y ~ 1``, ``y ~ 0 + A``): ``np.cov`` returns a 0-d
+            # array, which ``np.diag`` rejects. A single column has nothing to be
+            # aliased with, so there is no alias to report and no column to drop.
+            return {}, []
         stddev = np.sqrt(d.real)
 
         aliasing = defaultdict(list)

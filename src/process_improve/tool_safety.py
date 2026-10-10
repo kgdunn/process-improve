@@ -41,19 +41,28 @@ from pydantic import BaseModel, ValidationError
 
 from process_improve.config import settings
 
-# Prefer ``fork`` on Linux: the worker inherits the parent's imported
-# numpy/registry/etc., which makes startup and tool-dispatch much cheaper
-# than re-importing on every spawn. macOS is excluded because Apple's
-# Accelerate framework (used by numpy) is not fork-safe and Python 3.13
-# emits a DeprecationWarning when a multi-threaded parent forks; Windows
-# does not support fork at all. On those platforms we fall back to the
-# platform default (spawn).
-_DEFAULT_MP_CONTEXT: multiprocessing.context.BaseContext | None = None
-if sys.platform.startswith("linux"):
+
+def _default_mp_context(platform: str = sys.platform) -> multiprocessing.context.BaseContext | None:
+    """Return the multiprocessing context the worker pool uses on ``platform``.
+
+    Prefer ``fork`` on Linux: the worker inherits the parent's imported
+    numpy/registry/etc., which makes startup and tool-dispatch much cheaper
+    than re-importing on every spawn. macOS is excluded because Apple's
+    Accelerate framework (used by numpy) is not fork-safe and Python 3.13
+    emits a DeprecationWarning when a multi-threaded parent forks; Windows
+    does not support fork at all. On those platforms, and wherever ``fork``
+    is unavailable, return None: the pool then uses the platform default
+    (spawn).
+    """
+    if not platform.startswith("linux"):
+        return None
     try:
-        _DEFAULT_MP_CONTEXT = multiprocessing.get_context("fork")
+        return multiprocessing.get_context("fork")
     except ValueError:
-        _DEFAULT_MP_CONTEXT = None
+        return None
+
+
+_DEFAULT_MP_CONTEXT: multiprocessing.context.BaseContext | None = _default_mp_context()
 
 # ---------------------------------------------------------------------------
 # Legacy default-name compatibility shims (ENG-22: deprecate, remove in v2.0).

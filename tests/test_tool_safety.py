@@ -17,23 +17,29 @@ Windows these tests are skipped.
 from __future__ import annotations
 
 import json
+import multiprocessing
 import os
 import subprocess
 import sys
 import textwrap
 import time
+from concurrent.futures import Future, ThreadPoolExecutor
+from concurrent.futures.process import BrokenProcessPool
 
 import numpy as np
 import pytest
 from pydantic import BaseModel, ConfigDict, Field
 
+from process_improve.config import settings
 from process_improve.tool_safety import (
     ToolInputInvalidError,
     ToolInputTooLargeError,
     ToolMemoryExceededError,
     ToolSafetyError,
     ToolTimeoutError,
+    _apply_memory_limit,
     _count_numeric_leaves,
+    _default_mp_context,
     _lookup_input_model,
     _terminate_workers,
     _validate_against_model,
@@ -413,12 +419,15 @@ class TestTerminateWorkers:
 # ---------------------------------------------------------------------------
 
 
-@_skip_if_not_linux
 class TestSafeExecuteToolCall:
+    """The default path forks a worker; tests that never reach a worker run on every OS."""
+
+    @_skip_if_not_linux
     def test_happy_path_round_trip(self) -> None:
         result = safe_execute_tool_call("_safety_test_echo", {"value": 42}, timeout=10)
         assert result == {"value": 42}
 
+    @_skip_if_not_linux
     def test_unknown_tool_raises_value_error(self) -> None:
         with pytest.raises(ValueError, match="Unknown tool"):
             safe_execute_tool_call("no_such_tool", {}, timeout=5)
@@ -444,12 +453,14 @@ class TestSafeExecuteToolCall:
         with pytest.raises(ToolInputInvalidError, match="extra_forbidden"):
             safe_execute_tool_call("_safety_test_echo", {"value": 1, "rogue": 2}, timeout=10)
 
+    @_skip_if_not_linux
     def test_timeout_raises_structured_error(self) -> None:
         with pytest.raises(ToolTimeoutError) as exc_info:
             safe_execute_tool_call("_safety_test_sleep", {"seconds": 5}, timeout=0.2)
         assert exc_info.value.code == "timeout"
         assert exc_info.value.details["tool_name"] == "_safety_test_sleep"
 
+    @_skip_if_not_linux
     def test_timeout_force_terminates_runaway_worker(self, monkeypatch: pytest.MonkeyPatch) -> None:
         # SEC-02: a CPU-bound runaway must actually be killed on timeout, not
         # left spinning. The default path now runs each call in a PRIVATE pool
@@ -473,6 +484,7 @@ class TestSafeExecuteToolCall:
             time.sleep(0.05)
         assert not any(_pid_alive(p) for p in seen_pids), "runaway worker still alive after timeout"
 
+    @_skip_if_not_linux
     def test_default_path_uses_a_private_per_call_pool(self) -> None:
         # SEC-03 + audit fix: each default-path call runs in its own fresh
         # worker (clean process-global state), and never touches the shared
@@ -492,6 +504,7 @@ class TestSafeExecuteToolCall:
         assert payload["message"] == "boom"
         assert payload["details"]["timeout"] == 1
 
+    @_skip_if_not_linux
     @pytest.mark.skipif(sys.platform == "win32", reason="RLIMIT_AS is POSIX-only")
     def test_memory_cap_kills_runaway_worker(self) -> None:
         # Ask for far more memory than the cap allows; the subprocess should die.
@@ -575,9 +588,230 @@ class TestHelpers:
         assert observed["n_tools"] > 0
         assert observed["has_known_tool"]
 
-    @_skip_if_not_linux
     def test_get_pool_returns_cached_instance(self) -> None:
-        """Repeated get_pool calls with the same memory cap reuse one pool."""
+        """Repeated get_pool calls with the same memory cap reuse one pool.
+
+        Workers start on the first submit, so building the pool needs no fork and runs everywhere.
+        """
         first = get_pool(memory_mb=256)
         second = get_pool(memory_mb=256)
         assert first is second
+
+    def test_get_pool_follows_the_settings_cap_and_shuts_down(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Without a cap, get_pool uses settings.max_memory_mb; a new cap replaces the pool, and shutdown clears it."""
+        from process_improve import tool_safety as ts
+
+        monkeypatch.setattr(settings, "max_memory_mb", 300)
+        first = get_pool()
+        assert ts._pool_state == (first, 300)
+        replaced = get_pool(memory_mb=400)
+        assert replaced is not first
+        assert ts._pool_state == (replaced, 400)
+        shutdown_pool()
+        assert ts._pool_state is None
+        shutdown_pool()  # a second shutdown is a no-op
+        assert ts._pool_state is None
+
+    @pytest.mark.parametrize(
+        ("context", "start_method"),
+        [
+            pytest.param(None, None, id="platform-default"),
+            pytest.param(multiprocessing.get_context("spawn"), "spawn", id="spawn"),
+        ],
+    )
+    def test_create_pool_uses_the_module_context(
+        self, monkeypatch: pytest.MonkeyPatch, context: object, start_method: str | None
+    ) -> None:
+        """The pool takes the module's preferred context, or the platform default when there is none."""
+        from process_improve import tool_safety as ts
+
+        monkeypatch.setattr(ts, "_DEFAULT_MP_CONTEXT", context)
+        pool = ts._create_pool(128, max_workers=2)
+        try:
+            expected = start_method or multiprocessing.get_context().get_start_method()
+            assert pool._mp_context.get_start_method() == expected
+            assert pool._max_workers == 2
+            assert pool._initargs == (128,)
+        finally:
+            pool.shutdown(wait=False, cancel_futures=True)
+
+    def test_pool_initializer_warms_the_registry_then_applies_the_cap(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """In-process twin of the child-process test above: the cap it applies is the one it was given."""
+        from process_improve import tool_safety as ts
+
+        applied: list[int] = []
+        monkeypatch.setattr(ts, "_apply_memory_limit", applied.append)
+        ts._pool_initializer(256)
+        assert applied == [256]
+        assert "robust_regression" in _TOOL_REGISTRY
+
+
+class _FakeResource:
+    """Stand-in for the POSIX ``resource`` module, recording the limits it is asked to set."""
+
+    RLIMIT_AS = 9
+
+    def __init__(self, error: type[Exception] | None = None) -> None:
+        self.error = error
+        self.calls: list[tuple[int, tuple[int, int]]] = []
+
+    def setrlimit(self, which: int, limits: tuple[int, int]) -> None:
+        self.calls.append((which, limits))
+        if self.error is not None:
+            raise self.error("not permitted here")
+
+
+class TestApplyMemoryLimitInProcess:
+    """`_apply_memory_limit` against a stand-in ``resource`` module, so it runs on every OS."""
+
+    def test_the_cap_is_set_on_the_address_space(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        fake = _FakeResource()
+        monkeypatch.setitem(sys.modules, "resource", fake)
+        _apply_memory_limit(256)
+        assert fake.calls == [(_FakeResource.RLIMIT_AS, (256 * 1024 * 1024, 256 * 1024 * 1024))]
+
+    @pytest.mark.parametrize("error", [ValueError, OSError], ids=["value-error", "os-error"])
+    def test_a_sandbox_that_refuses_the_limit_is_tolerated(
+        self, monkeypatch: pytest.MonkeyPatch, error: type[Exception]
+    ) -> None:
+        """Some sandboxes forbid setrlimit; the attempt is made and the refusal swallowed."""
+        fake = _FakeResource(error)
+        monkeypatch.setitem(sys.modules, "resource", fake)
+        _apply_memory_limit(64)
+        assert len(fake.calls) == 1
+
+    def test_without_the_resource_module_it_is_a_no_op(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Windows has no ``resource`` module: the cap is skipped rather than raising ImportError."""
+        monkeypatch.setitem(sys.modules, "resource", None)
+        assert _apply_memory_limit(64) is None
+
+
+class TestDefaultMpContext:
+    """The worker start method is chosen per platform."""
+
+    @pytest.mark.parametrize("platform", ["win32", "darwin"])
+    def test_fork_is_not_used_off_linux(self, platform: str) -> None:
+        assert _default_mp_context(platform) is None
+
+    def test_linux_forks_where_fork_exists(self) -> None:
+        context = _default_mp_context("linux")
+        if "fork" in multiprocessing.get_all_start_methods():
+            assert context is not None
+            assert context.get_start_method() == "fork"
+        else:
+            assert context is None
+
+    def test_linux_without_fork_falls_back_to_the_default(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        def no_fork(method: str | None = None) -> object:
+            raise ValueError(f"cannot find context for {method!r}")
+
+        monkeypatch.setattr(multiprocessing, "get_context", no_fork)
+        assert _default_mp_context("linux") is None
+
+
+# ---------------------------------------------------------------------------
+# safe_execute_tool_call with an in-process executor: runs on every OS
+# ---------------------------------------------------------------------------
+
+#: A stub executor outcome that leaves the future unresolved, so ``result`` times out.
+_NEVER = object()
+
+
+class _StubExecutor:
+    """An executor whose futures resolve as the test says, without running anything.
+
+    ``outcome`` is the value the future returns, an exception it raises, or ``_NEVER``.
+    """
+
+    def __init__(self, outcome: object) -> None:
+        self.outcome = outcome
+        self.submitted: list[tuple] = []
+        self.shutdowns: list[dict[str, bool]] = []
+
+    def submit(self, fn: object, *args: object) -> Future:
+        self.submitted.append((fn, *args))
+        future: Future = Future()
+        if isinstance(self.outcome, BaseException):
+            future.set_exception(self.outcome)
+        elif self.outcome is not _NEVER:
+            future.set_result(self.outcome)
+        return future
+
+    def shutdown(self, wait: bool = True, cancel_futures: bool = False) -> None:
+        self.shutdowns.append({"wait": wait, "cancel_futures": cancel_futures})
+
+
+class TestSafeExecuteWithAnInProcessExecutor:
+    """Every outcome of the worker future, mapped to its structured error, without a subprocess."""
+
+    def test_a_thread_executor_runs_the_tool(self) -> None:
+        with ThreadPoolExecutor(max_workers=1) as executor:
+            result = safe_execute_tool_call("_safety_test_echo", {"value": 42}, timeout=10, executor=executor)
+        assert result == {"value": 42}
+
+    def test_an_unknown_tool_reaches_the_worker_and_raises_there(self) -> None:
+        """No input model to check it against, so the worker's own "Unknown tool" error comes back."""
+        with ThreadPoolExecutor(max_workers=1) as executor, pytest.raises(ValueError, match="Unknown tool"):
+            safe_execute_tool_call("no_such_tool", {}, timeout=10, executor=executor)
+
+    @pytest.mark.parametrize(
+        ("outcome", "error", "message"),
+        [
+            pytest.param(
+                _NEVER, ToolTimeoutError, r"^Tool '_safety_test_echo' exceeded 0\.01s timeout$", id="no-answer"
+            ),
+            pytest.param(
+                BrokenProcessPool("worker gone"),
+                ToolMemoryExceededError,
+                r"^Tool '_safety_test_echo' worker died \(likely exceeded memory limit of 64 MB\)$",
+                id="worker-died",
+            ),
+            pytest.param(
+                MemoryError(),
+                ToolMemoryExceededError,
+                r"^Tool '_safety_test_echo' exceeded memory limit of 64 MB$",
+                id="allocation-failed",
+            ),
+        ],
+    )
+    def test_a_failed_future_becomes_a_structured_error(
+        self, outcome: object, error: type[ToolSafetyError], message: str
+    ) -> None:
+        """The caller's executor is used as given and never shut down: its owner keeps it."""
+        executor = _StubExecutor(outcome)
+        with pytest.raises(error, match=message) as exc_info:
+            safe_execute_tool_call(
+                "_safety_test_echo",
+                {"value": 1},
+                timeout=0.01,
+                memory_mb=64,
+                executor=executor,  # type: ignore[arg-type]
+            )
+        assert exc_info.value.details["tool_name"] == "_safety_test_echo"
+        assert executor.submitted == [(_worker_run, "_safety_test_echo", {"value": 1})]
+        assert executor.shutdowns == []
+
+    def test_the_default_path_builds_and_tears_down_a_private_pool(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """The memory cap comes from settings; the per-call pool is terminated and shut down after use."""
+        from process_improve import tool_safety as ts
+
+        pool = _StubExecutor({"value": 3})
+        built_with: list[int] = []
+        terminated: list[object] = []
+        monkeypatch.setattr(settings, "max_memory_mb", 512)
+        monkeypatch.setattr(ts, "_create_pool", lambda memory_mb: built_with.append(memory_mb) or pool)
+        monkeypatch.setattr(ts, "_terminate_workers", terminated.append)
+
+        assert safe_execute_tool_call("_safety_test_echo", {"value": 3}) == {"value": 3}
+        assert built_with == [512]
+        assert terminated == [pool]
+        assert pool.shutdowns == [{"wait": False, "cancel_futures": True}]
+
+    def test_the_default_timeout_comes_from_settings(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Without a timeout argument, the wait is settings.tool_timeout."""
+        from process_improve import tool_safety as ts
+
+        monkeypatch.setattr(settings, "tool_timeout", 0.01)
+        monkeypatch.setattr(ts, "_create_pool", lambda _memory_mb: _StubExecutor(_NEVER))
+        with pytest.raises(ToolTimeoutError, match=r"exceeded 0\.01s timeout"):
+            safe_execute_tool_call("_safety_test_echo", {"value": 1})

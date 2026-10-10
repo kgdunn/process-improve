@@ -6,6 +6,8 @@ mode is a stub and is covered by the not-implemented tests below.
 
 from __future__ import annotations
 
+import re
+
 import numpy as np
 import pandas as pd
 import pytest
@@ -20,15 +22,21 @@ from process_improve.sensory import (
     panel_scorecard,
     validate_descriptive,
 )
+from process_improve.sensory import analysis as sensory_analysis
 from process_improve.sensory.analysis import (
+    _attach_fdr,
     _collinear_clusters,
+    _fit_pls_safe,
     _jackknife_correlation,
     find_predictive_descriptors,
     permutation_column_null,
+    product_means,
     relate_designed,
     relate_observational,
 )
-from process_improve.sensory.ingest import reshape_to_long
+from process_improve.sensory.ingest import _compare_maps, reshape_to_long
+from process_improve.sensory.panel import _eta_squared, _low_tail_outliers
+from process_improve.sensory.validation import is_validated
 from process_improve.univariate.metrics import benjamini_hochberg
 
 PRODUCTS = list("UVWXYZT")
@@ -237,6 +245,69 @@ def test_validate_bad_mode_raises():
         validate_descriptive(_panel(), _obs(), mode="nonsense")
 
 
+def _with_unparseable_scores() -> tuple[pd.DataFrame, pd.DataFrame]:
+    panel = _panel().astype({"score": object})
+    panel.loc[[0, 1], "score"] = "n/a"
+    return panel, _obs()
+
+
+def _with_two_panelists_skipping_two_products() -> tuple[pd.DataFrame, pd.DataFrame]:
+    """Remove 16 of the 224 grid cells (7.1%): between the 5% warning and 20% error thresholds."""
+    panel = _panel()
+    skipped = panel["panelist_id"].isin(["P1", "P2"]) & panel["product"].isin(PRODUCTS[:2])
+    return panel[~skipped].reset_index(drop=True), _obs()
+
+
+def _with_a_missing_descriptor() -> tuple[pd.DataFrame, pd.DataFrame]:
+    obs = _obs()
+    obs.loc[0, "fat"] = np.nan
+    return _panel(), obs
+
+
+@pytest.mark.parametrize(
+    ("make_inputs", "warning"),
+    [
+        pytest.param(
+            _with_unparseable_scores,
+            "2 score value(s) could not be parsed as numeric and became missing.",
+            id="unparseable-scores",
+        ),
+        pytest.param(
+            _with_two_panelists_skipping_two_products,
+            "Panel is unbalanced: 7.1% of the full grid is missing (warning threshold 5%).",
+            id="moderately-unbalanced",
+        ),
+        pytest.param(
+            _with_a_missing_descriptor,
+            "Covariate table has 1 missing descriptor value(s).",
+            id="missing-descriptor",
+        ),
+    ],
+)
+def test_validate_warns_without_blocking(make_inputs, warning):
+    """Problems the relate can live with are reported as warnings, and validation still succeeds."""
+    panel, obs = make_inputs()
+    result = validate_descriptive(panel, obs, mode="observational")
+    assert result.ok, result.errors
+    assert warning in result.warnings
+
+
+def test_validate_covariates_indexed_by_product():
+    """Without a product column the index is the product label, stripped of stray spaces."""
+    obs = _obs().set_index("product")
+    obs.index = [f" {label} " for label in obs.index]
+    result = validate_descriptive(_panel(), obs, mode="observational")
+    assert result.ok, result.errors
+    assert result.covariates.index.name == "product"
+    assert set(result.covariates.index) == set(PRODUCTS)
+
+
+def test_a_validated_result_is_recognised_by_its_hash():
+    result = validate_descriptive(_panel(), _obs(), mode="observational")
+    assert is_validated(result.content_hash)
+    assert not is_validated("0" * 64)
+
+
 def test_content_hash_is_stable():
     a = validate_descriptive(_panel(), _obs(), mode="observational")
     b = validate_descriptive(_panel(), _obs(), mode="observational")
@@ -284,6 +355,70 @@ def test_scorecard_flags_planted_anomaly():
 def test_scorecard_clean_panel_has_no_flags():
     card = panel_scorecard(_panel(anomalous=None))
     assert card.flagged == []
+
+
+@pytest.mark.parametrize(
+    ("scores", "products"),
+    [
+        pytest.param([5.0], ["X"], id="one-score"),
+        pytest.param([5.0, 6.0], ["X", "X"], id="one-product"),
+        pytest.param([5.0, np.nan], ["X", "Y"], id="one-score-once-missing-is-dropped"),
+        pytest.param([5.0, 5.0], ["X", "Y"], id="no-variation"),
+    ],
+)
+def test_discrimination_is_undefined_without_two_products_and_some_spread(scores, products):
+    """Eta-squared needs two products and a nonzero total sum of squares; otherwise it is NaN, not 0 or 1."""
+    assert np.isnan(_eta_squared(pd.Series(scores), pd.Series(products)))
+
+
+def test_discrimination_of_perfectly_separated_products_is_one():
+    assert _eta_squared(pd.Series([1.0, 1.0, 3.0, 3.0]), pd.Series(list("XXYY"))) == pytest.approx(1.0)
+
+
+def test_relative_outliers_need_four_panelists():
+    """The ESD outlier test runs only from four panelists up: the same low value is ignored below that."""
+    agreement = pd.Series([0.1, 0.9, 0.95, 0.92], index=["P1", "P2", "P3", "P4"])
+    assert _low_tail_outliers(agreement) == {"P1"}
+    assert _low_tail_outliers(agreement.iloc[:3]) == set()
+
+
+def _two_session_panel() -> pd.DataFrame:
+    """Return three panelists over two sessions: P1 drifts up a point per session, P2 is steady, P3 never varies."""
+    rows = []
+    for pid in ("P1", "P2", "P3"):
+        for session in (1, 2):
+            for product, level in {"X": 2.0, "Y": 5.0, "Z": 8.0}.items():
+                for attribute in ("sweet", "sour"):
+                    score = {"P1": level + session, "P2": level, "P3": 5.0}[pid]
+                    rows.append(
+                        {
+                            "panelist_id": pid,
+                            "product": product,
+                            "attribute": attribute,
+                            "session": session,
+                            "replicate": 1,
+                            "score": score,
+                        }
+                    )
+    return pd.DataFrame(rows)
+
+
+@pytest.mark.filterwarnings("ignore:Mean of empty slice:RuntimeWarning")
+def test_scorecard_drift_needs_two_sessions_with_different_means():
+    """Drift correlates session order with the session means; a panelist whose means do not move has none."""
+    table = panel_scorecard(_two_session_panel()).table
+    assert table.loc["P1", "drift"] == pytest.approx(1.0)
+    assert np.isnan(table.loc["P2", "drift"])
+    assert table.loc["P2", "agreement"] == pytest.approx(1.0)
+
+
+@pytest.mark.filterwarnings("ignore:Mean of empty slice:RuntimeWarning")
+def test_scorecard_a_panelist_who_never_varies_has_no_agreement_or_discrimination():
+    """With zero spread there is no correlation with the panel and no product effect to measure."""
+    flat = panel_scorecard(_two_session_panel()).table.loc["P3"]
+    assert np.isnan(flat["agreement"])
+    assert np.isnan(flat["discrimination"])
+    assert flat["scale_spread"] == 0.0
 
 
 def test_dropping_panelist_changes_means():
@@ -696,6 +831,106 @@ def test_analyze_refuses_unvalidated():
         analyze_descriptive(bad)
 
 
+def test_analyze_drops_the_panelists_it_is_given():
+    validated = validate_descriptive(_panel(), _obs(), mode="observational")
+    result = analyze_descriptive(validated, drop_panelists=["P8", "P3"], find_predictive=False)
+    assert result.dropped == ["P8", "P3"]
+
+
+def test_analyze_a_designed_result_reaches_the_designed_relate():
+    """A hand-built designed-mode result is routed to the designed relate, which is not implemented yet."""
+    validated = validate_descriptive(_panel(), _obs(), mode="observational")
+    designed = sensory.ValidationResult(
+        ok=True, mode="designed", normalized_df=validated.normalized_df, covariates=validated.covariates
+    )
+    with pytest.raises(NotImplementedError, match=r"^Designed \(DoE/OMARS\) relate is not implemented yet"):
+        analyze_descriptive(designed, find_predictive=False)
+
+
+def test_relate_skips_a_descriptor_with_no_spread():
+    """A constant descriptor cannot correlate with anything, so it gets no association row."""
+    validated = validate_descriptive(_panel(), _obs(), mode="observational")
+    agg = sensory_analysis.aggregate_to_product(validated.normalized_df)
+    out = relate_observational(agg, validated.covariates.assign(flat=1.0), find_predictive=False)
+    assert {row["descriptor"] for row in out["associations"]} == {"sodium", "fat"}
+
+
+def test_product_mean_from_one_score_has_no_interval():
+    means = product_means(_panel().iloc[[0]])
+    assert means[["mean", "ci_low", "ci_high"]].iloc[0].isna().tolist() == [False, True, True]
+
+
+def test_attach_fdr_to_no_records_is_a_no_op():
+    assert _attach_fdr([], alpha=0.05) == []
+
+
+class _SingularPLS:
+    """A PLS stand-in whose fit fails like a near-collinear block does, above ``max_ok`` components."""
+
+    max_ok = 0
+
+    def __init__(self, n_components: int) -> None:
+        self.n_components = n_components
+
+    def fit(self, *_data: pd.DataFrame) -> _SingularPLS:
+        if self.n_components > self.max_ok:
+            raise np.linalg.LinAlgError("singular deflation")
+        return self
+
+
+@pytest.mark.parametrize(
+    ("max_ok", "expected_components"),
+    [pytest.param(1, 1, id="steps-down-to-one-component"), pytest.param(0, 0, id="gives-up-below-one")],
+)
+def test_fit_pls_safe_steps_the_components_down(monkeypatch, max_ok, expected_components):
+    """A singular fit is retried with one fewer component; when even one fails there is no model."""
+    monkeypatch.setattr(_SingularPLS, "max_ok", max_ok)
+    monkeypatch.setattr(sensory_analysis, "PLS", _SingularPLS)
+    model, used = _fit_pls_safe(pd.DataFrame({"x": [1.0, 2.0]}), pd.DataFrame({"y": [1.0, 2.0]}), 3)
+    assert used == expected_components
+    assert (model is None) == (expected_components == 0)
+
+
+def _predictive_case() -> tuple[pd.DataFrame, pd.DataFrame]:
+    """Nine products whose attribute A is driven by descriptor d1 (the predictable case of the gate test)."""
+    products = [f"P{i}" for i in range(9)]
+    rng = np.random.default_rng(3)
+    u = np.linspace(0.0, 1.0, 9) + rng.normal(0, 0.02, 9)
+    agg = pd.DataFrame({"A": 2.0 * u + rng.normal(0, 0.05, 9)}, index=products)
+    cov = pd.DataFrame({"d1": u, "d3": rng.normal(0, 1, 9)}, index=products)
+    return agg, cov
+
+
+def test_find_predictive_with_no_fittable_model_flags_nothing(monkeypatch):
+    """When no PLS can be fitted, every descriptor gets a zero selectivity ratio and a p-value of one."""
+    monkeypatch.setattr(sensory_analysis, "PLS", _SingularPLS)
+    disc = find_predictive_descriptors(*_predictive_case(), n_components=1, n_permutations=9)
+    (gate,) = disc["per_attribute"]
+    assert gate["n_components_cv"] == 0
+    assert not gate["predictable"]
+    desc = pd.DataFrame(disc["descriptors"])
+    assert (desc["selectivity_ratio"] == 0.0).all()
+    assert (desc[["p_value", "p_value_fwer"]] == 1.0).all(axis=None)
+    assert not desc["is_predictive"].any()
+
+
+def test_find_predictive_ignores_permutations_it_cannot_fit(monkeypatch):
+    """A permuted response whose fit fails adds nothing to the null; with none left, every p-value is one."""
+    real_fit = sensory_analysis._fit_pls_safe
+    calls: list[int] = []
+
+    def only_the_first_fit(x, y, n_components):
+        calls.append(n_components)
+        return real_fit(x, y, n_components) if len(calls) == 1 else (None, 0)
+
+    monkeypatch.setattr(sensory_analysis, "_fit_pls_safe", only_the_first_fit)
+    disc = find_predictive_descriptors(*_predictive_case(), n_components=1, n_permutations=9)
+    assert disc["per_attribute"][0]["predictable"]
+    assert len(calls) == 1 + 9
+    desc = pd.DataFrame(disc["descriptors"])
+    assert (desc[["p_value", "p_value_fwer"]] == 1.0).all(axis=None)
+
+
 # ---------------------------------------------------------------------------
 # Mixed Assessor Model: scaling and alignment
 # ---------------------------------------------------------------------------
@@ -771,6 +1006,57 @@ def test_align_invalid_method_raises():
         align_scores(_scaling_panel(), method="nonsense")
 
 
+def test_align_location_recentres_without_rescaling():
+    """The location lever moves every panelist to the grand mean and leaves the compressor compressed."""
+    scaling = mixed_assessor_model(align_scores(_scaling_panel(), method="location")).scaling
+    scaling = scaling.set_index("panelist_id")
+    assert scaling["offset"].abs().max() < 1e-9
+    assert scaling.loc["P0", "beta"] < 0.7
+
+
+def test_align_scale_rescales_without_recentring():
+    """The scale lever brings every slope to about one and leaves the high rater high."""
+    scaling = mixed_assessor_model(align_scores(_scaling_panel(), method="scale")).scaling
+    scaling = scaling.set_index("panelist_id")
+    assert (scaling["beta"].sub(1).abs() < 0.2).all()
+    assert scaling["offset"].idxmax() == "P2"
+
+
+def test_align_with_the_repeated_median_slope_also_harmonises():
+    """``robust=True`` estimates each slope by repeated medians; the aligned panel still has slopes near one."""
+    aligned = align_scores(_scaling_panel(), method="both", robust=True)
+    beta_after = mixed_assessor_model(aligned).scaling.set_index("panelist_id")["beta"]
+    assert (beta_after.sub(1).abs() < 0.2).all()
+
+
+def _cell_panel(scores: dict[str, list[float]]) -> pd.DataFrame:
+    """Return a one-attribute panel from each panelist's list of product scores."""
+    rows = [
+        {"panelist_id": pid, "session": 1, "product": f"prod{j}", "attribute": "A", "replicate": 1, "score": score}
+        for pid, row in scores.items()
+        for j, score in enumerate(row)
+    ]
+    return pd.DataFrame(rows)
+
+
+@pytest.mark.parametrize(
+    ("scores", "classical_defined"),
+    [
+        pytest.param({"P1": [4.0, 4.0, 4.0], "P2": [6.0, 6.0, 6.0]}, False, id="no-product-effect"),
+        pytest.param({"P1": [3.0, 5.0], "P2": [4.0, 7.0], "P3": [2.0, 6.5]}, True, id="two-products"),
+    ],
+)
+def test_mam_f_test_is_undefined_without_disagreement_to_test_against(scores, classical_defined):
+    """With no product effect there is nothing to scale against, and with two products no disagreement df."""
+    mam = mixed_assessor_model(_cell_panel(scores))
+    ftest = mam.ftests.iloc[0]
+    assert np.isnan(ftest["f_product_mam"])
+    assert np.isnan(ftest["p_product_mam"])
+    assert np.isfinite(ftest["f_product_classical"]) == classical_defined
+    if not classical_defined:
+        assert (mam.scaling["beta"] == 1.0).all()
+
+
 def test_analyze_correction_align_changes_means_and_reports_mam():
     panel = _scaling_panel()
     obs = pd.DataFrame({"product": sorted(panel["product"].unique()), "d": range(panel["product"].nunique())})
@@ -810,6 +1096,60 @@ def test_tool_panel_check_missing_columns():
     out = execute_tool_call("sensory_panel_check", {"panel": [{"panelist_id": "P1", "score": 5}]})
     assert not out["ok"]
     assert any("missing required columns" in e for e in out["errors"])
+
+
+def test_tool_panel_check_without_alignment_returns_no_aligned_panel():
+    from process_improve.tool_spec import execute_tool_call
+
+    out = execute_tool_call("sensory_panel_check", {"panel": _scaling_panel().to_dict(orient="records")})
+    assert out["ok"]
+    assert "aligned_panel" not in out
+
+
+def test_tool_validate_descriptive_dispatch():
+    """The validate tool returns the validation summary, with the same hash as the function."""
+    from process_improve.tool_spec import execute_tool_call
+
+    payload = {
+        "panel": _panel().to_dict(orient="records"),
+        "covariates": _obs().to_dict(orient="records"),
+        "mode": "observational",
+        "score_min": 0,
+        "score_max": 10,
+    }
+    out = execute_tool_call("sensory_validate_descriptive", payload)
+    assert out["ok"]
+    assert out["mode"] == "observational"
+    assert out["errors"] == []
+    assert out["stats"]["n_products"] == len(PRODUCTS)
+    assert out["content_hash"] == validate_descriptive(_panel(), _obs(), mode="observational").content_hash
+
+
+def test_tool_analyze_stops_at_validation_errors():
+    """Data that fails validation is reported as {ok: false, errors} before any analysis runs."""
+    from process_improve.tool_spec import execute_tool_call
+
+    payload = {
+        "panel": _panel().drop(columns=["score"]).to_dict(orient="records"),
+        "covariates": _obs().to_dict(orient="records"),
+        "mode": "observational",
+    }
+    out = execute_tool_call("sensory_analyze_descriptive", payload)
+    assert out["ok"] is False
+    assert any("missing required columns" in e for e in out["errors"])
+    assert set(out) == {"ok", "errors", "warnings"}
+
+
+def test_get_sensory_tool_specs_lists_every_sensory_tool():
+    from process_improve.sensory.tools import get_sensory_tool_specs
+
+    names = [spec["name"] for spec in get_sensory_tool_specs()]
+    assert sorted(names) == [
+        "sensory_analyze_descriptive",
+        "sensory_panel_check",
+        "sensory_reshape_to_long",
+        "sensory_validate_descriptive",
+    ]
 
 
 def _wide_panel(*, seed: int = 0):
@@ -911,6 +1251,56 @@ def test_reshape_means_only_is_refused():
         )
 
 
+@pytest.mark.parametrize(
+    ("layout", "mapping", "message"),
+    [
+        pytest.param(
+            "wide",
+            {"panelist_id": "Assessor"},
+            "layout must be 'long', 'wide_by_attribute', or 'wide_by_product', got 'wide'.",
+            id="unknown-layout",
+        ),
+        pytest.param(
+            "wide_by_attribute",
+            {"panelist_id": "Who", "product": "Sample"},
+            "mapping['panelist_id'] = 'Who' is not a column in the data.",
+            id="panelist-column-absent",
+        ),
+        pytest.param(
+            "long",
+            {"panelist_id": "Assessor", "product": "Sample", "attribute": "Salty", "score": "value"},
+            "mapping['score'] = 'value' is not a column in the data (required for long layout).",
+            id="long-score-column-absent",
+        ),
+        pytest.param(
+            "wide_by_product",
+            {"panelist_id": "Assessor"},
+            "mapping['attribute'] = None is required for wide_by_product layout.",
+            id="wide-by-product-without-attribute",
+        ),
+        pytest.param(
+            "wide_by_attribute",
+            {"panelist_id": "Assessor", "product": "Sample", "attributes": []},
+            "No attribute columns found for wide_by_attribute layout.",
+            id="no-value-columns",
+        ),
+    ],
+)
+def test_reshape_rejects_a_mapping_it_cannot_follow(layout, mapping, message):
+    """Each mapping error names the role and the column, before any reshaping is attempted."""
+    with pytest.raises(ValueError, match=f"^{re.escape(message)}$"):
+        reshape_to_long(_wide_panel(), layout=layout, mapping=mapping)
+
+
+def test_reshape_wide_keeps_a_mapped_session_column():
+    """A session column named in the mapping is carried into the long table instead of the default of 1."""
+    wide = _wide_panel().assign(Day=lambda frame: frame["Rep"] + 10)
+    mapping = {"panelist_id": "Assessor", "product": "Sample", "replicate": "Rep", "session": "Day"}
+    long_df, checks = reshape_to_long(wide, layout="wide_by_attribute", mapping=mapping)
+    assert checks["ok"]
+    assert sorted(long_df["session"].unique()) == [11, 12]
+
+
 def test_reshape_missing_attribute_column_raises():
     with pytest.raises(ValueError, match="not in the data"):
         reshape_to_long(
@@ -918,6 +1308,81 @@ def test_reshape_missing_attribute_column_raises():
             layout="wide_by_attribute",
             mapping={"panelist_id": "Assessor", "product": "Sample", "attributes": ["Salty", "Sweetness"]},
         )
+
+
+class _PinnedLabel(str):
+    """A label whose hash is its trailing digit, so a set of these iterates in a known order.
+
+    Plain string hashes change with the interpreter's hash seed, which is what made the
+    round-trip comparison pass or fail at random; pinning them makes both orders testable.
+    """
+
+    __slots__ = ()
+
+    def __hash__(self) -> int:
+        return int(self[-1])
+
+
+_FIRST, _SECOND = _PinnedLabel("label 0"), _PinnedLabel("label 1")
+
+
+@pytest.mark.parametrize(
+    ("before", "after", "expected"),
+    [
+        pytest.param({_FIRST: 5.0, _SECOND: 4.0}, {_SECOND: 4.0}, np.inf, id="lost-label-comes-first"),
+        pytest.param({_FIRST: 5.0, _SECOND: 4.0}, {_FIRST: 5.0}, np.inf, id="lost-label-comes-last"),
+        pytest.param({_SECOND: 4.0}, {_FIRST: 5.0, _SECOND: 4.0}, np.inf, id="invented-label-comes-first"),
+        pytest.param({_FIRST: 5.0}, {_FIRST: 5.0, _SECOND: 4.0}, np.inf, id="invented-label-comes-last"),
+        pytest.param({_FIRST: 5.0}, {_FIRST: np.nan}, np.inf, id="every-score-of-a-label-lost"),
+        pytest.param({_FIRST: np.nan, _SECOND: 4.0}, {_FIRST: np.nan, _SECOND: 4.0}, 0.0, id="unscored-comes-first"),
+        pytest.param({_FIRST: 5.0, _SECOND: np.nan}, {_FIRST: 5.0, _SECOND: np.nan}, 0.0, id="unscored-comes-last"),
+        pytest.param({_FIRST: 5.0, _SECOND: 4.0}, {_FIRST: 5.5, _SECOND: 4.0}, 0.5, id="one-mean-changed"),
+    ],
+)
+def test_round_trip_comparison_does_not_depend_on_label_order(before, after, expected):
+    """A lost or invented label always fails the check; a label with no scores on either side never does."""
+    assert _compare_maps(before, after) == expected
+
+
+def test_reshape_refuses_a_row_without_a_panelist():
+    """A missing panelist id would become the label 'nan'; the round-trip check catches it every time."""
+    wide = _wide_panel()
+    wide.loc[0, "Assessor"] = np.nan
+    with pytest.raises(ValueError, match=r"Round-trip check failed .*per_panelist_max_diff=inf"):
+        reshape_to_long(
+            wide,
+            layout="wide_by_attribute",
+            mapping={"panelist_id": "Assessor", "product": "Sample", "replicate": "Rep"},
+        )
+
+
+def _with_stray_spaces(case: str) -> tuple[pd.DataFrame, str, dict]:
+    """Return a panel whose labels carry stray spaces, with the layout and mapping that reshape it."""
+    wide_mapping = {"panelist_id": "Assessor", "product": "Sample", "replicate": "Rep"}
+    if case == "attribute-header":
+        return _wide_panel().rename(columns={"Salty": "Salty "}), "wide_by_attribute", wide_mapping
+    if case == "panelist-id":
+        return _wide_panel().replace({"Assessor": {"P1": " P1"}}), "wide_by_attribute", wide_mapping
+    long_panel = _panel(anomalous=None).replace({"attribute": {"A": "A "}})
+    mapping = {name: name for name in ("panelist_id", "product", "attribute", "score", "session", "replicate")}
+    return long_panel, "long", mapping
+
+
+@pytest.mark.parametrize(
+    ("case", "column", "label"),
+    [
+        ("attribute-header", "attribute", "Salty"),
+        ("panelist-id", "panelist_id", "P1"),
+        ("long-attribute-label", "attribute", "A"),
+    ],
+)
+def test_reshape_strips_stray_spaces_from_labels(case, column, label):
+    """Labels are written without surrounding spaces, and the round-trip check compares them that way too."""
+    data, layout, mapping = _with_stray_spaces(case)
+    long_df, checks = reshape_to_long(data, layout=layout, mapping=mapping)
+    assert checks["ok"]
+    assert label in set(long_df[column])
+    assert not long_df[column].str.contains(" ").any()
 
 
 def test_validate_hash_is_order_independent():
