@@ -260,15 +260,16 @@ current gaps, are in
 pip install process-improve                    # core: numpy, pandas, scipy, scikit-learn, statsmodels, ...
 pip install 'process-improve[plotting]'        # adds matplotlib, plotly, seaborn, ridgeplot
 pip install 'process-improve[expt]'            # adds pyDOE3 (Taguchi orthogonal arrays; every other design is in the core)
-pip install 'process-improve[batch]'           # adds openpyxl, scikit-image (batch process data IO)
-pip install 'process-improve[mcp]'             # adds the MCP server runtime
+pip install 'process-improve[batch]'           # adds openpyxl, ruptures, scikit-image (batch data IO, change points)
+pip install 'process-improve[control]'         # adds osqp (the batch mid-course correction solver)
+pip install 'process-improve[mcp]'             # adds mcp (the MCP server runtime)
 pip install 'process-improve[fast]'            # adds numba (JIT speedups for batch alignment)
 pip install 'process-improve[all]'             # everything above
 ```
 
 Requires Python 3.10 or newer. The core install pulls in `numpy`, `pandas`, `scipy`,
 `scikit-learn`, `statsmodels`, `patsy`, `pydantic`, `pyyaml`, `threadpoolctl` and `tqdm`.
-Heavier optional surfaces (plotting, Taguchi arrays, batch IO, the MCP server, numba JIT)
+Heavier optional surfaces (plotting, Taguchi arrays, batch IO, batch control, the MCP server, numba JIT)
 live in extras, so a caller who only needs, say, `detect_multivariate_outliers` does not have
 to install Plotly or numba.
 
