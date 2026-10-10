@@ -179,7 +179,7 @@ class TestHoltWintersChart:
 
     def test_unknown_variant_rejected_up_front(self) -> None:
         with pytest.raises(ValueError, match="not implemented"):
-            ControlChart(variant="cusum")
+            ControlChart(variant="moving.range")
 
 
 class TestCpkTool:

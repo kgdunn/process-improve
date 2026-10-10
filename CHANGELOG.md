@@ -58,6 +58,28 @@ those changes.
   - **Dependency:** `threadpoolctl`, already installed with scikit-learn, is now
     declared directly. The fits run their many small matrix operations on one BLAS
     thread, which is ten times faster.
+- **EWMA control chart: `ControlChart(variant="ewma")`.** The chart plots the
+  exponentially weighted moving average `z_t = w y_t + (1 - w) z_(t-1)`, started at the
+  target, against its exact 3-sigma limits, which start narrow and widen to
+  `target +/- 3 s sqrt(w / (2 - w))`. Set the weight with
+  `calculate_limits(y, ld_1=w)`; the default 0.2 suits small shifts, and `ld_1=1` gives
+  the Shewhart individuals chart. A given `target` and `s` are used as they are; a
+  missing one is estimated as for the Shewhart chart. A missing observation holds the
+  statistic and is never flagged. On a sustained one-sigma shift, with the target and
+  `s` known, the EWMA chart alarms 14 samples after the shift and the Shewhart chart not
+  at all. The `control_chart` agent tool takes `chart_type="ewma"` and also reports the
+  weight and the statistic at each alarm.
+- **CUSUM control chart: `ControlChart(variant="cusum")`.** The tabular CUSUM keeps two
+  one-sided sums, `C+_t = max(0, C+_(t-1) + (y_t - target) - K)` and
+  `C-_t = max(0, C-_(t-1) - (y_t - target) - K)`, and raises an alarm when either exceeds
+  the decision interval `H`; that sum then restarts from zero, as the textbook describes.
+  Set `K = k s` and `H = h s` with `calculate_limits(y, k=..., h=...)` (defaults 0.5 and
+  5). Each alarm in `cusum_alarms` also dates the start of the shift and estimates the new
+  mean. It reproduces Montgomery's tabular CUSUM example (an alarm at period 29, the shift
+  dated to period 23, a new mean of 11.25), and its simulated average run lengths match
+  the published 10.4 samples after a one-sigma shift and 465 in control. The
+  `control_chart` agent tool takes `chart_type="cusum"`. Each variant now accepts only
+  its own tuning parameters, and names them when given another chart's.
 
 ### Changed
 
@@ -285,9 +307,8 @@ The fixes below were found while raising test coverage to 96% (#678).
   on a float, and the `ColumnTransformer` example, now in `SKLEARN_COMPATIBILITY.md`
   and tested there, needs `OneHotEncoder(sparse_output=False)` under pandas output.
   The README also gains a banner, a recording of the in-browser app, and a table
-  from ten practical questions to one call and a textbook chapter; it no longer
-  lists a CUSUM chart, which does not exist, and its links are absolute, so they
-  work on PyPI too.
+  from ten practical questions to one call and a textbook chapter, and its links are
+  absolute, so they work on PyPI too.
 - **PyPI links the documentation, changelog, in-browser app and textbook**
   (`[project.urls]`).
 - **The README is checked beyond its code blocks.** `tests/test_readme_guards.py`

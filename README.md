@@ -214,7 +214,7 @@ when the process drifts, and they report how far it has moved from where it was 
   and return the null space of equally valid designs.
 - **Multi-block and T-shaped data**: TPLS (PLS for T-shaped data structures), MBPCA and MBPLS.
 - **On-line models**: `AdaptivePCA` and `AdaptivePLS` for monitoring and soft sensing.
-- **Process monitoring**: Shewhart and Holt-Winters control charts, process capability.
+- **Process monitoring**: Shewhart, EWMA, CUSUM and Holt-Winters control charts, process capability.
 - **Batch data**: alignment, feature extraction, batch PCA and PLS, on-line batch monitoring.
 - **Sensory panels**: panel validation, the Mixed Assessor Model, attribute-to-product relations.
 - **Robust regression**: repeated-median and Theil-Sen estimators for data with outliers.
@@ -242,7 +242,7 @@ which variable moved, and how confident a prediction is.
 | Model inversion: design inputs for a target       |       -      |        ✓        |
 | On-line / adaptive monitoring (recursive PCA/PLS) |       -      |        ✓        |
 | Designed experiments, incl. OMARS & optimal       |       -      |        ✓        |
-| Control charts (Shewhart / Holt-Winters)          |       -      |        ✓        |
+| Shewhart, EWMA, CUSUM, Holt-Winters charts        |       -      |        ✓        |
 | Batch process monitoring                          |       -      |        ✓        |
 | Plotly diagnostics built in                       |       -      |        ✓        |
 | Labeled `DataFrame` outputs                       |    partial   |        ✓        |
