@@ -34,7 +34,7 @@ from typing import TYPE_CHECKING, Any
 import numpy as np
 import pandas as pd
 
-from process_improve.experiments import Factor, analyze_experiment, generate_design
+from process_improve.experiments import Factor, TrueProcess, analyze_experiment, generate_design
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Iterator
@@ -170,6 +170,71 @@ MODELS = ("main_effects", "interactions", "quadratic")
 
 ALPHAS = ("face_centered", "rotatable", "orthogonal")
 
+#: Processes the page can simulate results from, in coded units. A term is a tuple of
+#: factor positions: ``()`` the intercept, ``(0,)`` the first factor the reader
+#: entered, ``(0, 1)`` the interaction of the first two, ``(2, 2)`` the square of the
+#: third. A term naming a factor the reader does not have is left out, and a factor
+#: no term names has no effect. ``None`` draws the process at random from the seed.
+SCENARIOS: dict[str, dict[str, Any]] = {
+    "reactor": {
+        "label": "Reactor yield",
+        "hint": "Two strong main effects, an interaction between them, and curvature in the third factor.",
+        "terms": {(): 62.0, (0,): 4.0, (1,): -3.1, (2,): 1.75, (0, 1): 1.5, (2, 2): -2.25},
+        "sigma": 1.0,
+    },
+    "main_effects": {
+        "label": "Main effects only",
+        "hint": "Each of the first three factors changes the response on its own, along a straight line.",
+        "terms": {(): 50.0, (0,): 3.0, (1,): -2.0, (2,): 1.5},
+        "sigma": 1.0,
+    },
+    "interaction": {
+        "label": "An interaction",
+        "hint": "The effect of the first factor depends on the level of the second.",
+        "terms": {(): 40.0, (0,): 1.0, (1,): 0.5, (0, 1): 3.0},
+        "sigma": 1.0,
+    },
+    "optimum": {
+        "label": "A maximum inside the ranges",
+        "hint": "A curved surface in the first two factors, highest at a point inside their ranges.",
+        "terms": {(): 80.0, (0,): 1.2, (1,): -0.8, (0, 1): 1.0, (0, 0): -3.0, (1, 1): -2.5},
+        "sigma": 1.0,
+    },
+    "nothing": {
+        "label": "Nothing active",
+        "hint": "No factor changes the response: whatever the analysis finds is noise.",
+        "terms": {(): 50.0},
+        "sigma": 1.0,
+    },
+    "random": {
+        "label": "A random process",
+        "hint": (
+            "Two or three active factors drawn at random, with an interaction or curvature; "
+            "new noise draws a new process."
+        ),
+        "terms": None,
+        "sigma": 1.0,
+    },
+}
+
+#: The worked example the page opens with, and that "Run the worked example" runs live.
+DEMO: dict[str, Any] = {
+    "design": {
+        "design_type": "box_behnken",
+        "factors": [
+            {"name": "T", "low": 150, "high": 200, "units": "degC"},
+            {"name": "P", "low": 1, "high": 3, "units": "bar"},
+            {"name": "F", "low": 10, "high": 20, "units": "L/min"},
+        ],
+        "response": "y",
+        "n_center_points": 3,
+    },
+    "scenario": "reactor",
+    "sigma": 1.0,
+    "seed": 1,
+    "model": "",
+}
+
 
 # --------------------------------------------------------------------------- helpers
 def _clean(value: object) -> object:
@@ -277,8 +342,9 @@ def _factors(spec: dict) -> list[Factor]:
 
 # --------------------------------------------------------------------------- public API
 def catalogue(_: dict) -> dict:
-    """List what the page offers: design types, models and CCD axial choices."""
-    return {"designs": DESIGNS, "models": list(MODELS), "alphas": list(ALPHAS)}
+    """List what the page offers: design types, models, CCD axial choices, processes, and the worked example."""
+    scenarios = {key: {"label": s["label"], "hint": s["hint"], "sigma": s["sigma"]} for key, s in SCENARIOS.items()}
+    return {"designs": DESIGNS, "models": list(MODELS), "alphas": list(ALPHAS), "scenarios": scenarios, "demo": DEMO}
 
 
 def make_design(spec: dict) -> dict:
@@ -322,6 +388,7 @@ def make_design(spec: dict) -> dict:
         "outside_range": _outside_range(runs, factors),
         "model": stored["model"],
         "facts": _design_facts(result, names, kwargs),
+        "spec": stored,
         "xlsx_base64": _to_workbook(runs, stored),
     }
 
@@ -530,7 +597,11 @@ def analyze(request: dict) -> dict:
     workbook can be analysed as the runs come in.
     """
     runs, spec = _read_workbook(base64.b64decode(request["xlsx_base64"]))
-    model = request.get("model") or spec.get("model", "interactions")
+    return _analysis(runs, spec, request.get("model") or spec.get("model", "interactions"))
+
+
+def _analysis(runs: pd.DataFrame, spec: dict, model: str) -> dict:
+    """Fit the model to the completed runs of a run sheet, from a workbook or from the page."""
     if model not in MODELS:
         raise ValueError(f"Model must be one of {', '.join(MODELS)}.")
     response = spec["response"]
@@ -644,6 +715,7 @@ def _fit_estimable(coded: pd.DataFrame, y: pd.Series, model: str, names: list[st
             )
     return {
         "out": out,
+        "formula": formula,
         "chains": chains,
         "labels": labels,
         "not_estimable": not_estimable,
@@ -727,6 +799,204 @@ def _equation(response: str, coefficients: list[dict]) -> str:
     return f"{response} = " + " ".join(parts)
 
 
+# --------------------------------------------------------------------------- runs held by the page
+def _checked_spec(spec: dict) -> dict[str, Any]:
+    """Check a design specification sent back by the page, as ``make_design`` stored it.
+
+    The specification travels through the page, and a workbook can carry one in, so it
+    is checked as data: the design type and model must be ones the page offers, and the
+    factor and response names must be variable names.
+    """
+    if not isinstance(spec, dict) or spec.get("design_type") not in DESIGNS:
+        raise ValueError("The page sent a design this page did not make.")
+    factors = _factors(spec)
+    response = str(spec.get("response") or "")
+    if not response.isidentifier() or response in {f.name for f in factors}:
+        raise ValueError("The response name must be a variable name different from every factor.")
+    model = spec.get("model") or DESIGNS[spec["design_type"]]["model"]
+    if model not in MODELS:
+        raise ValueError(f"Model must be one of {', '.join(MODELS)}.")
+    return {
+        **spec,
+        "factors": [{"name": f.name, "low": f.low, "high": f.high, "units": f.units} for f in factors],
+        "response": response,
+        "model": model,
+    }
+
+
+def _runs_frame(request: dict, spec: dict) -> pd.DataFrame:
+    """Rebuild the run sheet the page shows, with the responses it holds in the response column."""
+    columns = [str(c) for c in request.get("columns") or []]
+    rows = request.get("rows") or []
+    names = [f["name"] for f in spec["factors"]]
+    missing = [n for n in names if n not in columns]
+    if missing or not rows:
+        raise ValueError(f"The run sheet is missing the factor column(s) {missing}." if missing else "No runs.")
+    runs = pd.DataFrame(rows, columns=columns)
+    runs[names] = runs[names].apply(pd.to_numeric, errors="raise")
+    responses = request.get("responses")
+    if responses is not None:
+        if len(responses) != len(runs):
+            raise ValueError(f"{len(responses)} responses were sent for {len(runs)} runs.")
+        runs[spec["response"]] = pd.to_numeric(pd.Series(responses, dtype=object), errors="coerce").to_numpy()
+    return runs
+
+
+def _coded(runs: pd.DataFrame, factors: list[dict]) -> pd.DataFrame:
+    """Code each factor's settings to -1 at its low value and +1 at its high value."""
+    return pd.DataFrame(
+        {f["name"]: (runs[f["name"]] - (f["high"] + f["low"]) / 2) / ((f["high"] - f["low"]) / 2) for f in factors}
+    )
+
+
+def _term_name(term: tuple[int, ...], names: list[str]) -> str:
+    """Name a scenario's term, given as factor positions, as ``analyze_experiment`` names it."""
+    if not term:
+        return "Intercept"
+    if len(term) == 2 and term[0] == term[1]:
+        return f"I({names[term[0]]} ** 2)"
+    return ":".join(names[i] for i in term)
+
+
+def _random_terms(k: int, rng: np.random.Generator) -> dict[tuple[int, ...], float]:
+    """Draw a process: two or three active factors, with an interaction or curvature among them."""
+
+    def size() -> float:
+        return round(float(rng.choice([-1.0, 1.0]) * rng.uniform(1.5, 4.0)), 2)
+
+    active = sorted(int(i) for i in rng.choice(k, size=min(k, int(rng.integers(2, 4))), replace=False))
+    terms: dict[tuple[int, ...], float] = {(): round(float(rng.uniform(40.0, 80.0)), 1)}
+    terms.update({(i,): size() for i in active})
+    i, j = (int(v) for v in sorted(rng.choice(active, size=2, replace=False)))
+    terms[(i, j) if rng.random() < 0.6 else (i, i)] = size()
+    return terms
+
+
+def _scenario_process(key: str, names: list[str], request: dict) -> TrueProcess:
+    """Return the scenario's process over the reader's factors, with the noise the reader chose."""
+    if key not in SCENARIOS:
+        raise ValueError(f"Unknown process {key!r}.")
+    scenario = SCENARIOS[key]
+    terms = scenario["terms"]
+    if terms is None:
+        terms = _random_terms(len(names), np.random.default_rng(int(request.get("seed", 1))))
+    coefficients = {_term_name(t, names): c for t, c in terms.items() if all(i < len(names) for i in t)}
+    return TrueProcess(coefficients, sigma=float(request.get("sigma") or scenario["sigma"]))
+
+
+def _truth(process: TrueProcess) -> list[dict[str, Any]]:
+    """List a process's terms as the analysis lists its coefficients."""
+    return [{"term": t, "label": _pretty(t), "coefficient": c} for t, c in process.coefficients.items()]
+
+
+def simulate(request: dict) -> dict:
+    """Simulate the results of the page's runs from a known process, in coded units, plus noise.
+
+    The responses are rounded to the noise's precision, two significant decimals below
+    its standard deviation, as a measurement would be.
+    """
+    spec = _checked_spec(request.get("spec") or {})
+    runs = _runs_frame(request, spec)
+    names = [f["name"] for f in spec["factors"]]
+    key = str(request.get("scenario") or "reactor")
+    process = _scenario_process(key, names, request)
+    seed = int(request.get("seed", 1))
+    values = process.simulate(_coded(runs, spec["factors"]), random_state=seed)
+    decimals = max(0, 2 - math.floor(math.log10(process.sigma)))
+    truth = _truth(process)
+    return {
+        "scenario": key,
+        "label": SCENARIOS[key]["label"],
+        "sigma": process.sigma,
+        "seed": seed,
+        "responses": [round(float(v), decimals) for v in values],
+        "truth": truth,
+        "equation": _equation(spec["response"], truth),
+    }
+
+
+def analyze_runs(request: dict) -> dict:
+    """Fit the model to the runs the page holds, with the responses typed or simulated there."""
+    spec = _checked_spec(request.get("spec") or {})
+    return _analysis(_runs_frame(request, spec), spec, request.get("model") or spec["model"])
+
+
+def workbook(request: dict) -> dict:
+    """Write the page's runs and responses to a workbook the page can analyse again.
+
+    Simulated responses are marked, in a ``Source`` column and in the stored
+    specification, so the workbook says which values were measured.
+    """
+    spec = _checked_spec(request.get("spec") or {})
+    runs = _runs_frame(request, spec)
+    sources = request.get("sources")
+    if sources and any(sources):
+        if len(sources) != len(runs):
+            raise ValueError(f"{len(sources)} sources were sent for {len(runs)} runs.")
+        runs["Source"] = ["simulated" if s == "simulated" else "" for s in sources]
+    simulated = request.get("simulated")
+    if simulated:
+        spec = {**spec, "simulated": {k: simulated.get(k) for k in ("scenario", "sigma", "seed")}}
+    return {"xlsx_base64": _to_workbook(runs, spec)}
+
+
+def _contour_pair(coefficients: list[dict], names: list[str]) -> list[str]:
+    """Pick the two factors with the largest main effects, for the response surface."""
+    size = {c["term"]: abs(c["coefficient"] or 0.0) for c in coefficients}
+    return sorted(names, key=lambda n: -size.get(n, 0.0))[:2]
+
+
+def plots(request: dict) -> dict:
+    """Draw the analysis of the page's runs with the library's plots, as Plotly figures.
+
+    The response surface of the fitted model over the two factors with the largest
+    main effects, the others held at their centre; the true surface beside it when the
+    results were simulated; the residuals against the fitted values; and, for a
+    saturated two-level design, the half-normal plot of the effects with Lenth's
+    margins. Each figure is JSON text, for Plotly.js at the version ``plotly_js`` names.
+    """
+    from plotly.offline import get_plotlyjs_version  # noqa: PLC0415 - plotly is installed for the first chart
+    from plotly.utils import PlotlyJSONEncoder  # noqa: PLC0415
+
+    from process_improve.experiments.visualization.plots import create_plot  # noqa: PLC0415
+
+    spec = _checked_spec(request.get("spec") or {})
+    model = request.get("model") or spec["model"]
+    if model not in MODELS:
+        raise ValueError(f"Model must be one of {', '.join(MODELS)}.")
+    runs = _runs_frame(request, spec)
+    names = [f["name"] for f in spec["factors"]]
+    response = spec["response"]
+    y = pd.to_numeric(runs[response], errors="coerce")
+    done = y.notna().to_numpy()
+    coded = _coded(runs, spec["factors"])[done].reset_index(drop=True)
+    y = y[done].reset_index(drop=True).rename(response)
+    with _listening():
+        fit = _fit_estimable(coded, y, model, names)
+        out = analyze_experiment(coded, y, model=fit["formula"], analysis_type=["coefficients", "residual_diagnostics"])
+    rows = coded.assign(**{response: y}).to_dict("records")
+    pair = _contour_pair(out["coefficients"], names)
+
+    def draw(kind: str, results: dict, **options: Any) -> str:  # noqa: ANN401
+        figure = create_plot(kind, analysis_results=results, design_data=rows, response_column=response, **options)
+        return json.dumps(figure.to_plotly(), cls=PlotlyJSONEncoder)
+
+    figures = {"contour": draw("contour", out, factors_to_plot=pair)}
+    truth = request.get("truth")
+    if truth:
+        process = TrueProcess({t["term"]: t["coefficient"] for t in truth}, sigma=1.0)
+        missing = [f for f in process.factors if f not in names]
+        if missing:
+            raise ValueError(f"The true process names factors the design does not have: {missing}.")
+        figures["true_contour"] = draw("contour", {"coefficients": _truth(process)}, factors_to_plot=pair)
+    if fit["out"]["model_summary"]["df_residual"] > 0:
+        figures["residuals"] = draw("residuals_vs_fitted", out)
+    if fit["lenth"]:
+        effects = analyze_experiment(coded, y, model=fit["formula"], analysis_type="effects")["effects"]
+        figures["half_normal"] = draw("half_normal", {"effects": effects, "lenth_method": fit["lenth"]})
+    return {"figures": figures, "contour_factors": pair, "plotly_js": get_plotlyjs_version()}
+
+
 # --------------------------------------------------------------------------- JSON entry points
 def api_catalogue(payload: str = "{}") -> str:
     """JSON wrapper around :func:`catalogue`."""
@@ -741,3 +1011,23 @@ def api_make_design(payload: str) -> str:
 def api_analyze(payload: str) -> str:
     """JSON wrapper around :func:`analyze`."""
     return _reply(analyze, payload)
+
+
+def api_simulate(payload: str) -> str:
+    """JSON wrapper around :func:`simulate`."""
+    return _reply(simulate, payload)
+
+
+def api_analyze_runs(payload: str) -> str:
+    """JSON wrapper around :func:`analyze_runs`."""
+    return _reply(analyze_runs, payload)
+
+
+def api_workbook(payload: str) -> str:
+    """JSON wrapper around :func:`workbook`."""
+    return _reply(workbook, payload)
+
+
+def api_plots(payload: str) -> str:
+    """JSON wrapper around :func:`plots`."""
+    return _reply(plots, payload)
