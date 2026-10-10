@@ -4,6 +4,7 @@ import numpy as np
 import pytest
 
 from process_improve.monitoring.control_charts import ControlChart, _one_sided_cusum
+from process_improve.tool_spec import execute_tool_call
 
 # Montgomery's tabular CUSUM example (Introduction to Statistical Quality Control, Example 9.1):
 # 20 samples from N(10, 1), then 10 after the mean shifts to 11, charted with k = 0.5 and h = 5.
@@ -157,3 +158,22 @@ def test_refitting_a_chart_matches_a_fresh_chart() -> None:
     fresh = fit_cusum(y[:50])
     assert (reused.target, reused.s, reused.k, reused.h) == (fresh.target, fresh.s, 0.5, 5.0)
     assert reused.cusum_alarms.equals(fresh.cusum_alarms)
+
+
+def test_control_chart_tool_reports_the_decision_interval_and_each_alarm() -> None:
+    """The tool reports no limits on the observations, the decision interval, and a record per alarm."""
+    rng = np.random.default_rng(9)
+    # A long in-control history, then a sustained one-sigma shift over the last 20 samples.
+    values = [float(v) for v in np.concatenate([rng.normal(50, 2, 80), rng.normal(52, 2, 20)])]
+    result = execute_tool_call("control_chart", {"values": values, "chart_type": "cusum"})
+
+    assert "error" not in result
+    assert (result["upper_control_limit"], result["lower_control_limit"]) == (None, None)
+    assert result["decision_interval"] == pytest.approx(5 * result["spread"])
+    assert result["reference_value"] == pytest.approx(0.5 * result["spread"])
+    alarms = result["cusum_alarms"]
+    assert [alarm["sample"] for alarm in alarms] == result["out_of_control_indices"] == [89, 94]
+    # Dated to sample 79, one before the true shift at 80 (sample 79 happens to be high), and
+    # sized at 52.2 against the true 52.
+    assert (alarms[0]["direction"], alarms[0]["shift_start"]) == ("up", 79)
+    assert alarms[0]["new_mean"] == pytest.approx(52.23, abs=0.005)

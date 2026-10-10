@@ -510,7 +510,7 @@ def test_control_chart_tool_default_holt_winters(in_control_series_with_one_outl
     assert any(abs(v - 15.0) < 1e-9 for v in result["out_of_control_values"])
 
 
-@pytest.mark.parametrize("chart_type", ["shewhart", "holt_winters", "ewma"])
+@pytest.mark.parametrize("chart_type", ["shewhart", "holt_winters", "ewma", "cusum"])
 def test_control_chart_tool_supports_each_chart_type(chart_type: str) -> None:
     """Every chart_type produces a valid result on a generic series."""
     rng = np.random.default_rng(0)
