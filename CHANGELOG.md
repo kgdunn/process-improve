@@ -200,6 +200,55 @@ those changes.
   `n_whole_plots` counted one replicate's. Each replicate now has whole plots of its
   own, as it is run again from scratch.
 
+The fixes below were found while raising test coverage to 96% (#678).
+
+- **`find_reference_batch` relaxes the SPE cutoff all the way to 0.95.** The loop
+  added 0.05 to a float each step, stopped at 0.9000000000000004, and never tried the
+  0.95 its error message reports. On the dryer data, 60 batches pass at 0.95, yet a
+  request for 60 failed with "only 58 batches passed".
+- **The `slope` feature of the `extract_batch_features` tool works.** The tool passed
+  the time column as `time_tag`, which only `f_area` accepts, so every request returned
+  `{"error": "f_slope() got an unexpected keyword argument 'time_tag'"}`.
+- **`TPLS` accepts int64 columns, as its error message always said.** The check tested
+  `np.dtypes.IntDType`, which is C `int` (int32), so int64 data were refused.
+- **`TPLS` fits group names that are not strings.** One check compared the keys of `D`
+  as `str(key)` and another compared them as given, so an integer group name always
+  failed one of the two. `DataFrameDict`'s type error also no longer reads "got
+  instead<class ...>".
+- **`repeated_median_slope(..., nowarn=True)` refuses x and y of unequal length**, with
+  the same `ValueError` as without `nowarn`. Before, it indexed past the shorter vector
+  and raised an `IndexError`.
+- **`score_limit` and `ellipse_coordinates` raise instead of asserting.** Under
+  `python -O` the asserts vanish. `conf_level=1.0` then returned an infinite limit, and
+  omitting `scaling_factor_for_scores` failed further in with an `AttributeError`.
+- **`ssq` refuses an axis other than 0, 1 or None.** It used to return a sum of squares
+  of 0.0.
+- **The robust-regression tool explains when it has fewer than three complete (x, y)
+  pairs.** It used to fail with `{"error": "'float' object is not iterable"}`.
+- **Pickling a fitted latent-variable model (`PCA`, `PLS`, ...) leaves its DataFrame
+  cache intact.** On Python 3.11+, sklearn's `__getstate__` returns the instance's own
+  `__dict__`, so dropping the cache from it emptied the live model's cache. After a
+  joblib dump, a multiprocessing hand-off or a deep copy, `scores_` and the other
+  frames came back as new objects. The cache is now dropped from a copy and is still
+  not pickled.
+- **`lm()` fits one-column models.** `lm("y ~ 1", df)` and `lm("y ~ 0 + A", df)` raised
+  `TypeError: cannot unpack non-iterable numpy.float64`.
+- **`summary()` and `get_title()` work on a model fitted to a plain DataFrame**, which
+  `lm` accepts but which has no `pi_title`. Both raised `AttributeError`.
+- **The sensory reshape's round-trip check gives the same answer on every run.** A label
+  lost or invented by the reshape gave a NaN difference. `max()` over NaN depends on
+  input order, and the order of string labels changes with the hash seed, so a missing
+  panelist id passed on some runs. Such a label now always fails the check. Labels with
+  stray spaces (`"Salty "`) are compared in the stripped form the long table writes, so
+  they now reshape cleanly.
+
+### Security
+
+- **The SEC-19 column cap measures the widest row of a JSON matrix.** The multivariate
+  tools measured only the first row, and pandas pads short rows with NaN to the
+  longest. A narrow first row followed by a wide one therefore bypassed
+  `settings.max_matrix_cols`: with the cap at 4, `fit_pca` fitted a six-column model.
+
 ### Documentation
 
 - **The supersaturated `e_s2_efficiency` is measured against a lower bound that is not

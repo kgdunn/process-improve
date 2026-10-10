@@ -9,6 +9,7 @@ A:B interaction of known size, so every output can be checked against the truth.
 from __future__ import annotations
 
 import warnings
+from collections.abc import Callable
 
 import numpy as np
 import pandas as pd
@@ -17,7 +18,7 @@ import statsmodels.formula.api as smf
 
 from process_improve.experiments._analyses.aliasing import alias_chains, estimable_effects
 from process_improve.experiments.analysis import analyze_experiment
-from process_improve.experiments.models import lm, summary
+from process_improve.experiments.models import Model, lm, summary
 from process_improve.experiments.structures import c, gather
 from process_improve.experiments.visualization.plots.significance import ParetoPlot
 
@@ -65,6 +66,28 @@ class TestTheSummary:
         before = dict(model.aliasing)  # type: ignore[attr-defined]
         model.get_aliases(3, drop_intercept=False)  # type: ignore[attr-defined]
         assert dict(model.aliasing) == before  # type: ignore[attr-defined]
+
+    def test_an_anti_alias_carries_a_minus_sign(self) -> None:
+        """With D = -ABC every alias pair has opposite signs, and the summary says so."""
+        model = lm("y ~ A*B*C*D", _half_fraction(generator_sign=-1.0))
+        aliases = model.get_aliases(3, drop_intercept=False)
+        assert "A:B - C:D" in aliases
+        assert "A - B:C:D" in aliases
+        assert all(" - " in alias for alias in aliases if not alias.startswith("Intercept"))
+
+    def test_without_aliasing_the_summary_has_no_alias_section(self) -> None:
+        """A full factorial has nothing aliased, so no 'Aliasing pattern' block is appended."""
+        expt = gather(A=c(*A), B=c(*B), y=c(*_half_fraction()["y"]), title="two factors")
+        text = str(summary(lm("y ~ A + B", expt), show=False))
+        assert "OLS Regression Results: two factors" in text
+        assert "Aliasing pattern" not in text
+
+    def test_the_summary_is_printed_by_default(self, model: object, capsys: pytest.CaptureFixture[str]) -> None:
+        """``show`` defaults to True: the returned summary is also what reaches the screen."""
+        returned = summary(model)
+        printed = capsys.readouterr().out
+        assert printed.strip() == str(returned).strip()
+        assert "Aliasing pattern" in printed
 
 
 class TestTheEffects:
@@ -234,3 +257,52 @@ class TestLmAliasDetection:
         assert np.corrcoef(A, noisy)[0, 1] > 0.99
         assert not lm("y ~ A + N", data).aliasing
         assert lm("y ~ A + N", data, alias_threshold=0.99).aliasing[("A",)] == [["+", "N"]]
+
+    @pytest.mark.parametrize(
+        ("formula", "term", "least_squares"),
+        [
+            pytest.param("y ~ 1", "Intercept", lambda f: f["y"].mean(), id="intercept-only-is-the-mean"),
+            pytest.param("y ~ 0 + A", "A", lambda f: (f["A"] * f["y"]).mean(), id="one-factor-no-intercept"),
+        ],
+    )
+    def test_a_one_column_model_fits(self, formula: str, term: str, least_squares: Callable) -> None:
+        """A model with one column has nothing to alias: it fits, and reports no aliases."""
+        frame = _half_fraction()
+        model = lm(formula, gather(A=c(*frame["A"]), y=c(*frame["y"])))
+        assert model.get_parameters(drop_intercept=False)[term] == pytest.approx(least_squares(frame))
+        assert not model.aliasing
+        assert "Aliasing pattern" not in str(summary(model, show=False))
+
+    def test_a_model_without_an_intercept_keeps_every_coefficient(self) -> None:
+        """Dropping the intercept from a model that has none is a no-op, not an error."""
+        params = lm("y ~ 0 + A + B", _half_fraction()).get_parameters()
+        assert list(params.index) == ["A", "B"]
+        assert params["A"] == pytest.approx(TRUE_A / 2, abs=0.1)
+
+
+class TestTheModelObject:
+    """The ``Model`` wrapper's title, built by ``lm`` or by hand."""
+
+    def test_a_fitted_model_takes_its_title_from_the_data(self) -> None:
+        expt = gather(A=c(*A), y=c(*_half_fraction()["y"]), title="Feed rate trial")
+        model = lm("y ~ A", expt)
+        assert model.get_title() == "Feed rate trial"
+        assert model.name == "Feed rate trial"
+
+    def test_a_model_fitted_on_a_plain_dataframe_has_an_empty_title(self) -> None:
+        """``lm`` accepts a plain DataFrame, which has no ``pi_title``; the title and summary must still work."""
+        model = lm("y ~ A", _half_fraction())
+        assert model.get_title() == ""
+        text = str(summary(model, show=False))
+        assert text.splitlines()[0].strip() == "OLS Regression Results"
+        assert "Residual std error" in text
+
+    def test_a_model_built_by_hand_has_an_empty_title_until_it_has_data(self) -> None:
+        """``Model`` starts with ``data=None``; once data is attached, the summary uses its title."""
+        fit = smf.ols("y ~ A", data=_half_fraction()).fit()
+        model = Model(OLS_instance=fit, model_spec="y ~ A")
+        assert model.data is None
+        assert model.get_title() == ""
+        model.data = gather(A=c(*A), y=c(*_half_fraction()["y"]), title="Feed rate trial")
+        assert model.get_title() == "Feed rate trial"
+        assert "OLS Regression Results: Feed rate trial" in str(model.summary())

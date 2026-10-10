@@ -6,7 +6,10 @@ import pytest
 
 from process_improve.experiments.knowledge import doe_knowledge
 from process_improve.experiments.knowledge.engine import (
+    _extract_detail,
+    _keyword_search,
     load_knowledge_graph,
+    query_design_properties,
     reload_knowledge_graph,
 )
 from process_improve.experiments.knowledge.models import (
@@ -289,6 +292,49 @@ class TestGenericQueries:
         types = {r["type"] for r in result["results"]}
         # Should find both concepts and design types
         assert len(types) >= 1
+
+    def test_generic_query_finds_a_diagnostic(self):
+        """Without a topic, a residual-pattern word reaches the diagnostics too."""
+        result = doe_knowledge(query="funnel")
+        diagnostics = [r for r in result["results"] if r["type"] == "diagnostic"]
+        assert diagnostics
+        assert set(diagnostics[0]) == {"type", "id", "display_name", "visual_pattern"}
+
+    def test_design_selection_keyword_fallback_returns_only_design_types(self):
+        """Without context, design selection searches by keyword and keeps only the design types it hits."""
+        top_hits = _keyword_search(load_knowledge_graph(), "aliasing")[:5]
+        assert ("concept", "aliasing") in {(node_type, node_id) for node_type, node_id, _ in top_hits}
+        result = doe_knowledge(query="aliasing", topic="design_selection")
+        design_type_hits = [node_id for node_type, node_id, _ in top_hits if node_type == "design_type"]
+        assert design_type_hits
+        assert [r["id"] for r in result["results"]] == design_type_hits
+
+
+class TestQueryHelpers:
+    """The text and topic helpers behind every query."""
+
+    @pytest.mark.parametrize(
+        ("content", "expected"),
+        [
+            pytest.param({"novice": " simple ", "expert": "deep"}, "simple", id="intermediate-missing-falls-to-novice"),
+            pytest.param({"expert": "deep"}, "deep", id="only-expert"),
+            pytest.param({"summary": " other "}, "other", id="unknown-level-uses-the-first"),
+            pytest.param({}, "", id="no-text"),
+        ],
+    )
+    def test_extract_detail_falls_back(self, content: dict[str, str], expected: str) -> None:
+        """A missing level falls back to intermediate, novice, expert, then any text, then the empty string."""
+        assert _extract_detail(content, "intermediate") == expected
+
+    def test_design_properties_lists_only_concepts(self) -> None:
+        """An entry of another type filed under the design-properties topic is not returned as a concept."""
+        concept = ConceptNode(id="resolution", title="Design Resolution", topic="design_properties", content={})
+        graph = KnowledgeGraph(
+            concepts={"resolution": concept},
+            topic_index={"design_properties": ["fold_over_rule", "resolution"]},
+        )
+        results = query_design_properties(graph, "", "intermediate")
+        assert [r["id"] for r in results] == ["resolution"]
 
 
 # ---------------------------------------------------------------------------

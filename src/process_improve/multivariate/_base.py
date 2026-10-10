@@ -213,9 +213,10 @@ class _LatentVariableModel(_RenameGetattrMixin, _HotellingsT2LimitMixin, BaseEst
         Only the private ndarrays and their index/column metadata are pickled;
         the public DataFrame views are rebuilt on demand after unpickling.
         """
-        state = super().__getstate__()
-        if isinstance(state, dict):
-            state.pop("_frame_cache", None)
+        # sklearn hands back the instance's own __dict__, so drop the cache from a copy:
+        # popping it in place would empty the live model's cache on every pickle.
+        state = dict(super().__getstate__())
+        state.pop("_frame_cache", None)
         return state
 
     def __setstate__(self, state: dict) -> None:

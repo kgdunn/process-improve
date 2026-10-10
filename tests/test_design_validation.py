@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
+import numpy as np
 import pytest
 
 from process_improve.experiments import generate_design
+from process_improve.experiments.designs_utils import _numeric_codes, categorical_labels
 from process_improve.experiments.factor import Factor
 
 
@@ -58,6 +60,29 @@ def test_counts_below_their_minimum_raise(kwargs: dict, match: str) -> None:
     """These were treated as the defaults (or reached numpy as a negative dimension)."""
     with pytest.raises(ValueError, match=match):
         generate_design(_factors(3), "full_factorial", **kwargs)
+
+
+_TWO_LEVELS = Factor(name="C", type="categorical", levels=["lo", "hi"])
+
+
+def test_a_categorical_factor_cannot_take_a_centre_setting() -> None:
+    """A two-level categorical factor is coded -1 and +1; the 0 of a centre point names no level."""
+    with pytest.raises(
+        ValueError,
+        match=(
+            r"^Categorical factor 'C' has 2 levels, coded \[-1\.0, 1\.0\], but the design asks for the setting 0\.0; "
+            r"this design type cannot place a categorical factor there\.$"
+        ),
+    ):
+        categorical_labels(np.array([-1.0, 0.0]), _TWO_LEVELS)
+
+
+def test_labelled_design_columns_are_coded_back_to_numbers() -> None:
+    """A design holding level labels (an object array) is turned back into codes column by column."""
+    matrix = np.array([["lo", 1.0], ["hi", -1.0], [-1.0, 0.0]], dtype=object)
+    codes = _numeric_codes(matrix, [_TWO_LEVELS, Factor(name="A", low=0, high=1)])
+    np.testing.assert_array_equal(codes, [[-1.0, 1.0], [1.0, -1.0], [-1.0, 0.0]])
+    assert codes.dtype == float
 
 
 def test_negative_center_points_for_box_behnken_raise_a_clear_error() -> None:

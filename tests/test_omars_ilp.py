@@ -653,6 +653,18 @@ def test_scheduler_reset_is_available() -> None:
     assert omars_ilp._reset_highs_scheduler() is True
 
 
+@pytest.mark.parametrize("missing", ["bindings-module", "reset-method"])
+def test_scheduler_reset_reports_a_missing_private_hook(monkeypatch: pytest.MonkeyPatch, missing: str) -> None:
+    """A SciPy without the private HiGHS bindings, or without the reset in them, gets False rather than an error."""
+    if missing == "bindings-module":
+        monkeypatch.setitem(sys.modules, "scipy.optimize._highspy", None)
+    else:
+        from scipy.optimize._highspy import _core
+
+        monkeypatch.setattr(_core, "_Highs", type("HighsWithoutReset", (), {}))
+    assert omars_ilp._reset_highs_scheduler() is False
+
+
 def test_selection_violating_its_constraints_is_a_bug(monkeypatch: pytest.MonkeyPatch) -> None:
     def all_runs(result: OptimizeResult) -> OptimizeResult:
         return OptimizeResult(x=np.ones_like(result.x), status=0, message="(HiGHS Status 7: Optimal)")
@@ -1370,3 +1382,192 @@ def test_budget_search_is_deterministic() -> None:
     first = generate_design(_factors(6), design_type="omars_ilp", budget=17, random_state=5)
     second = generate_design(_factors(6), design_type="omars_ilp", budget=17, random_state=5)
     np.testing.assert_array_equal(_coded(first), _coded(second))
+
+
+# ---------------------------------------------------------------------------
+# Search branches the default limits never reach (three factors, multistart forced)
+# ---------------------------------------------------------------------------
+
+
+def test_a_fork_child_marks_itself_and_forgets_the_parent_pool(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The at-fork hook records that the process is a child and drops the inherited multi-threaded flag."""
+    monkeypatch.setattr(omars_ilp, "_thread_state", threading.local())
+    monkeypatch.setitem(omars_ilp._fork_state, "in_child", False)
+    omars_ilp._thread_state.multi_threaded = True
+    omars_ilp._after_fork_in_child()
+    assert omars_ilp._fork_state["in_child"] is True
+    assert omars_ilp._thread_state.multi_threaded is False
+
+
+def test_a_optimality_of_a_rank_deficient_design_is_infinite() -> None:
+    assert omars_ilp._a_optimality(np.zeros((3, 3))) == math.inf
+
+
+def test_one_second_order_column_has_no_correlation() -> None:
+    """A single factor has one second-order term (its square), so there is no pair to correlate."""
+    assert omars_ilp._max_second_order_correlation_metric(np.array([[1.0], [-1.0], [0.0]])) == 0.0
+
+
+def test_enumeration_over_its_leaf_budget_reports_overflow() -> None:
+    counts, overflow = omars_ilp._enumerate_feasible_counts(omars_ilp._half_pool(3), 6, max_leaves=1)
+    assert overflow
+    assert counts.shape == (0, 13)
+
+
+def test_an_enumeration_overflow_falls_back_to_the_multistart(monkeypatch: pytest.MonkeyPatch) -> None:
+    from process_improve.experiments import generate_omars
+
+    monkeypatch.setattr(omars_ilp, "_ENUM_MAX_LEAVES", 1)
+    result = generate_omars(_factors(3), n_restarts=3, solver_options=_SOLVER)
+    assert result.metadata["search_mode"] == "multistart"
+    assert is_omars(_coded(result))
+
+
+def _count_swap_searches(monkeypatch: pytest.MonkeyPatch) -> list[int]:
+    """Record each local-search neighbourhood query (one per descent step)."""
+    calls: list[int] = []
+    real_swaps = omars_ilp._SwapIndex.swaps
+
+    def counting(self, selection: list[int]) -> list[list[int]]:
+        calls.append(len(selection))
+        return real_swaps(self, selection)
+
+    monkeypatch.setattr(omars_ilp._SwapIndex, "swaps", counting)
+    return calls
+
+
+@pytest.mark.parametrize(
+    ("criterion", "polished"),
+    [("a_optimal", False), ("min_second_order_correlation", False), ("dominance", True)],
+)
+def test_only_the_d_efficiency_criteria_polish_by_local_search(
+    monkeypatch: pytest.MonkeyPatch, criterion: str, polished: bool
+) -> None:
+    """Local search raises the D-efficiency, so the other criteria keep the multistart designs as found."""
+    from process_improve.experiments import generate_omars
+
+    monkeypatch.setattr(omars_ilp, "_ENUM_MAX_HALF", {})
+    swap_searches = _count_swap_searches(monkeypatch)
+    result = generate_omars(_factors(3), selection_criterion=criterion, n_restarts=3, solver_options=_SOLVER)
+    assert result.metadata["search_mode"] == "multistart"
+    assert bool(swap_searches) is polished
+
+
+def test_a_descent_with_no_step_budget_makes_no_move(monkeypatch: pytest.MonkeyPatch) -> None:
+    from process_improve.experiments import generate_omars
+
+    monkeypatch.setattr(omars_ilp, "_ENUM_MAX_HALF", {})
+    monkeypatch.setattr(omars_ilp, "_LOCAL_MAX_STEPS", 0)
+    swap_searches = _count_swap_searches(monkeypatch)
+    result = generate_omars(_factors(3), n_restarts=3, solver_options=_SOLVER)
+    assert swap_searches == []
+    assert is_omars(_coded(result))
+
+
+def _solve_spy(monkeypatch: pytest.MonkeyPatch, rewrite) -> list[dict]:
+    """Route every solve through *rewrite(kwargs)*, which returns a result or None to solve for real."""
+    real_solve = omars_ilp.solve_omars_ilp
+    calls: list[dict] = []
+
+    def solve(half_pool: np.ndarray, **kwargs):
+        calls.append(kwargs)
+        return rewrite(kwargs) or real_solve(half_pool, **kwargs)
+
+    monkeypatch.setattr(omars_ilp, "solve_omars_ilp", solve)
+    return calls
+
+
+def test_a_multistart_stops_when_a_restart_proves_infeasibility(monkeypatch: pytest.MonkeyPatch) -> None:
+    """An infeasible restart means the cuts left no design at this size, so no further restart is tried."""
+    from process_improve.experiments import generate_omars
+
+    monkeypatch.setattr(omars_ilp, "_ENUM_MAX_HALF", {})
+    infeasible = (None, omars_ilp._STATUS_INFEASIBLE, [])
+    calls = _solve_spy(monkeypatch, lambda kwargs: infeasible if "objective" in kwargs else None)
+    result = generate_omars(_factors(3), n_runs=13, n_restarts=5, solver_options=_SOLVER)
+    assert sum("objective" in kwargs for kwargs in calls) == 1
+    assert result.metadata["n_runs_selected"] == 13
+
+
+def test_an_infeasible_plain_solve_skips_the_restarts(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The size probe's design stands when the plain solve at that size reports infeasible."""
+    from process_improve.experiments import generate_omars
+
+    monkeypatch.setattr(omars_ilp, "_ENUM_MAX_HALF", {})
+    infeasible = (None, omars_ilp._STATUS_INFEASIBLE, [])
+
+    def plain_solve_is_infeasible(kwargs: dict) -> tuple | None:
+        return infeasible if "n_half" in kwargs and "objective" not in kwargs else None
+
+    calls = _solve_spy(monkeypatch, plain_solve_is_infeasible)
+    result = generate_omars(_factors(3), selection_criterion="a_optimal", n_restarts=3, solver_options=_SOLVER)
+    assert not any("objective" in kwargs for kwargs in calls)
+    assert result.metadata["n_runs_selected"] == 13
+    assert is_omars(_coded(result))
+
+
+def test_a_deficiency_no_cover_cut_explains_is_excluded_by_a_no_good_cut(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A design reported rank-deficient whose selection yields no cover cut is excluded from later solves."""
+    from process_improve.experiments import generate_omars
+
+    monkeypatch.setattr(omars_ilp, "_ENUM_MAX_HALF", {})
+    real_rank = omars_ilp._model_rank
+    ranks: list[int] = []
+
+    def first_design_deficient(coded: np.ndarray, model: str = "full_second_order") -> int:
+        ranks.append(real_rank(coded, model))
+        return 0 if len(ranks) == 1 else ranks[-1]
+
+    monkeypatch.setattr(omars_ilp, "_model_rank", first_design_deficient)
+    real_solve = omars_ilp.solve_omars_ilp
+    solves: list[tuple[dict, list[int]]] = []
+
+    def recording_solve(half_pool: np.ndarray, **kwargs):
+        result = real_solve(half_pool, **kwargs)
+        solves.append((kwargs, result[2]))
+        return result
+
+    monkeypatch.setattr(omars_ilp, "solve_omars_ilp", recording_solve)
+    result = generate_omars(
+        _factors(3), n_runs=15, selection_criterion="a_optimal", n_restarts=3, solver_options=_SOLVER
+    )
+    (first_kwargs, first_selection), *later = solves
+    assert "exclude_solutions" not in first_kwargs
+    assert later
+    assert all(kwargs["exclude_solutions"] == [first_selection] for kwargs, _ in later)
+    assert result.metadata["omars_search"].rank_deficient_designs == 1
+    assert is_omars(_coded(result))
+
+
+def test_satisfice_thresholds_no_multistart_design_meets_are_reported(monkeypatch: pytest.MonkeyPatch) -> None:
+    from process_improve.experiments import generate_omars
+
+    monkeypatch.setattr(omars_ilp, "_ENUM_MAX_HALF", {})
+    with pytest.raises(
+        ValueError,
+        match=(
+            r"^No feasible OMARS design met the satisfice thresholds \{'d_efficiency': 99\.9\}\. "
+            r"The best among \d+ candidate\(s\) reached d_efficiency=\d+\.\d{3} .* raise n_restarts"
+        ),
+    ):
+        generate_omars(_factors(3), satisfice={"d_efficiency": 99.9}, n_restarts=3, solver_options=_SOLVER)
+
+
+def test_a_run_window_beyond_the_repeatable_sizes_is_refused() -> None:
+    """Three factors repeat half-runs only up to 18 of them; 41 runs need 20."""
+    from process_improve.experiments import generate_omars
+
+    with pytest.raises(
+        ValueError,
+        match=(
+            r"^The run sizes in n_runs_range=\(41, 51\) need more than the 13 distinct three-level half-runs "
+            r"for 3 factors, and repeating half-runs is not supported there\. Ask for fewer runs\.$"
+        ),
+    ):
+        generate_omars(_factors(3), n_runs_range=(41, 51))
+
+
+def test_the_registry_handler_reraises_without_a_budget() -> None:
+    """With no budget there is no budget to blame, so the search's own error passes through unchanged."""
+    with pytest.raises(ValueError, match=r"^OMARS designs require at least 3 factors\.$"):
+        omars_ilp._dispatch_omars_ilp(_factors(2))

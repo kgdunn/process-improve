@@ -817,8 +817,9 @@ def f_elbow(  # noqa: PLR0913
     # We will overwrite all entries in this dataframe, one-by-one
     output = prepared.sum()
     for batch_id, batch_data in prepared:
-        if x_axis_tag not in batch_data:
-            batch_data = batch_data.reset_index()  # noqa: PLW2901
+        # The x-axis is always the index here: _prepare_data made it the index
+        # (age_col), or it already was one. Bring it back as a column.
+        batch_data = batch_data.reset_index()  # noqa: PLW2901
         for tag in tags:
             subset = batch_data[[x_axis_tag, tag]]
             subset = subset.dropna()

@@ -147,6 +147,18 @@ jobs:
         files: ./coverage.xml
         token: ${{ secrets.CODECOV_TOKEN }}
         fail_ci_if_error: false
+    # Patch gate (#678): at least 95% of the source lines a pull request changes must
+    # run under the tests. Total coverage drifts toward the coverage of new code, so
+    # holding each change to 95% stops the total sliding back below the 96% gate in
+    # pytest.ini. It runs after the Codecov upload so a failure here still reports.
+    # uvx runs diff-cover in its own environment: no dev dependency, uv.lock untouched.
+    - name: Coverage of the lines this pull request changes
+      if: >-
+        github.event_name == 'pull_request' &&
+        matrix.os == 'ubuntu-latest' && matrix.python-version == '3.13'
+      run: >-
+        uvx --from diff-cover==10.6.0 diff-cover coverage.xml
+        --compare-branch=origin/${{ github.base_ref }} --fail-under=95
 
   # ENG-15 sub-track: catch validation `assert`s stripped by `python -O`.
   # SEC-08 swept ~105 sites; SEC-17 (#266) swept the multivariate / bivariate /

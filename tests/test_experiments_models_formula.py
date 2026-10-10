@@ -7,6 +7,8 @@ Python expressions.
 
 from __future__ import annotations
 
+import re
+
 import pytest
 
 from process_improve.experiments.models import (
@@ -187,4 +189,45 @@ class TestCategoricalContrasts:
     )
     def test_unsafe_categorical_calls_rejected(self, formula: str) -> None:
         with pytest.raises(UnsafeFormulaError):
+            validate_formula_is_safe(formula, _COLUMNS, allow_transforms=True, allow_numpy=True)
+
+    @pytest.mark.parametrize(
+        "formula",
+        [
+            pytest.param("y ~ C(A, Treatment('lo'))", id="positional-string-reference-level"),
+            pytest.param("y ~ C(A, levels=['lo', 'hi'])", id="keyword-list-of-levels"),
+        ],
+    )
+    def test_literal_contrast_arguments_allowed(self, formula: str) -> None:
+        """A reference level or level list given as literals is a legitimate contrast specification."""
+        validate_formula_is_safe(formula, _COLUMNS, allow_transforms=True, allow_numpy=True)
+
+
+class TestValidateFormulaRejectionMessages:
+    """Each construct the AST check refuses is named in the error, so a caller knows what to change."""
+
+    @pytest.mark.parametrize(
+        ("formula", "message"),
+        [
+            pytest.param("y ~ A % B", "operator Mod is not allowed in a formula.", id="modulo-operator"),
+            pytest.param("y ~ not A", "unary operator Not is not allowed in a formula.", id="unary-not"),
+            pytest.param("y ~ I(A, x=1)", "keyword arguments are not allowed in a formula call.", id="transform-kwarg"),
+            pytest.param("y ~ I(*A)", "starred arguments are not allowed in a formula call.", id="transform-starred"),
+            pytest.param("y ~ C(*A)", "starred arguments are not allowed in a formula call.", id="contrast-starred"),
+            pytest.param("y ~ C(A, **B)", "**kwargs are not allowed in a formula call.", id="contrast-double-star"),
+            pytest.param(
+                "y ~ C(A, Treatment(reference=B))",
+                "categorical-contrast arguments must be column names, contrast helpers, or literals.",
+                id="contrast-keyword-names-a-column",
+            ),
+            pytest.param(
+                "y ~ C(A, levels=[True])",
+                "categorical-contrast arguments must be column names, contrast helpers, or literals.",
+                id="contrast-boolean-level",
+            ),
+        ],
+    )
+    def test_rejected_construct_is_named(self, formula: str, message: str) -> None:
+        """The error message names the refused construct exactly."""
+        with pytest.raises(UnsafeFormulaError, match=f"^{re.escape(message)}$"):
             validate_formula_is_safe(formula, _COLUMNS, allow_transforms=True, allow_numpy=True)

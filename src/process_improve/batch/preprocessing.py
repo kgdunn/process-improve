@@ -781,7 +781,7 @@ def _validate_dtw_settings(settings: dict) -> None:
         )
 
 
-def batch_dtw(  # noqa: C901, PLR0915
+def batch_dtw(  # noqa: PLR0915
     batches: dict[str, pd.DataFrame],
     columns_to_align: list,
     reference_batch: str,
@@ -920,11 +920,8 @@ def batch_dtw(  # noqa: C901, PLR0915
     if reference_batch not in batches:
         raise KeyError(f"`reference_batch` was not found in the dict of batches; got {reference_batch!r}.")
 
-    if not check_valid_batch_dict(
-        {k: v[columns_to_align] for k, v in batches.items()},
-        no_nan=True,
-    ):
-        raise ValueError("One or more batches in the input dict failed validation.")
+    # Raises, naming the batch, when one fails a check.
+    check_valid_batch_dict({k: v[columns_to_align] for k, v in batches.items()}, no_nan=True)
 
     scale_df = determine_scaling(batches=batches, columns_to_align=columns_to_align, settings=settings)
     batches_scaled = apply_scaling(batches, scale_df, columns_to_align)
@@ -1210,8 +1207,8 @@ def find_reference_batch(
     if not isinstance(columns_to_align, list):
         raise TypeError(f"`columns_to_align` must be a list of column names; got {type(columns_to_align).__name__}.")
 
-    if not check_valid_batch_dict({k: v[columns_to_align] for k, v in batches.items()}):
-        raise ValueError("One or more batches in the input dict failed validation.")
+    # Raises, naming the batch, when one fails a check.
+    check_valid_batch_dict({k: v[columns_to_align] for k, v in batches.items()})
 
     # Starts with the average duration batch.
     initial_reference_id = find_average_length(batches, settings)
@@ -1272,11 +1269,14 @@ def find_reference_batch(
     # of headroom before enough batches pass, give up with a clear error
     # rather than tripping the inner ``assert conf_level < 1.0`` (which is
     # ``python -O``-strippable).
-    start_cutoff = 0.5
     max_cutoff = 0.95
-    while spe_metrics.shape[0] < requested and start_cutoff <= max_cutoff:
-        spe_metrics = metrics[metrics["SPE"] < pca_second.spe_limit(conf_level=start_cutoff)]
-        start_cutoff += 0.05
+    # Step in whole percent: repeatedly adding 0.05 to a float accumulates rounding
+    # error, which stopped the relaxation at 0.9000000000000004 without ever trying
+    # the 0.95 that the error below reports.
+    for cutoff_percent in range(55, round(max_cutoff * 100) + 1, 5):
+        if spe_metrics.shape[0] >= requested:
+            break
+        spe_metrics = metrics[metrics["SPE"] < pca_second.spe_limit(conf_level=cutoff_percent / 100)]
     if spe_metrics.shape[0] < requested:
         raise ValueError(
             f"Could not find {requested} reference batches even at "

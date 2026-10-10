@@ -14,10 +14,12 @@ from process_improve.experiments.evaluate import (
     _defining_relation_from_generators,
     _multiply_words,
     _parse_word,
+    _roman,
     _word_to_str,
     evaluate_design,
 )
-from process_improve.experiments.factor import Factor
+from process_improve.experiments.factor import DesignResult, Factor
+from process_improve.experiments.region import DesignRegion
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -589,6 +591,15 @@ class TestWordArithmetic:
         result = _parse_word("I", ["A", "B", "C"])
         assert result == frozenset()
 
+    def test_parse_multi_char_names_skips_unknown_characters(self) -> None:
+        """With multi-character names, a character that starts no name is skipped."""
+        assert _parse_word("AQBB", ["A", "BB"]) == frozenset({0, 1})
+
+    @pytest.mark.parametrize(("n", "numeral"), [(0, "0"), (2, "II"), (12, "XII")])
+    def test_resolution_as_a_roman_numeral(self, n: int, numeral: str) -> None:
+        """Resolutions are written in Roman numerals; zero (no numeral exists) is written as a number."""
+        assert _roman(n) == numeral
+
     def test_multiply_words(self) -> None:
         """Multiplying {0,1} and {1,2} gives {0,2} (symmetric difference)."""
         w1 = frozenset({0, 1})
@@ -1133,6 +1144,131 @@ class TestRegionAndMetricEdgeCases:
         df = df.assign(Block=1)
         result = evaluate_design(df, model="main_effects", metric="degrees_of_freedom")
         assert result["degrees_of_freedom"]["model"] == 2  # only A and B count as factors
+
+    def test_factors_outside_a_region_are_drawn_from_their_levels(self) -> None:
+        """A region over A and B leaves C at its observed levels, so C**2 is 1 in every sampled point.
+
+        For the main-effects model of a 2^3 that makes the average (1 + 1/3 + 1/3 + 1) / 8 = 1/3,
+        against 1/4 if C were sampled uniformly too.
+        """
+        region = DesignRegion([Factor(name=name, low=-1, high=1) for name in "AB"])
+        out = evaluate_design(
+            _full_factorial_df(3),
+            model="main_effects",
+            metric="average_prediction_variance",
+            region=region,
+            n_samples=4000,
+        )
+        assert out["average_prediction_variance"] == pytest.approx(1 / 3, abs=0.005)
+
+    def test_a_design_region_without_its_support_points_misses_the_corners(self) -> None:
+        """The region's support points carry the worst case; without them only the interior sample counts."""
+        region = DesignRegion([Factor(name=name, low=-1, high=1) for name in "ABC"])
+        design = _full_factorial_df(3)
+
+        def max_variance(*, include_vertices: bool) -> float:
+            return evaluate_design(
+                design,
+                model="main_effects",
+                metric="g_efficiency",
+                region=region,
+                n_samples=500,
+                include_vertices=include_vertices,
+            )["max_prediction_variance"]
+
+        assert max_variance(include_vertices=True) == pytest.approx(0.5)  # a corner: (1 + 3) / 8
+        assert max_variance(include_vertices=False) < 0.5
+
+    def test_a_recorded_unconstrained_region_means_the_cube(self) -> None:
+        """A box region recorded without constraints evaluates exactly as the default cuboidal region."""
+        design = _full_factorial_df(3)
+        region = DesignRegion([Factor(name=name, low=-1, high=1) for name in "ABC"])
+        recorded = DesignResult(
+            design=design,
+            design_actual=design,
+            run_order=list(range(1, 9)),
+            design_type="full_factorial",
+            n_runs=8,
+            n_factors=3,
+            factor_names=list("ABC"),
+            metadata={"region": region.to_dict()},
+        )
+        kwargs = {"model": "main_effects", "metric": "g_efficiency", "n_samples": 500}
+        assert evaluate_design(recorded, **kwargs) == evaluate_design(design, **kwargs)
+
+    def test_an_explicit_mixture_formula_is_kept(self) -> None:
+        """A formula is not a Scheffe model name, so it is used as written: here the linear blending model."""
+        mixture = generate_design([Factor(name=name, type="mixture") for name in "ABC"], design_type="mixture")
+        formula = evaluate_design(mixture, model="A + B + C - 1", metric="d_efficiency")
+        named = evaluate_design(mixture, model="scheffe_linear", metric="d_efficiency")
+        assert formula["d_efficiency"] == pytest.approx(named["d_efficiency"])
+
+    def test_i_efficiency_of_a_rank_deficient_design_is_none(self) -> None:
+        """The deprecated percentage still says why it is missing, as every other metric does."""
+        aliased = pd.DataFrame({"A": [-1, 1, -1, 1], "B": [-1, 1, -1, 1]})
+        with pytest.warns(DeprecationWarning, match="metric 'i_efficiency' is deprecated"):
+            out = evaluate_design(aliased, model="interactions", metric="i_efficiency")
+        assert out["i_efficiency"] is None
+        assert out["notes"]["i_efficiency"] == "Design is rank-deficient for the specified model."
+
+    def test_an_all_categorical_design(self, recwarn: pytest.WarningsRecorder) -> None:
+        """Label columns are compared as-is for replicates and are never checked for coded units."""
+        design = pd.DataFrame({"M": list("xyxy"), "N": list("ppqq")})
+        out = evaluate_design(design, model="main_effects", metric="degrees_of_freedom")
+        assert out["degrees_of_freedom"] == {"model": 2, "residual": 1, "total": 3, "pure_error": 0, "lack_of_fit": 1}
+        assert not [w for w in recwarn if "coded units" in str(w.message)]
+
+    def test_the_intercept_alone_has_no_aliases(self) -> None:
+        assert evaluate_design(_full_factorial_df(3), model="1", metric="alias_structure") == {"alias_structure": []}
+
+    def test_an_interaction_that_is_constant_is_not_clear(self) -> None:
+        """With B equal to A, A:B is the constant column and A and B alias each other: only C is clear."""
+        design = pd.DataFrame({"A": [-1, 1, -1, 1], "B": [-1, 1, -1, 1], "C": [-1, -1, 1, 1]})
+        out = evaluate_design(design, model="main_effects", metric="clear_effects")
+        assert out["clear_effects"] == {"main_effects": ["C"], "two_factor_interactions": []}
+
+    def test_moment_aberration_needs_two_runs(self) -> None:
+        out = evaluate_design(pd.DataFrame({"A": [1], "B": [-1]}), model="1", metric="moment_aberration")
+        assert out["moment_aberration"] == {
+            "pattern": [],
+            "note": "Design has 1 run(s); at least 2 are needed to form a pair.",
+        }
+
+
+class TestRecordedGeneratorsAndRelations:
+    """Generator metadata that yields no defining word, and a relation recorded without generators."""
+
+    @staticmethod
+    def _result(**metadata: object) -> DesignResult:
+        design = _full_factorial_df(3)
+        return DesignResult(
+            design=design,
+            design_actual=design,
+            run_order=list(range(1, 9)),
+            design_type="fractional_factorial",
+            n_runs=8,
+            n_factors=3,
+            factor_names=list("ABC"),
+            **metadata,
+        )
+
+    def test_a_generator_that_cancels_gives_no_defining_word(self) -> None:
+        """A=A multiplies to the identity, so there is no word to read a resolution or pattern from."""
+        out = evaluate_design(
+            self._result(generators=["A=A"]),
+            model="main_effects",
+            metric=["resolution", "alias_structure", "minimum_aberration"],
+        )
+        assert (out["resolution"], out["roman"]) == (None, None)
+        assert out["notes"]["resolution"] == "No defining relation words found."
+        assert out["alias_structure"] == []
+        assert out["minimum_aberration"] == {"wordlength_pattern": [], "note": "No defining relation words found."}
+
+    def test_a_recorded_relation_is_returned_without_generators(self) -> None:
+        out = evaluate_design(
+            self._result(defining_relation=["I=ABC"]), model="main_effects", metric="defining_relation"
+        )
+        assert out == {"defining_relation": ["I=ABC"]}
 
 
 class TestFDSResolution:

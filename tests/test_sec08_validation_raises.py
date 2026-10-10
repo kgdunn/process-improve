@@ -73,6 +73,18 @@ class TestRepeatedMedianSlopeValidation:
         with pytest.raises(ValueError, match="same length"):
             repeated_median_slope(np.array([1.0, 2.0, 3.0]), np.array([1.0, 2.0]))
 
+    @pytest.mark.parametrize(
+        ("x", "y"), [([1.0, 2.0, 3.0], [1.0, 2.0]), ([1.0, 2.0], [1.0, 2.0, 3.0])], ids=["x-longer", "y-longer"]
+    )
+    def test_mismatched_lengths_raise_with_nowarn_too(self, x: list[float], y: list[float]) -> None:
+        """`nowarn` skips the size checks, not the pairing: unequal vectors have no pairs to form.
+
+        It used to skip the pairing check as well, and the slope loop then failed with an
+        IndexError.
+        """
+        with pytest.raises(ValueError, match=r"^Vectors x and y must have the same length\.$"):
+            repeated_median_slope(np.array(x), np.array(y), nowarn=True)
+
 
 class TestBatchDictValidation:
     def _batch(self, cols=("Tag01", "Tag02"), n=4) -> pd.DataFrame:
