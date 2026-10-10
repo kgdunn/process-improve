@@ -3,6 +3,7 @@
 import numpy as np
 import pandas as pd
 import pytest
+from sklearn.utils import Bunch
 
 from process_improve.batch._batch_pls import BatchPLS
 from process_improve.batch.control import MidCourseCorrector, midcourse_correction
@@ -266,6 +267,218 @@ def test_error_branches(fitted: BatchPLS) -> None:
         midcourse_correction(fitted, observed=bad, free_columns=free, y_target=0.0)
 
 
+@pytest.mark.parametrize(
+    ("overrides", "exc", "match"),
+    [
+        (
+            {"observed": {("u", 0): 0.0}},
+            TypeError,
+            r"observed must be a pandas Series indexed by unfolded column labels; got dict\.",
+        ),
+        ({"score_covariance": np.eye(2)}, ValueError, r"score_covariance must have shape \(3, 3\); got \(2, 2\)\."),
+        (
+            {"nominal_remaining": pd.Series(0.0, index=pd.Index([("u", s) for s in range(5, 9)]))},
+            ValueError,
+            r"nominal_remaining must cover every free column with a finite value\.",
+        ),
+        (
+            {"weights": {"movement": [1.0, 2.0]}},
+            ValueError,
+            r"weights\['movement'\] must be a scalar or length-5 array; got shape \(2,\)\.",
+        ),
+        (
+            {"weights": {"target": [1.0, 2.0]}},
+            ValueError,
+            r"weights\['target'\] must be a scalar or length-1 array; got shape \(2,\)\.",
+        ),
+        ({"y_target": {"other": 0.5}}, ValueError, r"y_target must supply a value for every target in \['q'\]\."),
+        (
+            {"mode": "maximize"},
+            ValueError,
+            r"y_target only applies to mode='target'; in maximize mode use weights\['target'\]\.",
+        ),
+        ({"bounds": {"u": (0.2, 0.1)}}, ValueError, r"bounds for 'u' must satisfy low < high; got \(0\.2, 0\.1\)\."),
+        ({"rate_limits": {"u": 0.0}}, ValueError, r"rate_limits for 'u' must be positive; got 0\.0\."),
+        ({"n_knots": 1}, ValueError, r"n_knots must lie in \[2, 5\] for 5 free samples; got 1\."),
+    ],
+    ids=[
+        "observed-not-a-series",
+        "score-covariance-wrong-shape",
+        "nominal-remaining-misses-a-free-column",
+        "movement-weight-wrong-length",
+        "target-weight-wrong-length",
+        "y-target-misses-a-target",
+        "y-target-in-maximize-mode",
+        "bounds-low-not-below-high",
+        "rate-limit-not-positive",
+        "fewer-than-two-knots",
+    ],
+)
+def test_midcourse_correction_rejects_bad_arguments(fitted: BatchPLS, overrides: dict, exc: type, match: str) -> None:
+    """Each malformed argument is rejected with a message that names it."""
+    batches, _ = _synthetic_batches()
+    kwargs = {
+        "observed": _observed_series(fitted, batches["b0"], 5),
+        "free_columns": _free_columns(fitted, 5),
+        "y_target": 0.5,
+    }
+    with pytest.raises(exc, match=match):
+        midcourse_correction(fitted, **{**kwargs, **overrides})
+
+
+def test_infeasible_constraints_raise(fitted: BatchPLS) -> None:
+    """A box the seam rate limit cannot reach leaves osqp without a solution, which is an error."""
+    batches, _ = _synthetic_batches()
+    with pytest.raises(RuntimeError, match=r"The mid-course QP did not solve: osqp status '[^']*infeasible"):
+        midcourse_correction(
+            fitted,
+            observed=_observed_series(fitted, batches["b0"], 5),
+            free_columns=_free_columns(fitted, 5),
+            y_target=0.5,
+            bounds={"u": (0.5, 0.6)},
+            rate_limits={"u": 0.05},
+            seam={"u": 0.0},  # 0.5 is ten rate-limited steps away; there are five free samples
+        )
+
+
+def test_maximize_mode_raises_the_prediction_by_less_as_movement_costs_more(fitted: BatchPLS) -> None:
+    """In maximize mode the predicted quality rises above no-change; a dearer movement buys a smaller rise."""
+    batches, _ = _synthetic_batches()
+    kwargs = {
+        "observed": _observed_series(fitted, batches["b0"], 5),
+        "free_columns": _free_columns(fitted, 5),
+        "mode": "maximize",
+    }
+    cheap = midcourse_correction(fitted, weights={"movement": 0.1}, **kwargs)
+    dear = midcourse_correction(fitted, weights={"movement": 1.0}, **kwargs)
+    gain_cheap = float(cheap.y_hat.iloc[0] - cheap.y_hat_no_change.iloc[0])
+    gain_dear = float(dear.y_hat.iloc[0] - dear.y_hat_no_change.iloc[0])
+    assert gain_cheap > gain_dear > 0.0
+    assert cheap.solver.status == "ok"
+
+
+def test_y_target_as_mapping_matches_the_scalar(fitted: BatchPLS) -> None:
+    """A target given as {name: value} solves the same problem as the bare float."""
+    batches, _ = _synthetic_batches()
+    kwargs = {"observed": _observed_series(fitted, batches["b0"], 5), "free_columns": _free_columns(fitted, 5)}
+    as_float = midcourse_correction(fitted, y_target=0.5, **kwargs)
+    as_mapping = midcourse_correction(fitted, y_target={"q": 0.5}, **kwargs)
+    pd.testing.assert_series_equal(as_float.mv, as_mapping.mv)
+
+
+def test_limits_on_a_tag_without_free_columns_are_ignored(fitted: BatchPLS) -> None:
+    """Bounds and rate limits on the response tag constrain nothing: the solution is the unconstrained one."""
+    batches, _ = _synthetic_batches()
+    kwargs = {
+        "observed": _observed_series(fitted, batches["b0"], 5),
+        "free_columns": _free_columns(fitted, 5),
+        "y_target": 0.5,
+    }
+    plain = midcourse_correction(fitted, **kwargs)
+    limited = midcourse_correction(fitted, bounds={"r": (-5.0, 5.0)}, rate_limits={"r": 0.1}, **kwargs)
+    pd.testing.assert_series_equal(plain.mv, limited.mv)
+    assert limited.active_constraints["bounds"] == []
+    assert limited.active_constraints["rate"] == []
+
+
+def test_rate_limits_without_seam_bind_only_between_free_samples(fitted: BatchPLS) -> None:
+    """Without a seam value the first free sample may jump; the steps after it stay within the limit."""
+    batches, _ = _synthetic_batches()
+    batch = batches["b0"]
+    k = 5
+    result = midcourse_correction(
+        fitted,
+        observed=_observed_series(fitted, batch, k),
+        free_columns=_free_columns(fitted, k),
+        y_target=2.0,
+        weights={"target": 10.0, "movement": 1e-3},
+        rate_limits={"u": 0.05},
+    )
+    mv = result.mv.to_numpy()
+    assert (np.abs(np.diff(mv)) <= 0.05 + 1e-6).all()
+    assert abs(mv[0] - float(batch["u"].iloc[k - 1])) > 0.05
+    assert result.active_constraints["rate"]
+    assert str(("u", k)) not in result.active_constraints["rate"]  # a seam row would carry the first free label
+
+
+def test_unreachable_spe_cap_reports_cap_not_met(fitted: BatchPLS) -> None:
+    """An SPE cap no schedule can meet exhausts the multiplier escalation and says so."""
+    batches, _ = _synthetic_batches()
+    result = midcourse_correction(
+        fitted,
+        observed=_observed_series(fitted, batches["b0"], 5),
+        free_columns=_free_columns(fitted, 5),
+        y_target=0.5,
+        spe_cap=1e-9,
+    )
+    assert result.solver.status == "cap_not_met"
+    assert result.solver.n_solves == 31  # the unconstrained solve plus 30 escalations
+    assert result.spe > 1e-9
+    assert result.active_constraints["spe_cap"]
+
+
+@pytest.mark.parametrize(
+    ("batch_id", "k", "spe_factor", "t2_factor", "slack", "binding"),
+    [("b3", 3, 2.0, 0.05, "spe", "t2"), ("b0", 6, 0.2, 0.9, "t2", "spe")],
+    ids=["spe-cap-ends-slack", "t2-cap-ends-slack"],
+)
+def test_multiplier_of_a_slack_cap_is_bisected_away(  # noqa: PLR0913
+    fitted: BatchPLS, batch_id: str, k: int, spe_factor: float, t2_factor: float, slack: str, binding: str
+) -> None:
+    """A multiplier escalated alongside the other is halved towards zero once its own cap is slack.
+
+    The escalation raises both multipliers while both caps are violated; here
+    meeting the binding cap also satisfies the other, so the polishing
+    bisection drives the slack cap's multiplier far below the first
+    escalation step, and the schedule is the one-cap schedule.
+    """
+    batches, _ = _synthetic_batches()
+    kwargs = {
+        "observed": _observed_series(fitted, batches[batch_id], k),
+        "free_columns": _free_columns(fitted, k),
+        "y_target": -2.0,
+        "weights": {"target": 10.0, "movement": 1e-3},
+    }
+    unconstrained = midcourse_correction(fitted, **kwargs)
+    caps = {"spe": spe_factor * unconstrained.spe, "t2": t2_factor * unconstrained.t2}
+    both = midcourse_correction(fitted, spe_cap=caps["spe"], t2_cap=caps["t2"], **kwargs)
+    alone = midcourse_correction(fitted, **{f"{binding}_cap": caps[binding]}, **kwargs)
+    assert both.solver.status == "ok"
+    assert both.solver[f"{slack}_multiplier"] < 1e-4  # the escalation starts at 1e-3
+    assert both[slack] < 0.99 * caps[slack]
+    assert 0.99 * caps[binding] <= both[binding] <= 1.01 * caps[binding]
+    np.testing.assert_allclose(both.mv.to_numpy(), alone.mv.to_numpy(), atol=1e-4)
+
+
+@pytest.mark.xfail(
+    strict=True,
+    raises=AssertionError,
+    reason="#681: cap_status reads 'ok' while a cap is violated",
+)
+def test_ok_status_means_both_binding_caps_hold(fitted: BatchPLS) -> None:
+    """When both caps bind, an 'ok' status must mean both statistics sit within the 1% cap tolerance.
+
+    The polishing loop bisects the SPE multiplier checking only SPE, and the
+    T2 multiplier checking only T2. Here lowering the T2 multiplier pushes SPE
+    to about 1.27 times its cap; neither bisection can raise a multiplier
+    again, both polishing rounds end with the cap violated, and the status
+    stays 'ok'.
+    """
+    batches, _ = _synthetic_batches()
+    k = 5
+    kwargs = {
+        "observed": _observed_series(fitted, batches["b0"], k),
+        "free_columns": _free_columns(fitted, k),
+        "y_target": -2.0,
+        "weights": {"target": 10.0, "movement": 1e-3},
+    }
+    unconstrained = midcourse_correction(fitted, **kwargs)
+    spe_cap, t2_cap = 0.5 * unconstrained.spe, 0.1 * unconstrained.t2
+    capped = midcourse_correction(fitted, spe_cap=spe_cap, t2_cap=t2_cap, **kwargs)
+    within_caps = capped.spe <= spe_cap * 1.01 and capped.t2 <= t2_cap * 1.01
+    assert within_caps or capped.solver.status == "cap_not_met"
+
+
 # --------------------------------------------------------------------------- #
 # MidCourseCorrector
 
@@ -376,6 +589,126 @@ def test_corrector_validation_errors(fitted: BatchPLS) -> None:
         corrector.correct(batches["b0"], k=0)
 
 
+@pytest.mark.parametrize(
+    ("overrides", "exc", "match"),
+    [
+        ({"mode": "x"}, ValueError, r"mode must be one of \['target', 'maximize'\]; got 'x'\."),
+        ({"nominal_schedule": np.zeros((10, 1))}, TypeError, r"nominal_schedule must be a DataFrame; got ndarray\."),
+        (
+            {"nominal_schedule": pd.DataFrame({"v": np.zeros(10)})},
+            ValueError,
+            r"nominal_schedule is missing columns for mv_tags: \['u'\]\.",
+        ),
+    ],
+    ids=["unknown-mode", "schedule-not-a-frame", "schedule-without-the-mv-column"],
+)
+def test_corrector_rejects_bad_settings(fitted: BatchPLS, overrides: dict, exc: type, match: str) -> None:
+    """The constructor names the setting it cannot use."""
+    kwargs = {"nominal_schedule": pd.DataFrame({"u": np.zeros(fitted.n_timesteps_)}), "y_target": 0.0}
+    with pytest.raises(exc, match=match):
+        MidCourseCorrector(fitted, mv_tags=["u"], **{**kwargs, **overrides})
+
+
+def test_corrector_requires_the_default_column_layout() -> None:
+    """A model unfolded with group_by_batch=True does not carry the (tag, sample) layout the corrector needs."""
+    batches, y = _synthetic_batches()
+    grouped = BatchPLS(n_components=3, group_by_batch=True).fit(batches, y)
+    with pytest.raises(ValueError, match=r"MidCourseCorrector requires a model fitted with group_by_batch=False\."):
+        MidCourseCorrector(grouped, pd.DataFrame({"u": np.zeros(grouped.n_timesteps_)}), mv_tags=["u"], y_target=0.0)
+
+
+@pytest.mark.parametrize(
+    ("call", "match"),
+    [
+        (lambda c, _batch: c.limits_at(0), r"k must lie in \[1, 10\]; got 0\."),
+        (lambda c, batch: c.correct(batch.iloc[:3], k=4), r"batch_so_far has 3 samples but k=4 were requested\."),
+        (
+            lambda c, batch: c.correct(batch.iloc[:4], implemented_schedule=c.nominal_schedule.iloc[:3]),
+            r"implemented_schedule must have 10 rows; got 3\.",
+        ),
+    ],
+    ids=["limits-before-the-first-sample", "fewer-samples-than-k", "short-implemented-schedule"],
+)
+def test_decision_point_inputs_are_checked(corrector: MidCourseCorrector, call: object, match: str) -> None:
+    """A decision point outside the batch, or inputs too short for it, are rejected."""
+    batches, _ = _synthetic_batches()
+    with pytest.raises(ValueError, match=match):
+        call(corrector, batches["b0"])  # type: ignore[operator]
+
+
+def test_correct_defaults_k_to_the_samples_given(corrector: MidCourseCorrector) -> None:
+    """Without k, the decision point is the number of samples recorded so far."""
+    batches, _ = _synthetic_batches()
+    batch = batches["b5"].iloc[:4]
+    implicit = corrector.correct(batch)
+    explicit = corrector.correct(batch, k=4)
+    assert implicit.k == 4
+    pd.testing.assert_frame_equal(implicit.schedule, explicit.schedule)
+
+
+def test_corrector_float_cap_is_used_as_given_and_none_disables(fitted: BatchPLS) -> None:
+    """A float T2 cap is enforced as given; spe_cap=None leaves SPE above the limit 'limit' would impose."""
+    batches, _ = _synthetic_batches()
+    capped = MidCourseCorrector(
+        fitted,
+        pd.DataFrame({"u": np.zeros(fitted.n_timesteps_)}),
+        mv_tags=["u"],
+        y_target=2.0,
+        weights={"target": 10.0, "movement": 1e-3},
+        dead_band=0.0,
+        spe_cap=None,
+        t2_cap=5.0,
+    )
+    out = capped.correct(batches["b7"].iloc[:4], k=4)
+    assert out.corrected
+    assert out.correction.t2 <= 5.0 * 1.01
+    assert out.correction.active_constraints["t2_cap"]
+    assert not out.correction.active_constraints["spe_cap"]
+    assert out.correction.spe > out.spe_limit_candidate
+
+
+def test_corrector_dead_band_above_side(fitted: BatchPLS) -> None:
+    """target_side='above' leaves batches predicted at or below the target alone and corrects those above it."""
+    batches, y = _synthetic_batches()
+    one_sided = MidCourseCorrector(
+        fitted,
+        pd.DataFrame({"u": np.zeros(fitted.n_timesteps_)}),
+        mv_tags=["u"],
+        y_target=0.0,
+        target_side="above",
+        dead_band=0.0,
+        weights={"target": 5.0, "movement": 1e-3},
+    )
+    low = one_sided.correct(batches[y["q"].idxmin()].iloc[:5], k=5)
+    high = one_sided.correct(batches[y["q"].idxmax()].iloc[:5], k=5)
+    assert low.reason == "dead_band"
+    assert float(low.dead_band_margin.iloc[0]) == 0.0
+    assert high.reason == "corrected"
+    assert float(high.dead_band_margin.iloc[0]) > 0.0
+
+
+def test_corrector_dead_band_both_sides(fitted: BatchPLS) -> None:
+    """The default two-sided band leaves a deviation within one half-width alone and corrects a larger one."""
+    batches, _ = _synthetic_batches()
+    batch = batches["b3"].iloc[:5]
+    nominal = pd.DataFrame({"u": np.zeros(fitted.n_timesteps_)})
+    prediction = MidCourseCorrector(fitted, nominal, mv_tags=["u"]).predict(batch, k=5)
+    y_hat, half_width = float(prediction.y_hat.iloc[0]), float(prediction.half_width.iloc[0])
+
+    def correct_towards(target: float) -> object:
+        corrector = MidCourseCorrector(
+            fitted, nominal, mv_tags=["u"], y_target=target, weights={"target": 5.0, "movement": 1e-3}
+        )
+        return corrector.correct(batch, k=5)
+
+    inside = correct_towards(y_hat + 0.5 * half_width)  # predicted below the target
+    outside = correct_towards(y_hat - 2.0 * half_width)  # predicted above the target
+    assert inside.reason == "dead_band"
+    assert float(inside.dead_band_margin.iloc[0]) == pytest.approx(0.5)
+    assert outside.reason == "corrected"
+    assert float(outside.dead_band_margin.iloc[0]) == pytest.approx(2.0)
+
+
 @pytest.mark.integration
 @pytest.mark.slow
 def test_executed_correction_gains_on_simulator() -> None:
@@ -471,6 +804,147 @@ def test_evaluate_control_policies_structure() -> None:
         random_state=0,
     )
     pd.testing.assert_frame_equal(result.batches, again.batches)
+
+
+@pytest.fixture(scope="module")
+def bioreactor() -> Bunch:
+    """Return a simulator and a corrector fitted on a small varied campaign, with no dead band."""
+    from process_improve.simulation import BioreactorSimulator, sample_initial_conditions
+
+    sim = BioreactorSimulator()
+    train = sim.simulate_campaign(30, policy="historical", mv_variation=2.5, random_state=0)
+    model = BatchPLS(n_components=4).fit(train.batches, train.quality, initial_conditions=train.initial_conditions)
+    corrector = MidCourseCorrector(
+        model,
+        sim.nominal_trajectory().reset_index(drop=True),
+        mv_tags=["pH", "temperature"],
+        y_target=8.0,
+        weights={"target": 1.0, "movement": 0.1},
+        dead_band=0.0,
+    )
+    z_row = sample_initial_conditions(1, random_state=3).z.iloc[0]
+    return Bunch(sim=sim, corrector=corrector, z_row=z_row)
+
+
+def test_evaluate_control_policies_rejects_unknown_oracle() -> None:
+    """An unknown oracle mode is rejected before the simulator is touched."""
+    from process_improve.batch.control import evaluate_control_policies
+
+    with pytest.raises(ValueError, match=r"oracle must be 'corrected' or 'none'; got 'x'\."):
+        evaluate_control_policies(object(), y_target=8.0, oracle="x")
+
+
+@pytest.mark.integration
+def test_evaluate_control_policies_passes_explicit_limits(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Explicit bounds and rate limits reach the corrector in place of the simulator-derived defaults."""
+    from process_improve.batch import control
+    from process_improve.simulation import BioreactorSimulator
+
+    settings = []
+
+    class RecordingCorrector(control.MidCourseCorrector):
+        def __init__(self, model: BatchPLS, nominal_schedule: pd.DataFrame, **kwargs: object) -> None:
+            settings.append(kwargs)
+            super().__init__(model, nominal_schedule, **kwargs)  # type: ignore[arg-type]
+
+    monkeypatch.setattr(control, "MidCourseCorrector", RecordingCorrector)
+    bounds = {"temperature": (29.0, 38.0), "pH": (6.7, 7.5)}
+    rate_limits = {"temperature": 1.0, "pH": 0.1}
+    control.evaluate_control_policies(
+        BioreactorSimulator(),
+        y_target=8.0,
+        n_train=30,
+        n_test=1,
+        per_class=False,
+        bounds=bounds,
+        rate_limits=rate_limits,
+        include_adapted=False,
+        oracle="none",
+        random_state=0,
+    )
+    assert [s["bounds"] for s in settings] == [bounds]
+    assert [s["rate_limits"] for s in settings] == [rate_limits]
+
+
+@pytest.mark.integration
+def test_evaluate_control_policies_adds_adapted_and_oracle_rows(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The adapted row runs each batch's optimal schedule; the oracle row scores corrected batches from k."""
+    from process_improve.batch import control
+    from process_improve.simulation import BioreactorSimulator
+
+    sim = BioreactorSimulator()
+    optimiser_calls, oracle_calls = [], []
+
+    def nominal_is_optimal(z_row: pd.Series, **kwargs: object) -> Bunch:
+        optimiser_calls.append(kwargs)
+        return Bunch(trajectory=sim.nominal_trajectory())
+
+    def oracle(simulator: object, z_row: pd.Series, seed: int, k: int) -> float:
+        oracle_calls.append(k)
+        return 100.0 + k
+
+    monkeypatch.setattr(sim, "optimal_trajectory", nominal_is_optimal)
+    monkeypatch.setattr(control, "_oracle_remaining", oracle)
+    result = control.evaluate_control_policies(
+        sim,
+        y_target=7.0,  # with the default target_side="below", one of the three test batches is predicted above it
+        n_train=30,
+        n_test=3,
+        per_class=False,
+        dead_band=0.0,
+        adapted_n_knots=3,
+        adapted_n_starts=2,
+        random_state=0,
+    )
+    batches = result.batches
+    assert list(result.summary.index) == ["replay", "midcourse", "oracle_from_k", "adapted"]
+    # The stand-in optimum is the nominal schedule, so the adapted batch replays the nominal one.
+    np.testing.assert_array_equal(batches["adapted"], batches["replay"])
+    assert optimiser_calls == [{"n_knots": 3, "n_starts": 2, "random_state": 0}] * 3
+    # Only the corrected batches go to the oracle; the others count at their mid-course titer.
+    corrected = batches["corrected"].to_numpy(dtype=bool)
+    assert corrected.any()
+    assert not corrected.all()
+    assert oracle_calls == [8] * int(corrected.sum())
+    np.testing.assert_array_equal(batches["oracle_from_k"].to_numpy()[corrected], 108.0)
+    assert batches["oracle_from_k"][~corrected].isna().all()
+    expected = batches["oracle_from_k"].fillna(batches["midcourse"]).mean()
+    assert result.summary.loc["oracle_from_k", "mean"] == pytest.approx(expected)
+
+
+@pytest.mark.integration
+def test_oracle_is_never_below_the_nominal_remainder(bioreactor: Bunch) -> None:
+    """The oracle's search starts on the nominal remainder, so its titer cannot fall below the replay titer.
+
+    From sample 10 the nominal schedule holds the production setpoints, so two
+    knots per tag reproduce it exactly and the starting point is the replay.
+    """
+    from process_improve.batch.control import _oracle_remaining
+
+    replay = bioreactor.sim.simulate_batch(bioreactor.z_row, random_state=7).titer
+    oracle = _oracle_remaining(bioreactor.sim, bioreactor.z_row, 7, 10, n_knots=2, max_evaluations=10)
+    assert oracle >= replay
+
+
+@pytest.mark.integration
+def test_later_decision_points_keep_the_first_correction_on_record(bioreactor: Bunch) -> None:
+    """Corrected at both points, the record keeps the first point and its predictions, and the titer moves on."""
+    from process_improve.batch.control import _run_decision_points
+
+    sim, corrector, z_row = bioreactor.sim, bioreactor.corrector, bioreactor.z_row
+    twice = _run_decision_points(sim, corrector, z_row, (8, 12), 7)
+    once = _run_decision_points(sim, corrector, z_row, (8,), 7)
+    first = corrector.correct(
+        sim.simulate_batch(z_row, random_state=7).tags.iloc[:8].reset_index(drop=True), initial_conditions=z_row, k=8
+    )
+    assert first.corrected
+    assert twice["decision_point"] == 8
+    assert twice["reason"] == "corrected"
+    assert twice["y_hat_predicted"] == float(first.y_hat.iloc[0])
+    assert twice["y_hat_no_change"] == float(first.y_hat_no_change.iloc[0])
+    assert twice["half_width"] == float(first.half_width.iloc[0])
+    assert twice["replay"] == once["replay"]
+    assert twice["midcourse"] != once["midcourse"]  # the second correction was executed too
 
 
 def test_limits_carry_decision_point_error_and_conditioning(corrector: MidCourseCorrector) -> None:

@@ -552,6 +552,23 @@ class TestWithinBetweenVariance:
 # ---------------------------------------------------------------------------
 
 
+class TestGetMultivariateToolSpecs:
+    def test_returns_the_six_tools_the_module_registers(self) -> None:
+        """The helper returns exactly the module's six tools, each filed under the multivariate category."""
+        from process_improve.multivariate.tools import get_multivariate_tool_specs
+
+        specs = get_multivariate_tool_specs()
+        assert {s["name"] for s in specs} == {
+            "fit_pca",
+            "fit_pls",
+            "scale_data",
+            "detect_multivariate_outliers",
+            "pca_predict",
+            "pls_predict",
+        }
+        assert {s["category"] for s in specs} == {"multivariate"}
+
+
 class TestFitPca:
     """Tests for the fit_pca tool wrapper."""
 

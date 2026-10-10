@@ -2,6 +2,10 @@
 
 from __future__ import annotations
 
+import re
+from collections.abc import Callable
+from typing import Any
+
 import numpy as np
 import pandas as pd
 import pytest
@@ -109,6 +113,30 @@ class TestColumnConstruction:
         assert not col.pi_numeric
         assert col.pi_levels[col.pi_name] == [0, 1, "green"]
 
+    @pytest.mark.parametrize(
+        ("args", "kwargs", "error", "message"),
+        [
+            pytest.param(
+                (1, 2),
+                {"range": (0, 1, 2)},
+                ValueError,
+                "The `range` variable must be a tuple with 2 values; got 3 value(s).",
+                id="range-of-three-values",
+            ),
+            pytest.param(
+                ("a", "b"),
+                {"levels": 5},
+                TypeError,
+                "Levels must be list or tuple of the unique level names.",
+                id="levels-not-iterable",
+            ),
+        ],
+    )
+    def test_malformed_metadata_is_rejected(self, args: tuple, kwargs: dict, error: type, message: str) -> None:
+        """A ``range`` or ``levels`` that cannot describe the column is refused with a message saying why."""
+        with pytest.raises(error, match=f"^{re.escape(message)}$"):
+            c(*args, **kwargs)
+
 
 class TestMetadataDefaults:
     """``pi_*`` metadata on objects that no factory set up (#513)."""
@@ -151,3 +179,72 @@ class TestMetadataDefaults:
         """``pi_levels`` is in ``Column._metadata`` now, so a slice keeps it."""
         moisture = c("Dry", "Wet", "Dry")
         assert moisture[:2].pi_levels == moisture.pi_levels
+
+
+class TestColumnMetadata:
+    """Coding conversions and extension at the edges of the metadata."""
+
+    def test_an_unnamed_column_keeps_its_empty_name_when_coded(self) -> None:
+        """Only a named column gets the ' [coded]' suffix."""
+        coded = c(4, 5, 6, lo=4, hi=6, name="").to_coded()
+        assert list(coded.values) == [-1.0, 0.0, 1.0]
+        assert coded.name == ""
+
+    def test_a_categorical_column_cannot_be_converted_to_real_world_units(self) -> None:
+        """A ``levels=`` column has no center or range, so the affine map is undefined."""
+        col = c(["Dry", "Wet", "Dry"], levels=("Dry", "Wet"))
+        with pytest.raises(ValueError, match=r"^Cannot convert between coded and real-world units: no center/range"):
+            col.to_realworld()
+
+    def test_extend_requires_a_list(self) -> None:
+        with pytest.raises(TypeError, match=r"^'values' must be a list; got tuple\.$"):
+            c(-1, 0, 1, name="Temp").extend((1, 2))
+
+
+class TestGather:
+    """Collecting columns into an ``Expt``."""
+
+    def test_a_plain_list_becomes_a_column(self) -> None:
+        expt = gather(y=[1.0, 2.0, 3.0])
+        assert list(expt.columns) == ["y"]
+        assert list(expt["y"]) == [1.0, 2.0, 3.0]
+
+    def test_a_name_given_twice_is_refused(self) -> None:
+        """A positional column named 'A' and a keyword 'A' would overwrite each other."""
+        a = c(1, 2, 3, name="A")
+        with pytest.raises(ValueError, match=r"^Duplicate column name 'A' in gather\(\)\.$"):
+            gather(a, A=a)
+
+
+def _names_an_argument(message: str, arguments: dict[str, object]) -> bool:
+    """Return True if a rejection message identifies one of the arguments, by position, keyword or value."""
+    for key, value in arguments.items():
+        by_key = re.search(rf"\b(argument|position)\s+{re.escape(key)}\b|'{re.escape(key)}'", message, re.IGNORECASE)
+        by_value = re.search(rf"(?<!\w){re.escape(repr(value))}(?!\w)", message)
+        if by_key or by_value:
+            return True
+    return False
+
+
+def _result_or_type_error(call: Callable[[], Any]) -> tuple[Any, str | None]:
+    """Run ``call``; return its result, or ``None`` and the message of the TypeError it raised."""
+    try:
+        return call(), None
+    except TypeError as err:
+        return None, str(err)
+
+
+@pytest.mark.xfail(strict=True, reason="#677: gather() silently drops array and tuple inputs")
+@pytest.mark.parametrize(
+    "values",
+    [pytest.param(np.array([4.0, 5.0, 6.0]), id="numpy-array"), pytest.param((4.0, 5.0, 6.0), id="tuple")],
+)
+def test_gather_keeps_every_input_or_rejects_it_by_name(values: object) -> None:
+    """An array or tuple passed to gather() is a column of the result, or a TypeError names it."""
+    a = c(1, 2, 3, name="A")
+    expt, rejection = _result_or_type_error(lambda: gather(A=a, x=values))
+    if rejection is not None:
+        assert _names_an_argument(rejection, {"x": values}), rejection
+    else:
+        assert list(expt.columns) == ["A", "x"]
+        assert list(expt["x"]) == [4.0, 5.0, 6.0]

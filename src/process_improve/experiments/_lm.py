@@ -390,10 +390,9 @@ class Model(OLS):
             warnings.simplefilter("ignore")
 
             main = "OLS Regression Results"
-            if self.name:
-                main += ": " + str(self.name)
-            elif self.data is not None and self.data.pi_title:
-                main += ": " + str(self.data.pi_title)
+            title = self.name or self.get_title()
+            if title:
+                main += ": " + str(title)
 
             smry = self._OLS.summary(title=main)
             # print(smry)
@@ -446,10 +445,12 @@ class Model(OLS):
         return spec.lhs_termlist[0].name()
 
     def get_title(self) -> str:
-        """Get the model's title, if it has one. Always returns a string."""
-        if self.data is None:
-            return ""
-        return self.data.get_title()
+        """Get the model's title, if it has one. Always returns a string.
+
+        The title is the data's ``pi_title``. ``lm`` also accepts a plain DataFrame,
+        which has none, so a missing attribute is an empty title rather than an error.
+        """
+        return str(getattr(self.data, "pi_title", None) or "")
 
     def get_aliases(
         self,

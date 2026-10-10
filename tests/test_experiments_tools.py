@@ -63,6 +63,15 @@ class TestCreateFactorialDesign:
         with pytest.raises(ToolInputInvalidError):
             execute_tool_call("create_factorial_design", {"n_factors": 0})
 
+    def test_a_design_over_the_factor_cap_is_an_error_envelope(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """The SEC-19 cap on 2**k rows comes back as {"error": ...} naming the cap."""
+        from process_improve.config import settings
+
+        monkeypatch.setattr(settings, "max_factors_combinatorial", 3)
+        result = execute_tool_call("create_factorial_design", {"n_factors": 4})
+        assert set(result) == {"error"}
+        assert result["error"].startswith("nfactors=4 exceeds the SEC-19 combinatorial cap of 3;")
+
 
 # ---------------------------------------------------------------------------
 # fit_linear_model
@@ -204,6 +213,27 @@ class TestGenerateDesign:
         )
         assert "error" not in result
         assert "alpha" in result
+
+    def test_dataclass_metadata_is_returned_as_plain_json(self) -> None:
+        """The OMARS search report is a dataclass; the tool hands it back as a JSON-serialisable dict."""
+        result = execute_tool_call(
+            "generate_design",
+            {
+                "factors": [{"name": name, "low": -1, "high": 1} for name in "ABC"],
+                "design_type": "omars_ilp",
+                "budget": 13,
+            },
+        )
+        report = result["metadata"]["omars_search"]
+        assert isinstance(report, dict)
+        assert report["n_factors"] == 3
+        json.dumps(result)
+
+    def test_frame_metadata_becomes_records(self) -> None:
+        from process_improve.experiments._tools.generate_design import _jsonable
+
+        frame = pd.DataFrame({"run": [1, 2], "block": ["a", "b"]})
+        assert _jsonable({"blocks": [frame]}) == {"blocks": [[{"run": 1, "block": "a"}, {"run": 2, "block": "b"}]]}
 
     def test_invalid_factor_returns_error(self) -> None:
         """A continuous factor without low/high should be reported as an error."""
@@ -634,6 +664,14 @@ class TestDoeKnowledge:
             },
         )
         assert "error" not in result
+
+    def test_a_context_value_of_the_wrong_type_is_an_error_envelope(self) -> None:
+        """A rule compares n_factors with a number; text there is reported back instead of raising."""
+        result = execute_tool_call(
+            "doe_knowledge",
+            {"query": "screening", "topic": "design_selection", "context": {"n_factors": "seven"}},
+        )
+        assert result == {"error": "'>=' not supported between instances of 'str' and 'int'"}
 
 
 # ---------------------------------------------------------------------------

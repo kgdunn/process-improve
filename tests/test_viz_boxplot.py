@@ -273,6 +273,18 @@ def test_missing_group_by_returns_error() -> None:
     assert "missing" in res["error"]
 
 
+def test_rows_without_a_group_label_leave_nothing_to_plot() -> None:
+    """Grouping drops rows whose label is missing; when that is every row, the tool says so."""
+    res = boxplot(data=[{"g": None, "y": 1.0}, {"g": None, "y": 2.0}], value_columns=["y"], group_by="g")
+    assert res == {"error": "no non-empty groups to plot"}
+
+
+def test_non_numeric_values_return_error() -> None:
+    """A value column that cannot be read as numbers comes back as the tool's error, not an exception."""
+    res = boxplot(data=[{"y": "x"}, {"y": "z"}], value_columns=["y"])
+    assert res == {"error": "could not convert string to float: 'x'"}
+
+
 # ---------------------------------------------------------------------------
 # Chart class direct usage
 # ---------------------------------------------------------------------------

@@ -91,6 +91,9 @@ def robust_regression(spec: RobustRegressionInput) -> dict[str, Any]:
             fit_intercept=spec.fit_intercept,
             conflevel=spec.confidence_level,
         )
+        if result["N"] is None:
+            # The fit hands back its empty result when two or fewer complete pairs remain.
+            return {"error": "robust_regression needs at least three complete (x, y) pairs to fit a line."}
 
         out: dict[str, Any] = {
             "slope": result["coefficients"][0],
@@ -104,17 +107,12 @@ def robust_regression(spec: RobustRegressionInput) -> dict[str, Any]:
             "confidence_level": spec.confidence_level,
         }
 
-        if result.get("conf_intervals") is not None:
-            ci = result["conf_intervals"]
-            if hasattr(ci, "tolist"):
-                ci = ci.tolist()
-            out["slope_confidence_interval"] = ci[0] if ci else None
-
-        if result.get("pi_range") is not None and hasattr(result["pi_range"], "tolist"):
-            pi = result["pi_range"].tolist()
-            out["prediction_interval_x"] = [row[0] for row in pi]
-            out["prediction_interval_lower"] = [row[1] for row in pi]
-            out["prediction_interval_upper"] = [row[2] for row in pi]
+        # A fit with three or more complete pairs always returns both as arrays.
+        out["slope_confidence_interval"] = result["conf_intervals"].tolist()[0]
+        pi = result["pi_range"].tolist()
+        out["prediction_interval_x"] = [row[0] for row in pi]
+        out["prediction_interval_lower"] = [row[1] for row in pi]
+        out["prediction_interval_upper"] = [row[2] for row in pi]
 
         return clean(out)
     except (ValueError, TypeError, np.linalg.LinAlgError) as exc:

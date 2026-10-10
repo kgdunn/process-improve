@@ -147,3 +147,10 @@ def test_melt_df_to_series() -> None:
     assert isinstance(series, pd.Series)
     assert series.name == "obs"
     assert len(series) == 4
+
+
+def test_melt_df_to_series_with_explicit_exclusions() -> None:
+    """Columns named in exclude_columns are left out of the melted series, replacing the batch_id default."""
+    df = pd.DataFrame({"batch_id": ["A", "A"], "temp": [1.0, 2.0], "press": [3.0, 4.0]})
+    series = melt_df_to_series(df, exclude_columns=["batch_id", "press"])
+    assert series.to_dict() == {("temp", 0): 1.0, ("temp", 1): 2.0}

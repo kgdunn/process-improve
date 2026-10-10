@@ -6,7 +6,12 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from process_improve.monitoring.control_charts import ControlChart
+from process_improve.monitoring import control_charts
+from process_improve.monitoring.control_charts import (
+    ControlChart,
+    _tau_from_training_errors,
+    _training_error_radicand,
+)
 from process_improve.monitoring.metrics import calculate_cpk
 from process_improve.monitoring.tools import (
     get_monitoring_tool_specs,
@@ -208,13 +213,13 @@ def test_calculate_limits_rejects_non_positive_s() -> None:
 
 
 def test_unsupported_variant_cannot_estimate_limits() -> None:
-    """A variant with no fitting routine (e.g. cusum) is rejected at construction.
+    """A variant with no fitting routine (e.g. a moving-range chart) is rejected at construction.
 
     Previously it slipped through every fit branch and surfaced much later as
     a misleading "input is likely constant or too short" error.
     """
     with pytest.raises(ValueError, match="not implemented"):
-        ControlChart(variant="cusum")
+        ControlChart(variant="moving.range")
 
 
 def test_unknown_style_for_xbar_no_subgroup_raises() -> None:
@@ -224,6 +229,32 @@ def test_unknown_style_for_xbar_no_subgroup_raises() -> None:
     cc = ControlChart(style="banana", variant="xbar.no.subgroup")
     with pytest.raises(ValueError, match="could not be estimated"):
         cc.calculate_limits(y)
+
+
+@pytest.mark.parametrize("style", ["robust", "regular"])
+def test_xbar_no_subgroup_keeps_a_given_target_and_s(style: str) -> None:
+    """A given target and s are used as they are, and only a missing one is estimated.
+
+    Both used to be replaced by estimates from the data, so a chart could not be drawn
+    from known (Phase I) values, and a shift that had moved the data's own centre was
+    judged against that moved centre.
+    """
+    rng = np.random.default_rng(1)
+    y = np.concatenate([rng.normal(50, 2, 60), rng.normal(54, 2, 20)])  # a two-sigma shift at 60
+
+    def fit(**given: float) -> ControlChart:
+        chart = ControlChart(variant="xbar.no.subgroup", style=style)
+        chart.calculate_limits(y, **given)
+        return chart
+
+    known, estimated = fit(target=50.0, s=2.0), fit()
+    assert (known.target, known.s) == (50.0, 2.0)
+    assert known.idx_outside_3S == np.nonzero(np.abs(y - 50.0) > 6.0)[0].tolist()
+    assert len(known.idx_outside_3S) > len(estimated.idx_outside_3S)
+
+    only_target, only_s = fit(target=50.0), fit(s=2.0)
+    assert (only_target.target, only_target.s) == (50.0, estimated.s)
+    assert (only_s.target, only_s.s) == (estimated.target, 2.0)
 
 
 def test_hw_zero_mad_but_nonconstant_warmup_falls_back_to_std() -> None:
@@ -455,6 +486,18 @@ def test_calculate_cpk_normal_data_still_returns_finite_value() -> None:
     assert result.cpk > 0
 
 
+@pytest.mark.parametrize(
+    ("trim", "message"),
+    [(-1.0, r"must be non-negative; got -1\.0"), (40.0, r"must be < 40 \(typically <= 10-20\); got 40\.0")],
+    ids=["negative", "40-or-more"],
+)
+def test_calculate_cpk_rejects_trim_percentile_out_of_range(trim: float, message: str) -> None:
+    """``trim_percentile`` is a percentile in [0, 40); anything else is rejected before computing."""
+    data = pd.DataFrame({"value": [1.0, 2.0, 3.0]})
+    with pytest.raises(ValueError, match=message):
+        calculate_cpk(data, "value", specifications=(0.0, 4.0), trim_percentile=trim)
+
+
 class TestHoltWintersControlChartBatchYield:
     """Validate Holt-Winters control chart on batch yield data.
 
@@ -510,14 +553,9 @@ def test_control_chart_tool_default_holt_winters(in_control_series_with_one_outl
     assert any(abs(v - 15.0) < 1e-9 for v in result["out_of_control_values"])
 
 
-@pytest.mark.parametrize("chart_type", ["shewhart", "holt_winters"])
+@pytest.mark.parametrize("chart_type", ["shewhart", "holt_winters", "ewma", "cusum"])
 def test_control_chart_tool_supports_each_chart_type(chart_type: str) -> None:
-    """The Shewhart and Holt-Winters chart_types produce a valid result on a generic series.
-
-    'cusum' is also documented but its underlying ControlChart variant requires additional
-    setup beyond raw values, so it surfaces as an `error` dict here. Covered indirectly by
-    `test_control_chart_tool_returns_error_on_bad_input` (the same `except` branch).
-    """
+    """Every chart_type produces a valid result on a generic series."""
     rng = np.random.default_rng(0)
     values = [float(v) for v in rng.normal(loc=0.0, scale=1.0, size=40)]
     result = execute_tool_call("control_chart", {"values": values, "chart_type": chart_type})
@@ -600,6 +638,24 @@ def test_process_capability_tool_returns_error_on_bad_input() -> None:
     """Non-numeric values are rejected by the pydantic contract."""
     with pytest.raises(ToolInputInvalidError):
         execute_tool_call("process_capability", {"values": ["bad", "input"]})
+
+
+def test_control_chart_tool_reports_a_constant_series_as_an_error() -> None:
+    """A constant series passes the schema but has no spread to chart: the tool reports it, never raises."""
+    result = execute_tool_call("control_chart", {"values": [5.0] * 30})
+    assert set(result) == {"error"}
+    assert "zero (or non-finite) variance" in result["error"]
+
+
+def test_process_capability_tool_reports_a_failed_calculation_as_an_error(monkeypatch) -> None:
+    """An expected failure inside the Cpk calculation comes back as the tool's error envelope."""
+
+    def _fail(*_args, **_kwargs):
+        raise ValueError("no usable specification limit")
+
+    monkeypatch.setattr("process_improve.monitoring.metrics.calculate_cpk", _fail)
+    result = execute_tool_call("process_capability", {"values": [1.0, 2.0, 3.0, 4.0, 5.0], "lower_spec": 0.0})
+    assert result == {"error": "no usable specification limit"}
 
 
 def test_get_monitoring_tool_specs_lists_both_tools() -> None:
@@ -685,3 +741,27 @@ class TestControlChartMissingValues:
             warnings.simplefilter("error", RuntimeWarning)
             with pytest.raises(ValueError, match=r"none of the \d+ training-sample errors is finite"):
                 cc.calculate_limits(y, target=100.0, s=2.0, ld_1=0.4, ld_2=0.7)
+
+
+@pytest.mark.parametrize(
+    "errors",
+    [[np.nan, np.nan, np.nan], [0.0, 0.0, 0.0, 1.5]],
+    ids=["no-finite-error", "zero-median-absolute-error"],
+)
+def test_training_error_radicand_is_nan_when_undefined(errors: list[float]) -> None:
+    """An undefined tau^2 is NaN, so a lambda-grid cell without one cannot win the search (#557)."""
+    assert np.isnan(_training_error_radicand(pd.Series(errors)))
+
+
+def test_scale_estimate_rejects_errors_without_usable_spread() -> None:
+    """Mostly-zero training errors have a zero median: the scale is reported as undefined, not zero (#557)."""
+    with pytest.raises(ValueError, match=r"scale estimate is undefined \(tau\^2 = nan\)"):
+        _tau_from_training_errors(pd.Series([0.0, 0.0, 0.0, 1.5]))
+
+
+def test_hw_grid_search_with_no_usable_cell_raises(monkeypatch) -> None:
+    """When every lambda pair leaves tau^2 undefined, the search reports it instead of picking a NaN cell."""
+    monkeypatch.setattr(control_charts, "_training_error_radicand", lambda _errors: float("nan"))
+    y = 50.0 + np.random.default_rng(5).standard_normal(40)
+    with pytest.raises(ValueError, match="lambda grid search produced no usable residuals"):
+        ControlChart(style="robust", variant="HW").calculate_limits(y)

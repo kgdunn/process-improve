@@ -24,7 +24,10 @@ from process_improve.batch.preprocessing import (
     apply_scaling,
     batch_dtw,
     determine_scaling,
+    dtw_core,
+    find_average_length,
     find_reference_batch,
+    one_iteration_dtw,
     reverse_scaling,
 )
 
@@ -268,6 +271,40 @@ def test_reference_batch_selection_dryer(dryer_data: dict) -> None:
     assert good_reference_candidate == 3
 
 
+def test_reference_batch_selection_without_settings(dryer_data: dict) -> None:
+    """With no settings the robust defaults apply: the median-length batch sets the grid, and batch 3 is chosen."""
+    columns_to_align = ["AgitatorPower", "AgitatorTorque", "JacketTemperatureSP", "JacketTemperature", "DryerTemp"]
+    assert find_average_length(dryer_data) == 52  # the robust grid differs from the mean-length batch 2 ...
+    assert find_reference_batch(dryer_data, columns_to_align=columns_to_align) == 3  # ... and the pick does not
+
+
+def test_find_reference_batch_wants_a_list_of_columns(dryer_data: dict) -> None:
+    """A tuple of column names is refused by type, not silently mis-indexed."""
+    with pytest.raises(TypeError, match=r"`columns_to_align` must be a list of column names; got tuple\."):
+        find_reference_batch(dryer_data, columns_to_align=("AgitatorPower", "DryerTemp"))
+
+
+@pytest.mark.parametrize(
+    ("lengths", "settings", "expected"),
+    [
+        ((10, 11, 12, 13, 100), None, "c"),
+        ((10, 11, 12, 13, 100), {"robust": False}, "d"),
+        ((10, 11, 11, 30), None, "c"),
+        ((10, 12, 16, 30), None, "c"),
+    ],
+    ids=[
+        "median-length-by-default",
+        "nearest-the-mean-when-not-robust",
+        "last-of-several-median-length-batches",
+        "nearest-the-mean-when-no-batch-has-the-median-length",
+    ],
+)
+def test_find_average_length(lengths: tuple, settings: dict | None, expected: str) -> None:
+    """The robust choice is the median-length batch; without one of that length, the batch nearest the mean."""
+    batches = {name: pd.DataFrame({"x": np.arange(float(n))}) for name, n in zip("abcde", lengths, strict=False)}
+    assert find_average_length(batches, settings) == expected
+
+
 def test_reference_batch_selection_nylon(nylon_data: dict) -> None:
     """Test that the correct reference batch is selected for nylon data."""
     columns_to_align = [
@@ -330,16 +367,49 @@ def test_find_reference_batch_returns_multiple(dryer_data: dict) -> None:
         "JacketTemperature",
         "DryerTemp",
     ]
+    # 36 dryer batches pass the SPE cutoff at the starting conf_level=0.5, so a request
+    # for 40 has to relax the cutoff (43 pass at 0.55); a request for 3 never did.
     result = find_reference_batch(
         dryer_data,
         columns_to_align=columns_to_align,
         settings={
             "robust": False,
-            "number_of_reference_batches": 3,
+            "number_of_reference_batches": 40,
         },
     )
     assert isinstance(result, list)
-    assert len(result) == 3
+    assert len(result) == 40
+
+
+def test_find_reference_batch_relaxes_the_spe_cutoff_up_to_95_percent(dryer_data: dict) -> None:
+    """The cutoff relaxation reaches conf_level=0.95, the level its error message names.
+
+    On the dryer data 58 batches pass the SPE cutoff at conf_level=0.90 and 60
+    at 0.95. The levels used to be built by adding 0.05 to a float, which
+    stopped at 0.9000000000000004, so asking for 60 failed while claiming 0.95
+    had been tried, and asking for 61 reported only 58 passing batches.
+    """
+    columns_to_align = [
+        "AgitatorPower",
+        "AgitatorTorque",
+        "JacketTemperatureSP",
+        "JacketTemperature",
+        "DryerTemp",
+    ]
+    settings = {"robust": False, "number_of_reference_batches": 60}
+    assert len(find_reference_batch(dryer_data, columns_to_align=columns_to_align, settings=settings)) == 60
+    with pytest.raises(
+        ValueError,
+        match=(
+            r"Could not find 61 reference batches even at conf_level=0\.95; "
+            r"only 60 batches passed the SPE cutoff\."
+        ),
+    ):
+        find_reference_batch(
+            dryer_data,
+            columns_to_align=columns_to_align,
+            settings={**settings, "number_of_reference_batches": 61},
+        )
 
 
 def test_find_reference_batch_rejects_zero_request(dryer_data: dict) -> None:
@@ -408,6 +478,87 @@ def test_backtrack_optimal_path_returns_sum() -> None:
     _path, path_sum = backtrack_optimal_path(d_matrix)
     assert np.isfinite(path_sum)
     assert path_sum >= 0
+
+
+def _warped_batch(n_samples: int) -> pd.DataFrame:
+    """Two smooth tags on a time axis bent the same way, so batches differ only in length."""
+    t = np.linspace(0.0, 1.0, n_samples) ** 1.2
+    return pd.DataFrame({"a": np.sin(2 * np.pi * t), "b": np.cos(np.pi * t) + 2.0 * t})
+
+
+def test_dtw_core_rejects_batches_with_different_columns() -> None:
+    """Samples can only be compared when the test and reference batches carry the same number of tags."""
+    test = pd.DataFrame(np.zeros((6, 3)))
+    with pytest.raises(
+        ValueError,
+        match=r"test and ref must have the same number of columns; got test\.shape\[1\]=3, ref\.shape\[1\]=2\.",
+    ):
+        dtw_core(test, _warped_batch(5), np.eye(3))
+
+
+def test_one_iteration_dtw_without_settings_aligns_every_sample() -> None:
+    """With no settings every sample is used and no band applies, so copies of the reference average to it."""
+    reference = _warped_batch(36)
+    aligned, average = one_iteration_dtw({"p": reference, "q": reference.copy()}, reference, np.eye(2))
+    pd.testing.assert_frame_equal(average, reference)
+    assert sorted(aligned) == ["p", "q"]
+
+
+def test_batch_dtw_without_settings_uses_the_documented_defaults(capsys: pytest.CaptureFixture[str]) -> None:
+    """With no settings, progress is printed and every batch is resampled onto the 100-point default axis."""
+    batches = {"x": _warped_batch(30), "y": _warped_batch(36), "z": _warped_batch(42)}
+    outputs = batch_dtw(batches, columns_to_align=["a", "b"], reference_batch="y")
+    assert "Iter = 0 and norm = " in capsys.readouterr().out
+    assert {batch_id: len(frame) for batch_id, frame in outputs["aligned_batch_dfdict"].items()} == {
+        "x": 100,
+        "y": 100,
+        "z": 100,
+    }
+    quiet = batch_dtw(batches, columns_to_align=["a", "b"], reference_batch="y", settings={"show_progress": False})
+    for batch_id, frame in outputs["aligned_batch_dfdict"].items():
+        pd.testing.assert_frame_equal(frame, quiet["aligned_batch_dfdict"][batch_id])
+
+
+@pytest.mark.parametrize(
+    ("reference_batch", "settings", "exc", "match"),
+    [
+        (
+            "y",
+            {"maximum_iterations": 2},
+            ValueError,
+            r"At least 3 iterations are required; got maximum_iterations=2\.",
+        ),
+        ("nope", None, KeyError, r"`reference_batch` was not found in the dict of batches; got 'nope'\."),
+    ],
+    ids=["fewer-than-three-iterations", "unknown-reference-batch"],
+)
+def test_batch_dtw_rejects_bad_arguments(reference_batch: str, settings: dict | None, exc: type, match: str) -> None:
+    """Settings that cannot run are rejected before any alignment work is done."""
+    batches = {"x": _warped_batch(30), "y": _warped_batch(36)}
+    with pytest.raises(exc, match=match):
+        batch_dtw(batches, columns_to_align=["a", "b"], reference_batch=reference_batch, settings=settings)
+
+
+@pytest.mark.parametrize(
+    ("call", "broken", "match"),
+    [
+        (
+            lambda batches: batch_dtw(batches, ["a", "b"], reference_batch="x", settings={"show_progress": False}),
+            _warped_batch(36).assign(b=np.nan),
+            r"No missing values allowed\. Missing values found in y\.",
+        ),
+        (
+            lambda batches: find_reference_batch(batches, ["a", "b"]),
+            _warped_batch(36).assign(b="text"),
+            r"All columns must be a numeric type\. Differs in y\.",
+        ),
+    ],
+    ids=["batch-dtw-missing-values", "find-reference-batch-non-numeric"],
+)
+def test_invalid_batches_are_rejected_by_name(call: object, broken: pd.DataFrame, match: str) -> None:
+    """The batch-dict validation raises from the caller and names the offending batch."""
+    with pytest.raises(ValueError, match=match):
+        call({"x": _warped_batch(30), "y": broken})  # type: ignore[operator]
 
 
 class TestScalingRejectsUnsupportedContainers:

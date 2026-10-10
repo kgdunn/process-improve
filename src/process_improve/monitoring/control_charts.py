@@ -306,8 +306,42 @@ def _holt_winters_recursion(
     }
 
 
+def _one_sided_cusum(
+    deviations: np.ndarray, reference: float, interval: float
+) -> tuple[np.ndarray, list[tuple[int, int, float]]]:
+    """
+    Run a one-sided tabular CUSUM, ``C_t = max(0, C_(t-1) + d_t - reference)``, from ``C_0 = 0``.
+
+    The sum restarts from zero after each alarm (``C_t > interval``), and a missing deviation
+    holds it. Returns the sum at every sample, and for each alarm a tuple of the alarm's
+    position, the position where its run of non-zero sums started, and the estimated shift,
+    ``reference + C_t / N`` for a run of ``N`` observations.
+    """
+    sums = np.empty_like(deviations)
+    alarms = []
+    total, start, n_run = 0.0, 0, 0
+    for t, deviation in enumerate(deviations):
+        if not np.isnan(deviation):
+            total = max(0.0, total + deviation - reference)
+            start = t if n_run == 0 else start
+            n_run = n_run + 1 if total > 0.0 else 0
+        sums[t] = total
+        if total > interval:
+            alarms.append((t, start, reference + total / n_run))
+            total, n_run = 0.0, 0
+    return sums, alarms
+
+
 class ControlChart:
     """Create control chart instance objects."""
+
+    #: Tuning parameters, declared but not assigned here: each exists on an instance only once
+    #: a caller pins it in ``calculate_limits`` or a fit sets it, which ``hasattr`` relies on.
+    #: A Holt-Winters weight left as None is searched for.
+    ld_1: float | None
+    ld_2: float | None
+    k: float
+    h: float
 
     def __init__(self, style: str = "robust", variant: str = "HW") -> None:
         """
@@ -318,9 +352,9 @@ class ControlChart:
             Other choice is 'regular' (i.e. not-robust) calculations. User should then ensure that
             no outliers are present in the data.
 
-            variant (str, optional): Only two variants are currently accepted:
-                ``'hw'`` (the default) and ``'xbar.no.subgroup'``. Any other value,
-                including ``'cusum'``, raises ``ValueError`` at construction time.
+            variant (str, optional): Four variants are accepted: ``'hw'`` (the default),
+                ``'xbar.no.subgroup'``, ``'ewma'`` and ``'cusum'``. Any other value raises
+                ``ValueError`` at construction time.
                 The variant string is compared case-insensitively (it is normalised
                 via ``.strip().lower()`` on assignment), so ``'HW'``, ``'hw'``, and
                 ``'Hw'`` are all equivalent.
@@ -330,28 +364,36 @@ class ControlChart:
                 charts, and an instantaneous (no history taken into account) Shewhart chart. The
                 exact blend is specified by parameters `ld_1` (lambda 1) and `ld_2` (lambda 2).
 
-                The other accepted variant is:
+                The other accepted variants are:
 
                 'xbar.no.subgroup' [Shewhart chart, with no subgroups]. In other words, each
                 observation is independently plotted on the control chart.
 
-                A pure 'cusum' (CUmulative SUM) chart is a planned future variant but
-                is not currently implemented; passing ``variant='cusum'`` raises
-                ``ValueError``. The Holt-Winters ('hw') default already blends
-                CUSUM-style infinite history with Shewhart-style instantaneous
-                behaviour via its lambda parameters.
+                'ewma' [exponentially weighted moving average chart]. The charted statistic is
+                ``z_t = ld_1 * y_t + (1 - ld_1) * z_{t-1}``, started at the target, and it is
+                compared with its exact time-varying limits,
+                ``target +/- 3 s sqrt(ld_1 / (2 - ld_1) * (1 - (1 - ld_1) ** (2 t)))``. Pass the
+                weight ``ld_1`` (lambda, default 0.2) to ``calculate_limits``. Averaging over
+                recent samples makes it detect a small sustained shift that a Shewhart chart
+                misses; ``ld_1 = 1`` gives the Shewhart individuals chart.
+
+                'cusum' [tabular cumulative sum chart]. Two one-sided sums,
+                ``C+_t = max(0, C+_(t-1) + (y_t - target) - k s)`` and
+                ``C-_t = max(0, C-_(t-1) - (y_t - target) - k s)``, start at zero, and an alarm
+                is raised when either exceeds the decision interval ``h s``; that sum then
+                restarts from zero. Pass ``k`` (the reference value: half the shift to detect, in
+                units of ``s``, default 0.5) and ``h`` (default 5) to ``calculate_limits``. Each
+                alarm also estimates when the shift started and the new mean (``cusum_alarms``).
         """
         self.style = style.strip()
         self.variant = variant.strip().lower()
         # An unknown variant previously slipped through every fit branch and
         # surfaced much later as a misleading "input is likely constant or too
         # short" error from calculate_limits. Reject it up front instead.
-        _supported = {"hw", "xbar.no.subgroup"}
-        if self.variant not in _supported:
+        if self.variant not in self._TUNING_KWARGS:
             raise ValueError(
-                f"Control chart variant {variant!r} is not implemented; supported variants are {sorted(_supported)}. "
-                "(A standalone CUSUM chart is a possible future variant; the 'hw' chart already blends "
-                "CUSUM-style history with Shewhart behaviour.)"
+                f"Control chart variant {variant!r} is not implemented; "
+                f"supported variants are {sorted(self._TUNING_KWARGS)}."
             )
 
         self._reset_fit_state()
@@ -391,7 +433,7 @@ class ControlChart:
         ]
         self.df = pd.DataFrame(columns=columns, dtype=np.float64)
 
-    def calculate_limits(  # noqa: C901  - branch count is mostly simple input-validation guard clauses
+    def calculate_limits(
         self,
         y: np.ndarray | pd.Series,
         target: float | None = None,
@@ -401,7 +443,9 @@ class ControlChart:
         """
         Find for a given vector `y`, the control chart target and limits.
 
-        Works for both the Holt-Winters ('hw') and 'xbar.no.subgroup' variants.
+        Works for the Holt-Winters ('hw'), 'xbar.no.subgroup' and 'ewma' variants. For 'ewma',
+        ``idx_outside_3S`` lists the samples where the EWMA statistic is outside its limits,
+        and ``df`` gains the columns ``ewma``, ``ewma_ucl`` and ``ewma_lcl``.
 
         For the Holt-Winters variant, when there are fewer than
 
@@ -472,18 +516,13 @@ class ControlChart:
             self.train_samples = [int(i) for i in np.arange(self.warm_up_M, self.N)]
 
         self._apply_tuning_kwargs(kwargs)
-
-        if self.variant.strip().lower() == "hw":
-            if not hasattr(self, "ld_1"):
-                self.ld_1 = None
-
-            if not hasattr(self, "ld_2"):
-                self.ld_2 = None
-
-            self._holt_winters_parameter_fit()
-
-        if self.variant.strip().lower() == "xbar.no.subgroup":
-            self._xbar_no_subgroup_fit()
+        fits = {
+            "hw": self._holt_winters_fit,
+            "xbar.no.subgroup": self._xbar_no_subgroup_fit,
+            "ewma": self._ewma_fit,
+            "cusum": self._cusum_fit,
+        }
+        fits[self.variant]()
 
         # After whichever fit is completed, check which are outside +/- 3S.
         # Explicit validation (not assert) so the guard survives `python -O`
@@ -493,12 +532,29 @@ class ControlChart:
                 "Control chart limits could not be estimated; the input is likely "
                 "constant or too short to fit the chosen variant."
             )
-        idx_bool = (self.df["y"] - self.target).abs() > 3.0 * self.s
-        self.idx_outside_3S = np.nonzero(idx_bool.to_numpy())[0].tolist()
+        self.idx_outside_3S = self._samples_outside_limits(self.target, self.s)
 
-    #: Instance attributes a caller may pin via ``calculate_limits(**kwargs)``:
-    #: the Holt-Winters smoothing lambdas. Everything else is internal state.
-    _TUNING_KWARGS: ClassVar[frozenset[str]] = frozenset({"ld_1", "ld_2"})
+    def _samples_outside_limits(self, target: float, s: float) -> list[int]:
+        """Return the positions of the samples outside the chart's limits (the CUSUM chart's alarms)."""
+        if self.variant == "cusum":
+            return sorted(set(self.cusum_alarms.index.tolist()))
+        if self.variant == "ewma":
+            # The statistic is compared with its own limits; a missing observation is never flagged.
+            half_width = self.df["ewma_ucl"] - target
+            outside = ((self.df["ewma"] - target).abs() > half_width) & self.df["y"].notna()
+        else:
+            outside = (self.df["y"] - target).abs() > 3.0 * s
+        return np.nonzero(outside.to_numpy())[0].tolist()
+
+    #: The variants, and the tuning parameters a caller may pin for each via
+    #: ``calculate_limits(**kwargs)``: the Holt-Winters smoothing weights, the EWMA weight, and
+    #: the CUSUM reference value and decision interval. Everything else is internal state.
+    _TUNING_KWARGS: ClassVar[dict[str, frozenset[str]]] = {
+        "hw": frozenset({"ld_1", "ld_2"}),
+        "xbar.no.subgroup": frozenset({"ld_1", "ld_2"}),  # accepted and unused, as before
+        "ewma": frozenset({"ld_1"}),
+        "cusum": frozenset({"k", "h"}),
+    }
 
     def _apply_tuning_kwargs(self, kwargs: dict[str, object]) -> None:
         """Set caller-pinned tuning parameters, rejecting anything off the allowlist.
@@ -506,35 +562,138 @@ class ControlChart:
         A blanket ``setattr(self, key, val)`` over ``**kwargs`` would let a caller
         silently overwrite internal state (``self.s``, ``self.target``,
         ``self.train_samples``, even a bound method) and would swallow typos. We
-        therefore accept only the documented Holt-Winters smoothing lambdas and
-        raise a clear ``ValueError`` otherwise.
+        therefore accept only the documented parameters of the chart's variant and raise a
+        clear ``ValueError`` otherwise.
         """
-        unknown = set(kwargs) - self._TUNING_KWARGS
+        accepted = self._TUNING_KWARGS[self.variant]
+        unknown = set(kwargs) - accepted
         if unknown:
             raise ValueError(
                 f"calculate_limits() got unexpected keyword argument(s) {sorted(unknown)}; "
-                f"only {sorted(self._TUNING_KWARGS)} (Holt-Winters smoothing lambdas) are accepted."
+                f"the {self.variant!r} chart accepts {sorted(accepted)}."
             )
         for key, val in kwargs.items():
             setattr(self, key, val)
+
+    #: Default EWMA weight, inside the 0.05 to 0.25 range usually recommended for small shifts.
+    EWMA_DEFAULT_WEIGHT: ClassVar[float] = 0.2
+
+    def _ewma_fit(self) -> None:
+        """
+        Fit an EWMA chart: the statistic and its exact time-varying 3-sigma limits.
+
+        A given ``target`` and ``s`` are used as they are; whichever is missing is estimated
+        from the data as for the Shewhart chart (median and 1.4826 times the MAD for the robust
+        style, mean and standard deviation for the regular style).
+
+        After ``t`` observations the statistic has variance ``lambda / (2 - lambda) * (1 - (1 -
+        lambda) ** (2 t))`` times ``s**2``, which grows to its steady-state value, so the first
+        limits are narrower and a shift present from the start is not missed. A missing
+        observation carries the statistic forward and does not count towards ``t``.
+        """
+        given_weight = getattr(self, "ld_1", None)
+        weight = self.EWMA_DEFAULT_WEIGHT if given_weight is None else float(given_weight)
+        if not 0.0 < weight <= 1.0:
+            raise ValueError(f"The EWMA weight ld_1 must satisfy 0 < ld_1 <= 1; got {weight}.")
+        self.ld_1 = weight
+
+        self._estimate_missing_target_and_s()
+        if self.target is None or self.s is None:
+            return  # an unknown style estimates nothing; calculate_limits raises for it
+
+        y = self.df["y"].to_numpy(dtype=float)
+        statistic = np.empty_like(y)
+        previous = self.target
+        for t, value in enumerate(y):
+            previous = previous if np.isnan(value) else weight * value + (1.0 - weight) * previous
+            statistic[t] = previous
+        n_observed = np.cumsum(~np.isnan(y))
+        half_width = 3.0 * self.s * np.sqrt(weight / (2.0 - weight) * (1.0 - (1.0 - weight) ** (2 * n_observed)))
+        self.df["ewma"] = statistic
+        self.df["ewma_ucl"] = self.target + half_width
+        self.df["ewma_lcl"] = self.target - half_width
+
+    #: Default CUSUM reference value and decision interval, in units of ``s``: ``k = 0.5`` tunes
+    #: the chart to a one-sigma shift, and ``h = 5`` gives an in-control average run length of 465.
+    CUSUM_DEFAULT_K: ClassVar[float] = 0.5
+    CUSUM_DEFAULT_H: ClassVar[float] = 5.0
+
+    def _cusum_fit(self) -> None:
+        """
+        Fit a tabular CUSUM chart: the upper and lower cumulative sums and the alarms they raise.
+
+        The reference value is ``K = k s`` and the decision interval ``H = h s``. When a sum
+        exceeds ``H`` it raises an alarm and restarts from zero, as it would once the cause has
+        been found, so each alarm is a separate detection. A missing observation holds both sums.
+
+        For each alarm, ``cusum_alarms`` gives its direction, where the shift is estimated to
+        have started (the first sample of the run of non-zero sums that raised it), and the
+        estimated new mean, ``target + K + C+/N`` upward or ``target - K - C-/N`` downward, where
+        ``N`` is the number of observations in that run.
+        """
+        given_k, given_h = getattr(self, "k", None), getattr(self, "h", None)
+        k = self.CUSUM_DEFAULT_K if given_k is None else float(given_k)
+        h = self.CUSUM_DEFAULT_H if given_h is None else float(given_h)
+        if not (0.0 <= k < np.inf and 0.0 < h < np.inf):
+            raise ValueError(f"The CUSUM parameters must satisfy k >= 0 and h > 0, both finite; got k={k}, h={h}.")
+        self.k, self.h = k, h
+
+        self._estimate_missing_target_and_s()
+        if self.target is None or self.s is None:
+            return  # an unknown style estimates nothing; calculate_limits raises for it
+
+        deviation = self.df["y"].to_numpy(dtype=float) - self.target
+        reference, interval = k * self.s, h * self.s
+        self.df["cusum_upper"], upward = _one_sided_cusum(deviation, reference, interval)
+        self.df["cusum_lower"], downward = _one_sided_cusum(-deviation, reference, interval)
+        alarms = [(t, "up", start, self.target + shift) for t, start, shift in upward]
+        alarms += [(t, "down", start, self.target - shift) for t, start, shift in downward]
+        columns = ["sample", "direction", "shift_start", "new_mean"]
+        self.cusum_alarms = pd.DataFrame(sorted(alarms), columns=columns).set_index("sample")
+
+    def _estimate_missing_target_and_s(self) -> None:
+        """Estimate whichever of ``target`` and ``s`` was not given, as the Shewhart chart does.
+
+        That is the median and 1.4826 times the MAD for the robust style, and the mean and
+        standard deviation for the regular style; a given value is kept as it is.
+        """
+        if self.target is None or self.s is None:
+            given_target, given_s = self.target, self.s
+            self._xbar_no_subgroup_fit()
+            self.target = given_target if given_target is not None else self.target
+            self.s = given_s if given_s is not None else self.s
+
+    def _holt_winters_fit(self) -> None:
+        """Fit the Holt-Winters chart, searching for whichever smoothing weight was not pinned."""
+        if not hasattr(self, "ld_1"):
+            self.ld_1 = None
+        if not hasattr(self, "ld_2"):
+            self.ld_2 = None
+        self._holt_winters_parameter_fit()
 
     def _xbar_no_subgroup_fit(self) -> None:
         """
         Fit the control chart from the data samples, assuming each sample is its own subgroup.
         The `style` attribute ('regular' | 'robust') switches how the average and standard
-        deviation are calculated.
+        deviation are calculated. A ``target`` or ``s`` given to ``calculate_limits`` is kept,
+        and only a missing one is estimated. The robust ``s`` is the MAD about the data's own
+        median, so a given target away from the centre of the data does not inflate it.
 
         Control chart limits assume the data are normally distributed and independent. In
         particular, this last assumption can have consequences if not actually met. Limits may be
         too wide, or too narrow.
 
         """
+        y = self.df["y"]
         if self.style == "regular":
-            self.target = self.df["y"].mean()
-            self.s = self.df["y"].std()
+            centre, spread = y.mean(), y.std()
         elif self.style == "robust":
-            self.target = self.df["y"].median()
-            self.s = (self.df["y"] - self.target).abs().median() * 1.4826
+            centre = y.median()
+            spread = (y - centre).abs().median() * 1.4826
+        else:
+            return  # an unknown style estimates nothing; calculate_limits raises for it
+        self.target = centre if self.target is None else self.target
+        self.s = spread if self.s is None else self.s
 
     def _holt_winters_parameter_fit(self) -> None:
         """
