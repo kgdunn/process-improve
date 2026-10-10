@@ -510,23 +510,23 @@ def align_with_path(md_path: np.ndarray, batch: pd.DataFrame) -> pd.DataFrame:
     """
     numeric = batch.select_dtypes(include="number")
     passthrough = batch.columns.difference(numeric.columns, sort=False)
+    values = numeric.to_numpy(dtype=float, na_value=np.nan)
 
-    row = 0
+    # Consecutive path steps with the same reference index form one group, and group
+    # ``g`` fills row ``g`` of the result. Working on the array rather than writing one
+    # pandas row per path step is what makes this fast; the values are unchanged.
     nr = md_path[:, 0].max() + 1  # to account for the zero-based indexing
-    synced = pd.DataFrame(np.zeros((nr, numeric.shape[1])), columns=numeric.columns)
-    synced.iloc[row, :] = numeric.iloc[md_path[0, 1], :]
-    temp: pd.Series | np.ndarray = numeric.iloc[md_path[0, 1], :]
-    for idx in np.arange(1, md_path.shape[0]):
-        if md_path[idx, 0] != md_path[idx - 1, 0]:
-            row += 1
-            synced.iloc[row, :] = temp = numeric.iloc[md_path[idx, 1], :]
-
-        else:
-            # More than one batch sample maps to this reference index (a compression in
-            # the warping path), so the synced value is the average of those samples.
-            # Pinned by tests/batch/test_dtw_align_with_path.py.
-            temp = np.vstack((temp, numeric.iloc[md_path[idx, 1], :]))
-            synced.iloc[row, :] = np.nanmean(temp, axis=0)
+    synced_values = np.zeros((nr, values.shape[1]))
+    starts = np.flatnonzero(np.r_[True, md_path[1:, 0] != md_path[:-1, 0]])
+    ends = np.r_[starts[1:], md_path.shape[0]]
+    single = ends - starts == 1
+    synced_values[np.flatnonzero(single)] = values[md_path[starts[single], 1]]
+    for group in np.flatnonzero(~single):
+        # More than one batch sample maps to this reference index (a compression in
+        # the warping path), so the synced value is the average of those samples.
+        # Pinned by tests/batch/test_dtw_align_with_path.py.
+        synced_values[group] = np.nanmean(values[md_path[starts[group] : ends[group], 1]], axis=0)
+    synced = pd.DataFrame(synced_values, columns=numeric.columns)
 
     for column in passthrough:
         # Constant within a batch, so every row gets the same value and the column keeps
