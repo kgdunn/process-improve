@@ -446,7 +446,7 @@ class _Fit:
         return [*self.factor_cols, BLOCK_COL] if self.blocks else self.factor_cols
 
     def coded(self) -> tuple[RegressionResultsWrapper, dict[str, Any]]:
-        """Return the model refitted on factors coded to -1/+1, where an effect is twice a coefficient."""
+        """Return the model refitted on factors coded to -1/+1, the scale the effects are defined on."""
         if self._coded is None:
             coded_df = self.df.copy()
             coding: dict[str, Any] = {}
@@ -682,10 +682,12 @@ def analyze_experiment(  # noqa: PLR0913
         The ANOVA uses Type II sums of squares (reported as ``anova_type``). The
         ANOVA and significance list exactly aliased terms once, as their alias chain
         (``"A:B + C:D"``), as the effects do; the coefficients keep one entry per term. Effects and Lenth's
-        method are twice the coefficients of factors coded to -1/+1: a numeric
-        factor not already coded is mapped from its own minimum and maximum, and a
-        two-level categorical factor from its first level to its second (sorted);
-        the mapping is reported under ``effects_coding``. The curvature test uses
+        method use the factors coded to -1/+1: a numeric factor not already coded is
+        mapped from its own minimum and maximum, and a two-level categorical factor
+        from its first level to its second (sorted); the mapping is reported under
+        ``effects_coding``. An effect is the change in response from the lowest to the
+        highest value of its model column: twice the coefficient for a main effect or
+        interaction, the coefficient itself for a square such as ``I(A**2)``. The curvature test uses
         pure error from the replicated runs.
 
         ``"split_plot"`` is for a design whose hard-to-change factors change only

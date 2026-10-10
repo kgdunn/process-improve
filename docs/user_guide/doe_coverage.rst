@@ -7,6 +7,23 @@ Each construction is checked against its published definition by a test class in
 <https://github.com/kgdunn/process-improve/blob/main/tests/test_doe_conformance.py>`_,
 so a change that breaks the defining property fails the test suite.
 
+.. image:: /_static/readme/design-gallery-light.png
+   :class: only-light
+   :width: 640px
+   :align: center
+   :alt: Sixteen designs drawn from generate_design, from supersaturated and Plackett-Burman
+         screening designs to response-surface, optimal, mixture and space-filling designs
+
+.. image:: /_static/readme/design-gallery-dark.png
+   :class: only-dark
+   :width: 640px
+   :align: center
+   :alt: Sixteen designs drawn from generate_design, from supersaturated and Plackett-Burman
+         screening designs to response-surface, optimal, mixture and space-filling designs
+
+The script that draws the gallery, ``tools/branding/design_gallery.py``, makes every design in it
+with one ``generate_design`` call.
+
 .. list-table::
    :header-rows: 1
    :widths: 22 20 40 18
@@ -77,5 +94,7 @@ so a change that breaks the defining property fails the test suite.
 
 Blocking (``n_blocks``) is checked separately in ``tests/test_blocking.py``: a
 two-level factorial is blocked by confounding high-order interactions, so main
-effects and unconfounded two-factor interactions keep their full information; other
-designs are blocked by exchange.
+effects and unconfounded two-factor interactions keep their full information; a
+central composite design is blocked by its cube and axial portions, orthogonally to
+every term of the quadratic model with the default axial distance; other designs
+are blocked by exchange.

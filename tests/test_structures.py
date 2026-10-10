@@ -3,9 +3,11 @@
 from __future__ import annotations
 
 import numpy as np
+import pandas as pd
 import pytest
 
-from process_improve.experiments.structures import c, create_names
+from process_improve.experiments import lm
+from process_improve.experiments.structures import Expt, c, create_names, gather
 
 
 class TestCreateNames:
@@ -71,3 +73,81 @@ class TestColumnConstruction:
     def test_non_iterable_range_raises_type_error(self) -> None:
         with pytest.raises(TypeError, match="iterable"):
             c(1, 2, 3, 4, range=99)
+
+    @pytest.mark.parametrize(
+        ("args", "expected"),
+        [
+            (([1, 2], [3, 4]), [1.0, 2.0, 3.0, 4.0]),
+            ((1, [2, 3]), [1.0, 2.0, 3.0]),
+            (((1, 2), np.array([[3.0], [4.0]])), [1.0, 2.0, 3.0, 4.0]),
+        ],
+    )
+    def test_concatenates_every_argument(self, args: tuple, expected: list) -> None:
+        """Like R's c(), each argument adds its entries; none replaces the earlier ones (#513)."""
+        assert list(c(*args).values) == expected
+
+    def test_strings_are_entries_not_iterables(self) -> None:
+        """Each string is one entry, with or without levels (it used to give an empty column)."""
+        assert list(c("Dry", "Wet", "Dry").values) == ["Dry", "Wet", "Dry"]
+        moisture = c("Dry", "Wet", "Dry", levels=("Dry", "Wet"))
+        assert list(moisture.values) == ["Dry", "Wet", "Dry"]
+        assert moisture.pi_levels[moisture.pi_name] == ["Dry", "Wet"]
+
+    def test_a_single_series_keeps_its_index(self) -> None:
+        col = c(pd.Series([5, 6], index=["a", "b"]))
+        assert list(col.index) == ["a", "b"]
+        assert list(col.values) == [5.0, 6.0]
+
+    def test_a_missing_value_keeps_the_column_numeric(self) -> None:
+        """``None`` is a missing value, as NaN is."""
+        col = c(1, None, 3)
+        assert col.pi_numeric
+        np.testing.assert_array_equal(col.values, [1.0, np.nan, 3.0])
+
+    def test_numbers_and_text_make_a_categorical_column(self) -> None:
+        col = c(0, 1, "green")
+        assert not col.pi_numeric
+        assert col.pi_levels[col.pi_name] == [0, 1, "green"]
+
+
+class TestMetadataDefaults:
+    """``pi_*`` metadata on objects that no factory set up (#513)."""
+
+    def test_a_directly_built_expt_has_no_title(self) -> None:
+        """It used to raise AttributeError from repr() and get_title()."""
+        expt = Expt({"A": [1, 2]})
+        assert expt.get_title() == ""
+        assert "Size: 2 experiments" in repr(expt)
+
+    def test_a_model_of_a_directly_built_expt(self) -> None:
+        expt = Expt({"A": [-1, 1, -1, 1, 0], "B": [-1, -1, 1, 1, 0], "y": [1.0, 3.0, 2.0, 5.0, 2.6]})
+        model = lm("y ~ A*B", expt)
+        assert model.get_title() == ""
+        model.summary()
+
+    def test_concat_keeps_the_metadata_its_inputs_share(self) -> None:
+        first, second = (gather(A=c(-1, 1, name="A"), y=c(5, 6, name="y"), title=title) for title in ("Run", "Run"))
+        combined = pd.concat([first, second])
+        assert isinstance(combined, Expt)
+        assert combined.get_title() == "Run"
+
+    def test_concat_drops_the_metadata_its_inputs_disagree_on(self) -> None:
+        first, second = (gather(A=c(-1, 1, name="A"), y=c(5, 6, name="y"), title=title) for title in ("1", "2"))
+        assert pd.concat([first, second]).get_title() == ""
+
+    def test_concatenated_columns_keep_their_shared_metadata(self) -> None:
+        temperature = pd.concat([c(4, 6, lo=4, hi=6, name="T"), c(5, 6, lo=4, hi=6, name="T")])
+        assert (temperature.pi_name, temperature.pi_lo, temperature.pi_hi) == ("T", 4, 6)
+
+    def test_concat_drops_metadata_it_cannot_compare(self) -> None:
+        """An array's ``==`` has no single truth value, so concatenating must not raise on it."""
+        first, second = c(1, 2, name="T"), c(3, 4, name="T")
+        first.pi_range = second.pi_range = np.array([1, 4])
+        temperature = pd.concat([first, second])
+        assert temperature.pi_range is None
+        assert temperature.pi_name == "T"
+
+    def test_levels_survive_slicing(self) -> None:
+        """``pi_levels`` is in ``Column._metadata`` now, so a slice keeps it."""
+        moisture = c("Dry", "Wet", "Dry")
+        assert moisture[:2].pi_levels == moisture.pi_levels

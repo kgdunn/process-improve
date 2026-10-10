@@ -55,7 +55,7 @@ def test_runs_are_randomised_within_blocks_and_blocks_run_in_turn() -> None:
     assert blocks.count(1) == blocks.count(2) == 9
 
 
-@pytest.mark.parametrize(("design_type", "k"), [("ccd", 3), ("box_behnken", 4), ("dsd", 6)])
+@pytest.mark.parametrize(("design_type", "k"), [("box_behnken", 4), ("dsd", 6)])
 def test_other_designs_block_by_exchange(design_type: str, k: int) -> None:
     result = generate_design(_factors(k), design_type, n_blocks=2)
     assert result.metadata["blocking"]["method"] == "exchange"
@@ -96,3 +96,73 @@ def test_add_blocks_never_confounds_a_main_effect() -> None:
     x = design.to_numpy(dtype=float)
     np.testing.assert_allclose(_within_block_centred(x, blocks), x)
     assert all(len(word) >= 4 for word in result["confounded_with"])
+
+
+class TestCentralCompositeBlocks:
+    """A CCD is blocked by its portions: the axial runs in one block, the cube runs in the others (#513)."""
+
+    @staticmethod
+    def _quadratic_terms(x: np.ndarray) -> np.ndarray:
+        k = x.shape[1]
+        pairs = [x[:, i] * x[:, j] for i in range(k) for j in range(i + 1, k)]
+        return np.column_stack([x, *pairs, x**2])
+
+    def _block_correlation(self, result, k: int) -> float:
+        """Largest |correlation| between a block indicator and any term of the full quadratic model."""
+        x = result.design[[f"x{i}" for i in range(k)]].to_numpy(dtype=float)
+        blocks = result.design["Block"].to_numpy()
+        indicators = np.column_stack([(blocks == b).astype(float) for b in np.unique(blocks)])
+        terms = self._quadratic_terms(x)
+        a, b = indicators - indicators.mean(axis=0), terms - terms.mean(axis=0)
+        return float(np.max(np.abs(a.T @ b) / np.outer(np.linalg.norm(a, axis=0), np.linalg.norm(b, axis=0))))
+
+    @pytest.mark.parametrize(("k", "n_replicates"), [(2, 1), (3, 1), (4, 1), (3, 2)])
+    def test_two_blocks_are_orthogonal_to_the_quadratic_model(self, k: int, n_replicates: int) -> None:
+        result = generate_design(_factors(k), "ccd", n_blocks=2, n_center_points=6, n_replicates=n_replicates)
+        blocking = result.metadata["blocking"]
+        assert (blocking["method"], blocking["orthogonal"]) == ("ccd_portions", True)
+        assert result.metadata["alpha_rule"] == "orthogonal_blocks"
+        assert self._block_correlation(result, k) == pytest.approx(0.0, abs=1e-12)
+        cube_runs = n_replicates * 2**k
+        assert sorted(np.bincount(result.design["Block"])[1:].tolist()) == sorted(
+            [cube_runs + 3, (result.n_runs - cube_runs - 3)]
+        )
+
+    def test_two_factors_in_two_blocks_take_root_two(self) -> None:
+        """Montgomery's example: a 2^2 cube and three centre runs per block is rotatable and orthogonally blocked."""
+        result = generate_design(_factors(2), "ccd", n_blocks=2, n_center_points=6)
+        assert result.alpha == pytest.approx(np.sqrt(2))
+
+    def test_three_blocks_split_the_cube_by_confounding(self) -> None:
+        """With two centre runs in each cube block, all three blocks are orthogonal to every term."""
+        result = generate_design(_factors(3), "ccd", n_blocks=3, n_center_points=4)
+        assert result.metadata["blocking"]["confounded_with"] == ["x0x1x2"]
+        assert result.metadata["blocking"]["orthogonal"]
+        assert self._block_correlation(result, 3) == pytest.approx(0.0, abs=1e-12)
+
+    def test_a_chosen_alpha_is_kept_and_its_blocks_reported(self) -> None:
+        result = generate_design(_factors(3), "ccd", n_blocks=2, alpha="rotatable")
+        assert result.alpha == pytest.approx(8**0.25)
+        assert result.metadata["blocking"]["orthogonal"] is False
+
+    def test_the_block_count_must_suit_the_portions(self) -> None:
+        with pytest.raises(ValueError, match="2, 3, 5, 9"):
+            generate_design(_factors(3), "ccd", n_blocks=4)
+
+    def test_losing_an_interaction_to_blocks_warns(self) -> None:
+        """Four cube blocks of a 2^4 confound a two-factor interaction, which the quadratic model then loses."""
+        with pytest.warns(UserWarning, match="confounds x2:x3 with blocks"):
+            generate_design(_factors(4), "ccd", n_blocks=5)
+
+
+def test_blocking_alpha_matches_the_orthogonality_condition() -> None:
+    from process_improve.experiments._blocking import squares_orthogonal_to_blocks
+    from process_improve.experiments.designs_response_surface import blocking_alpha
+
+    alpha = blocking_alpha(8, 3, 3, 2)
+    cube = np.array([[a, b, c] for a in (-1, 1) for b in (-1, 1) for c in (-1, 1)], dtype=float)
+    star = np.vstack([sign * alpha * np.eye(3)[i] for i in range(3) for sign in (-1, 1)])
+    design = np.vstack([cube, np.zeros((3, 3)), star, np.zeros((2, 3))])
+    labels = np.array([1] * 11 + [2] * 8)
+    assert squares_orthogonal_to_blocks(design, labels)
+    assert not squares_orthogonal_to_blocks(design * np.r_[np.ones(11), 1.1 * np.ones(8)][:, None], labels)

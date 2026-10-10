@@ -134,6 +134,8 @@ def _dispatch_ccd(
         cube=kwargs.get("cube", "full"),
         generators=kwargs.get("generators"),
         resolution=kwargs.get("resolution"),
+        n_replicates=kwargs.get("n_replicates", 1),
+        n_blocks=kwargs.get("blocks"),
     )
 
 
@@ -446,8 +448,8 @@ def _auto_select_by_budget(  # noqa: PLR0911
 ) -> str:
     """Pick the unconstrained design family that fits ``budget`` runs for ``k`` process factors.
 
-    A family fits when its runs, plus the centre points it adds, times the replicates,
-    stay within the budget. When none fits, the Plackett-Burman design is chosen and a
+    A family fits when its runs times the replicates, plus the centre points it adds
+    (which are not replicated), stay within the budget. When none fits, the Plackett-Burman design is chosen and a
     warning is logged.
     """
     from process_improve.experiments.designs_screening import plackett_burman_runs  # noqa: PLC0415
@@ -455,7 +457,7 @@ def _auto_select_by_budget(  # noqa: PLR0911
     n_center_points, n_replicates = overhead
 
     def fits(n_runs: int, n_center: int = n_center_points) -> bool:
-        return (n_runs + n_center) * n_replicates <= budget
+        return n_runs * n_replicates + n_center <= budget
 
     full_runs = int(np.prod([len(_factor_codes(f)) for f in factors]))
     if k <= 5 and fits(full_runs):
@@ -484,7 +486,7 @@ def _auto_select_by_budget(  # noqa: PLR0911
         "points and replicates included.",
         len(factors),
         budget,
-        (pb_runs + n_center_points) * n_replicates,
+        pb_runs * n_replicates + n_center_points,
     )
     return "plackett_burman"
 
@@ -555,12 +557,35 @@ def _refuse_unused_arguments(
         )
 
 
-def _center_runs_built_in(coded_matrix: np.ndarray, factors: list[Factor]) -> int:
-    """Count the runs with every non-categorical factor at its centre (0 in coded units)."""
+def _center_mask(coded_matrix: np.ndarray, factors: list[Factor]) -> np.ndarray:
+    """Mark the runs with every non-categorical factor at its centre (0 in coded units)."""
     columns = [j for j, f in enumerate(factors) if f.type != FactorType.categorical]
     if not columns or coded_matrix.dtype == object:
-        return 0
-    return int(np.sum(np.all(np.isclose(coded_matrix[:, columns].astype(float), 0.0), axis=1)))
+        return np.zeros(len(coded_matrix), dtype=bool)
+    return np.all(np.isclose(coded_matrix[:, columns].astype(float), 0.0), axis=1)
+
+
+def _center_runs_built_in(coded_matrix: np.ndarray, factors: list[Factor]) -> int:
+    """Count the runs with every non-categorical factor at its centre (0 in coded units)."""
+    return int(_center_mask(coded_matrix, factors).sum())
+
+
+def _own_center_rows(design_type: str, coded_matrix: np.ndarray, factors: list[Factor]) -> np.ndarray | None:
+    """Return the centre runs a design builds in, which replication leaves single; None for the others.
+
+    In a CCD, Box-Behnken, DSD or OMARS design a centre run is part of the construction,
+    and ``n_center_points`` counts the design's centre runs. Elsewhere a run at the centre
+    is an ordinary run (an optimal design may choose one), replicated with the rest.
+    """
+    if design_type in _BUILDS_CENTER_POINTS | _OWN_CENTER_RUNS:
+        return _center_mask(coded_matrix, factors)
+    return None
+
+
+def _total_runs(n_rows: int, own_center_rows: np.ndarray | None, extra_center_points: int, n_replicates: int) -> int:
+    """Count the runs of the finished design: the replicated runs, then the centre runs once."""
+    n_own = 0 if own_center_rows is None else int(own_center_rows.sum())
+    return (n_rows - n_own) * n_replicates + n_own + extra_center_points
 
 
 def _extra_center_points(
@@ -587,7 +612,8 @@ def _warn_if_no_error_df(
     if design_type not in _OWN_CENTER_RUNS or not columns:
         return
     runs = coded_matrix[:, columns].astype(float)
-    runs = np.tile(np.vstack([runs, np.zeros((extra_center_points, len(columns)))]), (n_replicates, 1))
+    own = _center_mask(coded_matrix, factors)
+    runs = np.vstack([np.tile(runs[~own], (n_replicates, 1)), runs[own], np.zeros((extra_center_points, len(columns)))])
     second_order = _full_second_order(runs, _quadratic_columns(runs))
     if runs.shape[0] > np.linalg.matrix_rank(np.hstack([np.ones((runs.shape[0], 1)), runs, second_order])):
         return
@@ -660,7 +686,8 @@ def generate_design(  # noqa: PLR0913
         (factorials, Plackett-Burman, Box-Behnken, CCD, Taguchi) raises
         ``ValueError`` when it needs more runs than *budget*.
     n_center_points : int or None
-        Number of centre runs. ``None`` (the default) means 3 for the full and
+        Number of centre runs in the whole design: they are not replicated with
+        *n_replicates*. ``None`` (the default) means 3 for the full and
         fractional factorials, Plackett-Burman, CCD and Box-Behnken designs, and the
         design's own centre runs for the others. CCD and Box-Behnken designs place
         them within the design structure. For a DSD or OMARS design it is the total
@@ -671,12 +698,19 @@ def generate_design(  # noqa: PLR0913
         fix that. Any other design type takes no centre points, so a positive value
         raises ``ValueError``.
     n_replicates : int
-        Number of full replicates of the design (default 1 = no replication).
-        Cannot be combined with *fixed_runs*.
+        Number of replicates of the design's runs, centre runs excepted (default 1 =
+        no replication): a 2^3 factorial with ``n_center_points=3`` and
+        ``n_replicates=2`` has 16 factorial runs and 3 centre runs. A CCD's orthogonal
+        axial distance allows for it. Cannot be combined with *fixed_runs*.
     n_blocks : int or None
         Number of blocks the runs are made in (days, batches, raw-material lots), with
         a ``Block`` column on the design. A regular two-level factorial confounds chosen
-        interactions with the blocks. A D-, A- or I-optimal design from the built-in
+        interactions with the blocks. A CCD puts its axial runs in a block of their own
+        and its cube runs in the others (``n_blocks`` 2, 3, 5, ...), the cube split by
+        confounding as a factorial is; without *alpha* it takes the axial distance at
+        which the blocks are orthogonal to every model term, squares included
+        (``alpha_rule`` ``"orthogonal_blocks"``; Box and Hunter 1957), and
+        ``metadata["blocking"]["orthogonal"]`` says whether they are. A D-, A- or I-optimal design from the built-in
         exchange chooses its runs for the model with the blocks as fixed effects, so the
         factor effects are estimated as precisely as they can be once block-to-block
         differences are removed (``metadata["blocking"]["method"]`` is
@@ -845,6 +879,9 @@ def generate_design(  # noqa: PLR0913
         "backend": backend,
         # The optimal designs build blocks into the runs they choose; replicated, they are blocked afterwards.
         "n_blocks": n_blocks if n_replicates == 1 else None,
+        "n_replicates": n_replicates,
+        # A CCD is blocked by its portions, replicated or not; its axial distance depends on it.
+        "blocks": n_blocks,
     }
 
     coded_matrix, meta = dispatch_fn(factors, **dispatch_kwargs)
@@ -866,8 +903,10 @@ def generate_design(  # noqa: PLR0913
 
     extra_center_points = _extra_center_points(design_type, n_center_points, coded_matrix, factors)
     _warn_if_no_error_df(design_type, coded_matrix, extra_center_points, n_replicates, factors)
+    own_center_rows = _own_center_rows(design_type, coded_matrix, factors)
     if budget is not None and not auto_selected:
-        _refuse_over_budget(design_type, (coded_matrix.shape[0] + extra_center_points) * n_replicates, budget)
+        n_runs = _total_runs(coded_matrix.shape[0], own_center_rows, extra_center_points, n_replicates)
+        _refuse_over_budget(design_type, n_runs, budget)
 
     # A split-plot optimal design from pyoptex keeps its run order: the whole plots are part of the solution.
     split_plot = (
@@ -880,6 +919,7 @@ def generate_design(  # noqa: PLR0913
         design_type=design_type,
         n_center_points=extra_center_points,
         n_replicates=n_replicates,
+        center_rows=own_center_rows,
         n_blocks=n_blocks,
         random_state=random_state,
         generators=meta.get("generators_used"),

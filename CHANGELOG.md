@@ -133,6 +133,30 @@ those changes.
   K-optimal, mixture, split-plot and replicated designs are still blocked afterwards.
   When the block effects leave too few runs for the model, the budget is raised with a
   warning, and `metadata["budget_requested"]` records the budget asked for.
+- **`n_center_points` is the number of centre runs in the whole design, for every
+  design type: replicates no longer multiply it (#513).** `n_replicates` repeats the
+  other runs, so a 2^3 factorial with `n_center_points=3, n_replicates=2` has 19 runs,
+  3 at the centre, where it had 22 with 6. A CCD, Box-Behnken or DSD no longer
+  replicates its own centre runs either. The budget check and the automatic choice
+  of design count runs the same way. A replicated CCD's default ("orthogonal") axial
+  distance allows for its single centre runs, so its squares stay orthogonal;
+  `orthogonal_alpha` takes the number of axial replicates for it.
+- **A CCD with `n_blocks` is blocked by its cube and axial portions (#513).** It was
+  split by the generic exchange, which left the blocks correlated with the factors.
+  The axial runs are now a block of their own and the cube runs fill the others
+  (`n_blocks` of 2, 3, 5, ...), the cube split by confounding interactions as a
+  factorial is, each portion keeping its centre runs (Box and Hunter 1957). Without an
+  `alpha`, the CCD takes the axial distance at which the blocks are orthogonal to the
+  squares too (the new `blocking_alpha`, `alpha_rule` `"orthogonal_blocks"`): in two
+  blocks they are then orthogonal to every term of the quadratic model, and two
+  factors get `sqrt(2)`, as in Montgomery's textbook example.
+  `metadata["blocking"]["orthogonal"]` says whether they are, and a split that
+  confounds a two-factor interaction warns.
+- **Effects and Lenth's method give a square its coefficient, not twice it (#513).**
+  An effect is the change in response from the lowest to the highest value of its
+  coded model column: twice the coefficient for a main effect or an interaction, as
+  before, but the coefficient itself for a square such as `I(A**2)`, whose column runs
+  from 0 to 1. The coefficients themselves are unchanged.
 
 ### Deprecated
 
@@ -176,6 +200,20 @@ those changes.
     from different ranges, raise rather than mix two scales.
   - Models without the new keys, written out by hand or Scheffe mixture models, are
     used as before.
+- **`c()` combines all its arguments, as R's `c()` does (#513).** An iterable replaced
+  the entries before it, so `c([1, 2], [3, 4])` gave `[3, 4]` and `c(1, [2, 3])` lost
+  the 1. A string or a tuple was dropped altogether: `c("Dry", "Wet", levels=...)`, the
+  docstring's own example, gave an empty column, and `c(0, 1, "green")` a numeric one.
+  `None` is now a missing value.
+- **An `Expt` or `Column` built directly, or by `pd.concat`, has its `pi_*` metadata
+  (#513).** It raised `AttributeError` from `repr()`, `get_title()` and the model
+  summary. The fields now default to `None`, `pd.concat` keeps a field all its inputs
+  agree on, and slicing a categorical column keeps its `pi_levels`.
+- **`lm` signs aliases correctly, and `alias_threshold=1.0` works (#513).** Signs came
+  from the raw dot product of the uncentred columns, so with A at 10 and 20,
+  `E = 30 - A` read as `+E`, and with 0/1 coding the sign was missing and the summary
+  raised `IndexError`. A threshold of 1 made every column an alias of the intercept.
+  Aliases now come from the correlations of the centred columns.
 
 - **`MBPCA` and `MBPLS` no longer ignore `missing_data_settings` (#588).** Both resolved
   the dict at the top of `fit` and threw the result away, keeping only the validation it
@@ -215,6 +253,20 @@ those changes.
     keys (`"D"`, `"F"`, `"Z"`, `"Y"`) for shape-stability, not two. The `"Z"`
     and `"Y"` entries are always empty dicts since VIP is defined only for the
     D- and F-blocks.
+- **Every README example runs as pasted, on real data, and CI checks its output.**
+  The examples read the LDPE reactor and cheddar data from openmv.net, and
+  `tests/test_readme.py` runs them in order (from the bundled copies) and compares
+  each promised `print` output with what was printed. Three examples that failed on
+  the released package are fixed: the PCA block read a missing file and passed a
+  score vector to `score_contributions`, the model-inversion block called `.round`
+  on a float, and the `ColumnTransformer` example, now in `SKLEARN_COMPATIBILITY.md`
+  and tested there, needs `OneHotEncoder(sparse_output=False)` under pandas output.
+  The README also gains a banner, a recording of the in-browser app, and a table
+  from ten practical questions to one call and a textbook chapter; it no longer
+  lists a CUSUM chart, which does not exist, and its links are absolute, so they
+  work on PyPI too.
+- **PyPI links the documentation, changelog, in-browser app and textbook**
+  (`[project.urls]`).
 
 ## [1.97.2] - 2026-10-07
 
