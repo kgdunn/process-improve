@@ -94,5 +94,7 @@ with one ``generate_design`` call.
 
 Blocking (``n_blocks``) is checked separately in ``tests/test_blocking.py``: a
 two-level factorial is blocked by confounding high-order interactions, so main
-effects and unconfounded two-factor interactions keep their full information; other
-designs are blocked by exchange.
+effects and unconfounded two-factor interactions keep their full information; a
+central composite design is blocked by its cube and axial portions, orthogonally to
+every term of the quadratic model with the default axial distance; other designs
+are blocked by exchange.

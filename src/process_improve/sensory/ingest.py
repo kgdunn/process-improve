@@ -38,16 +38,41 @@ _REL_TOL = 1e-6
 _CANONICAL_SORT = ["product", "attribute", "panelist_id", "session", "replicate"]
 
 
+def _label(value: object) -> str:
+    """Return a label as the reshape writes it: a string without surrounding whitespace.
+
+    The round-trip check keys the before and after means by this form, so a header such
+    as ``"Salty "`` is compared with the ``"Salty"`` the long table carries.
+    """
+    return str(value).strip()
+
+
 def _series_mean_map(frame: pd.DataFrame, key: str, value: str) -> dict[str, float]:
     """Mean of ``value`` grouped by ``key``, as a plain ``{label: mean}`` dict."""
     grouped = frame.groupby(key, observed=True)[value].mean()
-    return {str(k): float(v) for k, v in grouped.items()}
+    return {_label(k): float(v) for k, v in grouped.items()}
 
 
 def _compare_maps(before: dict[str, float], after: dict[str, float]) -> float:
-    """Return the largest absolute difference between two ``{label: mean}`` maps."""
-    keys = set(before) | set(after)
-    return max((abs(before.get(k, np.nan) - after.get(k, np.nan)) for k in keys), default=0.0)
+    """Return the largest absolute difference between two ``{label: mean}`` maps.
+
+    A label on one side only, or a mean missing (NaN) on one side only, is an infinite
+    difference: the reshape lost or invented that label, or every score it had. A mean
+    missing on both sides belongs to a label with no scores, carried through unchanged.
+    No NaN reaches ``max``: its result over NaN depends on the order of its input, and
+    the order of a set of labels changes with the hash seed, so the round-trip check
+    used to pass or fail at random.
+    """
+    if before.keys() != after.keys():
+        return float("inf")
+    largest = 0.0
+    for label, mean_before in before.items():
+        mean_after = after[label]
+        if np.isnan(mean_before) and np.isnan(mean_after):
+            continue
+        difference = abs(mean_before - mean_after)
+        largest = max(largest, float("inf") if np.isnan(difference) else difference)
+    return largest
 
 
 def reshape_to_long(  # noqa: C901, PLR0912, PLR0915
@@ -174,14 +199,14 @@ def reshape_to_long(  # noqa: C901, PLR0912, PLR0915
         grand_before = float(np.nanmean(cell_block.to_numpy()))
         n_cells_before = int(cell_block.notna().to_numpy().sum())
         panelist_mean_before = {
-            str(pid): float(np.nanmean(grp[value_cols].to_numpy()))
+            _label(pid): float(np.nanmean(grp[value_cols].to_numpy()))
             for pid, grp in wide.groupby(panelist_col, observed=True)
         }
         if layout == "wide_by_attribute":
-            attr_mean_before = {str(a): float(np.nanmean(wide[a].to_numpy())) for a in value_cols}
+            attr_mean_before = {_label(a): float(np.nanmean(wide[a].to_numpy())) for a in value_cols}
         else:  # attribute is a row key, so group rows by it
             attr_mean_before = {
-                str(attr): float(np.nanmean(grp[value_cols].to_numpy()))
+                _label(attr): float(np.nanmean(grp[value_cols].to_numpy()))
                 for attr, grp in wide.groupby(row_key_col, observed=True)
             }
 

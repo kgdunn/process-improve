@@ -431,12 +431,8 @@ def plot_multitags(  # noqa: PLR0912, PLR0913, PLR0915
     if time_column in tag_list:
         tag_list.remove(time_column)
 
-    # Check that the tag_list is present in all batches.
-    if not check_valid_batch_dict(
-        {k: v[tag_list] for k, v in df_dict.items() if k in batch_list},
-        no_nan=False,
-    ):
-        raise ValueError("One or more batches in df_dict failed validation.")
+    # Check that the tag_list is present in all batches; a failed check raises.
+    check_valid_batch_dict({k: v[tag_list] for k, v in df_dict.items() if k in batch_list}, no_nan=False)
 
     if config.ncols == 0:
         config.ncols = int(np.ceil(len(tag_list) / int(config.nrows)))

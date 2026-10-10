@@ -390,10 +390,9 @@ class Model(OLS):
             warnings.simplefilter("ignore")
 
             main = "OLS Regression Results"
-            if self.name:
-                main += ": " + str(self.name)
-            elif self.data is not None and self.data.pi_title:
-                main += ": " + str(self.data.pi_title)
+            title = self.name or self.get_title()
+            if title:
+                main += ": " + str(title)
 
             smry = self._OLS.summary(title=main)
             # print(smry)
@@ -446,10 +445,12 @@ class Model(OLS):
         return spec.lhs_termlist[0].name()
 
     def get_title(self) -> str:
-        """Get the model's title, if it has one. Always returns a string."""
-        if self.data is None:
-            return ""
-        return self.data.get_title()
+        """Get the model's title, if it has one. Always returns a string.
+
+        The title is the data's ``pi_title``. ``lm`` also accepts a plain DataFrame,
+        which has none, so a missing attribute is an empty title rather than an error.
+        """
+        return str(getattr(self.data, "pi_title", None) or "")
 
     def get_aliases(
         self,
@@ -506,7 +507,53 @@ def predict(model: Model, **kwargs: Any) -> Any:  # noqa: ANN401
 _EXACT_ALIAS = 1.0 - 1e-9
 
 
-def lm(  # noqa: C901, PLR0915
+def _alias_word(term: Any) -> list[str]:  # noqa: ANN401
+    """Return the factor names of a patsy term, ``["Intercept"]`` for the intercept."""
+    return [factor.name() for factor in term.factors] or ["Intercept"]
+
+
+def _find_aliases(exog: np.ndarray, terms: list[Any], threshold: float) -> tuple[dict, list[int]]:
+    """Find the model columns that are aliases of one another, and the ones to drop.
+
+    Two columns that vary are aliases when the absolute correlation of the centred
+    columns exceeds ``threshold`` (a threshold of one means exactly, up to rounding);
+    the sign of an alias is the sign of that correlation, so it holds in actual units
+    too (``E = 30 - A`` is ``-A``). Columns that do not vary (the intercept, or a word
+    that is constant across a fraction, ``ABC = -1``) are aliases of one another,
+    signed by their levels. In each group the shortest word is kept, the first one on a
+    tie, and the others are dropped. ``terms`` holds each column's patsy term.
+
+    Returns ``{word: [[sign, *alias word], ...]}``, each word a tuple of factor names
+    with its aliases shortest first and the intercept last, and the columns to drop.
+    """
+    exog = np.asarray(exog, dtype=float)
+    centred = exog - exog.mean(axis=0)
+    spread = np.linalg.norm(centred, axis=0)
+    varies = spread > np.sqrt(np.finfo(float).eps) * np.maximum(np.linalg.norm(exog, axis=0), 1.0)
+    unit = np.divide(centred, spread, out=np.zeros_like(centred), where=varies)
+    correlation = unit.T @ unit
+    limit = min(threshold, _EXACT_ALIAS)
+
+    aliasing: dict = defaultdict(list)
+    drop: set[int] = set()
+    for idx in range(exog.shape[1]):
+        if varies[idx]:
+            group = np.flatnonzero(varies & (np.abs(correlation[idx]) > limit))
+            signs = np.sign(correlation[idx])
+        else:
+            group = np.flatnonzero(~varies)
+            signs = np.sign(exog[0, idx] * exog[0])
+        ordered = sorted(group.tolist(), key=lambda col: (len(terms[col].factors), col))
+        drop.update(ordered[1:])
+        aliases = [["-" if signs[col] < 0 else "+", *_alias_word(terms[col])] for col in ordered if col != idx]
+        if aliases:
+            aliasing[tuple(_alias_word(terms[idx]))] = sorted(
+                aliases, key=lambda alias: (1e5 if alias[1] == "Intercept" else len(alias), alias)
+            )
+    return aliasing, sorted(drop)
+
+
+def lm(
     model_spec: str,
     data: Expt,
     name: str | None = None,
@@ -534,94 +581,6 @@ def lm(  # noqa: C901, PLR0915
     Model
         The fitted model.
     """
-
-    def find_aliases(  # noqa: C901, PLR0912
-        model: Any,  # noqa: ANN401
-        terms: list[Any],
-        threshold_correlation: float = _EXACT_ALIAS,
-    ) -> tuple[dict, list]:
-        """
-        Find columns which are exactly correlated, or up to at least a level
-        of `threshold_correlation`. ``terms`` holds the patsy term of each model
-        column (a categorical term spans several columns).
-        Return a dictionary of aliasing and a list of columns to keep.
-
-        The columns to keep will be in the order checked. Perhaps this can be
-        improved.
-        For example if AB = CD, then return AB to keep.
-        For example if A = BCD, then return A, and not the BCD column to keep.
-        """
-        has_variation = model.exog.std(axis=0) > np.sqrt(np.finfo(float).eps)
-
-        # Snippet of code here is from the NumPy "corrcoef" function. Adapted.
-        c = np.cov(model.exog.T, None, rowvar=True)
-        dot_product = model.exog.T @ model.exog
-        try:
-            d = np.diag(c)
-        except ValueError:
-            # scalar covariance
-            # nan if incorrect value (nan, inf, 0), 1 otherwise
-            return c / c  # type: ignore[return-value]  # degenerate scalar-covariance fallback; preserves original runtime behaviour
-        stddev = np.sqrt(d.real)
-
-        aliasing = defaultdict(list)
-        drop_columns: list[int] = []
-        counter = -1
-        corrcoef = c.copy()
-        for idx, check in enumerate(has_variation):
-            if check:
-                counter += 1
-
-                for j, stddev_value in enumerate(stddev):
-                    if stddev_value == 0:
-                        pass
-                    else:
-                        corrcoef[idx, j] = c[idx, j] / stddev[idx] / stddev_value
-
-                # corrcoef = c / stddev[idx, None]
-                # corrcoef = corrcoef / stddev[None, idx]
-
-                candidates = [i for i, val in enumerate(np.abs(corrcoef[idx, :])) if (val > threshold_correlation)]
-            else:
-                # Columns with no variation
-                candidates = [i for i, j in enumerate(has_variation) if (j <= threshold_correlation)]
-
-            # Track the correlation signs (computed from the raw dot product so
-            # the sign information matches the eventual alias decision below
-            # regardless of which branch built ``candidates``).
-            signs = [np.sign(j) for j in dot_product[idx, :]]
-
-            # Now drop out the candidates with the longest word lengths
-            alias_len = [(len(terms[i].factors), i) for i in candidates]
-            alias_len.sort(reverse=True)
-            drop_columns.extend(entry[1] for entry in alias_len[0:-1])
-
-            for col in candidates:
-                if col == idx:
-                    # It is of course perfectly correlated with itself
-                    pass
-                else:
-                    aliases = [t.name() for t in terms[col].factors]
-                    if len(aliases) == 0:
-                        aliases = ["Intercept"]
-
-                    key = tuple([t.name() for t in terms[idx].factors])
-                    if len(key) == 0:
-                        key = ("Intercept",)
-
-                    if signs[col] > 0:
-                        aliases.insert(0, "+")
-                    if signs[col] < 0:
-                        aliases.insert(0, "-")
-                    aliasing[key].append(aliases)
-
-        # Sort the aliases in length:
-        for key, val in aliasing.items():
-            sorted_aliases = [(len(i), i) if i[1] != "Intercept" else (1e5, i) for i in val]
-            sorted_aliases.sort()
-            aliasing[key] = [i[1] for i in sorted_aliases]
-
-        return aliasing, list(set(drop_columns))
 
     # Patsy evaluates each formula term as a Python expression, so an untrusted
     # ``model_spec`` is a code-execution vector. Allow only a safe Wilkinson
@@ -652,7 +611,7 @@ def lm(  # noqa: C901, PLR0915
         column_terms: list[Any] = [None] * n_terms
         for term, columns in spec.term_slices.items():
             column_terms[columns] = [term] * (columns.stop - columns.start)
-        aliasing, drop_columns = find_aliases(pre_model, column_terms, threshold_correlation=alias_threshold)
+        aliasing, drop_columns = _find_aliases(pre_model.exog, column_terms, alias_threshold)
         drop_column_names = [pre_model.data.xnames[i] for i in drop_columns]
 
     post_model = smf.ols(model_spec, data=data, drop_cols=drop_column_names)

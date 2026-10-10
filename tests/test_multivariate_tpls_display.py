@@ -1,4 +1,4 @@
-"""Smoke tests for ``TPLS.display_results``.
+"""Tests for the text output of ``TPLS``: ``display_results`` and ``help``.
 
 The display_results method (multivariate.methods.TPLS.display_results,
 lines 2538-2604) was previously uncovered: the only reference in the
@@ -9,6 +9,7 @@ never invoked.
 from __future__ import annotations
 
 import pathlib
+import re
 
 import pandas as pd
 import pytest
@@ -72,3 +73,24 @@ def test_tpls_display_results_unfitted_raises(tpls_pyphi_data: dict) -> None:
 
     with pytest.raises(RuntimeError, match="not fitted"):
         model.display_results()
+
+
+def test_tpls_display_results_flags_a_component_stopped_by_max_iter(tpls_pyphi_data: dict) -> None:
+    """A component that ran out of iterations, rather than converging, is marked in its row."""
+    d_matrix = tpls_pyphi_data.pop("D")
+    capped = TPLS(n_components=2, d_matrix=d_matrix, max_iter=1).fit(DataFrameDict(tpls_pyphi_data))
+    converged = TPLS(n_components=2, d_matrix=d_matrix).fit(DataFrameDict(tpls_pyphi_data))
+
+    def component_rows(model: TPLS) -> list[str]:
+        return [line for line in model.display_results().splitlines() if re.match(r"LV \d", line)]
+
+    assert [row.endswith("** (max iter reached)") for row in component_rows(capped)] == [True, True]
+    assert not any("max iter reached" in row for row in component_rows(converged))
+
+
+def test_tpls_help_returns_the_quick_reference(tpls_pyphi_data: dict) -> None:
+    """help() needs no fit, and returns the quick reference as plain text."""
+    text = TPLS(n_components=2, d_matrix=tpls_pyphi_data["D"]).help()
+    assert text.startswith("Help for the TPLS Estimator.")
+    for call in ("tpls.diagnose(X_new)", "tpls.display_results()", "tpls.help()", ".hotellings_t2_limit()"):
+        assert call in text

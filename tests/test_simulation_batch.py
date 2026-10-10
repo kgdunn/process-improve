@@ -26,7 +26,9 @@ import pandas as pd
 import pytest
 from hypothesis import given, settings
 from hypothesis import strategies as st
+from sklearn.utils import Bunch
 
+from process_improve._extras import require_extra
 from process_improve.batch.data_input import check_valid_batch_dict, dict_to_wide
 from process_improve.batch.preprocessing import resample_to_reference
 from process_improve.multivariate import PCA, MCUVScaler
@@ -134,6 +136,29 @@ def test_cardinal_functions_peak_at_one_and_vanish_at_bounds() -> None:
     values = cardinal_temperature(grid, 27.5, 36.8, 41.5)
     assert np.all(values >= 0.0)
     assert np.all(values <= 1.0)
+
+
+def test_scalar_cardinal_functions_match_the_vectorised_ones() -> None:
+    """The scalar forms in the integration hot loop agree with the public ones, inside and outside the window."""
+    from process_improve.simulation.batch import _cardinal_ph_f, _cardinal_temperature_f
+
+    temperatures = np.linspace(20.0, 45.0, 251)
+    scalar_t = [_cardinal_temperature_f(t, 27.5, 36.8, 41.5) for t in temperatures]
+    np.testing.assert_allclose(scalar_t, cardinal_temperature(temperatures, 27.5, 36.8, 41.5), rtol=1e-12, atol=0.0)
+    ph_values = np.linspace(5.5, 8.5, 301)
+    scalar_ph = [_cardinal_ph_f(ph, 6.3, 7.1, 7.9) for ph in ph_values]
+    np.testing.assert_allclose(scalar_ph, cardinal_ph(ph_values, 6.3, 7.1, 7.9), rtol=1e-12, atol=0.0)
+    assert scalar_t[0] == scalar_t[-1] == scalar_ph[0] == scalar_ph[-1] == 0.0
+
+
+def test_ctmi_rejects_cardinals_out_of_order() -> None:
+    """t_min, t_opt and t_max must increase; the message echoes them in that order."""
+    with pytest.raises(
+        ValueError,
+        match=r"cardinal_temperature: cardinal temperatures must satisfy t_min < t_opt < t_max; "
+        r"got \(35\.0, 30\.0, 40\.0\)\.",
+    ):
+        cardinal_temperature(30.0, 35.0, 30.0, 40.0)
 
 
 # ---------------------------------------------------------------------------
@@ -350,6 +375,14 @@ def test_nominal_trajectory_is_biphasic(sim: BioreactorSimulator, nominal: pd.Da
     assert nominal["temperature"].is_monotonic_decreasing
 
 
+def test_nominal_trajectory_steps_when_the_shift_has_no_duration() -> None:
+    """With shift_start_day == shift_end_day the temperature steps from the optimum to the hold at that day."""
+    cfg = _config(shift_start_day=4.0, shift_end_day=4.0)
+    temperature = BioreactorSimulator(cfg).nominal_trajectory()["temperature"]
+    np.testing.assert_array_equal(temperature[temperature.index < 4.0], cfg.temp_opt)
+    np.testing.assert_array_equal(temperature[temperature.index >= 4.0], cfg.temp_production)
+
+
 # ---------------------------------------------------------------------------
 # Physical invariants (property-based)
 # ---------------------------------------------------------------------------
@@ -437,6 +470,53 @@ def test_config_rejects_hold_outside_bounds() -> None:
         BioreactorConfig(temp_production=45.0)
 
 
+@pytest.mark.parametrize(
+    ("overrides", "match"),
+    [
+        ({"ic_scale": -1.0}, r"ic_scale must be a finite non-negative number; got -1\.0\."),
+        (
+            {"temp_q_opt": 45.0},
+            (
+                r"Productivity cardinal temperatures must satisfy temp_q_min < temp_q_opt < temp_q_max; "
+                r"got \(22\.0, 45\.0, 40\.5\)\."
+            ),
+        ),
+        ({"ph_opt": 8.0}, r"Cardinal pH values must satisfy ph_min < ph_opt < ph_max; got \(6\.3, 8\.0, 7\.9\)\."),
+        ({"samples_per_batch": 1}, r"samples_per_batch must be at least 2; got 1\."),
+        ({"steps_per_day": 0}, r"steps_per_day must be at least 1; got 0\."),
+        (
+            {"temp_bounds": (39.0, 28.0)},
+            r"temp_bounds must be a finite \(low, high\) pair with low < high; got \(39\.0, 28\.0\)\.",
+        ),
+        (
+            {"ph_bounds": (6.2, 7.6)},
+            r"ph_bounds \(6\.2, 7\.6\) must lie strictly inside the cardinal window \(6\.3, 7\.9\)\.",
+        ),
+        (
+            {"shift_start_day": 5.0, "shift_end_day": 4.0},
+            (
+                r"The nominal temperature shift must satisfy 0 <= shift_start_day <= shift_end_day <= batch_days; "
+                r"got \(5\.0, 4\.0, 10\.0\)\."
+            ),
+        ),
+    ],
+    ids=[
+        "negative-channel-scale",
+        "productivity-cardinals-out-of-order",
+        "ph-cardinals-out-of-order",
+        "single-sample-batch",
+        "no-integration-steps",
+        "temperature-bounds-reversed",
+        "ph-bounds-outside-the-cardinal-window",
+        "shift-ends-before-it-starts",
+    ],
+)
+def test_config_rejects_inconsistent_parameters(overrides: dict, match: str) -> None:
+    """Each parameter relationship the model depends on is checked, and the message names the values."""
+    with pytest.raises(ValueError, match=match):
+        BioreactorConfig(**overrides)
+
+
 def test_simulator_rejects_wrong_config_type() -> None:
     with pytest.raises(TypeError, match="BioreactorConfig"):
         BioreactorSimulator(config="not a config")  # type: ignore[arg-type]
@@ -457,6 +537,14 @@ def test_simulate_batch_rejects_bad_trajectory(sim: BioreactorSimulator, nominal
         sim.simulate_batch(None, not_finite)
     with pytest.raises(TypeError, match="DataFrame"):
         sim.simulate_batch(None, "not a frame")  # type: ignore[arg-type]
+
+
+def test_simulate_batch_rejects_ph_outside_its_bounds(sim: BioreactorSimulator, nominal: pd.DataFrame) -> None:
+    """A requested pH outside the recipe window is refused, with the window and the offending range."""
+    with pytest.raises(
+        ValueError, match=r"trajectory pH must lie within ph_bounds \(6\.6, 7\.6\); got values in \[7\.7, 7\.7\]\."
+    ):
+        sim.simulate_batch(None, nominal.assign(pH=7.7))
 
 
 def test_simulate_batch_rejects_bad_initial_conditions(sim: BioreactorSimulator) -> None:
@@ -513,6 +601,15 @@ def test_variance_decomposition_rejects_bad_arguments(sim: BioreactorSimulator) 
         variance_decomposition("not a simulator")  # type: ignore[arg-type]
     with pytest.raises(ValueError, match="n_batches"):
         variance_decomposition(sim, n_batches=1)
+
+
+def test_variance_decomposition_replays_a_supplied_trajectory(sim: BioreactorSimulator, nominal: pd.DataFrame) -> None:
+    """Every channel campaign replays the schedule given: the nominal reproduces the default, a cooler one differs."""
+    default = variance_decomposition(sim, n_batches=3, random_state=1)
+    supplied = variance_decomposition(sim, n_batches=3, trajectory=nominal, random_state=1)
+    pd.testing.assert_frame_equal(supplied, default)
+    cooler = variance_decomposition(sim, n_batches=3, trajectory=nominal.assign(temperature=30.0), random_state=1)
+    assert cooler.attrs["mean_titer_g_L"] != default.attrs["mean_titer_g_L"]
 
 
 # ---------------------------------------------------------------------------
@@ -649,6 +746,203 @@ def test_decompose_batch_quality_variance_tool_runs() -> None:
         "total",
     }
     assert sources["control and measurement noise"]["cv_pct"] < 1.0
+
+
+def _canned_policy_comparison() -> Bunch:
+    """Two test batches as evaluate_control_policies reports them: batch 3 corrected, batch 4 left alone."""
+    batches = pd.DataFrame(
+        {
+            "class_assigned": ["A", "C"],
+            "replay": [7.12341, 9.5],
+            "corrected": [True, False],
+            "reason": ["corrected", "dead_band"],
+            "midcourse": [7.65432, 9.5],
+            "y_hat_predicted": [7.98761, np.nan],
+        },
+        index=pd.Index([3, 4], name="batch_id"),
+    )
+    summary = pd.DataFrame(
+        {"mean": [8.31171, 8.57716], "sd": [1.68012, 1.30472], "min": [7.12341, 7.65432], "max": [9.5, 9.5]},
+        index=["replay", "midcourse"],
+    )
+    return Bunch(
+        batches=batches, summary=summary, n_corrected=1, n_harmed=0, models=Bunch(fit_r2={"A": 0.91234, "C": 0.95})
+    )
+
+
+@pytest.fixture
+def policy_calls(monkeypatch: pytest.MonkeyPatch) -> list:
+    """Replace evaluate_control_policies with a recorder that returns the canned comparison."""
+    from process_improve.batch import control
+
+    calls: list = []
+
+    def recorder(simulator: BioreactorSimulator, **kwargs: object) -> Bunch:
+        calls.append(kwargs)
+        return _canned_policy_comparison()
+
+    monkeypatch.setattr(control, "evaluate_control_policies", recorder)
+    return calls
+
+
+def test_correct_batch_midcourse_tool_reports_every_batch(policy_calls: list) -> None:
+    """The tool forwards its settings and reports each batch, with a prediction only where it corrected."""
+    from process_improve.tool_spec import execute_tool_call
+
+    out = execute_tool_call(
+        "correct_batch_midcourse", {"n_batches": 2, "decision_point": 6, "n_train": 40, "dead_band": 0.5}
+    )
+    assert policy_calls == [
+        {
+            "y_target": 8.0,
+            "n_train": 40,
+            "n_test": 2,
+            "mv_variation": 2.5,
+            "decision_points": (6,),
+            "dead_band": 0.5,
+            "include_adapted": False,
+            "oracle": "none",
+            "random_state": 0,
+        }
+    ]
+    assert out["batches"] == [
+        {
+            "batch_id": "3",
+            "feed_class": "A",
+            "replay_titer_g_L": 7.123,
+            "corrected": True,
+            "outcome": "corrected",
+            "executed_titer_g_L": 7.654,
+            "predicted_titer_g_L": 7.988,
+        },
+        {
+            "batch_id": "4",
+            "feed_class": "C",
+            "replay_titer_g_L": 9.5,
+            "corrected": False,
+            "outcome": "dead_band",
+            "executed_titer_g_L": 9.5,
+            "predicted_titer_g_L": None,
+        },
+    ]
+    assert (out["decision_point"], out["n_corrected"], out["n_harmed"]) == (6, 1, 0)
+    assert out["model_fit_r2_per_class"] == {"A": 0.912, "C": 0.95}
+
+
+def test_evaluate_batch_control_policy_tool_summarises_the_corrected_batches(policy_calls: list) -> None:
+    """With the ceilings requested, both are switched on; only corrected batches are listed, with their gain."""
+    from process_improve.tool_spec import execute_tool_call
+
+    out = execute_tool_call("evaluate_batch_control_policy", {"n_test": 5, "include_ceilings": True})
+    (call,) = policy_calls
+    assert (call["n_test"], call["include_adapted"], call["oracle"]) == (5, True, "corrected")
+    assert out["summary_titer_g_L"] == {
+        "replay": {"mean": 8.312, "sd": 1.68, "min": 7.123, "max": 9.5},
+        "midcourse": {"mean": 8.577, "sd": 1.305, "min": 7.654, "max": 9.5},
+    }
+    assert out["corrected_batches"] == [
+        {
+            "batch_id": "3",
+            "feed_class": "A",
+            "replay_titer_g_L": 7.123,
+            "executed_titer_g_L": 7.654,
+            "realised_gain_g_L": 0.531,
+            "predicted_titer_g_L": 7.988,
+        }
+    ]
+    assert out["mean_realised_gain_of_corrected_g_L"] == 0.531
+
+
+def test_evaluate_batch_control_policy_tool_without_corrections(monkeypatch: pytest.MonkeyPatch) -> None:
+    """When no batch was corrected there is no gain to average, and the tool says None."""
+    from process_improve.batch import control
+    from process_improve.tool_spec import execute_tool_call
+
+    untouched = _canned_policy_comparison()
+    untouched.batches["corrected"] = False
+    monkeypatch.setattr(control, "evaluate_control_policies", lambda _simulator, **_kwargs: untouched)
+    out = execute_tool_call("evaluate_batch_control_policy", {})
+    assert out["corrected_batches"] == []
+    assert out["mean_realised_gain_of_corrected_g_L"] is None
+
+
+@pytest.mark.parametrize(
+    ("tool", "payload", "target", "error"),
+    [
+        (
+            "simulate_batch_campaign",
+            {"n_batches": 10},
+            "process_improve.simulation.batch.BioreactorSimulator.simulate_campaign",
+            ValueError("campaign failed"),
+        ),
+        (
+            "decompose_batch_quality_variance",
+            {"n_batches": 10},
+            "process_improve.simulation.batch.variance_decomposition",
+            ValueError("decomposition failed"),
+        ),
+        (
+            "correct_batch_midcourse",
+            {},
+            "process_improve.batch.control.evaluate_control_policies",
+            ValueError("too few training batches"),
+        ),
+        (
+            "evaluate_batch_control_policy",
+            {},
+            "process_improve.batch.control.evaluate_control_policies",
+            ValueError("too few training batches"),
+        ),
+        (
+            "correct_batch_midcourse",
+            {},
+            "process_improve.batch.control.evaluate_control_policies",
+            require_extra("osqp", "control"),
+        ),
+        (
+            "evaluate_batch_control_policy",
+            {},
+            "process_improve.batch.control.evaluate_control_policies",
+            require_extra("osqp", "control"),
+        ),
+    ],
+    ids=[
+        "campaign-value-error",
+        "decomposition-value-error",
+        "correction-value-error",
+        "policy-comparison-value-error",
+        "correction-without-the-control-extra",
+        "policy-comparison-without-the-control-extra",
+    ],
+)
+def test_simulation_tools_return_an_error_envelope(
+    monkeypatch: pytest.MonkeyPatch, tool: str, payload: dict, target: str, error: Exception
+) -> None:
+    """A failure in the simulation or a missing solver comes back as {"error": message}, not as a raise."""
+    from process_improve.tool_spec import execute_tool_call
+
+    def fail(*_args: object, **_kwargs: object) -> None:
+        raise error
+
+    monkeypatch.setattr(target, fail)
+    assert execute_tool_call(tool, payload) == {"error": str(error)}
+
+
+@pytest.mark.integration
+def test_evaluate_batch_control_policy_tool_runs_end_to_end() -> None:
+    """A real comparison on the smallest campaigns: every listed gain is executed minus replay."""
+    from process_improve.tool_spec import execute_tool_call
+
+    out = execute_tool_call(
+        "evaluate_batch_control_policy", {"n_train": 30, "n_test": 5, "dead_band": 0.0, "random_state": 0}
+    )
+    assert "error" not in out
+    assert set(out["summary_titer_g_L"]) == {"replay", "midcourse"}
+    assert out["n_corrected"] == len(out["corrected_batches"]) > 0
+    for row in out["corrected_batches"]:
+        assert row["realised_gain_g_L"] == pytest.approx(row["executed_titer_g_L"] - row["replay_titer_g_L"], abs=2e-3)
+    gains = [row["realised_gain_g_L"] for row in out["corrected_batches"]]
+    assert out["mean_realised_gain_of_corrected_g_L"] == pytest.approx(np.mean(gains), abs=2e-3)
 
 
 def test_golden_batch_recipe_is_registered_and_matches() -> None:

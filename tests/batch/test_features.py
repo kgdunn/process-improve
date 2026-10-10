@@ -58,6 +58,33 @@ def test_age_col_specification(batch_data: pd.DataFrame) -> None:
     assert slopes.shape == (1, 2)
 
 
+def test_default_tags_exclude_the_batch_and_phase_columns() -> None:
+    """With no tags given, every column but the batch and phase identifiers is summarised per batch and phase."""
+    data = pd.DataFrame(
+        {
+            "Batch": [1, 1, 1, 1, 2, 2],
+            "Phase": ["heat", "heat", "hold", "hold", "heat", "hold"],
+            "temp": [10.0, 20.0, 30.0, 50.0, 5.0, 7.0],
+        }
+    )
+    means = features.f_mean(data, batch_col="Batch", phase_col="Phase")
+    assert list(means.columns) == ["temp_mean"]
+    assert means["temp_mean"].to_dict() == {(1, "heat"): 15.0, (1, "hold"): 40.0, (2, "heat"): 5.0, (2, "hold"): 7.0}
+
+
+def test_slope_against_an_x_axis_column_of_the_batch() -> None:
+    """Without age_col the x-axis is read from the batch's own column; with all tags it includes itself (slope 1)."""
+    ramps = pd.DataFrame(
+        {
+            "Batch": [1] * 4 + [2] * 4,
+            "time": [0.0, 1.0, 2.0, 3.0] * 2,
+            "temp": [10.0, 12.0, 14.0, 16.0, 9.0, 6.0, 3.0, 0.0],
+        }
+    )
+    slopes = features.f_slope(ramps, x_axis_tag="time", batch_col="Batch").droplevel("__phase_grouper__")
+    assert slopes.to_dict() == {"time_slope": {1: 1.0, 2: 1.0}, "temp_slope": {1: 2.0, 2: -3.0}}
+
+
 def test_data_preprocessing(batch_data: pd.DataFrame) -> None:
     """Simple tests regarding the mean, median, etc. Location-based features."""
 
@@ -231,6 +258,27 @@ def test_cross_with_nan() -> None:
     assert len(result) == 1
 
 
+def test_cross_on_a_text_index_returns_positions() -> None:
+    """An index that cannot be interpolated (text labels) gives the 0-based positions just before each crossing."""
+    series = pd.Series([-1.0, 1.0, -1.0], index=["a", "b", "c"])
+    np.testing.assert_array_equal(cross(series, threshold=0), [0, 1])
+
+
+@pytest.mark.parametrize(
+    ("tag", "exc", "match"),
+    [
+        (["temp"], TypeError, r"tag must be a string; got list\."),
+        ("nope", KeyError, r"Desired tag \['nope'\] not found in the dataframe\."),
+    ],
+    ids=["tag-given-as-a-list", "tag-not-in-the-data"],
+)
+def test_f_crossing_needs_one_existing_tag(tag: object, exc: type, match: str) -> None:
+    """f_crossing looks for one named tag and says which one it could not use."""
+    data = pd.DataFrame({"Batch": [1, 1, 1], "time": [0.0, 1.0, 2.0], "temp": [-1.0, 0.5, 2.0]})
+    with pytest.raises(exc, match=match):
+        features.f_crossing(data, tag=tag, time_tag="time", batch_col="Batch")  # type: ignore[arg-type]
+
+
 def test_f_crossing_with_batch_data(batch_data: pd.DataFrame) -> None:
     """f_crossing should find threshold crossings per batch."""
     df = batch_data
@@ -289,6 +337,24 @@ def test_f_elbow_no_elbow_records_nan() -> None:
     value = result.iloc[0, 0]
     assert isinstance(value, float)
     assert np.isnan(value)
+
+
+@pytest.mark.parametrize("only_index", [False, True], ids=["x-value", "index"])
+def test_f_elbow_records_nan_for_a_tag_never_measured_in_a_batch(only_index: bool) -> None:
+    """A batch whose tag is all missing has no elbow, so it gets NaN while the other batch keeps its elbow."""
+    n = 30
+    x = np.arange(n, dtype=float)
+    data = pd.DataFrame(
+        {
+            "Batch": ["B1"] * n + ["B2"] * n,
+            "time": np.r_[x, x],
+            "signal": np.r_[np.where(x < 15, 0.0, 2.0 * (x - 15)), np.full(n, np.nan)],
+        }
+    )
+    elbows = features.f_elbow(data, x_axis_tag="time", tags=["signal"], batch_col="Batch", only_index=only_index)
+    by_batch = elbows["signal_elbow"].droplevel("__phase_grouper__")
+    assert by_batch["B1"] == 15.0  # x equals the sample index here, so both readings agree
+    assert np.isnan(by_batch["B2"])
 
 
 class TestFRupture:
