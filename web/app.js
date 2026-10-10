@@ -606,6 +606,20 @@ async function showBuiltExample() {
   if (!pythonReady) setStatus("Showing the worked example while Python starts...", "busy");
   const request = { truth: example.simulation.truth };
   await drawCharts(request, ticket, example.plots);
+  const compared = example.comparison;
+  if (compared && !$("#comparison").textContent) {
+    $("#compare-model").value = compared.model;
+    renderComparison(compared.result, compared.made, compared.notes);
+    showPython(
+      "compare",
+      compareCode(
+        example.inputs.design.factors,
+        compared.made.map((m) => ({ label: m.label, design_type: m.design_type, options: m.design.spec.options })),
+        compared.model,
+      ),
+    );
+    await drawComparison(compared.result, example.inputs.design.factors.length);
+  }
 }
 
 async function runExample() {

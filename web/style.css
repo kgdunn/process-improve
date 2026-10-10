@@ -206,7 +206,7 @@ table.compare tr.group td {
   text-align: left; font-weight: 600; color: var(--muted); font-size: 0.8rem; text-transform: uppercase;
   letter-spacing: 0.04em; padding-top: 10px;
 }
-table.compare td:first-child { white-space: nowrap; }
+table.compare td { white-space: nowrap; }
 .charts > .hint.wide { grid-column: 1 / -1; margin: 0; }
 
 /* Show the Python: the code a step's results came from, ready to copy. */

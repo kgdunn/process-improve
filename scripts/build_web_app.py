@@ -72,6 +72,24 @@ def worked_example() -> dict[str, Any]:
     )
     request = {**held, "responses": simulation["responses"], "model": inputs["model"], "truth": simulation["truth"]}
     design.pop("xlsx_base64")  # the page writes the workbook when it is asked for
+
+    # Step 4 for the same factors: every design the page offers, compared on the nine measures.
+    model = "main_quadratic"
+    plan = call("api_compare_plan", {"factors": inputs["design"]["factors"], "model": model})
+    made = []
+    for item in plan["designs"]:
+        generated = call("api_make_design", item["spec"])
+        generated.pop("xlsx_base64")
+        made.append({**item, "design": generated})
+    contenders = [
+        {
+            "label": m["label"],
+            "spec": m["design"]["spec"],
+            "columns": m["design"]["columns"],
+            "rows": m["design"]["rows"],
+        }
+        for m in made
+    ]
     return {
         "version": version("process-improve"),
         "inputs": inputs,
@@ -79,6 +97,12 @@ def worked_example() -> dict[str, Any]:
         "simulation": simulation,
         "analysis": call("api_analyze_runs", request),
         "plots": call("api_plots", request),
+        "comparison": {
+            "model": model,
+            "made": made,
+            "notes": plan["notes"],
+            "result": call("api_compare", {"model": model, "designs": contenders}),
+        },
     }
 
 

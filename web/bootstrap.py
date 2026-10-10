@@ -1082,6 +1082,18 @@ OPTIMAL_MODEL = {
     "quadratic": "quadratic",
 }
 
+#: Each design's name as a comparison's column heading, short as the book writes them.
+COMPARE_LABELS = {
+    "full_factorial": "Full factorial",
+    "fractional_factorial": "Fractional factorial",
+    "plackett_burman": "Plackett-Burman",
+    "dsd": "DSD",
+    "box_behnken": "Box-Behnken",
+    "ccd": "CCD",
+    "d_optimal": "D-optimal",
+    "i_optimal": "I-optimal",
+}
+
 #: Points the FDS curves are computed from, and points along each curve.
 FDS_SAMPLES = 4096
 FDS_POINTS = 101
@@ -1106,7 +1118,7 @@ def compare_plan(request: dict) -> dict:
         if "model_type" in info["options"]:
             options["model_type"] = OPTIMAL_MODEL[model]
         spec = {"design_type": design_type, "factors": request["factors"], "response": "y", **options}
-        plan.append({"design_type": design_type, "label": info["label"], "spec": spec})
+        plan.append({"design_type": design_type, "label": COMPARE_LABELS[design_type], "spec": spec})
     notes = []
     if model != OPTIMAL_MODEL[model] and any("model_type" in DESIGNS[d["design_type"]]["options"] for d in plan):
         notes.append(

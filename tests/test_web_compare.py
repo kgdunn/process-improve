@@ -239,3 +239,27 @@ def test_the_python_shown_reproduces_the_page(app):
     assert list(namespace["comparison"].designs) == compared["designs"]
     for label in compared["designs"]:
         assert namespace["comparison"].table[label].tolist() == compared["display"][label], label
+
+
+@pytest.mark.slow
+def test_the_built_worked_example_includes_the_comparison():
+    """The page draws step 4 at first paint too, from the comparison the build computes."""
+    pytest.importorskip("plotly")
+    spec = importlib.util.spec_from_file_location("build_web_app", WEB.parent / "scripts" / "build_web_app.py")
+    build = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(build)
+    compared = json.loads(json.dumps(build.worked_example()))["comparison"]
+    assert compared["model"] == "main_quadratic"
+    assert [m["design_type"] for m in compared["made"]] == [
+        "full_factorial",
+        "fractional_factorial",
+        "plackett_burman",
+        "dsd",
+        "box_behnken",
+        "ccd",
+        "d_optimal",
+        "i_optimal",
+    ]
+    assert not any("xlsx_base64" in m["design"] for m in compared["made"]), "the page writes workbooks on demand"
+    a_over_p = [m["key"] for m in compared["result"]["measures"]].index("a")
+    assert compared["result"]["display"]["Box-Behnken [n=15]"][a_over_p] == "0.2173"
