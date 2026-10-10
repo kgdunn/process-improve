@@ -171,6 +171,18 @@ those changes.
 
 ### Fixed
 
+- **`analyze_experiment` no longer blames the design for badly scaled units.** It took
+  the model matrix's rank in the factors' own units. In very unequal units, or with a
+  span that is tiny next to its distance from zero, that rank drops in floating point.
+  - For example, a rotatable three-factor CCD in kelvin, pascals and seconds was
+    reported as having "1 of them not estimable from this design", though the design
+    estimates all ten terms of its quadratic model.
+  - `model_rank` and `rank_deficient` now come from the model matrix with the numeric
+    factors coded to -1/+1, which is what the design can estimate.
+  - A new `ill_conditioned` flag in `model_summary` reports a rank lost to the units,
+    with its own warning: the fit is numerically unreliable, and the factors should be
+    coded before analysing.
+
 - **`c()` combines all its arguments, as R's `c()` does (#513).** An iterable replaced
   the entries before it, so `c([1, 2], [3, 4])` gave `[3, 4]` and `c(1, [2, 3])` lost
   the 1. A string or a tuple was dropped altogether: `c("Dry", "Wet", levels=...)`, the

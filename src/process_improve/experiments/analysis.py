@@ -628,9 +628,14 @@ def analyze_experiment(  # noqa: PLR0913
           considered adequate).
         - ``n_obs`` - number of observations used to fit.
         - ``n_terms`` - number of columns in the model matrix.
-        - ``model_rank`` - numerical rank of the model matrix; less
-          than ``n_terms`` implies aliasing / rank deficiency.
+        - ``model_rank`` - rank of the model matrix with the numeric
+          factors coded to -1/+1, the number of terms the design can
+          estimate whatever the units; less than ``n_terms`` implies
+          aliasing / rank deficiency.
         - ``rank_deficient`` - ``True`` if ``model_rank < n_terms``.
+        - ``ill_conditioned`` - ``True`` if, in the factors' own units, the
+          model matrix lost rank in floating point although the design did
+          not: the units are too unequal, and the fit is unreliable.
         - ``df_model`` - model degrees of freedom.
         - ``df_residual`` - residual degrees of freedom.
         - ``mse_residual`` - mean squared error of the residuals.
@@ -722,7 +727,8 @@ def analyze_experiment(  # noqa: PLR0913
         # So the result can be passed to optimize_responses as a fitted model as it is.
         "response_name": reported_response,
         "factor_names": list(factor_cols),
-        "model_summary": _model_summary(ols_result, formula, reported_response, model, transform_info),
+        "model_summary": _model_summary(ols_result, formula, reported_response, model, transform_info)
+        | _estimability(ols_result, _design_rank(df, rhs, factor_cols, model)),
     }
 
     fit = _Fit(
@@ -748,23 +754,48 @@ def analyze_experiment(  # noqa: PLR0913
     return results
 
 
-def _model_summary(
-    ols_result: RegressionResultsWrapper,
-    formula: str,
-    reported_response: str,
-    model: str,
-    transform_info: dict[str, Any],
-) -> dict[str, Any]:
-    """Fit statistics and estimability of the fitted model, warning when it is rank deficient."""
-    # Estimability. A rank-deficient model matrix is still "fitted" by the
-    # pseudo-inverse, and a coefficient is reported for every requested term, but only
-    # `model_rank` of them are determined by the data: the rest are one arbitrary
-    # solution out of infinitely many. Economical designs that carry structured
-    # aliasing (definitive screening, OMARS and other foldovers) land here routinely,
-    # so say so rather than letting the caller read confident-looking output.
+def _design_rank(df: pd.DataFrame, rhs: str, factor_cols: list[str], model: str) -> int:
+    """Return how many terms the design can estimate: the model matrix's rank with numeric factors coded.
+
+    The rank of the model matrix in the factors' own units can come out lower than the
+    design's in floating point when the units are very unequal (pascals beside kelvin)
+    or a span is tiny next to its distance from zero. Coding each numeric factor to
+    -1/+1 removes both without changing which terms the runs can separate. A mixture
+    model's components are proportions and are not coded.
+    """
+    coded = df.copy()
+    if model not in SCHEFFE_MODELS:
+        for col in factor_cols:
+            if _is_numeric(df[col]):
+                coded[col] = _code_factor(df[col])[0]
+    return int(np.linalg.matrix_rank(np.asarray(dmatrix(rhs, coded), dtype=float)))
+
+
+def _estimability(ols_result: RegressionResultsWrapper, design_rank: int) -> dict[str, Any]:
+    """Return how many of the model's terms the design can estimate, warning when it cannot, or the units cannot."""
+    # A rank-deficient model matrix is still "fitted" by the pseudo-inverse, and a
+    # coefficient is reported for every requested term, but only `model_rank` of them
+    # are determined by the data: the rest are one arbitrary solution out of infinitely
+    # many. Economical designs that carry structured aliasing (definitive screening,
+    # OMARS and other foldovers) land here routinely, so say so rather than letting the
+    # caller read confident-looking output. The rank is the design's, from the coded
+    # factors; when the factors' own units lose rank in floating point as well, that is
+    # a separate warning, so as not to blame the design for the units.
     n_terms = int(np.shape(ols_result.model.exog)[1])
-    model_rank = int(getattr(ols_result.model, "rank", np.linalg.matrix_rank(ols_result.model.exog)))
+    model_rank = design_rank
+    fit_rank = int(getattr(ols_result.model, "rank", np.linalg.matrix_rank(ols_result.model.exog)))
     rank_deficient = model_rank < n_terms
+    ill_conditioned = fit_rank < model_rank
+    if ill_conditioned:
+        message = (
+            f"The design can estimate all {model_rank} of its independent terms, but in the factors' units the "
+            f"model matrix lost rank in floating point ({fit_rank} of {model_rank}): the units are very unequal, "
+            "or a factor's span is tiny next to its distance from zero. The fit, its coefficients, model_summary "
+            "and the analyses built on it are numerically unreliable. Code the factors to -1/+1 (or shift and "
+            "rescale them) before analysing."
+        )
+        logger.warning("analyze_experiment: %s", message)
+        warnings.warn(message, category=RuntimeWarning, stacklevel=3)
     if rank_deficient:
         message = (
             f"The model matrix has {n_terms} terms but rank {model_rank}, so "
@@ -776,7 +807,22 @@ def _model_summary(
         )
         logger.warning("analyze_experiment: %s", message)
         warnings.warn(message, category=RuntimeWarning, stacklevel=3)
+    return {
+        "n_terms": n_terms,
+        "model_rank": model_rank,
+        "rank_deficient": rank_deficient,
+        "ill_conditioned": ill_conditioned,
+    }
 
+
+def _model_summary(
+    ols_result: RegressionResultsWrapper,
+    formula: str,
+    reported_response: str,
+    model: str,
+    transform_info: dict[str, Any],
+) -> dict[str, Any]:
+    """Fit statistics of the fitted model."""
     return {
         # Report the formula under the caller's response name, not the fitted alias.
         "formula": f"{reported_response} ~{formula.split('~', 1)[1]}",
@@ -787,9 +833,6 @@ def _model_summary(
         "r_squared_pred": _compute_pred_r_squared(ols_result),
         "adequate_precision": _compute_adequate_precision(ols_result),
         "n_obs": int(ols_result.nobs),
-        "n_terms": n_terms,
-        "model_rank": model_rank,
-        "rank_deficient": rank_deficient,
         "df_model": int(ols_result.df_model),
         "df_residual": int(ols_result.df_resid),
         "mse_residual": float(ols_result.mse_resid),
