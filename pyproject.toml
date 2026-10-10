@@ -5,7 +5,7 @@ description = 'Designed Experiments; Latent Variables (PCA, PLS, multivariate me
 readme = "README.md"
 license = "MIT"
 requires-python = ">=3.10"
-keywords = ["Designed Experiments", "Latent Variables", "PCA", "PLS", "Multivariate Data Analysis", "Batch data analysis"]
+keywords = ["Designed Experiments", "Design of Experiments", "DoE", "Optimal Design", "Response Surface", "Latent Variables", "PCA", "PLS", "Multivariate Data Analysis", "Chemometrics", "Process Monitoring", "Batch data analysis"]
 classifiers = [
     "Development Status :: 4 - Beta",
     "Intended Audience :: Science/Research",
@@ -147,8 +147,12 @@ process-improve-mcp = "process_improve.mcp_server:main"
 
 [project.urls]
 Homepage = "https://github.com/kgdunn/process-improve"
+Documentation = "https://kgdunn.github.io/process-improve/"
+"Try it in your browser" = "https://kgdunn.github.io/process-improve/app/"
+Textbook = "https://learnche.org/pid"
 Repository = "https://github.com/kgdunn/process-improve"
 Issues = "https://github.com/kgdunn/process-improve/issues"
+Changelog = "https://github.com/kgdunn/process-improve/blob/main/CHANGELOG.md"
 
 
 [build-system]
