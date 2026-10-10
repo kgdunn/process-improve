@@ -399,8 +399,24 @@ def _coding_range(name: str, bounds: object) -> tuple[float, float]:
     raise ValueError(f"coding[{name!r}] must be {{'low': ..., 'high': ...}} with finite low < high; got {bounds!r}.")
 
 
-def _check_coding(coding: object, df: pd.DataFrame, factor_cols: list[str], model: str) -> None:
-    """Check ``coding``: ``"actual"``, ``"coded"``, or a ``{"low", "high"}`` range per numeric factor."""
+#: The scale of the coefficients when ``coding`` is not given. It becomes ``"auto"`` in 2.0;
+#: until then a call it affects says so (see :func:`_default_coding_note`).
+_DEFAULT_CODING = "actual"
+
+
+def _resolve_coding(
+    coding: object, df: pd.DataFrame, factor_cols: list[str], model: str
+) -> str | Mapping[str, Mapping[str, float]]:
+    """Check ``coding`` and return the scale it means: ``"actual"``, ``"coded"``, or ranges per numeric factor.
+
+    ``None`` is the default, and ``"auto"`` is ``"coded"`` except for a mixture model, which
+    has no coded scale and keeps ``"actual"``.
+    """
+    if coding is None:
+        coding = _DEFAULT_CODING
+    if coding == "auto":
+        return "actual" if model in SCHEFFE_MODELS else "coded"
+    resolved: str | Mapping[str, Mapping[str, float]]
     if isinstance(coding, Mapping):
         for name, bounds in coding.items():
             if name not in factor_cols:
@@ -412,13 +428,37 @@ def _check_coding(coding: object, df: pd.DataFrame, factor_cols: list[str], mode
                     f"coding gives a range for {name!r}, a categorical factor; give ranges for numeric ones."
                 )
             _coding_range(name, bounds)
-    elif coding not in ("actual", "coded"):
-        raise ValueError(f"coding must be 'actual', 'coded', or a dict of factor ranges; got {coding!r}.")
-    if coding != "actual" and model in SCHEFFE_MODELS:
+        resolved = coding
+    elif coding in ("actual", "coded"):
+        resolved = str(coding)
+    else:
+        raise ValueError(f"coding must be 'actual', 'coded', 'auto', or a dict of factor ranges; got {coding!r}.")
+    if resolved != "actual" and model in SCHEFFE_MODELS:
         raise ValueError(
             "A Scheffe mixture model has no coded scale: its components are proportions that sum to 1, and "
-            "coding each one from -1 to +1 would break that. Use coding='actual'."
+            "coding each one from -1 to +1 would break that. Use coding='actual', or 'auto'."
         )
+    return resolved
+
+
+def _default_coding_note(fit: _Fit, types: list[str]) -> str | None:
+    """Return why the default scale of these coefficients changes in 2.0, or None when it does not change them.
+
+    The default changes only coefficients and confidence intervals, of a model that is
+    not a mixture, on factors that are not already coded; anything else, or a call that
+    chose its ``coding``, is left in peace.
+    """
+    coding = fit.factor_coding()[1]
+    if not ({"coefficients", "confidence_intervals"} & set(types)) or fit.model in SCHEFFE_MODELS or not coding:
+        return None
+    spans = ", ".join(f"{factor} from {how['low']} to {how['high']}" for factor, how in coding.items())
+    return (
+        f"These coefficients are on the factors' own scale ({spans}), the default until 2.0. In 2.0 the default "
+        "becomes coding='auto', which puts them on the coded -1/+1 scale: there a main effect is tested at the "
+        "centre of the design, and optimize_responses can use them. The coefficients on the factors' own scale "
+        "are then still reported, as coefficients_actual. Pass coding='actual' to keep this scale, or "
+        "coding='auto' to change now; either silences this."
+    )
 
 
 @dataclass
@@ -578,6 +618,9 @@ def _coefficients(fit: _Fit, analysis: str) -> dict[str, Any]:
     result["coding"] = "actual" if fit.coding == "actual" else "coded"
     if fit.model not in SCHEFFE_MODELS and (coding := fit.factor_coding()[1]):
         result["factor_coding"] = coding
+    if analysis == "coefficients" and ols is not fit.ols:
+        # The equation in the factors' own units, for whoever needs to evaluate it there.
+        result["coefficients_actual"] = _run_coefficients(fit.ols)["coefficients"]
     return result
 
 
@@ -662,7 +705,7 @@ def analyze_experiment(  # noqa: PLR0913
     analysis_type: str | list[str] = "anova",
     significance_level: float = 0.05,
     transform: str | None = None,
-    coding: str | Mapping[str, Mapping[str, float]] = "actual",
+    coding: str | Mapping[str, Mapping[str, float]] | None = None,
     new_points: pd.DataFrame | None = None,
     observed_at_new: list[float] | None = None,
     response_column: str | None = None,
@@ -750,10 +793,15 @@ def analyze_experiment(  # noqa: PLR0913
         transformed the same way before they are compared. Box-Cox chooses ``lambda``
         by the profile likelihood of the model. A response outside the transform's
         domain raises ``ValueError``.
-    coding : {"actual", "coded"} or dict, default ``"actual"``
+    coding : {"actual", "coded", "auto"}, dict or None, default None
         The scale of the ``"coefficients"`` and the ``"confidence_intervals"``; the other
         analyses do not use it.
 
+        - ``None`` (default): ``"actual"`` until 2.0, and ``"auto"`` from 2.0. Until then,
+          a call that this change would affect (coefficients or confidence intervals of a
+          model that is not a mixture, on factors not already coded) issues a
+          ``FutureWarning`` and reports the same text as ``coding_note``. Pass ``coding``
+          to choose a scale and silence it.
         - ``"actual"``: the factors as given.
         - ``"coded"``: the model refitted with each numeric factor mapped from its minimum
           and maximum to -1 and +1 (a factor already in coded units is left as it is), a
@@ -765,6 +813,12 @@ def analyze_experiment(  # noqa: PLR0913
           ``optimize_responses``' ``factor_ranges``. Use it when the data's extremes are not
           the levels that should be -1 and +1, such as a central composite design's axial
           runs.
+        - ``"auto"``: ``"coded"``, except for a Scheffe mixture model, whose components are
+          proportions and which keeps ``"actual"``.
+
+        Whenever the coefficients are refitted on the coded scale, the result also holds
+        them on the factors' own scale, as ``coefficients_actual``: the equation to use for
+        predictions in actual units.
 
         On the coded scale a coefficient is half the change in response across its factor's
         range, and in a model with interactions a main effect is tested at the centre of the
@@ -813,7 +867,8 @@ def analyze_experiment(  # noqa: PLR0913
 
         Notes from individual analyses are kept apart, as ``anova_note``,
         ``effects_note``, ``lenth_note``, ``significance_note`` and
-        ``split_plot_note``. The ``model_summary`` is of the least-squares fit, also
+        ``split_plot_note``; ``coding_note`` says when the default scale of the
+        coefficients will change them in 2.0. The ``model_summary`` is of the least-squares fit, also
         for ``"split_plot"``.
 
     Examples
@@ -875,7 +930,8 @@ def analyze_experiment(  # noqa: PLR0913
         *([whole_plot_col] if "split_plot" in types else []),
     ]
     df = _drop_incomplete_runs(df, used)
-    _check_coding(coding, df, factor_cols, model)
+    coding_given = coding is not None
+    coding = _resolve_coding(coding, df, factor_cols, model)
 
     categorical = [c for c in factor_cols if not _is_numeric(df[c])]
     formula = build_formula(response_col, factor_cols, model, categorical)
@@ -918,6 +974,9 @@ def analyze_experiment(  # noqa: PLR0913
     handlers = _handlers(fit, new_points, observed_at_new)
     for t in types:
         results.update(handlers[t]())
+    if not coding_given and (note := _default_coding_note(fit, types)):
+        warnings.warn(note, FutureWarning, stacklevel=2)
+        results["coding_note"] = note
     if "model_selection" in results:
         chosen = results["model_selection"]
         chosen["selected_formula"] = chosen["selected_formula"].replace(

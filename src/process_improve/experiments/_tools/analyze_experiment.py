@@ -57,16 +57,18 @@ class AnalyzeExperimentInput(BaseModel):
         None,
         description="Optional response transform before fitting.",
     )
-    coding: Literal["actual", "coded"] | dict[str, dict[str, float]] = Field(
-        "actual",
+    coding: Literal["actual", "coded", "auto"] | dict[str, dict[str, float]] | None = Field(
+        None,
         description=(
-            "Scale of the coefficients and confidence_intervals. 'actual' (default): the factors as given. "
-            "'coded': refitted with each factor from -1 at its lowest value to +1 at its highest. Or ranges, "
-            "e.g. {'T': {'low': 150, 'high': 200}}, that map to -1 and +1, such as a central composite design's "
-            "cube levels rather than its axial runs. Use 'coded' or ranges when the coefficients go to "
-            "optimize_responses, which evaluates models at coded settings and refuses actual-unit coefficients; "
-            "it then reports the optimum in actual units without factor_ranges. With interactions, a coded "
-            "main effect is tested at the centre of the design, an actual one where the other factors are zero."
+            "Scale of the coefficients and confidence_intervals. 'actual': the factors as given. 'coded': refitted "
+            "with each factor from -1 at its lowest value to +1 at its highest. 'auto': 'coded', but 'actual' for a "
+            "mixture model. Or ranges, e.g. {'T': {'low': 150, 'high': 200}}, that map to -1 and +1, such as a "
+            "central composite design's cube levels rather than its axial runs. Omitted: 'actual' until 2.0 and "
+            "'auto' after; when that change would affect the result, it carries a coding_note saying so. Use "
+            "'auto' when the coefficients go to optimize_responses, which evaluates models at coded settings and "
+            "refuses actual-unit coefficients; coded results also carry coefficients_actual, the equation in the "
+            "factors' own units. With interactions, a coded main effect is tested at the centre of the design, "
+            "an actual one where the other factors are zero."
         ),
     )
     new_points: list[dict[str, Any]] | None = Field(
@@ -98,7 +100,7 @@ class AnalyzeExperimentInput(BaseModel):
         "prediction with prediction intervals, confirmation run testing, and the REML analysis of "
         "split-plot designs (hard-to-change factors) with Satterthwaite degrees of freedom. "
         "Always returns a model summary with R-squared, adj-R-squared, pred-R-squared, and adequate precision. "
-        "Factor columns may be coded (-1/+1) or in actual units; for actual units, set coding='coded' to get "
+        "Factor columns may be coded (-1/+1) or in actual units; for actual units, set coding='auto' to get "
         "coefficients on the -1/+1 scale, as optimize_responses needs. "
         "The response can be in a separate column or included in design_matrix."
     ),
@@ -118,7 +120,7 @@ class AnalyzeExperimentInput(BaseModel):
 
     # "Fit my experiment in actual units, then find the best settings"
         -> ``analyze_experiment(design_matrix=[{"T":150,"P":1,"y":10}, ...],
-                response_column="y", analysis_type="coefficients", coding="coded")``,
+                response_column="y", analysis_type="coefficients", coding="auto")``,
            then pass the result to ``optimize_responses``
 
     # "Analyse my split-plot experiment; temperature was hard to change"
