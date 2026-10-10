@@ -99,6 +99,11 @@ those changes.
   a vectorised path that returns the same numbers to the last bit; a PLS fit on a
   20 x 5 block went from 157 ms to 24 ms. Data with missing cells use the previous
   code unchanged.
+- **Batch DTW alignment is about 4 times faster, with identical results.**
+  `align_with_path` wrote the aligned batch one pandas row per warping-path step;
+  it now fills a NumPy array, averaging a compression with the same `nanmean` over
+  the same samples in the same order. One `batch_dtw` run on the dryer data went
+  from 6.9 s to 1.7 s.
 
 - **`analyze_experiment`'s `coding` chooses the scale of the coefficients (#513).** It was
   accepted and ignored, and its default, `"coded"`, named a scale the coefficients were
