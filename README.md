@@ -214,7 +214,7 @@ when the process drifts, and they report how far it has moved from where it was 
   and return the null space of equally valid designs.
 - **Multi-block and T-shaped data**: TPLS (PLS for T-shaped data structures), MBPCA and MBPLS.
 - **On-line models**: `AdaptivePCA` and `AdaptivePLS` for monitoring and soft sensing.
-- **Process monitoring**: Shewhart and Holt-Winters control charts, process capability.
+- **Process monitoring**: Shewhart, EWMA, CUSUM and Holt-Winters control charts, process capability.
 - **Batch data**: alignment, feature extraction, batch PCA and PLS, on-line batch monitoring.
 - **Sensory panels**: panel validation, the Mixed Assessor Model, attribute-to-product relations.
 - **Robust regression**: repeated-median and Theil-Sen estimators for data with outliers.
@@ -242,7 +242,7 @@ which variable moved, and how confident a prediction is.
 | Model inversion: design inputs for a target       |       -      |        ✓        |
 | On-line / adaptive monitoring (recursive PCA/PLS) |       -      |        ✓        |
 | Designed experiments, incl. OMARS & optimal       |       -      |        ✓        |
-| Control charts (Shewhart / Holt-Winters)          |       -      |        ✓        |
+| Shewhart, EWMA, CUSUM, Holt-Winters charts        |       -      |        ✓        |
 | Batch process monitoring                          |       -      |        ✓        |
 | Plotly diagnostics built in                       |       -      |        ✓        |
 | Labeled `DataFrame` outputs                       |    partial   |        ✓        |
@@ -260,15 +260,16 @@ current gaps, are in
 pip install process-improve                    # core: numpy, pandas, scipy, scikit-learn, statsmodels, ...
 pip install 'process-improve[plotting]'        # adds matplotlib, plotly, seaborn, ridgeplot
 pip install 'process-improve[expt]'            # adds pyDOE3 (Taguchi orthogonal arrays; every other design is in the core)
-pip install 'process-improve[batch]'           # adds openpyxl, scikit-image (batch process data IO)
-pip install 'process-improve[mcp]'             # adds the MCP server runtime
+pip install 'process-improve[batch]'           # adds openpyxl, ruptures, scikit-image (batch data IO, change points)
+pip install 'process-improve[control]'         # adds osqp (the batch mid-course correction solver)
+pip install 'process-improve[mcp]'             # adds mcp (the MCP server runtime)
 pip install 'process-improve[fast]'            # adds numba (JIT speedups for batch alignment)
 pip install 'process-improve[all]'             # everything above
 ```
 
 Requires Python 3.10 or newer. The core install pulls in `numpy`, `pandas`, `scipy`,
 `scikit-learn`, `statsmodels`, `patsy`, `pydantic`, `pyyaml`, `threadpoolctl` and `tqdm`.
-Heavier optional surfaces (plotting, Taguchi arrays, batch IO, the MCP server, numba JIT)
+Heavier optional surfaces (plotting, Taguchi arrays, batch IO, batch control, the MCP server, numba JIT)
 live in extras, so a caller who only needs, say, `detect_multivariate_outliers` does not have
 to install Plotly or numba.
 

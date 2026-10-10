@@ -75,6 +75,15 @@ class TestEnvVarOverride:
         with pytest.raises(ValueError, match="not a valid integer"):
             _ = settings.max_cells
 
+    def test_invalid_float_raises_on_first_read(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """A float knob names the variable and the value it could not parse."""
+        monkeypatch.setenv(ENV_VAR_NAMES["tool_timeout"], "abc")
+        settings.reload()
+        with pytest.raises(
+            ValueError, match=r"^Environment variable PROCESS_IMPROVE_TOOL_TIMEOUT='abc' is not a valid float\.$"
+        ):
+            _ = settings.tool_timeout
+
 
 class TestCacheBehaviour:
     """First read pins the value; subsequent reads return the cache."""
@@ -108,6 +117,29 @@ class TestCodeOverride:
         assert settings.tool_timeout == 12.0
         settings.max_cells = "5000"  # type: ignore[assignment]
         assert settings.max_cells == 5_000
+
+    @pytest.mark.parametrize("name", list(DEFAULTS))
+    def test_every_setter_round_trips_a_value_of_its_type(self, name: str) -> None:
+        """Each knob's setter writes through, coercing a string to the knob's declared type."""
+        default = DEFAULTS[name]
+        new_value = (not default) if isinstance(default, bool) else default * 2
+        setattr(settings, name, new_value if isinstance(default, bool) else str(new_value))
+        assert getattr(settings, name) == new_value
+        assert type(getattr(settings, name)) is type(default)
+
+    @pytest.mark.parametrize(
+        ("name", "message"),
+        [
+            pytest.param("dataset_fetch_timeout", "could not convert string to float", id="float-knob"),
+            pytest.param("max_string", "invalid literal for int", id="int-knob"),
+        ],
+    )
+    def test_a_setter_refuses_a_value_it_cannot_coerce(self, name: str, message: str) -> None:
+        """A non-numeric string fails in the setter, leaving the cached value alone."""
+        before = getattr(settings, name)
+        with pytest.raises(ValueError, match=message):
+            setattr(settings, name, "lots")
+        assert getattr(settings, name) == before
 
     def test_setter_observed_by_tool_safety(self) -> None:
         """A code-override surfaces through the legacy module-level shim."""

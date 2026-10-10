@@ -1001,12 +1001,10 @@ def _estimability_cuts(features: np.ndarray, chosen: list[int]) -> list[list[int
     pivot_rows = pivots[: null.shape[1]]
     reduced = null @ np.linalg.inv(null[pivot_rows])
     reduced[np.abs(reduced) < 1e-9] = 0.0
-    cuts = []
-    for w in reduced.T:
-        rows = np.flatnonzero(np.abs(features @ w) > 1e-6)
-        if rows.size:
-            cuts.append([int(r) for r in rows])
-    return cuts
+    # No cut is empty: the full pool's even features have full column rank (the unit
+    # runs e_i isolate each square, and the runs e_i + e_j then each interaction), so
+    # every nonzero null vector of the selection is nonzero on some pool row.
+    return [[int(r) for r in np.flatnonzero(np.abs(features @ w) > 1e-6)] for w in reduced.T]
 
 
 def _qr_pivots(matrix: np.ndarray) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
@@ -1357,13 +1355,13 @@ def _enumerate_feasible_counts(  # noqa: C901, PLR0915
             comp_cache[total] = cached
         return cached
 
+    # There is always at least one prefix: the all-zero one, which leaves every
+    # balance at zero and the whole budget to the unconstrained singleton tail.
     blocks = []
     for prefix, remaining in prefixes:
         tail = compositions(remaining)
         head = np.tile(np.asarray(prefix, dtype=np.int16), (tail.shape[0], 1))
         blocks.append(np.hstack([head, tail]))
-    if not blocks:
-        return np.empty((0, n_rows), dtype=np.int16), False
     ordered = np.vstack(blocks)
     # Map the DFS ordering back to pool row order.
     inverse = np.argsort(order)
@@ -1576,9 +1574,10 @@ def _search_best_omars(  # noqa: C901, PLR0912, PLR0913, PLR0915
         started = time.perf_counter()
         if "n_half" in solve_kwargs:
             # Not the minimise-size probe, which looks for the smallest OMARS
-            # design whether or not it is estimable.
-            if cover_cuts:
-                solve_kwargs["require_any"] = list(cover_cuts)
+            # design whether or not it is estimable.  The cover cuts are never
+            # empty: the up-front ones include, for every even feature column,
+            # the pool rows on which it is nonzero.
+            solve_kwargs["require_any"] = list(cover_cuts)
             if no_good_cuts:
                 solve_kwargs["exclude_solutions"] = list(no_good_cuts)
         result = solve_omars_ilp(pool, solver_options=solver_options, **solve_kwargs)
@@ -1603,7 +1602,9 @@ def _search_best_omars(  # noqa: C901, PLR0912, PLR0913, PLR0915
         if key in seen:
             return False
         seen[key] = None
-        if verify and not is_omars(coded, tol=tol):
+        # Solver selections passed the exact constraint check in solve_omars_ilp, and
+        # local-search swaps keep the main effects orthogonal by construction.
+        if verify and not is_omars(coded, tol=tol):  # pragma: no cover - re-check of exactly verified designs
             return False
         # Score the design the caller will actually receive: the foldover plus
         # the extra centre runs appended during post-processing.
@@ -1810,7 +1811,6 @@ def _search_best_omars(  # noqa: C901, PLR0912, PLR0913, PLR0915
             )
         target_half = half
         report.run_sizes_searched += 1
-        target = _describe_target(n_runs, 2 * half + center_runs)
 
         # Exhaustive path: when the design class at this size is small enough,
         # enumerate every feasible half-design multiset (replication allowed) and
@@ -1827,19 +1827,14 @@ def _search_best_omars(  # noqa: C901, PLR0912, PLR0913, PLR0915
                     report.rank_deficient_designs -= probe_rank_deficient
                 # Keep only designs in which every factor reaches an outer level,
                 # the condition the ILP's coverage rows impose.
+                # At least one design survives: every size searched has at least
+                # n_factors half-runs (the estimability floor of both models), so
+                # one run per unit vector e_i, the rest repeating e_1, is feasible.
                 count_matrix = count_matrix[(count_matrix @ np.abs(pool) > 0).all(axis=1)]
                 n_enumerated = count_matrix.shape[0]
                 report.search_mode = "exhaustive"
                 report.enumerated_designs += n_enumerated
                 report.feasible_designs += n_enumerated
-                if n_enumerated == 0:
-                    if len(sizes) > 1:
-                        continue
-                    msg = (
-                        f"No feasible OMARS design exists at {target} with center_runs={center_runs} "
-                        "(exhaustive enumeration). Try a different n_runs."
-                    )
-                    raise ValueError(msg)
                 d_eff, a_opt, max_corr = _score_count_vectors(count_matrix, pool, center_runs, model, tol=tol)
                 # d_eff is exactly 0 for a singular model matrix: such a design
                 # cannot fit the sizing model and never enters the ranking.

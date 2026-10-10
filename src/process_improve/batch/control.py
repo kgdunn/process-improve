@@ -122,7 +122,7 @@ def _solve_qp(
     try:
         import osqp  # noqa: PLC0415 - deferred so the module imports without the extra
         from scipy import sparse  # noqa: PLC0415
-    except ImportError as exc:
+    except ImportError as exc:  # pragma: no cover - exercised via env-without-osqp
         from .._extras import require_extra  # noqa: PLC0415
 
         raise require_extra("osqp", "control") from exc

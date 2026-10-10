@@ -3,9 +3,12 @@
 import copy
 import inspect
 import io
+import logging
 import pathlib
+import re
 import urllib.request
 import warnings
+from collections.abc import Callable
 
 import numpy as np
 import pandas as pd
@@ -20,7 +23,7 @@ from sklearn.base import clone
 from sklearn.cross_decomposition import PLSRegression
 from sklearn.exceptions import NotFittedError
 from sklearn.metrics import mean_squared_error, r2_score
-from sklearn.model_selection import KFold, LeaveOneOut, cross_val_score
+from sklearn.model_selection import BaseCrossValidator, KFold, LeaveOneOut, PredefinedSplit, cross_val_score
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import StandardScaler
 from sklearn.utils import Bunch
@@ -45,6 +48,8 @@ from process_improve.multivariate.methods import (
     ellipse_coordinates,
     epsqrt,
     explained_variance_plot,
+    hotellings_t2_limit,
+    internal_pls_nipals_fit_one_pc,
     make_tpls_scorer,
     nan_to_zeros,
     observation_contributions,
@@ -298,8 +303,9 @@ def test_pca_missing_data_as_numpy(fixture_kamyr_data_missing_value: pd.DataFram
     pca = PCA(n_components=A)
     assert pca.missing_data_settings is None
 
-    # Check that default auto algorithm was used (NIPALS for missing data)
-    model = pca.fit(X_mcuv)
+    # Check that default auto algorithm was used (NIPALS for missing data). MCUVScaler
+    # hands back a DataFrame even for array input, so convert: this test is about an ndarray.
+    model = pca.fit(X_mcuv.to_numpy())
     assert model.algorithm_ == "nipals"
     assert model.has_missing_data_ is True
 
@@ -332,6 +338,12 @@ def test_ssq(fixture_mv_utilities: tuple[np.ndarray, np.ndarray]) -> None:
     """Test the sum-of-squares calculation."""
     x, _ = fixture_mv_utilities
     assert pytest.approx(ssq(x), abs=1e-9) == (1 + 2 * 2 + 3 * 3 + 4 * 4 + 5 * 5 + 6 * 6)
+
+
+def test_ssq_refuses_an_axis_a_matrix_does_not_have() -> None:
+    """A matrix has axes 0 and 1 (or None for the total); any other axis used to give a silent 0.0."""
+    with pytest.raises(ValueError, match=r"^axis must be 0, 1 or None; got 2\.$"):
+        ssq(np.ones((3, 2)), axis=2)
 
 
 def test_quick_regress(fixture_mv_utilities: tuple[np.ndarray, np.ndarray]) -> None:
@@ -385,6 +397,35 @@ def test_quick_regress_still_zeroes_a_genuine_degeneracy() -> None:
     coefficients = quick_regress(Y, rng.standard_normal((n_rows, 1))).ravel()
     assert coefficients[0] != 0.0
     assert coefficients[1] == 0.0
+
+
+def test_quick_regress_refuses_arrays_that_share_no_dimension() -> None:
+    """The vector `x` must match Y's rows (to regress its columns) or its columns (to regress its rows)."""
+    with pytest.raises(ValueError, match=r"^The dimensions of the input arrays are not compatible\.$"):
+        quick_regress(np.ones((3, 2)), np.ones((4, 1)))
+
+
+def test_inner_pls_nipals_stops_at_its_iteration_cap(caplog: pytest.LogCaptureFixture) -> None:
+    """Two nearly tied directions in X'Y make the iteration creep; the loop stops at its cap.
+
+    With X the identity and singular values 1 and 0.99, each step shrinks the change by
+    only about 2%, so it is still far above the tolerance after 500 steps. By then the
+    weights already point along the dominant direction.
+    """
+
+    def rotation(angle: float) -> np.ndarray:
+        return np.array([[np.cos(angle), -np.sin(angle)], [np.sin(angle), np.cos(angle)]])
+
+    x_space = np.eye(2)
+    y_space = rotation(np.pi / 5) @ np.diag([1.0, 0.99]) @ rotation(np.pi / 7)
+    everything = np.ones((2, 2), dtype=bool)
+    with caplog.at_level(logging.DEBUG, logger="process_improve.multivariate._nipals"):
+        fitted = internal_pls_nipals_fit_one_pc(x_space, y_space, everything, everything)
+
+    reported = re.search(r"inner loop converged in (\d+) iterations \(max_iter=500\)", caplog.text)
+    assert reported is not None
+    assert int(reported.group(1)) > 500
+    np.testing.assert_allclose(np.abs(fitted["w_i"].ravel()), np.abs(rotation(np.pi / 5)[:, 0]), atol=1e-3)
 
 
 def test_nipals_unit_normalisation_is_floored() -> None:
@@ -478,6 +519,21 @@ def test_mcuv_scaling(fixture_tablet_spectra_data: tuple[pd.DataFrame, np.ndarra
 
     assert pytest.approx(np.min(np.abs(X_mcuv.std(axis=0))), 1e-10) == 1
     assert pytest.approx(X_mcuv.std(), 1e-10) == 1
+
+
+def test_mcuv_round_trips_a_single_column_target_given_as_a_series_and_a_1d_array() -> None:
+    """A Series transforms as its one-column frame, and the 1-D array a regressor predicts inverts to that column."""
+    y = pd.Series([3.0, 5.0, 4.0, 8.0, 10.0], index=list("abcde"), name="yield")
+    scaler = MCUVScaler().fit(y)
+
+    scaled = scaler.transform(y)
+    pd.testing.assert_frame_equal(scaled, scaler.transform(y.to_frame()))
+    assert list(scaled.columns) == ["yield"]
+    assert list(scaled.index) == list("abcde")
+
+    restored = scaler.inverse_transform(scaled["yield"].to_numpy())
+    assert restored.shape == (5, 1)
+    np.testing.assert_allclose(restored["yield"].to_numpy(), y.to_numpy())
 
 
 def test_scale_ddof_matches_mcuvscaler() -> None:
@@ -626,6 +682,35 @@ def test_pca_invalid_calls() -> None:
         PCA(n_components=2).fit(sparse_data)
 
 
+def test_pca_svd_refuses_missing_data() -> None:
+    """The SVD needs every cell, so asking for it on gappy data names the algorithms that cope."""
+    gappy = pd.DataFrame(np.random.default_rng(3).standard_normal((20, 4)))
+    gappy.iloc[0, 0] = np.nan
+    with pytest.raises(
+        ValueError, match=r"^SVD algorithm cannot handle missing data\. Use 'nipals', 'tsr', or 'auto'\.$"
+    ):
+        PCA(n_components=2, algorithm="svd").fit(gappy)
+
+
+#: Each PCA entry point that accepts a plain array, reduced to the numbers it returns.
+_PCA_ARRAY_ENTRY_POINTS = {
+    "fit": lambda _, X: PCA(n_components=2).fit(X).scores_.to_numpy(),
+    "project": lambda model, X: model.project(X).scores.to_numpy(),
+    "minka_mle": lambda _, X: PCA.minka_mle(X),
+    "parallel_analysis": lambda _, X: PCA.parallel_analysis(X, n_simulations=20, random_state=0).null_threshold,
+    "select_n_components": lambda _, X: PCA.select_n_components(X, random_state=0).press.to_numpy(),
+}
+
+
+@pytest.mark.parametrize("entry_point", list(_PCA_ARRAY_ENTRY_POINTS))
+def test_pca_entry_points_read_an_array_as_its_dataframe(entry_point: str) -> None:
+    """A plain array gives the same numbers as the same values in a DataFrame."""
+    frame = pd.DataFrame(np.random.default_rng(5).standard_normal((30, 5)) * [1.0, 2.0, 3.0, 4.0, 5.0] + 10.0)
+    model = PCA(n_components=2).fit(frame)
+    call = _PCA_ARRAY_ENTRY_POINTS[entry_point]
+    np.testing.assert_allclose(call(model, frame.to_numpy()), call(model, frame))
+
+
 def test_pca_columns_with_no_variance() -> None:
     """Create a column with no variance. That column's loadings should be 0."""
     K = 14
@@ -753,6 +838,14 @@ def test_pca_score() -> None:
     # Works with numpy arrays too
     s2_np = pca_2.score(X.values)
     assert s2_np == pytest.approx(s2, abs=1e-12)
+
+
+def test_pca_score_refuses_a_1d_row() -> None:
+    """score() takes a 2-D X, as transform() does: a bare 1-D row is refused, not reshaped."""
+    X = pd.DataFrame(np.random.default_rng(0).standard_normal((20, 4)))
+    model = PCA(n_components=2).fit(X)
+    with pytest.raises(ValueError, match=r"Expected 2D array, got 1D array instead"):
+        model.score(X.iloc[0].to_numpy())
 
 
 def test_pca_select_n_components() -> None:
@@ -1373,6 +1466,62 @@ def test_pca_select_n_components_ckf_reproducible_and_guarded() -> None:
         PCA.select_n_components(X, max_components=3, cv_scheme="kfold")
 
 
+@pytest.mark.xfail(strict=True, reason="#675: ckf PRESS is 0 when no fold can evaluate the component count")
+def test_pca_select_n_components_ckf_does_not_score_an_unevaluated_count_as_perfect() -> None:
+    """#675: a component count that no column fold can evaluate must not win with a PRESS of 0.
+
+    Five columns in five folds leave four retained columns per fold, too few to determine
+    five scores, so every fold skips A = 5. Those folds are NaN, and the sum over them was
+    taken with ``nansum``, which is 0 for all-NaN: pure noise came out with Q2 = 1 at A = 5,
+    and that count was recommended.
+    """
+    rng = np.random.default_rng(0)
+    noise = MCUVScaler().fit_transform(pd.DataFrame(rng.standard_normal((30, 5))))
+    result = PCA.select_n_components(noise, cv_scheme="ckf")
+    last_press = float(result.press.iloc[-1])
+    assert np.isnan(last_press) or last_press > 0
+    assert result.n_components < 5
+
+
+def test_pca_select_n_components_refuses_data_too_small_for_any_component() -> None:
+    """With one row no component count can be cross-validated, and the error says so."""
+    with pytest.raises(ValueError, match=r"^No components can be evaluated; the data is too small\.$"):
+        PCA.select_n_components(np.ones((1, 3)))
+
+
+def test_pca_select_n_components_row_wise_refuses_an_all_nan_press() -> None:
+    """The legacy row-wise scheme cannot score gappy data, and says so rather than recommending."""
+    rng = np.random.default_rng(6)
+    gappy = pd.DataFrame(
+        rng.standard_normal((30, 2)) @ rng.standard_normal((2, 5)) + 0.01 * rng.standard_normal((30, 5))
+    )
+    gappy.iloc[0, 0] = np.nan
+    with (
+        pytest.warns(DeprecationWarning, match=r"cv_scheme='row_wise' is deprecated"),
+        pytest.warns(SpecificationWarning, match=r"legacy whole-row CV scheme"),
+        pytest.raises(
+            RuntimeError,
+            match=r"^Cross-validation produced NaN PRESS for every component count; no recommendation can be made\.$",
+        ),
+    ):
+        PCA.select_n_components(gappy, cv_scheme="row_wise", max_components=3)
+
+
+def test_pca_parallel_analysis_without_scaling_compares_in_the_units_of_x() -> None:
+    """scale=False leaves X in its own units, so variances far above the unit null keep every component.
+
+    The same noise, standardised first, keeps none: the scaling is what puts the observed
+    eigenvalues on the null's footing.
+    """
+    loud_noise = 100.0 * np.random.default_rng(7).standard_normal((30, 5))
+    as_given = PCA.parallel_analysis(loud_noise, scale=False, random_state=0)
+    standardised = PCA.parallel_analysis(loud_noise, random_state=0)
+
+    assert as_given.n_components == 5
+    assert np.all(as_given.observed_eigenvalues > as_given.null_threshold)
+    assert standardised.n_components == 0
+
+
 def test_pca_parallel_analysis_pure_noise_returns_zero() -> None:
     """On pure noise PA correctly retains few components (and may return 0)."""
     rng = np.random.default_rng(3)
@@ -1877,6 +2026,142 @@ def test_pls_invalid_calls() -> None:
     sparse_data = csr_matrix([[1, 2], [0, 3], [4, 5]])
     with pytest.raises(TypeError, match=r"This PLS class does not support sparse input."):
         PLS(n_components=2).fit(data_x, sparse_data)
+
+
+def _pls_ten_rows() -> tuple[pd.DataFrame, pd.DataFrame]:
+    """Return a 10 x 4 X and a y that depends on it, small enough for a CV run in a fraction of a second."""
+    rng = np.random.default_rng(1)
+    X = pd.DataFrame(rng.standard_normal((10, 4)))
+    y = pd.DataFrame({"y": X.to_numpy() @ rng.normal(size=4) + 0.1 * rng.standard_normal(10)})
+    return X, y
+
+
+#: Cross-validation settings that keep each select_n_components / nested_cv call cheap.
+_PLS_QUICK_SELECT = {"cv": 5, "n_repeats": 1, "max_components": 2, "n_permutations": 19, "random_state": 0}
+_PLS_QUICK_NESTED = {"inner_cv": 3, "n_inner_repeats": 1, "max_components": 2, "n_permutations": 19, "random_state": 0}
+
+
+@pytest.mark.parametrize(
+    ("action", "error", "message"),
+    [
+        (
+            lambda X, _: PLS(n_components=2).fit(X, pd.DataFrame({"y": np.ones(len(X))})),
+            NotEnoughVarianceError,
+            (
+                r"^There is no variance left in the data array for Y: cannot compute any more components "
+                r"beyond component 0\.$"
+            ),
+        ),
+        (
+            lambda X, y: PLS(n_components=2).fit(X, y.iloc[:9]),
+            ValueError,
+            r"^The X and Y arrays must have the same number of rows: X has 10 and Y has 9\.$",
+        ),
+        (
+            lambda X, y: PLS.select_n_components(X.iloc[:2], y.iloc[:2], cv=2),
+            ValueError,
+            r"^No components can be evaluated; the data or folds are too small\.$",
+        ),
+        (
+            lambda X, y: PLS.select_n_components(X, y, cv=PredefinedSplit(np.full(10, -1))),
+            ValueError,
+            r"^The cross-validation splitter produced no folds\.$",
+        ),
+        (
+            lambda X, y: PLS.nested_cv(X, y, outer_cv=PredefinedSplit(np.full(10, -1))),
+            ValueError,
+            r"^The outer cross-validation splitter produced no folds\.$",
+        ),
+        (
+            lambda X, y: PLS(n_components=2).fit(X, y).cross_validate(X, y.iloc[:9]),
+            ValueError,
+            r"^X and Y must have the same number of rows, got 10 and 9\.$",
+        ),
+        (
+            lambda X, y: PLS(n_components=2).fit(X, y).cross_validate(X, y, conf_level=0.4),
+            ValueError,
+            r"^conf_level must be between 0\.5 and 1\.0, got 0\.4\.$",
+        ),
+    ],
+    ids=[
+        "fit-a-constant-y",
+        "fit-a-short-y",
+        "select-on-two-rows",
+        "select-with-a-splitter-of-no-folds",
+        "nested-with-an-outer-splitter-of-no-folds",
+        "cross-validate-a-short-y",
+        "cross-validate-at-40-percent-confidence",
+    ],
+)
+def test_pls_refuses_input_it_cannot_use(
+    action: Callable[[pd.DataFrame, pd.DataFrame], object], error: type[Exception], message: str
+) -> None:
+    """Each PLS entry point names what it cannot work with, rather than failing further in."""
+    X, y = _pls_ten_rows()
+    with pytest.raises(error, match=message):
+        action(X, y)
+
+
+@pytest.mark.parametrize(
+    ("entry_point", "y_form"),
+    [
+        ("project", "frame"),
+        ("select_n_components", "series"),
+        ("select_n_components", "array"),
+        ("nested_cv", "series"),
+        ("nested_cv", "array"),
+    ],
+    ids=["project", "select-series-y", "select-array-y", "nested-series-y", "nested-array-y"],
+)
+def test_pls_entry_points_read_arrays_as_their_dataframes(entry_point: str, y_form: str) -> None:
+    """An array X, with Y as a Series or an array, gives the same numbers as the same values in DataFrames."""
+    X, y = _pls_ten_rows()
+    other_y = {"frame": y, "series": y["y"], "array": y.to_numpy()}[y_form]
+    model = PLS(n_components=2).fit(X, y)
+    calls = {
+        "project": lambda X_, _: model.project(X_).scores.to_numpy(),
+        "select_n_components": lambda X_, y_: PLS.select_n_components(X_, y_, **_PLS_QUICK_SELECT).rmsecv.to_numpy(),
+        "nested_cv": lambda X_, y_: PLS.nested_cv(X_, y_, **_PLS_QUICK_NESTED).rmsep.to_numpy(),
+    }
+    np.testing.assert_allclose(calls[entry_point](X.to_numpy(), other_y), calls[entry_point](X, y))
+
+
+def test_pls_nested_cv_refuses_when_no_held_out_row_is_predicted() -> None:
+    """With a missing cell in every row, no held-out row gets a prediction, and nested CV says so.
+
+    A held-out row with a missing X cell is scored by a plain product with the direct
+    weights, so its prediction is NaN (#676). Once that is fixed these rows are predicted,
+    and this guard needs another way to leave every row uncovered.
+    """
+    X, y = _pls_ten_rows()
+    for row in range(10):
+        X.iloc[row, row % 4] = np.nan
+    with pytest.raises(RuntimeError, match=r"^Nested CV produced no covered observations; check the outer splitter\.$"):
+        PLS.nested_cv(X, y, outer_cv=5, **_PLS_QUICK_NESTED)
+
+
+class _TrainsOnEverythingTestsNothing(BaseCrossValidator):
+    """A splitter of two folds that each train on every row and hold out none."""
+
+    def get_n_splits(self, X: object = None, y: object = None, groups: object = None) -> int:  # noqa: ARG002
+        return 2
+
+    def _iter_test_indices(self, X: object = None, y: object = None, groups: object = None):  # noqa: ARG002
+        yield from (np.array([], dtype=int), np.array([], dtype=int))
+
+
+def test_pls_select_n_components_refuses_folds_that_score_no_rows() -> None:
+    """Folds that hold out no rows leave no prediction error to judge, so nothing is recommended."""
+    X, y = _pls_ten_rows()
+    # With no held-out rows the RMSECV is 0 / 0: that NaN is the condition under test.
+    with (
+        np.errstate(invalid="ignore"),
+        pytest.warns(SpecificationWarning, match=r"scale_inside_folds=False leaks"),
+        pytest.raises(RuntimeError, match=r"^Cross-validation produced NaN total-RMSECV for every component count"),
+    ):
+        PLS.select_n_components(
+            X, y, cv=_TrainsOnEverythingTestsNothing(), scale_inside_folds=False, max_components=2, n_permutations=19
+        )
 
 
 @pytest.fixture
@@ -2500,6 +2785,16 @@ def test_score_limit_pls() -> None:
     limits = model.score_limit()
     assert limits.shape == (2,)
     assert np.all(limits > 0)
+
+
+@pytest.mark.parametrize("conf_level", [1.0, 0.0])
+def test_score_limit_refuses_a_confidence_outside_0_1(fixture_pca_for_plots: PCA, conf_level: float) -> None:
+    """A confidence level outside (0, 1) raises ValueError, also under `python -O`.
+
+    It was an `assert`, so `-O` removed the check and the limit came back as inf or NaN.
+    """
+    with pytest.raises(ValueError, match=rf"^conf_level must lie in \(0, 1\); got {conf_level}\.$"):
+        score_limit(fixture_pca_for_plots, conf_level=conf_level)
 
 
 def test_pls_prediction_interval() -> None:
@@ -3127,6 +3422,47 @@ def test_target_projection_aligns_with_response() -> None:
 
     corr = np.corrcoef(tp.scores.to_numpy(), ys.to_numpy().ravel())[0, 1]
     assert abs(corr) > 0.95
+
+
+def test_target_projection_refuses_a_response_x_does_not_predict() -> None:
+    """A response orthogonal to every X column has a zero regression vector, so it has no TP direction."""
+    x1 = np.array([1.0, -1.0, 1.0, -1.0, 0.0, 0.0])
+    x2 = np.array([1.0, 1.0, -1.0, -1.0, 0.0, 0.0])
+    X = pd.DataFrame({"x1": x1, "x2": x2})
+    Y = pd.DataFrame({"y1": x1 + 2.0 * x2, "y2": [0.0, 0.0, 0.0, 0.0, 1.0, -1.0]})
+    model = PLS(n_components=1).fit(X, Y)
+    with pytest.raises(
+        ValueError, match=r"^The regression vector for response 'y2' is ~0; it is not predicted by X\.$"
+    ):
+        target_projection(model, X, response="y2")
+
+
+def test_target_projection_refuses_rows_with_no_spread_along_its_direction() -> None:
+    """Rows all at the training mean score 0 on the TP direction, which leaves no loading to form."""
+    rng = np.random.default_rng(3)
+    X = pd.DataFrame(rng.standard_normal((30, 4)) * [1.0, 5.0, 10.0, 2.0] + 7.0, columns=list("abcd"))
+    y = pd.DataFrame({"y": X.to_numpy() @ [1.0, 0.2, 0.1, -0.5] + rng.standard_normal(30)})
+    model = PLS(n_components=2).fit(X, y)
+    at_the_mean = pd.DataFrame(np.tile(X.mean().to_numpy(), (5, 1)), columns=X.columns)
+    with pytest.raises(
+        ValueError, match=r"^The target-projected scores have ~0 variance; cannot form the TP loading\.$"
+    ):
+        target_projection(model, at_the_mean)
+
+
+def test_target_projection_without_scaling_uses_x_as_given() -> None:
+    """With scale=False the TP scores are X @ w on X as passed, and an array X reads as its DataFrame."""
+    rng = np.random.default_rng(3)
+    X = pd.DataFrame(rng.standard_normal((30, 4)) * [1.0, 5.0, 10.0, 2.0], columns=list("abcd"))
+    X = X - X.mean()
+    y = pd.DataFrame({"y": X.to_numpy() @ [1.0, 0.2, 0.1, -0.5] + rng.standard_normal(30)})
+    model = PLS(n_components=2, scale=False).fit(X, y - y.mean())
+
+    tp = target_projection(model, X)
+    np.testing.assert_allclose(tp.scores.to_numpy(), X.to_numpy() @ tp.weights.to_numpy())
+    from_array = target_projection(model, X.to_numpy())
+    np.testing.assert_allclose(from_array.scores.to_numpy(), tp.scores.to_numpy())
+    np.testing.assert_allclose(from_array.loadings.to_numpy(), tp.loadings.to_numpy())
 
 
 def test_selectivity_ratio_multi_response_and_errors(
@@ -4166,6 +4502,24 @@ def test_select_n_components_dispatcher() -> None:
         _select_n_components("not_a_rule", mean_error=mean)  # type: ignore[arg-type]
 
 
+def test_min_rule_falls_back_to_one_component_without_a_finite_error() -> None:
+    """With no finite error at any count, "min" recommends one component, as "1se" does."""
+    from process_improve.multivariate._common import _select_n_components
+
+    nothing = [np.nan, np.nan, np.nan]
+    assert _select_n_components("min", mean_error=nothing) == 1
+    assert _select_n_components("1se", mean_error=nothing, se_error=nothing) == 1
+
+
+def test_equal_weight_r2_total_needs_one_row_per_component() -> None:
+    """The per-target table is (components x targets); a flat vector is refused, naming its shape."""
+    from process_improve.multivariate._common import _equal_weight_r2_total
+
+    np.testing.assert_allclose(_equal_weight_r2_total(np.array([[0.2, 0.4], [0.5, np.nan]])), [0.3, 0.5])
+    with pytest.raises(ValueError, match=r"^per_target must be 2-D \(A x M\); got shape \(3,\)\.$"):
+        _equal_weight_r2_total(np.ones(3))
+
+
 def test_not_enough_variance_error_is_typed_and_runtimeerror() -> None:
     """Rank overflow raises NotEnoughVarianceError, still catchable as RuntimeError."""
     # NotEnoughVarianceError subclasses RuntimeError so existing broad
@@ -5180,6 +5534,91 @@ def test_ellipse_coordinates_symmetry() -> None:
     assert max(abs(x)) == pytest.approx(max(abs(y)), rel=0.05)
 
 
+#: A valid ellipse_coordinates call, which each row below breaks in one argument.
+_ELLIPSE_ARGUMENTS = {
+    "score_horiz": 1,
+    "score_vert": 2,
+    "conf_level": 0.95,
+    "n_components": 2,
+    "scaling_factor_for_scores": pd.Series([1.0, 1.0]),
+    "n_rows": 10,
+}
+
+
+@pytest.mark.parametrize(
+    ("limit", "arguments", "error", "message"),
+    [
+        (
+            hotellings_t2_limit,
+            {"conf_level": 1.0, "n_components": 2, "n_rows": 10},
+            ValueError,
+            r"^conf_level must lie in \(0, 1\); got 1\.0\.$",
+        ),
+        (
+            hotellings_t2_limit,
+            {"conf_level": 0.95, "n_components": 2, "n_rows": 0},
+            ValueError,
+            r"^n_rows must be positive; got 0\.$",
+        ),
+        (
+            spe_calculation,
+            {"spe_values": np.ones(5), "conf_level": 1.0},
+            ValueError,
+            r"^conf_level must lie in \(0, 1\); got 1\.0\.$",
+        ),
+        (
+            ellipse_coordinates,
+            {**_ELLIPSE_ARGUMENTS, "score_horiz": 3},
+            ValueError,
+            r"^score_horiz must lie in \[1, 2\]; got 3\.$",
+        ),
+        (
+            ellipse_coordinates,
+            {**_ELLIPSE_ARGUMENTS, "score_vert": 0},
+            ValueError,
+            r"^score_vert must lie in \[1, 2\]; got 0\.$",
+        ),
+        (
+            ellipse_coordinates,
+            {**_ELLIPSE_ARGUMENTS, "conf_level": 1.0},
+            ValueError,
+            r"^conf_level must lie in \(0, 1\); got 1\.0\.$",
+        ),
+        (
+            ellipse_coordinates,
+            {**_ELLIPSE_ARGUMENTS, "n_rows": 0},
+            ValueError,
+            r"^n_rows must be positive; got 0\.$",
+        ),
+        (
+            ellipse_coordinates,
+            {**_ELLIPSE_ARGUMENTS, "scaling_factor_for_scores": None},
+            TypeError,
+            (
+                r"^scaling_factor_for_scores is required: pass the per-component score standard deviations "
+                r"\(model\.scaling_factor_for_scores_\); got None\.$"
+            ),
+        ),
+    ],
+    ids=[
+        "t2-limit-at-100-percent",
+        "t2-limit-from-no-rows",
+        "spe-limit-at-100-percent",
+        "ellipse-horizontal-score-beyond-A",
+        "ellipse-vertical-score-0",
+        "ellipse-at-100-percent",
+        "ellipse-from-no-rows",
+        "ellipse-without-score-scaling",
+    ],
+)
+def test_limit_functions_refuse_arguments_out_of_range(
+    limit: Callable[..., object], arguments: dict, error: type[Exception], message: str
+) -> None:
+    """Each limit names the argument it cannot use, and the value it was given."""
+    with pytest.raises(error, match=message):
+        limit(**arguments)
+
+
 def test_pls_predict_new_data() -> None:
     """PLS.predict() returns y_hat for sklearn compatibility; diagnose() the rich Bunch."""
     rng = np.random.default_rng(42)
@@ -5420,6 +5859,71 @@ def test_t2_plot_accepts_valid_conf_level(fixture_pca_for_plots: PCA) -> None:
     """t2_plot should accept `conf_level` strictly inside (0, 1)."""
     fig = fixture_pca_for_plots.t2_plot(settings={"conf_level": 0.99})
     assert isinstance(fig, go.Figure)
+
+
+@pytest.mark.parametrize(
+    ("plot", "arguments", "message"),
+    [
+        ("score_plot", {"pc_horiz": 4}, r"^The model has 3 components\. Ensure that 1 <= pc_horiz <= 3\.$"),
+        ("score_plot", {"pc_vert": 4}, r"^The model has 3 components\. Ensure that 1 <= pc_vert <= 3\.$"),
+        (
+            "score_plot",
+            {"pc_depth": 4},
+            r"^The model has 3 components\. Ensure that pc_depth is -1 \(no depth axis\) or 1 <= pc_depth <= 3\.$",
+        ),
+        ("score_plot", {"pc_horiz": 1, "pc_vert": 1}, r"^Specify distinct components for each axis\.$"),
+        ("score_plot", {"settings": {"ellipse_conf_level": 1.0}}, r"0\.0 < `ellipse_conf_level` < 1\.0"),
+        ("score_plot", {"settings": {"ellipse_conf_level": 0.0}}, r"0\.0 < `ellipse_conf_level` < 1\.0"),
+        ("spe_plot", {"with_a": 0}, r"^`with_a` must be >= 1, or specified with negative indexing\.$"),
+        ("spe_plot", {"with_a": 4}, r"^`with_a` must be <= the number of components fitted \(3\); got 4\.$"),
+        ("spe_plot", {"settings": {"conf_level": 1.0}}, r"0\.0 < `conf_level` < 1\.0"),
+        ("spe_plot", {"settings": {"conf_level": 0.0}}, r"0\.0 < `conf_level` < 1\.0"),
+    ],
+    ids=[
+        "score-horizontal-axis-beyond-A",
+        "score-vertical-axis-beyond-A",
+        "score-depth-axis-beyond-A",
+        "score-same-component-twice",
+        "score-ellipse-at-100-percent",
+        "score-ellipse-at-0-percent",
+        "spe-after-0-components",
+        "spe-after-more-components-than-fitted",
+        "spe-limit-at-100-percent",
+        "spe-limit-at-0-percent",
+    ],
+)
+def test_score_and_spe_plots_refuse_arguments_out_of_range(
+    fixture_pca_for_plots: PCA, plot: str, arguments: dict, message: str
+) -> None:
+    """Axes must name distinct fitted components, and confidence levels must lie strictly inside (0, 1)."""
+    with pytest.raises(ValueError, match=message):
+        getattr(fixture_pca_for_plots, plot)(**arguments)
+
+
+def test_score_plot_draws_the_ellipse_at_the_confidence_level_asked_for(fixture_pca_for_plots: PCA) -> None:
+    """A 99% ellipse is named as such and drawn outside the default 95% one."""
+    model = fixture_pca_for_plots
+    default = model.score_plot().data[1]
+    wider = model.score_plot(settings={"ellipse_conf_level": 0.99}).data[1]
+    assert (default.name, wider.name) == ("Hotelling's T^2 [95%]", "Hotelling's T^2 [99%]")
+    assert np.max(np.abs(wider.x)) > np.max(np.abs(default.x))
+
+
+def test_spe_plot_draws_the_limit_at_the_confidence_level_asked_for(fixture_pca_for_plots: PCA) -> None:
+    """The limit line sits at the model's SPE limit for the level asked for."""
+    model = fixture_pca_for_plots
+    drawn = max(shape.y0 for shape in model.spe_plot(settings={"conf_level": 0.99}).layout.shapes)
+    assert drawn == pytest.approx(model.spe_limit(conf_level=0.99))
+    assert drawn > model.spe_limit(conf_level=0.95)
+
+
+@pytest.mark.parametrize("plot", ["score_plot", "loading_plot", "spe_plot", "t2_plot"])
+def test_pca_plots_draw_onto_a_figure_they_are_given(fixture_pca_for_plots: PCA, plot: str) -> None:
+    """Passing `fig` adds the traces to that figure, so plots can be layered, and returns it."""
+    canvas = go.Figure()
+    returned = getattr(fixture_pca_for_plots, plot)(fig=canvas)
+    assert returned is canvas
+    assert len(canvas.data) >= 1
 
 
 def test_explained_variance_plot_pca(fixture_pca_for_plots: PCA) -> None:
@@ -5733,6 +6237,16 @@ def test_observation_contributions_pls() -> None:
         model.observation_contributions(n_components=5)
 
 
+def test_observation_contributions_for_fewer_components_are_the_leading_columns() -> None:
+    """Asking for the first two components gives the first two columns of the full table."""
+    rng = np.random.default_rng(3)
+    X = pd.DataFrame(rng.standard_normal((35, 6)), columns=[f"V{i}" for i in range(6)])
+    model = PCA(n_components=3).fit(MCUVScaler().fit_transform(X))
+    pd.testing.assert_frame_equal(
+        observation_contributions(model, n_components=2), model.observation_contributions().iloc[:, :2]
+    )
+
+
 @pytest.mark.slow
 def test_eigenvalue_summary_pca(fixture_tablet_spectra_data: tuple[pd.DataFrame, np.ndarray]) -> None:
     """Eigenvalue summary for PCA on a real dataset: tidy table, monotone cumulative."""
@@ -5800,6 +6314,18 @@ def test_project_variables_pls_and_errors() -> None:
     # A supplementary block with the wrong number of rows must raise.
     with pytest.raises(ValueError, match="rows"):
         model.project_variables(pd.DataFrame(rng.standard_normal((10, 2))))
+
+
+def test_project_variables_reads_an_array_as_its_dataframe() -> None:
+    """Supplementary variables passed as an array give the same correlations as the same DataFrame."""
+    rng = np.random.default_rng(6)
+    X = pd.DataFrame(rng.standard_normal((50, 6)), columns=[f"V{i}" for i in range(6)])
+    model = PCA(n_components=3).fit(MCUVScaler().fit_transform(X))
+    supplementary = pd.DataFrame(rng.standard_normal((50, 2)))
+    np.testing.assert_allclose(
+        project_variables(model, supplementary.to_numpy()).to_numpy(),
+        project_variables(model, supplementary).to_numpy(),
+    )
 
 
 def test_diagnostics_unfitted_raise() -> None:

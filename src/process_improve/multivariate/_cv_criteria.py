@@ -793,9 +793,12 @@ def _monitoring_criteria(model: Any, folds: list[_Fold], conf_level: float, alph
         complete_spe = np.sqrt(squared_spe[:, a] * to_complete)
         spe_limits[a] = spe_lim, float(spe_calculation(complete_spe, conf_level=conf_level))
         t2_lim = hotellings_t2_limit(conf_level=conf_level, n_components=a + 1, n_rows=N)
-        if np.isfinite(spe_lim):
+        # Both guards hold for any fitted model: its training SPE is finite, so is the limit
+        # fitted to it; the component cap keeps a + 1 <= N - 2, so the T2 limit is finite;
+        # and a fitted component always has score spread, so the held-out T2 is too.
+        if np.isfinite(spe_lim):  # pragma: no branch - see above
             spe_alarm[a] = float(np.mean(pv_spe[:, a] > spe_lim))
-        if np.isfinite(t2_lim) and np.all(np.isfinite(pv_t2[:, a])):
+        if np.isfinite(t2_lim) and np.all(np.isfinite(pv_t2[:, a])):  # pragma: no branch - see above
             t2_alarm[a] = float(np.mean(pv_t2[:, a] > t2_lim))
     return Bunch(
         d_ratios=d_ratios,

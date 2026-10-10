@@ -21,11 +21,13 @@ from process_improve.experiments import (
 from process_improve.experiments.analysis import build_formula
 from process_improve.experiments.designs_constrained import ConstrainedOptions
 from process_improve.experiments.designs_mixture_constrained import (
+    _drop_redundant_rows,
     constrained_mixture_design,
     extreme_vertices,
     mixture_candidates,
     mixture_inequalities,
     scheffe_matrix,
+    scheffe_model,
 )
 
 # A bounded three-component formulation, used throughout.
@@ -88,6 +90,85 @@ class TestInputErrors:
     def test_mixing_mixture_and_process_factors(self) -> None:
         with pytest.raises(ValueError, match="all mixture components or none"):
             DesignRegion([*BOUNDED, Factor(name="T", low=0, high=1)])
+
+    def test_unknown_mixture_model(self) -> None:
+        with pytest.raises(
+            ValueError,
+            match=(
+                r"^Unknown mixture model 'cubic'; "
+                r"choose from scheffe_linear, scheffe_quadratic, scheffe_special_cubic\.$"
+            ),
+        ):
+            scheffe_model("cubic")
+
+    def test_too_many_vertex_systems_are_refused(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """The vertex enumeration solves one system per subset of constraints; past the cap it stops and says why."""
+        from process_improve.experiments import designs_mixture_constrained
+
+        monkeypatch.setattr(designs_mixture_constrained, "MAX_VERTEX_SUBSETS", 1)
+        with pytest.raises(
+            ValueError, match=r"^Enumerating the vertices needs \d+ linear solves .* more than the limit of 1\."
+        ):
+            extreme_vertices(*mixture_inequalities(BOUNDED, [CAP]))
+
+    @pytest.mark.parametrize(
+        ("blends", "message"),
+        [
+            pytest.param(
+                pd.DataFrame({"x1": [0.3], "x2": [0.5]}),
+                r"^candidates is missing columns for mixture components: \['x3'\]\.$",
+                id="missing-component",
+            ),
+            pytest.param(
+                pd.DataFrame({"x1": ["a lot"], "x2": [0.5], "x3": [0.2]}),
+                r"^candidates has missing or non-numeric proportions\.$",
+                id="text-proportion",
+            ),
+            pytest.param(
+                pd.DataFrame({"x1": [0.9], "x2": [0.05], "x3": [0.05]}),
+                r"^No candidate blend satisfies the component bounds and constraints\.$",
+                id="no-feasible-blend",
+            ),
+        ],
+    )
+    def test_unusable_user_candidates_are_refused(self, blends: pd.DataFrame, message: str) -> None:
+        options = ConstrainedOptions(model_type="scheffe_linear", candidates=blends)
+        with pytest.raises(ValueError, match=message):
+            constrained_mixture_design(BOUNDED, None, options=options)
+
+    def test_too_few_distinct_user_blends_cannot_support_the_model(self) -> None:
+        """Two feasible blends, repeated, cannot fit the six-term quadratic model."""
+        blends = pd.DataFrame({"x1": [0.3, 0.4], "x2": [0.5, 0.4], "x3": [0.2, 0.2]})
+        options = ConstrainedOptions(model_type="scheffe_quadratic", candidates=blends)
+        with pytest.raises(
+            ValueError,
+            match=(
+                r"^The constrained mixture region cannot support a scheffe_quadratic model \(6 terms\): "
+                r"it has too few distinct blends\."
+            ),
+        ):
+            constrained_mixture_design(BOUNDED, None, options=options, random_state=0)
+
+
+def test_a_single_inequality_is_never_dropped_as_redundant() -> None:
+    """With nothing else to imply it, the one row stays, so the region keeps its only constraint."""
+    a_mat, b_vec = _drop_redundant_rows(np.array([[1.0, 0.0]]), np.array([0.5]))
+    np.testing.assert_array_equal(a_mat, [[1.0, 0.0]])
+    np.testing.assert_array_equal(b_vec, [0.5])
+
+
+def test_i_optimal_design_over_user_candidates_averages_over_those_blends() -> None:
+    """With supplied candidates the I-criterion's region is the candidate set itself."""
+    blends = pd.DataFrame(
+        [(a, b, round(1 - a - b, 10)) for a in (0.1, 0.3, 0.5) for b in (0.1, 0.4, 0.7) if 0.05 <= 1 - a - b <= 0.3],
+        columns=["x1", "x2", "x3"],
+    )
+    options = ConstrainedOptions(model_type="scheffe_linear", candidates=blends, criterion="i_optimal")
+    design, meta = constrained_mixture_design(BOUNDED, 5, options=options, random_state=0)
+    assert meta["method"] == "i_optimal_user_candidates"
+    assert np.allclose(design.sum(axis=1), 1.0)
+    supplied = {tuple(row) for row in blends.to_numpy()}
+    assert all(tuple(row) in supplied for row in design)
 
 
 # ---------------------------------------------------------------------------

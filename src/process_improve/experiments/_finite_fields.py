@@ -70,7 +70,8 @@ def _irreducible_polynomial(p: int, n: int) -> tuple[int, ...]:
             for divisor in itertools.product(range(p), repeat=degree)
         ):
             return candidate
-    raise ValueError(f"No irreducible polynomial of degree {n} over GF({p}).")  # unreachable: one always exists
+    # Unreachable: an irreducible polynomial of every degree exists over every GF(p).
+    raise ValueError(f"No irreducible polynomial of degree {n} over GF({p}).")  # pragma: no cover
 
 
 def _poly_mod(dividend: tuple[int, ...], divisor: tuple[int, ...], p: int) -> list[int]:

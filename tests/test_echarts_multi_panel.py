@@ -545,3 +545,59 @@ def test_annotation_type_label_raises_not_implemented() -> None:
     panel.annotations = [Annotation(annotation_type=AnnotationType.label, value=1.0, label="note")]
     with pytest.raises(NotImplementedError, match="label"):
         EChartsAdapter().render(ChartSpec(panels=[panel]))
+
+
+# ---------------------------------------------------------------------------
+# Partial encodings and incomplete annotations are drawn without them
+# ---------------------------------------------------------------------------
+
+
+def test_bar_with_only_zero_error_bars_gets_no_mark_line() -> None:
+    """A zero error bar draws nothing, so a bar series with only zeros carries no markLine."""
+    layer = LayerSpec(
+        mark=MarkType.bar,
+        data=[{"x": "A", "y": 1.0}, {"x": "B", "y": 2.0}],
+        x=Encoding(field="x"),
+        y=Encoding(field="y"),
+        style={"error_y": [0.0, 0.0]},
+    )
+    series = _render_one(layer)["series"][0]
+    assert series["data"] == [1.0, 2.0]
+    assert "markLine" not in series
+
+
+@pytest.mark.parametrize(
+    ("encoded", "expected"),
+    [(("x", "y"), [[1, 2], [4, 5]]), (("z",), [[3], [6]])],
+    ids=["no-z", "z-only"],
+)
+def test_wireframe_points_carry_only_the_encoded_axes(encoded: tuple[str, ...], expected: list) -> None:
+    """Each wireframe point lists the values of the encoded axes, in x, y, z order."""
+    layer = LayerSpec(
+        mark=MarkType.wireframe,
+        data=[{"x": 1, "y": 2, "z": 3}, {"x": 4, "y": 5, "z": 6}],
+        **{axis: Encoding(field=axis) for axis in encoded},
+    )
+    assert _render_one(layer)["series"][0]["data"] == expected
+
+
+def test_line_without_a_y_encoding_has_no_points() -> None:
+    """Paired (x, y) data needs both encodings; without y the series is empty, not malformed."""
+    layer = LayerSpec(mark=MarkType.line, data=[{"x": 1, "y": 2}], x=Encoding(field="x"))
+    assert _render_one(layer)["series"][0]["data"] == []
+
+
+@pytest.mark.parametrize(
+    "annotation",
+    [
+        Annotation(annotation_type=AnnotationType.reference_line, value=None, label="no position"),
+        Annotation(annotation_type=AnnotationType.reference_band, value=1.0, value_end=None, label="no end"),
+    ],
+    ids=["line-without-value", "band-without-end"],
+)
+def test_annotation_without_its_position_is_skipped(annotation: Annotation) -> None:
+    """A reference line or band missing its coordinates is left out rather than drawn at a default."""
+    panel = _scatter_panel("p")
+    panel.annotations = [annotation]
+    series = EChartsAdapter().render(ChartSpec(panels=[panel]))["series"]
+    assert all("markLine" not in s and "markArea" not in s for s in series)

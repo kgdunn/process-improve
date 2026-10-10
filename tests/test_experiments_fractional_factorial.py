@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import itertools
 import math
+import re
 from collections import Counter
 
 import numpy as np
@@ -298,6 +299,50 @@ class TestInvalidRequests:
         """An empty right-hand side used to reach pyDOE3 and fail there with an IndexError."""
         with pytest.raises(ValueError, match="names no factors"):
             _fraction(4, generators=[generator])
+
+    @pytest.mark.parametrize(
+        ("names", "generators", "message"),
+        [
+            pytest.param(
+                ["Temp", "Press", "Cat"],
+                ["Cat=TempXyz"],
+                "Generator word 'TempXyz' does not resolve to factor names ['Temp', 'Press', 'Cat'].",
+                id="unknown-multi-letter-name",
+            ),
+            pytest.param(
+                list("ABCD"), ["DABC"], "Generator 'DABC' must have the form 'D=ABC' (or 'D=-ABC').", id="no-equals"
+            ),
+            pytest.param(
+                list("ABCDE"),
+                ["DE=ABC"],
+                "Generator 'DE=ABC': the left-hand side must be exactly one factor.",
+                id="two-factors-on-the-left",
+            ),
+            pytest.param(
+                list("ABCD"),
+                ["D=ABD"],
+                "Generator 'D=ABD': the left-hand factor may not appear on the right-hand side.",
+                id="left-factor-on-the-right",
+            ),
+            pytest.param(
+                list("ABCDE"),
+                ["D=AB", "D=AC"],
+                "Generator 'D=AC': factor 'D' is derived more than once.",
+                id="derived-twice",
+            ),
+            pytest.param(
+                list("ABCDE"),
+                ["D=AB", "E=AD"],
+                "Generator 'E=AD': right-hand factors ['D'] are themselves derived factors.",
+                id="built-from-a-derived-factor",
+            ),
+        ],
+    )
+    def test_malformed_generators_are_refused(self, names: list[str], generators: list[str], message: str) -> None:
+        """Each generator must derive one new factor from base factors only; the message names what is wrong."""
+        factors = [Factor(name=name, low=-1, high=1) for name in names]
+        with pytest.raises(ValueError, match=f"^{re.escape(message)}$"):
+            generate_design(factors, design_type="fractional_factorial", generators=generators, n_center_points=0)
 
     def test_fewer_than_three_factors(self) -> None:
         with pytest.raises(ValueError, match="at least 3 factors"):

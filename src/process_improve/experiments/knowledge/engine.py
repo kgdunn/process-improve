@@ -18,9 +18,7 @@ from process_improve.experiments.knowledge.models import (
     DecisionRuleNode,
     DesignTypeNode,
     DiagnosticNode,
-    InterpretationGuide,
     KnowledgeGraph,
-    WorkedExample,
 )
 
 _DATA_DIR = Path(__file__).parent / "data"
@@ -126,17 +124,6 @@ def _build_keyword_index(graph: KnowledgeGraph) -> dict[str, list[tuple[str, str
             ],
         )
 
-    for guide in graph.interpretation_guides.values():
-        _index_texts(
-            index,
-            "interpretation",
-            guide.id,
-            [
-                guide.id.replace("_", " "),
-                guide.title,
-            ],
-        )
-
     # De-duplicate entries within each keyword
     return {k: list(dict.fromkeys(v)) for k, v in index.items()}
 
@@ -160,14 +147,6 @@ def _build_topic_index(graph: KnowledgeGraph) -> dict[str, list[str]]:
     for concept in graph.concepts.values():
         index.setdefault(concept.topic, []).append(concept.id)
         index.setdefault("statistical_concepts", []).append(concept.id)
-
-    for guide in graph.interpretation_guides.values():
-        index.setdefault(guide.topic, []).append(guide.id)
-        index.setdefault("interpretation", []).append(guide.id)
-
-    for example in graph.worked_examples.values():
-        index.setdefault(example.topic, []).append(example.id)
-        index.setdefault("worked_examples", []).append(example.id)
 
     return index
 
@@ -243,31 +222,6 @@ def load_knowledge_graph() -> KnowledgeGraph:
             related_questions=entry.get("related_questions", []),
         )
         graph.concepts[concept_node.id] = concept_node
-
-    # Interpretation guides
-    for entry in _load_yaml("interpretation_guides.yaml"):
-        guide_node = InterpretationGuide(
-            id=entry["id"],
-            topic=entry["topic"],
-            title=entry["title"],
-            content=entry.get("content", {}),
-            related_questions=entry.get("related_questions", []),
-        )
-        graph.interpretation_guides[guide_node.id] = guide_node
-
-    # Worked examples
-    for entry in _load_yaml("worked_examples.yaml"):
-        example_node = WorkedExample(
-            id=entry["id"],
-            title=entry["title"],
-            demonstrates=entry.get("demonstrates", []),
-            topic=entry["topic"],
-            scenario=entry.get("scenario", ""),
-            steps=entry.get("steps", []),
-            related_questions=entry.get("related_questions", []),
-            detail_level=entry.get("detail_level", "intermediate"),
-        )
-        graph.worked_examples[example_node.id] = example_node
 
     # Build indices
     graph.keyword_index = _build_keyword_index(graph)
@@ -581,7 +535,6 @@ def _topic_hits(graph: KnowledgeGraph, query: str, topic: str) -> list[tuple[str
         ("design_type", graph.design_types),
         ("concept", graph.concepts),
         ("diagnostic", graph.diagnostics),
-        ("interpretation", graph.interpretation_guides),
     ]
     return [(node_type, node_id) for node_type, nodes in collections for node_id in nodes if node_id in allowed]
 
@@ -602,13 +555,10 @@ def query_generic(
     else:
         hits = [(node_type, node_id) for node_type, node_id, _ in _keyword_search(graph, query)]
 
-    seen = set()
+    # Each (node_type, node_id) pair occurs once: the keyword search scores a dict keyed
+    # by the pair, and the topic collections are dicts keyed by id, one per node type.
     for node_type, node_id in hits[:10]:
-        if (node_type, node_id) in seen:
-            continue
-        seen.add((node_type, node_id))
-
-        if node_type == "design_type" and node_id in graph.design_types:
+        if node_type == "design_type":
             dt = graph.design_types[node_id]
             results.append(
                 {
@@ -618,7 +568,7 @@ def query_generic(
                     "description": _extract_detail(dt.description, detail_level),
                 }
             )
-        elif node_type == "concept" and node_id in graph.concepts:
+        elif node_type == "concept":
             concept = graph.concepts[node_id]
             results.append(
                 {
@@ -628,7 +578,7 @@ def query_generic(
                     "content": _extract_detail(concept.content, detail_level),
                 }
             )
-        elif node_type == "diagnostic" and node_id in graph.diagnostics:
+        else:  # "diagnostic": the keyword index and the topic collections hold no other node type
             diag = graph.diagnostics[node_id]
             results.append(
                 {
@@ -636,16 +586,6 @@ def query_generic(
                     "id": diag.id,
                     "display_name": diag.display_name,
                     "visual_pattern": diag.visual_pattern,
-                }
-            )
-        elif node_type == "interpretation" and node_id in graph.interpretation_guides:
-            guide = graph.interpretation_guides[node_id]
-            results.append(
-                {
-                    "type": "interpretation_guide",
-                    "id": guide.id,
-                    "title": guide.title,
-                    "content": _extract_detail(guide.content, detail_level),
                 }
             )
 

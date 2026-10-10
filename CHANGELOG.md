@@ -58,6 +58,28 @@ those changes.
   - **Dependency:** `threadpoolctl`, already installed with scikit-learn, is now
     declared directly. The fits run their many small matrix operations on one BLAS
     thread, which is ten times faster.
+- **EWMA control chart: `ControlChart(variant="ewma")`.** The chart plots the
+  exponentially weighted moving average `z_t = w y_t + (1 - w) z_(t-1)`, started at the
+  target, against its exact 3-sigma limits, which start narrow and widen to
+  `target +/- 3 s sqrt(w / (2 - w))`. Set the weight with
+  `calculate_limits(y, ld_1=w)`; the default 0.2 suits small shifts, and `ld_1=1` gives
+  the Shewhart individuals chart. A given `target` and `s` are used as they are; a
+  missing one is estimated as for the Shewhart chart. A missing observation holds the
+  statistic and is never flagged. On a sustained one-sigma shift, with the target and
+  `s` known, the EWMA chart alarms 14 samples after the shift and the Shewhart chart not
+  at all. The `control_chart` agent tool takes `chart_type="ewma"` and also reports the
+  weight and the statistic at each alarm.
+- **CUSUM control chart: `ControlChart(variant="cusum")`.** The tabular CUSUM keeps two
+  one-sided sums, `C+_t = max(0, C+_(t-1) + (y_t - target) - K)` and
+  `C-_t = max(0, C-_(t-1) - (y_t - target) - K)`, and raises an alarm when either exceeds
+  the decision interval `H`; that sum then restarts from zero, as the textbook describes.
+  Set `K = k s` and `H = h s` with `calculate_limits(y, k=..., h=...)` (defaults 0.5 and
+  5). Each alarm in `cusum_alarms` also dates the start of the shift and estimates the new
+  mean. It reproduces Montgomery's tabular CUSUM example (an alarm at period 29, the shift
+  dated to period 23, a new mean of 11.25), and its simulated average run lengths match
+  the published 10.4 samples after a one-sigma shift and 465 in control. The
+  `control_chart` agent tool takes `chart_type="cusum"`. Each variant now accepts only
+  its own tuning parameters, and names them when given another chart's.
 
 ### Changed
 
@@ -229,6 +251,67 @@ those changes.
   `n_whole_plots` counted one replicate's. Each replicate now has whole plots of its
   own, as it is run again from scratch.
 
+- **The Shewhart chart (`variant="xbar.no.subgroup"`) keeps a `target` and `s` you
+  give it.** `calculate_limits(y, target=..., s=...)` replaced both with estimates from
+  `y`, although its docstring says given values are used, so a chart could not be drawn
+  from known (Phase I) values. In the new test, a two-sigma shift in the last 20 of 80
+  samples is flagged at sample 70 against the known target 50 and `s` 2, and not at all
+  against the estimates, which the shift itself had pulled. A given value is now used as
+  it is, and only a missing one is estimated; the robust `s` is still the MAD about the
+  data's own median. Without a given `target` or `s` the chart is unchanged.
+
+The fixes below were found while raising test coverage to 96% (#678).
+
+- **`find_reference_batch` relaxes the SPE cutoff all the way to 0.95.** The loop
+  added 0.05 to a float each step, stopped at 0.9000000000000004, and never tried the
+  0.95 its error message reports. On the dryer data, 60 batches pass at 0.95, yet a
+  request for 60 failed with "only 58 batches passed".
+- **The `slope` feature of the `extract_batch_features` tool works.** The tool passed
+  the time column as `time_tag`, which only `f_area` accepts, so every request returned
+  `{"error": "f_slope() got an unexpected keyword argument 'time_tag'"}`.
+- **`TPLS` accepts int64 columns, as its error message always said.** The check tested
+  `np.dtypes.IntDType`, which is C `int` (int32), so int64 data were refused.
+- **`TPLS` fits group names that are not strings.** One check compared the keys of `D`
+  as `str(key)` and another compared them as given, so an integer group name always
+  failed one of the two. `DataFrameDict`'s type error also no longer reads "got
+  instead<class ...>".
+- **`repeated_median_slope(..., nowarn=True)` refuses x and y of unequal length**, with
+  the same `ValueError` as without `nowarn`. Before, it indexed past the shorter vector
+  and raised an `IndexError`.
+- **`score_limit` and `ellipse_coordinates` raise instead of asserting.** Under
+  `python -O` the asserts vanish. `conf_level=1.0` then returned an infinite limit, and
+  omitting `scaling_factor_for_scores` failed further in with an `AttributeError`.
+- **`ssq` refuses an axis other than 0, 1 or None.** It used to return a sum of squares
+  of 0.0.
+- **The robust-regression tool explains when it has fewer than three complete (x, y)
+  pairs.** It used to fail with `{"error": "'float' object is not iterable"}`.
+- **Pickling a fitted latent-variable model (`PCA`, `PLS`, ...) leaves its DataFrame
+  cache intact.** On Python 3.11+, sklearn's `__getstate__` returns the instance's own
+  `__dict__`, so dropping the cache from it emptied the live model's cache. After a
+  joblib dump, a multiprocessing hand-off or a deep copy, `scores_` and the other
+  frames came back as new objects. The cache is now dropped from a copy and is still
+  not pickled.
+- **`lm()` fits one-column models.** `lm("y ~ 1", df)` and `lm("y ~ 0 + A", df)` raised
+  `TypeError: cannot unpack non-iterable numpy.float64`.
+- **`summary()` and `get_title()` work on a model fitted to a plain DataFrame**, which
+  `lm` accepts but which has no `pi_title`. Both raised `AttributeError`.
+- **The sensory reshape's round-trip check gives the same answer on every run.** A label
+  lost or invented by the reshape gave a NaN difference. `max()` over NaN depends on
+  input order, and the order of string labels changes with the hash seed, so a missing
+  panelist id passed on some runs. Such a label now always fails the check. Labels with
+  stray spaces (`"Salty "`) are compared in the stripped form the long table writes, so
+  they now reshape cleanly.
+- **`pip install 'process-improve[all]'` installs `ruptures`.** The `batch` extra has
+  needed it since #605, for the change-point detection in `features.f_rupture`, but it was
+  never added to `all`, which the README presents as everything the other extras install.
+
+### Security
+
+- **The SEC-19 column cap measures the widest row of a JSON matrix.** The multivariate
+  tools measured only the first row, and pandas pads short rows with NaN to the
+  longest. A narrow first row followed by a wide one therefore bypassed
+  `settings.max_matrix_cols`: with the cap at 4, `fit_pca` fitted a six-column model.
+
 ### Documentation
 
 - **The supersaturated `e_s2_efficiency` is measured against a lower bound that is not
@@ -262,11 +345,18 @@ those changes.
   on a float, and the `ColumnTransformer` example, now in `SKLEARN_COMPATIBILITY.md`
   and tested there, needs `OneHotEncoder(sparse_output=False)` under pandas output.
   The README also gains a banner, a recording of the in-browser app, and a table
-  from ten practical questions to one call and a textbook chapter; it no longer
-  lists a CUSUM chart, which does not exist, and its links are absolute, so they
-  work on PyPI too.
+  from ten practical questions to one call and a textbook chapter, and its links are
+  absolute, so they work on PyPI too.
 - **PyPI links the documentation, changelog, in-browser app and textbook**
   (`[project.urls]`).
+- **The README is checked beyond its code blocks.** `tests/test_readme_guards.py`
+  confirms, offline, that every call quoted in its text and tables names a real function,
+  method and keyword, that every link into the repository and the documentation resolves,
+  and that the installation lines match `pyproject.toml`. A weekly job,
+  `tools/check_readme_links.py`, requests every other link and checks that the openmv.net
+  data files still match the bundled copies behind the README's numbers. The checks
+  brought two fixes: the `batch` line now lists `ruptures`, and the `control` extra
+  (`osqp`, the batch mid-course correction solver) is documented.
 
 ## [1.97.2] - 2026-10-07
 

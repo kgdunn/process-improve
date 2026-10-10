@@ -38,6 +38,12 @@ RULES = ("C901", "PLR0912", "PLR0913", "PLR0915")
 #: never raise them. A pull request that pushes a count over its budget has made
 #: the code worse in the specific way #307 is about, and CI says so.
 BUDGET: dict[str, int] = {
+    # 36: #680 replaced the chain of variant branches in `ControlChart.calculate_limits`
+    # with a dispatch to each variant's fit, and its C901 suppression went with it.
+    # 37: #678 removed the unreachable `raise` after `check_valid_batch_dict` in
+    # `batch_dtw` (the check raises itself and never returns False), and the
+    # branches of the Plotly adapter's `_layer_to_trace` and `_add_annotation` that
+    # no MarkType / AnnotationType member could reach, taking all three under C901.
     # 40: #513's alias fix moved `find_aliases` out of `lm` as a flat function over
     # centred correlations, so both lose their C901 suppressions (and `find_aliases`
     # its PLR0912, `lm` its PLR0915). 42 before that.
@@ -47,11 +53,12 @@ BUDGET: dict[str, int] = {
     # breach C901. The ratchet fails on a count *below* budget precisely so the
     # saving is banked here rather than left as headroom for the next change to
     # spend silently.
-    "C901": 40,
-    # 22: #513 took `find_aliases` under PLR0912 (see C901). 24 before that: #604
-    # moved `PCA.fit`'s settings resolution and tolerance checks into the shared
+    "C901": 36,
+    # 21: #678's Plotly change took `_add_annotation` under PLR0912. 22: #513 took
+    # `find_aliases` under PLR0912 (see C901). 24 before that: #604 moved
+    # `PCA.fit`'s settings resolution and tolerance checks into the shared
     # `resolve_loop_settings`, taking `fit` under PLR0912.
-    "PLR0912": 22,
+    "PLR0912": 21,
     # 83, and none of the five moves is a regression any one branch introduced.
     # #598 merged `smooth_trajectories`, whose seven arguments are the two
     # smoothers' settings side by side: naming them beats a settings dict whose
