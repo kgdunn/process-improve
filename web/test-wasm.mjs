@@ -167,6 +167,21 @@ assert.deepEqual(Object.keys(charts.result.figures).sort(), ["contour", "residua
 const timing = `${((performance.now() - clock) / 1000).toFixed(2)} s`;
 console.log(`ok  charts: ${Object.keys(charts.result.figures).join(", ")} for Plotly.js ${charts.result.plotly_js}; ${timing}`);
 
+// The compare step: every design for three factors, scored on the nine measures.
+clock = performance.now();
+const plan = call("api_compare_plan", { factors: factors(3), model: "main_quadratic" });
+assert.ok(plan.ok, plan.error);
+const contenders = plan.result.designs.map((item) => {
+  const generated = call("api_make_design", item.spec).result;
+  return { label: item.label, spec: generated.spec, columns: generated.columns, rows: generated.rows };
+});
+const compared = call("api_compare", { model: "main_quadratic", designs: contenders });
+assert.ok(compared.ok, compared.error);
+const aOverP = compared.result.measures.findIndex((m) => m.key === "a");
+assert.equal(compared.result.display["Box-Behnken [n=15]"][aOverP], "0.2173", "the book's A/p for this design");
+const comparedIn = `${((performance.now() - clock) / 1000).toFixed(1)} s`;
+console.log(`ok  compared ${compared.result.designs.length} designs on the nine measures in ${comparedIn}`);
+
 // A workbook's model name is data, never code.
 const hostile = roundTrip({ design_type: "dsd", factors: factors(4) }, "__import__('os')");
 assert.equal(hostile.ok, false);
