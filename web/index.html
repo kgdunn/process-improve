@@ -37,21 +37,21 @@
         <!-- Mirrors bootstrap.DESIGNS (label, hint, options) so the form is
              right before Python loads; tests/test_web_app.py keeps them in step. -->
         <select id="design-type" autocomplete="off">
-          <option value="full_factorial" data-options="n_center_points"
+          <option value="full_factorial" data-options="n_center_points" data-min-factors="2" data-max-factors="7"
             data-hint="Every combination of low and high. 2^k runs, plus center points.">Full factorial (2-level)</option>
-          <option value="fractional_factorial" data-options="n_center_points"
-            data-hint="A fraction of the full factorial; main effects are aliased with interactions.">Fractional factorial (2-level)</option>
-          <option value="plackett_burman" data-options=""
-            data-hint="Main effects only, in a multiple of 4 runs.">Plackett-Burman screening</option>
-          <option value="dsd" data-options="" selected
+          <option value="fractional_factorial" data-options="n_center_points resolution" data-min-factors="3" data-max-factors="11"
+            data-hint="A fraction of the full factorial. Its resolution says what is aliased: at III, main effects with two-factor interactions; at IV, two-factor interactions with each other; at V, neither.">Fractional factorial (2-level)</option>
+          <option value="plackett_burman" data-options="n_center_points" data-min-factors="2" data-max-factors="11"
+            data-hint="Main effects only, in a multiple of 4 runs plus center points; each main effect is partly or fully aliased with two-factor interactions.">Plackett-Burman screening</option>
+          <option value="dsd" data-options="" data-min-factors="3" data-max-factors="12" selected
             data-hint="Three levels, 2k+1 runs (2k+3 for odd k); main effects clear of interactions and quadratics.">Definitive screening (DSD)</option>
-          <option value="box_behnken" data-options="n_center_points"
-            data-hint="Response surface with every run inside the factor ranges (3 or more factors).">Box-Behnken</option>
-          <option value="ccd" data-options="n_center_points alpha"
+          <option value="box_behnken" data-options="n_center_points" data-min-factors="3" data-max-factors="7"
+            data-hint="Response surface with every run inside the factor ranges and none at the corners.">Box-Behnken</option>
+          <option value="ccd" data-options="n_center_points alpha" data-min-factors="2" data-max-factors="7"
             data-hint="Response surface: factorial corners, axial points and center points.">Central composite (CCD)</option>
-          <option value="d_optimal" data-options="budget model_type"
+          <option value="d_optimal" data-options="budget model_type" data-min-factors="2" data-max-factors="8"
             data-hint="Best estimates of the chosen model's coefficients for a fixed number of runs.">D-optimal</option>
-          <option value="i_optimal" data-options="budget model_type"
+          <option value="i_optimal" data-options="budget model_type" data-min-factors="2" data-max-factors="6"
             data-hint="Most precise predictions, on average over the factor space, for a fixed number of runs.">I-optimal</option>
         </select>
       </label>
@@ -72,8 +72,16 @@
           <option value="orthogonal">Orthogonal</option>
         </select>
       </label>
+      <label data-option="resolution">Resolution
+        <select id="resolution">
+          <option value="3">III: main effects aliased with two-factor interactions</option>
+          <option value="4" selected>IV: main effects clear of two-factor interactions</option>
+          <option value="5">V: two-factor interactions clear as well</option>
+        </select>
+      </label>
       <label data-option="budget">Runs
-        <input id="budget" type="number" min="3" max="200" value="16">
+        <input id="budget" type="number" min="3" max="200" aria-describedby="budget-hint">
+        <span id="budget-hint" class="hint"></span>
       </label>
       <label data-option="model_type">Model to design for
         <select id="model_type">
@@ -86,7 +94,7 @@
 
     <button type="button" id="generate" class="primary" disabled>Generate design</button>
     <div id="design-out" hidden>
-      <p id="design-summary"></p>
+      <div id="design-summary"></div>
       <div class="scroll"><table id="design-table" class="data"></table></div>
       <a id="download" class="primary button" download="experiment.xlsx">Download workbook (.xlsx)</a>
     </div>

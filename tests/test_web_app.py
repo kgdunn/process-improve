@@ -139,6 +139,132 @@ def test_std_order_rebuilds_the_definitive_screening_foldover(app):
     np.testing.assert_allclose(standard[-1], 0)
 
 
+def factors_named(*names: str) -> list[dict]:
+    """Return coded-range factors with the given names."""
+    return [{"name": n, "low": -1, "high": 1, "units": ""} for n in names]
+
+
+SIX = factors_named("A", "B", "C", "D", "E", "G")
+
+
+@pytest.mark.parametrize("design_type", ["d_optimal", "i_optimal"])
+def test_optimal_design_leaves_degrees_of_freedom_for_error_by_default(app, design_type):
+    """With no budget given, an optimal design has four runs more than its model has coefficients.
+
+    The page used to send 16 runs whatever the model: six factors and the quadratic
+    model have 28 coefficients, so the library raised the budget to exactly 28 and the
+    fit had nothing left to estimate the error with.
+    """
+    spec = {"design_type": design_type, "factors": SIX[:5], "model_type": "quadratic"}
+    result = call(app, "api_make_design", spec)["result"]
+    assert result["n_runs"] == 21 + 4
+
+
+def test_a_raised_budget_is_reported(app):
+    spec = {"design_type": "d_optimal", "factors": SIX, "model_type": "quadratic", "budget": 16}
+    result = call(app, "api_make_design", spec)["result"]
+    assert result["n_runs"] == 28
+    assert any("16 runs" in note and "28 coefficients" in note for note in result["facts"]["notes"])
+
+
+@pytest.mark.parametrize(("design_type", "extra"), [("box_behnken", {}), ("ccd", {"alpha": "rotatable"})])
+def test_designs_singular_without_a_center_point_need_one(app, design_type, extra):
+    """Without a center run, every other run of these designs lies on one sphere, so the squares are aliased."""
+    spec = {"design_type": design_type, "factors": FACTORS, "n_center_points": 0, **extra}
+    reply = call(app, "api_make_design", spec)
+    assert not reply["ok"]
+    assert "at least one center point" in reply["error"]
+
+
+def test_face_centred_ccd_may_skip_center_points(app):
+    spec = {"design_type": "ccd", "factors": FACTORS, "n_center_points": 0, "alpha": "face_centered"}
+    assert call(app, "api_make_design", spec)["result"]["n_runs"] == 8 + 6
+
+
+@pytest.mark.parametrize(
+    ("k", "resolution", "n_runs", "achieved"),
+    [(3, 3, 4, 3), (4, 4, 8, 4), (5, 4, 16, 5), (6, 3, 8, 3), (6, 4, 16, 4), (6, 5, 32, 6), (7, 4, 16, 4)],
+)
+def test_fractional_factorial_takes_the_resolution_asked_for(app, k, resolution, n_runs, achieved):
+    spec = {
+        "design_type": "fractional_factorial",
+        "factors": SIX[:k] if k <= 6 else factors_named(*"ABCDEFG"),
+        "resolution": resolution,
+        "n_center_points": 0,
+    }
+    result = call(app, "api_make_design", spec)["result"]
+    assert result["n_runs"] == n_runs
+    assert result["facts"]["resolution"] == achieved
+
+
+def test_fractional_factorial_defaults_to_resolution_iv_not_the_half_fraction(app):
+    """Six factors: 16 runs at resolution IV, where the half fraction the page used to send has 32."""
+    spec = {"design_type": "fractional_factorial", "factors": SIX, "n_center_points": 0}
+    assert call(app, "api_make_design", spec)["result"]["n_runs"] == 16
+
+
+def test_fractional_factorial_refuses_a_resolution_above_the_factor_count(app):
+    reply = call(app, "api_make_design", {"design_type": "fractional_factorial", "factors": FACTORS, "resolution": 4})
+    assert not reply["ok"]
+    assert "resolution III" in reply["error"]
+
+
+@pytest.mark.parametrize(("k", "model"), [(4, "main_effects"), (5, "interactions")])
+def test_fraction_is_analysed_with_the_model_its_resolution_supports(app, k, model):
+    """Resolution IV keeps main effects clear; resolution V keeps two-factor interactions clear too."""
+    spec = {"design_type": "fractional_factorial", "factors": SIX[:k], "resolution": 4}
+    assert call(app, "api_make_design", spec)["result"]["model"] == model
+
+
+def test_ccd_uses_a_half_fraction_cube_from_six_factors(app):
+    spec = {"design_type": "ccd", "factors": SIX, "n_center_points": 3, "alpha": "face_centered"}
+    assert call(app, "api_make_design", spec)["result"]["n_runs"] == 32 + 12 + 3
+
+
+@pytest.mark.parametrize(
+    ("design_type", "k", "word"),
+    [("dsd", 2, "3 to"), ("box_behnken", 2, "3 to"), ("fractional_factorial", 2, "3 to"), ("i_optimal", 7, "to 6")],
+)
+def test_designs_outside_their_factor_range_are_refused(app, design_type, k, word):
+    reply = call(app, "api_make_design", {"design_type": design_type, "factors": factors_named(*"ABCDEFG"[:k])})
+    assert not reply["ok"]
+    assert word in reply["error"]
+
+
+def test_facts_name_main_effects_aliased_with_interactions(app):
+    """A 2^(3-1) design: each main effect shares its column with the other two factors' interaction."""
+    spec = {"design_type": "fractional_factorial", "factors": FACTORS}
+    facts = call(app, "api_make_design", spec)["result"]["facts"]
+    assert sorted(sorted(group) for group in facts["aliases"]) == [["F", "T·P"], ["P", "T·F"], ["P·F", "T"]]
+    assert any("Main effects are aliased with two-factor interactions" in note for note in facts["notes"])
+
+
+def test_facts_name_interactions_aliased_with_each_other(app):
+    names = ("Temp", "Pres", "Flow", "Cat")
+    spec = {"design_type": "fractional_factorial", "factors": factors_named(*names), "resolution": 4}
+    facts = call(app, "api_make_design", spec)["result"]["facts"]
+    assert sorted(sorted(group) for group in facts["aliases"]) == [
+        ["Flow·Cat", "Temp·Pres"],
+        ["Pres·Cat", "Temp·Flow"],
+        ["Pres·Flow", "Temp·Cat"],
+    ]
+    assert facts["generators"] == ["Cat = Temp·Pres·Flow"]
+
+
+@pytest.mark.parametrize("design_type", ["full_factorial", "dsd", "box_behnken", "ccd"])
+def test_facts_say_when_nothing_is_fully_aliased(app, design_type):
+    facts = call(app, "api_make_design", {"design_type": design_type, "factors": FACTORS})["result"]["facts"]
+    assert facts["aliases"] == []
+    assert any("No main effect or two-factor interaction is fully aliased" in note for note in facts["notes"])
+
+
+def test_plackett_burman_center_points_can_be_chosen(app):
+    spec = {"design_type": "plackett_burman", "factors": FACTORS, "n_center_points": 0}
+    result = call(app, "api_make_design", spec)["result"]
+    assert result["n_runs"] == 4
+    assert result["facts"]["center_runs"] == 0
+
+
 def test_workbook_round_trip_recovers_the_model(app):
     design = call(app, "api_make_design", {"design_type": "box_behnken", "factors": FACTORS})["result"]
     reply = call(app, "api_analyze", {"xlsx_base64": fill(design["xlsx_base64"], quadratic)})
@@ -234,6 +360,8 @@ def test_page_design_list_matches_bootstrap(app):
         assert option["label"] == info["label"], key
         assert option["data-hint"] == info["hint"], key
         assert option["data-options"].split() == info["options"], key
+        assert int(option["data-min-factors"]) == info["min_factors"], key
+        assert int(option["data-max-factors"]) == info["max_factors"], key
     selected = [o["value"] for o in parser.options if "selected" in o]
     assert selected == ["dsd"], "the page opens with definitive screening selected"
 

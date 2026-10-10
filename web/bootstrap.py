@@ -22,8 +22,10 @@ from __future__ import annotations
 
 import base64
 import io
+import itertools
 import json
 import math
+import re
 from typing import TYPE_CHECKING, Any
 
 import numpy as np
@@ -41,56 +43,113 @@ SPEC_VERSION = 1
 #: Design types the page offers. Each one is pure numpy / scipy, so it runs
 #: under WebAssembly. Excluded: ``omars_ilp`` (its HiGHS multistart needs
 #: scipy >= 1.15, newer than Pyodide's, and takes too long for a page).
+#:
+#: ``min_factors`` is what the construction needs. ``max_factors`` keeps the run
+#: sheet readable and the page responsive: a full factorial in 8 factors has 256
+#: runs, a Box-Behnken design jumps from 59 to 115 runs at 8 factors, and an
+#: I-optimal design for a quadratic in 6 factors already takes about 10 s under
+#: WebAssembly.
 DESIGNS: dict[str, dict[str, Any]] = {
     "full_factorial": {
         "label": "Full factorial (2-level)",
         "hint": "Every combination of low and high. 2^k runs, plus center points.",
         "model": "interactions",
         "options": ["n_center_points"],
+        "min_factors": 2,
+        "max_factors": 7,
     },
     "fractional_factorial": {
         "label": "Fractional factorial (2-level)",
-        "hint": "A fraction of the full factorial; main effects are aliased with interactions.",
+        "hint": (
+            "A fraction of the full factorial. Its resolution says what is aliased: at III, main effects "
+            "with two-factor interactions; at IV, two-factor interactions with each other; at V, neither."
+        ),
         "model": "main_effects",
-        "options": ["n_center_points"],
+        "options": ["n_center_points", "resolution"],
+        "min_factors": 3,
+        "max_factors": 11,
     },
     "plackett_burman": {
         "label": "Plackett-Burman screening",
-        "hint": "Main effects only, in a multiple of 4 runs.",
+        "hint": (
+            "Main effects only, in a multiple of 4 runs plus center points; each main effect is partly "
+            "or fully aliased with two-factor interactions."
+        ),
         "model": "main_effects",
-        "options": [],
+        "options": ["n_center_points"],
+        "min_factors": 2,
+        "max_factors": 11,
     },
     "dsd": {
         "label": "Definitive screening (DSD)",
         "hint": "Three levels, 2k+1 runs (2k+3 for odd k); main effects clear of interactions and quadratics.",
         "model": "main_effects",
         "options": [],
+        "min_factors": 3,
+        "max_factors": 12,
     },
     "box_behnken": {
         "label": "Box-Behnken",
-        "hint": "Response surface with every run inside the factor ranges (3 or more factors).",
+        "hint": "Response surface with every run inside the factor ranges and none at the corners.",
         "model": "quadratic",
         "options": ["n_center_points"],
+        "min_factors": 3,
+        "max_factors": 7,
     },
     "ccd": {
         "label": "Central composite (CCD)",
         "hint": "Response surface: factorial corners, axial points and center points.",
         "model": "quadratic",
         "options": ["n_center_points", "alpha"],
+        "min_factors": 2,
+        "max_factors": 7,
     },
     "d_optimal": {
         "label": "D-optimal",
         "hint": "Best estimates of the chosen model's coefficients for a fixed number of runs.",
         "model": "quadratic",
         "options": ["budget", "model_type"],
+        "min_factors": 2,
+        "max_factors": 8,
     },
     "i_optimal": {
         "label": "I-optimal",
         "hint": "Most precise predictions, on average over the factor space, for a fixed number of runs.",
         "model": "quadratic",
         "options": ["budget", "model_type"],
+        "min_factors": 2,
+        "max_factors": 6,
     },
 }
+
+#: Designs whose non-centre runs all lie on one sphere (Box-Behnken at any size, a
+#: rotatable CCD at 2 or 4 factors), so without a center run the squared terms sum
+#: to a constant and the quadratic model cannot be fitted.
+NEEDS_CENTER_RUN = {"box_behnken": None, "ccd": "rotatable"}
+
+#: Runs an optimal design gets beyond its model's coefficients, when no budget is
+#: given, so the fit keeps degrees of freedom to estimate the error.
+SPARE_RUNS = 4
+
+#: Fractional factorial resolutions offered on the page, and the default.
+RESOLUTIONS = (3, 4, 5)
+DEFAULT_RESOLUTION = 4
+
+#: From this resolution a fraction keeps two-factor interactions clear of main
+#: effects and of each other, so it can be analysed with them.
+INTERACTIONS_CLEAR_FROM = 5
+
+#: Terms whose centred columns have a correlation this close to 1 are fully aliased.
+ALIAS_TOLERANCE = 1e-9
+
+#: How many alias groups a summary sentence names before saying how many more.
+ALIASES_SHOWN = 4
+
+#: From this many factors a CCD uses a resolution V half fraction of the cube, the
+#: switch ``process_improve.experiments.strategy.budget`` assumes.
+CCD_HALF_FRACTION_FROM = 6
+
+ROMAN = {3: "III", 4: "IV", 5: "V", 6: "VI", 7: "VII", 8: "VIII"}
 
 #: The only models an uploaded workbook may request. Mapped by name, never
 #: parsed from the file, so a workbook cannot smuggle a patsy formula in.
@@ -156,6 +215,7 @@ def make_design(spec: dict) -> dict:
     if design_type not in DESIGNS:
         raise ValueError(f"Unknown design type {design_type!r}.")
     factors = _factors(spec)
+    _check_factor_count(design_type, len(factors))
     response = str(spec.get("response") or "y").strip()
     if not response.isidentifier() or response in {f.name for f in factors}:
         raise ValueError("The response name must be a variable name different from every factor.")
@@ -176,7 +236,7 @@ def make_design(spec: dict) -> dict:
         "design_type": design_type,
         "factors": [{"name": f.name, "low": f.low, "high": f.high, "units": f.units} for f in factors],
         "response": response,
-        "model": kwargs.get("model_type", DESIGNS[design_type]["model"]),
+        "model": kwargs.get("model_type") or _designed_model(design_type, result.resolution),
         "options": kwargs,
     }
     return {
@@ -185,29 +245,175 @@ def make_design(spec: dict) -> dict:
         "rows": [list(row) for row in runs.itertuples(index=False)],
         "outside_range": _outside_range(runs, factors),
         "model": stored["model"],
+        "facts": _design_facts(result, names, kwargs),
         "xlsx_base64": _to_workbook(runs, stored),
     }
+
+
+def _check_factor_count(design_type: str, n_factors: int) -> None:
+    """Refuse a design the factor count rules out, saying which counts it takes."""
+    info = DESIGNS[design_type]
+    low, high = info["min_factors"], info["max_factors"]
+    if not low <= n_factors <= high:
+        raise ValueError(
+            f"The {info['label']} design takes {low} to {high} factors on this page; you have {n_factors}."
+        )
+
+
+def _designed_model(design_type: str, resolution: int | None) -> str:
+    """Name the model a design is analysed with when the reader does not choose one.
+
+    A fraction keeps two-factor interactions clear of main effects and of each other
+    only from resolution V, so below that it is analysed for its main effects.
+    """
+    if design_type == "fractional_factorial" and (resolution or 0) >= INTERACTIONS_CLEAR_FROM:
+        return "interactions"
+    return DESIGNS[design_type]["model"]
 
 
 def _design_options(spec: dict, design_type: str) -> dict[str, Any]:
     """Pick the ``generate_design`` keyword arguments this design type accepts."""
     kwargs: dict[str, Any] = {"random_state": int(spec.get("random_state", spec.get("random_seed", 42)))}
     allowed = DESIGNS[design_type]["options"]
+    n_factors = len(spec.get("factors") or [])
     if "n_center_points" in allowed:
-        kwargs["n_center_points"] = int(spec.get("n_center_points", 3))
+        kwargs["n_center_points"] = _center_points(spec, design_type)
     if "alpha" in allowed:
         alpha = spec.get("alpha", "face_centered")
         if alpha not in ALPHAS:
             raise ValueError(f"Unknown axial distance {alpha!r}.")
         kwargs["alpha"] = alpha
-    if "budget" in allowed and spec.get("budget"):
-        kwargs["budget"] = int(spec["budget"])
+    if design_type == "ccd" and n_factors >= CCD_HALF_FRACTION_FROM:
+        kwargs["cube"] = "fractional"
+    if "resolution" in allowed:
+        kwargs["resolution"] = _resolution(spec, n_factors)
     if "model_type" in allowed:
         model_type = spec.get("model_type", "quadratic")
         if model_type not in MODELS:
             raise ValueError(f"Unknown model {model_type!r}.")
         kwargs["model_type"] = model_type
+        budget = spec.get("budget")
+        kwargs["budget"] = int(budget) if budget else _n_terms(n_factors, model_type) + SPARE_RUNS
     return kwargs
+
+
+def _center_points(spec: dict, design_type: str) -> int:
+    """Read the number of center runs, refusing none where the quadratic model would be singular."""
+    n_center = int(spec.get("n_center_points", 3))
+    if n_center < 0:
+        raise ValueError("The number of center points cannot be negative.")
+    if design_type in NEEDS_CENTER_RUN and n_center == 0:
+        alpha = NEEDS_CENTER_RUN[design_type]
+        if alpha is None or spec.get("alpha", "face_centered") == alpha:
+            raise ValueError(
+                "This design needs at least one center point: without one every other run lies on one sphere "
+                "around the center, so the squared terms cannot be told apart from the intercept."
+            )
+    return n_center
+
+
+def _resolution(spec: dict, n_factors: int) -> int:
+    """Read the resolution asked for, which can be at most the number of factors."""
+    highest = min(max(RESOLUTIONS), n_factors)
+    resolution = int(spec.get("resolution") or min(DEFAULT_RESOLUTION, highest))
+    if not min(RESOLUTIONS) <= resolution <= highest:
+        allowed = " to ".join(dict.fromkeys(ROMAN[r] for r in (min(RESOLUTIONS), highest)))
+        raise ValueError(
+            f"A fractional factorial in {n_factors} factors can have resolution {allowed} "
+            f"on this page, not {ROMAN.get(resolution, resolution)}."
+        )
+    return resolution
+
+
+def _design_facts(result: Any, names: list[str], kwargs: dict[str, Any]) -> dict[str, Any]:  # noqa: ANN401
+    """State what the generated design is, read off the design rather than its type.
+
+    A fraction's resolution and generators come from the library; which main effects and
+    two-factor interactions are fully aliased is read from the coded runs, so it holds for
+    every design type and every naming of the factors. ``notes`` are the sentences the
+    page shows.
+    """
+    coded = result.design[names].to_numpy(dtype=float)
+    groups = _aliased_groups(coded, names)
+    notes = []
+    if result.resolution:
+        generators = [_spaced(g, names) for g in result.generators or []]
+        label = "generator" if len(generators) == 1 else "generators"
+        notes.append(f"Resolution {ROMAN.get(result.resolution, result.resolution)}, {label} {', '.join(generators)}.")
+    notes.append(_aliasing_sentence(groups))
+    asked = kwargs.get("budget")
+    if asked and len(coded) > asked:
+        model = kwargs["model_type"]
+        notes.append(
+            f"You asked for {asked} runs; the {model.replace('_', ' ')} model in {len(names)} factors has "
+            f"{_n_terms(len(names), model)} coefficients, so the design has {len(coded)} runs."
+        )
+    return {
+        "resolution": result.resolution,
+        "generators": [_spaced(g, names) for g in result.generators or []],
+        "defining_relation": [_spaced(w, names) for w in result.defining_relation or []],
+        "aliases": groups,
+        "center_runs": int(np.all(np.abs(coded) < ALIAS_TOLERANCE, axis=1).sum()),
+        "notes": notes,
+    }
+
+
+def _aliased_groups(coded: np.ndarray, names: list[str]) -> list[list[str]]:
+    """Group the main effects and two-factor interactions the design cannot tell apart.
+
+    Two terms are fully aliased when their centred columns are parallel, so the data
+    determine only their sum (or difference). A partial correlation, such as the 1/3
+    between a main effect and an interaction in a 12-run Plackett-Burman design, is not
+    aliasing in this sense. Each group lists its main effect first.
+    """
+    pairs = list(itertools.combinations(range(len(names)), 2))
+    labels = list(names) + [f"{names[i]}·{names[j]}" for i, j in pairs]
+    columns = np.column_stack([coded, *[coded[:, i] * coded[:, j] for i, j in pairs]])
+    centred = columns - columns.mean(axis=0)
+    norms = np.linalg.norm(centred, axis=0)
+    varying = np.flatnonzero(norms > ALIAS_TOLERANCE)
+    unit = centred[:, varying] / norms[varying]
+    parallel = np.abs(unit.T @ unit) > 1 - ALIAS_TOLERANCE
+    groups, placed = [], set()
+    for i in range(len(varying)):
+        if i in placed:
+            continue
+        members = np.flatnonzero(parallel[i]).tolist()
+        placed.update(members)
+        if len(members) > 1:
+            groups.append([labels[varying[m]] for m in members])
+    return groups
+
+
+def _aliasing_sentence(groups: list[list[str]]) -> str:
+    """Say in one sentence what the alias groups mean for the analysis."""
+    if not groups:
+        return "No main effect or two-factor interaction is fully aliased with another."
+    mixed = [g for g in groups if any("·" not in term for term in g)]
+    shown = mixed or groups
+    listed = "; ".join(" = ".join(g) for g in shown[:ALIASES_SHOWN])
+    more = f"; and {len(shown) - ALIASES_SHOWN} more" if len(shown) > ALIASES_SHOWN else ""
+    if mixed:
+        return f"Main effects are aliased with two-factor interactions: {listed}{more}."
+    return f"Main effects are clear of two-factor interactions, which are aliased with each other: {listed}{more}."
+
+
+def _spaced(word: str, names: list[str]) -> str:
+    """Write a generator or defining word with its factors apart: ``D=ABC`` as ``D = A·B·C``.
+
+    The library writes the factors of a word side by side, which is ambiguous to read
+    when the names are longer than a letter. A word that does not split into the factor
+    names is left as the library wrote it.
+    """
+    pattern = re.compile("|".join(re.escape(n) for n in sorted(names, key=len, reverse=True)))
+
+    def split(part: str) -> str:
+        sign, body = ("-", part[1:]) if part.startswith("-") else ("", part.lstrip("+"))
+        found = pattern.findall(body)
+        return sign + "·".join(found) if found and "".join(found) == body else part
+
+    left, _, right = (side.strip() for side in word.partition("="))
+    return f"{left if left == 'I' else split(left)} = {split(right)}"
 
 
 def _outside_range(runs: pd.DataFrame, factors: list[Factor]) -> list[str]:

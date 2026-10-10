@@ -243,6 +243,27 @@ those changes.
   - `DesignResult.run_order`'s docstring said "Randomized run order", which invites the
     same misreading; it now says what the list holds.
 
+- **The browser app no longer generates designs it cannot analyse, or that grow out of
+  hand.**
+  - D- and I-optimal designs: the page sent 16 runs whatever the model, so six factors
+    and a quadratic model (28 coefficients) came back with 28 runs and nothing left to
+    estimate the error. The default is now the model's coefficients plus four, and a run
+    count raised by the library is reported.
+  - Box-Behnken designs, and a rotatable CCD, need at least one center point: without one
+    every other run lies on one sphere, so the squared terms cannot be told apart from
+    the intercept.
+  - Fractional factorials take a resolution (III, IV or V, up to the number of factors;
+    IV by default) instead of always the half fraction, which had 32, 64 and 128 runs at
+    6, 7 and 8 factors. A fraction of resolution V or more is analysed with its two-factor
+    interactions. A CCD uses a half-fraction cube from six factors.
+  - Each design takes a range of factor counts, and is unavailable outside it, with the
+    reason shown; for example, an I-optimal design is limited to six factors, since its
+    search already takes about 10 s under WebAssembly at six.
+  - The summary states the generated design's resolution, generators and fully aliased
+    effects, read off the design itself, instead of a fixed hint that called every
+    fraction's main effects aliased with interactions. Plackett-Burman designs show their
+    center points, which the page added without a control.
+
 - **`analyze_experiment` no longer blames the design for badly scaled units.** It took
   the model matrix's rank in the factors' own units. In very unequal units, or with a
   span that is tiny next to its distance from zero, that rank drops in floating point.
