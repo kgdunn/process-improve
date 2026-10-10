@@ -1,3 +1,7 @@
+:description: The checklist to fill in before running the first experiment: objective, outcome
+   variables, type of study, practicalities, factors, disturbances and what success looks
+   like, with a worked example.
+
 Plan your own experiment
 ========================
 
