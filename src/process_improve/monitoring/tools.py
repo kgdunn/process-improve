@@ -40,13 +40,17 @@ class ControlChartInput(BaseModel):
         min_length=5,
         description="Time-ordered sequence of numeric observations.",
     )
-    chart_type: Literal["shewhart", "holt_winters"] = Field(
+    chart_type: Literal["shewhart", "holt_winters", "ewma", "cusum"] = Field(
         "holt_winters",
         description=(
             "Type of control chart. 'shewhart': individual observations chart. "
             "'holt_winters' (default): a robust chart blending Shewhart "
             "(no-history) and CUSUM-like (infinite-history) properties via its "
-            "smoothing parameters. A standalone CUSUM chart is not implemented."
+            "smoothing parameters. 'ewma': exponentially weighted moving average "
+            "chart (weight 0.2), which detects a small sustained shift in the mean "
+            "that a Shewhart chart misses. 'cusum': tabular cumulative sum chart "
+            "(k = 0.5, h = 5, in units of the spread), which also detects a small "
+            "sustained shift, and dates its start and estimates the new mean."
         ),
     )
     style: Literal["robust", "regular"] = Field(
@@ -59,8 +63,13 @@ class ControlChartInput(BaseModel):
     name="control_chart",
     description=(
         "Build a control chart for a sequence of numeric observations and identify out-of-control points. "
-        "Supports Shewhart (xbar) and Holt-Winters (HW) chart types; the Holt-Winters chart blends "
-        "Shewhart and CUSUM-like behaviour through its smoothing parameters. "
+        "Supports Shewhart (xbar), Holt-Winters (HW), EWMA and CUSUM chart types; the Holt-Winters chart "
+        "blends Shewhart and CUSUM-like behaviour through its smoothing parameters. For the EWMA chart the "
+        "limits are the steady-state limits of the EWMA statistic, and a point is out of control when "
+        "the statistic, not the observation, is outside them. The CUSUM chart has no limits on the "
+        "observations: a point is out of control when the upper or lower cumulative sum exceeds the "
+        "decision interval, and each alarm in `cusum_alarms` gives its direction, the sample where the "
+        "shift is estimated to have started, and the estimated new mean. "
         "The robust style (default) uses median and MAD instead of mean and std, making it resistant "
         "to outliers in the Phase-I data. "
         "Returns the calculated target (center line), upper and lower control limits, and indices of "
@@ -73,6 +82,12 @@ class ControlChartInput(BaseModel):
 
     # "Build a Shewhart chart for my process data"
         -> ``control_chart(values=[...], chart_type="shewhart")``
+
+    # "Has the mean of my process drifted by a small amount?"
+        -> ``control_chart(values=[...], chart_type="ewma")``
+
+    # "When did the mean of my process shift, and to what?"
+        -> ``control_chart(values=[...], chart_type="cusum")``
     """,
     category="monitoring",
 )
@@ -83,6 +98,8 @@ def control_chart(spec: ControlChartInput) -> dict[str, Any]:
     variant_map = {
         "shewhart": "xbar.no.subgroup",
         "holt_winters": "hw",
+        "ewma": "ewma",
+        "cusum": "cusum",
     }
     variant = variant_map.get(spec.chart_type, "hw")
 
@@ -93,25 +110,38 @@ def control_chart(spec: ControlChartInput) -> dict[str, Any]:
 
         target = cc.target
         s = cc.s
-        ucl = target + 3 * s if s is not None and target is not None else None
-        lcl = target - 3 * s if s is not None and target is not None else None
+        is_ewma, is_cusum = spec.chart_type == "ewma", spec.chart_type == "cusum"
+        ucl = lcl = None
+        if target is not None and s is not None and not is_cusum:
+            # The EWMA statistic averages recent samples, so its limits are narrower; the
+            # steady-state width is 3 s sqrt(w / (2 - w)), and a weight w = 1 gives the 3 s of Shewhart.
+            weight = cc.ld_1 if is_ewma and cc.ld_1 is not None else 1.0
+            half_width = 3 * s * float(np.sqrt(weight / (2 - weight)))
+            ucl, lcl = target + half_width, target - half_width
         ooc_indices = list(cc.idx_outside_3S) if cc.idx_outside_3S else []
         ooc_values = [float(spec.values[i]) for i in ooc_indices if i < len(spec.values)]
 
-        return clean(
-            {
-                "target": target,
-                "upper_control_limit": ucl,
-                "lower_control_limit": lcl,
-                "spread": s,
-                "out_of_control_indices": ooc_indices,
-                "out_of_control_values": ooc_values,
-                "n_out_of_control": len(ooc_indices),
-                "n_observations": len(spec.values),
-                "chart_type": spec.chart_type,
-                "style": spec.style,
-            }
-        )
+        result: dict[str, Any] = {
+            "target": target,
+            "upper_control_limit": ucl,
+            "lower_control_limit": lcl,
+            "spread": s,
+            "out_of_control_indices": ooc_indices,
+            "out_of_control_values": ooc_values,
+            "n_out_of_control": len(ooc_indices),
+            "n_observations": len(spec.values),
+            "chart_type": spec.chart_type,
+            "style": spec.style,
+        }
+        if is_ewma:
+            result["ewma_weight"] = cc.ld_1
+            result["out_of_control_ewma"] = cc.df["ewma"].to_numpy()[ooc_indices]
+        if is_cusum and s is not None:
+            # The sums are compared with the decision interval, not the observations with limits.
+            result["reference_value"] = cc.k * s
+            result["decision_interval"] = cc.h * s
+            result["cusum_alarms"] = cc.cusum_alarms.reset_index().to_dict("records")
+        return clean(result)
     except (ValueError, TypeError, KeyError) as exc:
         return {"error": str(exc)}
 

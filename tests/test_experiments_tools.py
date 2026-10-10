@@ -331,6 +331,28 @@ class TestAnalyzeExperiment:
         assert tests["Temperature"]["df_denominator"] == pytest.approx(3.0)
         assert result["split_plot"]["significant_terms"] == ["Coating", "Temperature:Coating"]
 
+    def test_coded_coefficients_hand_off_to_optimize_responses(self) -> None:
+        """An agent analysing actual units passes coding='coded', and the optimum comes back in actual units."""
+        rows = [
+            {"T": t, "P": p, "y": y}
+            for t, p, y in [
+                (150, 1, 10.0),
+                (200, 1, 18.0),
+                (150, 3, 13.0),
+                (200, 3, 25.0),
+                (175, 2, 16.0),
+                (175, 2, 16.8),
+            ]
+        ]
+        request = {"design_matrix": rows, "response_column": "y", "model": "y ~ T * P", "analysis_type": "coefficients"}
+        goal = [{"goal": "maximize", "low": 10, "high": 25}]
+        actual = execute_tool_call("analyze_experiment", request)
+        refused = execute_tool_call("optimize_responses", {"fitted_models": [actual], "goals": goal})
+        assert "coding='coded'" in refused["error"]
+        coded = execute_tool_call("analyze_experiment", {**request, "coding": "coded"})
+        best = execute_tool_call("optimize_responses", {"fitted_models": [coded], "goals": goal})
+        assert best["desirability"]["optimal_actual"] == pytest.approx({"T": 200.0, "P": 3.0})
+
     def test_invalid_response_column_returns_error(self) -> None:
         """Referencing a missing response column should return an error dict."""
         result = execute_tool_call(

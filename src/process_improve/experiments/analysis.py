@@ -14,9 +14,10 @@ from __future__ import annotations
 
 import keyword
 import logging
+import numbers
 import re
 import warnings
-from collections.abc import Callable, Collection
+from collections.abc import Callable, Collection, Mapping
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -57,7 +58,7 @@ from process_improve.experiments._analyses.ols_extractors import (
     _run_significance,
 )
 from process_improve.experiments._analyses.prediction import _run_confirmation_test, _run_prediction
-from process_improve.experiments._analyses.split_plot import run_split_plot, sum_coded
+from process_improve.experiments._analyses.split_plot import _readable, run_split_plot, sum_coded, sum_coding_env
 from process_improve.experiments._analyses.transforms import transform_response, validate_transform
 from process_improve.experiments.designs_mixture_constrained import SCHEFFE_MODELS, scheffe_formula_rhs
 from process_improve.experiments.models import validate_formula_is_safe, validate_identifier_is_safe
@@ -373,6 +374,53 @@ def _code_factor(column: pd.Series) -> tuple[pd.Series, dict[str, Any] | None]:
     return column.map({levels[0]: -1.0, levels[1]: 1.0}).astype(float), {"low": levels[0], "high": levels[1]}
 
 
+def _coefficient_coding(
+    column: pd.Series, bounds: Mapping[str, float] | None
+) -> tuple[pd.Series, dict[str, Any] | None]:
+    """Code one factor for the coded coefficients: from the range given, else as for the effects.
+
+    A categorical factor without exactly two levels is left as it is: in a named model it
+    is sum-coded in the formula instead.
+    """
+    if bounds is not None:
+        low, high = _coding_range(str(column.name), bounds)
+        return (column - (high + low) / 2) / ((high - low) / 2), {"low": low, "high": high}
+    if not _is_numeric(column) and column.nunique() != 2:
+        return column, None
+    return _code_factor(column)
+
+
+def _coding_range(name: str, bounds: object) -> tuple[float, float]:
+    """Read one factor's ``{"low": ..., "high": ...}`` coding range, checking it is finite and increasing."""
+    pair = [bounds.get(key) for key in ("low", "high")] if isinstance(bounds, Mapping) else []
+    values = [float(v) for v in pair if isinstance(v, numbers.Real)]
+    if len(values) == 2 and np.isfinite(values).all() and values[0] < values[1]:
+        return values[0], values[1]
+    raise ValueError(f"coding[{name!r}] must be {{'low': ..., 'high': ...}} with finite low < high; got {bounds!r}.")
+
+
+def _check_coding(coding: object, df: pd.DataFrame, factor_cols: list[str], model: str) -> None:
+    """Check ``coding``: ``"actual"``, ``"coded"``, or a ``{"low", "high"}`` range per numeric factor."""
+    if isinstance(coding, Mapping):
+        for name, bounds in coding.items():
+            if name not in factor_cols:
+                raise ValueError(
+                    f"coding gives a range for {name!r}, which is not a factor; the factors are {factor_cols}."
+                )
+            if not _is_numeric(df[str(name)]):
+                raise ValueError(
+                    f"coding gives a range for {name!r}, a categorical factor; give ranges for numeric ones."
+                )
+            _coding_range(name, bounds)
+    elif coding not in ("actual", "coded"):
+        raise ValueError(f"coding must be 'actual', 'coded', or a dict of factor ranges; got {coding!r}.")
+    if coding != "actual" and model in SCHEFFE_MODELS:
+        raise ValueError(
+            "A Scheffe mixture model has no coded scale: its components are proportions that sum to 1, and "
+            "coding each one from -1 to +1 would break that. Use coding='actual'."
+        )
+
+
 @dataclass
 class _Fit:
     """A fitted model and what the analyses need from the call that made it."""
@@ -387,7 +435,9 @@ class _Fit:
     transform_info: dict[str, Any]
     alpha: float
     whole_plot: str = WHOLE_PLOT_COL
+    coding: str | Mapping[str, Mapping[str, float]] = "actual"
     _coded: tuple[RegressionResultsWrapper, dict[str, Any]] | None = None
+    _coefficient_fit: RegressionResultsWrapper | None = None
     _reduced: tuple[RegressionResultsWrapper, dict[str, str]] | None = None
 
     @property
@@ -413,6 +463,36 @@ class _Fit:
                 self._coded = (self.ols, {})
         return self._coded
 
+    def factor_coding(self) -> tuple[pd.DataFrame, dict[str, Any]]:
+        """Return the data on the coefficients' coded scale, and how each factor not already on it was coded."""
+        ranges = self.coding if isinstance(self.coding, Mapping) else {}
+        coded_df = self.df.copy()
+        coding: dict[str, Any] = {}
+        for col in self.factor_cols:
+            coded_df[col], how = _coefficient_coding(self.df[col], ranges.get(col))
+            if how is not None:
+                coding[col] = how
+        return coded_df, coding
+
+    def coefficient_fit(self) -> RegressionResultsWrapper:
+        """Return the fit the coefficients are read from: the fit itself, or its refit on the coded scale."""
+        if self.coding == "actual":
+            return self.ols
+        if self._coefficient_fit is None:
+            coded_df, coding = self.factor_coding()
+            formula = self.ols.model.formula
+            several = [c for c in self.factor_cols if not _is_numeric(self.df[c]) and self.df[c].nunique() > 2]
+            if several and self.model in _NAMED_MODELS:
+                formula = sum_coded(formula, several)
+            if not coding and formula == self.ols.model.formula:
+                self._coefficient_fit = self.ols
+            else:
+                with warnings.catch_warnings():
+                    warnings.simplefilter("ignore")  # the rank warning was already given for the fit
+                    self._coefficient_fit = smf.ols(formula, data=coded_df, eval_env=sum_coding_env()).fit()
+                _warn_if_not_reparametrised(self.ols, self._coefficient_fit)
+        return self._coefficient_fit
+
     def reduced(self) -> tuple[RegressionResultsWrapper, dict[str, str]]:
         """Return the fit on one column per alias chain, with the chain name of each retained column."""
         if self._reduced is None:
@@ -428,6 +508,51 @@ def _effects(fit: _Fit, *, lenth: bool) -> dict[str, Any]:
     result = _run_lenth_method(coded, fit.alpha, blocks=fit.blocks) if lenth else _run_effects(coded, blocks=fit.blocks)
     if coding:
         result["effects_coding"] = coding
+    return result
+
+
+def _rank(fit: RegressionResultsWrapper) -> int:
+    return int(getattr(fit.model, "rank", np.linalg.matrix_rank(fit.model.exog)))
+
+
+def _warn_if_not_reparametrised(fit: RegressionResultsWrapper, coded: RegressionResultsWrapper) -> None:
+    """Warn when the coded refit fits differently from the fit itself, saying which one to doubt.
+
+    Coding a factor shifts its origin and rescales it. In a hierarchical model that only
+    re-expresses the same fit, so the fitted values agree. They differ for one of two
+    reasons. Factors in units of very different size (pascals beside kelvin, say) can make
+    the fit as given lose rank in floating point, which coding the factors repairs. Or the
+    model is not hierarchical: with ``A:B`` and no ``B``, or ``I(A**2)`` and no ``A``, it
+    spans a different space once ``A`` and ``B`` are centred.
+    """
+    scale = 1.0 + float(np.abs(fit.fittedvalues).max())
+    if np.allclose(coded.fittedvalues, fit.fittedvalues, rtol=0.0, atol=1e-8 * scale):
+        return
+    if _rank(coded) > _rank(fit):
+        message = (
+            f"The factors' units are scaled so differently that the fit as given lost rank in floating point "
+            f"({_rank(fit)} of {_rank(coded)} columns), so it, its model_summary and the analyses other than the "
+            "coefficients are unreliable; the coded coefficients are not affected. Code the factors to -1/+1 "
+            "before analysing."
+        )
+    else:
+        message = (
+            "On the coded scale this model fits the data differently, so the coded coefficients do not describe "
+            "the fit in model_summary. A model with an interaction or a square but not the main effects below it "
+            "is not the same model once its factors are centred; add those main effects, or use coding='actual'."
+        )
+    warnings.warn(message, category=UserWarning, stacklevel=4)
+
+
+def _coefficients(fit: _Fit, analysis: str) -> dict[str, Any]:
+    """Return the coefficients, or their confidence intervals, on the scale ``coding`` asks for."""
+    ols = fit.coefficient_fit()
+    result = _run_coefficients(ols) if analysis == "coefficients" else _run_confidence_intervals(ols, fit.alpha)
+    for row in result[analysis]:
+        row["term"] = _readable(row["term"])
+    result["coding"] = "actual" if fit.coding == "actual" else "coded"
+    if fit.model not in SCHEFFE_MODELS and (coding := fit.factor_coding()[1]):
+        result["factor_coding"] = coding
     return result
 
 
@@ -476,7 +601,7 @@ def _handlers(
     handlers: dict[str, Callable[[], dict[str, Any]]] = {
         "anova": lambda: _run_anova(fit.reduced()[0], labels=fit.reduced()[1], blocks=fit.blocks),
         "effects": lambda: _effects(fit, lenth=False),
-        "coefficients": lambda: _run_coefficients(fit.ols),
+        "coefficients": lambda: _coefficients(fit, "coefficients"),
         "significance": lambda: _run_significance(
             fit.reduced()[0], fit.alpha, labels=fit.reduced()[1], blocks=fit.blocks
         ),
@@ -488,7 +613,7 @@ def _handlers(
         "model_selection": lambda: _run_model_selection(fit.df, fit.response_col, fit.factor_cols, model=fit.model),
         "box_cox": box_cox,
         "lenth_method": lambda: _effects(fit, lenth=True),
-        "confidence_intervals": lambda: _run_confidence_intervals(fit.ols, fit.alpha),
+        "confidence_intervals": lambda: _coefficients(fit, "confidence_intervals"),
         "prediction": prediction,
         "confirmation_test": confirmation,
         "split_plot": lambda: _split_plot(fit),
@@ -512,7 +637,7 @@ def analyze_experiment(  # noqa: PLR0913
     analysis_type: str | list[str] = "anova",
     significance_level: float = 0.05,
     transform: str | None = None,
-    coding: str = "coded",
+    coding: str | Mapping[str, Mapping[str, float]] = "actual",
     new_points: pd.DataFrame | None = None,
     observed_at_new: list[float] | None = None,
     response_column: str | None = None,
@@ -594,9 +719,29 @@ def analyze_experiment(  # noqa: PLR0913
         transformed the same way before they are compared. Box-Cox chooses ``lambda``
         by the profile likelihood of the model. A response outside the transform's
         domain raises ``ValueError``.
-    coding : str, default ``"coded"``
-        Reserved for a future coded/actual factor-scale switch. Currently
-        accepted for API stability but not consumed by the analysis.
+    coding : {"actual", "coded"} or dict, default ``"actual"``
+        The scale of the ``"coefficients"`` and the ``"confidence_intervals"``; the other
+        analyses do not use it.
+
+        - ``"actual"``: the factors as given.
+        - ``"coded"``: the model refitted with each numeric factor mapped from its minimum
+          and maximum to -1 and +1 (a factor already in coded units is left as it is), a
+          two-level categorical factor from its first level to its second, as for the
+          effects, and, in a named model, a categorical factor with more levels given
+          sum-to-zero contrasts.
+        - A dict such as ``{"T": {"low": 150, "high": 200}}``: as ``"coded"``, but each
+          factor it names is mapped from that range, the same form as
+          ``optimize_responses``' ``factor_ranges``. Use it when the data's extremes are not
+          the levels that should be -1 and +1, such as a central composite design's axial
+          runs.
+
+        On the coded scale a coefficient is half the change in response across its factor's
+        range, and in a model with interactions a main effect is tested at the centre of the
+        design. On the actual scale it is tested where the other factors are zero, which can
+        be far outside the experiment (0 degC, say), so its sign and p-value can differ.
+        ``optimize_responses`` evaluates models at coded settings, so pass it coded
+        coefficients. The result reports the scale as ``coding``, and, as ``factor_coding``,
+        the ``low`` and ``high`` that map to -1 and +1 for each factor not already coded.
     new_points : DataFrame or None
         For prediction or confirmation testing. In a blocked model, points without
         the block contrast columns are predicted for the average block.
@@ -704,6 +849,7 @@ def analyze_experiment(  # noqa: PLR0913
         *([whole_plot_col] if "split_plot" in types else []),
     ]
     df = _drop_incomplete_runs(df, used)
+    _check_coding(coding, df, factor_cols, model)
 
     categorical = [c for c in factor_cols if not _is_numeric(df[c])]
     formula = build_formula(response_col, factor_cols, model, categorical)
@@ -742,6 +888,7 @@ def analyze_experiment(  # noqa: PLR0913
         transform_info=transform_info,
         alpha=significance_level,
         whole_plot=whole_plot_col,
+        coding=coding,
     )
     handlers = _handlers(fit, new_points, observed_at_new)
     for t in types:

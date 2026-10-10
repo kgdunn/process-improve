@@ -213,13 +213,13 @@ def test_calculate_limits_rejects_non_positive_s() -> None:
 
 
 def test_unsupported_variant_cannot_estimate_limits() -> None:
-    """A variant with no fitting routine (e.g. cusum) is rejected at construction.
+    """A variant with no fitting routine (e.g. a moving-range chart) is rejected at construction.
 
     Previously it slipped through every fit branch and surfaced much later as
     a misleading "input is likely constant or too short" error.
     """
     with pytest.raises(ValueError, match="not implemented"):
-        ControlChart(variant="cusum")
+        ControlChart(variant="moving.range")
 
 
 def test_unknown_style_for_xbar_no_subgroup_raises() -> None:
@@ -229,6 +229,32 @@ def test_unknown_style_for_xbar_no_subgroup_raises() -> None:
     cc = ControlChart(style="banana", variant="xbar.no.subgroup")
     with pytest.raises(ValueError, match="could not be estimated"):
         cc.calculate_limits(y)
+
+
+@pytest.mark.parametrize("style", ["robust", "regular"])
+def test_xbar_no_subgroup_keeps_a_given_target_and_s(style: str) -> None:
+    """A given target and s are used as they are, and only a missing one is estimated.
+
+    Both used to be replaced by estimates from the data, so a chart could not be drawn
+    from known (Phase I) values, and a shift that had moved the data's own centre was
+    judged against that moved centre.
+    """
+    rng = np.random.default_rng(1)
+    y = np.concatenate([rng.normal(50, 2, 60), rng.normal(54, 2, 20)])  # a two-sigma shift at 60
+
+    def fit(**given: float) -> ControlChart:
+        chart = ControlChart(variant="xbar.no.subgroup", style=style)
+        chart.calculate_limits(y, **given)
+        return chart
+
+    known, estimated = fit(target=50.0, s=2.0), fit()
+    assert (known.target, known.s) == (50.0, 2.0)
+    assert known.idx_outside_3S == np.nonzero(np.abs(y - 50.0) > 6.0)[0].tolist()
+    assert len(known.idx_outside_3S) > len(estimated.idx_outside_3S)
+
+    only_target, only_s = fit(target=50.0), fit(s=2.0)
+    assert (only_target.target, only_target.s) == (50.0, estimated.s)
+    assert (only_s.target, only_s.s) == (estimated.target, 2.0)
 
 
 def test_hw_zero_mad_but_nonconstant_warmup_falls_back_to_std() -> None:
@@ -527,14 +553,9 @@ def test_control_chart_tool_default_holt_winters(in_control_series_with_one_outl
     assert any(abs(v - 15.0) < 1e-9 for v in result["out_of_control_values"])
 
 
-@pytest.mark.parametrize("chart_type", ["shewhart", "holt_winters"])
+@pytest.mark.parametrize("chart_type", ["shewhart", "holt_winters", "ewma", "cusum"])
 def test_control_chart_tool_supports_each_chart_type(chart_type: str) -> None:
-    """The Shewhart and Holt-Winters chart_types produce a valid result on a generic series.
-
-    'cusum' is also documented but its underlying ControlChart variant requires additional
-    setup beyond raw values, so it surfaces as an `error` dict here. Covered indirectly by
-    `test_control_chart_tool_returns_error_on_bad_input` (the same `except` branch).
-    """
+    """Every chart_type produces a valid result on a generic series."""
     rng = np.random.default_rng(0)
     values = [float(v) for v in rng.normal(loc=0.0, scale=1.0, size=40)]
     result = execute_tool_call("control_chart", {"values": values, "chart_type": chart_type})
