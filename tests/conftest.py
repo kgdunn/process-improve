@@ -9,7 +9,9 @@
 ``pytest --shard=2/4``
     Run the second of four duration-balanced slices. The four slices together
     are exactly the full suite. Durations come from ``tests/.test_durations.json``;
-    refresh that file with ``pytest --store-durations``.
+    refresh that file with ``pytest --no-cov --store-durations``. Stale entries
+    only cost balance, never correctness: every collected file lands in exactly
+    one shard.
 
 Both work under xdist (``-n auto``): each worker computes the same selection, so
 the workers agree on what was collected.
@@ -94,8 +96,13 @@ def pytest_runtest_logreport(report: pytest.TestReport) -> None:
     _seconds[report.nodeid.split("::")[0]] += report.duration
 
 
-def pytest_sessionfinish(session: pytest.Session) -> None:
-    """Write per-file durations when asked. Only the xdist controller writes."""
+def pytest_sessionfinish(session: pytest.Session, exitstatus: int) -> None:
+    """Treat "nothing affected" as success, and write per-file durations when asked."""
+    if exitstatus == pytest.ExitCode.NO_TESTS_COLLECTED and session.config.getoption("affected_since"):
+        session.exitstatus = pytest.ExitCode.OK  # a change no test can reach, such as CHANGELOG.md
+
+    # Only the xdist controller writes. Files this run did not touch keep their old entry.
     if session.config.getoption("store_durations") and not hasattr(session.config, "workerinput"):
-        durations = {name: round(seconds, 2) for name, seconds in sorted(_seconds.items())}
+        measured = {name: round(seconds, 2) for name, seconds in _seconds.items()}
+        durations = dict(sorted({**load_durations(DURATIONS), **measured}.items()))
         DURATIONS.write_text(json.dumps(durations, indent=1) + "\n", encoding="utf-8")
