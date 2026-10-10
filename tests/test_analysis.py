@@ -8,6 +8,7 @@ import warnings
 import numpy as np
 import pandas as pd
 import pytest
+import statsmodels.api as sm
 import statsmodels.formula.api as smf
 
 from process_improve.experiments import Factor, generate_design
@@ -1334,3 +1335,62 @@ class TestModelSelectionCriterion:
         )
         chosen = result["model_selection"]
         assert chosen["n_terms"] == len(chosen["selected_terms"]) + 1
+
+
+# ---------------------------------------------------------------------------
+# Terms are tested at the centre of the design, whatever the factors' units
+# ---------------------------------------------------------------------------
+
+
+class TestTestsAtTheCentre:
+    """The ANOVA and the significance list do not depend on where the factors' units put zero."""
+
+    CCD = np.array(
+        [[-1, -1], [1, -1], [-1, 1], [1, 1], [-1.414, 0], [1.414, 0], [0, -1.414], [0, 1.414], [0, 0], [0, 0]]
+    )
+
+    def _ccd(self, T: np.ndarray) -> pd.DataFrame:
+        x = self.CCD
+        y = 60 + x[:, 0] + 2 * x[:, 1] - 3 * x[:, 0] ** 2 - x[:, 1] ** 2 + 0.8 * x[:, 0] * x[:, 1]
+        return pd.DataFrame({"T": T, "P": x[:, 1], "y": y + np.random.default_rng(3).normal(0, 0.4, len(x))})
+
+    @staticmethod
+    def _anova(data: pd.DataFrame, model: str) -> dict[str, float]:
+        table = analyze_experiment(data, response_column="y", model=model, analysis_type="anova")["anova_table"]
+        return {row["source"]: row["p_value"] for row in table if row["p_value"] is not None}
+
+    def test_a_quadratic_anova_is_the_same_in_any_units(self) -> None:
+        """T's test is adjusted for T**2; measured from 0 degC that turns it into a test of the curvature."""
+        coded = self._anova(self._ccd(self.CCD[:, 0]), "quadratic")
+        for T in (175 + 25 * self.CCD[:, 0], 448.15 + 25 * self.CCD[:, 0]):
+            assert self._anova(self._ccd(T), "quadratic") == pytest.approx(coded, rel=1e-6)
+        as_given = smf.ols("y ~ T + P + T:P + I(T ** 2) + I(P ** 2)", data=self._ccd(175 + 25 * self.CCD[:, 0])).fit()
+        p_as_given = sm.stats.anova_lm(as_given, typ=2)["PR(>F)"]
+        assert coded["T"] == pytest.approx(0.0513, abs=1e-4)  # borderline at the centre
+        assert p_as_given["T"] == pytest.approx(p_as_given["I(T ** 2)"], rel=0.1)  # what was reported: T**2's
+
+    def test_significance_agrees_with_the_anova_in_any_units(self) -> None:
+        """With T in degC, P's slope was tested at 0 degC (p = 0.09) and P was left out."""
+        kwargs = {"response_column": "y", "model": "y ~ T * P", "analysis_type": ["anova", "significance"]}
+        for T in ([150.0, 200.0, 150.0, 200.0, 175.0, 175.0], [423.15, 473.15, 423.15, 473.15, 448.15, 448.15]):
+            data = pd.DataFrame({"T": T, "P": [1, 1, 3, 3, 2, 2], "y": [10.0, 18.0, 13.0, 25.0, 16.0, 16.8]})
+            result = analyze_experiment(data, **kwargs)
+            assert result["significant_terms"] == ["T", "P", "T:P"]
+
+    def test_a_model_that_coding_would_change_is_tested_as_given(self) -> None:
+        """``T:P`` without ``P`` is a different model once P is centred, so it is not centred."""
+        data = self._ccd(175 + 25 * self.CCD[:, 0])
+        expected = sm.stats.anova_lm(smf.ols("y ~ T + T:P", data=data).fit(), typ=2)["PR(>F)"].dropna()
+        assert self._anova(data, "y ~ T + T:P") == pytest.approx(expected.to_dict())
+
+    def test_units_too_unequal_for_floating_point_are_tested_coded(self) -> None:
+        """A tiny span far from zero loses the fit's rank; the coded fit, which keeps it, is tested."""
+        coded = self._anova(self._ccd(self.CCD[:, 0]), "quadratic")
+        assert self._anova(self._ccd(1e6 + 0.01 * self.CCD[:, 0]), "quadratic") == pytest.approx(coded, rel=1e-4)
+
+    def test_categorical_terms_keep_their_names(self) -> None:
+        data = pd.DataFrame(
+            {"T": [150.0, 200.0] * 4, "S": ["Dry"] * 4 + ["Wet"] * 4, "y": [10, 18, 11, 20, 14, 22, 15, 24.0]}
+        )
+        result = analyze_experiment(data, response_column="y", model="y ~ T * S", analysis_type="significance")
+        assert set(result["significant_terms"] + result["not_significant_terms"]) == {"T", "S[T.Wet]", "T:S[T.Wet]"}
