@@ -173,6 +173,44 @@ class TestRankDeficiency:
         # A coefficient is still reported for every requested term.
         assert len(result["coefficients"]) == 6
 
+    @staticmethod
+    def _three_factor_ccd(units: tuple[tuple[float, float], ...]) -> pd.DataFrame:
+        """Return a rotatable three-factor CCD with each factor at ``centre + half_range * x``."""
+        x = np.array(
+            [[a, b, c] for a in (-1, 1) for b in (-1, 1) for c in (-1, 1)]
+            + [[s * 1.68 if i == j else 0 for j in range(3)] for i in range(3) for s in (-1, 1)]
+            + [[0, 0, 0]] * 2
+        )
+        y = 50 + 3 * x[:, 0] - 2 * x[:, 1] + x[:, 2] - 2 * x[:, 0] ** 2 + x[:, 0] * x[:, 1]
+        data = {
+            name: centre + half * x[:, i] for i, (name, (centre, half)) in enumerate(zip("TPM", units, strict=True))
+        }
+        return pd.DataFrame({**data, "y": y + np.random.default_rng(1).normal(0, 0.3, len(x))})
+
+    def test_unequal_units_are_not_blamed_on_the_design(self) -> None:
+        """In K, Pa and s the matrix lost rank in floating point; the design can estimate all ten terms."""
+        df = self._three_factor_ccd(((450.15, 0.5), (2e5, 1e3), (3600.0, 1.0)))
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            summary = analyze_experiment(df, response_column="y", model="quadratic", analysis_type="anova")[
+                "model_summary"
+            ]
+        messages = [str(w.message) for w in caught if issubclass(w.category, RuntimeWarning)]
+        assert any("lost rank in floating point" in m for m in messages)
+        assert not any("not estimable from this design" in m for m in messages)
+        assert summary["model_rank"] == summary["n_terms"] == 10
+        assert summary["rank_deficient"] is False
+        assert summary["ill_conditioned"] is True
+
+    def test_reasonable_units_are_silent(self) -> None:
+        df = self._three_factor_ccd(((723.15, 25.0), (2.0, 1.0), (1.0, 0.25)))
+        with warnings.catch_warnings():
+            warnings.simplefilter("error", RuntimeWarning)
+            summary = analyze_experiment(df, response_column="y", model="quadratic", analysis_type="anova")[
+                "model_summary"
+            ]
+        assert summary["ill_conditioned"] is False
+
 
 # ---------------------------------------------------------------------------
 # ANOVA
