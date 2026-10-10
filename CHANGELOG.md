@@ -264,6 +264,20 @@ those changes.
     fraction's main effects aliased with interactions. Plackett-Burman designs show their
     center points, which the page added without a control.
 
+- **The browser app estimates aliased terms once, as their chain, and analyses saturated
+  designs.**
+  - When a design cannot tell terms apart, the fit listed each one with an equal share of
+    their joint estimate: in a 2^(3-1) design, T and P·F each read 2 where T is 4. The
+    page now refits with one term per alias chain, labelled with the whole chain
+    ("T + P·F"), and lists the terms that move with the intercept (the squares of a
+    two-level design without center points) as not estimable. A model the design cannot
+    fit, such as the quadratic in a 9-run DSD, is refused with that reason.
+  - A model that uses every run stopped with "needs more than N completed runs". The
+    effects of a two-level design are now judged with Lenth's method; any other
+    saturated fit says that nothing can be tested.
+  - The library's warnings, such as an even-k DSD leaving no error degrees of freedom,
+    are shown with the result; numerical noise from numpy and statsmodels is not.
+
 - **`analyze_experiment` no longer blames the design for badly scaled units.** It took
   the model matrix's rank in the factors' own units. In very unequal units, or with a
   span that is tiny next to its distance from zero, that rank drops in floating point.

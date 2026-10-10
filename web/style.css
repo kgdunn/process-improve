@@ -7,6 +7,7 @@
   --accent: #1f5fa8;
   --accent-fg: #ffffff;
   --error: #b3261e;
+  --warn: #a35f00;
   --ok: #1e7b3a;
   color-scheme: light;
 }
@@ -20,6 +21,7 @@
     --accent: #7fb0ea;
     --accent-fg: #0d1b2a;
     --error: #f2877f;
+    --warn: #e2a95a;
     --ok: #7fd49a;
     color-scheme: dark;
   }
@@ -33,6 +35,7 @@
   --accent: #7fb0ea;
   --accent-fg: #0d1b2a;
   --error: #f2877f;
+  --warn: #e2a95a;
   --ok: #7fd49a;
   color-scheme: dark;
 }
@@ -82,9 +85,12 @@ section {
 .error { color: var(--error); }
 .hint { color: var(--muted); font-size: 0.92rem; }
 .hint.error { color: var(--error); }
-/* What the generated design is: resolution, aliasing, a raised run count. */
-.facts { margin: 4px 0 12px; padding-left: 1.2em; color: var(--muted); font-size: 0.92rem; }
-.facts li { margin: 2px 0; overflow-wrap: anywhere; }
+/* What the generated design is (resolution, aliasing, a raised run count), and what an
+   analysis could not estimate. Warnings from the library are set apart by a rule. */
+.facts, .warnings { margin: 4px 0 12px; padding-left: 1.2em; font-size: 0.92rem; }
+.facts { color: var(--muted); }
+.facts li, .warnings li { margin: 2px 0; overflow-wrap: anywhere; }
+.warnings { border-left: 3px solid var(--warn); padding: 2px 0 2px 1.6em; color: var(--fg); }
 .equation { font-family: ui-monospace, "SFMono-Regular", Menlo, monospace; overflow-wrap: anywhere; }
 .row { display: flex; flex-wrap: wrap; gap: 16px; margin: 12px 0; }
 .row label, label[data-option] { display: flex; flex-direction: column; gap: 4px; font-size: 0.9rem; }

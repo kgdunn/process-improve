@@ -147,8 +147,6 @@ async function generate() {
     ? ` Some runs of ${r.outside_range.join(", ")} lie outside the ranges you entered; check they are safe to run.`
     : "";
   const centre = r.facts.center_runs ? `, ${r.facts.center_runs} of them at the center of the ranges` : "";
-  const facts = el("ul", "facts", "");
-  facts.append(...r.facts.notes.map((note) => el("li", "", note)));
   $("#design-summary").replaceChildren(
     el(
       "p",
@@ -156,7 +154,8 @@ async function generate() {
       `${r.n_runs} runs${centre}, listed in randomised run order. The workbook will be analysed with the ` +
         `${r.model.replace("_", " ")} model unless you choose another.${warn}`,
     ),
-    facts,
+    ...noteList(r.facts.notes),
+    ...warningList(reply.warnings),
   );
   renderTable($("#design-table"), r.columns, r.rows, "Run order");
   const blob = new Blob([Uint8Array.from(atob(r.xlsx_base64), (c) => c.charCodeAt(0))], {
@@ -180,7 +179,7 @@ async function analyse() {
   out.hidden = false;
   if (!reply.ok) {
     setStatus("The workbook could not be analysed.", "error");
-    out.replaceChildren(el("p", "error", reply.error));
+    out.replaceChildren(el("p", "error", reply.error), ...warningList(reply.warnings));
     return;
   }
   const r = reply.result;
@@ -196,19 +195,36 @@ async function analyse() {
         `predicted R² = ${fmt(s.r_squared_pred)}, residual degrees of freedom = ${s.df_residual}.` +
         (r.pending_runs.length ? ` Still to run: ${r.pending_runs.join(", ")}.` : ""),
     ),
+    ...noteList(r.notes),
+    ...warningList(reply.warnings),
     el("h3", "", "Coefficients"),
     table(
       ["Term", "Coefficient", "Std. error", "95% interval", "p-value"],
       r.coefficients.map((c) => [
-        c.term, fmt(c.coefficient), fmt(c.std_error), `${fmt(c.ci_low)} to ${fmt(c.ci_high)}`, pval(c.p_value),
+        c.label, fmt(c.coefficient), fmt(c.std_error), c.std_error === null ? "" : `${fmt(c.ci_low)} to ${fmt(c.ci_high)}`,
+        pval(c.p_value),
       ]),
     ),
-    el("h3", "", "ANOVA"),
-    table(
-      ["Source", "df", "Sum of squares", "F", "p-value"],
-      r.anova.map((a) => [a.source, a.df, fmt(a.sum_sq), fmt(a.F), pval(a.p_value)]),
-    ),
   ];
+  if (r.lenth) {
+    parts.push(
+      el("h3", "", "Effects, judged with Lenth's method"),
+      el("p", "hint", `Pseudo standard error PSE = ${fmt(r.lenth.PSE)}; margins ME = ${fmt(r.lenth.ME)} and SME = ${fmt(r.lenth.SME)}.`),
+      table(
+        ["Term", "Effect", "Beyond ME", "Beyond SME"],
+        r.lenth.effects.map((e) => [e.label, fmt(e.effect), e.active_ME ? "yes" : "no", e.active_SME ? "yes" : "no"]),
+      ),
+    );
+  }
+  if (r.anova.length) {
+    parts.push(
+      el("h3", "", "ANOVA"),
+      table(
+        ["Source", "df", "Sum of squares", "F", "p-value"],
+        r.anova.map((a) => [a.source, a.df, fmt(a.sum_sq), fmt(a.F), pval(a.p_value)]),
+      ),
+    );
+  }
   const lof = r.lack_of_fit;
   if (lof && lof.p_value !== null && lof.p_value !== undefined) {
     parts.push(
@@ -234,6 +250,17 @@ async function readUpload(file) {
 // ---------------------------------------------------------------- rendering
 const fmt = (x) => (x === null || x === undefined ? "" : Number(x).toPrecision(4));
 const pval = (p) => (p === null || p === undefined ? "" : p < 0.0001 ? "< 0.0001" : Number(p).toFixed(4));
+
+/** A list of sentences about a result (what the design is, what it could not estimate), or nothing. */
+function noteList(notes, cls = "facts") {
+  if (!notes || !notes.length) return [];
+  const list = el("ul", cls, "");
+  list.append(...notes.map((note) => el("li", "", note)));
+  return [list];
+}
+
+/** The library's warnings for a call, set apart from the result, or nothing. */
+const warningList = (warnings) => noteList(warnings, "warnings");
 
 function el(tag, cls, text) {
   const node = document.createElement(tag);

@@ -21,11 +21,14 @@ formula that ``analyze_experiment`` builds itself.
 from __future__ import annotations
 
 import base64
+import contextlib
 import io
 import itertools
 import json
+import logging
 import math
 import re
+import warnings
 from typing import TYPE_CHECKING, Any
 
 import numpy as np
@@ -34,7 +37,7 @@ import pandas as pd
 from process_improve.experiments import Factor, analyze_experiment, generate_design
 
 if TYPE_CHECKING:
-    from collections.abc import Callable
+    from collections.abc import Callable, Iterator
 
 SPEC_SHEET = "_pi_design"
 RUN_SHEET = "Runs"
@@ -175,11 +178,74 @@ def _clean(value: object) -> object:
 
 
 def _reply(fn: Callable[[dict], dict], payload: str) -> str:
-    """Run ``fn`` on the decoded payload; report errors as data, not exceptions."""
+    """Run ``fn`` on the decoded payload; report errors as data, not exceptions.
+
+    Whatever the library warned about during the call travels with the reply as
+    ``warnings``, so the page can show it rather than leave it in the console.
+    """
+    with _listening() as heard:
+        try:
+            reply: dict[str, Any] = {"ok": True, "result": _clean(fn(json.loads(payload or "{}")))}
+        except (ValueError, KeyError, TypeError) as exc:
+            reply = {"ok": False, "error": str(exc)}
+    reply["warnings"] = list(dict.fromkeys(_LOG_PREFIX.sub("", message) for message in heard))
+    return json.dumps(reply)
+
+
+#: Packages whose own warnings are numerical noise on this page, such as a saturated
+#: fit's division by zero; the library's warnings are kept.
+_FOREIGN = ("numpy", "scipy", "statsmodels", "pandas", "patsy", "sklearn")
+
+#: The function name some library log messages start with, which a warning of the
+#: same text does not carry.
+_LOG_PREFIX = re.compile(r"^\w+: ")
+
+
+class _Heard(logging.Handler):
+    """Keep the library's logged warnings in a list, for the reply, instead of the console."""
+
+    def __init__(self, heard: list[str]) -> None:
+        super().__init__(logging.WARNING)
+        self.heard = heard
+
+    def emit(self, record: logging.LogRecord) -> None:
+        """Keep the record's message."""
+        self.heard.append(record.getMessage())
+
+
+@contextlib.contextmanager
+def _listening() -> Iterator[list[str]]:
+    """Collect what the library warns about inside the block, and send it nowhere else.
+
+    Both channels are heard: ``warnings.warn``, and the ``process_improve`` logger, whose
+    records would otherwise reach the browser console as errors. The logger's handlers are
+    swapped for the duration and restored after, so an enclosing block (or a test's log
+    capture) is not affected. Warnings raised inside numpy, scipy, statsmodels or pandas
+    are left out.
+    """
+    heard: list[str] = []
+    logger = logging.getLogger("process_improve")
+    saved = logger.handlers[:], logger.propagate
+    logger.handlers, logger.propagate = [_Heard(heard)], False
     try:
-        return json.dumps({"ok": True, "result": _clean(fn(json.loads(payload or "{}")))})
-    except (ValueError, KeyError, TypeError) as exc:
-        return json.dumps({"ok": False, "error": str(exc)})
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            yield heard
+    finally:
+        logger.handlers, logger.propagate = saved
+    heard.extend(str(w.message) for w in caught if not _foreign(w.filename))
+
+
+def _foreign(filename: str) -> bool:
+    """Say whether a warning was raised inside one of the numerical packages."""
+    path = filename.replace("\\", "/")
+    return any(f"/{package}/" in path for package in _FOREIGN)
+
+
+def _relay(heard: list[str]) -> None:
+    """Pass warnings heard in an inner block on to the enclosing one."""
+    for message in heard:
+        logging.getLogger("process_improve").warning(message)
 
 
 def _factors(spec: dict) -> list[Factor]:
@@ -472,29 +538,158 @@ def analyze(request: dict) -> dict:
         {f["name"]: (runs[f["name"]] - (f["high"] + f["low"]) / 2) / ((f["high"] - f["low"]) / 2) for f in factors}
     )[done].reset_index(drop=True)
     n_terms = _n_terms(len(names), model)
-    if done.sum() <= n_terms:
+    if pending and done.sum() < n_terms:
         raise ValueError(
-            f"The {model.replace('_', ' ')} model has {n_terms} coefficients, so it needs more than {n_terms} "
+            f"The {model.replace('_', ' ')} model has {n_terms} coefficients, so it needs at least {n_terms} "
             f"completed runs; this workbook has {int(done.sum())}. Pending run(s): {pending}."
         )
 
-    out = analyze_experiment(
-        coded,
-        y[done].reset_index(drop=True).rename(response),
-        model=model,
-        analysis_type=["anova", "coefficients", "lack_of_fit"],
-    )
+    fit = _fit_estimable(coded, y[done].reset_index(drop=True).rename(response), model, names)
+    out = fit["out"]
+    coefficients = [
+        {**c, "label": fit["labels"].get(c["term"], _pretty(c["term"])), "aliases": fit["chains"].get(c["term"], [])}
+        for c in out.get("coefficients", [])
+    ]
+    anova = [{**a, "source": fit["labels"].get(a["source"], _pretty(a["source"]))} for a in out.get("anova_table", [])]
     return {
         "spec": spec,
         "model": model,
         "n_completed": int(done.sum()),
         "pending_runs": pending,
         "summary": out["model_summary"],
-        "coefficients": out.get("coefficients", []),
-        "anova": out.get("anova_table", []),
+        "coefficients": coefficients,
+        "anova": anova,
         "lack_of_fit": out.get("lack_of_fit"),
-        "equation": _equation(response, out.get("coefficients", [])),
+        "lenth": fit["lenth"],
+        "not_estimable": [_pretty(t) for t in fit["not_estimable"]],
+        "notes": fit["notes"],
+        "equation": _equation(response, coefficients),
     }
+
+
+#: What the page asks of every fit; the effects carry the alias chains of a design
+#: that cannot tell some terms apart.
+ANALYSES = ["anova", "coefficients", "lack_of_fit", "effects"]
+
+
+def _fit_estimable(coded: pd.DataFrame, y: pd.Series, model: str, names: list[str]) -> dict[str, Any]:
+    """Fit the model, estimating each group of terms the design cannot tell apart once.
+
+    A pseudo-inverse fit of exactly aliased terms spreads their joint estimate evenly
+    over them, so ``T`` aliased with ``P:F`` would read half of what the data say about
+    their sum. The library reports those groups as alias chains and the terms that move
+    with the intercept as confounded with the mean; the model is then refitted with one
+    term per chain, the chain's leader, labelled with the whole chain. A design that
+    still cannot fit the model is refused. With no runs to spare for the error, the
+    effects of an orthogonal two-level design are judged with Lenth's method.
+    """
+    with _listening() as heard:
+        out = analyze_experiment(coded, y, model=model, analysis_type=ANALYSES)
+    chains: dict[str, list[str]] = {}
+    labels: dict[str, str] = {}
+    not_estimable: list[str] = []
+    formula = model
+    if out["model_summary"]["rank_deficient"]:
+        # Keyed by the chain's leader, the term kept for it; the library's label keeps each member's sign.
+        for label, members in (out.get("alias_chains") or {}).items():
+            chains[members[0]] = members
+            labels[members[0]] = _pretty(label)
+        not_estimable = list(out.get("confounded_with_mean") or [])
+        dropped = set(not_estimable) | {m for members in chains.values() for m in members[1:]}
+        kept = [c["term"] for c in out["coefficients"] if c["term"] != "Intercept" and c["term"] not in dropped]
+        if dropped and kept:
+            formula = " + ".join(_checked_term(term, names) for term in kept)
+            out = analyze_experiment(coded, y, model=formula, analysis_type=ANALYSES)
+    else:
+        _relay(heard)
+    summary = out["model_summary"]
+    if summary["rank_deficient"]:
+        raise ValueError(
+            f"This design cannot fit the {model.replace('_', ' ')} model: only {summary['model_rank']} of its "
+            f"{summary['n_terms']} coefficients can be estimated from these {summary['n_obs']} runs. Choose a "
+            "smaller model."
+        )
+    notes = _analysis_notes(list(labels.values()), not_estimable)
+    lenth = None
+    if summary["df_residual"] == 0:
+        terms = [c["term"] for c in out["coefficients"] if c["term"] != "Intercept"]
+        if _orthogonal_two_level(coded, terms):
+            lenth = analyze_experiment(coded, y, model=formula, analysis_type="lenth_method")["lenth_method"]
+            lenth["effects"] = [{**e, "label": labels.get(e["term"], _pretty(e["term"]))} for e in lenth["effects"]]
+            notes.append(
+                "The model uses every run, so no degrees of freedom are left to estimate the error. Each effect is "
+                f"judged with Lenth's method instead: it is likely real beyond the margin of error ME = "
+                f"{lenth['ME']:.4g}, and still so, allowing for the number of effects tested, beyond SME = "
+                f"{lenth['SME']:.4g}."
+            )
+        else:
+            notes.append(
+                "The model uses every run, so no degrees of freedom are left to estimate the error and nothing can "
+                "be tested. Add runs, or fit fewer terms."
+            )
+    return {
+        "out": out,
+        "chains": chains,
+        "labels": labels,
+        "not_estimable": not_estimable,
+        "lenth": lenth,
+        "notes": notes,
+    }
+
+
+#: The model terms a refit may name: a factor, a product of factors, or a factor squared.
+_TERM = re.compile(r"I\((\w+) \*\* 2\)|\w+(?::\w+)*")
+
+
+def _checked_term(term: str, names: list[str]) -> str:
+    """Pass a model term into a formula only if it is built from the factors' own names.
+
+    The terms come from the library's fit, not from the workbook, but a formula is
+    evaluated as Python, so each one is checked before it is used.
+    """
+    match = _TERM.fullmatch(term)
+    factors = [match.group(1)] if match and match.group(1) else term.split(":")
+    if match is None or not all(f in names for f in factors):
+        raise ValueError(f"Unexpected model term {term!r}.")
+    return term
+
+
+def _pretty(term: str) -> str:
+    """Write a model term as the page shows it: ``I(T ** 2)`` as ``T²`` and ``T:P`` as ``T·P``."""
+    return re.sub(r"I\((\w+) \*\* 2\)", r"\1²", term).replace(":", "·")
+
+
+def _orthogonal_two_level(coded: pd.DataFrame, terms: list[str]) -> bool:
+    """Say whether the runs are at two levels only and the terms' columns are orthogonal.
+
+    Lenth's method treats the effects as independent estimates of equal variance, which
+    holds for the main effects and interactions of a two-level factorial or
+    Plackett-Burman design, not for a saturated optimal design at three levels.
+    """
+    values = coded.to_numpy(dtype=float)
+    if not np.all(np.isclose(np.abs(values), 1.0)) or any(t.startswith("I(") for t in terms):
+        return False
+    columns = np.column_stack([np.prod(coded[t.split(":")].to_numpy(dtype=float), axis=1) for t in terms])
+    gram = columns.T @ columns
+    return bool(np.allclose(gram - np.diag(np.diag(gram)), 0.0, atol=1e-9))
+
+
+def _analysis_notes(chain_labels: list[str], not_estimable: list[str]) -> list[str]:
+    """Say which terms the design could not estimate separately, or at all."""
+    notes = []
+    if chain_labels:
+        groups = "; ".join(chain_labels)
+        notes.append(
+            f"This design cannot tell these terms apart, so each group is estimated once, as its sum: {groups}. "
+            "A large estimate may belong to any term in its group."
+        )
+    if not_estimable:
+        terms = ", ".join(_pretty(t) for t in not_estimable)
+        notes.append(
+            f"{terms} cannot be estimated: they take the same value at every run, like the intercept. "
+            "Center points would separate them."
+        )
+    return notes
 
 
 def _n_terms(k: int, model: str) -> int:
@@ -504,12 +699,14 @@ def _n_terms(k: int, model: str) -> int:
 
 
 def _equation(response: str, coefficients: list[dict]) -> str:
-    """Write the fitted model, in coded units, out as one line."""
+    """Write the fitted model, in coded units, out as one line; an alias chain is one bracketed term."""
     parts = []
     for c in coefficients:
-        term = c["term"].replace("I(", "").replace(" ** 2)", "²").replace(":", "·")
+        label = c["label"]
         value = c["coefficient"]
-        text = f"{abs(value):.4g}" if term == "Intercept" else f"{abs(value):.4g}·{term}"
+        if " + " in label or " - " in label:
+            label = f"({label})"
+        text = f"{abs(value):.4g}" if label == "Intercept" else f"{abs(value):.4g}·{label}"
         sign = "-" if value < 0 else "+"
         parts.append(text if not parts and value >= 0 else f"{sign} {text}")
     return f"{response} = " + " ".join(parts)

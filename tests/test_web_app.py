@@ -292,6 +292,87 @@ def test_too_few_runs_says_how_many_are_needed(app):
     assert "10 coefficients" in reply["error"]
 
 
+def analyse(app, spec: dict, model: str = "") -> dict:
+    """Generate a design, fill it with the ``quadratic`` response, and return the analysis reply."""
+    design = call(app, "api_make_design", spec)["result"]
+    return call(app, "api_analyze", {"xlsx_base64": fill(design["xlsx_base64"], quadratic), "model": model})
+
+
+def by_label(result: dict) -> dict:
+    """Index a result's coefficients by the label the page shows."""
+    return {c["label"]: c for c in result["coefficients"]}
+
+
+def test_aliased_terms_are_estimated_once_as_their_chain(app):
+    """In a 2^(3-1) each main effect shares its column with an interaction: the data give their sum, once.
+
+    The fit used to list every term, each with half the sum, so T read 2 where it is 4.
+    """
+    reply = analyse(app, {"design_type": "fractional_factorial", "factors": FACTORS}, model="interactions")
+    assert reply["ok"], reply.get("error")
+    coef = by_label(reply["result"])
+    assert set(coef) == {"Intercept", "T + P·F", "P + T·F", "F + T·P"}
+    assert coef["T + P·F"]["coefficient"] == pytest.approx(4, abs=0.2)
+    assert coef["F + T·P"]["coefficient"] == pytest.approx(2, abs=0.2)
+    assert coef["T + P·F"]["aliases"] == ["T", "P:F"]
+    assert any("cannot tell these terms apart" in note for note in reply["result"]["notes"])
+
+
+def test_squares_of_a_two_level_design_are_one_chain(app):
+    """With center points the squares of a two-level design are one column, so only their total is estimable."""
+    spec = {"design_type": "full_factorial", "factors": FACTORS, "n_center_points": 3}
+    result = analyse(app, spec, model="quadratic")["result"]
+    coef = by_label(result)
+    assert coef["T² + P² + F²"]["coefficient"] == pytest.approx(-5, abs=0.3)
+    assert "T²" not in coef
+    assert "(T² + P² + F²)" in result["equation"]
+
+
+def test_squares_without_center_points_are_not_estimable(app):
+    """Without center points every square is 1 at every run, the same as the intercept."""
+    spec = {"design_type": "full_factorial", "factors": FACTORS, "n_center_points": 0}
+    result = analyse(app, spec, model="quadratic")["result"]
+    assert sorted(result["not_estimable"]) == ["F²", "P²", "T²"]
+    assert {"T", "P", "F", "T·P", "T·F", "P·F"} <= set(by_label(result))
+
+
+def test_saturated_two_level_fit_is_judged_with_lenth(app):
+    """Four runs for four coefficients leave no error to test against; Lenth's method judges the effects."""
+    spec = {"design_type": "plackett_burman", "factors": FACTORS, "n_center_points": 0}
+    reply = analyse(app, spec, model="main_effects")
+    assert reply["ok"], reply.get("error")
+    result = reply["result"]
+    assert result["summary"]["df_residual"] == 0
+    assert {"PSE", "ME", "SME"} <= set(result["lenth"])
+    assert sorted(e["term"] for e in result["lenth"]["effects"]) == ["F", "P", "T"]
+    assert any("Lenth" in note for note in result["notes"])
+    assert not any("divide by zero" in w for w in reply["warnings"]), "numerical noise is not a warning for the reader"
+
+
+def test_saturated_fit_of_a_three_level_design_says_nothing_can_be_tested(app):
+    """Lenth's method needs orthogonal two-level effects, which a saturated D-optimal design does not have."""
+    spec = {"design_type": "d_optimal", "factors": FACTORS[:2], "model_type": "quadratic", "budget": 6}
+    reply = analyse(app, spec, model="quadratic")
+    assert reply["ok"], reply.get("error")
+    result = reply["result"]
+    assert result["summary"]["df_residual"] == 0
+    assert result["lenth"] is None
+    assert any("no degrees of freedom" in note for note in result["notes"])
+
+
+def test_a_model_the_design_cannot_fit_is_refused_plainly(app):
+    """A 9-run DSD in 3 factors cannot fit the 10-term quadratic model, whatever the data."""
+    reply = analyse(app, {"design_type": "dsd", "factors": FACTORS}, model="quadratic")
+    assert not reply["ok"]
+    assert "cannot fit the quadratic model" in reply["error"]
+
+
+def test_library_warnings_reach_the_page(app):
+    """An even-k DSD has no error degrees of freedom left for the staged analysis, and says so."""
+    reply = call(app, "api_make_design", {"design_type": "dsd", "factors": factors_named("A", "B", "C", "D")})
+    assert any("degrees of freedom" in w for w in reply["warnings"])
+
+
 def test_face_centred_ccd_stays_inside_the_ranges(app):
     face = call(app, "api_make_design", {"design_type": "ccd", "factors": FACTORS, "alpha": "face_centered"})
     rotatable = call(app, "api_make_design", {"design_type": "ccd", "factors": FACTORS, "alpha": "rotatable"})
