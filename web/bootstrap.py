@@ -151,6 +151,10 @@ INTERACTIONS_CLEAR_FROM = 5
 #: Terms whose centred columns have a correlation this close to 1 are fully aliased.
 ALIAS_TOLERANCE = 1e-9
 
+#: Below this many effects, Lenth's pseudo standard error rests on fewer than about two
+#: degrees of freedom (one per three effects), so its margins are very wide.
+LENTH_FEW_EFFECTS = 7
+
 #: How many alias groups a summary sentence names before saying how many more.
 ALIASES_SHOWN = 4
 
@@ -628,6 +632,11 @@ def _fit_estimable(coded: pd.DataFrame, y: pd.Series, model: str, names: list[st
                 f"{lenth['ME']:.4g}, and still so, allowing for the number of effects tested, beyond SME = "
                 f"{lenth['SME']:.4g}."
             )
+            if len(lenth["effects"]) < LENTH_FEW_EFFECTS:
+                notes.append(
+                    f"With only {len(lenth['effects'])} effects to compare, these margins are wide. Center points "
+                    "or more runs leave degrees of freedom for an ordinary test."
+                )
         else:
             notes.append(
                 "The model uses every run, so no degrees of freedom are left to estimate the error and nothing can "

@@ -347,6 +347,16 @@ def test_saturated_two_level_fit_is_judged_with_lenth(app):
     assert sorted(e["term"] for e in result["lenth"]["effects"]) == ["F", "P", "T"]
     assert any("Lenth" in note for note in result["notes"])
     assert not any("divide by zero" in w for w in reply["warnings"]), "numerical noise is not a warning for the reader"
+    assert any("only 3 effects" in note for note in result["notes"]), "three effects give Lenth's margins one df"
+
+
+def test_lenth_margins_are_not_called_wide_with_seven_effects(app):
+    spec = {"design_type": "plackett_burman", "factors": factors_named(*"ABCDEFG"), "n_center_points": 0}
+    design = call(app, "api_make_design", spec)["result"]
+    workbook = fill(design["xlsx_base64"], lambda runs: (10 + 3 * runs["A"] - 2 * runs["C"]).to_numpy())
+    result = call(app, "api_analyze", {"xlsx_base64": workbook, "model": "main_effects"})["result"]
+    assert len(result["lenth"]["effects"]) == 7
+    assert not any("margins are wide" in note for note in result["notes"])
 
 
 def test_saturated_fit_of_a_three_level_design_says_nothing_can_be_tested(app):

@@ -74,6 +74,7 @@ function readFactors() {
 // before Python has loaded.
 let pythonReady = false;
 let budgetEdited = false;
+let resolutionEdited = false;
 
 /** Spare runs an optimal design gets beyond its model's coefficients; mirrors bootstrap.SPARE_RUNS. */
 const SPARE_RUNS = 4;
@@ -100,9 +101,10 @@ function refreshDesign() {
   const allowed = option.dataset.options.split(" ");
   for (const el of document.querySelectorAll("[data-option]")) el.hidden = !allowed.includes(el.dataset.option);
 
+  // Resolution IV unless the reader chose another; three factors allow only III.
   const resolution = $("#resolution");
   for (const choice of resolution.options) choice.disabled = Number(choice.value) > k;
-  if (resolution.selectedOptions[0].disabled) resolution.value = String(Math.max(3, Math.min(4, k)));
+  if (!resolutionEdited || resolution.selectedOptions[0].disabled) resolution.value = String(Math.max(3, Math.min(4, k)));
 
   // A Box-Behnken design or a rotatable CCD needs a center run to fit the squares; a DSD has one built in.
   const centre = $("#n_center_points");
@@ -343,6 +345,9 @@ $("#generate").onclick = generate;
 for (const id of ["#design-type", "#alpha", "#model_type"]) $(id).onchange = refreshDesign;
 $("#budget").oninput = () => {
   budgetEdited = $("#budget").value !== "";
+};
+$("#resolution").onchange = () => {
+  resolutionEdited = true;
 };
 $("#model").onchange = analyse;
 $("#upload").onchange = (e) => e.target.files[0] && readUpload(e.target.files[0]);
