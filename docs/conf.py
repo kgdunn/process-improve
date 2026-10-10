@@ -8,6 +8,8 @@ import tomllib
 # Add the src/ directory to the path so autodoc can find the package (ENG-14).
 _repo_root = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(_repo_root / "src"))
+# ...and _ext/, the docs' own extensions.
+sys.path.insert(0, str(_repo_root / "docs" / "_ext"))
 
 # -- Project information -----------------------------------------------------
 
@@ -27,6 +29,7 @@ extensions = [
     "sphinx.ext.intersphinx",
     "sphinx.ext.mathjax",
     "nbsphinx",
+    "page_description",  # _ext/: each page's own description in its link preview
 ]
 
 templates_path = ["_templates"]
