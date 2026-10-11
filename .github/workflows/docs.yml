@@ -69,7 +69,36 @@ jobs:
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
+    outputs:
+      page_url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v5
+
+  # The app a reader gets is the published one, so it is checked again once deployed. For a
+  # few minutes Pages can serve the app before it from a cache: the check first waits until
+  # the published manifest names this commit. Nothing is cached, as on a reader's first visit.
+  check-published-app:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: deploy
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    env:
+      APP: ${{ needs.deploy.outputs.page_url }}app/
+    steps:
+      - uses: actions/checkout@v7
+      - name: Set up the project environment
+        uses: ./.github/actions/setup-env
+        with:
+          python-version: "3.13"
+      - name: Wait until the published app is this commit's
+        run: uv run python tools/wait_for_web_app.py "$APP" "$GITHUB_SHA"
+      - name: Install Chromium for Playwright
+        run: uv run --with playwright==1.56.0 playwright install --with-deps chromium
+      - name: Check the published app works
+        run: >-
+          uv run --with playwright==1.56.0 pytest tests/web/live -m smoke --live
+          --web-app="$APP" --cdn-cache=off --no-cov
