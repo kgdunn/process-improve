@@ -1,6 +1,6 @@
 {
   "about": "What web/worker.js loads into Pyodide: the release, the packages it loads from that release, and the PyPI packages micropip installs, each pinned. worker.js, the wasm tests and CI all read this file.",
-  "pyodide": "0.28.3",
+  "pyodide": "314.0.7",
   "packages": ["micropip", "numpy", "pandas", "scipy", "statsmodels", "scikit-learn", "patsy", "pydantic", "pyyaml", "tqdm"],
   "micropip": ["openpyxl==3.1.5", "et-xmlfile==2.0.0"]
 }
