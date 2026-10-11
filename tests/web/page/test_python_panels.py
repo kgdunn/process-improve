@@ -13,7 +13,7 @@ import io
 import numpy as np
 import pytest
 
-from tests.web._support import FACTORS, generate_all, held_of, javascript, run_sheet, source
+from tests.web._support import ALL_DESIGNS, FACTORS, generate_all, held_of, javascript, run_sheet, source
 
 
 def page_code(node: str, function: str, *args: object) -> str:
@@ -60,3 +60,31 @@ def test_the_python_shown_reproduces_the_page(api, node):
     assert list(namespace["comparison"].designs) == compared["designs"]
     for label in compared["designs"]:
         assert namespace["comparison"].table[label].tolist() == compared["display"][label], label
+
+
+@pytest.mark.slow
+def test_the_design_code_reproduces_every_design_the_page_offers(api, node):
+    """Each design type's options, its seed included, reach the code, so the copied code gives the same runs."""
+    designs = [api.ok("api_make_design", {"design_type": d, "factors": FACTORS}) for d in ALL_DESIGNS]
+    codes = javascript(node, source("python.js"), [("designCode", [d["spec"]]) for d in designs])
+    names = [f["name"] for f in FACTORS]
+    for design_type, design, code in zip(ALL_DESIGNS, designs, codes, strict=True):
+        result = run(code, {})["result"]
+        np.testing.assert_allclose(
+            result.design_actual[names].to_numpy(dtype=float), run_sheet(design)[names], err_msg=design_type
+        )
+
+
+@pytest.mark.parametrize("units", ['in. "wide"', "C:\\temp", "°C", "mol/L · s", ""])
+def test_the_design_code_keeps_the_units_a_reader_types(api, node, units):
+    """Units are free text: whatever the reader types, the code must still run and say the same."""
+    spec = {"design_type": "full_factorial", "factors": [{**f, "units": units} for f in FACTORS[:2]]}
+    design = api.ok("api_make_design", spec)
+    factors = run(page_code(node, "designCode", design["spec"]), {})["factors"]
+    assert [f.units for f in factors] == [units, units]
+
+
+def test_results_typed_in_are_listed_in_run_order_with_none_for_runs_to_do(node):
+    y = run(page_code(node, "enteredCode", [61.25, None, -3, 1e-7]), {})["y"]
+    assert y.name == "y"
+    np.testing.assert_array_equal(y.to_numpy(dtype=float), [61.25, np.nan, -3, 1e-7])

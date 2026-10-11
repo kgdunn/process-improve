@@ -32,6 +32,23 @@ ROOT = Path(__file__).resolve().parents[2]
 WEB = ROOT / "web"
 BUILD_SCRIPT = ROOT / "scripts" / "build_web_app.py"
 
+#: Every file the app is built from: what ``web/`` holds, and the script that assembles it.
+#: ``--affected-since`` maps a changed file outside ``src/`` and ``tests/`` to the test files
+#: that name it (``tests/_selection.py``). Every test here imports this module, directly or
+#: through ``conftest.py``, so naming the files here sends a change to any of them to all of
+#: ``tests/web``. ``page/test_build.py`` checks that the list is complete.
+APP_SOURCES = (
+    "index.html",
+    "style.css",
+    "app.js",
+    "charts.js",
+    "python.js",
+    "worker.js",
+    "bootstrap.py",
+    "test-wasm.mjs",
+    "build_web_app.py",
+)
+
 #: Every design the page offers, in the order it lists them. The tests run over this list, and
 #: ``test_designs`` checks it against ``bootstrap.DESIGNS``, so a new design cannot go untested.
 ALL_DESIGNS = (

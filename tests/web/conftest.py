@@ -3,11 +3,6 @@
 ``web/bootstrap.py`` is loaded once per test session (once per xdist worker), and the worked
 example is run once from it. A test that uses the worked example gets its own copy of each
 part, so what one test changes cannot reach another.
-
-``APP_SOURCES`` names every file the app is built from. ``--affected-since`` maps a changed file
-outside ``src/`` and ``tests/`` to the test files that name it (``tests/_selection.py``), and an
-affected ``conftest.py`` selects every test below it, so naming the files here sends a change to
-any of them to all of ``tests/web``. ``page/test_build.py`` checks that the list is complete.
 """
 
 from __future__ import annotations
@@ -22,19 +17,6 @@ from tests.web._support import BUILD_SCRIPT, WEB, Api, held_of, load_module
 
 if TYPE_CHECKING:
     from types import ModuleType
-
-#: Every file the app is built from: what ``web/`` holds, and the script that assembles it.
-APP_SOURCES = (
-    "index.html",
-    "style.css",
-    "app.js",
-    "charts.js",
-    "python.js",
-    "worker.js",
-    "bootstrap.py",
-    "test-wasm.mjs",
-    "build_web_app.py",
-)
 
 
 @pytest.fixture(scope="session")
