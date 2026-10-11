@@ -150,6 +150,26 @@ those changes.
     it, live. The same example, computed through the same entry points when the page is
     built, is drawn at first paint, so a reader sees a complete analysis while Python
     loads.
+- **The browser app takes replicates, blocks, a typed axial distance, chosen model terms
+  and categorical factors**, so every exercise in the book's chapter on designed
+  experiments can be worked in it.
+  - **Replicates:** each run but the center runs is made up to ten times. The repeats
+    estimate the pure error for a lack-of-fit test.
+  - **Blocks:** the runs are made in up to eight blocks, with a Block column in the run
+    sheet. The analysis fits the blocks as a fixed effect. A term the design confounds
+    with the blocks is left out, with a note, and so is its alias.
+  - **A CCD's axial distance can be typed as a number**, such as 1.4, beside the face-centred,
+    rotatable and orthogonal choices.
+  - **"Terms you choose"** lists every main effect, two- and three-factor interaction and
+    square the factors allow, to tick for the model. The page sends the terms as lists of
+    factor names and builds the formula from them, each checked, so no formula text is
+    read in. The workbook keeps the model analysed with, checked the same way when it
+    is uploaded. An interaction that is zero in every run is left out with a note.
+  - **A factor whose two levels are labels**, such as a supplier A and B, is categorical.
+    Full factorial, fractional factorial and Plackett-Burman designs take it. It is coded
+    -1 and +1 from its first label to its second, and has no square.
+  - "Show the Python" reproduces each of these. The analysis it shows now names the terms
+    the page actually fitted, after any aliased or confounded term is left out.
 - **The browser app runs on Pyodide 314.0.7 (Python 3.14.2)**, with numpy 2.4, pandas 3.0,
   scipy 1.18 and scikit-learn 1.8.
 - **PLS and multiblock fits on complete data are faster, with identical results.** So is
