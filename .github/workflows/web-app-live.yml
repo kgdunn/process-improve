@@ -4,6 +4,10 @@ name: Browser app, published
 # the pinned packages, and Plotly's CDN. Every week this runs the smoke tests against the
 # published app, and reports a pin in web/runtime.json that is no longer the latest release,
 # which Dependabot cannot see. A failure of either opens an issue, one at a time.
+#
+# newest-pyodide is advisory, as in pid-book's run-in-browser.yml: when npm has a newer
+# Pyodide than web/runtime.json pins, it runs the wasm and live tiers on that release and ends
+# its summary by saying whether the bump is safe. The bump itself is a PR of its own.
 on:
   schedule:
     - cron: "41 6 * * 1"
@@ -87,3 +91,64 @@ jobs:
             } > issue.md
             gh issue create --title "$title" --body-file issue.md
           fi
+
+  newest-pyodide:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v7
+      - name: Choose the newest Pyodide release
+        id: pyodide
+        run: |
+          pinned=$(jq -r .pyodide web/runtime.json)
+          newest=$(curl -fsS https://registry.npmjs.org/pyodide/latest | jq -r .version)
+          echo "pinned=$pinned" >> "$GITHUB_OUTPUT"
+          echo "newest=$newest" >> "$GITHUB_OUTPUT"
+          if [ "$newest" = "$pinned" ]; then
+            echo "### web/runtime.json already pins the newest Pyodide, $pinned" >> "$GITHUB_STEP_SUMMARY"
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          fi
+      # This checkout only: the worker, the wasm runner and the build all read the file.
+      - name: Point web/runtime.json at the newest release
+        if: steps.pyodide.outputs.skip != 'true'
+        env:
+          NEWEST: ${{ steps.pyodide.outputs.newest }}
+        run: jq --arg v "$NEWEST" '.pyodide = $v' web/runtime.json > runtime.json && mv runtime.json web/runtime.json
+      - name: Set up the project environment
+        if: steps.pyodide.outputs.skip != 'true'
+        uses: ./.github/actions/setup-env
+        with:
+          python-version: "3.13"
+      - uses: actions/setup-node@v7
+        if: steps.pyodide.outputs.skip != 'true'
+        with:
+          node-version: "22"
+      - name: Install Pyodide for Node.js and Chromium for Playwright
+        if: steps.pyodide.outputs.skip != 'true'
+        env:
+          NEWEST: ${{ steps.pyodide.outputs.newest }}
+        run: |
+          npm install --prefix ~/.cache/process-improve/node --no-save --no-package-lock "pyodide@$NEWEST"
+          uv run --with playwright==1.56.0 playwright install --with-deps chromium
+      - name: Build the app on the newest release
+        if: steps.pyodide.outputs.skip != 'true'
+        run: uv run python scripts/build_web_app.py -o dist/web-app
+      - name: The app's Python under Pyodide, and the built app in Chromium
+        id: tiers
+        if: steps.pyodide.outputs.skip != 'true'
+        run: >-
+          uv run --with playwright==1.56.0 pytest tests/web/wasm tests/web/live --wasm --live
+          --web-app=dist/web-app --cdn-cache=off --no-cov
+      - name: Say whether the newest Pyodide is safe to pin
+        if: steps.pyodide.outputs.skip != 'true' && !cancelled()
+        env:
+          NEWEST: ${{ steps.pyodide.outputs.newest }}
+          PINNED: ${{ steps.pyodide.outputs.pinned }}
+          OUTCOME: ${{ steps.tiers.outcome }}
+        run: |
+          if [ "$OUTCOME" = success ]; then
+            echo "Every wasm and live test passes on Pyodide $NEWEST: moving web/runtime.json from $PINNED is safe."
+          else
+            echo "Pyodide $NEWEST fails the tests above: keep web/runtime.json at $PINNED."
+          fi >> "$GITHUB_STEP_SUMMARY"
