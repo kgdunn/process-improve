@@ -111,6 +111,16 @@ def test_what_is_heard_goes_to_the_reply_and_nowhere_else(bootstrap, caplog):
     assert "after" in caplog.text, "an enclosing log capture still works"
 
 
+def test_warnings_heard_in_an_inner_block_are_passed_on_to_the_outer_one(bootstrap):
+    """A fit heard on its own, to decide whether to refit, still reports what it heard to the call around it."""
+    with bootstrap._listening() as outer:
+        with bootstrap._listening() as inner:
+            warnings.warn("heard inside", UserWarning, stacklevel=1)
+        assert outer == [], "kept inside until passed on"
+        bootstrap._relay(inner)
+    assert outer == ["heard inside"]
+
+
 def test_a_message_heard_twice_is_shown_once(bootstrap):
     """A library function can log a message with its name in front and warn the same text; the page shows it once."""
 

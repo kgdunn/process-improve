@@ -168,6 +168,11 @@ REFUSALS: dict[str, tuple[str, Callable[[Example], dict], str]] = {
         _runs(model="y ~ T"),
         "Model must be one of main_effects, interactions, quadratic.",
     ),
+    "unknown model to chart": (
+        "api_plots",
+        _runs(model="y ~ T"),
+        "Model must be one of main_effects, interactions, quadratic.",
+    ),
     "missing factor column": (
         "api_analyze_runs",
         _runs(columns=["Std order", "Run order", "P", "F", "y"]),
@@ -235,6 +240,11 @@ REFUSALS: dict[str, tuple[str, Callable[[Example], dict], str]] = {
         lambda _: {"factors": FACTORS, "model": "cubic"},
         "Model must be one of main_effects, interactions, main_quadratic, quadratic.",
     ),
+    "unknown model for the comparison": (
+        "api_compare",
+        lambda _: {"model": "cubic", "designs": []},
+        "Model must be one of main_effects, interactions, main_quadratic, quadratic.",
+    ),
     "nothing to compare": (
         "api_compare",
         lambda _: {"model": "main_effects", "designs": []},
@@ -253,6 +263,8 @@ def example(worked_example: dict[str, Any], api) -> Example:
 def refusal(api, example: Example, case: str) -> str:
     """Return the message the page shows for one case of ``REFUSALS``."""
     fn, request, _ = REFUSALS[case]
+    if fn == "api_plots":
+        pytest.importorskip("plotly", reason="the page installs plotly for its first chart")
     return api.error(fn, request(example))
 
 

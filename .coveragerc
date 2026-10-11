@@ -1,5 +1,8 @@
 [run]
-source = process_improve
+# web/ holds the browser app's Python side, bootstrap.py, which tests/web drives.
+source =
+    process_improve
+    web
 branch = True
 omit =
     */tests/*
