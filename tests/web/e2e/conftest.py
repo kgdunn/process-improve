@@ -69,8 +69,15 @@ def console() -> Console:
 
 
 @pytest.fixture
+def context_options() -> dict[str, Any]:
+    """Return the browser context's settings: a desktop window. A test can parametrize this to change them."""
+    return {"viewport": {"width": 1280, "height": 900}}
+
+
+@pytest.fixture
 def context(  # noqa: PLR0913 - a fixture's arguments are the fixtures it needs
     chromium: Any,  # noqa: ANN401 - a Playwright Browser
+    context_options: dict[str, Any],
     bootstrap: ModuleType,
     site: str,
     first_paint: dict[str, Any],
@@ -80,7 +87,7 @@ def context(  # noqa: PLR0913 - a fixture's arguments are the fixtures it needs
 ) -> Iterator[Any]:
     """Open a browser context whose pages are answered natively; fail the test on any console error."""
     version, script = plotly_js
-    context = chromium.new_context(viewport={"width": 1280, "height": 900})
+    context = chromium.new_context(**context_options)
     context.add_init_script("window.__piTransport = 'native';")
     context.add_init_script(path=HARNESS)
     context.expose_function("__piNative", _native(bootstrap))
