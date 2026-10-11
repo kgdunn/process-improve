@@ -33,7 +33,7 @@ pyodide.FS.mkdirTree("/wheels");
 pyodide.FS.writeFile(`/wheels/${wheel}`, fs.readFileSync(wheelPath));
 await pyodide.runPythonAsync(`
 import micropip
-await micropip.install(["tqdm", "pyDOE3", "openpyxl"])
+await micropip.install(["tqdm", "openpyxl"])
 await micropip.install("emfs:/wheels/${wheel}", deps=False)
 `);
 await pyodide.runPythonAsync(fs.readFileSync(new URL("bootstrap.py", import.meta.url), "utf8"));

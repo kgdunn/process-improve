@@ -60,7 +60,7 @@ async function boot() {
   await pyodide.runPythonAsync(`
 import micropip
 # Pure-Python dependencies come from PyPI.
-await micropip.install(["tqdm", "pyDOE3", "openpyxl"])
+await micropip.install(["tqdm", "openpyxl"])
 # deps=False: the wheel's metadata pins numpy/pandas versions that can run
 # ahead of the Pyodide distribution, and the ones loaded above are what the
 # experiments module actually needs (tests/test_web_app.py checks this).

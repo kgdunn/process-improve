@@ -1,4 +1,4 @@
-"""Without the ``expt`` extra (pyDOE3), every design builds except the Taguchi orthogonal arrays."""
+"""Without pyDOE3, every design builds: the classical and Taguchi arrays are stored in the package."""
 
 from __future__ import annotations
 
@@ -23,13 +23,10 @@ _SCRIPT = textwrap.dedent(
         "box_behnken": (four, {}),
         "ccd": (four, {}),
         "supersaturated": (fifteen, {"budget": 12}),
+        "taguchi": (four, {}),
     }
     for design_type, (factors, kwargs) in cases.items():
         print(design_type, generate_design(factors, design_type, **kwargs).n_runs)
-    try:
-        generate_design(four, "taguchi")
-    except ImportError as exc:
-        print("taguchi ImportError", "process-improve[expt]" in str(exc))
     """
 )
 
@@ -47,5 +44,5 @@ def test_designs_build_without_pydoe3() -> None:
         "box_behnken": "27",
         "ccd": "27",
         "supersaturated": "12",
-        "taguchi": "ImportError True",
+        "taguchi": "8",  # L8(2^7), the smallest array with four two-level columns
     }

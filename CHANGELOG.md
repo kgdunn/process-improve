@@ -204,12 +204,17 @@ those changes.
   carried their own copy of the precedence rule and the tolerance-bounds check. They now
   share `resolve_loop_settings`, so the contract is defined once.
 
-- **Full and fractional factorial, Plackett-Burman, Box-Behnken, central composite and
-  supersaturated designs no longer need the `expt` extra.** The pyDOE3 arrays they were
-  built from are now in `experiments/_classical.py` (BSD-3, credited), and tests check
-  them against pyDOE3 element for element, so every design is unchanged. Only the
-  Taguchi orthogonal arrays still need pyDOE3. A Plackett-Burman design's
-  `metadata["construction"]` now reads `"classical"` instead of `"pyDOE3"`.
+- **No design needs pyDOE3 any more, and the `expt` extra is removed.** The pyDOE3
+  arrays the designs were built from are now in the package (BSD-3, credited): the
+  factorial, Plackett-Burman, Box-Behnken and central composite arrays in
+  `experiments/_classical.py`, and the Taguchi orthogonal arrays in
+  `experiments/_orthogonal_arrays.py`. Tests check them against pyDOE3 element for
+  element, so every design is unchanged. pyDOE3's `L64(2^31)` is not stored: it is
+  unbalanced in 59 column pairs, and a Taguchi design never chose it, because
+  `L32(2^31)` comes first and holds the same factors. `pip install
+  'process-improve[expt]'` still installs the package, with a warning from pip that
+  the extra no longer exists; pyDOE3 is no longer part of `all`. A Plackett-Burman
+  design's `metadata["construction"]` now reads `"classical"` instead of `"pyDOE3"`.
 - **`hard_to_change` ignored without pyoptex now raises a `UserWarning`**, not only a
   log line. The design is still built as an ordinary (not split-plot) design, and
   `metadata["hard_to_change_ignored"]` still records why.

@@ -5,7 +5,6 @@ statsmodels, patsy, pydantic, pyyaml, tqdm) and gates heavier
 optional dependencies behind extras::
 
     pip install 'process-improve[plotting]'    # matplotlib + plotly + seaborn + ridgeplot
-    pip install 'process-improve[expt]'        # pyDOE3 (Taguchi orthogonal arrays)
     pip install 'process-improve[batch]'       # scikit-image + openpyxl + ruptures
     pip install 'process-improve[mcp]'         # mcp
     pip install 'process-improve[fast]'        # numba (JIT)
@@ -60,7 +59,7 @@ class _MissingExtra:
 
     Using the stub in any way that needs the real package raises
     :class:`ImportError` with the canonical "install the extra" message, so a
-    missing ``plotting`` extra fails the same way as a missing ``expt`` extra.
+    missing ``plotting`` extra fails the same way as a missing ``batch`` extra.
     Attribute access returns a child stub that remembers the dotted path, so
     ``go.Figure(...)`` and ``go.layout.Template(...)`` raise ``ImportError`` at
     the call, and indexing (``pio.templates[name]``) raises it too.

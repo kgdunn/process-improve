@@ -2,8 +2,8 @@
 
 These functions reproduce, element for element, the arrays of pyDOE3 1.6.2's
 ``ff2n``, ``fracfact``, ``pbdesign``, ``bbdesign`` and ``ccdesign``, so the full and
-fractional factorial, Plackett-Burman, Box-Behnken and central composite designs no
-longer need the ``expt`` extra. ``tests/test_classical_arrays.py`` checks the
+fractional factorial, Plackett-Burman, Box-Behnken and central composite designs do
+not need pyDOE3. ``tests/test_classical_arrays.py`` checks the
 equivalence against pyDOE3 when it is installed.
 
 pyDOE3 is distributed under the BSD 3-Clause licence. Its code descends from the

@@ -261,7 +261,6 @@ current gaps, are in
 ```bash
 pip install process-improve                    # core: numpy, pandas, scipy, scikit-learn, statsmodels, ...
 pip install 'process-improve[plotting]'        # adds matplotlib, plotly, seaborn, ridgeplot
-pip install 'process-improve[expt]'            # adds pyDOE3 (Taguchi orthogonal arrays; every other design is in the core)
 pip install 'process-improve[batch]'           # adds openpyxl, ruptures, scikit-image (batch data IO, change points)
 pip install 'process-improve[control]'         # adds osqp (the batch mid-course correction solver)
 pip install 'process-improve[mcp]'             # adds mcp (the MCP server runtime)

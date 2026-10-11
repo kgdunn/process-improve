@@ -42,9 +42,10 @@ Conventions every subpackage follows
   attributes use the trailing-underscore convention (``scores_``, ``spe_``,
   ``hotellings_t2_``) and are set only in ``fit()``, never in ``__init__``.
 - **Optional dependencies live in extras.** Plotting (plotly / ridgeplot),
-  the Taguchi arrays and split-plot designs (pyDOE3 / pyoptex), the batch
-  and MCP layers are installed via ``[plotting]`` / ``[expt]`` / ``[batch]`` /
-  ``[mcp]`` extras (ENG-13). Modules import them through a ``_MissingExtra``
+  the batch and MCP layers are installed via ``[plotting]`` / ``[batch]`` /
+  ``[mcp]`` extras (ENG-13); every design array, Taguchi included, is in the
+  core, and split-plot designs use pyoptex, installed separately. Modules
+  import optional dependencies through a ``_MissingExtra``
   stand-in so a missing optional dependency only fails when the feature is
   actually used, not at import time.
 - **Diagnostic logging.** Modules that do real work define

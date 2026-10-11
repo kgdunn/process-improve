@@ -53,7 +53,7 @@ dependencies = [
 [project.optional-dependencies]
 # ENG-13 (#295): every public-API surface that pulls in heavy optional
 # dependencies is gated by an extra. The matching ImportError raised by
-# ``process_improve._extras.require`` tells the caller which extra to
+# ``process_improve._extras.require_extra`` tells the caller which extra to
 # install.
 
 # Plotting backends (Plotly + matplotlib + seaborn + ridgeplot).
@@ -62,11 +62,6 @@ plotting = [
     "plotly>=6.5.2",
     "ridgeplot>=0.5.0",
     "seaborn>=0.13.2",
-]
-
-# Designed-experiments helpers that need ``pyDOE3``.
-expt = [
-    "pyDOE3>=1.0",
 ]
 
 # Batch process data analysis: image-IO + Excel readers used by the
@@ -115,7 +110,6 @@ all = [
     "openpyxl>=3.1.5",
     "osqp>=1.0",
     "plotly>=6.5.2",
-    "pyDOE3>=1.0",
     "ridgeplot>=0.5.0",
     "ruptures>=1.1.9",
     "scikit-image>=0.25.2",
@@ -173,9 +167,13 @@ dev = [
     # test paths in tests/test_design_generation.py and
     # tests/test_designs_optimal_pyoptex.py. Dev-group only, NOT a published
     # extra: pip cannot apply the [tool.uv] override-dependencies below, so
-    # advertising pyoptex in wheel metadata would make e.g. [expt]+[plotting]
+    # advertising pyoptex in wheel metadata would make e.g. [plotting]
     # unresolvable for pip users until upstream ships relaxed pins.
     "pyoptex>=1.2.1",
+    # Test oracle only: tests/test_classical_arrays.py and
+    # tests/test_orthogonal_arrays.py check the in-house design arrays against
+    # it. Pinned to the release those arrays were copied from.
+    "pyDOE3==1.6.2",
     "pytest>=9.0.2",
     "pytest-benchmark>=4.0.0",
     "pytest-cov>=7.0.0",
