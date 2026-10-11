@@ -82,16 +82,23 @@ def test_a_model_the_design_cannot_estimate_in_one_block_is_passed_over() -> Non
     assert blocking.model == "interactions"
 
 
-def test_a_replicated_factorial_with_a_categorical_factor_blocks_by_replicate() -> None:
-    """Centre runs at one of a categorical factor's labels make the design irregular, so the exchange blocks it."""
+def test_a_factorial_with_a_categorical_factor_is_blocked_for_the_model_it_can_estimate() -> None:
+    """Centre runs at one of a categorical factor's labels make the design irregular, so the exchange blocks it.
+
+    Blocked for its interactions, it keeps nearly all of their information: an odd block of
+    nine runs cannot balance the supplier. The blocks picked for the singular quadratic kept 92%.
+    """
     factors = [*_factors(2), Factor(name="supplier", type="categorical", levels=["A", "B"])]
     result = generate_design(factors, "full_factorial", n_blocks=2, n_replicates=2, n_center_points=2, random_state=42)
     assert result.metadata["blocking"]["method"] == "exchange"
     assert result.metadata["blocking"]["model"] == "interactions"
-    corners = result.design_actual[result.design_actual["x0"] != 5]
-    for _, block in corners.groupby("Block"):
-        assert not block.duplicated(["x0", "x1", "supplier"]).any(), "each block holds every corner run once"
-        assert len(block) == 8
+    x = result.design[["x0", "x1"]].to_numpy(dtype=float)
+    supplier = result.design["supplier"].map({"A": -1.0, "B": 1.0}).to_numpy(dtype=float)
+    x = np.column_stack([x, supplier])
+    model = np.column_stack([x, x[:, 0] * x[:, 1], x[:, 0] * x[:, 2], x[:, 1] * x[:, 2]])
+    full = (model - model.mean(axis=0)).T @ (model - model.mean(axis=0))
+    blocked = _within_block_centred(model, result.design["Block"].to_numpy())
+    assert np.linalg.det(blocked.T @ blocked) / np.linalg.det(full) > 0.98
 
 
 def test_a_later_start_must_beat_an_earlier_one_by_more_than_rounding(monkeypatch) -> None:

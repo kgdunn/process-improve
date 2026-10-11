@@ -355,11 +355,12 @@ those changes.
   determinant the search maximised was rounding error, and the blocks it picked differed
   between platforms (between native Python and Pyodide in the browser app, for one). This
   is the case for a two-level factorial with a categorical factor and centre runs, or a
-  Plackett-Burman design with centre runs. Such a model is now passed over: a replicated
-  factorial with a categorical factor in as many blocks as replicates is blocked by
-  replicate, each block a full replicate and its share of the centre runs. A random start
-  now replaces an earlier one only when it is better by more than rounding, so equally
-  good starts give the same blocks everywhere.
+  Plackett-Burman design with centre runs. Such a model is now passed over, and the blocks
+  are chosen for the largest model the design can estimate: two replicates of a 2²
+  factorial with a supplier A or B, in two blocks, keep 99% of the information on the main
+  effects and two-factor interactions, where the old blocks kept 92%. A random start now
+  replaces an earlier one only when it is better by more than rounding, so equally good
+  starts give the same blocks everywhere.
 
 - **Plots drawn after plotly is installed into a running process use the library's
   theme.** The themes were registered only when `process_improve.visualization` was
