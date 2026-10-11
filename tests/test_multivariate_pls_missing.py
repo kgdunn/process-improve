@@ -240,6 +240,20 @@ class TestTheSurroundingApi:
         assert not model.fitting_info_["md_converged"]
         assert model.fitting_info_["md_rounds"] == 2
 
+    @pytest.mark.parametrize("method", ["tsr", "pmp"])
+    def test_a_setpoint_column_leaves_the_imputation_as_it_was(self, method: str) -> None:
+        """A constant column kept the imputation moving to the round limit, and the fit warned."""
+        X, Y = _dataset(0)
+        gapped = _with_gaps(X, 0.20, 0)
+        with_setpoint = gapped.assign(setpoint=0.1)
+        with_setpoint.loc[3, "setpoint"] = np.nan
+        alone = _fit(gapped, Y, method)
+        with warnings.catch_warnings():
+            warnings.simplefilter("error", SpecificationWarning)
+            both = PLS(n_components=RANK, missing_data_settings={"md_method": method}).fit(with_setpoint, Y)
+        assert both.fitting_info_["md_converged"]
+        assert both.fitting_info_["md_rounds"] == alone.fitting_info_["md_rounds"]
+
     def test_scp_is_still_refused(self) -> None:
         """It is a projection-time method; at fit time it is simply what NIPALS already does."""
         X, Y = _dataset(0)
@@ -286,6 +300,27 @@ class TestImputeLowRank:
         assert result.converged
         np.testing.assert_allclose(result.completed[mask], truth[mask], atol=1e-9)
         np.testing.assert_array_equal(result.completed[~mask], truth[~mask])
+
+    @pytest.mark.parametrize("value", [0.00871, 0.1, 3.7, 63.696])
+    @pytest.mark.parametrize("method", ["tsr", "pmp"])
+    def test_a_constant_column_changes_no_other_imputation(self, method: str, value: float) -> None:
+        """A constant column carries no information, so appending one changes no other imputed cell.
+
+        Its standard deviation is more often rounding noise (1e-17) than 0, and standardising
+        by that noise made it a column of +-0.98, a direction the low-rank model then fitted.
+        Its own gap is filled with its value.
+        """
+        rng = np.random.default_rng(0)
+        truth = rng.normal(size=(40, 2)) @ rng.normal(size=(2, 8)) + 0.3 * rng.normal(size=(40, 8))
+        gapped = np.where(rng.random(truth.shape) < 0.2, np.nan, truth)
+        with_constant = np.column_stack([gapped, np.full(40, value)])
+        with_constant[3, -1] = np.nan
+
+        settings = {"method": method, "tol": 1e-12, "max_iter": 5000}
+        alone = impute_low_rank(gapped, 2, **settings).completed
+        both = impute_low_rank(with_constant, 2, **settings).completed
+        np.testing.assert_allclose(both[:, :-1], alone, atol=1e-8)
+        np.testing.assert_array_equal(both[:, -1], value)
 
     def test_complete_data_is_returned_untouched(self) -> None:
         data = np.random.default_rng(0).normal(size=(10, 4))

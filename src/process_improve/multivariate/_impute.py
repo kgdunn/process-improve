@@ -55,7 +55,8 @@ def impute_low_rank(
     A row is estimated with ``min(n_components, n_observed)`` components, so a row
     that observes fewer columns than there are components still has a well-posed
     estimate rather than a singular one; a row that observes nothing is placed at
-    the mean.
+    the mean. A constant column, whose observed values are all equal, has its gaps
+    filled with that value and plays no part in the model.
 
     Parameters
     ----------
@@ -102,7 +103,13 @@ def impute_low_rank(
             "nothing to estimate them from. Drop them before fitting."
         )
 
-    completed = np.where(missing, np.nanmean(data, axis=0), data)
+    # A column whose observed values are all equal is constant: its gaps hold that value,
+    # and it is standardised to exactly 0. Its standard deviation is more often rounding
+    # noise (1e-17) than 0, and dividing by that made it a column of +-0.98, a direction
+    # the components then fitted at the expense of the real ones.
+    highest = np.nanmax(data, axis=0)
+    constant = highest == np.nanmin(data, axis=0)
+    completed = np.where(missing, np.where(constant, highest, np.nanmean(data, axis=0)), data)
     if not missing.any():
         return Bunch(completed=completed, rounds=0, converged=True, shift=0.0)
 
@@ -111,7 +118,8 @@ def impute_low_rank(
     while rounds < max_iter:
         rounds += 1
         centre, spread = completed.mean(axis=0), completed.std(axis=0, ddof=1)
-        spread = np.where(spread > 0, spread, 1.0)
+        centre = np.where(constant, highest, centre)
+        spread = np.where(~constant & (spread > 0), spread, 1.0)
         standardised = (completed - centre) / spread
         components = _leading_components(standardised, n_components)
         covariance = standardised.T @ standardised / max(1, standardised.shape[0] - 1)
@@ -129,6 +137,7 @@ def impute_low_rank(
         # drift by rounding a little every round, and a caller would get back data
         # that no longer matches what they passed in.
         completed = np.where(missing, updated * spread + centre, data)
+        completed[:, constant] = highest[constant]  # not its estimate, which can be an ulp away
         if shift <= tol:
             converged = True
             break

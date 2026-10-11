@@ -113,6 +113,11 @@ those changes.
 
 ### Changed
 
+- **pandas 3 is supported: the `pandas<3.0` cap is lifted.** Python 3.11 and later can
+  install pandas 3; Python 3.10 stays on pandas 2.3. The cap guarded against a crash with
+  numba installed, which numba 0.68 no longer has. CI tests pandas 2.3 on Python 3.10 and
+  pandas 3 on the newer Pythons.
+
 - **The browser app compares the designs for the reader's own factors, shows the Python
   behind each step, and links to the book.** Step 4 generates every design the factor
   count allows, at the size step 1 would give it, and scores them with
@@ -145,6 +150,8 @@ those changes.
     it, live. The same example, computed through the same entry points when the page is
     built, is drawn at first paint, so a reader sees a complete analysis while Python
     loads.
+- **The browser app runs on Pyodide 314.0.7 (Python 3.14.2)**, with numpy 2.4, pandas 3.0,
+  scipy 1.18 and scikit-learn 1.8.
 - **PLS and multiblock fits on complete data are faster, with identical results.** So is
   `PCA(algorithm="nipals")`; the default PCA already uses an SVD on complete data.
   The NIPALS regression step handled missing cells one row or column at a time in
@@ -368,6 +375,33 @@ those changes.
 - **The browser app refuses a factor whose low or high value is blank.** A blank box was
   read as 0, so the design was generated over a range the reader had not entered.
 
+- **On a phone, the browser app's design settings fit the screen width**, with no
+  sideways scrolling.
+
+- **The browser app's errors reach the reader as one sentence, never a Python
+  traceback.** This covers a malformed request, an unexpected error, too few results for
+  the model, and Python failing to start. A blocked Pyodide or PyPI download no longer
+  leaves the page waiting.
+
+- **In the browser app, a factor or response named `Source` keeps its values in the
+  workbook**; simulated results are now marked in a `Result source` column. A factor named
+  `y` no longer stops the design comparison, which now keeps the response name the reader
+  typed.
+
+- **After a deploy, a browser can no longer run a cached copy of the browser app's
+  previous package alongside the new page code.**
+
+- **The browser app stays in step with what it holds.**
+  - An analysis that arrives after the results are cleared, or after a new design, is
+    dropped.
+  - A loaded design's resolution and number of runs reach the form.
+  - The "Show the Python" panels and the true-process panel follow the results.
+  - A blank response name matches the design's `y`.
+  - Choosing the same workbook again reads it again.
+
+- **When the clipboard is refused, the browser app selects the code** so the reader can
+  copy it. A comparison where no design can be made now says why.
+
 - **The Pareto and half-normal plots draw Lenth's margins at the level the analysis
   used, and recompute them with the analysis's formula.** They looked for that level under
   `alpha`, but `analyze_experiment` stores it as `significance_level`, so an analysis at
@@ -455,6 +489,26 @@ those changes.
   against the estimates, which the shift itself had pulled. A given value is now used as
   it is, and only a missing one is estimated; the robust `s` is still the MAD about the
   data's own median. Without a given `target` or `s` the chart is unchanged.
+
+- **A constant column no longer enters a model as a variable.** A column whose observed
+  values are all equal (a setpoint, a recipe value, a stuck sensor) was found by testing
+  its standard deviation for exactly 0, and the standard deviation of equal values is more
+  often rounding noise, about 1e-17. Each place below now tests the values themselves.
+  - `MCUVScaler` transforms a constant column to exactly 0. It turned most constant
+    columns into a column of ±0.9 that entered PCA and PLS models as a variable, so
+    models fitted on data with a constant column change.
+  - `scale()` leaves a constant column unchanged, as its docstring says, where it
+    multiplied it by about 1e16. The docstring also said that `np.std` propagates a
+    missing cell; each column reaches `func` as a pandas Series, whose standard
+    deviation skips it.
+  - The EM imputation behind `PLS(missing_data_settings={"md_method": "tsr"})` and `"pmp"`
+    fills a constant column's gaps with its value and leaves the column out of the model.
+    A constant column moved every other imputed cell, and could keep the imputation from
+    converging, so the fit warned that it had not.
+
+- **`reshape_to_long` refuses a row with no panelist, product or attribute label**, and
+  names the column and rows. A missing product label used to become a product called
+  `"nan"`, and under pandas 3 a missing panelist id passed the round-trip check.
 
 The fixes below were found while raising test coverage to 96% (#678).
 

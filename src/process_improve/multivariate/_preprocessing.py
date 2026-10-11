@@ -257,11 +257,11 @@ def scale(
 
 
     `func` [optional; default=np.std] {a function}
-        The default (``np.std``) uses NumPy to calculate the standard deviation
-        of the data along the required `axis` and uses that as `scale`. Any
-        NaN along the reduction axis propagates into the resulting scale
-        vector, so an entire row or column of the returned data can end up
-        NaN. Pass ``func=np.nanstd`` to skip missing entries instead.
+        The default (``np.std``) calculates the standard deviation of the data
+        along the required `axis` and uses that as `scale`. Each column (each
+        row for ``axis=1``) reaches `func` as a pandas Series, so ``np.std``
+        computes pandas' standard deviation, which skips missing entries as
+        ``np.nanstd`` does.
 
     `axis` [optional; default=0] {integer}
         Transformations are applied on slices of data.  This specifies the
@@ -279,9 +279,10 @@ def scale(
         match it. The ``ddof`` argument is ignored when a custom `func` is
         supplied (forward your own keyword arguments via ``**kwargs`` instead).
 
-    Constant (zero-variance) columns are left unchanged: a zero entry in the
-    computed scaling vector is replaced by 1.0 before inversion, mirroring
-    :class:`MCUVScaler`, so no ``inf`` / ``NaN`` is introduced.
+    Constant columns, whose observed values are all equal, are left unchanged
+    (their multiplier is 1.0), mirroring :class:`MCUVScaler`, so no ``inf`` /
+    ``NaN`` is introduced. The values are tested rather than the standard
+    deviation, which for equal values is usually rounding noise, not 0.
 
     Usage
     =====
@@ -299,8 +300,8 @@ def scale(
     (scaled, scale_vector) : tuple[DataMatrix, np.ndarray]
         When ``extra_output=True``, a tuple of the scaled data and the
         per-column scaling vector (the reciprocal of `func` applied along
-        `axis`, with zero entries replaced by 1.0 to leave constant columns
-        unchanged) is returned instead.
+        `axis`, and 1.0 for a constant column, which is left unchanged) is
+        returned instead.
 
     Notes
     -----
@@ -330,10 +331,14 @@ def scale(
         kwargs["ddof"] = ddof
     # pandas-stubs types apply()'s axis as a Literal, so a plain ``int`` axis does
     # not match any overload; the call is valid at runtime.
-    vector = pd.DataFrame(X).apply(func, axis=axis, **kwargs).to_numpy()  # type: ignore[call-overload]  # pandas-stubs axis is Literal
-    # Zero-variance (constant) columns are left as-is, mirroring MCUVScaler, so
-    # that ``1.0 / vector`` does not introduce inf/NaN.
-    vector = np.where(vector == 0, 1.0, vector)
+    frame = pd.DataFrame(X)
+    vector = frame.apply(func, axis=axis, **kwargs).to_numpy()  # type: ignore[call-overload]  # pandas-stubs axis is Literal
+    # Constant columns (observed values all equal) are left as-is, mirroring
+    # MCUVScaler. The values are tested, not the spread: the standard deviation of
+    # equal values is more often rounding noise (1e-17) than an exact 0, and
+    # 1.0 / vector then multiplied the column by about 1e16.
+    constant = (frame.max(axis=axis) == frame.min(axis=axis)).to_numpy()  # type: ignore[call-overload]  # as above
+    vector = np.where(constant | (vector == 0), 1.0, vector)
     vector = 1.0 / vector
     if axis == 1:
         # Row-wise scaling: one value per ROW; see the reshape note in center().
