@@ -4,8 +4,8 @@ Pyodide has no WebAssembly build of some of the package's optional dependencies,
 installs only ``tqdm`` and ``openpyxl`` beyond the Pyodide distribution (``web/worker.js``).
 Here a fresh interpreter refuses those packages at import and runs every step of the page but
 the charts (``api_plots`` installs plotly on its first call), so a code path that reaches for
-one fails here rather than on a reader's screen. ``web/test-wasm.mjs`` runs a round trip
-under real Pyodide in CI.
+one fails here rather than on a reader's screen. ``tests/web/wasm`` runs the app's Python
+under real Pyodide (``--wasm``).
 """
 
 from __future__ import annotations

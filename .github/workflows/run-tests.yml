@@ -64,28 +64,58 @@ jobs:
     - name: Type-check with mypy
       run: uv run mypy src/process_improve
 
-  # The no-install browser app (web/) runs the wheel under Pyodide. This
-  # builds the wheel and drives a design -> analyse round trip under real
-  # Pyodide in Node, so a new dependency with no WebAssembly build, or an
-  # import that reaches for one, fails here and not on a reader's screen.
+  # The browser app (web/) in a browser and under Pyodide. tests/web/e2e drives the page
+  # in Chromium with its Python answered natively; tests/web/live runs the built app in
+  # Chromium with Pyodide; tests/web/wasm asks the app's Python under Pyodide in Node.js
+  # what native Python is asked, and compares. A dependency with no WebAssembly build, a
+  # page that no longer reads a reply, or a step that breaks in the browser fails here and
+  # not on a reader's screen. The rest of tests/web runs in every test job.
   web-app:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
     - uses: actions/checkout@v7
-    - name: Install uv
-      uses: astral-sh/setup-uv@v7
+    - name: Set up the project environment
+      uses: ./.github/actions/setup-env
       with:
         python-version: "3.13"
     - uses: actions/setup-node@v7
       with:
         node-version: "22"
-    - name: Build the wheel
-      run: uv build --wheel --out-dir dist/web
-    - name: Install Pyodide for Node
-      working-directory: web
-      run: npm install --no-save --no-package-lock pyodide@0.28.3
-    - name: Round trip under Pyodide
-      run: node web/test-wasm.mjs dist/web/process_improve-*.whl
+    - name: Read the Pyodide release the page runs
+      id: runtime
+      run: echo "pyodide=$(jq -r .pyodide web/runtime.json)" >> "$GITHUB_OUTPUT"
+    # Pyodide for Node.js keeps the packages it downloads in its own directory, so the
+    # cache saves the CDN round trips too.
+    - name: Cache Pyodide for Node.js
+      uses: actions/cache@v6
+      with:
+        path: ~/.cache/process-improve/node
+        key: pyodide-node-${{ steps.runtime.outputs.pyodide }}
+    - name: Install Pyodide for Node.js
+      run: >-
+        npm install --prefix ~/.cache/process-improve/node --no-save --no-package-lock
+        pyodide@${{ steps.runtime.outputs.pyodide }}
+    - name: Cache the downloads of the page in the browser
+      uses: actions/cache@v6
+      with:
+        path: ~/.cache/process-improve/cdn
+        key: web-app-cdn-${{ hashFiles('web/runtime.json') }}
+    - name: Install Chromium for Playwright
+      run: uv run --with playwright==1.56.0 playwright install --with-deps chromium
+    - name: Build the app
+      run: uv run python scripts/build_web_app.py -o dist/web-app
+    - name: The app in a browser and under Pyodide
+      run: >-
+        uv run --with playwright==1.56.0 pytest tests/web/e2e tests/web/live tests/web/wasm
+        --e2e --live --wasm --web-app=dist/web-app --e2e-artifacts=e2e-artifacts --no-cov
+    - name: Keep a trace and screenshots of each failing browser test
+      if: failure()
+      uses: actions/upload-artifact@v7
+      with:
+        name: web-app-e2e-artifacts
+        path: e2e-artifacts
+        retention-days: 7
 
   test:
     strategy:
