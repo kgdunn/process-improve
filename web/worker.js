@@ -4,12 +4,14 @@
 // Protocol: the page posts {id, fn, payload}; the worker answers {id, reply}
 // where reply is the JSON string the Python function returned, or
 // {status, state} while it is still starting up, where state is "busy",
-// "ok" or "error" so the page can show a spinner, a tick or an error.
+// "ok" or "error" so the page can show a spinner, a tick or an error. If Python
+// cannot start, every call is answered with the reason, so nothing waits for it.
 
 const PYODIDE_VERSION = "0.28.3";
 const PYODIDE_URL = `https://cdn.jsdelivr.net/pyodide/v${PYODIDE_VERSION}/full/`;
 
-importScripts(`${PYODIDE_URL}pyodide.js`);
+/** An error in one line: a Python traceback's last line names the exception and says what went wrong. */
+const oneLine = (err) => String(err?.message || err).trim().split("\n").at(-1);
 
 // The deploy step writes wheels/manifest.json naming the wheel built from this
 // commit, and the plotly release its worked example was drawn with. Without it (a
@@ -47,6 +49,7 @@ function installPlotly(pyodide) {
 async function boot() {
   const say = (status, state = "busy") => self.postMessage({ status, state });
   say("Loading Python (WebAssembly)...");
+  importScripts(`${PYODIDE_URL}pyodide.js`); // here, so a refused download stops boot() rather than the worker
   const pyodide = await loadPyodide({ indexURL: PYODIDE_URL });
 
   say("Loading numpy, pandas, scipy, statsmodels, scikit-learn...");
@@ -75,8 +78,12 @@ await micropip.install(_wheel, deps=False)
   return pyodide;
 }
 
-const ready = boot();
-ready.catch((err) => self.postMessage({ status: `Could not start Python: ${err.message}`, state: "error" }));
+const ready = boot().catch((err) => {
+  const reason = `Could not start Python: ${oneLine(err)}`;
+  self.postMessage({ status: reason, state: "error" });
+  throw new Error(reason);
+});
+ready.catch(() => {}); // each call is answered with the reason
 
 self.onmessage = async ({ data: { id, fn, payload } }) => {
   try {
@@ -86,6 +93,6 @@ self.onmessage = async ({ data: { id, fn, payload } }) => {
     self.postMessage({ id, reply });
   } catch (err) {
     if (fn === "api_plots") plotly = null; // the next chart tries the install again
-    self.postMessage({ id, reply: JSON.stringify({ ok: false, error: String(err.message || err) }) });
+    self.postMessage({ id, reply: JSON.stringify({ ok: false, error: oneLine(err) }) });
   }
 };

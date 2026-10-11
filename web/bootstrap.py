@@ -44,6 +44,10 @@ SPEC_SHEET = "_pi_design"
 RUN_SHEET = "Runs"
 SPEC_VERSION = 1
 
+#: The run sheet's column marking simulated results. Its space keeps it apart from every factor
+#: and response, which must be variable names; workbooks written before used ``Source``.
+MARKS = "Result source"
+
 #: Design types the page offers. Each one is pure numpy / scipy, so it runs
 #: under WebAssembly. Excluded: ``omars_ilp`` (its HiGHS multistart needs
 #: scipy >= 1.15, newer than Pyodide's, and takes too long for a page).
@@ -257,15 +261,27 @@ def _reply(fn: Callable[[dict], dict], payload: str) -> str:
     """Run ``fn`` on the decoded payload; report errors as data, not exceptions.
 
     Whatever the library warned about during the call travels with the reply as
-    ``warnings``, so the page can show it rather than leave it in the console.
+    ``warnings``, so the page can show it rather than leave it in the console. An error
+    nothing here expected comes back in one line, its type and message: the page shows
+    the error as it is, and a traceback is no sentence for a reader.
     """
     with _listening() as heard:
         try:
-            reply: dict[str, Any] = {"ok": True, "result": _clean(fn(json.loads(payload or "{}")))}
+            reply: dict[str, Any] = {"ok": True, "result": _clean(fn(_request(payload)))}
         except (ValueError, KeyError, TypeError) as exc:
             reply = {"ok": False, "error": str(exc)}
+        except Exception as exc:  # noqa: BLE001 - anything else still reaches the reader as one line
+            reply = {"ok": False, "error": f"Python stopped with {type(exc).__name__}: {exc}"}
     reply["warnings"] = list(dict.fromkeys(_LOG_PREFIX.sub("", message) for message in heard))
     return json.dumps(reply)
+
+
+def _request(payload: str) -> dict:
+    """Decode a request: a JSON object, or an empty one for no payload."""
+    request = json.loads(payload or "{}")
+    if not isinstance(request, dict):
+        raise ValueError("The page sent a request that is not a JSON object.")  # noqa: TRY004 - a refusal, like the rest
+    return request
 
 
 #: Packages whose own warnings are numerical noise on this page, such as a saturated
@@ -636,9 +652,11 @@ def _analysis(runs: pd.DataFrame, spec: dict, model: str, truth: list[dict] | No
     )[done].reset_index(drop=True)
     n_terms = _n_terms(len(names), model)
     if pending and done.sum() < n_terms:
+        complete = int(done.sum())
         raise ValueError(
             f"The {model.replace('_', ' ')} model has {n_terms} coefficients, so it needs at least {n_terms} "
-            f"completed runs; this workbook has {int(done.sum())}. Pending run(s): {pending}."
+            f"completed runs, and {complete} {'is' if complete == 1 else 'are'} complete. "
+            f"Still to run: {', '.join(map(str, pending))}."
         )
 
     fit = _fit_estimable(coded, y[done].reset_index(drop=True).rename(response), model, names)
@@ -983,8 +1001,9 @@ def read_workbook(request: dict) -> dict:
     if response not in runs.columns:
         raise ValueError(f"The Runs sheet has no {response!r} column for the results.")
     values = pd.to_numeric(runs[response], errors="coerce")
-    marks = runs["Source"].fillna("").astype(str) if "Source" in runs else pd.Series("", index=runs.index)
-    sheet = runs.drop(columns=["Source"], errors="ignore")
+    column = _marks_column(runs, spec)
+    marks = runs[column].fillna("").astype(str) if column else pd.Series("", index=runs.index)
+    sheet = runs.drop(columns=[column] if column else [])
     sheet[response] = np.nan
     return {
         "spec": spec,
@@ -998,10 +1017,16 @@ def read_workbook(request: dict) -> dict:
     }
 
 
+def _marks_column(runs: pd.DataFrame, spec: dict) -> str | None:
+    """Name the run sheet's column of marks, if it has one: an older workbook's ``Source``, unless that is data."""
+    data = {spec["response"], *(f["name"] for f in spec["factors"])}
+    return next((c for c in (MARKS, "Source") if c in runs.columns and c not in data), None)
+
+
 def workbook(request: dict) -> dict:
     """Write the page's runs and responses to a workbook the page can analyse again.
 
-    Simulated responses are marked, in a ``Source`` column and in the stored
+    Simulated responses are marked, in the ``MARKS`` column and in the stored
     specification, so the workbook says which values were measured.
     """
     spec = _checked_spec(request.get("spec") or {})
@@ -1010,7 +1035,7 @@ def workbook(request: dict) -> dict:
     if sources and any(sources):
         if len(sources) != len(runs):
             raise ValueError(f"{len(sources)} sources were sent for {len(runs)} runs.")
-        runs["Source"] = ["simulated" if s == "simulated" else "" for s in sources]
+        runs[MARKS] = ["simulated" if s == "simulated" else "" for s in sources]
     simulated = request.get("simulated")
     if simulated:
         spec = {**spec, "simulated": {k: simulated.get(k) for k in ("scenario", "sigma", "seed")}}
@@ -1120,12 +1145,18 @@ def compare_plan(request: dict) -> dict:
 
     Every design the factor count allows is included, with the page's default options;
     the optimal designs are built for the comparison's model (see :data:`OPTIMAL_MODEL`).
+    The response is the reader's, so a design taken into step 1 keeps it. A comparison has
+    no results, so when that name is blank or a factor's, the first of y, y1, y2, ... that
+    no factor takes stands in.
     """
     model = request.get("model") or "main_quadratic"
     if model not in COMPARISON_MODELS:
         raise ValueError(f"Model must be one of {', '.join(COMPARISON_MODELS)}.")
     factors = _factors(request)
     k = len(factors)
+    names = {f.name for f in factors}
+    candidates = [str(request.get("response") or "").strip(), "y", *(f"y{i}" for i in range(1, k + 1))]
+    response = next(name for name in candidates if name.isidentifier() and name not in names)
     plan = []
     for design_type, info in DESIGNS.items():
         if not info["min_factors"] <= k <= info["max_factors"]:
@@ -1133,7 +1164,7 @@ def compare_plan(request: dict) -> dict:
         options = dict(COMPARE_OPTIONS[design_type])
         if "model_type" in info["options"]:
             options["model_type"] = OPTIMAL_MODEL[model]
-        spec = {"design_type": design_type, "factors": request["factors"], "response": "y", **options}
+        spec = {"design_type": design_type, "factors": request["factors"], "response": response, **options}
         plan.append({"design_type": design_type, "label": COMPARE_LABELS[design_type], "spec": spec})
     notes = []
     if model != OPTIMAL_MODEL[model] and any("model_type" in DESIGNS[d["design_type"]]["options"] for d in plan):

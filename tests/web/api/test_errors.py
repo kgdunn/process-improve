@@ -107,6 +107,12 @@ REFUSALS: dict[str, tuple[str, Callable[[Example], dict], str]] = {
         _make(factors=[FACTORS[0], {**FACTORS[1], "high": "inf"}]),
         "Factor P: enter a number for both the low and the high value.",
     ),
+    # The request itself, which only a script could get wrong.
+    "a request that is not an object": (
+        "api_make_design",
+        lambda _: [1],
+        "The page sent a request that is not a JSON object.",
+    ),
     # The design's settings.
     "unknown design": ("api_make_design", _make(design_type="rocket"), "Unknown design type 'rocket'."),
     "response named as a factor": (
@@ -200,8 +206,8 @@ REFUSALS: dict[str, tuple[str, Callable[[Example], dict], str]] = {
         "api_analyze",
         _workbook(_blank(8), model="quadratic"),
         (
-            "The quadratic model has 10 coefficients, so it needs at least 10 completed runs; this workbook has 7. "
-            "Pending run(s): [1, 2, 3, 4, 5, 6, 7, 8]."
+            "The quadratic model has 10 coefficients, so it needs at least 10 completed runs, and 7 are complete. "
+            "Still to run: 1, 2, 3, 4, 5, 6, 7, 8."
         ),
     ),
     "a design too small for the model": (

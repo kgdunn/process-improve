@@ -16,16 +16,13 @@ from typing import TYPE_CHECKING, Any
 
 import pytest
 
-from tests.web._browser import Console, cache_downloads, failed, serve
+from tests.web._browser import BOOT_TIMEOUT, Console, cache_downloads, failed, serve
 from tests.web.e2e._page import status
 
 if TYPE_CHECKING:
     from collections.abc import Iterator
 
 HARNESS = Path(__file__).parents[1] / "harness.js"
-
-#: How long Python may take to start: Pyodide, numpy, pandas, scipy, statsmodels, the wheel (ms).
-BOOT_TIMEOUT = 300_000
 
 
 @pytest.fixture(scope="session")
@@ -47,14 +44,28 @@ class Live:
     demo: dict
 
 
-@pytest.fixture(scope="module")
-def live(chromium: Any, app_url: str, request: pytest.FixtureRequest) -> Iterator[Live]:  # noqa: ANN401
-    """Open the app once for the module, and return it once Python has started and the first paint is done."""
+def new_context(chromium: Any, request: pytest.FixtureRequest) -> Any:  # noqa: ANN401 - Playwright objects
+    """Open a context for the app: its own worker, watched, with downloads cached unless ``--cdn-cache=off``."""
     context = chromium.new_context(viewport={"width": 1280, "height": 900})
-    context.add_init_script(path=HARNESS)  # the page's own worker, watched
+    context.add_init_script(path=HARNESS)
     cache = request.config.getoption("--cdn-cache")
     if cache != "off":
         cache_downloads(context, Path(cache))
+    return context
+
+
+@pytest.fixture
+def own_context(chromium: Any, request: pytest.FixtureRequest) -> Iterator[Any]:  # noqa: ANN401
+    """Return a context of the test's own, for a test that changes what the page can reach."""
+    context = new_context(chromium, request)
+    yield context
+    context.close()
+
+
+@pytest.fixture(scope="module")
+def live(chromium: Any, app_url: str, request: pytest.FixtureRequest) -> Iterator[Live]:  # noqa: ANN401
+    """Open the app once for the module, and return it once Python has started and the first paint is done."""
+    context = new_context(chromium, request)
     tracing = bool(request.config.getoption("--e2e-artifacts"))
     if tracing:
         context.tracing.start(screenshots=True, snapshots=True)

@@ -59,6 +59,11 @@ describe("the form against the design", () => {
     assert.ok(!formMatches(form, "Yield", spec));
   });
 
+  test("a blank response is the y the design was made with", () => {
+    assert.ok(formMatches(form, "", spec));
+    assert.ok(!formMatches(form, "", { ...spec, response: "Yield" }));
+  });
+
   test("a design read from a workbook keeps its ranges as numbers or as text", () => {
     assert.ok(formMatches(form, "y", { ...spec, factors: spec.factors.map((f) => ({ ...f, low: String(f.low) })) }));
   });

@@ -51,7 +51,7 @@ const pending = new Map();
 
 worker.onmessage = ({ data }) => {
   if (data.status) {
-    setStatus(data.status, data.state);
+    if (!pythonFailure) setStatus(data.status, data.state);
     return;
   }
   const resolve = pending.get(data.id);
@@ -59,13 +59,34 @@ worker.onmessage = ({ data }) => {
   resolve(JSON.parse(data.reply));
 };
 
+// worker.js itself did not load or run: nothing will answer, so say so rather than wait.
+worker.onerror = (event) => {
+  event.preventDefault();
+  pythonFailed(`Could not start Python: ${event.message || "worker.js did not load"}`);
+};
+
 /** Call a Python ``api_*`` function; resolves to its decoded {ok, result|error, warnings}. */
 function call(fn, payload = {}) {
+  if (pythonFailure) return Promise.resolve({ ok: false, error: pythonFailure, warnings: [] });
   const id = nextId++;
   return new Promise((resolve) => {
     pending.set(id, resolve);
     worker.postMessage({ id, fn, payload: JSON.stringify(payload) });
   });
+}
+
+/**
+ * Python could not start: say why, and stop everything that waits for it. The worked
+ * example drawn at first paint stays, and every call is answered with the reason.
+ */
+function pythonFailed(reason) {
+  if (pythonFailure) return;
+  pythonFailure = reason;
+  setStatus(reason, "error");
+  $("#run-example").disabled = true;
+  for (const resolve of pending.values()) resolve({ ok: false, error: reason, warnings: [] });
+  pending.clear();
+  rejectReady(new Error(reason));
 }
 
 /** Show a status message; state is "busy" (spinner), "ok" (tick) or "error". */
@@ -87,10 +108,14 @@ const state = {
 let seed = 1;
 let catalogue = null;
 let pythonReady = false;
+let pythonFailure = null; // why Python could not start, once it is known
 let resolveReady;
-const whenReady = new Promise((resolve) => {
+let rejectReady;
+const whenReady = new Promise((resolve, reject) => {
   resolveReady = resolve;
+  rejectReady = reject;
 });
+whenReady.catch(() => {}); // a failure is shown in the status line, whoever waits for it
 
 /** The runs as the Python side expects them back. */
 const held = () => ({ spec: state.design.spec, columns: state.design.columns, rows: state.design.rows });
@@ -140,6 +165,12 @@ function setForm(spec) {
   if (options.n_center_points !== undefined) $("#n_center_points").value = options.n_center_points;
   if (options.alpha) $("#alpha").value = options.alpha;
   if (options.model_type) $("#model_type").value = options.model_type;
+  // A resolution or a number of runs other than the page's own pick is kept, as if the reader had chosen it.
+  const k = spec.factors.length;
+  resolutionEdited = Boolean(options.resolution) && options.resolution !== defaultResolution(k);
+  if (options.resolution) $("#resolution").value = String(options.resolution);
+  budgetEdited = Boolean(options.budget) && options.budget !== nTerms(k, options.model_type) + SPARE_RUNS;
+  if (options.budget) $("#budget").value = options.budget;
   refreshDesign();
 }
 
@@ -299,6 +330,7 @@ function renderRuns() {
     state.sources[i] = input.value === "" ? null : "entered";
     input.classList.remove("sim");
     describeSource();
+    renderTruth();
     showPython("run", enteredCode(state.responses));
     scheduleAnalysis();
   };
@@ -322,7 +354,7 @@ function describeSource() {
 
 /** The true process behind the simulated results, behind a reveal. */
 function renderTruth() {
-  const sim = state.simulation;
+  const sim = state.sources.includes("simulated") ? state.simulation : null; // gone with the last simulated result
   $("#truth").hidden = !sim;
   if (!sim) return;
   $("#truth-equation").textContent = sim.equation;
@@ -407,6 +439,8 @@ async function readUpload(file) {
   renderDesign(reply.warnings);
   renderRuns();
   renderTruth();
+  showPython("design", designCode(r.spec));
+  showPython("run", enteredCode(state.responses));
   await analyseRuns();
 }
 
@@ -420,8 +454,11 @@ function scheduleAnalysis() {
   analysisTimer = setTimeout(analyseRuns, 700);
 }
 
+/** Take the analysis away: its runs or their results are gone. A reply still on its way is dropped. */
 function clearAnalysis() {
+  ticket += 1;
   $("#analysis").hidden = true;
+  $("#py-analyse").hidden = true;
   $("#charts").hidden = true;
   $("#charts").replaceChildren();
   $("#analyse-empty").hidden = false;
@@ -430,6 +467,7 @@ function clearAnalysis() {
 async function analyseRuns() {
   if (!state.design || !state.responses.some((v) => v !== null)) {
     clearAnalysis();
+    setStatus("No results to analyse yet.");
     return;
   }
   const mine = ++ticket;
@@ -455,6 +493,7 @@ function renderAnalysis(reply) {
     setStatus("The results could not be analysed.", "error");
     out.replaceChildren(el("p", "error", reply.error), ...warningList(reply.warnings));
     $("#charts").hidden = true;
+    $("#py-analyse").hidden = true;
     return;
   }
   const r = reply.result;
@@ -607,7 +646,7 @@ async function showBuiltExample() {
   renderAnalysis({ ok: true, result: example.analysis, warnings: [] });
   $("#demo-version").textContent = `process-improve ${example.version}`;
   $("#demo-banner").hidden = false;
-  if (!pythonReady) setStatus("Showing the worked example while Python starts...", "busy");
+  if (!pythonReady && !pythonFailure) setStatus("Showing the worked example while Python starts...", "busy");
   const request = { truth: example.simulation.truth };
   await drawCharts(request, ticket, example.plots);
   const compared = example.comparison;
@@ -631,9 +670,10 @@ async function runExample() {
   if (!pythonReady) {
     button.disabled = true;
     button.textContent = "Waiting for Python to start...";
-    await whenReady;
+    const started = await whenReady.then(() => true, () => false);
     button.textContent = "Run the worked example";
-    button.disabled = false;
+    button.disabled = !started;
+    if (!started) return;
   }
   const example = catalogue.demo;
   setForm(example.design);
@@ -663,7 +703,7 @@ async function compareDesigns() {
   const factors = readFactors();
   const model = $("#compare-model").value;
   setStatus("Choosing the designs to compare...", "busy");
-  const plan = await call("api_compare_plan", { factors, model });
+  const plan = await call("api_compare_plan", { factors, model, response: $("#response").value.trim() });
   if (!plan.ok) {
     setStatus(plan.error, "error");
     button.disabled = false;
@@ -676,6 +716,16 @@ async function compareDesigns() {
     const reply = await call("api_make_design", item.spec);
     if (reply.ok) made.push({ ...item, design: reply.result });
     else notes.push(`${item.label} could not be generated: ${reply.error}`);
+  }
+  if (!made.length) {
+    // Nothing to score: say why each design could not be made, in place of the last comparison.
+    button.disabled = false;
+    setStatus("None of the designs could be generated, so there is nothing to compare.", "error");
+    $("#comparison").hidden = false;
+    $("#comparison").replaceChildren(...noteList(notes));
+    $("#compare-charts").hidden = true;
+    $("#py-compare").hidden = true;
+    return;
   }
   setStatus("Scoring the designs...", "busy");
   const designs = made.map((m) => ({ label: m.label, spec: m.design.spec, columns: m.design.columns, rows: m.design.rows }));
@@ -956,12 +1006,24 @@ $("#model").onchange = analyseRuns;
 $("#compare").onclick = compareDesigns;
 for (const button of document.querySelectorAll("details.python .copy")) {
   button.onclick = async () => {
-    await navigator.clipboard.writeText(button.parentElement.querySelector("code").textContent);
-    button.textContent = "Copied";
-    setTimeout(() => (button.textContent = "Copy the code"), 1500);
+    const code = button.parentElement.querySelector("code");
+    let done = "Copied";
+    try {
+      await navigator.clipboard.writeText(code.textContent);
+    } catch {
+      // The browser refused the clipboard: select the code, for the reader to copy from the keyboard.
+      getSelection().selectAllChildren(code);
+      done = "Selected: copy it with Ctrl+C or ⌘C";
+    }
+    button.textContent = done;
+    setTimeout(() => (button.textContent = "Copy the code"), done === "Copied" ? 1500 : 4000);
   };
 }
-$("#upload").onchange = (e) => e.target.files[0] && readUpload(e.target.files[0]);
+$("#upload").onchange = (e) => {
+  const file = e.target.files[0];
+  e.target.value = ""; // so choosing the same file again reads it again
+  if (file) readUpload(file);
+};
 const drop = $("#drop");
 drop.ondragover = (e) => {
   e.preventDefault();
@@ -979,7 +1041,10 @@ readManifest();
 showBuiltExample();
 
 call("api_catalogue").then((reply) => {
-  if (!reply.ok) return;
+  if (!reply.ok) {
+    pythonFailed(reply.error);
+    return;
+  }
   catalogue = reply.result;
   pythonReady = true;
   for (const id of ["#upload", "#simulate", "#reroll", "#compare"]) $(id).disabled = false;
