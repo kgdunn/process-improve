@@ -198,7 +198,6 @@ def test_a_model_the_design_cannot_fit_is_refused_plainly(api):
     assert "cannot fit the quadratic model" in reply["error"]
 
 
-@pytest.mark.xfail(strict=True, reason="defect: the page's runs are called a workbook, and the runs left a Python list")
 def test_too_few_results_for_the_model_are_reported_in_the_page_s_words(api, held, simulated):
     """The runs may be the page's, typed in, and the runs still to do are named as the analysis names them."""
     responses = [None] * 8 + simulated["responses"][8:]

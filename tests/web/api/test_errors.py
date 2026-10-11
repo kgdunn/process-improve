@@ -206,8 +206,8 @@ REFUSALS: dict[str, tuple[str, Callable[[Example], dict], str]] = {
         "api_analyze",
         _workbook(_blank(8), model="quadratic"),
         (
-            "The quadratic model has 10 coefficients, so it needs at least 10 completed runs; this workbook has 7. "
-            "Pending run(s): [1, 2, 3, 4, 5, 6, 7, 8]."
+            "The quadratic model has 10 coefficients, so it needs at least 10 completed runs, and 7 are complete. "
+            "Still to run: 1, 2, 3, 4, 5, 6, 7, 8."
         ),
     ),
     "a design too small for the model": (

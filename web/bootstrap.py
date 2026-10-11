@@ -652,9 +652,11 @@ def _analysis(runs: pd.DataFrame, spec: dict, model: str, truth: list[dict] | No
     )[done].reset_index(drop=True)
     n_terms = _n_terms(len(names), model)
     if pending and done.sum() < n_terms:
+        complete = int(done.sum())
         raise ValueError(
             f"The {model.replace('_', ' ')} model has {n_terms} coefficients, so it needs at least {n_terms} "
-            f"completed runs; this workbook has {int(done.sum())}. Pending run(s): {pending}."
+            f"completed runs, and {complete} {'is' if complete == 1 else 'are'} complete. "
+            f"Still to run: {', '.join(map(str, pending))}."
         )
 
     fit = _fit_estimable(coded, y[done].reset_index(drop=True).rename(response), model, names)
