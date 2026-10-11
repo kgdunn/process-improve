@@ -238,3 +238,10 @@ def test_every_link_within_the_page_leads_somewhere():
     targets = set(re.findall(r'href="#([\w-]+)"', source("index.html")))
     assert targets, "the stepper links to each step"
     assert targets - set(page().ids) == set()
+
+
+def test_the_list_of_saved_designs_says_how_many_store_js_keeps():
+    """The page tells the reader that only the most recent designs are kept; the number is store.js's."""
+    keep = re.search(r"export const KEEP = (\d+);", source("store.js"))
+    assert keep
+    assert f"The {keep.group(1)} most recent are kept." in " ".join(source("index.html").split())
