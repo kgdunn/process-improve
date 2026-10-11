@@ -251,6 +251,62 @@ those changes.
 
 ### Fixed
 
+- **The browser app's run sheet lists the runs in their randomised order.** It sorted them
+  back into standard order: a 2^3 factorial's eight corners came first, last factor
+  fastest, and its three centre runs last, under a "Run order" of 1 to 11.
+  - `DesignResult.run_order[i]` is the standard-order position of the i-th run, whose
+    rows are already randomised; the page read it as the run order and sorted on it.
+    "Run order" is now the row's position, and "Std order" the library's `run_order`.
+  - `DesignResult.run_order`'s docstring said "Randomized run order", which invites the
+    same misreading; it now says what the list holds.
+
+- **The browser app no longer generates designs it cannot analyse, or that grow out of
+  hand.**
+  - D- and I-optimal designs: the page sent 16 runs whatever the model, so six factors
+    and a quadratic model (28 coefficients) came back with 28 runs and nothing left to
+    estimate the error. The default is now the model's coefficients plus four, and a run
+    count raised by the library is reported.
+  - Box-Behnken designs, and a rotatable CCD, need at least one center point: without one
+    every other run lies on one sphere, so the squared terms cannot be told apart from
+    the intercept.
+  - Fractional factorials take a resolution (III, IV or V, up to the number of factors;
+    IV by default) instead of always the half fraction, which had 32, 64 and 128 runs at
+    6, 7 and 8 factors. A fraction of resolution V or more is analysed with its two-factor
+    interactions. A CCD uses a half-fraction cube from six factors.
+  - Each design takes a range of factor counts, and is unavailable outside it, with the
+    reason shown; for example, an I-optimal design is limited to six factors, since its
+    search takes up to 20 s under WebAssembly at six.
+  - The summary states the generated design's resolution, generators and fully aliased
+    effects, read off the design itself, instead of a fixed hint that called every
+    fraction's main effects aliased with interactions. Plackett-Burman designs show their
+    center points, which the page added without a control.
+  - A definitive screening design takes center runs, three by default, like the other
+    designs. With only its own center run, an even-k DSD leaves no degrees of freedom to
+    estimate the error, and the warning that says so asked for a control the page did not
+    have.
+
+- **The browser app estimates aliased terms once, as their chain, and analyses saturated
+  designs.**
+  - When a design cannot tell terms apart, the fit listed each one with an equal share of
+    their joint estimate: in a 2^(3-1) design, T and P·F each read 2 where T is 4. The
+    page now refits with one term per alias chain, labelled with the whole chain
+    ("T + P·F"), and lists the terms that move with the intercept (the squares of a
+    two-level design without center points) as not estimable. A model the design cannot
+    fit, such as the quadratic in a 9-run DSD, is refused with that reason.
+  - A model that uses every run stopped with "needs more than N completed runs". The
+    effects of a two-level design are now judged with Lenth's method; any other
+    saturated fit says that nothing can be tested.
+  - The library's warnings, such as an even-k DSD leaving no error degrees of freedom,
+    are shown with the result; numerical noise from numpy and statsmodels is not.
+
+- **The Pareto and half-normal plots draw Lenth's margins at the level the analysis
+  used, and recompute them with the analysis's formula.** They looked for that level under
+  `alpha`, but `analyze_experiment` stores it as `significance_level`, so an analysis at
+  0.10 was drawn as if at 0.05. Recomputed at another level, SME used a Bonferroni
+  quantile, `t(1 - alpha/(2m), m/3)`, where the analysis uses Lenth's
+  `t((1 + (1 - alpha)**(1/m))/2, m/3)`; the two lines now agree with the analysis's
+  `active_SME` flags.
+
 - **`analyze_experiment` no longer blames the design for badly scaled units.** It took
   the model matrix's rank in the factors' own units. In very unequal units, or with a
   span that is tiny next to its distance from zero, that rank drops in floating point.

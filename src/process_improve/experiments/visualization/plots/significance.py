@@ -29,28 +29,31 @@ from process_improve.visualization.types import MarkType, ScaleType
 # ---------------------------------------------------------------------------
 
 
-#: Significance level of the margins ``analyze_experiment`` reports for Lenth's method.
+#: The level assumed for Lenth margins that do not say which level they were computed at;
+#: ``analyze_experiment`` reports its own as ``significance_level``, 0.05 by default.
 _LENTH_ANALYSIS_ALPHA = 0.05
 
 
 def _lenth_margins(lenth: dict[str, Any], confidence_level: float) -> tuple[float | None, float | None, str, bool]:
     """Return Lenth's ME and SME at ``alpha = 1 - confidence_level``, their label suffix, and if recomputed.
 
-    ``analyze_experiment`` reports the margins at alpha = 0.05. At another level they are
-    recomputed from the pseudo standard error and the number of effects ``m``, by the same
-    formulas: ``ME = t(1 - alpha/2, m/3) * PSE`` and ``SME = t(1 - alpha/(2m), m/3) * PSE``.
-    Without a PSE the reported margins are drawn, labelled with the level they were
-    computed at.
+    ``analyze_experiment`` reports the margins at its ``significance_level`` (0.05 unless
+    asked otherwise). At another level they are recomputed from the pseudo standard error
+    and the number of effects ``m``, by the analysis's own formulas (Lenth, 1989):
+    ``ME = t(1 - alpha/2, m/3) * PSE`` and ``SME = t(gamma, m/3) * PSE`` with
+    ``gamma = (1 + (1 - alpha)**(1/m)) / 2``. Without a PSE the reported margins are
+    drawn, labelled with the level they were computed at.
     """
     alpha = round(1.0 - confidence_level, 10)
-    analysis_alpha = float(lenth.get("alpha", _LENTH_ANALYSIS_ALPHA))
+    analysis_alpha = float(lenth.get("significance_level", lenth.get("alpha", _LENTH_ANALYSIS_ALPHA)))
     pse = lenth.get("PSE")
     m = len(lenth.get("effects", []))
     if abs(alpha - analysis_alpha) < 1e-12 or pse is None or m == 0:
         return lenth.get("ME"), lenth.get("SME"), f" (α={analysis_alpha:g})", False  # noqa: RUF001
     df = m / 3.0
+    gamma = (1.0 + (1.0 - alpha) ** (1.0 / m)) / 2.0
     me = float(stats.t.ppf(1.0 - alpha / 2.0, df) * pse)
-    sme = float(stats.t.ppf(1.0 - alpha / (2.0 * m), df) * pse)
+    sme = float(stats.t.ppf(gamma, df) * pse)
     return me, sme, f" (α={alpha:g})", True  # noqa: RUF001
 
 

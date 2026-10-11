@@ -50,9 +50,14 @@ function addFactor(f = { name: "", low: -1, high: 1, units: "" }) {
     <td><input name="units" aria-label="Units" size="6"></td>
     <td><button type="button" class="link" aria-label="Remove factor">✕</button></td>`;
   for (const key of ["name", "low", "high", "units"]) tr.querySelector(`[name=${key}]`).value = f[key];
-  tr.querySelector("button").onclick = () => tr.remove();
+  tr.querySelector("button").onclick = () => {
+    tr.remove();
+    refreshDesign();
+  };
   $("#factors tbody").append(tr);
 }
+
+const factorCount = () => document.querySelectorAll("#factors tbody tr").length;
 
 function readFactors() {
   return [...document.querySelectorAll("#factors tbody tr")].map((tr) => ({
@@ -64,15 +69,60 @@ function readFactors() {
 }
 
 // ---------------------------------------------------------------- design step
-// The design list, its hints and which settings each design takes are in the
-// HTML, so the form is right from the first paint, before Python has loaded.
-function showOptions() {
-  const option = $("#design-type").selectedOptions[0];
-  const allowed = option.dataset.options.split(" ");
-  $("#design-hint").textContent = option.dataset.hint;
-  for (const el of document.querySelectorAll("[data-option]")) {
-    el.hidden = !allowed.includes(el.dataset.option);
+// The design list, its hints, which settings each design takes and how many
+// factors it accepts are in the HTML, so the form is right from the first paint,
+// before Python has loaded.
+let pythonReady = false;
+let budgetEdited = false;
+let resolutionEdited = false;
+
+/** Spare runs an optimal design gets beyond its model's coefficients; mirrors bootstrap.SPARE_RUNS. */
+const SPARE_RUNS = 4;
+
+/** Count the coefficients, intercept included, of each named model in k factors. */
+function nTerms(k, model) {
+  const pairs = (k * (k - 1)) / 2;
+  return 1 + k + (model === "main_effects" ? 0 : pairs) + (model === "quadratic" ? k : 0);
+}
+
+/**
+ * Bring the design settings in line with the factors: designs the factor count rules
+ * out are disabled (and the hint says why if one is selected), a fraction's resolution
+ * is at most the number of factors, Box-Behnken and a rotatable CCD keep a center
+ * point, and an optimal design's runs follow its model unless the reader set them.
+ */
+function refreshDesign() {
+  const k = factorCount();
+  const select = $("#design-type");
+  for (const option of select.options) {
+    option.disabled = k < Number(option.dataset.minFactors) || k > Number(option.dataset.maxFactors);
   }
+  const option = select.selectedOptions[0];
+  const allowed = option.dataset.options.split(" ");
+  for (const el of document.querySelectorAll("[data-option]")) el.hidden = !allowed.includes(el.dataset.option);
+
+  // Resolution IV unless the reader chose another; three factors allow only III.
+  const resolution = $("#resolution");
+  for (const choice of resolution.options) choice.disabled = Number(choice.value) > k;
+  if (!resolutionEdited || resolution.selectedOptions[0].disabled) resolution.value = String(Math.max(3, Math.min(4, k)));
+
+  // A Box-Behnken design or a rotatable CCD needs a center run to fit the squares; a DSD has one built in.
+  const centre = $("#n_center_points");
+  const needsCentre =
+    ["box_behnken", "dsd"].includes(option.value) || (option.value === "ccd" && $("#alpha").value === "rotatable");
+  centre.min = needsCentre ? 1 : 0;
+  if (needsCentre && Number(centre.value) < 1) centre.value = 1;
+
+  const p = nTerms(k, $("#model_type").value);
+  if (!budgetEdited) $("#budget").value = p + SPARE_RUNS;
+  $("#budget-hint").textContent = `The model has ${p} coefficients.`;
+
+  const hint = $("#design-hint");
+  hint.textContent = option.disabled
+    ? `${option.textContent} takes ${option.dataset.minFactors} to ${option.dataset.maxFactors} factors on this page; you have ${k}.`
+    : option.dataset.hint;
+  hint.classList.toggle("error", option.disabled);
+  $("#generate").disabled = !pythonReady || option.disabled;
 }
 
 async function generate() {
@@ -85,6 +135,7 @@ async function generate() {
     response: $("#response").value.trim(),
     n_center_points: Number($("#n_center_points").value),
     alpha: $("#alpha").value,
+    resolution: Number($("#resolution").value),
     budget: Number($("#budget").value),
     model_type: $("#model_type").value,
   };
@@ -99,9 +150,17 @@ async function generate() {
   const warn = r.outside_range.length
     ? ` Some runs of ${r.outside_range.join(", ")} lie outside the ranges you entered; check they are safe to run.`
     : "";
-  $("#design-summary").textContent =
-    `${r.n_runs} runs, listed in randomised run order. The workbook will be analysed with the ` +
-    `${r.model.replace("_", " ")} model unless you choose another.${warn}`;
+  const centre = r.facts.center_runs ? `, ${r.facts.center_runs} of them at the center of the ranges` : "";
+  $("#design-summary").replaceChildren(
+    el(
+      "p",
+      "",
+      `${r.n_runs} runs${centre}, listed in randomised run order. The workbook will be analysed with the ` +
+        `${r.model.replace("_", " ")} model unless you choose another.${warn}`,
+    ),
+    ...noteList(r.facts.notes),
+    ...warningList(reply.warnings),
+  );
   renderTable($("#design-table"), r.columns, r.rows, "Run order");
   const blob = new Blob([Uint8Array.from(atob(r.xlsx_base64), (c) => c.charCodeAt(0))], {
     type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
@@ -124,7 +183,7 @@ async function analyse() {
   out.hidden = false;
   if (!reply.ok) {
     setStatus("The workbook could not be analysed.", "error");
-    out.replaceChildren(el("p", "error", reply.error));
+    out.replaceChildren(el("p", "error", reply.error), ...warningList(reply.warnings));
     return;
   }
   const r = reply.result;
@@ -140,19 +199,36 @@ async function analyse() {
         `predicted R² = ${fmt(s.r_squared_pred)}, residual degrees of freedom = ${s.df_residual}.` +
         (r.pending_runs.length ? ` Still to run: ${r.pending_runs.join(", ")}.` : ""),
     ),
+    ...noteList(r.notes),
+    ...warningList(reply.warnings),
     el("h3", "", "Coefficients"),
     table(
       ["Term", "Coefficient", "Std. error", "95% interval", "p-value"],
       r.coefficients.map((c) => [
-        c.term, fmt(c.coefficient), fmt(c.std_error), `${fmt(c.ci_low)} to ${fmt(c.ci_high)}`, pval(c.p_value),
+        c.label, fmt(c.coefficient), fmt(c.std_error), c.std_error === null ? "" : `${fmt(c.ci_low)} to ${fmt(c.ci_high)}`,
+        pval(c.p_value),
       ]),
     ),
-    el("h3", "", "ANOVA"),
-    table(
-      ["Source", "df", "Sum of squares", "F", "p-value"],
-      r.anova.map((a) => [a.source, a.df, fmt(a.sum_sq), fmt(a.F), pval(a.p_value)]),
-    ),
   ];
+  if (r.lenth) {
+    parts.push(
+      el("h3", "", "Effects, judged with Lenth's method"),
+      el("p", "hint", `Pseudo standard error PSE = ${fmt(r.lenth.PSE)}; margins ME = ${fmt(r.lenth.ME)} and SME = ${fmt(r.lenth.SME)}.`),
+      table(
+        ["Term", "Effect", "Beyond ME", "Beyond SME"],
+        r.lenth.effects.map((e) => [e.label, fmt(e.effect), e.active_ME ? "yes" : "no", e.active_SME ? "yes" : "no"]),
+      ),
+    );
+  }
+  if (r.anova.length) {
+    parts.push(
+      el("h3", "", "ANOVA"),
+      table(
+        ["Source", "df", "Sum of squares", "F", "p-value"],
+        r.anova.map((a) => [a.source, a.df, fmt(a.sum_sq), fmt(a.F), pval(a.p_value)]),
+      ),
+    );
+  }
   const lof = r.lack_of_fit;
   if (lof && lof.p_value !== null && lof.p_value !== undefined) {
     parts.push(
@@ -178,6 +254,17 @@ async function readUpload(file) {
 // ---------------------------------------------------------------- rendering
 const fmt = (x) => (x === null || x === undefined ? "" : Number(x).toPrecision(4));
 const pval = (p) => (p === null || p === undefined ? "" : p < 0.0001 ? "< 0.0001" : Number(p).toFixed(4));
+
+/** A list of sentences about a result (what the design is, what it could not estimate), or nothing. */
+function noteList(notes, cls = "facts") {
+  if (!notes || !notes.length) return [];
+  const list = el("ul", cls, "");
+  list.append(...notes.map((note) => el("li", "", note)));
+  return [list];
+}
+
+/** The library's warnings for a call, set apart from the result, or nothing. */
+const warningList = (warnings) => noteList(warnings, "warnings");
 
 function el(tag, cls, text) {
   const node = document.createElement(tag);
@@ -250,9 +337,18 @@ const escape = (v) => String(v).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": 
 
 // ---------------------------------------------------------------- wiring
 DEFAULT_FACTORS.forEach(addFactor);
-$("#add-factor").onclick = () => addFactor();
+$("#add-factor").onclick = () => {
+  addFactor();
+  refreshDesign();
+};
 $("#generate").onclick = generate;
-$("#design-type").onchange = showOptions;
+for (const id of ["#design-type", "#alpha", "#model_type"]) $(id).onchange = refreshDesign;
+$("#budget").oninput = () => {
+  budgetEdited = $("#budget").value !== "";
+};
+$("#resolution").onchange = () => {
+  resolutionEdited = true;
+};
 $("#model").onchange = analyse;
 $("#upload").onchange = (e) => e.target.files[0] && readUpload(e.target.files[0]);
 const drop = $("#drop");
@@ -267,7 +363,7 @@ drop.ondrop = (e) => {
   if (e.dataTransfer.files[0]) readUpload(e.dataTransfer.files[0]);
 };
 
-showOptions();
+refreshDesign();
 
 // Python is ready once the catalogue answers. Any design the loaded package
 // does not offer is dropped from the list rather than failing on Generate.
@@ -277,7 +373,7 @@ call("api_catalogue").then((reply) => {
   for (const option of [...select.options]) {
     if (!(option.value in reply.result.designs)) option.remove();
   }
-  showOptions();
-  $("#generate").disabled = false;
+  pythonReady = true;
+  refreshDesign();
   $("#upload").disabled = false;
 });
