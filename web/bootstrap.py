@@ -753,8 +753,9 @@ def _fit_estimable(coded: pd.DataFrame, y: pd.Series, model: str, names: list[st
             lenth = analyze_experiment(coded, y, model=formula, analysis_type="lenth_method")["lenth_method"]
             lenth["effects"] = [{**e, "label": labels.get(e["term"], _pretty(e["term"]))} for e in lenth["effects"]]
             notes.append(
-                "The model uses every run, so no degrees of freedom are left to estimate the error. Each effect is "
-                f"judged with Lenth's method instead: it is likely real beyond the margin of error ME = "
+                "The model uses every run, so no degrees of freedom are left to estimate the error. Each effect, "
+                "twice its coefficient (the change from the factor's low level to its high level), is judged with "
+                f"Lenth's method instead: it is likely real beyond the margin of error ME = "
                 f"{lenth['ME']:.4g}, and still so, allowing for the number of effects tested, beyond SME = "
                 f"{lenth['SME']:.4g}."
             )

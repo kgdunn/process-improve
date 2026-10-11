@@ -52,6 +52,7 @@ def test_a_saturated_two_level_design_is_judged_with_lenth_s_method(blank_page):
     text = page.text_content("#analysis")
     assert "Effects, judged with Lenth's method" in text
     assert "Pseudo standard error PSE = " in text
+    assert "Each effect is twice its coefficient" in text
     assert "Predicted R² cannot be computed: at least one run cannot be predicted from the others." in text
     lenth = page.locator("#analysis table").nth(1)
     assert lenth.locator("thead th").all_text_contents() == ["Term", "Effect", "Beyond ME", "Beyond SME"]

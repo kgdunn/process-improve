@@ -164,6 +164,16 @@ def test_saturated_two_level_fit_is_judged_with_lenth(api):
     assert any("only 3 effects" in note for note in result["notes"]), "three effects give Lenth's margins one df"
 
 
+def test_lenth_s_effects_are_twice_the_coefficients_and_the_page_says_so(api):
+    """The coefficient table and Lenth's table differ by a factor of two, which the book's hand calculations show."""
+    spec = {"design_type": "plackett_burman", "factors": FACTORS, "n_center_points": 0}
+    result = analyse(api, spec, model="main_effects")["result"]
+    coefficients = by_label(result)
+    for effect in result["lenth"]["effects"]:
+        assert effect["effect"] == pytest.approx(2 * coefficients[effect["label"]]["coefficient"])
+    assert any("twice its coefficient" in note for note in result["notes"])
+
+
 def test_a_saturated_fit_has_no_predicted_r_squared(api):
     """Every run is fitted exactly, so none can be predicted from the others; the page explains the gap."""
     spec = {"design_type": "plackett_burman", "factors": FACTORS, "n_center_points": 0}

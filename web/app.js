@@ -540,7 +540,12 @@ function renderAnalysis(reply) {
     heading.append(link(BOOK_PAGES.lenth, "Lenth's method"));
     parts.push(
       heading,
-      el("p", "hint", `Pseudo standard error PSE = ${fmt(r.lenth.PSE)}; margins ME = ${fmt(r.lenth.ME)} and SME = ${fmt(r.lenth.SME)}.`),
+      el(
+        "p",
+        "hint",
+        "Each effect is twice its coefficient: the change from the factor's low level to its high level. " +
+          `Pseudo standard error PSE = ${fmt(r.lenth.PSE)}; margins ME = ${fmt(r.lenth.ME)} and SME = ${fmt(r.lenth.SME)}.`,
+      ),
       table(
         ["Term", "Effect", "Beyond ME", "Beyond SME"],
         r.lenth.effects.map((e) => [e.label, fmt(e.effect), e.active_ME ? "yes" : "no", e.active_SME ? "yes" : "no"]),
