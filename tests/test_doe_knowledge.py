@@ -478,7 +478,8 @@ def test_plackett_burman_partial_alias_coefficients() -> None:
     """The coefficients are 1/3 in the 12-run design and 0.2 or 0.6 in the 20-run one, not 1/(N-1)."""
     import itertools
 
-    pbdesign = pytest.importorskip("pyDOE3").pbdesign
+    from process_improve.experiments._classical import pbdesign
+
     coefficients = {}
     for k in (11, 19):
         x = pbdesign(k)

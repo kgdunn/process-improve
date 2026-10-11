@@ -5,10 +5,11 @@ Each test pins a specific defect found and fixed in the audit.
 
 from __future__ import annotations
 
+import itertools
+
 import numpy as np
 import pandas as pd
 import pytest
-from pyDOE3 import fullfact
 
 from process_improve.experiments.analysis import analyze_experiment
 from process_improve.experiments.designs import generate_design
@@ -22,11 +23,15 @@ from process_improve.experiments.optimal import (
 )
 from process_improve.experiments.structures import c, gather
 
-pytest.importorskip("pyDOE3")
-
 
 def _factors(names: list[str]) -> list[Factor]:
     return [Factor(name=n, low=-1, high=1) for n in names]
+
+
+def _three_level_grid() -> pd.DataFrame:
+    """Return the 3^3 grid in coded units, first column changing fastest."""
+    grid = np.array(list(itertools.product((-1.0, 0.0, 1.0), repeat=3)))[:, ::-1]
+    return pd.DataFrame(grid, columns=["X1", "X2", "X3"])
 
 
 class TestClearEffects:
@@ -182,7 +187,7 @@ class TestDOptimal:
         addition improved it the caller silently received a short design. A
         design with fewer runs than model parameters cannot be fitted at all.
         """
-        candidates = pd.DataFrame(fullfact([3] * 3) - 1.0, columns=["X1", "X2", "X3"])
+        candidates = _three_level_grid()
         for number_points in (4, 5, 8, 12):
             sizes = {
                 point_exchange(candidates, number_points=number_points, random_state=seed)[0].shape[0]
@@ -214,7 +219,7 @@ class TestDOptimal:
         runs was accepted and then spent 1000 attempts failing to find a
         non-singular start, reported as a candidate-set problem.
         """
-        candidates = pd.DataFrame(fullfact([3] * 3) - 1.0, columns=["X1", "X2", "X3"])
+        candidates = _three_level_grid()
         with pytest.raises(ValueError, match="at least 4"):
             point_exchange(candidates, number_points=3, random_state=0)
 

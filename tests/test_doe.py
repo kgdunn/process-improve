@@ -1,3 +1,4 @@
+import itertools
 import pathlib
 
 import numpy as np
@@ -607,9 +608,9 @@ def test_point_exchange_always_returns_requested_run_count() -> None:
     ended below number_points on roughly 1 to 2% of unseeded runs (the
     intermittent `assert 3 >= 4` in the D-optimal dispatch test).
     """
-    from pyDOE3 import fullfact
-
-    candidates = pd.DataFrame(fullfact([3, 3, 3]) - 1.0, columns=["A", "B", "C"])
+    # The 3^3 grid, first column changing fastest (the row order the seeds below were found with).
+    grid = np.array(list(itertools.product((-1.0, 0.0, 1.0), repeat=3)))[:, ::-1]
+    candidates = pd.DataFrame(grid, columns=["A", "B", "C"])
     # Seeds 122, 146, 199, 319, and 338 all ended with 3 rows before the greedy
     # completion step was added, so they exercise the completion path directly;
     # the leading range guards the ordinary no-shortfall path.

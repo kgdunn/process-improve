@@ -25,7 +25,6 @@ import pytest
 from process_improve.experiments import generate_design
 
 pytest.importorskip("openpyxl")
-pytest.importorskip("pyDOE3")
 
 WEB = Path(__file__).resolve().parent.parent / "web"
 
