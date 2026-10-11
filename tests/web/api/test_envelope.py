@@ -50,7 +50,6 @@ def test_a_request_the_page_could_not_have_sent_is_refused_not_raised(api, fn, p
     api.error(fn, payload)
 
 
-@pytest.mark.xfail(strict=True, reason="defect: a request that is not a JSON object escapes as a Python exception")
 @pytest.mark.parametrize("text", ["[1]", "3", '"design"', "null"])
 def test_a_request_that_is_not_an_object_is_refused_in_a_sentence(api, text):
     assert api.reply("api_make_design", text=text) == {
@@ -60,7 +59,6 @@ def test_a_request_that_is_not_an_object_is_refused_in_a_sentence(api, text):
     }
 
 
-@pytest.mark.xfail(strict=True, reason="defect: an unexpected error escapes, and the page shows its traceback")
 def test_an_unexpected_error_comes_back_in_one_line(bootstrap):
     def breaks(_: dict) -> dict:
         message = "the solver gave up"

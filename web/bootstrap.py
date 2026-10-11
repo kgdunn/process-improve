@@ -257,15 +257,27 @@ def _reply(fn: Callable[[dict], dict], payload: str) -> str:
     """Run ``fn`` on the decoded payload; report errors as data, not exceptions.
 
     Whatever the library warned about during the call travels with the reply as
-    ``warnings``, so the page can show it rather than leave it in the console.
+    ``warnings``, so the page can show it rather than leave it in the console. An error
+    nothing here expected comes back in one line, its type and message: the page shows
+    the error as it is, and a traceback is no sentence for a reader.
     """
     with _listening() as heard:
         try:
-            reply: dict[str, Any] = {"ok": True, "result": _clean(fn(json.loads(payload or "{}")))}
+            reply: dict[str, Any] = {"ok": True, "result": _clean(fn(_request(payload)))}
         except (ValueError, KeyError, TypeError) as exc:
             reply = {"ok": False, "error": str(exc)}
+        except Exception as exc:  # noqa: BLE001 - anything else still reaches the reader as one line
+            reply = {"ok": False, "error": f"Python stopped with {type(exc).__name__}: {exc}"}
     reply["warnings"] = list(dict.fromkeys(_LOG_PREFIX.sub("", message) for message in heard))
     return json.dumps(reply)
+
+
+def _request(payload: str) -> dict:
+    """Decode a request: a JSON object, or an empty one for no payload."""
+    request = json.loads(payload or "{}")
+    if not isinstance(request, dict):
+        raise ValueError("The page sent a request that is not a JSON object.")  # noqa: TRY004 - a refusal, like the rest
+    return request
 
 
 #: Packages whose own warnings are numerical noise on this page, such as a saturated
