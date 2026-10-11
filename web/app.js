@@ -51,7 +51,7 @@ const pending = new Map();
 
 worker.onmessage = ({ data }) => {
   if (data.status) {
-    setStatus(data.status, data.state);
+    if (!pythonFailure) setStatus(data.status, data.state);
     return;
   }
   const resolve = pending.get(data.id);
@@ -59,13 +59,34 @@ worker.onmessage = ({ data }) => {
   resolve(JSON.parse(data.reply));
 };
 
+// worker.js itself did not load or run: nothing will answer, so say so rather than wait.
+worker.onerror = (event) => {
+  event.preventDefault();
+  pythonFailed(`Could not start Python: ${event.message || "worker.js did not load"}`);
+};
+
 /** Call a Python ``api_*`` function; resolves to its decoded {ok, result|error, warnings}. */
 function call(fn, payload = {}) {
+  if (pythonFailure) return Promise.resolve({ ok: false, error: pythonFailure, warnings: [] });
   const id = nextId++;
   return new Promise((resolve) => {
     pending.set(id, resolve);
     worker.postMessage({ id, fn, payload: JSON.stringify(payload) });
   });
+}
+
+/**
+ * Python could not start: say why, and stop everything that waits for it. The worked
+ * example drawn at first paint stays, and every call is answered with the reason.
+ */
+function pythonFailed(reason) {
+  if (pythonFailure) return;
+  pythonFailure = reason;
+  setStatus(reason, "error");
+  $("#run-example").disabled = true;
+  for (const resolve of pending.values()) resolve({ ok: false, error: reason, warnings: [] });
+  pending.clear();
+  rejectReady(new Error(reason));
 }
 
 /** Show a status message; state is "busy" (spinner), "ok" (tick) or "error". */
@@ -87,10 +108,14 @@ const state = {
 let seed = 1;
 let catalogue = null;
 let pythonReady = false;
+let pythonFailure = null; // why Python could not start, once it is known
 let resolveReady;
-const whenReady = new Promise((resolve) => {
+let rejectReady;
+const whenReady = new Promise((resolve, reject) => {
   resolveReady = resolve;
+  rejectReady = reject;
 });
+whenReady.catch(() => {}); // a failure is shown in the status line, whoever waits for it
 
 /** The runs as the Python side expects them back. */
 const held = () => ({ spec: state.design.spec, columns: state.design.columns, rows: state.design.rows });
@@ -607,7 +632,7 @@ async function showBuiltExample() {
   renderAnalysis({ ok: true, result: example.analysis, warnings: [] });
   $("#demo-version").textContent = `process-improve ${example.version}`;
   $("#demo-banner").hidden = false;
-  if (!pythonReady) setStatus("Showing the worked example while Python starts...", "busy");
+  if (!pythonReady && !pythonFailure) setStatus("Showing the worked example while Python starts...", "busy");
   const request = { truth: example.simulation.truth };
   await drawCharts(request, ticket, example.plots);
   const compared = example.comparison;
@@ -631,9 +656,10 @@ async function runExample() {
   if (!pythonReady) {
     button.disabled = true;
     button.textContent = "Waiting for Python to start...";
-    await whenReady;
+    const started = await whenReady.then(() => true, () => false);
     button.textContent = "Run the worked example";
-    button.disabled = false;
+    button.disabled = !started;
+    if (!started) return;
   }
   const example = catalogue.demo;
   setForm(example.design);
@@ -979,7 +1005,10 @@ readManifest();
 showBuiltExample();
 
 call("api_catalogue").then((reply) => {
-  if (!reply.ok) return;
+  if (!reply.ok) {
+    pythonFailed(reply.error);
+    return;
+  }
   catalogue = reply.result;
   pythonReady = true;
   for (const id of ["#upload", "#simulate", "#reroll", "#compare"]) $(id).disabled = false;

@@ -8,13 +8,10 @@ from __future__ import annotations
 
 import re
 
-import pytest
-
 from tests.web._browser import BOOT_TIMEOUT, Console
 from tests.web.e2e._page import status
 
 
-@pytest.mark.xfail(strict=True, reason="defect: micropip's traceback reaches the status line")
 def test_a_refused_package_index_is_reported_in_one_line(own_context, app_url):
     own_context.route(
         re.compile(r"^https://(pypi\.org|files\.pythonhosted\.org)/"), lambda route: route.abort("blockedbyclient")

@@ -25,7 +25,6 @@ def failed_to_start(page) -> str:
     return text
 
 
-@pytest.mark.xfail(strict=True, reason="defect: a refused Pyodide download leaves the page waiting for Python")
 def test_a_refused_python_download_is_reported_and_nothing_waits_for_it(context, site, console):
     console.allow(r"ERR_BLOCKED_BY_CLIENT|pyodide\.js")  # the browser reports the refused download
     refused = []
