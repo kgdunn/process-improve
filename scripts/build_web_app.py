@@ -40,6 +40,8 @@ APP_FILES = (
     "logic.js",
     "charts.js",
     "python.js",
+    "campaign.js",
+    "store.js",
     "worker.js",
     "runtime.json",
     "bootstrap.py",

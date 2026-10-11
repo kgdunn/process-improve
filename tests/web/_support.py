@@ -45,6 +45,8 @@ APP_SOURCES = (
     "logic.js",
     "charts.js",
     "python.js",
+    "campaign.js",
+    "store.js",
     "worker.js",
     "bootstrap.py",
     "runtime.json",

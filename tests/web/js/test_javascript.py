@@ -18,7 +18,7 @@ from tests.web._support import ROOT
 HERE = Path(__file__).parent
 
 #: Each suite, by name, so ``--affected-since`` sends a change to one of them here.
-SUITES = ("logic.test.mjs", "charts.test.mjs", "python.test.mjs")
+SUITES = ("logic.test.mjs", "charts.test.mjs", "python.test.mjs", "campaign.test.mjs")
 
 #: The first Node.js that reads ``web/*.js`` as ES modules without being told.
 LEAST = (22, 7)
