@@ -108,6 +108,22 @@ def test_a_scenario_drops_the_terms_of_factors_the_reader_does_not_have(app):
     held2 = {"spec": design["spec"], "columns": design["columns"], "rows": design["rows"]}
     result = call(app, "api_simulate", {**held2, "scenario": "reactor"})
     assert result["equation"] == "y = 62 + 4·A - 3.1·B + 1.5·A·B"
+    assert result["inactive"] == []
+
+
+def test_the_true_process_uses_the_factor_names_and_lists_the_factors_it_leaves_out(app):
+    """Renamed and added factors reach the simulation: the reactor process acts on the first three only."""
+    factors = [
+        {"name": "Temp", "low": 150, "high": 200},
+        {"name": "Pb", "low": 1, "high": 3},
+        {"name": "Fill", "low": 10, "high": 20},
+        {"name": "Salt", "low": -1, "high": 1},
+    ]
+    design = call(app, "api_make_design", {"design_type": "dsd", "factors": factors, "n_center_points": 3})
+    held4 = {"spec": design["spec"], "columns": design["columns"], "rows": design["rows"]}
+    result = call(app, "api_simulate", {**held4, "scenario": "reactor", "seed": 1})
+    assert result["equation"] == "y = 62 + 4·Temp - 3.1·Pb + 1.75·Fill + 1.5·Temp·Pb - 2.25·Fill²"
+    assert result["inactive"] == ["Salt"]
 
 
 @pytest.mark.parametrize("scenario", ["reactor", "main_effects", "interaction", "optimum", "nothing", "random"])
@@ -298,7 +314,7 @@ def test_the_built_worked_example_carries_what_the_page_draws():
     assert set(example["inputs"]) >= {"design", "scenario", "sigma", "seed", "model"}
     assert set(example["design"]) >= {"spec", "columns", "rows", "facts", "model", "n_runs"}
     assert "xlsx_base64" not in example["design"], "the page writes the workbook on demand"
-    assert set(example["simulation"]) >= {"responses", "truth", "equation", "label", "sigma", "seed"}
+    assert set(example["simulation"]) >= {"responses", "truth", "equation", "inactive", "label", "sigma", "seed"}
     assert all("true_value" in c for c in example["analysis"]["coefficients"])
     assert set(example["analysis"]) >= {"equation", "summary", "notes", "anova", "pending_runs", "n_completed"}
     assert set(example["plots"]["figures"]) == {"contour", "true_contour", "residuals"}

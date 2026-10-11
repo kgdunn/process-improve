@@ -183,6 +183,7 @@ function refreshDesign() {
   }
   hint.classList.toggle("error", option.disabled);
   $("#generate").disabled = !pythonReady || option.disabled;
+  markStale(); // a factor added or removed
 }
 
 /** Generate the design the form describes; resolves to true when it is on the page. */
@@ -221,6 +222,7 @@ function showDesign(design, warnings = []) {
   state.analysis = null;
   renderDesign(warnings);
   renderRuns();
+  renderTruth(); // the process behind the old design's results goes with them
   clearAnalysis();
   if (design.spec.options) showPython("design", designCode(design.spec));
   $("#py-run").hidden = true;
@@ -249,6 +251,26 @@ function renderDesign(warnings = []) {
   parts.push(...warningList(warnings));
   $("#design-summary").replaceChildren(...parts);
   $("#design-out").hidden = false;
+  markStale();
+}
+
+/** Whether the factor table and response name still describe the design the page holds. */
+function formMatchesDesign() {
+  const spec = state.design?.spec;
+  if (!spec?.factors) return true;
+  const factors = readFactors();
+  const same = (f, g) =>
+    f.name === g.name && f.low === Number(g.low) && f.high === Number(g.high) && f.units === (g.units ?? "");
+  return (
+    $("#response").value.trim() === spec.response &&
+    factors.length === spec.factors.length &&
+    factors.every((f, i) => same(f, spec.factors[i]))
+  );
+}
+
+/** Say when the factors have been edited since the design was generated, until it is generated again. */
+function markStale() {
+  $("#design-stale").hidden = formMatchesDesign();
 }
 
 // ---------------------------------------------------------------- run step
@@ -303,10 +325,22 @@ function describeSource() {
 
 /** The true process behind the simulated results, behind a reveal. */
 function renderTruth() {
-  const truth = $("#truth");
-  truth.hidden = !state.simulation;
-  if (state.simulation) $("#truth-equation").textContent = state.simulation.equation;
+  const sim = state.simulation;
+  $("#truth").hidden = !sim;
+  if (!sim) return;
+  $("#truth-equation").textContent = sim.equation;
+  // A factor the process leaves out is still a factor of the design: say so, so a new factor visibly counts.
+  const quiet = sim.inactive ?? [];
+  const note = $("#truth-inactive");
+  note.hidden = !quiet.length;
+  note.textContent = quiet.length
+    ? `${listNames(quiet)} ${quiet.length === 1 ? "does" : "do"} not affect ${state.design.spec.response} in this process.`
+    : "";
 }
+
+/** Join names as a sentence does: "A", "A and B", "A, B and C". */
+const listNames = (names) =>
+  names.length > 1 ? `${names.slice(0, -1).join(", ")} and ${names.at(-1)}` : names.join("");
 
 async function simulateResults() {
   if (!state.design) return;
@@ -771,10 +805,12 @@ function renderComparison(result, made, notes) {
 
 /** Load a design from the comparison into step 1 and the run sheet, as if it had been generated there. */
 function useDesign(item) {
+  const simulated = state.sources.includes("simulated");
   setForm(item.design.spec);
   $("#demo-banner").hidden = true;
   showDesign(item.design);
   setStatus(`${item.design.n_runs} runs of the ${item.label} design are in step 2.`);
+  if (simulated) simulateResults(); // the same process, noise and seed, on the new runs
   $("#step-design").scrollIntoView({ behavior: "smooth", block: "start" });
 }
 
@@ -953,7 +989,14 @@ $("#add-factor").onclick = () => {
   addFactor();
   refreshDesign();
 };
-$("#generate").onclick = generate;
+$("#generate").onclick = async () => {
+  // Results simulated for the old design are simulated again for the new one, from the same process, noise and
+  // seed, so the true process and the analysis follow the factors as they now are.
+  const simulated = state.sources.includes("simulated");
+  if ((await generate()) && simulated) await simulateResults();
+};
+$("#factors").addEventListener("input", markStale);
+$("#response").addEventListener("input", markStale);
 for (const id of ["#design-type", "#alpha", "#model_type"]) $(id).onchange = refreshDesign;
 $("#budget").oninput = () => {
   budgetEdited = $("#budget").value !== "";
