@@ -13,14 +13,13 @@ from __future__ import annotations
 
 import json
 import re
-import traceback
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 import pytest
 
 from tests.web._browser import Console, keep_artifacts, serve
-from tests.web._support import WEB, no_bytecode
+from tests.web._support import ENTRY_POINT, WEB, no_bytecode
 from tests.web.e2e._page import first_paint_done
 
 if TYPE_CHECKING:
@@ -56,10 +55,13 @@ def _native(bootstrap: ModuleType) -> Callable[[str, str], str]:
     """Answer the page's calls as ``web/worker.js`` does, with ``web/bootstrap.py`` run here."""
 
     def answer(fn: str, payload: str) -> str:
+        entry = getattr(bootstrap, fn, None) if ENTRY_POINT.match(fn) else None
+        if not callable(entry):
+            return json.dumps({"ok": False, "error": f"{json.dumps(fn)} is not one of the page's entry points."})
         try:
-            return getattr(bootstrap, fn)(payload)
-        except Exception as exc:  # noqa: BLE001 - worker.js sends any exception back as the error
-            return json.dumps({"ok": False, "error": "".join(traceback.format_exception(exc))})
+            return entry(payload)
+        except Exception as exc:  # noqa: BLE001 - worker.js sends any exception back as the error, in one line
+            return json.dumps({"ok": False, "error": f"{type(exc).__name__}: {exc}"})
 
     return answer
 

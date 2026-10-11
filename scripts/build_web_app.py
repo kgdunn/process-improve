@@ -34,7 +34,17 @@ from typing import Any
 
 ROOT = Path(__file__).resolve().parent.parent
 WEB_SRC = ROOT / "web"
-APP_FILES = ("index.html", "app.js", "logic.js", "charts.js", "python.js", "worker.js", "bootstrap.py", "style.css")
+APP_FILES = (
+    "index.html",
+    "app.js",
+    "logic.js",
+    "charts.js",
+    "python.js",
+    "worker.js",
+    "runtime.json",
+    "bootstrap.py",
+    "style.css",
+)
 
 
 def build_wheel(dist: Path) -> Path:

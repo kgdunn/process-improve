@@ -158,7 +158,10 @@ CI's `web-app` job runs all three:
   the network, and each test gets a fresh page; a console error fails the test.
 - `tests/web/live` (`--live`): the built app in Chromium, with Pyodide in its worker. Its
   `smoke` tests also run in `docs.yml` against the built `/app`, so an app that does not
-  work is not deployed.
+  work is not deployed; again once the deploy is served (`tools/wait_for_web_app.py` waits
+  for the published manifest to name the commit); and weekly against the published app, in
+  `web-app-live.yml`, which also reports a pin in `web/runtime.json` that is no longer the
+  latest release (`tools/check_web_runtime.py`).
 - `tests/web/wasm` (`--wasm`): the app's Python under Pyodide in Node.js, asked what
   native Python is asked; the answers must agree.
 
@@ -189,8 +192,9 @@ When you change the app, the tests move with it:
 - A new control, step or message on the page: a test in `tests/web/e2e`, which drives the
   page as a reader would. `window.__pi` (`tests/web/harness.js`) records each call to
   Python, and can hold a reply back or give one, for races and error paths.
-- A new package the page loads into Pyodide: in `web/runtime.json`, and in
-  `web/worker.js`, which `tests/web/page/test_runtime.py` holds to it.
+- A new package the page loads into Pyodide: in `web/runtime.json` only, which
+  `web/worker.js`, the wasm tier and CI read. One from PyPI is pinned (`name==version`)
+  to the version the wasm tier installs; `tests/web/page/test_runtime.py` checks both.
 - A new file in `web/`: in `APP_FILES` in `scripts/build_web_app.py` if the page loads
   it, and in `APP_SOURCES` in `tests/web/_support.py` either way.
 - A new design type or simulated process: in `ALL_DESIGNS` or `ALL_SCENARIOS` in

@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import re
 
-from tests.web._support import FACTORS, javascript, page, source
+from tests.web._support import ENTRY_POINT, FACTORS, javascript, page, source
 
 
 # --------------------------------------------------------------------------- the form's choices
@@ -161,6 +161,18 @@ def test_the_page_asks_for_a_center_run_where_bootstrap_needs_one(bootstrap, nod
         return design in bootstrap.NEEDS_CENTER_RUN and bootstrap.NEEDS_CENTER_RUN[design] in (None, alpha)
 
     assert asked == [needed(design, alpha) for design, alpha in cases]
+
+
+# --------------------------------------------------------------------------- what the worker answers
+def test_the_worker_answers_every_entry_point_bootstrap_defines_and_nothing_else(bootstrap):
+    """worker.js refuses a name its pattern does not match; every api_* function of bootstrap.py matches it."""
+    worker = re.search(r"const ENTRY_POINT = /(.+)/;", source("worker.js")).group(1)
+    assert worker == ENTRY_POINT.pattern, "the e2e tier's native transport refuses the same names"
+    entry_points = [name for name in dir(bootstrap) if name.startswith("api_") and callable(getattr(bootstrap, name))]
+    assert len(entry_points) >= 10
+    assert all(ENTRY_POINT.match(name) for name in entry_points)
+    for private in ("_reply", "make_design", "json", "api_", "api_plots.__call__", "__import__"):
+        assert not ENTRY_POINT.match(private), private
 
 
 # --------------------------------------------------------------------------- the page's own elements
