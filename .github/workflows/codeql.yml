@@ -35,7 +35,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        language: [python]
+        # The browser app's JavaScript (web/ and its tests) as well as the package's Python.
+        language: [python, javascript-typescript]
 
     steps:
       - name: Checkout
