@@ -16,9 +16,9 @@ from typing import TYPE_CHECKING
 
 import numpy as np
 
-from process_improve._extras import require_extra
 from process_improve.experiments._classical import fracfact, pbdesign
 from process_improve.experiments._finite_fields import hadamard_matrix
+from process_improve.experiments._orthogonal_arrays import ORTHOGONAL_ARRAY_NAMES, orthogonal_array
 from process_improve.experiments.designs_utils import categorical_codes
 
 if TYPE_CHECKING:
@@ -415,7 +415,7 @@ def _taguchi_codes(factor: Factor, n_levels: int) -> np.ndarray:
 def dispatch_taguchi(factors: list[Factor]) -> tuple[np.ndarray, dict]:
     """Generate a Taguchi orthogonal-array design.
 
-    Uses the smallest of pyDOE3's standard arrays that has a column for every factor:
+    Uses the smallest of the standard arrays that has a column for every factor:
     two levels for a continuous factor, the number of its ``levels`` for a categorical
     factor or a continuous factor given explicit levels. Each factor takes its own
     column (one with its level count, or else one whose levels divide evenly into its
@@ -434,18 +434,12 @@ def dispatch_taguchi(factors: list[Factor]) -> tuple[np.ndarray, dict]:
         Coded design matrix (-1 / +1 for two levels, equally spaced codes otherwise) and
         metadata with the ``orthogonal_array`` and the array ``columns`` used.
     """
-    try:
-        from pyDOE3 import get_orthogonal_array, list_orthogonal_arrays  # noqa: PLC0415
-    except ImportError as exc:  # pragma: no cover - exercised via env-without-pyDOE3
-        raise require_extra("pyDOE3", "expt") from exc
-
     needed = [len(f.levels) if f.levels else 2 for f in factors]
     order = sorted(range(len(factors)), key=lambda i: -needed[i])
-    for name in list_orthogonal_arrays():  # in order of run count
-        array = get_orthogonal_array(name)
-        # Column level counts come from the array itself: some pyDOE3 names do not match
-        # their arrays (its "L27(2^1 3^12)" is all three-level, its "L36(3^23)" has eleven
-        # two-level columns).
+    for name in ORTHOGONAL_ARRAY_NAMES:  # in order of run count
+        array = orthogonal_array(name)
+        # Column level counts come from the array itself: some names do not match their
+        # arrays ("L27(2^1 3^12)" is all three-level, "L36(3^23)" has eleven two-level columns).
         free = [int(array[:, j].max()) + 1 for j in range(array.shape[1])]
         columns: dict[int, int] = {}
         for i in order:
@@ -462,7 +456,7 @@ def dispatch_taguchi(factors: list[Factor]) -> tuple[np.ndarray, dict]:
             continue
         chosen = [columns[i] for i in range(len(factors))]
         levels = np.column_stack([array[:, chosen[i]] % needed[i] for i in range(len(factors))])
-        # pyDOE3's "L64(2^31)" is not orthogonal, so the chosen columns are checked, not trusted.
+        # Every stored array is strength 2 (tests check it); the check guards edits to the table.
         if _is_strength_two(levels):
             coded = np.column_stack([_taguchi_codes(f, needed[i])[levels[:, i]] for i, f in enumerate(factors)]).astype(
                 float
