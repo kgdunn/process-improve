@@ -11,6 +11,7 @@ import json
 
 import numpy as np
 import pandas as pd
+import pytest
 
 from tests.web._support import FACTORS, factors_named, fill_workbook, quadratic
 from tests.web.e2e._page import choose, factor_table, run_sheet, settled, status
@@ -144,3 +145,20 @@ def test_an_uploaded_design_with_the_settings_its_factors_suggest_still_follows_
     upload_design(page, api, tmp_path, {"design_type": "d_optimal", "factors": FACTORS, "model_type": "interactions"})
     choose(page, model_type="quadratic")
     assert page.input_value("#budget") == "14", "the quadratic model's 10 coefficients and 4 spare runs"
+
+
+@pytest.mark.xfail(strict=True, reason="defect: the same file chosen again fires no change, so it is not read")
+def test_the_same_workbook_can_be_read_again_after_edits_on_the_page(page, api, tmp_path):
+    """A reader who types over results, then wants the file's values back, chooses the same file again."""
+    design, workbook = filled_ccd(api)
+    path = tmp_path / "filled.xlsx"
+    path.write_bytes(workbook)
+    page.click("#tab-real")
+    page.set_input_files("#upload", path)
+    settled(page)
+    page.fill('#design-table input[data-index="1"]', "999")
+    page.set_input_files("#upload", path)
+    page.wait_for_function("window.__pi.count('api_read_workbook') === 2", timeout=10_000)
+    settled(page)
+    assert page.input_value('#design-table input[data-index="1"]') != "999"
+    assert_the_page_holds(page, design)
