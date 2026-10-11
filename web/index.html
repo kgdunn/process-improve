@@ -3,15 +3,45 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Designed Experiments</title>
-  <meta name="description" content="Design an experiment and analyse the results in your browser with process-improve. Nothing to install; your data stay on your machine.">
-  <link rel="icon" href="data:,">
+  <title>Factorial: designed experiments in your browser</title>
+  <meta name="description" content="Design an experiment, run it, and analyse the results in your browser with process-improve. Nothing to install; your data stay on your machine.">
+  <!-- The app's public address. A link card needs absolute URLs, so the address is written out here;
+       tests/web/page/test_brand.py checks it is the one the deploy is checked at. -->
+  <link rel="canonical" href="https://kgdunn.github.io/process-improve/app/">
+  <link rel="icon" href="favicon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="apple-touch-icon.png">
+  <link rel="manifest" href="manifest.webmanifest">
+  <meta name="theme-color" content="#faf8f3" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#141517" media="(prefers-color-scheme: dark)">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="process-improve">
+  <meta property="og:title" content="Factorial: designed experiments in your browser">
+  <meta property="og:description" content="Design an experiment, run it, and analyse the results. Python runs inside the page: nothing to install, and your data stay on your machine.">
+  <meta property="og:url" content="https://kgdunn.github.io/process-improve/app/">
+  <meta property="og:image" content="https://kgdunn.github.io/process-improve/app/og-card.png">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta property="og:image:alt" content="Factorial: a two-level factorial in three factors, drawn as a cube seen down its diagonal with its centre run, beside the words: design an experiment, run it, and analyse the results.">
+  <meta name="twitter:card" content="summary_large_image">
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
 <main>
   <header>
-    <h1>Designed experiments</h1>
+    <div class="brand">
+      <!-- The mark: a 2^3 factorial and its centre run, seen down the cube's diagonal, in the page's colours.
+           tools/branding/app_mark.py draws it from generate_design and writes favicon.svg; test_brand.py
+           keeps the two in step. -->
+      <svg class="mark" viewBox="0 0 64 64" aria-hidden="true" focusable="false">
+        <g class="mark__edges"><polygon points="14.68,42 32,52 49.32,42 49.32,22 32,12 14.68,22"/><line x1="32" y1="32" x2="14.68" y2="22"/><line x1="32" y1="32" x2="32" y2="52"/><line x1="32" y1="32" x2="49.32" y2="22"/></g>
+        <g class="mark__runs"><circle cx="14.68" cy="42" r="6"/><circle cx="32" cy="52" r="6"/><circle cx="49.32" cy="42" r="6"/><circle cx="49.32" cy="22" r="6"/><circle cx="32" cy="12" r="6"/><circle cx="14.68" cy="22" r="6"/></g>
+        <circle class="mark__centre" cx="32" cy="32" r="6"/>
+      </svg>
+      <div>
+        <h1>Factorial</h1>
+        <p class="tagline">Change every factor at once, and still see what each one does.</p>
+      </div>
+    </div>
     <p class="lede">
       Design an experiment, run it, and analyse the results, with the
       <a href="https://github.com/kgdunn/process-improve">process-improve</a> Python package running
@@ -23,7 +53,7 @@
         analysis, computed in this tab.</span>
     </div>
     <div id="status" class="status" role="status" aria-live="polite" data-state="busy">
-      <span class="status__icon" aria-hidden="true"></span>
+      <span class="status__icon" aria-hidden="true"><svg viewBox="0 0 64 64"><circle cx="14.68" cy="42" r="7"/><circle cx="32" cy="52" r="7"/><circle cx="49.32" cy="42" r="7"/><circle cx="49.32" cy="22" r="7"/><circle cx="32" cy="12" r="7"/><circle cx="14.68" cy="22" r="7"/><circle cx="32" cy="32" r="7"/></svg></span>
       <span class="status__text">Starting Python...</span>
     </div>
   </header>
@@ -262,6 +292,8 @@
   </section>
 
   <footer>
+    <p>Factorial is the browser app of <a href="https://github.com/kgdunn/process-improve">process-improve</a>, the
+      Python package that accompanies the book <a href="https://learnche.org/pid">Process Improvement using Data</a>.</p>
     <p>How this works: <a href="https://pyodide.org">Pyodide</a> runs CPython compiled to WebAssembly. The page loads it
       from a public CDN, installs process-improve into it, and runs the same <code>generate_design</code>,
       <code>TrueProcess</code> and <code>analyze_experiment</code> you would call in Python; the charts are the

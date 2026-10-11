@@ -48,6 +48,12 @@ APP_SOURCES = (
     "worker.js",
     "bootstrap.py",
     "runtime.json",
+    "favicon.svg",
+    "apple-touch-icon.png",
+    "icon-192.png",
+    "icon-512.png",
+    "og-card.png",
+    "manifest.webmanifest",
     "build_web_app.py",
 )
 

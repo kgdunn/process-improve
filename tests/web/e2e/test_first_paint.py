@@ -44,6 +44,16 @@ def test_python_starting_enables_what_needs_it(context, site, first_paint):
         assert page.is_enabled(control), control
 
 
+def test_while_python_starts_the_status_line_lights_up_the_mark_s_runs(context, site, first_paint):
+    """The loader is the app's mark: its runs light up in a random run order until Python answers."""
+    page = open_while_python_starts(context, site)
+    assert page.is_visible("#status .status__icon svg")
+    assert page.locator("#status .status__icon circle").count() == 7, "the mark's six corners and its centre run"
+    page.evaluate("window.__pi.release('api_catalogue')")
+    first_paint_done(page, first_paint)
+    assert page.is_hidden("#status .status__icon svg"), "a tick once Python is ready"
+
+
 def test_the_form_holds_the_worked_example_s_settings(page, first_paint):
     inputs = first_paint["inputs"]
     assert factor_table(page) == [
