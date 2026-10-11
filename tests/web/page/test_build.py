@@ -137,6 +137,41 @@ def test_assemble_lays_out_what_the_page_and_its_worker_read(build_script, tmp_p
     assert json.loads((out / "demo.json").read_text()) == {"the": "worked example"}
 
 
+def _assemble_around(build_script, out: Path, wheel: bytes, monkeypatch) -> dict:
+    """Assemble the app into ``out`` around a stand-in wheel holding ``wheel``; return the manifest."""
+    pytest.importorskip("plotly.offline", reason="the build names plotly's versions")
+    built = out.parent / "dist" / "process_improve-9.9.9-py3-none-any.whl"
+    built.parent.mkdir(exist_ok=True)
+    built.write_bytes(wheel)
+    monkeypatch.setattr(build_script, "build_wheel", lambda _dist: built)
+    monkeypatch.setattr(build_script, "worked_example", dict)
+    build_script.assemble(out)
+    return json.loads((out / "wheels" / "manifest.json").read_text())
+
+
+@pytest.mark.xfail(strict=True, reason="defect: a new wheel takes the old one's URL, so a cached one can be installed")
+def test_each_build_s_wheel_has_a_url_of_its_own(build_script, tmp_path, monkeypatch):
+    """A browser never installs a wheel it cached from an earlier deploy beside a newer ``bootstrap.py``."""
+    published = []
+    for wheel in (b"one build", b"the next build"):
+        manifest = _assemble_around(build_script, tmp_path / "app", wheel, monkeypatch)
+        assert (tmp_path / "app" / "wheels" / manifest["wheel"]).read_bytes() == wheel
+        assert Path(manifest["wheel"]).name == "process_improve-9.9.9-py3-none-any.whl", "micropip reads the name"
+        published.append(manifest["wheel"])
+    assert published[0] != published[1]
+
+
+@pytest.mark.xfail(strict=True, reason="defect: the manifest does not say which commit the app was built from")
+def test_the_manifest_names_the_commit_the_app_was_built_from(build_script, tmp_path, monkeypatch):
+    """The deploy waits for the published manifest to name the commit it pushed: CI's, or this checkout's."""
+    monkeypatch.setenv("GITHUB_SHA", "0123abc")
+    assert _assemble_around(build_script, tmp_path / "ci", b"a wheel", monkeypatch)["commit"] == "0123abc"
+    monkeypatch.delenv("GITHUB_SHA")
+    assert re.fullmatch(
+        r"[0-9a-f]{40}", _assemble_around(build_script, tmp_path / "here", b"a wheel", monkeypatch)["commit"]
+    )
+
+
 def test_the_page_reads_only_what_the_manifest_holds():
     """worker.js installs the wheel and the plotly release named there; app.js draws with the Plotly.js named there."""
     read = set(re.findall(r"const \{ (\w+)(?:: \w+)? \} = await manifest", source("worker.js")))
