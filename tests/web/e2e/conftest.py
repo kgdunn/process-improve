@@ -112,3 +112,14 @@ def page(context: Any, site: str, first_paint: dict[str, Any]) -> Any:  # noqa: 
     page.goto(site)
     first_paint_done(page, first_paint)
     return page
+
+
+@pytest.fixture
+def blank_page(context: Any, site: str, console: Console) -> Any:  # noqa: ANN401 - a Playwright Page
+    """Open the page as a plain preview of ``web/`` shows it: no worked example, so every step waits for a design."""
+    console.allow(r"404")  # the browser reports the missing demo.json
+    context.route(f"{site}demo.json", lambda route: route.fulfill(status=404))
+    page = context.new_page()
+    page.goto(site)
+    page.wait_for_function("window.__pi.count('api_catalogue') === 1 && window.__pi.idle()")
+    return page

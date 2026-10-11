@@ -61,14 +61,9 @@ def test_the_results_are_marked_as_simulated(page, first_paint):
     assert "simulated from" in page.text_content("#run-source")
 
 
-def test_without_a_built_example_the_page_starts_empty(context, site, console):
+def test_without_a_built_example_the_page_starts_empty(blank_page):
     """A plain preview of web/ has no demo.json: the steps wait for a design."""
-    console.allow(r"404")
-    context.route(f"{site}demo.json", lambda route: route.fulfill(status=404))
-    page = context.new_page()
-    page.goto(site)
-    page.wait_for_function("window.__pi.count('api_catalogue') === 1 && window.__pi.idle()")
-    assert page.is_visible("#run-empty")
-    assert page.is_visible("#analyse-empty")
-    assert page.is_hidden("#demo-banner")
-    assert status(page) == ("Ready: process-improve (native)", "ok")
+    assert blank_page.is_visible("#run-empty")
+    assert blank_page.is_visible("#analyse-empty")
+    assert blank_page.is_hidden("#demo-banner")
+    assert status(blank_page) == ("Ready: process-improve (native)", "ok")
