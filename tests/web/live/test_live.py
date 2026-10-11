@@ -69,7 +69,6 @@ def test_the_worker_answers_only_the_page_s_entry_points(page, fn):
     }
 
 
-
 def started(page) -> None:
     """Wait until Python has started in the page, or failed to."""
     page.wait_for_function(
