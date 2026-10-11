@@ -6,8 +6,6 @@ per design; and any design can be taken from the comparison into step 1.
 
 from __future__ import annotations
 
-import pytest
-
 from tests.web.e2e._page import calls, settled, status
 
 
@@ -50,7 +48,6 @@ def test_a_design_taken_from_the_comparison_reaches_step_1_and_is_simulated(page
     assert page.locator("#design-table input.sim").count() == chosen["design"]["n_runs"]
 
 
-@pytest.mark.xfail(strict=True, reason="defect: a design taken from the comparison renames the response y")
 def test_a_design_taken_from_the_comparison_keeps_the_response_typed_in_step_1(page, first_paint):
     page.fill("#response", "Yield")
     page.click("#compare")

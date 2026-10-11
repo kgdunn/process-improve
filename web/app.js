@@ -663,7 +663,7 @@ async function compareDesigns() {
   const factors = readFactors();
   const model = $("#compare-model").value;
   setStatus("Choosing the designs to compare...", "busy");
-  const plan = await call("api_compare_plan", { factors, model });
+  const plan = await call("api_compare_plan", { factors, model, response: $("#response").value.trim() });
   if (!plan.ok) {
     setStatus(plan.error, "error");
     button.disabled = false;

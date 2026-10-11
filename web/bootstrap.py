@@ -1143,12 +1143,18 @@ def compare_plan(request: dict) -> dict:
 
     Every design the factor count allows is included, with the page's default options;
     the optimal designs are built for the comparison's model (see :data:`OPTIMAL_MODEL`).
+    The response is the reader's, so a design taken into step 1 keeps it. A comparison has
+    no results, so when that name is blank or a factor's, the first of y, y1, y2, ... that
+    no factor takes stands in.
     """
     model = request.get("model") or "main_quadratic"
     if model not in COMPARISON_MODELS:
         raise ValueError(f"Model must be one of {', '.join(COMPARISON_MODELS)}.")
     factors = _factors(request)
     k = len(factors)
+    names = {f.name for f in factors}
+    candidates = [str(request.get("response") or "").strip(), "y", *(f"y{i}" for i in range(1, k + 1))]
+    response = next(name for name in candidates if name.isidentifier() and name not in names)
     plan = []
     for design_type, info in DESIGNS.items():
         if not info["min_factors"] <= k <= info["max_factors"]:
@@ -1156,7 +1162,7 @@ def compare_plan(request: dict) -> dict:
         options = dict(COMPARE_OPTIONS[design_type])
         if "model_type" in info["options"]:
             options["model_type"] = OPTIMAL_MODEL[model]
-        spec = {"design_type": design_type, "factors": request["factors"], "response": "y", **options}
+        spec = {"design_type": design_type, "factors": request["factors"], "response": response, **options}
         plan.append({"design_type": design_type, "label": COMPARE_LABELS[design_type], "spec": spec})
     notes = []
     if model != OPTIMAL_MODEL[model] and any("model_type" in DESIGNS[d["design_type"]]["options"] for d in plan):
