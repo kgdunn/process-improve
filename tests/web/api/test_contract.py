@@ -290,3 +290,13 @@ def test_the_catalogue_names_the_release_a_notebook_installs(api):
     except PackageNotFoundError:
         installed = None
     assert api.ok("api_catalogue")["version"] == installed
+
+
+def test_a_page_run_from_a_source_tree_names_no_release(api, bootstrap, monkeypatch):
+    """Without an installed release to name, the notebook installs process-improve unpinned."""
+
+    def not_installed(name: str) -> str:
+        raise bootstrap.PackageNotFoundError(name)
+
+    monkeypatch.setattr(bootstrap, "version", not_installed)
+    assert api.ok("api_catalogue")["version"] is None
