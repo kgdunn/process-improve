@@ -1000,7 +1000,11 @@ for (const button of document.querySelectorAll("details.python .copy")) {
     setTimeout(() => (button.textContent = "Copy the code"), 1500);
   };
 }
-$("#upload").onchange = (e) => e.target.files[0] && readUpload(e.target.files[0]);
+$("#upload").onchange = (e) => {
+  const file = e.target.files[0];
+  e.target.value = ""; // so choosing the same file again reads it again
+  if (file) readUpload(file);
+};
 const drop = $("#drop");
 drop.ondragover = (e) => {
   e.preventDefault();
