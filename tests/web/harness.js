@@ -8,6 +8,7 @@
 // Otherwise the page's own worker runs, Pyodide and all, and is only watched.
 
 (() => {
+  const post = Worker.prototype.postMessage; // the browser's own, before Worker is replaced below
   const pi = {
     calls: [], // {fn, payload} for each call, in the order the page made it
     replies: [], // {fn, reply} for each reply delivered to the page
@@ -15,6 +16,8 @@
     held: new Set(), // entry points whose replies wait for release()
     queue: [], // replies held back: {fn, deliver}
     fakes: {}, // entry point -> the reply to give instead of asking Python
+    asked: new Map(), // id -> resolve, for each call a test makes through ask()
+    worker: null, // the page's own worker, once it has made one
   };
   pi.idle = () => pi.pending === 0 && pi.queue.length === 0;
   pi.hold = (fn) => pi.held.add(fn);
@@ -28,6 +31,15 @@
     pi.fakes[fn] = reply;
   };
   pi.count = (fn) => pi.calls.filter((c) => c.fn === fn).length;
+  /** Ask Python directly, as the page would, without the page seeing the call or its reply. */
+  pi.ask = (fn, payload = {}) => {
+    if (window.__piTransport === "native") return window.__piNative(fn, JSON.stringify(payload)).then(JSON.parse);
+    return new Promise((resolve) => {
+      const id = `asked-${pi.asked.size}-${performance.now()}`;
+      pi.asked.set(id, resolve);
+      post.call(pi.worker, { id, fn, payload: JSON.stringify(payload) });
+    });
+  };
   window.__pi = pi;
 
   /** Route one reply to the page, now or when its entry point is released. */
@@ -83,10 +95,16 @@
   class WatchedWorker extends Worker {
     constructor(url, options) {
       super(url, options);
+      pi.worker = this;
       this.fns = new Map();
       this.handler = null;
       super.onmessage = (event) => {
         const { id, reply } = event.data;
+        if (pi.asked.has(id)) {
+          pi.asked.get(id)(JSON.parse(reply));
+          pi.asked.delete(id);
+          return;
+        }
         if (id === undefined || !this.fns.has(id)) {
           this.handler?.(event);
           return;

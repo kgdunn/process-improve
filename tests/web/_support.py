@@ -14,6 +14,7 @@ import html.parser
 import importlib.util
 import io
 import json
+import re
 import subprocess
 import sys
 from dataclasses import dataclass
@@ -49,6 +50,9 @@ APP_SOURCES = (
     "runtime.json",
     "build_web_app.py",
 )
+
+#: The names ``web/worker.js`` answers (its ``ENTRY_POINT``): the ``api_*`` entry points of ``bootstrap.py``.
+ENTRY_POINT = re.compile(r"^api_[a-z_]+$")
 
 #: Every design the page offers, in the order it lists them. The tests run over this list, and
 #: ``test_designs`` checks it against ``bootstrap.DESIGNS``, so a new design cannot go untested.

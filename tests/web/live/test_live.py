@@ -6,6 +6,8 @@ what the build computed: the same numbers, to rounding.
 
 from __future__ import annotations
 
+import json
+
 import numpy as np
 import pandas as pd
 import pytest
@@ -55,3 +57,12 @@ def test_the_comparison_under_pyodide_scores_as_the_build_did(page, demo):
         for key, value in built["values"][label].items():
             if isinstance(value, float):
                 assert live["values"][label][key] == pytest.approx(value, rel=1e-6, abs=1e-9), (label, key)
+
+
+@pytest.mark.parametrize("fn", ["_reply", "make_design", "json", "api_nothing"])
+def test_the_worker_answers_only_the_page_s_entry_points(page, fn):
+    """Nothing in bootstrap.py's namespace but its api_* entry points can be called from the page."""
+    assert page.evaluate("(fn) => window.__pi.ask(fn, {})", fn) == {
+        "ok": False,
+        "error": f"{json.dumps(fn)} is not one of the page's entry points.",
+    }

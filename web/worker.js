@@ -91,11 +91,18 @@ const ready = boot().catch((err) => {
 });
 ready.catch(() => {}); // each call is answered with the reason
 
+// The page calls only the api_* entry points bootstrap.py defines; nothing else in its namespace answers.
+const ENTRY_POINT = /^api_[a-z_]+$/;
+
 self.onmessage = async ({ data: { id, fn, payload } }) => {
   try {
+    const refused = new Error(`${JSON.stringify(fn)} is not one of the page's entry points.`);
+    if (!ENTRY_POINT.test(fn)) throw refused;
     const pyodide = await ready;
+    const entry = pyodide.globals.get(fn);
+    if (typeof entry !== "function") throw refused;
     if (fn === "api_plots") await installPlotly(pyodide);
-    const reply = pyodide.globals.get(fn)(payload ?? "{}");
+    const reply = entry(payload ?? "{}");
     self.postMessage({ id, reply });
   } catch (err) {
     if (fn === "api_plots") plotly = null; // the next chart tries the install again
