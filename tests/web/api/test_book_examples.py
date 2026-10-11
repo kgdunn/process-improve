@@ -182,7 +182,7 @@ EXAMPLES = {
         [factor(n, -1, 1) for n in "ABCDE"],
         [(*s, s[0] * s[1] * s[2] * s[3], y) for s, y in zip(standard_order(4), PARETO, strict=True)],
         "interactions",
-        lenth={"PSE": "2.62", "ME": "6.75", "SME": "13.70"},
+        lenth={"PSE": "2.625", "ME": "6.748", "SME": "13.699"},
         active=("A", "C", "D", "A·C", "A·D"),
         options={"resolution": 5},
     ),
@@ -413,10 +413,13 @@ def typed_in(example: Example, design: dict) -> list[float]:
 
 def coefficient(analysis: dict, label: str) -> float:
     """Read a coefficient by the label the page shows, or by any term of its alias chain."""
-    for c in analysis["coefficients"]:
-        if label in {c["label"], *(term.replace(":", "·") for term in c["aliases"])}:
-            return c["coefficient"]
-    pytest.fail(f"The page shows no coefficient {label!r}.")
+    found = [
+        c["coefficient"]
+        for c in analysis["coefficients"]
+        if label in {c["label"], *(term.replace(":", "·") for term in c["aliases"])}
+    ]
+    assert found, f"The page shows no coefficient {label!r}."
+    return found[0]
 
 
 @pytest.fixture(scope="module")
