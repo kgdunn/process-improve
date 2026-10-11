@@ -10,7 +10,7 @@ from __future__ import annotations
 import pytest
 
 from tests.web._support import ALL_DESIGNS, factors_named
-from tests.web.e2e._page import choose, factor_table, set_factors
+from tests.web.e2e._page import choose, factor_table, generate, set_factors
 
 NAMES = "ABCDEFGHJKLM"
 
@@ -113,6 +113,16 @@ def test_the_page_says_when_the_factors_no_longer_describe_the_design(page):
     assert page.is_hidden("#design-stale"), "back as the design has it"
     page.fill("#response", "Yield")
     assert page.is_visible("#design-stale"), "the response name counts too"
+
+
+@pytest.mark.xfail(strict=True, reason="defect: a blank response, which the design names y, reads as a change")
+def test_a_blank_response_is_the_y_the_design_is_made_with(blank_page):
+    page = blank_page
+    page.fill("#response", "")
+    generate(page)
+    assert page.is_hidden("#design-stale")
+    page.fill("#response", "y")
+    assert page.is_hidden("#design-stale"), "typing the name it stands for changes nothing"
 
 
 def test_a_new_factor_starts_from_minus_one_to_one_and_can_be_removed(page):
