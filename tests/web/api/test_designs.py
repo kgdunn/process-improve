@@ -251,8 +251,8 @@ def test_replicates_give_the_pure_error_for_a_lack_of_fit_test(api):
     spec = {"design_type": "full_factorial", "factors": FACTORS[:2], "n_center_points": 0, "n_replicates": 3}
     design = api.ok("api_make_design", spec)
     runs = coded(run_sheet(design), FACTORS[:2])
-    y = (10 + 2 * runs["T"] - runs["P"] + 1.5 * runs["T"] * runs["P"]).to_numpy()
-    y += np.random.default_rng(0).normal(0, 0.2, len(y))
+    noise = np.random.default_rng(0).normal(0, 0.2, len(runs))
+    y = (10 + 2 * runs["T"] - runs["P"] + 1.5 * runs["T"] * runs["P"]).to_numpy() + noise
     held = {"spec": design["spec"], "columns": design["columns"], "rows": design["rows"]}
     analysis = api.ok("api_analyze_runs", {**held, "responses": y.tolist(), "model": "main_effects"})
     assert analysis["lack_of_fit"]["df_pure_error"] == 8
