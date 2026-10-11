@@ -441,8 +441,7 @@ function renderAnalysis(reply) {
     el(
       "p",
       "",
-      `${r.n_completed} completed runs. R² = ${fmt(s.r_squared)}, adjusted R² = ${fmt(s.r_squared_adj)}, ` +
-        `predicted R² = ${fmt(s.r_squared_pred)}, residual degrees of freedom = ${s.df_residual}.` +
+      `${r.n_completed} completed runs. ${fitStatistics(s)}` +
         (r.pending_runs.length ? ` Still to run: ${r.pending_runs.join(", ")}.` : ""),
     ),
     ...noteList(r.notes),
@@ -840,6 +839,22 @@ async function readManifest() {
 
 // ---------------------------------------------------------------- rendering helpers
 const fmt = (x) => (x === null || x === undefined ? "" : Number(x).toPrecision(4));
+
+/** The fit statistics as a sentence: one the fit cannot give is left out, and a missing predicted R² is explained. */
+function fitStatistics(s) {
+  const known = (x) => x !== null && x !== undefined;
+  const stats = [
+    ["R²", s.r_squared],
+    ["adjusted R²", s.r_squared_adj],
+    ["predicted R²", s.r_squared_pred],
+  ];
+  const given = stats.filter(([, x]) => known(x)).map(([name, x]) => `${name} = ${fmt(x)}`);
+  const text = `${[...given, `residual degrees of freedom = ${s.df_residual}`].join(", ")}.`;
+  // A run with leverage 1 is fitted exactly whatever its result, so the fit without it cannot predict it.
+  return known(s.r_squared_pred)
+    ? text
+    : `${text} Predicted R² cannot be computed: at least one run cannot be predicted from the others.`;
+}
 const pval = (p) => (p === null || p === undefined ? "" : p < 0.0001 ? "< 0.0001" : Number(p).toFixed(4));
 
 /** A list of sentences about a result (what the design is, what it could not estimate), or nothing. */
