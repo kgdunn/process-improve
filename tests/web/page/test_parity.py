@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import re
 
-from tests.web._support import javascript, page, source
+from tests.web._support import FACTORS, javascript, page, source
 
 
 # --------------------------------------------------------------------------- the form's choices
@@ -128,6 +128,12 @@ def test_the_form_opens_on_the_worked_example(api, bootstrap):
 # --------------------------------------------------------------------------- rules web/logic.js repeats
 def test_the_page_gives_an_optimal_design_bootstrap_s_spare_runs(bootstrap, node):
     assert javascript(node, source("logic.js"), [("SPARE_RUNS", [])]) == [bootstrap.SPARE_RUNS]
+
+
+def test_a_blank_response_on_the_page_is_the_one_bootstrap_names(api, node):
+    """The page reads a blank response box as the name Python gives a design made with one."""
+    made = api.ok("api_make_design", {"design_type": "full_factorial", "factors": FACTORS[:2], "response": ""})
+    assert javascript(node, source("logic.js"), [("DEFAULT_RESPONSE", [])]) == [made["spec"]["response"]]
 
 
 def test_the_page_counts_a_model_s_coefficients_as_bootstrap_does(bootstrap, node):

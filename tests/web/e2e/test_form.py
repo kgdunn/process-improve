@@ -115,7 +115,6 @@ def test_the_page_says_when_the_factors_no_longer_describe_the_design(page):
     assert page.is_visible("#design-stale"), "the response name counts too"
 
 
-@pytest.mark.xfail(strict=True, reason="defect: a blank response, which the design names y, reads as a change")
 def test_a_blank_response_is_the_y_the_design_is_made_with(blank_page):
     page = blank_page
     page.fill("#response", "")

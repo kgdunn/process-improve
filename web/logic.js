@@ -24,13 +24,16 @@ export const needsCentre = (designType, alpha) =>
 /** Read a number box as the page sends it: a blank box as null, rather than as Number("") = 0. */
 export const numberOrNull = (text) => (text.trim() === "" ? null : Number(text));
 
-/** Whether the factors and response in the form still describe the design ``spec`` holds. */
+/** The response a blank box names: y, as Python names it when it makes the design. */
+export const DEFAULT_RESPONSE = "y";
+
+/** Whether the factors and response in the form still describe the design ``spec`` holds; a blank response is y. */
 export function formMatches(factors, response, spec) {
   if (!spec?.factors) return true;
   const same = (f, g) =>
     f.name === g.name && f.low === Number(g.low) && f.high === Number(g.high) && f.units === (g.units ?? "");
   return (
-    response === spec.response &&
+    (response || DEFAULT_RESPONSE) === spec.response &&
     factors.length === spec.factors.length &&
     factors.every((f, i) => same(f, spec.factors[i]))
   );
