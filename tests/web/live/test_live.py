@@ -12,6 +12,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
+from tests.web._browser import BOOT_TIMEOUT, Console
 from tests.web.e2e._page import last_reply, run_sheet, settled, status
 
 
@@ -66,3 +67,45 @@ def test_the_worker_answers_only_the_page_s_entry_points(page, fn):
         "ok": False,
         "error": f"{json.dumps(fn)} is not one of the page's entry points.",
     }
+
+
+
+def started(page) -> None:
+    """Wait until Python has started in the page, or failed to."""
+    page.wait_for_function(
+        "/^(Ready|Could not|Analysis complete)/.test(document.querySelector('#status .status__text').textContent)",
+        timeout=BOOT_TIMEOUT,
+    )
+    assert not status(page)[0].startswith("Could not"), status(page)[0]
+
+
+def test_a_design_comes_back_and_is_analysed_again_under_pyodide(own_context, app_url):
+    """IndexedDB keeps the design and its results; the page opened again analyses them in its own Pyodide.
+
+    A browser of its own, so the module's shared page keeps the worked example the other tests read.
+    """
+    console = Console()
+    first = own_context.new_page()
+    console.watch(first)
+    first.goto(app_url)
+    started(first)
+    first.select_option("#design-type", "full_factorial")
+    first.fill("#n_center_points", "2")
+    first.click("#generate")
+    settled(first, timeout=120_000)
+    first.click("#simulate")
+    first.wait_for_function("document.querySelector('#library-count').textContent === '1'", timeout=60_000)
+    settled(first, timeout=120_000)
+    coefficients = first.text_content("#analysis table")
+
+    again = own_context.new_page()
+    console.watch(again)
+    again.goto(app_url)
+    again.wait_for_selector("#campaign-banner", state="visible")
+    started(again)
+    again.wait_for_function("window.__pi.count('api_analyze_runs') >= 1 && window.__pi.idle()", timeout=120_000)
+    settled(again, timeout=120_000)
+    assert again.text_content("#campaign-banner").startswith("Picked up where you left off: Full factorial")
+    assert run_sheet(again) == run_sheet(first)
+    assert again.text_content("#analysis table") == coefficients
+    assert not console.errors, console.errors
