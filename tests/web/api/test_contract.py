@@ -37,6 +37,7 @@ READS: dict[str, list[str]] = {
         "demo.sigma: number",
         "demo.model: str",
         "demo.seed: int",
+        "version: str?",
     ],
     "design": [
         "n_runs: int",
@@ -279,3 +280,13 @@ def test_the_catalogue_is_what_bootstrap_offers(api, bootstrap):
     for key, scenario in bootstrap.SCENARIOS.items():
         offered = {name: scenario[name] for name in ("label", "hint", "sigma")}
         assert catalogue["scenarios"][key] == offered, key
+
+
+def test_the_catalogue_names_the_release_a_notebook_installs(api):
+    from importlib.metadata import PackageNotFoundError, version
+
+    try:
+        installed = version("process-improve")
+    except PackageNotFoundError:
+        installed = None
+    assert api.ok("api_catalogue")["version"] == installed
