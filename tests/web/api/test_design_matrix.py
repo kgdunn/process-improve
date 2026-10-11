@@ -19,22 +19,14 @@ The optimal designs use the built-in exchange, the code path the browser runs.
 
 from __future__ import annotations
 
-import base64
-import importlib.util
-import io
 import itertools
-import json
-from pathlib import Path
 
 import numpy as np
 import pandas as pd
 import pytest
 
 from process_improve.experiments import moment_aberration
-
-pytest.importorskip("openpyxl")
-
-WEB = Path(__file__).resolve().parent.parent / "web"
+from tests.web._support import coded, fill_workbook, run_sheet
 
 #: Factor names: single letters, avoiding "I", which a defining relation uses for the identity.
 NAMES = ("T", "P", "F", "C", "S", "R", "M", "W", "V", "Q", "N", "L")
@@ -46,30 +38,9 @@ BOX_BEHNKEN_RUNS = {3: 12, 4: 24, 5: 40, 6: 48, 7: 56}
 SIGMA = 0.01
 
 
-@pytest.fixture(scope="module")
-def app():
-    spec = importlib.util.spec_from_file_location("web_bootstrap_designs", WEB / "bootstrap.py")
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-    return module
-
-
-def call(app, fn: str, payload: dict) -> dict:
-    reply = json.loads(getattr(app, fn)(json.dumps(payload)))
-    assert reply["ok"], reply.get("error")
-    return reply["result"]
-
-
 def factors(k: int) -> list[dict]:
     """Return k factors in real units, each with its own range, so the coding is exercised."""
     return [{"name": NAMES[i], "low": 100 + 10 * i, "high": 100 + 10 * i + 2 * (i + 1), "units": ""} for i in range(k)]
-
-
-def coded(sheet: pd.DataFrame, spec_factors: list[dict]) -> np.ndarray:
-    """Return the sheet's settings coded to -1 and +1 from the ranges entered."""
-    return np.column_stack(
-        [(sheet[f["name"]] - (f["high"] + f["low"]) / 2) / ((f["high"] - f["low"]) / 2) for f in spec_factors]
-    )
 
 
 # --------------------------------------------------------------------------- model terms
@@ -105,11 +76,16 @@ def known_coefficients(terms: list[tuple[int, ...]]) -> np.ndarray:
 
 # --------------------------------------------------------------------------- the cases
 def _optimal(top: int) -> list[tuple[int, dict]]:
-    """Budgets at, just above and at twice the coefficient count; one budget from five factors."""
+    """Budgets at, just above and at twice the coefficient count; one budget from five factors.
+
+    Where twice the count is also four more than it (a model with four coefficients), the
+    budget is tried once.
+    """
     grid = []
     for k, model in itertools.product(range(2, top + 1), ("main_effects", "interactions", "quadratic")):
         p = len(model_terms(k, model))
-        grid += [(k, {"model_type": model, "budget": b}) for b in ((p, p + 4, 2 * p) if k <= 4 else (p + 4,))]
+        budgets = dict.fromkeys((p, p + 4, 2 * p) if k <= 4 else (p + 4,))
+        grid += [(k, {"model_type": model, "budget": b}) for b in budgets]
     return grid
 
 
@@ -151,14 +127,20 @@ CASES = [
 ]
 
 
+def test_every_case_is_named_once():
+    """Two cases with one id would run under made-up names, and a failure would be hard to find."""
+    ids = [case.id for case in CASES]
+    assert len(ids) == len(set(ids))
+
+
 # --------------------------------------------------------------------------- the run sheet
 @pytest.mark.parametrize(("design_type", "k", "options"), CASES)
-def test_design(app, design_type: str, k: int, options: dict) -> None:
+def test_design(api, design_type: str, k: int, options: dict) -> None:
     """The run sheet, the design's defining structure, and the round trip, for one case."""
     spec = {"design_type": design_type, "factors": factors(k), **options}
-    result = call(app, "api_make_design", spec)
-    sheet = pd.DataFrame(result["rows"], columns=result["columns"])
-    x = coded(sheet, spec["factors"])
+    result = api.ok("api_make_design", spec)
+    sheet = run_sheet(result)
+    x = coded(sheet, spec["factors"]).to_numpy()
     n = len(sheet)
 
     # The sheet: the runs in a randomised order, numbered 1..n, each with its standard-order place.
@@ -167,12 +149,12 @@ def test_design(app, design_type: str, k: int, options: dict) -> None:
     if n >= 6:
         assert sheet["Std order"].tolist() != list(range(1, n + 1)), "the runs are randomised"
     # The same seed gives the same sheet.
-    assert call(app, "api_make_design", spec)["rows"] == result["rows"]
+    assert api.ok("api_make_design", spec)["rows"] == result["rows"]
     # The facts the page states match the runs.
     assert result["facts"]["center_runs"] == int(np.all(np.isclose(x, 0), axis=1).sum())
 
     STRUCTURE[design_type](x, k, options, result)
-    _round_trip(app, result, spec, x)
+    _round_trip(api, result, x)
 
 
 # --------------------------------------------------------------------------- structure
@@ -278,21 +260,14 @@ STRUCTURE = {
 
 
 # --------------------------------------------------------------------------- the round trip
-def _round_trip(app, result: dict, spec: dict, x: np.ndarray) -> None:
+def _round_trip(api, result: dict, x: np.ndarray) -> None:
     """Fill the workbook with a known model plus small noise, analyse it as uploaded, and check the fit."""
     k = x.shape[1]
     terms = model_terms(k, result["model"])
     matrix = model_matrix(x, terms)
     beta = known_coefficients(terms)
     y = matrix @ beta + np.random.default_rng(len(x) + 7 * k).normal(0, SIGMA, len(x))
-
-    sheets = pd.read_excel(io.BytesIO(base64.b64decode(result["xlsx_base64"])), sheet_name=None)
-    sheets["Runs"]["y"] = y
-    buf = io.BytesIO()
-    with pd.ExcelWriter(buf) as xl:
-        for name, frame in sheets.items():
-            frame.to_excel(xl, sheet_name=name, index=False)
-    analysis = call(app, "api_analyze", {"xlsx_base64": base64.b64encode(buf.getvalue()).decode()})
+    analysis = api.ok("api_analyze", {"xlsx_base64": fill_workbook(result["xlsx_base64"], lambda _: y)})
 
     got = {c["term"]: c for c in analysis["coefficients"]}
     assert set(got) == {term_name(t) for t in terms}, "the design fits its own model without aliasing"

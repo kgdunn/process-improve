@@ -54,7 +54,7 @@
     <div class="row">
       <label>Design type
         <!-- Mirrors bootstrap.DESIGNS (label, hint, options) so the form is
-             right before Python loads; tests/test_web_app.py keeps them in step. -->
+             right before Python loads; tests/web/page/test_parity.py keeps them in step. -->
         <select id="design-type" autocomplete="off">
           <option value="full_factorial" data-options="n_center_points" data-min-factors="2" data-max-factors="7"
             data-hint="Every combination of low and high. 2^k runs, plus center points.">Full factorial (2-level)</option>
@@ -138,7 +138,7 @@
       <div id="panel-simulate" role="tabpanel" aria-labelledby="tab-simulate">
         <div class="row">
           <label>True process
-            <!-- Mirrors bootstrap.SCENARIOS (label, hint); tests/test_web_guided.py keeps them in step. -->
+            <!-- Mirrors bootstrap.SCENARIOS (label, hint); tests/web/page/test_parity.py keeps them in step. -->
             <select id="scenario" autocomplete="off">
               <option value="reactor" selected data-hint="Two strong main effects, an interaction between them, and curvature in the third factor.">Reactor yield</option>
               <option value="main_effects" data-hint="Each of the first three factors changes the response on its own, along a straight line.">Main effects only</option>
