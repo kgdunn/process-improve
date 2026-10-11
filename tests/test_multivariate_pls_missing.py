@@ -240,6 +240,20 @@ class TestTheSurroundingApi:
         assert not model.fitting_info_["md_converged"]
         assert model.fitting_info_["md_rounds"] == 2
 
+    @pytest.mark.parametrize("method", ["tsr", "pmp"])
+    def test_a_setpoint_column_leaves_the_imputation_as_it_was(self, method: str) -> None:
+        """A constant column kept the imputation moving to the round limit, and the fit warned."""
+        X, Y = _dataset(0)
+        gapped = _with_gaps(X, 0.20, 0)
+        with_setpoint = gapped.assign(setpoint=0.1)
+        with_setpoint.loc[3, "setpoint"] = np.nan
+        alone = _fit(gapped, Y, method)
+        with warnings.catch_warnings():
+            warnings.simplefilter("error", SpecificationWarning)
+            both = PLS(n_components=RANK, missing_data_settings={"md_method": method}).fit(with_setpoint, Y)
+        assert both.fitting_info_["md_converged"]
+        assert both.fitting_info_["md_rounds"] == alone.fitting_info_["md_rounds"]
+
     def test_scp_is_still_refused(self) -> None:
         """It is a projection-time method; at fit time it is simply what NIPALS already does."""
         X, Y = _dataset(0)
