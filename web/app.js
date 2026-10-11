@@ -43,7 +43,7 @@ const BOOK_PAGES = {
 };
 
 const $ = (sel) => document.querySelector(sel);
-const worker = new Worker("worker.js");
+const worker = new Worker("worker.js", { type: "module" });
 
 // ---------------------------------------------------------------- worker RPC
 let nextId = 0;

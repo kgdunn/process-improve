@@ -161,7 +161,8 @@ CI's `web-app` job runs all three:
   work is not deployed; again once the deploy is served (`tools/wait_for_web_app.py` waits
   for the published manifest to name the commit); and weekly against the published app, in
   `web-app-live.yml`, which also reports a pin in `web/runtime.json` that is no longer the
-  latest release (`tools/check_web_runtime.py`).
+  latest release (`tools/check_web_runtime.py`). When npm has a newer Pyodide, that workflow
+  runs the wasm and live tiers on it and says in its summary whether moving the pin is safe.
 - `tests/web/wasm` (`--wasm`): the app's Python under Pyodide in Node.js, asked what
   native Python is asked; the answers must agree.
 

@@ -88,3 +88,11 @@ def test_the_weekly_check_tries_the_published_app_and_the_pins():
     assert "python tools/check_web_runtime.py" in workflow
     assert "APP: https://kgdunn.github.io/process-improve/app/" in workflow
     assert '--web-app="$APP"' in workflow
+
+
+def test_the_weekly_check_tries_the_newest_pyodide_on_the_wasm_and_live_tiers():
+    """Changing ``pyodide`` in web/runtime.json is all a run on another release needs."""
+    workflow = (ROOT / ".github" / "workflows" / "web-app-live.yml").read_text(encoding="utf-8")
+    assert "https://registry.npmjs.org/pyodide/latest" in workflow
+    assert """jq --arg v "$NEWEST" '.pyodide = $v' web/runtime.json""" in workflow
+    assert "pytest tests/web/wasm tests/web/live --wasm --live" in workflow

@@ -1,5 +1,6 @@
 // Runs Python in a Web Worker, so the page never freezes while Pyodide loads
-// (about 10 s on first visit) or while a design is optimised.
+// (about 10 s on first visit) or while a design is optimised. It is a module
+// worker (app.js makes it with type "module"): Pyodide 314 refuses a classic one.
 //
 // Protocol: the page posts {id, fn, payload}; the worker answers {id, reply}
 // where reply is the JSON string the Python function returned, or
@@ -55,7 +56,7 @@ async function boot() {
   say("Loading Python (WebAssembly)...");
   const { pyodide: release, packages, micropip } = await runtime;
   const indexURL = `https://cdn.jsdelivr.net/pyodide/v${release}/full/`;
-  importScripts(`${indexURL}pyodide.js`); // here, so a refused download stops boot() rather than the worker
+  const { loadPyodide } = await import(`${indexURL}pyodide.mjs`); // here, so a refused download stops boot()
   const pyodide = await loadPyodide({ indexURL });
 
   say("Loading numpy, pandas, scipy, statsmodels, scikit-learn...");
@@ -69,9 +70,11 @@ async function boot() {
 import micropip
 # The pure-Python packages the Pyodide distribution lacks come from PyPI, at the pinned versions.
 await micropip.install(list(_pypi))
-# deps=False: the wheel's metadata pins numpy/pandas versions that can run
-# ahead of the Pyodide distribution, and the ones loaded above are what the
-# experiments module actually needs (tests/web/api/test_browser_safe.py checks this).
+# deps=False: the wheel's metadata bounds numpy and pandas, and the Pyodide release
+# need not fall inside the bounds (Pyodide 314 ships pandas 3.0, where the package
+# says <3.0). The packages loaded above are what the experiments module needs
+# (tests/web/api/test_browser_safe.py), and the wasm tier checks its answers under
+# them against native Python's.
 await micropip.install(_wheel, deps=False)
 `);
   pyodide.globals.delete("_pypi");
