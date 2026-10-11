@@ -3,6 +3,9 @@
 Builds the wheel from this checkout, copies ``web/`` next to it and writes the
 ``wheels/manifest.json`` that ``web/worker.js`` reads, so the published page
 always runs the code it was deployed from rather than the latest PyPI release.
+The wheel goes in a folder named by its digest, so each deploy's wheel has a URL
+of its own and a browser cannot install one it cached from an earlier deploy; the
+manifest, fetched past the cache, names it and the commit the app was built from.
 It also runs the page's worked example through ``web/bootstrap.py``, the code the
 page runs, and writes the results to ``demo.json``: the page draws them at first
 paint while Python loads in the browser. The docs workflow runs this into
@@ -18,9 +21,11 @@ from __future__ import annotations
 
 import argparse
 import functools
+import hashlib
 import http.server
 import importlib.util
 import json
+import os
 import shutil
 import subprocess
 from importlib.metadata import version
@@ -43,6 +48,17 @@ def build_wheel(dist: Path) -> Path:
     if not wheels:
         raise SystemExit(f"no wheel produced in {dist}")
     return wheels[-1]
+
+
+def commit() -> str | None:
+    """Name the commit the app is built from: the one CI checked out, else this checkout's, if git can tell."""
+    if os.environ.get("GITHUB_SHA"):
+        return os.environ["GITHUB_SHA"]
+    git = shutil.which("git")
+    if git is None:
+        return None
+    head = subprocess.run([git, "rev-parse", "HEAD"], cwd=ROOT, capture_output=True, text=True, check=False)  # noqa: S603
+    return head.stdout.strip() or None
 
 
 def worked_example() -> dict[str, Any]:
@@ -116,10 +132,17 @@ def assemble(out_dir: Path, dist: Path = ROOT / "dist" / "web") -> str:
     for name in APP_FILES:
         shutil.copy2(WEB_SRC / name, out_dir / name)
     wheel = build_wheel(dist)
-    shutil.copy2(wheel, out_dir / "wheels" / wheel.name)
+    published = Path(hashlib.sha256(wheel.read_bytes()).hexdigest()[:16]) / wheel.name
+    (out_dir / "wheels" / published.parent).mkdir()
+    shutil.copy2(wheel, out_dir / "wheels" / published)
     from plotly.offline import get_plotlyjs_version  # noqa: PLC0415 - the docs environment has plotly
 
-    manifest = {"wheel": wheel.name, "plotly": version("plotly"), "plotly_js": get_plotlyjs_version()}
+    manifest = {
+        "wheel": published.as_posix(),
+        "commit": commit(),
+        "plotly": version("plotly"),
+        "plotly_js": get_plotlyjs_version(),
+    }
     (out_dir / "wheels" / "manifest.json").write_text(json.dumps(manifest, indent=2) + "\n")
     (out_dir / "demo.json").write_text(json.dumps(worked_example(), separators=(",", ":")) + "\n")
     return wheel.name
