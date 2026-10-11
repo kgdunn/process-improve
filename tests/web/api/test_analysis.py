@@ -205,7 +205,6 @@ CHICKEN = {
 }
 
 
-@pytest.mark.xfail(strict=True, reason="a zero coefficient is shown as round-off, 6.106e-16")
 def test_a_coefficient_the_results_make_zero_reads_zero(api):
     """Least squares returns an exactly zero coefficient as round-off; the page shows 0, as the book prints it."""
     spec = {"design_type": "full_factorial", "factors": factors_named(*"DRP"), "n_center_points": 0}
@@ -218,7 +217,6 @@ def test_a_coefficient_the_results_make_zero_reads_zero(api):
     assert "e-1" not in result["equation"]
 
 
-@pytest.mark.xfail(strict=True, reason="a zero effect is shown as round-off, 8.882e-16")
 def test_a_zero_effect_reads_zero_in_lenth_s_table(api):
     """A saturated fit whose results make C exactly zero: its effect reads 0, as its coefficient does."""
     spec = {"design_type": "fractional_factorial", "factors": factors_named(*"ABC"), "resolution": 3}
