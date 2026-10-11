@@ -15,6 +15,7 @@ import numpy as np
 import pandas as pd
 import pytest
 import statsmodels.formula.api as smf
+from statsmodels.regression.linear_model import OLSResults, RegressionResultsWrapper
 
 from process_improve.experiments._analyses.aliasing import alias_chains, estimable_effects
 from process_improve.experiments.analysis import analyze_experiment
@@ -182,9 +183,14 @@ class TestAliasChains:
             warnings.simplefilter("ignore")
             fit = smf.ols("y ~ (A + B + C + D)**2", data=_half_fraction()).fit()
         before = estimable_effects(fit).coefficients["A:B + C:D"]
-        fit.params["A:B"] += 1.0
-        fit.params["C:D"] -= 1.0
-        assert estimable_effects(fit).coefficients["A:B + C:D"] == pytest.approx(before)
+        # fit.params is a new Series on every access, a copy under pandas 3, so writing
+        # into it would change nothing: build the shifted fit instead, and check it moved.
+        moved = fit.params.copy()
+        moved["A:B"] += 1.0
+        moved["C:D"] -= 1.0
+        shifted = RegressionResultsWrapper(OLSResults(fit.model, moved.to_numpy(), fit.normalized_cov_params))
+        assert shifted.params["A:B"] == pytest.approx(fit.params["A:B"] + 1.0)
+        assert estimable_effects(shifted).coefficients["A:B + C:D"] == pytest.approx(before)
 
 
 class TestLmAliasDetection:
