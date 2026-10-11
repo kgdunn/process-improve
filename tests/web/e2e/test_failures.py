@@ -26,14 +26,14 @@ def failed_to_start(page) -> str:
 
 
 def test_a_refused_python_download_is_reported_and_nothing_waits_for_it(context, site, console):
-    console.allow(r"ERR_BLOCKED_BY_CLIENT|pyodide\.js")  # the browser reports the refused download
+    console.allow(r"ERR_BLOCKED_BY_CLIENT|pyodide\.mjs")  # the browser reports the refused download
     refused = []
 
     def hold(route) -> None:
         """Keep Pyodide's download waiting until the reader has asked for Python."""
         refused.append(route)
 
-    context.route(re.compile(r"/pyodide\.js$"), hold)
+    context.route(re.compile(r"/pyodide\.mjs$"), hold)
     page = context.new_page()
     page.goto(site)
     page.click("#run-example")
@@ -43,7 +43,7 @@ def test_a_refused_python_download_is_reported_and_nothing_waits_for_it(context,
         assert time.monotonic() < deadline, "the worker never asked for Pyodide"
         page.wait_for_timeout(50)
     refused[0].abort("blockedbyclient")
-    assert "pyodide.js" in failed_to_start(page)
+    assert "pyodide.mjs" in failed_to_start(page)
     assert page.text_content("#run-example") == "Run the worked example"
     assert page.is_disabled("#run-example")
     for control in ("#generate", "#simulate", "#compare", "#upload"):

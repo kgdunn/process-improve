@@ -1,5 +1,6 @@
 // Runs Python in a Web Worker, so the page never freezes while Pyodide loads
-// (about 10 s on first visit) or while a design is optimised.
+// (about 10 s on first visit) or while a design is optimised. It is a module
+// worker (app.js makes it with type "module"): Pyodide 314 refuses a classic one.
 //
 // Protocol: the page posts {id, fn, payload}; the worker answers {id, reply}
 // where reply is the JSON string the Python function returned, or
@@ -55,7 +56,7 @@ async function boot() {
   say("Loading Python (WebAssembly)...");
   const { pyodide: release, packages, micropip } = await runtime;
   const indexURL = `https://cdn.jsdelivr.net/pyodide/v${release}/full/`;
-  importScripts(`${indexURL}pyodide.js`); // here, so a refused download stops boot() rather than the worker
+  const { loadPyodide } = await import(`${indexURL}pyodide.mjs`); // here, so a refused download stops boot()
   const pyodide = await loadPyodide({ indexURL });
 
   say("Loading numpy, pandas, scipy, statsmodels, scikit-learn...");
