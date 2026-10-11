@@ -313,9 +313,9 @@ def _apply_memory_limit(memory_mb: int) -> None:
 def _pool_initializer(memory_mb: int) -> None:
     """Run inside each worker process before it accepts tasks.
 
-    Imports run *before* the memory cap is applied so that large
-    data files loaded at import time (e.g. pyDOE3's orthogonal-array
-    tables) do not count against the per-call budget.
+    Imports run *before* the memory cap is applied so that what the
+    package and its dependencies load at import time does not count
+    against the per-call budget.
     """
     # Warm the registry so the first real call doesn't pay discovery cost.
     from process_improve.tool_spec import discover_tools  # noqa: PLC0415
