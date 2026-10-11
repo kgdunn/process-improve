@@ -25,7 +25,7 @@ if TYPE_CHECKING:
     from collections.abc import Callable, Iterator
     from types import ModuleType
 
-HARNESS = Path(__file__).with_name("harness.js")
+HARNESS = Path(__file__).parents[1] / "harness.js"
 
 
 @pytest.fixture(scope="session")

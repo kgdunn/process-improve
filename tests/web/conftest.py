@@ -20,6 +20,7 @@ from typing import TYPE_CHECKING, Any
 import pytest
 
 from tests.web._browser import REPORTS, launch
+from tests.web._build import build
 from tests.web._support import BUILD_SCRIPT, WEB, Api, held_of, load_module
 
 if TYPE_CHECKING:
@@ -126,3 +127,17 @@ def held(worked_example: dict[str, Any]) -> dict[str, Any]:
 def simulated(worked_example: dict[str, Any]) -> dict[str, Any]:
     """Return the worked example's results, simulated from the reactor process with its noise and seed."""
     return copy.deepcopy(worked_example["simulated"])
+
+
+@pytest.fixture(scope="session")
+def web_app(request: pytest.FixtureRequest, build_script: ModuleType) -> Path | str:
+    """Return the app the live and wasm tiers run: what ``--web-app`` names, or a build of this checkout."""
+    given = request.config.getoption("--web-app")
+    if not given:
+        return build(build_script)
+    if given.startswith(("http://", "https://")):
+        return given.rstrip("/") + "/"
+    app = Path(given).resolve()
+    if not (app / "wheels" / "manifest.json").is_file():
+        pytest.fail(f"--web-app={given} is not a built app: `python scripts/build_web_app.py -o {given}` builds one.")
+    return app

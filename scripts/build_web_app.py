@@ -106,13 +106,16 @@ def worked_example() -> dict[str, Any]:
     }
 
 
-def assemble(out_dir: Path) -> str:
-    """Copy the app, a freshly built wheel and the worked example into ``out_dir``; return the wheel name."""
+def assemble(out_dir: Path, dist: Path = ROOT / "dist" / "web") -> str:
+    """Copy the app, a wheel freshly built in ``dist`` and the worked example into ``out_dir``; return the wheel name.
+
+    ``demo.json`` is written last, so its presence says the app is complete.
+    """
     shutil.rmtree(out_dir, ignore_errors=True)
     (out_dir / "wheels").mkdir(parents=True)
     for name in APP_FILES:
         shutil.copy2(WEB_SRC / name, out_dir / name)
-    wheel = build_wheel(ROOT / "dist" / "web")
+    wheel = build_wheel(dist)
     shutil.copy2(wheel, out_dir / "wheels" / wheel.name)
     from plotly.offline import get_plotlyjs_version  # noqa: PLC0415 - the docs environment has plotly
 

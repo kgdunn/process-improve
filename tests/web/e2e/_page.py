@@ -113,3 +113,8 @@ def type_results(page: Any, results: dict[int, object]) -> None:  # noqa: ANN401
 def sort_by(page: Any, column: str, table: str = "#design-table") -> None:  # noqa: ANN401
     """Click a column heading of a table, as a reader sorting it would."""
     page.locator(f"{table} th button.sort", has_text=re.compile(f"^{re.escape(column)}$")).click()
+
+
+def last_reply(page: Any, fn: str) -> dict:  # noqa: ANN401
+    """Return the last reply the page got from ``fn``, as the harness recorded it."""
+    return page.evaluate("(fn) => window.__pi.replies.filter((r) => r.fn === fn).at(-1).reply", fn)

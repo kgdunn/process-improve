@@ -8,7 +8,9 @@ from ``playwright install chromium``, or from ``PI_CHROMIUM``, the path of anoth
 from __future__ import annotations
 
 import functools
+import hashlib
 import http.server
+import json
 import os
 import re
 import threading
@@ -123,3 +125,38 @@ def keep_artifacts(request: pytest.FixtureRequest, context: Any, pages: list[Any
         if not page.is_closed():
             page.screenshot(path=target / f"{name}-{i}.png", full_page=True)
     context.tracing.stop(path=target / f"{name}.zip")
+
+
+#: Downloads that never change once published: a Pyodide release's files, a Plotly.js release and
+#: PyPI's files. Index pages, which do change, are always fetched.
+IMMUTABLE = (
+    re.compile(r"^https://cdn\.jsdelivr\.net/pyodide/v[\d.]+/"),
+    re.compile(r"^https://cdn\.jsdelivr\.net/npm/plotly\.js-dist-min@[\d.]+/"),
+    re.compile(r"^https://files\.pythonhosted\.org/packages/"),
+)
+
+#: The response headers a cached download is served with: its type, and leave for the page to read it.
+KEPT_HEADERS = {"content-type", "access-control-allow-origin"}
+
+
+def cache_downloads(context: Any, directory: Path) -> None:  # noqa: ANN401 - a Playwright BrowserContext
+    """Serve the immutable downloads of a context's pages from a cache on disk, filling it on a miss."""
+    directory.mkdir(parents=True, exist_ok=True)
+
+    def handle(route: Any) -> None:  # noqa: ANN401 - a Playwright Route
+        key = hashlib.sha256(route.request.url.encode()).hexdigest()
+        body, meta = directory / key, directory / f"{key}.json"
+        if body.is_file() and meta.is_file():
+            route.fulfill(status=200, headers=json.loads(meta.read_text()), body=body.read_bytes())
+            return
+        response = route.fetch()
+        if response.ok:
+            partial = directory / f"{key}.{os.getpid()}.partial"
+            partial.write_bytes(response.body())
+            partial.replace(body)
+            kept = {k: v for k, v in response.headers.items() if k.lower() in KEPT_HEADERS}
+            meta.write_text(json.dumps(kept))
+        route.fulfill(response=response)
+
+    for pattern in IMMUTABLE:
+        context.route(pattern, handle)
