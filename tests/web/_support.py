@@ -237,7 +237,8 @@ class Page(html.parser.HTMLParser):
     def handle_data(self, data: str) -> None:
         """Read an option's label."""
         if self._select is not None and self.options[self._select]:
-            self.options[self._select][-1]["label"] += data.strip()
+            option = self.options[self._select][-1]
+            option["label"] = f"{option['label'] or ''}{data.strip()}"
 
     def values(self, select: str) -> list[str]:
         """Return the values of a <select>'s options, in order."""

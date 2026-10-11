@@ -89,7 +89,12 @@ class Console:
 
     def watch(self, page: Any) -> None:  # noqa: ANN401 - a Playwright Page
         """Listen to a page for errors."""
-        page.on("console", lambda message: message.type == "error" and self.errors.append(message.text))
+
+        def console(message: Any) -> None:  # noqa: ANN401 - a Playwright ConsoleMessage
+            if message.type == "error":
+                self.errors.append(message.text)
+
+        page.on("console", console)
         page.on("pageerror", lambda error: self.errors.append(f"uncaught: {error}"))
 
     def allow(self, pattern: str) -> None:
