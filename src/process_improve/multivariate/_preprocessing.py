@@ -110,8 +110,15 @@ class MCUVScaler(TransformerMixin, BaseEstimator):
             warnings.simplefilter("ignore", RuntimeWarning)
             center = np.nanmean(X_arr, axis=0)
             scale = np.nanstd(X_arr, axis=0, ddof=1)
+            highest = np.nanmax(X_arr, axis=0)
+            constant = highest == np.nanmin(X_arr, axis=0)
         # Constant columns are left as-is (scale to 1.0) rather than
-        # producing inf / nan when transform divides. The guard must also
+        # producing inf / nan when transform divides. A column is constant when
+        # its observed values are all equal: its nanstd is more often rounding
+        # noise (1e-17) than an exact 0, and which one depends on the array's
+        # memory layout, so testing the standard deviation turned two in three
+        # constant columns into a column of +-sqrt((n-1)/n). Its centre is the
+        # value itself, so it transforms to exactly 0. The guard must also
         # catch: a column with fewer than two observed values, whose
         # nanstd(ddof=1) is NaN (NaN == 0 is False, so the equality test
         # missed it and transform emitted an all-NaN column); and a
@@ -120,7 +127,8 @@ class MCUVScaler(TransformerMixin, BaseEstimator):
         # constant-at-zero so transform passes the NaN cells through
         # unchanged instead of poisoning them further.
         tiny = float(np.finfo(float).tiny) ** 0.5
-        scale = np.where(~np.isfinite(scale) | (scale <= tiny), 1.0, scale)
+        scale = np.where(constant | ~np.isfinite(scale) | (scale <= tiny), 1.0, scale)
+        center = np.where(constant, highest, center)
         center = np.where(np.isfinite(center), center, 0.0)
 
         self.center_ = pd.Series(center, index=index)
