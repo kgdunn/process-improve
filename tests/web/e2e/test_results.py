@@ -6,8 +6,6 @@ still to do, and takes the analysis away again when no result is left.
 
 from __future__ import annotations
 
-import pytest
-
 from tests.web.e2e._page import calls, enter_results, generate, settled, status, type_results
 
 #: Fifteen results for the worked example's Box-Behnken design.
@@ -51,7 +49,6 @@ def test_a_result_typed_over_a_simulated_one_is_entered(page):
     assert calls(page, "api_analyze_runs")[-1]["payload"]["responses"][0] == 70
 
 
-@pytest.mark.xfail(strict=True, reason="defect: an analysis that arrives after the results are cleared is drawn")
 def test_an_analysis_overtaken_by_clearing_the_results_is_dropped(page):
     page.evaluate("window.__pi.hold('api_analyze_runs')")
     enter_results(page, {0: 70})  # its analysis is held on the way back
@@ -63,12 +60,14 @@ def test_an_analysis_overtaken_by_clearing_the_results_is_dropped(page):
     assert status(page) == ("No results to analyse yet.", "ok")
 
 
-@pytest.mark.xfail(strict=True, reason="defect: an analysis that arrives after a new design is drawn under it")
-def test_an_analysis_overtaken_by_a_new_design_is_dropped(page):
+def test_an_analysis_overtaken_by_a_new_design_is_dropped(blank_page):
+    """Entered results, not simulated ones: a new design has no results until the reader adds them."""
+    page = blank_page
+    generate(page)
     page.evaluate("window.__pi.hold('api_analyze_runs')")
     enter_results(page, {0: 70})  # its analysis is held on the way back
     page.click("#generate")
-    page.wait_for_function("window.__pi.replies.some((r) => r.fn === 'api_make_design')")
+    page.wait_for_function("window.__pi.replies.filter((r) => r.fn === 'api_make_design').length === 2")
     page.evaluate("window.__pi.release('api_analyze_runs')")
     settled(page)
     assert page.is_hidden("#analysis")

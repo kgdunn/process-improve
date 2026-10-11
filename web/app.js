@@ -445,7 +445,9 @@ function scheduleAnalysis() {
   analysisTimer = setTimeout(analyseRuns, 700);
 }
 
+/** Take the analysis away: its runs or their results are gone. A reply still on its way is dropped. */
 function clearAnalysis() {
+  ticket += 1;
   $("#analysis").hidden = true;
   $("#charts").hidden = true;
   $("#charts").replaceChildren();
@@ -455,6 +457,7 @@ function clearAnalysis() {
 async function analyseRuns() {
   if (!state.design || !state.responses.some((v) => v !== null)) {
     clearAnalysis();
+    setStatus("No results to analyse yet.");
     return;
   }
   const mine = ++ticket;

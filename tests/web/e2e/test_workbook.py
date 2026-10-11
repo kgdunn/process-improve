@@ -11,7 +11,6 @@ import json
 
 import numpy as np
 import pandas as pd
-import pytest
 
 from tests.web._support import FACTORS, fill_workbook, quadratic
 from tests.web.e2e._page import factor_table, run_sheet, settled, status
@@ -92,7 +91,6 @@ def test_a_file_that_is_not_a_workbook_is_refused(page, tmp_path):
     assert page.is_visible("#demo-banner"), "the page keeps what it held"
 
 
-@pytest.mark.xfail(strict=True, reason="defect: a workbook with no results leaves the status line busy")
 def test_a_workbook_with_no_results_yet_is_read_and_the_page_waits_for_them(page, api, tmp_path):
     design = api.ok("api_make_design", {"design_type": "ccd", "factors": FACTORS})
     path = tmp_path / "fresh.xlsx"
