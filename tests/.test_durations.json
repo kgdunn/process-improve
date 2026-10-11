@@ -165,5 +165,18 @@
  "tests/test_visualization.py": 1.04,
  "tests/test_visualization_spec.py": 0.18,
  "tests/test_viz_boxplot.py": 0.17,
- "tests/test_web_app.py": 4.59
+ "tests/web/api/test_analysis.py": 1.85,
+ "tests/web/api/test_browser_safe.py": 4.47,
+ "tests/web/api/test_charts.py": 0.9,
+ "tests/web/api/test_compare.py": 1.88,
+ "tests/web/api/test_contract.py": 3.53,
+ "tests/web/api/test_design_matrix.py": 186.02,
+ "tests/web/api/test_designs.py": 33.06,
+ "tests/web/api/test_envelope.py": 0.34,
+ "tests/web/api/test_errors.py": 2.27,
+ "tests/web/api/test_simulation.py": 0.18,
+ "tests/web/api/test_workbook.py": 0.87,
+ "tests/web/page/test_build.py": 5.22,
+ "tests/web/page/test_parity.py": 0.6,
+ "tests/web/page/test_python_panels.py": 3.4
 }

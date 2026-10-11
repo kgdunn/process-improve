@@ -128,6 +128,39 @@ The README is the first code a new user runs, so CI checks it like code:
   README's numbers. `.github/workflows/readme-links.yml` runs it weekly and on
   pull requests that touch the README, and opens an issue when a weekly run fails.
 
+### The browser app is tested
+
+The no-install app in `web/` runs the package in the reader's browser, through
+`web/bootstrap.py`. Its tests are in `tests/web/` and run with the rest of the suite:
+
+- `tests/web/api/` drives `bootstrap.py` through its JSON entry points, as the page
+  does: a module per entry point, plus `test_errors.py` (every refusal the page can
+  show), `test_envelope.py` (the shape of every reply) and `test_contract.py` (every
+  key, and its type, that `app.js`, `charts.js` and `python.js` read from a reply).
+- `tests/web/page/` checks the page without a browser: each control and rule the HTML
+  and JavaScript repeat from `bootstrap.py`, the build in `scripts/build_web_app.py`,
+  and the code the "Show the Python" panels write. The tests that run the page's
+  JavaScript need Node.js, and skip without it.
+- `web/test-wasm.mjs` runs a design and analysis round trip under real Pyodide in CI
+  (the `web-app` job).
+
+`pytest tests/web --no-cov` runs them all, and `--affected-since` selects all of them
+when any file of the app changes. `web/bootstrap.py` counts towards coverage, so the
+patch gate applies to it.
+
+When you change the app, the tests move with it:
+
+- A new entry point, or a new key the page reads from a reply: a test in
+  `tests/web/api/`, and the key in `READS` in `test_contract.py`.
+- A new refusal (a `raise ValueError(...)` in `bootstrap.py`): a case in `REFUSALS` in
+  `test_errors.py`. The suite fails, naming the message, until there is one.
+- A choice the page repeats from `bootstrap.py`, so the form is right before Python
+  loads: a test in `tests/web/page/test_parity.py`.
+- A new file in `web/`: in `APP_FILES` in `scripts/build_web_app.py` if the page loads
+  it, and in `APP_SOURCES` in `tests/web/_support.py` either way.
+- A new design type or simulated process: in `ALL_DESIGNS` or `ALL_SCENARIOS` in
+  `tests/web/_support.py`, so the tests that run over every one include it.
+
 ## Linting and formatting
 
 ```bash
