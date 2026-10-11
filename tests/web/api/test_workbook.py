@@ -179,3 +179,14 @@ def test_analysing_the_page_s_runs_matches_analysing_its_workbook(api, held, sim
 
 def test_foreign_file_is_reported(api):
     assert "xlsx" in api.error("api_analyze", {"xlsx_base64": base64.b64encode(b"not a workbook").decode()})
+
+
+def test_a_blocked_design_s_workbook_keeps_its_blocks(api):
+    spec = {"design_type": "full_factorial", "factors": FACTORS, "n_center_points": 2, "n_blocks": 2}
+    design = api.ok("api_make_design", spec)
+    filled = fill_workbook(design["xlsx_base64"], quadratic)
+    read = api.ok("api_read_workbook", {"xlsx_base64": filled})
+    assert read["columns"] == design["columns"]
+    assert [row[2] for row in read["rows"]] == [row[2] for row in design["rows"]], "each run keeps its block"
+    analysis = api.ok("api_analyze", {"xlsx_base64": filled})
+    assert "Block" in [a["source"] for a in analysis["anova"]]

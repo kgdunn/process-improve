@@ -88,3 +88,33 @@ def test_results_typed_in_are_listed_in_run_order_with_none_for_runs_to_do(node)
     y = run(page_code(node, "enteredCode", [61.25, None, -3, 1e-7]), {})["y"]
     assert y.name == "y"
     np.testing.assert_array_equal(y.to_numpy(dtype=float), [61.25, np.nan, -3, 1e-7])
+
+
+@pytest.mark.slow
+@pytest.mark.parametrize(
+    "spec",
+    [
+        {"design_type": "full_factorial", "factors": FACTORS[:2], "n_center_points": 2, "n_blocks": 2},
+        {"design_type": "ccd", "factors": FACTORS, "alpha": 1.4, "n_replicates": 2},
+        {"design_type": "box_behnken", "factors": FACTORS, "n_blocks": 2},
+    ],
+    ids=["blocks confounding an interaction", "typed axial distance, replicated", "blocks by exchange"],
+)
+def test_the_python_shown_reproduces_blocks_replicates_and_a_typed_axial_distance(api, node, spec):
+    """The design, its simulated results and their analysis, as the page shows the code for them."""
+    design = api.ok("api_make_design", spec)
+    held = held_of(design)
+    simulation = api.ok("api_simulate", {**held, "scenario": "reactor", "sigma": 1.0, "seed": 3})
+    analysis = api.ok("api_analyze_runs", {**held, "responses": simulation["responses"]})
+
+    namespace = run(page_code(node, "designCode", design["spec"]), {})
+    columns = [c for c in design["columns"] if c in namespace["result"].design_actual.columns or c == "Block"]
+    np.testing.assert_allclose(
+        namespace["result"].design_actual[columns].to_numpy(dtype=float), run_sheet(design)[columns], atol=1e-9
+    )
+    run(page_code(node, "simulateCode", simulation), namespace)
+    run(page_code(node, "analyseCode", analysis["spec"], analysis["formula"]), namespace)
+    shown = {c["term"]: c["coefficient"] for c in namespace["analysis"]["coefficients"]}
+    assert set(shown) == {c["term"] for c in analysis["coefficients"]}
+    for c in analysis["coefficients"]:
+        assert shown[c["term"]] == pytest.approx(c["coefficient"], abs=0.01), c["term"]

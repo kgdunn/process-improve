@@ -10,6 +10,8 @@ from __future__ import annotations
 
 import re
 
+import pytest
+
 from tests.web._support import ENTRY_POINT, FACTORS, javascript, page, source
 
 
@@ -94,12 +96,14 @@ def test_the_axial_choices_are_bootstrap_s(api, bootstrap, node):
     assert asked == [1.4, None], "a typed distance is sent as a number, and a blank box as null for Python to refuse"
 
 
-def test_the_replicates_box_takes_what_bootstrap_takes(api, bootstrap):
-    box = page().ids["n_replicates"]
-    assert (int(box["min"]), int(box["max"])) == (1, bootstrap.MAX_REPLICATES)
-    assert int(box["value"]) == 1, "a design is made once unless the reader asks for more"
-    for n in (1, bootstrap.MAX_REPLICATES):
-        api.ok("api_make_design", {"design_type": "full_factorial", "factors": FACTORS[:2], "n_replicates": n})
+@pytest.mark.parametrize(("box", "most"), [("n_replicates", "MAX_REPLICATES"), ("n_blocks", "MAX_BLOCKS")])
+def test_the_replicates_and_blocks_boxes_take_what_bootstrap_takes(api, bootstrap, box, most):
+    shown = page().ids[box]
+    assert (int(shown["min"]), int(shown["max"])) == (1, getattr(bootstrap, most))
+    assert int(shown["value"]) == 1, "a design is made once, in one block, unless the reader asks for more"
+    factors = [{"name": n, "low": -1, "high": 1} for n in "ABCDEF"]  # 64 runs, enough for eight blocks
+    for n in (1, getattr(bootstrap, most)):
+        api.ok("api_make_design", {"design_type": "full_factorial", "factors": factors, box: n})
 
 
 def test_the_resolutions_are_bootstrap_s(bootstrap):

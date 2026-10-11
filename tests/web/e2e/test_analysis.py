@@ -73,3 +73,18 @@ def test_a_model_the_design_cannot_fit_is_refused_in_a_sentence(page):
     assert status(page) == ("The results could not be analysed.", "error")
     assert "cannot fit the quadratic model" in page.text_content("#analysis p.error")
     assert page.is_hidden("#charts")
+
+
+def test_a_blocked_design_shows_each_run_s_block_and_fits_the_blocks(blank_page):
+    page = blank_page
+    generate(page, design_type="full_factorial", n_center_points=2, n_blocks=2)
+    assert headers(page)[:3] == ["Std order", "Run order", "Block"]
+    assert calls(page, "api_make_design")[-1]["payload"]["n_blocks"] == 2
+    page.click("#simulate")
+    settled(page)
+    assert "Block 1" in [row[0] for row in coefficient_rows(page)]
+    anova = page.locator("#analysis table").last.locator("tbody tr td:first-child").all_text_contents()
+    assert "Block" in anova
+    assert "The blocks are fitted as a fixed effect" in page.text_content("#analysis")
+    code = page.text_content("#py-analyse code")
+    assert 'result.design[names + ["Block"]]' in code

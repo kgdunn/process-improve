@@ -171,8 +171,10 @@ function setForm(spec) {
   } else if (options.alpha) {
     $("#alpha").value = options.alpha;
   }
-  // A design made without replicates is made once: a count left from an earlier design does not carry over.
+  // A design made without replicates or blocks is made once, in one block: counts left from an earlier design
+  // do not carry over.
   $("#n_replicates").value = options.n_replicates ?? 1;
+  $("#n_blocks").value = options.n_blocks ?? 1;
   if (options.model_type) $("#model_type").value = options.model_type;
   // A resolution or a number of runs other than the page's own pick is kept, as if the reader had chosen it.
   const k = spec.factors.length;
@@ -246,6 +248,7 @@ async function generate() {
     n_center_points: Number($("#n_center_points").value),
     alpha: axialDistance($("#alpha").value, $("#alpha_value").value),
     n_replicates: Number($("#n_replicates").value),
+    n_blocks: Number($("#n_blocks").value),
     resolution: Number($("#resolution").value),
     budget: Number($("#budget").value),
     model_type: $("#model_type").value,
@@ -512,7 +515,7 @@ function renderAnalysis(reply) {
   const s = r.summary;
   const simulated = r.coefficients.some((c) => c.true_value !== undefined && c.true_value !== null);
   setStatus("Analysis complete.");
-  showPython("analyse", analyseCode(r.spec, r.model));
+  showPython("analyse", analyseCode(r.spec, r.formula ?? r.model)); // the terms fitted, which the design can estimate
   const parts = [
     el("p", "equation", r.equation),
     el("p", "hint", "Coefficients are in coded units: each factor runs from -1 at its low value to +1 at its high value."),

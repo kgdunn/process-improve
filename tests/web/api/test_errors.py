@@ -140,6 +140,21 @@ REFUSALS: dict[str, tuple[str, Callable[[Example], dict], str]] = {
         _make(design_type="ccd", alpha=-1),
         "The axial distance must be above 0 in coded units, not -1.",
     ),
+    "blocks out of range": (
+        "api_make_design",
+        _make(n_blocks=9),
+        "Blocks must be a whole number from 1 to 8.",
+    ),
+    "response named Block": (
+        "api_make_design",
+        _make(response="Block"),
+        "The response cannot be named Block: a blocked design's run sheet has a Block column.",
+    ),
+    "a blocked workbook without its blocks": (
+        "api_analyze",
+        _workbook(_stored(options={"random_state": 42, "n_center_points": 3, "n_blocks": 2})),
+        "The Runs sheet is missing column(s): Block.",
+    ),
     "replicates out of range": (
         "api_make_design",
         _make(n_replicates=0),

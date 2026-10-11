@@ -43,15 +43,16 @@ export function simulateCode(simulation) {
   ].join("\n");
 }
 
-/** Step 3: the analysis, in coded units as the page fits it. */
+/** Step 3: the analysis, in coded units as the page fits it; a blocked design's runs keep their Block. */
 export function analyseCode(spec, model) {
   const names = spec.factors.map((f) => repr(f.name)).join(", ");
+  const runs = (spec.options?.n_blocks ?? 1) > 1 ? 'result.design[names + ["Block"]]' : "result.design[names]";
   return [
     "from process_improve.experiments import analyze_experiment",
     "",
     `names = [${names}]`,
     "analysis = analyze_experiment(",
-    `    result.design[names], y, model=${repr(model)}, analysis_type=["coefficients", "anova", "lack_of_fit"]`,
+    `    ${runs}, y, model=${repr(model)}, analysis_type=["coefficients", "anova", "lack_of_fit"]`,
     ")",
     'print(analysis["coefficients"])',
   ].join("\n");

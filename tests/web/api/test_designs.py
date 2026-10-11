@@ -290,3 +290,47 @@ def test_an_axial_distance_at_the_corners_radius_needs_a_center_point(api, k, al
     spec = {"design_type": "ccd", "factors": FACTORS[:k], "n_center_points": 0, "alpha": alpha}
     assert "at least one center point" in api.error("api_make_design", spec)
     assert api.ok("api_make_design", {**spec, "alpha": 1.4})["n_runs"] == 2**k + 2 * k
+
+
+# --------------------------------------------------------------------------- blocks
+def test_a_blocked_design_lists_each_run_s_block_one_block_after_another(api):
+    spec = {"design_type": "full_factorial", "factors": FACTORS, "n_center_points": 2, "n_blocks": 2}
+    result = api.ok("api_make_design", spec)
+    sheet = run_sheet(result)
+    assert result["columns"][:3] == ["Std order", "Run order", "Block"]
+    assert sheet["Block"].tolist() == sorted(sheet["Block"]), "the runs are listed block by block"
+    assert sheet["Block"].value_counts().tolist() == [5, 5], "four corners and a center run in each"
+    x = coded(sheet, FACTORS)
+    corners = x[(x.abs() > 0.5).all(axis=1)]
+    tpf = corners.prod(axis=1).groupby(sheet["Block"]).nunique()
+    assert tpf.tolist() == [1, 1], "the three-factor interaction takes one value in each block"
+    assert result["spec"]["options"]["n_blocks"] == 2
+    note = next(n for n in result["facts"]["notes"] if n.startswith("The runs are made in 2 blocks of 5 runs each"))
+    assert note.endswith("T·P·F is confounded with the blocks, so the analysis leaves it out.")
+
+
+@pytest.mark.parametrize("design_type", ALL_DESIGNS)
+def test_every_design_can_be_made_in_blocks(api, design_type):
+    # A fraction in three factors has four runs, and any split of four runs in two confounds a main effect.
+    factors = SIX[:4] if design_type == "fractional_factorial" else FACTORS
+    result = api.ok("api_make_design", {"design_type": design_type, "factors": factors, "budget": 14, "n_blocks": 2})
+    assert sorted(set(run_sheet(result)["Block"])) == [1, 2]
+
+
+def test_a_split_that_would_confound_a_main_effect_is_refused_in_the_library_s_words(api):
+    spec = {"design_type": "fractional_factorial", "factors": FACTORS, "n_blocks": 2}
+    assert "confounds a main effect with blocks" in api.error("api_make_design", spec)
+
+
+def test_a_design_in_one_block_has_no_block_column(api):
+    result = api.ok("api_make_design", {"design_type": "full_factorial", "factors": FACTORS, "n_blocks": 1})
+    assert "Block" not in result["columns"]
+    assert "n_blocks" not in result["spec"]["options"]
+
+
+def test_a_fraction_s_facts_name_the_aliases_confounded_with_the_blocks(api):
+    """In a 2^(4-1) of resolution IV, A·B = C·D: both go with the blocks the design confounds A·B with."""
+    spec = {"design_type": "fractional_factorial", "factors": factors_named(*"ABCD"), "n_blocks": 2}
+    notes = api.ok("api_make_design", {**spec, "n_center_points": 0})["facts"]["notes"]
+    said = "A·B and C·D are confounded with the blocks, so the analysis leaves them out."
+    assert any(n.endswith(said) for n in notes)
