@@ -438,6 +438,8 @@ async function readUpload(file) {
   renderDesign(reply.warnings);
   renderRuns();
   renderTruth();
+  showPython("design", designCode(r.spec));
+  showPython("run", enteredCode(state.responses));
   await analyseRuns();
 }
 
@@ -455,6 +457,7 @@ function scheduleAnalysis() {
 function clearAnalysis() {
   ticket += 1;
   $("#analysis").hidden = true;
+  $("#py-analyse").hidden = true;
   $("#charts").hidden = true;
   $("#charts").replaceChildren();
   $("#analyse-empty").hidden = false;
@@ -489,6 +492,7 @@ function renderAnalysis(reply) {
     setStatus("The results could not be analysed.", "error");
     out.replaceChildren(el("p", "error", reply.error), ...warningList(reply.warnings));
     $("#charts").hidden = true;
+    $("#py-analyse").hidden = true;
     return;
   }
   const r = reply.result;

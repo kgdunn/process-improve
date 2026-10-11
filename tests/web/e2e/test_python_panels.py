@@ -4,8 +4,6 @@ from __future__ import annotations
 
 import base64
 
-import pytest
-
 from tests.web._support import FACTORS, fill_workbook, quadratic
 from tests.web.e2e._page import settled, type_results
 
@@ -32,7 +30,6 @@ def test_copy_puts_the_code_on_the_clipboard(context, page, site):
     page.wait_for_function("document.querySelector('#py-design .copy').textContent === 'Copy the code'")
 
 
-@pytest.mark.xfail(strict=True, reason="defect: after an upload the panels still show the worked example's code")
 def test_after_an_upload_the_panels_show_the_workbook_s_design_and_results(page, api, tmp_path):
     design = api.ok("api_make_design", {"design_type": "ccd", "factors": FACTORS})
     path = tmp_path / "filled.xlsx"
@@ -46,7 +43,6 @@ def test_after_an_upload_the_panels_show_the_workbook_s_design_and_results(page,
     assert "analyze_experiment(" in code(page, "analyse")
 
 
-@pytest.mark.xfail(strict=True, reason="defect: the analysis panel stays after the analysis is taken away")
 def test_the_analysis_panel_goes_with_the_analysis(page):
     type_results(page, dict.fromkeys(range(15), ""))
     assert page.is_hidden("#analysis")
