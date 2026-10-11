@@ -33,7 +33,7 @@ def test_the_workbook_marks_simulated_results(api, held, simulated):
         "api_workbook", {**held, "responses": simulated["responses"], "sources": sources, "simulated": simulated}
     )
     sheets = sheets_of(book["xlsx_base64"])
-    assert sheets["Runs"]["Source"].fillna("").tolist() == ["simulated"] * 14 + [""]
+    assert sheets["Runs"]["Result source"].fillna("").tolist() == ["simulated"] * 14 + [""]
     stored = json.loads(sheets["_pi_design"]["spec"].iloc[0])
     assert stored["simulated"] == {"scenario": "reactor", "sigma": 1.0, "seed": 1}
     np.testing.assert_allclose(sheets["Runs"]["y"], simulated["responses"])
@@ -94,7 +94,6 @@ def test_a_source_mark_without_a_result_is_not_a_result(api, held, simulated):
     assert back["sources"] == [None] + ["simulated"] * 14
 
 
-@pytest.mark.xfail(strict=True, reason="defect: the column marking simulated results takes the name Source")
 @pytest.mark.parametrize("named", ["factor", "response"])
 def test_a_factor_or_response_named_source_keeps_its_values(api, named):
     """The column marking simulated results has a name no factor or response can take."""

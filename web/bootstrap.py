@@ -44,6 +44,10 @@ SPEC_SHEET = "_pi_design"
 RUN_SHEET = "Runs"
 SPEC_VERSION = 1
 
+#: The run sheet's column marking simulated results. Its space keeps it apart from every factor
+#: and response, which must be variable names; workbooks written before used ``Source``.
+MARKS = "Result source"
+
 #: Design types the page offers. Each one is pure numpy / scipy, so it runs
 #: under WebAssembly. Excluded: ``omars_ilp`` (its HiGHS multistart needs
 #: scipy >= 1.15, newer than Pyodide's, and takes too long for a page).
@@ -995,8 +999,9 @@ def read_workbook(request: dict) -> dict:
     if response not in runs.columns:
         raise ValueError(f"The Runs sheet has no {response!r} column for the results.")
     values = pd.to_numeric(runs[response], errors="coerce")
-    marks = runs["Source"].fillna("").astype(str) if "Source" in runs else pd.Series("", index=runs.index)
-    sheet = runs.drop(columns=["Source"], errors="ignore")
+    column = _marks_column(runs, spec)
+    marks = runs[column].fillna("").astype(str) if column else pd.Series("", index=runs.index)
+    sheet = runs.drop(columns=[column] if column else [])
     sheet[response] = np.nan
     return {
         "spec": spec,
@@ -1010,10 +1015,16 @@ def read_workbook(request: dict) -> dict:
     }
 
 
+def _marks_column(runs: pd.DataFrame, spec: dict) -> str | None:
+    """Name the run sheet's column of marks, if it has one: an older workbook's ``Source``, unless that is data."""
+    data = {spec["response"], *(f["name"] for f in spec["factors"])}
+    return next((c for c in (MARKS, "Source") if c in runs.columns and c not in data), None)
+
+
 def workbook(request: dict) -> dict:
     """Write the page's runs and responses to a workbook the page can analyse again.
 
-    Simulated responses are marked, in a ``Source`` column and in the stored
+    Simulated responses are marked, in the ``MARKS`` column and in the stored
     specification, so the workbook says which values were measured.
     """
     spec = _checked_spec(request.get("spec") or {})
@@ -1022,7 +1033,7 @@ def workbook(request: dict) -> dict:
     if sources and any(sources):
         if len(sources) != len(runs):
             raise ValueError(f"{len(sources)} sources were sent for {len(runs)} runs.")
-        runs["Source"] = ["simulated" if s == "simulated" else "" for s in sources]
+        runs[MARKS] = ["simulated" if s == "simulated" else "" for s in sources]
     simulated = request.get("simulated")
     if simulated:
         spec = {**spec, "simulated": {k: simulated.get(k) for k in ("scenario", "sigma", "seed")}}

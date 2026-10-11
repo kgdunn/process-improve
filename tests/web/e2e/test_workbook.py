@@ -23,7 +23,7 @@ def test_the_downloaded_workbook_holds_the_page_s_runs_and_results(page, first_p
     sheets = pd.read_excel(download.value.path(), sheet_name=None)
     runs = sheets["Runs"]
     np.testing.assert_allclose(runs["y"], first_paint["simulation"]["responses"])
-    assert runs["Source"].tolist() == ["simulated"] * 15
+    assert runs["Result source"].tolist() == ["simulated"] * 15
     assert json.loads(sheets["_pi_design"]["spec"].iloc[0])["simulated"] == {
         "scenario": "reactor",
         "sigma": 1.0,
