@@ -155,3 +155,15 @@ def test_replicates_chosen_for_one_design_do_not_carry_over_to_the_next_one_load
     page.click("#run-example")
     settled(page)
     assert page.input_value("#n_replicates") == "1", "the worked example is made once"
+
+
+def test_two_labels_make_a_factor_categorical_and_leave_the_two_level_designs(page):
+    set_factors(page, [*factors_named("A", "B"), {"name": "Supplier", "low": "old", "high": "new", "units": ""}])
+    assert disabled_designs(page) == ["dsd", "box_behnken", "ccd", "d_optimal", "i_optimal"]
+    assert page.text_content("#design-hint") == (
+        "Box-Behnken needs numeric factors, and Supplier is categorical: choose a full factorial, fractional "
+        "factorial or Plackett-Burman design."
+    )
+    assert page.is_disabled("#generate")
+    choose(page, design_type="full_factorial")
+    assert not page.is_disabled("#generate")

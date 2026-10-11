@@ -123,19 +123,36 @@ def test_the_models_to_analyse_with_are_bootstrap_s_after_as_designed(bootstrap,
     assert page().selected("model") == bootstrap.DEMO["model"] == ""
 
 
-def test_the_terms_to_tick_are_the_terms_bootstrap_fits(bootstrap, node):
+@pytest.mark.parametrize("categorical", [(), ("S",)], ids=["numeric factors", "a categorical factor"])
+def test_the_terms_to_tick_are_the_terms_bootstrap_fits(bootstrap, node, categorical):
     """Each term the page lists is one bootstrap reads, labelled as its fit labels it; a named model's are its own."""
-    names = ["T", "P", "F", "pH"]
+    factors = [
+        {"name": n, **({"low": "A", "high": "B"} if n in categorical else {"low": -1, "high": 1})}
+        for n in ["T", "P", "S", "pH"]
+    ]
+    names = [f["name"] for f in factors]
     listed, *named = javascript(
         node,
         source("logic.js"),
-        [("candidateTerms", [names]), *[("namedModelTerms", [model, names]) for model in bootstrap.MODELS]],
+        [("candidateTerms", [factors]), *[("namedModelTerms", [model, factors]) for model in bootstrap.MODELS]],
     )
-    fitted = bootstrap._chosen_terms([t["term"] for t in listed], names)
-    assert len(fitted) == len(listed) == 4 + 6 + 4 + 4
+    fitted = bootstrap._chosen_terms([t["term"] for t in listed], names, categorical)
+    assert len(fitted) == len(listed) == 4 + 6 + 4 + 4 - len(categorical), "no square of a categorical factor"
     assert [t["label"] for t in listed] == [bootstrap._pretty(term) for term in fitted]
     for model, terms in zip(bootstrap.MODELS, named, strict=True):
-        assert bootstrap._chosen_terms(terms, names) == bootstrap._model_terms(model, names), model
+        found = bootstrap._chosen_terms(terms, names, categorical)
+        assert found == bootstrap._model_terms(model, names, categorical), model
+
+
+def test_the_designs_that_take_a_categorical_factor_are_bootstrap_s(bootstrap, node):
+    assert javascript(node, source("logic.js"), [("CATEGORICAL_DESIGNS", [])]) == [list(bootstrap.CATEGORICAL_DESIGNS)]
+
+
+def test_the_page_reads_a_label_where_bootstrap_does(bootstrap, node):
+    """What the reader types as a level is a label to the page exactly when it is one to Python."""
+    typed = ["A", " old ", "Supplier 2", "150", "-1.5", "1e3", "", " ", "inf", "-Infinity", "nan", "NaN"]
+    asked = javascript(node, source("logic.js"), [("isLabel", [text]) for text in typed])
+    assert asked == [bootstrap._label(text) is not None for text in typed]
 
 
 def test_the_models_to_compare_on_are_the_comparison_s(api, bootstrap):

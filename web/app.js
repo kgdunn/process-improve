@@ -10,6 +10,7 @@ import { coefficientFigure, correlationFigure, draw, fdsFigure, prettyTerm, shar
 import {
   AXIAL_DISTANCE,
   CAPTIONS,
+  CATEGORICAL_DESIGNS,
   CHOSEN_TERMS,
   SPARE_RUNS,
   TITLES,
@@ -22,11 +23,12 @@ import {
   fmt,
   formMatches,
   isBlank,
+  isCategorical,
+  levelValue,
   listNames,
   nTerms,
   namedModelTerms,
   needsCentre,
-  numberOrNull,
   pval,
 } from "./logic.js";
 import { analyseCode, compareCode, designCode, enteredCode, simulateCode } from "./python.js";
@@ -136,8 +138,8 @@ function addFactor(f = { name: "", low: -1, high: 1, units: "" }) {
   const tr = document.createElement("tr");
   tr.innerHTML = `
     <td><input name="name" aria-label="Factor name" size="8"></td>
-    <td><input name="low" type="number" step="any" aria-label="Low"></td>
-    <td><input name="high" type="number" step="any" aria-label="High"></td>
+    <td><input name="low" aria-label="Low"></td>
+    <td><input name="high" aria-label="High"></td>
     <td><input name="units" aria-label="Units" size="6"></td>
     <td><button type="button" class="link" aria-label="Remove factor">✕</button></td>`;
   for (const key of ["name", "low", "high", "units"]) tr.querySelector(`[name=${key}]`).value = f[key] ?? "";
@@ -151,11 +153,11 @@ function addFactor(f = { name: "", low: -1, high: 1, units: "" }) {
 const factorCount = () => document.querySelectorAll("#factors tbody tr").length;
 
 function readFactors() {
-  // A blank box is sent as null, which Python reports, rather than as Number("") = 0.
+  // A blank box is sent as null, which Python reports, rather than as Number("") = 0; a label, as text.
   return [...document.querySelectorAll("#factors tbody tr")].map((tr) => ({
     name: tr.querySelector("[name=name]").value.trim(),
-    low: numberOrNull(tr.querySelector("[name=low]").value),
-    high: numberOrNull(tr.querySelector("[name=high]").value),
+    low: levelValue(tr.querySelector("[name=low]").value),
+    high: levelValue(tr.querySelector("[name=high]").value),
     units: tr.querySelector("[name=units]").value.trim(),
   }));
 }
@@ -204,8 +206,10 @@ let resolutionEdited = false;
 function refreshDesign() {
   const k = factorCount();
   const select = $("#design-type");
+  const labelled = readFactors().filter(isCategorical).map((f) => f.name);
+  const numericOnly = (option) => labelled.length > 0 && !CATEGORICAL_DESIGNS.includes(option.value);
   for (const option of select.options) {
-    option.disabled = k < Number(option.dataset.minFactors) || k > Number(option.dataset.maxFactors);
+    option.disabled = k < Number(option.dataset.minFactors) || k > Number(option.dataset.maxFactors) || numericOnly(option);
   }
   const option = select.selectedOptions[0];
   const allowed = option.dataset.options.split(" ");
@@ -229,7 +233,11 @@ function refreshDesign() {
   $("#budget-hint").textContent = `The model has ${p} coefficients.`;
 
   const hint = $("#design-hint");
-  if (option.disabled) {
+  if (option.disabled && numericOnly(option)) {
+    hint.textContent =
+      `${option.textContent} needs numeric factors, and ${listNames(labelled)} ${labelled.length === 1 ? "is" : "are"} ` +
+      "categorical: choose a full factorial, fractional factorial or Plackett-Burman design.";
+  } else if (option.disabled) {
     hint.textContent = `${option.textContent} takes ${option.dataset.minFactors} to ${option.dataset.maxFactors} factors on this page; you have ${k}.`;
   } else {
     hint.replaceChildren(`${option.dataset.hint} `, link(BOOK_PAGES[option.value], "More in the book"));
@@ -404,7 +412,7 @@ async function simulateResults() {
   state.sources = state.responses.map(() => "simulated");
   renderRuns();
   renderTruth();
-  showPython("run", simulateCode(reply.result));
+  showPython("run", simulateCode(reply.result, state.design.spec));
   await analyseRuns();
 }
 
@@ -608,10 +616,9 @@ const tickedTerms = () => [...document.querySelectorAll("#term-list input:checke
 
 /** List every term the design's factors allow, grouped, with `ticked` ticked. */
 function renderTermList(ticked) {
-  const names = state.design.spec.factors.map((f) => f.name);
   const chosen = new Set(ticked.map((term) => JSON.stringify(term)));
   const groups = new Map();
-  for (const { term, label, group } of candidateTerms(names)) {
+  for (const { term, label, group } of candidateTerms(state.design.spec.factors)) {
     const box = el("input", "", "");
     box.type = "checkbox";
     box.value = JSON.stringify(term);
@@ -632,8 +639,7 @@ function renderTermList(ticked) {
 
 /** Start the list of terms from the model chosen before, or the one the design was made for. */
 function startTermList() {
-  const names = state.design.spec.factors.map((f) => f.name);
-  renderTermList(namedModelTerms(modelBefore || state.design.spec.model, names));
+  renderTermList(namedModelTerms(modelBefore || state.design.spec.model, state.design.spec.factors));
 }
 
 /** Put a model into step 3: a named one, "" for the design's own, or {terms} to tick. */
@@ -719,7 +725,7 @@ async function showBuiltExample() {
   state.plotlyJs = example.plots.plotly_js;
   renderRuns();
   renderTruth();
-  showPython("run", simulateCode(example.simulation));
+  showPython("run", simulateCode(example.simulation, example.design.spec));
   state.analysis = example.analysis;
   renderAnalysis({ ok: true, result: example.analysis, warnings: [] });
   $("#demo-version").textContent = `process-improve ${example.version}`;
@@ -1055,7 +1061,7 @@ $("#generate").onclick = async () => {
   const simulated = state.sources.includes("simulated");
   if ((await generate()) && simulated) await simulateResults();
 };
-$("#factors").addEventListener("input", markStale);
+$("#factors").addEventListener("input", refreshDesign); // a label typed for a level makes the factor categorical
 $("#response").addEventListener("input", markStale);
 for (const id of ["#design-type", "#alpha", "#model_type"]) $(id).onchange = refreshDesign;
 $("#alpha_value").oninput = refreshDesign; // a typed distance can put every run but the center runs on one sphere

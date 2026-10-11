@@ -151,6 +151,16 @@ MAX_REPLICATES = 10
 #: The most blocks the page splits a design's runs into.
 MAX_BLOCKS = 8
 
+#: The designs that take a categorical factor, one whose two levels are labels (supplier A and B):
+#: the two-level designs, which need only the two levels of each factor.
+CATEGORICAL_DESIGNS = ("full_factorial", "fractional_factorial", "plackett_burman")
+
+#: Text a spreadsheet reads back as a blank cell (pandas' defaults), so no level's label can be it.
+BLANK_LABELS = frozenset(
+    {"#N/A", "#N/A N/A", "#NA", "-1.#IND", "-1.#QNAN", "-NaN", "-nan", "1.#IND", "1.#QNAN", "<NA>", "N/A", "NA"}
+    | {"NULL", "NaN", "None", "n/a", "nan", "null"}
+)
+
 #: The run sheet's column naming each run's block, as ``generate_design`` names it. No factor may
 #: take the name, which the library refuses, and no response either.
 BLOCK = "Block"
@@ -381,13 +391,57 @@ def _factors(spec: dict) -> list[Factor]:
         raise ValueError("Factor names must be unique and look like variable names (letters, digits, _).")
     factors = []
     for f, name in zip(raw, names, strict=True):
+        labels = _label(f.get("low")), _label(f.get("high"))
+        if None not in labels:
+            factors.append(_categorical_factor(name, *labels))  # type: ignore[arg-type]
+            continue
         low, high = _number(f.get("low")), _number(f.get("high"))
         if low is None or high is None:
-            raise ValueError(f"Factor {name}: enter a number for both the low and the high value.")
+            raise ValueError(
+                f"Factor {name}: enter a number for both the low and the high value, or a label for both, as for "
+                "a supplier A and B."
+            )
         if not low < high:
             raise ValueError(f"Factor {name}: the low value must be below the high value.")
         factors.append(Factor(name=name, low=low, high=high, units=str(f.get("units", ""))))
     return factors
+
+
+def _label(value: object) -> str | None:
+    """Return a level typed as a label, such as ``old``; None for a number, a blank or anything else."""
+    if not isinstance(value, str) or not value.strip():
+        return None
+    try:
+        float(value)  # a number, or inf and nan, which are no labels either
+    except ValueError:
+        return value.strip()
+    return None
+
+
+def _categorical_factor(name: str, low: str, high: str) -> Factor:
+    """Make a categorical factor from its two labels: the first is coded -1, the second +1."""
+    if low == high:
+        raise ValueError(f"Factor {name}: its two labels must differ.")
+    if blank := [label for label in (low, high) if label in BLANK_LABELS]:
+        raise ValueError(f"Factor {name}: a spreadsheet reads {blank[0]!r} back as a blank cell; choose another label.")
+    return Factor(name=name, type="categorical", levels=[low, high])
+
+
+def _factor_spec(f: Factor) -> dict[str, Any]:
+    """Write a factor as the page holds it: a categorical factor's labels stand for its low and high values."""
+    if f.type == "categorical":
+        return {"name": f.name, "low": f.levels[0], "high": f.levels[1], "units": ""}  # type: ignore[index]
+    return {"name": f.name, "low": f.low, "high": f.high, "units": f.units}
+
+
+def _categorical(factor: dict) -> bool:
+    """Say whether a factor the page holds is categorical: its levels are labels, not numbers."""
+    return isinstance(factor["low"], str)
+
+
+def _categorical_names(spec: dict) -> tuple[str, ...]:
+    """Name the categorical factors of a checked specification."""
+    return tuple(f["name"] for f in spec["factors"] if _categorical(f))
 
 
 # --------------------------------------------------------------------------- public API
@@ -408,6 +462,12 @@ def make_design(spec: dict) -> dict:
         raise ValueError(f"Unknown design type {design_type!r}.")
     factors = _factors(spec)
     _check_factor_count(design_type, len(factors))
+    if (labelled := [f.name for f in factors if f.type == "categorical"]) and design_type not in CATEGORICAL_DESIGNS:
+        verb = "is" if len(labelled) == 1 else "are"
+        raise ValueError(
+            f"The {DESIGNS[design_type]['label']} design needs numeric factors, and {_listed(labelled)} {verb} "
+            "categorical: choose a full factorial, fractional factorial or Plackett-Burman design."
+        )
     response = _response_name(str(spec.get("response") or "y").strip(), factors)
 
     kwargs = _design_options(spec, design_type)
@@ -426,7 +486,7 @@ def make_design(spec: dict) -> dict:
     stored = {
         "version": SPEC_VERSION,
         "design_type": design_type,
-        "factors": [{"name": f.name, "low": f.low, "high": f.high, "units": f.units} for f in factors],
+        "factors": [_factor_spec(f) for f in factors],
         "response": response,
         "model": kwargs.get("model_type") or _designed_model(design_type, result.resolution),
         "options": kwargs,
@@ -437,7 +497,7 @@ def make_design(spec: dict) -> dict:
         "rows": [list(row) for row in runs.itertuples(index=False)],
         "outside_range": _outside_range(runs, factors),
         "model": stored["model"],
-        "facts": _design_facts(result, names, kwargs),
+        "facts": _design_facts(result, _coded(runs, stored["factors"]).to_numpy(dtype=float), names, kwargs),
         "spec": stored,
         "xlsx_base64": _to_workbook(runs, stored),
     }
@@ -573,7 +633,7 @@ def _resolution(spec: dict, n_factors: int) -> int:
     return resolution
 
 
-def _design_facts(result: Any, names: list[str], kwargs: dict[str, Any]) -> dict[str, Any]:  # noqa: ANN401
+def _design_facts(result: Any, coded: np.ndarray, names: list[str], kwargs: dict[str, Any]) -> dict[str, Any]:  # noqa: ANN401
     """State what the generated design is, read off the design rather than its type.
 
     A fraction's resolution and generators come from the library; which main effects and
@@ -581,7 +641,6 @@ def _design_facts(result: Any, names: list[str], kwargs: dict[str, Any]) -> dict
     every design type and every naming of the factors. ``notes`` are the sentences the
     page shows.
     """
-    coded = result.design[names].to_numpy(dtype=float)
     groups = _aliased_groups(coded, names)
     notes = []
     if result.resolution:
@@ -698,8 +757,9 @@ def _blocking_sentence(sizes: list[int], confounded: list[str]) -> str:
 
 
 def _outside_range(runs: pd.DataFrame, factors: list[Factor]) -> list[str]:
-    """Factors with runs beyond the ranges entered (CCD axial points can be)."""
-    return [f.name for f in factors if runs[f.name].min() < f.low - 1e-9 or runs[f.name].max() > f.high + 1e-9]
+    """Factors with runs beyond the ranges entered (CCD axial points can be); a category has no range."""
+    numeric = [f for f in factors if f.type != "categorical"]
+    return [f.name for f in numeric if runs[f.name].min() < f.low - 1e-9 or runs[f.name].max() > f.high + 1e-9]
 
 
 def _to_workbook(runs: pd.DataFrame, spec: dict) -> str:
@@ -748,7 +808,8 @@ def _analysis(runs: pd.DataFrame, spec: dict, model: str, truth: list[dict] | No
     response = spec["response"]
     factors = spec["factors"]
     names = [f["name"] for f in factors]
-    model = _checked_model(model, names)
+    categorical = _categorical_names(spec)
+    model = _checked_model(model, names, categorical)
     blocked = _blocked(spec)
     missing_cols = [c for c in [*names, *([BLOCK] if blocked else []), response] if c not in runs.columns]
     if missing_cols:
@@ -768,7 +829,7 @@ def _analysis(runs: pd.DataFrame, spec: dict, model: str, truth: list[dict] | No
             f"Still to run: {', '.join(map(str, pending))}."
         )
 
-    fit = _fit_estimable(coded, y[done].reset_index(drop=True).rename(response), model, names)
+    fit = _fit_estimable(coded, y[done].reset_index(drop=True).rename(response), model, names, categorical)
     out = fit["out"]
     zero = ROUND_OFF * float(y[done].abs().max())
     coefficients = [
@@ -814,7 +875,9 @@ def _snapped(value: float | None, zero: float) -> float | None:
 ANALYSES = ["anova", "coefficients", "lack_of_fit", "effects"]
 
 
-def _fit_estimable(coded: pd.DataFrame, y: pd.Series, model: str | list[str], names: list[str]) -> dict[str, Any]:
+def _fit_estimable(
+    coded: pd.DataFrame, y: pd.Series, model: str | list[str], names: list[str], categorical: tuple[str, ...] = ()
+) -> dict[str, Any]:
     """Fit the model, estimating each group of terms the design cannot tell apart once.
 
     A pseudo-inverse fit of exactly aliased terms spreads their joint estimate evenly
@@ -830,7 +893,7 @@ def _fit_estimable(coded: pd.DataFrame, y: pd.Series, model: str | list[str], na
     effect cannot be told apart from the differences between blocks.
     """
     blocked = BLOCK in coded.columns and len(set(coded[BLOCK])) > 1
-    formula, early = _first_formula(coded, model, names, blocked=blocked)
+    formula, early = _first_formula(coded, model, names, categorical, blocked=blocked)
     with _listening() as heard:
         out = analyze_experiment(coded, y, model=formula, analysis_type=ANALYSES)
     chains: dict[str, list[str]] = {}
@@ -880,27 +943,27 @@ def _fit_estimable(coded: pd.DataFrame, y: pd.Series, model: str | list[str], na
 
 
 def _first_formula(
-    coded: pd.DataFrame, model: str | list[str], names: list[str], *, blocked: bool
+    coded: pd.DataFrame, model: str | list[str], names: list[str], categorical: tuple[str, ...], *, blocked: bool
 ) -> tuple[str, list[str]]:
     """Return the model to fit first, and a note for each term it leaves out before fitting.
 
     An interaction that is zero in every run cannot be estimated at all, and in a blocked
     design one that takes one value in each block is confounded with the blocks; both are
     left out. A named model the design can fit as it is goes to the library by name, which
-    fits any blocks itself.
+    fits any blocks itself; the quadratic model has no square of a categorical factor.
     """
-    terms = _model_terms(model, names)
+    terms = _model_terms(model, names, categorical)
     early: list[str] = []
     if inert := [t for t in terms if not t.startswith("I(") and np.allclose(coded[t.split(":")].prod(axis=1), 0)]:
         early.append(_inert_sentence(inert))
         terms = [t for t in terms if t not in inert]
-    if blocked and (confounded := _confounded_with_blocks(coded, terms)):
+    if blocked and (confounded := _confounded_with_blocks(coded, terms, categorical)):
         early.append(_confounded_sentence(confounded))
         terms = [t for t in terms if t not in confounded]
     if not terms and not blocked:
         raise ValueError("None of the model's terms can be estimated from this design.")
-    formula = model if isinstance(model, str) and not early else _formula(terms, names, blocked=blocked)
-    return formula, early
+    whole = isinstance(model, str) and terms == _model_terms(model, names)
+    return (model if whole else _formula(terms, names, blocked=blocked)), early
 
 
 def _saturated(  # noqa: PLR0913 - the fit, and how the page names its terms
@@ -933,16 +996,16 @@ def _saturated(  # noqa: PLR0913 - the fit, and how the page names its terms
     return lenth, notes
 
 
-def _checked_model(model: object, names: list[str]) -> str | list[str]:
+def _checked_model(model: object, names: list[str], categorical: tuple[str, ...] = ()) -> str | list[str]:
     """Read the model to fit: the name of one in :data:`MODELS`, or ``{"terms": [...]}``, the terms a reader chose."""
     if isinstance(model, dict) and set(model) == {"terms"}:
-        return _chosen_terms(model["terms"], names)
+        return _chosen_terms(model["terms"], names, categorical)
     if model not in MODELS:
         raise ValueError(f"Model must be one of {', '.join(MODELS)}.")
     return str(model)
 
 
-def _chosen_terms(chosen: object, names: list[str]) -> list[str]:
+def _chosen_terms(chosen: object, names: list[str], categorical: tuple[str, ...] = ()) -> list[str]:
     """Read the terms a reader chose, and name them as ``analyze_experiment`` does.
 
     Each term is a list of factor names: one name is the factor's main effect, two or three
@@ -957,6 +1020,8 @@ def _chosen_terms(chosen: object, names: list[str]) -> list[str]:
         if not isinstance(term, list) or not term or not all(isinstance(n, str) and n in names for n in term):
             raise ValueError(f"A model term can name only the design's factors, {_listed(names)}, not {term!r}.")
         if len(term) == 2 and term[0] == term[1]:  # a factor named twice is its square
+            if term[0] in categorical:
+                raise ValueError(f"{term[0]} is categorical, so it has no square: it is +1 at both its levels.")
             terms.append(f"I({term[0]} ** 2)")
         elif len(term) <= MAX_ORDER and len(set(term)) == len(term):
             terms.append(":".join(sorted(term, key=names.index)))
@@ -972,15 +1037,18 @@ def _model_name(model: str | list[str]) -> str:
     return model.replace("_", " ") if isinstance(model, str) else CHOSEN
 
 
-def _model_terms(model: str | list[str], names: list[str]) -> list[str]:
-    """List a model's terms as ``analyze_experiment`` names them: a named model's, or the ones chosen."""
+def _model_terms(model: str | list[str], names: list[str], categorical: tuple[str, ...] = ()) -> list[str]:
+    """List a model's terms as ``analyze_experiment`` names them: a named model's, or the ones chosen.
+
+    A categorical factor has no square: it is +1 at both its levels, so the quadratic model leaves it out.
+    """
     if not isinstance(model, str):
         return list(model)
     terms = list(names)
     if model in ("interactions", "quadratic"):
         terms += [":".join(pair) for pair in itertools.combinations(names, 2)]
     if model == "quadratic":
-        terms += [f"I({name} ** 2)" for name in names]
+        terms += [f"I({name} ** 2)" for name in names if name not in categorical]
     return terms
 
 
@@ -1006,7 +1074,7 @@ def _block_labels(out: dict[str, Any], names: list[str]) -> dict[str, str]:
     return {term: f"{BLOCK} {term[len(BLOCK) :].rstrip('_')}" for term in contrasts}
 
 
-def _confounded_with_blocks(coded: pd.DataFrame, terms: list[str]) -> list[str]:
+def _confounded_with_blocks(coded: pd.DataFrame, terms: list[str], categorical: tuple[str, ...] = ()) -> list[str]:
     """List the main effects and interactions that a blocked design confounds with its blocks.
 
     A blocked two-level factorial puts each block's runs at one level of the interactions it
@@ -1015,8 +1083,8 @@ def _confounded_with_blocks(coded: pd.DataFrame, terms: list[str]) -> list[str]:
     hold at zero. A square is not confounded this way; what it shares with the intercept, the
     fit reports.
     """
-    factors = [c for c in coded.columns if c != BLOCK]
-    away = coded[(coded[factors].abs() > ALIAS_TOLERANCE).any(axis=1)]
+    numeric = [c for c in coded.columns if c != BLOCK and c not in categorical]  # a center run's category is +-1
+    away = coded[(coded[numeric].abs() > ALIAS_TOLERANCE).any(axis=1)] if numeric else coded
     confounded = []
     for term in terms:
         if term.startswith("I("):
@@ -1151,10 +1219,11 @@ def _checked_spec(spec: dict) -> dict[str, Any]:
     if not isinstance(options, dict):
         raise ValueError("The page sent a design this page did not make.")  # noqa: TRY004 - a refusal, like the rest
     if "analysis_model" in spec:  # the model the reader last analysed with, which a workbook keeps
-        _checked_model(spec["analysis_model"], [f.name for f in factors])
+        labelled = tuple(f.name for f in factors if f.type == "categorical")
+        _checked_model(spec["analysis_model"], [f.name for f in factors], labelled)
     return {
         **spec,
-        "factors": [{"name": f.name, "low": f.low, "high": f.high, "units": f.units} for f in factors],
+        "factors": [_factor_spec(f) for f in factors],
         "response": response,
         "model": model,
         "options": {**options, **({"n_blocks": blocks} if (blocks := _blocks(options)) > 1 else {})},
@@ -1175,7 +1244,8 @@ def _runs_frame(request: dict, spec: dict) -> pd.DataFrame:
     if missing or not rows:
         raise ValueError(f"The run sheet is missing the factor column(s) {missing}." if missing else "No runs.")
     runs = pd.DataFrame(rows, columns=columns)
-    runs[names] = runs[names].apply(pd.to_numeric, errors="raise")
+    numeric = [f["name"] for f in spec["factors"] if not _categorical(f)]  # a category's labels stay text
+    runs[numeric] = runs[numeric].apply(pd.to_numeric, errors="raise")
     responses = request.get("responses")
     if responses is not None:
         if len(responses) != len(runs):
@@ -1185,10 +1255,20 @@ def _runs_frame(request: dict, spec: dict) -> pd.DataFrame:
 
 
 def _coded(runs: pd.DataFrame, factors: list[dict]) -> pd.DataFrame:
-    """Code each factor's settings to -1 at its low value and +1 at its high value."""
-    return pd.DataFrame(
-        {f["name"]: (runs[f["name"]] - (f["high"] + f["low"]) / 2) / ((f["high"] - f["low"]) / 2) for f in factors}
-    )
+    """Code each factor's settings to -1 at its low value and +1 at its high value, a category's labels too."""
+    return pd.DataFrame({f["name"]: _coded_column(runs[f["name"]], f) for f in factors})
+
+
+def _coded_column(column: pd.Series, factor: dict) -> pd.Series:
+    """Code one factor's settings; a categorical factor's runs must each be at one of its two labels."""
+    if not _categorical(factor):
+        return (column - (factor["high"] + factor["low"]) / 2) / ((factor["high"] - factor["low"]) / 2)
+    codes = column.astype(str).str.strip().map({factor["low"]: -1.0, factor["high"]: 1.0})
+    if codes.isna().any():
+        other = column[codes.isna()].iloc[0]
+        levels = f"{factor['low']} or {factor['high']}"
+        raise ValueError(f"Factor {factor['name']}: each run must be at {levels}, not {other!r}.")
+    return codes
 
 
 def _design_frame(runs: pd.DataFrame, spec: dict) -> pd.DataFrame:
@@ -1222,15 +1302,21 @@ def _random_terms(k: int, rng: np.random.Generator) -> dict[tuple[int, ...], flo
     return terms
 
 
-def _scenario_process(key: str, names: list[str], request: dict) -> TrueProcess:
-    """Return the scenario's process over the reader's factors, with the noise the reader chose."""
+def _scenario_process(key: str, names: list[str], request: dict, categorical: tuple[str, ...] = ()) -> TrueProcess:
+    """Return the scenario's process over the reader's factors, with the noise the reader chose.
+
+    A term over a factor the reader does not have is left out, and so is the square of a categorical
+    factor, which takes one value, +1, at both of its levels.
+    """
     if key not in SCENARIOS:
         raise ValueError(f"Unknown process {key!r}.")
     scenario = SCENARIOS[key]
     terms = scenario["terms"]
     if terms is None:
         terms = _random_terms(len(names), np.random.default_rng(int(request.get("seed", 1))))
-    coefficients = {_term_name(t, names): c for t, c in terms.items() if all(i < len(names) for i in t)}
+    kept = {t: c for t, c in terms.items() if all(i < len(names) for i in t)}
+    squares = {t for t in kept if len(t) == 2 and t[0] == t[1] and names[t[0]] in categorical}
+    coefficients = {_term_name(t, names): c for t, c in kept.items() if t not in squares}
     # A noise of 0 is refused, not read as "not given": the reader would see results with noise they did not ask for.
     sigma = scenario["sigma"] if request.get("sigma") is None else _number(request["sigma"])
     if sigma is None or sigma <= 0:
@@ -1253,7 +1339,7 @@ def simulate(request: dict) -> dict:
     runs = _runs_frame(request, spec)
     names = [f["name"] for f in spec["factors"]]
     key = str(request.get("scenario") or "reactor")
-    process = _scenario_process(key, names, request)
+    process = _scenario_process(key, names, request, _categorical_names(spec))
     seed = int(request.get("seed", 1))
     values = process.simulate(_coded(runs, spec["factors"]), random_state=seed)
     decimals = max(0, 2 - math.floor(math.log10(process.sigma)))
@@ -1347,7 +1433,7 @@ def workbook(request: dict) -> dict:
     """
     spec = _checked_spec(request.get("spec") or {})
     if request.get("model"):
-        _checked_model(request["model"], [f["name"] for f in spec["factors"]])
+        _checked_model(request["model"], [f["name"] for f in spec["factors"]], _categorical_names(spec))
         spec = {**spec, "analysis_model": request["model"]}
     runs = _runs_frame(request, spec)
     sources = request.get("sources")
@@ -1383,7 +1469,8 @@ def plots(request: dict) -> dict:
 
     spec = _checked_spec(request.get("spec") or {})
     names = [f["name"] for f in spec["factors"]]
-    model = _checked_model(request.get("model") or spec["model"], names)
+    categorical = _categorical_names(spec)
+    model = _checked_model(request.get("model") or spec["model"], names, categorical)
     runs = _runs_frame(request, spec)
     response = spec["response"]
     y = pd.to_numeric(runs[response], errors="coerce")
@@ -1391,7 +1478,7 @@ def plots(request: dict) -> dict:
     coded = _design_frame(runs, spec)[done].reset_index(drop=True)
     y = y[done].reset_index(drop=True).rename(response)
     with _listening():
-        fit = _fit_estimable(coded, y, model, names)
+        fit = _fit_estimable(coded, y, model, names, categorical)
         out = analyze_experiment(coded, y, model=fit["formula"], analysis_type=["coefficients", "residual_diagnostics"])
     rows = coded.assign(**{response: y}).to_dict("records")
     pair = _contour_pair(out["coefficients"], names)
@@ -1475,8 +1562,9 @@ def compare_plan(request: dict) -> dict:
     candidates = [str(request.get("response") or "").strip(), "y", *(f"y{i}" for i in range(1, k + 1))]
     response = next(name for name in candidates if name.isidentifier() and name not in names)
     plan = []
+    labelled = any(f.type == "categorical" for f in factors)
     for design_type, info in DESIGNS.items():
-        if not info["min_factors"] <= k <= info["max_factors"]:
+        if not info["min_factors"] <= k <= info["max_factors"] or (labelled and design_type not in CATEGORICAL_DESIGNS):
             continue
         options = dict(COMPARE_OPTIONS[design_type])
         if "model_type" in info["options"]:

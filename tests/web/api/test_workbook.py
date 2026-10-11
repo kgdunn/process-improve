@@ -207,3 +207,14 @@ def test_a_workbook_analysed_as_designed_keeps_no_model(api, worked_example):
     held, simulated = worked_example["held"], worked_example["simulated"]
     written = api.ok("api_workbook", {**held, "responses": simulated["responses"], "model": ""})
     assert "analysis_model" not in api.ok("api_read_workbook", {"xlsx_base64": written["xlsx_base64"]})["spec"]
+
+
+def test_a_categorical_factor_s_labels_go_through_the_workbook(api):
+    factors = [*FACTORS[:2], {"name": "Supplier", "low": "old", "high": "new", "units": ""}]
+    design = api.ok("api_make_design", {"design_type": "full_factorial", "factors": factors, "n_center_points": 2})
+    filled = fill_workbook(design["xlsx_base64"], quadratic)
+    read = api.ok("api_read_workbook", {"xlsx_base64": filled})
+    assert read["spec"]["factors"][2] == factors[2]
+    assert [row[4] for row in read["rows"]] == [row[4] for row in design["rows"]], "each run keeps its label"
+    analysis = api.ok("api_analyze", {"xlsx_base64": filled})
+    assert "Supplier" in [c["term"] for c in analysis["coefficients"]]

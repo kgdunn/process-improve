@@ -34,6 +34,13 @@ describe("the results", () => {
     assert.match(code, /random_state=3\)/);
   });
 
+  test("a design with a categorical factor simulates at the coded runs, its labels coded -1 and +1", () => {
+    const spec = { factors: [FACTORS[0], { name: "S", low: "A", high: "B", units: "" }], options: {} };
+    const code = simulateCode({ truth: [{ term: "S", coefficient: 2 }], sigma: 1, seed: 3 }, spec);
+    assert.match(code, /runs\["S"\] = runs\["S"\]\.map\(\{"A": -1\.0, "B": 1\.0\}\)/);
+    assert.match(code, /process\.simulate\(runs, random_state=3\)/);
+  });
+
   test("results typed in, None for a run still to do", () => {
     assert.match(enteredCode([1.5, null, -2]), /pd\.Series\(\[1\.5, None, -2\], name="y"\)/);
   });
@@ -43,7 +50,21 @@ describe("the analysis and the comparison", () => {
   test("the analysis names the factors and the model", () => {
     const code = analyseCode({ factors: FACTORS }, "quadratic");
     assert.match(code, /names = \["T", "P"\]/);
-    assert.match(code, /model="quadratic"/);
+    assert.match(code, /runs = result\.design\[names\]\.copy\(\)/);
+    assert.match(code, /analyze_experiment\(\n    runs, y, model="quadratic"/);
+  });
+
+  test("a blocked design's runs keep their Block, and a category is coded as the page codes it", () => {
+    const spec = { factors: [FACTORS[0], { name: "S", low: "A", high: "B", units: "" }], options: { n_blocks: 2 } };
+    const code = analyseCode(spec, "Block + T + S");
+    assert.match(code, /runs = result\.design\[names \+ \["Block"\]\]\.copy\(\)/);
+    assert.match(code, /runs\["S"\] = runs\["S"\]\.map/);
+    assert.match(code, /model="Block \+ T \+ S"/);
+  });
+
+  test("a categorical factor's levels in the design", () => {
+    const code = designCode({ design_type: "full_factorial", factors: [{ name: "S", low: "A", high: "B" }], options: {} });
+    assert.match(code, /Factor\(name="S", type="categorical", levels=\["A", "B"\]\),/);
   });
 
   test("the comparison generates each design with its own options", () => {

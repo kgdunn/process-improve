@@ -353,3 +353,13 @@ def test_an_interaction_zero_in_every_run_is_left_out_with_a_note(api, worked_ex
     analysis = api.ok("api_analyze_runs", {**held, "responses": simulated["responses"], "model": chosen})
     assert analysis["formula"] == "T + P + F"
     assert analysis["notes"][0].startswith("T·P·F cannot be estimated: it is zero in every run")
+
+
+# --------------------------------------------------------------------------- categorical factors
+def test_the_quadratic_model_has_no_square_of_a_categorical_factor(api):
+    factors = [*FACTORS[:2], {"name": "Supplier", "low": "A", "high": "B", "units": ""}]
+    design = api.ok("api_make_design", {"design_type": "full_factorial", "factors": factors, "n_center_points": 3})
+    responses = [float((7 * i) % 5) for i in range(design["n_runs"])]
+    analysis = api.ok("api_analyze_runs", {**held_of(design), "responses": responses, "model": "quadratic"})
+    assert "I(Supplier ** 2)" not in analysis["formula"]
+    assert not any("Supplier²" in note for note in analysis["notes"]), "nothing to explain: it was never in the model"

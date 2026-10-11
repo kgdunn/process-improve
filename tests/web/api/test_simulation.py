@@ -13,7 +13,7 @@ import numpy as np
 import pytest
 
 from process_improve.experiments import TrueProcess
-from tests.web._support import ALL_SCENARIOS, coded, held_of, run_sheet
+from tests.web._support import ALL_SCENARIOS, FACTORS, coded, held_of, run_sheet
 
 
 def test_every_process_the_page_offers_is_tested_here(bootstrap):
@@ -112,3 +112,13 @@ def test_every_scenario_simulates(api, held, scenario):
 )
 def test_a_simulation_the_page_did_not_set_up_is_refused(api, held, change, message):
     assert message in api.error("api_simulate", {**held, **change})
+
+
+def test_a_categorical_factor_has_no_square_in_the_process_simulated(api):
+    """The reactor's curvature is in its third factor; a category there is +1 at both levels, so it has none."""
+    factors = [*FACTORS[:2], {"name": "Supplier", "low": "A", "high": "B", "units": ""}]
+    design = api.ok("api_make_design", {"design_type": "full_factorial", "factors": factors})
+    simulated = api.ok("api_simulate", {**held_of(design), "scenario": "reactor", "seed": 1})
+    terms = [t["term"] for t in simulated["truth"]]
+    assert "Supplier" in terms
+    assert "I(Supplier ** 2)" not in terms

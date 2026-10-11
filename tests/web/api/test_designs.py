@@ -13,7 +13,7 @@ import numpy as np
 import pytest
 
 from process_improve.experiments import generate_design
-from tests.web._support import ALL_DESIGNS, FACTORS, coded, factors_named, run_sheet
+from tests.web._support import ALL_DESIGNS, FACTORS, coded, factors_named, held_of, run_sheet
 
 SIX = factors_named("A", "B", "C", "D", "E", "G")
 
@@ -334,3 +334,32 @@ def test_a_fraction_s_facts_name_the_aliases_confounded_with_the_blocks(api):
     notes = api.ok("api_make_design", {**spec, "n_center_points": 0})["facts"]["notes"]
     said = "A·B and C·D are confounded with the blocks, so the analysis leaves them out."
     assert any(n.endswith(said) for n in notes)
+
+
+# --------------------------------------------------------------------------- categorical factors
+SUPPLIER = {"name": "Supplier", "low": "A", "high": "B", "units": ""}
+
+
+@pytest.mark.parametrize("design_type", ["full_factorial", "fractional_factorial", "plackett_burman"])
+def test_a_two_level_design_takes_a_factor_whose_levels_are_labels(api, design_type):
+    factors = [*FACTORS, SUPPLIER]
+    result = api.ok("api_make_design", {"design_type": design_type, "factors": factors, "n_center_points": 2})
+    sheet = run_sheet(result)
+    assert set(sheet["Supplier"]) == {"A", "B"}, "the run sheet lists the labels themselves"
+    assert result["spec"]["factors"][3] == SUPPLIER
+    assert result["outside_range"] == []
+    numeric = coded(sheet, FACTORS)
+    centre = (numeric.abs() < 1e-9).all(axis=1)
+    assert centre.sum() == 2, "a center run is at the center of the numeric factors"
+    assert set(sheet.loc[centre, "Supplier"]) <= {"A", "B"}, "and at one of the labels"
+
+
+def test_a_label_is_coded_minus_one_for_the_low_and_plus_one_for_the_high(api):
+    design = api.ok("api_make_design", {"design_type": "full_factorial", "factors": [FACTORS[0], SUPPLIER]})
+    sheet = run_sheet(design)
+    supplier_b = (sheet["Supplier"] == "B").to_numpy()
+    responses = np.where(supplier_b, 14.0, 10.0) + coded(sheet, FACTORS[:1])["T"].to_numpy()
+    analysis = api.ok("api_analyze_runs", {**held_of(design), "responses": responses.tolist()})
+    found = {c["term"]: c["coefficient"] for c in analysis["coefficients"]}
+    assert found["Supplier"] == pytest.approx(2.0), "half the difference from A to B, as for a numeric factor"
+    assert found["T"] == pytest.approx(1.0)

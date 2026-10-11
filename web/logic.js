@@ -47,26 +47,46 @@ export function combinations(items, size) {
  * where a term is a list of factor names: one for a main effect, two or three for an interaction,
  * and one name twice for a square, as bootstrap.py reads them.
  */
-export function candidateTerms(names) {
+export function candidateTerms(factors) {
+  const names = factors.map((f) => f.name);
   const group = (label, terms) => terms.map((term) => ({ term, label: termLabel(term), group: label }));
   return [
     ...group("Main effects", names.map((n) => [n])),
     ...group("Two-factor interactions", combinations(names, 2)),
     ...group("Three-factor interactions", combinations(names, 3)),
-    ...group("Squares", names.map((n) => [n, n])),
+    ...group("Squares", squared(factors)),
   ];
 }
+
+/** The squares a model may hold: one per numeric factor, since a categorical one is +1 at both its levels. */
+const squared = (factors) => factors.filter((f) => !isCategorical(f)).map((f) => [f.name, f.name]);
 
 /** A term as the page writes it: T, T·P, T·P·F, or T² for a square. */
 export const termLabel = (term) => (term.length === 2 && term[0] === term[1] ? `${term[0]}²` : term.join("·"));
 
 /** The terms of a named model, as lists of factor names: where a list of terms to tick starts. */
-export function namedModelTerms(model, names) {
+export function namedModelTerms(model, factors) {
+  const names = factors.map((f) => f.name);
   const terms = names.map((n) => [n]);
   if (model === "interactions" || model === "quadratic") terms.push(...combinations(names, 2));
-  if (model === "quadratic") terms.push(...names.map((n) => [n, n]));
+  if (model === "quadratic") terms.push(...squared(factors));
   return terms;
 }
+
+/** The designs that take a categorical factor; mirrors bootstrap.CATEGORICAL_DESIGNS. */
+export const CATEGORICAL_DESIGNS = ["full_factorial", "fractional_factorial", "plackett_burman"];
+
+/** Whether text typed as a level is a label, such as old: neither blank nor a number (nor inf or nan). */
+export function isLabel(text) {
+  const t = String(text ?? "").trim();
+  return t !== "" && Number.isNaN(Number(t)) && !/^[+-]?(inf(inity)?|nan)$/i.test(t);
+}
+
+/** A level as the form sends it: a label as its text, a blank box as null, and anything else as a number. */
+export const levelValue = (text) => (isLabel(text) ? String(text).trim() : numberOrNull(String(text ?? "")));
+
+/** Whether a factor is categorical: both its levels are labels, as bootstrap.py reads them. */
+export const isCategorical = (f) => isLabel(f.low) && isLabel(f.high);
 
 /** Read a number box as the page sends it: a blank box as null, rather than as Number("") = 0. */
 export const numberOrNull = (text) => (text.trim() === "" ? null : Number(text));
@@ -77,8 +97,9 @@ export const DEFAULT_RESPONSE = "y";
 /** Whether the factors and response in the form still describe the design ``spec`` holds; a blank response is y. */
 export function formMatches(factors, response, spec) {
   if (!spec?.factors) return true;
+  const level = (v) => (isLabel(v) ? String(v).trim() : Number(v));
   const same = (f, g) =>
-    f.name === g.name && f.low === Number(g.low) && f.high === Number(g.high) && f.units === (g.units ?? "");
+    f.name === g.name && f.low === level(g.low) && f.high === level(g.high) && f.units === (g.units ?? "");
   return (
     (response || DEFAULT_RESPONSE) === spec.response &&
     factors.length === spec.factors.length &&

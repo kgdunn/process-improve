@@ -17,6 +17,9 @@ import {
   fmt,
   formMatches,
   isBlank,
+  isCategorical,
+  isLabel,
+  levelValue,
   listNames,
   nTerms,
   namedModelTerms,
@@ -157,8 +160,10 @@ describe("the terms a reader ticks", () => {
     assert.deepEqual(combinations(["A", "B"], 3), []);
   });
 
+  const three = ["T", "P", "F"].map((name) => ({ name, low: -1, high: 1 }));
+
   test("every term three factors allow, grouped, three-factor interactions included", () => {
-    const terms = candidateTerms(["T", "P", "F"]);
+    const terms = candidateTerms(three);
     assert.equal(terms.length, 3 + 3 + 1 + 3);
     assert.deepEqual(
       terms.filter((t) => t.group === "Three-factor interactions").map((t) => t.label),
@@ -172,8 +177,37 @@ describe("the terms a reader ticks", () => {
   });
 
   test("a named model's terms, where the list starts", () => {
-    assert.equal(namedModelTerms("main_effects", ["A", "B", "C"]).length, nTerms(3, "main_effects") - 1);
-    assert.equal(namedModelTerms("interactions", ["A", "B", "C"]).length, nTerms(3, "interactions") - 1);
-    assert.equal(namedModelTerms("quadratic", ["A", "B", "C"]).length, nTerms(3, "quadratic") - 1);
+    assert.equal(namedModelTerms("main_effects", three).length, nTerms(3, "main_effects") - 1);
+    assert.equal(namedModelTerms("interactions", three).length, nTerms(3, "interactions") - 1);
+    assert.equal(namedModelTerms("quadratic", three).length, nTerms(3, "quadratic") - 1);
+  });
+
+  test("a categorical factor has no square to tick, nor one in the quadratic model", () => {
+    const factors = [three[0], { name: "S", low: "A", high: "B" }];
+    assert.deepEqual(candidateTerms(factors).filter((t) => t.group === "Squares").map((t) => t.label), ["T²"]);
+    assert.deepEqual(namedModelTerms("quadratic", factors).at(-1), ["T", "T"]);
+  });
+});
+
+describe("a factor's levels", () => {
+  test("a label is text that is no number", () => {
+    assert.deepEqual(["A", " old ", "Supplier 2"].map(isLabel), [true, true, true]);
+    assert.deepEqual(["150", "-1.5", "1e3", "", " ", "inf", "-Infinity", "NaN", null].map(isLabel), Array(9).fill(false));
+  });
+
+  test("a level is sent as a label, a number, or null for a blank box", () => {
+    assert.deepEqual([" old ", "150", "", "1e3"].map(levelValue), ["old", 150, null, 1000]);
+  });
+
+  test("a factor is categorical when both its levels are labels", () => {
+    assert.ok(isCategorical({ low: "A", high: "B" }));
+    assert.ok(!isCategorical({ low: "A", high: 3 }));
+    assert.ok(!isCategorical({ low: 1, high: 3 }));
+  });
+
+  test("a design whose labels are as the form shows them still matches the form", () => {
+    const spec = { response: "y", factors: [{ name: "S", low: "A", high: "B", units: "" }] };
+    assert.ok(formMatches([{ name: "S", low: "A", high: "B", units: "" }], "y", spec));
+    assert.ok(!formMatches([{ name: "S", low: "A", high: "C", units: "" }], "y", spec));
   });
 });
