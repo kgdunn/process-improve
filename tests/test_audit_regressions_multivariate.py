@@ -331,6 +331,39 @@ class TestPreprocessingGuards:
         assert scaler.center_[0] == value
         np.testing.assert_array_equal(np.asarray(scaler.transform(x))[:, 0], 0.0)
 
+    @pytest.mark.parametrize("func", [np.std, np.nanstd])
+    @pytest.mark.parametrize(("n_rows", "value"), [(53, 0.00871), (53, 0.1), (5, 63.696), (100, 3.7)])
+    def test_scale_leaves_a_constant_column_unchanged(self, func: object, n_rows: int, value: float) -> None:
+        """scale() multiplies a constant column by 1, as its docstring says, not by 1 / rounding noise.
+
+        The standard deviation of equal values is usually about 1e-17 rather than exactly 0, so
+        the column used to come out multiplied by about 1e16.
+        """
+        rng = np.random.default_rng(3)
+        x = pd.DataFrame({"constant": np.full(n_rows, value), "signal": rng.standard_normal(n_rows)})
+        scaled, multiplier = scale(x, func=func, ddof=1, extra_output=True)
+        assert multiplier[0] == 1.0
+        np.testing.assert_array_equal(np.asarray(scaled)[:, 0], value)
+
+    def test_scale_leaves_a_constant_row_unchanged(self) -> None:
+        x = np.vstack([np.full(53, 0.1), np.random.default_rng(3).standard_normal(53)])
+        scaled, multiplier = scale(x, axis=1, extra_output=True)
+        assert multiplier[0, 0] == 1.0
+        np.testing.assert_array_equal(np.asarray(scaled)[0], 0.1)
+
+    @pytest.mark.parametrize("func", [np.std, np.nanstd])
+    def test_scale_leaves_a_constant_column_with_a_gap_unchanged(self, func: object) -> None:
+        """A constant column with a gap is constant as well; it was multiplied by 7.2e16.
+
+        Each column reaches ``func`` as a pandas Series, whose std skips a missing cell.
+        """
+        x = pd.DataFrame({"constant": [0.1, 0.1, np.nan, 0.1], "signal": [1.0, 2.0, 4.0, 8.0]})
+        assert scale(x, func=func, extra_output=True)[1][0] == 1.0
+
+    def test_scale_leaves_a_single_observation_column_unchanged_as_mcuv_does(self) -> None:
+        x = pd.DataFrame({"lonely": [5.0, np.nan, np.nan], "good": [1.0, 2.0, 3.0]})
+        assert scale(x, ddof=1, extra_output=True)[1][0] == 1.0 == MCUVScaler().fit(x).scale_["lonely"]
+
     def test_center_axis_1(self) -> None:
         x = np.arange(12, dtype=float).reshape(3, 4)
         centred = center(x, axis=1)
