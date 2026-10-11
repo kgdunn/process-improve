@@ -47,6 +47,7 @@ APP_SOURCES = (
     "python.js",
     "campaign.js",
     "store.js",
+    "qr.js",
     "worker.js",
     "bootstrap.py",
     "runtime.json",

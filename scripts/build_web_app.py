@@ -42,6 +42,7 @@ APP_FILES = (
     "python.js",
     "campaign.js",
     "store.js",
+    "qr.js",
     "worker.js",
     "runtime.json",
     "bootstrap.py",
