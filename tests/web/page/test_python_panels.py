@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import contextlib
 import io
+import json
 
 import numpy as np
 import pytest
@@ -129,3 +130,57 @@ def test_the_python_shown_reproduces_blocks_replicates_and_a_typed_axial_distanc
     assert set(shown) == {c["term"] for c in analysis["coefficients"]}
     for c in analysis["coefficients"]:
         assert shown[c["term"]] == pytest.approx(c["coefficient"], abs=0.01), c["term"]
+
+
+def notebook_of(node: str, **campaign: object) -> dict:
+    """Return the notebook ``web/python.js`` writes for a campaign, as the page downloads it."""
+    defaults = {"title": "A design", "version": "1.2.3", "url": "https://example.org/app/", "simulation": None}
+    return javascript(node, source("python.js"), [("notebook", [{**defaults, **campaign}])])[0]
+
+
+@pytest.mark.slow
+def test_the_notebook_runs_top_to_bottom_to_the_page_s_analysis(api, node):
+    """The notebook a reader downloads is each panel's code in order, after the line that installs the release."""
+    demo = api.ok("api_catalogue")["demo"]
+    design = api.ok("api_make_design", demo["design"])
+    held = held_of(design)
+    simulation = api.ok("api_simulate", {**held, "scenario": "reactor", "sigma": 1.0, "seed": 1})
+    analysis = api.ok("api_analyze_runs", {**held, "responses": simulation["responses"]})
+    sources = ["simulated"] * len(simulation["responses"])
+    book = notebook_of(
+        node,
+        spec=design["spec"],
+        responses=simulation["responses"],
+        sources=sources,
+        simulation=simulation,
+        model=analysis["formula"],
+    )
+    nbformat = pytest.importorskip("nbformat", reason="the notebook is checked against Jupyter's own schema")
+    nbformat.validate(nbformat.reads(json.dumps(book), as_version=4))
+    code = ["".join(cell["source"]) for cell in book["cells"] if cell["cell_type"] == "code"]
+    assert code[0] == '%pip install "process-improve==1.2.3"', "the release the page ran"
+    assert code[1:] == [
+        page_code(node, "designCode", design["spec"]),
+        page_code(node, "simulateCode", simulation, design["spec"]),
+        page_code(node, "analyseCode", design["spec"], analysis["formula"]),
+    ]
+    namespace: dict = {}
+    for cell in code[1:]:
+        run(cell, namespace)
+    shown = {c["term"]: c["coefficient"] for c in namespace["analysis"]["coefficients"]}
+    for c in analysis["coefficients"]:
+        assert shown[c["term"]] == pytest.approx(c["coefficient"], abs=0.01), c["term"]
+
+
+def test_a_notebook_of_typed_results_writes_them_out_and_waits_for_an_analysis(api, node):
+    """Results typed in, or a simulation edited, are written out; with no analysis yet there is no analysis cell."""
+    design = api.ok("api_make_design", {"design_type": "full_factorial", "factors": FACTORS, "n_center_points": 0})
+    responses = [1.5, None, 2.5, 3.0, None, 4.0, 4.5, 5.0]
+    book = notebook_of(node, spec=design["spec"], responses=responses, sources=["entered"] * 8, model=None)
+    code = ["".join(cell["source"]) for cell in book["cells"] if cell["cell_type"] == "code"]
+    assert code[-1] == page_code(node, "enteredCode", responses)
+    assert not any("analyze_experiment" in cell for cell in code)
+    unpinned = notebook_of(
+        node, spec=design["spec"], responses=responses, sources=["entered"] * 8, model=None, version=None
+    )
+    assert "".join(unpinned["cells"][1]["source"]) == "%pip install process-improve"
