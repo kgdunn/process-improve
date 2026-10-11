@@ -287,6 +287,27 @@ class TestImputeLowRank:
         np.testing.assert_allclose(result.completed[mask], truth[mask], atol=1e-9)
         np.testing.assert_array_equal(result.completed[~mask], truth[~mask])
 
+    @pytest.mark.parametrize("value", [0.00871, 0.1, 3.7, 63.696])
+    @pytest.mark.parametrize("method", ["tsr", "pmp"])
+    def test_a_constant_column_changes_no_other_imputation(self, method: str, value: float) -> None:
+        """A constant column carries no information, so appending one changes no other imputed cell.
+
+        Its standard deviation is more often rounding noise (1e-17) than 0, and standardising
+        by that noise made it a column of +-0.98, a direction the low-rank model then fitted.
+        Its own gap is filled with its value.
+        """
+        rng = np.random.default_rng(0)
+        truth = rng.normal(size=(40, 2)) @ rng.normal(size=(2, 8)) + 0.3 * rng.normal(size=(40, 8))
+        gapped = np.where(rng.random(truth.shape) < 0.2, np.nan, truth)
+        with_constant = np.column_stack([gapped, np.full(40, value)])
+        with_constant[3, -1] = np.nan
+
+        settings = {"method": method, "tol": 1e-12, "max_iter": 5000}
+        alone = impute_low_rank(gapped, 2, **settings).completed
+        both = impute_low_rank(with_constant, 2, **settings).completed
+        np.testing.assert_allclose(both[:, :-1], alone, atol=1e-8)
+        np.testing.assert_array_equal(both[:, -1], value)
+
     def test_complete_data_is_returned_untouched(self) -> None:
         data = np.random.default_rng(0).normal(size=(10, 4))
         result = impute_low_rank(data, 2)
