@@ -1459,7 +1459,8 @@ class TestColumnResolution:
         """The caller asked for it by name, so dropping it silently would hide the mistake."""
         batches = self._batches(temp=[10.0, 11.0, 12.0, 13.0], operator="alice")
 
-        with pytest.raises(ValueError, match=r"can only align numeric columns.*'operator' \(object\)"):
+        # The dtype the message names is object under pandas 2 and str under pandas 3.
+        with pytest.raises(ValueError, match=r"can only align numeric columns.*'operator' \((object|str)\)"):
             determine_scaling(batches, columns_to_align=["temp", "operator"])
 
     def test_a_column_flat_in_every_batch_is_skipped(self) -> None:
