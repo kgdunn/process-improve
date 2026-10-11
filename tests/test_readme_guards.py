@@ -11,6 +11,7 @@ from __future__ import annotations
 import ast
 import functools
 import importlib
+import importlib.util
 import inspect
 import pkgutil
 import re
@@ -142,6 +143,23 @@ def test_links_into_this_repository_and_its_documentation_resolve() -> None:
             if target not in headings
         ]
     assert not problems, "\n".join(problems)
+
+
+def test_the_online_link_check_leaves_exactly_the_repository_links_to_this_file() -> None:
+    """``tools/check_readme_links.py`` skips the links the test above checks on disk, and requests every other one."""
+    spec = importlib.util.spec_from_file_location("check_readme_links", ROOT / "tools" / "check_readme_links.py")
+    assert spec
+    assert spec.loader
+    checker = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(checker)
+    every = {
+        url.rstrip(".,;:")
+        for page in checker.PAGES
+        for url in checker.URL.findall((ROOT / page).read_text(encoding="utf-8"))
+    }
+    skipped = every - set(checker.page_urls())
+    assert skipped == {url for url in every if REPOSITORY_LINK.match(url)}
+    assert skipped, "the pages link to files in this repository, so some links are left to the test above"
 
 
 def test_installation_instructions_match_pyproject() -> None:
