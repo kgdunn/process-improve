@@ -1,8 +1,9 @@
-"""Design-quality plots: FDS (fraction of design space) and power curve.
+"""Design-quality plots: FDS (fraction of design space), power curve and correlation map.
 
 These plots assess the quality of an experimental design *before*
 running experiments.  They help practitioners evaluate whether the
-design provides adequate coverage and statistical power.
+design provides adequate coverage and statistical power, and which of its
+terms it finds hard to tell apart.
 
 Both are computed by :func:`~process_improve.experiments.evaluate_design`'s
 machinery for an explicit model (see :func:`design_model`), over every factor
@@ -12,11 +13,14 @@ column of the design (``RunOrder`` and ``Block`` are not factors).
 from __future__ import annotations
 
 import contextlib
+import math
+import re
 from typing import Any
 
 import numpy as np
 import pandas as pd
 
+from process_improve.experiments.compare import _correlations, _largest_second_order_r
 from process_improve.experiments.designs_utils import RESERVED_COLUMN_NAMES
 from process_improve.experiments.evaluate import (
     _build_context,
@@ -375,3 +379,84 @@ class PowerCurvePlot(BasePlot):
                 }
 
         return None
+
+
+# ---------------------------------------------------------------------------
+# Correlation map
+# ---------------------------------------------------------------------------
+
+
+def _pretty_term(term: str) -> str:
+    """Write a model term as a label: ``I(A ** 2)`` as ``A²`` and ``A:B`` as ``A·B``."""
+    return re.sub(r"I\((\w+) \*\* 2\)", r"\1²", term).replace(":", "·")
+
+
+@register_plot("correlation_map")
+class CorrelationMapPlot(BasePlot):
+    """Absolute correlation between a design's main effects, squares and two-factor interactions.
+
+    One row and one column per term, in three blocks divided by lines: the main
+    effects, the squares, then the two-factor interactions, whether or not a model
+    includes them. A dark cell off the diagonal is a pair of terms the design finds
+    hard to tell apart; a blank row and column is a term that does not vary in the
+    design (each square of a two-level design), so it has no correlation. The
+    largest value among the squares and interactions is the "max |r|" of
+    :func:`~process_improve.experiments.compare.compare_designs`.
+
+    Data sources
+    ------------
+    Requires ``design_data`` with factor columns in coded units; pass
+    ``response_column`` if the rows also hold the response.
+    """
+
+    def to_spec(self) -> ChartSpec:
+        """Build a correlation-map ChartSpec.
+
+        Returns
+        -------
+        ChartSpec
+        """
+        if not self.design_data:
+            return ChartSpec(title="Correlation Map - no design data")
+        df, factors = design_frame(self)
+        if not factors:
+            return ChartSpec(title="Correlation Map - no factor columns")
+
+        frame = _correlations(df.to_numpy(dtype=float), factors)
+        labels = [_pretty_term(term) for term in frame.columns]
+        matrix = [[None if math.isnan(v) else float(v) for v in row] for row in frame.to_numpy()]
+        k, n = len(factors), len(labels)
+
+        # Categories run up the y axis, so the terms are listed bottom-up to read top-down, as a matrix does.
+        layer = LayerSpec(
+            mark=MarkType.heatmap,
+            data=[],
+            name="|r|",
+            style={
+                "x_grid": labels,
+                "y_grid": labels[::-1],
+                "z_matrix": matrix[::-1],
+                "zmin": 0.0,
+                "zmax": 1.0,
+                "colorscale": "Blues",
+            },
+        )
+        line = {"color": DOE_PALETTE["neutral"], "dash": "solid", "width": 1}
+        dividers = [b - 0.5 for b in (k, 2 * k) if b < n]
+        annotations = [
+            Annotation(annotation_type=AnnotationType.reference_line, axis=axis, value=value, label="", style=line)
+            for b in dividers
+            for axis, value in (("x", b), ("y", n - 1 - b))
+        ]
+        panel = PanelSpec(layers=[layer], annotations=annotations, title="Correlation Map", width=560, height=520)
+        return ChartSpec(
+            panels=[panel],
+            title="Correlation Map: |r| between main effects, squares and interactions",
+            plot_type="correlation_map",
+            metadata={
+                "n_points": len(df),
+                "n_factors": k,
+                "terms": list(frame.columns),
+                "max_abs_r_second_order": _largest_second_order_r(frame, k),
+            },
+        )

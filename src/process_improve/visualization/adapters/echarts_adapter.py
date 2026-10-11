@@ -8,6 +8,7 @@ Produces raw Python dicts that match the `ECharts option specification
 
 from __future__ import annotations
 
+import math
 from typing import Any
 
 from process_improve.visualization.adapters.base import AbstractAdapter
@@ -120,8 +121,30 @@ class EChartsAdapter(AbstractAdapter):
                 option["yAxis"] = {"type": "value", "name": panel.y_title}
 
             option["grid"] = {"containLabel": True}
+            heatmap = next((layer for layer in panel.layers if layer.mark == MarkType.heatmap), None)
+            if heatmap is not None:
+                self._heatmap_axes(option, heatmap)
 
         return option
+
+    def _heatmap_axes(self, option: dict[str, Any], layer: LayerSpec) -> None:
+        """Give a heatmap's panel category axes from its grid, and the colour scale ECharts needs to draw it.
+
+        ``zmin`` and ``zmax`` in the layer's style fix the scale; otherwise it spans the values.
+        """
+        style = layer.style
+        values = [v for row in style.get("z_matrix", []) for v in row if v is not None and math.isfinite(v)]
+        option["xAxis"] = {"type": "category", "data": list(style.get("x_grid", [])), "name": option["xAxis"]["name"]}
+        option["yAxis"] = {"type": "category", "data": list(style.get("y_grid", [])), "name": option["yAxis"]["name"]}
+        option["tooltip"] = {"trigger": "item"}
+        option["visualMap"] = {
+            "min": style.get("zmin", min(values, default=0.0)),
+            "max": style.get("zmax", max(values, default=1.0)),
+            "calculable": True,
+            "orient": "horizontal",
+            "left": "center",
+            "bottom": 0,
+        }
 
     # ------------------------------------------------------------------
     # Multi-panel rendering

@@ -7,6 +7,7 @@ from process_improve.experiments._moment_aberration import (
 )
 from process_improve.experiments.analysis import analyze_experiment
 from process_improve.experiments.augment import augment_design
+from process_improve.experiments.compare import DesignComparison, compare_designs
 from process_improve.experiments.designs import generate_design
 from process_improve.experiments.designs_factorial import full_factorial
 from process_improve.experiments.designs_omars import is_omars, omars_properties
@@ -38,11 +39,13 @@ from process_improve.experiments.structures import (
     supplement,
 )
 from process_improve.experiments.trade_off import TradeOffTableEntry, get_trade_off_table_entry, trade_off_table
+from process_improve.experiments.true_process import TrueProcess
 from process_improve.experiments.visualization import main_effects_plot, visualize_doe
 
 __all__ = [
     "Column",
     "Constraint",
+    "DesignComparison",
     "DesignRegion",
     "DesignResult",
     "Expt",
@@ -55,11 +58,13 @@ __all__ = [
     "Response",
     "ResponseGoal",
     "TradeOffTableEntry",
+    "TrueProcess",
     "analyze_experiment",
     "analyze_omars",
     "augment_design",
     "box_behnken_runs",
     "c",
+    "compare_designs",
     "definitive_screening_runs",
     "doe_knowledge",
     "evaluate_all",
