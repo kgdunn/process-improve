@@ -7,6 +7,7 @@ and the status line has stopped saying it is busy.
 
 from __future__ import annotations
 
+import re
 from typing import Any
 
 #: The <select>s of the form; every other setting is an <input>.
@@ -92,6 +93,23 @@ def headers(page: Any, table: str = "#design-table") -> list[str]:  # noqa: ANN4
     return page.locator(f"{table} thead th").all_text_contents()
 
 
-def type_result(page: Any, run: int, value: object) -> None:  # noqa: ANN401
-    """Type a result for the run in row ``run`` (0-based) of the sheet, or clear it with ``""``."""
-    page.fill(f'#design-table input[data-index="{run}"]', str(value))
+def type_results(page: Any, results: dict[int, object]) -> None:  # noqa: ANN401
+    """Type results into the sheet as a reader would, then wait for the analysis made once typing pauses.
+
+    ``results`` maps a run's place in the design (0-based, in run order) to its result; ``""``
+    clears it. Clearing the last result takes the analysis away instead of making one.
+    """
+    before = page.evaluate("window.__pi.count('api_analyze_runs')")
+    for run, value in results.items():
+        page.fill(f'#design-table input[data-index="{run}"]', str(value))
+    page.wait_for_function(
+        f"window.__pi.count('api_analyze_runs') > {before}"
+        " || [...document.querySelectorAll('#design-table input')].every((i) => i.value === '')"
+        " && document.querySelector('#analysis').hidden"
+    )
+    settled(page)
+
+
+def sort_by(page: Any, column: str, table: str = "#design-table") -> None:  # noqa: ANN401
+    """Click a column heading of a table, as a reader sorting it would."""
+    page.locator(f"{table} th button.sort", has_text=re.compile(f"^{re.escape(column)}$")).click()
