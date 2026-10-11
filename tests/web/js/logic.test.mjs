@@ -5,7 +5,9 @@ import assert from "node:assert/strict";
 import { describe, test } from "node:test";
 
 import {
+  AXIAL_DISTANCE,
   CAPTIONS,
+  axialDistance,
   compareCells,
   defaultResolution,
   escape,
@@ -33,11 +35,24 @@ describe("the design's settings", () => {
   });
 
   test("the designs that keep a center run", () => {
-    assert.ok(needsCentre("box_behnken", "face_centered"));
-    assert.ok(needsCentre("dsd", "face_centered"));
-    assert.ok(needsCentre("ccd", "rotatable"));
-    assert.ok(!needsCentre("ccd", "face_centered"));
-    assert.ok(!needsCentre("full_factorial", "rotatable"));
+    assert.ok(needsCentre("box_behnken", "face_centered", 3));
+    assert.ok(needsCentre("dsd", "face_centered", 3));
+    assert.ok(needsCentre("ccd", "rotatable", 3));
+    assert.ok(!needsCentre("ccd", "face_centered", 3));
+    assert.ok(!needsCentre("full_factorial", "rotatable", 3));
+  });
+
+  test("a CCD whose typed axial distance is the corners' own keeps a center run", () => {
+    assert.ok(needsCentre("ccd", Math.SQRT2, 2));
+    assert.ok(needsCentre("ccd", 2, 4));
+    assert.ok(!needsCentre("ccd", 1.4, 2), "near the corners' distance is not on their sphere");
+    assert.ok(!needsCentre("ccd", 2, 3));
+  });
+
+  test("the axial distance the form sends", () => {
+    assert.equal(axialDistance("rotatable", "1.4"), "rotatable", "a named choice ignores the box");
+    assert.equal(axialDistance(AXIAL_DISTANCE, " 1.4 "), 1.4);
+    assert.equal(axialDistance(AXIAL_DISTANCE, ""), null, "a blank box is null, which Python refuses in words");
   });
 });
 

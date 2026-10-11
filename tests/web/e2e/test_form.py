@@ -10,7 +10,7 @@ from __future__ import annotations
 import pytest
 
 from tests.web._support import ALL_DESIGNS, factors_named
-from tests.web.e2e._page import choose, factor_table, generate, set_factors
+from tests.web.e2e._page import choose, factor_table, generate, set_factors, settled
 
 NAMES = "ABCDEFGHJKLM"
 
@@ -129,3 +129,29 @@ def test_a_new_factor_starts_from_minus_one_to_one_and_can_be_removed(page):
     assert factor_table(page)[-1] == {"name": "", "low": "-1", "high": "1", "units": ""}
     page.locator("#factors tbody tr").last.get_by_role("button", name="Remove factor").click()
     assert len(factor_table(page)) == 3
+
+
+def test_a_typed_axial_distance_has_a_box_only_while_it_is_chosen(page):
+    choose(page, design_type="ccd")
+    assert page.is_hidden("#alpha-distance")
+    choose(page, alpha="distance")
+    assert page.is_visible("#alpha-distance")
+    choose(page, design_type="box_behnken")
+    assert page.is_hidden("#alpha-distance"), "a design without axial runs has no distance to type"
+
+
+def test_a_typed_distance_at_the_corners_radius_keeps_a_center_run(page):
+    set_factors(page, factors_named("A", "B"))
+    choose(page, design_type="ccd", alpha="face_centered", n_center_points=0)
+    choose(page, alpha="distance", alpha_value="1.4")
+    assert page.get_attribute("#n_center_points", "min") == "0"
+    choose(page, alpha_value="1.4142135623730951")  # the square root of 2: every other run on one circle
+    assert page.get_attribute("#n_center_points", "min") == "1"
+    assert page.input_value("#n_center_points") == "1"
+
+
+def test_replicates_chosen_for_one_design_do_not_carry_over_to_the_next_one_loaded(page):
+    choose(page, n_replicates=3)
+    page.click("#run-example")
+    settled(page)
+    assert page.input_value("#n_replicates") == "1", "the worked example is made once"

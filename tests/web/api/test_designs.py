@@ -217,3 +217,76 @@ def test_face_centred_ccd_stays_inside_the_ranges(api):
     rotatable = api.ok("api_make_design", {"design_type": "ccd", "factors": FACTORS, "alpha": "rotatable"})
     assert face["outside_range"] == []
     assert rotatable["outside_range"] == ["T", "P", "F"]
+
+
+# --------------------------------------------------------------------------- replicates
+def test_replicates_repeat_every_run_but_the_center_runs(api):
+    spec = {"design_type": "full_factorial", "factors": FACTORS, "n_center_points": 3, "n_replicates": 2}
+    result = api.ok("api_make_design", spec)
+    sheet = coded(run_sheet(result), FACTORS)
+    assert result["n_runs"] == 2 * 8 + 3
+    corners = sheet[(sheet.abs() > 0.5).all(axis=1)]
+    assert corners.value_counts().tolist() == [2] * 8, "each corner twice"
+    assert result["spec"]["options"]["n_replicates"] == 2
+    assert any("appears 2 times" in note for note in result["facts"]["notes"])
+
+
+@pytest.mark.parametrize("design_type", ALL_DESIGNS)
+def test_every_design_takes_replicates(api, design_type):
+    spec = {"design_type": design_type, "factors": FACTORS, "budget": 14}
+    once = api.ok("api_make_design", spec)
+    twice = api.ok("api_make_design", {**spec, "n_replicates": 2})
+    assert twice["n_runs"] > once["n_runs"]
+    assert twice["spec"]["options"]["n_replicates"] == 2
+
+
+def test_a_design_made_once_does_not_name_replicates(api):
+    """One replicate is the design as it is, so the stored options, and the Python shown for them, leave it out."""
+    result = api.ok("api_make_design", {"design_type": "full_factorial", "factors": FACTORS, "n_replicates": 1})
+    assert "n_replicates" not in result["spec"]["options"]
+
+
+def test_replicates_give_the_pure_error_for_a_lack_of_fit_test(api):
+    """An unreplicated 2^2 factorial has no pure error; replicated, it tests whether the main effects suffice."""
+    spec = {"design_type": "full_factorial", "factors": FACTORS[:2], "n_center_points": 0, "n_replicates": 3}
+    design = api.ok("api_make_design", spec)
+    runs = coded(run_sheet(design), FACTORS[:2])
+    y = (10 + 2 * runs["T"] - runs["P"] + 1.5 * runs["T"] * runs["P"]).to_numpy()
+    y += np.random.default_rng(0).normal(0, 0.2, len(y))
+    held = {"spec": design["spec"], "columns": design["columns"], "rows": design["rows"]}
+    analysis = api.ok("api_analyze_runs", {**held, "responses": y.tolist(), "model": "main_effects"})
+    assert analysis["lack_of_fit"]["df_pure_error"] == 8
+    assert analysis["lack_of_fit"]["p_value"] < 0.001, "the interaction left out of the model shows as lack of fit"
+
+
+def test_an_optimal_design_s_runs_are_counted_before_it_is_replicated(api):
+    """The budget is the runs of one replicate: replicating it does not say the budget was raised."""
+    spec = {"design_type": "d_optimal", "factors": FACTORS, "model_type": "interactions", "budget": 10}
+    result = api.ok("api_make_design", {**spec, "n_replicates": 2})
+    assert result["n_runs"] == 20
+    assert not any("You asked for" in note for note in result["facts"]["notes"])
+    raised = api.ok("api_make_design", {**spec, "budget": 5, "n_replicates": 2})
+    assert any("so the design has 7 runs before it is replicated" in note for note in raised["facts"]["notes"])
+
+
+# --------------------------------------------------------------------------- a CCD's axial distance as a number
+def test_a_ccd_takes_an_axial_distance_typed_as_a_number(api):
+    spec = {"design_type": "ccd", "factors": FACTORS[:2], "n_center_points": 3, "alpha": 1.4}
+    result = api.ok("api_make_design", spec)
+    levels = sorted(set(np.round(coded(run_sheet(result), FACTORS[:2]).to_numpy().ravel(), 9)))
+    assert levels == [-1.4, -1.0, 0.0, 1.0, 1.4]
+    assert result["spec"]["options"]["alpha"] == 1.4
+    assert result["outside_range"] == ["T", "P"], "an axial distance above 1 leaves the ranges"
+
+
+def test_an_axial_distance_inside_the_cube_keeps_every_run_in_the_ranges(api):
+    spec = {"design_type": "ccd", "factors": FACTORS[:2], "alpha": 0.5}
+    assert api.ok("api_make_design", spec)["outside_range"] == []
+
+
+@pytest.mark.parametrize(("k", "alpha"), [(2, 2**0.5), (3, 3**0.5)])
+def test_an_axial_distance_at_the_corners_radius_needs_a_center_point(api, k, alpha):
+    """At the square root of k every run but the center runs lies on one sphere, as in a rotatable CCD in 2 or 4."""
+    spec = {"design_type": "ccd", "factors": FACTORS[:k], "n_center_points": 0, "alpha": alpha}
+    assert "at least one center point" in api.error("api_make_design", spec)
+    assert api.ok("api_make_design", {**spec, "alpha": 1.4})["n_runs"] == 2**k + 2 * k

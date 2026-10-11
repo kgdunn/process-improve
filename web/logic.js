@@ -14,12 +14,24 @@ export function nTerms(k, model) {
 /** The resolution a fraction in k factors opens on: IV, or III when three factors allow no more. */
 export const defaultResolution = (k) => Math.max(3, Math.min(4, k));
 
+/** The select value that asks for an axial distance typed as a number. */
+export const AXIAL_DISTANCE = "distance";
+
+/** The axial distance the form asks for: a named choice, or the number typed beside it (null while blank). */
+export const axialDistance = (choice, typed) => (choice === AXIAL_DISTANCE ? numberOrNull(typed) : choice);
+
+/** Whether two numbers agree as Python's math.isclose finds them, to a relative 1e-9. */
+const isClose = (a, b) => Math.abs(a - b) <= 1e-9 * Math.max(Math.abs(a), Math.abs(b));
+
 /**
- * Whether a design needs a center run to fit the squares: a Box-Behnken design or a rotatable
- * CCD does, and a DSD counts its own built-in center run among them.
+ * Whether a design needs a center run to fit the squares, because its other runs all lie on one
+ * sphere: a Box-Behnken design's do, and a CCD's whose axial distance is the corners' own, the
+ * square root of the k factors. The page asks for one at any rotatable CCD, as bootstrap.py
+ * does, and a DSD counts its own built-in center run among them.
  */
-export const needsCentre = (designType, alpha) =>
-  ["box_behnken", "dsd"].includes(designType) || (designType === "ccd" && alpha === "rotatable");
+export const needsCentre = (designType, alpha, k) =>
+  ["box_behnken", "dsd"].includes(designType) ||
+  (designType === "ccd" && (alpha === "rotatable" || (typeof alpha === "number" && isClose(alpha * alpha, k))));
 
 /** Read a number box as the page sends it: a blank box as null, rather than as Number("") = 0. */
 export const numberOrNull = (text) => (text.trim() === "" ? null : Number(text));

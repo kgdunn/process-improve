@@ -130,6 +130,26 @@ REFUSALS: dict[str, tuple[str, Callable[[Example], dict], str]] = {
         _make(design_type="ccd", alpha="spherical"),
         "Unknown axial distance 'spherical'.",
     ),
+    "blank axial distance": (  # the number box beside "A distance you choose", left blank
+        "api_make_design",
+        _make(design_type="ccd", alpha=None),
+        "Enter the axial distance in coded units: a number above 0, such as 1.4.",
+    ),
+    "axial distance not above 0": (
+        "api_make_design",
+        _make(design_type="ccd", alpha=-1),
+        "The axial distance must be above 0 in coded units, not -1.",
+    ),
+    "replicates out of range": (
+        "api_make_design",
+        _make(n_replicates=0),
+        "Replicates must be a whole number from 1 to 10.",
+    ),
+    "replicates not a whole number": (
+        "api_make_design",
+        _make(n_replicates=1.5),
+        "Replicates must be a whole number from 1 to 10.",
+    ),
     "unknown model to design for": (
         "api_make_design",
         _make(design_type="d_optimal", model_type="cubic"),

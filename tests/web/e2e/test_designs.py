@@ -63,3 +63,17 @@ def test_the_library_s_warnings_are_listed_under_the_design(page):
 def test_runs_outside_the_ranges_are_pointed_out(page):
     generate(page, design_type="ccd", alpha="rotatable")
     assert "Some runs of T, P, F lie outside the ranges you entered" in page.text_content("#design-summary")
+
+
+def test_replicates_and_a_typed_axial_distance_reach_python(blank_page, api):
+    page = blank_page
+    set_factors(page, FACTORS[:2])
+    generate(page, design_type="ccd", alpha="distance", alpha_value="1.4", n_replicates=2, n_center_points=3)
+    request = calls(page, "api_make_design")[-1]["payload"]
+    assert (request["alpha"], request["n_replicates"]) == (1.4, 2)
+    made = api.ok("api_make_design", request)
+    assert made["n_runs"] == 2 * (4 + 4) + 3, "the corners and axial runs twice, the center runs once"
+    assert status(page) == (f"{made['n_runs']} runs generated.", "ok")
+    code = page.text_content("#py-design code")
+    assert "alpha=1.4" in code
+    assert "n_replicates=2" in code

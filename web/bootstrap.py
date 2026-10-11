@@ -62,7 +62,7 @@ DESIGNS: dict[str, dict[str, Any]] = {
         "label": "Full factorial (2-level)",
         "hint": "Every combination of low and high. 2^k runs, plus center points.",
         "model": "interactions",
-        "options": ["n_center_points"],
+        "options": ["n_center_points", "n_replicates"],
         "min_factors": 2,
         "max_factors": 7,
     },
@@ -73,7 +73,7 @@ DESIGNS: dict[str, dict[str, Any]] = {
             "with two-factor interactions; at IV, two-factor interactions with each other; at V, neither."
         ),
         "model": "main_effects",
-        "options": ["n_center_points", "resolution"],
+        "options": ["n_center_points", "resolution", "n_replicates"],
         "min_factors": 3,
         "max_factors": 11,
     },
@@ -84,7 +84,7 @@ DESIGNS: dict[str, dict[str, Any]] = {
             "or fully aliased with two-factor interactions."
         ),
         "model": "main_effects",
-        "options": ["n_center_points"],
+        "options": ["n_center_points", "n_replicates"],
         "min_factors": 2,
         "max_factors": 11,
     },
@@ -95,7 +95,7 @@ DESIGNS: dict[str, dict[str, Any]] = {
             "runs; main effects clear of interactions and quadratics."
         ),
         "model": "main_effects",
-        "options": ["n_center_points"],
+        "options": ["n_center_points", "n_replicates"],
         "min_factors": 3,
         "max_factors": 12,
     },
@@ -103,7 +103,7 @@ DESIGNS: dict[str, dict[str, Any]] = {
         "label": "Box-Behnken",
         "hint": "Response surface with every run inside the factor ranges and none at the corners.",
         "model": "quadratic",
-        "options": ["n_center_points"],
+        "options": ["n_center_points", "n_replicates"],
         "min_factors": 3,
         "max_factors": 7,
     },
@@ -111,7 +111,7 @@ DESIGNS: dict[str, dict[str, Any]] = {
         "label": "Central composite (CCD)",
         "hint": "Response surface: factorial corners, axial points and center points.",
         "model": "quadratic",
-        "options": ["n_center_points", "alpha"],
+        "options": ["n_center_points", "alpha", "n_replicates"],
         "min_factors": 2,
         "max_factors": 7,
     },
@@ -119,7 +119,7 @@ DESIGNS: dict[str, dict[str, Any]] = {
         "label": "D-optimal",
         "hint": "Best estimates of the chosen model's coefficients for a fixed number of runs.",
         "model": "quadratic",
-        "options": ["budget", "model_type"],
+        "options": ["budget", "model_type", "n_replicates"],
         "min_factors": 2,
         "max_factors": 8,
     },
@@ -130,7 +130,7 @@ DESIGNS: dict[str, dict[str, Any]] = {
             "The search takes longest of the designs here: up to 20 s at six factors."
         ),
         "model": "quadratic",
-        "options": ["budget", "model_type"],
+        "options": ["budget", "model_type", "n_replicates"],
         "min_factors": 2,
         "max_factors": 6,
     },
@@ -144,6 +144,9 @@ NEEDS_CENTER_RUN = {"box_behnken": None, "ccd": "rotatable"}
 #: Runs an optimal design gets beyond its model's coefficients, when no budget is
 #: given, so the fit keeps degrees of freedom to estimate the error.
 SPARE_RUNS = 4
+
+#: The most times the page makes each run of a design, center runs excepted.
+MAX_REPLICATES = 10
 
 #: Fractional factorial resolutions offered on the page, and the default.
 RESOLUTIONS = (3, 4, 5)
@@ -452,12 +455,10 @@ def _design_options(spec: dict, design_type: str) -> dict[str, Any]:
     kwargs: dict[str, Any] = {"random_state": int(spec.get("random_state", spec.get("random_seed", 42)))}
     allowed = DESIGNS[design_type]["options"]
     n_factors = len(spec.get("factors") or [])
+    alpha = _alpha(spec) if "alpha" in allowed else None
     if "n_center_points" in allowed:
-        kwargs["n_center_points"] = _center_points(spec, design_type)
-    if "alpha" in allowed:
-        alpha = spec.get("alpha", "face_centered")
-        if alpha not in ALPHAS:
-            raise ValueError(f"Unknown axial distance {alpha!r}.")
+        kwargs["n_center_points"] = _center_points(spec, design_type, alpha, n_factors)
+    if alpha is not None:
         kwargs["alpha"] = alpha
     if design_type == "ccd" and n_factors >= CCD_HALF_FRACTION_FROM:
         kwargs["cube"] = "fractional"
@@ -470,22 +471,60 @@ def _design_options(spec: dict, design_type: str) -> dict[str, Any]:
         kwargs["model_type"] = model_type
         budget = spec.get("budget")
         kwargs["budget"] = int(budget) if budget else _n_terms(n_factors, model_type) + SPARE_RUNS
+    if "n_replicates" in allowed and (replicates := _replicates(spec)) > 1:
+        kwargs["n_replicates"] = replicates
     return kwargs
 
 
-def _center_points(spec: dict, design_type: str) -> int:
+def _alpha(spec: dict) -> str | float:
+    """Read a CCD's axial distance: one of :data:`ALPHAS`, or a distance in coded units, such as 1.4."""
+    alpha = spec.get("alpha", "face_centered")
+    if alpha in ALPHAS:
+        return str(alpha)
+    if alpha is None:  # a blank box
+        raise ValueError("Enter the axial distance in coded units: a number above 0, such as 1.4.")
+    distance = None if isinstance(alpha, bool) else _number(alpha)
+    if distance is None:
+        raise ValueError(f"Unknown axial distance {alpha!r}.")
+    if distance <= 0:
+        raise ValueError(f"The axial distance must be above 0 in coded units, not {distance:g}.")
+    return distance
+
+
+def _replicates(spec: dict) -> int:
+    """Read how many times each run is made, center runs excepted: 1 (no repeats) to :data:`MAX_REPLICATES`."""
+    replicates = _number(spec.get("n_replicates", 1))
+    if replicates is None or replicates != int(replicates) or not 1 <= replicates <= MAX_REPLICATES:
+        raise ValueError(f"Replicates must be a whole number from 1 to {MAX_REPLICATES}.")
+    return int(replicates)
+
+
+def _center_points(spec: dict, design_type: str, alpha: str | float | None, n_factors: int) -> int:
     """Read the number of center runs, refusing none where the quadratic model would be singular."""
     n_center = int(spec.get("n_center_points", 3))
     if n_center < 0:
         raise ValueError("The number of center points cannot be negative.")
-    if design_type in NEEDS_CENTER_RUN and n_center == 0:
-        alpha = NEEDS_CENTER_RUN[design_type]
-        if alpha is None or spec.get("alpha", "face_centered") == alpha:
-            raise ValueError(
-                "This design needs at least one center point: without one every other run lies on one sphere "
-                "around the center, so the squared terms cannot be told apart from the intercept."
-            )
+    if n_center == 0 and _needs_center_run(design_type, alpha, n_factors):
+        raise ValueError(
+            "This design needs at least one center point: without one every other run lies on one sphere "
+            "around the center, so the squared terms cannot be told apart from the intercept."
+        )
     return n_center
+
+
+def _needs_center_run(design_type: str, alpha: str | float | None, n_factors: int) -> bool:
+    """Say whether a design's runs other than the center runs all lie on one sphere around the center.
+
+    A Box-Behnken design's always do; a CCD's do when its axial distance is the cube corners'
+    distance from the center, the square root of the number of factors, as the rotatable
+    distance is at two or four factors (the page asks for a center run at any rotatable CCD).
+    """
+    if design_type not in NEEDS_CENTER_RUN:
+        return False
+    named = NEEDS_CENTER_RUN[design_type]
+    if named is None or alpha == named:
+        return True
+    return isinstance(alpha, float) and math.isclose(alpha**2, n_factors)
 
 
 def _resolution(spec: dict, n_factors: int) -> int:
@@ -517,12 +556,19 @@ def _design_facts(result: Any, names: list[str], kwargs: dict[str, Any]) -> dict
         label = "generator" if len(generators) == 1 else "generators"
         notes.append(f"Resolution {ROMAN.get(result.resolution, result.resolution)}, {label} {', '.join(generators)}.")
     notes.append(_aliasing_sentence(groups))
+    replicates = kwargs.get("n_replicates", 1)
+    if replicates > 1:
+        notes.append(
+            f"Each run other than the center runs appears {replicates} times, so the repeats estimate the pure error."
+        )
     asked = kwargs.get("budget")
-    if asked and len(coded) > asked:
+    if asked and len(coded) > asked * replicates:
         model = kwargs["model_type"]
+        made = len(coded) // replicates
         notes.append(
             f"You asked for {asked} runs; the {model.replace('_', ' ')} model in {len(names)} factors has "
-            f"{_n_terms(len(names), model)} coefficients, so the design has {len(coded)} runs."
+            f"{_n_terms(len(names), model)} coefficients, so the design has {made} runs"
+            f"{' before it is replicated' if replicates > 1 else ''}."
         )
     return {
         "resolution": result.resolution,

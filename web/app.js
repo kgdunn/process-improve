@@ -8,9 +8,11 @@
 
 import { coefficientFigure, correlationFigure, draw, fdsFigure, prettyTerm, shareContourScale } from "./charts.js";
 import {
+  AXIAL_DISTANCE,
   CAPTIONS,
   SPARE_RUNS,
   TITLES,
+  axialDistance,
   compareCells,
   defaultResolution,
   escape,
@@ -163,7 +165,14 @@ function setForm(spec) {
   $("#response").value = spec.response || "y";
   const options = spec.options || spec;
   if (options.n_center_points !== undefined) $("#n_center_points").value = options.n_center_points;
-  if (options.alpha) $("#alpha").value = options.alpha;
+  if (typeof options.alpha === "number") {
+    $("#alpha").value = AXIAL_DISTANCE;
+    $("#alpha_value").value = options.alpha;
+  } else if (options.alpha) {
+    $("#alpha").value = options.alpha;
+  }
+  // A design made without replicates is made once: a count left from an earlier design does not carry over.
+  $("#n_replicates").value = options.n_replicates ?? 1;
   if (options.model_type) $("#model_type").value = options.model_type;
   // A resolution or a number of runs other than the page's own pick is kept, as if the reader had chosen it.
   const k = spec.factors.length;
@@ -196,6 +205,8 @@ function refreshDesign() {
   const option = select.selectedOptions[0];
   const allowed = option.dataset.options.split(" ");
   for (const el of document.querySelectorAll("[data-option]")) el.hidden = !allowed.includes(el.dataset.option);
+  const alpha = axialDistance($("#alpha").value, $("#alpha_value").value);
+  $("#alpha-distance").hidden = !allowed.includes("alpha") || $("#alpha").value !== AXIAL_DISTANCE;
 
   // Resolution IV unless the reader chose another; three factors allow only III.
   const resolution = $("#resolution");
@@ -204,7 +215,7 @@ function refreshDesign() {
 
   // A Box-Behnken design or a rotatable CCD needs a center run to fit the squares; a DSD has one built in.
   const centre = $("#n_center_points");
-  const centreNeeded = needsCentre(option.value, $("#alpha").value);
+  const centreNeeded = needsCentre(option.value, alpha, k);
   centre.min = centreNeeded ? 1 : 0;
   if (centreNeeded && Number(centre.value) < 1) centre.value = 1;
 
@@ -233,7 +244,8 @@ async function generate() {
     factors: readFactors(),
     response: $("#response").value.trim(),
     n_center_points: Number($("#n_center_points").value),
-    alpha: $("#alpha").value,
+    alpha: axialDistance($("#alpha").value, $("#alpha_value").value),
+    n_replicates: Number($("#n_replicates").value),
     resolution: Number($("#resolution").value),
     budget: Number($("#budget").value),
     model_type: $("#model_type").value,
@@ -985,6 +997,7 @@ $("#generate").onclick = async () => {
 $("#factors").addEventListener("input", markStale);
 $("#response").addEventListener("input", markStale);
 for (const id of ["#design-type", "#alpha", "#model_type"]) $(id).onchange = refreshDesign;
+$("#alpha_value").oninput = refreshDesign; // a typed distance can put every run but the center runs on one sphere
 $("#budget").oninput = () => {
   budgetEdited = $("#budget").value !== "";
 };

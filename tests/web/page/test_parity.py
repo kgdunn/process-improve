@@ -84,10 +84,22 @@ def test_every_setting_a_design_takes_has_one_control(bootstrap):
     assert sorted(page().data_options) == sorted(named)
 
 
-def test_the_axial_choices_are_bootstrap_s(api, bootstrap):
-    assert page().values("alpha") == list(bootstrap.ALPHAS)
+def test_the_axial_choices_are_bootstrap_s(api, bootstrap, node):
+    """The named distances are bootstrap's, then the choice that sends the number typed beside it."""
+    (typed,) = javascript(node, source("logic.js"), [("AXIAL_DISTANCE", [])])
+    assert page().values("alpha") == [*bootstrap.ALPHAS, typed]
     made = api.ok("api_make_design", {"design_type": "ccd", "factors": bootstrap.DEMO["design"]["factors"]})
     assert page().selected("alpha") == made["spec"]["options"]["alpha"], "the page opens on bootstrap's default"
+    asked = javascript(node, source("logic.js"), [("axialDistance", [typed, " 1.4 "]), ("axialDistance", [typed, ""])])
+    assert asked == [1.4, None], "a typed distance is sent as a number, and a blank box as null for Python to refuse"
+
+
+def test_the_replicates_box_takes_what_bootstrap_takes(api, bootstrap):
+    box = page().ids["n_replicates"]
+    assert (int(box["min"]), int(box["max"])) == (1, bootstrap.MAX_REPLICATES)
+    assert int(box["value"]) == 1, "a design is made once unless the reader asks for more"
+    for n in (1, bootstrap.MAX_REPLICATES):
+        api.ok("api_make_design", {"design_type": "full_factorial", "factors": FACTORS[:2], "n_replicates": n})
 
 
 def test_the_resolutions_are_bootstrap_s(bootstrap):
@@ -151,16 +163,15 @@ def test_the_page_opens_a_fraction_at_bootstrap_s_resolution(bootstrap, node):
 
 
 def test_the_page_asks_for_a_center_run_where_bootstrap_needs_one(bootstrap, node):
-    """Box-Behnken designs and rotatable CCDs need a center run; a DSD counts its own, so the page asks for one too."""
-    cases = [(design, alpha) for design in bootstrap.DESIGNS for alpha in bootstrap.ALPHAS]
-    asked = javascript(node, source("logic.js"), [("needsCentre", [design, alpha]) for design, alpha in cases])
-
-    def needed(design: str, alpha: str) -> bool:
-        if design == "dsd":
-            return True
-        return design in bootstrap.NEEDS_CENTER_RUN and bootstrap.NEEDS_CENTER_RUN[design] in (None, alpha)
-
-    assert asked == [needed(design, alpha) for design, alpha in cases]
+    """Box-Behnken designs and rotatable CCDs need a center run, as does a CCD whose typed axial distance is the
+    corners' own; a DSD counts its own center run, so the page asks for one too.
+    """
+    alphas = [*bootstrap.ALPHAS, 1.4, 2**0.5, 3**0.5, 2.0]
+    cases = [(design, alpha, k) for design in bootstrap.DESIGNS for alpha in alphas for k in (2, 3, 4)]
+    asked = javascript(node, source("logic.js"), [("needsCentre", list(case)) for case in cases])
+    needed = [design == "dsd" or bootstrap._needs_center_run(design, alpha, k) for design, alpha, k in cases]
+    assert asked == needed
+    assert sum(needed) > len(bootstrap.DESIGNS) * 3, "the cases include typed distances that need a center run"
 
 
 # --------------------------------------------------------------------------- what the worker answers
