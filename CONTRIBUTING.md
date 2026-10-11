@@ -189,8 +189,9 @@ When you change the app, the tests move with it:
 - A new control, step or message on the page: a test in `tests/web/e2e`, which drives the
   page as a reader would. `window.__pi` (`tests/web/harness.js`) records each call to
   Python, and can hold a reply back or give one, for races and error paths.
-- A new package the page loads into Pyodide: in `web/runtime.json`, and in
-  `web/worker.js`, which `tests/web/page/test_runtime.py` holds to it.
+- A new package the page loads into Pyodide: in `web/runtime.json` only, which
+  `web/worker.js`, the wasm tier and CI read. One from PyPI is pinned (`name==version`)
+  to the version the wasm tier installs; `tests/web/page/test_runtime.py` checks both.
 - A new file in `web/`: in `APP_FILES` in `scripts/build_web_app.py` if the page loads
   it, and in `APP_SOURCES` in `tests/web/_support.py` either way.
 - A new design type or simulated process: in `ALL_DESIGNS` or `ALL_SCENARIOS` in

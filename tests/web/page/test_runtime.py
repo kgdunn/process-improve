@@ -1,8 +1,8 @@
 """``web/runtime.json``: the one record of what the page loads into Pyodide.
 
-Until ``web/worker.js`` reads the file itself, the Pyodide release, its packages and what
-micropip installs are also written out in ``worker.js``; CI reads the release from the file.
-These tests hold the copies to it, so the browser, the wasm tier and CI run one Python.
+``web/worker.js`` reads it, the wasm tier's runner reads it, and CI reads the Pyodide release
+from it, so the browser, the wasm tier and CI run one Python. Every package from PyPI is pinned:
+a release there would otherwise change the page with no commit here.
 """
 
 from __future__ import annotations
@@ -15,21 +15,34 @@ from tests.web._support import ROOT, source
 RUNTIME = json.loads(source("runtime.json"))
 
 
-def listed(pattern: str, text: str) -> list[str]:
-    """Return the quoted names in the list ``pattern`` finds."""
-    return re.findall(r'"([\w-]+)"', re.search(pattern, text, re.DOTALL).group(1))
+def test_the_worker_reads_runtime_json_and_keeps_no_copy_of_it():
+    worker = source("worker.js")
+    assert 'fetch("runtime.json"' in worker
+    assert RUNTIME["pyodide"] not in worker, "no Pyodide release written out"
+    for name in [*RUNTIME["packages"], *RUNTIME["micropip"]]:
+        assert f'"{name}"' not in worker, f"{name} is written out in worker.js"
 
 
-def test_the_worker_starts_the_pyodide_release_runtime_json_names():
-    assert re.search(r'const PYODIDE_VERSION = "([\d.]+)";', source("worker.js")).group(1) == RUNTIME["pyodide"]
+def test_the_pyodide_release_is_an_exact_version():
+    assert re.fullmatch(r"\d+\.\d+\.\d+", RUNTIME["pyodide"])
 
 
-def test_the_worker_loads_the_packages_runtime_json_names():
-    assert listed(r"pyodide\.loadPackage\(\[(.*?)\]\)", source("worker.js")) == RUNTIME["packages"]
+def test_every_package_from_pypi_is_pinned_to_one_version():
+    """The packages the Pyodide release lacks; its own (``packages``) are fixed by the release."""
+    assert RUNTIME["micropip"], "openpyxl reads and writes the workbooks"
+    for requirement in RUNTIME["micropip"]:
+        assert re.fullmatch(r"[\w.-]+==[\w.]+", requirement), requirement
 
 
-def test_the_worker_installs_what_runtime_json_names_from_pypi():
-    assert listed(r"await micropip\.install\(\[(.*?)\]\)", source("worker.js")) == RUNTIME["micropip"]
+def test_no_package_is_loaded_both_from_the_release_and_from_pypi():
+    from_pypi = {r.split("==")[0].lower().replace("_", "-") for r in RUNTIME["micropip"]}
+    assert not from_pypi & {p.lower() for p in RUNTIME["packages"]}
+
+
+def test_the_wasm_runner_reads_runtime_json():
+    runner = (ROOT / "tests" / "web" / "wasm" / "runner.mjs").read_text(encoding="utf-8")
+    assert "runtime.packages" in runner
+    assert "runtime.micropip" in runner
 
 
 def test_ci_reads_the_pyodide_release_from_runtime_json():
