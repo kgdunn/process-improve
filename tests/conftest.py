@@ -40,6 +40,21 @@ def pytest_addoption(parser: pytest.Parser) -> None:
     group.addoption("--shard", metavar="K/N", help="run shard K of N (1-based), balanced by recorded durations")
     group.addoption("--store-durations", action="store_true", help=f"write per-file durations to {DURATIONS.name}")
 
+    # The browser app's slower tiers, which skip unless asked for (tests/web/conftest.py).
+    web = parser.getgroup("web", "the browser app's slower tiers (tests/web/e2e, live and wasm)")
+    web.addoption("--e2e", action="store_true", help="run the page in Chromium, its Python answered natively")
+    web.addoption("--live", action="store_true", help="run the built app in Chromium, with Pyodide")
+    web.addoption("--wasm", action="store_true", help="run the app's Python under Pyodide in Node.js")
+    web.addoption("--web-app", metavar="DIR|URL", help="the built app for --live and --wasm; default: build it")
+    web.addoption(
+        "--cdn-cache",
+        metavar="DIR|off",
+        default=str(Path.home() / ".cache" / "process-improve" / "cdn"),
+        help="keep what --live downloads from the CDNs and PyPI here, or 'off'",
+    )
+    web.addoption("--e2e-headed", action="store_true", help="show the browser while the tests run")
+    web.addoption("--e2e-artifacts", metavar="DIR", help="keep a trace and a screenshot of each failing browser test")
+
 
 def _git(*args: str) -> list[str]:
     result = subprocess.run(["git", *args], cwd=ROOT, check=False, capture_output=True, text=True)  # noqa: S603, S607
