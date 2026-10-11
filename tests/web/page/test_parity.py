@@ -117,9 +117,25 @@ def test_the_models_to_design_for_are_bootstrap_s(api, bootstrap):
     assert page().selected("model_type") == made["spec"]["options"]["model_type"]
 
 
-def test_the_models_to_analyse_with_are_bootstrap_s_after_as_designed(bootstrap):
-    assert page().values("model") == ["", *bootstrap.MODELS]
+def test_the_models_to_analyse_with_are_bootstrap_s_after_as_designed(bootstrap, node):
+    (chosen,) = javascript(node, source("logic.js"), [("CHOSEN_TERMS", [])])
+    assert page().values("model") == ["", *bootstrap.MODELS, chosen], "then the terms the reader ticks"
     assert page().selected("model") == bootstrap.DEMO["model"] == ""
+
+
+def test_the_terms_to_tick_are_the_terms_bootstrap_fits(bootstrap, node):
+    """Each term the page lists is one bootstrap reads, labelled as its fit labels it; a named model's are its own."""
+    names = ["T", "P", "F", "pH"]
+    listed, *named = javascript(
+        node,
+        source("logic.js"),
+        [("candidateTerms", [names]), *[("namedModelTerms", [model, names]) for model in bootstrap.MODELS]],
+    )
+    fitted = bootstrap._chosen_terms([t["term"] for t in listed], names)
+    assert len(fitted) == len(listed) == 4 + 6 + 4 + 4
+    assert [t["label"] for t in listed] == [bootstrap._pretty(term) for term in fitted]
+    for model, terms in zip(bootstrap.MODELS, named, strict=True):
+        assert bootstrap._chosen_terms(terms, names) == bootstrap._model_terms(model, names), model
 
 
 def test_the_models_to_compare_on_are_the_comparison_s(api, bootstrap):

@@ -298,3 +298,58 @@ def test_a_blocked_fraction_estimates_what_the_blocks_and_aliases_leave(api):
     assert analysis["notes"][0].startswith("A·B and C·D are confounded with the blocks")
     assert analysis["lenth"] is not None, "saturated and orthogonal: Lenth's method judges the six factor effects"
     assert [e["label"] for e in analysis["lenth"]["effects"]] == labels[2:]
+
+
+# --------------------------------------------------------------------------- terms the reader chooses
+def test_a_model_of_chosen_terms_recovers_a_three_factor_interaction(api):
+    names = factors_named("A", "B", "C")
+    design = api.ok("api_make_design", {"design_type": "full_factorial", "factors": names, "n_center_points": 2})
+    x = coded(run_sheet(design), names)
+    y = 10 + 2 * x["A"] - x["B"] + 1.5 * x["A"] * x["B"] * x["C"] + np.random.default_rng(0).normal(0, 0.1, len(x))
+    chosen = {"terms": [["A"], ["B"], ["C"], ["C", "B", "A"]]}
+    analysis = api.ok("api_analyze_runs", {**held_of(design), "responses": y.tolist(), "model": chosen})
+    assert analysis["model"] == "chosen"
+    assert analysis["formula"] == "A + B + C + A:B:C", "the factors of an interaction in the design's order"
+    found = {c["label"]: c["coefficient"] for c in analysis["coefficients"]}
+    assert list(found) == ["Intercept", "A", "B", "C", "A·B·C"]
+    assert found["A·B·C"] == pytest.approx(1.5, abs=0.1)
+    assert analysis["summary"]["df_residual"] == 10 - 5
+
+
+def test_a_chosen_square_is_fitted_and_a_repeated_term_once(api):
+    design = api.ok("api_make_design", {"design_type": "box_behnken", "factors": FACTORS})
+    responses = quadratic(run_sheet(design)).tolist()
+    chosen = {"terms": [["T"], ["P"], ["T", "P"], ["P", "T"], ["T", "T"]]}
+    analysis = api.ok("api_analyze_runs", {**held_of(design), "responses": responses, "model": chosen})
+    assert analysis["formula"] == "T + P + T:P + I(T ** 2)"
+    found = {c["label"]: c["coefficient"] for c in analysis["coefficients"]}
+    assert found["T²"] == pytest.approx(-5, abs=0.2)
+    assert found["T·P"] == pytest.approx(2, abs=0.2)
+
+
+def test_chosen_terms_count_toward_the_runs_a_partial_sheet_needs(api, worked_example):
+    held = worked_example["held"]
+    responses = [*worked_example["simulated"]["responses"][:3], *[None] * 12]
+    chosen = {"terms": [["T"], ["P"], ["F"], ["T", "P"]]}
+    message = api.error("api_analyze_runs", {**held, "responses": responses, "model": chosen})
+    assert message.startswith("The chosen model has 5 coefficients, so it needs at least 5 completed runs")
+
+
+def test_chosen_terms_and_blocks_are_fitted_together(api):
+    design = api.ok(
+        "api_make_design", {"design_type": "box_behnken", "factors": FACTORS, "n_blocks": 2, "n_center_points": 4}
+    )
+    responses = quadratic(run_sheet(design)).tolist()
+    chosen = {"terms": [["T"], ["P"], ["T", "P"], ["T", "T"]]}
+    analysis = api.ok("api_analyze_runs", {**held_of(design), "responses": responses, "model": chosen})
+    assert analysis["formula"] == "Block + T + P + T:P + I(T ** 2)"
+    assert [c["label"] for c in analysis["coefficients"]][:2] == ["Intercept", "Block 1"]
+
+
+def test_an_interaction_zero_in_every_run_is_left_out_with_a_note(api, worked_example):
+    """No run of a Box-Behnken design sets all three factors away from their centers, so T·P·F is zero throughout."""
+    held, simulated = worked_example["held"], worked_example["simulated"]
+    chosen = {"terms": [["T"], ["P"], ["F"], ["T", "P", "F"]]}
+    analysis = api.ok("api_analyze_runs", {**held, "responses": simulated["responses"], "model": chosen})
+    assert analysis["formula"] == "T + P + F"
+    assert analysis["notes"][0].startswith("T·P·F cannot be estimated: it is zero in every run")

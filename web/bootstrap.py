@@ -188,6 +188,13 @@ ROMAN = {3: "III", 4: "IV", 5: "V", 6: "VI", 7: "VII", 8: "VIII"}
 #: parsed from the file, so a workbook cannot smuggle a patsy formula in.
 MODELS = ("main_effects", "interactions", "quadratic")
 
+#: A model of terms the reader chose, each a list of factor names (see :func:`_chosen_terms`),
+#: is named this in a reply. It too is read as data and never as a formula.
+CHOSEN = "chosen"
+
+#: The most factors in a chosen interaction.
+MAX_ORDER = 3
+
 ALPHAS = ("face_centered", "rotatable", "orthogonal")
 
 #: Processes the page can simulate results from, in coded units. A term is a tuple of
@@ -729,7 +736,7 @@ def analyze(request: dict) -> dict:
     """
     runs, stored = _read_workbook(base64.b64decode(request["xlsx_base64"]))
     spec = _checked_spec(stored)  # a workbook can arrive from anywhere: its specification is checked as data
-    return _analysis(runs, spec, request.get("model") or spec["model"])
+    return _analysis(runs, spec, request.get("model") or spec.get("analysis_model") or spec["model"])
 
 
 def _analysis(runs: pd.DataFrame, spec: dict, model: str, truth: list[dict] | None = None) -> dict:
@@ -738,11 +745,10 @@ def _analysis(runs: pd.DataFrame, spec: dict, model: str, truth: list[dict] | No
     With the true process the results were simulated from, each coefficient also
     carries the true value of what it estimates (see :func:`_add_true_values`).
     """
-    if model not in MODELS:
-        raise ValueError(f"Model must be one of {', '.join(MODELS)}.")
     response = spec["response"]
     factors = spec["factors"]
     names = [f["name"] for f in factors]
+    model = _checked_model(model, names)
     blocked = _blocked(spec)
     missing_cols = [c for c in [*names, *([BLOCK] if blocked else []), response] if c not in runs.columns]
     if missing_cols:
@@ -757,7 +763,7 @@ def _analysis(runs: pd.DataFrame, spec: dict, model: str, truth: list[dict] | No
     if pending and done.sum() < n_terms:
         complete = int(done.sum())
         raise ValueError(
-            f"The {model.replace('_', ' ')} model has {n_terms} coefficients, so it needs at least {n_terms} "
+            f"The {_model_name(model)} model has {n_terms} coefficients, so it needs at least {n_terms} "
             f"completed runs, and {complete} {'is' if complete == 1 else 'are'} complete. "
             f"Still to run: {', '.join(map(str, pending))}."
         )
@@ -783,7 +789,7 @@ def _analysis(runs: pd.DataFrame, spec: dict, model: str, truth: list[dict] | No
     anova = [{**a, "source": fit["labels"].get(a["source"], _pretty(a["source"]))} for a in out.get("anova_table", [])]
     return {
         "spec": spec,
-        "model": model,
+        "model": model if isinstance(model, str) else CHOSEN,
         "formula": fit["formula"],  # what was fitted: the model, less what the design cannot estimate
         "n_completed": int(done.sum()),
         "pending_runs": pending,
@@ -808,7 +814,7 @@ def _snapped(value: float | None, zero: float) -> float | None:
 ANALYSES = ["anova", "coefficients", "lack_of_fit", "effects"]
 
 
-def _fit_estimable(coded: pd.DataFrame, y: pd.Series, model: str, names: list[str]) -> dict[str, Any]:
+def _fit_estimable(coded: pd.DataFrame, y: pd.Series, model: str | list[str], names: list[str]) -> dict[str, Any]:
     """Fit the model, estimating each group of terms the design cannot tell apart once.
 
     A pseudo-inverse fit of exactly aliased terms spreads their joint estimate evenly
@@ -824,11 +830,7 @@ def _fit_estimable(coded: pd.DataFrame, y: pd.Series, model: str, names: list[st
     effect cannot be told apart from the differences between blocks.
     """
     blocked = BLOCK in coded.columns and len(set(coded[BLOCK])) > 1
-    early: list[str] = []
-    formula = model
-    if blocked and (confounded := _confounded_with_blocks(coded, _model_terms(model, names))):
-        early.append(_confounded_sentence(confounded))
-        formula = _formula([t for t in _model_terms(model, names) if t not in confounded], names, blocked=True)
+    formula, early = _first_formula(coded, model, names, blocked=blocked)
     with _listening() as heard:
         out = analyze_experiment(coded, y, model=formula, analysis_type=ANALYSES)
     chains: dict[str, list[str]] = {}
@@ -850,7 +852,7 @@ def _fit_estimable(coded: pd.DataFrame, y: pd.Series, model: str, names: list[st
     summary = out["model_summary"]
     if summary["rank_deficient"]:
         raise ValueError(
-            f"This design cannot fit the {model.replace('_', ' ')} model: only {summary['model_rank']} of its "
+            f"This design cannot fit the {_model_name(model)} model: only {summary['model_rank']} of its "
             f"{summary['n_terms']} coefficients can be estimated from these {summary['n_obs']} runs. Choose a "
             "smaller model."
         )
@@ -864,27 +866,8 @@ def _fit_estimable(coded: pd.DataFrame, y: pd.Series, model: str, names: list[st
     labels.update(_block_labels(out, names))
     lenth = None
     if summary["df_residual"] == 0:
-        terms = _fitted_terms(out, names)
-        if _orthogonal_two_level(coded[names], terms):
-            lenth = analyze_experiment(coded, y, model=formula, analysis_type="lenth_method")["lenth_method"]
-            lenth["effects"] = [{**e, "label": labels.get(e["term"], _pretty(e["term"]))} for e in lenth["effects"]]
-            notes.append(
-                "The model uses every run, so no degrees of freedom are left to estimate the error. Each effect, "
-                "twice its coefficient (the change from the factor's low level to its high level), is judged with "
-                f"Lenth's method instead: it is likely real beyond the margin of error ME = "
-                f"{lenth['ME']:.4g}, and still so, allowing for the number of effects tested, beyond SME = "
-                f"{lenth['SME']:.4g}."
-            )
-            if len(lenth["effects"]) < LENTH_FEW_EFFECTS:
-                notes.append(
-                    f"With only {len(lenth['effects'])} effects to compare, these margins are wide. Center points "
-                    "or more runs leave degrees of freedom for an ordinary test."
-                )
-        else:
-            notes.append(
-                "The model uses every run, so no degrees of freedom are left to estimate the error and nothing can "
-                "be tested. Add runs, or fit fewer terms."
-            )
+        lenth, said = _saturated(coded, y, formula, _fitted_terms(out, names), labels, names)
+        notes += said
     return {
         "out": out,
         "formula": formula,
@@ -896,8 +879,103 @@ def _fit_estimable(coded: pd.DataFrame, y: pd.Series, model: str, names: list[st
     }
 
 
-def _model_terms(model: str, names: list[str]) -> list[str]:
-    """List a named model's terms as ``analyze_experiment`` names them."""
+def _first_formula(
+    coded: pd.DataFrame, model: str | list[str], names: list[str], *, blocked: bool
+) -> tuple[str, list[str]]:
+    """Return the model to fit first, and a note for each term it leaves out before fitting.
+
+    An interaction that is zero in every run cannot be estimated at all, and in a blocked
+    design one that takes one value in each block is confounded with the blocks; both are
+    left out. A named model the design can fit as it is goes to the library by name, which
+    fits any blocks itself.
+    """
+    terms = _model_terms(model, names)
+    early: list[str] = []
+    if inert := [t for t in terms if not t.startswith("I(") and np.allclose(coded[t.split(":")].prod(axis=1), 0)]:
+        early.append(_inert_sentence(inert))
+        terms = [t for t in terms if t not in inert]
+    if blocked and (confounded := _confounded_with_blocks(coded, terms)):
+        early.append(_confounded_sentence(confounded))
+        terms = [t for t in terms if t not in confounded]
+    if not terms and not blocked:
+        raise ValueError("None of the model's terms can be estimated from this design.")
+    formula = model if isinstance(model, str) and not early else _formula(terms, names, blocked=blocked)
+    return formula, early
+
+
+def _saturated(  # noqa: PLR0913 - the fit, and how the page names its terms
+    coded: pd.DataFrame, y: pd.Series, formula: str, terms: list[str], labels: dict[str, str], names: list[str]
+) -> tuple[dict | None, list[str]]:
+    """Judge the effects of a fit with no runs to spare: by Lenth's method if the design allows, else say why not."""
+    if not _orthogonal_two_level(coded[names], terms):
+        return None, [
+            (
+                "The model uses every run, so no degrees of freedom are left to estimate the error and nothing can "
+                "be tested. Add runs, or fit fewer terms."
+            )
+        ]
+    lenth = analyze_experiment(coded, y, model=formula, analysis_type="lenth_method")["lenth_method"]
+    lenth["effects"] = [{**e, "label": labels.get(e["term"], _pretty(e["term"]))} for e in lenth["effects"]]
+    notes = [
+        (
+            "The model uses every run, so no degrees of freedom are left to estimate the error. Each effect, "
+            "twice its coefficient (the change from the factor's low level to its high level), is judged with "
+            f"Lenth's method instead: it is likely real beyond the margin of error ME = "
+            f"{lenth['ME']:.4g}, and still so, allowing for the number of effects tested, beyond SME = "
+            f"{lenth['SME']:.4g}."
+        )
+    ]
+    if len(lenth["effects"]) < LENTH_FEW_EFFECTS:
+        notes.append(
+            f"With only {len(lenth['effects'])} effects to compare, these margins are wide. Center points "
+            "or more runs leave degrees of freedom for an ordinary test."
+        )
+    return lenth, notes
+
+
+def _checked_model(model: object, names: list[str]) -> str | list[str]:
+    """Read the model to fit: the name of one in :data:`MODELS`, or ``{"terms": [...]}``, the terms a reader chose."""
+    if isinstance(model, dict) and set(model) == {"terms"}:
+        return _chosen_terms(model["terms"], names)
+    if model not in MODELS:
+        raise ValueError(f"Model must be one of {', '.join(MODELS)}.")
+    return str(model)
+
+
+def _chosen_terms(chosen: object, names: list[str]) -> list[str]:
+    """Read the terms a reader chose, and name them as ``analyze_experiment`` does.
+
+    Each term is a list of factor names: one name is the factor's main effect, two or three
+    different names their interaction, and one name twice its square. A model of chosen terms
+    reaches the library as a formula, which is evaluated as Python, so the formula is written
+    here from these names, each checked against the design's factors, and never read in.
+    """
+    if not isinstance(chosen, list) or not chosen:
+        raise ValueError("Choose at least one term for the model.")
+    terms = []
+    for term in chosen:
+        if not isinstance(term, list) or not term or not all(isinstance(n, str) and n in names for n in term):
+            raise ValueError(f"A model term can name only the design's factors, {_listed(names)}, not {term!r}.")
+        if len(term) == 2 and term[0] == term[1]:  # a factor named twice is its square
+            terms.append(f"I({term[0]} ** 2)")
+        elif len(term) <= MAX_ORDER and len(set(term)) == len(term):
+            terms.append(":".join(sorted(term, key=names.index)))
+        else:
+            raise ValueError(
+                "A model term is a factor, an interaction of two or three different factors, or a factor squared."
+            )
+    return list(dict.fromkeys(terms))
+
+
+def _model_name(model: str | list[str]) -> str:
+    """Name a model in a sentence: ``main effects``, ``quadratic``, or ``chosen`` for terms a reader chose."""
+    return model.replace("_", " ") if isinstance(model, str) else CHOSEN
+
+
+def _model_terms(model: str | list[str], names: list[str]) -> list[str]:
+    """List a model's terms as ``analyze_experiment`` names them: a named model's, or the ones chosen."""
+    if not isinstance(model, str):
+        return list(model)
     terms = list(names)
     if model in ("interactions", "quadratic"):
         terms += [":".join(pair) for pair in itertools.combinations(names, 2)]
@@ -948,6 +1026,19 @@ def _confounded_with_blocks(coded: pd.DataFrame, terms: list[str]) -> list[str]:
         if spread.max() < ALIAS_TOLERANCE < column.max() - column.min():
             confounded.append(term)
     return confounded
+
+
+def _inert_sentence(terms: list[str]) -> str:
+    """Say which interactions are zero in every run, so the design cannot estimate them."""
+    if len(terms) == 1:
+        return (
+            f"{_pretty(terms[0])} cannot be estimated: it is zero in every run, since no run sets all its factors "
+            "away from their centers at once, and the model leaves it out."
+        )
+    return (
+        f"{_listed([_pretty(t) for t in terms])} cannot be estimated: each is zero in every run, since no run "
+        "sets all its factors away from their centers at once, and the model leaves them out."
+    )
 
 
 def _confounded_sentence(terms: list[str]) -> str:
@@ -1019,8 +1110,10 @@ def _analysis_notes(chain_labels: list[str], not_estimable: list[str]) -> list[s
     return notes
 
 
-def _n_terms(k: int, model: str) -> int:
-    """Count the coefficients, intercept included, in each named model."""
+def _n_terms(k: int, model: str | list[str]) -> int:
+    """Count the coefficients, intercept included, in a named model or a model of chosen terms."""
+    if not isinstance(model, str):
+        return 1 + len(model)
     interactions = k * (k - 1) // 2
     return 1 + k + {"main_effects": 0, "interactions": interactions, "quadratic": interactions + k}[model]
 
@@ -1057,6 +1150,8 @@ def _checked_spec(spec: dict) -> dict[str, Any]:
     options = spec.get("options") or {}
     if not isinstance(options, dict):
         raise ValueError("The page sent a design this page did not make.")  # noqa: TRY004 - a refusal, like the rest
+    if "analysis_model" in spec:  # the model the reader last analysed with, which a workbook keeps
+        _checked_model(spec["analysis_model"], [f.name for f in factors])
     return {
         **spec,
         "factors": [{"name": f.name, "low": f.low, "high": f.high, "units": f.units} for f in factors],
@@ -1246,9 +1341,14 @@ def workbook(request: dict) -> dict:
     """Write the page's runs and responses to a workbook the page can analyse again.
 
     Simulated responses are marked, in the ``MARKS`` column and in the stored
-    specification, so the workbook says which values were measured.
+    specification, so the workbook says which values were measured. The model the reader
+    analyses with, ``model``, is kept as the specification's ``analysis_model``, so the
+    workbook is analysed the same way when it comes back.
     """
     spec = _checked_spec(request.get("spec") or {})
+    if request.get("model"):
+        _checked_model(request["model"], [f["name"] for f in spec["factors"]])
+        spec = {**spec, "analysis_model": request["model"]}
     runs = _runs_frame(request, spec)
     sources = request.get("sources")
     if sources and any(sources):
@@ -1282,11 +1382,9 @@ def plots(request: dict) -> dict:
     from process_improve.experiments.visualization.plots import create_plot  # noqa: PLC0415
 
     spec = _checked_spec(request.get("spec") or {})
-    model = request.get("model") or spec["model"]
-    if model not in MODELS:
-        raise ValueError(f"Model must be one of {', '.join(MODELS)}.")
-    runs = _runs_frame(request, spec)
     names = [f["name"] for f in spec["factors"]]
+    model = _checked_model(request.get("model") or spec["model"], names)
+    runs = _runs_frame(request, spec)
     response = spec["response"]
     y = pd.to_numeric(runs[response], errors="coerce")
     done = y.notna().to_numpy()

@@ -33,6 +33,41 @@ export const needsCentre = (designType, alpha, k) =>
   ["box_behnken", "dsd"].includes(designType) ||
   (designType === "ccd" && (alpha === "rotatable" || (typeof alpha === "number" && isClose(alpha * alpha, k))));
 
+/** The analysis model's select value for a model of the terms the reader ticks. */
+export const CHOSEN_TERMS = "terms";
+
+/** Every way of picking `size` of the items, in order: the pairs or triples of factors for interactions. */
+export function combinations(items, size) {
+  if (size === 0) return [[]];
+  return items.flatMap((item, i) => combinations(items.slice(i + 1), size - 1).map((rest) => [item, ...rest]));
+}
+
+/**
+ * Every term a model of these factors may hold, as the page lists them to tick: {term, label, group},
+ * where a term is a list of factor names: one for a main effect, two or three for an interaction,
+ * and one name twice for a square, as bootstrap.py reads them.
+ */
+export function candidateTerms(names) {
+  const group = (label, terms) => terms.map((term) => ({ term, label: termLabel(term), group: label }));
+  return [
+    ...group("Main effects", names.map((n) => [n])),
+    ...group("Two-factor interactions", combinations(names, 2)),
+    ...group("Three-factor interactions", combinations(names, 3)),
+    ...group("Squares", names.map((n) => [n, n])),
+  ];
+}
+
+/** A term as the page writes it: T, T·P, T·P·F, or T² for a square. */
+export const termLabel = (term) => (term.length === 2 && term[0] === term[1] ? `${term[0]}²` : term.join("·"));
+
+/** The terms of a named model, as lists of factor names: where a list of terms to tick starts. */
+export function namedModelTerms(model, names) {
+  const terms = names.map((n) => [n]);
+  if (model === "interactions" || model === "quadratic") terms.push(...combinations(names, 2));
+  if (model === "quadratic") terms.push(...names.map((n) => [n, n]));
+  return terms;
+}
+
 /** Read a number box as the page sends it: a blank box as null, rather than as Number("") = 0. */
 export const numberOrNull = (text) => (text.trim() === "" ? null : Number(text));
 

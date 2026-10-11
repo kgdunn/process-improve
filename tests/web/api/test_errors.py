@@ -209,6 +209,31 @@ REFUSALS: dict[str, tuple[str, Callable[[Example], dict], str]] = {
         _runs(model="y ~ T"),
         "Model must be one of main_effects, interactions, quadratic.",
     ),
+    "no terms chosen": (
+        "api_analyze_runs",
+        _runs(model={"terms": []}),
+        "Choose at least one term for the model.",
+    ),
+    "a chosen term of another factor": (
+        "api_analyze_runs",
+        _runs(model={"terms": [["T"], ["Z"]]}),
+        "A model term can name only the design's factors, T, P and F, not ['Z'].",
+    ),
+    "a chosen term that is no term": (
+        "api_analyze_runs",
+        _runs(model={"terms": [["T", "P", "T"]]}),
+        "A model term is a factor, an interaction of two or three different factors, or a factor squared.",
+    ),
+    "a workbook analysed with a formula": (  # a workbook keeps its analysis model, which is checked as data
+        "api_read_workbook",
+        _workbook(_stored(analysis_model="y ~ __import__('os').getcwd()")),
+        "Model must be one of main_effects, interactions, quadratic.",
+    ),
+    "no term the design can estimate": (
+        "api_analyze_runs",
+        _runs(model={"terms": [["T", "P", "F"]]}),  # zero in every run of a Box-Behnken design
+        "None of the model's terms can be estimated from this design.",
+    ),
     "unknown model to chart": (
         "api_plots",
         _runs(model="y ~ T"),

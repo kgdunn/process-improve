@@ -8,6 +8,8 @@ import {
   AXIAL_DISTANCE,
   CAPTIONS,
   axialDistance,
+  candidateTerms,
+  combinations,
   compareCells,
   defaultResolution,
   escape,
@@ -17,10 +19,12 @@ import {
   isBlank,
   listNames,
   nTerms,
+  namedModelTerms,
   needsCentre,
   numberOrNull,
   pval,
   sortNumber,
+  termLabel,
 } from "../../../web/logic.js";
 
 describe("the design's settings", () => {
@@ -143,5 +147,33 @@ describe("sorting a table", () => {
 
   test("text sorts alphabetically, numbers within it in order", () => {
     assert.deepEqual(["x10", "x9", "a"].sort(compareCells), ["a", "x9", "x10"]);
+  });
+});
+
+describe("the terms a reader ticks", () => {
+  test("pairs and triples of factors, in order", () => {
+    assert.deepEqual(combinations(["A", "B", "C"], 2), [["A", "B"], ["A", "C"], ["B", "C"]]);
+    assert.deepEqual(combinations(["A", "B", "C"], 3), [["A", "B", "C"]]);
+    assert.deepEqual(combinations(["A", "B"], 3), []);
+  });
+
+  test("every term three factors allow, grouped, three-factor interactions included", () => {
+    const terms = candidateTerms(["T", "P", "F"]);
+    assert.equal(terms.length, 3 + 3 + 1 + 3);
+    assert.deepEqual(
+      terms.filter((t) => t.group === "Three-factor interactions").map((t) => t.label),
+      ["T·P·F"],
+    );
+    assert.deepEqual(terms.find((t) => t.group === "Squares"), { term: ["T", "T"], label: "T²", group: "Squares" });
+  });
+
+  test("a term written as the page shows it", () => {
+    assert.deepEqual([["A"], ["A", "B"], ["A", "B", "C"], ["A", "A"]].map(termLabel), ["A", "A·B", "A·B·C", "A²"]);
+  });
+
+  test("a named model's terms, where the list starts", () => {
+    assert.equal(namedModelTerms("main_effects", ["A", "B", "C"]).length, nTerms(3, "main_effects") - 1);
+    assert.equal(namedModelTerms("interactions", ["A", "B", "C"]).length, nTerms(3, "interactions") - 1);
+    assert.equal(namedModelTerms("quadratic", ["A", "B", "C"]).length, nTerms(3, "quadratic") - 1);
   });
 });

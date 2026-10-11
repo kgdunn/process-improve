@@ -210,9 +210,16 @@
           <option value="main_effects">Main effects</option>
           <option value="interactions">Main effects + two-factor interactions</option>
           <option value="quadratic">Full quadratic</option>
+          <option value="terms">Terms you choose</option>
         </select>
       </label>
     </div>
+    <fieldset id="terms" class="terms" hidden>
+      <legend>Terms in the model</legend>
+      <p class="hint">Tick the terms to fit; the intercept is always in. A term the design cannot tell apart from
+        another is estimated with it, as their sum.</p>
+      <div id="term-list"></div>
+    </fieldset>
     <div id="analysis" hidden></div>
     <div id="charts" class="charts" hidden></div>
     <details class="python" id="py-analyse" hidden>

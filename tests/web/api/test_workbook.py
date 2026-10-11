@@ -190,3 +190,20 @@ def test_a_blocked_design_s_workbook_keeps_its_blocks(api):
     assert [row[2] for row in read["rows"]] == [row[2] for row in design["rows"]], "each run keeps its block"
     analysis = api.ok("api_analyze", {"xlsx_base64": filled})
     assert "Block" in [a["source"] for a in analysis["anova"]]
+
+
+@pytest.mark.parametrize("model", ["quadratic", {"terms": [["T"], ["P"], ["T", "P", "F"]]}])
+def test_a_workbook_keeps_the_model_it_was_analysed_with(api, worked_example, model):
+    held, simulated = worked_example["held"], worked_example["simulated"]
+    written = api.ok("api_workbook", {**held, "responses": simulated["responses"], "model": model})
+    read = api.ok("api_read_workbook", {"xlsx_base64": written["xlsx_base64"]})
+    assert read["spec"]["analysis_model"] == model
+    expected = api.ok("api_analyze_runs", {**held, "responses": simulated["responses"], "model": model})
+    analysed = api.ok("api_analyze", {"xlsx_base64": written["xlsx_base64"]})
+    assert analysed["formula"] == expected["formula"]
+
+
+def test_a_workbook_analysed_as_designed_keeps_no_model(api, worked_example):
+    held, simulated = worked_example["held"], worked_example["simulated"]
+    written = api.ok("api_workbook", {**held, "responses": simulated["responses"], "model": ""})
+    assert "analysis_model" not in api.ok("api_read_workbook", {"xlsx_base64": written["xlsx_base64"]})["spec"]

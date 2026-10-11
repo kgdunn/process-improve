@@ -10,9 +10,11 @@ import { coefficientFigure, correlationFigure, draw, fdsFigure, prettyTerm, shar
 import {
   AXIAL_DISTANCE,
   CAPTIONS,
+  CHOSEN_TERMS,
   SPARE_RUNS,
   TITLES,
   axialDistance,
+  candidateTerms,
   compareCells,
   defaultResolution,
   escape,
@@ -22,6 +24,7 @@ import {
   isBlank,
   listNames,
   nTerms,
+  namedModelTerms,
   needsCentre,
   numberOrNull,
   pval,
@@ -275,6 +278,7 @@ function showDesign(design, warnings = []) {
   renderDesign(warnings);
   renderRuns();
   renderTruth(); // the process behind the old design's results goes with them
+  if ($("#model").value === CHOSEN_TERMS) setModel(CHOSEN_TERMS); // the terms of the new factors
   clearAnalysis();
   if (design.spec.options) showPython("design", designCode(design.spec));
   $("#py-run").hidden = true;
@@ -418,6 +422,7 @@ async function downloadWorkbook() {
     responses: state.responses,
     sources: state.sources,
     simulated: state.sources.includes("simulated") ? state.simulation : null,
+    model: modelChoice(), // kept in the workbook, so it is analysed the same way when it comes back
   });
   if (!reply.ok) {
     setStatus(reply.error, "error");
@@ -451,6 +456,7 @@ async function readUpload(file) {
   state.responses = r.responses;
   state.sources = r.sources;
   state.simulation = null;
+  setModel(r.spec.analysis_model ?? $("#model").value);
   renderDesign(reply.warnings);
   renderRuns();
   renderTruth();
@@ -490,7 +496,7 @@ async function analyseRuns() {
   const request = {
     ...held(),
     responses: state.responses,
-    model: $("#model").value,
+    model: modelChoice(),
     truth: state.sources.includes("simulated") ? state.simulation?.truth : null,
   };
   const reply = await call("api_analyze_runs", request);
@@ -588,6 +594,58 @@ function renderAnalysis(reply) {
     );
   }
   out.replaceChildren(...parts);
+}
+
+// ---------------------------------------------------------------- the model's terms
+let modelBefore = ""; // the model chosen before the reader asked to tick terms: where the list starts
+
+/** The model the reader asks for: "" for the model the design was made for, a named model, or the ticked terms. */
+function modelChoice() {
+  return $("#model").value === CHOSEN_TERMS ? { terms: tickedTerms() } : $("#model").value;
+}
+
+const tickedTerms = () => [...document.querySelectorAll("#term-list input:checked")].map((box) => JSON.parse(box.value));
+
+/** List every term the design's factors allow, grouped, with `ticked` ticked. */
+function renderTermList(ticked) {
+  const names = state.design.spec.factors.map((f) => f.name);
+  const chosen = new Set(ticked.map((term) => JSON.stringify(term)));
+  const groups = new Map();
+  for (const { term, label, group } of candidateTerms(names)) {
+    const box = el("input", "", "");
+    box.type = "checkbox";
+    box.value = JSON.stringify(term);
+    box.checked = chosen.has(box.value);
+    const item = el("label", "", "");
+    item.append(box, ` ${label}`);
+    if (!groups.has(group)) groups.set(group, []);
+    groups.get(group).push(item);
+  }
+  $("#term-list").replaceChildren(
+    ...[...groups].flatMap(([group, items]) => {
+      const row = el("div", "group", "");
+      row.append(...items);
+      return [el("h4", "", group), row];
+    }),
+  );
+}
+
+/** Start the list of terms from the model chosen before, or the one the design was made for. */
+function startTermList() {
+  const names = state.design.spec.factors.map((f) => f.name);
+  renderTermList(namedModelTerms(modelBefore || state.design.spec.model, names));
+}
+
+/** Put a model into step 3: a named one, "" for the design's own, or {terms} to tick. */
+function setModel(model) {
+  if (model && typeof model === "object") {
+    $("#model").value = CHOSEN_TERMS;
+    renderTermList(model.terms);
+  } else {
+    $("#model").value = model;
+    if (model === CHOSEN_TERMS) startTermList();
+  }
+  $("#terms").hidden = $("#model").value !== CHOSEN_TERMS;
 }
 
 // ---------------------------------------------------------------- charts
@@ -699,7 +757,7 @@ async function runExample() {
   setForm(example.design);
   $("#scenario").value = example.scenario;
   $("#sigma").value = example.sigma;
-  $("#model").value = example.model;
+  setModel(example.model);
   showScenarioHint();
   seed = example.seed;
   selectTab("simulate");
@@ -1023,7 +1081,13 @@ $("#sigma").onchange = () => {
 $("#tab-simulate").onclick = () => selectTab("simulate");
 $("#tab-real").onclick = () => selectTab("real");
 $("#download").onclick = downloadWorkbook;
-$("#model").onchange = analyseRuns;
+$("#model").onchange = () => {
+  if ($("#model").value === CHOSEN_TERMS && state.design) startTermList();
+  else modelBefore = $("#model").value;
+  $("#terms").hidden = $("#model").value !== CHOSEN_TERMS || !state.design;
+  analyseRuns();
+};
+$("#term-list").onchange = scheduleAnalysis; // a moment after the last tick, as for typed results
 $("#compare").onclick = compareDesigns;
 for (const button of document.querySelectorAll("details.python .copy")) {
   button.onclick = async () => {
