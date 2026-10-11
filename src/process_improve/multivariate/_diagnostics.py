@@ -12,7 +12,7 @@ parameter as ``BaseEstimator`` to avoid importing the estimator modules.
 
 from __future__ import annotations
 
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 
 import numpy as np
 import pandas as pd
@@ -550,6 +550,22 @@ def _contribution_inputs(model: BaseEstimator, X: DataMatrix) -> tuple[pd.DataFr
     return X, R, P
 
 
+def _complete_rows_apart(X_values: np.ndarray, rows_product: Callable[[np.ndarray], np.ndarray]) -> np.ndarray:
+    """Evaluate ``rows_product(rows)`` for the complete rows and for the rest, separately.
+
+    The last bit of a matrix product can depend on how many rows it has, since BLAS
+    splits the work by shape (Apple's Accelerate does). Multiplying the complete rows on
+    their own makes them match, bit for bit, what the same rows give when ``X`` has no
+    missing cells, so a complete row's contributions do not depend on the other rows.
+    """
+    complete = ~np.isnan(X_values).any(axis=1)
+    out = np.empty(X_values.shape)
+    out[complete] = rows_product(complete)
+    if not complete.all():
+        out[~complete] = rows_product(~complete)
+    return out
+
+
 def _scores_and_guides(  # noqa: PLR0913 - the model, its two matrices, the data and the estimator choice
     model: BaseEstimator, X_values: np.ndarray, R: np.ndarray, P: np.ndarray, method: str, ridge: float
 ) -> tuple[np.ndarray, np.ndarray | None]:
@@ -674,7 +690,7 @@ def t2_contributions(
     PCA.score_contributions : Decomposes a single score-space movement.
     """
     X_df, R, P = _contribution_inputs(model, X)
-    X_values = X_df.to_numpy(dtype=float)
+    X_values = np.ascontiguousarray(X_df.to_numpy(dtype=float))  # one memory layout, whatever the input's
     A = R.shape[1]
 
     if components is None:
@@ -693,7 +709,7 @@ def t2_contributions(
 
     scores, guides = _scores_and_guides(model, X_values, R, P, method, ridge)
     weights = scores[:, idx] / s2  # (n, len(idx))
-    factors = weights @ R[:, idx].T  # exact for the complete rows
+    factors = _complete_rows_apart(X_values, lambda rows: weights[rows] @ R[:, idx].T)
     if guides is not None:
         rows = np.flatnonzero(np.isnan(X_values).any(axis=1))
         factors[rows] = np.einsum("ia,ika->ik", weights[rows], guides[rows][:, :, idx])
@@ -761,9 +777,9 @@ def spe_contributions(model: BaseEstimator, X: DataMatrix, *, method: str = "scp
     t2_contributions : The :math:`T^2` (score-space) counterpart.
     """
     X_df, R, P = _contribution_inputs(model, X)
-    X_values = X_df.to_numpy(dtype=float)
+    X_values = np.ascontiguousarray(X_df.to_numpy(dtype=float))  # one memory layout, whatever the input's
     scores, _guides = _scores_and_guides(model, X_values, R, P, method, ridge)
-    residuals = X_values - scores @ P.T
+    residuals = _complete_rows_apart(X_values, lambda rows: X_values[rows] - scores[rows] @ P.T)
     return pd.DataFrame(residuals, index=X_df.index, columns=X_df.columns)
 
 
