@@ -170,6 +170,15 @@ those changes.
     -1 and +1 from its first label to its second, and has no square.
   - "Show the Python" reproduces each of these. The analysis it shows now names the terms
     the page actually fitted, after any aliased or confounded term is left out.
+- **The browser app is called Factorial**, and takes over that name from the
+  conversational app at kgdunn/factorial, which it replaces.
+  - Its mark is the package's logo in one more factor: a 2³ factorial and its centre run,
+    seen down the cube's diagonal. `tools/branding/app_mark.py` draws it from
+    `generate_design`, with the favicon, the install icons and the link card.
+  - A link to the app in a chat or a blog post shows that card.
+  - While Python works, the status line lights up the mark's runs in a random run order.
+  - The page takes the package's navy, red and warm paper. Every text colour meets WCAG AA
+    in both themes.
 - **The browser app runs on Pyodide 314.0.7 (Python 3.14.2)**, with numpy 2.4, pandas 3.0,
   scipy 1.18 and scikit-learn 1.8.
 - **PLS and multiblock fits on complete data are faster, with identical results.** So is
