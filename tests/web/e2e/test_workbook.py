@@ -11,6 +11,7 @@ import json
 
 import numpy as np
 import pandas as pd
+import pytest
 
 from tests.web._support import FACTORS, fill_workbook, quadratic
 from tests.web.e2e._page import factor_table, run_sheet, settled, status
@@ -89,3 +90,16 @@ def test_a_file_that_is_not_a_workbook_is_refused(page, tmp_path):
     settled(page)
     assert status(page) == ("That file could not be read as an .xlsx workbook.", "error")
     assert page.is_visible("#demo-banner"), "the page keeps what it held"
+
+
+@pytest.mark.xfail(strict=True, reason="defect: a workbook with no results leaves the status line busy")
+def test_a_workbook_with_no_results_yet_is_read_and_the_page_waits_for_them(page, api, tmp_path):
+    design = api.ok("api_make_design", {"design_type": "ccd", "factors": FACTORS})
+    path = tmp_path / "fresh.xlsx"
+    path.write_bytes(base64.b64decode(design["xlsx_base64"]))
+    page.click("#tab-real")
+    page.set_input_files("#upload", path)
+    page.wait_for_function("window.__pi.count('api_read_workbook') === 1 && window.__pi.idle()")
+    assert status(page) == ("No results to analyse yet.", "ok")
+    assert page.is_hidden("#analysis")
+    assert page.locator("#design-table tbody tr").count() == design["n_runs"]
