@@ -37,6 +37,8 @@ import {
   LINK_KEY,
   campaignTitle,
   checkCampaign,
+  designKey,
+  mergeResults,
   packCampaign,
   progress,
   shareable,
@@ -1179,6 +1181,7 @@ async function start() {
     history.replaceState(null, "", `${location.pathname}${location.search}`);
     try {
       const c = await unpackCampaign(packed);
+      if (await resultsCameBack(c)) return;
       const title = c.title || titleOf(c.design.spec);
       await openCampaign(c, newCampaign(false), `Opened from a link: ${title}. It is saved in this browser now, under Your designs.`);
       return;
@@ -1204,6 +1207,34 @@ async function start() {
   }
   await refreshLibrary();
   await showBuiltExample();
+}
+
+/**
+ * Results sent back by link for a design this browser keeps, from a run sheet printed or shared
+ * here: fill them into that design rather than saving a copy. A result already here is kept.
+ * Resolves to whether the link was such a return.
+ */
+async function resultsCameBack(c) {
+  if (!c.responses.some((v) => v !== null)) return false;
+  const key = designKey(c.design);
+  const readable = (record) => {
+    try {
+      return checkCampaign(record);
+    } catch {
+      return null;
+    }
+  };
+  const match = (await savedSoon()).find((record) => readable(record) && designKey(readable(record).design) === key);
+  if (!match) return false;
+  const here = readable(match);
+  const { responses, sources, added, kept } = mergeResults(here, c);
+  const plural = (n, word) => `${n} ${word}${n === 1 ? "" : "s"}`;
+  let message = added
+    ? `Added ${plural(added, "result")} from a link to ${here.title}, kept in this browser.`
+    : `The link's results are already in ${here.title}, kept in this browser.`;
+  if (kept) message += ` ${plural(kept, "run")} already had a different result here, which ${kept === 1 ? "was" : "were"} kept.`;
+  await openCampaign({ ...here, responses, sources }, { id: match.id, created: match.created }, message);
+  return true;
 }
 
 /** Copy a link that carries the design on the page, and its results when asked, after the address's "#". */

@@ -289,3 +289,40 @@ export function progress(responses) {
   if (done === 0) return `${runs}, no results yet`;
   return done === n ? `${runs}, all results in` : `${runs}, ${done} results in`;
 }
+
+// ---------------------------------------------------------------- results coming back
+/** What makes two campaigns the same design: its type, factors, response and runs, whatever their results. */
+export function designKey(design) {
+  const { spec, columns, rows } = design;
+  const at = columns.indexOf(spec.response);
+  return JSON.stringify([
+    spec.design_type,
+    spec.factors.map((f) => [f.name, f.low, f.high, f.units ?? ""]),
+    spec.response,
+    columns,
+    rows.map((row) => row.filter((_, i) => i !== at)),
+  ]);
+}
+
+/**
+ * Bring results that came back by link into the same design saved here: each run without a
+ * result here takes the link's; a run with a result here keeps it, even where the link's differs.
+ * Returns the results and their sources, how many were added, and how many differed and were kept.
+ */
+export function mergeResults(here, incoming) {
+  const responses = [...here.responses];
+  const sources = [...here.sources];
+  let added = 0;
+  let kept = 0;
+  incoming.responses.forEach((value, i) => {
+    if (value === null) return;
+    if (responses[i] === null) {
+      responses[i] = value;
+      sources[i] = incoming.sources[i] ?? "entered";
+      added += 1;
+    } else if (responses[i] !== value) {
+      kept += 1;
+    }
+  });
+  return { responses, sources, added, kept };
+}

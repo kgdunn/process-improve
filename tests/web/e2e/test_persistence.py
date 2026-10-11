@@ -207,3 +207,34 @@ def test_the_printed_run_sheet_has_a_box_per_result_and_a_code_that_opens_the_de
     settled(elsewhere)
     assert [row[:-1] for row in run_sheet(elsewhere)] == [row[:-1] for row in run_sheet(page)]
     assert results(elsewhere) == [""] * 10, "the code carries the design, not its results"
+
+
+def test_results_sent_back_by_link_fill_in_the_design_kept_here(open_context, blank_page):
+    """The engineer shares the design; the operator types the results on a phone and sends a link back."""
+    engineer = blank_page
+    generate(engineer, design_type="full_factorial", n_center_points=0)
+    saved(engineer, 1)
+    engineer.click("#share")
+    engineer.wait_for_selector("#share-out", state="visible")
+
+    operator = open_context().new_page()
+    operator.goto(engineer.input_value("#share-url"))
+    operator.wait_for_selector(BANNER, state="visible")
+    settled(operator)
+    typed = [str(10 + i) for i in range(8)]
+    for i, value in enumerate(typed):
+        operator.fill(f"#design-table input[data-index='{i}']", value)
+    settled(operator)
+    operator.click("#share")
+    operator.wait_for_selector("#share-out", state="visible")
+
+    back = engineer.context.new_page()
+    back.goto(operator.input_value("#share-url"))
+    back.wait_for_selector(BANNER, state="visible")
+    settled(back)
+    assert back.text_content(BANNER) == (
+        "Added 8 results from a link to Full factorial (2-level) in T, P and F, kept in this browser."
+    )
+    assert results(back) == typed
+    saved(back, 1)  # filled in, not saved again as a copy
+    assert "8 completed runs." in back.text_content("#analysis")

@@ -7,6 +7,8 @@ import {
   CAMPAIGN_VERSION,
   campaignTitle,
   checkCampaign,
+  designKey,
+  mergeResults,
   packCampaign,
   progress,
   shareable,
@@ -212,5 +214,27 @@ describe("the words for a saved design", () => {
     assert.equal(progress([null, null]), "2 runs, no results yet");
     assert.equal(progress([1, null, 3]), "3 runs, 2 results in");
     assert.equal(progress([1, 2]), "2 runs, all results in");
+  });
+});
+
+describe("results that come back by link", () => {
+  test("the same design is recognised whatever its results, and another is not", () => {
+    const here = campaign();
+    const back = { ...campaign(), responses: [1, 2, 3, 4] };
+    assert.equal(designKey(here.design), designKey(back.design));
+    const other = campaign();
+    other.design.rows[0] = [3, 1, 175, "B", null];
+    assert.notEqual(designKey(here.design), designKey(other.design));
+  });
+
+  test("a run without a result here takes the link's, and one with a result keeps it", () => {
+    const here = { responses: [12.5, null, null, 14], sources: ["entered", null, null, "entered"] };
+    const incoming = { responses: [12.5, 9.5, null, 15], sources: ["entered", "entered", null, "entered"] };
+    assert.deepEqual(mergeResults(here, incoming), {
+      responses: [12.5, 9.5, null, 14],
+      sources: ["entered", "entered", null, "entered"],
+      added: 1,
+      kept: 1,
+    });
   });
 });
