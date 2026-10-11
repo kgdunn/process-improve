@@ -85,7 +85,7 @@ def transport() -> str:
 
 
 @pytest.fixture
-def context(  # noqa: PLR0913 - a fixture's arguments are the fixtures it needs
+def open_context(  # noqa: PLR0913 - a fixture's arguments are the fixtures it needs
     chromium: Any,  # noqa: ANN401 - a Playwright Browser
     context_options: dict[str, Any],
     transport: str,
@@ -95,32 +95,49 @@ def context(  # noqa: PLR0913 - a fixture's arguments are the fixtures it needs
     plotly_js: tuple[str, bytes],
     console: Console,
     request: pytest.FixtureRequest,
-) -> Iterator[Any]:
-    """Open a browser context whose pages are answered natively; fail the test on any console error."""
+) -> Iterator[Callable[[], Any]]:
+    """Return a way to open a browser context whose pages are answered natively; fail on any console error.
+
+    Each context is a browser of its own, its storage empty: a test about what one reader's browser
+    keeps, or what reaches another reader's, opens a second.
+    """
     version, script = plotly_js
-    context = chromium.new_context(**context_options)
-    context.add_init_script(f"window.__piTransport = {json.dumps(transport)};")
-    context.add_init_script(path=HARNESS)
-    context.expose_function("__piNative", _native(bootstrap))
-    # The last route added is tried first, so the refusal of everything else goes in first.
-    context.route(
-        "**/*",
-        lambda route: route.continue_() if route.request.url.startswith(site) else route.abort("blockedbyclient"),
-    )
-    context.route(f"{site}demo.json", lambda route: route.fulfill(json=first_paint))
-    context.route(f"{site}wheels/manifest.json", lambda route: route.fulfill(json={"plotly_js": version}))
-    context.route(
-        re.compile(r"/plotly\.min\.js$"), lambda route: route.fulfill(body=script, content_type="text/javascript")
-    )
-    context.on("page", console.watch)
-    if request.config.getoption("--e2e-artifacts"):
-        context.tracing.start(screenshots=True, snapshots=True)
-    yield context
-    keep_artifacts(request, context, context.pages)
-    context.close()
+    opened: list[Any] = []
+
+    def open_one() -> Any:  # noqa: ANN401 - a Playwright BrowserContext
+        context = chromium.new_context(**context_options)
+        context.add_init_script(f"window.__piTransport = {json.dumps(transport)};")
+        context.add_init_script(path=HARNESS)
+        context.expose_function("__piNative", _native(bootstrap))
+        # The last route added is tried first, so the refusal of everything else goes in first.
+        context.route(
+            "**/*",
+            lambda route: route.continue_() if route.request.url.startswith(site) else route.abort("blockedbyclient"),
+        )
+        context.route(f"{site}demo.json", lambda route: route.fulfill(json=first_paint))
+        context.route(f"{site}wheels/manifest.json", lambda route: route.fulfill(json={"plotly_js": version}))
+        context.route(
+            re.compile(r"/plotly\.min\.js$"), lambda route: route.fulfill(body=script, content_type="text/javascript")
+        )
+        context.on("page", console.watch)
+        if request.config.getoption("--e2e-artifacts"):
+            context.tracing.start(screenshots=True, snapshots=True)
+        opened.append(context)
+        return context
+
+    yield open_one
+    for context in opened:
+        keep_artifacts(request, context, context.pages)
+        context.close()
     unexpected = console.unexpected()
     if unexpected:
         pytest.fail(f"The page wrote errors to its console: {unexpected}")
+
+
+@pytest.fixture
+def context(open_context: Callable[[], Any]) -> Any:  # noqa: ANN401 - a Playwright BrowserContext
+    """Open a browser context whose pages are answered natively; fail the test on any console error."""
+    return open_context()
 
 
 @pytest.fixture

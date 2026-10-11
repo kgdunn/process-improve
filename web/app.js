@@ -4,7 +4,8 @@
 // The page holds one campaign at a time: a design's runs, a response per run (typed,
 // simulated or read from a workbook), the process they were simulated from, and the
 // analysis. Each step re-renders from that state, so the worked example drawn at first
-// paint, the live run and an uploaded workbook all show the same way.
+// paint, the live run, an uploaded workbook, a saved design and a shared link all show the
+// same way. Every campaign but the worked example is saved in this browser as it changes.
 
 import { coefficientFigure, correlationFigure, draw, fdsFigure, prettyTerm, shareContourScale } from "./charts.js";
 import {
@@ -31,7 +32,19 @@ import {
   needsCentre,
   pval,
 } from "./logic.js";
-import { analyseCode, compareCode, designCode, enteredCode, simulateCode } from "./python.js";
+import {
+  CAMPAIGN_VERSION,
+  LINK_KEY,
+  campaignTitle,
+  checkCampaign,
+  packCampaign,
+  progress,
+  shareable,
+  timeAgo,
+  unpackCampaign,
+} from "./campaign.js";
+import { analyseCode, compareCode, designCode, enteredCode, notebook, simulateCode } from "./python.js";
+import { forgetCampaign, saveCampaign, savedCampaigns } from "./store.js";
 
 // Where Process Improvement using Data explains each design, method and measure the page uses.
 const BOOK = "https://learnche.org/pid/design-analysis-experiments";
@@ -111,6 +124,8 @@ const state = {
   simulation: null, // what api_simulate returned: the true process, its noise and seed
   analysis: null,
   plotlyJs: null, // the Plotly.js version the Python plotly package names
+  campaign: null, // this browser's record of the campaign on the page, {id, created, title}; null for the worked example
+  version: null, // the process-improve release Python runs, once it has started
 };
 let seed = 1;
 let catalogue = null;
@@ -276,9 +291,18 @@ async function generate() {
   return true;
 }
 
-/** Make a new set of runs the campaign: no results yet, nothing simulated, nothing analysed. */
-function showDesign(design, warnings = []) {
+/**
+ * Make a new set of runs the campaign: no results yet, nothing simulated, nothing analysed. It is
+ * saved in this browser as a campaign of its own, unless it follows a design made on this page
+ * that holds no result the reader typed in: trying one design after another while simulating
+ * keeps one entry in Your designs, not one per try. A design opened from the list or from a
+ * link is never replaced. The worked example passes ``save: false``.
+ */
+function showDesign(design, warnings = [], { save = true } = {}) {
+  const replaces = state.campaign?.replaceable && !state.sources.includes("entered");
+  state.campaign = save ? { ...(replaces ? state.campaign : newCampaign()), title: titleOf(design.spec) } : null;
   state.design = design;
+  $("#share-out").hidden = true;
   state.responses = design.rows.map(() => null);
   state.sources = design.rows.map(() => null);
   state.simulation = null;
@@ -290,6 +314,7 @@ function showDesign(design, warnings = []) {
   clearAnalysis();
   if (design.spec.options) showPython("design", designCode(design.spec));
   $("#py-run").hidden = true;
+  scheduleSave();
 }
 
 function renderDesign(warnings = []) {
@@ -360,6 +385,7 @@ function renderRuns() {
     renderTruth();
     showPython("run", enteredCode(state.responses));
     scheduleAnalysis();
+    scheduleSave();
   };
   describeSource();
 }
@@ -413,6 +439,7 @@ async function simulateResults() {
   renderRuns();
   renderTruth();
   showPython("run", simulateCode(reply.result, state.design.spec));
+  scheduleSave();
   await analyseRuns();
 }
 
@@ -438,13 +465,38 @@ async function downloadWorkbook() {
   }
   const bytes = Uint8Array.from(atob(reply.result.xlsx_base64), (c) => c.charCodeAt(0));
   const blob = new Blob([bytes], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+  download(blob, `${state.design.spec.design_type}-${state.responses.length}-runs.xlsx`);
+}
+
+/** Hand the reader a file, as a download. */
+function download(blob, name) {
   const link = document.createElement("a");
   link.href = URL.createObjectURL(blob);
-  link.download = `${state.design.spec.design_type}-${state.responses.length}-runs.xlsx`;
+  link.download = name;
   document.body.append(link);
   link.click();
   link.remove();
   setTimeout(() => URL.revokeObjectURL(link.href), 10_000);
+}
+
+/**
+ * Download the campaign as a Jupyter notebook: the code each step's "Show the Python" panel
+ * shows, in order, so it runs to the page's design, results and analysis.
+ */
+function downloadNotebook() {
+  if (!state.design) return;
+  const book = notebook({
+    title: state.campaign?.title ?? titleOf(state.design.spec),
+    spec: state.design.spec,
+    responses: state.responses,
+    sources: state.sources,
+    simulation: state.simulation,
+    model: state.analysis ? (state.analysis.formula ?? state.analysis.model) : null,
+    version: state.version,
+    url: `${location.origin}${location.pathname}`,
+  });
+  const blob = new Blob([`${JSON.stringify(book, null, 1)}\n`], { type: "application/x-ipynb+json" });
+  download(blob, `${state.design.spec.design_type}-${state.responses.length}-runs.ipynb`);
 }
 
 async function readUpload(file) {
@@ -459,17 +511,20 @@ async function readUpload(file) {
   }
   const r = reply.result;
   $("#demo-banner").hidden = true;
+  $("#campaign-banner").hidden = true;
   setForm(r.spec);
   state.design = { spec: r.spec, columns: r.columns, rows: r.rows, model: r.spec.model, facts: null };
   state.responses = r.responses;
   state.sources = r.sources;
   state.simulation = null;
+  state.campaign = { ...newCampaign(false), title: `${titleOf(r.spec)}, from ${file.name}`.slice(0, 200) };
   setModel(r.spec.analysis_model ?? $("#model").value);
   renderDesign(reply.warnings);
   renderRuns();
   renderTruth();
   showPython("design", designCode(r.spec));
   showPython("run", enteredCode(state.responses));
+  scheduleSave();
   await analyseRuns();
 }
 
@@ -718,7 +773,7 @@ async function showBuiltExample() {
   $("#scenario").value = example.inputs.scenario;
   $("#sigma").value = example.inputs.sigma;
   showScenarioHint();
-  showDesign(example.design);
+  showDesign(example.design, [], { save: false });
   state.simulation = example.simulation;
   state.responses = [...example.simulation.responses];
   state.sources = state.responses.map(() => "simulated");
@@ -959,6 +1014,219 @@ async function drawComparison(result, k) {
   }
 }
 
+// ---------------------------------------------------------------- saved designs and links
+/**
+ * A new campaign's record in this browser: an id of its own, when it began, and whether the next
+ * design made on the page may take its place (see showDesign).
+ */
+function newCampaign(replaceable = true) {
+  const id = globalThis.crypto?.randomUUID?.() ?? `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
+  return { id, created: Date.now(), replaceable };
+}
+
+/** A design's name in the list of saved designs: its type as step 1 names it, and its factors. */
+function titleOf(spec) {
+  const option = [...$("#design-type").options].find((o) => o.value === spec.design_type);
+  return campaignTitle(option ? option.textContent.trim() : spec.design_type, spec.factors.map((f) => f.name));
+}
+
+/** The campaign on the page, as campaign.js describes one. */
+function currentCampaign() {
+  const { spec, columns, rows, model, facts, outside_range: outside } = state.design;
+  return {
+    v: CAMPAIGN_VERSION,
+    title: state.campaign?.title ?? titleOf(spec),
+    design: { spec, columns, rows, model, n_runs: rows.length, facts: facts ?? null, outside_range: outside ?? [] },
+    responses: state.responses,
+    sources: state.sources,
+    simulation: state.simulation,
+    simulate: { scenario: $("#scenario").value, sigma: Number($("#sigma").value), seed },
+    model: modelChoice(),
+  };
+}
+
+let saveTimer = null;
+
+/** Save the campaign on the page in this browser, a moment after its last change. The worked example is not saved. */
+function scheduleSave() {
+  if (!state.campaign || !state.design) return;
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(saveNow, 300);
+}
+
+async function saveNow() {
+  if (!state.campaign || !state.design) return;
+  const { id, created } = state.campaign;
+  await saveCampaign({ ...currentCampaign(), id, created, updated: Date.now() });
+  await refreshLibrary();
+}
+
+/** List the designs saved in this browser, each to open or delete; the one on the page is marked. */
+async function refreshLibrary() {
+  const saved = await savedCampaigns();
+  $("#library").hidden = saved.length === 0;
+  $("#library-count").textContent = String(saved.length);
+  $("#library-list").replaceChildren(...saved.map(libraryItem));
+}
+
+function libraryItem(record) {
+  const item = el("li", "", "");
+  const here = record.id === state.campaign?.id;
+  const title = record.title || "A saved design";
+  const open = el("button", "link", title);
+  open.type = "button";
+  open.disabled = here;
+  open.onclick = () => openSaved(record);
+  const about = el("span", "hint", `${progress(record.responses ?? [])}, saved ${timeAgo(record.updated)}`);
+  item.append(open, about);
+  if (here) {
+    item.append(el("span", "hint", "on the page now"));
+    return item;
+  }
+  const forget = el("button", "link", "Delete");
+  forget.type = "button";
+  forget.setAttribute("aria-label", `Delete ${title}`);
+  forget.onclick = async () => {
+    await forgetCampaign(record.id);
+    const undo = el("button", "link", "Undo");
+    undo.type = "button";
+    undo.onclick = async () => {
+      await saveCampaign(record);
+      await refreshLibrary();
+    };
+    item.replaceChildren(el("span", "hint", `Deleted ${title}.`), undo);
+    const left = (await savedCampaigns()).length;
+    $("#library-count").textContent = String(left);
+  };
+  item.append(forget);
+  return item;
+}
+
+async function openSaved(record) {
+  let campaign;
+  try {
+    campaign = checkCampaign(record);
+  } catch (err) {
+    setStatus(err.message, "error");
+    return;
+  }
+  await openCampaign(campaign, { id: record.id, created: record.created }, `Opened ${campaign.title}.`);
+}
+
+/** Say what was opened, or why a link could not be. */
+function showBanner(text, error = false) {
+  const banner = $("#campaign-banner");
+  banner.textContent = text;
+  banner.classList.toggle("error", error);
+  banner.hidden = false;
+}
+
+/**
+ * Put a saved or shared campaign on the page as it was left: the form, the runs, their results,
+ * the process they were simulated from and the model. The analysis follows once Python has started.
+ */
+async function openCampaign(c, record, message) {
+  $("#demo-banner").hidden = true;
+  setForm(c.design.spec);
+  state.campaign = { ...record, title: c.title || titleOf(c.design.spec) };
+  state.design = { ...c.design };
+  state.responses = [...c.responses];
+  state.sources = [...c.sources];
+  state.simulation = c.simulation;
+  state.analysis = null;
+  const { scenario, sigma, seed: kept } = c.simulate;
+  if (scenario && [...$("#scenario").options].some((o) => o.value === scenario)) $("#scenario").value = scenario;
+  if (sigma) $("#sigma").value = sigma;
+  if (kept !== null) seed = kept;
+  showScenarioHint();
+  setModel(c.model);
+  renderDesign();
+  renderRuns();
+  renderTruth();
+  clearAnalysis();
+  $("#share-out").hidden = true;
+  if (c.design.spec.options) showPython("design", designCode(c.design.spec));
+  const done = state.responses.some((v) => v !== null);
+  if (done && state.simulation && state.sources.every((source) => source === "simulated")) {
+    showPython("run", simulateCode(state.simulation, c.design.spec));
+  } else if (done) {
+    showPython("run", enteredCode(state.responses));
+  } else {
+    $("#py-run").hidden = true;
+  }
+  showBanner(message);
+  scheduleSave(); // the design opened most recently is the one a later visit picks up
+  if (!done) return;
+  const mine = state.campaign.id;
+  await whenReady.then(
+    () => (state.campaign?.id === mine ? analyseRuns() : null),
+    () => {},
+  );
+}
+
+/** Resolve to the designs saved in this browser, or to none if the browser has not answered in a moment. */
+const savedSoon = () => Promise.race([savedCampaigns(), new Promise((resolve) => setTimeout(() => resolve([]), 2000))]);
+
+/**
+ * Open what the address asks for: a link's design, which is saved here as a campaign of its own;
+ * else the design worked on last in this browser; else the worked example. The address loses
+ * its fragment, so a reload opens the saved copy rather than the link again.
+ */
+async function start() {
+  if (location.hash.startsWith(LINK_KEY)) {
+    const packed = location.hash.slice(LINK_KEY.length);
+    history.replaceState(null, "", `${location.pathname}${location.search}`);
+    try {
+      const c = await unpackCampaign(packed);
+      const title = c.title || titleOf(c.design.spec);
+      await openCampaign(c, newCampaign(false), `Opened from a link: ${title}. It is saved in this browser now, under Your designs.`);
+      return;
+    } catch (err) {
+      showBanner(`${err.message} Here is the worked example instead.`, true);
+    }
+  } else {
+    const [last] = await savedSoon();
+    if (last) {
+      try {
+        const c = checkCampaign(last);
+        await openCampaign(
+          c,
+          { id: last.id, created: last.created },
+          `Picked up where you left off: ${c.title}, saved ${timeAgo(last.updated)}. Your other designs are ` +
+            "listed under Your designs, and Run the worked example starts afresh.",
+        );
+        return;
+      } catch {
+        /* a design this page cannot read: show the worked example */
+      }
+    }
+  }
+  await refreshLibrary();
+  await showBuiltExample();
+}
+
+/** Copy a link that carries the design on the page, and its results when asked, after the address's "#". */
+async function shareLink() {
+  if (!state.design) return;
+  const withResults = $("#share-results").checked;
+  const packed = await packCampaign(shareable(currentCampaign(), withResults));
+  const url = `${location.origin}${location.pathname}${LINK_KEY}${packed}`;
+  $("#share-url").value = url;
+  let copied = true;
+  try {
+    await navigator.clipboard.writeText(url);
+  } catch {
+    copied = false; // the browser refused the clipboard: the link is in the box, selected
+  }
+  $("#share-note").textContent =
+    `${copied ? "Copied." : "Copy the link from the box."} Whoever opens it gets ` +
+    `${withResults ? "this design and its results" : "this design, without its results"}, saved in their own ` +
+    `browser. Everything is in the link itself, ${url.length} characters long; nothing is stored on a server.` +
+    (url.length > 8000 ? " Some chat apps cut links this long: the workbook is the surer way to send it." : "");
+  $("#share-out").hidden = false;
+  $("#share-url").select();
+}
+
 // ---------------------------------------------------------------- show the Python
 function showPython(key, code) {
   const panel = $(`#py-${key}`);
@@ -1087,13 +1355,19 @@ $("#sigma").onchange = () => {
 $("#tab-simulate").onclick = () => selectTab("simulate");
 $("#tab-real").onclick = () => selectTab("real");
 $("#download").onclick = downloadWorkbook;
+$("#notebook").onclick = downloadNotebook;
+$("#share").onclick = shareLink;
 $("#model").onchange = () => {
   if ($("#model").value === CHOSEN_TERMS && state.design) startTermList();
   else modelBefore = $("#model").value;
   $("#terms").hidden = $("#model").value !== CHOSEN_TERMS || !state.design;
   analyseRuns();
+  scheduleSave();
 };
-$("#term-list").onchange = scheduleAnalysis; // a moment after the last tick, as for typed results
+$("#term-list").onchange = () => {
+  scheduleAnalysis(); // a moment after the last tick, as for typed results
+  scheduleSave();
+};
 $("#compare").onclick = compareDesigns;
 for (const button of document.querySelectorAll("details.python .copy")) {
   button.onclick = async () => {
@@ -1129,7 +1403,7 @@ drop.ondrop = (e) => {
 showScenarioHint();
 refreshDesign();
 readManifest();
-showBuiltExample();
+start();
 
 call("api_catalogue").then((reply) => {
   if (!reply.ok) {
@@ -1137,6 +1411,7 @@ call("api_catalogue").then((reply) => {
     return;
   }
   catalogue = reply.result;
+  state.version = catalogue.version ?? null;
   pythonReady = true;
   for (const id of ["#upload", "#simulate", "#reroll", "#compare"]) $(id).disabled = false;
   refreshDesign();
