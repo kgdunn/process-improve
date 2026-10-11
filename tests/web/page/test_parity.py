@@ -125,37 +125,36 @@ def test_the_form_opens_on_the_worked_example(api, bootstrap):
     assert int(ids["n_center_points"]["value"]) == made["spec"]["options"]["n_center_points"], "bootstrap's default"
 
 
-# --------------------------------------------------------------------------- rules app.js repeats
-def test_the_page_gives_an_optimal_design_bootstrap_s_spare_runs(bootstrap):
-    assert int(re.search(r"const SPARE_RUNS = (\d+);", source("app.js")).group(1)) == bootstrap.SPARE_RUNS
+# --------------------------------------------------------------------------- rules web/logic.js repeats
+def test_the_page_gives_an_optimal_design_bootstrap_s_spare_runs(bootstrap, node):
+    assert javascript(node, source("logic.js"), [("SPARE_RUNS", [])]) == [bootstrap.SPARE_RUNS]
 
 
 def test_the_page_counts_a_model_s_coefficients_as_bootstrap_does(bootstrap, node):
-    """app.js sets an optimal design's runs from its own count of the model's coefficients."""
-    function = re.search(r"^function nTerms\(k, model\) \{.*?^\}", source("app.js"), re.DOTALL | re.MULTILINE).group(0)
+    """The page sets an optimal design's runs from its own count of the model's coefficients."""
     cases = [(k, model) for k in range(2, 13) for model in bootstrap.MODELS]
-    counted = javascript(node, f"export {function}", [("nTerms", [k, model]) for k, model in cases])
+    counted = javascript(node, source("logic.js"), [("nTerms", [k, model]) for k, model in cases])
     assert counted == [bootstrap._n_terms(k, model) for k, model in cases]
 
 
-def test_the_page_opens_a_fraction_at_bootstrap_s_resolution(bootstrap):
-    """app.js picks the resolution for the factor count until the reader chooses one; bootstrap picks the same."""
-    low, high = map(int, re.search(r"Math\.max\((\d), Math\.min\((\d), k\)\)", source("app.js")).groups())
-    for k in range(3, 12):
-        assert max(low, min(high, k)) == bootstrap._resolution({}, k), k
+def test_the_page_opens_a_fraction_at_bootstrap_s_resolution(bootstrap, node):
+    """The page picks the resolution for the factor count until the reader chooses one; bootstrap picks the same."""
+    counts = list(range(3, 12))
+    picked = javascript(node, source("logic.js"), [("defaultResolution", [k]) for k in counts])
+    assert picked == [bootstrap._resolution({}, k) for k in counts]
 
 
-def test_the_page_asks_for_a_center_run_where_bootstrap_needs_one(bootstrap):
+def test_the_page_asks_for_a_center_run_where_bootstrap_needs_one(bootstrap, node):
     """Box-Behnken designs and rotatable CCDs need a center run; a DSD counts its own, so the page asks for one too."""
-    rule = re.search(
-        r"const needsCentre =\s*\[(.*?)\]\.includes\(option\.value\) \|\| "
-        r'\(option\.value === "(\w+)" && \$\("#alpha"\)\.value === "(\w+)"\)',
-        source("app.js"),
-    )
-    always = set(re.findall(r'"(\w+)"', rule.group(1)))
-    needs = bootstrap.NEEDS_CENTER_RUN
-    assert always == {design for design, alpha in needs.items() if alpha is None} | {"dsd"}
-    assert {(rule.group(2), rule.group(3))} == {(design, alpha) for design, alpha in needs.items() if alpha}
+    cases = [(design, alpha) for design in bootstrap.DESIGNS for alpha in bootstrap.ALPHAS]
+    asked = javascript(node, source("logic.js"), [("needsCentre", [design, alpha]) for design, alpha in cases])
+
+    def needed(design: str, alpha: str) -> bool:
+        if design == "dsd":
+            return True
+        return design in bootstrap.NEEDS_CENTER_RUN and bootstrap.NEEDS_CENTER_RUN[design] in (None, alpha)
+
+    assert asked == [needed(design, alpha) for design, alpha in cases]
 
 
 # --------------------------------------------------------------------------- the page's own elements

@@ -7,6 +7,23 @@
 // paint, the live run and an uploaded workbook all show the same way.
 
 import { coefficientFigure, correlationFigure, draw, fdsFigure, prettyTerm, shareContourScale } from "./charts.js";
+import {
+  CAPTIONS,
+  SPARE_RUNS,
+  TITLES,
+  compareCells,
+  defaultResolution,
+  escape,
+  fitStatistics,
+  fmt,
+  formMatches,
+  isBlank,
+  listNames,
+  nTerms,
+  needsCentre,
+  numberOrNull,
+  pval,
+} from "./logic.js";
 import { analyseCode, compareCode, designCode, enteredCode, simulateCode } from "./python.js";
 
 // Where Process Improvement using Data explains each design, method and measure the page uses.
@@ -105,11 +122,10 @@ const factorCount = () => document.querySelectorAll("#factors tbody tr").length;
 
 function readFactors() {
   // A blank box is sent as null, which Python reports, rather than as Number("") = 0.
-  const number = (input) => (input.value.trim() === "" ? null : Number(input.value));
   return [...document.querySelectorAll("#factors tbody tr")].map((tr) => ({
     name: tr.querySelector("[name=name]").value.trim(),
-    low: number(tr.querySelector("[name=low]")),
-    high: number(tr.querySelector("[name=high]")),
+    low: numberOrNull(tr.querySelector("[name=low]").value),
+    high: numberOrNull(tr.querySelector("[name=high]").value),
     units: tr.querySelector("[name=units]").value.trim(),
   }));
 }
@@ -134,15 +150,6 @@ function setForm(spec) {
 let budgetEdited = false;
 let resolutionEdited = false;
 
-/** Spare runs an optimal design gets beyond its model's coefficients; mirrors bootstrap.SPARE_RUNS. */
-const SPARE_RUNS = 4;
-
-/** Count the coefficients, intercept included, of each named model in k factors. */
-function nTerms(k, model) {
-  const pairs = (k * (k - 1)) / 2;
-  return 1 + k + (model === "main_effects" ? 0 : pairs) + (model === "quadratic" ? k : 0);
-}
-
 /**
  * Bring the design settings in line with the factors: designs the factor count rules
  * out are disabled (and the hint says why if one is selected), a fraction's resolution
@@ -162,14 +169,13 @@ function refreshDesign() {
   // Resolution IV unless the reader chose another; three factors allow only III.
   const resolution = $("#resolution");
   for (const choice of resolution.options) choice.disabled = Number(choice.value) > k;
-  if (!resolutionEdited || resolution.selectedOptions[0].disabled) resolution.value = String(Math.max(3, Math.min(4, k)));
+  if (!resolutionEdited || resolution.selectedOptions[0].disabled) resolution.value = String(defaultResolution(k));
 
   // A Box-Behnken design or a rotatable CCD needs a center run to fit the squares; a DSD has one built in.
   const centre = $("#n_center_points");
-  const needsCentre =
-    ["box_behnken", "dsd"].includes(option.value) || (option.value === "ccd" && $("#alpha").value === "rotatable");
-  centre.min = needsCentre ? 1 : 0;
-  if (needsCentre && Number(centre.value) < 1) centre.value = 1;
+  const centreNeeded = needsCentre(option.value, $("#alpha").value);
+  centre.min = centreNeeded ? 1 : 0;
+  if (centreNeeded && Number(centre.value) < 1) centre.value = 1;
 
   const p = nTerms(k, $("#model_type").value);
   if (!budgetEdited) $("#budget").value = p + SPARE_RUNS;
@@ -256,16 +262,7 @@ function renderDesign(warnings = []) {
 
 /** Whether the factor table and response name still describe the design the page holds. */
 function formMatchesDesign() {
-  const spec = state.design?.spec;
-  if (!spec?.factors) return true;
-  const factors = readFactors();
-  const same = (f, g) =>
-    f.name === g.name && f.low === Number(g.low) && f.high === Number(g.high) && f.units === (g.units ?? "");
-  return (
-    $("#response").value.trim() === spec.response &&
-    factors.length === spec.factors.length &&
-    factors.every((f, i) => same(f, spec.factors[i]))
-  );
+  return formMatches(readFactors(), $("#response").value.trim(), state.design?.spec);
 }
 
 /** Say when the factors have been edited since the design was generated, until it is generated again. */
@@ -337,10 +334,6 @@ function renderTruth() {
     ? `${listNames(quiet)} ${quiet.length === 1 ? "does" : "do"} not affect ${state.design.spec.response} in this process.`
     : "";
 }
-
-/** Join names as a sentence does: "A", "A and B", "A, B and C". */
-const listNames = (names) =>
-  names.length > 1 ? `${names.slice(0, -1).join(", ")} and ${names.at(-1)}` : names.join("");
 
 async function simulateResults() {
   if (!state.design) return;
@@ -539,30 +532,6 @@ function renderAnalysis(reply) {
 }
 
 // ---------------------------------------------------------------- charts
-const CAPTIONS = {
-  coefficients: (simulated) =>
-    "Each dot is an estimate with its 95% interval; an interval that crosses zero is a term the data cannot tell " +
-    "apart from no effect." +
-    (simulated ? " A diamond marks the true value, so you can see what the analysis recovered and what it missed." : ""),
-  contour: (pair) =>
-    `The fitted model over ${pair.join(" and ")}, the two factors with the largest main effects, with any other ` +
-    "factor at the center of its range; the dots are the runs, in coded units.",
-  true_contour: (pair) => `The process the results were simulated from, over ${pair.join(" and ")}, on the same scale.`,
-  residuals:
-    "What the model leaves unexplained in each run, against its fitted value. A curve or a funnel points to a " +
-    "missing term or a changing noise level.",
-  half_normal:
-    "With no degrees of freedom left to estimate the error, the effects are judged against each other: effects " +
-    "far above the line, past Lenth's margin of error, are likely real.",
-};
-const TITLES = {
-  coefficients: "Coefficients",
-  contour: "Fitted response surface",
-  true_contour: "True response surface",
-  residuals: "Residuals against fitted values",
-  half_normal: "Half-normal plot of the effects",
-};
-
 function chartCard(key, caption, wide = false) {
   const card = el("figure", wide ? "chart wide" : "chart", "");
   const plot = el("div", "plot", "");
@@ -874,25 +843,6 @@ async function readManifest() {
 }
 
 // ---------------------------------------------------------------- rendering helpers
-const fmt = (x) => (x === null || x === undefined ? "" : Number(x).toPrecision(4));
-
-/** The fit statistics as a sentence: one the fit cannot give is left out, and a missing predicted R² is explained. */
-function fitStatistics(s) {
-  const known = (x) => x !== null && x !== undefined;
-  const stats = [
-    ["R²", s.r_squared],
-    ["adjusted R²", s.r_squared_adj],
-    ["predicted R²", s.r_squared_pred],
-  ];
-  const given = stats.filter(([, x]) => known(x)).map(([name, x]) => `${name} = ${fmt(x)}`);
-  const text = `${[...given, `residual degrees of freedom = ${s.df_residual}`].join(", ")}.`;
-  // A run with leverage 1 is fitted exactly whatever its result, so the fit without it cannot predict it.
-  return known(s.r_squared_pred)
-    ? text
-    : `${text} Predicted R² cannot be computed: at least one run cannot be predicted from the others.`;
-}
-const pval = (p) => (p === null || p === undefined ? "" : p < 0.0001 ? "< 0.0001" : Number(p).toFixed(4));
-
 /** A list of sentences about a result (what the design is, what it could not estimate), or nothing. */
 function noteList(notes, cls = "facts") {
   if (!notes || !notes.length) return [];
@@ -964,24 +914,6 @@ function fillBody(t, rows) {
   };
   t.tBodies[0].innerHTML = rows.map((row) => `<tr>${row.map((v, c) => `<td>${cell(row, v, c)}</td>`).join("")}</tr>`).join("");
 }
-
-/** Blank cells (an unfilled response) sort last in either direction. */
-const isBlank = (v) => v === null || v === undefined || v === "";
-
-/**
- * Order two non-blank cells: numbers numerically, including text that leads
- * with one ("< 0.0001", "4.623 to 5.300"), then everything else alphabetically.
- */
-function compareCells(a, b) {
-  const na = sortNumber(a);
-  const nb = sortNumber(b);
-  if (!Number.isNaN(na) && !Number.isNaN(nb)) return na - nb;
-  return String(a).localeCompare(String(b), undefined, { numeric: true });
-}
-
-const sortNumber = (v) => (typeof v === "number" ? v : parseFloat(String(v).replace(/^[<>≤≥]\s*/, "")));
-
-const escape = (v) => String(v).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
 
 // ---------------------------------------------------------------- wiring
 DEFAULT_FACTORS.forEach(addFactor);
