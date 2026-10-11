@@ -75,7 +75,7 @@ def _compare_maps(before: dict[str, float], after: dict[str, float]) -> float:
     return largest
 
 
-def _refuse_missing_labels(data: pd.DataFrame, columns: dict[str, str]) -> None:
+def _refuse_missing_labels(data: pd.DataFrame, columns: dict[str, Any]) -> None:
     """Raise ``ValueError`` when a row has no panelist, product or attribute label.
 
     ``columns`` maps each role to the column that carries it. Such a row cannot be
