@@ -23,6 +23,7 @@ Notes:
   intervals of `PLS.prediction_interval`). The card is uploaded by hand under Settings, General,
   Social preview: GitHub has no API for it.
 - `app_demo.js` drives the live app at <https://kgdunn.github.io/process-improve/app/> with
-  Playwright: it generates a definitive screening design, downloads the run sheet, fills it in
-  with `fill_workbook.py`, and uploads it for the analysis. `PYTHON` names the interpreter for
-  that step, and `PLAYWRIGHT_PROXY`, if set, routes the browser through a proxy.
+  Playwright, or the build `APP_URL` names: it runs the worked example (a Box-Behnken design,
+  results simulated from a known process, the analysis beside the truth) and then the comparison of
+  every design for the same factors, capturing one frame per step. `PLAYWRIGHT_PROXY`, if set,
+  routes the browser through a proxy.

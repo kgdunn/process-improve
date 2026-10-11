@@ -113,6 +113,38 @@ those changes.
 
 ### Changed
 
+- **The browser app compares the designs for the reader's own factors, shows the Python
+  behind each step, and links to the book.** Step 4 generates every design the factor
+  count allows, at the size step 1 would give it, and scores them with
+  `compare_designs` on the nine measures for the model the reader picks.
+  - The model is main effects and quadratics by default, the book's model for these
+    measures.
+  - Each measure links to its definition in the book and carries an arrow for its
+    preferred direction.
+  - FDS curves of every design share one chart, and each design has its correlation map.
+  - No design is named best, and any of them can be loaded into step 1.
+
+  Each step has "Show the Python", the process-improve code that does what the step did,
+  checked by a test that runs it and compares the results with the page's. Each design
+  links to the book's section on it.
+
+- **The browser app takes a reader from a design to an analysis with charts, without
+  leaving the page.**
+  - Step 2 holds the run sheet. Results are typed into it, or simulated from a process
+    whose true model is known: reactor yield, main effects only, an interaction, a
+    maximum inside the ranges, nothing active, or a random process. A noise level and
+    "New noise" give another draw, and the true process is behind a reveal. The workbook
+    download and upload still work, and simulated values are marked in the workbook.
+  - Step 3 analyses the runs as soon as they change. Each coefficient is shown with its
+    95% interval and, when the results were simulated, with the true value of what it
+    estimates: the term's own coefficient, or the sum over an alias chain. The charts are
+    the library's own plots, drawn with Plotly: the fitted response surface beside the
+    true one, residuals against fitted values, and Lenth's half-normal plot for a
+    saturated two-level design. plotly is installed on the first chart.
+  - "Run the worked example" generates a Box-Behnken design, simulates it and analyses
+    it, live. The same example, computed through the same entry points when the page is
+    built, is drawn at first paint, so a reader sees a complete analysis while Python
+    loads.
 - **PLS and multiblock fits on complete data are faster, with identical results.** So is
   `PCA(algorithm="nipals")`; the default PCA already uses an SVD on complete data.
   The NIPALS regression step handled missing cells one row or column at a time in
@@ -272,6 +304,14 @@ those changes.
 
 ### Fixed
 
+- **Plots drawn after plotly is installed into a running process use the library's
+  theme.** The themes were registered only when `process_improve.visualization` was
+  imported with plotly already installed, and bound plotly at that import. In a browser
+  under Pyodide, plotly is installed when the first chart is drawn, after the package
+  has been imported, so every figure named a template plotly did not know and failed.
+  `register_themes()` now imports plotly when it runs, and the Plotly adapter registers
+  the themes before drawing if plotly does not have them.
+
 - **The browser app's run sheet lists the runs in their randomised order.** It sorted them
   back into standard order: a 2^3 factorial's eight corners came first, last factor
   fastest, and its three centre runs last, under a "Run order" of 1 to 11.
@@ -319,6 +359,9 @@ those changes.
     saturated fit says that nothing can be tested.
   - The library's warnings, such as an even-k DSD leaving no error degrees of freedom,
     are shown with the result; numerical noise from numpy and statsmodels is not.
+
+- **The browser app refuses a factor whose low or high value is blank.** A blank box was
+  read as 0, so the design was generated over a range the reader had not entered.
 
 - **The Pareto and half-normal plots draw Lenth's margins at the level the analysis
   used, and recompute them with the analysis's formula.** They looked for that level under

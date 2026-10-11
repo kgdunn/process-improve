@@ -150,3 +150,82 @@ th[aria-sort="descending"] button.sort::after { content: " ▼"; color: var(--ac
 .drop input { display: block; margin: 0 auto 8px; }
 .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
 footer { color: var(--muted); font-size: 0.88rem; }
+
+/* The worked example: a button in the header, and a banner while the first paint is the
+   copy computed when the page was built. */
+.hero { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; margin: 4px 0 0; }
+.hero .hint { flex: 1 1 260px; }
+.banner {
+  margin: 16px 0 0; padding: 10px 14px; border-radius: 8px; font-size: 0.92rem;
+  background: var(--panel); border: 1px dashed var(--accent);
+}
+
+/* The steps, kept in reach while the page scrolls. */
+.stepper {
+  position: sticky; top: 0; z-index: 2; display: flex; gap: 6px 18px; flex-wrap: wrap;
+  margin: 16px -16px 0; padding: 8px 16px; background: var(--bg); border-bottom: 1px solid var(--line);
+  /* The bar and its rule span the window, so the wider step 4 scrolls under the bar rather than beside it.
+     A border image drawn outside the box does not widen the page. */
+  border-image: linear-gradient(to top, var(--line) 1px, var(--bg) 1px) fill 0 / 0 / 0 100vmax;
+}
+.stepper a { display: inline-flex; align-items: center; gap: 6px; color: var(--fg); text-decoration: none; font-size: 0.95rem; }
+.stepper .step { width: 22px; height: 22px; font-size: 0.8rem; }
+section { scroll-margin-top: 56px; }
+
+/* Where the results come from: simulated, or entered. */
+.tabs { display: flex; gap: 0; margin: 12px 0; border-bottom: 1px solid var(--line); }
+.tabs [role="tab"] {
+  border: none; border-bottom: 3px solid transparent; border-radius: 0; background: none;
+  padding: 8px 14px; color: var(--muted);
+}
+.tabs [role="tab"][aria-selected="true"] { color: var(--fg); border-bottom-color: var(--accent); font-weight: 600; }
+.actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 8px 0; }
+details { margin: 10px 0; }
+details summary { cursor: pointer; color: var(--accent); }
+
+/* The run sheet's results are typed in place; a simulated value is in italics until it is edited. */
+table.runs input {
+  width: 6.5em; padding: 2px 6px; text-align: right; font: inherit; font-variant-numeric: tabular-nums;
+}
+table.runs input.sim { font-style: italic; color: var(--muted); }
+
+/* The charts: one wide card for the coefficients, then two to a row where there is room. */
+.charts { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 16px; margin: 16px 0 0; }
+.chart { margin: 0; min-width: 0; border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px 12px; }
+.chart.wide { grid-column: 1 / -1; }
+.chart h3 { margin: 0 0 6px; font-size: 0.98rem; }
+.chart figcaption { margin-top: 6px; }
+.plot { width: 100%; min-height: 220px; }
+@media (max-width: 480px) {
+  .charts { grid-template-columns: 1fr; }
+  .stepper { gap: 6px 12px; }
+}
+
+/* The comparison: measures grouped as the book groups them, the preferred direction as an arrow. */
+table.compare td:nth-child(2) { text-align: center; color: var(--muted); }
+table.compare th { vertical-align: bottom; padding: 4px 10px; font-weight: 600; text-align: right; }
+table.compare th .link { font-weight: 400; font-size: 0.82rem; padding: 2px 0; }
+table.compare tr.group td {
+  text-align: left; font-weight: 600; color: var(--muted); font-size: 0.8rem; text-transform: uppercase;
+  letter-spacing: 0.04em; padding-top: 10px;
+}
+table.compare td { white-space: nowrap; }
+/* The measure names wrap, and they and the group labels stay in view while the designs scroll past. */
+table.compare td:first-child { white-space: normal; min-width: 9rem; }
+table.compare th:first-child, table.compare tr:not(.group) td:first-child {
+  position: sticky; left: 0; z-index: 1; background: var(--panel);
+}
+table.compare tr.group span { position: sticky; left: 10px; display: inline-block; }
+/* Step 4 has a column per design: on a wide screen it takes the room its table needs. */
+@media (min-width: 1000px) {
+  #step-compare { --wide: min(1200px, 100vw - 64px); width: var(--wide); margin-left: calc((100% - var(--wide)) / 2); }
+}
+.charts > .hint.wide { grid-column: 1 / -1; margin: 0; }
+
+/* Show the Python: the code a step's results came from, ready to copy. */
+details.python { margin: 16px 0 0; border-top: 1px solid var(--line); padding-top: 8px; }
+details.python pre {
+  overflow-x: auto; margin: 8px 0; padding: 10px 12px; border-radius: 6px; font-size: 0.85rem;
+  background: var(--bg); border: 1px solid var(--line);
+}
+details.python code { font-family: ui-monospace, "SFMono-Regular", Menlo, monospace; }

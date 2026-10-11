@@ -34,7 +34,8 @@ from typing import TYPE_CHECKING, Any
 import numpy as np
 import pandas as pd
 
-from process_improve.experiments import Factor, analyze_experiment, generate_design
+from process_improve.experiments import Factor, TrueProcess, analyze_experiment, compare_designs, generate_design
+from process_improve.experiments.compare import MODELS as COMPARISON_MODELS
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Iterator
@@ -170,6 +171,71 @@ MODELS = ("main_effects", "interactions", "quadratic")
 
 ALPHAS = ("face_centered", "rotatable", "orthogonal")
 
+#: Processes the page can simulate results from, in coded units. A term is a tuple of
+#: factor positions: ``()`` the intercept, ``(0,)`` the first factor the reader
+#: entered, ``(0, 1)`` the interaction of the first two, ``(2, 2)`` the square of the
+#: third. A term naming a factor the reader does not have is left out, and a factor
+#: no term names has no effect. ``None`` draws the process at random from the seed.
+SCENARIOS: dict[str, dict[str, Any]] = {
+    "reactor": {
+        "label": "Reactor yield",
+        "hint": "Two strong main effects, an interaction between them, and curvature in the third factor.",
+        "terms": {(): 62.0, (0,): 4.0, (1,): -3.1, (2,): 1.75, (0, 1): 1.5, (2, 2): -2.25},
+        "sigma": 1.0,
+    },
+    "main_effects": {
+        "label": "Main effects only",
+        "hint": "Each of the first three factors changes the response on its own, along a straight line.",
+        "terms": {(): 50.0, (0,): 3.0, (1,): -2.0, (2,): 1.5},
+        "sigma": 1.0,
+    },
+    "interaction": {
+        "label": "An interaction",
+        "hint": "The effect of the first factor depends on the level of the second.",
+        "terms": {(): 40.0, (0,): 1.0, (1,): 0.5, (0, 1): 3.0},
+        "sigma": 1.0,
+    },
+    "optimum": {
+        "label": "A maximum inside the ranges",
+        "hint": "A curved surface in the first two factors, highest at a point inside their ranges.",
+        "terms": {(): 80.0, (0,): 1.2, (1,): -0.8, (0, 1): 1.0, (0, 0): -3.0, (1, 1): -2.5},
+        "sigma": 1.0,
+    },
+    "nothing": {
+        "label": "Nothing active",
+        "hint": "No factor changes the response: whatever the analysis finds is noise.",
+        "terms": {(): 50.0},
+        "sigma": 1.0,
+    },
+    "random": {
+        "label": "A random process",
+        "hint": (
+            "Two or three active factors drawn at random, with an interaction or curvature; "
+            "new noise draws a new process."
+        ),
+        "terms": None,
+        "sigma": 1.0,
+    },
+}
+
+#: The worked example the page opens with, and that "Run the worked example" runs live.
+DEMO: dict[str, Any] = {
+    "design": {
+        "design_type": "box_behnken",
+        "factors": [
+            {"name": "T", "low": 150, "high": 200, "units": "degC"},
+            {"name": "P", "low": 1, "high": 3, "units": "bar"},
+            {"name": "F", "low": 10, "high": 20, "units": "L/min"},
+        ],
+        "response": "y",
+        "n_center_points": 3,
+    },
+    "scenario": "reactor",
+    "sigma": 1.0,
+    "seed": 1,
+    "model": "",
+}
+
 
 # --------------------------------------------------------------------------- helpers
 def _clean(value: object) -> object:
@@ -258,6 +324,15 @@ def _relay(heard: list[str]) -> None:
         logging.getLogger("process_improve").warning(message)
 
 
+def _number(value: object) -> float | None:
+    """Return a finite number, or None for a blank (the page sends a blank box as null) or anything else."""
+    try:
+        number = float(value)  # type: ignore[arg-type]
+    except (TypeError, ValueError):
+        return None
+    return number if math.isfinite(number) else None
+
+
 def _factors(spec: dict) -> list[Factor]:
     """Build and check the ``Factor`` list from the specification."""
     raw = spec.get("factors") or []
@@ -268,7 +343,9 @@ def _factors(spec: dict) -> list[Factor]:
         raise ValueError("Factor names must be unique and look like variable names (letters, digits, _).")
     factors = []
     for f, name in zip(raw, names, strict=True):
-        low, high = float(f["low"]), float(f["high"])
+        low, high = _number(f.get("low")), _number(f.get("high"))
+        if low is None or high is None:
+            raise ValueError(f"Factor {name}: enter a number for both the low and the high value.")
         if not low < high:
             raise ValueError(f"Factor {name}: the low value must be below the high value.")
         factors.append(Factor(name=name, low=low, high=high, units=str(f.get("units", ""))))
@@ -277,8 +354,9 @@ def _factors(spec: dict) -> list[Factor]:
 
 # --------------------------------------------------------------------------- public API
 def catalogue(_: dict) -> dict:
-    """List what the page offers: design types, models and CCD axial choices."""
-    return {"designs": DESIGNS, "models": list(MODELS), "alphas": list(ALPHAS)}
+    """List what the page offers: design types, models, CCD axial choices, processes, and the worked example."""
+    scenarios = {key: {"label": s["label"], "hint": s["hint"], "sigma": s["sigma"]} for key, s in SCENARIOS.items()}
+    return {"designs": DESIGNS, "models": list(MODELS), "alphas": list(ALPHAS), "scenarios": scenarios, "demo": DEMO}
 
 
 def make_design(spec: dict) -> dict:
@@ -322,6 +400,7 @@ def make_design(spec: dict) -> dict:
         "outside_range": _outside_range(runs, factors),
         "model": stored["model"],
         "facts": _design_facts(result, names, kwargs),
+        "spec": stored,
         "xlsx_base64": _to_workbook(runs, stored),
     }
 
@@ -530,7 +609,15 @@ def analyze(request: dict) -> dict:
     workbook can be analysed as the runs come in.
     """
     runs, spec = _read_workbook(base64.b64decode(request["xlsx_base64"]))
-    model = request.get("model") or spec.get("model", "interactions")
+    return _analysis(runs, spec, request.get("model") or spec.get("model", "interactions"))
+
+
+def _analysis(runs: pd.DataFrame, spec: dict, model: str, truth: list[dict] | None = None) -> dict:
+    """Fit the model to the completed runs of a run sheet, from a workbook or from the page.
+
+    With the true process the results were simulated from, each coefficient also
+    carries the true value of what it estimates (see :func:`_add_true_values`).
+    """
     if model not in MODELS:
         raise ValueError(f"Model must be one of {', '.join(MODELS)}.")
     response = spec["response"]
@@ -560,6 +647,8 @@ def analyze(request: dict) -> dict:
         {**c, "label": fit["labels"].get(c["term"], _pretty(c["term"])), "aliases": fit["chains"].get(c["term"], [])}
         for c in out.get("coefficients", [])
     ]
+    if truth:
+        _add_true_values(coefficients, coded, fit["formula"], _true_coefficients(truth, names))
     anova = [{**a, "source": fit["labels"].get(a["source"], _pretty(a["source"]))} for a in out.get("anova_table", [])]
     return {
         "spec": spec,
@@ -644,6 +733,7 @@ def _fit_estimable(coded: pd.DataFrame, y: pd.Series, model: str, names: list[st
             )
     return {
         "out": out,
+        "formula": formula,
         "chains": chains,
         "labels": labels,
         "not_estimable": not_estimable,
@@ -727,6 +817,380 @@ def _equation(response: str, coefficients: list[dict]) -> str:
     return f"{response} = " + " ".join(parts)
 
 
+# --------------------------------------------------------------------------- runs held by the page
+def _checked_spec(spec: dict) -> dict[str, Any]:
+    """Check a design specification sent back by the page, as ``make_design`` stored it.
+
+    The specification travels through the page, and a workbook can carry one in, so it
+    is checked as data: the design type and model must be ones the page offers, and the
+    factor and response names must be variable names.
+    """
+    if not isinstance(spec, dict) or spec.get("design_type") not in DESIGNS:
+        raise ValueError("The page sent a design this page did not make.")
+    factors = _factors(spec)
+    response = str(spec.get("response") or "")
+    if not response.isidentifier() or response in {f.name for f in factors}:
+        raise ValueError("The response name must be a variable name different from every factor.")
+    model = spec.get("model") or DESIGNS[spec["design_type"]]["model"]
+    if model not in MODELS:
+        raise ValueError(f"Model must be one of {', '.join(MODELS)}.")
+    return {
+        **spec,
+        "factors": [{"name": f.name, "low": f.low, "high": f.high, "units": f.units} for f in factors],
+        "response": response,
+        "model": model,
+    }
+
+
+def _runs_frame(request: dict, spec: dict) -> pd.DataFrame:
+    """Rebuild the run sheet the page shows, with the responses it holds in the response column."""
+    columns = [str(c) for c in request.get("columns") or []]
+    rows = request.get("rows") or []
+    names = [f["name"] for f in spec["factors"]]
+    missing = [n for n in names if n not in columns]
+    if missing or not rows:
+        raise ValueError(f"The run sheet is missing the factor column(s) {missing}." if missing else "No runs.")
+    runs = pd.DataFrame(rows, columns=columns)
+    runs[names] = runs[names].apply(pd.to_numeric, errors="raise")
+    responses = request.get("responses")
+    if responses is not None:
+        if len(responses) != len(runs):
+            raise ValueError(f"{len(responses)} responses were sent for {len(runs)} runs.")
+        runs[spec["response"]] = pd.to_numeric(pd.Series(responses, dtype=object), errors="coerce").to_numpy()
+    return runs
+
+
+def _coded(runs: pd.DataFrame, factors: list[dict]) -> pd.DataFrame:
+    """Code each factor's settings to -1 at its low value and +1 at its high value."""
+    return pd.DataFrame(
+        {f["name"]: (runs[f["name"]] - (f["high"] + f["low"]) / 2) / ((f["high"] - f["low"]) / 2) for f in factors}
+    )
+
+
+def _term_name(term: tuple[int, ...], names: list[str]) -> str:
+    """Name a scenario's term, given as factor positions, as ``analyze_experiment`` names it."""
+    if not term:
+        return "Intercept"
+    if len(term) == 2 and term[0] == term[1]:
+        return f"I({names[term[0]]} ** 2)"
+    return ":".join(names[i] for i in term)
+
+
+def _random_terms(k: int, rng: np.random.Generator) -> dict[tuple[int, ...], float]:
+    """Draw a process: two or three active factors, with an interaction or curvature among them."""
+
+    def size() -> float:
+        return round(float(rng.choice([-1.0, 1.0]) * rng.uniform(1.5, 4.0)), 2)
+
+    active = sorted(int(i) for i in rng.choice(k, size=min(k, int(rng.integers(2, 4))), replace=False))
+    terms: dict[tuple[int, ...], float] = {(): round(float(rng.uniform(40.0, 80.0)), 1)}
+    terms.update({(i,): size() for i in active})
+    i, j = (int(v) for v in sorted(rng.choice(active, size=2, replace=False)))
+    terms[(i, j) if rng.random() < 0.6 else (i, i)] = size()
+    return terms
+
+
+def _scenario_process(key: str, names: list[str], request: dict) -> TrueProcess:
+    """Return the scenario's process over the reader's factors, with the noise the reader chose."""
+    if key not in SCENARIOS:
+        raise ValueError(f"Unknown process {key!r}.")
+    scenario = SCENARIOS[key]
+    terms = scenario["terms"]
+    if terms is None:
+        terms = _random_terms(len(names), np.random.default_rng(int(request.get("seed", 1))))
+    coefficients = {_term_name(t, names): c for t, c in terms.items() if all(i < len(names) for i in t)}
+    # A noise of 0 is refused, not read as "not given": the reader would see results with noise they did not ask for.
+    sigma = scenario["sigma"] if request.get("sigma") is None else _number(request["sigma"])
+    if sigma is None or sigma <= 0:
+        raise ValueError("The noise standard deviation must be a number above 0.")
+    return TrueProcess(coefficients, sigma=sigma)
+
+
+def _truth(process: TrueProcess) -> list[dict[str, Any]]:
+    """List a process's terms as the analysis lists its coefficients."""
+    return [{"term": t, "label": _pretty(t), "coefficient": c} for t, c in process.coefficients.items()]
+
+
+def simulate(request: dict) -> dict:
+    """Simulate the results of the page's runs from a known process, in coded units, plus noise.
+
+    The responses are rounded to the noise's precision, two significant decimals below
+    its standard deviation, as a measurement would be.
+    """
+    spec = _checked_spec(request.get("spec") or {})
+    runs = _runs_frame(request, spec)
+    names = [f["name"] for f in spec["factors"]]
+    key = str(request.get("scenario") or "reactor")
+    process = _scenario_process(key, names, request)
+    seed = int(request.get("seed", 1))
+    values = process.simulate(_coded(runs, spec["factors"]), random_state=seed)
+    decimals = max(0, 2 - math.floor(math.log10(process.sigma)))
+    truth = _truth(process)
+    return {
+        "scenario": key,
+        "label": SCENARIOS[key]["label"],
+        "sigma": process.sigma,
+        "seed": seed,
+        "responses": [round(float(v), decimals) for v in values],
+        "truth": truth,
+        "equation": _equation(spec["response"], truth),
+    }
+
+
+def analyze_runs(request: dict) -> dict:
+    """Fit the model to the runs the page holds, with the responses typed or simulated there.
+
+    ``truth``, the process the results were simulated from, adds each coefficient's true value.
+    """
+    spec = _checked_spec(request.get("spec") or {})
+    model = request.get("model") or spec["model"]
+    return _analysis(_runs_frame(request, spec), spec, model, request.get("truth"))
+
+
+def _true_coefficients(truth: list[dict], names: list[str]) -> dict[str, float]:
+    """Read a simulated process's terms, refusing any that are not terms of the reader's factors."""
+    process = TrueProcess({str(t["term"]): float(t["coefficient"]) for t in truth}, sigma=1.0)
+    missing = [f for f in process.factors if f not in names]
+    if missing:
+        raise ValueError(f"The true process names factors the design does not have: {missing}.")
+    return dict(process.coefficients)
+
+
+def _add_true_values(coefficients: list[dict], coded: pd.DataFrame, formula: str, truth: dict[str, float]) -> None:
+    """Give each coefficient the value the same fit gives on the true process's results without noise.
+
+    That is the true value of what the coefficient estimates: the term's own coefficient
+    when the design separates it from the others, the signed sum over its chain when the
+    design cannot, and the intercept together with any square a two-level design cannot
+    tell apart from it. A term the process has but the model leaves out shifts the
+    estimates it is correlated with, and the true values show by how much.
+    """
+    mean = TrueProcess(truth, sigma=1.0).mean(coded)
+    with _listening():
+        noiseless = analyze_experiment(coded, pd.Series(mean, name="y"), model=formula, analysis_type="coefficients")
+    # Rounded to drop the rounding error of a fit with no noise (a true zero reads 1e-14).
+    expected = {c["term"]: round(c["coefficient"], 9) + 0.0 for c in noiseless["coefficients"]}
+    for c in coefficients:
+        c["true_value"] = expected.get(c["term"])
+
+
+def read_workbook(request: dict) -> dict:
+    """Read an uploaded workbook into the runs, responses and sources the page holds."""
+    runs, stored = _read_workbook(base64.b64decode(request["xlsx_base64"]))
+    spec = _checked_spec(stored)
+    response = spec["response"]
+    if response not in runs.columns:
+        raise ValueError(f"The Runs sheet has no {response!r} column for the results.")
+    values = pd.to_numeric(runs[response], errors="coerce")
+    marks = runs["Source"].fillna("").astype(str) if "Source" in runs else pd.Series("", index=runs.index)
+    sheet = runs.drop(columns=["Source"], errors="ignore")
+    sheet[response] = np.nan
+    return {
+        "spec": spec,
+        "columns": list(sheet.columns),
+        "rows": [list(row) for row in sheet.itertuples(index=False)],
+        "responses": [None if pd.isna(v) else float(v) for v in values],
+        "sources": [
+            None if pd.isna(v) else ("simulated" if mark == "simulated" else "entered")
+            for v, mark in zip(values, marks, strict=True)
+        ],
+    }
+
+
+def workbook(request: dict) -> dict:
+    """Write the page's runs and responses to a workbook the page can analyse again.
+
+    Simulated responses are marked, in a ``Source`` column and in the stored
+    specification, so the workbook says which values were measured.
+    """
+    spec = _checked_spec(request.get("spec") or {})
+    runs = _runs_frame(request, spec)
+    sources = request.get("sources")
+    if sources and any(sources):
+        if len(sources) != len(runs):
+            raise ValueError(f"{len(sources)} sources were sent for {len(runs)} runs.")
+        runs["Source"] = ["simulated" if s == "simulated" else "" for s in sources]
+    simulated = request.get("simulated")
+    if simulated:
+        spec = {**spec, "simulated": {k: simulated.get(k) for k in ("scenario", "sigma", "seed")}}
+    return {"xlsx_base64": _to_workbook(runs, spec)}
+
+
+def _contour_pair(coefficients: list[dict], names: list[str]) -> list[str]:
+    """Pick the two factors with the largest main effects, for the response surface."""
+    size = {c["term"]: abs(c["coefficient"] or 0.0) for c in coefficients}
+    return sorted(names, key=lambda n: -size.get(n, 0.0))[:2]
+
+
+def plots(request: dict) -> dict:
+    """Draw the analysis of the page's runs with the library's plots, as Plotly figures.
+
+    The response surface of the fitted model over the two factors with the largest
+    main effects, the others held at their centre; the true surface beside it when the
+    results were simulated; the residuals against the fitted values; and, for a
+    saturated two-level design, the half-normal plot of the effects with Lenth's
+    margins. Each figure is JSON text, for Plotly.js at the version ``plotly_js`` names.
+    """
+    from plotly.offline import get_plotlyjs_version  # noqa: PLC0415 - plotly is installed for the first chart
+    from plotly.utils import PlotlyJSONEncoder  # noqa: PLC0415
+
+    from process_improve.experiments.visualization.plots import create_plot  # noqa: PLC0415
+
+    spec = _checked_spec(request.get("spec") or {})
+    model = request.get("model") or spec["model"]
+    if model not in MODELS:
+        raise ValueError(f"Model must be one of {', '.join(MODELS)}.")
+    runs = _runs_frame(request, spec)
+    names = [f["name"] for f in spec["factors"]]
+    response = spec["response"]
+    y = pd.to_numeric(runs[response], errors="coerce")
+    done = y.notna().to_numpy()
+    coded = _coded(runs, spec["factors"])[done].reset_index(drop=True)
+    y = y[done].reset_index(drop=True).rename(response)
+    with _listening():
+        fit = _fit_estimable(coded, y, model, names)
+        out = analyze_experiment(coded, y, model=fit["formula"], analysis_type=["coefficients", "residual_diagnostics"])
+    rows = coded.assign(**{response: y}).to_dict("records")
+    pair = _contour_pair(out["coefficients"], names)
+
+    def draw(kind: str, results: dict, **options: Any) -> str:  # noqa: ANN401
+        figure = create_plot(kind, analysis_results=results, design_data=rows, response_column=response, **options)
+        return json.dumps(figure.to_plotly(), cls=PlotlyJSONEncoder)
+
+    figures = {"contour": draw("contour", out, factors_to_plot=pair)}
+    truth = request.get("truth")
+    if truth:
+        process = TrueProcess({t["term"]: t["coefficient"] for t in truth}, sigma=1.0)
+        missing = [f for f in process.factors if f not in names]
+        if missing:
+            raise ValueError(f"The true process names factors the design does not have: {missing}.")
+        figures["true_contour"] = draw("contour", {"coefficients": _truth(process)}, factors_to_plot=pair)
+    if fit["out"]["model_summary"]["df_residual"] > 0:
+        figures["residuals"] = draw("residuals_vs_fitted", out)
+    if fit["lenth"]:
+        effects = analyze_experiment(coded, y, model=fit["formula"], analysis_type="effects")["effects"]
+        figures["half_normal"] = draw("half_normal", {"effects": effects, "lenth_method": fit["lenth"]})
+    return {"figures": figures, "contour_factors": pair, "plotly_js": get_plotlyjs_version()}
+
+
+# --------------------------------------------------------------------------- comparing designs
+#: The options each design is compared with: the page's own defaults, so a design in the
+#: comparison is the one step 1 would generate. The CCD is face-centred, to keep its runs
+#: inside the ranges the other designs are scored over.
+COMPARE_OPTIONS: dict[str, dict[str, Any]] = {
+    "full_factorial": {"n_center_points": 3},
+    "fractional_factorial": {"n_center_points": 3},
+    "plackett_burman": {"n_center_points": 3},
+    "dsd": {"n_center_points": 3},
+    "box_behnken": {"n_center_points": 3},
+    "ccd": {"n_center_points": 3, "alpha": "face_centered"},
+    "d_optimal": {},
+    "i_optimal": {},
+}
+
+#: The model an optimal design is built for, in a comparison on each model: the smallest
+#: model the optimal designs take that contains it.
+OPTIMAL_MODEL = {
+    "main_effects": "main_effects",
+    "interactions": "interactions",
+    "main_quadratic": "quadratic",
+    "quadratic": "quadratic",
+}
+
+#: Each design's name as a comparison's column heading, short as the book writes them.
+COMPARE_LABELS = {
+    "full_factorial": "Full factorial",
+    "fractional_factorial": "Fractional factorial",
+    "plackett_burman": "Plackett-Burman",
+    "dsd": "DSD",
+    "box_behnken": "Box-Behnken",
+    "ccd": "CCD",
+    "d_optimal": "D-optimal",
+    "i_optimal": "I-optimal",
+}
+
+#: Points the FDS curves are computed from, and points along each curve.
+FDS_SAMPLES = 4096
+FDS_POINTS = 101
+
+
+def compare_plan(request: dict) -> dict:
+    """List the designs a comparison for these factors includes, each as ``make_design`` takes it.
+
+    Every design the factor count allows is included, with the page's default options;
+    the optimal designs are built for the comparison's model (see :data:`OPTIMAL_MODEL`).
+    """
+    model = request.get("model") or "main_quadratic"
+    if model not in COMPARISON_MODELS:
+        raise ValueError(f"Model must be one of {', '.join(COMPARISON_MODELS)}.")
+    factors = _factors(request)
+    k = len(factors)
+    plan = []
+    for design_type, info in DESIGNS.items():
+        if not info["min_factors"] <= k <= info["max_factors"]:
+            continue
+        options = dict(COMPARE_OPTIONS[design_type])
+        if "model_type" in info["options"]:
+            options["model_type"] = OPTIMAL_MODEL[model]
+        spec = {"design_type": design_type, "factors": request["factors"], "response": "y", **options}
+        plan.append({"design_type": design_type, "label": COMPARE_LABELS[design_type], "spec": spec})
+    notes = []
+    if model != OPTIMAL_MODEL[model] and any("model_type" in DESIGNS[d["design_type"]]["options"] for d in plan):
+        notes.append(
+            f"The D- and I-optimal designs are built for the {OPTIMAL_MODEL[model]} model, the smallest model "
+            f"they can be built for that contains this one."
+        )
+    return {"model": model, "designs": plan, "notes": notes}
+
+
+def _comparison_formula(model: str, names: list[str]) -> str:
+    """Write the comparison's model as ``evaluate_design`` takes it."""
+    if model == "main_quadratic":
+        return " + ".join([*names, *(f"I({n} ** 2)" for n in names)])
+    return model
+
+
+def compare(request: dict) -> dict:
+    """Score the generated designs for one model on the nine measures, with their FDS curves.
+
+    Each design arrives as the page holds it (its stored specification, columns and rows)
+    and is coded from its own ranges. The FDS curve is each design's prediction variance,
+    in units of the noise variance, sorted over points drawn uniformly from the cube.
+    """
+    from process_improve.experiments import evaluate_design  # noqa: PLC0415
+
+    model = request.get("model") or "main_quadratic"
+    if model not in COMPARISON_MODELS:
+        raise ValueError(f"Model must be one of {', '.join(COMPARISON_MODELS)}.")
+    designs = {}
+    for item in request.get("designs") or []:
+        spec = _checked_spec(item.get("spec") or {})
+        designs[str(item["label"])] = _coded(_runs_frame(item, spec), spec["factors"])
+    with _listening():
+        comparison = compare_designs(designs, model)
+    result = comparison.to_dict()
+    table = comparison.table
+    result["display"] = {label: table[label].tolist() for label in comparison.designs}
+    names = list(next(iter(designs.values())).columns)
+    formula = _comparison_formula(model, names)
+    fds = {}
+    for coded, sized in zip(designs.values(), comparison.designs, strict=True):
+        if not comparison.values[sized]["fits"]:
+            continue
+        with _listening():
+            curve = evaluate_design(
+                coded,
+                model=formula,
+                metric="fds",
+                n_samples=FDS_SAMPLES,
+                fds_resolution=FDS_POINTS,
+                random_state=1,
+            )["fds"]["curve"]
+        fds[sized] = {"fraction": curve["fraction"], "variance": curve["prediction_variance"]}
+    result["fds"] = fds
+    return result
+
+
 # --------------------------------------------------------------------------- JSON entry points
 def api_catalogue(payload: str = "{}") -> str:
     """JSON wrapper around :func:`catalogue`."""
@@ -741,3 +1205,38 @@ def api_make_design(payload: str) -> str:
 def api_analyze(payload: str) -> str:
     """JSON wrapper around :func:`analyze`."""
     return _reply(analyze, payload)
+
+
+def api_simulate(payload: str) -> str:
+    """JSON wrapper around :func:`simulate`."""
+    return _reply(simulate, payload)
+
+
+def api_analyze_runs(payload: str) -> str:
+    """JSON wrapper around :func:`analyze_runs`."""
+    return _reply(analyze_runs, payload)
+
+
+def api_workbook(payload: str) -> str:
+    """JSON wrapper around :func:`workbook`."""
+    return _reply(workbook, payload)
+
+
+def api_plots(payload: str) -> str:
+    """JSON wrapper around :func:`plots`."""
+    return _reply(plots, payload)
+
+
+def api_read_workbook(payload: str) -> str:
+    """JSON wrapper around :func:`read_workbook`."""
+    return _reply(read_workbook, payload)
+
+
+def api_compare_plan(payload: str) -> str:
+    """JSON wrapper around :func:`compare_plan`."""
+    return _reply(compare_plan, payload)
+
+
+def api_compare(payload: str) -> str:
+    """JSON wrapper around :func:`compare`."""
+    return _reply(compare, payload)

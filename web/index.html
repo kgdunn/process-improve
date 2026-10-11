@@ -17,13 +17,32 @@
       <a href="https://github.com/kgdunn/process-improve">process-improve</a> Python package running
       inside this browser tab. Nothing to install, and your data never leave your machine.
     </p>
+    <div class="hero">
+      <button type="button" id="run-example" class="primary">Run the worked example</button>
+      <span class="hint">A Box-Behnken design in three factors, results simulated from a known process, and their
+        analysis, computed in this tab.</span>
+    </div>
     <div id="status" class="status" role="status" aria-live="polite" data-state="busy">
       <span class="status__icon" aria-hidden="true"></span>
       <span class="status__text">Starting Python...</span>
     </div>
   </header>
 
-  <section aria-labelledby="h-design">
+  <nav class="stepper" aria-label="Steps">
+    <a href="#step-design"><span class="step">1</span> Design</a>
+    <a href="#step-run"><span class="step">2</span> Run</a>
+    <a href="#step-analyse"><span class="step">3</span> Analyse</a>
+    <a href="#step-compare"><span class="step">4</span> Compare</a>
+  </nav>
+
+  <p id="demo-banner" class="banner" hidden>
+    This is the worked example, computed with <span id="demo-version">process-improve</span> when this page was
+    built: <a href="#step-analyse">its analysis, beside the true process</a> is in step 3, and
+    <a href="#step-compare">step 4 compares every design</a> for the same factors. Press
+    <strong>Run the worked example</strong> to compute it again in your browser, or change any setting.
+  </p>
+
+  <section id="step-design" aria-labelledby="h-design">
     <h2 id="h-design"><span class="step">1</span> Design</h2>
 
     <table class="factors" id="factors">
@@ -43,9 +62,9 @@
             data-hint="A fraction of the full factorial. Its resolution says what is aliased: at III, main effects with two-factor interactions; at IV, two-factor interactions with each other; at V, neither.">Fractional factorial (2-level)</option>
           <option value="plackett_burman" data-options="n_center_points" data-min-factors="2" data-max-factors="11"
             data-hint="Main effects only, in a multiple of 4 runs plus center points; each main effect is partly or fully aliased with two-factor interactions.">Plackett-Burman screening</option>
-          <option value="dsd" data-options="n_center_points" data-min-factors="3" data-max-factors="12" selected
+          <option value="dsd" data-options="n_center_points" data-min-factors="3" data-max-factors="12"
             data-hint="Three levels in 2k+1 runs (2k+3 for odd k), one of them at the center, plus any further center runs; main effects clear of interactions and quadratics.">Definitive screening (DSD)</option>
-          <option value="box_behnken" data-options="n_center_points" data-min-factors="3" data-max-factors="7"
+          <option value="box_behnken" data-options="n_center_points" data-min-factors="3" data-max-factors="7" selected
             data-hint="Response surface with every run inside the factor ranges and none at the corners.">Box-Behnken</option>
           <option value="ccd" data-options="n_center_points alpha" data-min-factors="2" data-max-factors="7"
             data-hint="Response surface: factorial corners, axial points and center points.">Central composite (CCD)</option>
@@ -95,19 +114,77 @@
     <button type="button" id="generate" class="primary" disabled>Generate design</button>
     <div id="design-out" hidden>
       <div id="design-summary"></div>
-      <div class="scroll"><table id="design-table" class="data"></table></div>
-      <a id="download" class="primary button" download="experiment.xlsx">Download workbook (.xlsx)</a>
     </div>
+    <details class="python" id="py-design" hidden>
+      <summary>Show the Python</summary>
+      <p class="hint">The process-improve code that does what this step just did.</p>
+      <pre><code></code></pre>
+      <button type="button" class="link copy">Copy the code</button>
+    </details>
   </section>
 
-  <section aria-labelledby="h-analyse">
-    <h2 id="h-analyse"><span class="step">2</span> Analyse</h2>
-    <p>Run the experiments in the order listed, type each result into the response column, save, and drop the workbook here.
-      A partly filled workbook is fine: the page analyses the completed runs.</p>
-    <label id="drop" class="drop">
-      <input id="upload" type="file" accept=".xlsx" disabled>
-      <span>Drop the filled-in workbook here, or click to choose it</span>
-    </label>
+  <section id="step-run" aria-labelledby="h-run">
+    <h2 id="h-run"><span class="step">2</span> Run the experiments</h2>
+    <p id="run-empty" class="hint">Generate a design first: its runs appear here.</p>
+    <div id="run-out" hidden>
+      <p>Run the experiments in the order listed and type each result into the table, or simulate the results
+        from a process whose true model is known, to see what the analysis recovers.</p>
+      <div class="tabs" role="tablist" aria-label="Where the results come from">
+        <button type="button" role="tab" id="tab-simulate" aria-selected="true" aria-controls="panel-simulate">Simulate the results</button>
+        <button type="button" role="tab" id="tab-real" aria-selected="false" aria-controls="panel-real">Enter real results</button>
+      </div>
+      <div id="panel-simulate" role="tabpanel" aria-labelledby="tab-simulate">
+        <div class="row">
+          <label>True process
+            <!-- Mirrors bootstrap.SCENARIOS (label, hint); tests/test_web_guided.py keeps them in step. -->
+            <select id="scenario" autocomplete="off">
+              <option value="reactor" selected data-hint="Two strong main effects, an interaction between them, and curvature in the third factor.">Reactor yield</option>
+              <option value="main_effects" data-hint="Each of the first three factors changes the response on its own, along a straight line.">Main effects only</option>
+              <option value="interaction" data-hint="The effect of the first factor depends on the level of the second.">An interaction</option>
+              <option value="optimum" data-hint="A curved surface in the first two factors, highest at a point inside their ranges.">A maximum inside the ranges</option>
+              <option value="nothing" data-hint="No factor changes the response: whatever the analysis finds is noise.">Nothing active</option>
+              <option value="random" data-hint="Two or three active factors drawn at random, with an interaction or curvature; new noise draws a new process.">A random process</option>
+            </select>
+          </label>
+          <label>Noise (standard deviation)
+            <input id="sigma" type="number" min="0.01" step="any" value="1">
+          </label>
+        </div>
+        <p id="scenario-hint" class="hint"></p>
+        <div class="actions">
+          <button type="button" id="simulate" class="primary" disabled>Simulate the results</button>
+          <button type="button" id="reroll" class="link" disabled>New noise</button>
+        </div>
+        <details id="truth" hidden>
+          <summary>Show the true process</summary>
+          <p id="truth-equation" class="equation"></p>
+          <p class="hint">In coded units: each factor runs from -1 at its low value to +1 at its high value. The
+            analysis estimates these coefficients from the noisy results.</p>
+        </details>
+      </div>
+      <div id="panel-real" role="tabpanel" aria-labelledby="tab-real" hidden>
+        <p>Type each result into the table below as it comes in, or download the workbook, fill it in, and drop it
+          here. A partly filled sheet is fine: the page analyses the completed runs.</p>
+        <label id="drop" class="drop">
+          <input id="upload" type="file" accept=".xlsx" disabled>
+          <span>Drop a filled-in workbook here, or click to choose it</span>
+        </label>
+      </div>
+      <p id="run-source" class="hint"></p>
+      <div class="scroll"><table id="design-table" class="data runs"></table></div>
+      <button type="button" id="download" class="button">Download workbook (.xlsx)</button>
+    </div>
+    <details class="python" id="py-run" hidden>
+      <summary>Show the Python</summary>
+      <p class="hint">The process-improve code that does what this step just did.</p>
+      <pre><code></code></pre>
+      <button type="button" class="link copy">Copy the code</button>
+    </details>
+  </section>
+
+  <section id="step-analyse" aria-labelledby="h-analyse">
+    <h2 id="h-analyse"><span class="step">3</span> Analyse</h2>
+    <p id="analyse-empty" class="hint">Simulate the results, or enter them, and the analysis appears here.</p>
     <div class="row">
       <label>Model
         <select id="model">
@@ -119,12 +196,50 @@
       </label>
     </div>
     <div id="analysis" hidden></div>
+    <div id="charts" class="charts" hidden></div>
+    <details class="python" id="py-analyse" hidden>
+      <summary>Show the Python</summary>
+      <p class="hint">The process-improve code that does what this step just did.</p>
+      <pre><code></code></pre>
+      <button type="button" class="link copy">Copy the code</button>
+    </details>
+  </section>
+
+  <section id="step-compare" aria-labelledby="h-compare">
+    <h2 id="h-compare"><span class="step">4</span> Compare designs</h2>
+    <p>Which design suits these factors? Here the model is fixed first, and the designs differ only in where they
+      place their runs. Each design is generated as step 1 would make it and scored at its own size, on the nine
+      measures that <a href="https://learnche.org/pid/design-analysis-experiments/omars-designs#doe-omars-metric-choice">Process
+      Improvement using Data</a> defines; the book's
+      <a href="https://learnche.org/pid/design-analysis-experiments/comparing-design-families#doe-omnibus-comparison">comparison
+      of design families</a> reads such a table row by row.</p>
+    <div class="row">
+      <label>Model to compare on
+        <select id="compare-model">
+          <option value="main_quadratic" selected>Main effects and quadratics, the book's model</option>
+          <option value="quadratic">Full quadratic</option>
+          <option value="interactions">Main effects + two-factor interactions</option>
+          <option value="main_effects">Main effects</option>
+        </select>
+      </label>
+    </div>
+    <button type="button" id="compare" class="primary" disabled>Compare the designs for these factors</button>
+    <div id="comparison" hidden></div>
+    <div id="compare-charts" class="charts" hidden></div>
+    <details class="python" id="py-compare" hidden>
+      <summary>Show the Python</summary>
+      <p class="hint">The process-improve code that does what this step just did.</p>
+      <pre><code></code></pre>
+      <button type="button" class="link copy">Copy the code</button>
+    </details>
   </section>
 
   <footer>
     <p>How this works: <a href="https://pyodide.org">Pyodide</a> runs CPython compiled to WebAssembly. The page loads it
-      from a public CDN, installs process-improve into it, and runs the same <code>generate_design</code> and
-      <code>analyze_experiment</code> you would call in Python. The workbook is the only state; nothing is uploaded.</p>
+      from a public CDN, installs process-improve into it, and runs the same <code>generate_design</code>,
+      <code>TrueProcess</code> and <code>analyze_experiment</code> you would call in Python; the charts are the
+      library's own plots, drawn with <a href="https://plotly.com/javascript/">Plotly</a>. Nothing is uploaded:
+      your runs stay in this tab and in the workbook you download.</p>
   </footer>
 </main>
 <script src="app.js" type="module"></script>

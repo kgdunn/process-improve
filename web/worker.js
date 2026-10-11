@@ -12,18 +12,36 @@ const PYODIDE_URL = `https://cdn.jsdelivr.net/pyodide/v${PYODIDE_VERSION}/full/`
 importScripts(`${PYODIDE_URL}pyodide.js`);
 
 // The deploy step writes wheels/manifest.json naming the wheel built from this
-// commit. Without it (a local preview) the page falls back to the PyPI release.
-async function wheelSource() {
+// commit, and the plotly release its worked example was drawn with. Without it (a
+// local preview) the page falls back to the PyPI release of each.
+async function readManifest() {
   try {
     const res = await fetch("wheels/manifest.json", { cache: "no-store" });
-    if (res.ok) {
-      const { wheel } = await res.json();
-      if (wheel) return new URL(`wheels/${wheel}`, self.location.href).href;
-    }
+    if (res.ok) return await res.json();
   } catch (_) {
     /* fall through to PyPI */
   }
-  return "process-improve";
+  return {};
+}
+const manifest = readManifest();
+
+async function wheelSource() {
+  const { wheel } = await manifest;
+  return wheel ? new URL(`wheels/${wheel}`, self.location.href).href : "process-improve";
+}
+
+// plotly is installed on the first chart rather than at start-up: designing and
+// analysing do not need it, and it would add its download to every visit.
+let plotly = null;
+function installPlotly(pyodide) {
+  plotly ??= (async () => {
+    self.postMessage({ status: "Installing plotly for the charts...", state: "busy" });
+    const { plotly: version } = await manifest;
+    pyodide.globals.set("_plotly", version ? `plotly==${version}` : "plotly");
+    await pyodide.runPythonAsync("import micropip\nawait micropip.install(_plotly)");
+    pyodide.globals.delete("_plotly");
+  })();
+  return plotly;
 }
 
 async function boot() {
@@ -63,9 +81,11 @@ ready.catch((err) => self.postMessage({ status: `Could not start Python: ${err.m
 self.onmessage = async ({ data: { id, fn, payload } }) => {
   try {
     const pyodide = await ready;
+    if (fn === "api_plots") await installPlotly(pyodide);
     const reply = pyodide.globals.get(fn)(payload ?? "{}");
     self.postMessage({ id, reply });
   } catch (err) {
+    if (fn === "api_plots") plotly = null; // the next chart tries the install again
     self.postMessage({ id, reply: JSON.stringify({ ok: false, error: String(err.message || err) }) });
   }
 };

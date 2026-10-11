@@ -32,7 +32,7 @@ from process_improve.visualization.spec import (
     LayerSpec,
     PanelSpec,
 )
-from process_improve.visualization.themes import DEFAULT_THEME
+from process_improve.visualization.themes import DEFAULT_THEME, ensure_themes
 from process_improve.visualization.types import AnnotationType, MarkType
 
 # ``SURFACE_COLORSCALE`` is a ``list[list[float | str]]`` (e.g. ``[[0.0, "#fff"], ...]``),
@@ -61,6 +61,7 @@ class PlotlyAdapter(AbstractAdapter):
         dict
             Plotly figure dict with ``data`` and ``layout`` keys.
         """
+        ensure_themes()
         n = len(spec.panels)
         if n == 0:
             return go.Figure().to_dict()
@@ -85,6 +86,7 @@ class PlotlyAdapter(AbstractAdapter):
         dict
             Plotly figure dict.
         """
+        ensure_themes()
         return self._single_panel(panel, panel.title).to_dict()
 
     # ------------------------------------------------------------------

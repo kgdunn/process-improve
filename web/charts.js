@@ -1,0 +1,239 @@
+// Charts: Plotly.js, loaded once from jsDelivr at the version the Python plotly package
+// names, drawing the library's figures and the page's coefficient chart in the page's
+// colours. Every chart sits beside a table that holds its numbers, so a CDN that cannot
+// be reached costs the picture, not the result.
+
+const CDN = (version) => `https://cdn.jsdelivr.net/npm/plotly.js-dist-min@${version}/plotly.min.js`;
+// On a phone the toolbar would sit over the chart for good, since there is no hover to hide it.
+const CONFIG = {
+  responsive: true,
+  displaylogo: false,
+  displayModeBar: window.matchMedia("(max-width: 600px)").matches ? false : "hover",
+  modeBarButtonsToRemove: ["select2d", "lasso2d"],
+};
+
+let loading = null;
+
+/** Load Plotly.js once; later calls get the copy already loading, whatever version they name. */
+export function loadPlotly(version) {
+  loading ??= new Promise((resolve, reject) => {
+    const script = document.createElement("script");
+    script.src = CDN(version);
+    script.onload = () => resolve(window.Plotly);
+    script.onerror = () => {
+      loading = null;
+      reject(new Error(`Plotly.js ${version} could not be loaded from ${CDN(version)}`));
+    };
+    document.head.append(script);
+  });
+  return loading;
+}
+
+/** The page's colours, read from its CSS, so the charts follow the light and dark themes. */
+function palette() {
+  const css = getComputedStyle(document.documentElement);
+  const read = (name) => css.getPropertyValue(name).trim();
+  return { fg: read("--fg"), muted: read("--muted"), line: read("--line"), accent: read("--accent"), truth: read("--ok") };
+}
+
+/** Restyle a figure's layout for a card on the page: its colours, its size, no title, the legend below. */
+function pageLayout(layout, height) {
+  const colours = palette();
+  const axis = (given) => ({
+    ...(given || {}),
+    gridcolor: colours.line,
+    zerolinecolor: colours.muted,
+    linecolor: colours.line,
+    color: colours.muted,
+    automargin: true,
+  });
+  const restyled = {
+    ...layout,
+    height,
+    autosize: true,
+    paper_bgcolor: "rgba(0,0,0,0)",
+    plot_bgcolor: "rgba(0,0,0,0)",
+    font: { ...(layout.font || {}), color: colours.fg, size: 12 },
+    margin: { l: 56, r: 16, t: 12, b: 52 },
+    legend: { orientation: "h", x: 0, y: -0.22, bgcolor: "rgba(0,0,0,0)" },
+    xaxis: axis(layout.xaxis),
+    yaxis: axis(layout.yaxis),
+  };
+  // A figure drawn with equal axes (a response surface in coded units) keeps its data
+  // range and shrinks its plot area instead, rather than stretching an axis to fill a card.
+  if (restyled.yaxis.scaleanchor || restyled.xaxis.scaleanchor) {
+    restyled.xaxis.constrain = "domain";
+    restyled.yaxis.constrain = "domain";
+  }
+  delete restyled.width;
+  delete restyled.title;
+  return restyled;
+}
+
+/** Draw a figure ({data, layout}) into a card's plot area. */
+export async function draw(div, figure, version, height = 340) {
+  const Plotly = await loadPlotly(version);
+  await Plotly.react(div, figure.data, pageLayout(figure.layout || {}, height), CONFIG);
+}
+
+/**
+ * Give two contour figures one colour scale and one set of contour levels, so the fitted
+ * surface and the true one can be read against each other.
+ */
+export function shareContourScale(...figures) {
+  const values = figures.flatMap((f) => f.data[0].z.flat().filter(Number.isFinite));
+  const low = Math.min(...values);
+  const high = Math.max(...values);
+  const size = niceStep((high - low) / 12);
+  for (const figure of figures) {
+    Object.assign(figure.data[0], {
+      zauto: false,
+      zmin: low,
+      zmax: high,
+      autocontour: false,
+      contours: { ...(figure.data[0].contours || {}), start: Math.floor(low / size) * size, end: high, size },
+    });
+  }
+}
+
+/** A round step near the one asked for: 1, 2 or 5 times a power of ten. */
+function niceStep(raw) {
+  if (!(raw > 0)) return 1;
+  const power = 10 ** Math.floor(Math.log10(raw));
+  return [1, 2, 5, 10].map((m) => m * power).find((step) => step >= raw);
+}
+
+/**
+ * The estimated coefficients with their 95% intervals, one row per term, and the true
+ * value beside each when the results were simulated. The intercept is left out: it sits
+ * on another scale.
+ */
+export function coefficientFigure(coefficients, simulated) {
+  const colours = palette();
+  const terms = coefficients.filter((c) => c.term !== "Intercept");
+  const labels = terms.map((c) => c.label);
+  const above = terms.map((c) => (c.ci_high === null || c.ci_high === undefined ? 0 : c.ci_high - c.coefficient));
+  const below = terms.map((c) => (c.ci_low === null || c.ci_low === undefined ? 0 : c.coefficient - c.ci_low));
+  const data = [
+    {
+      type: "scatter",
+      mode: "markers",
+      name: terms.some((c) => c.ci_low !== null && c.ci_low !== undefined) ? "Estimate, with its 95% interval" : "Estimate",
+      x: terms.map((c) => c.coefficient),
+      y: labels,
+      marker: { color: colours.accent, size: 9 },
+      error_x: {
+        type: "data",
+        symmetric: false,
+        array: above,
+        arrayminus: below,
+        color: colours.accent,
+        thickness: 2,
+        width: 0,
+      },
+      hovertemplate: "%{y}: %{x:.4g}<extra></extra>",
+    },
+  ];
+  if (simulated) {
+    data.push({
+      type: "scatter",
+      mode: "markers",
+      name: "True value",
+      x: terms.map((c) => c.true_value ?? 0),
+      y: labels,
+      marker: { symbol: "diamond-open", size: 13, color: colours.truth, line: { width: 2, color: colours.truth } },
+      hovertemplate: "%{y}, true: %{x:.4g}<extra></extra>",
+    });
+  }
+  return {
+    data,
+    layout: {
+      xaxis: { title: { text: "Coefficient, coded units" }, zeroline: true },
+      yaxis: { type: "category", autorange: "reversed" },
+      showlegend: true,
+    },
+    height: Math.max(220, 30 * terms.length + 100),
+  };
+}
+
+// ColorBrewer's Blues, light at zero and dark at one, as the book draws its correlation maps.
+// Plotly.js's own "Blues" runs the other way, so the scale is written out.
+const BLUES = [
+  [0, "#f7fbff"],
+  [0.125, "#deebf7"],
+  [0.25, "#c6dbef"],
+  [0.375, "#9ecae1"],
+  [0.5, "#6baed6"],
+  [0.625, "#4292c6"],
+  [0.75, "#2171b5"],
+  [0.875, "#08519c"],
+  [1, "#08306b"],
+];
+
+/** Write a model term as the page shows it: ``I(T ** 2)`` as ``T²`` and ``T:P`` as ``T·P``. */
+// Only a colon between two names is a product, so a sentence's own colons are left alone.
+export const prettyTerm = (term) => term.replace(/I\((\w+) \*\* 2\)/g, "$1²").replace(/(\w):(?=\w)/g, "$1·");
+
+/**
+ * FDS curves of several designs on one chart: each design's prediction variance, in units
+ * of the noise variance, sorted over points spread evenly through the cube. The right end
+ * of a curve is its worst case, G.
+ */
+export function fdsFigure(fds) {
+  const data = Object.entries(fds).map(([label, curve]) => ({
+    type: "scatter",
+    mode: "lines",
+    name: label,
+    x: curve.fraction,
+    y: curve.variance,
+    line: { width: 2 },
+    hovertemplate: `${label}: %{y:.3g} or less over %{x:.0%} of the cube<extra></extra>`,
+  }));
+  return {
+    data,
+    layout: {
+      xaxis: { title: { text: "Fraction of the cube" }, tickformat: ".0%", range: [0, 1] },
+      yaxis: { title: { text: "Prediction variance / σ²" }, rangemode: "tozero" },
+      showlegend: true,
+    },
+  };
+}
+
+/**
+ * One design's correlation map: |r| between its main effects, squares and two-factor
+ * interactions, in that order, with lines between the three blocks. A term that does not
+ * vary in the design has no correlation, and its row and column are blank.
+ */
+export function correlationFigure(terms, matrix, k) {
+  const colours = palette();
+  const labels = terms.map(prettyTerm);
+  const n = labels.length;
+  const line = { width: 1, color: colours.muted };
+  const shapes = [k, 2 * k]
+    .filter((b) => b < n)
+    .flatMap((b) => [
+      { type: "line", xref: "x", yref: "y", x0: b - 0.5, x1: b - 0.5, y0: -0.5, y1: n - 0.5, line },
+      { type: "line", xref: "x", yref: "y", x0: -0.5, x1: n - 0.5, y0: b - 0.5, y1: b - 0.5, line },
+    ]);
+  return {
+    data: [
+      {
+        type: "heatmap",
+        x: labels,
+        y: labels,
+        z: matrix,
+        zmin: 0,
+        zmax: 1,
+        colorscale: BLUES,
+        showscale: false,
+        hovertemplate: "%{y} with %{x}: |r| = %{z:.2f}<extra></extra>",
+      },
+    ],
+    layout: {
+      xaxis: { type: "category", tickangle: -45, showgrid: false },
+      yaxis: { type: "category", autorange: "reversed", showgrid: false },
+      shapes,
+      showlegend: false,
+    },
+  };
+}

@@ -406,6 +406,8 @@ def test_model_name_from_the_request_is_never_a_formula(app, model):
         ([FACTORS[0], {**FACTORS[1], "name": "T"}], "unique"),
         ([FACTORS[0], {**FACTORS[1], "name": "a b"}], "variable names"),
         ([FACTORS[0], {**FACTORS[1], "low": 5}], "below the high"),
+        ([FACTORS[0], {**FACTORS[1], "low": None}], "enter a number"),  # a blank box, which the page sends as null
+        ([FACTORS[0], {**FACTORS[1], "high": "abc"}], "enter a number"),
     ],
 )
 def test_bad_factor_input_is_reported(app, factors, message):
@@ -417,15 +419,16 @@ def test_bad_factor_input_is_reported(app, factors, message):
 class _DesignOptions(html.parser.HTMLParser):
     """Collect the <option>s of the page's design-type <select>."""
 
-    def __init__(self) -> None:
+    def __init__(self, select_id: str = "design-type") -> None:
         super().__init__()
+        self.select_id = select_id
         self.inside = False
         self.options: list[dict] = []
 
     def handle_starttag(self, tag, attrs):
         attrs = dict(attrs)
         if tag == "select":
-            self.inside = attrs.get("id") == "design-type"
+            self.inside = attrs.get("id") == self.select_id
         elif tag == "option" and self.inside:
             self.options.append({**attrs, "label": ""})
 
@@ -456,7 +459,7 @@ def test_page_design_list_matches_bootstrap(app):
         assert int(option["data-min-factors"]) == info["min_factors"], key
         assert int(option["data-max-factors"]) == info["max_factors"], key
     selected = [o["value"] for o in parser.options if "selected" in o]
-    assert selected == ["dsd"], "the page opens with definitive screening selected"
+    assert selected == [app.DEMO["design"]["design_type"]], "the page opens on the worked example's design"
 
 
 def test_foreign_file_is_reported(app):

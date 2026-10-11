@@ -3,7 +3,10 @@
 Builds the wheel from this checkout, copies ``web/`` next to it and writes the
 ``wheels/manifest.json`` that ``web/worker.js`` reads, so the published page
 always runs the code it was deployed from rather than the latest PyPI release.
-The docs workflow runs this into ``docs/_build/html/app``.
+It also runs the page's worked example through ``web/bootstrap.py``, the code the
+page runs, and writes the results to ``demo.json``: the page draws them at first
+paint while Python loads in the browser. The docs workflow runs this into
+``docs/_build/html/app``.
 
     uv run python scripts/build_web_app.py --serve
 
@@ -16,14 +19,17 @@ from __future__ import annotations
 import argparse
 import functools
 import http.server
+import importlib.util
 import json
 import shutil
 import subprocess
+from importlib.metadata import version
 from pathlib import Path
+from typing import Any
 
 ROOT = Path(__file__).resolve().parent.parent
 WEB_SRC = ROOT / "web"
-APP_FILES = ("index.html", "app.js", "worker.js", "bootstrap.py", "style.css")
+APP_FILES = ("index.html", "app.js", "charts.js", "python.js", "worker.js", "bootstrap.py", "style.css")
 
 
 def build_wheel(dist: Path) -> Path:
@@ -39,15 +45,80 @@ def build_wheel(dist: Path) -> Path:
     return wheels[-1]
 
 
+def worked_example() -> dict[str, Any]:
+    """Run the page's worked example through ``web/bootstrap.py``, as the page runs it live.
+
+    Every key the page reads at first paint is a reply of the same entry point the page
+    calls, so the example drawn before Python loads and the one computed in the browser
+    are the same code's output.
+    """
+    spec = importlib.util.spec_from_file_location("web_bootstrap", WEB_SRC / "bootstrap.py")
+    if spec is None or spec.loader is None:
+        raise SystemExit("web/bootstrap.py could not be loaded")
+    bootstrap = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(bootstrap)
+
+    def call(fn: str, payload: dict) -> Any:  # noqa: ANN401
+        reply = json.loads(getattr(bootstrap, fn)(json.dumps(payload)))
+        if not reply["ok"]:
+            raise SystemExit(f"{fn} failed on the worked example: {reply['error']}")
+        return reply["result"]
+
+    inputs = bootstrap.DEMO
+    design = call("api_make_design", inputs["design"])
+    held = {"spec": design["spec"], "columns": design["columns"], "rows": design["rows"]}
+    simulation = call(
+        "api_simulate", {**held, "scenario": inputs["scenario"], "sigma": inputs["sigma"], "seed": inputs["seed"]}
+    )
+    request = {**held, "responses": simulation["responses"], "model": inputs["model"], "truth": simulation["truth"]}
+    design.pop("xlsx_base64")  # the page writes the workbook when it is asked for
+
+    # Step 4 for the same factors: every design the page offers, compared on the nine measures.
+    model = "main_quadratic"
+    plan = call("api_compare_plan", {"factors": inputs["design"]["factors"], "model": model})
+    made = []
+    for item in plan["designs"]:
+        generated = call("api_make_design", item["spec"])
+        generated.pop("xlsx_base64")
+        made.append({**item, "design": generated})
+    contenders = [
+        {
+            "label": m["label"],
+            "spec": m["design"]["spec"],
+            "columns": m["design"]["columns"],
+            "rows": m["design"]["rows"],
+        }
+        for m in made
+    ]
+    return {
+        "version": version("process-improve"),
+        "inputs": inputs,
+        "design": design,
+        "simulation": simulation,
+        "analysis": call("api_analyze_runs", request),
+        "plots": call("api_plots", request),
+        "comparison": {
+            "model": model,
+            "made": made,
+            "notes": plan["notes"],
+            "result": call("api_compare", {"model": model, "designs": contenders}),
+        },
+    }
+
+
 def assemble(out_dir: Path) -> str:
-    """Copy the app and a freshly built wheel into ``out_dir``; return the wheel name."""
+    """Copy the app, a freshly built wheel and the worked example into ``out_dir``; return the wheel name."""
     shutil.rmtree(out_dir, ignore_errors=True)
     (out_dir / "wheels").mkdir(parents=True)
     for name in APP_FILES:
         shutil.copy2(WEB_SRC / name, out_dir / name)
     wheel = build_wheel(ROOT / "dist" / "web")
     shutil.copy2(wheel, out_dir / "wheels" / wheel.name)
-    (out_dir / "wheels" / "manifest.json").write_text(json.dumps({"wheel": wheel.name}, indent=2) + "\n")
+    from plotly.offline import get_plotlyjs_version  # noqa: PLC0415 - the docs environment has plotly
+
+    manifest = {"wheel": wheel.name, "plotly": version("plotly"), "plotly_js": get_plotlyjs_version()}
+    (out_dir / "wheels" / "manifest.json").write_text(json.dumps(manifest, indent=2) + "\n")
+    (out_dir / "demo.json").write_text(json.dumps(worked_example(), separators=(",", ":")) + "\n")
     return wheel.name
 
 
