@@ -43,5 +43,8 @@ uv.lock
 # Build artifacts (uv build)
 dist/
 
-# Pyodide for the web/ smoke test (npm install --no-save)
+# Pyodide for Node.js, if installed beside the app (npm install --no-save)
 web/node_modules/
+
+# Traces and screenshots of failing browser tests (pytest --e2e-artifacts)
+e2e-artifacts/

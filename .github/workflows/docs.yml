@@ -44,6 +44,15 @@ jobs:
         run: uv run sphinx-build docs docs/_build/html -b html -W
       - name: Add the no-install browser app at /app
         run: uv run python scripts/build_web_app.py -o docs/_build/html/app
+      # The deploy needs this job, so a built app that does not work is never published:
+      # the smoke tests start Python in the built page under Pyodide, in Chromium, and run
+      # the worked example there. Downloads are not cached, as a reader's are not.
+      - name: Install Chromium for Playwright
+        run: uv run --with playwright==1.56.0 playwright install --with-deps chromium
+      - name: Check the app works before it is published
+        run: >-
+          uv run --with playwright==1.56.0 pytest tests/web/live -m smoke --live
+          --web-app=docs/_build/html/app --cdn-cache=off --no-cov
       - name: Upload Pages artifact
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         uses: actions/upload-pages-artifact@v5

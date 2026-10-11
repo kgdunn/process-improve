@@ -141,12 +141,36 @@ The no-install app in `web/` runs the package in the reader's browser, through
   and JavaScript repeat from `bootstrap.py`, the build in `scripts/build_web_app.py`,
   and the code the "Show the Python" panels write. The tests that run the page's
   JavaScript need Node.js, and skip without it.
-- `web/test-wasm.mjs` runs a design and analysis round trip under real Pyodide in CI
-  (the `web-app` job).
 
-`pytest tests/web --no-cov` runs them all, and `--affected-since` selects all of them
-when any file of the app changes. `web/bootstrap.py` counts towards coverage, so the
-patch gate applies to it.
+`pytest tests/web --no-cov` runs them, and `--affected-since` selects all of them when any
+file of the app changes. `web/bootstrap.py` counts towards coverage, so the patch gate
+applies to it.
+
+Three slower tiers run only when asked for, since they need a browser, Pyodide, or both.
+CI's `web-app` job runs all three:
+
+- `tests/web/e2e` (`--e2e`): the page in Chromium, through Playwright, with its Python
+  answered natively by `bootstrap.py` in the test process. It needs neither Pyodide nor
+  the network, and each test gets a fresh page; a console error fails the test.
+- `tests/web/live` (`--live`): the built app in Chromium, with Pyodide in its worker. Its
+  `smoke` tests also run in `docs.yml` against the built `/app`, so an app that does not
+  work is not deployed.
+- `tests/web/wasm` (`--wasm`): the app's Python under Pyodide in Node.js, asked what
+  native Python is asked; the answers must agree.
+
+To run them locally:
+
+```bash
+uv run --with playwright==1.56.0 playwright install chromium     # once, for --e2e and --live
+npm install --prefix ~/.cache/process-improve/node --no-save \
+  pyodide@$(jq -r .pyodide web/runtime.json)                      # once, for --wasm
+uv run --with playwright==1.56.0 pytest tests/web --e2e --live --wasm --no-cov
+```
+
+`--live` and `--wasm` build the app into `~/.cache/process-improve/web-app`, unless
+`--web-app` names a build directory or a URL (the published app, for instance). Behind a
+proxy, set `HTTPS_PROXY`: Chromium is pointed at it. `--e2e-headed` shows the browser, and
+`--e2e-artifacts DIR` keeps a trace and screenshots of each failing browser test.
 
 When you change the app, the tests move with it:
 
@@ -156,6 +180,11 @@ When you change the app, the tests move with it:
   `test_errors.py`. The suite fails, naming the message, until there is one.
 - A choice the page repeats from `bootstrap.py`, so the form is right before Python
   loads: a test in `tests/web/page/test_parity.py`.
+- A new control, step or message on the page: a test in `tests/web/e2e`, which drives the
+  page as a reader would. `window.__pi` (`tests/web/harness.js`) records each call to
+  Python, and can hold a reply back or give one, for races and error paths.
+- A new package the page loads into Pyodide: in `web/runtime.json`, and in
+  `web/worker.js`, which `tests/web/page/test_runtime.py` holds to it.
 - A new file in `web/`: in `APP_FILES` in `scripts/build_web_app.py` if the page loads
   it, and in `APP_SOURCES` in `tests/web/_support.py` either way.
 - A new design type or simulated process: in `ALL_DESIGNS` or `ALL_SCENARIOS` in

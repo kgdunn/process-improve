@@ -167,8 +167,9 @@ ENTRY_POINTS = {
     "comparison": "api_compare",
 }
 
-#: Entry points the page does not call: ``api_analyze`` analyses a workbook in one call, for
-#: ``web/test-wasm.mjs`` and for scripted use; the page reads a workbook and analyses its runs.
+#: Entry points the page does not call: ``api_analyze`` analyses a workbook in one call, for the
+#: tests (``tests/web/wasm`` among them) and for scripted use; the page reads a workbook and then
+#: analyses its runs.
 NOT_CALLED_BY_THE_PAGE = {"api_analyze"}
 
 TYPES = {

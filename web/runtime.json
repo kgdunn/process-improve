@@ -1,0 +1,6 @@
+{
+  "about": "What web/worker.js loads into Pyodide; tests/web/page/test_runtime.py holds worker.js and CI to it.",
+  "pyodide": "0.28.3",
+  "packages": ["micropip", "numpy", "pandas", "scipy", "statsmodels", "scikit-learn", "patsy", "pydantic", "pyyaml"],
+  "micropip": ["tqdm", "openpyxl"]
+}

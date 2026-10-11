@@ -45,7 +45,7 @@ APP_SOURCES = (
     "python.js",
     "worker.js",
     "bootstrap.py",
-    "test-wasm.mjs",
+    "runtime.json",
     "build_web_app.py",
 )
 

@@ -3,20 +3,62 @@
 ``web/bootstrap.py`` is loaded once per test session (once per xdist worker), and the worked
 example is run once from it. A test that uses the worked example gets its own copy of each
 part, so what one test changes cannot reach another.
+
+Three tiers run only when asked for, since they need a browser, Pyodide, or both: ``e2e``
+(``--e2e``: the page in Chromium, its Python answered natively), ``live`` (``--live``: the
+built app in Chromium, with Pyodide) and ``wasm`` (``--wasm``: the app's Python under Pyodide
+in Node.js). A live or wasm module starts Pyodide once, so its tests share an xdist worker.
 """
 
 from __future__ import annotations
 
 import copy
 import shutil
+from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 import pytest
 
+from tests.web._browser import REPORTS, launch
+from tests.web._build import build
 from tests.web._support import BUILD_SCRIPT, WEB, Api, held_of, load_module
 
 if TYPE_CHECKING:
+    from collections.abc import Iterator
     from types import ModuleType
+
+#: The slower tiers, by directory, and the option each runs with.
+TIERS = {"e2e": "--e2e", "live": "--live", "wasm": "--wasm"}
+
+
+@pytest.hookimpl(tryfirst=True)  # before xdist reads the groups
+def pytest_collection_modifyitems(config: pytest.Config, items: list[pytest.Item]) -> None:
+    """Mark each test of a slower tier with its tier, and skip it unless its option was given."""
+    here = Path(__file__).parent
+    for item in items:
+        tier = item.path.relative_to(here).parts[0] if item.path.is_relative_to(here) else None
+        if tier not in TIERS:
+            continue
+        item.add_marker(getattr(pytest.mark, tier))
+        if tier != "e2e":
+            item.add_marker(pytest.mark.slow)
+            item.add_marker(pytest.mark.xdist_group(f"{tier}/{item.path.stem}"))
+        if not config.getoption(TIERS[tier]):
+            item.add_marker(pytest.mark.skip(reason=f"runs with {TIERS[tier]}"))
+
+
+@pytest.hookimpl(wrapper=True)
+def pytest_runtest_makereport(item: pytest.Item) -> Iterator[pytest.TestReport]:
+    """Keep each phase's report on the test, so a browser fixture can tell whether the test failed."""
+    report = yield
+    item.stash.setdefault(REPORTS, {})[report.when] = report
+    return report
+
+
+@pytest.fixture(scope="session")
+def chromium(request: pytest.FixtureRequest) -> Iterator[Any]:
+    """Start Chromium once per session (once per xdist worker), through Playwright."""
+    yield from launch(headed=request.config.getoption("--e2e-headed"))
 
 
 @pytest.fixture(scope="session")
@@ -85,3 +127,17 @@ def held(worked_example: dict[str, Any]) -> dict[str, Any]:
 def simulated(worked_example: dict[str, Any]) -> dict[str, Any]:
     """Return the worked example's results, simulated from the reactor process with its noise and seed."""
     return copy.deepcopy(worked_example["simulated"])
+
+
+@pytest.fixture(scope="session")
+def web_app(request: pytest.FixtureRequest, build_script: ModuleType) -> Path | str:
+    """Return the app the live and wasm tiers run: what ``--web-app`` names, or a build of this checkout."""
+    given = request.config.getoption("--web-app")
+    if not given:
+        return build(build_script)
+    if given.startswith(("http://", "https://")):
+        return given.rstrip("/") + "/"
+    app = Path(given).resolve()
+    if not (app / "wheels" / "manifest.json").is_file():
+        pytest.fail(f"--web-app={given} is not a built app: `python scripts/build_web_app.py -o {given}` builds one.")
+    return app
