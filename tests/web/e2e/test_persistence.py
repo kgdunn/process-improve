@@ -178,3 +178,32 @@ def test_on_a_phone_the_link_and_the_list_fit(page):
     page.click("#share")
     page.wait_for_selector("#share-out", state="visible")
     assert page.evaluate("document.documentElement.scrollWidth <= document.documentElement.clientWidth")
+
+
+def test_the_printed_run_sheet_has_a_box_per_result_and_a_code_that_opens_the_design(open_context, page, tmp_path):
+    generate(page, design_type="full_factorial", n_center_points=2)
+    page.evaluate("() => { window.print = () => { window.__printed = (window.__printed ?? 0) + 1; }; }")
+    page.click("#print")
+    page.wait_for_function("window.__printed === 1")
+    rows = page.locator("#print-sheet table").nth(1).locator("tbody tr")
+    assert rows.count() == 10
+    assert page.locator("#print-sheet td.result").all_text_contents() == [""] * 10
+    assert page.text_content("#print-sheet h1") == "Full factorial (2-level) in T, P and F"
+
+    page.emulate_media(media="print")
+    assert page.is_visible("#print-sheet")
+    assert page.is_hidden("#step-design"), "on paper, the run sheet alone"
+    shot = tmp_path / "qr.png"
+    page.locator("#print-sheet .qr img").screenshot(path=shot)
+
+    zxingcpp = pytest.importorskip("zxingcpp", reason="zxing-cpp reads the printed code")
+    image = pytest.importorskip("PIL.Image")
+    read = zxingcpp.read_barcodes(image.open(shot))
+    assert len(read) == 1
+    link = read[0].text
+    elsewhere = open_context().new_page()
+    elsewhere.goto(link)
+    elsewhere.wait_for_selector(BANNER, state="visible")
+    settled(elsewhere)
+    assert [row[:-1] for row in run_sheet(elsewhere)] == [row[:-1] for row in run_sheet(page)]
+    assert results(elsewhere) == [""] * 10, "the code carries the design, not its results"

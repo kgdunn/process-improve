@@ -232,6 +232,7 @@
       <div class="actions">
         <button type="button" id="download" class="button">Download workbook (.xlsx)</button>
         <button type="button" id="notebook" class="button">Download notebook (.ipynb)</button>
+        <button type="button" id="print" class="button">Print the run sheet</button>
         <button type="button" id="share" class="button">Copy a link to this design</button>
         <label class="check"><input type="checkbox" id="share-results" checked> with its results</label>
       </div>
@@ -306,6 +307,9 @@
       <button type="button" class="link copy">Copy the code</button>
     </details>
   </section>
+
+  <!-- The run sheet as it is printed: filled in by printSheet, shown only on paper. -->
+  <section id="print-sheet" class="print-sheet" aria-hidden="true"></section>
 
   <footer>
     <p>Factorial is the browser app of <a href="https://github.com/kgdunn/process-improve">process-improve</a>, the
