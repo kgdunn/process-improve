@@ -75,6 +75,23 @@ def _compare_maps(before: dict[str, float], after: dict[str, float]) -> float:
     return largest
 
 
+def _refuse_missing_labels(data: pd.DataFrame, columns: dict[str, str]) -> None:
+    """Raise ``ValueError`` when a row has no panelist, product or attribute label.
+
+    ``columns`` maps each role to the column that carries it. Such a row cannot be
+    attributed, and the round-trip check cannot see it: pandas 2 turned the missing
+    label into the text ``"nan"``, a label the long table appeared to invent, but pandas 3
+    keeps it missing, and grouping drops it from both sides of the comparison.
+    """
+    for role, col in columns.items():
+        missing = data[col].isna()
+        if missing.any():
+            rows = data.index[missing].tolist()
+            raise ValueError(
+                f"{len(rows)} row(s) have no {role} in column {col!r} (index {rows[:5]}); every row needs one."
+            )
+
+
 def reshape_to_long(  # noqa: C901, PLR0912, PLR0915
     data: pd.DataFrame,
     *,
@@ -152,6 +169,7 @@ def reshape_to_long(  # noqa: C901, PLR0912, PLR0915
         for role, col in (("product", product_col), ("attribute", attribute_col), ("score", score_col)):
             if not col or col not in data.columns:
                 raise ValueError(f"mapping[{role!r}] = {col!r} is not a column in the data (required for long layout).")
+        _refuse_missing_labels(data, {"panelist id": panelist_col, "product": product_col, "attribute": attribute_col})
         long_df = data.rename(
             columns={
                 panelist_col: "panelist_id",
@@ -181,6 +199,8 @@ def reshape_to_long(  # noqa: C901, PLR0912, PLR0915
             if not row_key_col or row_key_col not in data.columns:
                 raise ValueError(f"mapping['attribute'] = {row_key_col!r} is required for wide_by_product layout.")
             melted_name, value_key = "product", "products"
+        row_key_target = "product" if layout == "wide_by_attribute" else "attribute"
+        _refuse_missing_labels(data, {"panelist id": panelist_col, row_key_target: row_key_col})
 
         id_cols = [c for c in (panelist_col, row_key_col, session_col, replicate_col) if c]
         value_cols = mapping.get(value_key)
@@ -210,7 +230,6 @@ def reshape_to_long(  # noqa: C901, PLR0912, PLR0915
                 for attr, grp in wide.groupby(row_key_col, observed=True)
             }
 
-        row_key_target = "product" if layout == "wide_by_attribute" else "attribute"
         long_df = wide.melt(id_vars=id_cols, value_vars=value_cols, var_name=melted_name, value_name="score").rename(
             columns={panelist_col: "panelist_id", row_key_col: row_key_target}
         )

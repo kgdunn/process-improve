@@ -1334,16 +1334,45 @@ def test_round_trip_comparison_does_not_depend_on_label_order(before, after, exp
     assert _compare_maps(before, after) == expected
 
 
-def test_reshape_refuses_a_row_without_a_panelist():
-    """A missing panelist id would become the label 'nan'; the round-trip check catches it every time."""
-    wide = _wide_panel()
-    wide.loc[0, "Assessor"] = np.nan
-    with pytest.raises(ValueError, match=r"Round-trip check failed .*per_panelist_max_diff=inf"):
-        reshape_to_long(
-            wide,
-            layout="wide_by_attribute",
-            mapping={"panelist_id": "Assessor", "product": "Sample", "replicate": "Rep"},
-        )
+def _by_product_matrices() -> pd.DataFrame:
+    """Wide-by-product table: one panelist x product matrix per attribute, stacked."""
+    rng = np.random.default_rng(1)
+    rows = [
+        {"Assessor": pid, "Attribute": attr, "Rep": rep, "A": rng.normal(5, 1), "B": rng.normal(4, 1)}
+        for attr in ("Salty", "Bitter")
+        for pid in ("P1", "P2", "P3")
+        for rep in (1, 2)
+    ]
+    return pd.DataFrame(rows)
+
+
+@pytest.mark.parametrize(
+    ("layout", "column", "role"),
+    [
+        ("wide_by_attribute", "Assessor", "panelist id"),
+        ("wide_by_attribute", "Sample", "product"),
+        ("wide_by_product", "Attribute", "attribute"),
+        ("long", "panelist_id", "panelist id"),
+        ("long", "product", "product"),
+    ],
+)
+def test_reshape_refuses_a_row_without_a_label(layout: str, column: str, role: str) -> None:
+    """A row with no panelist, product or attribute label is refused, under pandas 2 and 3 alike.
+
+    pandas 2 turned the missing label into the text 'nan', which the round-trip check caught
+    for a panelist only; pandas 3 keeps it missing, and grouping hides it from the check.
+    """
+    if layout == "wide_by_attribute":
+        data, mapping = _wide_panel(), {"panelist_id": "Assessor", "product": "Sample", "replicate": "Rep"}
+    elif layout == "wide_by_product":
+        data = _by_product_matrices()
+        mapping = {"panelist_id": "Assessor", "attribute": "Attribute", "replicate": "Rep"}
+    else:
+        data = _panel(anomalous=None)
+        mapping = {"panelist_id": "panelist_id", "product": "product", "attribute": "attribute", "score": "score"}
+    data.loc[2, column] = np.nan
+    with pytest.raises(ValueError, match=re.escape(f"1 row(s) have no {role} in column '{column}' (index [2])")):
+        reshape_to_long(data, layout=layout, mapping=mapping)
 
 
 def _with_stray_spaces(case: str) -> tuple[pd.DataFrame, str, dict]:
