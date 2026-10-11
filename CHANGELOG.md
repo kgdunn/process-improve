@@ -194,6 +194,12 @@ those changes.
     damaged one is refused with a sentence.
   - "Download notebook (.ipynb)" writes the code each step's "Show the Python" panel shows,
     in order, after a line that installs the release the page ran.
+  - "Print the run sheet" prints the runs in their order, with a box for each result and a
+    QR code of a link to the design. Scanned at the plant, it opens the design on a phone,
+    where the results are typed in and sent back by link. A link that brings results for a
+    design this browser keeps fills them into it, keeping any result already there.
+    `web/qr.js` is held to segno, module for module, at every QR version and level; segno
+    joins the development dependencies as a test oracle.
 - **The browser app runs on Pyodide 314.0.7 (Python 3.14.2)**, with numpy 2.4, pandas 3.0,
   scipy 1.18 and scikit-learn 1.8.
 - **PLS and multiblock fits on complete data are faster, with identical results.** So is
