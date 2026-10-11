@@ -105,9 +105,9 @@ jobs:
       run: uv run --with playwright==1.56.0 playwright install --with-deps chromium
     - name: Build the app
       run: uv run python scripts/build_web_app.py -o dist/web-app
-    - name: The app in a browser and under Pyodide
+    - name: The app in a browser and under Pyodide, and its JavaScript under Node.js
       run: >-
-        uv run --with playwright==1.56.0 pytest tests/web/e2e tests/web/live tests/web/wasm
+        uv run --with playwright==1.56.0 pytest tests/web/e2e tests/web/live tests/web/wasm tests/web/js
         --e2e --live --wasm --web-app=dist/web-app --e2e-artifacts=e2e-artifacts --no-cov
     - name: Keep a trace and screenshots of each failing browser test
       if: failure()
