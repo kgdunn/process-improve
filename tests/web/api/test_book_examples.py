@@ -10,8 +10,8 @@ number the app does not reproduce.
 
 The book gives some results as effects, the change from a factor's low level to its high level,
 which is twice the coefficient the page reports; those cases say so. A categorical factor of the
-book (a rack position, a profile required or not) is entered as a numeric stand-in from 0 to 1,
-since the analysis is in coded units and the coding is the same.
+book (a rack position, a profile required or not) is entered with its two labels, as a reader
+would: the page codes the first -1 and the second +1.
 """
 
 from __future__ import annotations
@@ -58,7 +58,7 @@ class Example:
     design_type: str
     factors: list[dict]
     runs: list[tuple]
-    model: str
+    model: str | dict  # a named model, or {"terms": [...]}, the terms a reader ticks
     printed: dict[str, str] = field(default_factory=dict)
     effects: bool = False  # the book prints effects, twice the page's coefficients
     options: dict = field(default_factory=dict)
@@ -66,6 +66,8 @@ class Example:
     lenth_scale: float = 1.0  # what the page's (effect-scale) margins are divided by for the book's
     active: tuple[str, ...] | None = None
     r_squared: str | None = None
+    residual: dict[str, str] = field(default_factory=dict)  # df, pure-error df, mean square, coefficients' SE
+    note: str | None = None  # the start of a note the analysis must make
 
 
 def tolerance(printed: str) -> float:
@@ -76,12 +78,23 @@ def tolerance(printed: str) -> float:
 
 CONVERSION = [factor("T", 338, 354, "K"), factor("S", 1.25, 1.75, "g/L")]
 INTERACTING = [factor("T", 390, 400, "K"), factor("S", 0.5, 1.25, "g/L")]
-POLLUTANT_FACTORS = [factor("C", 0, 1, "P=0, Q=1"), factor("T", 72, 100, "degF"), factor("S", 200, 400, "rpm")]
+POLLUTANT_FACTORS = [factor("C", "P", "Q"), factor("T", 72, 100, "degF"), factor("S", 200, 400, "rpm")]
 POLLUTANT = [(*s, y) for s, y in zip(standard_order(3), [5, 30, 6, 33, 4, 3, 5, 4], strict=True)]
 PARETO = [45, 71, 48, 65, 68, 60, 80, 65, 43, 100, 45, 104, 75, 86, 70, 96]
-WEB_SALES = [factor("Shipping", 30, 50, "$"), factor("Profile", 0, 1, "no=0, yes=1")]
+WEB_SALES = [factor("Shipping", 30, 50, "$"), factor("Profile", "no", "yes")]
+# Each corner run on two Tuesdays: free shipping over $30 or $50, and a profile required or not.
+WEB_SALES_RUNS = [
+    (M, P, 3275),
+    (P, M, 3594),
+    (P, M, 3626),
+    (M, M, 3438),
+    (P, P, 2439),
+    (M, M, 3562),
+    (M, P, 2965),
+    (P, P, 2571),
+]
 BIOREACTOR = [
-    factor("A", 1, 2, "slow=1, medium=2"),
+    factor("A", "slow", "medium"),
     factor("B", 300, 700, "g"),
     factor("C", 40, 60, "g/L"),
     factor("D", 4, 6, "mg/L"),
@@ -91,7 +104,7 @@ BIOREACTOR_Y = dict(
 )
 REACTION = [factor("A", 140, 160, "degC"), factor("B", 7.0, 8.0, "pH"), factor("C", 45, 55, "rpm")]
 REACTION_Y = [72, 73, 66, 87, 70, 73, 67, 87]
-CHICKEN = [factor("D", 15, 22, "min"), factor("R", 0, 1, "middle=0, low=1"), factor("P", 0, 1, "short=0, full=1")]
+CHICKEN = [factor("D", 15, 22, "min"), factor("R", "middle", "low"), factor("P", "short", "full")]
 CHICKEN_RUNS = [(*s, y) for s, y in zip(standard_order(3), [3, 9, 3, 7, 3, 10, 4, 7], strict=True)]
 SCREENING = [
     (M, M, M, P, P, P, M, 77.1),
@@ -115,6 +128,19 @@ MOULDING = [
 ]
 AXIAL = [(M, M), (P, M), (M, P), (P, P), (0, 0), (0, -ROOT2), (ROOT2, 0), (0, ROOT2), (-ROOT2, 0)]
 MULTI_RESPONSE = [factor("T", 339, 347, "K"), factor("S", 1.40, 1.80, "g/L")]
+SIGNIFICANCE_Y = [71, 61, 90, 82, 68, 61, 87, 80, 61, 50, 89, 83, 59, 51, 85, 78]
+MICROGEL = [
+    (M, M, 119),
+    (P, M, 93),
+    (M, P, 154),
+    (P, P, 89),
+    (0, 0, 85),
+    (0, 0, 88),
+    (-1.4, 0, 125),
+    (1.4, 0, 111),
+    (0, 1.4, 136),
+    (0, -1.4, 98),
+]
 
 
 def steepest_ascent_yield(g: int, a: int, t: int, c: int) -> float:
@@ -243,23 +269,26 @@ EXAMPLES = {
         options={"n_center_points": 1, "alpha": "rotatable"},
         r_squared="0.9989",
     ),
-    # The book averages each pair of replicates, which the page cannot hold, and analyses the corners.
+    # The book averages each pair of replicates and analyses the corners; the page holds both replicates.
     "exercise: web sales": Example(
         "design-analysis-experiments-exercises.rst",
         "full_factorial",
         WEB_SALES,
-        [(*s, y) for s, y in zip(standard_order(2), [3500, 3610, 3120, 2505], strict=True)],
+        WEB_SALES_RUNS,
         "interactions",
         {"Intercept": "3184", "Shipping": "-126", "Profile": "-371", "Shipping·Profile": "-181"},
+        options={"n_replicates": 2},
+        residual={"df": "4"},  # the replicates' four, all pure error: the corners' model leaves none for lack of fit
     ),
     "exercise: web sales, effects": Example(
         "design-analysis-experiments-exercises.rst",
         "full_factorial",
         WEB_SALES,
-        [(*s, y) for s, y in zip(standard_order(2), [3500, 3610, 3120, 2505], strict=True)],
+        WEB_SALES_RUNS,
         "interactions",
         {"Shipping": "-252.50", "Profile": "-742.50", "Shipping·Profile": "-362.50"},
         effects=True,
+        options={"n_replicates": 2},
     ),
     "exercise: bioreactor 2^4": Example(
         "design-analysis-experiments-exercises.rst",
@@ -375,7 +404,7 @@ EXAMPLES = {
         "design-analysis-experiments-exercises.rst",
         "fractional_factorial",
         [
-            factor("G", 0, 1, "Gm=0, Gp=1"),
+            factor("G", "Gm", "Gp"),
             factor("A", 10, 20, "rpm"),
             factor("T", 30, 36, "degC"),
             factor("C", 1100, 1400),
@@ -393,6 +422,53 @@ EXAMPLES = {
             "A·T": "-0.25",
         },
         options={"resolution": 4},
+    ),
+    # The 2^4 of the significance section refitted with only its significant effects, the terms a reader ticks.
+    "significance: the 2^4 refitted with its significant effects": Example(
+        "full-factorial-designs/assessing-significance-of-main-effects-and-interactions.rst",
+        "full_factorial",
+        [factor(n, -1, 1) for n in "ABCD"],
+        [(*s, y) for s, y in zip(standard_order(4), SIGNIFICANCE_Y, strict=True)],
+        {"terms": [["A"], ["B"], ["D"], ["B", "D"]]},
+        residual={"df": "11", "mean square": "3.55", "standard error": "0.471"},
+    ),
+    "significance: an effect left out of the 2^4": Example(
+        "full-factorial-designs/assessing-significance-of-main-effects-and-interactions.rst",
+        "full_factorial",
+        [factor(n, -1, 1) for n in "ABCD"],
+        [(*s, y) for s, y in zip(standard_order(4), SIGNIFICANCE_Y, strict=True)],
+        "interactions",
+        {"C": "-1.125"},
+    ),
+    # The full factorial with every term, the three-factor interaction ticked: the half fraction's intercept
+    # is the full model's 5.75 plus its D·R·P, -0.25.
+    "exercise: breaded chicken, every term": Example(
+        "design-analysis-experiments-exercises.rst",
+        "full_factorial",
+        CHICKEN,
+        CHICKEN_RUNS,
+        {"terms": [["D"], ["R"], ["P"], ["D", "R"], ["D", "P"], ["R", "P"], ["D", "R", "P"]]},
+        {"Intercept": "5.75", "D": "2.5", "R": "-0.5", "P": "0.25", "D·R": "-0.75", "D·R·P": "-0.25"},
+    ),
+    "exercise: microgel, axial runs at 1.4": Example(
+        "design-analysis-experiments-exercises.rst",
+        "ccd",
+        [factor("M", 4, 8, "%"), factor("H", 10, 16, "%")],
+        MICROGEL,
+        "quadratic",
+        options={"n_center_points": 2, "alpha": 1.4},
+        residual={"df": "4", "pure error df": "1"},
+    ),
+    # The side product's two days are the two blocks: the page confounds A·B with them, as the book did.
+    "exercise: side product, run over two days": Example(
+        "design-analysis-experiments-exercises.rst",
+        "full_factorial",
+        [factor("A", 420, 440, "K"), factor("B", 10, 12, "kg")],
+        [(M, M, 89), (P, M, 268), (M, P, 179), (P, P, 448), (0, 0, 196), (0, 0, 215)],
+        "interactions",
+        {"Intercept": "232.5", "A": "112", "B": "67.5"},
+        options={"n_center_points": 2, "n_blocks": 2},
+        note="A·B is confounded with the blocks",
     ),
 }
 
@@ -473,3 +549,27 @@ def test_the_fraction_the_page_makes_is_the_book_s(api):
         spec = {"design_type": "fractional_factorial", "factors": [factor(n, -1, 1) for n in "ABCDEFG"[:k]]}
         made = api.ok("api_make_design", {**spec, "n_center_points": 0, "resolution": 4 if k == 4 else 3})
         assert made["facts"]["generators"] == generators
+
+
+@pytest.mark.parametrize("name", [name for name, example in EXAMPLES.items() if example.residual])
+def test_the_residual_degrees_of_freedom_and_error_the_book_prints(analysis_of, name):
+    """What replicates and center runs leave for the error, and the error itself where the book prints it."""
+    example, analysis = EXAMPLES[name], analysis_of(name)
+    found = {
+        "df": analysis["summary"]["df_residual"],
+        "pure error df": (analysis["lack_of_fit"] or {}).get("df_pure_error"),
+        "mean square": analysis["summary"]["mse_residual"],
+        "standard error": max(c["std_error"] for c in analysis["coefficients"] if c["term"] != "Intercept"),
+    }
+    for key, printed in example.residual.items():
+        assert found[key] is not None, f"the page gives no {key}"
+        said = f"{key}: the book {printed}, the page {found[key]}"
+        assert abs(found[key] - float(printed)) <= tolerance(printed), said
+    if "standard error" in example.residual:
+        errors = {round(c["std_error"], 9) for c in analysis["coefficients"] if c["term"] != "Intercept"}
+        assert len(errors) == 1, "an orthogonal design gives every coefficient the same standard error"
+
+
+@pytest.mark.parametrize("name", [name for name, example in EXAMPLES.items() if example.note])
+def test_the_note_the_analysis_makes(analysis_of, name):
+    assert any(note.startswith(EXAMPLES[name].note) for note in analysis_of(name)["notes"])
