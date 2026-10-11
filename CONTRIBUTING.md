@@ -158,7 +158,10 @@ CI's `web-app` job runs all three:
   the network, and each test gets a fresh page; a console error fails the test.
 - `tests/web/live` (`--live`): the built app in Chromium, with Pyodide in its worker. Its
   `smoke` tests also run in `docs.yml` against the built `/app`, so an app that does not
-  work is not deployed.
+  work is not deployed; again once the deploy is served (`tools/wait_for_web_app.py` waits
+  for the published manifest to name the commit); and weekly against the published app, in
+  `web-app-live.yml`, which also reports a pin in `web/runtime.json` that is no longer the
+  latest release (`tools/check_web_runtime.py`).
 - `tests/web/wasm` (`--wasm`): the app's Python under Pyodide in Node.js, asked what
   native Python is asked; the answers must agree.
 
