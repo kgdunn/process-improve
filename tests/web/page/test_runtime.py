@@ -7,10 +7,17 @@ a release there would otherwise change the page with no commit here.
 
 from __future__ import annotations
 
+import importlib.util
 import json
 import re
+from typing import TYPE_CHECKING
+
+import pytest
 
 from tests.web._support import ROOT, source
+
+if TYPE_CHECKING:
+    from types import ModuleType
 
 RUNTIME = json.loads(source("runtime.json"))
 
@@ -49,3 +56,35 @@ def test_ci_reads_the_pyodide_release_from_runtime_json():
     workflow = (ROOT / ".github" / "workflows" / "run-tests.yml").read_text(encoding="utf-8")
     assert "jq -r .pyodide web/runtime.json" in workflow
     assert not re.search(r"pyodide@\d", workflow), "no release written out in the workflow"
+
+
+# --------------------------------------------------------------------------- the weekly check of the pins
+@pytest.fixture(scope="module")
+def checker() -> ModuleType:
+    """Load ``tools/check_web_runtime.py``, which is a script, not a module of the package."""
+    spec = importlib.util.spec_from_file_location("check_web_runtime", ROOT / "tools" / "check_web_runtime.py")
+    assert spec
+    assert spec.loader
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def test_a_runtime_pinned_to_the_latest_releases_is_not_behind(checker):
+    pins = dict(requirement.split("==") for requirement in RUNTIME["micropip"])
+    assert checker.behind(RUNTIME, lambda: RUNTIME["pyodide"], pins.__getitem__) == []
+
+
+def test_each_pin_that_is_not_the_latest_release_is_reported(checker):
+    pins = dict(requirement.split("==") for requirement in RUNTIME["micropip"])
+    assert checker.behind(RUNTIME, lambda: "9.0.0", lambda _: "99.0") == [
+        f"Pyodide: {RUNTIME['pyodide']} is pinned, and 9.0.0 is the latest release.",
+        *(f"{name}: {pin} is pinned, and 99.0 is the latest release on PyPI." for name, pin in pins.items()),
+    ]
+
+
+def test_the_weekly_check_tries_the_published_app_and_the_pins():
+    workflow = (ROOT / ".github" / "workflows" / "web-app-live.yml").read_text(encoding="utf-8")
+    assert "python tools/check_web_runtime.py" in workflow
+    assert "APP: https://kgdunn.github.io/process-improve/app/" in workflow
+    assert '--web-app="$APP"' in workflow

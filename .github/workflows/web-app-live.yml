@@ -1,0 +1,89 @@
+name: Browser app, published
+
+# The published app depends on what this repository does not control: Pyodide's CDN, PyPI for
+# the pinned packages, and Plotly's CDN. Every week this runs the smoke tests against the
+# published app, and reports a pin in web/runtime.json that is no longer the latest release,
+# which Dependabot cannot see. A failure of either opens an issue, one at a time.
+on:
+  schedule:
+    - cron: "41 6 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  published-app:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      issues: write
+    env:
+      APP: https://kgdunn.github.io/process-improve/app/
+    steps:
+      - uses: actions/checkout@v7
+      - name: Set up the project environment
+        uses: ./.github/actions/setup-env
+        with:
+          python-version: "3.13"
+      - name: Install Chromium for Playwright
+        run: uv run --with playwright==1.56.0 playwright install --with-deps chromium
+      # A CDN can fail for a moment, so the tests run a second time, a minute later, before the
+      # job fails. Nothing is cached, as on a reader's first visit.
+      - name: Run the smoke tests against the published app
+        run: |
+          smoke() {
+            uv run --with playwright==1.56.0 pytest tests/web/live -m smoke --live \
+              --web-app="$APP" --cdn-cache=off --no-cov
+          }
+          smoke || { echo "The smoke tests failed; running them again in a minute."; sleep 60; smoke; }
+      - name: Open an issue when the published app fails
+        if: failure() && github.event_name == 'schedule'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          title="The published browser app fails its smoke tests"
+          open=$(gh issue list --state open --search "in:title \"$title\"" --json number --jq 'length')
+          if [ "$open" = "0" ]; then
+            gh issue create --title "$title" --body "The weekly check of $APP failed twice: $RUN_URL"
+          fi
+
+  runtime:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.13"
+      # Standard library only: no install step.
+      - name: Compare web/runtime.json with the latest releases
+        run: |
+          set +e
+          python tools/check_web_runtime.py > runtime-report.txt 2>&1
+          status=$?
+          cat runtime-report.txt
+          exit $status
+      - name: Open an issue when the runtime is behind
+        if: failure() && github.event_name == 'schedule'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          title="The browser app's pinned runtime is behind"
+          open=$(gh issue list --state open --search "in:title \"$title\"" --json number --jq 'length')
+          if [ "$open" = "0" ]; then
+            {
+              cat runtime-report.txt
+              echo
+              echo "To move a pin, see tools/check_web_runtime.py. Found by $RUN_URL"
+            } > issue.md
+            gh issue create --title "$title" --body-file issue.md
+          fi
