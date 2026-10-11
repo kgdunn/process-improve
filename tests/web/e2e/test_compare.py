@@ -6,8 +6,6 @@ per design; and any design can be taken from the comparison into step 1.
 
 from __future__ import annotations
 
-import pytest
-
 from tests.web.e2e._page import calls, settled, status
 
 
@@ -62,9 +60,6 @@ def test_a_design_taken_from_the_comparison_keeps_the_response_typed_in_step_1(p
     assert page.is_hidden("#design-stale"), "the design in step 2 is the one the form describes"
 
 
-@pytest.mark.xfail(
-    strict=True, reason="defect: with no design made, the page asks Python to compare none, and drops why"
-)
 def test_when_no_design_can_be_made_the_page_says_why_each_could_not(page, first_paint):
     page.evaluate("window.__pi.fake('api_make_design', {ok: false, error: 'the solver gave up', warnings: []})")
     page.click("#compare")

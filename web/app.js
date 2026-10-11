@@ -717,6 +717,16 @@ async function compareDesigns() {
     if (reply.ok) made.push({ ...item, design: reply.result });
     else notes.push(`${item.label} could not be generated: ${reply.error}`);
   }
+  if (!made.length) {
+    // Nothing to score: say why each design could not be made, in place of the last comparison.
+    button.disabled = false;
+    setStatus("None of the designs could be generated, so there is nothing to compare.", "error");
+    $("#comparison").hidden = false;
+    $("#comparison").replaceChildren(...noteList(notes));
+    $("#compare-charts").hidden = true;
+    $("#py-compare").hidden = true;
+    return;
+  }
   setStatus("Scoring the designs...", "busy");
   const designs = made.map((m) => ({ label: m.label, spec: m.design.spec, columns: m.design.columns, rows: m.design.rows }));
   const reply = await call("api_compare", { model, designs });
