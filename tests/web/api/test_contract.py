@@ -1,0 +1,279 @@
+"""The contract between the page's JavaScript and its Python: what each reply must hold.
+
+``web/app.js``, ``web/charts.js`` and ``web/python.js`` read the replies of ``web/bootstrap.py``
+key by key. A key renamed on one side and not the other breaks the page without breaking any
+Python, so ``READS`` lists every key the JavaScript reads and the type it expects, and each
+entry point's reply is checked against it.
+"""
+
+from __future__ import annotations
+
+import functools
+import json
+import re
+from typing import TYPE_CHECKING, Any
+
+import pytest
+
+from tests.web._support import FACTORS, generate_all, held_of, source
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
+
+#: What the page reads from each reply's result, and the type it expects there. ``a.b`` is a key
+#: inside a key, ``a[]`` each item of a list, ``a{}`` each value of a dict, and a bare ``[]`` each
+#: item of the lists reached so far. ``?`` allows null. A list may be empty unless it is followed
+#: by ``[]``: then it must hold something, so the check reaches its items.
+READS: dict[str, list[str]] = {
+    "catalogue": [
+        "demo.design.design_type: str",
+        "demo.design.response: str",
+        "demo.design.n_center_points: int",
+        "demo.design.factors[].name: str",
+        "demo.design.factors[].low: number",
+        "demo.design.factors[].high: number",
+        "demo.design.factors[].units: str",
+        "demo.scenario: str",
+        "demo.sigma: number",
+        "demo.model: str",
+        "demo.seed: int",
+    ],
+    "design": [
+        "n_runs: int",
+        "columns[]: str",
+        "rows[]: list",
+        "model: str",
+        "outside_range: list",
+        "facts.center_runs: int",
+        "facts.notes[]: str",
+        "spec.design_type: str",
+        "spec.response: str",
+        "spec.model: str",
+        "spec.options: dict",
+        "spec.factors[].name: str",
+        "spec.factors[].low: number",
+        "spec.factors[].high: number",
+        "spec.factors[].units: str",
+    ],
+    "simulation": [
+        "scenario: str",
+        "label: str",
+        "sigma: number",
+        "seed: int",
+        "responses[]: number",
+        "equation: str",
+        "inactive: list",
+        "truth[].term: str",
+        "truth[].coefficient: number",
+    ],
+    "analysis": [
+        "spec.factors[].name: str",
+        "model: str",
+        "equation: str",
+        "n_completed: int",
+        "pending_runs: list",
+        "notes: list",
+        "summary.r_squared: number?",
+        "summary.r_squared_adj: number?",
+        "summary.r_squared_pred: number?",
+        "summary.df_residual: int",
+        "coefficients[].term: str",
+        "coefficients[].label: str",
+        "coefficients[].coefficient: number",
+        "coefficients[].std_error: number?",
+        "coefficients[].ci_low: number?",
+        "coefficients[].ci_high: number?",
+        "coefficients[].p_value: number?",
+        "coefficients[].true_value: number?",
+        "anova[].source: str",
+        "anova[].df: number",
+        "anova[].sum_sq: number?",
+        "anova[].F: number?",
+        "anova[].p_value: number?",
+        "lack_of_fit.f_statistic: number?",
+        "lack_of_fit.p_value: number?",
+        "lack_of_fit.df_pure_error: int",
+    ],
+    "saturated analysis": [
+        "summary.r_squared_pred: number?",
+        "lenth.PSE: number",
+        "lenth.ME: number",
+        "lenth.SME: number",
+        "lenth.effects[].label: str",
+        "lenth.effects[].effect: number",
+        "lenth.effects[].active_ME: bool",
+        "lenth.effects[].active_SME: bool",
+    ],
+    "charts": [
+        "plotly_js: str",
+        "contour_factors[]: str",
+        "figures{}: str",
+    ],
+    "workbook": [
+        "xlsx_base64: str",
+    ],
+    "upload": [
+        "spec.design_type: str",
+        "spec.response: str",
+        "spec.model: str",
+        "spec.options: dict",
+        "spec.factors[].name: str",
+        "spec.factors[].low: number",
+        "spec.factors[].high: number",
+        "spec.factors[].units: str",
+        "columns[]: str",
+        "rows[]: list",
+        "responses[]: number?",
+        "sources[]: str?",
+    ],
+    "comparison plan": [
+        "notes: list",
+        "designs[].label: str",
+        "designs[].design_type: str",
+        "designs[].spec: dict",
+    ],
+    "comparison": [
+        "designs[]: str",
+        "measures[].key: str",
+        "measures[].group: str",
+        "measures[].label: str",
+        "measures[].description: str",
+        "measures[].direction: str?",
+        "display{}.[]: str",
+        "notes{}: list",
+        "terms[]: str",
+        "effect_size: number",
+        "significance_level: number",
+        "g_points: any",
+        "values{}.fits: bool",
+        "fds{}.fraction[]: number",
+        "fds{}.variance[]: number",
+        "correlations{}.terms[]: str",
+        "correlations{}.matrix[].[]: number?",
+    ],
+}
+
+#: The entry point each reply comes from.
+ENTRY_POINTS = {
+    "catalogue": "api_catalogue",
+    "design": "api_make_design",
+    "simulation": "api_simulate",
+    "analysis": "api_analyze_runs",
+    "saturated analysis": "api_analyze_runs",
+    "charts": "api_plots",
+    "workbook": "api_workbook",
+    "upload": "api_read_workbook",
+    "comparison plan": "api_compare_plan",
+    "comparison": "api_compare",
+}
+
+#: Entry points the page does not call: ``api_analyze`` analyses a workbook in one call, for
+#: ``web/test-wasm.mjs`` and for scripted use; the page reads a workbook and analyses its runs.
+NOT_CALLED_BY_THE_PAGE = {"api_analyze"}
+
+TYPES = {
+    "int": lambda v: isinstance(v, int) and not isinstance(v, bool),
+    "number": lambda v: isinstance(v, (int, float)) and not isinstance(v, bool),
+    "str": lambda v: isinstance(v, str),
+    "bool": lambda v: isinstance(v, bool),
+    "list": lambda v: isinstance(v, list),
+    "dict": lambda v: isinstance(v, dict),
+    "any": lambda _: True,
+}
+
+
+def values_at(result: dict, path: str) -> list[Any]:
+    """Return every value ``path`` reaches in ``result``, failing on a missing key or an empty list."""
+    found: list[Any] = [result]
+    for step in path.split("."):
+        key, fan = re.fullmatch(r"(\w*)(\[\]|\{\})?", step).groups()
+        if key:
+            missing = [item for item in found if not isinstance(item, dict) or key not in item]
+            assert not missing, f"{path}: no {key!r} in the reply"
+            found = [item[key] for item in found]
+        if fan:
+            found = [x for item in found for x in (item if fan == "[]" else item.values())]
+            assert found, f"{path}: nothing to check at {step!r}"
+    return found
+
+
+@pytest.fixture(scope="module")
+def reply(api, worked_example: dict[str, Any]) -> Callable[[str], dict]:
+    """Return the result of each kind of request, made once, when a test first asks for it.
+
+    The requests reach every key the page reads.
+    """
+    held, simulated = worked_example["held"], worked_example["simulated"]
+    analysed = {**held, "responses": simulated["responses"], "truth": simulated["truth"]}
+
+    def saturated() -> dict:
+        spec = {"design_type": "plackett_burman", "factors": FACTORS, "n_center_points": 0}
+        return {**held_of(api.ok("api_make_design", spec)), "responses": [1.0, 2.5, 3.0, 5.5], "model": "main_effects"}
+
+    def upload() -> dict:
+        return api.ok("api_workbook", {**analysed, "sources": ["simulated"] * 15, "simulated": simulated})
+
+    def comparison() -> dict:
+        return {"model": "main_quadratic", "designs": generate_all(api, FACTORS, "main_quadratic")[1]}
+
+    requests: dict[str, Callable[[], dict]] = {
+        "catalogue": dict,
+        "design": lambda: worked_example["demo"]["design"],
+        "simulation": lambda: {**held, "seed": 2},
+        "analysis": lambda: analysed,
+        "saturated analysis": saturated,
+        "charts": lambda: analysed,
+        "workbook": lambda: analysed,
+        "upload": upload,
+        "comparison plan": lambda: {"factors": FACTORS, "model": "main_quadratic"},
+        "comparison": comparison,
+    }
+    return functools.cache(lambda kind: api.ok(ENTRY_POINTS[kind], requests[kind]()))
+
+
+@pytest.mark.parametrize("kind", READS)
+def test_each_reply_holds_what_the_page_reads(reply, kind):
+    if kind == "charts":
+        pytest.importorskip("plotly", reason="the page installs plotly for its first chart")
+    for read in READS[kind]:
+        path, expected = (part.strip() for part in read.split(":"))
+        allowed, nullable = TYPES[expected.rstrip("?")], expected.endswith("?")
+        wrong = [v for v in values_at(reply(kind), path) if not (allowed(v) or (nullable and v is None))]
+        assert not wrong, f"{kind}: {path} should be {expected}, not {wrong[:3]}"
+
+
+def test_each_chart_is_a_plotly_figure_the_page_can_restyle(reply):
+    pytest.importorskip("plotly", reason="the page installs plotly for its first chart")
+    figures = {key: json.loads(text) for key, text in reply("charts")["figures"].items()}
+    for key, figure in figures.items():
+        assert isinstance(figure["data"], list), key
+        assert isinstance(figure.get("layout", {}), dict), key
+    for key in ("contour", "true_contour"):  # the page gives these two one colour scale
+        assert isinstance(figures[key]["data"][0]["z"], list), key
+
+
+def test_each_measure_has_a_cell_for_each_design(reply):
+    comparison = reply("comparison")
+    for label in comparison["designs"]:
+        assert len(comparison["display"][label]) == len(comparison["measures"]), label
+        assert label in comparison["notes"], label
+
+
+def test_the_page_calls_only_entry_points_this_contract_covers(bootstrap):
+    called = set(re.findall(r'call\("(api_\w+)"', source("app.js")))
+    defined = {name for name in dir(bootstrap) if name.startswith("api_")}
+    assert called <= defined, "app.js calls an entry point bootstrap.py does not define"
+    assert called == set(ENTRY_POINTS.values()), "a new call from app.js needs its READS here"
+    assert defined - called == NOT_CALLED_BY_THE_PAGE
+
+
+def test_the_catalogue_is_what_bootstrap_offers(api, bootstrap):
+    catalogue = api.ok("api_catalogue")
+    assert catalogue["designs"] == bootstrap.DESIGNS
+    assert catalogue["models"] == list(bootstrap.MODELS)
+    assert catalogue["alphas"] == list(bootstrap.ALPHAS)
+    assert catalogue["demo"] == bootstrap.DEMO
+    assert list(catalogue["scenarios"]) == list(bootstrap.SCENARIOS)
+    for key, scenario in bootstrap.SCENARIOS.items():
+        offered = {name: scenario[name] for name in ("label", "hint", "sigma")}
+        assert catalogue["scenarios"][key] == offered, key

@@ -1,0 +1,281 @@
+"""Helpers shared by the browser app's tests: where the app lives, how to call it, and what its page holds.
+
+The app's Python side, ``web/bootstrap.py``, is loaded from its file the way ``web/worker.js``
+loads it into Pyodide, and called through its JSON entry points the way ``web/app.js`` calls
+it: a JSON payload in, a JSON reply out. :class:`Api` makes those calls, and reads every reply
+as the browser's ``JSON.parse`` reads it, so a reply the page could not read fails every test.
+"""
+
+from __future__ import annotations
+
+import base64
+import contextlib
+import html.parser
+import importlib.util
+import io
+import json
+import subprocess
+import sys
+from dataclasses import dataclass
+from functools import cache
+from pathlib import Path
+from typing import TYPE_CHECKING, Any, NoReturn
+
+import numpy as np
+import pandas as pd
+
+if TYPE_CHECKING:
+    from collections.abc import Callable, Iterator
+    from types import ModuleType
+
+ROOT = Path(__file__).resolve().parents[2]
+WEB = ROOT / "web"
+BUILD_SCRIPT = ROOT / "scripts" / "build_web_app.py"
+
+#: Every file the app is built from: what ``web/`` holds, and the script that assembles it.
+#: ``--affected-since`` maps a changed file outside ``src/`` and ``tests/`` to the test files
+#: that name it (``tests/_selection.py``). Every test here imports this module, directly or
+#: through ``conftest.py``, so naming the files here sends a change to any of them to all of
+#: ``tests/web``. ``page/test_build.py`` checks that the list is complete.
+APP_SOURCES = (
+    "index.html",
+    "style.css",
+    "app.js",
+    "charts.js",
+    "python.js",
+    "worker.js",
+    "bootstrap.py",
+    "test-wasm.mjs",
+    "build_web_app.py",
+)
+
+#: Every design the page offers, in the order it lists them. The tests run over this list, and
+#: ``test_designs`` checks it against ``bootstrap.DESIGNS``, so a new design cannot go untested.
+ALL_DESIGNS = (
+    "full_factorial",
+    "fractional_factorial",
+    "plackett_burman",
+    "dsd",
+    "box_behnken",
+    "ccd",
+    "d_optimal",
+    "i_optimal",
+)
+
+#: Every process the page simulates results from; ``test_simulation`` checks it against ``SCENARIOS``.
+ALL_SCENARIOS = ("reactor", "main_effects", "interaction", "optimum", "nothing", "random")
+
+#: Three factors in their own units, as the worked example has them.
+FACTORS = [
+    {"name": "T", "low": 150, "high": 200, "units": "degC"},
+    {"name": "P", "low": 1, "high": 3, "units": "bar"},
+    {"name": "F", "low": 10, "high": 20, "units": "L/min"},
+]
+
+
+def factors_named(*names: str) -> list[dict]:
+    """Return factors with the given names, each from -1 to +1, so a setting and its coded value agree."""
+    return [{"name": n, "low": -1, "high": 1, "units": ""} for n in names]
+
+
+# --------------------------------------------------------------------------- loading the app's files
+@contextlib.contextmanager
+def no_bytecode() -> Iterator[None]:
+    """Write no ``__pycache__`` beside the files loaded inside the block: ``web/`` and ``scripts/`` are not packages."""
+    before, sys.dont_write_bytecode = sys.dont_write_bytecode, True
+    try:
+        yield
+    finally:
+        sys.dont_write_bytecode = before
+
+
+def load_module(name: str, path: Path) -> ModuleType:
+    """Load a module from its file, as ``web/worker.js`` loads ``bootstrap.py`` into Pyodide."""
+    spec = importlib.util.spec_from_file_location(name, path)
+    if spec is None or spec.loader is None:
+        raise ImportError(path)
+    module = importlib.util.module_from_spec(spec)
+    with no_bytecode():
+        spec.loader.exec_module(module)
+    return module
+
+
+@cache
+def source(name: str) -> str:
+    """Return the text of one of the app's files in ``web/``."""
+    return (WEB / name).read_text(encoding="utf-8")
+
+
+# --------------------------------------------------------------------------- calling the app
+def _strict(constant: str) -> NoReturn:
+    """Refuse what Python's JSON reader accepts and the browser's ``JSON.parse`` does not: NaN and infinities."""
+    message = f"the reply holds {constant}, which JSON.parse in the page cannot read"
+    raise AssertionError(message)
+
+
+@dataclass(frozen=True)
+class Api:
+    """The entry points of ``web/bootstrap.py``, called as the page calls them: a JSON payload in, a JSON reply out."""
+
+    module: ModuleType
+
+    def reply(self, fn: str, payload: object = None, *, text: str | None = None) -> dict[str, Any]:
+        """Return the whole reply, ``ok`` then ``result`` or ``error``, and ``warnings``; ``text`` is sent as it is."""
+        sent = json.dumps({} if payload is None else payload) if text is None else text
+        return json.loads(getattr(self.module, fn)(sent), parse_constant=_strict)
+
+    def ok(self, fn: str, payload: object = None) -> dict[str, Any]:
+        """Return the result of a call the page expects to succeed."""
+        answer = self.reply(fn, payload)
+        assert answer["ok"], f"{fn} refused: {answer.get('error')}"
+        return answer["result"]
+
+    def error(self, fn: str, payload: object = None) -> str:
+        """Return the message of a call the page expects to be refused."""
+        answer = self.reply(fn, payload)
+        assert not answer["ok"], f"{fn} accepted a request it should refuse"
+        return answer["error"]
+
+
+def held_of(design: dict) -> dict:
+    """Return what the page holds of a generated design, and sends back with every later call."""
+    return {"spec": design["spec"], "columns": design["columns"], "rows": design["rows"]}
+
+
+def generate_all(api: Api, factors: list[dict], model: str) -> tuple[list[dict], list[dict]]:
+    """Generate every design of a comparison as the page does, one call each; return them, and what the page holds."""
+    plan = api.ok("api_compare_plan", {"factors": factors, "model": model})
+    made = [{**item, "design": api.ok("api_make_design", item["spec"])} for item in plan["designs"]]
+    return made, [{"label": m["label"], **held_of(m["design"])} for m in made]
+
+
+# --------------------------------------------------------------------------- the run sheet and its workbook
+def run_sheet(result: dict) -> pd.DataFrame:
+    """Return the run sheet a reply describes, as the reader sees it."""
+    return pd.DataFrame(result["rows"], columns=result["columns"])
+
+
+def coded(runs: pd.DataFrame, factors: list[dict]) -> pd.DataFrame:
+    """Return the runs' settings coded from each factor's range: -1 at its low value, +1 at its high value."""
+    return pd.DataFrame(
+        {f["name"]: (runs[f["name"]] - (f["high"] + f["low"]) / 2) / ((f["high"] - f["low"]) / 2) for f in factors}
+    )
+
+
+def quadratic(runs: pd.DataFrame) -> np.ndarray:
+    """Return a known response over ``FACTORS``: 50 + 4 T - 3 P + 2 T P - 5 T² in coded units, plus a little noise."""
+    t, p = (runs["T"] - 175) / 25, runs["P"] - 2
+    noise = np.random.default_rng(0).normal(0, 0.1, len(runs))
+    return (50 + 4 * t - 3 * p + 2 * t * p - 5 * t**2 + noise).to_numpy()
+
+
+def sheets_of(xlsx_base64: str) -> dict[str, pd.DataFrame]:
+    """Read every sheet of a workbook the page wrote."""
+    return pd.read_excel(io.BytesIO(base64.b64decode(xlsx_base64)), sheet_name=None)
+
+
+def edit_workbook(xlsx_base64: str, edit: Callable[[dict[str, pd.DataFrame]], object]) -> str:
+    """Change a workbook's sheets as a reader could in Excel, and return it as the page uploads it."""
+    sheets = sheets_of(xlsx_base64)
+    edit(sheets)
+    buf = io.BytesIO()
+    with pd.ExcelWriter(buf) as xl:
+        for name, frame in sheets.items():
+            frame.to_excel(xl, sheet_name=name, index=False)
+    return base64.b64encode(buf.getvalue()).decode()
+
+
+def fill_workbook(
+    xlsx_base64: str, response: Callable[[pd.DataFrame], object], blank_rows: tuple[int, ...] = ()
+) -> str:
+    """Fill the Runs sheet's ``y`` column as a reader would, in Excel, leaving the runs in ``blank_rows`` to do."""
+
+    def fill(sheets: dict[str, pd.DataFrame]) -> None:
+        runs = sheets["Runs"]
+        runs["y"] = response(runs)
+        runs.loc[list(blank_rows), "y"] = np.nan
+
+    return edit_workbook(xlsx_base64, fill)
+
+
+# --------------------------------------------------------------------------- the page
+class Page(html.parser.HTMLParser):
+    """``web/index.html`` as the tests read it: every element that has an id, and the options of every <select>."""
+
+    def __init__(self, text: str) -> None:
+        super().__init__()
+        self.ids: dict[str, dict[str, str | None]] = {}
+        self.options: dict[str, list[dict[str, str | None]]] = {}
+        self.data_options: list[str] = []
+        self._select: str | None = None
+        self.feed(text)
+        self.close()
+
+    def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
+        """Keep the element's attributes under its id, and each <option> under its <select>."""
+        found = dict(attrs)
+        if found.get("id"):
+            self.ids[str(found["id"])] = {"tag": tag, **found}
+        if found.get("data-option"):
+            self.data_options.append(str(found["data-option"]))
+        if tag == "select":
+            self._select = str(found.get("id"))
+            self.options[self._select] = []
+        elif tag == "option" and self._select is not None:
+            self.options[self._select].append({**found, "label": ""})
+
+    def handle_endtag(self, tag: str) -> None:
+        """Leave a <select>."""
+        if tag == "select":
+            self._select = None
+
+    def handle_data(self, data: str) -> None:
+        """Read an option's label."""
+        if self._select is not None and self.options[self._select]:
+            self.options[self._select][-1]["label"] += data.strip()
+
+    def values(self, select: str) -> list[str]:
+        """Return the values of a <select>'s options, in order."""
+        return [str(o["value"]) for o in self.options[select]]
+
+    def selected(self, select: str) -> str:
+        """Return the value a <select> opens on: the option marked ``selected``, else the first, as a browser does."""
+        marked = [o for o in self.options[select] if "selected" in o]
+        return str((marked or self.options[select])[0]["value"])
+
+
+@cache
+def page() -> Page:
+    """Return ``web/index.html``, read once."""
+    return Page(source("index.html"))
+
+
+# --------------------------------------------------------------------------- the page's JavaScript, under Node
+#: Read a JSON request on stdin, import the module source it carries, call the functions it
+#: names and print what they return. The module is imported from a data: URL, which Node reads
+#: as an ES module whatever its version and whatever package.json sits above the checkout, so
+#: nothing is written beside the source.
+_DRIVER = """
+let input = "";
+process.stdin.setEncoding("utf8");
+process.stdin.on("data", (chunk) => (input += chunk));
+process.stdin.on("end", async () => {
+  const { source, calls } = JSON.parse(input);
+  const module = await import(`data:text/javascript;charset=utf-8,${encodeURIComponent(source)}`);
+  process.stdout.write(JSON.stringify(calls.map(([fn, args]) => module[fn](...args))));
+});
+"""
+
+
+def javascript(node: str, module_source: str, calls: list[tuple[str, list]]) -> list:
+    """Call functions of an ES module, given as source text, under Node; return what each call returns."""
+    done = subprocess.run(  # noqa: S603 - Node, found on PATH, runs the page's own code
+        [node, "--input-type=module", "-e", _DRIVER],
+        input=json.dumps({"source": module_source, "calls": calls}),
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        check=False,
+    )
+    assert done.returncode == 0, done.stderr
+    return json.loads(done.stdout)

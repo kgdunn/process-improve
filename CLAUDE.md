@@ -25,6 +25,7 @@ rule is how they drift apart.
 | Logging conventions | `docs/development/logging.rst` |
 | Writing a new `@tool_spec` tool | `docs/development/tool_authoring.rst` |
 | sklearn interoperability details | `SKLEARN_COMPATIBILITY.md` |
+| The browser app in `web/`: its tests, and what a change to it adds to them | [`CONTRIBUTING.md`](CONTRIBUTING.md#the-browser-app-is-tested) |
 
 ## Package Structure
 
