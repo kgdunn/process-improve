@@ -165,6 +165,12 @@ function setForm(spec) {
   if (options.n_center_points !== undefined) $("#n_center_points").value = options.n_center_points;
   if (options.alpha) $("#alpha").value = options.alpha;
   if (options.model_type) $("#model_type").value = options.model_type;
+  // A resolution or a number of runs other than the page's own pick is kept, as if the reader had chosen it.
+  const k = spec.factors.length;
+  resolutionEdited = Boolean(options.resolution) && options.resolution !== defaultResolution(k);
+  if (options.resolution) $("#resolution").value = String(options.resolution);
+  budgetEdited = Boolean(options.budget) && options.budget !== nTerms(k, options.model_type) + SPARE_RUNS;
+  if (options.budget) $("#budget").value = options.budget;
   refreshDesign();
 }
 

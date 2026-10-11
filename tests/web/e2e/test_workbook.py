@@ -11,7 +11,6 @@ import json
 
 import numpy as np
 import pandas as pd
-import pytest
 
 from tests.web._support import FACTORS, factors_named, fill_workbook, quadratic
 from tests.web.e2e._page import choose, factor_table, run_sheet, settled, status
@@ -115,7 +114,6 @@ def upload_design(page, api, tmp_path, request: dict) -> dict:
     return design
 
 
-@pytest.mark.xfail(strict=True, reason="defect: the form shows the runs the model suggests, not the design's")
 def test_an_uploaded_optimal_design_keeps_its_runs_in_the_form(page, api, tmp_path):
     request = {"design_type": "d_optimal", "factors": FACTORS, "model_type": "interactions", "budget": 20}
     upload_design(page, api, tmp_path, request)
@@ -129,7 +127,6 @@ def test_an_uploaded_optimal_design_keeps_its_runs_in_the_form(page, api, tmp_pa
     assert page.locator("#design-table tbody tr").count() == 20, "generating again makes the same design"
 
 
-@pytest.mark.xfail(strict=True, reason="defect: the form shows the resolution the factors suggest, not the design's")
 def test_an_uploaded_fraction_keeps_its_resolution_in_the_form(page, api, tmp_path):
     upload_design(
         page,
