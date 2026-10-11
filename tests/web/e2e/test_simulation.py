@@ -7,8 +7,10 @@ describe the runs on the page.
 
 from __future__ import annotations
 
+import pytest
+
 from tests.web._support import FACTORS
-from tests.web.e2e._page import calls, choose, generate, run_sheet, set_factors, settled
+from tests.web.e2e._page import calls, choose, generate, run_sheet, set_factors, settled, type_results
 
 
 def simulated_results(page) -> list[str]:
@@ -63,3 +65,15 @@ def test_a_new_design_is_simulated_from_the_same_process(page):
     assert fns[-4:] == ["api_make_design", "api_simulate", "api_analyze_runs", "api_plots"]
     assert page.text_content("#truth-equation").startswith("y = 62 + 4·Temp")
     assert page.is_hidden("#design-stale")
+
+
+@pytest.mark.xfail(
+    strict=True, reason="defect: the true process stays on show once every simulated result is typed over"
+)
+def test_the_true_process_goes_once_no_simulated_result_is_left(page):
+    assert page.is_visible("#truth")
+    type_results(page, {run: 60 + run for run in range(14)})
+    assert page.is_visible("#truth"), "one simulated result is left"
+    type_results(page, {14: 74})
+    assert page.locator("#design-table input.sim").count() == 0
+    assert page.is_hidden("#truth")
