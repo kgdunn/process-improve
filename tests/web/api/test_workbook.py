@@ -14,7 +14,16 @@ import json
 import numpy as np
 import pytest
 
-from tests.web._support import FACTORS, edit_workbook, fill_workbook, quadratic, run_sheet, sheets_of
+from tests.web._support import (
+    FACTORS,
+    edit_workbook,
+    factors_named,
+    fill_workbook,
+    held_of,
+    quadratic,
+    run_sheet,
+    sheets_of,
+)
 
 
 # --------------------------------------------------------------------------- writing
@@ -83,6 +92,34 @@ def test_a_source_mark_without_a_result_is_not_a_result(api, held, simulated):
     back = api.ok("api_read_workbook", {"xlsx_base64": edit_workbook(book["xlsx_base64"], clear_first)})
     assert back["responses"][0] is None
     assert back["sources"] == [None] + ["simulated"] * 14
+
+
+@pytest.mark.xfail(strict=True, reason="defect: the column marking simulated results takes the name Source")
+@pytest.mark.parametrize("named", ["factor", "response"])
+def test_a_factor_or_response_named_source_keeps_its_values(api, named):
+    """The column marking simulated results has a name no factor or response can take."""
+    factors = factors_named("Source", "P", "F") if named == "factor" else FACTORS
+    response = "Source" if named == "response" else "y"
+    design = api.ok("api_make_design", {"design_type": "box_behnken", "factors": factors, "response": response})
+    responses = [float(i) for i in range(design["n_runs"])]
+    sources = ["simulated"] * design["n_runs"]
+    book = api.ok("api_workbook", {**held_of(design), "responses": responses, "sources": sources})
+    back = api.ok("api_read_workbook", book)
+    assert (back["columns"], back["rows"]) == (design["columns"], design["rows"])
+    assert back["responses"] == responses
+    assert back["sources"] == sources
+
+
+def test_a_workbook_marked_in_a_source_column_still_reads_its_marks(api, held, simulated):
+    """Workbooks written before the marks column was renamed keep their simulated results marked."""
+    book = api.ok("api_workbook", {**held, "responses": simulated["responses"]})
+
+    def mark_as_before(sheets):
+        sheets["Runs"]["Source"] = ["simulated"] * 14 + [None]
+
+    back = api.ok("api_read_workbook", {"xlsx_base64": edit_workbook(book["xlsx_base64"], mark_as_before)})
+    assert back["columns"] == held["columns"]
+    assert back["sources"] == ["simulated"] * 14 + ["entered"]
 
 
 @pytest.mark.parametrize("fn", ["api_read_workbook", "api_analyze"])
