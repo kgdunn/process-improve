@@ -29,15 +29,20 @@ URL = re.compile(r"https?://[^\s<>\"'`)\]}]+")
 #: Some hosts refuse urllib's default agent, so the request says what it is.
 HEADERS = {"User-Agent": "Mozilla/5.0 (compatible; process-improve README link check)"}
 ATTEMPTS = 3
+#: Links to this repository's files are not requested: ``tests/test_readme_guards.py`` finds each one on disk,
+#: and github.com answers a script's request for a file page with 503 Service Unavailable.
+REPOSITORY_FILE = re.compile(
+    r"https://(?:github\.com/kgdunn/process-improve/(?:blob|tree)/main|raw\.githubusercontent\.com/kgdunn/process-improve/main)/"
+)
 
 
 def page_urls() -> list[str]:
-    """Return every distinct URL in the pages, in order of first appearance."""
+    """Return every distinct URL in the pages, except links to this repository's files, in order of first appearance."""
     urls: list[str] = []
     for page in PAGES:
         for url in URL.findall((ROOT / page).read_text(encoding="utf-8")):
             cleaned = url.rstrip(".,;:")
-            if cleaned not in urls:
+            if cleaned not in urls and not REPOSITORY_FILE.match(cleaned):
                 urls.append(cleaned)
     return urls
 
