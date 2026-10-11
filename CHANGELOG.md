@@ -503,7 +503,8 @@ those changes.
     deviation skips it.
   - The EM imputation behind `PLS(missing_data_settings={"md_method": "tsr"})` and `"pmp"`
     fills a constant column's gaps with its value and leaves the column out of the model.
-    A constant column moved every other imputed cell.
+    A constant column moved every other imputed cell, and could keep the imputation from
+    converging, so the fit warned that it had not.
 
 - **`reshape_to_long` refuses a row with no panelist, product or attribute label**, and
   names the column and rows. A missing product label used to become a product called
