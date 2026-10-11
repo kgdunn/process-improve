@@ -2,11 +2,13 @@
 
 from __future__ import annotations
 
+import itertools
+
 import numpy as np
 import pandas as pd
 import pytest
 
-from process_improve.experiments import augment_design, generate_design
+from process_improve.experiments import _blocking, augment_design, generate_design
 from process_improve.experiments._blocking import confounding_blocks, exchange_blocks
 from process_improve.experiments.factor import Factor
 
@@ -65,6 +67,41 @@ def test_other_designs_block_by_exchange(design_type: str, k: int) -> None:
     full = (x - x.mean(axis=0)).T @ (x - x.mean(axis=0))
     blocked = _within_block_centred(x, blocks).T @ _within_block_centred(x, blocks)
     assert np.linalg.det(blocked) >= 0.95 * np.linalg.det(full)
+
+
+def test_a_model_the_design_cannot_estimate_in_one_block_is_passed_over() -> None:
+    """With centre runs as their only third level, the squares of two factors are the same column.
+
+    The quadratic model is then singular however the runs are split, and the exchange used to
+    maximise a determinant that was rounding error: the blocks it picked differed between platforms.
+    The third factor is categorical, so its centre runs sit at its labels, coded -1 and +1.
+    """
+    cube = np.array(list(itertools.product((-1.0, 1.0), repeat=3)))
+    design = np.vstack([cube, cube, [[0.0, 0.0, -1.0], [0.0, 0.0, 1.0]]])
+    blocking = exchange_blocks(design, 2, np.random.default_rng(42))
+    assert blocking.model == "interactions"
+
+
+def test_a_replicated_factorial_with_a_categorical_factor_blocks_by_replicate() -> None:
+    """Centre runs at one of a categorical factor's labels make the design irregular, so the exchange blocks it."""
+    factors = [*_factors(2), Factor(name="supplier", type="categorical", levels=["A", "B"])]
+    result = generate_design(factors, "full_factorial", n_blocks=2, n_replicates=2, n_center_points=2, random_state=42)
+    assert result.metadata["blocking"]["method"] == "exchange"
+    assert result.metadata["blocking"]["model"] == "interactions"
+    corners = result.design_actual[result.design_actual["x0"] != 5]
+    for _, block in corners.groupby("Block"):
+        assert not block.duplicated(["x0", "x1", "supplier"]).any(), "each block holds every corner run once"
+        assert len(block) == 8
+
+
+def test_a_later_start_must_beat_an_earlier_one_by_more_than_rounding(monkeypatch) -> None:
+    """Starts that reach the same value, to rounding, keep the first: rounding differs between platforms."""
+    design = np.vstack([np.array(list(itertools.product((-1.0, 1.0), repeat=3)))] * 2)
+    values = iter([5.0, 5.0 + 1e-14, 5.0 - 1e-14, 5.0 + 2e-14])
+    monkeypatch.setattr(_blocking, "_climb", lambda _x, labels, _n_blocks: (labels.copy(), next(values)))
+    first = np.random.default_rng(0).permutation(np.arange(16) % 2)
+    blocking = exchange_blocks(design, 2, np.random.default_rng(0))
+    np.testing.assert_array_equal(blocking.labels, first + 1)
 
 
 def test_blocks_must_be_a_power_of_two_for_a_factorial() -> None:
