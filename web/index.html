@@ -112,6 +112,8 @@
     </div>
 
     <button type="button" id="generate" class="primary" disabled>Generate design</button>
+    <p id="design-stale" class="stale" hidden>The factors have changed since this design was generated. Press
+      <strong>Generate design</strong> to use them in the run sheet, the simulation and the analysis.</p>
     <div id="design-out" hidden>
       <div id="design-summary"></div>
     </div>
@@ -158,6 +160,7 @@
         <details id="truth" hidden>
           <summary>Show the true process</summary>
           <p id="truth-equation" class="equation"></p>
+          <p id="truth-inactive" hidden></p>
           <p class="hint">In coded units: each factor runs from -1 at its low value to +1 at its high value. The
             analysis estimates these coefficients from the noisy results.</p>
         </details>

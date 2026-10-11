@@ -934,6 +934,7 @@ def simulate(request: dict) -> dict:
         "responses": [round(float(v), decimals) for v in values],
         "truth": truth,
         "equation": _equation(spec["response"], truth),
+        "inactive": [name for name in names if name not in process.factors],  # factors the process leaves out
     }
 
 
