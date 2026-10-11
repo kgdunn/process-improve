@@ -8,6 +8,7 @@ entry point's reply is checked against it.
 
 from __future__ import annotations
 
+import functools
 import json
 import re
 from typing import TYPE_CHECKING, Any
@@ -196,22 +197,12 @@ def values_at(result: dict, path: str) -> list[Any]:
     return found
 
 
-class Replies(dict):
-    """The result of each kind of request, asked for once, when a test first needs it."""
-
-    def __init__(self, api, requests: dict[str, Callable[[], dict]]) -> None:
-        super().__init__()
-        self.api, self.requests = api, requests
-
-    def __missing__(self, kind: str) -> dict:
-        """Make the request for ``kind`` and keep its result."""
-        self[kind] = self.api.ok(ENTRY_POINTS[kind], self.requests[kind]())
-        return self[kind]
-
-
 @pytest.fixture(scope="module")
-def replies(api, worked_example: dict[str, Any]) -> Replies:
-    """One result of each kind, from requests that reach every key the page reads."""
+def reply(api, worked_example: dict[str, Any]) -> Callable[[str], dict]:
+    """Return the result of each kind of request, made once, when a test first asks for it.
+
+    The requests reach every key the page reads.
+    """
     held, simulated = worked_example["held"], worked_example["simulated"]
     analysed = {**held, "responses": simulated["responses"], "truth": simulated["truth"]}
 
@@ -225,37 +216,35 @@ def replies(api, worked_example: dict[str, Any]) -> Replies:
     def comparison() -> dict:
         return {"model": "main_quadratic", "designs": generate_all(api, FACTORS, "main_quadratic")[1]}
 
-    return Replies(
-        api,
-        {
-            "catalogue": dict,
-            "design": lambda: worked_example["demo"]["design"],
-            "simulation": lambda: {**held, "seed": 2},
-            "analysis": lambda: analysed,
-            "saturated analysis": saturated,
-            "charts": lambda: analysed,
-            "workbook": lambda: analysed,
-            "upload": upload,
-            "comparison plan": lambda: {"factors": FACTORS, "model": "main_quadratic"},
-            "comparison": comparison,
-        },
-    )
+    requests: dict[str, Callable[[], dict]] = {
+        "catalogue": dict,
+        "design": lambda: worked_example["demo"]["design"],
+        "simulation": lambda: {**held, "seed": 2},
+        "analysis": lambda: analysed,
+        "saturated analysis": saturated,
+        "charts": lambda: analysed,
+        "workbook": lambda: analysed,
+        "upload": upload,
+        "comparison plan": lambda: {"factors": FACTORS, "model": "main_quadratic"},
+        "comparison": comparison,
+    }
+    return functools.cache(lambda kind: api.ok(ENTRY_POINTS[kind], requests[kind]()))
 
 
 @pytest.mark.parametrize("kind", READS)
-def test_each_reply_holds_what_the_page_reads(replies, kind):
+def test_each_reply_holds_what_the_page_reads(reply, kind):
     if kind == "charts":
         pytest.importorskip("plotly", reason="the page installs plotly for its first chart")
     for read in READS[kind]:
         path, expected = (part.strip() for part in read.split(":"))
         allowed, nullable = TYPES[expected.rstrip("?")], expected.endswith("?")
-        wrong = [v for v in values_at(replies[kind], path) if not (allowed(v) or (nullable and v is None))]
+        wrong = [v for v in values_at(reply(kind), path) if not (allowed(v) or (nullable and v is None))]
         assert not wrong, f"{kind}: {path} should be {expected}, not {wrong[:3]}"
 
 
-def test_each_chart_is_a_plotly_figure_the_page_can_restyle(replies):
+def test_each_chart_is_a_plotly_figure_the_page_can_restyle(reply):
     pytest.importorskip("plotly", reason="the page installs plotly for its first chart")
-    figures = {key: json.loads(text) for key, text in replies["charts"]["figures"].items()}
+    figures = {key: json.loads(text) for key, text in reply("charts")["figures"].items()}
     for key, figure in figures.items():
         assert isinstance(figure["data"], list), key
         assert isinstance(figure.get("layout", {}), dict), key
@@ -263,8 +252,8 @@ def test_each_chart_is_a_plotly_figure_the_page_can_restyle(replies):
         assert isinstance(figures[key]["data"][0]["z"], list), key
 
 
-def test_each_measure_has_a_cell_for_each_design(replies):
-    comparison = replies["comparison"]
+def test_each_measure_has_a_cell_for_each_design(reply):
+    comparison = reply("comparison")
     for label in comparison["designs"]:
         assert len(comparison["display"][label]) == len(comparison["measures"]), label
         assert label in comparison["notes"], label
