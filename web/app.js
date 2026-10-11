@@ -996,9 +996,17 @@ $("#model").onchange = analyseRuns;
 $("#compare").onclick = compareDesigns;
 for (const button of document.querySelectorAll("details.python .copy")) {
   button.onclick = async () => {
-    await navigator.clipboard.writeText(button.parentElement.querySelector("code").textContent);
-    button.textContent = "Copied";
-    setTimeout(() => (button.textContent = "Copy the code"), 1500);
+    const code = button.parentElement.querySelector("code");
+    let done = "Copied";
+    try {
+      await navigator.clipboard.writeText(code.textContent);
+    } catch {
+      // The browser refused the clipboard: select the code, for the reader to copy from the keyboard.
+      getSelection().selectAllChildren(code);
+      done = "Selected: copy it with Ctrl+C or ⌘C";
+    }
+    button.textContent = done;
+    setTimeout(() => (button.textContent = "Copy the code"), done === "Copied" ? 1500 : 4000);
   };
 }
 $("#upload").onchange = (e) => {

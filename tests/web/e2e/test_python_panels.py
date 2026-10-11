@@ -4,8 +4,6 @@ from __future__ import annotations
 
 import base64
 
-import pytest
-
 from tests.web._support import FACTORS, fill_workbook, quadratic
 from tests.web.e2e._page import settled, type_results
 
@@ -51,9 +49,7 @@ def test_the_analysis_panel_goes_with_the_analysis(page):
     assert page.is_hidden("#py-analyse")
 
 
-@pytest.mark.xfail(strict=True, reason="defect: a refused clipboard throws, and the reader is left with no way to copy")
-def test_a_refused_clipboard_selects_the_code_to_copy_by_hand(page, console):
-    console.allow(r"Write permission denied")  # what the page throws while the defect stands
+def test_a_refused_clipboard_selects_the_code_to_copy_by_hand(page):
     page.evaluate(
         "() => { navigator.clipboard.writeText = () =>"
         " Promise.reject(new DOMException('Write permission denied.', 'NotAllowedError')); }"
