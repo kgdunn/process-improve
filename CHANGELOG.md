@@ -179,6 +179,21 @@ those changes.
   - While Python works, the status line lights up the mark's runs in a random run order.
   - The page takes the package's navy, red and warm paper. Every text colour meets WCAG AA
     in both themes.
+- **Factorial keeps each design in the reader's browser, and a link carries one.** This
+  gives the four things the server of kgdunn/factorial gave beyond its chat, without a
+  server: persistence across visits, results entered by someone without an account,
+  sharing, and a reproducible export.
+  - Every design but the worked example is saved in IndexedDB as it changes, with its
+    results, where they came from, the simulated process and the model. Nothing is
+    uploaded. A returning reader picks up where they left off, and Your designs lists the
+    rest, to open or delete. Trying designs one after another while simulating keeps one
+    entry; a design with a result typed in is kept.
+  - "Copy a link" packs the design, with or without its results, into the address after
+    `#c=`, which a browser sends to no server. Opening the link saves the design in that
+    browser. A link is checked field by field before anything in it is used, and a
+    damaged one is refused with a sentence.
+  - "Download notebook (.ipynb)" writes the code each step's "Show the Python" panel shows,
+    in order, after a line that installs the release the page ran.
 - **The browser app runs on Pyodide 314.0.7 (Python 3.14.2)**, with numpy 2.4, pandas 3.0,
   scipy 1.18 and scikit-learn 1.8.
 - **PLS and multiblock fits on complete data are faster, with identical results.** So is
