@@ -11,7 +11,7 @@ import numpy as np
 import pytest
 
 from process_improve.experiments import compare_designs
-from tests.web._support import FACTORS, coded, generate_all, held_of, run_sheet
+from tests.web._support import FACTORS, coded, factors_named, generate_all, held_of, run_sheet
 
 
 # --------------------------------------------------------------------------- the plan
@@ -50,6 +50,25 @@ def test_each_design_is_compared_as_step_1_would_generate_it(api, bootstrap):
         expected = {"design_type": item["design_type"], "factors": FACTORS, "response": "y", **options}
         assert item["spec"] == expected
         assert item["label"] == bootstrap.COMPARE_LABELS[item["design_type"]]
+
+
+@pytest.mark.xfail(strict=True, reason="defect: the comparison names the response y, whatever the reader typed")
+def test_the_comparison_s_designs_keep_the_reader_s_response(api):
+    """A design taken from the comparison into step 1 keeps the response name typed there."""
+    plan = api.ok("api_compare_plan", {"factors": FACTORS, "response": "Yield"})
+    assert {item["spec"]["response"] for item in plan["designs"]} == {"Yield"}
+
+
+@pytest.mark.xfail(strict=True, reason="defect: the comparison names the response y, so a factor named y stops it")
+@pytest.mark.parametrize("response", ["", "P"], ids=["no response", "response named as a factor"])
+def test_a_factor_named_y_can_be_compared(api, response):
+    """The comparison has no results, so its response takes a name no factor has when the reader's cannot be used."""
+    plan = api.ok("api_compare_plan", {"factors": factors_named("y", "P", "F"), "response": response})
+    assert {item["spec"]["response"] for item in plan["designs"]} == {"y1"}
+    made, designs = generate_all(api, factors_named("y", "P", "F"), "main_quadratic")
+    assert api.ok("api_compare", {"model": "main_quadratic", "designs": designs})["designs"] == [
+        m["label"] for m in made
+    ]
 
 
 def test_the_comparison_is_on_the_book_s_model_unless_another_is_chosen(api):
