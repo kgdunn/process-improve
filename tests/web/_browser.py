@@ -127,6 +127,9 @@ def keep_artifacts(request: pytest.FixtureRequest, context: Any, pages: list[Any
     context.tracing.stop(path=target / f"{name}.zip")
 
 
+#: How long Python may take to start in a page: Pyodide, numpy, pandas, scipy, statsmodels, the wheel (ms).
+BOOT_TIMEOUT = 300_000
+
 #: Downloads that never change once published: a Pyodide release's files, a Plotly.js release and
 #: PyPI's files. Index pages, which do change, are always fetched.
 IMMUTABLE = (

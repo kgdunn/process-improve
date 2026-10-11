@@ -2,6 +2,11 @@
 
 from __future__ import annotations
 
+import base64
+
+from tests.web._support import FACTORS, fill_workbook, quadratic
+from tests.web.e2e._page import settled, type_results
+
 
 def code(page, step: str) -> str:
     return page.text_content(f"#py-{step} code")
@@ -23,3 +28,34 @@ def test_copy_puts_the_code_on_the_clipboard(context, page, site):
     assert page.evaluate("navigator.clipboard.readText()") == code(page, "design")
     assert page.text_content("#py-design .copy") == "Copied"
     page.wait_for_function("document.querySelector('#py-design .copy').textContent === 'Copy the code'")
+
+
+def test_after_an_upload_the_panels_show_the_workbook_s_design_and_results(page, api, tmp_path):
+    design = api.ok("api_make_design", {"design_type": "ccd", "factors": FACTORS})
+    path = tmp_path / "filled.xlsx"
+    path.write_bytes(base64.b64decode(fill_workbook(design["xlsx_base64"], quadratic, blank_rows=(0,))))
+    page.click("#tab-real")
+    page.set_input_files("#upload", path)
+    settled(page)
+    assert 'design_type="ccd"' in code(page, "design")
+    assert "TrueProcess" not in code(page, "run"), "the results were read, not simulated"
+    assert "y = pd.Series([None, " in code(page, "run"), "the first run is still to do"
+    assert "analyze_experiment(" in code(page, "analyse")
+
+
+def test_the_analysis_panel_goes_with_the_analysis(page):
+    type_results(page, dict.fromkeys(range(15), ""))
+    assert page.is_hidden("#analysis")
+    assert page.is_hidden("#py-analyse")
+
+
+def test_a_refused_clipboard_selects_the_code_to_copy_by_hand(page):
+    page.evaluate(
+        "() => { navigator.clipboard.writeText = () =>"
+        " Promise.reject(new DOMException('Write permission denied.', 'NotAllowedError')); }"
+    )
+    page.click("#py-design summary")
+    page.click("#py-design .copy")
+    page.wait_for_function("document.querySelector('#py-design .copy').textContent !== 'Copy the code'", timeout=5_000)
+    assert page.text_content("#py-design .copy") == "Selected: copy it with Ctrl+C or ⌘C"
+    assert page.evaluate("getSelection().toString()") == code(page, "design")

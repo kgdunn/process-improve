@@ -50,6 +50,27 @@ def test_a_request_the_page_could_not_have_sent_is_refused_not_raised(api, fn, p
     api.error(fn, payload)
 
 
+@pytest.mark.parametrize("text", ["[1]", "3", '"design"', "null"])
+def test_a_request_that_is_not_an_object_is_refused_in_a_sentence(api, text):
+    assert api.reply("api_make_design", text=text) == {
+        "ok": False,
+        "error": "The page sent a request that is not a JSON object.",
+        "warnings": [],
+    }
+
+
+def test_an_unexpected_error_comes_back_in_one_line(bootstrap):
+    def breaks(_: dict) -> dict:
+        message = "the solver gave up"
+        raise RuntimeError(message)
+
+    assert json.loads(bootstrap._reply(breaks, "{}")) == {
+        "ok": False,
+        "error": "Python stopped with RuntimeError: the solver gave up",
+        "warnings": [],
+    }
+
+
 def test_a_refusal_keeps_what_was_heard_before_it(bootstrap):
     def warn_then_refuse(_: dict) -> dict:
         warnings.warn("heard first", UserWarning, stacklevel=1)

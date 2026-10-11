@@ -141,6 +141,10 @@ The no-install app in `web/` runs the package in the reader's browser, through
   and JavaScript repeat from `bootstrap.py`, the build in `scripts/build_web_app.py`,
   and the code the "Show the Python" panels write. The tests that run the page's
   JavaScript need Node.js, and skip without it.
+- `tests/web/js/` unit-tests the page's JavaScript with Node.js's own test runner
+  (`node --test`, Node.js 22.7 or later): `web/logic.js`, which holds what the page
+  counts, decides, formats and sorts apart from the document, and the figures
+  `web/charts.js` builds.
 
 `pytest tests/web --no-cov` runs them, and `--affected-since` selects all of them when any
 file of the app changes. `web/bootstrap.py` counts towards coverage, so the patch gate
@@ -180,6 +184,8 @@ When you change the app, the tests move with it:
   `test_errors.py`. The suite fails, naming the message, until there is one.
 - A choice the page repeats from `bootstrap.py`, so the form is right before Python
   loads: a test in `tests/web/page/test_parity.py`.
+- A helper that needs no document (a rule, a format, a sentence): in `web/logic.js`, with a
+  test in `tests/web/js/logic.test.mjs`.
 - A new control, step or message on the page: a test in `tests/web/e2e`, which drives the
   page as a reader would. `window.__pi` (`tests/web/harness.js`) records each call to
   Python, and can hold a reply back or give one, for races and error paths.

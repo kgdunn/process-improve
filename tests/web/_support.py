@@ -41,6 +41,7 @@ APP_SOURCES = (
     "index.html",
     "style.css",
     "app.js",
+    "logic.js",
     "charts.js",
     "python.js",
     "worker.js",
@@ -252,7 +253,8 @@ def page() -> Page:
 
 # --------------------------------------------------------------------------- the page's JavaScript, under Node
 #: Read a JSON request on stdin, import the module source it carries, call the functions it
-#: names and print what they return. The module is imported from a data: URL, which Node reads
+#: names (or read the constants) and print what they return. The module is imported from a
+#: data: URL, which Node reads
 #: as an ES module whatever its version and whatever package.json sits above the checkout, so
 #: nothing is written beside the source.
 _DRIVER = """
@@ -262,13 +264,17 @@ process.stdin.on("data", (chunk) => (input += chunk));
 process.stdin.on("end", async () => {
   const { source, calls } = JSON.parse(input);
   const module = await import(`data:text/javascript;charset=utf-8,${encodeURIComponent(source)}`);
-  process.stdout.write(JSON.stringify(calls.map(([fn, args]) => module[fn](...args))));
+  const value = (name, args) => (typeof module[name] === "function" ? module[name](...args) : module[name]);
+  process.stdout.write(JSON.stringify(calls.map(([name, args]) => value(name, args))));
 });
 """
 
 
 def javascript(node: str, module_source: str, calls: list[tuple[str, list]]) -> list:
-    """Call functions of an ES module, given as source text, under Node; return what each call returns."""
+    """Call functions of an ES module, given as source text, under Node; return what each call returns.
+
+    A name that is not a function is read instead: ``("SPARE_RUNS", [])`` returns the constant.
+    """
     done = subprocess.run(  # noqa: S603 - Node, found on PATH, runs the page's own code
         [node, "--input-type=module", "-e", _DRIVER],
         input=json.dumps({"source": module_source, "calls": calls}),

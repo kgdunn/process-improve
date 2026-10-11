@@ -7,6 +7,23 @@
 // paint, the live run and an uploaded workbook all show the same way.
 
 import { coefficientFigure, correlationFigure, draw, fdsFigure, prettyTerm, shareContourScale } from "./charts.js";
+import {
+  CAPTIONS,
+  SPARE_RUNS,
+  TITLES,
+  compareCells,
+  defaultResolution,
+  escape,
+  fitStatistics,
+  fmt,
+  formMatches,
+  isBlank,
+  listNames,
+  nTerms,
+  needsCentre,
+  numberOrNull,
+  pval,
+} from "./logic.js";
 import { analyseCode, compareCode, designCode, enteredCode, simulateCode } from "./python.js";
 
 // Where Process Improvement using Data explains each design, method and measure the page uses.
@@ -34,7 +51,7 @@ const pending = new Map();
 
 worker.onmessage = ({ data }) => {
   if (data.status) {
-    setStatus(data.status, data.state);
+    if (!pythonFailure) setStatus(data.status, data.state);
     return;
   }
   const resolve = pending.get(data.id);
@@ -42,13 +59,34 @@ worker.onmessage = ({ data }) => {
   resolve(JSON.parse(data.reply));
 };
 
+// worker.js itself did not load or run: nothing will answer, so say so rather than wait.
+worker.onerror = (event) => {
+  event.preventDefault();
+  pythonFailed(`Could not start Python: ${event.message || "worker.js did not load"}`);
+};
+
 /** Call a Python ``api_*`` function; resolves to its decoded {ok, result|error, warnings}. */
 function call(fn, payload = {}) {
+  if (pythonFailure) return Promise.resolve({ ok: false, error: pythonFailure, warnings: [] });
   const id = nextId++;
   return new Promise((resolve) => {
     pending.set(id, resolve);
     worker.postMessage({ id, fn, payload: JSON.stringify(payload) });
   });
+}
+
+/**
+ * Python could not start: say why, and stop everything that waits for it. The worked
+ * example drawn at first paint stays, and every call is answered with the reason.
+ */
+function pythonFailed(reason) {
+  if (pythonFailure) return;
+  pythonFailure = reason;
+  setStatus(reason, "error");
+  $("#run-example").disabled = true;
+  for (const resolve of pending.values()) resolve({ ok: false, error: reason, warnings: [] });
+  pending.clear();
+  rejectReady(new Error(reason));
 }
 
 /** Show a status message; state is "busy" (spinner), "ok" (tick) or "error". */
@@ -70,10 +108,14 @@ const state = {
 let seed = 1;
 let catalogue = null;
 let pythonReady = false;
+let pythonFailure = null; // why Python could not start, once it is known
 let resolveReady;
-const whenReady = new Promise((resolve) => {
+let rejectReady;
+const whenReady = new Promise((resolve, reject) => {
   resolveReady = resolve;
+  rejectReady = reject;
 });
+whenReady.catch(() => {}); // a failure is shown in the status line, whoever waits for it
 
 /** The runs as the Python side expects them back. */
 const held = () => ({ spec: state.design.spec, columns: state.design.columns, rows: state.design.rows });
@@ -105,11 +147,10 @@ const factorCount = () => document.querySelectorAll("#factors tbody tr").length;
 
 function readFactors() {
   // A blank box is sent as null, which Python reports, rather than as Number("") = 0.
-  const number = (input) => (input.value.trim() === "" ? null : Number(input.value));
   return [...document.querySelectorAll("#factors tbody tr")].map((tr) => ({
     name: tr.querySelector("[name=name]").value.trim(),
-    low: number(tr.querySelector("[name=low]")),
-    high: number(tr.querySelector("[name=high]")),
+    low: numberOrNull(tr.querySelector("[name=low]").value),
+    high: numberOrNull(tr.querySelector("[name=high]").value),
     units: tr.querySelector("[name=units]").value.trim(),
   }));
 }
@@ -124,6 +165,12 @@ function setForm(spec) {
   if (options.n_center_points !== undefined) $("#n_center_points").value = options.n_center_points;
   if (options.alpha) $("#alpha").value = options.alpha;
   if (options.model_type) $("#model_type").value = options.model_type;
+  // A resolution or a number of runs other than the page's own pick is kept, as if the reader had chosen it.
+  const k = spec.factors.length;
+  resolutionEdited = Boolean(options.resolution) && options.resolution !== defaultResolution(k);
+  if (options.resolution) $("#resolution").value = String(options.resolution);
+  budgetEdited = Boolean(options.budget) && options.budget !== nTerms(k, options.model_type) + SPARE_RUNS;
+  if (options.budget) $("#budget").value = options.budget;
   refreshDesign();
 }
 
@@ -133,15 +180,6 @@ function setForm(spec) {
 // before Python has loaded.
 let budgetEdited = false;
 let resolutionEdited = false;
-
-/** Spare runs an optimal design gets beyond its model's coefficients; mirrors bootstrap.SPARE_RUNS. */
-const SPARE_RUNS = 4;
-
-/** Count the coefficients, intercept included, of each named model in k factors. */
-function nTerms(k, model) {
-  const pairs = (k * (k - 1)) / 2;
-  return 1 + k + (model === "main_effects" ? 0 : pairs) + (model === "quadratic" ? k : 0);
-}
 
 /**
  * Bring the design settings in line with the factors: designs the factor count rules
@@ -162,14 +200,13 @@ function refreshDesign() {
   // Resolution IV unless the reader chose another; three factors allow only III.
   const resolution = $("#resolution");
   for (const choice of resolution.options) choice.disabled = Number(choice.value) > k;
-  if (!resolutionEdited || resolution.selectedOptions[0].disabled) resolution.value = String(Math.max(3, Math.min(4, k)));
+  if (!resolutionEdited || resolution.selectedOptions[0].disabled) resolution.value = String(defaultResolution(k));
 
   // A Box-Behnken design or a rotatable CCD needs a center run to fit the squares; a DSD has one built in.
   const centre = $("#n_center_points");
-  const needsCentre =
-    ["box_behnken", "dsd"].includes(option.value) || (option.value === "ccd" && $("#alpha").value === "rotatable");
-  centre.min = needsCentre ? 1 : 0;
-  if (needsCentre && Number(centre.value) < 1) centre.value = 1;
+  const centreNeeded = needsCentre(option.value, $("#alpha").value);
+  centre.min = centreNeeded ? 1 : 0;
+  if (centreNeeded && Number(centre.value) < 1) centre.value = 1;
 
   const p = nTerms(k, $("#model_type").value);
   if (!budgetEdited) $("#budget").value = p + SPARE_RUNS;
@@ -256,16 +293,7 @@ function renderDesign(warnings = []) {
 
 /** Whether the factor table and response name still describe the design the page holds. */
 function formMatchesDesign() {
-  const spec = state.design?.spec;
-  if (!spec?.factors) return true;
-  const factors = readFactors();
-  const same = (f, g) =>
-    f.name === g.name && f.low === Number(g.low) && f.high === Number(g.high) && f.units === (g.units ?? "");
-  return (
-    $("#response").value.trim() === spec.response &&
-    factors.length === spec.factors.length &&
-    factors.every((f, i) => same(f, spec.factors[i]))
-  );
+  return formMatches(readFactors(), $("#response").value.trim(), state.design?.spec);
 }
 
 /** Say when the factors have been edited since the design was generated, until it is generated again. */
@@ -302,6 +330,7 @@ function renderRuns() {
     state.sources[i] = input.value === "" ? null : "entered";
     input.classList.remove("sim");
     describeSource();
+    renderTruth();
     showPython("run", enteredCode(state.responses));
     scheduleAnalysis();
   };
@@ -325,7 +354,7 @@ function describeSource() {
 
 /** The true process behind the simulated results, behind a reveal. */
 function renderTruth() {
-  const sim = state.simulation;
+  const sim = state.sources.includes("simulated") ? state.simulation : null; // gone with the last simulated result
   $("#truth").hidden = !sim;
   if (!sim) return;
   $("#truth-equation").textContent = sim.equation;
@@ -337,10 +366,6 @@ function renderTruth() {
     ? `${listNames(quiet)} ${quiet.length === 1 ? "does" : "do"} not affect ${state.design.spec.response} in this process.`
     : "";
 }
-
-/** Join names as a sentence does: "A", "A and B", "A, B and C". */
-const listNames = (names) =>
-  names.length > 1 ? `${names.slice(0, -1).join(", ")} and ${names.at(-1)}` : names.join("");
 
 async function simulateResults() {
   if (!state.design) return;
@@ -414,6 +439,8 @@ async function readUpload(file) {
   renderDesign(reply.warnings);
   renderRuns();
   renderTruth();
+  showPython("design", designCode(r.spec));
+  showPython("run", enteredCode(state.responses));
   await analyseRuns();
 }
 
@@ -427,8 +454,11 @@ function scheduleAnalysis() {
   analysisTimer = setTimeout(analyseRuns, 700);
 }
 
+/** Take the analysis away: its runs or their results are gone. A reply still on its way is dropped. */
 function clearAnalysis() {
+  ticket += 1;
   $("#analysis").hidden = true;
+  $("#py-analyse").hidden = true;
   $("#charts").hidden = true;
   $("#charts").replaceChildren();
   $("#analyse-empty").hidden = false;
@@ -437,6 +467,7 @@ function clearAnalysis() {
 async function analyseRuns() {
   if (!state.design || !state.responses.some((v) => v !== null)) {
     clearAnalysis();
+    setStatus("No results to analyse yet.");
     return;
   }
   const mine = ++ticket;
@@ -462,6 +493,7 @@ function renderAnalysis(reply) {
     setStatus("The results could not be analysed.", "error");
     out.replaceChildren(el("p", "error", reply.error), ...warningList(reply.warnings));
     $("#charts").hidden = true;
+    $("#py-analyse").hidden = true;
     return;
   }
   const r = reply.result;
@@ -539,30 +571,6 @@ function renderAnalysis(reply) {
 }
 
 // ---------------------------------------------------------------- charts
-const CAPTIONS = {
-  coefficients: (simulated) =>
-    "Each dot is an estimate with its 95% interval; an interval that crosses zero is a term the data cannot tell " +
-    "apart from no effect." +
-    (simulated ? " A diamond marks the true value, so you can see what the analysis recovered and what it missed." : ""),
-  contour: (pair) =>
-    `The fitted model over ${pair.join(" and ")}, the two factors with the largest main effects, with any other ` +
-    "factor at the center of its range; the dots are the runs, in coded units.",
-  true_contour: (pair) => `The process the results were simulated from, over ${pair.join(" and ")}, on the same scale.`,
-  residuals:
-    "What the model leaves unexplained in each run, against its fitted value. A curve or a funnel points to a " +
-    "missing term or a changing noise level.",
-  half_normal:
-    "With no degrees of freedom left to estimate the error, the effects are judged against each other: effects " +
-    "far above the line, past Lenth's margin of error, are likely real.",
-};
-const TITLES = {
-  coefficients: "Coefficients",
-  contour: "Fitted response surface",
-  true_contour: "True response surface",
-  residuals: "Residuals against fitted values",
-  half_normal: "Half-normal plot of the effects",
-};
-
 function chartCard(key, caption, wide = false) {
   const card = el("figure", wide ? "chart wide" : "chart", "");
   const plot = el("div", "plot", "");
@@ -638,7 +646,7 @@ async function showBuiltExample() {
   renderAnalysis({ ok: true, result: example.analysis, warnings: [] });
   $("#demo-version").textContent = `process-improve ${example.version}`;
   $("#demo-banner").hidden = false;
-  if (!pythonReady) setStatus("Showing the worked example while Python starts...", "busy");
+  if (!pythonReady && !pythonFailure) setStatus("Showing the worked example while Python starts...", "busy");
   const request = { truth: example.simulation.truth };
   await drawCharts(request, ticket, example.plots);
   const compared = example.comparison;
@@ -662,9 +670,10 @@ async function runExample() {
   if (!pythonReady) {
     button.disabled = true;
     button.textContent = "Waiting for Python to start...";
-    await whenReady;
+    const started = await whenReady.then(() => true, () => false);
     button.textContent = "Run the worked example";
-    button.disabled = false;
+    button.disabled = !started;
+    if (!started) return;
   }
   const example = catalogue.demo;
   setForm(example.design);
@@ -694,7 +703,7 @@ async function compareDesigns() {
   const factors = readFactors();
   const model = $("#compare-model").value;
   setStatus("Choosing the designs to compare...", "busy");
-  const plan = await call("api_compare_plan", { factors, model });
+  const plan = await call("api_compare_plan", { factors, model, response: $("#response").value.trim() });
   if (!plan.ok) {
     setStatus(plan.error, "error");
     button.disabled = false;
@@ -707,6 +716,16 @@ async function compareDesigns() {
     const reply = await call("api_make_design", item.spec);
     if (reply.ok) made.push({ ...item, design: reply.result });
     else notes.push(`${item.label} could not be generated: ${reply.error}`);
+  }
+  if (!made.length) {
+    // Nothing to score: say why each design could not be made, in place of the last comparison.
+    button.disabled = false;
+    setStatus("None of the designs could be generated, so there is nothing to compare.", "error");
+    $("#comparison").hidden = false;
+    $("#comparison").replaceChildren(...noteList(notes));
+    $("#compare-charts").hidden = true;
+    $("#py-compare").hidden = true;
+    return;
   }
   setStatus("Scoring the designs...", "busy");
   const designs = made.map((m) => ({ label: m.label, spec: m.design.spec, columns: m.design.columns, rows: m.design.rows }));
@@ -874,25 +893,6 @@ async function readManifest() {
 }
 
 // ---------------------------------------------------------------- rendering helpers
-const fmt = (x) => (x === null || x === undefined ? "" : Number(x).toPrecision(4));
-
-/** The fit statistics as a sentence: one the fit cannot give is left out, and a missing predicted R² is explained. */
-function fitStatistics(s) {
-  const known = (x) => x !== null && x !== undefined;
-  const stats = [
-    ["R²", s.r_squared],
-    ["adjusted R²", s.r_squared_adj],
-    ["predicted R²", s.r_squared_pred],
-  ];
-  const given = stats.filter(([, x]) => known(x)).map(([name, x]) => `${name} = ${fmt(x)}`);
-  const text = `${[...given, `residual degrees of freedom = ${s.df_residual}`].join(", ")}.`;
-  // A run with leverage 1 is fitted exactly whatever its result, so the fit without it cannot predict it.
-  return known(s.r_squared_pred)
-    ? text
-    : `${text} Predicted R² cannot be computed: at least one run cannot be predicted from the others.`;
-}
-const pval = (p) => (p === null || p === undefined ? "" : p < 0.0001 ? "< 0.0001" : Number(p).toFixed(4));
-
 /** A list of sentences about a result (what the design is, what it could not estimate), or nothing. */
 function noteList(notes, cls = "facts") {
   if (!notes || !notes.length) return [];
@@ -965,24 +965,6 @@ function fillBody(t, rows) {
   t.tBodies[0].innerHTML = rows.map((row) => `<tr>${row.map((v, c) => `<td>${cell(row, v, c)}</td>`).join("")}</tr>`).join("");
 }
 
-/** Blank cells (an unfilled response) sort last in either direction. */
-const isBlank = (v) => v === null || v === undefined || v === "";
-
-/**
- * Order two non-blank cells: numbers numerically, including text that leads
- * with one ("< 0.0001", "4.623 to 5.300"), then everything else alphabetically.
- */
-function compareCells(a, b) {
-  const na = sortNumber(a);
-  const nb = sortNumber(b);
-  if (!Number.isNaN(na) && !Number.isNaN(nb)) return na - nb;
-  return String(a).localeCompare(String(b), undefined, { numeric: true });
-}
-
-const sortNumber = (v) => (typeof v === "number" ? v : parseFloat(String(v).replace(/^[<>≤≥]\s*/, "")));
-
-const escape = (v) => String(v).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
-
 // ---------------------------------------------------------------- wiring
 DEFAULT_FACTORS.forEach(addFactor);
 $("#add-factor").onclick = () => {
@@ -1024,12 +1006,24 @@ $("#model").onchange = analyseRuns;
 $("#compare").onclick = compareDesigns;
 for (const button of document.querySelectorAll("details.python .copy")) {
   button.onclick = async () => {
-    await navigator.clipboard.writeText(button.parentElement.querySelector("code").textContent);
-    button.textContent = "Copied";
-    setTimeout(() => (button.textContent = "Copy the code"), 1500);
+    const code = button.parentElement.querySelector("code");
+    let done = "Copied";
+    try {
+      await navigator.clipboard.writeText(code.textContent);
+    } catch {
+      // The browser refused the clipboard: select the code, for the reader to copy from the keyboard.
+      getSelection().selectAllChildren(code);
+      done = "Selected: copy it with Ctrl+C or ⌘C";
+    }
+    button.textContent = done;
+    setTimeout(() => (button.textContent = "Copy the code"), done === "Copied" ? 1500 : 4000);
   };
 }
-$("#upload").onchange = (e) => e.target.files[0] && readUpload(e.target.files[0]);
+$("#upload").onchange = (e) => {
+  const file = e.target.files[0];
+  e.target.value = ""; // so choosing the same file again reads it again
+  if (file) readUpload(file);
+};
 const drop = $("#drop");
 drop.ondragover = (e) => {
   e.preventDefault();
@@ -1047,7 +1041,10 @@ readManifest();
 showBuiltExample();
 
 call("api_catalogue").then((reply) => {
-  if (!reply.ok) return;
+  if (!reply.ok) {
+    pythonFailed(reply.error);
+    return;
+  }
   catalogue = reply.result;
   pythonReady = true;
   for (const id of ["#upload", "#simulate", "#reroll", "#compare"]) $(id).disabled = false;

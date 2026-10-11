@@ -46,3 +46,28 @@ def test_a_design_taken_from_the_comparison_reaches_step_1_and_is_simulated(page
     assert page.locator("#design-table tbody tr").count() == chosen["design"]["n_runs"]
     assert calls(page)[-3]["fn"] == "api_simulate", "the same process, noise and seed, on the new runs"
     assert page.locator("#design-table input.sim").count() == chosen["design"]["n_runs"]
+
+
+def test_a_design_taken_from_the_comparison_keeps_the_response_typed_in_step_1(page, first_paint):
+    page.fill("#response", "Yield")
+    page.click("#compare")
+    settled(page)
+    chosen = next(m for m in first_paint["comparison"]["made"] if m["design_type"] == "d_optimal")
+    column = page.locator("#comparison thead th", has_text=chosen["label"])
+    column.get_by_role("button", name="Use this design").click()
+    settled(page)
+    assert page.input_value("#response") == "Yield"
+    assert page.is_hidden("#design-stale"), "the design in step 2 is the one the form describes"
+
+
+def test_when_no_design_can_be_made_the_page_says_why_each_could_not(page, first_paint):
+    page.evaluate("window.__pi.fake('api_make_design', {ok: false, error: 'the solver gave up', warnings: []})")
+    page.click("#compare")
+    settled(page)
+    assert status(page) == ("None of the designs could be generated, so there is nothing to compare.", "error")
+    assert calls(page, "api_compare") == [], "nothing to score"
+    reasons = [r for r in page.locator("#comparison li").all_text_contents() if r.endswith("the solver gave up")]
+    assert len(reasons) == len(first_paint["comparison"]["made"])
+    assert page.locator("#comparison table").count() == 0, "the last comparison, for other factors, is gone"
+    assert page.is_hidden("#compare-charts")
+    assert page.is_enabled("#compare")

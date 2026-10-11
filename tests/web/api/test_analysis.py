@@ -196,3 +196,12 @@ def test_a_model_the_design_cannot_fit_is_refused_plainly(api):
     reply = analyse(api, {"design_type": "dsd", "factors": FACTORS, "n_center_points": 1}, model="quadratic")
     assert not reply["ok"]
     assert "cannot fit the quadratic model" in reply["error"]
+
+
+def test_too_few_results_for_the_model_are_reported_in_the_page_s_words(api, held, simulated):
+    """The runs may be the page's, typed in, and the runs still to do are named as the analysis names them."""
+    responses = [None] * 8 + simulated["responses"][8:]
+    assert api.error("api_analyze_runs", {**held, "responses": responses, "model": "quadratic"}) == (
+        "The quadratic model has 10 coefficients, so it needs at least 10 completed runs, and 7 are complete. "
+        "Still to run: 1, 2, 3, 4, 5, 6, 7, 8."
+    )

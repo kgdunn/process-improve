@@ -4,7 +4,9 @@ Each test gets a fresh page. Its worker is never started: ``harness.js`` answers
 this process, from ``web/bootstrap.py``, through the binding ``window.__piNative``, so these
 tests need neither Pyodide nor the network. ``demo.json``, the manifest and Plotly.js are
 served from here too, and any other request leaving the page is refused: a page that starts
-reaching for another site fails here until the tests serve what it asks for.
+reaching for another site fails here until the tests serve what it asks for. A test about the
+worker itself parametrizes ``transport`` to ``worker``: the page's own worker then runs, and
+finds Pyodide's download refused.
 """
 
 from __future__ import annotations
@@ -75,9 +77,16 @@ def context_options() -> dict[str, Any]:
 
 
 @pytest.fixture
+def transport() -> str:
+    """Return who answers the page's calls: ``native``, this process; ``worker``, the page's own worker."""
+    return "native"
+
+
+@pytest.fixture
 def context(  # noqa: PLR0913 - a fixture's arguments are the fixtures it needs
     chromium: Any,  # noqa: ANN401 - a Playwright Browser
     context_options: dict[str, Any],
+    transport: str,
     bootstrap: ModuleType,
     site: str,
     first_paint: dict[str, Any],
@@ -88,7 +97,7 @@ def context(  # noqa: PLR0913 - a fixture's arguments are the fixtures it needs
     """Open a browser context whose pages are answered natively; fail the test on any console error."""
     version, script = plotly_js
     context = chromium.new_context(**context_options)
-    context.add_init_script("window.__piTransport = 'native';")
+    context.add_init_script(f"window.__piTransport = {json.dumps(transport)};")
     context.add_init_script(path=HARNESS)
     context.expose_function("__piNative", _native(bootstrap))
     # The last route added is tried first, so the refusal of everything else goes in first.

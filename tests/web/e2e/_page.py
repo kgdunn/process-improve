@@ -93,11 +93,11 @@ def headers(page: Any, table: str = "#design-table") -> list[str]:  # noqa: ANN4
     return page.locator(f"{table} thead th").all_text_contents()
 
 
-def type_results(page: Any, results: dict[int, object]) -> None:  # noqa: ANN401
-    """Type results into the sheet as a reader would, then wait for the analysis made once typing pauses.
+def enter_results(page: Any, results: dict[int, object]) -> None:  # noqa: ANN401
+    """Type results into the sheet as a reader would, and wait until the page asks for their analysis.
 
     ``results`` maps a run's place in the design (0-based, in run order) to its result; ``""``
-    clears it. Clearing the last result takes the analysis away instead of making one.
+    clears it. Clearing the last result takes the analysis away instead of asking for one.
     """
     before = page.evaluate("window.__pi.count('api_analyze_runs')")
     for run, value in results.items():
@@ -107,6 +107,11 @@ def type_results(page: Any, results: dict[int, object]) -> None:  # noqa: ANN401
         " || [...document.querySelectorAll('#design-table input')].every((i) => i.value === '')"
         " && document.querySelector('#analysis').hidden"
     )
+
+
+def type_results(page: Any, results: dict[int, object]) -> None:  # noqa: ANN401
+    """Type results as :func:`enter_results` does, then wait for the analysis made once typing pauses."""
+    enter_results(page, results)
     settled(page)
 
 

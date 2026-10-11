@@ -1,16 +1,17 @@
 // Charts: Plotly.js, loaded once from jsDelivr at the version the Python plotly package
 // names, drawing the library's figures and the page's coefficient chart in the page's
 // colours. Every chart sits beside a table that holds its numbers, so a CDN that cannot
-// be reached costs the picture, not the result.
+// be reached costs the picture, not the result. Nothing runs against the document until a
+// chart is built or drawn, so tests/web/js imports this module under Node.
 
 const CDN = (version) => `https://cdn.jsdelivr.net/npm/plotly.js-dist-min@${version}/plotly.min.js`;
-// On a phone the toolbar would sit over the chart for good, since there is no hover to hide it.
-const CONFIG = {
+/** Plotly's settings for a chart on this page; on a phone the toolbar would sit over the chart for good. */
+const plotConfig = () => ({
   responsive: true,
   displaylogo: false,
   displayModeBar: window.matchMedia("(max-width: 600px)").matches ? false : "hover",
   modeBarButtonsToRemove: ["select2d", "lasso2d"],
-};
+});
 
 let loading = null;
 
@@ -30,15 +31,14 @@ export function loadPlotly(version) {
 }
 
 /** The page's colours, read from its CSS, so the charts follow the light and dark themes. */
-function palette() {
+export function palette() {
   const css = getComputedStyle(document.documentElement);
   const read = (name) => css.getPropertyValue(name).trim();
   return { fg: read("--fg"), muted: read("--muted"), line: read("--line"), accent: read("--accent"), truth: read("--ok") };
 }
 
 /** Restyle a figure's layout for a card on the page: its colours, its size, no title, the legend below. */
-function pageLayout(layout, height) {
-  const colours = palette();
+export function pageLayout(layout, height, colours = palette()) {
   const axis = (given) => ({
     ...(given || {}),
     gridcolor: colours.line,
@@ -73,7 +73,7 @@ function pageLayout(layout, height) {
 /** Draw a figure ({data, layout}) into a card's plot area. */
 export async function draw(div, figure, version, height = 340) {
   const Plotly = await loadPlotly(version);
-  await Plotly.react(div, figure.data, pageLayout(figure.layout || {}, height), CONFIG);
+  await Plotly.react(div, figure.data, pageLayout(figure.layout || {}, height), plotConfig());
 }
 
 /**
@@ -97,7 +97,7 @@ export function shareContourScale(...figures) {
 }
 
 /** A round step near the one asked for: 1, 2 or 5 times a power of ten. */
-function niceStep(raw) {
+export function niceStep(raw) {
   if (!(raw > 0)) return 1;
   const power = 10 ** Math.floor(Math.log10(raw));
   return [1, 2, 5, 10].map((m) => m * power).find((step) => step >= raw);
@@ -108,8 +108,7 @@ function niceStep(raw) {
  * value beside each when the results were simulated. The intercept is left out: it sits
  * on another scale.
  */
-export function coefficientFigure(coefficients, simulated) {
-  const colours = palette();
+export function coefficientFigure(coefficients, simulated, colours = palette()) {
   const terms = coefficients.filter((c) => c.term !== "Intercept");
   const labels = terms.map((c) => c.label);
   const above = terms.map((c) => (c.ci_high === null || c.ci_high === undefined ? 0 : c.ci_high - c.coefficient));
@@ -204,8 +203,7 @@ export function fdsFigure(fds) {
  * interactions, in that order, with lines between the three blocks. A term that does not
  * vary in the design has no correlation, and its row and column are blank.
  */
-export function correlationFigure(terms, matrix, k) {
-  const colours = palette();
+export function correlationFigure(terms, matrix, k, colours = palette()) {
   const labels = terms.map(prettyTerm);
   const n = labels.length;
   const line = { width: 1, color: colours.muted };

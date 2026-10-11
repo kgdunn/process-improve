@@ -7,6 +7,7 @@ build time through ``web/bootstrap.py``, which the page draws at first paint whi
 from __future__ import annotations
 
 import functools
+import hashlib
 import json
 import re
 from pathlib import Path
@@ -105,7 +106,7 @@ def test_a_change_to_any_file_of_the_app_runs_every_test_here(monkeypatch):
 
 
 def test_assemble_lays_out_what_the_page_and_its_worker_read(build_script, tmp_path, monkeypatch):
-    """The page, the wheel under wheels/, the manifest naming both versions, and the worked example."""
+    """The page, the wheel in a folder of its own under wheels/, the manifest naming it, and the worked example."""
     from importlib.metadata import version
 
     get_plotlyjs_version = pytest.importorskip(
@@ -124,17 +125,51 @@ def test_assemble_lays_out_what_the_page_and_its_worker_read(build_script, tmp_p
     assert build_script.assemble(out) == "process_improve-9.9.9-py3-none-any.whl"
 
     published = {p.relative_to(out).as_posix() for p in out.rglob("*") if p.is_file()}
-    wheel = "wheels/process_improve-9.9.9-py3-none-any.whl"
-    assert published == {*build_script.APP_FILES, *BUILT, wheel}, "and nothing left from an earlier build"
+    wheel = f"{hashlib.sha256(b'a wheel').hexdigest()[:16]}/process_improve-9.9.9-py3-none-any.whl"
+    assert published == {*build_script.APP_FILES, *BUILT, f"wheels/{wheel}"}, "and nothing left from an earlier build"
     for name in build_script.APP_FILES:
         assert (out / name).read_bytes() == (WEB / name).read_bytes(), name
     manifest = json.loads((out / "wheels" / "manifest.json").read_text())
     assert manifest == {
-        "wheel": "process_improve-9.9.9-py3-none-any.whl",
+        "wheel": wheel,
+        "commit": build_script.commit(),
         "plotly": version("plotly"),
         "plotly_js": get_plotlyjs_version(),
     }
     assert json.loads((out / "demo.json").read_text()) == {"the": "worked example"}
+
+
+def _assemble_around(build_script, out: Path, wheel: bytes, monkeypatch) -> dict:
+    """Assemble the app into ``out`` around a stand-in wheel holding ``wheel``; return the manifest."""
+    pytest.importorskip("plotly.offline", reason="the build names plotly's versions")
+    built = out.parent / "dist" / "process_improve-9.9.9-py3-none-any.whl"
+    built.parent.mkdir(exist_ok=True)
+    built.write_bytes(wheel)
+    monkeypatch.setattr(build_script, "build_wheel", lambda _dist: built)
+    monkeypatch.setattr(build_script, "worked_example", dict)
+    build_script.assemble(out)
+    return json.loads((out / "wheels" / "manifest.json").read_text())
+
+
+def test_each_build_s_wheel_has_a_url_of_its_own(build_script, tmp_path, monkeypatch):
+    """A browser never installs a wheel it cached from an earlier deploy beside a newer ``bootstrap.py``."""
+    published = []
+    for wheel in (b"one build", b"the next build"):
+        manifest = _assemble_around(build_script, tmp_path / "app", wheel, monkeypatch)
+        assert (tmp_path / "app" / "wheels" / manifest["wheel"]).read_bytes() == wheel
+        assert Path(manifest["wheel"]).name == "process_improve-9.9.9-py3-none-any.whl", "micropip reads the name"
+        published.append(manifest["wheel"])
+    assert published[0] != published[1]
+
+
+def test_the_manifest_names_the_commit_the_app_was_built_from(build_script, tmp_path, monkeypatch):
+    """The deploy waits for the published manifest to name the commit it pushed: CI's, or this checkout's."""
+    monkeypatch.setenv("GITHUB_SHA", "0123abc")
+    assert _assemble_around(build_script, tmp_path / "ci", b"a wheel", monkeypatch)["commit"] == "0123abc"
+    monkeypatch.delenv("GITHUB_SHA")
+    assert re.fullmatch(
+        r"[0-9a-f]{40}", _assemble_around(build_script, tmp_path / "here", b"a wheel", monkeypatch)["commit"]
+    )
 
 
 def test_the_page_reads_only_what_the_manifest_holds():
