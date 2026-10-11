@@ -163,6 +163,11 @@ LENTH_FEW_EFFECTS = 7
 #: How many alias groups a summary sentence names before saying how many more.
 ALIASES_SHOWN = 4
 
+#: A coefficient within this fraction of the largest result is round-off, not an estimate: an
+#: orthogonal design whose results make a term exactly zero estimates it as 1e-16, and the page
+#: would show that. A least squares fit on coded factors is far more accurate than this.
+ROUND_OFF = 1e-12
+
 #: From this many factors a CCD uses a resolution V half fraction of the cube, the
 #: switch ``process_improve.experiments.strategy.budget`` assumes.
 CCD_HALF_FRACTION_FROM = 6
@@ -661,10 +666,19 @@ def _analysis(runs: pd.DataFrame, spec: dict, model: str, truth: list[dict] | No
 
     fit = _fit_estimable(coded, y[done].reset_index(drop=True).rename(response), model, names)
     out = fit["out"]
+    zero = ROUND_OFF * float(y[done].abs().max())
     coefficients = [
-        {**c, "label": fit["labels"].get(c["term"], _pretty(c["term"])), "aliases": fit["chains"].get(c["term"], [])}
+        {
+            **c,
+            "coefficient": _snapped(c["coefficient"], zero),
+            "label": fit["labels"].get(c["term"], _pretty(c["term"])),
+            "aliases": fit["chains"].get(c["term"], []),
+        }
         for c in out.get("coefficients", [])
     ]
+    lenth = fit["lenth"]
+    if lenth:  # an effect is twice its coefficient at most, so twice the coefficients' round-off
+        lenth["effects"] = [{**e, "effect": _snapped(e["effect"], 2 * zero)} for e in lenth["effects"]]
     if truth:
         _add_true_values(coefficients, coded, fit["formula"], _true_coefficients(truth, names))
     anova = [{**a, "source": fit["labels"].get(a["source"], _pretty(a["source"]))} for a in out.get("anova_table", [])]
@@ -677,11 +691,16 @@ def _analysis(runs: pd.DataFrame, spec: dict, model: str, truth: list[dict] | No
         "coefficients": coefficients,
         "anova": anova,
         "lack_of_fit": out.get("lack_of_fit"),
-        "lenth": fit["lenth"],
+        "lenth": lenth,
         "not_estimable": [_pretty(t) for t in fit["not_estimable"]],
         "notes": fit["notes"],
         "equation": _equation(response, coefficients),
     }
+
+
+def _snapped(value: float | None, zero: float) -> float | None:
+    """Return 0 for a value no larger than ``zero``, the fit's round-off, and the value otherwise."""
+    return 0.0 if value is not None and abs(value) <= zero else value
 
 
 #: What the page asks of every fit; the effects carry the alias chains of a design
@@ -734,8 +753,9 @@ def _fit_estimable(coded: pd.DataFrame, y: pd.Series, model: str, names: list[st
             lenth = analyze_experiment(coded, y, model=formula, analysis_type="lenth_method")["lenth_method"]
             lenth["effects"] = [{**e, "label": labels.get(e["term"], _pretty(e["term"]))} for e in lenth["effects"]]
             notes.append(
-                "The model uses every run, so no degrees of freedom are left to estimate the error. Each effect is "
-                f"judged with Lenth's method instead: it is likely real beyond the margin of error ME = "
+                "The model uses every run, so no degrees of freedom are left to estimate the error. Each effect, "
+                "twice its coefficient (the change from the factor's low level to its high level), is judged with "
+                f"Lenth's method instead: it is likely real beyond the margin of error ME = "
                 f"{lenth['ME']:.4g}, and still so, allowing for the number of effects tested, beyond SME = "
                 f"{lenth['SME']:.4g}."
             )

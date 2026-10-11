@@ -402,6 +402,15 @@ those changes.
 - **When the clipboard is refused, the browser app selects the code** so the reader can
   copy it. A comparison where no design can be made now says why.
 
+- **The browser app shows a coefficient the results make exactly zero as 0**, in the
+  coefficient table, Lenth's table and the fitted equation. Least squares returns such a
+  term as round-off, and the page printed it as such: `6.106e-16` where the textbook's
+  breaded-chicken exercise prints 0.
+
+- **The browser app says that Lenth's effects are twice the coefficients**: the change from
+  a factor's low level to its high level. Lenth's margins are on that scale, so a reader
+  comparing one with a coefficient was off by a factor of two.
+
 - **The Pareto and half-normal plots draw Lenth's margins at the level the analysis
   used, and recompute them with the analysis's formula.** They looked for that level under
   `alpha`, but `analyze_experiment` stores it as `significance_level`, so an analysis at

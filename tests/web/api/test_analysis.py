@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import pytest
 
-from tests.web._support import FACTORS, factors_named, fill_workbook, held_of, quadratic
+from tests.web._support import FACTORS, factors_named, fill_workbook, held_of, quadratic, run_sheet
 
 
 def analyse(api, spec: dict, model: str = "") -> dict:
@@ -164,6 +164,16 @@ def test_saturated_two_level_fit_is_judged_with_lenth(api):
     assert any("only 3 effects" in note for note in result["notes"]), "three effects give Lenth's margins one df"
 
 
+def test_lenth_s_effects_are_twice_the_coefficients_and_the_page_says_so(api):
+    """The coefficient table and Lenth's table differ by a factor of two, which the book's hand calculations show."""
+    spec = {"design_type": "plackett_burman", "factors": FACTORS, "n_center_points": 0}
+    result = analyse(api, spec, model="main_effects")["result"]
+    coefficients = by_label(result)
+    for effect in result["lenth"]["effects"]:
+        assert effect["effect"] == pytest.approx(2 * coefficients[effect["label"]]["coefficient"])
+    assert any("twice its coefficient" in note for note in result["notes"])
+
+
 def test_a_saturated_fit_has_no_predicted_r_squared(api):
     """Every run is fitted exactly, so none can be predicted from the others; the page explains the gap."""
     spec = {"design_type": "plackett_burman", "factors": FACTORS, "n_center_points": 0}
@@ -189,6 +199,43 @@ def test_saturated_fit_of_a_three_level_design_says_nothing_can_be_tested(api):
     assert result["summary"]["df_residual"] == 0
     assert result["lenth"] is None
     assert any("no degrees of freedom" in note for note in result["notes"])
+
+
+#: The results of the book's breaded-chicken exercise, by coded setting of D, R and P: they make
+#: the D·P and R·P interactions exactly zero.
+CHICKEN = {
+    (-1, -1, -1): 3,
+    (1, -1, -1): 9,
+    (-1, 1, -1): 3,
+    (1, 1, -1): 7,
+    (-1, -1, 1): 3,
+    (1, -1, 1): 10,
+    (-1, 1, 1): 4,
+    (1, 1, 1): 7,
+}
+
+
+def test_a_coefficient_the_results_make_zero_reads_zero(api):
+    """Least squares returns an exactly zero coefficient as round-off; the page shows 0, as the book prints it."""
+    spec = {"design_type": "full_factorial", "factors": factors_named(*"DRP"), "n_center_points": 0}
+    design = api.ok("api_make_design", spec)
+    responses = [CHICKEN[tuple(int(v) for v in row)] for row in run_sheet(design)[["D", "R", "P"]].to_numpy()]
+    result = api.ok("api_analyze_runs", {**held_of(design), "responses": responses, "model": "interactions"})
+    coefficients = by_label(result)
+    assert coefficients["D·P"]["coefficient"] == 0
+    assert coefficients["R·P"]["coefficient"] == 0
+    assert "e-1" not in result["equation"]
+
+
+def test_a_zero_effect_reads_zero_in_lenth_s_table(api):
+    """A saturated fit whose results make C exactly zero: its effect reads 0, as its coefficient does."""
+    spec = {"design_type": "fractional_factorial", "factors": factors_named(*"ABC"), "resolution": 3}
+    design = api.ok("api_make_design", {**spec, "n_center_points": 0})
+    responses = [10 + 2 * a + b for a, b in run_sheet(design)[["A", "B"]].to_numpy()]
+    result = api.ok("api_analyze_runs", {**held_of(design), "responses": responses, "model": "main_effects"})
+    assert {e["label"]: e["effect"] for e in result["lenth"]["effects"]}["C"] == 0
+    assert by_label(result)["C"]["coefficient"] == 0
+    assert "e-1" not in result["equation"]
 
 
 def test_a_model_the_design_cannot_fit_is_refused_plainly(api):
