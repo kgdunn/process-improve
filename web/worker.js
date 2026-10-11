@@ -70,11 +70,11 @@ async function boot() {
 import micropip
 # The pure-Python packages the Pyodide distribution lacks come from PyPI, at the pinned versions.
 await micropip.install(list(_pypi))
-# deps=False: the wheel's metadata bounds numpy and pandas, and the Pyodide release
-# need not fall inside the bounds (Pyodide 314 ships pandas 3.0, where the package
-# says <3.0). The packages loaded above are what the experiments module needs
-# (tests/web/api/test_browser_safe.py), and the wasm tier checks its answers under
-# them against native Python's.
+# deps=False: every package the page runs is loaded above, from the Pyodide release or
+# pinned from PyPI, so micropip must not fetch an unpinned dependency of its own, and the
+# Pyodide release need not meet the wheel's version floors. The packages loaded above are
+# what the experiments module needs (tests/web/api/test_browser_safe.py), and the wasm
+# tier checks its answers under them against native Python's.
 await micropip.install(_wheel, deps=False)
 `);
   pyodide.globals.delete("_pypi");

@@ -267,9 +267,10 @@ jobs:
   test-free-threaded:
     # Free-threaded CPython (PEP 703), #43. Every dependency ships wheels for it,
     # numba included since 0.67, so the package installs and the whole suite runs.
-    # pandas 2.x's parser extension does not yet declare free-threading support,
-    # so importing pandas would turn the GIL back on; PYTHON_GIL=0 keeps it off, so
-    # this job exercises the package the way a free-threaded user runs it.
+    # An extension module that does not declare free-threading support turns the
+    # GIL back on when imported, as pandas 2.x's parser extension did; pandas 3,
+    # which this job resolves, declares it. PYTHON_GIL=0 keeps the GIL off either
+    # way, so this job exercises the package the way a free-threaded user runs it.
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v7

@@ -316,6 +316,21 @@ class TestPreprocessingGuards:
         assert out["empty"].isna().all()
         assert np.isfinite(out["good"]).all()
 
+    @pytest.mark.parametrize("order", ["C", "F"])
+    @pytest.mark.parametrize(("n_rows", "value"), [(53, 0.00871), (53, 0.1), (5, 63.696), (100, 3.7)])
+    def test_mcuv_constant_column_transforms_to_exactly_zero(self, order: str, n_rows: int, value: float) -> None:
+        """A constant column is left unscaled and centred on its value, in either memory layout.
+
+        Its nanstd is usually rounding noise (about 1e-17) rather than exactly 0, in either
+        memory layout; dividing by it made the column +-sqrt((n-1)/n) instead of 0.
+        """
+        rng = np.random.default_rng(3)
+        x = np.asarray(np.column_stack([np.full(n_rows, value), rng.standard_normal(n_rows)]), order=order)
+        scaler = MCUVScaler().fit(x)
+        assert scaler.scale_[0] == 1.0
+        assert scaler.center_[0] == value
+        np.testing.assert_array_equal(np.asarray(scaler.transform(x))[:, 0], 0.0)
+
     def test_center_axis_1(self) -> None:
         x = np.arange(12, dtype=float).reshape(3, 4)
         centred = center(x, axis=1)

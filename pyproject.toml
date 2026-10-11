@@ -28,11 +28,9 @@ dependencies = [
     # MCP server, JIT speedups) live in extras; install
     # ``process-improve[all]`` to reproduce the pre-1.24.11 closure.
     "numpy>=2.2.6",
-    # Upper-bounded below pandas 3.0: pandas 3.0.x segfaults in CI when numba
-    # (the `fast` extra) is also installed, a numba/llvmlite vs numpy ABI
-    # interaction. Revisit once a numba build supports the pandas 3 / numpy 2.4
-    # stack.
-    "pandas>=2.3.3,<3.0",
+    # Both pandas majors are supported. pandas 3 needs Python 3.11, so CI's
+    # Python 3.10 jobs test pandas 2.3 and the newer Pythons test pandas 3.
+    "pandas>=2.3.3",
     "patsy>=1.0.2",
     "pydantic>=2.12.5",
     "pyyaml>=6.0",
@@ -189,14 +187,17 @@ dev = [
 
 [tool.uv]
 # pyoptex 1.2.1 (PyPI) pins plotly~=5.24 and numba~=0.61, which conflict with
-# the `plotting` (plotly>=6.5.2) and `fast` (numba>=0.63.1) extras. The plotly
-# relaxation is merged upstream (github.com/mborn1/pyoptex, plotly>=5.24,<7)
-# but not yet released; numba is still pinned strictly upstream. These
-# overrides match this project's own floors, so they change nothing else.
-# Drop the plotly override once a pyoptex release ships the relaxed pin.
+# the `plotting` (plotly>=6.5.2) and `fast` (numba>=0.63.1) extras, and
+# pandas~=2.0, which would hold the dev environment, and so every CI job, at
+# pandas 2. The plotly relaxation is merged upstream (github.com/mborn1/pyoptex,
+# plotly>=5.24,<7) but not yet released; numba and pandas are still pinned
+# strictly upstream. These overrides match this project's own floors, so they
+# change nothing else. Drop the plotly override once a pyoptex release ships
+# the relaxed pin.
 override-dependencies = [
     "plotly>=6.5.2",
     "numba>=0.63.1",
+    "pandas>=2.3.3",
 ]
 # scipy 1.18.1 was published without CPython 3.13 wheels (cp312 only), and CI
 # re-resolves on a stale lockfile whenever this file changes, so a fresh

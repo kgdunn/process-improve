@@ -1031,11 +1031,10 @@ class TestMBPLSMissingData:
         rng = np.random.default_rng(3)
         x_n = {}
         for name, df in x.items():
-            out = df.copy().astype(float)
+            out = df.astype(float)
             mask = rng.random(out.shape) < 0.25
             mask[mask.all(axis=1), 0] = False  # never empty a whole block for a row
-            out.values[mask] = np.nan
-            x_n[name] = out
+            x_n[name] = out.mask(mask)  # pandas 3's .values is a read-only view, so no writing through it
         scores = MBPLS(n_components=2).fit(x_n, y).super_scores_.to_numpy()
         agreement = np.mean([abs(np.corrcoef(reference[:, a], scores[:, a])[0, 1]) for a in range(2)])
         assert agreement > 0.85

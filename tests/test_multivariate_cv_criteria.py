@@ -216,7 +216,9 @@ def test_fold_sign_flip_changes_nothing() -> None:
     before = _heldout_pass(folds, Y.to_numpy(), 4)
     pv_before = _procrustes_scores(model, folds)
     for attribute in ("scores", "weights", "direct_weights", "x_loadings", "y_loadings"):
-        getattr(folds[2], attribute)[:, 1] *= -1.0
+        flipped = getattr(folds[2], attribute).copy()  # pandas 3's to_numpy() is a read-only view
+        flipped[:, 1] *= -1.0
+        setattr(folds[2], attribute, flipped)
     after = _heldout_pass(folds, Y.to_numpy(), 4)
     pv_after = _procrustes_scores(model, folds)
     np.testing.assert_allclose(after.r_cv, before.r_cv, rtol=1e-12)
