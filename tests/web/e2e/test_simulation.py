@@ -7,8 +7,6 @@ describe the runs on the page.
 
 from __future__ import annotations
 
-import pytest
-
 from tests.web._support import FACTORS
 from tests.web.e2e._page import calls, choose, generate, run_sheet, set_factors, settled, type_results
 
@@ -67,9 +65,6 @@ def test_a_new_design_is_simulated_from_the_same_process(page):
     assert page.is_hidden("#design-stale")
 
 
-@pytest.mark.xfail(
-    strict=True, reason="defect: the true process stays on show once every simulated result is typed over"
-)
 def test_the_true_process_goes_once_no_simulated_result_is_left(page):
     assert page.is_visible("#truth")
     type_results(page, {run: 60 + run for run in range(14)})

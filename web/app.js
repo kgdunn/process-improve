@@ -330,6 +330,7 @@ function renderRuns() {
     state.sources[i] = input.value === "" ? null : "entered";
     input.classList.remove("sim");
     describeSource();
+    renderTruth();
     showPython("run", enteredCode(state.responses));
     scheduleAnalysis();
   };
@@ -353,7 +354,7 @@ function describeSource() {
 
 /** The true process behind the simulated results, behind a reveal. */
 function renderTruth() {
-  const sim = state.simulation;
+  const sim = state.sources.includes("simulated") ? state.simulation : null; // gone with the last simulated result
   $("#truth").hidden = !sim;
   if (!sim) return;
   $("#truth-equation").textContent = sim.equation;
