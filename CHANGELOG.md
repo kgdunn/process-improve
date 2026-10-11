@@ -316,6 +316,16 @@ those changes.
 
 ### Fixed
 
+- **An explicit formula that names `Block` fits the blocks as a named model does.**
+  `analyze_experiment(..., model="y ~ Block + A + B")` on a blocked design took `Block`
+  as a number, a straight line through the block labels: one degree of freedom whatever
+  the number of blocks, and a coefficient whose size depended on how the blocks were
+  numbered. The blocks now enter in that term's place as the sum-coded contrasts
+  `Block1`, ... that the named models use, with one `"Block"` row in the ANOVA, and are
+  left out of the effects and Lenth's method. This is what the warning for a formula
+  without `Block` already advised ("name it in the formula"), and how `evaluate_design`
+  reads such a formula.
+
 - **Plots drawn after plotly is installed into a running process use the library's
   theme.** The themes were registered only when `process_improve.visualization` was
   imported with plotly already installed, and bound plotly at that import. In a browser
