@@ -26,6 +26,7 @@ rule is how they drift apart.
 | Writing a new `@tool_spec` tool | `docs/development/tool_authoring.rst` |
 | sklearn interoperability details | `SKLEARN_COMPATIBILITY.md` |
 | The browser app in `web/`: its tests, and what a change to it adds to them | [`CONTRIBUTING.md`](CONTRIBUTING.md#the-browser-app-is-tested) |
+| factori.al: how the app is deployed and rolled back, and the server's one-time setup | [`deploy/factorial/README.md`](deploy/factorial/README.md) |
 
 ## Package Structure
 
@@ -210,6 +211,12 @@ Workflows in `.github/workflows/`:
   check to require in branch protection: it fails unless every other job except
   `coverage-report` succeeded. All jobs install with `uv sync --dev --all-extras`.
 - **docs.yml**: strict Sphinx build (`-W`, notebooks executed) and GitHub Pages deploy on main.
+  On main it also sends the browser app (the same build its smoke tests just
+  passed) to https://factori.al/ (`deploy-factorial`) and smoke-tests it there
+  (`check-factorial`). Both jobs are skipped until the repository variable
+  `FACTORIAL_KNOWN_HOSTS` is set.
+- **factorial-rollback.yml**: manual; switches factori.al back to the build
+  before, or to a commit you name.
 - **publish.yml**: tag-gated PyPI publish (see above).
 - **codeql.yml**: weekly and per-PR security scanning.
 
