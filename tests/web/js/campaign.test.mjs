@@ -161,8 +161,8 @@ describe("a campaign read back keeps only what the page uses", () => {
   });
 
   test("no key of a link reaches a prototype", () => {
-    // JSON.parse makes "__proto__" an own key, as a hostile link would hold it.
-    const top = JSON.parse(JSON.stringify(campaign()).replace("{", '{"__proto__":{"polluted":"yes"},'));
+    // JSON.parse makes "__proto__" an own key, as a hostile link would hold it: here, the first key.
+    const top = JSON.parse(`{"__proto__":{"polluted":"yes"},${JSON.stringify(campaign()).slice(1)}`);
     assert.equal(checkCampaign(top).polluted, undefined);
     const inOptions = JSON.parse(JSON.stringify(campaign()).replace('"options":{', '"options":{"__proto__":{"polluted":"yes"},'));
     assert.throws(() => checkCampaign(inOptions), /setting __proto__ is not a value/);
