@@ -11,8 +11,10 @@ import { coefficientFigure, correlationFigure, draw, fdsFigure, prettyTerm, shar
 import {
   AXIAL_DISTANCE,
   CAPTIONS,
+  CATEGORICAL,
   CATEGORICAL_DESIGNS,
   CHOSEN_TERMS,
+  NUMERIC,
   SPARE_RUNS,
   TITLES,
   axialDistance,
@@ -20,11 +22,13 @@ import {
   compareCells,
   defaultResolution,
   escape,
+  factorType,
   fitStatistics,
   fmt,
   formMatches,
   isBlank,
   isCategorical,
+  levelProblem,
   levelValue,
   listNames,
   nTerms,
@@ -152,26 +156,101 @@ const DEFAULT_FACTORS = [
   { name: "F", low: 10, high: 20, units: "L/min" },
 ];
 
+/** The levels a new factor of each type starts from. */
+const START_LEVELS = { [NUMERIC]: ["-1", "1"], [CATEGORICAL]: ["A", "B"] };
+
+/** One of a factor row's boxes, by its name: name, type, low, high or units. */
+const box = (tr, name) => tr.querySelector(`[name=${name}]`);
+
 function addFactor(f = { name: "", low: -1, high: 1, units: "" }) {
   const tr = document.createElement("tr");
+  // Each cell carries its column's heading, which a phone shows above the box (style.css).
   tr.innerHTML = `
-    <td><input name="name" aria-label="Factor name" size="8"></td>
-    <td><input name="low" aria-label="Low"></td>
-    <td><input name="high" aria-label="High"></td>
-    <td><input name="units" aria-label="Units" size="6"></td>
+    <td data-label="Factor"><input name="name" aria-label="Factor name" size="8"></td>
+    <td data-label="Type"><select name="type" aria-label="Factor type">
+      <option value="${NUMERIC}">Numeric</option><option value="${CATEGORICAL}">Categorical</option>
+    </select></td>
+    <td data-label="Low"><input name="low" aria-label="Low"></td>
+    <td data-label="High"><input name="high" aria-label="High"></td>
+    <td data-label="Units"><input name="units" aria-label="Units" size="6"></td>
     <td><button type="button" class="link" aria-label="Remove factor">✕</button></td>`;
-  for (const key of ["name", "low", "high", "units"]) tr.querySelector(`[name=${key}]`).value = f[key] ?? "";
+  for (const key of ["name", "low", "high", "units"]) box(tr, key).value = f[key] ?? "";
+  showType(tr, factorType(box(tr, "low").value, box(tr, "high").value, NUMERIC));
+  // The row settles its type before the table's own listener refreshes the design.
+  box(tr, "type").addEventListener("input", () => switchType(tr, box(tr, "type").value));
+  for (const name of ["low", "high"]) {
+    box(tr, name).addEventListener("input", () =>
+      showType(tr, factorType(box(tr, "low").value, box(tr, "high").value, box(tr, "type").value)),
+    );
+  }
   tr.querySelector("button").onclick = () => {
     tr.remove();
     refreshDesign();
   };
   $("#factors tbody").append(tr);
+  return tr;
+}
+
+/**
+ * Show a factor row as its type. A categorical factor's level boxes ask for its two labels, and
+ * it has no units: those typed are put aside, and come back if the factor is made numeric again.
+ */
+function showType(tr, type) {
+  const categorical = type === CATEGORICAL;
+  const units = box(tr, "units");
+  box(tr, "type").value = type;
+  tr.classList.toggle("categorical", categorical);
+  if (categorical && units.value) {
+    tr.dataset.units = units.value;
+    units.value = "";
+  } else if (!categorical && !units.value && tr.dataset.units) {
+    units.value = tr.dataset.units;
+  }
+  units.disabled = categorical;
+  units.placeholder = categorical ? "none" : "";
+  const [first, second] = categorical ? ["First label", "Second label"] : ["Low", "High"];
+  for (const [name, label] of [["low", first], ["high", second]]) {
+    box(tr, name).setAttribute("aria-label", label);
+    box(tr, name).placeholder = label.toLowerCase();
+    box(tr, name).parentElement.dataset.label = label;
+  }
+}
+
+/**
+ * The reader chose a factor's type: its levels become those it last had as that type, else the
+ * type's own start (-1 and 1, or A and B), and the first is selected, ready to be typed over.
+ */
+function switchType(tr, type) {
+  const before = type === CATEGORICAL ? NUMERIC : CATEGORICAL;
+  const [low, high] = [box(tr, "low"), box(tr, "high")];
+  tr.dataset[before] = JSON.stringify([low.value, high.value]);
+  [low.value, high.value] = tr.dataset[type] ? JSON.parse(tr.dataset[type]) : START_LEVELS[type];
+  showType(tr, type);
+  low.focus();
+  low.select();
+}
+
+/** Say under the table what each factor's levels still need for its type; return whether any does. */
+function showFactorProblems() {
+  const problems = [...document.querySelectorAll("#factors tbody tr")].map((tr) => {
+    const problem = levelProblem(
+      { name: box(tr, "name").value, low: box(tr, "low").value, high: box(tr, "high").value },
+      box(tr, "type").value,
+    );
+    for (const name of ["low", "high"]) box(tr, name).toggleAttribute("aria-invalid", Boolean(problem));
+    return problem;
+  });
+  const said = problems.filter(Boolean);
+  $("#factor-problems").textContent = said.join(" ");
+  $("#factor-problems").hidden = said.length === 0;
+  return said.length > 0;
 }
 
 const factorCount = () => document.querySelectorAll("#factors tbody tr").length;
 
 function readFactors() {
   // A blank box is sent as null, which Python reports, rather than as Number("") = 0; a label, as text.
+  // A factor's type is not sent: two labels make it categorical, as bootstrap.py reads it.
   return [...document.querySelectorAll("#factors tbody tr")].map((tr) => ({
     name: tr.querySelector("[name=name]").value.trim(),
     low: levelValue(tr.querySelector("[name=low]").value),
@@ -261,7 +340,8 @@ function refreshDesign() {
     hint.replaceChildren(`${option.dataset.hint} `, link(BOOK_PAGES[option.value], "More in the book"));
   }
   hint.classList.toggle("error", option.disabled);
-  $("#generate").disabled = !pythonReady || option.disabled;
+  const unready = showFactorProblems();
+  $("#generate").disabled = !pythonReady || option.disabled || unready;
   markStale(); // a factor added or removed
 }
 
@@ -1439,6 +1519,11 @@ function fillBody(t, rows) {
 DEFAULT_FACTORS.forEach(addFactor);
 $("#add-factor").onclick = () => {
   addFactor();
+  refreshDesign();
+};
+$("#add-categorical").onclick = () => {
+  const [low, high] = START_LEVELS[CATEGORICAL];
+  box(addFactor({ name: "", low, high, units: "" }), "name").focus();
   refreshDesign();
 };
 $("#generate").onclick = async () => {

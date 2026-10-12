@@ -157,19 +157,40 @@ button:disabled { opacity: 0.5; cursor: progress; }
 .factors { border-collapse: collapse; margin-bottom: 4px; }
 .factors th { text-align: left; font-weight: 600; font-size: 0.85rem; color: var(--muted); padding: 0 6px 4px 0; }
 .factors td { padding: 2px 6px 2px 0; }
-/* Fixed layout so the five columns share the width rather than each input
+/* Fixed layout so the six columns share the width rather than each input
    asking for its own: on a phone the Units column used to run off the edge. */
-.factors { width: 100%; max-width: 560px; table-layout: fixed; }
-.factors th:nth-child(1) { width: 28%; }
-.factors th:nth-child(2), .factors th:nth-child(3) { width: 24%; }
-.factors th:nth-child(5) { width: 2rem; }
-.factors input { width: 100%; min-width: 0; }
+.factors { width: 100%; max-width: 660px; table-layout: fixed; }
+.factors th:nth-child(1) { width: 22%; }
+.factors th:nth-child(2) { width: 23%; }
+.factors th:nth-child(3), .factors th:nth-child(4) { width: 17%; }
+.factors th:nth-child(6) { width: 2rem; }
+.factors input, .factors select { width: 100%; min-width: 0; }
+/* A categorical factor stands out by its type, and has no units to give. */
+.factors tr.categorical select { border-color: var(--accent); color: var(--accent); font-weight: 600; }
+.factors input:disabled { background: transparent; border-style: dashed; }
+.factors [aria-invalid] { border-color: var(--error); }
+.add-factors { display: flex; flex-wrap: wrap; gap: 0 16px; margin: 0; }
+/* On a phone each factor is a card of two lines, its name and type above its levels and
+   units, every box under its column's heading: six columns side by side cut the words short. */
 @media (max-width: 480px) {
-  .factors td { padding-right: 4px; }
-  /* Factor names are short; the units ("degC", "L/min") need the room. */
-  .factors th:nth-child(1) { width: 20%; }
-  .factors th:nth-child(2), .factors th:nth-child(3) { width: 22%; }
-  .factors input { padding: 6px; }
+  .factors, .factors tbody { display: block; }
+  .factors thead { display: none; }
+  .factors tr {
+    display: grid; gap: 2px 6px; padding: 6px 0; border-bottom: 1px solid var(--line);
+    grid-template-columns: 1fr 1fr 1fr 2rem;
+    grid-template-areas: "name type type remove" "low high units .";
+  }
+  .factors td { display: block; padding: 0; min-width: 0; }
+  .factors td:nth-child(1) { grid-area: name; }
+  .factors td:nth-child(2) { grid-area: type; }
+  .factors td:nth-child(3) { grid-area: low; }
+  .factors td:nth-child(4) { grid-area: high; }
+  .factors td:nth-child(5) { grid-area: units; }
+  .factors td:nth-child(6) { grid-area: remove; align-self: end; }
+  .factors td[data-label]::before {
+    content: attr(data-label); display: block; font-size: 0.75rem; font-weight: 600; color: var(--muted);
+  }
+  .factors input, .factors select { padding: 6px; }
 }
 .scroll { overflow-x: auto; margin: 12px 0; }
 table.data { border-collapse: collapse; font-size: 0.9rem; font-variant-numeric: tabular-nums; }
