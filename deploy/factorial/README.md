@@ -81,7 +81,9 @@ It prints `live: none` and `kept:`: the key logs in, and runs the deploy command
 sudo caddy validate --config /etc/caddy/Caddyfile && sudo systemctl reload caddy
 ```
 
-factori.al answers 404 until the first deploy.
+If the Caddyfile's global options turn the admin endpoint off (`admin off`), a reload cannot
+reach Caddy: use `sudo systemctl restart caddy`, which drops the server's other sites for a
+second too. A deploy never needs either. factori.al answers 404 until the first deploy.
 
 **5. GitHub**, in the settings of kgdunn/process-improve:
 

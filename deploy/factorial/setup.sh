@@ -39,7 +39,7 @@ systemctl try-reload-or-restart ssh
 # is made here, owned by caddy: `sudo caddy validate` would otherwise make it root's, and Caddy
 # could then not open it.
 install -o root -g root -m 644 "$here/factorial.caddy" /etc/caddy/factorial.caddy
-install -d -o caddy -g caddy -m 750 /var/log/caddy
+[ -d /var/log/caddy ] || install -d -o caddy -g caddy -m 750 /var/log/caddy  # other sites may log there too
 touch /var/log/caddy/factorial-access.log
 chown caddy:caddy /var/log/caddy/factorial-access.log
 chmod 640 /var/log/caddy/factorial-access.log
@@ -49,6 +49,7 @@ echo "Done. Next, in /etc/caddy/Caddyfile, replace the whole factori.al { ... } 
 echo "    import /etc/caddy/factorial.caddy"
 echo "then:"
 echo "    sudo caddy validate --config /etc/caddy/Caddyfile && sudo systemctl reload caddy"
+echo "(restart instead of reload if the Caddyfile turns the admin endpoint off: admin off)"
 echo
 echo "The value of the GitHub repository variable FACTORIAL_KNOWN_HOSTS:"
 printf 'factori.al %s\n' "$(cut -d' ' -f1,2 /etc/ssh/ssh_host_ed25519_key.pub)"
