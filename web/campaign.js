@@ -254,6 +254,48 @@ export function shareable(campaign, withResults) {
   return out;
 }
 
+// ---------------------------------------------------------------- the book's examples
+/** Where a link names one of the book's examples, which the page fetches from book/<name>.json. */
+export const BOOK_KEY = "#book=";
+
+/** A book example's name: lowercase words and numbers joined by hyphens, such as two-level-pollutant. */
+const BOOK_NAME = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
+
+/** Read the name of the book's example from the text a link carries after BOOK_KEY. */
+export function bookName(text) {
+  let name;
+  try {
+    name = decodeURIComponent(text);
+  } catch {
+    refuse("the link has been cut or changed");
+  }
+  if (name.length > 64 || !BOOK_NAME.test(name)) refuse(`${JSON.stringify(name.slice(0, 64))} is not the name of an example in the book`);
+  return name;
+}
+
+/**
+ * Check one of the book's examples as the build writes book/<name>.json: its name, its title,
+ * the page of the book it is on, a note on how the page holds it, and the campaign it opens.
+ */
+export function checkBookExample(data, name) {
+  if (!isObject(data) || data.name !== name) refuse(`the book's example ${JSON.stringify(name)} could not be read`);
+  const book = text(data.book, "its page in the book", 300);
+  if (!book.startsWith("https://")) refuse("its page in the book is not a web address");
+  return {
+    name,
+    title: text(data.title, "its title"),
+    book,
+    note: text(data.note ?? "", "its note", 1000),
+    campaign: checkCampaign(data.campaign),
+  };
+}
+
+/** Whether two campaigns are the same design with the same title, results and model: a book's example as it was left. */
+export function sameCampaign(a, b) {
+  const held = (c) => JSON.stringify([c.title, c.responses, c.model]);
+  return designKey(a.design) === designKey(b.design) && held(a) === held(b);
+}
+
 // ---------------------------------------------------------------- words
 /** A campaign's name in the list of saved designs: the design and the factors it varies. */
 export function campaignTitle(designLabel, factorNames) {

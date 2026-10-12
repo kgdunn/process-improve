@@ -2,8 +2,8 @@
 
 Each test gets a fresh page. Its worker is never started: ``harness.js`` answers every call in
 this process, from ``web/bootstrap.py``, through the binding ``window.__piNative``, so these
-tests need neither Pyodide nor the network. ``demo.json``, the manifest and Plotly.js are
-served from here too, and any other request leaving the page is refused: a page that starts
+tests need neither Pyodide nor the network. ``demo.json``, the book's examples, the manifest
+and Plotly.js are served from here too, and any other request leaving the page is refused: a page that starts
 reaching for another site fails here until the tests serve what it asks for. A test about the
 worker itself parametrizes ``transport`` to ``worker``: the page's own worker then runs, and
 finds Pyodide's download refused.
@@ -43,6 +43,13 @@ def first_paint(build_script: ModuleType) -> dict[str, Any]:
 
 
 @pytest.fixture(scope="session")
+def book_files(build_script: ModuleType) -> dict[str, Any]:
+    """Return ``book/<name>.json`` for each of the book's examples, as the build writes them, by name."""
+    with no_bytecode():
+        return {entry["name"]: build_script.book_example(entry) for entry in build_script.book_examples()}
+
+
+@pytest.fixture(scope="session")
 def plotly_js() -> tuple[str, bytes]:
     """Return the Plotly.js the Python plotly package ships, and its version: what the page draws with."""
     plotly = pytest.importorskip("plotly", reason="the page draws its charts with Plotly.js")
@@ -64,6 +71,15 @@ def _native(bootstrap: ModuleType) -> Callable[[str, str], str]:
             return json.dumps({"ok": False, "error": f"{type(exc).__name__}: {exc}"})
 
     return answer
+
+
+def _book(route: Any, book_files: dict[str, Any]) -> None:  # noqa: ANN401 - a Playwright Route
+    """Answer ``book/<name>.json`` as the published app does: the example the build wrote, or 404."""
+    name = route.request.url.rsplit("/", 1)[1].removesuffix(".json")
+    if name in book_files:
+        route.fulfill(json=book_files[name])
+    else:
+        route.fulfill(status=404, body="Not Found")
 
 
 @pytest.fixture
@@ -92,6 +108,7 @@ def open_context(  # noqa: PLR0913 - a fixture's arguments are the fixtures it n
     bootstrap: ModuleType,
     site: str,
     first_paint: dict[str, Any],
+    book_files: dict[str, Any],
     plotly_js: tuple[str, bytes],
     console: Console,
     request: pytest.FixtureRequest,
@@ -115,6 +132,7 @@ def open_context(  # noqa: PLR0913 - a fixture's arguments are the fixtures it n
             lambda route: route.continue_() if route.request.url.startswith(site) else route.abort("blockedbyclient"),
         )
         context.route(f"{site}demo.json", lambda route: route.fulfill(json=first_paint))
+        context.route(re.compile(re.escape(f"{site}book/") + r"[^/]+\.json$"), lambda route: _book(route, book_files))
         context.route(f"{site}wheels/manifest.json", lambda route: route.fulfill(json={"plotly_js": version}))
         context.route(
             re.compile(r"/plotly\.min\.js$"), lambda route: route.fulfill(body=script, content_type="text/javascript")
