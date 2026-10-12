@@ -7,18 +7,23 @@ import { describe, test } from "node:test";
 import {
   AXIAL_DISTANCE,
   CAPTIONS,
+  CATEGORICAL,
+  NUMERIC,
   axialDistance,
   candidateTerms,
   combinations,
   compareCells,
   defaultResolution,
   escape,
+  factorType,
   fitStatistics,
   fmt,
   formMatches,
   isBlank,
   isCategorical,
   isLabel,
+  levelKind,
+  levelProblem,
   levelValue,
   listNames,
   nTerms,
@@ -209,5 +214,54 @@ describe("a factor's levels", () => {
     const spec = { response: "y", factors: [{ name: "S", low: "A", high: "B", units: "" }] };
     assert.ok(formMatches([{ name: "S", low: "A", high: "B", units: "" }], "y", spec));
     assert.ok(!formMatches([{ name: "S", low: "A", high: "C", units: "" }], "y", spec));
+  });
+
+  test("each box holds a number, a label, or nothing", () => {
+    assert.deepEqual(["150", " -1.5 ", "old", "inf", "", "  ", null].map(levelKind), [
+      "number",
+      "number",
+      "label",
+      "number",
+      "blank",
+      "blank",
+      "blank",
+    ]);
+  });
+
+  test("two labels make a factor categorical and two numbers numeric, whatever type it had", () => {
+    assert.equal(factorType("old", "new", NUMERIC), CATEGORICAL);
+    assert.equal(factorType("150", "200", CATEGORICAL), NUMERIC);
+  });
+
+  test("a factor half typed in keeps the type the reader chose", () => {
+    for (const [low, high] of [["old", ""], ["", "200"], ["old", "200"], ["", ""]]) {
+      assert.equal(factorType(low, high, CATEGORICAL), CATEGORICAL, `${low}, ${high}`);
+      assert.equal(factorType(low, high, NUMERIC), NUMERIC, `${low}, ${high}`);
+    }
+  });
+
+  test("a numeric factor needs two numbers, the low below the high", () => {
+    assert.equal(levelProblem({ name: "T", low: "150", high: "200" }, NUMERIC), "");
+    assert.equal(
+      levelProblem({ name: "T", low: "150", high: "" }, NUMERIC),
+      "T: give a number for both the low and the high value, or make it categorical for two labels.",
+    );
+    assert.match(levelProblem({ name: "T", low: "old", high: "200" }, NUMERIC), /or make it categorical/);
+    assert.equal(levelProblem({ name: "T", low: "200", high: "150" }, NUMERIC), "T: the low value must be below the high value.");
+    assert.equal(levelProblem({ name: "T", low: "5", high: "5" }, NUMERIC), "T: the low value must be below the high value.");
+  });
+
+  test("a categorical factor needs two labels that differ, neither of them a number", () => {
+    assert.equal(levelProblem({ name: "Supplier", low: "A", high: "B" }, CATEGORICAL), "");
+    assert.equal(levelProblem({ name: "Supplier", low: "A", high: " " }, CATEGORICAL), "Supplier: give it two labels, such as A and B.");
+    assert.equal(
+      levelProblem({ name: "Supplier", low: "1", high: "B" }, CATEGORICAL),
+      "Supplier: a label cannot be a number; write C1 rather than 1.",
+    );
+    assert.equal(levelProblem({ name: "Supplier", low: "A", high: " A " }, CATEGORICAL), "Supplier: its two labels must differ.");
+  });
+
+  test("a factor without a name is still named in the sentence", () => {
+    assert.match(levelProblem({ name: " ", low: "A", high: "" }, CATEGORICAL), /^A factor without a name: /);
   });
 });
