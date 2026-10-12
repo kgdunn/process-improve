@@ -11,7 +11,7 @@ from pathlib import Path
 
 import pytest
 
-from tests.web.e2e._page import first_paint_done, generate, run_sheet, settled, status
+from tests.web.e2e._page import choose, first_paint_done, generate, run_sheet, settled, status
 
 BANNER = "#campaign-banner"
 
@@ -83,6 +83,55 @@ def test_trying_designs_keeps_one_entry_until_a_result_is_typed_in(blank_page):
     page.fill("#design-table input[data-index='0']", "12.5")
     generate(page, design_type="ccd")
     saved(page, 2)
+
+
+def test_a_result_typed_just_before_the_next_design_is_saved_with_its_design(context, site, first_paint):
+    """Making the next design saves the one before at once, with the result typed a moment earlier.
+
+    The page saves a moment after the last change. The page's timers are stopped between typing
+    the result and the next design, so the result can only be saved by the switch itself.
+    """
+    context.clock.install()
+    page = context.new_page()
+    page.goto(site)
+    first_paint_done(page, first_paint)
+    generate(page, design_type="full_factorial", n_center_points=0)
+    saved(page, 1)
+    choose(page, design_type="ccd", n_center_points=2)
+    page.clock.pause_at(page.evaluate("Date.now()"))
+    page.fill("#design-table input[data-index='0']", "12.5")
+    page.click("#generate")
+    page.wait_for_function("window.__pi.count('api_make_design') === 2 && window.__pi.idle()")
+    page.clock.resume()
+    saved(page, 2)
+    page.click("#library summary")
+    page.click("#library-list >> text=Full factorial (2-level) in T, P and F")
+    settled(page)
+    assert results(page)[0] == "12.5"
+
+
+def test_a_result_typed_just_before_the_page_is_hidden_is_saved(context, site, first_paint):
+    """Closing the tab or putting the phone away straight after typing a result keeps it."""
+    context.clock.install()
+    page = context.new_page()
+    page.goto(site)
+    first_paint_done(page, first_paint)
+    generate(page, design_type="full_factorial", n_center_points=0)
+    saved(page, 1)
+    page.clock.pause_at(page.evaluate("Date.now()"))
+    page.fill("#design-table input[data-index='0']", "12.5")
+    page.evaluate(
+        """() => {
+            Object.defineProperty(document, "visibilityState", { value: "hidden", configurable: true });
+            document.dispatchEvent(new Event("visibilitychange"));
+        }"""
+    )
+    read = "async () => (await import('./store.js')).savedCampaigns()"
+    for _ in range(50):  # the browser writes it in the background; the page's timers stay stopped
+        if page.evaluate(read)[0]["responses"][0] == 12.5:
+            break
+        page.wait_for_timeout(100)
+    assert page.evaluate(read)[0]["responses"][0] == 12.5
 
 
 def test_your_designs_opens_an_earlier_design_and_deletes_one(page):
