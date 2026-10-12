@@ -56,6 +56,13 @@
       <span class="status__icon" aria-hidden="true"><svg viewBox="0 0 64 64"><circle cx="14.68" cy="42" r="7"/><circle cx="32" cy="52" r="7"/><circle cx="49.32" cy="42" r="7"/><circle cx="49.32" cy="22" r="7"/><circle cx="32" cy="12" r="7"/><circle cx="14.68" cy="22" r="7"/><circle cx="32" cy="32" r="7"/></svg></span>
       <span class="status__text">Starting Python...</span>
     </div>
+    <details id="library" class="library" hidden>
+      <summary>Your designs (<span id="library-count">0</span>), kept in this browser</summary>
+      <p class="hint">Each design and its results are saved here as you work, on this device only: nothing is
+        uploaded. The 30 most recent are kept. To keep a copy elsewhere, download its workbook or copy a link to it,
+        in step 2.</p>
+      <ul id="library-list"></ul>
+    </details>
   </header>
 
   <nav class="stepper" aria-label="Steps">
@@ -71,6 +78,7 @@
     <a href="#step-compare">step 4 compares every design</a> for the same factors. Press
     <strong>Run the worked example</strong> to compute it again in your browser, or change any setting.
   </p>
+  <p id="campaign-banner" class="banner" role="status" hidden></p>
 
   <section id="step-design" aria-labelledby="h-design">
     <h2 id="h-design"><span class="step">1</span> Design</h2>
@@ -222,7 +230,17 @@
       </div>
       <p id="run-source" class="hint"></p>
       <div class="scroll"><table id="design-table" class="data runs"></table></div>
-      <button type="button" id="download" class="button">Download workbook (.xlsx)</button>
+      <div class="actions">
+        <button type="button" id="download" class="button">Download workbook (.xlsx)</button>
+        <button type="button" id="notebook" class="button">Download notebook (.ipynb)</button>
+        <button type="button" id="print" class="button">Print the run sheet</button>
+        <button type="button" id="share" class="button">Copy a link to this design</button>
+        <label class="check"><input type="checkbox" id="share-results" checked> with its results</label>
+      </div>
+      <div id="share-out" class="share" hidden>
+        <input id="share-url" readonly aria-label="A link to this design" aria-describedby="share-note">
+        <p id="share-note" class="hint"></p>
+      </div>
     </div>
     <details class="python" id="py-run" hidden>
       <summary>Show the Python</summary>
@@ -290,6 +308,9 @@
       <button type="button" class="link copy">Copy the code</button>
     </details>
   </section>
+
+  <!-- The run sheet as it is printed: filled in by printSheet, shown only on paper. -->
+  <section id="print-sheet" class="print-sheet" aria-hidden="true"></section>
 
   <footer>
     <p>Factorial is the browser app of <a href="https://github.com/kgdunn/process-improve">process-improve</a>, the

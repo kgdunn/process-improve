@@ -29,6 +29,7 @@ import logging
 import math
 import re
 import warnings
+from importlib.metadata import PackageNotFoundError, version
 from typing import TYPE_CHECKING, Any
 
 import numpy as np
@@ -445,10 +446,28 @@ def _categorical_names(spec: dict) -> tuple[str, ...]:
 
 
 # --------------------------------------------------------------------------- public API
+def _release() -> str | None:
+    """Name the process-improve release the page runs, or None when it is not installed as a package."""
+    try:
+        return version("process-improve")
+    except PackageNotFoundError:
+        return None
+
+
 def catalogue(_: dict) -> dict:
-    """List what the page offers: design types, models, CCD axial choices, processes, and the worked example."""
+    """List what the page offers: design types, models, CCD axial choices, processes, and the worked example.
+
+    ``version`` is the process-improve release the page runs, which a notebook it writes installs.
+    """
     scenarios = {key: {"label": s["label"], "hint": s["hint"], "sigma": s["sigma"]} for key, s in SCENARIOS.items()}
-    return {"designs": DESIGNS, "models": list(MODELS), "alphas": list(ALPHAS), "scenarios": scenarios, "demo": DEMO}
+    return {
+        "designs": DESIGNS,
+        "models": list(MODELS),
+        "alphas": list(ALPHAS),
+        "scenarios": scenarios,
+        "demo": DEMO,
+        "version": _release(),
+    }
 
 
 def make_design(spec: dict) -> dict:

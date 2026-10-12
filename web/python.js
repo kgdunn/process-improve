@@ -113,3 +113,44 @@ export function compareCode(factors, designs, model) {
     "print(comparison.table.to_string())",
   ].join("\n");
 }
+
+/** A notebook cell's source as nbformat keeps it: a string per line, each but the last ending in a newline. */
+const lines = (text) => text.split("\n").map((line, i, all) => (i < all.length - 1 ? `${line}\n` : line));
+
+const markdownCell = (id, text) => ({ cell_type: "markdown", id, metadata: {}, source: lines(text) });
+const codeCell = (id, text) => ({ cell_type: "code", id, metadata: {}, execution_count: null, outputs: [], source: lines(text) });
+
+/**
+ * A Jupyter notebook of the campaign on the page: the install line, then the code each step
+ * showed, in order, so running it top to bottom gives the page's design, results and analysis.
+ * Results simulated and left as they were come from the same process and seed; results typed in,
+ * edited or read from a workbook are written out. ``model`` is the model the analysis fitted, or
+ * null when there is no analysis yet; ``version`` pins the release the page ran, when known.
+ */
+export function notebook({ title, spec, responses, sources, simulation, model, version, url }) {
+  const simulated = Boolean(simulation) && sources.every((s) => s === "simulated");
+  const cells = [
+    markdownCell(
+      "about",
+      `# ${title}\n\nThe design, its results and their analysis, as [Factorial](${url}) ran them with ` +
+        `process-improve${version ? ` ${version}` : ""}. Run the cells in order.`,
+    ),
+    codeCell("install", version ? `%pip install "process-improve==${version}"` : "%pip install process-improve"),
+    markdownCell("design-step", "## 1. The design"),
+    codeCell("design", designCode(spec)),
+    markdownCell("results-step", simulated ? "## 2. The results, simulated from a known process" : "## 2. The results"),
+    codeCell("results", simulated ? simulateCode(simulation, spec) : enteredCode(responses)),
+  ];
+  if (model !== null && model !== undefined) {
+    cells.push(markdownCell("analysis-step", "## 3. The analysis"), codeCell("analysis", analyseCode(spec, model)));
+  }
+  return {
+    cells,
+    metadata: {
+      kernelspec: { display_name: "Python 3", language: "python", name: "python3" },
+      language_info: { name: "python" },
+    },
+    nbformat: 4,
+    nbformat_minor: 5,
+  };
+}

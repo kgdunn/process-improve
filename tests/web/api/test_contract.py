@@ -37,6 +37,7 @@ READS: dict[str, list[str]] = {
         "demo.sigma: number",
         "demo.model: str",
         "demo.seed: int",
+        "version: str?",
     ],
     "design": [
         "n_runs: int",
@@ -279,3 +280,23 @@ def test_the_catalogue_is_what_bootstrap_offers(api, bootstrap):
     for key, scenario in bootstrap.SCENARIOS.items():
         offered = {name: scenario[name] for name in ("label", "hint", "sigma")}
         assert catalogue["scenarios"][key] == offered, key
+
+
+def test_the_catalogue_names_the_release_a_notebook_installs(api):
+    from importlib.metadata import PackageNotFoundError, version
+
+    try:
+        installed = version("process-improve")
+    except PackageNotFoundError:
+        installed = None
+    assert api.ok("api_catalogue")["version"] == installed
+
+
+def test_a_page_run_from_a_source_tree_names_no_release(api, bootstrap, monkeypatch):
+    """Without an installed release to name, the notebook installs process-improve unpinned."""
+
+    def not_installed(name: str) -> str:
+        raise bootstrap.PackageNotFoundError(name)
+
+    monkeypatch.setattr(bootstrap, "version", not_installed)
+    assert api.ok("api_catalogue")["version"] is None
