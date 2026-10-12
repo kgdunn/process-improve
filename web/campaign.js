@@ -255,22 +255,32 @@ export function shareable(campaign, withResults) {
 }
 
 // ---------------------------------------------------------------- the book's examples
-/** Where a link names one of the book's examples, which the page fetches from book/<name>.json. */
-export const BOOK_KEY = "#book=";
+/**
+ * The query parameter a link names one of the book's examples by: https://factori.al/?book=pollutant.
+ * A query rather than a fragment, as a design's link uses: the book's pages read a link's fragment
+ * as an anchor of their own, and the name of the book's example is nothing of the reader's.
+ */
+export const BOOK_PARAM = "book";
 
 /** A book example's name: lowercase words and numbers joined by hyphens, such as two-level-pollutant. */
 const BOOK_NAME = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 
-/** Read the name of the book's example from the text a link carries after BOOK_KEY. */
+/** Check the name of the book's example a link carries, before anything is fetched for it. */
 export function bookName(text) {
-  let name;
-  try {
-    name = decodeURIComponent(text);
-  } catch {
-    refuse("the link has been cut or changed");
-  }
+  const name = String(text);
   if (name.length > 64 || !BOOK_NAME.test(name)) refuse(`${JSON.stringify(name.slice(0, 64))} is not the name of an example in the book`);
   return name;
+}
+
+/**
+ * Find the book's example ``name`` in book/index.json, and return the name as the index gives it:
+ * the page fetches only a file the index lists, never one a link makes up.
+ */
+export function indexedName(index, name) {
+  const listed = isObject(index) && Array.isArray(index.examples) ? index.examples : [];
+  const found = listed.find((example) => isObject(example) && example.name === name);
+  if (!found || !BOOK_NAME.test(found.name)) refuse(`the book has no example named ${JSON.stringify(name)}`);
+  return found.name;
 }
 
 /**

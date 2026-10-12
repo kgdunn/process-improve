@@ -33,7 +33,7 @@ import {
   pval,
 } from "./logic.js";
 import {
-  BOOK_KEY,
+  BOOK_PARAM,
   CAMPAIGN_VERSION,
   LINK_KEY,
   bookName,
@@ -41,6 +41,7 @@ import {
   checkBookExample,
   checkCampaign,
   designKey,
+  indexedName,
   mergeResults,
   packCampaign,
   progress,
@@ -1195,15 +1196,16 @@ const savedSoon = () => Promise.race([savedCampaigns(), new Promise((resolve) =>
 /**
  * Open what the address asks for: one of the book's examples, or a link's design, either saved
  * here as a campaign of its own; else the design worked on last in this browser; else the worked
- * example. The address loses its fragment, so a reload opens the saved copy rather than the link again.
+ * example. The address loses what named it, so a reload opens the saved copy rather than the link again.
  */
 async function start() {
   const { hash } = location;
-  if (hash.startsWith(BOOK_KEY) || hash.startsWith(LINK_KEY)) {
-    history.replaceState(null, "", `${location.pathname}${location.search}`);
+  const book = new URLSearchParams(location.search).get(BOOK_PARAM);
+  if (book !== null || hash.startsWith(LINK_KEY)) {
+    history.replaceState(null, "", book !== null ? location.pathname : `${location.pathname}${location.search}`);
     try {
-      if (hash.startsWith(BOOK_KEY)) {
-        await openBookExample(bookName(hash.slice(BOOK_KEY.length)));
+      if (book !== null) {
+        await openBookExample(bookName(book));
         return;
       }
       const c = await unpackCampaign(hash.slice(LINK_KEY.length));
@@ -1241,23 +1243,17 @@ async function start() {
  * own changes to an earlier copy are kept, and the book's numbers come back all the same.
  */
 async function openBookExample(name) {
-  const refused = (why) => new Error(`This design could not be opened: ${why}.`);
-  const unreachable = refused(`the book's example ${JSON.stringify(name)} could not be fetched`);
-  let res;
-  let data;
-  try {
-    res = await fetch(`book/${name}.json`);
-  } catch {
-    throw unreachable;
-  }
-  if (res.status === 404) throw refused(`the book has no example named ${JSON.stringify(name)}`);
-  if (!res.ok) throw unreachable;
-  try {
-    data = await res.json();
-  } catch {
-    throw unreachable;
-  }
-  const example = checkBookExample(data, name);
+  const fetched = async (path) => {
+    try {
+      const res = await fetch(path);
+      if (res.ok) return await res.json();
+    } catch {
+      /* said below */
+    }
+    throw new Error(`This design could not be opened: the book's example ${JSON.stringify(name)} could not be fetched.`);
+  };
+  const file = indexedName(await fetched("book/index.json"), name);
+  const example = checkBookExample(await fetched(`book/${file}.json`), name);
   const c = example.campaign;
   const kept = (await savedSoon()).find((record) => {
     try {

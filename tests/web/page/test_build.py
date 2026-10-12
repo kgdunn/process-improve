@@ -2,7 +2,7 @@
 
 The docs workflow publishes what it assembles. ``demo.json`` is the worked example computed at
 build time through ``web/bootstrap.py``, which the page draws at first paint while Python loads.
-``book/<name>.json`` is each of the book's examples, made the same way, which ``#book=<name>`` opens.
+``book/<name>.json`` is each of the book's examples, made the same way, which ``?book=<name>`` opens.
 """
 
 from __future__ import annotations

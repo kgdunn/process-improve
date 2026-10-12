@@ -4,13 +4,14 @@ import assert from "node:assert/strict";
 import { describe, test } from "node:test";
 
 import {
-  BOOK_KEY,
+  BOOK_PARAM,
   CAMPAIGN_VERSION,
   bookName,
   campaignTitle,
   checkBookExample,
   checkCampaign,
   designKey,
+  indexedName,
   mergeResults,
   packCampaign,
   progress,
@@ -261,17 +262,24 @@ describe("one of the book's examples, named in a link", () => {
     });
   };
 
-  test("the link names it after #book=, in words a person can read", () => {
-    assert.equal(BOOK_KEY, "#book=");
+  test("the link names it in its query, ?book=, in words a person can read", () => {
+    assert.equal(BOOK_PARAM, "book");
     assert.equal(bookName("pollutant"), "pollutant");
     assert.equal(bookName("two-level-2x2-conversion"), "two-level-2x2-conversion");
   });
 
   test("a name that is not one the book could print is refused before anything is fetched", () => {
-    for (const text of ["", "Pollutant", "../demo", "a--b", "-a", "a b", "a%2Fb", "x".repeat(65)]) {
+    for (const text of ["", "Pollutant", "../demo", "a--b", "-a", "a b", "a/b", "a%2Fb", "x".repeat(65)]) {
       refusedBy(() => bookName(text), /not the name of an example in the book/);
     }
-    refusedBy(() => bookName("%E0%A4%A"), /cut or changed/);
+  });
+
+  test("only a name the index lists is fetched, as the index gives it", () => {
+    const index = { examples: [{ name: "pollutant", title: "Pollutant" }, { name: "web-sales" }] };
+    assert.equal(indexedName(index, "web-sales"), "web-sales");
+    refusedBy(() => indexedName(index, "no-such-example"), /the book has no example named "no-such-example"/);
+    refusedBy(() => indexedName({}, "pollutant"), /no example named/);
+    refusedBy(() => indexedName({ examples: [{ name: "../demo" }] }, "../demo"), /no example named/);
   });
 
   test("the example's campaign is checked as a link's is, and its page in the book kept", () => {

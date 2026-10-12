@@ -10,7 +10,7 @@ It also runs the page's worked example through ``web/bootstrap.py``, the code th
 page runs, and writes the results to ``demo.json``: the page draws them at first
 paint while Python loads in the browser. Each of the book's examples in
 ``web/book-examples.json`` is made the same way into ``book/<name>.json``, which the page
-opens from ``#book=<name>``, a link the book prints. The docs workflow runs this into
+opens from ``?book=<name>``, a link the book prints. The docs workflow runs this into
 ``docs/_build/html/app``.
 
     uv run python scripts/build_web_app.py --serve
@@ -161,7 +161,7 @@ def worked_example() -> dict[str, Any]:
     }
 
 
-#: The book's examples that the page opens by name: ``#book=<name>`` opens ``book/<name>.json``, built from each.
+#: The book's examples that the page opens by name: ``?book=<name>`` opens ``book/<name>.json``, built from each.
 BOOK_EXAMPLES = WEB_SRC / "book-examples.json"
 #: Where the book is published; each example names its page under here.
 BOOK = "https://learnche.org/pid/"
@@ -220,7 +220,7 @@ def in_book_order(design: dict[str, Any], entry: dict[str, Any], days: dict[int,
 
 
 def book_example(entry: dict[str, Any]) -> dict[str, Any]:
-    """Make one of the book's examples into the campaign the page opens from ``#book=<name>``.
+    """Make one of the book's examples into the campaign the page opens from ``?book=<name>``.
 
     The design is made as step 1 makes it, and its runs put in the order of the book's table,
     each with the book's result, so the page's run sheet reads as the book's table does. The
@@ -268,8 +268,12 @@ def write_book(out_dir: Path) -> None:
     (out_dir / "book").mkdir()
     for example in examples:
         (out_dir / "book" / f"{example['name']}.json").write_text(json.dumps(example, separators=(",", ":")) + "\n")
-    index = {"examples": [{key: example[key] for key in ("name", "title", "book")} for example in examples]}
-    (out_dir / "book" / "index.json").write_text(json.dumps(index, indent=1) + "\n")
+    (out_dir / "book" / "index.json").write_text(json.dumps(book_index(examples), indent=1) + "\n")
+
+
+def book_index(examples: list[dict[str, Any]]) -> dict[str, Any]:
+    """Return ``book/index.json``: each example's name, title and page of the book, for the page and the book."""
+    return {"examples": [{key: example[key] for key in ("name", "title", "book")} for example in examples]}
 
 
 def assemble(out_dir: Path, dist: Path = ROOT / "dist" / "web") -> str:

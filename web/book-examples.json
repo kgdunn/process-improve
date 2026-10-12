@@ -1,6 +1,6 @@
 {
   "about": [
-    "The book's design-of-experiments examples that Factorial opens by name: https://factori.al/#book=<name>.",
+    "The book's design-of-experiments examples that Factorial opens by name: https://factori.al/?book=<name>.",
     "scripts/build_web_app.py makes each into book/<name>.json: the design as step 1 makes it, its runs in the",
     "order of the book's table, each with the book's result. runs: one per row of the book's table, its settings",
     "in coded units (a label's low level -1, its high level +1) and the result last. order: the run order the",

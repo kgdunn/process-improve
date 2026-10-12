@@ -40,7 +40,7 @@ def test_the_worked_example_runs_live_as_the_build_drew_it(page, demo):
 
 
 def test_every_example_the_book_links_to_is_published(page):
-    """The book prints ``#book=<name>`` links: each name the index lists is served, as the page reads it."""
+    """The book prints ``?book=<name>`` links: each name the index lists is served, as the page reads it."""
     found = page.evaluate(
         """async () => {
           const index = await (await fetch("book/index.json")).json();
@@ -59,7 +59,7 @@ def test_every_example_the_book_links_to_is_published(page):
 def test_a_book_example_opens_and_is_analysed_under_pyodide(own_context, app_url):
     """The link the book prints opens its runs and results, and Pyodide fits the book's coefficients."""
     page = own_context.new_page()
-    page.goto(f"{app_url}#book=pollutant")
+    page.goto(f"{app_url}?book=pollutant")
     page.wait_for_selector("#campaign-banner", state="visible")
     assert page.text_content("#campaign-banner").startswith("Opened the book's example: Pollutant discharged")
     page.wait_for_function("window.__pi.count('api_analyze_runs') >= 1 && window.__pi.idle()", timeout=BOOT_TIMEOUT)

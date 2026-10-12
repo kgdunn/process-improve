@@ -198,7 +198,7 @@ When you change the app, the tests move with it:
   to the version the wasm tier installs; `tests/web/page/test_runtime.py` checks both.
 - A new file in `web/`: in `APP_FILES` in `scripts/build_web_app.py` if the page loads
   it, and in `APP_SOURCES` in `tests/web/_support.py` either way.
-- A new example the book links to (`https://factori.al/#book=<name>`): an entry in
+- A new example the book links to (`https://factori.al/?book=<name>`): an entry in
   `web/book-examples.json`, and a case in `tests/web/api/test_book_examples.py` holding
   the numbers the book prints for it; the suite fails until there is one. Its name is
   printed in the book, so keep it once published: the book checks every name it uses

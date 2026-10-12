@@ -1,4 +1,4 @@
-"""The book's examples, opened by name: ``#book=<name>`` opens the example with the book's runs and results.
+"""The book's examples, opened by name: ``?book=<name>`` opens the example with the book's runs and results.
 
 The book prints these links beside its worked examples and exercises. Each opens the factors,
 their units and the run sheet as the book's table has them, analysed once Python has started,
@@ -13,9 +13,9 @@ BANNER = "#campaign-banner"
 
 
 def open_example(context, site: str, name: str) -> object:
-    """Open the page at ``#book=<name>``, and wait until it has analysed the example's results."""
+    """Open the page at ``?book=<name>``, and wait until it has analysed the example's results."""
     page = context.new_page()
-    page.goto(f"{site}#book={name}")
+    page.goto(f"{site}?book={name}")
     page.wait_for_selector(BANNER, state="visible")
     page.wait_for_function("window.__pi.count('api_catalogue') === 1 && window.__pi.idle()")
     settled(page)
@@ -74,10 +74,12 @@ def test_a_reader_s_changes_are_kept_and_the_book_s_numbers_come_back(context, s
     assert sorted(row[-1] for row in run_sheet(again)) == ["53", "60", "64", "69"]
 
 
-def test_a_name_the_book_does_not_have_is_refused_and_the_worked_example_shown(context, site, first_paint, console):
-    console.allow(r"404")  # the browser reports the missing book/<name>.json
+def test_a_name_the_book_does_not_have_is_refused_and_the_worked_example_shown(context, site, first_paint):
+    """The name is looked up in the index first: no file is asked for that the index does not list."""
     page = context.new_page()
-    page.goto(f"{site}#book=no-such-example")
+    fetched = []
+    page.on("request", lambda request: fetched.append(request.url) if "/book/" in request.url else None)
+    page.goto(f"{site}?book=no-such-example")
     first_paint_done(page, first_paint)
     assert page.text_content(BANNER) == (
         'This design could not be opened: the book has no example named "no-such-example". '
@@ -86,13 +88,14 @@ def test_a_name_the_book_does_not_have_is_refused_and_the_worked_example_shown(c
     assert page.get_attribute(BANNER, "class") == "banner error"
     assert page.is_visible("#demo-banner")
     assert status(page)[1] == "ok"
+    assert fetched == [f"{site}book/index.json"]
 
 
 def test_a_name_no_book_could_print_is_refused_before_anything_is_fetched(context, site, first_paint):
     page = context.new_page()
     fetched = []
     page.on("request", lambda request: fetched.append(request.url) if "/book/" in request.url else None)
-    page.goto(f"{site}#book=../demo")
+    page.goto(f"{site}?book=../demo")
     first_paint_done(page, first_paint)
     assert page.text_content(BANNER).startswith(
         'This design could not be opened: "../demo" is not the name of an example in the book.'

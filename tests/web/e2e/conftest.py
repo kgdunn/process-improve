@@ -44,9 +44,10 @@ def first_paint(build_script: ModuleType) -> dict[str, Any]:
 
 @pytest.fixture(scope="session")
 def book_files(build_script: ModuleType) -> dict[str, Any]:
-    """Return ``book/<name>.json`` for each of the book's examples, as the build writes them, by name."""
+    """Return each ``book/<name>.json``, and ``book/index.json`` as ``index``, as the build writes them."""
     with no_bytecode():
-        return {entry["name"]: build_script.book_example(entry) for entry in build_script.book_examples()}
+        examples = {entry["name"]: build_script.book_example(entry) for entry in build_script.book_examples()}
+    return {**examples, "index": build_script.book_index(list(examples.values()))}
 
 
 @pytest.fixture(scope="session")
@@ -74,7 +75,7 @@ def _native(bootstrap: ModuleType) -> Callable[[str, str], str]:
 
 
 def _book(route: Any, book_files: dict[str, Any]) -> None:  # noqa: ANN401 - a Playwright Route
-    """Answer ``book/<name>.json`` as the published app does: the example the build wrote, or 404."""
+    """Answer ``book/<name>.json`` and ``book/index.json`` as the published app does: what the build wrote, or 404."""
     name = route.request.url.rsplit("/", 1)[1].removesuffix(".json")
     if name in book_files:
         route.fulfill(json=book_files[name])

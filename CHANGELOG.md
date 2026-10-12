@@ -13,7 +13,7 @@ those changes.
 
 ### Added
 
-- **Factorial opens the book's examples by name: `https://factori.al/#book=<name>`.** The
+- **Factorial opens the book's examples by name: `https://factori.al/?book=<name>`.** The
   19 design-of-experiments examples and exercises of *Process Improvement using Data* that
   the app can reproduce are listed in `web/book-examples.json`, with the book's factors,
   units, response, runs and results. The build makes each into `book/<name>.json`, its run
