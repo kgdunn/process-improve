@@ -217,8 +217,17 @@ Workflows in `.github/workflows/`:
   `FACTORIAL_KNOWN_HOSTS` is set.
 - **factorial-rollback.yml**: manual; switches factori.al back to the build
   before, or to a commit you name.
+- **web-app-live.yml**: weekly. Smoke-tests the published app, which loads from
+  Pyodide's CDN, PyPI and Plotly's CDN and so can break with no change here, and
+  reports a pin in `web/runtime.json` that is no longer the latest release; a
+  scheduled failure of either opens an issue. Its `newest-pyodide` job is advisory: it
+  tries the newest Pyodide release and says whether moving the pin is safe.
 - **publish.yml**: tag-gated PyPI publish (see above).
 - **codeql.yml**: weekly and per-PR security scanning.
+- **readme-links.yml**: requests every external link in `README.md` and
+  `SKLEARN_COMPATIBILITY.md`, weekly (a failure opens an issue) and on PRs that
+  touch them. Links inside the repository are checked offline on every PR by
+  `tests/test_readme_guards.py`.
 
 Docs are Sphinx with the PyData theme, NumPy docstrings via `sphinx.ext.napoleon`; build with `cd docs && make html`.
 
