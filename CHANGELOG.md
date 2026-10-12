@@ -200,6 +200,13 @@ those changes.
     design this browser keeps fills them into it, keeping any result already there.
     `web/qr.js` is held to segno, module for module, at every QR version and level; segno
     joins the development dependencies as a test oracle.
+- **Factorial has its own address, https://factori.al/.** Each build that passes the smoke
+  tests on `main` is sent to a server of its own and checked there again. The copy on GitHub
+  Pages stays, and names factori.al as the app's address.
+  - The server keeps usage and nothing else: each request, with the reader's address cut to
+    its network before it is written, for 90 days. There are no cookies and no database.
+  - `deploy/factorial` sets the server up. Its deploy key can only upload a build, switch to
+    it, or switch back, and "Factorial: roll back" in the Actions tab switches back.
 - **The browser app runs on Pyodide 314.0.7 (Python 3.14.2)**, with numpy 2.4, pandas 3.0,
   scipy 1.18 and scikit-learn 1.8.
 - **PLS and multiblock fits on complete data are faster, with identical results.** So is

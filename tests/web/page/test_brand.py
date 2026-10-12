@@ -13,6 +13,7 @@ import json
 import re
 import struct
 from typing import TYPE_CHECKING
+from urllib.parse import urlsplit
 
 import numpy as np
 import pytest
@@ -22,8 +23,8 @@ from tests.web._support import ROOT, WEB, source
 if TYPE_CHECKING:
     from types import ModuleType
 
-#: Where the app is published; the deploy's live checks run against it (web-app-live.yml).
-PUBLISHED = "https://kgdunn.github.io/process-improve/app/"
+#: The app's address: docs.yml deploys it there and checks it (deploy-factorial, check-factorial).
+PUBLISHED = "https://factori.al/"
 
 #: The size of each image the head and the manifest name, in pixels.
 SIZES = {"apple-touch-icon.png": (180, 180), "icon-192.png": (192, 192), "icon-512.png": (512, 512),
@@ -134,5 +135,10 @@ def test_a_link_to_the_app_shows_its_card():
 
 
 def test_the_published_address_is_the_one_the_deploy_is_checked_at():
-    workflow = (ROOT / ".github" / "workflows" / "web-app-live.yml").read_text(encoding="utf-8")
-    assert f"APP: {PUBLISHED}" in workflow
+    """The canonical address, the deploy's target and the address checked after it are one."""
+    yaml = pytest.importorskip("yaml")
+    jobs = yaml.safe_load((ROOT / ".github" / "workflows" / "docs.yml").read_text(encoding="utf-8"))["jobs"]
+    assert jobs["deploy-factorial"]["environment"]["url"] == PUBLISHED
+    assert jobs["check-factorial"]["env"]["APP"] == PUBLISHED
+    ssh = (ROOT / ".github" / "actions" / "factorial-ssh" / "action.yml").read_text(encoding="utf-8")
+    assert f"HostName {urlsplit(PUBLISHED).hostname}\n" in ssh, "the deploy logs in to the host it then checks"

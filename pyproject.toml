@@ -379,6 +379,10 @@ convention = "numpy"
 "web/**" = [
     "INP001",  # loaded into Pyodide by web/worker.js, not imported as a package
 ]
+"deploy/**" = [
+    "INP001",  # installed on the server as commands, not imported as a package
+    "T201",    # print() is how a command run over SSH answers
+]
 "scripts/**" = [
     "ANN001",  # Type annotations not needed in helper scripts
     "ANN201",  # Return type annotations not needed in helper scripts

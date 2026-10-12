@@ -1,0 +1,61 @@
+# factori.al: Factorial, the browser app of process-improve, served as plain files.
+#
+# Installed as /etc/caddy/factorial.caddy by setup.sh, and imported from /etc/caddy/Caddyfile
+# in place of the old app's factori.al block:
+#
+#     import factorial.caddy
+#
+# The site is whatever /srv/factorial/current links to. A deploy switches that link
+# (factorial_deploy.py), so Caddy is never reloaded for a deploy.
+
+factori.al {
+	root * /srv/factorial/current
+	encode zstd gzip
+	file_server
+
+	# A deploy reaches a reader at their next visit: the browser checks each file is unchanged
+	# before using its copy. The wheel sits in a folder named by its digest, so its address
+	# changes whenever it does, and it is kept for a year. The images are kept for a day.
+	@wheel path /wheels/*/*.whl
+	@images path *.png *.svg
+	@rest not path /wheels/*/*.whl *.png *.svg
+	header @wheel Cache-Control "public, max-age=31536000, immutable"
+	header @images Cache-Control "public, max-age=86400"
+	header @rest Cache-Control "no-cache"
+
+	header {
+		Strict-Transport-Security "max-age=31536000"
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "DENY"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		Permissions-Policy "camera=(), microphone=(), geolocation=()"
+		-Server
+	}
+
+	# Usage is all the server keeps: one line per request, with the reader's address cut to
+	# its network (the first 24 bits of IPv4, 48 of IPv6) before it is written, for 90 days.
+	# deploy/factorial/usage.py counts visits from it. A design shared by link travels after
+	# the "#", which a browser never sends, so no design reaches this log.
+	log {
+		output file /var/log/caddy/factorial-access.log {
+			roll_size 50MiB
+			roll_keep 20
+			roll_keep_for 2160h
+		}
+		format filter {
+			request>remote_ip ip_mask {
+				ipv4 24
+				ipv6 48
+			}
+			request>client_ip ip_mask {
+				ipv4 24
+				ipv6 48
+			}
+			request>remote_port delete
+			request>headers>Cookie delete
+			request>headers>Authorization delete
+			request>tls delete
+			resp_headers delete
+		}
+	}
+}
