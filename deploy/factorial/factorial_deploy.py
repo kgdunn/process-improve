@@ -297,6 +297,7 @@ def main(argv: list[str] | None = None) -> int:
         print("usage: factorial-deploy <site folder>, with the request in SSH_ORIGINAL_COMMAND", file=sys.stderr)
         return 2
     root = Path(args[0])
+    os.umask(0o022)  # whatever the account's default, what this writes only it can change
     releases(root).mkdir(parents=True, exist_ok=True)
     try:
         print(handle(root, os.environ.get("SSH_ORIGINAL_COMMAND", ""), sys.stdin.buffer))
