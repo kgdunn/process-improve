@@ -125,7 +125,7 @@ Try it without installing anything
 
    .. container::
 
-      The `designed-experiments app <app/>`__ runs process-improve inside your browser.
+      `Factorial <app/>`__, the designed-experiments app, runs process-improve inside your browser.
       Design an experiment, download the run sheet, fill in your results, and upload it for
       the analysis, with nothing to install.
 

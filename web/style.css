@@ -1,14 +1,19 @@
+/* The palette is the package's: the README banner's navy runs and red centre runs on warm paper.
+   Every text colour meets WCAG AA (4.5:1) on both the page and a panel, in both themes. */
 :root {
-  --bg: #fbfbfa;
+  --bg: #faf8f3;
   --fg: #1d1d1f;
   --muted: #5f6368;
-  --line: #d9d9d6;
+  --line: #dcd8ce;
   --panel: #ffffff;
-  --accent: #1f5fa8;
+  --accent: #2c5f7c;
   --accent-fg: #ffffff;
   --error: #b3261e;
   --warn: #a35f00;
   --ok: #1e7b3a;
+  --mark-run: #2c5f7c;
+  --mark-centre: #a93226;
+  --mark-edge: #a6a49e;
   color-scheme: light;
 }
 @media (prefers-color-scheme: dark) {
@@ -23,6 +28,9 @@
     --error: #f2877f;
     --warn: #e2a95a;
     --ok: #7fd49a;
+    --mark-run: #8db8d6;
+    --mark-centre: #f0907f;
+    --mark-edge: #5b5f66;
     color-scheme: dark;
   }
 }
@@ -37,6 +45,9 @@
   --error: #f2877f;
   --warn: #e2a95a;
   --ok: #7fd49a;
+  --mark-run: #8db8d6;
+  --mark-centre: #f0907f;
+  --mark-edge: #5b5f66;
   color-scheme: dark;
 }
 
@@ -48,7 +59,22 @@ body {
   font: 16px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif;
 }
 main { max-width: 860px; margin: 0 auto; padding: 24px 16px 48px; }
-h1 { margin: 0 0 8px; font-size: 1.8rem; }
+h1 {
+  margin: 0; font: 700 2.3rem/1 "Iowan Old Style", "Palatino Linotype", Palatino, "Book Antiqua", Georgia,
+    "DejaVu Serif", serif;
+  letter-spacing: -0.01em;
+}
+/* The name beside the mark, as the package's social card sets its own: a bold serif, a quiet tagline. */
+.brand { display: flex; align-items: center; gap: 14px; margin: 0 0 12px; }
+.mark { flex: none; width: 58px; height: 58px; }
+.mark__edges { fill: none; stroke: var(--mark-edge); stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round; }
+.mark__runs circle, .mark__centre { stroke: var(--bg); stroke-width: 1.6; }
+.mark__runs circle { fill: var(--mark-run); }
+.mark__centre { fill: var(--mark-centre); }
+.tagline {
+  margin: 6px 0 0; color: var(--muted); font-style: italic;
+  font-family: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, "DejaVu Serif", serif;
+}
 h2 { display: flex; align-items: center; gap: 10px; font-size: 1.3rem; margin: 0 0 12px; }
 h3 { font-size: 1.05rem; margin: 20px 0 8px; }
 a { color: var(--accent); }
@@ -68,19 +94,31 @@ section {
   border: 1px solid var(--line); border-left: 4px solid var(--muted); border-radius: 8px;
   background: var(--panel); color: var(--fg); font-size: 0.92rem;
 }
-.status__icon { flex: none; width: 16px; height: 16px; display: grid; place-items: center; font-weight: 700; }
+.status__icon { flex: none; width: 18px; height: 18px; display: grid; place-items: center; font-weight: 700; }
 .status[data-state="busy"] { border-left-color: var(--accent); }
-.status[data-state="busy"] .status__icon {
-  border: 2px solid var(--line); border-top-color: var(--accent); border-radius: 50%;
-  animation: status-spin 0.9s linear infinite;
+/* While Python works, the mark's runs light up in a random run order, then clear in the same order. */
+.status__icon svg { display: none; width: 18px; height: 18px; }
+.status[data-state="busy"] .status__icon svg { display: block; }
+.status__icon circle { fill: var(--mark-run); opacity: 0.15; animation: run-order 2.4s infinite; }
+.status__icon circle:last-child { fill: var(--mark-centre); }
+.status__icon circle:nth-child(1) { animation-delay: 0.45s; }
+.status__icon circle:nth-child(2) { animation-delay: 0s; }
+.status__icon circle:nth-child(3) { animation-delay: 0.75s; }
+.status__icon circle:nth-child(4) { animation-delay: 0.3s; }
+.status__icon circle:nth-child(5) { animation-delay: 0.9s; }
+.status__icon circle:nth-child(6) { animation-delay: 0.15s; }
+.status__icon circle:nth-child(7) { animation-delay: 0.6s; }
+@keyframes run-order {
+  0% { opacity: 0.15; }
+  8%, 60% { opacity: 1; }
+  75%, 100% { opacity: 0.15; }
 }
 .status[data-state="ok"] { border-left-color: var(--ok); }
 .status[data-state="ok"] .status__icon::before { content: "✓"; color: var(--ok); }
 .status[data-state="error"] { border-left-color: var(--error); color: var(--error); }
 .status[data-state="error"] .status__icon::before { content: "!"; color: var(--error); }
-@keyframes status-spin { to { transform: rotate(360deg); } }
 @media (prefers-reduced-motion: reduce) {
-  .status[data-state="busy"] .status__icon { animation-duration: 3s; }
+  .status__icon circle { animation: none; opacity: 1; }
 }
 .error { color: var(--error); }
 .hint { color: var(--muted); font-size: 0.92rem; }

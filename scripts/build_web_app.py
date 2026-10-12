@@ -44,6 +44,12 @@ APP_FILES = (
     "runtime.json",
     "bootstrap.py",
     "style.css",
+    "favicon.svg",
+    "apple-touch-icon.png",
+    "icon-192.png",
+    "icon-512.png",
+    "og-card.png",
+    "manifest.webmanifest",
 )
 
 

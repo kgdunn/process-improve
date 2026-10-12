@@ -10,6 +10,7 @@ changes. Run the commands from the repository root with the development environm
 | `design-gallery-light.png`, `design-gallery-dark.png` | `design_gallery.py` | `python tools/branding/design_gallery.py gallery light docs/_static/readme/design-gallery-light.png` (then `dark`) |
 | `social-preview.png` | `social_card.py` | `python tools/branding/social_card.py tools/branding/social-card-base.png docs/_static/readme/social-preview.png` |
 | `app-demo.gif` | `app_demo.js`, `make_demo_gif.py` | `node tools/branding/app_demo.js FRAMES_DIR`, then `python tools/branding/make_demo_gif.py FRAMES_DIR docs/_static/readme/app-demo.gif` |
+| The browser app's mark, icons and link card, in `web/` | `app_mark.py` | `python tools/branding/app_mark.py web` |
 
 Notes:
 
@@ -27,3 +28,8 @@ Notes:
   results simulated from a known process, the analysis beside the truth) and then the comparison of
   every design for the same factors, capturing one frame per step. `PLAYWRIGHT_PROXY`, if set,
   routes the browser through a proxy.
+- `app_mark.py` draws Factorial's mark, the browser app's, from one `generate_design` call: the
+  2³ factorial and its centre run, seen down the cube's diagonal. Six corners land on a hexagon;
+  the other two fall behind the centre run, which is red as the banner draws centre runs. The
+  package's own logo is the same idea in two factors. `tests/web/page/test_brand.py` checks that
+  `web/favicon.svg` is what the script draws, and that the page's inline copies agree with it.
