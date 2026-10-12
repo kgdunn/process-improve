@@ -302,6 +302,7 @@ async function generate() {
  * link is never replaced. The worked example passes ``save: false``.
  */
 function showDesign(design, warnings = [], { save = true } = {}) {
+  flushSave();
   const replaces = state.campaign?.replaceable && !state.sources.includes("entered");
   state.campaign = save ? { ...(replaces ? state.campaign : newCampaign()), title: titleOf(design.spec) } : null;
   state.design = design;
@@ -515,6 +516,7 @@ async function readUpload(file) {
   const r = reply.result;
   $("#demo-banner").hidden = true;
   $("#campaign-banner").hidden = true;
+  flushSave();
   setForm(r.spec);
   state.design = { spec: r.spec, columns: r.columns, rows: r.rows, model: r.spec.model, facts: null };
   state.responses = r.responses;
@@ -1054,7 +1056,22 @@ let saveTimer = null;
 function scheduleSave() {
   if (!state.campaign || !state.design) return;
   clearTimeout(saveTimer);
-  saveTimer = setTimeout(saveNow, 300);
+  saveTimer = setTimeout(() => {
+    saveTimer = null;
+    saveNow();
+  }, 300);
+}
+
+/**
+ * Write a save that is still waiting for its moment, at once. The page calls this before another
+ * campaign takes this one's place, and when the reader leaves, so a result typed just before is
+ * kept. saveNow reads the campaign before it first waits, so the record is this campaign's.
+ */
+function flushSave() {
+  if (saveTimer === null) return;
+  clearTimeout(saveTimer);
+  saveTimer = null;
+  saveNow();
 }
 
 async function saveNow() {
@@ -1129,6 +1146,7 @@ function showBanner(text, error = false) {
  * the process they were simulated from and the model. The analysis follows once Python has started.
  */
 async function openCampaign(c, record, message) {
+  flushSave();
   $("#demo-banner").hidden = true;
   setForm(c.design.spec);
   state.campaign = { ...record, title: c.title || titleOf(c.design.spec) };
@@ -1501,6 +1519,10 @@ drop.ondrop = (e) => {
   drop.classList.remove("over");
   if (e.dataTransfer.files[0]) readUpload(e.dataTransfer.files[0]);
 };
+// A reader who closes the tab, or puts the phone away, straight after typing a result keeps it.
+document.addEventListener("visibilitychange", () => {
+  if (document.visibilityState === "hidden") flushSave();
+});
 showScenarioHint();
 refreshDesign();
 readManifest();
