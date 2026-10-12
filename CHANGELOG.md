@@ -11,6 +11,8 @@ those changes.
 
 ## [Unreleased]
 
+## [1.98.0] - 2026-10-12
+
 ### Added
 
 - **`compare_designs` scores designs for one model on the nine measures of design
@@ -8013,7 +8015,8 @@ this entry records them together.
 - Reworked the README with a sharper value proposition and a
   "Why not scikit-learn?" comparison table.
 
-[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.97.2...HEAD
+[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.98.0...HEAD
+[1.98.0]: https://github.com/kgdunn/process-improve/compare/v1.97.2...v1.98.0
 [1.97.2]: https://github.com/kgdunn/process-improve/compare/v1.97.1...v1.97.2
 [1.97.1]: https://github.com/kgdunn/process-improve/compare/v1.97.0...v1.97.1
 [1.97.0]: https://github.com/kgdunn/process-improve/compare/v1.96.0...v1.97.0
