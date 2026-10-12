@@ -5,7 +5,11 @@ import assert from "node:assert/strict";
 import { describe, test } from "node:test";
 
 import {
+  AXIAL_DISTANCE,
   CAPTIONS,
+  axialDistance,
+  candidateTerms,
+  combinations,
   compareCells,
   defaultResolution,
   escape,
@@ -13,12 +17,17 @@ import {
   fmt,
   formMatches,
   isBlank,
+  isCategorical,
+  isLabel,
+  levelValue,
   listNames,
   nTerms,
+  namedModelTerms,
   needsCentre,
   numberOrNull,
   pval,
   sortNumber,
+  termLabel,
 } from "../../../web/logic.js";
 
 describe("the design's settings", () => {
@@ -33,11 +42,24 @@ describe("the design's settings", () => {
   });
 
   test("the designs that keep a center run", () => {
-    assert.ok(needsCentre("box_behnken", "face_centered"));
-    assert.ok(needsCentre("dsd", "face_centered"));
-    assert.ok(needsCentre("ccd", "rotatable"));
-    assert.ok(!needsCentre("ccd", "face_centered"));
-    assert.ok(!needsCentre("full_factorial", "rotatable"));
+    assert.ok(needsCentre("box_behnken", "face_centered", 3));
+    assert.ok(needsCentre("dsd", "face_centered", 3));
+    assert.ok(needsCentre("ccd", "rotatable", 3));
+    assert.ok(!needsCentre("ccd", "face_centered", 3));
+    assert.ok(!needsCentre("full_factorial", "rotatable", 3));
+  });
+
+  test("a CCD whose typed axial distance is the corners' own keeps a center run", () => {
+    assert.ok(needsCentre("ccd", Math.SQRT2, 2));
+    assert.ok(needsCentre("ccd", 2, 4));
+    assert.ok(!needsCentre("ccd", 1.4, 2), "near the corners' distance is not on their sphere");
+    assert.ok(!needsCentre("ccd", 2, 3));
+  });
+
+  test("the axial distance the form sends", () => {
+    assert.equal(axialDistance("rotatable", "1.4"), "rotatable", "a named choice ignores the box");
+    assert.equal(axialDistance(AXIAL_DISTANCE, " 1.4 "), 1.4);
+    assert.equal(axialDistance(AXIAL_DISTANCE, ""), null, "a blank box is null, which Python refuses in words");
   });
 });
 
@@ -128,5 +150,64 @@ describe("sorting a table", () => {
 
   test("text sorts alphabetically, numbers within it in order", () => {
     assert.deepEqual(["x10", "x9", "a"].sort(compareCells), ["a", "x9", "x10"]);
+  });
+});
+
+describe("the terms a reader ticks", () => {
+  test("pairs and triples of factors, in order", () => {
+    assert.deepEqual(combinations(["A", "B", "C"], 2), [["A", "B"], ["A", "C"], ["B", "C"]]);
+    assert.deepEqual(combinations(["A", "B", "C"], 3), [["A", "B", "C"]]);
+    assert.deepEqual(combinations(["A", "B"], 3), []);
+  });
+
+  const three = ["T", "P", "F"].map((name) => ({ name, low: -1, high: 1 }));
+
+  test("every term three factors allow, grouped, three-factor interactions included", () => {
+    const terms = candidateTerms(three);
+    assert.equal(terms.length, 3 + 3 + 1 + 3);
+    assert.deepEqual(
+      terms.filter((t) => t.group === "Three-factor interactions").map((t) => t.label),
+      ["T·P·F"],
+    );
+    assert.deepEqual(terms.find((t) => t.group === "Squares"), { term: ["T", "T"], label: "T²", group: "Squares" });
+  });
+
+  test("a term written as the page shows it", () => {
+    assert.deepEqual([["A"], ["A", "B"], ["A", "B", "C"], ["A", "A"]].map(termLabel), ["A", "A·B", "A·B·C", "A²"]);
+  });
+
+  test("a named model's terms, where the list starts", () => {
+    assert.equal(namedModelTerms("main_effects", three).length, nTerms(3, "main_effects") - 1);
+    assert.equal(namedModelTerms("interactions", three).length, nTerms(3, "interactions") - 1);
+    assert.equal(namedModelTerms("quadratic", three).length, nTerms(3, "quadratic") - 1);
+  });
+
+  test("a categorical factor has no square to tick, nor one in the quadratic model", () => {
+    const factors = [three[0], { name: "S", low: "A", high: "B" }];
+    assert.deepEqual(candidateTerms(factors).filter((t) => t.group === "Squares").map((t) => t.label), ["T²"]);
+    assert.deepEqual(namedModelTerms("quadratic", factors).at(-1), ["T", "T"]);
+  });
+});
+
+describe("a factor's levels", () => {
+  test("a label is text that is no number", () => {
+    assert.deepEqual(["A", " old ", "Supplier 2"].map(isLabel), [true, true, true]);
+    assert.deepEqual(["150", "-1.5", "1e3", "", " ", "inf", "-Infinity", "NaN", null].map(isLabel), Array(9).fill(false));
+  });
+
+  test("a level is sent as a label, a number, or null for a blank box", () => {
+    assert.deepEqual([" old ", "150", "", "1e3"].map(levelValue), ["old", 150, null, 1000]);
+  });
+
+  test("a factor is categorical when both its levels are labels", () => {
+    assert.ok(isCategorical({ low: "A", high: "B" }));
+    assert.ok(!isCategorical({ low: "A", high: 3 }));
+    assert.ok(!isCategorical({ low: 1, high: 3 }));
+  });
+
+  test("a design whose labels are as the form shows them still matches the form", () => {
+    const spec = { response: "y", factors: [{ name: "S", low: "A", high: "B", units: "" }] };
+    assert.ok(formMatches([{ name: "S", low: "A", high: "B", units: "" }], "y", spec));
+    assert.ok(!formMatches([{ name: "S", low: "A", high: "C", units: "" }], "y", spec));
   });
 });

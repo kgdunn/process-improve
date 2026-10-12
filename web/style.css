@@ -97,6 +97,13 @@ section {
 .row { display: flex; flex-wrap: wrap; gap: 16px; margin: 12px 0; }
 .row label, label[data-option] { display: flex; flex-direction: column; gap: 4px; font-size: 0.9rem; min-width: 0; max-width: 100%; }
 [hidden] { display: none !important; }
+/* The terms a reader ticks for the model: one group per kind of term, wrapping on a phone. */
+.terms { border: 1px solid var(--line); border-radius: 6px; padding: 8px 12px; margin: 0 0 12px; max-width: 100%; }
+.terms legend { font-size: 0.9rem; padding: 0 4px; }
+.terms h4 { margin: 8px 0 4px; font-size: 0.85rem; font-weight: 600; color: var(--muted); }
+.terms .group { display: flex; flex-wrap: wrap; gap: 4px 14px; }
+.terms label { display: inline-flex; align-items: center; gap: 4px; font-size: 0.9rem; }
+.terms input { width: auto; padding: 0; }
 input, select {
   font: inherit; color: inherit; background: var(--bg);
   border: 1px solid var(--line); border-radius: 6px; padding: 6px 8px; max-width: 100%;

@@ -69,6 +69,7 @@ READS: dict[str, list[str]] = {
     "analysis": [
         "spec.factors[].name: str",
         "model: str",
+        "formula: str",
         "equation: str",
         "n_completed: int",
         "pending_runs: list",

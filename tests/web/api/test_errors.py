@@ -73,6 +73,26 @@ def _foreign_file(_: Example) -> dict:
     return {"xlsx_base64": base64.b64encode(b"not a workbook").decode()}
 
 
+#: A 2^2 factorial in a temperature and a supplier, A or B, as the page holds its runs.
+SUPPLIED = {
+    "spec": {
+        "design_type": "full_factorial",
+        "factors": [FACTORS[0], {"name": "S", "low": "A", "high": "B", "units": ""}],
+        "response": "y",
+        "model": "interactions",
+        "options": {},
+    },
+    "columns": ["Std order", "Run order", "T", "S", "y"],
+    "rows": [[1, 1, 150, "A", None], [2, 2, 200, "A", None], [3, 3, 150, "B", None], [4, 4, 200, "B", None]],
+    "responses": [10.0, 12.5, 11.0, 14.0],
+}
+
+
+def _supplied(**change: object) -> Callable[[Example], dict]:
+    """Build a request about the runs of a design with a categorical factor, changed."""
+    return lambda _: {**SUPPLIED, **change}
+
+
 #: Each refusal: the entry point, the request as a function of the worked example, and the message.
 REFUSALS: dict[str, tuple[str, Callable[[Example], dict], str]] = {
     # The factors, as typed into step 1.
@@ -95,17 +115,45 @@ REFUSALS: dict[str, tuple[str, Callable[[Example], dict], str]] = {
     "blank low": (  # a blank box, which the page sends as null
         "api_make_design",
         _make(factors=[FACTORS[0], {**FACTORS[1], "low": None}]),
-        "Factor P: enter a number for both the low and the high value.",
+        "Factor P: enter a number for both the low and the high value, or a label for both, as for a supplier A and B.",
     ),
     "text for high": (
         "api_make_design",
         _make(factors=[FACTORS[0], {**FACTORS[1], "high": "abc"}]),
-        "Factor P: enter a number for both the low and the high value.",
+        "Factor P: enter a number for both the low and the high value, or a label for both, as for a supplier A and B.",
     ),
     "infinite high": (
         "api_make_design",
         _make(factors=[FACTORS[0], {**FACTORS[1], "high": "inf"}]),
-        "Factor P: enter a number for both the low and the high value.",
+        "Factor P: enter a number for both the low and the high value, or a label for both, as for a supplier A and B.",
+    ),
+    "two labels the same": (
+        "api_make_design",
+        _make(factors=[FACTORS[0], {"name": "S", "low": "A", "high": "A", "units": ""}]),
+        "Factor S: its two labels must differ.",
+    ),
+    "a label a spreadsheet reads as blank": (
+        "api_make_design",
+        _make(factors=[FACTORS[0], {"name": "S", "low": "NA", "high": "EU", "units": ""}]),
+        "Factor S: a spreadsheet reads 'NA' back as a blank cell; choose another label.",
+    ),
+    "a categorical factor in a design that needs numbers": (
+        "api_make_design",
+        _make(factors=[*FACTORS[:2], {"name": "S", "low": "A", "high": "B", "units": ""}]),
+        (
+            "The Box-Behnken design needs numeric factors, and S is categorical: choose a full factorial, "
+            "fractional factorial or Plackett-Burman design."
+        ),
+    ),
+    "a run at neither label": (
+        "api_analyze_runs",
+        _supplied(rows=[*SUPPLIED["rows"][:3], [4, 4, 200, "C", None]]),
+        "Factor S: each run must be at A or B, not 'C'.",
+    ),
+    "the square of a categorical factor": (
+        "api_analyze_runs",
+        _supplied(model={"terms": [["T"], ["S", "S"]]}),
+        "S is categorical, so it has no square: it is +1 at both its levels.",
     ),
     # The request itself, which only a script could get wrong.
     "a request that is not an object": (
@@ -129,6 +177,41 @@ REFUSALS: dict[str, tuple[str, Callable[[Example], dict], str]] = {
         "api_make_design",
         _make(design_type="ccd", alpha="spherical"),
         "Unknown axial distance 'spherical'.",
+    ),
+    "blank axial distance": (  # the number box beside "A distance you choose", left blank
+        "api_make_design",
+        _make(design_type="ccd", alpha=None),
+        "Enter the axial distance in coded units: a number above 0, such as 1.4.",
+    ),
+    "axial distance not above 0": (
+        "api_make_design",
+        _make(design_type="ccd", alpha=-1),
+        "The axial distance must be above 0 in coded units, not -1.",
+    ),
+    "blocks out of range": (
+        "api_make_design",
+        _make(n_blocks=9),
+        "Blocks must be a whole number from 1 to 8.",
+    ),
+    "response named Block": (
+        "api_make_design",
+        _make(response="Block"),
+        "The response cannot be named Block: a blocked design's run sheet has a Block column.",
+    ),
+    "a blocked workbook without its blocks": (
+        "api_analyze",
+        _workbook(_stored(options={"random_state": 42, "n_center_points": 3, "n_blocks": 2})),
+        "The Runs sheet is missing column(s): Block.",
+    ),
+    "replicates out of range": (
+        "api_make_design",
+        _make(n_replicates=0),
+        "Replicates must be a whole number from 1 to 10.",
+    ),
+    "replicates not a whole number": (
+        "api_make_design",
+        _make(n_replicates=1.5),
+        "Replicates must be a whole number from 1 to 10.",
     ),
     "unknown model to design for": (
         "api_make_design",
@@ -173,6 +256,31 @@ REFUSALS: dict[str, tuple[str, Callable[[Example], dict], str]] = {
         "api_analyze_runs",
         _runs(model="y ~ T"),
         "Model must be one of main_effects, interactions, quadratic.",
+    ),
+    "no terms chosen": (
+        "api_analyze_runs",
+        _runs(model={"terms": []}),
+        "Choose at least one term for the model.",
+    ),
+    "a chosen term of another factor": (
+        "api_analyze_runs",
+        _runs(model={"terms": [["T"], ["Z"]]}),
+        "A model term can name only the design's factors, T, P and F, not ['Z'].",
+    ),
+    "a chosen term that is no term": (
+        "api_analyze_runs",
+        _runs(model={"terms": [["T", "P", "T"]]}),
+        "A model term is a factor, an interaction of two or three different factors, or a factor squared.",
+    ),
+    "a workbook analysed with a formula": (  # a workbook keeps its analysis model, which is checked as data
+        "api_read_workbook",
+        _workbook(_stored(analysis_model="y ~ __import__('os').getcwd()")),
+        "Model must be one of main_effects, interactions, quadratic.",
+    ),
+    "no term the design can estimate": (
+        "api_analyze_runs",
+        _runs(model={"terms": [["T", "P", "F"]]}),  # zero in every run of a Box-Behnken design
+        "None of the model's terms can be estimated from this design.",
     ),
     "unknown model to chart": (
         "api_plots",

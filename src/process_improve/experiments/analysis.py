@@ -268,14 +268,29 @@ def _drop_incomplete_runs(df: pd.DataFrame, columns: list[str]) -> pd.DataFrame:
     return df
 
 
+def _top_level_terms(rhs: str) -> list[str]:
+    """Split a formula's right-hand side at the ``+`` signs outside parentheses."""
+    terms, depth, start = [], 0, 0
+    for i, char in enumerate(rhs):
+        depth += {"(": 1, ")": -1}.get(char, 0)
+        if char == "+" and depth == 0:
+            terms.append(rhs[start:i].strip())
+            start = i + 1
+    terms.append(rhs[start:].strip())
+    return terms
+
+
 def _add_block_term(df: pd.DataFrame, formula: str, model: str) -> tuple[pd.DataFrame, str, tuple[str, ...]]:
     """Add the blocks to the model as a fixed effect when the design has more than one block.
 
     Block-to-block differences left out of the model go into the residual and mask real
     effects (Montgomery, *Design and Analysis of Experiments*, chapter 7). The blocks
     enter as sum-coded contrast columns, ``Block1`` to ``Block{b-1}`` for ``b`` blocks
-    (in sorted order, the last block coded -1 in every column). A Scheffe mixture model
-    and an explicit formula are not changed; a warning says the blocks are not modelled.
+    (in sorted order, the last block coded -1 in every column). An explicit formula gets
+    them only where it names ``Block`` as a term of its own, in that term's place, so the
+    blocks are a categorical factor there as in a named model, not a number. A Scheffe
+    mixture model, and an explicit formula that does not name ``Block``, are not changed;
+    a warning says the blocks are not modelled.
 
     Returns
     -------
@@ -284,16 +299,20 @@ def _add_block_term(df: pd.DataFrame, formula: str, model: str) -> tuple[pd.Data
     """
     if BLOCK_COL not in df.columns or df[BLOCK_COL].nunique() < 2:
         return df, formula, ()
+    response, rhs = formula.split(" ~ ", 1)
     if model in SCHEFFE_MODELS or model not in _NAMED_MODELS:
-        if not _references(formula.split("~", 1)[1], BLOCK_COL):
-            kind = "a Scheffe mixture model" if model in SCHEFFE_MODELS else "an explicit formula"
-            warnings.warn(
-                f"The design has a {BLOCK_COL!r} column, but blocks are not added to {kind}, so block-to-block "
-                "differences stay in the residual. Drop the column to silence this, or name it in the formula.",
-                category=UserWarning,
-                stacklevel=3,
-            )
-        return df, formula, ()
+        terms = _top_level_terms(rhs)
+        if model in SCHEFFE_MODELS or BLOCK_COL not in terms:
+            if not _references(rhs, BLOCK_COL):
+                kind = "a Scheffe mixture model" if model in SCHEFFE_MODELS else "an explicit formula"
+                warnings.warn(
+                    f"The design has a {BLOCK_COL!r} column, but blocks are not added to {kind}, so block-to-block "
+                    "differences stay in the residual. Drop the column to silence this, or name it in the formula.",
+                    category=UserWarning,
+                    stacklevel=3,
+                )
+            return df, formula, ()
+        rhs = " + ".join(term for term in terms if term != BLOCK_COL)
 
     levels = sorted(df[BLOCK_COL].unique(), key=str)
     df = df.copy()
@@ -304,8 +323,7 @@ def _add_block_term(df: pd.DataFrame, formula: str, model: str) -> tuple[pd.Data
             name += "_"
         df[name] = np.where(df[BLOCK_COL] == level, 1.0, np.where(df[BLOCK_COL] == levels[-1], -1.0, 0.0))
         names.append(name)
-    response, rhs = formula.split(" ~ ", 1)
-    return df, f"{response} ~ {' + '.join(names)} + {rhs}", tuple(names)
+    return df, f"{response} ~ {' + '.join([*names, *([rhs] if rhs else [])])}", tuple(names)
 
 
 def _whole_plot_column(df: pd.DataFrame, whole_plot: str | None, types: list[str]) -> str:
@@ -720,7 +738,9 @@ def analyze_experiment(  # noqa: PLR0913
         ``RunOrder`` column is ignored. A ``Block`` column with two or more blocks
         is added to the named non-mixture models as a fixed effect (sum-coded contrast
         columns ``Block1``, ...; one ``"Block"`` row in the ANOVA), so block-to-block
-        differences do not inflate the error; drop the column to analyse without it.
+        differences do not inflate the error; drop the column to analyse without it. An
+        explicit formula gets the same fixed effect where it names ``Block`` as a term
+        (``"y ~ Block + A + B + A:B"``).
         A ``WholePlot`` column, which ``generate_design`` adds to a split-plot design,
         labels each run's whole plot: it is used by ``analysis_type="split_plot"``,
         and any other analysis warns that it treats the runs as independent.

@@ -150,6 +150,26 @@ those changes.
     it, live. The same example, computed through the same entry points when the page is
     built, is drawn at first paint, so a reader sees a complete analysis while Python
     loads.
+- **The browser app takes replicates, blocks, a typed axial distance, chosen model terms
+  and categorical factors**, so every exercise in the book's chapter on designed
+  experiments can be worked in it.
+  - **Replicates:** each run but the center runs is made up to ten times. The repeats
+    estimate the pure error for a lack-of-fit test.
+  - **Blocks:** the runs are made in up to eight blocks, with a Block column in the run
+    sheet. The analysis fits the blocks as a fixed effect. A term the design confounds
+    with the blocks is left out, with a note, and so is its alias.
+  - **A CCD's axial distance can be typed as a number**, such as 1.4, beside the face-centred,
+    rotatable and orthogonal choices.
+  - **"Terms you choose"** lists every main effect, two- and three-factor interaction and
+    square the factors allow, to tick for the model. The page sends the terms as lists of
+    factor names and builds the formula from them, each checked, so no formula text is
+    read in. The workbook keeps the model analysed with, checked the same way when it
+    is uploaded. An interaction that is zero in every run is left out with a note.
+  - **A factor whose two levels are labels**, such as a supplier A and B, is categorical.
+    Full factorial, fractional factorial and Plackett-Burman designs take it. It is coded
+    -1 and +1 from its first label to its second, and has no square.
+  - "Show the Python" reproduces each of these. The analysis it shows now names the terms
+    the page actually fitted, after any aliased or confounded term is left out.
 - **The browser app runs on Pyodide 314.0.7 (Python 3.14.2)**, with numpy 2.4, pandas 3.0,
   scipy 1.18 and scikit-learn 1.8.
 - **PLS and multiblock fits on complete data are faster, with identical results.** So is
@@ -315,6 +335,32 @@ those changes.
   work, still win, and warn.
 
 ### Fixed
+
+- **An explicit formula that names `Block` fits the blocks as a named model does.**
+  `analyze_experiment(..., model="y ~ Block + A + B")` on a blocked design took `Block`
+  as a number, a straight line through the block labels: one degree of freedom whatever
+  the number of blocks, and a coefficient whose size depended on how the blocks were
+  numbered. The blocks now enter in that term's place as the sum-coded contrasts
+  `Block1`, ... that the named models use, with one `"Block"` row in the ANOVA, and are
+  left out of the effects and Lenth's method. This is what the warning for a formula
+  without `Block` already advised ("name it in the formula"), and how `evaluate_design`
+  reads such a formula.
+
+- **Blocking by exchange no longer splits the runs by rounding error.** A design that is
+  not a regular two-level factorial is blocked by swapping runs between blocks to keep
+  the most information for the largest model it can estimate. That search tried the
+  quadratic model first even when the design could not estimate it in one block: in a
+  two-level design whose centre runs are its only third level, the squares of two
+  factors are the same column. Every split then left the model singular, the
+  determinant the search maximised was rounding error, and the blocks it picked differed
+  between platforms (between native Python and Pyodide in the browser app, for one). This
+  is the case for a two-level factorial with a categorical factor and centre runs, or a
+  Plackett-Burman design with centre runs. Such a model is now passed over, and the blocks
+  are chosen for the largest model the design can estimate: two replicates of a 2²
+  factorial with a supplier A or B, in two blocks, keep 99% of the information on the main
+  effects and two-factor interactions, where the old blocks kept 92%. A random start now
+  replaces an earlier one only when it is better by more than rounding, so equally good
+  starts give the same blocks everywhere.
 
 - **Plots drawn after plotly is installed into a running process use the library's
   theme.** The themes were registered only when `process_improve.visualization` was

@@ -58,6 +58,7 @@ def test_an_uploaded_workbook_fills_every_step(page, api, tmp_path):
     path.write_bytes(workbook)
     page.click("#tab-real")
     page.set_input_files("#upload", path)
+    page.wait_for_function("window.__pi.count('api_read_workbook') === 1")
     settled(page)
     assert_the_page_holds(page, design)
 
@@ -86,6 +87,8 @@ def test_a_file_that_is_not_a_workbook_is_refused(page, tmp_path):
     path.write_text("not a workbook")
     page.click("#tab-real")
     page.set_input_files("#upload", path)
+    # The page reads the file before it calls Python, so wait for the call: idle at once is the moment before it.
+    page.wait_for_function("window.__pi.count('api_read_workbook') === 1")
     settled(page)
     assert status(page) == ("That file could not be read as an .xlsx workbook.", "error")
     assert page.is_visible("#demo-banner"), "the page keeps what it held"
@@ -153,6 +156,7 @@ def test_the_same_workbook_can_be_read_again_after_edits_on_the_page(page, api, 
     path.write_bytes(workbook)
     page.click("#tab-real")
     page.set_input_files("#upload", path)
+    page.wait_for_function("window.__pi.count('api_read_workbook') === 1")
     settled(page)
     page.fill('#design-table input[data-index="1"]', "999")
     page.set_input_files("#upload", path)

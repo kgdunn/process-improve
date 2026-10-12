@@ -991,6 +991,33 @@ class TestBlocks:
         )
         assert result["predictions"][0]["predicted"] == pytest.approx(df.y.mean())
 
+    def test_an_explicit_formula_naming_block_fits_it_as_a_named_model_does(self) -> None:
+        df = self._blocked()
+        types = ["coefficients", "anova", "effects"]
+        named = analyze_experiment(df, response_column="y", model="main_effects", analysis_type=types)
+        explicit = analyze_experiment(df, response_column="y", model="y ~ Block + A + B + C", analysis_type=types)
+        assert {c["term"]: c["coefficient"] for c in explicit["coefficients"]} == pytest.approx(
+            {c["term"]: c["coefficient"] for c in named["coefficients"]}
+        )
+        assert [(r["source"], r["df"]) for r in explicit["anova_table"]] == [
+            (r["source"], r["df"]) for r in named["anova_table"]
+        ]
+        assert set(explicit["effects"]) == {"A", "B", "C"}
+
+    def test_three_blocks_named_in_a_formula_are_one_factor_not_a_number(self) -> None:
+        df = pd.DataFrame(_full_factorial(2, replicates=3), columns=["A", "B"])
+        df["Block"] = [1] * 4 + [2] * 4 + [3] * 4
+        df["y"] = 10 + 2 * df.A + df.Block.map({1: 0.0, 2: 3.0, 3: -1.0}) + np.linspace(-0.2, 0.2, 12)
+        rows = {
+            r["source"]: r for r in analyze_experiment(df, response_column="y", model="Block + A + B")["anova_table"]
+        }
+        assert rows["Block"]["df"] == 2  # a straight line through the labels 1, 2, 3 would have one
+        assert sum(r["df"] for r in rows.values()) == 11
+
+    def test_an_explicit_formula_without_block_warns_that_blocks_are_not_modelled(self) -> None:
+        with pytest.warns(UserWarning, match="blocks are not added to an explicit formula"):
+            analyze_experiment(self._blocked(), response_column="y", model="A + B")
+
     def test_a_mixture_model_warns_that_blocks_are_not_modelled(self) -> None:
         df = pd.DataFrame(
             [(1, 0, 0), (0, 1, 0), (0, 0, 1), (0.5, 0.5, 0), (0.5, 0, 0.5), (0, 0.5, 0.5)] * 2,

@@ -14,12 +14,79 @@ export function nTerms(k, model) {
 /** The resolution a fraction in k factors opens on: IV, or III when three factors allow no more. */
 export const defaultResolution = (k) => Math.max(3, Math.min(4, k));
 
+/** The select value that asks for an axial distance typed as a number. */
+export const AXIAL_DISTANCE = "distance";
+
+/** The axial distance the form asks for: a named choice, or the number typed beside it (null while blank). */
+export const axialDistance = (choice, typed) => (choice === AXIAL_DISTANCE ? numberOrNull(typed) : choice);
+
+/** Whether two numbers agree as Python's math.isclose finds them, to a relative 1e-9. */
+const isClose = (a, b) => Math.abs(a - b) <= 1e-9 * Math.max(Math.abs(a), Math.abs(b));
+
 /**
- * Whether a design needs a center run to fit the squares: a Box-Behnken design or a rotatable
- * CCD does, and a DSD counts its own built-in center run among them.
+ * Whether a design needs a center run to fit the squares, because its other runs all lie on one
+ * sphere: a Box-Behnken design's do, and a CCD's whose axial distance is the corners' own, the
+ * square root of the k factors. The page asks for one at any rotatable CCD, as bootstrap.py
+ * does, and a DSD counts its own built-in center run among them.
  */
-export const needsCentre = (designType, alpha) =>
-  ["box_behnken", "dsd"].includes(designType) || (designType === "ccd" && alpha === "rotatable");
+export const needsCentre = (designType, alpha, k) =>
+  ["box_behnken", "dsd"].includes(designType) ||
+  (designType === "ccd" && (alpha === "rotatable" || (typeof alpha === "number" && isClose(alpha * alpha, k))));
+
+/** The analysis model's select value for a model of the terms the reader ticks. */
+export const CHOSEN_TERMS = "terms";
+
+/** Every way of picking `size` of the items, in order: the pairs or triples of factors for interactions. */
+export function combinations(items, size) {
+  if (size === 0) return [[]];
+  return items.flatMap((item, i) => combinations(items.slice(i + 1), size - 1).map((rest) => [item, ...rest]));
+}
+
+/**
+ * Every term a model of these factors may hold, as the page lists them to tick: {term, label, group},
+ * where a term is a list of factor names: one for a main effect, two or three for an interaction,
+ * and one name twice for a square, as bootstrap.py reads them.
+ */
+export function candidateTerms(factors) {
+  const names = factors.map((f) => f.name);
+  const group = (label, terms) => terms.map((term) => ({ term, label: termLabel(term), group: label }));
+  return [
+    ...group("Main effects", names.map((n) => [n])),
+    ...group("Two-factor interactions", combinations(names, 2)),
+    ...group("Three-factor interactions", combinations(names, 3)),
+    ...group("Squares", squared(factors)),
+  ];
+}
+
+/** The squares a model may hold: one per numeric factor, since a categorical one is +1 at both its levels. */
+const squared = (factors) => factors.filter((f) => !isCategorical(f)).map((f) => [f.name, f.name]);
+
+/** A term as the page writes it: T, T·P, T·P·F, or T² for a square. */
+export const termLabel = (term) => (term.length === 2 && term[0] === term[1] ? `${term[0]}²` : term.join("·"));
+
+/** The terms of a named model, as lists of factor names: where a list of terms to tick starts. */
+export function namedModelTerms(model, factors) {
+  const names = factors.map((f) => f.name);
+  const terms = names.map((n) => [n]);
+  if (model === "interactions" || model === "quadratic") terms.push(...combinations(names, 2));
+  if (model === "quadratic") terms.push(...squared(factors));
+  return terms;
+}
+
+/** The designs that take a categorical factor; mirrors bootstrap.CATEGORICAL_DESIGNS. */
+export const CATEGORICAL_DESIGNS = ["full_factorial", "fractional_factorial", "plackett_burman"];
+
+/** Whether text typed as a level is a label, such as old: neither blank nor a number (nor inf or nan). */
+export function isLabel(text) {
+  const t = String(text ?? "").trim();
+  return t !== "" && Number.isNaN(Number(t)) && !/^[+-]?(inf(inity)?|nan)$/i.test(t);
+}
+
+/** A level as the form sends it: a label as its text, a blank box as null, and anything else as a number. */
+export const levelValue = (text) => (isLabel(text) ? String(text).trim() : numberOrNull(String(text ?? "")));
+
+/** Whether a factor is categorical: both its levels are labels, as bootstrap.py reads them. */
+export const isCategorical = (f) => isLabel(f.low) && isLabel(f.high);
 
 /** Read a number box as the page sends it: a blank box as null, rather than as Number("") = 0. */
 export const numberOrNull = (text) => (text.trim() === "" ? null : Number(text));
@@ -30,8 +97,9 @@ export const DEFAULT_RESPONSE = "y";
 /** Whether the factors and response in the form still describe the design ``spec`` holds; a blank response is y. */
 export function formMatches(factors, response, spec) {
   if (!spec?.factors) return true;
+  const level = (v) => (isLabel(v) ? String(v).trim() : Number(v));
   const same = (f, g) =>
-    f.name === g.name && f.low === Number(g.low) && f.high === Number(g.high) && f.units === (g.units ?? "");
+    f.name === g.name && f.low === level(g.low) && f.high === level(g.high) && f.units === (g.units ?? "");
   return (
     (response || DEFAULT_RESPONSE) === spec.response &&
     factors.length === spec.factors.length &&

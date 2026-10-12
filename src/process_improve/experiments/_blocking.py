@@ -48,6 +48,8 @@ _MAX_GENERATOR_SETS = 200_000
 #: Random starts and passes of the block exchange.
 _EXCHANGE_STARTS = 4
 _EXCHANGE_PASSES = 30
+#: Gain in ``log det`` an exchange must make to count: less is rounding, which differs between platforms.
+_EXCHANGE_GAIN = 1e-10
 
 
 @dataclass
@@ -247,14 +249,25 @@ def _model_columns(design: np.ndarray, model: str) -> np.ndarray:
     return np.hstack(columns)
 
 
-def _within_block_information(x: np.ndarray, labels: np.ndarray, n_blocks: int) -> float:
-    """``log det(Xc'Xc)``, with each column of ``x`` centred within each block."""
+def _centred_within_blocks(x: np.ndarray, labels: np.ndarray, n_blocks: int) -> np.ndarray:
+    """Return ``x`` with each column centred within each block: what is left once each block has its own mean."""
     centred = x.copy()
     for block in range(n_blocks):
         rows = labels == block
         centred[rows] -= centred[rows].mean(axis=0)
+    return centred
+
+
+def _within_block_information(x: np.ndarray, labels: np.ndarray, n_blocks: int) -> float:
+    """``log det(Xc'Xc)``, with each column of ``x`` centred within each block."""
+    centred = _centred_within_blocks(x, labels, n_blocks)
     sign, logdet = np.linalg.slogdet(centred.T @ centred)
     return float(logdet) if sign > 0 else -np.inf
+
+
+def _estimable(x: np.ndarray, labels: np.ndarray, n_blocks: int) -> bool:
+    """Whether every column of ``x`` can be estimated once each block has its own mean."""
+    return int(np.linalg.matrix_rank(_centred_within_blocks(x, labels, n_blocks))) == x.shape[1]
 
 
 def _climb(x: np.ndarray, labels: np.ndarray, n_blocks: int) -> tuple[np.ndarray, float]:
@@ -267,7 +280,7 @@ def _climb(x: np.ndarray, labels: np.ndarray, n_blocks: int) -> tuple[np.ndarray
                 continue
             labels[i], labels[j] = labels[j], labels[i]
             trial = _within_block_information(x, labels, n_blocks)
-            if trial > value + 1e-10:
+            if trial > value + _EXCHANGE_GAIN:
                 value, improved = trial, True
             else:
                 labels[i], labels[j] = labels[j], labels[i]
@@ -280,7 +293,11 @@ def exchange_blocks(design: np.ndarray, n_blocks: int, rng: np.random.Generator)
     """Block any design into ``n_blocks`` near-equal blocks by pairwise label swaps.
 
     The model is the largest of quadratic, interactions and main effects that the
-    blocked design can still estimate.
+    blocked design can still estimate. A model the design cannot estimate even in one
+    block is passed over: every split would leave it singular, and its determinant
+    would be rounding error, so the split it picked would differ between platforms.
+    For the same reason a start replaces an earlier one only when it is better by more
+    than rounding.
 
     Raises
     ------
@@ -292,16 +309,17 @@ def exchange_blocks(design: np.ndarray, n_blocks: int, rng: np.random.Generator)
     if not 2 <= n_blocks <= n // 2:
         raise ValueError(f"n_blocks must be between 2 and half the {n} runs; got {n_blocks}.")
     balanced = np.arange(n) % n_blocks
+    one_block = np.zeros(n, dtype=int)
     for model in ("quadratic", "interactions", "main_effects"):
         x = _model_columns(design, model)
-        if x.shape[1] + n_blocks > n:
+        if x.shape[1] + n_blocks > n or not _estimable(x, one_block, 1):
             continue
         best_labels, best_value = None, -np.inf
         for _ in range(_EXCHANGE_STARTS):
             labels, value = _climb(x, rng.permutation(balanced), n_blocks)
-            if value > best_value:
+            if value > best_value + _EXCHANGE_GAIN:
                 best_labels, best_value = labels, value
-        if best_labels is not None and np.isfinite(best_value):
+        if best_labels is not None and _estimable(x, best_labels, n_blocks):
             return Blocking(labels=best_labels + 1, method="exchange", model=model)
     raise ValueError(
         f"The main effects cannot be estimated once each of {n_blocks} blocks has its own mean; use fewer blocks."

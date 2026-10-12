@@ -2,11 +2,13 @@
 
 from __future__ import annotations
 
+import itertools
+
 import numpy as np
 import pandas as pd
 import pytest
 
-from process_improve.experiments import augment_design, generate_design
+from process_improve.experiments import _blocking, augment_design, generate_design
 from process_improve.experiments._blocking import confounding_blocks, exchange_blocks
 from process_improve.experiments.factor import Factor
 
@@ -65,6 +67,48 @@ def test_other_designs_block_by_exchange(design_type: str, k: int) -> None:
     full = (x - x.mean(axis=0)).T @ (x - x.mean(axis=0))
     blocked = _within_block_centred(x, blocks).T @ _within_block_centred(x, blocks)
     assert np.linalg.det(blocked) >= 0.95 * np.linalg.det(full)
+
+
+def test_a_model_the_design_cannot_estimate_in_one_block_is_passed_over() -> None:
+    """With centre runs as their only third level, the squares of two factors are the same column.
+
+    The quadratic model is then singular however the runs are split, and the exchange used to
+    maximise a determinant that was rounding error: the blocks it picked differed between platforms.
+    The third factor is categorical, so its centre runs sit at its labels, coded -1 and +1.
+    """
+    cube = np.array(list(itertools.product((-1.0, 1.0), repeat=3)))
+    design = np.vstack([cube, cube, [[0.0, 0.0, -1.0], [0.0, 0.0, 1.0]]])
+    blocking = exchange_blocks(design, 2, np.random.default_rng(42))
+    assert blocking.model == "interactions"
+
+
+def test_a_factorial_with_a_categorical_factor_is_blocked_for_the_model_it_can_estimate() -> None:
+    """Centre runs at one of a categorical factor's labels make the design irregular, so the exchange blocks it.
+
+    Blocked for its interactions, it keeps nearly all of their information: an odd block of
+    nine runs cannot balance the supplier. The blocks picked for the singular quadratic kept 92%.
+    """
+    factors = [*_factors(2), Factor(name="supplier", type="categorical", levels=["A", "B"])]
+    result = generate_design(factors, "full_factorial", n_blocks=2, n_replicates=2, n_center_points=2, random_state=42)
+    assert result.metadata["blocking"]["method"] == "exchange"
+    assert result.metadata["blocking"]["model"] == "interactions"
+    x = result.design[["x0", "x1"]].to_numpy(dtype=float)
+    supplier = result.design["supplier"].map({"A": -1.0, "B": 1.0}).to_numpy(dtype=float)
+    x = np.column_stack([x, supplier])
+    model = np.column_stack([x, x[:, 0] * x[:, 1], x[:, 0] * x[:, 2], x[:, 1] * x[:, 2]])
+    full = (model - model.mean(axis=0)).T @ (model - model.mean(axis=0))
+    blocked = _within_block_centred(model, result.design["Block"].to_numpy())
+    assert np.linalg.det(blocked.T @ blocked) / np.linalg.det(full) > 0.98
+
+
+def test_a_later_start_must_beat_an_earlier_one_by_more_than_rounding(monkeypatch) -> None:
+    """Starts that reach the same value, to rounding, keep the first: rounding differs between platforms."""
+    design = np.vstack([np.array(list(itertools.product((-1.0, 1.0), repeat=3)))] * 2)
+    values = iter([5.0, 5.0 + 1e-14, 5.0 - 1e-14, 5.0 + 2e-14])
+    monkeypatch.setattr(_blocking, "_climb", lambda _x, labels, _n_blocks: (labels.copy(), next(values)))
+    first = np.random.default_rng(0).permutation(np.arange(16) % 2)
+    blocking = exchange_blocks(design, 2, np.random.default_rng(0))
+    np.testing.assert_array_equal(blocking.labels, first + 1)
 
 
 def test_blocks_must_be_a_power_of_two_for_a_factorial() -> None:

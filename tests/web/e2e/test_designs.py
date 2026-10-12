@@ -11,7 +11,7 @@ from __future__ import annotations
 import pytest
 
 from tests.web._support import ALL_DESIGNS, FACTORS, factors_named
-from tests.web.e2e._page import calls, generate, headers, run_sheet, set_factors, status
+from tests.web.e2e._page import calls, generate, headers, run_sheet, set_factors, settled, status
 
 
 @pytest.mark.parametrize("design_type", ALL_DESIGNS)
@@ -63,3 +63,34 @@ def test_the_library_s_warnings_are_listed_under_the_design(page):
 def test_runs_outside_the_ranges_are_pointed_out(page):
     generate(page, design_type="ccd", alpha="rotatable")
     assert "Some runs of T, P, F lie outside the ranges you entered" in page.text_content("#design-summary")
+
+
+def test_replicates_and_a_typed_axial_distance_reach_python(blank_page, api):
+    page = blank_page
+    set_factors(page, FACTORS[:2])
+    generate(page, design_type="ccd", alpha="distance", alpha_value="1.4", n_replicates=2, n_center_points=3)
+    request = calls(page, "api_make_design")[-1]["payload"]
+    assert (request["alpha"], request["n_replicates"]) == (1.4, 2)
+    made = api.ok("api_make_design", request)
+    assert made["n_runs"] == 2 * (4 + 4) + 3, "the corners and axial runs twice, the center runs once"
+    assert status(page) == (f"{made['n_runs']} runs generated.", "ok")
+    code = page.text_content("#py-design code")
+    assert "alpha=1.4" in code
+    assert "n_replicates=2" in code
+
+
+def test_a_categorical_factor_s_labels_reach_the_run_sheet_and_the_analysis(blank_page):
+    page = blank_page
+    set_factors(page, [*FACTORS[:2], {"name": "Supplier", "low": "old", "high": "new", "units": ""}])
+    generate(page, design_type="full_factorial", n_center_points=2)
+    request = calls(page, "api_make_design")[-1]["payload"]
+    assert request["factors"][2] == {"name": "Supplier", "low": "old", "high": "new", "units": ""}
+    supplier = headers(page).index("Supplier")
+    assert {row[supplier] for row in run_sheet(page)} == {"old", "new"}
+    assert page.is_hidden("#design-stale"), "the labels the form holds are the design's"
+    assert 'Factor(name="Supplier", type="categorical", levels=["old", "new"])' in page.text_content("#py-design code")
+    page.click("#simulate")
+    settled(page)
+    terms = page.locator("#analysis table").first.locator("tbody tr td:first-child").all_text_contents()
+    assert "Supplier" in terms
+    assert 'runs["Supplier"] = runs["Supplier"].map({"old": -1.0, "new": 1.0})' in page.text_content("#py-analyse code")

@@ -50,27 +50,29 @@
       <tbody></tbody>
     </table>
     <button type="button" id="add-factor" class="link">+ Add factor</button>
+    <p class="hint">Give each factor two numbers, its low and high values, or two labels for a categorical factor,
+      such as supplier A and B: the two-level designs take those.</p>
 
     <div class="row">
       <label>Design type
         <!-- Mirrors bootstrap.DESIGNS (label, hint, options) so the form is
              right before Python loads; tests/web/page/test_parity.py keeps them in step. -->
         <select id="design-type" autocomplete="off">
-          <option value="full_factorial" data-options="n_center_points" data-min-factors="2" data-max-factors="7"
+          <option value="full_factorial" data-options="n_center_points n_replicates n_blocks" data-min-factors="2" data-max-factors="7"
             data-hint="Every combination of low and high. 2^k runs, plus center points.">Full factorial (2-level)</option>
-          <option value="fractional_factorial" data-options="n_center_points resolution" data-min-factors="3" data-max-factors="11"
+          <option value="fractional_factorial" data-options="n_center_points resolution n_replicates n_blocks" data-min-factors="3" data-max-factors="11"
             data-hint="A fraction of the full factorial. Its resolution says what is aliased: at III, main effects with two-factor interactions; at IV, two-factor interactions with each other; at V, neither.">Fractional factorial (2-level)</option>
-          <option value="plackett_burman" data-options="n_center_points" data-min-factors="2" data-max-factors="11"
+          <option value="plackett_burman" data-options="n_center_points n_replicates n_blocks" data-min-factors="2" data-max-factors="11"
             data-hint="Main effects only, in a multiple of 4 runs plus center points; each main effect is partly or fully aliased with two-factor interactions.">Plackett-Burman screening</option>
-          <option value="dsd" data-options="n_center_points" data-min-factors="3" data-max-factors="12"
+          <option value="dsd" data-options="n_center_points n_replicates n_blocks" data-min-factors="3" data-max-factors="12"
             data-hint="Three levels in 2k+1 runs (2k+3 for odd k), one of them at the center, plus any further center runs; main effects clear of interactions and quadratics.">Definitive screening (DSD)</option>
-          <option value="box_behnken" data-options="n_center_points" data-min-factors="3" data-max-factors="7" selected
+          <option value="box_behnken" data-options="n_center_points n_replicates n_blocks" data-min-factors="3" data-max-factors="7" selected
             data-hint="Response surface with every run inside the factor ranges and none at the corners.">Box-Behnken</option>
-          <option value="ccd" data-options="n_center_points alpha" data-min-factors="2" data-max-factors="7"
+          <option value="ccd" data-options="n_center_points alpha n_replicates n_blocks" data-min-factors="2" data-max-factors="7"
             data-hint="Response surface: factorial corners, axial points and center points.">Central composite (CCD)</option>
-          <option value="d_optimal" data-options="budget model_type" data-min-factors="2" data-max-factors="8"
+          <option value="d_optimal" data-options="budget model_type n_replicates n_blocks" data-min-factors="2" data-max-factors="8"
             data-hint="Best estimates of the chosen model's coefficients for a fixed number of runs.">D-optimal</option>
-          <option value="i_optimal" data-options="budget model_type" data-min-factors="2" data-max-factors="6"
+          <option value="i_optimal" data-options="budget model_type n_replicates n_blocks" data-min-factors="2" data-max-factors="6"
             data-hint="Most precise predictions, on average over the factor space, for a fixed number of runs. The search takes longest of the designs here: up to 20 s at six factors.">I-optimal</option>
         </select>
       </label>
@@ -89,7 +91,13 @@
           <option value="face_centered">Face-centred (inside the ranges)</option>
           <option value="rotatable">Rotatable (outside the ranges)</option>
           <option value="orthogonal">Orthogonal</option>
+          <option value="distance">A distance you choose</option>
         </select>
+      </label>
+      <label id="alpha-distance" hidden>Axial distance, coded
+        <input id="alpha_value" type="number" min="0.01" step="any" value="1.4" aria-describedby="alpha-hint">
+        <span id="alpha-hint" class="hint">How far each axial run lies from the center along its factor, where the
+          factorial runs are at -1 and +1.</span>
       </label>
       <label data-option="resolution">Resolution
         <select id="resolution">
@@ -101,6 +109,15 @@
       <label data-option="budget">Runs
         <input id="budget" type="number" min="3" max="200" aria-describedby="budget-hint">
         <span id="budget-hint" class="hint"></span>
+      </label>
+      <label data-option="n_replicates">Replicates
+        <input id="n_replicates" type="number" min="1" max="10" value="1" aria-describedby="replicates-hint">
+        <span id="replicates-hint" class="hint">Each run but the center runs is made this many times.</span>
+      </label>
+      <label data-option="n_blocks">Blocks
+        <input id="n_blocks" type="number" min="1" max="8" value="1" aria-describedby="blocks-hint">
+        <span id="blocks-hint" class="hint">Groups of runs made in like conditions: a day, a batch of raw material.
+          1 for none.</span>
       </label>
       <label data-option="model_type">Model to design for
         <select id="model_type">
@@ -195,9 +212,16 @@
           <option value="main_effects">Main effects</option>
           <option value="interactions">Main effects + two-factor interactions</option>
           <option value="quadratic">Full quadratic</option>
+          <option value="terms">Terms you choose</option>
         </select>
       </label>
     </div>
+    <fieldset id="terms" class="terms" hidden>
+      <legend>Terms in the model</legend>
+      <p class="hint">Tick the terms to fit; the intercept is always in. A term the design cannot tell apart from
+        another is estimated with it, as their sum.</p>
+      <div id="term-list"></div>
+    </fieldset>
     <div id="analysis" hidden></div>
     <div id="charts" class="charts" hidden></div>
     <details class="python" id="py-analyse" hidden>

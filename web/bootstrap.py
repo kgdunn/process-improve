@@ -62,7 +62,7 @@ DESIGNS: dict[str, dict[str, Any]] = {
         "label": "Full factorial (2-level)",
         "hint": "Every combination of low and high. 2^k runs, plus center points.",
         "model": "interactions",
-        "options": ["n_center_points"],
+        "options": ["n_center_points", "n_replicates", "n_blocks"],
         "min_factors": 2,
         "max_factors": 7,
     },
@@ -73,7 +73,7 @@ DESIGNS: dict[str, dict[str, Any]] = {
             "with two-factor interactions; at IV, two-factor interactions with each other; at V, neither."
         ),
         "model": "main_effects",
-        "options": ["n_center_points", "resolution"],
+        "options": ["n_center_points", "resolution", "n_replicates", "n_blocks"],
         "min_factors": 3,
         "max_factors": 11,
     },
@@ -84,7 +84,7 @@ DESIGNS: dict[str, dict[str, Any]] = {
             "or fully aliased with two-factor interactions."
         ),
         "model": "main_effects",
-        "options": ["n_center_points"],
+        "options": ["n_center_points", "n_replicates", "n_blocks"],
         "min_factors": 2,
         "max_factors": 11,
     },
@@ -95,7 +95,7 @@ DESIGNS: dict[str, dict[str, Any]] = {
             "runs; main effects clear of interactions and quadratics."
         ),
         "model": "main_effects",
-        "options": ["n_center_points"],
+        "options": ["n_center_points", "n_replicates", "n_blocks"],
         "min_factors": 3,
         "max_factors": 12,
     },
@@ -103,7 +103,7 @@ DESIGNS: dict[str, dict[str, Any]] = {
         "label": "Box-Behnken",
         "hint": "Response surface with every run inside the factor ranges and none at the corners.",
         "model": "quadratic",
-        "options": ["n_center_points"],
+        "options": ["n_center_points", "n_replicates", "n_blocks"],
         "min_factors": 3,
         "max_factors": 7,
     },
@@ -111,7 +111,7 @@ DESIGNS: dict[str, dict[str, Any]] = {
         "label": "Central composite (CCD)",
         "hint": "Response surface: factorial corners, axial points and center points.",
         "model": "quadratic",
-        "options": ["n_center_points", "alpha"],
+        "options": ["n_center_points", "alpha", "n_replicates", "n_blocks"],
         "min_factors": 2,
         "max_factors": 7,
     },
@@ -119,7 +119,7 @@ DESIGNS: dict[str, dict[str, Any]] = {
         "label": "D-optimal",
         "hint": "Best estimates of the chosen model's coefficients for a fixed number of runs.",
         "model": "quadratic",
-        "options": ["budget", "model_type"],
+        "options": ["budget", "model_type", "n_replicates", "n_blocks"],
         "min_factors": 2,
         "max_factors": 8,
     },
@@ -130,7 +130,7 @@ DESIGNS: dict[str, dict[str, Any]] = {
             "The search takes longest of the designs here: up to 20 s at six factors."
         ),
         "model": "quadratic",
-        "options": ["budget", "model_type"],
+        "options": ["budget", "model_type", "n_replicates", "n_blocks"],
         "min_factors": 2,
         "max_factors": 6,
     },
@@ -144,6 +144,26 @@ NEEDS_CENTER_RUN = {"box_behnken": None, "ccd": "rotatable"}
 #: Runs an optimal design gets beyond its model's coefficients, when no budget is
 #: given, so the fit keeps degrees of freedom to estimate the error.
 SPARE_RUNS = 4
+
+#: The most times the page makes each run of a design, center runs excepted.
+MAX_REPLICATES = 10
+
+#: The most blocks the page splits a design's runs into.
+MAX_BLOCKS = 8
+
+#: The designs that take a categorical factor, one whose two levels are labels (supplier A and B):
+#: the two-level designs, which need only the two levels of each factor.
+CATEGORICAL_DESIGNS = ("full_factorial", "fractional_factorial", "plackett_burman")
+
+#: Text a spreadsheet reads back as a blank cell (pandas' defaults), so no level's label can be it.
+BLANK_LABELS = frozenset(
+    {"#N/A", "#N/A N/A", "#NA", "-1.#IND", "-1.#QNAN", "-NaN", "-nan", "1.#IND", "1.#QNAN", "<NA>", "N/A", "NA"}
+    | {"NULL", "NaN", "None", "n/a", "nan", "null"}
+)
+
+#: The run sheet's column naming each run's block, as ``generate_design`` names it. No factor may
+#: take the name, which the library refuses, and no response either.
+BLOCK = "Block"
 
 #: Fractional factorial resolutions offered on the page, and the default.
 RESOLUTIONS = (3, 4, 5)
@@ -177,6 +197,13 @@ ROMAN = {3: "III", 4: "IV", 5: "V", 6: "VI", 7: "VII", 8: "VIII"}
 #: The only models an uploaded workbook may request. Mapped by name, never
 #: parsed from the file, so a workbook cannot smuggle a patsy formula in.
 MODELS = ("main_effects", "interactions", "quadratic")
+
+#: A model of terms the reader chose, each a list of factor names (see :func:`_chosen_terms`),
+#: is named this in a reply. It too is read as data and never as a formula.
+CHOSEN = "chosen"
+
+#: The most factors in a chosen interaction.
+MAX_ORDER = 3
 
 ALPHAS = ("face_centered", "rotatable", "orthogonal")
 
@@ -364,13 +391,57 @@ def _factors(spec: dict) -> list[Factor]:
         raise ValueError("Factor names must be unique and look like variable names (letters, digits, _).")
     factors = []
     for f, name in zip(raw, names, strict=True):
+        labels = _label(f.get("low")), _label(f.get("high"))
+        if None not in labels:
+            factors.append(_categorical_factor(name, *labels))  # type: ignore[arg-type]
+            continue
         low, high = _number(f.get("low")), _number(f.get("high"))
         if low is None or high is None:
-            raise ValueError(f"Factor {name}: enter a number for both the low and the high value.")
+            raise ValueError(
+                f"Factor {name}: enter a number for both the low and the high value, or a label for both, as for "
+                "a supplier A and B."
+            )
         if not low < high:
             raise ValueError(f"Factor {name}: the low value must be below the high value.")
         factors.append(Factor(name=name, low=low, high=high, units=str(f.get("units", ""))))
     return factors
+
+
+def _label(value: object) -> str | None:
+    """Return a level typed as a label, such as ``old``; None for a number, a blank or anything else."""
+    if not isinstance(value, str) or not value.strip():
+        return None
+    try:
+        float(value)  # a number, or inf and nan, which are no labels either
+    except ValueError:
+        return value.strip()
+    return None
+
+
+def _categorical_factor(name: str, low: str, high: str) -> Factor:
+    """Make a categorical factor from its two labels: the first is coded -1, the second +1."""
+    if low == high:
+        raise ValueError(f"Factor {name}: its two labels must differ.")
+    if blank := [label for label in (low, high) if label in BLANK_LABELS]:
+        raise ValueError(f"Factor {name}: a spreadsheet reads {blank[0]!r} back as a blank cell; choose another label.")
+    return Factor(name=name, type="categorical", levels=[low, high])
+
+
+def _factor_spec(f: Factor) -> dict[str, Any]:
+    """Write a factor as the page holds it: a categorical factor's labels stand for its low and high values."""
+    if f.type == "categorical":
+        return {"name": f.name, "low": f.levels[0], "high": f.levels[1], "units": ""}  # type: ignore[index]
+    return {"name": f.name, "low": f.low, "high": f.high, "units": f.units}
+
+
+def _categorical(factor: dict) -> bool:
+    """Say whether a factor the page holds is categorical: its levels are labels, not numbers."""
+    return isinstance(factor["low"], str)
+
+
+def _categorical_names(spec: dict) -> tuple[str, ...]:
+    """Name the categorical factors of a checked specification."""
+    return tuple(f["name"] for f in spec["factors"] if _categorical(f))
 
 
 # --------------------------------------------------------------------------- public API
@@ -391,9 +462,13 @@ def make_design(spec: dict) -> dict:
         raise ValueError(f"Unknown design type {design_type!r}.")
     factors = _factors(spec)
     _check_factor_count(design_type, len(factors))
-    response = str(spec.get("response") or "y").strip()
-    if not response.isidentifier() or response in {f.name for f in factors}:
-        raise ValueError("The response name must be a variable name different from every factor.")
+    if (labelled := [f.name for f in factors if f.type == "categorical"]) and design_type not in CATEGORICAL_DESIGNS:
+        verb = "is" if len(labelled) == 1 else "are"
+        raise ValueError(
+            f"The {DESIGNS[design_type]['label']} design needs numeric factors, and {_listed(labelled)} {verb} "
+            "categorical: choose a full factorial, fractional factorial or Plackett-Burman design."
+        )
+    response = _response_name(str(spec.get("response") or "y").strip(), factors)
 
     kwargs = _design_options(spec, design_type)
     result = generate_design(factors, design_type=design_type, **kwargs)
@@ -402,6 +477,8 @@ def make_design(spec: dict) -> dict:
     # standard-order position of its i-th run: the sheet keeps the rows as they come.
     names = [f.name for f in factors]
     runs = pd.DataFrame(result.design_actual[names].to_numpy(), columns=names)
+    if BLOCK in result.design_actual.columns:  # the runs are listed block by block
+        runs.insert(0, BLOCK, result.design_actual[BLOCK].to_numpy())
     runs.insert(0, "Run order", range(1, len(runs) + 1))
     runs.insert(0, "Std order", result.run_order)
     runs[response] = np.nan
@@ -409,7 +486,7 @@ def make_design(spec: dict) -> dict:
     stored = {
         "version": SPEC_VERSION,
         "design_type": design_type,
-        "factors": [{"name": f.name, "low": f.low, "high": f.high, "units": f.units} for f in factors],
+        "factors": [_factor_spec(f) for f in factors],
         "response": response,
         "model": kwargs.get("model_type") or _designed_model(design_type, result.resolution),
         "options": kwargs,
@@ -420,10 +497,19 @@ def make_design(spec: dict) -> dict:
         "rows": [list(row) for row in runs.itertuples(index=False)],
         "outside_range": _outside_range(runs, factors),
         "model": stored["model"],
-        "facts": _design_facts(result, names, kwargs),
+        "facts": _design_facts(result, _coded(runs, stored["factors"]).to_numpy(dtype=float), names, kwargs),
         "spec": stored,
         "xlsx_base64": _to_workbook(runs, stored),
     }
+
+
+def _response_name(response: str, factors: list[Factor]) -> str:
+    """Check the response's name: a variable name, unlike every factor's and the run sheet's blocks column."""
+    if not response.isidentifier() or response in {f.name for f in factors}:
+        raise ValueError("The response name must be a variable name different from every factor.")
+    if response == BLOCK:
+        raise ValueError(f"The response cannot be named {BLOCK}: a blocked design's run sheet has a {BLOCK} column.")
+    return response
 
 
 def _check_factor_count(design_type: str, n_factors: int) -> None:
@@ -452,12 +538,10 @@ def _design_options(spec: dict, design_type: str) -> dict[str, Any]:
     kwargs: dict[str, Any] = {"random_state": int(spec.get("random_state", spec.get("random_seed", 42)))}
     allowed = DESIGNS[design_type]["options"]
     n_factors = len(spec.get("factors") or [])
+    alpha = _alpha(spec) if "alpha" in allowed else None
     if "n_center_points" in allowed:
-        kwargs["n_center_points"] = _center_points(spec, design_type)
-    if "alpha" in allowed:
-        alpha = spec.get("alpha", "face_centered")
-        if alpha not in ALPHAS:
-            raise ValueError(f"Unknown axial distance {alpha!r}.")
+        kwargs["n_center_points"] = _center_points(spec, design_type, alpha, n_factors)
+    if alpha is not None:
         kwargs["alpha"] = alpha
     if design_type == "ccd" and n_factors >= CCD_HALF_FRACTION_FROM:
         kwargs["cube"] = "fractional"
@@ -470,22 +554,70 @@ def _design_options(spec: dict, design_type: str) -> dict[str, Any]:
         kwargs["model_type"] = model_type
         budget = spec.get("budget")
         kwargs["budget"] = int(budget) if budget else _n_terms(n_factors, model_type) + SPARE_RUNS
+    if "n_replicates" in allowed and (replicates := _replicates(spec)) > 1:
+        kwargs["n_replicates"] = replicates
+    if "n_blocks" in allowed and (blocks := _blocks(spec)) > 1:
+        kwargs["n_blocks"] = blocks
     return kwargs
 
 
-def _center_points(spec: dict, design_type: str) -> int:
+def _alpha(spec: dict) -> str | float:
+    """Read a CCD's axial distance: one of :data:`ALPHAS`, or a distance in coded units, such as 1.4."""
+    alpha = spec.get("alpha", "face_centered")
+    if alpha in ALPHAS:
+        return str(alpha)
+    if alpha is None:  # a blank box
+        raise ValueError("Enter the axial distance in coded units: a number above 0, such as 1.4.")
+    distance = None if isinstance(alpha, bool) else _number(alpha)
+    if distance is None:
+        raise ValueError(f"Unknown axial distance {alpha!r}.")
+    if distance <= 0:
+        raise ValueError(f"The axial distance must be above 0 in coded units, not {distance:g}.")
+    return distance
+
+
+def _replicates(spec: dict) -> int:
+    """Read how many times each run is made, center runs excepted: 1 (no repeats) to :data:`MAX_REPLICATES`."""
+    replicates = _number(spec.get("n_replicates", 1))
+    if replicates is None or replicates != int(replicates) or not 1 <= replicates <= MAX_REPLICATES:
+        raise ValueError(f"Replicates must be a whole number from 1 to {MAX_REPLICATES}.")
+    return int(replicates)
+
+
+def _blocks(spec: dict) -> int:
+    """Read how many blocks the runs are made in: 1 (no blocks) to :data:`MAX_BLOCKS`."""
+    blocks = _number(spec.get("n_blocks", 1))
+    if blocks is None or blocks != int(blocks) or not 1 <= blocks <= MAX_BLOCKS:
+        raise ValueError(f"Blocks must be a whole number from 1 to {MAX_BLOCKS}.")
+    return int(blocks)
+
+
+def _center_points(spec: dict, design_type: str, alpha: str | float | None, n_factors: int) -> int:
     """Read the number of center runs, refusing none where the quadratic model would be singular."""
     n_center = int(spec.get("n_center_points", 3))
     if n_center < 0:
         raise ValueError("The number of center points cannot be negative.")
-    if design_type in NEEDS_CENTER_RUN and n_center == 0:
-        alpha = NEEDS_CENTER_RUN[design_type]
-        if alpha is None or spec.get("alpha", "face_centered") == alpha:
-            raise ValueError(
-                "This design needs at least one center point: without one every other run lies on one sphere "
-                "around the center, so the squared terms cannot be told apart from the intercept."
-            )
+    if n_center == 0 and _needs_center_run(design_type, alpha, n_factors):
+        raise ValueError(
+            "This design needs at least one center point: without one every other run lies on one sphere "
+            "around the center, so the squared terms cannot be told apart from the intercept."
+        )
     return n_center
+
+
+def _needs_center_run(design_type: str, alpha: str | float | None, n_factors: int) -> bool:
+    """Say whether a design's runs other than the center runs all lie on one sphere around the center.
+
+    A Box-Behnken design's always do; a CCD's do when its axial distance is the cube corners'
+    distance from the center, the square root of the number of factors, as the rotatable
+    distance is at two or four factors (the page asks for a center run at any rotatable CCD).
+    """
+    if design_type not in NEEDS_CENTER_RUN:
+        return False
+    named = NEEDS_CENTER_RUN[design_type]
+    if named is None or alpha == named:
+        return True
+    return isinstance(alpha, float) and math.isclose(alpha**2, n_factors)
 
 
 def _resolution(spec: dict, n_factors: int) -> int:
@@ -501,7 +633,7 @@ def _resolution(spec: dict, n_factors: int) -> int:
     return resolution
 
 
-def _design_facts(result: Any, names: list[str], kwargs: dict[str, Any]) -> dict[str, Any]:  # noqa: ANN401
+def _design_facts(result: Any, coded: np.ndarray, names: list[str], kwargs: dict[str, Any]) -> dict[str, Any]:  # noqa: ANN401
     """State what the generated design is, read off the design rather than its type.
 
     A fraction's resolution and generators come from the library; which main effects and
@@ -509,7 +641,6 @@ def _design_facts(result: Any, names: list[str], kwargs: dict[str, Any]) -> dict
     every design type and every naming of the factors. ``notes`` are the sentences the
     page shows.
     """
-    coded = result.design[names].to_numpy(dtype=float)
     groups = _aliased_groups(coded, names)
     notes = []
     if result.resolution:
@@ -517,12 +648,26 @@ def _design_facts(result: Any, names: list[str], kwargs: dict[str, Any]) -> dict
         label = "generator" if len(generators) == 1 else "generators"
         notes.append(f"Resolution {ROMAN.get(result.resolution, result.resolution)}, {label} {', '.join(generators)}.")
     notes.append(_aliasing_sentence(groups))
+    replicates = kwargs.get("n_replicates", 1)
+    if replicates > 1:
+        notes.append(
+            f"Each run other than the center runs appears {replicates} times, so the repeats estimate the pure error."
+        )
+    if BLOCK in result.design_actual.columns:
+        sizes = result.design_actual[BLOCK].value_counts().sort_index().tolist()
+        blocking = (result.metadata or {}).get("blocking", {})
+        words = [_factor_word(w, names) for w in blocking.get("confounded_with") or []]
+        # A word confounded with the blocks takes its aliases with it (in a 2^(4-1), C·D goes with A·B).
+        confounded = list(dict.fromkeys(t for w in words for t in next((g for g in groups if w in g), [w])))
+        notes.append(_blocking_sentence(sizes, confounded))
     asked = kwargs.get("budget")
-    if asked and len(coded) > asked:
+    if asked and len(coded) > asked * replicates:
         model = kwargs["model_type"]
+        made = len(coded) // replicates
         notes.append(
             f"You asked for {asked} runs; the {model.replace('_', ' ')} model in {len(names)} factors has "
-            f"{_n_terms(len(names), model)} coefficients, so the design has {len(coded)} runs."
+            f"{_n_terms(len(names), model)} coefficients, so the design has {made} runs"
+            f"{' before it is replicated' if replicates > 1 else ''}."
         )
     return {
         "resolution": result.resolution,
@@ -575,26 +720,46 @@ def _aliasing_sentence(groups: list[list[str]]) -> str:
 
 
 def _spaced(word: str, names: list[str]) -> str:
-    """Write a generator or defining word with its factors apart: ``D=ABC`` as ``D = A·B·C``.
+    """Write a generator or defining word with its factors apart: ``D=ABC`` as ``D = A·B·C``."""
+    left, _, right = (side.strip() for side in word.partition("="))
+    return f"{left if left == 'I' else _factor_word(left, names)} = {_factor_word(right, names)}"
+
+
+def _factor_word(part: str, names: list[str]) -> str:
+    """Write a word of factors with the factors apart: ``ABC`` as ``A·B·C``, and ``-AB`` as ``-A·B``.
 
     The library writes the factors of a word side by side, which is ambiguous to read
     when the names are longer than a letter. A word that does not split into the factor
     names is left as the library wrote it.
     """
     pattern = re.compile("|".join(re.escape(n) for n in sorted(names, key=len, reverse=True)))
+    sign, body = ("-", part[1:]) if part.startswith("-") else ("", part.lstrip("+"))
+    found = pattern.findall(body)
+    return sign + "·".join(found) if found and "".join(found) == body else part
 
-    def split(part: str) -> str:
-        sign, body = ("-", part[1:]) if part.startswith("-") else ("", part.lstrip("+"))
-        found = pattern.findall(body)
-        return sign + "·".join(found) if found and "".join(found) == body else part
 
-    left, _, right = (side.strip() for side in word.partition("="))
-    return f"{left if left == 'I' else split(left)} = {split(right)}"
+def _listed(items: list[str]) -> str:
+    """Join items as a sentence does: ``A``, ``A and B``, ``A, B and C``."""
+    return f"{', '.join(items[:-1])} and {items[-1]}" if len(items) > 1 else "".join(items)
+
+
+def _blocking_sentence(sizes: list[int], confounded: list[str]) -> str:
+    """Say how the runs are split into blocks, and which effects the split confounds with them."""
+    of = f"{sizes[0]} runs each" if len(set(sizes)) == 1 else f"{_listed([str(n) for n in sizes])} runs"
+    text = (
+        f"The runs are made in {len(sizes)} blocks of {of}, one block after another, as the {BLOCK} column says; "
+        "the analysis fits the blocks, so a shift between them does not inflate the error."
+    )
+    if confounded:
+        verb, pronoun = ("is", "it") if len(confounded) == 1 else ("are", "them")
+        text += f" {_listed(confounded)} {verb} confounded with the blocks, so the analysis leaves {pronoun} out."
+    return text
 
 
 def _outside_range(runs: pd.DataFrame, factors: list[Factor]) -> list[str]:
-    """Factors with runs beyond the ranges entered (CCD axial points can be)."""
-    return [f.name for f in factors if runs[f.name].min() < f.low - 1e-9 or runs[f.name].max() > f.high + 1e-9]
+    """Factors with runs beyond the ranges entered (CCD axial points can be); a category has no range."""
+    numeric = [f for f in factors if f.type != "categorical"]
+    return [f.name for f in numeric if runs[f.name].min() < f.low - 1e-9 or runs[f.name].max() > f.high + 1e-9]
 
 
 def _to_workbook(runs: pd.DataFrame, spec: dict) -> str:
@@ -629,8 +794,9 @@ def analyze(request: dict) -> dict:
     Rows with an empty response are left out and reported, so a partly filled
     workbook can be analysed as the runs come in.
     """
-    runs, spec = _read_workbook(base64.b64decode(request["xlsx_base64"]))
-    return _analysis(runs, spec, request.get("model") or spec.get("model", "interactions"))
+    runs, stored = _read_workbook(base64.b64decode(request["xlsx_base64"]))
+    spec = _checked_spec(stored)  # a workbook can arrive from anywhere: its specification is checked as data
+    return _analysis(runs, spec, request.get("model") or spec.get("analysis_model") or spec["model"])
 
 
 def _analysis(runs: pd.DataFrame, spec: dict, model: str, truth: list[dict] | None = None) -> dict:
@@ -639,12 +805,13 @@ def _analysis(runs: pd.DataFrame, spec: dict, model: str, truth: list[dict] | No
     With the true process the results were simulated from, each coefficient also
     carries the true value of what it estimates (see :func:`_add_true_values`).
     """
-    if model not in MODELS:
-        raise ValueError(f"Model must be one of {', '.join(MODELS)}.")
     response = spec["response"]
     factors = spec["factors"]
     names = [f["name"] for f in factors]
-    missing_cols = [c for c in [*names, response] if c not in runs.columns]
+    categorical = _categorical_names(spec)
+    model = _checked_model(model, names, categorical)
+    blocked = _blocked(spec)
+    missing_cols = [c for c in [*names, *([BLOCK] if blocked else []), response] if c not in runs.columns]
     if missing_cols:
         raise ValueError(f"The Runs sheet is missing column(s): {', '.join(missing_cols)}.")
 
@@ -652,19 +819,17 @@ def _analysis(runs: pd.DataFrame, spec: dict, model: str, truth: list[dict] | No
     done = y.notna()
     pending = runs.loc[~done, "Run order"].astype(int).tolist() if "Run order" in runs else []
 
-    coded = pd.DataFrame(
-        {f["name"]: (runs[f["name"]] - (f["high"] + f["low"]) / 2) / ((f["high"] - f["low"]) / 2) for f in factors}
-    )[done].reset_index(drop=True)
+    coded = _design_frame(runs, spec)[done].reset_index(drop=True)
     n_terms = _n_terms(len(names), model)
     if pending and done.sum() < n_terms:
         complete = int(done.sum())
         raise ValueError(
-            f"The {model.replace('_', ' ')} model has {n_terms} coefficients, so it needs at least {n_terms} "
+            f"The {_model_name(model)} model has {n_terms} coefficients, so it needs at least {n_terms} "
             f"completed runs, and {complete} {'is' if complete == 1 else 'are'} complete. "
             f"Still to run: {', '.join(map(str, pending))}."
         )
 
-    fit = _fit_estimable(coded, y[done].reset_index(drop=True).rename(response), model, names)
+    fit = _fit_estimable(coded, y[done].reset_index(drop=True).rename(response), model, names, categorical)
     out = fit["out"]
     zero = ROUND_OFF * float(y[done].abs().max())
     coefficients = [
@@ -673,6 +838,7 @@ def _analysis(runs: pd.DataFrame, spec: dict, model: str, truth: list[dict] | No
             "coefficient": _snapped(c["coefficient"], zero),
             "label": fit["labels"].get(c["term"], _pretty(c["term"])),
             "aliases": fit["chains"].get(c["term"], []),
+            "block": _block_contrast(c["term"], names),
         }
         for c in out.get("coefficients", [])
     ]
@@ -684,7 +850,8 @@ def _analysis(runs: pd.DataFrame, spec: dict, model: str, truth: list[dict] | No
     anova = [{**a, "source": fit["labels"].get(a["source"], _pretty(a["source"]))} for a in out.get("anova_table", [])]
     return {
         "spec": spec,
-        "model": model,
+        "model": model if isinstance(model, str) else CHOSEN,
+        "formula": fit["formula"],  # what was fitted: the model, less what the design cannot estimate
         "n_completed": int(done.sum()),
         "pending_runs": pending,
         "summary": out["model_summary"],
@@ -694,7 +861,7 @@ def _analysis(runs: pd.DataFrame, spec: dict, model: str, truth: list[dict] | No
         "lenth": lenth,
         "not_estimable": [_pretty(t) for t in fit["not_estimable"]],
         "notes": fit["notes"],
-        "equation": _equation(response, coefficients),
+        "equation": _equation(response, [c for c in coefficients if not c["block"]]),
     }
 
 
@@ -708,7 +875,9 @@ def _snapped(value: float | None, zero: float) -> float | None:
 ANALYSES = ["anova", "coefficients", "lack_of_fit", "effects"]
 
 
-def _fit_estimable(coded: pd.DataFrame, y: pd.Series, model: str, names: list[str]) -> dict[str, Any]:
+def _fit_estimable(
+    coded: pd.DataFrame, y: pd.Series, model: str | list[str], names: list[str], categorical: tuple[str, ...] = ()
+) -> dict[str, Any]:
     """Fit the model, estimating each group of terms the design cannot tell apart once.
 
     A pseudo-inverse fit of exactly aliased terms spreads their joint estimate evenly
@@ -718,13 +887,18 @@ def _fit_estimable(coded: pd.DataFrame, y: pd.Series, model: str, names: list[st
     term per chain, the chain's leader, labelled with the whole chain. A design that
     still cannot fit the model is refused. With no runs to spare for the error, the
     effects of an orthogonal two-level design are judged with Lenth's method.
+
+    The runs of a blocked design carry their ``Block``, and the blocks are fitted as a
+    fixed effect. A term the design confounds with them is left out, with a note: its
+    effect cannot be told apart from the differences between blocks.
     """
+    blocked = BLOCK in coded.columns and len(set(coded[BLOCK])) > 1
+    formula, early = _first_formula(coded, model, names, categorical, blocked=blocked)
     with _listening() as heard:
-        out = analyze_experiment(coded, y, model=model, analysis_type=ANALYSES)
+        out = analyze_experiment(coded, y, model=formula, analysis_type=ANALYSES)
     chains: dict[str, list[str]] = {}
     labels: dict[str, str] = {}
     not_estimable: list[str] = []
-    formula = model
     if out["model_summary"]["rank_deficient"]:
         # Keyed by the chain's leader, the term kept for it; the library's label keeps each member's sign.
         for label, members in (out.get("alias_chains") or {}).items():
@@ -732,43 +906,31 @@ def _fit_estimable(coded: pd.DataFrame, y: pd.Series, model: str, names: list[st
             labels[members[0]] = _pretty(label)
         not_estimable = list(out.get("confounded_with_mean") or [])
         dropped = set(not_estimable) | {m for members in chains.values() for m in members[1:]}
-        kept = [c["term"] for c in out["coefficients"] if c["term"] != "Intercept" and c["term"] not in dropped]
+        kept = [term for term in _fitted_terms(out, names) if term not in dropped]
         if dropped and kept:
-            formula = " + ".join(_checked_term(term, names) for term in kept)
+            formula = _formula(kept, names, blocked=blocked)
             out = analyze_experiment(coded, y, model=formula, analysis_type=ANALYSES)
     else:
         _relay(heard)
     summary = out["model_summary"]
     if summary["rank_deficient"]:
         raise ValueError(
-            f"This design cannot fit the {model.replace('_', ' ')} model: only {summary['model_rank']} of its "
+            f"This design cannot fit the {_model_name(model)} model: only {summary['model_rank']} of its "
             f"{summary['n_terms']} coefficients can be estimated from these {summary['n_obs']} runs. Choose a "
             "smaller model."
         )
-    notes = _analysis_notes(list(labels.values()), not_estimable)
+    notes = [*early, *_analysis_notes(list(labels.values()), not_estimable)]
+    if blocked:
+        notes.append(
+            "The blocks are fitted as a fixed effect, so a shift between blocks is not counted as error: each "
+            "Block coefficient is how far that block lies from the average block, and the equation is for the "
+            "average block."
+        )
+    labels.update(_block_labels(out, names))
     lenth = None
     if summary["df_residual"] == 0:
-        terms = [c["term"] for c in out["coefficients"] if c["term"] != "Intercept"]
-        if _orthogonal_two_level(coded, terms):
-            lenth = analyze_experiment(coded, y, model=formula, analysis_type="lenth_method")["lenth_method"]
-            lenth["effects"] = [{**e, "label": labels.get(e["term"], _pretty(e["term"]))} for e in lenth["effects"]]
-            notes.append(
-                "The model uses every run, so no degrees of freedom are left to estimate the error. Each effect, "
-                "twice its coefficient (the change from the factor's low level to its high level), is judged with "
-                f"Lenth's method instead: it is likely real beyond the margin of error ME = "
-                f"{lenth['ME']:.4g}, and still so, allowing for the number of effects tested, beyond SME = "
-                f"{lenth['SME']:.4g}."
-            )
-            if len(lenth["effects"]) < LENTH_FEW_EFFECTS:
-                notes.append(
-                    f"With only {len(lenth['effects'])} effects to compare, these margins are wide. Center points "
-                    "or more runs leave degrees of freedom for an ordinary test."
-                )
-        else:
-            notes.append(
-                "The model uses every run, so no degrees of freedom are left to estimate the error and nothing can "
-                "be tested. Add runs, or fit fewer terms."
-            )
+        lenth, said = _saturated(coded, y, formula, _fitted_terms(out, names), labels, names)
+        notes += said
     return {
         "out": out,
         "formula": formula,
@@ -778,6 +940,187 @@ def _fit_estimable(coded: pd.DataFrame, y: pd.Series, model: str, names: list[st
         "lenth": lenth,
         "notes": notes,
     }
+
+
+def _first_formula(
+    coded: pd.DataFrame, model: str | list[str], names: list[str], categorical: tuple[str, ...], *, blocked: bool
+) -> tuple[str, list[str]]:
+    """Return the model to fit first, and a note for each term it leaves out before fitting.
+
+    An interaction that is zero in every run cannot be estimated at all, and in a blocked
+    design one that takes one value in each block is confounded with the blocks; both are
+    left out. A named model the design can fit as it is goes to the library by name, which
+    fits any blocks itself; the quadratic model has no square of a categorical factor.
+    """
+    terms = _model_terms(model, names, categorical)
+    early: list[str] = []
+    if inert := [t for t in terms if not t.startswith("I(") and np.allclose(coded[t.split(":")].prod(axis=1), 0)]:
+        early.append(_inert_sentence(inert))
+        terms = [t for t in terms if t not in inert]
+    if blocked and (confounded := _confounded_with_blocks(coded, terms, categorical)):
+        early.append(_confounded_sentence(confounded))
+        terms = [t for t in terms if t not in confounded]
+    if not terms and not blocked:
+        raise ValueError("None of the model's terms can be estimated from this design.")
+    whole = isinstance(model, str) and terms == _model_terms(model, names)
+    return (model if whole else _formula(terms, names, blocked=blocked)), early
+
+
+def _saturated(  # noqa: PLR0913 - the fit, and how the page names its terms
+    coded: pd.DataFrame, y: pd.Series, formula: str, terms: list[str], labels: dict[str, str], names: list[str]
+) -> tuple[dict | None, list[str]]:
+    """Judge the effects of a fit with no runs to spare: by Lenth's method if the design allows, else say why not."""
+    if not _orthogonal_two_level(coded[names], terms):
+        return None, [
+            (
+                "The model uses every run, so no degrees of freedom are left to estimate the error and nothing can "
+                "be tested. Add runs, or fit fewer terms."
+            )
+        ]
+    lenth = analyze_experiment(coded, y, model=formula, analysis_type="lenth_method")["lenth_method"]
+    lenth["effects"] = [{**e, "label": labels.get(e["term"], _pretty(e["term"]))} for e in lenth["effects"]]
+    notes = [
+        (
+            "The model uses every run, so no degrees of freedom are left to estimate the error. Each effect, "
+            "twice its coefficient (the change from the factor's low level to its high level), is judged with "
+            f"Lenth's method instead: it is likely real beyond the margin of error ME = "
+            f"{lenth['ME']:.4g}, and still so, allowing for the number of effects tested, beyond SME = "
+            f"{lenth['SME']:.4g}."
+        )
+    ]
+    if len(lenth["effects"]) < LENTH_FEW_EFFECTS:
+        notes.append(
+            f"With only {len(lenth['effects'])} effects to compare, these margins are wide. Center points "
+            "or more runs leave degrees of freedom for an ordinary test."
+        )
+    return lenth, notes
+
+
+def _checked_model(model: object, names: list[str], categorical: tuple[str, ...] = ()) -> str | list[str]:
+    """Read the model to fit: the name of one in :data:`MODELS`, or ``{"terms": [...]}``, the terms a reader chose."""
+    if isinstance(model, dict) and set(model) == {"terms"}:
+        return _chosen_terms(model["terms"], names, categorical)
+    if model not in MODELS:
+        raise ValueError(f"Model must be one of {', '.join(MODELS)}.")
+    return str(model)
+
+
+def _chosen_terms(chosen: object, names: list[str], categorical: tuple[str, ...] = ()) -> list[str]:
+    """Read the terms a reader chose, and name them as ``analyze_experiment`` does.
+
+    Each term is a list of factor names: one name is the factor's main effect, two or three
+    different names their interaction, and one name twice its square. A model of chosen terms
+    reaches the library as a formula, which is evaluated as Python, so the formula is written
+    here from these names, each checked against the design's factors, and never read in.
+    """
+    if not isinstance(chosen, list) or not chosen:
+        raise ValueError("Choose at least one term for the model.")
+    terms = []
+    for term in chosen:
+        if not isinstance(term, list) or not term or not all(isinstance(n, str) and n in names for n in term):
+            raise ValueError(f"A model term can name only the design's factors, {_listed(names)}, not {term!r}.")
+        if len(term) == 2 and term[0] == term[1]:  # a factor named twice is its square
+            if term[0] in categorical:
+                raise ValueError(f"{term[0]} is categorical, so it has no square: it is +1 at both its levels.")
+            terms.append(f"I({term[0]} ** 2)")
+        elif len(term) <= MAX_ORDER and len(set(term)) == len(term):
+            terms.append(":".join(sorted(term, key=names.index)))
+        else:
+            raise ValueError(
+                "A model term is a factor, an interaction of two or three different factors, or a factor squared."
+            )
+    return list(dict.fromkeys(terms))
+
+
+def _model_name(model: str | list[str]) -> str:
+    """Name a model in a sentence: ``main effects``, ``quadratic``, or ``chosen`` for terms a reader chose."""
+    return model.replace("_", " ") if isinstance(model, str) else CHOSEN
+
+
+def _model_terms(model: str | list[str], names: list[str], categorical: tuple[str, ...] = ()) -> list[str]:
+    """List a model's terms as ``analyze_experiment`` names them: a named model's, or the ones chosen.
+
+    A categorical factor has no square: it is +1 at both its levels, so the quadratic model leaves it out.
+    """
+    if not isinstance(model, str):
+        return list(model)
+    terms = list(names)
+    if model in ("interactions", "quadratic"):
+        terms += [":".join(pair) for pair in itertools.combinations(names, 2)]
+    if model == "quadratic":
+        terms += [f"I({name} ** 2)" for name in names if name not in categorical]
+    return terms
+
+
+def _fitted_terms(out: dict[str, Any], names: list[str]) -> list[str]:
+    """List the model terms a fit estimated: its coefficients, less the intercept and any block contrasts."""
+    terms = [c["term"] for c in out["coefficients"] if c["term"] != "Intercept"]
+    return [term for term in terms if not _block_contrast(term, names)]
+
+
+def _formula(terms: list[str], names: list[str], *, blocked: bool) -> str:
+    """Write a model of these terms as a formula, each checked first; a blocked design's blocks come first."""
+    return " + ".join([*([BLOCK] if blocked else []), *(_checked_term(term, names) for term in terms)])
+
+
+def _block_contrast(term: str, names: list[str]) -> bool:
+    """Say whether a fitted term is one of the library's block contrasts: ``Block1``, ``Block2``, ..."""
+    return term not in names and re.fullmatch(rf"{BLOCK}\d+_*", term) is not None
+
+
+def _block_labels(out: dict[str, Any], names: list[str]) -> dict[str, str]:
+    """Name each block contrast as the page shows it: ``Block1`` as ``Block 1``."""
+    contrasts = [c["term"] for c in out["coefficients"] if _block_contrast(c["term"], names)]
+    return {term: f"{BLOCK} {term[len(BLOCK) :].rstrip('_')}" for term in contrasts}
+
+
+def _confounded_with_blocks(coded: pd.DataFrame, terms: list[str], categorical: tuple[str, ...] = ()) -> list[str]:
+    """List the main effects and interactions that a blocked design confounds with its blocks.
+
+    A blocked two-level factorial puts each block's runs at one level of the interactions it
+    confounds, so their effects cannot be told apart from the differences between blocks. Such
+    a term takes one value within every block, away from the center runs, which a block may
+    hold at zero. A square is not confounded this way; what it shares with the intercept, the
+    fit reports.
+    """
+    numeric = [c for c in coded.columns if c != BLOCK and c not in categorical]  # a center run's category is +-1
+    away = coded[(coded[numeric].abs() > ALIAS_TOLERANCE).any(axis=1)] if numeric else coded
+    confounded = []
+    for term in terms:
+        if term.startswith("I("):
+            continue
+        column = away[term.split(":")].prod(axis=1)
+        spread = column.groupby(away[BLOCK].to_numpy()).agg(lambda v: v.max() - v.min())
+        if spread.max() < ALIAS_TOLERANCE < column.max() - column.min():
+            confounded.append(term)
+    return confounded
+
+
+def _inert_sentence(terms: list[str]) -> str:
+    """Say which interactions are zero in every run, so the design cannot estimate them."""
+    if len(terms) == 1:
+        return (
+            f"{_pretty(terms[0])} cannot be estimated: it is zero in every run, since no run sets all its factors "
+            "away from their centers at once, and the model leaves it out."
+        )
+    return (
+        f"{_listed([_pretty(t) for t in terms])} cannot be estimated: each is zero in every run, since no run "
+        "sets all its factors away from their centers at once, and the model leaves them out."
+    )
+
+
+def _confounded_sentence(terms: list[str]) -> str:
+    """Say which terms the blocks absorb, and that the model leaves them out."""
+    if len(terms) == 1:
+        return (
+            f"{_pretty(terms[0])} is confounded with the blocks: it takes one value in each block, so its effect "
+            "cannot be told apart from the differences between blocks, and the model leaves it out."
+        )
+    return (
+        f"{_listed([_pretty(t) for t in terms])} are confounded with the blocks: each takes one value in each "
+        "block, so their effects cannot be told apart from the differences between blocks, and the model leaves "
+        "them out."
+    )
 
 
 #: The model terms a refit may name: a factor, a product of factors, or a factor squared.
@@ -835,8 +1178,10 @@ def _analysis_notes(chain_labels: list[str], not_estimable: list[str]) -> list[s
     return notes
 
 
-def _n_terms(k: int, model: str) -> int:
-    """Count the coefficients, intercept included, in each named model."""
+def _n_terms(k: int, model: str | list[str]) -> int:
+    """Count the coefficients, intercept included, in a named model or a model of chosen terms."""
+    if not isinstance(model, str):
+        return 1 + len(model)
     interactions = k * (k - 1) // 2
     return 1 + k + {"main_effects": 0, "interactions": interactions, "quadratic": interactions + k}[model]
 
@@ -860,24 +1205,34 @@ def _checked_spec(spec: dict) -> dict[str, Any]:
     """Check a design specification sent back by the page, as ``make_design`` stored it.
 
     The specification travels through the page, and a workbook can carry one in, so it
-    is checked as data: the design type and model must be ones the page offers, and the
-    factor and response names must be variable names.
+    is checked as data: the design type and model must be ones the page offers, the
+    factor and response names must be variable names, and the blocks a whole number.
     """
     if not isinstance(spec, dict) or spec.get("design_type") not in DESIGNS:
         raise ValueError("The page sent a design this page did not make.")
     factors = _factors(spec)
-    response = str(spec.get("response") or "")
-    if not response.isidentifier() or response in {f.name for f in factors}:
-        raise ValueError("The response name must be a variable name different from every factor.")
+    response = _response_name(str(spec.get("response") or ""), factors)
     model = spec.get("model") or DESIGNS[spec["design_type"]]["model"]
     if model not in MODELS:
         raise ValueError(f"Model must be one of {', '.join(MODELS)}.")
+    options = spec.get("options") or {}
+    if not isinstance(options, dict):
+        raise ValueError("The page sent a design this page did not make.")  # noqa: TRY004 - a refusal, like the rest
+    if "analysis_model" in spec:  # the model the reader last analysed with, which a workbook keeps
+        labelled = tuple(f.name for f in factors if f.type == "categorical")
+        _checked_model(spec["analysis_model"], [f.name for f in factors], labelled)
     return {
         **spec,
-        "factors": [{"name": f.name, "low": f.low, "high": f.high, "units": f.units} for f in factors],
+        "factors": [_factor_spec(f) for f in factors],
         "response": response,
         "model": model,
+        "options": {**options, **({"n_blocks": blocks} if (blocks := _blocks(options)) > 1 else {})},
     }
+
+
+def _blocked(spec: dict) -> bool:
+    """Say whether a checked specification's runs are made in blocks, so its run sheet has a Block column."""
+    return spec.get("options", {}).get("n_blocks", 1) > 1
 
 
 def _runs_frame(request: dict, spec: dict) -> pd.DataFrame:
@@ -889,7 +1244,8 @@ def _runs_frame(request: dict, spec: dict) -> pd.DataFrame:
     if missing or not rows:
         raise ValueError(f"The run sheet is missing the factor column(s) {missing}." if missing else "No runs.")
     runs = pd.DataFrame(rows, columns=columns)
-    runs[names] = runs[names].apply(pd.to_numeric, errors="raise")
+    numeric = [f["name"] for f in spec["factors"] if not _categorical(f)]  # a category's labels stay text
+    runs[numeric] = runs[numeric].apply(pd.to_numeric, errors="raise")
     responses = request.get("responses")
     if responses is not None:
         if len(responses) != len(runs):
@@ -899,10 +1255,28 @@ def _runs_frame(request: dict, spec: dict) -> pd.DataFrame:
 
 
 def _coded(runs: pd.DataFrame, factors: list[dict]) -> pd.DataFrame:
-    """Code each factor's settings to -1 at its low value and +1 at its high value."""
-    return pd.DataFrame(
-        {f["name"]: (runs[f["name"]] - (f["high"] + f["low"]) / 2) / ((f["high"] - f["low"]) / 2) for f in factors}
-    )
+    """Code each factor's settings to -1 at its low value and +1 at its high value, a category's labels too."""
+    return pd.DataFrame({f["name"]: _coded_column(runs[f["name"]], f) for f in factors})
+
+
+def _coded_column(column: pd.Series, factor: dict) -> pd.Series:
+    """Code one factor's settings; a categorical factor's runs must each be at one of its two labels."""
+    if not _categorical(factor):
+        return (column - (factor["high"] + factor["low"]) / 2) / ((factor["high"] - factor["low"]) / 2)
+    codes = column.astype(str).str.strip().map({factor["low"]: -1.0, factor["high"]: 1.0})
+    if codes.isna().any():
+        other = column[codes.isna()].iloc[0]
+        levels = f"{factor['low']} or {factor['high']}"
+        raise ValueError(f"Factor {factor['name']}: each run must be at {levels}, not {other!r}.")
+    return codes
+
+
+def _design_frame(runs: pd.DataFrame, spec: dict) -> pd.DataFrame:
+    """Return the runs as the analysis fits them: the coded settings, and each run's block if it has one."""
+    frame = _coded(runs, spec["factors"])
+    if _blocked(spec):
+        frame[BLOCK] = runs[BLOCK].to_numpy()
+    return frame
 
 
 def _term_name(term: tuple[int, ...], names: list[str]) -> str:
@@ -928,15 +1302,21 @@ def _random_terms(k: int, rng: np.random.Generator) -> dict[tuple[int, ...], flo
     return terms
 
 
-def _scenario_process(key: str, names: list[str], request: dict) -> TrueProcess:
-    """Return the scenario's process over the reader's factors, with the noise the reader chose."""
+def _scenario_process(key: str, names: list[str], request: dict, categorical: tuple[str, ...] = ()) -> TrueProcess:
+    """Return the scenario's process over the reader's factors, with the noise the reader chose.
+
+    A term over a factor the reader does not have is left out, and so is the square of a categorical
+    factor, which takes one value, +1, at both of its levels.
+    """
     if key not in SCENARIOS:
         raise ValueError(f"Unknown process {key!r}.")
     scenario = SCENARIOS[key]
     terms = scenario["terms"]
     if terms is None:
         terms = _random_terms(len(names), np.random.default_rng(int(request.get("seed", 1))))
-    coefficients = {_term_name(t, names): c for t, c in terms.items() if all(i < len(names) for i in t)}
+    kept = {t: c for t, c in terms.items() if all(i < len(names) for i in t)}
+    squares = {t for t in kept if len(t) == 2 and t[0] == t[1] and names[t[0]] in categorical}
+    coefficients = {_term_name(t, names): c for t, c in kept.items() if t not in squares}
     # A noise of 0 is refused, not read as "not given": the reader would see results with noise they did not ask for.
     sigma = scenario["sigma"] if request.get("sigma") is None else _number(request["sigma"])
     if sigma is None or sigma <= 0:
@@ -959,7 +1339,7 @@ def simulate(request: dict) -> dict:
     runs = _runs_frame(request, spec)
     names = [f["name"] for f in spec["factors"]]
     key = str(request.get("scenario") or "reactor")
-    process = _scenario_process(key, names, request)
+    process = _scenario_process(key, names, request, _categorical_names(spec))
     seed = int(request.get("seed", 1))
     values = process.simulate(_coded(runs, spec["factors"]), random_state=seed)
     decimals = max(0, 2 - math.floor(math.log10(process.sigma)))
@@ -1047,9 +1427,14 @@ def workbook(request: dict) -> dict:
     """Write the page's runs and responses to a workbook the page can analyse again.
 
     Simulated responses are marked, in the ``MARKS`` column and in the stored
-    specification, so the workbook says which values were measured.
+    specification, so the workbook says which values were measured. The model the reader
+    analyses with, ``model``, is kept as the specification's ``analysis_model``, so the
+    workbook is analysed the same way when it comes back.
     """
     spec = _checked_spec(request.get("spec") or {})
+    if request.get("model"):
+        _checked_model(request["model"], [f["name"] for f in spec["factors"]], _categorical_names(spec))
+        spec = {**spec, "analysis_model": request["model"]}
     runs = _runs_frame(request, spec)
     sources = request.get("sources")
     if sources and any(sources):
@@ -1083,18 +1468,17 @@ def plots(request: dict) -> dict:
     from process_improve.experiments.visualization.plots import create_plot  # noqa: PLC0415
 
     spec = _checked_spec(request.get("spec") or {})
-    model = request.get("model") or spec["model"]
-    if model not in MODELS:
-        raise ValueError(f"Model must be one of {', '.join(MODELS)}.")
-    runs = _runs_frame(request, spec)
     names = [f["name"] for f in spec["factors"]]
+    categorical = _categorical_names(spec)
+    model = _checked_model(request.get("model") or spec["model"], names, categorical)
+    runs = _runs_frame(request, spec)
     response = spec["response"]
     y = pd.to_numeric(runs[response], errors="coerce")
     done = y.notna().to_numpy()
-    coded = _coded(runs, spec["factors"])[done].reset_index(drop=True)
+    coded = _design_frame(runs, spec)[done].reset_index(drop=True)
     y = y[done].reset_index(drop=True).rename(response)
     with _listening():
-        fit = _fit_estimable(coded, y, model, names)
+        fit = _fit_estimable(coded, y, model, names, categorical)
         out = analyze_experiment(coded, y, model=fit["formula"], analysis_type=["coefficients", "residual_diagnostics"])
     rows = coded.assign(**{response: y}).to_dict("records")
     pair = _contour_pair(out["coefficients"], names)
@@ -1178,8 +1562,9 @@ def compare_plan(request: dict) -> dict:
     candidates = [str(request.get("response") or "").strip(), "y", *(f"y{i}" for i in range(1, k + 1))]
     response = next(name for name in candidates if name.isidentifier() and name not in names)
     plan = []
+    labelled = any(f.type == "categorical" for f in factors)
     for design_type, info in DESIGNS.items():
-        if not info["min_factors"] <= k <= info["max_factors"]:
+        if not info["min_factors"] <= k <= info["max_factors"] or (labelled and design_type not in CATEGORICAL_DESIGNS):
             continue
         options = dict(COMPARE_OPTIONS[design_type])
         if "model_type" in info["options"]:

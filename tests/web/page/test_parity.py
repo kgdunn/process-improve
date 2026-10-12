@@ -10,6 +10,8 @@ from __future__ import annotations
 
 import re
 
+import pytest
+
 from tests.web._support import ENTRY_POINT, FACTORS, javascript, page, source
 
 
@@ -84,10 +86,24 @@ def test_every_setting_a_design_takes_has_one_control(bootstrap):
     assert sorted(page().data_options) == sorted(named)
 
 
-def test_the_axial_choices_are_bootstrap_s(api, bootstrap):
-    assert page().values("alpha") == list(bootstrap.ALPHAS)
+def test_the_axial_choices_are_bootstrap_s(api, bootstrap, node):
+    """The named distances are bootstrap's, then the choice that sends the number typed beside it."""
+    (typed,) = javascript(node, source("logic.js"), [("AXIAL_DISTANCE", [])])
+    assert page().values("alpha") == [*bootstrap.ALPHAS, typed]
     made = api.ok("api_make_design", {"design_type": "ccd", "factors": bootstrap.DEMO["design"]["factors"]})
     assert page().selected("alpha") == made["spec"]["options"]["alpha"], "the page opens on bootstrap's default"
+    asked = javascript(node, source("logic.js"), [("axialDistance", [typed, " 1.4 "]), ("axialDistance", [typed, ""])])
+    assert asked == [1.4, None], "a typed distance is sent as a number, and a blank box as null for Python to refuse"
+
+
+@pytest.mark.parametrize(("box", "most"), [("n_replicates", "MAX_REPLICATES"), ("n_blocks", "MAX_BLOCKS")])
+def test_the_replicates_and_blocks_boxes_take_what_bootstrap_takes(api, bootstrap, box, most):
+    shown = page().ids[box]
+    assert (int(shown["min"]), int(shown["max"])) == (1, getattr(bootstrap, most))
+    assert int(shown["value"]) == 1, "a design is made once, in one block, unless the reader asks for more"
+    factors = [{"name": n, "low": -1, "high": 1} for n in "ABCDEF"]  # 64 runs, enough for eight blocks
+    for n in (1, getattr(bootstrap, most)):
+        api.ok("api_make_design", {"design_type": "full_factorial", "factors": factors, box: n})
 
 
 def test_the_resolutions_are_bootstrap_s(bootstrap):
@@ -101,9 +117,42 @@ def test_the_models_to_design_for_are_bootstrap_s(api, bootstrap):
     assert page().selected("model_type") == made["spec"]["options"]["model_type"]
 
 
-def test_the_models_to_analyse_with_are_bootstrap_s_after_as_designed(bootstrap):
-    assert page().values("model") == ["", *bootstrap.MODELS]
+def test_the_models_to_analyse_with_are_bootstrap_s_after_as_designed(bootstrap, node):
+    (chosen,) = javascript(node, source("logic.js"), [("CHOSEN_TERMS", [])])
+    assert page().values("model") == ["", *bootstrap.MODELS, chosen], "then the terms the reader ticks"
     assert page().selected("model") == bootstrap.DEMO["model"] == ""
+
+
+@pytest.mark.parametrize("categorical", [(), ("S",)], ids=["numeric factors", "a categorical factor"])
+def test_the_terms_to_tick_are_the_terms_bootstrap_fits(bootstrap, node, categorical):
+    """Each term the page lists is one bootstrap reads, labelled as its fit labels it; a named model's are its own."""
+    factors = [
+        {"name": n, **({"low": "A", "high": "B"} if n in categorical else {"low": -1, "high": 1})}
+        for n in ["T", "P", "S", "pH"]
+    ]
+    names = [f["name"] for f in factors]
+    listed, *named = javascript(
+        node,
+        source("logic.js"),
+        [("candidateTerms", [factors]), *[("namedModelTerms", [model, factors]) for model in bootstrap.MODELS]],
+    )
+    fitted = bootstrap._chosen_terms([t["term"] for t in listed], names, categorical)
+    assert len(fitted) == len(listed) == 4 + 6 + 4 + 4 - len(categorical), "no square of a categorical factor"
+    assert [t["label"] for t in listed] == [bootstrap._pretty(term) for term in fitted]
+    for model, terms in zip(bootstrap.MODELS, named, strict=True):
+        found = bootstrap._chosen_terms(terms, names, categorical)
+        assert found == bootstrap._model_terms(model, names, categorical), model
+
+
+def test_the_designs_that_take_a_categorical_factor_are_bootstrap_s(bootstrap, node):
+    assert javascript(node, source("logic.js"), [("CATEGORICAL_DESIGNS", [])]) == [list(bootstrap.CATEGORICAL_DESIGNS)]
+
+
+def test_the_page_reads_a_label_where_bootstrap_does(bootstrap, node):
+    """What the reader types as a level is a label to the page exactly when it is one to Python."""
+    typed = ["A", " old ", "Supplier 2", "150", "-1.5", "1e3", "", " ", "inf", "-Infinity", "nan", "NaN"]
+    asked = javascript(node, source("logic.js"), [("isLabel", [text]) for text in typed])
+    assert asked == [bootstrap._label(text) is not None for text in typed]
 
 
 def test_the_models_to_compare_on_are_the_comparison_s(api, bootstrap):
@@ -151,16 +200,15 @@ def test_the_page_opens_a_fraction_at_bootstrap_s_resolution(bootstrap, node):
 
 
 def test_the_page_asks_for_a_center_run_where_bootstrap_needs_one(bootstrap, node):
-    """Box-Behnken designs and rotatable CCDs need a center run; a DSD counts its own, so the page asks for one too."""
-    cases = [(design, alpha) for design in bootstrap.DESIGNS for alpha in bootstrap.ALPHAS]
-    asked = javascript(node, source("logic.js"), [("needsCentre", [design, alpha]) for design, alpha in cases])
-
-    def needed(design: str, alpha: str) -> bool:
-        if design == "dsd":
-            return True
-        return design in bootstrap.NEEDS_CENTER_RUN and bootstrap.NEEDS_CENTER_RUN[design] in (None, alpha)
-
-    assert asked == [needed(design, alpha) for design, alpha in cases]
+    """Box-Behnken designs and rotatable CCDs need a center run, as does a CCD whose typed axial distance is the
+    corners' own; a DSD counts its own center run, so the page asks for one too.
+    """
+    alphas = [*bootstrap.ALPHAS, 1.4, 2**0.5, 3**0.5, 2.0]
+    cases = [(design, alpha, k) for design in bootstrap.DESIGNS for alpha in alphas for k in (2, 3, 4)]
+    asked = javascript(node, source("logic.js"), [("needsCentre", list(case)) for case in cases])
+    needed = [design == "dsd" or bootstrap._needs_center_run(design, alpha, k) for design, alpha, k in cases]
+    assert asked == needed
+    assert sum(needed) > len(bootstrap.DESIGNS) * 3, "the cases include typed distances that need a center run"
 
 
 # --------------------------------------------------------------------------- what the worker answers

@@ -8,9 +8,14 @@
 
 import { coefficientFigure, correlationFigure, draw, fdsFigure, prettyTerm, shareContourScale } from "./charts.js";
 import {
+  AXIAL_DISTANCE,
   CAPTIONS,
+  CATEGORICAL_DESIGNS,
+  CHOSEN_TERMS,
   SPARE_RUNS,
   TITLES,
+  axialDistance,
+  candidateTerms,
   compareCells,
   defaultResolution,
   escape,
@@ -18,10 +23,12 @@ import {
   fmt,
   formMatches,
   isBlank,
+  isCategorical,
+  levelValue,
   listNames,
   nTerms,
+  namedModelTerms,
   needsCentre,
-  numberOrNull,
   pval,
 } from "./logic.js";
 import { analyseCode, compareCode, designCode, enteredCode, simulateCode } from "./python.js";
@@ -131,8 +138,8 @@ function addFactor(f = { name: "", low: -1, high: 1, units: "" }) {
   const tr = document.createElement("tr");
   tr.innerHTML = `
     <td><input name="name" aria-label="Factor name" size="8"></td>
-    <td><input name="low" type="number" step="any" aria-label="Low"></td>
-    <td><input name="high" type="number" step="any" aria-label="High"></td>
+    <td><input name="low" aria-label="Low"></td>
+    <td><input name="high" aria-label="High"></td>
     <td><input name="units" aria-label="Units" size="6"></td>
     <td><button type="button" class="link" aria-label="Remove factor">✕</button></td>`;
   for (const key of ["name", "low", "high", "units"]) tr.querySelector(`[name=${key}]`).value = f[key] ?? "";
@@ -146,11 +153,11 @@ function addFactor(f = { name: "", low: -1, high: 1, units: "" }) {
 const factorCount = () => document.querySelectorAll("#factors tbody tr").length;
 
 function readFactors() {
-  // A blank box is sent as null, which Python reports, rather than as Number("") = 0.
+  // A blank box is sent as null, which Python reports, rather than as Number("") = 0; a label, as text.
   return [...document.querySelectorAll("#factors tbody tr")].map((tr) => ({
     name: tr.querySelector("[name=name]").value.trim(),
-    low: numberOrNull(tr.querySelector("[name=low]").value),
-    high: numberOrNull(tr.querySelector("[name=high]").value),
+    low: levelValue(tr.querySelector("[name=low]").value),
+    high: levelValue(tr.querySelector("[name=high]").value),
     units: tr.querySelector("[name=units]").value.trim(),
   }));
 }
@@ -163,7 +170,16 @@ function setForm(spec) {
   $("#response").value = spec.response || "y";
   const options = spec.options || spec;
   if (options.n_center_points !== undefined) $("#n_center_points").value = options.n_center_points;
-  if (options.alpha) $("#alpha").value = options.alpha;
+  if (typeof options.alpha === "number") {
+    $("#alpha").value = AXIAL_DISTANCE;
+    $("#alpha_value").value = options.alpha;
+  } else if (options.alpha) {
+    $("#alpha").value = options.alpha;
+  }
+  // A design made without replicates or blocks is made once, in one block: counts left from an earlier design
+  // do not carry over.
+  $("#n_replicates").value = options.n_replicates ?? 1;
+  $("#n_blocks").value = options.n_blocks ?? 1;
   if (options.model_type) $("#model_type").value = options.model_type;
   // A resolution or a number of runs other than the page's own pick is kept, as if the reader had chosen it.
   const k = spec.factors.length;
@@ -190,12 +206,16 @@ let resolutionEdited = false;
 function refreshDesign() {
   const k = factorCount();
   const select = $("#design-type");
+  const labelled = readFactors().filter(isCategorical).map((f) => f.name);
+  const numericOnly = (option) => labelled.length > 0 && !CATEGORICAL_DESIGNS.includes(option.value);
   for (const option of select.options) {
-    option.disabled = k < Number(option.dataset.minFactors) || k > Number(option.dataset.maxFactors);
+    option.disabled = k < Number(option.dataset.minFactors) || k > Number(option.dataset.maxFactors) || numericOnly(option);
   }
   const option = select.selectedOptions[0];
   const allowed = option.dataset.options.split(" ");
   for (const el of document.querySelectorAll("[data-option]")) el.hidden = !allowed.includes(el.dataset.option);
+  const alpha = axialDistance($("#alpha").value, $("#alpha_value").value);
+  $("#alpha-distance").hidden = !allowed.includes("alpha") || $("#alpha").value !== AXIAL_DISTANCE;
 
   // Resolution IV unless the reader chose another; three factors allow only III.
   const resolution = $("#resolution");
@@ -204,7 +224,7 @@ function refreshDesign() {
 
   // A Box-Behnken design or a rotatable CCD needs a center run to fit the squares; a DSD has one built in.
   const centre = $("#n_center_points");
-  const centreNeeded = needsCentre(option.value, $("#alpha").value);
+  const centreNeeded = needsCentre(option.value, alpha, k);
   centre.min = centreNeeded ? 1 : 0;
   if (centreNeeded && Number(centre.value) < 1) centre.value = 1;
 
@@ -213,7 +233,11 @@ function refreshDesign() {
   $("#budget-hint").textContent = `The model has ${p} coefficients.`;
 
   const hint = $("#design-hint");
-  if (option.disabled) {
+  if (option.disabled && numericOnly(option)) {
+    hint.textContent =
+      `${option.textContent} needs numeric factors, and ${listNames(labelled)} ${labelled.length === 1 ? "is" : "are"} ` +
+      "categorical: choose a full factorial, fractional factorial or Plackett-Burman design.";
+  } else if (option.disabled) {
     hint.textContent = `${option.textContent} takes ${option.dataset.minFactors} to ${option.dataset.maxFactors} factors on this page; you have ${k}.`;
   } else {
     hint.replaceChildren(`${option.dataset.hint} `, link(BOOK_PAGES[option.value], "More in the book"));
@@ -233,7 +257,9 @@ async function generate() {
     factors: readFactors(),
     response: $("#response").value.trim(),
     n_center_points: Number($("#n_center_points").value),
-    alpha: $("#alpha").value,
+    alpha: axialDistance($("#alpha").value, $("#alpha_value").value),
+    n_replicates: Number($("#n_replicates").value),
+    n_blocks: Number($("#n_blocks").value),
     resolution: Number($("#resolution").value),
     budget: Number($("#budget").value),
     model_type: $("#model_type").value,
@@ -260,6 +286,7 @@ function showDesign(design, warnings = []) {
   renderDesign(warnings);
   renderRuns();
   renderTruth(); // the process behind the old design's results goes with them
+  if ($("#model").value === CHOSEN_TERMS) setModel(CHOSEN_TERMS); // the terms of the new factors
   clearAnalysis();
   if (design.spec.options) showPython("design", designCode(design.spec));
   $("#py-run").hidden = true;
@@ -385,7 +412,7 @@ async function simulateResults() {
   state.sources = state.responses.map(() => "simulated");
   renderRuns();
   renderTruth();
-  showPython("run", simulateCode(reply.result));
+  showPython("run", simulateCode(reply.result, state.design.spec));
   await analyseRuns();
 }
 
@@ -403,6 +430,7 @@ async function downloadWorkbook() {
     responses: state.responses,
     sources: state.sources,
     simulated: state.sources.includes("simulated") ? state.simulation : null,
+    model: modelChoice(), // kept in the workbook, so it is analysed the same way when it comes back
   });
   if (!reply.ok) {
     setStatus(reply.error, "error");
@@ -436,6 +464,7 @@ async function readUpload(file) {
   state.responses = r.responses;
   state.sources = r.sources;
   state.simulation = null;
+  setModel(r.spec.analysis_model ?? $("#model").value);
   renderDesign(reply.warnings);
   renderRuns();
   renderTruth();
@@ -475,7 +504,7 @@ async function analyseRuns() {
   const request = {
     ...held(),
     responses: state.responses,
-    model: $("#model").value,
+    model: modelChoice(),
     truth: state.sources.includes("simulated") ? state.simulation?.truth : null,
   };
   const reply = await call("api_analyze_runs", request);
@@ -500,7 +529,7 @@ function renderAnalysis(reply) {
   const s = r.summary;
   const simulated = r.coefficients.some((c) => c.true_value !== undefined && c.true_value !== null);
   setStatus("Analysis complete.");
-  showPython("analyse", analyseCode(r.spec, r.model));
+  showPython("analyse", analyseCode(r.spec, r.formula ?? r.model)); // the terms fitted, which the design can estimate
   const parts = [
     el("p", "equation", r.equation),
     el("p", "hint", "Coefficients are in coded units: each factor runs from -1 at its low value to +1 at its high value."),
@@ -575,6 +604,56 @@ function renderAnalysis(reply) {
   out.replaceChildren(...parts);
 }
 
+// ---------------------------------------------------------------- the model's terms
+let modelBefore = ""; // the model chosen before the reader asked to tick terms: where the list starts
+
+/** The model the reader asks for: "" for the model the design was made for, a named model, or the ticked terms. */
+function modelChoice() {
+  return $("#model").value === CHOSEN_TERMS ? { terms: tickedTerms() } : $("#model").value;
+}
+
+const tickedTerms = () => [...document.querySelectorAll("#term-list input:checked")].map((box) => JSON.parse(box.value));
+
+/** List every term the design's factors allow, grouped, with `ticked` ticked. */
+function renderTermList(ticked) {
+  const chosen = new Set(ticked.map((term) => JSON.stringify(term)));
+  const groups = new Map();
+  for (const { term, label, group } of candidateTerms(state.design.spec.factors)) {
+    const box = el("input", "", "");
+    box.type = "checkbox";
+    box.value = JSON.stringify(term);
+    box.checked = chosen.has(box.value);
+    const item = el("label", "", "");
+    item.append(box, ` ${label}`);
+    if (!groups.has(group)) groups.set(group, []);
+    groups.get(group).push(item);
+  }
+  $("#term-list").replaceChildren(
+    ...[...groups].flatMap(([group, items]) => {
+      const row = el("div", "group", "");
+      row.append(...items);
+      return [el("h4", "", group), row];
+    }),
+  );
+}
+
+/** Start the list of terms from the model chosen before, or the one the design was made for. */
+function startTermList() {
+  renderTermList(namedModelTerms(modelBefore || state.design.spec.model, state.design.spec.factors));
+}
+
+/** Put a model into step 3: a named one, "" for the design's own, or {terms} to tick. */
+function setModel(model) {
+  if (model && typeof model === "object") {
+    $("#model").value = CHOSEN_TERMS;
+    renderTermList(model.terms);
+  } else {
+    $("#model").value = model;
+    if (model === CHOSEN_TERMS) startTermList();
+  }
+  $("#terms").hidden = $("#model").value !== CHOSEN_TERMS;
+}
+
 // ---------------------------------------------------------------- charts
 function chartCard(key, caption, wide = false) {
   const card = el("figure", wide ? "chart wide" : "chart", "");
@@ -646,7 +725,7 @@ async function showBuiltExample() {
   state.plotlyJs = example.plots.plotly_js;
   renderRuns();
   renderTruth();
-  showPython("run", simulateCode(example.simulation));
+  showPython("run", simulateCode(example.simulation, example.design.spec));
   state.analysis = example.analysis;
   renderAnalysis({ ok: true, result: example.analysis, warnings: [] });
   $("#demo-version").textContent = `process-improve ${example.version}`;
@@ -684,7 +763,7 @@ async function runExample() {
   setForm(example.design);
   $("#scenario").value = example.scenario;
   $("#sigma").value = example.sigma;
-  $("#model").value = example.model;
+  setModel(example.model);
   showScenarioHint();
   seed = example.seed;
   selectTab("simulate");
@@ -982,9 +1061,10 @@ $("#generate").onclick = async () => {
   const simulated = state.sources.includes("simulated");
   if ((await generate()) && simulated) await simulateResults();
 };
-$("#factors").addEventListener("input", markStale);
+$("#factors").addEventListener("input", refreshDesign); // a label typed for a level makes the factor categorical
 $("#response").addEventListener("input", markStale);
 for (const id of ["#design-type", "#alpha", "#model_type"]) $(id).onchange = refreshDesign;
+$("#alpha_value").oninput = refreshDesign; // a typed distance can put every run but the center runs on one sphere
 $("#budget").oninput = () => {
   budgetEdited = $("#budget").value !== "";
 };
@@ -1007,7 +1087,13 @@ $("#sigma").onchange = () => {
 $("#tab-simulate").onclick = () => selectTab("simulate");
 $("#tab-real").onclick = () => selectTab("real");
 $("#download").onclick = downloadWorkbook;
-$("#model").onchange = analyseRuns;
+$("#model").onchange = () => {
+  if ($("#model").value === CHOSEN_TERMS && state.design) startTermList();
+  else modelBefore = $("#model").value;
+  $("#terms").hidden = $("#model").value !== CHOSEN_TERMS || !state.design;
+  analyseRuns();
+};
+$("#term-list").onchange = scheduleAnalysis; // a moment after the last tick, as for typed results
 $("#compare").onclick = compareDesigns;
 for (const button of document.querySelectorAll("details.python .copy")) {
   button.onclick = async () => {

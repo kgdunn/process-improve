@@ -179,3 +179,42 @@ def test_analysing_the_page_s_runs_matches_analysing_its_workbook(api, held, sim
 
 def test_foreign_file_is_reported(api):
     assert "xlsx" in api.error("api_analyze", {"xlsx_base64": base64.b64encode(b"not a workbook").decode()})
+
+
+def test_a_blocked_design_s_workbook_keeps_its_blocks(api):
+    spec = {"design_type": "full_factorial", "factors": FACTORS, "n_center_points": 2, "n_blocks": 2}
+    design = api.ok("api_make_design", spec)
+    filled = fill_workbook(design["xlsx_base64"], quadratic)
+    read = api.ok("api_read_workbook", {"xlsx_base64": filled})
+    assert read["columns"] == design["columns"]
+    assert [row[2] for row in read["rows"]] == [row[2] for row in design["rows"]], "each run keeps its block"
+    analysis = api.ok("api_analyze", {"xlsx_base64": filled})
+    assert "Block" in [a["source"] for a in analysis["anova"]]
+
+
+@pytest.mark.parametrize("model", ["quadratic", {"terms": [["T"], ["P"], ["T", "P", "F"]]}])
+def test_a_workbook_keeps_the_model_it_was_analysed_with(api, worked_example, model):
+    held, simulated = worked_example["held"], worked_example["simulated"]
+    written = api.ok("api_workbook", {**held, "responses": simulated["responses"], "model": model})
+    read = api.ok("api_read_workbook", {"xlsx_base64": written["xlsx_base64"]})
+    assert read["spec"]["analysis_model"] == model
+    expected = api.ok("api_analyze_runs", {**held, "responses": simulated["responses"], "model": model})
+    analysed = api.ok("api_analyze", {"xlsx_base64": written["xlsx_base64"]})
+    assert analysed["formula"] == expected["formula"]
+
+
+def test_a_workbook_analysed_as_designed_keeps_no_model(api, worked_example):
+    held, simulated = worked_example["held"], worked_example["simulated"]
+    written = api.ok("api_workbook", {**held, "responses": simulated["responses"], "model": ""})
+    assert "analysis_model" not in api.ok("api_read_workbook", {"xlsx_base64": written["xlsx_base64"]})["spec"]
+
+
+def test_a_categorical_factor_s_labels_go_through_the_workbook(api):
+    factors = [*FACTORS[:2], {"name": "Supplier", "low": "old", "high": "new", "units": ""}]
+    design = api.ok("api_make_design", {"design_type": "full_factorial", "factors": factors, "n_center_points": 2})
+    filled = fill_workbook(design["xlsx_base64"], quadratic)
+    read = api.ok("api_read_workbook", {"xlsx_base64": filled})
+    assert read["spec"]["factors"][2] == factors[2]
+    assert [row[4] for row in read["rows"]] == [row[4] for row in design["rows"]], "each run keeps its label"
+    analysis = api.ok("api_analyze", {"xlsx_base64": filled})
+    assert "Supplier" in [c["term"] for c in analysis["coefficients"]]

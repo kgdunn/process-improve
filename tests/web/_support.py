@@ -161,10 +161,17 @@ def run_sheet(result: dict) -> pd.DataFrame:
 
 
 def coded(runs: pd.DataFrame, factors: list[dict]) -> pd.DataFrame:
-    """Return the runs' settings coded from each factor's range: -1 at its low value, +1 at its high value."""
-    return pd.DataFrame(
-        {f["name"]: (runs[f["name"]] - (f["high"] + f["low"]) / 2) / ((f["high"] - f["low"]) / 2) for f in factors}
-    )
+    """Return the runs' settings coded from each factor's range: -1 at its low value, +1 at its high value.
+
+    A categorical factor's levels are labels: its low label is coded -1 and its high one +1.
+    """
+
+    def column(f: dict) -> pd.Series:
+        if isinstance(f["low"], str):
+            return runs[f["name"]].map({f["low"]: -1.0, f["high"]: 1.0})
+        return (runs[f["name"]] - (f["high"] + f["low"]) / 2) / ((f["high"] - f["low"]) / 2)
+
+    return pd.DataFrame({f["name"]: column(f) for f in factors})
 
 
 def quadratic(runs: pd.DataFrame) -> np.ndarray:

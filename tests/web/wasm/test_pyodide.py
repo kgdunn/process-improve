@@ -3,7 +3,9 @@
 This is where a dependency with no WebAssembly build, an import that reaches for one, or a
 numerical difference under WebAssembly shows, rather than on a reader's screen. Every design
 the page offers, at three and at six factors, is generated under Pyodide and analysed from
-its own workbook, beside the same calls answered natively; the numbers agree to rounding.
+its own workbook, beside the same calls answered natively; the numbers agree to rounding. So do
+the requests the page's options make: blocks, replicates, labels for a factor's levels, a model
+of chosen terms and an axial distance typed as a number.
 """
 
 from __future__ import annotations
@@ -11,13 +13,26 @@ from __future__ import annotations
 import re
 
 import numpy as np
+import pandas as pd
 import pytest
 
 from tests.web._build import wheel
-from tests.web._support import ALL_DESIGNS, FACTORS, factors_named, fill_workbook, generate_all
+from tests.web._support import (
+    ALL_DESIGNS,
+    FACTORS,
+    coded,
+    factors_named,
+    fill_workbook,
+    generate_all,
+    held_of,
+    run_sheet,
+)
 
 #: Each design type at three and at six factors: the page's defaults otherwise.
 CASES = [(design_type, k) for design_type in ALL_DESIGNS for k in (3, 6)]
+
+#: A factor whose two levels are labels.
+SUPPLIER = {"name": "Supplier", "low": "A", "high": "B", "units": ""}
 
 
 def numbers(rows: list[list]) -> np.ndarray:
@@ -51,6 +66,37 @@ def test_each_design_and_its_analysis_agree_with_native_python(pyodide, api, des
     for got, want in zip(fitted["coefficients"], expected["coefficients"], strict=True):
         assert got["coefficient"] == pytest.approx(want["coefficient"], rel=1e-6, abs=1e-9), got["term"]
     assert fitted["summary"]["r_squared"] == pytest.approx(expected["summary"]["r_squared"], rel=1e-9)
+
+
+def test_blocks_labels_replicates_and_chosen_terms_agree_with_native_python(pyodide, api):
+    """Two replicates in two blocks, a factor whose levels are labels, and a three-factor interaction to find."""
+    factors = [*FACTORS[:2], SUPPLIER]
+    spec = {"design_type": "full_factorial", "factors": factors, "n_center_points": 2, "n_blocks": 2, "n_replicates": 2}
+    under, native = pyodide.ok("api_make_design", spec), api.ok("api_make_design", spec)
+    pd.testing.assert_frame_equal(run_sheet(under), run_sheet(native))
+    assert under["facts"] == native["facts"]
+
+    sheet = run_sheet(under)
+    x = coded(sheet, factors)
+    shift = np.where(sheet["Block"] == 2, 4.0, 0.0)
+    noise = np.random.default_rng(0).normal(0, 0.2, len(sheet))
+    y = 50 + 3 * x["T"] - 2 * x["P"] + x["Supplier"] + 2 * x["T"] * x["P"] * x["Supplier"] + shift + noise
+    chosen = {"terms": [["T"], ["P"], ["Supplier"], ["T", "P", "Supplier"]]}
+    book = pyodide.ok("api_workbook", {**held_of(under), "responses": y.tolist(), "model": chosen})
+    fitted, expected = pyodide.ok("api_analyze", book), api.ok("api_analyze", book)
+    assert (fitted["formula"], fitted["notes"]) == (expected["formula"], expected["notes"])
+    assert [c["label"] for c in fitted["coefficients"]] == [c["label"] for c in expected["coefficients"]]
+    for got, want in zip(fitted["coefficients"], expected["coefficients"], strict=True):
+        assert got["coefficient"] == pytest.approx(want["coefficient"], rel=1e-6, abs=1e-9), got["label"]
+    assert [(a["source"], a["df"]) for a in fitted["anova"]] == [(a["source"], a["df"]) for a in expected["anova"]]
+    assert fitted["summary"]["r_squared"] == pytest.approx(expected["summary"]["r_squared"], rel=1e-9)
+
+
+def test_an_axial_distance_typed_as_a_number_places_the_runs_as_native_python_does(pyodide, api):
+    spec = {"design_type": "ccd", "factors": FACTORS[:2], "n_center_points": 3, "alpha": 1.4}
+    under, native = (python.ok("api_make_design", spec) for python in (pyodide, api))
+    pd.testing.assert_frame_equal(run_sheet(under), run_sheet(native))
+    assert under["facts"] == native["facts"]
 
 
 def test_results_simulated_under_pyodide_are_native_python_s(pyodide, api, held):

@@ -133,3 +133,9 @@ def test_each_design_is_coded_from_its_own_ranges(api):
     result = api.ok("api_compare", {"model": "main_effects", "designs": designs})
     wide, narrowed = (result["display"][label] for label in result["designs"])
     assert wide == narrowed
+
+
+def test_a_comparison_with_a_categorical_factor_offers_the_two_level_designs(api):
+    factors = [*FACTORS, {"name": "Supplier", "low": "A", "high": "B", "units": ""}]
+    plan = api.ok("api_compare_plan", {"factors": factors, "model": "main_effects"})
+    assert [d["design_type"] for d in plan["designs"]] == ["full_factorial", "fractional_factorial", "plackett_burman"]

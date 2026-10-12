@@ -51,3 +51,12 @@ def test_a_saturated_two_level_design_is_drawn_with_lenth_s_half_normal_plot(api
 def test_a_true_process_naming_other_factors_is_refused(api, held, simulated):
     truth = [{"term": "Z", "coefficient": 1.0}]
     assert "['Z']" in api.error("api_plots", {**held, "responses": simulated["responses"], "truth": truth})
+
+
+def test_a_blocked_design_is_charted(api):
+    pytest.importorskip("plotly", reason="the page installs plotly for its first chart")
+    spec = {"design_type": "box_behnken", "factors": factors_named("A", "B", "C"), "n_blocks": 2}
+    design = api.ok("api_make_design", spec)
+    responses = [float((i * 7) % 11) for i in range(design["n_runs"])]
+    plots = api.ok("api_plots", {**held_of(design), "responses": responses})
+    assert {"contour", "residuals"} <= set(plots["figures"])
