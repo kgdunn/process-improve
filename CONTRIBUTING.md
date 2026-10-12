@@ -198,6 +198,12 @@ When you change the app, the tests move with it:
   to the version the wasm tier installs; `tests/web/page/test_runtime.py` checks both.
 - A new file in `web/`: in `APP_FILES` in `scripts/build_web_app.py` if the page loads
   it, and in `APP_SOURCES` in `tests/web/_support.py` either way.
+
+One build is served in two places: https://factori.al/, the app's address, and GitHub
+Pages at `/app`. On each push to `main`, `docs.yml` publishes the build the smoke tests
+passed to both (`deploy-factorial` sends it to factori.al's server over SSH) and runs the
+smoke tests against each once it is served. [`deploy/factorial/README.md`](deploy/factorial/README.md)
+covers the server: its one-time setup, what it logs, and how to roll back.
 - A new design type or simulated process: in `ALL_DESIGNS` or `ALL_SCENARIOS` in
   `tests/web/_support.py`, so the tests that run over every one include it.
 

@@ -19,7 +19,7 @@ variable moved, and how sure am I?*
 [![Docs](https://img.shields.io/badge/docs-kgdunn.github.io-blue.svg)](https://kgdunn.github.io/process-improve/)
 [![License](https://img.shields.io/pypi/l/process-improve.svg)](https://github.com/kgdunn/process-improve/blob/main/LICENSE)
 
-**[Try it in your browser](https://kgdunn.github.io/process-improve/app/)** ·
+**[Try it in your browser](https://factori.al/)** ·
 [Documentation](https://kgdunn.github.io/process-improve/) ·
 [Free textbook](https://learnche.org/pid) ·
 [Design gallery](#designed-experiments-in-one-call)
@@ -30,9 +30,9 @@ pip install process-improve
 
 ## Try it without installing anything
 
-<a href="https://kgdunn.github.io/process-improve/app/"><img width="600" alt="The designed-experiments app in a browser tab: a Box-Behnken design, its results simulated from a known process, the fitted coefficients beside the true ones, and every design for the same factors compared on nine measures" src="https://raw.githubusercontent.com/kgdunn/process-improve/main/docs/_static/readme/app-demo.gif"></a>
+<a href="https://factori.al/"><img width="600" alt="The designed-experiments app in a browser tab: a Box-Behnken design, its results simulated from a known process, the fitted coefficients beside the true ones, and every design for the same factors compared on nine measures" src="https://raw.githubusercontent.com/kgdunn/process-improve/main/docs/_static/readme/app-demo.gif"></a>
 
-[Factorial](https://kgdunn.github.io/process-improve/app/), the designed-experiments app, runs
+[Factorial](https://factori.al/), the designed-experiments app, runs
 this package inside your browser tab (Pyodide / WebAssembly). Design an experiment, then simulate
 its results from a process whose true model is known, or type in your own, and read the
 analysis beside the truth. Compare every design for your factors on the nine measures of
