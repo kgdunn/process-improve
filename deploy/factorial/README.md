@@ -38,27 +38,44 @@ Robots, link-preview fetchers and the deploy's own checks are not counted as vis
 
 ## Setting it up, once
 
-**1. A deploy key**, on your machine, in a checkout of this repository:
+**1. The files and a deploy key**, on your machine, in a folder outside the repository so the
+key cannot be committed (`~/code/process-improve` stands for your checkout):
 
 ```bash
+mkdir -p ~/factorial-deploy && cd ~/factorial-deploy
+git -C ~/code/process-improve fetch origin
+git -C ~/code/process-improve archive origin/main deploy/factorial | tar -x --strip-components=1
 ssh-keygen -t ed25519 -N '' -C 'github-actions@kgdunn/process-improve' -f factorial_deploy
-scp -r deploy/factorial factorial_deploy.pub deploy@factori.al:
+cp factorial_deploy.pub factorial/
+scp -r factorial deploy@factori.al:factorial-setup
 ```
+
+The folder goes to `~/factorial-setup`, not `~/factorial`, where the old app is checked out.
 
 **2. The server**, logged in as `deploy`:
 
 ```bash
-sudo sh factorial/setup.sh factorial_deploy.pub
+sudo sh factorial-setup/setup.sh factorial-setup/factorial_deploy.pub
 ```
 
 [`setup.sh`](setup.sh) makes the `factorial` account and `/srv/factorial`, installs
 `factorial-deploy` and `factorial-usage` in `/usr/local/bin`, puts the key where only root can
 change it, and installs the SSH block ([`sshd.conf`](sshd.conf)) once `sshd -t` accepts it.
-It also installs the site's Caddy block, [`factorial.caddy`](factorial.caddy). It needs the
-server's Python to be 3.12 or later, as Ubuntu 24.04's is. Running it again is safe.
+It installs the site's Caddy block, [`factorial.caddy`](factorial.caddy), and makes its log
+owned by Caddy. It ends by printing the value of `FACTORIAL_KNOWN_HOSTS` for step 5. It needs
+the server's Python to be 3.12 or later, as Ubuntu 24.04's is. Running it again is safe.
 
-**3. Caddy.** In `/etc/caddy/Caddyfile`, replace the old app's `factori.al { ... }` block
-(the one with `reverse_proxy`) with `import factorial.caddy`, then:
+**3. Check the key**, from your machine:
+
+```bash
+ssh -o IdentitiesOnly=yes -i ~/factorial-deploy/factorial_deploy factorial@factori.al status
+```
+
+It prints `live: none` and `kept:`: the key logs in, and runs the deploy command. Without
+`status` it answers `refused: this key may only: ...`.
+
+**4. Caddy.** In `/etc/caddy/Caddyfile`, replace the old app's whole `factori.al { ... }` block
+(the one with `reverse_proxy`) with `import /etc/caddy/factorial.caddy`, then:
 
 ```bash
 sudo caddy validate --config /etc/caddy/Caddyfile && sudo systemctl reload caddy
@@ -66,21 +83,28 @@ sudo caddy validate --config /etc/caddy/Caddyfile && sudo systemctl reload caddy
 
 factori.al answers 404 until the first deploy.
 
-**4. GitHub**, in the settings of kgdunn/process-improve:
+**5. GitHub**, in the settings of kgdunn/process-improve:
 
 - **Environments → New environment** `factorial`. Under deployment branches, allow `main`
-  only. Add the secret `FACTORIAL_SSH_KEY`: the whole of `factorial_deploy`, the private half.
+  only. Add the environment secret `FACTORIAL_SSH_KEY`: the whole of
+  `~/factorial-deploy/factorial_deploy`, the private half, from `-----BEGIN` to `-----END`
+  and its line.
 - **Secrets and variables → Actions → Variables → New repository variable**
-  `FACTORIAL_KNOWN_HOSTS`: the server's host key, so the workflow refuses any other machine
-  answering as factori.al. Print it on the server, where it cannot have been tampered with:
+  `FACTORIAL_KNOWN_HOSTS`: the line `setup.sh` printed, `factori.al ssh-ed25519 AAAA...`. It
+  pins the server's host key, so the workflow refuses any other machine answering as
+  factori.al. It has to be a repository variable: the deploy jobs read it to decide whether
+  to run, before they enter the environment.
 
-  ```bash
-  printf 'factori.al %s\n' "$(cut -d' ' -f1,2 /etc/ssh/ssh_host_ed25519_key.pub)"
-  ```
+With the GitHub CLI, the secret goes in without copy and paste (the environment must exist):
 
-Then delete `factorial_deploy` from your machine: GitHub holds the copy the workflow needs.
-The deploy jobs are skipped until `FACTORIAL_KNOWN_HOSTS` is set. The next push to `main`
-deploys; to deploy now, run **Actions → Docs → Run workflow** on `main`.
+```bash
+gh secret set FACTORIAL_SSH_KEY --repo kgdunn/process-improve --env factorial < ~/factorial-deploy/factorial_deploy
+```
+
+Then delete the private key, `rm ~/factorial-deploy/factorial_deploy`: GitHub holds the copy
+the workflow needs, and a new key is a rerun of steps 1 and 2. The deploy jobs are skipped
+until `FACTORIAL_KNOWN_HOSTS` is set. The next push to `main` deploys; to deploy now, run
+**Actions → Docs → Run workflow** on `main`.
 
 The runners connect from GitHub's addresses, so SSH (port 22) has to stay open to the
 internet, as it is now.
