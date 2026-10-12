@@ -286,8 +286,7 @@ def handle(root: Path, request: str, stream: BinaryIO) -> str:
                 return rollback(root)
         case ["status"]:
             return status(root)
-        case _:
-            raise RefusedError(USAGE)
+    raise RefusedError(USAGE)
 
 
 def main(argv: list[str] | None = None) -> int:
