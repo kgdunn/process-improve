@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import pytest
 
-from tests.web.e2e._page import factor_table, first_paint_done, run_sheet, status, type_results
+from tests.web.e2e._page import enter_results, factor_table, first_paint_done, run_sheet, status, type_results
 
 #: Controls that need Python, enabled once it has started.
 NEEDS_PYTHON = ("#generate", "#simulate", "#reroll", "#compare", "#upload")
@@ -57,18 +57,21 @@ def test_while_python_starts_the_status_line_lights_up_the_mark_s_runs(context, 
 
 
 @pytest.mark.slow
-def test_the_status_line_fades_after_a_success_and_a_quick_analysis_does_not_bring_it_back(page):
-    """Its room goes back to the page five seconds after Python is ready; an error brings it back."""
+def test_the_status_line_fades_after_a_success_and_comes_back_for_a_wait_or_an_error(page):
+    """Its room goes back to the page five seconds after Python is ready, until there is news worth the room."""
     assert page.is_visible("#status")
     page.wait_for_selector("#status", state="hidden", timeout=8_000)
-    assert status(page)[1] == "ok"
-    type_results(page, {0: 50})
-    assert status(page) == ("Analysis complete.", "ok")
-    assert page.is_hidden("#status"), "a quick analysis does not make the page jump"
-    page.select_option("#model", "quadratic")
-    type_results(page, dict.fromkeys(range(5, 15), ""))
+    assert status(page)[1] == "ok", "faded, its message kept"
+    type_results(page, dict.fromkeys(range(15), ""))
+    assert status(page) == ("No results to analyse yet.", "ok")
+    assert page.is_hidden("#status"), "a success that the page itself shows brings nothing back"
+    page.evaluate("window.__pi.hold('api_analyze_runs')")
+    enter_results(page, {0: 50})
+    page.wait_for_selector("#status", state="visible")
+    assert status(page) == ("Analysing...", "busy"), "a wait that lasts is shown"
+    page.evaluate("window.__pi.release('api_analyze_runs')")
     page.wait_for_function("document.querySelector('#status').dataset.state === 'error'")
-    assert page.is_visible("#status"), "an error is shown at once"
+    assert page.is_visible("#status"), "one result cannot fit the model: the error stays in view"
 
 
 def test_the_form_holds_the_worked_example_s_settings(page, first_paint):
