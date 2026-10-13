@@ -57,6 +57,7 @@ APP_SOURCES = (
     "og-card.png",
     "manifest.webmanifest",
     "book-examples.json",
+    "published-examples.json",
     "build_web_app.py",
 )
 

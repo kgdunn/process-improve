@@ -47,6 +47,9 @@ def book_files(build_script: ModuleType) -> dict[str, Any]:
     """Return each ``book/<name>.json``, and ``book/index.json`` as ``index``, as the build writes them."""
     with no_bytecode():
         examples = {entry["name"]: build_script.book_example(entry) for entry in build_script.book_examples()}
+        examples |= {
+            entry["name"]: build_script.published_example(entry) for entry in build_script.published_examples()
+        }
     return {**examples, "index": build_script.book_index(list(examples.values()))}
 
 

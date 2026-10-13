@@ -122,13 +122,15 @@ def test_assemble_lays_out_what_the_page_and_its_worker_read(build_script, tmp_p
     monkeypatch.setattr(build_script, "build_wheel", fake_wheel)
     monkeypatch.setattr(build_script, "worked_example", lambda: {"the": "worked example"})
     monkeypatch.setattr(build_script, "book_example", lambda entry: {"name": entry["name"], "title": "", "book": ""})
+    monkeypatch.setattr(build_script, "published_example", lambda entry: {"name": entry["name"], "title": ""})
     out = tmp_path / "app"
     (out / "stale").mkdir(parents=True)
     assert build_script.assemble(out) == "process_improve-9.9.9-py3-none-any.whl"
 
     published = {p.relative_to(out).as_posix() for p in out.rglob("*") if p.is_file()}
     wheel = f"{hashlib.sha256(b'a wheel').hexdigest()[:16]}/process_improve-9.9.9-py3-none-any.whl"
-    book = {"book/index.json", *(f"book/{entry['name']}.json" for entry in build_script.book_examples())}
+    examples = [*build_script.book_examples(), *build_script.published_examples()]
+    book = {"book/index.json", *(f"book/{entry['name']}.json" for entry in examples)}
     assert published == {*build_script.APP_FILES, *BUILT, *book, f"wheels/{wheel}"}, "and nothing left from before"
     for name in build_script.APP_FILES:
         assert (out / name).read_bytes() == (WEB / name).read_bytes(), name
@@ -194,17 +196,35 @@ def book(build_script, tmp_path_factory) -> Path:
 
 
 def test_the_index_names_every_example_and_its_page_in_the_book(build_script, book):
-    """The book's own check reads the index: each name a link may carry, and the page that prints it."""
+    """The book's own check reads the index: each name a link may carry, and the page that prints it.
+
+    The examples of other published sources follow the book's, each with its source in place of a page.
+    """
     index = json.loads((book / "index.json").read_text())["examples"]
-    names = [entry["name"] for entry in build_script.book_examples()]
+    from_book = [entry["name"] for entry in build_script.book_examples()]
+    names = [*from_book, *(entry["name"] for entry in build_script.published_examples())]
     assert [e["name"] for e in index] == names
     assert len(set(names)) == len(names), "each name opens one example"
     assert {p.name for p in book.iterdir()} == {"index.json", *(f"{name}.json" for name in names)}
     for example in index:
         assert re.fullmatch(r"[a-z0-9]+(-[a-z0-9]+)*", example["name"]), example["name"]
-        assert example["book"].startswith("https://learnche.org/pid/design-analysis-experiments/"), example
-        assert ".html" not in example["book"], "the book is served without the extension"
         assert example["title"]
+        if example["name"] in from_book:
+            assert example["book"].startswith("https://learnche.org/pid/design-analysis-experiments/"), example
+            assert ".html" not in example["book"], "the book is served without the extension"
+        else:
+            assert "book" not in example, "the book's own check finds no page of its own here"
+            assert example["source"]["url"].startswith("https://doi.org/"), example
+            assert example["source"]["cite"], example
+            assert example["source"]["where"], example
+
+
+def test_two_examples_with_one_name_stop_the_build(build_script, monkeypatch, tmp_path):
+    entry = build_script.published_examples()[0]
+    monkeypatch.setattr(build_script, "published_examples", lambda: [entry, entry])
+    monkeypatch.setattr(build_script, "book_examples", list)
+    with pytest.raises(SystemExit, match=f"Two examples share a name: \\['{entry['name']}'\\]"), no_bytecode():
+        build_script.write_book(tmp_path)
 
 
 def test_the_page_reads_each_example_as_the_build_wrote_it(node, book):
@@ -214,6 +234,8 @@ def test_the_page_reads_each_example_as_the_build_wrote_it(node, book):
     for (name, example), read in zip(written.items(), checked, strict=True):
         campaign, opened = example["campaign"], read["campaign"]
         assert read["title"] == example["title"] == campaign["title"], name
+        assert (read["book"] is None) == ("source" in example), f"{name}: a page of the book, or a source"
+        assert read["source"] == example.get("source"), name
         assert opened["design"]["rows"] == campaign["design"]["rows"], name
         assert opened["responses"] == campaign["responses"], name
         assert all(v is not None for v in opened["responses"]), f"{name}: every run has the book's result"

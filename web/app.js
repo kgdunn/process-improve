@@ -49,6 +49,7 @@ import {
 } from "./logic.js";
 import {
   BOOK_PARAM,
+  EXAMPLE_PARAM,
   CAMPAIGN_VERSION,
   LINK_KEY,
   bookName,
@@ -1419,7 +1420,8 @@ const savedSoon = () => Promise.race([savedCampaigns(), new Promise((resolve) =>
  */
 async function start() {
   const { hash } = location;
-  const book = new URLSearchParams(location.search).get(BOOK_PARAM);
+  const params = new URLSearchParams(location.search);
+  const book = params.get(BOOK_PARAM) ?? params.get(EXAMPLE_PARAM); // the book's examples and the published ones share one index
   if (book !== null || hash.startsWith(LINK_KEY)) {
     history.replaceState(null, "", book !== null ? location.pathname : `${location.pathname}${location.search}`);
     try {
@@ -1483,11 +1485,14 @@ async function openBookExample(name) {
   });
   const record = kept ? { id: kept.id, created: kept.created } : newCampaign(false);
   const note = example.note ? ` ${example.note}` : "";
-  await openCampaign(c, record, [
-    `Opened the book's example: ${example.title}, with the book's results. `,
-    link(example.book, "Read it in the book"),
-    `.${note} It is saved in this browser, under Your designs.`,
-  ]);
+  const { source } = example;
+  const opened = source
+    ? [
+        `Opened an example from ${source.cite}, ${source.where}: ${example.title}, with its published results. `,
+        link(source.url, "Read the source", "source"),
+      ]
+    : [`Opened the book's example: ${example.title}, with the book's results. `, link(example.book, "Read it in the book")];
+  await openCampaign(c, record, [...opened, `.${note} It is saved in this browser, under Your designs.`]);
 }
 
 /**
@@ -1607,13 +1612,13 @@ function el(tag, cls, text) {
 }
 
 /**
- * A link to the book, opening in a tab of its own so the page keeps its state: the same tab each
- * time, rather than a new one per link.
+ * A link to the book, or to another source, opening in a tab of its own so the page keeps its
+ * state: the same tab each time, rather than a new one per link.
  */
-function link(href, text) {
+function link(href, text, target = "pid-book") {
   const a = el("a", "", text);
   a.href = href;
-  a.target = "pid-book";
+  a.target = target;
   a.rel = "noopener";
   return a;
 }

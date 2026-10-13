@@ -78,6 +78,28 @@ def test_a_reader_s_changes_are_kept_and_the_book_s_numbers_come_back(context, s
     assert sorted(row[-1] for row in run_sheet(again)) == ["53", "60", "64", "69"]
 
 
+def test_an_example_of_another_published_source_opens_with_its_citation(context, site, book_files):
+    """``?example=<name>`` opens it from the same index, and the banner says where it came from."""
+    page = context.new_page()
+    page.goto(f"{site}?example=ullmann-agitator")
+    page.wait_for_selector(BANNER, state="visible")
+    page.wait_for_function("window.__pi.count('api_catalogue') === 1 && window.__pi.idle()")
+    settled(page)
+    source = book_files["ullmann-agitator"]["source"]
+    assert page.text_content(BANNER).startswith(
+        'Opened an example from Soravia and Orth (2012), "Design of Experiments", Ullmann\'s Encyclopedia of '
+        "Industrial Chemistry, Section 3.3, Figure 8 (p. 177): Yield against catalyst A, temperature B and "
+        "agitator type C, with its published results."
+    )
+    assert page.get_attribute(f"{BANNER} a", "href") == source["url"] == "https://doi.org/10.1002/14356007.e08_e01.pub3"
+    assert page.get_attribute(f"{BANNER} a", "target") == "source", "a tab of its own, not the book's"
+    assert factor_table(page)[2] == {"name": "C", "low": "current", "high": "new", "units": ""}
+    assert [row[-1] for row in run_sheet(page)] == ["60", "62", "74", "92", "57", "59", "67", "82"]
+    assert float(coefficients(page)["C"]) == -2.875, "half the article's main effect of C, -5.75"
+    assert page.url == site
+    saved(page, 1)
+
+
 def test_a_name_the_book_does_not_have_is_refused_and_the_worked_example_shown(context, site, first_paint):
     """The name is looked up in the index first: no file is asked for that the index does not list."""
     page = context.new_page()
