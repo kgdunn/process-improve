@@ -87,7 +87,7 @@ def test_a_blocked_design_shows_each_run_s_block_and_fits_the_blocks(blank_page)
     assert "Block" in anova
     assert "The blocks are fitted as a fixed effect" in page.text_content("#analysis")
     code = page.text_content("#py-analyse code")
-    assert 'result.design[names + ["Block"]]' in code
+    assert '"Block": runs["Block"],' in code, "the blocks are fitted as the page fits them"
 
 
 def ticked(page) -> list[str]:

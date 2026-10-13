@@ -216,8 +216,13 @@ def test_the_notebook_holds_each_step_s_code(page, tmp_path: Path):
     book = json.loads(target.read_text(encoding="utf-8"))
     assert book["nbformat"] == 4
     code = ["".join(cell["source"]) for cell in book["cells"] if cell["cell_type"] == "code"]
-    shown = [page.text_content(f"#py-{step} code") for step in ("design", "run", "analyse")]
-    assert code[1:] == shown, "the panels' code, in order, after the install line"
+    assert code[1] == page.text_content("#py-design code"), "the design's code, after the install line"
+    analysis = page.text_content("#py-analyse code")
+
+    def body(cell: str) -> str:
+        return "\n".join(line for line in cell.splitlines() if not line.startswith(("import ", "from "))).strip()
+
+    assert all(body(cell) in analysis for cell in code[1:]), "a cell a step, as the analysis panel holds them all"
 
 
 @pytest.mark.parametrize("context_options", [{"viewport": {"width": 390, "height": 844}, "is_mobile": True}])

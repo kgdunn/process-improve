@@ -65,7 +65,7 @@ import {
   timeAgo,
   unpackCampaign,
 } from "./campaign.js";
-import { analyseCode, compareCode, designCode, enteredCode, notebook, simulateCode } from "./python.js";
+import { analyseCode, compareCode, cumulative, designCode, notebook, resultsCode } from "./python.js";
 import { qrCode, qrSvg } from "./qr.js";
 import { forgetCampaign, saveCampaign, savedCampaigns } from "./store.js";
 
@@ -422,7 +422,7 @@ function showDesign(design, warnings = [], { save = true } = {}) {
   if ($("#model").value === CHOSEN_TERMS) setModel(CHOSEN_TERMS); // the terms of the new factors
   clearAnalysis();
   if (design.spec.options) showPython("design", designCode(design.spec));
-  $("#py-run").hidden = true;
+  hidePython("run");
   scheduleSave();
 }
 
@@ -493,7 +493,7 @@ function renderRuns() {
     input.classList.remove("sim");
     describeSource();
     renderTruth();
-    showPython("run", enteredCode(state.responses));
+    showResultsCode();
     scheduleAnalysis();
     scheduleSave();
   };
@@ -548,7 +548,7 @@ async function simulateResults() {
   state.sources = state.responses.map(() => "simulated");
   renderRuns();
   renderTruth();
-  showPython("run", simulateCode(reply.result, state.design.spec));
+  showResultsCode();
   scheduleSave();
   await analyseRuns();
 }
@@ -590,14 +590,14 @@ function download(blob, name) {
 }
 
 /**
- * Download the campaign as a Jupyter notebook: the code each step's "Show the Python" panel
- * shows, in order, so it runs to the page's design, results and analysis.
+ * Download the campaign as a Jupyter notebook: each step's code, as its "Show the Python code"
+ * panel shows it, a cell a step, so it runs to the page's design, results and analysis.
  */
 function downloadNotebook() {
   if (!state.design) return;
   const book = notebook({
     title: state.campaign?.title ?? titleOf(state.design.spec),
-    spec: state.design.spec,
+    design: state.design,
     responses: state.responses,
     sources: state.sources,
     simulation: state.simulation,
@@ -634,7 +634,7 @@ async function readUpload(file) {
   renderRuns();
   renderTruth();
   showPython("design", designCode(r.spec));
-  showPython("run", enteredCode(state.responses));
+  showResultsCode();
   scheduleSave();
   await analyseRuns();
 }
@@ -695,7 +695,8 @@ function renderAnalysis(reply) {
   const s = r.summary;
   const simulated = r.coefficients.some((c) => c.true_value !== undefined && c.true_value !== null);
   setStatus("Analysis complete.");
-  showPython("analyse", analyseCode(r.spec, r.formula ?? r.model)); // the terms fitted, which the design can estimate
+  // The terms fitted, which the design can estimate, from the runs that have a result.
+  showPython("analyse", analyseCode(r.formula ?? r.model, state.responses.every((v) => v !== null)));
   const parts = [
     el("p", "equation", r.equation),
     el("p", "hint", "Coefficients are in coded units: each factor runs from -1 at its low value to +1 at its high value."),
@@ -946,7 +947,7 @@ async function showBuiltExample() {
   state.plotlyJs = example.plots.plotly_js;
   renderRuns();
   renderTruth();
-  showPython("run", simulateCode(example.simulation, example.design.spec));
+  showResultsCode();
   state.analysis = example.analysis;
   renderAnalysis({ ok: true, result: example.analysis, warnings: [] });
   $("#demo-version").textContent = `process-improve ${example.version}`;
@@ -1356,13 +1357,8 @@ async function openCampaign(c, record, message) {
   $("#share-out").hidden = true;
   if (c.design.spec.options) showPython("design", designCode(c.design.spec));
   const done = state.responses.some((v) => v !== null);
-  if (done && state.simulation && state.sources.every((source) => source === "simulated")) {
-    showPython("run", simulateCode(state.simulation, c.design.spec));
-  } else if (done) {
-    showPython("run", enteredCode(state.responses));
-  } else {
-    $("#py-run").hidden = true;
-  }
+  if (done) showResultsCode();
+  else hidePython("run");
   showBanner(message);
   scheduleSave(); // the design opened most recently is the one a later visit picks up
   if (!done) return;
@@ -1572,11 +1568,35 @@ async function printSheet() {
   window.print();
 }
 
-// ---------------------------------------------------------------- show the Python
+// ---------------------------------------------------------------- show the Python code
+/** The steps whose panels build on each other, in order, and the code each step last showed. */
+const STEPS = ["design", "run", "analyse"];
+const stepCode = {};
+
+/**
+ * Show a step's code in its panel, after the code of the steps it builds on, so what is copied
+ * from any panel runs as it is. Step 4's comparison stands on its own.
+ */
 function showPython(key, code) {
+  stepCode[key] = code;
+  const steps = STEPS.includes(key) ? STEPS.slice(0, STEPS.indexOf(key) + 1) : [key];
   const panel = $(`#py-${key}`);
-  panel.querySelector("code").textContent = code;
+  panel.querySelector("code").textContent = STEPS.includes(key)
+    ? cumulative(...steps.map((step) => stepCode[step]).filter(Boolean))
+    : code;
   panel.hidden = false;
+}
+
+/** Hide a step's panel and forget its code: its results are gone. */
+function hidePython(key) {
+  delete stepCode[key];
+  $(`#py-${key}`).hidden = true;
+}
+
+/** Show step 2's code: the simulation while every result is as simulated, else the results on the page. */
+function showResultsCode() {
+  const simulated = state.simulation && state.sources.every((source) => source === "simulated");
+  showPython("run", resultsCode(state.design, state.responses, simulated ? state.simulation : null));
 }
 
 /** The Plotly.js version the build drew its figures with, so charts can be drawn before Python names one. */

@@ -57,6 +57,12 @@ those changes.
   residual degrees of freedom remain and Lenth's ME and SME when none do. The choice is
   kept in this browser. Both views drop their caption: the legend names each mark, the
   95% interval included, and the true values are drawn in purple, apart from the blue.
+- **Factorial's "Show the Python code" panels each hold a script that runs as it is.** Step
+  2's panel holds step 1's code before its own, and step 3's both, their imports merged at
+  the top, so the code copied from any panel runs without the others. The results' code
+  writes out the run sheet as the page lists it, so it gives the page's analysis to the
+  last digit for the book's examples too, whose runs are in the order of the book's table
+  rather than `generate_design`'s; simulated results are rounded as the page rounds them.
 - **The residuals-vs-fitted plot names the response on its x axis** ("Fitted Conversion"
   rather than "Fitted Values") when `create_plot` is given `response_column`.
 

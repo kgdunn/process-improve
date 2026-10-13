@@ -325,7 +325,7 @@ table.compare tr.group span { position: sticky; left: 10px; display: inline-bloc
 }
 .charts > .hint.wide { grid-column: 1 / -1; margin: 0; }
 
-/* Show the Python: the code a step's results came from, ready to copy. */
+/* Show the Python code: the code a step's results came from, ready to copy. */
 details.python { margin: 16px 0 0; border-top: 1px solid var(--line); padding-top: 8px; }
 details.python pre {
   overflow-x: auto; margin: 8px 0; padding: 10px 12px; border-radius: 6px; font-size: 0.85rem;
