@@ -31,6 +31,7 @@ import json
 import math
 import operator
 import re
+import statistics
 import warnings
 from collections.abc import Callable, Iterator
 from decimal import Decimal
@@ -42,6 +43,7 @@ import pandas as pd
 
 from process_improve.experiments.analysis import analyze_experiment
 from process_improve.experiments.designs import generate_design
+from process_improve.experiments.evaluate import evaluate_design
 from process_improve.experiments.factor import Factor
 
 _REFERENCE_DIR = Path(__file__).resolve().parents[1] / "datasets" / "experiments" / "reference"
@@ -493,6 +495,35 @@ _RUN_KINDS: dict[str, Callable[[dict, dict], list[int]]] = {
 }
 
 
+_REDUCE: dict[str, Callable[[list[float]], float]] = {"max": max, "min": min, "mean": statistics.fmean, "len": len}
+
+
+def _design_metric(experiment: dict, check: dict) -> float:
+    """Return a quality metric of a design: the entry's runs in coded units, or a design the library makes.
+
+    ``check["metric"]`` names an :func:`~process_improve.experiments.evaluate_design` metric, evaluated
+    for ``check["model"]`` with ``check["options"]``; ``check["key"]`` reads into its result, step by
+    step (``"correlation"`` then ``"max_abs_r"``), where ``max``, ``min``, ``mean`` and ``len`` reduce
+    a dict's values or a list.
+    """
+    if check.get("design"):
+        design: Any = _made(json.dumps(check["design"], sort_keys=True))
+    else:
+        design, _ = _coded_runs(experiment, check.get("runs"))
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        found: Any = evaluate_design(
+            design, model=check.get("model"), metric=check["metric"], **check.get("options", {})
+        )
+    found = found[check["metric"]]
+    for step in filter(None, str(check.get("key") or "").split(".")):
+        if step in _REDUCE:
+            found = _REDUCE[step](list(found.values()) if isinstance(found, dict) else list(found))
+        else:
+            found = found[int(step)] if isinstance(found, list) else found[step]
+    return float(found)
+
+
 def _active(out: dict, check: dict) -> tuple[str, bool]:
     margin = "active_SME" if check.get("margin") == "SME" else "active_ME"
     found = {e["term"] for e in out["lenth_method"]["effects"] if e[margin]}
@@ -510,6 +541,9 @@ def _reproduce(experiment: dict, expected: dict, check: dict, fits: _Fits) -> tu
     if kind == "design_property":
         found = _design_property(check)
         return f"{found:.6g}", _agrees(found, str(_ROMAN.get(str(printed).strip(), printed)))
+    if kind == "design_metric":
+        found = _design_metric(experiment, check)
+        return f"{found:.6g}", _agrees(found, str(printed), expression=bool(check.get("expression")))
     if kind in _RUN_KINDS:
         found_runs = _RUN_KINDS[kind](experiment, check)
         wanted = [int(n) for n in re.findall(r"\d+", str(printed))]
