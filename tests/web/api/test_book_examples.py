@@ -1,12 +1,14 @@
 """The book's designed-experiment examples, run through the page's entry points.
 
 Each case is a worked example or an exercise of the design of experiments chapter of *Process
-Improvement using Data* (https://learnche.org/pid, source in kgdunn/pid-book), named by its page.
-The page generates the design from the factors the book gives; the book's results are typed
-against the run sheet, each matched to its run by the run's coded settings, as a reader would;
-the page analyses them; and every number the book prints must come back within the book's own
-rounding. A change to the app that would contradict the book fails here, and so does a book
-number the app does not reproduce.
+Improvement using Data* (https://learnche.org/pid, source in kgdunn/pid-book). Its runs and
+results are those of ``web/book-examples.json``, the examples the book links to by name, and
+are made into the campaign that link opens (``book_example`` in ``scripts/build_web_app.py``):
+the page generates the design from the factors the book gives, and each of the book's results
+is placed against its run by the run's coded settings. The page then analyses them, and every
+number the book prints must come back within the book's own rounding. A change to the app that
+would contradict the book fails here; so does a book number the app does not reproduce, and so
+does a link that would open anything other than the book's data.
 
 The book gives some results as effects, the change from a factor's low level to its high level,
 which is twice the coefficient the page reports; those cases say so. A categorical factor of the
@@ -16,22 +18,28 @@ would: the page codes the first -1 and the second +1.
 
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass, field
 from decimal import Decimal
 from functools import cache
 from itertools import product
 from typing import TYPE_CHECKING
 
-import numpy as np
 import pytest
 
-from tests.web._support import coded, held_of, run_sheet
+from tests.web._support import WEB, no_bytecode
 
 if TYPE_CHECKING:
     from collections.abc import Callable
 
 M, P = -1, 1  # the book's low and high levels
-ROOT2 = 2**0.5  # the rotatable axial distance of a two-factor central composite design
+
+
+@cache
+def catalogue() -> dict[str, dict]:
+    """Return the book's examples, by the name a link carries, as ``web/book-examples.json`` lists them."""
+    examples = json.loads((WEB / "book-examples.json").read_text(encoding="utf-8"))["examples"]
+    return {entry["name"]: entry for entry in examples}
 
 
 def factor(name: str, low: float, high: float, units: str = "") -> dict:
@@ -41,33 +49,47 @@ def factor(name: str, low: float, high: float, units: str = "") -> dict:
 
 def standard_order(k: int) -> list[tuple[int, ...]]:
     """Return the 2^k runs in standard (Yates) order, the first factor changing fastest, as the book lists them."""
-    return [tuple(reversed(levels)) for levels in product((M, P), repeat=k)]
+    return [tuple(reversed(run)) for run in product((M, P), repeat=k)]
 
 
-@dataclass(frozen=True)
+def unlinked(design_type: str, factors: list[dict], runs: list[tuple], model: str, **options: object) -> dict:
+    """Return runs the book gives that no link opens, as an entry of ``web/book-examples.json`` holds them."""
+    spec = {"design_type": design_type, "factors": factors, "response": "y", "n_center_points": 0, **options}
+    runs = [list(run) for run in runs]
+    return {"name": "unlinked", "title": "", "page": "", "design": spec, "model": model, "runs": runs}
+
+
+@dataclass
 class Example:
-    """One example of the book: the design the page makes for it, the book's results, and what the book prints.
+    """A worked example or exercise, with what the book prints for it.
 
-    ``runs`` are the book's runs in coded units, each with its result last. ``printed`` maps a
-    coefficient, by the label the page shows, to the value the book prints, as text: the number
-    of decimals printed sets how close the page must come. ``lenth`` holds the book's Lenth
-    margins and ``active`` the effects the book finds beyond the margin of error.
+    ``data`` names the book's example in ``web/book-examples.json``, whose runs a link opens; or
+    holds runs the book gives that no link opens, in the same shape. ``model`` and ``options``
+    change the example's model or design, where the book analyses its runs another way.
+    ``printed`` maps a coefficient, by the label the page shows, to the value the book prints,
+    as text: the number of decimals printed sets how close the page must come. ``lenth`` holds
+    the book's Lenth margins and ``active`` the effects the book finds beyond the margin of error.
     """
 
-    page: str
-    design_type: str
-    factors: list[dict]
-    runs: list[tuple]
-    model: str | dict  # a named model, or {"terms": [...]}, the terms a reader ticks
+    data: str | dict
     printed: dict[str, str] = field(default_factory=dict)
+    model: str | dict | None = None  # the model the book fits, where it differs from the example's
+    options: dict = field(default_factory=dict)  # settings of the design that differ from the example's
     effects: bool = False  # the book prints effects, twice the page's coefficients
-    options: dict = field(default_factory=dict)
     lenth: dict[str, str] = field(default_factory=dict)
     lenth_scale: float = 1.0  # what the page's (effect-scale) margins are divided by for the book's
     active: tuple[str, ...] | None = None
     r_squared: str | None = None
     residual: dict[str, str] = field(default_factory=dict)  # df, pure-error df, mean square, coefficients' SE
     note: str | None = None  # the start of a note the analysis must make
+
+    def entry(self) -> dict:
+        """Return the runs as ``web/book-examples.json`` holds them, with this case's settings of the design."""
+        entry = catalogue()[self.data] if isinstance(self.data, str) else self.data
+        entry = {**entry, "design": {**entry["design"], **self.options}}
+        if entry["design"].get("n_blocks", 1) == 1:
+            entry.pop("blocks", None)  # the book's days are blocks only in a design made in blocks
+        return entry
 
 
 def tolerance(printed: str) -> float:
@@ -76,71 +98,7 @@ def tolerance(printed: str) -> float:
     return 0.5 * 10.0 ** min(0, int(exponent)) + 1e-9
 
 
-CONVERSION = [factor("T", 338, 354, "K"), factor("S", 1.25, 1.75, "g/L")]
-INTERACTING = [factor("T", 390, 400, "K"), factor("S", 0.5, 1.25, "g/L")]
-POLLUTANT_FACTORS = [factor("C", "P", "Q"), factor("T", 72, 100, "degF"), factor("S", 200, 400, "rpm")]
-POLLUTANT = [(*s, y) for s, y in zip(standard_order(3), [5, 30, 6, 33, 4, 3, 5, 4], strict=True)]
 PARETO = [45, 71, 48, 65, 68, 60, 80, 65, 43, 100, 45, 104, 75, 86, 70, 96]
-WEB_SALES = [factor("Shipping", 30, 50, "$"), factor("Profile", "no", "yes")]
-# Each corner run on two Tuesdays: free shipping over $30 or $50, and a profile required or not.
-WEB_SALES_RUNS = [
-    (M, P, 3275),
-    (P, M, 3594),
-    (P, M, 3626),
-    (M, M, 3438),
-    (P, P, 2439),
-    (M, M, 3562),
-    (M, P, 2965),
-    (P, P, 2571),
-]
-BIOREACTOR = [
-    factor("A", "slow", "medium"),
-    factor("B", 300, 700, "g"),
-    factor("C", 40, 60, "g/L"),
-    factor("D", 4, 6, "mg/L"),
-]
-BIOREACTOR_Y = dict(
-    zip(standard_order(4), [60, 59, 63, 61, 69, 61, 94, 93, 56, 63, 70, 65, 44, 45, 78, 77], strict=True)
-)
-REACTION = [factor("A", 140, 160, "degC"), factor("B", 7.0, 8.0, "pH"), factor("C", 45, 55, "rpm")]
-REACTION_Y = [72, 73, 66, 87, 70, 73, 67, 87]
-CHICKEN = [factor("D", 15, 22, "min"), factor("R", "middle", "low"), factor("P", "short", "full")]
-CHICKEN_RUNS = [(*s, y) for s, y in zip(standard_order(3), [3, 9, 3, 7, 3, 10, 4, 7], strict=True)]
-SCREENING = [
-    (M, M, M, P, P, P, M, 77.1),
-    (P, M, M, M, M, P, P, 68.9),
-    (M, P, M, M, P, M, P, 75.5),
-    (P, P, M, P, M, M, M, 72.5),
-    (M, M, P, P, M, M, P, 67.9),
-    (P, M, P, M, P, M, M, 68.5),
-    (M, P, P, M, M, P, M, 71.5),
-    (P, P, P, P, P, P, P, 63.7),
-]
-MOULDING = [
-    (M, M, M, P, P, P, M, 14.0),
-    (P, M, M, M, M, P, P, 16.8),
-    (M, P, M, M, P, M, P, 15.0),
-    (P, P, M, P, M, M, M, 15.4),
-    (M, M, P, P, M, M, P, 27.6),
-    (P, M, P, M, P, M, M, 24.0),
-    (M, P, P, M, M, P, M, 27.4),
-    (P, P, P, P, P, P, P, 22.6),
-]
-AXIAL = [(M, M), (P, M), (M, P), (P, P), (0, 0), (0, -ROOT2), (ROOT2, 0), (0, ROOT2), (-ROOT2, 0)]
-MULTI_RESPONSE = [factor("T", 339, 347, "K"), factor("S", 1.40, 1.80, "g/L")]
-SIGNIFICANCE_Y = [71, 61, 90, 82, 68, 61, 87, 80, 61, 50, 89, 83, 59, 51, 85, 78]
-MICROGEL = [
-    (M, M, 119),
-    (P, M, 93),
-    (M, P, 154),
-    (P, P, 89),
-    (0, 0, 85),
-    (0, 0, 88),
-    (-1.4, 0, 125),
-    (1.4, 0, 111),
-    (0, 1.4, 136),
-    (0, -1.4, 98),
-]
 
 
 def steepest_ascent_yield(g: int, a: int, t: int, c: int) -> float:
@@ -150,152 +108,84 @@ def steepest_ascent_yield(g: int, a: int, t: int, c: int) -> float:
 
 EXAMPLES = {
     "two-level factorial, by least squares": Example(
-        "full-factorial-designs/analysis-by-least-squares-modelling.rst",
-        "full_factorial",
-        CONVERSION,
-        [(*s, y) for s, y in zip(standard_order(2), [69, 60, 64, 53], strict=True)],
-        "interactions",
+        "conversion",
         {"Intercept": "61.5", "T": "-5", "S": "-3", "T·S": "-0.5"},
     ),
-    "two-level factorial, effects by hand": Example(
-        "full-factorial-designs/using-two-levels-for-two-or-more-factors.rst",
-        "full_factorial",
-        CONVERSION,
-        [(*s, y) for s, y in zip(standard_order(2), [69, 60, 64, 53], strict=True)],
-        "interactions",
-        {"T": "-10", "S": "-6"},
-        effects=True,
-    ),
+    "two-level factorial, effects by hand": Example("conversion", {"T": "-10", "S": "-6"}, effects=True),
     "two-level factorial with an interaction": Example(
-        "full-factorial-designs/analysis-by-least-squares-modelling.rst",
-        "full_factorial",
-        INTERACTING,
-        [(*s, y) for s, y in zip(standard_order(2), [77, 79, 81, 89], strict=True)],
-        "interactions",
+        "conversion-interaction",
         {"Intercept": "81.5", "T": "2.5", "S": "3.5", "T·S": "1.5"},
     ),
     "two-level factorial with an interaction, effects by hand": Example(
-        "full-factorial-designs/using-two-levels-for-two-or-more-factors.rst",
-        "full_factorial",
-        INTERACTING,
-        [(*s, y) for s, y in zip(standard_order(2), [77, 79, 81, 89], strict=True)],
-        "interactions",
+        "conversion-interaction",
         {"T": "5", "S": "7", "T·S": "3"},
         effects=True,
     ),
     "three-factor pollutant experiment": Example(
-        "full-factorial-designs/example-design-and-analysis-of-a-three-factor-experiment.rst",
-        "full_factorial",
-        POLLUTANT_FACTORS,
-        POLLUTANT,
-        "interactions",
+        "pollutant",
         {"Intercept": "11.25", "C": "6.25", "T": "0.75", "S": "-7.25", "C·T": "0.25", "C·S": "-6.75", "T·S": "-0.25"},
     ),
     "three-factor pollutant experiment, effects by hand": Example(
-        "full-factorial-designs/example-design-and-analysis-of-a-three-factor-experiment.rst",
-        "full_factorial",
-        POLLUTANT_FACTORS,
-        POLLUTANT,
-        "interactions",
+        "pollutant",
         {"C": "12.5", "T": "1.5", "S": "-14.5", "C·T": "0.5", "C·S": "-13.5", "T·S": "-0.5"},
         effects=True,
     ),
     # All fifteen effects of the 2^4, saturated, through a fifth factor E = ABCD that carries the
     # four-factor interaction: the page's Lenth margins are the library's, which the book prints.
+    # No link opens these runs: a reader would meet a factor E the book does not have.
     "Lenth's method on a 2^4 factorial": Example(
-        "full-factorial-designs/assessing-significance-of-main-effects-and-interactions.rst",
-        "fractional_factorial",
-        [factor(n, -1, 1) for n in "ABCDE"],
-        [(*s, s[0] * s[1] * s[2] * s[3], y) for s, y in zip(standard_order(4), PARETO, strict=True)],
-        "interactions",
+        unlinked(
+            "fractional_factorial",
+            [factor(n, -1, 1) for n in "ABCDE"],
+            [(*s, s[0] * s[1] * s[2] * s[3], y) for s, y in zip(standard_order(4), PARETO, strict=True)],
+            "interactions",
+            resolution=5,
+        ),
         lenth={"PSE": "2.625", "ME": "6.748", "SME": "13.699"},
         active=("A", "C", "D", "A·C", "A·D"),
-        options={"resolution": 5},
     ),
     "saturated screening design": Example(
-        "fractional-factorial-designs/saturated-designs-for-screening.rst",
-        "fractional_factorial",
-        [factor(n, -1, 1) for n in "ABCDEFG"],
-        SCREENING,
-        "main_effects",
+        "saturated-screening",
         {"Intercept": "70.7", "A": "-2.3", "B": "0.1", "C": "-2.8", "D": "-0.4", "E": "0.5", "F": "-0.4", "G": "-1.7"},
         lenth={"PSE": "0.60", "ME": "2.26"},
         lenth_scale=2.0,  # the book applies Lenth's method to the coefficients
         active=("A", "C"),
-        options={"resolution": 3},
     ),
     "response surface: first factorial": Example(
-        "response-surface-methods.rst",
-        "full_factorial",
-        [factor("T", 320, 330, "K"), factor("S", 0.5, 1.0, "g/L")],
-        [(*s, y) for s, y in zip(standard_order(2), [193, 310, 468, 571], strict=True)],
-        "interactions",
+        "rsm-first-factorial",
         {"Intercept": "385.5", "T": "55", "S": "134", "T·S": "-3.50"},
     ),
     "response surface: second factorial": Example(
-        "response-surface-methods.rst",
-        "full_factorial",
-        [factor("T", 331, 339, "K"), factor("S", 1.77, 2.17, "g/L")],
-        [(*s, y) for s, y in zip(standard_order(2), [694, 725, 620, 642], strict=True)],
-        "interactions",
+        "rsm-second-factorial",
         {"Intercept": "670.25", "T": "13.25", "S": "-39.25", "T·S": "-2.25"},
     ),
     "response surface: central composite design": Example(
-        "response-surface-methods.rst",
-        "ccd",
-        [factor("T", 331, 339, "K"), factor("S", 1.77, 2.17, "g/L")],
-        [(*s, y) for s, y in zip(AXIAL, [694, 725, 620, 642, 688, 720, 699, 610, 663], strict=True)],
-        "quadratic",
+        "rsm-central-composite",
         {"Intercept": "688", "T": "13", "S": "-39", "T·S": "-2.25", "T²": "-4.2", "S²": "-12.2"},
-        options={"n_center_points": 1, "alpha": "rotatable"},
     ),
     "multi-response: profit": Example(
-        "multi-response-optimization.rst",
-        "ccd",
-        MULTI_RESPONSE,
-        [(*s, y) for s, y in zip(AXIAL, [720, 734, 721, 726, 738, 718, 738, 713, 726], strict=True)],
-        "quadratic",
+        "multi-response-profit",
         {"Intercept": "738.0", "T": "4.496", "S": "-1.759", "T·S": "-2.25", "T²": "-2.625", "S²": "-10.875"},
-        options={"n_center_points": 1, "alpha": "rotatable"},
         r_squared="0.9922",
     ),
     "multi-response: purity": Example(
-        "multi-response-optimization.rst",
-        "ccd",
-        MULTI_RESPONSE,
-        [(*s, y) for s, y in zip(AXIAL, [90.3, 82.3, 95.3, 87.2, 89.8, 83.9, 83.7, 90.9, 95.4], strict=True)],
-        "quadratic",
+        "multi-response-purity",
         {"Intercept": "89.8", "T": "-4.081", "S": "2.475", "T·S": "-0.025", "T²": "-0.05", "S²": "-1.125"},
-        options={"n_center_points": 1, "alpha": "rotatable"},
         r_squared="0.9989",
     ),
     # The book averages each pair of replicates and analyses the corners; the page holds both replicates.
     "exercise: web sales": Example(
-        "design-analysis-experiments-exercises.rst",
-        "full_factorial",
-        WEB_SALES,
-        WEB_SALES_RUNS,
-        "interactions",
+        "web-sales",
         {"Intercept": "3184", "Shipping": "-126", "Profile": "-371", "Shipping·Profile": "-181"},
-        options={"n_replicates": 2},
         residual={"df": "4"},  # the replicates' four, all pure error: the corners' model leaves none for lack of fit
     ),
     "exercise: web sales, effects": Example(
-        "design-analysis-experiments-exercises.rst",
-        "full_factorial",
-        WEB_SALES,
-        WEB_SALES_RUNS,
-        "interactions",
+        "web-sales",
         {"Shipping": "-252.50", "Profile": "-742.50", "Shipping·Profile": "-362.50"},
         effects=True,
-        options={"n_replicates": 2},
     ),
     "exercise: bioreactor 2^4": Example(
-        "design-analysis-experiments-exercises.rst",
-        "full_factorial",
-        BIOREACTOR,
-        [(*s, y) for s, y in BIOREACTOR_Y.items()],
-        "interactions",
+        "bioreactor",
         {
             "Intercept": "66.125",
             "A": "-0.625",
@@ -311,11 +201,7 @@ EXAMPLES = {
         },
     ),
     "exercise: bioreactor half fraction": Example(
-        "design-analysis-experiments-exercises.rst",
-        "fractional_factorial",
-        BIOREACTOR,
-        [(*s, y) for s, y in BIOREACTOR_Y.items() if s[3] == s[0] * s[1] * s[2]],
-        "interactions",
+        "bioreactor-half-fraction",
         {
             "Intercept": "66.25",
             "A": "-0.75",
@@ -326,23 +212,15 @@ EXAMPLES = {
             "A·C": "0.75",
             "A·D": "7.25",
         },
-        options={"resolution": 4},
     ),
+    # The exercise's first parts take the six runs as one group, before the days are brought in.
     "exercise: side product": Example(
-        "design-analysis-experiments-exercises.rst",
-        "full_factorial",
-        [factor("A", 420, 440, "K"), factor("B", 10, 12, "kg")],
-        [(M, M, 89), (P, M, 268), (M, P, 179), (P, P, 448), (0, 0, 196), (0, 0, 215)],
-        "interactions",
+        "side-product",
         {"Intercept": "232.5", "A": "112", "B": "67.5", "A·B": "22.5"},
-        options={"n_center_points": 2},
+        options={"n_blocks": 1},
     ),
     "exercise: chemical reaction": Example(
-        "design-analysis-experiments-exercises.rst",
-        "full_factorial",
-        REACTION,
-        [(*s, y) for s, y in zip(standard_order(3), REACTION_Y, strict=True)],
-        "interactions",
+        "chemical-reaction",
         {
             "Intercept": "74.375",
             "A": "5.625",
@@ -354,20 +232,12 @@ EXAMPLES = {
         },
     ),
     "exercise: chemical reaction, effects by hand": Example(
-        "design-analysis-experiments-exercises.rst",
-        "full_factorial",
-        REACTION,
-        [(*s, y) for s, y in zip(standard_order(3), REACTION_Y, strict=True)],
-        "interactions",
+        "chemical-reaction",
         {"A": "11.25", "B": "4.75", "C": "-0.25", "A·B": "9.25", "A·C": "0.25", "B·C": "0.75"},
         effects=True,
     ),
     "exercise: injection moulding": Example(
-        "design-analysis-experiments-exercises.rst",
-        "fractional_factorial",
-        [factor(n, -1, 1) for n in "ABCDEFG"],
-        MOULDING,
-        "main_effects",
+        "injection-molding",
         {
             "Intercept": "20.35",
             "A": "-0.65",
@@ -381,36 +251,24 @@ EXAMPLES = {
         lenth={"ME": "1.98"},
         lenth_scale=2.0,  # the solution quotes the margin on the coefficient scale
         active=("C",),
-        options={"resolution": 3},
     ),
     "exercise: breaded chicken": Example(
-        "design-analysis-experiments-exercises.rst",
-        "full_factorial",
-        CHICKEN,
-        CHICKEN_RUNS,
-        "interactions",
+        "breaded-chicken",
         {"Intercept": "5.75", "D": "2.5", "R": "-0.5", "P": "0.25", "D·R": "-0.75", "D·P": "0.0", "R·P": "0.0"},
     ),
     "exercise: breaded chicken, half fraction": Example(
-        "design-analysis-experiments-exercises.rst",
-        "fractional_factorial",
-        CHICKEN,
-        [run for run in CHICKEN_RUNS if run[2] == run[0] * run[1]],
-        "main_effects",
+        "breaded-chicken-half-fraction",
         {"Intercept": "5.5", "D": "2.5", "R": "-0.5", "P": "-0.5"},
-        options={"resolution": 3},
     ),
+    # The book gives the saturated model, not the eight runs: no link opens yields it did not print.
     "exercise: steepest ascent": Example(
-        "design-analysis-experiments-exercises.rst",
-        "fractional_factorial",
-        [
-            factor("G", "Gm", "Gp"),
-            factor("A", 10, 20, "rpm"),
-            factor("T", 30, 36, "degC"),
-            factor("C", 1100, 1400),
-        ],
-        [(*s, steepest_ascent_yield(*s)) for s in standard_order(4) if s[3] == s[0] * s[1] * s[2]],
-        "interactions",
+        unlinked(
+            "fractional_factorial",
+            [factor("G", "Gm", "Gp"), factor("A", 10, 20, "rpm"), factor("T", 30, 36, "degC"), factor("C", 1100, 1400)],
+            [(*s, steepest_ascent_yield(*s)) for s in standard_order(4) if s[3] == s[0] * s[1] * s[2]],
+            "interactions",
+            resolution=4,
+        ),
         {
             "Intercept": "24",
             "G": "3",
@@ -421,70 +279,37 @@ EXAMPLES = {
             "G·T": "-0.79",
             "A·T": "-0.25",
         },
-        options={"resolution": 4},
     ),
     # The 2^4 of the significance section refitted with only its significant effects, the terms a reader ticks.
     "significance: the 2^4 refitted with its significant effects": Example(
-        "full-factorial-designs/assessing-significance-of-main-effects-and-interactions.rst",
-        "full_factorial",
-        [factor(n, -1, 1) for n in "ABCD"],
-        [(*s, y) for s, y in zip(standard_order(4), SIGNIFICANCE_Y, strict=True)],
-        {"terms": [["A"], ["B"], ["D"], ["B", "D"]]},
+        "significance",
         residual={"df": "11", "mean square": "3.55", "standard error": "0.471"},
     ),
-    "significance: an effect left out of the 2^4": Example(
-        "full-factorial-designs/assessing-significance-of-main-effects-and-interactions.rst",
-        "full_factorial",
-        [factor(n, -1, 1) for n in "ABCD"],
-        [(*s, y) for s, y in zip(standard_order(4), SIGNIFICANCE_Y, strict=True)],
-        "interactions",
-        {"C": "-1.125"},
-    ),
+    "significance: an effect left out of the 2^4": Example("significance", {"C": "-1.125"}, model="interactions"),
     # The full factorial with every term, the three-factor interaction ticked: the half fraction's intercept
     # is the full model's 5.75 plus its D·R·P, -0.25.
     "exercise: breaded chicken, every term": Example(
-        "design-analysis-experiments-exercises.rst",
-        "full_factorial",
-        CHICKEN,
-        CHICKEN_RUNS,
-        {"terms": [["D"], ["R"], ["P"], ["D", "R"], ["D", "P"], ["R", "P"], ["D", "R", "P"]]},
+        "breaded-chicken",
         {"Intercept": "5.75", "D": "2.5", "R": "-0.5", "P": "0.25", "D·R": "-0.75", "D·R·P": "-0.25"},
+        model={"terms": [["D"], ["R"], ["P"], ["D", "R"], ["D", "P"], ["R", "P"], ["D", "R", "P"]]},
     ),
     "exercise: microgel, axial runs at 1.4": Example(
-        "design-analysis-experiments-exercises.rst",
-        "ccd",
-        [factor("M", 4, 8, "%"), factor("H", 10, 16, "%")],
-        MICROGEL,
-        "quadratic",
-        options={"n_center_points": 2, "alpha": 1.4},
+        "microgel",
         residual={"df": "4", "pure error df": "1"},
     ),
     # The side product's two days are the two blocks: the page confounds A·B with them, as the book did.
     "exercise: side product, run over two days": Example(
-        "design-analysis-experiments-exercises.rst",
-        "full_factorial",
-        [factor("A", 420, 440, "K"), factor("B", 10, 12, "kg")],
-        [(M, M, 89), (P, M, 268), (M, P, 179), (P, P, 448), (0, 0, 196), (0, 0, 215)],
-        "interactions",
+        "side-product",
         {"Intercept": "232.5", "A": "112", "B": "67.5"},
-        options={"n_center_points": 2, "n_blocks": 2},
         note="A·B is confounded with the blocks",
     ),
 }
 
 
-def typed_in(example: Example, design: dict) -> list[float]:
-    """Type the book's results against the page's run sheet, each matched to its run by the coded settings."""
-    sheet = coded(run_sheet(design), example.factors).to_numpy(dtype=float)
-    unused = [(np.asarray(run[:-1], dtype=float), run[-1]) for run in example.runs]
-    results = []
-    for row in sheet:
-        found = next((i for i, (settings, _) in enumerate(unused) if np.allclose(settings, row, atol=1e-9)), None)
-        if found is None:
-            pytest.fail(f"The page's run {row.round(4).tolist()} is not one of the book's runs.")
-        results.append(unused.pop(found)[1])
-    assert not unused, f"The book's runs {[s.tolist() for s, _ in unused]} are not in the page's design."
-    return results
+def test_every_example_a_link_opens_is_checked_against_the_book():
+    """A name in the catalogue is a link the book may print: each must open runs a case here checks."""
+    checked = {example.data for example in EXAMPLES.values() if isinstance(example.data, str)}
+    assert checked == set(catalogue())
 
 
 def coefficient(analysis: dict, label: str) -> float:
@@ -499,17 +324,21 @@ def coefficient(analysis: dict, label: str) -> float:
 
 
 @pytest.fixture(scope="module")
-def analysis_of(api) -> Callable[[str], dict]:
-    """Analyse an example, once per module, as the page does: make its design, type in its results, analyse."""
+def analysis_of(api, build_script) -> Callable[[str], dict]:
+    """Analyse an example, once per module, as the page does once its link has opened it.
+
+    ``book_example`` makes the design through the page's entry point and puts the book's results
+    against its runs, as the build does for the link; the page then analyses what the link opens.
+    """
 
     @cache
     def analysis(name: str) -> dict:
         example = EXAMPLES[name]
-        options = {"n_center_points": 0, **example.options}
-        spec = {"design_type": example.design_type, "factors": example.factors, "response": "y", **options}
-        design = api.ok("api_make_design", spec)
-        request = {**held_of(design), "responses": typed_in(example, design), "model": example.model}
-        return api.ok("api_analyze_runs", request)
+        with no_bytecode():
+            opened = build_script.book_example(example.entry())["campaign"]
+        held = {key: opened["design"][key] for key in ("spec", "columns", "rows")}
+        model = opened["model"] if example.model is None else example.model
+        return api.ok("api_analyze_runs", {**held, "responses": opened["responses"], "model": model})
 
     return analysis
 
