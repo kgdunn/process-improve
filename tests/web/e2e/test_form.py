@@ -167,3 +167,93 @@ def test_two_labels_make_a_factor_categorical_and_leave_the_two_level_designs(pa
     assert page.is_disabled("#generate")
     choose(page, design_type="full_factorial")
     assert not page.is_disabled("#generate")
+
+
+# --------------------------------------------------------------------------- numeric and categorical factors
+def types(page) -> list[str]:
+    """Read each factor's type, as its Type box shows it."""
+    return page.eval_on_selector_all("#factors tbody [name=type]", "boxes => boxes.map((b) => b.value)")
+
+
+def row(page, i: int):
+    return page.locator("#factors tbody tr").nth(i)
+
+
+def problems(page) -> str | None:
+    return None if page.is_hidden("#factor-problems") else page.text_content("#factor-problems")
+
+
+def test_every_factor_says_whether_it_is_numeric_or_categorical(page):
+    assert types(page) == ["numeric", "numeric", "numeric"]
+    assert page.locator("#factors thead th").all_text_contents()[:5] == ["Factor", "Type", "Low", "High", "Units"]
+    assert row(page, 0).locator("[name=type] option").all_text_contents() == ["Numeric", "Categorical"]
+
+
+def test_choosing_categorical_gives_two_labels_and_takes_the_units_away(page):
+    row(page, 1).locator("[name=type]").select_option("categorical")
+    assert factor_table(page)[1] == {"name": "P", "low": "A", "high": "B", "units": ""}
+    assert row(page, 1).locator("[name=units]").is_disabled()
+    assert row(page, 1).locator("[name=low]").get_attribute("aria-label") == "First label"
+    assert page.evaluate("document.activeElement.name") == "low", "the first label is ready to be typed over"
+    assert "box_behnken" in disabled_designs(page), "a categorical factor leaves only the two-level designs"
+
+    row(page, 1).locator("[name=low]").fill("old")
+    row(page, 1).locator("[name=type]").select_option("numeric")
+    assert factor_table(page)[1] == {"name": "P", "low": "1", "high": "3", "units": "bar"}, "its numbers come back"
+    row(page, 1).locator("[name=type]").select_option("categorical")
+    assert factor_table(page)[1]["low"] == "old", "and so do its labels"
+
+
+def test_typing_two_labels_makes_a_factor_categorical_and_two_numbers_numeric(page):
+    factor = row(page, 0)
+    factor.locator("[name=low]").fill("old")
+    assert types(page)[0] == "numeric", "one label beside a number keeps the type chosen"
+    assert problems(page) == (
+        "T: give a number for both the low and the high value, or make it categorical for two labels."
+    )
+    assert page.is_disabled("#generate")
+    factor.locator("[name=high]").fill("new")
+    assert types(page)[0] == "categorical"
+    assert factor.locator("[name=units]").input_value() == ""
+    assert problems(page) is None
+    factor.locator("[name=low]").fill("150")
+    factor.locator("[name=high]").fill("200")
+    assert types(page)[0] == "numeric"
+    assert factor.locator("[name=units]").input_value() == "degC", "the units put aside come back"
+
+
+def test_a_categorical_factor_is_added_with_two_labels(page):
+    page.click("#add-categorical")
+    assert types(page)[-1] == "categorical"
+    assert factor_table(page)[-1] == {"name": "", "low": "A", "high": "B", "units": ""}
+    assert page.evaluate("document.activeElement.getAttribute('aria-label')") == "Factor name"
+
+
+def test_what_a_factor_s_labels_still_need_is_said_before_python_is_asked(page):
+    choose(page, design_type="full_factorial")
+    page.click("#add-categorical")
+    added = row(page, 3)
+    added.locator("[name=name]").fill("Catalyst")
+    added.locator("[name=low]").fill("1")
+    assert problems(page) == "Catalyst: a label cannot be a number; write C1 rather than 1."
+    assert added.locator("[name=low]").get_attribute("aria-invalid") is not None
+    assert page.is_disabled("#generate")
+    added.locator("[name=low]").fill("C1")
+    added.locator("[name=high]").fill("C1")
+    assert problems(page) == "Catalyst: its two labels must differ."
+    added.locator("[name=high]").fill("C2")
+    assert problems(page) is None
+    assert not page.is_disabled("#generate")
+    generate(page)
+    assert factor_table(page)[3] == {"name": "Catalyst", "low": "C1", "high": "C2", "units": ""}
+
+
+@pytest.mark.parametrize("context_options", [{"viewport": {"width": 390, "height": 844}, "is_mobile": True}])
+def test_on_a_phone_each_factor_shows_its_headings_and_its_type_in_full(page):
+    row(page, 1).locator("[name=type]").select_option("categorical")
+    captions = row(page, 1).evaluate(
+        "tr => [...tr.cells].map((td) => getComputedStyle(td, '::before').content).filter((c) => c !== 'none')"
+    )
+    assert captions == ['"Factor"', '"Type"', '"First label"', '"Second label"', '"Units"']
+    select = row(page, 1).locator("[name=type]")
+    assert select.evaluate("s => s.scrollWidth <= s.clientWidth"), "Categorical is not cut short"

@@ -88,6 +88,44 @@ export const levelValue = (text) => (isLabel(text) ? String(text).trim() : numbe
 /** Whether a factor is categorical: both its levels are labels, as bootstrap.py reads them. */
 export const isCategorical = (f) => isLabel(f.low) && isLabel(f.high);
 
+/** A factor's two types, as the Type column offers them. */
+export const NUMERIC = "numeric";
+export const CATEGORICAL = "categorical";
+
+/** What a level box holds: "blank", a "number" or a "label". */
+export const levelKind = (text) => (String(text ?? "").trim() === "" ? "blank" : isLabel(text) ? "label" : "number");
+
+/**
+ * The type a factor's two levels give it: categorical for two labels, numeric for two numbers.
+ * Anything in between (a blank box, or a label beside a number) keeps the type the reader chose.
+ */
+export function factorType(low, high, chosen) {
+  const kinds = [levelKind(low), levelKind(high)];
+  if (kinds.every((k) => k === "label")) return CATEGORICAL;
+  if (kinds.every((k) => k === "number")) return NUMERIC;
+  return chosen;
+}
+
+/**
+ * What a factor's levels need for its type, in a sentence the page shows under the table as the
+ * reader types; "" when they are ready. The rules are those bootstrap.py applies to the levels.
+ */
+export function levelProblem({ name, low, high }, type) {
+  const who = String(name ?? "").trim() || "A factor without a name";
+  const kinds = [levelKind(low), levelKind(high)];
+  if (type === CATEGORICAL) {
+    if (kinds.includes("blank")) return `${who}: give it two labels, such as A and B.`;
+    if (kinds.includes("number")) return `${who}: a label cannot be a number; write C1 rather than 1.`;
+    if (String(low).trim() === String(high).trim()) return `${who}: its two labels must differ.`;
+    return "";
+  }
+  if (kinds.includes("blank") || kinds.includes("label")) {
+    return `${who}: give a number for both the low and the high value, or make it categorical for two labels.`;
+  }
+  if (!(Number(low) < Number(high))) return `${who}: the low value must be below the high value.`;
+  return "";
+}
+
 /** Read a number box as the page sends it: a blank box as null, rather than as Number("") = 0. */
 export const numberOrNull = (text) => (text.trim() === "" ? null : Number(text));
 

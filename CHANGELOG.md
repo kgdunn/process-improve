@@ -25,6 +25,17 @@ those changes.
   reopens the copy saved in the browser while it is unchanged, and a fresh copy once the
   reader has changed it.
 
+### Changed
+
+- **Factorial says which factors are categorical.** Each factor in step 1 has a Type,
+  Numeric or Categorical: choosing Categorical gives it two labels to edit (A and B to
+  start) and takes away its units, and choosing Numeric brings its numbers back. **+ Add
+  categorical factor** sits beside + Add factor. Typing two labels still makes a factor
+  categorical, and now the Type shows it. A sentence under the table says, as the reader
+  types, what a factor's levels still need (two numbers with the low below the high, or two
+  labels that differ and are not numbers), and Generate waits until they have it. On a
+  phone each factor is a card of two lines, every box under its heading.
+
 ## [1.98.0] - 2026-10-12
 
 ### Added

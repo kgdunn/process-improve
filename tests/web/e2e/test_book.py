@@ -45,6 +45,8 @@ def test_a_book_example_opens_with_its_factors_runs_and_results(context, site, b
         {"name": "S", "low": "200", "high": "400", "units": "rpm"},
     ]
     assert page.input_value("#response") == "Pollutant"
+    types = page.eval_on_selector_all("#factors tbody [name=type]", "boxes => boxes.map((b) => b.value)")
+    assert types == ["categorical", "numeric", "numeric"], "the chemical, P or Q, is categorical"
     # The run sheet is the book's table, row by row: its experiment number, and the order it was run in.
     sheet = run_sheet(page)
     assert [row[:2] for row in sheet] == [[str(i), str(r)] for i, r in enumerate([5, 6, 1, 4, 2, 7, 3, 8], start=1)]

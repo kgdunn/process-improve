@@ -85,12 +85,18 @@
     <h2 id="h-design"><span class="step">1</span> Design</h2>
 
     <table class="factors" id="factors">
-      <thead><tr><th>Factor</th><th>Low</th><th>High</th><th>Units</th><th><span class="sr">Remove</span></th></tr></thead>
+      <thead><tr><th>Factor</th><th>Type</th><th>Low</th><th>High</th><th>Units</th><th><span class="sr">Remove</span></th></tr></thead>
       <tbody></tbody>
     </table>
-    <button type="button" id="add-factor" class="link">+ Add factor</button>
-    <p class="hint">Give each factor two numbers, its low and high values, or two labels for a categorical factor,
-      such as supplier A and B: the two-level designs take those.</p>
+    <p id="factor-problems" class="hint error" role="status" hidden></p>
+    <p class="add-factors">
+      <button type="button" id="add-factor" class="link">+ Add factor</button>
+      <button type="button" id="add-categorical" class="link">+ Add categorical factor</button>
+    </p>
+    <p class="hint">A factor is <strong>numeric</strong>, from a low to a high value, or <strong>categorical</strong>,
+      with two labels such as supplier A and B; the first label is coded -1 and the second +1. Choose each factor's
+      type, or type two labels as its levels. Only the two-level designs take a categorical factor: full factorial,
+      fractional factorial and Plackett-Burman.</p>
 
     <div class="row">
       <label>Design type

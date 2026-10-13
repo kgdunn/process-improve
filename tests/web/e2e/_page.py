@@ -60,7 +60,9 @@ def set_factors(page: Any, factors: list[dict]) -> None:  # noqa: ANN401
         page.click("#add-factor")
     for row, factor in zip(rows.all(), factors, strict=True):
         for key in ("name", "low", "high", "units"):
-            row.locator(f"[name={key}]").fill(str(factor.get(key, "")))
+            box = row.locator(f"[name={key}]")
+            if box.is_enabled():  # two labels make a factor categorical, and take away its units
+                box.fill(str(factor.get(key, "")))
 
 
 def choose(page: Any, **settings: object) -> None:  # noqa: ANN401
