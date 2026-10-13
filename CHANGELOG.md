@@ -18,8 +18,11 @@ those changes.
   catalogue, bundled as JSON under `datasets/experiments/reference/`, holds each worked
   example, exercise and case study of the book *Process Improvement using Data* (read from
   its source at a stated commit), of Soravia and Orth's "Design of Experiments" in
-  *Ullmann's Encyclopedia of Industrial Chemistry* (2012), and of the graded and practice
-  quizzes of the *Experimentation for Improvement* course. For each it keeps the factors,
+  *Ullmann's Encyclopedia of Industrial Chemistry* (2012), of the graded and practice
+  quizzes of the *Experimentation for Improvement* course, of Nair's tutorial on fractional
+  factorial designs (2004), and of five papers on definitive screening and OMARS designs and
+  trend-robust run orders (Jones and Nachtsheim 2013; Nunez Ares and Goos 2019, 2020; Nunez
+  Ares, Schoen and Goos 2023; Goos 2025). For each it keeps the factors,
   responses and runs exactly as printed, and every number the source prints: each as the
   printed text, with where it is printed (file and line, or page, and a quotation) and how to
   recompute it (the kind of result, the term, the model and the runs used). Designs without
@@ -30,6 +33,9 @@ those changes.
   the library does not recompute says why, and one known not to reproduce says what differs.
   A quiz's answer key is tested as well: the numbers printed in options the key marks
   incorrect are recomputed too, and must not reproduce.
+  A design printed without results is checked through its properties (`design_metric`
+  evaluates it with `evaluate_design`: D-, A-, G-efficiency, correlations, prediction
+  variance, power).
   `tests/test_doe_reference.py` requires every checked number to agree.
 - **Factorial opens examples from published sources other than the book:
   `https://factori.al/?example=<name>`.** They are listed in `web/published-examples.json`, each
