@@ -43,6 +43,8 @@ def test_copy_puts_the_code_on_the_clipboard(context, page, site):
     page.click("#py-design .copy")
     assert page.evaluate("navigator.clipboard.readText()") == code(page, "design")
     assert page.text_content("#py-design .copy") == "Copied"
+    assert page.is_visible("#toast")
+    assert page.text_content("#toast") == "Code copied to the clipboard: paste it into a script or a notebook."
     page.wait_for_function("document.querySelector('#py-design .copy').textContent === 'Copy the code'")
 
 

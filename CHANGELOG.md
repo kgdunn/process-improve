@@ -69,6 +69,13 @@ those changes.
   page and the QR code on it are gone: the workbook (.xlsx) serves for a sheet on paper, and
   Copy a link carries the design to a phone. `segno`, the QR encoder's test oracle, leaves
   the dev dependencies. The app is not public Python API, so this is filed as a change.
+- **Factorial says "Link copied" where the reader is looking.** Copy a link, and Copy the
+  code under a Show the Python code panel, now show a short message at the foot of the
+  screen that the link or code is on the clipboard, or that the browser refused it and the
+  text is selected to copy by hand.
+- **Factorial's status line fades five seconds after a success**, giving its room back to
+  the page. An error brings it back at once; a busy spell does once it has lasted long
+  enough to be worth showing, so a quick analysis does not make the page jump.
 - **The residuals-vs-fitted plot names the response on its x axis** ("Fitted Conversion"
   rather than "Fitted Values") when `create_plot` is given `response_column`.
 

@@ -132,10 +132,56 @@ function pythonFailed(reason) {
 }
 
 /** Show a status message; state is "busy" (spinner), "ok" (tick) or "error". */
+/** How long a success stays on the status line before it fades, and how long the fade takes. */
+const STATUS_SHOWN = 5000;
+const STATUS_FADE = 600;
+/** How long a busy spell lasts before the faded status line comes back for it. */
+const STATUS_WAIT = 400;
+let statusTimer = null;
+
+/**
+ * Say what Python is doing on the status line. A success fades after five seconds, giving its
+ * room back to the page; an error comes back at once, and a busy spell once it has lasted long
+ * enough to be worth showing, so a quick analysis does not make the page jump.
+ */
 function setStatus(text, state = "ok") {
-  const el = $("#status");
-  el.querySelector(".status__text").textContent = text;
-  el.dataset.state = state;
+  const box = $("#status");
+  box.querySelector(".status__text").textContent = text;
+  box.dataset.state = state;
+  clearTimeout(statusTimer);
+  const show = () => {
+    box.hidden = false;
+    box.classList.remove("fading");
+  };
+  if (state === "ok") {
+    if (box.hidden) return; // nothing to say that the page does not already show
+    show();
+    statusTimer = setTimeout(() => {
+      box.classList.add("fading");
+      statusTimer = setTimeout(() => (box.hidden = true), STATUS_FADE);
+    }, STATUS_SHOWN);
+  } else if (state === "error" || !box.hidden) {
+    show();
+  } else {
+    statusTimer = setTimeout(show, STATUS_WAIT);
+  }
+}
+
+let toastTimer = null;
+
+/** Say briefly, at the foot of the screen, that something was done: a link or code copied to the clipboard. */
+function toast(text, state = "ok") {
+  const box = $("#toast");
+  box.textContent = text;
+  box.dataset.state = state;
+  box.hidden = false;
+  void box.offsetWidth; // lay it out unshown first, so it fades in rather than appearing
+  box.classList.add("shown");
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => {
+    box.classList.remove("shown");
+    toastTimer = setTimeout(() => (box.hidden = true), 300);
+  }, 3500);
 }
 
 // ---------------------------------------------------------------- state
@@ -1485,8 +1531,14 @@ async function shareLink() {
   } catch {
     copied = false; // the browser refused the clipboard: the link is in the box, selected
   }
+  toast(
+    copied
+      ? "Link copied to the clipboard: paste it into an email or a chat."
+      : "The browser would not copy the link: it is selected in the box below, to copy by hand.",
+    copied ? "ok" : "error",
+  );
   $("#share-note").textContent =
-    `${copied ? "Copied." : "Copy the link from the box."} Whoever opens it gets ` +
+    `${copied ? "" : "Copy the link from the box. "}Whoever opens it gets ` +
     `${withResults ? "this design and its results" : "this design, without its results"}, saved in their own ` +
     `browser. Everything is in the link itself, ${url.length} characters long; nothing is stored on a server.` +
     (url.length > 8000 ? " Some chat apps cut links this long: the workbook is the surer way to send it." : "");
@@ -1712,6 +1764,7 @@ for (const button of document.querySelectorAll("details.python .copy")) {
     let done = "Copied";
     try {
       await navigator.clipboard.writeText(code.textContent);
+      toast("Code copied to the clipboard: paste it into a script or a notebook.");
     } catch {
       // The browser refused the clipboard: select the code, for the reader to copy from the keyboard.
       getSelection().selectAllChildren(code);

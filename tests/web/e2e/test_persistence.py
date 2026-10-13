@@ -177,6 +177,31 @@ def test_a_link_opens_the_design_and_its_results_in_another_browser(open_context
     saved(elsewhere, 1)
 
 
+def test_a_copied_link_says_so_where_the_reader_is_looking(context, page, site):
+    context.grant_permissions(["clipboard-read", "clipboard-write"], origin=site.rstrip("/"))
+    generate(page, design_type="full_factorial", n_center_points=0)
+    page.click("#share")
+    page.wait_for_selector("#toast", state="visible")
+    assert page.text_content("#toast") == "Link copied to the clipboard: paste it into an email or a chat."
+    assert page.get_attribute("#toast", "data-state") == "ok"
+    assert page.evaluate("navigator.clipboard.readText()") == page.input_value("#share-url")
+    assert page.text_content("#share-note").startswith("Whoever opens it gets"), "the toast says it was copied"
+    page.wait_for_selector("#toast", state="hidden", timeout=6_000)
+
+
+def test_a_link_the_browser_will_not_copy_is_selected_to_copy_by_hand(page):
+    page.evaluate(
+        "() => { navigator.clipboard.writeText = () =>"
+        " Promise.reject(new DOMException('Write permission denied.', 'NotAllowedError')); }"
+    )
+    generate(page, design_type="full_factorial", n_center_points=0)
+    page.click("#share")
+    page.wait_for_selector("#toast", state="visible")
+    assert page.get_attribute("#toast", "data-state") == "error"
+    assert page.text_content("#toast").startswith("The browser would not copy the link")
+    assert page.text_content("#share-note").startswith("Copy the link from the box.")
+
+
 def test_a_link_without_its_results_carries_the_design_only(open_context, page):
     generate(page, design_type="full_factorial", n_center_points=0)
     simulate(page)

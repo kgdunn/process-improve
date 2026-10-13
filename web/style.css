@@ -104,6 +104,19 @@ section {
   border: 1px solid var(--line); border-left: 4px solid var(--muted); border-radius: 8px;
   background: var(--panel); color: var(--fg); font-size: 0.92rem;
 }
+.status { transition: opacity 0.6s ease; }
+.status.fading { opacity: 0; }
+
+/* A short message at the foot of the screen, over the page: a link or code copied. */
+.toast {
+  position: fixed; left: 50%; bottom: calc(20px + env(safe-area-inset-bottom)); z-index: 10;
+  width: max-content; max-width: calc(100vw - 32px); padding: 10px 16px; border-radius: 8px;
+  background: var(--fg); color: var(--bg); font-size: 0.92rem; box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25);
+  opacity: 0; transform: translate(-50%, 8px); transition: opacity 0.25s ease, transform 0.25s ease;
+}
+.toast.shown { opacity: 1; transform: translate(-50%, 0); }
+.toast[data-state="error"] { background: var(--error); color: var(--bg); }
+@media (prefers-reduced-motion: reduce) { .status, .toast { transition: none; } }
 .status__icon { flex: none; width: 18px; height: 18px; display: grid; place-items: center; font-weight: 700; }
 .status[data-state="busy"] { border-left-color: var(--accent); }
 /* While Python works, the mark's runs light up in a random run order, then clear in the same order. */
