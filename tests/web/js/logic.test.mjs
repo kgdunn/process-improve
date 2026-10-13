@@ -8,6 +8,7 @@ import {
   AXIAL_DISTANCE,
   CAPTIONS,
   CATEGORICAL,
+  MODES,
   NUMERIC,
   axialDistance,
   candidateTerms,
@@ -29,8 +30,10 @@ import {
   nTerms,
   namedModelTerms,
   needsCentre,
+  nextMode,
   numberOrNull,
   pval,
+  shownTheme,
   sortNumber,
   termLabel,
 } from "../../../web/logic.js";
@@ -263,5 +266,31 @@ describe("a factor's levels", () => {
 
   test("a factor without a name is still named in the sentence", () => {
     assert.match(levelProblem({ name: " ", low: "A", high: "" }, CATEGORICAL), /^A factor without a name: /);
+  });
+});
+
+describe("the colour mode", () => {
+  test("the switch offers the system's mode, light and dark, as the book's does", () => {
+    assert.deepEqual(MODES, ["auto", "light", "dark"]);
+  });
+
+  test("from the system's mode the first press shows the other theme, so it always changes the page", () => {
+    assert.equal(nextMode("auto", false), "dark");
+    assert.equal(nextMode("auto", true), "light");
+    assert.equal(shownTheme(nextMode("auto", false), false), "dark");
+    assert.equal(shownTheme(nextMode("auto", true), true), "light");
+  });
+
+  test("three presses come back to the system's mode", () => {
+    for (const dark of [false, true]) {
+      const seen = [MODES[0]];
+      for (let i = 0; i < 3; i += 1) seen.push(nextMode(seen.at(-1), dark));
+      assert.equal(seen.at(-1), "auto");
+      assert.deepEqual(new Set(seen.slice(0, 3)), new Set(MODES));
+    }
+  });
+
+  test("a mode the page does not know starts the cycle again", () => {
+    assert.equal(nextMode("sepia", false), "auto");
   });
 });

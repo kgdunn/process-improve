@@ -36,6 +36,18 @@ those changes.
   labels that differ and are not numbers), and Generate waits until they have it. On a
   phone each factor is a card of two lines, every box under its heading.
 
+- **Factorial has a colour-mode switch, as the book has.** An icon at the top right cycles
+  the system's mode, dark and light (light first on a dark system), with the book's
+  sun, moon and half-circle and its "light/dark" tooltip. The choice is kept in this
+  browser and put on the page before it is drawn, so it never flashes; the charts are
+  drawn again in its colours, and now also follow the system when it changes.
+- **The worked-example button no longer reads as a run of the design on the page.** Beside
+  a design of the reader's, a book example or a link's, it becomes a secondary "Open the
+  worked example instead", and says it takes that design's place, and whether the design
+  stays under Your designs.
+- **Factorial's links into the book open in one tab**, reused on the next click, rather
+  than a new tab each time.
+
 ## [1.98.0] - 2026-10-12
 
 ### Added

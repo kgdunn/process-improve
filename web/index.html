@@ -12,8 +12,20 @@
   <link rel="icon" href="favicon.svg" type="image/svg+xml">
   <link rel="apple-touch-icon" href="apple-touch-icon.png">
   <link rel="manifest" href="manifest.webmanifest">
-  <meta name="theme-color" content="#faf8f3" media="(prefers-color-scheme: light)">
-  <meta name="theme-color" content="#141517" media="(prefers-color-scheme: dark)">
+  <meta name="theme-color" content="#faf8f3" media="(prefers-color-scheme: light)" data-scheme="light">
+  <meta name="theme-color" content="#141517" media="(prefers-color-scheme: dark)" data-scheme="dark">
+  <script>
+    /* The colour mode chosen with the switch in the header (app.js), put on the page before it is drawn,
+       so a reader who chose dark never sees it flash light. Without a choice the system's is followed. */
+    try {
+      const mode = localStorage.getItem("factorial-mode");
+      const chosen = mode === "light" || mode === "dark";
+      if (chosen) document.documentElement.dataset.theme = mode;
+      document.documentElement.dataset.mode = chosen ? mode : "auto";
+    } catch {
+      /* storage refused: the system's mode */
+    }
+  </script>
   <meta property="og:type" content="website">
   <meta property="og:site_name" content="process-improve">
   <meta property="og:title" content="Factorial: designed experiments in your browser">
@@ -42,6 +54,12 @@
         <h1>Factorial</h1>
         <p class="tagline">Change every factor at once, and still see what each one does.</p>
       </div>
+      <!-- Light, dark, or the system's, in turn, as the book's switch does: its icon shows the mode now. -->
+      <button type="button" id="mode" class="mode-switch" title="light/dark" aria-label="Colour mode: the system's">
+        <svg data-for="auto" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="8.5" fill="none" stroke="currentColor" stroke-width="2"/><path d="M12 3.5a8.5 8.5 0 0 0 0 17z" fill="currentColor"/></svg>
+        <svg data-for="light" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="4.5" fill="currentColor"/><g stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 2v2.5M12 19.5V22M2 12h2.5M19.5 12H22M4.9 4.9l1.8 1.8M17.3 17.3l1.8 1.8M4.9 19.1l1.8-1.8M17.3 6.7l1.8-1.8"/></g></svg>
+        <svg data-for="dark" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M20.5 14.2A8.5 8.5 0 1 1 9.8 3.5a6.8 6.8 0 0 0 10.7 10.7z" fill="currentColor"/></svg>
+      </button>
     </div>
     <p class="lede">
       Design an experiment, run it, and analyse the results, with the
@@ -50,8 +68,8 @@
     </p>
     <div class="hero">
       <button type="button" id="run-example" class="primary">Run the worked example</button>
-      <span class="hint">A Box-Behnken design in three factors, results simulated from a known process, and their
-        analysis, computed in this tab.</span>
+      <span id="example-hint" class="hint">A Box-Behnken design in three factors, results simulated from a known
+        process, and their analysis, computed in this tab.</span>
     </div>
     <div id="status" class="status" role="status" aria-live="polite" data-state="busy">
       <span class="status__icon" aria-hidden="true"><svg viewBox="0 0 64 64"><circle cx="14.68" cy="42" r="7"/><circle cx="32" cy="52" r="7"/><circle cx="49.32" cy="42" r="7"/><circle cx="49.32" cy="22" r="7"/><circle cx="32" cy="12" r="7"/><circle cx="14.68" cy="22" r="7"/><circle cx="32" cy="32" r="7"/></svg></span>

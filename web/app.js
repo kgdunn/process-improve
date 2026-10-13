@@ -7,13 +7,14 @@
 // paint, the live run, an uploaded workbook, a saved design and a shared link all show the
 // same way. Every campaign but the worked example is saved in this browser as it changes.
 
-import { coefficientFigure, correlationFigure, draw, fdsFigure, prettyTerm, shareContourScale } from "./charts.js";
+import { coefficientFigure, correlationFigure, draw, fdsFigure, prettyTerm, redrawAll, shareContourScale } from "./charts.js";
 import {
   AXIAL_DISTANCE,
   CAPTIONS,
   CATEGORICAL,
   CATEGORICAL_DESIGNS,
   CHOSEN_TERMS,
+  MODES,
   NUMERIC,
   SPARE_RUNS,
   TITLES,
@@ -34,6 +35,7 @@ import {
   nTerms,
   namedModelTerms,
   needsCentre,
+  nextMode,
   pval,
 } from "./logic.js";
 import {
@@ -389,7 +391,9 @@ async function generate() {
 function showDesign(design, warnings = [], { save = true } = {}) {
   flushSave();
   const replaces = state.campaign?.replaceable && !state.sources.includes("entered");
-  state.campaign = save ? { ...(replaces ? state.campaign : newCampaign()), title: titleOf(design.spec) } : null;
+  state.campaign = save
+    ? { ...(replaces ? state.campaign : newCampaign()), title: titleOf(design.spec), example: false }
+    : null;
   state.design = design;
   $("#share-out").hidden = true;
   state.responses = design.rows.map(() => null);
@@ -407,6 +411,7 @@ function showDesign(design, warnings = [], { save = true } = {}) {
 }
 
 function renderDesign(warnings = []) {
+  showExampleButton();
   const r = state.design;
   const parts = [];
   if (r.facts) {
@@ -825,7 +830,7 @@ async function drawCharts(request, mine, given = null) {
   }
   state.plotlyJs = version;
   try {
-    await draw(coefficients.plot, figure, version, figure.height);
+    await draw(coefficients.plot, () => coefficientFigure(state.analysis.coefficients, simulated), version, figure.height);
     if (!plots) return;
     const figures = Object.fromEntries(Object.entries(plots.figures).map(([k, v]) => [k, JSON.parse(v)]));
     if (figures.true_contour) shareContourScale(figures.contour, figures.true_contour);
@@ -894,13 +899,37 @@ async function showBuiltExample() {
   }
 }
 
+/**
+ * Say what the button at the top does. While the worked example is on the page it runs it again in
+ * this tab. Once a design of the reader's is open (made here, or from a link, a workbook, Your
+ * designs or the book) it reads as a step aside, not as a run of that design: it puts the worked
+ * example in its place, and says whether that design stays under Your designs. One opened from a
+ * link or the list, or with a result typed in, does; one only tried here is replaced (see showDesign).
+ */
+function showExampleButton() {
+  const button = $("#run-example");
+  const other = state.campaign && !state.campaign.example ? state.campaign.title : null;
+  const kept = other && !(state.campaign.replaceable && !state.sources.includes("entered"));
+  if (!button.dataset.waiting) button.textContent = other ? "Open the worked example instead" : "Run the worked example";
+  button.classList.toggle("primary", !other);
+  const example = "The worked example, a Box-Behnken design in three factors with results simulated from a known process,";
+  $("#example-hint").textContent = !other
+    ? "A Box-Behnken design in three factors, results simulated from a known process, and their analysis, " +
+      "computed in this tab."
+    : kept
+      ? `${example} takes the place of ${other}, which stays under Your designs.`
+      : `${example} takes the place of ${other}.`;
+}
+
 async function runExample() {
   const button = $("#run-example");
   if (!pythonReady) {
     button.disabled = true;
+    button.dataset.waiting = "yes";
     button.textContent = "Waiting for Python to start...";
     const started = await whenReady.then(() => true, () => false);
-    button.textContent = "Run the worked example";
+    delete button.dataset.waiting;
+    showExampleButton();
     button.disabled = !started;
     if (!started) return;
   }
@@ -913,6 +942,8 @@ async function runExample() {
   seed = example.seed;
   selectTab("simulate");
   if (!(await generate())) return;
+  if (state.campaign) state.campaign.example = true; // the worked example run here, until its design changes
+  showExampleButton();
   await simulateResults();
   $("#step-analyse").scrollIntoView({ behavior: "smooth", block: "start" });
 }
@@ -1088,7 +1119,7 @@ async function drawComparison(result, k) {
       const plot = el("div", "plot", "");
       card.append(el("h3", "", `Correlation map, ${label}`), plot);
       box.append(card);
-      await draw(plot, correlationFigure(terms, matrix, k), version, 320);
+      await draw(plot, () => correlationFigure(terms, matrix, k), version, 320);
     }
     box.append(
       el(
@@ -1139,6 +1170,7 @@ let saveTimer = null;
 
 /** Save the campaign on the page in this browser, a moment after its last change. The worked example is not saved. */
 function scheduleSave() {
+  showExampleButton(); // a result typed in keeps the design under Your designs
   if (!state.campaign || !state.design) return;
   clearTimeout(saveTimer);
   saveTimer = setTimeout(() => {
@@ -1305,7 +1337,7 @@ async function start() {
           c,
           { id: last.id, created: last.created },
           `Picked up where you left off: ${c.title}, saved ${timeAgo(last.updated)}. Your other designs are ` +
-            "listed under Your designs, and Run the worked example starts afresh.",
+            "listed under Your designs, and Open the worked example instead, at the top, starts afresh.",
         );
         return;
       } catch {
@@ -1505,11 +1537,14 @@ function el(tag, cls, text) {
   return node;
 }
 
-/** A link to the book, opening in a new tab so the page keeps its state. */
+/**
+ * A link to the book, opening in a tab of its own so the page keeps its state: the same tab each
+ * time, rather than a new one per link.
+ */
 function link(href, text) {
   const a = el("a", "", text);
   a.href = href;
-  a.target = "_blank";
+  a.target = "pid-book";
   a.rel = "noopener";
   return a;
 }
@@ -1558,6 +1593,44 @@ function fillBody(t, rows) {
   };
   t.tBodies[0].innerHTML = rows.map((row) => `<tr>${row.map((v, c) => `<td>${cell(row, v, c)}</td>`).join("")}</tr>`).join("");
 }
+
+// ---------------------------------------------------------------- colour mode
+const MODE_KEY = "factorial-mode";
+const MODE_NAMES = { auto: "the system's", light: "light", dark: "dark" };
+const systemDark = window.matchMedia("(prefers-color-scheme: dark)");
+
+/**
+ * Show the page in a colour mode: light, dark, or the system's (the head of index.html put the
+ * reader's choice on the page before it was drawn). The charts are drawn again in its colours, and
+ * the browser's own bar follows it.
+ */
+function applyMode(mode) {
+  const root = document.documentElement;
+  root.dataset.mode = mode;
+  if (mode === "auto") delete root.dataset.theme;
+  else root.dataset.theme = mode;
+  for (const meta of document.querySelectorAll('meta[name="theme-color"]')) {
+    const { scheme } = meta.dataset;
+    meta.media = mode === "auto" ? `(prefers-color-scheme: ${scheme})` : scheme === mode ? "all" : "not all";
+  }
+  $("#mode").setAttribute("aria-label", `Colour mode: ${MODE_NAMES[mode]}`);
+  redrawAll();
+}
+
+$("#mode").onclick = () => {
+  const mode = nextMode(document.documentElement.dataset.mode, systemDark.matches);
+  try {
+    if (mode === "auto") localStorage.removeItem(MODE_KEY);
+    else localStorage.setItem(MODE_KEY, mode);
+  } catch {
+    /* storage refused: the mode holds for this visit */
+  }
+  applyMode(mode);
+};
+systemDark.addEventListener("change", () => {
+  if (document.documentElement.dataset.mode === "auto") redrawAll(); // the charts follow the system
+});
+applyMode(MODES.includes(document.documentElement.dataset.mode) ? document.documentElement.dataset.mode : "auto");
 
 // ---------------------------------------------------------------- wiring
 DEFAULT_FACTORS.forEach(addFactor);
