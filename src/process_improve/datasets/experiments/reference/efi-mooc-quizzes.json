@@ -1,0 +1,4151 @@
+{
+ "schema": 1,
+ "about": ["Reference designed experiments from the quizzes of the Experimentation for Improvement course, for testing", "that software reproduces them. Each quiz question with data is an experiment (its factors, responses and runs", "as printed); a question about a design alone is a design. expected: every number or alias a question, option", "or explanation prints, with where (the quiz, the question number and id, the option id and its answer_key:", "whether the quiz marks the option correct) and a quotation. A number printed in an option keyed incorrect is", "checked too: where it does not reproduce, its check carries a disagreement, so the answer key itself is tested.", "A disagreement in an option keyed correct, or in an explanation, is an error in the quiz. not_captured: the", "questions without numbers. Read with process_improve.experiments.reference."],
+ "source": {
+  "key": "efi-mooc-quizzes",
+  "authors": ["Kevin G. Dunn"],
+  "title": "Experimentation for Improvement: the module quizzes",
+  "work": "Experimentation for Improvement, a massive open online course",
+  "publisher": "McMaster University, on Coursera",
+  "year": 2015,
+  "url": "https://www.coursera.org/learn/experimentation",
+  "assets": "https://d396qusza40orc.cloudfront.net/experiments/quiz_assets/",
+  "cite": "Dunn, K. G. (2014-2015), Experimentation for Improvement, McMaster University on Coursera: the graded and ungraded practice quizzes, as exported in August 2015",
+  "read": "2026-10-13, from the quizzes' XML exports (Coursera's 2014-2015 quiz format), supplied by the author: each number copied from a question, an option or an explanation, with the quiz, the question's and option's ids, and the option's answer key"
+ },
+ "experiments": [
+  {
+   "name": "efi-quiz4-breaded-chicken",
+   "title": "Aditi's breaded chicken strips: cooking duration D, oven rack R and preheating P",
+   "kind": "quiz question",
+   "where": {
+    "quiz": "Quiz for module 4",
+    "file": "quiz4-full-2015",
+    "question": 3,
+    "question_id": "27f18e09731846a4e11865130982218a",
+    "images": ["https://d396qusza40orc.cloudfront.net/experiments/quiz_assets/week4/flickr-8555465877_d6489a7526_k-chicken%20strips.jpg"]
+   },
+   "factors": [
+    {
+     "name": "D",
+     "description": "Cooking duration",
+     "low": 15,
+     "high": 22,
+     "units": "min",
+     "type": "numeric"
+    },
+    {
+     "name": "R",
+     "description": "Position of oven rack",
+     "low": "middle",
+     "high": "low",
+     "units": "",
+     "type": "categorical"
+    },
+    {
+     "name": "P",
+     "description": "Preheating of oven",
+     "low": "30 seconds",
+     "high": "full",
+     "units": "",
+     "type": "categorical"
+    }
+   ],
+   "responses": [
+    {
+     "name": "taste",
+     "description": "Taste (1 to 10, 10 the best)",
+     "units": ""
+    }
+   ],
+   "design": {
+    "type": "2^3 full factorial",
+    "n_runs": 8
+   },
+   "runs": {
+    "columns": ["experiment", "D", "R", "P", "taste"],
+    "coded": true,
+    "rows": [
+     [1, -1, -1, -1, 3],
+     [2, 1, -1, -1, 9],
+     [3, -1, 1, -1, 3],
+     [4, 1, 1, -1, 7],
+     [5, -1, -1, 1, 3],
+     [6, 1, -1, 1, 10],
+     [7, -1, 1, 1, 4],
+     [8, 1, 1, 1, 7]
+    ],
+    "notes": "the standard order table, with the coded settings it prints beside each level"
+   },
+   "notes": "The same data as the book's breaded-chicken exercise. The option keyed incorrect prints a table of runs 1, 2, 7 and 8, in which P = R rather than P = DR; its model reproduces from that table.",
+   "expected": [
+    {
+     "what": "coefficient",
+     "term": "Intercept",
+     "value": "5.75",
+     "analysis": "the full factorial",
+     "where": {
+      "quiz": "Quiz for module 4",
+      "file": "quiz4-full-2015",
+      "question": 3,
+      "question_id": "27f18e09731846a4e11865130982218a",
+      "source_kind": "question",
+      "quote": "\\hat{y} = 5.75 + 2.5x_\\text{D} - 0.5x_\\text{R} + 0.25x_\\text{P} - 0.75x_\\text{D}x_\\text{R} - 0.25x_\\text{D}x_\\text{R}x_\\text{P}"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "Intercept",
+      "model": "D*R*P"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "D",
+     "value": "2.5",
+     "analysis": "the full factorial",
+     "where": {
+      "quiz": "Quiz for module 4",
+      "file": "quiz4-full-2015",
+      "question": 3,
+      "question_id": "27f18e09731846a4e11865130982218a",
+      "source_kind": "question",
+      "quote": "\\hat{y} = 5.75 + 2.5x_\\text{D} - 0.5x_\\text{R} + 0.25x_\\text{P} - 0.75x_\\text{D}x_\\text{R} - 0.25x_\\text{D}x_\\text{R}x_\\text{P}"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "D",
+      "model": "D*R*P"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "R",
+     "value": "-0.5",
+     "analysis": "the full factorial",
+     "where": {
+      "quiz": "Quiz for module 4",
+      "file": "quiz4-full-2015",
+      "question": 3,
+      "question_id": "27f18e09731846a4e11865130982218a",
+      "source_kind": "question",
+      "quote": "\\hat{y} = 5.75 + 2.5x_\\text{D} - 0.5x_\\text{R} + 0.25x_\\text{P} - 0.75x_\\text{D}x_\\text{R} - 0.25x_\\text{D}x_\\text{R}x_\\text{P}"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "R",
+      "model": "D*R*P"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "P",
+     "value": "0.25",
+     "analysis": "the full factorial",
+     "where": {
+      "quiz": "Quiz for module 4",
+      "file": "quiz4-full-2015",
+      "question": 3,
+      "question_id": "27f18e09731846a4e11865130982218a",
+      "source_kind": "question",
+      "quote": "\\hat{y} = 5.75 + 2.5x_\\text{D} - 0.5x_\\text{R} + 0.25x_\\text{P} - 0.75x_\\text{D}x_\\text{R} - 0.25x_\\text{D}x_\\text{R}x_\\text{P}"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "P",
+      "model": "D*R*P"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "D·R",
+     "value": "-0.75",
+     "analysis": "the full factorial",
+     "where": {
+      "quiz": "Quiz for module 4",
+      "file": "quiz4-full-2015",
+      "question": 3,
+      "question_id": "27f18e09731846a4e11865130982218a",
+      "source_kind": "question",
+      "quote": "\\hat{y} = 5.75 + 2.5x_\\text{D} - 0.5x_\\text{R} + 0.25x_\\text{P} - 0.75x_\\text{D}x_\\text{R} - 0.25x_\\text{D}x_\\text{R}x_\\text{P}"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "D·R",
+      "model": "D*R*P"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "D·R·P",
+     "value": "-0.25",
+     "analysis": "the full factorial",
+     "where": {
+      "quiz": "Quiz for module 4",
+      "file": "quiz4-full-2015",
+      "question": 3,
+      "question_id": "27f18e09731846a4e11865130982218a",
+      "source_kind": "question",
+      "quote": "\\hat{y} = 5.75 + 2.5x_\\text{D} - 0.5x_\\text{R} + 0.25x_\\text{P} - 0.75x_\\text{D}x_\\text{R} - 0.25x_\\text{D}x_\\text{R}x_\\text{P}"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "D·R·P",
+      "model": "D*R*P"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "D·P",
+     "value": "insignificant (zero)",
+     "analysis": "the full factorial",
+     "where": {
+      "quiz": "Quiz for module 4",
+      "file": "quiz4-full-2015",
+      "question": 3,
+      "question_id": "27f18e09731846a4e11865130982218a",
+      "source_kind": "question",
+      "quote": "The $$\\mathbf{DP}$$ and $$\\mathbf{RP}$$ interaction terms were found to be insignificant (zero)."
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "D·P",
+      "model": "D*R*P",
+      "printed": "0"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "R·P",
+     "value": "insignificant (zero)",
+     "analysis": "the full factorial",
+     "where": {
+      "quiz": "Quiz for module 4",
+      "file": "quiz4-full-2015",
+      "question": 3,
+      "question_id": "27f18e09731846a4e11865130982218a",
+      "source_kind": "question",
+      "quote": "The $$\\mathbf{DP}$$ and $$\\mathbf{RP}$$ interaction terms were found to be insignificant (zero)."
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "R·P",
+      "model": "D*R*P",
+      "printed": "0"
+     }
+    },
+    {
+     "what": "runs of the half fraction",
+     "term": null,
+     "value": "2, 3, 5, 8",
+     "analysis": "the half fraction +P = DR",
+     "where": {
+      "quiz": "Quiz for module 4",
+      "file": "quiz4-full-2015",
+      "question": 3,
+      "question_id": "27f18e09731846a4e11865130982218a",
+      "source_kind": "question explanation",
+      "quote": "# 2, 3, 5, 8 (+D = RP)"
+     },
+     "check": {
+      "kind": "fraction_runs",
+      "generator": "P=DR"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "Intercept",
+     "value": "5.5",
+     "analysis": "the half fraction +P = DR",
+     "where": {
+      "quiz": "Quiz for module 4",
+      "file": "quiz4-full-2015",
+      "question": 3,
+      "question_id": "27f18e09731846a4e11865130982218a",
+      "option_id": "963b52afb7254d050cdbd40ce17a08a8",
+      "answer_key": "correct",
+      "source_kind": "option",
+      "quote": "\\hat{y} = 5.5 + 2.5x_\\text{D} - 0.5x_\\text{R} - 0.5x_\\text{P}"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "Intercept",
+      "model": "D + R + P",
+      "runs": [2, 3, 5, 8]
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "D",
+     "value": "2.5",
+     "analysis": "the half fraction +P = DR",
+     "where": {
+      "quiz": "Quiz for module 4",
+      "file": "quiz4-full-2015",
+      "question": 3,
+      "question_id": "27f18e09731846a4e11865130982218a",
+      "option_id": "963b52afb7254d050cdbd40ce17a08a8",
+      "answer_key": "correct",
+      "source_kind": "option",
+      "quote": "\\hat{y} = 5.5 + 2.5x_\\text{D} - 0.5x_\\text{R} - 0.5x_\\text{P}"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "D",
+      "model": "D + R + P",
+      "runs": [2, 3, 5, 8]
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "R",
+     "value": "-0.5",
+     "analysis": "the half fraction +P = DR",
+     "where": {
+      "quiz": "Quiz for module 4",
+      "file": "quiz4-full-2015",
+      "question": 3,
+      "question_id": "27f18e09731846a4e11865130982218a",
+      "option_id": "963b52afb7254d050cdbd40ce17a08a8",
+      "answer_key": "correct",
+      "source_kind": "option",
+      "quote": "\\hat{y} = 5.5 + 2.5x_\\text{D} - 0.5x_\\text{R} - 0.5x_\\text{P}"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "R",
+      "model": "D + R + P",
+      "runs": [2, 3, 5, 8]
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "P",
+     "value": "-0.5",
+     "analysis": "the half fraction +P = DR",
+     "where": {
+      "quiz": "Quiz for module 4",
+      "file": "quiz4-full-2015",
+      "question": 3,
+      "question_id": "27f18e09731846a4e11865130982218a",
+      "option_id": "963b52afb7254d050cdbd40ce17a08a8",
+      "answer_key": "correct",
+      "source_kind": "option",
+      "quote": "\\hat{y} = 5.5 + 2.5x_\\text{D} - 0.5x_\\text{R} - 0.5x_\\text{P}"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "P",
+      "model": "D + R + P",
+      "runs": [2, 3, 5, 8]
+     }
+    },
+    {
+     "what": "runs of the half fraction",
+     "term": null,
+     "value": "1, 2, 7, 8",
+     "analysis": "the runs of the option's table, matched to the full factorial by their settings and results",
+     "where": {
+      "quiz": "Quiz for module 4",
+      "file": "quiz4-full-2015",
+      "question": 3,
+      "question_id": "27f18e09731846a4e11865130982218a",
+      "option_id": "761713deab7505e424010c1509e4751e",
+      "answer_key": "incorrect",
+      "source_kind": "option table",
+      "quote": "By observing the table, you'll notice that P is not generated by DR as it ought to be."
+     },
+     "check": {
+      "kind": "fraction_runs",
+      "generator": "P=DR",
+      "disagreement": "the answer key marks this option incorrect: its table holds runs 1, 2, 7 and 8, where P = R; the fraction P = DR is runs 2, 3, 5 and 8"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "Intercept",
+     "value": "5.75",
+     "analysis": "the option's own table, runs 1, 2, 7 and 8",
+     "where": {
+      "quiz": "Quiz for module 4",
+      "file": "quiz4-full-2015",
+      "question": 3,
+      "question_id": "27f18e09731846a4e11865130982218a",
+      "option_id": "761713deab7505e424010c1509e4751e",
+      "answer_key": "incorrect",
+      "source_kind": "option",
+      "quote": "\\hat{y} = 5.75 + 2.25x_\\text{D} - 0.25x_\\text{R} - 0.75x_\\text{D}x_\\text{R}"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "Intercept",
+      "model": "D*R",
+      "runs": [1, 2, 7, 8]
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "D",
+     "value": "2.25",
+     "analysis": "the option's own table, runs 1, 2, 7 and 8",
+     "where": {
+      "quiz": "Quiz for module 4",
+      "file": "quiz4-full-2015",
+      "question": 3,
+      "question_id": "27f18e09731846a4e11865130982218a",
+      "option_id": "761713deab7505e424010c1509e4751e",
+      "answer_key": "incorrect",
+      "source_kind": "option",
+      "quote": "\\hat{y} = 5.75 + 2.25x_\\text{D} - 0.25x_\\text{R} - 0.75x_\\text{D}x_\\text{R}"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "D",
+      "model": "D*R",
+      "runs": [1, 2, 7, 8]
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "R",
+     "value": "-0.25",
+     "analysis": "the option's own table, runs 1, 2, 7 and 8",
+     "where": {
+      "quiz": "Quiz for module 4",
+      "file": "quiz4-full-2015",
+      "question": 3,
+      "question_id": "27f18e09731846a4e11865130982218a",
+      "option_id": "761713deab7505e424010c1509e4751e",
+      "answer_key": "incorrect",
+      "source_kind": "option",
+      "quote": "\\hat{y} = 5.75 + 2.25x_\\text{D} - 0.25x_\\text{R} - 0.75x_\\text{D}x_\\text{R}"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "R",
+      "model": "D*R",
+      "runs": [1, 2, 7, 8]
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "D·R",
+     "value": "-0.75",
+     "analysis": "the option's own table, runs 1, 2, 7 and 8",
+     "where": {
+      "quiz": "Quiz for module 4",
+      "file": "quiz4-full-2015",
+      "question": 3,
+      "question_id": "27f18e09731846a4e11865130982218a",
+      "option_id": "761713deab7505e424010c1509e4751e",
+      "answer_key": "incorrect",
+      "source_kind": "option",
+      "quote": "\\hat{y} = 5.75 + 2.25x_\\text{D} - 0.25x_\\text{R} - 0.75x_\\text{D}x_\\text{R}"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "D·R",
+      "model": "D*R",
+      "runs": [1, 2, 7, 8]
+     }
+    },
+    {
+     "what": "aliases",
+     "term": "D",
+     "value": "RP",
+     "where": {
+      "quiz": "Quiz for module 4",
+      "file": "quiz4-full-2015",
+      "question": 3,
+      "question_id": "27f18e09731846a4e11865130982218a",
+      "option_id": "20bf25e200fe5f40b8e40d84c1d9e635",
+      "answer_key": "correct",
+      "source_kind": "option",
+      "quote": "The effect of $$\\mathbf{D}$$ in the half-fraction factorial remains the same because it is aliased with an irrelevant factor $$\\mathbf{RP}$$."
+     },
+     "check": {
+      "kind": "aliases",
+      "term": "D",
+      "k": 3,
+      "factors": ["D", "R", "P"],
+      "generators": ["P=DR"]
+     }
+    },
+    {
+     "what": "aliases",
+     "term": "R",
+     "value": "DP",
+     "where": {
+      "quiz": "Quiz for module 4",
+      "file": "quiz4-full-2015",
+      "question": 3,
+      "question_id": "27f18e09731846a4e11865130982218a",
+      "option_id": "fb0f09a5b05c5f82d32f39493481d87c",
+      "answer_key": "correct",
+      "source_kind": "option",
+      "quote": "The effect of $$\\mathbf{R}$$ in the half-fraction factorial run remains the same because it is aliased with a small factor $$\\mathbf{DP}$$."
+     },
+     "check": {
+      "kind": "aliases",
+      "term": "R",
+      "k": 3,
+      "factors": ["D", "R", "P"],
+      "generators": ["P=DR"]
+     }
+    },
+    {
+     "what": "aliases",
+     "term": "P",
+     "value": "DR",
+     "where": {
+      "quiz": "Quiz for module 4",
+      "file": "quiz4-full-2015",
+      "question": 3,
+      "question_id": "27f18e09731846a4e11865130982218a",
+      "option_id": "b202e774fd5eecc5554ae71561d19a23",
+      "answer_key": "correct",
+      "source_kind": "option",
+      "quote": "The effect of $$\\mathbf{P}$$ in the half-fraction factorial run didn't remain the same because it was aliased with a relevant interaction factor $$\\mathbf{DR}$$."
+     },
+     "check": {
+      "kind": "aliases",
+      "term": "P",
+      "k": 3,
+      "factors": ["D", "R", "P"],
+      "generators": ["P=DR"]
+     }
+    }
+   ]
+  },
+  {
+   "name": "efi-quiz4-fuel-economy",
+   "title": "Robert's fuel economy: tire pressure A, air conditioning B, route C and cargo D, with D = ABC",
+   "kind": "quiz question",
+   "where": {
+    "quiz": "Quiz for module 4",
+    "file": "quiz4-full-2015",
+    "question": 7,
+    "question_id": "98ba7af409670ed0a4cbdb67c403d26e"
+   },
+   "factors": [
+    {
+     "name": "A",
+     "description": "Tire pressure",
+     "low": 30,
+     "high": 35,
+     "units": "psig",
+     "type": "numeric"
+    },
+    {
+     "name": "B",
+     "description": "Air conditioning",
+     "low": "off",
+     "high": "on",
+     "units": "",
+     "type": "categorical"
+    },
+    {
+     "name": "C",
+     "description": "Route to work",
+     "low": "City",
+     "high": "Highway",
+     "units": "",
+     "type": "categorical"
+    },
+    {
+     "name": "D",
+     "description": "Cargo",
+     "low": 75,
+     "high": 100,
+     "units": "kg",
+     "type": "numeric"
+    }
+   ],
+   "responses": [
+    {
+     "name": "mpg",
+     "description": "Miles per gallon",
+     "units": "MPG"
+    }
+   ],
+   "design": {
+    "type": "2^(4-1) fractional factorial",
+    "details": "generator D = ABC",
+    "n_runs": 8
+   },
+   "runs": {
+    "columns": ["experiment", "A", "B", "C", "D", "mpg"],
+    "coded": false,
+    "rows": [
+     [1, 30, "off", "City", 75, 26],
+     [2, 35, "off", "City", 100, 27],
+     [3, 30, "on", "City", 100, 24],
+     [4, 35, "on", "City", 75, 26],
+     [5, 30, "off", "Highway", 100, 33],
+     [6, 35, "off", "Highway", 75, 37],
+     [7, 30, "on", "Highway", 75, 32],
+     [8, 35, "on", "Highway", 100, 33]
+    ]
+   },
+   "notes": "The model of eight terms is saturated: each two-factor interaction stands for its alias pair.",
+   "expected": [
+    {
+     "what": "aliases",
+     "term": "A",
+     "value": "BCD",
+     "where": {
+      "quiz": "Quiz for module 4",
+      "file": "quiz4-full-2015",
+      "question": 7,
+      "question_id": "98ba7af409670ed0a4cbdb67c403d26e",
+      "option_id": "11c0863d3da7ee757d9b349da4d5cee4",
+      "answer_key": "correct",
+      "source_kind": "option",
+      "quote": "The main effect $$\\mathbf{A}$$ is aliased with the three factor interaction $$\\mathbf{BCD}$$."
+     },
+     "check": {
+      "kind": "aliases",
+      "term": "A",
+      "k": 4,
+      "generators": ["D=ABC"]
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "Intercept",
+     "value": "29.75",
+     "where": {
+      "quiz": "Quiz for module 4",
+      "file": "quiz4-full-2015",
+      "question": 7,
+      "question_id": "98ba7af409670ed0a4cbdb67c403d26e",
+      "option_id": "828d3f33135337dd1b785743167cebb6",
+      "answer_key": "correct",
+      "source_kind": "option",
+      "quote": "\\hat{y} = 29.75 + 1x_\\text{A} - 1x_\\text{B} + 4x_\\text{C} - 0.5x_\\text{D} -0.25x_\\text{AB} + 0.25x_\\text{AC} - 0.25x_\\text{AD}"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "Intercept",
+      "model": "A + B + C + D + A:B + A:C + A:D"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "A",
+     "value": "1",
+     "where": {
+      "quiz": "Quiz for module 4",
+      "file": "quiz4-full-2015",
+      "question": 7,
+      "question_id": "98ba7af409670ed0a4cbdb67c403d26e",
+      "option_id": "828d3f33135337dd1b785743167cebb6",
+      "answer_key": "correct",
+      "source_kind": "option",
+      "quote": "\\hat{y} = 29.75 + 1x_\\text{A} - 1x_\\text{B} + 4x_\\text{C} - 0.5x_\\text{D} -0.25x_\\text{AB} + 0.25x_\\text{AC} - 0.25x_\\text{AD}"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "A",
+      "model": "A + B + C + D + A:B + A:C + A:D"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "B",
+     "value": "-1",
+     "where": {
+      "quiz": "Quiz for module 4",
+      "file": "quiz4-full-2015",
+      "question": 7,
+      "question_id": "98ba7af409670ed0a4cbdb67c403d26e",
+      "option_id": "828d3f33135337dd1b785743167cebb6",
+      "answer_key": "correct",
+      "source_kind": "option",
+      "quote": "\\hat{y} = 29.75 + 1x_\\text{A} - 1x_\\text{B} + 4x_\\text{C} - 0.5x_\\text{D} -0.25x_\\text{AB} + 0.25x_\\text{AC} - 0.25x_\\text{AD}"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "B",
+      "model": "A + B + C + D + A:B + A:C + A:D"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "C",
+     "value": "4",
+     "where": {
+      "quiz": "Quiz for module 4",
+      "file": "quiz4-full-2015",
+      "question": 7,
+      "question_id": "98ba7af409670ed0a4cbdb67c403d26e",
+      "option_id": "828d3f33135337dd1b785743167cebb6",
+      "answer_key": "correct",
+      "source_kind": "option",
+      "quote": "\\hat{y} = 29.75 + 1x_\\text{A} - 1x_\\text{B} + 4x_\\text{C} - 0.5x_\\text{D} -0.25x_\\text{AB} + 0.25x_\\text{AC} - 0.25x_\\text{AD}"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "C",
+      "model": "A + B + C + D + A:B + A:C + A:D"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "D",
+     "value": "-0.5",
+     "where": {
+      "quiz": "Quiz for module 4",
+      "file": "quiz4-full-2015",
+      "question": 7,
+      "question_id": "98ba7af409670ed0a4cbdb67c403d26e",
+      "option_id": "828d3f33135337dd1b785743167cebb6",
+      "answer_key": "correct",
+      "source_kind": "option",
+      "quote": "\\hat{y} = 29.75 + 1x_\\text{A} - 1x_\\text{B} + 4x_\\text{C} - 0.5x_\\text{D} -0.25x_\\text{AB} + 0.25x_\\text{AC} - 0.25x_\\text{AD}"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "D",
+      "model": "A + B + C + D + A:B + A:C + A:D"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "A·B",
+     "value": "-0.25",
+     "where": {
+      "quiz": "Quiz for module 4",
+      "file": "quiz4-full-2015",
+      "question": 7,
+      "question_id": "98ba7af409670ed0a4cbdb67c403d26e",
+      "option_id": "828d3f33135337dd1b785743167cebb6",
+      "answer_key": "correct",
+      "source_kind": "option",
+      "quote": "\\hat{y} = 29.75 + 1x_\\text{A} - 1x_\\text{B} + 4x_\\text{C} - 0.5x_\\text{D} -0.25x_\\text{AB} + 0.25x_\\text{AC} - 0.25x_\\text{AD}"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "A·B",
+      "model": "A + B + C + D + A:B + A:C + A:D"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "A·C",
+     "value": "0.25",
+     "where": {
+      "quiz": "Quiz for module 4",
+      "file": "quiz4-full-2015",
+      "question": 7,
+      "question_id": "98ba7af409670ed0a4cbdb67c403d26e",
+      "option_id": "828d3f33135337dd1b785743167cebb6",
+      "answer_key": "correct",
+      "source_kind": "option",
+      "quote": "\\hat{y} = 29.75 + 1x_\\text{A} - 1x_\\text{B} + 4x_\\text{C} - 0.5x_\\text{D} -0.25x_\\text{AB} + 0.25x_\\text{AC} - 0.25x_\\text{AD}"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "A·C",
+      "model": "A + B + C + D + A:B + A:C + A:D"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "A·D",
+     "value": "-0.25",
+     "where": {
+      "quiz": "Quiz for module 4",
+      "file": "quiz4-full-2015",
+      "question": 7,
+      "question_id": "98ba7af409670ed0a4cbdb67c403d26e",
+      "option_id": "828d3f33135337dd1b785743167cebb6",
+      "answer_key": "correct",
+      "source_kind": "option",
+      "quote": "\\hat{y} = 29.75 + 1x_\\text{A} - 1x_\\text{B} + 4x_\\text{C} - 0.5x_\\text{D} -0.25x_\\text{AB} + 0.25x_\\text{AC} - 0.25x_\\text{AD}"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "A·D",
+      "model": "A + B + C + D + A:B + A:C + A:D"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "Intercept",
+     "value": "29",
+     "where": {
+      "quiz": "Quiz for module 4",
+      "file": "quiz4-full-2015",
+      "question": 7,
+      "question_id": "98ba7af409670ed0a4cbdb67c403d26e",
+      "option_id": "9b6a11f762b0840593523ef146132531",
+      "answer_key": "incorrect",
+      "source_kind": "option",
+      "quote": "\\hat{y} = 29 + 2x_\\text{A} - 1.5x_\\text{B} + 4x_\\text{C} - 0.5x_\\text{D} -0.5x_\\text{AB} + 1.25x_\\text{AC} - 0.25x_\\text{AD}"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "Intercept",
+      "model": "A + B + C + D + A:B + A:C + A:D",
+      "disagreement": "the answer key marks this option incorrect; the fit gives 29.75"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "A",
+     "value": "2",
+     "where": {
+      "quiz": "Quiz for module 4",
+      "file": "quiz4-full-2015",
+      "question": 7,
+      "question_id": "98ba7af409670ed0a4cbdb67c403d26e",
+      "option_id": "9b6a11f762b0840593523ef146132531",
+      "answer_key": "incorrect",
+      "source_kind": "option",
+      "quote": "\\hat{y} = 29 + 2x_\\text{A} - 1.5x_\\text{B} + 4x_\\text{C} - 0.5x_\\text{D} -0.5x_\\text{AB} + 1.25x_\\text{AC} - 0.25x_\\text{AD}"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "A",
+      "model": "A + B + C + D + A:B + A:C + A:D",
+      "disagreement": "the answer key marks this option incorrect; the fit gives 1"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "B",
+     "value": "-1.5",
+     "where": {
+      "quiz": "Quiz for module 4",
+      "file": "quiz4-full-2015",
+      "question": 7,
+      "question_id": "98ba7af409670ed0a4cbdb67c403d26e",
+      "option_id": "9b6a11f762b0840593523ef146132531",
+      "answer_key": "incorrect",
+      "source_kind": "option",
+      "quote": "\\hat{y} = 29 + 2x_\\text{A} - 1.5x_\\text{B} + 4x_\\text{C} - 0.5x_\\text{D} -0.5x_\\text{AB} + 1.25x_\\text{AC} - 0.25x_\\text{AD}"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "B",
+      "model": "A + B + C + D + A:B + A:C + A:D",
+      "disagreement": "the answer key marks this option incorrect; the fit gives -1"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "C",
+     "value": "4",
+     "where": {
+      "quiz": "Quiz for module 4",
+      "file": "quiz4-full-2015",
+      "question": 7,
+      "question_id": "98ba7af409670ed0a4cbdb67c403d26e",
+      "option_id": "9b6a11f762b0840593523ef146132531",
+      "answer_key": "incorrect",
+      "source_kind": "option",
+      "quote": "\\hat{y} = 29 + 2x_\\text{A} - 1.5x_\\text{B} + 4x_\\text{C} - 0.5x_\\text{D} -0.5x_\\text{AB} + 1.25x_\\text{AC} - 0.25x_\\text{AD}"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "C",
+      "model": "A + B + C + D + A:B + A:C + A:D"
+     },
+     "note": "in an option keyed incorrect, this coefficient agrees with the fit to within the rounding of its printed digits: the option is wrong in its others"
+    },
+    {
+     "what": "coefficient",
+     "term": "D",
+     "value": "-0.5",
+     "where": {
+      "quiz": "Quiz for module 4",
+      "file": "quiz4-full-2015",
+      "question": 7,
+      "question_id": "98ba7af409670ed0a4cbdb67c403d26e",
+      "option_id": "9b6a11f762b0840593523ef146132531",
+      "answer_key": "incorrect",
+      "source_kind": "option",
+      "quote": "\\hat{y} = 29 + 2x_\\text{A} - 1.5x_\\text{B} + 4x_\\text{C} - 0.5x_\\text{D} -0.5x_\\text{AB} + 1.25x_\\text{AC} - 0.25x_\\text{AD}"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "D",
+      "model": "A + B + C + D + A:B + A:C + A:D"
+     },
+     "note": "in an option keyed incorrect, this coefficient agrees with the fit to within the rounding of its printed digits: the option is wrong in its others"
+    },
+    {
+     "what": "coefficient",
+     "term": "A·B",
+     "value": "-0.5",
+     "where": {
+      "quiz": "Quiz for module 4",
+      "file": "quiz4-full-2015",
+      "question": 7,
+      "question_id": "98ba7af409670ed0a4cbdb67c403d26e",
+      "option_id": "9b6a11f762b0840593523ef146132531",
+      "answer_key": "incorrect",
+      "source_kind": "option",
+      "quote": "\\hat{y} = 29 + 2x_\\text{A} - 1.5x_\\text{B} + 4x_\\text{C} - 0.5x_\\text{D} -0.5x_\\text{AB} + 1.25x_\\text{AC} - 0.25x_\\text{AD}"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "A·B",
+      "model": "A + B + C + D + A:B + A:C + A:D",
+      "disagreement": "the answer key marks this option incorrect; the fit gives -0.25"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "A·C",
+     "value": "1.25",
+     "where": {
+      "quiz": "Quiz for module 4",
+      "file": "quiz4-full-2015",
+      "question": 7,
+      "question_id": "98ba7af409670ed0a4cbdb67c403d26e",
+      "option_id": "9b6a11f762b0840593523ef146132531",
+      "answer_key": "incorrect",
+      "source_kind": "option",
+      "quote": "\\hat{y} = 29 + 2x_\\text{A} - 1.5x_\\text{B} + 4x_\\text{C} - 0.5x_\\text{D} -0.5x_\\text{AB} + 1.25x_\\text{AC} - 0.25x_\\text{AD}"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "A·C",
+      "model": "A + B + C + D + A:B + A:C + A:D",
+      "disagreement": "the answer key marks this option incorrect; the fit gives 0.25"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "A·D",
+     "value": "-0.25",
+     "where": {
+      "quiz": "Quiz for module 4",
+      "file": "quiz4-full-2015",
+      "question": 7,
+      "question_id": "98ba7af409670ed0a4cbdb67c403d26e",
+      "option_id": "9b6a11f762b0840593523ef146132531",
+      "answer_key": "incorrect",
+      "source_kind": "option",
+      "quote": "\\hat{y} = 29 + 2x_\\text{A} - 1.5x_\\text{B} + 4x_\\text{C} - 0.5x_\\text{D} -0.5x_\\text{AB} + 1.25x_\\text{AC} - 0.25x_\\text{AD}"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "A·D",
+      "model": "A + B + C + D + A:B + A:C + A:D"
+     },
+     "note": "in an option keyed incorrect, this coefficient agrees with the fit to within the rounding of its printed digits: the option is wrong in its others"
+    },
+    {
+     "what": "aliases",
+     "term": "A·B",
+     "value": "CD",
+     "where": {
+      "quiz": "Quiz for module 4",
+      "file": "quiz4-full-2015",
+      "question": 7,
+      "question_id": "98ba7af409670ed0a4cbdb67c403d26e",
+      "option_id": "b5bd3419a781d51634a3860acd2cbdf0",
+      "answer_key": "correct",
+      "source_kind": "option",
+      "quote": "The two factor interaction $$\\mathbf{AB}$$ is aliased with the two factor interaction $$\\mathbf{CD}$$."
+     },
+     "check": {
+      "kind": "aliases",
+      "term": "A·B",
+      "k": 4,
+      "generators": ["D=ABC"]
+     }
+    },
+    {
+     "what": "aliases",
+     "term": "A·C",
+     "value": "BD",
+     "where": {
+      "quiz": "Quiz for module 4",
+      "file": "quiz4-full-2015",
+      "question": 7,
+      "question_id": "98ba7af409670ed0a4cbdb67c403d26e",
+      "option_id": "18b09355b14f95ae825ba96d62435da8",
+      "answer_key": "correct",
+      "source_kind": "option",
+      "quote": "The two factor interaction $$\\mathbf{AC}$$ is aliased with the two factor interaction $$\\mathbf{BD}$$."
+     },
+     "check": {
+      "kind": "aliases",
+      "term": "A·C",
+      "k": 4,
+      "generators": ["D=ABC"]
+     }
+    }
+   ]
+  },
+  {
+   "name": "efi-quiz4-amusement-park",
+   "title": "Jordan's amusement park: rides open R, food advertising F and staff per ride P, with P = RF",
+   "kind": "quiz question",
+   "where": {
+    "quiz": "Quiz for module 4",
+    "file": "quiz4-full-2015",
+    "question": 8,
+    "question_id": "cd0fc79f23b9bcdb29b9b83cb4131451",
+    "images": ["https://d396qusza40orc.cloudfront.net/experiments/quiz_assets/week4/flickr-3777962464_9a8909ec8b_o-amusement%20park.jpg"]
+   },
+   "factors": [
+    {
+     "name": "R",
+     "description": "Number of rides open",
+     "low": 18,
+     "high": 24,
+     "units": "",
+     "type": "numeric"
+    },
+    {
+     "name": "F",
+     "description": "Advertising focus",
+     "low": "Healthier",
+     "high": "Unhealthy",
+     "units": "",
+     "type": "categorical"
+    },
+    {
+     "name": "P",
+     "description": "Employees per ride",
+     "low": 10,
+     "high": 13,
+     "units": "",
+     "type": "numeric"
+    }
+   ],
+   "responses": [
+    {
+     "name": "profit",
+     "description": "Weekly profit",
+     "units": "million $"
+    }
+   ],
+   "design": {
+    "type": "2^(3-1) fractional factorial",
+    "details": "generator P = RF",
+    "n_runs": 4
+   },
+   "runs": {
+    "columns": ["experiment", "R", "F", "P", "profit"],
+    "coded": false,
+    "rows": [
+     [1, 18, "Healthier", 13, 1],
+     [2, 24, "Healthier", 10, 0.75],
+     [3, 18, "Unhealthy", 10, 2],
+     [4, 24, "Unhealthy", 13, 1.25]
+    ]
+   },
+   "expected": [
+    {
+     "what": "coefficient",
+     "term": "Intercept",
+     "value": "1.25",
+     "where": {
+      "quiz": "Quiz for module 4",
+      "file": "quiz4-full-2015",
+      "question": 8,
+      "question_id": "cd0fc79f23b9bcdb29b9b83cb4131451",
+      "option_id": "daed417aea8561c33c93a3558bb2590a",
+      "answer_key": "correct",
+      "source_kind": "option",
+      "quote": "\\hat{y} = 1.25 - 0.25x_\\text{R} +0.375x_\\text{F} - 0.125x_\\text{P}"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "Intercept",
+      "model": "R + F + P"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "R",
+     "value": "-0.25",
+     "where": {
+      "quiz": "Quiz for module 4",
+      "file": "quiz4-full-2015",
+      "question": 8,
+      "question_id": "cd0fc79f23b9bcdb29b9b83cb4131451",
+      "option_id": "daed417aea8561c33c93a3558bb2590a",
+      "answer_key": "correct",
+      "source_kind": "option",
+      "quote": "\\hat{y} = 1.25 - 0.25x_\\text{R} +0.375x_\\text{F} - 0.125x_\\text{P}"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "R",
+      "model": "R + F + P"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "F",
+     "value": "0.375",
+     "where": {
+      "quiz": "Quiz for module 4",
+      "file": "quiz4-full-2015",
+      "question": 8,
+      "question_id": "cd0fc79f23b9bcdb29b9b83cb4131451",
+      "option_id": "daed417aea8561c33c93a3558bb2590a",
+      "answer_key": "correct",
+      "source_kind": "option",
+      "quote": "\\hat{y} = 1.25 - 0.25x_\\text{R} +0.375x_\\text{F} - 0.125x_\\text{P}"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "F",
+      "model": "R + F + P"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "P",
+     "value": "-0.125",
+     "where": {
+      "quiz": "Quiz for module 4",
+      "file": "quiz4-full-2015",
+      "question": 8,
+      "question_id": "cd0fc79f23b9bcdb29b9b83cb4131451",
+      "option_id": "daed417aea8561c33c93a3558bb2590a",
+      "answer_key": "correct",
+      "source_kind": "option",
+      "quote": "\\hat{y} = 1.25 - 0.25x_\\text{R} +0.375x_\\text{F} - 0.125x_\\text{P}"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "P",
+      "model": "R + F + P"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "Intercept",
+     "value": "1",
+     "where": {
+      "quiz": "Quiz for module 4",
+      "file": "quiz4-full-2015",
+      "question": 8,
+      "question_id": "cd0fc79f23b9bcdb29b9b83cb4131451",
+      "option_id": "f27f608756c4033c418e214d49a001b2",
+      "answer_key": "incorrect",
+      "source_kind": "option",
+      "quote": "\\hat{y} = 1 - 0.50x_\\text{R} +0.45x_\\text{F} - 0.2x_\\text{P}"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "Intercept",
+      "model": "R + F + P"
+     },
+     "note": "in an option keyed incorrect, this coefficient agrees with the fit to within the rounding of its printed digits: the option is wrong in its others"
+    },
+    {
+     "what": "coefficient",
+     "term": "R",
+     "value": "-0.50",
+     "where": {
+      "quiz": "Quiz for module 4",
+      "file": "quiz4-full-2015",
+      "question": 8,
+      "question_id": "cd0fc79f23b9bcdb29b9b83cb4131451",
+      "option_id": "f27f608756c4033c418e214d49a001b2",
+      "answer_key": "incorrect",
+      "source_kind": "option",
+      "quote": "\\hat{y} = 1 - 0.50x_\\text{R} +0.45x_\\text{F} - 0.2x_\\text{P}"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "R",
+      "model": "R + F + P",
+      "disagreement": "the answer key marks this option incorrect; the fit gives -0.25"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "F",
+     "value": "0.45",
+     "where": {
+      "quiz": "Quiz for module 4",
+      "file": "quiz4-full-2015",
+      "question": 8,
+      "question_id": "cd0fc79f23b9bcdb29b9b83cb4131451",
+      "option_id": "f27f608756c4033c418e214d49a001b2",
+      "answer_key": "incorrect",
+      "source_kind": "option",
+      "quote": "\\hat{y} = 1 - 0.50x_\\text{R} +0.45x_\\text{F} - 0.2x_\\text{P}"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "F",
+      "model": "R + F + P",
+      "disagreement": "the answer key marks this option incorrect; the fit gives 0.375"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "P",
+     "value": "-0.2",
+     "where": {
+      "quiz": "Quiz for module 4",
+      "file": "quiz4-full-2015",
+      "question": 8,
+      "question_id": "cd0fc79f23b9bcdb29b9b83cb4131451",
+      "option_id": "f27f608756c4033c418e214d49a001b2",
+      "answer_key": "incorrect",
+      "source_kind": "option",
+      "quote": "\\hat{y} = 1 - 0.50x_\\text{R} +0.45x_\\text{F} - 0.2x_\\text{P}"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "P",
+      "model": "R + F + P",
+      "disagreement": "the answer key marks this option incorrect; the fit gives -0.125"
+     }
+    },
+    {
+     "what": "aliases",
+     "term": "F",
+     "value": "RP",
+     "where": {
+      "quiz": "Quiz for module 4",
+      "file": "quiz4-full-2015",
+      "question": 8,
+      "question_id": "cd0fc79f23b9bcdb29b9b83cb4131451",
+      "option_id": "f59348374226de5f689857f325e4ac84",
+      "answer_key": "correct",
+      "source_kind": "option explanation",
+      "quote": "Yes, the factor $$\\mathbf{F}$$ is confounded with the two-factor interaction $$\\mathbf{RP}$$ in his experiment design."
+     },
+     "check": {
+      "kind": "aliases",
+      "term": "F",
+      "k": 3,
+      "factors": ["R", "F", "P"],
+      "generators": ["P=RF"]
+     }
+    }
+   ]
+  },
+  {
+   "name": "efi-quiz4-reactor-conversion",
+   "title": "Emil's reactor: feed F, jacket temperature T and agitator speed S, and its two half fractions",
+   "kind": "quiz question",
+   "where": {
+    "quiz": "Quiz for module 4",
+    "file": "quiz4-full-2015",
+    "question": 9,
+    "question_id": "601ccb230d03fa7940671866590d6061",
+    "images": ["https://d396qusza40orc.cloudfront.net/experiments/quiz_assets/week4/flickr-6377514229_feb1547b69_b-chemical%20reactor.jpg"]
+   },
+   "factors": [
+    {
+     "name": "F",
+     "description": "Amount of feed",
+     "low": 100,
+     "high": 125,
+     "units": "L/min",
+     "type": "numeric"
+    },
+    {
+     "name": "T",
+     "description": "Jacket temperature",
+     "low": 120,
+     "high": 130,
+     "units": "°C",
+     "type": "numeric"
+    },
+    {
+     "name": "S",
+     "description": "Agitator motor speed",
+     "low": 200,
+     "high": 250,
+     "units": "RPM",
+     "type": "numeric"
+    }
+   ],
+   "responses": [
+    {
+     "name": "conversion",
+     "description": "Conversion at the reactor outlet",
+     "units": "%"
+    }
+   ],
+   "design": {
+    "type": "2^3 full factorial",
+    "n_runs": 8
+   },
+   "runs": {
+    "columns": ["experiment", "F", "T", "S", "conversion"],
+    "coded": false,
+    "rows": [
+     [1, 100, 120, 200, 80],
+     [2, 125, 120, 200, 91],
+     [3, 100, 130, 200, 78],
+     [4, 125, 130, 200, 93],
+     [5, 100, 120, 250, 85],
+     [6, 125, 120, 250, 93],
+     [7, 100, 130, 250, 87],
+     [8, 125, 130, 250, 90]
+    ]
+   },
+   "notes": "Option 6bb726d4 (keyed incorrect) has a temporary operator run experiments 5, 6, 7 and 8, and its explanation says blocking on FTS makes the operator coincide with the supplier's block. In the table's own numbering, experiments 5 to 8 are the runs at high S, which span both FTS blocks: the operator would be confounded with S, and the option would be correct. The explanation holds only if the experiments are numbered in the blocked run order.",
+   "expected": [
+    {
+     "what": "coefficient",
+     "term": "Intercept",
+     "value": "86",
+     "analysis": "the half fraction S = TF",
+     "where": {
+      "quiz": "Quiz for module 4",
+      "file": "quiz4-full-2015",
+      "question": 9,
+      "question_id": "601ccb230d03fa7940671866590d6061",
+      "option_id": "7fb5a457a07875056303ebca8029b16a",
+      "answer_key": "correct",
+      "source_kind": "option",
+      "quote": "\\hat{y} = 86 + 4.5x_\\text{F} - 2x_\\text{T} + 1.5x_\\text{S}"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "Intercept",
+      "model": "F + T + S",
+      "runs": [2, 3, 5, 8]
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "F",
+     "value": "4.5",
+     "analysis": "the half fraction S = TF",
+     "where": {
+      "quiz": "Quiz for module 4",
+      "file": "quiz4-full-2015",
+      "question": 9,
+      "question_id": "601ccb230d03fa7940671866590d6061",
+      "option_id": "7fb5a457a07875056303ebca8029b16a",
+      "answer_key": "correct",
+      "source_kind": "option",
+      "quote": "\\hat{y} = 86 + 4.5x_\\text{F} - 2x_\\text{T} + 1.5x_\\text{S}"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "F",
+      "model": "F + T + S",
+      "runs": [2, 3, 5, 8]
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "T",
+     "value": "-2",
+     "analysis": "the half fraction S = TF",
+     "where": {
+      "quiz": "Quiz for module 4",
+      "file": "quiz4-full-2015",
+      "question": 9,
+      "question_id": "601ccb230d03fa7940671866590d6061",
+      "option_id": "7fb5a457a07875056303ebca8029b16a",
+      "answer_key": "correct",
+      "source_kind": "option",
+      "quote": "\\hat{y} = 86 + 4.5x_\\text{F} - 2x_\\text{T} + 1.5x_\\text{S}"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "T",
+      "model": "F + T + S",
+      "runs": [2, 3, 5, 8]
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "S",
+     "value": "1.5",
+     "analysis": "the half fraction S = TF",
+     "where": {
+      "quiz": "Quiz for module 4",
+      "file": "quiz4-full-2015",
+      "question": 9,
+      "question_id": "601ccb230d03fa7940671866590d6061",
+      "option_id": "7fb5a457a07875056303ebca8029b16a",
+      "answer_key": "correct",
+      "source_kind": "option",
+      "quote": "\\hat{y} = 86 + 4.5x_\\text{F} - 2x_\\text{T} + 1.5x_\\text{S}"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "S",
+      "model": "F + T + S",
+      "runs": [2, 3, 5, 8]
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "Intercept",
+     "value": "88.25",
+     "analysis": "the half fraction S = -TF",
+     "where": {
+      "quiz": "Quiz for module 4",
+      "file": "quiz4-full-2015",
+      "question": 9,
+      "question_id": "601ccb230d03fa7940671866590d6061",
+      "option_id": "baa1a35033fcd2b0158f7de5beb04e30",
+      "answer_key": "correct",
+      "source_kind": "option",
+      "quote": "\\hat{y} = 88.25 +4.75x_\\text{F} +1.75x_\\text{T} + 1.75x_\\text{S}"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "Intercept",
+      "model": "F + T + S",
+      "runs": [1, 4, 6, 7]
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "F",
+     "value": "4.75",
+     "analysis": "the half fraction S = -TF",
+     "where": {
+      "quiz": "Quiz for module 4",
+      "file": "quiz4-full-2015",
+      "question": 9,
+      "question_id": "601ccb230d03fa7940671866590d6061",
+      "option_id": "baa1a35033fcd2b0158f7de5beb04e30",
+      "answer_key": "correct",
+      "source_kind": "option",
+      "quote": "\\hat{y} = 88.25 +4.75x_\\text{F} +1.75x_\\text{T} + 1.75x_\\text{S}"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "F",
+      "model": "F + T + S",
+      "runs": [1, 4, 6, 7]
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "T",
+     "value": "1.75",
+     "analysis": "the half fraction S = -TF",
+     "where": {
+      "quiz": "Quiz for module 4",
+      "file": "quiz4-full-2015",
+      "question": 9,
+      "question_id": "601ccb230d03fa7940671866590d6061",
+      "option_id": "baa1a35033fcd2b0158f7de5beb04e30",
+      "answer_key": "correct",
+      "source_kind": "option",
+      "quote": "\\hat{y} = 88.25 +4.75x_\\text{F} +1.75x_\\text{T} + 1.75x_\\text{S}"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "T",
+      "model": "F + T + S",
+      "runs": [1, 4, 6, 7]
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "S",
+     "value": "1.75",
+     "analysis": "the half fraction S = -TF",
+     "where": {
+      "quiz": "Quiz for module 4",
+      "file": "quiz4-full-2015",
+      "question": 9,
+      "question_id": "601ccb230d03fa7940671866590d6061",
+      "option_id": "baa1a35033fcd2b0158f7de5beb04e30",
+      "answer_key": "correct",
+      "source_kind": "option",
+      "quote": "\\hat{y} = 88.25 +4.75x_\\text{F} +1.75x_\\text{T} + 1.75x_\\text{S}"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "S",
+      "model": "F + T + S",
+      "runs": [1, 4, 6, 7]
+     }
+    },
+    {
+     "what": "runs of one block",
+     "term": null,
+     "value": "experiments 5, 6, 7 and 8",
+     "analysis": "a block made from the sign of FTS, as the option keyed correct (e5b6110a) says to block",
+     "where": {
+      "quiz": "Quiz for module 4",
+      "file": "quiz4-full-2015",
+      "question": 9,
+      "question_id": "601ccb230d03fa7940671866590d6061",
+      "option_id": "6bb726d40426952f223690609ee231d8",
+      "answer_key": "incorrect",
+      "source_kind": "option and its explanation",
+      "quote": "The temporary operator will help Emil do experiments 5, 6, 7 and 8. [...] If the experiments are correctly blocked for the material supplier, then this blocking will coincide with the operator."
+     },
+     "check": {
+      "kind": "fraction_runs",
+      "generator": "S=TF",
+      "printed": "5, 6, 7, 8",
+      "disagreement": "blocking on the sign of FTS puts runs 2, 3, 5 and 8 in one block and 1, 4, 6 and 7 in the other; experiments 5 to 8 of the table are the runs at high S, so the explanation's claim holds only in a run order the quiz does not give"
+     }
+    }
+   ]
+  },
+  {
+   "name": "efi-quiz4-swimming",
+   "title": "Hiro's 400 m individual medley: six training factors in eight runs, D = AB, E = AC, F = BC",
+   "kind": "quiz question",
+   "where": {
+    "quiz": "Quiz for module 4",
+    "file": "quiz4-full-2015",
+    "question": 10,
+    "question_id": "fcf64c75e176296b0300e573989b0665",
+    "images": ["https://d396qusza40orc.cloudfront.net/experiments/quiz_assets/week4/flickr-6968023253_c77fb0df41_k-swimming.jpg", "https://d396qusza40orc.cloudfront.net/experiments/quiz_assets/week4/Swimmer%20-%20Right.jpeg", "https://d396qusza40orc.cloudfront.net/experiments/quiz_assets/week4/Swimmer-Wrong2.jpeg"]
+   },
+   "factors": [
+    {
+     "name": "A",
+     "description": "Stretching time",
+     "low": 5,
+     "high": 10,
+     "units": "min",
+     "type": "numeric"
+    },
+    {
+     "name": "B",
+     "description": "Water drunk before training",
+     "low": 400,
+     "high": 500,
+     "units": "mL",
+     "type": "numeric"
+    },
+    {
+     "name": "C",
+     "description": "Warm up swim distance",
+     "low": 500,
+     "high": 700,
+     "units": "m",
+     "type": "numeric"
+    },
+    {
+     "name": "D",
+     "description": "Protein bar",
+     "low": "Not Eaten",
+     "high": "Eaten",
+     "units": "",
+     "type": "categorical"
+    },
+    {
+     "name": "E",
+     "description": "Sleep the night before",
+     "low": 8,
+     "high": 9,
+     "units": "h",
+     "type": "numeric"
+    },
+    {
+     "name": "F",
+     "description": "Swimming suit",
+     "low": "Swim trunks",
+     "high": "Full body suit",
+     "units": "",
+     "type": "categorical"
+    }
+   ],
+   "responses": [
+    {
+     "name": "time",
+     "description": "Time to swim 400 m",
+     "units": "s"
+    }
+   ],
+   "design": {
+    "type": "2^(6-3) fractional factorial",
+    "details": "generators D = AB, E = AC, F = BC",
+    "n_runs": 8
+   },
+   "runs": {
+    "columns": ["experiment", "A", "B", "C", "D", "E", "F", "time"],
+    "coded": false,
+    "rows": [
+     [1, 5, 400, 500, "Eaten", 9, "Full body suit", 325],
+     [2, 10, 400, 500, "Not Eaten", 8, "Full body suit", 330],
+     [3, 5, 500, 500, "Not Eaten", 9, "Swim trunks", 326],
+     [4, 10, 500, 500, "Eaten", 8, "Swim trunks", 300],
+     [5, 5, 400, 700, "Eaten", 8, "Swim trunks", 272],
+     [6, 10, 400, 700, "Not Eaten", 9, "Swim trunks", 265],
+     [7, 5, 500, 700, "Not Eaten", 8, "Full body suit", 300],
+     [8, 10, 500, 700, "Eaten", 9, "Full body suit", 275]
+    ]
+   },
+   "notes": "The explanation fits lm(y ~ A*B*C*D*E*F): with eight runs R keeps A to F and C:D (= ABC) and drops the rest as aliased, which is the model here. The Pareto plot keyed correct (Swimmer - Right.jpeg) shows the magnitudes of those coefficients: C 21.125, F 8.375, A 6.625, D 6.125, C:D 1.625, E 1.375 and B 1.125 s, with C, A, D and E negative.",
+   "expected": [
+    {
+     "what": "generator",
+     "term": null,
+     "value": "D=AB",
+     "analysis": "the eight-run fraction of six factors, as the library makes it from its resolution",
+     "where": {
+      "quiz": "Quiz for module 4",
+      "file": "quiz4-full-2015",
+      "question": 10,
+      "question_id": "fcf64c75e176296b0300e573989b0665",
+      "source_kind": "question",
+      "quote": "using the generator: $$\\mathbf{D=AB}, \\mathbf{E=AC}, \\mathbf{F=BC}$$"
+     },
+     "check": {
+      "kind": "generator",
+      "k": 6,
+      "resolution": 3,
+      "printed": "D=AB"
+     }
+    },
+    {
+     "what": "generator",
+     "term": null,
+     "value": "E=AC",
+     "analysis": "the eight-run fraction of six factors, as the library makes it from its resolution",
+     "where": {
+      "quiz": "Quiz for module 4",
+      "file": "quiz4-full-2015",
+      "question": 10,
+      "question_id": "fcf64c75e176296b0300e573989b0665",
+      "source_kind": "question",
+      "quote": "using the generator: $$\\mathbf{D=AB}, \\mathbf{E=AC}, \\mathbf{F=BC}$$"
+     },
+     "check": {
+      "kind": "generator",
+      "k": 6,
+      "resolution": 3,
+      "printed": "E=AC"
+     }
+    },
+    {
+     "what": "generator",
+     "term": null,
+     "value": "F=BC",
+     "analysis": "the eight-run fraction of six factors, as the library makes it from its resolution",
+     "where": {
+      "quiz": "Quiz for module 4",
+      "file": "quiz4-full-2015",
+      "question": 10,
+      "question_id": "fcf64c75e176296b0300e573989b0665",
+      "source_kind": "question",
+      "quote": "using the generator: $$\\mathbf{D=AB}, \\mathbf{E=AC}, \\mathbf{F=BC}$$"
+     },
+     "check": {
+      "kind": "generator",
+      "k": 6,
+      "resolution": 3,
+      "printed": "F=BC"
+     }
+    },
+    {
+     "what": "active effects",
+     "term": null,
+     "value": "$$\\mathbf{A}, \\mathbf{C}, \\mathbf{F}, \\mathbf{D}$$",
+     "where": {
+      "quiz": "Quiz for module 4",
+      "file": "quiz4-full-2015",
+      "question": 10,
+      "question_id": "fcf64c75e176296b0300e573989b0665",
+      "option_id": "5693ef1bf6b625c028969cd2bc95994c",
+      "answer_key": "correct",
+      "source_kind": "option",
+      "quote": "The following subset of factors are significant: $$\\mathbf{A}, \\mathbf{C}, \\mathbf{F}, \\mathbf{D}$$"
+     },
+     "check": {
+      "kind": "active_effects",
+      "model": "A + B + C + D + E + F + C:D",
+      "terms": ["A", "C", "F", "D"],
+      "margin": "ME",
+      "disagreement": "the quiz reads significance off the Pareto plot of a saturated fit, which leaves no error estimate; by Lenth's method (PSE 18.4 s, margin of error 69.2 s on the effects) no effect is active. A, C, D and F are the four largest: effects C -42.25, F 16.75, A -13.25 and D -12.25 s"
+     }
+    },
+    {
+     "what": "active effects",
+     "term": null,
+     "value": "$$\\mathbf{A}, \\mathbf{B}, \\mathbf{D}, \\mathbf{E}, \\mathbf{F}$$",
+     "where": {
+      "quiz": "Quiz for module 4",
+      "file": "quiz4-full-2015",
+      "question": 10,
+      "question_id": "fcf64c75e176296b0300e573989b0665",
+      "option_id": "ae63afdaceb02e86f2da3d14ca7eeb94",
+      "answer_key": "incorrect",
+      "source_kind": "option",
+      "quote": "The following subset of factors are significant: $$\\mathbf{A}, \\mathbf{B}, \\mathbf{D}, \\mathbf{E}, \\mathbf{F}$$"
+     },
+     "check": {
+      "kind": "active_effects",
+      "model": "A + B + C + D + E + F + C:D",
+      "terms": ["A", "B", "D", "E", "F"],
+      "margin": "ME",
+      "disagreement": "the answer key marks this option incorrect; by Lenth's method no effect is active, and B and E are among the smallest"
+     }
+    },
+    {
+     "what": "defining relation",
+     "term": null,
+     "value": "$$\\mathbf{I} = \\mathbf{ABD} = \\mathbf{ACE} = \\mathbf{BCF} = \\mathbf{DEF} = \\mathbf{BCDE} = \\mathbf{ACDF} = \\mathbf{ABEF}$$",
+     "where": {
+      "quiz": "Quiz for module 4",
+      "file": "quiz4-full-2015",
+      "question": 10,
+      "question_id": "fcf64c75e176296b0300e573989b0665",
+      "option_id": "3fbe753ace20b0899285acb2f966fcab",
+      "answer_key": "correct",
+      "source_kind": "option",
+      "quote": "The defining relationship for the design was: $$\\mathbf{I} = \\mathbf{ABD} = \\mathbf{ACE} = \\mathbf{BCF} = \\mathbf{DEF} = \\mathbf{BCDE} = \\mathbf{ACDF} = \\mathbf{ABEF}$$"
+     },
+     "check": {
+      "kind": "defining_relation",
+      "k": 6,
+      "generators": ["D=AB", "E=AC", "F=BC"],
+      "printed": "I = ABD = ACE = BCF = DEF = BCDE = ACDF = ABEF"
+     }
+    },
+    {
+     "what": "defining relation",
+     "term": null,
+     "value": "$$\\mathbf{I} = \\mathbf{ABC} = \\mathbf{ADE} = \\mathbf{ABCFE} = \\mathbf{ABCDE} = \\mathbf{ABCDEF}$$",
+     "where": {
+      "quiz": "Quiz for module 4",
+      "file": "quiz4-full-2015",
+      "question": 10,
+      "question_id": "fcf64c75e176296b0300e573989b0665",
+      "option_id": "d832330f76c17bfdd08510d6909e6024",
+      "answer_key": "incorrect",
+      "source_kind": "option",
+      "quote": "The defining relationship for the design was: $$\\mathbf{I} = \\mathbf{ABC} = \\mathbf{ADE} = \\mathbf{ABCFE} = \\mathbf{ABCDE} = \\mathbf{ABCDEF}$$"
+     },
+     "check": {
+      "kind": "defining_relation",
+      "k": 6,
+      "generators": ["D=AB", "E=AC", "F=BC"],
+      "printed": "I = ABC = ADE = ABCFE = ABCDE = ABCDEF",
+      "disagreement": "the answer key marks this option incorrect: the relation of D = AB, E = AC, F = BC has the seven words ABD, ACE, BCF, DEF, BCDE, ACDF and ABEF"
+     }
+    },
+    {
+     "what": "number of runs",
+     "term": null,
+     "value": "$$2^{6-3} = 8$$",
+     "where": {
+      "quiz": "Quiz for module 4",
+      "file": "quiz4-full-2015",
+      "question": 10,
+      "question_id": "fcf64c75e176296b0300e573989b0665",
+      "source_kind": "question",
+      "quote": "he ran a randomized eight-fraction factorial experiment: $$2^{6-3} = 8$$"
+     },
+     "check": {
+      "kind": "design_property",
+      "design": {
+       "design_type": "fractional_factorial",
+       "k": 6,
+       "options": {
+        "generators": ["D=AB", "E=AC", "F=BC"],
+        "n_center_points": 0
+       }
+      },
+      "property": "n_runs",
+      "printed": "8"
+     }
+    }
+   ]
+  },
+  {
+   "name": "efi-quiz4-practice-running-time",
+   "title": "Jason's 1 km run: warm up A, water B and time of day C; the half fractions C = AB and C = -AB",
+   "kind": "quiz question",
+   "where": {
+    "quiz": "Ungraded practice quiz 4: part 1",
+    "file": "quiz4-UG1-2015",
+    "question": 7,
+    "question_id": "07d481f7106f6453e4891821089c6158"
+   },
+   "factors": [
+    {
+     "name": "A",
+     "description": "Warm up time",
+     "low": 5,
+     "high": 10,
+     "units": "min",
+     "type": "numeric"
+    },
+    {
+     "name": "B",
+     "description": "Water intake",
+     "low": 300,
+     "high": 500,
+     "units": "mL",
+     "type": "numeric"
+    },
+    {
+     "name": "C",
+     "description": "Time of day",
+     "low": "Morning",
+     "high": "Afternoon",
+     "units": "",
+     "type": "categorical"
+    }
+   ],
+   "responses": [
+    {
+     "name": "time",
+     "description": "Time to run 1 km",
+     "units": "s"
+    }
+   ],
+   "design": {
+    "type": "2^3 full factorial",
+    "n_runs": 8
+   },
+   "runs": {
+    "columns": ["experiment", "A", "B", "C", "time"],
+    "coded": false,
+    "rows": [
+     [1, 5, 300, "Morning", 240],
+     [2, 10, 300, "Morning", 252],
+     [3, 5, 500, "Morning", 260],
+     [4, 10, 500, "Morning", 270],
+     [5, 5, 300, "Afternoon", 300],
+     [6, 10, 300, "Afternoon", 301],
+     [7, 5, 500, "Afternoon", 305],
+     [8, 10, 500, "Afternoon", 315]
+    ]
+   },
+   "expected": [
+    {
+     "what": "runs of the half fraction",
+     "term": null,
+     "value": "2, 3, 5 and 8",
+     "where": {
+      "quiz": "Ungraded practice quiz 4: part 1",
+      "file": "quiz4-UG1-2015",
+      "question": 7,
+      "question_id": "07d481f7106f6453e4891821089c6158",
+      "option_id": "ab79c3ab33447e1ee9076b9abbb7c790",
+      "answer_key": "correct",
+      "source_kind": "option",
+      "quote": "If Jason did a half-fraction factorial he would need to only run experiments 2, 3, 5 and 8 from the above table. This would indicate a generator of $$\\mathbf{C = AB}$$"
+     },
+     "check": {
+      "kind": "fraction_runs",
+      "generator": "C=AB"
+     }
+    },
+    {
+     "what": "runs of the half fraction",
+     "term": null,
+     "value": "3, 4, 5, and 6",
+     "where": {
+      "quiz": "Ungraded practice quiz 4: part 1",
+      "file": "quiz4-UG1-2015",
+      "question": 7,
+      "question_id": "07d481f7106f6453e4891821089c6158",
+      "option_id": "fb69c4f8d75048302754e7af02efb67b",
+      "answer_key": "incorrect",
+      "source_kind": "option",
+      "quote": "If Jason did a half-fraction factorial he would need to only run experiments 3, 4, 5, and 6 from the above table. This would indicate a generator of $$\\mathbf{C = AB}$$"
+     },
+     "check": {
+      "kind": "fraction_runs",
+      "generator": "C=AB",
+      "disagreement": "the answer key marks this option incorrect: the fraction C = AB is runs 2, 3, 5 and 8"
+     }
+    },
+    {
+     "what": "runs of the half fraction",
+     "term": null,
+     "value": "1, 4, 6 and 7",
+     "where": {
+      "quiz": "Ungraded practice quiz 4: part 1",
+      "file": "quiz4-UG1-2015",
+      "question": 7,
+      "question_id": "07d481f7106f6453e4891821089c6158",
+      "option_id": "cb31dafcb58cb0ee2ba35fa98c6838c1",
+      "answer_key": "correct",
+      "source_kind": "option",
+      "quote": "he could then run the complementary half-fraction by running experiments: 1, 4, 6 and 7. That complementary half-fraction has a generator of $$\\mathbf{C = -AB}$$."
+     },
+     "check": {
+      "kind": "fraction_runs",
+      "generator": "C=-AB"
+     }
+    },
+    {
+     "what": "runs of the half fraction",
+     "term": null,
+     "value": "1, 2, 5 and 8",
+     "where": {
+      "quiz": "Ungraded practice quiz 4: part 1",
+      "file": "quiz4-UG1-2015",
+      "question": 7,
+      "question_id": "07d481f7106f6453e4891821089c6158",
+      "option_id": "462b2cbb5f170f75b4ec5c9b7eaf3db1",
+      "answer_key": "incorrect",
+      "source_kind": "option",
+      "quote": "he could then run the complementary half-fraction by running experiments: 1, 2, 5 and 8. That complementary half-fraction has a generator of $$\\mathbf{C = -AB}$$"
+     },
+     "check": {
+      "kind": "fraction_runs",
+      "generator": "C=-AB",
+      "disagreement": "the answer key marks this option incorrect: the fraction C = -AB is runs 1, 4, 6 and 7"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "Intercept",
+     "value": "281.75",
+     "analysis": "the half fraction C = AB",
+     "where": {
+      "quiz": "Ungraded practice quiz 4: part 1",
+      "file": "quiz4-UG1-2015",
+      "question": 7,
+      "question_id": "07d481f7106f6453e4891821089c6158",
+      "option_id": "0f8627c8432174c2fe95229bb281366e",
+      "answer_key": "correct",
+      "source_kind": "option",
+      "quote": "\\hat{y} = 281.75 + 1.75x_\\text{A} + 5.75x_\\text{B} + 25.75x_\\text{C}"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "Intercept",
+      "model": "A + B + C",
+      "runs": [2, 3, 5, 8]
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "A",
+     "value": "1.75",
+     "analysis": "the half fraction C = AB",
+     "where": {
+      "quiz": "Ungraded practice quiz 4: part 1",
+      "file": "quiz4-UG1-2015",
+      "question": 7,
+      "question_id": "07d481f7106f6453e4891821089c6158",
+      "option_id": "0f8627c8432174c2fe95229bb281366e",
+      "answer_key": "correct",
+      "source_kind": "option",
+      "quote": "\\hat{y} = 281.75 + 1.75x_\\text{A} + 5.75x_\\text{B} + 25.75x_\\text{C}"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "A",
+      "model": "A + B + C",
+      "runs": [2, 3, 5, 8]
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "B",
+     "value": "5.75",
+     "analysis": "the half fraction C = AB",
+     "where": {
+      "quiz": "Ungraded practice quiz 4: part 1",
+      "file": "quiz4-UG1-2015",
+      "question": 7,
+      "question_id": "07d481f7106f6453e4891821089c6158",
+      "option_id": "0f8627c8432174c2fe95229bb281366e",
+      "answer_key": "correct",
+      "source_kind": "option",
+      "quote": "\\hat{y} = 281.75 + 1.75x_\\text{A} + 5.75x_\\text{B} + 25.75x_\\text{C}"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "B",
+      "model": "A + B + C",
+      "runs": [2, 3, 5, 8]
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "C",
+     "value": "25.75",
+     "analysis": "the half fraction C = AB",
+     "where": {
+      "quiz": "Ungraded practice quiz 4: part 1",
+      "file": "quiz4-UG1-2015",
+      "question": 7,
+      "question_id": "07d481f7106f6453e4891821089c6158",
+      "option_id": "0f8627c8432174c2fe95229bb281366e",
+      "answer_key": "correct",
+      "source_kind": "option",
+      "quote": "\\hat{y} = 281.75 + 1.75x_\\text{A} + 5.75x_\\text{B} + 25.75x_\\text{C}"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "C",
+      "model": "A + B + C",
+      "runs": [2, 3, 5, 8]
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "Intercept",
+     "value": "279",
+     "analysis": "the half fraction C = -AB",
+     "where": {
+      "quiz": "Ungraded practice quiz 4: part 1",
+      "file": "quiz4-UG1-2015",
+      "question": 7,
+      "question_id": "07d481f7106f6453e4891821089c6158",
+      "option_id": "4683786fbbeb45300c3a688c7e519fb7",
+      "answer_key": "correct",
+      "source_kind": "option",
+      "quote": "\\hat{y} = 279 + 6.5x_\\text{A} + 8.5x_\\text{B}+ 24x_\\text{C}"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "Intercept",
+      "model": "A + B + C",
+      "runs": [1, 4, 6, 7]
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "A",
+     "value": "6.5",
+     "analysis": "the half fraction C = -AB",
+     "where": {
+      "quiz": "Ungraded practice quiz 4: part 1",
+      "file": "quiz4-UG1-2015",
+      "question": 7,
+      "question_id": "07d481f7106f6453e4891821089c6158",
+      "option_id": "4683786fbbeb45300c3a688c7e519fb7",
+      "answer_key": "correct",
+      "source_kind": "option",
+      "quote": "\\hat{y} = 279 + 6.5x_\\text{A} + 8.5x_\\text{B}+ 24x_\\text{C}"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "A",
+      "model": "A + B + C",
+      "runs": [1, 4, 6, 7]
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "B",
+     "value": "8.5",
+     "analysis": "the half fraction C = -AB",
+     "where": {
+      "quiz": "Ungraded practice quiz 4: part 1",
+      "file": "quiz4-UG1-2015",
+      "question": 7,
+      "question_id": "07d481f7106f6453e4891821089c6158",
+      "option_id": "4683786fbbeb45300c3a688c7e519fb7",
+      "answer_key": "correct",
+      "source_kind": "option",
+      "quote": "\\hat{y} = 279 + 6.5x_\\text{A} + 8.5x_\\text{B}+ 24x_\\text{C}"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "B",
+      "model": "A + B + C",
+      "runs": [1, 4, 6, 7]
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "C",
+     "value": "24",
+     "analysis": "the half fraction C = -AB",
+     "where": {
+      "quiz": "Ungraded practice quiz 4: part 1",
+      "file": "quiz4-UG1-2015",
+      "question": 7,
+      "question_id": "07d481f7106f6453e4891821089c6158",
+      "option_id": "4683786fbbeb45300c3a688c7e519fb7",
+      "answer_key": "correct",
+      "source_kind": "option",
+      "quote": "\\hat{y} = 279 + 6.5x_\\text{A} + 8.5x_\\text{B}+ 24x_\\text{C}"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "C",
+      "model": "A + B + C",
+      "runs": [1, 4, 6, 7]
+     }
+    }
+   ]
+  },
+  {
+   "name": "efi-quiz4-practice-concrete-strength",
+   "title": "Ghassan's concrete: water A, cement B and additives C in four runs, with C = AB",
+   "kind": "quiz question",
+   "where": {
+    "quiz": "Ungraded practice quiz 4: part 1",
+    "file": "quiz4-UG1-2015",
+    "question": 8,
+    "question_id": "8c30ac948d4630facfc7bb3cdbd8a59d"
+   },
+   "factors": [
+    {
+     "name": "A",
+     "description": "Water",
+     "low": 0.5,
+     "high": 1,
+     "units": "L",
+     "type": "numeric"
+    },
+    {
+     "name": "B",
+     "description": "Cement",
+     "low": 2,
+     "high": 4,
+     "units": "kg",
+     "type": "numeric"
+    },
+    {
+     "name": "C",
+     "description": "Additives",
+     "low": 250,
+     "high": 400,
+     "units": "g",
+     "type": "numeric"
+    }
+   ],
+   "responses": [
+    {
+     "name": "strength",
+     "description": "Strength",
+     "units": "MPa"
+    }
+   ],
+   "design": {
+    "type": "2^(3-1) fractional factorial",
+    "details": "C = AB, as the explanation's code makes it",
+    "n_runs": 4
+   },
+   "runs": {
+    "columns": ["A", "B", "C", "strength"],
+    "coded": false,
+    "rows": [
+     [0.5, 2, 400, 25],
+     [1, 2, 250, 32],
+     [0.5, 4, 250, 29],
+     [1, 4, 400, 35]
+    ],
+    "notes": "in the random order printed"
+   },
+   "expected": [
+    {
+     "what": "aliases",
+     "term": "B",
+     "value": "$$\\beta_{B} \\longleftarrow \\mathbf{B} + \\mathbf{AC}$$",
+     "where": {
+      "quiz": "Ungraded practice quiz 4: part 1",
+      "file": "quiz4-UG1-2015",
+      "question": 8,
+      "question_id": "8c30ac948d4630facfc7bb3cdbd8a59d",
+      "option_id": "a86c2547c050321cf84416de8cfcd869",
+      "answer_key": "correct",
+      "source_kind": "option",
+      "quote": "The confounding pattern for $$\\beta_{B}$$ is: $$\\beta_{B} \\longleftarrow \\mathbf{B} + \\mathbf{AC}$$"
+     },
+     "check": {
+      "kind": "aliases",
+      "term": "B",
+      "k": 3,
+      "generators": ["C=AB"],
+      "printed": "AC"
+     }
+    },
+    {
+     "what": "aliases",
+     "term": "A",
+     "value": "$$\\beta_{A} \\longleftarrow \\mathbf{A} + \\mathbf{AC}$$",
+     "where": {
+      "quiz": "Ungraded practice quiz 4: part 1",
+      "file": "quiz4-UG1-2015",
+      "question": 8,
+      "question_id": "8c30ac948d4630facfc7bb3cdbd8a59d",
+      "option_id": "ff9559e1653701001a6b9a324cd0ce91",
+      "answer_key": "incorrect",
+      "source_kind": "option",
+      "quote": "The confounding pattern for $$\\beta_{A}$$ is: $$\\beta_{A} \\longleftarrow \\mathbf{A} + \\mathbf{AC}$$"
+     },
+     "check": {
+      "kind": "aliases",
+      "term": "A",
+      "k": 3,
+      "generators": ["C=AB"],
+      "printed": "AC",
+      "disagreement": "the answer key marks this option incorrect: A is aliased with BC"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "Intercept",
+     "value": "30.25",
+     "where": {
+      "quiz": "Ungraded practice quiz 4: part 1",
+      "file": "quiz4-UG1-2015",
+      "question": 8,
+      "question_id": "8c30ac948d4630facfc7bb3cdbd8a59d",
+      "option_id": "211ea2a10a1a254ba3ed077f095d3995",
+      "answer_key": "correct",
+      "source_kind": "option",
+      "quote": "\\hat{y} = 30.25 + 3.25x_\\text{A} + 1.75x_\\text{B} - 0.25x_\\text{C}"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "Intercept",
+      "model": "A + B + C"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "A",
+     "value": "3.25",
+     "where": {
+      "quiz": "Ungraded practice quiz 4: part 1",
+      "file": "quiz4-UG1-2015",
+      "question": 8,
+      "question_id": "8c30ac948d4630facfc7bb3cdbd8a59d",
+      "option_id": "211ea2a10a1a254ba3ed077f095d3995",
+      "answer_key": "correct",
+      "source_kind": "option",
+      "quote": "\\hat{y} = 30.25 + 3.25x_\\text{A} + 1.75x_\\text{B} - 0.25x_\\text{C}"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "A",
+      "model": "A + B + C"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "B",
+     "value": "1.75",
+     "where": {
+      "quiz": "Ungraded practice quiz 4: part 1",
+      "file": "quiz4-UG1-2015",
+      "question": 8,
+      "question_id": "8c30ac948d4630facfc7bb3cdbd8a59d",
+      "option_id": "211ea2a10a1a254ba3ed077f095d3995",
+      "answer_key": "correct",
+      "source_kind": "option",
+      "quote": "\\hat{y} = 30.25 + 3.25x_\\text{A} + 1.75x_\\text{B} - 0.25x_\\text{C}"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "B",
+      "model": "A + B + C"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "C",
+     "value": "-0.25",
+     "where": {
+      "quiz": "Ungraded practice quiz 4: part 1",
+      "file": "quiz4-UG1-2015",
+      "question": 8,
+      "question_id": "8c30ac948d4630facfc7bb3cdbd8a59d",
+      "option_id": "211ea2a10a1a254ba3ed077f095d3995",
+      "answer_key": "correct",
+      "source_kind": "option",
+      "quote": "\\hat{y} = 30.25 + 3.25x_\\text{A} + 1.75x_\\text{B} - 0.25x_\\text{C}"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "C",
+      "model": "A + B + C"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "Intercept",
+     "value": "32",
+     "where": {
+      "quiz": "Ungraded practice quiz 4: part 1",
+      "file": "quiz4-UG1-2015",
+      "question": 8,
+      "question_id": "8c30ac948d4630facfc7bb3cdbd8a59d",
+      "option_id": "b84a1eacfb66be7c270283da5c023e93",
+      "answer_key": "incorrect",
+      "source_kind": "option",
+      "quote": "\\hat{y} = 32 + 2.0x_\\text{A} + 1.5x_\\text{B} + 0.5x_\\text{C}"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "Intercept",
+      "model": "A + B + C",
+      "disagreement": "the answer key marks this option incorrect; the fit gives 30.25"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "A",
+     "value": "2.0",
+     "where": {
+      "quiz": "Ungraded practice quiz 4: part 1",
+      "file": "quiz4-UG1-2015",
+      "question": 8,
+      "question_id": "8c30ac948d4630facfc7bb3cdbd8a59d",
+      "option_id": "b84a1eacfb66be7c270283da5c023e93",
+      "answer_key": "incorrect",
+      "source_kind": "option",
+      "quote": "\\hat{y} = 32 + 2.0x_\\text{A} + 1.5x_\\text{B} + 0.5x_\\text{C}"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "A",
+      "model": "A + B + C",
+      "disagreement": "the answer key marks this option incorrect; the fit gives 3.25"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "B",
+     "value": "1.5",
+     "where": {
+      "quiz": "Ungraded practice quiz 4: part 1",
+      "file": "quiz4-UG1-2015",
+      "question": 8,
+      "question_id": "8c30ac948d4630facfc7bb3cdbd8a59d",
+      "option_id": "b84a1eacfb66be7c270283da5c023e93",
+      "answer_key": "incorrect",
+      "source_kind": "option",
+      "quote": "\\hat{y} = 32 + 2.0x_\\text{A} + 1.5x_\\text{B} + 0.5x_\\text{C}"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "B",
+      "model": "A + B + C",
+      "disagreement": "the answer key marks this option incorrect; the fit gives 1.75"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "C",
+     "value": "0.5",
+     "where": {
+      "quiz": "Ungraded practice quiz 4: part 1",
+      "file": "quiz4-UG1-2015",
+      "question": 8,
+      "question_id": "8c30ac948d4630facfc7bb3cdbd8a59d",
+      "option_id": "b84a1eacfb66be7c270283da5c023e93",
+      "answer_key": "incorrect",
+      "source_kind": "option",
+      "quote": "\\hat{y} = 32 + 2.0x_\\text{A} + 1.5x_\\text{B} + 0.5x_\\text{C}"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "C",
+      "model": "A + B + C",
+      "disagreement": "the answer key marks this option incorrect; the fit gives -0.25"
+     }
+    }
+   ]
+  },
+  {
+   "name": "efi-quiz4-practice-cake-yield",
+   "title": "Cake ovens: baking temperature A, mixing speed B and baking time C in four runs, with C = AB",
+   "kind": "quiz question",
+   "where": {
+    "quiz": "Ungraded practice quiz 4: part 1",
+    "file": "quiz4-UG1-2015",
+    "question": 9,
+    "question_id": "11184e3d1e210f37c4989bebe8b73d1f"
+   },
+   "factors": [
+    {
+     "name": "A",
+     "description": "Baking temperature",
+     "low": 300,
+     "high": 350,
+     "units": "°C",
+     "type": "numeric"
+    },
+    {
+     "name": "B",
+     "description": "Batter mixing speed",
+     "low": 200,
+     "high": 300,
+     "units": "RPM",
+     "type": "numeric"
+    },
+    {
+     "name": "C",
+     "description": "Baking time",
+     "low": 15,
+     "high": 20,
+     "units": "min",
+     "type": "numeric"
+    }
+   ],
+   "responses": [
+    {
+     "name": "yield",
+     "description": "Yield of good cakes",
+     "units": "%"
+    }
+   ],
+   "design": {
+    "type": "2^(3-1) fractional factorial",
+    "details": "generator C = AB",
+    "n_runs": 4
+   },
+   "runs": {
+    "columns": ["A", "B", "C", "AB", "AC", "BC", "ABC", "Intercept", "yield"],
+    "coded": false,
+    "rows": [
+     [300, 200, 20, "+", "-", "-", "+", "+", 85],
+     [350, 200, 15, "-", "-", "+", "+", "+", 92],
+     [300, 300, 15, "-", "+", "-", "+", "+", 89],
+     [350, 300, 20, "+", "+", "+", "+", "+", 95]
+    ],
+    "notes": "in the random order printed, with the sign columns the table prints"
+   },
+   "expected": [
+    {
+     "what": "sign column",
+     "term": "A·B",
+     "value": "+, -, -, +",
+     "analysis": "the runs where the A·B column is +",
+     "where": {
+      "quiz": "Ungraded practice quiz 4: part 1",
+      "file": "quiz4-UG1-2015",
+      "question": 9,
+      "question_id": "11184e3d1e210f37c4989bebe8b73d1f",
+      "source_kind": "question table",
+      "quote": "A = Baking temperature (°C) | B = Batter mixing speed (RPM) | C = Baking time (minutes) | AB | AC | BC | ABC | Intercept"
+     },
+     "check": {
+      "kind": "fraction_runs",
+      "generator": "A=B",
+      "printed": "1, 4"
+     }
+    },
+    {
+     "what": "sign column",
+     "term": "A·C",
+     "value": "-, -, +, +",
+     "analysis": "the runs where the A·C column is +",
+     "where": {
+      "quiz": "Ungraded practice quiz 4: part 1",
+      "file": "quiz4-UG1-2015",
+      "question": 9,
+      "question_id": "11184e3d1e210f37c4989bebe8b73d1f",
+      "source_kind": "question table",
+      "quote": "A = Baking temperature (°C) | B = Batter mixing speed (RPM) | C = Baking time (minutes) | AB | AC | BC | ABC | Intercept"
+     },
+     "check": {
+      "kind": "fraction_runs",
+      "generator": "A=C",
+      "printed": "3, 4"
+     }
+    },
+    {
+     "what": "sign column",
+     "term": "B·C",
+     "value": "-, +, -, +",
+     "analysis": "the runs where the B·C column is +",
+     "where": {
+      "quiz": "Ungraded practice quiz 4: part 1",
+      "file": "quiz4-UG1-2015",
+      "question": 9,
+      "question_id": "11184e3d1e210f37c4989bebe8b73d1f",
+      "source_kind": "question table",
+      "quote": "A = Baking temperature (°C) | B = Batter mixing speed (RPM) | C = Baking time (minutes) | AB | AC | BC | ABC | Intercept"
+     },
+     "check": {
+      "kind": "fraction_runs",
+      "generator": "B=C",
+      "printed": "2, 4"
+     }
+    },
+    {
+     "what": "sign column",
+     "term": "A·B·C",
+     "value": "+, +, +, +",
+     "analysis": "the runs where the A·B·C column is +",
+     "where": {
+      "quiz": "Ungraded practice quiz 4: part 1",
+      "file": "quiz4-UG1-2015",
+      "question": 9,
+      "question_id": "11184e3d1e210f37c4989bebe8b73d1f",
+      "source_kind": "question table",
+      "quote": "A = Baking temperature (°C) | B = Batter mixing speed (RPM) | C = Baking time (minutes) | AB | AC | BC | ABC | Intercept"
+     },
+     "check": {
+      "kind": "fraction_runs",
+      "generator": "C=AB",
+      "printed": "1, 2, 3, 4"
+     }
+    },
+    {
+     "what": "aliases",
+     "term": "B",
+     "value": "AC",
+     "where": {
+      "quiz": "Ungraded practice quiz 4: part 1",
+      "file": "quiz4-UG1-2015",
+      "question": 9,
+      "question_id": "11184e3d1e210f37c4989bebe8b73d1f",
+      "option_id": "0fca3e6ec43e4f982f32a2f9bac4c033",
+      "answer_key": "correct",
+      "source_kind": "option",
+      "quote": "In this setup the batter mixing speed $$\\mathbf{B}$$ is an alias for the interaction term $$\\mathbf{AC}$$."
+     },
+     "check": {
+      "kind": "aliases",
+      "term": "B",
+      "k": 3,
+      "generators": ["C=AB"]
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "Intercept",
+     "value": "90.25",
+     "where": {
+      "quiz": "Ungraded practice quiz 4: part 1",
+      "file": "quiz4-UG1-2015",
+      "question": 9,
+      "question_id": "11184e3d1e210f37c4989bebe8b73d1f",
+      "option_id": "d1f61920b616c2907091949b4ca29fbf",
+      "answer_key": "correct",
+      "source_kind": "option",
+      "quote": "\\hat{y} = 90.25 + 3.25x_\\text{A} + 1.75x_\\text{B} - 0.25x_\\text{C}"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "Intercept",
+      "model": "A + B + C"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "A",
+     "value": "3.25",
+     "where": {
+      "quiz": "Ungraded practice quiz 4: part 1",
+      "file": "quiz4-UG1-2015",
+      "question": 9,
+      "question_id": "11184e3d1e210f37c4989bebe8b73d1f",
+      "option_id": "d1f61920b616c2907091949b4ca29fbf",
+      "answer_key": "correct",
+      "source_kind": "option",
+      "quote": "\\hat{y} = 90.25 + 3.25x_\\text{A} + 1.75x_\\text{B} - 0.25x_\\text{C}"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "A",
+      "model": "A + B + C"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "B",
+     "value": "1.75",
+     "where": {
+      "quiz": "Ungraded practice quiz 4: part 1",
+      "file": "quiz4-UG1-2015",
+      "question": 9,
+      "question_id": "11184e3d1e210f37c4989bebe8b73d1f",
+      "option_id": "d1f61920b616c2907091949b4ca29fbf",
+      "answer_key": "correct",
+      "source_kind": "option",
+      "quote": "\\hat{y} = 90.25 + 3.25x_\\text{A} + 1.75x_\\text{B} - 0.25x_\\text{C}"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "B",
+      "model": "A + B + C"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "C",
+     "value": "-0.25",
+     "where": {
+      "quiz": "Ungraded practice quiz 4: part 1",
+      "file": "quiz4-UG1-2015",
+      "question": 9,
+      "question_id": "11184e3d1e210f37c4989bebe8b73d1f",
+      "option_id": "d1f61920b616c2907091949b4ca29fbf",
+      "answer_key": "correct",
+      "source_kind": "option",
+      "quote": "\\hat{y} = 90.25 + 3.25x_\\text{A} + 1.75x_\\text{B} - 0.25x_\\text{C}"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "C",
+      "model": "A + B + C"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "C",
+     "value": "-0.25",
+     "analysis": "quoted in the interpretation",
+     "where": {
+      "quiz": "Ungraded practice quiz 4: part 1",
+      "file": "quiz4-UG1-2015",
+      "question": 9,
+      "question_id": "11184e3d1e210f37c4989bebe8b73d1f",
+      "option_id": "007a11524e4272fb80d9f1625c48159b",
+      "answer_key": "correct",
+      "source_kind": "option",
+      "quote": "The term $$-0.25 x_\\text{C}$$ indicates that factor $$\\mathbf{C}$$ can be removed because it is very small"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "C",
+      "model": "A + B + C"
+     }
+    },
+    {
+     "what": "aliases",
+     "term": "Intercept",
+     "value": "BC",
+     "where": {
+      "quiz": "Ungraded practice quiz 4: part 1",
+      "file": "quiz4-UG1-2015",
+      "question": 9,
+      "question_id": "11184e3d1e210f37c4989bebe8b73d1f",
+      "option_id": "05a0c3051d1189550ccc8ef098b89176",
+      "answer_key": "incorrect",
+      "source_kind": "option",
+      "quote": "The intercept term is an alias with $$\\mathbf{BC}$$"
+     },
+     "check": {
+      "kind": "aliases",
+      "term": "I",
+      "k": 3,
+      "generators": ["C=AB"],
+      "disagreement": "the answer key marks this option incorrect: the intercept is aliased with ABC"
+     }
+    }
+   ]
+  }
+ ],
+ "designs": [
+  {
+   "name": "efi-quiz4-cookie-run-budget",
+   "title": "Jeff's chocolate chip cookies: what eight runs allow, in two to five factors",
+   "where": {
+    "quiz": "Quiz for module 4",
+    "file": "quiz4-full-2015",
+    "question": 1,
+    "question_id": "a9184316e2563a895939944a2f36ae88",
+    "images": ["https://d396qusza40orc.cloudfront.net/experiments/quiz_assets/week4/flickr-6343791094_868c3bc02d_m.jpg"]
+   },
+   "design": {
+    "type": "two-level designs in eight runs",
+    "details": "4 hours a day for 2 days, 1 hour a batch"
+   },
+   "notes": "Five factors A to E; the options ask which designs fit in the eight runs available.",
+   "expected": [
+    {
+     "what": "number of runs",
+     "term": null,
+     "value": "$$8 = 2^3$$",
+     "analysis": "a full factorial in 3 factors",
+     "where": {
+      "quiz": "Quiz for module 4",
+      "file": "quiz4-full-2015",
+      "question": 1,
+      "question_id": "a9184316e2563a895939944a2f36ae88",
+      "option_id": "95aea4109135dd8f0a8c7f7a6ce9059e",
+      "answer_key": "correct",
+      "source_kind": "option explanation",
+      "quote": "Jeff can run at most 8 experiments in the remaining time: $$8 = 2^3$$"
+     },
+     "check": {
+      "kind": "design_property",
+      "design": {
+       "design_type": "full_factorial",
+       "k": 3,
+       "options": {
+        "n_center_points": 0
+       }
+      },
+      "property": "n_runs",
+      "printed": "8"
+     }
+    },
+    {
+     "what": "number of runs",
+     "term": null,
+     "value": "$$8 = 2^{4-1} = 2^3$$",
+     "analysis": "the half fraction in 4 factors with D = ABC",
+     "where": {
+      "quiz": "Quiz for module 4",
+      "file": "quiz4-full-2015",
+      "question": 1,
+      "question_id": "a9184316e2563a895939944a2f36ae88",
+      "option_id": "96a766edca45e23dbd03c9bc2e3f0d7f",
+      "answer_key": "correct",
+      "source_kind": "option explanation",
+      "quote": "Jeff can run at most 8 experiments in the remaining time: $$8 = 2^{4-1} = 2^3$$"
+     },
+     "check": {
+      "kind": "design_property",
+      "design": {
+       "design_type": "fractional_factorial",
+       "k": 4,
+       "options": {
+        "generators": ["D=ABC"],
+        "n_center_points": 0
+       }
+      },
+      "property": "n_runs",
+      "printed": "8"
+     }
+    },
+    {
+     "what": "number of runs",
+     "term": null,
+     "value": "$$8 = 2 \\times 4 = 2 \\times 2^2$$",
+     "analysis": "a full factorial in 2 factors, run twice",
+     "where": {
+      "quiz": "Quiz for module 4",
+      "file": "quiz4-full-2015",
+      "question": 1,
+      "question_id": "a9184316e2563a895939944a2f36ae88",
+      "option_id": "d509db2c916e940bf5e05839fe8966b6",
+      "answer_key": "correct",
+      "source_kind": "option explanation",
+      "quote": "Jeff can run at most 8 experiments in the remaining time: $$8 = 2 \\times 4 = 2 \\times 2^2$$"
+     },
+     "check": {
+      "kind": "design_property",
+      "design": {
+       "design_type": "full_factorial",
+       "k": 2,
+       "options": {
+        "n_center_points": 0
+       }
+      },
+      "property": "n_runs",
+      "printed": "4"
+     }
+    },
+    {
+     "what": "number of runs",
+     "term": null,
+     "value": "If Jeff decides to run a quarter fraction, he could still complete the experiments.",
+     "analysis": "the quarter fraction 2^(5-2) in 5 factors; 8 is the number of runs Jeff has time for",
+     "where": {
+      "quiz": "Quiz for module 4",
+      "file": "quiz4-full-2015",
+      "question": 1,
+      "question_id": "a9184316e2563a895939944a2f36ae88",
+      "option_id": "f46a6de5ad3aa9ec4dbfe13a1a11e3ad",
+      "answer_key": "incorrect",
+      "source_kind": "option explanation",
+      "quote": "If Jeff decides to run a quarter fraction, he could still complete the experiments."
+     },
+     "check": {
+      "kind": "design_property",
+      "design": {
+       "design_type": "fractional_factorial",
+       "k": 5,
+       "options": {
+        "resolution": 3,
+        "n_center_points": 0
+       }
+      },
+      "property": "n_runs",
+      "printed": "8"
+     },
+     "note": "the option says Jeff cannot use all five factors; the key marks it incorrect, and the quarter fraction fits"
+    }
+   ]
+  },
+  {
+   "name": "efi-quiz4-yogurt-half-fraction",
+   "title": "Parvin's yogurt: temperature T, sugar S and culture C in four runs, C = TS",
+   "where": {
+    "quiz": "Quiz for module 4",
+    "file": "quiz4-full-2015",
+    "question": 2,
+    "question_id": "1165e634a391ed9b9a4bae104f849b03",
+    "images": ["https://d396qusza40orc.cloudfront.net/experiments/quiz_assets/week4/flickr-7112884591_8384907380_m.jpg", "https://d396qusza40orc.cloudfront.net/experiments/quiz_assets/week4/Yogurt%20Example.jpeg"]
+   },
+   "design": {
+    "type": "2^(3-1) fractional factorial",
+    "details": "C aliased with TS"
+   },
+   "notes": "The Pareto plot (Yogurt Example.jpeg) shows C, about -32, and S and T, about 17.5 each, read off the image; the quiz prints no runs or results for it, so its bars are not recomputed.",
+   "expected": [
+    {
+     "what": "aliases",
+     "term": "C",
+     "value": "TS",
+     "where": {
+      "quiz": "Quiz for module 4",
+      "file": "quiz4-full-2015",
+      "question": 2,
+      "question_id": "1165e634a391ed9b9a4bae104f849b03",
+      "source_kind": "question",
+      "quote": "making the main effect $$\\mathbf{C}$$ an alias for interaction effect $$\\mathbf{TS}$$."
+     },
+     "check": {
+      "kind": "aliases",
+      "term": "C",
+      "k": 3,
+      "factors": ["T", "S", "C"],
+      "generators": ["C=TS"]
+     }
+    },
+    {
+     "what": "aliases",
+     "term": "C",
+     "value": "TSC",
+     "where": {
+      "quiz": "Quiz for module 4",
+      "file": "quiz4-full-2015",
+      "question": 2,
+      "question_id": "1165e634a391ed9b9a4bae104f849b03",
+      "option_id": "7441e6704f7bc5fdf515d0badff2ea6d",
+      "answer_key": "incorrect",
+      "source_kind": "option",
+      "quote": "The three factor interaction $$\\mathbf{TSC}$$ effect is confounded with factor $$\\mathbf{C}$$."
+     },
+     "check": {
+      "kind": "aliases",
+      "term": "C",
+      "k": 3,
+      "factors": ["T", "S", "C"],
+      "generators": ["C=TS"],
+      "disagreement": "the answer key marks this option incorrect: C is aliased with TS, and TSC with the intercept"
+     }
+    },
+    {
+     "what": "aliases",
+     "term": "Intercept",
+     "value": "The three-factor interaction is confounded with the intercept",
+     "where": {
+      "quiz": "Quiz for module 4",
+      "file": "quiz4-full-2015",
+      "question": 2,
+      "question_id": "1165e634a391ed9b9a4bae104f849b03",
+      "option_id": "7441e6704f7bc5fdf515d0badff2ea6d",
+      "answer_key": "incorrect",
+      "source_kind": "option explanation",
+      "quote": "The three-factor interaction is confounded with the intercept; factor C is confounded with the two-factor interaction TS."
+     },
+     "check": {
+      "kind": "aliases",
+      "term": "I",
+      "k": 3,
+      "factors": ["T", "S", "C"],
+      "generators": ["C=TS"],
+      "printed": "TSC"
+     }
+    }
+   ]
+  },
+  {
+   "name": "efi-quiz4-cookie-mixing-bowls",
+   "title": "Jennifer's cookies: duration D, temperature T and chips N, blocked on the mixing bowl",
+   "where": {
+    "quiz": "Quiz for module 4",
+    "file": "quiz4-full-2015",
+    "question": 5,
+    "question_id": "770c5eeab4213473c4c37ceb7ab041c0"
+   },
+   "design": {
+    "type": "2^3 full factorial in two blocks",
+    "details": "the bowl confounded with DTN"
+   },
+   "factors": [
+    {
+     "name": "D",
+     "description": "Cooking duration",
+     "low": 15,
+     "high": 25,
+     "units": "min",
+     "type": "numeric"
+    },
+    {
+     "name": "T",
+     "description": "Oven temperature",
+     "low": 350,
+     "high": 375,
+     "units": "°C",
+     "type": "numeric"
+    },
+    {
+     "name": "N",
+     "description": "Number of chocolate chips",
+     "low": 30,
+     "high": 40,
+     "units": "per batch",
+     "type": "numeric"
+    }
+   ],
+   "responses": [],
+   "runs": {
+    "columns": ["experiment", "D", "T", "N", "DTN", "bowl, keyed correct", "TN", "bowl, keyed incorrect"],
+    "coded": false,
+    "rows": [
+     [1, 15, 350, 30, "-", "Glass bowl", "+", "Glass bowl"],
+     [2, 25, 350, 30, "+", "Wooden bowl", "+", "Glass bowl"],
+     [3, 15, 375, 30, "+", "Wooden bowl", "-", "Wooden bowl"],
+     [4, 25, 375, 30, "-", "Glass bowl", "-", "Wooden bowl"],
+     [5, 15, 350, 40, "+", "Wooden bowl", "-", "Wooden bowl"],
+     [6, 25, 350, 40, "-", "Glass bowl", "-", "Wooden bowl"],
+     [7, 15, 375, 40, "-", "Glass bowl", "+", "Glass bowl"],
+     [8, 25, 375, 40, "+", "Wooden bowl", "+", "Glass bowl"]
+    ],
+    "notes": "the standard order table, with the sign columns and bowls of the two options that print them"
+   },
+   "notes": "The option keyed correct blocks on DTN; the one keyed incorrect blocks on TN, a two-factor interaction.",
+   "expected": [
+    {
+     "what": "runs in the glass bowl",
+     "term": "D·T·N",
+     "value": "-, +, +, -, +, -, -, +",
+     "analysis": "the DTN column: the glass bowl where it is -",
+     "where": {
+      "quiz": "Quiz for module 4",
+      "file": "quiz4-full-2015",
+      "question": 5,
+      "question_id": "770c5eeab4213473c4c37ceb7ab041c0",
+      "option_id": "b6330193544f66af77b15cdecc6c8fda",
+      "answer_key": "correct",
+      "source_kind": "option table",
+      "quote": "Experiment | D | T | N | DTN | Mixing bowl | 1 | 15 (-) | 350 (-) | 30 (-) | - | Glass bowl"
+     },
+     "check": {
+      "kind": "fraction_runs",
+      "generator": "N=-DT",
+      "printed": "1, 4, 6, 7"
+     }
+    },
+    {
+     "what": "runs in the wooden bowl",
+     "term": "T·N",
+     "value": "+, +, -, -, -, -, +, +",
+     "analysis": "the TN column: the wooden bowl where it is +",
+     "where": {
+      "quiz": "Quiz for module 4",
+      "file": "quiz4-full-2015",
+      "question": 5,
+      "question_id": "770c5eeab4213473c4c37ceb7ab041c0",
+      "option_id": "f053bd9aba4f7e9558fa918f721c3d01",
+      "answer_key": "incorrect",
+      "source_kind": "option table",
+      "quote": "Experiment | D | T | N | TN | Mixing bowl | 1 | 15 (-) | 350 (-) | 30 (-) | + | Wooden bowl"
+     },
+     "check": {
+      "kind": "fraction_runs",
+      "generator": "N=T",
+      "printed": "1, 2, 7, 8"
+     },
+     "note": "the column is right; the key marks the option incorrect for blocking on a two-factor interaction"
+    }
+   ]
+  },
+  {
+   "name": "efi-quiz4-gas-mileage-half-fraction",
+   "title": "Gatei's gas mileage: air conditioning A, road R, time of day T and oil E, with E = ART",
+   "where": {
+    "quiz": "Quiz for module 4",
+    "file": "quiz4-full-2015",
+    "question": 6,
+    "question_id": "b6adebc60245eb07ec8153ea039c71f2",
+    "images": ["https://d396qusza40orc.cloudfront.net/experiments/quiz_assets/week4/4C-6-gas-mileage.jpg"]
+   },
+   "design": {
+    "type": "2^(4-1) fractional factorial",
+    "details": "generator E = ART"
+   },
+   "expected": [
+    {
+     "what": "aliases",
+     "term": "Intercept",
+     "value": "ART",
+     "where": {
+      "quiz": "Quiz for module 4",
+      "file": "quiz4-full-2015",
+      "question": 6,
+      "question_id": "b6adebc60245eb07ec8153ea039c71f2",
+      "option_id": "206bdc0ee6ffb62c4d1a0d2840873e15",
+      "answer_key": "incorrect",
+      "source_kind": "option",
+      "quote": "The intercept will be aliased with the $$\\mathbf{ART}$$ interaction term."
+     },
+     "check": {
+      "kind": "aliases",
+      "term": "I",
+      "k": 4,
+      "factors": ["A", "R", "T", "E"],
+      "generators": ["E=ART"],
+      "disagreement": "the answer key marks this option incorrect: the intercept is aliased with AERT"
+     }
+    },
+    {
+     "what": "aliases",
+     "term": "A",
+     "value": "ERT",
+     "where": {
+      "quiz": "Quiz for module 4",
+      "file": "quiz4-full-2015",
+      "question": 6,
+      "question_id": "b6adebc60245eb07ec8153ea039c71f2",
+      "option_id": "9c0daf699b4d731ee4af5fd4aad7dfc3",
+      "answer_key": "correct",
+      "source_kind": "option",
+      "quote": "The main effect $$\\mathbf A$$ will be aliased with the interaction term $$\\mathbf{ERT}$$."
+     },
+     "check": {
+      "kind": "aliases",
+      "term": "A",
+      "k": 4,
+      "factors": ["A", "R", "T", "E"],
+      "generators": ["E=ART"]
+     }
+    },
+    {
+     "what": "aliases",
+     "term": "E",
+     "value": "ART",
+     "where": {
+      "quiz": "Quiz for module 4",
+      "file": "quiz4-full-2015",
+      "question": 6,
+      "question_id": "b6adebc60245eb07ec8153ea039c71f2",
+      "option_id": "c1590b5674cfd1cc5d91d18710fe91e3",
+      "answer_key": "correct",
+      "source_kind": "option",
+      "quote": "The main effect $$\\mathbf{E}$$ will be aliased with the interaction term $$\\mathbf{ART}$$."
+     },
+     "check": {
+      "kind": "aliases",
+      "term": "E",
+      "k": 4,
+      "factors": ["A", "R", "T", "E"],
+      "generators": ["E=ART"]
+     }
+    },
+    {
+     "what": "aliases",
+     "term": "A·R",
+     "value": "ET",
+     "where": {
+      "quiz": "Quiz for module 4",
+      "file": "quiz4-full-2015",
+      "question": 6,
+      "question_id": "b6adebc60245eb07ec8153ea039c71f2",
+      "option_id": "7f2a713c2cdff523a1b5db087226f575",
+      "answer_key": "correct",
+      "source_kind": "option",
+      "quote": "The two factor interaction $$\\mathbf{AR}$$ will be aliased with the two factor interaction term $$\\mathbf{ET}$$."
+     },
+     "check": {
+      "kind": "aliases",
+      "term": "A·R",
+      "k": 4,
+      "factors": ["A", "R", "T", "E"],
+      "generators": ["E=ART"]
+     }
+    },
+    {
+     "what": "aliases",
+     "term": "A·T",
+     "value": "ER",
+     "where": {
+      "quiz": "Quiz for module 4",
+      "file": "quiz4-full-2015",
+      "question": 6,
+      "question_id": "b6adebc60245eb07ec8153ea039c71f2",
+      "option_id": "fe46f1f68b44e9ee7bc894df305d1f9a",
+      "answer_key": "correct",
+      "source_kind": "option",
+      "quote": "The two factor interaction $$\\mathbf{AT}$$ will be aliased with the two factor interaction term $$\\mathbf{ER}$$."
+     },
+     "check": {
+      "kind": "aliases",
+      "term": "A·T",
+      "k": 4,
+      "factors": ["A", "R", "T", "E"],
+      "generators": ["E=ART"]
+     }
+    },
+    {
+     "what": "defining relation",
+     "term": null,
+     "value": "$$\\mathbf{I} = \\mathbf{AERT}$$",
+     "where": {
+      "quiz": "Quiz for module 4",
+      "file": "quiz4-full-2015",
+      "question": 6,
+      "question_id": "b6adebc60245eb07ec8153ea039c71f2",
+      "source_kind": "question explanation",
+      "quote": "Use the generator to create the defining relationship for the experiment design: $$\\mathbf{I} = \\mathbf{AERT}$$."
+     },
+     "check": {
+      "kind": "defining_relation",
+      "k": 4,
+      "factors": ["A", "R", "T", "E"],
+      "generators": ["E=ART"],
+      "printed": "I = AERT"
+     }
+    }
+   ]
+  },
+  {
+   "name": "efi-quiz4-practice-seven-factors",
+   "title": "Seven factors A to G at two levels: the full factorial and its half fraction",
+   "where": {
+    "quiz": "Ungraded practice quiz 4: part 1",
+    "file": "quiz4-UG1-2015",
+    "question": 2,
+    "question_id": "81b11a4919d88ff771800cd00ed4d972"
+   },
+   "design": {
+    "type": "2^7 full factorial and 2^(7-1) half fraction"
+   },
+   "expected": [
+    {
+     "what": "number of runs",
+     "term": null,
+     "value": "64",
+     "where": {
+      "quiz": "Ungraded practice quiz 4: part 1",
+      "file": "quiz4-UG1-2015",
+      "question": 2,
+      "question_id": "81b11a4919d88ff771800cd00ed4d972",
+      "option_id": "d8622d4ab1a745d3be3742a42dafe868",
+      "answer_key": "incorrect",
+      "source_kind": "option",
+      "quote": "A full factorial will have 64 runs."
+     },
+     "check": {
+      "kind": "design_property",
+      "design": {
+       "design_type": "full_factorial",
+       "k": 7,
+       "options": {
+        "n_center_points": 0
+       }
+      },
+      "property": "n_runs",
+      "disagreement": "the answer key marks this option incorrect: the full factorial has 2^7 = 128 runs"
+     }
+    },
+    {
+     "what": "cost",
+     "term": null,
+     "value": "almost $900",
+     "where": {
+      "quiz": "Ungraded practice quiz 4: part 1",
+      "file": "quiz4-UG1-2015",
+      "question": 2,
+      "question_id": "81b11a4919d88ff771800cd00ed4d972",
+      "option_id": "4f23c7d7ff365d983fc7c86459ff1a3a",
+      "answer_key": "correct",
+      "source_kind": "option",
+      "quote": "A full factorial will cost almost $900 to complete, if each experiment costs $7 to run."
+     },
+     "check": {
+      "manual": "arithmetic on the run count: 128 runs at $7 each is $896, which is almost $900"
+     }
+    },
+    {
+     "what": "number of runs",
+     "term": null,
+     "value": "64",
+     "where": {
+      "quiz": "Ungraded practice quiz 4: part 1",
+      "file": "quiz4-UG1-2015",
+      "question": 2,
+      "question_id": "81b11a4919d88ff771800cd00ed4d972",
+      "option_id": "255f8df16ee23551dbb4c096e35fa5c2",
+      "answer_key": "correct",
+      "source_kind": "option",
+      "quote": "A half-fraction will have 64 runs."
+     },
+     "check": {
+      "kind": "design_property",
+      "design": {
+       "design_type": "fractional_factorial",
+       "k": 7,
+       "options": {
+        "generators": ["G=ABCDEF"],
+        "n_center_points": 0
+       }
+      },
+      "property": "n_runs"
+     }
+    },
+    {
+     "what": "generator",
+     "term": null,
+     "value": "$$\\mathbf{G = ABCDEF}$$",
+     "analysis": "the half fraction of highest resolution",
+     "where": {
+      "quiz": "Ungraded practice quiz 4: part 1",
+      "file": "quiz4-UG1-2015",
+      "question": 2,
+      "question_id": "81b11a4919d88ff771800cd00ed4d972",
+      "option_id": "232c8efe29a50b386cceaad2dad3f2c7",
+      "answer_key": "correct",
+      "source_kind": "option",
+      "quote": "A suitable way to generate the half-fraction set of experiments would be to set the last factor $$\\mathbf{G = ABCDEF}$$"
+     },
+     "check": {
+      "kind": "generator",
+      "k": 7,
+      "resolution": 7,
+      "printed": "G = ABCDEF"
+     }
+    },
+    {
+     "what": "generator",
+     "term": null,
+     "value": "$$\\mathbf{G = ABC}$$",
+     "analysis": "the half fraction of highest resolution",
+     "where": {
+      "quiz": "Ungraded practice quiz 4: part 1",
+      "file": "quiz4-UG1-2015",
+      "question": 2,
+      "question_id": "81b11a4919d88ff771800cd00ed4d972",
+      "option_id": "21bc6fcff58760a973f4441b100a9948",
+      "answer_key": "incorrect",
+      "source_kind": "option",
+      "quote": "A suitable way to generate the half-fraction set of experiments would be to set the last factor $$\\mathbf{G = ABC}$$"
+     },
+     "check": {
+      "kind": "generator",
+      "k": 7,
+      "resolution": 7,
+      "printed": "G = ABC",
+      "disagreement": "the answer key marks this option incorrect: G = ABC makes a half fraction of resolution IV, where G = ABCDEF makes one of resolution VII"
+     }
+    }
+   ]
+  },
+  {
+   "name": "efi-quiz4-practice-bike-collapsibility",
+   "title": "Philip's bike ride: bike type A, position B and drink C, in a random order; the four rows of a half fraction",
+   "where": {
+    "quiz": "Ungraded practice quiz 4: part 1",
+    "file": "quiz4-UG1-2015",
+    "question": 4,
+    "question_id": "8678886759f2cf00f88f9818dc2b89ec",
+    "images": ["https://d396qusza40orc.cloudfront.net/experiments/quiz_assets/week4/flickr-12983760204_5e69f3512e_m-mountain-bike.jpg"]
+   },
+   "design": {
+    "type": "2^3 full factorial, in random order"
+   },
+   "factors": [
+    {
+     "name": "A",
+     "description": "Bike type",
+     "low": "Road Bike",
+     "high": "Mountain Bike",
+     "units": "",
+     "type": "categorical"
+    },
+    {
+     "name": "B",
+     "description": "Cycling position",
+     "low": "Sitting",
+     "high": "Standing",
+     "units": "",
+     "type": "categorical"
+    },
+    {
+     "name": "C",
+     "description": "Type of drink",
+     "low": "Water",
+     "high": "Energy drink",
+     "units": "",
+     "type": "categorical"
+    }
+   ],
+   "responses": [],
+   "runs": {
+    "columns": ["row", "A", "B", "C"],
+    "coded": false,
+    "rows": [
+     [1, "Mountain Bike", "Sitting", "Water"],
+     [2, "Road Bike", "Sitting", "Water"],
+     [3, "Road Bike", "Sitting", "Energy drink"],
+     [4, "Road Bike", "Standing", "Water"],
+     [5, "Mountain Bike", "Standing", "Water"],
+     [6, "Mountain Bike", "Standing", "Energy drink"],
+     [7, "Road Bike", "Standing", "Energy drink"],
+     [8, "Mountain Bike", "Sitting", "Energy drink"]
+    ]
+   },
+   "notes": "Row 8 is left out of the options: the other half fraction, C = -AB, is rows 2, 5, 7 and 8.",
+   "expected": [
+    {
+     "what": "rows of the half fraction",
+     "term": null,
+     "value": "Row 1, Row 3, Row 4, Row 6",
+     "analysis": "the four options keyed correct",
+     "where": {
+      "quiz": "Ungraded practice quiz 4: part 1",
+      "file": "quiz4-UG1-2015",
+      "question": 4,
+      "question_id": "8678886759f2cf00f88f9818dc2b89ec",
+      "option_id": "22d4104c31328814efc462ae64001412, c83e6601e439284474b5924a1a59f590, 86d3417e925b3c607c0a0f21217f2606, 952e228fa8129c7e7485920923ed1ccf",
+      "answer_key": "correct",
+      "source_kind": "option",
+      "quote": "You must select four entries that correspond to the row numbers from this table, so that the four points obey the collapsibility criterion seen in video 4A."
+     },
+     "check": {
+      "kind": "fraction_runs",
+      "generator": "C=AB",
+      "printed": "1, 3, 4, 6"
+     }
+    }
+   ]
+  },
+  {
+   "name": "efi-quiz4-practice-pqr-half-fraction",
+   "title": "The half fraction in P, Q and R whose aliases are P = QR, Q = PR and R = PQ",
+   "where": {
+    "quiz": "Ungraded practice quiz 4: part 2",
+    "file": "quiz4-UG2-2015",
+    "question": 1,
+    "question_id": "34e1aea2373459905cff66ea4a16b541"
+   },
+   "design": {
+    "type": "2^(3-1) fractional factorial"
+   },
+   "expected": [
+    {
+     "what": "aliases",
+     "term": "P",
+     "value": "QR",
+     "where": {
+      "quiz": "Ungraded practice quiz 4: part 2",
+      "file": "quiz4-UG2-2015",
+      "question": 1,
+      "question_id": "34e1aea2373459905cff66ea4a16b541",
+      "source_kind": "question",
+      "quote": "$$\\mathbf{P = QR}$$"
+     },
+     "check": {
+      "kind": "aliases",
+      "term": "P",
+      "k": 3,
+      "factors": ["P", "Q", "R"],
+      "generators": ["R=PQ"]
+     }
+    },
+    {
+     "what": "aliases",
+     "term": "Q",
+     "value": "PR",
+     "where": {
+      "quiz": "Ungraded practice quiz 4: part 2",
+      "file": "quiz4-UG2-2015",
+      "question": 1,
+      "question_id": "34e1aea2373459905cff66ea4a16b541",
+      "source_kind": "question",
+      "quote": "$$\\mathbf{Q = PR}$$"
+     },
+     "check": {
+      "kind": "aliases",
+      "term": "Q",
+      "k": 3,
+      "factors": ["P", "Q", "R"],
+      "generators": ["R=PQ"]
+     }
+    },
+    {
+     "what": "aliases",
+     "term": "R",
+     "value": "PQ",
+     "where": {
+      "quiz": "Ungraded practice quiz 4: part 2",
+      "file": "quiz4-UG2-2015",
+      "question": 1,
+      "question_id": "34e1aea2373459905cff66ea4a16b541",
+      "source_kind": "question",
+      "quote": "$$\\mathbf{R = PQ}$$"
+     },
+     "check": {
+      "kind": "aliases",
+      "term": "R",
+      "k": 3,
+      "factors": ["P", "Q", "R"],
+      "generators": ["R=PQ"]
+     }
+    },
+    {
+     "what": "defining relation",
+     "term": null,
+     "value": "$$\\mathbf{I = PQR}$$",
+     "where": {
+      "quiz": "Ungraded practice quiz 4: part 2",
+      "file": "quiz4-UG2-2015",
+      "question": 1,
+      "question_id": "34e1aea2373459905cff66ea4a16b541",
+      "option_id": "8391e6f1f9d854b4ab03bf21fea7d1d5",
+      "answer_key": "correct",
+      "source_kind": "option",
+      "quote": "$$\\mathbf{I = PQR}$$"
+     },
+     "check": {
+      "kind": "defining_relation",
+      "k": 3,
+      "factors": ["P", "Q", "R"],
+      "generators": ["R=PQ"],
+      "printed": "I = PQR"
+     }
+    },
+    {
+     "what": "generator",
+     "term": null,
+     "value": "$$\\mathbf{P = -QR}$$",
+     "where": {
+      "quiz": "Ungraded practice quiz 4: part 2",
+      "file": "quiz4-UG2-2015",
+      "question": 1,
+      "question_id": "34e1aea2373459905cff66ea4a16b541",
+      "option_id": "35ddb1f5a19d536858669d1a15257ac0",
+      "answer_key": "incorrect",
+      "source_kind": "option",
+      "quote": "$$\\mathbf{P = -QR}$$"
+     },
+     "check": {
+      "kind": "generator",
+      "k": 3,
+      "factors": ["P", "Q", "R"],
+      "generators": ["R=PQ"],
+      "printed": "P = -QR",
+      "disagreement": "the answer key marks this option incorrect: P = -QR makes the other half fraction, I = -PQR"
+     }
+    }
+   ]
+  },
+  {
+   "name": "efi-quiz4-practice-gas-mileage",
+   "title": "Jim's gas mileage: air conditioning A, road R and time of day T, with T = AR",
+   "where": {
+    "quiz": "Ungraded practice quiz 4: part 2",
+    "file": "quiz4-UG2-2015",
+    "question": 2,
+    "question_id": "6b0628aae74bd1ecad17cc8fd6ead9c4",
+    "images": ["https://d396qusza40orc.cloudfront.net/experiments/quiz_assets/week4/4C-6-gas-mileage.jpg"]
+   },
+   "design": {
+    "type": "2^(3-1) fractional factorial",
+    "details": "generator T = AR"
+   },
+   "notes": "The explanation of option 30cc69a2 says 'this is equivalent with B being aliased with AC', in the letters of another example.",
+   "expected": [
+    {
+     "what": "aliases",
+     "term": "A",
+     "value": "$$\\mathbf{A = RT}$$",
+     "where": {
+      "quiz": "Ungraded practice quiz 4: part 2",
+      "file": "quiz4-UG2-2015",
+      "question": 2,
+      "question_id": "6b0628aae74bd1ecad17cc8fd6ead9c4",
+      "option_id": "e15afd1e6ef327a09dc98325416ff164",
+      "answer_key": "correct",
+      "source_kind": "option",
+      "quote": "$$\\mathbf{A = RT}$$"
+     },
+     "check": {
+      "kind": "aliases",
+      "term": "A",
+      "k": 3,
+      "factors": ["A", "R", "T"],
+      "generators": ["T=AR"],
+      "printed": "RT"
+     }
+    },
+    {
+     "what": "aliases",
+     "term": "Intercept",
+     "value": "ART",
+     "where": {
+      "quiz": "Ungraded practice quiz 4: part 2",
+      "file": "quiz4-UG2-2015",
+      "question": 2,
+      "question_id": "6b0628aae74bd1ecad17cc8fd6ead9c4",
+      "option_id": "78c0dc1fd140966ff31ba523a8da8181",
+      "answer_key": "correct",
+      "source_kind": "option",
+      "quote": "The intercept will be aliased with the $$\\mathbf{ART}$$ interaction term."
+     },
+     "check": {
+      "kind": "aliases",
+      "term": "I",
+      "k": 3,
+      "factors": ["A", "R", "T"],
+      "generators": ["T=AR"]
+     }
+    },
+    {
+     "what": "aliases",
+     "term": "R",
+     "value": "$$\\mathbf{R = AT}$$",
+     "where": {
+      "quiz": "Ungraded practice quiz 4: part 2",
+      "file": "quiz4-UG2-2015",
+      "question": 2,
+      "question_id": "6b0628aae74bd1ecad17cc8fd6ead9c4",
+      "option_id": "30cc69a2a92804711cb7490915a83125",
+      "answer_key": "correct",
+      "source_kind": "option",
+      "quote": "$$\\mathbf{R = AT}$$"
+     },
+     "check": {
+      "kind": "aliases",
+      "term": "R",
+      "k": 3,
+      "factors": ["A", "R", "T"],
+      "generators": ["T=AR"],
+      "printed": "AT"
+     }
+    },
+    {
+     "what": "aliases",
+     "term": "T",
+     "value": "$$\\mathbf{T = ART}$$",
+     "where": {
+      "quiz": "Ungraded practice quiz 4: part 2",
+      "file": "quiz4-UG2-2015",
+      "question": 2,
+      "question_id": "6b0628aae74bd1ecad17cc8fd6ead9c4",
+      "option_id": "265596e6d1b533820e8018f62400f748",
+      "answer_key": "incorrect",
+      "source_kind": "option",
+      "quote": "$$\\mathbf{T = ART}$$"
+     },
+     "check": {
+      "kind": "aliases",
+      "term": "T",
+      "k": 3,
+      "factors": ["A", "R", "T"],
+      "generators": ["T=AR"],
+      "printed": "ART",
+      "disagreement": "the answer key marks this option incorrect: T is aliased with AR"
+     }
+    }
+   ]
+  },
+  {
+   "name": "efi-quiz4-practice-seed-germination",
+   "title": "Antowan's seeds: sunlight A, soil B and water C in four runs, with C = AB",
+   "where": {
+    "quiz": "Ungraded practice quiz 4: part 2",
+    "file": "quiz4-UG2-2015",
+    "question": 3,
+    "question_id": "084df764a0950551841490e0f86efa93",
+    "images": ["https://d396qusza40orc.cloudfront.net/experiments/quiz_assets/week4/Flickr-4639259240_d50c976cbb_b-Spinach.jpg"]
+   },
+   "design": {
+    "type": "2^(3-1) fractional factorial",
+    "details": "generator C = AB, with A sunlight, B soil, C water"
+   },
+   "expected": [
+    {
+     "what": "aliases",
+     "term": "C",
+     "value": "AB",
+     "where": {
+      "quiz": "Ungraded practice quiz 4: part 2",
+      "file": "quiz4-UG2-2015",
+      "question": 3,
+      "question_id": "084df764a0950551841490e0f86efa93",
+      "option_id": "1587965cdf2e08ca7650e1e32702dfec",
+      "answer_key": "correct",
+      "source_kind": "option",
+      "quote": "This will allow the unimportant interaction term $$\\mathbf{AB}$$ to be aliased with factor $$\\mathbf{C}$$"
+     },
+     "check": {
+      "kind": "aliases",
+      "term": "C",
+      "k": 3,
+      "generators": ["C=AB"]
+     }
+    },
+    {
+     "what": "aliases",
+     "term": "A",
+     "value": "BC",
+     "where": {
+      "quiz": "Ungraded practice quiz 4: part 2",
+      "file": "quiz4-UG2-2015",
+      "question": 3,
+      "question_id": "084df764a0950551841490e0f86efa93",
+      "option_id": "2aeb09a66a4be83006037ee0aed3438a",
+      "answer_key": "correct",
+      "source_kind": "option",
+      "quote": "he would not be able to tell apart factor $$\\mathbf{A}$$ from the interaction term $$\\mathbf{BC}$$"
+     },
+     "check": {
+      "kind": "aliases",
+      "term": "A",
+      "k": 3,
+      "generators": ["C=AB"]
+     }
+    },
+    {
+     "what": "aliases",
+     "term": "Intercept",
+     "value": "ABC",
+     "where": {
+      "quiz": "Ungraded practice quiz 4: part 2",
+      "file": "quiz4-UG2-2015",
+      "question": 3,
+      "question_id": "084df764a0950551841490e0f86efa93",
+      "option_id": "1bb5e8b6ffae12a5bd332710bd552eb6",
+      "answer_key": "correct",
+      "source_kind": "option",
+      "quote": "No matter how he arranges his 3 factors, the three factor interaction effect $$\\mathbf{ABC}$$ will always be aliased with the intercept term."
+     },
+     "check": {
+      "kind": "aliases",
+      "term": "I",
+      "k": 3,
+      "generators": ["C=AB"]
+     }
+    }
+   ]
+  },
+  {
+   "name": "efi-quiz4-practice-quarter-fraction",
+   "title": "Five factors in eight runs: the quarter fraction with D = AB and E = AC",
+   "where": {
+    "quiz": "Ungraded practice quiz 4: part 2",
+    "file": "quiz4-UG2-2015",
+    "question": 4,
+    "question_id": "4c8a24d8256ffeb6feb2d08073e7cab5"
+   },
+   "design": {
+    "type": "2^(5-2) fractional factorial",
+    "details": "generators D = AB, E = AC"
+   },
+   "expected": [
+    {
+     "what": "number of runs",
+     "term": null,
+     "value": "$$2^{5-2} = 8$$",
+     "where": {
+      "quiz": "Ungraded practice quiz 4: part 2",
+      "file": "quiz4-UG2-2015",
+      "question": 4,
+      "question_id": "4c8a24d8256ffeb6feb2d08073e7cab5",
+      "source_kind": "question",
+      "quote": "You therefore have to run a quarter-factorial experiment in 5 factors, or $$2^{5-2} = 8$$."
+     },
+     "check": {
+      "kind": "design_property",
+      "design": {
+       "design_type": "fractional_factorial",
+       "k": 5,
+       "options": {
+        "generators": ["D=AB", "E=AC"],
+        "n_center_points": 0
+       }
+      },
+      "property": "n_runs",
+      "printed": "8"
+     }
+    },
+    {
+     "what": "aliases",
+     "term": "B",
+     "value": "$$\\mathbf{AD}$$ and $$\\mathbf{CDE}$$",
+     "where": {
+      "quiz": "Ungraded practice quiz 4: part 2",
+      "file": "quiz4-UG2-2015",
+      "question": 4,
+      "question_id": "4c8a24d8256ffeb6feb2d08073e7cab5",
+      "option_id": "7c225c407c2d99178b3cdf50493922ce",
+      "answer_key": "correct",
+      "source_kind": "option",
+      "quote": "Factor $$\\mathbf{B}$$ will be aliased with $$\\mathbf{AD}$$ and $$\\mathbf{CDE}$$."
+     },
+     "check": {
+      "kind": "aliases",
+      "term": "B",
+      "k": 5,
+      "generators": ["D=AB", "E=AC"],
+      "printed": "AD and CDE"
+     }
+    },
+    {
+     "what": "aliases",
+     "term": "A",
+     "value": "$$\\mathbf{BD}$$ and $$\\mathbf{CE}$$",
+     "where": {
+      "quiz": "Ungraded practice quiz 4: part 2",
+      "file": "quiz4-UG2-2015",
+      "question": 4,
+      "question_id": "4c8a24d8256ffeb6feb2d08073e7cab5",
+      "option_id": "f5defbcbd8b7ab8e90230ea7143e085a",
+      "answer_key": "correct",
+      "source_kind": "option",
+      "quote": "Factor $$\\mathbf{A}$$ will be aliased with $$\\mathbf{BD}$$ and $$\\mathbf{CE}$$."
+     },
+     "check": {
+      "kind": "aliases",
+      "term": "A",
+      "k": 5,
+      "generators": ["D=AB", "E=AC"],
+      "printed": "BD and CE"
+     }
+    },
+    {
+     "what": "aliases",
+     "term": "Intercept",
+     "value": "$$\\mathbf{ABD}$$ and $$\\mathbf{ACE}$$",
+     "where": {
+      "quiz": "Ungraded practice quiz 4: part 2",
+      "file": "quiz4-UG2-2015",
+      "question": 4,
+      "question_id": "4c8a24d8256ffeb6feb2d08073e7cab5",
+      "option_id": "37707b51963dafadad7c4fe4723dbdc7",
+      "answer_key": "correct",
+      "source_kind": "option",
+      "quote": "The intercept term is aliased with $$\\mathbf{ABD}$$ and $$\\mathbf{ACE}$$."
+     },
+     "check": {
+      "kind": "aliases",
+      "term": "I",
+      "k": 5,
+      "generators": ["D=AB", "E=AC"],
+      "printed": "ABD and ACE"
+     }
+    },
+    {
+     "what": "aliases",
+     "term": "C",
+     "value": "$$\\mathbf{AE}$$",
+     "where": {
+      "quiz": "Ungraded practice quiz 4: part 2",
+      "file": "quiz4-UG2-2015",
+      "question": 4,
+      "question_id": "4c8a24d8256ffeb6feb2d08073e7cab5",
+      "option_id": "b75e8f8fbe2127167de5dd1e873a9f31",
+      "answer_key": "correct",
+      "source_kind": "option",
+      "quote": "The only two factor interaction term that factor $$\\mathbf{C}$$ is aliased with is $$\\mathbf{AE}$$."
+     },
+     "check": {
+      "kind": "aliases",
+      "term": "C",
+      "k": 5,
+      "generators": ["D=AB", "E=AC"],
+      "printed": "AE"
+     },
+     "note": "C's other aliases, ABCD and BDE, are not two-factor interactions"
+    },
+    {
+     "what": "number of words",
+     "term": null,
+     "value": "$$2^2=4$$",
+     "where": {
+      "quiz": "Ungraded practice quiz 4: part 2",
+      "file": "quiz4-UG2-2015",
+      "question": 4,
+      "question_id": "4c8a24d8256ffeb6feb2d08073e7cab5",
+      "option_id": "5ee493c8fd5f14c9a4dd8878840b45e9",
+      "answer_key": "incorrect",
+      "source_kind": "option explanation",
+      "quote": "Defining relationships have $$2^p$$ words, which is equal to $$2^2=4$$ in this case, not 2 words."
+     },
+     "check": {
+      "manual": "a count of words, which no check here computes; the relation is I = ABD = ACE = BCDE, four words counting I"
+     }
+    }
+   ]
+  },
+  {
+   "name": "efi-quiz4-practice-car-printers",
+   "title": "Sandip and Daniele's toy cars: material M, wing length L and stabilizers W, blocked on two 3D printers",
+   "where": {
+    "quiz": "Ungraded practice quiz 4: part 2",
+    "file": "quiz4-UG2-2015",
+    "question": 5,
+    "question_id": "8c778aa31cf04682f35e6e324f3cb7e6"
+   },
+   "design": {
+    "type": "2^3 full factorial in two blocks",
+    "details": "the printer confounded with MLW"
+   },
+   "factors": [
+    {
+     "name": "M",
+     "description": "Body material",
+     "low": "carbon fibre",
+     "high": "polylactic acid",
+     "units": "",
+     "type": "categorical"
+    },
+    {
+     "name": "L",
+     "description": "Length of rear wing",
+     "low": "short",
+     "high": "long",
+     "units": "",
+     "type": "categorical"
+    },
+    {
+     "name": "W",
+     "description": "Wing stabilizers",
+     "low": "no",
+     "high": "yes",
+     "units": "",
+     "type": "categorical"
+    }
+   ],
+   "responses": [],
+   "runs": {
+    "columns": ["experiment", "M", "L", "W", "printer"],
+    "coded": false,
+    "rows": [
+     [1, "polylactic acid", "long", "yes", "printer A"],
+     [2, "carbon fibre", "long", "no", "printer A"],
+     [3, "carbon fibre", "short", "yes", "printer A"],
+     [4, "polylactic acid", "short", "no", "printer A"],
+     [5, "polylactic acid", "short", "yes", "printer B"],
+     [6, "carbon fibre", "long", "yes", "printer B"],
+     [7, "polylactic acid", "long", "no", "printer B"],
+     [8, "carbon fibre", "short", "no", "printer B"]
+    ],
+    "notes": "the table of option 592333a8, keyed correct"
+   },
+   "expected": [
+    {
+     "what": "runs on printer A",
+     "term": null,
+     "value": "if $$\\mathbf{P} = +1$$ it was allocated to printer A",
+     "analysis": "the runs with MLW = +1, which the option's table puts on printer A",
+     "where": {
+      "quiz": "Ungraded practice quiz 4: part 2",
+      "file": "quiz4-UG2-2015",
+      "question": 5,
+      "question_id": "8c778aa31cf04682f35e6e324f3cb7e6",
+      "option_id": "592333a840e7e23aaed37c79561c9862",
+      "answer_key": "correct",
+      "source_kind": "option explanation",
+      "quote": "It was generated so that $$\\mathbf{P = MLW}$$, and if $$\\mathbf{P} = +1$$ it was allocated to printer A, and if $$\\mathbf{P} = -1$$ it was allocated to printer B."
+     },
+     "check": {
+      "kind": "fraction_runs",
+      "generator": "M=LW",
+      "printed": "1, 2, 3, 4"
+     }
+    },
+    {
+     "what": "standard order",
+     "term": null,
+     "value": "rows 8, 3, 5, 2, then 6, 7, 4 and 3",
+     "where": {
+      "quiz": "Ungraded practice quiz 4: part 2",
+      "file": "quiz4-UG2-2015",
+      "question": 5,
+      "question_id": "8c778aa31cf04682f35e6e324f3cb7e6",
+      "option_id": "592333a840e7e23aaed37c79561c9862",
+      "answer_key": "correct",
+      "source_kind": "option explanation",
+      "quote": "This corresponds to rows 8, 3, 5, 2, then 6, 7, 4 and 3 from the standard order table in factors $$\\mathbf{M}$$, $$\\mathbf{L}$$ and $$\\mathbf{W}$$."
+     },
+     "check": {
+      "kind": "standard_order",
+      "factors": ["M", "L", "W"],
+      "disagreement": "a typo in the explanation: the last run (carbon fibre, short, no) is row 1 of the standard order, so the list is 8, 3, 5, 2, 6, 7, 4, 1; row 3 is already the second run"
+     }
+    }
+   ]
+  },
+  {
+   "name": "efi-quiz4-practice-cookie-six-factors",
+   "title": "Jeff's cookies in six factors A to F and eight runs: the 2^(6-3) fraction",
+   "where": {
+    "quiz": "Ungraded practice quiz 4: part 2",
+    "file": "quiz4-UG2-2015",
+    "question": 6,
+    "question_id": "e58f81b3fe96d9057809039d2940bd78",
+    "images": ["https://d396qusza40orc.cloudfront.net/experiments/quiz_assets/week4/flickr-6343791094_868c3bc02d_m.jpg"]
+   },
+   "design": {
+    "type": "2^(6-3) fractional factorial",
+    "details": "8 to 10 runs available; no generators given"
+   },
+   "notes": "The explanation of option fd69d99a (keyed incorrect) says 'Only the part with 4 words is correct', which contradicts the explanation of the option keyed correct: three generators give 2^3 = 8 words.",
+   "expected": [
+    {
+     "what": "defining relation",
+     "term": null,
+     "value": "$$\\mathbf{I = ABD = ACE = BCF = BCDE = ACDF = ABEF = DEF}$$",
+     "analysis": "the eight-run fraction of six factors, as the library makes it from its resolution",
+     "where": {
+      "quiz": "Ungraded practice quiz 4: part 2",
+      "file": "quiz4-UG2-2015",
+      "question": 6,
+      "question_id": "e58f81b3fe96d9057809039d2940bd78",
+      "option_id": "cc6d8065413b8a64cd71ebcae24c4cad",
+      "answer_key": "correct",
+      "source_kind": "option",
+      "quote": "The defining relationship for this design is $$\\mathbf{I = ABD = ACE = BCF = BCDE = ACDF = ABEF = DEF}$$"
+     },
+     "check": {
+      "kind": "defining_relation",
+      "k": 6,
+      "resolution": 3,
+      "printed": "I = ABD = ACE = BCF = BCDE = ACDF = ABEF = DEF"
+     }
+    },
+    {
+     "what": "defining relation",
+     "term": null,
+     "value": "$$\\mathbf{I = ABD = ACE = BCDE}$$",
+     "where": {
+      "quiz": "Ungraded practice quiz 4: part 2",
+      "file": "quiz4-UG2-2015",
+      "question": 6,
+      "question_id": "e58f81b3fe96d9057809039d2940bd78",
+      "option_id": "f80f6eda0ad60369969d34d1b95910c2",
+      "answer_key": "incorrect",
+      "source_kind": "option",
+      "quote": "The defining relationship for this design is $$\\mathbf{I = ABD = ACE = BCDE}$$"
+     },
+     "check": {
+      "kind": "defining_relation",
+      "k": 6,
+      "resolution": 3,
+      "printed": "I = ABD = ACE = BCDE",
+      "disagreement": "the answer key marks this option incorrect: that is the relation of the five-factor quarter fraction D = AB, E = AC, with no F"
+     }
+    },
+    {
+     "what": "number of words",
+     "term": null,
+     "value": "2^3",
+     "where": {
+      "quiz": "Ungraded practice quiz 4: part 2",
+      "file": "quiz4-UG2-2015",
+      "question": 6,
+      "question_id": "e58f81b3fe96d9057809039d2940bd78",
+      "option_id": "cc6d8065413b8a64cd71ebcae24c4cad",
+      "answer_key": "correct",
+      "source_kind": "option explanation",
+      "quote": "There are 3 generators, and $$2^3$$ words in the defining relationship."
+     },
+     "check": {
+      "manual": "a count of words, which no check here computes; the relation checked above has eight, counting I"
+     }
+    },
+    {
+     "what": "baseline settings",
+     "term": null,
+     "value": "around 270°C, 4 minutes, 225 grams, around 17 to 18 minutes",
+     "where": {
+      "quiz": "Ungraded practice quiz 4: part 2",
+      "file": "quiz4-UG2-2015",
+      "question": 6,
+      "question_id": "e58f81b3fe96d9057809039d2940bd78",
+      "option_id": "b47f8e786d3b3facf7bf0815079ba333",
+      "answer_key": "correct",
+      "source_kind": "option",
+      "quote": "A = Baking temperature: around 270°C. B = Number of minutes he stirs the dough for: 4 minutes C = Mass of chocolate chips per batch: 225 grams. D = Baking duration: around 17 to 18 minutes"
+     },
+     "check": {
+      "manual": "the centre of each factor's range, (250 + 290) / 2 = 270 °C, 4 min, 225 g and 17.5 min: a baseline chosen, not a result"
+     }
+    }
+   ]
+  },
+  {
+   "name": "efi-quiz4-practice-beach-safety",
+   "title": "Beach safety: six factors A to F, one week a run",
+   "where": {
+    "quiz": "Ungraded practice quiz 4: part 2",
+    "file": "quiz4-UG2-2015",
+    "question": 7,
+    "question_id": "d3839a291eca5f3883c304264d550ec5",
+    "images": ["https://d396qusza40orc.cloudfront.net/experiments/quiz_assets/week4/flickr-304317690_da67762b0c_z-lifeguard.jpg"]
+   },
+   "design": {
+    "type": "two-level designs in six factors"
+   },
+   "expected": [
+    {
+     "what": "number of runs",
+     "term": null,
+     "value": "32 weeks",
+     "where": {
+      "quiz": "Ungraded practice quiz 4: part 2",
+      "file": "quiz4-UG2-2015",
+      "question": 7,
+      "question_id": "d3839a291eca5f3883c304264d550ec5",
+      "option_id": "2a731bbd7705757606d7fdc5164d1c8a",
+      "answer_key": "incorrect",
+      "source_kind": "option",
+      "quote": "With this many factors in the experiment it will require 32 weeks, more than half a year, to do a full factorial."
+     },
+     "check": {
+      "kind": "design_property",
+      "design": {
+       "design_type": "full_factorial",
+       "k": 6,
+       "options": {
+        "n_center_points": 0
+       }
+      },
+      "property": "n_runs",
+      "printed": "32",
+      "disagreement": "the answer key marks this option incorrect: the full factorial has 2^6 = 64 runs"
+     }
+    },
+    {
+     "what": "number of runs",
+     "term": null,
+     "value": "$$2^6=64$$ weeks",
+     "where": {
+      "quiz": "Ungraded practice quiz 4: part 2",
+      "file": "quiz4-UG2-2015",
+      "question": 7,
+      "question_id": "d3839a291eca5f3883c304264d550ec5",
+      "option_id": "2a731bbd7705757606d7fdc5164d1c8a",
+      "answer_key": "incorrect",
+      "source_kind": "option explanation",
+      "quote": "Not quite correct, but it will require $$2^6=64$$ weeks."
+     },
+     "check": {
+      "kind": "design_property",
+      "design": {
+       "design_type": "full_factorial",
+       "k": 6,
+       "options": {
+        "n_center_points": 0
+       }
+      },
+      "property": "n_runs",
+      "printed": "64"
+     }
+    },
+    {
+     "what": "resolution",
+     "term": null,
+     "value": "$$\\mathrm{III}$$",
+     "analysis": "the fraction the library chooses for six factors in a budget of 16 runs",
+     "where": {
+      "quiz": "Ungraded practice quiz 4: part 2",
+      "file": "quiz4-UG2-2015",
+      "question": 7,
+      "question_id": "d3839a291eca5f3883c304264d550ec5",
+      "option_id": "9460521f0bbd663681e40ed2096fda3b",
+      "answer_key": "incorrect",
+      "source_kind": "option",
+      "quote": "A fractional factorial in 16 runs would have a resolution of $$\\mathrm{III}$$."
+     },
+     "check": {
+      "kind": "design_property",
+      "design": {
+       "design_type": null,
+       "k": 6,
+       "options": {
+        "budget": 16,
+        "n_center_points": 0
+       }
+      },
+      "property": "resolution",
+      "printed": "III",
+      "disagreement": "the answer key marks this option incorrect: the fraction of six factors in 16 runs has resolution IV"
+     }
+    },
+    {
+     "what": "resolution",
+     "term": null,
+     "value": "$$\\mathrm{IV}$$",
+     "analysis": "the fraction the library chooses for six factors in a budget of 16 runs",
+     "where": {
+      "quiz": "Ungraded practice quiz 4: part 2",
+      "file": "quiz4-UG2-2015",
+      "question": 7,
+      "question_id": "d3839a291eca5f3883c304264d550ec5",
+      "option_id": "9460521f0bbd663681e40ed2096fda3b",
+      "answer_key": "incorrect",
+      "source_kind": "option explanation",
+      "quote": "With 16 runs and 6 factors we have a resolution $$\\mathrm{IV}$$ design."
+     },
+     "check": {
+      "kind": "design_property",
+      "design": {
+       "design_type": null,
+       "k": 6,
+       "options": {
+        "budget": 16,
+        "n_center_points": 0
+       }
+      },
+      "property": "resolution",
+      "printed": "IV"
+     }
+    },
+    {
+     "what": "number of runs",
+     "term": null,
+     "value": "8 weeks",
+     "analysis": "the fraction of six factors of resolution III, whose shortest word has three letters",
+     "where": {
+      "quiz": "Ungraded practice quiz 4: part 2",
+      "file": "quiz4-UG2-2015",
+      "question": 7,
+      "question_id": "d3839a291eca5f3883c304264d550ec5",
+      "option_id": "ef17af00cec975ccbf21814012aa5611",
+      "answer_key": "correct",
+      "source_kind": "option",
+      "quote": "The Supervisory Park Ranger agrees to 8 weeks of experiments. In this case, the shortest word in the defining relationship has length of 3."
+     },
+     "check": {
+      "kind": "design_property",
+      "design": {
+       "design_type": "fractional_factorial",
+       "k": 6,
+       "options": {
+        "resolution": 3,
+        "n_center_points": 0
+       }
+      },
+      "property": "n_runs",
+      "printed": "8"
+     }
+    },
+    {
+     "what": "generator",
+     "term": null,
+     "value": "$$\\mathbf{-F = ABCDE}$$",
+     "analysis": "the half fraction F = -ABCDE, whose resolution, VI, is that of F = ABCDE",
+     "where": {
+      "quiz": "Ungraded practice quiz 4: part 2",
+      "file": "quiz4-UG2-2015",
+      "question": 7,
+      "question_id": "d3839a291eca5f3883c304264d550ec5",
+      "option_id": "8dcea648b364fb82b51badf25f2e8474",
+      "answer_key": "correct",
+      "source_kind": "option",
+      "quote": "If a half-fraction is run, then an appropriate generator that can be selected for this design is $$\\mathbf{-F = ABCDE}$$."
+     },
+     "check": {
+      "kind": "resolution",
+      "k": 6,
+      "generators": ["F=-ABCDE"],
+      "printed": "VI"
+     },
+     "note": "the quiz prints the generator, not the resolution; the check confirms the negative generator gives the same resolution"
+    }
+   ]
+  }
+ ],
+ "not_captured": ["graded quiz, question 4 (Jennifer's run order): choosing a randomized time order, with no number to recompute", "graded quiz, question 8, the covariate and disturbance options: definitions, with no number", "graded quiz, question 9, options e5b6110a and c5354e81: nuisance variable or disturbance, a definition", "practice quiz 4 part 1, questions 1, 3, 5 and 6: covariates, disturbances and randomization, in words", "practice quiz 4 part 2, question 3, option 535464d0 (keyed incorrect): the same alias structure as the option keyed correct, judged on which interaction is unimportant", "practice quiz 4 part 2, question 8: a self-assessment, with no answer key"]
+}

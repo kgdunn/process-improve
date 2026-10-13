@@ -17,8 +17,9 @@ those changes.
   sources, and `reproduce_reference()`, which recomputes every number they print.** The
   catalogue, bundled as JSON under `datasets/experiments/reference/`, holds each worked
   example, exercise and case study of the book *Process Improvement using Data* (read from
-  its source at a stated commit) and of Soravia and Orth's "Design of Experiments" in
-  *Ullmann's Encyclopedia of Industrial Chemistry* (2012). For each it keeps the factors,
+  its source at a stated commit), of Soravia and Orth's "Design of Experiments" in
+  *Ullmann's Encyclopedia of Industrial Chemistry* (2012), and of the graded and practice
+  quizzes of the *Experimentation for Improvement* course. For each it keeps the factors,
   responses and runs exactly as printed, and every number the source prints: each as the
   printed text, with where it is printed (file and line, or page, and a quotation) and how to
   recompute it (the kind of result, the term, the model and the runs used). Designs without
@@ -27,6 +28,8 @@ those changes.
   returns one row per printed number: the printed text, the value this library computes,
   whether they agree to within the source's own rounding, and where it is printed. A number
   the library does not recompute says why, and one known not to reproduce says what differs.
+  A quiz's answer key is tested as well: the numbers printed in options the key marks
+  incorrect are recomputed too, and must not reproduce.
   `tests/test_doe_reference.py` requires every checked number to agree.
 - **Factorial opens examples from published sources other than the book:
   `https://factori.al/?example=<name>`.** They are listed in `web/published-examples.json`, each
