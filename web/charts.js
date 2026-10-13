@@ -34,8 +34,25 @@ export function loadPlotly(version) {
 export function palette() {
   const css = getComputedStyle(document.documentElement);
   const read = (name) => css.getPropertyValue(name).trim();
-  return { fg: read("--fg"), muted: read("--muted"), line: read("--line"), accent: read("--accent"), truth: read("--ok") };
+  return { fg: read("--fg"), muted: read("--muted"), line: read("--line"), accent: read("--accent") };
 }
+
+/** The true values' colour: Okabe-Ito's reddish purple, apart from the estimates' blue and the bars' orange. */
+export const TRUE_COLOUR = "#CC79A7";
+
+/**
+ * A legend entry with nothing drawn on the plot: a line in the legend that says what a line on the
+ * plot is, such as a 95% interval, so the chart needs no caption to explain it.
+ */
+export const legendKey = (name, color, dash = "solid") => ({
+  type: "scatter",
+  mode: "lines",
+  name,
+  x: [null],
+  y: [null],
+  line: { color, width: 2, dash },
+  hoverinfo: "skip",
+});
 
 /** Restyle a figure's layout for a card on the page: its colours, its size, no title, the legend below. */
 export function pageLayout(layout, height, colours = palette()) {
@@ -158,7 +175,7 @@ export function coefficientFigure(coefficients, simulated, colours = palette()) 
     {
       type: "scatter",
       mode: "markers",
-      name: terms.some((c) => c.ci_low !== null && c.ci_low !== undefined) ? "Estimate, with its 95% interval" : "Estimate",
+      name: "Estimate",
       x: terms.map((c) => c.coefficient),
       y: labels,
       marker: { color: colours.accent, size: 9 },
@@ -174,6 +191,7 @@ export function coefficientFigure(coefficients, simulated, colours = palette()) 
       hovertemplate: "%{y}: %{x:.4g}<extra></extra>",
     },
   ];
+  if (terms.some((c) => c.ci_low !== null && c.ci_low !== undefined)) data.push(legendKey("95% interval", colours.accent));
   if (simulated) {
     data.push({
       type: "scatter",
@@ -181,7 +199,7 @@ export function coefficientFigure(coefficients, simulated, colours = palette()) 
       name: "True value",
       x: terms.map((c) => c.true_value ?? 0),
       y: labels,
-      marker: { symbol: "diamond-open", size: 13, color: colours.truth, line: { width: 2, color: colours.truth } },
+      marker: { symbol: "diamond-open", size: 13, color: TRUE_COLOUR, line: { width: 2, color: TRUE_COLOUR } },
       hovertemplate: "%{y}, true: %{x:.4g}<extra></extra>",
     });
   }
@@ -230,6 +248,7 @@ export function paretoFigure(coefficients, simulated, lenth = null, colours = pa
     };
   };
   const data = [bars(true), bars(false)].filter((trace) => trace.x.length > 0);
+  if (intervals) data.push(legendKey("95% interval", colours.fg));
   if (simulated) {
     data.push({
       type: "scatter",
@@ -237,11 +256,13 @@ export function paretoFigure(coefficients, simulated, lenth = null, colours = pa
       name: "True size",
       x: terms.map((c) => Math.abs(c.true_value ?? 0)),
       y: labels,
-      marker: { symbol: "diamond-open", size: 13, color: colours.truth, line: { width: 2, color: colours.truth } },
+      marker: { symbol: "diamond-open", size: 13, color: TRUE_COLOUR, line: { width: 2, color: TRUE_COLOUR } },
       hovertemplate: "%{y}, true size: %{x:.4g}<extra></extra>",
     });
   }
   const margins = !intervals && lenth ? [["ME", "dash"], ["SME", "dot"]].filter(([key]) => Number.isFinite(lenth[key])) : [];
+  const named = { ME: "Margin of error (ME)", SME: "Simultaneous margin of error (SME)" };
+  data.push(...margins.map(([key, dash]) => legendKey(named[key], colours.muted, dash)));
   return {
     data,
     layout: {

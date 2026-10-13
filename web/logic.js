@@ -200,21 +200,6 @@ export const TITLES = {
 
 /** What each chart shows and how to read it; some name the factors drawn. */
 export const CAPTIONS = {
-  coefficients: (simulated) =>
-    "Each dot is an estimate with its 95% interval; an interval that crosses zero is a term the data cannot tell " +
-    "apart from no effect." +
-    (simulated ? " A diamond marks the true value, so you can see what the analysis recovered and what it missed." : ""),
-  pareto: (intervals, margins, simulated) =>
-    "Each bar is a coefficient's size, the largest at the top, as the book's Pareto plot draws them: orange for a " +
-    "positive coefficient and blue for a negative one." +
-    (intervals
-      ? " The line across each bar's end is its 95% interval: a bar whose line reaches zero is a term the data " +
-        "cannot tell apart from no effect."
-      : margins
-        ? " With no degrees of freedom left for an interval, the dashed and dotted lines are Lenth's margins of " +
-          "error, ME and SME, on the coefficients' scale: a bar beyond them stands out from the noise."
-        : "") +
-    (simulated ? " A diamond marks the true size." : ""),
   contour: (pair) =>
     `The fitted model over ${pair.join(" and ")}, the two factors with the largest main effects, with any other ` +
     "factor at the center of its range; the dots are the runs, in coded units.",

@@ -140,8 +140,6 @@ describe("words and numbers", () => {
 
   test("the captions name the factors drawn", () => {
     assert.match(CAPTIONS.contour(["T", "P"]), /over T and P, the two factors/);
-    assert.match(CAPTIONS.coefficients(true), /A diamond marks the true value/);
-    assert.doesNotMatch(CAPTIONS.coefficients(false), /diamond/);
   });
 });
 

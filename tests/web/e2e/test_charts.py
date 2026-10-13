@@ -27,12 +27,13 @@ def plots(page, box: str = "#charts") -> list[list[dict]]:
 
 def test_each_chart_has_its_title_and_caption(page):
     assert page.locator("#charts figure h3").all_text_contents() == TITLES
+    assert page.locator("#charts .chart.wide figcaption").count() == 0, "the coefficients' legend says it all"
     captions = page.locator("#charts figcaption").all_text_contents()
-    assert "over T and P, the two factors with the largest main effects" in captions[1]
+    assert "over T and P, the two factors with the largest main effects" in captions[0]
 
 
 def test_the_coefficient_chart_marks_the_true_values(page):
-    assert [trace["name"] for trace in plots(page)[0]] == ["Estimate, with its 95% interval", "True value"]
+    assert [trace["name"] for trace in plots(page)[0]] == ["Estimate", "95% interval", "True value"]
 
 
 def test_the_fitted_and_true_surfaces_share_one_colour_scale(page):
@@ -96,7 +97,7 @@ def test_the_coefficients_switch_to_the_book_s_pareto_plot_and_back(context, pag
     page.wait_for_function("document.querySelector('#charts .chart.wide .js-plotly-plot').data[0].type === 'bar'")
     assert view(page) == "Pareto plot"
     traces = plots(page)[0]
-    assert [t["name"] for t in traces] == ["Positive", "Negative", "True size"]
+    assert [t["name"] for t in traces] == ["Positive", "Negative", "95% interval", "True size"]
     colours = coefficient_plot(page).evaluate("d => d.data.filter((t) => t.type === 'bar').map((t) => t.marker.color)")
     assert colours == ["#E69F00", "#0072B2"], "the book's orange and blue"
     sizes = coefficient_plot(page).evaluate("d => d.layout.yaxis.categoryarray")
@@ -105,9 +106,6 @@ def test_the_coefficients_switch_to_the_book_s_pareto_plot_and_back(context, pag
         key=lambda c: -abs(c["coefficient"]),
     )
     assert sizes == [c["label"] for c in by_size], "the largest at the top"
-    caption = page.locator("#charts .chart.wide figcaption").text_content()
-    assert "as the book's Pareto plot draws them" in caption
-    assert "95% interval" in caption, "the worked example leaves degrees of freedom for intervals"
 
     again = context.new_page()
     again.goto(site)
@@ -127,4 +125,6 @@ def test_with_no_degrees_of_freedom_the_pareto_plot_draws_lenth_s_margins(blank_
     page.wait_for_function("document.querySelector('#charts .chart.wide .js-plotly-plot').data[0].type === 'bar'")
     marks = coefficient_plot(page).evaluate("d => d.layout.annotations.map((a) => a.text)")
     assert marks == ["ME", "SME"]
-    assert "Lenth's margins of error" in page.locator("#charts .chart.wide figcaption").text_content()
+    names = [t["name"] for t in plots(page)[0]]
+    assert "Margin of error (ME)" in names, "the legend names the lines"
+    assert "95% interval" not in names, "no degrees of freedom are left for an interval"

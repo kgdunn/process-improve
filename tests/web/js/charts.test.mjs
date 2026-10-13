@@ -5,6 +5,7 @@ import { describe, test } from "node:test";
 
 import {
   SIGN_COLOURS,
+  TRUE_COLOUR,
   coefficientFigure,
   correlationFigure,
   fdsFigure,
@@ -16,7 +17,7 @@ import {
   termRowsHeight,
 } from "../../../web/charts.js";
 
-const COLOURS = { fg: "#111", muted: "#666", line: "#ddd", accent: "#06c", truth: "#0a0" };
+const COLOURS = { fg: "#111", muted: "#666", line: "#ddd", accent: "#06c" };
 
 describe("terms as the page writes them", () => {
   test("squares and products", () => {
@@ -45,11 +46,21 @@ describe("the coefficient chart", () => {
     assert.deepEqual(estimates.error_x.arrayminus.map((v) => +v.toFixed(9)), [0.6, 0]);
   });
 
+  test("the legend says what the line across each dot is: its 95% interval", () => {
+    const names = (figure) => figure.data.map((trace) => trace.name);
+    assert.deepEqual(names(coefficientFigure(coefficients, false, COLOURS)), ["Estimate", "95% interval"]);
+    const key = coefficientFigure(coefficients, false, COLOURS).data[1];
+    assert.deepEqual([key.mode, key.x, key.line.color], ["lines", [null], COLOURS.accent], "a key, not data");
+    const saturated = coefficients.map((c) => ({ ...c, ci_low: null, ci_high: null }));
+    assert.deepEqual(names(coefficientFigure(saturated, false, COLOURS)), ["Estimate"], "no interval, no key");
+  });
+
   test("the true values beside the estimates, only when the results were simulated", () => {
-    assert.equal(coefficientFigure(coefficients, false, COLOURS).data.length, 1);
-    const truth = coefficientFigure(coefficients, true, COLOURS).data[1];
+    const truth = coefficientFigure(coefficients, true, COLOURS).data.at(-1);
     assert.equal(truth.name, "True value");
     assert.deepEqual(truth.x, [4, 1.5]);
+    assert.equal(truth.marker.color, TRUE_COLOUR);
+    assert.notEqual(TRUE_COLOUR, COLOURS.accent);
   });
 
   test("a row for every term, whatever their number, each with its label", () => {
@@ -89,9 +100,10 @@ describe("the book's Pareto plot of the coefficients", () => {
   });
 
   test("each bar carries its 95% interval when there are degrees of freedom for one", () => {
-    const [positive, negative] = paretoFigure(coefficients, false, null, COLOURS).data;
+    const [positive, negative, key] = paretoFigure(coefficients, false, null, COLOURS).data;
     assert.deepEqual(positive.error_x.array, [0.5, 0.5]);
     assert.deepEqual(negative.error_x.array, [0.5]);
+    assert.deepEqual([key.name, key.line.color], ["95% interval", COLOURS.fg], "the legend names the line");
     assert.equal(paretoFigure(coefficients, false, null, COLOURS).layout.shapes.length, 0);
   });
 
@@ -101,10 +113,15 @@ describe("the book's Pareto plot of the coefficients", () => {
     assert.equal(data[0].error_x.visible, false);
     assert.deepEqual(layout.shapes.map((s) => [s.x0, s.line.dash]), [[1.5, "dash"], [3, "dot"]]);
     assert.deepEqual(layout.annotations.map((a) => a.text), ["ME", "SME"]);
+    const keys = data.filter((trace) => trace.mode === "lines").map((trace) => [trace.name, trace.line.dash]);
+    assert.deepEqual(keys, [
+      ["Margin of error (ME)", "dash"],
+      ["Simultaneous margin of error (SME)", "dot"],
+    ]);
   });
 
   test("the true sizes beside the bars, only when the results were simulated", () => {
-    assert.equal(paretoFigure(coefficients, false, null, COLOURS).data.length, 2);
+    assert.ok(paretoFigure(coefficients, false, null, COLOURS).data.every((trace) => trace.name !== "True size"));
     const truth = paretoFigure(coefficients, true, null, COLOURS).data.at(-1);
     assert.equal(truth.name, "True size");
     assert.deepEqual(truth.x, [3, 2, 0]);

@@ -824,7 +824,7 @@ function setModel(model) {
 function chartCard(key, caption, wide = false) {
   const card = el("figure", wide ? "chart wide" : "chart", "");
   const plot = el("div", "plot", "");
-  card.append(el("h3", "", TITLES[key]), plot, el("figcaption", "hint", caption));
+  card.append(el("h3", "", TITLES[key]), plot, ...(caption ? [el("figcaption", "hint", caption)] : []));
   return { card, plot };
 }
 
@@ -842,10 +842,10 @@ function coefficientView() {
 /**
  * The coefficients' card, with a switch between two views of the same analysis: each estimate
  * with its interval (and the true value, when simulated), or the book's Pareto plot of their sizes.
- * ``show(view, version)`` draws the view chosen, and says what it shows.
+ * ``show(view, version)`` marks the view chosen, and draws it once Plotly.js is given.
  */
 function coefficientCard(analysis, simulated) {
-  const { card, plot } = chartCard("coefficients", "", true);
+  const { card, plot } = chartCard("coefficients", null, true); // its legend says what each mark is
   const head = el("div", "chart__head", "");
   const views = el("div", "views", "");
   views.setAttribute("role", "group");
@@ -862,16 +862,12 @@ function coefficientCard(analysis, simulated) {
   views.append(...buttons);
   head.append(card.querySelector("h3"), views);
   card.prepend(head);
-  const caption = card.querySelector("figcaption");
-  const intervals = analysis.coefficients.some((c) => c.term !== "Intercept" && c.ci_high !== null && c.ci_high !== undefined);
   const figure = (view) => () =>
     view === "pareto"
       ? paretoFigure(analysis.coefficients, simulated, analysis.lenth)
       : coefficientFigure(analysis.coefficients, simulated);
   const show = async (view, version) => {
     for (const button of buttons) button.setAttribute("aria-pressed", String(button.dataset.view === view));
-    caption.textContent =
-      view === "pareto" ? CAPTIONS.pareto(intervals, Boolean(analysis.lenth), simulated) : CAPTIONS.coefficients(simulated);
     if (version) await draw(plot, figure(view), version, figure(view)().height);
   };
   for (const button of buttons) {

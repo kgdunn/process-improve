@@ -55,7 +55,8 @@ those changes.
   the coefficients as the book's Pareto plot instead: bars sorted by size, orange for a
   positive coefficient and blue for a negative one, each with its 95% interval when
   residual degrees of freedom remain and Lenth's ME and SME when none do. The choice is
-  kept in this browser.
+  kept in this browser. Both views drop their caption: the legend names each mark, the
+  95% interval included, and the true values are drawn in purple, apart from the blue.
 - **The residuals-vs-fitted plot names the response on its x axis** ("Fitted Conversion"
   rather than "Fitted Values") when `create_plot` is given `response_column`.
 
