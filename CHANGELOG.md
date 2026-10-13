@@ -47,6 +47,17 @@ those changes.
   stays under Your designs.
 - **Factorial's links into the book open in one tab**, reused on the next click, rather
   than a new tab each time.
+- **Factorial's factors are easier to tell apart.** The first column reads Factor name, the
+  type is one switch (Numeric or Categorical, a tap or Space to flip), and on a phone each
+  factor is a numbered card, "Factor 1", "Factor 2", with a border and a gap between cards.
+- **Factorial's coefficients get a row each, and the book's Pareto plot.** The chart grows
+  with the number of terms and its legend sits above it. A toggle beside its heading draws
+  the coefficients as the book's Pareto plot instead: bars sorted by size, orange for a
+  positive coefficient and blue for a negative one, each with its 95% interval when
+  residual degrees of freedom remain and Lenth's ME and SME when none do. The choice is
+  kept in this browser.
+- **The residuals-vs-fitted plot names the response on its x axis** ("Fitted Conversion"
+  rather than "Fitted Values") when `create_plot` is given `response_column`.
 
 ## [1.98.0] - 2026-10-12
 

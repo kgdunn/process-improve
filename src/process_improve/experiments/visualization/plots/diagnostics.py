@@ -59,7 +59,8 @@ class ResidualsVsFittedPlot(BasePlot):
         if not residuals or not fitted:
             return ChartSpec(title="Residuals vs Fitted - no data")
 
-        # Scatter layer
+        # Name the response on the axis when it is known: "Fitted Conversion" reads at a glance.
+        x_title = f"Fitted {self.response_column}" if self.response_column else "Fitted Values"
         scatter_data = [
             {"fitted": f, "residual": r}
             for f, r in zip(fitted, residuals)  # noqa: B905
@@ -67,7 +68,7 @@ class ResidualsVsFittedPlot(BasePlot):
         scatter_layer = LayerSpec(
             mark=MarkType.scatter,
             data=scatter_data,
-            x=Encoding(field="fitted", title="Fitted Values"),
+            x=Encoding(field="fitted", title=x_title),
             y=Encoding(field="residual", title="Residuals"),
             name="Residuals",
             color=DIAGNOSTIC_COLORS["residual"],
@@ -89,7 +90,7 @@ class ResidualsVsFittedPlot(BasePlot):
             layers=[scatter_layer],
             annotations=annotations,
             title="Residuals vs Fitted Values",
-            x_title="Fitted Values",
+            x_title=x_title,
             y_title="Residuals",
         )
 

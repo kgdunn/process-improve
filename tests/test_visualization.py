@@ -487,6 +487,17 @@ class TestResidualsVsFittedPlot:
         assert len(spec.panels[0].layers) == 1
         # Should have zero reference line annotation
         assert len(spec.panels[0].annotations) >= 1
+        assert spec.panels[0].x_title == "Fitted Values"
+
+    def test_x_axis_names_the_response(self, residual_diagnostics: dict) -> None:
+        plot = create_plot(
+            "residuals_vs_fitted",
+            analysis_results={"residual_diagnostics": residual_diagnostics},
+            response_column="Conversion",
+        )
+        panel = plot.to_spec().panels[0]
+        assert panel.x_title == "Fitted Conversion"
+        assert panel.layers[0].x.title == "Fitted Conversion"
 
 
 class TestNormalProbabilityPlot:
