@@ -66,7 +66,6 @@ import {
   unpackCampaign,
 } from "./campaign.js";
 import { analyseCode, compareCode, cumulative, designCode, notebook, resultsCode } from "./python.js";
-import { qrCode, qrSvg } from "./qr.js";
 import { forgetCampaign, saveCampaign, savedCampaigns } from "./store.js";
 
 // Where Process Improvement using Data explains each design, method and measure the page uses.
@@ -700,12 +699,7 @@ function renderAnalysis(reply) {
   const parts = [
     el("p", "equation", r.equation),
     el("p", "hint", "Coefficients are in coded units: each factor runs from -1 at its low value to +1 at its high value."),
-    el(
-      "p",
-      "",
-      `${r.n_completed} completed runs. ${fitStatistics(s)}` +
-        (r.pending_runs.length ? ` Still to run: ${r.pending_runs.join(", ")}.` : ""),
-    ),
+    ...noteList(fitStatistics(s, r.n_completed, r.pending_runs), "fit"),
     ...noteList(r.notes),
     ...warningList(reply.warnings),
     el("h3", "", "Coefficients"),
@@ -1451,7 +1445,7 @@ async function openBookExample(name) {
 }
 
 /**
- * Results sent back by link for a design this browser keeps, from a run sheet printed or shared
+ * Results sent back by link for a design this browser keeps, from a run sheet shared
  * here: fill them into that design rather than saving a copy. A result already here is kept.
  * Resolves to whether the link was such a return.
  */
@@ -1498,74 +1492,6 @@ async function shareLink() {
     (url.length > 8000 ? " Some chat apps cut links this long: the workbook is the surer way to send it." : "");
   $("#share-out").hidden = false;
   $("#share-url").select();
-}
-
-/** A plain table for paper: no sorting, every cell its text. */
-function paperTable(columns, rows, classes = []) {
-  const t = el("table", "", "");
-  const head = el("tr", "", "");
-  head.append(...columns.map((c) => el("th", "", c)));
-  const body = el("tbody", "", "");
-  for (const row of rows) {
-    const tr = el("tr", "", "");
-    tr.append(...row.map((cell, i) => el("td", classes[i] ?? "", cell === null ? "" : String(cell))));
-    body.append(tr);
-  }
-  const thead = el("thead", "", "");
-  thead.append(head);
-  t.append(thead, body);
-  return t;
-}
-
-/**
- * Print the run sheet for the plant: the runs in their order, a box for each result, and a QR
- * code that opens the design, without results, in Factorial on a phone. There the results can be
- * typed in as the runs are made, and sent back with Copy a link.
- */
-async function printSheet() {
-  if (!state.design) return;
-  const { spec, columns, rows } = state.design;
-  const title = state.campaign?.title ?? titleOf(spec);
-  const link = `${location.origin}${location.pathname}${LINK_KEY}${await packCampaign(shareable(currentCampaign(), false))}`;
-  const head = el("header", "", "");
-  const words = el("div", "", "");
-  words.append(
-    el("h1", "", title),
-    el(
-      "p",
-      "",
-      `Run sheet printed ${new Date().toLocaleDateString(undefined, { dateStyle: "long" })} from Factorial. Make the runs in this order, and ` +
-        "write each result in its box.",
-    ),
-  );
-  head.append(words);
-  try {
-    const code = qrCode(link, { level: "M" });
-    const figure = el("figure", "qr", "");
-    const image = document.createElement("img");
-    image.src = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(qrSvg(code))}`;
-    image.alt = "A QR code that opens this design in Factorial";
-    image.style.width = `${Math.max(40, Math.round((code.size + 8) * 0.42))}mm`; // modules of 0.42 mm or more
-    figure.append(image, el("figcaption", "", "Scan to open this design on a phone, type the results there, and send them back with Copy a link."));
-    head.append(figure);
-  } catch {
-    /* a design too large for one QR code is printed without it */
-  }
-  const response = columns.indexOf(spec.response);
-  const shown = columns.map((c, i) => [c, i]).filter(([, i]) => i !== response);
-  const runs = paperTable(
-    [...shown.map(([c]) => c), `${spec.response}, the result`, "Notes"],
-    rows.map((row) => [...shown.map(([, i]) => row[i]), "", ""]),
-    [...shown.map(() => ""), "result", "notes"],
-  );
-  const factors = paperTable(
-    ["Factor", "Low", "High", "Units"],
-    spec.factors.map((f) => [f.name, f.low, f.high, f.units ?? ""]),
-    ["name"],
-  );
-  $("#print-sheet").replaceChildren(head, el("h2", "", "Factors"), factors, el("h2", "", "Runs"), runs);
-  setStatus("The run sheet is ready to print.");
-  window.print();
 }
 
 // ---------------------------------------------------------------- show the Python code
@@ -1767,7 +1693,6 @@ $("#tab-simulate").onclick = () => selectTab("simulate");
 $("#tab-real").onclick = () => selectTab("real");
 $("#download").onclick = downloadWorkbook;
 $("#notebook").onclick = downloadNotebook;
-$("#print").onclick = printSheet;
 $("#share").onclick = shareLink;
 $("#model").onchange = () => {
   if ($("#model").value === CHOSEN_TERMS && state.design) startTermList();

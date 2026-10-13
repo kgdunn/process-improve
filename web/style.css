@@ -135,7 +135,8 @@ section {
 .hint.error { color: var(--error); }
 /* What the generated design is (resolution, aliasing, a raised run count), and what an
    analysis could not estimate. Warnings from the library are set apart by a rule. */
-.facts, .warnings { margin: 4px 0 12px; padding-left: 1.2em; font-size: 0.92rem; }
+.facts, .warnings, .fit { margin: 4px 0 12px; padding-left: 1.2em; font-size: 0.92rem; }
+.fit li { margin: 2px 0; font-variant-numeric: tabular-nums; }
 .facts { color: var(--muted); }
 .facts li, .warnings li { margin: 2px 0; overflow-wrap: anywhere; }
 .warnings { border-left: 3px solid var(--warn); padding: 2px 0 2px 1.6em; color: var(--fg); }
@@ -347,22 +348,3 @@ details.python code { font-family: ui-monospace, "SFMono-Regular", Menlo, monosp
 .share input { width: 100%; font-family: ui-monospace, "SFMono-Regular", Menlo, monospace; font-size: 0.82rem; }
 .share .hint { margin: 6px 0 0; }
 
-/* The printed run sheet: only on paper, with nothing else of the page. */
-#print-sheet { display: none; }
-@media print {
-  main > :not(#print-sheet) { display: none !important; }
-  body { background: #fff; color: #000; font-size: 10pt; }
-  main { max-width: none; padding: 0; }
-  #print-sheet { display: block; border: none; padding: 0; margin: 0; background: none; }
-  #print-sheet header { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; }
-  #print-sheet h1 { font-size: 16pt; margin: 0 0 4px; }
-  #print-sheet h2 { font-size: 11pt; margin: 12px 0 4px; }
-  #print-sheet .qr { margin: 0; text-align: center; font-size: 8pt; max-width: 60mm; }
-  #print-sheet .qr img { display: block; height: auto; margin: 0 auto 4px; }
-  #print-sheet table { border-collapse: collapse; margin: 4px 0 8px; font-variant-numeric: tabular-nums; }
-  #print-sheet th, #print-sheet td { border: 1px solid #888; padding: 5px 8px; text-align: right; }
-  #print-sheet td.name, #print-sheet th:first-child { text-align: left; }
-  #print-sheet td.result { min-width: 32mm; }
-  #print-sheet td.notes { min-width: 50mm; }
-  #print-sheet tr { break-inside: avoid; }
-}
