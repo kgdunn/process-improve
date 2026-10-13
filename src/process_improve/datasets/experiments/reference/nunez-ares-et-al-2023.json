@@ -1,0 +1,1927 @@
+{
+ "schema": 1,
+ "about": ["Reference designs from Núñez Ares, Schoen and Goos (2023), the paper that introduces mixed-level OMARS designs (three-level quantitative and two-level categorical factors).", "designs: the three example designs the paper prints (Designs 1-3: 24, 48 and 40 runs), with their runs in coded units, the features of Table 1, and the correlations and projection properties the text states; the 14-factor 48-run strength-3 array Design 2 starts from (its two-level columns); the zero counts of definitive screening designs the paper uses to explain why they cannot take several two-level factors; and the counts of the paper's computational search (Table 2).", "There is no experiment with responses in the paper. Correlations are checked with evaluate_design on the printed matrices; the run and factor counts and the array's strength are checked too; zero counts, projection estimability and the search counts are manual, with what a script found where it could look.", "Read with process_improve.experiments.reference.reference_designs; tests/test_doe_reference.py recomputes every number that has a check."],
+ "source": {
+  "key": "nunez-ares-et-al-2023",
+  "authors": ["José Núñez Ares", "Eric D. Schoen", "Peter Goos"],
+  "title": "Orthogonal Minimally Aliased Response Surface Designs for Three-Level Quantitative Factors and Two-Level Categorical Factors",
+  "work": "Statistica Sinica",
+  "volume": "33",
+  "issue": "1",
+  "pages": "107-126",
+  "year": 2023,
+  "publisher": "Institute of Statistical Science, Academia Sinica",
+  "doi": "10.5705/ss.202020.0347",
+  "url": "https://doi.org/10.5705/ss.202020.0347",
+  "cite": "Núñez Ares, Schoen and Goos (2023), \"Orthogonal Minimally Aliased Response Surface Designs for Three-Level Quantitative Factors and Two-Level Categorical Factors\", Statistica Sinica 33(1), 107-126",
+  "read": "2026-10-13, from the article's PDF (30 pages), supplied by the user; every number copied by hand with its page and a short quotation. The PDF is the accepted author version (Statistica Sinica preprint SS-2020-0347, accepted subject to English editing), which prints no page numbers, so each page is the PDF page; the journal's pages 107-126 are from its online index."
+ },
+ "experiments": [],
+ "designs": [
+  {
+   "name": "nunez-ares-2023-design-1",
+   "title": "Design 1: a 24-run mixed-level OMARS design, four three-level and four two-level factors",
+   "where": {
+    "section": "4.1, Example 1: a 24-run 8-factor design",
+    "pages": "17-19",
+    "tables": ["Table 1"],
+    "figures": ["Design 1"]
+   },
+   "design": {
+    "type": "mixed-level OMARS design, constructed from scratch (Section 3.2)",
+    "details": "two 12-run four-factor definitive screening designs (runs 1-12 and 13-24) for the three-level part, each with a three-quarter fraction of the 2^4 factorial for the two-level part; a foldover design",
+    "n_runs": 24,
+    "factors": 8
+   },
+   "factors": [
+    {
+     "name": "Q1",
+     "description": "three-level quantitative factor 1 (column 1 of the printed matrix)",
+     "low": -1,
+     "high": 1,
+     "units": "coded",
+     "type": "numeric"
+    },
+    {
+     "name": "Q2",
+     "description": "three-level quantitative factor 2 (column 2 of the printed matrix)",
+     "low": -1,
+     "high": 1,
+     "units": "coded",
+     "type": "numeric"
+    },
+    {
+     "name": "Q3",
+     "description": "three-level quantitative factor 3 (column 3 of the printed matrix)",
+     "low": -1,
+     "high": 1,
+     "units": "coded",
+     "type": "numeric"
+    },
+    {
+     "name": "Q4",
+     "description": "three-level quantitative factor 4 (column 4 of the printed matrix)",
+     "low": -1,
+     "high": 1,
+     "units": "coded",
+     "type": "numeric"
+    },
+    {
+     "name": "C1",
+     "description": "two-level categorical factor 1 (column 5 of the printed matrix)",
+     "low": -1,
+     "high": 1,
+     "units": "coded",
+     "type": "categorical"
+    },
+    {
+     "name": "C2",
+     "description": "two-level categorical factor 2 (column 6 of the printed matrix)",
+     "low": -1,
+     "high": 1,
+     "units": "coded",
+     "type": "categorical"
+    },
+    {
+     "name": "C3",
+     "description": "two-level categorical factor 3 (column 7 of the printed matrix)",
+     "low": -1,
+     "high": 1,
+     "units": "coded",
+     "type": "categorical"
+    },
+    {
+     "name": "C4",
+     "description": "two-level categorical factor 4 (column 8 of the printed matrix)",
+     "low": -1,
+     "high": 1,
+     "units": "coded",
+     "type": "categorical"
+    }
+   ],
+   "responses": [],
+   "runs": {
+    "columns": ["run", "Q1", "Q2", "Q3", "Q4", "C1", "C2", "C3", "C4"],
+    "rows": [
+     [1, 0, -1, 1, 1, 1, 1, 1, -1],
+     [2, 0, 1, -1, -1, -1, -1, -1, 1],
+     [3, -1, 0, 1, 1, 1, -1, -1, -1],
+     [4, 1, 0, -1, -1, -1, 1, 1, 1],
+     [5, -1, -1, 0, -1, 1, -1, 1, 1],
+     [6, 1, 1, 0, 1, -1, 1, -1, -1],
+     [7, -1, -1, -1, 0, -1, -1, 1, -1],
+     [8, 1, 1, 1, 0, 1, 1, -1, 1],
+     [9, -1, 1, -1, 1, 1, -1, -1, 1],
+     [10, 1, -1, 1, -1, -1, 1, 1, -1],
+     [11, -1, 1, 1, -1, 1, 1, 1, 1],
+     [12, 1, -1, -1, 1, -1, -1, -1, -1],
+     [13, 0, -1, 1, -1, -1, -1, -1, 1],
+     [14, 0, 1, -1, 1, 1, 1, 1, -1],
+     [15, -1, 0, -1, 1, -1, 1, 1, 1],
+     [16, 1, 0, 1, -1, 1, -1, -1, -1],
+     [17, -1, 1, 0, -1, -1, 1, -1, -1],
+     [18, 1, -1, 0, 1, 1, -1, 1, 1],
+     [19, -1, 1, 1, 0, -1, -1, 1, -1],
+     [20, 1, -1, -1, 0, 1, 1, -1, 1],
+     [21, -1, -1, -1, -1, 1, 1, -1, -1],
+     [22, 1, 1, 1, 1, -1, -1, 1, 1],
+     [23, -1, -1, 1, 1, -1, 1, -1, 1],
+     [24, 1, 1, -1, -1, 1, -1, 1, -1]
+    ],
+    "coded": true,
+    "notes": "run is the paper's run number. The paper does not name the factors; Q1-Q4 are its first four (three-level) columns and C1-C4 its last four (two-level) columns, coded -1/0/+1 and -1/+1 as printed (0, -, +)."
+   },
+   "notes": "The captured runs satisfy every property the paper states (checked in a script): column sums 0, main effects mutually orthogonal and orthogonal to every quadratic and two-factor interaction column, every product of three columns sums to 0, the two-level part is a strength-3 array, and the 24 runs are a foldover (each run's negative is a run). Correlations are computed with the two-level factors as -1/+1 numeric columns, as the paper codes them (Section 2.1), and with the pure quadratics of the quantitative factors only.",
+   "expected": [
+    {
+     "what": "design_size",
+     "term": null,
+     "value": "24-run 8-factor",
+     "analysis": "the run count and number of factors in the example's section heading",
+     "where": {
+      "page": 17,
+      "pdf_page": 17,
+      "source_kind": "text",
+      "quote": "a 24-run 8-factor design"
+     },
+     "check": [
+      {
+       "kind": "design_metric",
+       "metric": "prediction_variance",
+       "key": "len",
+       "model": "main_effects",
+       "printed": "24"
+      },
+      {
+       "kind": "design_metric",
+       "metric": "degrees_of_freedom",
+       "key": "model",
+       "model": "main_effects",
+       "printed": "8"
+      }
+     ]
+    },
+    {
+     "what": "n_runs",
+     "term": "n",
+     "value": "24",
+     "analysis": "Table 1, key features of Design 1: the number of runs",
+     "where": {
+      "page": 17,
+      "pdf_page": 17,
+      "source_kind": "table",
+      "quote": "Table 1: n 24 48 40"
+     },
+     "check": {
+      "kind": "design_metric",
+      "metric": "prediction_variance",
+      "key": "len",
+      "model": "main_effects"
+     }
+    },
+    {
+     "what": "n_factors",
+     "term": "m1",
+     "value": "4",
+     "analysis": "Table 1, key features of Design 1: the number of three-level quantitative factors",
+     "where": {
+      "page": 17,
+      "pdf_page": 17,
+      "source_kind": "table",
+      "quote": "Table 1: m1 4 5 6"
+     },
+     "check": {
+      "manual": "the number of three-level columns of the printed matrix, which defines how the runs are captured (Q1-Q4 take -1, 0 and 1 in the captured runs); a count of the matrix's columns, which no check kind reports"
+     }
+    },
+    {
+     "what": "n_factors",
+     "term": "m2",
+     "value": "4",
+     "analysis": "Table 1, key features of Design 1: the number of two-level categorical factors",
+     "where": {
+      "page": 17,
+      "pdf_page": 17,
+      "source_kind": "table",
+      "quote": "Table 1: m2 4 14 4"
+     },
+     "check": {
+      "manual": "the number of two-level columns of the printed matrix, which defines how the runs are captured (C1-C4 take only -1 and 1 in the captured runs); a count of columns, which no check kind reports"
+     }
+    },
+    {
+     "what": "n_zeros",
+     "term": "n0^ME",
+     "value": "4",
+     "analysis": "Table 1, key features of Design 1: the number of zeros in each quantitative factor's main-effect column",
+     "where": {
+      "page": 17,
+      "pdf_page": 17,
+      "source_kind": "table",
+      "quote": "Table 1: nME0 4 24 16"
+     },
+     "check": {
+      "manual": "a count of zero settings, which no evaluate_design metric and no check kind reports; the captured runs have 4 zeros in each of the 4 quantitative columns (counted in a script)"
+     }
+    },
+    {
+     "what": "n_zeros",
+     "term": "n0^IE",
+     "value": "8",
+     "analysis": "Table 1, key features of Design 1: the number of zeros in each interaction column of two quantitative factors",
+     "where": {
+      "page": 17,
+      "pdf_page": 17,
+      "source_kind": "table",
+      "quote": "Table 1: nIE0 8 36 24"
+     },
+     "check": {
+      "manual": "a count of zero entries in the products of two quantitative columns, which no evaluate_design metric and no check kind reports; every one of the captured runs' 6 products has 8 zeros (counted in a script)"
+     }
+    },
+    {
+     "what": "structure",
+     "term": null,
+     "value": "two 12-run four-factor definitive screening designs",
+     "analysis": "the three-level part of Design 1",
+     "where": {
+      "page": 18,
+      "pdf_page": 18,
+      "source_kind": "text",
+      "quote": "its three-level part is composed of two 12-run four-factor definitive screening designs (without center runs)"
+     },
+     "check": {
+      "manual": "a structural statement, which no check kind tests; in the captured runs, runs 1-12 and 13-24 (quantitative columns) each fold over in pairs, their half H satisfies H'H = 5I (four columns of a conference matrix of order 6), each has 2 zeros per column, and is_omars() is True for each"
+     }
+    },
+    {
+     "what": "structure",
+     "term": null,
+     "value": "A three-quarter fraction of the 2^4 factorial design",
+     "analysis": "the two-level part of each 12-run half of Design 1",
+     "where": {
+      "page": 18,
+      "pdf_page": 18,
+      "source_kind": "text",
+      "quote": "A three-quarter fraction of the 2^4 factorial design is appended to each of the two definitive screening designs"
+     },
+     "check": {
+      "manual": "a structural statement, which no check kind tests; in the captured runs the two-level part of runs 1-12, and of runs 13-24, has 12 distinct rows of the 16 in the 2^4 factorial"
+     }
+    },
+    {
+     "what": "projection_estimability",
+     "term": null,
+     "value": "any three quantitative factors and one categorical factor",
+     "analysis": "full second-order model (main effects, all two-factor interactions, quadratics of the quantitative factors) in a projection of Design 1",
+     "where": {
+      "page": 18,
+      "pdf_page": 18,
+      "source_kind": "text",
+      "quote": "Design 1 allows the estimation of any full second-order model in any three quantitative factors and one categorical factor"
+     },
+     "check": {
+      "manual": "a statement over every subset of factors, and no check kind loops over subsets (a design_metric reads one model); a rank check of each subset's model matrix in the captured runs agrees: all 16 subsets of three quantitative and one categorical factor give a full-rank 14-column model matrix"
+     }
+    },
+    {
+     "what": "max_abs_correlation",
+     "term": "quadratic effects",
+     "value": "0.2",
+     "analysis": "the largest absolute correlation between two quadratic-effect columns of the model matrix",
+     "where": {
+      "page": 18,
+      "pdf_page": 18,
+      "source_kind": "text",
+      "quote": "the maximum absolute correlation between the model matrix columns corresponding to the quadratic effects is 0.2"
+     },
+     "check": {
+      "kind": "design_metric",
+      "metric": "correlation",
+      "key": "max_abs_r",
+      "model": "Q1 + Q2 + Q3 + Q4 + C1 + C2 + C3 + C4 + I(Q1 ** 2) + I(Q2 ** 2) + I(Q3 ** 2) + I(Q4 ** 2)"
+     }
+    },
+    {
+     "what": "mean_abs_correlation",
+     "term": "second-order effects",
+     "value": "0.15",
+     "analysis": "the average absolute correlation between the columns of all second-order effects (the 28 two-factor interactions of the eight factors and the four quadratic effects)",
+     "where": {
+      "page": 19,
+      "pdf_page": 19,
+      "source_kind": "text",
+      "quote": "the average absolute correlation between the columns corresponding to all second-order effects equals 0.15"
+     },
+     "check": {
+      "kind": "design_metric",
+      "metric": "correlation",
+      "key": "mean_abs_r",
+      "model": "(Q1 + Q2 + Q3 + Q4 + C1 + C2 + C3 + C4) ** 2 + I(Q1 ** 2) + I(Q2 ** 2) + I(Q3 ** 2) + I(Q4 ** 2)",
+      "disagreement": "found 0.1739 over all 32 second-order columns (496 pairs). The correlations are those of the centred columns; the maximum quadratic correlation of 0.2 printed alongside reproduces with the same definition. Leaving out the six interactions of two categorical factors gives 0.1503, which would print as 0.15, but the paper says all second-order effects; with the quadratic columns not centred the full set gives 0.1564. Design 2's average (0.138) does not reproduce under either definition, so the paper's exact definition is unclear."
+     }
+    }
+   ]
+  },
+  {
+   "name": "nunez-ares-2023-design-2",
+   "title": "Design 2: a 48-run mixed-level OMARS design, five three-level and fourteen two-level factors",
+   "where": {
+    "section": "4.2, Example 2: a 48-run 19-factor design",
+    "pages": "17, 19-21",
+    "tables": ["Table 1"],
+    "figures": ["Design 2"]
+   },
+   "design": {
+    "type": "mixed-level OMARS design, constructed from a given strength-3 OA (Section 3.3)",
+    "details": "five three-level factors added to a 14-factor 48-run strength-3 orthogonal array recommended by Schoen and Mee (2012); a foldover design",
+    "n_runs": 48,
+    "factors": 19
+   },
+   "factors": [
+    {
+     "name": "Q1",
+     "description": "three-level quantitative factor 1 (column 1 of the printed matrix)",
+     "low": -1,
+     "high": 1,
+     "units": "coded",
+     "type": "numeric"
+    },
+    {
+     "name": "Q2",
+     "description": "three-level quantitative factor 2 (column 2 of the printed matrix)",
+     "low": -1,
+     "high": 1,
+     "units": "coded",
+     "type": "numeric"
+    },
+    {
+     "name": "Q3",
+     "description": "three-level quantitative factor 3 (column 3 of the printed matrix)",
+     "low": -1,
+     "high": 1,
+     "units": "coded",
+     "type": "numeric"
+    },
+    {
+     "name": "Q4",
+     "description": "three-level quantitative factor 4 (column 4 of the printed matrix)",
+     "low": -1,
+     "high": 1,
+     "units": "coded",
+     "type": "numeric"
+    },
+    {
+     "name": "Q5",
+     "description": "three-level quantitative factor 5 (column 5 of the printed matrix)",
+     "low": -1,
+     "high": 1,
+     "units": "coded",
+     "type": "numeric"
+    },
+    {
+     "name": "C1",
+     "description": "two-level categorical factor 1 (column 6 of the printed matrix)",
+     "low": -1,
+     "high": 1,
+     "units": "coded",
+     "type": "categorical"
+    },
+    {
+     "name": "C2",
+     "description": "two-level categorical factor 2 (column 7 of the printed matrix)",
+     "low": -1,
+     "high": 1,
+     "units": "coded",
+     "type": "categorical"
+    },
+    {
+     "name": "C3",
+     "description": "two-level categorical factor 3 (column 8 of the printed matrix)",
+     "low": -1,
+     "high": 1,
+     "units": "coded",
+     "type": "categorical"
+    },
+    {
+     "name": "C4",
+     "description": "two-level categorical factor 4 (column 9 of the printed matrix)",
+     "low": -1,
+     "high": 1,
+     "units": "coded",
+     "type": "categorical"
+    },
+    {
+     "name": "C5",
+     "description": "two-level categorical factor 5 (column 10 of the printed matrix)",
+     "low": -1,
+     "high": 1,
+     "units": "coded",
+     "type": "categorical"
+    },
+    {
+     "name": "C6",
+     "description": "two-level categorical factor 6 (column 11 of the printed matrix)",
+     "low": -1,
+     "high": 1,
+     "units": "coded",
+     "type": "categorical"
+    },
+    {
+     "name": "C7",
+     "description": "two-level categorical factor 7 (column 12 of the printed matrix)",
+     "low": -1,
+     "high": 1,
+     "units": "coded",
+     "type": "categorical"
+    },
+    {
+     "name": "C8",
+     "description": "two-level categorical factor 8 (column 13 of the printed matrix)",
+     "low": -1,
+     "high": 1,
+     "units": "coded",
+     "type": "categorical"
+    },
+    {
+     "name": "C9",
+     "description": "two-level categorical factor 9 (column 14 of the printed matrix)",
+     "low": -1,
+     "high": 1,
+     "units": "coded",
+     "type": "categorical"
+    },
+    {
+     "name": "C10",
+     "description": "two-level categorical factor 10 (column 15 of the printed matrix)",
+     "low": -1,
+     "high": 1,
+     "units": "coded",
+     "type": "categorical"
+    },
+    {
+     "name": "C11",
+     "description": "two-level categorical factor 11 (column 16 of the printed matrix)",
+     "low": -1,
+     "high": 1,
+     "units": "coded",
+     "type": "categorical"
+    },
+    {
+     "name": "C12",
+     "description": "two-level categorical factor 12 (column 17 of the printed matrix)",
+     "low": -1,
+     "high": 1,
+     "units": "coded",
+     "type": "categorical"
+    },
+    {
+     "name": "C13",
+     "description": "two-level categorical factor 13 (column 18 of the printed matrix)",
+     "low": -1,
+     "high": 1,
+     "units": "coded",
+     "type": "categorical"
+    },
+    {
+     "name": "C14",
+     "description": "two-level categorical factor 14 (column 19 of the printed matrix)",
+     "low": -1,
+     "high": 1,
+     "units": "coded",
+     "type": "categorical"
+    }
+   ],
+   "responses": [],
+   "runs": {
+    "columns": ["run", "Q1", "Q2", "Q3", "Q4", "Q5", "C1", "C2", "C3", "C4", "C5", "C6", "C7", "C8", "C9", "C10", "C11", "C12", "C13", "C14"],
+    "rows": [
+     [1, 0, -1, 1, 0, 0, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1],
+     [2, 0, 1, 0, 0, 0, -1, -1, -1, -1, -1, -1, -1, -1, -1, 1, 1, 1, 1, 1],
+     [3, 0, 0, 0, 1, 0, -1, -1, -1, -1, -1, -1, 1, 1, 1, -1, -1, -1, 1, 1],
+     [4, 0, 0, -1, 1, 1, -1, -1, -1, -1, 1, 1, -1, -1, 1, -1, 1, 1, -1, -1],
+     [5, 0, 0, -1, -1, -1, -1, -1, -1, 1, -1, 1, -1, 1, -1, 1, -1, -1, -1, 1],
+     [6, 0, 1, 0, -1, 1, -1, -1, -1, 1, 1, -1, 1, 1, 1, 1, -1, 1, -1, -1],
+     [7, -1, -1, 1, 0, -1, -1, -1, 1, -1, -1, 1, 1, 1, 1, 1, 1, 1, -1, -1],
+     [8, 1, 0, 0, 0, 0, -1, -1, 1, -1, 1, 1, -1, 1, 1, 1, -1, 1, 1, 1],
+     [9, 0, 1, 1, 0, 1, -1, -1, 1, 1, -1, 1, 1, -1, -1, 1, 1, -1, 1, -1],
+     [10, -1, 0, -1, 0, -1, -1, -1, 1, 1, 1, -1, 1, -1, -1, -1, 1, 1, -1, 1],
+     [11, 1, 0, 0, 0, -1, -1, -1, 1, 1, 1, -1, 1, -1, 1, -1, -1, -1, 1, -1],
+     [12, 0, -1, 0, 0, 1, -1, -1, 1, 1, 1, 1, -1, 1, -1, -1, 1, -1, 1, 1],
+     [13, 0, 0, 1, -1, 0, -1, 1, -1, -1, 1, -1, 1, 1, -1, -1, 1, 1, 1, 1],
+     [14, -1, 0, -1, 0, 0, -1, 1, -1, -1, 1, 1, 1, -1, -1, 1, -1, -1, 1, -1],
+     [15, 1, 0, 0, -1, -1, -1, 1, -1, 1, -1, 1, -1, -1, 1, -1, 1, 1, 1, -1],
+     [16, 0, 1, 0, 1, 0, -1, 1, -1, 1, -1, 1, 1, 1, 1, -1, 1, -1, -1, 1],
+     [17, -1, -1, 0, 0, 0, -1, 1, -1, 1, 1, -1, -1, 1, 1, 1, 1, -1, 1, -1],
+     [18, 1, -1, 1, 1, 0, -1, 1, -1, 1, 1, 1, 1, -1, -1, 1, -1, 1, -1, 1],
+     [19, 1, -1, -1, -1, 1, -1, 1, 1, -1, -1, -1, 1, -1, 1, 1, 1, -1, -1, 1],
+     [20, 0, 0, -1, 0, 0, -1, 1, 1, -1, -1, 1, 1, 1, -1, -1, -1, 1, 1, -1],
+     [21, 1, 1, 0, 1, -1, -1, 1, 1, -1, 1, -1, -1, 1, -1, 1, 1, -1, -1, -1],
+     [22, -1, 1, 1, -1, 0, -1, 1, 1, -1, 1, 1, -1, -1, 1, -1, -1, -1, -1, 1],
+     [23, -1, 0, 0, 1, 0, -1, 1, 1, 1, -1, -1, -1, -1, 1, 1, -1, 1, 1, 1],
+     [24, 0, 0, 0, 0, 1, -1, 1, 1, 1, -1, -1, -1, 1, -1, -1, -1, 1, -1, -1],
+     [25, 0, 0, 0, 0, -1, 1, -1, -1, -1, 1, 1, 1, -1, 1, 1, 1, -1, 1, 1],
+     [26, 1, 0, 0, -1, 0, 1, -1, -1, -1, 1, 1, 1, 1, -1, -1, 1, -1, -1, -1],
+     [27, 1, -1, -1, 1, 0, 1, -1, -1, 1, -1, -1, 1, 1, -1, 1, 1, 1, 1, -1],
+     [28, -1, -1, 0, -1, 1, 1, -1, -1, 1, -1, 1, 1, -1, 1, -1, -1, 1, 1, 1],
+     [29, 0, 0, 1, 0, 0, 1, -1, -1, 1, 1, -1, -1, -1, 1, 1, 1, -1, -1, 1],
+     [30, -1, 1, 1, 1, -1, 1, -1, -1, 1, 1, 1, -1, 1, -1, -1, -1, 1, 1, -1],
+     [31, -1, 1, -1, -1, 0, 1, -1, 1, -1, -1, -1, -1, 1, 1, -1, 1, -1, 1, -1],
+     [32, 1, 1, 0, 0, 0, 1, -1, 1, -1, -1, 1, 1, -1, -1, -1, -1, 1, -1, 1],
+     [33, 0, -1, 0, -1, 0, 1, -1, 1, -1, 1, -1, -1, -1, -1, 1, -1, 1, 1, -1],
+     [34, -1, 0, 0, 1, 1, 1, -1, 1, -1, 1, -1, 1, 1, -1, 1, -1, -1, -1, 1],
+     [35, 1, 0, 1, 0, 0, 1, -1, 1, 1, -1, -1, -1, 1, 1, -1, 1, 1, -1, 1],
+     [36, 0, 0, -1, 1, 0, 1, -1, 1, 1, -1, 1, -1, -1, 1, 1, -1, -1, -1, -1],
+     [37, 0, 1, 0, 0, -1, 1, 1, -1, -1, -1, -1, 1, -1, 1, 1, -1, 1, -1, -1],
+     [38, -1, 0, 0, 0, 1, 1, 1, -1, -1, -1, 1, -1, 1, -1, 1, 1, 1, -1, 1],
+     [39, 1, 0, 1, 0, 1, 1, 1, -1, -1, -1, 1, -1, 1, 1, 1, -1, -1, 1, -1],
+     [40, 0, -1, -1, 0, -1, 1, 1, -1, -1, 1, -1, -1, 1, 1, -1, -1, 1, -1, 1],
+     [41, -1, 0, 0, 0, 0, 1, 1, -1, 1, -1, -1, 1, -1, -1, -1, 1, -1, -1, -1],
+     [42, 1, 1, -1, 0, 1, 1, 1, -1, 1, 1, -1, -1, -1, -1, -1, -1, -1, 1, 1],
+     [43, 0, -1, 0, 1, -1, 1, 1, 1, -1, -1, 1, -1, -1, -1, -1, 1, -1, 1, 1],
+     [44, 0, 0, 1, 1, 1, 1, 1, 1, -1, 1, -1, 1, -1, 1, -1, 1, 1, 1, -1],
+     [45, 0, 0, 1, -1, -1, 1, 1, 1, 1, -1, -1, 1, 1, -1, 1, -1, -1, 1, 1],
+     [46, 0, 0, 0, -1, 0, 1, 1, 1, 1, 1, 1, -1, -1, -1, 1, 1, 1, -1, -1],
+     [47, 0, -1, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, -1, -1, -1, -1, -1],
+     [48, 0, 1, -1, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]
+    ],
+    "coded": true,
+    "notes": "run is the paper's run number. The paper does not name the factors; Q1-Q5 are its first five (three-level) columns and C1-C14 its last fourteen (two-level) columns, coded as printed."
+   },
+   "notes": "The captured runs satisfy every property the paper states (checked in a script): balanced columns, orthogonal main effects, main effects orthogonal to every quadratic and two-factor interaction column, the two-level part a strength-3 array, and a foldover. The full second-order model in all 19 factors (196 columns) is not estimable in 48 runs; the correlations are computed regardless.",
+   "expected": [
+    {
+     "what": "design_size",
+     "term": null,
+     "value": "48-run 19-factor",
+     "analysis": "the run count and number of factors in the example's section heading",
+     "where": {
+      "page": 19,
+      "pdf_page": 19,
+      "source_kind": "text",
+      "quote": "a 48-run 19-factor design"
+     },
+     "check": [
+      {
+       "kind": "design_metric",
+       "metric": "prediction_variance",
+       "key": "len",
+       "model": "main_effects",
+       "printed": "48"
+      },
+      {
+       "kind": "design_metric",
+       "metric": "degrees_of_freedom",
+       "key": "model",
+       "model": "main_effects",
+       "printed": "19"
+      }
+     ]
+    },
+    {
+     "what": "n_runs",
+     "term": "n",
+     "value": "48",
+     "analysis": "Table 1, key features of Design 2: the number of runs",
+     "where": {
+      "page": 17,
+      "pdf_page": 17,
+      "source_kind": "table",
+      "quote": "Table 1: n 24 48 40"
+     },
+     "check": {
+      "kind": "design_metric",
+      "metric": "prediction_variance",
+      "key": "len",
+      "model": "main_effects"
+     }
+    },
+    {
+     "what": "n_factors",
+     "term": "m1",
+     "value": "5",
+     "analysis": "Table 1, key features of Design 2: the number of three-level quantitative factors",
+     "where": {
+      "page": 17,
+      "pdf_page": 17,
+      "source_kind": "table",
+      "quote": "Table 1: m1 4 5 6"
+     },
+     "check": {
+      "manual": "the number of three-level columns of the printed matrix, which defines how the runs are captured (Q1-Q5 take -1, 0 and 1 in the captured runs); a count of the matrix's columns, which no check kind reports"
+     }
+    },
+    {
+     "what": "n_factors",
+     "term": "m2",
+     "value": "14",
+     "analysis": "Table 1, key features of Design 2: the number of two-level categorical factors",
+     "where": {
+      "page": 17,
+      "pdf_page": 17,
+      "source_kind": "table",
+      "quote": "Table 1: m2 4 14 4"
+     },
+     "check": {
+      "manual": "the number of two-level columns of the printed matrix, which defines how the runs are captured (C1-C14 take only -1 and 1 in the captured runs); a count of columns, which no check kind reports"
+     }
+    },
+    {
+     "what": "n_zeros",
+     "term": "n0^ME",
+     "value": "24",
+     "analysis": "Table 1, key features of Design 2: the number of zeros in each quantitative factor's main-effect column",
+     "where": {
+      "page": 17,
+      "pdf_page": 17,
+      "source_kind": "table",
+      "quote": "Table 1: nME0 4 24 16"
+     },
+     "check": {
+      "manual": "a count of zero settings, which no evaluate_design metric and no check kind reports; the captured runs have 24 zeros in each of the 5 quantitative columns (counted in a script)"
+     }
+    },
+    {
+     "what": "n_zeros",
+     "term": "n0^IE",
+     "value": "36",
+     "analysis": "Table 1, key features of Design 2: the number of zeros in each interaction column of two quantitative factors",
+     "where": {
+      "page": 17,
+      "pdf_page": 17,
+      "source_kind": "table",
+      "quote": "Table 1: nIE0 8 36 24"
+     },
+     "check": {
+      "manual": "a count of zero entries in the products of two quantitative columns, which no evaluate_design metric and no check kind reports; every one of the captured runs' 10 products has 36 zeros (counted in a script)"
+     }
+    },
+    {
+     "what": "n_zeros",
+     "term": "n0^ME",
+     "value": "24",
+     "analysis": "the number of zeros in each quantitative factor's column, given as the reason for the large power to detect quadratic effects",
+     "where": {
+      "page": 19,
+      "pdf_page": 19,
+      "source_kind": "text",
+      "quote": "nME0 = 24 in the design, indicating that, for each quantitative factor, the zero level is used 24 times"
+     },
+     "check": {
+      "manual": "a count of zero settings, which no evaluate_design metric and no check kind reports; the captured runs have 24 zeros in each of the 5 quantitative columns (counted in a script)"
+     }
+    },
+    {
+     "what": "mean_abs_correlation",
+     "term": "second-order effects",
+     "value": "0.138",
+     "analysis": "the average correlation between the second-order effects' columns of the model matrix (all 171 two-factor interactions of the 19 factors and the five quadratic effects)",
+     "where": {
+      "page": 19,
+      "pdf_page": 19,
+      "source_kind": "text",
+      "quote": "The average correlation between the second-order effects' columns in the model matrix is 0.138"
+     },
+     "check": {
+      "kind": "design_metric",
+      "metric": "correlation",
+      "key": "mean_abs_r",
+      "model": "(Q1 + Q2 + Q3 + Q4 + Q5 + C1 + C2 + C3 + C4 + C5 + C6 + C7 + C8 + C9 + C10 + C11 + C12 + C13 + C14) ** 2 + I(Q1 ** 2) + I(Q2 ** 2) + I(Q3 ** 2) + I(Q4 ** 2) + I(Q5 ** 2)",
+      "disagreement": "found 0.1358 (absolute correlations of the centred columns over all 176 second-order columns); without the quadratics 0.1360, with uncentred quadratics 0.1339, and without the interactions of two categorical factors 0.1576. The maximum printed alongside, 0.5, reproduces. The printed matrix passes every OMARS property, so a copying error is unlikely; the paper's definition of the average is not stated precisely enough to reproduce it."
+     }
+    },
+    {
+     "what": "max_abs_correlation",
+     "term": "second-order effects",
+     "value": "0.5",
+     "analysis": "the maximum correlation between the second-order effects' columns of the model matrix",
+     "where": {
+      "page": 19,
+      "pdf_page": 19,
+      "source_kind": "text",
+      "quote": "the maximum correlation equals 0.5"
+     },
+     "check": {
+      "kind": "design_metric",
+      "metric": "correlation",
+      "key": "max_abs_r",
+      "model": "(Q1 + Q2 + Q3 + Q4 + Q5 + C1 + C2 + C3 + C4 + C5 + C6 + C7 + C8 + C9 + C10 + C11 + C12 + C13 + C14) ** 2 + I(Q1 ** 2) + I(Q2 ** 2) + I(Q3 ** 2) + I(Q4 ** 2) + I(Q5 ** 2)"
+     }
+    },
+    {
+     "what": "projection_estimability",
+     "term": null,
+     "value": "any subset of four quantitative factors and two categorical factors",
+     "analysis": "full second-order model in a projection of Design 2",
+     "where": {
+      "page": 19,
+      "pdf_page": 19,
+      "source_kind": "text",
+      "quote": "Design 2 allows the estimation of a full second-order model in any subset of four quantitative factors and two categorical factors"
+     },
+     "check": {
+      "manual": "a statement over every subset of factors, and no check kind loops over subsets (a design_metric reads one model); a rank check of each subset's model matrix in the captured runs agrees: all 455 subsets give a full-rank 26-column model matrix"
+     }
+    },
+    {
+     "what": "projection_estimability",
+     "term": null,
+     "value": "any subset of five quantitative factors and any one categorical factor",
+     "analysis": "full second-order model in a projection of Design 2",
+     "where": {
+      "page": 19,
+      "pdf_page": 19,
+      "source_kind": "text",
+      "quote": "in any subset of five quantitative factors and any one categorical factor"
+     },
+     "check": {
+      "manual": "a statement over every subset of factors, and no check kind loops over subsets (a design_metric reads one model); a rank check of each subset's model matrix in the captured runs agrees: all 14 subsets give a full-rank 27-column model matrix"
+     }
+    },
+    {
+     "what": "projection_estimability",
+     "term": null,
+     "value": "any subset of three categorical factors and two quantitative factors",
+     "analysis": "full second-order model in a projection of Design 2",
+     "where": {
+      "page": 20,
+      "pdf_page": 20,
+      "source_kind": "text",
+      "quote": "and in any subset of three categorical factors and two quantitative factors"
+     },
+     "check": {
+      "manual": "a statement over every subset of factors, and no check kind loops over subsets (a design_metric reads one model); a rank check of each subset's model matrix in the captured runs agrees: all 3640 subsets give a full-rank 18-column model matrix"
+     }
+    },
+    {
+     "what": "projection_estimability",
+     "term": null,
+     "value": "99%",
+     "analysis": "the share of subsets of two quantitative and four categorical factors in which a full second-order model is estimable",
+     "where": {
+      "page": 20,
+      "pdf_page": 20,
+      "source_kind": "text",
+      "quote": "allows the estimation of a full second-order model for 99% of all subsets containing two quantitative factors and four categorical factors"
+     },
+     "check": {
+      "manual": "a statement over every subset of factors, and no check kind loops over subsets (a design_metric reads one model); a rank check of each subset's model matrix in the captured runs agrees: 9880 of the 10010 subsets give a full-rank 24-column model matrix, 98.70%, which rounds to 99%"
+     }
+    },
+    {
+     "what": "projection_estimability",
+     "term": null,
+     "value": "97%",
+     "analysis": "the share of subsets of one quantitative and five categorical factors in which a full second-order model is estimable",
+     "where": {
+      "page": 20,
+      "pdf_page": 20,
+      "source_kind": "text",
+      "quote": "and for 97% of all subsets containing one quantitative factor and five categorical ones"
+     },
+     "check": {
+      "manual": "a statement over every subset of factors, and no check kind loops over subsets (a design_metric reads one model); a rank check of each subset's model matrix in the captured runs agrees: 9707 of the 10010 subsets give a full-rank 23-column model matrix, 96.97%, which rounds to 97%"
+     }
+    }
+   ]
+  },
+  {
+   "name": "nunez-ares-2023-design-2-oa",
+   "title": "The 14-factor 48-run strength-3 orthogonal array Design 2 starts from",
+   "where": {
+    "section": "4.2, Example 2: a 48-run 19-factor design",
+    "pages": "19-20",
+    "figures": ["Design 2"]
+   },
+   "design": {
+    "type": "two-level strength-3 orthogonal array, recommended by Schoen and Mee (2012)",
+    "details": "the last fourteen columns of Design 2; the construction from a given OA (Section 3.3) keeps the array fixed and adds only the three-level columns, so these are the array the paper started from",
+    "n_runs": 48,
+    "factors": 14
+   },
+   "factors": [
+    {
+     "name": "C1",
+     "description": "two-level factor 1 of the array (column 6 of Design 2)",
+     "low": -1,
+     "high": 1,
+     "units": "coded",
+     "type": "categorical"
+    },
+    {
+     "name": "C2",
+     "description": "two-level factor 2 of the array (column 7 of Design 2)",
+     "low": -1,
+     "high": 1,
+     "units": "coded",
+     "type": "categorical"
+    },
+    {
+     "name": "C3",
+     "description": "two-level factor 3 of the array (column 8 of Design 2)",
+     "low": -1,
+     "high": 1,
+     "units": "coded",
+     "type": "categorical"
+    },
+    {
+     "name": "C4",
+     "description": "two-level factor 4 of the array (column 9 of Design 2)",
+     "low": -1,
+     "high": 1,
+     "units": "coded",
+     "type": "categorical"
+    },
+    {
+     "name": "C5",
+     "description": "two-level factor 5 of the array (column 10 of Design 2)",
+     "low": -1,
+     "high": 1,
+     "units": "coded",
+     "type": "categorical"
+    },
+    {
+     "name": "C6",
+     "description": "two-level factor 6 of the array (column 11 of Design 2)",
+     "low": -1,
+     "high": 1,
+     "units": "coded",
+     "type": "categorical"
+    },
+    {
+     "name": "C7",
+     "description": "two-level factor 7 of the array (column 12 of Design 2)",
+     "low": -1,
+     "high": 1,
+     "units": "coded",
+     "type": "categorical"
+    },
+    {
+     "name": "C8",
+     "description": "two-level factor 8 of the array (column 13 of Design 2)",
+     "low": -1,
+     "high": 1,
+     "units": "coded",
+     "type": "categorical"
+    },
+    {
+     "name": "C9",
+     "description": "two-level factor 9 of the array (column 14 of Design 2)",
+     "low": -1,
+     "high": 1,
+     "units": "coded",
+     "type": "categorical"
+    },
+    {
+     "name": "C10",
+     "description": "two-level factor 10 of the array (column 15 of Design 2)",
+     "low": -1,
+     "high": 1,
+     "units": "coded",
+     "type": "categorical"
+    },
+    {
+     "name": "C11",
+     "description": "two-level factor 11 of the array (column 16 of Design 2)",
+     "low": -1,
+     "high": 1,
+     "units": "coded",
+     "type": "categorical"
+    },
+    {
+     "name": "C12",
+     "description": "two-level factor 12 of the array (column 17 of Design 2)",
+     "low": -1,
+     "high": 1,
+     "units": "coded",
+     "type": "categorical"
+    },
+    {
+     "name": "C13",
+     "description": "two-level factor 13 of the array (column 18 of Design 2)",
+     "low": -1,
+     "high": 1,
+     "units": "coded",
+     "type": "categorical"
+    },
+    {
+     "name": "C14",
+     "description": "two-level factor 14 of the array (column 19 of Design 2)",
+     "low": -1,
+     "high": 1,
+     "units": "coded",
+     "type": "categorical"
+    }
+   ],
+   "responses": [],
+   "runs": {
+    "columns": ["run", "C1", "C2", "C3", "C4", "C5", "C6", "C7", "C8", "C9", "C10", "C11", "C12", "C13", "C14"],
+    "rows": [
+     [1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1],
+     [2, -1, -1, -1, -1, -1, -1, -1, -1, -1, 1, 1, 1, 1, 1],
+     [3, -1, -1, -1, -1, -1, -1, 1, 1, 1, -1, -1, -1, 1, 1],
+     [4, -1, -1, -1, -1, 1, 1, -1, -1, 1, -1, 1, 1, -1, -1],
+     [5, -1, -1, -1, 1, -1, 1, -1, 1, -1, 1, -1, -1, -1, 1],
+     [6, -1, -1, -1, 1, 1, -1, 1, 1, 1, 1, -1, 1, -1, -1],
+     [7, -1, -1, 1, -1, -1, 1, 1, 1, 1, 1, 1, 1, -1, -1],
+     [8, -1, -1, 1, -1, 1, 1, -1, 1, 1, 1, -1, 1, 1, 1],
+     [9, -1, -1, 1, 1, -1, 1, 1, -1, -1, 1, 1, -1, 1, -1],
+     [10, -1, -1, 1, 1, 1, -1, 1, -1, -1, -1, 1, 1, -1, 1],
+     [11, -1, -1, 1, 1, 1, -1, 1, -1, 1, -1, -1, -1, 1, -1],
+     [12, -1, -1, 1, 1, 1, 1, -1, 1, -1, -1, 1, -1, 1, 1],
+     [13, -1, 1, -1, -1, 1, -1, 1, 1, -1, -1, 1, 1, 1, 1],
+     [14, -1, 1, -1, -1, 1, 1, 1, -1, -1, 1, -1, -1, 1, -1],
+     [15, -1, 1, -1, 1, -1, 1, -1, -1, 1, -1, 1, 1, 1, -1],
+     [16, -1, 1, -1, 1, -1, 1, 1, 1, 1, -1, 1, -1, -1, 1],
+     [17, -1, 1, -1, 1, 1, -1, -1, 1, 1, 1, 1, -1, 1, -1],
+     [18, -1, 1, -1, 1, 1, 1, 1, -1, -1, 1, -1, 1, -1, 1],
+     [19, -1, 1, 1, -1, -1, -1, 1, -1, 1, 1, 1, -1, -1, 1],
+     [20, -1, 1, 1, -1, -1, 1, 1, 1, -1, -1, -1, 1, 1, -1],
+     [21, -1, 1, 1, -1, 1, -1, -1, 1, -1, 1, 1, -1, -1, -1],
+     [22, -1, 1, 1, -1, 1, 1, -1, -1, 1, -1, -1, -1, -1, 1],
+     [23, -1, 1, 1, 1, -1, -1, -1, -1, 1, 1, -1, 1, 1, 1],
+     [24, -1, 1, 1, 1, -1, -1, -1, 1, -1, -1, -1, 1, -1, -1],
+     [25, 1, -1, -1, -1, 1, 1, 1, -1, 1, 1, 1, -1, 1, 1],
+     [26, 1, -1, -1, -1, 1, 1, 1, 1, -1, -1, 1, -1, -1, -1],
+     [27, 1, -1, -1, 1, -1, -1, 1, 1, -1, 1, 1, 1, 1, -1],
+     [28, 1, -1, -1, 1, -1, 1, 1, -1, 1, -1, -1, 1, 1, 1],
+     [29, 1, -1, -1, 1, 1, -1, -1, -1, 1, 1, 1, -1, -1, 1],
+     [30, 1, -1, -1, 1, 1, 1, -1, 1, -1, -1, -1, 1, 1, -1],
+     [31, 1, -1, 1, -1, -1, -1, -1, 1, 1, -1, 1, -1, 1, -1],
+     [32, 1, -1, 1, -1, -1, 1, 1, -1, -1, -1, -1, 1, -1, 1],
+     [33, 1, -1, 1, -1, 1, -1, -1, -1, -1, 1, -1, 1, 1, -1],
+     [34, 1, -1, 1, -1, 1, -1, 1, 1, -1, 1, -1, -1, -1, 1],
+     [35, 1, -1, 1, 1, -1, -1, -1, 1, 1, -1, 1, 1, -1, 1],
+     [36, 1, -1, 1, 1, -1, 1, -1, -1, 1, 1, -1, -1, -1, -1],
+     [37, 1, 1, -1, -1, -1, -1, 1, -1, 1, 1, -1, 1, -1, -1],
+     [38, 1, 1, -1, -1, -1, 1, -1, 1, -1, 1, 1, 1, -1, 1],
+     [39, 1, 1, -1, -1, -1, 1, -1, 1, 1, 1, -1, -1, 1, -1],
+     [40, 1, 1, -1, -1, 1, -1, -1, 1, 1, -1, -1, 1, -1, 1],
+     [41, 1, 1, -1, 1, -1, -1, 1, -1, -1, -1, 1, -1, -1, -1],
+     [42, 1, 1, -1, 1, 1, -1, -1, -1, -1, -1, -1, -1, 1, 1],
+     [43, 1, 1, 1, -1, -1, 1, -1, -1, -1, -1, 1, -1, 1, 1],
+     [44, 1, 1, 1, -1, 1, -1, 1, -1, 1, -1, 1, 1, 1, -1],
+     [45, 1, 1, 1, 1, -1, -1, 1, 1, -1, 1, -1, -1, 1, 1],
+     [46, 1, 1, 1, 1, 1, 1, -1, -1, -1, 1, 1, 1, -1, -1],
+     [47, 1, 1, 1, 1, 1, 1, 1, 1, 1, -1, -1, -1, -1, -1],
+     [48, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]
+    ],
+    "coded": true,
+    "notes": "run is Design 2's run number; C1-C14 are Design 2's columns 6 to 19, as printed. The paper does not print the array on its own."
+   },
+   "notes": "evaluate_design's moment_aberration (Xu's moment aberration) reads the array's strength from its moments: strength 3, resolution IV, an orthogonal array.",
+   "expected": [
+    {
+     "what": "strength",
+     "term": null,
+     "value": "a 14-factor 48-run strength-3 OA",
+     "analysis": "the two-level orthogonal array Design 2 was constructed from (its two-level columns)",
+     "where": {
+      "page": 19,
+      "pdf_page": 19,
+      "source_kind": "text",
+      "quote": "We started from a 14-factor 48-run strength-3 OA recommended by Schoen and Mee (2012)"
+     },
+     "check": [
+      {
+       "kind": "design_metric",
+       "metric": "moment_aberration",
+       "model": "main_effects",
+       "key": "strength",
+       "printed": "3"
+      },
+      {
+       "kind": "design_metric",
+       "metric": "moment_aberration",
+       "model": "main_effects",
+       "key": "n_factors",
+       "printed": "14"
+      },
+      {
+       "kind": "design_metric",
+       "metric": "moment_aberration",
+       "model": "main_effects",
+       "key": "n_runs",
+       "printed": "48"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "name": "nunez-ares-2023-design-3",
+   "title": "Design 3: a 40-run mixed-level OMARS design, six three-level and four two-level factors",
+   "where": {
+    "section": "4.3, Example 3: a 40-run 10-factor design",
+    "pages": "17, 21-22",
+    "tables": ["Table 1"],
+    "figures": ["Design 3"]
+   },
+   "design": {
+    "type": "mixed-level OMARS design, constructed from a given three-level OMARS design (Section 3.4)",
+    "details": "four two-level factors added to a 34-run six-factor OMARS design from the catalogue of Nunez-Ares and Goos (2020) with six centre runs (runs 35-40); a foldover design with two triplicated settings",
+    "n_runs": 40,
+    "factors": 10
+   },
+   "factors": [
+    {
+     "name": "Q1",
+     "description": "three-level quantitative factor 1 (column 1 of the printed matrix)",
+     "low": -1,
+     "high": 1,
+     "units": "coded",
+     "type": "numeric"
+    },
+    {
+     "name": "Q2",
+     "description": "three-level quantitative factor 2 (column 2 of the printed matrix)",
+     "low": -1,
+     "high": 1,
+     "units": "coded",
+     "type": "numeric"
+    },
+    {
+     "name": "Q3",
+     "description": "three-level quantitative factor 3 (column 3 of the printed matrix)",
+     "low": -1,
+     "high": 1,
+     "units": "coded",
+     "type": "numeric"
+    },
+    {
+     "name": "Q4",
+     "description": "three-level quantitative factor 4 (column 4 of the printed matrix)",
+     "low": -1,
+     "high": 1,
+     "units": "coded",
+     "type": "numeric"
+    },
+    {
+     "name": "Q5",
+     "description": "three-level quantitative factor 5 (column 5 of the printed matrix)",
+     "low": -1,
+     "high": 1,
+     "units": "coded",
+     "type": "numeric"
+    },
+    {
+     "name": "Q6",
+     "description": "three-level quantitative factor 6 (column 6 of the printed matrix)",
+     "low": -1,
+     "high": 1,
+     "units": "coded",
+     "type": "numeric"
+    },
+    {
+     "name": "C1",
+     "description": "two-level categorical factor 1 (column 7 of the printed matrix)",
+     "low": -1,
+     "high": 1,
+     "units": "coded",
+     "type": "categorical"
+    },
+    {
+     "name": "C2",
+     "description": "two-level categorical factor 2 (column 8 of the printed matrix)",
+     "low": -1,
+     "high": 1,
+     "units": "coded",
+     "type": "categorical"
+    },
+    {
+     "name": "C3",
+     "description": "two-level categorical factor 3 (column 9 of the printed matrix)",
+     "low": -1,
+     "high": 1,
+     "units": "coded",
+     "type": "categorical"
+    },
+    {
+     "name": "C4",
+     "description": "two-level categorical factor 4 (column 10 of the printed matrix)",
+     "low": -1,
+     "high": 1,
+     "units": "coded",
+     "type": "categorical"
+    }
+   ],
+   "responses": [],
+   "runs": {
+    "columns": ["run", "Q1", "Q2", "Q3", "Q4", "Q5", "Q6", "C1", "C2", "C3", "C4"],
+    "rows": [
+     [1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1],
+     [2, -1, -1, -1, 1, -1, -1, -1, 1, 1, 1],
+     [3, -1, -1, 0, -1, 1, 0, 1, -1, 1, -1],
+     [4, -1, -1, 1, 0, 0, 1, -1, -1, -1, 1],
+     [5, -1, 0, 0, 1, -1, 1, 1, -1, 1, -1],
+     [6, -1, 0, 1, -1, 0, -1, 1, 1, 1, 1],
+     [7, -1, 0, 1, 0, 1, -1, 1, 1, -1, -1],
+     [8, -1, 0, 1, 1, 1, 0, -1, -1, 1, 1],
+     [9, -1, 1, -1, 0, 1, 0, -1, 1, -1, 1],
+     [10, -1, 1, -1, 1, 0, 0, 1, -1, -1, -1],
+     [11, -1, 1, 0, -1, 0, 1, -1, 1, -1, -1],
+     [12, -1, 1, 0, 0, -1, 1, 1, 1, 1, 1],
+     [13, 0, -1, -1, 0, 1, 1, 1, 1, 1, -1],
+     [14, 0, -1, -1, 1, 1, 0, 1, 1, -1, 1],
+     [15, 0, -1, 0, -1, -1, 1, 1, 1, -1, 1],
+     [16, 0, -1, 1, 1, 0, 1, -1, 1, -1, -1],
+     [17, 0, 0, -1, -1, 1, 1, -1, -1, 1, 1],
+     [18, 0, 0, 1, 1, -1, -1, 1, 1, -1, -1],
+     [19, 0, 1, -1, -1, 0, -1, 1, -1, 1, 1],
+     [20, 0, 1, 0, 1, 1, -1, -1, -1, 1, -1],
+     [21, 0, 1, 1, -1, -1, 0, -1, -1, 1, -1],
+     [22, 0, 1, 1, 0, -1, -1, -1, -1, -1, 1],
+     [23, 1, -1, 0, 0, 1, -1, -1, -1, -1, -1],
+     [24, 1, -1, 0, 1, 0, -1, 1, -1, 1, 1],
+     [25, 1, -1, 1, -1, 0, 0, -1, 1, 1, 1],
+     [26, 1, -1, 1, 0, -1, 0, 1, -1, 1, -1],
+     [27, 1, 0, -1, -1, -1, 0, 1, 1, -1, -1],
+     [28, 1, 0, -1, 0, -1, 1, -1, -1, 1, 1],
+     [29, 1, 0, -1, 1, 0, 1, -1, -1, -1, -1],
+     [30, 1, 0, 0, -1, 1, -1, -1, 1, -1, 1],
+     [31, 1, 1, -1, 0, 0, -1, 1, 1, 1, -1],
+     [32, 1, 1, 0, 1, -1, 0, -1, 1, -1, 1],
+     [33, 1, 1, 1, -1, 1, 1, 1, -1, -1, -1],
+     [34, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
+     [35, 0, 0, 0, 0, 0, 0, -1, 1, 1, -1],
+     [36, 0, 0, 0, 0, 0, 0, -1, 1, 1, -1],
+     [37, 0, 0, 0, 0, 0, 0, -1, 1, 1, -1],
+     [38, 0, 0, 0, 0, 0, 0, 1, -1, -1, 1],
+     [39, 0, 0, 0, 0, 0, 0, 1, -1, -1, 1],
+     [40, 0, 0, 0, 0, 0, 0, 1, -1, -1, 1]
+    ],
+    "coded": true,
+    "notes": "run is the paper's run number. The paper does not name the factors; Q1-Q6 are its first six (three-level) columns and C1-C4 its last four (two-level) columns, coded as printed."
+   },
+   "notes": "The captured runs satisfy every property the paper states (checked in a script): balanced columns, orthogonal main effects, main effects orthogonal to every second-order column, a strength-3 two-level part, and a foldover. Runs 35-37 and 38-40 are identical (36 distinct settings in 40 runs).",
+   "expected": [
+    {
+     "what": "design_size",
+     "term": null,
+     "value": "40-run 10-factor",
+     "analysis": "the run count and number of factors in the example's section heading",
+     "where": {
+      "page": 21,
+      "pdf_page": 21,
+      "source_kind": "text",
+      "quote": "a 40-run 10-factor design"
+     },
+     "check": [
+      {
+       "kind": "design_metric",
+       "metric": "prediction_variance",
+       "key": "len",
+       "model": "main_effects",
+       "printed": "40"
+      },
+      {
+       "kind": "design_metric",
+       "metric": "degrees_of_freedom",
+       "key": "model",
+       "model": "main_effects",
+       "printed": "10"
+      }
+     ]
+    },
+    {
+     "what": "n_runs",
+     "term": "n",
+     "value": "40",
+     "analysis": "Table 1, key features of Design 3: the number of runs",
+     "where": {
+      "page": 17,
+      "pdf_page": 17,
+      "source_kind": "table",
+      "quote": "Table 1: n 24 48 40"
+     },
+     "check": {
+      "kind": "design_metric",
+      "metric": "prediction_variance",
+      "key": "len",
+      "model": "main_effects"
+     }
+    },
+    {
+     "what": "n_factors",
+     "term": "m1",
+     "value": "6",
+     "analysis": "Table 1, key features of Design 3: the number of three-level quantitative factors",
+     "where": {
+      "page": 17,
+      "pdf_page": 17,
+      "source_kind": "table",
+      "quote": "Table 1: m1 4 5 6"
+     },
+     "check": {
+      "manual": "the number of three-level columns of the printed matrix, which defines how the runs are captured (Q1-Q6 take -1, 0 and 1 in the captured runs); a count of the matrix's columns, which no check kind reports"
+     }
+    },
+    {
+     "what": "n_factors",
+     "term": "m2",
+     "value": "4",
+     "analysis": "Table 1, key features of Design 3: the number of two-level categorical factors",
+     "where": {
+      "page": 17,
+      "pdf_page": 17,
+      "source_kind": "table",
+      "quote": "Table 1: m2 4 14 4"
+     },
+     "check": {
+      "manual": "the number of two-level columns of the printed matrix, which defines how the runs are captured (C1-C4 take only -1 and 1 in the captured runs); a count of columns, which no check kind reports"
+     }
+    },
+    {
+     "what": "n_zeros",
+     "term": "n0^ME",
+     "value": "16",
+     "analysis": "Table 1, key features of Design 3: the number of zeros in each quantitative factor's main-effect column",
+     "where": {
+      "page": 17,
+      "pdf_page": 17,
+      "source_kind": "table",
+      "quote": "Table 1: nME0 4 24 16"
+     },
+     "check": {
+      "manual": "a count of zero settings, which no evaluate_design metric and no check kind reports; the captured runs have 16 zeros in each of the 6 quantitative columns (counted in a script)"
+     }
+    },
+    {
+     "what": "n_zeros",
+     "term": "n0^IE",
+     "value": "24",
+     "analysis": "Table 1, key features of Design 3: the number of zeros in each interaction column of two quantitative factors",
+     "where": {
+      "page": 17,
+      "pdf_page": 17,
+      "source_kind": "table",
+      "quote": "Table 1: nIE0 8 36 24"
+     },
+     "check": {
+      "manual": "a count of zero entries in the products of two quantitative columns, which no evaluate_design metric and no check kind reports; every one of the captured runs' 15 products has 24 zeros (counted in a script)"
+     }
+    },
+    {
+     "what": "n_runs",
+     "term": null,
+     "value": "34-run",
+     "analysis": "the size of the three-level OMARS design the construction started from",
+     "where": {
+      "page": 21,
+      "pdf_page": 21,
+      "source_kind": "text",
+      "quote": "Design 3 was constructed from a 34-run three-level OMARS design in the catalog of Núñez-Ares and Goos (2020)"
+     },
+     "check": {
+      "manual": "a property of the starting design, which the paper does not print; in the captured runs the quantitative columns of runs 1-34 contain no centre run and pass is_omars() (10 zeros per column), and no check kind applies is_omars"
+     }
+    },
+    {
+     "what": "n_center_runs",
+     "term": null,
+     "value": "six center runs",
+     "analysis": "the centre runs added to the starting 34-run OMARS design",
+     "where": {
+      "page": 21,
+      "pdf_page": 21,
+      "source_kind": "text",
+      "quote": "involving six three-level quantitative factors and augmented with six center runs"
+     },
+     "check": {
+      "manual": "a count of runs with every quantitative factor at 0, which no check kind reports; in the captured runs exactly runs 35-40 have all six quantitative factors at 0"
+     }
+    },
+    {
+     "what": "projection_estimability",
+     "term": null,
+     "value": "any five quantitative factors",
+     "analysis": "full second-order model in a projection of Design 3",
+     "where": {
+      "page": 21,
+      "pdf_page": 21,
+      "source_kind": "text",
+      "quote": "It can fit a full second-order model for any five quantitative factors"
+     },
+     "check": {
+      "manual": "a statement over every subset of factors, and no check kind loops over subsets (a design_metric reads one model); a rank check of each subset's model matrix in the captured runs agrees: all 6 subsets give a full-rank 21-column model matrix"
+     }
+    },
+    {
+     "what": "projection_estimability",
+     "term": null,
+     "value": "any subset of four quantitative factors and one categorical factor",
+     "analysis": "full second-order model in a projection of Design 3",
+     "where": {
+      "page": 21,
+      "pdf_page": 21,
+      "source_kind": "text",
+      "quote": "for any subset of four quantitative factors and one categorical factor"
+     },
+     "check": {
+      "manual": "a statement over every subset of factors, and no check kind loops over subsets (a design_metric reads one model); a rank check of each subset's model matrix in the captured runs agrees: all 60 subsets give a full-rank 20-column model matrix"
+     }
+    },
+    {
+     "what": "projection_estimability",
+     "term": null,
+     "value": "any subset of three quantitative and two categorical factors",
+     "analysis": "full second-order model in a projection of Design 3",
+     "where": {
+      "page": 21,
+      "pdf_page": 21,
+      "source_kind": "text",
+      "quote": "and for any subset of three quantitative and two categorical factors"
+     },
+     "check": {
+      "manual": "a statement over every subset of factors, and no check kind loops over subsets (a design_metric reads one model); a rank check of each subset's model matrix in the captured runs agrees: all 120 subsets give a full-rank 19-column model matrix"
+     }
+    },
+    {
+     "what": "projection_estimability",
+     "term": null,
+     "value": "any six quantitative factors",
+     "analysis": "interaction-effect model (main effects and two-factor interactions) in a projection of Design 3",
+     "where": {
+      "page": 21,
+      "pdf_page": 21,
+      "source_kind": "text",
+      "quote": "It is also able to fit an interaction-effect model for any six quantitative factors"
+     },
+     "check": {
+      "manual": "a statement over every subset of factors, and no check kind loops over subsets (a design_metric reads one model); a rank check of each subset's model matrix in the captured runs agrees: the one subset of all six quantitative factors gives a full-rank 22-column model matrix"
+     }
+    },
+    {
+     "what": "projection_estimability",
+     "term": null,
+     "value": "any subset of five quantitative factors and one categorical factor",
+     "analysis": "interaction-effect model (main effects and two-factor interactions) in a projection of Design 3",
+     "where": {
+      "page": 21,
+      "pdf_page": 21,
+      "source_kind": "text",
+      "quote": "and for any subset of five quantitative factors and one categorical factor"
+     },
+     "check": {
+      "manual": "a statement over every subset of factors, and no check kind loops over subsets (a design_metric reads one model); a rank check of each subset's model matrix in the captured runs agrees: all 24 subsets give a full-rank 22-column model matrix"
+     }
+    },
+    {
+     "what": "replicates",
+     "term": null,
+     "value": "two triplicated factor level combinations",
+     "analysis": "replicated settings in Design 3, which give a model-independent estimate of the error variance",
+     "where": {
+      "page": 22,
+      "pdf_page": 22,
+      "source_kind": "text",
+      "quote": "A remarkable characteristic of Design 3 is that it involves two triplicated factor level combinations"
+     },
+     "check": {
+      "manual": "a count of replicated settings, which no check kind reports (the printed text is a word); in the captured runs runs 35-37 and 38-40 are two triplicates, and evaluate_design's degrees_of_freedom gives pure_error 4 (40 runs, 36 distinct settings)"
+     }
+    }
+   ]
+  },
+  {
+   "name": "nunez-ares-2023-dsd-zero-counts",
+   "title": "Zero counts of definitive screening designs, the reason they cannot take several two-level factors",
+   "where": {
+    "section": "2.1, 2.2 and 4.2",
+    "pages": "7, 11, 19"
+   },
+   "design": {
+    "type": "definitive screening design (conference-matrix foldover with centre runs)"
+   },
+   "expected": [
+    {
+     "what": "n_zeros",
+     "term": "(n0^ME, n0^IE)",
+     "value": "(2, 4)",
+     "analysis": "zeros per main-effect column and per interaction column of a definitive screening design, centre runs ignored",
+     "where": {
+      "page": 7,
+      "pdf_page": 7,
+      "source_kind": "text",
+      "quote": "For the definitive screening designs, for instance, (nME0, nIE0) = (2, 4) if we ignore the center run(s)."
+     },
+     "check": {
+      "manual": "a count of zeros in a definitive screening design, which no check kind or evaluate_design metric reports; generate_design(design_type='dsd') for 4, 6, 8, 23 and 24 factors gives 3 zeros in every column and 5 in every product of two columns with its one centre run, so (2, 4) without it and (2 + k, 4 + k) with k = 1"
+     }
+    },
+    {
+     "what": "n_zeros",
+     "term": "(n0^ME, n0^IE)",
+     "value": "(2+k, 4+k)",
+     "analysis": "zeros per main-effect and interaction column of a definitive screening design with k centre runs; their difference, 2, is not a multiple of four, so Corollary 3 rules out several added two-level factors",
+     "where": {
+      "page": 11,
+      "pdf_page": 11,
+      "source_kind": "text",
+      "quote": "for definitive screening designs involving k center runs, (nME0, nIE0) = (2+k, 4+k) and therefore nIE0 − nME0 is not a multiple of four"
+     },
+     "check": {
+      "manual": "a count of zeros in a definitive screening design, which no check kind or evaluate_design metric reports; generate_design(design_type='dsd') for 4, 6, 8, 23 and 24 factors gives 3 zeros in every column and 5 in every product of two columns with its one centre run, so (2, 4) without it and (2 + k, 4 + k) with k = 1"
+     }
+    },
+    {
+     "what": "n_zeros",
+     "term": "n0^ME",
+     "value": "2",
+     "analysis": "zeros per column of a 48-run definitive screening design, centre run ignored, against 24 in Design 2",
+     "where": {
+      "page": 19,
+      "pdf_page": 19,
+      "source_kind": "text",
+      "quote": "This is very different in a DSD of this run size, for which nME0 = 2 if we ignore the center run."
+     },
+     "check": {
+      "manual": "a count of zeros, which no check kind reports; generate_design(design_type='dsd') for 23 or 24 factors gives the 49-run DSD (48 runs and a centre run) with 3 zeros per column, 2 without the centre run"
+     }
+    }
+   ]
+  },
+  {
+   "name": "nunez-ares-2023-search",
+   "title": "The computational search for mixed-level OMARS designs with up to 32 runs",
+   "where": {
+    "section": "Abstract, 1 and 5",
+    "pages": "2, 6, 23-26",
+    "tables": ["Table 2"],
+    "figures": ["Figure 1"]
+   },
+   "design": {
+    "type": "mixed-level OMARS designs found by integer programming (CPLEX 12.71, one hour per system)",
+    "details": "every tuple (n, m1, m2, nME0, nIE0) meeting the necessary conditions of Section 2, with even n from 14 to 32, solved by the three constructions of Section 3"
+   },
+   "expected": [
+    {
+     "what": "count",
+     "term": "designs provided",
+     "value": "587",
+     "analysis": "the number of mixed-level OMARS designs given as supplementary material",
+     "where": {
+      "page": 2,
+      "pdf_page": 2,
+      "source_kind": "text",
+      "quote": "we provide 587 mixed-level OMARS designs as supplementary material"
+     },
+     "check": {
+      "manual": "a count of the authors' search. The library has no mixed-level OMARS construction (generate_omars refuses categorical factors) and no check kind reruns the authors' CPLEX search. It equals 245 + 123 + 219, Table 2's Solutions"
+     }
+    },
+    {
+     "what": "count",
+     "term": "designs found",
+     "value": "449",
+     "analysis": "the number of designs Section 1 says the search of Section 5 found",
+     "where": {
+      "page": 6,
+      "pdf_page": 6,
+      "source_kind": "text",
+      "quote": "a computational search for mixed-level OMARS designs with up to 48 runs and 14 factors, resulting in 449 mixed-level OMARS designs"
+     },
+     "check": {
+      "manual": "a count of the authors' search. The library has no mixed-level OMARS construction (generate_omars refuses categorical factors) and no check kind reruns the authors' CPLEX search. It contradicts the 587 designs of the abstract and of Section 5, which is 245 + 123 + 219 from Table 2; probably a figure left from an earlier version"
+     }
+    },
+    {
+     "what": "search_range",
+     "term": "runs and factors",
+     "value": "up to 48 runs and 14 factors",
+     "analysis": "the range of the search as Section 1 describes it",
+     "where": {
+      "page": 6,
+      "pdf_page": 6,
+      "source_kind": "text",
+      "quote": "a computational search for mixed-level OMARS designs with up to 48 runs and 14 factors"
+     },
+     "check": {
+      "manual": "a description of the authors' search, not a result; Section 5 says the search went up to 32 runs, with the 48-run Design 2 (19 factors) and the 40-run Design 3 from a dedicated search, and 14 factors is the largest number Figure 1a shows (at 32 runs)"
+     }
+    },
+    {
+     "what": "search_range",
+     "term": "runs",
+     "value": "up to 32 runs",
+     "analysis": "the run sizes of the systematic search",
+     "where": {
+      "page": 23,
+      "pdf_page": 23,
+      "source_kind": "text",
+      "quote": "we explored the existence of mixed-level OMARS designs with up to 32 runs"
+     },
+     "check": {
+      "manual": "a setting of the authors' search, not a result that can be recomputed"
+     }
+    },
+    {
+     "what": "count",
+     "term": "designs found",
+     "value": "587",
+     "analysis": "the number of designs the search produced",
+     "where": {
+      "page": 23,
+      "pdf_page": 23,
+      "source_kind": "text",
+      "quote": "Our exploration resulted in 587 different designs"
+     },
+     "check": {
+      "manual": "a count of the authors' search. The library has no mixed-level OMARS construction (generate_omars refuses categorical factors) and no check kind reruns the authors' CPLEX search. It equals 245 + 123 + 219, Table 2's Solutions"
+     }
+    },
+    {
+     "what": "time_limit",
+     "term": "per system",
+     "value": "one hour",
+     "analysis": "the computing time limit for each system of equations",
+     "where": {
+      "page": 23,
+      "pdf_page": 23,
+      "source_kind": "text",
+      "quote": "set a computing time limit of one hour"
+     },
+     "check": {
+      "manual": "a setting of the authors' search, not a result that can be recomputed"
+     }
+    },
+    {
+     "what": "count",
+     "term": "From Scratch: Instances",
+     "value": "1314",
+     "analysis": "Table 2, the search for mixed-level OMARS designs with up to 32 runs: systems of linear equations set up (attempts to find a design), for the construction from scratch",
+     "where": {
+      "page": 24,
+      "pdf_page": 24,
+      "source_kind": "table",
+      "quote": "Table 2: From Scratch 1314 245 488 581 30.4"
+     },
+     "check": {
+      "manual": "a count from the authors' CPLEX 12.71 runs of the integer program of Section 3. The library has no mixed-level OMARS construction (generate_omars refuses categorical factors) and no check kind reruns the authors' CPLEX search. The row is consistent: 245 + 488 + 581 = 1314 instances"
+     }
+    },
+    {
+     "what": "count",
+     "term": "From Scratch: Solutions",
+     "value": "245",
+     "analysis": "Table 2, the search for mixed-level OMARS designs with up to 32 runs: systems for which CPLEX found a mixed-level OMARS design within one hour, for the construction from scratch",
+     "where": {
+      "page": 24,
+      "pdf_page": 24,
+      "source_kind": "table",
+      "quote": "Table 2: From Scratch 1314 245 488 581 30.4"
+     },
+     "check": {
+      "manual": "a count from the authors' CPLEX 12.71 runs of the integer program of Section 3. The library has no mixed-level OMARS construction (generate_omars refuses categorical factors) and no check kind reruns the authors' CPLEX search. The row is consistent: 245 + 488 + 581 = 1314 instances"
+     }
+    },
+    {
+     "what": "count",
+     "term": "From Scratch: Infeasible",
+     "value": "488",
+     "analysis": "Table 2, the search for mixed-level OMARS designs with up to 32 runs: systems CPLEX proved to have no solution, for the construction from scratch",
+     "where": {
+      "page": 24,
+      "pdf_page": 24,
+      "source_kind": "table",
+      "quote": "Table 2: From Scratch 1314 245 488 581 30.4"
+     },
+     "check": {
+      "manual": "a count from the authors' CPLEX 12.71 runs of the integer program of Section 3. The library has no mixed-level OMARS construction (generate_omars refuses categorical factors) and no check kind reruns the authors' CPLEX search. The row is consistent: 245 + 488 + 581 = 1314 instances"
+     }
+    },
+    {
+     "what": "count",
+     "term": "From Scratch: Unresolved",
+     "value": "581",
+     "analysis": "Table 2, the search for mixed-level OMARS designs with up to 32 runs: systems neither solved nor proved infeasible within one hour, for the construction from scratch",
+     "where": {
+      "page": 24,
+      "pdf_page": 24,
+      "source_kind": "table",
+      "quote": "Table 2: From Scratch 1314 245 488 581 30.4"
+     },
+     "check": {
+      "manual": "a count from the authors' CPLEX 12.71 runs of the integer program of Section 3. The library has no mixed-level OMARS construction (generate_omars refuses categorical factors) and no check kind reruns the authors' CPLEX search. The row is consistent: 245 + 488 + 581 = 1314 instances"
+     }
+    },
+    {
+     "what": "computing_time",
+     "term": "From Scratch: Time",
+     "value": "30.4",
+     "analysis": "Table 2, the search for mixed-level OMARS designs with up to 32 runs: total computing time, in days, for the construction from scratch",
+     "where": {
+      "page": 24,
+      "pdf_page": 24,
+      "source_kind": "table",
+      "quote": "Table 2: From Scratch 1314 245 488 581 30.4"
+     },
+     "check": {
+      "manual": "the authors' total computing time on the Flemish Supercomputer Centrum, which cannot be recomputed"
+     }
+    },
+    {
+     "what": "count",
+     "term": "From OA: Instances",
+     "value": "1173",
+     "analysis": "Table 2, the search for mixed-level OMARS designs with up to 32 runs: systems of linear equations set up (attempts to find a design), for the construction from oa",
+     "where": {
+      "page": 24,
+      "pdf_page": 24,
+      "source_kind": "table",
+      "quote": "Table 2: From OA 1173 123 894 156 18.4"
+     },
+     "check": {
+      "manual": "a count from the authors' CPLEX 12.71 runs of the integer program of Section 3. The library has no mixed-level OMARS construction (generate_omars refuses categorical factors) and no check kind reruns the authors' CPLEX search. The row is consistent: 123 + 894 + 156 = 1173 instances"
+     }
+    },
+    {
+     "what": "count",
+     "term": "From OA: Solutions",
+     "value": "123",
+     "analysis": "Table 2, the search for mixed-level OMARS designs with up to 32 runs: systems for which CPLEX found a mixed-level OMARS design within one hour, for the construction from oa",
+     "where": {
+      "page": 24,
+      "pdf_page": 24,
+      "source_kind": "table",
+      "quote": "Table 2: From OA 1173 123 894 156 18.4"
+     },
+     "check": {
+      "manual": "a count from the authors' CPLEX 12.71 runs of the integer program of Section 3. The library has no mixed-level OMARS construction (generate_omars refuses categorical factors) and no check kind reruns the authors' CPLEX search. The row is consistent: 123 + 894 + 156 = 1173 instances"
+     }
+    },
+    {
+     "what": "count",
+     "term": "From OA: Infeasible",
+     "value": "894",
+     "analysis": "Table 2, the search for mixed-level OMARS designs with up to 32 runs: systems CPLEX proved to have no solution, for the construction from oa",
+     "where": {
+      "page": 24,
+      "pdf_page": 24,
+      "source_kind": "table",
+      "quote": "Table 2: From OA 1173 123 894 156 18.4"
+     },
+     "check": {
+      "manual": "a count from the authors' CPLEX 12.71 runs of the integer program of Section 3. The library has no mixed-level OMARS construction (generate_omars refuses categorical factors) and no check kind reruns the authors' CPLEX search. The row is consistent: 123 + 894 + 156 = 1173 instances"
+     }
+    },
+    {
+     "what": "count",
+     "term": "From OA: Unresolved",
+     "value": "156",
+     "analysis": "Table 2, the search for mixed-level OMARS designs with up to 32 runs: systems neither solved nor proved infeasible within one hour, for the construction from oa",
+     "where": {
+      "page": 24,
+      "pdf_page": 24,
+      "source_kind": "table",
+      "quote": "Table 2: From OA 1173 123 894 156 18.4"
+     },
+     "check": {
+      "manual": "a count from the authors' CPLEX 12.71 runs of the integer program of Section 3. The library has no mixed-level OMARS construction (generate_omars refuses categorical factors) and no check kind reruns the authors' CPLEX search. The row is consistent: 123 + 894 + 156 = 1173 instances"
+     }
+    },
+    {
+     "what": "computing_time",
+     "term": "From OA: Time",
+     "value": "18.4",
+     "analysis": "Table 2, the search for mixed-level OMARS designs with up to 32 runs: total computing time, in days, for the construction from oa",
+     "where": {
+      "page": 24,
+      "pdf_page": 24,
+      "source_kind": "table",
+      "quote": "Table 2: From OA 1173 123 894 156 18.4"
+     },
+     "check": {
+      "manual": "the authors' total computing time on the Flemish Supercomputer Centrum, which cannot be recomputed"
+     }
+    },
+    {
+     "what": "count",
+     "term": "From OMARS: Instances",
+     "value": "973",
+     "analysis": "Table 2, the search for mixed-level OMARS designs with up to 32 runs: systems of linear equations set up (attempts to find a design), for the construction from omars",
+     "where": {
+      "page": 24,
+      "pdf_page": 24,
+      "source_kind": "table",
+      "quote": "Table 2: From OMARS 973 219 572 182 13.5"
+     },
+     "check": {
+      "manual": "a count from the authors' CPLEX 12.71 runs of the integer program of Section 3. The library has no mixed-level OMARS construction (generate_omars refuses categorical factors) and no check kind reruns the authors' CPLEX search. The row is consistent: 219 + 572 + 182 = 973 instances"
+     }
+    },
+    {
+     "what": "count",
+     "term": "From OMARS: Solutions",
+     "value": "219",
+     "analysis": "Table 2, the search for mixed-level OMARS designs with up to 32 runs: systems for which CPLEX found a mixed-level OMARS design within one hour, for the construction from omars",
+     "where": {
+      "page": 24,
+      "pdf_page": 24,
+      "source_kind": "table",
+      "quote": "Table 2: From OMARS 973 219 572 182 13.5"
+     },
+     "check": {
+      "manual": "a count from the authors' CPLEX 12.71 runs of the integer program of Section 3. The library has no mixed-level OMARS construction (generate_omars refuses categorical factors) and no check kind reruns the authors' CPLEX search. The row is consistent: 219 + 572 + 182 = 973 instances"
+     }
+    },
+    {
+     "what": "count",
+     "term": "From OMARS: Infeasible",
+     "value": "572",
+     "analysis": "Table 2, the search for mixed-level OMARS designs with up to 32 runs: systems CPLEX proved to have no solution, for the construction from omars",
+     "where": {
+      "page": 24,
+      "pdf_page": 24,
+      "source_kind": "table",
+      "quote": "Table 2: From OMARS 973 219 572 182 13.5"
+     },
+     "check": {
+      "manual": "a count from the authors' CPLEX 12.71 runs of the integer program of Section 3. The library has no mixed-level OMARS construction (generate_omars refuses categorical factors) and no check kind reruns the authors' CPLEX search. The row is consistent: 219 + 572 + 182 = 973 instances"
+     }
+    },
+    {
+     "what": "count",
+     "term": "From OMARS: Unresolved",
+     "value": "182",
+     "analysis": "Table 2, the search for mixed-level OMARS designs with up to 32 runs: systems neither solved nor proved infeasible within one hour, for the construction from omars",
+     "where": {
+      "page": 24,
+      "pdf_page": 24,
+      "source_kind": "table",
+      "quote": "Table 2: From OMARS 973 219 572 182 13.5"
+     },
+     "check": {
+      "manual": "a count from the authors' CPLEX 12.71 runs of the integer program of Section 3. The library has no mixed-level OMARS construction (generate_omars refuses categorical factors) and no check kind reruns the authors' CPLEX search. The row is consistent: 219 + 572 + 182 = 973 instances"
+     }
+    },
+    {
+     "what": "computing_time",
+     "term": "From OMARS: Time",
+     "value": "13.5",
+     "analysis": "Table 2, the search for mixed-level OMARS designs with up to 32 runs: total computing time, in days, for the construction from omars",
+     "where": {
+      "page": 24,
+      "pdf_page": 24,
+      "source_kind": "table",
+      "quote": "Table 2: From OMARS 973 219 572 182 13.5"
+     },
+     "check": {
+      "manual": "the authors' total computing time on the Flemish Supercomputer Centrum, which cannot be recomputed"
+     }
+    },
+    {
+     "what": "count",
+     "term": "systems",
+     "value": "3460",
+     "analysis": "the total number of systems of linear equations set up",
+     "where": {
+      "page": 24,
+      "pdf_page": 24,
+      "source_kind": "text",
+      "quote": "we set up 3460 systems of linear equations in total and had them solved by CPLEX"
+     },
+     "check": {
+      "manual": "a count of the authors' search. The library has no mixed-level OMARS construction (generate_omars refuses categorical factors) and no check kind reruns the authors' CPLEX search. It equals 1314 + 1173 + 973, Table 2's Instances (the text calls this Table 2's second column; it is the first column of numbers)"
+     }
+    },
+    {
+     "what": "search_range",
+     "term": "runs",
+     "value": "14 to 32",
+     "analysis": "the even run sizes of the tuples used in the construction from scratch",
+     "where": {
+      "page": 24,
+      "pdf_page": 24,
+      "source_kind": "text",
+      "quote": "We selected all tuples with an even number of runs ranging from 14 to 32"
+     },
+     "check": {
+      "manual": "a setting of the authors' search, not a result that can be recomputed"
+     }
+    },
+    {
+     "what": "search_range",
+     "term": "three-level factors",
+     "value": "2 to 7",
+     "analysis": "the numbers of three-level factors in the tuples used in the construction from scratch",
+     "where": {
+      "page": 24,
+      "pdf_page": 24,
+      "source_kind": "text",
+      "quote": "such that there were 2 to 7 three-level factors and the total number of factors did not exceed half of the number of runs"
+     },
+     "check": {
+      "manual": "a setting of the authors' search, not a result that can be recomputed"
+     }
+    },
+    {
+     "what": "count",
+     "term": "input OAs",
+     "value": "57",
+     "analysis": "the number of strength-3 orthogonal arrays used as input to the construction from a given OA",
+     "where": {
+      "page": 25,
+      "pdf_page": 25,
+      "source_kind": "text",
+      "quote": "As input to the construction from a given OA, we used 57 strength-3 OAs in total"
+     },
+     "check": {
+      "manual": "a count of the authors' inputs, not a result; it equals 2 + 6 + 49, the counts by run size"
+     }
+    },
+    {
+     "what": "count",
+     "term": "input OAs with 16 runs",
+     "value": "two",
+     "analysis": "the input orthogonal arrays with 16 runs",
+     "where": {
+      "page": 25,
+      "pdf_page": 25,
+      "source_kind": "text",
+      "quote": "we used two OAs with 16 runs, six with 24 runs and 49 with 32 runs"
+     },
+     "check": {
+      "manual": "a count of the authors' inputs, not a result that can be recomputed"
+     }
+    },
+    {
+     "what": "count",
+     "term": "input OAs with 24 runs",
+     "value": "six",
+     "analysis": "the input orthogonal arrays with 24 runs",
+     "where": {
+      "page": 25,
+      "pdf_page": 25,
+      "source_kind": "text",
+      "quote": "we used two OAs with 16 runs, six with 24 runs and 49 with 32 runs"
+     },
+     "check": {
+      "manual": "a count of the authors' inputs, not a result that can be recomputed"
+     }
+    },
+    {
+     "what": "count",
+     "term": "input OAs with 32 runs",
+     "value": "49",
+     "analysis": "the input orthogonal arrays with 32 runs",
+     "where": {
+      "page": 25,
+      "pdf_page": 25,
+      "source_kind": "text",
+      "quote": "we used two OAs with 16 runs, six with 24 runs and 49 with 32 runs"
+     },
+     "check": {
+      "manual": "a count of the authors' inputs, not a result that can be recomputed"
+     }
+    },
+    {
+     "what": "count",
+     "term": "input OMARS designs",
+     "value": "223",
+     "analysis": "the three-level OMARS designs used as input to the construction from a given OMARS design",
+     "where": {
+      "page": 25,
+      "pdf_page": 25,
+      "source_kind": "text",
+      "quote": "we used 223 6- and 7-factor OMARS designs selected from Núñez-Ares and Goos (2020)"
+     },
+     "check": {
+      "manual": "a count of the authors' inputs, taken from the Nunez-Ares and Goos (2020) catalogue, which the library does not redistribute"
+     }
+    },
+    {
+     "what": "search_range",
+     "term": "runs",
+     "value": "14 to 32",
+     "analysis": "the even run sizes for which a mixed-level OMARS design was found, as Figure 1 is said to show",
+     "where": {
+      "page": 26,
+      "pdf_page": 26,
+      "source_kind": "text",
+      "quote": "Figure 1 shows that we obtained mixed-level OMARS designs for all even run sizes from 14 to 32"
+     },
+     "check": {
+      "manual": "a result of the authors' search. The library has no mixed-level OMARS construction (generate_omars refuses categorical factors) and no check kind reruns the authors' CPLEX search. Figure 1a's run axis begins at 16 and shows no 14-run design, so the figure does not show the 14-run sizes the sentence claims"
+     }
+    },
+    {
+     "what": "count",
+     "term": "not foldover",
+     "value": "15",
+     "analysis": "the number of designs found that are not foldover designs",
+     "where": {
+      "page": 26,
+      "pdf_page": 26,
+      "source_kind": "text",
+      "quote": "However, 15 of the mixed-level OMARS designs are not foldover designs."
+     },
+     "check": {
+      "manual": "a count over the 587 designs of the authors' search, which the article does not print. The library has no mixed-level OMARS construction (generate_omars refuses categorical factors) and no check kind reruns the authors' CPLEX search"
+     }
+    }
+   ]
+  }
+ ],
+ "not_captured": ["Lemmas 1-3, Propositions 1-2 and Corollaries 1-3 (Section 2.2, PDF pp. 8-11): general necessary conditions with proofs, not numbers about a design. The three designs satisfy them: n - nIE0, n - nME0 and nIE0 - nME0 are multiples of four for every column of Table 1, as Section 4 says.", "Equations (3.3)-(3.10), the integer program (PDF p. 14): a statement of method.", "Section 3.1 (PDF p. 12): the earlier catalogue's 'up to six center points' and 'seven different OMARS designs' per basic design, which describe Nunez-Ares and Goos (2020), not this paper's designs.", "Section 4.1 (PDF p. 19): 'when the total number of factors is greater than ten' the construction from scratch is expensive, a remark on computing time.", "CPLEX 12.71 (PDF p. 23): the solver version.", "Figure 1a and 1b (PDF p. 26): which (n, m1 + m2) and (m1, m2) combinations gave a design, a scatter of symbols read off a figure; the 587 designs themselves are in the authors' repository (github.com/jnares/mixed-omars-designs-article), not in the article.", "Restatements, captured once: the text's 1314, 1173, 973, 245, 123, 219, 488, 894 and 572 (PDF pp. 24-25) repeat Table 2; 'five three-level factors', 'four or more two-level categorical factors' and 'a multiple of eight' (PDF pp. 17, 19) repeat Table 1.", "The statements that Designs 1, 2 and 3 are foldover designs (PDF pp. 18, 19, 21): properties, not numbers; each is confirmed in the design's notes."]
+}
