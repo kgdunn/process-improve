@@ -47,6 +47,38 @@ those changes.
   stays under Your designs.
 - **Factorial's links into the book open in one tab**, reused on the next click, rather
   than a new tab each time.
+- **Factorial's factors are easier to tell apart.** The first column reads Factor name, the
+  type is one switch (Numeric or Categorical, a tap or Space to flip), and on a phone each
+  factor is a numbered card, "Factor 1", "Factor 2", with a border and a gap between cards.
+- **Factorial's coefficients get a row each, and the book's Pareto plot.** The chart grows
+  with the number of terms and its legend sits above it. A toggle beside its heading draws
+  the coefficients as the book's Pareto plot instead: bars sorted by size, orange for a
+  positive coefficient and blue for a negative one, each with its 95% interval when
+  residual degrees of freedom remain and Lenth's ME and SME when none do. The choice is
+  kept in this browser. Both views drop their caption: the legend names each mark, the
+  95% interval included, and the true values are white diamonds with a dark edge, as the
+  book draws a mark on bars, so they read on the orange and the blue alike.
+- **Factorial's "Show the Python code" panels each hold a script that runs as it is.** Step
+  2's panel holds step 1's code before its own, and step 3's both, their imports merged at
+  the top, so the code copied from any panel runs without the others. The results' code
+  writes out the run sheet as the page lists it, so it gives the page's analysis to the
+  last digit for the book's examples too, whose runs are in the order of the book's table
+  rather than `generate_design`'s; simulated results are rounded as the page rounds them.
+- **Factorial lists the fit's statistics as bullet points**, a line each: the completed
+  runs, any still to run, R², adjusted R², predicted R² and the residual degrees of freedom.
+- **Factorial no longer prints a run sheet.** The Print the run sheet button, its printed
+  page and the QR code on it are gone: the workbook (.xlsx) serves for a sheet on paper, and
+  Copy a link carries the design to a phone. `segno`, the QR encoder's test oracle, leaves
+  the dev dependencies. The app is not public Python API, so this is filed as a change.
+- **Factorial says "Link copied" where the reader is looking.** Copy a link, and Copy the
+  code under a Show the Python code panel, now show a short message at the foot of the
+  screen that the link or code is on the clipboard, or that the browser refused it and the
+  text is selected to copy by hand.
+- **Factorial's status line fades five seconds after a success**, giving its room back to
+  the page. An error brings it back at once; a busy spell does once it has lasted long
+  enough to be worth showing, so a quick analysis does not make the page jump.
+- **The residuals-vs-fitted plot names the response on its x axis** ("Fitted Conversion"
+  rather than "Fitted Values") when `create_plot` is given `response_column`.
 
 ## [1.98.0] - 2026-10-12
 

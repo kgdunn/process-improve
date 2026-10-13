@@ -93,4 +93,4 @@ def test_a_categorical_factor_s_labels_reach_the_run_sheet_and_the_analysis(blan
     settled(page)
     terms = page.locator("#analysis table").first.locator("tbody tr td:first-child").all_text_contents()
     assert "Supplier" in terms
-    assert 'runs["Supplier"] = runs["Supplier"].map({"old": -1.0, "new": 1.0})' in page.text_content("#py-analyse code")
+    assert '"Supplier": runs["Supplier"].map({"old": -1.0, "new": 1.0}),' in page.text_content("#py-analyse code")

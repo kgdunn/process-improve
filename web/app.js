@@ -7,7 +7,16 @@
 // paint, the live run, an uploaded workbook, a saved design and a shared link all show the
 // same way. Every campaign but the worked example is saved in this browser as it changes.
 
-import { coefficientFigure, correlationFigure, draw, fdsFigure, prettyTerm, redrawAll, shareContourScale } from "./charts.js";
+import {
+  coefficientFigure,
+  correlationFigure,
+  draw,
+  fdsFigure,
+  paretoFigure,
+  prettyTerm,
+  redrawAll,
+  shareContourScale,
+} from "./charts.js";
 import {
   AXIAL_DISTANCE,
   CAPTIONS,
@@ -56,8 +65,7 @@ import {
   timeAgo,
   unpackCampaign,
 } from "./campaign.js";
-import { analyseCode, compareCode, designCode, enteredCode, notebook, simulateCode } from "./python.js";
-import { qrCode, qrSvg } from "./qr.js";
+import { analyseCode, compareCode, cumulative, designCode, notebook, resultsCode } from "./python.js";
 import { forgetCampaign, saveCampaign, savedCampaigns } from "./store.js";
 
 // Where Process Improvement using Data explains each design, method and measure the page uses.
@@ -124,10 +132,56 @@ function pythonFailed(reason) {
 }
 
 /** Show a status message; state is "busy" (spinner), "ok" (tick) or "error". */
+/** How long a success stays on the status line before it fades, and how long the fade takes. */
+const STATUS_SHOWN = 5000;
+const STATUS_FADE = 600;
+/** How long a busy spell lasts before the faded status line comes back for it. */
+const STATUS_WAIT = 400;
+let statusTimer = null;
+
+/**
+ * Say what Python is doing on the status line. A success fades after five seconds, giving its
+ * room back to the page; an error comes back at once, and a busy spell once it has lasted long
+ * enough to be worth showing, so a quick analysis does not make the page jump.
+ */
 function setStatus(text, state = "ok") {
-  const el = $("#status");
-  el.querySelector(".status__text").textContent = text;
-  el.dataset.state = state;
+  const box = $("#status");
+  box.querySelector(".status__text").textContent = text;
+  box.dataset.state = state;
+  clearTimeout(statusTimer);
+  const show = () => {
+    box.hidden = false;
+    box.classList.remove("fading");
+  };
+  if (state === "ok") {
+    if (box.hidden) return; // nothing to say that the page does not already show
+    show();
+    statusTimer = setTimeout(() => {
+      box.classList.add("fading");
+      statusTimer = setTimeout(() => (box.hidden = true), STATUS_FADE);
+    }, STATUS_SHOWN);
+  } else if (state === "error" || !box.hidden) {
+    show();
+  } else {
+    statusTimer = setTimeout(show, STATUS_WAIT);
+  }
+}
+
+let toastTimer = null;
+
+/** Say briefly, at the foot of the screen, that something was done: a link or code copied to the clipboard. */
+function toast(text, state = "ok") {
+  const box = $("#toast");
+  box.textContent = text;
+  box.dataset.state = state;
+  box.hidden = false;
+  void box.offsetWidth; // lay it out unshown first, so it fades in rather than appearing
+  box.classList.add("shown");
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => {
+    box.classList.remove("shown");
+    toastTimer = setTimeout(() => (box.hidden = true), 300);
+  }, 3500);
 }
 
 // ---------------------------------------------------------------- state
@@ -166,17 +220,21 @@ const DEFAULT_FACTORS = [
 /** The levels a new factor of each type starts from. */
 const START_LEVELS = { [NUMERIC]: ["-1", "1"], [CATEGORICAL]: ["A", "B"] };
 
-/** One of a factor row's boxes, by its name: name, type, low, high or units. */
+/** One of a factor row's boxes, by its name: name, categorical (the type's switch), low, high or units. */
 const box = (tr, name) => tr.querySelector(`[name=${name}]`);
+
+/** A factor row's type, as its switch shows it. */
+const typeOf = (tr) => (box(tr, "categorical").checked ? CATEGORICAL : NUMERIC);
 
 function addFactor(f = { name: "", low: -1, high: 1, units: "" }) {
   const tr = document.createElement("tr");
   // Each cell carries its column's heading, which a phone shows above the box (style.css).
   tr.innerHTML = `
-    <td data-label="Factor"><input name="name" aria-label="Factor name" size="8"></td>
-    <td data-label="Type"><select name="type" aria-label="Factor type">
-      <option value="${NUMERIC}">Numeric</option><option value="${CATEGORICAL}">Categorical</option>
-    </select></td>
+    <td data-label="Factor name"><input name="name" aria-label="Factor name" size="8"></td>
+    <td data-label="Type"><label class="switch">
+      <input type="checkbox" name="categorical" role="switch" aria-label="Categorical">
+      <span class="switch__track" aria-hidden="true"></span><span class="switch__text">Numeric</span>
+    </label></td>
     <td data-label="Low"><input name="low" aria-label="Low"></td>
     <td data-label="High"><input name="high" aria-label="High"></td>
     <td data-label="Units"><input name="units" aria-label="Units" size="6"></td>
@@ -184,10 +242,10 @@ function addFactor(f = { name: "", low: -1, high: 1, units: "" }) {
   for (const key of ["name", "low", "high", "units"]) box(tr, key).value = f[key] ?? "";
   showType(tr, factorType(box(tr, "low").value, box(tr, "high").value, NUMERIC));
   // The row settles its type before the table's own listener refreshes the design.
-  box(tr, "type").addEventListener("input", () => switchType(tr, box(tr, "type").value));
+  box(tr, "categorical").addEventListener("input", () => switchType(tr, typeOf(tr)));
   for (const name of ["low", "high"]) {
     box(tr, name).addEventListener("input", () =>
-      showType(tr, factorType(box(tr, "low").value, box(tr, "high").value, box(tr, "type").value)),
+      showType(tr, factorType(box(tr, "low").value, box(tr, "high").value, typeOf(tr))),
     );
   }
   tr.querySelector("button").onclick = () => {
@@ -205,7 +263,8 @@ function addFactor(f = { name: "", low: -1, high: 1, units: "" }) {
 function showType(tr, type) {
   const categorical = type === CATEGORICAL;
   const units = box(tr, "units");
-  box(tr, "type").value = type;
+  box(tr, "categorical").checked = categorical;
+  tr.querySelector(".switch__text").textContent = categorical ? "Categorical" : "Numeric";
   tr.classList.toggle("categorical", categorical);
   if (categorical && units.value) {
     tr.dataset.units = units.value;
@@ -224,8 +283,9 @@ function showType(tr, type) {
 }
 
 /**
- * The reader chose a factor's type: its levels become those it last had as that type, else the
- * type's own start (-1 and 1, or A and B), and the first is selected, ready to be typed over.
+ * The reader flipped a factor's type: its levels become those it last had as that type, else the
+ * type's own start (-1 and 1, or A and B). A factor made categorical has its first label selected,
+ * ready to be typed over; one made numeric again leaves the keyboard where it was.
  */
 function switchType(tr, type) {
   const before = type === CATEGORICAL ? NUMERIC : CATEGORICAL;
@@ -233,6 +293,7 @@ function switchType(tr, type) {
   tr.dataset[before] = JSON.stringify([low.value, high.value]);
   [low.value, high.value] = tr.dataset[type] ? JSON.parse(tr.dataset[type]) : START_LEVELS[type];
   showType(tr, type);
+  if (type !== CATEGORICAL) return;
   low.focus();
   low.select();
 }
@@ -242,7 +303,7 @@ function showFactorProblems() {
   const problems = [...document.querySelectorAll("#factors tbody tr")].map((tr) => {
     const problem = levelProblem(
       { name: box(tr, "name").value, low: box(tr, "low").value, high: box(tr, "high").value },
-      box(tr, "type").value,
+      typeOf(tr),
     );
     for (const name of ["low", "high"]) box(tr, name).toggleAttribute("aria-invalid", Boolean(problem));
     return problem;
@@ -406,7 +467,7 @@ function showDesign(design, warnings = [], { save = true } = {}) {
   if ($("#model").value === CHOSEN_TERMS) setModel(CHOSEN_TERMS); // the terms of the new factors
   clearAnalysis();
   if (design.spec.options) showPython("design", designCode(design.spec));
-  $("#py-run").hidden = true;
+  hidePython("run");
   scheduleSave();
 }
 
@@ -477,7 +538,7 @@ function renderRuns() {
     input.classList.remove("sim");
     describeSource();
     renderTruth();
-    showPython("run", enteredCode(state.responses));
+    showResultsCode();
     scheduleAnalysis();
     scheduleSave();
   };
@@ -532,7 +593,7 @@ async function simulateResults() {
   state.sources = state.responses.map(() => "simulated");
   renderRuns();
   renderTruth();
-  showPython("run", simulateCode(reply.result, state.design.spec));
+  showResultsCode();
   scheduleSave();
   await analyseRuns();
 }
@@ -574,14 +635,14 @@ function download(blob, name) {
 }
 
 /**
- * Download the campaign as a Jupyter notebook: the code each step's "Show the Python" panel
- * shows, in order, so it runs to the page's design, results and analysis.
+ * Download the campaign as a Jupyter notebook: each step's code, as its "Show the Python code"
+ * panel shows it, a cell a step, so it runs to the page's design, results and analysis.
  */
 function downloadNotebook() {
   if (!state.design) return;
   const book = notebook({
     title: state.campaign?.title ?? titleOf(state.design.spec),
-    spec: state.design.spec,
+    design: state.design,
     responses: state.responses,
     sources: state.sources,
     simulation: state.simulation,
@@ -618,7 +679,7 @@ async function readUpload(file) {
   renderRuns();
   renderTruth();
   showPython("design", designCode(r.spec));
-  showPython("run", enteredCode(state.responses));
+  showResultsCode();
   scheduleSave();
   await analyseRuns();
 }
@@ -679,16 +740,12 @@ function renderAnalysis(reply) {
   const s = r.summary;
   const simulated = r.coefficients.some((c) => c.true_value !== undefined && c.true_value !== null);
   setStatus("Analysis complete.");
-  showPython("analyse", analyseCode(r.spec, r.formula ?? r.model)); // the terms fitted, which the design can estimate
+  // The terms fitted, which the design can estimate, from the runs that have a result.
+  showPython("analyse", analyseCode(r.formula ?? r.model, state.responses.every((v) => v !== null)));
   const parts = [
     el("p", "equation", r.equation),
     el("p", "hint", "Coefficients are in coded units: each factor runs from -1 at its low value to +1 at its high value."),
-    el(
-      "p",
-      "",
-      `${r.n_completed} completed runs. ${fitStatistics(s)}` +
-        (r.pending_runs.length ? ` Still to run: ${r.pending_runs.join(", ")}.` : ""),
-    ),
+    ...noteList(fitStatistics(s, r.n_completed, r.pending_runs), "fit"),
     ...noteList(r.notes),
     ...warningList(reply.warnings),
     el("h3", "", "Coefficients"),
@@ -808,8 +865,63 @@ function setModel(model) {
 function chartCard(key, caption, wide = false) {
   const card = el("figure", wide ? "chart wide" : "chart", "");
   const plot = el("div", "plot", "");
-  card.append(el("h3", "", TITLES[key]), plot, el("figcaption", "hint", caption));
+  card.append(el("h3", "", TITLES[key]), plot, ...(caption ? [el("figcaption", "hint", caption)] : []));
   return { card, plot };
+}
+
+const COEFFICIENT_VIEW = "factorial-coefficients";
+
+/** How the reader last chose to see the coefficients: their estimates, or the book's Pareto plot. */
+function coefficientView() {
+  try {
+    return localStorage.getItem(COEFFICIENT_VIEW) === "pareto" ? "pareto" : "estimates";
+  } catch {
+    return "estimates";
+  }
+}
+
+/**
+ * The coefficients' card, with a switch between two views of the same analysis: each estimate
+ * with its interval (and the true value, when simulated), or the book's Pareto plot of their sizes.
+ * ``show(view, version)`` marks the view chosen, and draws it once Plotly.js is given.
+ */
+function coefficientCard(analysis, simulated) {
+  const { card, plot } = chartCard("coefficients", null, true); // its legend says what each mark is
+  const head = el("div", "chart__head", "");
+  const views = el("div", "views", "");
+  views.setAttribute("role", "group");
+  views.setAttribute("aria-label", "Show the coefficients as");
+  const buttons = [
+    ["estimates", "Estimates"],
+    ["pareto", "Pareto plot"],
+  ].map(([view, text]) => {
+    const button = el("button", "", text);
+    button.type = "button";
+    button.dataset.view = view;
+    return button;
+  });
+  views.append(...buttons);
+  head.append(card.querySelector("h3"), views);
+  card.prepend(head);
+  const figure = (view) => () =>
+    view === "pareto"
+      ? paretoFigure(analysis.coefficients, simulated, analysis.lenth)
+      : coefficientFigure(analysis.coefficients, simulated);
+  const show = async (view, version) => {
+    for (const button of buttons) button.setAttribute("aria-pressed", String(button.dataset.view === view));
+    if (version) await draw(plot, figure(view), version, figure(view)().height);
+  };
+  for (const button of buttons) {
+    button.onclick = () => {
+      try {
+        localStorage.setItem(COEFFICIENT_VIEW, button.dataset.view);
+      } catch {
+        /* storage refused: the view holds for this card */
+      }
+      show(button.dataset.view, state.plotlyJs);
+    };
+  }
+  return { card, plot, show };
 }
 
 /** Draw the coefficient chart, then the library's plots for the same analysis. */
@@ -817,9 +929,9 @@ async function drawCharts(request, mine, given = null) {
   const box = $("#charts");
   box.hidden = false;
   const simulated = Boolean(request.truth);
-  const coefficients = chartCard("coefficients", CAPTIONS.coefficients(simulated), true);
+  const coefficients = coefficientCard(state.analysis, simulated);
   box.replaceChildren(coefficients.card);
-  const figure = coefficientFigure(state.analysis.coefficients, simulated);
+  await coefficients.show(coefficientView());
 
   const plots = given ?? (await libraryPlots(request, mine));
   if (mine !== ticket) return;
@@ -830,7 +942,7 @@ async function drawCharts(request, mine, given = null) {
   }
   state.plotlyJs = version;
   try {
-    await draw(coefficients.plot, () => coefficientFigure(state.analysis.coefficients, simulated), version, figure.height);
+    await coefficients.show(coefficientView(), version);
     if (!plots) return;
     const figures = Object.fromEntries(Object.entries(plots.figures).map(([k, v]) => [k, JSON.parse(v)]));
     if (figures.true_contour) shareContourScale(figures.contour, figures.true_contour);
@@ -875,7 +987,7 @@ async function showBuiltExample() {
   state.plotlyJs = example.plots.plotly_js;
   renderRuns();
   renderTruth();
-  showPython("run", simulateCode(example.simulation, example.design.spec));
+  showResultsCode();
   state.analysis = example.analysis;
   renderAnalysis({ ok: true, result: example.analysis, warnings: [] });
   $("#demo-version").textContent = `process-improve ${example.version}`;
@@ -1285,13 +1397,8 @@ async function openCampaign(c, record, message) {
   $("#share-out").hidden = true;
   if (c.design.spec.options) showPython("design", designCode(c.design.spec));
   const done = state.responses.some((v) => v !== null);
-  if (done && state.simulation && state.sources.every((source) => source === "simulated")) {
-    showPython("run", simulateCode(state.simulation, c.design.spec));
-  } else if (done) {
-    showPython("run", enteredCode(state.responses));
-  } else {
-    $("#py-run").hidden = true;
-  }
+  if (done) showResultsCode();
+  else hidePython("run");
   showBanner(message);
   scheduleSave(); // the design opened most recently is the one a later visit picks up
   if (!done) return;
@@ -1384,7 +1491,7 @@ async function openBookExample(name) {
 }
 
 /**
- * Results sent back by link for a design this browser keeps, from a run sheet printed or shared
+ * Results sent back by link for a design this browser keeps, from a run sheet shared
  * here: fill them into that design rather than saving a copy. A result already here is kept.
  * Resolves to whether the link was such a return.
  */
@@ -1424,8 +1531,14 @@ async function shareLink() {
   } catch {
     copied = false; // the browser refused the clipboard: the link is in the box, selected
   }
+  toast(
+    copied
+      ? "Link copied to the clipboard: paste it into an email or a chat."
+      : "The browser would not copy the link: it is selected in the box below, to copy by hand.",
+    copied ? "ok" : "error",
+  );
   $("#share-note").textContent =
-    `${copied ? "Copied." : "Copy the link from the box."} Whoever opens it gets ` +
+    `${copied ? "" : "Copy the link from the box. "}Whoever opens it gets ` +
     `${withResults ? "this design and its results" : "this design, without its results"}, saved in their own ` +
     `browser. Everything is in the link itself, ${url.length} characters long; nothing is stored on a server.` +
     (url.length > 8000 ? " Some chat apps cut links this long: the workbook is the surer way to send it." : "");
@@ -1433,79 +1546,35 @@ async function shareLink() {
   $("#share-url").select();
 }
 
-/** A plain table for paper: no sorting, every cell its text. */
-function paperTable(columns, rows, classes = []) {
-  const t = el("table", "", "");
-  const head = el("tr", "", "");
-  head.append(...columns.map((c) => el("th", "", c)));
-  const body = el("tbody", "", "");
-  for (const row of rows) {
-    const tr = el("tr", "", "");
-    tr.append(...row.map((cell, i) => el("td", classes[i] ?? "", cell === null ? "" : String(cell))));
-    body.append(tr);
-  }
-  const thead = el("thead", "", "");
-  thead.append(head);
-  t.append(thead, body);
-  return t;
-}
+// ---------------------------------------------------------------- show the Python code
+/** The steps whose panels build on each other, in order, and the code each step last showed. */
+const STEPS = ["design", "run", "analyse"];
+const stepCode = {};
 
 /**
- * Print the run sheet for the plant: the runs in their order, a box for each result, and a QR
- * code that opens the design, without results, in Factorial on a phone. There the results can be
- * typed in as the runs are made, and sent back with Copy a link.
+ * Show a step's code in its panel, after the code of the steps it builds on, so what is copied
+ * from any panel runs as it is. Step 4's comparison stands on its own.
  */
-async function printSheet() {
-  if (!state.design) return;
-  const { spec, columns, rows } = state.design;
-  const title = state.campaign?.title ?? titleOf(spec);
-  const link = `${location.origin}${location.pathname}${LINK_KEY}${await packCampaign(shareable(currentCampaign(), false))}`;
-  const head = el("header", "", "");
-  const words = el("div", "", "");
-  words.append(
-    el("h1", "", title),
-    el(
-      "p",
-      "",
-      `Run sheet printed ${new Date().toLocaleDateString(undefined, { dateStyle: "long" })} from Factorial. Make the runs in this order, and ` +
-        "write each result in its box.",
-    ),
-  );
-  head.append(words);
-  try {
-    const code = qrCode(link, { level: "M" });
-    const figure = el("figure", "qr", "");
-    const image = document.createElement("img");
-    image.src = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(qrSvg(code))}`;
-    image.alt = "A QR code that opens this design in Factorial";
-    image.style.width = `${Math.max(40, Math.round((code.size + 8) * 0.42))}mm`; // modules of 0.42 mm or more
-    figure.append(image, el("figcaption", "", "Scan to open this design on a phone, type the results there, and send them back with Copy a link."));
-    head.append(figure);
-  } catch {
-    /* a design too large for one QR code is printed without it */
-  }
-  const response = columns.indexOf(spec.response);
-  const shown = columns.map((c, i) => [c, i]).filter(([, i]) => i !== response);
-  const runs = paperTable(
-    [...shown.map(([c]) => c), `${spec.response}, the result`, "Notes"],
-    rows.map((row) => [...shown.map(([, i]) => row[i]), "", ""]),
-    [...shown.map(() => ""), "result", "notes"],
-  );
-  const factors = paperTable(
-    ["Factor", "Low", "High", "Units"],
-    spec.factors.map((f) => [f.name, f.low, f.high, f.units ?? ""]),
-    ["name"],
-  );
-  $("#print-sheet").replaceChildren(head, el("h2", "", "Factors"), factors, el("h2", "", "Runs"), runs);
-  setStatus("The run sheet is ready to print.");
-  window.print();
+function showPython(key, code) {
+  stepCode[key] = code;
+  const steps = STEPS.includes(key) ? STEPS.slice(0, STEPS.indexOf(key) + 1) : [key];
+  const panel = $(`#py-${key}`);
+  panel.querySelector("code").textContent = STEPS.includes(key)
+    ? cumulative(...steps.map((step) => stepCode[step]).filter(Boolean))
+    : code;
+  panel.hidden = false;
 }
 
-// ---------------------------------------------------------------- show the Python
-function showPython(key, code) {
-  const panel = $(`#py-${key}`);
-  panel.querySelector("code").textContent = code;
-  panel.hidden = false;
+/** Hide a step's panel and forget its code: its results are gone. */
+function hidePython(key) {
+  delete stepCode[key];
+  $(`#py-${key}`).hidden = true;
+}
+
+/** Show step 2's code: the simulation while every result is as simulated, else the results on the page. */
+function showResultsCode() {
+  const simulated = state.simulation && state.sources.every((source) => source === "simulated");
+  showPython("run", resultsCode(state.design, state.responses, simulated ? state.simulation : null));
 }
 
 /** The Plotly.js version the build drew its figures with, so charts can be drawn before Python names one. */
@@ -1676,7 +1745,6 @@ $("#tab-simulate").onclick = () => selectTab("simulate");
 $("#tab-real").onclick = () => selectTab("real");
 $("#download").onclick = downloadWorkbook;
 $("#notebook").onclick = downloadNotebook;
-$("#print").onclick = printSheet;
 $("#share").onclick = shareLink;
 $("#model").onchange = () => {
   if ($("#model").value === CHOSEN_TERMS && state.design) startTermList();
@@ -1696,6 +1764,7 @@ for (const button of document.querySelectorAll("details.python .copy")) {
     let done = "Copied";
     try {
       await navigator.clipboard.writeText(code.textContent);
+      toast("Code copied to the clipboard: paste it into a script or a notebook.");
     } catch {
       // The browser refused the clipboard: select the code, for the reader to copy from the keyboard.
       getSelection().selectAllChildren(code);

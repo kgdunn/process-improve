@@ -46,8 +46,8 @@ def assert_the_page_holds(page, design: dict) -> None:
     assert results[0] == ""
     assert all(results[1:])
     assert page.locator("#design-table input.sim").count() == 0, "results from a workbook are entered"
-    assert f"{design['n_runs'] - 1} completed runs." in page.text_content("#analysis")
-    assert "Still to run: 1." in page.text_content("#analysis")
+    assert f"{design['n_runs'] - 1} completed runs" in page.text_content("#analysis")
+    assert "Still to run: 1" in page.text_content("#analysis")
     assert page.is_hidden("#demo-banner")
     assert page.is_hidden("#truth"), "nothing is known about the process behind measured results"
 

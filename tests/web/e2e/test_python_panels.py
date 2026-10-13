@@ -1,8 +1,9 @@
-"""The "Show the Python" panel of each step: the process-improve code that does what the step did, to copy."""
+"""The "Show the Python code" panel of each step: the process-improve code that does what the step did, to copy."""
 
 from __future__ import annotations
 
 import base64
+import re
 
 from tests.web._support import FACTORS, fill_workbook, quadratic
 from tests.web.e2e._page import settled, type_results
@@ -19,6 +20,21 @@ def test_each_step_shows_the_python_that_does_the_same(page):
     assert 'compare_designs(designs, model="main_quadratic")' in code(page, "compare")
     for step in ("design", "run", "analyse", "compare"):
         assert page.is_visible(f"#py-{step}"), step
+        assert page.text_content(f"#py-{step} summary") == "Show the Python code"
+
+
+def test_each_panel_holds_the_steps_before_it_so_its_code_runs_on_its_own(page):
+    design, run, analyse = code(page, "design"), code(page, "run"), code(page, "analyse")
+    assert "generate_design(" in run
+    assert "generate_design(" in analyse
+    assert "TrueProcess(" in analyse
+    first = analyse.splitlines()[:3]
+    assert first == [
+        "import pandas as pd",
+        "from process_improve.experiments import Factor, TrueProcess, analyze_experiment, generate_design",
+        "",
+    ], "the imports of every step, merged, at the top"
+    assert design.split("\n\n", 1)[1] in run, "step 1 as its own panel shows it"
 
 
 def test_copy_puts_the_code_on_the_clipboard(context, page, site):
@@ -27,6 +43,8 @@ def test_copy_puts_the_code_on_the_clipboard(context, page, site):
     page.click("#py-design .copy")
     assert page.evaluate("navigator.clipboard.readText()") == code(page, "design")
     assert page.text_content("#py-design .copy") == "Copied"
+    assert page.is_visible("#toast")
+    assert page.text_content("#toast") == "Code copied to the clipboard: paste it into a script or a notebook."
     page.wait_for_function("document.querySelector('#py-design .copy').textContent === 'Copy the code'")
 
 
@@ -39,7 +57,8 @@ def test_after_an_upload_the_panels_show_the_workbook_s_design_and_results(page,
     settled(page)
     assert 'design_type="ccd"' in code(page, "design")
     assert "TrueProcess" not in code(page, "run"), "the results were read, not simulated"
-    assert "y = pd.Series([None, " in code(page, "run"), "the first run is still to do"
+    assert re.search(r'"y": \[\s*None,', code(page, "run")), "the first run is still to do"
+    assert 'y = runs["y"]' in code(page, "run")
     assert "analyze_experiment(" in code(page, "analyse")
 
 

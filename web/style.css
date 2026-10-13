@@ -104,6 +104,19 @@ section {
   border: 1px solid var(--line); border-left: 4px solid var(--muted); border-radius: 8px;
   background: var(--panel); color: var(--fg); font-size: 0.92rem;
 }
+.status { transition: opacity 0.6s ease; }
+.status.fading { opacity: 0; }
+
+/* A short message at the foot of the screen, over the page: a link or code copied. */
+.toast {
+  position: fixed; left: 50%; bottom: calc(20px + env(safe-area-inset-bottom)); z-index: 10;
+  width: max-content; max-width: calc(100vw - 32px); padding: 10px 16px; border-radius: 8px;
+  background: var(--fg); color: var(--bg); font-size: 0.92rem; box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25);
+  opacity: 0; transform: translate(-50%, 8px); transition: opacity 0.25s ease, transform 0.25s ease;
+}
+.toast.shown { opacity: 1; transform: translate(-50%, 0); }
+.toast[data-state="error"] { background: var(--error); color: var(--bg); }
+@media (prefers-reduced-motion: reduce) { .status, .toast { transition: none; } }
 .status__icon { flex: none; width: 18px; height: 18px; display: grid; place-items: center; font-weight: 700; }
 .status[data-state="busy"] { border-left-color: var(--accent); }
 /* While Python works, the mark's runs light up in a random run order, then clear in the same order. */
@@ -135,7 +148,8 @@ section {
 .hint.error { color: var(--error); }
 /* What the generated design is (resolution, aliasing, a raised run count), and what an
    analysis could not estimate. Warnings from the library are set apart by a rule. */
-.facts, .warnings { margin: 4px 0 12px; padding-left: 1.2em; font-size: 0.92rem; }
+.facts, .warnings, .fit { margin: 4px 0 12px; padding-left: 1.2em; font-size: 0.92rem; }
+.fit li { margin: 2px 0; font-variant-numeric: tabular-nums; }
 .facts { color: var(--muted); }
 .facts li, .warnings li { margin: 2px 0; overflow-wrap: anywhere; }
 .warnings { border-left: 3px solid var(--warn); padding: 2px 0 2px 1.6em; color: var(--fg); }
@@ -171,36 +185,53 @@ button:disabled { opacity: 0.5; cursor: progress; }
    asking for its own: on a phone the Units column used to run off the edge. */
 .factors { width: 100%; max-width: 660px; table-layout: fixed; }
 .factors th:nth-child(1) { width: 22%; }
-.factors th:nth-child(2) { width: 23%; }
+.factors th:nth-child(2) { width: 21%; }
 .factors th:nth-child(3), .factors th:nth-child(4) { width: 17%; }
 .factors th:nth-child(6) { width: 2rem; }
-.factors input, .factors select { width: 100%; min-width: 0; }
+.factors input { width: 100%; min-width: 0; }
+/* The type: a switch, Numeric or Categorical, flipped with one tap; the word beside it says which. */
+.switch { position: relative; display: inline-flex; align-items: center; gap: 8px; min-height: 36px; cursor: pointer;
+  white-space: nowrap; font-size: 0.92rem; }
+.switch input { position: absolute; opacity: 0; width: 1px; height: 1px; margin: 0; }
+.switch__track { position: relative; flex: none; width: 38px; height: 22px; border-radius: 11px; background: var(--line);
+  transition: background 0.15s; }
+.switch__track::after { content: ""; position: absolute; top: 3px; left: 3px; width: 16px; height: 16px;
+  border-radius: 50%; background: #fff; box-shadow: 0 1px 2px rgb(0 0 0 / 0.35); transition: transform 0.15s; }
+.switch input:checked + .switch__track { background: var(--accent); }
+.switch input:checked + .switch__track::after { transform: translateX(16px); }
+.switch input:focus-visible + .switch__track { outline: 2px solid var(--accent); outline-offset: 2px; }
 /* A categorical factor stands out by its type, and has no units to give. */
-.factors tr.categorical select { border-color: var(--accent); color: var(--accent); font-weight: 600; }
+.factors tr.categorical .switch__text { color: var(--accent); font-weight: 600; }
 .factors input:disabled { background: transparent; border-style: dashed; }
 .factors [aria-invalid] { border-color: var(--error); }
 .add-factors { display: flex; flex-wrap: wrap; gap: 0 16px; margin: 0; }
-/* On a phone each factor is a card of two lines, its name and type above its levels and
-   units, every box under its column's heading: six columns side by side cut the words short. */
+/* On a phone each factor is a card of its own, numbered, with its name and type above its levels
+   and units, every box under its heading: six columns side by side cut the words short, and two
+   factors' boxes in one run of lines were hard to tell apart. */
+.factors tbody { counter-reset: factor; }
+.factors tbody tr { counter-increment: factor; }
 @media (max-width: 480px) {
+  section { padding: 16px 12px; }
   .factors, .factors tbody { display: block; }
   .factors thead { display: none; }
   .factors tr {
-    display: grid; gap: 2px 6px; padding: 6px 0; border-bottom: 1px solid var(--line);
-    grid-template-columns: 1fr 1fr 1fr 2rem;
-    grid-template-areas: "name type type remove" "low high units .";
+    display: grid; gap: 2px 8px; margin: 0 0 10px; padding: 8px 10px 10px;
+    border: 1px solid var(--line); border-radius: 8px; background: var(--bg);
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+    grid-template-areas: "title title title title title remove" "name name name type type type" "low low high high units units";
   }
+  .factors tr::before { content: "Factor " counter(factor); grid-area: title; align-self: center; font-weight: 700; }
   .factors td { display: block; padding: 0; min-width: 0; }
   .factors td:nth-child(1) { grid-area: name; }
   .factors td:nth-child(2) { grid-area: type; }
   .factors td:nth-child(3) { grid-area: low; }
   .factors td:nth-child(4) { grid-area: high; }
   .factors td:nth-child(5) { grid-area: units; }
-  .factors td:nth-child(6) { grid-area: remove; align-self: end; }
+  .factors td:nth-child(6) { grid-area: remove; justify-self: end; }
   .factors td[data-label]::before {
     content: attr(data-label); display: block; font-size: 0.75rem; font-weight: 600; color: var(--muted);
   }
-  .factors input, .factors select { padding: 6px; }
+  .factors input { padding: 6px; }
 }
 .scroll { overflow-x: auto; margin: 12px 0; }
 table.data { border-collapse: collapse; font-size: 0.9rem; font-variant-numeric: tabular-nums; }
@@ -272,10 +303,18 @@ table.runs input.sim { font-style: italic; color: var(--muted); }
 .chart { margin: 0; min-width: 0; border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px 12px; }
 .chart.wide { grid-column: 1 / -1; }
 .chart h3 { margin: 0 0 6px; font-size: 0.98rem; }
+/* A card's title, with the views it can show at the right: the coefficients' estimates, or the book's Pareto plot. */
+.chart__head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 6px 12px; margin: 0 0 6px; }
+.chart__head h3 { margin: 0; }
+.views { display: inline-flex; border: 1px solid var(--line); border-radius: 6px; overflow: hidden; }
+.views button { border: none; border-radius: 0; padding: 4px 10px; font-size: 0.85rem; background: var(--bg); color: var(--muted); }
+.views button + button { border-left: 1px solid var(--line); }
+.views button[aria-pressed="true"] { background: var(--accent); color: var(--accent-fg); }
 .chart figcaption { margin-top: 6px; }
 .plot { width: 100%; min-height: 220px; }
 @media (max-width: 480px) {
   .charts { grid-template-columns: 1fr; }
+  .chart { padding: 8px 6px 10px; }
   .stepper { gap: 6px 12px; }
 }
 
@@ -300,7 +339,7 @@ table.compare tr.group span { position: sticky; left: 10px; display: inline-bloc
 }
 .charts > .hint.wide { grid-column: 1 / -1; margin: 0; }
 
-/* Show the Python: the code a step's results came from, ready to copy. */
+/* Show the Python code: the code a step's results came from, ready to copy. */
 details.python { margin: 16px 0 0; border-top: 1px solid var(--line); padding-top: 8px; }
 details.python pre {
   overflow-x: auto; margin: 8px 0; padding: 10px 12px; border-radius: 6px; font-size: 0.85rem;
@@ -322,22 +361,3 @@ details.python code { font-family: ui-monospace, "SFMono-Regular", Menlo, monosp
 .share input { width: 100%; font-family: ui-monospace, "SFMono-Regular", Menlo, monospace; font-size: 0.82rem; }
 .share .hint { margin: 6px 0 0; }
 
-/* The printed run sheet: only on paper, with nothing else of the page. */
-#print-sheet { display: none; }
-@media print {
-  main > :not(#print-sheet) { display: none !important; }
-  body { background: #fff; color: #000; font-size: 10pt; }
-  main { max-width: none; padding: 0; }
-  #print-sheet { display: block; border: none; padding: 0; margin: 0; background: none; }
-  #print-sheet header { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; }
-  #print-sheet h1 { font-size: 16pt; margin: 0 0 4px; }
-  #print-sheet h2 { font-size: 11pt; margin: 12px 0 4px; }
-  #print-sheet .qr { margin: 0; text-align: center; font-size: 8pt; max-width: 60mm; }
-  #print-sheet .qr img { display: block; height: auto; margin: 0 auto 4px; }
-  #print-sheet table { border-collapse: collapse; margin: 4px 0 8px; font-variant-numeric: tabular-nums; }
-  #print-sheet th, #print-sheet td { border: 1px solid #888; padding: 5px 8px; text-align: right; }
-  #print-sheet td.name, #print-sheet th:first-child { text-align: left; }
-  #print-sheet td.result { min-width: 32mm; }
-  #print-sheet td.notes { min-width: 50mm; }
-  #print-sheet tr { break-inside: avoid; }
-}

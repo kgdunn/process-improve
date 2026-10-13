@@ -177,6 +177,31 @@ def test_a_link_opens_the_design_and_its_results_in_another_browser(open_context
     saved(elsewhere, 1)
 
 
+def test_a_copied_link_says_so_where_the_reader_is_looking(context, page, site):
+    context.grant_permissions(["clipboard-read", "clipboard-write"], origin=site.rstrip("/"))
+    generate(page, design_type="full_factorial", n_center_points=0)
+    page.click("#share")
+    page.wait_for_selector("#toast", state="visible")
+    assert page.text_content("#toast") == "Link copied to the clipboard: paste it into an email or a chat."
+    assert page.get_attribute("#toast", "data-state") == "ok"
+    assert page.evaluate("navigator.clipboard.readText()") == page.input_value("#share-url")
+    assert page.text_content("#share-note").startswith("Whoever opens it gets"), "the toast says it was copied"
+    page.wait_for_selector("#toast", state="hidden", timeout=6_000)
+
+
+def test_a_link_the_browser_will_not_copy_is_selected_to_copy_by_hand(page):
+    page.evaluate(
+        "() => { navigator.clipboard.writeText = () =>"
+        " Promise.reject(new DOMException('Write permission denied.', 'NotAllowedError')); }"
+    )
+    generate(page, design_type="full_factorial", n_center_points=0)
+    page.click("#share")
+    page.wait_for_selector("#toast", state="visible")
+    assert page.get_attribute("#toast", "data-state") == "error"
+    assert page.text_content("#toast").startswith("The browser would not copy the link")
+    assert page.text_content("#share-note").startswith("Copy the link from the box.")
+
+
 def test_a_link_without_its_results_carries_the_design_only(open_context, page):
     generate(page, design_type="full_factorial", n_center_points=0)
     simulate(page)
@@ -216,8 +241,13 @@ def test_the_notebook_holds_each_step_s_code(page, tmp_path: Path):
     book = json.loads(target.read_text(encoding="utf-8"))
     assert book["nbformat"] == 4
     code = ["".join(cell["source"]) for cell in book["cells"] if cell["cell_type"] == "code"]
-    shown = [page.text_content(f"#py-{step} code") for step in ("design", "run", "analyse")]
-    assert code[1:] == shown, "the panels' code, in order, after the install line"
+    assert code[1] == page.text_content("#py-design code"), "the design's code, after the install line"
+    analysis = page.text_content("#py-analyse code")
+
+    def body(cell: str) -> str:
+        return "\n".join(line for line in cell.splitlines() if not line.startswith(("import ", "from "))).strip()
+
+    assert all(body(cell) in analysis for cell in code[1:]), "a cell a step, as the analysis panel holds them all"
 
 
 @pytest.mark.parametrize("context_options", [{"viewport": {"width": 390, "height": 844}, "is_mobile": True}])
@@ -227,35 +257,6 @@ def test_on_a_phone_the_link_and_the_list_fit(page):
     page.click("#share")
     page.wait_for_selector("#share-out", state="visible")
     assert page.evaluate("document.documentElement.scrollWidth <= document.documentElement.clientWidth")
-
-
-def test_the_printed_run_sheet_has_a_box_per_result_and_a_code_that_opens_the_design(open_context, page, tmp_path):
-    generate(page, design_type="full_factorial", n_center_points=2)
-    page.evaluate("() => { window.print = () => { window.__printed = (window.__printed ?? 0) + 1; }; }")
-    page.click("#print")
-    page.wait_for_function("window.__printed === 1")
-    rows = page.locator("#print-sheet table").nth(1).locator("tbody tr")
-    assert rows.count() == 10
-    assert page.locator("#print-sheet td.result").all_text_contents() == [""] * 10
-    assert page.text_content("#print-sheet h1") == "Full factorial (2-level) in T, P and F"
-
-    page.emulate_media(media="print")
-    assert page.is_visible("#print-sheet")
-    assert page.is_hidden("#step-design"), "on paper, the run sheet alone"
-    shot = tmp_path / "qr.png"
-    page.locator("#print-sheet .qr img").screenshot(path=shot)
-
-    zxingcpp = pytest.importorskip("zxingcpp", reason="zxing-cpp reads the printed code")
-    image = pytest.importorskip("PIL.Image")
-    read = zxingcpp.read_barcodes(image.open(shot))
-    assert len(read) == 1
-    link = read[0].text
-    elsewhere = open_context().new_page()
-    elsewhere.goto(link)
-    elsewhere.wait_for_selector(BANNER, state="visible")
-    settled(elsewhere)
-    assert [row[:-1] for row in run_sheet(elsewhere)] == [row[:-1] for row in run_sheet(page)]
-    assert results(elsewhere) == [""] * 10, "the code carries the design, not its results"
 
 
 def test_results_sent_back_by_link_fill_in_the_design_kept_here(open_context, blank_page):
@@ -286,4 +287,4 @@ def test_results_sent_back_by_link_fill_in_the_design_kept_here(open_context, bl
     )
     assert results(back) == typed
     saved(back, 1)  # filled in, not saved again as a copy
-    assert "8 completed runs." in back.text_content("#analysis")
+    assert "8 completed runs" in back.text_content("#analysis")

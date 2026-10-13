@@ -34,8 +34,29 @@ export function loadPlotly(version) {
 export function palette() {
   const css = getComputedStyle(document.documentElement);
   const read = (name) => css.getPropertyValue(name).trim();
-  return { fg: read("--fg"), muted: read("--muted"), line: read("--line"), accent: read("--accent"), truth: read("--ok") };
+  return { fg: read("--fg"), muted: read("--muted"), line: read("--line"), accent: read("--accent") };
 }
+
+/**
+ * The true values' marker: a diamond with a white face and a dark edge, as the book draws a mark
+ * that sits on bars. It reads on the orange and the blue bars, and on a light or a dark page,
+ * where any one colour would be too like one of them.
+ */
+export const TRUE_MARKER = { symbol: "diamond", size: 12, color: "#ffffff", line: { width: 1.5, color: "#1a1a1a" } };
+
+/**
+ * A legend entry with nothing drawn on the plot: a line in the legend that says what a line on the
+ * plot is, such as a 95% interval, so the chart needs no caption to explain it.
+ */
+export const legendKey = (name, color, dash = "solid") => ({
+  type: "scatter",
+  mode: "lines",
+  name,
+  x: [null],
+  y: [null],
+  line: { color, width: 2, dash },
+  hoverinfo: "skip",
+});
 
 /** Restyle a figure's layout for a card on the page: its colours, its size, no title, the legend below. */
 export function pageLayout(layout, height, colours = palette()) {
@@ -54,8 +75,8 @@ export function pageLayout(layout, height, colours = palette()) {
     paper_bgcolor: "rgba(0,0,0,0)",
     plot_bgcolor: "rgba(0,0,0,0)",
     font: { ...(layout.font || {}), color: colours.fg, size: 12 },
-    margin: { l: 56, r: 16, t: 12, b: 52 },
-    legend: { orientation: "h", x: 0, y: -0.22, bgcolor: "rgba(0,0,0,0)" },
+    margin: { l: 56, r: 16, t: 12, b: 52, ...(layout.margin || {}) },
+    legend: { orientation: "h", x: 0, y: -0.22, bgcolor: "rgba(0,0,0,0)", ...(layout.legend || {}) },
     xaxis: axis(layout.xaxis),
     yaxis: axis(layout.yaxis),
   };
@@ -130,6 +151,25 @@ export function niceStep(raw) {
  * value beside each when the results were simulated. The intercept is left out: it sits
  * on another scale.
  */
+/**
+ * The height of a chart with a row per term: room for every term's label, plus the legend above
+ * the plot and the axis below it, which a fixed height took from the rows on a narrow screen.
+ */
+export const termRowsHeight = (n) => Math.max(240, 28 * n + 130);
+
+/** A legend above the plot, where it never meets the axis title below it, however narrow the card. */
+const LEGEND_ABOVE = { orientation: "h", x: 0, xanchor: "left", y: 1.02, yanchor: "bottom" };
+
+/** A category axis down the side with every term's label, the first term at the top. */
+const termAxis = (labels) => ({
+  type: "category",
+  categoryorder: "array",
+  categoryarray: labels,
+  autorange: "reversed",
+  tickmode: "linear",
+  dtick: 1,
+});
+
 export function coefficientFigure(coefficients, simulated, colours = palette()) {
   const terms = coefficients.filter((c) => c.term !== "Intercept");
   const labels = terms.map((c) => c.label);
@@ -139,7 +179,8 @@ export function coefficientFigure(coefficients, simulated, colours = palette()) 
     {
       type: "scatter",
       mode: "markers",
-      name: terms.some((c) => c.ci_low !== null && c.ci_low !== undefined) ? "Estimate, with its 95% interval" : "Estimate",
+      name: "Estimate",
+      legendrank: 1,
       x: terms.map((c) => c.coefficient),
       y: labels,
       marker: { color: colours.accent, size: 9 },
@@ -155,14 +196,19 @@ export function coefficientFigure(coefficients, simulated, colours = palette()) 
       hovertemplate: "%{y}: %{x:.4g}<extra></extra>",
     },
   ];
+  if (terms.some((c) => c.ci_low !== null && c.ci_low !== undefined)) {
+    data.push({ ...legendKey("95% interval", colours.accent), legendrank: 2 });
+  }
   if (simulated) {
-    data.push({
+    // Drawn first, under the estimates, so a dot on its true value shows inside the diamond.
+    data.unshift({
       type: "scatter",
       mode: "markers",
       name: "True value",
+      legendrank: 3,
       x: terms.map((c) => c.true_value ?? 0),
       y: labels,
-      marker: { symbol: "diamond-open", size: 13, color: colours.truth, line: { width: 2, color: colours.truth } },
+      marker: TRUE_MARKER,
       hovertemplate: "%{y}, true: %{x:.4g}<extra></extra>",
     });
   }
@@ -170,10 +216,94 @@ export function coefficientFigure(coefficients, simulated, colours = palette()) 
     data,
     layout: {
       xaxis: { title: { text: "Coefficient, coded units" }, zeroline: true },
-      yaxis: { type: "category", autorange: "reversed" },
+      yaxis: termAxis(labels),
+      legend: LEGEND_ABOVE,
       showlegend: true,
     },
-    height: Math.max(220, 30 * terms.length + 100),
+    height: termRowsHeight(terms.length),
+  };
+}
+
+/** The book's colours for a coefficient's sign: the colourblind-safe Okabe-Ito orange and blue. */
+export const SIGN_COLOURS = { positive: "#E69F00", negative: "#0072B2" };
+
+/**
+ * The coefficients as the book's Pareto plot draws them: each one's size as a bar, the largest at
+ * the top, orange for a positive coefficient and blue for a negative one. With residual degrees of
+ * freedom each bar carries its 95% interval; with none, Lenth's margins of error (``lenth``, which
+ * the analysis gives on the effects' scale, twice the coefficients') are drawn on the coefficients'
+ * scale, dashed for ME and dotted for SME. The true sizes are marked when the results were simulated.
+ */
+export function paretoFigure(coefficients, simulated, lenth = null, colours = palette()) {
+  const terms = coefficients
+    .filter((c) => c.term !== "Intercept")
+    .sort((a, b) => Math.abs(b.coefficient) - Math.abs(a.coefficient));
+  const labels = terms.map((c) => c.label);
+  const intervals = terms.some((c) => c.ci_high !== null && c.ci_high !== undefined);
+  const bars = (positive) => {
+    const picked = terms.filter((c) => c.coefficient > 0 === positive);
+    return {
+      type: "bar",
+      orientation: "h",
+      name: positive ? "Positive" : "Negative",
+      x: picked.map((c) => Math.abs(c.coefficient)),
+      y: picked.map((c) => c.label),
+      customdata: picked.map((c) => c.coefficient),
+      marker: { color: positive ? SIGN_COLOURS.positive : SIGN_COLOURS.negative },
+      error_x: intervals
+        ? { type: "data", array: picked.map((c) => c.ci_high - c.coefficient), color: colours.fg, thickness: 1.5, width: 5 }
+        : { visible: false },
+      hovertemplate: "%{y}: %{customdata:.4g}<extra></extra>",
+    };
+  };
+  const data = [bars(true), bars(false)].filter((trace) => trace.x.length > 0);
+  if (intervals) data.push(legendKey("95% interval", colours.fg));
+  if (simulated) {
+    data.push({
+      type: "scatter",
+      mode: "markers",
+      name: "True size",
+      x: terms.map((c) => Math.abs(c.true_value ?? 0)),
+      y: labels,
+      marker: TRUE_MARKER,
+      hovertemplate: "%{y}, true size: %{x:.4g}<extra></extra>",
+    });
+  }
+  const margins = !intervals && lenth ? [["ME", "dash"], ["SME", "dot"]].filter(([key]) => Number.isFinite(lenth[key])) : [];
+  const named = { ME: "Margin of error (ME)", SME: "Simultaneous margin of error (SME)" };
+  data.push(...margins.map(([key, dash]) => legendKey(named[key], colours.muted, dash)));
+  return {
+    data,
+    layout: {
+      barmode: "overlay",
+      xaxis: { title: { text: "|coefficient|, coded units" }, rangemode: "tozero" },
+      yaxis: termAxis(labels),
+      legend: LEGEND_ABOVE,
+      showlegend: true,
+      shapes: margins.map(([key, dash]) => ({
+        type: "line",
+        xref: "x",
+        yref: "paper",
+        x0: lenth[key] / 2,
+        x1: lenth[key] / 2,
+        y0: 0,
+        y1: 1,
+        line: { color: colours.muted, dash, width: 1.5 },
+      })),
+      annotations: margins.map(([key]) => ({
+        xref: "x",
+        yref: "paper",
+        x: lenth[key] / 2,
+        y: 1,
+        xanchor: "left",
+        yanchor: "top",
+        xshift: 3,
+        text: key,
+        showarrow: false,
+        font: { size: 11, color: colours.muted },
+      })),
+    },
+    height: termRowsHeight(terms.length),
   };
 }
 

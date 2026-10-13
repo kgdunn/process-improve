@@ -7,7 +7,9 @@ and can press nothing that needs Python until it has.
 
 from __future__ import annotations
 
-from tests.web.e2e._page import factor_table, first_paint_done, run_sheet, status
+import pytest
+
+from tests.web.e2e._page import enter_results, factor_table, first_paint_done, run_sheet, status, type_results
 
 #: Controls that need Python, enabled once it has started.
 NEEDS_PYTHON = ("#generate", "#simulate", "#reroll", "#compare", "#upload")
@@ -52,6 +54,24 @@ def test_while_python_starts_the_status_line_lights_up_the_mark_s_runs(context, 
     page.evaluate("window.__pi.release('api_catalogue')")
     first_paint_done(page, first_paint)
     assert page.is_hidden("#status .status__icon svg"), "a tick once Python is ready"
+
+
+@pytest.mark.slow
+def test_the_status_line_fades_after_a_success_and_comes_back_for_a_wait_or_an_error(page):
+    """Its room goes back to the page five seconds after Python is ready, until there is news worth the room."""
+    assert page.is_visible("#status")
+    page.wait_for_selector("#status", state="hidden", timeout=8_000)
+    assert status(page)[1] == "ok", "faded, its message kept"
+    type_results(page, dict.fromkeys(range(15), ""))
+    assert status(page) == ("No results to analyse yet.", "ok")
+    assert page.is_hidden("#status"), "a success that the page itself shows brings nothing back"
+    page.evaluate("window.__pi.hold('api_analyze_runs')")
+    enter_results(page, {0: 50})
+    page.wait_for_selector("#status", state="visible")
+    assert status(page) == ("Analysing...", "busy"), "a wait that lasts is shown"
+    page.evaluate("window.__pi.release('api_analyze_runs')")
+    page.wait_for_function("document.querySelector('#status').dataset.state === 'error'")
+    assert page.is_visible("#status"), "one result cannot fit the model: the error stays in view"
 
 
 def test_the_form_holds_the_worked_example_s_settings(page, first_paint):

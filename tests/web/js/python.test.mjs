@@ -1,10 +1,10 @@
-// web/python.js: the code each "Show the Python" panel writes, as text. That the code runs and
+// web/python.js: the code each "Show the Python code" panel writes, as text. That the code runs and
 // reproduces the page is checked by tests/web/page/test_python_panels.py.
 
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
 
-import { analyseCode, compareCode, designCode, enteredCode, simulateCode } from "../../../web/python.js";
+import { analyseCode, compareCode, cumulative, designCode, resultsCode } from "../../../web/python.js";
 
 const FACTORS = [
   { name: "T", low: 150, high: 200, units: "degC" },
@@ -26,40 +26,66 @@ describe("the design", () => {
 });
 
 describe("the results", () => {
-  test("a simulation names its process, noise and seed", () => {
-    const code = simulateCode({ truth: [{ term: "T", coefficient: 4 }, { term: "I(T ** 2)", coefficient: -2.25 }], sigma: 1, seed: 3 });
-    assert.match(code, /"T": 4,/);
+  const design = {
+    spec: { factors: [FACTORS[0], { name: "S", low: "A", high: "B", units: "" }], response: "Yield", options: { n_blocks: 2 } },
+    columns: ["Std order", "Run order", "T", "S", "Block", "Yield"],
+    rows: [
+      [2, 1, 200, "A", 1, null],
+      [1, 2, 150, "B", 2, null],
+    ],
+  };
+
+  test("the run sheet as the page lists it, its settings coded as the page codes them", () => {
+    const code = resultsCode(design, [61.5, null]);
+    assert.match(code, /"T": \[200, 150\],\n {8}"S": \["A", "B"\],\n {8}"Block": \[1, 2\],\n {8}"Yield": \[61\.5, None\],/);
+    assert.match(code, /"T": \(runs\["T"\] - 175\) \/ 25,/);
+    assert.match(code, /"S": runs\["S"\]\.map\(\{"A": -1\.0, "B": 1\.0\}\),/);
+    assert.match(code, /"Block": runs\["Block"\],/);
+    assert.match(code, /y = runs\["Yield"\]$/);
+  });
+
+  test("a simulation names its process, noise and seed, and rounds as the page does", () => {
+    const simulation = { truth: [{ term: "T", coefficient: 4 }, { term: "I(T ** 2)", coefficient: -2.25 }], sigma: 0.5, seed: 3 };
+    const code = resultsCode(design, [1, 2], simulation);
+    assert.doesNotMatch(code, /"Yield":/, "the results come from the process");
     assert.match(code, /"I\(T \*\* 2\)": -2.25,/);
-    assert.match(code, /sigma=1,/);
-    assert.match(code, /random_state=3\)/);
+    assert.match(code, /sigma=0.5,/);
+    assert.match(code, /y = process\.simulate\(X, random_state=3\)\.round\(3\)/);
   });
 
-  test("a design with a categorical factor simulates at the coded runs, its labels coded -1 and +1", () => {
-    const spec = { factors: [FACTORS[0], { name: "S", low: "A", high: "B", units: "" }], options: {} };
-    const code = simulateCode({ truth: [{ term: "S", coefficient: 2 }], sigma: 1, seed: 3 }, spec);
-    assert.match(code, /runs\["S"\] = runs\["S"\]\.map\(\{"A": -1\.0, "B": 1\.0\}\)/);
-    assert.match(code, /process\.simulate\(runs, random_state=3\)/);
+  test("a centre at zero, a negative one, and a half-range of one, written plainly", () => {
+    const factors = [
+      { name: "A", low: -1, high: 1 },
+      { name: "B", low: -10, high: -6 },
+    ];
+    const plain = { spec: { factors, options: {} }, columns: ["A", "B"], rows: [[-1, -10]] };
+    const code = resultsCode(plain, [1]);
+    assert.match(code, /"A": runs\["A"\],/);
+    assert.match(code, /"B": \(runs\["B"\] \+ 8\) \/ 2,/);
   });
 
-  test("results typed in, None for a run still to do", () => {
-    assert.match(enteredCode([1.5, null, -2]), /pd\.Series\(\[1\.5, None, -2\], name="y"\)/);
+  test("a long run sheet wraps its columns", () => {
+    const rows = Array.from({ length: 40 }, (_, i) => [150 + i]);
+    const long = { spec: { factors: [FACTORS[0]], options: {} }, columns: ["T"], rows };
+    const lines = resultsCode(long, rows.map(() => 1)).split("\n");
+    assert.ok(lines.every((line) => line.length <= 100));
   });
 });
 
 describe("the analysis and the comparison", () => {
-  test("the analysis names the factors and the model", () => {
-    const code = analyseCode({ factors: FACTORS }, "quadratic");
-    assert.match(code, /names = \["T", "P"\]/);
-    assert.match(code, /runs = result\.design\[names\]\.copy\(\)/);
-    assert.match(code, /analyze_experiment\(\n    runs, y, model="quadratic"/);
+  test("the analysis fits the model the page fitted, to the runs with a result", () => {
+    assert.match(analyseCode("quadratic"), /analyze_experiment\(\n {4}X, y, model="quadratic"/);
+    const partial = analyseCode("Block + T + S", false);
+    assert.match(partial, /done = y\.notna\(\)/);
+    assert.match(partial, /X\[done\], y\[done\], model="Block \+ T \+ S"/);
   });
 
-  test("a blocked design's runs keep their Block, and a category is coded as the page codes it", () => {
-    const spec = { factors: [FACTORS[0], { name: "S", low: "A", high: "B", units: "" }], options: { n_blocks: 2 } };
-    const code = analyseCode(spec, "Block + T + S");
-    assert.match(code, /runs = result\.design\[names \+ \["Block"\]\]\.copy\(\)/);
-    assert.match(code, /runs\["S"\] = runs\["S"\]\.map/);
-    assert.match(code, /model="Block \+ T \+ S"/);
+  test("the steps as one script: their imports first, merged, then each step in turn", () => {
+    const code = cumulative(
+      "import pandas as pd\nfrom m import b\n\nx = 1",
+      "from m import a, b\nimport numpy as np\n\ny = 2",
+    );
+    assert.equal(code, "import numpy as np\nimport pandas as pd\nfrom m import a, b\n\nx = 1\n\ny = 2");
   });
 
   test("a categorical factor's levels in the design", () => {

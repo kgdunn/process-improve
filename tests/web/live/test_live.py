@@ -44,7 +44,7 @@ def test_the_workbook_goes_out_and_comes_back_in_under_pyodide(page, demo, tmp_p
     settled(page, timeout=120_000)
     read = last_reply(page, "api_read_workbook")["result"]
     assert read["responses"] == pytest.approx(runs["y"].tolist())
-    assert "15 completed runs." in page.text_content("#analysis")
+    assert "15 completed runs" in page.text_content("#analysis")
 
 
 def test_the_comparison_under_pyodide_scores_as_the_build_did(page, demo):

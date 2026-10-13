@@ -123,14 +123,19 @@ describe("words and numbers", () => {
     assert.deepEqual([null, 0.00001, 0.5, 0.012345].map(pval), ["", "< 0.0001", "0.5000", "0.0123"]);
   });
 
-  test("the fit's statistics, and why a predicted R² is missing", () => {
+  test("the fit's statistics, a line each, and why a predicted R² is missing", () => {
     const all = { r_squared: 0.9, r_squared_adj: 0.85, r_squared_pred: 0.7, df_residual: 5 };
-    assert.equal(
-      fitStatistics(all),
-      "R² = 0.9000, adjusted R² = 0.8500, predicted R² = 0.7000, residual degrees of freedom = 5.",
-    );
-    assert.match(fitStatistics({ ...all, r_squared_pred: null }), /Predicted R² cannot be computed/);
-    assert.equal(fitStatistics({ r_squared: 1, df_residual: 0 }).startsWith("R² = 1.000, residual degrees"), true);
+    assert.deepEqual(fitStatistics(all, 15), [
+      "15 completed runs",
+      "R² = 0.9000",
+      "Adjusted R² = 0.8500",
+      "Predicted R² = 0.7000",
+      "Residual degrees of freedom = 5",
+    ]);
+    assert.equal(fitStatistics(all, 13, [14, 15])[1], "Still to run: 14, 15");
+    assert.match(fitStatistics({ ...all, r_squared_pred: null }, 15)[3], /^Predicted R² cannot be computed/);
+    const saturated = fitStatistics({ r_squared: 1, df_residual: 0 }, 4);
+    assert.deepEqual([saturated[1], saturated.at(-1)], ["R² = 1.000", "Residual degrees of freedom = 0"]);
   });
 
   test("text placed in HTML is escaped", () => {
@@ -140,8 +145,6 @@ describe("words and numbers", () => {
 
   test("the captions name the factors drawn", () => {
     assert.match(CAPTIONS.contour(["T", "P"]), /over T and P, the two factors/);
-    assert.match(CAPTIONS.coefficients(true), /A diamond marks the true value/);
-    assert.doesNotMatch(CAPTIONS.coefficients(false), /diamond/);
   });
 });
 

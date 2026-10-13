@@ -1,8 +1,10 @@
-"""The "Show the Python" panels: the code each step of the page shows must do what the page did.
+"""The "Show the Python code" panels: the code each step of the page shows must do what the page did.
 
 ``web/python.js`` writes the code from the page's state. It is run here under Node, as the
 page runs it, and the code it writes is run in Python, so the code a reader copies is checked
-to reproduce what the page computed.
+to reproduce what the page computed. A panel shows its step after the steps it builds on, and
+each panel's code is run here on its own, in a fresh namespace, as a reader who copies only it
+would run it.
 """
 
 from __future__ import annotations
@@ -14,7 +16,18 @@ import json
 import numpy as np
 import pytest
 
-from tests.web._support import ALL_DESIGNS, FACTORS, generate_all, held_of, javascript, run_sheet, source
+from tests.web._support import (
+    ALL_DESIGNS,
+    FACTORS,
+    coded,
+    generate_all,
+    held_of,
+    javascript,
+    no_bytecode,
+    run_sheet,
+    source,
+)
+from tests.web.api.test_book_examples import catalogue
 
 
 def page_code(node: str, function: str, *args: object) -> str:
@@ -22,45 +35,88 @@ def page_code(node: str, function: str, *args: object) -> str:
     return javascript(node, source("python.js"), [(function, list(args))])[0]
 
 
-def run(code: str, namespace: dict) -> dict:
+def panel(node: str, *steps: tuple[str, list]) -> str:
+    """Return the code a panel shows: its step's code after the code of the steps it builds on."""
+    codes = javascript(node, source("python.js"), list(steps))
+    return javascript(node, source("python.js"), [("cumulative", codes)])[0]
+
+
+def run(code: str, namespace: dict | None = None) -> dict:
+    """Run code as a reader would, in ``namespace`` or a fresh one; return the namespace."""
+    namespace = {} if namespace is None else namespace
     with contextlib.redirect_stdout(io.StringIO()):
         exec(code, namespace)  # noqa: S102 - the page's own code, the subject of this test
     return namespace
 
 
+def coefficients_of(namespace: dict) -> dict[str, float]:
+    return {c["term"]: c["coefficient"] for c in namespace["analysis"]["coefficients"]}
+
+
+def assert_same_fit(namespace: dict, analysis: dict) -> None:
+    """Assert that the code's analysis gives each of the page's coefficients, and no other."""
+    shown = coefficients_of(namespace)
+    assert set(shown) == {c["term"] for c in analysis["coefficients"]}
+    for c in analysis["coefficients"]:
+        assert shown[c["term"]] == pytest.approx(c["coefficient"], abs=1e-9), c["term"]
+
+
 @pytest.mark.slow
-def test_the_python_shown_reproduces_the_page(api, node):
+def test_each_panel_s_code_runs_on_its_own_to_what_the_page_shows(api, node):
     demo = api.ok("api_catalogue")["demo"]
-    design = api.ok("api_make_design", demo["design"])
-    held = held_of(design)
+    held = held_of(api.ok("api_make_design", demo["design"]))
     simulation = api.ok("api_simulate", {**held, "scenario": "reactor", "sigma": 1.0, "seed": 1})
     analysis = api.ok("api_analyze_runs", {**held, "responses": simulation["responses"]})
+    design = ("designCode", [held["spec"]])
+    results = ("resultsCode", [held, simulation["responses"], simulation])
+    analyse = ("analyseCode", [analysis["formula"], True])
 
-    namespace = run(page_code(node, "designCode", design["spec"]), {})
-    names = [f["name"] for f in design["spec"]["factors"]]
-    page_runs = run_sheet(design)[names]
-    np.testing.assert_allclose(namespace["result"].design_actual[names].to_numpy(dtype=float), page_runs, atol=1e-9)
+    names = [f["name"] for f in held["spec"]["factors"]]
+    made = run(panel(node, design))["result"].design_actual[names].to_numpy(dtype=float)
+    np.testing.assert_allclose(made, run_sheet(held)[names], atol=1e-9)
 
-    run(page_code(node, "simulateCode", simulation, design["spec"]), namespace)
-    np.testing.assert_allclose(namespace["y"], simulation["responses"], atol=0.005, err_msg="the page rounds")
+    step2 = run(panel(node, design, results))
+    np.testing.assert_allclose(step2["X"][names], coded(run_sheet(held), held["spec"]["factors"]), atol=1e-12)
+    np.testing.assert_allclose(step2["y"], simulation["responses"], atol=1e-9, err_msg="rounded as the page rounds")
 
-    run(page_code(node, "analyseCode", analysis["spec"], analysis["formula"]), namespace)
-    shown = {c["term"]: c["coefficient"] for c in namespace["analysis"]["coefficients"]}
-    for c in analysis["coefficients"]:
-        assert shown[c["term"]] == pytest.approx(c["coefficient"], abs=0.01), c["term"]
+    assert_same_fit(run(panel(node, design, results, analyse)), analysis)
 
-    entered = run(page_code(node, "enteredCode", [*simulation["responses"][:-1], None]), {})
-    assert entered["y"].isna().tolist() == [False] * 14 + [True]
 
-    made, held_designs = generate_all(api, FACTORS, "main_quadratic")
-    compared = api.ok("api_compare", {"model": "main_quadratic", "designs": held_designs})
-    designs = [
-        {"label": m["label"], "design_type": m["design_type"], "options": m["design"]["spec"]["options"]} for m in made
-    ]
-    namespace = run(page_code(node, "compareCode", FACTORS, designs, "main_quadratic"), {})
-    assert list(namespace["comparison"].designs) == compared["designs"]
-    for label in compared["designs"]:
-        assert namespace["comparison"].table[label].tolist() == compared["display"][label], label
+@pytest.mark.slow
+def test_runs_still_to_do_are_left_out_of_the_analysis_as_the_page_leaves_them_out(api, node):
+    held = held_of(api.ok("api_make_design", {"design_type": "ccd", "factors": FACTORS}))
+    simulation = api.ok("api_simulate", {**held, "scenario": "reactor", "sigma": 1.0, "seed": 2})
+    responses = [None, *simulation["responses"][1:-1], None]
+    analysis = api.ok("api_analyze_runs", {**held, "responses": responses})
+    code = panel(
+        node,
+        ("designCode", [held["spec"]]),
+        ("resultsCode", [held, responses]),
+        ("analyseCode", [analysis["formula"], False]),
+    )
+    namespace = run(code)
+    assert namespace["y"].isna().tolist() == [True] + [False] * (len(responses) - 2) + [True]
+    assert_same_fit(namespace, analysis)
+
+
+@pytest.mark.slow
+@pytest.mark.parametrize("name", sorted(catalogue()))
+def test_the_code_for_a_book_example_gives_the_book_s_analysis(api, node, build_script, name):
+    """A book example lists its runs in the order of the book's table, not generate_design's: the code keeps it."""
+    with no_bytecode():
+        entry = next(e for e in build_script.book_examples() if e["name"] == name)
+        campaign = build_script.book_example(entry)["campaign"]
+    held = {key: campaign["design"][key] for key in ("spec", "columns", "rows")}
+    responses = campaign["responses"]
+    analysis = api.ok("api_analyze_runs", {**held, "responses": responses, "model": campaign["model"]})
+    complete = all(v is not None for v in responses)
+    code = panel(
+        node,
+        ("designCode", [held["spec"]]),
+        ("resultsCode", [held, responses]),
+        ("analyseCode", [analysis["formula"], complete]),
+    )
+    assert_same_fit(run(code), analysis)
 
 
 @pytest.mark.slow
@@ -70,7 +126,7 @@ def test_the_design_code_reproduces_every_design_the_page_offers(api, node):
     codes = javascript(node, source("python.js"), [("designCode", [d["spec"]]) for d in designs])
     names = [f["name"] for f in FACTORS]
     for design_type, design, code in zip(ALL_DESIGNS, designs, codes, strict=True):
-        result = run(code, {})["result"]
+        result = run(code)["result"]
         np.testing.assert_allclose(
             result.design_actual[names].to_numpy(dtype=float), run_sheet(design)[names], err_msg=design_type
         )
@@ -81,14 +137,16 @@ def test_the_design_code_keeps_the_units_a_reader_types(api, node, units):
     """Units are free text: whatever the reader types, the code must still run and say the same."""
     spec = {"design_type": "full_factorial", "factors": [{**f, "units": units} for f in FACTORS[:2]]}
     design = api.ok("api_make_design", spec)
-    factors = run(page_code(node, "designCode", design["spec"]), {})["factors"]
+    factors = run(page_code(node, "designCode", design["spec"]))["factors"]
     assert [f.units for f in factors] == [units, units]
 
 
-def test_results_typed_in_are_listed_in_run_order_with_none_for_runs_to_do(node):
-    y = run(page_code(node, "enteredCode", [61.25, None, -3, 1e-7]), {})["y"]
-    assert y.name == "y"
-    np.testing.assert_array_equal(y.to_numpy(dtype=float), [61.25, np.nan, -3, 1e-7])
+def test_results_typed_in_are_listed_in_run_order_with_none_for_runs_to_do(api, node):
+    held = held_of(api.ok("api_make_design", {"design_type": "full_factorial", "factors": FACTORS[:2]}))
+    typed = [61.25, None, -3, 1e-7] + [1.0] * (len(held["rows"]) - 4)
+    y = run(page_code(node, "resultsCode", held, typed))["y"]
+    assert y.name == held["spec"]["response"]
+    np.testing.assert_array_equal(y.to_numpy(dtype=float)[:4], [61.25, np.nan, -3, 1e-7])
 
 
 @pytest.mark.slow
@@ -113,23 +171,30 @@ def test_results_typed_in_are_listed_in_run_order_with_none_for_runs_to_do(node)
     ],
 )
 def test_the_python_shown_reproduces_blocks_replicates_and_a_typed_axial_distance(api, node, spec):
-    """The design, its simulated results and their analysis, as the page shows the code for them."""
-    design = api.ok("api_make_design", spec)
-    held = held_of(design)
+    """The design, its simulated results and their analysis, as the analysis panel shows the code for them."""
+    held = held_of(api.ok("api_make_design", spec))
     simulation = api.ok("api_simulate", {**held, "scenario": "reactor", "sigma": 1.0, "seed": 3})
     analysis = api.ok("api_analyze_runs", {**held, "responses": simulation["responses"]})
-
-    namespace = run(page_code(node, "designCode", design["spec"]), {})
-    columns = [c for c in design["columns"] if c in namespace["result"].design_actual.columns or c == "Block"]
-    assert namespace["result"].design_actual[columns].astype(str).to_numpy().tolist() == (
-        run_sheet(design)[columns].astype(str).to_numpy().tolist()
+    code = panel(
+        node,
+        ("designCode", [held["spec"]]),
+        ("resultsCode", [held, simulation["responses"], simulation]),
+        ("analyseCode", [analysis["formula"], True]),
     )
-    run(page_code(node, "simulateCode", simulation, design["spec"]), namespace)
-    run(page_code(node, "analyseCode", analysis["spec"], analysis["formula"]), namespace)
-    shown = {c["term"]: c["coefficient"] for c in namespace["analysis"]["coefficients"]}
-    assert set(shown) == {c["term"] for c in analysis["coefficients"]}
-    for c in analysis["coefficients"]:
-        assert shown[c["term"]] == pytest.approx(c["coefficient"], abs=0.01), c["term"]
+    assert_same_fit(run(code), analysis)
+
+
+@pytest.mark.slow
+def test_the_comparison_code_reproduces_the_page_s_table(api, node):
+    made, held_designs = generate_all(api, FACTORS, "main_quadratic")
+    compared = api.ok("api_compare", {"model": "main_quadratic", "designs": held_designs})
+    designs = [
+        {"label": m["label"], "design_type": m["design_type"], "options": m["design"]["spec"]["options"]} for m in made
+    ]
+    namespace = run(page_code(node, "compareCode", FACTORS, designs, "main_quadratic"))
+    assert list(namespace["comparison"].designs) == compared["designs"]
+    for label in compared["designs"]:
+        assert namespace["comparison"].table[label].tolist() == compared["display"][label], label
 
 
 def notebook_of(node: str, **campaign: object) -> dict:
@@ -149,7 +214,7 @@ def test_the_notebook_runs_top_to_bottom_to_the_page_s_analysis(api, node):
     sources = ["simulated"] * len(simulation["responses"])
     book = notebook_of(
         node,
-        spec=design["spec"],
+        design=held,
         responses=simulation["responses"],
         sources=sources,
         simulation=simulation,
@@ -161,26 +226,24 @@ def test_the_notebook_runs_top_to_bottom_to_the_page_s_analysis(api, node):
     assert code[0] == '%pip install "process-improve==1.2.3"', "the release the page ran"
     assert code[1:] == [
         page_code(node, "designCode", design["spec"]),
-        page_code(node, "simulateCode", simulation, design["spec"]),
-        page_code(node, "analyseCode", design["spec"], analysis["formula"]),
+        page_code(node, "resultsCode", held, simulation["responses"], simulation),
+        page_code(node, "analyseCode", analysis["formula"], True),
     ]
     namespace: dict = {}
     for cell in code[1:]:
         run(cell, namespace)
-    shown = {c["term"]: c["coefficient"] for c in namespace["analysis"]["coefficients"]}
-    for c in analysis["coefficients"]:
-        assert shown[c["term"]] == pytest.approx(c["coefficient"], abs=0.01), c["term"]
+    assert_same_fit(namespace, analysis)
 
 
 def test_a_notebook_of_typed_results_writes_them_out_and_waits_for_an_analysis(api, node):
     """Results typed in, or a simulation edited, are written out; with no analysis yet there is no analysis cell."""
-    design = api.ok("api_make_design", {"design_type": "full_factorial", "factors": FACTORS, "n_center_points": 0})
-    responses = [1.5, None, 2.5, 3.0, None, 4.0, 4.5, 5.0]
-    book = notebook_of(node, spec=design["spec"], responses=responses, sources=["entered"] * 8, model=None)
-    code = ["".join(cell["source"]) for cell in book["cells"] if cell["cell_type"] == "code"]
-    assert code[-1] == page_code(node, "enteredCode", responses)
-    assert not any("analyze_experiment" in cell for cell in code)
-    unpinned = notebook_of(
-        node, spec=design["spec"], responses=responses, sources=["entered"] * 8, model=None, version=None
+    held = held_of(
+        api.ok("api_make_design", {"design_type": "full_factorial", "factors": FACTORS, "n_center_points": 0})
     )
+    responses = [1.5, None, 2.5, 3.0, None, 4.0, 4.5, 5.0]
+    book = notebook_of(node, design=held, responses=responses, sources=["entered"] * 8, model=None)
+    code = ["".join(cell["source"]) for cell in book["cells"] if cell["cell_type"] == "code"]
+    assert code[-1] == page_code(node, "resultsCode", held, responses)
+    assert not any("analyze_experiment" in cell for cell in code)
+    unpinned = notebook_of(node, design=held, responses=responses, sources=["entered"] * 8, model=None, version=None)
     assert "".join(unpinned["cells"][1]["source"]) == "%pip install process-improve"

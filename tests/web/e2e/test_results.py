@@ -22,7 +22,7 @@ def test_typed_results_are_analysed_once_typing_pauses(blank_page):
     type_results(page, dict(enumerate(RESULTS)))
     assert analyses(page) == 1, "one analysis after the last keystroke, not one per keystroke"
     assert calls(page, "api_analyze_runs")[0]["payload"]["responses"] == RESULTS
-    assert "15 completed runs." in page.text_content("#analysis")
+    assert "15 completed runs" in page.text_content("#analysis")
     assert page.locator("#design-table input.sim").count() == 0
 
 
@@ -30,8 +30,9 @@ def test_the_runs_still_to_do_are_named(blank_page):
     page = blank_page
     generate(page)
     type_results(page, dict(enumerate(RESULTS[:13])))
-    assert "13 completed runs." in page.text_content("#analysis")
-    assert "Still to run: 14, 15." in page.text_content("#analysis")
+    fit = page.locator("#analysis ul.fit li").all_text_contents()
+    assert fit[:2] == ["13 completed runs", "Still to run: 14, 15"], "a line each, as a list"
+    assert fit[-1].startswith("Residual degrees of freedom = ")
     assert page.text_content("#run-source") == "13 of 15 results in."
 
 

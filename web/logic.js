@@ -155,20 +155,28 @@ export const fmt = (x) => (x === null || x === undefined ? "" : Number(x).toPrec
 /** A p-value to four decimals, or "< 0.0001". */
 export const pval = (p) => (p === null || p === undefined ? "" : p < 0.0001 ? "< 0.0001" : Number(p).toFixed(4));
 
-/** The fit statistics as a sentence: one the fit cannot give is left out, and a missing predicted R² is explained. */
-export function fitStatistics(s) {
+/**
+ * The fit at a glance, a line each, as the page lists them: the runs fitted and any still to do,
+ * then the fit statistics. One the fit cannot give is left out, and a missing predicted R² is explained.
+ */
+export function fitStatistics(s, completed, pending = []) {
   const known = (x) => x !== null && x !== undefined;
   const stats = [
     ["R²", s.r_squared],
-    ["adjusted R²", s.r_squared_adj],
-    ["predicted R²", s.r_squared_pred],
+    ["Adjusted R²", s.r_squared_adj],
+    ["Predicted R²", s.r_squared_pred],
   ];
-  const given = stats.filter(([, x]) => known(x)).map(([name, x]) => `${name} = ${fmt(x)}`);
-  const text = `${[...given, `residual degrees of freedom = ${s.df_residual}`].join(", ")}.`;
   // A run with leverage 1 is fitted exactly whatever its result, so the fit without it cannot predict it.
-  return known(s.r_squared_pred)
-    ? text
-    : `${text} Predicted R² cannot be computed: at least one run cannot be predicted from the others.`;
+  const predicted = known(s.r_squared_pred)
+    ? []
+    : ["Predicted R² cannot be computed: at least one run cannot be predicted from the others"];
+  return [
+    `${completed} completed runs`,
+    ...(pending.length ? [`Still to run: ${pending.join(", ")}`] : []),
+    ...stats.filter(([, x]) => known(x)).map(([name, x]) => `${name} = ${fmt(x)}`),
+    ...predicted,
+    `Residual degrees of freedom = ${s.df_residual}`,
+  ];
 }
 
 /** Blank cells (an unfilled response) sort last in either direction. */
@@ -200,10 +208,6 @@ export const TITLES = {
 
 /** What each chart shows and how to read it; some name the factors drawn. */
 export const CAPTIONS = {
-  coefficients: (simulated) =>
-    "Each dot is an estimate with its 95% interval; an interval that crosses zero is a term the data cannot tell " +
-    "apart from no effect." +
-    (simulated ? " A diamond marks the true value, so you can see what the analysis recovered and what it missed." : ""),
   contour: (pair) =>
     `The fitted model over ${pair.join(" and ")}, the two factors with the largest main effects, with any other ` +
     "factor at the center of its range; the dots are the runs, in coded units.",

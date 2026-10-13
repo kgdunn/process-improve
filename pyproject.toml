@@ -172,9 +172,6 @@ dev = [
     # tests/test_orthogonal_arrays.py check the in-house design arrays against
     # it. Pinned to the release those arrays were copied from.
     "pyDOE3==1.6.2",
-    # Test oracle only: tests/web/page/test_qr.py holds web/qr.js, the browser app's QR encoder,
-    # to it, module for module. Pure Python, so it installs on every interpreter CI runs.
-    "segno>=1.6.6",
     "pytest>=9.0.2",
     "pytest-benchmark>=4.0.0",
     "pytest-cov>=7.0.0",
