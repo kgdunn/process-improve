@@ -1,0 +1,527 @@
+{
+  "about": [
+    "The book's design-of-experiments examples that Factorial opens by name: https://factori.al/?book=<name>.",
+    "scripts/build_web_app.py makes each into book/<name>.json: the design as step 1 makes it, its runs in the",
+    "order of the book's table, each with the book's result. runs: one per row of the book's table, its settings",
+    "in coded units (a label's low level -1, its high level +1) and the result last. order: the run order the",
+    "book prints, where it prints one. blocks: the block (the day) of each run. note: shown when the example opens.",
+    "tests/web/api/test_book_examples.py checks every coefficient the book prints against each of these."
+  ],
+  "examples": [
+    {
+      "name": "conversion",
+      "title": "Conversion against temperature T and substrate S",
+      "page": "design-analysis-experiments/full-factorial-designs/using-two-levels-for-two-or-more-factors",
+      "design": {
+        "design_type": "full_factorial",
+        "factors": [
+          {"name": "T", "low": 338, "high": 354, "units": "K"},
+          {"name": "S", "low": 1.25, "high": 1.75, "units": "g/L"}
+        ],
+        "response": "Conversion",
+        "n_center_points": 0
+      },
+      "model": "interactions",
+      "order": [3, 2, 4, 1],
+      "runs": [
+        [-1, -1, 69],
+        [1, -1, 60],
+        [-1, 1, 64],
+        [1, 1, 53]
+      ]
+    },
+    {
+      "name": "conversion-interaction",
+      "title": "Conversion, where temperature and substrate interact",
+      "page": "design-analysis-experiments/full-factorial-designs/using-two-levels-for-two-or-more-factors#doe-two-level-factorials-interaction-effects",
+      "design": {
+        "design_type": "full_factorial",
+        "factors": [
+          {"name": "T", "low": 390, "high": 400, "units": "K"},
+          {"name": "S", "low": 0.5, "high": 1.25, "units": "g/L"}
+        ],
+        "response": "Conversion",
+        "n_center_points": 0
+      },
+      "model": "interactions",
+      "runs": [
+        [-1, -1, 77],
+        [1, -1, 79],
+        [-1, 1, 81],
+        [1, 1, 89]
+      ]
+    },
+    {
+      "name": "pollutant",
+      "title": "Pollutant discharged: chemical C, temperature T and stirring speed S",
+      "page": "design-analysis-experiments/full-factorial-designs/example-design-and-analysis-of-a-three-factor-experiment",
+      "design": {
+        "design_type": "full_factorial",
+        "factors": [
+          {"name": "C", "low": "P", "high": "Q", "units": ""},
+          {"name": "T", "low": 72, "high": 100, "units": "°F"},
+          {"name": "S", "low": 200, "high": 400, "units": "rpm"}
+        ],
+        "response": "Pollutant",
+        "n_center_points": 0
+      },
+      "model": "interactions",
+      "order": [5, 6, 1, 4, 2, 7, 3, 8],
+      "runs": [
+        [-1, -1, -1, 5],
+        [1, -1, -1, 30],
+        [-1, 1, -1, 6],
+        [1, 1, -1, 33],
+        [-1, -1, 1, 4],
+        [1, -1, 1, 3],
+        [-1, 1, 1, 5],
+        [1, 1, 1, 4]
+      ]
+    },
+    {
+      "name": "significance",
+      "title": "A 2⁴ factorial, refitted with its significant effects A, B, D and BD",
+      "page": "design-analysis-experiments/full-factorial-designs/assessing-significance-of-main-effects-and-interactions#refitting-the-model-after-removing-nonsignificant-effects",
+      "design": {
+        "design_type": "full_factorial",
+        "factors": [
+          {"name": "A", "low": -1, "high": 1, "units": ""},
+          {"name": "B", "low": -1, "high": 1, "units": ""},
+          {"name": "C", "low": -1, "high": 1, "units": ""},
+          {"name": "D", "low": -1, "high": 1, "units": ""}
+        ],
+        "response": "y",
+        "n_center_points": 0
+      },
+      "model": {"terms": [["A"], ["B"], ["D"], ["B", "D"]]},
+      "note": "The book gives these factors no units or levels, so each runs from -1 to +1.",
+      "runs": [
+        [-1, -1, -1, -1, 71],
+        [1, -1, -1, -1, 61],
+        [-1, 1, -1, -1, 90],
+        [1, 1, -1, -1, 82],
+        [-1, -1, 1, -1, 68],
+        [1, -1, 1, -1, 61],
+        [-1, 1, 1, -1, 87],
+        [1, 1, 1, -1, 80],
+        [-1, -1, -1, 1, 61],
+        [1, -1, -1, 1, 50],
+        [-1, 1, -1, 1, 89],
+        [1, 1, -1, 1, 83],
+        [-1, -1, 1, 1, 59],
+        [1, -1, 1, 1, 51],
+        [-1, 1, 1, 1, 85],
+        [1, 1, 1, 1, 78]
+      ]
+    },
+    {
+      "name": "saturated-screening",
+      "title": "A saturated design: seven factors in eight runs",
+      "page": "design-analysis-experiments/fractional-factorial-designs/saturated-designs-for-screening",
+      "design": {
+        "design_type": "fractional_factorial",
+        "factors": [
+          {"name": "A", "low": -1, "high": 1, "units": ""},
+          {"name": "B", "low": -1, "high": 1, "units": ""},
+          {"name": "C", "low": -1, "high": 1, "units": ""},
+          {"name": "D", "low": -1, "high": 1, "units": ""},
+          {"name": "E", "low": -1, "high": 1, "units": ""},
+          {"name": "F", "low": -1, "high": 1, "units": ""},
+          {"name": "G", "low": -1, "high": 1, "units": ""}
+        ],
+        "response": "y",
+        "n_center_points": 0,
+        "resolution": 3
+      },
+      "model": "main_effects",
+      "note": "The book gives these factors no units or levels, so each runs from -1 to +1.",
+      "runs": [
+        [-1, -1, -1, 1, 1, 1, -1, 77.1],
+        [1, -1, -1, -1, -1, 1, 1, 68.9],
+        [-1, 1, -1, -1, 1, -1, 1, 75.5],
+        [1, 1, -1, 1, -1, -1, -1, 72.5],
+        [-1, -1, 1, 1, -1, -1, 1, 67.9],
+        [1, -1, 1, -1, 1, -1, -1, 68.5],
+        [-1, 1, 1, -1, -1, 1, -1, 71.5],
+        [1, 1, 1, 1, 1, 1, 1, 63.7]
+      ]
+    },
+    {
+      "name": "rsm-first-factorial",
+      "title": "Bioreactor profit: the first factorial",
+      "page": "design-analysis-experiments/response-surface-methods#response-surface-optimization-via-a-2-variable-system-example",
+      "design": {
+        "design_type": "full_factorial",
+        "factors": [
+          {"name": "T", "low": 320, "high": 330, "units": "K"},
+          {"name": "S", "low": 0.5, "high": 1.0, "units": "g/L"}
+        ],
+        "response": "Profit",
+        "n_center_points": 0
+      },
+      "model": "interactions",
+      "note": "The baseline run at the center, 407 $/day, is held back from the model, as in the book.",
+      "runs": [
+        [-1, -1, 193],
+        [1, -1, 310],
+        [-1, 1, 468],
+        [1, 1, 571]
+      ]
+    },
+    {
+      "name": "rsm-second-factorial",
+      "title": "Bioreactor profit: the second factorial",
+      "page": "design-analysis-experiments/response-surface-methods#response-surface-optimization-via-a-2-variable-system-example",
+      "design": {
+        "design_type": "full_factorial",
+        "factors": [
+          {"name": "T", "low": 331, "high": 339, "units": "K"},
+          {"name": "S", "low": 1.77, "high": 2.17, "units": "g/L"}
+        ],
+        "response": "Profit",
+        "n_center_points": 0
+      },
+      "model": "interactions",
+      "note": "The center run, 688 $/day, is left out of the model, as in the book.",
+      "runs": [
+        [-1, -1, 694],
+        [1, -1, 725],
+        [-1, 1, 620],
+        [1, 1, 642]
+      ]
+    },
+    {
+      "name": "rsm-central-composite",
+      "title": "Bioreactor profit: the central composite design",
+      "page": "design-analysis-experiments/response-surface-methods#doe-central-composite-designs",
+      "design": {
+        "design_type": "ccd",
+        "factors": [
+          {"name": "T", "low": 331, "high": 339, "units": "K"},
+          {"name": "S", "low": 1.77, "high": 2.17, "units": "g/L"}
+        ],
+        "response": "Profit",
+        "n_center_points": 1,
+        "alpha": "rotatable"
+      },
+      "model": "quadratic",
+      "runs": [
+        [-1, -1, 694],
+        [1, -1, 725],
+        [-1, 1, 620],
+        [1, 1, 642],
+        [0, 0, 688],
+        [0, -1.41, 720],
+        [1.41, 0, 699],
+        [0, 1.41, 610],
+        [-1.41, 0, 663]
+      ]
+    },
+    {
+      "name": "multi-response-profit",
+      "title": "Bioreactor profit, the first of two responses",
+      "page": "design-analysis-experiments/multi-response-optimization#continuing-the-bioreactor-example",
+      "design": {
+        "design_type": "ccd",
+        "factors": [
+          {"name": "T", "low": 339, "high": 347, "units": "K"},
+          {"name": "S", "low": 1.4, "high": 1.8, "units": "g/L"}
+        ],
+        "response": "Profit",
+        "n_center_points": 1,
+        "alpha": "rotatable"
+      },
+      "model": "quadratic",
+      "runs": [
+        [-1, -1, 720],
+        [1, -1, 734],
+        [-1, 1, 721],
+        [1, 1, 726],
+        [0, 0, 738],
+        [0, -1.41, 718],
+        [1.41, 0, 738],
+        [0, 1.41, 713],
+        [-1.41, 0, 726]
+      ]
+    },
+    {
+      "name": "multi-response-purity",
+      "title": "Product purity, the second of two responses",
+      "page": "design-analysis-experiments/multi-response-optimization#continuing-the-bioreactor-example",
+      "design": {
+        "design_type": "ccd",
+        "factors": [
+          {"name": "T", "low": 339, "high": 347, "units": "K"},
+          {"name": "S", "low": 1.4, "high": 1.8, "units": "g/L"}
+        ],
+        "response": "Purity",
+        "n_center_points": 1,
+        "alpha": "rotatable"
+      },
+      "model": "quadratic",
+      "runs": [
+        [-1, -1, 90.3],
+        [1, -1, 82.3],
+        [-1, 1, 95.3],
+        [1, 1, 87.2],
+        [0, 0, 89.8],
+        [0, -1.41, 83.9],
+        [1.41, 0, 83.7],
+        [0, 1.41, 90.9],
+        [-1.41, 0, 95.4]
+      ]
+    },
+    {
+      "name": "web-sales",
+      "title": "Web sales: free shipping and a required profile",
+      "page": "design-analysis-experiments/design-analysis-experiments-exercises#doe-exercise-web-sales",
+      "design": {
+        "design_type": "full_factorial",
+        "factors": [
+          {"name": "Shipping", "low": 30, "high": 50, "units": "$"},
+          {"name": "Profile", "low": "no", "high": "yes", "units": ""}
+        ],
+        "response": "Sales",
+        "n_center_points": 0,
+        "n_replicates": 2
+      },
+      "model": "interactions",
+      "note": "The book averages the two Tuesdays at each setting; the analysis here keeps both, and its coefficients are the same.",
+      "runs": [
+        [-1, 1, 3275],
+        [1, -1, 3594],
+        [1, -1, 3626],
+        [-1, -1, 3438],
+        [1, 1, 2439],
+        [-1, -1, 3562],
+        [-1, 1, 2965],
+        [1, 1, 2571]
+      ]
+    },
+    {
+      "name": "bioreactor",
+      "title": "Bioreactor yield: a 2⁴ factorial",
+      "page": "design-analysis-experiments/design-analysis-experiments-exercises#doe-exercise-bioreactor",
+      "design": {
+        "design_type": "full_factorial",
+        "factors": [
+          {"name": "A", "low": "slow", "high": "medium", "units": ""},
+          {"name": "B", "low": 300, "high": 700, "units": "g"},
+          {"name": "C", "low": 40, "high": 60, "units": "g/L"},
+          {"name": "D", "low": 4, "high": 6, "units": "mg/L"}
+        ],
+        "response": "Yield",
+        "n_center_points": 0
+      },
+      "model": "interactions",
+      "runs": [
+        [-1, -1, -1, -1, 60],
+        [1, -1, -1, -1, 59],
+        [-1, 1, -1, -1, 63],
+        [1, 1, -1, -1, 61],
+        [-1, -1, 1, -1, 69],
+        [1, -1, 1, -1, 61],
+        [-1, 1, 1, -1, 94],
+        [1, 1, 1, -1, 93],
+        [-1, -1, -1, 1, 56],
+        [1, -1, -1, 1, 63],
+        [-1, 1, -1, 1, 70],
+        [1, 1, -1, 1, 65],
+        [-1, -1, 1, 1, 44],
+        [1, -1, 1, 1, 45],
+        [-1, 1, 1, 1, 78],
+        [1, 1, 1, 1, 77]
+      ]
+    },
+    {
+      "name": "bioreactor-half-fraction",
+      "title": "Bioreactor yield: the half fraction, D = ABC",
+      "page": "design-analysis-experiments/design-analysis-experiments-exercises#doe-exercise-bioreactor",
+      "design": {
+        "design_type": "fractional_factorial",
+        "factors": [
+          {"name": "A", "low": "slow", "high": "medium", "units": ""},
+          {"name": "B", "low": 300, "high": 700, "units": "g"},
+          {"name": "C", "low": 40, "high": 60, "units": "g/L"},
+          {"name": "D", "low": 4, "high": 6, "units": "mg/L"}
+        ],
+        "response": "Yield",
+        "n_center_points": 0,
+        "resolution": 4
+      },
+      "model": "interactions",
+      "runs": [
+        [-1, -1, -1, -1, 60],
+        [1, -1, -1, 1, 63],
+        [-1, 1, -1, 1, 70],
+        [1, 1, -1, -1, 61],
+        [-1, -1, 1, 1, 44],
+        [1, -1, 1, -1, 61],
+        [-1, 1, 1, -1, 94],
+        [1, 1, 1, 1, 77]
+      ]
+    },
+    {
+      "name": "side-product",
+      "title": "Side product, made over two days",
+      "page": "design-analysis-experiments/design-analysis-experiments-exercises#doe-exercise-side-product",
+      "design": {
+        "design_type": "full_factorial",
+        "factors": [
+          {"name": "A", "low": 420, "high": 440, "units": "K"},
+          {"name": "B", "low": 10, "high": 12, "units": "kg"}
+        ],
+        "response": "Side_product",
+        "n_center_points": 2,
+        "n_blocks": 2
+      },
+      "model": "interactions",
+      "order": [2, 4, 5, 3, 1, 6],
+      "blocks": [1, 2, 2, 1, 1, 2],
+      "runs": [
+        [-1, -1, 89],
+        [1, -1, 268],
+        [-1, 1, 179],
+        [1, 1, 448],
+        [0, 0, 196],
+        [0, 0, 215]
+      ]
+    },
+    {
+      "name": "chemical-reaction",
+      "title": "Conversion of a chemical reaction: temperature, pH and agitation",
+      "page": "design-analysis-experiments/design-analysis-experiments-exercises#doe-exercise-chemical-reaction",
+      "design": {
+        "design_type": "full_factorial",
+        "factors": [
+          {"name": "A", "low": 140, "high": 160, "units": "°C"},
+          {"name": "B", "low": 7.0, "high": 8.0, "units": "pH"},
+          {"name": "C", "low": 45, "high": 55, "units": "rpm"}
+        ],
+        "response": "Conversion",
+        "n_center_points": 0
+      },
+      "model": "interactions",
+      "runs": [
+        [-1, -1, -1, 72],
+        [1, -1, -1, 73],
+        [-1, 1, -1, 66],
+        [1, 1, -1, 87],
+        [-1, -1, 1, 70],
+        [1, -1, 1, 73],
+        [-1, 1, 1, 67],
+        [1, 1, 1, 87]
+      ]
+    },
+    {
+      "name": "injection-molding",
+      "title": "Shrinkage in injection molding: seven factors in eight runs",
+      "page": "design-analysis-experiments/design-analysis-experiments-exercises#doe-exercise-injection-molding",
+      "design": {
+        "design_type": "fractional_factorial",
+        "factors": [
+          {"name": "A", "low": -1, "high": 1, "units": ""},
+          {"name": "B", "low": -1, "high": 1, "units": ""},
+          {"name": "C", "low": -1, "high": 1, "units": ""},
+          {"name": "D", "low": -1, "high": 1, "units": ""},
+          {"name": "E", "low": -1, "high": 1, "units": ""},
+          {"name": "F", "low": -1, "high": 1, "units": ""},
+          {"name": "G", "low": -1, "high": 1, "units": ""}
+        ],
+        "response": "Shrinkage",
+        "n_center_points": 0,
+        "resolution": 3
+      },
+      "model": "main_effects",
+      "note": "The book gives these factors no units or levels, so each runs from -1 to +1.",
+      "runs": [
+        [-1, -1, -1, 1, 1, 1, -1, 14.0],
+        [1, -1, -1, -1, -1, 1, 1, 16.8],
+        [-1, 1, -1, -1, 1, -1, 1, 15.0],
+        [1, 1, -1, 1, -1, -1, -1, 15.4],
+        [-1, -1, 1, 1, -1, -1, 1, 27.6],
+        [1, -1, 1, -1, 1, -1, -1, 24.0],
+        [-1, 1, 1, -1, -1, 1, -1, 27.4],
+        [1, 1, 1, 1, 1, 1, 1, 22.6]
+      ]
+    },
+    {
+      "name": "breaded-chicken",
+      "title": "Breaded chicken: cooking time, oven rack and preheating",
+      "page": "design-analysis-experiments/design-analysis-experiments-exercises#doe-exercise-breaded-chicken",
+      "design": {
+        "design_type": "full_factorial",
+        "factors": [
+          {"name": "D", "low": 15, "high": 22, "units": "min"},
+          {"name": "R", "low": "middle", "high": "low", "units": ""},
+          {"name": "P", "low": "short", "high": "full", "units": ""}
+        ],
+        "response": "Taste",
+        "n_center_points": 0
+      },
+      "model": "interactions",
+      "runs": [
+        [-1, -1, -1, 3],
+        [1, -1, -1, 9],
+        [-1, 1, -1, 3],
+        [1, 1, -1, 7],
+        [-1, -1, 1, 3],
+        [1, -1, 1, 10],
+        [-1, 1, 1, 4],
+        [1, 1, 1, 7]
+      ]
+    },
+    {
+      "name": "breaded-chicken-half-fraction",
+      "title": "Breaded chicken: the half fraction, P = DR",
+      "page": "design-analysis-experiments/design-analysis-experiments-exercises#doe-exercise-breaded-chicken",
+      "design": {
+        "design_type": "fractional_factorial",
+        "factors": [
+          {"name": "D", "low": 15, "high": 22, "units": "min"},
+          {"name": "R", "low": "middle", "high": "low", "units": ""},
+          {"name": "P", "low": "short", "high": "full", "units": ""}
+        ],
+        "response": "Taste",
+        "n_center_points": 0,
+        "resolution": 3
+      },
+      "model": "main_effects",
+      "runs": [
+        [-1, -1, 1, 3],
+        [1, -1, -1, 9],
+        [-1, 1, -1, 3],
+        [1, 1, 1, 7]
+      ]
+    },
+    {
+      "name": "microgel",
+      "title": "Microgel release: a central composite design, axial runs at 1.4",
+      "page": "design-analysis-experiments/design-analysis-experiments-exercises#doe-exercise-microgel",
+      "design": {
+        "design_type": "ccd",
+        "factors": [
+          {"name": "M", "low": 4, "high": 8, "units": "%"},
+          {"name": "H", "low": 10, "high": 16, "units": "%"}
+        ],
+        "response": "SF",
+        "n_center_points": 2,
+        "alpha": 1.4
+      },
+      "model": "quadratic",
+      "order": [4, 1, 6, 3, 2, 5, 9, 7, 10, 8],
+      "runs": [
+        [-1, -1, 119],
+        [1, -1, 93],
+        [-1, 1, 154],
+        [1, 1, 89],
+        [0, 0, 85],
+        [0, 0, 88],
+        [-1.4, 0, 125],
+        [1.4, 0, 111],
+        [0, 1.4, 136],
+        [0, -1.4, 98]
+      ]
+    }
+  ]
+}

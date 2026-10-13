@@ -11,6 +11,20 @@ those changes.
 
 ## [Unreleased]
 
+### Added
+
+- **Factorial opens the book's examples by name: `https://factori.al/?book=<name>`.** The
+  19 design-of-experiments examples and exercises of *Process Improvement using Data* that
+  the app can reproduce are listed in `web/book-examples.json`, with the book's factors,
+  units, response, runs and results. The build makes each into `book/<name>.json`, its run
+  sheet numbered and ordered as the book's table (the side product's two days as its
+  blocks), and the page opens it with a banner that links back to its page in the book.
+  The names are short and stay fixed while the `#c=` link format changes behind them.
+  `tests/web/api/test_book_examples.py` reads the same file, so every link opens runs whose
+  coefficients are checked against the numbers the book prints. Opened again, an example
+  reopens the copy saved in the browser while it is unchanged, and a fresh copy once the
+  reader has changed it.
+
 ### Changed
 
 - **Factorial says which factors are categorical.** Each factor in step 1 has a Type,

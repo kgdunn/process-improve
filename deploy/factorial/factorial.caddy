@@ -35,7 +35,9 @@ factori.al {
 	# Usage is all the server keeps: one line per request, with the reader's address cut to
 	# its network (the first 24 bits of IPv4, 48 of IPv6) before it is written, for 90 days.
 	# deploy/factorial/usage.py counts visits from it. A design shared by link travels after
-	# the "#", which a browser never sends, so no design reaches this log.
+	# the "#", which a browser never sends, so no design reaches this log. A link from the book
+	# names one of the book's examples in its query (/?book=pollutant), which does: the book's
+	# data, nothing of the reader's.
 	log {
 		output file /var/log/caddy/factorial-access.log {
 			roll_size 50MiB

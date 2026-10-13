@@ -2,6 +2,7 @@
 
 The docs workflow publishes what it assembles. ``demo.json`` is the worked example computed at
 build time through ``web/bootstrap.py``, which the page draws at first paint while Python loads.
+``book/<name>.json`` is each of the book's examples, made the same way, which ``?book=<name>`` opens.
 """
 
 from __future__ import annotations
@@ -14,7 +15,7 @@ from pathlib import Path
 
 import pytest
 
-from tests.web._support import APP_SOURCES, BUILD_SCRIPT, ROOT, WEB, no_bytecode, source
+from tests.web._support import APP_SOURCES, BUILD_SCRIPT, ROOT, WEB, javascript, no_bytecode, source
 
 
 @pytest.fixture(scope="module")
@@ -120,13 +121,15 @@ def test_assemble_lays_out_what_the_page_and_its_worker_read(build_script, tmp_p
 
     monkeypatch.setattr(build_script, "build_wheel", fake_wheel)
     monkeypatch.setattr(build_script, "worked_example", lambda: {"the": "worked example"})
+    monkeypatch.setattr(build_script, "book_example", lambda entry: {"name": entry["name"], "title": "", "book": ""})
     out = tmp_path / "app"
     (out / "stale").mkdir(parents=True)
     assert build_script.assemble(out) == "process_improve-9.9.9-py3-none-any.whl"
 
     published = {p.relative_to(out).as_posix() for p in out.rglob("*") if p.is_file()}
     wheel = f"{hashlib.sha256(b'a wheel').hexdigest()[:16]}/process_improve-9.9.9-py3-none-any.whl"
-    assert published == {*build_script.APP_FILES, *BUILT, f"wheels/{wheel}"}, "and nothing left from an earlier build"
+    book = {"book/index.json", *(f"book/{entry['name']}.json" for entry in build_script.book_examples())}
+    assert published == {*build_script.APP_FILES, *BUILT, *book, f"wheels/{wheel}"}, "and nothing left from before"
     for name in build_script.APP_FILES:
         assert (out / name).read_bytes() == (WEB / name).read_bytes(), name
     manifest = json.loads((out / "wheels" / "manifest.json").read_text())
@@ -147,6 +150,7 @@ def _assemble_around(build_script, out: Path, wheel: bytes, monkeypatch) -> dict
     built.write_bytes(wheel)
     monkeypatch.setattr(build_script, "build_wheel", lambda _dist: built)
     monkeypatch.setattr(build_script, "worked_example", dict)
+    monkeypatch.setattr(build_script, "write_book", lambda _out: None)
     build_script.assemble(out)
     return json.loads((out / "wheels" / "manifest.json").read_text())
 
@@ -177,3 +181,68 @@ def test_the_page_reads_only_what_the_manifest_holds():
     read = set(re.findall(r"const \{ (\w+)(?:: \w+)? \} = await manifest", source("worker.js")))
     read |= set(re.findall(r"\(await res\.json\(\)\)\.(\w+)", source("app.js")))
     assert read == {"wheel", "plotly", "plotly_js"}
+
+
+# --------------------------------------------------------------------------- the book's examples
+@pytest.fixture(scope="module")
+def book(build_script, tmp_path_factory) -> Path:
+    """Write the book's examples as the build does, into a folder of their own."""
+    out = tmp_path_factory.mktemp("app")
+    with no_bytecode():
+        build_script.write_book(out)
+    return out / "book"
+
+
+def test_the_index_names_every_example_and_its_page_in_the_book(build_script, book):
+    """The book's own check reads the index: each name a link may carry, and the page that prints it."""
+    index = json.loads((book / "index.json").read_text())["examples"]
+    names = [entry["name"] for entry in build_script.book_examples()]
+    assert [e["name"] for e in index] == names
+    assert len(set(names)) == len(names), "each name opens one example"
+    assert {p.name for p in book.iterdir()} == {"index.json", *(f"{name}.json" for name in names)}
+    for example in index:
+        assert re.fullmatch(r"[a-z0-9]+(-[a-z0-9]+)*", example["name"]), example["name"]
+        assert example["book"].startswith("https://learnche.org/pid/design-analysis-experiments/"), example
+        assert ".html" not in example["book"], "the book is served without the extension"
+        assert example["title"]
+
+
+def test_the_page_reads_each_example_as_the_build_wrote_it(node, book):
+    """Each file passes the page's own check, ``checkBookExample``, and keeps every run, result and setting."""
+    written = {p.stem: json.loads(p.read_text()) for p in book.glob("*.json") if p.name != "index.json"}
+    checked = javascript(node, source("campaign.js"), [("checkBookExample", [e, name]) for name, e in written.items()])
+    for (name, example), read in zip(written.items(), checked, strict=True):
+        campaign, opened = example["campaign"], read["campaign"]
+        assert read["title"] == example["title"] == campaign["title"], name
+        assert opened["design"]["rows"] == campaign["design"]["rows"], name
+        assert opened["responses"] == campaign["responses"], name
+        assert all(v is not None for v in opened["responses"]), f"{name}: every run has the book's result"
+        assert opened["model"] == campaign["model"], name
+        columns, n = campaign["design"]["columns"], len(opened["responses"])
+        std, run = (columns.index(c) for c in ("Std order", "Run order"))
+        assert [row[std] for row in opened["design"]["rows"]] == list(range(1, n + 1)), "the book's table, row by row"
+        assert sorted(row[run] for row in opened["design"]["rows"]) == list(range(1, n + 1)), name
+
+
+def test_the_run_sheet_is_the_book_s_table(build_script):
+    """Experiment by experiment, with the run order and the day the book prints for the side product."""
+    entry = next(e for e in build_script.book_examples() if e["name"] == "side-product")
+    with no_bytecode():
+        opened = build_script.book_example(entry)["campaign"]
+    assert opened["design"]["columns"] == ["Std order", "Run order", "Block", "A", "B", "Side_product"]
+    assert [[*row[:-1], y] for row, y in zip(opened["design"]["rows"], opened["responses"], strict=True)] == [
+        [1, 2, 1, 420, 10, 89],
+        [2, 4, 2, 440, 10, 268],
+        [3, 5, 2, 420, 12, 179],
+        [4, 3, 1, 440, 12, 448],
+        [5, 1, 1, 430, 11, 196],
+        [6, 6, 2, 430, 11, 215],
+    ]
+
+
+def test_a_run_the_design_does_not_have_stops_the_build(build_script):
+    entry = next(e for e in build_script.book_examples() if e["name"] == "conversion-interaction")
+    with pytest.raises(SystemExit, match=r"its run 1, \[5, 5\], is not a run of the design"):
+        build_script.book_example({**entry, "runs": [[5, 5, 1.0], *entry["runs"][1:]]})
+    with pytest.raises(SystemExit, match="the design has 1 runs more than the book lists"):
+        build_script.book_example({**entry, "runs": entry["runs"][1:]})

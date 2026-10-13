@@ -37,14 +37,19 @@ import {
   pval,
 } from "./logic.js";
 import {
+  BOOK_PARAM,
   CAMPAIGN_VERSION,
   LINK_KEY,
+  bookName,
   campaignTitle,
+  checkBookExample,
   checkCampaign,
   designKey,
+  indexedName,
   mergeResults,
   packCampaign,
   progress,
+  sameCampaign,
   shareable,
   timeAgo,
   unpackCampaign,
@@ -1213,10 +1218,10 @@ async function openSaved(record) {
   await openCampaign(campaign, { id: record.id, created: record.created }, `Opened ${campaign.title}.`);
 }
 
-/** Say what was opened, or why a link could not be. */
-function showBanner(text, error = false) {
+/** Say what was opened, or why a link could not be: a sentence, or a list of text and links. */
+function showBanner(message, error = false) {
   const banner = $("#campaign-banner");
-  banner.textContent = text;
+  banner.replaceChildren(...[message].flat());
   banner.classList.toggle("error", error);
   banner.hidden = false;
 }
@@ -1269,16 +1274,21 @@ async function openCampaign(c, record, message) {
 const savedSoon = () => Promise.race([savedCampaigns(), new Promise((resolve) => setTimeout(() => resolve([]), 2000))]);
 
 /**
- * Open what the address asks for: a link's design, which is saved here as a campaign of its own;
- * else the design worked on last in this browser; else the worked example. The address loses
- * its fragment, so a reload opens the saved copy rather than the link again.
+ * Open what the address asks for: one of the book's examples, or a link's design, either saved
+ * here as a campaign of its own; else the design worked on last in this browser; else the worked
+ * example. The address loses what named it, so a reload opens the saved copy rather than the link again.
  */
 async function start() {
-  if (location.hash.startsWith(LINK_KEY)) {
-    const packed = location.hash.slice(LINK_KEY.length);
-    history.replaceState(null, "", `${location.pathname}${location.search}`);
+  const { hash } = location;
+  const book = new URLSearchParams(location.search).get(BOOK_PARAM);
+  if (book !== null || hash.startsWith(LINK_KEY)) {
+    history.replaceState(null, "", book !== null ? location.pathname : `${location.pathname}${location.search}`);
     try {
-      const c = await unpackCampaign(packed);
+      if (book !== null) {
+        await openBookExample(bookName(book));
+        return;
+      }
+      const c = await unpackCampaign(hash.slice(LINK_KEY.length));
       if (await resultsCameBack(c)) return;
       const title = c.title || titleOf(c.design.spec);
       await openCampaign(c, newCampaign(false), `Opened from a link: ${title}. It is saved in this browser now, under Your designs.`);
@@ -1305,6 +1315,40 @@ async function start() {
   }
   await refreshLibrary();
   await showBuiltExample();
+}
+
+/**
+ * Open one of the book's examples, as the build made it from the book's runs and results. The
+ * copy saved here is opened if it is still as the book has it; else a fresh copy, so a reader's
+ * own changes to an earlier copy are kept, and the book's numbers come back all the same.
+ */
+async function openBookExample(name) {
+  const fetched = async (path) => {
+    try {
+      const res = await fetch(path);
+      if (res.ok) return await res.json();
+    } catch {
+      /* said below */
+    }
+    throw new Error(`This design could not be opened: the book's example ${JSON.stringify(name)} could not be fetched.`);
+  };
+  const file = indexedName(await fetched("book/index.json"), name);
+  const example = checkBookExample(await fetched(`book/${file}.json`), name);
+  const c = example.campaign;
+  const kept = (await savedSoon()).find((record) => {
+    try {
+      return sameCampaign(checkCampaign(record), c);
+    } catch {
+      return false;
+    }
+  });
+  const record = kept ? { id: kept.id, created: kept.created } : newCampaign(false);
+  const note = example.note ? ` ${example.note}` : "";
+  await openCampaign(c, record, [
+    `Opened the book's example: ${example.title}, with the book's results. `,
+    link(example.book, "Read it in the book"),
+    `.${note} It is saved in this browser, under Your designs.`,
+  ]);
 }
 
 /**
