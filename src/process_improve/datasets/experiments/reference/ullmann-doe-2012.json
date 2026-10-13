@@ -316,8 +316,8 @@
      },
      "check": {
       "kind": "fitted",
-      "term": "run 1",
-      "model": "A*B"
+      "model": "A*B",
+      "run": 1
      }
     },
     {
@@ -332,8 +332,8 @@
      },
      "check": {
       "kind": "fitted",
-      "term": "run 2",
-      "model": "A*B"
+      "model": "A*B",
+      "run": 2
      }
     },
     {
@@ -348,8 +348,8 @@
      },
      "check": {
       "kind": "fitted",
-      "term": "run 3",
-      "model": "A*B"
+      "model": "A*B",
+      "run": 3
      }
     },
     {
@@ -364,8 +364,8 @@
      },
      "check": {
       "kind": "fitted",
-      "term": "run 4",
-      "model": "A*B"
+      "model": "A*B",
+      "run": 4
      }
     },
     {
@@ -380,8 +380,8 @@
      },
      "check": {
       "kind": "fitted",
-      "term": "run 5",
-      "model": "A*B"
+      "model": "A*B",
+      "run": 5
      }
     },
     {
@@ -396,8 +396,8 @@
      },
      "check": {
       "kind": "residual",
-      "term": "run 1",
-      "model": "A*B"
+      "model": "A*B",
+      "run": 1
      }
     },
     {
@@ -412,8 +412,8 @@
      },
      "check": {
       "kind": "residual",
-      "term": "run 2",
-      "model": "A*B"
+      "model": "A*B",
+      "run": 2
      }
     },
     {
@@ -428,8 +428,8 @@
      },
      "check": {
       "kind": "residual",
-      "term": "run 3",
-      "model": "A*B"
+      "model": "A*B",
+      "run": 3
      }
     },
     {
@@ -444,8 +444,8 @@
      },
      "check": {
       "kind": "residual",
-      "term": "run 4",
-      "model": "A*B"
+      "model": "A*B",
+      "run": 4
      }
     },
     {
@@ -460,8 +460,8 @@
      },
      "check": {
       "kind": "residual",
-      "term": "run 5",
-      "model": "A*B"
+      "model": "A*B",
+      "run": 5
      }
     },
     {
@@ -476,8 +476,8 @@
      },
      "check": {
       "kind": "left_out_prediction",
-      "term": "run 1",
-      "model": "A*B"
+      "model": "A*B",
+      "run": 1
      }
     },
     {
@@ -492,8 +492,8 @@
      },
      "check": {
       "kind": "left_out_prediction",
-      "term": "run 2",
-      "model": "A*B"
+      "model": "A*B",
+      "run": 2
      }
     },
     {
@@ -508,8 +508,8 @@
      },
      "check": {
       "kind": "left_out_prediction",
-      "term": "run 3",
-      "model": "A*B"
+      "model": "A*B",
+      "run": 3
      }
     },
     {
@@ -524,8 +524,8 @@
      },
      "check": {
       "kind": "left_out_prediction",
-      "term": "run 4",
-      "model": "A*B"
+      "model": "A*B",
+      "run": 4
      }
     },
     {
@@ -540,8 +540,8 @@
      },
      "check": {
       "kind": "left_out_prediction",
-      "term": "run 5",
-      "model": "A*B"
+      "model": "A*B",
+      "run": 5
      }
     },
     {
@@ -976,7 +976,8 @@
      "check": {
       "kind": "effect",
       "term": "C",
-      "model": "A + B + C"
+      "model": "A + B + C",
+      "expression": true
      }
     },
     {
@@ -991,8 +992,8 @@
      },
      "check": {
       "kind": "generator",
-      "term": null,
-      "model": "A + B + C"
+      "k": 3,
+      "resolution": 3
      }
     },
     {
@@ -1007,8 +1008,8 @@
      },
      "check": {
       "kind": "resolution",
-      "term": null,
-      "model": "A + B + C"
+      "k": 3,
+      "resolution": 3
      }
     },
     {
@@ -1024,7 +1025,8 @@
      "check": {
       "kind": "aliases",
       "term": "C",
-      "model": "A + B + C"
+      "k": 3,
+      "resolution": 3
      }
     },
     {
@@ -1040,7 +1042,8 @@
      "check": {
       "kind": "aliases",
       "term": "A",
-      "model": "A + B + C"
+      "k": 3,
+      "resolution": 3
      }
     },
     {
@@ -1056,7 +1059,8 @@
      "check": {
       "kind": "aliases",
       "term": "B",
-      "model": "A + B + C"
+      "k": 3,
+      "resolution": 3
      }
     }
    ]
@@ -1197,7 +1201,9 @@
       "quote": "2^(4-1) design (generator: D = ABC, resolution: IV)"
      },
      "check": {
-      "kind": "generator"
+      "kind": "generator",
+      "k": 4,
+      "resolution": 4
      }
     },
     {
@@ -1209,7 +1215,9 @@
       "quote": "2^(4-1) design (generator: D = ABC, resolution: IV)"
      },
      "check": {
-      "kind": "resolution"
+      "kind": "resolution",
+      "k": 4,
+      "resolution": 4
      }
     }
    ]
@@ -1237,7 +1245,9 @@
       "quote": "2^(5-1) design (generator: E = ABCD, resolution: V)"
      },
      "check": {
-      "kind": "generator"
+      "kind": "generator",
+      "k": 5,
+      "resolution": 5
      }
     },
     {
@@ -1249,7 +1259,9 @@
       "quote": "2^(5-1) design (generator: E = ABCD, resolution: V)"
      },
      "check": {
-      "kind": "resolution"
+      "kind": "resolution",
+      "k": 5,
+      "resolution": 5
      }
     }
    ]
@@ -1294,7 +1306,15 @@
       "quote": "Table 3 ... 5 -1.41 0"
      },
      "check": {
-      "kind": "axial_distance"
+      "kind": "design_property",
+      "property": "alpha",
+      "design": {
+       "design_type": "ccd",
+       "k": 2,
+       "options": {
+        "alpha": "rotatable"
+       }
+      }
      }
     },
     {
@@ -1306,7 +1326,16 @@
       "quote": "The run Nos. 1 to 4 form the factorial design, Nos. 5 to 8 the star points, and No. 9 the center point"
      },
      "check": {
-      "kind": "n_runs"
+      "kind": "design_property",
+      "property": "n_runs",
+      "design": {
+       "design_type": "ccd",
+       "k": 2,
+       "options": {
+        "alpha": "rotatable",
+        "n_center_points": 1
+       }
+      }
      }
     }
    ]

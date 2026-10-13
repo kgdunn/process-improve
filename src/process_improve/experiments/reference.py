@@ -1,0 +1,519 @@
+"""Reference designed experiments from published sources, and their reproduction with this library.
+
+The reference experiments are worked examples, exercises and case studies of published sources
+(a textbook, an encyclopedia article), recorded so that software can be checked against them.
+Each one holds its data exactly as printed (factors, responses, runs) and every number the
+source prints for it, as the text printed, with where it is printed. A number also carries a
+check, saying how to recompute it (the kind of result, the term, the model, the runs it uses),
+or why it is not recomputed.
+
+:func:`reproduce_reference` recomputes every checked number with this library and reports, row
+by row, the printed text, the value found, whether they agree to within the source's own
+rounding, and where the number is printed.
+
+Examples
+--------
+>>> from process_improve.experiments.reference import reference_experiments, reproduce_reference
+>>> [e["name"] for e in reference_experiments("ullmann-doe-2012")][:2]
+['ullmann-catalyst-temperature', 'ullmann-agitator']
+>>> report = reproduce_reference("ullmann-doe-2012")
+>>> bool(report.loc[report["checked"], "agrees"].all())
+True
+"""
+
+from __future__ import annotations
+
+import ast
+import itertools
+import json
+import math
+import operator
+import re
+import warnings
+from collections.abc import Callable
+from decimal import Decimal
+from pathlib import Path
+from typing import Any
+
+import numpy as np
+import pandas as pd
+
+from process_improve.experiments.analysis import analyze_experiment
+from process_improve.experiments.designs import generate_design
+from process_improve.experiments.factor import Factor
+
+_REFERENCE_DIR = Path(__file__).resolve().parents[1] / "datasets" / "experiments" / "reference"
+
+
+# --------------------------------------------------------------------------- reading the catalogue
+def _files() -> list[dict[str, Any]]:
+    """Read every reference file, in the order of their names."""
+    return [json.loads(path.read_text(encoding="utf-8")) for path in sorted(_REFERENCE_DIR.glob("*.json"))]
+
+
+def _selected(source: str | None) -> list[dict[str, Any]]:
+    files = _files()
+    keys = [f["source"]["key"] for f in files]
+    if source is not None and source not in keys:
+        raise ValueError(f"Unknown source {source!r}. The sources are: {', '.join(sorted(keys))}.")
+    return [f for f in files if source in (None, f["source"]["key"])]
+
+
+def reference_sources() -> dict[str, dict[str, Any]]:
+    """Return the citation of each source of the reference experiments, by its key.
+
+    Returns
+    -------
+    dict[str, dict]
+        For each source key, its citation: ``authors``, ``title``, ``url``, ``year``, and where they
+        apply ``work``, ``volume``, ``pages``, ``publisher``, ``doi``, the ``version`` and ``commit``
+        that was read, and ``read``: when and from what the numbers were taken.
+
+    Examples
+    --------
+    >>> reference_sources()["ullmann-doe-2012"]["doi"]
+    '10.1002/14356007.e08_e01.pub3'
+    """
+    return {f["source"]["key"]: f["source"] for f in _files()}
+
+
+def reference_experiments(source: str | None = None) -> list[dict[str, Any]]:
+    """Return the reference experiments: their data, where each was published, and every printed number.
+
+    Parameters
+    ----------
+    source : str, optional
+        The key of one source (see :func:`reference_sources`); every source when ``None``.
+
+    Returns
+    -------
+    list[dict]
+        One dict per experiment, with keys ``name``, ``title``, ``source``, ``kind``, ``where``,
+        ``factors``, ``responses``, ``design``, ``runs`` (``None`` when the source does not print
+        them, and ``data_source`` then says where they come from), ``expected`` and ``notes``.
+        Each item of ``expected`` has ``what``, ``term`` and ``value`` (the printed text), ``where``
+        (a file and line, or a page, with a quotation) and ``check``.
+
+    Raises
+    ------
+    ValueError
+        If *source* names no source.
+
+    Examples
+    --------
+    >>> experiment = reference_experiments("ullmann-doe-2012")[0]
+    >>> experiment["name"], experiment["expected"][0]["value"]
+    ('ullmann-catalyst-temperature', '10')
+    """
+    return [{**e, "source": f["source"]["key"]} for f in _selected(source) for e in f["experiments"]]
+
+
+def reference_designs(source: str | None = None) -> list[dict[str, Any]]:
+    """Return the reference designs: designs without responses whose properties a source states.
+
+    Parameters
+    ----------
+    source : str, optional
+        The key of one source; every source when ``None``.
+
+    Returns
+    -------
+    list[dict]
+        One dict per design, as for :func:`reference_experiments` but without responses.
+
+    Raises
+    ------
+    ValueError
+        If *source* names no source.
+    """
+    return [{**d, "source": f["source"]["key"]} for f in _selected(source) for d in f.get("designs", [])]
+
+
+# --------------------------------------------------------------------------- printed numbers
+def _tolerance(printed: str) -> float:
+    """Half a unit in the last digit printed: the most the source's rounding accounts for."""
+    exponent = Decimal(printed).normalize().as_tuple().exponent
+    return 0.5 * 10.0 ** min(0, int(exponent)) + 1e-9
+
+
+_ARITHMETIC: dict[type, Callable[[float, float], float]] = {
+    ast.Add: operator.add,
+    ast.Sub: operator.sub,
+    ast.Mult: operator.mul,
+    ast.Div: operator.truediv,
+}
+
+
+def _arithmetic(expression: str) -> float:
+    """Work out a sum the source prints, such as ``(57 + 82) / 2 - (62 + 74) / 2``: numbers and + - * / only."""
+
+    def value(node: ast.expr) -> float:
+        if isinstance(node, ast.Constant) and isinstance(node.value, (int, float)):
+            return float(node.value)
+        if isinstance(node, ast.UnaryOp) and isinstance(node.op, (ast.USub, ast.UAdd)):
+            return -value(node.operand) if isinstance(node.op, ast.USub) else value(node.operand)
+        if isinstance(node, ast.BinOp) and type(node.op) in _ARITHMETIC:
+            return _ARITHMETIC[type(node.op)](value(node.left), value(node.right))
+        raise ValueError(f"Not arithmetic: {ast.dump(node)}")
+
+    return value(ast.parse(expression, mode="eval").body)
+
+
+_NUMBER = re.compile(r"([<>]=?|[\u2264\u2265])?\s*([+-]?(?:\d+\.?\d*|\.\d+)(?:[eE][+-]?\d+)?)\s*%?")
+
+
+def _number(printed: str) -> tuple[str | None, str]:
+    """Return a printed number's bound sign (``<`` or ``>``, if any) and its digits, as text."""
+    text = str(printed).replace("\u2212", "-").replace("\u2009", "").replace(",", "").strip()
+    match = _NUMBER.fullmatch(text)
+    if not match:
+        raise ValueError(f"Not a number: {printed!r}")
+    return match.group(1), match.group(2)
+
+
+def _agrees(found: float, printed: str, *, expression: bool = False) -> bool:
+    """Whether a value found agrees with the printed text, to within the source's rounding."""
+    if expression:
+        return math.isclose(found, _arithmetic(printed), rel_tol=1e-9, abs_tol=1e-9)
+    bound, digits = _number(printed)
+    if bound in ("<", "<=", "\u2264"):
+        return found < float(digits) or abs(found - float(digits)) <= _tolerance(digits)
+    if bound in (">", ">=", "\u2265"):
+        return found > float(digits) or abs(found - float(digits)) <= _tolerance(digits)
+    return abs(found - float(digits)) <= _tolerance(digits)
+
+
+# --------------------------------------------------------------------------- the runs as a model sees them
+def _coded_runs(experiment: dict, positions: list[int] | None) -> tuple[pd.DataFrame, pd.DataFrame]:
+    """Return the factor settings in coded units and the responses, for the runs at these 1-based positions."""
+    runs = experiment["runs"]
+    table = pd.DataFrame(runs["rows"], columns=runs["columns"])
+    if positions is not None:
+        table = table.iloc[[p - 1 for p in positions]].reset_index(drop=True)
+    exact = {float(k): float(v) for k, v in (runs.get("exact") or {}).items()}
+    settings = {}
+    for f in experiment["factors"]:
+        column = table[f["name"]]
+        if f.get("levels") and len(f["levels"]) > 2 and f["type"] == "categorical":
+            settings[f["name"]] = column.astype(str)  # a factor at three or more levels is fitted by name
+            continue
+        if runs["coded"]:
+            values = column.astype(float)
+        elif f["type"] == "categorical":
+            values = column.map({f["low"]: -1.0, f["high"]: 1.0})
+        else:
+            centre, half = (f["high"] + f["low"]) / 2, (f["high"] - f["low"]) / 2
+            values = (column.astype(float) - centre) / half
+        for printed, value in exact.items():  # a setting printed rounded, such as 1.41 for the square root of 2
+            values = values.mask(np.isclose(values.abs(), printed), np.sign(values) * value)
+        settings[f["name"]] = values
+    names = [r["name"] for r in experiment["responses"] if r["name"] in table.columns]
+    return pd.DataFrame(settings), table[names].astype(float)
+
+
+_ANALYSES = ["coefficients", "anova", "residual_diagnostics", "lack_of_fit", "lenth_method", "curvature_test"]
+
+
+class _Fits:
+    """Fit each experiment's runs once per model, runs and response, keeping everything the checks read."""
+
+    def __init__(self) -> None:
+        self._done: dict[tuple, dict[str, Any]] = {}
+
+    def __call__(self, experiment: dict, check: dict) -> dict[str, Any]:
+        positions = tuple(check["runs"]) if check.get("runs") else None
+        key = (experiment["name"], check.get("model"), positions, check.get("response"))
+        if key not in self._done:
+            self._done[key] = self._fit(experiment, check.get("model"), positions, check.get("response"))
+        return self._done[key]
+
+    @staticmethod
+    def _fit(experiment: dict, model: str | None, positions: tuple | None, response: str | None) -> dict[str, Any]:
+        settings, responses = _coded_runs(experiment, list(positions) if positions else None)
+        y = responses[response or responses.columns[0]]
+        out: dict[str, Any] = {"y": y, "settings": settings}
+        if model is None:
+            return out
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            for wanted in (_ANALYSES, ["coefficients", "anova", "residual_diagnostics"], ["coefficients"]):
+                try:
+                    out |= analyze_experiment(settings, y, model=model, analysis_type=wanted)
+                    break
+                except (ValueError, np.linalg.LinAlgError, KeyError, ZeroDivisionError):
+                    continue
+        return out
+
+
+def _library_term(term: str) -> str:
+    """Return the library's name for a term written A, A·B, A² or Intercept."""
+    if term == "Intercept":
+        return term
+    squared = re.fullmatch(r"(\w+)²", term)
+    if squared:
+        return f"I({squared.group(1)} ** 2)"
+    return ":".join(term.split("·"))
+
+
+def _coefficient_row(out: dict, term: str) -> dict:
+    """Return the library's row for a term, a level of a factor coded to sum to zero included."""
+    rows = {row["term"]: row for row in out["coefficients"]}
+    level = re.fullmatch(r"(\w+)\[(.+)\]", term)
+    if level:
+        factor, name = level.groups()
+        coded = {k: v for k, v in rows.items() if k.startswith(f"C({factor}, Sum)[")}
+        key = next((k for k in coded if k.endswith(f".{name}]")), None)
+        if key is not None:
+            return coded[key]
+        return {"coefficient": -sum(row["coefficient"] for row in coded.values())}  # the level the coding leaves out
+    wanted = _library_term(term)
+    for key, row in rows.items():
+        if key == wanted or set(key.split(":")) == set(wanted.split(":")):
+            return row
+    raise KeyError(f"The fit has no term {term!r}: {sorted(rows)}.")
+
+
+def _residuals(out: dict) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    diagnostics = out["residual_diagnostics"]
+    fitted, residuals, leverage = (
+        np.asarray(diagnostics[k], dtype=float) for k in ("fitted_values", "residuals", "leverage")
+    )
+    return fitted, residuals, leverage
+
+
+def _left_out(out: dict, i: int) -> float:
+    """Return run i as the model fitted without it predicts it: the result less its residual over 1 - leverage."""
+    _, residuals, leverage = _residuals(out)
+    return float(out["y"].to_numpy()[i] - residuals[i] / (1 - leverage[i]))
+
+
+def _anova_sums(out: dict) -> tuple[float, float, int]:
+    """Return the sum of squares the model explains, the residual's, and the model's degrees of freedom."""
+    table = out["anova_table"]
+    residual = next(row for row in table if row["source"] == "Residual")
+    model = [row for row in table if row["source"] != "Residual"]
+    return sum(row["sum_sq"] for row in model), residual["sum_sq"], sum(row["df"] for row in model)
+
+
+def _anova_row(out: dict, term: str) -> dict:
+    wanted = _library_term(term)
+    return next(
+        r for r in out["anova_table"] if r["source"] == wanted or set(r["source"].split(":")) == set(wanted.split(":"))
+    )
+
+
+def _lenth(out: dict, key: str, check: dict) -> float:
+    """Return one of Lenth's margins, on the effects' scale or, when the source works with coefficients, on theirs."""
+    return float(out["lenth_method"][key]) / (2.0 if check.get("scale") == "coefficient" else 1.0)
+
+
+def _prediction(out: dict, check: dict, experiment: dict) -> float:
+    """Return the model's prediction at a point in coded units, as the library predicts new runs."""
+    point = pd.DataFrame([check["point"]])[[f["name"] for f in experiment["factors"]]]
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        found = analyze_experiment(
+            out["settings"], out["y"], model=check["model"], analysis_type="prediction", new_points=point
+        )
+    return float(found["predictions"][0]["predicted"])
+
+
+def _run(check: dict) -> int:
+    return int(check["run"]) - 1
+
+
+_FIT_KINDS: dict[str, Callable[[dict, dict, dict], float]] = {
+    "coefficient": lambda out, c, _e: _coefficient_row(out, c["term"])["coefficient"],
+    "effect": lambda out, c, _e: 2 * _coefficient_row(out, c["term"])["coefficient"],
+    "std_error": lambda out, c, _e: _coefficient_row(out, c["term"])["std_error"],
+    "effect_std_error": lambda out, c, _e: 2 * _coefficient_row(out, c["term"])["std_error"],
+    "t_value": lambda out, c, _e: _coefficient_row(out, c["term"])["t_value"],
+    "p_value": lambda out, c, _e: _coefficient_row(out, c["term"])["p_value"],
+    "ci_low": lambda out, c, _e: _coefficient_row(out, c["term"])["ci_low"] * (2 if c.get("scale") == "effect" else 1),
+    "ci_high": lambda out, c, _e: (
+        _coefficient_row(out, c["term"])["ci_high"] * (2 if c.get("scale") == "effect" else 1)
+    ),
+    "fitted": lambda out, c, _e: float(_residuals(out)[0][_run(c)]),
+    "residual": lambda out, c, _e: float(_residuals(out)[1][_run(c)]),
+    "left_out_prediction": lambda out, c, _e: _left_out(out, _run(c)),
+    "observation": lambda out, c, _e: float(out["y"].to_numpy()[_run(c)]),
+    "mean": lambda out, _c, _e: float(out["y"].mean()),
+    "std_dev": lambda out, _c, _e: float(out["y"].std(ddof=1)),
+    "n_runs": lambda out, _c, _e: float(len(out["y"])),
+    "r_squared": lambda out, _c, _e: out["model_summary"]["r_squared"],
+    "r_squared_adj": lambda out, _c, _e: out["model_summary"]["r_squared_adj"],
+    "r_squared_pred": lambda out, _c, _e: out["model_summary"]["r_squared_pred"],
+    "residual_df": lambda out, _c, _e: out["model_summary"]["df_residual"],
+    "df_model": lambda out, _c, _e: out["model_summary"]["df_model"],
+    "ms_residual": lambda out, _c, _e: out["model_summary"]["mse_residual"],
+    "residual_std_error": lambda out, _c, _e: out["model_summary"]["mse_residual"] ** 0.5,
+    "ss_residual": lambda out, _c, _e: _anova_sums(out)[1],
+    "ss_regression": lambda out, _c, _e: _anova_sums(out)[0],
+    "ss_total": lambda out, _c, _e: sum(_anova_sums(out)[:2]),
+    "ms_regression": lambda out, _c, _e: _anova_sums(out)[0] / _anova_sums(out)[2],
+    "press": lambda out, _c, _e: float(np.sum((_residuals(out)[1] / (1 - _residuals(out)[2])) ** 2)),
+    "lenth_pse": lambda out, c, _e: _lenth(out, "PSE", c),
+    "lenth_me": lambda out, c, _e: _lenth(out, "ME", c),
+    "lenth_sme": lambda out, c, _e: _lenth(out, "SME", c),
+    "anova_sum_sq": lambda out, c, _e: _anova_row(out, c["term"])["sum_sq"],
+    "anova_mean_sq": lambda out, c, _e: _anova_row(out, c["term"])["mean_sq"],
+    "anova_f": lambda out, c, _e: _anova_row(out, c["term"])["F"],
+    "anova_p": lambda out, c, _e: _anova_row(out, c["term"])["p_value"],
+    "lack_of_fit_f": lambda out, _c, _e: out["lack_of_fit"]["f_statistic"],
+    "lack_of_fit_p": lambda out, _c, _e: out["lack_of_fit"]["p_value"],
+    "pure_error_df": lambda out, _c, _e: out["lack_of_fit"]["df_pure_error"],
+    "pure_error_ms": lambda out, _c, _e: out["lack_of_fit"]["ms_pure_error"],
+    "curvature_difference": lambda out, _c, _e: out["curvature_test"]["difference"],
+    "prediction": _prediction,
+}
+
+
+# --------------------------------------------------------------------------- what a source says of a design
+_ROMAN = {"III": 3, "IV": 4, "V": 5, "VI": 6, "VII": 7, "VIII": 8}
+_LETTERS = "ABCDEFGHJKLMNOPQRSTUVWXYZ"
+
+
+def _plain(word: str) -> str:
+    """Return an effect word without spaces, dots or signs of multiplication: A·B·C as ABC."""
+    return re.sub(r"[\s\u00b7\u00d7*]", "", word)
+
+
+def _multiply(*words: str) -> str:
+    """Multiply effect words letter by letter: a letter twice cancels, as A·A = I."""
+    letters = sorted(itertools.chain.from_iterable(words))
+    return "".join(letter for letter in sorted(set(letters)) if letters.count(letter) % 2)
+
+
+def _fraction(check: dict, k: int) -> Any:  # noqa: ANN401 - the library's DesignResult
+    """Return the library's fraction for a check: in k factors, by its resolution or by the source's generators."""
+    factors = [Factor(name=_LETTERS[i], low=-1, high=1) for i in range(k)]
+    return generate_design(
+        factors,
+        design_type="fractional_factorial",
+        resolution=check.get("resolution"),
+        generators=check.get("generators"),
+        n_center_points=0,
+    )
+
+
+def _design_check(check: dict, printed: str, k: int) -> tuple[str, bool]:
+    """Check a generator, resolution, defining word or alias the source states, against the library's fraction."""
+    made = _fraction(check, check.get("k", k))
+    kind = check["kind"]
+    if kind == "generator":
+        found = sorted(_plain(g) for g in made.generators or [])
+        return ", ".join(found), _plain(printed) in found
+    if kind == "resolution":
+        wanted = _ROMAN.get(printed.strip())
+        return str(made.resolution), wanted == made.resolution
+    words = sorted(_plain(w).removeprefix("I=") for w in made.defining_relation or [])
+    if kind == "defining_relation":
+        return ", ".join(words), sorted(_plain(w).removeprefix("I=") for w in printed.split(",")) == words
+    aliases = sorted({_multiply(_plain(check["term"]), word) for word in words})
+    return ", ".join(aliases), _plain(printed) in aliases  # kind == "aliases"
+
+
+_DESIGN_KINDS = {"generator", "resolution", "defining_relation", "aliases"}
+
+
+def _design_property(check: dict) -> float:
+    """Return a property of a design the library makes: its run count, axial distance or resolution.
+
+    ``check["design"]`` names it: ``design_type``, ``k`` factors, and ``options`` for ``generate_design``.
+    """
+    spec = check["design"]
+    factors = [Factor(name=_LETTERS[i], low=-1, high=1) for i in range(spec["k"])]
+    made = generate_design(factors, design_type=spec["design_type"], **spec.get("options", {}))
+    return float(getattr(made, check["property"]))
+
+
+def _active(out: dict, check: dict) -> tuple[str, bool]:
+    margin = "active_SME" if check.get("margin") == "SME" else "active_ME"
+    found = {e["term"] for e in out["lenth_method"]["effects"] if e[margin]}
+    wanted = {_library_term(t) for t in check["terms"]}
+    same = {frozenset(t.split(":")) for t in found} == {frozenset(t.split(":")) for t in wanted}
+    return ", ".join(sorted(found)), same
+
+
+def _reproduce(experiment: dict, expected: dict, check: dict, fits: _Fits) -> tuple[str, bool]:
+    """Recompute one printed number by its check; return the value found, as text, and whether it agrees."""
+    kind = check["kind"]
+    printed = check.get("printed", expected["value"])
+    if kind in _DESIGN_KINDS:
+        return _design_check(check, str(printed), len(experiment.get("factors") or []))
+    if kind == "design_property":
+        found = _design_property(check)
+        return f"{found:.6g}", _agrees(found, str(printed))
+    out = fits(experiment, check)
+    if kind == "active_effects":
+        return _active(out, check)
+    if kind not in _FIT_KINDS:
+        raise KeyError(f"No check of the kind {kind!r}.")
+    found = float(_FIT_KINDS[kind](out, check, experiment))
+    return f"{found:.6g}", _agrees(found, str(printed), expression=bool(check.get("expression")))
+
+
+def _checks(expected: dict) -> list[dict]:
+    check = expected.get("check") or {}
+    return check if isinstance(check, list) else [check]
+
+
+def reproduce_reference(source: str | None = None) -> pd.DataFrame:
+    """Recompute every printed number of the reference experiments and designs with this library.
+
+    Each number with a check is recomputed: the experiment's runs are fitted with the model the
+    check names (on the runs it names), and the result compared with the printed text to within
+    half a unit in its last printed digit. A design's generators, resolution, defining relation
+    and aliases are compared with the fraction this library makes. A number without a check is
+    reported with the reason it is not recomputed.
+
+    Parameters
+    ----------
+    source : str, optional
+        The key of one source; every source when ``None``.
+
+    Returns
+    -------
+    pd.DataFrame
+        One row per check, with columns ``source``, ``experiment``, ``what``, ``term``,
+        ``printed`` (the text compared), ``found`` (the value recomputed, as text), ``checked``,
+        ``agrees`` (``None`` where not checked), ``reason`` (why a number is not recomputed, or
+        the error raised recomputing it) and ``where``.
+
+    Raises
+    ------
+    ValueError
+        If *source* names no source.
+
+    Examples
+    --------
+    >>> report = reproduce_reference("ullmann-doe-2012")
+    >>> int(report["checked"].sum()) > 50
+    True
+    """
+    rows = []
+    fits = _Fits()
+    for f in _selected(source):
+        key = f["source"]["key"]
+        for entry in [*f["experiments"], *f.get("designs", [])]:
+            for expected in entry["expected"]:
+                for check in _checks(expected):
+                    row = {
+                        "source": key,
+                        "experiment": entry["name"],
+                        "what": expected["what"],
+                        "term": expected.get("term"),
+                        "printed": check.get("printed", expected["value"]),
+                        "found": None,
+                        "checked": "kind" in check,
+                        "agrees": None,
+                        "reason": check.get("manual"),
+                        "where": json.dumps(expected["where"], ensure_ascii=False),
+                    }
+                    if "kind" in check:
+                        try:
+                            row["found"], row["agrees"] = _reproduce(entry, expected, check, fits)
+                        except (KeyError, ValueError, IndexError, StopIteration, TypeError) as exc:
+                            row["agrees"], row["reason"] = False, f"{type(exc).__name__}: {exc}"
+                    rows.append(row)
+    return pd.DataFrame(rows)

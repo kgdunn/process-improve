@@ -2,17 +2,14 @@
 
 from __future__ import annotations
 
-import json
 from collections.abc import Callable
 from pathlib import Path
-from typing import Any
 
 import pandas as pd
 
 from process_improve._remote_data import read_remote_csv
 
 _DATASETS_DIR = Path(__file__).resolve().parents[1] / "datasets" / "experiments"
-_REFERENCE_DIR = _DATASETS_DIR / "reference"
 
 
 def distillateflow() -> pd.DataFrame:
@@ -315,79 +312,3 @@ def data(dataset: str) -> pd.DataFrame:
         known = ", ".join(sorted({"boilingpot", "corrosion", "distillateflow", "golf", "oildoe", "pollutant", "solar"}))
         raise ValueError(f"Unknown dataset {dataset!r}. Available datasets are: {known}.") from None
     return loader()
-
-
-def reference_sources() -> dict[str, dict[str, Any]]:
-    """Return the citation of each source of the reference designed experiments, by its key.
-
-    The reference experiments (see :func:`reference_experiments`) are taken from published
-    sources; this says which, with enough detail to find the exact edition that was read.
-
-    Returns
-    -------
-    dict[str, dict]
-        For each source key (such as ``"pid-book"``), its citation: ``authors``, ``title``,
-        ``url``, ``year``, and where they apply ``work``, ``volume``, ``pages``, ``publisher``,
-        ``doi`` and the ``version`` or ``commit`` that was read, with ``read``, when and from
-        what the numbers were taken.
-
-    Examples
-    --------
-    >>> reference_sources()["ullmann-doe-2012"]["doi"]
-    '10.1002/14356007.e08_e01.pub3'
-    """
-    return {source["source"]["key"]: source["source"] for source in _reference_files()}
-
-
-def reference_experiments(source: str | None = None) -> list[dict[str, Any]]:
-    """Return the reference designed experiments: their data, where each was published, and every printed result.
-
-    Each experiment is a worked example, an exercise or a case study of a published source,
-    recorded so that software can be checked against it. Its data are the factors (names,
-    levels, units, type), responses and runs exactly as the source prints them. Its
-    ``analyses`` list each way the source analyses the runs (a model, or a subset of runs)
-    with every number the source prints for it: coefficients, effects, standard errors,
-    t- and p-values, intervals, R-squared, Lenth's margins, ANOVA rows and so on. Each
-    number is kept as the text the source prints, so the decimals printed say how closely a
-    reproduction must agree, and each carries where it is printed: the file or section, the
-    line or page, and a short quotation. ``tests/test_doe_reference.py`` reproduces every
-    number it can with this library.
-
-    Parameters
-    ----------
-    source : str, optional
-        The key of one source (see :func:`reference_sources`); all sources when ``None``.
-
-    Returns
-    -------
-    list[dict]
-        One dict per experiment, with keys ``name``, ``title``, ``source``, ``kind``,
-        ``where``, ``factors``, ``responses``, ``design``, ``runs`` (or ``data_source`` when
-        the source loads its runs from an address), ``analyses`` and ``notes``.
-
-    Raises
-    ------
-    ValueError
-        If *source* names no source.
-
-    Examples
-    --------
-    >>> experiment = reference_experiments("ullmann-doe-2012")[0]
-    >>> experiment["name"], experiment["analyses"][0]["expected"][0]["value"]
-    ('ullmann-catalyst-temperature', '10')
-    """
-    files = _reference_files()
-    keys = [f["source"]["key"] for f in files]
-    if source is not None and source not in keys:
-        raise ValueError(f"Unknown source {source!r}. The sources are: {', '.join(sorted(keys))}.")
-    return [
-        {**experiment, "source": f["source"]["key"]}
-        for f in files
-        if source in (None, f["source"]["key"])
-        for experiment in f["experiments"]
-    ]
-
-
-def _reference_files() -> list[dict[str, Any]]:
-    """Read every reference file, in the order of their names."""
-    return [json.loads(path.read_text(encoding="utf-8")) for path in sorted(_REFERENCE_DIR.glob("*.json"))]
