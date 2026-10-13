@@ -7,6 +7,8 @@ when the factors no longer describe the design it holds.
 
 from __future__ import annotations
 
+from itertools import pairwise
+
 import pytest
 
 from tests.web._support import ALL_DESIGNS, factors_named
@@ -171,12 +173,19 @@ def test_two_labels_make_a_factor_categorical_and_leave_the_two_level_designs(pa
 
 # --------------------------------------------------------------------------- numeric and categorical factors
 def types(page) -> list[str]:
-    """Read each factor's type, as its Type box shows it."""
-    return page.eval_on_selector_all("#factors tbody [name=type]", "boxes => boxes.map((b) => b.value)")
+    """Read each factor's type, as its switch shows it."""
+    return page.eval_on_selector_all(
+        "#factors tbody [name=categorical]", "boxes => boxes.map((b) => (b.checked ? 'categorical' : 'numeric'))"
+    )
 
 
 def row(page, i: int):
     return page.locator("#factors tbody tr").nth(i)
+
+
+def flip(factor) -> None:
+    """Flip a factor's type with one tap on its switch, as a reader would."""
+    factor.locator(".switch").click()
 
 
 def problems(page) -> str | None:
@@ -185,12 +194,29 @@ def problems(page) -> str | None:
 
 def test_every_factor_says_whether_it_is_numeric_or_categorical(page):
     assert types(page) == ["numeric", "numeric", "numeric"]
-    assert page.locator("#factors thead th").all_text_contents()[:5] == ["Factor", "Type", "Low", "High", "Units"]
-    assert row(page, 0).locator("[name=type] option").all_text_contents() == ["Numeric", "Categorical"]
+    headings = ["Factor name", "Type", "Low", "High", "Units"]
+    assert page.locator("#factors thead th").all_text_contents()[:5] == headings
+    assert row(page, 0).locator(".switch__text").text_content() == "Numeric"
+    assert row(page, 0).locator("[name=categorical]").get_attribute("role") == "switch"
+
+
+def test_one_tap_on_the_switch_flips_the_type_and_the_word_beside_it(page):
+    flip(row(page, 1))
+    assert types(page)[1] == "categorical"
+    assert row(page, 1).locator(".switch__text").text_content() == "Categorical"
+    flip(row(page, 1))
+    assert types(page)[1] == "numeric"
+    assert row(page, 1).locator(".switch__text").text_content() == "Numeric"
+
+
+def test_the_switch_answers_the_keyboard(page):
+    row(page, 1).locator("[name=categorical]").focus()
+    page.keyboard.press("Space")
+    assert types(page)[1] == "categorical"
 
 
 def test_choosing_categorical_gives_two_labels_and_takes_the_units_away(page):
-    row(page, 1).locator("[name=type]").select_option("categorical")
+    flip(row(page, 1))
     assert factor_table(page)[1] == {"name": "P", "low": "A", "high": "B", "units": ""}
     assert row(page, 1).locator("[name=units]").is_disabled()
     assert row(page, 1).locator("[name=low]").get_attribute("aria-label") == "First label"
@@ -198,9 +224,9 @@ def test_choosing_categorical_gives_two_labels_and_takes_the_units_away(page):
     assert "box_behnken" in disabled_designs(page), "a categorical factor leaves only the two-level designs"
 
     row(page, 1).locator("[name=low]").fill("old")
-    row(page, 1).locator("[name=type]").select_option("numeric")
+    flip(row(page, 1))
     assert factor_table(page)[1] == {"name": "P", "low": "1", "high": "3", "units": "bar"}, "its numbers come back"
-    row(page, 1).locator("[name=type]").select_option("categorical")
+    flip(row(page, 1))
     assert factor_table(page)[1]["low"] == "old", "and so do its labels"
 
 
@@ -249,11 +275,16 @@ def test_what_a_factor_s_labels_still_need_is_said_before_python_is_asked(page):
 
 
 @pytest.mark.parametrize("context_options", [{"viewport": {"width": 390, "height": 844}, "is_mobile": True}])
-def test_on_a_phone_each_factor_shows_its_headings_and_its_type_in_full(page):
-    row(page, 1).locator("[name=type]").select_option("categorical")
+def test_on_a_phone_each_factor_is_a_numbered_card_with_its_headings(page):
+    flip(row(page, 1))
     captions = row(page, 1).evaluate(
         "tr => [...tr.cells].map((td) => getComputedStyle(td, '::before').content).filter((c) => c !== 'none')"
     )
-    assert captions == ['"Factor"', '"Type"', '"First label"', '"Second label"', '"Units"']
-    select = row(page, 1).locator("[name=type]")
-    assert select.evaluate("s => s.scrollWidth <= s.clientWidth"), "Categorical is not cut short"
+    assert captions == ['"Factor name"', '"Type"', '"First label"', '"Second label"', '"Units"']
+    cards = page.eval_on_selector_all("#factors tbody tr", "rows => rows.map((tr) => tr.getBoundingClientRect())")
+    gaps = [b["top"] - (a["top"] + a["height"]) for a, b in pairwise(cards)]
+    assert all(gap >= 8 for gap in gaps), "the cards stand apart"
+    border = row(page, 1).evaluate("tr => getComputedStyle(tr).borderTopStyle")
+    assert border == "solid", "each factor's boxes sit inside a card of their own"
+    text = row(page, 1).locator(".switch__text")
+    assert text.evaluate("t => t.scrollWidth <= t.clientWidth + 1"), "Categorical is not cut short"

@@ -7,7 +7,16 @@
 // paint, the live run, an uploaded workbook, a saved design and a shared link all show the
 // same way. Every campaign but the worked example is saved in this browser as it changes.
 
-import { coefficientFigure, correlationFigure, draw, fdsFigure, prettyTerm, redrawAll, shareContourScale } from "./charts.js";
+import {
+  coefficientFigure,
+  correlationFigure,
+  draw,
+  fdsFigure,
+  paretoFigure,
+  prettyTerm,
+  redrawAll,
+  shareContourScale,
+} from "./charts.js";
 import {
   AXIAL_DISTANCE,
   CAPTIONS,
@@ -166,17 +175,21 @@ const DEFAULT_FACTORS = [
 /** The levels a new factor of each type starts from. */
 const START_LEVELS = { [NUMERIC]: ["-1", "1"], [CATEGORICAL]: ["A", "B"] };
 
-/** One of a factor row's boxes, by its name: name, type, low, high or units. */
+/** One of a factor row's boxes, by its name: name, categorical (the type's switch), low, high or units. */
 const box = (tr, name) => tr.querySelector(`[name=${name}]`);
+
+/** A factor row's type, as its switch shows it. */
+const typeOf = (tr) => (box(tr, "categorical").checked ? CATEGORICAL : NUMERIC);
 
 function addFactor(f = { name: "", low: -1, high: 1, units: "" }) {
   const tr = document.createElement("tr");
   // Each cell carries its column's heading, which a phone shows above the box (style.css).
   tr.innerHTML = `
-    <td data-label="Factor"><input name="name" aria-label="Factor name" size="8"></td>
-    <td data-label="Type"><select name="type" aria-label="Factor type">
-      <option value="${NUMERIC}">Numeric</option><option value="${CATEGORICAL}">Categorical</option>
-    </select></td>
+    <td data-label="Factor name"><input name="name" aria-label="Factor name" size="8"></td>
+    <td data-label="Type"><label class="switch">
+      <input type="checkbox" name="categorical" role="switch" aria-label="Categorical">
+      <span class="switch__track" aria-hidden="true"></span><span class="switch__text">Numeric</span>
+    </label></td>
     <td data-label="Low"><input name="low" aria-label="Low"></td>
     <td data-label="High"><input name="high" aria-label="High"></td>
     <td data-label="Units"><input name="units" aria-label="Units" size="6"></td>
@@ -184,10 +197,10 @@ function addFactor(f = { name: "", low: -1, high: 1, units: "" }) {
   for (const key of ["name", "low", "high", "units"]) box(tr, key).value = f[key] ?? "";
   showType(tr, factorType(box(tr, "low").value, box(tr, "high").value, NUMERIC));
   // The row settles its type before the table's own listener refreshes the design.
-  box(tr, "type").addEventListener("input", () => switchType(tr, box(tr, "type").value));
+  box(tr, "categorical").addEventListener("input", () => switchType(tr, typeOf(tr)));
   for (const name of ["low", "high"]) {
     box(tr, name).addEventListener("input", () =>
-      showType(tr, factorType(box(tr, "low").value, box(tr, "high").value, box(tr, "type").value)),
+      showType(tr, factorType(box(tr, "low").value, box(tr, "high").value, typeOf(tr))),
     );
   }
   tr.querySelector("button").onclick = () => {
@@ -205,7 +218,8 @@ function addFactor(f = { name: "", low: -1, high: 1, units: "" }) {
 function showType(tr, type) {
   const categorical = type === CATEGORICAL;
   const units = box(tr, "units");
-  box(tr, "type").value = type;
+  box(tr, "categorical").checked = categorical;
+  tr.querySelector(".switch__text").textContent = categorical ? "Categorical" : "Numeric";
   tr.classList.toggle("categorical", categorical);
   if (categorical && units.value) {
     tr.dataset.units = units.value;
@@ -224,8 +238,9 @@ function showType(tr, type) {
 }
 
 /**
- * The reader chose a factor's type: its levels become those it last had as that type, else the
- * type's own start (-1 and 1, or A and B), and the first is selected, ready to be typed over.
+ * The reader flipped a factor's type: its levels become those it last had as that type, else the
+ * type's own start (-1 and 1, or A and B). A factor made categorical has its first label selected,
+ * ready to be typed over; one made numeric again leaves the keyboard where it was.
  */
 function switchType(tr, type) {
   const before = type === CATEGORICAL ? NUMERIC : CATEGORICAL;
@@ -233,6 +248,7 @@ function switchType(tr, type) {
   tr.dataset[before] = JSON.stringify([low.value, high.value]);
   [low.value, high.value] = tr.dataset[type] ? JSON.parse(tr.dataset[type]) : START_LEVELS[type];
   showType(tr, type);
+  if (type !== CATEGORICAL) return;
   low.focus();
   low.select();
 }
@@ -242,7 +258,7 @@ function showFactorProblems() {
   const problems = [...document.querySelectorAll("#factors tbody tr")].map((tr) => {
     const problem = levelProblem(
       { name: box(tr, "name").value, low: box(tr, "low").value, high: box(tr, "high").value },
-      box(tr, "type").value,
+      typeOf(tr),
     );
     for (const name of ["low", "high"]) box(tr, name).toggleAttribute("aria-invalid", Boolean(problem));
     return problem;
@@ -812,14 +828,73 @@ function chartCard(key, caption, wide = false) {
   return { card, plot };
 }
 
+const COEFFICIENT_VIEW = "factorial-coefficients";
+
+/** How the reader last chose to see the coefficients: their estimates, or the book's Pareto plot. */
+function coefficientView() {
+  try {
+    return localStorage.getItem(COEFFICIENT_VIEW) === "pareto" ? "pareto" : "estimates";
+  } catch {
+    return "estimates";
+  }
+}
+
+/**
+ * The coefficients' card, with a switch between two views of the same analysis: each estimate
+ * with its interval (and the true value, when simulated), or the book's Pareto plot of their sizes.
+ * ``show(view, version)`` draws the view chosen, and says what it shows.
+ */
+function coefficientCard(analysis, simulated) {
+  const { card, plot } = chartCard("coefficients", "", true);
+  const head = el("div", "chart__head", "");
+  const views = el("div", "views", "");
+  views.setAttribute("role", "group");
+  views.setAttribute("aria-label", "Show the coefficients as");
+  const buttons = [
+    ["estimates", "Estimates"],
+    ["pareto", "Pareto plot"],
+  ].map(([view, text]) => {
+    const button = el("button", "", text);
+    button.type = "button";
+    button.dataset.view = view;
+    return button;
+  });
+  views.append(...buttons);
+  head.append(card.querySelector("h3"), views);
+  card.prepend(head);
+  const caption = card.querySelector("figcaption");
+  const intervals = analysis.coefficients.some((c) => c.term !== "Intercept" && c.ci_high !== null && c.ci_high !== undefined);
+  const figure = (view) => () =>
+    view === "pareto"
+      ? paretoFigure(analysis.coefficients, simulated, analysis.lenth)
+      : coefficientFigure(analysis.coefficients, simulated);
+  const show = async (view, version) => {
+    for (const button of buttons) button.setAttribute("aria-pressed", String(button.dataset.view === view));
+    caption.textContent =
+      view === "pareto" ? CAPTIONS.pareto(intervals, Boolean(analysis.lenth), simulated) : CAPTIONS.coefficients(simulated);
+    if (version) await draw(plot, figure(view), version, figure(view)().height);
+  };
+  for (const button of buttons) {
+    button.onclick = () => {
+      try {
+        localStorage.setItem(COEFFICIENT_VIEW, button.dataset.view);
+      } catch {
+        /* storage refused: the view holds for this card */
+      }
+      show(button.dataset.view, state.plotlyJs);
+    };
+  }
+  return { card, plot, show };
+}
+
 /** Draw the coefficient chart, then the library's plots for the same analysis. */
 async function drawCharts(request, mine, given = null) {
   const box = $("#charts");
   box.hidden = false;
   const simulated = Boolean(request.truth);
-  const coefficients = chartCard("coefficients", CAPTIONS.coefficients(simulated), true);
+  const coefficients = coefficientCard(state.analysis, simulated);
   box.replaceChildren(coefficients.card);
-  const figure = coefficientFigure(state.analysis.coefficients, simulated);
+  await coefficients.show(coefficientView());
 
   const plots = given ?? (await libraryPlots(request, mine));
   if (mine !== ticket) return;
@@ -830,7 +905,7 @@ async function drawCharts(request, mine, given = null) {
   }
   state.plotlyJs = version;
   try {
-    await draw(coefficients.plot, () => coefficientFigure(state.analysis.coefficients, simulated), version, figure.height);
+    await coefficients.show(coefficientView(), version);
     if (!plots) return;
     const figures = Object.fromEntries(Object.entries(plots.figures).map(([k, v]) => [k, JSON.parse(v)]));
     if (figures.true_contour) shareContourScale(figures.contour, figures.true_contour);
