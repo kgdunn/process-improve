@@ -373,8 +373,8 @@ def reference_experiments(source: str | None = None) -> list[dict[str, Any]]:
     Examples
     --------
     >>> experiment = reference_experiments("ullmann-doe-2012")[0]
-    >>> experiment["analyses"][0]["expected"][0]["value"]
-    '71.6'
+    >>> experiment["name"], experiment["analyses"][0]["expected"][0]["value"]
+    ('ullmann-catalyst-temperature', '10')
     """
     files = _reference_files()
     keys = [f["source"]["key"] for f in files]
