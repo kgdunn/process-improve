@@ -31,6 +31,9 @@ CHECKED = REPORT[REPORT["checked"]]
     ids=[f"{r.experiment}:{r.what}:{r.term}"[:120] for r in CHECKED.itertuples()],
 )
 def test_every_printed_number_is_reproduced(row):
+    if row["disagreement"]:
+        assert not row["agrees"], f"{row['experiment']}: it reproduces now; take away the disagreement it records"
+        return
     assert row["agrees"], (
         f"{row['experiment']}: {row['what']} {row['term']}: printed {row['printed']}, found {row['found']}"
         f"{'; ' + row['reason'] if row['reason'] else ''} (printed at {row['where']})"

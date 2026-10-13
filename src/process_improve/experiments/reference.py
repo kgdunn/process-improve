@@ -478,7 +478,8 @@ def reproduce_reference(source: str | None = None) -> pd.DataFrame:
         One row per check, with columns ``source``, ``experiment``, ``what``, ``term``,
         ``printed`` (the text compared), ``found`` (the value recomputed, as text), ``checked``,
         ``agrees`` (``None`` where not checked), ``reason`` (why a number is not recomputed, or
-        the error raised recomputing it) and ``where``.
+        the error raised recomputing it), ``disagreement`` (for a number known not to reproduce,
+        the explanation of why) and ``where``.
 
     Raises
     ------
@@ -508,6 +509,7 @@ def reproduce_reference(source: str | None = None) -> pd.DataFrame:
                         "checked": "kind" in check,
                         "agrees": None,
                         "reason": check.get("manual"),
+                        "disagreement": check.get("disagreement"),
                         "where": json.dumps(expected["where"], ensure_ascii=False),
                     }
                     if "kind" in check:
