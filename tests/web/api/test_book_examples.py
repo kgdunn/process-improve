@@ -27,6 +27,7 @@ from typing import TYPE_CHECKING
 
 import pytest
 
+from process_improve.experiments import reference
 from tests.web._support import WEB, no_bytecode
 
 if TYPE_CHECKING:
@@ -402,3 +403,32 @@ def test_the_residual_degrees_of_freedom_and_error_the_book_prints(analysis_of, 
 @pytest.mark.parametrize("name", [name for name, example in EXAMPLES.items() if example.note])
 def test_the_note_the_analysis_makes(analysis_of, name):
     assert any(note.startswith(EXAMPLES[name].note) for note in analysis_of(name)["notes"])
+
+
+# --------------------------------------------------------------------------- the book's own record of it
+def _reference_runs(name: str) -> list[tuple]:
+    """Return the runs of the book's reference experiment as printed: coded settings and the first response.
+
+    The settings are those the book prints (1.41, say, where the reference recomputes with the square
+    root of 2 it stands for): the page matches each result to a run of the design it makes by them.
+    """
+    experiment = next(e for e in reference.reference_experiments("pid-book") if e["name"] == name)
+    printed = {**experiment, "runs": {**experiment["runs"], "exact": None}}
+    settings, responses = reference._coded_runs(printed, None)
+    return [(*row, y) for row, y in zip(settings.itertuples(index=False), responses.iloc[:, 0], strict=True)]
+
+
+@pytest.mark.parametrize("name", list(catalogue()))
+def test_every_example_a_link_opens_is_the_book_s_reference_experiment(name):
+    """The runs a link opens are runs the book prints, as ``process_improve.experiments.reference`` records them.
+
+    The reference experiment of the same name holds every run the book prints, and every number it
+    prints for them, each with its file and line; ``tests/test_doe_reference.py`` reproduces those
+    numbers. A link may open fewer runs than the book prints (the four corners without the baseline),
+    but none the book does not.
+    """
+    book = [tuple(round(float(v), 9) for v in run) for run in _reference_runs(name)]
+    for run in catalogue()[name]["runs"]:
+        coded = tuple(round(float(v), 9) for v in run)
+        assert coded in book, f"{name}: the link opens {run}, which is not a run of the book's"
+        book.remove(coded)
