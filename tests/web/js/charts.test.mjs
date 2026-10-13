@@ -5,7 +5,7 @@ import { describe, test } from "node:test";
 
 import {
   SIGN_COLOURS,
-  TRUE_COLOUR,
+  TRUE_MARKER,
   coefficientFigure,
   correlationFigure,
   fdsFigure,
@@ -56,11 +56,13 @@ describe("the coefficient chart", () => {
   });
 
   test("the true values beside the estimates, only when the results were simulated", () => {
-    const truth = coefficientFigure(coefficients, true, COLOURS).data.at(-1);
-    assert.equal(truth.name, "True value");
+    const { data } = coefficientFigure(coefficients, true, COLOURS);
+    const [truth, estimates] = data;
+    assert.equal(truth.name, "True value", "drawn first, so an estimate on its true value shows inside the diamond");
+    assert.equal(estimates.name, "Estimate");
     assert.deepEqual(truth.x, [4, 1.5]);
-    assert.equal(truth.marker.color, TRUE_COLOUR);
-    assert.notEqual(TRUE_COLOUR, COLOURS.accent);
+    assert.deepEqual(data.map((trace) => trace.legendrank), [3, 1, 2], "the legend still lists the estimate first");
+    assert.equal(truth.marker, TRUE_MARKER);
   });
 
   test("a row for every term, whatever their number, each with its label", () => {
@@ -124,6 +126,7 @@ describe("the book's Pareto plot of the coefficients", () => {
     assert.ok(paretoFigure(coefficients, false, null, COLOURS).data.every((trace) => trace.name !== "True size"));
     const truth = paretoFigure(coefficients, true, null, COLOURS).data.at(-1);
     assert.equal(truth.name, "True size");
+    assert.deepEqual([truth.marker.color, truth.marker.line.color], ["#ffffff", "#1a1a1a"], "white face, dark edge");
     assert.deepEqual(truth.x, [3, 2, 0]);
   });
 });

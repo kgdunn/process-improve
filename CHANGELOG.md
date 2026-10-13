@@ -56,7 +56,8 @@ those changes.
   positive coefficient and blue for a negative one, each with its 95% interval when
   residual degrees of freedom remain and Lenth's ME and SME when none do. The choice is
   kept in this browser. Both views drop their caption: the legend names each mark, the
-  95% interval included, and the true values are drawn in purple, apart from the blue.
+  95% interval included, and the true values are white diamonds with a dark edge, as the
+  book draws a mark on bars, so they read on the orange and the blue alike.
 - **Factorial's "Show the Python code" panels each hold a script that runs as it is.** Step
   2's panel holds step 1's code before its own, and step 3's both, their imports merged at
   the top, so the code copied from any panel runs without the others. The results' code

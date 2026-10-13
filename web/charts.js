@@ -37,8 +37,12 @@ export function palette() {
   return { fg: read("--fg"), muted: read("--muted"), line: read("--line"), accent: read("--accent") };
 }
 
-/** The true values' colour: Okabe-Ito's reddish purple, apart from the estimates' blue and the bars' orange. */
-export const TRUE_COLOUR = "#CC79A7";
+/**
+ * The true values' marker: a diamond with a white face and a dark edge, as the book draws a mark
+ * that sits on bars. It reads on the orange and the blue bars, and on a light or a dark page,
+ * where any one colour would be too like one of them.
+ */
+export const TRUE_MARKER = { symbol: "diamond", size: 12, color: "#ffffff", line: { width: 1.5, color: "#1a1a1a" } };
 
 /**
  * A legend entry with nothing drawn on the plot: a line in the legend that says what a line on the
@@ -176,6 +180,7 @@ export function coefficientFigure(coefficients, simulated, colours = palette()) 
       type: "scatter",
       mode: "markers",
       name: "Estimate",
+      legendrank: 1,
       x: terms.map((c) => c.coefficient),
       y: labels,
       marker: { color: colours.accent, size: 9 },
@@ -191,15 +196,19 @@ export function coefficientFigure(coefficients, simulated, colours = palette()) 
       hovertemplate: "%{y}: %{x:.4g}<extra></extra>",
     },
   ];
-  if (terms.some((c) => c.ci_low !== null && c.ci_low !== undefined)) data.push(legendKey("95% interval", colours.accent));
+  if (terms.some((c) => c.ci_low !== null && c.ci_low !== undefined)) {
+    data.push({ ...legendKey("95% interval", colours.accent), legendrank: 2 });
+  }
   if (simulated) {
-    data.push({
+    // Drawn first, under the estimates, so a dot on its true value shows inside the diamond.
+    data.unshift({
       type: "scatter",
       mode: "markers",
       name: "True value",
+      legendrank: 3,
       x: terms.map((c) => c.true_value ?? 0),
       y: labels,
-      marker: { symbol: "diamond-open", size: 13, color: TRUE_COLOUR, line: { width: 2, color: TRUE_COLOUR } },
+      marker: TRUE_MARKER,
       hovertemplate: "%{y}, true: %{x:.4g}<extra></extra>",
     });
   }
@@ -256,7 +265,7 @@ export function paretoFigure(coefficients, simulated, lenth = null, colours = pa
       name: "True size",
       x: terms.map((c) => Math.abs(c.true_value ?? 0)),
       y: labels,
-      marker: { symbol: "diamond-open", size: 13, color: TRUE_COLOUR, line: { width: 2, color: TRUE_COLOUR } },
+      marker: TRUE_MARKER,
       hovertemplate: "%{y}, true size: %{x:.4g}<extra></extra>",
     });
   }

@@ -33,7 +33,11 @@ def test_each_chart_has_its_title_and_caption(page):
 
 
 def test_the_coefficient_chart_marks_the_true_values(page):
-    assert [trace["name"] for trace in plots(page)[0]] == ["Estimate", "95% interval", "True value"]
+    legend = coefficient_plot(page).evaluate(
+        "d => [...d.data].sort((a, b) => a.legendrank - b.legendrank).map((t) => t.name)"
+    )
+    assert legend == ["Estimate", "95% interval", "True value"]
+    assert plots(page)[0][0]["name"] == "True value", "drawn under the estimates"
 
 
 def test_the_fitted_and_true_surfaces_share_one_colour_scale(page):
