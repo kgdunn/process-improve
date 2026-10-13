@@ -38,7 +38,9 @@ def test_a_book_example_opens_with_its_factors_runs_and_results(context, site, b
     banner = page.text_content(BANNER)
     assert banner.startswith(f"Opened the book's example: {example['title']}, with the book's results.")
     assert page.get_attribute(f"{BANNER} a", "href") == example["book"]
-    assert page.get_attribute(f"{BANNER} a", "target") == "_blank", "the page keeps the example open"
+    assert page.get_attribute(f"{BANNER} a", "target") == "pid-book", (
+        "one tab for the book, so the page keeps its state"
+    )
     assert factor_table(page) == [
         {"name": "C", "low": "P", "high": "Q", "units": ""},
         {"name": "T", "low": "72", "high": "100", "units": "°F"},

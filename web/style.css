@@ -66,6 +66,16 @@ h1 {
 }
 /* The name beside the mark, as the package's social card sets its own: a bold serif, a quiet tagline. */
 .brand { display: flex; align-items: center; gap: 14px; margin: 0 0 12px; }
+/* The colour-mode switch, an icon at the header's right as the book has it: the mode now, and a press for the next. */
+.mode-switch {
+  margin-left: auto; align-self: flex-start; flex: none; padding: 8px; border: none; background: none;
+  color: var(--muted); line-height: 0; border-bottom: 2px solid transparent; border-radius: 6px 6px 0 0;
+}
+.mode-switch:hover, .mode-switch:focus-visible { color: var(--fg); border-bottom-color: var(--warn); }
+.mode-switch svg { display: none; width: 24px; height: 24px; }
+:root[data-mode="auto"] .mode-switch [data-for="auto"], :root:not([data-mode]) .mode-switch [data-for="auto"],
+:root[data-mode="light"] .mode-switch [data-for="light"],
+:root[data-mode="dark"] .mode-switch [data-for="dark"] { display: block; }
 .mark { flex: none; width: 58px; height: 58px; }
 .mark__edges { fill: none; stroke: var(--mark-edge); stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round; }
 .mark__runs circle, .mark__centre { stroke: var(--bg); stroke-width: 1.6; }
