@@ -25,13 +25,14 @@ True
 from __future__ import annotations
 
 import ast
+import functools
 import itertools
 import json
 import math
 import operator
 import re
 import warnings
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
 from decimal import Decimal
 from pathlib import Path
 from typing import Any
@@ -453,10 +454,17 @@ def _design_property(check: dict) -> float:
     ``check["design"]`` names it: ``design_type``, ``k`` factors, and ``options`` for ``generate_design``.
     A resolution may be printed as a Roman numeral.
     """
-    spec = check["design"]
+    return float(getattr(_made(json.dumps(check["design"], sort_keys=True)), check["property"]))
+
+
+@functools.cache
+def _made(spec_json: str) -> Any:  # noqa: ANN401 - the library's DesignResult
+    """Return the design a specification names, made once however many numbers are read from it."""
+    spec = json.loads(spec_json)
     factors = [Factor(name=_LETTERS[i], low=-1, high=1) for i in range(spec["k"])]
-    made = generate_design(factors, design_type=spec["design_type"], **spec.get("options", {}))
-    return float(getattr(made, check["property"]))
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        return generate_design(factors, design_type=spec["design_type"], **spec.get("options", {}))
 
 
 def _fraction_runs(experiment: dict, check: dict) -> list[int]:
@@ -521,6 +529,15 @@ def _checks(expected: dict) -> list[dict]:
     return check if isinstance(check, list) else [check]
 
 
+def _each_check(source: str | None = None) -> Iterator[tuple[str, dict, dict, dict]]:
+    """Yield each check of the catalogue, with its source's key, its entry and the number it checks."""
+    for f in _selected(source):
+        for entry in [*f["experiments"], *f.get("designs", [])]:
+            for expected in entry["expected"]:
+                for check in _checks(expected):
+                    yield f["source"]["key"], entry, expected, check
+
+
 def reproduce_reference(source: str | None = None) -> pd.DataFrame:
     """Recompute every printed number of the reference experiments and designs with this library.
 
@@ -558,28 +575,24 @@ def reproduce_reference(source: str | None = None) -> pd.DataFrame:
     """
     rows = []
     fits = _Fits()
-    for f in _selected(source):
-        key = f["source"]["key"]
-        for entry in [*f["experiments"], *f.get("designs", [])]:
-            for expected in entry["expected"]:
-                for check in _checks(expected):
-                    row = {
-                        "source": key,
-                        "experiment": entry["name"],
-                        "what": expected["what"],
-                        "term": expected.get("term"),
-                        "printed": check.get("printed", expected["value"]),
-                        "found": None,
-                        "checked": "kind" in check,
-                        "agrees": None,
-                        "reason": check.get("manual"),
-                        "disagreement": check.get("disagreement"),
-                        "where": json.dumps(expected["where"], ensure_ascii=False),
-                    }
-                    if "kind" in check:
-                        try:
-                            row["found"], row["agrees"] = _reproduce(entry, expected, check, fits)
-                        except (KeyError, ValueError, IndexError, StopIteration, TypeError) as exc:
-                            row["agrees"], row["reason"] = False, f"{type(exc).__name__}: {exc}"
-                    rows.append(row)
+    for key, entry, expected, check in _each_check(source):
+        row = {
+            "source": key,
+            "experiment": entry["name"],
+            "what": expected["what"],
+            "term": expected.get("term"),
+            "printed": check.get("printed", expected["value"]),
+            "found": None,
+            "checked": "kind" in check,
+            "agrees": None,
+            "reason": check.get("manual"),
+            "disagreement": check.get("disagreement"),
+            "where": json.dumps(expected["where"], ensure_ascii=False),
+        }
+        if "kind" in check:
+            try:
+                row["found"], row["agrees"] = _reproduce(entry, expected, check, fits)
+            except (KeyError, ValueError, IndexError, StopIteration, TypeError) as exc:
+                row["agrees"], row["reason"] = False, f"{type(exc).__name__}: {exc}"
+        rows.append(row)
     return pd.DataFrame(rows)

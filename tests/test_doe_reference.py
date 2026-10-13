@@ -14,6 +14,7 @@ import json
 
 import pytest
 
+from process_improve.experiments import reference
 from process_improve.experiments.reference import (
     reference_designs,
     reference_experiments,
@@ -21,29 +22,41 @@ from process_improve.experiments.reference import (
     reproduce_reference,
 )
 
-REPORT = reproduce_reference()
-CHECKED = REPORT[REPORT["checked"]]
+CHECKS = list(reference._each_check())
+FITS = reference._Fits()
+SLOW_DESIGNS = {"omars_ilp", "dsd"}  # built by search: seconds each, so each is made on one worker, once
 
 
-@pytest.mark.parametrize(
-    "row",
-    [row for _, row in CHECKED.iterrows()],
-    ids=[f"{r.experiment}:{r.what}:{r.term}"[:120] for r in CHECKED.itertuples()],
-)
-def test_every_printed_number_is_reproduced(row):
-    if isinstance(row["disagreement"], str):
-        assert not row["agrees"], f"{row['experiment']}: it reproduces now; take away the disagreement it records"
+def _case(key: str, entry: dict, expected: dict, check: dict) -> pytest.param:
+    marks = []
+    design = check.get("design") or {}
+    if design.get("design_type") in SLOW_DESIGNS:
+        spec = json.dumps(design, sort_keys=True)
+        marks = [pytest.mark.slow, pytest.mark.xdist_group(f"reference-design/{spec}")]
+    name = f"{key}:{entry['name']}:{expected['what']}:{expected.get('term')}"[:120]
+    return pytest.param(entry, expected, check, id=name, marks=marks)
+
+
+@pytest.mark.parametrize(("entry", "expected", "check"), [_case(*c) for c in CHECKS if "kind" in c[3]])
+def test_every_printed_number_is_reproduced(entry, expected, check):
+    found, agrees = reference._reproduce(entry, expected, check, FITS)
+    printed = check.get("printed", expected["value"])
+    if check.get("disagreement"):
+        assert not agrees, f"{entry['name']}: it reproduces now ({found}); take away the disagreement it records"
         return
-    assert row["agrees"], (
-        f"{row['experiment']}: {row['what']} {row['term']}: printed {row['printed']}, found {row['found']}"
-        f"{'; ' + row['reason'] if row['reason'] else ''} (printed at {row['where']})"
-    )
+    assert agrees, f"{entry['name']}: {expected['what']} {expected.get('term')}: printed {printed}, found {found}"
 
 
 def test_every_number_not_recomputed_says_why():
-    unchecked = REPORT[~REPORT["checked"]]
-    assert unchecked["reason"].str.len().gt(0).all()
-    assert not unchecked["reason"].eq("TO CHECK").any(), "every number is given a check or the reason it has none"
+    reasons = [check.get("manual") for *_, check in CHECKS if "kind" not in check]
+    assert all(reasons), "a number with no check says why it is not recomputed"
+    assert "TO CHECK" not in reasons, "every number is given a check or the reason it has none"
+
+
+def test_the_report_has_a_row_for_every_check():
+    report = reproduce_reference("ullmann-doe-2012")
+    assert len(report) == sum(key == "ullmann-doe-2012" for key, *_ in CHECKS)
+    assert report.loc[report["checked"], "agrees"].all()
 
 
 def test_every_experiment_says_where_it_was_printed():
