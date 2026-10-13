@@ -135,8 +135,11 @@ def reference_designs(source: str | None = None) -> list[dict[str, Any]]:
 
 # --------------------------------------------------------------------------- printed numbers
 def _tolerance(printed: str) -> float:
-    """Half a unit in the last digit printed: the most the source's rounding accounts for."""
-    exponent = Decimal(printed).normalize().as_tuple().exponent
+    """Half a unit in the last digit printed: the most the source's rounding accounts for.
+
+    The digits count as printed: 0.40 is rounded to hundredths, so it allows 0.005, not 0.05.
+    """
+    exponent = Decimal(printed).as_tuple().exponent
     return 0.5 * 10.0 ** min(0, int(exponent)) + 1e-9
 
 

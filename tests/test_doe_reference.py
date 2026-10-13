@@ -157,3 +157,12 @@ def test_each_kind_of_check_reports_what_it_finds(monkeypatch, tmp_path):
     assert report["found"].iloc[6] == "0.0714286"
     reasons = report["reason"].iloc[7:].str.split(":").str[0].tolist()
     assert reasons == ["KeyError", "KeyError", "ValueError", "ValueError"]
+
+
+def test_a_trailing_zero_is_a_printed_digit():
+    """0.40 is printed to hundredths: 0.37 does not round to it, though it rounds to 0.4."""
+    from process_improve.experiments.reference import _agrees
+
+    assert not _agrees(0.37, "0.40")
+    assert _agrees(0.37, "0.4")
+    assert _agrees(0.404, "0.40")
