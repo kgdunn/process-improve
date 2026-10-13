@@ -1,0 +1,1345 @@
+{
+ "schema": 1,
+ "about": ["Reference designed experiments from Vijay Nair's tutorial slides on fractional factorial designs (2004).", "Each worked example is an experiment (its coded runs and results); each design the slides construct is a", "design. expected: every number, alias and defining relation the slides print, with where (the slide number,", "a quotation) and a check. The slides number factors 1, 2, 3, ... (5 = 123), and those digits name the factors", "of the fractions here. Read with process_improve.experiments.reference."],
+ "source": {
+  "key": "nair-ffd-tutorial-2004",
+  "authors": ["Vijay N. Nair"],
+  "title": "Fractional Factorial Designs: A Tutorial",
+  "work": "tutorial slides, Departments of Statistics and Industrial & Operations Engineering, University of Michigan",
+  "year": 2004,
+  "url": "https://www.slideshare.net/slideshow/fractional-factorial-design-tutorial/15739157",
+  "cite": "Nair, V. N. (2004), Fractional Factorial Designs: A Tutorial, slides, University of Michigan",
+  "read": "2026-10-13, from the PowerPoint file supplied by the user (48 slides, last saved 14 November 2004), converted to PDF to read the slides drawn as images; every number copied by hand with its slide"
+ },
+ "experiments": [
+  {
+   "name": "nair-two-factor-example",
+   "title": "A 2^2 experiment in X1 and X2: main effects and the interaction",
+   "kind": "example",
+   "where": {
+    "slides": "11-16"
+   },
+   "factors": [
+    {
+     "name": "X1",
+     "description": "factor 1",
+     "low": -1,
+     "high": 1,
+     "units": "",
+     "type": "numeric"
+    },
+    {
+     "name": "X2",
+     "description": "factor 2",
+     "low": -1,
+     "high": 1,
+     "units": "",
+     "type": "numeric"
+    }
+   ],
+   "responses": [
+    {
+     "name": "y",
+     "description": "response",
+     "units": ""
+    }
+   ],
+   "design": {
+    "type": "2^2 full factorial",
+    "n_runs": 4
+   },
+   "runs": {
+    "columns": ["X1", "X2", "y"],
+    "coded": true,
+    "rows": [
+     [-1, -1, 14],
+     [1, -1, 5],
+     [-1, 1, 3],
+     [1, 1, 8]
+    ]
+   },
+   "expected": [
+    {
+     "what": "effect",
+     "term": "X1",
+     "value": "-2",
+     "where": {
+      "page": 11,
+      "source_kind": "slide",
+      "quote": "E1 = ((8 + 5)/2) - ((3 + 14)/2) = -2"
+     },
+     "check": {
+      "kind": "effect",
+      "term": "X1",
+      "model": "X1*X2"
+     }
+    },
+    {
+     "what": "mean",
+     "term": null,
+     "value": "8.5",
+     "analysis": "the average y with X1 low",
+     "where": {
+      "page": 11,
+      "source_kind": "figure",
+      "quote": "Main Effect of X1 ... 8.5"
+     },
+     "check": {
+      "kind": "mean",
+      "model": null,
+      "runs": [1, 3]
+     }
+    },
+    {
+     "what": "mean",
+     "term": null,
+     "value": "6.5",
+     "analysis": "the average y with X1 high",
+     "where": {
+      "page": 11,
+      "source_kind": "figure",
+      "quote": "Main Effect of X1 ... 6.5"
+     },
+     "check": {
+      "kind": "mean",
+      "model": null,
+      "runs": [2, 4]
+     }
+    },
+    {
+     "what": "effect",
+     "term": "X2",
+     "value": "-4",
+     "where": {
+      "page": 12,
+      "source_kind": "slide",
+      "quote": "E2 = ((3 + 8)/2) - ((14 + 5)/2) = -4"
+     },
+     "check": {
+      "kind": "effect",
+      "term": "X2",
+      "model": "X1*X2"
+     }
+    },
+    {
+     "what": "mean",
+     "term": null,
+     "value": "9.5",
+     "analysis": "the average y with X2 low",
+     "where": {
+      "page": 13,
+      "source_kind": "figure",
+      "quote": "Main Effect Plot for X2 ... 9.5"
+     },
+     "check": {
+      "kind": "mean",
+      "model": null,
+      "runs": [1, 2]
+     }
+    },
+    {
+     "what": "mean",
+     "term": null,
+     "value": "5.5",
+     "analysis": "the average y with X2 high",
+     "where": {
+      "page": 13,
+      "source_kind": "figure",
+      "quote": "Main Effect Plot for X2 ... 5.5"
+     },
+     "check": {
+      "kind": "mean",
+      "model": null,
+      "runs": [3, 4]
+     }
+    },
+    {
+     "what": "effect",
+     "term": "X1·X2",
+     "value": "7",
+     "where": {
+      "page": 16,
+      "source_kind": "slide",
+      "quote": "E12 = ((8 + 14)/2) - ((3 + 5)/2) = 7"
+     },
+     "check": {
+      "kind": "effect",
+      "term": "X1·X2",
+      "model": "X1*X2"
+     }
+    }
+   ]
+  },
+  {
+   "name": "nair-three-factor-example",
+   "title": "A 2^3 experiment in X1, X2 and X3: the main effect of X1",
+   "kind": "example",
+   "where": {
+    "slides": "17-19"
+   },
+   "factors": [
+    {
+     "name": "X1",
+     "description": "factor 1",
+     "low": -1,
+     "high": 1,
+     "units": "",
+     "type": "numeric"
+    },
+    {
+     "name": "X2",
+     "description": "factor 2",
+     "low": -1,
+     "high": 1,
+     "units": "",
+     "type": "numeric"
+    },
+    {
+     "name": "X3",
+     "description": "factor 3",
+     "low": -1,
+     "high": 1,
+     "units": "",
+     "type": "numeric"
+    }
+   ],
+   "responses": [
+    {
+     "name": "y",
+     "description": "response",
+     "units": ""
+    }
+   ],
+   "design": {
+    "type": "2^3 full factorial",
+    "n_runs": 8
+   },
+   "runs": {
+    "columns": ["X1", "X2", "X3", "y"],
+    "coded": true,
+    "rows": [
+     [-1, -1, -1, 7],
+     [1, -1, -1, 9],
+     [-1, 1, -1, 9],
+     [1, 1, -1, 9],
+     [-1, -1, 1, 8],
+     [1, -1, 1, 3],
+     [-1, 1, 1, 8],
+     [1, 1, 1, 3]
+    ]
+   },
+   "expected": [
+    {
+     "what": "mean",
+     "term": null,
+     "value": "6",
+     "analysis": "the average y with X1 high",
+     "where": {
+      "page": 18,
+      "source_kind": "slide",
+      "quote": "Average y when X1 is +: (9 + 9 + 3 + 3)/4 = 6"
+     },
+     "check": {
+      "kind": "mean",
+      "model": null,
+      "runs": [2, 4, 6, 8]
+     }
+    },
+    {
+     "what": "mean",
+     "term": null,
+     "value": "8",
+     "analysis": "the average y with X1 low",
+     "where": {
+      "page": 18,
+      "source_kind": "slide",
+      "quote": "Average y when X1 is -: (7 + 9 + 8 + 8)/4 = 8"
+     },
+     "check": {
+      "kind": "mean",
+      "model": null,
+      "runs": [1, 3, 5, 7]
+     }
+    },
+    {
+     "what": "effect",
+     "term": "X1",
+     "value": "-2",
+     "where": {
+      "page": 18,
+      "source_kind": "slide",
+      "quote": "E1 = 6 - 8 = -2"
+     },
+     "check": {
+      "kind": "effect",
+      "term": "X1",
+      "model": "X1*X2*X3"
+     },
+     "note": "slide 19 draws the same: E1 = 6 - 8 = -2"
+    }
+   ]
+  }
+ ],
+ "designs": [
+  {
+   "name": "nair-full-factorial-sizes",
+   "title": "The number of runs of a two-level full factorial in 1 to 10 factors",
+   "where": {
+    "slides": "25"
+   },
+   "design": {
+    "type": "2^k full factorial"
+   },
+   "expected": [
+    {
+     "what": "number of runs",
+     "term": "1 factors",
+     "value": "2",
+     "where": {
+      "page": 25,
+      "source_kind": "table",
+      "quote": "Number of Factors 1 ... Number of Treatment combinations 2"
+     },
+     "check": {
+      "kind": "design_property",
+      "design": {
+       "design_type": "full_factorial",
+       "k": 1,
+       "options": {
+        "n_center_points": 0
+       }
+      },
+      "property": "n_runs"
+     }
+    },
+    {
+     "what": "number of runs",
+     "term": "2 factors",
+     "value": "4",
+     "where": {
+      "page": 25,
+      "source_kind": "table",
+      "quote": "Number of Factors 2 ... Number of Treatment combinations 4"
+     },
+     "check": {
+      "kind": "design_property",
+      "design": {
+       "design_type": "full_factorial",
+       "k": 2,
+       "options": {
+        "n_center_points": 0
+       }
+      },
+      "property": "n_runs"
+     }
+    },
+    {
+     "what": "number of runs",
+     "term": "3 factors",
+     "value": "8",
+     "where": {
+      "page": 25,
+      "source_kind": "table",
+      "quote": "Number of Factors 3 ... Number of Treatment combinations 8"
+     },
+     "check": {
+      "kind": "design_property",
+      "design": {
+       "design_type": "full_factorial",
+       "k": 3,
+       "options": {
+        "n_center_points": 0
+       }
+      },
+      "property": "n_runs"
+     }
+    },
+    {
+     "what": "number of runs",
+     "term": "4 factors",
+     "value": "16",
+     "where": {
+      "page": 25,
+      "source_kind": "table",
+      "quote": "Number of Factors 4 ... Number of Treatment combinations 16"
+     },
+     "check": {
+      "kind": "design_property",
+      "design": {
+       "design_type": "full_factorial",
+       "k": 4,
+       "options": {
+        "n_center_points": 0
+       }
+      },
+      "property": "n_runs"
+     }
+    },
+    {
+     "what": "number of runs",
+     "term": "5 factors",
+     "value": "32",
+     "where": {
+      "page": 25,
+      "source_kind": "table",
+      "quote": "Number of Factors 5 ... Number of Treatment combinations 32"
+     },
+     "check": {
+      "kind": "design_property",
+      "design": {
+       "design_type": "full_factorial",
+       "k": 5,
+       "options": {
+        "n_center_points": 0
+       }
+      },
+      "property": "n_runs"
+     }
+    },
+    {
+     "what": "number of runs",
+     "term": "6 factors",
+     "value": "64",
+     "where": {
+      "page": 25,
+      "source_kind": "table",
+      "quote": "Number of Factors 6 ... Number of Treatment combinations 64"
+     },
+     "check": {
+      "kind": "design_property",
+      "design": {
+       "design_type": "full_factorial",
+       "k": 6,
+       "options": {
+        "n_center_points": 0
+       }
+      },
+      "property": "n_runs"
+     }
+    },
+    {
+     "what": "number of runs",
+     "term": "7 factors",
+     "value": "128",
+     "where": {
+      "page": 25,
+      "source_kind": "table",
+      "quote": "Number of Factors 7 ... Number of Treatment combinations 128"
+     },
+     "check": {
+      "kind": "design_property",
+      "design": {
+       "design_type": "full_factorial",
+       "k": 7,
+       "options": {
+        "n_center_points": 0
+       }
+      },
+      "property": "n_runs"
+     }
+    },
+    {
+     "what": "number of runs",
+     "term": "8 factors",
+     "value": "256",
+     "where": {
+      "page": 25,
+      "source_kind": "table",
+      "quote": "Number of Factors 8 ... Number of Treatment combinations 256"
+     },
+     "check": {
+      "kind": "design_property",
+      "design": {
+       "design_type": "full_factorial",
+       "k": 8,
+       "options": {
+        "n_center_points": 0
+       }
+      },
+      "property": "n_runs"
+     }
+    },
+    {
+     "what": "number of runs",
+     "term": "9 factors",
+     "value": "512",
+     "where": {
+      "page": 25,
+      "source_kind": "table",
+      "quote": "Number of Factors 9 ... Number of Treatment combinations 512"
+     },
+     "check": {
+      "kind": "design_property",
+      "design": {
+       "design_type": "full_factorial",
+       "k": 9,
+       "options": {
+        "n_center_points": 0
+       }
+      },
+      "property": "n_runs"
+     }
+    },
+    {
+     "what": "number of runs",
+     "term": "10 factors",
+     "value": "1024",
+     "where": {
+      "page": 25,
+      "source_kind": "table",
+      "quote": "Number of Factors 10 ... Number of Treatment combinations 1024"
+     },
+     "check": {
+      "kind": "design_property",
+      "design": {
+       "design_type": "full_factorial",
+       "k": 10,
+       "options": {
+        "n_center_points": 0
+       }
+      },
+      "property": "n_runs"
+     }
+    }
+   ]
+  },
+  {
+   "name": "nair-half-fraction-three-factors",
+   "title": "The regular half fraction of the 2^3, with X3 = X1X2",
+   "where": {
+    "slides": "27-34"
+   },
+   "design": {
+    "type": "2^(3-1) fractional factorial",
+    "details": "X3 = X1X2"
+   },
+   "factors": [
+    {
+     "name": "1",
+     "description": "factor X1",
+     "low": -1,
+     "high": 1,
+     "units": "",
+     "type": "numeric"
+    },
+    {
+     "name": "2",
+     "description": "factor X2",
+     "low": -1,
+     "high": 1,
+     "units": "",
+     "type": "numeric"
+    },
+    {
+     "name": "3",
+     "description": "factor X3",
+     "low": -1,
+     "high": 1,
+     "units": "",
+     "type": "numeric"
+    }
+   ],
+   "responses": [],
+   "runs": {
+    "columns": ["1", "2", "3"],
+    "coded": true,
+    "rows": [
+     [1, -1, -1],
+     [-1, -1, 1],
+     [-1, 1, -1],
+     [1, 1, 1]
+    ],
+    "headers": ["X1", "X2", "X3"],
+    "notes": "the table of slides 30 to 34, in its printed order"
+   },
+   "notes": "Slides 28 and 29 show two other choices of four runs: one never varies X3, and one is not balanced, with X1 low in 3 of its 4 runs. The cube on slides 27 to 34 numbers its corners with X1 changing fastest, then X3, then X2.",
+   "expected": [
+    {
+     "what": "runs of the half fraction",
+     "term": null,
+     "value": "Set X3 column equal to the X1X2 interaction column",
+     "analysis": "every printed run has X3 = X1X2",
+     "where": {
+      "page": 31,
+      "source_kind": "slide",
+      "quote": "Set X3 column equal to the X1X2 interaction column"
+     },
+     "check": {
+      "kind": "fraction_runs",
+      "generator": "3=12",
+      "printed": "1, 2, 3, 4"
+     }
+    },
+    {
+     "what": "number of runs",
+     "term": null,
+     "value": "8/2 = 4 runs",
+     "where": {
+      "page": 33,
+      "source_kind": "slide",
+      "quote": "3 factors studied -- 1-half fraction 8/2 = 4 runs"
+     },
+     "check": {
+      "kind": "design_property",
+      "design": {
+       "design_type": "fractional_factorial",
+       "k": 3,
+       "options": {
+        "generators": ["C=AB"],
+        "n_center_points": 0
+       }
+      },
+      "property": "n_runs",
+      "printed": "4"
+     }
+    },
+    {
+     "what": "aliases",
+     "term": "X1·X3",
+     "value": "X1X3 = X2",
+     "where": {
+      "page": 34,
+      "source_kind": "slide",
+      "quote": "X3 = X1X2 -> X1X3 = X2 and X2X3 = X1"
+     },
+     "check": {
+      "kind": "aliases",
+      "term": "1·3",
+      "k": 3,
+      "factors": ["1", "2", "3"],
+      "generators": ["3=12"],
+      "printed": "2"
+     }
+    },
+    {
+     "what": "aliases",
+     "term": "X2·X3",
+     "value": "X2X3 = X1",
+     "where": {
+      "page": 34,
+      "source_kind": "slide",
+      "quote": "X3 = X1X2 -> X1X3 = X2 and X2X3 = X1"
+     },
+     "check": {
+      "kind": "aliases",
+      "term": "2·3",
+      "k": 3,
+      "factors": ["1", "2", "3"],
+      "generators": ["3=12"],
+      "printed": "1"
+     }
+    },
+    {
+     "what": "resolution",
+     "term": null,
+     "value": "Resolution III",
+     "where": {
+      "page": 34,
+      "source_kind": "slide",
+      "quote": "(main effects aliased with two-factor interactions) - Resolution III design"
+     },
+     "check": {
+      "kind": "resolution",
+      "k": 3,
+      "factors": ["1", "2", "3"],
+      "generators": ["3=12"],
+      "printed": "III"
+     }
+    }
+   ]
+  },
+  {
+   "name": "nair-half-fraction-five-factors",
+   "title": "Five factors in 16 runs: the half fraction with X5 on the highest-order interaction",
+   "where": {
+    "slides": "35-36"
+   },
+   "design": {
+    "type": "2^(5-1) fractional factorial",
+    "details": "X5 = X1X2X3X4"
+   },
+   "expected": [
+    {
+     "what": "number of runs",
+     "term": null,
+     "value": "2^4 = 16-run",
+     "where": {
+      "page": 35,
+      "source_kind": "slide",
+      "quote": "Want to study 5 factors (1,2,3,4,5) using a 2^4 = 16-run design"
+     },
+     "check": {
+      "kind": "design_property",
+      "design": {
+       "design_type": "fractional_factorial",
+       "k": 5,
+       "options": {
+        "generators": ["E=ABCD"],
+        "n_center_points": 0
+       }
+      },
+      "property": "n_runs",
+      "printed": "16"
+     }
+    },
+    {
+     "what": "generator",
+     "term": null,
+     "value": "x1x2x3x4",
+     "analysis": "the half fraction of highest resolution: the library's resolution V half fraction",
+     "where": {
+      "page": 36,
+      "source_kind": "slide",
+      "quote": "Associate the last (kth) factor into the column labeled: X1X2...Xk-1 (that is, the highest order interaction column)"
+     },
+     "check": {
+      "kind": "generator",
+      "k": 5,
+      "factors": ["1", "2", "3", "4", "5"],
+      "resolution": 5,
+      "printed": "5=1234"
+     }
+    }
+   ]
+  },
+  {
+   "name": "nair-quarter-fraction-resolution-iii",
+   "title": "Six factors in 16 runs with X5 = X2X3X4 and X6 = X1X2X3X4: resolution III",
+   "where": {
+    "slides": "37, 41"
+   },
+   "design": {
+    "type": "2^(6-2) fractional factorial",
+    "details": "X5 = X2X3X4, X6 = X1X2X3X4"
+   },
+   "expected": [
+    {
+     "what": "aliases",
+     "term": "X5·X6",
+     "value": "X5*X6 = X1",
+     "where": {
+      "page": 41,
+      "source_kind": "slide",
+      "quote": "X5 = X2*X3*X4; X6 = X1*X2*X3*X4; -> X5*X6 = X1"
+     },
+     "check": {
+      "kind": "aliases",
+      "term": "5·6",
+      "k": 6,
+      "factors": ["1", "2", "3", "4", "5", "6"],
+      "generators": ["5=234", "6=1234"],
+      "printed": "1"
+     },
+     "note": "also on slide 37"
+    },
+    {
+     "what": "defining relation",
+     "term": null,
+     "value": "I = 2345 = 12346 = 156",
+     "where": {
+      "page": 41,
+      "source_kind": "slide",
+      "quote": "or I = 2345 = 12346 = 156 -> Resolution III design"
+     },
+     "check": {
+      "kind": "defining_relation",
+      "k": 6,
+      "factors": ["1", "2", "3", "4", "5", "6"],
+      "generators": ["5=234", "6=1234"]
+     }
+    },
+    {
+     "what": "resolution",
+     "term": null,
+     "value": "Resolution III",
+     "where": {
+      "page": 41,
+      "source_kind": "slide",
+      "quote": "or I = 2345 = 12346 = 156 -> Resolution III design"
+     },
+     "check": {
+      "kind": "resolution",
+      "k": 6,
+      "factors": ["1", "2", "3", "4", "5", "6"],
+      "generators": ["5=234", "6=1234"],
+      "printed": "III"
+     }
+    }
+   ]
+  },
+  {
+   "name": "nair-quarter-fraction-resolution-iv",
+   "title": "Six factors in 16 runs with X5 = X1X2X3 and X6 = X2X3X4: resolution IV",
+   "where": {
+    "slides": "38, 39, 42, 43, 46"
+   },
+   "design": {
+    "type": "2^(6-2) fractional factorial",
+    "details": "X5 = X1X2X3, X6 = X2X3X4"
+   },
+   "notes": "Slide 43 lists each main effect's aliases as three words, and the third is written as the word of the defining relation rather than its product with the factor: 1 = 2346 for 1 = 12346, and 2 = 1456 and 3 = 1456 for 2 = 12456 and 3 = 13456.",
+   "expected": [
+    {
+     "what": "aliases",
+     "term": "X5·X6",
+     "value": "X5*X6 = X1*X4",
+     "where": {
+      "page": 39,
+      "source_kind": "slide",
+      "quote": "X5 = X1*X2*X3; X6 = X2*X3*X4 -> X5*X6 = X1*X4"
+     },
+     "check": {
+      "kind": "aliases",
+      "term": "5·6",
+      "k": 6,
+      "factors": ["1", "2", "3", "4", "5", "6"],
+      "generators": ["5=123", "6=234"],
+      "printed": "14"
+     },
+     "note": "also on slides 38 and 42; 56 = 14 on slide 39"
+    },
+    {
+     "what": "defining relation",
+     "term": null,
+     "value": "I = 1235 = 2346 = 1456",
+     "where": {
+      "page": 39,
+      "source_kind": "slide",
+      "quote": "Generators: I = 1235 = 2346 = 1456"
+     },
+     "check": {
+      "kind": "defining_relation",
+      "k": 6,
+      "factors": ["1", "2", "3", "4", "5", "6"],
+      "generators": ["5=123", "6=234"]
+     }
+    },
+    {
+     "what": "defining relation",
+     "term": null,
+     "value": "I = 1235 = 2346 = 1456",
+     "where": {
+      "page": 42,
+      "source_kind": "slide",
+      "quote": "or I = 1235 = 2346 = 1456 -> Resolution IV design"
+     },
+     "check": {
+      "kind": "defining_relation",
+      "k": 6,
+      "factors": ["1", "2", "3", "4", "5", "6"],
+      "generators": ["5=123", "6=234"]
+     }
+    },
+    {
+     "what": "defining relation",
+     "term": null,
+     "value": "I = 1235 = 2346 = 1456",
+     "where": {
+      "page": 46,
+      "source_kind": "slide",
+      "quote": "Set 12=35, 13=25, 14= 56 (for example) -> I = 1235 = 2346 = 1456 -> Resolution IV design"
+     },
+     "check": {
+      "kind": "defining_relation",
+      "k": 6,
+      "factors": ["1", "2", "3", "4", "5", "6"],
+      "generators": ["5=123", "6=234"]
+     }
+    },
+    {
+     "what": "resolution",
+     "term": null,
+     "value": "resolution IV here",
+     "where": {
+      "page": 39,
+      "source_kind": "slide",
+      "quote": "Length of the shortest “word” in the generator set -> resolution IV here"
+     },
+     "check": {
+      "kind": "resolution",
+      "k": 6,
+      "factors": ["1", "2", "3", "4", "5", "6"],
+      "generators": ["5=123", "6=234"],
+      "printed": "IV"
+     }
+    },
+    {
+     "what": "aliases",
+     "term": "1",
+     "value": "1=235=456=2346",
+     "where": {
+      "page": 43,
+      "source_kind": "slide",
+      "quote": "Main-effects: 1=235=456=2346; 2=135=346=1456; 3=125=246=1456; 4=..."
+     },
+     "check": [
+      {
+       "kind": "aliases",
+       "term": "1",
+       "k": 6,
+       "factors": ["1", "2", "3", "4", "5", "6"],
+       "generators": ["5=123", "6=234"],
+       "printed": "235"
+      },
+      {
+       "kind": "aliases",
+       "term": "1",
+       "k": 6,
+       "factors": ["1", "2", "3", "4", "5", "6"],
+       "generators": ["5=123", "6=234"],
+       "printed": "456"
+      },
+      {
+       "kind": "aliases",
+       "term": "1",
+       "k": 6,
+       "factors": ["1", "2", "3", "4", "5", "6"],
+       "generators": ["5=123", "6=234"],
+       "printed": "2346",
+       "disagreement": "1 times 2346 or 1456 is 12346, not 2346: the slide writes the word of the defining relation"
+      }
+     ]
+    },
+    {
+     "what": "aliases",
+     "term": "2",
+     "value": "2=135=346=1456",
+     "where": {
+      "page": 43,
+      "source_kind": "slide",
+      "quote": "Main-effects: 1=235=456=2346; 2=135=346=1456; 3=125=246=1456; 4=..."
+     },
+     "check": [
+      {
+       "kind": "aliases",
+       "term": "2",
+       "k": 6,
+       "factors": ["1", "2", "3", "4", "5", "6"],
+       "generators": ["5=123", "6=234"],
+       "printed": "135"
+      },
+      {
+       "kind": "aliases",
+       "term": "2",
+       "k": 6,
+       "factors": ["1", "2", "3", "4", "5", "6"],
+       "generators": ["5=123", "6=234"],
+       "printed": "346"
+      },
+      {
+       "kind": "aliases",
+       "term": "2",
+       "k": 6,
+       "factors": ["1", "2", "3", "4", "5", "6"],
+       "generators": ["5=123", "6=234"],
+       "printed": "1456",
+       "disagreement": "2 times 2346 or 1456 is 12456, not 1456: the slide writes the word of the defining relation"
+      }
+     ]
+    },
+    {
+     "what": "aliases",
+     "term": "3",
+     "value": "3=125=246=1456",
+     "where": {
+      "page": 43,
+      "source_kind": "slide",
+      "quote": "Main-effects: 1=235=456=2346; 2=135=346=1456; 3=125=246=1456; 4=..."
+     },
+     "check": [
+      {
+       "kind": "aliases",
+       "term": "3",
+       "k": 6,
+       "factors": ["1", "2", "3", "4", "5", "6"],
+       "generators": ["5=123", "6=234"],
+       "printed": "125"
+      },
+      {
+       "kind": "aliases",
+       "term": "3",
+       "k": 6,
+       "factors": ["1", "2", "3", "4", "5", "6"],
+       "generators": ["5=123", "6=234"],
+       "printed": "246"
+      },
+      {
+       "kind": "aliases",
+       "term": "3",
+       "k": 6,
+       "factors": ["1", "2", "3", "4", "5", "6"],
+       "generators": ["5=123", "6=234"],
+       "printed": "1456",
+       "disagreement": "3 times 2346 or 1456 is 13456, not 1456: the slide writes the word of the defining relation"
+      }
+     ]
+    },
+    {
+     "what": "aliases",
+     "term": "1·2",
+     "value": "12=35",
+     "where": {
+      "page": 43,
+      "source_kind": "slide",
+      "quote": "15-possible 2-factor interactions: ... 12=35"
+     },
+     "check": {
+      "kind": "aliases",
+      "term": "1·2",
+      "k": 6,
+      "factors": ["1", "2", "3", "4", "5", "6"],
+      "generators": ["5=123", "6=234"],
+      "printed": "35"
+     },
+     "note": "also on slide 46"
+    },
+    {
+     "what": "aliases",
+     "term": "1·3",
+     "value": "13=25",
+     "where": {
+      "page": 43,
+      "source_kind": "slide",
+      "quote": "15-possible 2-factor interactions: ... 13=25"
+     },
+     "check": {
+      "kind": "aliases",
+      "term": "1·3",
+      "k": 6,
+      "factors": ["1", "2", "3", "4", "5", "6"],
+      "generators": ["5=123", "6=234"],
+      "printed": "25"
+     },
+     "note": "also on slide 46"
+    },
+    {
+     "what": "aliases",
+     "term": "1·4",
+     "value": "14=56",
+     "where": {
+      "page": 43,
+      "source_kind": "slide",
+      "quote": "15-possible 2-factor interactions: ... 14=56"
+     },
+     "check": {
+      "kind": "aliases",
+      "term": "1·4",
+      "k": 6,
+      "factors": ["1", "2", "3", "4", "5", "6"],
+      "generators": ["5=123", "6=234"],
+      "printed": "56"
+     },
+     "note": "also on slide 46"
+    },
+    {
+     "what": "aliases",
+     "term": "1·5",
+     "value": "15=23=46",
+     "where": {
+      "page": 43,
+      "source_kind": "slide",
+      "quote": "15-possible 2-factor interactions: ... 15=23=46"
+     },
+     "check": {
+      "kind": "aliases",
+      "term": "1·5",
+      "k": 6,
+      "factors": ["1", "2", "3", "4", "5", "6"],
+      "generators": ["5=123", "6=234"],
+      "printed": "23, 46"
+     },
+     "note": "also on slide 46"
+    },
+    {
+     "what": "aliases",
+     "term": "1·6",
+     "value": "16=45",
+     "where": {
+      "page": 43,
+      "source_kind": "slide",
+      "quote": "15-possible 2-factor interactions: ... 16=45"
+     },
+     "check": {
+      "kind": "aliases",
+      "term": "1·6",
+      "k": 6,
+      "factors": ["1", "2", "3", "4", "5", "6"],
+      "generators": ["5=123", "6=234"],
+      "printed": "45"
+     },
+     "note": "also on slide 46"
+    },
+    {
+     "what": "aliases",
+     "term": "2·4",
+     "value": "24=36",
+     "where": {
+      "page": 43,
+      "source_kind": "slide",
+      "quote": "15-possible 2-factor interactions: ... 24=36"
+     },
+     "check": {
+      "kind": "aliases",
+      "term": "2·4",
+      "k": 6,
+      "factors": ["1", "2", "3", "4", "5", "6"],
+      "generators": ["5=123", "6=234"],
+      "printed": "36"
+     },
+     "note": "also on slide 46"
+    },
+    {
+     "what": "aliases",
+     "term": "2·6",
+     "value": "26=34",
+     "where": {
+      "page": 43,
+      "source_kind": "slide",
+      "quote": "15-possible 2-factor interactions: ... 26=34"
+     },
+     "check": {
+      "kind": "aliases",
+      "term": "2·6",
+      "k": 6,
+      "factors": ["1", "2", "3", "4", "5", "6"],
+      "generators": ["5=123", "6=234"],
+      "printed": "34"
+     },
+     "note": "also on slide 46"
+    },
+    {
+     "what": "number of two-factor interactions",
+     "term": null,
+     "value": "15-possible 2-factor interactions",
+     "where": {
+      "page": 43,
+      "source_kind": "slide",
+      "quote": "15-possible 2-factor interactions:"
+     },
+     "check": {
+      "manual": "a count, 6 choose 2 = 15, which no check here computes; the seven alias chains checked here hold all 15"
+     }
+    }
+   ]
+  },
+  {
+   "name": "nair-resolution-v-six-factors",
+   "title": "Six factors at resolution V need 32 runs",
+   "where": {
+    "slides": "45"
+   },
+   "design": {
+    "type": "2^(6-1) fractional factorial"
+   },
+   "expected": [
+    {
+     "what": "number of runs",
+     "term": null,
+     "value": "6 factors -> need 32 runs",
+     "where": {
+      "page": 45,
+      "source_kind": "slide",
+      "quote": "Resolution V designs -> also easy but not as economical (for example, 6 factors -> need 32 runs)"
+     },
+     "check": {
+      "kind": "design_property",
+      "design": {
+       "design_type": "fractional_factorial",
+       "k": 6,
+       "options": {
+        "resolution": 5,
+        "n_center_points": 0
+       }
+      },
+      "property": "n_runs",
+      "printed": "32"
+     },
+     "note": "the library's half fraction, F = ABCDE, has resolution VI, above V"
+    }
+   ]
+  },
+  {
+   "name": "nair-project-one-intervention",
+   "title": "Project 1: a 2^(7-2) screening design of seven intervention components (12 of its 32 runs printed)",
+   "where": {
+    "slides": "47"
+   },
+   "design": {
+    "type": "2^(7-2) fractional factorial",
+    "details": "32 treatment combinations; the slide prints 12"
+   },
+   "factors": [
+    {
+     "name": "A",
+     "description": "OE-Depth",
+     "low": -1,
+     "high": 1,
+     "units": "",
+     "type": "numeric"
+    },
+    {
+     "name": "B",
+     "description": "Dose",
+     "low": -1,
+     "high": 1,
+     "units": "",
+     "type": "numeric"
+    },
+    {
+     "name": "C",
+     "description": "Testimonials",
+     "low": -1,
+     "high": 1,
+     "units": "",
+     "type": "numeric"
+    },
+    {
+     "name": "D",
+     "description": "Framing",
+     "low": -1,
+     "high": 1,
+     "units": "",
+     "type": "numeric"
+    },
+    {
+     "name": "E",
+     "description": "EE-Depth",
+     "low": -1,
+     "high": 1,
+     "units": "",
+     "type": "numeric"
+    },
+    {
+     "name": "F",
+     "description": "Source",
+     "low": -1,
+     "high": 1,
+     "units": "",
+     "type": "numeric"
+    },
+    {
+     "name": "G",
+     "description": "Source-Depth",
+     "low": -1,
+     "high": 1,
+     "units": "",
+     "type": "numeric"
+    }
+   ],
+   "responses": [],
+   "runs": {
+    "columns": ["pattern", "A", "B", "C", "D", "E", "F", "G", "OE-Depth", "Dose", "Testimonials", "Framing", "EE-Depth", "Source", "Source-Depth"],
+    "coded": true,
+    "rows": [
+     ["+----+-", 1, -1, -1, -1, -1, 1, -1, "LO", 1, "HI", "Gain", "HI", "Team", "HI"],
+     ["--+-++-", -1, -1, 1, -1, 1, 1, -1, "HI", 1, "LO", "Gain", "LO", "Team", "HI"],
+     ["++----+", 1, 1, -1, -1, -1, -1, 1, "LO", 5, "HI", "Gain", "HI", "HMO", "LO"],
+     ["+---+++", 1, -1, -1, -1, 1, 1, 1, "LO", 1, "HI", "Gain", "LO", "Team", "LO"],
+     ["++-++-+", 1, 1, -1, 1, 1, -1, 1, "LO", 5, "HI", "Loss", "LO", "HMO", "LO"],
+     ["--+--++", -1, -1, 1, -1, -1, 1, 1, "HI", 1, "LO", "Gain", "HI", "Team", "LO"],
+     ["+--+++-", 1, -1, -1, 1, 1, 1, -1, "LO", 1, "HI", "Loss", "LO", "Team", "HI"],
+     ["-++----", -1, 1, 1, -1, -1, -1, -1, "HI", 5, "LO", "Gain", "HI", "HMO", "HI"],
+     ["-++-+-+", -1, 1, 1, -1, 1, -1, 1, "HI", 5, "LO", "Gain", "LO", "HMO", "LO"],
+     ["-++++--", -1, 1, 1, 1, 1, -1, -1, "HI", 5, "LO", "Loss", "LO", "HMO", "HI"],
+     ["----+--", -1, -1, -1, -1, 1, -1, -1, "HI", 1, "HI", "Gain", "LO", "HMO", "HI"],
+     ["-+-+++-", -1, 1, -1, 1, 1, 1, -1, "HI", 5, "HI", "Loss", "LO", "Team", "HI"]
+    ],
+    "notes": "the slide's PATTERN column, one sign per factor in the order of its columns, written as the coded settings A to G, beside the printed levels; + stands for OE-Depth LO, Dose 5, Testimonials LO, Framing Loss, EE-Depth LO, Source Team, Source-Depth LO, the same in every printed row"
+   },
+   "notes": "The slide prints no generators. Its 12 rows all satisfy I = ABCF = ABDEG = CDEFG (A to G are the factors in the slide's column order), the relation of a 2^(7-2) with F = ABC and G = ABDE, which the alias checks use; its three aliases come from the word ABCF.",
+   "expected": [
+    {
+     "what": "number of runs",
+     "term": null,
+     "value": "32 trx combos",
+     "where": {
+      "page": 47,
+      "source_kind": "slide",
+      "quote": "Project 1: 2^(7-2) design ... 32 trx combos"
+     },
+     "check": {
+      "kind": "design_property",
+      "design": {
+       "design_type": "fractional_factorial",
+       "k": 7,
+       "options": {
+        "generators": ["F=ABC", "G=ABDE"],
+        "n_center_points": 0
+       }
+      },
+      "property": "n_runs",
+      "printed": "32"
+     }
+    },
+    {
+     "what": "runs of the fraction",
+     "term": null,
+     "value": "OE-Depth*Dose = Testimonials*Source",
+     "analysis": "every printed run has Source = OE-Depth x Dose x Testimonials in the pattern's signs, as the aliases need",
+     "where": {
+      "page": 47,
+      "source_kind": "table",
+      "quote": "OE-Depth*Dose = Testimonials*Source"
+     },
+     "check": {
+      "kind": "fraction_runs",
+      "generator": "F=ABC",
+      "printed": "1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12"
+     }
+    },
+    {
+     "what": "aliases",
+     "term": "OE-Depth*Dose",
+     "value": "OE-Depth*Dose = Testimonials*Source",
+     "where": {
+      "page": 47,
+      "source_kind": "table",
+      "quote": "OE-Depth*Dose = Testimonials*Source"
+     },
+     "check": {
+      "kind": "aliases",
+      "term": "A·B",
+      "k": 7,
+      "generators": ["F=ABC", "G=ABDE"],
+      "printed": "CF"
+     }
+    },
+    {
+     "what": "aliases",
+     "term": "OEDepth*Testimonials",
+     "value": "OEDepth*Testimonials = Dose*Source",
+     "where": {
+      "page": 47,
+      "source_kind": "table",
+      "quote": "OEDepth*Testimonials = Dose*Source"
+     },
+     "check": {
+      "kind": "aliases",
+      "term": "A·C",
+      "k": 7,
+      "generators": ["F=ABC", "G=ABDE"],
+      "printed": "BF"
+     }
+    },
+    {
+     "what": "aliases",
+     "term": "OE-Depth*Source",
+     "value": "OE-Depth*Source = Dose*Testimonials",
+     "where": {
+      "page": 47,
+      "source_kind": "table",
+      "quote": "OE-Depth*Source = Dose*Testimonials"
+     },
+     "check": {
+      "kind": "aliases",
+      "term": "A·F",
+      "k": 7,
+      "generators": ["F=ABC", "G=ABDE"],
+      "printed": "BC"
+     }
+    }
+   ]
+  }
+ ],
+ "not_captured": ["slide 26: the number of interactions of each order in a full factorial (6 two-factor interactions in 4 factors, ...), binomial coefficients rather than a property of a design", "slide 9: the 2^4 design matrix, written out without results", "slides 35, 37, 38, 41, 42, 44: the 2^4 table of all interaction columns, from which the generators are chosen; its sign columns are those of the 2^4", "slide 44: 'sample size for main effect = 1/2 of total' and 'for 2-factor interactions = 1/4 of total', a property stated in words", "slides 40 and 45: what each resolution means, in words"]
+}
