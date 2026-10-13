@@ -7635,6 +7635,5003 @@
      }
     }
    ]
+  },
+  {
+   "name": "efi-quiz5a-electricity-usage",
+   "title": "Arif's summer electricity use: thermostat setting A and window blinds B, and two runs beyond the cube",
+   "kind": "quiz question",
+   "where": {
+    "quiz": "Quiz for module 5A",
+    "file": "quiz5A-2015",
+    "question": 2,
+    "question_id": "4e950ef99ecd5145e5faf5923acf0c57",
+    "images": ["https://d396qusza40orc.cloudfront.net/experiments/quiz_assets/week5/Thermostat.jpg"]
+   },
+   "factors": [
+    {
+     "name": "A",
+     "description": "Thermostat temperature setting",
+     "low": 70,
+     "high": 75,
+     "units": "°F",
+     "type": "numeric"
+    },
+    {
+     "name": "B",
+     "description": "Window blinds",
+     "low": "Blinds open",
+     "high": "Blinds closed",
+     "units": "",
+     "type": "categorical"
+    }
+   ],
+   "responses": [
+    {
+     "name": "electricity",
+     "description": "Electricity used in a single day",
+     "units": "kWh"
+    }
+   ],
+   "design": {
+    "type": "2^2 full factorial, with two runs outside it",
+    "n_runs": 6
+   },
+   "runs": {
+    "columns": ["experiment", "A", "B", "electricity"],
+    "coded": false,
+    "rows": [
+     [1, 70, "Blinds open", 39],
+     [2, 75, "Blinds open", 32],
+     [3, 70, "Blinds closed", 37.5],
+     [4, 75, "Blinds closed", 31.5],
+     [5, 77, "Blinds open", 26],
+     [6, 79, "Blinds open", 24.5]
+    ],
+    "notes": "the factorial in standard order, then the two runs toward the optimum, which the quiz numbers 1 and 2 again; at 77 and 79 °F they code to +1.8 and +2.6"
+   },
+   "notes": "The explanation's code fits lm(y ~ A*B) on the four runs, then on all six, then lm(y ~ A + I(A^2)).",
+   "expected": [
+    {
+     "what": "coefficient",
+     "term": "Intercept",
+     "value": "35",
+     "analysis": "the factorial's four runs",
+     "where": {
+      "quiz": "Quiz for module 5A",
+      "file": "quiz5A-2015",
+      "question": 2,
+      "question_id": "4e950ef99ecd5145e5faf5923acf0c57",
+      "option_id": "e803dacc2da6e4a8c3f1e58aa0f327f6",
+      "answer_key": "correct",
+      "source_kind": "option",
+      "quote": "\\hat{y} = 35 - 3.25x_\\text{A} -0.5x_\\text{B} + 0.25x_\\text{A}x_\\text{B}"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "Intercept",
+      "model": "A*B",
+      "runs": [1, 2, 3, 4]
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "A",
+     "value": "-3.25",
+     "analysis": "the factorial's four runs",
+     "where": {
+      "quiz": "Quiz for module 5A",
+      "file": "quiz5A-2015",
+      "question": 2,
+      "question_id": "4e950ef99ecd5145e5faf5923acf0c57",
+      "option_id": "e803dacc2da6e4a8c3f1e58aa0f327f6",
+      "answer_key": "correct",
+      "source_kind": "option",
+      "quote": "\\hat{y} = 35 - 3.25x_\\text{A} -0.5x_\\text{B} + 0.25x_\\text{A}x_\\text{B}"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "A",
+      "model": "A*B",
+      "runs": [1, 2, 3, 4]
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "B",
+     "value": "-0.5",
+     "analysis": "the factorial's four runs",
+     "where": {
+      "quiz": "Quiz for module 5A",
+      "file": "quiz5A-2015",
+      "question": 2,
+      "question_id": "4e950ef99ecd5145e5faf5923acf0c57",
+      "option_id": "e803dacc2da6e4a8c3f1e58aa0f327f6",
+      "answer_key": "correct",
+      "source_kind": "option",
+      "quote": "\\hat{y} = 35 - 3.25x_\\text{A} -0.5x_\\text{B} + 0.25x_\\text{A}x_\\text{B}"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "B",
+      "model": "A*B",
+      "runs": [1, 2, 3, 4]
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "A·B",
+     "value": "0.25",
+     "analysis": "the factorial's four runs",
+     "where": {
+      "quiz": "Quiz for module 5A",
+      "file": "quiz5A-2015",
+      "question": 2,
+      "question_id": "4e950ef99ecd5145e5faf5923acf0c57",
+      "option_id": "e803dacc2da6e4a8c3f1e58aa0f327f6",
+      "answer_key": "correct",
+      "source_kind": "option",
+      "quote": "\\hat{y} = 35 - 3.25x_\\text{A} -0.5x_\\text{B} + 0.25x_\\text{A}x_\\text{B}"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "A·B",
+      "model": "A*B",
+      "runs": [1, 2, 3, 4]
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "Intercept",
+     "value": "34.8",
+     "analysis": "all six runs",
+     "where": {
+      "quiz": "Quiz for module 5A",
+      "file": "quiz5A-2015",
+      "question": 2,
+      "question_id": "4e950ef99ecd5145e5faf5923acf0c57",
+      "option_id": "904edc28a64730ff424bb194cb7a70ab",
+      "answer_key": "correct",
+      "source_kind": "option",
+      "quote": "\\hat{y} \\approx 34.8 - 3.6x_\\text{A} - 0.25x_\\text{B} + 0.61x_\\text{A}x_\\text{B}"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "Intercept",
+      "model": "A*B"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "A",
+     "value": "-3.6",
+     "analysis": "all six runs",
+     "where": {
+      "quiz": "Quiz for module 5A",
+      "file": "quiz5A-2015",
+      "question": 2,
+      "question_id": "4e950ef99ecd5145e5faf5923acf0c57",
+      "option_id": "904edc28a64730ff424bb194cb7a70ab",
+      "answer_key": "correct",
+      "source_kind": "option",
+      "quote": "\\hat{y} \\approx 34.8 - 3.6x_\\text{A} - 0.25x_\\text{B} + 0.61x_\\text{A}x_\\text{B}"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "A",
+      "model": "A*B"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "B",
+     "value": "-0.25",
+     "analysis": "all six runs",
+     "where": {
+      "quiz": "Quiz for module 5A",
+      "file": "quiz5A-2015",
+      "question": 2,
+      "question_id": "4e950ef99ecd5145e5faf5923acf0c57",
+      "option_id": "904edc28a64730ff424bb194cb7a70ab",
+      "answer_key": "correct",
+      "source_kind": "option",
+      "quote": "\\hat{y} \\approx 34.8 - 3.6x_\\text{A} - 0.25x_\\text{B} + 0.61x_\\text{A}x_\\text{B}"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "B",
+      "model": "A*B"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "A·B",
+     "value": "0.61",
+     "analysis": "all six runs",
+     "where": {
+      "quiz": "Quiz for module 5A",
+      "file": "quiz5A-2015",
+      "question": 2,
+      "question_id": "4e950ef99ecd5145e5faf5923acf0c57",
+      "option_id": "904edc28a64730ff424bb194cb7a70ab",
+      "answer_key": "correct",
+      "source_kind": "option",
+      "quote": "\\hat{y} \\approx 34.8 - 3.6x_\\text{A} - 0.25x_\\text{B} + 0.61x_\\text{A}x_\\text{B}"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "A·B",
+      "model": "A*B"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "Intercept",
+     "value": "35",
+     "analysis": "all six runs",
+     "where": {
+      "quiz": "Quiz for module 5A",
+      "file": "quiz5A-2015",
+      "question": 2,
+      "question_id": "4e950ef99ecd5145e5faf5923acf0c57",
+      "option_id": "3ca17fe7fa90978bc761885a887724bd",
+      "answer_key": "incorrect",
+      "source_kind": "option",
+      "quote": "\\hat{y} = 35 - 3.5x_\\text{A} - 0.25x_\\text{B} + 0.75x_\\text{A}x_\\text{B}"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "Intercept",
+      "model": "A*B"
+     },
+     "note": "in an option keyed incorrect, this coefficient agrees with the fit to within the rounding of its printed digits: the option is wrong in its others"
+    },
+    {
+     "what": "coefficient",
+     "term": "A",
+     "value": "-3.5",
+     "analysis": "all six runs",
+     "where": {
+      "quiz": "Quiz for module 5A",
+      "file": "quiz5A-2015",
+      "question": 2,
+      "question_id": "4e950ef99ecd5145e5faf5923acf0c57",
+      "option_id": "3ca17fe7fa90978bc761885a887724bd",
+      "answer_key": "incorrect",
+      "source_kind": "option",
+      "quote": "\\hat{y} = 35 - 3.5x_\\text{A} - 0.25x_\\text{B} + 0.75x_\\text{A}x_\\text{B}"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "A",
+      "model": "A*B",
+      "disagreement": "the answer key marks this option incorrect; the fit gives -3.605"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "B",
+     "value": "-0.25",
+     "analysis": "all six runs",
+     "where": {
+      "quiz": "Quiz for module 5A",
+      "file": "quiz5A-2015",
+      "question": 2,
+      "question_id": "4e950ef99ecd5145e5faf5923acf0c57",
+      "option_id": "3ca17fe7fa90978bc761885a887724bd",
+      "answer_key": "incorrect",
+      "source_kind": "option",
+      "quote": "\\hat{y} = 35 - 3.5x_\\text{A} - 0.25x_\\text{B} + 0.75x_\\text{A}x_\\text{B}"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "B",
+      "model": "A*B"
+     },
+     "note": "in an option keyed incorrect, this coefficient agrees with the fit to within the rounding of its printed digits: the option is wrong in its others"
+    },
+    {
+     "what": "coefficient",
+     "term": "A·B",
+     "value": "0.75",
+     "analysis": "all six runs",
+     "where": {
+      "quiz": "Quiz for module 5A",
+      "file": "quiz5A-2015",
+      "question": 2,
+      "question_id": "4e950ef99ecd5145e5faf5923acf0c57",
+      "option_id": "3ca17fe7fa90978bc761885a887724bd",
+      "answer_key": "incorrect",
+      "source_kind": "option",
+      "quote": "\\hat{y} = 35 - 3.5x_\\text{A} - 0.25x_\\text{B} + 0.75x_\\text{A}x_\\text{B}"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "A·B",
+      "model": "A*B",
+      "disagreement": "the answer key marks this option incorrect; the fit gives 0.6055"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "Intercept",
+     "value": "35.2",
+     "analysis": "all six runs, in A only with its square",
+     "where": {
+      "quiz": "Quiz for module 5A",
+      "file": "quiz5A-2015",
+      "question": 2,
+      "question_id": "4e950ef99ecd5145e5faf5923acf0c57",
+      "option_id": "ac42fa0b7af6d736ec6bbae170a11860",
+      "answer_key": "incorrect",
+      "source_kind": "option",
+      "quote": "\\hat{y} = 35.2 - 4.15x_\\text{A} - 0.42x_\\text{A}^2"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "Intercept",
+      "model": "A + I(A**2)",
+      "disagreement": "the answer key marks this option incorrect; the fit gives 35.02"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "A",
+     "value": "-4.15",
+     "analysis": "all six runs, in A only with its square",
+     "where": {
+      "quiz": "Quiz for module 5A",
+      "file": "quiz5A-2015",
+      "question": 2,
+      "question_id": "4e950ef99ecd5145e5faf5923acf0c57",
+      "option_id": "ac42fa0b7af6d736ec6bbae170a11860",
+      "answer_key": "incorrect",
+      "source_kind": "option",
+      "quote": "\\hat{y} = 35.2 - 4.15x_\\text{A} - 0.42x_\\text{A}^2"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "A",
+      "model": "A + I(A**2)",
+      "disagreement": "the answer key marks this option incorrect; the fit gives -3.581"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "A²",
+     "value": "-0.42",
+     "analysis": "all six runs, in A only with its square",
+     "where": {
+      "quiz": "Quiz for module 5A",
+      "file": "quiz5A-2015",
+      "question": 2,
+      "question_id": "4e950ef99ecd5145e5faf5923acf0c57",
+      "option_id": "ac42fa0b7af6d736ec6bbae170a11860",
+      "answer_key": "incorrect",
+      "source_kind": "option",
+      "quote": "\\hat{y} = 35.2 - 4.15x_\\text{A} - 0.42x_\\text{A}^2"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "A²",
+      "model": "A + I(A**2)",
+      "disagreement": "the answer key marks this option incorrect; the fit gives -0.2752"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "Intercept",
+     "value": "35.0",
+     "analysis": "all six runs, in A only with its square",
+     "where": {
+      "quiz": "Quiz for module 5A",
+      "file": "quiz5A-2015",
+      "question": 2,
+      "question_id": "4e950ef99ecd5145e5faf5923acf0c57",
+      "option_id": "ccba1b22314147b0d2827374fb032685",
+      "answer_key": "correct",
+      "source_kind": "option",
+      "quote": "\\hat{y} \\approx 35.0 - 3.58x_\\text{A} - 0.3x_\\text{A}^2"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "Intercept",
+      "model": "A + I(A**2)"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "A",
+     "value": "-3.58",
+     "analysis": "all six runs, in A only with its square",
+     "where": {
+      "quiz": "Quiz for module 5A",
+      "file": "quiz5A-2015",
+      "question": 2,
+      "question_id": "4e950ef99ecd5145e5faf5923acf0c57",
+      "option_id": "ccba1b22314147b0d2827374fb032685",
+      "answer_key": "correct",
+      "source_kind": "option",
+      "quote": "\\hat{y} \\approx 35.0 - 3.58x_\\text{A} - 0.3x_\\text{A}^2"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "A",
+      "model": "A + I(A**2)"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "A²",
+     "value": "-0.3",
+     "analysis": "all six runs, in A only with its square",
+     "where": {
+      "quiz": "Quiz for module 5A",
+      "file": "quiz5A-2015",
+      "question": 2,
+      "question_id": "4e950ef99ecd5145e5faf5923acf0c57",
+      "option_id": "ccba1b22314147b0d2827374fb032685",
+      "answer_key": "correct",
+      "source_kind": "option",
+      "quote": "\\hat{y} \\approx 35.0 - 3.58x_\\text{A} - 0.3x_\\text{A}^2"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "A²",
+      "model": "A + I(A**2)"
+     }
+    }
+   ]
+  },
+  {
+   "name": "efi-quiz5a-stage-mistakes",
+   "title": "Michael's mistakes on stage: practice hours P, sleep S and dinner D, and a ninth run at the centre of P and S",
+   "kind": "quiz question",
+   "where": {
+    "quiz": "Quiz for module 5A",
+    "file": "quiz5A-2015",
+    "question": 3,
+    "question_id": "e1180393f3c96462de62dd3cd843ea64",
+    "images": ["https://d396qusza40orc.cloudfront.net/experiments/quiz_assets/week5/Musician.jpg"]
+   },
+   "factors": [
+    {
+     "name": "P",
+     "description": "Practice hours in total before the show",
+     "low": 50,
+     "high": 76,
+     "units": "h",
+     "type": "numeric"
+    },
+    {
+     "name": "S",
+     "description": "Hours of sleep the night before",
+     "low": 5,
+     "high": 10,
+     "units": "h",
+     "type": "numeric"
+    },
+    {
+     "name": "D",
+     "description": "Dinner before the show",
+     "low": "no",
+     "high": "yes",
+     "units": "",
+     "type": "categorical"
+    }
+   ],
+   "responses": [
+    {
+     "name": "mistakes",
+     "description": "Number of mistakes in a 30 minute set",
+     "units": ""
+    }
+   ],
+   "design": {
+    "type": "2^3 full factorial and one more run",
+    "n_runs": 9
+   },
+   "runs": {
+    "columns": ["experiment", "P", "S", "D", "mistakes"],
+    "coded": false,
+    "rows": [
+     [1, 50, 5, "no", 15],
+     [2, 76, 5, "no", 5],
+     [3, 50, 10, "no", 16],
+     [4, 76, 10, "no", 4],
+     [5, 50, 5, "yes", 15],
+     [6, 76, 5, "yes", 5],
+     [7, 50, 10, "yes", 16],
+     [8, 76, 10, "yes", 4],
+     [9, 63, 7.5, "yes", 12]
+    ],
+    "notes": "the standard order table, then run 9 at the centre of P and S, with dinner (D = +1)"
+   },
+   "notes": "The explanation fits lm(y ~ P*S*D) on all nine runs, then lm(y ~ P + I(P^2)). Its last lines predict at 79 practice hours with 17.75 - 6x - 3x^2, a model no option prints and these runs do not give.",
+   "expected": [
+    {
+     "what": "coefficient",
+     "term": "Intercept",
+     "value": "10.2",
+     "analysis": "all nine runs; the terms it leaves out are zero",
+     "where": {
+      "quiz": "Quiz for module 5A",
+      "file": "quiz5A-2015",
+      "question": 3,
+      "question_id": "e1180393f3c96462de62dd3cd843ea64",
+      "option_id": "8ccee393a7e204523f7b6b72e4cf5e8d",
+      "answer_key": "correct",
+      "source_kind": "option",
+      "quote": "\\hat{y} = 10.2 - 5.5x_\\text{P} + 0.2x_\\text{D} - 0.5x_\\text{P}x_\\text{S}"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "Intercept",
+      "model": "P*S*D"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "P",
+     "value": "-5.5",
+     "analysis": "all nine runs; the terms it leaves out are zero",
+     "where": {
+      "quiz": "Quiz for module 5A",
+      "file": "quiz5A-2015",
+      "question": 3,
+      "question_id": "e1180393f3c96462de62dd3cd843ea64",
+      "option_id": "8ccee393a7e204523f7b6b72e4cf5e8d",
+      "answer_key": "correct",
+      "source_kind": "option",
+      "quote": "\\hat{y} = 10.2 - 5.5x_\\text{P} + 0.2x_\\text{D} - 0.5x_\\text{P}x_\\text{S}"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "P",
+      "model": "P*S*D"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "D",
+     "value": "0.2",
+     "analysis": "all nine runs; the terms it leaves out are zero",
+     "where": {
+      "quiz": "Quiz for module 5A",
+      "file": "quiz5A-2015",
+      "question": 3,
+      "question_id": "e1180393f3c96462de62dd3cd843ea64",
+      "option_id": "8ccee393a7e204523f7b6b72e4cf5e8d",
+      "answer_key": "correct",
+      "source_kind": "option",
+      "quote": "\\hat{y} = 10.2 - 5.5x_\\text{P} + 0.2x_\\text{D} - 0.5x_\\text{P}x_\\text{S}"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "D",
+      "model": "P*S*D"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "P·S",
+     "value": "-0.5",
+     "analysis": "all nine runs; the terms it leaves out are zero",
+     "where": {
+      "quiz": "Quiz for module 5A",
+      "file": "quiz5A-2015",
+      "question": 3,
+      "question_id": "e1180393f3c96462de62dd3cd843ea64",
+      "option_id": "8ccee393a7e204523f7b6b72e4cf5e8d",
+      "answer_key": "correct",
+      "source_kind": "option",
+      "quote": "\\hat{y} = 10.2 - 5.5x_\\text{P} + 0.2x_\\text{D} - 0.5x_\\text{P}x_\\text{S}"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "P·S",
+      "model": "P*S*D"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "Intercept",
+     "value": "10.2",
+     "analysis": "all nine runs",
+     "where": {
+      "quiz": "Quiz for module 5A",
+      "file": "quiz5A-2015",
+      "question": 3,
+      "question_id": "e1180393f3c96462de62dd3cd843ea64",
+      "option_id": "dd6542ab2bdec545a11694d2f62121a9",
+      "answer_key": "incorrect",
+      "source_kind": "option",
+      "quote": "\\hat{y} = 10.2 - 6x_\\text{P} + 0.1x_\\text{D} - 0.4x_\\text{P}x_\\text{S}"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "Intercept",
+      "model": "P*S*D"
+     },
+     "note": "in an option keyed incorrect, this coefficient agrees with the fit to within the rounding of its printed digits: the option is wrong in its others"
+    },
+    {
+     "what": "coefficient",
+     "term": "P",
+     "value": "-6",
+     "analysis": "all nine runs",
+     "where": {
+      "quiz": "Quiz for module 5A",
+      "file": "quiz5A-2015",
+      "question": 3,
+      "question_id": "e1180393f3c96462de62dd3cd843ea64",
+      "option_id": "dd6542ab2bdec545a11694d2f62121a9",
+      "answer_key": "incorrect",
+      "source_kind": "option",
+      "quote": "\\hat{y} = 10.2 - 6x_\\text{P} + 0.1x_\\text{D} - 0.4x_\\text{P}x_\\text{S}"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "P",
+      "model": "P*S*D"
+     },
+     "note": "in an option keyed incorrect, this coefficient agrees with the fit to within the rounding of its printed digits: the option is wrong in its others"
+    },
+    {
+     "what": "coefficient",
+     "term": "D",
+     "value": "0.1",
+     "analysis": "all nine runs",
+     "where": {
+      "quiz": "Quiz for module 5A",
+      "file": "quiz5A-2015",
+      "question": 3,
+      "question_id": "e1180393f3c96462de62dd3cd843ea64",
+      "option_id": "dd6542ab2bdec545a11694d2f62121a9",
+      "answer_key": "incorrect",
+      "source_kind": "option",
+      "quote": "\\hat{y} = 10.2 - 6x_\\text{P} + 0.1x_\\text{D} - 0.4x_\\text{P}x_\\text{S}"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "D",
+      "model": "P*S*D",
+      "disagreement": "the answer key marks this option incorrect; the fit gives 0.2"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "P·S",
+     "value": "-0.4",
+     "analysis": "all nine runs",
+     "where": {
+      "quiz": "Quiz for module 5A",
+      "file": "quiz5A-2015",
+      "question": 3,
+      "question_id": "e1180393f3c96462de62dd3cd843ea64",
+      "option_id": "dd6542ab2bdec545a11694d2f62121a9",
+      "answer_key": "incorrect",
+      "source_kind": "option",
+      "quote": "\\hat{y} = 10.2 - 6x_\\text{P} + 0.1x_\\text{D} - 0.4x_\\text{P}x_\\text{S}"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "P·S",
+      "model": "P*S*D",
+      "disagreement": "the answer key marks this option incorrect; the fit gives -0.5"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "Intercept",
+     "value": "12",
+     "analysis": "all nine runs, in P only with its square",
+     "where": {
+      "quiz": "Quiz for module 5A",
+      "file": "quiz5A-2015",
+      "question": 3,
+      "question_id": "e1180393f3c96462de62dd3cd843ea64",
+      "option_id": "b6ef4523edf047b641b111ba8b0c4a75",
+      "answer_key": "correct",
+      "source_kind": "option",
+      "quote": "\\hat{y} = 12 - 5.5x_\\text{P} - 2x_\\text{P}^2"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "Intercept",
+      "model": "P + I(P**2)"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "P",
+     "value": "-5.5",
+     "analysis": "all nine runs, in P only with its square",
+     "where": {
+      "quiz": "Quiz for module 5A",
+      "file": "quiz5A-2015",
+      "question": 3,
+      "question_id": "e1180393f3c96462de62dd3cd843ea64",
+      "option_id": "b6ef4523edf047b641b111ba8b0c4a75",
+      "answer_key": "correct",
+      "source_kind": "option",
+      "quote": "\\hat{y} = 12 - 5.5x_\\text{P} - 2x_\\text{P}^2"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "P",
+      "model": "P + I(P**2)"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "P²",
+     "value": "-2",
+     "analysis": "all nine runs, in P only with its square",
+     "where": {
+      "quiz": "Quiz for module 5A",
+      "file": "quiz5A-2015",
+      "question": 3,
+      "question_id": "e1180393f3c96462de62dd3cd843ea64",
+      "option_id": "b6ef4523edf047b641b111ba8b0c4a75",
+      "answer_key": "correct",
+      "source_kind": "option",
+      "quote": "\\hat{y} = 12 - 5.5x_\\text{P} - 2x_\\text{P}^2"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "P²",
+      "model": "P + I(P**2)"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "Intercept",
+     "value": "11",
+     "analysis": "all nine runs, in P only with its square",
+     "where": {
+      "quiz": "Quiz for module 5A",
+      "file": "quiz5A-2015",
+      "question": 3,
+      "question_id": "e1180393f3c96462de62dd3cd843ea64",
+      "option_id": "bf690044f8ba884453eab07e43d176fd",
+      "answer_key": "incorrect",
+      "source_kind": "option",
+      "quote": "\\hat{y} = 11 - 6x_\\text{P} - 2x_\\text{P}^2"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "Intercept",
+      "model": "P + I(P**2)",
+      "disagreement": "the answer key marks this option incorrect; the fit gives 12"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "P",
+     "value": "-6",
+     "analysis": "all nine runs, in P only with its square",
+     "where": {
+      "quiz": "Quiz for module 5A",
+      "file": "quiz5A-2015",
+      "question": 3,
+      "question_id": "e1180393f3c96462de62dd3cd843ea64",
+      "option_id": "bf690044f8ba884453eab07e43d176fd",
+      "answer_key": "incorrect",
+      "source_kind": "option",
+      "quote": "\\hat{y} = 11 - 6x_\\text{P} - 2x_\\text{P}^2"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "P",
+      "model": "P + I(P**2)"
+     },
+     "note": "in an option keyed incorrect, this coefficient agrees with the fit to within the rounding of its printed digits: the option is wrong in its others"
+    },
+    {
+     "what": "coefficient",
+     "term": "P²",
+     "value": "-2",
+     "analysis": "all nine runs, in P only with its square",
+     "where": {
+      "quiz": "Quiz for module 5A",
+      "file": "quiz5A-2015",
+      "question": 3,
+      "question_id": "e1180393f3c96462de62dd3cd843ea64",
+      "option_id": "bf690044f8ba884453eab07e43d176fd",
+      "answer_key": "incorrect",
+      "source_kind": "option",
+      "quote": "\\hat{y} = 11 - 6x_\\text{P} - 2x_\\text{P}^2"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "P²",
+      "model": "P + I(P**2)"
+     },
+     "note": "in an option keyed incorrect, this coefficient agrees with the fit to within the rounding of its printed digits: the option is wrong in its others"
+    },
+    {
+     "what": "coefficient",
+     "term": "Intercept",
+     "value": "17.75",
+     "analysis": "the quadratic model in P that the code fits just before, on all nine runs",
+     "where": {
+      "quiz": "Quiz for module 5A",
+      "file": "quiz5A-2015",
+      "question": 3,
+      "question_id": "e1180393f3c96462de62dd3cd843ea64",
+      "source_kind": "question explanation",
+      "quote": "y.pred = 17.75 - 6*x.new.coded -3*x.new.coded^2"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "Intercept",
+      "model": "P + I(P**2)",
+      "disagreement": "the explanation's code predicts with 17.75 - 6x - 3x^2, which is not the quadratic fit of these runs (12 - 5.5x - 2x^2, the option keyed correct); it reads as left over from another version of the question; the fit gives 12"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "P",
+     "value": "-6",
+     "analysis": "the quadratic model in P that the code fits just before, on all nine runs",
+     "where": {
+      "quiz": "Quiz for module 5A",
+      "file": "quiz5A-2015",
+      "question": 3,
+      "question_id": "e1180393f3c96462de62dd3cd843ea64",
+      "source_kind": "question explanation",
+      "quote": "y.pred = 17.75 - 6*x.new.coded -3*x.new.coded^2"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "P",
+      "model": "P + I(P**2)"
+     },
+     "note": "this coefficient agrees with the fit to within the rounding of its printed digits"
+    },
+    {
+     "what": "coefficient",
+     "term": "P²",
+     "value": "-3",
+     "analysis": "the quadratic model in P that the code fits just before, on all nine runs",
+     "where": {
+      "quiz": "Quiz for module 5A",
+      "file": "quiz5A-2015",
+      "question": 3,
+      "question_id": "e1180393f3c96462de62dd3cd843ea64",
+      "source_kind": "question explanation",
+      "quote": "y.pred = 17.75 - 6*x.new.coded -3*x.new.coded^2"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "P²",
+      "model": "P + I(P**2)",
+      "disagreement": "the explanation's code predicts with 17.75 - 6x - 3x^2, which is not the quadratic fit of these runs (12 - 5.5x - 2x^2, the option keyed correct); it reads as left over from another version of the question; the fit gives -2"
+     }
+    }
+   ]
+  },
+  {
+   "name": "efi-quiz5a-rose-life",
+   "title": "Rishat's cut roses: sugar S and vodka V in the vase water, a centre point, and a sixth run in V",
+   "kind": "quiz question",
+   "where": {
+    "quiz": "Quiz for module 5A",
+    "file": "quiz5A-2015",
+    "question": 4,
+    "question_id": "3350ecf5d648f04a19d1b04c2d6a1018",
+    "images": ["https://d396qusza40orc.cloudfront.net/experiments/quiz_assets/week5/Roses.jpg"]
+   },
+   "factors": [
+    {
+     "name": "S",
+     "description": "Quantity of sugar in the vase water",
+     "low": 0,
+     "high": 3,
+     "units": "g/ml",
+     "type": "numeric"
+    },
+    {
+     "name": "V",
+     "description": "Quantity of vodka in the vase water",
+     "low": 0,
+     "high": 3,
+     "units": "g/ml",
+     "type": "numeric"
+    }
+   ],
+   "responses": [
+    {
+     "name": "life",
+     "description": "Days the roses looked presentable",
+     "units": "days"
+    }
+   ],
+   "design": {
+    "type": "2^2 full factorial with a centre point, and one more run",
+    "n_runs": 6
+   },
+   "runs": {
+    "columns": ["experiment", "S", "V", "life"],
+    "coded": false,
+    "rows": [
+     [1, 0, 0, 4],
+     [2, 3, 0, 5],
+     [3, 0, 3, 12],
+     [4, 3, 3, 13],
+     [5, 1.5, 1.5, 8],
+     [6, null, 4.5, 20]
+    ],
+    "notes": "run 6 is printed in two options with V only (4.5 g/ml, coded +2); the explanation's code adds it to V alone and fits models in V only, so its S is left empty"
+   },
+   "expected": [
+    {
+     "what": "coefficient",
+     "term": "Intercept",
+     "value": "8.4",
+     "analysis": "the factorial and its centre point",
+     "where": {
+      "quiz": "Quiz for module 5A",
+      "file": "quiz5A-2015",
+      "question": 4,
+      "question_id": "3350ecf5d648f04a19d1b04c2d6a1018",
+      "option_id": "2f2c34212d573524d3ae759ffbde5896",
+      "answer_key": "correct",
+      "source_kind": "option",
+      "quote": "\\hat{y} = 8.4 + 0.5x_\\text{S} + 4x_\\text{V} + 0x_\\text{S} x_\\text{V}"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "Intercept",
+      "model": "S*V",
+      "runs": [1, 2, 3, 4, 5]
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "S",
+     "value": "0.5",
+     "analysis": "the factorial and its centre point",
+     "where": {
+      "quiz": "Quiz for module 5A",
+      "file": "quiz5A-2015",
+      "question": 4,
+      "question_id": "3350ecf5d648f04a19d1b04c2d6a1018",
+      "option_id": "2f2c34212d573524d3ae759ffbde5896",
+      "answer_key": "correct",
+      "source_kind": "option",
+      "quote": "\\hat{y} = 8.4 + 0.5x_\\text{S} + 4x_\\text{V} + 0x_\\text{S} x_\\text{V}"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "S",
+      "model": "S*V",
+      "runs": [1, 2, 3, 4, 5]
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "V",
+     "value": "4",
+     "analysis": "the factorial and its centre point",
+     "where": {
+      "quiz": "Quiz for module 5A",
+      "file": "quiz5A-2015",
+      "question": 4,
+      "question_id": "3350ecf5d648f04a19d1b04c2d6a1018",
+      "option_id": "2f2c34212d573524d3ae759ffbde5896",
+      "answer_key": "correct",
+      "source_kind": "option",
+      "quote": "\\hat{y} = 8.4 + 0.5x_\\text{S} + 4x_\\text{V} + 0x_\\text{S} x_\\text{V}"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "V",
+      "model": "S*V",
+      "runs": [1, 2, 3, 4, 5]
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "S·V",
+     "value": "0",
+     "analysis": "the factorial and its centre point",
+     "where": {
+      "quiz": "Quiz for module 5A",
+      "file": "quiz5A-2015",
+      "question": 4,
+      "question_id": "3350ecf5d648f04a19d1b04c2d6a1018",
+      "option_id": "2f2c34212d573524d3ae759ffbde5896",
+      "answer_key": "correct",
+      "source_kind": "option",
+      "quote": "\\hat{y} = 8.4 + 0.5x_\\text{S} + 4x_\\text{V} + 0x_\\text{S} x_\\text{V}"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "S·V",
+      "model": "S*V",
+      "runs": [1, 2, 3, 4, 5]
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "Intercept",
+     "value": "10",
+     "analysis": "all six runs, in V only",
+     "where": {
+      "quiz": "Quiz for module 5A",
+      "file": "quiz5A-2015",
+      "question": 4,
+      "question_id": "3350ecf5d648f04a19d1b04c2d6a1018",
+      "option_id": "a38a0fa9e55d02d89213dfb1f15ef21f",
+      "answer_key": "incorrect",
+      "source_kind": "option",
+      "quote": "\\hat{y} \\approx 10 + 5x_\\text{V}"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "Intercept",
+      "model": "V",
+      "disagreement": "the answer key marks this option incorrect; the fit gives 8.727"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "V",
+     "value": "5",
+     "analysis": "all six runs, in V only",
+     "where": {
+      "quiz": "Quiz for module 5A",
+      "file": "quiz5A-2015",
+      "question": 4,
+      "question_id": "3350ecf5d648f04a19d1b04c2d6a1018",
+      "option_id": "a38a0fa9e55d02d89213dfb1f15ef21f",
+      "answer_key": "incorrect",
+      "source_kind": "option",
+      "quote": "\\hat{y} \\approx 10 + 5x_\\text{V}"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "V",
+      "model": "V"
+     },
+     "note": "in an option keyed incorrect, this coefficient agrees with the fit to within the rounding of its printed digits: the option is wrong in its others"
+    },
+    {
+     "what": "coefficient",
+     "term": "Intercept",
+     "value": "8.7",
+     "analysis": "all six runs, in V only",
+     "where": {
+      "quiz": "Quiz for module 5A",
+      "file": "quiz5A-2015",
+      "question": 4,
+      "question_id": "3350ecf5d648f04a19d1b04c2d6a1018",
+      "option_id": "e3daf6f28ac73329a872f519f6342b71",
+      "answer_key": "correct",
+      "source_kind": "option",
+      "quote": "\\hat{y} \\approx 8.7 + 4.8x_\\text{V}"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "Intercept",
+      "model": "V"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "V",
+     "value": "4.8",
+     "analysis": "all six runs, in V only",
+     "where": {
+      "quiz": "Quiz for module 5A",
+      "file": "quiz5A-2015",
+      "question": 4,
+      "question_id": "3350ecf5d648f04a19d1b04c2d6a1018",
+      "option_id": "e3daf6f28ac73329a872f519f6342b71",
+      "answer_key": "correct",
+      "source_kind": "option",
+      "quote": "\\hat{y} \\approx 8.7 + 4.8x_\\text{V}"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "V",
+      "model": "V"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "Intercept",
+     "value": "8.60",
+     "analysis": "all six runs, in V only with its square",
+     "where": {
+      "quiz": "Quiz for module 5A",
+      "file": "quiz5A-2015",
+      "question": 4,
+      "question_id": "3350ecf5d648f04a19d1b04c2d6a1018",
+      "option_id": "c71787b4aeb6d026e45d20cc27beff5d",
+      "answer_key": "incorrect",
+      "source_kind": "option",
+      "quote": "\\hat{y} = 8.60 + 5x_\\text{V} + x_\\text{V}^2"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "Intercept",
+      "model": "V + I(V**2)",
+      "disagreement": "the answer key marks this option incorrect; the fit gives 7.6"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "V",
+     "value": "5",
+     "analysis": "all six runs, in V only with its square",
+     "where": {
+      "quiz": "Quiz for module 5A",
+      "file": "quiz5A-2015",
+      "question": 4,
+      "question_id": "3350ecf5d648f04a19d1b04c2d6a1018",
+      "option_id": "c71787b4aeb6d026e45d20cc27beff5d",
+      "answer_key": "incorrect",
+      "source_kind": "option",
+      "quote": "\\hat{y} = 8.60 + 5x_\\text{V} + x_\\text{V}^2"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "V",
+      "model": "V + I(V**2)",
+      "disagreement": "the answer key marks this option incorrect; the fit gives 4.067"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "V²",
+     "value": "1",
+     "analysis": "all six runs, in V only with its square",
+     "where": {
+      "quiz": "Quiz for module 5A",
+      "file": "quiz5A-2015",
+      "question": 4,
+      "question_id": "3350ecf5d648f04a19d1b04c2d6a1018",
+      "option_id": "c71787b4aeb6d026e45d20cc27beff5d",
+      "answer_key": "incorrect",
+      "source_kind": "option",
+      "quote": "\\hat{y} = 8.60 + 5x_\\text{V} + x_\\text{V}^2"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "V²",
+      "model": "V + I(V**2)"
+     },
+     "note": "in an option keyed incorrect, this coefficient agrees with the fit to within the rounding of its printed digits: the option is wrong in its others"
+    },
+    {
+     "what": "coefficient",
+     "term": "Intercept",
+     "value": "7.6",
+     "analysis": "all six runs, in V only with its square",
+     "where": {
+      "quiz": "Quiz for module 5A",
+      "file": "quiz5A-2015",
+      "question": 4,
+      "question_id": "3350ecf5d648f04a19d1b04c2d6a1018",
+      "option_id": "a1ba88207ba064d1f570989aa8743c7a",
+      "answer_key": "correct",
+      "source_kind": "option",
+      "quote": "\\hat{y} \\approx 7.6 + 4x_\\text{V} + x_\\text{V}^2"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "Intercept",
+      "model": "V + I(V**2)"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "V",
+     "value": "4",
+     "analysis": "all six runs, in V only with its square",
+     "where": {
+      "quiz": "Quiz for module 5A",
+      "file": "quiz5A-2015",
+      "question": 4,
+      "question_id": "3350ecf5d648f04a19d1b04c2d6a1018",
+      "option_id": "a1ba88207ba064d1f570989aa8743c7a",
+      "answer_key": "correct",
+      "source_kind": "option",
+      "quote": "\\hat{y} \\approx 7.6 + 4x_\\text{V} + x_\\text{V}^2"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "V",
+      "model": "V + I(V**2)"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "V²",
+     "value": "1",
+     "analysis": "all six runs, in V only with its square",
+     "where": {
+      "quiz": "Quiz for module 5A",
+      "file": "quiz5A-2015",
+      "question": 4,
+      "question_id": "3350ecf5d648f04a19d1b04c2d6a1018",
+      "option_id": "a1ba88207ba064d1f570989aa8743c7a",
+      "answer_key": "correct",
+      "source_kind": "option",
+      "quote": "\\hat{y} \\approx 7.6 + 4x_\\text{V} + x_\\text{V}^2"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "V²",
+      "model": "V + I(V**2)"
+     }
+    }
+   ]
+  },
+  {
+   "name": "efi-quiz5b-cake-yield-steepest-ascent",
+   "title": "Cake ovens: baking temperature A, baking time B and mixing speed C, the half fraction C = AB, and a step toward the optimum",
+   "kind": "quiz question",
+   "where": {
+    "quiz": "Quiz for module 5B",
+    "file": "quiz5B-2015",
+    "question": 1,
+    "question_id": "aee9d660700b122ffa44a041db68d6dc",
+    "images": ["https://d396qusza40orc.cloudfront.net/experiments/quiz_assets/week6/Cake%20Factory.jpg"]
+   },
+   "factors": [
+    {
+     "name": "A",
+     "description": "Baking temperature",
+     "low": 300,
+     "high": 325,
+     "units": "°F",
+     "type": "numeric"
+    },
+    {
+     "name": "B",
+     "description": "Baking time",
+     "low": 15,
+     "high": 20,
+     "units": "min",
+     "type": "numeric"
+    },
+    {
+     "name": "C",
+     "description": "Batter mixing speed",
+     "low": 200,
+     "high": 300,
+     "units": "RPM",
+     "type": "numeric"
+    }
+   ],
+   "responses": [
+    {
+     "name": "yield",
+     "description": "Yield of good cakes",
+     "units": "%"
+    }
+   ],
+   "design": {
+    "type": "2^(3-1) fractional factorial with a centre point, and one more run",
+    "details": "generator C = AB",
+    "n_runs": 6
+   },
+   "runs": {
+    "columns": ["experiment", "A", "B", "C", "yield"],
+    "coded": false,
+    "rows": [
+     [1, 300, 15, 300, 80],
+     [2, 325, 15, 200, 86],
+     [3, 300, 20, 200, 82],
+     [4, 325, 20, 300, 89],
+     [5, 312.5, 17.5, 250, 84],
+     [6, 357.5, 20, null, 93]
+    ],
+    "notes": "runs 1 to 4 in the random order printed, run 5 the centre point; run 6 is printed after C was dropped, so its C is left empty. Run 6 codes to x_A = +3.6, x_B = +1"
+   },
+   "notes": "The question calls C the mixing speed, and once 'the batter mixing time'. The path of steepest ascent of the fit 84.2 + 3.25 x_A + 1.25 x_B + 0.25 x_A x_B rises 1.25/3.25 = 0.38 in x_B per unit of x_A, so at x_B = +1 it is at x_A = +2.6 (345 °F): run 6, at x_A = +3.6, is not on the path the question says it heads along. The explanation of option 742be8ae, 'You'd want to increase factor B and decrease factor A', contradicts the same fit, in which both coefficients are positive.",
+   "expected": [
+    {
+     "what": "generator",
+     "term": null,
+     "value": "$$\\mathbf{C = AB}$$",
+     "analysis": "the four factorial runs of the printed table: each one obeys C = AB",
+     "where": {
+      "quiz": "Quiz for module 5B",
+      "file": "quiz5B-2015",
+      "question": 1,
+      "question_id": "aee9d660700b122ffa44a041db68d6dc",
+      "source_kind": "question",
+      "quote": "or in other words you have used the generator: $$\\mathbf{C = AB}$$"
+     },
+     "check": {
+      "kind": "fraction_runs",
+      "generator": "C=AB",
+      "runs": [1, 2, 3, 4],
+      "printed": "1, 2, 3, 4"
+     }
+    },
+    {
+     "what": "aliases",
+     "term": "C",
+     "value": "$$\\mathbf{AB}$$",
+     "where": {
+      "quiz": "Quiz for module 5B",
+      "file": "quiz5B-2015",
+      "question": 1,
+      "question_id": "aee9d660700b122ffa44a041db68d6dc",
+      "source_kind": "question",
+      "quote": "you have aliased the coefficients $$\\mathbf{AB}$$ with $$\\mathbf{C}$$"
+     },
+     "check": {
+      "kind": "aliases",
+      "term": "C",
+      "k": 3,
+      "generators": ["C=AB"],
+      "printed": "AB"
+     }
+    },
+    {
+     "what": "number of runs",
+     "term": null,
+     "value": "you can only conduct 10 experiments",
+     "where": {
+      "quiz": "Quiz for module 5B",
+      "file": "quiz5B-2015",
+      "question": 1,
+      "question_id": "aee9d660700b122ffa44a041db68d6dc",
+      "source_kind": "question",
+      "quote": "Each experiment that you run costs $5,000, so you can only conduct 10 experiments."
+     },
+     "check": {
+      "manual": "arithmetic on the scenario: a budget of $50,000 at $5,000 a run is 10 runs"
+     }
+    },
+    {
+     "what": "budget left",
+     "term": null,
+     "value": "$25,000",
+     "where": {
+      "quiz": "Quiz for module 5B",
+      "file": "quiz5B-2015",
+      "question": 1,
+      "question_id": "aee9d660700b122ffa44a041db68d6dc",
+      "source_kind": "question",
+      "quote": "In addition, you have $25,000 left to spend."
+     },
+     "check": {
+      "manual": "arithmetic on the scenario: five runs at $5,000 each leave $50,000 - $25,000 = $25,000"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "Intercept",
+     "value": "84.2",
+     "analysis": "the first five runs, with C left out, as the explanation's lm(y ~ A*B) fits them",
+     "where": {
+      "quiz": "Quiz for module 5B",
+      "file": "quiz5B-2015",
+      "question": 1,
+      "question_id": "aee9d660700b122ffa44a041db68d6dc",
+      "option_id": "a42d33a22db3e299f45288a5886b2231",
+      "answer_key": "correct",
+      "source_kind": "option",
+      "quote": "\\hat{y} = 84.2 + 3.25 x_\\text{A} + 1.25x_\\text{B} + 0.25x_\\text{A}x_\\text{B}"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "Intercept",
+      "model": "A*B",
+      "runs": [1, 2, 3, 4, 5]
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "A",
+     "value": "3.25",
+     "analysis": "the first five runs, with C left out, as the explanation's lm(y ~ A*B) fits them",
+     "where": {
+      "quiz": "Quiz for module 5B",
+      "file": "quiz5B-2015",
+      "question": 1,
+      "question_id": "aee9d660700b122ffa44a041db68d6dc",
+      "option_id": "a42d33a22db3e299f45288a5886b2231",
+      "answer_key": "correct",
+      "source_kind": "option",
+      "quote": "\\hat{y} = 84.2 + 3.25 x_\\text{A} + 1.25x_\\text{B} + 0.25x_\\text{A}x_\\text{B}"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "A",
+      "model": "A*B",
+      "runs": [1, 2, 3, 4, 5]
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "B",
+     "value": "1.25",
+     "analysis": "the first five runs, with C left out, as the explanation's lm(y ~ A*B) fits them",
+     "where": {
+      "quiz": "Quiz for module 5B",
+      "file": "quiz5B-2015",
+      "question": 1,
+      "question_id": "aee9d660700b122ffa44a041db68d6dc",
+      "option_id": "a42d33a22db3e299f45288a5886b2231",
+      "answer_key": "correct",
+      "source_kind": "option",
+      "quote": "\\hat{y} = 84.2 + 3.25 x_\\text{A} + 1.25x_\\text{B} + 0.25x_\\text{A}x_\\text{B}"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "B",
+      "model": "A*B",
+      "runs": [1, 2, 3, 4, 5]
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "A·B",
+     "value": "0.25",
+     "analysis": "the first five runs, with C left out, as the explanation's lm(y ~ A*B) fits them",
+     "where": {
+      "quiz": "Quiz for module 5B",
+      "file": "quiz5B-2015",
+      "question": 1,
+      "question_id": "aee9d660700b122ffa44a041db68d6dc",
+      "option_id": "a42d33a22db3e299f45288a5886b2231",
+      "answer_key": "correct",
+      "source_kind": "option",
+      "quote": "\\hat{y} = 84.2 + 3.25 x_\\text{A} + 1.25x_\\text{B} + 0.25x_\\text{A}x_\\text{B}"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "A·B",
+      "model": "A*B",
+      "runs": [1, 2, 3, 4, 5]
+     }
+    },
+    {
+     "what": "prediction",
+     "term": null,
+     "value": "$$\\hat{y}^{(6)} \\approx 98$$",
+     "analysis": "run 6 in coded units: (357.5 - 312.5)/12.5 = +3.6 and (20 - 17.5)/2.5 = +1; C is not in the model",
+     "where": {
+      "quiz": "Quiz for module 5B",
+      "file": "quiz5B-2015",
+      "question": 1,
+      "question_id": "aee9d660700b122ffa44a041db68d6dc",
+      "option_id": "57704d2b1871ba967e7547cb7dbefb21",
+      "answer_key": "correct",
+      "source_kind": "option",
+      "quote": "Build a model from the first 5 experimental points, and then the prediction of the 6th experimental result is $$\\hat{y}^{(6)} \\approx 98$$"
+     },
+     "check": {
+      "kind": "prediction",
+      "model": "A*B",
+      "runs": [1, 2, 3, 4, 5],
+      "point": {
+       "A": 3.6,
+       "B": 1,
+       "C": 0
+      },
+      "printed": "98"
+     }
+    },
+    {
+     "what": "next run on the path",
+     "term": null,
+     "value": "$$x_\\text{A}$$ = $$-1$$, $$x_\\text{B}$$ = $$-1$$",
+     "where": {
+      "quiz": "Quiz for module 5B",
+      "file": "quiz5B-2015",
+      "question": 1,
+      "question_id": "aee9d660700b122ffa44a041db68d6dc",
+      "option_id": "742be8ae7b42b6a9cf9a3dc5977e69cd",
+      "answer_key": "incorrect",
+      "source_kind": "option",
+      "quote": "If you wanted to run an 7th experiment and step by $$\\Delta x_\\text{A} = -1$$, then you should run that next experiment at the following coded units: $$x_\\text{A}$$ = $$-1$$ $$x_\\text{B}$$ = $$-1$$"
+     },
+     "check": {
+      "manual": "a step along the path of steepest ascent, which no check here computes: the fit 84.2 + 3.25 x_A + 1.25 x_B moves 1.25/3.25 = 0.38 in x_B per unit of x_A, so a step Delta x_A = -1 lands at x_B = -0.38 (and descends); (-1, -1) is not on the path"
+     }
+    },
+    {
+     "what": "coded setting",
+     "term": "A",
+     "value": "$$x_\\text{A}$$ = $$+2.6$$",
+     "where": {
+      "quiz": "Quiz for module 5B",
+      "file": "quiz5B-2015",
+      "question": 1,
+      "question_id": "aee9d660700b122ffa44a041db68d6dc",
+      "option_id": "0f263157391b4221f47058fcf2885e1f",
+      "answer_key": "incorrect",
+      "source_kind": "option",
+      "quote": "The coded units for the 6th experiment, taken in the search direction, is: $$x_\\text{A}$$ = $$+2.6$$ $$x_\\text{B}$$ = $$+1$$"
+     },
+     "check": {
+      "manual": "a conversion of one setting to coded units, arithmetic on the factor's range rather than a result of runs: run 6 at 357.5 °F codes to (357.5 - 312.5)/12.5 = +3.6, not +2.6, so the option is wrong as the table prints run 6. Yet +2.6 is where the path of steepest ascent crosses x_B = +1 (3.25/1.25 = 2.6)"
+     }
+    },
+    {
+     "what": "coded setting",
+     "term": "B",
+     "value": "$$x_\\text{B}$$ = $$+1$$",
+     "where": {
+      "quiz": "Quiz for module 5B",
+      "file": "quiz5B-2015",
+      "question": 1,
+      "question_id": "aee9d660700b122ffa44a041db68d6dc",
+      "option_id": "0f263157391b4221f47058fcf2885e1f",
+      "answer_key": "incorrect",
+      "source_kind": "option",
+      "quote": "The coded units for the 6th experiment, taken in the search direction, is: $$x_\\text{A}$$ = $$+2.6$$ $$x_\\text{B}$$ = $$+1$$"
+     },
+     "check": {
+      "manual": "a conversion of one setting to coded units, arithmetic on the factor's range rather than a result of runs: run 6 at 20 min codes to (20 - 17.5)/2.5 = +1"
+     }
+    }
+   ]
+  },
+  {
+   "name": "efi-quiz5b-cake-yield-near-optimum",
+   "title": "Cake ovens near the optimum: baking temperature A from 357.5 to 370 °F and time B from 20 to 25 min, and the axial runs of a CCD",
+   "kind": "quiz question",
+   "where": {
+    "quiz": "Quiz for module 5B",
+    "file": "quiz5B-2015",
+    "question": 2,
+    "question_id": "2085652257691ded9d4527de9d1e49c4"
+   },
+   "factors": [
+    {
+     "name": "A",
+     "description": "Baking temperature",
+     "low": 357.5,
+     "high": 370,
+     "units": "°F",
+     "type": "numeric"
+    },
+    {
+     "name": "B",
+     "description": "Baking time",
+     "low": 20,
+     "high": 25,
+     "units": "min",
+     "type": "numeric"
+    }
+   ],
+   "responses": [
+    {
+     "name": "yield",
+     "description": "Yield of good cakes",
+     "units": "%"
+    }
+   ],
+   "design": {
+    "type": "2^2 full factorial with a centre point, to be extended to a central composite design",
+    "n_runs": 5
+   },
+   "runs": {
+    "columns": ["experiment", "A", "B", "yield"],
+    "coded": false,
+    "rows": [
+     [6, 357.5, 20, 93],
+     [7, 357.5, 25, 96],
+     [8, 370, 20, 94],
+     [9, 370, 25, 79],
+     [10, 363.75, 22.5, 95]
+    ],
+    "notes": "the quiz's experiments 6 to 10; the explanation's code lists them in standard order"
+   },
+   "notes": "The local fit is 91.4 - 4 x_A - 3 x_B - 4.5 x_A x_B: the interaction is the largest coefficient, as option b952e61b (keyed correct) says in words. With alpha = 1.41 the axial runs are at 363.75 +/- 8.81 °F and 22.5 +/- 3.525 min.",
+   "expected": [
+    {
+     "what": "coefficient",
+     "term": "Intercept",
+     "value": "91",
+     "analysis": "the five runs, as the explanation's lm(y ~ A*B) fits them",
+     "where": {
+      "quiz": "Quiz for module 5B",
+      "file": "quiz5B-2015",
+      "question": 2,
+      "question_id": "2085652257691ded9d4527de9d1e49c4",
+      "option_id": "35e5c1fc766c476802eb2ac26cded82e",
+      "answer_key": "incorrect",
+      "source_kind": "option",
+      "quote": "A linear model, using the 5 points is \\[y \\approx 91 +2x_\\text{A} -1.0 x_\\text{B} -4.5 x_\\text{A}x_\\text{B}\\]"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "Intercept",
+      "model": "A*B"
+     },
+     "note": "in an option keyed incorrect, this coefficient agrees with the fit to within the rounding of its printed digits: the option is wrong in its others"
+    },
+    {
+     "what": "coefficient",
+     "term": "A",
+     "value": "2",
+     "analysis": "the five runs, as the explanation's lm(y ~ A*B) fits them",
+     "where": {
+      "quiz": "Quiz for module 5B",
+      "file": "quiz5B-2015",
+      "question": 2,
+      "question_id": "2085652257691ded9d4527de9d1e49c4",
+      "option_id": "35e5c1fc766c476802eb2ac26cded82e",
+      "answer_key": "incorrect",
+      "source_kind": "option",
+      "quote": "A linear model, using the 5 points is \\[y \\approx 91 +2x_\\text{A} -1.0 x_\\text{B} -4.5 x_\\text{A}x_\\text{B}\\]"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "A",
+      "model": "A*B",
+      "disagreement": "the answer key marks this option incorrect; the fit gives -4"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "B",
+     "value": "-1.0",
+     "analysis": "the five runs, as the explanation's lm(y ~ A*B) fits them",
+     "where": {
+      "quiz": "Quiz for module 5B",
+      "file": "quiz5B-2015",
+      "question": 2,
+      "question_id": "2085652257691ded9d4527de9d1e49c4",
+      "option_id": "35e5c1fc766c476802eb2ac26cded82e",
+      "answer_key": "incorrect",
+      "source_kind": "option",
+      "quote": "A linear model, using the 5 points is \\[y \\approx 91 +2x_\\text{A} -1.0 x_\\text{B} -4.5 x_\\text{A}x_\\text{B}\\]"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "B",
+      "model": "A*B",
+      "disagreement": "the answer key marks this option incorrect; the fit gives -3"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "A·B",
+     "value": "-4.5",
+     "analysis": "the five runs, as the explanation's lm(y ~ A*B) fits them",
+     "where": {
+      "quiz": "Quiz for module 5B",
+      "file": "quiz5B-2015",
+      "question": 2,
+      "question_id": "2085652257691ded9d4527de9d1e49c4",
+      "option_id": "35e5c1fc766c476802eb2ac26cded82e",
+      "answer_key": "incorrect",
+      "source_kind": "option",
+      "quote": "A linear model, using the 5 points is \\[y \\approx 91 +2x_\\text{A} -1.0 x_\\text{B} -4.5 x_\\text{A}x_\\text{B}\\]"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "A·B",
+      "model": "A*B"
+     },
+     "note": "in an option keyed incorrect, this coefficient agrees with the fit to within the rounding of its printed digits: the option is wrong in its others"
+    },
+    {
+     "what": "axial distance",
+     "term": null,
+     "value": "$$\\alpha=1.41$$",
+     "analysis": "the rotatable central composite design in two factors, alpha = 4^(1/4) = 1.414",
+     "where": {
+      "quiz": "Quiz for module 5B",
+      "file": "quiz5B-2015",
+      "question": 2,
+      "question_id": "2085652257691ded9d4527de9d1e49c4",
+      "option_id": "207c31c3806a0fcf522033f4aa2c02b3",
+      "answer_key": "correct",
+      "source_kind": "option explanation",
+      "quote": "the star points, $$\\alpha=1.41$$ in coded units, are at these locations."
+     },
+     "check": {
+      "kind": "design_property",
+      "design": {
+       "design_type": "ccd",
+       "k": 2,
+       "options": {
+        "alpha": "rotatable"
+       }
+      },
+      "property": "alpha",
+      "printed": "1.41"
+     }
+    },
+    {
+     "what": "axial runs",
+     "term": null,
+     "value": "363.75, 18.97; 372.56, 22.5; 363.75, 26.03; 354.94, 22.5",
+     "where": {
+      "quiz": "Quiz for module 5B",
+      "file": "quiz5B-2015",
+      "question": 2,
+      "question_id": "2085652257691ded9d4527de9d1e49c4",
+      "option_id": "207c31c3806a0fcf522033f4aa2c02b3",
+      "answer_key": "correct",
+      "source_kind": "option table",
+      "quote": "11 | 363.75 | 18.97 | 12 | 372.56 | 22.5 | 13 | 363.75 | 26.03 | 14 | 354.94 | 22.5"
+     },
+     "check": {
+      "manual": "the axial runs in real-world units, the centre plus or minus alpha times the half-range: arithmetic on the coding, not a result of the runs: 363.75 +/- 1.41 x 6.25 = 372.56 and 354.94 °F, 22.5 +/- 1.41 x 2.5 = 26.025 and 18.975 min, printed 26.03 and 18.97; with alpha = sqrt(2) they would be 372.59, 354.91, 26.04 and 18.96"
+     }
+    },
+    {
+     "what": "axial runs",
+     "term": null,
+     "value": "363.75, 17.32; 374.56, 22.5; 363.75, 26.12; 352.98, 22.5",
+     "where": {
+      "quiz": "Quiz for module 5B",
+      "file": "quiz5B-2015",
+      "question": 2,
+      "question_id": "2085652257691ded9d4527de9d1e49c4",
+      "option_id": "b156f9fcfc45755d5011f7e37a1e841a",
+      "answer_key": "incorrect",
+      "source_kind": "option table",
+      "quote": "11 | 363.75 | 17.32 | 12 | 374.56 | 22.5 | 13 | 363.75 | 26.12 | 14 | 352.98 | 22.5"
+     },
+     "check": {
+      "manual": "the axial runs in real-world units, the centre plus or minus alpha times the half-range: arithmetic on the coding, not a result of the runs: these code to -2.07, +1.73, +1.45 and -1.72, neither symmetric nor at 1.41; the axial runs are at 18.97, 372.56, 26.03 and 354.94"
+     }
+    },
+    {
+     "what": "axial runs",
+     "term": null,
+     "value": "363.75, 19.15; 373.76, 22.5; 363.75, 27.03; 350.54, 22.5",
+     "where": {
+      "quiz": "Quiz for module 5B",
+      "file": "quiz5B-2015",
+      "question": 2,
+      "question_id": "2085652257691ded9d4527de9d1e49c4",
+      "option_id": "0d49d4e2f2fc85bb888717d8df8c5cae",
+      "answer_key": "incorrect",
+      "source_kind": "option table",
+      "quote": "11 | 363.75 | 19.15 | 12 | 373.76 | 22.5 | 13 | 363.75 | 27.03 | 14 | 350.54 | 22.5"
+     },
+     "check": {
+      "manual": "the axial runs in real-world units, the centre plus or minus alpha times the half-range: arithmetic on the coding, not a result of the runs: these code to -1.34, +1.60, +1.81 and -2.11, neither symmetric nor at 1.41; the axial runs are at 18.97, 372.56, 26.03 and 354.94"
+     }
+    }
+   ]
+  },
+  {
+   "name": "efi-quiz5b-solarization-contour-plot",
+   "title": "Soil solarization: period P and plastic thickness T, and the contour plot of their 2^2 factorial",
+   "kind": "quiz question",
+   "where": {
+    "quiz": "Quiz for module 5B",
+    "file": "quiz5B-2015",
+    "question": 3,
+    "question_id": "c2f891047db5f955078d00e72dbea798",
+    "images": ["https://d396qusza40orc.cloudfront.net/experiments/quiz_assets/week5/Community%20Garden.jpg", "https://d396qusza40orc.cloudfront.net/experiments/quiz_assets/week6/Garden%20-%20Correct%20plot.jpeg", "https://d396qusza40orc.cloudfront.net/experiments/quiz_assets/week6/Garden%20-%20Wrong%20plot%20%231.jpeg", "https://d396qusza40orc.cloudfront.net/experiments/quiz_assets/week6/Garden%20-%20Wrong%20plot%20%232.jpeg"]
+   },
+   "factors": [
+    {
+     "name": "P",
+     "description": "Duration of the solarization period",
+     "low": 4,
+     "high": 6,
+     "units": "weeks",
+     "type": "numeric"
+    },
+    {
+     "name": "T",
+     "description": "Thickness of the plastic",
+     "low": 0.05,
+     "high": 0.1,
+     "units": "mm",
+     "type": "numeric"
+    }
+   ],
+   "responses": [
+    {
+     "name": "weeds",
+     "description": "Weeds sprouted a week after uncovering",
+     "units": ""
+    }
+   ],
+   "design": {
+    "type": "2^2 full factorial",
+    "n_runs": 4
+   },
+   "runs": {
+    "columns": ["experiment", "P", "T", "weeds"],
+    "coded": false,
+    "rows": [
+     [1, 4, 0.05, 12],
+     [2, 6, 0.05, 5],
+     [3, 4, 0.1, 13],
+     [4, 6, 0.1, 6]
+    ]
+   },
+   "notes": "The same runs as practice quiz 5A, question 1. The explanation fits lm(y ~ P*T): 9 - 3.5 x_P + 0.5 x_T + 0 x_P x_T, which predicts 12, 5, 13 and 6 at the four runs.",
+   "expected": [
+    {
+     "what": "contour plot",
+     "term": null,
+     "value": "straight, nearly parallel contours: 5 through the run at (+1, -1), 15 near x_P = -1.9",
+     "where": {
+      "quiz": "Quiz for module 5B",
+      "file": "quiz5B-2015",
+      "question": 3,
+      "question_id": "c2f891047db5f955078d00e72dbea798",
+      "option_id": "288d1e6e2d81bf21c2bacd66d598bff1",
+      "answer_key": "correct",
+      "source_kind": "option",
+      "quote": "The full factorial above can be shown with the following contour plot: [image: Garden - Correct plot.jpeg]"
+     },
+     "check": {
+      "manual": "a contour plot read by eye off the image, which no check here computes: the fit has no interaction, so its contours are straight; it predicts 5 at (+1, -1) and 15 at x_P = -1.86 when x_T = -1, as the plot draws"
+     }
+    },
+    {
+     "what": "contour plot",
+     "term": null,
+     "value": "curved contours of a saddle, with the run at (-1, -1) near the 10 contour",
+     "where": {
+      "quiz": "Quiz for module 5B",
+      "file": "quiz5B-2015",
+      "question": 3,
+      "question_id": "c2f891047db5f955078d00e72dbea798",
+      "option_id": "86f9e699ab489642b4d5306f5728e54e",
+      "answer_key": "incorrect",
+      "source_kind": "option",
+      "quote": "The full factorial above can be shown with the following contour plot: [image: Garden - Wrong plot #1.jpeg]"
+     },
+     "check": {
+      "manual": "a contour plot read by eye off the image, which no check here computes: a surface with a strong interaction, which the fit (interaction 0) does not have; the run at (-1, -1) is 12"
+     }
+    },
+    {
+     "what": "contour plot",
+     "term": null,
+     "value": "curved contours rising toward high P and T, about 15 at the run at (+1, +1)",
+     "where": {
+      "quiz": "Quiz for module 5B",
+      "file": "quiz5B-2015",
+      "question": 3,
+      "question_id": "c2f891047db5f955078d00e72dbea798",
+      "option_id": "ac55d19172165cfb91c2f94a4ac8f1f6",
+      "answer_key": "incorrect",
+      "source_kind": "option",
+      "quote": "The full factorial above can be shown with the following contour plot: [image: Garden - Wrong plot #2.jpeg]"
+     },
+     "check": {
+      "manual": "a contour plot read by eye off the image, which no check here computes: the run at (+1, +1) is 6 and the fit predicts 6 there; this surface rises the wrong way"
+     }
+    }
+   ]
+  },
+  {
+   "name": "efi-quiz5b-wind-turbine-ccd",
+   "title": "Wind turbine power: rotor diameter D and tensile strength T in a central composite design, and its optimum",
+   "kind": "quiz question",
+   "where": {
+    "quiz": "Quiz for module 5B",
+    "file": "quiz5B-2015",
+    "question": 4,
+    "question_id": "2d0a7a3951df8fd3abd7b821591b030a",
+    "images": ["https://d396qusza40orc.cloudfront.net/experiments/quiz_assets/week6/ell-r-brown-4636522006_8f778c07b8_b-flickr-wind-turbine.jpg"]
+   },
+   "factors": [
+    {
+     "name": "D",
+     "description": "Rotor diameter",
+     "low": -1,
+     "high": 1,
+     "units": "coded",
+     "type": "numeric"
+    },
+    {
+     "name": "T",
+     "description": "Material tensile strength",
+     "low": -1,
+     "high": 1,
+     "units": "coded",
+     "type": "numeric"
+    }
+   ],
+   "responses": [
+    {
+     "name": "power",
+     "description": "Power output averaged over 10 minutes",
+     "units": "kW"
+    }
+   ],
+   "design": {
+    "type": "central composite design, 2^2 factorial with axial runs at 1.41 and three centre points",
+    "n_runs": 11
+   },
+   "runs": {
+    "columns": ["experiment", "D", "T", "power"],
+    "coded": true,
+    "rows": [
+     [0, 0, 0, 60],
+     [1, -1, -1, 49],
+     [2, 1, -1, 30],
+     [3, -1, 1, 62],
+     [4, 1, 1, 50],
+     [5, 0, 0, 56],
+     [6, 0, -1.41, 26],
+     [7, 1.41, 0, 40],
+     [8, 0, 1.41, 63],
+     [9, -1.41, 0, 57],
+     [10, 0, 0, 62]
+    ],
+    "notes": "coded data as printed, numbered 0 to 10; the axial runs at 1.41, as the quiz's code also has them"
+   },
+   "notes": "The explanation's code fits lm(y ~ D*T), which has no squared terms (its intercept is 50.45), yet quotes 'an approximate quadratic model': the model it prints is the fit of D + T + D:T + D^2 + T^2, which is what is checked here. On the derivative equations, +6.9 and -10.7 are the linear coefficients moved to the left-hand side, checked with the model above.",
+   "expected": [
+    {
+     "what": "coefficient",
+     "term": "Intercept",
+     "value": "59.3",
+     "analysis": "the full quadratic model on all eleven runs; the code beside it fits only lm(y ~ D*T)",
+     "where": {
+      "quiz": "Quiz for module 5B",
+      "file": "quiz5B-2015",
+      "question": 4,
+      "question_id": "2d0a7a3951df8fd3abd7b821591b030a",
+      "source_kind": "question explanation",
+      "quote": "\\[y = 59.3 -6.9x_\\text{D} + 10.7x_\\text{T} -5.1x_\\text{D}^2 -7.1x_\\text{T}^2 + 1.8 x_\\text{D}x_\\text{T} \\]"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "Intercept",
+      "model": "D + T + D:T + I(D**2) + I(T**2)"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "D",
+     "value": "-6.9",
+     "analysis": "the full quadratic model on all eleven runs; the code beside it fits only lm(y ~ D*T)",
+     "where": {
+      "quiz": "Quiz for module 5B",
+      "file": "quiz5B-2015",
+      "question": 4,
+      "question_id": "2d0a7a3951df8fd3abd7b821591b030a",
+      "source_kind": "question explanation",
+      "quote": "\\[y = 59.3 -6.9x_\\text{D} + 10.7x_\\text{T} -5.1x_\\text{D}^2 -7.1x_\\text{T}^2 + 1.8 x_\\text{D}x_\\text{T} \\]"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "D",
+      "model": "D + T + D:T + I(D**2) + I(T**2)"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "T",
+     "value": "10.7",
+     "analysis": "the full quadratic model on all eleven runs; the code beside it fits only lm(y ~ D*T)",
+     "where": {
+      "quiz": "Quiz for module 5B",
+      "file": "quiz5B-2015",
+      "question": 4,
+      "question_id": "2d0a7a3951df8fd3abd7b821591b030a",
+      "source_kind": "question explanation",
+      "quote": "\\[y = 59.3 -6.9x_\\text{D} + 10.7x_\\text{T} -5.1x_\\text{D}^2 -7.1x_\\text{T}^2 + 1.8 x_\\text{D}x_\\text{T} \\]"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "T",
+      "model": "D + T + D:T + I(D**2) + I(T**2)"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "D²",
+     "value": "-5.1",
+     "analysis": "the full quadratic model on all eleven runs; the code beside it fits only lm(y ~ D*T)",
+     "where": {
+      "quiz": "Quiz for module 5B",
+      "file": "quiz5B-2015",
+      "question": 4,
+      "question_id": "2d0a7a3951df8fd3abd7b821591b030a",
+      "source_kind": "question explanation",
+      "quote": "\\[y = 59.3 -6.9x_\\text{D} + 10.7x_\\text{T} -5.1x_\\text{D}^2 -7.1x_\\text{T}^2 + 1.8 x_\\text{D}x_\\text{T} \\]"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "D²",
+      "model": "D + T + D:T + I(D**2) + I(T**2)"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "T²",
+     "value": "-7.1",
+     "analysis": "the full quadratic model on all eleven runs; the code beside it fits only lm(y ~ D*T)",
+     "where": {
+      "quiz": "Quiz for module 5B",
+      "file": "quiz5B-2015",
+      "question": 4,
+      "question_id": "2d0a7a3951df8fd3abd7b821591b030a",
+      "source_kind": "question explanation",
+      "quote": "\\[y = 59.3 -6.9x_\\text{D} + 10.7x_\\text{T} -5.1x_\\text{D}^2 -7.1x_\\text{T}^2 + 1.8 x_\\text{D}x_\\text{T} \\]"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "T²",
+      "model": "D + T + D:T + I(D**2) + I(T**2)"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "D·T",
+     "value": "1.8",
+     "analysis": "the full quadratic model on all eleven runs; the code beside it fits only lm(y ~ D*T)",
+     "where": {
+      "quiz": "Quiz for module 5B",
+      "file": "quiz5B-2015",
+      "question": 4,
+      "question_id": "2d0a7a3951df8fd3abd7b821591b030a",
+      "source_kind": "question explanation",
+      "quote": "\\[y = 59.3 -6.9x_\\text{D} + 10.7x_\\text{T} -5.1x_\\text{D}^2 -7.1x_\\text{T}^2 + 1.8 x_\\text{D}x_\\text{T} \\]"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "D·T",
+      "model": "D + T + D:T + I(D**2) + I(T**2)"
+     }
+    },
+    {
+     "what": "derivative",
+     "term": null,
+     "value": "$$+6.9 = -10.2 x_\\text{D} + 1.8 x_\\text{T}$$",
+     "analysis": "the derivative in x_D of the quadratic fit: its x_D coefficient is twice that of D², which the effect kind computes, and its x_T coefficient that of D·T",
+     "where": {
+      "quiz": "Quiz for module 5B",
+      "file": "quiz5B-2015",
+      "question": 4,
+      "question_id": "2d0a7a3951df8fd3abd7b821591b030a",
+      "source_kind": "question explanation",
+      "quote": "+6.9 &= -10.2 x_\\text{D} + 1.8 x_\\text{T}"
+     },
+     "check": [
+      {
+       "kind": "effect",
+       "term": "D²",
+       "model": "D + T + D:T + I(D**2) + I(T**2)",
+       "printed": "-10.2"
+      },
+      {
+       "kind": "coefficient",
+       "term": "D·T",
+       "model": "D + T + D:T + I(D**2) + I(T**2)",
+       "printed": "1.8"
+      }
+     ]
+    },
+    {
+     "what": "derivative",
+     "term": null,
+     "value": "$$-10.7 = -14.2 x_\\text{T} + 1.8 x_\\text{D}$$",
+     "analysis": "the derivative in x_T of the quadratic fit: its x_T coefficient is twice that of T², which the effect kind computes, and its x_D coefficient that of D·T",
+     "where": {
+      "quiz": "Quiz for module 5B",
+      "file": "quiz5B-2015",
+      "question": 4,
+      "question_id": "2d0a7a3951df8fd3abd7b821591b030a",
+      "source_kind": "question explanation",
+      "quote": "-10.7 &= -14.2 x_\\text{T} + 1.8 x_\\text{D}"
+     },
+     "check": [
+      {
+       "kind": "effect",
+       "term": "T²",
+       "model": "D + T + D:T + I(D**2) + I(T**2)",
+       "printed": "-14.2"
+      },
+      {
+       "kind": "coefficient",
+       "term": "D·T",
+       "model": "D + T + D:T + I(D**2) + I(T**2)",
+       "printed": "1.8"
+      }
+     ]
+    },
+    {
+     "what": "optimum",
+     "term": null,
+     "value": "$$x_\\text{D} = -0.6$$ and $$x_\\text{T} = +0.7$$",
+     "where": {
+      "quiz": "Quiz for module 5B",
+      "file": "quiz5B-2015",
+      "question": 4,
+      "question_id": "2d0a7a3951df8fd3abd7b821591b030a",
+      "source_kind": "question explanation",
+      "quote": "which gives an approximate solution of $$x_\\text{D} = -0.6$$ and $$x_\\text{T} = +0.7$$"
+     },
+     "check": {
+      "manual": "the stationary point of the quadratic fit, which no check here computes: setting both derivatives to zero with the fit's unrounded coefficients gives x_D = -0.557 and x_T = +0.681, a maximum (about 64.9 kW), which round to -0.6 and +0.7"
+     }
+    },
+    {
+     "what": "next run",
+     "term": null,
+     "value": "$$\\mathbf{D} = -0.6$$ $$\\mathbf{T} = -0.7$$",
+     "where": {
+      "quiz": "Quiz for module 5B",
+      "file": "quiz5B-2015",
+      "question": 4,
+      "question_id": "2d0a7a3951df8fd3abd7b821591b030a",
+      "option_id": "87fed59b0a7bcb2a6754807e5f943d57",
+      "answer_key": "incorrect",
+      "source_kind": "option",
+      "quote": "$$\\mathbf{D} = -0.6$$ $$\\mathbf{T} = -0.7$$"
+     },
+     "check": {
+      "manual": "the stationary point of the quadratic fit, which no check here computes: setting both derivatives to zero with the fit's unrounded coefficients gives x_D = -0.557 and x_T = +0.681, a maximum (about 64.9 kW); this option has the sign of x_T wrong"
+     }
+    },
+    {
+     "what": "next run",
+     "term": null,
+     "value": "$$\\mathbf{D} = +0.6$$ $$\\mathbf{T} = -0.7$$",
+     "where": {
+      "quiz": "Quiz for module 5B",
+      "file": "quiz5B-2015",
+      "question": 4,
+      "question_id": "2d0a7a3951df8fd3abd7b821591b030a",
+      "option_id": "f54cc40bff261ca5bf1e43d546790fff",
+      "answer_key": "incorrect",
+      "source_kind": "option",
+      "quote": "$$\\mathbf{D} = +0.6$$ $$\\mathbf{T} = -0.7$$"
+     },
+     "check": {
+      "manual": "the stationary point of the quadratic fit, which no check here computes: setting both derivatives to zero with the fit's unrounded coefficients gives x_D = -0.557 and x_T = +0.681, a maximum (about 64.9 kW); this option has both signs wrong"
+     }
+    },
+    {
+     "what": "next run",
+     "term": null,
+     "value": "$$\\mathbf{D} = +0.6$$ $$\\mathbf{T} = +0.7$$",
+     "where": {
+      "quiz": "Quiz for module 5B",
+      "file": "quiz5B-2015",
+      "question": 4,
+      "question_id": "2d0a7a3951df8fd3abd7b821591b030a",
+      "option_id": "93d63811c3420abdaad94f874024362e",
+      "answer_key": "incorrect",
+      "source_kind": "option",
+      "quote": "$$\\mathbf{D} = +0.6$$ $$\\mathbf{T} = +0.7$$"
+     },
+     "check": {
+      "manual": "the stationary point of the quadratic fit, which no check here computes: setting both derivatives to zero with the fit's unrounded coefficients gives x_D = -0.557 and x_T = +0.681, a maximum (about 64.9 kW); this option has the sign of x_D wrong"
+     }
+    },
+    {
+     "what": "next run",
+     "term": null,
+     "value": "$$\\mathbf{D} = -0.6$$ $$\\mathbf{T} = +0.7$$",
+     "where": {
+      "quiz": "Quiz for module 5B",
+      "file": "quiz5B-2015",
+      "question": 4,
+      "question_id": "2d0a7a3951df8fd3abd7b821591b030a",
+      "option_id": "57bd0f73184fa48fc787f3d664845198",
+      "answer_key": "correct",
+      "source_kind": "option",
+      "quote": "$$\\mathbf{D} = -0.6$$ $$\\mathbf{T} = +0.7$$"
+     },
+     "check": {
+      "manual": "the stationary point of the quadratic fit, which no check here computes: setting both derivatives to zero with the fit's unrounded coefficients gives x_D = -0.557 and x_T = +0.681, a maximum (about 64.9 kW); this option is that point, rounded"
+     }
+    }
+   ]
+  },
+  {
+   "name": "efi-quiz5b-beer-taste-ccd",
+   "title": "Nathan's beer: malt M and hops H in a 2^2 factorial with a centre point, then a central composite design",
+   "kind": "quiz question",
+   "where": {
+    "quiz": "Quiz for module 5B",
+    "file": "quiz5B-2015",
+    "question": 5,
+    "question_id": "8eb080885b6ca039e395129bc1d0816d",
+    "images": ["https://d396qusza40orc.cloudfront.net/experiments/quiz_assets/week6/Beer.jpg", "https://d396qusza40orc.cloudfront.net/experiments/quiz_assets/week6/Beer%205exp%20plot%20good.jpeg", "https://d396qusza40orc.cloudfront.net/experiments/quiz_assets/week6/Beer%205exp%20plot%20bad.jpeg", "https://d396qusza40orc.cloudfront.net/experiments/quiz_assets/week6/Beer%209exp%20plot%20good.jpeg", "https://d396qusza40orc.cloudfront.net/experiments/quiz_assets/week6/Beer%209exp%20plot%20bad.jpeg"]
+   },
+   "factors": [
+    {
+     "name": "M",
+     "description": "Amount of malt",
+     "low": 800,
+     "high": 1000,
+     "units": "g",
+     "type": "numeric"
+    },
+    {
+     "name": "H",
+     "description": "Amount of hops",
+     "low": 6,
+     "high": 10,
+     "units": "g",
+     "type": "numeric"
+    }
+   ],
+   "responses": [
+    {
+     "name": "taste",
+     "description": "Taste rating, 1 to 10",
+     "units": ""
+    }
+   ],
+   "design": {
+    "type": "central composite design: 2^2 factorial, a centre point and four axial runs",
+    "n_runs": 9
+   },
+   "runs": {
+    "columns": ["experiment", "M", "H", "taste"],
+    "coded": false,
+    "rows": [
+     [1, 800, 6, 4],
+     [2, 1000, 6, 9.5],
+     [3, 800, 10, 5],
+     [4, 1000, 10, 5.5],
+     [5, 900, 8, 8],
+     [6, 900, 5.18, 8],
+     [7, 1041, 8, 8],
+     [8, 900, 10.82, 4],
+     [9, 759, 8, 2]
+    ],
+    "exact": {
+     "1.41": 1.4142135623730951
+    },
+    "notes": "the axial runs print at 1.41 coded units (5.18 and 10.82 g of hops, 759 and 1041 g of malt); the explanation's code places them at sqrt(2), and only with sqrt(2) does the fit give the printed model (with 1.41 the coefficient of H^2 is -0.873, not -0.88)"
+   },
+   "notes": "The question calls the second, quadratic, model 'linear' (it is linear in its coefficients). The contour plots are drawn with another package, as the question says; what each shows is read by eye.",
+   "expected": [
+    {
+     "what": "coefficient",
+     "term": "Intercept",
+     "value": "6.4",
+     "analysis": "the factorial and its centre point",
+     "where": {
+      "quiz": "Quiz for module 5B",
+      "file": "quiz5B-2015",
+      "question": 5,
+      "question_id": "8eb080885b6ca039e395129bc1d0816d",
+      "source_kind": "question",
+      "quote": "$$\\hat{y_1} = 6.4 + 1.5x_\\text{M} - 0.75x_\\text{H} - 1.25x_\\text{M}x_\\text{H}$$"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "Intercept",
+      "model": "M*H",
+      "runs": [1, 2, 3, 4, 5]
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "M",
+     "value": "1.5",
+     "analysis": "the factorial and its centre point",
+     "where": {
+      "quiz": "Quiz for module 5B",
+      "file": "quiz5B-2015",
+      "question": 5,
+      "question_id": "8eb080885b6ca039e395129bc1d0816d",
+      "source_kind": "question",
+      "quote": "$$\\hat{y_1} = 6.4 + 1.5x_\\text{M} - 0.75x_\\text{H} - 1.25x_\\text{M}x_\\text{H}$$"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "M",
+      "model": "M*H",
+      "runs": [1, 2, 3, 4, 5]
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "H",
+     "value": "-0.75",
+     "analysis": "the factorial and its centre point",
+     "where": {
+      "quiz": "Quiz for module 5B",
+      "file": "quiz5B-2015",
+      "question": 5,
+      "question_id": "8eb080885b6ca039e395129bc1d0816d",
+      "source_kind": "question",
+      "quote": "$$\\hat{y_1} = 6.4 + 1.5x_\\text{M} - 0.75x_\\text{H} - 1.25x_\\text{M}x_\\text{H}$$"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "H",
+      "model": "M*H",
+      "runs": [1, 2, 3, 4, 5]
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "M·H",
+     "value": "-1.25",
+     "analysis": "the factorial and its centre point",
+     "where": {
+      "quiz": "Quiz for module 5B",
+      "file": "quiz5B-2015",
+      "question": 5,
+      "question_id": "8eb080885b6ca039e395129bc1d0816d",
+      "source_kind": "question",
+      "quote": "$$\\hat{y_1} = 6.4 + 1.5x_\\text{M} - 0.75x_\\text{H} - 1.25x_\\text{M}x_\\text{H}$$"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "M·H",
+      "model": "M*H",
+      "runs": [1, 2, 3, 4, 5]
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "Intercept",
+     "value": "8",
+     "analysis": "all nine runs, as mod.quad fits them",
+     "where": {
+      "quiz": "Quiz for module 5B",
+      "file": "quiz5B-2015",
+      "question": 5,
+      "question_id": "8eb080885b6ca039e395129bc1d0816d",
+      "source_kind": "question",
+      "quote": "$$\\hat{y_2} = 8 + 1.81x_\\text{M} - 1.08x_\\text{H} - 1.25x_\\text{M}x_\\text{H} - 1.38x_\\text{M}^2 - 0.88x_\\text{H}^2$$"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "Intercept",
+      "model": "M + H + M:H + I(M**2) + I(H**2)"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "M",
+     "value": "1.81",
+     "analysis": "all nine runs, as mod.quad fits them",
+     "where": {
+      "quiz": "Quiz for module 5B",
+      "file": "quiz5B-2015",
+      "question": 5,
+      "question_id": "8eb080885b6ca039e395129bc1d0816d",
+      "source_kind": "question",
+      "quote": "$$\\hat{y_2} = 8 + 1.81x_\\text{M} - 1.08x_\\text{H} - 1.25x_\\text{M}x_\\text{H} - 1.38x_\\text{M}^2 - 0.88x_\\text{H}^2$$"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "M",
+      "model": "M + H + M:H + I(M**2) + I(H**2)"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "H",
+     "value": "-1.08",
+     "analysis": "all nine runs, as mod.quad fits them",
+     "where": {
+      "quiz": "Quiz for module 5B",
+      "file": "quiz5B-2015",
+      "question": 5,
+      "question_id": "8eb080885b6ca039e395129bc1d0816d",
+      "source_kind": "question",
+      "quote": "$$\\hat{y_2} = 8 + 1.81x_\\text{M} - 1.08x_\\text{H} - 1.25x_\\text{M}x_\\text{H} - 1.38x_\\text{M}^2 - 0.88x_\\text{H}^2$$"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "H",
+      "model": "M + H + M:H + I(M**2) + I(H**2)"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "M·H",
+     "value": "-1.25",
+     "analysis": "all nine runs, as mod.quad fits them",
+     "where": {
+      "quiz": "Quiz for module 5B",
+      "file": "quiz5B-2015",
+      "question": 5,
+      "question_id": "8eb080885b6ca039e395129bc1d0816d",
+      "source_kind": "question",
+      "quote": "$$\\hat{y_2} = 8 + 1.81x_\\text{M} - 1.08x_\\text{H} - 1.25x_\\text{M}x_\\text{H} - 1.38x_\\text{M}^2 - 0.88x_\\text{H}^2$$"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "M·H",
+      "model": "M + H + M:H + I(M**2) + I(H**2)"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "M²",
+     "value": "-1.38",
+     "analysis": "all nine runs, as mod.quad fits them",
+     "where": {
+      "quiz": "Quiz for module 5B",
+      "file": "quiz5B-2015",
+      "question": 5,
+      "question_id": "8eb080885b6ca039e395129bc1d0816d",
+      "source_kind": "question",
+      "quote": "$$\\hat{y_2} = 8 + 1.81x_\\text{M} - 1.08x_\\text{H} - 1.25x_\\text{M}x_\\text{H} - 1.38x_\\text{M}^2 - 0.88x_\\text{H}^2$$"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "M²",
+      "model": "M + H + M:H + I(M**2) + I(H**2)"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "H²",
+     "value": "-0.88",
+     "analysis": "all nine runs, as mod.quad fits them",
+     "where": {
+      "quiz": "Quiz for module 5B",
+      "file": "quiz5B-2015",
+      "question": 5,
+      "question_id": "8eb080885b6ca039e395129bc1d0816d",
+      "source_kind": "question",
+      "quote": "$$\\hat{y_2} = 8 + 1.81x_\\text{M} - 1.08x_\\text{H} - 1.25x_\\text{M}x_\\text{H} - 1.38x_\\text{M}^2 - 0.88x_\\text{H}^2$$"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "H²",
+      "model": "M + H + M:H + I(M**2) + I(H**2)"
+     }
+    },
+    {
+     "what": "derivative",
+     "term": null,
+     "value": "$$(1) \\dfrac{\\partial\\hat{y}}{\\partial x_M} = 0 = 1.81 - 1.25x_\\text{H} - 2.76x_\\text{M}$$",
+     "analysis": "the derivative in x_M of the quadratic fit: its x_M coefficient is twice that of M², which the effect kind computes",
+     "where": {
+      "quiz": "Quiz for module 5B",
+      "file": "quiz5B-2015",
+      "question": 5,
+      "question_id": "8eb080885b6ca039e395129bc1d0816d",
+      "option_id": "dec4564340d964ec8cd9f08dd582adc2",
+      "answer_key": "correct",
+      "source_kind": "option",
+      "quote": "$$(1) \\dfrac{\\partial\\hat{y}}{\\partial x_M} = 0 = 1.81 - 1.25x_\\text{H} - 2.76x_\\text{M}$$"
+     },
+     "check": [
+      {
+       "kind": "coefficient",
+       "term": "M",
+       "model": "M + H + M:H + I(M**2) + I(H**2)",
+       "printed": "1.81"
+      },
+      {
+       "kind": "coefficient",
+       "term": "M·H",
+       "model": "M + H + M:H + I(M**2) + I(H**2)",
+       "printed": "-1.25"
+      },
+      {
+       "kind": "effect",
+       "term": "M²",
+       "model": "M + H + M:H + I(M**2) + I(H**2)",
+       "printed": "-2.76",
+       "disagreement": "the explanation differentiates the printed model, whose -1.38 is the fit's -1.375 rounded: twice -1.38 is -2.76, where twice the fit's coefficient is -2.75"
+      }
+     ]
+    },
+    {
+     "what": "derivative",
+     "term": null,
+     "value": "$$(2) \\dfrac{\\partial\\hat{y}}{\\partial x_H} = 0 = -1.08 - 1.25x_\\text{M} - 1.76x_\\text{H}$$",
+     "analysis": "the derivative in x_H of the quadratic fit: its x_H coefficient is twice that of H², which the effect kind computes",
+     "where": {
+      "quiz": "Quiz for module 5B",
+      "file": "quiz5B-2015",
+      "question": 5,
+      "question_id": "8eb080885b6ca039e395129bc1d0816d",
+      "option_id": "dec4564340d964ec8cd9f08dd582adc2",
+      "answer_key": "correct",
+      "source_kind": "option",
+      "quote": "$$(2) \\dfrac{\\partial\\hat{y}}{\\partial x_H} = 0 = -1.08 - 1.25x_\\text{M} - 1.76x_\\text{H}$$"
+     },
+     "check": [
+      {
+       "kind": "coefficient",
+       "term": "H",
+       "model": "M + H + M:H + I(M**2) + I(H**2)",
+       "printed": "-1.08"
+      },
+      {
+       "kind": "coefficient",
+       "term": "M·H",
+       "model": "M + H + M:H + I(M**2) + I(H**2)",
+       "printed": "-1.25"
+      },
+      {
+       "kind": "effect",
+       "term": "H²",
+       "model": "M + H + M:H + I(M**2) + I(H**2)",
+       "printed": "-1.76",
+       "disagreement": "the explanation differentiates the printed model, whose -0.88 is the fit's -0.875 rounded: twice -0.88 is -1.76, where twice the fit's coefficient is -1.75"
+      }
+     ]
+    },
+    {
+     "what": "optimum",
+     "term": "M",
+     "value": "$$x_\\text{M} \\approx 1.38$$ or $$1038$$ grams of malt",
+     "where": {
+      "quiz": "Quiz for module 5B",
+      "file": "quiz5B-2015",
+      "question": 5,
+      "question_id": "8eb080885b6ca039e395129bc1d0816d",
+      "option_id": "dec4564340d964ec8cd9f08dd582adc2",
+      "answer_key": "correct",
+      "source_kind": "option",
+      "quote": "$$x_\\text{M} \\approx 1.38$$ or $$1038$$ grams of malt in real world units"
+     },
+     "check": {
+      "manual": "the stationary point, which no check here computes: the explanation's rounded equations solve to x_M = 1.377 and x_H = -1.591; the unrounded fit's stationary point is x_M = 1.391, x_H = -1.612, a maximum of about 10.1, which is 1039 g of malt and 4.78 g of hops, beyond the axial run at x_H = -1.41"
+     }
+    },
+    {
+     "what": "optimum",
+     "term": "H",
+     "value": "$$x_\\text{H} \\approx -1.59$$ or $$4.82$$ grams of hops",
+     "where": {
+      "quiz": "Quiz for module 5B",
+      "file": "quiz5B-2015",
+      "question": 5,
+      "question_id": "8eb080885b6ca039e395129bc1d0816d",
+      "option_id": "dec4564340d964ec8cd9f08dd582adc2",
+      "answer_key": "correct",
+      "source_kind": "option",
+      "quote": "$$x_\\text{H} \\approx -1.59$$ or $$4.82$$ grams of hops in real world units"
+     },
+     "check": {
+      "manual": "the stationary point, which no check here computes: the explanation's rounded equations solve to x_M = 1.377 and x_H = -1.591; the unrounded fit's stationary point is x_M = 1.391, x_H = -1.612, a maximum of about 10.1, which is 1039 g of malt and 4.78 g of hops, beyond the axial run at x_H = -1.41"
+     }
+    },
+    {
+     "what": "contour plot",
+     "term": null,
+     "value": "a saddle: the 10 contour by the run at (+1, -1), the 5 contour near (-1, -0.4)",
+     "where": {
+      "quiz": "Quiz for module 5B",
+      "file": "quiz5B-2015",
+      "question": 5,
+      "question_id": "8eb080885b6ca039e395129bc1d0816d",
+      "option_id": "c987e9680fe2b0c562b420b92f9a73d3",
+      "answer_key": "correct",
+      "source_kind": "option",
+      "quote": "The contour plot of the original factorial DOE, using only the first 5 experiments would look like: [image: Beer 5exp plot good.jpeg]"
+     },
+     "check": {
+      "manual": "a contour plot read by eye off the image, which no check here computes: the fit 6.4 + 1.5 x_M - 0.75 x_H - 1.25 x_M x_H predicts 9.9 at (+1, -1), 4.4 at (-1, -1) and 6.4 at the centre, as the plot draws"
+     }
+    },
+    {
+     "what": "contour plot",
+     "term": null,
+     "value": "the 5 contour through the centre point",
+     "where": {
+      "quiz": "Quiz for module 5B",
+      "file": "quiz5B-2015",
+      "question": 5,
+      "question_id": "8eb080885b6ca039e395129bc1d0816d",
+      "option_id": "ced987cd07626bf05af8ce6f6eeb7836",
+      "answer_key": "incorrect",
+      "source_kind": "option",
+      "quote": "The contour plot of the original factorial DOE, using the first 5 experiments would look like: [image: Beer 5exp plot bad.jpeg]"
+     },
+     "check": {
+      "manual": "a contour plot read by eye off the image, which no check here computes: the fit predicts 6.4 at the centre (8 was observed there), not 5"
+     }
+    },
+    {
+     "what": "contour plot",
+     "term": null,
+     "value": "a maximum of about 10 near (+1.4, -1.6)",
+     "where": {
+      "quiz": "Quiz for module 5B",
+      "file": "quiz5B-2015",
+      "question": 5,
+      "question_id": "8eb080885b6ca039e395129bc1d0816d",
+      "option_id": "7b24e0466f59aee5917a30096c61557a",
+      "answer_key": "correct",
+      "source_kind": "option",
+      "quote": "Using all experiments noted above, the CCD contour plot would look like this: [image: Beer 9exp plot good.jpeg]"
+     },
+     "check": {
+      "manual": "a contour plot read by eye off the image, which no check here computes: the quadratic fit has its maximum, 10.1, at (+1.39, -1.61), as the plot draws"
+     }
+    },
+    {
+     "what": "contour plot",
+     "term": null,
+     "value": "a minimum, below 2, near the centre",
+     "where": {
+      "quiz": "Quiz for module 5B",
+      "file": "quiz5B-2015",
+      "question": 5,
+      "question_id": "8eb080885b6ca039e395129bc1d0816d",
+      "option_id": "692b362886a512bac6b210cf0ca7e53d",
+      "answer_key": "incorrect",
+      "source_kind": "option",
+      "quote": "Using all experiments noted above, the CCD contour plot would look like this: [image: Beer 9exp plot bad.jpeg]"
+     },
+     "check": {
+      "manual": "a contour plot read by eye off the image, which no check here computes: both squared terms of the fit are negative, so its surface has a maximum, not a minimum"
+     }
+    }
+   ]
+  },
+  {
+   "name": "efi-quiz5a-practice-solarization",
+   "title": "Soil solarization: period P and plastic thickness T, then a centre point and a run at 8 weeks in P only",
+   "kind": "quiz question",
+   "where": {
+    "quiz": "Ungraded practice quiz 5A",
+    "file": "quiz5A-UG-2015",
+    "question": 1,
+    "question_id": "797a0569112a87e4c51fb09f12e69e4f",
+    "images": ["https://d396qusza40orc.cloudfront.net/experiments/quiz_assets/week5/Community%20Garden.jpg"]
+   },
+   "factors": [
+    {
+     "name": "P",
+     "description": "Duration of the solarization period",
+     "low": 4,
+     "high": 6,
+     "units": "weeks",
+     "type": "numeric"
+    },
+    {
+     "name": "T",
+     "description": "Thickness of the plastic",
+     "low": 0.05,
+     "high": 0.1,
+     "units": "mm",
+     "type": "numeric"
+    }
+   ],
+   "responses": [
+    {
+     "name": "weeds",
+     "description": "Weeds sprouted a week after uncovering",
+     "units": ""
+    }
+   ],
+   "design": {
+    "type": "2^2 full factorial, then two runs in P",
+    "n_runs": 6
+   },
+   "runs": {
+    "columns": ["experiment", "P", "T", "weeds"],
+    "coded": false,
+    "rows": [
+     [1, 4, 0.05, 12],
+     [2, 6, 0.05, 5],
+     [3, 4, 0.1, 13],
+     [4, 6, 0.1, 6],
+     [5, 5, null, 8],
+     [6, 8, null, 6]
+    ],
+    "notes": "runs 5 and 6 are printed in options with P only, after T is dropped: run 5 'at the center point', run 6 at 8 weeks (x_P = +3); their T is left empty, and the models that use them are in P"
+   },
+   "notes": "The question's explanation is cut short ('Some code to use: ... x'). The same factorial is graded quiz 5B, question 3.",
+   "expected": [
+    {
+     "what": "coefficient",
+     "term": "Intercept",
+     "value": "9",
+     "analysis": "the four factorial runs; the interaction, which the option leaves out, is zero",
+     "where": {
+      "quiz": "Ungraded practice quiz 5A",
+      "file": "quiz5A-UG-2015",
+      "question": 1,
+      "question_id": "797a0569112a87e4c51fb09f12e69e4f",
+      "option_id": "b26b0de43fbd256b744665c7532d8557",
+      "answer_key": "correct",
+      "source_kind": "option",
+      "quote": "\\hat{y} = 9 - 3.5x_\\text{P} +0.5x_\\text{T}"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "Intercept",
+      "model": "P + T",
+      "runs": [1, 2, 3, 4]
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "P",
+     "value": "-3.5",
+     "analysis": "the four factorial runs; the interaction, which the option leaves out, is zero",
+     "where": {
+      "quiz": "Ungraded practice quiz 5A",
+      "file": "quiz5A-UG-2015",
+      "question": 1,
+      "question_id": "797a0569112a87e4c51fb09f12e69e4f",
+      "option_id": "b26b0de43fbd256b744665c7532d8557",
+      "answer_key": "correct",
+      "source_kind": "option",
+      "quote": "\\hat{y} = 9 - 3.5x_\\text{P} +0.5x_\\text{T}"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "P",
+      "model": "P + T",
+      "runs": [1, 2, 3, 4]
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "T",
+     "value": "0.5",
+     "analysis": "the four factorial runs; the interaction, which the option leaves out, is zero",
+     "where": {
+      "quiz": "Ungraded practice quiz 5A",
+      "file": "quiz5A-UG-2015",
+      "question": 1,
+      "question_id": "797a0569112a87e4c51fb09f12e69e4f",
+      "option_id": "b26b0de43fbd256b744665c7532d8557",
+      "answer_key": "correct",
+      "source_kind": "option",
+      "quote": "\\hat{y} = 9 - 3.5x_\\text{P} +0.5x_\\text{T}"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "T",
+      "model": "P + T",
+      "runs": [1, 2, 3, 4]
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "Intercept",
+     "value": "10",
+     "analysis": "the four factorial runs",
+     "where": {
+      "quiz": "Ungraded practice quiz 5A",
+      "file": "quiz5A-UG-2015",
+      "question": 1,
+      "question_id": "797a0569112a87e4c51fb09f12e69e4f",
+      "option_id": "d554fd4c67ecc6fb6331df58e36c5d86",
+      "answer_key": "incorrect",
+      "source_kind": "option",
+      "quote": "\\hat{y} = 10 - 5x_\\text{P} -x_\\text{T} - 2x_\\text{P}x_\\text{T}"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "Intercept",
+      "model": "P*T",
+      "runs": [1, 2, 3, 4],
+      "disagreement": "the answer key marks this option incorrect; the fit gives 9"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "P",
+     "value": "-5",
+     "analysis": "the four factorial runs",
+     "where": {
+      "quiz": "Ungraded practice quiz 5A",
+      "file": "quiz5A-UG-2015",
+      "question": 1,
+      "question_id": "797a0569112a87e4c51fb09f12e69e4f",
+      "option_id": "d554fd4c67ecc6fb6331df58e36c5d86",
+      "answer_key": "incorrect",
+      "source_kind": "option",
+      "quote": "\\hat{y} = 10 - 5x_\\text{P} -x_\\text{T} - 2x_\\text{P}x_\\text{T}"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "P",
+      "model": "P*T",
+      "runs": [1, 2, 3, 4],
+      "disagreement": "the answer key marks this option incorrect; the fit gives -3.5"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "T",
+     "value": "-1",
+     "analysis": "the four factorial runs",
+     "where": {
+      "quiz": "Ungraded practice quiz 5A",
+      "file": "quiz5A-UG-2015",
+      "question": 1,
+      "question_id": "797a0569112a87e4c51fb09f12e69e4f",
+      "option_id": "d554fd4c67ecc6fb6331df58e36c5d86",
+      "answer_key": "incorrect",
+      "source_kind": "option",
+      "quote": "\\hat{y} = 10 - 5x_\\text{P} -x_\\text{T} - 2x_\\text{P}x_\\text{T}"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "T",
+      "model": "P*T",
+      "runs": [1, 2, 3, 4],
+      "disagreement": "the answer key marks this option incorrect; the fit gives 0.5"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "P·T",
+     "value": "-2",
+     "analysis": "the four factorial runs",
+     "where": {
+      "quiz": "Ungraded practice quiz 5A",
+      "file": "quiz5A-UG-2015",
+      "question": 1,
+      "question_id": "797a0569112a87e4c51fb09f12e69e4f",
+      "option_id": "d554fd4c67ecc6fb6331df58e36c5d86",
+      "answer_key": "incorrect",
+      "source_kind": "option",
+      "quote": "\\hat{y} = 10 - 5x_\\text{P} -x_\\text{T} - 2x_\\text{P}x_\\text{T}"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "P·T",
+      "model": "P*T",
+      "runs": [1, 2, 3, 4],
+      "disagreement": "the answer key marks this option incorrect; the fit gives 0"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "Intercept",
+     "value": "8",
+     "analysis": "the factorial and the centre point, in P",
+     "where": {
+      "quiz": "Ungraded practice quiz 5A",
+      "file": "quiz5A-UG-2015",
+      "question": 1,
+      "question_id": "797a0569112a87e4c51fb09f12e69e4f",
+      "option_id": "c20200e367e243db180508deebd97e65",
+      "answer_key": "correct",
+      "source_kind": "option",
+      "quote": "\\hat{y} = 8 - 3.5x_\\text{P} + x_\\text{P}^2"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "Intercept",
+      "model": "P + I(P**2)",
+      "runs": [1, 2, 3, 4, 5]
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "P",
+     "value": "-3.5",
+     "analysis": "the factorial and the centre point, in P",
+     "where": {
+      "quiz": "Ungraded practice quiz 5A",
+      "file": "quiz5A-UG-2015",
+      "question": 1,
+      "question_id": "797a0569112a87e4c51fb09f12e69e4f",
+      "option_id": "c20200e367e243db180508deebd97e65",
+      "answer_key": "correct",
+      "source_kind": "option",
+      "quote": "\\hat{y} = 8 - 3.5x_\\text{P} + x_\\text{P}^2"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "P",
+      "model": "P + I(P**2)",
+      "runs": [1, 2, 3, 4, 5]
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "P²",
+     "value": "1",
+     "analysis": "the factorial and the centre point, in P",
+     "where": {
+      "quiz": "Ungraded practice quiz 5A",
+      "file": "quiz5A-UG-2015",
+      "question": 1,
+      "question_id": "797a0569112a87e4c51fb09f12e69e4f",
+      "option_id": "c20200e367e243db180508deebd97e65",
+      "answer_key": "correct",
+      "source_kind": "option",
+      "quote": "\\hat{y} = 8 - 3.5x_\\text{P} + x_\\text{P}^2"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "P²",
+      "model": "P + I(P**2)",
+      "runs": [1, 2, 3, 4, 5]
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "Intercept",
+     "value": "8",
+     "analysis": "the factorial and the centre point, in P",
+     "where": {
+      "quiz": "Ungraded practice quiz 5A",
+      "file": "quiz5A-UG-2015",
+      "question": 1,
+      "question_id": "797a0569112a87e4c51fb09f12e69e4f",
+      "option_id": "98ba583a7bda7f928f6c939e468ec997",
+      "answer_key": "incorrect",
+      "source_kind": "option",
+      "quote": "\\hat{y} = 8 - 5x_\\text{P} + 1x_\\text{P}^2"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "Intercept",
+      "model": "P + I(P**2)",
+      "runs": [1, 2, 3, 4, 5]
+     },
+     "note": "in an option keyed incorrect, this coefficient agrees with the fit to within the rounding of its printed digits: the option is wrong in its others"
+    },
+    {
+     "what": "coefficient",
+     "term": "P",
+     "value": "-5",
+     "analysis": "the factorial and the centre point, in P",
+     "where": {
+      "quiz": "Ungraded practice quiz 5A",
+      "file": "quiz5A-UG-2015",
+      "question": 1,
+      "question_id": "797a0569112a87e4c51fb09f12e69e4f",
+      "option_id": "98ba583a7bda7f928f6c939e468ec997",
+      "answer_key": "incorrect",
+      "source_kind": "option",
+      "quote": "\\hat{y} = 8 - 5x_\\text{P} + 1x_\\text{P}^2"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "P",
+      "model": "P + I(P**2)",
+      "runs": [1, 2, 3, 4, 5],
+      "disagreement": "the answer key marks this option incorrect; the fit gives -3.5"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "P²",
+     "value": "1",
+     "analysis": "the factorial and the centre point, in P",
+     "where": {
+      "quiz": "Ungraded practice quiz 5A",
+      "file": "quiz5A-UG-2015",
+      "question": 1,
+      "question_id": "797a0569112a87e4c51fb09f12e69e4f",
+      "option_id": "98ba583a7bda7f928f6c939e468ec997",
+      "answer_key": "incorrect",
+      "source_kind": "option",
+      "quote": "\\hat{y} = 8 - 5x_\\text{P} + 1x_\\text{P}^2"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "P²",
+      "model": "P + I(P**2)",
+      "runs": [1, 2, 3, 4, 5]
+     },
+     "note": "in an option keyed incorrect, this coefficient agrees with the fit to within the rounding of its printed digits: the option is wrong in its others"
+    },
+    {
+     "what": "prediction",
+     "term": null,
+     "value": "$$\\hat{y} \\approx 7$$ weeds",
+     "analysis": "run 6, 8 weeks, at x_P = (8 - 5)/1 = +3; T is not in the model",
+     "where": {
+      "quiz": "Ungraded practice quiz 5A",
+      "file": "quiz5A-UG-2015",
+      "question": 1,
+      "question_id": "797a0569112a87e4c51fb09f12e69e4f",
+      "option_id": "1e7de747640718090ea0e5ed0ca1c5d3",
+      "answer_key": "correct",
+      "source_kind": "option",
+      "quote": "Using the quadratic model built in the prior option, the predicted number of weeds was $$\\hat{y} \\approx 7$$ weeds. Is this correct?"
+     },
+     "check": {
+      "kind": "prediction",
+      "model": "P + I(P**2)",
+      "runs": [1, 2, 3, 4, 5],
+      "point": {
+       "P": 3,
+       "T": 0
+      },
+      "printed": "7"
+     }
+    },
+    {
+     "what": "prediction",
+     "term": null,
+     "value": "6.5",
+     "analysis": "run 6, 8 weeks, at x_P = +3",
+     "where": {
+      "quiz": "Ungraded practice quiz 5A",
+      "file": "quiz5A-UG-2015",
+      "question": 1,
+      "question_id": "797a0569112a87e4c51fb09f12e69e4f",
+      "option_id": "1e7de747640718090ea0e5ed0ca1c5d3",
+      "answer_key": "correct",
+      "source_kind": "option explanation",
+      "quote": "\\hat{y} = 8 - 3.5x_\\text{P} + x_\\text{P}^2 = 8 - 3.5(+3) + (+3)^2 = 6.5$$, which is about 6 to 7 weeds."
+     },
+     "check": {
+      "kind": "prediction",
+      "model": "P + I(P**2)",
+      "runs": [1, 2, 3, 4, 5],
+      "point": {
+       "P": 3,
+       "T": 0
+      }
+     }
+    },
+    {
+     "what": "coded setting",
+     "term": "P",
+     "value": "$$x_\\text{A}=3$$",
+     "where": {
+      "quiz": "Ungraded practice quiz 5A",
+      "file": "quiz5A-UG-2015",
+      "question": 1,
+      "question_id": "797a0569112a87e4c51fb09f12e69e4f",
+      "option_id": "1e7de747640718090ea0e5ed0ca1c5d3",
+      "answer_key": "correct",
+      "source_kind": "option explanation",
+      "quote": "The coded value is $$x_\\text{A}=3$$"
+     },
+     "check": {
+      "manual": "a conversion of one setting to coded units, arithmetic on the factor's range rather than a result of runs: 8 weeks is (8 - 5)/1 = +3; the explanation calls it x_A, the factor being P"
+     }
+    }
+   ]
+  },
+  {
+   "name": "efi-quiz5a-practice-microblogging",
+   "title": "A hospital's microblogging: posts per day N, ratio of original content R and tone T, the half fraction T = NR",
+   "kind": "quiz question",
+   "where": {
+    "quiz": "Ungraded practice quiz 5A",
+    "file": "quiz5A-UG-2015",
+    "question": 2,
+    "question_id": "8acc11d6c92faf3e121d1fde9cc8a01f"
+   },
+   "factors": [
+    {
+     "name": "N",
+     "description": "Number of posts per day",
+     "low": 2,
+     "high": 5,
+     "units": "",
+     "type": "numeric"
+    },
+    {
+     "name": "R",
+     "description": "Ratio of original to re-posted content",
+     "low": "1:2",
+     "high": "2:1",
+     "units": "",
+     "type": "categorical"
+    },
+    {
+     "name": "T",
+     "description": "Tone of the message",
+     "low": "Casual and Friendly",
+     "high": "Formal and Authoritative",
+     "units": "",
+     "type": "categorical"
+    }
+   ],
+   "responses": [
+    {
+     "name": "followers",
+     "description": "Number of new followers (y1)",
+     "units": ""
+    },
+    {
+     "name": "reposts",
+     "description": "Number of re-tweets or re-posts of their content (y2)",
+     "units": ""
+    }
+   ],
+   "design": {
+    "type": "2^(3-1) fractional factorial with a centre point in N and R",
+    "details": "generator T = NR",
+    "n_runs": 5
+   },
+   "runs": {
+    "columns": ["experiment", "N", "R", "T", "followers", "reposts", "settings as printed"],
+    "coded": true,
+    "rows": [
+     [1, -1, -1, 1, 125, 75, "2, 1:2, Formal and Authoritative"],
+     [2, 1, -1, -1, 130, 100, "5, 1:2, Casual and Friendly"],
+     [3, -1, 1, -1, 120, 78, "2, 2:1, Casual and Friendly"],
+     [4, 1, 1, 1, 135, 103, "5, 2:1, Formal and Authoritative"],
+     [5, 0, 0, 1, 128, 93, "3.5, 1:1, Formal and Authoritative"]
+    ],
+    "notes": "coded as the explanation's code codes them: the ratio 1:1 at 0, between 1:2 (-1) and 2:1 (+1), and the formal tone at +1; run 5 is printed in an option"
+   },
+   "notes": "The explanation fits lm(y ~ N*R*T) on the four runs: R drops the terms aliased in a half fraction and keeps N, R and T, the model here. y1's R and y2's T are zero, so the option keyed correct leaves them out.",
+   "expected": [
+    {
+     "what": "generator",
+     "term": null,
+     "value": "$$\\mathbf{T = NR}$$",
+     "analysis": "the four runs of the printed table: each one obeys T = NR",
+     "where": {
+      "quiz": "Ungraded practice quiz 5A",
+      "file": "quiz5A-UG-2015",
+      "question": 2,
+      "question_id": "8acc11d6c92faf3e121d1fde9cc8a01f",
+      "source_kind": "question",
+      "quote": "Therefore the staff then decided to run a half-fraction factorial experiment, using the generator: $$\\mathbf{T = NR}$$."
+     },
+     "check": {
+      "kind": "fraction_runs",
+      "generator": "T=NR",
+      "runs": [1, 2, 3, 4],
+      "printed": "1, 2, 3, 4"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "Intercept",
+     "value": "127.5",
+     "analysis": "the four runs",
+     "where": {
+      "quiz": "Ungraded practice quiz 5A",
+      "file": "quiz5A-UG-2015",
+      "question": 2,
+      "question_id": "8acc11d6c92faf3e121d1fde9cc8a01f",
+      "option_id": "09ae87150ef3b6276da36d3f1dd76148",
+      "answer_key": "correct",
+      "source_kind": "option",
+      "quote": "\\hat{y_1} = 127.5 + 5x_\\text{N} + 2.5x_\\text{T}"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "Intercept",
+      "model": "N + R + T",
+      "runs": [1, 2, 3, 4],
+      "response": "followers"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "N",
+     "value": "5",
+     "analysis": "the four runs",
+     "where": {
+      "quiz": "Ungraded practice quiz 5A",
+      "file": "quiz5A-UG-2015",
+      "question": 2,
+      "question_id": "8acc11d6c92faf3e121d1fde9cc8a01f",
+      "option_id": "09ae87150ef3b6276da36d3f1dd76148",
+      "answer_key": "correct",
+      "source_kind": "option",
+      "quote": "\\hat{y_1} = 127.5 + 5x_\\text{N} + 2.5x_\\text{T}"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "N",
+      "model": "N + R + T",
+      "runs": [1, 2, 3, 4],
+      "response": "followers"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "T",
+     "value": "2.5",
+     "analysis": "the four runs",
+     "where": {
+      "quiz": "Ungraded practice quiz 5A",
+      "file": "quiz5A-UG-2015",
+      "question": 2,
+      "question_id": "8acc11d6c92faf3e121d1fde9cc8a01f",
+      "option_id": "09ae87150ef3b6276da36d3f1dd76148",
+      "answer_key": "correct",
+      "source_kind": "option",
+      "quote": "\\hat{y_1} = 127.5 + 5x_\\text{N} + 2.5x_\\text{T}"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "T",
+      "model": "N + R + T",
+      "runs": [1, 2, 3, 4],
+      "response": "followers"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "Intercept",
+     "value": "89",
+     "analysis": "the four runs",
+     "where": {
+      "quiz": "Ungraded practice quiz 5A",
+      "file": "quiz5A-UG-2015",
+      "question": 2,
+      "question_id": "8acc11d6c92faf3e121d1fde9cc8a01f",
+      "option_id": "09ae87150ef3b6276da36d3f1dd76148",
+      "answer_key": "correct",
+      "source_kind": "option",
+      "quote": "\\hat{y_2} = 89 + 12.5x_\\text{N} + 1.5x_\\text{R}"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "Intercept",
+      "model": "N + R + T",
+      "runs": [1, 2, 3, 4],
+      "response": "reposts"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "N",
+     "value": "12.5",
+     "analysis": "the four runs",
+     "where": {
+      "quiz": "Ungraded practice quiz 5A",
+      "file": "quiz5A-UG-2015",
+      "question": 2,
+      "question_id": "8acc11d6c92faf3e121d1fde9cc8a01f",
+      "option_id": "09ae87150ef3b6276da36d3f1dd76148",
+      "answer_key": "correct",
+      "source_kind": "option",
+      "quote": "\\hat{y_2} = 89 + 12.5x_\\text{N} + 1.5x_\\text{R}"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "N",
+      "model": "N + R + T",
+      "runs": [1, 2, 3, 4],
+      "response": "reposts"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "R",
+     "value": "1.5",
+     "analysis": "the four runs",
+     "where": {
+      "quiz": "Ungraded practice quiz 5A",
+      "file": "quiz5A-UG-2015",
+      "question": 2,
+      "question_id": "8acc11d6c92faf3e121d1fde9cc8a01f",
+      "option_id": "09ae87150ef3b6276da36d3f1dd76148",
+      "answer_key": "correct",
+      "source_kind": "option",
+      "quote": "\\hat{y_2} = 89 + 12.5x_\\text{N} + 1.5x_\\text{R}"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "R",
+      "model": "N + R + T",
+      "runs": [1, 2, 3, 4],
+      "response": "reposts"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "Intercept",
+     "value": "125.75",
+     "analysis": "the four runs",
+     "where": {
+      "quiz": "Ungraded practice quiz 5A",
+      "file": "quiz5A-UG-2015",
+      "question": 2,
+      "question_id": "8acc11d6c92faf3e121d1fde9cc8a01f",
+      "option_id": "fb04b4c0e6de8d84e43a597fea818fe9",
+      "answer_key": "incorrect",
+      "source_kind": "option",
+      "quote": "\\hat{y_1} = 125.75 + 5x_\\text{N} - 0.5x_\\text{R} + 0.15x_\\text{T}"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "Intercept",
+      "model": "N + R + T",
+      "runs": [1, 2, 3, 4],
+      "response": "followers",
+      "disagreement": "the answer key marks this option incorrect; the fit gives 127.5"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "N",
+     "value": "5",
+     "analysis": "the four runs",
+     "where": {
+      "quiz": "Ungraded practice quiz 5A",
+      "file": "quiz5A-UG-2015",
+      "question": 2,
+      "question_id": "8acc11d6c92faf3e121d1fde9cc8a01f",
+      "option_id": "fb04b4c0e6de8d84e43a597fea818fe9",
+      "answer_key": "incorrect",
+      "source_kind": "option",
+      "quote": "\\hat{y_1} = 125.75 + 5x_\\text{N} - 0.5x_\\text{R} + 0.15x_\\text{T}"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "N",
+      "model": "N + R + T",
+      "runs": [1, 2, 3, 4],
+      "response": "followers"
+     },
+     "note": "in an option keyed incorrect, this coefficient agrees with the fit to within the rounding of its printed digits: the option is wrong in its others"
+    },
+    {
+     "what": "coefficient",
+     "term": "R",
+     "value": "-0.5",
+     "analysis": "the four runs",
+     "where": {
+      "quiz": "Ungraded practice quiz 5A",
+      "file": "quiz5A-UG-2015",
+      "question": 2,
+      "question_id": "8acc11d6c92faf3e121d1fde9cc8a01f",
+      "option_id": "fb04b4c0e6de8d84e43a597fea818fe9",
+      "answer_key": "incorrect",
+      "source_kind": "option",
+      "quote": "\\hat{y_1} = 125.75 + 5x_\\text{N} - 0.5x_\\text{R} + 0.15x_\\text{T}"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "R",
+      "model": "N + R + T",
+      "runs": [1, 2, 3, 4],
+      "response": "followers",
+      "disagreement": "the answer key marks this option incorrect; the fit gives 0"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "T",
+     "value": "0.15",
+     "analysis": "the four runs",
+     "where": {
+      "quiz": "Ungraded practice quiz 5A",
+      "file": "quiz5A-UG-2015",
+      "question": 2,
+      "question_id": "8acc11d6c92faf3e121d1fde9cc8a01f",
+      "option_id": "fb04b4c0e6de8d84e43a597fea818fe9",
+      "answer_key": "incorrect",
+      "source_kind": "option",
+      "quote": "\\hat{y_1} = 125.75 + 5x_\\text{N} - 0.5x_\\text{R} + 0.15x_\\text{T}"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "T",
+      "model": "N + R + T",
+      "runs": [1, 2, 3, 4],
+      "response": "followers",
+      "disagreement": "the answer key marks this option incorrect; the fit gives 2.5"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "Intercept",
+     "value": "90",
+     "analysis": "the four runs",
+     "where": {
+      "quiz": "Ungraded practice quiz 5A",
+      "file": "quiz5A-UG-2015",
+      "question": 2,
+      "question_id": "8acc11d6c92faf3e121d1fde9cc8a01f",
+      "option_id": "fb04b4c0e6de8d84e43a597fea818fe9",
+      "answer_key": "incorrect",
+      "source_kind": "option",
+      "quote": "\\hat{y_2} = 90 + 13x_\\text{N} - 3x_\\text{R}"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "Intercept",
+      "model": "N + R + T",
+      "runs": [1, 2, 3, 4],
+      "response": "reposts",
+      "disagreement": "the answer key marks this option incorrect; the fit gives 89"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "N",
+     "value": "13",
+     "analysis": "the four runs",
+     "where": {
+      "quiz": "Ungraded practice quiz 5A",
+      "file": "quiz5A-UG-2015",
+      "question": 2,
+      "question_id": "8acc11d6c92faf3e121d1fde9cc8a01f",
+      "option_id": "fb04b4c0e6de8d84e43a597fea818fe9",
+      "answer_key": "incorrect",
+      "source_kind": "option",
+      "quote": "\\hat{y_2} = 90 + 13x_\\text{N} - 3x_\\text{R}"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "N",
+      "model": "N + R + T",
+      "runs": [1, 2, 3, 4],
+      "response": "reposts"
+     },
+     "note": "in an option keyed incorrect, this coefficient agrees with the fit to within the rounding of its printed digits: the option is wrong in its others"
+    },
+    {
+     "what": "coefficient",
+     "term": "R",
+     "value": "-3",
+     "analysis": "the four runs",
+     "where": {
+      "quiz": "Ungraded practice quiz 5A",
+      "file": "quiz5A-UG-2015",
+      "question": 2,
+      "question_id": "8acc11d6c92faf3e121d1fde9cc8a01f",
+      "option_id": "fb04b4c0e6de8d84e43a597fea818fe9",
+      "answer_key": "incorrect",
+      "source_kind": "option",
+      "quote": "\\hat{y_2} = 90 + 13x_\\text{N} - 3x_\\text{R}"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "R",
+      "model": "N + R + T",
+      "runs": [1, 2, 3, 4],
+      "response": "reposts",
+      "disagreement": "the answer key marks this option incorrect; the fit gives 1.5"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "Intercept",
+     "value": "127.2",
+     "analysis": "all five runs, as the explanation's lm(y1 ~ N*T) fits them; its N:T term is zero",
+     "where": {
+      "quiz": "Ungraded practice quiz 5A",
+      "file": "quiz5A-UG-2015",
+      "question": 2,
+      "question_id": "8acc11d6c92faf3e121d1fde9cc8a01f",
+      "option_id": "70b38a68bff60b5baf5681fff3617b9f",
+      "answer_key": "correct",
+      "source_kind": "option",
+      "quote": "y_1 \\approx 127.2 + 5 x_\\text{N} + 2.2x_\\text{T}"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "Intercept",
+      "model": "N*T",
+      "response": "followers"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "N",
+     "value": "5",
+     "analysis": "all five runs, as the explanation's lm(y1 ~ N*T) fits them; its N:T term is zero",
+     "where": {
+      "quiz": "Ungraded practice quiz 5A",
+      "file": "quiz5A-UG-2015",
+      "question": 2,
+      "question_id": "8acc11d6c92faf3e121d1fde9cc8a01f",
+      "option_id": "70b38a68bff60b5baf5681fff3617b9f",
+      "answer_key": "correct",
+      "source_kind": "option",
+      "quote": "y_1 \\approx 127.2 + 5 x_\\text{N} + 2.2x_\\text{T}"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "N",
+      "model": "N*T",
+      "response": "followers"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "T",
+     "value": "2.2",
+     "analysis": "all five runs, as the explanation's lm(y1 ~ N*T) fits them; its N:T term is zero",
+     "where": {
+      "quiz": "Ungraded practice quiz 5A",
+      "file": "quiz5A-UG-2015",
+      "question": 2,
+      "question_id": "8acc11d6c92faf3e121d1fde9cc8a01f",
+      "option_id": "70b38a68bff60b5baf5681fff3617b9f",
+      "answer_key": "correct",
+      "source_kind": "option",
+      "quote": "y_1 \\approx 127.2 + 5 x_\\text{N} + 2.2x_\\text{T}"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "T",
+      "model": "N*T",
+      "response": "followers"
+     }
+    }
+   ]
+  },
+  {
+   "name": "efi-quiz5a-practice-electronics-recycling",
+   "title": "A city's electronics recycling: opening hours H and depot sites S, from 2 to 6 sites",
+   "kind": "quiz question",
+   "where": {
+    "quiz": "Ungraded practice quiz 5A",
+    "file": "quiz5A-UG-2015",
+    "question": 3,
+    "question_id": "fbf77e8f8de71cfa01533001cd305cc7",
+    "images": ["https://d396qusza40orc.cloudfront.net/experiments/quiz_assets/week5/Recycling%20Electronics.jpg"]
+   },
+   "factors": [
+    {
+     "name": "H",
+     "description": "Hours per week the sites are open",
+     "low": 8,
+     "high": 12,
+     "units": "h",
+     "type": "numeric"
+    },
+    {
+     "name": "S",
+     "description": "Number of depot sites available",
+     "low": 2,
+     "high": 6,
+     "units": "",
+     "type": "numeric"
+    }
+   ],
+   "responses": [
+    {
+     "name": "cost",
+     "description": "Program cost per tonne of electronics recycled",
+     "units": "$/tonne"
+    }
+   ],
+   "design": {
+    "type": "2^2 full factorial",
+    "n_runs": 4
+   },
+   "runs": {
+    "columns": ["experiment", "H", "S", "cost"],
+    "coded": false,
+    "rows": [
+     [1, 8, 2, 200],
+     [2, 12, 2, 150],
+     [3, 8, 6, 120],
+     [4, 12, 6, 100]
+    ]
+   },
+   "notes": "Practice quiz 5B, question 4, repeats this example 'from a previous module' with S from 2 to 4 sites, the same four results, and a centre point.",
+   "expected": [
+    {
+     "what": "coded setting",
+     "term": "H",
+     "value": "$$\\mathbf{H} = +3$$",
+     "where": {
+      "quiz": "Ungraded practice quiz 5A",
+      "file": "quiz5A-UG-2015",
+      "question": 3,
+      "question_id": "fbf77e8f8de71cfa01533001cd305cc7",
+      "option_id": "c3c78ac66dd602379018f3a5a2d7ddca",
+      "answer_key": "correct",
+      "source_kind": "option",
+      "quote": "If the sites were open for 16 hours per week and number of electronic recycling depots was 8, this would represent coded units of: $$\\mathbf{H} = +3 $$ $$\\mathbf{S} = +2$$"
+     },
+     "check": {
+      "manual": "a conversion of one setting to coded units, arithmetic on the factor's range rather than a result of runs: (16 - 10)/2 = +3"
+     }
+    },
+    {
+     "what": "coded setting",
+     "term": "S",
+     "value": "$$\\mathbf{S} = +2$$",
+     "where": {
+      "quiz": "Ungraded practice quiz 5A",
+      "file": "quiz5A-UG-2015",
+      "question": 3,
+      "question_id": "fbf77e8f8de71cfa01533001cd305cc7",
+      "option_id": "c3c78ac66dd602379018f3a5a2d7ddca",
+      "answer_key": "correct",
+      "source_kind": "option",
+      "quote": "If the sites were open for 16 hours per week and number of electronic recycling depots was 8, this would represent coded units of: $$\\mathbf{H} = +3 $$ $$\\mathbf{S} = +2$$"
+     },
+     "check": {
+      "manual": "a conversion of one setting to coded units, arithmetic on the factor's range rather than a result of runs: (8 - 4)/2 = +2"
+     }
+    },
+    {
+     "what": "coded setting",
+     "term": "H",
+     "value": "$$\\mathbf{H} = -3$$",
+     "where": {
+      "quiz": "Ungraded practice quiz 5A",
+      "file": "quiz5A-UG-2015",
+      "question": 3,
+      "question_id": "fbf77e8f8de71cfa01533001cd305cc7",
+      "option_id": "a4dc08449783eb2f08abd20a58acc482",
+      "answer_key": "correct",
+      "source_kind": "option",
+      "quote": "If the sites were open for 4 hours per week and number of electronic recycling depots was 1, this would represent coded units of: $$\\mathbf{H} = -3$$ $$\\mathbf{S} = -1.5$$"
+     },
+     "check": {
+      "manual": "a conversion of one setting to coded units, arithmetic on the factor's range rather than a result of runs: (4 - 10)/2 = -3"
+     }
+    },
+    {
+     "what": "coded setting",
+     "term": "S",
+     "value": "$$\\mathbf{S} = -1.5$$",
+     "where": {
+      "quiz": "Ungraded practice quiz 5A",
+      "file": "quiz5A-UG-2015",
+      "question": 3,
+      "question_id": "fbf77e8f8de71cfa01533001cd305cc7",
+      "option_id": "a4dc08449783eb2f08abd20a58acc482",
+      "answer_key": "correct",
+      "source_kind": "option",
+      "quote": "If the sites were open for 4 hours per week and number of electronic recycling depots was 1, this would represent coded units of: $$\\mathbf{H} = -3$$ $$\\mathbf{S} = -1.5$$"
+     },
+     "check": {
+      "manual": "a conversion of one setting to coded units, arithmetic on the factor's range rather than a result of runs: (1 - 4)/2 = -1.5"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "Intercept",
+     "value": "142.5",
+     "where": {
+      "quiz": "Ungraded practice quiz 5A",
+      "file": "quiz5A-UG-2015",
+      "question": 3,
+      "question_id": "fbf77e8f8de71cfa01533001cd305cc7",
+      "option_id": "cfa430adc2531242c73d87333863a93e",
+      "answer_key": "correct",
+      "source_kind": "option",
+      "quote": "\\hat{y} = 142.5 - 17.5x_\\text{H} - 32.5x_\\text{S} + 7.5x_\\text{H}x_\\text{S}"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "Intercept",
+      "model": "H*S"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "H",
+     "value": "-17.5",
+     "where": {
+      "quiz": "Ungraded practice quiz 5A",
+      "file": "quiz5A-UG-2015",
+      "question": 3,
+      "question_id": "fbf77e8f8de71cfa01533001cd305cc7",
+      "option_id": "cfa430adc2531242c73d87333863a93e",
+      "answer_key": "correct",
+      "source_kind": "option",
+      "quote": "\\hat{y} = 142.5 - 17.5x_\\text{H} - 32.5x_\\text{S} + 7.5x_\\text{H}x_\\text{S}"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "H",
+      "model": "H*S"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "S",
+     "value": "-32.5",
+     "where": {
+      "quiz": "Ungraded practice quiz 5A",
+      "file": "quiz5A-UG-2015",
+      "question": 3,
+      "question_id": "fbf77e8f8de71cfa01533001cd305cc7",
+      "option_id": "cfa430adc2531242c73d87333863a93e",
+      "answer_key": "correct",
+      "source_kind": "option",
+      "quote": "\\hat{y} = 142.5 - 17.5x_\\text{H} - 32.5x_\\text{S} + 7.5x_\\text{H}x_\\text{S}"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "S",
+      "model": "H*S"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "H·S",
+     "value": "7.5",
+     "where": {
+      "quiz": "Ungraded practice quiz 5A",
+      "file": "quiz5A-UG-2015",
+      "question": 3,
+      "question_id": "fbf77e8f8de71cfa01533001cd305cc7",
+      "option_id": "cfa430adc2531242c73d87333863a93e",
+      "answer_key": "correct",
+      "source_kind": "option",
+      "quote": "\\hat{y} = 142.5 - 17.5x_\\text{H} - 32.5x_\\text{S} + 7.5x_\\text{H}x_\\text{S}"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "H·S",
+      "model": "H*S"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "Intercept",
+     "value": "145",
+     "where": {
+      "quiz": "Ungraded practice quiz 5A",
+      "file": "quiz5A-UG-2015",
+      "question": 3,
+      "question_id": "fbf77e8f8de71cfa01533001cd305cc7",
+      "option_id": "12536a5603f952980008b26b9320fdae",
+      "answer_key": "incorrect",
+      "source_kind": "option",
+      "quote": "\\hat{y} = 145 - 18x_\\text{H} - 33x_\\text{S} + 7.5x_\\text{H}x_\\text{S}"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "Intercept",
+      "model": "H*S",
+      "disagreement": "the answer key marks this option incorrect; the fit gives 142.5"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "H",
+     "value": "-18",
+     "where": {
+      "quiz": "Ungraded practice quiz 5A",
+      "file": "quiz5A-UG-2015",
+      "question": 3,
+      "question_id": "fbf77e8f8de71cfa01533001cd305cc7",
+      "option_id": "12536a5603f952980008b26b9320fdae",
+      "answer_key": "incorrect",
+      "source_kind": "option",
+      "quote": "\\hat{y} = 145 - 18x_\\text{H} - 33x_\\text{S} + 7.5x_\\text{H}x_\\text{S}"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "H",
+      "model": "H*S"
+     },
+     "note": "in an option keyed incorrect, this coefficient agrees with the fit to within the rounding of its printed digits: the option is wrong in its others"
+    },
+    {
+     "what": "coefficient",
+     "term": "S",
+     "value": "-33",
+     "where": {
+      "quiz": "Ungraded practice quiz 5A",
+      "file": "quiz5A-UG-2015",
+      "question": 3,
+      "question_id": "fbf77e8f8de71cfa01533001cd305cc7",
+      "option_id": "12536a5603f952980008b26b9320fdae",
+      "answer_key": "incorrect",
+      "source_kind": "option",
+      "quote": "\\hat{y} = 145 - 18x_\\text{H} - 33x_\\text{S} + 7.5x_\\text{H}x_\\text{S}"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "S",
+      "model": "H*S"
+     },
+     "note": "in an option keyed incorrect, this coefficient agrees with the fit to within the rounding of its printed digits: the option is wrong in its others"
+    },
+    {
+     "what": "coefficient",
+     "term": "H·S",
+     "value": "7.5",
+     "where": {
+      "quiz": "Ungraded practice quiz 5A",
+      "file": "quiz5A-UG-2015",
+      "question": 3,
+      "question_id": "fbf77e8f8de71cfa01533001cd305cc7",
+      "option_id": "12536a5603f952980008b26b9320fdae",
+      "answer_key": "incorrect",
+      "source_kind": "option",
+      "quote": "\\hat{y} = 145 - 18x_\\text{H} - 33x_\\text{S} + 7.5x_\\text{H}x_\\text{S}"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "H·S",
+      "model": "H*S"
+     },
+     "note": "in an option keyed incorrect, this coefficient agrees with the fit to within the rounding of its printed digits: the option is wrong in its others"
+    }
+   ]
+  },
+  {
+   "name": "efi-quiz5a-practice-program-enrollment",
+   "title": "An after-school program's enrollment: class length L and program weeks N, and a fifth run outside the cube",
+   "kind": "quiz question",
+   "where": {
+    "quiz": "Ungraded practice quiz 5A",
+    "file": "quiz5A-UG-2015",
+    "question": 4,
+    "question_id": "5204f84118c715f90f14c1f4680fa88d",
+    "images": ["https://d396qusza40orc.cloudfront.net/experiments/quiz_assets/week5/Teacher2.jpg"]
+   },
+   "factors": [
+    {
+     "name": "L",
+     "description": "Length of class",
+     "low": 1.5,
+     "high": 3,
+     "units": "h",
+     "type": "numeric"
+    },
+    {
+     "name": "N",
+     "description": "Number of weeks the program runs",
+     "low": 4,
+     "high": 6,
+     "units": "weeks",
+     "type": "numeric"
+    }
+   ],
+   "responses": [
+    {
+     "name": "students",
+     "description": "Students enrolled per season",
+     "units": ""
+    }
+   ],
+   "design": {
+    "type": "2^2 full factorial, and one more run",
+    "n_runs": 5
+   },
+   "runs": {
+    "columns": ["experiment", "L", "N", "students"],
+    "coded": false,
+    "rows": [
+     [1, 1.5, 4, 85],
+     [2, 3, 4, 70],
+     [3, 1.5, 6, 50],
+     [4, 3, 6, 40],
+     [5, 0.5, 3, 100]
+    ],
+    "notes": "run 5 is printed in two options; it codes to x_L = -2.33, x_N = -2"
+   },
+   "notes": "The model of runs 1 to 4 predicts 114.2 students at run 5's settings, against 100 observed, which is what options 1e93f6bd (keyed correct) and 20f2c6ca (keyed incorrect) judge in words.",
+   "expected": [
+    {
+     "what": "coefficient",
+     "term": "Intercept",
+     "value": "61.25",
+     "analysis": "the four factorial runs",
+     "where": {
+      "quiz": "Ungraded practice quiz 5A",
+      "file": "quiz5A-UG-2015",
+      "question": 4,
+      "question_id": "5204f84118c715f90f14c1f4680fa88d",
+      "option_id": "4975e91f712e0564c8e765e8bb7ba9d8",
+      "answer_key": "correct",
+      "source_kind": "option",
+      "quote": "\\hat{y} = 61.25 - 6.25x_\\text{L} - 16.25x_\\text{N} + 1.25x_\\text{L}x_\\text{N}"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "Intercept",
+      "model": "L*N",
+      "runs": [1, 2, 3, 4]
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "L",
+     "value": "-6.25",
+     "analysis": "the four factorial runs",
+     "where": {
+      "quiz": "Ungraded practice quiz 5A",
+      "file": "quiz5A-UG-2015",
+      "question": 4,
+      "question_id": "5204f84118c715f90f14c1f4680fa88d",
+      "option_id": "4975e91f712e0564c8e765e8bb7ba9d8",
+      "answer_key": "correct",
+      "source_kind": "option",
+      "quote": "\\hat{y} = 61.25 - 6.25x_\\text{L} - 16.25x_\\text{N} + 1.25x_\\text{L}x_\\text{N}"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "L",
+      "model": "L*N",
+      "runs": [1, 2, 3, 4]
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "N",
+     "value": "-16.25",
+     "analysis": "the four factorial runs",
+     "where": {
+      "quiz": "Ungraded practice quiz 5A",
+      "file": "quiz5A-UG-2015",
+      "question": 4,
+      "question_id": "5204f84118c715f90f14c1f4680fa88d",
+      "option_id": "4975e91f712e0564c8e765e8bb7ba9d8",
+      "answer_key": "correct",
+      "source_kind": "option",
+      "quote": "\\hat{y} = 61.25 - 6.25x_\\text{L} - 16.25x_\\text{N} + 1.25x_\\text{L}x_\\text{N}"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "N",
+      "model": "L*N",
+      "runs": [1, 2, 3, 4]
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "L·N",
+     "value": "1.25",
+     "analysis": "the four factorial runs",
+     "where": {
+      "quiz": "Ungraded practice quiz 5A",
+      "file": "quiz5A-UG-2015",
+      "question": 4,
+      "question_id": "5204f84118c715f90f14c1f4680fa88d",
+      "option_id": "4975e91f712e0564c8e765e8bb7ba9d8",
+      "answer_key": "correct",
+      "source_kind": "option",
+      "quote": "\\hat{y} = 61.25 - 6.25x_\\text{L} - 16.25x_\\text{N} + 1.25x_\\text{L}x_\\text{N}"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "L·N",
+      "model": "L*N",
+      "runs": [1, 2, 3, 4]
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "Intercept",
+     "value": "65",
+     "analysis": "the four factorial runs; the option writes the interaction x_H x_S, in another question's letters",
+     "where": {
+      "quiz": "Ungraded practice quiz 5A",
+      "file": "quiz5A-UG-2015",
+      "question": 4,
+      "question_id": "5204f84118c715f90f14c1f4680fa88d",
+      "option_id": "6fe6cc419bdfa1fa71480a5a2c4dab04",
+      "answer_key": "incorrect",
+      "source_kind": "option",
+      "quote": "\\hat{y} = 65 - 6.5x_\\text{L} - 18x_\\text{N} + 2x_\\text{H}x_\\text{S}"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "Intercept",
+      "model": "L*N",
+      "runs": [1, 2, 3, 4],
+      "disagreement": "the answer key marks this option incorrect; the fit gives 61.25"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "L",
+     "value": "-6.5",
+     "analysis": "the four factorial runs; the option writes the interaction x_H x_S, in another question's letters",
+     "where": {
+      "quiz": "Ungraded practice quiz 5A",
+      "file": "quiz5A-UG-2015",
+      "question": 4,
+      "question_id": "5204f84118c715f90f14c1f4680fa88d",
+      "option_id": "6fe6cc419bdfa1fa71480a5a2c4dab04",
+      "answer_key": "incorrect",
+      "source_kind": "option",
+      "quote": "\\hat{y} = 65 - 6.5x_\\text{L} - 18x_\\text{N} + 2x_\\text{H}x_\\text{S}"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "L",
+      "model": "L*N",
+      "runs": [1, 2, 3, 4],
+      "disagreement": "the answer key marks this option incorrect; the fit gives -6.25"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "N",
+     "value": "-18",
+     "analysis": "the four factorial runs; the option writes the interaction x_H x_S, in another question's letters",
+     "where": {
+      "quiz": "Ungraded practice quiz 5A",
+      "file": "quiz5A-UG-2015",
+      "question": 4,
+      "question_id": "5204f84118c715f90f14c1f4680fa88d",
+      "option_id": "6fe6cc419bdfa1fa71480a5a2c4dab04",
+      "answer_key": "incorrect",
+      "source_kind": "option",
+      "quote": "\\hat{y} = 65 - 6.5x_\\text{L} - 18x_\\text{N} + 2x_\\text{H}x_\\text{S}"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "N",
+      "model": "L*N",
+      "runs": [1, 2, 3, 4],
+      "disagreement": "the answer key marks this option incorrect; the fit gives -16.25"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "L·N",
+     "value": "2",
+     "analysis": "the four factorial runs; the option writes the interaction x_H x_S, in another question's letters",
+     "where": {
+      "quiz": "Ungraded practice quiz 5A",
+      "file": "quiz5A-UG-2015",
+      "question": 4,
+      "question_id": "5204f84118c715f90f14c1f4680fa88d",
+      "option_id": "6fe6cc419bdfa1fa71480a5a2c4dab04",
+      "answer_key": "incorrect",
+      "source_kind": "option",
+      "quote": "\\hat{y} = 65 - 6.5x_\\text{L} - 18x_\\text{N} + 2x_\\text{H}x_\\text{S}"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "L·N",
+      "model": "L*N",
+      "runs": [1, 2, 3, 4],
+      "disagreement": "the answer key marks this option incorrect; the fit gives 1.25"
+     }
+    },
+    {
+     "what": "coded setting",
+     "term": "L",
+     "value": "$$\\mathbf{L} = +2 $$",
+     "where": {
+      "quiz": "Ungraded practice quiz 5A",
+      "file": "quiz5A-UG-2015",
+      "question": 4,
+      "question_id": "5204f84118c715f90f14c1f4680fa88d",
+      "option_id": "2752398a88c0e185a1a9bd91402d458e",
+      "answer_key": "correct",
+      "source_kind": "option",
+      "quote": "If the length of the classes were 3.75 hours and the program ran for 5 weeks, then the coded units for the system would be: $$\\mathbf{L} = +2 $$ $$\\mathbf{N} = 0$$"
+     },
+     "check": {
+      "manual": "a conversion of one setting to coded units, arithmetic on the factor's range rather than a result of runs: (3.75 - 2.25)/0.75 = +2"
+     }
+    },
+    {
+     "what": "coded setting",
+     "term": "N",
+     "value": "$$\\mathbf{N} = 0$$",
+     "where": {
+      "quiz": "Ungraded practice quiz 5A",
+      "file": "quiz5A-UG-2015",
+      "question": 4,
+      "question_id": "5204f84118c715f90f14c1f4680fa88d",
+      "option_id": "2752398a88c0e185a1a9bd91402d458e",
+      "answer_key": "correct",
+      "source_kind": "option",
+      "quote": "If the length of the classes were 3.75 hours and the program ran for 5 weeks, then the coded units for the system would be: $$\\mathbf{L} = +2 $$ $$\\mathbf{N} = 0$$"
+     },
+     "check": {
+      "manual": "a conversion of one setting to coded units, arithmetic on the factor's range rather than a result of runs: (5 - 5)/1 = 0"
+     }
+    }
+   ]
+  },
+  {
+   "name": "efi-quiz5a-practice-refrigerator",
+   "title": "Francisco's refrigerator: compressor power A, volume B and insulation C, the half fraction C = AB, and a run at 700 W",
+   "kind": "quiz question",
+   "where": {
+    "quiz": "Ungraded practice quiz 5A",
+    "file": "quiz5A-UG-2015",
+    "question": 6,
+    "question_id": "49ad148d1ed7971fd097a837b1e17183",
+    "images": ["https://d396qusza40orc.cloudfront.net/experiments/quiz_assets/week5/Fridge.jpg"]
+   },
+   "factors": [
+    {
+     "name": "A",
+     "description": "Compressor power",
+     "low": 300,
+     "high": 500,
+     "units": "W",
+     "type": "numeric"
+    },
+    {
+     "name": "B",
+     "description": "Refrigerator size (volume)",
+     "low": 50,
+     "high": 80,
+     "units": "L",
+     "type": "numeric"
+    },
+    {
+     "name": "C",
+     "description": "Insulation thickness",
+     "low": 8,
+     "high": 12,
+     "units": "cm",
+     "type": "numeric"
+    }
+   ],
+   "responses": [
+    {
+     "name": "temperature",
+     "description": "Final steady temperature",
+     "units": "°C"
+    }
+   ],
+   "design": {
+    "type": "2^(3-1) fractional factorial, and one more run in A",
+    "details": "generator C = AB",
+    "n_runs": 5
+   },
+   "runs": {
+    "columns": ["experiment", "A", "B", "C", "temperature"],
+    "coded": false,
+    "rows": [
+     [1, 300, 50, 12, 8],
+     [2, 500, 50, 8, 3],
+     [3, 300, 80, 8, 8],
+     [4, 500, 80, 12, 4],
+     [5, 700, null, null, -6]
+    ],
+    "notes": "runs 1 to 4 in the random order printed; run 5, printed in two options after B and C are dropped, is at x_A = +3, with B and C left empty"
+   },
+   "notes": "The explanation fits lm(y ~ A*B*C) with C = A*B on four runs: R keeps A, B and C, the model here.",
+   "expected": [
+    {
+     "what": "generator",
+     "term": null,
+     "value": "$$\\mathbf{C} = \\mathbf{AB}$$",
+     "analysis": "the four runs of the printed table: each one obeys C = AB",
+     "where": {
+      "quiz": "Ungraded practice quiz 5A",
+      "file": "quiz5A-UG-2015",
+      "question": 6,
+      "question_id": "49ad148d1ed7971fd097a837b1e17183",
+      "source_kind": "question",
+      "quote": "Therefore, he decided to run a half-fraction factorial DOE, using the generator $$\\mathbf{C} = \\mathbf{AB}$$ ."
+     },
+     "check": {
+      "kind": "fraction_runs",
+      "generator": "C=AB",
+      "runs": [1, 2, 3, 4],
+      "printed": "1, 2, 3, 4"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "Intercept",
+     "value": "5.75",
+     "analysis": "the four runs of the half fraction",
+     "where": {
+      "quiz": "Ungraded practice quiz 5A",
+      "file": "quiz5A-UG-2015",
+      "question": 6,
+      "question_id": "49ad148d1ed7971fd097a837b1e17183",
+      "option_id": "d26fd01cfbd0665a27605c5f5b1ea79d",
+      "answer_key": "correct",
+      "source_kind": "option",
+      "quote": "\\hat{y} = 5.75 - 2.25x_\\text{A} + 0.25x_\\text{B} + 0.25x_\\text{C}"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "Intercept",
+      "model": "A + B + C",
+      "runs": [1, 2, 3, 4]
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "A",
+     "value": "-2.25",
+     "analysis": "the four runs of the half fraction",
+     "where": {
+      "quiz": "Ungraded practice quiz 5A",
+      "file": "quiz5A-UG-2015",
+      "question": 6,
+      "question_id": "49ad148d1ed7971fd097a837b1e17183",
+      "option_id": "d26fd01cfbd0665a27605c5f5b1ea79d",
+      "answer_key": "correct",
+      "source_kind": "option",
+      "quote": "\\hat{y} = 5.75 - 2.25x_\\text{A} + 0.25x_\\text{B} + 0.25x_\\text{C}"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "A",
+      "model": "A + B + C",
+      "runs": [1, 2, 3, 4]
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "B",
+     "value": "0.25",
+     "analysis": "the four runs of the half fraction",
+     "where": {
+      "quiz": "Ungraded practice quiz 5A",
+      "file": "quiz5A-UG-2015",
+      "question": 6,
+      "question_id": "49ad148d1ed7971fd097a837b1e17183",
+      "option_id": "d26fd01cfbd0665a27605c5f5b1ea79d",
+      "answer_key": "correct",
+      "source_kind": "option",
+      "quote": "\\hat{y} = 5.75 - 2.25x_\\text{A} + 0.25x_\\text{B} + 0.25x_\\text{C}"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "B",
+      "model": "A + B + C",
+      "runs": [1, 2, 3, 4]
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "C",
+     "value": "0.25",
+     "analysis": "the four runs of the half fraction",
+     "where": {
+      "quiz": "Ungraded practice quiz 5A",
+      "file": "quiz5A-UG-2015",
+      "question": 6,
+      "question_id": "49ad148d1ed7971fd097a837b1e17183",
+      "option_id": "d26fd01cfbd0665a27605c5f5b1ea79d",
+      "answer_key": "correct",
+      "source_kind": "option",
+      "quote": "\\hat{y} = 5.75 - 2.25x_\\text{A} + 0.25x_\\text{B} + 0.25x_\\text{C}"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "C",
+      "model": "A + B + C",
+      "runs": [1, 2, 3, 4]
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "Intercept",
+     "value": "6.38",
+     "analysis": "all five runs, in A only with its square",
+     "where": {
+      "quiz": "Ungraded practice quiz 5A",
+      "file": "quiz5A-UG-2015",
+      "question": 6,
+      "question_id": "49ad148d1ed7971fd097a837b1e17183",
+      "option_id": "97a773d7b27cbacadc36300e453ccce5",
+      "answer_key": "correct",
+      "source_kind": "option",
+      "quote": "\\hat{y} = 6.38 - 2.25x_\\text{A} - 0.625x_\\text{A}^2"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "Intercept",
+      "model": "A + I(A**2)"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "A",
+     "value": "-2.25",
+     "analysis": "all five runs, in A only with its square",
+     "where": {
+      "quiz": "Ungraded practice quiz 5A",
+      "file": "quiz5A-UG-2015",
+      "question": 6,
+      "question_id": "49ad148d1ed7971fd097a837b1e17183",
+      "option_id": "97a773d7b27cbacadc36300e453ccce5",
+      "answer_key": "correct",
+      "source_kind": "option",
+      "quote": "\\hat{y} = 6.38 - 2.25x_\\text{A} - 0.625x_\\text{A}^2"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "A",
+      "model": "A + I(A**2)"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "A²",
+     "value": "-0.625",
+     "analysis": "all five runs, in A only with its square",
+     "where": {
+      "quiz": "Ungraded practice quiz 5A",
+      "file": "quiz5A-UG-2015",
+      "question": 6,
+      "question_id": "49ad148d1ed7971fd097a837b1e17183",
+      "option_id": "97a773d7b27cbacadc36300e453ccce5",
+      "answer_key": "correct",
+      "source_kind": "option",
+      "quote": "\\hat{y} = 6.38 - 2.25x_\\text{A} - 0.625x_\\text{A}^2"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "A²",
+      "model": "A + I(A**2)"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "Intercept",
+     "value": "7.5",
+     "analysis": "all five runs, in A only with its square",
+     "where": {
+      "quiz": "Ungraded practice quiz 5A",
+      "file": "quiz5A-UG-2015",
+      "question": 6,
+      "question_id": "49ad148d1ed7971fd097a837b1e17183",
+      "option_id": "a603bf32b8d49e479f4fedad0d64ecb4",
+      "answer_key": "incorrect",
+      "source_kind": "option",
+      "quote": "\\hat{y} = 7.5 - 3x_\\text{A} - 0.25x_\\text{A}^2"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "Intercept",
+      "model": "A + I(A**2)",
+      "disagreement": "the answer key marks this option incorrect; the fit gives 6.375"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "A",
+     "value": "-3",
+     "analysis": "all five runs, in A only with its square",
+     "where": {
+      "quiz": "Ungraded practice quiz 5A",
+      "file": "quiz5A-UG-2015",
+      "question": 6,
+      "question_id": "49ad148d1ed7971fd097a837b1e17183",
+      "option_id": "a603bf32b8d49e479f4fedad0d64ecb4",
+      "answer_key": "incorrect",
+      "source_kind": "option",
+      "quote": "\\hat{y} = 7.5 - 3x_\\text{A} - 0.25x_\\text{A}^2"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "A",
+      "model": "A + I(A**2)",
+      "disagreement": "the answer key marks this option incorrect; the fit gives -2.25"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "A²",
+     "value": "-0.25",
+     "analysis": "all five runs, in A only with its square",
+     "where": {
+      "quiz": "Ungraded practice quiz 5A",
+      "file": "quiz5A-UG-2015",
+      "question": 6,
+      "question_id": "49ad148d1ed7971fd097a837b1e17183",
+      "option_id": "a603bf32b8d49e479f4fedad0d64ecb4",
+      "answer_key": "incorrect",
+      "source_kind": "option",
+      "quote": "\\hat{y} = 7.5 - 3x_\\text{A} - 0.25x_\\text{A}^2"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "A²",
+      "model": "A + I(A**2)",
+      "disagreement": "the answer key marks this option incorrect; the fit gives -0.625"
+     }
+    },
+    {
+     "what": "prediction",
+     "term": null,
+     "value": "$$\\hat{y} \\approx -0.63$$",
+     "analysis": "600 W at x_A = (600 - 400)/100 = +2; B and C are not in the model",
+     "where": {
+      "quiz": "Ungraded practice quiz 5A",
+      "file": "quiz5A-UG-2015",
+      "question": 6,
+      "question_id": "49ad148d1ed7971fd097a837b1e17183",
+      "option_id": "19d0a2651058b0ee55ec4ae30a9c7d63",
+      "answer_key": "correct",
+      "source_kind": "option",
+      "quote": "the model predicts a final temperature of: $$\\hat{y} \\approx -0.63$$ when using a compressor with 600W of power."
+     },
+     "check": {
+      "kind": "prediction",
+      "model": "A + I(A**2)",
+      "point": {
+       "A": 2,
+       "B": 0,
+       "C": 0
+      },
+      "printed": "-0.63"
+     }
+    },
+    {
+     "what": "prediction",
+     "term": null,
+     "value": "$$\\hat{y} = 0.5$$",
+     "analysis": "600 W at x_A = +2",
+     "where": {
+      "quiz": "Ungraded practice quiz 5A",
+      "file": "quiz5A-UG-2015",
+      "question": 6,
+      "question_id": "49ad148d1ed7971fd097a837b1e17183",
+      "option_id": "347f5b670a536cab491b374ee3e6d9ff",
+      "answer_key": "incorrect",
+      "source_kind": "option",
+      "quote": "the model predicts a final temperature of: $$\\hat{y} = 0.5$$ when using a compressor with 600W of power."
+     },
+     "check": {
+      "kind": "prediction",
+      "model": "A + I(A**2)",
+      "point": {
+       "A": 2,
+       "B": 0,
+       "C": 0
+      },
+      "printed": "0.5",
+      "disagreement": "the answer key marks this option incorrect: the quadratic model predicts -0.625 at 600 W"
+     }
+    }
+   ]
+  },
+  {
+   "name": "efi-quiz5b-practice-running-time",
+   "title": "Jason's 1 km run: warm up A and water B, a 2^2 factorial with a centre point, and two steps toward the optimum",
+   "kind": "quiz question",
+   "where": {
+    "quiz": "Ungraded practice quiz 5B",
+    "file": "quiz5B-UG-2015",
+    "question": 1,
+    "question_id": "001a77605c477aa23abd829ae4dae447",
+    "images": ["https://d396qusza40orc.cloudfront.net/experiments/quiz_assets/week6/Runner.jpg"]
+   },
+   "factors": [
+    {
+     "name": "A",
+     "description": "Warm up time",
+     "low": 5,
+     "high": 10,
+     "units": "min",
+     "type": "numeric"
+    },
+    {
+     "name": "B",
+     "description": "Water intake",
+     "low": 300,
+     "high": 500,
+     "units": "mL",
+     "type": "numeric"
+    }
+   ],
+   "responses": [
+    {
+     "name": "time",
+     "description": "Time to run 1 km",
+     "units": "s"
+    }
+   ],
+   "design": {
+    "type": "2^2 full factorial with a centre point, and two runs along a path",
+    "n_runs": 7
+   },
+   "runs": {
+    "columns": ["experiment", "A", "B", "time"],
+    "coded": false,
+    "rows": [
+     [1, 5, 300, 301],
+     [2, 10, 300, 280],
+     [3, 5, 500, 270],
+     [4, 10, 500, 255],
+     [5, 7.5, 400, 275],
+     [6, 10, 556, 242],
+     [7, 12.5, 711, 305]
+    ],
+    "notes": "run 7 is printed in option 58e7b77a. Runs 6 and 7 code to (+1, +1.56) and (+2, +3.11), on the path of steepest descent of the fit, 14/9 = 1.56 in x_B per unit of x_A"
+   },
+   "notes": "The explanation of option 58e7b77a gives the prediction at run 7 as '224 minutes'; the response is in seconds.",
+   "expected": [
+    {
+     "what": "coded setting",
+     "term": "A",
+     "value": "$$\\mathbf{A}$$ = $$+3$$",
+     "where": {
+      "quiz": "Ungraded practice quiz 5B",
+      "file": "quiz5B-UG-2015",
+      "question": 1,
+      "question_id": "001a77605c477aa23abd829ae4dae447",
+      "option_id": "7413da977767052620666af73470f50a",
+      "answer_key": "incorrect",
+      "source_kind": "option",
+      "quote": "if Jason wanted to conduct an experiment at $$\\mathbf{A}$$ = 15 minutes and $$\\mathbf{B}$$ = 700mL, then the coded unit representation would be: $$\\mathbf{A}$$ = $$+3$$ $$\\mathbf{B}$$ = $$+2$$"
+     },
+     "check": {
+      "manual": "a conversion of one setting to coded units, arithmetic on the factor's range rather than a result of runs: (15 - 7.5)/2.5 = +3, which is right; the option is wrong in B"
+     }
+    },
+    {
+     "what": "coded setting",
+     "term": "B",
+     "value": "$$\\mathbf{B}$$ = $$+2$$",
+     "where": {
+      "quiz": "Ungraded practice quiz 5B",
+      "file": "quiz5B-UG-2015",
+      "question": 1,
+      "question_id": "001a77605c477aa23abd829ae4dae447",
+      "option_id": "7413da977767052620666af73470f50a",
+      "answer_key": "incorrect",
+      "source_kind": "option",
+      "quote": "if Jason wanted to conduct an experiment at $$\\mathbf{A}$$ = 15 minutes and $$\\mathbf{B}$$ = 700mL, then the coded unit representation would be: $$\\mathbf{A}$$ = $$+3$$ $$\\mathbf{B}$$ = $$+2$$"
+     },
+     "check": {
+      "manual": "a conversion of one setting to coded units, arithmetic on the factor's range rather than a result of runs: (700 - 400)/100 = +3, not +2"
+     }
+    },
+    {
+     "what": "coded setting",
+     "term": "A",
+     "value": "$$\\mathbf{A}$$ = $$-2$$",
+     "where": {
+      "quiz": "Ungraded practice quiz 5B",
+      "file": "quiz5B-UG-2015",
+      "question": 1,
+      "question_id": "001a77605c477aa23abd829ae4dae447",
+      "option_id": "dac313a66d7147139b20879b5efaf4d3",
+      "answer_key": "correct",
+      "source_kind": "option",
+      "quote": "if Jason wanted to conduct an experiment at $$\\mathbf{A}$$ = 2.5 minutes and $$\\mathbf{B}$$ = 500mL, then the coded unit representation would be: $$\\mathbf{A}$$ = $$-2$$ $$\\mathbf{B}$$ = $$+1$$"
+     },
+     "check": {
+      "manual": "a conversion of one setting to coded units, arithmetic on the factor's range rather than a result of runs: (2.5 - 7.5)/2.5 = -2"
+     }
+    },
+    {
+     "what": "coded setting",
+     "term": "B",
+     "value": "$$\\mathbf{B}$$ = $$+1$$",
+     "where": {
+      "quiz": "Ungraded practice quiz 5B",
+      "file": "quiz5B-UG-2015",
+      "question": 1,
+      "question_id": "001a77605c477aa23abd829ae4dae447",
+      "option_id": "dac313a66d7147139b20879b5efaf4d3",
+      "answer_key": "correct",
+      "source_kind": "option",
+      "quote": "if Jason wanted to conduct an experiment at $$\\mathbf{A}$$ = 2.5 minutes and $$\\mathbf{B}$$ = 500mL, then the coded unit representation would be: $$\\mathbf{A}$$ = $$-2$$ $$\\mathbf{B}$$ = $$+1$$"
+     },
+     "check": {
+      "manual": "a conversion of one setting to coded units, arithmetic on the factor's range rather than a result of runs: (500 - 400)/100 = +1"
+     }
+    },
+    {
+     "what": "next run on the path",
+     "term": null,
+     "value": "$$+2$$ units in $$x_B$$",
+     "where": {
+      "quiz": "Ungraded practice quiz 5B",
+      "file": "quiz5B-UG-2015",
+      "question": 1,
+      "question_id": "001a77605c477aa23abd829ae4dae447",
+      "option_id": "727331b651c185a4b08a0f3db4281306",
+      "answer_key": "incorrect",
+      "source_kind": "option",
+      "quote": "With a step of $$+1$$ unit in $$x_A$$, from the baseline of (0, 0) Jason should have moved to $$+2$$ units in $$x_B$$."
+     },
+     "check": {
+      "manual": "a step along the path of steepest descent, which no check here computes: the fit 276.2 - 9 x_A - 14 x_B + 1.5 x_A x_B moves 14/9 = 1.56 in x_B per unit of x_A, so +1.56, not +2; run 6, at 556 mL, is at x_B = +1.56, on the path"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "Intercept",
+     "value": "276",
+     "analysis": "the factorial and its centre point, as the explanation's lm(y ~ A*B) fits them",
+     "where": {
+      "quiz": "Ungraded practice quiz 5B",
+      "file": "quiz5B-UG-2015",
+      "question": 1,
+      "question_id": "001a77605c477aa23abd829ae4dae447",
+      "option_id": "58e7b77a887b3abf28e32b2c03f4d182",
+      "answer_key": "correct",
+      "source_kind": "option explanation",
+      "quote": "y = 276 -9.0 x_\\text{A} -14.0x_\\text{B} + 1.5x_\\text{A}x_\\text{B}"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "Intercept",
+      "model": "A*B",
+      "runs": [1, 2, 3, 4, 5]
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "A",
+     "value": "-9.0",
+     "analysis": "the factorial and its centre point, as the explanation's lm(y ~ A*B) fits them",
+     "where": {
+      "quiz": "Ungraded practice quiz 5B",
+      "file": "quiz5B-UG-2015",
+      "question": 1,
+      "question_id": "001a77605c477aa23abd829ae4dae447",
+      "option_id": "58e7b77a887b3abf28e32b2c03f4d182",
+      "answer_key": "correct",
+      "source_kind": "option explanation",
+      "quote": "y = 276 -9.0 x_\\text{A} -14.0x_\\text{B} + 1.5x_\\text{A}x_\\text{B}"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "A",
+      "model": "A*B",
+      "runs": [1, 2, 3, 4, 5]
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "B",
+     "value": "-14.0",
+     "analysis": "the factorial and its centre point, as the explanation's lm(y ~ A*B) fits them",
+     "where": {
+      "quiz": "Ungraded practice quiz 5B",
+      "file": "quiz5B-UG-2015",
+      "question": 1,
+      "question_id": "001a77605c477aa23abd829ae4dae447",
+      "option_id": "58e7b77a887b3abf28e32b2c03f4d182",
+      "answer_key": "correct",
+      "source_kind": "option explanation",
+      "quote": "y = 276 -9.0 x_\\text{A} -14.0x_\\text{B} + 1.5x_\\text{A}x_\\text{B}"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "B",
+      "model": "A*B",
+      "runs": [1, 2, 3, 4, 5]
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "A·B",
+     "value": "1.5",
+     "analysis": "the factorial and its centre point, as the explanation's lm(y ~ A*B) fits them",
+     "where": {
+      "quiz": "Ungraded practice quiz 5B",
+      "file": "quiz5B-UG-2015",
+      "question": 1,
+      "question_id": "001a77605c477aa23abd829ae4dae447",
+      "option_id": "58e7b77a887b3abf28e32b2c03f4d182",
+      "answer_key": "correct",
+      "source_kind": "option explanation",
+      "quote": "y = 276 -9.0 x_\\text{A} -14.0x_\\text{B} + 1.5x_\\text{A}x_\\text{B}"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "A·B",
+      "model": "A*B",
+      "runs": [1, 2, 3, 4, 5]
+     }
+    },
+    {
+     "what": "prediction",
+     "term": null,
+     "value": "224 minutes",
+     "analysis": "run 7 in coded units: (12.5 - 7.5)/2.5 = +2 and (711 - 400)/100 = +3.11",
+     "where": {
+      "quiz": "Ungraded practice quiz 5B",
+      "file": "quiz5B-UG-2015",
+      "question": 1,
+      "question_id": "001a77605c477aa23abd829ae4dae447",
+      "option_id": "58e7b77a887b3abf28e32b2c03f4d182",
+      "answer_key": "correct",
+      "source_kind": "option explanation",
+      "quote": "the predicted value was 224 minutes; his actual experiment was 305"
+     },
+     "check": {
+      "kind": "prediction",
+      "model": "A*B",
+      "runs": [1, 2, 3, 4, 5],
+      "point": {
+       "A": 2,
+       "B": 3.11
+      },
+      "printed": "224"
+     },
+     "note": "the response is the time in seconds; the explanation says minutes"
+    },
+    {
+     "what": "coded setting",
+     "term": "A",
+     "value": "2.0",
+     "where": {
+      "quiz": "Ungraded practice quiz 5B",
+      "file": "quiz5B-UG-2015",
+      "question": 1,
+      "question_id": "001a77605c477aa23abd829ae4dae447",
+      "source_kind": "question explanation",
+      "quote": "A.coded # has a value of 2.0"
+     },
+     "check": {
+      "manual": "a conversion of one setting to coded units, arithmetic on the factor's range rather than a result of runs: 12.5 min is (12.5 - 7.5)/2.5 = +2.0"
+     }
+    },
+    {
+     "what": "coded setting",
+     "term": "B",
+     "value": "3.11",
+     "where": {
+      "quiz": "Ungraded practice quiz 5B",
+      "file": "quiz5B-UG-2015",
+      "question": 1,
+      "question_id": "001a77605c477aa23abd829ae4dae447",
+      "source_kind": "question explanation",
+      "quote": "B.coded # has a value of 3.11"
+     },
+     "check": {
+      "manual": "a conversion of one setting to coded units, arithmetic on the factor's range rather than a result of runs: 711 mL is (711 - 400)/100 = +3.11"
+     }
+    }
+   ]
+  },
+  {
+   "name": "efi-quiz5b-practice-trading-profit",
+   "title": "A trading platform's monthly profit: commission A and brokers B, a 2^2 factorial with a centre point, and the sixth run",
+   "kind": "quiz question",
+   "where": {
+    "quiz": "Ungraded practice quiz 5B",
+    "file": "quiz5B-UG-2015",
+    "question": 3,
+    "question_id": "abe53a4077081da37824c4eb364e7d04",
+    "images": ["https://d396qusza40orc.cloudfront.net/experiments/quiz_assets/week6/Stocks.jpg", "https://d396qusza40orc.cloudfront.net/experiments/quiz_assets/week6/Stocks%20good%20plot.jpeg", "https://d396qusza40orc.cloudfront.net/experiments/quiz_assets/week6/Bad%20plot%20%231%20Stocks.jpeg", "https://d396qusza40orc.cloudfront.net/experiments/quiz_assets/week6/Bad%20plot%20%232%20Stocks.jpeg"]
+   },
+   "factors": [
+    {
+     "name": "A",
+     "description": "Commission revenue, of every transaction amount",
+     "low": 3,
+     "high": 5,
+     "units": "%",
+     "type": "numeric"
+    },
+    {
+     "name": "B",
+     "description": "Number of brokers overseeing transactions",
+     "low": 20,
+     "high": 40,
+     "units": "",
+     "type": "numeric"
+    }
+   ],
+   "responses": [
+    {
+     "name": "profit",
+     "description": "Monthly profit",
+     "units": "thousand $"
+    }
+   ],
+   "design": {
+    "type": "2^2 full factorial with a centre point",
+    "n_runs": 5
+   },
+   "runs": {
+    "columns": ["experiment", "A", "B", "profit"],
+    "coded": false,
+    "rows": [
+     [1, 3, 20, 400],
+     [2, 5, 20, 460],
+     [3, 3, 40, 425],
+     [4, 5, 40, 500],
+     [5, 4, 30, 430]
+    ]
+   },
+   "notes": "The three plots draw the same contours of the fit (450 near the centre, 500 by the run at (+1, +1)); only the point marked 6 differs. The point keyed correct is up the slope but not on the path of steepest ascent from the centre, which rises 16.25/33.75 = 0.48 in x_B per unit of x_A.",
+   "expected": [
+    {
+     "what": "sixth run",
+     "term": null,
+     "value": "the point marked 6 at about (+1.5, +2)",
+     "where": {
+      "quiz": "Ungraded practice quiz 5B",
+      "file": "quiz5B-UG-2015",
+      "question": 3,
+      "question_id": "abe53a4077081da37824c4eb364e7d04",
+      "option_id": "c8beeb9896cd951124d5c08ce32cb5a4",
+      "answer_key": "correct",
+      "source_kind": "option",
+      "quote": "A good place to run the 6th experiment would be at the point indicated on the following contour plot: [image: Stocks good plot.jpeg]"
+     },
+     "check": {
+      "manual": "a point read off the contour plot image, which no check here computes; the fit 443 + 33.75 x_A + 16.25 x_B + 3.75 x_A x_B predicts about 537 (thousand $) there, above the best factorial run, 500"
+     }
+    },
+    {
+     "what": "sixth run",
+     "term": null,
+     "value": "the point marked 6 at about (+1, -2)",
+     "where": {
+      "quiz": "Ungraded practice quiz 5B",
+      "file": "quiz5B-UG-2015",
+      "question": 3,
+      "question_id": "abe53a4077081da37824c4eb364e7d04",
+      "option_id": "c481e9d73dfbc996d22fb04c7fff6cab",
+      "answer_key": "incorrect",
+      "source_kind": "option",
+      "quote": "A good place to run the 6th experiment would be at the point indicated on the following contour plot: [image: Bad plot #1 Stocks.jpeg]"
+     },
+     "check": {
+      "manual": "a point read off the contour plot image, which no check here computes; the fit 443 + 33.75 x_A + 16.25 x_B + 3.75 x_A x_B predicts about 437 (thousand $) there, below the best factorial run, 500"
+     }
+    },
+    {
+     "what": "sixth run",
+     "term": null,
+     "value": "the point marked 6 at about (-1, -2)",
+     "where": {
+      "quiz": "Ungraded practice quiz 5B",
+      "file": "quiz5B-UG-2015",
+      "question": 3,
+      "question_id": "abe53a4077081da37824c4eb364e7d04",
+      "option_id": "64b7090965c616d6adc88bb51d35010e",
+      "answer_key": "incorrect",
+      "source_kind": "option",
+      "quote": "A good place to run the 6th experiment would be at the point indicated on the following contour plot: [image: Bad plot #2 Stocks.jpeg]"
+     },
+     "check": {
+      "manual": "a point read off the contour plot image, which no check here computes; the fit 443 + 33.75 x_A + 16.25 x_B + 3.75 x_A x_B predicts about 384 (thousand $) there, down the slope"
+     }
+    }
+   ]
+  },
+  {
+   "name": "efi-quiz5b-practice-electronics-recycling",
+   "title": "A city's electronics recycling: opening hours H and depot sites S, from 2 to 4 sites, with a centre point",
+   "kind": "quiz question",
+   "where": {
+    "quiz": "Ungraded practice quiz 5B",
+    "file": "quiz5B-UG-2015",
+    "question": 4,
+    "question_id": "b32a06ee08e02f16d0a6386470919a71",
+    "images": ["https://d396qusza40orc.cloudfront.net/experiments/quiz_assets/week5/Recycling%20Electronics.jpg", "https://d396qusza40orc.cloudfront.net/experiments/quiz_assets/week6/Recycling%20electronics%20-%20good%20plot.jpeg", "https://d396qusza40orc.cloudfront.net/experiments/quiz_assets/week6/Recycling%20electronics%20-%20bad%20plot.jpeg"]
+   },
+   "factors": [
+    {
+     "name": "H",
+     "description": "Hours per week the sites are open",
+     "low": 8,
+     "high": 12,
+     "units": "h",
+     "type": "numeric"
+    },
+    {
+     "name": "S",
+     "description": "Number of depot sites available",
+     "low": 2,
+     "high": 4,
+     "units": "",
+     "type": "numeric"
+    }
+   ],
+   "responses": [
+    {
+     "name": "cost",
+     "description": "Program cost per tonne of electronics recycled",
+     "units": "$/tonne"
+    }
+   ],
+   "design": {
+    "type": "2^2 full factorial with a centre point",
+    "n_runs": 5
+   },
+   "runs": {
+    "columns": ["experiment", "H", "S", "cost"],
+    "coded": false,
+    "rows": [
+     [1, 8, 2, 200],
+     [2, 12, 2, 150],
+     [3, 8, 4, 120],
+     [4, 12, 4, 100],
+     [5, 10, 3, 140]
+    ]
+   },
+   "notes": "The question repeats practice quiz 5A, question 3 'from a previous module', but with S from 2 to 4 sites where that question has 2 to 6, and the same four results. The path of steepest descent of the fit 142 - 17.5 x_H - 32.5 x_S + 7.5 x_H x_S moves 32.5/17.5 = 1.86 in x_S per unit of x_H.",
+   "expected": [
+    {
+     "what": "next run on the path",
+     "term": "S",
+     "value": "$$\\mathbf{S}=+2.8$$",
+     "where": {
+      "quiz": "Ungraded practice quiz 5B",
+      "file": "quiz5B-UG-2015",
+      "question": 4,
+      "question_id": "b32a06ee08e02f16d0a6386470919a71",
+      "option_id": "6497fc14d455e2e71e537c9c241b1126",
+      "answer_key": "correct",
+      "source_kind": "option",
+      "quote": "If the city were to conduct a 6th experiment and you wanted to step $$+1.5$$ in $$x_\\text{H}$$, you should conduct this initial optimal search experiment at the following coded units: $$\\mathbf{H}=+1.5$$ $$\\mathbf{S}=+2.8$$"
+     },
+     "check": {
+      "manual": "a step along the path of steepest descent, which no check here computes: 1.5 x 32.5/17.5 = 2.79 in x_S for a step of +1.5 in x_H"
+     }
+    },
+    {
+     "what": "next run on the path",
+     "term": "H",
+     "value": "$$\\mathbf{H} \\approx +1.1$$",
+     "where": {
+      "quiz": "Ungraded practice quiz 5B",
+      "file": "quiz5B-UG-2015",
+      "question": 4,
+      "question_id": "b32a06ee08e02f16d0a6386470919a71",
+      "option_id": "e29ccd2890cb99fd8a686920f0180e25",
+      "answer_key": "correct",
+      "source_kind": "option",
+      "quote": "If the city were to conduct a 6th experiment and you wanted to step $$+2$$ in $$x_\\text{S}$$, you should conduct this initial optimal search experiment at the following coded units: $$\\mathbf{H} \\approx +1.1$$ $$\\mathbf{S} = +2$$"
+     },
+     "check": {
+      "manual": "a step along the path of steepest descent, which no check here computes: 2 x 17.5/32.5 = 1.08 in x_H for a step of +2 in x_S"
+     }
+    },
+    {
+     "what": "contour plot",
+     "term": null,
+     "value": "contours 200, 150 and 100 through the runs at (-1, -1), (+1, -1) and (+1, +1)",
+     "where": {
+      "quiz": "Ungraded practice quiz 5B",
+      "file": "quiz5B-UG-2015",
+      "question": 4,
+      "question_id": "b32a06ee08e02f16d0a6386470919a71",
+      "option_id": "7f478391a7bf7eaf377dfe86307a604b",
+      "answer_key": "correct",
+      "source_kind": "option",
+      "quote": "The full factorial above can be shown with the following contour plot: [image: Recycling electronics - good plot.jpeg]"
+     },
+     "check": {
+      "manual": "a contour plot read by eye off the image, which no check here computes: the fit predicts 199.5, 149.5 and 99.5 at those runs, as the plot draws"
+     }
+    },
+    {
+     "what": "contour plot",
+     "term": null,
+     "value": "the 100 contour along x_S of about +1, through the run at (-1, +1)",
+     "where": {
+      "quiz": "Ungraded practice quiz 5B",
+      "file": "quiz5B-UG-2015",
+      "question": 4,
+      "question_id": "b32a06ee08e02f16d0a6386470919a71",
+      "option_id": "e2558095270b167038470000b934c2f9",
+      "answer_key": "incorrect",
+      "source_kind": "option",
+      "quote": "The full factorial above can be visualized with the following contour plot: [image: Recycling electronics - bad plot.jpeg]"
+     },
+     "check": {
+      "manual": "a contour plot read by eye off the image, which no check here computes: the run at (-1, +1) is 120 and the fit predicts 119.5 there, not 100"
+     }
+    },
+    {
+     "what": "coded setting",
+     "term": "H",
+     "value": "$$\\mathbf{H}$$ = $$+3$$",
+     "where": {
+      "quiz": "Ungraded practice quiz 5B",
+      "file": "quiz5B-UG-2015",
+      "question": 4,
+      "question_id": "b32a06ee08e02f16d0a6386470919a71",
+      "option_id": "37fbef2bc6352fff9eb29bb21519e7bc",
+      "answer_key": "incorrect",
+      "source_kind": "option",
+      "quote": "if the city wanted to conduct an experiment at $$\\mathbf{H}$$ = 16 hours and $$\\mathbf{S}$$ = 1 site, then the coded unit representation would be: $$\\mathbf{H}$$ = $$+3$$ $$\\mathbf{S}$$ = $$-1.5$$"
+     },
+     "check": {
+      "manual": "a conversion of one setting to coded units, arithmetic on the factor's range rather than a result of runs: (16 - 10)/2 = +3, which is right, as the option's explanation says"
+     }
+    },
+    {
+     "what": "coded setting",
+     "term": "S",
+     "value": "$$\\mathbf{S}$$ = $$-1.5$$",
+     "where": {
+      "quiz": "Ungraded practice quiz 5B",
+      "file": "quiz5B-UG-2015",
+      "question": 4,
+      "question_id": "b32a06ee08e02f16d0a6386470919a71",
+      "option_id": "37fbef2bc6352fff9eb29bb21519e7bc",
+      "answer_key": "incorrect",
+      "source_kind": "option",
+      "quote": "if the city wanted to conduct an experiment at $$\\mathbf{H}$$ = 16 hours and $$\\mathbf{S}$$ = 1 site, then the coded unit representation would be: $$\\mathbf{H}$$ = $$+3$$ $$\\mathbf{S}$$ = $$-1.5$$"
+     },
+     "check": {
+      "manual": "a conversion of one setting to coded units, arithmetic on the factor's range rather than a result of runs: (1 - 3)/1 = -2 with S from 2 to 4 sites, not -1.5 (which it is with S from 2 to 6, as in practice quiz 5A)"
+     }
+    }
+   ]
   }
  ],
  "designs": [
@@ -9960,7 +14957,255 @@
      "note": "the quiz prints the generator, not the resolution; the check confirms the negative generator gives the same resolution"
     }
    ]
+  },
+  {
+   "name": "efi-quiz5a-sleep-coded-units",
+   "title": "Olga's night's sleep: bedtime A, alarm time B and water drunk C, in coded units",
+   "where": {
+    "quiz": "Quiz for module 5A",
+    "file": "quiz5A-2015",
+    "question": 1,
+    "question_id": "df3ac5878353be3637157c8fc24ac64d",
+    "images": ["https://d396qusza40orc.cloudfront.net/experiments/quiz_assets/week5/Sleep.jpg"]
+   },
+   "design": {
+    "type": "2^3 full factorial",
+    "details": "A: bed at 9pm or 11pm; B: alarm at 7am or 8am; C: 250 or 350 mL of water. Settings outside the cube converted to coded units, and a printed model evaluated"
+   },
+   "notes": "Coding is x = (setting - centre) / (half the range): A is centred on 10pm with a half-range of 1 h, B on 7:30am with 0.5 h, C on 300 mL with 50 mL. The quiz prints no runs.",
+   "expected": [
+    {
+     "what": "coded setting",
+     "term": "A",
+     "value": "+3",
+     "where": {
+      "quiz": "Quiz for module 5A",
+      "file": "quiz5A-2015",
+      "question": 1,
+      "question_id": "df3ac5878353be3637157c8fc24ac64d",
+      "option_id": "619430b8824b25a16d6d909ba6d4e4a8",
+      "answer_key": "correct",
+      "source_kind": "option",
+      "quote": "A = Time going to bed = 1am [...] A = Time going to bed = +3"
+     },
+     "check": {
+      "manual": "a conversion of one setting to coded units, arithmetic on the factor's range rather than a result of runs: 1am is 3 h after the centre, 10pm, at a half-range of 1 h: +3"
+     }
+    },
+    {
+     "what": "coded setting",
+     "term": "B",
+     "value": "+5",
+     "where": {
+      "quiz": "Quiz for module 5A",
+      "file": "quiz5A-2015",
+      "question": 1,
+      "question_id": "df3ac5878353be3637157c8fc24ac64d",
+      "option_id": "619430b8824b25a16d6d909ba6d4e4a8",
+      "answer_key": "correct",
+      "source_kind": "option",
+      "quote": "B = Time waking up = 10am [...] B = Time waking up = +5"
+     },
+     "check": {
+      "manual": "a conversion of one setting to coded units, arithmetic on the factor's range rather than a result of runs: (10am - 7:30am) / 0.5 h = +5"
+     }
+    },
+    {
+     "what": "coded setting",
+     "term": "C",
+     "value": "+2",
+     "where": {
+      "quiz": "Quiz for module 5A",
+      "file": "quiz5A-2015",
+      "question": 1,
+      "question_id": "df3ac5878353be3637157c8fc24ac64d",
+      "option_id": "619430b8824b25a16d6d909ba6d4e4a8",
+      "answer_key": "correct",
+      "source_kind": "option",
+      "quote": "C = Amount of water drank before going to bed = 400ml [...] C = Amount of water drank before going to bed = +2"
+     },
+     "check": {
+      "manual": "a conversion of one setting to coded units, arithmetic on the factor's range rather than a result of runs: (400 - 300) / 50 = +2"
+     }
+    },
+    {
+     "what": "coded setting",
+     "term": "A",
+     "value": "-3",
+     "where": {
+      "quiz": "Quiz for module 5A",
+      "file": "quiz5A-2015",
+      "question": 1,
+      "question_id": "df3ac5878353be3637157c8fc24ac64d",
+      "option_id": "7a0727ec8c9e889193d8a48d6a5821bd",
+      "answer_key": "correct",
+      "source_kind": "option",
+      "quote": "A = Time going to bed = 7pm [...] A = Time going to bed = -3"
+     },
+     "check": {
+      "manual": "a conversion of one setting to coded units, arithmetic on the factor's range rather than a result of runs: (7pm - 10pm) / 1 h = -3"
+     }
+    },
+    {
+     "what": "coded setting",
+     "term": "B",
+     "value": "-3",
+     "where": {
+      "quiz": "Quiz for module 5A",
+      "file": "quiz5A-2015",
+      "question": 1,
+      "question_id": "df3ac5878353be3637157c8fc24ac64d",
+      "option_id": "7a0727ec8c9e889193d8a48d6a5821bd",
+      "answer_key": "correct",
+      "source_kind": "option",
+      "quote": "B = Time waking up = 6am [...] B = Time waking up = -3"
+     },
+     "check": {
+      "manual": "a conversion of one setting to coded units, arithmetic on the factor's range rather than a result of runs: (6am - 7:30am) / 0.5 h = -3"
+     }
+    },
+    {
+     "what": "coded setting",
+     "term": "C",
+     "value": "-2",
+     "where": {
+      "quiz": "Quiz for module 5A",
+      "file": "quiz5A-2015",
+      "question": 1,
+      "question_id": "df3ac5878353be3637157c8fc24ac64d",
+      "option_id": "7a0727ec8c9e889193d8a48d6a5821bd",
+      "answer_key": "correct",
+      "source_kind": "option",
+      "quote": "C = Amount of water drank before going to bed = 200ml [...] C = Amount of water drank before going to bed = -2"
+     },
+     "check": {
+      "manual": "a conversion of one setting to coded units, arithmetic on the factor's range rather than a result of runs: (200 - 300) / 50 = -2"
+     }
+    },
+    {
+     "what": "prediction",
+     "term": null,
+     "value": "$$\\,\\,\\hat{y} = 0.5$$",
+     "where": {
+      "quiz": "Quiz for module 5A",
+      "file": "quiz5A-2015",
+      "question": 1,
+      "question_id": "df3ac5878353be3637157c8fc24ac64d",
+      "option_id": "9067121b4fb8fdff64ffe69025b7d95d",
+      "answer_key": "correct",
+      "source_kind": "option",
+      "quote": "\\hat{y} = 6 - 1 x_\\text{A} + 2x_\\text{B} + 0.5x_\\text{C} + 0.25x_\\text{A}x_\\text{B} + 0.25x_\\text{A}x_\\text{C} \\\\- 0.25x_\\text{B}x_\\text{C} - 0.25x_\\text{A}x_\\text{B}x_\\text{C} [...] Would yield a quality prediction of: $$\\,\\,\\hat{y} = 0.5$$"
+     },
+     "check": {
+      "manual": "arithmetic on a model the option states, with no runs to fit: 11pm, 6:30am and 300 mL code to +1, -2 and 0, and 6 - 1 + 2(-2) + 0.25(+1)(-2) = 0.5, the other terms being zero"
+     }
+    }
+   ]
+  },
+  {
+   "name": "efi-quiz5a-extrapolating-two-models",
+   "title": "Daryl's two models, a 2^2 factorial's and a quadratic in A, predicting at A = +3 and B = +2",
+   "where": {
+    "quiz": "Quiz for module 5A",
+    "file": "quiz5A-2015",
+    "question": 6,
+    "question_id": "3e35a798e607c118453b1a7f1811b14a"
+   },
+   "design": {
+    "type": "2^2 full factorial, then a model in A with its square",
+    "details": "the quiz prints the two models and one run outside the cube, y = 3 at A = +3, B = +2"
+   },
+   "expected": [
+    {
+     "what": "prediction",
+     "term": null,
+     "value": "7.0",
+     "where": {
+      "quiz": "Quiz for module 5A",
+      "file": "quiz5A-2015",
+      "question": 6,
+      "question_id": "3e35a798e607c118453b1a7f1811b14a",
+      "option_id": "64fa68d4acd4e148c9f4081dd527bbb0",
+      "answer_key": "incorrect",
+      "source_kind": "option explanation",
+      "quote": "The predicted value is $$\\hat{y} = 12 - 2(+3) - 0.1(+2) + 0.2(+3)(+2) = 12 - 6 - 0.2 + 1.2 = 7.0$$"
+     },
+     "check": {
+      "manual": "arithmetic on a model the question states, with no runs to fit: 12 - 6 - 0.2 + 1.2 = 7.0 is right; the option is keyed incorrect because 7.0 is further from the observed 3 than 2.5 is"
+     }
+    },
+    {
+     "what": "prediction",
+     "term": null,
+     "value": "2.5",
+     "where": {
+      "quiz": "Quiz for module 5A",
+      "file": "quiz5A-2015",
+      "question": 6,
+      "question_id": "3e35a798e607c118453b1a7f1811b14a",
+      "option_id": "8015e1ccacfa703669aa6fc859826feb",
+      "answer_key": "correct",
+      "source_kind": "option explanation",
+      "quote": "The predicted value is $$\\hat{y} = 13 - 2(+3) - 0.5(+3)^2 = 13 - 6 - 4.5 = 2.5$$"
+     },
+     "check": {
+      "manual": "arithmetic on a model the question states, with no runs to fit: 13 - 6 - 4.5 = 2.5"
+     }
+    }
+   ]
+  },
+  {
+   "name": "efi-quiz5a-practice-ipa-extrapolation",
+   "title": "Nathan's IPA: two models, a 2^2 factorial's and a quadratic in hops H, predicting at H = +2 and A = +1",
+   "where": {
+    "quiz": "Ungraded practice quiz 5A",
+    "file": "quiz5A-UG-2015",
+    "question": 5,
+    "question_id": "23c19a29a2da96bf06b44ee5cd1d0be3"
+   },
+   "design": {
+    "type": "2^2 full factorial, then a model in H with its square",
+    "details": "the quiz prints the two models and one run outside the cube, y = 65 at H = +2, A = +1"
+   },
+   "expected": [
+    {
+     "what": "prediction",
+     "term": null,
+     "value": "$$\\approx 60$$",
+     "where": {
+      "quiz": "Ungraded practice quiz 5A",
+      "file": "quiz5A-UG-2015",
+      "question": 5,
+      "question_id": "23c19a29a2da96bf06b44ee5cd1d0be3",
+      "option_id": "8115969dd323c15ad950caccdac2f7ba",
+      "answer_key": "incorrect",
+      "source_kind": "option explanation",
+      "quote": "Let's use the model: $$\\hat{y} = 67 - 4(2) - 0.5(+1)+ 0.7(+2)(+1) = 67 - 8 - 0.5 + 1.4 \\approx 60$$, which is less accurate."
+     },
+     "check": {
+      "manual": "arithmetic on a model the question states, with no runs to fit: 67 - 8 - 0.5 + 1.4 = 59.9, about 60; further from the observed 65 than the quadratic model's 67"
+     }
+    },
+    {
+     "what": "prediction",
+     "term": null,
+     "value": "67",
+     "where": {
+      "quiz": "Ungraded practice quiz 5A",
+      "file": "quiz5A-UG-2015",
+      "question": 5,
+      "question_id": "23c19a29a2da96bf06b44ee5cd1d0be3",
+      "option_id": "3dd9106b57e1f6b8ac36bb823e82d33a",
+      "answer_key": "correct",
+      "source_kind": "option explanation",
+      "quote": "Let's use the model: $$\\hat{y} = 77 - 2(+2) - 1.5(+2)^2 = 77 - 4 - 6= 67$$, which is more accurate."
+     },
+     "check": {
+      "manual": "arithmetic on a model the question states, with no runs to fit: 77 - 4 - 6 = 67"
+     }
+    }
+   ]
   }
  ],
- "not_captured": ["quiz 1 (graded and practice), question 1 (the same question, id bf443f8f): the grading example, 0.33 + 0.33 + 0.33 = 1 and 0.33 + 0.33 = 0.67, is the quiz's scoring in thirds, about no experiment; it agrees with the option scores in the XML", "graded quiz 1, question 2 (Toyota at the Harlem soup kitchen, kaizen): outcomes, factors and objectives, in words", "graded quiz 1, question 3: which variables were factors, with no number in any option; the cube plot's runs are kept as data in efi-quiz1-store-profit", "graded quiz 1, questions 4 and 5 (bottled coffee): outcomes, objectives and factors, in words; the 20 days is the scenario's storage time, not a result", "graded quiz 1, questions 6 and 7: which kinds of variable are quantitative or qualitative, definitions", "graded quiz 1, question 8, options b0e69dc4, 2fcdf4af, 7e5ebb6d and 6162703c: a judgement in words (the sugar effect, 0 mm, is noted in efi-quiz1-bread-dough-rise) and the classification of factors", "graded quiz 1, question 9 (the professor's slides): the 1 to 5 Likert scale, 1.5 or 2 line spacing and size 18 or 22 font are levels named while classifying factors and responses, not results", "graded quiz 1, question 10 (the surgical procedure): which factors are quantitative, in words", "practice quiz 1, questions 2 to 4: factors judged by intuition, factors against objectives and outcomes, and qualitative variables; the 120 or 140 characters of question 4 are levels, not results", "practice quiz 1, question 5 (chemotherapy): categorical and quantitative factors, in words; the 5 or 10 units/kg are levels. The explanation of option 5905f67f calls the number of patients with adverse effects an outcome and then 'a covariate', which the course defines as measurable but not controllable, not as an outcome", "graded quiz, question 1, option 1b2c506a: which shoe type is coded minus, a choice of coding with no number", "graded quiz, question 1, option 58225f22 (keyed incorrect): whether the shoe type is the outcome, a definition", "graded quiz, question 5: the four options are interaction plots in images; they are compared by eye with the runs in the experiment's notes", "practice quiz 2, question 1: judgements in words on a response recorded as hazy or clear; the runs are kept as an experiment without numbers", "practice quiz 2, question 5, option 967b1419 (keyed incorrect): the sign of K's effect in words; the cube plot gives an effect of -3 min, a decrease, as the key implies", "graded quiz, question 2, the three options: recommendations in words about the S·R interaction, with no number", "graded quiz, question 3, option 53e03eb9's explanation: that a Pareto plot does not show the intercept, in words", "graded quiz, question 4, options 6e71754c, 70d8d468 and cea223a9: which main effect is largest, in words; the fit T*H*C*D agrees with the key (C 15.19, H -9.94, T 8.19, D -7.06)", "graded quiz, question 5, the four options and option 62c70422's explanation: which factors are important, in words, read off a Pareto plot of a saturated fit; by Lenth's method no effect is active", "graded quiz, question 6, the note on rounding: examples of rounding a coefficient to two decimals (6.678 to 6.68, 5.541 to 5.54, 0.253 to 0.25), not results of these runs", "graded quiz, question 6, option 62ed4dad: the smallest main effect named in words; the fit agrees (A -0.5)", "graded quiz, question 7, options 47a6f50a and efa65f6b: the lid's effect the strongest, and the larger pot faster, in words; the fit agrees", "practice quiz 3, question 2 (Peter's feedback forms): recommendations in words from a Pareto plot given only as an image (by eye I -15, D -10, D:I +7.5), with no runs or model printed", "practice quiz 3, question 4, the four options: recommendations in words from the flu study's Pareto plot; they agree with the fit", "practice quiz 3, question 6, options 85e9bb20 and 803773f0's interpretation: the delivery mode's small effect and the reading of the D·N interaction, in words", "graded quiz, question 4 (Jennifer's run order): choosing a randomized time order, with no number to recompute", "graded quiz, question 8, the covariate and disturbance options: definitions, with no number", "graded quiz, question 9, options e5b6110a and c5354e81: nuisance variable or disturbance, a definition", "practice quiz 4 part 1, questions 1, 3, 5 and 6: covariates, disturbances and randomization, in words", "practice quiz 4 part 2, question 3, option 535464d0 (keyed incorrect): the same alias structure as the option keyed correct, judged on which interaction is unimportant", "practice quiz 4 part 2, question 8: a self-assessment, with no answer key"]
+ "not_captured": ["quiz 1 (graded and practice), question 1 (the same question, id bf443f8f): the grading example, 0.33 + 0.33 + 0.33 = 1 and 0.33 + 0.33 = 0.67, is the quiz's scoring in thirds, about no experiment; it agrees with the option scores in the XML", "graded quiz 1, question 2 (Toyota at the Harlem soup kitchen, kaizen): outcomes, factors and objectives, in words", "graded quiz 1, question 3: which variables were factors, with no number in any option; the cube plot's runs are kept as data in efi-quiz1-store-profit", "graded quiz 1, questions 4 and 5 (bottled coffee): outcomes, objectives and factors, in words; the 20 days is the scenario's storage time, not a result", "graded quiz 1, questions 6 and 7: which kinds of variable are quantitative or qualitative, definitions", "graded quiz 1, question 8, options b0e69dc4, 2fcdf4af, 7e5ebb6d and 6162703c: a judgement in words (the sugar effect, 0 mm, is noted in efi-quiz1-bread-dough-rise) and the classification of factors", "graded quiz 1, question 9 (the professor's slides): the 1 to 5 Likert scale, 1.5 or 2 line spacing and size 18 or 22 font are levels named while classifying factors and responses, not results", "graded quiz 1, question 10 (the surgical procedure): which factors are quantitative, in words", "practice quiz 1, questions 2 to 4: factors judged by intuition, factors against objectives and outcomes, and qualitative variables; the 120 or 140 characters of question 4 are levels, not results", "practice quiz 1, question 5 (chemotherapy): categorical and quantitative factors, in words; the 5 or 10 units/kg are levels. The explanation of option 5905f67f calls the number of patients with adverse effects an outcome and then 'a covariate', which the course defines as measurable but not controllable, not as an outcome", "graded quiz, question 1, option 1b2c506a: which shoe type is coded minus, a choice of coding with no number", "graded quiz, question 1, option 58225f22 (keyed incorrect): whether the shoe type is the outcome, a definition", "graded quiz, question 5: the four options are interaction plots in images; they are compared by eye with the runs in the experiment's notes", "practice quiz 2, question 1: judgements in words on a response recorded as hazy or clear; the runs are kept as an experiment without numbers", "practice quiz 2, question 5, option 967b1419 (keyed incorrect): the sign of K's effect in words; the cube plot gives an effect of -3 min, a decrease, as the key implies", "graded quiz, question 2, the three options: recommendations in words about the S·R interaction, with no number", "graded quiz, question 3, option 53e03eb9's explanation: that a Pareto plot does not show the intercept, in words", "graded quiz, question 4, options 6e71754c, 70d8d468 and cea223a9: which main effect is largest, in words; the fit T*H*C*D agrees with the key (C 15.19, H -9.94, T 8.19, D -7.06)", "graded quiz, question 5, the four options and option 62c70422's explanation: which factors are important, in words, read off a Pareto plot of a saturated fit; by Lenth's method no effect is active", "graded quiz, question 6, the note on rounding: examples of rounding a coefficient to two decimals (6.678 to 6.68, 5.541 to 5.54, 0.253 to 0.25), not results of these runs", "graded quiz, question 6, option 62ed4dad: the smallest main effect named in words; the fit agrees (A -0.5)", "graded quiz, question 7, options 47a6f50a and efa65f6b: the lid's effect the strongest, and the larger pot faster, in words; the fit agrees", "practice quiz 3, question 2 (Peter's feedback forms): recommendations in words from a Pareto plot given only as an image (by eye I -15, D -10, D:I +7.5), with no runs or model printed", "practice quiz 3, question 4, the four options: recommendations in words from the flu study's Pareto plot; they agree with the fit", "practice quiz 3, question 6, options 85e9bb20 and 803773f0's interpretation: the delivery mode's small effect and the reading of the D·N interaction, in words", "graded quiz, question 4 (Jennifer's run order): choosing a randomized time order, with no number to recompute", "graded quiz, question 8, the covariate and disturbance options: definitions, with no number", "graded quiz, question 9, options e5b6110a and c5354e81: nuisance variable or disturbance, a definition", "practice quiz 4 part 1, questions 1, 3, 5 and 6: covariates, disturbances and randomization, in words", "practice quiz 4 part 2, question 3, option 535464d0 (keyed incorrect): the same alias structure as the option keyed correct, judged on which interaction is unimportant", "practice quiz 4 part 2, question 8: a self-assessment, with no answer key", "graded quiz 5A, question 5 (the COST or OFAT approach): statements in words, with no number", "graded quiz 5A, question 7 (response surface methods): statements in words, with no number", "graded quiz 5B, question 2, option b952e61b: 'a strong interaction term', a judgement in words; the fit's interaction, -4.5, is in the experiment's notes", "graded quiz 5B, question 4: the aside on why experiments 0, 5 and 10 (the centre points) were run, a question in words", "practice quiz 5A, question 4, options 1e93f6bd and 20f2c6ca: whether the model of runs 1 to 4 predicts run 5, a judgement in words; the prediction, 114.2 against 100, is in the experiment's notes", "practice quiz 5B, question 2 (ranges for a first factorial): a choice of factor ranges, a judgement with no result", "practice quiz 5B, question 5: a self-assessment, with no answer key"]
 }
