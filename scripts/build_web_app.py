@@ -181,14 +181,9 @@ def book_examples() -> list[dict[str, Any]]:
     return json.loads(BOOK_EXAMPLES.read_text(encoding="utf-8"))["examples"]
 
 
-def published() -> dict[str, Any]:
-    """Return ``web/published-examples.json``: the sources other than the book, and the examples taken from them."""
-    return json.loads(PUBLISHED_EXAMPLES.read_text(encoding="utf-8"))
-
-
 def published_examples() -> list[dict[str, Any]]:
     """Return the examples of published sources that the page opens, as ``web/published-examples.json`` lists them."""
-    return published()["examples"]
+    return json.loads(PUBLISHED_EXAMPLES.read_text(encoding="utf-8"))["examples"]
 
 
 def coded(setting: float | str, factor: dict[str, Any]) -> float:
@@ -244,13 +239,15 @@ def book_example(entry: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def published_example(entry: dict[str, Any], sources: dict[str, Any] | None = None) -> dict[str, Any]:
+def published_example(entry: dict[str, Any]) -> dict[str, Any]:
     """Make an example of a published source into what the page opens from ``?example=<name>``.
 
-    In place of the book's page it carries its source: the citation, where in the source its runs
-    are printed, and the address the source is read at.
+    In place of the book's page it carries its source: the citation of its reference experiment's
+    source, where in the source its runs are printed, and the address the source is read at.
     """
-    source = (published()["sources"] if sources is None else sources)[entry["source"]]
+    from process_improve.experiments.reference import reference_sources  # noqa: PLC0415 - the docs environment has it
+
+    source = reference_sources()[entry["source"]]
     return {
         "name": entry["name"],
         "title": entry["title"],
