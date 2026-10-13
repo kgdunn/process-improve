@@ -1,7 +1,8 @@
 """Reference designed experiments from published sources, and their reproduction with this library.
 
 The reference experiments are worked examples, exercises and case studies of published sources
-(a textbook, an encyclopedia article), recorded so that software can be checked against them.
+(a textbook, an encyclopedia article, a course's quizzes), recorded so that software can be
+checked against them.
 Each one holds its data exactly as printed (factors, responses, runs) and every number the
 source prints for it, as the text printed, with where it is printed. A number also carries a
 check, saying how to recompute it (the kind of result, the term, the model, the runs it uses),
@@ -378,6 +379,27 @@ def _plain(word: str) -> str:
     return re.sub(r"[\s\u00b7\u00d7*]", "", word)
 
 
+def _word(word: str) -> str:
+    """Return an effect word with its letters in order, the way :func:`_multiply` writes it: B·D·C as BCD.
+
+    A word is a product of factors, so its letters commute; a minus sign is kept, as a letter that
+    cancels in pairs. The intercept, I, is the empty word.
+    """
+    plain = _plain(word)
+    return "" if plain in ("I", "Intercept") else "".join(sorted(plain))
+
+
+def _words(printed: str) -> list[str]:
+    """Return the words of a printed list, such as ``I = ABD = ACE``, ``AD and CDE`` or ``BCD, ACD``."""
+    parts = re.split(r"[,=]|\band\b", printed.replace("\u2212", "-"))
+    return [w for w in (_word(p) for p in parts) if w]
+
+
+def _generator_word(generator: str) -> str:
+    """Return the word a generator makes: D = AB makes ABD, and F = \u2212ABCDE makes \u2212ABCDEF."""
+    return _multiply(*(_word(side) for side in generator.replace("\u2212", "-").split("=")))
+
+
 def _multiply(*words: str) -> str:
     """Multiply effect words letter by letter: a letter twice cancels, as A·A = I."""
     letters = sorted(itertools.chain.from_iterable(words))
@@ -385,8 +407,12 @@ def _multiply(*words: str) -> str:
 
 
 def _fraction(check: dict, k: int) -> Any:  # noqa: ANN401 - the library's DesignResult
-    """Return the library's fraction for a check: in k factors, by its resolution or by the source's generators."""
-    factors = [Factor(name=_LETTERS[i], low=-1, high=1) for i in range(k)]
+    """Return the library's fraction for a check: in k factors, by its resolution or by the source's generators.
+
+    Its factors are lettered A, B, C, ..., or named as ``check["factors"]`` names them.
+    """
+    names = check.get("factors") or list(_LETTERS[:k])  # the source's own letters, when it names its factors
+    factors = [Factor(name=name, low=-1, high=1) for name in names]
     return generate_design(
         factors,
         design_type="fractional_factorial",
@@ -397,20 +423,25 @@ def _fraction(check: dict, k: int) -> Any:  # noqa: ANN401 - the library's Desig
 
 
 def _design_check(check: dict, printed: str, k: int) -> tuple[str, bool]:
-    """Check a generator, resolution, defining word or alias the source states, against the library's fraction."""
+    """Check a generator, resolution, defining relation or aliases the source states, against the library's fraction.
+
+    Words compare as products of factors, whatever order the source writes their letters in. A
+    defining relation must be the whole relation; the aliases printed must each be an alias of the
+    term, and need not be all of them.
+    """
     made = _fraction(check, check.get("k", k))
     kind = check["kind"]
     if kind == "generator":
-        found = sorted(_plain(g) for g in made.generators or [])
-        return ", ".join(found), _plain(printed) in found
+        found = sorted(_generator_word(g) for g in made.generators or [])
+        return ", ".join(found), _generator_word(printed) in found
     if kind == "resolution":
         wanted = _ROMAN.get(printed.strip())
         return str(made.resolution), wanted == made.resolution
-    words = sorted(_plain(w).removeprefix("I=") for w in made.defining_relation or [])
+    words = sorted(_word(w.split("=")[-1]) for w in made.defining_relation or [])
     if kind == "defining_relation":
-        return ", ".join(words), sorted(_plain(w).removeprefix("I=") for w in printed.split(",")) == words
-    aliases = sorted({_multiply(_plain(check["term"]), word) for word in words})
-    return ", ".join(aliases), _plain(printed) in aliases  # kind == "aliases"
+        return ", ".join(words), sorted(_words(printed)) == words
+    aliases = sorted({_multiply(_word(check["term"]), word) for word in words})
+    return ", ".join(aliases), bool(_words(printed)) and set(_words(printed)) <= set(aliases)  # kind == "aliases"
 
 
 _DESIGN_KINDS = {"generator", "resolution", "defining_relation", "aliases"}
@@ -420,11 +451,38 @@ def _design_property(check: dict) -> float:
     """Return a property of a design the library makes: its run count, axial distance or resolution.
 
     ``check["design"]`` names it: ``design_type``, ``k`` factors, and ``options`` for ``generate_design``.
+    A resolution may be printed as a Roman numeral.
     """
     spec = check["design"]
     factors = [Factor(name=_LETTERS[i], low=-1, high=1) for i in range(spec["k"])]
     made = generate_design(factors, design_type=spec["design_type"], **spec.get("options", {}))
     return float(getattr(made, check["property"]))
+
+
+def _fraction_runs(experiment: dict, check: dict) -> list[int]:
+    """Return the 1-based positions of the runs that make the fraction of a generator: C = AB, or C = \u2212AB.
+
+    A run is in it when the product of its coded settings over the generator's word is the word's sign.
+    """
+    word = _generator_word(check["generator"])
+    sign = -1.0 if word.startswith("-") else 1.0
+    settings, _ = _coded_runs(experiment, check.get("runs"))
+    product = settings[list(word.lstrip("-"))].prod(axis=1).to_numpy()
+    return [i + 1 for i, value in enumerate(product) if np.isclose(value, sign)]
+
+
+def _standard_order(experiment: dict, check: dict) -> list[int]:
+    """Return each run's 1-based position in the standard order, the first factor changing fastest."""
+    names = check.get("factors") or [f["name"] for f in experiment["factors"]]
+    settings, _ = _coded_runs(experiment, check.get("runs"))
+    high = (settings[names].to_numpy() > 0).astype(int)
+    return [1 + int(row @ (2 ** np.arange(len(names)))) for row in high]
+
+
+_RUN_KINDS: dict[str, Callable[[dict, dict], list[int]]] = {
+    "fraction_runs": _fraction_runs,
+    "standard_order": _standard_order,
+}
 
 
 def _active(out: dict, check: dict) -> tuple[str, bool]:
@@ -443,7 +501,12 @@ def _reproduce(experiment: dict, expected: dict, check: dict, fits: _Fits) -> tu
         return _design_check(check, str(printed), len(experiment.get("factors") or []))
     if kind == "design_property":
         found = _design_property(check)
-        return f"{found:.6g}", _agrees(found, str(printed))
+        return f"{found:.6g}", _agrees(found, str(_ROMAN.get(str(printed).strip(), printed)))
+    if kind in _RUN_KINDS:
+        found_runs = _RUN_KINDS[kind](experiment, check)
+        wanted = [int(n) for n in re.findall(r"\d+", str(printed))]
+        same = set(wanted) == set(found_runs) if kind == "fraction_runs" else wanted == found_runs
+        return ", ".join(map(str, found_runs)), same and len(wanted) == len(found_runs)
     out = fits(experiment, check)
     if kind == "active_effects":
         return _active(out, check)
@@ -464,8 +527,9 @@ def reproduce_reference(source: str | None = None) -> pd.DataFrame:
     Each number with a check is recomputed: the experiment's runs are fitted with the model the
     check names (on the runs it names), and the result compared with the printed text to within
     half a unit in its last printed digit. A design's generators, resolution, defining relation
-    and aliases are compared with the fraction this library makes. A number without a check is
-    reported with the reason it is not recomputed.
+    and aliases are compared with the fraction this library makes, and a list of runs (those
+    making a fraction, or their standard order) with the runs' coded settings. A number without
+    a check is reported with the reason it is not recomputed.
 
     Parameters
     ----------

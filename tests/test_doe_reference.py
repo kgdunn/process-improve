@@ -31,7 +31,7 @@ CHECKED = REPORT[REPORT["checked"]]
     ids=[f"{r.experiment}:{r.what}:{r.term}"[:120] for r in CHECKED.itertuples()],
 )
 def test_every_printed_number_is_reproduced(row):
-    if row["disagreement"]:
+    if isinstance(row["disagreement"], str):
         assert not row["agrees"], f"{row['experiment']}: it reproduces now; take away the disagreement it records"
         return
     assert row["agrees"], (
@@ -52,11 +52,15 @@ def test_every_experiment_says_where_it_was_printed():
         name = entry["name"]
         assert entry["source"] in sources, name
         assert entry["where"], name
-        assert entry["expected"], f"{name}: what the source prints is part of the entry"
+        assert entry["expected"] or entry.get("unanswered"), f"{name}: what the source prints is part of the entry"
         for expected in entry["expected"]:
             where = expected["where"]
             assert where.get("quote"), f"{name}: every number carries a quotation of where it is printed"
-            assert where.get("line") or where.get("page"), f"{name}: every number carries its line or page"
+            assert where.get("line") or where.get("page") or where.get("question"), (
+                f"{name}: every number carries its line, page or quiz question"
+            )
+            if where.get("option_id"):
+                assert where.get("answer_key") in ("correct", "incorrect"), f"{name}: an option says how it is keyed"
     for experiment in reference_experiments():
         assert experiment.get("runs") or experiment.get("data_source"), f"{experiment['name']}: no runs, no source"
 
