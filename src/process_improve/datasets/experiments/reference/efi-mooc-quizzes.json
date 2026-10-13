@@ -366,6 +366,2069 @@
    ]
   },
   {
+   "name": "efi-quiz2-baking-taste-direction",
+   "title": "Baking temperature A and mixing time B: the direction in which taste improves",
+   "kind": "quiz question",
+   "where": {
+    "quiz": "Quiz for module 2",
+    "file": "quiz2-2015",
+    "question": 2,
+    "question_id": "2361b7276543d4b03cbc282a169c11ca",
+    "images": ["https://d396qusza40orc.cloudfront.net/experiments/quiz_assets/week2/35hn5ol.jpg", "https://d396qusza40orc.cloudfront.net/experiments/quiz_assets/week2/next-direction3-A.png", "https://d396qusza40orc.cloudfront.net/experiments/quiz_assets/week2/next-direction3-C.png", "https://d28rh4a8wq0iu5.cloudfront.net/experiments/quiz_assets/week2/next-direction3-B.png", "https://d396qusza40orc.cloudfront.net/experiments/quiz_assets/week2/next-direction3-D.png"]
+   },
+   "factors": [
+    {
+     "name": "A",
+     "description": "Baking temperature",
+     "low": 300,
+     "high": 350,
+     "units": "°C",
+     "type": "numeric"
+    },
+    {
+     "name": "B",
+     "description": "Mixing time",
+     "low": 10,
+     "high": 20,
+     "units": "min",
+     "type": "numeric"
+    }
+   ],
+   "responses": [
+    {
+     "name": "taste",
+     "description": "Taste (1 to 10)",
+     "units": ""
+    }
+   ],
+   "design": {
+    "type": "2^2 full factorial",
+    "n_runs": 4
+   },
+   "runs": {
+    "columns": ["experiment", "A", "B", "taste"],
+    "coded": false,
+    "rows": [
+     [1, 300, 10, 4],
+     [2, 350, 10, 6],
+     [3, 300, 20, 7],
+     [4, 350, 20, 9]
+    ],
+    "notes": "the table image 35hn5ol.jpg, which prints the sign beside each setting"
+   },
+   "notes": "The options are images of arrows on the square: A (keyed correct) from low A, low B toward high A, high B; C from high A, low B toward low A, high B; B from low A, high B toward high A, low B; D from high A, high B toward low A, low B. The fit of A*B gives taste = 6.5 + 1 x_A + 1.5 x_B + 0 x_A x_B, so along the four arrows taste changes by +2.5, +0.5, -0.5 and -2.5 per coded unit: the arrow keyed correct is the steepest ascent of the four, though the steepest ascent itself, (1, 1.5) in coded units, leans more toward B than the arrow drawn at 45 degrees. The explanation of option C says it does not increase taste, but along it taste rises from 6 (run 2) to 7 (run 3).",
+   "expected": [
+    {
+     "what": "direction of improvement",
+     "term": null,
+     "value": "improved taste is at high levels of factor A and factor B",
+     "where": {
+      "quiz": "Quiz for module 2",
+      "file": "quiz2-2015",
+      "question": 2,
+      "question_id": "2361b7276543d4b03cbc282a169c11ca",
+      "option_id": "82bfafd812ca7105e6e539ca541f5eb3",
+      "answer_key": "correct",
+      "source_kind": "option image and explanation",
+      "quote": "This is the correct answer; improved taste is at high levels of factor A and factor B."
+     },
+     "check": {
+      "manual": "a direction read off the option's image, an arrow on the square of A and B; toward high A and high B. The fit of A*B has coefficients +1 (A) and +1.5 (B), both positive, and the best run, 9, is at high A and high B"
+     }
+    },
+    {
+     "what": "direction of improvement",
+     "term": null,
+     "value": "This direction does not increase taste.",
+     "where": {
+      "quiz": "Quiz for module 2",
+      "file": "quiz2-2015",
+      "question": 2,
+      "question_id": "2361b7276543d4b03cbc282a169c11ca",
+      "option_id": "e95cc35af554643cc9b952a04da0dbaf",
+      "answer_key": "incorrect",
+      "source_kind": "option image and explanation",
+      "quote": "This direction does not increase taste."
+     },
+     "check": {
+      "manual": "a direction read off the option's image, an arrow on the square of A and B; from high A, low B toward low A, high B. The explanation is wrong: along it taste rises from 6 (run 2) to 7 (run 3), +0.5 per coded unit in the fit of A*B; the option is rightly keyed incorrect only because the arrow toward high A and high B rises faster"
+     }
+    },
+    {
+     "what": "direction of improvement",
+     "term": null,
+     "value": "This direction does not increase taste.",
+     "where": {
+      "quiz": "Quiz for module 2",
+      "file": "quiz2-2015",
+      "question": 2,
+      "question_id": "2361b7276543d4b03cbc282a169c11ca",
+      "option_id": "f42b86f2f257c5160a5652680d92a348",
+      "answer_key": "incorrect",
+      "source_kind": "option image and explanation",
+      "quote": "This direction does not increase taste."
+     },
+     "check": {
+      "manual": "a direction read off the option's image, an arrow on the square of A and B; from low A, high B toward high A, low B; along it taste falls from 7 (run 3) to 6 (run 2)"
+     }
+    },
+    {
+     "what": "direction of improvement",
+     "term": null,
+     "value": "This direction does not increase taste.",
+     "where": {
+      "quiz": "Quiz for module 2",
+      "file": "quiz2-2015",
+      "question": 2,
+      "question_id": "2361b7276543d4b03cbc282a169c11ca",
+      "option_id": "38468390fcdabe5ed37edf4559324c87",
+      "answer_key": "incorrect",
+      "source_kind": "option image and explanation",
+      "quote": "This direction does not increase taste."
+     },
+     "check": {
+      "manual": "a direction read off the option's image, an arrow on the square of A and B; from high A, high B toward low A, low B; along it taste falls from 9 (run 4) to 4 (run 1)"
+     }
+    }
+   ]
+  },
+  {
+   "name": "efi-quiz2-cycling-bike-position",
+   "title": "Geoffrey's climb up the mountain: bicycle type A and cycling position B",
+   "kind": "quiz question",
+   "where": {
+    "quiz": "Quiz for module 2",
+    "file": "quiz2-2015",
+    "question": 3,
+    "question_id": "daf39eccdea1a4b8e0a37f6f24bd514a"
+   },
+   "factors": [
+    {
+     "name": "A",
+     "description": "Bicycle type",
+     "low": "Mountain bike",
+     "high": "Road racing bike",
+     "units": "",
+     "type": "categorical"
+    },
+    {
+     "name": "B",
+     "description": "Cycling position on the bicycle",
+     "low": "Sitting",
+     "high": "Standing",
+     "units": "",
+     "type": "categorical"
+    }
+   ],
+   "responses": [
+    {
+     "name": "time",
+     "description": "Time to cycle up the mountain",
+     "units": "min"
+    }
+   ],
+   "design": {
+    "type": "2^2 full factorial",
+    "n_runs": 4
+   },
+   "runs": {
+    "columns": ["date", "A", "B", "time"],
+    "coded": false,
+    "rows": [
+     ["12 July", "Mountain bike", "Standing", 24],
+     ["14 July", "Mountain bike", "Sitting", 33],
+     ["15 July", "Road racing bike", "Sitting", 42],
+     ["18 July", "Road racing bike", "Standing", 27]
+    ],
+    "notes": "in the date order printed"
+   },
+   "notes": "Option 21787e66 codes B as -1 for sitting and +1 for standing. The quiz does not code A; the mountain bike is taken as its low level, so going from a mountain bike to a road racing bike is the effect of A. These four runs are the runs of question 4 without extra weight.",
+   "expected": [
+    {
+     "what": "coefficient",
+     "term": "B",
+     "value": "$$-6.0 x_\\text{B}$$",
+     "where": {
+      "quiz": "Quiz for module 2",
+      "file": "quiz2-2015",
+      "question": 3,
+      "question_id": "daf39eccdea1a4b8e0a37f6f24bd514a",
+      "option_id": "21787e66046b5b7502e97b55218552a9",
+      "answer_key": "correct",
+      "source_kind": "option",
+      "quote": "If factor B in the model was coded as $$-1$$ for sitting and coded as $$+1$$ for standing, then we would see a term \"$$-6.0 x_\\text{B}$$\" in the prediction equation."
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "B",
+      "model": "A*B",
+      "printed": "-6.0"
+     }
+    },
+    {
+     "what": "effect",
+     "term": "B",
+     "value": "decreases the time to the top of the mountain by 12 minutes",
+     "analysis": "from standing to sitting is the effect of B reversed, so a decrease of 12 is an effect of B of +12",
+     "where": {
+      "quiz": "Quiz for module 2",
+      "file": "quiz2-2015",
+      "question": 3,
+      "question_id": "daf39eccdea1a4b8e0a37f6f24bd514a",
+      "option_id": "ccc1704686e7af620a222ea2c9e2ffe4",
+      "answer_key": "incorrect",
+      "source_kind": "option",
+      "quote": "Going from a standing position to a sitting position on the bike decreases the time to the top of the mountain by 12 minutes, on average."
+     },
+     "check": {
+      "kind": "effect",
+      "term": "B",
+      "model": "A*B",
+      "printed": "12",
+      "disagreement": "the answer key marks this option incorrect: going from standing to sitting increases the time by 12 min; the effect of B, sitting to standing, is -12"
+     }
+    },
+    {
+     "what": "effect",
+     "term": "B",
+     "value": "has no effect on the time taken",
+     "where": {
+      "quiz": "Quiz for module 2",
+      "file": "quiz2-2015",
+      "question": 3,
+      "question_id": "daf39eccdea1a4b8e0a37f6f24bd514a",
+      "option_id": "a1d03c188c2fb3fe6d04e0aa41b64ed4",
+      "answer_key": "incorrect",
+      "source_kind": "option",
+      "quote": "Going from a sitting position to a standing position has no effect on the time taken."
+     },
+     "check": {
+      "kind": "effect",
+      "term": "B",
+      "model": "A*B",
+      "printed": "0",
+      "disagreement": "the answer key marks this option incorrect: the effect of B, sitting to standing, is -12 min"
+     }
+    },
+    {
+     "what": "effect",
+     "term": "B",
+     "value": "decreases the time to the top of the mountain by 12 minutes",
+     "where": {
+      "quiz": "Quiz for module 2",
+      "file": "quiz2-2015",
+      "question": 3,
+      "question_id": "daf39eccdea1a4b8e0a37f6f24bd514a",
+      "option_id": "5c2c1c7a04db3d4fb01a7954bbcd3ea7",
+      "answer_key": "correct",
+      "source_kind": "option",
+      "quote": "Going from a sitting position to a standing position on the bike decreases the time to the top of the mountain by 12 minutes, on average."
+     },
+     "check": {
+      "kind": "effect",
+      "term": "B",
+      "model": "A*B",
+      "printed": "-12"
+     }
+    },
+    {
+     "what": "effect",
+     "term": "A",
+     "value": "increases the time to the top of the mountain by 6 minutes",
+     "analysis": "from the road racing bike to the mountain bike is the effect of A reversed, so an increase of 6 is an effect of A of -6",
+     "where": {
+      "quiz": "Quiz for module 2",
+      "file": "quiz2-2015",
+      "question": 3,
+      "question_id": "daf39eccdea1a4b8e0a37f6f24bd514a",
+      "option_id": "48d429b47f5c2ba734f582a6d56b0714",
+      "answer_key": "incorrect",
+      "source_kind": "option",
+      "quote": "Going from using a road racing bike to a mountain bike increases the time to the top of the mountain by 6 minutes, on average."
+     },
+     "check": {
+      "kind": "effect",
+      "term": "A",
+      "model": "A*B",
+      "printed": "-6",
+      "disagreement": "the answer key marks this option incorrect: going from a road racing bike to a mountain bike decreases the time by 6 min"
+     }
+    },
+    {
+     "what": "effect",
+     "term": "A",
+     "value": "increases the time to the top of the mountain by 6 minutes",
+     "where": {
+      "quiz": "Quiz for module 2",
+      "file": "quiz2-2015",
+      "question": 3,
+      "question_id": "daf39eccdea1a4b8e0a37f6f24bd514a",
+      "option_id": "db236c562941cb0bd3027965302f7176",
+      "answer_key": "correct",
+      "source_kind": "option",
+      "quote": "Going from using a mountain bike to a road racing bike increases the time to the top of the mountain by 6 minutes, on average."
+     },
+     "check": {
+      "kind": "effect",
+      "term": "A",
+      "model": "A*B",
+      "printed": "6"
+     }
+    }
+   ]
+  },
+  {
+   "name": "efi-quiz2-cycling-extra-weight",
+   "title": "Geoffrey's climb up the mountain: bicycle type A, cycling position B and extra weight C",
+   "kind": "quiz question",
+   "where": {
+    "quiz": "Quiz for module 2",
+    "file": "quiz2-2015",
+    "question": 4,
+    "question_id": "5027079681a8b0c459884247d023e065"
+   },
+   "factors": [
+    {
+     "name": "A",
+     "description": "Bicycle type",
+     "low": "Mountain bike",
+     "high": "Road racing bike",
+     "units": "",
+     "type": "categorical"
+    },
+    {
+     "name": "B",
+     "description": "Cycling position on the bicycle",
+     "low": "Sitting",
+     "high": "Standing",
+     "units": "",
+     "type": "categorical"
+    },
+    {
+     "name": "C",
+     "description": "Carrying water bottle and backpack (extra weight)",
+     "low": "No",
+     "high": "Yes",
+     "units": "",
+     "type": "categorical"
+    }
+   ],
+   "responses": [
+    {
+     "name": "time",
+     "description": "Time to cycle up the mountain",
+     "units": "min"
+    }
+   ],
+   "design": {
+    "type": "2^3 full factorial",
+    "n_runs": 8
+   },
+   "runs": {
+    "columns": ["date", "A", "B", "C", "time"],
+    "coded": false,
+    "rows": [
+     ["11 July", "Mountain bike", "Standing", "Yes", 27],
+     ["12 July", "Mountain bike", "Standing", "No", 24],
+     ["13 July", "Road racing bike", "Standing", "Yes", 31],
+     ["14 July", "Mountain bike", "Sitting", "No", 33],
+     ["15 July", "Road racing bike", "Sitting", "No", 42],
+     ["16 July", "Mountain bike", "Sitting", "Yes", 36],
+     ["17 July", "Road racing bike", "Sitting", "Yes", 46],
+     ["18 July", "Road racing bike", "Standing", "No", 27]
+    ],
+    "notes": "in the date order printed"
+   },
+   "notes": "The question codes C as -1 for no extra weight and +1 for carrying it; A and B are coded as in question 3. The runs without extra weight (12, 14, 15 and 18 July) are those of question 3.",
+   "expected": [
+    {
+     "what": "effect",
+     "term": "C",
+     "value": "increase the time taken by 7 minutes on average",
+     "where": {
+      "quiz": "Quiz for module 2",
+      "file": "quiz2-2015",
+      "question": 4,
+      "question_id": "5027079681a8b0c459884247d023e065",
+      "option_id": "6cd40baa3c11645cc23eeba27694bdfe",
+      "answer_key": "incorrect",
+      "source_kind": "option",
+      "quote": "the change from $$-1$$ to $$+1$$ in factor C will increase the time taken by 7 minutes on average"
+     },
+     "check": {
+      "kind": "effect",
+      "term": "C",
+      "model": "A*B*C",
+      "printed": "7",
+      "disagreement": "the answer key marks this option incorrect: the effect of C is 3.5 min"
+     }
+    },
+    {
+     "what": "effect",
+     "term": "C",
+     "value": "3.5 minutes",
+     "where": {
+      "quiz": "Quiz for module 2",
+      "file": "quiz2-2015",
+      "question": 4,
+      "question_id": "5027079681a8b0c459884247d023e065",
+      "option_id": "6cd40baa3c11645cc23eeba27694bdfe",
+      "answer_key": "incorrect",
+      "source_kind": "option explanation",
+      "quote": "NOT correct; it is half this amount, 3.5 minutes"
+     },
+     "check": {
+      "kind": "effect",
+      "term": "C",
+      "model": "A*B*C",
+      "printed": "3.5"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "C",
+     "value": "$$+3.5 x_\\text{C}$$",
+     "where": {
+      "quiz": "Quiz for module 2",
+      "file": "quiz2-2015",
+      "question": 4,
+      "question_id": "5027079681a8b0c459884247d023e065",
+      "option_id": "dab313b2963b2f191cef71b317a901ab",
+      "answer_key": "incorrect",
+      "source_kind": "option",
+      "quote": "the model will have a term $$+3.5 x_\\text{C}$$ for the weight effect"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "C",
+      "model": "A*B*C",
+      "printed": "+3.5",
+      "disagreement": "the answer key marks this option incorrect: the coefficient of C is 1.75; 3.5 is the effect"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "C",
+     "value": "$$+1.75 x_\\text{C}$$",
+     "where": {
+      "quiz": "Quiz for module 2",
+      "file": "quiz2-2015",
+      "question": 4,
+      "question_id": "5027079681a8b0c459884247d023e065",
+      "option_id": "dab313b2963b2f191cef71b317a901ab",
+      "answer_key": "incorrect",
+      "source_kind": "option explanation",
+      "quote": "No, the model has a term $$+1.75 x_\\text{C}$$"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "C",
+      "model": "A*B*C",
+      "printed": "+1.75"
+     }
+    },
+    {
+     "what": "effect",
+     "term": "C",
+     "value": "increase the time taken by 1.75 minutes",
+     "where": {
+      "quiz": "Quiz for module 2",
+      "file": "quiz2-2015",
+      "question": 4,
+      "question_id": "5027079681a8b0c459884247d023e065",
+      "option_id": "dd8e76dcd2fa007fb68146c6615b769c",
+      "answer_key": "incorrect",
+      "source_kind": "option",
+      "quote": "the option of having extra weight with you will increase the time taken by 1.75 minutes"
+     },
+     "check": {
+      "kind": "effect",
+      "term": "C",
+      "model": "A*B*C",
+      "printed": "1.75",
+      "disagreement": "the answer key marks this option incorrect: the effect of C is 3.5 min; 1.75 is the coefficient"
+     }
+    },
+    {
+     "what": "effect",
+     "term": "C",
+     "value": "3.5 minutes",
+     "where": {
+      "quiz": "Quiz for module 2",
+      "file": "quiz2-2015",
+      "question": 4,
+      "question_id": "5027079681a8b0c459884247d023e065",
+      "option_id": "dd8e76dcd2fa007fb68146c6615b769c",
+      "answer_key": "incorrect",
+      "source_kind": "option explanation",
+      "quote": "No; it is double that: 3.5 minutes"
+     },
+     "check": {
+      "kind": "effect",
+      "term": "C",
+      "model": "A*B*C",
+      "printed": "3.5"
+     }
+    },
+    {
+     "what": "effect",
+     "term": "C",
+     "value": "increases by 3.5 minutes, on average",
+     "where": {
+      "quiz": "Quiz for module 2",
+      "file": "quiz2-2015",
+      "question": 4,
+      "question_id": "5027079681a8b0c459884247d023e065",
+      "option_id": "865270f2650edd9922dde7c92c1740c5",
+      "answer_key": "correct",
+      "source_kind": "option",
+      "quote": "the extra weight means that your time to cycle up the mountain increases by 3.5 minutes, on average"
+     },
+     "check": {
+      "kind": "effect",
+      "term": "C",
+      "model": "A*B*C",
+      "printed": "3.5"
+     }
+    }
+   ]
+  },
+  {
+   "name": "efi-quiz2-spinach-germination",
+   "title": "Antowan's spinach seeds: amount of water W and sunlight S, and their interaction plot",
+   "kind": "quiz question",
+   "where": {
+    "quiz": "Quiz for module 2",
+    "file": "quiz2-2015",
+    "question": 5,
+    "question_id": "fe60563d53ccb8080f1509ff8f53fbf0",
+    "images": ["https://d396qusza40orc.cloudfront.net/experiments/images/Quiz2/Interaction-K.png", "https://d396qusza40orc.cloudfront.net/experiments/images/Quiz2/Interaction-L.png", "https://d396qusza40orc.cloudfront.net/experiments/images/Quiz2/Interaction-P.png", "https://d396qusza40orc.cloudfront.net/experiments/images/Quiz2/Interaction-R.png"]
+   },
+   "factors": [
+    {
+     "name": "W",
+     "description": "Amount of water",
+     "low": 1,
+     "high": 2,
+     "units": "shot glasses",
+     "type": "numeric"
+    },
+    {
+     "name": "S",
+     "description": "Amount of sunlight",
+     "low": "Low",
+     "high": "High",
+     "units": "",
+     "type": "categorical"
+    }
+   ],
+   "responses": [
+    {
+     "name": "germinated",
+     "description": "Seeds germinated within 5 days",
+     "units": "%"
+    }
+   ],
+   "design": {
+    "type": "2^2 full factorial",
+    "n_runs": 4
+   },
+   "runs": {
+    "columns": ["W", "S", "germinated"],
+    "coded": false,
+    "rows": [
+     [1, "Low", 50],
+     [2, "Low", 40],
+     [1, "High", 70],
+     [2, "High", 100]
+    ]
+   },
+   "notes": "The options are hand-drawn interaction plots against W, read by eye: P (keyed correct) draws low sun from 50 to 40 and high sun from 70 to 100, as the runs give; K swaps the ends of both lines (40 to 50, 100 to 70); L draws low sun from 50 to 70 and high sun from 40 to 100, and R low sun from 70 to 50 and high sun from 100 to 40, both crossing. The question opens by saying that how Antowan randomized his run order is of interest, and then asks only for the interaction plot.",
+   "expected": [
+    {
+     "what": "coefficient",
+     "term": "Intercept",
+     "value": "65",
+     "where": {
+      "quiz": "Quiz for module 2",
+      "file": "quiz2-2015",
+      "question": 5,
+      "question_id": "fe60563d53ccb8080f1509ff8f53fbf0",
+      "source_kind": "question",
+      "quote": "y = 65 + 5 x_\\text{W} + 20 x_\\text{S} + 10 x_\\text{W} x_\\text{S}"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "Intercept",
+      "model": "W*S"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "W",
+     "value": "5",
+     "where": {
+      "quiz": "Quiz for module 2",
+      "file": "quiz2-2015",
+      "question": 5,
+      "question_id": "fe60563d53ccb8080f1509ff8f53fbf0",
+      "source_kind": "question",
+      "quote": "y = 65 + 5 x_\\text{W} + 20 x_\\text{S} + 10 x_\\text{W} x_\\text{S}"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "W",
+      "model": "W*S"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "S",
+     "value": "20",
+     "where": {
+      "quiz": "Quiz for module 2",
+      "file": "quiz2-2015",
+      "question": 5,
+      "question_id": "fe60563d53ccb8080f1509ff8f53fbf0",
+      "source_kind": "question",
+      "quote": "y = 65 + 5 x_\\text{W} + 20 x_\\text{S} + 10 x_\\text{W} x_\\text{S}"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "S",
+      "model": "W*S"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "W·S",
+     "value": "10",
+     "where": {
+      "quiz": "Quiz for module 2",
+      "file": "quiz2-2015",
+      "question": 5,
+      "question_id": "fe60563d53ccb8080f1509ff8f53fbf0",
+      "source_kind": "question",
+      "quote": "y = 65 + 5 x_\\text{W} + 20 x_\\text{S} + 10 x_\\text{W} x_\\text{S}"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "W·S",
+      "model": "W*S"
+     }
+    }
+   ]
+  },
+  {
+   "name": "efi-quiz2-popcorn-kernels",
+   "title": "The popcorn: cooking time A and popcorn type B, yellow corn coded low",
+   "kind": "quiz question",
+   "where": {
+    "quiz": "Quiz for module 2",
+    "file": "quiz2-2015",
+    "question": 6,
+    "question_id": "6daf380331b1310b22a4633a88ab79ed",
+    "images": ["https://d396qusza40orc.cloudfront.net/experiments/quiz_assets/week2/255j6dy.png"]
+   },
+   "factors": [
+    {
+     "name": "A",
+     "description": "Cooking time",
+     "low": 160,
+     "high": 200,
+     "units": "s",
+     "type": "numeric"
+    },
+    {
+     "name": "B",
+     "description": "Popcorn type",
+     "low": "Yellow corn",
+     "high": "White corn",
+     "units": "",
+     "type": "categorical"
+    }
+   ],
+   "responses": [
+    {
+     "name": "popped",
+     "description": "Number of popped kernels",
+     "units": ""
+    }
+   ],
+   "design": {
+    "type": "2^2 full factorial",
+    "n_runs": 4
+   },
+   "runs": {
+    "columns": ["standard order", "A", "B", "popped"],
+    "coded": false,
+    "rows": [
+     [1, 160, "Yellow corn", 62],
+     [2, 200, "Yellow corn", 80],
+     [3, 160, "White corn", 52],
+     [4, 200, "White corn", 74]
+    ],
+    "notes": "the table image 255j6dy.png, which prints the sign beside each setting"
+   },
+   "expected": [
+    {
+     "what": "coefficient",
+     "term": "Intercept",
+     "value": "67",
+     "where": {
+      "quiz": "Quiz for module 2",
+      "file": "quiz2-2015",
+      "question": 6,
+      "question_id": "6daf380331b1310b22a4633a88ab79ed",
+      "option_id": "bdf2c6b2b677d3b1bbcd718fcf1a6fb5",
+      "answer_key": "correct",
+      "source_kind": "option",
+      "quote": "A prediction model would be: $$y = 67 + 10x_\\text{A} -4x_\\text{B} +1x_\\text{A} x_\\text{B}$$"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "Intercept",
+      "model": "A*B"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "A",
+     "value": "10",
+     "where": {
+      "quiz": "Quiz for module 2",
+      "file": "quiz2-2015",
+      "question": 6,
+      "question_id": "6daf380331b1310b22a4633a88ab79ed",
+      "option_id": "bdf2c6b2b677d3b1bbcd718fcf1a6fb5",
+      "answer_key": "correct",
+      "source_kind": "option",
+      "quote": "A prediction model would be: $$y = 67 + 10x_\\text{A} -4x_\\text{B} +1x_\\text{A} x_\\text{B}$$"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "A",
+      "model": "A*B"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "B",
+     "value": "-4",
+     "where": {
+      "quiz": "Quiz for module 2",
+      "file": "quiz2-2015",
+      "question": 6,
+      "question_id": "6daf380331b1310b22a4633a88ab79ed",
+      "option_id": "bdf2c6b2b677d3b1bbcd718fcf1a6fb5",
+      "answer_key": "correct",
+      "source_kind": "option",
+      "quote": "A prediction model would be: $$y = 67 + 10x_\\text{A} -4x_\\text{B} +1x_\\text{A} x_\\text{B}$$"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "B",
+      "model": "A*B"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "A·B",
+     "value": "1",
+     "where": {
+      "quiz": "Quiz for module 2",
+      "file": "quiz2-2015",
+      "question": 6,
+      "question_id": "6daf380331b1310b22a4633a88ab79ed",
+      "option_id": "bdf2c6b2b677d3b1bbcd718fcf1a6fb5",
+      "answer_key": "correct",
+      "source_kind": "option",
+      "quote": "A prediction model would be: $$y = 67 + 10x_\\text{A} -4x_\\text{B} +1x_\\text{A} x_\\text{B}$$"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "A·B",
+      "model": "A*B"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "Intercept",
+     "value": "67",
+     "where": {
+      "quiz": "Quiz for module 2",
+      "file": "quiz2-2015",
+      "question": 6,
+      "question_id": "6daf380331b1310b22a4633a88ab79ed",
+      "option_id": "173485057330c0277cf7bf458bcabb69",
+      "answer_key": "incorrect",
+      "source_kind": "option",
+      "quote": "A prediction model would be $$y = 67 + 10x_\\text{A} +4x_\\text{B} - 1x_\\text{A} x_\\text{B}$$ ."
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "Intercept",
+      "model": "A*B"
+     },
+     "note": "in an option keyed incorrect, this coefficient agrees with the fit to within the rounding of its printed digits: the option is wrong in its others"
+    },
+    {
+     "what": "coefficient",
+     "term": "A",
+     "value": "10",
+     "where": {
+      "quiz": "Quiz for module 2",
+      "file": "quiz2-2015",
+      "question": 6,
+      "question_id": "6daf380331b1310b22a4633a88ab79ed",
+      "option_id": "173485057330c0277cf7bf458bcabb69",
+      "answer_key": "incorrect",
+      "source_kind": "option",
+      "quote": "A prediction model would be $$y = 67 + 10x_\\text{A} +4x_\\text{B} - 1x_\\text{A} x_\\text{B}$$ ."
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "A",
+      "model": "A*B"
+     },
+     "note": "in an option keyed incorrect, this coefficient agrees with the fit to within the rounding of its printed digits: the option is wrong in its others"
+    },
+    {
+     "what": "coefficient",
+     "term": "B",
+     "value": "+4",
+     "where": {
+      "quiz": "Quiz for module 2",
+      "file": "quiz2-2015",
+      "question": 6,
+      "question_id": "6daf380331b1310b22a4633a88ab79ed",
+      "option_id": "173485057330c0277cf7bf458bcabb69",
+      "answer_key": "incorrect",
+      "source_kind": "option",
+      "quote": "A prediction model would be $$y = 67 + 10x_\\text{A} +4x_\\text{B} - 1x_\\text{A} x_\\text{B}$$ ."
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "B",
+      "model": "A*B",
+      "disagreement": "the answer key marks this option incorrect; the fit gives -4"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "A·B",
+     "value": "-1",
+     "where": {
+      "quiz": "Quiz for module 2",
+      "file": "quiz2-2015",
+      "question": 6,
+      "question_id": "6daf380331b1310b22a4633a88ab79ed",
+      "option_id": "173485057330c0277cf7bf458bcabb69",
+      "answer_key": "incorrect",
+      "source_kind": "option",
+      "quote": "A prediction model would be $$y = 67 + 10x_\\text{A} +4x_\\text{B} - 1x_\\text{A} x_\\text{B}$$ ."
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "A·B",
+      "model": "A*B",
+      "disagreement": "the answer key marks this option incorrect; the fit gives 1"
+     }
+    },
+    {
+     "what": "effect",
+     "term": "B",
+     "value": "reduce the number of popped kernels by 8, on average",
+     "where": {
+      "quiz": "Quiz for module 2",
+      "file": "quiz2-2015",
+      "question": 6,
+      "question_id": "6daf380331b1310b22a4633a88ab79ed",
+      "option_id": "7644f65c0d17185cc4c3fd21c257996c",
+      "answer_key": "correct",
+      "source_kind": "option",
+      "quote": "The effect of switching from yellow corn to white corn is to reduce the number of popped kernels by 8, on average."
+     },
+     "check": {
+      "kind": "effect",
+      "term": "B",
+      "model": "A*B",
+      "printed": "-8"
+     }
+    },
+    {
+     "what": "effect",
+     "term": "B",
+     "value": "reduce the number of popped kernels by 8, on average",
+     "analysis": "from white to yellow corn is the effect of B reversed, so a reduction of 8 is an effect of B of +8",
+     "where": {
+      "quiz": "Quiz for module 2",
+      "file": "quiz2-2015",
+      "question": 6,
+      "question_id": "6daf380331b1310b22a4633a88ab79ed",
+      "option_id": "51b1fcb94fa744c3f214f433410f1cde",
+      "answer_key": "incorrect",
+      "source_kind": "option",
+      "quote": "The effect of switching from white corn to yellow corn is to reduce the number of popped kernels by 8, on average."
+     },
+     "check": {
+      "kind": "effect",
+      "term": "B",
+      "model": "A*B",
+      "printed": "8",
+      "disagreement": "the answer key marks this option incorrect: going from white to yellow corn increases the number popped by 8"
+     }
+    },
+    {
+     "what": "effect",
+     "term": "B",
+     "value": "increases the outcome by 8, on average",
+     "analysis": "from white to yellow corn is the effect of B reversed, so an increase of 8 is an effect of B of -8",
+     "where": {
+      "quiz": "Quiz for module 2",
+      "file": "quiz2-2015",
+      "question": 6,
+      "question_id": "6daf380331b1310b22a4633a88ab79ed",
+      "option_id": "51b1fcb94fa744c3f214f433410f1cde",
+      "answer_key": "incorrect",
+      "source_kind": "option explanation",
+      "quote": "Going from white corn to yellow corn increases the outcome by 8, on average."
+     },
+     "check": {
+      "kind": "effect",
+      "term": "B",
+      "model": "A*B",
+      "printed": "-8"
+     }
+    },
+    {
+     "what": "prediction",
+     "term": null,
+     "value": "71 kernels",
+     "analysis": "180 s is the centre of A, coded 0; yellow corn is B = -1",
+     "where": {
+      "quiz": "Quiz for module 2",
+      "file": "quiz2-2015",
+      "question": 6,
+      "question_id": "6daf380331b1310b22a4633a88ab79ed",
+      "option_id": "b85aa62f00ec94fd7314e9bc2de1b3f3",
+      "answer_key": "correct",
+      "source_kind": "option",
+      "quote": "When using yellow corn, the predicted number of popped corn at 180 seconds would be 71 kernels."
+     },
+     "check": {
+      "kind": "prediction",
+      "model": "A*B",
+      "point": {
+       "A": 0,
+       "B": -1
+      },
+      "printed": "71"
+     }
+    },
+    {
+     "what": "prediction",
+     "term": null,
+     "value": "63 kernels",
+     "analysis": "180 s is the centre of A, coded 0; yellow corn is B = -1",
+     "where": {
+      "quiz": "Quiz for module 2",
+      "file": "quiz2-2015",
+      "question": 6,
+      "question_id": "6daf380331b1310b22a4633a88ab79ed",
+      "option_id": "2a2e6aa0774c5f26b50c118d4bae17e1",
+      "answer_key": "incorrect",
+      "source_kind": "option",
+      "quote": "When using yellow corn, the predicted number of popped corn at 180 seconds would be 63 kernels."
+     },
+     "check": {
+      "kind": "prediction",
+      "model": "A*B",
+      "point": {
+       "A": 0,
+       "B": -1
+      },
+      "printed": "63",
+      "disagreement": "the answer key marks this option incorrect: the model predicts 71 for yellow corn at 180 s; 63 is its prediction for white corn"
+     }
+    }
+   ]
+  },
+  {
+   "name": "efi-quiz2-pea-plant-height",
+   "title": "Pea plants: amount of soil A and daily water B, and the prediction at the baseline",
+   "kind": "quiz question",
+   "where": {
+    "quiz": "Quiz for module 2",
+    "file": "quiz2-2015",
+    "question": 8,
+    "question_id": "4ee3605b02200a3637b6d0c20ee888a0",
+    "images": ["https://d396qusza40orc.cloudfront.net/experiments/quiz_assets/week2/2my5e05.png"]
+   },
+   "factors": [
+    {
+     "name": "A",
+     "description": "Amount of soil",
+     "low": 200,
+     "high": 400,
+     "units": "g",
+     "type": "numeric"
+    },
+    {
+     "name": "B",
+     "description": "Amount of water added daily",
+     "low": 50,
+     "high": 100,
+     "units": "mL",
+     "type": "numeric"
+    }
+   ],
+   "responses": [
+    {
+     "name": "height",
+     "description": "Height of the plant after 14 days",
+     "units": "cm"
+    }
+   ],
+   "design": {
+    "type": "2^2 full factorial",
+    "n_runs": 4
+   },
+   "runs": {
+    "columns": ["standard order", "A", "B", "height"],
+    "coded": false,
+    "rows": [
+     [1, 200, 50, 4],
+     [2, 400, 50, 5],
+     [3, 200, 100, 6],
+     [4, 400, 100, 8]
+    ],
+    "notes": "the table image 2my5e05.png, which prints the sign beside each setting"
+   },
+   "expected": [
+    {
+     "what": "coefficient",
+     "term": "Intercept",
+     "value": "5.75",
+     "where": {
+      "quiz": "Quiz for module 2",
+      "file": "quiz2-2015",
+      "question": 8,
+      "question_id": "4ee3605b02200a3637b6d0c20ee888a0",
+      "source_kind": "question",
+      "quote": "y = 5.75 + 0.75 x_\\text{A} + 1.25 x_\\text{B} + 0.25 x_\\text{A} x_\\text{B}"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "Intercept",
+      "model": "A*B"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "A",
+     "value": "0.75",
+     "where": {
+      "quiz": "Quiz for module 2",
+      "file": "quiz2-2015",
+      "question": 8,
+      "question_id": "4ee3605b02200a3637b6d0c20ee888a0",
+      "source_kind": "question",
+      "quote": "y = 5.75 + 0.75 x_\\text{A} + 1.25 x_\\text{B} + 0.25 x_\\text{A} x_\\text{B}"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "A",
+      "model": "A*B"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "B",
+     "value": "1.25",
+     "where": {
+      "quiz": "Quiz for module 2",
+      "file": "quiz2-2015",
+      "question": 8,
+      "question_id": "4ee3605b02200a3637b6d0c20ee888a0",
+      "source_kind": "question",
+      "quote": "y = 5.75 + 0.75 x_\\text{A} + 1.25 x_\\text{B} + 0.25 x_\\text{A} x_\\text{B}"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "B",
+      "model": "A*B"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "A·B",
+     "value": "0.25",
+     "where": {
+      "quiz": "Quiz for module 2",
+      "file": "quiz2-2015",
+      "question": 8,
+      "question_id": "4ee3605b02200a3637b6d0c20ee888a0",
+      "source_kind": "question",
+      "quote": "y = 5.75 + 0.75 x_\\text{A} + 1.25 x_\\text{B} + 0.25 x_\\text{A} x_\\text{B}"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "A·B",
+      "model": "A*B"
+     }
+    },
+    {
+     "what": "prediction",
+     "term": null,
+     "value": "$$\\hat{y}=4$$",
+     "analysis": "300 g and 75 mL are the centres of A and B, both coded 0",
+     "where": {
+      "quiz": "Quiz for module 2",
+      "file": "quiz2-2015",
+      "question": 8,
+      "question_id": "4ee3605b02200a3637b6d0c20ee888a0",
+      "option_id": "105c70d0a94023eb179de537cf9a4467",
+      "answer_key": "incorrect",
+      "source_kind": "option",
+      "quote": "$$\\hat{y}=4$$"
+     },
+     "check": {
+      "kind": "prediction",
+      "model": "A*B",
+      "point": {
+       "A": 0,
+       "B": 0
+      },
+      "printed": "4",
+      "disagreement": "the answer key marks this option incorrect: the model predicts 5.75 cm at 300 g and 75 mL; 4 cm is run 1, at 200 g and 50 mL"
+     }
+    },
+    {
+     "what": "prediction",
+     "term": null,
+     "value": "$$\\hat{y}=5.75$$",
+     "analysis": "300 g and 75 mL are the centres of A and B, both coded 0",
+     "where": {
+      "quiz": "Quiz for module 2",
+      "file": "quiz2-2015",
+      "question": 8,
+      "question_id": "4ee3605b02200a3637b6d0c20ee888a0",
+      "option_id": "664fa6bdd20b094f1dabd89bce258c22",
+      "answer_key": "correct",
+      "source_kind": "option",
+      "quote": "$$\\hat{y}=5.75$$"
+     },
+     "check": {
+      "kind": "prediction",
+      "model": "A*B",
+      "point": {
+       "A": 0,
+       "B": 0
+      },
+      "printed": "5.75"
+     }
+    },
+    {
+     "what": "prediction",
+     "term": null,
+     "value": "$$\\hat{y}=3.75$$",
+     "analysis": "300 g and 75 mL are the centres of A and B, both coded 0",
+     "where": {
+      "quiz": "Quiz for module 2",
+      "file": "quiz2-2015",
+      "question": 8,
+      "question_id": "4ee3605b02200a3637b6d0c20ee888a0",
+      "option_id": "7455aa09d91cdb2507eb30cf0c79c1c8",
+      "answer_key": "incorrect",
+      "source_kind": "option",
+      "quote": "$$\\hat{y}=3.75$$"
+     },
+     "check": {
+      "kind": "prediction",
+      "model": "A*B",
+      "point": {
+       "A": 0,
+       "B": 0
+      },
+      "printed": "3.75",
+      "disagreement": "the answer key marks this option incorrect: the model predicts 5.75 cm at 300 g and 75 mL; 3.75 is the main effects' prediction at 200 g and 50 mL"
+     }
+    },
+    {
+     "what": "prediction",
+     "term": null,
+     "value": "$$\\hat{y}=0$$",
+     "analysis": "300 g and 75 mL are the centres of A and B, both coded 0",
+     "where": {
+      "quiz": "Quiz for module 2",
+      "file": "quiz2-2015",
+      "question": 8,
+      "question_id": "4ee3605b02200a3637b6d0c20ee888a0",
+      "option_id": "613fa4bf7bf3f3692cf8c9397405dd95",
+      "answer_key": "incorrect",
+      "source_kind": "option",
+      "quote": "$$\\hat{y}=0$$"
+     },
+     "check": {
+      "kind": "prediction",
+      "model": "A*B",
+      "point": {
+       "A": 0,
+       "B": 0
+      },
+      "printed": "0",
+      "disagreement": "the answer key marks this option incorrect: the model predicts 5.75 cm at 300 g and 75 mL; 0 is the coded value of each setting"
+     }
+    },
+    {
+     "what": "coded values",
+     "term": null,
+     "value": "$$x_\\text{A} = 0$$ and $$x_\\text{B} = 0$$",
+     "where": {
+      "quiz": "Quiz for module 2",
+      "file": "quiz2-2015",
+      "question": 8,
+      "question_id": "4ee3605b02200a3637b6d0c20ee888a0",
+      "source_kind": "question explanation",
+      "quote": "The coded value for $$x_\\text{A} = 0$$, since 300 grams is midway between 200 and 400 grams. The coded value for $$x_\\text{B} = 0$$, since 75 mL is midway between 50 and 100 mL."
+     },
+     "check": {
+      "manual": "the coded values of single settings, a unit conversion rather than a result: each setting is the centre of its range"
+     }
+    },
+    {
+     "what": "prediction",
+     "term": null,
+     "value": "$$\\hat{y} = 5.75 + 0 + 0 + 0 = 5.75$$",
+     "where": {
+      "quiz": "Quiz for module 2",
+      "file": "quiz2-2015",
+      "question": 8,
+      "question_id": "4ee3605b02200a3637b6d0c20ee888a0",
+      "source_kind": "question explanation",
+      "quote": "Substituting these two coded values into the equation gives $$\\hat{y} = 5.75 + 0 + 0 + 0 = 5.75$$"
+     },
+     "check": {
+      "kind": "prediction",
+      "model": "A*B",
+      "point": {
+       "A": 0,
+       "B": 0
+      },
+      "printed": "5.75"
+     }
+    }
+   ]
+  },
+  {
+   "name": "efi-quiz2-reactor-yield-interaction",
+   "title": "Reactor yield: jacket temperature T and amount of additive D, and their interaction",
+   "kind": "quiz question",
+   "where": {
+    "quiz": "Quiz for module 2",
+    "file": "quiz2-2015",
+    "question": 9,
+    "question_id": "e7f86c3c04ac501edcdfecf4c3258871",
+    "images": ["https://d396qusza40orc.cloudfront.net/experiments/quiz_assets/week2/reactor-yields.png"]
+   },
+   "factors": [
+    {
+     "name": "T",
+     "description": "Temperature of the jacket",
+     "low": 390,
+     "high": 410,
+     "units": "°C",
+     "type": "numeric"
+    },
+    {
+     "name": "D",
+     "description": "Amount of additive",
+     "low": 0.5,
+     "high": 1.25,
+     "units": "kg",
+     "type": "numeric"
+    }
+   ],
+   "responses": [
+    {
+     "name": "yield",
+     "description": "Yield",
+     "units": "%"
+    }
+   ],
+   "design": {
+    "type": "2^2 full factorial",
+    "n_runs": 4
+   },
+   "runs": {
+    "columns": ["experiment", "T", "D", "yield"],
+    "coded": false,
+    "rows": [
+     [1, 390, 0.5, 77],
+     [2, 410, 0.5, 79],
+     [3, 390, 1.25, 81],
+     [4, 410, 1.25, 89]
+    ],
+    "notes": "the table image reactor-yields.png, which prints the coded value beside each setting"
+   },
+   "expected": [
+    {
+     "what": "coefficient",
+     "term": "T·D",
+     "value": "2.5",
+     "where": {
+      "quiz": "Quiz for module 2",
+      "file": "quiz2-2015",
+      "question": 9,
+      "question_id": "e7f86c3c04ac501edcdfecf4c3258871",
+      "option_id": "180655ef9638bf8c102d3b1c07f946e2",
+      "answer_key": "incorrect",
+      "source_kind": "option",
+      "quote": "2.5"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "T·D",
+      "model": "T*D",
+      "disagreement": "the answer key marks this option incorrect: b_TD is 1.5"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "T·D",
+     "value": "1.5",
+     "where": {
+      "quiz": "Quiz for module 2",
+      "file": "quiz2-2015",
+      "question": 9,
+      "question_id": "e7f86c3c04ac501edcdfecf4c3258871",
+      "option_id": "26ab587a731bcfebd567f015b1147541",
+      "answer_key": "correct",
+      "source_kind": "option",
+      "quote": "1.5"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "T·D",
+      "model": "T*D"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "T·D",
+     "value": "2",
+     "where": {
+      "quiz": "Quiz for module 2",
+      "file": "quiz2-2015",
+      "question": 9,
+      "question_id": "e7f86c3c04ac501edcdfecf4c3258871",
+      "option_id": "80beffa858d4fe7b490e7c27167949cb",
+      "answer_key": "incorrect",
+      "source_kind": "option",
+      "quote": "2"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "T·D",
+      "model": "T*D"
+     },
+     "note": "in an option keyed incorrect, 2 agrees with b_TD = 1.5 only to within the rounding of a whole number; the option keyed correct prints 1.5 exactly. 2 is also the change in T at low D"
+    },
+    {
+     "what": "coefficient",
+     "term": "T·D",
+     "value": "3",
+     "where": {
+      "quiz": "Quiz for module 2",
+      "file": "quiz2-2015",
+      "question": 9,
+      "question_id": "e7f86c3c04ac501edcdfecf4c3258871",
+      "option_id": "ff4424d9f70cd97f4895e2f314e3fcc6",
+      "answer_key": "incorrect",
+      "source_kind": "option",
+      "quote": "3"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "T·D",
+      "model": "T*D",
+      "disagreement": "the answer key marks this option incorrect: b_TD is 1.5; 3 is the interaction effect, twice b_TD"
+     }
+    },
+    {
+     "what": "conditional effect",
+     "term": "T",
+     "value": "89 - 81 = +8%",
+     "analysis": "the effect of T on the two runs at high D",
+     "where": {
+      "quiz": "Quiz for module 2",
+      "file": "quiz2-2015",
+      "question": 9,
+      "question_id": "e7f86c3c04ac501edcdfecf4c3258871",
+      "source_kind": "question explanation",
+      "quote": "$$y$$ change in T at high values of D: 89 - 81 = +8%"
+     },
+     "check": [
+      {
+       "kind": "effect",
+       "term": "T",
+       "model": "T",
+       "runs": [3, 4],
+       "printed": "+8"
+      },
+      {
+       "kind": "effect",
+       "term": "T",
+       "model": "T",
+       "runs": [3, 4],
+       "printed": "89 - 81",
+       "expression": true
+      }
+     ]
+    },
+    {
+     "what": "conditional effect",
+     "term": "T",
+     "value": "79 - 77 = +2%",
+     "analysis": "the effect of T on the two runs at low D",
+     "where": {
+      "quiz": "Quiz for module 2",
+      "file": "quiz2-2015",
+      "question": 9,
+      "question_id": "e7f86c3c04ac501edcdfecf4c3258871",
+      "source_kind": "question explanation",
+      "quote": "$$y$$ change in T at low values of D: 79 - 77 = +2%"
+     },
+     "check": [
+      {
+       "kind": "effect",
+       "term": "T",
+       "model": "T",
+       "runs": [1, 2],
+       "printed": "+2"
+      },
+      {
+       "kind": "effect",
+       "term": "T",
+       "model": "T",
+       "runs": [1, 2],
+       "printed": "79 - 77",
+       "expression": true
+      }
+     ]
+    },
+    {
+     "what": "interaction effect",
+     "term": "T·D",
+     "value": "$$\\frac{8 - 2}{2} = 3$$",
+     "analysis": "half the difference of T's two conditional effects: the interaction effect, twice b_TD",
+     "where": {
+      "quiz": "Quiz for module 2",
+      "file": "quiz2-2015",
+      "question": 9,
+      "question_id": "e7f86c3c04ac501edcdfecf4c3258871",
+      "source_kind": "question explanation",
+      "quote": "$$y$$ change in T at high values of D: 89 - 81 = +8% $$y$$ change in T at low values of D: 79 - 77 = +2% The half difference = $$\\frac{8 - 2}{2} = 3$$ Report half this value as $$b_\\text{TD}$$ = 1.5"
+     },
+     "check": [
+      {
+       "kind": "effect",
+       "term": "T·D",
+       "model": "T*D",
+       "printed": "3"
+      },
+      {
+       "kind": "effect",
+       "term": "T·D",
+       "model": "T*D",
+       "printed": "(8 - 2) / 2",
+       "expression": true
+      }
+     ]
+    },
+    {
+     "what": "coefficient",
+     "term": "T·D",
+     "value": "1.5",
+     "where": {
+      "quiz": "Quiz for module 2",
+      "file": "quiz2-2015",
+      "question": 9,
+      "question_id": "e7f86c3c04ac501edcdfecf4c3258871",
+      "source_kind": "question explanation",
+      "quote": "$$y$$ change in T at high values of D: 89 - 81 = +8% $$y$$ change in T at low values of D: 79 - 77 = +2% The half difference = $$\\frac{8 - 2}{2} = 3$$ Report half this value as $$b_\\text{TD}$$ = 1.5"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "T·D",
+      "model": "T*D"
+     }
+    },
+    {
+     "what": "conditional effect",
+     "term": "D",
+     "value": "89 - 79 = +10%",
+     "analysis": "the effect of D on the two runs at high T",
+     "where": {
+      "quiz": "Quiz for module 2",
+      "file": "quiz2-2015",
+      "question": 9,
+      "question_id": "e7f86c3c04ac501edcdfecf4c3258871",
+      "source_kind": "question explanation",
+      "quote": "$$y$$ change in D at high values of T: 89 - 79 = +10%"
+     },
+     "check": [
+      {
+       "kind": "effect",
+       "term": "D",
+       "model": "D",
+       "runs": [2, 4],
+       "printed": "+10"
+      },
+      {
+       "kind": "effect",
+       "term": "D",
+       "model": "D",
+       "runs": [2, 4],
+       "printed": "89 - 79",
+       "expression": true
+      }
+     ]
+    },
+    {
+     "what": "conditional effect",
+     "term": "D",
+     "value": "81 - 77 = +4%",
+     "analysis": "the effect of D on the two runs at low T",
+     "where": {
+      "quiz": "Quiz for module 2",
+      "file": "quiz2-2015",
+      "question": 9,
+      "question_id": "e7f86c3c04ac501edcdfecf4c3258871",
+      "source_kind": "question explanation",
+      "quote": "$$y$$ change in D at low values of T: 81 - 77 = +4%"
+     },
+     "check": [
+      {
+       "kind": "effect",
+       "term": "D",
+       "model": "D",
+       "runs": [1, 3],
+       "printed": "+4"
+      },
+      {
+       "kind": "effect",
+       "term": "D",
+       "model": "D",
+       "runs": [1, 3],
+       "printed": "81 - 77",
+       "expression": true
+      }
+     ]
+    },
+    {
+     "what": "interaction effect",
+     "term": "T·D",
+     "value": "$$\\frac{10 - 4}{2} = 3$$",
+     "analysis": "half the difference of D's two conditional effects: the interaction effect, twice b_TD",
+     "where": {
+      "quiz": "Quiz for module 2",
+      "file": "quiz2-2015",
+      "question": 9,
+      "question_id": "e7f86c3c04ac501edcdfecf4c3258871",
+      "source_kind": "question explanation",
+      "quote": "$$y$$ change in D at high values of T: 89 - 79 = +10% $$y$$ change in D at low values of T: 81 - 77 = +4% The half difference = $$\\frac{10 - 4}{2} = 3$$ Report half this value as $$b_\\text{TD}$$ = 1.5"
+     },
+     "check": [
+      {
+       "kind": "effect",
+       "term": "T·D",
+       "model": "T*D",
+       "printed": "3"
+      },
+      {
+       "kind": "effect",
+       "term": "T·D",
+       "model": "T*D",
+       "printed": "(10 - 4) / 2",
+       "expression": true
+      }
+     ]
+    },
+    {
+     "what": "coefficient",
+     "term": "T·D",
+     "value": "1.5",
+     "where": {
+      "quiz": "Quiz for module 2",
+      "file": "quiz2-2015",
+      "question": 9,
+      "question_id": "e7f86c3c04ac501edcdfecf4c3258871",
+      "source_kind": "question explanation",
+      "quote": "$$y$$ change in D at high values of T: 89 - 79 = +10% $$y$$ change in D at low values of T: 81 - 77 = +4% The half difference = $$\\frac{10 - 4}{2} = 3$$ Report half this value as $$b_\\text{TD}$$ = 1.5"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "T·D",
+      "model": "T*D"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "T·D",
+     "value": "$$\\frac{77-79-81+89}{4} = 1.5$$",
+     "where": {
+      "quiz": "Quiz for module 2",
+      "file": "quiz2-2015",
+      "question": 9,
+      "question_id": "e7f86c3c04ac501edcdfecf4c3258871",
+      "source_kind": "question explanation",
+      "quote": "or, for those of you that prefer the least squares model solution from the $$(\\mathbf{X}^T\\mathbf{X})^{-1}\\mathbf{X}^T\\mathbf{y}$$ equation: $$\\frac{77-79-81+89}{4} = 1.5$$"
+     },
+     "check": [
+      {
+       "kind": "coefficient",
+       "term": "T·D",
+       "model": "T*D",
+       "printed": "1.5"
+      },
+      {
+       "kind": "coefficient",
+       "term": "T·D",
+       "model": "T*D",
+       "printed": "(77 - 79 - 81 + 89) / 4",
+       "expression": true
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "name": "efi-quiz2-practice-blown-film-haze",
+   "title": "Jesus's blown-film machine: width A, cooling rate B and film thickness C, with the haze judged hazy or clear",
+   "kind": "quiz question",
+   "where": {
+    "quiz": "Ungraded practice quiz 2",
+    "file": "quiz2-UG-2015",
+    "question": 1,
+    "question_id": "2c2738aa8526c77daf40951a50ac17e6",
+    "images": ["https://d396qusza40orc.cloudfront.net/experiments/quiz_assets/week2/Film_extrusion_wikipedia.jpg"]
+   },
+   "factors": [
+    {
+     "name": "A",
+     "description": "Width",
+     "low": "narrow",
+     "high": "wide",
+     "units": "",
+     "type": "categorical"
+    },
+    {
+     "name": "B",
+     "description": "Cooling rate",
+     "low": "slow",
+     "high": "fast",
+     "units": "",
+     "type": "categorical"
+    },
+    {
+     "name": "C",
+     "description": "Film thickness",
+     "low": "thin",
+     "high": "thick",
+     "units": "",
+     "type": "categorical"
+    }
+   ],
+   "responses": [
+    {
+     "name": "haze",
+     "description": "Haze of the film, judged hazy or clear",
+     "units": ""
+    }
+   ],
+   "design": {
+    "type": "2^3 full factorial",
+    "n_runs": 8
+   },
+   "runs": {
+    "columns": ["A", "B", "C", "haze"],
+    "coded": false,
+    "rows": [
+     ["narrow", "slow", "thick", "hazy"],
+     ["wide", "slow", "thin", "hazy"],
+     ["wide", "fast", "thick", "clear"],
+     ["narrow", "fast", "thin", "clear"],
+     ["narrow", "slow", "thin", "hazy"],
+     ["wide", "fast", "thin", "clear"],
+     ["wide", "slow", "thick", "hazy"],
+     ["narrow", "fast", "thick", "clear"]
+    ],
+    "notes": "in the order printed; the quiz names the levels without coding them, so low and high are a reader's choice"
+   },
+   "notes": "Every run at slow cooling is hazy and every run at fast cooling clear, at both widths and both thicknesses: the answer key (cooling rate matters, width and thickness do not, no interaction) agrees with the runs.",
+   "expected": [],
+   "unanswered": "the options are judgements in words on a response recorded as hazy or clear, with no number to recompute; the runs are kept as data"
+  },
+  {
+   "name": "efi-quiz2-practice-airport-wait",
+   "title": "Departure wait times at Hamilton airport: check-in staff C, kiosk staff K and security staff S",
+   "kind": "quiz question",
+   "where": {
+    "quiz": "Ungraded practice quiz 2",
+    "file": "quiz2-UG-2015",
+    "question": 5,
+    "question_id": "505f0fda19b60772b714cfa71bb6af3d",
+    "images": ["https://d396qusza40orc.cloudfront.net/experiments/quiz_assets/week2/practice2-cubeplot.png"]
+   },
+   "factors": [
+    {
+     "name": "C",
+     "description": "Personnel at the check-in counter",
+     "low": 4,
+     "high": 6,
+     "units": "staff",
+     "type": "numeric"
+    },
+    {
+     "name": "K",
+     "description": "Personnel helping at the automatic check-in kiosks",
+     "low": 1,
+     "high": 2,
+     "units": "staff",
+     "type": "numeric"
+    },
+    {
+     "name": "S",
+     "description": "Lines open (personnel) at the security gate",
+     "low": 2,
+     "high": 4,
+     "units": "staff",
+     "type": "numeric"
+    }
+   ],
+   "responses": [
+    {
+     "name": "wait",
+     "description": "Average wait time, from the check-in line through the security gates",
+     "units": "min"
+    }
+   ],
+   "design": {
+    "type": "2^3 full factorial",
+    "n_runs": 8
+   },
+   "runs": {
+    "columns": ["C", "K", "S", "wait"],
+    "coded": false,
+    "rows": [
+     [4, 1, 2, 56],
+     [6, 1, 2, 42],
+     [4, 2, 2, 52],
+     [6, 2, 2, 46],
+     [4, 1, 4, 46],
+     [6, 1, 4, 38],
+     [4, 2, 4, 40],
+     [6, 2, 4, 32]
+    ],
+    "notes": "read off the cube plot practice2-cubeplot.png (C across, K up, S into the page), and listed in standard order"
+   },
+   "notes": "Question 6 continues this example with the model 44 - 4.5 x_C - 1.5 x_K - 5 x_S, which 'ignores the small interaction terms'. The fit of C*K*S gives interaction coefficients C·K +1, C·S +0.5, K·S -1.5 and C·K·S -1 min: K·S is as large as K's own coefficient. One coded unit of S is one security staff member, so the coefficient of S is also the change for each extra staff member.",
+   "expected": [
+    {
+     "what": "effect",
+     "term": "C",
+     "value": "the wait times decrease by 9 minutes on average",
+     "where": {
+      "quiz": "Ungraded practice quiz 2",
+      "file": "quiz2-UG-2015",
+      "question": 5,
+      "question_id": "505f0fda19b60772b714cfa71bb6af3d",
+      "option_id": "7193d11f729c92fdffa66620e34b5c70",
+      "answer_key": "correct",
+      "source_kind": "option",
+      "quote": "The main effect of C: when going from 4 staff to 6 staff, the wait times decrease by 9 minutes on average."
+     },
+     "check": {
+      "kind": "effect",
+      "term": "C",
+      "model": "C*K*S",
+      "printed": "-9"
+     }
+    },
+    {
+     "what": "effect",
+     "term": "C",
+     "value": "$$\\dfrac{(32-40) + (38-46) + (46-52) + (42-56)}{4} = -9$$",
+     "where": {
+      "quiz": "Ungraded practice quiz 2",
+      "file": "quiz2-UG-2015",
+      "question": 5,
+      "question_id": "505f0fda19b60772b714cfa71bb6af3d",
+      "option_id": "7193d11f729c92fdffa66620e34b5c70",
+      "answer_key": "correct",
+      "source_kind": "option explanation",
+      "quote": "$$\\dfrac{(32-40) + (38-46) + (46-52) + (42-56)}{4} = -9$$"
+     },
+     "check": [
+      {
+       "kind": "effect",
+       "term": "C",
+       "model": "C*K*S",
+       "printed": "-9"
+      },
+      {
+       "kind": "effect",
+       "term": "C",
+       "model": "C*K*S",
+       "printed": "((32-40) + (38-46) + (46-52) + (42-56)) / 4",
+       "expression": true
+      }
+     ]
+    },
+    {
+     "what": "effect",
+     "term": "C",
+     "value": "the wait times decrease by 4.5 minutes on average",
+     "where": {
+      "quiz": "Ungraded practice quiz 2",
+      "file": "quiz2-UG-2015",
+      "question": 5,
+      "question_id": "505f0fda19b60772b714cfa71bb6af3d",
+      "option_id": "85fe3f31038bf83cded03ef44050a210",
+      "answer_key": "incorrect",
+      "source_kind": "option",
+      "quote": "The main effect of C: when going from 4 staff to 6 staff, the wait times decrease by 4.5 minutes on average."
+     },
+     "check": {
+      "kind": "effect",
+      "term": "C",
+      "model": "C*K*S",
+      "printed": "-4.5",
+      "disagreement": "the answer key marks this option incorrect: the effect of C is -9 min; -4.5 is its coefficient"
+     }
+    },
+    {
+     "what": "effect",
+     "term": "C",
+     "value": "$$\\dfrac{(32-40) + (38-46) + (46-52) + (42-56)}{4} = \\_\\_$$",
+     "where": {
+      "quiz": "Ungraded practice quiz 2",
+      "file": "quiz2-UG-2015",
+      "question": 5,
+      "question_id": "505f0fda19b60772b714cfa71bb6af3d",
+      "option_id": "85fe3f31038bf83cded03ef44050a210",
+      "answer_key": "incorrect",
+      "source_kind": "option explanation",
+      "quote": "It is double this amount. $$\\dfrac{(32-40) + (38-46) + (46-52) + (42-56)}{4} = \\_\\_$$"
+     },
+     "check": {
+      "kind": "effect",
+      "term": "C",
+      "model": "C*K*S",
+      "printed": "((32-40) + (38-46) + (46-52) + (42-56)) / 4",
+      "expression": true
+     },
+     "note": "the explanation leaves the result blank for the reader; the sum it writes out is the effect of C"
+    },
+    {
+     "what": "coefficient",
+     "term": "S",
+     "value": "an average decrease of 5 minutes for each extra staff member",
+     "analysis": "S runs from 2 to 4 staff, so one coded unit is one staff member",
+     "where": {
+      "quiz": "Ungraded practice quiz 2",
+      "file": "quiz2-UG-2015",
+      "question": 5,
+      "question_id": "505f0fda19b60772b714cfa71bb6af3d",
+      "option_id": "0747a88765d0728a4e65690c0032c19d",
+      "answer_key": "correct",
+      "source_kind": "option",
+      "quote": "The main effect of S, the number of security gate staff, shows an average decrease of 5 minutes for each extra staff member."
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "S",
+      "model": "C*K*S",
+      "printed": "-5"
+     }
+    },
+    {
+     "what": "effect",
+     "term": "S",
+     "value": "an average value of $$-10$$ for going from 2 staff to 4 staff; a $$-5$$ effect for each extra staff",
+     "analysis": "the effect over the range of 2 staff, and the change per coded unit of one staff member",
+     "where": {
+      "quiz": "Ungraded practice quiz 2",
+      "file": "quiz2-UG-2015",
+      "question": 5,
+      "question_id": "505f0fda19b60772b714cfa71bb6af3d",
+      "option_id": "0747a88765d0728a4e65690c0032c19d",
+      "answer_key": "correct",
+      "source_kind": "option explanation",
+      "quote": "Yes, this effect has an average value of $$-10$$ for going from 2 staff to 4 staff. So on average, we would expect a $$-5$$ effect for each extra staff."
+     },
+     "check": [
+      {
+       "kind": "effect",
+       "term": "S",
+       "model": "C*K*S",
+       "printed": "-10"
+      },
+      {
+       "kind": "coefficient",
+       "term": "S",
+       "model": "C*K*S",
+       "printed": "-5"
+      }
+     ]
+    },
+    {
+     "what": "coefficient",
+     "term": "Intercept",
+     "value": "44",
+     "analysis": "question 6: the main effects only, as the question says",
+     "where": {
+      "quiz": "Ungraded practice quiz 2",
+      "file": "quiz2-UG-2015",
+      "question": 6,
+      "question_id": "1031100a5dc4af57e1b9c0f23ba504c8",
+      "source_kind": "question",
+      "quote": "\\hat{y} = 44 -4.5x_\\text{C} -1.5x_\\text{K} -5x_\\text{S}"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "Intercept",
+      "model": "C + K + S"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "C",
+     "value": "-4.5",
+     "analysis": "question 6: the main effects only, as the question says",
+     "where": {
+      "quiz": "Ungraded practice quiz 2",
+      "file": "quiz2-UG-2015",
+      "question": 6,
+      "question_id": "1031100a5dc4af57e1b9c0f23ba504c8",
+      "source_kind": "question",
+      "quote": "\\hat{y} = 44 -4.5x_\\text{C} -1.5x_\\text{K} -5x_\\text{S}"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "C",
+      "model": "C + K + S"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "K",
+     "value": "-1.5",
+     "analysis": "question 6: the main effects only, as the question says",
+     "where": {
+      "quiz": "Ungraded practice quiz 2",
+      "file": "quiz2-UG-2015",
+      "question": 6,
+      "question_id": "1031100a5dc4af57e1b9c0f23ba504c8",
+      "source_kind": "question",
+      "quote": "\\hat{y} = 44 -4.5x_\\text{C} -1.5x_\\text{K} -5x_\\text{S}"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "K",
+      "model": "C + K + S"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "S",
+     "value": "-5",
+     "analysis": "question 6: the main effects only, as the question says",
+     "where": {
+      "quiz": "Ungraded practice quiz 2",
+      "file": "quiz2-UG-2015",
+      "question": 6,
+      "question_id": "1031100a5dc4af57e1b9c0f23ba504c8",
+      "source_kind": "question",
+      "quote": "\\hat{y} = 44 -4.5x_\\text{C} -1.5x_\\text{K} -5x_\\text{S}"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "S",
+      "model": "C + K + S"
+     }
+    },
+    {
+     "what": "prediction",
+     "term": null,
+     "value": "40.5",
+     "analysis": "question 6: 5 check-in staff (coded 0), 1 kiosk staff (-1) and 4 security staff (+1)",
+     "where": {
+      "quiz": "Ungraded practice quiz 2",
+      "file": "quiz2-UG-2015",
+      "question": 6,
+      "question_id": "1031100a5dc4af57e1b9c0f23ba504c8",
+      "option_id": "385e54c09c382f091267e931c9146c7f",
+      "answer_key": "correct",
+      "source_kind": "accepted short answer",
+      "quote": "40.5"
+     },
+     "check": {
+      "kind": "prediction",
+      "model": "C + K + S",
+      "point": {
+       "C": 0,
+       "K": -1,
+       "S": 1
+      }
+     }
+    },
+    {
+     "what": "coded values",
+     "term": null,
+     "value": "$$x_\\text{C}=0$$, $$x_\\text{K}=-1$$, $$x_\\text{S}=+1$$",
+     "where": {
+      "quiz": "Ungraded practice quiz 2",
+      "file": "quiz2-UG-2015",
+      "question": 6,
+      "question_id": "1031100a5dc4af57e1b9c0f23ba504c8",
+      "source_kind": "question explanation",
+      "quote": "5 staff at the check-in counter: $$x_\\text{C}=0$$ 1 staff helping at the automatic check-in kiosks: $$x_\\text{K}=-1$$ 4 staff at the security gates: $$x_\\text{S}=+1$$"
+     },
+     "check": {
+      "manual": "the coded value of a single setting, a unit conversion rather than a result: 5 is the centre of 4 to 6 staff, 1 the low level of K and 4 the high level of S"
+     }
+    },
+    {
+     "what": "prediction",
+     "term": null,
+     "value": "\\hat{y}&= 44 + 0 + 1.5 - 5",
+     "analysis": "question 6; the explanation stops at the sum, which is 40.5",
+     "where": {
+      "quiz": "Ungraded practice quiz 2",
+      "file": "quiz2-UG-2015",
+      "question": 6,
+      "question_id": "1031100a5dc4af57e1b9c0f23ba504c8",
+      "source_kind": "question explanation",
+      "quote": "\\hat{y} &= 44 - 4.5(0) -1.5(-1) -5(1)\\\\ \\hat{y}&= 44 + 0 + 1.5 - 5"
+     },
+     "check": {
+      "kind": "prediction",
+      "model": "C + K + S",
+      "point": {
+       "C": 0,
+       "K": -1,
+       "S": 1
+      },
+      "printed": "44 + 0 + 1.5 - 5",
+      "expression": true
+     }
+    }
+   ]
+  },
+  {
    "name": "efi-quiz4-breaded-chicken",
    "title": "Aditi's breaded chicken strips: cooking duration D, oven rack R and preheating P",
    "kind": "quiz question",
@@ -2982,6 +5045,556 @@
  ],
  "designs": [
   {
+   "name": "efi-quiz2-sprinter-three-factors",
+   "title": "A 200 m sprinter's training: time of day, shoe type and arm position, at two levels each",
+   "where": {
+    "quiz": "Quiz for module 2",
+    "file": "quiz2-2015",
+    "question": 1,
+    "question_id": "3715291f780f8903727a916e1d96ad59"
+   },
+   "design": {
+    "type": "2^3 full factorial",
+    "details": "morning or evening; shoes with or without spikes; arms high or low"
+   },
+   "notes": "The explanations call the first factor 'A = time to run', meaning the time of day (morning or evening), which reads like the outcome. The explanation of option 58225f22 suggests the outcome 'might have been time to complete the 5km', where the question describes a 200 m race.",
+   "expected": [
+    {
+     "what": "number of factors",
+     "term": null,
+     "value": "3",
+     "where": {
+      "quiz": "Quiz for module 2",
+      "file": "quiz2-2015",
+      "question": 1,
+      "question_id": "3715291f780f8903727a916e1d96ad59",
+      "option_id": "e156cfe8bcd801bd4dd0e16f9b6fb79f",
+      "answer_key": "correct",
+      "source_kind": "option",
+      "quote": "There seem to be 3 factors in her experiment, as described above."
+     },
+     "check": {
+      "manual": "a count of the factors the question names (time of day, shoe type, arm position), which no check computes"
+     }
+    },
+    {
+     "what": "number of runs",
+     "term": null,
+     "value": "6 (2+2+2)",
+     "where": {
+      "quiz": "Quiz for module 2",
+      "file": "quiz2-2015",
+      "question": 1,
+      "question_id": "3715291f780f8903727a916e1d96ad59",
+      "option_id": "6fbc0c0554bbfbf14766aa701b7f50dd",
+      "answer_key": "incorrect",
+      "source_kind": "option",
+      "quote": "The racer will run 6 (2+2+2) experiments if she does a full factorial with no repetition (replicates)"
+     },
+     "check": {
+      "kind": "design_property",
+      "design": {
+       "design_type": "full_factorial",
+       "k": 3,
+       "options": {
+        "n_center_points": 0
+       }
+      },
+      "property": "n_runs",
+      "printed": "6",
+      "disagreement": "the answer key marks this option incorrect: the full factorial in three two-level factors has 2^3 = 8 runs; 2 + 2 + 2 adds the levels"
+     }
+    },
+    {
+     "what": "number of runs",
+     "term": null,
+     "value": "$$2^3$$ = 8",
+     "where": {
+      "quiz": "Quiz for module 2",
+      "file": "quiz2-2015",
+      "question": 1,
+      "question_id": "3715291f780f8903727a916e1d96ad59",
+      "option_id": "6fbc0c0554bbfbf14766aa701b7f50dd",
+      "answer_key": "incorrect",
+      "source_kind": "option explanation",
+      "quote": "No, there will be $$2^3$$ = 8 experiments."
+     },
+     "check": {
+      "kind": "design_property",
+      "design": {
+       "design_type": "full_factorial",
+       "k": 3,
+       "options": {
+        "n_center_points": 0
+       }
+      },
+      "property": "n_runs",
+      "printed": "8"
+     }
+    },
+    {
+     "what": "number of runs",
+     "term": null,
+     "value": "$$2^3 = 8$$",
+     "where": {
+      "quiz": "Quiz for module 2",
+      "file": "quiz2-2015",
+      "question": 1,
+      "question_id": "3715291f780f8903727a916e1d96ad59",
+      "source_kind": "question explanation",
+      "quote": "There are 3 factors in the experiment: A = time to run; B = shoe type; and C = arm position. So there will be $$2^3 = 8$$ experiments."
+     },
+     "check": {
+      "kind": "design_property",
+      "design": {
+       "design_type": "full_factorial",
+       "k": 3,
+       "options": {
+        "n_center_points": 0
+       }
+      },
+      "property": "n_runs",
+      "printed": "8"
+     }
+    }
+   ]
+  },
+  {
+   "name": "efi-quiz2-plastic-roughness-prediction",
+   "title": "Roughness of a plastic cover: raw material supplier A and melt temperature B, a prediction from the model",
+   "where": {
+    "quiz": "Quiz for module 2",
+    "file": "quiz2-2015",
+    "question": 7,
+    "question_id": "8a3ba7986714a4d7e872b4e477fcd979"
+   },
+   "design": {
+    "type": "2^2 full factorial",
+    "details": "A = raw material supplier, BASF (low) or Dow Chemical Company (high); B = melt temperature, 320 or 340 °C; y = surface roughness. The prediction model y = 7 + 3 x_A - 4 x_B + 2 x_A x_B; no runs printed"
+   },
+   "notes": "The same model as practice question 2.",
+   "expected": [
+    {
+     "what": "prediction",
+     "term": null,
+     "value": "4",
+     "analysis": "the predicted roughness for BASF at 330 °C",
+     "where": {
+      "quiz": "Quiz for module 2",
+      "file": "quiz2-2015",
+      "question": 7,
+      "question_id": "8a3ba7986714a4d7e872b4e477fcd979",
+      "option_id": "6a9619106b13eb87d7fc88276fadbd02",
+      "answer_key": "correct",
+      "source_kind": "accepted short answer",
+      "quote": "4"
+     },
+     "check": {
+      "manual": "the question prints the model and no runs, so there is nothing to fit: 7 + 3(-1) - 4(0) + 2(-1)(0) = 4, with BASF coded -1 and 330 °C, the centre of B, coded 0"
+     }
+    },
+    {
+     "what": "coded values",
+     "term": null,
+     "value": "$$x_\\text{A}=-1$$ and $$x_\\text{B}=0$$",
+     "where": {
+      "quiz": "Quiz for module 2",
+      "file": "quiz2-2015",
+      "question": 7,
+      "question_id": "8a3ba7986714a4d7e872b4e477fcd979",
+      "source_kind": "question explanation",
+      "quote": "Note that the coding is $$x_\\text{A}=-1$$ and that $$x_\\text{B}=0$$."
+     },
+     "check": {
+      "manual": "the coded values of single settings, a unit conversion rather than a result: BASF is A's low level, and 330 °C is midway between 320 and 340 °C"
+     }
+    },
+    {
+     "what": "prediction",
+     "term": null,
+     "value": "\\hat{y}&= 7 - 3 = 4",
+     "where": {
+      "quiz": "Quiz for module 2",
+      "file": "quiz2-2015",
+      "question": 7,
+      "question_id": "8a3ba7986714a4d7e872b4e477fcd979",
+      "source_kind": "question explanation",
+      "quote": "\\hat{y} &= 7 + 3 (-1) - 4 (0) + 2(-1)(0)\\\\ \\hat{y}&= 7 - 3 = 4"
+     },
+     "check": {
+      "manual": "the question prints the model and no runs, so there is nothing to fit: the explanation's arithmetic on the printed model, which is right"
+     }
+    }
+   ]
+  },
+  {
+   "name": "efi-quiz2-practice-plastic-roughness-interaction",
+   "title": "Roughness of a plastic cover: which term of the model y = 7 + 3 x_A - 4 x_B + 2 x_A x_B is the interaction",
+   "where": {
+    "quiz": "Ungraded practice quiz 2",
+    "file": "quiz2-UG-2015",
+    "question": 2,
+    "question_id": "641028af1d22fe5ab33c29361cb094f1",
+    "images": ["https://d396qusza40orc.cloudfront.net/experiments/quiz_assets/week2/flickr-8253087219_12908e8964_o.jpg"]
+   },
+   "design": {
+    "type": "2^2 full factorial",
+    "details": "A = raw material supplier, BASF (low) or Dow Chemical Company (high); B = melt temperature, 320 or 340 °C; no runs printed"
+   },
+   "notes": "The same model as graded question 7. The explanations call +3 'the effect of factor A' and -4 'the effect of factor B'; they are coefficients, and in the quiz's own usage (graded question 4) the effects are twice them, 6 and -8.",
+   "expected": [
+    {
+     "what": "coefficient",
+     "term": "A·B",
+     "value": "+7",
+     "where": {
+      "quiz": "Ungraded practice quiz 2",
+      "file": "quiz2-UG-2015",
+      "question": 2,
+      "question_id": "641028af1d22fe5ab33c29361cb094f1",
+      "option_id": "748e585a8663bb0e89a09a932fad630e",
+      "answer_key": "incorrect",
+      "source_kind": "option",
+      "quote": "+7"
+     },
+     "check": {
+      "manual": "read off the model the question prints, which has no runs to fit: +7 is the intercept, as the option's explanation says"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "A·B",
+     "value": "+3",
+     "where": {
+      "quiz": "Ungraded practice quiz 2",
+      "file": "quiz2-UG-2015",
+      "question": 2,
+      "question_id": "641028af1d22fe5ab33c29361cb094f1",
+      "option_id": "8a22b9272d89c80b3e327ebf3549ec0e",
+      "answer_key": "incorrect",
+      "source_kind": "option",
+      "quote": "+3"
+     },
+     "check": {
+      "manual": "read off the model the question prints, which has no runs to fit: +3 is the coefficient of x_A"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "A·B",
+     "value": "-4",
+     "where": {
+      "quiz": "Ungraded practice quiz 2",
+      "file": "quiz2-UG-2015",
+      "question": 2,
+      "question_id": "641028af1d22fe5ab33c29361cb094f1",
+      "option_id": "967753f5a828eff57a43e85644d6dac5",
+      "answer_key": "incorrect",
+      "source_kind": "option",
+      "quote": "-4"
+     },
+     "check": {
+      "manual": "read off the model the question prints, which has no runs to fit: -4 is the coefficient of x_B"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "A·B",
+     "value": "+2",
+     "where": {
+      "quiz": "Ungraded practice quiz 2",
+      "file": "quiz2-UG-2015",
+      "question": 2,
+      "question_id": "641028af1d22fe5ab33c29361cb094f1",
+      "option_id": "acbd654464f64cfa57ac2dcfb598792c",
+      "answer_key": "correct",
+      "source_kind": "option",
+      "quote": "+2"
+     },
+     "check": {
+      "manual": "read off the model the question prints, which has no runs to fit: +2 multiplies x_A x_B, the two-factor interaction"
+     }
+    }
+   ]
+  },
+  {
+   "name": "efi-quiz2-practice-coded-temperature",
+   "title": "Room temperature A, 30 to 40 degrees, and humidity B, 30 to 50%: the coded value of 45 degrees",
+   "where": {
+    "quiz": "Ungraded practice quiz 2",
+    "file": "quiz2-UG-2015",
+    "question": 3,
+    "question_id": "bf563aa3b25dea0289c6ed017b89788b"
+   },
+   "design": {
+    "type": "2^2 full factorial",
+    "details": "A = room temperature, 30 or 40 degrees; B = room humidity, 30 or 50%"
+   },
+   "expected": [
+    {
+     "what": "coded value",
+     "term": "B",
+     "value": "0",
+     "where": {
+      "quiz": "Ungraded practice quiz 2",
+      "file": "quiz2-UG-2015",
+      "question": 3,
+      "question_id": "bf563aa3b25dea0289c6ed017b89788b",
+      "source_kind": "question",
+      "quote": "\\text{coded humidity value} = x_\\text{B} = \\dfrac{(40\\%) - (40\\%)}{\\tfrac{1}{2}\\left(50\\% - 30\\% \\right)} = 0"
+     },
+     "check": {
+      "manual": "the coded value of a single setting, a unit conversion rather than a result: 40% is the centre of 30 to 50%, so (40 - 40) / 10 = 0"
+     }
+    },
+    {
+     "what": "coded value",
+     "term": "A",
+     "value": "$$x_\\text{A} = 2$$",
+     "where": {
+      "quiz": "Ungraded practice quiz 2",
+      "file": "quiz2-UG-2015",
+      "question": 3,
+      "question_id": "bf563aa3b25dea0289c6ed017b89788b",
+      "option_id": "ca4293b138a6b31b6996fa6d0a36d745",
+      "answer_key": "correct",
+      "source_kind": "option",
+      "quote": "$$x_\\text{A} = 2$$"
+     },
+     "check": {
+      "manual": "the coded value of a single setting, a unit conversion rather than a result: (45 - 35) / (0.5 × 10) = 2, as the key says"
+     }
+    },
+    {
+     "what": "coded value",
+     "term": "A",
+     "value": "$$x_\\text{A} = 1$$",
+     "where": {
+      "quiz": "Ungraded practice quiz 2",
+      "file": "quiz2-UG-2015",
+      "question": 3,
+      "question_id": "bf563aa3b25dea0289c6ed017b89788b",
+      "option_id": "da36a6ae1b7af3298f9abd9571d43e0e",
+      "answer_key": "incorrect",
+      "source_kind": "option",
+      "quote": "$$x_\\text{A} = 1$$"
+     },
+     "check": {
+      "manual": "the coded value of a single setting, a unit conversion rather than a result: (45 - 35) / (0.5 × 10) = 2; 1 is the coded value of 40 degrees, the high level"
+     }
+    },
+    {
+     "what": "coded value",
+     "term": "A",
+     "value": "$$x_\\text{A} = 0$$",
+     "where": {
+      "quiz": "Ungraded practice quiz 2",
+      "file": "quiz2-UG-2015",
+      "question": 3,
+      "question_id": "bf563aa3b25dea0289c6ed017b89788b",
+      "option_id": "ebbbcd18ed71ec8a192d2d456b63de35",
+      "answer_key": "incorrect",
+      "source_kind": "option",
+      "quote": "$$x_\\text{A} = 0$$"
+     },
+     "check": {
+      "manual": "the coded value of a single setting, a unit conversion rather than a result: (45 - 35) / (0.5 × 10) = 2; 0 is the coded value of 35 degrees, the centre"
+     }
+    },
+    {
+     "what": "coded value",
+     "term": "A",
+     "value": "$$x_\\text{A} = 1.75$$",
+     "where": {
+      "quiz": "Ungraded practice quiz 2",
+      "file": "quiz2-UG-2015",
+      "question": 3,
+      "question_id": "bf563aa3b25dea0289c6ed017b89788b",
+      "option_id": "fc2217ec7d3a500da6b1ae235f7505b8",
+      "answer_key": "incorrect",
+      "source_kind": "option",
+      "quote": "$$x_\\text{A} = 1.75$$"
+     },
+     "check": {
+      "manual": "the coded value of a single setting, a unit conversion rather than a result: (45 - 35) / (0.5 × 10) = 2, not 1.75"
+     }
+    },
+    {
+     "what": "coded value",
+     "term": "A",
+     "value": "$$x_\\text{A} = 1.5$$",
+     "where": {
+      "quiz": "Ungraded practice quiz 2",
+      "file": "quiz2-UG-2015",
+      "question": 3,
+      "question_id": "bf563aa3b25dea0289c6ed017b89788b",
+      "option_id": "17ff6a3fbfba2a0bc0006bffee775a87",
+      "answer_key": "incorrect",
+      "source_kind": "option",
+      "quote": "$$x_\\text{A} = 1.5$$"
+     },
+     "check": {
+      "manual": "the coded value of a single setting, a unit conversion rather than a result: (45 - 35) / (0.5 × 10) = 2; 1.5 is the coded value of 42.5 degrees"
+     }
+    }
+   ]
+  },
+  {
+   "name": "efi-quiz2-practice-bubble-duration",
+   "title": "Tiny Bubbles: water-to-soap ratio A and soap type B, a prediction from the model",
+   "where": {
+    "quiz": "Ungraded practice quiz 2",
+    "file": "quiz2-UG-2015",
+    "question": 4,
+    "question_id": "3dae8c7668d4fe1f5dc6567b7e1b748c",
+    "images": ["https://d396qusza40orc.cloudfront.net/experiments/quiz_assets/week2/bubbles.jpg"]
+   },
+   "design": {
+    "type": "2^2 full factorial",
+    "details": "A = ratio of water to soap, 10:1 (low) or 12:1 (high); B = soap A (low) or soap B (high); the prediction model y = 4.5 + 3 x_A - 1.75 x_B + 1 x_A x_B; no runs printed"
+   },
+   "expected": [
+    {
+     "what": "prediction",
+     "term": null,
+     "value": "6.25",
+     "analysis": "the bubble duration, in seconds, at an 11:1 ratio with soap A",
+     "where": {
+      "quiz": "Ungraded practice quiz 2",
+      "file": "quiz2-UG-2015",
+      "question": 4,
+      "question_id": "3dae8c7668d4fe1f5dc6567b7e1b748c",
+      "option_id": "4a8e15c533845d195a05ba214753f9d5",
+      "answer_key": "correct",
+      "source_kind": "accepted short answer",
+      "quote": "6.25"
+     },
+     "check": {
+      "manual": "the question prints the model and no runs, so there is nothing to fit: 4.5 + 3(0) - 1.75(-1) + 1(0)(-1) = 6.25, with 11:1 coded 0 and soap A coded -1"
+     }
+    },
+    {
+     "what": "coded value",
+     "term": "A",
+     "value": "$$0$$",
+     "where": {
+      "quiz": "Ungraded practice quiz 2",
+      "file": "quiz2-UG-2015",
+      "question": 4,
+      "question_id": "3dae8c7668d4fe1f5dc6567b7e1b748c",
+      "source_kind": "question explanation",
+      "quote": "As an 11:1 ratio of water to soap is halfway between 10:1 (A$$-$$) and 12:1(A$$+$$), it would have a coded value of $$0$$. The coded value of soap A is $$-1$$."
+     },
+     "check": {
+      "manual": "the coded value of a single setting, a unit conversion rather than a result: 11:1 is midway between 10:1 and 12:1, and soap A is B's low level, coded -1"
+     }
+    },
+    {
+     "what": "prediction",
+     "term": null,
+     "value": "$$\\hat{y} = 4.5 + 3(0) - 1.75(-1) + 1(0)(-1) = 4.5 + 1.75 = 6.25$$",
+     "where": {
+      "quiz": "Ungraded practice quiz 2",
+      "file": "quiz2-UG-2015",
+      "question": 4,
+      "question_id": "3dae8c7668d4fe1f5dc6567b7e1b748c",
+      "source_kind": "question explanation",
+      "quote": "$$\\hat{y} = 4.5 + 3(0) - 1.75(-1) + 1(0)(-1) = 4.5 + 1.75 = 6.25$$"
+     },
+     "check": {
+      "manual": "the question prints the model and no runs, so there is nothing to fit: the explanation's arithmetic on the printed model, which is right"
+     }
+    }
+   ]
+  },
+  {
+   "name": "efi-quiz2-practice-three-level-runs",
+   "title": "Two factors A and B at three levels each: the runs in a full, unreplicated factorial",
+   "where": {
+    "quiz": "Ungraded practice quiz 2",
+    "file": "quiz2-UG-2015",
+    "question": 7,
+    "question_id": "4afc164641d27d00593db20c74b6f8f8"
+   },
+   "design": {
+    "type": "3^2 full factorial"
+   },
+   "expected": [
+    {
+     "what": "number of runs",
+     "term": null,
+     "value": "$$3^3 = 27$$",
+     "where": {
+      "quiz": "Ungraded practice quiz 2",
+      "file": "quiz2-UG-2015",
+      "question": 7,
+      "question_id": "4afc164641d27d00593db20c74b6f8f8",
+      "option_id": "5b3341d2de11e02dae60b9e6c4c09261",
+      "answer_key": "incorrect",
+      "source_kind": "option",
+      "quote": "$$3^3 = 27$$"
+     },
+     "check": {
+      "manual": "a run count of a full factorial in two factors at three levels each, 3^2 = 9; design_property builds two-level factors only; 27 would be three factors at three levels"
+     }
+    },
+    {
+     "what": "number of runs",
+     "term": null,
+     "value": "$$3^2 = 9$$",
+     "where": {
+      "quiz": "Ungraded practice quiz 2",
+      "file": "quiz2-UG-2015",
+      "question": 7,
+      "question_id": "4afc164641d27d00593db20c74b6f8f8",
+      "option_id": "639cb4839fadef5d047fbe0948a1d717",
+      "answer_key": "correct",
+      "source_kind": "option",
+      "quote": "$$3^2 = 9$$"
+     },
+     "check": {
+      "manual": "a run count of a full factorial in two factors at three levels each, 3^2 = 9; design_property builds two-level factors only"
+     }
+    },
+    {
+     "what": "number of runs",
+     "term": null,
+     "value": "$$2^3 = 8$$",
+     "where": {
+      "quiz": "Ungraded practice quiz 2",
+      "file": "quiz2-UG-2015",
+      "question": 7,
+      "question_id": "4afc164641d27d00593db20c74b6f8f8",
+      "option_id": "7ea4a94e4cbb7358e3292baf42fd9f3b",
+      "answer_key": "incorrect",
+      "source_kind": "option",
+      "quote": "$$2^3 = 8$$"
+     },
+     "check": {
+      "manual": "a run count of a full factorial in two factors at three levels each, 3^2 = 9; design_property builds two-level factors only; 8 would be three factors at two levels"
+     }
+    },
+    {
+     "what": "number of runs",
+     "term": null,
+     "value": "$$3+3=6$$",
+     "where": {
+      "quiz": "Ungraded practice quiz 2",
+      "file": "quiz2-UG-2015",
+      "question": 7,
+      "question_id": "4afc164641d27d00593db20c74b6f8f8",
+      "option_id": "8f23262c6d38cfa22204a2956dc32346",
+      "answer_key": "incorrect",
+      "source_kind": "option",
+      "quote": "$$3+3=6$$"
+     },
+     "check": {
+      "manual": "a run count of a full factorial in two factors at three levels each, 3^2 = 9; design_property builds two-level factors only; 6 adds the levels instead of multiplying them"
+     }
+    }
+   ]
+  },
+  {
    "name": "efi-quiz4-cookie-run-budget",
    "title": "Jeff's chocolate chip cookies: what eight runs allow, in two to five factors",
    "where": {
@@ -4498,5 +7111,5 @@
    ]
   }
  ],
- "not_captured": ["quiz 1 (graded and practice), question 1 (the same question, id bf443f8f): the grading example, 0.33 + 0.33 + 0.33 = 1 and 0.33 + 0.33 = 0.67, is the quiz's scoring in thirds, about no experiment; it agrees with the option scores in the XML", "graded quiz 1, question 2 (Toyota at the Harlem soup kitchen, kaizen): outcomes, factors and objectives, in words", "graded quiz 1, question 3: which variables were factors, with no number in any option; the cube plot's runs are kept as data in efi-quiz1-store-profit", "graded quiz 1, questions 4 and 5 (bottled coffee): outcomes, objectives and factors, in words; the 20 days is the scenario's storage time, not a result", "graded quiz 1, questions 6 and 7: which kinds of variable are quantitative or qualitative, definitions", "graded quiz 1, question 8, options b0e69dc4, 2fcdf4af, 7e5ebb6d and 6162703c: a judgement in words (the sugar effect, 0 mm, is noted in efi-quiz1-bread-dough-rise) and the classification of factors", "graded quiz 1, question 9 (the professor's slides): the 1 to 5 Likert scale, 1.5 or 2 line spacing and size 18 or 22 font are levels named while classifying factors and responses, not results", "graded quiz 1, question 10 (the surgical procedure): which factors are quantitative, in words", "practice quiz 1, questions 2 to 4: factors judged by intuition, factors against objectives and outcomes, and qualitative variables; the 120 or 140 characters of question 4 are levels, not results", "practice quiz 1, question 5 (chemotherapy): categorical and quantitative factors, in words; the 5 or 10 units/kg are levels. The explanation of option 5905f67f calls the number of patients with adverse effects an outcome and then 'a covariate', which the course defines as measurable but not controllable, not as an outcome", "graded quiz, question 4 (Jennifer's run order): choosing a randomized time order, with no number to recompute", "graded quiz, question 8, the covariate and disturbance options: definitions, with no number", "graded quiz, question 9, options e5b6110a and c5354e81: nuisance variable or disturbance, a definition", "practice quiz 4 part 1, questions 1, 3, 5 and 6: covariates, disturbances and randomization, in words", "practice quiz 4 part 2, question 3, option 535464d0 (keyed incorrect): the same alias structure as the option keyed correct, judged on which interaction is unimportant", "practice quiz 4 part 2, question 8: a self-assessment, with no answer key"]
+ "not_captured": ["quiz 1 (graded and practice), question 1 (the same question, id bf443f8f): the grading example, 0.33 + 0.33 + 0.33 = 1 and 0.33 + 0.33 = 0.67, is the quiz's scoring in thirds, about no experiment; it agrees with the option scores in the XML", "graded quiz 1, question 2 (Toyota at the Harlem soup kitchen, kaizen): outcomes, factors and objectives, in words", "graded quiz 1, question 3: which variables were factors, with no number in any option; the cube plot's runs are kept as data in efi-quiz1-store-profit", "graded quiz 1, questions 4 and 5 (bottled coffee): outcomes, objectives and factors, in words; the 20 days is the scenario's storage time, not a result", "graded quiz 1, questions 6 and 7: which kinds of variable are quantitative or qualitative, definitions", "graded quiz 1, question 8, options b0e69dc4, 2fcdf4af, 7e5ebb6d and 6162703c: a judgement in words (the sugar effect, 0 mm, is noted in efi-quiz1-bread-dough-rise) and the classification of factors", "graded quiz 1, question 9 (the professor's slides): the 1 to 5 Likert scale, 1.5 or 2 line spacing and size 18 or 22 font are levels named while classifying factors and responses, not results", "graded quiz 1, question 10 (the surgical procedure): which factors are quantitative, in words", "practice quiz 1, questions 2 to 4: factors judged by intuition, factors against objectives and outcomes, and qualitative variables; the 120 or 140 characters of question 4 are levels, not results", "practice quiz 1, question 5 (chemotherapy): categorical and quantitative factors, in words; the 5 or 10 units/kg are levels. The explanation of option 5905f67f calls the number of patients with adverse effects an outcome and then 'a covariate', which the course defines as measurable but not controllable, not as an outcome", "graded quiz, question 1, option 1b2c506a: which shoe type is coded minus, a choice of coding with no number", "graded quiz, question 1, option 58225f22 (keyed incorrect): whether the shoe type is the outcome, a definition", "graded quiz, question 5: the four options are interaction plots in images; they are compared by eye with the runs in the experiment's notes", "practice quiz 2, question 1: judgements in words on a response recorded as hazy or clear; the runs are kept as an experiment without numbers", "practice quiz 2, question 5, option 967b1419 (keyed incorrect): the sign of K's effect in words; the cube plot gives an effect of -3 min, a decrease, as the key implies", "graded quiz, question 4 (Jennifer's run order): choosing a randomized time order, with no number to recompute", "graded quiz, question 8, the covariate and disturbance options: definitions, with no number", "graded quiz, question 9, options e5b6110a and c5354e81: nuisance variable or disturbance, a definition", "practice quiz 4 part 1, questions 1, 3, 5 and 6: covariates, disturbances and randomization, in words", "practice quiz 4 part 2, question 3, option 535464d0 (keyed incorrect): the same alias structure as the option keyed correct, judged on which interaction is unimportant", "practice quiz 4 part 2, question 8: a self-assessment, with no answer key"]
 }
