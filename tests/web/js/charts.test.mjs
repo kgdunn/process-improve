@@ -4,13 +4,16 @@ import assert from "node:assert/strict";
 import { describe, test } from "node:test";
 
 import {
+  SIGN_COLOURS,
   coefficientFigure,
   correlationFigure,
   fdsFigure,
   niceStep,
   pageLayout,
+  paretoFigure,
   prettyTerm,
   shareContourScale,
+  termRowsHeight,
 } from "../../../web/charts.js";
 
 const COLOURS = { fg: "#111", muted: "#666", line: "#ddd", accent: "#06c", truth: "#0a0" };
@@ -49,10 +52,62 @@ describe("the coefficient chart", () => {
     assert.deepEqual(truth.x, [4, 1.5]);
   });
 
-  test("a row for every term, whatever their number", () => {
-    assert.equal(coefficientFigure(coefficients, false, COLOURS).height, 220);
+  test("a row for every term, whatever their number, each with its label", () => {
+    assert.equal(coefficientFigure(coefficients, false, COLOURS).height, 240);
     const many = Array.from({ length: 20 }, (_, i) => ({ term: `X${i}`, label: `X${i}`, coefficient: i }));
-    assert.equal(coefficientFigure(many, false, COLOURS).height, 30 * 20 + 100);
+    assert.equal(coefficientFigure(many, false, COLOURS).height, termRowsHeight(20));
+    assert.equal(termRowsHeight(20), 28 * 20 + 130);
+    const { yaxis } = coefficientFigure(many, false, COLOURS).layout;
+    assert.equal(yaxis.dtick, 1, "every term labelled, none skipped for want of room");
+  });
+
+  test("the legend sits above the plot, clear of the axis title below it", () => {
+    const layout = pageLayout(coefficientFigure(coefficients, true, COLOURS).layout, 300, COLOURS);
+    assert.equal(layout.legend.yanchor, "bottom");
+    assert.ok(layout.legend.y > 1);
+  });
+});
+
+describe("the book's Pareto plot of the coefficients", () => {
+  const coefficients = [
+    { term: "Intercept", label: "Intercept", coefficient: 62, ci_low: 61, ci_high: 63, true_value: 62 },
+    { term: "T", label: "T", coefficient: 1.5, ci_low: 1.0, ci_high: 2.0, true_value: 2 },
+    { term: "P", label: "P", coefficient: -4, ci_low: -4.5, ci_high: -3.5, true_value: -3 },
+    { term: "T:P", label: "T·P", coefficient: 0.25, ci_low: -0.25, ci_high: 0.75, true_value: 0 },
+  ];
+
+  test("sizes sorted, the largest at the top, orange for positive and blue for negative", () => {
+    const { data, layout } = paretoFigure(coefficients, false, null, COLOURS);
+    assert.deepEqual(layout.yaxis.categoryarray, ["P", "T", "T·P"]);
+    assert.equal(layout.yaxis.autorange, "reversed");
+    const [positive, negative] = data;
+    assert.deepEqual([positive.name, positive.y, positive.x], ["Positive", ["T", "T·P"], [1.5, 0.25]]);
+    assert.deepEqual([negative.name, negative.y, negative.x], ["Negative", ["P"], [4]]);
+    assert.equal(positive.marker.color, SIGN_COLOURS.positive);
+    assert.equal(negative.marker.color, SIGN_COLOURS.negative);
+    assert.deepEqual(SIGN_COLOURS, { positive: "#E69F00", negative: "#0072B2" }, "the book's Okabe-Ito pair");
+  });
+
+  test("each bar carries its 95% interval when there are degrees of freedom for one", () => {
+    const [positive, negative] = paretoFigure(coefficients, false, null, COLOURS).data;
+    assert.deepEqual(positive.error_x.array, [0.5, 0.5]);
+    assert.deepEqual(negative.error_x.array, [0.5]);
+    assert.equal(paretoFigure(coefficients, false, null, COLOURS).layout.shapes.length, 0);
+  });
+
+  test("with none, Lenth's margins are drawn on the coefficients' scale: half the effects'", () => {
+    const saturated = coefficients.map((c) => ({ ...c, ci_low: null, ci_high: null }));
+    const { data, layout } = paretoFigure(saturated, false, { PSE: 1, ME: 3, SME: 6 }, COLOURS);
+    assert.equal(data[0].error_x.visible, false);
+    assert.deepEqual(layout.shapes.map((s) => [s.x0, s.line.dash]), [[1.5, "dash"], [3, "dot"]]);
+    assert.deepEqual(layout.annotations.map((a) => a.text), ["ME", "SME"]);
+  });
+
+  test("the true sizes beside the bars, only when the results were simulated", () => {
+    assert.equal(paretoFigure(coefficients, false, null, COLOURS).data.length, 2);
+    const truth = paretoFigure(coefficients, true, null, COLOURS).data.at(-1);
+    assert.equal(truth.name, "True size");
+    assert.deepEqual(truth.x, [3, 2, 0]);
   });
 });
 
