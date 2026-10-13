@@ -71,7 +71,29 @@ export function pageLayout(layout, height, colours = palette()) {
 }
 
 /** Draw a figure ({data, layout}) into a card's plot area. */
+/** What each chart on the page was drawn from, so a change of theme can draw it again in the new colours. */
+const drawn = new Map();
+
+/**
+ * Draw a figure into a div. ``figure`` is the figure, or a function that makes it, for one whose
+ * colours are the page's own (palette()): it is made again whenever the chart is redrawn.
+ */
 export async function draw(div, figure, version, height = 340) {
+  const make = typeof figure === "function" ? figure : () => figure;
+  for (const old of drawn.keys()) if (!old.isConnected) drawn.delete(old);
+  drawn.set(div, { make, version, height });
+  await react(div, make(), version, height);
+}
+
+/** Draw every chart on the page again, in the colours of the theme it shows now. */
+export async function redrawAll() {
+  for (const [div, { make, version, height }] of drawn) {
+    if (div.isConnected) await react(div, make(), version, height);
+    else drawn.delete(div);
+  }
+}
+
+async function react(div, figure, version, height) {
   const Plotly = await loadPlotly(version);
   await Plotly.react(div, figure.data, pageLayout(figure.layout || {}, height), plotConfig());
 }

@@ -215,3 +215,19 @@ export const CAPTIONS = {
     "With no degrees of freedom left to estimate the error, the effects are judged against each other: effects " +
     "far above the line, past Lenth's margin of error, are likely real.",
 };
+
+// ---------------------------------------------------------------- colour mode
+/** The colour modes the switch in the header offers: the system's, light and dark, as the book's does. */
+export const MODES = ["auto", "light", "dark"];
+
+/**
+ * The mode the switch goes to next, in the book's order: from the system's own to the opposite of
+ * what the system shows, so the first press always changes the page, then to the other.
+ */
+export function nextMode(current, systemDark) {
+  const order = systemDark ? ["auto", "light", "dark"] : ["auto", "dark", "light"];
+  return order[(order.indexOf(current) + 1) % order.length];
+}
+
+/** The theme a mode shows, given whether the system is dark. */
+export const shownTheme = (mode, systemDark) => (mode === "auto" ? (systemDark ? "dark" : "light") : mode);
