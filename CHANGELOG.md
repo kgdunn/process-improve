@@ -25,13 +25,6 @@ those changes.
   reopens the copy saved in the browser while it is unchanged, and a fresh copy once the
   reader has changed it.
 
-### Removed
-
-- **Factorial no longer prints a run sheet.** The Print the run sheet button, its printed
-  page and the QR code on it are gone: the workbook (.xlsx) serves for a sheet on paper, and
-  Copy a link carries the design to a phone. `segno`, the QR encoder's test oracle, leaves
-  the dev dependencies.
-
 ### Changed
 
 - **Factorial says which factors are categorical.** Each factor in step 1 has a Type,
@@ -72,6 +65,10 @@ those changes.
   rather than `generate_design`'s; simulated results are rounded as the page rounds them.
 - **Factorial lists the fit's statistics as bullet points**, a line each: the completed
   runs, any still to run, R², adjusted R², predicted R² and the residual degrees of freedom.
+- **Factorial no longer prints a run sheet.** The Print the run sheet button, its printed
+  page and the QR code on it are gone: the workbook (.xlsx) serves for a sheet on paper, and
+  Copy a link carries the design to a phone. `segno`, the QR encoder's test oracle, leaves
+  the dev dependencies. The app is not public Python API, so this is filed as a change.
 - **The residuals-vs-fitted plot names the response on its x axis** ("Fitted Conversion"
   rather than "Fitted Values") when `create_plot` is given `response_column`.
 
