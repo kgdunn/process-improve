@@ -106,24 +106,24 @@ def coded_runs(experiment: dict, positions: list[int] | None) -> tuple[pd.DataFr
 
 
 @cache
-def fitted(name: str, index: int) -> dict[str, Any]:
-    """Fit one analysis of an experiment with the library, once, with everything the checks read."""
+def fitted(name: str, model: str | None, positions: tuple[int, ...] | None, response: str | None) -> dict[str, Any]:
+    """Fit an experiment's runs with the library, once per model and runs, with everything the checks read."""
     experiment = next(e for e in EXPERIMENTS if e["name"] == name)
-    analysis = experiment["analyses"][index]
-    settings, responses = coded_runs(experiment, analysis.get("runs"))
-    y = responses[analysis.get("response") or responses.columns[0]]
+    settings, responses = coded_runs(experiment, list(positions) if positions else None)
+    y = responses[response or responses.columns[0]]
     out: dict[str, Any] = {"y": y, "settings": settings}
-    if analysis["model"] is None:
+    if model is None:
         return out
-    terms = len(analysis["model"].replace("*", "+").split("+"))
+    terms = len(model.replace("*", "+").split("+"))
     wanted = [a for a in ANALYSES if not (a in ("lenth_method", "effects") and terms > len(y))]
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
         try:
-            out |= analyze_experiment(settings, y, model=analysis["model"], analysis_type=wanted)
+            out |= analyze_experiment(settings, y, model=model, analysis_type=wanted)
         except (ValueError, np.linalg.LinAlgError):
-            wanted = ["coefficients", "anova", "residual_diagnostics"]
-            out |= analyze_experiment(settings, y, model=analysis["model"], analysis_type=wanted)
+            out |= analyze_experiment(
+                settings, y, model=model, analysis_type=["coefficients", "anova", "residual_diagnostics"]
+            )
     return out
 
 
@@ -268,39 +268,41 @@ DESIGN_KINDS = {"generator", "resolution", "aliases"}
 
 
 # --------------------------------------------------------------------------- every printed number, as a case
-def cases() -> list[tuple[str, int, int]]:
+def cases() -> list[tuple[str, int]]:
     return [
-        (e["name"], a, i)
+        (e["name"], i)
         for e in EXPERIMENTS
-        if e.get("runs")
-        for a, analysis in enumerate(e["analyses"])
-        for i, expected in enumerate(analysis["expected"])
-        if expected.get("check") != "manual"
+        for i, expected in enumerate(e["expected"])
+        if "kind" in expected.get("check", {})
     ]
 
 
-def case_id(case: tuple[str, int, int]) -> str:
-    name, a, i = case
-    expected = next(e for e in EXPERIMENTS if e["name"] == name)["analyses"][a]["expected"][i]
-    return f"{name}:{a}:{expected['what']}:{expected.get('term')}"
+def case_id(case: tuple[str, int]) -> str:
+    name, i = case
+    check = next(e for e in EXPERIMENTS if e["name"] == name)["expected"][i]["check"]
+    return f"{name}:{i}:{check['kind']}:{check.get('term')}"
 
 
 @pytest.mark.parametrize("case", cases(), ids=case_id)
 def test_every_printed_number_is_reproduced(case):
-    name, a, i = case
+    name, i = case
     experiment = next(e for e in EXPERIMENTS if e["name"] == name)
-    analysis = experiment["analyses"][a]
-    expected = analysis["expected"][i]
-    what = expected["what"]
-    if what in DESIGN_KINDS:
-        k = len(experiment["factors"])
-        stated = next((e["value"] for e in analysis["expected"] if e["what"] == "resolution"), None)
-        ok, said = design_check(what, expected, k, ROMAN.get(stated) if stated else None)
+    expected = experiment["expected"][i]
+    check = expected["check"]
+    kind = check["kind"]
+    if kind in DESIGN_KINDS:
+        stated = next((e["value"] for e in experiment["expected"] if e["check"].get("kind") == "resolution"), None)
+        ok, said = design_check(
+            kind, {**expected, "term": check.get("term")}, len(experiment["factors"]), ROMAN.get(stated)
+        )
     else:
-        assert what in CHECKS, f"no check for {what!r}: give it one, or mark it manual with the reason"
-        ok, said = agrees(CHECKS[what](fitted(name, a), expected.get("term")), expected)
-    where = expected["where"]
-    assert ok, f"{name}, {analysis['label']}, {what} {expected.get('term')}: {said} (printed at {where})"
+        assert kind in CHECKS, f"no check for {kind!r}: give it one, or mark it manual with the reason"
+        runs = tuple(check["runs"]) if check.get("runs") else None
+        out = fitted(name, check.get("model"), runs, check.get("response"))
+        ok, said = agrees(CHECKS[kind](out, check.get("term")), expected)
+    assert ok, (
+        f"{name}, {expected.get('analysis') or ''} {kind} {check.get('term')}: {said} (printed at {expected['where']})"
+    )
 
 
 def design_cases() -> list[tuple[str, int]]:
@@ -311,7 +313,7 @@ def design_cases() -> list[tuple[str, int]]:
         for f in _reference_files()
         for d in f.get("designs", [])
         for i, expected in enumerate(d["expected"])
-        if expected.get("check") != "manual"
+        if "kind" in expected.get("check", {})
     ]
 
 
@@ -322,16 +324,17 @@ def test_every_design_property_stated_is_the_library_s(case):
     name, i = case
     design = next(d for f in _reference_files() for d in f.get("designs", []) if d["name"] == name)
     expected = design["expected"][i]
+    kind = expected["check"]["kind"]
     k = design["design"]["factors"]
-    if expected["what"] in DESIGN_KINDS:
-        stated = next((e["value"] for e in design["expected"] if e["what"] == "resolution"), None)
-        ok, said = design_check(expected["what"], expected, k, ROMAN.get(stated) if stated else None)
-    elif expected["what"] == "axial_distance":
+    if kind in DESIGN_KINDS:
+        stated = next((e["value"] for e in design["expected"] if e["check"].get("kind") == "resolution"), None)
+        ok, said = design_check(kind, expected, k, ROMAN.get(stated) if stated else None)
+    elif kind == "axial_distance":
         made = generate_design(
             [Factor(name=n, low=-1, high=1) for n in "ABCDEFGH"[:k]], design_type="ccd", alpha="rotatable"
         )
         ok, said = agrees(made.alpha, expected)
-    elif expected["what"] == "n_runs":
+    elif kind == "n_runs":
         made = generate_design(
             [Factor(name=n, low=-1, high=1) for n in "ABCDEFGH"[:k]],
             design_type="ccd",
@@ -340,8 +343,8 @@ def test_every_design_property_stated_is_the_library_s(case):
         )
         ok, said = agrees(made.n_runs, expected)
     else:
-        pytest.fail(f"no check for a design's {expected['what']!r}")
-    assert ok, f"{name}, {expected['what']}: {said} (printed at {expected['where']})"
+        pytest.fail(f"no check for a design's {kind!r}")
+    assert ok, f"{name}, {kind}: {said} (printed at {expected['where']})"
 
 
 # --------------------------------------------------------------------------- where each number came from
@@ -351,14 +354,15 @@ def test_every_experiment_says_where_it_was_printed_and_what_it_printed():
         assert experiment["source"] in SOURCES, name
         assert experiment["where"], name
         assert experiment.get("runs") or experiment.get("data_source"), f"{name}: no runs and no data source"
-        assert experiment["analyses"], f"{name}: the results the source prints are part of the experiment"
-        for analysis in experiment["analyses"]:
-            for expected in analysis["expected"]:
-                where = expected["where"]
-                assert where.get("quote"), f"{name}: every number carries a quotation of where it is printed"
-                assert where.get("line") or where.get("page"), f"{name}: every number carries its line or page"
-                if expected.get("check") == "manual":
-                    assert expected.get("why"), f"{name}: a number not recomputed says why"
+        assert experiment["expected"], f"{name}: the results the source prints are part of the experiment"
+        for expected in experiment["expected"]:
+            where = expected["where"]
+            assert where.get("quote"), f"{name}: every number carries a quotation of where it is printed"
+            assert where.get("line") or where.get("page"), f"{name}: every number carries its line or page"
+            check = expected.get("check", {})
+            assert "kind" in check or check.get("manual"), f"{name}: a number not recomputed says why"
+            if "kind" in check and check["kind"] not in DESIGN_KINDS:
+                assert check.get("runs") is None or experiment.get("runs"), f"{name}: runs to fit"
 
 
 def test_each_name_is_one_experiment():
@@ -368,9 +372,9 @@ def test_each_name_is_one_experiment():
 
 def test_the_printed_values_are_numbers_where_they_are_checked():
     """A value with a check is a number, a bound (< 0.001), or a sum the source writes out."""
-    for name, a, i in cases():
-        expected = next(e for e in EXPERIMENTS if e["name"] == name)["analyses"][a]["expected"][i]
-        if expected["what"] in DESIGN_KINDS or expected.get("value_kind") == "expression":
+    for name, i in cases():
+        expected = next(e for e in EXPERIMENTS if e["name"] == name)["expected"][i]
+        if expected["check"]["kind"] in DESIGN_KINDS or expected.get("value_kind") == "expression":
             continue
         try:
             Decimal(number(expected["value"]))
