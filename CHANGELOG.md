@@ -13,6 +13,18 @@ those changes.
 
 ### Added
 
+- **Factorial opens examples from published sources other than the book, with where they
+  came from and what they print: `https://factori.al/?example=<name>`.** They are listed in
+  `web/published-examples.json`. Each source has a full citation (authors, title, work,
+  volume, pages, year, publisher, DOI). Each example records the section, figures, tables and
+  pages its runs are printed on, and the results the source prints (effects, coefficients,
+  fitted values, residuals, each run predicted without it, R², Q², PRESS, sums and mean
+  squares), each with its page. The opening banner cites the source and links to its DOI. The
+  first source is Soravia and Orth, "Design of Experiments", *Ullmann's Encyclopedia of
+  Industrial Chemistry* (2012): its 2² factorial with a centre run, its 2³ with a categorical
+  agitator type, and the 2³⁻¹ half fraction of that 2³. The article's three-level
+  categorical factor is kept for the library to fit, since the app's categorical factors have
+  two levels. `tests/web/api/test_published_examples.py` checks every printed number.
 - **Factorial opens the book's examples by name: `https://factori.al/?book=<name>`.** The
   19 design-of-experiments examples and exercises of *Process Improvement using Data* that
   the app can reproduce are listed in `web/book-examples.json`, with the book's factors,
