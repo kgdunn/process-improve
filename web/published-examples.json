@@ -1,0 +1,184 @@
+{
+  "about": [
+    "Designed experiments from published sources other than the book, with where each came from and what the",
+    "source prints for it. Factorial opens each by name: https://factori.al/?example=<name>.",
+    "sources: one citation per source, by key; read: when and from what the numbers were taken.",
+    "examples: as web/book-examples.json holds the book's (design, model, runs in the order the source lists them,",
+    "settings in coded units and the result last), with source, the key of its citation, and where, the section,",
+    "figures, tables and pages its runs are printed on. published: the results the source prints, each group with",
+    "where it is printed; numbers are text as printed, so the decimals printed set how closely they are checked.",
+    "library_examples: published examples the app cannot open (a categorical factor at three levels), as rows",
+    "for the library to fit with model.",
+    "tests/web/api/test_published_examples.py checks every published number, and that every example says where it came from."
+  ],
+  "sources": {
+    "ullmann-doe-2012": {
+      "authors": ["Sergio Soravia", "Andreas Orth"],
+      "title": "Design of Experiments",
+      "work": "Ullmann's Encyclopedia of Industrial Chemistry",
+      "volume": "11",
+      "pages": "165-202",
+      "year": 2012,
+      "publisher": "Wiley-VCH Verlag GmbH & Co. KGaA, Weinheim",
+      "doi": "10.1002/14356007.e08_e01.pub3",
+      "url": "https://doi.org/10.1002/14356007.e08_e01.pub3",
+      "cite": "Soravia and Orth (2012), \"Design of Experiments\", Ullmann's Encyclopedia of Industrial Chemistry",
+      "read": "2026-10-13, from the article's PDF (article e08_e01), every number checked against the library"
+    }
+  },
+  "examples": [
+    {
+      "name": "ullmann-catalyst-temperature",
+      "title": "Yield against catalyst A and temperature B, with a centre run",
+      "source": "ullmann-doe-2012",
+      "where": "Section 3.2, Figure 5 (p. 174); the centre run, pp. 175 to 176 and Table 4 (p. 187)",
+      "note": "A is the quantity of catalyst and B the reaction temperature in a stirred tank.",
+      "design": {
+        "design_type": "full_factorial",
+        "factors": [
+          {"name": "A", "low": 100, "high": 150, "units": "g"},
+          {"name": "B", "low": 70, "high": 90, "units": "°C"}
+        ],
+        "response": "Yield",
+        "n_center_points": 1
+      },
+      "model": "interactions",
+      "runs": [
+        [-1, -1, 60],
+        [1, -1, 62],
+        [-1, 1, 74],
+        [1, 1, 92],
+        [0, 0, 70]
+      ],
+      "published": {
+        "effects": {
+          "where": "Section 3.2, Figure 6 (p. 175)",
+          "values": {"A": "10", "B": "22", "A·B": "8"}
+        },
+        "coefficients": {
+          "where": "Section 4.2 (p. 184)",
+          "values": {"Intercept": "71.6", "A": "5", "B": "11", "A·B": "4"}
+        },
+        "fitted": {
+          "where": "Table 4 (p. 187), in the order of the runs",
+          "values": ["59.6", "61.6", "73.6", "91.6", "71.6"]
+        },
+        "residuals": {
+          "where": "Table 4 (p. 187), the observed less the fitted value",
+          "values": ["0.4", "0.4", "0.4", "0.4", "-1.6"]
+        },
+        "left_out_predictions": {
+          "where": "Table 5 (p. 188): each run predicted by the model fitted without it",
+          "values": ["52", "54", "66", "84", "72"]
+        },
+        "statistics": {
+          "where": "Tables 4 and 5 (pp. 187 to 188) and Section 5.2 (p. 189)",
+          "values": {
+            "r_squared": "0.995",
+            "q_squared": "0.601",
+            "press": "260",
+            "ss_total": "651.2",
+            "ss_regression": "648",
+            "ss_residual": "3.2",
+            "ms_regression": "216",
+            "ms_residual": "3.2",
+            "rsd": "1.789",
+            "df_model": "3",
+            "df_residual": "1"
+          }
+        }
+      }
+    },
+    {
+      "name": "ullmann-agitator",
+      "title": "Yield against catalyst A, temperature B and agitator type C",
+      "source": "ullmann-doe-2012",
+      "where": "Section 3.3, Figure 8 (p. 177)",
+      "note": "C, the agitator type, is categorical: the current one or a new one. With every interaction in the model, no degrees of freedom are left, as in the article, which works with the effects alone.",
+      "design": {
+        "design_type": "full_factorial",
+        "factors": [
+          {"name": "A", "low": 100, "high": 150, "units": "g"},
+          {"name": "B", "low": 70, "high": 90, "units": "°C"},
+          {"name": "C", "low": "current", "high": "new", "units": ""}
+        ],
+        "response": "Yield",
+        "n_center_points": 0
+      },
+      "model": {"terms": [["A"], ["B"], ["C"], ["A", "B"], ["A", "C"], ["B", "C"], ["A", "B", "C"]]},
+      "runs": [
+        [-1, -1, -1, 60],
+        [1, -1, -1, 62],
+        [-1, 1, -1, 74],
+        [1, 1, -1, 92],
+        [-1, -1, 1, 57],
+        [1, -1, 1, 59],
+        [-1, 1, 1, 67],
+        [1, 1, 1, 82]
+      ],
+      "published": {
+        "effects": {
+          "where": "Section 3.3, Figure 9 (p. 178) and the summary of effects (p. 179)",
+          "values": {"A": "9.25", "B": "19.25", "C": "-5.75", "A·B": "7.25", "A·C": "-0.75", "B·C": "-2.75", "A·B·C": "-0.75"}
+        }
+      }
+    },
+    {
+      "name": "ullmann-agitator-half-fraction",
+      "title": "Half fraction of the agitator experiment: catalyst A, temperature B, agitator type C",
+      "source": "ullmann-doe-2012",
+      "where": "Section 3.4, Figure 10 (p. 180)",
+      "note": "Four of the eight runs of the full experiment, chosen with C = A·B: the effect of C cannot be told apart from the interaction of A and B.",
+      "design": {
+        "design_type": "fractional_factorial",
+        "factors": [
+          {"name": "A", "low": 100, "high": 150, "units": "g"},
+          {"name": "B", "low": 70, "high": 90, "units": "°C"},
+          {"name": "C", "low": "current", "high": "new", "units": ""}
+        ],
+        "response": "Yield",
+        "n_center_points": 0,
+        "resolution": 3
+      },
+      "model": "main_effects",
+      "runs": [
+        [-1, -1, 1, 57],
+        [1, -1, -1, 62],
+        [-1, 1, -1, 74],
+        [1, 1, 1, 82]
+      ],
+      "published": {
+        "confounding": {
+          "where": "Section 3.4 (p. 180) and Figure 11 (p. 181)",
+          "generators": ["C = A·B"],
+          "aliases": {"A": "B·C", "B": "A·C", "C": "A·B"}
+        },
+        "expressions": {
+          "where": "Figure 10 (p. 180): the main effect of C, which is also the interaction of A and B",
+          "values": {"C": "(57 + 82) / 2 - (62 + 74) / 2"}
+        }
+      }
+    }
+  ],
+  "library_examples": [
+    {
+      "name": "ullmann-three-level-categorical",
+      "title": "One categorical factor at three instances, coded by two dummy variables",
+      "source": "ullmann-doe-2012",
+      "where": "Section 7.2, Table 7 and Figure 28 (p. 198)",
+      "note": "The article codes instance i1 as (p1, p2) = (1, 0), i2 as (0, 1) and i3 as (-1, -1): sum-to-zero coding.",
+      "rows": [
+        {"instance": "i1", "y": 6},
+        {"instance": "i2", "y": 8},
+        {"instance": "i3", "y": 13}
+      ],
+      "model": "C(instance, Sum)",
+      "published": {
+        "coefficients": {
+          "where": "Section 7.2 (p. 198): c0, c1 and c2, and c3 = -c1 - c2 for the third instance",
+          "values": {"c0": "9", "c1": "-3", "c2": "-1", "c3": "4"}
+        }
+      }
+    }
+  ]
+}
