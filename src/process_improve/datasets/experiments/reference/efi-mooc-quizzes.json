@@ -2429,6 +2429,2600 @@
    ]
   },
   {
+   "name": "efi-quiz3-pizza-delivery",
+   "title": "Pizza delivery time: crust A, soft drinks B and garlic bread C, and the Pareto plot of its model",
+   "kind": "quiz question",
+   "where": {
+    "quiz": "Quiz for week 3",
+    "file": "quiz3-2015",
+    "question": 1,
+    "question_id": "7874ae726a567a7159e7342b9c536ccd",
+    "images": ["https://d396qusza40orc.cloudfront.net/experiments/quiz_assets/week3/pizza1.png", "https://d396qusza40orc.cloudfront.net/experiments/quiz_assets/week3/pizza2.png", "https://d396qusza40orc.cloudfront.net/experiments/quiz_assets/week3/pizza3.png", "https://d396qusza40orc.cloudfront.net/experiments/quiz_assets/week3/pizza4.png"]
+   },
+   "factors": [
+    {
+     "name": "A",
+     "description": "Pizza crust",
+     "low": "Thin",
+     "high": "Thick",
+     "units": "",
+     "type": "categorical"
+    },
+    {
+     "name": "B",
+     "description": "Soft drinks ordered",
+     "low": "No",
+     "high": "Yes",
+     "units": "",
+     "type": "categorical"
+    },
+    {
+     "name": "C",
+     "description": "Garlic bread ordered",
+     "low": "No",
+     "high": "Yes",
+     "units": "",
+     "type": "categorical"
+    }
+   ],
+   "responses": [
+    {
+     "name": "time",
+     "description": "Time to deliver",
+     "units": ""
+    }
+   ],
+   "design": {
+    "type": "2^3 full factorial",
+    "n_runs": 8
+   },
+   "runs": {
+    "columns": ["A", "B", "C", "time"],
+    "coded": false,
+    "rows": [
+     ["Thin", "No", "No", 14],
+     ["Thick", "No", "No", 16],
+     ["Thin", "Yes", "No", 14],
+     ["Thick", "Yes", "No", 16],
+     ["Thin", "No", "Yes", 17],
+     ["Thick", "No", "Yes", 21],
+     ["Thin", "Yes", "Yes", 15],
+     ["Thick", "Yes", "Yes", 22]
+    ],
+    "notes": "the standard order table as printed; the quiz gives no units for the delivery time"
+   },
+   "notes": "The four options are Pareto plots, given as images. The fit A*B*C has coefficients A 1.875, C 1.875, A·C 0.875, A·B 0.375, A·B·C 0.375, B -0.125 and B·C -0.125, so effects (twice those) of 3.75, 3.75, 1.75, 0.75, 0.75, -0.25 and -0.25. The plot keyed correct (pizza3.png) draws the coefficients and the plot keyed incorrect with the right signs (pizza4.png) draws the effects, though both label the axis 'Magnitude of effect': the key rests on the course's convention that a Pareto plot shows coefficients, which the quiz does not state.",
+   "expected": [
+    {
+     "what": "Pareto plot",
+     "term": null,
+     "value": "pizza3.png",
+     "where": {
+      "quiz": "Quiz for week 3",
+      "file": "quiz3-2015",
+      "question": 1,
+      "question_id": "7874ae726a567a7159e7342b9c536ccd",
+      "option_id": "4131d1c0b6851145a35e53e54db11e05",
+      "answer_key": "correct",
+      "source_kind": "option image",
+      "quote": "<img src=\"https://d396qusza40orc.cloudfront.net/experiments/quiz_assets/week3/pizza3.png\">"
+     },
+     "check": {
+      "manual": "a Pareto plot given only as an image: its bars are read off the axis by eye, with no digits printed; the note compares them with the fit"
+     },
+     "note": "by eye, A and C 1.9, A:C 0.9, A:B:C and A:B 0.4, B:C and B 0.1, with B and B:C negative: the coefficients of A*B*C, under an axis labelled 'Magnitude of effect'"
+    },
+    {
+     "what": "Pareto plot",
+     "term": null,
+     "value": "pizza4.png",
+     "where": {
+      "quiz": "Quiz for week 3",
+      "file": "quiz3-2015",
+      "question": 1,
+      "question_id": "7874ae726a567a7159e7342b9c536ccd",
+      "option_id": "47ec97e34c46b4c6a51893d7344305d5",
+      "answer_key": "incorrect",
+      "source_kind": "option image",
+      "quote": "<img src=\"https://d396qusza40orc.cloudfront.net/experiments/quiz_assets/week3/pizza4.png\">"
+     },
+     "check": {
+      "manual": "a Pareto plot given only as an image: its bars are read off the axis by eye, with no digits printed; the note compares them with the fit"
+     },
+     "note": "its explanation reads 'Verify the magnitude of the effects.' By eye, A and C 3.75, A:C 1.75, A:B:C and A:B 0.75, B:C and B 0.25, with the signs of pizza3.png: these are the effects of A*B*C, twice the coefficients, so this plot shows the magnitude of the effects its axis names; it is keyed incorrect only because the course's Pareto plot shows coefficients"
+    },
+    {
+     "what": "Pareto plot",
+     "term": null,
+     "value": "pizza1.png",
+     "where": {
+      "quiz": "Quiz for week 3",
+      "file": "quiz3-2015",
+      "question": 1,
+      "question_id": "7874ae726a567a7159e7342b9c536ccd",
+      "option_id": "301c29a2ce2d6b33472061580b401b85",
+      "answer_key": "incorrect",
+      "source_kind": "option image",
+      "quote": "<img src=\"https://d396qusza40orc.cloudfront.net/experiments/quiz_assets/week3/pizza1.png\">"
+     },
+     "check": {
+      "manual": "a Pareto plot given only as an image: its bars are read off the axis by eye, with no digits printed; the note compares them with the fit"
+     },
+     "note": "by eye, the bars of pizza3.png with every sign reversed; the fit has the opposite signs"
+    },
+    {
+     "what": "Pareto plot",
+     "term": null,
+     "value": "pizza2.png",
+     "where": {
+      "quiz": "Quiz for week 3",
+      "file": "quiz3-2015",
+      "question": 1,
+      "question_id": "7874ae726a567a7159e7342b9c536ccd",
+      "option_id": "fe26a879d1b0768da63c86abf04a99cb",
+      "answer_key": "incorrect",
+      "source_kind": "option image",
+      "quote": "<img src=\"https://d396qusza40orc.cloudfront.net/experiments/quiz_assets/week3/pizza2.png\">"
+     },
+     "check": {
+      "manual": "a Pareto plot given only as an image: its bars are read off the axis by eye, with no digits printed; the note compares them with the fit"
+     },
+     "note": "by eye, the bars of pizza3.png, with C, A:C and A:B:C drawn negative and B:C positive; in the fit C, A·C and A·B·C are positive and B·C negative"
+    }
+   ]
+  },
+  {
+   "name": "efi-quiz3-boiling-water-pot-size",
+   "title": "The cook's soup pots: amount of water W and size of pot P, a destructive interaction on boiling time",
+   "kind": "quiz question",
+   "where": {
+    "quiz": "Quiz for week 3",
+    "file": "quiz3-2015",
+    "question": 3,
+    "question_id": "c2a924cc6b1755a65cf597adc3830617",
+    "images": ["https://d396qusza40orc.cloudfront.net/experiments/quiz_assets/week3/Destructive%20-%20boiling%20water.jpeg"]
+   },
+   "factors": [
+    {
+     "name": "W",
+     "description": "Amount of water",
+     "low": 5,
+     "high": 8,
+     "units": "L",
+     "type": "numeric"
+    },
+    {
+     "name": "P",
+     "description": "Size of pot",
+     "low": 10,
+     "high": 15,
+     "units": "L",
+     "type": "numeric"
+    }
+   ],
+   "responses": [
+    {
+     "name": "time",
+     "description": "Time to boil the water",
+     "units": ""
+    }
+   ],
+   "design": {
+    "type": "2^2 full factorial",
+    "n_runs": 4
+   },
+   "runs": {
+    "columns": ["W", "P", "time"],
+    "coded": true,
+    "rows": [
+     [-1, -1, 11],
+     [1, -1, 16],
+     [-1, 1, 7],
+     [1, 1, 9]
+    ],
+    "notes": "from the explanation's R code (W, P and y), in coded units; the question shows only the Pareto plot, and gives no units for the time"
+   },
+   "notes": "The explanation fits lm(y ~ W + P + W*P), the model W*P here.",
+   "expected": [
+    {
+     "what": "effect",
+     "term": "P",
+     "value": "decrease $$y$$ by 7 units",
+     "analysis": "the effect of P on the two runs at high W, 8 L",
+     "where": {
+      "quiz": "Quiz for week 3",
+      "file": "quiz3-2015",
+      "question": 3,
+      "question_id": "c2a924cc6b1755a65cf597adc3830617",
+      "option_id": "da2103b035b286dcb071d0bf75a5bb2c",
+      "answer_key": "correct",
+      "source_kind": "option",
+      "quote": "The effect on $$y$$ when changing P from 10L to 15L, while the value of W is at 8L is to decrease $$y$$ by 7 units."
+     },
+     "check": {
+      "kind": "effect",
+      "term": "P",
+      "model": "P",
+      "runs": [2, 4],
+      "printed": "-7"
+     }
+    },
+    {
+     "what": "effect",
+     "term": "W",
+     "value": "$$+1$$",
+     "analysis": "the effect of W on the two runs at low P, 10 L",
+     "where": {
+      "quiz": "Quiz for week 3",
+      "file": "quiz3-2015",
+      "question": 3,
+      "question_id": "c2a924cc6b1755a65cf597adc3830617",
+      "option_id": "a1cc6eeb5c0ed6a23fd91c068774df4b",
+      "answer_key": "incorrect",
+      "source_kind": "option",
+      "quote": "The effect of changing W from 5L to 8L, while P is at 10L is: $$+1$$"
+     },
+     "check": {
+      "kind": "effect",
+      "term": "W",
+      "model": "W",
+      "runs": [1, 2],
+      "printed": "+1",
+      "disagreement": "the answer key marks this option incorrect: the effect of W at P = 10 L is 16 - 11 = +5"
+     }
+    },
+    {
+     "what": "effect",
+     "term": "W",
+     "value": "$$+5$$",
+     "analysis": "the effect of W on the two runs at low P, 10 L",
+     "where": {
+      "quiz": "Quiz for week 3",
+      "file": "quiz3-2015",
+      "question": 3,
+      "question_id": "c2a924cc6b1755a65cf597adc3830617",
+      "option_id": "a1cc6eeb5c0ed6a23fd91c068774df4b",
+      "answer_key": "incorrect",
+      "source_kind": "option explanation",
+      "quote": "This is incorrect, the effect on $$y$$ would be $$+5$$."
+     },
+     "check": {
+      "kind": "effect",
+      "term": "W",
+      "model": "W",
+      "runs": [1, 2],
+      "printed": "+5"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "Intercept",
+     "value": "$$10$$",
+     "where": {
+      "quiz": "Quiz for week 3",
+      "file": "quiz3-2015",
+      "question": 3,
+      "question_id": "c2a924cc6b1755a65cf597adc3830617",
+      "option_id": "53e03eb92c6c9caa000d17eea0d79066",
+      "answer_key": "incorrect",
+      "source_kind": "option",
+      "quote": "The intercept value shown in the Pareto plot is: $$10$$"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "Intercept",
+      "model": "W*P",
+      "printed": "10",
+      "disagreement": "the answer key marks this option incorrect: the fit's intercept is 10.75, and a Pareto plot does not show the intercept"
+     }
+    },
+    {
+     "what": "Pareto plot",
+     "term": null,
+     "value": "Destructive%20-%20boiling%20water.jpeg",
+     "where": {
+      "quiz": "Quiz for week 3",
+      "file": "quiz3-2015",
+      "question": 3,
+      "question_id": "c2a924cc6b1755a65cf597adc3830617",
+      "source_kind": "question image",
+      "quote": "<img src=\"https://d396qusza40orc.cloudfront.net/experiments/quiz_assets/week3/Destructive%20-%20boiling%20water.jpeg\">"
+     },
+     "check": {
+      "manual": "a Pareto plot given only as an image: its bars are read off the axis by eye, with no digits printed; the note compares them with the fit"
+     },
+     "note": "by eye, P 2.75 negative, W 1.75 positive and W:P 0.75 negative: the coefficients of W*P"
+    }
+   ]
+  },
+  {
+   "name": "efi-quiz3-golf-drive",
+   "title": "A golfer's drive: tee height T, holes played H, club C and time of day D, sixteen runs",
+   "kind": "quiz question",
+   "where": {
+    "quiz": "Quiz for week 3",
+    "file": "quiz3-2015",
+    "question": 4,
+    "question_id": "c9a1a663b7789b29e31ddfb5fbf3aae9"
+   },
+   "factors": [
+    {
+     "name": "T",
+     "description": "Tee height",
+     "low": 1,
+     "high": 3,
+     "units": "cm",
+     "type": "numeric"
+    },
+    {
+     "name": "H",
+     "description": "Number of holes the ball was played for before the shot",
+     "low": 1,
+     "high": 9,
+     "units": "holes",
+     "type": "numeric"
+    },
+    {
+     "name": "C",
+     "description": "Club type",
+     "low": "Callaway",
+     "high": "Titleist",
+     "units": "",
+     "type": "categorical"
+    },
+    {
+     "name": "D",
+     "description": "Time of day (24-hour clock)",
+     "low": "9:00",
+     "high": "14:00",
+     "units": "",
+     "type": "categorical"
+    }
+   ],
+   "responses": [
+    {
+     "name": "distance",
+     "description": "Driving distance",
+     "units": "yards"
+    }
+   ],
+   "design": {
+    "type": "2^4 full factorial",
+    "n_runs": 16
+   },
+   "runs": {
+    "columns": ["T", "H", "C", "D", "distance"],
+    "coded": false,
+    "rows": [
+     [3, 9, "Titleist", "9:00", 305],
+     [3, 1, "Callaway", "9:00", 295],
+     [3, 9, "Titleist", "14:00", 288],
+     [1, 1, "Titleist", "9:00", 300],
+     [3, 9, "Callaway", "14:00", 260],
+     [1, 9, "Titleist", "9:00", 298],
+     [1, 9, "Titleist", "14:00", 281],
+     [3, 9, "Callaway", "9:00", 278],
+     [1, 1, "Callaway", "14:00", 265],
+     [3, 1, "Callaway", "14:00", 282],
+     [1, 9, "Callaway", "14:00", 230],
+     [1, 1, "Callaway", "9:00", 288],
+     [1, 1, "Titleist", "14:00", 292],
+     [3, 1, "Titleist", "14:00", 300],
+     [3, 1, "Titleist", "9:00", 312],
+     [1, 9, "Callaway", "9:00", 235]
+    ],
+    "notes": "in the order run, as printed; the low and high levels of C and D are those of the explanation's standard order (Callaway and 9:00 low)"
+   },
+   "notes": "The explanation fits lm(y ~ T*H*C*D) to the results in standard order. The fit's main effects agree with the key: C 15.19, H -9.94, T 8.19 and D -7.06 (coefficients), so the club has the largest and the earlier time, 9:00, gives the longer drives.",
+   "expected": [
+    {
+     "what": "results in standard order",
+     "term": null,
+     "value": "c(288, 295, 235, 278, 300, 312, 298, 305, 265, 282, 230, 260, 292, 300, 281, 288)",
+     "analysis": "each value of the explanation's vector, in standard order (T fastest, then H, C and D), against the result of the run with those settings in the question's table, in run order",
+     "where": {
+      "quiz": "Quiz for week 3",
+      "file": "quiz3-2015",
+      "question": 4,
+      "question_id": "c9a1a663b7789b29e31ddfb5fbf3aae9",
+      "source_kind": "question explanation",
+      "quote": "y <- c(288, 295, 235, 278, 300, 312, 298, 305, 265, 282, 230, 260, 292, 300, 281, 288)"
+     },
+     "check": [
+      {
+       "kind": "observation",
+       "model": null,
+       "run": 12,
+       "printed": "288"
+      },
+      {
+       "kind": "observation",
+       "model": null,
+       "run": 2,
+       "printed": "295"
+      },
+      {
+       "kind": "observation",
+       "model": null,
+       "run": 16,
+       "printed": "235"
+      },
+      {
+       "kind": "observation",
+       "model": null,
+       "run": 8,
+       "printed": "278"
+      },
+      {
+       "kind": "observation",
+       "model": null,
+       "run": 4,
+       "printed": "300"
+      },
+      {
+       "kind": "observation",
+       "model": null,
+       "run": 15,
+       "printed": "312"
+      },
+      {
+       "kind": "observation",
+       "model": null,
+       "run": 6,
+       "printed": "298"
+      },
+      {
+       "kind": "observation",
+       "model": null,
+       "run": 1,
+       "printed": "305"
+      },
+      {
+       "kind": "observation",
+       "model": null,
+       "run": 9,
+       "printed": "265"
+      },
+      {
+       "kind": "observation",
+       "model": null,
+       "run": 10,
+       "printed": "282"
+      },
+      {
+       "kind": "observation",
+       "model": null,
+       "run": 11,
+       "printed": "230"
+      },
+      {
+       "kind": "observation",
+       "model": null,
+       "run": 5,
+       "printed": "260"
+      },
+      {
+       "kind": "observation",
+       "model": null,
+       "run": 13,
+       "printed": "292"
+      },
+      {
+       "kind": "observation",
+       "model": null,
+       "run": 14,
+       "printed": "300"
+      },
+      {
+       "kind": "observation",
+       "model": null,
+       "run": 7,
+       "printed": "281"
+      },
+      {
+       "kind": "observation",
+       "model": null,
+       "run": 3,
+       "printed": "288"
+      }
+     ]
+    },
+    {
+     "what": "coded setting",
+     "term": "D",
+     "value": "$$x_D=-1$$",
+     "where": {
+      "quiz": "Quiz for week 3",
+      "file": "quiz3-2015",
+      "question": 4,
+      "question_id": "c9a1a663b7789b29e31ddfb5fbf3aae9",
+      "option_id": "160abbb2aea5a292056597620797825a",
+      "answer_key": "correct",
+      "source_kind": "option explanation",
+      "quote": "Yes, this is correct. Earlier morning ($$x_D=-1$$) boosts the outcome variable."
+     },
+     "check": {
+      "manual": "the coded value of the 9:00 level, a setting rather than a result; the fit T*H*C*D gives D a coefficient of -7.06, so the low level, 9:00, gives the longer drives, as the option says"
+     }
+    }
+   ]
+  },
+  {
+   "name": "efi-quiz3-long-jump",
+   "title": "A long jumper: running distance R, shoes S and jumping foot F",
+   "kind": "quiz question",
+   "where": {
+    "quiz": "Quiz for week 3",
+    "file": "quiz3-2015",
+    "question": 5,
+    "question_id": "44e51be8261cbf86dd28984298831747",
+    "images": ["https://d396qusza40orc.cloudfront.net/experiments/quiz_assets/week3/Long%20Jump.jpeg"]
+   },
+   "factors": [
+    {
+     "name": "R",
+     "description": "Running distance before the jump",
+     "low": 30,
+     "high": 40,
+     "units": "m",
+     "type": "numeric"
+    },
+    {
+     "name": "S",
+     "description": "Shoes",
+     "low": "off",
+     "high": "on",
+     "units": "",
+     "type": "categorical"
+    },
+    {
+     "name": "F",
+     "description": "Jumping foot",
+     "low": "left",
+     "high": "right",
+     "units": "",
+     "type": "categorical"
+    }
+   ],
+   "responses": [
+    {
+     "name": "distance",
+     "description": "Distance jumped",
+     "units": ""
+    }
+   ],
+   "design": {
+    "type": "2^3 full factorial",
+    "n_runs": 8
+   },
+   "runs": {
+    "columns": ["R", "S", "F", "distance"],
+    "coded": true,
+    "rows": [
+     [-1, -1, -1, 6.2],
+     [1, -1, -1, 6.4],
+     [-1, 1, -1, 6.1],
+     [1, 1, -1, 5.5],
+     [-1, -1, 1, 6.7],
+     [1, -1, 1, 6.0],
+     [-1, 1, 1, 7.5],
+     [1, 1, 1, 8.8]
+    ],
+    "notes": "from the explanation's R code (expand.grid of R, S and F, and y), in coded units; the question shows only the Pareto plot, and gives no units for the distance"
+   },
+   "notes": "The explanation fits lm(y ~ R*S*F). The key's 'all factors are important' and the explanation's 'R has a significant effect as part of the three-factor interaction' are read off the Pareto plot of a saturated fit, which leaves no error estimate; by Lenth's method (PSE 0.975, margin of error 3.67 on the effects) no effect is active, the largest being F 1.2 and S·F 1.15.",
+   "expected": [
+    {
+     "what": "Pareto plot",
+     "term": null,
+     "value": "Long%20Jump.jpeg",
+     "where": {
+      "quiz": "Quiz for week 3",
+      "file": "quiz3-2015",
+      "question": 5,
+      "question_id": "44e51be8261cbf86dd28984298831747",
+      "source_kind": "question image",
+      "quote": "<img src=\"https://d396qusza40orc.cloudfront.net/experiments/quiz_assets/week3/Long%20Jump.jpeg\">"
+     },
+     "check": {
+      "manual": "a Pareto plot given only as an image: its bars are read off the axis by eye, with no digits printed; the note compares them with the fit"
+     },
+     "note": "by eye, F 0.6, S:F 0.575, R:S:F 0.35, S 0.325, R:S 0.15, R:F 0.125 and R 0.025, all positive: the coefficients of R*S*F"
+    }
+   ]
+  },
+  {
+   "name": "efi-quiz3-running-5km",
+   "title": "Priya's 5 km run: stretching A, warm up B and water C, and a ninth run at the centre",
+   "kind": "quiz question",
+   "where": {
+    "quiz": "Quiz for week 3",
+    "file": "quiz3-2015",
+    "question": 6,
+    "question_id": "a54b5b0df03ebeb4d7fabe7084952245"
+   },
+   "factors": [
+    {
+     "name": "A",
+     "description": "Stretching time",
+     "low": 5,
+     "high": 10,
+     "units": "min",
+     "type": "numeric"
+    },
+    {
+     "name": "B",
+     "description": "Warm up time",
+     "low": 4,
+     "high": 9,
+     "units": "min",
+     "type": "numeric"
+    },
+    {
+     "name": "C",
+     "description": "Amount of water consumed before running",
+     "low": 400,
+     "high": 500,
+     "units": "mL",
+     "type": "numeric"
+    }
+   ],
+   "responses": [
+    {
+     "name": "time",
+     "description": "Time to run 5 km",
+     "units": "min"
+    }
+   ],
+   "design": {
+    "type": "2^3 full factorial and a centre point",
+    "n_runs": 9
+   },
+   "runs": {
+    "columns": ["A", "B", "C", "time"],
+    "coded": false,
+    "rows": [
+     [5, 4, 400, 39],
+     [10, 4, 400, 35],
+     [5, 9, 400, 40],
+     [10, 9, 400, 41],
+     [5, 4, 500, 40],
+     [10, 4, 500, 38],
+     [5, 9, 500, 41],
+     [10, 9, 500, 42],
+     [7.5, 6.5, 450, 40.5]
+    ],
+    "notes": "the standard order table, then the ninth run printed in option 4b75bea0, at the centre"
+   },
+   "notes": "The explanation fits lm(y ~ A*B*C) to the eight runs, then to all nine. The centre point changes only the intercept: the other seven coefficients are the same in both fits. Option 62ed4dad's 'smallest main effect is A' agrees with the fit (A -0.5, C 0.75, B 1.5).",
+   "expected": [
+    {
+     "what": "coefficient",
+     "term": "Intercept",
+     "value": "39.5",
+     "analysis": "the eight runs of the full factorial",
+     "where": {
+      "quiz": "Quiz for week 3",
+      "file": "quiz3-2015",
+      "question": 6,
+      "question_id": "a54b5b0df03ebeb4d7fabe7084952245",
+      "option_id": "49e137367c935704432b06911c829307",
+      "answer_key": "correct",
+      "source_kind": "option",
+      "quote": "\\hat{y} = 39.5 - 0.5 x_\\text{A} + 1.5x_\\text{B} + 0.75x_\\text{C} + 1x_\\text{A}x_\\text{B} + 0.25x_\\text{A}x_\\text{C} \\\\- 0.25x_\\text{B}x_\\text{C} - 0.25x_\\text{A}x_\\text{B}x_\\text{C}"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "Intercept",
+      "model": "A*B*C",
+      "runs": [1, 2, 3, 4, 5, 6, 7, 8]
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "A",
+     "value": "-0.5",
+     "analysis": "the eight runs of the full factorial",
+     "where": {
+      "quiz": "Quiz for week 3",
+      "file": "quiz3-2015",
+      "question": 6,
+      "question_id": "a54b5b0df03ebeb4d7fabe7084952245",
+      "option_id": "49e137367c935704432b06911c829307",
+      "answer_key": "correct",
+      "source_kind": "option",
+      "quote": "\\hat{y} = 39.5 - 0.5 x_\\text{A} + 1.5x_\\text{B} + 0.75x_\\text{C} + 1x_\\text{A}x_\\text{B} + 0.25x_\\text{A}x_\\text{C} \\\\- 0.25x_\\text{B}x_\\text{C} - 0.25x_\\text{A}x_\\text{B}x_\\text{C}"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "A",
+      "model": "A*B*C",
+      "runs": [1, 2, 3, 4, 5, 6, 7, 8]
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "B",
+     "value": "1.5",
+     "analysis": "the eight runs of the full factorial",
+     "where": {
+      "quiz": "Quiz for week 3",
+      "file": "quiz3-2015",
+      "question": 6,
+      "question_id": "a54b5b0df03ebeb4d7fabe7084952245",
+      "option_id": "49e137367c935704432b06911c829307",
+      "answer_key": "correct",
+      "source_kind": "option",
+      "quote": "\\hat{y} = 39.5 - 0.5 x_\\text{A} + 1.5x_\\text{B} + 0.75x_\\text{C} + 1x_\\text{A}x_\\text{B} + 0.25x_\\text{A}x_\\text{C} \\\\- 0.25x_\\text{B}x_\\text{C} - 0.25x_\\text{A}x_\\text{B}x_\\text{C}"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "B",
+      "model": "A*B*C",
+      "runs": [1, 2, 3, 4, 5, 6, 7, 8]
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "C",
+     "value": "0.75",
+     "analysis": "the eight runs of the full factorial",
+     "where": {
+      "quiz": "Quiz for week 3",
+      "file": "quiz3-2015",
+      "question": 6,
+      "question_id": "a54b5b0df03ebeb4d7fabe7084952245",
+      "option_id": "49e137367c935704432b06911c829307",
+      "answer_key": "correct",
+      "source_kind": "option",
+      "quote": "\\hat{y} = 39.5 - 0.5 x_\\text{A} + 1.5x_\\text{B} + 0.75x_\\text{C} + 1x_\\text{A}x_\\text{B} + 0.25x_\\text{A}x_\\text{C} \\\\- 0.25x_\\text{B}x_\\text{C} - 0.25x_\\text{A}x_\\text{B}x_\\text{C}"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "C",
+      "model": "A*B*C",
+      "runs": [1, 2, 3, 4, 5, 6, 7, 8]
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "A·B",
+     "value": "1",
+     "analysis": "the eight runs of the full factorial",
+     "where": {
+      "quiz": "Quiz for week 3",
+      "file": "quiz3-2015",
+      "question": 6,
+      "question_id": "a54b5b0df03ebeb4d7fabe7084952245",
+      "option_id": "49e137367c935704432b06911c829307",
+      "answer_key": "correct",
+      "source_kind": "option",
+      "quote": "\\hat{y} = 39.5 - 0.5 x_\\text{A} + 1.5x_\\text{B} + 0.75x_\\text{C} + 1x_\\text{A}x_\\text{B} + 0.25x_\\text{A}x_\\text{C} \\\\- 0.25x_\\text{B}x_\\text{C} - 0.25x_\\text{A}x_\\text{B}x_\\text{C}"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "A·B",
+      "model": "A*B*C",
+      "runs": [1, 2, 3, 4, 5, 6, 7, 8]
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "A·C",
+     "value": "0.25",
+     "analysis": "the eight runs of the full factorial",
+     "where": {
+      "quiz": "Quiz for week 3",
+      "file": "quiz3-2015",
+      "question": 6,
+      "question_id": "a54b5b0df03ebeb4d7fabe7084952245",
+      "option_id": "49e137367c935704432b06911c829307",
+      "answer_key": "correct",
+      "source_kind": "option",
+      "quote": "\\hat{y} = 39.5 - 0.5 x_\\text{A} + 1.5x_\\text{B} + 0.75x_\\text{C} + 1x_\\text{A}x_\\text{B} + 0.25x_\\text{A}x_\\text{C} \\\\- 0.25x_\\text{B}x_\\text{C} - 0.25x_\\text{A}x_\\text{B}x_\\text{C}"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "A·C",
+      "model": "A*B*C",
+      "runs": [1, 2, 3, 4, 5, 6, 7, 8]
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "B·C",
+     "value": "-0.25",
+     "analysis": "the eight runs of the full factorial",
+     "where": {
+      "quiz": "Quiz for week 3",
+      "file": "quiz3-2015",
+      "question": 6,
+      "question_id": "a54b5b0df03ebeb4d7fabe7084952245",
+      "option_id": "49e137367c935704432b06911c829307",
+      "answer_key": "correct",
+      "source_kind": "option",
+      "quote": "\\hat{y} = 39.5 - 0.5 x_\\text{A} + 1.5x_\\text{B} + 0.75x_\\text{C} + 1x_\\text{A}x_\\text{B} + 0.25x_\\text{A}x_\\text{C} \\\\- 0.25x_\\text{B}x_\\text{C} - 0.25x_\\text{A}x_\\text{B}x_\\text{C}"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "B·C",
+      "model": "A*B*C",
+      "runs": [1, 2, 3, 4, 5, 6, 7, 8]
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "A·B·C",
+     "value": "-0.25",
+     "analysis": "the eight runs of the full factorial",
+     "where": {
+      "quiz": "Quiz for week 3",
+      "file": "quiz3-2015",
+      "question": 6,
+      "question_id": "a54b5b0df03ebeb4d7fabe7084952245",
+      "option_id": "49e137367c935704432b06911c829307",
+      "answer_key": "correct",
+      "source_kind": "option",
+      "quote": "\\hat{y} = 39.5 - 0.5 x_\\text{A} + 1.5x_\\text{B} + 0.75x_\\text{C} + 1x_\\text{A}x_\\text{B} + 0.25x_\\text{A}x_\\text{C} \\\\- 0.25x_\\text{B}x_\\text{C} - 0.25x_\\text{A}x_\\text{B}x_\\text{C}"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "A·B·C",
+      "model": "A*B*C",
+      "runs": [1, 2, 3, 4, 5, 6, 7, 8]
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "Intercept",
+     "value": "40",
+     "analysis": "the eight runs of the full factorial",
+     "where": {
+      "quiz": "Quiz for week 3",
+      "file": "quiz3-2015",
+      "question": 6,
+      "question_id": "a54b5b0df03ebeb4d7fabe7084952245",
+      "option_id": "f2cc8aabc59cec5f346a5a5976922cac",
+      "answer_key": "incorrect",
+      "source_kind": "option",
+      "quote": "\\hat{y} = 40 - 0.75 x_\\text{A} + 1x_\\text{B} - 0.75x_\\text{C} + 1x_\\text{A}x_\\text{B} + 0.25x_\\text{A}x_\\text{C}\\\\ - 0.25x_\\text{B}x_\\text{C} - 0.25x_\\text{A}x_\\text{B}x_\\text{C}"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "Intercept",
+      "model": "A*B*C",
+      "runs": [1, 2, 3, 4, 5, 6, 7, 8]
+     },
+     "note": "in an option keyed incorrect, 40 is half a unit from the fit's 39.5, on the edge of the rounding of its printed digits, so it is not counted as a disagreement; the option is wrong in A and C"
+    },
+    {
+     "what": "coefficient",
+     "term": "A",
+     "value": "-0.75",
+     "analysis": "the eight runs of the full factorial",
+     "where": {
+      "quiz": "Quiz for week 3",
+      "file": "quiz3-2015",
+      "question": 6,
+      "question_id": "a54b5b0df03ebeb4d7fabe7084952245",
+      "option_id": "f2cc8aabc59cec5f346a5a5976922cac",
+      "answer_key": "incorrect",
+      "source_kind": "option",
+      "quote": "\\hat{y} = 40 - 0.75 x_\\text{A} + 1x_\\text{B} - 0.75x_\\text{C} + 1x_\\text{A}x_\\text{B} + 0.25x_\\text{A}x_\\text{C}\\\\ - 0.25x_\\text{B}x_\\text{C} - 0.25x_\\text{A}x_\\text{B}x_\\text{C}"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "A",
+      "model": "A*B*C",
+      "runs": [1, 2, 3, 4, 5, 6, 7, 8],
+      "disagreement": "the answer key marks this option incorrect; the fit gives -0.5"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "B",
+     "value": "1",
+     "analysis": "the eight runs of the full factorial",
+     "where": {
+      "quiz": "Quiz for week 3",
+      "file": "quiz3-2015",
+      "question": 6,
+      "question_id": "a54b5b0df03ebeb4d7fabe7084952245",
+      "option_id": "f2cc8aabc59cec5f346a5a5976922cac",
+      "answer_key": "incorrect",
+      "source_kind": "option",
+      "quote": "\\hat{y} = 40 - 0.75 x_\\text{A} + 1x_\\text{B} - 0.75x_\\text{C} + 1x_\\text{A}x_\\text{B} + 0.25x_\\text{A}x_\\text{C}\\\\ - 0.25x_\\text{B}x_\\text{C} - 0.25x_\\text{A}x_\\text{B}x_\\text{C}"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "B",
+      "model": "A*B*C",
+      "runs": [1, 2, 3, 4, 5, 6, 7, 8]
+     },
+     "note": "in an option keyed incorrect, 1 is half a unit from the fit's 1.5, on the edge of the rounding of its printed digits, so it is not counted as a disagreement; the option is wrong in A and C"
+    },
+    {
+     "what": "coefficient",
+     "term": "C",
+     "value": "-0.75",
+     "analysis": "the eight runs of the full factorial",
+     "where": {
+      "quiz": "Quiz for week 3",
+      "file": "quiz3-2015",
+      "question": 6,
+      "question_id": "a54b5b0df03ebeb4d7fabe7084952245",
+      "option_id": "f2cc8aabc59cec5f346a5a5976922cac",
+      "answer_key": "incorrect",
+      "source_kind": "option",
+      "quote": "\\hat{y} = 40 - 0.75 x_\\text{A} + 1x_\\text{B} - 0.75x_\\text{C} + 1x_\\text{A}x_\\text{B} + 0.25x_\\text{A}x_\\text{C}\\\\ - 0.25x_\\text{B}x_\\text{C} - 0.25x_\\text{A}x_\\text{B}x_\\text{C}"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "C",
+      "model": "A*B*C",
+      "runs": [1, 2, 3, 4, 5, 6, 7, 8],
+      "disagreement": "the answer key marks this option incorrect; the fit gives 0.75"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "A·B",
+     "value": "1",
+     "analysis": "the eight runs of the full factorial",
+     "where": {
+      "quiz": "Quiz for week 3",
+      "file": "quiz3-2015",
+      "question": 6,
+      "question_id": "a54b5b0df03ebeb4d7fabe7084952245",
+      "option_id": "f2cc8aabc59cec5f346a5a5976922cac",
+      "answer_key": "incorrect",
+      "source_kind": "option",
+      "quote": "\\hat{y} = 40 - 0.75 x_\\text{A} + 1x_\\text{B} - 0.75x_\\text{C} + 1x_\\text{A}x_\\text{B} + 0.25x_\\text{A}x_\\text{C}\\\\ - 0.25x_\\text{B}x_\\text{C} - 0.25x_\\text{A}x_\\text{B}x_\\text{C}"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "A·B",
+      "model": "A*B*C",
+      "runs": [1, 2, 3, 4, 5, 6, 7, 8]
+     },
+     "note": "in an option keyed incorrect, this coefficient agrees with the fit to within the rounding of its printed digits: the option is wrong in its others"
+    },
+    {
+     "what": "coefficient",
+     "term": "A·C",
+     "value": "0.25",
+     "analysis": "the eight runs of the full factorial",
+     "where": {
+      "quiz": "Quiz for week 3",
+      "file": "quiz3-2015",
+      "question": 6,
+      "question_id": "a54b5b0df03ebeb4d7fabe7084952245",
+      "option_id": "f2cc8aabc59cec5f346a5a5976922cac",
+      "answer_key": "incorrect",
+      "source_kind": "option",
+      "quote": "\\hat{y} = 40 - 0.75 x_\\text{A} + 1x_\\text{B} - 0.75x_\\text{C} + 1x_\\text{A}x_\\text{B} + 0.25x_\\text{A}x_\\text{C}\\\\ - 0.25x_\\text{B}x_\\text{C} - 0.25x_\\text{A}x_\\text{B}x_\\text{C}"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "A·C",
+      "model": "A*B*C",
+      "runs": [1, 2, 3, 4, 5, 6, 7, 8]
+     },
+     "note": "in an option keyed incorrect, this coefficient agrees with the fit to within the rounding of its printed digits: the option is wrong in its others"
+    },
+    {
+     "what": "coefficient",
+     "term": "B·C",
+     "value": "-0.25",
+     "analysis": "the eight runs of the full factorial",
+     "where": {
+      "quiz": "Quiz for week 3",
+      "file": "quiz3-2015",
+      "question": 6,
+      "question_id": "a54b5b0df03ebeb4d7fabe7084952245",
+      "option_id": "f2cc8aabc59cec5f346a5a5976922cac",
+      "answer_key": "incorrect",
+      "source_kind": "option",
+      "quote": "\\hat{y} = 40 - 0.75 x_\\text{A} + 1x_\\text{B} - 0.75x_\\text{C} + 1x_\\text{A}x_\\text{B} + 0.25x_\\text{A}x_\\text{C}\\\\ - 0.25x_\\text{B}x_\\text{C} - 0.25x_\\text{A}x_\\text{B}x_\\text{C}"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "B·C",
+      "model": "A*B*C",
+      "runs": [1, 2, 3, 4, 5, 6, 7, 8]
+     },
+     "note": "in an option keyed incorrect, this coefficient agrees with the fit to within the rounding of its printed digits: the option is wrong in its others"
+    },
+    {
+     "what": "coefficient",
+     "term": "A·B·C",
+     "value": "-0.25",
+     "analysis": "the eight runs of the full factorial",
+     "where": {
+      "quiz": "Quiz for week 3",
+      "file": "quiz3-2015",
+      "question": 6,
+      "question_id": "a54b5b0df03ebeb4d7fabe7084952245",
+      "option_id": "f2cc8aabc59cec5f346a5a5976922cac",
+      "answer_key": "incorrect",
+      "source_kind": "option",
+      "quote": "\\hat{y} = 40 - 0.75 x_\\text{A} + 1x_\\text{B} - 0.75x_\\text{C} + 1x_\\text{A}x_\\text{B} + 0.25x_\\text{A}x_\\text{C}\\\\ - 0.25x_\\text{B}x_\\text{C} - 0.25x_\\text{A}x_\\text{B}x_\\text{C}"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "A·B·C",
+      "model": "A*B*C",
+      "runs": [1, 2, 3, 4, 5, 6, 7, 8]
+     },
+     "note": "in an option keyed incorrect, this coefficient agrees with the fit to within the rounding of its printed digits: the option is wrong in its others"
+    },
+    {
+     "what": "coefficient",
+     "term": "Intercept",
+     "value": "$$39.61$$",
+     "analysis": "the nine runs: the full factorial and the centre point",
+     "where": {
+      "quiz": "Quiz for week 3",
+      "file": "quiz3-2015",
+      "question": 6,
+      "question_id": "a54b5b0df03ebeb4d7fabe7084952245",
+      "option_id": "4b75bea060d55494c385e2a2a6eeea6a",
+      "answer_key": "correct",
+      "source_kind": "option",
+      "quote": "If she implemented this data into her model, the new intercept term would be: $$39.61$$"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "Intercept",
+      "model": "A*B*C",
+      "printed": "39.61"
+     }
+    }
+   ]
+  },
+  {
+   "name": "efi-quiz3-boiling-water-lid",
+   "title": "Michael's boiling water: amount A, lid B and pot size C, eight runs and three more",
+   "kind": "quiz question",
+   "where": {
+    "quiz": "Quiz for week 3",
+    "file": "quiz3-2015",
+    "question": 7,
+    "question_id": "10e509bc4535f7e9e9b0667053056663"
+   },
+   "factors": [
+    {
+     "name": "A",
+     "description": "Amount of water",
+     "low": 500,
+     "high": 600,
+     "units": "mL",
+     "type": "numeric"
+    },
+    {
+     "name": "B",
+     "description": "Lid",
+     "low": "OFF",
+     "high": "ON",
+     "units": "",
+     "type": "categorical"
+    },
+    {
+     "name": "C",
+     "description": "Size of pot",
+     "low": 2,
+     "high": 3,
+     "units": "L",
+     "type": "numeric"
+    }
+   ],
+   "responses": [
+    {
+     "name": "time",
+     "description": "Time to reach 90 °C",
+     "units": "s"
+    }
+   ],
+   "design": {
+    "type": "2^3 full factorial and three extra runs",
+    "n_runs": 11
+   },
+   "runs": {
+    "columns": ["A", "B", "C", "time"],
+    "coded": false,
+    "rows": [
+     [500, "OFF", 2, 450],
+     [600, "OFF", 2, 492],
+     [500, "ON", 2, 390],
+     [600, "ON", 2, 408],
+     [500, "OFF", 3, 432],
+     [600, "OFF", 3, 450],
+     [500, "ON", 3, 318],
+     [600, "ON", 3, 312],
+     [450, "OFF", 2, 354],
+     [550, "ON", 3, 318],
+     [550, "OFF", 3, 420]
+    ],
+    "notes": "the standard order table, then the three extra runs; 450 mL is -2 and 550 mL is 0 in coded units, as the explanation's R code has them"
+   },
+   "notes": "The explanation fits lm(y ~ A*B*C) to the eight runs, then to all eleven. In the eight-run fit the A·B·C coefficient is 0, which is why the question's model leaves it out. The lid (B) has the largest coefficient in both fits, and the larger pot (C) a negative one, as options 47a6f50a and efa65f6b say.",
+   "expected": [
+    {
+     "what": "coefficient",
+     "term": "Intercept",
+     "value": "406.5",
+     "analysis": "the eight runs of the full factorial",
+     "where": {
+      "quiz": "Quiz for week 3",
+      "file": "quiz3-2015",
+      "question": 7,
+      "question_id": "10e509bc4535f7e9e9b0667053056663",
+      "source_kind": "question",
+      "quote": "\\hat{y} = 406.5 + 9.0 x_A -49.5 x_B -28.5 x_C -6.0 x_Ax_B -6.0 x_Ax_C -13.5 x_Bx_C"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "Intercept",
+      "model": "A*B*C",
+      "runs": [1, 2, 3, 4, 5, 6, 7, 8]
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "A",
+     "value": "9.0",
+     "analysis": "the eight runs of the full factorial",
+     "where": {
+      "quiz": "Quiz for week 3",
+      "file": "quiz3-2015",
+      "question": 7,
+      "question_id": "10e509bc4535f7e9e9b0667053056663",
+      "source_kind": "question",
+      "quote": "\\hat{y} = 406.5 + 9.0 x_A -49.5 x_B -28.5 x_C -6.0 x_Ax_B -6.0 x_Ax_C -13.5 x_Bx_C"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "A",
+      "model": "A*B*C",
+      "runs": [1, 2, 3, 4, 5, 6, 7, 8]
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "B",
+     "value": "-49.5",
+     "analysis": "the eight runs of the full factorial",
+     "where": {
+      "quiz": "Quiz for week 3",
+      "file": "quiz3-2015",
+      "question": 7,
+      "question_id": "10e509bc4535f7e9e9b0667053056663",
+      "source_kind": "question",
+      "quote": "\\hat{y} = 406.5 + 9.0 x_A -49.5 x_B -28.5 x_C -6.0 x_Ax_B -6.0 x_Ax_C -13.5 x_Bx_C"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "B",
+      "model": "A*B*C",
+      "runs": [1, 2, 3, 4, 5, 6, 7, 8]
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "C",
+     "value": "-28.5",
+     "analysis": "the eight runs of the full factorial",
+     "where": {
+      "quiz": "Quiz for week 3",
+      "file": "quiz3-2015",
+      "question": 7,
+      "question_id": "10e509bc4535f7e9e9b0667053056663",
+      "source_kind": "question",
+      "quote": "\\hat{y} = 406.5 + 9.0 x_A -49.5 x_B -28.5 x_C -6.0 x_Ax_B -6.0 x_Ax_C -13.5 x_Bx_C"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "C",
+      "model": "A*B*C",
+      "runs": [1, 2, 3, 4, 5, 6, 7, 8]
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "A·B",
+     "value": "-6.0",
+     "analysis": "the eight runs of the full factorial",
+     "where": {
+      "quiz": "Quiz for week 3",
+      "file": "quiz3-2015",
+      "question": 7,
+      "question_id": "10e509bc4535f7e9e9b0667053056663",
+      "source_kind": "question",
+      "quote": "\\hat{y} = 406.5 + 9.0 x_A -49.5 x_B -28.5 x_C -6.0 x_Ax_B -6.0 x_Ax_C -13.5 x_Bx_C"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "A·B",
+      "model": "A*B*C",
+      "runs": [1, 2, 3, 4, 5, 6, 7, 8]
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "A·C",
+     "value": "-6.0",
+     "analysis": "the eight runs of the full factorial",
+     "where": {
+      "quiz": "Quiz for week 3",
+      "file": "quiz3-2015",
+      "question": 7,
+      "question_id": "10e509bc4535f7e9e9b0667053056663",
+      "source_kind": "question",
+      "quote": "\\hat{y} = 406.5 + 9.0 x_A -49.5 x_B -28.5 x_C -6.0 x_Ax_B -6.0 x_Ax_C -13.5 x_Bx_C"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "A·C",
+      "model": "A*B*C",
+      "runs": [1, 2, 3, 4, 5, 6, 7, 8]
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "B·C",
+     "value": "-13.5",
+     "analysis": "the eight runs of the full factorial",
+     "where": {
+      "quiz": "Quiz for week 3",
+      "file": "quiz3-2015",
+      "question": 7,
+      "question_id": "10e509bc4535f7e9e9b0667053056663",
+      "source_kind": "question",
+      "quote": "\\hat{y} = 406.5 + 9.0 x_A -49.5 x_B -28.5 x_C -6.0 x_Ax_B -6.0 x_Ax_C -13.5 x_Bx_C"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "B·C",
+      "model": "A*B*C",
+      "runs": [1, 2, 3, 4, 5, 6, 7, 8]
+     }
+    },
+    {
+     "what": "number of runs",
+     "term": null,
+     "value": "$$8+3 = 11\\,$$",
+     "where": {
+      "quiz": "Quiz for week 3",
+      "file": "quiz3-2015",
+      "question": 7,
+      "question_id": "10e509bc4535f7e9e9b0667053056663",
+      "source_kind": "question",
+      "quote": "Your vectors in R (or what ever statistical software you chose) will have $$8+3 = 11\\,$$ entries in them."
+     },
+     "check": {
+      "kind": "n_runs",
+      "model": null,
+      "printed": "11"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "Intercept",
+     "value": "402",
+     "analysis": "all eleven runs",
+     "where": {
+      "quiz": "Quiz for week 3",
+      "file": "quiz3-2015",
+      "question": 7,
+      "question_id": "10e509bc4535f7e9e9b0667053056663",
+      "option_id": "6e0fbf76f7c8b82f9ed9cea707941fb7",
+      "answer_key": "correct",
+      "source_kind": "option",
+      "quote": "\\hat{y} = 402+ 14.4 x_A -44.8 x_B -27.3x_C -11.4 x_A x_B \\\\ -11.4x_A x_C -14.2 x_Bx_C+ 5.4 x_Ax_Bx_C"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "Intercept",
+      "model": "A*B*C"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "A",
+     "value": "14.4",
+     "analysis": "all eleven runs",
+     "where": {
+      "quiz": "Quiz for week 3",
+      "file": "quiz3-2015",
+      "question": 7,
+      "question_id": "10e509bc4535f7e9e9b0667053056663",
+      "option_id": "6e0fbf76f7c8b82f9ed9cea707941fb7",
+      "answer_key": "correct",
+      "source_kind": "option",
+      "quote": "\\hat{y} = 402+ 14.4 x_A -44.8 x_B -27.3x_C -11.4 x_A x_B \\\\ -11.4x_A x_C -14.2 x_Bx_C+ 5.4 x_Ax_Bx_C"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "A",
+      "model": "A*B*C"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "B",
+     "value": "-44.8",
+     "analysis": "all eleven runs",
+     "where": {
+      "quiz": "Quiz for week 3",
+      "file": "quiz3-2015",
+      "question": 7,
+      "question_id": "10e509bc4535f7e9e9b0667053056663",
+      "option_id": "6e0fbf76f7c8b82f9ed9cea707941fb7",
+      "answer_key": "correct",
+      "source_kind": "option",
+      "quote": "\\hat{y} = 402+ 14.4 x_A -44.8 x_B -27.3x_C -11.4 x_A x_B \\\\ -11.4x_A x_C -14.2 x_Bx_C+ 5.4 x_Ax_Bx_C"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "B",
+      "model": "A*B*C"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "C",
+     "value": "-27.3",
+     "analysis": "all eleven runs",
+     "where": {
+      "quiz": "Quiz for week 3",
+      "file": "quiz3-2015",
+      "question": 7,
+      "question_id": "10e509bc4535f7e9e9b0667053056663",
+      "option_id": "6e0fbf76f7c8b82f9ed9cea707941fb7",
+      "answer_key": "correct",
+      "source_kind": "option",
+      "quote": "\\hat{y} = 402+ 14.4 x_A -44.8 x_B -27.3x_C -11.4 x_A x_B \\\\ -11.4x_A x_C -14.2 x_Bx_C+ 5.4 x_Ax_Bx_C"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "C",
+      "model": "A*B*C"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "A·B",
+     "value": "-11.4",
+     "analysis": "all eleven runs",
+     "where": {
+      "quiz": "Quiz for week 3",
+      "file": "quiz3-2015",
+      "question": 7,
+      "question_id": "10e509bc4535f7e9e9b0667053056663",
+      "option_id": "6e0fbf76f7c8b82f9ed9cea707941fb7",
+      "answer_key": "correct",
+      "source_kind": "option",
+      "quote": "\\hat{y} = 402+ 14.4 x_A -44.8 x_B -27.3x_C -11.4 x_A x_B \\\\ -11.4x_A x_C -14.2 x_Bx_C+ 5.4 x_Ax_Bx_C"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "A·B",
+      "model": "A*B*C"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "A·C",
+     "value": "-11.4",
+     "analysis": "all eleven runs",
+     "where": {
+      "quiz": "Quiz for week 3",
+      "file": "quiz3-2015",
+      "question": 7,
+      "question_id": "10e509bc4535f7e9e9b0667053056663",
+      "option_id": "6e0fbf76f7c8b82f9ed9cea707941fb7",
+      "answer_key": "correct",
+      "source_kind": "option",
+      "quote": "\\hat{y} = 402+ 14.4 x_A -44.8 x_B -27.3x_C -11.4 x_A x_B \\\\ -11.4x_A x_C -14.2 x_Bx_C+ 5.4 x_Ax_Bx_C"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "A·C",
+      "model": "A*B*C"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "B·C",
+     "value": "-14.2",
+     "analysis": "all eleven runs",
+     "where": {
+      "quiz": "Quiz for week 3",
+      "file": "quiz3-2015",
+      "question": 7,
+      "question_id": "10e509bc4535f7e9e9b0667053056663",
+      "option_id": "6e0fbf76f7c8b82f9ed9cea707941fb7",
+      "answer_key": "correct",
+      "source_kind": "option",
+      "quote": "\\hat{y} = 402+ 14.4 x_A -44.8 x_B -27.3x_C -11.4 x_A x_B \\\\ -11.4x_A x_C -14.2 x_Bx_C+ 5.4 x_Ax_Bx_C"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "B·C",
+      "model": "A*B*C"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "A·B·C",
+     "value": "5.4",
+     "analysis": "all eleven runs",
+     "where": {
+      "quiz": "Quiz for week 3",
+      "file": "quiz3-2015",
+      "question": 7,
+      "question_id": "10e509bc4535f7e9e9b0667053056663",
+      "option_id": "6e0fbf76f7c8b82f9ed9cea707941fb7",
+      "answer_key": "correct",
+      "source_kind": "option",
+      "quote": "\\hat{y} = 402+ 14.4 x_A -44.8 x_B -27.3x_C -11.4 x_A x_B \\\\ -11.4x_A x_C -14.2 x_Bx_C+ 5.4 x_Ax_Bx_C"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "A·B·C",
+      "model": "A*B*C"
+     }
+    }
+   ]
+  },
+  {
+   "name": "efi-quiz3-practice-flu-prevention",
+   "title": "The hospital's flu study: hand-washing demonstration H, information I and sanitizer S",
+   "kind": "quiz question",
+   "where": {
+    "quiz": "Ungraded practice quiz 3",
+    "file": "quiz3-UG-2015",
+    "question": 3,
+    "question_id": "97f6e66940352674f489896c90daa963",
+    "images": ["https://d396qusza40orc.cloudfront.net/experiments/quiz_assets/week3/flu_Pplot.png"]
+   },
+   "factors": [
+    {
+     "name": "H",
+     "description": "Hand-washing demonstration",
+     "low": "no",
+     "high": "yes",
+     "units": "",
+     "type": "categorical"
+    },
+    {
+     "name": "I",
+     "description": "Information strategy",
+     "low": "pamphlet",
+     "high": "postcard",
+     "units": "",
+     "type": "categorical"
+    },
+    {
+     "name": "S",
+     "description": "Hand sanitizer to take home",
+     "low": "no",
+     "high": "yes",
+     "units": "",
+     "type": "categorical"
+    }
+   ],
+   "responses": [
+    {
+     "name": "reports",
+     "description": "Number of flu-like symptom reports",
+     "units": "reports"
+    }
+   ],
+   "design": {
+    "type": "2^3 full factorial",
+    "n_runs": 8
+   },
+   "runs": {
+    "columns": ["H", "I", "S", "reports"],
+    "coded": false,
+    "rows": [
+     ["no", "pamphlet", "no", 30],
+     ["yes", "pamphlet", "no", 15],
+     ["no", "postcard", "no", 32],
+     ["yes", "postcard", "no", 18],
+     ["no", "pamphlet", "yes", 24],
+     ["yes", "pamphlet", "yes", 10],
+     ["no", "postcard", "yes", 27],
+     ["yes", "postcard", "yes", 14]
+    ],
+    "notes": "the standard order table as printed in question 3"
+   },
+   "notes": "Question 3 prints the data; question 4 shows the Pareto plot of the same study. The explanation fits lm(y ~ H * I * S); the hint to neglect the three-factor interaction changes nothing, its coefficient being 0. The options of question 4 are recommendations in words, which agree with the fit: H -7, S -2.5 and I 1.5, the two-factor interactions 0.25 each.",
+   "expected": [
+    {
+     "what": "coefficient",
+     "term": "Intercept",
+     "value": "21.25",
+     "where": {
+      "quiz": "Ungraded practice quiz 3",
+      "file": "quiz3-UG-2015",
+      "question": 3,
+      "question_id": "97f6e66940352674f489896c90daa963",
+      "option_id": "653c697c9077048296f2bf66d1ac2b67",
+      "answer_key": "correct",
+      "source_kind": "option",
+      "quote": "$$y = 21.25 - 7x_\\text{H} + 1.5x_\\text{I} - 2.5x_\\text{S} + 0.25x_\\text{H}x_\\text{I} + 0.25x_\\text{H}x_\\text{S} + 0.25x_\\text{I}x_\\text{S}$$"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "Intercept",
+      "model": "H*I*S"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "H",
+     "value": "-7",
+     "where": {
+      "quiz": "Ungraded practice quiz 3",
+      "file": "quiz3-UG-2015",
+      "question": 3,
+      "question_id": "97f6e66940352674f489896c90daa963",
+      "option_id": "653c697c9077048296f2bf66d1ac2b67",
+      "answer_key": "correct",
+      "source_kind": "option",
+      "quote": "$$y = 21.25 - 7x_\\text{H} + 1.5x_\\text{I} - 2.5x_\\text{S} + 0.25x_\\text{H}x_\\text{I} + 0.25x_\\text{H}x_\\text{S} + 0.25x_\\text{I}x_\\text{S}$$"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "H",
+      "model": "H*I*S"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "I",
+     "value": "1.5",
+     "where": {
+      "quiz": "Ungraded practice quiz 3",
+      "file": "quiz3-UG-2015",
+      "question": 3,
+      "question_id": "97f6e66940352674f489896c90daa963",
+      "option_id": "653c697c9077048296f2bf66d1ac2b67",
+      "answer_key": "correct",
+      "source_kind": "option",
+      "quote": "$$y = 21.25 - 7x_\\text{H} + 1.5x_\\text{I} - 2.5x_\\text{S} + 0.25x_\\text{H}x_\\text{I} + 0.25x_\\text{H}x_\\text{S} + 0.25x_\\text{I}x_\\text{S}$$"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "I",
+      "model": "H*I*S"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "S",
+     "value": "-2.5",
+     "where": {
+      "quiz": "Ungraded practice quiz 3",
+      "file": "quiz3-UG-2015",
+      "question": 3,
+      "question_id": "97f6e66940352674f489896c90daa963",
+      "option_id": "653c697c9077048296f2bf66d1ac2b67",
+      "answer_key": "correct",
+      "source_kind": "option",
+      "quote": "$$y = 21.25 - 7x_\\text{H} + 1.5x_\\text{I} - 2.5x_\\text{S} + 0.25x_\\text{H}x_\\text{I} + 0.25x_\\text{H}x_\\text{S} + 0.25x_\\text{I}x_\\text{S}$$"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "S",
+      "model": "H*I*S"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "H·I",
+     "value": "0.25",
+     "where": {
+      "quiz": "Ungraded practice quiz 3",
+      "file": "quiz3-UG-2015",
+      "question": 3,
+      "question_id": "97f6e66940352674f489896c90daa963",
+      "option_id": "653c697c9077048296f2bf66d1ac2b67",
+      "answer_key": "correct",
+      "source_kind": "option",
+      "quote": "$$y = 21.25 - 7x_\\text{H} + 1.5x_\\text{I} - 2.5x_\\text{S} + 0.25x_\\text{H}x_\\text{I} + 0.25x_\\text{H}x_\\text{S} + 0.25x_\\text{I}x_\\text{S}$$"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "H·I",
+      "model": "H*I*S"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "H·S",
+     "value": "0.25",
+     "where": {
+      "quiz": "Ungraded practice quiz 3",
+      "file": "quiz3-UG-2015",
+      "question": 3,
+      "question_id": "97f6e66940352674f489896c90daa963",
+      "option_id": "653c697c9077048296f2bf66d1ac2b67",
+      "answer_key": "correct",
+      "source_kind": "option",
+      "quote": "$$y = 21.25 - 7x_\\text{H} + 1.5x_\\text{I} - 2.5x_\\text{S} + 0.25x_\\text{H}x_\\text{I} + 0.25x_\\text{H}x_\\text{S} + 0.25x_\\text{I}x_\\text{S}$$"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "H·S",
+      "model": "H*I*S"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "I·S",
+     "value": "0.25",
+     "where": {
+      "quiz": "Ungraded practice quiz 3",
+      "file": "quiz3-UG-2015",
+      "question": 3,
+      "question_id": "97f6e66940352674f489896c90daa963",
+      "option_id": "653c697c9077048296f2bf66d1ac2b67",
+      "answer_key": "correct",
+      "source_kind": "option",
+      "quote": "$$y = 21.25 - 7x_\\text{H} + 1.5x_\\text{I} - 2.5x_\\text{S} + 0.25x_\\text{H}x_\\text{I} + 0.25x_\\text{H}x_\\text{S} + 0.25x_\\text{I}x_\\text{S}$$"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "I·S",
+      "model": "H*I*S"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "Intercept",
+     "value": "21.25",
+     "where": {
+      "quiz": "Ungraded practice quiz 3",
+      "file": "quiz3-UG-2015",
+      "question": 3,
+      "question_id": "97f6e66940352674f489896c90daa963",
+      "option_id": "33b0825960c4632d700f91fed9c51476",
+      "answer_key": "incorrect",
+      "source_kind": "option",
+      "quote": "$$y = 21.25 + 7x_\\text{H} - 1.5x_\\text{I} + 2.5x_\\text{S} + 0.25x_\\text{H}x_\\text{I} + 0.25x_\\text{H}x_\\text{S} + 0.25x_\\text{I}x_\\text{S}$$"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "Intercept",
+      "model": "H*I*S"
+     },
+     "note": "in an option keyed incorrect, this coefficient agrees with the fit to within the rounding of its printed digits: the option is wrong in its others"
+    },
+    {
+     "what": "coefficient",
+     "term": "H",
+     "value": "7",
+     "where": {
+      "quiz": "Ungraded practice quiz 3",
+      "file": "quiz3-UG-2015",
+      "question": 3,
+      "question_id": "97f6e66940352674f489896c90daa963",
+      "option_id": "33b0825960c4632d700f91fed9c51476",
+      "answer_key": "incorrect",
+      "source_kind": "option",
+      "quote": "$$y = 21.25 + 7x_\\text{H} - 1.5x_\\text{I} + 2.5x_\\text{S} + 0.25x_\\text{H}x_\\text{I} + 0.25x_\\text{H}x_\\text{S} + 0.25x_\\text{I}x_\\text{S}$$"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "H",
+      "model": "H*I*S",
+      "disagreement": "the answer key marks this option incorrect; the fit gives -7"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "I",
+     "value": "-1.5",
+     "where": {
+      "quiz": "Ungraded practice quiz 3",
+      "file": "quiz3-UG-2015",
+      "question": 3,
+      "question_id": "97f6e66940352674f489896c90daa963",
+      "option_id": "33b0825960c4632d700f91fed9c51476",
+      "answer_key": "incorrect",
+      "source_kind": "option",
+      "quote": "$$y = 21.25 + 7x_\\text{H} - 1.5x_\\text{I} + 2.5x_\\text{S} + 0.25x_\\text{H}x_\\text{I} + 0.25x_\\text{H}x_\\text{S} + 0.25x_\\text{I}x_\\text{S}$$"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "I",
+      "model": "H*I*S",
+      "disagreement": "the answer key marks this option incorrect; the fit gives 1.5"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "S",
+     "value": "2.5",
+     "where": {
+      "quiz": "Ungraded practice quiz 3",
+      "file": "quiz3-UG-2015",
+      "question": 3,
+      "question_id": "97f6e66940352674f489896c90daa963",
+      "option_id": "33b0825960c4632d700f91fed9c51476",
+      "answer_key": "incorrect",
+      "source_kind": "option",
+      "quote": "$$y = 21.25 + 7x_\\text{H} - 1.5x_\\text{I} + 2.5x_\\text{S} + 0.25x_\\text{H}x_\\text{I} + 0.25x_\\text{H}x_\\text{S} + 0.25x_\\text{I}x_\\text{S}$$"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "S",
+      "model": "H*I*S",
+      "disagreement": "the answer key marks this option incorrect; the fit gives -2.5"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "H·I",
+     "value": "0.25",
+     "where": {
+      "quiz": "Ungraded practice quiz 3",
+      "file": "quiz3-UG-2015",
+      "question": 3,
+      "question_id": "97f6e66940352674f489896c90daa963",
+      "option_id": "33b0825960c4632d700f91fed9c51476",
+      "answer_key": "incorrect",
+      "source_kind": "option",
+      "quote": "$$y = 21.25 + 7x_\\text{H} - 1.5x_\\text{I} + 2.5x_\\text{S} + 0.25x_\\text{H}x_\\text{I} + 0.25x_\\text{H}x_\\text{S} + 0.25x_\\text{I}x_\\text{S}$$"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "H·I",
+      "model": "H*I*S"
+     },
+     "note": "in an option keyed incorrect, this coefficient agrees with the fit to within the rounding of its printed digits: the option is wrong in its others"
+    },
+    {
+     "what": "coefficient",
+     "term": "H·S",
+     "value": "0.25",
+     "where": {
+      "quiz": "Ungraded practice quiz 3",
+      "file": "quiz3-UG-2015",
+      "question": 3,
+      "question_id": "97f6e66940352674f489896c90daa963",
+      "option_id": "33b0825960c4632d700f91fed9c51476",
+      "answer_key": "incorrect",
+      "source_kind": "option",
+      "quote": "$$y = 21.25 + 7x_\\text{H} - 1.5x_\\text{I} + 2.5x_\\text{S} + 0.25x_\\text{H}x_\\text{I} + 0.25x_\\text{H}x_\\text{S} + 0.25x_\\text{I}x_\\text{S}$$"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "H·S",
+      "model": "H*I*S"
+     },
+     "note": "in an option keyed incorrect, this coefficient agrees with the fit to within the rounding of its printed digits: the option is wrong in its others"
+    },
+    {
+     "what": "coefficient",
+     "term": "I·S",
+     "value": "0.25",
+     "where": {
+      "quiz": "Ungraded practice quiz 3",
+      "file": "quiz3-UG-2015",
+      "question": 3,
+      "question_id": "97f6e66940352674f489896c90daa963",
+      "option_id": "33b0825960c4632d700f91fed9c51476",
+      "answer_key": "incorrect",
+      "source_kind": "option",
+      "quote": "$$y = 21.25 + 7x_\\text{H} - 1.5x_\\text{I} + 2.5x_\\text{S} + 0.25x_\\text{H}x_\\text{I} + 0.25x_\\text{H}x_\\text{S} + 0.25x_\\text{I}x_\\text{S}$$"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "I·S",
+      "model": "H*I*S"
+     },
+     "note": "in an option keyed incorrect, this coefficient agrees with the fit to within the rounding of its printed digits: the option is wrong in its others"
+    },
+    {
+     "what": "coefficient",
+     "term": "Intercept",
+     "value": "21.25",
+     "where": {
+      "quiz": "Ungraded practice quiz 3",
+      "file": "quiz3-UG-2015",
+      "question": 3,
+      "question_id": "97f6e66940352674f489896c90daa963",
+      "option_id": "8b6aca6ce2e3e3e6ffb8a122e559fab9",
+      "answer_key": "incorrect",
+      "source_kind": "option",
+      "quote": "$$y = 21.25 - 7x_\\text{H} + 1.5x_\\text{I} - 2.5x_\\text{S} - 0.25x_\\text{H}x_\\text{I} - 0.25x_\\text{H}x_\\text{S} - 0.25x_\\text{I}x_\\text{S}$$"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "Intercept",
+      "model": "H*I*S"
+     },
+     "note": "in an option keyed incorrect, this coefficient agrees with the fit to within the rounding of its printed digits: the option is wrong in its others"
+    },
+    {
+     "what": "coefficient",
+     "term": "H",
+     "value": "-7",
+     "where": {
+      "quiz": "Ungraded practice quiz 3",
+      "file": "quiz3-UG-2015",
+      "question": 3,
+      "question_id": "97f6e66940352674f489896c90daa963",
+      "option_id": "8b6aca6ce2e3e3e6ffb8a122e559fab9",
+      "answer_key": "incorrect",
+      "source_kind": "option",
+      "quote": "$$y = 21.25 - 7x_\\text{H} + 1.5x_\\text{I} - 2.5x_\\text{S} - 0.25x_\\text{H}x_\\text{I} - 0.25x_\\text{H}x_\\text{S} - 0.25x_\\text{I}x_\\text{S}$$"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "H",
+      "model": "H*I*S"
+     },
+     "note": "in an option keyed incorrect, this coefficient agrees with the fit to within the rounding of its printed digits: the option is wrong in its others"
+    },
+    {
+     "what": "coefficient",
+     "term": "I",
+     "value": "1.5",
+     "where": {
+      "quiz": "Ungraded practice quiz 3",
+      "file": "quiz3-UG-2015",
+      "question": 3,
+      "question_id": "97f6e66940352674f489896c90daa963",
+      "option_id": "8b6aca6ce2e3e3e6ffb8a122e559fab9",
+      "answer_key": "incorrect",
+      "source_kind": "option",
+      "quote": "$$y = 21.25 - 7x_\\text{H} + 1.5x_\\text{I} - 2.5x_\\text{S} - 0.25x_\\text{H}x_\\text{I} - 0.25x_\\text{H}x_\\text{S} - 0.25x_\\text{I}x_\\text{S}$$"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "I",
+      "model": "H*I*S"
+     },
+     "note": "in an option keyed incorrect, this coefficient agrees with the fit to within the rounding of its printed digits: the option is wrong in its others"
+    },
+    {
+     "what": "coefficient",
+     "term": "S",
+     "value": "-2.5",
+     "where": {
+      "quiz": "Ungraded practice quiz 3",
+      "file": "quiz3-UG-2015",
+      "question": 3,
+      "question_id": "97f6e66940352674f489896c90daa963",
+      "option_id": "8b6aca6ce2e3e3e6ffb8a122e559fab9",
+      "answer_key": "incorrect",
+      "source_kind": "option",
+      "quote": "$$y = 21.25 - 7x_\\text{H} + 1.5x_\\text{I} - 2.5x_\\text{S} - 0.25x_\\text{H}x_\\text{I} - 0.25x_\\text{H}x_\\text{S} - 0.25x_\\text{I}x_\\text{S}$$"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "S",
+      "model": "H*I*S"
+     },
+     "note": "in an option keyed incorrect, this coefficient agrees with the fit to within the rounding of its printed digits: the option is wrong in its others"
+    },
+    {
+     "what": "coefficient",
+     "term": "H·I",
+     "value": "-0.25",
+     "where": {
+      "quiz": "Ungraded practice quiz 3",
+      "file": "quiz3-UG-2015",
+      "question": 3,
+      "question_id": "97f6e66940352674f489896c90daa963",
+      "option_id": "8b6aca6ce2e3e3e6ffb8a122e559fab9",
+      "answer_key": "incorrect",
+      "source_kind": "option",
+      "quote": "$$y = 21.25 - 7x_\\text{H} + 1.5x_\\text{I} - 2.5x_\\text{S} - 0.25x_\\text{H}x_\\text{I} - 0.25x_\\text{H}x_\\text{S} - 0.25x_\\text{I}x_\\text{S}$$"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "H·I",
+      "model": "H*I*S",
+      "disagreement": "the answer key marks this option incorrect; the fit gives 0.25"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "H·S",
+     "value": "-0.25",
+     "where": {
+      "quiz": "Ungraded practice quiz 3",
+      "file": "quiz3-UG-2015",
+      "question": 3,
+      "question_id": "97f6e66940352674f489896c90daa963",
+      "option_id": "8b6aca6ce2e3e3e6ffb8a122e559fab9",
+      "answer_key": "incorrect",
+      "source_kind": "option",
+      "quote": "$$y = 21.25 - 7x_\\text{H} + 1.5x_\\text{I} - 2.5x_\\text{S} - 0.25x_\\text{H}x_\\text{I} - 0.25x_\\text{H}x_\\text{S} - 0.25x_\\text{I}x_\\text{S}$$"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "H·S",
+      "model": "H*I*S",
+      "disagreement": "the answer key marks this option incorrect; the fit gives 0.25"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "I·S",
+     "value": "-0.25",
+     "where": {
+      "quiz": "Ungraded practice quiz 3",
+      "file": "quiz3-UG-2015",
+      "question": 3,
+      "question_id": "97f6e66940352674f489896c90daa963",
+      "option_id": "8b6aca6ce2e3e3e6ffb8a122e559fab9",
+      "answer_key": "incorrect",
+      "source_kind": "option",
+      "quote": "$$y = 21.25 - 7x_\\text{H} + 1.5x_\\text{I} - 2.5x_\\text{S} - 0.25x_\\text{H}x_\\text{I} - 0.25x_\\text{H}x_\\text{S} - 0.25x_\\text{I}x_\\text{S}$$"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "I·S",
+      "model": "H*I*S",
+      "disagreement": "the answer key marks this option incorrect; the fit gives 0.25"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "Intercept",
+     "value": "21.25",
+     "where": {
+      "quiz": "Ungraded practice quiz 3",
+      "file": "quiz3-UG-2015",
+      "question": 3,
+      "question_id": "97f6e66940352674f489896c90daa963",
+      "option_id": "184b11eed8519b0a9228cb8193c1851e",
+      "answer_key": "incorrect",
+      "source_kind": "option",
+      "quote": "$$y = 21.25 - 7x_\\text{H} + 1.5x_\\text{I} - 2.5x_\\text{S} - 0.25x_\\text{H}x_\\text{I} + 0.25x_\\text{H}x_\\text{S} + 0.25x_\\text{I}x_\\text{S}$$"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "Intercept",
+      "model": "H*I*S"
+     },
+     "note": "in an option keyed incorrect, this coefficient agrees with the fit to within the rounding of its printed digits: the option is wrong in its others"
+    },
+    {
+     "what": "coefficient",
+     "term": "H",
+     "value": "-7",
+     "where": {
+      "quiz": "Ungraded practice quiz 3",
+      "file": "quiz3-UG-2015",
+      "question": 3,
+      "question_id": "97f6e66940352674f489896c90daa963",
+      "option_id": "184b11eed8519b0a9228cb8193c1851e",
+      "answer_key": "incorrect",
+      "source_kind": "option",
+      "quote": "$$y = 21.25 - 7x_\\text{H} + 1.5x_\\text{I} - 2.5x_\\text{S} - 0.25x_\\text{H}x_\\text{I} + 0.25x_\\text{H}x_\\text{S} + 0.25x_\\text{I}x_\\text{S}$$"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "H",
+      "model": "H*I*S"
+     },
+     "note": "in an option keyed incorrect, this coefficient agrees with the fit to within the rounding of its printed digits: the option is wrong in its others"
+    },
+    {
+     "what": "coefficient",
+     "term": "I",
+     "value": "1.5",
+     "where": {
+      "quiz": "Ungraded practice quiz 3",
+      "file": "quiz3-UG-2015",
+      "question": 3,
+      "question_id": "97f6e66940352674f489896c90daa963",
+      "option_id": "184b11eed8519b0a9228cb8193c1851e",
+      "answer_key": "incorrect",
+      "source_kind": "option",
+      "quote": "$$y = 21.25 - 7x_\\text{H} + 1.5x_\\text{I} - 2.5x_\\text{S} - 0.25x_\\text{H}x_\\text{I} + 0.25x_\\text{H}x_\\text{S} + 0.25x_\\text{I}x_\\text{S}$$"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "I",
+      "model": "H*I*S"
+     },
+     "note": "in an option keyed incorrect, this coefficient agrees with the fit to within the rounding of its printed digits: the option is wrong in its others"
+    },
+    {
+     "what": "coefficient",
+     "term": "S",
+     "value": "-2.5",
+     "where": {
+      "quiz": "Ungraded practice quiz 3",
+      "file": "quiz3-UG-2015",
+      "question": 3,
+      "question_id": "97f6e66940352674f489896c90daa963",
+      "option_id": "184b11eed8519b0a9228cb8193c1851e",
+      "answer_key": "incorrect",
+      "source_kind": "option",
+      "quote": "$$y = 21.25 - 7x_\\text{H} + 1.5x_\\text{I} - 2.5x_\\text{S} - 0.25x_\\text{H}x_\\text{I} + 0.25x_\\text{H}x_\\text{S} + 0.25x_\\text{I}x_\\text{S}$$"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "S",
+      "model": "H*I*S"
+     },
+     "note": "in an option keyed incorrect, this coefficient agrees with the fit to within the rounding of its printed digits: the option is wrong in its others"
+    },
+    {
+     "what": "coefficient",
+     "term": "H·I",
+     "value": "-0.25",
+     "where": {
+      "quiz": "Ungraded practice quiz 3",
+      "file": "quiz3-UG-2015",
+      "question": 3,
+      "question_id": "97f6e66940352674f489896c90daa963",
+      "option_id": "184b11eed8519b0a9228cb8193c1851e",
+      "answer_key": "incorrect",
+      "source_kind": "option",
+      "quote": "$$y = 21.25 - 7x_\\text{H} + 1.5x_\\text{I} - 2.5x_\\text{S} - 0.25x_\\text{H}x_\\text{I} + 0.25x_\\text{H}x_\\text{S} + 0.25x_\\text{I}x_\\text{S}$$"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "H·I",
+      "model": "H*I*S",
+      "disagreement": "the answer key marks this option incorrect; the fit gives 0.25"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "H·S",
+     "value": "0.25",
+     "where": {
+      "quiz": "Ungraded practice quiz 3",
+      "file": "quiz3-UG-2015",
+      "question": 3,
+      "question_id": "97f6e66940352674f489896c90daa963",
+      "option_id": "184b11eed8519b0a9228cb8193c1851e",
+      "answer_key": "incorrect",
+      "source_kind": "option",
+      "quote": "$$y = 21.25 - 7x_\\text{H} + 1.5x_\\text{I} - 2.5x_\\text{S} - 0.25x_\\text{H}x_\\text{I} + 0.25x_\\text{H}x_\\text{S} + 0.25x_\\text{I}x_\\text{S}$$"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "H·S",
+      "model": "H*I*S"
+     },
+     "note": "in an option keyed incorrect, this coefficient agrees with the fit to within the rounding of its printed digits: the option is wrong in its others"
+    },
+    {
+     "what": "coefficient",
+     "term": "I·S",
+     "value": "0.25",
+     "where": {
+      "quiz": "Ungraded practice quiz 3",
+      "file": "quiz3-UG-2015",
+      "question": 3,
+      "question_id": "97f6e66940352674f489896c90daa963",
+      "option_id": "184b11eed8519b0a9228cb8193c1851e",
+      "answer_key": "incorrect",
+      "source_kind": "option",
+      "quote": "$$y = 21.25 - 7x_\\text{H} + 1.5x_\\text{I} - 2.5x_\\text{S} - 0.25x_\\text{H}x_\\text{I} + 0.25x_\\text{H}x_\\text{S} + 0.25x_\\text{I}x_\\text{S}$$"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "I·S",
+      "model": "H*I*S"
+     },
+     "note": "in an option keyed incorrect, this coefficient agrees with the fit to within the rounding of its printed digits: the option is wrong in its others"
+    },
+    {
+     "what": "active effects",
+     "term": null,
+     "value": "all three main effects are significant",
+     "analysis": "Lenth's method on the saturated fit, the quiz reading significance off the Pareto plot: margin of error 2.82 on the effects, H -14, S -5 and I 3",
+     "where": {
+      "quiz": "Ungraded practice quiz 3",
+      "file": "quiz3-UG-2015",
+      "question": 4,
+      "question_id": "b13c10192f399e0f2b83147cc7cdf247",
+      "source_kind": "question explanation",
+      "quote": "The hand-washing demonstration had the largest impact, but all three main effects are significant."
+     },
+     "check": {
+      "kind": "active_effects",
+      "model": "H*I*S",
+      "terms": ["H", "I", "S"],
+      "margin": "ME"
+     }
+    },
+    {
+     "what": "Pareto plot",
+     "term": null,
+     "value": "flu_Pplot.png",
+     "where": {
+      "quiz": "Ungraded practice quiz 3",
+      "file": "quiz3-UG-2015",
+      "question": 4,
+      "question_id": "b13c10192f399e0f2b83147cc7cdf247",
+      "source_kind": "question image",
+      "quote": "<img src=\"https://d396qusza40orc.cloudfront.net/experiments/quiz_assets/week3/flu_Pplot.png\">"
+     },
+     "check": {
+      "manual": "a Pareto plot given only as an image: its bars are read off the axis by eye, with no digits printed; the note compares them with the fit"
+     },
+     "note": "by eye, H 7 and S 2.5 negative, I 1.5 positive, H:S, I:S and H:I 0.25 positive and H:I:S 0: the coefficients of H*I*S"
+    }
+   ]
+  },
+  {
+   "name": "efi-quiz3-practice-exam-scores",
+   "title": "Marlissa's accounting sections: delivery D, attempts N and practice quiz P, eight runs and two more",
+   "kind": "quiz question",
+   "where": {
+    "quiz": "Ungraded practice quiz 3",
+    "file": "quiz3-UG-2015",
+    "question": 5,
+    "question_id": "905adaaaeb44de0c42bdd5cc8a6657e2",
+    "images": ["https://d396qusza40orc.cloudfront.net/experiments/quiz_assets/week3/scores.png", "https://d396qusza40orc.cloudfront.net/experiments/quiz_assets/week3/scores-dist1.png", "https://d396qusza40orc.cloudfront.net/experiments/quiz_assets/week3/scores-dist2.png", "https://d396qusza40orc.cloudfront.net/experiments/quiz_assets/week3/scores-dist3.png"]
+   },
+   "factors": [
+    {
+     "name": "D",
+     "description": "Delivery mode of the unit tests",
+     "low": "in-class",
+     "high": "online",
+     "units": "",
+     "type": "categorical"
+    },
+    {
+     "name": "N",
+     "description": "Number of allowed attempts",
+     "low": 1,
+     "high": 5,
+     "units": "attempts",
+     "type": "numeric"
+    },
+    {
+     "name": "P",
+     "description": "Ungraded practice quiz before the test",
+     "low": "no",
+     "high": "yes",
+     "units": "",
+     "type": "categorical"
+    }
+   ],
+   "responses": [
+    {
+     "name": "score",
+     "description": "Average score of the section on the final exam",
+     "units": "/100"
+    }
+   ],
+   "design": {
+    "type": "2^3 full factorial and two extra runs",
+    "n_runs": 10
+   },
+   "runs": {
+    "columns": ["D", "N", "P", "score"],
+    "coded": false,
+    "rows": [
+     ["in-class", 1, "no", 64],
+     ["online", 1, "no", 68],
+     ["in-class", 5, "no", 72],
+     ["online", 5, "no", 70],
+     ["in-class", 1, "yes", 78],
+     ["online", 1, "yes", 80],
+     ["in-class", 5, "yes", 82],
+     ["online", 5, "yes", 80],
+     ["in-class", 3, "yes", 84],
+     ["online", 2, "yes", 86]
+    ],
+    "notes": "the standard order table of question 5, then the two extra runs of question 6; 3 attempts is 0 and 2 attempts -0.5 in coded units, as the explanation's R code has them"
+   },
+   "notes": "The explanations fit lm(y ~ D*N*P) to the eight runs (question 5), then to all ten (question 6). Option 85e9bb20 (keyed incorrect) says the delivery mode matters; the fit gives D 0.25, the smallest main effect.",
+   "expected": [
+    {
+     "what": "Pareto plot",
+     "term": null,
+     "value": "scores.png",
+     "where": {
+      "quiz": "Ungraded practice quiz 3",
+      "file": "quiz3-UG-2015",
+      "question": 5,
+      "question_id": "905adaaaeb44de0c42bdd5cc8a6657e2",
+      "option_id": "e7944024455149189a2c138ff05c800e",
+      "answer_key": "correct",
+      "source_kind": "option image",
+      "quote": "<img src=\"https://d396qusza40orc.cloudfront.net/experiments/quiz_assets/week3/scores.png\">"
+     },
+     "check": {
+      "manual": "a Pareto plot given only as an image: its bars are read off the axis by eye, with no digits printed; the note compares them with the fit"
+     },
+     "note": "by eye, P 5.75 and N 1.75 positive, D:N 1.25 and N:P 0.75 negative, D 0.25 positive, D:P 0.25 negative and D:N:P 0.25 positive: the coefficients of D*N*P on the eight runs"
+    },
+    {
+     "what": "Pareto plot",
+     "term": null,
+     "value": "scores-dist1.png",
+     "where": {
+      "quiz": "Ungraded practice quiz 3",
+      "file": "quiz3-UG-2015",
+      "question": 5,
+      "question_id": "905adaaaeb44de0c42bdd5cc8a6657e2",
+      "option_id": "a8ea16c7dfa4b1132594df15e11d469f",
+      "answer_key": "incorrect",
+      "source_kind": "option image",
+      "quote": "<img src=\"https://d396qusza40orc.cloudfront.net/experiments/quiz_assets/week3/scores-dist1.png\">"
+     },
+     "check": {
+      "manual": "a Pareto plot given only as an image: its bars are read off the axis by eye, with no digits printed; the note compares them with the fit"
+     },
+     "note": "by eye, the magnitudes of scores.png with P, N:P, D:P and D:N:P drawn with the wrong sign"
+    },
+    {
+     "what": "Pareto plot",
+     "term": null,
+     "value": "scores-dist2.png",
+     "where": {
+      "quiz": "Ungraded practice quiz 3",
+      "file": "quiz3-UG-2015",
+      "question": 5,
+      "question_id": "905adaaaeb44de0c42bdd5cc8a6657e2",
+      "option_id": "ef377fee6a3fc0db91f12cba8a60ac4a",
+      "answer_key": "incorrect",
+      "source_kind": "option image",
+      "quote": "<img src=\"https://d396qusza40orc.cloudfront.net/experiments/quiz_assets/week3/scores-dist2.png\">"
+     },
+     "check": {
+      "manual": "a Pareto plot given only as an image: its bars are read off the axis by eye, with no digits printed; the note compares them with the fit"
+     },
+     "note": "by eye, the magnitudes of scores.png with N, D:N, N:P and D:N:P drawn with the wrong sign"
+    },
+    {
+     "what": "Pareto plot",
+     "term": null,
+     "value": "scores-dist3.png",
+     "where": {
+      "quiz": "Ungraded practice quiz 3",
+      "file": "quiz3-UG-2015",
+      "question": 5,
+      "question_id": "905adaaaeb44de0c42bdd5cc8a6657e2",
+      "option_id": "42de5c2c3e3c0737594d6fe6614e9b7c",
+      "answer_key": "incorrect",
+      "source_kind": "option image",
+      "quote": "<img src=\"https://d396qusza40orc.cloudfront.net/experiments/quiz_assets/week3/scores-dist3.png\">"
+     },
+     "check": {
+      "manual": "a Pareto plot given only as an image: its bars are read off the axis by eye, with no digits printed; the note compares them with the fit"
+     },
+     "note": "by eye, the magnitudes of scores.png with D, D:N, D:P and D:N:P drawn with the wrong sign"
+    },
+    {
+     "what": "coefficient",
+     "term": "Intercept",
+     "value": "74.25",
+     "analysis": "the eight runs of the full factorial",
+     "where": {
+      "quiz": "Ungraded practice quiz 3",
+      "file": "quiz3-UG-2015",
+      "question": 6,
+      "question_id": "f12d498f87226a68d3b3726d46351e26",
+      "source_kind": "question",
+      "quote": "$$y = 74.25 + 0.25x_{D} + 1.75x_{N} + 5.75x_{P} - 1.25x_{D}x_{N} - 0.25x_{D}x_{P} - 0.75x_{N}x_{P} + 0.25x_{D}x_{N}x_{P}$$"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "Intercept",
+      "model": "D*N*P",
+      "runs": [1, 2, 3, 4, 5, 6, 7, 8]
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "D",
+     "value": "0.25",
+     "analysis": "the eight runs of the full factorial",
+     "where": {
+      "quiz": "Ungraded practice quiz 3",
+      "file": "quiz3-UG-2015",
+      "question": 6,
+      "question_id": "f12d498f87226a68d3b3726d46351e26",
+      "source_kind": "question",
+      "quote": "$$y = 74.25 + 0.25x_{D} + 1.75x_{N} + 5.75x_{P} - 1.25x_{D}x_{N} - 0.25x_{D}x_{P} - 0.75x_{N}x_{P} + 0.25x_{D}x_{N}x_{P}$$"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "D",
+      "model": "D*N*P",
+      "runs": [1, 2, 3, 4, 5, 6, 7, 8]
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "N",
+     "value": "1.75",
+     "analysis": "the eight runs of the full factorial",
+     "where": {
+      "quiz": "Ungraded practice quiz 3",
+      "file": "quiz3-UG-2015",
+      "question": 6,
+      "question_id": "f12d498f87226a68d3b3726d46351e26",
+      "source_kind": "question",
+      "quote": "$$y = 74.25 + 0.25x_{D} + 1.75x_{N} + 5.75x_{P} - 1.25x_{D}x_{N} - 0.25x_{D}x_{P} - 0.75x_{N}x_{P} + 0.25x_{D}x_{N}x_{P}$$"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "N",
+      "model": "D*N*P",
+      "runs": [1, 2, 3, 4, 5, 6, 7, 8]
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "P",
+     "value": "5.75",
+     "analysis": "the eight runs of the full factorial",
+     "where": {
+      "quiz": "Ungraded practice quiz 3",
+      "file": "quiz3-UG-2015",
+      "question": 6,
+      "question_id": "f12d498f87226a68d3b3726d46351e26",
+      "source_kind": "question",
+      "quote": "$$y = 74.25 + 0.25x_{D} + 1.75x_{N} + 5.75x_{P} - 1.25x_{D}x_{N} - 0.25x_{D}x_{P} - 0.75x_{N}x_{P} + 0.25x_{D}x_{N}x_{P}$$"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "P",
+      "model": "D*N*P",
+      "runs": [1, 2, 3, 4, 5, 6, 7, 8]
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "D·N",
+     "value": "-1.25",
+     "analysis": "the eight runs of the full factorial",
+     "where": {
+      "quiz": "Ungraded practice quiz 3",
+      "file": "quiz3-UG-2015",
+      "question": 6,
+      "question_id": "f12d498f87226a68d3b3726d46351e26",
+      "source_kind": "question",
+      "quote": "$$y = 74.25 + 0.25x_{D} + 1.75x_{N} + 5.75x_{P} - 1.25x_{D}x_{N} - 0.25x_{D}x_{P} - 0.75x_{N}x_{P} + 0.25x_{D}x_{N}x_{P}$$"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "D·N",
+      "model": "D*N*P",
+      "runs": [1, 2, 3, 4, 5, 6, 7, 8]
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "D·P",
+     "value": "-0.25",
+     "analysis": "the eight runs of the full factorial",
+     "where": {
+      "quiz": "Ungraded practice quiz 3",
+      "file": "quiz3-UG-2015",
+      "question": 6,
+      "question_id": "f12d498f87226a68d3b3726d46351e26",
+      "source_kind": "question",
+      "quote": "$$y = 74.25 + 0.25x_{D} + 1.75x_{N} + 5.75x_{P} - 1.25x_{D}x_{N} - 0.25x_{D}x_{P} - 0.75x_{N}x_{P} + 0.25x_{D}x_{N}x_{P}$$"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "D·P",
+      "model": "D*N*P",
+      "runs": [1, 2, 3, 4, 5, 6, 7, 8]
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "N·P",
+     "value": "-0.75",
+     "analysis": "the eight runs of the full factorial",
+     "where": {
+      "quiz": "Ungraded practice quiz 3",
+      "file": "quiz3-UG-2015",
+      "question": 6,
+      "question_id": "f12d498f87226a68d3b3726d46351e26",
+      "source_kind": "question",
+      "quote": "$$y = 74.25 + 0.25x_{D} + 1.75x_{N} + 5.75x_{P} - 1.25x_{D}x_{N} - 0.25x_{D}x_{P} - 0.75x_{N}x_{P} + 0.25x_{D}x_{N}x_{P}$$"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "N·P",
+      "model": "D*N*P",
+      "runs": [1, 2, 3, 4, 5, 6, 7, 8]
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "D·N·P",
+     "value": "0.25",
+     "analysis": "the eight runs of the full factorial",
+     "where": {
+      "quiz": "Ungraded practice quiz 3",
+      "file": "quiz3-UG-2015",
+      "question": 6,
+      "question_id": "f12d498f87226a68d3b3726d46351e26",
+      "source_kind": "question",
+      "quote": "$$y = 74.25 + 0.25x_{D} + 1.75x_{N} + 5.75x_{P} - 1.25x_{D}x_{N} - 0.25x_{D}x_{P} - 0.75x_{N}x_{P} + 0.25x_{D}x_{N}x_{P}$$"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "D·N·P",
+      "model": "D*N*P",
+      "runs": [1, 2, 3, 4, 5, 6, 7, 8]
+     }
+    },
+    {
+     "what": "number of runs",
+     "term": null,
+     "value": "$$8+2=10$$",
+     "where": {
+      "quiz": "Ungraded practice quiz 3",
+      "file": "quiz3-UG-2015",
+      "question": 6,
+      "question_id": "f12d498f87226a68d3b3726d46351e26",
+      "source_kind": "question",
+      "quote": "Your vectors in R (or what ever statistical software you chose) will have $$8+2=10$$ entries in them."
+     },
+     "check": {
+      "kind": "n_runs",
+      "model": null,
+      "printed": "10"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "P",
+     "value": "$$5.75x_\\text{P}$$",
+     "analysis": "the eight runs of the full factorial",
+     "where": {
+      "quiz": "Ungraded practice quiz 3",
+      "file": "quiz3-UG-2015",
+      "question": 6,
+      "question_id": "f12d498f87226a68d3b3726d46351e26",
+      "option_id": "dcd5af03ff7521e62b0ab82212e3c9d4",
+      "answer_key": "correct",
+      "source_kind": "option explanation",
+      "quote": "This is correct, it has an effect size of $$5.75x_\\text{P}$$"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "P",
+      "model": "D*N*P",
+      "runs": [1, 2, 3, 4, 5, 6, 7, 8],
+      "printed": "5.75"
+     },
+     "note": "the explanation calls the coefficient 5.75 the 'effect size', then gives the effect as 2 × 5.75 = 11.5"
+    },
+    {
+     "what": "effect",
+     "term": "P",
+     "value": "$$2 \\times 5.75 = 11.5$$",
+     "analysis": "the eight runs of the full factorial",
+     "where": {
+      "quiz": "Ungraded practice quiz 3",
+      "file": "quiz3-UG-2015",
+      "question": 6,
+      "question_id": "f12d498f87226a68d3b3726d46351e26",
+      "option_id": "dcd5af03ff7521e62b0ab82212e3c9d4",
+      "answer_key": "correct",
+      "source_kind": "option explanation",
+      "quote": "boosts the grade by $$2 \\times 5.75 = 11.5$$ units."
+     },
+     "check": {
+      "kind": "effect",
+      "term": "P",
+      "model": "D*N*P",
+      "runs": [1, 2, 3, 4, 5, 6, 7, 8],
+      "printed": "11.5"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "P",
+     "value": "$$\\approx 6.5$$",
+     "analysis": "all ten runs",
+     "where": {
+      "quiz": "Ungraded practice quiz 3",
+      "file": "quiz3-UG-2015",
+      "question": 6,
+      "question_id": "f12d498f87226a68d3b3726d46351e26",
+      "option_id": "dcd5af03ff7521e62b0ab82212e3c9d4",
+      "answer_key": "correct",
+      "source_kind": "option explanation",
+      "quote": "In the revised model, with 10 experiments, the coefficient is now $$\\approx 6.5$$"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "P",
+      "model": "D*N*P",
+      "printed": "6.5"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "D·N",
+     "value": "$$- 1.25x_{D}x_{N}$$",
+     "analysis": "the eight runs of the full factorial",
+     "where": {
+      "quiz": "Ungraded practice quiz 3",
+      "file": "quiz3-UG-2015",
+      "question": 6,
+      "question_id": "f12d498f87226a68d3b3726d46351e26",
+      "option_id": "803773f08c54840dbc9c1070f66343ef",
+      "answer_key": "correct",
+      "source_kind": "option",
+      "quote": "Consider the $$- 1.25x_{D}x_{N}$$ interaction term in the model with 8 experiments"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "D·N",
+      "model": "D*N*P",
+      "runs": [1, 2, 3, 4, 5, 6, 7, 8],
+      "printed": "-1.25"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "N",
+     "value": "$$1.75x_\\text{N}$$",
+     "analysis": "the eight runs of the full factorial",
+     "where": {
+      "quiz": "Ungraded practice quiz 3",
+      "file": "quiz3-UG-2015",
+      "question": 6,
+      "question_id": "f12d498f87226a68d3b3726d46351e26",
+      "option_id": "8e39aac0b07e4410312d6ecc89fa156d",
+      "answer_key": "correct",
+      "source_kind": "option",
+      "quote": "the effect of the number of quizzes changes from $$1.75x_\\text{N}$$ to $$1.52x_\\text{N}$$."
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "N",
+      "model": "D*N*P",
+      "runs": [1, 2, 3, 4, 5, 6, 7, 8],
+      "printed": "1.75"
+     },
+     "note": "the option calls the coefficient of N 'the effect of the number of quizzes': N is the number of attempts, and its effects are twice the coefficients, 3.5 and 3.04"
+    },
+    {
+     "what": "coefficient",
+     "term": "N",
+     "value": "$$1.52x_\\text{N}$$",
+     "analysis": "all ten runs",
+     "where": {
+      "quiz": "Ungraded practice quiz 3",
+      "file": "quiz3-UG-2015",
+      "question": 6,
+      "question_id": "f12d498f87226a68d3b3726d46351e26",
+      "option_id": "8e39aac0b07e4410312d6ecc89fa156d",
+      "answer_key": "correct",
+      "source_kind": "option",
+      "quote": "the effect of the number of quizzes changes from $$1.75x_\\text{N}$$ to $$1.52x_\\text{N}$$."
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "N",
+      "model": "D*N*P",
+      "printed": "1.52"
+     },
+     "note": "the option calls the coefficient of N 'the effect of the number of quizzes': N is the number of attempts, and its effects are twice the coefficients, 3.5 and 3.04"
+    }
+   ]
+  },
+  {
    "name": "efi-quiz4-breaded-chicken",
    "title": "Aditi's breaded chicken strips: cooking duration D, oven rack R and preheating P",
    "kind": "quiz question",
@@ -5595,6 +8189,263 @@
    ]
   },
   {
+   "name": "efi-quiz3-steam-reagent-profit",
+   "title": "James's reactor: steam S and reagent R, a synergistic interaction on profit",
+   "where": {
+    "quiz": "Quiz for week 3",
+    "file": "quiz3-2015",
+    "question": 2,
+    "question_id": "50f5b10157a49c4784f9dca5705db624",
+    "images": ["https://d396qusza40orc.cloudfront.net/experiments/quiz_assets/week3/SR%20-%20Synergy.jpeg"]
+   },
+   "design": {
+    "type": "2^2 full factorial",
+    "details": "steam S and reagent R; the runs are not printed"
+   },
+   "notes": "The explanation prints the model but not the runs, so nothing is refitted. The Pareto plot (SR - Synergy.jpeg) shows, by eye, S 94 and S:R 64 positive and R 11 negative: the model's coefficients.",
+   "expected": [
+    {
+     "what": "coefficient",
+     "term": "Intercept",
+     "value": "669",
+     "where": {
+      "quiz": "Quiz for week 3",
+      "file": "quiz3-2015",
+      "question": 2,
+      "question_id": "50f5b10157a49c4784f9dca5705db624",
+      "source_kind": "question explanation",
+      "quote": "\\hat{y} = 669 + 93.75 x_S -11.25x_R + 63.75x_Sx_R"
+     },
+     "check": {
+      "manual": "the explanation's model, fitted from runs the quiz does not print; the Pareto plot shows the same terms"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "S",
+     "value": "93.75",
+     "where": {
+      "quiz": "Quiz for week 3",
+      "file": "quiz3-2015",
+      "question": 2,
+      "question_id": "50f5b10157a49c4784f9dca5705db624",
+      "source_kind": "question explanation",
+      "quote": "\\hat{y} = 669 + 93.75 x_S -11.25x_R + 63.75x_Sx_R"
+     },
+     "check": {
+      "manual": "the explanation's model, fitted from runs the quiz does not print; the Pareto plot shows the same terms"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "R",
+     "value": "-11.25",
+     "where": {
+      "quiz": "Quiz for week 3",
+      "file": "quiz3-2015",
+      "question": 2,
+      "question_id": "50f5b10157a49c4784f9dca5705db624",
+      "source_kind": "question explanation",
+      "quote": "\\hat{y} = 669 + 93.75 x_S -11.25x_R + 63.75x_Sx_R"
+     },
+     "check": {
+      "manual": "the explanation's model, fitted from runs the quiz does not print; the Pareto plot shows the same terms"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "S·R",
+     "value": "63.75",
+     "where": {
+      "quiz": "Quiz for week 3",
+      "file": "quiz3-2015",
+      "question": 2,
+      "question_id": "50f5b10157a49c4784f9dca5705db624",
+      "source_kind": "question explanation",
+      "quote": "\\hat{y} = 669 + 93.75 x_S -11.25x_R + 63.75x_Sx_R"
+     },
+     "check": {
+      "manual": "the explanation's model, fitted from runs the quiz does not print; the Pareto plot shows the same terms"
+     }
+    },
+    {
+     "what": "Pareto plot",
+     "term": null,
+     "value": "SR%20-%20Synergy.jpeg",
+     "where": {
+      "quiz": "Quiz for week 3",
+      "file": "quiz3-2015",
+      "question": 2,
+      "question_id": "50f5b10157a49c4784f9dca5705db624",
+      "source_kind": "question image",
+      "quote": "<img src=\"https://d396qusza40orc.cloudfront.net/experiments/quiz_assets/week3/SR%20-%20Synergy.jpeg\">"
+     },
+     "check": {
+      "manual": "a Pareto plot given only as an image: its bars are read off the axis by eye, with no digits printed; the note compares them with the fit"
+     },
+     "note": "by eye, S 94 and S:R 64 positive, R 11 negative: the coefficients of the explanation's model"
+    }
+   ]
+  },
+  {
+   "name": "efi-quiz3-practice-pareto-of-a-model",
+   "title": "The Pareto plot of the model y = 16.5 + 1.25 xA - 4 xB + 0.75 xA xB",
+   "where": {
+    "quiz": "Ungraded practice quiz 3",
+    "file": "quiz3-UG-2015",
+    "question": 1,
+    "question_id": "b6d2d5cbc33a8395cf9e79446dfd3f64",
+    "images": ["https://d396qusza40orc.cloudfront.net/experiments/quiz_assets/week3/q3-model.png", "https://d396qusza40orc.cloudfront.net/experiments/quiz_assets/week3/q3-model-dist1.png", "https://d396qusza40orc.cloudfront.net/experiments/quiz_assets/week3/q3-model-dist2.png", "https://d396qusza40orc.cloudfront.net/experiments/quiz_assets/week3/q3-model-dist3.png"]
+   },
+   "design": {
+    "type": "2^2 full factorial",
+    "details": "a model in A and B, stated without runs"
+   },
+   "notes": "The question states the model and asks for its Pareto plot; there are no runs to refit.",
+   "expected": [
+    {
+     "what": "coefficient",
+     "term": "Intercept",
+     "value": "16.5",
+     "where": {
+      "quiz": "Ungraded practice quiz 3",
+      "file": "quiz3-UG-2015",
+      "question": 1,
+      "question_id": "b6d2d5cbc33a8395cf9e79446dfd3f64",
+      "source_kind": "question",
+      "quote": "$$y = 16.5 + 1.25x_{A} - 4x_{B} + 0.75x_{A}x_{B}$$"
+     },
+     "check": {
+      "manual": "a model the question states, with no runs to fit it from; the Pareto plots draw its terms"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "A",
+     "value": "1.25",
+     "where": {
+      "quiz": "Ungraded practice quiz 3",
+      "file": "quiz3-UG-2015",
+      "question": 1,
+      "question_id": "b6d2d5cbc33a8395cf9e79446dfd3f64",
+      "source_kind": "question",
+      "quote": "$$y = 16.5 + 1.25x_{A} - 4x_{B} + 0.75x_{A}x_{B}$$"
+     },
+     "check": {
+      "manual": "a model the question states, with no runs to fit it from; the Pareto plots draw its terms"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "B",
+     "value": "-4",
+     "where": {
+      "quiz": "Ungraded practice quiz 3",
+      "file": "quiz3-UG-2015",
+      "question": 1,
+      "question_id": "b6d2d5cbc33a8395cf9e79446dfd3f64",
+      "source_kind": "question",
+      "quote": "$$y = 16.5 + 1.25x_{A} - 4x_{B} + 0.75x_{A}x_{B}$$"
+     },
+     "check": {
+      "manual": "a model the question states, with no runs to fit it from; the Pareto plots draw its terms"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "A·B",
+     "value": "0.75",
+     "where": {
+      "quiz": "Ungraded practice quiz 3",
+      "file": "quiz3-UG-2015",
+      "question": 1,
+      "question_id": "b6d2d5cbc33a8395cf9e79446dfd3f64",
+      "source_kind": "question",
+      "quote": "$$y = 16.5 + 1.25x_{A} - 4x_{B} + 0.75x_{A}x_{B}$$"
+     },
+     "check": {
+      "manual": "a model the question states, with no runs to fit it from; the Pareto plots draw its terms"
+     }
+    },
+    {
+     "what": "Pareto plot",
+     "term": null,
+     "value": "q3-model.png",
+     "where": {
+      "quiz": "Ungraded practice quiz 3",
+      "file": "quiz3-UG-2015",
+      "question": 1,
+      "question_id": "b6d2d5cbc33a8395cf9e79446dfd3f64",
+      "option_id": "48b896199e9487eba7b4475a3af68098",
+      "answer_key": "correct",
+      "source_kind": "option image",
+      "quote": "<img src=\"https://d396qusza40orc.cloudfront.net/experiments/quiz_assets/week3/q3-model.png\">"
+     },
+     "check": {
+      "manual": "a Pareto plot given only as an image: its bars are read off the axis by eye, with no digits printed; the note compares them with the fit"
+     },
+     "note": "by eye, B 4 negative, A 1.25 and A:B 0.75 positive: the model's coefficients"
+    },
+    {
+     "what": "Pareto plot",
+     "term": null,
+     "value": "q3-model-dist1.png",
+     "where": {
+      "quiz": "Ungraded practice quiz 3",
+      "file": "quiz3-UG-2015",
+      "question": 1,
+      "question_id": "b6d2d5cbc33a8395cf9e79446dfd3f64",
+      "option_id": "ceb79879c888a3447e3cd8cecbc76bfd",
+      "answer_key": "incorrect",
+      "source_kind": "option image",
+      "quote": "<img src=\"https://d396qusza40orc.cloudfront.net/experiments/quiz_assets/week3/q3-model-dist1.png\">"
+     },
+     "check": {
+      "manual": "a Pareto plot given only as an image: its bars are read off the axis by eye, with no digits printed; the note compares them with the fit"
+     },
+     "note": "by eye, A 4 negative and B 1.25 positive: A and B swapped, as its explanation says"
+    },
+    {
+     "what": "Pareto plot",
+     "term": null,
+     "value": "q3-model-dist2.png",
+     "where": {
+      "quiz": "Ungraded practice quiz 3",
+      "file": "quiz3-UG-2015",
+      "question": 1,
+      "question_id": "b6d2d5cbc33a8395cf9e79446dfd3f64",
+      "option_id": "b08ffbb6028cddf0545447e945c91c88",
+      "answer_key": "incorrect",
+      "source_kind": "option image",
+      "quote": "<img src=\"https://d396qusza40orc.cloudfront.net/experiments/quiz_assets/week3/q3-model-dist2.png\">"
+     },
+     "check": {
+      "manual": "a Pareto plot given only as an image: its bars are read off the axis by eye, with no digits printed; the note compares them with the fit"
+     },
+     "note": "by eye, A:B 1.25 and A 0.75: A and A:B swapped, as its explanation says"
+    },
+    {
+     "what": "Pareto plot",
+     "term": null,
+     "value": "q3-model-dist3.png",
+     "where": {
+      "quiz": "Ungraded practice quiz 3",
+      "file": "quiz3-UG-2015",
+      "question": 1,
+      "question_id": "b6d2d5cbc33a8395cf9e79446dfd3f64",
+      "option_id": "62e0d0105133a6a4a77a0c70149f6320",
+      "answer_key": "incorrect",
+      "source_kind": "option image",
+      "quote": "<img src=\"https://d396qusza40orc.cloudfront.net/experiments/quiz_assets/week3/q3-model-dist3.png\">"
+     },
+     "check": {
+      "manual": "a Pareto plot given only as an image: its bars are read off the axis by eye, with no digits printed; the note compares them with the fit"
+     },
+     "note": "by eye, B 4 positive and A:B 0.75 negative: B's sign reversed (and A:B's), as its explanation says"
+    }
+   ]
+  },
+  {
    "name": "efi-quiz4-cookie-run-budget",
    "title": "Jeff's chocolate chip cookies: what eight runs allow, in two to five factors",
    "where": {
@@ -7111,5 +9962,5 @@
    ]
   }
  ],
- "not_captured": ["quiz 1 (graded and practice), question 1 (the same question, id bf443f8f): the grading example, 0.33 + 0.33 + 0.33 = 1 and 0.33 + 0.33 = 0.67, is the quiz's scoring in thirds, about no experiment; it agrees with the option scores in the XML", "graded quiz 1, question 2 (Toyota at the Harlem soup kitchen, kaizen): outcomes, factors and objectives, in words", "graded quiz 1, question 3: which variables were factors, with no number in any option; the cube plot's runs are kept as data in efi-quiz1-store-profit", "graded quiz 1, questions 4 and 5 (bottled coffee): outcomes, objectives and factors, in words; the 20 days is the scenario's storage time, not a result", "graded quiz 1, questions 6 and 7: which kinds of variable are quantitative or qualitative, definitions", "graded quiz 1, question 8, options b0e69dc4, 2fcdf4af, 7e5ebb6d and 6162703c: a judgement in words (the sugar effect, 0 mm, is noted in efi-quiz1-bread-dough-rise) and the classification of factors", "graded quiz 1, question 9 (the professor's slides): the 1 to 5 Likert scale, 1.5 or 2 line spacing and size 18 or 22 font are levels named while classifying factors and responses, not results", "graded quiz 1, question 10 (the surgical procedure): which factors are quantitative, in words", "practice quiz 1, questions 2 to 4: factors judged by intuition, factors against objectives and outcomes, and qualitative variables; the 120 or 140 characters of question 4 are levels, not results", "practice quiz 1, question 5 (chemotherapy): categorical and quantitative factors, in words; the 5 or 10 units/kg are levels. The explanation of option 5905f67f calls the number of patients with adverse effects an outcome and then 'a covariate', which the course defines as measurable but not controllable, not as an outcome", "graded quiz, question 1, option 1b2c506a: which shoe type is coded minus, a choice of coding with no number", "graded quiz, question 1, option 58225f22 (keyed incorrect): whether the shoe type is the outcome, a definition", "graded quiz, question 5: the four options are interaction plots in images; they are compared by eye with the runs in the experiment's notes", "practice quiz 2, question 1: judgements in words on a response recorded as hazy or clear; the runs are kept as an experiment without numbers", "practice quiz 2, question 5, option 967b1419 (keyed incorrect): the sign of K's effect in words; the cube plot gives an effect of -3 min, a decrease, as the key implies", "graded quiz, question 4 (Jennifer's run order): choosing a randomized time order, with no number to recompute", "graded quiz, question 8, the covariate and disturbance options: definitions, with no number", "graded quiz, question 9, options e5b6110a and c5354e81: nuisance variable or disturbance, a definition", "practice quiz 4 part 1, questions 1, 3, 5 and 6: covariates, disturbances and randomization, in words", "practice quiz 4 part 2, question 3, option 535464d0 (keyed incorrect): the same alias structure as the option keyed correct, judged on which interaction is unimportant", "practice quiz 4 part 2, question 8: a self-assessment, with no answer key"]
+ "not_captured": ["quiz 1 (graded and practice), question 1 (the same question, id bf443f8f): the grading example, 0.33 + 0.33 + 0.33 = 1 and 0.33 + 0.33 = 0.67, is the quiz's scoring in thirds, about no experiment; it agrees with the option scores in the XML", "graded quiz 1, question 2 (Toyota at the Harlem soup kitchen, kaizen): outcomes, factors and objectives, in words", "graded quiz 1, question 3: which variables were factors, with no number in any option; the cube plot's runs are kept as data in efi-quiz1-store-profit", "graded quiz 1, questions 4 and 5 (bottled coffee): outcomes, objectives and factors, in words; the 20 days is the scenario's storage time, not a result", "graded quiz 1, questions 6 and 7: which kinds of variable are quantitative or qualitative, definitions", "graded quiz 1, question 8, options b0e69dc4, 2fcdf4af, 7e5ebb6d and 6162703c: a judgement in words (the sugar effect, 0 mm, is noted in efi-quiz1-bread-dough-rise) and the classification of factors", "graded quiz 1, question 9 (the professor's slides): the 1 to 5 Likert scale, 1.5 or 2 line spacing and size 18 or 22 font are levels named while classifying factors and responses, not results", "graded quiz 1, question 10 (the surgical procedure): which factors are quantitative, in words", "practice quiz 1, questions 2 to 4: factors judged by intuition, factors against objectives and outcomes, and qualitative variables; the 120 or 140 characters of question 4 are levels, not results", "practice quiz 1, question 5 (chemotherapy): categorical and quantitative factors, in words; the 5 or 10 units/kg are levels. The explanation of option 5905f67f calls the number of patients with adverse effects an outcome and then 'a covariate', which the course defines as measurable but not controllable, not as an outcome", "graded quiz, question 1, option 1b2c506a: which shoe type is coded minus, a choice of coding with no number", "graded quiz, question 1, option 58225f22 (keyed incorrect): whether the shoe type is the outcome, a definition", "graded quiz, question 5: the four options are interaction plots in images; they are compared by eye with the runs in the experiment's notes", "practice quiz 2, question 1: judgements in words on a response recorded as hazy or clear; the runs are kept as an experiment without numbers", "practice quiz 2, question 5, option 967b1419 (keyed incorrect): the sign of K's effect in words; the cube plot gives an effect of -3 min, a decrease, as the key implies", "graded quiz, question 2, the three options: recommendations in words about the S·R interaction, with no number", "graded quiz, question 3, option 53e03eb9's explanation: that a Pareto plot does not show the intercept, in words", "graded quiz, question 4, options 6e71754c, 70d8d468 and cea223a9: which main effect is largest, in words; the fit T*H*C*D agrees with the key (C 15.19, H -9.94, T 8.19, D -7.06)", "graded quiz, question 5, the four options and option 62c70422's explanation: which factors are important, in words, read off a Pareto plot of a saturated fit; by Lenth's method no effect is active", "graded quiz, question 6, the note on rounding: examples of rounding a coefficient to two decimals (6.678 to 6.68, 5.541 to 5.54, 0.253 to 0.25), not results of these runs", "graded quiz, question 6, option 62ed4dad: the smallest main effect named in words; the fit agrees (A -0.5)", "graded quiz, question 7, options 47a6f50a and efa65f6b: the lid's effect the strongest, and the larger pot faster, in words; the fit agrees", "practice quiz 3, question 2 (Peter's feedback forms): recommendations in words from a Pareto plot given only as an image (by eye I -15, D -10, D:I +7.5), with no runs or model printed", "practice quiz 3, question 4, the four options: recommendations in words from the flu study's Pareto plot; they agree with the fit", "practice quiz 3, question 6, options 85e9bb20 and 803773f0's interpretation: the delivery mode's small effect and the reading of the D·N interaction, in words", "graded quiz, question 4 (Jennifer's run order): choosing a randomized time order, with no number to recompute", "graded quiz, question 8, the covariate and disturbance options: definitions, with no number", "graded quiz, question 9, options e5b6110a and c5354e81: nuisance variable or disturbance, a definition", "practice quiz 4 part 1, questions 1, 3, 5 and 6: covariates, disturbances and randomization, in words", "practice quiz 4 part 2, question 3, option 535464d0 (keyed incorrect): the same alias structure as the option keyed correct, judged on which interaction is unimportant", "practice quiz 4 part 2, question 8: a self-assessment, with no answer key"]
 }
