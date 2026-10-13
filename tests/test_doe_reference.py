@@ -105,3 +105,55 @@ def test_a_wrong_number_is_reported_and_not_agreed(monkeypatch, tmp_path):
     report = reproduce_reference()
     first = report.iloc[0]
     assert (first["printed"], first["found"], first["agrees"]) == ("11", "10", False)
+
+
+def test_each_kind_of_check_reports_what_it_finds(monkeypatch, tmp_path):
+    """A small source with one check of each remaining kind: ANOVA, bounds, a design's metrics, and errors."""
+    from process_improve.experiments import reference
+
+    def item(value, check):
+        return {"what": "x", "term": None, "value": value, "where": {"page": 1, "quote": "x"}, "check": check}
+
+    fit = {"model": "A + B"}
+    runs = {"columns": ["A", "B", "y"], "rows": [[-1, -1, 1], [1, -1, 3], [-1, 1, 2], [1, 1, 6]], "coded": True}
+    bbd = {"design_type": "box_behnken", "k": 3, "options": {"n_center_points": 3}}
+    expected = [
+        item("9", {"kind": "anova_sum_sq", "term": "A", **fit}),  # 4 x 1.5 squared
+        item("< 0.5", {"kind": "p_value", "term": "A", **fit}),  # t = 3 on 1 df: p = 0.205
+        item("> 0.1", {"kind": "p_value", "term": "A", **fit}),
+        item("1", {"kind": "design_metric", "metric": "degrees_of_freedom", "key": "residual", **fit}),
+        item("1", {"kind": "design_metric", "metric": "vif", "key": "max", **fit}),
+        item(
+            "1",
+            {
+                "kind": "design_metric",
+                "metric": "correlation",
+                "key": "matrix.0.0",
+                "model": "quadratic",
+                "design": bbd,
+            },
+        ),
+        item(
+            "0.071",
+            {"kind": "design_metric", "metric": "correlation", "key": "max_abs_r", "model": "quadratic", "design": bbd},
+        ),
+        item("2", {"kind": "no_such_kind"}),
+        item("2", {"kind": "coefficient", "term": "C", **fit}),
+        item("2 ** 3", {"kind": "coefficient", "term": "A", "expression": True, **fit}),
+        item("about two", {"kind": "coefficient", "term": "A", **fit}),
+    ]
+    experiment = {
+        "name": "small",
+        "factors": [{"name": n, "type": "numeric", "low": -1, "high": 1} for n in "AB"],
+        "responses": [{"name": "y"}],
+        "runs": runs,
+        "expected": expected,
+    }
+    source = {"key": "small", "authors": ["A"], "title": "t", "url": "u", "year": 2026, "read": "r"}
+    (tmp_path / "small.json").write_text(json.dumps({"source": source, "experiments": [experiment]}), encoding="utf-8")
+    monkeypatch.setattr(reference, "_REFERENCE_DIR", tmp_path)
+    report = reproduce_reference("small")
+    assert report["agrees"].tolist() == [True] * 7 + [False] * 4
+    assert report["found"].iloc[6] == "0.0714286"
+    reasons = report["reason"].iloc[7:].str.split(":").str[0].tolist()
+    assert reasons == ["KeyError", "KeyError", "ValueError", "ValueError"]
