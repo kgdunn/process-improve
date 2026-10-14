@@ -28,16 +28,19 @@ those changes.
   with missing cells, two-level factorials, multi-level factorials with their orthogonal
   polynomial components, factorials confounded in blocks, fractional factorials, and response
   surface work (two stages of steepest ascent, a 3^2 factorial and a composite design with their
-  canonical analyses, and orthogonal composite designs); of chapters 1 to 5 of Box, Hunter and
-  Hunter, *Statistics for Experimenters* (1978): a two-method plant trial, the 210-batch
-  production record that gives its external reference distributions, the randomized tomato
-  and paired boys' shoes experiments, and the exercises with data of chapters 2 and 3; and of five papers on definitive screening and OMARS designs and
+  canonical analyses, and orthogonal composite designs); of chapters 1 to 8 of Box, Hunter and
+  Hunter, *Statistics for Experimenters* (1978): two-treatment comparisons (a plant trial
+  against a 210-batch production record, randomized and paired experiments, and the
+  exercises of chapters 2 and 3, each labelled as a one-factor design), one-way analyses of
+  variance, randomized blocks, the replicated 3 x 4 toxic-agents factorial with its Box-Cox
+  transformation, Latin, replicated Latin, hyper-Graeco-Latin and Youden squares; and of five papers on definitive screening and OMARS designs and
   trend-robust run orders (Jones and Nachtsheim 2013; Nunez Ares and Goos 2019, 2020; Nunez
   Ares, Schoen and Goos 2023; Goos 2025). For each it keeps the factors,
   responses and runs exactly as printed, and every number the source prints: each as the
   printed text, with where it is printed (file and line, or page, and a quotation) and how to
   recompute it (the kind of result, the term, the model and the runs used; a stationary point,
-  canonical form or path of steepest ascent is recomputed with `optimize_responses`; a one-sided
+  canonical form or path of steepest ascent is recomputed with `optimize_responses`, and a
+  Box-Cox power with the library's Box-Cox analysis; a one-sided
   p-value, a variance or a difference between two groups of runs is read as a source quotes it). Designs without
   responses keep the properties the source states. `reference_sources()`,
   `reference_experiments()` and `reference_designs()` read it. `reproduce_reference_catalogue()`
