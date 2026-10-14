@@ -1,7 +1,7 @@
 {
  "schema": 1,
  "about": [
-  "Part of the reference catalogue: designed experiments from chapters 2 to 7 of Davies (ed.), The Design and Analysis",
+  "Part of the reference catalogue: designed experiments from chapters 2 to 8 of Davies (ed.), The Design and Analysis",
   "of Industrial Experiments, for testing that software reproduces them. source: the citation, with what was read and",
   "when. experiments: each worked example with data (factors, responses, runs exactly as printed, in the printed",
   "order), where it is printed, and expected: every number the book prints for it, as printed text (with a period",
@@ -24,13 +24,13 @@
   "editor": "Owen L. Davies",
   "title": "The Design and Analysis of Industrial Experiments",
   "edition": "2nd edition (1956), reprinted with corrections 1978; the 1979 reprint",
-  "pages": "chapters 1 to 7, pp. 1-286, of 637",
+  "pages": "chapters 1 to 8, pp. 1-366, of 637",
   "year": 1956,
   "publisher": "Longman Group Limited, London and New York, for Imperial Chemical Industries Limited",
   "isbn": "0-582-46053-0",
   "url": "https://search.worldcat.org/search?q=bn:0582460530",
   "cite": "Davies, O. L. (ed.) (1956), The Design and Analysis of Industrial Experiments, 2nd edition, Longman for ICI",
-  "read": "2026-10-14, from scans of pp. i-xiii and 1-286 (chapters 1 to 7) of the 1979 reprint; every number copied by hand and checked against the totals the book prints; two tables printed sideways (4-1 and 5-6) taken from their reprints in the appendices, and Table 4-3 read from the page image",
+  "read": "2026-10-14, from scans of pp. i-xiii and 1-366 (chapters 1 to 8) of the 1979 reprint; every number copied by hand and checked against the totals the book prints; two tables printed sideways (4-1 and 5-6) taken from their reprints in the appendices, and Tables 4-3, 8-3 and 8-61 read from the page image",
   "rights": "The book is protected by copyright (© 1956 Imperial Chemical Industries Limited) and is not reproduced here. This file holds facts it reports (numbers, layouts, data) and short quotations that locate each one, for citation and for checking software. The MIT licence of process-improve does not extend to them."
  },
  "experiments": [
@@ -11008,6 +11008,5297 @@
      }
     }
    ]
+  },
+  {
+   "name": "davies-vulcanised-rubber-5x3x4",
+   "title": "Wear resistance of vulcanised rubber: five fillers, three pretreatments and four raw rubbers, a 5 x 3 x 4 factorial",
+   "kind": "example",
+   "where": {
+    "section": "8.2 to 8.22",
+    "pages": "291-296",
+    "tables": [
+     "Table 8-1",
+     "Table 8-11",
+     "Table 8-12",
+     "Table 8-13",
+     "Table 8-14",
+     "Table 8-15",
+     "Table 8-16"
+    ],
+    "figures": []
+   },
+   "factors": [
+    {
+     "name": "A",
+     "description": "quality of filler",
+     "levels": [
+      "1",
+      "2",
+      "3",
+      "4",
+      "5"
+     ],
+     "units": "",
+     "type": "categorical"
+    },
+    {
+     "name": "B",
+     "description": "method of pretreatment of the rubber",
+     "levels": [
+      "1",
+      "2",
+      "3"
+     ],
+     "units": "",
+     "type": "categorical"
+    },
+    {
+     "name": "C",
+     "description": "quality of the raw rubber",
+     "levels": [
+      "1",
+      "2",
+      "3",
+      "4"
+     ],
+     "units": "",
+     "type": "categorical"
+    }
+   ],
+   "responses": [
+    {
+     "name": "Wear",
+     "description": "wear resistance",
+     "units": ""
+    }
+   ],
+   "design": {
+    "type": "general full factorial",
+    "details": "5 x 3 x 4 = 60 treatments, each tested once",
+    "n_runs": 60
+   },
+   "runs": {
+    "columns": [
+     "A",
+     "B",
+     "C",
+     "Wear"
+    ],
+    "rows": [
+     [
+      1,
+      1,
+      1,
+      404
+     ],
+     [
+      1,
+      2,
+      1,
+      478
+     ],
+     [
+      1,
+      3,
+      1,
+      530
+     ],
+     [
+      1,
+      1,
+      2,
+      381
+     ],
+     [
+      1,
+      2,
+      2,
+      429
+     ],
+     [
+      1,
+      3,
+      2,
+      528
+     ],
+     [
+      1,
+      1,
+      3,
+      316
+     ],
+     [
+      1,
+      2,
+      3,
+      376
+     ],
+     [
+      1,
+      3,
+      3,
+      390
+     ],
+     [
+      1,
+      1,
+      4,
+      423
+     ],
+     [
+      1,
+      2,
+      4,
+      482
+     ],
+     [
+      1,
+      3,
+      4,
+      550
+     ],
+     [
+      2,
+      1,
+      1,
+      392
+     ],
+     [
+      2,
+      2,
+      1,
+      418
+     ],
+     [
+      2,
+      3,
+      1,
+      431
+     ],
+     [
+      2,
+      1,
+      2,
+      239
+     ],
+     [
+      2,
+      2,
+      2,
+      251
+     ],
+     [
+      2,
+      3,
+      2,
+      249
+     ],
+     [
+      2,
+      1,
+      3,
+      186
+     ],
+     [
+      2,
+      2,
+      3,
+      207
+     ],
+     [
+      2,
+      3,
+      3,
+      194
+     ],
+     [
+      2,
+      1,
+      4,
+      410
+     ],
+     [
+      2,
+      2,
+      4,
+      416
+     ],
+     [
+      2,
+      3,
+      4,
+      452
+     ],
+     [
+      3,
+      1,
+      1,
+      348
+     ],
+     [
+      3,
+      2,
+      1,
+      381
+     ],
+     [
+      3,
+      3,
+      1,
+      460
+     ],
+     [
+      3,
+      1,
+      2,
+      327
+     ],
+     [
+      3,
+      2,
+      2,
+      372
+     ],
+     [
+      3,
+      3,
+      2,
+      482
+     ],
+     [
+      3,
+      1,
+      3,
+      290
+     ],
+     [
+      3,
+      2,
+      3,
+      315
+     ],
+     [
+      3,
+      3,
+      3,
+      350
+     ],
+     [
+      3,
+      1,
+      4,
+      383
+     ],
+     [
+      3,
+      2,
+      4,
+      376
+     ],
+     [
+      3,
+      3,
+      4,
+      496
+     ],
+     [
+      4,
+      1,
+      1,
+      296
+     ],
+     [
+      4,
+      2,
+      1,
+      291
+     ],
+     [
+      4,
+      3,
+      1,
+      333
+     ],
+     [
+      4,
+      1,
+      2,
+      165
+     ],
+     [
+      4,
+      2,
+      2,
+      232
+     ],
+     [
+      4,
+      3,
+      2,
+      242
+     ],
+     [
+      4,
+      1,
+      3,
+      158
+     ],
+     [
+      4,
+      2,
+      3,
+      279
+     ],
+     [
+      4,
+      3,
+      3,
+      220
+     ],
+     [
+      4,
+      1,
+      4,
+      301
+     ],
+     [
+      4,
+      2,
+      4,
+      306
+     ],
+     [
+      4,
+      3,
+      4,
+      330
+     ],
+     [
+      5,
+      1,
+      1,
+      186
+     ],
+     [
+      5,
+      2,
+      1,
+      198
+     ],
+     [
+      5,
+      3,
+      1,
+      225
+     ],
+     [
+      5,
+      1,
+      2,
+      129
+     ],
+     [
+      5,
+      2,
+      2,
+      157
+     ],
+     [
+      5,
+      3,
+      2,
+      197
+     ],
+     [
+      5,
+      1,
+      3,
+      105
+     ],
+     [
+      5,
+      2,
+      3,
+      163
+     ],
+     [
+      5,
+      3,
+      3,
+      190
+     ],
+     [
+      5,
+      1,
+      4,
+      213
+     ],
+     [
+      5,
+      2,
+      4,
+      200
+     ],
+     [
+      5,
+      3,
+      4,
+      255
+     ]
+    ],
+    "coded": false,
+    "notes": "Table 8-1, row by row (levels of A), C changing slowest across the row and B fastest"
+   },
+   "notes": "No replication: the three-factor interaction serves as error.",
+   "expected": [
+    {
+     "what": "anova_sum_sq",
+     "term": "A",
+     "value": "478463",
+     "analysis": "all main effects and two-factor interactions; the three-factor interaction as error",
+     "where": {
+      "page": 295,
+      "source_kind": "table",
+      "quote": "Between levels of factor A 478,463 4 119,616"
+     },
+     "check": {
+      "kind": "anova_sum_sq",
+      "term": "A",
+      "model": "A + B + C + A:B + A:C + B:C",
+      "disagreement": "the book subtracts a correction rounded to 6,069,348 from a crude sum of squares rounded to 6,547,811 (8.21); unrounded the sum of squares is 478,462.4"
+     }
+    },
+    {
+     "what": "anova_mean_sq",
+     "term": "A",
+     "value": "119616",
+     "analysis": "all main effects and two-factor interactions; the three-factor interaction as error",
+     "where": {
+      "page": 295,
+      "source_kind": "table",
+      "quote": "Between levels of factor A 478,463 4 119,616"
+     },
+     "check": {
+      "kind": "anova_mean_sq",
+      "term": "A",
+      "model": "A + B + C + A:B + A:C + B:C"
+     }
+    },
+    {
+     "what": "anova_sum_sq",
+     "term": "B",
+     "value": "52794",
+     "analysis": "all main effects and two-factor interactions; the three-factor interaction as error",
+     "where": {
+      "page": 295,
+      "source_kind": "table",
+      "quote": "B 52,794 2 26,397"
+     },
+     "check": {
+      "kind": "anova_sum_sq",
+      "term": "B",
+      "model": "A + B + C + A:B + A:C + B:C"
+     }
+    },
+    {
+     "what": "anova_mean_sq",
+     "term": "B",
+     "value": "26397",
+     "analysis": "all main effects and two-factor interactions; the three-factor interaction as error",
+     "where": {
+      "page": 295,
+      "source_kind": "table",
+      "quote": "B 52,794 2 26,397"
+     },
+     "check": {
+      "kind": "anova_mean_sq",
+      "term": "B",
+      "model": "A + B + C + A:B + A:C + B:C"
+     }
+    },
+    {
+     "what": "anova_sum_sq",
+     "term": "C",
+     "value": "150239",
+     "analysis": "all main effects and two-factor interactions; the three-factor interaction as error",
+     "where": {
+      "page": 295,
+      "source_kind": "table",
+      "quote": "C 150,239 3 50,080"
+     },
+     "check": {
+      "kind": "anova_sum_sq",
+      "term": "C",
+      "model": "A + B + C + A:B + A:C + B:C"
+     }
+    },
+    {
+     "what": "anova_mean_sq",
+     "term": "C",
+     "value": "50080",
+     "analysis": "all main effects and two-factor interactions; the three-factor interaction as error",
+     "where": {
+      "page": 295,
+      "source_kind": "table",
+      "quote": "C 150,239 3 50,080"
+     },
+     "check": {
+      "kind": "anova_mean_sq",
+      "term": "C",
+      "model": "A + B + C + A:B + A:C + B:C"
+     }
+    },
+    {
+     "what": "anova_sum_sq",
+     "term": "A·B",
+     "value": "16807",
+     "analysis": "all main effects and two-factor interactions; the three-factor interaction as error",
+     "where": {
+      "page": 295,
+      "source_kind": "table",
+      "quote": "AB 16,807 8 2,101"
+     },
+     "check": {
+      "kind": "anova_sum_sq",
+      "term": "A·B",
+      "model": "A + B + C + A:B + A:C + B:C"
+     }
+    },
+    {
+     "what": "anova_mean_sq",
+     "term": "A·B",
+     "value": "2101",
+     "analysis": "all main effects and two-factor interactions; the three-factor interaction as error",
+     "where": {
+      "page": 295,
+      "source_kind": "table",
+      "quote": "AB 16,807 8 2,101"
+     },
+     "check": {
+      "kind": "anova_mean_sq",
+      "term": "A·B",
+      "model": "A + B + C + A:B + A:C + B:C"
+     }
+    },
+    {
+     "what": "anova_sum_sq",
+     "term": "A·C",
+     "value": "53890",
+     "analysis": "all main effects and two-factor interactions; the three-factor interaction as error",
+     "where": {
+      "page": 295,
+      "source_kind": "table",
+      "quote": "AC 53,890 12 4,491"
+     },
+     "check": {
+      "kind": "anova_sum_sq",
+      "term": "A·C",
+      "model": "A + B + C + A:B + A:C + B:C"
+     }
+    },
+    {
+     "what": "anova_mean_sq",
+     "term": "A·C",
+     "value": "4491",
+     "analysis": "all main effects and two-factor interactions; the three-factor interaction as error",
+     "where": {
+      "page": 295,
+      "source_kind": "table",
+      "quote": "AC 53,890 12 4,491"
+     },
+     "check": {
+      "kind": "anova_mean_sq",
+      "term": "A·C",
+      "model": "A + B + C + A:B + A:C + B:C"
+     }
+    },
+    {
+     "what": "anova_sum_sq",
+     "term": "B·C",
+     "value": "6416",
+     "analysis": "all main effects and two-factor interactions; the three-factor interaction as error",
+     "where": {
+      "page": 295,
+      "source_kind": "table",
+      "quote": "BC 6,416 6 1,069"
+     },
+     "check": {
+      "kind": "anova_sum_sq",
+      "term": "B·C",
+      "model": "A + B + C + A:B + A:C + B:C"
+     }
+    },
+    {
+     "what": "anova_mean_sq",
+     "term": "B·C",
+     "value": "1069",
+     "analysis": "all main effects and two-factor interactions; the three-factor interaction as error",
+     "where": {
+      "page": 295,
+      "source_kind": "table",
+      "quote": "BC 6,416 6 1,069"
+     },
+     "check": {
+      "kind": "anova_mean_sq",
+      "term": "B·C",
+      "model": "A + B + C + A:B + A:C + B:C"
+     }
+    },
+    {
+     "what": "ss_residual",
+     "term": null,
+     "value": "7688",
+     "analysis": "all main effects and two-factor interactions; the three-factor interaction as error",
+     "where": {
+      "page": 295,
+      "source_kind": "table",
+      "quote": "Remainder = interaction ABC.. 7,688 24 320"
+     },
+     "check": {
+      "kind": "ss_residual",
+      "model": "A + B + C + A:B + A:C + B:C",
+      "disagreement": "the remainder by subtraction from the rounded sums of squares above; unrounded it is 7,686.9"
+     }
+    },
+    {
+     "what": "ms_residual",
+     "term": null,
+     "value": "320",
+     "analysis": "all main effects and two-factor interactions; the three-factor interaction as error",
+     "where": {
+      "page": 295,
+      "source_kind": "table",
+      "quote": "Remainder = interaction ABC.. 7,688 24 320"
+     },
+     "check": {
+      "kind": "ms_residual",
+      "model": "A + B + C + A:B + A:C + B:C"
+     }
+    },
+    {
+     "what": "ss_total",
+     "term": null,
+     "value": "766297",
+     "where": {
+      "page": 295,
+      "source_kind": "table",
+      "quote": "766,297 59"
+     },
+     "check": {
+      "kind": "ss_total",
+      "model": "A + B + C + A:B + A:C + B:C"
+     }
+    },
+    {
+     "what": "mean",
+     "term": "A1",
+     "value": "440.6",
+     "where": {
+      "page": 292,
+      "source_kind": "table",
+      "quote": "Mean ... 440·6"
+     },
+     "check": {
+      "kind": "mean",
+      "runs": [
+       1,
+       2,
+       3,
+       4,
+       5,
+       6,
+       7,
+       8,
+       9,
+       10,
+       11,
+       12
+      ]
+     }
+    },
+    {
+     "what": "mean",
+     "term": "A2",
+     "value": "320.4",
+     "where": {
+      "page": 292,
+      "source_kind": "table",
+      "quote": "Mean ... 320·4"
+     },
+     "check": {
+      "kind": "mean",
+      "runs": [
+       13,
+       14,
+       15,
+       16,
+       17,
+       18,
+       19,
+       20,
+       21,
+       22,
+       23,
+       24
+      ]
+     }
+    },
+    {
+     "what": "mean",
+     "term": "A3",
+     "value": "381.7",
+     "where": {
+      "page": 292,
+      "source_kind": "table",
+      "quote": "Mean ... 381·7"
+     },
+     "check": {
+      "kind": "mean",
+      "runs": [
+       25,
+       26,
+       27,
+       28,
+       29,
+       30,
+       31,
+       32,
+       33,
+       34,
+       35,
+       36
+      ]
+     }
+    },
+    {
+     "what": "mean",
+     "term": "A4",
+     "value": "262.7",
+     "where": {
+      "page": 292,
+      "source_kind": "table",
+      "quote": "Mean ... 262·7"
+     },
+     "check": {
+      "kind": "mean",
+      "runs": [
+       37,
+       38,
+       39,
+       40,
+       41,
+       42,
+       43,
+       44,
+       45,
+       46,
+       47,
+       48
+      ]
+     }
+    },
+    {
+     "what": "mean",
+     "term": "A5",
+     "value": "184.8",
+     "where": {
+      "page": 292,
+      "source_kind": "table",
+      "quote": "Mean ... 184·8"
+     },
+     "check": {
+      "kind": "mean",
+      "runs": [
+       49,
+       50,
+       51,
+       52,
+       53,
+       54,
+       55,
+       56,
+       57,
+       58,
+       59,
+       60
+      ]
+     }
+    },
+    {
+     "what": "mean",
+     "term": "B1",
+     "value": "282.6",
+     "where": {
+      "page": 293,
+      "source_kind": "table",
+      "quote": "Mean 282·6"
+     },
+     "check": {
+      "kind": "mean",
+      "runs": [
+       1,
+       4,
+       7,
+       10,
+       13,
+       16,
+       19,
+       22,
+       25,
+       28,
+       31,
+       34,
+       37,
+       40,
+       43,
+       46,
+       49,
+       52,
+       55,
+       58
+      ]
+     }
+    },
+    {
+     "what": "mean",
+     "term": "B2",
+     "value": "316.4",
+     "where": {
+      "page": 293,
+      "source_kind": "table",
+      "quote": "Mean 316·4"
+     },
+     "check": {
+      "kind": "mean",
+      "runs": [
+       2,
+       5,
+       8,
+       11,
+       14,
+       17,
+       20,
+       23,
+       26,
+       29,
+       32,
+       35,
+       38,
+       41,
+       44,
+       47,
+       50,
+       53,
+       56,
+       59
+      ]
+     }
+    },
+    {
+     "what": "mean",
+     "term": "B3",
+     "value": "355.2",
+     "where": {
+      "page": 293,
+      "source_kind": "table",
+      "quote": "Mean 355·2"
+     },
+     "check": {
+      "kind": "mean",
+      "runs": [
+       3,
+       6,
+       9,
+       12,
+       15,
+       18,
+       21,
+       24,
+       27,
+       30,
+       33,
+       36,
+       39,
+       42,
+       45,
+       48,
+       51,
+       54,
+       57,
+       60
+      ]
+     }
+    },
+    {
+     "what": "mean",
+     "term": "C1",
+     "value": "358.1",
+     "where": {
+      "page": 294,
+      "source_kind": "table",
+      "quote": "Mean .. 358·1"
+     },
+     "check": {
+      "kind": "mean",
+      "runs": [
+       1,
+       2,
+       3,
+       13,
+       14,
+       15,
+       25,
+       26,
+       27,
+       37,
+       38,
+       39,
+       49,
+       50,
+       51
+      ]
+     }
+    },
+    {
+     "what": "mean",
+     "term": "C2",
+     "value": "292.0",
+     "where": {
+      "page": 294,
+      "source_kind": "table",
+      "quote": "Mean .. 292·0"
+     },
+     "check": {
+      "kind": "mean",
+      "runs": [
+       4,
+       5,
+       6,
+       16,
+       17,
+       18,
+       28,
+       29,
+       30,
+       40,
+       41,
+       42,
+       52,
+       53,
+       54
+      ]
+     }
+    },
+    {
+     "what": "mean",
+     "term": "C3",
+     "value": "249.3",
+     "where": {
+      "page": 294,
+      "source_kind": "table",
+      "quote": "Mean .. 249·3"
+     },
+     "check": {
+      "kind": "mean",
+      "runs": [
+       7,
+       8,
+       9,
+       19,
+       20,
+       21,
+       31,
+       32,
+       33,
+       43,
+       44,
+       45,
+       55,
+       56,
+       57
+      ]
+     }
+    },
+    {
+     "what": "mean",
+     "term": "C4",
+     "value": "372.9",
+     "where": {
+      "page": 294,
+      "source_kind": "table",
+      "quote": "Mean .. 372·9"
+     },
+     "check": {
+      "kind": "mean",
+      "runs": [
+       10,
+       11,
+       12,
+       22,
+       23,
+       24,
+       34,
+       35,
+       36,
+       46,
+       47,
+       48,
+       58,
+       59,
+       60
+      ]
+     }
+    },
+    {
+     "what": "mean",
+     "term": null,
+     "value": "318.1",
+     "where": {
+      "page": 292,
+      "source_kind": "table",
+      "quote": "318·1 = Grand mean"
+     },
+     "check": {
+      "kind": "mean"
+     }
+    }
+   ]
+  },
+  {
+   "name": "davies-aluminium-alloy-corrosion",
+   "title": "Corrosion of aluminium alloys: nine alloys exposed at four sites, each plate scored by four observers",
+   "kind": "example",
+   "where": {
+    "section": "8.23 to 8.26 and Appendix 8B",
+    "pages": "296-303, 340-344",
+    "tables": [
+     "Table 8-2",
+     "Table 8-21",
+     "Table 8-221",
+     "Table 8-23",
+     "Table 8-24"
+    ],
+    "figures": []
+   },
+   "factors": [
+    {
+     "name": "Site",
+     "description": "site in the factory",
+     "levels": [
+      "I",
+      "II",
+      "III",
+      "IV"
+     ],
+     "units": "",
+     "type": "categorical"
+    },
+    {
+     "name": "Observer",
+     "description": "observer scoring the plate",
+     "levels": [
+      "A",
+      "B",
+      "C",
+      "D"
+     ],
+     "units": "",
+     "type": "categorical"
+    },
+    {
+     "name": "Alloy",
+     "description": "alloy (one plate of each at each site)",
+     "levels": [
+      "1",
+      "2",
+      "3",
+      "4",
+      "5",
+      "6",
+      "7",
+      "8",
+      "9"
+     ],
+     "units": "",
+     "type": "categorical"
+    }
+   ],
+   "responses": [
+    {
+     "name": "Score",
+     "description": "assessment of resistance to corrosion, on a scale of 0 to 10",
+     "units": ""
+    }
+   ],
+   "design": {
+    "type": "general full factorial",
+    "details": "9 x 4 x 4: one plate of each alloy at each site (36 plates), each plate assessed once by each of four observers",
+    "n_runs": 144
+   },
+   "runs": {
+    "columns": [
+     "Site",
+     "Observer",
+     "Alloy",
+     "Score"
+    ],
+    "rows": [
+     [
+      "I",
+      "A",
+      1,
+      5
+     ],
+     [
+      "I",
+      "A",
+      2,
+      5
+     ],
+     [
+      "I",
+      "A",
+      3,
+      5
+     ],
+     [
+      "I",
+      "A",
+      4,
+      4
+     ],
+     [
+      "I",
+      "A",
+      5,
+      6
+     ],
+     [
+      "I",
+      "A",
+      6,
+      6
+     ],
+     [
+      "I",
+      "A",
+      7,
+      1
+     ],
+     [
+      "I",
+      "A",
+      8,
+      6
+     ],
+     [
+      "I",
+      "A",
+      9,
+      7
+     ],
+     [
+      "I",
+      "B",
+      1,
+      4
+     ],
+     [
+      "I",
+      "B",
+      2,
+      5
+     ],
+     [
+      "I",
+      "B",
+      3,
+      5
+     ],
+     [
+      "I",
+      "B",
+      4,
+      4
+     ],
+     [
+      "I",
+      "B",
+      5,
+      5
+     ],
+     [
+      "I",
+      "B",
+      6,
+      3
+     ],
+     [
+      "I",
+      "B",
+      7,
+      1
+     ],
+     [
+      "I",
+      "B",
+      8,
+      5
+     ],
+     [
+      "I",
+      "B",
+      9,
+      7
+     ],
+     [
+      "I",
+      "C",
+      1,
+      7
+     ],
+     [
+      "I",
+      "C",
+      2,
+      7
+     ],
+     [
+      "I",
+      "C",
+      3,
+      7
+     ],
+     [
+      "I",
+      "C",
+      4,
+      7
+     ],
+     [
+      "I",
+      "C",
+      5,
+      8
+     ],
+     [
+      "I",
+      "C",
+      6,
+      5
+     ],
+     [
+      "I",
+      "C",
+      7,
+      4
+     ],
+     [
+      "I",
+      "C",
+      8,
+      7
+     ],
+     [
+      "I",
+      "C",
+      9,
+      7
+     ],
+     [
+      "I",
+      "D",
+      1,
+      6
+     ],
+     [
+      "I",
+      "D",
+      2,
+      5
+     ],
+     [
+      "I",
+      "D",
+      3,
+      4
+     ],
+     [
+      "I",
+      "D",
+      4,
+      5
+     ],
+     [
+      "I",
+      "D",
+      5,
+      7
+     ],
+     [
+      "I",
+      "D",
+      6,
+      6
+     ],
+     [
+      "I",
+      "D",
+      7,
+      3
+     ],
+     [
+      "I",
+      "D",
+      8,
+      6
+     ],
+     [
+      "I",
+      "D",
+      9,
+      7
+     ],
+     [
+      "II",
+      "A",
+      1,
+      8
+     ],
+     [
+      "II",
+      "A",
+      2,
+      7
+     ],
+     [
+      "II",
+      "A",
+      3,
+      7
+     ],
+     [
+      "II",
+      "A",
+      4,
+      7
+     ],
+     [
+      "II",
+      "A",
+      5,
+      5
+     ],
+     [
+      "II",
+      "A",
+      6,
+      4
+     ],
+     [
+      "II",
+      "A",
+      7,
+      5
+     ],
+     [
+      "II",
+      "A",
+      8,
+      4
+     ],
+     [
+      "II",
+      "A",
+      9,
+      5
+     ],
+     [
+      "II",
+      "B",
+      1,
+      7
+     ],
+     [
+      "II",
+      "B",
+      2,
+      8
+     ],
+     [
+      "II",
+      "B",
+      3,
+      6
+     ],
+     [
+      "II",
+      "B",
+      4,
+      7
+     ],
+     [
+      "II",
+      "B",
+      5,
+      6
+     ],
+     [
+      "II",
+      "B",
+      6,
+      5
+     ],
+     [
+      "II",
+      "B",
+      7,
+      3
+     ],
+     [
+      "II",
+      "B",
+      8,
+      7
+     ],
+     [
+      "II",
+      "B",
+      9,
+      8
+     ],
+     [
+      "II",
+      "C",
+      1,
+      9
+     ],
+     [
+      "II",
+      "C",
+      2,
+      9
+     ],
+     [
+      "II",
+      "C",
+      3,
+      9
+     ],
+     [
+      "II",
+      "C",
+      4,
+      9
+     ],
+     [
+      "II",
+      "C",
+      5,
+      8
+     ],
+     [
+      "II",
+      "C",
+      6,
+      6
+     ],
+     [
+      "II",
+      "C",
+      7,
+      7
+     ],
+     [
+      "II",
+      "C",
+      8,
+      8
+     ],
+     [
+      "II",
+      "C",
+      9,
+      8
+     ],
+     [
+      "II",
+      "D",
+      1,
+      8
+     ],
+     [
+      "II",
+      "D",
+      2,
+      8
+     ],
+     [
+      "II",
+      "D",
+      3,
+      7
+     ],
+     [
+      "II",
+      "D",
+      4,
+      7
+     ],
+     [
+      "II",
+      "D",
+      5,
+      5
+     ],
+     [
+      "II",
+      "D",
+      6,
+      5
+     ],
+     [
+      "II",
+      "D",
+      7,
+      7
+     ],
+     [
+      "II",
+      "D",
+      8,
+      4
+     ],
+     [
+      "II",
+      "D",
+      9,
+      5
+     ],
+     [
+      "III",
+      "A",
+      1,
+      4
+     ],
+     [
+      "III",
+      "A",
+      2,
+      4
+     ],
+     [
+      "III",
+      "A",
+      3,
+      5
+     ],
+     [
+      "III",
+      "A",
+      4,
+      3
+     ],
+     [
+      "III",
+      "A",
+      5,
+      4
+     ],
+     [
+      "III",
+      "A",
+      6,
+      3
+     ],
+     [
+      "III",
+      "A",
+      7,
+      0
+     ],
+     [
+      "III",
+      "A",
+      8,
+      5
+     ],
+     [
+      "III",
+      "A",
+      9,
+      5
+     ],
+     [
+      "III",
+      "B",
+      1,
+      1
+     ],
+     [
+      "III",
+      "B",
+      2,
+      3
+     ],
+     [
+      "III",
+      "B",
+      3,
+      3
+     ],
+     [
+      "III",
+      "B",
+      4,
+      2
+     ],
+     [
+      "III",
+      "B",
+      5,
+      5
+     ],
+     [
+      "III",
+      "B",
+      6,
+      2
+     ],
+     [
+      "III",
+      "B",
+      7,
+      0
+     ],
+     [
+      "III",
+      "B",
+      8,
+      4
+     ],
+     [
+      "III",
+      "B",
+      9,
+      5
+     ],
+     [
+      "III",
+      "C",
+      1,
+      5
+     ],
+     [
+      "III",
+      "C",
+      2,
+      5
+     ],
+     [
+      "III",
+      "C",
+      3,
+      5
+     ],
+     [
+      "III",
+      "C",
+      4,
+      6
+     ],
+     [
+      "III",
+      "C",
+      5,
+      6
+     ],
+     [
+      "III",
+      "C",
+      6,
+      4
+     ],
+     [
+      "III",
+      "C",
+      7,
+      3
+     ],
+     [
+      "III",
+      "C",
+      8,
+      7
+     ],
+     [
+      "III",
+      "C",
+      9,
+      9
+     ],
+     [
+      "III",
+      "D",
+      1,
+      3
+     ],
+     [
+      "III",
+      "D",
+      2,
+      3
+     ],
+     [
+      "III",
+      "D",
+      3,
+      7
+     ],
+     [
+      "III",
+      "D",
+      4,
+      2
+     ],
+     [
+      "III",
+      "D",
+      5,
+      3
+     ],
+     [
+      "III",
+      "D",
+      6,
+      3
+     ],
+     [
+      "III",
+      "D",
+      7,
+      1
+     ],
+     [
+      "III",
+      "D",
+      8,
+      6
+     ],
+     [
+      "III",
+      "D",
+      9,
+      6
+     ],
+     [
+      "IV",
+      "A",
+      1,
+      6
+     ],
+     [
+      "IV",
+      "A",
+      2,
+      5
+     ],
+     [
+      "IV",
+      "A",
+      3,
+      6
+     ],
+     [
+      "IV",
+      "A",
+      4,
+      5
+     ],
+     [
+      "IV",
+      "A",
+      5,
+      6
+     ],
+     [
+      "IV",
+      "A",
+      6,
+      4
+     ],
+     [
+      "IV",
+      "A",
+      7,
+      4
+     ],
+     [
+      "IV",
+      "A",
+      8,
+      7
+     ],
+     [
+      "IV",
+      "A",
+      9,
+      5
+     ],
+     [
+      "IV",
+      "B",
+      1,
+      1
+     ],
+     [
+      "IV",
+      "B",
+      2,
+      3
+     ],
+     [
+      "IV",
+      "B",
+      3,
+      6
+     ],
+     [
+      "IV",
+      "B",
+      4,
+      5
+     ],
+     [
+      "IV",
+      "B",
+      5,
+      5
+     ],
+     [
+      "IV",
+      "B",
+      6,
+      4
+     ],
+     [
+      "IV",
+      "B",
+      7,
+      3
+     ],
+     [
+      "IV",
+      "B",
+      8,
+      6
+     ],
+     [
+      "IV",
+      "B",
+      9,
+      5
+     ],
+     [
+      "IV",
+      "C",
+      1,
+      5
+     ],
+     [
+      "IV",
+      "C",
+      2,
+      5
+     ],
+     [
+      "IV",
+      "C",
+      3,
+      7
+     ],
+     [
+      "IV",
+      "C",
+      4,
+      6
+     ],
+     [
+      "IV",
+      "C",
+      5,
+      8
+     ],
+     [
+      "IV",
+      "C",
+      6,
+      7
+     ],
+     [
+      "IV",
+      "C",
+      7,
+      5
+     ],
+     [
+      "IV",
+      "C",
+      8,
+      8
+     ],
+     [
+      "IV",
+      "C",
+      9,
+      8
+     ],
+     [
+      "IV",
+      "D",
+      1,
+      5
+     ],
+     [
+      "IV",
+      "D",
+      2,
+      3
+     ],
+     [
+      "IV",
+      "D",
+      3,
+      5
+     ],
+     [
+      "IV",
+      "D",
+      4,
+      3
+     ],
+     [
+      "IV",
+      "D",
+      5,
+      5
+     ],
+     [
+      "IV",
+      "D",
+      6,
+      3
+     ],
+     [
+      "IV",
+      "D",
+      7,
+      3
+     ],
+     [
+      "IV",
+      "D",
+      8,
+      7
+     ],
+     [
+      "IV",
+      "D",
+      9,
+      6
+     ]
+    ],
+    "coded": false,
+    "notes": "Table 8-2"
+   },
+   "notes": "Observers are crossed with the 36 plates, so the book also analyses observers against plates (Table 8-221). The sites x alloys mean square, 3.72, is the error for comparing alloys.",
+   "expected": [
+    {
+     "what": "anova_sum_sq",
+     "term": "Site",
+     "value": "128.74",
+     "analysis": "formal analysis of the 9 x 4 x 4 table",
+     "where": {
+      "page": 298,
+      "source_kind": "table",
+      "quote": "Between sites .. S 128·74 3 42·91"
+     },
+     "check": {
+      "kind": "anova_sum_sq",
+      "term": "Site",
+      "model": "Site + Alloy + Observer + Site:Alloy + Site:Observer + Alloy:Observer"
+     }
+    },
+    {
+     "what": "anova_mean_sq",
+     "term": "Site",
+     "value": "42.91",
+     "analysis": "formal analysis of the 9 x 4 x 4 table",
+     "where": {
+      "page": 298,
+      "source_kind": "table",
+      "quote": "Between sites .. S 128·74 3 42·91"
+     },
+     "check": {
+      "kind": "anova_mean_sq",
+      "term": "Site",
+      "model": "Site + Alloy + Observer + Site:Alloy + Site:Observer + Alloy:Observer"
+     }
+    },
+    {
+     "what": "anova_sum_sq",
+     "term": "Alloy",
+     "value": "128.18",
+     "analysis": "formal analysis of the 9 x 4 x 4 table",
+     "where": {
+      "page": 298,
+      "source_kind": "table",
+      "quote": "Between alloys .. A 128·18 8 16·02"
+     },
+     "check": {
+      "kind": "anova_sum_sq",
+      "term": "Alloy",
+      "model": "Site + Alloy + Observer + Site:Alloy + Site:Observer + Alloy:Observer"
+     }
+    },
+    {
+     "what": "anova_mean_sq",
+     "term": "Alloy",
+     "value": "16.02",
+     "analysis": "formal analysis of the 9 x 4 x 4 table",
+     "where": {
+      "page": 298,
+      "source_kind": "table",
+      "quote": "Between alloys .. A 128·18 8 16·02"
+     },
+     "check": {
+      "kind": "anova_mean_sq",
+      "term": "Alloy",
+      "model": "Site + Alloy + Observer + Site:Alloy + Site:Observer + Alloy:Observer"
+     }
+    },
+    {
+     "what": "anova_sum_sq",
+     "term": "Observer",
+     "value": "106.24",
+     "analysis": "formal analysis of the 9 x 4 x 4 table",
+     "where": {
+      "page": 298,
+      "source_kind": "table",
+      "quote": "Between observers O 106·24 3 35·41"
+     },
+     "check": {
+      "kind": "anova_sum_sq",
+      "term": "Observer",
+      "model": "Site + Alloy + Observer + Site:Alloy + Site:Observer + Alloy:Observer"
+     }
+    },
+    {
+     "what": "anova_mean_sq",
+     "term": "Observer",
+     "value": "35.41",
+     "analysis": "formal analysis of the 9 x 4 x 4 table",
+     "where": {
+      "page": 298,
+      "source_kind": "table",
+      "quote": "Between observers O 106·24 3 35·41"
+     },
+     "check": {
+      "kind": "anova_mean_sq",
+      "term": "Observer",
+      "model": "Site + Alloy + Observer + Site:Alloy + Site:Observer + Alloy:Observer"
+     }
+    },
+    {
+     "what": "anova_sum_sq",
+     "term": "Site·Alloy",
+     "value": "89.32",
+     "analysis": "formal analysis of the 9 x 4 x 4 table",
+     "where": {
+      "page": 298,
+      "source_kind": "table",
+      "quote": "Interaction .. SA 89·32 24 3·72"
+     },
+     "check": {
+      "kind": "anova_sum_sq",
+      "term": "Site·Alloy",
+      "model": "Site + Alloy + Observer + Site:Alloy + Site:Observer + Alloy:Observer"
+     }
+    },
+    {
+     "what": "anova_mean_sq",
+     "term": "Site·Alloy",
+     "value": "3.72",
+     "analysis": "formal analysis of the 9 x 4 x 4 table",
+     "where": {
+      "page": 298,
+      "source_kind": "table",
+      "quote": "Interaction .. SA 89·32 24 3·72"
+     },
+     "check": {
+      "kind": "anova_mean_sq",
+      "term": "Site·Alloy",
+      "model": "Site + Alloy + Observer + Site:Alloy + Site:Observer + Alloy:Observer"
+     }
+    },
+    {
+     "what": "anova_sum_sq",
+     "term": "Site·Observer",
+     "value": "12.73",
+     "analysis": "formal analysis of the 9 x 4 x 4 table",
+     "where": {
+      "page": 298,
+      "source_kind": "table",
+      "quote": "SO 12·73 9 1·41"
+     },
+     "check": {
+      "kind": "anova_sum_sq",
+      "term": "Site·Observer",
+      "model": "Site + Alloy + Observer + Site:Alloy + Site:Observer + Alloy:Observer"
+     }
+    },
+    {
+     "what": "anova_mean_sq",
+     "term": "Site·Observer",
+     "value": "1.41",
+     "analysis": "formal analysis of the 9 x 4 x 4 table",
+     "where": {
+      "page": 298,
+      "source_kind": "table",
+      "quote": "SO 12·73 9 1·41"
+     },
+     "check": {
+      "kind": "anova_mean_sq",
+      "term": "Site·Observer",
+      "model": "Site + Alloy + Observer + Site:Alloy + Site:Observer + Alloy:Observer"
+     }
+    },
+    {
+     "what": "anova_sum_sq",
+     "term": "Alloy·Observer",
+     "value": "23.32",
+     "analysis": "formal analysis of the 9 x 4 x 4 table",
+     "where": {
+      "page": 298,
+      "source_kind": "table",
+      "quote": "OA 23·32 24 0·97"
+     },
+     "check": {
+      "kind": "anova_sum_sq",
+      "term": "Alloy·Observer",
+      "model": "Site + Alloy + Observer + Site:Alloy + Site:Observer + Alloy:Observer"
+     }
+    },
+    {
+     "what": "anova_mean_sq",
+     "term": "Alloy·Observer",
+     "value": "0.97",
+     "analysis": "formal analysis of the 9 x 4 x 4 table",
+     "where": {
+      "page": 298,
+      "source_kind": "table",
+      "quote": "OA 23·32 24 0·97"
+     },
+     "check": {
+      "kind": "anova_mean_sq",
+      "term": "Alloy·Observer",
+      "model": "Site + Alloy + Observer + Site:Alloy + Site:Observer + Alloy:Observer"
+     }
+    },
+    {
+     "what": "ss_residual",
+     "term": null,
+     "value": "58.96",
+     "analysis": "formal analysis of the 9 x 4 x 4 table",
+     "where": {
+      "page": 298,
+      "source_kind": "table",
+      "quote": "SOA 58·96 72 0·82"
+     },
+     "check": {
+      "kind": "ss_residual",
+      "model": "Site + Alloy + Observer + Site:Alloy + Site:Observer + Alloy:Observer"
+     }
+    },
+    {
+     "what": "ms_residual",
+     "term": null,
+     "value": "0.82",
+     "analysis": "formal analysis of the 9 x 4 x 4 table",
+     "where": {
+      "page": 298,
+      "source_kind": "table",
+      "quote": "SOA 58·96 72 0·82"
+     },
+     "check": {
+      "kind": "ms_residual",
+      "model": "Site + Alloy + Observer + Site:Alloy + Site:Observer + Alloy:Observer"
+     }
+    },
+    {
+     "what": "ss_total",
+     "term": null,
+     "value": "547.49",
+     "where": {
+      "page": 298,
+      "source_kind": "table",
+      "quote": "547·49 143"
+     },
+     "check": {
+      "kind": "ss_total",
+      "model": "Site + Alloy + Observer + Site:Alloy + Site:Observer + Alloy:Observer"
+     }
+    },
+    {
+     "what": "ss_residual",
+     "term": null,
+     "value": "95.01",
+     "analysis": "observers against the 36 plates",
+     "where": {
+      "page": 299,
+      "source_kind": "table",
+      "quote": "Remainder 95·01 105 0·905"
+     },
+     "check": {
+      "kind": "ss_residual",
+      "model": "Site*Alloy + Observer"
+     }
+    },
+    {
+     "what": "ms_residual",
+     "term": null,
+     "value": "0.905",
+     "analysis": "observers against the 36 plates",
+     "where": {
+      "page": 299,
+      "source_kind": "table",
+      "quote": "Remainder 95·01 105 0·905"
+     },
+     "check": {
+      "kind": "ms_residual",
+      "model": "Site*Alloy + Observer"
+     }
+    },
+    {
+     "what": "anova_sum_sq",
+     "term": "plates",
+     "value": "346.24",
+     "where": {
+      "page": 299,
+      "source_kind": "table",
+      "quote": "Between plates 346·24 35 9·89"
+     },
+     "check": {
+      "manual": "the 36 plates (sites, alloys and their interaction together): 128.74 + 128.18 + 89.32, each checked"
+     }
+    },
+    {
+     "what": "mean",
+     "term": "Alloy 1",
+     "value": "5.25",
+     "where": {
+      "page": 302,
+      "source_kind": "table",
+      "quote": "Mean .. 5·25 (alloy 1)"
+     },
+     "check": {
+      "kind": "mean",
+      "runs": [
+       1,
+       10,
+       19,
+       28,
+       37,
+       46,
+       55,
+       64,
+       73,
+       82,
+       91,
+       100,
+       109,
+       118,
+       127,
+       136
+      ]
+     }
+    },
+    {
+     "what": "mean",
+     "term": "Alloy 2",
+     "value": "5.31",
+     "where": {
+      "page": 302,
+      "source_kind": "table",
+      "quote": "Mean .. 5·31 (alloy 2)"
+     },
+     "check": {
+      "kind": "mean",
+      "runs": [
+       2,
+       11,
+       20,
+       29,
+       38,
+       47,
+       56,
+       65,
+       74,
+       83,
+       92,
+       101,
+       110,
+       119,
+       128,
+       137
+      ]
+     }
+    },
+    {
+     "what": "mean",
+     "term": "Alloy 3",
+     "value": "5.88",
+     "where": {
+      "page": 302,
+      "source_kind": "table",
+      "quote": "Mean .. 5·88 (alloy 3)"
+     },
+     "check": {
+      "kind": "mean",
+      "runs": [
+       3,
+       12,
+       21,
+       30,
+       39,
+       48,
+       57,
+       66,
+       75,
+       84,
+       93,
+       102,
+       111,
+       120,
+       129,
+       138
+      ]
+     }
+    },
+    {
+     "what": "mean",
+     "term": "Alloy 4",
+     "value": "5.13",
+     "where": {
+      "page": 302,
+      "source_kind": "table",
+      "quote": "Mean .. 5·13 (alloy 4)"
+     },
+     "check": {
+      "kind": "mean",
+      "runs": [
+       4,
+       13,
+       22,
+       31,
+       40,
+       49,
+       58,
+       67,
+       76,
+       85,
+       94,
+       103,
+       112,
+       121,
+       130,
+       139
+      ]
+     }
+    },
+    {
+     "what": "mean",
+     "term": "Alloy 5",
+     "value": "5.75",
+     "where": {
+      "page": 302,
+      "source_kind": "table",
+      "quote": "Mean .. 5·75 (alloy 5)"
+     },
+     "check": {
+      "kind": "mean",
+      "runs": [
+       5,
+       14,
+       23,
+       32,
+       41,
+       50,
+       59,
+       68,
+       77,
+       86,
+       95,
+       104,
+       113,
+       122,
+       131,
+       140
+      ]
+     }
+    },
+    {
+     "what": "mean",
+     "term": "Alloy 6",
+     "value": "4.38",
+     "where": {
+      "page": 302,
+      "source_kind": "table",
+      "quote": "Mean .. 4·38 (alloy 6)"
+     },
+     "check": {
+      "kind": "mean",
+      "runs": [
+       6,
+       15,
+       24,
+       33,
+       42,
+       51,
+       60,
+       69,
+       78,
+       87,
+       96,
+       105,
+       114,
+       123,
+       132,
+       141
+      ]
+     }
+    },
+    {
+     "what": "mean",
+     "term": "Alloy 7",
+     "value": "3.13",
+     "where": {
+      "page": 302,
+      "source_kind": "table",
+      "quote": "Mean .. 3·13 (alloy 7)"
+     },
+     "check": {
+      "kind": "mean",
+      "runs": [
+       7,
+       16,
+       25,
+       34,
+       43,
+       52,
+       61,
+       70,
+       79,
+       88,
+       97,
+       106,
+       115,
+       124,
+       133,
+       142
+      ]
+     }
+    },
+    {
+     "what": "mean",
+     "term": "Alloy 8",
+     "value": "6.06",
+     "where": {
+      "page": 302,
+      "source_kind": "table",
+      "quote": "Mean .. 6·06 (alloy 8)"
+     },
+     "check": {
+      "kind": "mean",
+      "runs": [
+       8,
+       17,
+       26,
+       35,
+       44,
+       53,
+       62,
+       71,
+       80,
+       89,
+       98,
+       107,
+       116,
+       125,
+       134,
+       143
+      ]
+     }
+    },
+    {
+     "what": "mean",
+     "term": "Alloy 9",
+     "value": "6.44",
+     "where": {
+      "page": 302,
+      "source_kind": "table",
+      "quote": "Mean .. 6·44 (alloy 9)"
+     },
+     "check": {
+      "kind": "mean",
+      "runs": [
+       9,
+       18,
+       27,
+       36,
+       45,
+       54,
+       63,
+       72,
+       81,
+       90,
+       99,
+       108,
+       117,
+       126,
+       135,
+       144
+      ]
+     }
+    },
+    {
+     "what": "mean",
+     "term": "Site I",
+     "value": "5.33",
+     "where": {
+      "page": 302,
+      "source_kind": "table",
+      "quote": "site I ... Mean 5·33"
+     },
+     "check": {
+      "kind": "mean",
+      "runs": [
+       1,
+       2,
+       3,
+       4,
+       5,
+       6,
+       7,
+       8,
+       9,
+       10,
+       11,
+       12,
+       13,
+       14,
+       15,
+       16,
+       17,
+       18,
+       19,
+       20,
+       21,
+       22,
+       23,
+       24,
+       25,
+       26,
+       27,
+       28,
+       29,
+       30,
+       31,
+       32,
+       33,
+       34,
+       35,
+       36
+      ]
+     }
+    },
+    {
+     "what": "mean",
+     "term": "Site II",
+     "value": "6.61",
+     "where": {
+      "page": 302,
+      "source_kind": "table",
+      "quote": "site II ... Mean 6·61"
+     },
+     "check": {
+      "kind": "mean",
+      "runs": [
+       37,
+       38,
+       39,
+       40,
+       41,
+       42,
+       43,
+       44,
+       45,
+       46,
+       47,
+       48,
+       49,
+       50,
+       51,
+       52,
+       53,
+       54,
+       55,
+       56,
+       57,
+       58,
+       59,
+       60,
+       61,
+       62,
+       63,
+       64,
+       65,
+       66,
+       67,
+       68,
+       69,
+       70,
+       71,
+       72
+      ]
+     }
+    },
+    {
+     "what": "mean",
+     "term": "Site III",
+     "value": "3.94",
+     "where": {
+      "page": 302,
+      "source_kind": "table",
+      "quote": "site III ... Mean 3·94"
+     },
+     "check": {
+      "kind": "mean",
+      "runs": [
+       73,
+       74,
+       75,
+       76,
+       77,
+       78,
+       79,
+       80,
+       81,
+       82,
+       83,
+       84,
+       85,
+       86,
+       87,
+       88,
+       89,
+       90,
+       91,
+       92,
+       93,
+       94,
+       95,
+       96,
+       97,
+       98,
+       99,
+       100,
+       101,
+       102,
+       103,
+       104,
+       105,
+       106,
+       107,
+       108
+      ]
+     }
+    },
+    {
+     "what": "mean",
+     "term": "Site IV",
+     "value": "5.14",
+     "where": {
+      "page": 302,
+      "source_kind": "table",
+      "quote": "site IV ... Mean 5·14"
+     },
+     "check": {
+      "kind": "mean",
+      "runs": [
+       109,
+       110,
+       111,
+       112,
+       113,
+       114,
+       115,
+       116,
+       117,
+       118,
+       119,
+       120,
+       121,
+       122,
+       123,
+       124,
+       125,
+       126,
+       127,
+       128,
+       129,
+       130,
+       131,
+       132,
+       133,
+       134,
+       135,
+       136,
+       137,
+       138,
+       139,
+       140,
+       141,
+       142,
+       143,
+       144
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "name": "davies-qualitative-quantitative-4x5",
+   "title": "A 4 x 5 factorial with one qualitative and one quantitative factor, analysed by orthogonal polynomials",
+   "kind": "example",
+   "where": {
+    "section": "8.32 to 8.35",
+    "pages": "305-312",
+    "tables": [
+     "Table 8-3",
+     "Table 8-31",
+     "Table 8-33",
+     "Table 8-34",
+     "Table 8-35"
+    ],
+    "figures": []
+   },
+   "factors": [
+    {
+     "name": "A",
+     "description": "qualitative factor",
+     "levels": [
+      "a1",
+      "a2",
+      "a3",
+      "a4"
+     ],
+     "units": "",
+     "type": "categorical"
+    },
+    {
+     "name": "B",
+     "description": "quantitative factor, five equally spaced levels",
+     "low": 1,
+     "high": 5,
+     "units": "level",
+     "type": "numeric"
+    }
+   ],
+   "responses": [
+    {
+     "name": "y",
+     "description": "response (not described)",
+     "units": ""
+    }
+   ],
+   "design": {
+    "type": "general full factorial",
+    "details": "4 x 5, each treatment once",
+    "n_runs": 20
+   },
+   "runs": {
+    "columns": [
+     "A",
+     "B",
+     "y"
+    ],
+    "rows": [
+     [
+      "a1",
+      1,
+      28.2
+     ],
+     [
+      "a1",
+      2,
+      29.3
+     ],
+     [
+      "a1",
+      3,
+      33.7
+     ],
+     [
+      "a1",
+      4,
+      41.2
+     ],
+     [
+      "a1",
+      5,
+      50.9
+     ],
+     [
+      "a2",
+      1,
+      23.5
+     ],
+     [
+      "a2",
+      2,
+      24.8
+     ],
+     [
+      "a2",
+      3,
+      24.1
+     ],
+     [
+      "a2",
+      4,
+      34.7
+     ],
+     [
+      "a2",
+      5,
+      32.8
+     ],
+     [
+      "a3",
+      1,
+      17.4
+     ],
+     [
+      "a3",
+      2,
+      15.2
+     ],
+     [
+      "a3",
+      3,
+      17.8
+     ],
+     [
+      "a3",
+      4,
+      14.7
+     ],
+     [
+      "a3",
+      5,
+      16.6
+     ],
+     [
+      "a4",
+      1,
+      10.1
+     ],
+     [
+      "a4",
+      2,
+      11.5
+     ],
+     [
+      "a4",
+      3,
+      15.6
+     ],
+     [
+      "a4",
+      4,
+      9.9
+     ],
+     [
+      "a4",
+      5,
+      4.7
+     ]
+    ],
+    "coded": false,
+    "notes": "Table 8-3 (p. 305), read from the page image; its row and column sums check"
+   },
+   "notes": "Each polynomial component is checked in the model that holds it and the lower ones: with five equally spaced levels, B, B^2, B^3 and B^4 adjusted for the lower powers are the orthogonal polynomials. The slopes and curvatures of Table 8-35 are per level of B and are not checked.",
+   "expected": [
+    {
+     "what": "anova_sum_sq",
+     "term": "A",
+     "value": "2077.07",
+     "where": {
+      "page": 310,
+      "source_kind": "table",
+      "quote": "Factor A 2,077·07 3 692·36"
+     },
+     "check": {
+      "kind": "anova_sum_sq",
+      "term": "A",
+      "model": "A + B",
+      "disagreement": "(183.3^2 + 139.9^2 + 81.7^2 + 51.8^2)/5 - 456.7^2/20 = 2,077.06; the book prints 2,077.07"
+     }
+    },
+    {
+     "what": "anova_mean_sq",
+     "term": "A",
+     "value": "692.36",
+     "where": {
+      "page": 310,
+      "source_kind": "table",
+      "quote": "Factor A 2,077·07 3 692·36"
+     },
+     "check": {
+      "kind": "anova_mean_sq",
+      "term": "A",
+      "model": "A + B",
+      "disagreement": "from the sum of squares as the book prints it, 2,077.07 / 3; from the data, 692.35"
+     }
+    },
+    {
+     "what": "anova_sum_sq",
+     "term": "B",
+     "value": "127.09",
+     "analysis": "orthogonal polynomials: each component adjusted for the lower ones",
+     "where": {
+      "page": 310,
+      "source_kind": "table",
+      "quote": "Linear effect 127·09 1 127·09"
+     },
+     "check": {
+      "kind": "anova_sum_sq",
+      "term": "B",
+      "model": "A + B"
+     }
+    },
+    {
+     "what": "anova_sum_sq",
+     "term": "B²",
+     "value": "0.39",
+     "analysis": "orthogonal polynomials: each component adjusted for the lower ones",
+     "where": {
+      "page": 310,
+      "source_kind": "table",
+      "quote": "Quadratic effect 0·39 1 0·39"
+     },
+     "check": {
+      "kind": "anova_sum_sq",
+      "term": "B²",
+      "model": "A + B + I(B**2)"
+     }
+    },
+    {
+     "what": "anova_sum_sq",
+     "term": "I(B ** 3)",
+     "value": "4.62",
+     "analysis": "orthogonal polynomials: each component adjusted for the lower ones",
+     "where": {
+      "page": 310,
+      "source_kind": "table",
+      "quote": "Cubic effect 4·62 1 4·62"
+     },
+     "check": {
+      "kind": "anova_sum_sq",
+      "term": "I(B ** 3)",
+      "model": "A + B + I(B**2) + I(B**3)"
+     }
+    },
+    {
+     "what": "anova_sum_sq",
+     "term": "I(B ** 4)",
+     "value": "0.15",
+     "analysis": "orthogonal polynomials: each component adjusted for the lower ones",
+     "where": {
+      "page": 310,
+      "source_kind": "table",
+      "quote": "Remainder (= quartic B) 0·15 1 0·15"
+     },
+     "check": {
+      "kind": "anova_sum_sq",
+      "term": "I(B ** 4)",
+      "model": "A + B + I(B**2) + I(B**3) + I(B**4)",
+      "disagreement": "the book gets the quartic component by subtracting the rounded components 127.09, 0.39 and 4.62 from 132.25; unrounded it is 0.137"
+     }
+    },
+    {
+     "what": "anova_sum_sq",
+     "term": "B, all four components",
+     "value": "132.25",
+     "where": {
+      "page": 310,
+      "source_kind": "table",
+      "quote": "Total for factor B 132·25 4"
+     },
+     "check": {
+      "manual": "the sum of the four polynomial components, each checked"
+     }
+    },
+    {
+     "what": "ss_residual",
+     "term": null,
+     "value": "407.65",
+     "analysis": "both factors treated as qualitative",
+     "where": {
+      "page": 306,
+      "source_kind": "table",
+      "quote": "Remainder 407·65 12 33·97"
+     },
+     "check": {
+      "kind": "ss_residual",
+      "model": "A + B + I(B**2) + I(B**3) + I(B**4)",
+      "disagreement": "by subtraction from rounded sums of squares; unrounded it is 407.656, which rounds to 407.66"
+     }
+    },
+    {
+     "what": "ms_residual",
+     "term": null,
+     "value": "33.97",
+     "analysis": "both factors treated as qualitative",
+     "where": {
+      "page": 306,
+      "source_kind": "table",
+      "quote": "Remainder 407·65 12 33·97"
+     },
+     "check": {
+      "kind": "ms_residual",
+      "model": "A + B + I(B**2) + I(B**3) + I(B**4)"
+     }
+    },
+    {
+     "what": "anova_sum_sq",
+     "term": "A·B",
+     "value": "298.28",
+     "analysis": "orthogonal polynomials: each component adjusted for the lower ones",
+     "where": {
+      "page": 310,
+      "source_kind": "table",
+      "quote": "Interactions with factor A of: Linear B 298·28 3 99·43"
+     },
+     "check": {
+      "kind": "anova_sum_sq",
+      "term": "A·B",
+      "model": "A*B"
+     }
+    },
+    {
+     "what": "anova_mean_sq",
+     "term": "A·B",
+     "value": "99.43",
+     "analysis": "orthogonal polynomials: each component adjusted for the lower ones",
+     "where": {
+      "page": 310,
+      "source_kind": "table",
+      "quote": "Linear B 298·28 3 99·43"
+     },
+     "check": {
+      "kind": "anova_mean_sq",
+      "term": "A·B",
+      "model": "A*B"
+     }
+    },
+    {
+     "what": "anova_sum_sq",
+     "term": "A·I(B ** 2)",
+     "value": "68.99",
+     "analysis": "orthogonal polynomials: each component adjusted for the lower ones",
+     "where": {
+      "page": 310,
+      "source_kind": "table",
+      "quote": "Quadratic B 68·99 3 23·00"
+     },
+     "check": {
+      "kind": "anova_sum_sq",
+      "term": "A·I(B ** 2)",
+      "model": "A*B + A*I(B**2)"
+     }
+    },
+    {
+     "what": "anova_sum_sq",
+     "term": "A·I(B ** 3)",
+     "value": "7.01",
+     "analysis": "orthogonal polynomials: each component adjusted for the lower ones",
+     "where": {
+      "page": 310,
+      "source_kind": "table",
+      "quote": "Cubic B 7·01 3 2·34"
+     },
+     "check": {
+      "kind": "anova_sum_sq",
+      "term": "A·I(B ** 3)",
+      "model": "A*B + A*I(B**2) + A*I(B**3) + I(B**4)"
+     }
+    },
+    {
+     "what": "ss_residual",
+     "term": null,
+     "value": "33.37",
+     "analysis": "orthogonal polynomials: each component adjusted for the lower ones",
+     "where": {
+      "page": 310,
+      "source_kind": "table",
+      "quote": "Remainder (= interaction of A and quartic B) 33·37 3 11·12"
+     },
+     "check": {
+      "kind": "ss_residual",
+      "model": "A*B + A*I(B**2) + A*I(B**3) + I(B**4)",
+      "disagreement": "by subtraction from rounded sums of squares; unrounded it is 33.380"
+     }
+    },
+    {
+     "what": "ms_residual",
+     "term": null,
+     "value": "11.12",
+     "analysis": "orthogonal polynomials: each component adjusted for the lower ones",
+     "where": {
+      "page": 310,
+      "source_kind": "table",
+      "quote": "Remainder (= interaction of A and quartic B) 33·37 3 11·12"
+     },
+     "check": {
+      "kind": "ms_residual",
+      "model": "A*B + A*I(B**2) + A*I(B**3) + I(B**4)",
+      "disagreement": "33.37 / 3 from the rounded remainder; unrounded 11.127"
+     }
+    },
+    {
+     "what": "ms_residual",
+     "term": null,
+     "value": "5.64",
+     "analysis": "cubic and quartic components pooled as error",
+     "where": {
+      "page": 310,
+      "source_kind": "math",
+      "quote": "(4·62 + 0·15 + 7·01 + 33·37)/(1 + 1 + 3 + 3) = 45·15/8 = 5·64"
+     },
+     "check": {
+      "kind": "ms_residual",
+      "model": "A*B + A*I(B**2)"
+     }
+    },
+    {
+     "what": "ss_total",
+     "term": null,
+     "value": "2616.97",
+     "where": {
+      "page": 310,
+      "source_kind": "table",
+      "quote": "2,616·97 19"
+     },
+     "check": {
+      "kind": "ss_total",
+      "model": "A + B"
+     }
+    },
+    {
+     "what": "mean",
+     "term": "a1",
+     "value": "36.66",
+     "where": {
+      "page": 305,
+      "source_kind": "table",
+      "quote": "Mean 36·66"
+     },
+     "check": {
+      "kind": "mean",
+      "runs": [
+       1,
+       2,
+       3,
+       4,
+       5
+      ]
+     }
+    },
+    {
+     "what": "mean",
+     "term": "a2",
+     "value": "27.98",
+     "where": {
+      "page": 305,
+      "source_kind": "table",
+      "quote": "Mean 27·98"
+     },
+     "check": {
+      "kind": "mean",
+      "runs": [
+       6,
+       7,
+       8,
+       9,
+       10
+      ]
+     }
+    },
+    {
+     "what": "mean",
+     "term": "a3",
+     "value": "16.34",
+     "where": {
+      "page": 305,
+      "source_kind": "table",
+      "quote": "Mean 16·34"
+     },
+     "check": {
+      "kind": "mean",
+      "runs": [
+       11,
+       12,
+       13,
+       14,
+       15
+      ]
+     }
+    },
+    {
+     "what": "mean",
+     "term": "a4",
+     "value": "10.36",
+     "where": {
+      "page": 305,
+      "source_kind": "table",
+      "quote": "Mean 10·36"
+     },
+     "check": {
+      "kind": "mean",
+      "runs": [
+       16,
+       17,
+       18,
+       19,
+       20
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "name": "davies-penicillin-sugars",
+   "title": "Penicillin inoculum: five sugars at four concentrations, the responses adjusted by a control",
+   "kind": "example",
+   "where": {
+    "section": "8.36 to 8.382",
+    "pages": "312-318",
+    "tables": [
+     "Table 8-36",
+     "Table 8-37",
+     "Table 8-371",
+     "Table 8-38",
+     "Table 8-39"
+    ],
+    "figures": []
+   },
+   "factors": [
+    {
+     "name": "Sugar",
+     "description": "type of sugar",
+     "levels": [
+      "Crude lactose",
+      "Crude glucose",
+      "Sucrose",
+      "Molasses",
+      "Dextrine"
+     ],
+     "units": "",
+     "type": "categorical"
+    },
+    {
+     "name": "Conc",
+     "description": "concentration of sugar",
+     "low": 2,
+     "high": 8,
+     "units": "g/100 ml",
+     "type": "numeric"
+    }
+   ],
+   "responses": [
+    {
+     "name": "y",
+     "description": "adjusted response: 1 + log10(wet weight / wet weight of the control prepared in the same week)",
+     "units": ""
+    }
+   ],
+   "design": {
+    "type": "general full factorial",
+    "details": "5 x 4; one concentration of every sugar, with a control, tested in each week, so weeks are confounded with concentrations and removed by the control",
+    "n_runs": 20
+   },
+   "runs": {
+    "columns": [
+     "Sugar",
+     "Conc",
+     "y"
+    ],
+    "rows": [
+     [
+      "Crude lactose",
+      2,
+      0.606
+     ],
+     [
+      "Crude lactose",
+      4,
+      0.66
+     ],
+     [
+      "Crude lactose",
+      6,
+      0.984
+     ],
+     [
+      "Crude lactose",
+      8,
+      0.908
+     ],
+     [
+      "Crude glucose",
+      2,
+      0.715
+     ],
+     [
+      "Crude glucose",
+      4,
+      1.024
+     ],
+     [
+      "Crude glucose",
+      6,
+      1.0
+     ],
+     [
+      "Crude glucose",
+      8,
+      1.125
+     ],
+     [
+      "Sucrose",
+      2,
+      0.761
+     ],
+     [
+      "Sucrose",
+      4,
+      0.933
+     ],
+     [
+      "Sucrose",
+      6,
+      1.072
+     ],
+     [
+      "Sucrose",
+      8,
+      0.979
+     ],
+     [
+      "Molasses",
+      2,
+      0.815
+     ],
+     [
+      "Molasses",
+      4,
+      1.0
+     ],
+     [
+      "Molasses",
+      6,
+      1.015
+     ],
+     [
+      "Molasses",
+      8,
+      1.162
+     ],
+     [
+      "Dextrine",
+      2,
+      0.775
+     ],
+     [
+      "Dextrine",
+      4,
+      0.918
+     ],
+     [
+      "Dextrine",
+      6,
+      1.03
+     ],
+     [
+      "Dextrine",
+      8,
+      1.049
+     ]
+    ],
+    "coded": false,
+    "notes": "Table 8-37, the adjusted responses; Table 8-36 prints the wet weights to one decimal, from which they were worked out"
+   },
+   "notes": "Polynomial components are checked as for davies-qualitative-quantitative-4x5. The book notes that the control enters every adjusted response of a column, so the sum of squares between concentrations must be divided by 30, not 20, for its test (8.37).",
+   "expected": [
+    {
+     "what": "anova_sum_sq",
+     "term": "Sugar",
+     "value": "0.1032",
+     "where": {
+      "page": 314,
+      "source_kind": "table",
+      "quote": "Between sugars 0·1032 4 0·0258"
+     },
+     "check": {
+      "kind": "anova_sum_sq",
+      "term": "Sugar",
+      "model": "Sugar + Conc + I(Conc**2) + I(Conc**3)"
+     }
+    },
+    {
+     "what": "anova_mean_sq",
+     "term": "Sugar",
+     "value": "0.0258",
+     "where": {
+      "page": 314,
+      "source_kind": "table",
+      "quote": "Between sugars 0·1032 4 0·0258"
+     },
+     "check": {
+      "kind": "anova_mean_sq",
+      "term": "Sugar",
+      "model": "Sugar + Conc + I(Conc**2) + I(Conc**3)"
+     }
+    },
+    {
+     "what": "ss_residual",
+     "term": null,
+     "value": "0.0545",
+     "analysis": "sugars and concentrations as a 5 x 4 table",
+     "where": {
+      "page": 314,
+      "source_kind": "table",
+      "quote": "Remainder 0·0545 12 0·0045"
+     },
+     "check": {
+      "kind": "ss_residual",
+      "model": "Sugar + Conc + I(Conc**2) + I(Conc**3)",
+      "disagreement": "Table 8-371 prints 0.0545; Table 8-39 adds the three interaction components to 0.0544, which the library agrees with (0.05438)"
+     }
+    },
+    {
+     "what": "ms_residual",
+     "term": null,
+     "value": "0.0045",
+     "analysis": "sugars and concentrations as a 5 x 4 table",
+     "where": {
+      "page": 314,
+      "source_kind": "table",
+      "quote": "Remainder 0·0545 12 0·0045"
+     },
+     "check": {
+      "kind": "ms_residual",
+      "model": "Sugar + Conc + I(Conc**2) + I(Conc**3)"
+     }
+    },
+    {
+     "what": "ss_total",
+     "term": null,
+     "value": "0.4577",
+     "where": {
+      "page": 314,
+      "source_kind": "table",
+      "quote": "Total 0·4577 19"
+     },
+     "check": {
+      "kind": "ss_total",
+      "model": "Sugar + Conc"
+     }
+    },
+    {
+     "what": "anova_sum_sq",
+     "term": "concentrations",
+     "value": "0.3000",
+     "where": {
+      "page": 314,
+      "source_kind": "table",
+      "quote": "Between concentrations 0·3000 3 0·1000"
+     },
+     "check": {
+      "manual": "the three polynomial components together, each checked (Table 8-39 adds them to 0.3001)"
+     }
+    },
+    {
+     "what": "anova_sum_sq",
+     "term": "Conc",
+     "value": "0.2724",
+     "analysis": "orthogonal polynomials: each component adjusted for the lower ones",
+     "where": {
+      "page": 316,
+      "source_kind": "table",
+      "quote": "Linear 0·2724 ... 0·2724"
+     },
+     "check": {
+      "kind": "anova_sum_sq",
+      "term": "Conc",
+      "model": "Sugar + Conc"
+     }
+    },
+    {
+     "what": "anova_sum_sq",
+     "term": "Conc²",
+     "value": "0.0275",
+     "analysis": "orthogonal polynomials: each component adjusted for the lower ones",
+     "where": {
+      "page": 316,
+      "source_kind": "table",
+      "quote": "Quadratic 0·0275 ... 0·0275"
+     },
+     "check": {
+      "kind": "anova_sum_sq",
+      "term": "Conc²",
+      "model": "Sugar + Conc + I(Conc**2)"
+     }
+    },
+    {
+     "what": "anova_sum_sq",
+     "term": "I(Conc ** 3)",
+     "value": "0.0002",
+     "analysis": "orthogonal polynomials: each component adjusted for the lower ones",
+     "where": {
+      "page": 316,
+      "source_kind": "table",
+      "quote": "Cubic .. 0·0002 ... 0·0002"
+     },
+     "check": {
+      "kind": "anova_sum_sq",
+      "term": "I(Conc ** 3)",
+      "model": "Sugar + Conc + I(Conc**2) + I(Conc**3)"
+     }
+    },
+    {
+     "what": "anova_sum_sq",
+     "term": "Sugar·Conc",
+     "value": "0.0068",
+     "analysis": "orthogonal polynomials: each component adjusted for the lower ones",
+     "where": {
+      "page": 316,
+      "source_kind": "table",
+      "quote": "Interactions with sugars: Linear 0·0068 ... 0·0017"
+     },
+     "check": {
+      "kind": "anova_sum_sq",
+      "term": "Sugar·Conc",
+      "model": "Sugar*Conc"
+     }
+    },
+    {
+     "what": "anova_sum_sq",
+     "term": "Sugar·I(Conc ** 2)",
+     "value": "0.0070",
+     "analysis": "orthogonal polynomials: each component adjusted for the lower ones",
+     "where": {
+      "page": 316,
+      "source_kind": "table",
+      "quote": "Quadratic 0·0070 ... 0·0017"
+     },
+     "check": {
+      "kind": "anova_sum_sq",
+      "term": "Sugar·I(Conc ** 2)",
+      "model": "Sugar*Conc + Sugar*I(Conc**2)"
+     }
+    },
+    {
+     "what": "ss_residual",
+     "term": null,
+     "value": "0.0406",
+     "analysis": "the interaction of sugars with the cubic component, the only term left out",
+     "where": {
+      "page": 316,
+      "source_kind": "table",
+      "quote": "Cubic 0·0406 ... 0·0102"
+     },
+     "check": {
+      "kind": "ss_residual",
+      "model": "Sugar*Conc + Sugar*I(Conc**2) + I(Conc**3)"
+     }
+    },
+    {
+     "what": "mean",
+     "term": "Crude lactose",
+     "value": "0.790",
+     "where": {
+      "page": 314,
+      "source_kind": "table",
+      "quote": "Crude lactose ... Mean 0·790"
+     },
+     "check": {
+      "kind": "mean",
+      "runs": [
+       1,
+       2,
+       3,
+       4
+      ]
+     }
+    },
+    {
+     "what": "mean",
+     "term": "Crude glucose",
+     "value": "0.966",
+     "where": {
+      "page": 314,
+      "source_kind": "table",
+      "quote": "Crude glucose ... Mean 0·966"
+     },
+     "check": {
+      "kind": "mean",
+      "runs": [
+       5,
+       6,
+       7,
+       8
+      ]
+     }
+    },
+    {
+     "what": "mean",
+     "term": "Sucrose",
+     "value": "0.936",
+     "where": {
+      "page": 314,
+      "source_kind": "table",
+      "quote": "Sucrose ... Mean 0·936"
+     },
+     "check": {
+      "kind": "mean",
+      "runs": [
+       9,
+       10,
+       11,
+       12
+      ]
+     }
+    },
+    {
+     "what": "mean",
+     "term": "Molasses",
+     "value": "0.998",
+     "where": {
+      "page": 314,
+      "source_kind": "table",
+      "quote": "Molasses ... Mean 0·998"
+     },
+     "check": {
+      "kind": "mean",
+      "runs": [
+       13,
+       14,
+       15,
+       16
+      ]
+     }
+    },
+    {
+     "what": "mean",
+     "term": "Dextrine",
+     "value": "0.943",
+     "where": {
+      "page": 314,
+      "source_kind": "table",
+      "quote": "Dextrine ... Mean 0·943"
+     },
+     "check": {
+      "kind": "mean",
+      "runs": [
+       17,
+       18,
+       19,
+       20
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "name": "davies-cotton-dyestuff-3-3",
+   "title": "Yield of a direct cotton dyestuff: concentration, volume of free water and amount of a second reactant, a 3^3 factorial in duplicate",
+   "kind": "example",
+   "where": {
+    "section": "8.7 to 8.72 and Appendix 8F",
+    "pages": "332-335, 352-361",
+    "tables": [
+     "Table 8-61",
+     "Table 8-62",
+     "Table 8-63",
+     "Table 8F-1"
+    ],
+    "figures": []
+   },
+   "factors": [
+    {
+     "name": "C",
+     "description": "concentration of reactant A in the free water of the reaction mixture (levels 0, 1, 2; values not stated)",
+     "low": 0,
+     "high": 2,
+     "units": "level",
+     "type": "numeric"
+    },
+    {
+     "name": "V",
+     "description": "volume of free water in the reaction mixture (levels 0, 1, 2; values not stated)",
+     "low": 0,
+     "high": 2,
+     "units": "level",
+     "type": "numeric"
+    },
+    {
+     "name": "N",
+     "description": "amount of reactant B in the reaction mixture (levels 0, 1, 2; values not stated)",
+     "low": 0,
+     "high": 2,
+     "units": "level",
+     "type": "numeric"
+    }
+   ],
+   "responses": [
+    {
+     "name": "Yield",
+     "description": "yield of dyestuff",
+     "units": ""
+    }
+   ],
+   "design": {
+    "type": "3^3 full factorial",
+    "details": "27 treatments, each tested twice",
+    "n_runs": 54
+   },
+   "runs": {
+    "columns": [
+     "C",
+     "V",
+     "N",
+     "Group",
+     "Yield"
+    ],
+    "rows": [
+     [
+      -1,
+      -1,
+      -1,
+      "alpha1",
+      74
+     ],
+     [
+      -1,
+      -1,
+      -1,
+      "alpha2",
+      85
+     ],
+     [
+      -1,
+      0,
+      -1,
+      "gamma1",
+      13
+     ],
+     [
+      -1,
+      0,
+      -1,
+      "beta2",
+      12
+     ],
+     [
+      -1,
+      1,
+      -1,
+      "beta1",
+      69
+     ],
+     [
+      -1,
+      1,
+      -1,
+      "gamma2",
+      115
+     ],
+     [
+      -1,
+      -1,
+      0,
+      "gamma1",
+      112
+     ],
+     [
+      -1,
+      -1,
+      0,
+      "gamma2",
+      148
+     ],
+     [
+      -1,
+      0,
+      0,
+      "beta1",
+      46
+     ],
+     [
+      -1,
+      0,
+      0,
+      "alpha2",
+      52
+     ],
+     [
+      -1,
+      1,
+      0,
+      "alpha1",
+      130
+     ],
+     [
+      -1,
+      1,
+      0,
+      "beta2",
+      107
+     ],
+     [
+      -1,
+      -1,
+      1,
+      "beta1",
+      71
+     ],
+     [
+      -1,
+      -1,
+      1,
+      "beta2",
+      75
+     ],
+     [
+      -1,
+      0,
+      1,
+      "alpha1",
+      56
+     ],
+     [
+      -1,
+      0,
+      1,
+      "gamma2",
+      47
+     ],
+     [
+      -1,
+      1,
+      1,
+      "gamma1",
+      125
+     ],
+     [
+      -1,
+      1,
+      1,
+      "alpha2",
+      70
+     ],
+     [
+      0,
+      -1,
+      -1,
+      "beta1",
+      211
+     ],
+     [
+      0,
+      -1,
+      -1,
+      "beta2",
+      184
+     ],
+     [
+      0,
+      0,
+      -1,
+      "alpha1",
+      110
+     ],
+     [
+      0,
+      0,
+      -1,
+      "gamma2",
+      145
+     ],
+     [
+      0,
+      1,
+      -1,
+      "gamma1",
+      199
+     ],
+     [
+      0,
+      1,
+      -1,
+      "alpha2",
+      164
+     ],
+     [
+      0,
+      -1,
+      0,
+      "alpha1",
+      166
+     ],
+     [
+      0,
+      -1,
+      0,
+      "alpha2",
+      288
+     ],
+     [
+      0,
+      0,
+      0,
+      "gamma1",
+      218
+     ],
+     [
+      0,
+      0,
+      0,
+      "beta2",
+      204
+     ],
+     [
+      0,
+      1,
+      0,
+      "beta1",
+      220
+     ],
+     [
+      0,
+      1,
+      0,
+      "gamma2",
+      142
+     ],
+     [
+      0,
+      -1,
+      1,
+      "gamma1",
+      201
+     ],
+     [
+      0,
+      -1,
+      1,
+      "gamma2",
+      216
+     ],
+     [
+      0,
+      0,
+      1,
+      "beta1",
+      216
+     ],
+     [
+      0,
+      0,
+      1,
+      "alpha2",
+      239
+     ],
+     [
+      0,
+      1,
+      1,
+      "alpha1",
+      227
+     ],
+     [
+      0,
+      1,
+      1,
+      "beta2",
+      265
+     ],
+     [
+      1,
+      -1,
+      -1,
+      "gamma1",
+      74
+     ],
+     [
+      1,
+      -1,
+      -1,
+      "gamma2",
+      75
+     ],
+     [
+      1,
+      0,
+      -1,
+      "beta1",
+      147
+     ],
+     [
+      1,
+      0,
+      -1,
+      "alpha2",
+      104
+     ],
+     [
+      1,
+      1,
+      -1,
+      "alpha1",
+      195
+     ],
+     [
+      1,
+      1,
+      -1,
+      "beta2",
+      183
+     ],
+     [
+      1,
+      -1,
+      0,
+      "beta1",
+      47
+     ],
+     [
+      1,
+      -1,
+      0,
+      "beta2",
+      65
+     ],
+     [
+      1,
+      0,
+      0,
+      "alpha1",
+      146
+     ],
+     [
+      1,
+      0,
+      0,
+      "gamma2",
+      124
+     ],
+     [
+      1,
+      1,
+      0,
+      "gamma1",
+      198
+     ],
+     [
+      1,
+      1,
+      0,
+      "alpha2",
+      165
+     ],
+     [
+      1,
+      -1,
+      1,
+      "alpha1",
+      90
+     ],
+     [
+      1,
+      -1,
+      1,
+      "alpha2",
+      60
+     ],
+     [
+      1,
+      0,
+      1,
+      "gamma1",
+      102
+     ],
+     [
+      1,
+      0,
+      1,
+      "beta2",
+      70
+     ],
+     [
+      1,
+      1,
+      1,
+      "beta1",
+      164
+     ],
+     [
+      1,
+      1,
+      1,
+      "gamma2",
+      114
+     ]
+    ],
+    "coded": true,
+    "notes": "Table 8-61 (p. 333), printed sideways and read from the page image; every pair checks against its printed sum. Group is the Greek letter and subscript printed beside each yield, which the book introduces 'for a purpose to be described in a later chapter' (confounding in blocks of nine); it is not used here"
+   },
+   "notes": "All three factors are quantitative with equally spaced levels, so every effect is split into linear and quadratic components (Table 8-62). With levels coded -1, 0, +1 and the full model of 27 components, each component adjusted for the others is its orthogonal-polynomial sum of squares.",
+   "expected": [
+    {
+     "what": "anova_sum_sq",
+     "term": "C",
+     "value": "14241",
+     "analysis": "orthogonal polynomial components (levels coded -1, 0, +1)",
+     "where": {
+      "page": 334,
+      "source_kind": "table",
+      "quote": "C Linear 14,241 1 14,241"
+     },
+     "check": {
+      "kind": "anova_sum_sq",
+      "term": "C",
+      "model": "C + I(C**2) + V + I(V**2) + N + I(N**2) + C:V + C:I(V**2) + C:N + C:I(N**2) + I(C**2):V + I(C**2):I(V**2) + I(C**2):N + I(C**2):I(N**2) + V:N + V:I(N**2) + I(V**2):N + I(V**2):I(N**2) + C:V:N + C:V:I(N**2) + C:I(V**2):N + C:I(V**2):I(N**2) + I(C**2):V:N + I(C**2):V:I(N**2) + I(C**2):I(V**2):N + I(C**2):I(V**2):I(N**2)",
+      "disagreement": "the linear contrast of the C totals, (2,123 - 1,407)^2 / 36 = 14,240.4; the book prints 14,241"
+     }
+    },
+    {
+     "what": "anova_mean_sq",
+     "term": "C",
+     "value": "14241",
+     "analysis": "orthogonal polynomial components (levels coded -1, 0, +1)",
+     "where": {
+      "page": 334,
+      "source_kind": "table",
+      "quote": "C Linear 14,241 1 14,241"
+     },
+     "check": {
+      "kind": "anova_mean_sq",
+      "term": "C",
+      "model": "C + I(C**2) + V + I(V**2) + N + I(N**2) + C:V + C:I(V**2) + C:N + C:I(N**2) + I(C**2):V + I(C**2):I(V**2) + I(C**2):N + I(C**2):I(N**2) + V:N + V:I(N**2) + I(V**2):N + I(V**2):I(N**2) + C:V:N + C:V:I(N**2) + C:I(V**2):N + C:I(V**2):I(N**2) + I(C**2):V:N + I(C**2):V:I(N**2) + I(C**2):I(V**2):N + I(C**2):I(V**2):I(N**2)",
+      "disagreement": "the linear contrast of the C totals, (2,123 - 1,407)^2 / 36 = 14,240.4; the book prints 14,241"
+     }
+    },
+    {
+     "what": "anova_sum_sq",
+     "term": "C²",
+     "value": "126759",
+     "analysis": "orthogonal polynomial components (levels coded -1, 0, +1)",
+     "where": {
+      "page": 334,
+      "source_kind": "table",
+      "quote": "C Quadratic 126,759 1 126,759"
+     },
+     "check": {
+      "kind": "anova_sum_sq",
+      "term": "C²",
+      "model": "C + I(C**2) + V + I(V**2) + N + I(N**2) + C:V + C:I(V**2) + C:N + C:I(N**2) + I(C**2):V + I(C**2):I(V**2) + I(C**2):N + I(C**2):I(N**2) + V:N + V:I(N**2) + I(V**2):N + I(V**2):I(N**2) + C:V:N + C:V:I(N**2) + C:I(V**2):N + C:I(V**2):I(N**2) + I(C**2):V:N + I(C**2):V:I(N**2) + I(C**2):I(V**2):N + I(C**2):I(V**2):I(N**2)"
+     }
+    },
+    {
+     "what": "anova_mean_sq",
+     "term": "C²",
+     "value": "126759",
+     "analysis": "orthogonal polynomial components (levels coded -1, 0, +1)",
+     "where": {
+      "page": 334,
+      "source_kind": "table",
+      "quote": "C Quadratic 126,759 1 126,759"
+     },
+     "check": {
+      "kind": "anova_mean_sq",
+      "term": "C²",
+      "model": "C + I(C**2) + V + I(V**2) + N + I(N**2) + C:V + C:I(V**2) + C:N + C:I(N**2) + I(C**2):V + I(C**2):I(V**2) + I(C**2):N + I(C**2):I(N**2) + V:N + V:I(N**2) + I(V**2):N + I(V**2):I(N**2) + C:V:N + C:V:I(N**2) + C:I(V**2):N + C:I(V**2):I(N**2) + I(C**2):V:N + I(C**2):V:I(N**2) + I(C**2):I(V**2):N + I(C**2):I(V**2):I(N**2)"
+     }
+    },
+    {
+     "what": "anova_sum_sq",
+     "term": "V",
+     "value": "10336",
+     "analysis": "orthogonal polynomial components (levels coded -1, 0, +1)",
+     "where": {
+      "page": 334,
+      "source_kind": "table",
+      "quote": "V Linear 10,336 1 10,336"
+     },
+     "check": {
+      "kind": "anova_sum_sq",
+      "term": "V",
+      "model": "C + I(C**2) + V + I(V**2) + N + I(N**2) + C:V + C:I(V**2) + C:N + C:I(N**2) + I(C**2):V + I(C**2):I(V**2) + I(C**2):N + I(C**2):I(N**2) + V:N + V:I(N**2) + I(V**2):N + I(V**2):I(N**2) + C:V:N + C:V:I(N**2) + C:I(V**2):N + C:I(V**2):I(N**2) + I(C**2):V:N + I(C**2):V:I(N**2) + I(C**2):I(V**2):N + I(C**2):I(V**2):I(N**2)"
+     }
+    },
+    {
+     "what": "anova_mean_sq",
+     "term": "V",
+     "value": "10336",
+     "analysis": "orthogonal polynomial components (levels coded -1, 0, +1)",
+     "where": {
+      "page": 334,
+      "source_kind": "table",
+      "quote": "V Linear 10,336 1 10,336"
+     },
+     "check": {
+      "kind": "anova_mean_sq",
+      "term": "V",
+      "model": "C + I(C**2) + V + I(V**2) + N + I(N**2) + C:V + C:I(V**2) + C:N + C:I(N**2) + I(C**2):V + I(C**2):I(V**2) + I(C**2):N + I(C**2):I(N**2) + V:N + V:I(N**2) + I(V**2):N + I(V**2):I(N**2) + C:V:N + C:V:I(N**2) + C:I(V**2):N + C:I(V**2):I(N**2) + I(C**2):V:N + I(C**2):V:I(N**2) + I(C**2):I(V**2):N + I(C**2):I(V**2):I(N**2)"
+     }
+    },
+    {
+     "what": "anova_sum_sq",
+     "term": "V²",
+     "value": "9112",
+     "analysis": "orthogonal polynomial components (levels coded -1, 0, +1)",
+     "where": {
+      "page": 334,
+      "source_kind": "table",
+      "quote": "V Quadratic 9,112 1 9,112"
+     },
+     "check": {
+      "kind": "anova_sum_sq",
+      "term": "V²",
+      "model": "C + I(C**2) + V + I(V**2) + N + I(N**2) + C:V + C:I(V**2) + C:N + C:I(N**2) + I(C**2):V + I(C**2):I(V**2) + I(C**2):N + I(C**2):I(N**2) + V:N + V:I(N**2) + I(V**2):N + I(V**2):I(N**2) + C:V:N + C:V:I(N**2) + C:I(V**2):N + C:I(V**2):I(N**2) + I(C**2):V:N + I(C**2):V:I(N**2) + I(C**2):I(V**2):N + I(C**2):I(V**2):I(N**2)"
+     }
+    },
+    {
+     "what": "anova_mean_sq",
+     "term": "V²",
+     "value": "9112",
+     "analysis": "orthogonal polynomial components (levels coded -1, 0, +1)",
+     "where": {
+      "page": 334,
+      "source_kind": "table",
+      "quote": "V Quadratic 9,112 1 9,112"
+     },
+     "check": {
+      "kind": "anova_mean_sq",
+      "term": "V²",
+      "model": "C + I(C**2) + V + I(V**2) + N + I(N**2) + C:V + C:I(V**2) + C:N + C:I(N**2) + I(C**2):V + I(C**2):I(V**2) + I(C**2):N + I(C**2):I(N**2) + V:N + V:I(N**2) + I(V**2):N + I(V**2):I(N**2) + C:V:N + C:V:I(N**2) + C:I(V**2):N + C:I(V**2):I(N**2) + I(C**2):V:N + I(C**2):V:I(N**2) + I(C**2):I(V**2):N + I(C**2):I(V**2):I(N**2)"
+     }
+    },
+    {
+     "what": "anova_sum_sq",
+     "term": "N",
+     "value": "1723",
+     "analysis": "orthogonal polynomial components (levels coded -1, 0, +1)",
+     "where": {
+      "page": 334,
+      "source_kind": "table",
+      "quote": "N Linear 1,723 1 1,722"
+     },
+     "check": {
+      "kind": "anova_sum_sq",
+      "term": "N",
+      "model": "C + I(C**2) + V + I(V**2) + N + I(N**2) + C:V + C:I(V**2) + C:N + C:I(N**2) + I(C**2):V + I(C**2):I(V**2) + I(C**2):N + I(C**2):I(N**2) + V:N + V:I(N**2) + I(V**2):N + I(V**2):I(N**2) + C:V:N + C:V:I(N**2) + C:I(V**2):N + C:I(V**2):I(N**2) + I(C**2):V:N + I(C**2):V:I(N**2) + I(C**2):I(V**2):N + I(C**2):I(V**2):I(N**2)",
+      "disagreement": "the linear contrast of the N totals, (2,408 - 2,159)^2 / 36 = 1,722.25, as the book's own mean square, 1,722, has it; it prints the sum of squares as 1,723"
+     }
+    },
+    {
+     "what": "anova_sum_sq",
+     "term": "N²",
+     "value": "3212",
+     "analysis": "orthogonal polynomial components (levels coded -1, 0, +1)",
+     "where": {
+      "page": 334,
+      "source_kind": "table",
+      "quote": "N Quadratic 3,212 1 3,212"
+     },
+     "check": {
+      "kind": "anova_sum_sq",
+      "term": "N²",
+      "model": "C + I(C**2) + V + I(V**2) + N + I(N**2) + C:V + C:I(V**2) + C:N + C:I(N**2) + I(C**2):V + I(C**2):I(V**2) + I(C**2):N + I(C**2):I(N**2) + V:N + V:I(N**2) + I(V**2):N + I(V**2):I(N**2) + C:V:N + C:V:I(N**2) + C:I(V**2):N + C:I(V**2):I(N**2) + I(C**2):V:N + I(C**2):V:I(N**2) + I(C**2):I(V**2):N + I(C**2):I(V**2):I(N**2)"
+     }
+    },
+    {
+     "what": "anova_mean_sq",
+     "term": "N²",
+     "value": "3212",
+     "analysis": "orthogonal polynomial components (levels coded -1, 0, +1)",
+     "where": {
+      "page": 334,
+      "source_kind": "table",
+      "quote": "N Quadratic 3,212 1 3,212"
+     },
+     "check": {
+      "kind": "anova_mean_sq",
+      "term": "N²",
+      "model": "C + I(C**2) + V + I(V**2) + N + I(N**2) + C:V + C:I(V**2) + C:N + C:I(N**2) + I(C**2):V + I(C**2):I(V**2) + I(C**2):N + I(C**2):I(N**2) + V:N + V:I(N**2) + I(V**2):N + I(V**2):I(N**2) + C:V:N + C:V:I(N**2) + C:I(V**2):N + C:I(V**2):I(N**2) + I(C**2):V:N + I(C**2):V:I(N**2) + I(C**2):I(V**2):N + I(C**2):I(V**2):I(N**2)"
+     }
+    },
+    {
+     "what": "anova_mean_sq",
+     "term": "N",
+     "value": "1722",
+     "analysis": "orthogonal polynomial components (levels coded -1, 0, +1)",
+     "where": {
+      "page": 334,
+      "source_kind": "table",
+      "quote": "N Linear 1,723 1 1,722"
+     },
+     "check": {
+      "kind": "anova_mean_sq",
+      "term": "N",
+      "model": "C + I(C**2) + V + I(V**2) + N + I(N**2) + C:V + C:I(V**2) + C:N + C:I(N**2) + I(C**2):V + I(C**2):I(V**2) + I(C**2):N + I(C**2):I(N**2) + V:N + V:I(N**2) + I(V**2):N + I(V**2):I(N**2) + C:V:N + C:V:I(N**2) + C:I(V**2):N + C:I(V**2):I(N**2) + I(C**2):V:N + I(C**2):V:I(N**2) + I(C**2):I(V**2):N + I(C**2):I(V**2):I(N**2)"
+     }
+    },
+    {
+     "what": "anova_sum_sq",
+     "term": "V·C",
+     "value": "12927",
+     "analysis": "orthogonal polynomial components (levels coded -1, 0, +1)",
+     "where": {
+      "page": 334,
+      "source_kind": "table",
+      "quote": "Linear V X linear C 12,927 1 12,927"
+     },
+     "check": {
+      "kind": "anova_sum_sq",
+      "term": "V·C",
+      "model": "C + I(C**2) + V + I(V**2) + N + I(N**2) + C:V + C:I(V**2) + C:N + C:I(N**2) + I(C**2):V + I(C**2):I(V**2) + I(C**2):N + I(C**2):I(N**2) + V:N + V:I(N**2) + I(V**2):N + I(V**2):I(N**2) + C:V:N + C:V:I(N**2) + C:I(V**2):N + C:I(V**2):I(N**2) + I(C**2):V:N + I(C**2):V:I(N**2) + I(C**2):I(V**2):N + I(C**2):I(V**2):I(N**2)"
+     }
+    },
+    {
+     "what": "anova_sum_sq",
+     "term": "I(V ** 2)·C",
+     "value": "6517",
+     "analysis": "orthogonal polynomial components (levels coded -1, 0, +1)",
+     "where": {
+      "page": 334,
+      "source_kind": "table",
+      "quote": "Quadratic V X linear C 6,517 1 6,517"
+     },
+     "check": {
+      "kind": "anova_sum_sq",
+      "term": "I(V ** 2)·C",
+      "model": "C + I(C**2) + V + I(V**2) + N + I(N**2) + C:V + C:I(V**2) + C:N + C:I(N**2) + I(C**2):V + I(C**2):I(V**2) + I(C**2):N + I(C**2):I(N**2) + V:N + V:I(N**2) + I(V**2):N + I(V**2):I(N**2) + C:V:N + C:V:I(N**2) + C:I(V**2):N + C:I(V**2):I(N**2) + I(C**2):V:N + I(C**2):V:I(N**2) + I(C**2):I(V**2):N + I(C**2):I(V**2):I(N**2)"
+     }
+    },
+    {
+     "what": "anova_sum_sq",
+     "term": "V·I(C ** 2)",
+     "value": "7959",
+     "analysis": "orthogonal polynomial components (levels coded -1, 0, +1)",
+     "where": {
+      "page": 334,
+      "source_kind": "table",
+      "quote": "Linear V X quadratic C .. 7,959 1 7,959"
+     },
+     "check": {
+      "kind": "anova_sum_sq",
+      "term": "V·I(C ** 2)",
+      "model": "C + I(C**2) + V + I(V**2) + N + I(N**2) + C:V + C:I(V**2) + C:N + C:I(N**2) + I(C**2):V + I(C**2):I(V**2) + I(C**2):N + I(C**2):I(N**2) + V:N + V:I(N**2) + I(V**2):N + I(V**2):I(N**2) + C:V:N + C:V:I(N**2) + C:I(V**2):N + C:I(V**2):I(N**2) + I(C**2):V:N + I(C**2):V:I(N**2) + I(C**2):I(V**2):N + I(C**2):I(V**2):I(N**2)"
+     }
+    },
+    {
+     "what": "anova_sum_sq",
+     "term": "I(V ** 2)·I(C ** 2)",
+     "value": "520",
+     "analysis": "orthogonal polynomial components (levels coded -1, 0, +1)",
+     "where": {
+      "page": 334,
+      "source_kind": "table",
+      "quote": "Quadratic V X quadratic C 520 1 520"
+     },
+     "check": {
+      "kind": "anova_sum_sq",
+      "term": "I(V ** 2)·I(C ** 2)",
+      "model": "C + I(C**2) + V + I(V**2) + N + I(N**2) + C:V + C:I(V**2) + C:N + C:I(N**2) + I(C**2):V + I(C**2):I(V**2) + I(C**2):N + I(C**2):I(N**2) + V:N + V:I(N**2) + I(V**2):N + I(V**2):I(N**2) + C:V:N + C:V:I(N**2) + C:I(V**2):N + C:I(V**2):I(N**2) + I(C**2):V:N + I(C**2):V:I(N**2) + I(C**2):I(V**2):N + I(C**2):I(V**2):I(N**2)"
+     }
+    },
+    {
+     "what": "anova_sum_sq",
+     "term": "N·C",
+     "value": "2688",
+     "analysis": "orthogonal polynomial components (levels coded -1, 0, +1)",
+     "where": {
+      "page": 334,
+      "source_kind": "table",
+      "quote": "Linear N X linear C 2,688 1 2,688"
+     },
+     "check": {
+      "kind": "anova_sum_sq",
+      "term": "N·C",
+      "model": "C + I(C**2) + V + I(V**2) + N + I(N**2) + C:V + C:I(V**2) + C:N + C:I(N**2) + I(C**2):V + I(C**2):I(V**2) + I(C**2):N + I(C**2):I(N**2) + V:N + V:I(N**2) + I(V**2):N + I(V**2):I(N**2) + C:V:N + C:V:I(N**2) + C:I(V**2):N + C:I(V**2):I(N**2) + I(C**2):V:N + I(C**2):V:I(N**2) + I(C**2):I(V**2):N + I(C**2):I(V**2):I(N**2)"
+     }
+    },
+    {
+     "what": "anova_sum_sq",
+     "term": "N·I(C ** 2)",
+     "value": "8978",
+     "analysis": "orthogonal polynomial components (levels coded -1, 0, +1)",
+     "where": {
+      "page": 334,
+      "source_kind": "table",
+      "quote": "Linear N X quadratic C .. 8,978 1 8,978"
+     },
+     "check": {
+      "kind": "anova_sum_sq",
+      "term": "N·I(C ** 2)",
+      "model": "C + I(C**2) + V + I(V**2) + N + I(N**2) + C:V + C:I(V**2) + C:N + C:I(N**2) + I(C**2):V + I(C**2):I(V**2) + I(C**2):N + I(C**2):I(N**2) + V:N + V:I(N**2) + I(V**2):N + I(V**2):I(N**2) + C:V:N + C:V:I(N**2) + C:I(V**2):N + C:I(V**2):I(N**2) + I(C**2):V:N + I(C**2):V:I(N**2) + I(C**2):I(V**2):N + I(C**2):I(V**2):I(N**2)"
+     }
+    },
+    {
+     "what": "anova_sum_sq",
+     "term": "I(N ** 2)·C",
+     "value": "983",
+     "analysis": "orthogonal polynomial components (levels coded -1, 0, +1)",
+     "where": {
+      "page": 334,
+      "source_kind": "table",
+      "quote": "Quadratic N X linear C .. 983 1 983"
+     },
+     "check": {
+      "kind": "anova_sum_sq",
+      "term": "I(N ** 2)·C",
+      "model": "C + I(C**2) + V + I(V**2) + N + I(N**2) + C:V + C:I(V**2) + C:N + C:I(N**2) + I(C**2):V + I(C**2):I(V**2) + I(C**2):N + I(C**2):I(N**2) + V:N + V:I(N**2) + I(V**2):N + I(V**2):I(N**2) + C:V:N + C:V:I(N**2) + C:I(V**2):N + C:I(V**2):I(N**2) + I(C**2):V:N + I(C**2):V:I(N**2) + I(C**2):I(V**2):N + I(C**2):I(V**2):I(N**2)"
+     }
+    },
+    {
+     "what": "anova_sum_sq",
+     "term": "I(N ** 2)·I(C ** 2)",
+     "value": "395",
+     "analysis": "orthogonal polynomial components (levels coded -1, 0, +1)",
+     "where": {
+      "page": 334,
+      "source_kind": "table",
+      "quote": "Quadratic N X quadratic C 395 1 395"
+     },
+     "check": {
+      "kind": "anova_sum_sq",
+      "term": "I(N ** 2)·I(C ** 2)",
+      "model": "C + I(C**2) + V + I(V**2) + N + I(N**2) + C:V + C:I(V**2) + C:N + C:I(N**2) + I(C**2):V + I(C**2):I(V**2) + I(C**2):N + I(C**2):I(N**2) + V:N + V:I(N**2) + I(V**2):N + I(V**2):I(N**2) + C:V:N + C:V:I(N**2) + C:I(V**2):N + C:I(V**2):I(N**2) + I(C**2):V:N + I(C**2):V:I(N**2) + I(C**2):I(V**2):N + I(C**2):I(V**2):I(N**2)"
+     }
+    },
+    {
+     "what": "anova_sum_sq",
+     "term": "N·V",
+     "value": "38",
+     "analysis": "orthogonal polynomial components (levels coded -1, 0, +1)",
+     "where": {
+      "page": 334,
+      "source_kind": "table",
+      "quote": "Linear N X linear V 38 1 38"
+     },
+     "check": {
+      "kind": "anova_sum_sq",
+      "term": "N·V",
+      "model": "C + I(C**2) + V + I(V**2) + N + I(N**2) + C:V + C:I(V**2) + C:N + C:I(N**2) + I(C**2):V + I(C**2):I(V**2) + I(C**2):N + I(C**2):I(N**2) + V:N + V:I(N**2) + I(V**2):N + I(V**2):I(N**2) + C:V:N + C:V:I(N**2) + C:I(V**2):N + C:I(V**2):I(N**2) + I(C**2):V:N + I(C**2):V:I(N**2) + I(C**2):I(V**2):N + I(C**2):I(V**2):I(N**2)"
+     }
+    },
+    {
+     "what": "anova_sum_sq",
+     "term": "N·I(V ** 2)",
+     "value": "1682",
+     "analysis": "orthogonal polynomial components (levels coded -1, 0, +1)",
+     "where": {
+      "page": 334,
+      "source_kind": "table",
+      "quote": "Linear N X quadratic V .. 1,682 1 1,682"
+     },
+     "check": {
+      "kind": "anova_sum_sq",
+      "term": "N·I(V ** 2)",
+      "model": "C + I(C**2) + V + I(V**2) + N + I(N**2) + C:V + C:I(V**2) + C:N + C:I(N**2) + I(C**2):V + I(C**2):I(V**2) + I(C**2):N + I(C**2):I(N**2) + V:N + V:I(N**2) + I(V**2):N + I(V**2):I(N**2) + C:V:N + C:V:I(N**2) + C:I(V**2):N + C:I(V**2):I(N**2) + I(C**2):V:N + I(C**2):V:I(N**2) + I(C**2):I(V**2):N + I(C**2):I(V**2):I(N**2)"
+     }
+    },
+    {
+     "what": "anova_sum_sq",
+     "term": "I(N ** 2)·V",
+     "value": "567",
+     "analysis": "orthogonal polynomial components (levels coded -1, 0, +1)",
+     "where": {
+      "page": 334,
+      "source_kind": "table",
+      "quote": "Quadratic N X linear V 567 1 567"
+     },
+     "check": {
+      "kind": "anova_sum_sq",
+      "term": "I(N ** 2)·V",
+      "model": "C + I(C**2) + V + I(V**2) + N + I(N**2) + C:V + C:I(V**2) + C:N + C:I(N**2) + I(C**2):V + I(C**2):I(V**2) + I(C**2):N + I(C**2):I(N**2) + V:N + V:I(N**2) + I(V**2):N + I(V**2):I(N**2) + C:V:N + C:V:I(N**2) + C:I(V**2):N + C:I(V**2):I(N**2) + I(C**2):V:N + I(C**2):V:I(N**2) + I(C**2):I(V**2):N + I(C**2):I(V**2):I(N**2)"
+     }
+    },
+    {
+     "what": "anova_sum_sq",
+     "term": "I(N ** 2)·I(V ** 2)",
+     "value": "627",
+     "analysis": "orthogonal polynomial components (levels coded -1, 0, +1)",
+     "where": {
+      "page": 334,
+      "source_kind": "table",
+      "quote": "Quadratic N X quadratic V 627 1 627"
+     },
+     "check": {
+      "kind": "anova_sum_sq",
+      "term": "I(N ** 2)·I(V ** 2)",
+      "model": "C + I(C**2) + V + I(V**2) + N + I(N**2) + C:V + C:I(V**2) + C:N + C:I(N**2) + I(C**2):V + I(C**2):I(V**2) + I(C**2):N + I(C**2):I(N**2) + V:N + V:I(N**2) + I(V**2):N + I(V**2):I(N**2) + C:V:N + C:V:I(N**2) + C:I(V**2):N + C:I(V**2):I(N**2) + I(C**2):V:N + I(C**2):V:I(N**2) + I(C**2):I(V**2):N + I(C**2):I(V**2):I(N**2)"
+     }
+    },
+    {
+     "what": "anova_sum_sq",
+     "term": "C·V·N",
+     "value": "9746",
+     "where": {
+      "page": 334,
+      "source_kind": "table",
+      "quote": "C x V x N 9,746 8 1,218"
+     },
+     "check": {
+      "manual": "the eight three-factor components together; the library reports each of them as its own row"
+     }
+    },
+    {
+     "what": "ss_residual",
+     "term": null,
+     "value": "21036",
+     "analysis": "replicate differences",
+     "where": {
+      "page": 334,
+      "source_kind": "table",
+      "quote": "Remainder (error) 21,036 27 779"
+     },
+     "check": {
+      "kind": "ss_residual",
+      "model": "C + I(C**2) + V + I(V**2) + N + I(N**2) + C:V + C:I(V**2) + C:N + C:I(N**2) + I(C**2):V + I(C**2):I(V**2) + I(C**2):N + I(C**2):I(N**2) + V:N + V:I(N**2) + I(V**2):N + I(V**2):I(N**2) + C:V:N + C:V:I(N**2) + C:I(V**2):N + C:I(V**2):I(N**2) + I(C**2):V:N + I(C**2):V:I(N**2) + I(C**2):I(V**2):N + I(C**2):I(V**2):I(N**2)",
+      "disagreement": "the remainder by subtraction from the rounded sums of squares above; from the replicate differences it is 21,038.5"
+     }
+    },
+    {
+     "what": "ms_residual",
+     "term": null,
+     "value": "779",
+     "analysis": "replicate differences",
+     "where": {
+      "page": 334,
+      "source_kind": "table",
+      "quote": "Remainder (error) 21,036 27 779"
+     },
+     "check": {
+      "kind": "ms_residual",
+      "model": "C + I(C**2) + V + I(V**2) + N + I(N**2) + C:V + C:I(V**2) + C:N + C:I(N**2) + I(C**2):V + I(C**2):I(V**2) + I(C**2):N + I(C**2):I(N**2) + V:N + V:I(N**2) + I(V**2):N + I(V**2):I(N**2) + C:V:N + C:V:I(N**2) + C:I(V**2):N + C:I(V**2):I(N**2) + I(C**2):V:N + I(C**2):V:I(N**2) + I(C**2):I(V**2):N + I(C**2):I(V**2):I(N**2)"
+     }
+    },
+    {
+     "what": "ss_total",
+     "term": null,
+     "value": "240046",
+     "where": {
+      "page": 334,
+      "source_kind": "table",
+      "quote": "Total 240,046 53"
+     },
+     "check": {
+      "kind": "ss_total",
+      "model": "C + I(C**2) + V + I(V**2) + N + I(N**2) + C:V + C:I(V**2) + C:N + C:I(N**2) + I(C**2):V + I(C**2):I(V**2) + I(C**2):N + I(C**2):I(N**2) + V:N + V:I(N**2) + I(V**2):N + I(V**2):I(N**2) + C:V:N + C:V:I(N**2) + C:I(V**2):N + C:I(V**2):I(N**2) + I(C**2):V:N + I(C**2):V:I(N**2) + I(C**2):I(V**2):N + I(C**2):I(V**2):I(N**2)"
+     }
+    },
+    {
+     "what": "mean",
+     "term": "C at level 0",
+     "value": "78.2",
+     "where": {
+      "page": 335,
+      "source_kind": "table",
+      "quote": "Mean ... 78·2"
+     },
+     "check": {
+      "kind": "mean",
+      "runs": [
+       1,
+       2,
+       3,
+       4,
+       5,
+       6,
+       7,
+       8,
+       9,
+       10,
+       11,
+       12,
+       13,
+       14,
+       15,
+       16,
+       17,
+       18
+      ]
+     }
+    },
+    {
+     "what": "mean",
+     "term": "C at level 1",
+     "value": "200.8",
+     "where": {
+      "page": 335,
+      "source_kind": "table",
+      "quote": "Mean ... 200·8"
+     },
+     "check": {
+      "kind": "mean",
+      "runs": [
+       19,
+       20,
+       21,
+       22,
+       23,
+       24,
+       25,
+       26,
+       27,
+       28,
+       29,
+       30,
+       31,
+       32,
+       33,
+       34,
+       35,
+       36
+      ]
+     }
+    },
+    {
+     "what": "mean",
+     "term": "C at level 2",
+     "value": "117.9",
+     "where": {
+      "page": 335,
+      "source_kind": "table",
+      "quote": "Mean ... 117·9"
+     },
+     "check": {
+      "kind": "mean",
+      "runs": [
+       37,
+       38,
+       39,
+       40,
+       41,
+       42,
+       43,
+       44,
+       45,
+       46,
+       47,
+       48,
+       49,
+       50,
+       51,
+       52,
+       53,
+       54
+      ]
+     }
+    },
+    {
+     "what": "mean",
+     "term": "V at level 0",
+     "value": "124.6",
+     "where": {
+      "page": 335,
+      "source_kind": "table",
+      "quote": "Mean ... 124·6"
+     },
+     "check": {
+      "kind": "mean",
+      "runs": [
+       1,
+       2,
+       7,
+       8,
+       13,
+       14,
+       19,
+       20,
+       25,
+       26,
+       31,
+       32,
+       37,
+       38,
+       43,
+       44,
+       49,
+       50
+      ]
+     }
+    },
+    {
+     "what": "mean",
+     "term": "V at level 1",
+     "value": "113.9",
+     "where": {
+      "page": 335,
+      "source_kind": "table",
+      "quote": "Mean ... 113·9"
+     },
+     "check": {
+      "kind": "mean",
+      "runs": [
+       3,
+       4,
+       9,
+       10,
+       15,
+       16,
+       21,
+       22,
+       27,
+       28,
+       33,
+       34,
+       39,
+       40,
+       45,
+       46,
+       51,
+       52
+      ]
+     }
+    },
+    {
+     "what": "mean",
+     "term": "V at level 2",
+     "value": "158.4",
+     "where": {
+      "page": 335,
+      "source_kind": "table",
+      "quote": "Mean ... 158·4"
+     },
+     "check": {
+      "kind": "mean",
+      "runs": [
+       5,
+       6,
+       11,
+       12,
+       17,
+       18,
+       23,
+       24,
+       29,
+       30,
+       35,
+       36,
+       41,
+       42,
+       47,
+       48,
+       53,
+       54
+      ]
+     }
+    },
+    {
+     "what": "mean",
+     "term": "N at level 0",
+     "value": "119.9",
+     "where": {
+      "page": 335,
+      "source_kind": "table",
+      "quote": "Mean ... 119·9"
+     },
+     "check": {
+      "kind": "mean",
+      "runs": [
+       1,
+       2,
+       3,
+       4,
+       5,
+       6,
+       19,
+       20,
+       21,
+       22,
+       23,
+       24,
+       37,
+       38,
+       39,
+       40,
+       41,
+       42
+      ]
+     }
+    },
+    {
+     "what": "mean",
+     "term": "N at level 1",
+     "value": "143.2",
+     "where": {
+      "page": 335,
+      "source_kind": "table",
+      "quote": "Mean ... 143·2"
+     },
+     "check": {
+      "kind": "mean",
+      "runs": [
+       7,
+       8,
+       9,
+       10,
+       11,
+       12,
+       25,
+       26,
+       27,
+       28,
+       29,
+       30,
+       43,
+       44,
+       45,
+       46,
+       47,
+       48
+      ]
+     }
+    },
+    {
+     "what": "mean",
+     "term": "N at level 2",
+     "value": "133.8",
+     "where": {
+      "page": 335,
+      "source_kind": "table",
+      "quote": "Mean ... 133·8"
+     },
+     "check": {
+      "kind": "mean",
+      "runs": [
+       13,
+       14,
+       15,
+       16,
+       17,
+       18,
+       31,
+       32,
+       33,
+       34,
+       35,
+       36,
+       49,
+       50,
+       51,
+       52,
+       53,
+       54
+      ]
+     }
+    },
+    {
+     "what": "mean",
+     "term": "C0 V0",
+     "value": "94.2",
+     "where": {
+      "page": 335,
+      "source_kind": "table",
+      "quote": "CV ... c0 ... 94·2"
+     },
+     "check": {
+      "kind": "mean",
+      "runs": [
+       1,
+       2,
+       7,
+       8,
+       13,
+       14
+      ]
+     }
+    },
+    {
+     "what": "mean",
+     "term": "C0 N0",
+     "value": "61.3",
+     "where": {
+      "page": 335,
+      "source_kind": "table",
+      "quote": "CN ... c0 ... 61·3"
+     },
+     "check": {
+      "kind": "mean",
+      "runs": [
+       1,
+       2,
+       3,
+       4,
+       5,
+       6
+      ]
+     }
+    },
+    {
+     "what": "mean",
+     "term": "C0 V1",
+     "value": "37.7",
+     "where": {
+      "page": 335,
+      "source_kind": "table",
+      "quote": "CV ... c0 ... 37·7"
+     },
+     "check": {
+      "kind": "mean",
+      "runs": [
+       3,
+       4,
+       9,
+       10,
+       15,
+       16
+      ]
+     }
+    },
+    {
+     "what": "mean",
+     "term": "C0 N1",
+     "value": "99.2",
+     "where": {
+      "page": 335,
+      "source_kind": "table",
+      "quote": "CN ... c0 ... 99·2"
+     },
+     "check": {
+      "kind": "mean",
+      "runs": [
+       7,
+       8,
+       9,
+       10,
+       11,
+       12
+      ]
+     }
+    },
+    {
+     "what": "mean",
+     "term": "C0 V2",
+     "value": "102.7",
+     "where": {
+      "page": 335,
+      "source_kind": "table",
+      "quote": "CV ... c0 ... 102·7"
+     },
+     "check": {
+      "kind": "mean",
+      "runs": [
+       5,
+       6,
+       11,
+       12,
+       17,
+       18
+      ]
+     }
+    },
+    {
+     "what": "mean",
+     "term": "C0 N2",
+     "value": "74.0",
+     "where": {
+      "page": 335,
+      "source_kind": "table",
+      "quote": "CN ... c0 ... 74·0"
+     },
+     "check": {
+      "kind": "mean",
+      "runs": [
+       13,
+       14,
+       15,
+       16,
+       17,
+       18
+      ]
+     }
+    },
+    {
+     "what": "mean",
+     "term": "C1 V0",
+     "value": "211.0",
+     "where": {
+      "page": 335,
+      "source_kind": "table",
+      "quote": "CV ... c1 ... 211·0"
+     },
+     "check": {
+      "kind": "mean",
+      "runs": [
+       19,
+       20,
+       25,
+       26,
+       31,
+       32
+      ]
+     }
+    },
+    {
+     "what": "mean",
+     "term": "C1 N0",
+     "value": "168.8",
+     "where": {
+      "page": 335,
+      "source_kind": "table",
+      "quote": "CN ... c1 ... 168·8"
+     },
+     "check": {
+      "kind": "mean",
+      "runs": [
+       19,
+       20,
+       21,
+       22,
+       23,
+       24
+      ]
+     }
+    },
+    {
+     "what": "mean",
+     "term": "C1 V1",
+     "value": "188.7",
+     "where": {
+      "page": 335,
+      "source_kind": "table",
+      "quote": "CV ... c1 ... 188·7"
+     },
+     "check": {
+      "kind": "mean",
+      "runs": [
+       21,
+       22,
+       27,
+       28,
+       33,
+       34
+      ]
+     }
+    },
+    {
+     "what": "mean",
+     "term": "C1 N1",
+     "value": "206.3",
+     "where": {
+      "page": 335,
+      "source_kind": "table",
+      "quote": "CN ... c1 ... 206·3"
+     },
+     "check": {
+      "kind": "mean",
+      "runs": [
+       25,
+       26,
+       27,
+       28,
+       29,
+       30
+      ]
+     }
+    },
+    {
+     "what": "mean",
+     "term": "C1 V2",
+     "value": "202.8",
+     "where": {
+      "page": 335,
+      "source_kind": "table",
+      "quote": "CV ... c1 ... 202·8"
+     },
+     "check": {
+      "kind": "mean",
+      "runs": [
+       23,
+       24,
+       29,
+       30,
+       35,
+       36
+      ]
+     }
+    },
+    {
+     "what": "mean",
+     "term": "C1 N2",
+     "value": "227.3",
+     "where": {
+      "page": 335,
+      "source_kind": "table",
+      "quote": "CN ... c1 ... 227·3"
+     },
+     "check": {
+      "kind": "mean",
+      "runs": [
+       31,
+       32,
+       33,
+       34,
+       35,
+       36
+      ]
+     }
+    },
+    {
+     "what": "mean",
+     "term": "C2 V0",
+     "value": "68.5",
+     "where": {
+      "page": 335,
+      "source_kind": "table",
+      "quote": "CV ... c2 ... 68·5"
+     },
+     "check": {
+      "kind": "mean",
+      "runs": [
+       37,
+       38,
+       43,
+       44,
+       49,
+       50
+      ]
+     }
+    },
+    {
+     "what": "mean",
+     "term": "C2 N0",
+     "value": "129.7",
+     "where": {
+      "page": 335,
+      "source_kind": "table",
+      "quote": "CN ... c2 ... 129·7"
+     },
+     "check": {
+      "kind": "mean",
+      "runs": [
+       37,
+       38,
+       39,
+       40,
+       41,
+       42
+      ]
+     }
+    },
+    {
+     "what": "mean",
+     "term": "C2 V1",
+     "value": "115.5",
+     "where": {
+      "page": 335,
+      "source_kind": "table",
+      "quote": "CV ... c2 ... 115·5"
+     },
+     "check": {
+      "kind": "mean",
+      "runs": [
+       39,
+       40,
+       45,
+       46,
+       51,
+       52
+      ]
+     }
+    },
+    {
+     "what": "mean",
+     "term": "C2 N1",
+     "value": "124.2",
+     "where": {
+      "page": 335,
+      "source_kind": "table",
+      "quote": "CN ... c2 ... 124·2"
+     },
+     "check": {
+      "kind": "mean",
+      "runs": [
+       43,
+       44,
+       45,
+       46,
+       47,
+       48
+      ]
+     }
+    },
+    {
+     "what": "mean",
+     "term": "C2 V2",
+     "value": "169.8",
+     "where": {
+      "page": 335,
+      "source_kind": "table",
+      "quote": "CV ... c2 ... 169·8"
+     },
+     "check": {
+      "kind": "mean",
+      "runs": [
+       41,
+       42,
+       47,
+       48,
+       53,
+       54
+      ]
+     }
+    },
+    {
+     "what": "mean",
+     "term": "C2 N2",
+     "value": "100.0",
+     "where": {
+      "page": 335,
+      "source_kind": "table",
+      "quote": "CN ... c2 ... 100·0"
+     },
+     "check": {
+      "kind": "mean",
+      "runs": [
+       49,
+       50,
+       51,
+       52,
+       53,
+       54
+      ]
+     }
+    }
+   ]
   }
  ],
  "designs": [],
@@ -11021,6 +16312,8 @@
   "6.5 to 6.8 (lattice squares, pp. 220-229): symbolic, no data",
   "Appendix 6A (pp. 230-235): a list of balanced incomplete block designs, not yet held as designs",
   "Appendix 6C (pp. 245-247): the tyre data of Example 6-1 worked again by the missing-value method; the exact results are checked under davies-tyre-road-test",
-  "Tables 7-4, 7-6 and 7-8 and Appendices 7A to 7D: notation, sign tables and expectations of mean squares, no data"
+  "Tables 7-4, 7-6 and 7-8 and Appendices 7A to 7D: notation, sign tables and expectations of mean squares, no data",
+  "8.4 to 8.6, Appendices 8A, 8C to 8E: general methods, orthogonal polynomial tables and expectations of mean squares, no new data",
+  "Appendices 8F and 8G (pp. 352-366): the data of Example 8-5 worked again (sums of pairs, I and J components, Yates's method for 3^n); the analysis of the runs is checked under davies-cotton-dyestuff-3-3"
  ]
 }
