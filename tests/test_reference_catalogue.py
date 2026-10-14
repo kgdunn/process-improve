@@ -171,6 +171,24 @@ def test_each_kind_of_check_reports_what_it_finds(monkeypatch, tmp_path):
     assert reasons == ["KeyError", "KeyError", "KeyError", "ValueError", "ValueError"]
 
 
+def test_a_one_sided_p_value_is_half_the_two_sided_on_the_side_of_the_estimate():
+    """A source testing one direction quotes half the two-sided p-value, or one less that half."""
+    from process_improve.experiments.reference_catalogue import _p_value
+
+    row = {"coefficient": 0.65, "p_value": 0.39}
+    assert _p_value(row, None) == 0.39
+    assert _p_value(row, "greater") == pytest.approx(0.195)
+    assert _p_value(row, "less") == pytest.approx(0.805)
+
+
+def test_a_tiny_printed_number_is_held_to_its_own_digits():
+    """The allowance for floating-point error never swamps the half unit of a number like 0.798e-8."""
+    from process_improve.experiments.reference_catalogue import _agrees
+
+    assert _agrees(7.977e-9, "0.798e-8")
+    assert not _agrees(7.9e-9, "0.798e-8")
+
+
 def test_a_trailing_zero_is_a_printed_digit():
     """0.40 is printed to hundredths: 0.37 does not round to it, though it rounds to 0.4."""
     from process_improve.experiments.reference_catalogue import _agrees

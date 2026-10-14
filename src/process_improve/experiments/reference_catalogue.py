@@ -148,9 +148,12 @@ def _tolerance(printed: str) -> float:
     """Half a unit in the last digit printed: the most the source's rounding accounts for.
 
     The digits count as printed: 0.40 is rounded to hundredths, so it allows 0.005, not 0.05.
+    A little more is allowed for floating-point error, never more than a thousandth of the half
+    unit, so a number printed as 0.798e-8 is held to its own digits.
     """
     exponent = Decimal(printed).as_tuple().exponent
-    return 0.5 * 10.0 ** min(0, int(exponent)) + 1e-9
+    half = 0.5 * 10.0 ** min(0, int(exponent))
+    return half + min(1e-9, half * 1e-3)
 
 
 _ARITHMETIC: dict[type, Callable[[float, float], float]] = {
@@ -386,6 +389,20 @@ def _steepest_path(out: dict, check: dict, experiment: dict) -> float:
     return setting - start[check["key"]] if check.get("from_centre") else setting
 
 
+def _p_value(row: dict, alternative: str | None) -> float:
+    """Return a coefficient's p-value: two-sided, or one-sided when a source tests one direction.
+
+    ``alternative`` is ``"greater"`` (the coefficient is above zero) or ``"less"``; the one-sided
+    p-value is half the two-sided one when the estimate lies on that side, and one less that half
+    when it does not.
+    """
+    p = float(row["p_value"])
+    if alternative is None:
+        return p
+    agrees = row["coefficient"] > 0 if alternative == "greater" else row["coefficient"] < 0
+    return p / 2 if agrees else 1 - p / 2
+
+
 def _run(check: dict) -> int:
     return int(check["run"]) - 1
 
@@ -396,7 +413,7 @@ _FIT_KINDS: dict[str, Callable[[dict, dict, dict], float]] = {
     "std_error": lambda out, c, _e: _coefficient_row(out, c["term"])["std_error"],
     "effect_std_error": lambda out, c, _e: 2 * _coefficient_row(out, c["term"])["std_error"],
     "t_value": lambda out, c, _e: _coefficient_row(out, c["term"])["t_value"],
-    "p_value": lambda out, c, _e: _coefficient_row(out, c["term"])["p_value"],
+    "p_value": lambda out, c, _e: _p_value(_coefficient_row(out, c["term"]), c.get("alternative")),
     "ci_low": lambda out, c, _e: _coefficient_row(out, c["term"])["ci_low"] * (2 if c.get("scale") == "effect" else 1),
     "ci_high": lambda out, c, _e: (
         _coefficient_row(out, c["term"])["ci_high"] * (2 if c.get("scale") == "effect" else 1)
@@ -407,6 +424,7 @@ _FIT_KINDS: dict[str, Callable[[dict, dict, dict], float]] = {
     "observation": lambda out, c, _e: float(out["y"].to_numpy()[_run(c)]),
     "mean": lambda out, _c, _e: float(out["y"].mean()),
     "std_dev": lambda out, _c, _e: float(out["y"].std(ddof=1)),
+    "variance": lambda out, _c, _e: float(out["y"].var(ddof=1)),
     "n_runs": lambda out, _c, _e: float(len(out["y"])),
     "r_squared": lambda out, _c, _e: out["model_summary"]["r_squared"],
     "r_squared_adj": lambda out, _c, _e: out["model_summary"]["r_squared_adj"],
@@ -615,7 +633,20 @@ def _active(out: dict, check: dict) -> tuple[str, bool]:
     return ", ".join(sorted(found)), same
 
 
+def _difference_of_means(experiment: dict, check: dict) -> float:
+    """Return the average of the runs ``check["runs"]`` less the average of the runs ``check["minus"]``.
+
+    For a difference a source works between two groups of runs that no factor of the entry marks,
+    such as averages of adjacent stretches of a production record.
+    """
+    _, after = _coded_runs(experiment, check["runs"])
+    _, before = _coded_runs(experiment, check["minus"])
+    column = check.get("response") or after.columns[0]
+    return float(after[column].mean() - before[column].mean())
+
+
 _VALUE_KINDS: dict[str, Callable[[dict, dict], float]] = {
+    "difference_of_means": _difference_of_means,
     "design_property": lambda _e, c: _design_property(c),
     "design_metric": _design_metric,
     "library_value": lambda _e, c: _library_value(c),
