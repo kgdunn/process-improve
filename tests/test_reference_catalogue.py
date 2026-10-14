@@ -196,3 +196,12 @@ def test_a_trailing_zero_is_a_printed_digit():
     assert not _agrees(0.37, "0.40")
     assert _agrees(0.37, "0.4")
     assert _agrees(0.404, "0.40")
+
+
+def test_a_blocking_arrangement_is_compared_by_how_many_interactions_of_each_order_it_confounds():
+    """The factors of a full factorial are interchangeable: 124, 134, 23 is as good as the library's ABC, ABD, CD."""
+    from process_improve.experiments.reference_catalogue import _block_confounding
+
+    check = {"design": {"design_type": "full_factorial", "k": 4, "options": {"n_blocks": 4}}}
+    assert _block_confounding(check, "124, 134, 23")[1]
+    assert not _block_confounding(check, "12, 34, 1234")[1]  # two two-factor interactions where one will do

@@ -546,6 +546,18 @@ def _design_check(check: dict, printed: str, k: int) -> tuple[str, bool]:
 _DESIGN_KINDS = {"generator", "resolution", "defining_relation", "aliases"}
 
 
+def _block_confounding(check: dict, printed: str) -> tuple[str, bool]:
+    """Check the interactions a source confounds with blocks against those the library's blocking confounds.
+
+    ``check["design"]`` names the blocked design for ``generate_design`` (``n_blocks`` among its
+    ``options``). The factors of a full factorial are interchangeable, so the two arrangements agree
+    when they confound as many interactions of each order: two-factor, three-factor, and so on.
+    """
+    made = _made(json.dumps(check["design"], sort_keys=True))
+    found = made.metadata["blocking"]["confounded_with"]
+    return ", ".join(found), sorted(map(len, _words(printed))) == sorted(map(len, found))
+
+
 def _design_property(check: dict) -> float:
     """Return a property of a design the library makes: its run count, axial distance or resolution.
 
@@ -671,6 +683,8 @@ def _reproduce(experiment: dict, expected: dict, check: dict, fits: _Fits) -> tu
     printed = check.get("printed", expected["value"])
     if kind in _DESIGN_KINDS:
         return _design_check(check, str(printed), len(experiment.get("factors") or []))
+    if kind == "block_confounding":
+        return _block_confounding(check, str(printed))
     if kind in _VALUE_KINDS:
         found = _VALUE_KINDS[kind](experiment, check)
         wanted = str(_ROMAN.get(str(printed).strip(), printed))  # a resolution may be printed as a Roman numeral
@@ -713,7 +727,8 @@ def reproduce_reference_catalogue(source: str | None = None) -> pd.DataFrame:
     making a fraction, or their standard order) with the runs' coded settings. A fitted
     quadratic's stationary point and canonical form, and a setting on a path of steepest ascent,
     are recomputed with :func:`~process_improve.experiments.optimize_responses`, and a Box-Cox
-    power with the library's Box-Cox analysis. A number without
+    power with the library's Box-Cox analysis. The interactions a source confounds with blocks
+    are compared with those of the library's blocking of the same factorial. A number without
     a check is reported with the reason it is not recomputed.
 
     Parameters
