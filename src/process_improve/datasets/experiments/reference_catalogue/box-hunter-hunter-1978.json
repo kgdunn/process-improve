@@ -19,13 +19,13 @@
   ],
   "title": "Statistics for Experimenters: An Introduction to Design, Data Analysis, and Model Building",
   "edition": "1st edition (1978)",
-  "pages": "chapters 1 to 9 and the problems for Parts I and II, pp. 1-305",
+  "pages": "chapters 1 to 11 and the problems for Parts I and II, pp. 1-373",
   "year": 1978,
   "publisher": "John Wiley & Sons, New York",
   "isbn": "0-471-09315-7",
   "url": "https://search.worldcat.org/search?q=bn:0471093157",
   "cite": "Box, G. E. P., Hunter, W. G. and Hunter, J. S. (1978), Statistics for Experimenters, Wiley",
-  "read": "2026-10-14, from scans of the front matter, chapters 1 to 9 and the problems for Parts I and II; tables taken from the text layer and checked against the totals and averages the book prints; Table 2.3's circled entries, one average of Table 2.2, Exercise 2.6, the run orders of Tables 6.1 and 7.1, Exercise 7.1 (a), Table 7.15, the second square of Table 8.8 and the days of Problem 11 of Part II read from the page image",
+  "read": "2026-10-14, from scans of the front matter, chapters 1 to 11 and the problems for Parts I and II; tables taken from the text layer and checked against the totals and averages the book prints; Table 2.3's circled entries, one average of Table 2.2, Exercise 2.6, the run orders of Tables 6.1 and 7.1, Exercise 7.1 (a), Table 7.15, the second square of Table 8.8 the days of Problem 11 of Part II, the run orders of Table 10.3, the first popcorn yield of Exercise 10.3, the cubes of Figures 10.10 and 11.4, Tables 11.2, 11.3 and 11A.1 read from the page image",
   "rights": "The book is protected by copyright (© 1978 John Wiley & Sons, Inc.) and is not reproduced here. This file holds facts it reports (numbers, layouts, data) and short quotations that locate each one, for citation and for checking software. The MIT licence of process-improve does not extend to them."
  },
  "experiments": [
@@ -28127,9 +28127,8182 @@
    },
    "unanswered": "the book asks the problem and prints no solution, so there is no result to reproduce; the runs are kept as data",
    "expected": []
+  },
+  {
+   "name": "bhh-pilot-plant-2-3",
+   "title": "Pilot plant: yield at two temperatures, two concentrations and two catalysts, each yield the average of two runs",
+   "kind": "example",
+   "where": {
+    "section": "10.2 to 10.7 and Appendix 10A",
+    "pages": "307-324, 342-344",
+    "tables": [
+     "Table 10.1",
+     "Table 10.2",
+     "Table 10.4",
+     "Table 10.5",
+     "Table 10A.1",
+     "Table 10A.2"
+    ],
+    "figures": [
+     "Figure 10.1",
+     "Figure 10.2",
+     "Figure 10.4"
+    ]
+   },
+   "factors": [
+    {
+     "name": "T",
+     "description": "temperature",
+     "low": 160,
+     "high": 180,
+     "units": "°C",
+     "type": "numeric"
+    },
+    {
+     "name": "C",
+     "description": "concentration",
+     "low": 20,
+     "high": 40,
+     "units": "%",
+     "type": "numeric"
+    },
+    {
+     "name": "K",
+     "description": "catalyst",
+     "low": "A",
+     "high": "B",
+     "units": "",
+     "type": "categorical"
+    }
+   ],
+   "responses": [
+    {
+     "name": "y",
+     "description": "yield, the average of two runs",
+     "units": "g"
+    }
+   ],
+   "design": {
+    "type": "2^3 factorial",
+    "details": "every combination of 3 factors at 2 levels, in standard order",
+    "n_runs": 8,
+    "treatment_factors": 3
+   },
+   "runs": {
+    "columns": [
+     "No.",
+     "T",
+     "C",
+     "K",
+     "y"
+    ],
+    "rows": [
+     [
+      1,
+      -1,
+      -1,
+      -1,
+      60
+     ],
+     [
+      2,
+      1,
+      -1,
+      -1,
+      72
+     ],
+     [
+      3,
+      -1,
+      1,
+      -1,
+      54
+     ],
+     [
+      4,
+      1,
+      1,
+      -1,
+      68
+     ],
+     [
+      5,
+      -1,
+      -1,
+      1,
+      52
+     ],
+     [
+      6,
+      1,
+      -1,
+      1,
+      83
+     ],
+     [
+      7,
+      -1,
+      1,
+      1,
+      45
+     ],
+     [
+      8,
+      1,
+      1,
+      1,
+      80
+     ]
+    ],
+    "coded": true,
+    "notes": "Table 10.1 (b), coded; -1 is 160 °C, 20% and catalyst A. Each yield is the average of the two runs of Table 10.3, held as bhh-pilot-plant-2-3-replicated."
+   },
+   "notes": "Simplified by the authors from a pilot plant investigation.",
+   "expected": [
+    {
+     "what": "difference",
+     "term": "T, runs 2 - 1",
+     "value": "12",
+     "analysis": "an individual measure of the effect: two runs alike in the other two factors",
+     "where": {
+      "page": 309,
+      "source_kind": "prose",
+      "quote": "y2 - y1 = 72 - 60 = 12"
+     },
+     "check": {
+      "kind": "difference_of_means",
+      "runs": [
+       2
+      ],
+      "minus": [
+       1
+      ]
+     }
+    },
+    {
+     "what": "difference",
+     "term": "T, runs 4 - 3",
+     "value": "14",
+     "analysis": "an individual measure of the effect: two runs alike in the other two factors",
+     "where": {
+      "page": 309,
+      "source_kind": "prose",
+      "quote": "y4 - y3 = 68 - 54 = 14"
+     },
+     "check": {
+      "kind": "difference_of_means",
+      "runs": [
+       4
+      ],
+      "minus": [
+       3
+      ]
+     }
+    },
+    {
+     "what": "difference",
+     "term": "T, runs 6 - 5",
+     "value": "31",
+     "analysis": "an individual measure of the effect: two runs alike in the other two factors",
+     "where": {
+      "page": 309,
+      "source_kind": "prose",
+      "quote": "y6 - y5 = 83 - 52 = 31"
+     },
+     "check": {
+      "kind": "difference_of_means",
+      "runs": [
+       6
+      ],
+      "minus": [
+       5
+      ]
+     }
+    },
+    {
+     "what": "difference",
+     "term": "T, runs 8 - 7",
+     "value": "35",
+     "analysis": "an individual measure of the effect: two runs alike in the other two factors",
+     "where": {
+      "page": 309,
+      "source_kind": "prose",
+      "quote": "y8 - y7 = 80 - 45 = 35"
+     },
+     "check": {
+      "kind": "difference_of_means",
+      "runs": [
+       8
+      ],
+      "minus": [
+       7
+      ]
+     }
+    },
+    {
+     "what": "difference",
+     "term": "C, runs 3 - 1",
+     "value": "-6",
+     "analysis": "an individual measure of the effect: two runs alike in the other two factors",
+     "where": {
+      "page": 310,
+      "source_kind": "prose",
+      "quote": "y3 - y1 = 54 - 60 = -6"
+     },
+     "check": {
+      "kind": "difference_of_means",
+      "runs": [
+       3
+      ],
+      "minus": [
+       1
+      ]
+     }
+    },
+    {
+     "what": "difference",
+     "term": "C, runs 4 - 2",
+     "value": "-4",
+     "analysis": "an individual measure of the effect: two runs alike in the other two factors",
+     "where": {
+      "page": 310,
+      "source_kind": "prose",
+      "quote": "y4 - y2 = 68 - 72 = -4"
+     },
+     "check": {
+      "kind": "difference_of_means",
+      "runs": [
+       4
+      ],
+      "minus": [
+       2
+      ]
+     }
+    },
+    {
+     "what": "difference",
+     "term": "C, runs 7 - 5",
+     "value": "-7",
+     "analysis": "an individual measure of the effect: two runs alike in the other two factors",
+     "where": {
+      "page": 310,
+      "source_kind": "prose",
+      "quote": "y7 - y5 = 45 - 52 = -7"
+     },
+     "check": {
+      "kind": "difference_of_means",
+      "runs": [
+       7
+      ],
+      "minus": [
+       5
+      ]
+     }
+    },
+    {
+     "what": "difference",
+     "term": "C, runs 8 - 6",
+     "value": "-3",
+     "analysis": "an individual measure of the effect: two runs alike in the other two factors",
+     "where": {
+      "page": 310,
+      "source_kind": "prose",
+      "quote": "y8 - y6 = 80 - 83 = -3"
+     },
+     "check": {
+      "kind": "difference_of_means",
+      "runs": [
+       8
+      ],
+      "minus": [
+       6
+      ]
+     }
+    },
+    {
+     "what": "difference",
+     "term": "K, runs 5 - 1",
+     "value": "-8",
+     "analysis": "an individual measure of the effect: two runs alike in the other two factors",
+     "where": {
+      "page": 311,
+      "source_kind": "prose",
+      "quote": "y5 - y1 = 52 - 60 = -8"
+     },
+     "check": {
+      "kind": "difference_of_means",
+      "runs": [
+       5
+      ],
+      "minus": [
+       1
+      ]
+     }
+    },
+    {
+     "what": "difference",
+     "term": "K, runs 6 - 2",
+     "value": "11",
+     "analysis": "an individual measure of the effect: two runs alike in the other two factors",
+     "where": {
+      "page": 311,
+      "source_kind": "prose",
+      "quote": "y6 - y2 = 83 - 72 = 11"
+     },
+     "check": {
+      "kind": "difference_of_means",
+      "runs": [
+       6
+      ],
+      "minus": [
+       2
+      ]
+     }
+    },
+    {
+     "what": "difference",
+     "term": "K, runs 7 - 3",
+     "value": "-9",
+     "analysis": "an individual measure of the effect: two runs alike in the other two factors",
+     "where": {
+      "page": 311,
+      "source_kind": "prose",
+      "quote": "y7 - y3 = 45 - 54 = -9"
+     },
+     "check": {
+      "kind": "difference_of_means",
+      "runs": [
+       7
+      ],
+      "minus": [
+       3
+      ]
+     }
+    },
+    {
+     "what": "difference",
+     "term": "K, runs 8 - 4",
+     "value": "12",
+     "analysis": "an individual measure of the effect: two runs alike in the other two factors",
+     "where": {
+      "page": 311,
+      "source_kind": "prose",
+      "quote": "y8 - y4 = 80 - 68 = 12"
+     },
+     "check": {
+      "kind": "difference_of_means",
+      "runs": [
+       8
+      ],
+      "minus": [
+       4
+      ]
+     }
+    },
+    {
+     "what": "effect",
+     "term": "T",
+     "value": "23",
+     "where": {
+      "page": 309,
+      "source_kind": "prose",
+      "quote": "main effect of temperature T = 23"
+     },
+     "check": {
+      "kind": "effect",
+      "term": "T",
+      "model": "T * C * K"
+     }
+    },
+    {
+     "what": "effect",
+     "term": "C",
+     "value": "-5",
+     "where": {
+      "page": 310,
+      "source_kind": "prose",
+      "quote": "main effect of concentration C = -5"
+     },
+     "check": {
+      "kind": "effect",
+      "term": "C",
+      "model": "T * C * K"
+     }
+    },
+    {
+     "what": "effect",
+     "term": "K",
+     "value": "1.5",
+     "where": {
+      "page": 311,
+      "source_kind": "prose",
+      "quote": "main effect of catalyst K = 1.5"
+     },
+     "check": {
+      "kind": "effect",
+      "term": "K",
+      "model": "T * C * K"
+     }
+    },
+    {
+     "what": "mean",
+     "term": "runs 2, 4, 6, 8",
+     "value": "75.75",
+     "where": {
+      "page": 311,
+      "source_kind": "prose",
+      "quote": "T = (72 + 68 + 83 + 80)/4 - (60 + 54 + 52 + 45)/4 = 75.75 - 52.75 = 23"
+     },
+     "check": {
+      "kind": "mean",
+      "runs": [
+       2,
+       4,
+       6,
+       8
+      ]
+     }
+    },
+    {
+     "what": "mean",
+     "term": "runs 1, 3, 5, 7",
+     "value": "52.75",
+     "where": {
+      "page": 311,
+      "source_kind": "prose",
+      "quote": "75.75 - 52.75 = 23"
+     },
+     "check": {
+      "kind": "mean",
+      "runs": [
+       1,
+       3,
+       5,
+       7
+      ]
+     }
+    },
+    {
+     "what": "mean",
+     "term": "runs 3, 4, 7, 8",
+     "value": "61.75",
+     "where": {
+      "page": 311,
+      "source_kind": "prose",
+      "quote": "C = (54 + 68 + 45 + 80)/4 - (60 + 72 + 52 + 83)/4 = 61.75 - 66.75 = -5"
+     },
+     "check": {
+      "kind": "mean",
+      "runs": [
+       3,
+       4,
+       7,
+       8
+      ]
+     }
+    },
+    {
+     "what": "mean",
+     "term": "runs 1, 2, 5, 6",
+     "value": "66.75",
+     "where": {
+      "page": 311,
+      "source_kind": "prose",
+      "quote": "61.75 - 66.75 = -5"
+     },
+     "check": {
+      "kind": "mean",
+      "runs": [
+       1,
+       2,
+       5,
+       6
+      ]
+     }
+    },
+    {
+     "what": "mean",
+     "term": "runs 5, 6, 7, 8",
+     "value": "65.0",
+     "where": {
+      "page": 311,
+      "source_kind": "prose",
+      "quote": "K = (52 + 83 + 45 + 80)/4 - (60 + 72 + 54 + 68)/4 = 65.0 - 63.5 = 1.5"
+     },
+     "check": {
+      "kind": "mean",
+      "runs": [
+       5,
+       6,
+       7,
+       8
+      ]
+     }
+    },
+    {
+     "what": "mean",
+     "term": "runs 1, 2, 3, 4",
+     "value": "63.5",
+     "where": {
+      "page": 311,
+      "source_kind": "prose",
+      "quote": "65.0 - 63.5 = 1.5"
+     },
+     "check": {
+      "kind": "mean",
+      "runs": [
+       1,
+       2,
+       3,
+       4
+      ]
+     }
+    },
+    {
+     "what": "effect",
+     "term": "T at K +",
+     "value": "33",
+     "analysis": "the effect in the four runs with K at its high level",
+     "where": {
+      "page": 313,
+      "source_kind": "prose",
+      "quote": "catalyst (+)B average temperature effect 33"
+     },
+     "check": {
+      "kind": "effect",
+      "term": "T",
+      "model": "T * C",
+      "runs": [
+       5,
+       6,
+       7,
+       8
+      ]
+     }
+    },
+    {
+     "what": "effect",
+     "term": "T at K -",
+     "value": "13",
+     "analysis": "the effect in the four runs with K at its low level",
+     "where": {
+      "page": 313,
+      "source_kind": "prose",
+      "quote": "catalyst (-)A average temperature effect 13; difference 20; T x K interaction = 20/2 = 10"
+     },
+     "check": {
+      "kind": "effect",
+      "term": "T",
+      "model": "T * C",
+      "runs": [
+       1,
+       2,
+       3,
+       4
+      ]
+     }
+    },
+    {
+     "what": "effect",
+     "term": "K at T +",
+     "value": "11.5",
+     "analysis": "the effect in the four runs with T at its high level",
+     "where": {
+      "page": 314,
+      "source_kind": "prose",
+      "quote": "temperature (+)180 average catalyst effect 11.5"
+     },
+     "check": {
+      "kind": "effect",
+      "term": "K",
+      "model": "C * K",
+      "runs": [
+       2,
+       4,
+       6,
+       8
+      ]
+     }
+    },
+    {
+     "what": "effect",
+     "term": "K at T -",
+     "value": "-8.5",
+     "analysis": "the effect in the four runs with T at its low level",
+     "where": {
+      "page": 314,
+      "source_kind": "prose",
+      "quote": "temperature (-)160 average catalyst effect -8.5; difference 20.0"
+     },
+     "check": {
+      "kind": "effect",
+      "term": "K",
+      "model": "C * K",
+      "runs": [
+       1,
+       3,
+       5,
+       7
+      ]
+     }
+    },
+    {
+     "what": "effect",
+     "term": "T at C +",
+     "value": "24.5",
+     "analysis": "the effect in the four runs with C at its high level",
+     "where": {
+      "page": 315,
+      "source_kind": "prose",
+      "quote": "concentration (+)40% average temperature effect 24.5"
+     },
+     "check": {
+      "kind": "effect",
+      "term": "T",
+      "model": "T * K",
+      "runs": [
+       3,
+       4,
+       7,
+       8
+      ]
+     }
+    },
+    {
+     "what": "effect",
+     "term": "T at C -",
+     "value": "21.5",
+     "analysis": "the effect in the four runs with C at its low level",
+     "where": {
+      "page": 315,
+      "source_kind": "prose",
+      "quote": "concentration (-)20% average temperature effect 21.5; difference 3.0"
+     },
+     "check": {
+      "kind": "effect",
+      "term": "T",
+      "model": "T * K",
+      "runs": [
+       1,
+       2,
+       5,
+       6
+      ]
+     }
+    },
+    {
+     "what": "effect",
+     "term": "C at K +",
+     "value": "-5.0",
+     "analysis": "the effect in the four runs with K at its high level",
+     "where": {
+      "page": 315,
+      "source_kind": "prose",
+      "quote": "catalyst (+)B average concentration effect -5.0"
+     },
+     "check": {
+      "kind": "effect",
+      "term": "C",
+      "model": "T * C",
+      "runs": [
+       5,
+       6,
+       7,
+       8
+      ]
+     }
+    },
+    {
+     "what": "effect",
+     "term": "C at K -",
+     "value": "-5.0",
+     "analysis": "the effect in the four runs with K at its low level",
+     "where": {
+      "page": 315,
+      "source_kind": "prose",
+      "quote": "catalyst (-)A average concentration effect -5.0; difference 0.0"
+     },
+     "check": {
+      "kind": "effect",
+      "term": "C",
+      "model": "T * C",
+      "runs": [
+       1,
+       2,
+       3,
+       4
+      ]
+     }
+    },
+    {
+     "what": "effect",
+     "term": "T·C at K +",
+     "value": "2",
+     "analysis": "the effect in the four runs with K at its high level",
+     "where": {
+      "page": 315,
+      "source_kind": "prose",
+      "quote": "T x C interaction with catalyst B (+): ((80 - 45) - (83 - 52))/2 = (35 - 31)/2 = 2"
+     },
+     "check": {
+      "kind": "effect",
+      "term": "T·C",
+      "model": "T * C",
+      "runs": [
+       5,
+       6,
+       7,
+       8
+      ]
+     }
+    },
+    {
+     "what": "effect",
+     "term": "T·C at K -",
+     "value": "1",
+     "analysis": "the effect in the four runs with K at its low level",
+     "where": {
+      "page": 315,
+      "source_kind": "prose",
+      "quote": "T x C interaction with catalyst A (-): ((68 - 54) - (72 - 60))/2 = (14 - 12)/2 = 1"
+     },
+     "check": {
+      "kind": "effect",
+      "term": "T·C",
+      "model": "T * C",
+      "runs": [
+       1,
+       2,
+       3,
+       4
+      ]
+     }
+    },
+    {
+     "what": "effect",
+     "term": "T·K",
+     "value": "10",
+     "where": {
+      "page": 314,
+      "source_kind": "prose",
+      "quote": "T x K interaction = 20/2 = 10"
+     },
+     "check": {
+      "kind": "effect",
+      "term": "T·K",
+      "model": "T * C * K"
+     }
+    },
+    {
+     "what": "effect",
+     "term": "T·C",
+     "value": "1.5",
+     "where": {
+      "page": 315,
+      "source_kind": "prose",
+      "quote": "T x C interaction = 3.0/2 = 1.5"
+     },
+     "check": {
+      "kind": "effect",
+      "term": "T·C",
+      "model": "T * C * K"
+     }
+    },
+    {
+     "what": "effect",
+     "term": "C·K",
+     "value": "0",
+     "where": {
+      "page": 315,
+      "source_kind": "prose",
+      "quote": "C x K interaction = 0.0/2 = 0"
+     },
+     "check": {
+      "kind": "effect",
+      "term": "C·K",
+      "model": "T * C * K"
+     }
+    },
+    {
+     "what": "effect",
+     "term": "T·C·K",
+     "value": "0.5",
+     "where": {
+      "page": 315,
+      "source_kind": "prose",
+      "quote": "T x C x K interaction = (2 - 1)/2 = 0.5"
+     },
+     "check": {
+      "kind": "effect",
+      "term": "T·C·K",
+      "model": "T * C * K"
+     }
+    },
+    {
+     "what": "mean",
+     "term": null,
+     "value": "64.25",
+     "where": {
+      "page": 317,
+      "source_kind": "table",
+      "quote": "average 64.25 ± 0.7 (Table 10.2)"
+     },
+     "check": {
+      "kind": "mean"
+     }
+    },
+    {
+     "what": "effect",
+     "term": "T",
+     "value": "23.0",
+     "where": {
+      "page": 317,
+      "source_kind": "table",
+      "quote": "Table 10.2 ... T 23.0 ± 1.4"
+     },
+     "check": {
+      "kind": "effect",
+      "term": "T",
+      "model": "T * C * K"
+     }
+    },
+    {
+     "what": "effect",
+     "term": "C",
+     "value": "-5.0",
+     "where": {
+      "page": 317,
+      "source_kind": "table",
+      "quote": "Table 10.2 ... C -5.0 ± 1.4"
+     },
+     "check": {
+      "kind": "effect",
+      "term": "C",
+      "model": "T * C * K"
+     }
+    },
+    {
+     "what": "effect",
+     "term": "K",
+     "value": "1.5",
+     "where": {
+      "page": 317,
+      "source_kind": "table",
+      "quote": "Table 10.2 ... K 1.5 ± 1.4"
+     },
+     "check": {
+      "kind": "effect",
+      "term": "K",
+      "model": "T * C * K"
+     }
+    },
+    {
+     "what": "effect",
+     "term": "T·C",
+     "value": "1.5",
+     "where": {
+      "page": 317,
+      "source_kind": "table",
+      "quote": "Table 10.2 ... T x C 1.5 ± 1.4"
+     },
+     "check": {
+      "kind": "effect",
+      "term": "T·C",
+      "model": "T * C * K"
+     }
+    },
+    {
+     "what": "effect",
+     "term": "T·K",
+     "value": "10.0",
+     "where": {
+      "page": 317,
+      "source_kind": "table",
+      "quote": "Table 10.2 ... T x K 10.0 ± 1.4"
+     },
+     "check": {
+      "kind": "effect",
+      "term": "T·K",
+      "model": "T * C * K"
+     }
+    },
+    {
+     "what": "effect",
+     "term": "C·K",
+     "value": "0.0",
+     "where": {
+      "page": 317,
+      "source_kind": "table",
+      "quote": "Table 10.2 ... C x K 0.0 ± 1.4"
+     },
+     "check": {
+      "kind": "effect",
+      "term": "C·K",
+      "model": "T * C * K"
+     }
+    },
+    {
+     "what": "effect",
+     "term": "T·C·K",
+     "value": "0.5",
+     "where": {
+      "page": 317,
+      "source_kind": "table",
+      "quote": "Table 10.2 ... T x C x K 0.5 ± 1.4"
+     },
+     "check": {
+      "kind": "effect",
+      "term": "T·C·K",
+      "model": "T * C * K"
+     }
+    },
+    {
+     "what": "mean",
+     "term": "T -1, K -1",
+     "value": "57.0",
+     "analysis": "the average of the two runs at this temperature and catalyst",
+     "where": {
+      "page": 318,
+      "source_kind": "figure",
+      "quote": "two-way table of temperature and catalyst ... 57.0 (Figure 10.4)"
+     },
+     "check": {
+      "kind": "mean",
+      "runs": [
+       1,
+       3
+      ]
+     }
+    },
+    {
+     "what": "mean",
+     "term": "T +1, K -1",
+     "value": "70.0",
+     "analysis": "the average of the two runs at this temperature and catalyst",
+     "where": {
+      "page": 318,
+      "source_kind": "figure",
+      "quote": "two-way table of temperature and catalyst ... 70.0 (Figure 10.4)"
+     },
+     "check": {
+      "kind": "mean",
+      "runs": [
+       2,
+       4
+      ]
+     }
+    },
+    {
+     "what": "mean",
+     "term": "T -1, K +1",
+     "value": "48.5",
+     "analysis": "the average of the two runs at this temperature and catalyst",
+     "where": {
+      "page": 318,
+      "source_kind": "figure",
+      "quote": "two-way table of temperature and catalyst ... 48.5 (Figure 10.4)"
+     },
+     "check": {
+      "kind": "mean",
+      "runs": [
+       5,
+       7
+      ]
+     }
+    },
+    {
+     "what": "mean",
+     "term": "T +1, K +1",
+     "value": "81.5",
+     "analysis": "the average of the two runs at this temperature and catalyst",
+     "where": {
+      "page": 318,
+      "source_kind": "figure",
+      "quote": "two-way table of temperature and catalyst ... 81.5 (Figure 10.4)"
+     },
+     "check": {
+      "kind": "mean",
+      "runs": [
+       6,
+       8
+      ]
+     }
+    },
+    {
+     "what": "contrast",
+     "term": "mean",
+     "value": "514",
+     "where": {
+      "page": 322,
+      "source_kind": "table",
+      "quote": "(+60 + 72 + 54 + 68 + 52 + 83 + 45 + 80)/8 = 514/8 = 64.25"
+     },
+     "check": {
+      "manual": "the sum on the way to the average, which is checked"
+     }
+    },
+    {
+     "what": "contrast",
+     "term": "T",
+     "value": "92",
+     "where": {
+      "page": 323,
+      "source_kind": "table",
+      "quote": "(-60 + 72 - 54 + 68 - 52 + 83 - 45 + 80)/4 = 92/4 = 23.0"
+     },
+     "check": {
+      "manual": "a contrast total on the way to the effect, which is checked"
+     }
+    },
+    {
+     "what": "contrast",
+     "term": "T·K",
+     "value": "40",
+     "where": {
+      "page": 323,
+      "source_kind": "table",
+      "quote": "(+60 - 72 + 54 - 68 - 52 + 83 - 45 + 80)/4 = 40/4 = 10.0"
+     },
+     "check": {
+      "manual": "a contrast total on the way to the effect, which is checked"
+     }
+    },
+    {
+     "what": "yates",
+     "term": "column (1)",
+     "value": "132 122 135 125 12 14 31 35",
+     "where": {
+      "page": 324,
+      "source_kind": "table",
+      "quote": "Table 10.5 ... (1) 132 122 135 125 12 14 31 35"
+     },
+     "check": {
+      "manual": "a step of Yates's algorithm on the way to the effects, which are checked"
+     }
+    },
+    {
+     "what": "yates",
+     "term": "column (2)",
+     "value": "254 260 26 66 -10 -10 2 4",
+     "where": {
+      "page": 324,
+      "source_kind": "table",
+      "quote": "Table 10.5 ... (2) 254 260 26 66 -10 -10 2 4"
+     },
+     "check": {
+      "manual": "a step of Yates's algorithm on the way to the effects, which are checked"
+     }
+    },
+    {
+     "what": "yates",
+     "term": "column (3)",
+     "value": "514 92 -20 6 6 40 0 2",
+     "where": {
+      "page": 324,
+      "source_kind": "table",
+      "quote": "Table 10.5 ... (3) 514 92 -20 6 6 40 0 2"
+     },
+     "check": {
+      "manual": "a step of Yates's algorithm on the way to the effects, which are checked"
+     }
+    },
+    {
+     "what": "mean",
+     "term": null,
+     "value": "64.25",
+     "where": {
+      "page": 324,
+      "source_kind": "table",
+      "quote": "Table 10.5 ... estimate 64.25 average"
+     },
+     "check": {
+      "kind": "mean"
+     }
+    },
+    {
+     "what": "effect",
+     "term": "T",
+     "value": "23.0",
+     "where": {
+      "page": 324,
+      "source_kind": "table",
+      "quote": "Table 10.5 ... estimate 23.0 T"
+     },
+     "check": {
+      "kind": "effect",
+      "term": "T",
+      "model": "T * C * K"
+     }
+    },
+    {
+     "what": "effect",
+     "term": "C",
+     "value": "-5.0",
+     "where": {
+      "page": 324,
+      "source_kind": "table",
+      "quote": "Table 10.5 ... estimate -5.0 C"
+     },
+     "check": {
+      "kind": "effect",
+      "term": "C",
+      "model": "T * C * K"
+     }
+    },
+    {
+     "what": "effect",
+     "term": "T·C",
+     "value": "1.5",
+     "where": {
+      "page": 324,
+      "source_kind": "table",
+      "quote": "Table 10.5 ... estimate 1.5 TC"
+     },
+     "check": {
+      "kind": "effect",
+      "term": "T·C",
+      "model": "T * C * K"
+     }
+    },
+    {
+     "what": "effect",
+     "term": "K",
+     "value": "1.5",
+     "where": {
+      "page": 324,
+      "source_kind": "table",
+      "quote": "Table 10.5 ... estimate 1.5 K"
+     },
+     "check": {
+      "kind": "effect",
+      "term": "K",
+      "model": "T * C * K"
+     }
+    },
+    {
+     "what": "effect",
+     "term": "T·K",
+     "value": "10.0",
+     "where": {
+      "page": 324,
+      "source_kind": "table",
+      "quote": "Table 10.5 ... estimate 10.0 TK"
+     },
+     "check": {
+      "kind": "effect",
+      "term": "T·K",
+      "model": "T * C * K"
+     }
+    },
+    {
+     "what": "effect",
+     "term": "C·K",
+     "value": "0.0",
+     "where": {
+      "page": 324,
+      "source_kind": "table",
+      "quote": "Table 10.5 ... estimate 0.0 CK"
+     },
+     "check": {
+      "kind": "effect",
+      "term": "C·K",
+      "model": "T * C * K"
+     }
+    },
+    {
+     "what": "effect",
+     "term": "T·C·K",
+     "value": "0.5",
+     "where": {
+      "page": 324,
+      "source_kind": "table",
+      "quote": "Table 10.5 ... estimate 0.5 TCK"
+     },
+     "check": {
+      "kind": "effect",
+      "term": "T·C·K",
+      "model": "T * C * K"
+     }
+    },
+    {
+     "what": "effect",
+     "term": "Table 10A.1",
+     "value": "64.25 23.0 -5.0 1.5 1.5 10.0 0.0 0.5",
+     "where": {
+      "page": 342,
+      "source_kind": "table",
+      "quote": "Table 10A.1 ... estimates 64.25 23.0 -5.0 1.5 1.5 10.0 0.0 0.5"
+     },
+     "check": {
+      "manual": "the estimates of Table 10.5 again, which are checked there"
+     }
+    },
+    {
+     "what": "yates",
+     "term": "sums of squares",
+     "value": "34,342 68,684 137,368 274,736",
+     "where": {
+      "page": 342,
+      "source_kind": "table",
+      "quote": "sum of squares check 34,342 68,684 137,368 274,736"
+     },
+     "check": {
+      "manual": "the checks on Yates's columns, the crude sum of squares of the averages times 1, 2, 4 and 8"
+     }
+    },
+    {
+     "what": "yates",
+     "term": "column (2) total",
+     "value": "592, 296",
+     "where": {
+      "page": 344,
+      "source_kind": "table",
+      "quote": "the sum of the entries in column (2) is 592 ... 122 + 125 + 14 + 35 = 296"
+     },
+     "check": {
+      "manual": "a step of Yates's algorithm on the way to the effects, which are checked"
+     }
+    },
+    {
+     "what": "fitted",
+     "term": "T C K +++",
+     "value": "78.25",
+     "analysis": "reverse Yates: K, TC, CK and TCK set to zero",
+     "where": {
+      "page": 343,
+      "source_kind": "table",
+      "quote": "Table 10A.2 ... ŷ 78.25 y ... y - ŷ 1.75 (+++)"
+     },
+     "check": {
+      "kind": "fitted",
+      "run": 8,
+      "model": "T + C + T:K"
+     }
+    },
+    {
+     "what": "residual",
+     "term": "T C K +++",
+     "value": "1.75",
+     "where": {
+      "page": 343,
+      "source_kind": "table",
+      "quote": "Table 10A.2 ... y - ŷ 1.75 (+++)"
+     },
+     "check": {
+      "kind": "residual",
+      "run": 8,
+      "model": "T + C + T:K"
+     }
+    },
+    {
+     "what": "fitted",
+     "term": "T C K -++",
+     "value": "45.25",
+     "analysis": "reverse Yates: K, TC, CK and TCK set to zero",
+     "where": {
+      "page": 343,
+      "source_kind": "table",
+      "quote": "Table 10A.2 ... ŷ 45.25 y ... y - ŷ -0.25 (-++)"
+     },
+     "check": {
+      "kind": "fitted",
+      "run": 7,
+      "model": "T + C + T:K"
+     }
+    },
+    {
+     "what": "residual",
+     "term": "T C K -++",
+     "value": "-0.25",
+     "where": {
+      "page": 343,
+      "source_kind": "table",
+      "quote": "Table 10A.2 ... y - ŷ -0.25 (-++)"
+     },
+     "check": {
+      "kind": "residual",
+      "run": 7,
+      "model": "T + C + T:K"
+     }
+    },
+    {
+     "what": "fitted",
+     "term": "T C K +-+",
+     "value": "83.25",
+     "analysis": "reverse Yates: K, TC, CK and TCK set to zero",
+     "where": {
+      "page": 343,
+      "source_kind": "table",
+      "quote": "Table 10A.2 ... ŷ 83.25 y ... y - ŷ -0.25 (+-+)"
+     },
+     "check": {
+      "kind": "fitted",
+      "run": 6,
+      "model": "T + C + T:K"
+     }
+    },
+    {
+     "what": "residual",
+     "term": "T C K +-+",
+     "value": "-0.25",
+     "where": {
+      "page": 343,
+      "source_kind": "table",
+      "quote": "Table 10A.2 ... y - ŷ -0.25 (+-+)"
+     },
+     "check": {
+      "kind": "residual",
+      "run": 6,
+      "model": "T + C + T:K"
+     }
+    },
+    {
+     "what": "fitted",
+     "term": "T C K --+",
+     "value": "50.25",
+     "analysis": "reverse Yates: K, TC, CK and TCK set to zero",
+     "where": {
+      "page": 343,
+      "source_kind": "table",
+      "quote": "Table 10A.2 ... ŷ 50.25 y ... y - ŷ 1.75 (--+)"
+     },
+     "check": {
+      "kind": "fitted",
+      "run": 5,
+      "model": "T + C + T:K"
+     }
+    },
+    {
+     "what": "residual",
+     "term": "T C K --+",
+     "value": "1.75",
+     "where": {
+      "page": 343,
+      "source_kind": "table",
+      "quote": "Table 10A.2 ... y - ŷ 1.75 (--+)"
+     },
+     "check": {
+      "kind": "residual",
+      "run": 5,
+      "model": "T + C + T:K"
+     }
+    },
+    {
+     "what": "fitted",
+     "term": "T C K ++-",
+     "value": "68.25",
+     "analysis": "reverse Yates: K, TC, CK and TCK set to zero",
+     "where": {
+      "page": 343,
+      "source_kind": "table",
+      "quote": "Table 10A.2 ... ŷ 68.25 y ... y - ŷ -0.25 (++-)"
+     },
+     "check": {
+      "kind": "fitted",
+      "run": 4,
+      "model": "T + C + T:K"
+     }
+    },
+    {
+     "what": "residual",
+     "term": "T C K ++-",
+     "value": "-0.25",
+     "where": {
+      "page": 343,
+      "source_kind": "table",
+      "quote": "Table 10A.2 ... y - ŷ -0.25 (++-)"
+     },
+     "check": {
+      "kind": "residual",
+      "run": 4,
+      "model": "T + C + T:K"
+     }
+    },
+    {
+     "what": "fitted",
+     "term": "T C K -+-",
+     "value": "55.25",
+     "analysis": "reverse Yates: K, TC, CK and TCK set to zero",
+     "where": {
+      "page": 343,
+      "source_kind": "table",
+      "quote": "Table 10A.2 ... ŷ 55.25 y ... y - ŷ -1.25 (-+-)"
+     },
+     "check": {
+      "kind": "fitted",
+      "run": 3,
+      "model": "T + C + T:K"
+     }
+    },
+    {
+     "what": "residual",
+     "term": "T C K -+-",
+     "value": "-1.25",
+     "where": {
+      "page": 343,
+      "source_kind": "table",
+      "quote": "Table 10A.2 ... y - ŷ -1.25 (-+-)"
+     },
+     "check": {
+      "kind": "residual",
+      "run": 3,
+      "model": "T + C + T:K"
+     }
+    },
+    {
+     "what": "fitted",
+     "term": "T C K +--",
+     "value": "73.25",
+     "analysis": "reverse Yates: K, TC, CK and TCK set to zero",
+     "where": {
+      "page": 343,
+      "source_kind": "table",
+      "quote": "Table 10A.2 ... ŷ 73.25 y ... y - ŷ -1.25 (+--)"
+     },
+     "check": {
+      "kind": "fitted",
+      "run": 2,
+      "model": "T + C + T:K"
+     }
+    },
+    {
+     "what": "residual",
+     "term": "T C K +--",
+     "value": "-1.25",
+     "where": {
+      "page": 343,
+      "source_kind": "table",
+      "quote": "Table 10A.2 ... y - ŷ -1.25 (+--)"
+     },
+     "check": {
+      "kind": "residual",
+      "run": 2,
+      "model": "T + C + T:K"
+     }
+    },
+    {
+     "what": "fitted",
+     "term": "T C K ---",
+     "value": "60.25",
+     "analysis": "reverse Yates: K, TC, CK and TCK set to zero",
+     "where": {
+      "page": 343,
+      "source_kind": "table",
+      "quote": "Table 10A.2 ... ŷ 60.25 y ... y - ŷ -0.25 (---)"
+     },
+     "check": {
+      "kind": "fitted",
+      "run": 1,
+      "model": "T + C + T:K"
+     }
+    },
+    {
+     "what": "residual",
+     "term": "T C K ---",
+     "value": "-0.25",
+     "where": {
+      "page": 343,
+      "source_kind": "table",
+      "quote": "Table 10A.2 ... y - ŷ -0.25 (---)"
+     },
+     "check": {
+      "kind": "residual",
+      "run": 1,
+      "model": "T + C + T:K"
+     }
+    },
+    {
+     "what": "ss_residual",
+     "term": null,
+     "value": "9.5",
+     "analysis": "the sum of squared residuals of the reverse Yates fit",
+     "where": {
+      "page": 343,
+      "source_kind": "table",
+      "quote": "sum of squares ... 34,332.5 34,342 9.5"
+     },
+     "check": {
+      "kind": "ss_residual",
+      "model": "T + C + T:K"
+     }
+    },
+    {
+     "what": "ss",
+     "term": "fitted, crude",
+     "value": "34,332.5",
+     "where": {
+      "page": 343,
+      "source_kind": "table",
+      "quote": "sum of squares ... 34,332.5"
+     },
+     "check": {
+      "manual": "the crude sum of squares of the fitted values, Σŷ², which no check computes (34,342 - 9.5 reproduces)"
+     }
+    },
+    {
+     "what": "yates",
+     "term": "reverse columns",
+     "value": "274,660 549,320 1,098,640 2,197,280",
+     "where": {
+      "page": 343,
+      "source_kind": "table",
+      "quote": "sum of squares 274,660 549,320 1,098,640 2,197,280"
+     },
+     "check": {
+      "manual": "the checks on the columns of the reverse Yates algorithm"
+     }
+    }
+   ]
+  },
+  {
+   "name": "bhh-pilot-plant-2-3-replicated",
+   "title": "Pilot plant: the 2^3 factorial run twice, sixteen runs in random order",
+   "kind": "example",
+   "where": {
+    "section": "10.5, 10.6 and Exercise 10.8",
+    "pages": "317-321",
+    "tables": [
+     "Table 10.2",
+     "Table 10.3"
+    ],
+    "figures": [
+     "Figure 10.3"
+    ]
+   },
+   "factors": [
+    {
+     "name": "T",
+     "description": "temperature",
+     "low": 160,
+     "high": 180,
+     "units": "°C",
+     "type": "numeric"
+    },
+    {
+     "name": "C",
+     "description": "concentration",
+     "low": 20,
+     "high": 40,
+     "units": "%",
+     "type": "numeric"
+    },
+    {
+     "name": "K",
+     "description": "catalyst",
+     "low": "A",
+     "high": "B",
+     "units": "",
+     "type": "categorical"
+    }
+   ],
+   "responses": [
+    {
+     "name": "y",
+     "description": "yield",
+     "units": "g"
+    }
+   ],
+   "design": {
+    "type": "replicated 2^3 factorial",
+    "details": "every combination of 3 factors at 2 levels, run twice in random order",
+    "n_runs": 16,
+    "treatment_factors": 3
+   },
+   "runs": {
+    "columns": [
+     "No.",
+     "order",
+     "T",
+     "C",
+     "K",
+     "y"
+    ],
+    "rows": [
+     [
+      1,
+      6,
+      -1,
+      -1,
+      -1,
+      59
+     ],
+     [
+      2,
+      13,
+      -1,
+      -1,
+      -1,
+      61
+     ],
+     [
+      3,
+      2,
+      1,
+      -1,
+      -1,
+      74
+     ],
+     [
+      4,
+      4,
+      1,
+      -1,
+      -1,
+      70
+     ],
+     [
+      5,
+      11,
+      -1,
+      1,
+      -1,
+      50
+     ],
+     [
+      6,
+      16,
+      -1,
+      1,
+      -1,
+      58
+     ],
+     [
+      7,
+      5,
+      1,
+      1,
+      -1,
+      69
+     ],
+     [
+      8,
+      10,
+      1,
+      1,
+      -1,
+      67
+     ],
+     [
+      9,
+      8,
+      -1,
+      -1,
+      1,
+      50
+     ],
+     [
+      10,
+      12,
+      -1,
+      -1,
+      1,
+      54
+     ],
+     [
+      11,
+      9,
+      1,
+      -1,
+      1,
+      81
+     ],
+     [
+      12,
+      14,
+      1,
+      -1,
+      1,
+      85
+     ],
+     [
+      13,
+      3,
+      -1,
+      1,
+      1,
+      46
+     ],
+     [
+      14,
+      1,
+      -1,
+      1,
+      1,
+      44
+     ],
+     [
+      15,
+      7,
+      1,
+      1,
+      1,
+      79
+     ],
+     [
+      16,
+      15,
+      1,
+      1,
+      1,
+      81
+     ]
+    ],
+    "coded": true,
+    "notes": "Table 10.3, the duplicates of each condition in turn; order is the order of running, read from the page image"
+   },
+   "expected": [
+    {
+     "what": "difference",
+     "term": "T C K ---",
+     "value": "-2",
+     "analysis": "the first run less the second",
+     "where": {
+      "page": 320,
+      "source_kind": "table",
+      "quote": "Table 10.3 ... 59 61 difference of duplicate -2"
+     },
+     "check": {
+      "kind": "difference_of_means",
+      "runs": [
+       1
+      ],
+      "minus": [
+       2
+      ]
+     }
+    },
+    {
+     "what": "variance",
+     "term": "T C K ---",
+     "value": "2",
+     "where": {
+      "page": 320,
+      "source_kind": "table",
+      "quote": "Table 10.3 ... si² = (difference)²/2 = 2"
+     },
+     "check": {
+      "kind": "variance",
+      "runs": [
+       1,
+       2
+      ]
+     }
+    },
+    {
+     "what": "difference",
+     "term": "T C K +--",
+     "value": "4",
+     "analysis": "the first run less the second",
+     "where": {
+      "page": 320,
+      "source_kind": "table",
+      "quote": "Table 10.3 ... 74 70 difference of duplicate 4"
+     },
+     "check": {
+      "kind": "difference_of_means",
+      "runs": [
+       3
+      ],
+      "minus": [
+       4
+      ]
+     }
+    },
+    {
+     "what": "variance",
+     "term": "T C K +--",
+     "value": "8",
+     "where": {
+      "page": 320,
+      "source_kind": "table",
+      "quote": "Table 10.3 ... si² = (difference)²/2 = 8"
+     },
+     "check": {
+      "kind": "variance",
+      "runs": [
+       3,
+       4
+      ]
+     }
+    },
+    {
+     "what": "difference",
+     "term": "T C K -+-",
+     "value": "-8",
+     "analysis": "the first run less the second",
+     "where": {
+      "page": 320,
+      "source_kind": "table",
+      "quote": "Table 10.3 ... 50 58 difference of duplicate -8"
+     },
+     "check": {
+      "kind": "difference_of_means",
+      "runs": [
+       5
+      ],
+      "minus": [
+       6
+      ]
+     }
+    },
+    {
+     "what": "variance",
+     "term": "T C K -+-",
+     "value": "32",
+     "where": {
+      "page": 320,
+      "source_kind": "table",
+      "quote": "Table 10.3 ... si² = (difference)²/2 = 32"
+     },
+     "check": {
+      "kind": "variance",
+      "runs": [
+       5,
+       6
+      ]
+     }
+    },
+    {
+     "what": "difference",
+     "term": "T C K ++-",
+     "value": "2",
+     "analysis": "the first run less the second",
+     "where": {
+      "page": 320,
+      "source_kind": "table",
+      "quote": "Table 10.3 ... 69 67 difference of duplicate 2"
+     },
+     "check": {
+      "kind": "difference_of_means",
+      "runs": [
+       7
+      ],
+      "minus": [
+       8
+      ]
+     }
+    },
+    {
+     "what": "variance",
+     "term": "T C K ++-",
+     "value": "2",
+     "where": {
+      "page": 320,
+      "source_kind": "table",
+      "quote": "Table 10.3 ... si² = (difference)²/2 = 2"
+     },
+     "check": {
+      "kind": "variance",
+      "runs": [
+       7,
+       8
+      ]
+     }
+    },
+    {
+     "what": "difference",
+     "term": "T C K --+",
+     "value": "-4",
+     "analysis": "the first run less the second",
+     "where": {
+      "page": 320,
+      "source_kind": "table",
+      "quote": "Table 10.3 ... 50 54 difference of duplicate -4"
+     },
+     "check": {
+      "kind": "difference_of_means",
+      "runs": [
+       9
+      ],
+      "minus": [
+       10
+      ]
+     }
+    },
+    {
+     "what": "variance",
+     "term": "T C K --+",
+     "value": "8",
+     "where": {
+      "page": 320,
+      "source_kind": "table",
+      "quote": "Table 10.3 ... si² = (difference)²/2 = 8"
+     },
+     "check": {
+      "kind": "variance",
+      "runs": [
+       9,
+       10
+      ]
+     }
+    },
+    {
+     "what": "difference",
+     "term": "T C K +-+",
+     "value": "-4",
+     "analysis": "the first run less the second",
+     "where": {
+      "page": 320,
+      "source_kind": "table",
+      "quote": "Table 10.3 ... 81 85 difference of duplicate -4"
+     },
+     "check": {
+      "kind": "difference_of_means",
+      "runs": [
+       11
+      ],
+      "minus": [
+       12
+      ]
+     }
+    },
+    {
+     "what": "variance",
+     "term": "T C K +-+",
+     "value": "8",
+     "where": {
+      "page": 320,
+      "source_kind": "table",
+      "quote": "Table 10.3 ... si² = (difference)²/2 = 8"
+     },
+     "check": {
+      "kind": "variance",
+      "runs": [
+       11,
+       12
+      ]
+     }
+    },
+    {
+     "what": "difference",
+     "term": "T C K -++",
+     "value": "2",
+     "analysis": "the first run less the second",
+     "where": {
+      "page": 320,
+      "source_kind": "table",
+      "quote": "Table 10.3 ... 46 44 difference of duplicate 2"
+     },
+     "check": {
+      "kind": "difference_of_means",
+      "runs": [
+       13
+      ],
+      "minus": [
+       14
+      ]
+     }
+    },
+    {
+     "what": "variance",
+     "term": "T C K -++",
+     "value": "2",
+     "where": {
+      "page": 320,
+      "source_kind": "table",
+      "quote": "Table 10.3 ... si² = (difference)²/2 = 2"
+     },
+     "check": {
+      "kind": "variance",
+      "runs": [
+       13,
+       14
+      ]
+     }
+    },
+    {
+     "what": "difference",
+     "term": "T C K +++",
+     "value": "-2",
+     "analysis": "the first run less the second",
+     "where": {
+      "page": 320,
+      "source_kind": "table",
+      "quote": "Table 10.3 ... 79 81 difference of duplicate -2"
+     },
+     "check": {
+      "kind": "difference_of_means",
+      "runs": [
+       15
+      ],
+      "minus": [
+       16
+      ]
+     }
+    },
+    {
+     "what": "variance",
+     "term": "T C K +++",
+     "value": "2",
+     "where": {
+      "page": 320,
+      "source_kind": "table",
+      "quote": "Table 10.3 ... si² = (difference)²/2 = 2"
+     },
+     "check": {
+      "kind": "variance",
+      "runs": [
+       15,
+       16
+      ]
+     }
+    },
+    {
+     "what": "ss",
+     "term": "variances",
+     "value": "64",
+     "where": {
+      "page": 320,
+      "source_kind": "table",
+      "quote": "total 64"
+     },
+     "check": {
+      "manual": "the sum of the eight variances on the way to the pooled one, which is checked"
+     }
+    },
+    {
+     "what": "ms_residual",
+     "term": null,
+     "value": "8",
+     "where": {
+      "page": 320,
+      "source_kind": "table",
+      "quote": "s² = pooled estimate of σ² = average of estimated variances = 64/8 = 8 with ν = 8 degrees of freedom"
+     },
+     "check": {
+      "kind": "ms_residual",
+      "model": "T * C * K"
+     }
+    },
+    {
+     "what": "residual_df",
+     "term": null,
+     "value": "8",
+     "where": {
+      "page": 320,
+      "source_kind": "table",
+      "quote": "= 64/8 = 8 with ν = 8 degrees of freedom"
+     },
+     "check": {
+      "kind": "residual_df",
+      "model": "T * C * K"
+     }
+    },
+    {
+     "what": "ms_residual",
+     "term": null,
+     "value": "8",
+     "where": {
+      "page": 320,
+      "source_kind": "table",
+      "quote": "we obtain s² = 128/(2 x 8) = 8"
+     },
+     "check": {
+      "kind": "ms_residual",
+      "model": "T * C * K"
+     }
+    },
+    {
+     "what": "residual_std_error",
+     "term": null,
+     "value": "2.8",
+     "where": {
+      "page": 320,
+      "source_kind": "table",
+      "quote": "and s = 2.8 with ν = 8 degrees of freedom"
+     },
+     "check": {
+      "kind": "residual_std_error",
+      "model": "T * C * K"
+     }
+    },
+    {
+     "what": "variance",
+     "term": "effect",
+     "value": "2",
+     "where": {
+      "page": 320,
+      "source_kind": "table",
+      "quote": "the estimated variance of an effect is (1/8 + 1/8)8 = 2"
+     },
+     "check": {
+      "manual": "the square of the standard error of an effect, 1.4, which is checked (it reproduces: 2)"
+     }
+    },
+    {
+     "what": "effect_std_error",
+     "term": "T",
+     "value": "1.4",
+     "where": {
+      "page": 320,
+      "source_kind": "table",
+      "quote": "Thus the estimated standard error of an effect is √2.0 = 1.4"
+     },
+     "check": {
+      "kind": "effect_std_error",
+      "term": "T",
+      "model": "T * C * K"
+     }
+    },
+    {
+     "what": "std_error",
+     "term": "mean",
+     "value": "0.7",
+     "where": {
+      "page": 320,
+      "source_kind": "table",
+      "quote": "the estimated standard error of the mean is s/√N = 2.8/√16 = 0.7"
+     },
+     "check": {
+      "kind": "std_error",
+      "term": "Intercept",
+      "model": "T * C * K"
+     }
+    },
+    {
+     "what": "std_error",
+     "term": "mean",
+     "value": "0.7",
+     "where": {
+      "page": 317,
+      "source_kind": "table",
+      "quote": "average 64.25 ± 0.7 (Table 10.2)"
+     },
+     "check": {
+      "kind": "std_error",
+      "term": "Intercept",
+      "model": "T * C * K"
+     }
+    },
+    {
+     "what": "mean",
+     "term": null,
+     "value": "64.25",
+     "where": {
+      "page": 317,
+      "source_kind": "table",
+      "quote": "average 64.25 ± 0.7"
+     },
+     "check": {
+      "kind": "mean"
+     }
+    },
+    {
+     "what": "effect_std_error",
+     "term": "T",
+     "value": "1.4",
+     "where": {
+      "page": 317,
+      "source_kind": "table",
+      "quote": "Table 10.2 ... T ... ± 1.4"
+     },
+     "check": {
+      "kind": "effect_std_error",
+      "term": "T",
+      "model": "T * C * K"
+     }
+    },
+    {
+     "what": "effect_std_error",
+     "term": "C",
+     "value": "1.4",
+     "where": {
+      "page": 317,
+      "source_kind": "table",
+      "quote": "Table 10.2 ... C ... ± 1.4"
+     },
+     "check": {
+      "kind": "effect_std_error",
+      "term": "C",
+      "model": "T * C * K"
+     }
+    },
+    {
+     "what": "effect_std_error",
+     "term": "K",
+     "value": "1.4",
+     "where": {
+      "page": 317,
+      "source_kind": "table",
+      "quote": "Table 10.2 ... K ... ± 1.4"
+     },
+     "check": {
+      "kind": "effect_std_error",
+      "term": "K",
+      "model": "T * C * K"
+     }
+    },
+    {
+     "what": "effect_std_error",
+     "term": "T·C",
+     "value": "1.4",
+     "where": {
+      "page": 317,
+      "source_kind": "table",
+      "quote": "Table 10.2 ... T x C ... ± 1.4"
+     },
+     "check": {
+      "kind": "effect_std_error",
+      "term": "T·C",
+      "model": "T * C * K"
+     }
+    },
+    {
+     "what": "effect_std_error",
+     "term": "T·K",
+     "value": "1.4",
+     "where": {
+      "page": 317,
+      "source_kind": "table",
+      "quote": "Table 10.2 ... T x K ... ± 1.4"
+     },
+     "check": {
+      "kind": "effect_std_error",
+      "term": "T·K",
+      "model": "T * C * K"
+     }
+    },
+    {
+     "what": "effect_std_error",
+     "term": "C·K",
+     "value": "1.4",
+     "where": {
+      "page": 317,
+      "source_kind": "table",
+      "quote": "Table 10.2 ... C x K ... ± 1.4"
+     },
+     "check": {
+      "kind": "effect_std_error",
+      "term": "C·K",
+      "model": "T * C * K"
+     }
+    },
+    {
+     "what": "effect_std_error",
+     "term": "T·C·K",
+     "value": "1.4",
+     "where": {
+      "page": 317,
+      "source_kind": "table",
+      "quote": "Table 10.2 ... T x C x K ... ± 1.4"
+     },
+     "check": {
+      "kind": "effect_std_error",
+      "term": "T·C·K",
+      "model": "T * C * K"
+     }
+    },
+    {
+     "what": "effect",
+     "term": "T",
+     "value": "23.0",
+     "analysis": "the same effect from the sixteen runs",
+     "where": {
+      "page": 317,
+      "source_kind": "table",
+      "quote": "Table 10.2 ... T 23.0 ± 1.4"
+     },
+     "check": {
+      "kind": "effect",
+      "term": "T",
+      "model": "T * C * K"
+     }
+    },
+    {
+     "what": "effect",
+     "term": "C",
+     "value": "-5.0",
+     "analysis": "the same effect from the sixteen runs",
+     "where": {
+      "page": 317,
+      "source_kind": "table",
+      "quote": "Table 10.2 ... C -5.0 ± 1.4"
+     },
+     "check": {
+      "kind": "effect",
+      "term": "C",
+      "model": "T * C * K"
+     }
+    },
+    {
+     "what": "effect",
+     "term": "K",
+     "value": "1.5",
+     "analysis": "the same effect from the sixteen runs",
+     "where": {
+      "page": 317,
+      "source_kind": "table",
+      "quote": "Table 10.2 ... K 1.5 ± 1.4"
+     },
+     "check": {
+      "kind": "effect",
+      "term": "K",
+      "model": "T * C * K"
+     }
+    },
+    {
+     "what": "effect",
+     "term": "T·C",
+     "value": "1.5",
+     "analysis": "the same effect from the sixteen runs",
+     "where": {
+      "page": 317,
+      "source_kind": "table",
+      "quote": "Table 10.2 ... T x C 1.5 ± 1.4"
+     },
+     "check": {
+      "kind": "effect",
+      "term": "T·C",
+      "model": "T * C * K"
+     }
+    },
+    {
+     "what": "effect",
+     "term": "T·K",
+     "value": "10.0",
+     "analysis": "the same effect from the sixteen runs",
+     "where": {
+      "page": 317,
+      "source_kind": "table",
+      "quote": "Table 10.2 ... T x K 10.0 ± 1.4"
+     },
+     "check": {
+      "kind": "effect",
+      "term": "T·K",
+      "model": "T * C * K"
+     }
+    },
+    {
+     "what": "effect",
+     "term": "C·K",
+     "value": "0.0",
+     "analysis": "the same effect from the sixteen runs",
+     "where": {
+      "page": 317,
+      "source_kind": "table",
+      "quote": "Table 10.2 ... C x K 0.0 ± 1.4"
+     },
+     "check": {
+      "kind": "effect",
+      "term": "C·K",
+      "model": "T * C * K"
+     }
+    },
+    {
+     "what": "effect",
+     "term": "T·C·K",
+     "value": "0.5",
+     "analysis": "the same effect from the sixteen runs",
+     "where": {
+      "page": 317,
+      "source_kind": "table",
+      "quote": "Table 10.2 ... T x C x K 0.5 ± 1.4"
+     },
+     "check": {
+      "kind": "effect",
+      "term": "T·C·K",
+      "model": "T * C * K"
+     }
+    },
+    {
+     "what": "ms_residual",
+     "term": null,
+     "value": "8",
+     "analysis": "the one-way analysis of the 8 conditions, the same residual as the full factorial model",
+     "where": {
+      "page": 321,
+      "source_kind": "exercise",
+      "quote": "Exercise 10.8 ... complete the analysis of variance table and show that s² = 8 with ν = 8 degrees of freedom"
+     },
+     "check": {
+      "kind": "ms_residual",
+      "model": "T * C * K"
+     }
+    },
+    {
+     "what": "total",
+     "term": "replicated",
+     "value": "120, 144",
+     "where": {
+      "page": 344,
+      "source_kind": "table",
+      "quote": "starting with totals rather than averages, ... 59 + 61 = 120 for the first test condition, 74 + 70 = 144 for the second"
+     },
+     "check": {
+      "manual": "totals of the duplicates for Yates's algorithm, twice the averages of bhh-pilot-plant-2-3, which are checked there"
+     }
+    }
+   ]
+  },
+  {
+   "name": "bhh-ex-10-3-popcorn",
+   "title": "Yield of popcorn: brand, ratio of popcorn to oil and batch size, with four runs at the centre (Exercises 10.3, 10.6 and 10.9)",
+   "kind": "exercise",
+   "where": {
+    "section": "Exercises 10.3, 10.6 and 10.9",
+    "pages": "316, 321, 324",
+    "tables": [],
+    "figures": []
+   },
+   "factors": [
+    {
+     "name": "brand",
+     "description": "brand of popcorn (centre: half and half)",
+     "low": "ordinary",
+     "high": "gourmet",
+     "units": "",
+     "type": "categorical"
+    },
+    {
+     "name": "ratio",
+     "description": "ratio of popcorn to oil",
+     "low": "low",
+     "high": "high",
+     "units": "",
+     "type": "categorical"
+    },
+    {
+     "name": "batch",
+     "description": "batch size (centre: 1/2 cup)",
+     "low": 0.3333333333333333,
+     "high": 0.6666666666666666,
+     "units": "cup",
+     "type": "numeric"
+    }
+   ],
+   "responses": [
+    {
+     "name": "y",
+     "description": "yield of popcorn",
+     "units": "cups"
+    }
+   ],
+   "design": {
+    "type": "2^3 factorial with centre points",
+    "details": "8 runs in standard order, then 4 genuine replicates at the centre (Exercise 10.6)",
+    "n_runs": 12,
+    "treatment_factors": 3
+   },
+   "runs": {
+    "columns": [
+     "No.",
+     "brand",
+     "ratio",
+     "batch",
+     "y"
+    ],
+    "rows": [
+     [
+      1,
+      -1,
+      -1,
+      -1,
+      6.25
+     ],
+     [
+      2,
+      1,
+      -1,
+      -1,
+      8
+     ],
+     [
+      3,
+      -1,
+      1,
+      -1,
+      6
+     ],
+     [
+      4,
+      1,
+      1,
+      -1,
+      9.5
+     ],
+     [
+      5,
+      -1,
+      -1,
+      1,
+      8
+     ],
+     [
+      6,
+      1,
+      -1,
+      1,
+      15
+     ],
+     [
+      7,
+      -1,
+      1,
+      1,
+      9
+     ],
+     [
+      8,
+      1,
+      1,
+      1,
+      17
+     ],
+     [
+      9,
+      0,
+      0,
+      0,
+      9
+     ],
+     [
+      10,
+      0,
+      0,
+      0,
+      8
+     ],
+     [
+      11,
+      0,
+      0,
+      0,
+      9.5
+     ],
+     [
+      12,
+      0,
+      0,
+      0,
+      10
+     ]
+    ],
+    "coded": true,
+    "notes": "the first yield, 6 1/4, read from the page image; the centre runs are those of Exercise 10.6"
+   },
+   "expected": [
+    {
+     "what": "effect",
+     "term": "brand",
+     "value": "5.1",
+     "where": {
+      "page": 316,
+      "source_kind": "exercise",
+      "quote": "Answer: 1 = 5.1, 2 = 1.1, 3 = 4.8, 1 x 2 = 0.7, 1 x 3 = 2.4, 2 x 3 = 0.4, 1 x 2 x 3 = -0.2"
+     },
+     "check": {
+      "kind": "effect",
+      "term": "brand",
+      "model": "brand * ratio * batch",
+      "runs": [
+       1,
+       2,
+       3,
+       4,
+       5,
+       6,
+       7,
+       8
+      ]
+     }
+    },
+    {
+     "what": "effect",
+     "term": "ratio",
+     "value": "1.1",
+     "where": {
+      "page": 316,
+      "source_kind": "exercise",
+      "quote": "Answer: 1 = 5.1, 2 = 1.1, 3 = 4.8, 1 x 2 = 0.7, 1 x 3 = 2.4, 2 x 3 = 0.4, 1 x 2 x 3 = -0.2"
+     },
+     "check": {
+      "kind": "effect",
+      "term": "ratio",
+      "model": "brand * ratio * batch",
+      "runs": [
+       1,
+       2,
+       3,
+       4,
+       5,
+       6,
+       7,
+       8
+      ]
+     }
+    },
+    {
+     "what": "effect",
+     "term": "batch",
+     "value": "4.8",
+     "where": {
+      "page": 316,
+      "source_kind": "exercise",
+      "quote": "Answer: 1 = 5.1, 2 = 1.1, 3 = 4.8, 1 x 2 = 0.7, 1 x 3 = 2.4, 2 x 3 = 0.4, 1 x 2 x 3 = -0.2"
+     },
+     "check": {
+      "kind": "effect",
+      "term": "batch",
+      "model": "brand * ratio * batch",
+      "runs": [
+       1,
+       2,
+       3,
+       4,
+       5,
+       6,
+       7,
+       8
+      ]
+     }
+    },
+    {
+     "what": "effect",
+     "term": "brand·ratio",
+     "value": "0.7",
+     "where": {
+      "page": 316,
+      "source_kind": "exercise",
+      "quote": "Answer: 1 = 5.1, 2 = 1.1, 3 = 4.8, 1 x 2 = 0.7, 1 x 3 = 2.4, 2 x 3 = 0.4, 1 x 2 x 3 = -0.2"
+     },
+     "check": {
+      "kind": "effect",
+      "term": "brand·ratio",
+      "model": "brand * ratio * batch",
+      "runs": [
+       1,
+       2,
+       3,
+       4,
+       5,
+       6,
+       7,
+       8
+      ]
+     }
+    },
+    {
+     "what": "effect",
+     "term": "brand·batch",
+     "value": "2.4",
+     "where": {
+      "page": 316,
+      "source_kind": "exercise",
+      "quote": "Answer: 1 = 5.1, 2 = 1.1, 3 = 4.8, 1 x 2 = 0.7, 1 x 3 = 2.4, 2 x 3 = 0.4, 1 x 2 x 3 = -0.2"
+     },
+     "check": {
+      "kind": "effect",
+      "term": "brand·batch",
+      "model": "brand * ratio * batch",
+      "runs": [
+       1,
+       2,
+       3,
+       4,
+       5,
+       6,
+       7,
+       8
+      ]
+     }
+    },
+    {
+     "what": "effect",
+     "term": "ratio·batch",
+     "value": "0.4",
+     "where": {
+      "page": 316,
+      "source_kind": "exercise",
+      "quote": "Answer: 1 = 5.1, 2 = 1.1, 3 = 4.8, 1 x 2 = 0.7, 1 x 3 = 2.4, 2 x 3 = 0.4, 1 x 2 x 3 = -0.2"
+     },
+     "check": {
+      "kind": "effect",
+      "term": "ratio·batch",
+      "model": "brand * ratio * batch",
+      "runs": [
+       1,
+       2,
+       3,
+       4,
+       5,
+       6,
+       7,
+       8
+      ]
+     }
+    },
+    {
+     "what": "effect",
+     "term": "brand·ratio·batch",
+     "value": "-0.2",
+     "where": {
+      "page": 316,
+      "source_kind": "exercise",
+      "quote": "Answer: 1 = 5.1, 2 = 1.1, 3 = 4.8, 1 x 2 = 0.7, 1 x 3 = 2.4, 2 x 3 = 0.4, 1 x 2 x 3 = -0.2"
+     },
+     "check": {
+      "kind": "effect",
+      "term": "brand·ratio·batch",
+      "model": "brand * ratio * batch",
+      "runs": [
+       1,
+       2,
+       3,
+       4,
+       5,
+       6,
+       7,
+       8
+      ]
+     }
+    },
+    {
+     "what": "variance",
+     "term": "centre",
+     "value": "0.73",
+     "where": {
+      "page": 321,
+      "source_kind": "exercise",
+      "quote": "Estimate of σ² from center points = s² = 0.73 with three degrees of freedom"
+     },
+     "check": {
+      "kind": "variance",
+      "runs": [
+       9,
+       10,
+       11,
+       12
+      ]
+     }
+    },
+    {
+     "what": "residual_df",
+     "term": null,
+     "value": "3",
+     "analysis": "the factorial model with a square term, which takes up the centre's departure, leaving the spread of the four centre runs",
+     "where": {
+      "page": 321,
+      "source_kind": "exercise",
+      "quote": "s² = 0.73 with three degrees of freedom"
+     },
+     "check": {
+      "kind": "residual_df",
+      "model": "brand * ratio * batch + I(brand ** 2)"
+     }
+    },
+    {
+     "what": "effect_std_error",
+     "term": "brand",
+     "value": "0.60",
+     "where": {
+      "page": 321,
+      "source_kind": "exercise",
+      "quote": "Standard error of an effect = 0.60. Reference t distribution has three degrees of freedom, scale factor = 0.60."
+     },
+     "check": {
+      "kind": "effect_std_error",
+      "term": "brand",
+      "model": "brand * ratio * batch + I(brand ** 2)"
+     }
+    }
+   ]
+  },
+  {
+   "name": "bhh-ex-10-4-lima-beans",
+   "title": "Yield of lima beans: depth of planting, watering and type of bean, three replications (Exercises 10.4 and 10.5)",
+   "kind": "exercise",
+   "where": {
+    "section": "Exercises 10.4, 10.5 and 10.9",
+    "pages": "320-321, 324",
+    "tables": [],
+    "figures": []
+   },
+   "factors": [
+    {
+     "name": "depth",
+     "description": "depth of planting",
+     "low": "shallow",
+     "high": "deep",
+     "units": "in.",
+     "type": "categorical"
+    },
+    {
+     "name": "watering",
+     "description": "watering",
+     "low": "once daily",
+     "high": "twice daily",
+     "units": "",
+     "type": "categorical"
+    },
+    {
+     "name": "bean",
+     "description": "type of lima bean",
+     "low": "baby",
+     "high": "large",
+     "units": "",
+     "type": "categorical"
+    }
+   ],
+   "responses": [
+    {
+     "name": "y",
+     "description": "yield",
+     "units": ""
+    }
+   ],
+   "design": {
+    "type": "replicated 2^3 factorial",
+    "details": "every combination of 3 factors at 2 levels, three replications",
+    "n_runs": 24,
+    "treatment_factors": 3
+   },
+   "runs": {
+    "columns": [
+     "No.",
+     "depth",
+     "watering",
+     "bean",
+     "replication",
+     "y"
+    ],
+    "rows": [
+     [
+      1,
+      -1,
+      -1,
+      -1,
+      1,
+      6
+     ],
+     [
+      2,
+      -1,
+      -1,
+      -1,
+      2,
+      7
+     ],
+     [
+      3,
+      -1,
+      -1,
+      -1,
+      3,
+      6
+     ],
+     [
+      4,
+      1,
+      -1,
+      -1,
+      1,
+      4
+     ],
+     [
+      5,
+      1,
+      -1,
+      -1,
+      2,
+      5
+     ],
+     [
+      6,
+      1,
+      -1,
+      -1,
+      3,
+      5
+     ],
+     [
+      7,
+      -1,
+      1,
+      -1,
+      1,
+      10
+     ],
+     [
+      8,
+      -1,
+      1,
+      -1,
+      2,
+      9
+     ],
+     [
+      9,
+      -1,
+      1,
+      -1,
+      3,
+      8
+     ],
+     [
+      10,
+      1,
+      1,
+      -1,
+      1,
+      7
+     ],
+     [
+      11,
+      1,
+      1,
+      -1,
+      2,
+      7
+     ],
+     [
+      12,
+      1,
+      1,
+      -1,
+      3,
+      6
+     ],
+     [
+      13,
+      -1,
+      -1,
+      1,
+      1,
+      4
+     ],
+     [
+      14,
+      -1,
+      -1,
+      1,
+      2,
+      5
+     ],
+     [
+      15,
+      -1,
+      -1,
+      1,
+      3,
+      4
+     ],
+     [
+      16,
+      1,
+      -1,
+      1,
+      1,
+      3
+     ],
+     [
+      17,
+      1,
+      -1,
+      1,
+      2,
+      3
+     ],
+     [
+      18,
+      1,
+      -1,
+      1,
+      3,
+      1
+     ],
+     [
+      19,
+      -1,
+      1,
+      1,
+      1,
+      8
+     ],
+     [
+      20,
+      -1,
+      1,
+      1,
+      2,
+      7
+     ],
+     [
+      21,
+      -1,
+      1,
+      1,
+      3,
+      7
+     ],
+     [
+      22,
+      1,
+      1,
+      1,
+      1,
+      5
+     ],
+     [
+      23,
+      1,
+      1,
+      1,
+      2,
+      5
+     ],
+     [
+      24,
+      1,
+      1,
+      1,
+      3,
+      4
+     ]
+    ],
+    "coded": true,
+    "notes": "the three replications of each condition in turn; Exercise 10.5 uses replications 1 and 2. The planting depths are printed as fractions of an inch the scan does not show clearly, so the levels are named, not measured."
+   },
+   "expected": [
+    {
+     "what": "effect",
+     "term": "depth",
+     "value": "-2.2",
+     "where": {
+      "page": 321,
+      "source_kind": "exercise",
+      "quote": "Answer: 1 = -2.2, 2 = 2.5, 3 = -2.0, 1 x 2 = -0.3, 1 x 3 = -0.2, 2 x 3 = 0.2, 1 x 2 x 3 = 0.0, standard error of effect = 0.3."
+     },
+     "check": {
+      "kind": "effect",
+      "term": "depth",
+      "model": "depth * watering * bean"
+     }
+    },
+    {
+     "what": "effect",
+     "term": "watering",
+     "value": "2.5",
+     "where": {
+      "page": 321,
+      "source_kind": "exercise",
+      "quote": "Answer: 1 = -2.2, 2 = 2.5, 3 = -2.0, 1 x 2 = -0.3, 1 x 3 = -0.2, 2 x 3 = 0.2, 1 x 2 x 3 = 0.0, standard error of effect = 0.3."
+     },
+     "check": {
+      "kind": "effect",
+      "term": "watering",
+      "model": "depth * watering * bean"
+     }
+    },
+    {
+     "what": "effect",
+     "term": "bean",
+     "value": "-2.0",
+     "where": {
+      "page": 321,
+      "source_kind": "exercise",
+      "quote": "Answer: 1 = -2.2, 2 = 2.5, 3 = -2.0, 1 x 2 = -0.3, 1 x 3 = -0.2, 2 x 3 = 0.2, 1 x 2 x 3 = 0.0, standard error of effect = 0.3."
+     },
+     "check": {
+      "kind": "effect",
+      "term": "bean",
+      "model": "depth * watering * bean"
+     }
+    },
+    {
+     "what": "effect",
+     "term": "depth·watering",
+     "value": "-0.3",
+     "where": {
+      "page": 321,
+      "source_kind": "exercise",
+      "quote": "Answer: 1 = -2.2, 2 = 2.5, 3 = -2.0, 1 x 2 = -0.3, 1 x 3 = -0.2, 2 x 3 = 0.2, 1 x 2 x 3 = 0.0, standard error of effect = 0.3."
+     },
+     "check": {
+      "kind": "effect",
+      "term": "depth·watering",
+      "model": "depth * watering * bean"
+     }
+    },
+    {
+     "what": "effect",
+     "term": "depth·bean",
+     "value": "-0.2",
+     "where": {
+      "page": 321,
+      "source_kind": "exercise",
+      "quote": "Answer: 1 = -2.2, 2 = 2.5, 3 = -2.0, 1 x 2 = -0.3, 1 x 3 = -0.2, 2 x 3 = 0.2, 1 x 2 x 3 = 0.0, standard error of effect = 0.3."
+     },
+     "check": {
+      "kind": "effect",
+      "term": "depth·bean",
+      "model": "depth * watering * bean"
+     }
+    },
+    {
+     "what": "effect",
+     "term": "watering·bean",
+     "value": "0.2",
+     "where": {
+      "page": 321,
+      "source_kind": "exercise",
+      "quote": "Answer: 1 = -2.2, 2 = 2.5, 3 = -2.0, 1 x 2 = -0.3, 1 x 3 = -0.2, 2 x 3 = 0.2, 1 x 2 x 3 = 0.0, standard error of effect = 0.3."
+     },
+     "check": {
+      "kind": "effect",
+      "term": "watering·bean",
+      "model": "depth * watering * bean"
+     }
+    },
+    {
+     "what": "effect",
+     "term": "depth·watering·bean",
+     "value": "0.0",
+     "where": {
+      "page": 321,
+      "source_kind": "exercise",
+      "quote": "Answer: 1 = -2.2, 2 = 2.5, 3 = -2.0, 1 x 2 = -0.3, 1 x 3 = -0.2, 2 x 3 = 0.2, 1 x 2 x 3 = 0.0, standard error of effect = 0.3."
+     },
+     "check": {
+      "kind": "effect",
+      "term": "depth·watering·bean",
+      "model": "depth * watering * bean"
+     }
+    },
+    {
+     "what": "effect",
+     "term": "depth, replications 1 and 2",
+     "value": "-2.1",
+     "where": {
+      "page": 321,
+      "source_kind": "exercise",
+      "quote": "Answer: 1 = -2.1, 2 = 2.6, 3 = -1.9, 1 x 2 = -0.4, 1 x 3 = 0.1, 2 x 3 = -0.1, 1 x 2 x 3 = -0.1, standard error of effect = 0.28."
+     },
+     "check": {
+      "kind": "effect",
+      "term": "depth",
+      "model": "depth * watering * bean",
+      "runs": [
+       1,
+       2,
+       4,
+       5,
+       7,
+       8,
+       10,
+       11,
+       13,
+       14,
+       16,
+       17,
+       19,
+       20,
+       22,
+       23
+      ]
+     }
+    },
+    {
+     "what": "effect",
+     "term": "watering, replications 1 and 2",
+     "value": "2.6",
+     "where": {
+      "page": 321,
+      "source_kind": "exercise",
+      "quote": "Answer: 1 = -2.1, 2 = 2.6, 3 = -1.9, 1 x 2 = -0.4, 1 x 3 = 0.1, 2 x 3 = -0.1, 1 x 2 x 3 = -0.1, standard error of effect = 0.28."
+     },
+     "check": {
+      "kind": "effect",
+      "term": "watering",
+      "model": "depth * watering * bean",
+      "runs": [
+       1,
+       2,
+       4,
+       5,
+       7,
+       8,
+       10,
+       11,
+       13,
+       14,
+       16,
+       17,
+       19,
+       20,
+       22,
+       23
+      ]
+     }
+    },
+    {
+     "what": "effect",
+     "term": "bean, replications 1 and 2",
+     "value": "-1.9",
+     "where": {
+      "page": 321,
+      "source_kind": "exercise",
+      "quote": "Answer: 1 = -2.1, 2 = 2.6, 3 = -1.9, 1 x 2 = -0.4, 1 x 3 = 0.1, 2 x 3 = -0.1, 1 x 2 x 3 = -0.1, standard error of effect = 0.28."
+     },
+     "check": {
+      "kind": "effect",
+      "term": "bean",
+      "model": "depth * watering * bean",
+      "runs": [
+       1,
+       2,
+       4,
+       5,
+       7,
+       8,
+       10,
+       11,
+       13,
+       14,
+       16,
+       17,
+       19,
+       20,
+       22,
+       23
+      ]
+     }
+    },
+    {
+     "what": "effect",
+     "term": "depth·watering, replications 1 and 2",
+     "value": "-0.4",
+     "where": {
+      "page": 321,
+      "source_kind": "exercise",
+      "quote": "Answer: 1 = -2.1, 2 = 2.6, 3 = -1.9, 1 x 2 = -0.4, 1 x 3 = 0.1, 2 x 3 = -0.1, 1 x 2 x 3 = -0.1, standard error of effect = 0.28."
+     },
+     "check": {
+      "kind": "effect",
+      "term": "depth·watering",
+      "model": "depth * watering * bean",
+      "runs": [
+       1,
+       2,
+       4,
+       5,
+       7,
+       8,
+       10,
+       11,
+       13,
+       14,
+       16,
+       17,
+       19,
+       20,
+       22,
+       23
+      ]
+     }
+    },
+    {
+     "what": "effect",
+     "term": "depth·bean, replications 1 and 2",
+     "value": "0.1",
+     "where": {
+      "page": 321,
+      "source_kind": "exercise",
+      "quote": "Answer: 1 = -2.1, 2 = 2.6, 3 = -1.9, 1 x 2 = -0.4, 1 x 3 = 0.1, 2 x 3 = -0.1, 1 x 2 x 3 = -0.1, standard error of effect = 0.28."
+     },
+     "check": {
+      "kind": "effect",
+      "term": "depth·bean",
+      "model": "depth * watering * bean",
+      "runs": [
+       1,
+       2,
+       4,
+       5,
+       7,
+       8,
+       10,
+       11,
+       13,
+       14,
+       16,
+       17,
+       19,
+       20,
+       22,
+       23
+      ]
+     }
+    },
+    {
+     "what": "effect",
+     "term": "watering·bean, replications 1 and 2",
+     "value": "-0.1",
+     "where": {
+      "page": 321,
+      "source_kind": "exercise",
+      "quote": "Answer: 1 = -2.1, 2 = 2.6, 3 = -1.9, 1 x 2 = -0.4, 1 x 3 = 0.1, 2 x 3 = -0.1, 1 x 2 x 3 = -0.1, standard error of effect = 0.28."
+     },
+     "check": {
+      "kind": "effect",
+      "term": "watering·bean",
+      "model": "depth * watering * bean",
+      "runs": [
+       1,
+       2,
+       4,
+       5,
+       7,
+       8,
+       10,
+       11,
+       13,
+       14,
+       16,
+       17,
+       19,
+       20,
+       22,
+       23
+      ]
+     }
+    },
+    {
+     "what": "effect",
+     "term": "depth·watering·bean, replications 1 and 2",
+     "value": "-0.1",
+     "where": {
+      "page": 321,
+      "source_kind": "exercise",
+      "quote": "Answer: 1 = -2.1, 2 = 2.6, 3 = -1.9, 1 x 2 = -0.4, 1 x 3 = 0.1, 2 x 3 = -0.1, 1 x 2 x 3 = -0.1, standard error of effect = 0.28."
+     },
+     "check": {
+      "kind": "effect",
+      "term": "depth·watering·bean",
+      "model": "depth * watering * bean",
+      "runs": [
+       1,
+       2,
+       4,
+       5,
+       7,
+       8,
+       10,
+       11,
+       13,
+       14,
+       16,
+       17,
+       19,
+       20,
+       22,
+       23
+      ]
+     }
+    },
+    {
+     "what": "effect_std_error",
+     "term": "depth",
+     "value": "0.3",
+     "analysis": "s² pooled within the eight conditions",
+     "where": {
+      "page": 321,
+      "source_kind": "exercise",
+      "quote": "standard error of effect = 0.3"
+     },
+     "check": {
+      "kind": "effect_std_error",
+      "term": "depth",
+      "model": "depth * watering * bean"
+     }
+    },
+    {
+     "what": "effect_std_error",
+     "term": "depth, replications 1 and 2",
+     "value": "0.28",
+     "where": {
+      "page": 321,
+      "source_kind": "exercise",
+      "quote": "Exercise 10.5 ... standard error of effect = 0.28"
+     },
+     "check": {
+      "kind": "effect_std_error",
+      "term": "depth",
+      "model": "depth * watering * bean",
+      "runs": [
+       1,
+       2,
+       4,
+       5,
+       7,
+       8,
+       10,
+       11,
+       13,
+       14,
+       16,
+       17,
+       19,
+       20,
+       22,
+       23
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "name": "bhh-process-development-2-4",
+   "title": "Process development: conversion against catalyst charge, temperature, pressure and concentration, an unreplicated 2^4",
+   "kind": "example",
+   "where": {
+    "section": "10.8 and 10.9",
+    "pages": "324-334",
+    "tables": [
+     "Table 10.6",
+     "Table 10.7",
+     "Table 10.8",
+     "Table 10.9"
+    ],
+    "figures": [
+     "Figure 10.5",
+     "Figure 10.6",
+     "Figure 10.7",
+     "Figure 10.9"
+    ]
+   },
+   "factors": [
+    {
+     "name": "catalyst",
+     "description": "catalyst charge",
+     "low": 10,
+     "high": 15,
+     "units": "lb",
+     "type": "numeric"
+    },
+    {
+     "name": "temperature",
+     "description": "temperature",
+     "low": 220,
+     "high": 240,
+     "units": "°C",
+     "type": "numeric"
+    },
+    {
+     "name": "pressure",
+     "description": "pressure",
+     "low": 50,
+     "high": 80,
+     "units": "psi",
+     "type": "numeric"
+    },
+    {
+     "name": "concentration",
+     "description": "concentration",
+     "low": 10,
+     "high": 12,
+     "units": "%",
+     "type": "numeric"
+    }
+   ],
+   "responses": [
+    {
+     "name": "y",
+     "description": "conversion",
+     "units": "%"
+    }
+   ],
+   "design": {
+    "type": "2^4 factorial",
+    "details": "every combination of 4 factors at 2 levels, once, in random order",
+    "n_runs": 16,
+    "treatment_factors": 4
+   },
+   "runs": {
+    "columns": [
+     "No.",
+     "order",
+     "catalyst",
+     "temperature",
+     "pressure",
+     "concentration",
+     "y"
+    ],
+    "rows": [
+     [
+      1,
+      8,
+      -1,
+      -1,
+      -1,
+      -1,
+      71
+     ],
+     [
+      2,
+      2,
+      1,
+      -1,
+      -1,
+      -1,
+      61
+     ],
+     [
+      3,
+      10,
+      -1,
+      1,
+      -1,
+      -1,
+      90
+     ],
+     [
+      4,
+      4,
+      1,
+      1,
+      -1,
+      -1,
+      82
+     ],
+     [
+      5,
+      15,
+      -1,
+      -1,
+      1,
+      -1,
+      68
+     ],
+     [
+      6,
+      9,
+      1,
+      -1,
+      1,
+      -1,
+      61
+     ],
+     [
+      7,
+      1,
+      -1,
+      1,
+      1,
+      -1,
+      87
+     ],
+     [
+      8,
+      13,
+      1,
+      1,
+      1,
+      -1,
+      80
+     ],
+     [
+      9,
+      16,
+      -1,
+      -1,
+      -1,
+      1,
+      61
+     ],
+     [
+      10,
+      5,
+      1,
+      -1,
+      -1,
+      1,
+      50
+     ],
+     [
+      11,
+      11,
+      -1,
+      1,
+      -1,
+      1,
+      89
+     ],
+     [
+      12,
+      14,
+      1,
+      1,
+      -1,
+      1,
+      83
+     ],
+     [
+      13,
+      3,
+      -1,
+      -1,
+      1,
+      1,
+      59
+     ],
+     [
+      14,
+      12,
+      1,
+      -1,
+      1,
+      1,
+      51
+     ],
+     [
+      15,
+      6,
+      -1,
+      1,
+      1,
+      1,
+      85
+     ],
+     [
+      16,
+      7,
+      1,
+      1,
+      1,
+      1,
+      78
+     ]
+    ],
+    "coded": true,
+    "notes": "Table 10.6, in standard order; order is the order of running"
+   },
+   "notes": "The book's factors are numbered 1 to 4 (1 catalyst charge, 2 temperature, 3 pressure, 4 concentration); terms here are named.",
+   "expected": [
+    {
+     "what": "mean",
+     "term": null,
+     "value": "72.25",
+     "where": {
+      "page": 327,
+      "source_kind": "table",
+      "quote": "average 72.25 ± 0.27 (Table 10.8)"
+     },
+     "check": {
+      "kind": "mean"
+     }
+    },
+    {
+     "what": "std_error",
+     "term": "mean",
+     "value": "0.27",
+     "analysis": "σ² estimated from the three- and four-factor interactions, five degrees of freedom",
+     "where": {
+      "page": 327,
+      "source_kind": "table",
+      "quote": "average 72.25 ± 0.27 (Table 10.8)"
+     },
+     "check": {
+      "kind": "std_error",
+      "term": "Intercept",
+      "model": "(catalyst + temperature + pressure + concentration) ** 2"
+     }
+    },
+    {
+     "what": "effect",
+     "term": "1",
+     "value": "-8.00",
+     "where": {
+      "page": 327,
+      "source_kind": "table",
+      "quote": "Table 10.8 ... 1 -8.00"
+     },
+     "check": {
+      "kind": "effect",
+      "term": "catalyst",
+      "model": "catalyst * temperature * pressure * concentration"
+     }
+    },
+    {
+     "what": "effect_std_error",
+     "term": "1",
+     "value": "0.55",
+     "where": {
+      "page": 327,
+      "source_kind": "table",
+      "quote": "Table 10.8 ... 1 -8.00 ± 0.55"
+     },
+     "check": {
+      "kind": "effect_std_error",
+      "term": "catalyst",
+      "model": "(catalyst + temperature + pressure + concentration) ** 2"
+     }
+    },
+    {
+     "what": "effect",
+     "term": "2",
+     "value": "24.00",
+     "where": {
+      "page": 327,
+      "source_kind": "table",
+      "quote": "Table 10.8 ... 2 24.00"
+     },
+     "check": {
+      "kind": "effect",
+      "term": "temperature",
+      "model": "catalyst * temperature * pressure * concentration"
+     }
+    },
+    {
+     "what": "effect_std_error",
+     "term": "2",
+     "value": "0.55",
+     "where": {
+      "page": 327,
+      "source_kind": "table",
+      "quote": "Table 10.8 ... 2 24.00 ± 0.55"
+     },
+     "check": {
+      "kind": "effect_std_error",
+      "term": "temperature",
+      "model": "(catalyst + temperature + pressure + concentration) ** 2"
+     }
+    },
+    {
+     "what": "effect",
+     "term": "3",
+     "value": "-2.25",
+     "where": {
+      "page": 327,
+      "source_kind": "table",
+      "quote": "Table 10.8 ... 3 -2.25"
+     },
+     "check": {
+      "kind": "effect",
+      "term": "pressure",
+      "model": "catalyst * temperature * pressure * concentration"
+     }
+    },
+    {
+     "what": "effect_std_error",
+     "term": "3",
+     "value": "0.55",
+     "where": {
+      "page": 327,
+      "source_kind": "table",
+      "quote": "Table 10.8 ... 3 -2.25 ± 0.55"
+     },
+     "check": {
+      "kind": "effect_std_error",
+      "term": "pressure",
+      "model": "(catalyst + temperature + pressure + concentration) ** 2"
+     }
+    },
+    {
+     "what": "effect",
+     "term": "4",
+     "value": "-5.50",
+     "where": {
+      "page": 327,
+      "source_kind": "table",
+      "quote": "Table 10.8 ... 4 -5.50"
+     },
+     "check": {
+      "kind": "effect",
+      "term": "concentration",
+      "model": "catalyst * temperature * pressure * concentration"
+     }
+    },
+    {
+     "what": "effect_std_error",
+     "term": "4",
+     "value": "0.55",
+     "where": {
+      "page": 327,
+      "source_kind": "table",
+      "quote": "Table 10.8 ... 4 -5.50 ± 0.55"
+     },
+     "check": {
+      "kind": "effect_std_error",
+      "term": "concentration",
+      "model": "(catalyst + temperature + pressure + concentration) ** 2"
+     }
+    },
+    {
+     "what": "effect",
+     "term": "12",
+     "value": "1.00",
+     "where": {
+      "page": 327,
+      "source_kind": "table",
+      "quote": "Table 10.8 ... 12 1.00"
+     },
+     "check": {
+      "kind": "effect",
+      "term": "catalyst·temperature",
+      "model": "catalyst * temperature * pressure * concentration"
+     }
+    },
+    {
+     "what": "effect_std_error",
+     "term": "12",
+     "value": "0.55",
+     "where": {
+      "page": 327,
+      "source_kind": "table",
+      "quote": "Table 10.8 ... 12 1.00 ± 0.55"
+     },
+     "check": {
+      "kind": "effect_std_error",
+      "term": "catalyst·temperature",
+      "model": "(catalyst + temperature + pressure + concentration) ** 2"
+     }
+    },
+    {
+     "what": "effect",
+     "term": "13",
+     "value": "0.75",
+     "where": {
+      "page": 327,
+      "source_kind": "table",
+      "quote": "Table 10.8 ... 13 0.75"
+     },
+     "check": {
+      "kind": "effect",
+      "term": "catalyst·pressure",
+      "model": "catalyst * temperature * pressure * concentration"
+     }
+    },
+    {
+     "what": "effect_std_error",
+     "term": "13",
+     "value": "0.55",
+     "where": {
+      "page": 327,
+      "source_kind": "table",
+      "quote": "Table 10.8 ... 13 0.75 ± 0.55"
+     },
+     "check": {
+      "kind": "effect_std_error",
+      "term": "catalyst·pressure",
+      "model": "(catalyst + temperature + pressure + concentration) ** 2"
+     }
+    },
+    {
+     "what": "effect",
+     "term": "14",
+     "value": "0.00",
+     "where": {
+      "page": 327,
+      "source_kind": "table",
+      "quote": "Table 10.8 ... 14 0.00"
+     },
+     "check": {
+      "kind": "effect",
+      "term": "catalyst·concentration",
+      "model": "catalyst * temperature * pressure * concentration"
+     }
+    },
+    {
+     "what": "effect_std_error",
+     "term": "14",
+     "value": "0.55",
+     "where": {
+      "page": 327,
+      "source_kind": "table",
+      "quote": "Table 10.8 ... 14 0.00 ± 0.55"
+     },
+     "check": {
+      "kind": "effect_std_error",
+      "term": "catalyst·concentration",
+      "model": "(catalyst + temperature + pressure + concentration) ** 2"
+     }
+    },
+    {
+     "what": "effect",
+     "term": "23",
+     "value": "-1.25",
+     "where": {
+      "page": 327,
+      "source_kind": "table",
+      "quote": "Table 10.8 ... 23 -1.25"
+     },
+     "check": {
+      "kind": "effect",
+      "term": "temperature·pressure",
+      "model": "catalyst * temperature * pressure * concentration"
+     }
+    },
+    {
+     "what": "effect_std_error",
+     "term": "23",
+     "value": "0.55",
+     "where": {
+      "page": 327,
+      "source_kind": "table",
+      "quote": "Table 10.8 ... 23 -1.25 ± 0.55"
+     },
+     "check": {
+      "kind": "effect_std_error",
+      "term": "temperature·pressure",
+      "model": "(catalyst + temperature + pressure + concentration) ** 2"
+     }
+    },
+    {
+     "what": "effect",
+     "term": "24",
+     "value": "4.50",
+     "where": {
+      "page": 327,
+      "source_kind": "table",
+      "quote": "Table 10.8 ... 24 4.50"
+     },
+     "check": {
+      "kind": "effect",
+      "term": "temperature·concentration",
+      "model": "catalyst * temperature * pressure * concentration"
+     }
+    },
+    {
+     "what": "effect_std_error",
+     "term": "24",
+     "value": "0.55",
+     "where": {
+      "page": 327,
+      "source_kind": "table",
+      "quote": "Table 10.8 ... 24 4.50 ± 0.55"
+     },
+     "check": {
+      "kind": "effect_std_error",
+      "term": "temperature·concentration",
+      "model": "(catalyst + temperature + pressure + concentration) ** 2"
+     }
+    },
+    {
+     "what": "effect",
+     "term": "34",
+     "value": "-0.25",
+     "where": {
+      "page": 327,
+      "source_kind": "table",
+      "quote": "Table 10.8 ... 34 -0.25"
+     },
+     "check": {
+      "kind": "effect",
+      "term": "pressure·concentration",
+      "model": "catalyst * temperature * pressure * concentration"
+     }
+    },
+    {
+     "what": "effect_std_error",
+     "term": "34",
+     "value": "0.55",
+     "where": {
+      "page": 327,
+      "source_kind": "table",
+      "quote": "Table 10.8 ... 34 -0.25 ± 0.55"
+     },
+     "check": {
+      "kind": "effect_std_error",
+      "term": "pressure·concentration",
+      "model": "(catalyst + temperature + pressure + concentration) ** 2"
+     }
+    },
+    {
+     "what": "effect",
+     "term": "123",
+     "value": "-0.75",
+     "where": {
+      "page": 327,
+      "source_kind": "table",
+      "quote": "Table 10.8 ... 123 -0.75"
+     },
+     "check": {
+      "kind": "effect",
+      "term": "catalyst·temperature·pressure",
+      "model": "catalyst * temperature * pressure * concentration"
+     }
+    },
+    {
+     "what": "effect",
+     "term": "124",
+     "value": "0.50",
+     "where": {
+      "page": 327,
+      "source_kind": "table",
+      "quote": "Table 10.8 ... 124 0.50"
+     },
+     "check": {
+      "kind": "effect",
+      "term": "catalyst·temperature·concentration",
+      "model": "catalyst * temperature * pressure * concentration"
+     }
+    },
+    {
+     "what": "effect",
+     "term": "134",
+     "value": "-0.25",
+     "where": {
+      "page": 327,
+      "source_kind": "table",
+      "quote": "Table 10.8 ... 134 -0.25"
+     },
+     "check": {
+      "kind": "effect",
+      "term": "catalyst·pressure·concentration",
+      "model": "catalyst * temperature * pressure * concentration"
+     }
+    },
+    {
+     "what": "effect",
+     "term": "234",
+     "value": "-0.75",
+     "where": {
+      "page": 327,
+      "source_kind": "table",
+      "quote": "Table 10.8 ... 234 -0.75"
+     },
+     "check": {
+      "kind": "effect",
+      "term": "temperature·pressure·concentration",
+      "model": "catalyst * temperature * pressure * concentration"
+     }
+    },
+    {
+     "what": "effect",
+     "term": "1234",
+     "value": "-0.25",
+     "where": {
+      "page": 327,
+      "source_kind": "table",
+      "quote": "Table 10.8 ... 1234 -0.25"
+     },
+     "check": {
+      "kind": "effect",
+      "term": "catalyst·temperature·pressure·concentration",
+      "model": "catalyst * temperature * pressure * concentration"
+     }
+    },
+    {
+     "what": "ss",
+     "term": "high-order effects",
+     "value": "0.5625 0.2500 0.0625 0.5625 0.0625, sum 1.5000",
+     "where": {
+      "page": 327,
+      "source_kind": "table",
+      "quote": "effect² 0.5625 0.2500 0.0625 0.5625 0.0625 sum 1.5000"
+     },
+     "check": {
+      "manual": "the squares of the five three- and four-factor effects, which are checked, and their sum"
+     }
+    },
+    {
+     "what": "variance",
+     "term": "effect",
+     "value": "0.30",
+     "where": {
+      "page": 328,
+      "source_kind": "table",
+      "quote": "an estimated value for the variance of an effect, having five degrees of freedom, is 1.50/5 = 0.30"
+     },
+     "check": {
+      "manual": "the square of the standard error of an effect, 0.55, which is checked (it reproduces: 0.30)"
+     }
+    },
+    {
+     "what": "residual_df",
+     "term": null,
+     "value": "5",
+     "where": {
+      "page": 328,
+      "source_kind": "table",
+      "quote": "having five degrees of freedom"
+     },
+     "check": {
+      "kind": "residual_df",
+      "model": "(catalyst + temperature + pressure + concentration) ** 2"
+     }
+    },
+    {
+     "what": "effect_std_error",
+     "term": "catalyst",
+     "value": "0.55",
+     "where": {
+      "page": 328,
+      "source_kind": "table",
+      "quote": "The estimated standard error of an effect is therefore √0.30 = 0.55"
+     },
+     "check": {
+      "kind": "effect_std_error",
+      "term": "catalyst",
+      "model": "(catalyst + temperature + pressure + concentration) ** 2"
+     }
+    },
+    {
+     "what": "normal_plot",
+     "term": "P",
+     "value": "3.3 10.0 16.7 23.3 30.0 36.7 43.3 50.0 56.7 63.3 70.0 76.7 83.3 90.0 96.7",
+     "where": {
+      "page": 331,
+      "source_kind": "table",
+      "quote": "Table 10.9 ... P = 100(i - 1/2)/15"
+     },
+     "check": {
+      "manual": "plotting positions for a normal plot of 15 effects, 100(i - 1/2)/15, which no check computes; the effects ordered beside them are those of Table 10.8, checked there"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "catalyst",
+     "value": "(-8.0/2)",
+     "analysis": "the model of the four effects that stand out: each coefficient is half its effect",
+     "where": {
+      "page": 334,
+      "source_kind": "prose",
+      "quote": "ŷ = 72.25 + (-8.0/2)x1 + (24.0/2)x2 + (-5.5/2)x4 + (4.5/2)x2x4 (10.14)"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "catalyst",
+      "model": "catalyst + temperature + concentration + temperature:concentration",
+      "printed": "-8.0 / 2",
+      "expression": true
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "temperature",
+     "value": "(24.0/2)",
+     "analysis": "the model of the four effects that stand out: each coefficient is half its effect",
+     "where": {
+      "page": 334,
+      "source_kind": "prose",
+      "quote": "ŷ = 72.25 + (-8.0/2)x1 + (24.0/2)x2 + (-5.5/2)x4 + (4.5/2)x2x4 (10.14)"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "temperature",
+      "model": "catalyst + temperature + concentration + temperature:concentration",
+      "printed": "24.0 / 2",
+      "expression": true
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "concentration",
+     "value": "(-5.5/2)",
+     "analysis": "the model of the four effects that stand out: each coefficient is half its effect",
+     "where": {
+      "page": 334,
+      "source_kind": "prose",
+      "quote": "ŷ = 72.25 + (-8.0/2)x1 + (24.0/2)x2 + (-5.5/2)x4 + (4.5/2)x2x4 (10.14)"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "concentration",
+      "model": "catalyst + temperature + concentration + temperature:concentration",
+      "printed": "-5.5 / 2",
+      "expression": true
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "temperature·concentration",
+     "value": "(4.5/2)",
+     "analysis": "the model of the four effects that stand out: each coefficient is half its effect",
+     "where": {
+      "page": 334,
+      "source_kind": "prose",
+      "quote": "ŷ = 72.25 + (-8.0/2)x1 + (24.0/2)x2 + (-5.5/2)x4 + (4.5/2)x2x4 (10.14)"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "temperature·concentration",
+      "model": "catalyst + temperature + concentration + temperature:concentration",
+      "printed": "4.5 / 2",
+      "expression": true
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "Intercept",
+     "value": "72.25",
+     "where": {
+      "page": 334,
+      "source_kind": "prose",
+      "quote": "ŷ = 72.25 + ... (10.14)"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "Intercept",
+      "model": "catalyst + temperature + concentration + temperature:concentration"
+     }
+    },
+    {
+     "what": "fitted",
+     "term": "run 1",
+     "value": "69.25",
+     "where": {
+      "page": 334,
+      "source_kind": "prose",
+      "quote": "The values of y, ŷ, and y - ŷ ... y 71 ŷ 69.25"
+     },
+     "check": {
+      "kind": "fitted",
+      "run": 1,
+      "model": "catalyst + temperature + concentration + temperature:concentration"
+     }
+    },
+    {
+     "what": "residual",
+     "term": "run 1",
+     "value": "1.75",
+     "where": {
+      "page": 334,
+      "source_kind": "prose",
+      "quote": "The values of y, ŷ, and y - ŷ ... y 71 y - ŷ 1.75"
+     },
+     "check": {
+      "kind": "residual",
+      "run": 1,
+      "model": "catalyst + temperature + concentration + temperature:concentration"
+     }
+    },
+    {
+     "what": "fitted",
+     "term": "run 2",
+     "value": "61.25",
+     "where": {
+      "page": 334,
+      "source_kind": "prose",
+      "quote": "The values of y, ŷ, and y - ŷ ... y 61 ŷ 61.25"
+     },
+     "check": {
+      "kind": "fitted",
+      "run": 2,
+      "model": "catalyst + temperature + concentration + temperature:concentration"
+     }
+    },
+    {
+     "what": "residual",
+     "term": "run 2",
+     "value": "-0.25",
+     "where": {
+      "page": 334,
+      "source_kind": "prose",
+      "quote": "The values of y, ŷ, and y - ŷ ... y 61 y - ŷ -0.25"
+     },
+     "check": {
+      "kind": "residual",
+      "run": 2,
+      "model": "catalyst + temperature + concentration + temperature:concentration"
+     }
+    },
+    {
+     "what": "fitted",
+     "term": "run 3",
+     "value": "88.75",
+     "where": {
+      "page": 334,
+      "source_kind": "prose",
+      "quote": "The values of y, ŷ, and y - ŷ ... y 90 ŷ 88.75"
+     },
+     "check": {
+      "kind": "fitted",
+      "run": 3,
+      "model": "catalyst + temperature + concentration + temperature:concentration"
+     }
+    },
+    {
+     "what": "residual",
+     "term": "run 3",
+     "value": "1.25",
+     "where": {
+      "page": 334,
+      "source_kind": "prose",
+      "quote": "The values of y, ŷ, and y - ŷ ... y 90 y - ŷ 1.25"
+     },
+     "check": {
+      "kind": "residual",
+      "run": 3,
+      "model": "catalyst + temperature + concentration + temperature:concentration"
+     }
+    },
+    {
+     "what": "fitted",
+     "term": "run 4",
+     "value": "80.75",
+     "where": {
+      "page": 334,
+      "source_kind": "prose",
+      "quote": "The values of y, ŷ, and y - ŷ ... y 82 ŷ 80.75"
+     },
+     "check": {
+      "kind": "fitted",
+      "run": 4,
+      "model": "catalyst + temperature + concentration + temperature:concentration"
+     }
+    },
+    {
+     "what": "residual",
+     "term": "run 4",
+     "value": "1.25",
+     "where": {
+      "page": 334,
+      "source_kind": "prose",
+      "quote": "The values of y, ŷ, and y - ŷ ... y 82 y - ŷ 1.25"
+     },
+     "check": {
+      "kind": "residual",
+      "run": 4,
+      "model": "catalyst + temperature + concentration + temperature:concentration"
+     }
+    },
+    {
+     "what": "fitted",
+     "term": "run 5",
+     "value": "69.25",
+     "where": {
+      "page": 334,
+      "source_kind": "prose",
+      "quote": "The values of y, ŷ, and y - ŷ ... y 68 ŷ 69.25"
+     },
+     "check": {
+      "kind": "fitted",
+      "run": 5,
+      "model": "catalyst + temperature + concentration + temperature:concentration"
+     }
+    },
+    {
+     "what": "residual",
+     "term": "run 5",
+     "value": "-1.25",
+     "where": {
+      "page": 334,
+      "source_kind": "prose",
+      "quote": "The values of y, ŷ, and y - ŷ ... y 68 y - ŷ -1.25"
+     },
+     "check": {
+      "kind": "residual",
+      "run": 5,
+      "model": "catalyst + temperature + concentration + temperature:concentration"
+     }
+    },
+    {
+     "what": "fitted",
+     "term": "run 6",
+     "value": "61.25",
+     "where": {
+      "page": 334,
+      "source_kind": "prose",
+      "quote": "The values of y, ŷ, and y - ŷ ... y 61 ŷ 61.25"
+     },
+     "check": {
+      "kind": "fitted",
+      "run": 6,
+      "model": "catalyst + temperature + concentration + temperature:concentration"
+     }
+    },
+    {
+     "what": "residual",
+     "term": "run 6",
+     "value": "-0.25",
+     "where": {
+      "page": 334,
+      "source_kind": "prose",
+      "quote": "The values of y, ŷ, and y - ŷ ... y 61 y - ŷ -0.25"
+     },
+     "check": {
+      "kind": "residual",
+      "run": 6,
+      "model": "catalyst + temperature + concentration + temperature:concentration"
+     }
+    },
+    {
+     "what": "fitted",
+     "term": "run 7",
+     "value": "88.75",
+     "where": {
+      "page": 334,
+      "source_kind": "prose",
+      "quote": "The values of y, ŷ, and y - ŷ ... y 87 ŷ 88.75"
+     },
+     "check": {
+      "kind": "fitted",
+      "run": 7,
+      "model": "catalyst + temperature + concentration + temperature:concentration"
+     }
+    },
+    {
+     "what": "residual",
+     "term": "run 7",
+     "value": "-1.75",
+     "where": {
+      "page": 334,
+      "source_kind": "prose",
+      "quote": "The values of y, ŷ, and y - ŷ ... y 87 y - ŷ -1.75"
+     },
+     "check": {
+      "kind": "residual",
+      "run": 7,
+      "model": "catalyst + temperature + concentration + temperature:concentration"
+     }
+    },
+    {
+     "what": "fitted",
+     "term": "run 8",
+     "value": "80.75",
+     "where": {
+      "page": 334,
+      "source_kind": "prose",
+      "quote": "The values of y, ŷ, and y - ŷ ... y 80 ŷ 80.75"
+     },
+     "check": {
+      "kind": "fitted",
+      "run": 8,
+      "model": "catalyst + temperature + concentration + temperature:concentration"
+     }
+    },
+    {
+     "what": "residual",
+     "term": "run 8",
+     "value": "-0.75",
+     "where": {
+      "page": 334,
+      "source_kind": "prose",
+      "quote": "The values of y, ŷ, and y - ŷ ... y 80 y - ŷ -0.75"
+     },
+     "check": {
+      "kind": "residual",
+      "run": 8,
+      "model": "catalyst + temperature + concentration + temperature:concentration"
+     }
+    },
+    {
+     "what": "fitted",
+     "term": "run 9",
+     "value": "59.25",
+     "where": {
+      "page": 334,
+      "source_kind": "prose",
+      "quote": "The values of y, ŷ, and y - ŷ ... y 61 ŷ 59.25"
+     },
+     "check": {
+      "kind": "fitted",
+      "run": 9,
+      "model": "catalyst + temperature + concentration + temperature:concentration"
+     }
+    },
+    {
+     "what": "residual",
+     "term": "run 9",
+     "value": "1.75",
+     "where": {
+      "page": 334,
+      "source_kind": "prose",
+      "quote": "The values of y, ŷ, and y - ŷ ... y 61 y - ŷ 1.75"
+     },
+     "check": {
+      "kind": "residual",
+      "run": 9,
+      "model": "catalyst + temperature + concentration + temperature:concentration"
+     }
+    },
+    {
+     "what": "fitted",
+     "term": "run 10",
+     "value": "51.25",
+     "where": {
+      "page": 334,
+      "source_kind": "prose",
+      "quote": "The values of y, ŷ, and y - ŷ ... y 50 ŷ 51.25"
+     },
+     "check": {
+      "kind": "fitted",
+      "run": 10,
+      "model": "catalyst + temperature + concentration + temperature:concentration"
+     }
+    },
+    {
+     "what": "residual",
+     "term": "run 10",
+     "value": "-1.25",
+     "where": {
+      "page": 334,
+      "source_kind": "prose",
+      "quote": "The values of y, ŷ, and y - ŷ ... y 50 y - ŷ -1.25"
+     },
+     "check": {
+      "kind": "residual",
+      "run": 10,
+      "model": "catalyst + temperature + concentration + temperature:concentration"
+     }
+    },
+    {
+     "what": "fitted",
+     "term": "run 11",
+     "value": "87.75",
+     "where": {
+      "page": 334,
+      "source_kind": "prose",
+      "quote": "The values of y, ŷ, and y - ŷ ... y 89 ŷ 87.75"
+     },
+     "check": {
+      "kind": "fitted",
+      "run": 11,
+      "model": "catalyst + temperature + concentration + temperature:concentration"
+     }
+    },
+    {
+     "what": "residual",
+     "term": "run 11",
+     "value": "1.25",
+     "where": {
+      "page": 334,
+      "source_kind": "prose",
+      "quote": "The values of y, ŷ, and y - ŷ ... y 89 y - ŷ 1.25"
+     },
+     "check": {
+      "kind": "residual",
+      "run": 11,
+      "model": "catalyst + temperature + concentration + temperature:concentration"
+     }
+    },
+    {
+     "what": "fitted",
+     "term": "run 12",
+     "value": "79.75",
+     "where": {
+      "page": 334,
+      "source_kind": "prose",
+      "quote": "The values of y, ŷ, and y - ŷ ... y 83 ŷ 79.75"
+     },
+     "check": {
+      "kind": "fitted",
+      "run": 12,
+      "model": "catalyst + temperature + concentration + temperature:concentration"
+     }
+    },
+    {
+     "what": "residual",
+     "term": "run 12",
+     "value": "3.25",
+     "where": {
+      "page": 334,
+      "source_kind": "prose",
+      "quote": "The values of y, ŷ, and y - ŷ ... y 83 y - ŷ 3.25"
+     },
+     "check": {
+      "kind": "residual",
+      "run": 12,
+      "model": "catalyst + temperature + concentration + temperature:concentration"
+     }
+    },
+    {
+     "what": "fitted",
+     "term": "run 13",
+     "value": "59.25",
+     "where": {
+      "page": 334,
+      "source_kind": "prose",
+      "quote": "The values of y, ŷ, and y - ŷ ... y 59 ŷ 59.25"
+     },
+     "check": {
+      "kind": "fitted",
+      "run": 13,
+      "model": "catalyst + temperature + concentration + temperature:concentration"
+     }
+    },
+    {
+     "what": "residual",
+     "term": "run 13",
+     "value": "-0.25",
+     "where": {
+      "page": 334,
+      "source_kind": "prose",
+      "quote": "The values of y, ŷ, and y - ŷ ... y 59 y - ŷ -0.25"
+     },
+     "check": {
+      "kind": "residual",
+      "run": 13,
+      "model": "catalyst + temperature + concentration + temperature:concentration"
+     }
+    },
+    {
+     "what": "fitted",
+     "term": "run 14",
+     "value": "51.25",
+     "where": {
+      "page": 334,
+      "source_kind": "prose",
+      "quote": "The values of y, ŷ, and y - ŷ ... y 51 ŷ 51.25"
+     },
+     "check": {
+      "kind": "fitted",
+      "run": 14,
+      "model": "catalyst + temperature + concentration + temperature:concentration"
+     }
+    },
+    {
+     "what": "residual",
+     "term": "run 14",
+     "value": "-0.25",
+     "where": {
+      "page": 334,
+      "source_kind": "prose",
+      "quote": "The values of y, ŷ, and y - ŷ ... y 51 y - ŷ -0.25"
+     },
+     "check": {
+      "kind": "residual",
+      "run": 14,
+      "model": "catalyst + temperature + concentration + temperature:concentration"
+     }
+    },
+    {
+     "what": "fitted",
+     "term": "run 15",
+     "value": "87.75",
+     "where": {
+      "page": 334,
+      "source_kind": "prose",
+      "quote": "The values of y, ŷ, and y - ŷ ... y 85 ŷ 87.75"
+     },
+     "check": {
+      "kind": "fitted",
+      "run": 15,
+      "model": "catalyst + temperature + concentration + temperature:concentration"
+     }
+    },
+    {
+     "what": "residual",
+     "term": "run 15",
+     "value": "-2.75",
+     "where": {
+      "page": 334,
+      "source_kind": "prose",
+      "quote": "The values of y, ŷ, and y - ŷ ... y 85 y - ŷ -2.75"
+     },
+     "check": {
+      "kind": "residual",
+      "run": 15,
+      "model": "catalyst + temperature + concentration + temperature:concentration"
+     }
+    },
+    {
+     "what": "fitted",
+     "term": "run 16",
+     "value": "79.75",
+     "where": {
+      "page": 334,
+      "source_kind": "prose",
+      "quote": "The values of y, ŷ, and y - ŷ ... y 78 ŷ 79.75"
+     },
+     "check": {
+      "kind": "fitted",
+      "run": 16,
+      "model": "catalyst + temperature + concentration + temperature:concentration"
+     }
+    },
+    {
+     "what": "residual",
+     "term": "run 16",
+     "value": "-1.75",
+     "where": {
+      "page": 334,
+      "source_kind": "prose",
+      "quote": "The values of y, ŷ, and y - ŷ ... y 78 y - ŷ -1.75"
+     },
+     "check": {
+      "kind": "residual",
+      "run": 16,
+      "model": "catalyst + temperature + concentration + temperature:concentration"
+     }
+    },
+    {
+     "what": "mean",
+     "term": "temperature -1, concentration +1",
+     "value": "55",
+     "analysis": "the average of the four runs at this temperature and concentration",
+     "where": {
+      "page": 329,
+      "source_kind": "figure",
+      "quote": "Two-way table for process development data ... 55 (Figure 10.7)"
+     },
+     "check": {
+      "kind": "mean",
+      "runs": [
+       9,
+       10,
+       13,
+       14
+      ]
+     }
+    },
+    {
+     "what": "mean",
+     "term": "temperature +1, concentration +1",
+     "value": "84",
+     "analysis": "the average of the four runs at this temperature and concentration",
+     "where": {
+      "page": 329,
+      "source_kind": "figure",
+      "quote": "Two-way table for process development data ... 84 (Figure 10.7)"
+     },
+     "check": {
+      "kind": "mean",
+      "runs": [
+       11,
+       12,
+       15,
+       16
+      ]
+     }
+    },
+    {
+     "what": "mean",
+     "term": "temperature -1, concentration -1",
+     "value": "65",
+     "analysis": "the average of the four runs at this temperature and concentration",
+     "where": {
+      "page": 329,
+      "source_kind": "figure",
+      "quote": "Two-way table for process development data ... 65 (Figure 10.7)"
+     },
+     "check": {
+      "kind": "mean",
+      "runs": [
+       1,
+       2,
+       5,
+       6
+      ]
+     }
+    },
+    {
+     "what": "mean",
+     "term": "temperature +1, concentration -1",
+     "value": "85",
+     "analysis": "the average of the four runs at this temperature and concentration",
+     "where": {
+      "page": 329,
+      "source_kind": "figure",
+      "quote": "Two-way table for process development data ... 85 (Figure 10.7)"
+     },
+     "check": {
+      "kind": "mean",
+      "runs": [
+       3,
+       4,
+       7,
+       8
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "name": "bhh-ex-10-11-tape-deck",
+   "title": "Judged quality of sound: brand of tape deck, bass, treble and synthesizer (Exercise 10.11)",
+   "kind": "exercise",
+   "where": {
+    "section": "Exercise 10.11",
+    "pages": "328",
+    "tables": [],
+    "figures": []
+   },
+   "factors": [
+    {
+     "name": "deck",
+     "description": "brand of tape deck",
+     "low": "A",
+     "high": "B",
+     "units": "",
+     "type": "categorical"
+    },
+    {
+     "name": "bass",
+     "description": "bass level",
+     "low": "low",
+     "high": "high",
+     "units": "",
+     "type": "categorical"
+    },
+    {
+     "name": "treble",
+     "description": "treble level",
+     "low": "low",
+     "high": "high",
+     "units": "",
+     "type": "categorical"
+    },
+    {
+     "name": "synthesizer",
+     "description": "synthesizer",
+     "low": "with",
+     "high": "without",
+     "units": "",
+     "type": "categorical"
+    }
+   ],
+   "responses": [
+    {
+     "name": "y",
+     "description": "judged quality of sound",
+     "units": ""
+    }
+   ],
+   "design": {
+    "type": "2^4 factorial",
+    "details": "every combination of 4 factors at 2 levels, once, in standard order",
+    "n_runs": 16,
+    "treatment_factors": 4
+   },
+   "runs": {
+    "columns": [
+     "No.",
+     "deck",
+     "bass",
+     "treble",
+     "synthesizer",
+     "y"
+    ],
+    "rows": [
+     [
+      1,
+      -1,
+      -1,
+      -1,
+      -1,
+      58
+     ],
+     [
+      2,
+      1,
+      -1,
+      -1,
+      -1,
+      44
+     ],
+     [
+      3,
+      -1,
+      1,
+      -1,
+      -1,
+      55
+     ],
+     [
+      4,
+      1,
+      1,
+      -1,
+      -1,
+      45
+     ],
+     [
+      5,
+      -1,
+      -1,
+      1,
+      -1,
+      55
+     ],
+     [
+      6,
+      1,
+      -1,
+      1,
+      -1,
+      42
+     ],
+     [
+      7,
+      -1,
+      1,
+      1,
+      -1,
+      56
+     ],
+     [
+      8,
+      1,
+      1,
+      1,
+      -1,
+      46
+     ],
+     [
+      9,
+      -1,
+      -1,
+      -1,
+      1,
+      51
+     ],
+     [
+      10,
+      1,
+      -1,
+      -1,
+      1,
+      45
+     ],
+     [
+      11,
+      -1,
+      1,
+      -1,
+      1,
+      58
+     ],
+     [
+      12,
+      1,
+      1,
+      -1,
+      1,
+      44
+     ],
+     [
+      13,
+      -1,
+      -1,
+      1,
+      1,
+      60
+     ],
+     [
+      14,
+      1,
+      -1,
+      1,
+      1,
+      46
+     ],
+     [
+      15,
+      -1,
+      1,
+      1,
+      1,
+      54
+     ],
+     [
+      16,
+      1,
+      1,
+      1,
+      1,
+      45
+     ]
+    ],
+    "coded": true,
+    "notes": "the data as printed, in standard order"
+   },
+   "expected": [
+    {
+     "what": "effect_std_error",
+     "term": "deck",
+     "value": "1.64",
+     "where": {
+      "page": 328,
+      "source_kind": "exercise",
+      "quote": "using the three and four-factor interactions, calculate the standard error of an effect. Answer: 1.64."
+     },
+     "check": {
+      "kind": "effect_std_error",
+      "term": "deck",
+      "model": "(deck + bass + treble + synthesizer) ** 2"
+     }
+    }
+   ]
+  },
+  {
+   "name": "bhh-daniel-drill-2-4",
+   "title": "Rate of advance of a stone drill: load, flow, speed and type of mud (Daniel 1976), with a Box-Cox transformation",
+   "kind": "example",
+   "where": {
+    "section": "10.10",
+    "pages": "334-336",
+    "tables": [],
+    "figures": [
+     "Figure 10.10"
+    ]
+   },
+   "factors": [
+    {
+     "name": "A",
+     "description": "load on the drill",
+     "low": "low",
+     "high": "high",
+     "units": "",
+     "type": "categorical"
+    },
+    {
+     "name": "B",
+     "description": "flow rate through it",
+     "low": "low",
+     "high": "high",
+     "units": "",
+     "type": "categorical"
+    },
+    {
+     "name": "C",
+     "description": "rotational speed",
+     "low": "low",
+     "high": "high",
+     "units": "",
+     "type": "categorical"
+    },
+    {
+     "name": "D",
+     "description": "type of mud used in drilling",
+     "low": "-",
+     "high": "+",
+     "units": "",
+     "type": "categorical"
+    }
+   ],
+   "responses": [
+    {
+     "name": "y",
+     "description": "rate of advance of the drill",
+     "units": ""
+    }
+   ],
+   "design": {
+    "type": "2^4 factorial",
+    "details": "every combination of 4 factors at 2 levels, once",
+    "n_runs": 16,
+    "treatment_factors": 4
+   },
+   "runs": {
+    "columns": [
+     "No.",
+     "A",
+     "B",
+     "C",
+     "D",
+     "y"
+    ],
+    "rows": [
+     [
+      1,
+      -1,
+      -1,
+      -1,
+      -1,
+      1.68
+     ],
+     [
+      2,
+      1,
+      -1,
+      -1,
+      -1,
+      1.98
+     ],
+     [
+      3,
+      -1,
+      1,
+      -1,
+      -1,
+      3.28
+     ],
+     [
+      4,
+      1,
+      1,
+      -1,
+      -1,
+      3.44
+     ],
+     [
+      5,
+      -1,
+      -1,
+      1,
+      -1,
+      4.98
+     ],
+     [
+      6,
+      1,
+      -1,
+      1,
+      -1,
+      5.7
+     ],
+     [
+      7,
+      -1,
+      1,
+      1,
+      -1,
+      9.97
+     ],
+     [
+      8,
+      1,
+      1,
+      1,
+      -1,
+      9.07
+     ],
+     [
+      9,
+      -1,
+      -1,
+      -1,
+      1,
+      2.07
+     ],
+     [
+      10,
+      1,
+      -1,
+      -1,
+      1,
+      2.44
+     ],
+     [
+      11,
+      -1,
+      1,
+      -1,
+      1,
+      4.09
+     ],
+     [
+      12,
+      1,
+      1,
+      -1,
+      1,
+      4.53
+     ],
+     [
+      13,
+      -1,
+      -1,
+      1,
+      1,
+      7.77
+     ],
+     [
+      14,
+      1,
+      -1,
+      1,
+      1,
+      9.43
+     ],
+     [
+      15,
+      -1,
+      1,
+      1,
+      1,
+      11.75
+     ],
+     [
+      16,
+      1,
+      1,
+      1,
+      1,
+      16.3
+     ]
+    ],
+    "coded": true,
+    "notes": "read off the cubes of Figure 10.10 (a) into standard order. The scan of the corner with A, B low and C high reads 4.88 or 4.98; the logged cube (c) prints 0.70, which is log10 of 4.98 (4.88 gives 0.69), and 4.98 is Daniel's value."
+   },
+   "expected": [
+    {
+     "what": "lambda",
+     "term": "Box-Cox",
+     "value": "-0.05",
+     "analysis": "the maximum-likelihood power when only the four main effects are fitted",
+     "where": {
+      "page": 335,
+      "source_kind": "figure",
+      "quote": "λ- = -0.32 λ̂ = -0.05 λ+ = 0.21 (Figure 10.10 b)"
+     },
+     "check": {
+      "kind": "box_cox",
+      "model": "A + B + C + D",
+      "key": "lambda"
+     }
+    },
+    {
+     "what": "lambda",
+     "term": "Box-Cox lower limit",
+     "value": "-0.32",
+     "where": {
+      "page": 336,
+      "source_kind": "prose",
+      "quote": "Confidence limits (95%) obtained as before are λ- = -0.32, λ+ = 0.21."
+     },
+     "check": {
+      "kind": "box_cox",
+      "model": "A + B + C + D",
+      "key": "lambda_ci.0",
+      "disagreement": "the library's 95% likelihood-ratio limits are -0.25 and 0.14; the book reads its limits off the plot of Sλ against the critical sum of squares 2.59(1 + t²/11) = 3.73, a t-based allowance that widens the interval for 11 degrees of freedom"
+     }
+    },
+    {
+     "what": "lambda",
+     "term": "Box-Cox upper limit",
+     "value": "0.21",
+     "where": {
+      "page": 336,
+      "source_kind": "prose",
+      "quote": "λ- = -0.32, λ+ = 0.21"
+     },
+     "check": {
+      "kind": "box_cox",
+      "model": "A + B + C + D",
+      "key": "lambda_ci.1",
+      "disagreement": "the library's 95% likelihood-ratio limits are -0.25 and 0.14; the book reads its limits off the plot of Sλ against the critical sum of squares 2.59(1 + t²/11) = 3.73, a t-based allowance that widens the interval for 11 degrees of freedom"
+     }
+    },
+    {
+     "what": "residual_df",
+     "term": null,
+     "value": "11",
+     "where": {
+      "page": 336,
+      "source_kind": "prose",
+      "quote": "The sum of squares of residuals Sλ after the four main effects have been eliminated has 11 degrees of freedom."
+     },
+     "check": {
+      "kind": "residual_df",
+      "model": "A + B + C + D"
+     }
+    },
+    {
+     "what": "ss",
+     "term": "S at λ̂, critical",
+     "value": "2.59, 3.73",
+     "where": {
+      "page": 335,
+      "source_kind": "table",
+      "quote": "Sλ̂ = 2.59 ... S = 3.73 (Figure 10.10 b)"
+     },
+     "check": {
+      "manual": "the residual sum of squares of the scaled power transform at its minimum, and the book's critical value, which no check reads"
+     }
+    },
+    {
+     "what": "transformed",
+     "term": "log10 y",
+     "value": "0.23 0.30 0.52 0.54 0.70 0.76 1.00 0.96 0.32 0.39 0.61 0.66 0.89 0.97 1.07 1.21",
+     "where": {
+      "page": 335,
+      "source_kind": "figure",
+      "quote": "(c) Logged data: log y"
+     },
+     "check": {
+      "manual": "log10 of each rate of advance, to two decimals (each reproduces; used above to read the data)"
+     }
+    }
+   ]
+  },
+  {
+   "name": "bhh-storm-water-phase-a",
+   "title": "Screening storm water overflows, phase (a): collar and horizontal screen mesh and flow rate against solids removed",
+   "kind": "case study",
+   "where": {
+    "section": "11.3",
+    "pages": "354-360",
+    "tables": [],
+    "figures": [
+     "Figure 11.4"
+    ]
+   },
+   "factors": [
+    {
+     "name": "C",
+     "description": "collar screen mesh size",
+     "low": "175 mesh (fine)",
+     "high": "110 mesh (coarse)",
+     "units": "",
+     "type": "categorical"
+    },
+    {
+     "name": "H",
+     "description": "horizontal screen mesh size",
+     "low": "175 mesh (fine)",
+     "high": "110 mesh (coarse)",
+     "units": "",
+     "type": "categorical"
+    },
+    {
+     "name": "F",
+     "description": "flow rate",
+     "low": 700,
+     "high": 1200,
+     "units": "gpm",
+     "type": "numeric"
+    }
+   ],
+   "responses": [
+    {
+     "name": "y",
+     "description": "solids removed",
+     "units": "%"
+    },
+    {
+     "name": "z",
+     "description": "flow retreated",
+     "units": "%"
+    }
+   ],
+   "design": {
+    "type": "2^3 factorial",
+    "details": "every combination of 3 factors at 2 levels, once; collar screen speed 30 rpm",
+    "n_runs": 8,
+    "treatment_factors": 3
+   },
+   "runs": {
+    "columns": [
+     "No.",
+     "C",
+     "H",
+     "F",
+     "y",
+     "z"
+    ],
+    "rows": [
+     [
+      1,
+      -1,
+      -1,
+      -1,
+      81,
+      0.01
+     ],
+     [
+      2,
+      1,
+      -1,
+      -1,
+      92,
+      0.01
+     ],
+     [
+      3,
+      -1,
+      1,
+      -1,
+      79,
+      0.01
+     ],
+     [
+      4,
+      1,
+      1,
+      -1,
+      75,
+      0.01
+     ],
+     [
+      5,
+      -1,
+      -1,
+      1,
+      85,
+      0.01
+     ],
+     [
+      6,
+      1,
+      -1,
+      1,
+      93.0,
+      0.01
+     ],
+     [
+      7,
+      -1,
+      1,
+      1,
+      86,
+      0.01
+     ],
+     [
+      8,
+      1,
+      1,
+      1,
+      62,
+      0.01
+     ]
+    ],
+    "coded": true,
+    "notes": "read off the cube of Figure 11.4 (a) into standard order; the scan was checked at high resolution, and the corner C low, H high, F high reads 86"
+   },
+   "notes": "Phases (b) to (e) of the study change the screens and the variables; see not_captured.",
+   "expected": [
+    {
+     "what": "effect",
+     "term": "C",
+     "value": "-2",
+     "where": {
+      "page": 359,
+      "source_kind": "figure",
+      "quote": "analysis, phase (a) for solids removed y ... C -2 ± 6"
+     },
+     "check": {
+      "kind": "effect",
+      "term": "C",
+      "model": "C * H * F"
+     }
+    },
+    {
+     "what": "effect",
+     "term": "H",
+     "value": "-12",
+     "where": {
+      "page": 359,
+      "source_kind": "figure",
+      "quote": "analysis, phase (a) for solids removed y ... H -12 ± 6"
+     },
+     "check": {
+      "kind": "effect",
+      "term": "H",
+      "model": "C * H * F"
+     }
+    },
+    {
+     "what": "effect",
+     "term": "F",
+     "value": "0",
+     "where": {
+      "page": 359,
+      "source_kind": "figure",
+      "quote": "analysis, phase (a) for solids removed y ... F 0 ± 6"
+     },
+     "check": {
+      "kind": "effect",
+      "term": "F",
+      "model": "C * H * F"
+     }
+    },
+    {
+     "what": "effect",
+     "term": "C·H",
+     "value": "-12",
+     "where": {
+      "page": 359,
+      "source_kind": "figure",
+      "quote": "analysis, phase (a) for solids removed y ... CH -12 ± 6"
+     },
+     "check": {
+      "kind": "effect",
+      "term": "C·H",
+      "model": "C * H * F"
+     }
+    },
+    {
+     "what": "effect",
+     "term": "C·F",
+     "value": "-6",
+     "where": {
+      "page": 359,
+      "source_kind": "figure",
+      "quote": "analysis, phase (a) for solids removed y ... CF -6 ± 6"
+     },
+     "check": {
+      "kind": "effect",
+      "term": "C·F",
+      "model": "C * H * F"
+     }
+    },
+    {
+     "what": "effect",
+     "term": "H·F",
+     "value": "-3",
+     "where": {
+      "page": 359,
+      "source_kind": "figure",
+      "quote": "analysis, phase (a) for solids removed y ... HF -3 ± 6"
+     },
+     "check": {
+      "kind": "effect",
+      "term": "H·F",
+      "model": "C * H * F"
+     }
+    },
+    {
+     "what": "effect",
+     "term": "C·H·F",
+     "value": "-4",
+     "where": {
+      "page": 359,
+      "source_kind": "figure",
+      "quote": "analysis, phase (a) for solids removed y ... CHF -4 ± 6"
+     },
+     "check": {
+      "kind": "effect",
+      "term": "C·H·F",
+      "model": "C * H * F"
+     }
+    },
+    {
+     "what": "std_error",
+     "term": "effects",
+     "value": "6",
+     "where": {
+      "page": 359,
+      "source_kind": "figure",
+      "quote": "C -2 ± 6 ... CHF -4 ± 6"
+     },
+     "check": {
+      "manual": "a standard error the book gives without saying how it was found (the eight runs have no replicates)"
+     }
+    },
+    {
+     "what": "mean",
+     "term": "C -1, H +1",
+     "value": "83",
+     "analysis": "the average over the two flow rates",
+     "where": {
+      "page": 358,
+      "source_kind": "figure",
+      "quote": "Phase (a), R = 30 rpm: square of C and H ... 83"
+     },
+     "check": {
+      "kind": "mean",
+      "runs": [
+       3,
+       7
+      ]
+     }
+    },
+    {
+     "what": "mean",
+     "term": "C +1, H +1",
+     "value": "69",
+     "analysis": "the average over the two flow rates",
+     "where": {
+      "page": 358,
+      "source_kind": "figure",
+      "quote": "Phase (a), R = 30 rpm: square of C and H ... 69"
+     },
+     "check": {
+      "kind": "mean",
+      "runs": [
+       4,
+       8
+      ]
+     }
+    },
+    {
+     "what": "mean",
+     "term": "C -1, H -1",
+     "value": "83",
+     "analysis": "the average over the two flow rates",
+     "where": {
+      "page": 358,
+      "source_kind": "figure",
+      "quote": "Phase (a), R = 30 rpm: square of C and H ... 83"
+     },
+     "check": {
+      "kind": "mean",
+      "runs": [
+       1,
+       5
+      ]
+     }
+    },
+    {
+     "what": "mean",
+     "term": "C +1, H -1",
+     "value": "92",
+     "analysis": "the average over the two flow rates",
+     "where": {
+      "page": 358,
+      "source_kind": "figure",
+      "quote": "Phase (a), R = 30 rpm: square of C and H ... 92"
+     },
+     "check": {
+      "kind": "mean",
+      "runs": [
+       2,
+       6
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "name": "bhh-evop-petrochemical-phase-1",
+   "title": "Evolutionary operation on a petrochemical plant, phase I: reflux ratio and recycle/purge ratio against cost per ton",
+   "kind": "case study",
+   "where": {
+    "section": "11.4",
+    "pages": "362-365",
+    "tables": [
+     "Table 11.2"
+    ],
+    "figures": []
+   },
+   "factors": [
+    {
+     "name": "reflux",
+     "description": "reflux ratio",
+     "low": 6.7,
+     "high": 7.1,
+     "units": "",
+     "type": "numeric"
+    },
+    {
+     "name": "recycle",
+     "description": "ratio of recycle flow to purge flow",
+     "low": 7.5,
+     "high": 8.0,
+     "units": "",
+     "type": "numeric"
+    }
+   ],
+   "responses": [
+    {
+     "name": "y",
+     "description": "average cost per ton, to the nearest unit",
+     "units": "£/ton"
+    }
+   ],
+   "design": {
+    "type": "2^2 factorial with a centre point (EVOP)",
+    "details": "4 corners and a centre, repeated over 5 cycles; each value is the average over the cycles",
+    "n_runs": 5,
+    "treatment_factors": 2
+   },
+   "runs": {
+    "columns": [
+     "No.",
+     "reflux",
+     "recycle",
+     "y"
+    ],
+    "rows": [
+     [
+      1,
+      -1,
+      -1,
+      92
+     ],
+     [
+      2,
+      1,
+      -1,
+      95
+     ],
+     [
+      3,
+      -1,
+      1,
+      88
+     ],
+     [
+      4,
+      1,
+      1,
+      91
+     ],
+     [
+      5,
+      0,
+      0,
+      92
+     ]
+    ],
+    "coded": true,
+    "notes": "the information board of Table 11.2 at the end of phase I, read off the page image"
+   },
+   "expected": [
+    {
+     "what": "effect",
+     "term": "reflux",
+     "value": "4.0",
+     "analysis": "from the four corner averages",
+     "where": {
+      "page": 364,
+      "source_kind": "table",
+      "quote": "Table 11.2, phase I, cycle 5, effects and their standard errors ... 4.0 ± 1.5"
+     },
+     "check": {
+      "kind": "effect",
+      "term": "reflux",
+      "model": "reflux * recycle",
+      "runs": [
+       1,
+       2,
+       3,
+       4
+      ],
+      "disagreement": "the corner averages on the board give 3.0, -4.0 and 0.0; the board shows them to the nearest unit, and the effects were worked from the averages before rounding, which differ by up to 1"
+     }
+    },
+    {
+     "what": "std_error",
+     "term": "reflux",
+     "value": "1.5",
+     "where": {
+      "page": 364,
+      "source_kind": "table",
+      "quote": "Table 11.2, phase I, cycle 5, effects and their standard errors ... 4.0 ± 1.5"
+     },
+     "check": {
+      "manual": "a standard error from the EVOP calculation over the cycles, whose individual readings the information board does not print"
+     }
+    },
+    {
+     "what": "effect",
+     "term": "recycle",
+     "value": "-5.0",
+     "analysis": "from the four corner averages",
+     "where": {
+      "page": 364,
+      "source_kind": "table",
+      "quote": "Table 11.2, phase I, cycle 5, effects and their standard errors ... -5.0 ± 1.5"
+     },
+     "check": {
+      "kind": "effect",
+      "term": "recycle",
+      "model": "reflux * recycle",
+      "runs": [
+       1,
+       2,
+       3,
+       4
+      ],
+      "disagreement": "the corner averages on the board give 3.0, -4.0 and 0.0; the board shows them to the nearest unit, and the effects were worked from the averages before rounding, which differ by up to 1"
+     }
+    },
+    {
+     "what": "std_error",
+     "term": "recycle",
+     "value": "1.5",
+     "where": {
+      "page": 364,
+      "source_kind": "table",
+      "quote": "Table 11.2, phase I, cycle 5, effects and their standard errors ... -5.0 ± 1.5"
+     },
+     "check": {
+      "manual": "a standard error from the EVOP calculation over the cycles, whose individual readings the information board does not print"
+     }
+    },
+    {
+     "what": "effect",
+     "term": "reflux x recycle",
+     "value": "1.0",
+     "analysis": "from the four corner averages",
+     "where": {
+      "page": 364,
+      "source_kind": "table",
+      "quote": "Table 11.2, phase I, cycle 5, effects and their standard errors ... 1.0 ± 1.5"
+     },
+     "check": {
+      "kind": "effect",
+      "term": "reflux·recycle",
+      "model": "reflux * recycle",
+      "runs": [
+       1,
+       2,
+       3,
+       4
+      ],
+      "disagreement": "the corner averages on the board give 3.0, -4.0 and 0.0; the board shows them to the nearest unit, and the effects were worked from the averages before rounding, which differ by up to 1"
+     }
+    },
+    {
+     "what": "std_error",
+     "term": "reflux x recycle",
+     "value": "1.5",
+     "where": {
+      "page": 364,
+      "source_kind": "table",
+      "quote": "Table 11.2, phase I, cycle 5, effects and their standard errors ... 1.0 ± 1.5"
+     },
+     "check": {
+      "manual": "a standard error from the EVOP calculation over the cycles, whose individual readings the information board does not print"
+     }
+    }
+   ]
+  },
+  {
+   "name": "bhh-evop-petrochemical-phase-2",
+   "title": "Evolutionary operation on a petrochemical plant, phase II",
+   "kind": "case study",
+   "where": {
+    "section": "11.4",
+    "pages": "362-365",
+    "tables": [
+     "Table 11.2"
+    ],
+    "figures": []
+   },
+   "factors": [
+    {
+     "name": "reflux",
+     "description": "reflux ratio",
+     "low": 5.9,
+     "high": 6.7,
+     "units": "",
+     "type": "numeric"
+    },
+    {
+     "name": "recycle",
+     "description": "ratio of recycle flow to purge flow",
+     "low": 8.0,
+     "high": 8.5,
+     "units": "",
+     "type": "numeric"
+    }
+   ],
+   "responses": [
+    {
+     "name": "y",
+     "description": "average cost per ton, to the nearest unit",
+     "units": "£/ton"
+    }
+   ],
+   "design": {
+    "type": "2^2 factorial with a centre point (EVOP)",
+    "details": "4 corners and a centre, repeated over 5 cycles; each value is the average over the cycles",
+    "n_runs": 5,
+    "treatment_factors": 2
+   },
+   "runs": {
+    "columns": [
+     "No.",
+     "reflux",
+     "recycle",
+     "y"
+    ],
+    "rows": [
+     [
+      1,
+      -1,
+      -1,
+      83
+     ],
+     [
+      2,
+      1,
+      -1,
+      84
+     ],
+     [
+      3,
+      -1,
+      1,
+      80
+     ],
+     [
+      4,
+      1,
+      1,
+      81
+     ],
+     [
+      5,
+      0,
+      0,
+      82
+     ]
+    ],
+    "coded": true,
+    "notes": "the information board of Table 11.2 at the end of phase II, read off the page image"
+   },
+   "expected": [
+    {
+     "what": "effect",
+     "term": "reflux",
+     "value": "1.0",
+     "analysis": "from the four corner averages",
+     "where": {
+      "page": 364,
+      "source_kind": "table",
+      "quote": "Table 11.2, phase II, cycle 5, effects and their standard errors ... 1.0 ± 1.0"
+     },
+     "check": {
+      "kind": "effect",
+      "term": "reflux",
+      "model": "reflux * recycle",
+      "runs": [
+       1,
+       2,
+       3,
+       4
+      ]
+     }
+    },
+    {
+     "what": "std_error",
+     "term": "reflux",
+     "value": "1.0",
+     "where": {
+      "page": 364,
+      "source_kind": "table",
+      "quote": "Table 11.2, phase II, cycle 5, effects and their standard errors ... 1.0 ± 1.0"
+     },
+     "check": {
+      "manual": "a standard error from the EVOP calculation over the cycles, whose individual readings the information board does not print"
+     }
+    },
+    {
+     "what": "effect",
+     "term": "recycle",
+     "value": "-3.0",
+     "analysis": "from the four corner averages",
+     "where": {
+      "page": 364,
+      "source_kind": "table",
+      "quote": "Table 11.2, phase II, cycle 5, effects and their standard errors ... -3.0 ± 1.0"
+     },
+     "check": {
+      "kind": "effect",
+      "term": "recycle",
+      "model": "reflux * recycle",
+      "runs": [
+       1,
+       2,
+       3,
+       4
+      ]
+     }
+    },
+    {
+     "what": "std_error",
+     "term": "recycle",
+     "value": "1.0",
+     "where": {
+      "page": 364,
+      "source_kind": "table",
+      "quote": "Table 11.2, phase II, cycle 5, effects and their standard errors ... -3.0 ± 1.0"
+     },
+     "check": {
+      "manual": "a standard error from the EVOP calculation over the cycles, whose individual readings the information board does not print"
+     }
+    },
+    {
+     "what": "effect",
+     "term": "reflux x recycle",
+     "value": "0.0",
+     "analysis": "from the four corner averages",
+     "where": {
+      "page": 364,
+      "source_kind": "table",
+      "quote": "Table 11.2, phase II, cycle 5, effects and their standard errors ... 0.0 ± 1.0"
+     },
+     "check": {
+      "kind": "effect",
+      "term": "reflux·recycle",
+      "model": "reflux * recycle",
+      "runs": [
+       1,
+       2,
+       3,
+       4
+      ]
+     }
+    },
+    {
+     "what": "std_error",
+     "term": "reflux x recycle",
+     "value": "1.0",
+     "where": {
+      "page": 364,
+      "source_kind": "table",
+      "quote": "Table 11.2, phase II, cycle 5, effects and their standard errors ... 0.0 ± 1.0"
+     },
+     "check": {
+      "manual": "a standard error from the EVOP calculation over the cycles, whose individual readings the information board does not print"
+     }
+    }
+   ]
+  },
+  {
+   "name": "bhh-evop-petrochemical-phase-3",
+   "title": "Evolutionary operation on a petrochemical plant, phase III",
+   "kind": "case study",
+   "where": {
+    "section": "11.4",
+    "pages": "362-365",
+    "tables": [
+     "Table 11.2"
+    ],
+    "figures": []
+   },
+   "factors": [
+    {
+     "name": "reflux",
+     "description": "reflux ratio",
+     "low": 5.9,
+     "high": 6.7,
+     "units": "",
+     "type": "numeric"
+    },
+    {
+     "name": "recycle",
+     "description": "ratio of recycle flow to purge flow",
+     "low": 8.25,
+     "high": 8.75,
+     "units": "",
+     "type": "numeric"
+    }
+   ],
+   "responses": [
+    {
+     "name": "y",
+     "description": "average cost per ton, to the nearest unit",
+     "units": "£/ton"
+    }
+   ],
+   "design": {
+    "type": "2^2 factorial with a centre point (EVOP)",
+    "details": "4 corners and a centre, repeated over 4 cycles; each value is the average over the cycles",
+    "n_runs": 5,
+    "treatment_factors": 2
+   },
+   "runs": {
+    "columns": [
+     "No.",
+     "reflux",
+     "recycle",
+     "y"
+    ],
+    "rows": [
+     [
+      1,
+      -1,
+      -1,
+      84
+     ],
+     [
+      2,
+      1,
+      -1,
+      83
+     ],
+     [
+      3,
+      -1,
+      1,
+      86
+     ],
+     [
+      4,
+      1,
+      1,
+      85
+     ],
+     [
+      5,
+      0,
+      0,
+      80
+     ]
+    ],
+    "coded": true,
+    "notes": "the information board of Table 11.2 at the end of phase III, read off the page image"
+   },
+   "expected": [
+    {
+     "what": "effect",
+     "term": "reflux",
+     "value": "-1.0",
+     "analysis": "from the four corner averages",
+     "where": {
+      "page": 364,
+      "source_kind": "table",
+      "quote": "Table 11.2, phase III, cycle 4, effects and their standard errors ... -1.0 ± 1.5"
+     },
+     "check": {
+      "kind": "effect",
+      "term": "reflux",
+      "model": "reflux * recycle",
+      "runs": [
+       1,
+       2,
+       3,
+       4
+      ]
+     }
+    },
+    {
+     "what": "std_error",
+     "term": "reflux",
+     "value": "1.5",
+     "where": {
+      "page": 364,
+      "source_kind": "table",
+      "quote": "Table 11.2, phase III, cycle 4, effects and their standard errors ... -1.0 ± 1.5"
+     },
+     "check": {
+      "manual": "a standard error from the EVOP calculation over the cycles, whose individual readings the information board does not print"
+     }
+    },
+    {
+     "what": "effect",
+     "term": "recycle",
+     "value": "2.0",
+     "analysis": "from the four corner averages",
+     "where": {
+      "page": 364,
+      "source_kind": "table",
+      "quote": "Table 11.2, phase III, cycle 4, effects and their standard errors ... 2.0 ± 1.5"
+     },
+     "check": {
+      "kind": "effect",
+      "term": "recycle",
+      "model": "reflux * recycle",
+      "runs": [
+       1,
+       2,
+       3,
+       4
+      ]
+     }
+    },
+    {
+     "what": "std_error",
+     "term": "recycle",
+     "value": "1.5",
+     "where": {
+      "page": 364,
+      "source_kind": "table",
+      "quote": "Table 11.2, phase III, cycle 4, effects and their standard errors ... 2.0 ± 1.5"
+     },
+     "check": {
+      "manual": "a standard error from the EVOP calculation over the cycles, whose individual readings the information board does not print"
+     }
+    },
+    {
+     "what": "effect",
+     "term": "reflux x recycle",
+     "value": "0.0",
+     "analysis": "from the four corner averages",
+     "where": {
+      "page": 364,
+      "source_kind": "table",
+      "quote": "Table 11.2, phase III, cycle 4, effects and their standard errors ... 0.0 ± 1.5"
+     },
+     "check": {
+      "kind": "effect",
+      "term": "reflux·recycle",
+      "model": "reflux * recycle",
+      "runs": [
+       1,
+       2,
+       3,
+       4
+      ]
+     }
+    },
+    {
+     "what": "std_error",
+     "term": "reflux x recycle",
+     "value": "1.5",
+     "where": {
+      "page": 364,
+      "source_kind": "table",
+      "quote": "Table 11.2, phase III, cycle 4, effects and their standard errors ... 0.0 ± 1.5"
+     },
+     "check": {
+      "manual": "a standard error from the EVOP calculation over the cycles, whose individual readings the information board does not print"
+     }
+    }
+   ]
+  },
+  {
+   "name": "bhh-evop-polymer-phase-1",
+   "title": "Evolutionary operation on a polymer latex unit, phase I: addition time and stirring rate against optical density",
+   "kind": "case study",
+   "where": {
+    "section": "11.5",
+    "pages": "365-368",
+    "tables": [
+     "Table 11.3"
+    ],
+    "figures": []
+   },
+   "factors": [
+    {
+     "name": "time",
+     "description": "addition time of one reactant",
+     "low": "2:50",
+     "high": "3:10",
+     "units": "h:min",
+     "type": "categorical"
+    },
+    {
+     "name": "stirring",
+     "description": "stirring rate",
+     "low": 83,
+     "high": 93,
+     "units": "rpm",
+     "type": "numeric"
+    }
+   ],
+   "responses": [
+    {
+     "name": "y",
+     "description": "optical density, coded",
+     "units": ""
+    }
+   ],
+   "design": {
+    "type": "2^2 factorial with a centre point (EVOP)",
+    "details": "4 corners and a centre, repeated over 12 cycles; each value is the average over the cycles",
+    "n_runs": 5,
+    "treatment_factors": 2
+   },
+   "runs": {
+    "columns": [
+     "No.",
+     "time",
+     "stirring",
+     "y"
+    ],
+    "rows": [
+     [
+      1,
+      -1,
+      -1,
+      36.2
+     ],
+     [
+      2,
+      1,
+      -1,
+      35.2
+     ],
+     [
+      3,
+      -1,
+      1,
+      35.2
+     ],
+     [
+      4,
+      1,
+      1,
+      36.0
+     ],
+     [
+      5,
+      0,
+      0,
+      36.6
+     ]
+    ],
+    "coded": true,
+    "notes": "Table 11.3, phase I (temperature 120 °F), twelve cycles; read off the page image"
+   },
+   "expected": [
+    {
+     "what": "effect",
+     "term": "time",
+     "value": "0.2",
+     "analysis": "from the four corner averages",
+     "where": {
+      "page": 366,
+      "source_kind": "table",
+      "quote": "Table 11.3, phase I, effects with standard errors ... 0.2 ± 0.5"
+     },
+     "check": {
+      "kind": "effect",
+      "term": "time",
+      "model": "time * stirring",
+      "runs": [
+       1,
+       2,
+       3,
+       4
+      ],
+      "disagreement": "the four corner averages printed give -0.1 for addition time, -0.1 for stirring rate and 0.9 for the interaction; no arrangement of the four values gives the printed effects, so one of the printed averages or effects is wrong"
+     }
+    },
+    {
+     "what": "std_error",
+     "term": "time",
+     "value": "0.5",
+     "where": {
+      "page": 366,
+      "source_kind": "table",
+      "quote": "Table 11.3, phase I, effects with standard errors ... 0.2 ± 0.5"
+     },
+     "check": {
+      "manual": "a standard error from the EVOP calculation over the cycles, whose individual readings the information board does not print"
+     }
+    },
+    {
+     "what": "effect",
+     "term": "stirring",
+     "value": "-0.4",
+     "analysis": "from the four corner averages",
+     "where": {
+      "page": 366,
+      "source_kind": "table",
+      "quote": "Table 11.3, phase I, effects with standard errors ... -0.4 ± 0.5"
+     },
+     "check": {
+      "kind": "effect",
+      "term": "stirring",
+      "model": "time * stirring",
+      "runs": [
+       1,
+       2,
+       3,
+       4
+      ],
+      "disagreement": "the four corner averages printed give -0.1 for addition time, -0.1 for stirring rate and 0.9 for the interaction; no arrangement of the four values gives the printed effects, so one of the printed averages or effects is wrong"
+     }
+    },
+    {
+     "what": "std_error",
+     "term": "stirring",
+     "value": "0.5",
+     "where": {
+      "page": 366,
+      "source_kind": "table",
+      "quote": "Table 11.3, phase I, effects with standard errors ... -0.4 ± 0.5"
+     },
+     "check": {
+      "manual": "a standard error from the EVOP calculation over the cycles, whose individual readings the information board does not print"
+     }
+    },
+    {
+     "what": "effect",
+     "term": "time x stirring",
+     "value": "0.6",
+     "analysis": "from the four corner averages",
+     "where": {
+      "page": 366,
+      "source_kind": "table",
+      "quote": "Table 11.3, phase I, effects with standard errors ... 0.6 ± 0.5"
+     },
+     "check": {
+      "kind": "effect",
+      "term": "time·stirring",
+      "model": "time * stirring",
+      "runs": [
+       1,
+       2,
+       3,
+       4
+      ],
+      "disagreement": "the four corner averages printed give -0.1 for addition time, -0.1 for stirring rate and 0.9 for the interaction; no arrangement of the four values gives the printed effects, so one of the printed averages or effects is wrong"
+     }
+    },
+    {
+     "what": "std_error",
+     "term": "time x stirring",
+     "value": "0.5",
+     "where": {
+      "page": 366,
+      "source_kind": "table",
+      "quote": "Table 11.3, phase I, effects with standard errors ... 0.6 ± 0.5"
+     },
+     "check": {
+      "manual": "a standard error from the EVOP calculation over the cycles, whose individual readings the information board does not print"
+     }
+    }
+   ]
+  },
+  {
+   "name": "bhh-evop-polymer-phase-2",
+   "title": "Evolutionary operation on a polymer latex unit, phase II",
+   "kind": "case study",
+   "where": {
+    "section": "11.5",
+    "pages": "365-368",
+    "tables": [
+     "Table 11.3"
+    ],
+    "figures": []
+   },
+   "factors": [
+    {
+     "name": "time",
+     "description": "addition time of one reactant",
+     "low": "2:35",
+     "high": "3:25",
+     "units": "h:min",
+     "type": "categorical"
+    },
+    {
+     "name": "stirring",
+     "description": "stirring rate",
+     "low": 78,
+     "high": 98,
+     "units": "rpm",
+     "type": "numeric"
+    }
+   ],
+   "responses": [
+    {
+     "name": "y",
+     "description": "optical density, coded",
+     "units": ""
+    }
+   ],
+   "design": {
+    "type": "2^2 factorial with a centre point (EVOP)",
+    "details": "4 corners and a centre, repeated over 18 cycles; each value is the average over the cycles",
+    "n_runs": 5,
+    "treatment_factors": 2
+   },
+   "runs": {
+    "columns": [
+     "No.",
+     "time",
+     "stirring",
+     "y"
+    ],
+    "rows": [
+     [
+      1,
+      -1,
+      -1,
+      38.8
+     ],
+     [
+      2,
+      1,
+      -1,
+      39.8
+     ],
+     [
+      3,
+      -1,
+      1,
+      40.8
+     ],
+     [
+      4,
+      1,
+      1,
+      41.0
+     ],
+     [
+      5,
+      0,
+      0,
+      38.8
+     ]
+    ],
+    "coded": true,
+    "notes": "Table 11.3, phase II (temperature 120 °F), eighteen cycles; read off the page image"
+   },
+   "expected": [
+    {
+     "what": "effect",
+     "term": "time",
+     "value": "0.6",
+     "analysis": "from the four corner averages",
+     "where": {
+      "page": 366,
+      "source_kind": "table",
+      "quote": "Table 11.3, phase II, effects with standard errors ... 0.6 ± 0.7"
+     },
+     "check": {
+      "kind": "effect",
+      "term": "time",
+      "model": "time * stirring",
+      "runs": [
+       1,
+       2,
+       3,
+       4
+      ]
+     }
+    },
+    {
+     "what": "std_error",
+     "term": "time",
+     "value": "0.7",
+     "where": {
+      "page": 366,
+      "source_kind": "table",
+      "quote": "Table 11.3, phase II, effects with standard errors ... 0.6 ± 0.7"
+     },
+     "check": {
+      "manual": "a standard error from the EVOP calculation over the cycles, whose individual readings the information board does not print"
+     }
+    },
+    {
+     "what": "effect",
+     "term": "stirring",
+     "value": "1.6",
+     "analysis": "from the four corner averages",
+     "where": {
+      "page": 366,
+      "source_kind": "table",
+      "quote": "Table 11.3, phase II, effects with standard errors ... 1.6 ± 0.7"
+     },
+     "check": {
+      "kind": "effect",
+      "term": "stirring",
+      "model": "time * stirring",
+      "runs": [
+       1,
+       2,
+       3,
+       4
+      ]
+     }
+    },
+    {
+     "what": "std_error",
+     "term": "stirring",
+     "value": "0.7",
+     "where": {
+      "page": 366,
+      "source_kind": "table",
+      "quote": "Table 11.3, phase II, effects with standard errors ... 1.6 ± 0.7"
+     },
+     "check": {
+      "manual": "a standard error from the EVOP calculation over the cycles, whose individual readings the information board does not print"
+     }
+    },
+    {
+     "what": "effect",
+     "term": "time x stirring",
+     "value": "-0.4",
+     "analysis": "from the four corner averages",
+     "where": {
+      "page": 366,
+      "source_kind": "table",
+      "quote": "Table 11.3, phase II, effects with standard errors ... -0.4 ± 0.7"
+     },
+     "check": {
+      "kind": "effect",
+      "term": "time·stirring",
+      "model": "time * stirring",
+      "runs": [
+       1,
+       2,
+       3,
+       4
+      ]
+     }
+    },
+    {
+     "what": "std_error",
+     "term": "time x stirring",
+     "value": "0.7",
+     "where": {
+      "page": 366,
+      "source_kind": "table",
+      "quote": "Table 11.3, phase II, effects with standard errors ... -0.4 ± 0.7"
+     },
+     "check": {
+      "manual": "a standard error from the EVOP calculation over the cycles, whose individual readings the information board does not print"
+     }
+    }
+   ]
+  },
+  {
+   "name": "bhh-evop-polymer-phase-3",
+   "title": "Evolutionary operation on a polymer latex unit, phase III",
+   "kind": "case study",
+   "where": {
+    "section": "11.5",
+    "pages": "365-368",
+    "tables": [
+     "Table 11.3"
+    ],
+    "figures": []
+   },
+   "factors": [
+    {
+     "name": "time",
+     "description": "addition time of one reactant",
+     "low": "2:30",
+     "high": "3:00",
+     "units": "h:min",
+     "type": "categorical"
+    },
+    {
+     "name": "temperature",
+     "description": "temperature",
+     "low": 118,
+     "high": 122,
+     "units": "°F",
+     "type": "numeric"
+    }
+   ],
+   "responses": [
+    {
+     "name": "y",
+     "description": "optical density, coded",
+     "units": ""
+    }
+   ],
+   "design": {
+    "type": "2^2 factorial with a centre point (EVOP)",
+    "details": "4 corners and a centre, repeated over several cycles; each value is the average over the cycles",
+    "n_runs": 5,
+    "treatment_factors": 2
+   },
+   "runs": {
+    "columns": [
+     "No.",
+     "time",
+     "temperature",
+     "y"
+    ],
+    "rows": [
+     [
+      1,
+      -1,
+      -1,
+      39.2
+     ],
+     [
+      2,
+      1,
+      -1,
+      40.0
+     ],
+     [
+      3,
+      -1,
+      1,
+      44.0
+     ],
+     [
+      4,
+      1,
+      1,
+      44.8
+     ],
+     [
+      5,
+      0,
+      0,
+      41.8
+     ]
+    ],
+    "coded": true,
+    "notes": "Table 11.3, phase III (stirring rate 88 rpm); read off the page image"
+   },
+   "expected": [
+    {
+     "what": "effect",
+     "term": "time",
+     "value": "0.8",
+     "analysis": "from the four corner averages",
+     "where": {
+      "page": 366,
+      "source_kind": "table",
+      "quote": "Table 11.3, phase III, effects with standard errors ... 0.8 ± 1.2"
+     },
+     "check": {
+      "kind": "effect",
+      "term": "time",
+      "model": "time * temperature",
+      "runs": [
+       1,
+       2,
+       3,
+       4
+      ]
+     }
+    },
+    {
+     "what": "std_error",
+     "term": "time",
+     "value": "1.2",
+     "where": {
+      "page": 366,
+      "source_kind": "table",
+      "quote": "Table 11.3, phase III, effects with standard errors ... 0.8 ± 1.2"
+     },
+     "check": {
+      "manual": "a standard error from the EVOP calculation over the cycles, whose individual readings the information board does not print"
+     }
+    },
+    {
+     "what": "effect",
+     "term": "temperature",
+     "value": "4.8",
+     "analysis": "from the four corner averages",
+     "where": {
+      "page": 366,
+      "source_kind": "table",
+      "quote": "Table 11.3, phase III, effects with standard errors ... 4.8 ± 1.2"
+     },
+     "check": {
+      "kind": "effect",
+      "term": "temperature",
+      "model": "time * temperature",
+      "runs": [
+       1,
+       2,
+       3,
+       4
+      ]
+     }
+    },
+    {
+     "what": "std_error",
+     "term": "temperature",
+     "value": "1.2",
+     "where": {
+      "page": 366,
+      "source_kind": "table",
+      "quote": "Table 11.3, phase III, effects with standard errors ... 4.8 ± 1.2"
+     },
+     "check": {
+      "manual": "a standard error from the EVOP calculation over the cycles, whose individual readings the information board does not print"
+     }
+    },
+    {
+     "what": "effect",
+     "term": "time x temperature",
+     "value": "0.0",
+     "analysis": "from the four corner averages",
+     "where": {
+      "page": 366,
+      "source_kind": "table",
+      "quote": "Table 11.3, phase III, effects with standard errors ... 0.0 ± 1.2"
+     },
+     "check": {
+      "kind": "effect",
+      "term": "time·temperature",
+      "model": "time * temperature",
+      "runs": [
+       1,
+       2,
+       3,
+       4
+      ]
+     }
+    },
+    {
+     "what": "std_error",
+     "term": "time x temperature",
+     "value": "1.2",
+     "where": {
+      "page": 366,
+      "source_kind": "table",
+      "quote": "Table 11.3, phase III, effects with standard errors ... 0.0 ± 1.2"
+     },
+     "check": {
+      "manual": "a standard error from the EVOP calculation over the cycles, whose individual readings the information board does not print"
+     }
+    }
+   ]
+  },
+  {
+   "name": "bhh-evop-polymer-phase-4",
+   "title": "Evolutionary operation on a polymer latex unit, phase IV",
+   "kind": "case study",
+   "where": {
+    "section": "11.5",
+    "pages": "365-368",
+    "tables": [
+     "Table 11.3"
+    ],
+    "figures": []
+   },
+   "factors": [
+    {
+     "name": "stirring",
+     "description": "stirring rate",
+     "low": 68,
+     "high": 88,
+     "units": "rpm",
+     "type": "numeric"
+    },
+    {
+     "name": "temperature",
+     "description": "temperature",
+     "low": 116,
+     "high": 120,
+     "units": "°F",
+     "type": "numeric"
+    }
+   ],
+   "responses": [
+    {
+     "name": "y",
+     "description": "optical density, coded",
+     "units": ""
+    }
+   ],
+   "design": {
+    "type": "2^2 factorial with a centre point (EVOP)",
+    "details": "4 corners and a centre, repeated over several cycles; each value is the average over the cycles",
+    "n_runs": 5,
+    "treatment_factors": 2
+   },
+   "runs": {
+    "columns": [
+     "No.",
+     "stirring",
+     "temperature",
+     "y"
+    ],
+    "rows": [
+     [
+      1,
+      -1,
+      -1,
+      39.6
+     ],
+     [
+      2,
+      1,
+      -1,
+      40.8
+     ],
+     [
+      3,
+      -1,
+      1,
+      45.2
+     ],
+     [
+      4,
+      1,
+      1,
+      43.6
+     ],
+     [
+      5,
+      0,
+      0,
+      42.0
+     ]
+    ],
+    "coded": true,
+    "notes": "Table 11.3, phase IV (addition time 2:45); read off the page image"
+   },
+   "expected": [
+    {
+     "what": "effect",
+     "term": "stirring",
+     "value": "-0.2",
+     "analysis": "from the four corner averages",
+     "where": {
+      "page": 366,
+      "source_kind": "table",
+      "quote": "Table 11.3, phase IV, effects with standard errors ... -0.2 ± 0.7"
+     },
+     "check": {
+      "kind": "effect",
+      "term": "stirring",
+      "model": "stirring * temperature",
+      "runs": [
+       1,
+       2,
+       3,
+       4
+      ]
+     }
+    },
+    {
+     "what": "std_error",
+     "term": "stirring",
+     "value": "0.7",
+     "where": {
+      "page": 366,
+      "source_kind": "table",
+      "quote": "Table 11.3, phase IV, effects with standard errors ... -0.2 ± 0.7"
+     },
+     "check": {
+      "manual": "a standard error from the EVOP calculation over the cycles, whose individual readings the information board does not print"
+     }
+    },
+    {
+     "what": "effect",
+     "term": "temperature",
+     "value": "4.2",
+     "analysis": "from the four corner averages",
+     "where": {
+      "page": 366,
+      "source_kind": "table",
+      "quote": "Table 11.3, phase IV, effects with standard errors ... 4.2 ± 0.7"
+     },
+     "check": {
+      "kind": "effect",
+      "term": "temperature",
+      "model": "stirring * temperature",
+      "runs": [
+       1,
+       2,
+       3,
+       4
+      ]
+     }
+    },
+    {
+     "what": "std_error",
+     "term": "temperature",
+     "value": "0.7",
+     "where": {
+      "page": 366,
+      "source_kind": "table",
+      "quote": "Table 11.3, phase IV, effects with standard errors ... 4.2 ± 0.7"
+     },
+     "check": {
+      "manual": "a standard error from the EVOP calculation over the cycles, whose individual readings the information board does not print"
+     }
+    },
+    {
+     "what": "effect",
+     "term": "stirring x temperature",
+     "value": "-1.4",
+     "analysis": "from the four corner averages",
+     "where": {
+      "page": 366,
+      "source_kind": "table",
+      "quote": "Table 11.3, phase IV, effects with standard errors ... -1.4 ± 0.7"
+     },
+     "check": {
+      "kind": "effect",
+      "term": "stirring·temperature",
+      "model": "stirring * temperature",
+      "runs": [
+       1,
+       2,
+       3,
+       4
+      ]
+     }
+    },
+    {
+     "what": "std_error",
+     "term": "stirring x temperature",
+     "value": "0.7",
+     "where": {
+      "page": 366,
+      "source_kind": "table",
+      "quote": "Table 11.3, phase IV, effects with standard errors ... -1.4 ± 0.7"
+     },
+     "check": {
+      "manual": "a standard error from the EVOP calculation over the cycles, whose individual readings the information board does not print"
+     }
+    }
+   ]
+  },
+  {
+   "name": "bhh-evop-polymer-phase-5",
+   "title": "Evolutionary operation on a polymer latex unit, phase V",
+   "kind": "case study",
+   "where": {
+    "section": "11.5",
+    "pages": "365-368",
+    "tables": [
+     "Table 11.3"
+    ],
+    "figures": []
+   },
+   "factors": [
+    {
+     "name": "time",
+     "description": "addition time of one reactant",
+     "low": "2:15",
+     "high": "2:45",
+     "units": "h:min",
+     "type": "categorical"
+    },
+    {
+     "name": "temperature",
+     "description": "temperature",
+     "low": 114,
+     "high": 118,
+     "units": "°F",
+     "type": "numeric"
+    }
+   ],
+   "responses": [
+    {
+     "name": "y",
+     "description": "optical density, coded",
+     "units": ""
+    }
+   ],
+   "design": {
+    "type": "2^2 factorial with a centre point (EVOP)",
+    "details": "4 corners and a centre, repeated over several cycles; each value is the average over the cycles",
+    "n_runs": 5,
+    "treatment_factors": 2
+   },
+   "runs": {
+    "columns": [
+     "No.",
+     "time",
+     "temperature",
+     "y"
+    ],
+    "rows": [
+     [
+      1,
+      -1,
+      -1,
+      36.4
+     ],
+     [
+      2,
+      1,
+      -1,
+      37.6
+     ],
+     [
+      3,
+      -1,
+      1,
+      39.8
+     ],
+     [
+      4,
+      1,
+      1,
+      40.2
+     ],
+     [
+      5,
+      0,
+      0,
+      37.6
+     ]
+    ],
+    "coded": true,
+    "notes": "Table 11.3, phase V (stirring rate 78 rpm); read off the page image"
+   },
+   "expected": [
+    {
+     "what": "effect",
+     "term": "time",
+     "value": "0.8",
+     "analysis": "from the four corner averages",
+     "where": {
+      "page": 366,
+      "source_kind": "table",
+      "quote": "Table 11.3, phase V, effects with standard errors ... 0.8 ± 0.4"
+     },
+     "check": {
+      "kind": "effect",
+      "term": "time",
+      "model": "time * temperature",
+      "runs": [
+       1,
+       2,
+       3,
+       4
+      ]
+     }
+    },
+    {
+     "what": "std_error",
+     "term": "time",
+     "value": "0.4",
+     "where": {
+      "page": 366,
+      "source_kind": "table",
+      "quote": "Table 11.3, phase V, effects with standard errors ... 0.8 ± 0.4"
+     },
+     "check": {
+      "manual": "a standard error from the EVOP calculation over the cycles, whose individual readings the information board does not print"
+     }
+    },
+    {
+     "what": "effect",
+     "term": "temperature",
+     "value": "3.0",
+     "analysis": "from the four corner averages",
+     "where": {
+      "page": 366,
+      "source_kind": "table",
+      "quote": "Table 11.3, phase V, effects with standard errors ... 3.0 ± 0.4"
+     },
+     "check": {
+      "kind": "effect",
+      "term": "temperature",
+      "model": "time * temperature",
+      "runs": [
+       1,
+       2,
+       3,
+       4
+      ]
+     }
+    },
+    {
+     "what": "std_error",
+     "term": "temperature",
+     "value": "0.4",
+     "where": {
+      "page": 366,
+      "source_kind": "table",
+      "quote": "Table 11.3, phase V, effects with standard errors ... 3.0 ± 0.4"
+     },
+     "check": {
+      "manual": "a standard error from the EVOP calculation over the cycles, whose individual readings the information board does not print"
+     }
+    },
+    {
+     "what": "effect",
+     "term": "time x temperature",
+     "value": "-0.4",
+     "analysis": "from the four corner averages",
+     "where": {
+      "page": 366,
+      "source_kind": "table",
+      "quote": "Table 11.3, phase V, effects with standard errors ... -0.4 ± 0.4"
+     },
+     "check": {
+      "kind": "effect",
+      "term": "time·temperature",
+      "model": "time * temperature",
+      "runs": [
+       1,
+       2,
+       3,
+       4
+      ]
+     }
+    },
+    {
+     "what": "std_error",
+     "term": "time x temperature",
+     "value": "0.4",
+     "where": {
+      "page": 366,
+      "source_kind": "table",
+      "quote": "Table 11.3, phase V, effects with standard errors ... -0.4 ± 0.4"
+     },
+     "check": {
+      "manual": "a standard error from the EVOP calculation over the cycles, whose individual readings the information board does not print"
+     }
+    }
+   ]
+  },
+  {
+   "name": "bhh-bicycle-2-3",
+   "title": "Time to ride a bicycle up a hill: seat height, generator and tire pressure, each setup run twice (a student's experiment)",
+   "kind": "case study",
+   "where": {
+    "section": "Appendix 11A",
+    "pages": "368-372",
+    "tables": [
+     "Table 11A.1"
+    ],
+    "figures": [
+     "Figure 11A.1"
+    ]
+   },
+   "factors": [
+    {
+     "name": "seat",
+     "description": "seat height, from the centre of the crank",
+     "low": 26,
+     "high": 30,
+     "units": "in.",
+     "type": "numeric"
+    },
+    {
+     "name": "generator",
+     "description": "generator",
+     "low": "off",
+     "high": "on",
+     "units": "",
+     "type": "categorical"
+    },
+    {
+     "name": "pressure",
+     "description": "tire pressure",
+     "low": 40,
+     "high": 55,
+     "units": "psi",
+     "type": "numeric"
+    }
+   ],
+   "responses": [
+    {
+     "name": "time",
+     "description": "time to climb the hill",
+     "units": "s"
+    },
+    {
+     "name": "pulse_before",
+     "description": "pulse before the run",
+     "units": "per min"
+    },
+    {
+     "name": "pulse_after",
+     "description": "pulse after the run",
+     "units": "per min"
+    }
+   ],
+   "design": {
+    "type": "replicated 2^3 factorial",
+    "details": "every combination of 3 factors at 2 levels, twice, in random order",
+    "n_runs": 16,
+    "treatment_factors": 3
+   },
+   "runs": {
+    "columns": [
+     "No.",
+     "order",
+     "seat",
+     "generator",
+     "pressure",
+     "time",
+     "pulse_before",
+     "pulse_after"
+    ],
+    "rows": [
+     [
+      1,
+      9,
+      -1,
+      -1,
+      -1,
+      51,
+      76,
+      135
+     ],
+     [
+      2,
+      13,
+      -1,
+      -1,
+      -1,
+      54,
+      76,
+      133
+     ],
+     [
+      3,
+      5,
+      1,
+      -1,
+      -1,
+      41,
+      76,
+      132
+     ],
+     [
+      4,
+      6,
+      1,
+      -1,
+      -1,
+      43,
+      79,
+      137
+     ],
+     [
+      5,
+      10,
+      -1,
+      1,
+      -1,
+      54,
+      77,
+      134
+     ],
+     [
+      6,
+      4,
+      -1,
+      1,
+      -1,
+      60,
+      77,
+      133
+     ],
+     [
+      7,
+      8,
+      1,
+      1,
+      -1,
+      44,
+      76,
+      130
+     ],
+     [
+      8,
+      15,
+      1,
+      1,
+      -1,
+      43,
+      79,
+      139
+     ],
+     [
+      9,
+      1,
+      -1,
+      -1,
+      1,
+      50,
+      76,
+      105
+     ],
+     [
+      10,
+      16,
+      -1,
+      -1,
+      1,
+      48,
+      80,
+      144
+     ],
+     [
+      11,
+      12,
+      1,
+      -1,
+      1,
+      39,
+      77,
+      139
+     ],
+     [
+      12,
+      14,
+      1,
+      -1,
+      1,
+      39,
+      78,
+      139
+     ],
+     [
+      13,
+      11,
+      -1,
+      1,
+      1,
+      53,
+      78,
+      137
+     ],
+     [
+      14,
+      3,
+      -1,
+      1,
+      1,
+      51,
+      79,
+      125
+     ],
+     [
+      15,
+      2,
+      1,
+      1,
+      1,
+      41,
+      80,
+      122
+     ],
+     [
+      16,
+      7,
+      1,
+      1,
+      1,
+      44,
+      77,
+      133
+     ]
+    ],
+    "coded": true,
+    "notes": "Table 11A.1, setups 1 to 16; order is the order of running, from the dates and hours printed (setup 3's 12:35 A.M. read as 12:35 P.M.). The report sets the pulse readings after the run aside, as they were taken sooner with practice, and suspects setup 6's 60 s should be 55 s but leaves it."
+   },
+   "expected": [
+    {
+     "what": "ms_residual",
+     "term": null,
+     "value": "4.19",
+     "where": {
+      "page": 371,
+      "source_kind": "prose",
+      "quote": "Estimated variance of each of 16 observations = 4.19 square seconds with eight degrees of freedom."
+     },
+     "check": {
+      "kind": "ms_residual",
+      "model": "seat * generator * pressure"
+     }
+    },
+    {
+     "what": "residual_df",
+     "term": null,
+     "value": "8",
+     "where": {
+      "page": 371,
+      "source_kind": "prose",
+      "quote": "with eight degrees of freedom"
+     },
+     "check": {
+      "kind": "residual_df",
+      "model": "seat * generator * pressure"
+     }
+    },
+    {
+     "what": "variance",
+     "term": "effect",
+     "value": "1.05",
+     "where": {
+      "page": 371,
+      "source_kind": "prose",
+      "quote": "Estimated variance of effect = 4.19/4 = 1.05."
+     },
+     "check": {
+      "manual": "the square of the standard error of an effect, 4.19/4, which no check reads (the standard error 1.023 is the library's)"
+     }
+    },
+    {
+     "what": "effect",
+     "term": "seat",
+     "value": "-10.9",
+     "where": {
+      "page": 371,
+      "source_kind": "prose",
+      "quote": "seat = -10.9 ± 2.4"
+     },
+     "check": {
+      "kind": "effect",
+      "term": "seat",
+      "model": "seat * generator * pressure"
+     }
+    },
+    {
+     "what": "effect",
+     "term": "generator",
+     "value": "3.1",
+     "where": {
+      "page": 371,
+      "source_kind": "prose",
+      "quote": "generator = 3.1 ± 2.4"
+     },
+     "check": {
+      "kind": "effect",
+      "term": "generator",
+      "model": "seat * generator * pressure"
+     }
+    },
+    {
+     "what": "effect",
+     "term": "pressure",
+     "value": "-3.1",
+     "where": {
+      "page": 371,
+      "source_kind": "prose",
+      "quote": "pressure = -3.1 ± 2.4"
+     },
+     "check": {
+      "kind": "effect",
+      "term": "pressure",
+      "model": "seat * generator * pressure"
+     }
+    },
+    {
+     "what": "effect",
+     "term": "seat·generator",
+     "value": "-0.6",
+     "where": {
+      "page": 371,
+      "source_kind": "prose",
+      "quote": "seat x generator = -0.6 ± 2.4"
+     },
+     "check": {
+      "kind": "effect",
+      "term": "seat·generator",
+      "model": "seat * generator * pressure"
+     }
+    },
+    {
+     "what": "effect",
+     "term": "seat·pressure",
+     "value": "1.1",
+     "where": {
+      "page": 371,
+      "source_kind": "prose",
+      "quote": "seat x pressure = 1.1 ± 2.4"
+     },
+     "check": {
+      "kind": "effect",
+      "term": "seat·pressure",
+      "model": "seat * generator * pressure"
+     }
+    },
+    {
+     "what": "effect",
+     "term": "generator·pressure",
+     "value": "0.1",
+     "where": {
+      "page": 371,
+      "source_kind": "prose",
+      "quote": "generator x pressure = 0.1 ± 2.4"
+     },
+     "check": {
+      "kind": "effect",
+      "term": "generator·pressure",
+      "model": "seat * generator * pressure"
+     }
+    },
+    {
+     "what": "effect",
+     "term": "seat·generator·pressure",
+     "value": "0.9",
+     "where": {
+      "page": 371,
+      "source_kind": "prose",
+      "quote": "seat x generator x pressure = 0.9 ± 2.4"
+     },
+     "check": {
+      "kind": "effect",
+      "term": "seat·generator·pressure",
+      "model": "seat * generator * pressure"
+     }
+    },
+    {
+     "what": "ci_half_width",
+     "term": "effects",
+     "value": "2.4",
+     "where": {
+      "page": 371,
+      "source_kind": "prose",
+      "quote": "Individual 95% confidence intervals for true values of effects ... ± 2.4"
+     },
+     "check": {
+      "manual": "the half-width t(8, 0.025) x √1.05 of each interval, which no check reads (2.36 reproduces)"
+     }
+    },
+    {
+     "what": "mean",
+     "term": "seat -1, generator -1, pressure -1",
+     "value": "52.5",
+     "where": {
+      "page": 371,
+      "source_kind": "figure",
+      "quote": "average time (sec) ... 52.5 (Figure 11A.1)"
+     },
+     "check": {
+      "kind": "mean",
+      "runs": [
+       1,
+       2
+      ]
+     }
+    },
+    {
+     "what": "mean",
+     "term": "seat +1, generator -1, pressure -1",
+     "value": "42",
+     "where": {
+      "page": 371,
+      "source_kind": "figure",
+      "quote": "average time (sec) ... 42 (Figure 11A.1)"
+     },
+     "check": {
+      "kind": "mean",
+      "runs": [
+       3,
+       4
+      ]
+     }
+    },
+    {
+     "what": "mean",
+     "term": "seat -1, generator +1, pressure -1",
+     "value": "57",
+     "where": {
+      "page": 371,
+      "source_kind": "figure",
+      "quote": "average time (sec) ... 57 (Figure 11A.1)"
+     },
+     "check": {
+      "kind": "mean",
+      "runs": [
+       5,
+       6
+      ]
+     }
+    },
+    {
+     "what": "mean",
+     "term": "seat +1, generator +1, pressure -1",
+     "value": "43.5",
+     "where": {
+      "page": 371,
+      "source_kind": "figure",
+      "quote": "average time (sec) ... 43.5 (Figure 11A.1)"
+     },
+     "check": {
+      "kind": "mean",
+      "runs": [
+       7,
+       8
+      ]
+     }
+    },
+    {
+     "what": "mean",
+     "term": "seat -1, generator -1, pressure +1",
+     "value": "49",
+     "where": {
+      "page": 371,
+      "source_kind": "figure",
+      "quote": "average time (sec) ... 49 (Figure 11A.1)"
+     },
+     "check": {
+      "kind": "mean",
+      "runs": [
+       9,
+       10
+      ]
+     }
+    },
+    {
+     "what": "mean",
+     "term": "seat +1, generator -1, pressure +1",
+     "value": "39",
+     "where": {
+      "page": 371,
+      "source_kind": "figure",
+      "quote": "average time (sec) ... 39 (Figure 11A.1)"
+     },
+     "check": {
+      "kind": "mean",
+      "runs": [
+       11,
+       12
+      ]
+     }
+    },
+    {
+     "what": "mean",
+     "term": "seat -1, generator +1, pressure +1",
+     "value": "52",
+     "where": {
+      "page": 371,
+      "source_kind": "figure",
+      "quote": "average time (sec) ... 52 (Figure 11A.1)"
+     },
+     "check": {
+      "kind": "mean",
+      "runs": [
+       13,
+       14
+      ]
+     }
+    },
+    {
+     "what": "mean",
+     "term": "seat +1, generator +1, pressure +1",
+     "value": "42.5",
+     "where": {
+      "page": 371,
+      "source_kind": "figure",
+      "quote": "average time (sec) ... 42.5 (Figure 11A.1)"
+     },
+     "check": {
+      "kind": "mean",
+      "runs": [
+       15,
+       16
+      ]
+     }
+    }
+   ]
   }
  ],
- "designs": [],
+ "designs": [
+  {
+   "name": "bhh-blocking-2k-factorials",
+   "title": "Blocking arrangements for 2^k factorial designs, k = 3 to 7, in blocks of 2 to 64 runs",
+   "where": {
+    "section": "10.11 and Appendix 10B",
+    "pages": "336-350",
+    "tables": [
+     "Table 10.10",
+     "Table 10.11",
+     "Table 10B.1",
+     "Table 10B.2"
+    ],
+    "figures": [
+     "Figure 10.11"
+    ]
+   },
+   "design": {
+    "type": "2^k factorial in 2^b blocks",
+    "factors": "3 to 7",
+    "n_runs": "8 to 128",
+    "treatment_factors": "3 to 7"
+   },
+   "notes": "Factors are numbered 1 to k; the block generators confound the printed interactions with blocks. The library chooses its own generators (fewest main effects and two-factor interactions confounded, then the longest words), so it is compared on how many interactions of each order it confounds; the factors of a full factorial are interchangeable.",
+   "expected": [
+    {
+     "what": "block_confounding",
+     "term": "k = 3, blocks of 4",
+     "value": "123",
+     "analysis": "the interactions confounded with 2 blocks of 4 runs; the library's choice is compared by how many of each order it confounds",
+     "where": {
+      "page": 346,
+      "source_kind": "table",
+      "quote": "Table 10B.1 ... k = 3 block size 4 B1 = 123 123"
+     },
+     "check": {
+      "kind": "block_confounding",
+      "design": {
+       "design_type": "full_factorial",
+       "k": 3,
+       "options": {
+        "n_blocks": 2
+       }
+      }
+     }
+    },
+    {
+     "what": "block_confounding",
+     "term": "k = 3, blocks of 2",
+     "value": "12, 13, 23",
+     "analysis": "the interactions confounded with 4 blocks of 2 runs; the library's choice is compared by how many of each order it confounds",
+     "where": {
+      "page": 346,
+      "source_kind": "table",
+      "quote": "Table 10B.1 ... k = 3 block size 2 B1 = 12, B2 = 13 12, 13, 23"
+     },
+     "check": {
+      "kind": "block_confounding",
+      "design": {
+       "design_type": "full_factorial",
+       "k": 3,
+       "options": {
+        "n_blocks": 4
+       }
+      }
+     }
+    },
+    {
+     "what": "block_confounding",
+     "term": "k = 4, blocks of 8",
+     "value": "1234",
+     "analysis": "the interactions confounded with 2 blocks of 8 runs; the library's choice is compared by how many of each order it confounds",
+     "where": {
+      "page": 346,
+      "source_kind": "table",
+      "quote": "Table 10B.1 ... k = 4 block size 8 B1 = 1234 1234"
+     },
+     "check": {
+      "kind": "block_confounding",
+      "design": {
+       "design_type": "full_factorial",
+       "k": 4,
+       "options": {
+        "n_blocks": 2
+       }
+      }
+     }
+    },
+    {
+     "what": "block_confounding",
+     "term": "k = 4, blocks of 4",
+     "value": "124, 134, 23",
+     "analysis": "the interactions confounded with 4 blocks of 4 runs; the library's choice is compared by how many of each order it confounds",
+     "where": {
+      "page": 346,
+      "source_kind": "table",
+      "quote": "Table 10B.1 ... k = 4 block size 4 B1 = 124, B2 = 134 124, 134, 23"
+     },
+     "check": {
+      "kind": "block_confounding",
+      "design": {
+       "design_type": "full_factorial",
+       "k": 4,
+       "options": {
+        "n_blocks": 4
+       }
+      }
+     }
+    },
+    {
+     "what": "block_confounding",
+     "term": "k = 4, blocks of 2",
+     "value": "12, 23, 34, 13, 1234, 24, 14",
+     "analysis": "the interactions confounded with 8 blocks of 2 runs; the library's choice is compared by how many of each order it confounds",
+     "where": {
+      "page": 346,
+      "source_kind": "table",
+      "quote": "Table 10B.1 ... k = 4 block size 2 B1 = 12, B2 = 23, B3 = 34 12, 23, 34, 13, 1234, 24, 14"
+     },
+     "check": {
+      "kind": "block_confounding",
+      "design": {
+       "design_type": "full_factorial",
+       "k": 4,
+       "options": {
+        "n_blocks": 8
+       }
+      }
+     }
+    },
+    {
+     "what": "block_confounding",
+     "term": "k = 5, blocks of 16",
+     "value": "12345",
+     "analysis": "the interactions confounded with 2 blocks of 16 runs; the library's choice is compared by how many of each order it confounds",
+     "where": {
+      "page": 346,
+      "source_kind": "table",
+      "quote": "Table 10B.1 ... k = 5 block size 16 B1 = 12345 12345"
+     },
+     "check": {
+      "kind": "block_confounding",
+      "design": {
+       "design_type": "full_factorial",
+       "k": 5,
+       "options": {
+        "n_blocks": 2
+       }
+      }
+     }
+    },
+    {
+     "what": "block_confounding",
+     "term": "k = 5, blocks of 8",
+     "value": "123, 345, 1245",
+     "analysis": "the interactions confounded with 4 blocks of 8 runs; the library's choice is compared by how many of each order it confounds",
+     "where": {
+      "page": 346,
+      "source_kind": "table",
+      "quote": "Table 10B.1 ... k = 5 block size 8 B1 = 123, B2 = 345 123, 345, 1245"
+     },
+     "check": {
+      "kind": "block_confounding",
+      "design": {
+       "design_type": "full_factorial",
+       "k": 5,
+       "options": {
+        "n_blocks": 4
+       }
+      }
+     }
+    },
+    {
+     "what": "block_confounding",
+     "term": "k = 5, blocks of 4",
+     "value": "125, 235, 345, 13, 1234, 24, 145",
+     "analysis": "the interactions confounded with 8 blocks of 4 runs; the library's choice is compared by how many of each order it confounds",
+     "where": {
+      "page": 346,
+      "source_kind": "table",
+      "quote": "Table 10B.1 ... k = 5 block size 4 B1 = 125, B2 = 235, B3 = 345 125, 235, 345, 13, 1234, 24, 145"
+     },
+     "check": {
+      "kind": "block_confounding",
+      "design": {
+       "design_type": "full_factorial",
+       "k": 5,
+       "options": {
+        "n_blocks": 8
+       }
+      }
+     }
+    },
+    {
+     "what": "block_confounding",
+     "term": "k = 5, blocks of 2",
+     "value": "12, 13, 34, 45, 23, 1234, 1245, 14, 1345, 35, 24, 2345, 1235, 15, 25",
+     "analysis": "the interactions confounded with 16 blocks of 2 runs; the library's choice is compared by how many of each order it confounds",
+     "where": {
+      "page": 346,
+      "source_kind": "table",
+      "quote": "Table 10B.1 ... k = 5 block size 2 B1 = 12, B2 = 13, B3 = 34, B4 = 45 12, 13, 34, 45, 23, 1234, 1245, 14, 1345, 35, 24, 2345, 1235, 15, 25"
+     },
+     "check": {
+      "kind": "block_confounding",
+      "design": {
+       "design_type": "full_factorial",
+       "k": 5,
+       "options": {
+        "n_blocks": 16
+       }
+      }
+     }
+    },
+    {
+     "what": "block_confounding",
+     "term": "k = 6, blocks of 32",
+     "value": "123456",
+     "analysis": "the interactions confounded with 2 blocks of 32 runs; the library's choice is compared by how many of each order it confounds",
+     "where": {
+      "page": 346,
+      "source_kind": "table",
+      "quote": "Table 10B.1 ... k = 6 block size 32 B1 = 123456 123456"
+     },
+     "check": {
+      "kind": "block_confounding",
+      "design": {
+       "design_type": "full_factorial",
+       "k": 6,
+       "options": {
+        "n_blocks": 2
+       }
+      }
+     }
+    },
+    {
+     "what": "block_confounding",
+     "term": "k = 6, blocks of 16",
+     "value": "1236, 3456, 1245",
+     "analysis": "the interactions confounded with 4 blocks of 16 runs; the library's choice is compared by how many of each order it confounds",
+     "where": {
+      "page": 346,
+      "source_kind": "table",
+      "quote": "Table 10B.1 ... k = 6 block size 16 B1 = 1236, B2 = 3456 1236, 3456, 1245"
+     },
+     "check": {
+      "kind": "block_confounding",
+      "design": {
+       "design_type": "full_factorial",
+       "k": 6,
+       "options": {
+        "n_blocks": 4
+       }
+      }
+     }
+    },
+    {
+     "what": "block_confounding",
+     "term": "k = 6, blocks of 8",
+     "value": "135, 1256, 1234, 236, 245, 3456, 146",
+     "analysis": "the interactions confounded with 8 blocks of 8 runs; the library's choice is compared by how many of each order it confounds",
+     "where": {
+      "page": 346,
+      "source_kind": "table",
+      "quote": "Table 10B.1 ... k = 6 block size 8 B1 = 135, B2 = 1256, B3 = 1234 135, 1256, 1234, 236, 245, 3456, 146"
+     },
+     "check": {
+      "kind": "block_confounding",
+      "design": {
+       "design_type": "full_factorial",
+       "k": 6,
+       "options": {
+        "n_blocks": 8
+       }
+      }
+     }
+    },
+    {
+     "what": "block_confounding",
+     "term": "k = 6, blocks of 4",
+     "value": "126, 136, 346, 456, 23, 1234, 1245, 14, 1345, 35, 246, 23456, 12356, 156, 25",
+     "analysis": "the interactions confounded with 16 blocks of 4 runs; the library's choice is compared by how many of each order it confounds",
+     "where": {
+      "page": 346,
+      "source_kind": "table",
+      "quote": "Table 10B.1 ... k = 6 block size 4 B1 = 126, B2 = 136, B3 = 346, B4 = 456 126, 136, 346, 456, 23, 1234, 1245, 14, 1345, 35, 246, 23456, 12356, 156, 25"
+     },
+     "check": {
+      "kind": "block_confounding",
+      "design": {
+       "design_type": "full_factorial",
+       "k": 6,
+       "options": {
+        "n_blocks": 16
+       }
+      },
+      "disagreement": "the book's generators confound four two-factor interactions (23, 14, 35, 25) with blocks; the library's choice confounds three, the fewest possible, with the rest of three or more factors"
+     }
+    },
+    {
+     "what": "block_confounding",
+     "term": "k = 6, blocks of 2",
+     "value": "all 2fi, 4fi, and 6fi",
+     "analysis": "the interactions confounded with 32 blocks of 2 runs; the library's choice is compared by how many of each order it confounds",
+     "where": {
+      "page": 346,
+      "source_kind": "table",
+      "quote": "Table 10B.1 ... k = 6 block size 2 B1 = 12, B2 = 23, B3 = 34, B4 = 45, B5 = 56 all 2fi, 4fi, and 6fi"
+     },
+     "check": {
+      "kind": "block_confounding",
+      "design": {
+       "design_type": "full_factorial",
+       "k": 6,
+       "options": {
+        "n_blocks": 32
+       }
+      },
+      "printed": "12, 13, 14, 15, 16, 23, 24, 25, 26, 34, 35, 36, 45, 46, 56, 1234, 1235, 1236, 1245, 1246, 1256, 1345, 1346, 1356, 1456, 2345, 2346, 2356, 2456, 3456, 123456"
+     }
+    },
+    {
+     "what": "block_confounding",
+     "term": "k = 7, blocks of 64",
+     "value": "1234567",
+     "analysis": "the interactions confounded with 2 blocks of 64 runs; the library's choice is compared by how many of each order it confounds",
+     "where": {
+      "page": 346,
+      "source_kind": "table",
+      "quote": "Table 10B.1 ... k = 7 block size 64 B1 = 1234567 1234567"
+     },
+     "check": {
+      "kind": "block_confounding",
+      "design": {
+       "design_type": "full_factorial",
+       "k": 7,
+       "options": {
+        "n_blocks": 2
+       }
+      }
+     }
+    },
+    {
+     "what": "block_confounding",
+     "term": "k = 7, blocks of 32",
+     "value": "12367, 34567, 1245",
+     "analysis": "the interactions confounded with 4 blocks of 32 runs; the library's choice is compared by how many of each order it confounds",
+     "where": {
+      "page": 346,
+      "source_kind": "table",
+      "quote": "Table 10B.1 ... k = 7 block size 32 B1 = 12367, B2 = 34567 12367, 34567, 1245"
+     },
+     "check": {
+      "kind": "block_confounding",
+      "design": {
+       "design_type": "full_factorial",
+       "k": 7,
+       "options": {
+        "n_blocks": 4
+       }
+      }
+     }
+    },
+    {
+     "what": "block_confounding",
+     "term": "k = 7, blocks of 16",
+     "value": "123, 456, 167, 123456, 2367, 1457, 23457",
+     "analysis": "the interactions confounded with 8 blocks of 16 runs; the library's choice is compared by how many of each order it confounds",
+     "where": {
+      "page": 346,
+      "source_kind": "table",
+      "quote": "Table 10B.1 ... k = 7 block size 16 B1 = 123, B2 = 456, B3 = 167 123, 456, 167, 123456, 2367, 1457, 23457"
+     },
+     "check": {
+      "kind": "block_confounding",
+      "design": {
+       "design_type": "full_factorial",
+       "k": 7,
+       "options": {
+        "n_blocks": 8
+       }
+      },
+      "disagreement": "the book's generators confound three three-factor interactions (123, 456, 167) with blocks; the library's choice confounds only four-factor interactions (1234, 1256, 1357 and their products), so every interaction of three factors stays free of blocks"
+     }
+    },
+    {
+     "what": "block_confounding",
+     "term": "k = 7, blocks of 8",
+     "value": "1234, 567, 345, 147, 1234567, 125, 237, 3467, 1456, 1357, 1267, 2356, 2457, 136, 246",
+     "analysis": "the interactions confounded with 16 blocks of 8 runs; the library's choice is compared by how many of each order it confounds",
+     "where": {
+      "page": 346,
+      "source_kind": "table",
+      "quote": "Table 10B.1 ... k = 7 block size 8 B1 = 1234, B2 = 567, B3 = 345, B4 = 147 1234, 567, 345, 147, 1234567, 125, 237, 3467, 1456, 1357, 1267, 2356, 2457, 136, 246"
+     },
+     "check": {
+      "kind": "block_confounding",
+      "design": {
+       "design_type": "full_factorial",
+       "k": 7,
+       "options": {
+        "n_blocks": 16
+       }
+      }
+     }
+    },
+    {
+     "what": "block_confounding",
+     "term": "k = 7, blocks of 4",
+     "value": "127, 237, 347, 457, 567, 13, 1234, 1245, 1256, 24, 2345, 2356, 3456, 35, 1234567, 46, 147, 13457, 13567, 12467, 12357, 257, 24567, 23467, 367, 15, 1456, 1346, 1236, 26, 167",
+     "analysis": "the interactions confounded with 32 blocks of 4 runs; the library's choice is compared by how many of each order it confounds",
+     "where": {
+      "page": 346,
+      "source_kind": "table",
+      "quote": "Table 10B.1 ... k = 7 block size 4 B1 = 127, B2 = 237, B3 = 347, B4 = 457, B5 = 567 127, 237, 347, 457, 567, 13, 1234, 1245, 1256, 24, 2345, 2356, 3456, 35, 1234567, 46, 147, 13457, 13567, 12467, 12357, 257, 24567, 23467, 367, 15, 1456, 1346, 1236, 26, 167"
+     },
+     "check": {
+      "kind": "block_confounding",
+      "design": {
+       "design_type": "full_factorial",
+       "k": 7,
+       "options": {
+        "n_blocks": 32
+       }
+      },
+      "disagreement": "the book's generators confound six two-factor interactions (13, 24, 35, 46, 15, 26) with blocks; the library's choice confounds five"
+     }
+    },
+    {
+     "what": "block_confounding",
+     "term": "k = 7, blocks of 2",
+     "value": "all 2fi, 4fi, and 6fi",
+     "analysis": "the interactions confounded with 64 blocks of 2 runs; the library's choice is compared by how many of each order it confounds",
+     "where": {
+      "page": 346,
+      "source_kind": "table",
+      "quote": "Table 10B.1 ... k = 7 block size 2 B1 = 12, B2 = 23, B3 = 34, B4 = 45, B5 = 56, B6 = 67 all 2fi, 4fi, and 6fi"
+     },
+     "check": {
+      "kind": "block_confounding",
+      "design": {
+       "design_type": "full_factorial",
+       "k": 7,
+       "options": {
+        "n_blocks": 64
+       }
+      },
+      "printed": "12, 13, 14, 15, 16, 17, 23, 24, 25, 26, 27, 34, 35, 36, 37, 45, 46, 47, 56, 57, 67, 1234, 1235, 1236, 1237, 1245, 1246, 1247, 1256, 1257, 1267, 1345, 1346, 1347, 1356, 1357, 1367, 1456, 1457, 1467, 1567, 2345, 2346, 2347, 2356, 2357, 2367, 2456, 2457, 2467, 2567, 3456, 3457, 3467, 3567, 4567, 123456, 123457, 123467, 123567, 124567, 134567, 234567"
+     }
+    },
+    {
+     "what": "block_confounding",
+     "term": "Table 10.10",
+     "value": "45 = 1",
+     "where": {
+      "page": 339,
+      "source_kind": "table",
+      "quote": "4 = 123, 5 = 23 ... 45 = 123 23 = 12233 = 111 = 1"
+     },
+     "check": {
+      "manual": "an arrangement the book shows in order to reject it, as it confounds the main effect of factor 1 with blocks; the library refuses such a choice"
+     }
+    },
+    {
+     "what": "block_confounding",
+     "term": "Section 10B, eight blocks",
+     "value": "135, 1256, 1234, 236, 245, 3456, 146",
+     "where": {
+      "page": 345,
+      "source_kind": "table",
+      "quote": "B1 = 135, B2 = 1256, B3 = 1234 ... B1B2 = 236, B1B3 = 245, B2B3 = 3456, B1B2B3 = 146"
+     },
+     "check": {
+      "manual": "the arrangement of Table 10B.1 for k = 6 in blocks of 8 worked out in words, checked there"
+     }
+    }
+   ]
+  }
+ ],
  "not_captured": [
   "front matter and chapter 1 (pp. i-xviii, 1-20): the learning process and experimental design in words; Figure 1.4 (storks and the population of Oldenburg) prints no values",
   "Exercises 2.1 and 2.2 (p. 29): a dot diagram and a histogram to draw, no printed numbers",
@@ -28146,6 +36319,13 @@
   "Appendix 8B, Case 3 (p. 268): a hypothetical rearrangement of the yarn data with new spinnerets in each replicate, not held",
   "Problems for Part II (pp. 281-287): 1 to 4 re-use the penicillin data of Table 7.1 (with 10 added to a column, a row or one reading) and are not held again; 5 (devices control, wetted or dropped) and 10 are single-factor or incomplete, 7 and 13 give analysis-of-variance entries without data, and 14 to 16 are questions in words. Problems 6, 8, 9 and 11 are held, the last three as data without printed answers",
   "chapter 9 (pp. 291-305): empirical modelling in words; Table 9.1 is a 2 x 3 layout without results and the figures show no values",
+  "Exercises 10.1 and 10.2 (p. 307): counts of factors and runs of a general factorial, not experiments",
+  "Exercise 10.7 and Questions for chapters 10 and 11: derivations and questions in words",
+  "Exercise 10.12 (p. 333): the process development data with 9 added to eight runs, whose printed answer names an effect but prints no number",
+  "Table 10.7 (p. 326): the signs of the 2^4 contrasts, a layout without numbers; Table 10.4 likewise for the 2^3",
+  "Table 10.11, Figure 10.11 and Table 10B.2 (pp. 337-350): runs allotted to blocks, layouts of arrangements whose confounded interactions are checked through Table 10B.1; Table 10.12 (partial confounding over four replicates) prints no data",
+  "11.1 and 11.2 (pp. 352-354): the floor-wax clarity of Figure 11.1 and the polymer solutions of Table 11.1 record yes-or-no judgements (milky, viscous, yellow), not measurements",
+  "11.3, phases (b) to (e) (pp. 360-362): the storm-water screens with the horizontal screen removed, in steel, and with backwashing. Phase (b) stopped after two runs, and (d) and (e) print data but no result computed from them. Phase (c) prints effects for y and z, but the scan of its cube cannot be read with confidence (98 and 99, 39 and 89 look alike), and no reading tried reproduces its interactions, so it is not held",
   "Problems for Part I (pp. 152-164): 34 problems on one- and two-sample comparisons, distributions and contingency tables, mostly without printed answers; left out for the same reason"
  ]
 }

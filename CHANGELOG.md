@@ -28,12 +28,16 @@ those changes.
   with missing cells, two-level factorials, multi-level factorials with their orthogonal
   polynomial components, factorials confounded in blocks, fractional factorials, and response
   surface work (two stages of steepest ascent, a 3^2 factorial and a composite design with their
-  canonical analyses, and orthogonal composite designs); of chapters 1 to 9 and the problems for Parts I and II of Box, Hunter and
+  canonical analyses, and orthogonal composite designs); of chapters 1 to 11 and the problems for Parts I and II of Box, Hunter and
   Hunter, *Statistics for Experimenters* (1978): two-treatment comparisons (a plant trial
   against a 210-batch production record, randomized and paired experiments, and the
   exercises of chapters 2 and 3, each labelled as a one-factor design), one-way analyses of
   variance, randomized blocks, the replicated 3 x 4 toxic-agents factorial with its Box-Cox
-  transformation, Latin, replicated Latin, hyper-Graeco-Latin and Youden squares; and of five papers on definitive screening and OMARS designs and
+  transformation, Latin, replicated Latin, hyper-Graeco-Latin and Youden squares, two-level
+  factorials (the pilot plant 2^3 with its replicates and reverse Yates residuals, the
+  process development 2^4, Daniel's drill data with a Box-Cox transformation, a student's
+  bicycle experiment and the exercises), the blocking arrangements of 2^k factorials, and
+  evolutionary operation on two plants; and of five papers on definitive screening and OMARS designs and
   trend-robust run orders (Jones and Nachtsheim 2013; Nunez Ares and Goos 2019, 2020; Nunez
   Ares, Schoen and Goos 2023; Goos 2025). For each it keeps the factors,
   responses and runs exactly as printed, and every number the source prints: each as the
@@ -42,7 +46,8 @@ those changes.
   canonical form or path of steepest ascent is recomputed with `optimize_responses`, and a
   Box-Cox power with the library's Box-Cox analysis; a one-sided
   p-value, a variance or a difference between two groups of runs is read as a source quotes it). Designs without
-  responses keep the properties the source states. `reference_sources()`,
+  responses keep the properties the source states; a blocking arrangement is compared with the
+  library's own blocking of the factorial, by how many interactions of each order it confounds. `reference_sources()`,
   `reference_experiments()` and `reference_designs()` read it. `reproduce_reference_catalogue()`
   returns one row per printed number: the printed text, the value this library computes,
   whether they agree to within the source's own rounding, and where it is printed. A number
