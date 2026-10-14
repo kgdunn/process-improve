@@ -1,7 +1,7 @@
 {
  "schema": 1,
  "about": [
-  "Part of the reference catalogue: designed experiments from chapters 2 to 9 of Davies (ed.), The Design and Analysis",
+  "Part of the reference catalogue: designed experiments from chapters 2 to 10 of Davies (ed.), The Design and Analysis",
   "of Industrial Experiments, for testing that software reproduces them. source: the citation, with what was read and",
   "when. experiments: each worked example with data (factors, responses, runs exactly as printed, in the printed",
   "order), where it is printed, and expected: every number the book prints for it, as printed text (with a period",
@@ -24,13 +24,13 @@
   "editor": "Owen L. Davies",
   "title": "The Design and Analysis of Industrial Experiments",
   "edition": "2nd edition (1956), reprinted with corrections 1978; the 1979 reprint",
-  "pages": "chapters 1 to 9, pp. 1-439, of 637",
+  "pages": "chapters 1 to 10, pp. 1-494, of 637",
   "year": 1956,
   "publisher": "Longman Group Limited, London and New York, for Imperial Chemical Industries Limited",
   "isbn": "0-582-46053-0",
   "url": "https://search.worldcat.org/search?q=bn:0582460530",
   "cite": "Davies, O. L. (ed.) (1956), The Design and Analysis of Industrial Experiments, 2nd edition, Longman for ICI",
-  "read": "2026-10-14, from scans of pp. i-xiii and 1-439 (chapters 1 to 9) of the 1979 reprint; every number copied by hand and checked against the totals the book prints; two tables printed sideways (4-1 and 5-6) taken from their reprints in the appendices, and Tables 4-3, 8-3, 8-61 and 9-3 read from the page image",
+  "read": "2026-10-14, from scans of pp. i-xiii and 1-494 (chapters 1 to 10) of the 1979 reprint; every number copied by hand and checked against the totals the book prints; two tables printed sideways (4-1 and 5-6) taken from their reprints in the appendices, and Tables 4-3, 8-3, 8-61, 9-3 and 10-31 read from the page image",
   "rights": "The book is protected by copyright (© 1956 Imperial Chemical Industries Limited) and is not reproduced here. This file holds facts it reports (numbers, layouts, data) and short quotations that locate each one, for citation and for checking software. The MIT licence of process-improve does not extend to them."
  },
  "experiments": [
@@ -18476,6 +18476,2868 @@
      }
     }
    ]
+  },
+  {
+   "name": "davies-filtration-half-fraction",
+   "title": "Filtration in the preparation of a dyestuff: four factors in eight runs, a 2^(4-1) with D = ABC",
+   "kind": "example",
+   "where": {
+    "section": "10.421 and Appendix 10C",
+    "pages": "454-457, 491",
+    "tables": [
+     "Table 10-23",
+     "Table 10-24",
+     "Table 10-25",
+     "Table 10C-1"
+    ],
+    "figures": []
+   },
+   "factors": [
+    {
+     "name": "A",
+     "description": "concentration of the liquor when filtered (dilute at -1, concentrated at +1)",
+     "low": -1,
+     "high": 1,
+     "units": "",
+     "type": "numeric"
+    },
+    {
+     "name": "B",
+     "description": "keeping: the liquor filtered at once or kept (- at -1, + at +1)",
+     "low": -1,
+     "high": 1,
+     "units": "",
+     "type": "numeric"
+    },
+    {
+     "name": "C",
+     "description": "butanol (added to prevent frothing) (absent at -1, present at +1)",
+     "low": -1,
+     "high": 1,
+     "units": "",
+     "type": "numeric"
+    },
+    {
+     "name": "D",
+     "description": "temperature of filtration (low at -1, high at +1)",
+     "low": -1,
+     "high": 1,
+     "units": "",
+     "type": "numeric"
+    }
+   ],
+   "responses": [
+    {
+     "name": "y",
+     "description": "purity of the product, measured photoelectrically",
+     "units": ""
+    }
+   ],
+   "design": {
+    "type": "2^(4-1) fractional factorial",
+    "details": "half replicate with D = ABC (defining contrast I = ABCD), resolution IV",
+    "n_runs": 8
+   },
+   "runs": {
+    "columns": [
+     "No.",
+     "Treatment",
+     "A",
+     "B",
+     "C",
+     "D",
+     "y"
+    ],
+    "rows": [
+     [
+      1,
+      "1",
+      -1,
+      -1,
+      -1,
+      -1,
+      107
+     ],
+     [
+      2,
+      "ad",
+      1,
+      -1,
+      -1,
+      1,
+      114
+     ],
+     [
+      3,
+      "bd",
+      -1,
+      1,
+      -1,
+      1,
+      122
+     ],
+     [
+      4,
+      "ab",
+      1,
+      1,
+      -1,
+      -1,
+      130
+     ],
+     [
+      5,
+      "cd",
+      -1,
+      -1,
+      1,
+      1,
+      106
+     ],
+     [
+      6,
+      "ac",
+      1,
+      -1,
+      1,
+      -1,
+      121
+     ],
+     [
+      7,
+      "bc",
+      -1,
+      1,
+      1,
+      -1,
+      120
+     ],
+     [
+      8,
+      "abcd",
+      1,
+      1,
+      1,
+      1,
+      132
+     ]
+    ],
+    "coded": true,
+    "notes": "Table 10-23, in standard order with respect to A, B and C"
+   },
+   "expected": [
+    {
+     "what": "effect",
+     "term": "A",
+     "value": "10.5",
+     "analysis": "each effect with its alias: (A, BCD), (AB, CD), (AC, BD), (AD, BC)",
+     "where": {
+      "page": 456,
+      "source_kind": "table",
+      "quote": "A ... 10·5"
+     },
+     "check": {
+      "kind": "effect",
+      "term": "A",
+      "model": "A + B + C + D + A:B + A:C + A:D"
+     }
+    },
+    {
+     "what": "effect",
+     "term": "B",
+     "value": "14.0",
+     "analysis": "each effect with its alias: (A, BCD), (AB, CD), (AC, BD), (AD, BC)",
+     "where": {
+      "page": 456,
+      "source_kind": "table",
+      "quote": "B ... 14·0"
+     },
+     "check": {
+      "kind": "effect",
+      "term": "B",
+      "model": "A + B + C + D + A:B + A:C + A:D"
+     }
+    },
+    {
+     "what": "effect",
+     "term": "C",
+     "value": "1.5",
+     "analysis": "each effect with its alias: (A, BCD), (AB, CD), (AC, BD), (AD, BC)",
+     "where": {
+      "page": 456,
+      "source_kind": "table",
+      "quote": "C ... 1·5"
+     },
+     "check": {
+      "kind": "effect",
+      "term": "C",
+      "model": "A + B + C + D + A:B + A:C + A:D"
+     }
+    },
+    {
+     "what": "effect",
+     "term": "D",
+     "value": "-1.0",
+     "analysis": "each effect with its alias: (A, BCD), (AB, CD), (AC, BD), (AD, BC)",
+     "where": {
+      "page": 456,
+      "source_kind": "table",
+      "quote": "D ... -1·0"
+     },
+     "check": {
+      "kind": "effect",
+      "term": "D",
+      "model": "A + B + C + D + A:B + A:C + A:D"
+     }
+    },
+    {
+     "what": "effect",
+     "term": "A·B",
+     "value": "-0.5",
+     "analysis": "each effect with its alias: (A, BCD), (AB, CD), (AC, BD), (AD, BC)",
+     "where": {
+      "page": 456,
+      "source_kind": "table",
+      "quote": "AB ... -0·5"
+     },
+     "check": {
+      "kind": "effect",
+      "term": "A·B",
+      "model": "A + B + C + D + A:B + A:C + A:D"
+     }
+    },
+    {
+     "what": "effect",
+     "term": "A·C",
+     "value": "3.0",
+     "analysis": "each effect with its alias: (A, BCD), (AB, CD), (AC, BD), (AD, BC)",
+     "where": {
+      "page": 456,
+      "source_kind": "table",
+      "quote": "AC ... 3·0"
+     },
+     "check": {
+      "kind": "effect",
+      "term": "A·C",
+      "model": "A + B + C + D + A:B + A:C + A:D"
+     }
+    },
+    {
+     "what": "effect",
+     "term": "A·D",
+     "value": "-1.5",
+     "analysis": "each effect with its alias: (A, BCD), (AB, CD), (AC, BD), (AD, BC)",
+     "where": {
+      "page": 456,
+      "source_kind": "table",
+      "quote": "AD ... -1·5"
+     },
+     "check": {
+      "kind": "effect",
+      "term": "A·D",
+      "model": "A + B + C + D + A:B + A:C + A:D"
+     }
+    },
+    {
+     "what": "anova_sum_sq",
+     "term": "A",
+     "value": "220.5",
+     "analysis": "each comparison's sum of squares, one degree of freedom",
+     "where": {
+      "page": 456,
+      "source_kind": "table",
+      "quote": "A ... 220·5"
+     },
+     "check": {
+      "kind": "anova_sum_sq",
+      "term": "A",
+      "model": "A + B + C + D + A:B + A:C"
+     }
+    },
+    {
+     "what": "anova_sum_sq",
+     "term": "B",
+     "value": "392.0",
+     "analysis": "each comparison's sum of squares, one degree of freedom",
+     "where": {
+      "page": 456,
+      "source_kind": "table",
+      "quote": "B ... 392·0"
+     },
+     "check": {
+      "kind": "anova_sum_sq",
+      "term": "B",
+      "model": "A + B + C + D + A:B + A:C"
+     }
+    },
+    {
+     "what": "anova_sum_sq",
+     "term": "C",
+     "value": "4.5",
+     "analysis": "each comparison's sum of squares, one degree of freedom",
+     "where": {
+      "page": 456,
+      "source_kind": "table",
+      "quote": "C ... 4·5"
+     },
+     "check": {
+      "kind": "anova_sum_sq",
+      "term": "C",
+      "model": "A + B + C + D + A:B + A:C"
+     }
+    },
+    {
+     "what": "anova_sum_sq",
+     "term": "D",
+     "value": "2.0",
+     "analysis": "each comparison's sum of squares, one degree of freedom",
+     "where": {
+      "page": 456,
+      "source_kind": "table",
+      "quote": "D ... 2·0"
+     },
+     "check": {
+      "kind": "anova_sum_sq",
+      "term": "D",
+      "model": "A + B + C + D + A:B + A:C"
+     }
+    },
+    {
+     "what": "anova_sum_sq",
+     "term": "A·B",
+     "value": "0.5",
+     "analysis": "each comparison's sum of squares, one degree of freedom",
+     "where": {
+      "page": 456,
+      "source_kind": "table",
+      "quote": "AB ... 0·5"
+     },
+     "check": {
+      "kind": "anova_sum_sq",
+      "term": "A·B",
+      "model": "A + B + C + D + A:B + A:C"
+     }
+    },
+    {
+     "what": "anova_sum_sq",
+     "term": "A·C",
+     "value": "18.0",
+     "analysis": "each comparison's sum of squares, one degree of freedom",
+     "where": {
+      "page": 456,
+      "source_kind": "table",
+      "quote": "AC ... 18·0"
+     },
+     "check": {
+      "kind": "anova_sum_sq",
+      "term": "A·C",
+      "model": "A + B + C + D + A:B + A:C"
+     }
+    },
+    {
+     "what": "anova_sum_sq",
+     "term": "A·D",
+     "value": "4.5",
+     "analysis": "the comparison (AD, BC), the only one left out",
+     "where": {
+      "page": 456,
+      "source_kind": "table",
+      "quote": "(AD, BC) - 6 - 1·5 4·5"
+     },
+     "check": {
+      "kind": "ss_residual",
+      "model": "A + B + C + D + A:B + A:C"
+     }
+    },
+    {
+     "what": "ss_total",
+     "term": null,
+     "value": "642.0",
+     "where": {
+      "page": 456,
+      "source_kind": "table",
+      "quote": "Total .. 7 642·0"
+     },
+     "check": {
+      "kind": "ss_total",
+      "model": "A + B + C + D + A:B + A:C"
+     }
+    },
+    {
+     "what": "ms_residual",
+     "term": null,
+     "value": "4.0",
+     "where": {
+      "page": 456,
+      "source_kind": "table",
+      "quote": "The error variance was known from past experiments to be about 4·0"
+     },
+     "check": {
+      "manual": "a variance from past experiments, not from this one"
+     }
+    },
+    {
+     "what": "mean",
+     "term": "dilute, no butanol",
+     "value": "114.5",
+     "where": {
+      "page": 456,
+      "source_kind": "table",
+      "quote": "Table 10·25 ... 114·5"
+     },
+     "check": {
+      "kind": "mean",
+      "runs": [
+       1,
+       3
+      ]
+     }
+    },
+    {
+     "what": "mean",
+     "term": "dilute, butanol",
+     "value": "113.0",
+     "where": {
+      "page": 456,
+      "source_kind": "table",
+      "quote": "Table 10·25 ... 113·0"
+     },
+     "check": {
+      "kind": "mean",
+      "runs": [
+       5,
+       7
+      ]
+     }
+    },
+    {
+     "what": "mean",
+     "term": "concentrated, no butanol",
+     "value": "122.0",
+     "where": {
+      "page": 456,
+      "source_kind": "table",
+      "quote": "Table 10·25 ... 122·0"
+     },
+     "check": {
+      "kind": "mean",
+      "runs": [
+       2,
+       4
+      ]
+     }
+    },
+    {
+     "what": "mean",
+     "term": "concentrated, butanol",
+     "value": "126.5",
+     "where": {
+      "page": 456,
+      "source_kind": "table",
+      "quote": "Table 10·25 ... 126·5"
+     },
+     "check": {
+      "kind": "mean",
+      "runs": [
+       6,
+       8
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "name": "davies-medicinal-product-quarter-fraction",
+   "title": "Yield of a medicinal product: five factors in eight runs, a 2^(5-2) with D = -AC and E = AB",
+   "kind": "example",
+   "where": {
+    "section": "10.43 and Appendix 10C",
+    "pages": "457-459, 492",
+    "tables": [
+     "Table 10-31",
+     "Table 10-32",
+     "Table 10-33",
+     "Table 10-331",
+     "Table 10-34",
+     "Table 10-341",
+     "Table 10C-2"
+    ],
+    "figures": []
+   },
+   "factors": [
+    {
+     "name": "A",
+     "description": "amount of reactant",
+     "low": 4,
+     "high": 5,
+     "units": "mol",
+     "type": "numeric"
+    },
+    {
+     "name": "B",
+     "description": "concentration of acid (concentrated at -1, dilute at +1)",
+     "low": -1,
+     "high": 1,
+     "units": "",
+     "type": "numeric"
+    },
+    {
+     "name": "C",
+     "description": "amount of acid",
+     "low": 2,
+     "high": 2.5,
+     "units": "mol",
+     "type": "numeric"
+    },
+    {
+     "name": "D",
+     "description": "time of reaction",
+     "low": 2,
+     "high": 4,
+     "units": "h",
+     "type": "numeric"
+    },
+    {
+     "name": "E",
+     "description": "temperature of reaction (low at -1, high at +1)",
+     "low": -1,
+     "high": 1,
+     "units": "",
+     "type": "numeric"
+    }
+   ],
+   "responses": [
+    {
+     "name": "y",
+     "description": "yield",
+     "units": "%"
+    }
+   ],
+   "design": {
+    "type": "2^(5-2) fractional factorial",
+    "details": "quarter replicate with D = -AC and E = AB (defining contrasts I, -BCDE, -ACD, ABE)",
+    "n_runs": 8
+   },
+   "runs": {
+    "columns": [
+     "No.",
+     "Treatment",
+     "A",
+     "B",
+     "C",
+     "D",
+     "E",
+     "y"
+    ],
+    "rows": [
+     [
+      1,
+      "e",
+      -1,
+      -1,
+      -1,
+      -1,
+      1,
+      59.1
+     ],
+     [
+      2,
+      "ad",
+      1,
+      -1,
+      -1,
+      1,
+      -1,
+      57.0
+     ],
+     [
+      3,
+      "b",
+      -1,
+      1,
+      -1,
+      -1,
+      -1,
+      58.6
+     ],
+     [
+      4,
+      "abde",
+      1,
+      1,
+      -1,
+      1,
+      1,
+      63.9
+     ],
+     [
+      5,
+      "cde",
+      -1,
+      -1,
+      1,
+      1,
+      1,
+      67.2
+     ],
+     [
+      6,
+      "ac",
+      1,
+      -1,
+      1,
+      -1,
+      -1,
+      71.6
+     ],
+     [
+      7,
+      "bcd",
+      -1,
+      1,
+      1,
+      1,
+      -1,
+      79.2
+     ],
+     [
+      8,
+      "abce",
+      1,
+      1,
+      1,
+      -1,
+      1,
+      76.9
+     ]
+    ],
+    "coded": true,
+    "notes": "Table 10-31 (p. 457), read from the page image; its comparison totals in Table 10-32 check"
+   },
+   "notes": "The standard error was known to be about 1%. The two significant interactions, (BC, -DE) and (BD, -CE), are each read two ways in Tables 10-33 to 10-341.",
+   "expected": [
+    {
+     "what": "effect",
+     "term": "A",
+     "value": "1.3",
+     "analysis": "each comparison with its aliases: (A, -CD, BE), (B, AE), (C, -AD), (D, -AC), (E, AB), (BC, -DE), (BD, -CE)",
+     "where": {
+      "page": 458,
+      "source_kind": "table",
+      "quote": "A ... 1·3"
+     },
+     "check": {
+      "kind": "effect",
+      "term": "A",
+      "model": "A + B + C + D + E + B:C + B:D"
+     }
+    },
+    {
+     "what": "effect",
+     "term": "B",
+     "value": "5.9",
+     "analysis": "each comparison with its aliases: (A, -CD, BE), (B, AE), (C, -AD), (D, -AC), (E, AB), (BC, -DE), (BD, -CE)",
+     "where": {
+      "page": 458,
+      "source_kind": "table",
+      "quote": "B ... 5·9"
+     },
+     "check": {
+      "kind": "effect",
+      "term": "B",
+      "model": "A + B + C + D + E + B:C + B:D"
+     }
+    },
+    {
+     "what": "effect",
+     "term": "C",
+     "value": "14.1",
+     "analysis": "each comparison with its aliases: (A, -CD, BE), (B, AE), (C, -AD), (D, -AC), (E, AB), (BC, -DE), (BD, -CE)",
+     "where": {
+      "page": 458,
+      "source_kind": "table",
+      "quote": "C ... 14·1"
+     },
+     "check": {
+      "kind": "effect",
+      "term": "C",
+      "model": "A + B + C + D + E + B:C + B:D"
+     }
+    },
+    {
+     "what": "effect",
+     "term": "D",
+     "value": "0.3",
+     "analysis": "each comparison with its aliases: (A, -CD, BE), (B, AE), (C, -AD), (D, -AC), (E, AB), (BC, -DE), (BD, -CE)",
+     "where": {
+      "page": 458,
+      "source_kind": "table",
+      "quote": "D ... 0·3"
+     },
+     "check": {
+      "kind": "effect",
+      "term": "D",
+      "model": "A + B + C + D + E + B:C + B:D"
+     }
+    },
+    {
+     "what": "effect",
+     "term": "E",
+     "value": "0.2",
+     "analysis": "each comparison with its aliases: (A, -CD, BE), (B, AE), (C, -AD), (D, -AC), (E, AB), (BC, -DE), (BD, -CE)",
+     "where": {
+      "page": 458,
+      "source_kind": "table",
+      "quote": "E ... 0·2"
+     },
+     "check": {
+      "kind": "effect",
+      "term": "E",
+      "model": "A + B + C + D + E + B:C + B:D"
+     }
+    },
+    {
+     "what": "effect",
+     "term": "B·C",
+     "value": "2.7",
+     "analysis": "each comparison with its aliases: (A, -CD, BE), (B, AE), (C, -AD), (D, -AC), (E, AB), (BC, -DE), (BD, -CE)",
+     "where": {
+      "page": 458,
+      "source_kind": "table",
+      "quote": "BC ... 2·7"
+     },
+     "check": {
+      "kind": "effect",
+      "term": "B·C",
+      "model": "A + B + C + D + E + B:C + B:D"
+     }
+    },
+    {
+     "what": "effect",
+     "term": "B·D",
+     "value": "3.5",
+     "analysis": "each comparison with its aliases: (A, -CD, BE), (B, AE), (C, -AD), (D, -AC), (E, AB), (BC, -DE), (BD, -CE)",
+     "where": {
+      "page": 458,
+      "source_kind": "table",
+      "quote": "BD ... 3·5"
+     },
+     "check": {
+      "kind": "effect",
+      "term": "B·D",
+      "model": "A + B + C + D + E + B:C + B:D"
+     }
+    },
+    {
+     "what": "anova_mean_sq",
+     "term": "A",
+     "value": "3.51",
+     "analysis": "each comparison's mean square, one degree of freedom",
+     "where": {
+      "page": 458,
+      "source_kind": "table",
+      "quote": "A ... 1 3·51"
+     },
+     "check": {
+      "kind": "anova_mean_sq",
+      "term": "A",
+      "model": "A + B + C + D + E + B:C"
+     }
+    },
+    {
+     "what": "anova_mean_sq",
+     "term": "B",
+     "value": "70.21",
+     "analysis": "each comparison's mean square, one degree of freedom",
+     "where": {
+      "page": 458,
+      "source_kind": "table",
+      "quote": "B ... 1 70·21"
+     },
+     "check": {
+      "kind": "anova_mean_sq",
+      "term": "B",
+      "model": "A + B + C + D + E + B:C"
+     }
+    },
+    {
+     "what": "anova_mean_sq",
+     "term": "C",
+     "value": "396.21",
+     "analysis": "each comparison's mean square, one degree of freedom",
+     "where": {
+      "page": 458,
+      "source_kind": "table",
+      "quote": "C ... 1 396·21"
+     },
+     "check": {
+      "kind": "anova_mean_sq",
+      "term": "C",
+      "model": "A + B + C + D + E + B:C"
+     }
+    },
+    {
+     "what": "anova_mean_sq",
+     "term": "D",
+     "value": "0.15",
+     "analysis": "each comparison's mean square, one degree of freedom",
+     "where": {
+      "page": 458,
+      "source_kind": "table",
+      "quote": "D ... 1 0·15"
+     },
+     "check": {
+      "kind": "anova_mean_sq",
+      "term": "D",
+      "model": "A + B + C + D + E + B:C"
+     }
+    },
+    {
+     "what": "anova_mean_sq",
+     "term": "E",
+     "value": "0.06",
+     "analysis": "each comparison's mean square, one degree of freedom",
+     "where": {
+      "page": 458,
+      "source_kind": "table",
+      "quote": "E ... 1 0·06"
+     },
+     "check": {
+      "kind": "anova_mean_sq",
+      "term": "E",
+      "model": "A + B + C + D + E + B:C"
+     }
+    },
+    {
+     "what": "anova_mean_sq",
+     "term": "B·C",
+     "value": "14.85",
+     "analysis": "each comparison's mean square, one degree of freedom",
+     "where": {
+      "page": 458,
+      "source_kind": "table",
+      "quote": "BC ... 1 14·85"
+     },
+     "check": {
+      "kind": "anova_mean_sq",
+      "term": "B·C",
+      "model": "A + B + C + D + E + B:C"
+     }
+    },
+    {
+     "what": "anova_mean_sq",
+     "term": "B·D",
+     "value": "24.85",
+     "analysis": "the comparison (BD, -CE), the only one left out",
+     "where": {
+      "page": 458,
+      "source_kind": "table",
+      "quote": "14·1 3·5 1 24·85 BD, - CE"
+     },
+     "check": {
+      "kind": "ss_residual",
+      "model": "A + B + C + D + E + B:C"
+     }
+    },
+    {
+     "what": "ss_total",
+     "term": null,
+     "value": "509.84",
+     "where": {
+      "page": 458,
+      "source_kind": "table",
+      "quote": "Total 7 509·84"
+     },
+     "check": {
+      "kind": "ss_total",
+      "model": "A + B + C + D + E + B:C",
+      "disagreement": "the sum of the seven mean squares as rounded; the corrected sum of squares of the eight yields is 509.849, as the book notes (agrees within rounding-off errors)"
+     }
+    },
+    {
+     "what": "mean",
+     "term": "C 2 mols, B concentrated",
+     "value": "58.1",
+     "where": {
+      "page": 459,
+      "source_kind": "table",
+      "quote": "Tables 10·33 to 10·341 ... 58·1"
+     },
+     "check": {
+      "kind": "mean",
+      "runs": [
+       1,
+       2
+      ]
+     }
+    },
+    {
+     "what": "mean",
+     "term": "C 2 mols, B dilute",
+     "value": "61.3",
+     "where": {
+      "page": 459,
+      "source_kind": "table",
+      "quote": "Tables 10·33 to 10·341 ... 61·3"
+     },
+     "check": {
+      "kind": "mean",
+      "runs": [
+       3,
+       4
+      ]
+     }
+    },
+    {
+     "what": "mean",
+     "term": "C 2.5 mols, B concentrated",
+     "value": "69.4",
+     "where": {
+      "page": 459,
+      "source_kind": "table",
+      "quote": "Tables 10·33 to 10·341 ... 69·4"
+     },
+     "check": {
+      "kind": "mean",
+      "runs": [
+       5,
+       6
+      ]
+     }
+    },
+    {
+     "what": "mean",
+     "term": "C 2.5 mols, B dilute",
+     "value": "78.1",
+     "where": {
+      "page": 459,
+      "source_kind": "table",
+      "quote": "Tables 10·33 to 10·341 ... 78·1"
+     },
+     "check": {
+      "kind": "mean",
+      "runs": [
+       7,
+       8
+      ]
+     }
+    },
+    {
+     "what": "mean",
+     "term": "E low, D 2 h",
+     "value": "65.1",
+     "where": {
+      "page": 459,
+      "source_kind": "table",
+      "quote": "Tables 10·33 to 10·341 ... 65·1"
+     },
+     "check": {
+      "kind": "mean",
+      "runs": [
+       3,
+       6
+      ]
+     }
+    },
+    {
+     "what": "mean",
+     "term": "E low, D 4 h",
+     "value": "68.1",
+     "where": {
+      "page": 459,
+      "source_kind": "table",
+      "quote": "Tables 10·33 to 10·341 ... 68·1"
+     },
+     "check": {
+      "kind": "mean",
+      "runs": [
+       2,
+       7
+      ]
+     }
+    },
+    {
+     "what": "mean",
+     "term": "E high, D 2 h",
+     "value": "68.0",
+     "where": {
+      "page": 459,
+      "source_kind": "table",
+      "quote": "Tables 10·33 to 10·341 ... 68·0"
+     },
+     "check": {
+      "kind": "mean",
+      "runs": [
+       1,
+       8
+      ]
+     }
+    },
+    {
+     "what": "mean",
+     "term": "E high, D 4 h",
+     "value": "65.6",
+     "where": {
+      "page": 459,
+      "source_kind": "table",
+      "quote": "Tables 10·33 to 10·341 ... 65·6"
+     },
+     "check": {
+      "kind": "mean",
+      "runs": [
+       4,
+       5
+      ]
+     }
+    },
+    {
+     "what": "mean",
+     "term": "D 2 h, B concentrated",
+     "value": "65.4",
+     "where": {
+      "page": 459,
+      "source_kind": "table",
+      "quote": "Tables 10·33 to 10·341 ... 65·4"
+     },
+     "check": {
+      "kind": "mean",
+      "runs": [
+       1,
+       6
+      ]
+     }
+    },
+    {
+     "what": "mean",
+     "term": "D 2 h, B dilute",
+     "value": "67.8",
+     "where": {
+      "page": 459,
+      "source_kind": "table",
+      "quote": "Tables 10·33 to 10·341 ... 67·8"
+     },
+     "check": {
+      "kind": "mean",
+      "runs": [
+       3,
+       8
+      ]
+     }
+    },
+    {
+     "what": "mean",
+     "term": "D 4 h, B concentrated",
+     "value": "62.1",
+     "where": {
+      "page": 459,
+      "source_kind": "table",
+      "quote": "Tables 10·33 to 10·341 ... 62·1"
+     },
+     "check": {
+      "kind": "mean",
+      "runs": [
+       2,
+       5
+      ]
+     }
+    },
+    {
+     "what": "mean",
+     "term": "D 4 h, B dilute",
+     "value": "71.6",
+     "where": {
+      "page": 459,
+      "source_kind": "table",
+      "quote": "Tables 10·33 to 10·341 ... 71·6"
+     },
+     "check": {
+      "kind": "mean",
+      "runs": [
+       4,
+       7
+      ]
+     }
+    },
+    {
+     "what": "mean",
+     "term": "E low, C 2 mols",
+     "value": "57.8",
+     "where": {
+      "page": 459,
+      "source_kind": "table",
+      "quote": "Tables 10·33 to 10·341 ... 57·8"
+     },
+     "check": {
+      "kind": "mean",
+      "runs": [
+       2,
+       3
+      ]
+     }
+    },
+    {
+     "what": "mean",
+     "term": "E low, C 2.5 mols",
+     "value": "75.4",
+     "where": {
+      "page": 459,
+      "source_kind": "table",
+      "quote": "Tables 10·33 to 10·341 ... 75·4"
+     },
+     "check": {
+      "kind": "mean",
+      "runs": [
+       6,
+       7
+      ]
+     }
+    },
+    {
+     "what": "mean",
+     "term": "E high, C 2 mols",
+     "value": "61.5",
+     "where": {
+      "page": 459,
+      "source_kind": "table",
+      "quote": "Tables 10·33 to 10·341 ... 61·5"
+     },
+     "check": {
+      "kind": "mean",
+      "runs": [
+       1,
+       4
+      ]
+     }
+    },
+    {
+     "what": "mean",
+     "term": "E high, C 2.5 mols",
+     "value": "72.1",
+     "where": {
+      "page": 459,
+      "source_kind": "table",
+      "quote": "Tables 10·33 to 10·341 ... 72·1"
+     },
+     "check": {
+      "kind": "mean",
+      "runs": [
+       5,
+       8
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "name": "davies-basic-dyestuff-half-fraction",
+   "title": "Quality of a basic dyestuff: five factors over three stages in sixteen runs, a 2^(5-1) with E = -ABCD",
+   "kind": "example",
+   "where": {
+    "section": "10.51 and Appendix 10C",
+    "pages": "462-465, 493",
+    "tables": [
+     "Table 10-51",
+     "Table 10-52",
+     "Table 10-53",
+     "Table 10-54",
+     "Table 10C-3"
+    ],
+    "figures": []
+   },
+   "factors": [
+    {
+     "name": "A",
+     "description": "temperature of oxidation (low at -1, high at +1)",
+     "low": -1,
+     "high": 1,
+     "units": "",
+     "type": "numeric"
+    },
+    {
+     "name": "B",
+     "description": "quality of starting material (- at -1, + at +1)",
+     "low": -1,
+     "high": 1,
+     "units": "",
+     "type": "numeric"
+    },
+    {
+     "name": "C",
+     "description": "reduction pressure (atmospheric at -1, increased at +1)",
+     "low": -1,
+     "high": 1,
+     "units": "",
+     "type": "numeric"
+    },
+    {
+     "name": "D",
+     "description": "pressure of oven drying (low at -1, high at +1)",
+     "low": -1,
+     "high": 1,
+     "units": "",
+     "type": "numeric"
+    },
+    {
+     "name": "E",
+     "description": "vacuum leak in oven drying (low at -1, high at +1)",
+     "low": -1,
+     "high": 1,
+     "units": "",
+     "type": "numeric"
+    }
+   ],
+   "responses": [
+    {
+     "name": "y",
+     "description": "assessment of the quality of the product",
+     "units": ""
+    }
+   ],
+   "design": {
+    "type": "2^(5-1) fractional factorial",
+    "details": "half replicate with E = -ABCD (defining contrast I = -ABCDE), resolution V",
+    "n_runs": 16
+   },
+   "runs": {
+    "columns": [
+     "No.",
+     "Treatment",
+     "A",
+     "B",
+     "C",
+     "D",
+     "E",
+     "y"
+    ],
+    "rows": [
+     [
+      1,
+      "1",
+      -1,
+      -1,
+      -1,
+      -1,
+      -1,
+      201.5
+     ],
+     [
+      2,
+      "ae",
+      1,
+      -1,
+      -1,
+      -1,
+      1,
+      178.0
+     ],
+     [
+      3,
+      "be",
+      -1,
+      1,
+      -1,
+      -1,
+      1,
+      183.5
+     ],
+     [
+      4,
+      "ab",
+      1,
+      1,
+      -1,
+      -1,
+      -1,
+      176.0
+     ],
+     [
+      5,
+      "ce",
+      -1,
+      -1,
+      1,
+      -1,
+      1,
+      188.5
+     ],
+     [
+      6,
+      "ac",
+      1,
+      -1,
+      1,
+      -1,
+      -1,
+      178.5
+     ],
+     [
+      7,
+      "bc",
+      -1,
+      1,
+      1,
+      -1,
+      -1,
+      174.5
+     ],
+     [
+      8,
+      "abce",
+      1,
+      1,
+      1,
+      -1,
+      1,
+      196.5
+     ],
+     [
+      9,
+      "de",
+      -1,
+      -1,
+      -1,
+      1,
+      1,
+      255.5
+     ],
+     [
+      10,
+      "ad",
+      1,
+      -1,
+      -1,
+      1,
+      -1,
+      240.5
+     ],
+     [
+      11,
+      "bd",
+      -1,
+      1,
+      -1,
+      1,
+      -1,
+      208.5
+     ],
+     [
+      12,
+      "abde",
+      1,
+      1,
+      -1,
+      1,
+      1,
+      244.0
+     ],
+     [
+      13,
+      "cd",
+      -1,
+      -1,
+      1,
+      1,
+      -1,
+      274.0
+     ],
+     [
+      14,
+      "acde",
+      1,
+      -1,
+      1,
+      1,
+      1,
+      257.5
+     ],
+     [
+      15,
+      "bcde",
+      -1,
+      1,
+      1,
+      1,
+      1,
+      256.0
+     ],
+     [
+      16,
+      "abcd",
+      1,
+      1,
+      1,
+      1,
+      -1,
+      274.5
+     ]
+    ],
+    "coded": true,
+    "notes": "Table 10-51, in standard order with respect to A, B, C and D"
+   },
+   "notes": "Carried out under manufacturing conditions. Main effects and two-factor interactions are aliased only with three- and four-factor interactions.",
+   "expected": [
+    {
+     "what": "effect",
+     "term": "A",
+     "value": "0.44",
+     "analysis": "Yates's method; each effect aliased with a three-factor interaction",
+     "where": {
+      "page": 493,
+      "source_kind": "table",
+      "quote": "A ... 0·44"
+     },
+     "check": {
+      "kind": "effect",
+      "term": "A",
+      "model": "(A + B + C + D + E)**2"
+     }
+    },
+    {
+     "what": "effect",
+     "term": "B",
+     "value": "-7.56",
+     "analysis": "Yates's method; each effect aliased with a three-factor interaction",
+     "where": {
+      "page": 493,
+      "source_kind": "table",
+      "quote": "B ... -7·56"
+     },
+     "check": {
+      "kind": "effect",
+      "term": "B",
+      "model": "(A + B + C + D + E)**2"
+     }
+    },
+    {
+     "what": "effect",
+     "term": "A·B",
+     "value": "16.69",
+     "analysis": "Yates's method; each effect aliased with a three-factor interaction",
+     "where": {
+      "page": 493,
+      "source_kind": "table",
+      "quote": "AB ... 16·69"
+     },
+     "check": {
+      "kind": "effect",
+      "term": "A·B",
+      "model": "(A + B + C + D + E)**2"
+     }
+    },
+    {
+     "what": "effect",
+     "term": "C",
+     "value": "14.06",
+     "analysis": "Yates's method; each effect aliased with a three-factor interaction",
+     "where": {
+      "page": 493,
+      "source_kind": "table",
+      "quote": "C ... 14·06"
+     },
+     "check": {
+      "kind": "effect",
+      "term": "C",
+      "model": "(A + B + C + D + E)**2"
+     }
+    },
+    {
+     "what": "effect",
+     "term": "A·C",
+     "value": "3.06",
+     "analysis": "Yates's method; each effect aliased with a three-factor interaction",
+     "where": {
+      "page": 493,
+      "source_kind": "table",
+      "quote": "AC ... 3·06"
+     },
+     "check": {
+      "kind": "effect",
+      "term": "A·C",
+      "model": "(A + B + C + D + E)**2"
+     }
+    },
+    {
+     "what": "effect",
+     "term": "B·C",
+     "value": "8.31",
+     "analysis": "Yates's method; each effect aliased with a three-factor interaction",
+     "where": {
+      "page": 493,
+      "source_kind": "table",
+      "quote": "BC ... 8·31"
+     },
+     "check": {
+      "kind": "effect",
+      "term": "B·C",
+      "model": "(A + B + C + D + E)**2"
+     }
+    },
+    {
+     "what": "effect",
+     "term": "D",
+     "value": "66.69",
+     "analysis": "Yates's method; each effect aliased with a three-factor interaction",
+     "where": {
+      "page": 493,
+      "source_kind": "table",
+      "quote": "D ... 66·69"
+     },
+     "check": {
+      "kind": "effect",
+      "term": "D",
+      "model": "(A + B + C + D + E)**2"
+     }
+    },
+    {
+     "what": "effect",
+     "term": "A·D",
+     "value": "5.19",
+     "analysis": "Yates's method; each effect aliased with a three-factor interaction",
+     "where": {
+      "page": 493,
+      "source_kind": "table",
+      "quote": "AD ... 5·19"
+     },
+     "check": {
+      "kind": "effect",
+      "term": "A·D",
+      "model": "(A + B + C + D + E)**2"
+     }
+    },
+    {
+     "what": "effect",
+     "term": "B·D",
+     "value": "-3.56",
+     "analysis": "Yates's method; each effect aliased with a three-factor interaction",
+     "where": {
+      "page": 493,
+      "source_kind": "table",
+      "quote": "BD ... -3·56"
+     },
+     "check": {
+      "kind": "effect",
+      "term": "B·D",
+      "model": "(A + B + C + D + E)**2"
+     }
+    },
+    {
+     "what": "effect",
+     "term": "C·D",
+     "value": "14.31",
+     "analysis": "Yates's method; each effect aliased with a three-factor interaction",
+     "where": {
+      "page": 493,
+      "source_kind": "table",
+      "quote": "CD ... 14·31"
+     },
+     "check": {
+      "kind": "effect",
+      "term": "C·D",
+      "model": "(A + B + C + D + E)**2"
+     }
+    },
+    {
+     "what": "effect",
+     "term": "D·E",
+     "value": "-0.06",
+     "analysis": "the comparison measures minus this effect, since E = -ABCD; the sign is the one Table 10-52 gives",
+     "where": {
+      "page": 493,
+      "source_kind": "table",
+      "quote": "ABC, - DE 0·06"
+     },
+     "check": {
+      "kind": "effect",
+      "term": "D·E",
+      "model": "(A + B + C + D + E)**2",
+      "printed": "-0.06"
+     }
+    },
+    {
+     "what": "effect",
+     "term": "C·E",
+     "value": "-4.69",
+     "analysis": "the comparison measures minus this effect, since E = -ABCD; the sign is the one Table 10-52 gives",
+     "where": {
+      "page": 493,
+      "source_kind": "table",
+      "quote": "ABD, - CE 4·69"
+     },
+     "check": {
+      "kind": "effect",
+      "term": "C·E",
+      "model": "(A + B + C + D + E)**2",
+      "printed": "-4.69"
+     }
+    },
+    {
+     "what": "effect",
+     "term": "B·E",
+     "value": "7.69",
+     "analysis": "the comparison measures minus this effect, since E = -ABCD; the sign is the one Table 10-52 gives",
+     "where": {
+      "page": 493,
+      "source_kind": "table",
+      "quote": "ACD, - BE -7·69"
+     },
+     "check": {
+      "kind": "effect",
+      "term": "B·E",
+      "model": "(A + B + C + D + E)**2",
+      "printed": "7.69"
+     }
+    },
+    {
+     "what": "effect",
+     "term": "A·E",
+     "value": "-2.31",
+     "analysis": "the comparison measures minus this effect, since E = -ABCD; the sign is the one Table 10-52 gives",
+     "where": {
+      "page": 493,
+      "source_kind": "table",
+      "quote": "BCD, - AE 2·31"
+     },
+     "check": {
+      "kind": "effect",
+      "term": "A·E",
+      "model": "(A + B + C + D + E)**2",
+      "printed": "-2.31"
+     }
+    },
+    {
+     "what": "effect",
+     "term": "E",
+     "value": "3.94",
+     "analysis": "the comparison measures minus this effect, since E = -ABCD; the sign is the one Table 10-52 gives",
+     "where": {
+      "page": 493,
+      "source_kind": "table",
+      "quote": "ABCD, - E -3·94"
+     },
+     "check": {
+      "kind": "effect",
+      "term": "E",
+      "model": "(A + B + C + D + E)**2",
+      "printed": "3.94"
+     }
+    },
+    {
+     "what": "anova_mean_sq",
+     "term": "A",
+     "value": "0.77",
+     "analysis": "each comparison's mean square, one degree of freedom",
+     "where": {
+      "page": 464,
+      "source_kind": "table",
+      "quote": "A ... 1 0·77"
+     },
+     "check": {
+      "kind": "anova_mean_sq",
+      "term": "A",
+      "model": "A + B + C + D + E + A:B + A:C + A:D + A:E + B:C + B:D + B:E + C:D + C:E"
+     }
+    },
+    {
+     "what": "anova_mean_sq",
+     "term": "B",
+     "value": "228.77",
+     "analysis": "each comparison's mean square, one degree of freedom",
+     "where": {
+      "page": 464,
+      "source_kind": "table",
+      "quote": "B ... 1 228·77"
+     },
+     "check": {
+      "kind": "anova_mean_sq",
+      "term": "B",
+      "model": "A + B + C + D + E + A:B + A:C + A:D + A:E + B:C + B:D + B:E + C:D + C:E"
+     }
+    },
+    {
+     "what": "anova_mean_sq",
+     "term": "C",
+     "value": "791.02",
+     "analysis": "each comparison's mean square, one degree of freedom",
+     "where": {
+      "page": 464,
+      "source_kind": "table",
+      "quote": "C ... 1 791·02"
+     },
+     "check": {
+      "kind": "anova_mean_sq",
+      "term": "C",
+      "model": "A + B + C + D + E + A:B + A:C + A:D + A:E + B:C + B:D + B:E + C:D + C:E"
+     }
+    },
+    {
+     "what": "anova_mean_sq",
+     "term": "D",
+     "value": "17788.89",
+     "analysis": "each comparison's mean square, one degree of freedom",
+     "where": {
+      "page": 464,
+      "source_kind": "table",
+      "quote": "D ... 1 17788·89"
+     },
+     "check": {
+      "kind": "anova_mean_sq",
+      "term": "D",
+      "model": "A + B + C + D + E + A:B + A:C + A:D + A:E + B:C + B:D + B:E + C:D + C:E"
+     }
+    },
+    {
+     "what": "anova_mean_sq",
+     "term": "E",
+     "value": "62.02",
+     "analysis": "each comparison's mean square, one degree of freedom",
+     "where": {
+      "page": 464,
+      "source_kind": "table",
+      "quote": "E ... 1 62·02"
+     },
+     "check": {
+      "kind": "anova_mean_sq",
+      "term": "E",
+      "model": "A + B + C + D + E + A:B + A:C + A:D + A:E + B:C + B:D + B:E + C:D + C:E"
+     }
+    },
+    {
+     "what": "anova_mean_sq",
+     "term": "A·B",
+     "value": "1113.89",
+     "analysis": "each comparison's mean square, one degree of freedom",
+     "where": {
+      "page": 464,
+      "source_kind": "table",
+      "quote": "AB ... 1 1113·89"
+     },
+     "check": {
+      "kind": "anova_mean_sq",
+      "term": "A·B",
+      "model": "A + B + C + D + E + A:B + A:C + A:D + A:E + B:C + B:D + B:E + C:D + C:E"
+     }
+    },
+    {
+     "what": "anova_mean_sq",
+     "term": "C·E",
+     "value": "87.89",
+     "analysis": "each comparison's mean square, one degree of freedom",
+     "where": {
+      "page": 464,
+      "source_kind": "table",
+      "quote": "CE ... 1 87·89"
+     },
+     "check": {
+      "kind": "anova_mean_sq",
+      "term": "C·E",
+      "model": "A + B + C + D + E + A:B + A:C + A:D + A:E + B:C + B:D + B:E + C:D + C:E"
+     }
+    },
+    {
+     "what": "anova_mean_sq",
+     "term": "C·D",
+     "value": "819.39",
+     "analysis": "each comparison's mean square, one degree of freedom",
+     "where": {
+      "page": 464,
+      "source_kind": "table",
+      "quote": "CD ... 1 819·39"
+     },
+     "check": {
+      "kind": "anova_mean_sq",
+      "term": "C·D",
+      "model": "A + B + C + D + E + A:B + A:C + A:D + A:E + B:C + B:D + B:E + C:D + C:E"
+     }
+    },
+    {
+     "what": "anova_mean_sq",
+     "term": "A·C",
+     "value": "37.52",
+     "analysis": "each comparison's mean square, one degree of freedom",
+     "where": {
+      "page": 464,
+      "source_kind": "table",
+      "quote": "AC ... 1 37·52"
+     },
+     "check": {
+      "kind": "anova_mean_sq",
+      "term": "A·C",
+      "model": "A + B + C + D + E + A:B + A:C + A:D + A:E + B:C + B:D + B:E + C:D + C:E"
+     }
+    },
+    {
+     "what": "anova_mean_sq",
+     "term": "A·D",
+     "value": "107.64",
+     "analysis": "each comparison's mean square, one degree of freedom",
+     "where": {
+      "page": 464,
+      "source_kind": "table",
+      "quote": "AD ... 1 107·64"
+     },
+     "check": {
+      "kind": "anova_mean_sq",
+      "term": "A·D",
+      "model": "A + B + C + D + E + A:B + A:C + A:D + A:E + B:C + B:D + B:E + C:D + C:E"
+     }
+    },
+    {
+     "what": "anova_mean_sq",
+     "term": "A·E",
+     "value": "21.39",
+     "analysis": "each comparison's mean square, one degree of freedom",
+     "where": {
+      "page": 464,
+      "source_kind": "table",
+      "quote": "AE ... 1 21·39"
+     },
+     "check": {
+      "kind": "anova_mean_sq",
+      "term": "A·E",
+      "model": "A + B + C + D + E + A:B + A:C + A:D + A:E + B:C + B:D + B:E + C:D + C:E"
+     }
+    },
+    {
+     "what": "anova_mean_sq",
+     "term": "B·C",
+     "value": "276.39",
+     "analysis": "each comparison's mean square, one degree of freedom",
+     "where": {
+      "page": 464,
+      "source_kind": "table",
+      "quote": "BC ... 1 276·39"
+     },
+     "check": {
+      "kind": "anova_mean_sq",
+      "term": "B·C",
+      "model": "A + B + C + D + E + A:B + A:C + A:D + A:E + B:C + B:D + B:E + C:D + C:E"
+     }
+    },
+    {
+     "what": "anova_mean_sq",
+     "term": "B·D",
+     "value": "50.77",
+     "analysis": "each comparison's mean square, one degree of freedom",
+     "where": {
+      "page": 464,
+      "source_kind": "table",
+      "quote": "BD ... 1 50·77"
+     },
+     "check": {
+      "kind": "anova_mean_sq",
+      "term": "B·D",
+      "model": "A + B + C + D + E + A:B + A:C + A:D + A:E + B:C + B:D + B:E + C:D + C:E"
+     }
+    },
+    {
+     "what": "anova_mean_sq",
+     "term": "B·E",
+     "value": "236.39",
+     "analysis": "each comparison's mean square, one degree of freedom",
+     "where": {
+      "page": 464,
+      "source_kind": "table",
+      "quote": "BE ... 1 236·39"
+     },
+     "check": {
+      "kind": "anova_mean_sq",
+      "term": "B·E",
+      "model": "A + B + C + D + E + A:B + A:C + A:D + A:E + B:C + B:D + B:E + C:D + C:E"
+     }
+    },
+    {
+     "what": "anova_mean_sq",
+     "term": "D·E",
+     "value": "0.02",
+     "analysis": "the comparison (DE, -ABC), the only one left out",
+     "where": {
+      "page": 464,
+      "source_kind": "table",
+      "quote": "DE -0·5 -0·1 1 0·02"
+     },
+     "check": {
+      "kind": "ss_residual",
+      "model": "A + B + C + D + E + A:B + A:C + A:D + A:E + B:C + B:D + B:E + C:D + C:E"
+     }
+    },
+    {
+     "what": "ms_residual",
+     "term": null,
+     "value": "121.68",
+     "analysis": "the six interactions not expected to matter, pooled as error",
+     "where": {
+      "page": 464,
+      "source_kind": "table",
+      "quote": "AC AD AE BC BD BE ... 6 121·68"
+     },
+     "check": {
+      "kind": "ms_residual",
+      "model": "A + B + C + D + E + A:B + C:E + C:D + D:E"
+     }
+    },
+    {
+     "what": "ss_total",
+     "term": null,
+     "value": "21622.76",
+     "where": {
+      "page": 464,
+      "source_kind": "table",
+      "quote": "Total .. 15 21,622·76"
+     },
+     "check": {
+      "kind": "ss_total",
+      "model": "A + B + C + D + E + A:B + A:C + A:D + A:E + B:C + B:D + B:E + C:D + C:E",
+      "disagreement": "the sum of the fifteen mean squares as rounded; the corrected sum of squares of the sixteen results is 21,622.73"
+     }
+    },
+    {
+     "what": "mean",
+     "term": "D low, C atmospheric",
+     "value": "184.8",
+     "where": {
+      "page": 464,
+      "source_kind": "table",
+      "quote": "Tables 10·53 and 10·54 ... 184·8"
+     },
+     "check": {
+      "kind": "mean",
+      "runs": [
+       1,
+       2,
+       3,
+       4
+      ]
+     }
+    },
+    {
+     "what": "mean",
+     "term": "D low, C increased",
+     "value": "184.5",
+     "where": {
+      "page": 464,
+      "source_kind": "table",
+      "quote": "Tables 10·53 and 10·54 ... 184·5"
+     },
+     "check": {
+      "kind": "mean",
+      "runs": [
+       5,
+       6,
+       7,
+       8
+      ]
+     }
+    },
+    {
+     "what": "mean",
+     "term": "D high, C atmospheric",
+     "value": "237.1",
+     "where": {
+      "page": 464,
+      "source_kind": "table",
+      "quote": "Tables 10·53 and 10·54 ... 237·1"
+     },
+     "check": {
+      "kind": "mean",
+      "runs": [
+       9,
+       10,
+       11,
+       12
+      ]
+     }
+    },
+    {
+     "what": "mean",
+     "term": "D high, C increased",
+     "value": "265.5",
+     "where": {
+      "page": 464,
+      "source_kind": "table",
+      "quote": "Tables 10·53 and 10·54 ... 265·5"
+     },
+     "check": {
+      "kind": "mean",
+      "runs": [
+       13,
+       14,
+       15,
+       16
+      ]
+     }
+    },
+    {
+     "what": "mean",
+     "term": "A low, B -",
+     "value": "229.9",
+     "where": {
+      "page": 465,
+      "source_kind": "table",
+      "quote": "Tables 10·53 and 10·54 ... 229·9"
+     },
+     "check": {
+      "kind": "mean",
+      "runs": [
+       1,
+       5,
+       9,
+       13
+      ]
+     }
+    },
+    {
+     "what": "mean",
+     "term": "A low, B +",
+     "value": "205.6",
+     "where": {
+      "page": 465,
+      "source_kind": "table",
+      "quote": "Tables 10·53 and 10·54 ... 205·6"
+     },
+     "check": {
+      "kind": "mean",
+      "runs": [
+       3,
+       7,
+       11,
+       15
+      ]
+     }
+    },
+    {
+     "what": "mean",
+     "term": "A high, B -",
+     "value": "213.6",
+     "where": {
+      "page": 465,
+      "source_kind": "table",
+      "quote": "Tables 10·53 and 10·54 ... 213·6"
+     },
+     "check": {
+      "kind": "mean",
+      "runs": [
+       2,
+       6,
+       10,
+       14
+      ]
+     }
+    },
+    {
+     "what": "mean",
+     "term": "A high, B +",
+     "value": "222.8",
+     "where": {
+      "page": 465,
+      "source_kind": "table",
+      "quote": "Tables 10·53 and 10·54 ... 222·8"
+     },
+     "check": {
+      "kind": "mean",
+      "runs": [
+       4,
+       8,
+       12,
+       16
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "name": "davies-penicillin-half-fraction-fermenters",
+   "title": "Yield of penicillin: five factors in a 2^(5-1) with E = ABCD, in four fermenters confounding BC, BE and CE",
+   "kind": "example",
+   "where": {
+    "section": "10.61 to 10.62 and Appendix 10C",
+    "pages": "466-469, 493-494",
+    "tables": [
+     "Table 10-6",
+     "Table 10-61",
+     "Table 10-7",
+     "Table 10C-4"
+    ],
+    "figures": []
+   },
+   "factors": [
+    {
+     "name": "A",
+     "description": "concentration of corn steep liquor in the inoculum (- at -1, + at +1)",
+     "low": -1,
+     "high": 1,
+     "units": "",
+     "type": "numeric"
+    },
+    {
+     "name": "B",
+     "description": "amount of sugars in the inoculum (- at -1, + at +1)",
+     "low": -1,
+     "high": 1,
+     "units": "",
+     "type": "numeric"
+    },
+    {
+     "name": "C",
+     "description": "quality of sugars in the inoculum (- at -1, + at +1)",
+     "low": -1,
+     "high": 1,
+     "units": "",
+     "type": "numeric"
+    },
+    {
+     "name": "D",
+     "description": "concentration of corn steep liquor in the fermentation (- at -1, + at +1)",
+     "low": -1,
+     "high": 1,
+     "units": "",
+     "type": "numeric"
+    },
+    {
+     "name": "E",
+     "description": "quality (delivery) of corn steep liquor (- at -1, + at +1)",
+     "low": -1,
+     "high": 1,
+     "units": "",
+     "type": "numeric"
+    },
+    {
+     "name": "Fermenter",
+     "description": "fermenter (the block)",
+     "levels": [
+      "1",
+      "2",
+      "3",
+      "4"
+     ],
+     "units": "",
+     "type": "categorical"
+    }
+   ],
+   "responses": [
+    {
+     "name": "y",
+     "description": "yield of penicillin",
+     "units": ""
+    }
+   ],
+   "design": {
+    "type": "2^(5-1) fractional factorial in blocks",
+    "details": "half replicate with E = ABCD in four blocks of four (fermenters), confounding BC, BE and CE",
+    "n_runs": 16
+   },
+   "runs": {
+    "columns": [
+     "No.",
+     "Treatment",
+     "A",
+     "B",
+     "C",
+     "D",
+     "E",
+     "Fermenter",
+     "y"
+    ],
+    "rows": [
+     [
+      1,
+      "e",
+      -1,
+      -1,
+      -1,
+      -1,
+      1,
+      "4",
+      775
+     ],
+     [
+      2,
+      "a",
+      1,
+      -1,
+      -1,
+      -1,
+      -1,
+      "1",
+      625
+     ],
+     [
+      3,
+      "b",
+      -1,
+      1,
+      -1,
+      -1,
+      -1,
+      "2",
+      756
+     ],
+     [
+      4,
+      "abe",
+      1,
+      1,
+      -1,
+      -1,
+      1,
+      "3",
+      666
+     ],
+     [
+      5,
+      "c",
+      -1,
+      -1,
+      1,
+      -1,
+      -1,
+      "3",
+      593
+     ],
+     [
+      6,
+      "ace",
+      1,
+      -1,
+      1,
+      -1,
+      1,
+      "2",
+      625
+     ],
+     [
+      7,
+      "bce",
+      -1,
+      1,
+      1,
+      -1,
+      1,
+      "1",
+      785
+     ],
+     [
+      8,
+      "abc",
+      1,
+      1,
+      1,
+      -1,
+      -1,
+      "4",
+      628
+     ],
+     [
+      9,
+      "d",
+      -1,
+      -1,
+      -1,
+      1,
+      -1,
+      "1",
+      819
+     ],
+     [
+      10,
+      "ade",
+      1,
+      -1,
+      -1,
+      1,
+      1,
+      "4",
+      735
+     ],
+     [
+      11,
+      "bde",
+      -1,
+      1,
+      -1,
+      1,
+      1,
+      "3",
+      745
+     ],
+     [
+      12,
+      "abd",
+      1,
+      1,
+      -1,
+      1,
+      -1,
+      "2",
+      841
+     ],
+     [
+      13,
+      "cde",
+      -1,
+      -1,
+      1,
+      1,
+      1,
+      "2",
+      878
+     ],
+     [
+      14,
+      "acd",
+      1,
+      -1,
+      1,
+      1,
+      -1,
+      "3",
+      656
+     ],
+     [
+      15,
+      "bcd",
+      -1,
+      1,
+      1,
+      1,
+      -1,
+      "4",
+      851
+     ],
+     [
+      16,
+      "abcde",
+      1,
+      1,
+      1,
+      1,
+      1,
+      "1",
+      732
+     ]
+    ],
+    "coded": true,
+    "notes": "Table 10-6, in standard order with respect to A, B, C and D"
+   },
+   "notes": "The means column of Table 10-7 holds the effects, rounded to whole units.",
+   "expected": [
+    {
+     "what": "effect",
+     "term": "A",
+     "value": "-87",
+     "analysis": "each effect aliased with a three-factor interaction; BC, BE and CE are confounded with fermenters",
+     "where": {
+      "page": 468,
+      "source_kind": "table",
+      "quote": "A ... -87"
+     },
+     "check": {
+      "kind": "effect",
+      "term": "A",
+      "model": "Fermenter + A + B + C + D + E + A:B + A:C + B:D + C:D + D:E + A:D + A:E"
+     }
+    },
+    {
+     "what": "effect",
+     "term": "B",
+     "value": "37",
+     "analysis": "each effect aliased with a three-factor interaction; BC, BE and CE are confounded with fermenters",
+     "where": {
+      "page": 468,
+      "source_kind": "table",
+      "quote": "B ... 37"
+     },
+     "check": {
+      "kind": "effect",
+      "term": "B",
+      "model": "Fermenter + A + B + C + D + E + A:B + A:C + B:D + C:D + D:E + A:D + A:E"
+     }
+    },
+    {
+     "what": "effect",
+     "term": "C",
+     "value": "-27",
+     "analysis": "each effect aliased with a three-factor interaction; BC, BE and CE are confounded with fermenters",
+     "where": {
+      "page": 468,
+      "source_kind": "table",
+      "quote": "C ... -27"
+     },
+     "check": {
+      "kind": "effect",
+      "term": "C",
+      "model": "Fermenter + A + B + C + D + E + A:B + A:C + B:D + C:D + D:E + A:D + A:E"
+     }
+    },
+    {
+     "what": "effect",
+     "term": "D",
+     "value": "101",
+     "analysis": "each effect aliased with a three-factor interaction; BC, BE and CE are confounded with fermenters",
+     "where": {
+      "page": 468,
+      "source_kind": "table",
+      "quote": "D ... 101"
+     },
+     "check": {
+      "kind": "effect",
+      "term": "D",
+      "model": "Fermenter + A + B + C + D + E + A:B + A:C + B:D + C:D + D:E + A:D + A:E"
+     }
+    },
+    {
+     "what": "effect",
+     "term": "E",
+     "value": "22",
+     "analysis": "each effect aliased with a three-factor interaction; BC, BE and CE are confounded with fermenters",
+     "where": {
+      "page": 468,
+      "source_kind": "table",
+      "quote": "E ... 22"
+     },
+     "check": {
+      "kind": "effect",
+      "term": "E",
+      "model": "Fermenter + A + B + C + D + E + A:B + A:C + B:D + C:D + D:E + A:D + A:E"
+     }
+    },
+    {
+     "what": "effect",
+     "term": "A·B",
+     "value": "19",
+     "analysis": "each effect aliased with a three-factor interaction; BC, BE and CE are confounded with fermenters",
+     "where": {
+      "page": 468,
+      "source_kind": "table",
+      "quote": "AB ... 19"
+     },
+     "check": {
+      "kind": "effect",
+      "term": "A·B",
+      "model": "Fermenter + A + B + C + D + E + A:B + A:C + B:D + C:D + D:E + A:D + A:E"
+     }
+    },
+    {
+     "what": "effect",
+     "term": "A·C",
+     "value": "-30",
+     "analysis": "each effect aliased with a three-factor interaction; BC, BE and CE are confounded with fermenters",
+     "where": {
+      "page": 468,
+      "source_kind": "table",
+      "quote": "AC ... -30"
+     },
+     "check": {
+      "kind": "effect",
+      "term": "A·C",
+      "model": "Fermenter + A + B + C + D + E + A:B + A:C + B:D + C:D + D:E + A:D + A:E"
+     }
+    },
+    {
+     "what": "effect",
+     "term": "B·D",
+     "value": "-17",
+     "analysis": "each effect aliased with a three-factor interaction; BC, BE and CE are confounded with fermenters",
+     "where": {
+      "page": 468,
+      "source_kind": "table",
+      "quote": "BD ... -17"
+     },
+     "check": {
+      "kind": "effect",
+      "term": "B·D",
+      "model": "Fermenter + A + B + C + D + E + A:B + A:C + B:D + C:D + D:E + A:D + A:E"
+     }
+    },
+    {
+     "what": "effect",
+     "term": "C·D",
+     "value": "21",
+     "analysis": "each effect aliased with a three-factor interaction; BC, BE and CE are confounded with fermenters",
+     "where": {
+      "page": 468,
+      "source_kind": "table",
+      "quote": "CD ... 21"
+     },
+     "check": {
+      "kind": "effect",
+      "term": "C·D",
+      "model": "Fermenter + A + B + C + D + E + A:B + A:C + B:D + C:D + D:E + A:D + A:E"
+     }
+    },
+    {
+     "what": "effect",
+     "term": "D·E",
+     "value": "-41",
+     "analysis": "each effect aliased with a three-factor interaction; BC, BE and CE are confounded with fermenters",
+     "where": {
+      "page": 468,
+      "source_kind": "table",
+      "quote": "DE ... -41"
+     },
+     "check": {
+      "kind": "effect",
+      "term": "D·E",
+      "model": "Fermenter + A + B + C + D + E + A:B + A:C + B:D + C:D + D:E + A:D + A:E"
+     }
+    },
+    {
+     "what": "effect",
+     "term": "A·D",
+     "value": "5",
+     "analysis": "each effect aliased with a three-factor interaction; BC, BE and CE are confounded with fermenters",
+     "where": {
+      "page": 468,
+      "source_kind": "table",
+      "quote": "AD ... 5"
+     },
+     "check": {
+      "kind": "effect",
+      "term": "A·D",
+      "model": "Fermenter + A + B + C + D + E + A:B + A:C + B:D + C:D + D:E + A:D + A:E"
+     }
+    },
+    {
+     "what": "effect",
+     "term": "A·E",
+     "value": "-20",
+     "analysis": "each effect aliased with a three-factor interaction; BC, BE and CE are confounded with fermenters",
+     "where": {
+      "page": 468,
+      "source_kind": "table",
+      "quote": "AE ... -20"
+     },
+     "check": {
+      "kind": "effect",
+      "term": "A·E",
+      "model": "Fermenter + A + B + C + D + E + A:B + A:C + B:D + C:D + D:E + A:D + A:E"
+     }
+    },
+    {
+     "what": "anova_sum_sq",
+     "term": "A",
+     "value": "30102",
+     "analysis": "main effects, one degree of freedom each",
+     "where": {
+      "page": 468,
+      "source_kind": "table",
+      "quote": "A ... 30102 1"
+     },
+     "check": {
+      "kind": "anova_sum_sq",
+      "term": "A",
+      "model": "Fermenter + A + B + C + D + E"
+     }
+    },
+    {
+     "what": "anova_sum_sq",
+     "term": "B",
+     "value": "5550",
+     "analysis": "main effects, one degree of freedom each",
+     "where": {
+      "page": 468,
+      "source_kind": "table",
+      "quote": "B ... 5550 1"
+     },
+     "check": {
+      "kind": "anova_sum_sq",
+      "term": "B",
+      "model": "Fermenter + A + B + C + D + E"
+     }
+    },
+    {
+     "what": "anova_sum_sq",
+     "term": "C",
+     "value": "2862",
+     "analysis": "main effects, one degree of freedom each",
+     "where": {
+      "page": 468,
+      "source_kind": "table",
+      "quote": "C ... 2862 1"
+     },
+     "check": {
+      "kind": "anova_sum_sq",
+      "term": "C",
+      "model": "Fermenter + A + B + C + D + E"
+     }
+    },
+    {
+     "what": "anova_sum_sq",
+     "term": "D",
+     "value": "40401",
+     "analysis": "main effects, one degree of freedom each",
+     "where": {
+      "page": 468,
+      "source_kind": "table",
+      "quote": "D ... 40401 1"
+     },
+     "check": {
+      "kind": "anova_sum_sq",
+      "term": "D",
+      "model": "Fermenter + A + B + C + D + E"
+     }
+    },
+    {
+     "what": "anova_sum_sq",
+     "term": "E",
+     "value": "1849",
+     "analysis": "main effects, one degree of freedom each",
+     "where": {
+      "page": 468,
+      "source_kind": "table",
+      "quote": "E ... 1849 1"
+     },
+     "check": {
+      "kind": "anova_sum_sq",
+      "term": "E",
+      "model": "Fermenter + A + B + C + D + E"
+     }
+    },
+    {
+     "what": "anova_sum_sq",
+     "term": "A·B",
+     "value": "1482",
+     "analysis": "two-factor interactions, one degree of freedom each",
+     "where": {
+      "page": 468,
+      "source_kind": "table",
+      "quote": "AB ... 1482 1"
+     },
+     "check": {
+      "kind": "anova_sum_sq",
+      "term": "A·B",
+      "model": "Fermenter + A + B + C + D + E + A:B + A:C + B:D + C:D + D:E + A:E"
+     }
+    },
+    {
+     "what": "anova_sum_sq",
+     "term": "A·C",
+     "value": "3540",
+     "analysis": "two-factor interactions, one degree of freedom each",
+     "where": {
+      "page": 468,
+      "source_kind": "table",
+      "quote": "AC ... 3540 1"
+     },
+     "check": {
+      "kind": "anova_sum_sq",
+      "term": "A·C",
+      "model": "Fermenter + A + B + C + D + E + A:B + A:C + B:D + C:D + D:E + A:E"
+     }
+    },
+    {
+     "what": "anova_sum_sq",
+     "term": "B·D",
+     "value": "1156",
+     "analysis": "two-factor interactions, one degree of freedom each",
+     "where": {
+      "page": 468,
+      "source_kind": "table",
+      "quote": "BD ... 1156 1"
+     },
+     "check": {
+      "kind": "anova_sum_sq",
+      "term": "B·D",
+      "model": "Fermenter + A + B + C + D + E + A:B + A:C + B:D + C:D + D:E + A:E"
+     }
+    },
+    {
+     "what": "anova_sum_sq",
+     "term": "C·D",
+     "value": "1764",
+     "analysis": "two-factor interactions, one degree of freedom each",
+     "where": {
+      "page": 468,
+      "source_kind": "table",
+      "quote": "CD ... 1764 1"
+     },
+     "check": {
+      "kind": "anova_sum_sq",
+      "term": "C·D",
+      "model": "Fermenter + A + B + C + D + E + A:B + A:C + B:D + C:D + D:E + A:E"
+     }
+    },
+    {
+     "what": "anova_sum_sq",
+     "term": "D·E",
+     "value": "6642",
+     "analysis": "two-factor interactions, one degree of freedom each",
+     "where": {
+      "page": 468,
+      "source_kind": "table",
+      "quote": "DE ... 6642 1"
+     },
+     "check": {
+      "kind": "anova_sum_sq",
+      "term": "D·E",
+      "model": "Fermenter + A + B + C + D + E + A:B + A:C + B:D + C:D + D:E + A:E"
+     }
+    },
+    {
+     "what": "anova_sum_sq",
+     "term": "A·E",
+     "value": "1521",
+     "analysis": "two-factor interactions, one degree of freedom each",
+     "where": {
+      "page": 468,
+      "source_kind": "table",
+      "quote": "AE ... 1521 1"
+     },
+     "check": {
+      "kind": "anova_sum_sq",
+      "term": "A·E",
+      "model": "Fermenter + A + B + C + D + E + A:B + A:C + B:D + C:D + D:E + A:E"
+     }
+    },
+    {
+     "what": "anova_sum_sq",
+     "term": "A·D",
+     "value": "81",
+     "analysis": "the interaction AD, the only term left out",
+     "where": {
+      "page": 468,
+      "source_kind": "table",
+      "quote": "AD 36 5 81 1"
+     },
+     "check": {
+      "kind": "ss_residual",
+      "model": "Fermenter + A + B + C + D + E + A:B + A:C + B:D + C:D + D:E + A:E"
+     }
+    },
+    {
+     "what": "ms_residual",
+     "term": null,
+     "value": "2312",
+     "analysis": "the seven unconfounded two-factor interactions pooled as error",
+     "where": {
+      "page": 468,
+      "source_kind": "table",
+      "quote": "Interaction ... 7 2,312"
+     },
+     "check": {
+      "kind": "ms_residual",
+      "model": "Fermenter + A + B + C + D + E"
+     }
+    },
+    {
+     "what": "anova_sum_sq",
+     "term": "Fermenter",
+     "value": "26554",
+     "where": {
+      "page": 468,
+      "source_kind": "table",
+      "quote": "Fermenter ... 26,554 3 8,851"
+     },
+     "check": {
+      "kind": "anova_sum_sq",
+      "term": "Fermenter",
+      "model": "Fermenter + A + B + C + D + E"
+     }
+    },
+    {
+     "what": "anova_mean_sq",
+     "term": "Fermenter",
+     "value": "8851",
+     "where": {
+      "page": 468,
+      "source_kind": "table",
+      "quote": "Fermenter ... 26,554 3 8,851"
+     },
+     "check": {
+      "kind": "anova_mean_sq",
+      "term": "Fermenter",
+      "model": "Fermenter + A + B + C + D + E"
+     }
+    },
+    {
+     "what": "ms_residual",
+     "term": null,
+     "value": "2500",
+     "where": {
+      "page": 469,
+      "source_kind": "table",
+      "quote": "The process variance calculated from plant records was 2500"
+     },
+     "check": {
+      "manual": "a variance from plant records, not from this experiment"
+     }
+    },
+    {
+     "what": "mean",
+     "term": "Fermenter 1",
+     "value": "740",
+     "where": {
+      "page": 468,
+      "source_kind": "table",
+      "quote": "Fermenter 1 ... 740"
+     },
+     "check": {
+      "kind": "mean",
+      "runs": [
+       2,
+       7,
+       9,
+       16
+      ]
+     }
+    },
+    {
+     "what": "mean",
+     "term": "Fermenter 2",
+     "value": "775",
+     "where": {
+      "page": 468,
+      "source_kind": "table",
+      "quote": "Fermenter 2 ... 775"
+     },
+     "check": {
+      "kind": "mean",
+      "runs": [
+       3,
+       6,
+       12,
+       13
+      ]
+     }
+    },
+    {
+     "what": "mean",
+     "term": "Fermenter 3",
+     "value": "665",
+     "where": {
+      "page": 468,
+      "source_kind": "table",
+      "quote": "Fermenter 3 ... 665"
+     },
+     "check": {
+      "kind": "mean",
+      "runs": [
+       4,
+       5,
+       11,
+       14
+      ]
+     }
+    },
+    {
+     "what": "mean",
+     "term": "Fermenter 4",
+     "value": "747",
+     "where": {
+      "page": 468,
+      "source_kind": "table",
+      "quote": "Fermenter 4 ... 747"
+     },
+     "check": {
+      "kind": "mean",
+      "runs": [
+       1,
+       8,
+       10,
+       15
+      ]
+     }
+    }
+   ]
   }
  ],
  "designs": [],
@@ -18493,6 +21355,7 @@
   "8.4 to 8.6, Appendices 8A, 8C to 8E: general methods, orthogonal polynomial tables and expectations of mean squares, no new data",
   "9.1 to 9.3, 9.4 to 9.9 except the examples, Appendices 9B, 9D and 9E: the construction of confounded designs (Tables 9-1 to 9-9 and the lists of 9E), designs without data; Table 9-8 confounds W(ABC) and J(AB) and prints no results",
   "Appendix 9C (pp. 416-418): the Yates analysis of Example 9-2, whose results are checked under davies-penicillin-2-5",
+  "10.1 to 10.3 and 10.8 (the weighing problem, construction of fractional replicates, 3^n fractions), Table 10-81 and Appendices 10A and 10B: designs and methods without data",
   "Appendix 9G (pp. 435-439): confounded 3^n designs (three or nine runs a block), designs without data",
   "Appendices 8F and 8G (pp. 352-366): the data of Example 8-5 worked again (sums of pairs, I and J components, Yates's method for 3^n); the analysis of the runs is checked under davies-cotton-dyestuff-3-3"
  ]
