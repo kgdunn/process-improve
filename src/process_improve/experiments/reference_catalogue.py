@@ -643,14 +643,19 @@ def _read(found: Any, key: str | None) -> float:  # noqa: ANN401 - a library res
     return float(found)
 
 
-_LIBRARY: dict[str, Callable[..., Any]] = {"blocking_alpha": blocking_alpha, "omars_minimum_runs": omars_minimum_runs}
+_LIBRARY: dict[str, Callable[..., Any]] = {
+    "blocking_alpha": blocking_alpha,
+    "omars_minimum_runs": omars_minimum_runs,
+    "optimize_responses": optimize_responses,
+}
 
 
 def _library_value(check: dict) -> float:
     """Return what a library function gives: ``check["function"]``, one of a few named here, on its arguments.
 
     For a number the library computes directly, such as the run count of the OMARS estimability
-    frontier, without building a design to read it from.
+    frontier, without building a design to read it from, or the canonical analysis of a fitted
+    equation a source prints without its data.
     """
     found = _LIBRARY[check["function"]](*check.get("args", []), **check.get("kwargs", {}))
     return _read(found, check.get("key"))
