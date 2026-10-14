@@ -7858,13 +7858,9 @@
        "manual": "the Quad threshold 2k + 2 = 10 for four factors, a closed-form threshold of the trade-off table (get_omars_trade_off_table_entry(17, 4) reports Quad 10, verified) that no check kind computes"
       },
       {
-       "kind": "design_property",
-       "design": {
-        "design_type": "omars_ilp",
-        "k": 4,
-        "options": {}
-       },
-       "property": "n_runs",
+       "kind": "library_value",
+       "function": "omars_minimum_runs",
+       "args": [4],
        "printed": "21"
       },
       {
@@ -7906,13 +7902,9 @@
       "quote": "model. That leaves any size from 21 runs, the frontier, upwards. The upcoming section :ref:`What the"
      },
      "check": {
-      "kind": "design_property",
-      "design": {
-       "design_type": "omars_ilp",
-       "k": 4,
-       "options": {}
-      },
-      "property": "n_runs",
+      "kind": "library_value",
+      "function": "omars_minimum_runs",
+      "args": [4],
       "printed": "21"
      }
     },
@@ -7931,13 +7923,9 @@
        "manual": "Satd at 9 and Quad from 11 to 19 describe the odd rows of the four-factor column of the trade-off table, closed-form classes that no check kind computes (omars_trade_off_table recomputes them, verified)"
       },
       {
-       "kind": "design_property",
-       "design": {
-        "design_type": "omars_ilp",
-        "k": 4,
-        "options": {}
-       },
-       "property": "n_runs",
+       "kind": "library_value",
+       "function": "omars_minimum_runs",
+       "args": [4],
        "printed": "21"
       }
      ]
@@ -7986,13 +7974,9 @@
       "quote": "run count makes estimable and the error degrees of freedom left to test it. The outlined"
      },
      "check": {
-      "kind": "design_property",
-      "design": {
-       "design_type": "omars_ilp",
-       "k": 4,
-       "options": {}
-      },
-      "property": "n_runs",
+      "kind": "library_value",
+      "function": "omars_minimum_runs",
+      "args": [4],
       "printed": "21"
      }
     },
@@ -11306,13 +11290,9 @@
       "quote": "- A foldover with one centre run fits the full model from :math:`k^2 + k + 1 = 21` runs;"
      },
      "check": {
-      "kind": "design_property",
-      "design": {
-       "design_type": "omars_ilp",
-       "k": 4,
-       "options": {}
-      },
-      "property": "n_runs",
+      "kind": "library_value",
+      "function": "omars_minimum_runs",
+      "args": [4],
       "printed": "21"
      }
     },
@@ -35450,13 +35430,9 @@
       "quote": "- 13"
      },
      "check": {
-      "kind": "design_property",
-      "design": {
-       "design_type": "omars_ilp",
-       "k": 3,
-       "options": {}
-      },
-      "property": "n_runs"
+      "kind": "library_value",
+      "function": "omars_minimum_runs",
+      "args": [3]
      }
     },
     {
@@ -35512,13 +35488,9 @@
       "quote": "- 21"
      },
      "check": {
-      "kind": "design_property",
-      "design": {
-       "design_type": "omars_ilp",
-       "k": 4,
-       "options": {}
-      },
-      "property": "n_runs"
+      "kind": "library_value",
+      "function": "omars_minimum_runs",
+      "args": [4]
      }
     },
     {
@@ -35574,13 +35546,9 @@
       "quote": "- 31"
      },
      "check": {
-      "kind": "design_property",
-      "design": {
-       "design_type": "omars_ilp",
-       "k": 5,
-       "options": {}
-      },
-      "property": "n_runs"
+      "kind": "library_value",
+      "function": "omars_minimum_runs",
+      "args": [5]
      }
     },
     {
@@ -35636,13 +35604,9 @@
       "quote": "- 43"
      },
      "check": {
-      "kind": "design_property",
-      "design": {
-       "design_type": "omars_ilp",
-       "k": 6,
-       "options": {}
-      },
-      "property": "n_runs"
+      "kind": "library_value",
+      "function": "omars_minimum_runs",
+      "args": [6]
      }
     },
     {
@@ -36091,13 +36055,9 @@
       "quote": "print(design.n_runs)                                  # 21"
      },
      "check": {
-      "kind": "design_property",
-      "design": {
-       "design_type": "omars_ilp",
-       "k": 4,
-       "options": {}
-      },
-      "property": "n_runs"
+      "kind": "library_value",
+      "function": "omars_minimum_runs",
+      "args": [4]
      }
     },
     {
@@ -37154,43 +37114,27 @@
      },
      "check": [
       {
-       "kind": "design_property",
-       "design": {
-        "design_type": "omars_ilp",
-        "k": 3,
-        "options": {}
-       },
-       "property": "n_runs",
+       "kind": "library_value",
+       "function": "omars_minimum_runs",
+       "args": [3],
        "printed": "13"
       },
       {
-       "kind": "design_property",
-       "design": {
-        "design_type": "omars_ilp",
-        "k": 4,
-        "options": {}
-       },
-       "property": "n_runs",
+       "kind": "library_value",
+       "function": "omars_minimum_runs",
+       "args": [4],
        "printed": "21"
       },
       {
-       "kind": "design_property",
-       "design": {
-        "design_type": "omars_ilp",
-        "k": 5,
-        "options": {}
-       },
-       "property": "n_runs",
+       "kind": "library_value",
+       "function": "omars_minimum_runs",
+       "args": [5],
        "printed": "31"
       },
       {
-       "kind": "design_property",
-       "design": {
-        "design_type": "omars_ilp",
-        "k": 6,
-        "options": {}
-       },
-       "property": "n_runs",
+       "kind": "library_value",
+       "function": "omars_minimum_runs",
+       "args": [6],
        "printed": "43"
       },
       {
@@ -37329,13 +37273,9 @@
        "printed": "46"
       },
       {
-       "kind": "design_property",
-       "design": {
-        "design_type": "omars_ilp",
-        "k": 5,
-        "options": {}
-       },
-       "property": "n_runs",
+       "kind": "library_value",
+       "function": "omars_minimum_runs",
+       "args": [5],
        "printed": "31"
       }
      ]
@@ -37558,13 +37498,9 @@
       "quote": "factor. Estimating every interaction jointly takes 43 runs; below that, the staged analysis of"
      },
      "check": {
-      "kind": "design_property",
-      "design": {
-       "design_type": "omars_ilp",
-       "k": 6,
-       "options": {}
-      },
-      "property": "n_runs",
+      "kind": "library_value",
+      "function": "omars_minimum_runs",
+      "args": [6],
       "printed": "43"
      }
     }
@@ -39691,13 +39627,9 @@
       "quote": ":ref:`estimability frontier <DOE-omars-estimability-frontier>` at 21 runs."
      },
      "check": {
-      "kind": "design_property",
-      "design": {
-       "design_type": "omars_ilp",
-       "k": 4,
-       "options": {}
-      },
-      "property": "n_runs",
+      "kind": "library_value",
+      "function": "omars_minimum_runs",
+      "args": [4],
       "printed": "21"
      }
     },

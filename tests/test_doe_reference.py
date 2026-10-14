@@ -24,17 +24,12 @@ from process_improve.experiments.reference import (
 
 CHECKS = list(reference._each_check())
 FITS = reference._Fits()
-SLOW_DESIGNS = {"omars_ilp", "dsd"}  # built by search: seconds each, so each is made on one worker, once
+SEARCHED = {"omars_ilp"}  # designs built by search take seconds each: check what they would show more cheaply
 
 
 def _case(key: str, entry: dict, expected: dict, check: dict) -> pytest.param:
-    marks = []
-    design = check.get("design") or {}
-    if design.get("design_type") in SLOW_DESIGNS:
-        spec = json.dumps(design, sort_keys=True)
-        marks = [pytest.mark.slow, pytest.mark.xdist_group(f"reference-design/{spec}")]
     name = f"{key}:{entry['name']}:{expected['what']}:{expected.get('term')}"[:120]
-    return pytest.param(entry, expected, check, id=name, marks=marks)
+    return pytest.param(entry, expected, check, id=name)
 
 
 @pytest.mark.parametrize(("entry", "expected", "check"), [_case(*c) for c in CHECKS if "kind" in c[3]])
@@ -45,6 +40,14 @@ def test_every_printed_number_is_reproduced(entry, expected, check):
         assert not agrees, f"{entry['name']}: it reproduces now ({found}); take away the disagreement it records"
         return
     assert agrees, f"{entry['name']}: {expected['what']} {expected.get('term')}: printed {printed}, found {found}"
+
+
+def test_no_check_builds_a_design_by_search():
+    """A run count of the OMARS frontier comes from omars_minimum_runs, not from building the design (seconds each)."""
+    searched = [
+        entry["name"] for *_, entry, _, check in CHECKS if (check.get("design") or {}).get("design_type") in SEARCHED
+    ]
+    assert not searched, f"these checks build a design by search; use a library_value check instead: {searched}"
 
 
 def test_every_number_not_recomputed_says_why():
@@ -137,7 +140,9 @@ def test_each_kind_of_check_reports_what_it_finds(monkeypatch, tmp_path):
             "0.071",
             {"kind": "design_metric", "metric": "correlation", "key": "max_abs_r", "model": "quadratic", "design": bbd},
         ),
+        item("21", {"kind": "library_value", "function": "omars_minimum_runs", "args": [4]}),
         item("2", {"kind": "no_such_kind"}),
+        item("2", {"kind": "library_value", "function": "no_such_function"}),
         item("2", {"kind": "coefficient", "term": "C", **fit}),
         item("2 ** 3", {"kind": "coefficient", "term": "A", "expression": True, **fit}),
         item("about two", {"kind": "coefficient", "term": "A", **fit}),
@@ -153,10 +158,10 @@ def test_each_kind_of_check_reports_what_it_finds(monkeypatch, tmp_path):
     (tmp_path / "small.json").write_text(json.dumps({"source": source, "experiments": [experiment]}), encoding="utf-8")
     monkeypatch.setattr(reference, "_REFERENCE_DIR", tmp_path)
     report = reproduce_reference("small")
-    assert report["agrees"].tolist() == [True] * 7 + [False] * 4
+    assert report["agrees"].tolist() == [True] * 8 + [False] * 5
     assert report["found"].iloc[6] == "0.0714286"
-    reasons = report["reason"].iloc[7:].str.split(":").str[0].tolist()
-    assert reasons == ["KeyError", "KeyError", "ValueError", "ValueError"]
+    reasons = report["reason"].iloc[8:].str.split(":").str[0].tolist()
+    assert reasons == ["KeyError", "KeyError", "KeyError", "ValueError", "ValueError"]
 
 
 def test_a_trailing_zero_is_a_printed_digit():

@@ -45,6 +45,7 @@ from process_improve.experiments.analysis import analyze_experiment
 from process_improve.experiments.designs import generate_design
 from process_improve.experiments.evaluate import evaluate_design
 from process_improve.experiments.factor import Factor
+from process_improve.experiments.omars_trade_off import omars_minimum_runs
 
 _REFERENCE_DIR = Path(__file__).resolve().parents[1] / "datasets" / "experiments" / "reference"
 
@@ -518,13 +519,30 @@ def _design_metric(experiment: dict, check: dict) -> float:
         found: Any = evaluate_design(
             design, model=check.get("model"), metric=check["metric"], **check.get("options", {})
         )
-    found = found[check["metric"]]
-    for step in filter(None, str(check.get("key") or "").split(".")):
+    return _read(found[check["metric"]], check.get("key"))
+
+
+def _read(found: Any, key: str | None) -> float:  # noqa: ANN401 - a library result: a number, dict or list
+    """Read one number from a library result by a dot-separated path; ``max``, ``min``, ``mean``, ``len`` reduce."""
+    for step in filter(None, str(key or "").split(".")):
         if step in _REDUCE:
             found = _REDUCE[step](list(found.values()) if isinstance(found, dict) else list(found))
         else:
             found = found[int(step)] if isinstance(found, list) else found[step]
     return float(found)
+
+
+_LIBRARY: dict[str, Callable[..., Any]] = {"omars_minimum_runs": omars_minimum_runs}
+
+
+def _library_value(check: dict) -> float:
+    """Return what a library function gives: ``check["function"]``, one of a few named here, on its arguments.
+
+    For a number the library computes directly, such as the run count of the OMARS estimability
+    frontier, without building a design to read it from.
+    """
+    found = _LIBRARY[check["function"]](*check.get("args", []), **check.get("kwargs", {}))
+    return _read(found, check.get("key"))
 
 
 def _active(out: dict, check: dict) -> tuple[str, bool]:
@@ -535,23 +553,28 @@ def _active(out: dict, check: dict) -> tuple[str, bool]:
     return ", ".join(sorted(found)), same
 
 
+_VALUE_KINDS: dict[str, Callable[[dict, dict], float]] = {
+    "design_property": lambda _e, c: _design_property(c),
+    "design_metric": _design_metric,
+    "library_value": lambda _e, c: _library_value(c),
+}
+
+
 def _reproduce(experiment: dict, expected: dict, check: dict, fits: _Fits) -> tuple[str, bool]:
     """Recompute one printed number by its check; return the value found, as text, and whether it agrees."""
     kind = check["kind"]
     printed = check.get("printed", expected["value"])
     if kind in _DESIGN_KINDS:
         return _design_check(check, str(printed), len(experiment.get("factors") or []))
-    if kind == "design_property":
-        found = _design_property(check)
-        return f"{found:.6g}", _agrees(found, str(_ROMAN.get(str(printed).strip(), printed)))
-    if kind == "design_metric":
-        found = _design_metric(experiment, check)
-        return f"{found:.6g}", _agrees(found, str(printed), expression=bool(check.get("expression")))
+    if kind in _VALUE_KINDS:
+        found = _VALUE_KINDS[kind](experiment, check)
+        wanted = str(_ROMAN.get(str(printed).strip(), printed))  # a resolution may be printed as a Roman numeral
+        return f"{found:.6g}", _agrees(found, wanted, expression=bool(check.get("expression")))
     if kind in _RUN_KINDS:
         found_runs = _RUN_KINDS[kind](experiment, check)
-        wanted = [int(n) for n in re.findall(r"\d+", str(printed))]
-        same = set(wanted) == set(found_runs) if kind == "fraction_runs" else wanted == found_runs
-        return ", ".join(map(str, found_runs)), same and len(wanted) == len(found_runs)
+        listed = [int(n) for n in re.findall(r"\d+", str(printed))]
+        same = set(listed) == set(found_runs) if kind == "fraction_runs" else listed == found_runs
+        return ", ".join(map(str, found_runs)), same and len(listed) == len(found_runs)
     out = fits(experiment, check)
     if kind == "active_effects":
         return _active(out, check)
