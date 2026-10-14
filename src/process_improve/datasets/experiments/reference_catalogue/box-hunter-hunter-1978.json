@@ -19,13 +19,13 @@
   ],
   "title": "Statistics for Experimenters: An Introduction to Design, Data Analysis, and Model Building",
   "edition": "1st edition (1978)",
-  "pages": "chapters 1 to 14, 17 and 18, the problems for Parts I to IV, and the tables, pp. 1-509, 556-653",
+  "pages": "the whole book: chapters 1 to 18, the problems for Parts I to IV, and the tables, pp. 1-653",
   "year": 1978,
   "publisher": "John Wiley & Sons, New York",
   "isbn": "0-471-09315-7",
   "url": "https://search.worldcat.org/search?q=bn:0471093157",
   "cite": "Box, G. E. P., Hunter, W. G. and Hunter, J. S. (1978), Statistics for Experimenters, Wiley",
-  "read": "2026-10-14, from scans of the front matter, chapters 1 to 14, 17 and 18, the problems for Parts I to IV, and the appendix tables and indexes; tables taken from the text layer and checked against the totals and averages the book prints; Table 2.3's circled entries, one average of Table 2.2, Exercise 2.6, the run orders of Tables 6.1 and 7.1, Exercise 7.1 (a), Table 7.15, the second square of Table 8.8 the days of Problem 11 of Part II, the run orders of Table 10.3, the first popcorn yield of Exercise 10.3, the cubes of Figures 10.10 and 11.4, Tables 11.2, 11.3 and 11A.1, Tables 12.1b, 12.7 and 12.15, Tables 13.5 to 13.8, Problems 2, 9, 20 and 21 of Part III and Tables 14.6, 14.10 to 14.12, and Table 17.3 read from the page image",
+  "read": "2026-10-14, from scans of the whole book: front matter, chapters 1 to 18, the problems for Parts I to IV, and the appendix tables and indexes; tables taken from the text layer and checked against the totals and averages the book prints; Table 2.3's circled entries, one average of Table 2.2, Exercise 2.6, the run orders of Tables 6.1 and 7.1, Exercise 7.1 (a), Table 7.15, the second square of Table 8.8 the days of Problem 11 of Part II, the run orders of Table 10.3, the first popcorn yield of Exercise 10.3, the cubes of Figures 10.10 and 11.4, Tables 11.2, 11.3 and 11A.1, Tables 12.1b, 12.7 and 12.15, Tables 13.5 to 13.8, Problems 2, 9, 20 and 21 of Part III and Tables 14.6, 14.10 to 14.12, Table 17.3, and Tables 15.1 to 15.3 read from the page image",
   "rights": "The book is protected by copyright (© 1978 John Wiley & Sons, Inc.) and is not reproduced here. This file holds facts it reports (numbers, layouts, data) and short quotations that locate each one, for citation and for checking software. The MIT licence of process-improve does not extend to them."
  },
  "experiments": [
@@ -54710,6 +54710,1617 @@
    },
    "expected": [],
    "unanswered": "the book asks the problem and prints no solution, so there is no result to reproduce; the runs are kept as data"
+  },
+  {
+   "name": "bhh-rsm-first-order-and-steepest-ascent",
+   "title": "Yield against time and temperature: a 2^2 factorial with three centre points, then three runs along the path of steepest ascent",
+   "kind": "example",
+   "where": {
+    "section": "15.2",
+    "pages": "513-519",
+    "tables": [
+     "Table 15.1",
+     "Table 15.2"
+    ],
+    "figures": [
+     "Figure 15.3"
+    ]
+   },
+   "factors": [
+    {
+     "name": "time",
+     "description": "reaction time",
+     "low": 70,
+     "high": 80,
+     "units": "min",
+     "type": "numeric"
+    },
+    {
+     "name": "temperature",
+     "description": "reaction temperature",
+     "low": 127.5,
+     "high": 132.5,
+     "units": "°C",
+     "type": "numeric"
+    }
+   ],
+   "responses": [
+    {
+     "name": "y",
+     "description": "yield",
+     "units": "g"
+    }
+   ],
+   "design": {
+    "type": "2^2 factorial with centre points, and steepest ascent",
+    "details": "runs 1 to 7: the first-order design, coded x1 = (t - 75)/5, x2 = (T - 130)/2.5; runs 8 to 10: points on the path of steepest ascent, in the same coding",
+    "n_runs": 10,
+    "treatment_factors": 2
+   },
+   "runs": {
+    "columns": [
+     "No.",
+     "order",
+     "time_min",
+     "temperature_C",
+     "time",
+     "temperature",
+     "y"
+    ],
+    "rows": [
+     [
+      1,
+      5,
+      70,
+      127.5,
+      -1,
+      -1,
+      54.3
+     ],
+     [
+      2,
+      3,
+      80,
+      127.5,
+      1,
+      -1,
+      60.3
+     ],
+     [
+      3,
+      7,
+      70,
+      132.5,
+      -1,
+      1,
+      64.6
+     ],
+     [
+      4,
+      2,
+      80,
+      132.5,
+      1,
+      1,
+      68.0
+     ],
+     [
+      5,
+      1,
+      75,
+      130.0,
+      0,
+      0,
+      60.3
+     ],
+     [
+      6,
+      4,
+      75,
+      130.0,
+      0,
+      0,
+      64.3
+     ],
+     [
+      7,
+      6,
+      75,
+      130.0,
+      0,
+      0,
+      62.3
+     ],
+     [
+      8,
+      null,
+      80,
+      134.8,
+      1,
+      1.91,
+      73.3
+     ],
+     [
+      9,
+      null,
+      100,
+      153.9,
+      5,
+      9.57,
+      58.2
+     ],
+     [
+      10,
+      null,
+      90,
+      144.4,
+      3,
+      5.74,
+      86.8
+     ]
+    ],
+    "coded": true,
+    "notes": "Tables 15.1 and 15.2; order is the random order of runs 1 to 7 (5, 4, 2, 6, 1, 7, 3 were run first to last); runs 8, 9 and 10 were made in that order, at the coded settings Table 15.2 prints"
+   },
+   "notes": "The prior standard deviation σ = 1.5 sets the standard errors the book quotes.",
+   "expected": [
+    {
+     "what": "coefficient",
+     "term": "Intercept",
+     "value": "62.01",
+     "where": {
+      "page": 516,
+      "source_kind": "prose",
+      "quote": "The least squares estimate of β0 is the average of all seven observations, 62.01."
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "Intercept",
+      "model": "time + temperature",
+      "runs": [
+       1,
+       2,
+       3,
+       4,
+       5,
+       6,
+       7
+      ]
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "x1",
+     "value": "2.35",
+     "where": {
+      "page": 514,
+      "source_kind": "prose",
+      "quote": "b1 = 1/4[(-1 x 54.3) + (1 x 60.3) + (-1 x 64.6) + (1 x 68.0)] = 2.35 (15.3)"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "time",
+      "model": "time + temperature",
+      "runs": [
+       1,
+       2,
+       3,
+       4,
+       5,
+       6,
+       7
+      ]
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "x2",
+     "value": "4.50",
+     "where": {
+      "page": 516,
+      "source_kind": "prose",
+      "quote": "Similarly b2 is 4.50."
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "temperature",
+      "model": "time + temperature",
+      "runs": [
+       1,
+       2,
+       3,
+       4,
+       5,
+       6,
+       7
+      ]
+     }
+    },
+    {
+     "what": "std_error",
+     "term": "fitted plane",
+     "value": "±0.57, ±0.75, ±0.75",
+     "where": {
+      "page": 516,
+      "source_kind": "prose",
+      "quote": "ŷ = 62.01 + 2.35x1 + 4.50x2 (±0.57) (±0.75) (±0.75) (15.4)"
+     },
+     "check": {
+      "manual": "a standard error from the prior σ = 1.5, not from these runs; the library's standard errors use the residual (σ/√7 and σ/√4 reproduce)"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "x1x2",
+     "value": "-0.65",
+     "analysis": "the interaction check: the cross-product coefficient the plane leaves out",
+     "where": {
+      "page": 516,
+      "source_kind": "prose",
+      "quote": "b12 = 1/4[(1 x 54.3) + (-1 x 60.3) + (-1 x 64.6) + (1 x 68.0)] = -0.65 (15.5)"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "time·temperature",
+      "model": "time * temperature",
+      "runs": [
+       1,
+       2,
+       3,
+       4,
+       5,
+       6,
+       7
+      ]
+     }
+    },
+    {
+     "what": "curvature",
+     "term": "b11 + b22",
+     "value": "-0.50",
+     "analysis": "the curvature check: the factorial average less the centre average; the library reports the centre average less the factorial average, so the sign is turned",
+     "where": {
+      "page": 516,
+      "source_kind": "prose",
+      "quote": "b11 + b22 = 1/4(54.3 + 60.3 + 64.6 + 68.0) - 1/3(60.3 + 62.3 + 64.3) = -0.50 (15.6)"
+     },
+     "check": {
+      "kind": "curvature_difference",
+      "model": "time * temperature",
+      "runs": [
+       1,
+       2,
+       3,
+       4,
+       5,
+       6,
+       7
+      ],
+      "printed": "0.50"
+     }
+    },
+    {
+     "what": "std_error",
+     "term": "checks",
+     "value": "0.75, 1.15",
+     "where": {
+      "page": 516,
+      "source_kind": "prose",
+      "quote": "b12 = -0.65 ± 0.75, b11 + b22 = -0.50 ± 1.15 (15.7) ... Exercise 15.1 ... Answer: 0.75, 1.15."
+     },
+     "check": {
+      "manual": "a standard error from the prior σ = 1.5, not from these runs; the library's standard errors use the residual (σ/2 and σ√(1/4 + 1/3) reproduce)"
+     }
+    },
+    {
+     "what": "variance",
+     "term": "centre runs",
+     "value": "4.0",
+     "where": {
+      "page": 517,
+      "source_kind": "prose",
+      "quote": "s1² = (60.3² + 62.3² + 64.3² - (186.9)²/3)/2 = 4.0 (15.8)"
+     },
+     "check": {
+      "kind": "variance",
+      "runs": [
+       5,
+       6,
+       7
+      ]
+     }
+    },
+    {
+     "what": "std_dev",
+     "term": "centre runs",
+     "value": "2.0",
+     "where": {
+      "page": 517,
+      "source_kind": "prose",
+      "quote": "Thus s1 = 2.0 (15.9)"
+     },
+     "check": {
+      "kind": "std_dev",
+      "runs": [
+       5,
+       6,
+       7
+      ]
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "Intercept, Exercise 15.3",
+     "value": "72.01",
+     "where": {
+      "page": 517,
+      "source_kind": "exercise",
+      "quote": "Exercise 15.3. Add 10 units to each of the response values ... Answer: b0 = 72.01, b1 = 2.35, b2 = 4.50."
+     },
+     "check": {
+      "manual": "the fit to the yields with 10 added, which only shifts the intercept; the slopes are checked above"
+     }
+    },
+    {
+     "what": "steepest_path",
+     "term": "step 1",
+     "value": "134.8",
+     "analysis": "the temperature on the path of steepest ascent, steps of 5 minutes in time",
+     "where": {
+      "page": 518,
+      "source_kind": "table",
+      "quote": "Table 15.2 ... x1 = 1 ... time 80 ... temperature 134.8"
+     },
+     "check": {
+      "kind": "steepest_path",
+      "model": "time + temperature",
+      "runs": [
+       1,
+       2,
+       3,
+       4,
+       5,
+       6,
+       7
+      ],
+      "per": "time",
+      "change": 5,
+      "steps": 1,
+      "key": "temperature"
+     }
+    },
+    {
+     "what": "steepest_path",
+     "term": "step 2",
+     "value": "139.6",
+     "analysis": "the temperature on the path of steepest ascent, steps of 5 minutes in time",
+     "where": {
+      "page": 518,
+      "source_kind": "table",
+      "quote": "Table 15.2 ... x1 = 2 ... time 85 ... temperature 139.6"
+     },
+     "check": {
+      "kind": "steepest_path",
+      "model": "time + temperature",
+      "runs": [
+       1,
+       2,
+       3,
+       4,
+       5,
+       6,
+       7
+      ],
+      "per": "time",
+      "change": 5,
+      "steps": 2,
+      "key": "temperature"
+     }
+    },
+    {
+     "what": "steepest_path",
+     "term": "step 3",
+     "value": "144.4",
+     "analysis": "the temperature on the path of steepest ascent, steps of 5 minutes in time",
+     "where": {
+      "page": 518,
+      "source_kind": "table",
+      "quote": "Table 15.2 ... x1 = 3 ... time 90 ... temperature 144.4"
+     },
+     "check": {
+      "kind": "steepest_path",
+      "model": "time + temperature",
+      "runs": [
+       1,
+       2,
+       3,
+       4,
+       5,
+       6,
+       7
+      ],
+      "per": "time",
+      "change": 5,
+      "steps": 3,
+      "key": "temperature"
+     }
+    },
+    {
+     "what": "steepest_path",
+     "term": "step 4",
+     "value": "149.1",
+     "analysis": "the temperature on the path of steepest ascent, steps of 5 minutes in time",
+     "where": {
+      "page": 518,
+      "source_kind": "table",
+      "quote": "Table 15.2 ... x1 = 4 ... time 95 ... temperature 149.1"
+     },
+     "check": {
+      "kind": "steepest_path",
+      "model": "time + temperature",
+      "runs": [
+       1,
+       2,
+       3,
+       4,
+       5,
+       6,
+       7
+      ],
+      "per": "time",
+      "change": 5,
+      "steps": 4,
+      "key": "temperature"
+     }
+    },
+    {
+     "what": "steepest_path",
+     "term": "step 5",
+     "value": "153.9",
+     "analysis": "the temperature on the path of steepest ascent, steps of 5 minutes in time",
+     "where": {
+      "page": 518,
+      "source_kind": "table",
+      "quote": "Table 15.2 ... x1 = 5 ... time 100 ... temperature 153.9"
+     },
+     "check": {
+      "kind": "steepest_path",
+      "model": "time + temperature",
+      "runs": [
+       1,
+       2,
+       3,
+       4,
+       5,
+       6,
+       7
+      ],
+      "per": "time",
+      "change": 5,
+      "steps": 5,
+      "key": "temperature"
+     }
+    },
+    {
+     "what": "steepest_path",
+     "term": "coded x2",
+     "value": "1.91 3.83 5.74 7.66 9.57",
+     "where": {
+      "page": 518,
+      "source_kind": "table",
+      "quote": "Table 15.2 ... coded conditions x2 1.91 3.83 5.74 7.66 9.57"
+     },
+     "check": {
+      "manual": "the same points in coded units, 4.50/2.35 = 1.91 for each unit of x1; checked above in degrees"
+     }
+    },
+    {
+     "what": "prediction",
+     "term": "largest, Exercise 15.8",
+     "value": "66.86",
+     "where": {
+      "page": 524,
+      "source_kind": "exercise",
+      "quote": "Exercise 15.8 ... what are the largest and smallest values for ŷ? ... Answer: 0.965, 66.86, 55.16, yes."
+     },
+     "check": {
+      "kind": "prediction",
+      "model": "time + temperature",
+      "runs": [
+       1,
+       2,
+       3,
+       4,
+       5,
+       6,
+       7
+      ],
+      "point": {
+       "time": 1,
+       "temperature": 1
+      },
+      "disagreement": "the largest fitted value, at (+1, +1), is 62.01 + 2.35 + 4.50 = 68.86; the answer misprints it as 66.86"
+     }
+    },
+    {
+     "what": "prediction",
+     "term": "smallest, Exercise 15.8",
+     "value": "55.16",
+     "where": {
+      "page": 524,
+      "source_kind": "exercise",
+      "quote": "Answer: 0.965, 66.86, 55.16, yes."
+     },
+     "check": {
+      "kind": "prediction",
+      "model": "time + temperature",
+      "runs": [
+       1,
+       2,
+       3,
+       4,
+       5,
+       6,
+       7
+      ],
+      "point": {
+       "time": -1,
+       "temperature": -1
+      }
+     }
+    },
+    {
+     "what": "variance",
+     "term": "average of ŷ, Exercise 15.8",
+     "value": "0.965",
+     "where": {
+      "page": 524,
+      "source_kind": "exercise",
+      "quote": "Answer: 0.965"
+     },
+     "check": {
+      "manual": "the average variance of the fitted values, pσ²/n = 3(1.5²)/7, a property of the design and the prior σ"
+     }
+    }
+   ]
+  },
+  {
+   "name": "bhh-ex-15-4",
+   "title": "Exercise 15.4: the first-order design with two yields changed",
+   "kind": "exercise",
+   "where": {
+    "section": "Exercise 15.4",
+    "pages": "518",
+    "tables": [],
+    "figures": []
+   },
+   "factors": [
+    {
+     "name": "time",
+     "description": "reaction time",
+     "low": 70,
+     "high": 80,
+     "units": "min",
+     "type": "numeric"
+    },
+    {
+     "name": "temperature",
+     "description": "reaction temperature",
+     "low": 127.5,
+     "high": 132.5,
+     "units": "°C",
+     "type": "numeric"
+    }
+   ],
+   "responses": [
+    {
+     "name": "y",
+     "description": "yield",
+     "units": "g"
+    }
+   ],
+   "design": {
+    "type": "2^2 factorial with centre points",
+    "details": "Table 15.1 with the first yield 50.3 and the fourth 72.0",
+    "n_runs": 7,
+    "treatment_factors": 2
+   },
+   "runs": {
+    "columns": [
+     "No.",
+     "order",
+     "time_min",
+     "temperature_C",
+     "time",
+     "temperature",
+     "y"
+    ],
+    "rows": [
+     [
+      1,
+      5,
+      70,
+      127.5,
+      -1,
+      -1,
+      50.3
+     ],
+     [
+      2,
+      3,
+      80,
+      127.5,
+      1,
+      -1,
+      60.3
+     ],
+     [
+      3,
+      7,
+      70,
+      132.5,
+      -1,
+      1,
+      64.6
+     ],
+     [
+      4,
+      2,
+      80,
+      132.5,
+      1,
+      1,
+      72.0
+     ],
+     [
+      5,
+      1,
+      75,
+      130.0,
+      0,
+      0,
+      60.3
+     ],
+     [
+      6,
+      4,
+      75,
+      130.0,
+      0,
+      0,
+      64.3
+     ],
+     [
+      7,
+      6,
+      75,
+      130.0,
+      0,
+      0,
+      62.3
+     ]
+    ],
+    "coded": true,
+    "notes": "Table 15.1 changed as the exercise says"
+   },
+   "expected": [
+    {
+     "what": "coefficient",
+     "term": "Intercept",
+     "value": "62.01",
+     "where": {
+      "page": 518,
+      "source_kind": "exercise",
+      "quote": "Answer: ŷ = 62.01 + 4.35x1 + 6.50x2, b12 = -0.65 ± 0.75, b11 + b22 = -0.50 ± 1.15"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "Intercept",
+      "model": "time + temperature"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "x1",
+     "value": "4.35",
+     "where": {
+      "page": 518,
+      "source_kind": "exercise",
+      "quote": "Answer: ŷ = 62.01 + 4.35x1 + 6.50x2, b12 = -0.65 ± 0.75, b11 + b22 = -0.50 ± 1.15"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "time",
+      "model": "time + temperature"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "x2",
+     "value": "6.50",
+     "where": {
+      "page": 518,
+      "source_kind": "exercise",
+      "quote": "Answer: ŷ = 62.01 + 4.35x1 + 6.50x2, b12 = -0.65 ± 0.75, b11 + b22 = -0.50 ± 1.15"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "temperature",
+      "model": "time + temperature"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "x1x2",
+     "value": "-0.65",
+     "where": {
+      "page": 518,
+      "source_kind": "exercise",
+      "quote": "b12 = -0.65 ± 0.75"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "time·temperature",
+      "model": "time * temperature"
+     }
+    },
+    {
+     "what": "curvature",
+     "term": "b11 + b22",
+     "value": "-0.50",
+     "where": {
+      "page": 518,
+      "source_kind": "exercise",
+      "quote": "b11 + b22 = -0.50 ± 1.15"
+     },
+     "check": {
+      "kind": "curvature_difference",
+      "model": "time * temperature",
+      "printed": "0.50"
+     }
+    }
+   ]
+  },
+  {
+   "name": "bhh-rsm-composite-design",
+   "title": "Yield against time and temperature near the maximum: a 2^2 with centre points, completed by a star to a composite design in two orthogonal blocks",
+   "kind": "example",
+   "where": {
+    "section": "15.2 and 15.4",
+    "pages": "519-532",
+    "tables": [
+     "Table 15.3"
+    ],
+    "figures": [
+     "Figure 15.3",
+     "Figure 15.4",
+     "Figure 15.5"
+    ]
+   },
+   "factors": [
+    {
+     "name": "block",
+     "description": "block: the factorial part, then the star part some days later",
+     "low": "1",
+     "high": "2",
+     "levels": [
+      "1",
+      "2"
+     ],
+     "units": "",
+     "type": "categorical"
+    },
+    {
+     "name": "time",
+     "description": "reaction time",
+     "low": 80,
+     "high": 100,
+     "units": "min",
+     "type": "numeric"
+    },
+    {
+     "name": "temperature",
+     "description": "reaction temperature",
+     "low": 140,
+     "high": 150,
+     "units": "°C",
+     "type": "numeric"
+    }
+   ],
+   "responses": [
+    {
+     "name": "y",
+     "description": "yield",
+     "units": "g"
+    }
+   ],
+   "design": {
+    "type": "central composite design in two blocks",
+    "details": "coded x1 = (t - 90)/10, x2 = (T - 145)/5; runs 11 to 16 a 2^2 with two centre points, runs 17 to 22 four axial runs at ±√2 with two centre points",
+    "n_runs": 12,
+    "treatment_factors": 2
+   },
+   "runs": {
+    "columns": [
+     "No.",
+     "run",
+     "block",
+     "order",
+     "time_min",
+     "temperature_C",
+     "time",
+     "temperature",
+     "y"
+    ],
+    "rows": [
+     [
+      1,
+      11,
+      1,
+      1,
+      80,
+      140,
+      -1,
+      -1,
+      78.8
+     ],
+     [
+      2,
+      12,
+      1,
+      4,
+      100,
+      140,
+      1,
+      -1,
+      84.5
+     ],
+     [
+      3,
+      13,
+      1,
+      3,
+      80,
+      150,
+      -1,
+      1,
+      91.2
+     ],
+     [
+      4,
+      14,
+      1,
+      6,
+      100,
+      150,
+      1,
+      1,
+      77.4
+     ],
+     [
+      5,
+      15,
+      1,
+      2,
+      90,
+      145,
+      0,
+      0,
+      89.7
+     ],
+     [
+      6,
+      16,
+      1,
+      5,
+      90,
+      145,
+      0,
+      0,
+      86.8
+     ],
+     [
+      7,
+      17,
+      2,
+      3,
+      76,
+      145,
+      -1.4,
+      0,
+      83.3
+     ],
+     [
+      8,
+      18,
+      2,
+      6,
+      104,
+      145,
+      1.4,
+      0,
+      81.2
+     ],
+     [
+      9,
+      19,
+      2,
+      1,
+      90,
+      138,
+      0,
+      -1.4,
+      81.2
+     ],
+     [
+      10,
+      20,
+      2,
+      2,
+      90,
+      152,
+      0,
+      1.4,
+      79.5
+     ],
+     [
+      11,
+      21,
+      2,
+      4,
+      90,
+      145,
+      0,
+      0,
+      87.0
+     ],
+     [
+      12,
+      22,
+      2,
+      5,
+      90,
+      145,
+      0,
+      0,
+      86.0
+     ]
+    ],
+    "coded": true,
+    "notes": "Table 15.3 (runs 11 to 22 of the investigation); order within each block as printed (11, 15, 13, 12, 16, 14 and 19, 20, 17, 21, 22, 18); the axial runs were made at 76, 104, 138 and 152, coded ±1.4; the table heads them ±√2, but the printed fit (15.19) reproduces from ±1.4, not from ±√2"
+   },
+   "notes": "The color index and viscosity of 15.3 were measured on these runs too, but only their fitted contours are printed (Figure 15.6).",
+   "expected": [
+    {
+     "what": "coefficient",
+     "term": "Intercept, second first-order design",
+     "value": "84.73",
+     "where": {
+      "page": 520,
+      "source_kind": "prose",
+      "quote": "ŷ = 84.73 - 2.025x1 + 1.325x2 (15.12)"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "Intercept",
+      "model": "time + temperature",
+      "runs": [
+       1,
+       2,
+       3,
+       4,
+       5,
+       6
+      ]
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "x1, second first-order design",
+     "value": "-2.025",
+     "where": {
+      "page": 520,
+      "source_kind": "prose",
+      "quote": "ŷ = 84.73 - 2.025x1 + 1.325x2 (15.12)"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "time",
+      "model": "time + temperature",
+      "runs": [
+       1,
+       2,
+       3,
+       4,
+       5,
+       6
+      ]
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "x2, second first-order design",
+     "value": "1.325",
+     "where": {
+      "page": 520,
+      "source_kind": "prose",
+      "quote": "ŷ = 84.73 - 2.025x1 + 1.325x2 (15.12)"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "temperature",
+      "model": "time + temperature",
+      "runs": [
+       1,
+       2,
+       3,
+       4,
+       5,
+       6
+      ]
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "x1x2, second first-order design",
+     "value": "-4.88",
+     "where": {
+      "page": 520,
+      "source_kind": "prose",
+      "quote": "b'12 = -4.88 ± 0.75, b'11 + b'22 = -5.28 ± 1.15 (15.13)"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "time·temperature",
+      "model": "time * temperature",
+      "runs": [
+       1,
+       2,
+       3,
+       4,
+       5,
+       6
+      ]
+     }
+    },
+    {
+     "what": "curvature",
+     "term": "b'11 + b'22",
+     "value": "-5.28",
+     "where": {
+      "page": 520,
+      "source_kind": "prose",
+      "quote": "b'11 + b'22 = -5.28 ± 1.15 (15.13)"
+     },
+     "check": {
+      "kind": "curvature_difference",
+      "model": "time * temperature",
+      "runs": [
+       1,
+       2,
+       3,
+       4,
+       5,
+       6
+      ],
+      "printed": "5.28"
+     }
+    },
+    {
+     "what": "variance",
+     "term": "runs 15 and 16",
+     "value": "4.21",
+     "where": {
+      "page": 520,
+      "source_kind": "prose",
+      "quote": "s2² = (89.7 - 86.8)²/2 = 4.21 (15.14)"
+     },
+     "check": {
+      "kind": "variance",
+      "runs": [
+       5,
+       6
+      ]
+     }
+    },
+    {
+     "what": "std_dev",
+     "term": "runs 15 and 16",
+     "value": "2.1",
+     "where": {
+      "page": 520,
+      "source_kind": "prose",
+      "quote": "Thus s2 = 2.1 (15.15)"
+     },
+     "check": {
+      "kind": "std_dev",
+      "runs": [
+       5,
+       6
+      ]
+     }
+    },
+    {
+     "what": "variance",
+     "term": "pooled",
+     "value": "4.07; s = 2.02; 3.18; s = 1.78",
+     "where": {
+      "page": 520,
+      "source_kind": "prose",
+      "quote": "s² = ((2 x 4.00) + (1 x 4.21))/3 = 4.07 (15.16) ... s = 2.02 ... s² = 3.18 ... s = 1.78 (15.24)"
+     },
+     "check": {
+      "manual": "variances pooled across the centre runs of three designs, two of them in another entry, which no check computes (they reproduce)"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "Intercept",
+     "value": "87.36",
+     "analysis": "the second-degree equation fitted to the twelve runs of the composite design, no block term",
+     "where": {
+      "page": 521,
+      "source_kind": "prose",
+      "quote": "ŷ = 87.36 - 1.39x1 + 0.37x2 - 2.15x1² - 3.12x2² - 4.88x1x2 (15.19)"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "Intercept",
+      "model": "time + temperature + I(time ** 2) + I(temperature ** 2) + time:temperature"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "x1",
+     "value": "-1.39",
+     "analysis": "the second-degree equation fitted to the twelve runs of the composite design, no block term",
+     "where": {
+      "page": 521,
+      "source_kind": "prose",
+      "quote": "ŷ = 87.36 - 1.39x1 + 0.37x2 - 2.15x1² - 3.12x2² - 4.88x1x2 (15.19)"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "time",
+      "model": "time + temperature + I(time ** 2) + I(temperature ** 2) + time:temperature"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "x2",
+     "value": "0.37",
+     "analysis": "the second-degree equation fitted to the twelve runs of the composite design, no block term",
+     "where": {
+      "page": 521,
+      "source_kind": "prose",
+      "quote": "ŷ = 87.36 - 1.39x1 + 0.37x2 - 2.15x1² - 3.12x2² - 4.88x1x2 (15.19)"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "temperature",
+      "model": "time + temperature + I(time ** 2) + I(temperature ** 2) + time:temperature"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "x1²",
+     "value": "-2.15",
+     "analysis": "the second-degree equation fitted to the twelve runs of the composite design, no block term",
+     "where": {
+      "page": 521,
+      "source_kind": "prose",
+      "quote": "ŷ = 87.36 - 1.39x1 + 0.37x2 - 2.15x1² - 3.12x2² - 4.88x1x2 (15.19)"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "time²",
+      "model": "time + temperature + I(time ** 2) + I(temperature ** 2) + time:temperature"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "x2²",
+     "value": "-3.12",
+     "analysis": "the second-degree equation fitted to the twelve runs of the composite design, no block term",
+     "where": {
+      "page": 521,
+      "source_kind": "prose",
+      "quote": "ŷ = 87.36 - 1.39x1 + 0.37x2 - 2.15x1² - 3.12x2² - 4.88x1x2 (15.19)"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "temperature²",
+      "model": "time + temperature + I(time ** 2) + I(temperature ** 2) + time:temperature"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "x1x2",
+     "value": "-4.88",
+     "analysis": "the second-degree equation fitted to the twelve runs of the composite design, no block term",
+     "where": {
+      "page": 521,
+      "source_kind": "prose",
+      "quote": "ŷ = 87.36 - 1.39x1 + 0.37x2 - 2.15x1² - 3.12x2² - 4.88x1x2 (15.19)"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "time·temperature",
+      "model": "time + temperature + I(time ** 2) + I(temperature ** 2) + time:temperature"
+     }
+    },
+    {
+     "what": "prediction",
+     "term": "t = 100, T = 152",
+     "value": "71.20",
+     "where": {
+      "page": 522,
+      "source_kind": "exercise",
+      "quote": "Exercise 15.7. Using Equation 15.19, obtain the predicted value ŷ for time t = 100 minutes and temperature T = 152°C ... Answer: = 71.20, yes."
+     },
+     "check": {
+      "kind": "prediction",
+      "model": "time + temperature + I(time ** 2) + I(temperature ** 2) + time:temperature",
+      "point": {
+       "block": "1",
+       "time": 1,
+       "temperature": 1.4
+      },
+      "disagreement": "the fitted equation gives 71.40 at x1 = 1, x2 = 1.4, and so does the printed equation (15.19) with its rounded coefficients (71.39); the answer prints 71.20"
+     }
+    },
+    {
+     "what": "lack_of_fit",
+     "term": "b111 - b122, b222 - b112",
+     "value": "1.28 ± 1.06, -1.93 ± 1.06",
+     "where": {
+      "page": 523,
+      "source_kind": "prose",
+      "quote": "b111 - b122 = 1.28 ± 1.06 (15.20), b222 - b112 = -1.93 ± 1.06 (15.21)"
+     },
+     "check": {
+      "manual": "third-order contrasts of the composite design, the slope from the axial runs less the slope from the factorial runs along each axis, which no check computes (1.28 and -1.93 reproduce; ± from σ = 1.5)"
+     }
+    },
+    {
+     "what": "variance",
+     "term": "runs 21 and 22",
+     "value": "0.5",
+     "where": {
+      "page": 523,
+      "source_kind": "prose",
+      "quote": "A further error estimate having one degree of freedom is provided by s3² = (87.0 - 86.0)²/2 = 0.5 (15.22)"
+     },
+     "check": {
+      "kind": "variance",
+      "runs": [
+       11,
+       12
+      ]
+     }
+    },
+    {
+     "what": "difference",
+     "term": "block effect",
+     "value": "1.70",
+     "analysis": "the factorial block's average less the star block's",
+     "where": {
+      "page": 524,
+      "source_kind": "prose",
+      "quote": "block effect = ȳ1 - ȳ2 = 84.73 - 83.03 = 1.70 (15.25)"
+     },
+     "check": {
+      "kind": "difference_of_means",
+      "runs": [
+       1,
+       2,
+       3,
+       4,
+       5,
+       6
+      ],
+      "minus": [
+       7,
+       8,
+       9,
+       10,
+       11,
+       12
+      ]
+     }
+    },
+    {
+     "what": "mean",
+     "term": "star block",
+     "value": "83.03",
+     "where": {
+      "page": 524,
+      "source_kind": "prose",
+      "quote": "84.73 - 83.03 = 1.70"
+     },
+     "check": {
+      "kind": "mean",
+      "runs": [
+       7,
+       8,
+       9,
+       10,
+       11,
+       12
+      ]
+     }
+    },
+    {
+     "what": "std_error",
+     "term": "block effect",
+     "value": "0.87",
+     "where": {
+      "page": 524,
+      "source_kind": "prose",
+      "quote": "the standard error of this difference is given by √(σ²/6 + σ²/6) = 1.5/√3 = 0.87"
+     },
+     "check": {
+      "manual": "a standard error from the prior σ = 1.5, not from these runs; the library's standard errors use the residual"
+     }
+    },
+    {
+     "what": "variance",
+     "term": "average of ŷ",
+     "value": "1.125; 1.06",
+     "where": {
+      "page": 524,
+      "source_kind": "prose",
+      "quote": "the average variance of the fitted value is 6(1.5)²/12 = 1.125, and the corresponding average standard error of the ŷ's is √1.125 = 1.06"
+     },
+     "check": {
+      "manual": "pσ²/n, the average variance of the fitted values over the design whatever the design (Box and Wetz), from the prior σ; no check computes it"
+     }
+    },
+    {
+     "what": "canonical",
+     "term": "λ1",
+     "value": "-5.12",
+     "analysis": "the eigenvalues of the second-order coefficients: the curvature along the canonical axes",
+     "where": {
+      "page": 532,
+      "source_kind": "prose",
+      "quote": "ŷ - 88.2 = -5.12X1² + 2.4X2 - 0.15X2² (15.30)"
+     },
+     "check": {
+      "kind": "optimum",
+      "method": "stationary_point",
+      "model": "time + temperature + I(time ** 2) + I(temperature ** 2) + time:temperature",
+      "key": "stationary_point.eigenvalues.0"
+     }
+    },
+    {
+     "what": "canonical",
+     "term": "λ2",
+     "value": "-0.15",
+     "where": {
+      "page": 532,
+      "source_kind": "prose",
+      "quote": "In this equation the term B22 = 0.15 is negligible"
+     },
+     "check": {
+      "kind": "optimum",
+      "method": "stationary_point",
+      "model": "time + temperature + I(time ** 2) + I(temperature ** 2) + time:temperature",
+      "key": "stationary_point.eigenvalues.1"
+     }
+    },
+    {
+     "what": "canonical",
+     "term": "origin and linear term",
+     "value": "88.2, 2.4",
+     "where": {
+      "page": 532,
+      "source_kind": "prose",
+      "quote": "ŷ - 88.2 = -5.12X1² + 2.4X2 - 0.15X2² (15.30)"
+     },
+     "check": {
+      "manual": "the library reports the stationary point of the fitted quadratic and its eigenvalues, not the ridge (B-canonical) form, whose origin is the point of the ridge nearest the design centre and which carries a linear term along the ridge; the library places the stationary point at (-3.47, 2.78) coded, ŷ = 90.3, far outside the region, and calls the surface a maximum"
+     }
+    },
+    {
+     "what": "canonical",
+     "term": "ridge axis",
+     "value": "0.63, 0.77",
+     "analysis": "the direction of greatest curvature, whose normal is the ridge line (the eigenvector lists the block first, with weight zero); its sign is arbitrary",
+     "where": {
+      "page": 532,
+      "source_kind": "prose",
+      "quote": "the equation of the ridge: 0.63x1 + 0.77x2 + 0.33 = 0"
+     },
+     "check": [
+      {
+       "kind": "optimum",
+       "method": "canonical_analysis",
+       "model": "time + temperature + I(time ** 2) + I(temperature ** 2) + time:temperature",
+       "key": "canonical_analysis.eigenvectors.0.1",
+       "abs": true,
+       "printed": "0.63"
+      },
+      {
+       "kind": "optimum",
+       "method": "canonical_analysis",
+       "model": "time + temperature + I(time ** 2) + I(temperature ** 2) + time:temperature",
+       "key": "canonical_analysis.eigenvectors.0.2",
+       "abs": true,
+       "printed": "0.77"
+      }
+     ]
+    },
+    {
+     "what": "canonical",
+     "term": "ridge offset",
+     "value": "0.33",
+     "where": {
+      "page": 532,
+      "source_kind": "prose",
+      "quote": "0.63x1 + 0.77x2 + 0.33 = 0"
+     },
+     "check": {
+      "manual": "the library reports the stationary point of the fitted quadratic and its eigenvalues, not the ridge (B-canonical) form, whose origin is the point of the ridge nearest the design centre and which carries a linear term along the ridge"
+     }
+    }
+   ]
+  },
+  {
+   "name": "bhh-ex-16-1",
+   "title": "Relative concentration of an intermediate product against reaction time (Exercise 16.1)",
+   "kind": "exercise",
+   "where": {
+    "section": "Exercise 16.1",
+    "pages": "547",
+    "tables": [],
+    "figures": []
+   },
+   "factors": [
+    {
+     "name": "x",
+     "description": "time at which the reaction is terminated",
+     "low": 1,
+     "high": 7,
+     "units": "min",
+     "type": "numeric",
+     "coding": "none"
+    }
+   ],
+   "responses": [
+    {
+     "name": "y",
+     "description": "relative concentration of product B",
+     "units": ""
+    }
+   ],
+   "design": {
+    "type": "regression on one variable",
+    "details": "6 reaction times",
+    "n_runs": 6,
+    "treatment_factors": 1
+   },
+   "runs": {
+    "columns": [
+     "No.",
+     "x",
+     "y"
+    ],
+    "rows": [
+     [
+      1,
+      1,
+      0.22
+     ],
+     [
+      2,
+      2,
+      0.51
+     ],
+     [
+      3,
+      4,
+      0.48
+     ],
+     [
+      4,
+      5,
+      0.29
+     ],
+     [
+      5,
+      6,
+      0.2
+     ],
+     [
+      6,
+      7,
+      0.12
+     ]
+    ],
+    "coded": false,
+    "notes": "as printed; the exercise fits η = β1/(β1 - β2)(exp(-β2 x) - exp(-β1 x)), a model nonlinear in its parameters, and Exercise 16.3 compares the two sets of times as designs"
+   },
+   "unanswered": "the book asks the problem and prints no solution, so there is no result to reproduce; the runs are kept as data",
+   "expected": []
+  },
+  {
+   "name": "bhh-ex-16-2",
+   "title": "Relative concentration of an intermediate product against reaction time (Exercise 16.2)",
+   "kind": "exercise",
+   "where": {
+    "section": "Exercise 16.2",
+    "pages": "547",
+    "tables": [],
+    "figures": []
+   },
+   "factors": [
+    {
+     "name": "x",
+     "description": "time at which the reaction is terminated",
+     "low": 0.0625,
+     "high": 2,
+     "units": "min",
+     "type": "numeric",
+     "coding": "none"
+    }
+   ],
+   "responses": [
+    {
+     "name": "y",
+     "description": "relative concentration of product B",
+     "units": ""
+    }
+   ],
+   "design": {
+    "type": "regression on one variable",
+    "details": "6 reaction times",
+    "n_runs": 6,
+    "treatment_factors": 1
+   },
+   "runs": {
+    "columns": [
+     "No.",
+     "x",
+     "y"
+    ],
+    "rows": [
+     [
+      1,
+      0.0625,
+      0.01
+     ],
+     [
+      2,
+      0.125,
+      0.02
+     ],
+     [
+      3,
+      0.25,
+      0.08
+     ],
+     [
+      4,
+      0.5,
+      0.15
+     ],
+     [
+      5,
+      1,
+      0.22
+     ],
+     [
+      6,
+      2,
+      0.51
+     ]
+    ],
+    "coded": false,
+    "notes": "as printed; the exercise fits η = β1/(β1 - β2)(exp(-β2 x) - exp(-β1 x)), a model nonlinear in its parameters, and Exercise 16.3 compares the two sets of times as designs"
+   },
+   "unanswered": "the book asks the problem and prints no solution, so there is no result to reproduce; the runs are kept as data",
+   "expected": []
   }
  ],
  "designs": [
@@ -56376,6 +57987,606 @@
      }
     }
    ]
+  },
+  {
+   "name": "bhh-rsm-canonical-forms",
+   "title": "Four fitted second-degree equations and their canonical forms: maximum, minimax, stationary ridge and rising ridge",
+   "where": {
+    "section": "15.4",
+    "pages": "526-532",
+    "tables": [],
+    "figures": [
+     "Figure 15.7"
+    ]
+   },
+   "design": {
+    "type": "fitted second-degree equations",
+    "factors": 2,
+    "n_runs": 0,
+    "treatment_factors": 2
+   },
+   "notes": "Hypothetical equations, printed without data. Their canonical analysis is checked through the library's optimize_responses on the printed coefficients.",
+   "expected": [
+    {
+     "what": "canonical",
+     "term": "(a) maximum: λ1",
+     "value": "-9.02",
+     "where": {
+      "page": 527,
+      "source_kind": "figure",
+      "quote": "FIGURE 15.7. (a) Example of second-degree equations representing a simple maximum. ŷ = 83.57 + 9.39x1 + 7.12x2 + -7.44x1² + -3.71x2² + -5.8x1x2; ŷ - 87.69 = -9.02X1² - 2.13X2²"
+     },
+     "check": {
+      "kind": "library_value",
+      "function": "optimize_responses",
+      "args": [
+       [
+        {
+         "response_name": "y",
+         "factor_names": [
+          "x1",
+          "x2"
+         ],
+         "coefficients": [
+          {
+           "term": "Intercept",
+           "coefficient": 83.57
+          },
+          {
+           "term": "x1",
+           "coefficient": 9.39
+          },
+          {
+           "term": "x2",
+           "coefficient": 7.12
+          },
+          {
+           "term": "I(x1 ** 2)",
+           "coefficient": -7.44
+          },
+          {
+           "term": "I(x2 ** 2)",
+           "coefficient": -3.71
+          },
+          {
+           "term": "x1:x2",
+           "coefficient": -5.8
+          }
+         ]
+        }
+       ]
+      ],
+      "kwargs": {
+       "method": "stationary_point"
+      },
+      "key": "stationary_point.eigenvalues.0"
+     }
+    },
+    {
+     "what": "canonical",
+     "term": "(a) maximum: λ2",
+     "value": "-2.13",
+     "where": {
+      "page": 527,
+      "source_kind": "figure",
+      "quote": "FIGURE 15.7. (a) Example of second-degree equations representing a simple maximum. ŷ = 83.57 + 9.39x1 + 7.12x2 + -7.44x1² + -3.71x2² + -5.8x1x2; ŷ - 87.69 = -9.02X1² - 2.13X2²"
+     },
+     "check": {
+      "kind": "library_value",
+      "function": "optimize_responses",
+      "args": [
+       [
+        {
+         "response_name": "y",
+         "factor_names": [
+          "x1",
+          "x2"
+         ],
+         "coefficients": [
+          {
+           "term": "Intercept",
+           "coefficient": 83.57
+          },
+          {
+           "term": "x1",
+           "coefficient": 9.39
+          },
+          {
+           "term": "x2",
+           "coefficient": 7.12
+          },
+          {
+           "term": "I(x1 ** 2)",
+           "coefficient": -7.44
+          },
+          {
+           "term": "I(x2 ** 2)",
+           "coefficient": -3.71
+          },
+          {
+           "term": "x1:x2",
+           "coefficient": -5.8
+          }
+         ]
+        }
+       ]
+      ],
+      "kwargs": {
+       "method": "stationary_point"
+      },
+      "key": "stationary_point.eigenvalues.1"
+     }
+    },
+    {
+     "what": "canonical",
+     "term": "(a) maximum: ŷS",
+     "value": "87.69",
+     "analysis": "the fitted response at the centre of the canonical system (for the stationary ridge, anywhere on its line of centres)",
+     "where": {
+      "page": 527,
+      "source_kind": "figure",
+      "quote": "FIGURE 15.7. (a) Example of second-degree equations representing a simple maximum. ŷ = 83.57 + 9.39x1 + 7.12x2 + -7.44x1² + -3.71x2² + -5.8x1x2; ŷ - 87.69 = -9.02X1² - 2.13X2²"
+     },
+     "check": {
+      "kind": "library_value",
+      "function": "optimize_responses",
+      "args": [
+       [
+        {
+         "response_name": "y",
+         "factor_names": [
+          "x1",
+          "x2"
+         ],
+         "coefficients": [
+          {
+           "term": "Intercept",
+           "coefficient": 83.57
+          },
+          {
+           "term": "x1",
+           "coefficient": 9.39
+          },
+          {
+           "term": "x2",
+           "coefficient": 7.12
+          },
+          {
+           "term": "I(x1 ** 2)",
+           "coefficient": -7.44
+          },
+          {
+           "term": "I(x2 ** 2)",
+           "coefficient": -3.71
+          },
+          {
+           "term": "x1:x2",
+           "coefficient": -5.8
+          }
+         ]
+        }
+       ]
+      ],
+      "kwargs": {
+       "method": "stationary_point"
+      },
+      "key": "stationary_point.predicted_response"
+     }
+    },
+    {
+     "what": "canonical",
+     "term": "(b) minimax: λ1",
+     "value": "-9.02",
+     "where": {
+      "page": 527,
+      "source_kind": "figure",
+      "quote": "FIGURE 15.7. (b) Example of second-degree equations representing a minimax. ŷ = 84.29 + 11.06x1 + 4.05x2 + -6.46x1² + -0.43x2² + -9.38x1x2; ŷ - 87.69 = -9.02X1² + 2.13X2²"
+     },
+     "check": {
+      "kind": "library_value",
+      "function": "optimize_responses",
+      "args": [
+       [
+        {
+         "response_name": "y",
+         "factor_names": [
+          "x1",
+          "x2"
+         ],
+         "coefficients": [
+          {
+           "term": "Intercept",
+           "coefficient": 84.29
+          },
+          {
+           "term": "x1",
+           "coefficient": 11.06
+          },
+          {
+           "term": "x2",
+           "coefficient": 4.05
+          },
+          {
+           "term": "I(x1 ** 2)",
+           "coefficient": -6.46
+          },
+          {
+           "term": "I(x2 ** 2)",
+           "coefficient": -0.43
+          },
+          {
+           "term": "x1:x2",
+           "coefficient": -9.38
+          }
+         ]
+        }
+       ]
+      ],
+      "kwargs": {
+       "method": "stationary_point"
+      },
+      "key": "stationary_point.eigenvalues.0"
+     }
+    },
+    {
+     "what": "canonical",
+     "term": "(b) minimax: λ2",
+     "value": "2.13",
+     "where": {
+      "page": 527,
+      "source_kind": "figure",
+      "quote": "FIGURE 15.7. (b) Example of second-degree equations representing a minimax. ŷ = 84.29 + 11.06x1 + 4.05x2 + -6.46x1² + -0.43x2² + -9.38x1x2; ŷ - 87.69 = -9.02X1² + 2.13X2²"
+     },
+     "check": {
+      "kind": "library_value",
+      "function": "optimize_responses",
+      "args": [
+       [
+        {
+         "response_name": "y",
+         "factor_names": [
+          "x1",
+          "x2"
+         ],
+         "coefficients": [
+          {
+           "term": "Intercept",
+           "coefficient": 84.29
+          },
+          {
+           "term": "x1",
+           "coefficient": 11.06
+          },
+          {
+           "term": "x2",
+           "coefficient": 4.05
+          },
+          {
+           "term": "I(x1 ** 2)",
+           "coefficient": -6.46
+          },
+          {
+           "term": "I(x2 ** 2)",
+           "coefficient": -0.43
+          },
+          {
+           "term": "x1:x2",
+           "coefficient": -9.38
+          }
+         ]
+        }
+       ]
+      ],
+      "kwargs": {
+       "method": "stationary_point"
+      },
+      "key": "stationary_point.eigenvalues.1"
+     }
+    },
+    {
+     "what": "canonical",
+     "term": "(b) minimax: ŷS",
+     "value": "87.69",
+     "analysis": "the fitted response at the centre of the canonical system (for the stationary ridge, anywhere on its line of centres)",
+     "where": {
+      "page": 527,
+      "source_kind": "figure",
+      "quote": "FIGURE 15.7. (b) Example of second-degree equations representing a minimax. ŷ = 84.29 + 11.06x1 + 4.05x2 + -6.46x1² + -0.43x2² + -9.38x1x2; ŷ - 87.69 = -9.02X1² + 2.13X2²"
+     },
+     "check": {
+      "kind": "library_value",
+      "function": "optimize_responses",
+      "args": [
+       [
+        {
+         "response_name": "y",
+         "factor_names": [
+          "x1",
+          "x2"
+         ],
+         "coefficients": [
+          {
+           "term": "Intercept",
+           "coefficient": 84.29
+          },
+          {
+           "term": "x1",
+           "coefficient": 11.06
+          },
+          {
+           "term": "x2",
+           "coefficient": 4.05
+          },
+          {
+           "term": "I(x1 ** 2)",
+           "coefficient": -6.46
+          },
+          {
+           "term": "I(x2 ** 2)",
+           "coefficient": -0.43
+          },
+          {
+           "term": "x1:x2",
+           "coefficient": -9.38
+          }
+         ]
+        }
+       ]
+      ],
+      "kwargs": {
+       "method": "stationary_point"
+      },
+      "key": "stationary_point.predicted_response"
+     }
+    },
+    {
+     "what": "canonical",
+     "term": "(c) stationary ridge: λ1",
+     "value": "-9.02",
+     "where": {
+      "page": 527,
+      "source_kind": "figure",
+      "quote": "FIGURE 15.7. (c) Example of second-degree equations representing a stationary ridge. ŷ = 83.93 + 10.23x1 + 5.59x2 + -6.95x1² + -2.07x2² + -7.59x1x2; ŷ - 87.69 = -9.02X1² + 0.00X2²"
+     },
+     "check": {
+      "kind": "library_value",
+      "function": "optimize_responses",
+      "args": [
+       [
+        {
+         "response_name": "y",
+         "factor_names": [
+          "x1",
+          "x2"
+         ],
+         "coefficients": [
+          {
+           "term": "Intercept",
+           "coefficient": 83.93
+          },
+          {
+           "term": "x1",
+           "coefficient": 10.23
+          },
+          {
+           "term": "x2",
+           "coefficient": 5.59
+          },
+          {
+           "term": "I(x1 ** 2)",
+           "coefficient": -6.95
+          },
+          {
+           "term": "I(x2 ** 2)",
+           "coefficient": -2.07
+          },
+          {
+           "term": "x1:x2",
+           "coefficient": -7.59
+          }
+         ]
+        }
+       ]
+      ],
+      "kwargs": {
+       "method": "stationary_point"
+      },
+      "key": "stationary_point.eigenvalues.0"
+     }
+    },
+    {
+     "what": "canonical",
+     "term": "(c) stationary ridge: λ2",
+     "value": "0.00",
+     "where": {
+      "page": 527,
+      "source_kind": "figure",
+      "quote": "FIGURE 15.7. (c) Example of second-degree equations representing a stationary ridge. ŷ = 83.93 + 10.23x1 + 5.59x2 + -6.95x1² + -2.07x2² + -7.59x1x2; ŷ - 87.69 = -9.02X1² + 0.00X2²"
+     },
+     "check": {
+      "kind": "library_value",
+      "function": "optimize_responses",
+      "args": [
+       [
+        {
+         "response_name": "y",
+         "factor_names": [
+          "x1",
+          "x2"
+         ],
+         "coefficients": [
+          {
+           "term": "Intercept",
+           "coefficient": 83.93
+          },
+          {
+           "term": "x1",
+           "coefficient": 10.23
+          },
+          {
+           "term": "x2",
+           "coefficient": 5.59
+          },
+          {
+           "term": "I(x1 ** 2)",
+           "coefficient": -6.95
+          },
+          {
+           "term": "I(x2 ** 2)",
+           "coefficient": -2.07
+          },
+          {
+           "term": "x1:x2",
+           "coefficient": -7.59
+          }
+         ]
+        }
+       ]
+      ],
+      "kwargs": {
+       "method": "stationary_point"
+      },
+      "key": "stationary_point.eigenvalues.1"
+     }
+    },
+    {
+     "what": "canonical",
+     "term": "(c) stationary ridge: ŷS",
+     "value": "87.69",
+     "analysis": "the fitted response at the centre of the canonical system (for the stationary ridge, anywhere on its line of centres)",
+     "where": {
+      "page": 527,
+      "source_kind": "figure",
+      "quote": "FIGURE 15.7. (c) Example of second-degree equations representing a stationary ridge. ŷ = 83.93 + 10.23x1 + 5.59x2 + -6.95x1² + -2.07x2² + -7.59x1x2; ŷ - 87.69 = -9.02X1² + 0.00X2²"
+     },
+     "check": {
+      "kind": "library_value",
+      "function": "optimize_responses",
+      "args": [
+       [
+        {
+         "response_name": "y",
+         "factor_names": [
+          "x1",
+          "x2"
+         ],
+         "coefficients": [
+          {
+           "term": "Intercept",
+           "coefficient": 83.93
+          },
+          {
+           "term": "x1",
+           "coefficient": 10.23
+          },
+          {
+           "term": "x2",
+           "coefficient": 5.59
+          },
+          {
+           "term": "I(x1 ** 2)",
+           "coefficient": -6.95
+          },
+          {
+           "term": "I(x2 ** 2)",
+           "coefficient": -2.07
+          },
+          {
+           "term": "x1:x2",
+           "coefficient": -7.59
+          }
+         ]
+        }
+       ]
+      ],
+      "kwargs": {
+       "method": "stationary_point"
+      },
+      "key": "stationary_point.predicted_response"
+     }
+    },
+    {
+     "what": "canonical",
+     "term": "(d) rising ridge: λ1",
+     "value": "-9.02",
+     "where": {
+      "page": 527,
+      "source_kind": "figure",
+      "quote": "FIGURE 15.7. (d) Example of second-degree equations representing a rising ridge. ŷ = 82.71 + 8.8x1 + 8.19x2 + -6.95x1² + -2.07x2² + -7.59x1x2; ŷ - 87.69 = -9.02X1² + 2.97X2"
+     },
+     "check": {
+      "kind": "library_value",
+      "function": "optimize_responses",
+      "args": [
+       [
+        {
+         "response_name": "y",
+         "factor_names": [
+          "x1",
+          "x2"
+         ],
+         "coefficients": [
+          {
+           "term": "Intercept",
+           "coefficient": 82.71
+          },
+          {
+           "term": "x1",
+           "coefficient": 8.8
+          },
+          {
+           "term": "x2",
+           "coefficient": 8.19
+          },
+          {
+           "term": "I(x1 ** 2)",
+           "coefficient": -6.95
+          },
+          {
+           "term": "I(x2 ** 2)",
+           "coefficient": -2.07
+          },
+          {
+           "term": "x1:x2",
+           "coefficient": -7.59
+          }
+         ]
+        }
+       ]
+      ],
+      "kwargs": {
+       "method": "stationary_point"
+      },
+      "key": "stationary_point.eigenvalues.0"
+     }
+    },
+    {
+     "what": "canonical",
+     "term": "(d) rising ridge: ŷS', B2",
+     "value": "87.69, 2.97",
+     "where": {
+      "page": 530,
+      "source_kind": "figure",
+      "quote": "FIGURE 15.7. (d) ... ŷ - 87.69 = -9.02X1² + 2.97X2"
+     },
+     "check": {
+      "manual": "the library reports the stationary point of the fitted quadratic and its eigenvalues, not the ridge (B-canonical) form, whose origin is the point of the ridge nearest the design centre and which carries a linear term along the ridge; for this equation the library's stationary point is at (414, -758) coded with ŷ = -1197, a point of no use"
+     }
+    },
+    {
+     "what": "classification",
+     "term": "(c) stationary ridge",
+     "value": "a line of maxima",
+     "where": {
+      "page": 531,
+      "source_kind": "prose",
+      "quote": "Here there is not a single point maximum but a line of maxima. We have a stationary ridge."
+     },
+     "check": {
+      "manual": "the library classifies this surface as a saddle point, from an eigenvalue of 0.0017 that the book reads as zero; it has no ridge class"
+     }
+    }
+   ]
   }
  ],
  "not_captured": [
@@ -56406,7 +58617,9 @@
   "13.1 (Table 13.1): the cast films' six responses are yes, no or slightly; the design's alias structure is held as bhh-cast-films-2-5-2",
   "Problems for Part III (pp. 434-449): 3 to 5, 11 to 13, 17, 23 to 28 and 30 to 39 are questions on design construction, 37 a design without data; 18 prints only the averages and standard deviations of 20 replicates. The problems with data (1, 2, 6 to 10, 14 to 16, 19 to 22 and 29) are held, without printed answers",
   "14.7 and Tables 14.15 and 14.16 (pp. 487-499): the hazards of regression on happenstance data, with four illustrative rows of plant records; Appendix 14A (geometry of least squares); Appendix 14D (weighted least squares, illustrated with averages); Exercise 14.2 (the aerosol data with 5 added)",
-  "chapters 15 and 16 (pp. 510-555) have not been read: their scans were not among the sections supplied",
+  "15.1 and 15.3 (pp. 510-513, 526): the one-variable-at-a-time illustration and the specification problem are shown only as contour figures; the color index and viscosity of the composite design are printed only as fitted contours (Figure 15.6)",
+  "15.4, ridges and Figure 15.8 (pp. 532-534): the explanation of ridges by a compound variable such as w = x1 x2, without data; 15.5 and 15.6 (Figures 15.9 and 15.10): applications and the RSM flow diagram in words",
+  "chapter 16 (pp. 540-555): mechanistic modelling in words, with the hydraulic example of Figure 16.1 unplotted; Table 16.2 gives parameter estimates for six valve openings, not data; Exercises 16.1 and 16.2 are held, without printed answers",
   "17.1 (pp. 556-563): Figures 17.2 and 17.3 are control charts whose points are not tabulated; Exercises 17.1 and 17.4 are data to plot, answered in words",
   "17.2 (pp. 563-570): transmission of error, worked as calculation (the bubble volume, the molecular weight of sulfur in Table 17.2, Exercises 17.5 and 17.6), not experiments with data",
   "chapter 18 (pp. 584-605): the refrigerator sales, dye level and Los Angeles oxidant (O3) series are shown only as plots; the production record of chapter 2, which it revisits, is held with its time-series numbers",

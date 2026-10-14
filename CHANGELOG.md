@@ -28,7 +28,7 @@ those changes.
   with missing cells, two-level factorials, multi-level factorials with their orthogonal
   polynomial components, factorials confounded in blocks, fractional factorials, and response
   surface work (two stages of steepest ascent, a 3^2 factorial and a composite design with their
-  canonical analyses, and orthogonal composite designs); of chapters 1 to 14, 17 and 18 and the problems for Parts I to IV of Box, Hunter and
+  canonical analyses, and orthogonal composite designs); of the whole of Box, Hunter and
   Hunter, *Statistics for Experimenters* (1978): two-treatment comparisons (a plant trial
   against a 210-batch production record, randomized and paired experiments, and the
   exercises of chapters 2 and 3, each labelled as a one-factor design), one-way analyses of
@@ -42,7 +42,9 @@ those changes.
   added to separate an interaction string, the fractions of its Table 12.15 against the
   library's own, and three case studies), and least squares regression (lines and a plane
   through the origin, a straight line, a quadratic, a nonlinear model and a factorial run off
-  plan), and the components of variance of a hierarchical design; and of five papers on definitive screening and OMARS designs and
+  plan), response surface methods (a first-order design and its path of steepest ascent, a
+  composite design in two orthogonal blocks, and the canonical forms of four fitted
+  surfaces), and the components of variance of a hierarchical design; and of five papers on definitive screening and OMARS designs and
   trend-robust run orders (Jones and Nachtsheim 2013; Nunez Ares and Goos 2019, 2020; Nunez
   Ares, Schoen and Goos 2023; Goos 2025). For each it keeps the factors,
   responses and runs exactly as printed, and every number the source prints: each as the
