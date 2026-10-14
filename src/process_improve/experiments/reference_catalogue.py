@@ -45,6 +45,7 @@ import pandas as pd
 
 from process_improve.experiments.analysis import analyze_experiment
 from process_improve.experiments.designs import generate_design
+from process_improve.experiments.designs_response_surface import blocking_alpha
 from process_improve.experiments.evaluate import evaluate_design
 from process_improve.experiments.factor import Factor
 from process_improve.experiments.omars_trade_off import omars_minimum_runs
@@ -534,7 +535,7 @@ def _read(found: Any, key: str | None) -> float:  # noqa: ANN401 - a library res
     return float(found)
 
 
-_LIBRARY: dict[str, Callable[..., Any]] = {"omars_minimum_runs": omars_minimum_runs}
+_LIBRARY: dict[str, Callable[..., Any]] = {"blocking_alpha": blocking_alpha, "omars_minimum_runs": omars_minimum_runs}
 
 
 def _library_value(check: dict) -> float:
