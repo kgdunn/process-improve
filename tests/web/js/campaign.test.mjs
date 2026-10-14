@@ -4,6 +4,7 @@ import assert from "node:assert/strict";
 import { describe, test } from "node:test";
 
 import {
+  AIMS,
   BOOK_PARAM,
   CAMPAIGN_VERSION,
   bookName,
@@ -180,6 +181,50 @@ describe("a campaign read back keeps only what the page uses", () => {
     assert.deepEqual(checkCampaign(data).sources, ["entered", "entered", null, "entered"]);
   });
 
+  test("the reader's description of the response is kept, each part checked", () => {
+    const data = campaign();
+    const info = { label: "Purity", units: "%", goal: "target", target: 99.5, typical: 97, noise: 0.4, smallest_change: 1.2 };
+    data.design.spec.response_info = { ...info, colour: "red" };
+    data.design.spec.aim = "main_quadratic";
+    const back = checkCampaign(data).design.spec;
+    assert.deepEqual(back.response_info, info, "a part the page does not know is dropped");
+    assert.equal(back.aim, "main_quadratic");
+  });
+
+  test("a design saved before the page asked for a description opens as it was", () => {
+    const back = checkCampaign(campaign()).design.spec;
+    assert.equal(back.response_info, undefined);
+    assert.equal(back.aim, undefined);
+  });
+
+  test("a goal or aim this page does not know is dropped for a later page to add", () => {
+    const data = campaign();
+    data.design.spec.response_info = { label: "Purity", goal: "soar" };
+    data.design.spec.aim = "cubic";
+    const back = checkCampaign(data).design.spec;
+    assert.deepEqual(back.response_info, { label: "Purity" });
+    assert.equal(back.aim, undefined);
+  });
+
+  test("a description of the wrong kind is refused", () => {
+    for (const [info, why] of [
+      ["Purity", /description is not one/],
+      [{ label: 3 }, /response's name is not text/],
+      [{ units: "x".repeat(33) }, /response's units is not text/],
+      [{ noise: 0 }, /response's noise is not a number/],
+      [{ smallest_change: -1 }, /smallest change is not a number/],
+      [{ typical: "62" }, /typical is not a number/],
+    ]) {
+      const data = campaign();
+      data.design.spec.response_info = info;
+      assert.throws(() => checkCampaign(data), why, JSON.stringify(info));
+    }
+  });
+
+  test("the aims are the comparison's models", () => {
+    assert.deepEqual(AIMS, ["main_effects", "interactions", "main_quadratic", "quadratic"]);
+  });
+
   test("a simulation keeps the true process the analysis compares with", () => {
     const simulation = {
       scenario: "reactor",
@@ -201,6 +246,10 @@ describe("the words for a saved design", () => {
   test("its title names the design and its factors", () => {
     assert.equal(campaignTitle("Box-Behnken", ["T", "P", "F"]), "Box-Behnken in T, P and F");
     assert.equal(campaignTitle("Full factorial (2-level)", ["T"]), "Full factorial (2-level) in T");
+  });
+
+  test("after the response it is about, when the reader described one", () => {
+    assert.equal(campaignTitle("Box-Behnken", ["T", "P", "F"], "Yield (%), maximise"), "Yield (%), maximise: Box-Behnken in T, P and F");
   });
 
   test("when it was saved", () => {
@@ -230,6 +279,14 @@ describe("results that come back by link", () => {
     const other = campaign();
     other.design.rows[0] = [3, 1, 175, "B", null];
     assert.notEqual(designKey(here.design), designKey(other.design));
+  });
+
+  test("a description of the response renamed since does not make it another design", () => {
+    const here = campaign();
+    const renamed = campaign();
+    renamed.design.spec.response_info = { label: "Yield of the reactor", units: "%" };
+    renamed.design.spec.aim = "interactions";
+    assert.equal(designKey(here.design), designKey(renamed.design));
   });
 
   test("a run without a result here takes the link's, and one with a result keeps it", () => {

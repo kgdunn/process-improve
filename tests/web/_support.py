@@ -210,12 +210,13 @@ def edit_workbook(xlsx_base64: str, edit: Callable[[dict[str, pd.DataFrame]], ob
 def fill_workbook(
     xlsx_base64: str, response: Callable[[pd.DataFrame], object], blank_rows: tuple[int, ...] = ()
 ) -> str:
-    """Fill the Runs sheet's ``y`` column as a reader would, in Excel, leaving the runs in ``blank_rows`` to do."""
+    """Fill the Runs sheet's response column as a reader would, in Excel, leaving the runs in ``blank_rows`` to do."""
 
     def fill(sheets: dict[str, pd.DataFrame]) -> None:
         runs = sheets["Runs"]
-        runs["y"] = response(runs)
-        runs.loc[list(blank_rows), "y"] = np.nan
+        name = json.loads(sheets["_pi_design"]["spec"].iloc[0])["response"]
+        runs[name] = response(runs)
+        runs.loc[list(blank_rows), name] = np.nan
 
     return edit_workbook(xlsx_base64, fill)
 

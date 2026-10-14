@@ -47,7 +47,13 @@ def test_each_design_is_compared_as_step_1_would_generate_it(api, bootstrap):
         options = dict(bootstrap.COMPARE_OPTIONS[item["design_type"]])
         if item["design_type"].endswith("_optimal"):
             options["model_type"] = "interactions"
-        expected = {"design_type": item["design_type"], "factors": FACTORS, "response": "y", **options}
+        expected = {
+            "design_type": item["design_type"],
+            "factors": FACTORS,
+            "response": "y",
+            **options,
+            "aim": "interactions",
+        }
         assert item["spec"] == expected
         assert item["label"] == bootstrap.COMPARE_LABELS[item["design_type"]]
 

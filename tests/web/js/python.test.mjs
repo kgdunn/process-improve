@@ -53,6 +53,15 @@ describe("the results", () => {
     assert.match(code, /y = process\.simulate\(X, random_state=3\)\.round\(3\)/);
   });
 
+  test("the response is named in the reader's words and units beside y", () => {
+    const described = { ...design, spec: { ...design.spec, response_info: { label: "Yield of the reactor", units: "%" } } };
+    assert.match(resultsCode(described, [61.5, null]), /y = runs\["Yield"\]  # Yield of the reactor, in %$/);
+    const simulated = resultsCode(described, [1, 2], { truth: [{ term: "T", coefficient: 4 }], sigma: 1, seed: 3 });
+    assert.match(simulated, /# Yield of the reactor, in %, simulated from a known process\ny = process\.simulate/);
+    const unitless = { ...design, spec: { ...design.spec, response_info: { label: "Hardness" } } };
+    assert.match(resultsCode(unitless, [1, 2]), /y = runs\["Yield"\]  # Hardness$/);
+  });
+
   test("a centre at zero, a negative one, and a half-range of one, written plainly", () => {
     const factors = [
       { name: "A", low: -1, high: 1 },

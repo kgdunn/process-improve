@@ -20,6 +20,7 @@ import {
   fitStatistics,
   fmt,
   formMatches,
+  GOALS,
   isBlank,
   isCategorical,
   isLabel,
@@ -32,10 +33,14 @@ import {
   needsCentre,
   nextMode,
   numberOrNull,
+  powerScale,
   pval,
+  responseName,
+  responseTitle,
   shownTheme,
   sortNumber,
   termLabel,
+  withUnits,
 } from "../../../web/logic.js";
 
 describe("the design's settings", () => {
@@ -78,28 +83,22 @@ describe("the form against the design", () => {
     { name: "P", low: 1, high: 3, units: "" },
   ];
 
-  test("the same factors and response match, a missing unit reading as none", () => {
-    assert.ok(formMatches(form, "y", spec));
+  test("the same factors match, a missing unit reading as none", () => {
+    assert.ok(formMatches(form, spec));
   });
 
-  test("a renamed factor, a changed range, an added factor or another response do not", () => {
-    assert.ok(!formMatches([{ ...form[0], name: "Temp" }, form[1]], "y", spec));
-    assert.ok(!formMatches([form[0], { ...form[1], high: 4 }], "y", spec));
-    assert.ok(!formMatches([...form, { name: "F", low: 0, high: 1, units: "" }], "y", spec));
-    assert.ok(!formMatches(form, "Yield", spec));
-  });
-
-  test("a blank response is the y the design was made with", () => {
-    assert.ok(formMatches(form, "", spec));
-    assert.ok(!formMatches(form, "", { ...spec, response: "Yield" }));
+  test("a renamed factor, a changed range or an added factor do not", () => {
+    assert.ok(!formMatches([{ ...form[0], name: "Temp" }, form[1]], spec));
+    assert.ok(!formMatches([form[0], { ...form[1], high: 4 }], spec));
+    assert.ok(!formMatches([...form, { name: "F", low: 0, high: 1, units: "" }], spec));
   });
 
   test("a design read from a workbook keeps its ranges as numbers or as text", () => {
-    assert.ok(formMatches(form, "y", { ...spec, factors: spec.factors.map((f) => ({ ...f, low: String(f.low) })) }));
+    assert.ok(formMatches(form, { ...spec, factors: spec.factors.map((f) => ({ ...f, low: String(f.low) })) }));
   });
 
   test("anything matches before there is a design", () => {
-    assert.ok(formMatches(form, "y", undefined));
+    assert.ok(formMatches(form, undefined));
   });
 
   test("a blank box is sent as null, never as zero", () => {
@@ -107,6 +106,59 @@ describe("the form against the design", () => {
     assert.equal(numberOrNull("  "), null);
     assert.equal(numberOrNull("1.5"), 1.5);
     assert.ok(Number.isNaN(numberOrNull("abc")), "Python refuses it, with a message");
+  });
+});
+
+describe("the response, as the reader names it", () => {
+  test("a name in words becomes a column every spreadsheet and Python read alike", () => {
+    assert.equal(responseName("Yield"), "Yield");
+    assert.equal(responseName("Tensile strength (MPa)"), "Tensile_strength_MPa");
+    assert.equal(responseName("  Purity, % "), "Purity");
+    assert.equal(responseName("Viscosité"), "Viscosite", "an accent is dropped, the letter kept");
+  });
+
+  test("nothing left is y, and a leading digit is prefixed", () => {
+    assert.deepEqual(["", "  ", "%", null, undefined].map((label) => responseName(label)), Array(5).fill("y"));
+    assert.equal(responseName("2nd pass yield"), "y_2nd_pass_yield");
+    assert.equal(responseName("yield"), "yield", "the run sheet's column, never a variable of the code");
+  });
+
+  test("a name a factor or the blocks already take is numbered", () => {
+    assert.equal(responseName("T", ["T", "P"]), "T_2");
+    assert.equal(responseName("T", ["T", "T_2"]), "T_3");
+    assert.equal(responseName("Block"), "Block_2");
+  });
+
+  test("a long name is cut to forty characters, never ending in _", () => {
+    const name = responseName(`${"a".repeat(39)} b`);
+    assert.equal(name, "a".repeat(39));
+    assert.ok(responseName("x".repeat(80)).length <= 40);
+  });
+
+  test("a quantity with its units, or the name alone", () => {
+    assert.equal(withUnits("T", "degC"), "T (degC)");
+    assert.equal(withUnits("T", ""), "T");
+  });
+
+  test("the study's title names the response, its units and its goal", () => {
+    assert.equal(responseTitle({ label: "Yield", units: "%", goal: "maximize" }), "Yield (%), maximise");
+    assert.equal(responseTitle({ label: "Cost", goal: "minimize" }), "Cost, minimise");
+    assert.equal(responseTitle({ label: "Purity", units: "%", goal: "target", target: 99.5 }), "Purity (%), target 99.5");
+    assert.equal(responseTitle({ label: "Purity", goal: "target" }), "Purity, on target");
+    assert.equal(responseTitle({ label: "Hardness", goal: "learn" }), "Hardness");
+    assert.equal(responseTitle(undefined, "Yield_pct"), "Yield_pct", "a design made before the page asked");
+    assert.equal(responseTitle({}, ""), "y");
+  });
+
+  test("each goal has its words", () => {
+    assert.deepEqual(Object.keys(GOALS), ["maximize", "minimize", "target", "learn"]);
+  });
+
+  test("power is for the smallest change worth finding: half of it, over the noise", () => {
+    assert.deepEqual(powerScale({ noise: 1.5, smallest_change: 6 }), { change: 6, coefficient: 2 });
+    assert.equal(powerScale({ noise: 1.5 }), null);
+    assert.equal(powerScale({ noise: 0, smallest_change: 2 }), null);
+    assert.equal(powerScale(undefined), null);
   });
 });
 
@@ -218,8 +270,8 @@ describe("a factor's levels", () => {
 
   test("a design whose labels are as the form shows them still matches the form", () => {
     const spec = { response: "y", factors: [{ name: "S", low: "A", high: "B", units: "" }] };
-    assert.ok(formMatches([{ name: "S", low: "A", high: "B", units: "" }], "y", spec));
-    assert.ok(!formMatches([{ name: "S", low: "A", high: "C", units: "" }], "y", spec));
+    assert.ok(formMatches([{ name: "S", low: "A", high: "B", units: "" }], spec));
+    assert.ok(!formMatches([{ name: "S", low: "A", high: "C", units: "" }], spec));
   });
 
   test("each box holds a number, a label, or nothing", () => {

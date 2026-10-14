@@ -129,9 +129,19 @@ def worked_example() -> dict[str, Any]:
     request = {**held, "responses": simulation["responses"], "model": inputs["model"], "truth": simulation["truth"]}
     design.pop("xlsx_base64")  # the page writes the workbook when it is asked for
 
-    # Step 4 for the same factors: every design the page offers, compared on the nine measures.
-    model = "main_quadratic"
-    plan = call("api_compare_plan", {"factors": inputs["design"]["factors"], "model": model})
+    # The designs that can learn what the example aims to: every design the page offers for the same factors,
+    # compared on the nine measures, with power for the smallest change its response names.
+    model = inputs["design"]["aim"]
+    described = inputs["design"]["response_info"]
+    plan = call(
+        "api_compare_plan",
+        {
+            "factors": inputs["design"]["factors"],
+            "model": model,
+            "response": inputs["design"]["response"],
+            "response_info": described,
+        },
+    )
     made = []
     for item in plan["designs"]:
         generated = call("api_make_design", item["spec"])
@@ -157,7 +167,15 @@ def worked_example() -> dict[str, Any]:
             "model": model,
             "made": made,
             "notes": plan["notes"],
-            "result": call("api_compare", {"model": model, "designs": contenders}),
+            "result": call(
+                "api_compare",
+                {
+                    "model": model,
+                    "designs": contenders,
+                    "noise": described["noise"],
+                    "smallest_change": described["smallest_change"],
+                },
+            ),
         },
     }
 

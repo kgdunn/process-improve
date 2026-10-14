@@ -36,7 +36,7 @@ def test_the_workbook_marks_simulated_results(api, held, simulated):
     assert sheets["Runs"]["Result source"].fillna("").tolist() == ["simulated"] * 14 + [""]
     stored = json.loads(sheets["_pi_design"]["spec"].iloc[0])
     assert stored["simulated"] == {"scenario": "reactor", "sigma": 1.0, "seed": 1}
-    np.testing.assert_allclose(sheets["Runs"]["y"], simulated["responses"])
+    np.testing.assert_allclose(sheets["Runs"]["Yield"], simulated["responses"])
 
 
 def test_a_workbook_sent_without_sources_is_the_run_sheet_alone(api, held, simulated):
@@ -87,7 +87,7 @@ def test_a_source_mark_without_a_result_is_not_a_result(api, held, simulated):
     book = api.ok("api_workbook", {**held, "responses": simulated["responses"], "sources": ["simulated"] * 15})
 
     def clear_first(sheets):
-        sheets["Runs"].loc[0, "y"] = np.nan
+        sheets["Runs"].loc[0, "Yield"] = np.nan
 
     back = api.ok("api_read_workbook", {"xlsx_base64": edit_workbook(book["xlsx_base64"], clear_first)})
     assert back["responses"][0] is None

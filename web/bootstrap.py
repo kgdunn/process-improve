@@ -199,6 +199,10 @@ ROMAN = {3: "III", 4: "IV", 5: "V", 6: "VI", 7: "VII", 8: "VIII"}
 #: parsed from the file, so a workbook cannot smuggle a patsy formula in.
 MODELS = ("main_effects", "interactions", "quadratic")
 
+#: What the reader wants of the response, as the library's ``ResponseGoal`` names it, or ``learn``:
+#: to see how the factors act on it, with no setting to aim for.
+GOALS = ("maximize", "minimize", "target", "learn")
+
 #: A model of terms the reader chose, each a list of factor names (see :func:`_chosen_terms`),
 #: is named this in a reply. It too is read as data and never as a formula.
 CHOSEN = "chosen"
@@ -255,7 +259,10 @@ SCENARIOS: dict[str, dict[str, Any]] = {
     },
 }
 
-#: The worked example the page opens with, and that "Run the worked example" runs live.
+#: The worked example, which "Explore a worked example" shows and "Run the worked example" runs live. Its
+#: response is the reactor's yield, near 62 % with a run-to-run noise of 1 %: the reactor process's own
+#: intercept and noise, so the results are those the process gives in coded units, and a change of 2 % is a
+#: coefficient of one noise standard deviation, the size a comparison scores power at by default.
 DEMO: dict[str, Any] = {
     "design": {
         "design_type": "box_behnken",
@@ -264,7 +271,16 @@ DEMO: dict[str, Any] = {
             {"name": "P", "low": 1, "high": 3, "units": "bar"},
             {"name": "F", "low": 10, "high": 20, "units": "L/min"},
         ],
-        "response": "y",
+        "response": "Yield",
+        "response_info": {
+            "label": "Yield",
+            "units": "%",
+            "goal": "maximize",
+            "typical": 62.0,
+            "noise": 1.0,
+            "smallest_change": 2.0,
+        },
+        "aim": "main_quadratic",
         "n_center_points": 3,
     },
     "scenario": "reactor",
@@ -488,6 +504,7 @@ def make_design(spec: dict) -> dict:
             "categorical: choose a full factorial, fractional factorial or Plackett-Burman design."
         )
     response = _response_name(str(spec.get("response") or "y").strip(), factors)
+    described = _described(spec)
 
     kwargs = _design_options(spec, design_type)
     result = generate_design(factors, design_type=design_type, **kwargs)
@@ -509,6 +526,7 @@ def make_design(spec: dict) -> dict:
         "response": response,
         "model": kwargs.get("model_type") or _designed_model(design_type, result.resolution),
         "options": kwargs,
+        **described,
     }
     return {
         "n_runs": len(runs),
@@ -529,6 +547,73 @@ def _response_name(response: str, factors: list[Factor]) -> str:
     if response == BLOCK:
         raise ValueError(f"The response cannot be named {BLOCK}: a blocked design's run sheet has a {BLOCK} column.")
     return response
+
+
+def _response_info(raw: object) -> dict[str, Any]:
+    """Clean what the page says about the response besides its column's name.
+
+    The reader's own words for it (``label``) and its ``units``; the ``goal``, one of
+    :data:`GOALS`, with its ``target`` when the goal is a value; and what the reader knows of
+    it: its ``typical`` value now, its run-to-run ``noise`` (a standard deviation) and the
+    ``smallest_change`` worth finding, all in its units. Every field is optional and an
+    empty one is left out; a goal this page does not know is left out too, so a later page
+    can add one. A field of the wrong kind is refused, as any other part of a specification.
+    """
+    if raw is None:
+        return {}
+    if not isinstance(raw, dict):
+        raise ValueError("The page sent a description of the response this page did not write.")  # noqa: TRY004
+    info: dict[str, Any] = {}
+    for key, most in (("label", 64), ("units", 32)):
+        if text := _described_text(raw.get(key), most):
+            info[key] = text
+    if raw.get("goal") in GOALS:
+        info["goal"] = raw["goal"]
+    numbers = (
+        ("target", "target", False),
+        ("typical", "typical value", False),
+        ("noise", "run-to-run noise", True),
+        ("smallest_change", "smallest change worth finding", True),
+    )
+    for key, what, positive in numbers:
+        if (number := _described_number(raw.get(key), what, positive=positive)) is not None:
+            info[key] = number
+    return info
+
+
+def _described_text(text: object, most: int) -> str:
+    """Return a part of the response's description in words, stripped; refuse anything else."""
+    if text is None:
+        return ""
+    if not isinstance(text, str) or len(text) > most:
+        raise ValueError("The page sent a description of the response this page did not write.")
+    return text.strip()
+
+
+def _described_number(value: object, what: str, *, positive: bool) -> float | None:
+    """Return a number of the response's description, None when not given; refuse one that is no number."""
+    if value is None:
+        return None
+    number = _number(value)
+    if positive and (number is None or number <= 0):
+        raise ValueError(f"The {what} must be a number above 0.")
+    if number is None:
+        raise ValueError(f"The response's {what} must be a number.")
+    return number
+
+
+def _described(spec: dict) -> dict[str, Any]:
+    """Return the specification's description of the response and the model it aims to learn, cleaned.
+
+    Both are optional: a design made before the page asked for them has neither, and keeps
+    working. ``aim`` is one of the comparison's models; one this page does not know is left out.
+    """
+    out: dict[str, Any] = {}
+    if info := _response_info(spec.get("response_info")):
+        out["response_info"] = info
+    if spec.get("aim") in COMPARISON_MODELS:
+        out["aim"] = spec["aim"]
+    return out
 
 
 def _check_factor_count(design_type: str, n_factors: int) -> None:
@@ -880,7 +965,7 @@ def _analysis(runs: pd.DataFrame, spec: dict, model: str, truth: list[dict] | No
         "lenth": lenth,
         "not_estimable": [_pretty(t) for t in fit["not_estimable"]],
         "notes": fit["notes"],
-        "equation": _equation(response, [c for c in coefficients if not c["block"]]),
+        "equation": _equation(_response_words(spec)[0], [c for c in coefficients if not c["block"]]),
     }
 
 
@@ -1240,13 +1325,26 @@ def _checked_spec(spec: dict) -> dict[str, Any]:
     if "analysis_model" in spec:  # the model the reader last analysed with, which a workbook keeps
         labelled = tuple(f.name for f in factors if f.type == "categorical")
         _checked_model(spec["analysis_model"], [f.name for f in factors], labelled)
+    checked = {key: value for key, value in spec.items() if key not in ("response_info", "aim")}
     return {
-        **spec,
+        **checked,
         "factors": [_factor_spec(f) for f in factors],
         "response": response,
         "model": model,
         "options": {**options, **({"n_blocks": blocks} if (blocks := _blocks(options)) > 1 else {})},
+        **_described(spec),
     }
+
+
+def _response_words(spec: dict) -> tuple[str, str]:
+    """Return the response's name as the reader wrote it, else its column's, and its units, else ''."""
+    info = spec.get("response_info") or {}
+    return info.get("label") or spec["response"], info.get("units") or ""
+
+
+def _with_units(name: str, units: str) -> str:
+    """Write a quantity's name with its units, as an axis title: ``T (degC)``, or the name alone."""
+    return f"{name} ({units})" if units else name
 
 
 def _blocked(spec: dict) -> bool:
@@ -1321,11 +1419,21 @@ def _random_terms(k: int, rng: np.random.Generator) -> dict[tuple[int, ...], flo
     return terms
 
 
-def _scenario_process(key: str, names: list[str], request: dict, categorical: tuple[str, ...] = ()) -> TrueProcess:
+def _scenario_process(  # noqa: PLR0913 - the scenario, the factors, the request, and the reader's scale
+    key: str,
+    names: list[str],
+    request: dict,
+    categorical: tuple[str, ...] = (),
+    typical: float | None = None,
+    noise: float | None = None,
+) -> TrueProcess:
     """Return the scenario's process over the reader's factors, with the noise the reader chose.
 
     A term over a factor the reader does not have is left out, and so is the square of a categorical
-    factor, which takes one value, +1, at both of its levels.
+    factor, which takes one value, +1, at both of its levels. A scenario's effects are sizes in
+    noise standard deviations; given the response's ``typical`` value and run-to-run ``noise``,
+    the process is centred on the one and its effects scaled by the other, so practice results
+    look like the reader's own. Without them the scenario's own centre and a noise of 1 are kept.
     """
     if key not in SCENARIOS:
         raise ValueError(f"Unknown process {key!r}.")
@@ -1335,7 +1443,12 @@ def _scenario_process(key: str, names: list[str], request: dict, categorical: tu
         terms = _random_terms(len(names), np.random.default_rng(int(request.get("seed", 1))))
     kept = {t: c for t, c in terms.items() if all(i < len(names) for i in t)}
     squares = {t for t in kept if len(t) == 2 and t[0] == t[1] and names[t[0]] in categorical}
-    coefficients = {_term_name(t, names): c for t, c in kept.items() if t not in squares}
+    scale = 1.0 if noise is None else noise
+    coefficients = {
+        _term_name(t, names): (c if typical is None else typical) if not t else c * scale
+        for t, c in kept.items()
+        if t not in squares
+    }
     # A noise of 0 is refused, not read as "not given": the reader would see results with noise they did not ask for.
     sigma = scenario["sigma"] if request.get("sigma") is None else _number(request["sigma"])
     if sigma is None or sigma <= 0:
@@ -1358,7 +1471,10 @@ def simulate(request: dict) -> dict:
     runs = _runs_frame(request, spec)
     names = [f["name"] for f in spec["factors"]]
     key = str(request.get("scenario") or "reactor")
-    process = _scenario_process(key, names, request, _categorical_names(spec))
+    info = spec.get("response_info") or {}
+    process = _scenario_process(
+        key, names, request, _categorical_names(spec), typical=info.get("typical"), noise=info.get("noise")
+    )
     seed = int(request.get("seed", 1))
     values = process.simulate(_coded(runs, spec["factors"]), random_state=seed)
     decimals = max(0, 2 - math.floor(math.log10(process.sigma)))
@@ -1370,7 +1486,7 @@ def simulate(request: dict) -> dict:
         "seed": seed,
         "responses": [round(float(v), decimals) for v in values],
         "truth": truth,
-        "equation": _equation(spec["response"], truth),
+        "equation": _equation(_response_words(spec)[0], truth),
         "inactive": [name for name in names if name not in process.factors],  # factors the process leaves out
     }
 
@@ -1504,7 +1620,7 @@ def plots(request: dict) -> dict:
 
     def draw(kind: str, results: dict, **options: Any) -> str:  # noqa: ANN401
         figure = create_plot(kind, analysis_results=results, design_data=rows, response_column=response, **options)
-        return json.dumps(figure.to_plotly(), cls=PlotlyJSONEncoder)
+        return json.dumps(_dressed(figure.to_plotly(), kind, spec, pair), cls=PlotlyJSONEncoder)
 
     figures = {"contour": draw("contour", out, factors_to_plot=pair)}
     truth = request.get("truth")
@@ -1520,6 +1636,43 @@ def plots(request: dict) -> dict:
         effects = analyze_experiment(coded, y, model=fit["formula"], analysis_type="effects")["effects"]
         figures["half_normal"] = draw("half_normal", {"effects": effects, "lenth_method": fit["lenth"]})
     return {"figures": figures, "contour_factors": pair, "plotly_js": get_plotlyjs_version()}
+
+
+def _ticks(factor: dict) -> dict[str, Any]:
+    """Mark a coded axis at -1, 0 and +1 with the factor's own settings, or a category's two labels."""
+    if _categorical(factor):
+        return {"tickvals": [-1, 1], "ticktext": [factor["low"], factor["high"]]}
+    low, high = factor["low"], factor["high"]
+    return {"tickvals": [-1, 0, 1], "ticktext": [f"{v:.4g}" for v in (low, (low + high) / 2, high)]}
+
+
+def _dressed(figure: dict, kind: str, spec: dict, pair: list[str]) -> dict:
+    """Title a library figure's axes in the reader's words and units, as the page shows it.
+
+    The library draws in coded units and names the axes for any reader: the factors by their
+    names, the fitted values as "Fitted Values". Here a response surface's axes are the two
+    factors with their units, ticked at their own low, middle and high settings, its colours
+    are the response with its units, and the residuals and effects are in the response's units.
+    """
+    label, units = _response_words(spec)
+    layout = figure.setdefault("layout", {})
+
+    def title(axis: str, text: str, **more: Any) -> None:  # noqa: ANN401
+        layout[axis] = {**layout.get(axis, {}), "title": {"text": text}, **more}
+
+    if kind == "contour":
+        factors = {f["name"]: f for f in spec["factors"]}
+        for axis, name in zip(("xaxis", "yaxis"), pair, strict=False):
+            title(axis, _with_units(name, factors[name]["units"]), **_ticks(factors[name]))
+        for trace in figure.get("data", []):
+            if trace.get("type") == "contour":
+                trace["colorbar"] = {**trace.get("colorbar", {}), "title": {"text": _with_units(label, units)}}
+    elif kind == "residuals_vs_fitted":
+        title("xaxis", _with_units(f"Fitted {label}", units))
+        title("yaxis", _with_units("Residual", units))
+    elif kind == "half_normal":
+        title("yaxis", _with_units("|Effect|", units))
+    return figure
 
 
 # --------------------------------------------------------------------------- comparing designs
@@ -1582,13 +1735,16 @@ def compare_plan(request: dict) -> dict:
     response = next(name for name in candidates if name.isidentifier() and name not in names)
     plan = []
     labelled = any(f.type == "categorical" for f in factors)
+    # A design taken from the comparison keeps the reader's description of the response, and aims to learn the
+    # model it was compared on.
+    described = _described({"response_info": request.get("response_info"), "aim": model})
     for design_type, info in DESIGNS.items():
         if not info["min_factors"] <= k <= info["max_factors"] or (labelled and design_type not in CATEGORICAL_DESIGNS):
             continue
         options = dict(COMPARE_OPTIONS[design_type])
         if "model_type" in info["options"]:
             options["model_type"] = OPTIMAL_MODEL[model]
-        spec = {"design_type": design_type, "factors": request["factors"], "response": response, **options}
+        spec = {"design_type": design_type, "factors": request["factors"], "response": response, **options, **described}
         plan.append({"design_type": design_type, "label": COMPARE_LABELS[design_type], "spec": spec})
     notes = []
     if model != OPTIMAL_MODEL[model] and any("model_type" in DESIGNS[d["design_type"]]["options"] for d in plan):
@@ -1597,6 +1753,19 @@ def compare_plan(request: dict) -> dict:
             f"they can be built for that contains this one."
         )
     return {"model": model, "designs": plan, "notes": notes}
+
+
+def _effect_size(request: dict) -> float:
+    """Return the coefficient, in noise standard deviations, a comparison scores power at.
+
+    The reader's smallest change worth finding is a change from a factor's low setting to its
+    high one, and a two-level factor's coefficient is half that change: so with the run-to-run
+    noise it is ``smallest_change / (2 * noise)``. Without both, one noise standard deviation.
+    """
+    info = _response_info({key: request.get(key) for key in ("noise", "smallest_change")})
+    if "noise" in info and "smallest_change" in info:
+        return info["smallest_change"] / (2 * info["noise"])
+    return 1.0
 
 
 def _comparison_formula(model: str, names: list[str]) -> str:
@@ -1623,7 +1792,7 @@ def compare(request: dict) -> dict:
         spec = _checked_spec(item.get("spec") or {})
         designs[str(item["label"])] = _coded(_runs_frame(item, spec), spec["factors"])
     with _listening():
-        comparison = compare_designs(designs, model)
+        comparison = compare_designs(designs, model, effect_size=_effect_size(request))
     result = comparison.to_dict()
     table = comparison.table
     result["display"] = {label: table[label].tolist() for label in comparison.designs}

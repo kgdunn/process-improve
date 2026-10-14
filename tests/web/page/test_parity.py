@@ -185,6 +185,39 @@ def test_a_blank_response_on_the_page_is_the_one_bootstrap_names(api, node):
     assert javascript(node, source("logic.js"), [("DEFAULT_RESPONSE", [])]) == [made["spec"]["response"]]
 
 
+@pytest.mark.parametrize(
+    ("label", "factor_names"),
+    [
+        ("Yield", ["T", "P"]),
+        ("Tensile strength (MPa)", ["T", "P"]),
+        ("2nd pass yield", ["T", "P"]),
+        ("yield", ["T", "P"]),
+        ("T", ["T", "T_2"]),
+        ("Block", ["T", "P"]),
+        ("Viscosité, Pa·s", ["T", "P"]),
+        ("%", ["y", "P"]),
+        ("", ["y", "y_2"]),
+    ],
+)
+def test_the_page_names_the_results_column_as_bootstrap_takes_it(bootstrap, node, label, factor_names):
+    """The column the page derives from the reader's words is one bootstrap.py accepts as a response's name."""
+    (name,) = javascript(node, source("logic.js"), [("responseName", [label, factor_names])])
+    factors = bootstrap._factors({"factors": [{"name": n, "low": -1, "high": 1} for n in factor_names]})
+    assert bootstrap._response_name(name, factors) == name
+
+
+def test_the_page_s_block_column_and_goals_are_bootstrap_s(bootstrap, node):
+    block, goals = javascript(node, source("logic.js"), [("BLOCK", []), ("GOALS", [])])
+    assert block == bootstrap.BLOCK
+    assert list(goals) == list(bootstrap.GOALS)
+
+
+def test_the_aims_a_study_keeps_are_the_comparison_s_models(node):
+    from process_improve.experiments.compare import MODELS as COMPARISON_MODELS
+
+    assert javascript(node, source("campaign.js"), [("AIMS", [])]) == [list(COMPARISON_MODELS)]
+
+
 def test_the_page_counts_a_model_s_coefficients_as_bootstrap_does(bootstrap, node):
     """The page sets an optimal design's runs from its own count of the model's coefficients."""
     cases = [(k, model) for k in range(2, 13) for model in bootstrap.MODELS]

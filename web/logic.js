@@ -132,17 +132,65 @@ export const numberOrNull = (text) => (text.trim() === "" ? null : Number(text))
 /** The response a blank box names: y, as Python names it when it makes the design. */
 export const DEFAULT_RESPONSE = "y";
 
-/** Whether the factors and response in the form still describe the design ``spec`` holds; a blank response is y. */
-export function formMatches(factors, response, spec) {
+/** The run sheet's column of each run's block, which no factor or response may be named; mirrors bootstrap.BLOCK. */
+export const BLOCK = "Block";
+
+/**
+ * The run sheet's column for a response the reader names in words: "Yield" stays Yield, and "Tensile
+ * strength (MPa)" becomes Tensile_strength_MPa. Only ASCII letters, digits and _, so Python and every
+ * spreadsheet read it alike, and never a factor's name or Block: y when nothing is left.
+ */
+export function responseName(label, factorNames = []) {
+  const plain = String(label ?? "").normalize("NFKD").replace(/[\u0300-\u036f]/g, "");
+  let name = plain.replace(/[^A-Za-z0-9_]+/g, "_").replace(/^_+|_+$/g, "").slice(0, 40).replace(/_+$/, "");
+  if (!name) name = DEFAULT_RESPONSE;
+  if (/^[0-9]/.test(name)) name = `y_${name}`;
+  const taken = new Set([...factorNames, BLOCK]);
+  if (!taken.has(name)) return name;
+  let i = 2;
+  while (taken.has(`${name}_${i}`)) i += 1;
+  return `${name}_${i}`;
+}
+
+/** What the reader can want of the response, as the response card words it; the keys are bootstrap.GOALS. */
+export const GOALS = { maximize: "Maximise", minimize: "Minimise", target: "Hit a target", learn: "Just learn" };
+
+/** A quantity's name with its units, as a heading or an axis shows it: "T (degC)", or the name alone. */
+export const withUnits = (name, units) => (units ? `${name} (${units})` : name);
+
+/**
+ * The response as the study's title names it: "Yield (%), maximise", "Purity (%), target 99.5",
+ * "Hardness", or the column's name for a design made before the page asked for more.
+ */
+export function responseTitle(info, name = DEFAULT_RESPONSE) {
+  const head = withUnits(info?.label || name || DEFAULT_RESPONSE, info?.units ?? "");
+  if (info?.goal === "maximize") return `${head}, maximise`;
+  if (info?.goal === "minimize") return `${head}, minimise`;
+  if (info?.goal === "target") return isFiniteNumber(info.target) ? `${head}, target ${info.target}` : `${head}, on target`;
+  return head;
+}
+
+const isFiniteNumber = (v) => typeof v === "number" && Number.isFinite(v);
+
+/**
+ * The power the designs are compared at, in the reader's words: the smallest change worth finding,
+ * from a factor's low setting to its high one, and the coefficient in noise standard deviations it
+ * is (half the change, over the noise); null without both numbers, when the default of one noise
+ * standard deviation holds.
+ */
+export function powerScale(info) {
+  if (!isFiniteNumber(info?.noise) || !isFiniteNumber(info?.smallest_change)) return null;
+  if (info.noise <= 0 || info.smallest_change <= 0) return null;
+  return { change: info.smallest_change, coefficient: info.smallest_change / (2 * info.noise) };
+}
+
+/** Whether the factors in the form still describe the design ``spec`` holds. */
+export function formMatches(factors, spec) {
   if (!spec?.factors) return true;
   const level = (v) => (isLabel(v) ? String(v).trim() : Number(v));
   const same = (f, g) =>
     f.name === g.name && f.low === level(g.low) && f.high === level(g.high) && f.units === (g.units ?? "");
-  return (
-    (response || DEFAULT_RESPONSE) === spec.response &&
-    factors.length === spec.factors.length &&
-    factors.every((f, i) => same(f, spec.factors[i]))
-  );
+  return factors.length === spec.factors.length && factors.every((f, i) => same(f, spec.factors[i]));
 }
 
 /** Join names as a sentence does: "A", "A and B", "A, B and C". */

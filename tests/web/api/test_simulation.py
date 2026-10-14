@@ -24,7 +24,7 @@ def test_every_process_the_page_offers_is_tested_here(bootstrap):
 def test_the_worked_example_is_a_box_behnken_design_with_the_reactor_process(demo, held, simulated):
     assert demo["design"]["design_type"] == "box_behnken"
     assert len(held["rows"]) == 15
-    assert simulated["equation"] == "y = 62 + 4·T - 3.1·P + 1.75·F + 1.5·T·P - 2.25·F²"
+    assert simulated["equation"] == "Yield = 62 + 4·T - 3.1·P + 1.75·F + 1.5·T·P - 2.25·F²"
     assert len(simulated["responses"]) == 15
 
 

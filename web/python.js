@@ -77,6 +77,14 @@ function codedLine(f) {
 /** The decimals the page rounds simulated results to: two significant decimals below the noise's size. */
 const decimals = (sigma) => Math.max(0, 2 - Math.floor(Math.log10(sigma)));
 
+/** What ``y`` is, as a comment: the response in the reader's words and units ("# Yield, in %"), or nothing. */
+function responseComment(spec) {
+  const info = spec.response_info ?? {};
+  const name = info.label || spec.response || "y";
+  if (!info.label && !info.units) return "";
+  return `  # ${name}${info.units ? `, in ${info.units}` : ""}`;
+}
+
 /**
  * Step 2: the run sheet as the page lists it, its settings in coded units as ``X``, and the
  * results as ``y``: simulated from ``simulation``'s process when it is given, else the results
@@ -117,7 +125,7 @@ export function resultsCode(design, responses, simulation = null) {
     "    }",
     ")",
   ];
-  if (!simulation) return [...lines, `y = runs[${repr(response)}]`].join("\n");
+  if (!simulation) return [...lines, `y = runs[${repr(response)}]${responseComment(spec)}`].join("\n");
   const terms = simulation.truth.map((t) => `        ${repr(t.term)}: ${t.coefficient},`);
   return [
     ...lines,
@@ -128,6 +136,7 @@ export function resultsCode(design, responses, simulation = null) {
     "    },",
     `    sigma=${simulation.sigma},`,
     ")",
+    ...(responseComment(spec) ? [`#${responseComment(spec).slice(3)}, simulated from a known process`] : []),
     `y = process.simulate(X, random_state=${simulation.seed}).round(${decimals(simulation.sigma)})  # as the page rounds them`,
   ].join("\n");
 }
