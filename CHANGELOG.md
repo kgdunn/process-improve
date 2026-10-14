@@ -13,6 +13,72 @@ those changes.
 
 ### Added
 
+- **The reference catalogue, `process_improve.experiments.reference_catalogue`: designed
+  experiments from published sources, and `reproduce_reference_catalogue()`, which recomputes
+  every number they print.** The reference catalogue, bundled as JSON under
+  `datasets/experiments/reference_catalogue/`, holds each worked example, exercise and case
+  study of the book *Process Improvement using Data* (read from
+  its source at a stated commit), of Soravia and Orth's "Design of Experiments" in
+  *Ullmann's Encyclopedia of Industrial Chemistry* (2012), of the graded and practice
+  quizzes of the *Experimentation for Improvement* course, of Nair's tutorial on fractional
+  factorial designs (2004), of Chapter 5 (Process Improvement) of the NIST/SEMATECH
+  *e-Handbook of Statistical Methods*, of chapters 2 to 11 and the glossary of Davies (ed.),
+  *The Design and Analysis of Industrial Experiments* (1956): paired comparisons, nested sampling studies,
+  randomised blocks, Latin, Graeco-Latin and Youden squares, balanced incomplete blocks, a table
+  with missing cells, two-level factorials, multi-level factorials with their orthogonal
+  polynomial components, factorials confounded in blocks, fractional factorials, and response
+  surface work (two stages of steepest ascent, a 3^2 factorial and a composite design with their
+  canonical analyses, and orthogonal composite designs); of the whole of Box, Hunter and
+  Hunter, *Statistics for Experimenters* (1978): two-treatment comparisons (a plant trial
+  against a 210-batch production record, randomized and paired experiments, and the
+  exercises of chapters 2 and 3, each labelled as a one-factor design), one-way analyses of
+  variance, randomized blocks, the replicated 3 x 4 toxic-agents factorial with its Box-Cox
+  transformation, Latin, replicated Latin, hyper-Graeco-Latin and Youden squares, two-level
+  factorials (the pilot plant 2^3 with its replicates and reverse Yates residuals, the
+  process development 2^4, Daniel's drill data with a Box-Cox transformation, a student's
+  bicycle experiment and the exercises), the blocking arrangements of 2^k factorials,
+  evolutionary operation on two plants, fractional factorials (the reactor 2^5 and its two
+  half fractions, two 2^(7-4) fractions combined, an injection-molding 2^(8-4) with four runs
+  added to separate an interaction string, the fractions of its Table 12.15 against the
+  library's own, and three case studies), and least squares regression (lines and a plane
+  through the origin, a straight line, a quadratic, a nonlinear model and a factorial run off
+  plan), response surface methods (a first-order design and its path of steepest ascent, a
+  composite design in two orthogonal blocks, and the canonical forms of four fitted
+  surfaces), and the components of variance of a hierarchical design; and of five papers on definitive screening and OMARS designs and
+  trend-robust run orders (Jones and Nachtsheim 2013; Nunez Ares and Goos 2019, 2020; Nunez
+  Ares, Schoen and Goos 2023; Goos 2025). For each it keeps the factors,
+  responses and runs exactly as printed, and every number the source prints: each as the
+  printed text, with where it is printed (file and line, or page, and a quotation) and how to
+  recompute it (the kind of result, the term, the model and the runs used; a stationary point,
+  canonical form or path of steepest ascent is recomputed with `optimize_responses`, and a
+  Box-Cox power with the library's Box-Cox analysis; a one-sided
+  p-value, a variance or a difference between two groups of runs is read as a source quotes it). Designs without
+  responses keep the properties the source states; a blocking arrangement is compared with the
+  library's own blocking of the factorial, by how many interactions of each order it confounds,
+  a regressor can be fitted in its own units rather than coded, and a variance component is read
+  from the library's REML fit. `reference_sources()`,
+  `reference_experiments()` and `reference_designs()` read it. `reproduce_reference_catalogue()`
+  returns one row per printed number: the printed text, the value this library computes,
+  whether they agree to within the source's own rounding, and where it is printed. A number
+  the library does not recompute says why, and one known not to reproduce says what differs.
+  A quiz's answer key is tested as well: the numbers printed in options the key marks
+  incorrect are recomputed too, and must not reproduce.
+  A design printed without results is checked through its properties (`design_metric`
+  evaluates it with `evaluate_design`: D-, A-, G-efficiency, correlations, prediction
+  variance, power).
+  `tests/test_reference_catalogue.py` requires every checked number to agree.
+  The catalogue holds facts and short quotations, not the sources themselves, and the MIT
+  licence covers the package's code, not them: each source states its own terms in `rights`,
+  and the folder's `NOTICE.md` explains the split.
+- **Factorial opens examples from published sources other than the book:
+  `https://factori.al/?example=<name>`.** They are listed in `web/published-examples.json`, each
+  the experiment of the same name in the reference catalogue (above), and the opening banner cites the source and
+  links to its DOI. The first source is Soravia and Orth, "Design of Experiments", *Ullmann's
+  Encyclopedia of Industrial Chemistry* (2012): its 2² factorial with a centre run, its 2³ with a
+  categorical agitator type, and the 2³⁻¹ half fraction of that 2³. The article's three-level
+  categorical factor is in the reference catalogue only, since the app's categorical factors have
+  two levels. `tests/web/api/test_published_examples.py` checks that each opens the reference
+  catalogue's runs and that every printed number the page shows agrees.
 - **Factorial opens the book's examples by name: `https://factori.al/?book=<name>`.** The
   19 design-of-experiments examples and exercises of *Process Improvement using Data* that
   the app can reproduce are listed in `web/book-examples.json`, with the book's factors,
@@ -79,6 +145,13 @@ those changes.
   enough to be worth showing, so a quick analysis does not make the page jump.
 - **The residuals-vs-fitted plot names the response on its x axis** ("Fitted Conversion"
   rather than "Fitted Values") when `create_plot` is given `response_column`.
+- **`generate_design` refuses `hard_to_change` for a design type that cannot build split
+  plots.** Only the optimal families (`d_optimal`, `i_optimal`, ...) build a split-plot
+  design. Every other design type (a fractional factorial, a CCD, a Box-Behnken design and
+  the rest) dropped the argument and randomised every run, so the hard-to-change factors
+  were reset from run to run with no warning. They now raise `ValueError`, as
+  `candidates` and `fixed_runs` already did. With `design_type` unset, a split-plot
+  request is still given a D-optimal design.
 
 ## [1.98.0] - 2026-10-12
 

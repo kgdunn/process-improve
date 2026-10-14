@@ -131,7 +131,10 @@ class GenerateDesignInput(BaseModel):
     )
     hard_to_change: list[str] | None = Field(
         None,
-        description="Names of hard-to-change factors (split-plot structure; needs the optional pyoptex package).",
+        description=(
+            "Names of hard-to-change factors, for a split-plot design (needs the optional pyoptex package). "
+            "Only the optimal design types build one; any other design_type raises an error."
+        ),
     )
     random_state: int = Field(
         42,

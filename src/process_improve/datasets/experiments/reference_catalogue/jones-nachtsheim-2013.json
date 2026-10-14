@@ -1,0 +1,4109 @@
+{
+ "schema": 1,
+ "about": ["Part of the reference catalogue: designs from one published source, for testing that software reproduces them.", "Jones and Nachtsheim (2013) add two-level categorical factors to definitive screening designs by two methods,", "DSD-augment and ORTH-augment. The paper has no experiment with responses. designs: the eight designs of Figure 1", "(m = 4 continuous and c = 1 to 4 categorical factors by each method), with the run counts, first-order alias", "matrices (Tables 3 and 5) and diagnostics (Table 4) the paper prints for them; and three entries for designs the", "paper describes without printing (other rows of Tables 4 and 6, and the standard DSD's correlation formula).", "Each expected item has its printed text, where it is printed, and a check (a design_metric of the printed runs", "under the first-order model) or the reason it is not recomputed. not_captured lists what was left out."],
+ "source": {
+  "key": "jones-nachtsheim-2013",
+  "authors": ["Bradley Jones", "Christopher J. Nachtsheim"],
+  "title": "Definitive Screening Designs with Added Two-Level Categorical Factors",
+  "work": "Journal of Quality Technology",
+  "volume": "45",
+  "issue": "2",
+  "pages": "121-129",
+  "year": 2013,
+  "publisher": "American Society for Quality",
+  "doi": "10.1080/00224065.2013.11917921",
+  "url": "https://doi.org/10.1080/00224065.2013.11917921",
+  "cite": "Jones and Nachtsheim (2013), \"Definitive Screening Designs with Added Two-Level Categorical Factors\", Journal of Quality Technology 45(2), 121-129",
+  "read": "2026-10-13, from the article's PDF (9 pages), supplied by the user; every number copied by hand with its page and a short quotation",
+  "rights": "The article is protected by copyright and is not reproduced here; read it through its DOI. This file holds facts it reports (numbers, design matrices, data) and short quotations that locate each one, for citation and for checking software. The MIT licence of process-improve does not extend to them."
+ },
+ "experiments": [],
+ "designs": [
+  {
+   "name": "jn2013-dsd-augment-m4-c1",
+   "title": "DSD-augmented design for 4 continuous factors and 1 two-level categorical factor",
+   "where": {
+    "section": "2, DSD-Based Column Augmentation",
+    "pages": "126",
+    "figures": ["Figure 1(a)"],
+    "tables": ["Table 4"]
+   },
+   "design": {
+    "type": "DSD-augmented definitive screening design (DSD-augment method)",
+    "factors": 5,
+    "n_runs": 14,
+    "details": "m = 4 continuous and c = 1 categorical factors; the categorical columns' zeros of a 13-run DSD for 5 factors are replaced by +z and -z, and two centre runs carry +b and -b"
+   },
+   "factors": [
+    {
+     "name": "x1",
+     "description": "Continuous factor 1 (column d1+ of Table 2)",
+     "low": -1,
+     "high": 1,
+     "units": "coded",
+     "type": "numeric"
+    },
+    {
+     "name": "x2",
+     "description": "Continuous factor 2 (column d2+ of Table 2)",
+     "low": -1,
+     "high": 1,
+     "units": "coded",
+     "type": "numeric"
+    },
+    {
+     "name": "x3",
+     "description": "Continuous factor 3 (column d3+ of Table 2)",
+     "low": -1,
+     "high": 1,
+     "units": "coded",
+     "type": "numeric"
+    },
+    {
+     "name": "x4",
+     "description": "Continuous factor 4 (column d4+ of Table 2)",
+     "low": -1,
+     "high": 1,
+     "units": "coded",
+     "type": "numeric"
+    },
+    {
+     "name": "x5",
+     "description": "Two-level categorical factor 1 (column a1+ of Table 2)",
+     "low": "first level",
+     "high": "second level",
+     "units": "",
+     "type": "categorical"
+    }
+   ],
+   "responses": [],
+   "runs": {
+    "columns": ["Run", "x1", "x2", "x3", "x4", "x5"],
+    "rows": [
+     [1, 0, 1, 1, 1, 1],
+     [2, 0, -1, -1, -1, -1],
+     [3, 1, 0, 1, -1, -1],
+     [4, -1, 0, -1, 1, 1],
+     [5, 1, 1, 0, 1, -1],
+     [6, -1, -1, 0, -1, 1],
+     [7, 1, -1, 1, 0, 1],
+     [8, -1, 1, -1, 0, -1],
+     [9, 1, -1, -1, 1, 1],
+     [10, -1, 1, 1, -1, -1],
+     [11, 1, 1, -1, -1, 1],
+     [12, -1, -1, 1, 1, -1],
+     [13, 0, 0, 0, 0, -1],
+     [14, 0, 0, 0, 0, 1]
+    ],
+    "coded": true,
+    "notes": "Figure 1 prints each run as a string of 0, + and -, continuous factors first; + is +1 and - is -1, and for a categorical factor -1 and +1 are its two levels. Run is the printed run number."
+   },
+   "notes": "Checks evaluate the first-order (main effects) model of the paper's equation (1) on the coded runs. The alias checks' max_abs reads the whole alias matrix; its main-effect rows are 0 here (max_abs_main_effect_rows), so it is the maximum of the constant-term row that Table 4 reports. Every 'normalized efficiency' and 'vs. optimal' item is manual because it compares two designs.",
+   "expected": [
+    {
+     "what": "n_runs",
+     "term": "n_DSD",
+     "value": "14",
+     "analysis": "run size of the DSD-augmented design for m = 4 and c = 1",
+     "where": {
+      "page": 125,
+      "pdf_page": 5,
+      "source_kind": "table",
+      "quote": "14 14 4 1 5 1 0.98 0.1429"
+     },
+     "check": {
+      "kind": "design_metric",
+      "metric": "prediction_variance",
+      "key": "len",
+      "model": "main_effects"
+     }
+    },
+    {
+     "what": "number of factors",
+     "term": "p",
+     "value": "5",
+     "analysis": "the column headed p: m + c, the number of main effects for m = 4 and c = 1",
+     "where": {
+      "page": 125,
+      "pdf_page": 5,
+      "source_kind": "table",
+      "quote": "14 14 4 1 5 1 0.98 0.1429"
+     },
+     "check": {
+      "kind": "design_metric",
+      "metric": "degrees_of_freedom",
+      "key": "model",
+      "model": "main_effects"
+     }
+    },
+    {
+     "what": "relative D-efficiency",
+     "term": "DSD-augment vs. optimal DSD-augment",
+     "value": "1",
+     "analysis": "D-efficiency of the DSD-augmented design relative to a constrained D-optimal augmentation, m = 4, c = 1",
+     "where": {
+      "page": 125,
+      "pdf_page": 5,
+      "source_kind": "table",
+      "quote": "14 14 4 1 5 1 0.98 0.1429"
+     },
+     "check": {
+      "manual": "a ratio to a constrained D-optimal design found by coordinate exchange, which neither the paper nor the library gives; no check kind compares two designs. Against the best of the 2^(2c) sign choices on the same base (what the library's DSD-augment chooses), this printed design reaches 1 (all 4 sign choices give the same determinant)"
+     }
+    },
+    {
+     "what": "normalized D-efficiency ratio",
+     "term": "DSD-augment vs. ORTH-augment",
+     "value": "0.98",
+     "analysis": "per-run D-efficiency of the DSD-augmented design over that of the ORTH-augmented design, first-order model, m = 4, c = 1",
+     "where": {
+      "page": 125,
+      "pdf_page": 5,
+      "source_kind": "table",
+      "quote": "14 14 4 1 5 1 0.98 0.1429"
+     },
+     "check": {
+      "manual": "a ratio of two designs' D-efficiencies, and a design_metric check reads one design. evaluate_design's d_efficiency for this design over that for the Figure 1b design with the same c gives 0.9800; generate_design(design_type='dsd') with 4 continuous and 1 two-level categorical factors, over the ORTH design's closed-form X'X, gives 0.9800"
+     }
+    },
+    {
+     "what": "alias_max_abs",
+     "term": "intercept row",
+     "value": "0.1429",
+     "analysis": "maximum absolute element of the constant-term row of the alias matrix, first-order model against the two-factor interactions, m = 4, c = 1",
+     "where": {
+      "page": 125,
+      "pdf_page": 5,
+      "source_kind": "table",
+      "quote": "14 14 4 1 5 1 0.98 0.1429"
+     },
+     "check": {
+      "kind": "design_metric",
+      "metric": "alias_matrix",
+      "key": "max_abs",
+      "model": "main_effects"
+     }
+    },
+    {
+     "what": "alias_max_abs",
+     "term": "intercept row",
+     "value": "1/7",
+     "analysis": "maximum absolute entry in the first row of the alias matrix, the largest over Table 4 (m = 4, c = 1)",
+     "where": {
+      "page": 124,
+      "pdf_page": 4,
+      "source_kind": "text",
+      "quote": "in which case the maximum absolute entry in the first row of the alias matrix was 1/7"
+     },
+     "check": {
+      "kind": "design_metric",
+      "metric": "alias_matrix",
+      "key": "max_abs",
+      "model": "main_effects",
+      "expression": true
+     }
+    },
+    {
+     "what": "correlation",
+     "term": "quadratic main effects",
+     "value": "1/2 − 2/(n − 4)",
+     "analysis": "correlation between the quadratic main effects columns of a DSD-augmented design, as a function of its run size n",
+     "where": {
+      "page": 129,
+      "pdf_page": 9,
+      "source_kind": "text",
+      "quote": "the correlation between quadratic main effects columns is 1/2 − 2/(n − 4)"
+     },
+     "check": {
+      "manual": "a formula in n, not a number. It holds for every Figure 1a design: the Pearson correlation of two squared continuous columns is 0.3000 for n = 14 (c = 1, 2) and 0.3571 for n = 18 (c = 3, 4), and evaluate_design's correlation metric, for the main effects plus the four continuous squares, gives the same max_abs_r"
+     }
+    },
+    {
+     "what": "inner product",
+     "term": "linear main effects with quadratic main effects",
+     "value": "zero",
+     "analysis": "inner product of the linear main effects columns with the quadratic main effects columns, DSD-augment procedure",
+     "where": {
+      "page": 128,
+      "pdf_page": 8,
+      "source_kind": "text",
+      "quote": "For the DSD-augment procedure, this inner product is zero."
+     },
+     "check": {
+      "manual": "a cross product of two design columns, which no check kind reports; every categorical column of each Figure 1a design sums to 0 over the runs where a continuous factor is non-zero, so the product is 0"
+     }
+    }
+   ]
+  },
+  {
+   "name": "jn2013-dsd-augment-m4-c2",
+   "title": "DSD-augmented design for 4 continuous factors and 2 two-level categorical factors",
+   "where": {
+    "section": "2, DSD-Based Column Augmentation",
+    "pages": "126",
+    "figures": ["Figure 1(a)"],
+    "tables": ["Table 4", "Table 3"]
+   },
+   "design": {
+    "type": "DSD-augmented definitive screening design (DSD-augment method)",
+    "factors": 6,
+    "n_runs": 14,
+    "details": "m = 4 continuous and c = 2 categorical factors; the categorical columns' zeros of a 13-run DSD for 6 factors are replaced by +z and -z, and two centre runs carry +b and -b"
+   },
+   "factors": [
+    {
+     "name": "x1",
+     "description": "Continuous factor 1 (column d1+ of Table 2)",
+     "low": -1,
+     "high": 1,
+     "units": "coded",
+     "type": "numeric"
+    },
+    {
+     "name": "x2",
+     "description": "Continuous factor 2 (column d2+ of Table 2)",
+     "low": -1,
+     "high": 1,
+     "units": "coded",
+     "type": "numeric"
+    },
+    {
+     "name": "x3",
+     "description": "Continuous factor 3 (column d3+ of Table 2)",
+     "low": -1,
+     "high": 1,
+     "units": "coded",
+     "type": "numeric"
+    },
+    {
+     "name": "x4",
+     "description": "Continuous factor 4 (column d4+ of Table 2)",
+     "low": -1,
+     "high": 1,
+     "units": "coded",
+     "type": "numeric"
+    },
+    {
+     "name": "x5",
+     "description": "Two-level categorical factor 1 (column a1+ of Table 2)",
+     "low": "first level",
+     "high": "second level",
+     "units": "",
+     "type": "categorical"
+    },
+    {
+     "name": "x6",
+     "description": "Two-level categorical factor 2 (column a2+ of Table 2)",
+     "low": "first level",
+     "high": "second level",
+     "units": "",
+     "type": "categorical"
+    }
+   ],
+   "responses": [],
+   "runs": {
+    "columns": ["Run", "x1", "x2", "x3", "x4", "x5", "x6"],
+    "rows": [
+     [1, 0, 1, 1, 1, 1, 1],
+     [2, 0, -1, -1, -1, -1, -1],
+     [3, 1, 0, 1, -1, -1, 1],
+     [4, -1, 0, -1, 1, 1, -1],
+     [5, 1, 1, 0, 1, -1, -1],
+     [6, -1, -1, 0, -1, 1, 1],
+     [7, 1, -1, 1, 0, 1, -1],
+     [8, -1, 1, -1, 0, -1, 1],
+     [9, 1, -1, -1, 1, 1, 1],
+     [10, -1, 1, 1, -1, -1, -1],
+     [11, 1, 1, -1, -1, 1, 1],
+     [12, -1, -1, 1, 1, -1, -1],
+     [13, 0, 0, 0, 0, -1, -1],
+     [14, 0, 0, 0, 0, 1, 1]
+    ],
+    "coded": true,
+    "notes": "Figure 1 prints each run as a string of 0, + and -, continuous factors first; + is +1 and - is -1, and for a categorical factor -1 and +1 are its two levels. Run is the printed run number."
+   },
+   "notes": "Equation (2), Table 3 and Table 4's m = 4, c = 2 row describe the design this one becomes when z2 is reversed, rows 11 and 12 reading ++--+- and --++-+ (x6 at -1 then +1): that design's X'X is equation (2) entry for entry and its alias matrix is Table 3, and its sign choice is among the twelve (of sixteen) that maximise |X'X|. As printed, x5'x6 = 6, the case the paper says the procedure usually eliminates, and |X'X| is 16486400 against 20966400 for equation (2). Checks evaluate the first-order (main effects) model of the paper's equation (1) on the coded runs. The alias checks' max_abs reads the whole alias matrix; its main-effect rows are 0 here (max_abs_main_effect_rows), so it is the maximum of the constant-term row that Table 4 reports. Every 'normalized efficiency' and 'vs. optimal' item is manual because it compares two designs. Printed zeros of the alias table are checked exactly (expression: true): the construction makes them exactly 0, and the default tolerance for a printed '0' would be 0.5.",
+   "expected": [
+    {
+     "what": "n_runs",
+     "term": "n_DSD",
+     "value": "14",
+     "analysis": "run size of the DSD-augmented design for m = 4 and c = 2",
+     "where": {
+      "page": 125,
+      "pdf_page": 5,
+      "source_kind": "table",
+      "quote": "14 16 4 2 6 1 1.04 0.1429"
+     },
+     "check": {
+      "kind": "design_metric",
+      "metric": "prediction_variance",
+      "key": "len",
+      "model": "main_effects"
+     }
+    },
+    {
+     "what": "number of factors",
+     "term": "p",
+     "value": "6",
+     "analysis": "the column headed p: m + c, the number of main effects for m = 4 and c = 2",
+     "where": {
+      "page": 125,
+      "pdf_page": 5,
+      "source_kind": "table",
+      "quote": "14 16 4 2 6 1 1.04 0.1429"
+     },
+     "check": {
+      "kind": "design_metric",
+      "metric": "degrees_of_freedom",
+      "key": "model",
+      "model": "main_effects"
+     }
+    },
+    {
+     "what": "relative D-efficiency",
+     "term": "DSD-augment vs. optimal DSD-augment",
+     "value": "1",
+     "analysis": "D-efficiency of the DSD-augmented design relative to a constrained D-optimal augmentation, m = 4, c = 2",
+     "where": {
+      "page": 125,
+      "pdf_page": 5,
+      "source_kind": "table",
+      "quote": "14 16 4 2 6 1 1.04 0.1429"
+     },
+     "check": {
+      "manual": "a ratio to a constrained D-optimal design found by coordinate exchange, which neither the paper nor the library gives; no check kind compares two designs. Against the best of the 2^(2c) sign choices on the same base (what the library's DSD-augment chooses), this printed design reaches 0.966"
+     }
+    },
+    {
+     "what": "normalized D-efficiency ratio",
+     "term": "DSD-augment vs. ORTH-augment",
+     "value": "1.04",
+     "analysis": "per-run D-efficiency of the DSD-augmented design over that of the ORTH-augmented design, first-order model, m = 4, c = 2",
+     "where": {
+      "page": 125,
+      "pdf_page": 5,
+      "source_kind": "table",
+      "quote": "14 16 4 2 6 1 1.04 0.1429"
+     },
+     "check": {
+      "manual": "a ratio of two designs' D-efficiencies, and a design_metric check reads one design. evaluate_design's d_efficiency for this design over that for the Figure 1b design with the same c gives 1.0035; generate_design(design_type='dsd') with 4 continuous and 2 two-level categorical factors, over the ORTH design's closed-form X'X, gives 1.0386"
+     }
+    },
+    {
+     "what": "alias_max_abs",
+     "term": "intercept row",
+     "value": "0.1429",
+     "analysis": "maximum absolute element of the constant-term row of the alias matrix, first-order model against the two-factor interactions, m = 4, c = 2",
+     "where": {
+      "page": 125,
+      "pdf_page": 5,
+      "source_kind": "table",
+      "quote": "14 16 4 2 6 1 1.04 0.1429"
+     },
+     "check": {
+      "kind": "design_metric",
+      "metric": "alias_matrix",
+      "key": "max_abs",
+      "model": "main_effects",
+      "disagreement": "the printed Figure 1a design gives 0.4286 (6/14, the intercept's alias with x5:x6, since x5'x6 = 6). Table 4 and Table 3 fit the design with z2 reversed (rows 11 and 12 of x6 swapped), for which every intercept-row entry is 2/14 = 0.1429; generate_design(design_type='dsd') with 4 continuous and 2 categorical factors also gives 0.1429"
+     }
+    },
+    {
+     "what": "information matrix",
+     "term": "X'X row 1 (intercept)",
+     "value": "14 0 0 0 0 0 0",
+     "analysis": "information matrix X'X of the first-order model, DSD-augmented design with m = 4 and c = 2",
+     "where": {
+      "page": 123,
+      "pdf_page": 3,
+      "source_kind": "equation",
+      "quote": "For example, the information matrix for the design having four continuous factors and two categorical factors is given by"
+     },
+     "check": {
+      "manual": "an entry of the information matrix X'X, which no evaluate_design metric reports (each off-diagonal entry is 14 times the matching intercept-row entry of the alias matrix, checked from Table 3). The Figure 1a design gives this row exactly."
+     }
+    },
+    {
+     "what": "information matrix",
+     "term": "X'X row 2 (x1)",
+     "value": "0 10 0 0 0 2 −2",
+     "analysis": "information matrix X'X of the first-order model, DSD-augmented design with m = 4 and c = 2",
+     "where": {
+      "page": 123,
+      "pdf_page": 3,
+      "source_kind": "equation",
+      "quote": "For example, the information matrix for the design having four continuous factors and two categorical factors is given by"
+     },
+     "check": {
+      "manual": "an entry of the information matrix X'X, which no evaluate_design metric reports (each off-diagonal entry is 14 times the matching intercept-row entry of the alias matrix, checked from Table 3). The Figure 1a design gives 0 10 0 0 0 2 2; reversing z2 (rows 11 and 12 of x6) gives the printed row."
+     }
+    },
+    {
+     "what": "information matrix",
+     "term": "X'X row 3 (x2)",
+     "value": "0 0 10 0 0 −2 −2",
+     "analysis": "information matrix X'X of the first-order model, DSD-augmented design with m = 4 and c = 2",
+     "where": {
+      "page": 123,
+      "pdf_page": 3,
+      "source_kind": "equation",
+      "quote": "For example, the information matrix for the design having four continuous factors and two categorical factors is given by"
+     },
+     "check": {
+      "manual": "an entry of the information matrix X'X, which no evaluate_design metric reports (each off-diagonal entry is 14 times the matching intercept-row entry of the alias matrix, checked from Table 3). The Figure 1a design gives 0 0 10 0 0 −2 2; reversing z2 (rows 11 and 12 of x6) gives the printed row."
+     }
+    },
+    {
+     "what": "information matrix",
+     "term": "X'X row 4 (x3)",
+     "value": "0 0 0 10 0 −2 2",
+     "analysis": "information matrix X'X of the first-order model, DSD-augmented design with m = 4 and c = 2",
+     "where": {
+      "page": 123,
+      "pdf_page": 3,
+      "source_kind": "equation",
+      "quote": "For example, the information matrix for the design having four continuous factors and two categorical factors is given by"
+     },
+     "check": {
+      "manual": "an entry of the information matrix X'X, which no evaluate_design metric reports (each off-diagonal entry is 14 times the matching intercept-row entry of the alias matrix, checked from Table 3). The Figure 1a design gives 0 0 0 10 0 −2 −2; reversing z2 (rows 11 and 12 of x6) gives the printed row."
+     }
+    },
+    {
+     "what": "information matrix",
+     "term": "X'X row 5 (x4)",
+     "value": "0 0 0 0 10 2 2",
+     "analysis": "information matrix X'X of the first-order model, DSD-augmented design with m = 4 and c = 2",
+     "where": {
+      "page": 123,
+      "pdf_page": 3,
+      "source_kind": "equation",
+      "quote": "For example, the information matrix for the design having four continuous factors and two categorical factors is given by"
+     },
+     "check": {
+      "manual": "an entry of the information matrix X'X, which no evaluate_design metric reports (each off-diagonal entry is 14 times the matching intercept-row entry of the alias matrix, checked from Table 3). The Figure 1a design gives 0 0 0 0 10 2 −2; reversing z2 (rows 11 and 12 of x6) gives the printed row."
+     }
+    },
+    {
+     "what": "information matrix",
+     "term": "X'X row 6 (x5)",
+     "value": "0 2 −2 −2 2 14 2",
+     "analysis": "information matrix X'X of the first-order model, DSD-augmented design with m = 4 and c = 2",
+     "where": {
+      "page": 123,
+      "pdf_page": 3,
+      "source_kind": "equation",
+      "quote": "For example, the information matrix for the design having four continuous factors and two categorical factors is given by"
+     },
+     "check": {
+      "manual": "an entry of the information matrix X'X, which no evaluate_design metric reports (each off-diagonal entry is 14 times the matching intercept-row entry of the alias matrix, checked from Table 3). The Figure 1a design gives 0 2 −2 −2 2 14 6; reversing z2 (rows 11 and 12 of x6) gives the printed row."
+     }
+    },
+    {
+     "what": "information matrix",
+     "term": "X'X row 7 (x6)",
+     "value": "0 −2 −2 2 2 2 14",
+     "analysis": "information matrix X'X of the first-order model, DSD-augmented design with m = 4 and c = 2",
+     "where": {
+      "page": 123,
+      "pdf_page": 3,
+      "source_kind": "equation",
+      "quote": "For example, the information matrix for the design having four continuous factors and two categorical factors is given by"
+     },
+     "check": {
+      "manual": "an entry of the information matrix X'X, which no evaluate_design metric reports (each off-diagonal entry is 14 times the matching intercept-row entry of the alias matrix, checked from Table 3). The Figure 1a design gives 0 2 2 −2 −2 6 14; reversing z2 (rows 11 and 12 of x6) gives the printed row."
+     }
+    },
+    {
+     "what": "inner product",
+     "term": "d_i'a_j",
+     "value": "±2",
+     "analysis": "cross product of a continuous column with a categorical column, DSD-augment procedure",
+     "where": {
+      "page": 123,
+      "pdf_page": 3,
+      "source_kind": "text",
+      "quote": "With zi,1 = ±1 and zi,2 = ∓1, d+'i a+j = ±2."
+     },
+     "check": {
+      "manual": "a cross product of two design columns, which no check kind reports; in every Figure 1a design each continuous-by-categorical entry of X'X is +2 or -2"
+     }
+    },
+    {
+     "what": "inner product",
+     "term": "a_i'a_j",
+     "value": "−2, 2, and 6",
+     "analysis": "possible cross products of two categorical columns, DSD-augment procedure",
+     "where": {
+      "page": 123,
+      "pdf_page": 3,
+      "source_kind": "text",
+      "quote": "which can potentially take on values −2, 2, and 6"
+     },
+     "check": {
+      "manual": "the values a cross product can take, which no check kind reports; this design has x5'x6 = 6, and the c = 3 and c = 4 designs of Figure 1a have 2 for every pair"
+     }
+    },
+    {
+     "what": "inner product",
+     "term": "a_i'a_j",
+     "value": "±2",
+     "analysis": "cross product of two categorical columns after the DSD-augment procedure, which 'usually eliminates' 6",
+     "where": {
+      "page": 123,
+      "pdf_page": 3,
+      "source_kind": "text",
+      "quote": "the DSD-augment procedure usually eliminates the a+'i a+j = 6 case, so that a+'i a+j = ±2"
+     },
+     "check": {
+      "manual": "a cross product of two design columns, which no check kind reports; as printed this design has x5'x6 = 6, the case the paper says is usually eliminated, while equation (2) has 2"
+     }
+    },
+    {
+     "what": "alias",
+     "term": "β₀ row, β₁₂ column",
+     "value": "0",
+     "analysis": "Table 3, alias matrix of the DSD-augmented design with 4 continuous and 2 categorical factors: bias of the estimate of β₀ from the interaction β₁₂, first-order model",
+     "where": {
+      "page": 124,
+      "pdf_page": 4,
+      "source_kind": "table",
+      "quote": "β₀ 0 0 0 0 0 0 0.1429 −0.1429 −0.1429 −0.1429 −0.1429 0.1429 0.1429 0.1429 0.1429"
+     },
+     "check": {
+      "kind": "design_metric",
+      "metric": "alias_matrix",
+      "key": "matrix.0.0",
+      "model": "main_effects",
+      "expression": true
+     }
+    },
+    {
+     "what": "alias",
+     "term": "β₀ row, β₁₃ column",
+     "value": "0",
+     "analysis": "Table 3, alias matrix of the DSD-augmented design with 4 continuous and 2 categorical factors: bias of the estimate of β₀ from the interaction β₁₃, first-order model",
+     "where": {
+      "page": 124,
+      "pdf_page": 4,
+      "source_kind": "table",
+      "quote": "β₀ 0 0 0 0 0 0 0.1429 −0.1429 −0.1429 −0.1429 −0.1429 0.1429 0.1429 0.1429 0.1429"
+     },
+     "check": {
+      "kind": "design_metric",
+      "metric": "alias_matrix",
+      "key": "matrix.0.1",
+      "model": "main_effects",
+      "expression": true
+     }
+    },
+    {
+     "what": "alias",
+     "term": "β₀ row, β₁₄ column",
+     "value": "0",
+     "analysis": "Table 3, alias matrix of the DSD-augmented design with 4 continuous and 2 categorical factors: bias of the estimate of β₀ from the interaction β₁₄, first-order model",
+     "where": {
+      "page": 124,
+      "pdf_page": 4,
+      "source_kind": "table",
+      "quote": "β₀ 0 0 0 0 0 0 0.1429 −0.1429 −0.1429 −0.1429 −0.1429 0.1429 0.1429 0.1429 0.1429"
+     },
+     "check": {
+      "kind": "design_metric",
+      "metric": "alias_matrix",
+      "key": "matrix.0.2",
+      "model": "main_effects",
+      "expression": true
+     }
+    },
+    {
+     "what": "alias",
+     "term": "β₀ row, β₂₃ column",
+     "value": "0",
+     "analysis": "Table 3, alias matrix of the DSD-augmented design with 4 continuous and 2 categorical factors: bias of the estimate of β₀ from the interaction β₂₃, first-order model",
+     "where": {
+      "page": 124,
+      "pdf_page": 4,
+      "source_kind": "table",
+      "quote": "β₀ 0 0 0 0 0 0 0.1429 −0.1429 −0.1429 −0.1429 −0.1429 0.1429 0.1429 0.1429 0.1429"
+     },
+     "check": {
+      "kind": "design_metric",
+      "metric": "alias_matrix",
+      "key": "matrix.0.5",
+      "model": "main_effects",
+      "expression": true
+     }
+    },
+    {
+     "what": "alias",
+     "term": "β₀ row, β₂₄ column",
+     "value": "0",
+     "analysis": "Table 3, alias matrix of the DSD-augmented design with 4 continuous and 2 categorical factors: bias of the estimate of β₀ from the interaction β₂₄, first-order model",
+     "where": {
+      "page": 124,
+      "pdf_page": 4,
+      "source_kind": "table",
+      "quote": "β₀ 0 0 0 0 0 0 0.1429 −0.1429 −0.1429 −0.1429 −0.1429 0.1429 0.1429 0.1429 0.1429"
+     },
+     "check": {
+      "kind": "design_metric",
+      "metric": "alias_matrix",
+      "key": "matrix.0.6",
+      "model": "main_effects",
+      "expression": true
+     }
+    },
+    {
+     "what": "alias",
+     "term": "β₀ row, β₃₄ column",
+     "value": "0",
+     "analysis": "Table 3, alias matrix of the DSD-augmented design with 4 continuous and 2 categorical factors: bias of the estimate of β₀ from the interaction β₃₄, first-order model",
+     "where": {
+      "page": 124,
+      "pdf_page": 4,
+      "source_kind": "table",
+      "quote": "β₀ 0 0 0 0 0 0 0.1429 −0.1429 −0.1429 −0.1429 −0.1429 0.1429 0.1429 0.1429 0.1429"
+     },
+     "check": {
+      "kind": "design_metric",
+      "metric": "alias_matrix",
+      "key": "matrix.0.9",
+      "model": "main_effects",
+      "expression": true
+     }
+    },
+    {
+     "what": "alias",
+     "term": "β₀ row, β₁₅ column",
+     "value": "0.1429",
+     "analysis": "Table 3, alias matrix of the DSD-augmented design with 4 continuous and 2 categorical factors: bias of the estimate of β₀ from the interaction β₁₅, first-order model",
+     "where": {
+      "page": 124,
+      "pdf_page": 4,
+      "source_kind": "table",
+      "quote": "β₀ 0 0 0 0 0 0 0.1429 −0.1429 −0.1429 −0.1429 −0.1429 0.1429 0.1429 0.1429 0.1429"
+     },
+     "check": {
+      "kind": "design_metric",
+      "metric": "alias_matrix",
+      "key": "matrix.0.3",
+      "model": "main_effects"
+     }
+    },
+    {
+     "what": "alias",
+     "term": "β₀ row, β₁₆ column",
+     "value": "−0.1429",
+     "analysis": "Table 3, alias matrix of the DSD-augmented design with 4 continuous and 2 categorical factors: bias of the estimate of β₀ from the interaction β₁₆, first-order model",
+     "where": {
+      "page": 124,
+      "pdf_page": 4,
+      "source_kind": "table",
+      "quote": "β₀ 0 0 0 0 0 0 0.1429 −0.1429 −0.1429 −0.1429 −0.1429 0.1429 0.1429 0.1429 0.1429"
+     },
+     "check": {
+      "kind": "design_metric",
+      "metric": "alias_matrix",
+      "key": "matrix.0.4",
+      "model": "main_effects",
+      "disagreement": "the printed Figure 1a c = 2 design gives +0.1429. Table 3 is the alias matrix of the design with z2 reversed (rows 11 and 12 of x6 swapped), which reproduces every entry, as does equation (2)'s X'X"
+     }
+    },
+    {
+     "what": "alias",
+     "term": "β₀ row, β₂₅ column",
+     "value": "−0.1429",
+     "analysis": "Table 3, alias matrix of the DSD-augmented design with 4 continuous and 2 categorical factors: bias of the estimate of β₀ from the interaction β₂₅, first-order model",
+     "where": {
+      "page": 124,
+      "pdf_page": 4,
+      "source_kind": "table",
+      "quote": "β₀ 0 0 0 0 0 0 0.1429 −0.1429 −0.1429 −0.1429 −0.1429 0.1429 0.1429 0.1429 0.1429"
+     },
+     "check": {
+      "kind": "design_metric",
+      "metric": "alias_matrix",
+      "key": "matrix.0.7",
+      "model": "main_effects"
+     }
+    },
+    {
+     "what": "alias",
+     "term": "β₀ row, β₂₆ column",
+     "value": "−0.1429",
+     "analysis": "Table 3, alias matrix of the DSD-augmented design with 4 continuous and 2 categorical factors: bias of the estimate of β₀ from the interaction β₂₆, first-order model",
+     "where": {
+      "page": 124,
+      "pdf_page": 4,
+      "source_kind": "table",
+      "quote": "β₀ 0 0 0 0 0 0 0.1429 −0.1429 −0.1429 −0.1429 −0.1429 0.1429 0.1429 0.1429 0.1429"
+     },
+     "check": {
+      "kind": "design_metric",
+      "metric": "alias_matrix",
+      "key": "matrix.0.8",
+      "model": "main_effects",
+      "disagreement": "the printed Figure 1a c = 2 design gives +0.1429. Table 3 is the alias matrix of the design with z2 reversed (rows 11 and 12 of x6 swapped), which reproduces every entry, as does equation (2)'s X'X"
+     }
+    },
+    {
+     "what": "alias",
+     "term": "β₀ row, β₃₅ column",
+     "value": "−0.1429",
+     "analysis": "Table 3, alias matrix of the DSD-augmented design with 4 continuous and 2 categorical factors: bias of the estimate of β₀ from the interaction β₃₅, first-order model",
+     "where": {
+      "page": 124,
+      "pdf_page": 4,
+      "source_kind": "table",
+      "quote": "β₀ 0 0 0 0 0 0 0.1429 −0.1429 −0.1429 −0.1429 −0.1429 0.1429 0.1429 0.1429 0.1429"
+     },
+     "check": {
+      "kind": "design_metric",
+      "metric": "alias_matrix",
+      "key": "matrix.0.10",
+      "model": "main_effects"
+     }
+    },
+    {
+     "what": "alias",
+     "term": "β₀ row, β₃₆ column",
+     "value": "0.1429",
+     "analysis": "Table 3, alias matrix of the DSD-augmented design with 4 continuous and 2 categorical factors: bias of the estimate of β₀ from the interaction β₃₆, first-order model",
+     "where": {
+      "page": 124,
+      "pdf_page": 4,
+      "source_kind": "table",
+      "quote": "β₀ 0 0 0 0 0 0 0.1429 −0.1429 −0.1429 −0.1429 −0.1429 0.1429 0.1429 0.1429 0.1429"
+     },
+     "check": {
+      "kind": "design_metric",
+      "metric": "alias_matrix",
+      "key": "matrix.0.11",
+      "model": "main_effects",
+      "disagreement": "the printed Figure 1a c = 2 design gives -0.1429. Table 3 is the alias matrix of the design with z2 reversed (rows 11 and 12 of x6 swapped), which reproduces every entry, as does equation (2)'s X'X"
+     }
+    },
+    {
+     "what": "alias",
+     "term": "β₀ row, β₄₅ column",
+     "value": "0.1429",
+     "analysis": "Table 3, alias matrix of the DSD-augmented design with 4 continuous and 2 categorical factors: bias of the estimate of β₀ from the interaction β₄₅, first-order model",
+     "where": {
+      "page": 124,
+      "pdf_page": 4,
+      "source_kind": "table",
+      "quote": "β₀ 0 0 0 0 0 0 0.1429 −0.1429 −0.1429 −0.1429 −0.1429 0.1429 0.1429 0.1429 0.1429"
+     },
+     "check": {
+      "kind": "design_metric",
+      "metric": "alias_matrix",
+      "key": "matrix.0.12",
+      "model": "main_effects"
+     }
+    },
+    {
+     "what": "alias",
+     "term": "β₀ row, β₄₆ column",
+     "value": "0.1429",
+     "analysis": "Table 3, alias matrix of the DSD-augmented design with 4 continuous and 2 categorical factors: bias of the estimate of β₀ from the interaction β₄₆, first-order model",
+     "where": {
+      "page": 124,
+      "pdf_page": 4,
+      "source_kind": "table",
+      "quote": "β₀ 0 0 0 0 0 0 0.1429 −0.1429 −0.1429 −0.1429 −0.1429 0.1429 0.1429 0.1429 0.1429"
+     },
+     "check": {
+      "kind": "design_metric",
+      "metric": "alias_matrix",
+      "key": "matrix.0.13",
+      "model": "main_effects",
+      "disagreement": "the printed Figure 1a c = 2 design gives -0.1429. Table 3 is the alias matrix of the design with z2 reversed (rows 11 and 12 of x6 swapped), which reproduces every entry, as does equation (2)'s X'X"
+     }
+    },
+    {
+     "what": "alias",
+     "term": "β₀ row, β₅₆ column",
+     "value": "0.1429",
+     "analysis": "Table 3, alias matrix of the DSD-augmented design with 4 continuous and 2 categorical factors: bias of the estimate of β₀ from the interaction β₅₆, first-order model",
+     "where": {
+      "page": 124,
+      "pdf_page": 4,
+      "source_kind": "table",
+      "quote": "β₀ 0 0 0 0 0 0 0.1429 −0.1429 −0.1429 −0.1429 −0.1429 0.1429 0.1429 0.1429 0.1429"
+     },
+     "check": {
+      "kind": "design_metric",
+      "metric": "alias_matrix",
+      "key": "matrix.0.14",
+      "model": "main_effects",
+      "disagreement": "the printed Figure 1a c = 2 design gives 0.4286 (x5'x6/14 = 6/14). Table 3 is the alias matrix of the design with z2 reversed (rows 11 and 12 of x6 swapped), which reproduces every entry, as does equation (2)'s X'X"
+     }
+    },
+    {
+     "what": "alias",
+     "term": "β₁ row, every column",
+     "value": "0 0 0 0 0 0 0 0 0 0 0 0 0 0 0",
+     "analysis": "Table 3, alias matrix of the DSD-augmented design with 4 continuous and 2 categorical factors: the row of β₁ against all fifteen two-factor interactions, first-order model",
+     "where": {
+      "page": 124,
+      "pdf_page": 4,
+      "source_kind": "table",
+      "quote": "β₁ 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0"
+     },
+     "check": [
+      {
+       "kind": "design_metric",
+       "metric": "alias_matrix",
+       "key": "matrix.1.max",
+       "model": "main_effects",
+       "printed": "0",
+       "expression": true
+      },
+      {
+       "kind": "design_metric",
+       "metric": "alias_matrix",
+       "key": "matrix.1.min",
+       "model": "main_effects",
+       "printed": "0",
+       "expression": true
+      }
+     ]
+    },
+    {
+     "what": "alias",
+     "term": "β₂ row, every column",
+     "value": "0 0 0 0 0 0 0 0 0 0 0 0 0 0 0",
+     "analysis": "Table 3, alias matrix of the DSD-augmented design with 4 continuous and 2 categorical factors: the row of β₂ against all fifteen two-factor interactions, first-order model",
+     "where": {
+      "page": 124,
+      "pdf_page": 4,
+      "source_kind": "table",
+      "quote": "β₂ 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0"
+     },
+     "check": [
+      {
+       "kind": "design_metric",
+       "metric": "alias_matrix",
+       "key": "matrix.2.max",
+       "model": "main_effects",
+       "printed": "0",
+       "expression": true
+      },
+      {
+       "kind": "design_metric",
+       "metric": "alias_matrix",
+       "key": "matrix.2.min",
+       "model": "main_effects",
+       "printed": "0",
+       "expression": true
+      }
+     ]
+    },
+    {
+     "what": "alias",
+     "term": "β₃ row, every column",
+     "value": "0 0 0 0 0 0 0 0 0 0 0 0 0 0 0",
+     "analysis": "Table 3, alias matrix of the DSD-augmented design with 4 continuous and 2 categorical factors: the row of β₃ against all fifteen two-factor interactions, first-order model",
+     "where": {
+      "page": 124,
+      "pdf_page": 4,
+      "source_kind": "table",
+      "quote": "β₃ 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0"
+     },
+     "check": [
+      {
+       "kind": "design_metric",
+       "metric": "alias_matrix",
+       "key": "matrix.3.max",
+       "model": "main_effects",
+       "printed": "0",
+       "expression": true
+      },
+      {
+       "kind": "design_metric",
+       "metric": "alias_matrix",
+       "key": "matrix.3.min",
+       "model": "main_effects",
+       "printed": "0",
+       "expression": true
+      }
+     ]
+    },
+    {
+     "what": "alias",
+     "term": "β₄ row, every column",
+     "value": "0 0 0 0 0 0 0 0 0 0 0 0 0 0 0",
+     "analysis": "Table 3, alias matrix of the DSD-augmented design with 4 continuous and 2 categorical factors: the row of β₄ against all fifteen two-factor interactions, first-order model",
+     "where": {
+      "page": 124,
+      "pdf_page": 4,
+      "source_kind": "table",
+      "quote": "β₄ 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0"
+     },
+     "check": [
+      {
+       "kind": "design_metric",
+       "metric": "alias_matrix",
+       "key": "matrix.4.max",
+       "model": "main_effects",
+       "printed": "0",
+       "expression": true
+      },
+      {
+       "kind": "design_metric",
+       "metric": "alias_matrix",
+       "key": "matrix.4.min",
+       "model": "main_effects",
+       "printed": "0",
+       "expression": true
+      }
+     ]
+    },
+    {
+     "what": "alias",
+     "term": "β₅ row, every column",
+     "value": "0 0 0 0 0 0 0 0 0 0 0 0 0 0 0",
+     "analysis": "Table 3, alias matrix of the DSD-augmented design with 4 continuous and 2 categorical factors: the row of β₅ against all fifteen two-factor interactions, first-order model",
+     "where": {
+      "page": 124,
+      "pdf_page": 4,
+      "source_kind": "table",
+      "quote": "β₅ 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0"
+     },
+     "check": [
+      {
+       "kind": "design_metric",
+       "metric": "alias_matrix",
+       "key": "matrix.5.max",
+       "model": "main_effects",
+       "printed": "0",
+       "expression": true
+      },
+      {
+       "kind": "design_metric",
+       "metric": "alias_matrix",
+       "key": "matrix.5.min",
+       "model": "main_effects",
+       "printed": "0",
+       "expression": true
+      }
+     ]
+    },
+    {
+     "what": "alias",
+     "term": "β₆ row, every column",
+     "value": "0 0 0 0 0 0 0 0 0 0 0 0 0 0 0",
+     "analysis": "Table 3, alias matrix of the DSD-augmented design with 4 continuous and 2 categorical factors: the row of β₆ against all fifteen two-factor interactions, first-order model",
+     "where": {
+      "page": 124,
+      "pdf_page": 4,
+      "source_kind": "table",
+      "quote": "β₆ 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0"
+     },
+     "check": [
+      {
+       "kind": "design_metric",
+       "metric": "alias_matrix",
+       "key": "matrix.6.max",
+       "model": "main_effects",
+       "printed": "0",
+       "expression": true
+      },
+      {
+       "kind": "design_metric",
+       "metric": "alias_matrix",
+       "key": "matrix.6.min",
+       "model": "main_effects",
+       "printed": "0",
+       "expression": true
+      }
+     ]
+    },
+    {
+     "what": "alias",
+     "term": "linear main effects with quadratic main effects",
+     "value": "zero",
+     "analysis": "aliasing of the linear main effects with the quadratic main effects, left out of Table 3",
+     "where": {
+      "page": 123,
+      "pdf_page": 3,
+      "source_kind": "text",
+      "quote": "the zero aliasing between the linear main effects terms and the quadratic main effects terms has been omitted"
+     },
+     "check": {
+      "manual": "evaluate_design's alias_matrix aliases the model against two-factor interactions only, not squares; every main-effect column of this design has a zero cross product with every squared continuous column, and the intercept is orthogonal to the main effects, so these rows are exactly 0"
+     }
+    }
+   ]
+  },
+  {
+   "name": "jn2013-dsd-augment-m4-c3",
+   "title": "DSD-augmented design for 4 continuous factors and 3 two-level categorical factors",
+   "where": {
+    "section": "2, DSD-Based Column Augmentation",
+    "pages": "126",
+    "figures": ["Figure 1(a)"],
+    "tables": ["Table 4"]
+   },
+   "design": {
+    "type": "DSD-augmented definitive screening design (DSD-augment method)",
+    "factors": 7,
+    "n_runs": 18,
+    "details": "m = 4 continuous and c = 3 categorical factors; the categorical columns' zeros of a 17-run DSD for 7 factors are replaced by +z and -z, and two centre runs carry +b and -b"
+   },
+   "factors": [
+    {
+     "name": "x1",
+     "description": "Continuous factor 1 (column d1+ of Table 2)",
+     "low": -1,
+     "high": 1,
+     "units": "coded",
+     "type": "numeric"
+    },
+    {
+     "name": "x2",
+     "description": "Continuous factor 2 (column d2+ of Table 2)",
+     "low": -1,
+     "high": 1,
+     "units": "coded",
+     "type": "numeric"
+    },
+    {
+     "name": "x3",
+     "description": "Continuous factor 3 (column d3+ of Table 2)",
+     "low": -1,
+     "high": 1,
+     "units": "coded",
+     "type": "numeric"
+    },
+    {
+     "name": "x4",
+     "description": "Continuous factor 4 (column d4+ of Table 2)",
+     "low": -1,
+     "high": 1,
+     "units": "coded",
+     "type": "numeric"
+    },
+    {
+     "name": "x5",
+     "description": "Two-level categorical factor 1 (column a1+ of Table 2)",
+     "low": "first level",
+     "high": "second level",
+     "units": "",
+     "type": "categorical"
+    },
+    {
+     "name": "x6",
+     "description": "Two-level categorical factor 2 (column a2+ of Table 2)",
+     "low": "first level",
+     "high": "second level",
+     "units": "",
+     "type": "categorical"
+    },
+    {
+     "name": "x7",
+     "description": "Two-level categorical factor 3 (column a3+ of Table 2)",
+     "low": "first level",
+     "high": "second level",
+     "units": "",
+     "type": "categorical"
+    }
+   ],
+   "responses": [],
+   "runs": {
+    "columns": ["Run", "x1", "x2", "x3", "x4", "x5", "x6", "x7"],
+    "rows": [
+     [1, 0, 1, 1, 1, 1, 1, 1],
+     [2, 0, -1, -1, -1, -1, -1, -1],
+     [3, -1, 0, 1, 1, -1, 1, -1],
+     [4, 1, 0, -1, -1, 1, -1, 1],
+     [5, -1, -1, 0, 1, 1, -1, 1],
+     [6, 1, 1, 0, -1, -1, 1, -1],
+     [7, -1, -1, -1, 0, 1, 1, -1],
+     [8, 1, 1, 1, 0, -1, -1, 1],
+     [9, -1, 1, -1, -1, 1, 1, 1],
+     [10, 1, -1, 1, 1, -1, -1, -1],
+     [11, -1, -1, 1, -1, -1, 1, 1],
+     [12, 1, 1, -1, 1, 1, -1, -1],
+     [13, -1, 1, -1, 1, -1, -1, 1],
+     [14, 1, -1, 1, -1, 1, 1, -1],
+     [15, -1, 1, 1, -1, 1, -1, -1],
+     [16, 1, -1, -1, 1, -1, 1, 1],
+     [17, 0, 0, 0, 0, -1, -1, -1],
+     [18, 0, 0, 0, 0, 1, 1, 1]
+    ],
+    "coded": true,
+    "notes": "Figure 1 prints each run as a string of 0, + and -, continuous factors first; + is +1 and - is -1, and for a categorical factor -1 and +1 are its two levels. Run is the printed run number."
+   },
+   "notes": "As printed, b1 = b2 = b3 (runs 17 and 18): its |X'X| is not the largest of its 64 sign choices on the same base; the largest (b2 of opposite sign to b1 and b3, for instance) gives the normalized efficiency 1.0250, which rounds to Table 4's 1.03, where this design gives 1.0230. Checks evaluate the first-order (main effects) model of the paper's equation (1) on the coded runs. The alias checks' max_abs reads the whole alias matrix; its main-effect rows are 0 here (max_abs_main_effect_rows), so it is the maximum of the constant-term row that Table 4 reports. Every 'normalized efficiency' and 'vs. optimal' item is manual because it compares two designs.",
+   "expected": [
+    {
+     "what": "n_runs",
+     "term": "n_DSD",
+     "value": "18",
+     "analysis": "run size of the DSD-augmented design for m = 4 and c = 3",
+     "where": {
+      "page": 125,
+      "pdf_page": 5,
+      "source_kind": "table",
+      "quote": "18 20 4 3 7 1 1.03 0.1111"
+     },
+     "check": {
+      "kind": "design_metric",
+      "metric": "prediction_variance",
+      "key": "len",
+      "model": "main_effects"
+     }
+    },
+    {
+     "what": "number of factors",
+     "term": "p",
+     "value": "7",
+     "analysis": "the column headed p: m + c, the number of main effects for m = 4 and c = 3",
+     "where": {
+      "page": 125,
+      "pdf_page": 5,
+      "source_kind": "table",
+      "quote": "18 20 4 3 7 1 1.03 0.1111"
+     },
+     "check": {
+      "kind": "design_metric",
+      "metric": "degrees_of_freedom",
+      "key": "model",
+      "model": "main_effects"
+     }
+    },
+    {
+     "what": "relative D-efficiency",
+     "term": "DSD-augment vs. optimal DSD-augment",
+     "value": "1",
+     "analysis": "D-efficiency of the DSD-augmented design relative to a constrained D-optimal augmentation, m = 4, c = 3",
+     "where": {
+      "page": 125,
+      "pdf_page": 5,
+      "source_kind": "table",
+      "quote": "18 20 4 3 7 1 1.03 0.1111"
+     },
+     "check": {
+      "manual": "a ratio to a constrained D-optimal design found by coordinate exchange, which neither the paper nor the library gives; no check kind compares two designs. Against the best of the 2^(2c) sign choices on the same base (what the library's DSD-augment chooses), this printed design reaches 0.998"
+     }
+    },
+    {
+     "what": "normalized D-efficiency ratio",
+     "term": "DSD-augment vs. ORTH-augment",
+     "value": "1.03",
+     "analysis": "per-run D-efficiency of the DSD-augmented design over that of the ORTH-augmented design, first-order model, m = 4, c = 3",
+     "where": {
+      "page": 125,
+      "pdf_page": 5,
+      "source_kind": "table",
+      "quote": "18 20 4 3 7 1 1.03 0.1111"
+     },
+     "check": {
+      "manual": "a ratio of two designs' D-efficiencies, and a design_metric check reads one design. evaluate_design's d_efficiency for this design over that for the Figure 1b design with the same c gives 1.0230; generate_design(design_type='dsd') with 4 continuous and 3 two-level categorical factors, over the ORTH design's closed-form X'X, gives 1.0250"
+     }
+    },
+    {
+     "what": "alias_max_abs",
+     "term": "intercept row",
+     "value": "0.1111",
+     "analysis": "maximum absolute element of the constant-term row of the alias matrix, first-order model against the two-factor interactions, m = 4, c = 3",
+     "where": {
+      "page": 125,
+      "pdf_page": 5,
+      "source_kind": "table",
+      "quote": "18 20 4 3 7 1 1.03 0.1111"
+     },
+     "check": {
+      "kind": "design_metric",
+      "metric": "alias_matrix",
+      "key": "max_abs",
+      "model": "main_effects"
+     }
+    }
+   ]
+  },
+  {
+   "name": "jn2013-dsd-augment-m4-c4",
+   "title": "DSD-augmented design for 4 continuous factors and 4 two-level categorical factors",
+   "where": {
+    "section": "2, DSD-Based Column Augmentation",
+    "pages": "126",
+    "figures": ["Figure 1(a)"],
+    "tables": ["Table 4"]
+   },
+   "design": {
+    "type": "DSD-augmented definitive screening design (DSD-augment method)",
+    "factors": 8,
+    "n_runs": 18,
+    "details": "m = 4 continuous and c = 4 categorical factors; the categorical columns' zeros of a 17-run DSD for 8 factors are replaced by +z and -z, and two centre runs carry +b and -b"
+   },
+   "factors": [
+    {
+     "name": "x1",
+     "description": "Continuous factor 1 (column d1+ of Table 2)",
+     "low": -1,
+     "high": 1,
+     "units": "coded",
+     "type": "numeric"
+    },
+    {
+     "name": "x2",
+     "description": "Continuous factor 2 (column d2+ of Table 2)",
+     "low": -1,
+     "high": 1,
+     "units": "coded",
+     "type": "numeric"
+    },
+    {
+     "name": "x3",
+     "description": "Continuous factor 3 (column d3+ of Table 2)",
+     "low": -1,
+     "high": 1,
+     "units": "coded",
+     "type": "numeric"
+    },
+    {
+     "name": "x4",
+     "description": "Continuous factor 4 (column d4+ of Table 2)",
+     "low": -1,
+     "high": 1,
+     "units": "coded",
+     "type": "numeric"
+    },
+    {
+     "name": "x5",
+     "description": "Two-level categorical factor 1 (column a1+ of Table 2)",
+     "low": "first level",
+     "high": "second level",
+     "units": "",
+     "type": "categorical"
+    },
+    {
+     "name": "x6",
+     "description": "Two-level categorical factor 2 (column a2+ of Table 2)",
+     "low": "first level",
+     "high": "second level",
+     "units": "",
+     "type": "categorical"
+    },
+    {
+     "name": "x7",
+     "description": "Two-level categorical factor 3 (column a3+ of Table 2)",
+     "low": "first level",
+     "high": "second level",
+     "units": "",
+     "type": "categorical"
+    },
+    {
+     "name": "x8",
+     "description": "Two-level categorical factor 4 (column a4+ of Table 2)",
+     "low": "first level",
+     "high": "second level",
+     "units": "",
+     "type": "categorical"
+    }
+   ],
+   "responses": [],
+   "runs": {
+    "columns": ["Run", "x1", "x2", "x3", "x4", "x5", "x6", "x7", "x8"],
+    "rows": [
+     [1, 0, 1, 1, 1, 1, 1, 1, 1],
+     [2, 0, -1, -1, -1, -1, -1, -1, -1],
+     [3, -1, 0, 1, 1, -1, 1, -1, -1],
+     [4, 1, 0, -1, -1, 1, -1, 1, 1],
+     [5, -1, -1, 0, 1, 1, -1, 1, -1],
+     [6, 1, 1, 0, -1, -1, 1, -1, 1],
+     [7, -1, -1, -1, 0, 1, 1, -1, 1],
+     [8, 1, 1, 1, 0, -1, -1, 1, -1],
+     [9, -1, 1, -1, -1, 1, 1, 1, -1],
+     [10, 1, -1, 1, 1, -1, -1, -1, 1],
+     [11, -1, -1, 1, -1, -1, 1, 1, 1],
+     [12, 1, 1, -1, 1, 1, -1, -1, -1],
+     [13, -1, 1, -1, 1, -1, -1, 1, 1],
+     [14, 1, -1, 1, -1, 1, 1, -1, -1],
+     [15, -1, 1, 1, -1, 1, -1, -1, 1],
+     [16, 1, -1, -1, 1, -1, 1, 1, -1],
+     [17, 0, 0, 0, 0, -1, -1, -1, -1],
+     [18, 0, 0, 0, 0, 1, 1, 1, 1]
+    ],
+    "coded": true,
+    "notes": "Figure 1 prints each run as a string of 0, + and -, continuous factors first; + is +1 and - is -1, and for a categorical factor -1 and +1 are its two levels. Run is the printed run number."
+   },
+   "notes": "Checks evaluate the first-order (main effects) model of the paper's equation (1) on the coded runs. The alias checks' max_abs reads the whole alias matrix; its main-effect rows are 0 here (max_abs_main_effect_rows), so it is the maximum of the constant-term row that Table 4 reports. Every 'normalized efficiency' and 'vs. optimal' item is manual because it compares two designs.",
+   "expected": [
+    {
+     "what": "n_runs",
+     "term": "n_DSD",
+     "value": "18",
+     "analysis": "run size of the DSD-augmented design for m = 4 and c = 4",
+     "where": {
+      "page": 125,
+      "pdf_page": 5,
+      "source_kind": "table",
+      "quote": "18 20 4 4 8 1 1.01 0.1111"
+     },
+     "check": {
+      "kind": "design_metric",
+      "metric": "prediction_variance",
+      "key": "len",
+      "model": "main_effects"
+     }
+    },
+    {
+     "what": "number of factors",
+     "term": "p",
+     "value": "8",
+     "analysis": "the column headed p: m + c, the number of main effects for m = 4 and c = 4",
+     "where": {
+      "page": 125,
+      "pdf_page": 5,
+      "source_kind": "table",
+      "quote": "18 20 4 4 8 1 1.01 0.1111"
+     },
+     "check": {
+      "kind": "design_metric",
+      "metric": "degrees_of_freedom",
+      "key": "model",
+      "model": "main_effects"
+     }
+    },
+    {
+     "what": "relative D-efficiency",
+     "term": "DSD-augment vs. optimal DSD-augment",
+     "value": "1",
+     "analysis": "D-efficiency of the DSD-augmented design relative to a constrained D-optimal augmentation, m = 4, c = 4",
+     "where": {
+      "page": 125,
+      "pdf_page": 5,
+      "source_kind": "table",
+      "quote": "18 20 4 4 8 1 1.01 0.1111"
+     },
+     "check": {
+      "manual": "a ratio to a constrained D-optimal design found by coordinate exchange, which neither the paper nor the library gives; no check kind compares two designs. Against the best of the 2^(2c) sign choices on the same base (what the library's DSD-augment chooses), this printed design reaches 1 (it is the best of its 256 sign choices)"
+     }
+    },
+    {
+     "what": "normalized D-efficiency ratio",
+     "term": "DSD-augment vs. ORTH-augment",
+     "value": "1.01",
+     "analysis": "per-run D-efficiency of the DSD-augmented design over that of the ORTH-augmented design, first-order model, m = 4, c = 4",
+     "where": {
+      "page": 125,
+      "pdf_page": 5,
+      "source_kind": "table",
+      "quote": "18 20 4 4 8 1 1.01 0.1111"
+     },
+     "check": {
+      "manual": "a ratio of two designs' D-efficiencies, and a design_metric check reads one design. evaluate_design's d_efficiency for this design over that for the Figure 1b design with the same c gives 1.0104; generate_design(design_type='dsd') with 4 continuous and 4 two-level categorical factors, over the ORTH design's closed-form X'X, gives 1.0104"
+     }
+    },
+    {
+     "what": "alias_max_abs",
+     "term": "intercept row",
+     "value": "0.1111",
+     "analysis": "maximum absolute element of the constant-term row of the alias matrix, first-order model against the two-factor interactions, m = 4, c = 4",
+     "where": {
+      "page": 125,
+      "pdf_page": 5,
+      "source_kind": "table",
+      "quote": "18 20 4 4 8 1 1.01 0.1111"
+     },
+     "check": {
+      "kind": "design_metric",
+      "metric": "alias_matrix",
+      "key": "max_abs",
+      "model": "main_effects"
+     }
+    }
+   ]
+  },
+  {
+   "name": "jn2013-orth-augment-m4-c1",
+   "title": "ORTH-augmented design for 4 continuous factors and 1 two-level categorical factor",
+   "where": {
+    "section": "3, Orthogonal Column Augmentation: ORTH-Augment Procedure",
+    "pages": "126",
+    "figures": ["Figure 1(b)"],
+    "tables": ["Table 4"]
+   },
+   "design": {
+    "type": "ORTH-augmented definitive screening design (ORTH-augment method)",
+    "factors": 5,
+    "n_runs": 14,
+    "details": "the categorical columns' zeros set to +1, with two centre runs (the c = 1 variant)"
+   },
+   "factors": [
+    {
+     "name": "x1",
+     "description": "Continuous factor 1 (column d1+ of Table 2)",
+     "low": -1,
+     "high": 1,
+     "units": "coded",
+     "type": "numeric"
+    },
+    {
+     "name": "x2",
+     "description": "Continuous factor 2 (column d2+ of Table 2)",
+     "low": -1,
+     "high": 1,
+     "units": "coded",
+     "type": "numeric"
+    },
+    {
+     "name": "x3",
+     "description": "Continuous factor 3 (column d3+ of Table 2)",
+     "low": -1,
+     "high": 1,
+     "units": "coded",
+     "type": "numeric"
+    },
+    {
+     "name": "x4",
+     "description": "Continuous factor 4 (column d4+ of Table 2)",
+     "low": -1,
+     "high": 1,
+     "units": "coded",
+     "type": "numeric"
+    },
+    {
+     "name": "x5",
+     "description": "Two-level categorical factor 1 (column a1+ of Table 2)",
+     "low": "first level",
+     "high": "second level",
+     "units": "",
+     "type": "categorical"
+    }
+   ],
+   "responses": [],
+   "runs": {
+    "columns": ["Run", "x1", "x2", "x3", "x4", "x5"],
+    "rows": [
+     [1, 0, 1, 1, 1, 1],
+     [2, 0, -1, -1, -1, -1],
+     [3, 1, 0, 1, -1, -1],
+     [4, -1, 0, -1, 1, 1],
+     [5, 1, 1, 0, 1, -1],
+     [6, -1, -1, 0, -1, 1],
+     [7, 1, -1, 1, 0, 1],
+     [8, -1, 1, -1, 0, -1],
+     [9, 1, -1, -1, 1, 1],
+     [10, -1, 1, 1, -1, 1],
+     [11, 1, 1, -1, -1, 1],
+     [12, -1, -1, 1, 1, -1],
+     [13, 0, 0, 0, 0, -1],
+     [14, 0, 0, 0, 0, -1]
+    ],
+    "coded": true,
+    "notes": "Figure 1 prints each run as a string of 0, + and -, continuous factors first; + is +1 and - is -1, and for a categorical factor -1 and +1 are its two levels. Run is the printed run number."
+   },
+   "notes": "The first-order model's X'X is diagonal for this printed design.",
+   "expected": [
+    {
+     "what": "n_runs",
+     "term": "n_ORTH",
+     "value": "14",
+     "analysis": "run size of the ORTH-augmented design for m = 4 and c = 1",
+     "where": {
+      "page": 125,
+      "pdf_page": 5,
+      "source_kind": "table",
+      "quote": "14 14 4 1 5 1 0.98 0.1429"
+     },
+     "check": {
+      "kind": "design_metric",
+      "metric": "prediction_variance",
+      "key": "len",
+      "model": "main_effects"
+     }
+    },
+    {
+     "what": "centre runs",
+     "term": "c = 1",
+     "value": "two",
+     "analysis": "centre points of the orthogonal augmentation for one categorical factor",
+     "where": {
+      "page": 127,
+      "pdf_page": 7,
+      "source_kind": "text",
+      "quote": "if c = 1, then an orthogonal augmentation exists that employs only two center points"
+     },
+     "check": {
+      "manual": "a count of centre runs, which no check kind reads; runs 13 and 14 of this design are its two centre runs, and its X'X is diagonal"
+     }
+    }
+   ]
+  },
+  {
+   "name": "jn2013-orth-augment-m4-c2",
+   "title": "ORTH-augmented design for 4 continuous factors and 2 two-level categorical factors",
+   "where": {
+    "section": "3, Orthogonal Column Augmentation: ORTH-Augment Procedure",
+    "pages": "126",
+    "figures": ["Figure 1(b)"],
+    "tables": ["Table 4", "Table 5"]
+   },
+   "design": {
+    "type": "ORTH-augmented definitive screening design (ORTH-augment method)",
+    "factors": 6,
+    "n_runs": 16,
+    "details": "the categorical columns' zeros set to +1, with four centre runs carrying the columns of the 4 x 4 matrix B"
+   },
+   "factors": [
+    {
+     "name": "x1",
+     "description": "Continuous factor 1 (column d1+ of Table 2)",
+     "low": -1,
+     "high": 1,
+     "units": "coded",
+     "type": "numeric"
+    },
+    {
+     "name": "x2",
+     "description": "Continuous factor 2 (column d2+ of Table 2)",
+     "low": -1,
+     "high": 1,
+     "units": "coded",
+     "type": "numeric"
+    },
+    {
+     "name": "x3",
+     "description": "Continuous factor 3 (column d3+ of Table 2)",
+     "low": -1,
+     "high": 1,
+     "units": "coded",
+     "type": "numeric"
+    },
+    {
+     "name": "x4",
+     "description": "Continuous factor 4 (column d4+ of Table 2)",
+     "low": -1,
+     "high": 1,
+     "units": "coded",
+     "type": "numeric"
+    },
+    {
+     "name": "x5",
+     "description": "Two-level categorical factor 1 (column a1+ of Table 2)",
+     "low": "first level",
+     "high": "second level",
+     "units": "",
+     "type": "categorical"
+    },
+    {
+     "name": "x6",
+     "description": "Two-level categorical factor 2 (column a2+ of Table 2)",
+     "low": "first level",
+     "high": "second level",
+     "units": "",
+     "type": "categorical"
+    }
+   ],
+   "responses": [],
+   "runs": {
+    "columns": ["Run", "x1", "x2", "x3", "x4", "x5", "x6"],
+    "rows": [
+     [1, 0, 1, 1, 1, 1, 1],
+     [2, 0, -1, -1, -1, -1, -1],
+     [3, 1, 0, 1, -1, -1, 1],
+     [4, -1, 0, -1, 1, 1, -1],
+     [5, 1, 1, 0, 1, -1, -1],
+     [6, -1, -1, 0, -1, 1, 1],
+     [7, 1, -1, 1, 0, 1, -1],
+     [8, -1, 1, -1, 0, -1, 1],
+     [9, 1, -1, -1, 1, 1, 1],
+     [10, -1, 1, 1, -1, 1, -1],
+     [11, 1, 1, -1, -1, 1, 1],
+     [12, -1, -1, 1, 1, -1, 1],
+     [13, 0, 0, 0, 0, -1, -1],
+     [14, 0, 0, 0, 0, -1, -1],
+     [15, 0, 0, 0, 0, -1, 1],
+     [16, 0, 0, 0, 0, 1, -1]
+    ],
+    "coded": true,
+    "notes": "Figure 1 prints each run as a string of 0, + and -, continuous factors first; + is +1 and - is -1, and for a categorical factor -1 and +1 are its two levels. Run is the printed run number."
+   },
+   "notes": "The first-order model's X'X is diagonal for this printed design. Printed zeros of the alias table are checked exactly (expression: true): the construction makes them exactly 0, and the default tolerance for a printed '0' would be 0.5. Table 5 agrees with this design entry for entry.",
+   "expected": [
+    {
+     "what": "n_runs",
+     "term": "n_ORTH",
+     "value": "16",
+     "analysis": "run size of the ORTH-augmented design for m = 4 and c = 2",
+     "where": {
+      "page": 125,
+      "pdf_page": 5,
+      "source_kind": "table",
+      "quote": "14 16 4 2 6 1 1.04 0.1429"
+     },
+     "check": {
+      "kind": "design_metric",
+      "metric": "prediction_variance",
+      "key": "len",
+      "model": "main_effects"
+     }
+    },
+    {
+     "what": "alias",
+     "term": "β₀ row, every column",
+     "value": "0 0 0 0 0 0 0 0 0 0 0 0 0 0 0",
+     "analysis": "Table 5, alias matrix of the ORTH-augmented design with 4 continuous and 2 categorical factors: the row of β₀ against all fifteen two-factor interactions, first-order model",
+     "where": {
+      "page": 127,
+      "pdf_page": 7,
+      "source_kind": "table",
+      "quote": "β₀ 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0"
+     },
+     "check": [
+      {
+       "kind": "design_metric",
+       "metric": "alias_matrix",
+       "key": "matrix.0.max",
+       "model": "main_effects",
+       "printed": "0",
+       "expression": true
+      },
+      {
+       "kind": "design_metric",
+       "metric": "alias_matrix",
+       "key": "matrix.0.min",
+       "model": "main_effects",
+       "printed": "0",
+       "expression": true
+      }
+     ]
+    },
+    {
+     "what": "alias",
+     "term": "β₁ row, β₁₂ column",
+     "value": "0",
+     "analysis": "Table 5, alias matrix of the ORTH-augmented design with 4 continuous and 2 categorical factors: bias of the estimate of β₁ from the interaction β₁₂, first-order model",
+     "where": {
+      "page": 127,
+      "pdf_page": 7,
+      "source_kind": "table",
+      "quote": "β₁ 0 0 0 0 0 0 0.2 0.2 −0.2 0.2 −0.2 −0.2 0.2 −0.2 0.4"
+     },
+     "check": {
+      "kind": "design_metric",
+      "metric": "alias_matrix",
+      "key": "matrix.1.0",
+      "model": "main_effects",
+      "expression": true
+     }
+    },
+    {
+     "what": "alias",
+     "term": "β₁ row, β₁₃ column",
+     "value": "0",
+     "analysis": "Table 5, alias matrix of the ORTH-augmented design with 4 continuous and 2 categorical factors: bias of the estimate of β₁ from the interaction β₁₃, first-order model",
+     "where": {
+      "page": 127,
+      "pdf_page": 7,
+      "source_kind": "table",
+      "quote": "β₁ 0 0 0 0 0 0 0.2 0.2 −0.2 0.2 −0.2 −0.2 0.2 −0.2 0.4"
+     },
+     "check": {
+      "kind": "design_metric",
+      "metric": "alias_matrix",
+      "key": "matrix.1.1",
+      "model": "main_effects",
+      "expression": true
+     }
+    },
+    {
+     "what": "alias",
+     "term": "β₁ row, β₁₄ column",
+     "value": "0",
+     "analysis": "Table 5, alias matrix of the ORTH-augmented design with 4 continuous and 2 categorical factors: bias of the estimate of β₁ from the interaction β₁₄, first-order model",
+     "where": {
+      "page": 127,
+      "pdf_page": 7,
+      "source_kind": "table",
+      "quote": "β₁ 0 0 0 0 0 0 0.2 0.2 −0.2 0.2 −0.2 −0.2 0.2 −0.2 0.4"
+     },
+     "check": {
+      "kind": "design_metric",
+      "metric": "alias_matrix",
+      "key": "matrix.1.2",
+      "model": "main_effects",
+      "expression": true
+     }
+    },
+    {
+     "what": "alias",
+     "term": "β₁ row, β₂₃ column",
+     "value": "0",
+     "analysis": "Table 5, alias matrix of the ORTH-augmented design with 4 continuous and 2 categorical factors: bias of the estimate of β₁ from the interaction β₂₃, first-order model",
+     "where": {
+      "page": 127,
+      "pdf_page": 7,
+      "source_kind": "table",
+      "quote": "β₁ 0 0 0 0 0 0 0.2 0.2 −0.2 0.2 −0.2 −0.2 0.2 −0.2 0.4"
+     },
+     "check": {
+      "kind": "design_metric",
+      "metric": "alias_matrix",
+      "key": "matrix.1.5",
+      "model": "main_effects",
+      "expression": true
+     }
+    },
+    {
+     "what": "alias",
+     "term": "β₁ row, β₂₄ column",
+     "value": "0",
+     "analysis": "Table 5, alias matrix of the ORTH-augmented design with 4 continuous and 2 categorical factors: bias of the estimate of β₁ from the interaction β₂₄, first-order model",
+     "where": {
+      "page": 127,
+      "pdf_page": 7,
+      "source_kind": "table",
+      "quote": "β₁ 0 0 0 0 0 0 0.2 0.2 −0.2 0.2 −0.2 −0.2 0.2 −0.2 0.4"
+     },
+     "check": {
+      "kind": "design_metric",
+      "metric": "alias_matrix",
+      "key": "matrix.1.6",
+      "model": "main_effects",
+      "expression": true
+     }
+    },
+    {
+     "what": "alias",
+     "term": "β₁ row, β₃₄ column",
+     "value": "0",
+     "analysis": "Table 5, alias matrix of the ORTH-augmented design with 4 continuous and 2 categorical factors: bias of the estimate of β₁ from the interaction β₃₄, first-order model",
+     "where": {
+      "page": 127,
+      "pdf_page": 7,
+      "source_kind": "table",
+      "quote": "β₁ 0 0 0 0 0 0 0.2 0.2 −0.2 0.2 −0.2 −0.2 0.2 −0.2 0.4"
+     },
+     "check": {
+      "kind": "design_metric",
+      "metric": "alias_matrix",
+      "key": "matrix.1.9",
+      "model": "main_effects",
+      "expression": true
+     }
+    },
+    {
+     "what": "alias",
+     "term": "β₁ row, β₁₅ column",
+     "value": "0.2",
+     "analysis": "Table 5, alias matrix of the ORTH-augmented design with 4 continuous and 2 categorical factors: bias of the estimate of β₁ from the interaction β₁₅, first-order model",
+     "where": {
+      "page": 127,
+      "pdf_page": 7,
+      "source_kind": "table",
+      "quote": "β₁ 0 0 0 0 0 0 0.2 0.2 −0.2 0.2 −0.2 −0.2 0.2 −0.2 0.4"
+     },
+     "check": {
+      "kind": "design_metric",
+      "metric": "alias_matrix",
+      "key": "matrix.1.3",
+      "model": "main_effects"
+     }
+    },
+    {
+     "what": "alias",
+     "term": "β₁ row, β₁₆ column",
+     "value": "0.2",
+     "analysis": "Table 5, alias matrix of the ORTH-augmented design with 4 continuous and 2 categorical factors: bias of the estimate of β₁ from the interaction β₁₆, first-order model",
+     "where": {
+      "page": 127,
+      "pdf_page": 7,
+      "source_kind": "table",
+      "quote": "β₁ 0 0 0 0 0 0 0.2 0.2 −0.2 0.2 −0.2 −0.2 0.2 −0.2 0.4"
+     },
+     "check": {
+      "kind": "design_metric",
+      "metric": "alias_matrix",
+      "key": "matrix.1.4",
+      "model": "main_effects"
+     }
+    },
+    {
+     "what": "alias",
+     "term": "β₁ row, β₂₅ column",
+     "value": "−0.2",
+     "analysis": "Table 5, alias matrix of the ORTH-augmented design with 4 continuous and 2 categorical factors: bias of the estimate of β₁ from the interaction β₂₅, first-order model",
+     "where": {
+      "page": 127,
+      "pdf_page": 7,
+      "source_kind": "table",
+      "quote": "β₁ 0 0 0 0 0 0 0.2 0.2 −0.2 0.2 −0.2 −0.2 0.2 −0.2 0.4"
+     },
+     "check": {
+      "kind": "design_metric",
+      "metric": "alias_matrix",
+      "key": "matrix.1.7",
+      "model": "main_effects"
+     }
+    },
+    {
+     "what": "alias",
+     "term": "β₁ row, β₂₆ column",
+     "value": "0.2",
+     "analysis": "Table 5, alias matrix of the ORTH-augmented design with 4 continuous and 2 categorical factors: bias of the estimate of β₁ from the interaction β₂₆, first-order model",
+     "where": {
+      "page": 127,
+      "pdf_page": 7,
+      "source_kind": "table",
+      "quote": "β₁ 0 0 0 0 0 0 0.2 0.2 −0.2 0.2 −0.2 −0.2 0.2 −0.2 0.4"
+     },
+     "check": {
+      "kind": "design_metric",
+      "metric": "alias_matrix",
+      "key": "matrix.1.8",
+      "model": "main_effects"
+     }
+    },
+    {
+     "what": "alias",
+     "term": "β₁ row, β₃₅ column",
+     "value": "−0.2",
+     "analysis": "Table 5, alias matrix of the ORTH-augmented design with 4 continuous and 2 categorical factors: bias of the estimate of β₁ from the interaction β₃₅, first-order model",
+     "where": {
+      "page": 127,
+      "pdf_page": 7,
+      "source_kind": "table",
+      "quote": "β₁ 0 0 0 0 0 0 0.2 0.2 −0.2 0.2 −0.2 −0.2 0.2 −0.2 0.4"
+     },
+     "check": {
+      "kind": "design_metric",
+      "metric": "alias_matrix",
+      "key": "matrix.1.10",
+      "model": "main_effects"
+     }
+    },
+    {
+     "what": "alias",
+     "term": "β₁ row, β₃₆ column",
+     "value": "−0.2",
+     "analysis": "Table 5, alias matrix of the ORTH-augmented design with 4 continuous and 2 categorical factors: bias of the estimate of β₁ from the interaction β₃₆, first-order model",
+     "where": {
+      "page": 127,
+      "pdf_page": 7,
+      "source_kind": "table",
+      "quote": "β₁ 0 0 0 0 0 0 0.2 0.2 −0.2 0.2 −0.2 −0.2 0.2 −0.2 0.4"
+     },
+     "check": {
+      "kind": "design_metric",
+      "metric": "alias_matrix",
+      "key": "matrix.1.11",
+      "model": "main_effects"
+     }
+    },
+    {
+     "what": "alias",
+     "term": "β₁ row, β₄₅ column",
+     "value": "0.2",
+     "analysis": "Table 5, alias matrix of the ORTH-augmented design with 4 continuous and 2 categorical factors: bias of the estimate of β₁ from the interaction β₄₅, first-order model",
+     "where": {
+      "page": 127,
+      "pdf_page": 7,
+      "source_kind": "table",
+      "quote": "β₁ 0 0 0 0 0 0 0.2 0.2 −0.2 0.2 −0.2 −0.2 0.2 −0.2 0.4"
+     },
+     "check": {
+      "kind": "design_metric",
+      "metric": "alias_matrix",
+      "key": "matrix.1.12",
+      "model": "main_effects"
+     }
+    },
+    {
+     "what": "alias",
+     "term": "β₁ row, β₄₆ column",
+     "value": "−0.2",
+     "analysis": "Table 5, alias matrix of the ORTH-augmented design with 4 continuous and 2 categorical factors: bias of the estimate of β₁ from the interaction β₄₆, first-order model",
+     "where": {
+      "page": 127,
+      "pdf_page": 7,
+      "source_kind": "table",
+      "quote": "β₁ 0 0 0 0 0 0 0.2 0.2 −0.2 0.2 −0.2 −0.2 0.2 −0.2 0.4"
+     },
+     "check": {
+      "kind": "design_metric",
+      "metric": "alias_matrix",
+      "key": "matrix.1.13",
+      "model": "main_effects"
+     }
+    },
+    {
+     "what": "alias",
+     "term": "β₁ row, β₅₆ column",
+     "value": "0.4",
+     "analysis": "Table 5, alias matrix of the ORTH-augmented design with 4 continuous and 2 categorical factors: bias of the estimate of β₁ from the interaction β₅₆, first-order model",
+     "where": {
+      "page": 127,
+      "pdf_page": 7,
+      "source_kind": "table",
+      "quote": "β₁ 0 0 0 0 0 0 0.2 0.2 −0.2 0.2 −0.2 −0.2 0.2 −0.2 0.4"
+     },
+     "check": {
+      "kind": "design_metric",
+      "metric": "alias_matrix",
+      "key": "matrix.1.14",
+      "model": "main_effects"
+     }
+    },
+    {
+     "what": "alias",
+     "term": "β₂ row, β₁₂ column",
+     "value": "0",
+     "analysis": "Table 5, alias matrix of the ORTH-augmented design with 4 continuous and 2 categorical factors: bias of the estimate of β₂ from the interaction β₁₂, first-order model",
+     "where": {
+      "page": 127,
+      "pdf_page": 7,
+      "source_kind": "table",
+      "quote": "β₂ 0 0 0 0 0 0 −0.2 0.2 0.2 0.2 0.2 −0.2 −0.2 −0.2 0"
+     },
+     "check": {
+      "kind": "design_metric",
+      "metric": "alias_matrix",
+      "key": "matrix.2.0",
+      "model": "main_effects",
+      "expression": true
+     }
+    },
+    {
+     "what": "alias",
+     "term": "β₂ row, β₁₃ column",
+     "value": "0",
+     "analysis": "Table 5, alias matrix of the ORTH-augmented design with 4 continuous and 2 categorical factors: bias of the estimate of β₂ from the interaction β₁₃, first-order model",
+     "where": {
+      "page": 127,
+      "pdf_page": 7,
+      "source_kind": "table",
+      "quote": "β₂ 0 0 0 0 0 0 −0.2 0.2 0.2 0.2 0.2 −0.2 −0.2 −0.2 0"
+     },
+     "check": {
+      "kind": "design_metric",
+      "metric": "alias_matrix",
+      "key": "matrix.2.1",
+      "model": "main_effects",
+      "expression": true
+     }
+    },
+    {
+     "what": "alias",
+     "term": "β₂ row, β₁₄ column",
+     "value": "0",
+     "analysis": "Table 5, alias matrix of the ORTH-augmented design with 4 continuous and 2 categorical factors: bias of the estimate of β₂ from the interaction β₁₄, first-order model",
+     "where": {
+      "page": 127,
+      "pdf_page": 7,
+      "source_kind": "table",
+      "quote": "β₂ 0 0 0 0 0 0 −0.2 0.2 0.2 0.2 0.2 −0.2 −0.2 −0.2 0"
+     },
+     "check": {
+      "kind": "design_metric",
+      "metric": "alias_matrix",
+      "key": "matrix.2.2",
+      "model": "main_effects",
+      "expression": true
+     }
+    },
+    {
+     "what": "alias",
+     "term": "β₂ row, β₂₃ column",
+     "value": "0",
+     "analysis": "Table 5, alias matrix of the ORTH-augmented design with 4 continuous and 2 categorical factors: bias of the estimate of β₂ from the interaction β₂₃, first-order model",
+     "where": {
+      "page": 127,
+      "pdf_page": 7,
+      "source_kind": "table",
+      "quote": "β₂ 0 0 0 0 0 0 −0.2 0.2 0.2 0.2 0.2 −0.2 −0.2 −0.2 0"
+     },
+     "check": {
+      "kind": "design_metric",
+      "metric": "alias_matrix",
+      "key": "matrix.2.5",
+      "model": "main_effects",
+      "expression": true
+     }
+    },
+    {
+     "what": "alias",
+     "term": "β₂ row, β₂₄ column",
+     "value": "0",
+     "analysis": "Table 5, alias matrix of the ORTH-augmented design with 4 continuous and 2 categorical factors: bias of the estimate of β₂ from the interaction β₂₄, first-order model",
+     "where": {
+      "page": 127,
+      "pdf_page": 7,
+      "source_kind": "table",
+      "quote": "β₂ 0 0 0 0 0 0 −0.2 0.2 0.2 0.2 0.2 −0.2 −0.2 −0.2 0"
+     },
+     "check": {
+      "kind": "design_metric",
+      "metric": "alias_matrix",
+      "key": "matrix.2.6",
+      "model": "main_effects",
+      "expression": true
+     }
+    },
+    {
+     "what": "alias",
+     "term": "β₂ row, β₃₄ column",
+     "value": "0",
+     "analysis": "Table 5, alias matrix of the ORTH-augmented design with 4 continuous and 2 categorical factors: bias of the estimate of β₂ from the interaction β₃₄, first-order model",
+     "where": {
+      "page": 127,
+      "pdf_page": 7,
+      "source_kind": "table",
+      "quote": "β₂ 0 0 0 0 0 0 −0.2 0.2 0.2 0.2 0.2 −0.2 −0.2 −0.2 0"
+     },
+     "check": {
+      "kind": "design_metric",
+      "metric": "alias_matrix",
+      "key": "matrix.2.9",
+      "model": "main_effects",
+      "expression": true
+     }
+    },
+    {
+     "what": "alias",
+     "term": "β₂ row, β₁₅ column",
+     "value": "−0.2",
+     "analysis": "Table 5, alias matrix of the ORTH-augmented design with 4 continuous and 2 categorical factors: bias of the estimate of β₂ from the interaction β₁₅, first-order model",
+     "where": {
+      "page": 127,
+      "pdf_page": 7,
+      "source_kind": "table",
+      "quote": "β₂ 0 0 0 0 0 0 −0.2 0.2 0.2 0.2 0.2 −0.2 −0.2 −0.2 0"
+     },
+     "check": {
+      "kind": "design_metric",
+      "metric": "alias_matrix",
+      "key": "matrix.2.3",
+      "model": "main_effects"
+     }
+    },
+    {
+     "what": "alias",
+     "term": "β₂ row, β₁₆ column",
+     "value": "0.2",
+     "analysis": "Table 5, alias matrix of the ORTH-augmented design with 4 continuous and 2 categorical factors: bias of the estimate of β₂ from the interaction β₁₆, first-order model",
+     "where": {
+      "page": 127,
+      "pdf_page": 7,
+      "source_kind": "table",
+      "quote": "β₂ 0 0 0 0 0 0 −0.2 0.2 0.2 0.2 0.2 −0.2 −0.2 −0.2 0"
+     },
+     "check": {
+      "kind": "design_metric",
+      "metric": "alias_matrix",
+      "key": "matrix.2.4",
+      "model": "main_effects"
+     }
+    },
+    {
+     "what": "alias",
+     "term": "β₂ row, β₂₅ column",
+     "value": "0.2",
+     "analysis": "Table 5, alias matrix of the ORTH-augmented design with 4 continuous and 2 categorical factors: bias of the estimate of β₂ from the interaction β₂₅, first-order model",
+     "where": {
+      "page": 127,
+      "pdf_page": 7,
+      "source_kind": "table",
+      "quote": "β₂ 0 0 0 0 0 0 −0.2 0.2 0.2 0.2 0.2 −0.2 −0.2 −0.2 0"
+     },
+     "check": {
+      "kind": "design_metric",
+      "metric": "alias_matrix",
+      "key": "matrix.2.7",
+      "model": "main_effects"
+     }
+    },
+    {
+     "what": "alias",
+     "term": "β₂ row, β₂₆ column",
+     "value": "0.2",
+     "analysis": "Table 5, alias matrix of the ORTH-augmented design with 4 continuous and 2 categorical factors: bias of the estimate of β₂ from the interaction β₂₆, first-order model",
+     "where": {
+      "page": 127,
+      "pdf_page": 7,
+      "source_kind": "table",
+      "quote": "β₂ 0 0 0 0 0 0 −0.2 0.2 0.2 0.2 0.2 −0.2 −0.2 −0.2 0"
+     },
+     "check": {
+      "kind": "design_metric",
+      "metric": "alias_matrix",
+      "key": "matrix.2.8",
+      "model": "main_effects"
+     }
+    },
+    {
+     "what": "alias",
+     "term": "β₂ row, β₃₅ column",
+     "value": "0.2",
+     "analysis": "Table 5, alias matrix of the ORTH-augmented design with 4 continuous and 2 categorical factors: bias of the estimate of β₂ from the interaction β₃₅, first-order model",
+     "where": {
+      "page": 127,
+      "pdf_page": 7,
+      "source_kind": "table",
+      "quote": "β₂ 0 0 0 0 0 0 −0.2 0.2 0.2 0.2 0.2 −0.2 −0.2 −0.2 0"
+     },
+     "check": {
+      "kind": "design_metric",
+      "metric": "alias_matrix",
+      "key": "matrix.2.10",
+      "model": "main_effects"
+     }
+    },
+    {
+     "what": "alias",
+     "term": "β₂ row, β₃₆ column",
+     "value": "−0.2",
+     "analysis": "Table 5, alias matrix of the ORTH-augmented design with 4 continuous and 2 categorical factors: bias of the estimate of β₂ from the interaction β₃₆, first-order model",
+     "where": {
+      "page": 127,
+      "pdf_page": 7,
+      "source_kind": "table",
+      "quote": "β₂ 0 0 0 0 0 0 −0.2 0.2 0.2 0.2 0.2 −0.2 −0.2 −0.2 0"
+     },
+     "check": {
+      "kind": "design_metric",
+      "metric": "alias_matrix",
+      "key": "matrix.2.11",
+      "model": "main_effects"
+     }
+    },
+    {
+     "what": "alias",
+     "term": "β₂ row, β₄₅ column",
+     "value": "−0.2",
+     "analysis": "Table 5, alias matrix of the ORTH-augmented design with 4 continuous and 2 categorical factors: bias of the estimate of β₂ from the interaction β₄₅, first-order model",
+     "where": {
+      "page": 127,
+      "pdf_page": 7,
+      "source_kind": "table",
+      "quote": "β₂ 0 0 0 0 0 0 −0.2 0.2 0.2 0.2 0.2 −0.2 −0.2 −0.2 0"
+     },
+     "check": {
+      "kind": "design_metric",
+      "metric": "alias_matrix",
+      "key": "matrix.2.12",
+      "model": "main_effects"
+     }
+    },
+    {
+     "what": "alias",
+     "term": "β₂ row, β₄₆ column",
+     "value": "−0.2",
+     "analysis": "Table 5, alias matrix of the ORTH-augmented design with 4 continuous and 2 categorical factors: bias of the estimate of β₂ from the interaction β₄₆, first-order model",
+     "where": {
+      "page": 127,
+      "pdf_page": 7,
+      "source_kind": "table",
+      "quote": "β₂ 0 0 0 0 0 0 −0.2 0.2 0.2 0.2 0.2 −0.2 −0.2 −0.2 0"
+     },
+     "check": {
+      "kind": "design_metric",
+      "metric": "alias_matrix",
+      "key": "matrix.2.13",
+      "model": "main_effects"
+     }
+    },
+    {
+     "what": "alias",
+     "term": "β₂ row, β₅₆ column",
+     "value": "0",
+     "analysis": "Table 5, alias matrix of the ORTH-augmented design with 4 continuous and 2 categorical factors: bias of the estimate of β₂ from the interaction β₅₆, first-order model",
+     "where": {
+      "page": 127,
+      "pdf_page": 7,
+      "source_kind": "table",
+      "quote": "β₂ 0 0 0 0 0 0 −0.2 0.2 0.2 0.2 0.2 −0.2 −0.2 −0.2 0"
+     },
+     "check": {
+      "kind": "design_metric",
+      "metric": "alias_matrix",
+      "key": "matrix.2.14",
+      "model": "main_effects",
+      "expression": true
+     }
+    },
+    {
+     "what": "alias",
+     "term": "β₃ row, β₁₂ column",
+     "value": "0",
+     "analysis": "Table 5, alias matrix of the ORTH-augmented design with 4 continuous and 2 categorical factors: bias of the estimate of β₃ from the interaction β₁₂, first-order model",
+     "where": {
+      "page": 127,
+      "pdf_page": 7,
+      "source_kind": "table",
+      "quote": "β₃ 0 0 0 0 0 0 −0.2 −0.2 0.2 −0.2 0.2 0.2 −0.2 0.2 −0.4"
+     },
+     "check": {
+      "kind": "design_metric",
+      "metric": "alias_matrix",
+      "key": "matrix.3.0",
+      "model": "main_effects",
+      "expression": true
+     }
+    },
+    {
+     "what": "alias",
+     "term": "β₃ row, β₁₃ column",
+     "value": "0",
+     "analysis": "Table 5, alias matrix of the ORTH-augmented design with 4 continuous and 2 categorical factors: bias of the estimate of β₃ from the interaction β₁₃, first-order model",
+     "where": {
+      "page": 127,
+      "pdf_page": 7,
+      "source_kind": "table",
+      "quote": "β₃ 0 0 0 0 0 0 −0.2 −0.2 0.2 −0.2 0.2 0.2 −0.2 0.2 −0.4"
+     },
+     "check": {
+      "kind": "design_metric",
+      "metric": "alias_matrix",
+      "key": "matrix.3.1",
+      "model": "main_effects",
+      "expression": true
+     }
+    },
+    {
+     "what": "alias",
+     "term": "β₃ row, β₁₄ column",
+     "value": "0",
+     "analysis": "Table 5, alias matrix of the ORTH-augmented design with 4 continuous and 2 categorical factors: bias of the estimate of β₃ from the interaction β₁₄, first-order model",
+     "where": {
+      "page": 127,
+      "pdf_page": 7,
+      "source_kind": "table",
+      "quote": "β₃ 0 0 0 0 0 0 −0.2 −0.2 0.2 −0.2 0.2 0.2 −0.2 0.2 −0.4"
+     },
+     "check": {
+      "kind": "design_metric",
+      "metric": "alias_matrix",
+      "key": "matrix.3.2",
+      "model": "main_effects",
+      "expression": true
+     }
+    },
+    {
+     "what": "alias",
+     "term": "β₃ row, β₂₃ column",
+     "value": "0",
+     "analysis": "Table 5, alias matrix of the ORTH-augmented design with 4 continuous and 2 categorical factors: bias of the estimate of β₃ from the interaction β₂₃, first-order model",
+     "where": {
+      "page": 127,
+      "pdf_page": 7,
+      "source_kind": "table",
+      "quote": "β₃ 0 0 0 0 0 0 −0.2 −0.2 0.2 −0.2 0.2 0.2 −0.2 0.2 −0.4"
+     },
+     "check": {
+      "kind": "design_metric",
+      "metric": "alias_matrix",
+      "key": "matrix.3.5",
+      "model": "main_effects",
+      "expression": true
+     }
+    },
+    {
+     "what": "alias",
+     "term": "β₃ row, β₂₄ column",
+     "value": "0",
+     "analysis": "Table 5, alias matrix of the ORTH-augmented design with 4 continuous and 2 categorical factors: bias of the estimate of β₃ from the interaction β₂₄, first-order model",
+     "where": {
+      "page": 127,
+      "pdf_page": 7,
+      "source_kind": "table",
+      "quote": "β₃ 0 0 0 0 0 0 −0.2 −0.2 0.2 −0.2 0.2 0.2 −0.2 0.2 −0.4"
+     },
+     "check": {
+      "kind": "design_metric",
+      "metric": "alias_matrix",
+      "key": "matrix.3.6",
+      "model": "main_effects",
+      "expression": true
+     }
+    },
+    {
+     "what": "alias",
+     "term": "β₃ row, β₃₄ column",
+     "value": "0",
+     "analysis": "Table 5, alias matrix of the ORTH-augmented design with 4 continuous and 2 categorical factors: bias of the estimate of β₃ from the interaction β₃₄, first-order model",
+     "where": {
+      "page": 127,
+      "pdf_page": 7,
+      "source_kind": "table",
+      "quote": "β₃ 0 0 0 0 0 0 −0.2 −0.2 0.2 −0.2 0.2 0.2 −0.2 0.2 −0.4"
+     },
+     "check": {
+      "kind": "design_metric",
+      "metric": "alias_matrix",
+      "key": "matrix.3.9",
+      "model": "main_effects",
+      "expression": true
+     }
+    },
+    {
+     "what": "alias",
+     "term": "β₃ row, β₁₅ column",
+     "value": "−0.2",
+     "analysis": "Table 5, alias matrix of the ORTH-augmented design with 4 continuous and 2 categorical factors: bias of the estimate of β₃ from the interaction β₁₅, first-order model",
+     "where": {
+      "page": 127,
+      "pdf_page": 7,
+      "source_kind": "table",
+      "quote": "β₃ 0 0 0 0 0 0 −0.2 −0.2 0.2 −0.2 0.2 0.2 −0.2 0.2 −0.4"
+     },
+     "check": {
+      "kind": "design_metric",
+      "metric": "alias_matrix",
+      "key": "matrix.3.3",
+      "model": "main_effects"
+     }
+    },
+    {
+     "what": "alias",
+     "term": "β₃ row, β₁₆ column",
+     "value": "−0.2",
+     "analysis": "Table 5, alias matrix of the ORTH-augmented design with 4 continuous and 2 categorical factors: bias of the estimate of β₃ from the interaction β₁₆, first-order model",
+     "where": {
+      "page": 127,
+      "pdf_page": 7,
+      "source_kind": "table",
+      "quote": "β₃ 0 0 0 0 0 0 −0.2 −0.2 0.2 −0.2 0.2 0.2 −0.2 0.2 −0.4"
+     },
+     "check": {
+      "kind": "design_metric",
+      "metric": "alias_matrix",
+      "key": "matrix.3.4",
+      "model": "main_effects"
+     }
+    },
+    {
+     "what": "alias",
+     "term": "β₃ row, β₂₅ column",
+     "value": "0.2",
+     "analysis": "Table 5, alias matrix of the ORTH-augmented design with 4 continuous and 2 categorical factors: bias of the estimate of β₃ from the interaction β₂₅, first-order model",
+     "where": {
+      "page": 127,
+      "pdf_page": 7,
+      "source_kind": "table",
+      "quote": "β₃ 0 0 0 0 0 0 −0.2 −0.2 0.2 −0.2 0.2 0.2 −0.2 0.2 −0.4"
+     },
+     "check": {
+      "kind": "design_metric",
+      "metric": "alias_matrix",
+      "key": "matrix.3.7",
+      "model": "main_effects"
+     }
+    },
+    {
+     "what": "alias",
+     "term": "β₃ row, β₂₆ column",
+     "value": "−0.2",
+     "analysis": "Table 5, alias matrix of the ORTH-augmented design with 4 continuous and 2 categorical factors: bias of the estimate of β₃ from the interaction β₂₆, first-order model",
+     "where": {
+      "page": 127,
+      "pdf_page": 7,
+      "source_kind": "table",
+      "quote": "β₃ 0 0 0 0 0 0 −0.2 −0.2 0.2 −0.2 0.2 0.2 −0.2 0.2 −0.4"
+     },
+     "check": {
+      "kind": "design_metric",
+      "metric": "alias_matrix",
+      "key": "matrix.3.8",
+      "model": "main_effects"
+     }
+    },
+    {
+     "what": "alias",
+     "term": "β₃ row, β₃₅ column",
+     "value": "0.2",
+     "analysis": "Table 5, alias matrix of the ORTH-augmented design with 4 continuous and 2 categorical factors: bias of the estimate of β₃ from the interaction β₃₅, first-order model",
+     "where": {
+      "page": 127,
+      "pdf_page": 7,
+      "source_kind": "table",
+      "quote": "β₃ 0 0 0 0 0 0 −0.2 −0.2 0.2 −0.2 0.2 0.2 −0.2 0.2 −0.4"
+     },
+     "check": {
+      "kind": "design_metric",
+      "metric": "alias_matrix",
+      "key": "matrix.3.10",
+      "model": "main_effects"
+     }
+    },
+    {
+     "what": "alias",
+     "term": "β₃ row, β₃₆ column",
+     "value": "0.2",
+     "analysis": "Table 5, alias matrix of the ORTH-augmented design with 4 continuous and 2 categorical factors: bias of the estimate of β₃ from the interaction β₃₆, first-order model",
+     "where": {
+      "page": 127,
+      "pdf_page": 7,
+      "source_kind": "table",
+      "quote": "β₃ 0 0 0 0 0 0 −0.2 −0.2 0.2 −0.2 0.2 0.2 −0.2 0.2 −0.4"
+     },
+     "check": {
+      "kind": "design_metric",
+      "metric": "alias_matrix",
+      "key": "matrix.3.11",
+      "model": "main_effects"
+     }
+    },
+    {
+     "what": "alias",
+     "term": "β₃ row, β₄₅ column",
+     "value": "−0.2",
+     "analysis": "Table 5, alias matrix of the ORTH-augmented design with 4 continuous and 2 categorical factors: bias of the estimate of β₃ from the interaction β₄₅, first-order model",
+     "where": {
+      "page": 127,
+      "pdf_page": 7,
+      "source_kind": "table",
+      "quote": "β₃ 0 0 0 0 0 0 −0.2 −0.2 0.2 −0.2 0.2 0.2 −0.2 0.2 −0.4"
+     },
+     "check": {
+      "kind": "design_metric",
+      "metric": "alias_matrix",
+      "key": "matrix.3.12",
+      "model": "main_effects"
+     }
+    },
+    {
+     "what": "alias",
+     "term": "β₃ row, β₄₆ column",
+     "value": "0.2",
+     "analysis": "Table 5, alias matrix of the ORTH-augmented design with 4 continuous and 2 categorical factors: bias of the estimate of β₃ from the interaction β₄₆, first-order model",
+     "where": {
+      "page": 127,
+      "pdf_page": 7,
+      "source_kind": "table",
+      "quote": "β₃ 0 0 0 0 0 0 −0.2 −0.2 0.2 −0.2 0.2 0.2 −0.2 0.2 −0.4"
+     },
+     "check": {
+      "kind": "design_metric",
+      "metric": "alias_matrix",
+      "key": "matrix.3.13",
+      "model": "main_effects"
+     }
+    },
+    {
+     "what": "alias",
+     "term": "β₃ row, β₅₆ column",
+     "value": "−0.4",
+     "analysis": "Table 5, alias matrix of the ORTH-augmented design with 4 continuous and 2 categorical factors: bias of the estimate of β₃ from the interaction β₅₆, first-order model",
+     "where": {
+      "page": 127,
+      "pdf_page": 7,
+      "source_kind": "table",
+      "quote": "β₃ 0 0 0 0 0 0 −0.2 −0.2 0.2 −0.2 0.2 0.2 −0.2 0.2 −0.4"
+     },
+     "check": {
+      "kind": "design_metric",
+      "metric": "alias_matrix",
+      "key": "matrix.3.14",
+      "model": "main_effects"
+     }
+    },
+    {
+     "what": "alias",
+     "term": "β₄ row, β₁₂ column",
+     "value": "0",
+     "analysis": "Table 5, alias matrix of the ORTH-augmented design with 4 continuous and 2 categorical factors: bias of the estimate of β₄ from the interaction β₁₂, first-order model",
+     "where": {
+      "page": 127,
+      "pdf_page": 7,
+      "source_kind": "table",
+      "quote": "β₄ 0 0 0 0 0 0 0.2 −0.2 −0.2 −0.2 −0.2 0.2 0.2 0.2 0"
+     },
+     "check": {
+      "kind": "design_metric",
+      "metric": "alias_matrix",
+      "key": "matrix.4.0",
+      "model": "main_effects",
+      "expression": true
+     }
+    },
+    {
+     "what": "alias",
+     "term": "β₄ row, β₁₃ column",
+     "value": "0",
+     "analysis": "Table 5, alias matrix of the ORTH-augmented design with 4 continuous and 2 categorical factors: bias of the estimate of β₄ from the interaction β₁₃, first-order model",
+     "where": {
+      "page": 127,
+      "pdf_page": 7,
+      "source_kind": "table",
+      "quote": "β₄ 0 0 0 0 0 0 0.2 −0.2 −0.2 −0.2 −0.2 0.2 0.2 0.2 0"
+     },
+     "check": {
+      "kind": "design_metric",
+      "metric": "alias_matrix",
+      "key": "matrix.4.1",
+      "model": "main_effects",
+      "expression": true
+     }
+    },
+    {
+     "what": "alias",
+     "term": "β₄ row, β₁₄ column",
+     "value": "0",
+     "analysis": "Table 5, alias matrix of the ORTH-augmented design with 4 continuous and 2 categorical factors: bias of the estimate of β₄ from the interaction β₁₄, first-order model",
+     "where": {
+      "page": 127,
+      "pdf_page": 7,
+      "source_kind": "table",
+      "quote": "β₄ 0 0 0 0 0 0 0.2 −0.2 −0.2 −0.2 −0.2 0.2 0.2 0.2 0"
+     },
+     "check": {
+      "kind": "design_metric",
+      "metric": "alias_matrix",
+      "key": "matrix.4.2",
+      "model": "main_effects",
+      "expression": true
+     }
+    },
+    {
+     "what": "alias",
+     "term": "β₄ row, β₂₃ column",
+     "value": "0",
+     "analysis": "Table 5, alias matrix of the ORTH-augmented design with 4 continuous and 2 categorical factors: bias of the estimate of β₄ from the interaction β₂₃, first-order model",
+     "where": {
+      "page": 127,
+      "pdf_page": 7,
+      "source_kind": "table",
+      "quote": "β₄ 0 0 0 0 0 0 0.2 −0.2 −0.2 −0.2 −0.2 0.2 0.2 0.2 0"
+     },
+     "check": {
+      "kind": "design_metric",
+      "metric": "alias_matrix",
+      "key": "matrix.4.5",
+      "model": "main_effects",
+      "expression": true
+     }
+    },
+    {
+     "what": "alias",
+     "term": "β₄ row, β₂₄ column",
+     "value": "0",
+     "analysis": "Table 5, alias matrix of the ORTH-augmented design with 4 continuous and 2 categorical factors: bias of the estimate of β₄ from the interaction β₂₄, first-order model",
+     "where": {
+      "page": 127,
+      "pdf_page": 7,
+      "source_kind": "table",
+      "quote": "β₄ 0 0 0 0 0 0 0.2 −0.2 −0.2 −0.2 −0.2 0.2 0.2 0.2 0"
+     },
+     "check": {
+      "kind": "design_metric",
+      "metric": "alias_matrix",
+      "key": "matrix.4.6",
+      "model": "main_effects",
+      "expression": true
+     }
+    },
+    {
+     "what": "alias",
+     "term": "β₄ row, β₃₄ column",
+     "value": "0",
+     "analysis": "Table 5, alias matrix of the ORTH-augmented design with 4 continuous and 2 categorical factors: bias of the estimate of β₄ from the interaction β₃₄, first-order model",
+     "where": {
+      "page": 127,
+      "pdf_page": 7,
+      "source_kind": "table",
+      "quote": "β₄ 0 0 0 0 0 0 0.2 −0.2 −0.2 −0.2 −0.2 0.2 0.2 0.2 0"
+     },
+     "check": {
+      "kind": "design_metric",
+      "metric": "alias_matrix",
+      "key": "matrix.4.9",
+      "model": "main_effects",
+      "expression": true
+     }
+    },
+    {
+     "what": "alias",
+     "term": "β₄ row, β₁₅ column",
+     "value": "0.2",
+     "analysis": "Table 5, alias matrix of the ORTH-augmented design with 4 continuous and 2 categorical factors: bias of the estimate of β₄ from the interaction β₁₅, first-order model",
+     "where": {
+      "page": 127,
+      "pdf_page": 7,
+      "source_kind": "table",
+      "quote": "β₄ 0 0 0 0 0 0 0.2 −0.2 −0.2 −0.2 −0.2 0.2 0.2 0.2 0"
+     },
+     "check": {
+      "kind": "design_metric",
+      "metric": "alias_matrix",
+      "key": "matrix.4.3",
+      "model": "main_effects"
+     }
+    },
+    {
+     "what": "alias",
+     "term": "β₄ row, β₁₆ column",
+     "value": "−0.2",
+     "analysis": "Table 5, alias matrix of the ORTH-augmented design with 4 continuous and 2 categorical factors: bias of the estimate of β₄ from the interaction β₁₆, first-order model",
+     "where": {
+      "page": 127,
+      "pdf_page": 7,
+      "source_kind": "table",
+      "quote": "β₄ 0 0 0 0 0 0 0.2 −0.2 −0.2 −0.2 −0.2 0.2 0.2 0.2 0"
+     },
+     "check": {
+      "kind": "design_metric",
+      "metric": "alias_matrix",
+      "key": "matrix.4.4",
+      "model": "main_effects"
+     }
+    },
+    {
+     "what": "alias",
+     "term": "β₄ row, β₂₅ column",
+     "value": "−0.2",
+     "analysis": "Table 5, alias matrix of the ORTH-augmented design with 4 continuous and 2 categorical factors: bias of the estimate of β₄ from the interaction β₂₅, first-order model",
+     "where": {
+      "page": 127,
+      "pdf_page": 7,
+      "source_kind": "table",
+      "quote": "β₄ 0 0 0 0 0 0 0.2 −0.2 −0.2 −0.2 −0.2 0.2 0.2 0.2 0"
+     },
+     "check": {
+      "kind": "design_metric",
+      "metric": "alias_matrix",
+      "key": "matrix.4.7",
+      "model": "main_effects"
+     }
+    },
+    {
+     "what": "alias",
+     "term": "β₄ row, β₂₆ column",
+     "value": "−0.2",
+     "analysis": "Table 5, alias matrix of the ORTH-augmented design with 4 continuous and 2 categorical factors: bias of the estimate of β₄ from the interaction β₂₆, first-order model",
+     "where": {
+      "page": 127,
+      "pdf_page": 7,
+      "source_kind": "table",
+      "quote": "β₄ 0 0 0 0 0 0 0.2 −0.2 −0.2 −0.2 −0.2 0.2 0.2 0.2 0"
+     },
+     "check": {
+      "kind": "design_metric",
+      "metric": "alias_matrix",
+      "key": "matrix.4.8",
+      "model": "main_effects"
+     }
+    },
+    {
+     "what": "alias",
+     "term": "β₄ row, β₃₅ column",
+     "value": "−0.2",
+     "analysis": "Table 5, alias matrix of the ORTH-augmented design with 4 continuous and 2 categorical factors: bias of the estimate of β₄ from the interaction β₃₅, first-order model",
+     "where": {
+      "page": 127,
+      "pdf_page": 7,
+      "source_kind": "table",
+      "quote": "β₄ 0 0 0 0 0 0 0.2 −0.2 −0.2 −0.2 −0.2 0.2 0.2 0.2 0"
+     },
+     "check": {
+      "kind": "design_metric",
+      "metric": "alias_matrix",
+      "key": "matrix.4.10",
+      "model": "main_effects"
+     }
+    },
+    {
+     "what": "alias",
+     "term": "β₄ row, β₃₆ column",
+     "value": "0.2",
+     "analysis": "Table 5, alias matrix of the ORTH-augmented design with 4 continuous and 2 categorical factors: bias of the estimate of β₄ from the interaction β₃₆, first-order model",
+     "where": {
+      "page": 127,
+      "pdf_page": 7,
+      "source_kind": "table",
+      "quote": "β₄ 0 0 0 0 0 0 0.2 −0.2 −0.2 −0.2 −0.2 0.2 0.2 0.2 0"
+     },
+     "check": {
+      "kind": "design_metric",
+      "metric": "alias_matrix",
+      "key": "matrix.4.11",
+      "model": "main_effects"
+     }
+    },
+    {
+     "what": "alias",
+     "term": "β₄ row, β₄₅ column",
+     "value": "0.2",
+     "analysis": "Table 5, alias matrix of the ORTH-augmented design with 4 continuous and 2 categorical factors: bias of the estimate of β₄ from the interaction β₄₅, first-order model",
+     "where": {
+      "page": 127,
+      "pdf_page": 7,
+      "source_kind": "table",
+      "quote": "β₄ 0 0 0 0 0 0 0.2 −0.2 −0.2 −0.2 −0.2 0.2 0.2 0.2 0"
+     },
+     "check": {
+      "kind": "design_metric",
+      "metric": "alias_matrix",
+      "key": "matrix.4.12",
+      "model": "main_effects"
+     }
+    },
+    {
+     "what": "alias",
+     "term": "β₄ row, β₄₆ column",
+     "value": "0.2",
+     "analysis": "Table 5, alias matrix of the ORTH-augmented design with 4 continuous and 2 categorical factors: bias of the estimate of β₄ from the interaction β₄₆, first-order model",
+     "where": {
+      "page": 127,
+      "pdf_page": 7,
+      "source_kind": "table",
+      "quote": "β₄ 0 0 0 0 0 0 0.2 −0.2 −0.2 −0.2 −0.2 0.2 0.2 0.2 0"
+     },
+     "check": {
+      "kind": "design_metric",
+      "metric": "alias_matrix",
+      "key": "matrix.4.13",
+      "model": "main_effects"
+     }
+    },
+    {
+     "what": "alias",
+     "term": "β₄ row, β₅₆ column",
+     "value": "0",
+     "analysis": "Table 5, alias matrix of the ORTH-augmented design with 4 continuous and 2 categorical factors: bias of the estimate of β₄ from the interaction β₅₆, first-order model",
+     "where": {
+      "page": 127,
+      "pdf_page": 7,
+      "source_kind": "table",
+      "quote": "β₄ 0 0 0 0 0 0 0.2 −0.2 −0.2 −0.2 −0.2 0.2 0.2 0.2 0"
+     },
+     "check": {
+      "kind": "design_metric",
+      "metric": "alias_matrix",
+      "key": "matrix.4.14",
+      "model": "main_effects",
+      "expression": true
+     }
+    },
+    {
+     "what": "alias",
+     "term": "β₅ row, β₁₂ column",
+     "value": "−0.125",
+     "analysis": "Table 5, alias matrix of the ORTH-augmented design with 4 continuous and 2 categorical factors: bias of the estimate of β₅ from the interaction β₁₂, first-order model",
+     "where": {
+      "page": 127,
+      "pdf_page": 7,
+      "source_kind": "table",
+      "quote": "β₅ −0.125 −0.125 0.125 0.125 −0.125 −0.125 0 0.25 0 0 0 −0.25 0 0 0"
+     },
+     "check": {
+      "kind": "design_metric",
+      "metric": "alias_matrix",
+      "key": "matrix.5.0",
+      "model": "main_effects"
+     }
+    },
+    {
+     "what": "alias",
+     "term": "β₅ row, β₁₃ column",
+     "value": "−0.125",
+     "analysis": "Table 5, alias matrix of the ORTH-augmented design with 4 continuous and 2 categorical factors: bias of the estimate of β₅ from the interaction β₁₃, first-order model",
+     "where": {
+      "page": 127,
+      "pdf_page": 7,
+      "source_kind": "table",
+      "quote": "β₅ −0.125 −0.125 0.125 0.125 −0.125 −0.125 0 0.25 0 0 0 −0.25 0 0 0"
+     },
+     "check": {
+      "kind": "design_metric",
+      "metric": "alias_matrix",
+      "key": "matrix.5.1",
+      "model": "main_effects"
+     }
+    },
+    {
+     "what": "alias",
+     "term": "β₅ row, β₁₄ column",
+     "value": "0.125",
+     "analysis": "Table 5, alias matrix of the ORTH-augmented design with 4 continuous and 2 categorical factors: bias of the estimate of β₅ from the interaction β₁₄, first-order model",
+     "where": {
+      "page": 127,
+      "pdf_page": 7,
+      "source_kind": "table",
+      "quote": "β₅ −0.125 −0.125 0.125 0.125 −0.125 −0.125 0 0.25 0 0 0 −0.25 0 0 0"
+     },
+     "check": {
+      "kind": "design_metric",
+      "metric": "alias_matrix",
+      "key": "matrix.5.2",
+      "model": "main_effects"
+     }
+    },
+    {
+     "what": "alias",
+     "term": "β₅ row, β₂₃ column",
+     "value": "0.125",
+     "analysis": "Table 5, alias matrix of the ORTH-augmented design with 4 continuous and 2 categorical factors: bias of the estimate of β₅ from the interaction β₂₃, first-order model",
+     "where": {
+      "page": 127,
+      "pdf_page": 7,
+      "source_kind": "table",
+      "quote": "β₅ −0.125 −0.125 0.125 0.125 −0.125 −0.125 0 0.25 0 0 0 −0.25 0 0 0"
+     },
+     "check": {
+      "kind": "design_metric",
+      "metric": "alias_matrix",
+      "key": "matrix.5.5",
+      "model": "main_effects"
+     }
+    },
+    {
+     "what": "alias",
+     "term": "β₅ row, β₂₄ column",
+     "value": "−0.125",
+     "analysis": "Table 5, alias matrix of the ORTH-augmented design with 4 continuous and 2 categorical factors: bias of the estimate of β₅ from the interaction β₂₄, first-order model",
+     "where": {
+      "page": 127,
+      "pdf_page": 7,
+      "source_kind": "table",
+      "quote": "β₅ −0.125 −0.125 0.125 0.125 −0.125 −0.125 0 0.25 0 0 0 −0.25 0 0 0"
+     },
+     "check": {
+      "kind": "design_metric",
+      "metric": "alias_matrix",
+      "key": "matrix.5.6",
+      "model": "main_effects"
+     }
+    },
+    {
+     "what": "alias",
+     "term": "β₅ row, β₃₄ column",
+     "value": "−0.125",
+     "analysis": "Table 5, alias matrix of the ORTH-augmented design with 4 continuous and 2 categorical factors: bias of the estimate of β₅ from the interaction β₃₄, first-order model",
+     "where": {
+      "page": 127,
+      "pdf_page": 7,
+      "source_kind": "table",
+      "quote": "β₅ −0.125 −0.125 0.125 0.125 −0.125 −0.125 0 0.25 0 0 0 −0.25 0 0 0"
+     },
+     "check": {
+      "kind": "design_metric",
+      "metric": "alias_matrix",
+      "key": "matrix.5.9",
+      "model": "main_effects"
+     }
+    },
+    {
+     "what": "alias",
+     "term": "β₅ row, β₁₅ column",
+     "value": "0",
+     "analysis": "Table 5, alias matrix of the ORTH-augmented design with 4 continuous and 2 categorical factors: bias of the estimate of β₅ from the interaction β₁₅, first-order model",
+     "where": {
+      "page": 127,
+      "pdf_page": 7,
+      "source_kind": "table",
+      "quote": "β₅ −0.125 −0.125 0.125 0.125 −0.125 −0.125 0 0.25 0 0 0 −0.25 0 0 0"
+     },
+     "check": {
+      "kind": "design_metric",
+      "metric": "alias_matrix",
+      "key": "matrix.5.3",
+      "model": "main_effects",
+      "expression": true
+     }
+    },
+    {
+     "what": "alias",
+     "term": "β₅ row, β₁₆ column",
+     "value": "0.25",
+     "analysis": "Table 5, alias matrix of the ORTH-augmented design with 4 continuous and 2 categorical factors: bias of the estimate of β₅ from the interaction β₁₆, first-order model",
+     "where": {
+      "page": 127,
+      "pdf_page": 7,
+      "source_kind": "table",
+      "quote": "β₅ −0.125 −0.125 0.125 0.125 −0.125 −0.125 0 0.25 0 0 0 −0.25 0 0 0"
+     },
+     "check": {
+      "kind": "design_metric",
+      "metric": "alias_matrix",
+      "key": "matrix.5.4",
+      "model": "main_effects"
+     }
+    },
+    {
+     "what": "alias",
+     "term": "β₅ row, β₂₅ column",
+     "value": "0",
+     "analysis": "Table 5, alias matrix of the ORTH-augmented design with 4 continuous and 2 categorical factors: bias of the estimate of β₅ from the interaction β₂₅, first-order model",
+     "where": {
+      "page": 127,
+      "pdf_page": 7,
+      "source_kind": "table",
+      "quote": "β₅ −0.125 −0.125 0.125 0.125 −0.125 −0.125 0 0.25 0 0 0 −0.25 0 0 0"
+     },
+     "check": {
+      "kind": "design_metric",
+      "metric": "alias_matrix",
+      "key": "matrix.5.7",
+      "model": "main_effects",
+      "expression": true
+     }
+    },
+    {
+     "what": "alias",
+     "term": "β₅ row, β₂₆ column",
+     "value": "0",
+     "analysis": "Table 5, alias matrix of the ORTH-augmented design with 4 continuous and 2 categorical factors: bias of the estimate of β₅ from the interaction β₂₆, first-order model",
+     "where": {
+      "page": 127,
+      "pdf_page": 7,
+      "source_kind": "table",
+      "quote": "β₅ −0.125 −0.125 0.125 0.125 −0.125 −0.125 0 0.25 0 0 0 −0.25 0 0 0"
+     },
+     "check": {
+      "kind": "design_metric",
+      "metric": "alias_matrix",
+      "key": "matrix.5.8",
+      "model": "main_effects",
+      "expression": true
+     }
+    },
+    {
+     "what": "alias",
+     "term": "β₅ row, β₃₅ column",
+     "value": "0",
+     "analysis": "Table 5, alias matrix of the ORTH-augmented design with 4 continuous and 2 categorical factors: bias of the estimate of β₅ from the interaction β₃₅, first-order model",
+     "where": {
+      "page": 127,
+      "pdf_page": 7,
+      "source_kind": "table",
+      "quote": "β₅ −0.125 −0.125 0.125 0.125 −0.125 −0.125 0 0.25 0 0 0 −0.25 0 0 0"
+     },
+     "check": {
+      "kind": "design_metric",
+      "metric": "alias_matrix",
+      "key": "matrix.5.10",
+      "model": "main_effects",
+      "expression": true
+     }
+    },
+    {
+     "what": "alias",
+     "term": "β₅ row, β₃₆ column",
+     "value": "−0.25",
+     "analysis": "Table 5, alias matrix of the ORTH-augmented design with 4 continuous and 2 categorical factors: bias of the estimate of β₅ from the interaction β₃₆, first-order model",
+     "where": {
+      "page": 127,
+      "pdf_page": 7,
+      "source_kind": "table",
+      "quote": "β₅ −0.125 −0.125 0.125 0.125 −0.125 −0.125 0 0.25 0 0 0 −0.25 0 0 0"
+     },
+     "check": {
+      "kind": "design_metric",
+      "metric": "alias_matrix",
+      "key": "matrix.5.11",
+      "model": "main_effects"
+     }
+    },
+    {
+     "what": "alias",
+     "term": "β₅ row, β₄₅ column",
+     "value": "0",
+     "analysis": "Table 5, alias matrix of the ORTH-augmented design with 4 continuous and 2 categorical factors: bias of the estimate of β₅ from the interaction β₄₅, first-order model",
+     "where": {
+      "page": 127,
+      "pdf_page": 7,
+      "source_kind": "table",
+      "quote": "β₅ −0.125 −0.125 0.125 0.125 −0.125 −0.125 0 0.25 0 0 0 −0.25 0 0 0"
+     },
+     "check": {
+      "kind": "design_metric",
+      "metric": "alias_matrix",
+      "key": "matrix.5.12",
+      "model": "main_effects",
+      "expression": true
+     }
+    },
+    {
+     "what": "alias",
+     "term": "β₅ row, β₄₆ column",
+     "value": "0",
+     "analysis": "Table 5, alias matrix of the ORTH-augmented design with 4 continuous and 2 categorical factors: bias of the estimate of β₅ from the interaction β₄₆, first-order model",
+     "where": {
+      "page": 127,
+      "pdf_page": 7,
+      "source_kind": "table",
+      "quote": "β₅ −0.125 −0.125 0.125 0.125 −0.125 −0.125 0 0.25 0 0 0 −0.25 0 0 0"
+     },
+     "check": {
+      "kind": "design_metric",
+      "metric": "alias_matrix",
+      "key": "matrix.5.13",
+      "model": "main_effects",
+      "expression": true
+     }
+    },
+    {
+     "what": "alias",
+     "term": "β₅ row, β₅₆ column",
+     "value": "0",
+     "analysis": "Table 5, alias matrix of the ORTH-augmented design with 4 continuous and 2 categorical factors: bias of the estimate of β₅ from the interaction β₅₆, first-order model",
+     "where": {
+      "page": 127,
+      "pdf_page": 7,
+      "source_kind": "table",
+      "quote": "β₅ −0.125 −0.125 0.125 0.125 −0.125 −0.125 0 0.25 0 0 0 −0.25 0 0 0"
+     },
+     "check": {
+      "kind": "design_metric",
+      "metric": "alias_matrix",
+      "key": "matrix.5.14",
+      "model": "main_effects",
+      "expression": true
+     }
+    },
+    {
+     "what": "alias",
+     "term": "β₆ row, β₁₂ column",
+     "value": "0.125",
+     "analysis": "Table 5, alias matrix of the ORTH-augmented design with 4 continuous and 2 categorical factors: bias of the estimate of β₆ from the interaction β₁₂, first-order model",
+     "where": {
+      "page": 127,
+      "pdf_page": 7,
+      "source_kind": "table",
+      "quote": "β₆ 0.125 −0.125 −0.125 −0.125 −0.125 0.125 0.25 0 0 0 −0.25 0 0 0 0"
+     },
+     "check": {
+      "kind": "design_metric",
+      "metric": "alias_matrix",
+      "key": "matrix.6.0",
+      "model": "main_effects"
+     }
+    },
+    {
+     "what": "alias",
+     "term": "β₆ row, β₁₃ column",
+     "value": "−0.125",
+     "analysis": "Table 5, alias matrix of the ORTH-augmented design with 4 continuous and 2 categorical factors: bias of the estimate of β₆ from the interaction β₁₃, first-order model",
+     "where": {
+      "page": 127,
+      "pdf_page": 7,
+      "source_kind": "table",
+      "quote": "β₆ 0.125 −0.125 −0.125 −0.125 −0.125 0.125 0.25 0 0 0 −0.25 0 0 0 0"
+     },
+     "check": {
+      "kind": "design_metric",
+      "metric": "alias_matrix",
+      "key": "matrix.6.1",
+      "model": "main_effects"
+     }
+    },
+    {
+     "what": "alias",
+     "term": "β₆ row, β₁₄ column",
+     "value": "−0.125",
+     "analysis": "Table 5, alias matrix of the ORTH-augmented design with 4 continuous and 2 categorical factors: bias of the estimate of β₆ from the interaction β₁₄, first-order model",
+     "where": {
+      "page": 127,
+      "pdf_page": 7,
+      "source_kind": "table",
+      "quote": "β₆ 0.125 −0.125 −0.125 −0.125 −0.125 0.125 0.25 0 0 0 −0.25 0 0 0 0"
+     },
+     "check": {
+      "kind": "design_metric",
+      "metric": "alias_matrix",
+      "key": "matrix.6.2",
+      "model": "main_effects"
+     }
+    },
+    {
+     "what": "alias",
+     "term": "β₆ row, β₂₃ column",
+     "value": "−0.125",
+     "analysis": "Table 5, alias matrix of the ORTH-augmented design with 4 continuous and 2 categorical factors: bias of the estimate of β₆ from the interaction β₂₃, first-order model",
+     "where": {
+      "page": 127,
+      "pdf_page": 7,
+      "source_kind": "table",
+      "quote": "β₆ 0.125 −0.125 −0.125 −0.125 −0.125 0.125 0.25 0 0 0 −0.25 0 0 0 0"
+     },
+     "check": {
+      "kind": "design_metric",
+      "metric": "alias_matrix",
+      "key": "matrix.6.5",
+      "model": "main_effects"
+     }
+    },
+    {
+     "what": "alias",
+     "term": "β₆ row, β₂₄ column",
+     "value": "−0.125",
+     "analysis": "Table 5, alias matrix of the ORTH-augmented design with 4 continuous and 2 categorical factors: bias of the estimate of β₆ from the interaction β₂₄, first-order model",
+     "where": {
+      "page": 127,
+      "pdf_page": 7,
+      "source_kind": "table",
+      "quote": "β₆ 0.125 −0.125 −0.125 −0.125 −0.125 0.125 0.25 0 0 0 −0.25 0 0 0 0"
+     },
+     "check": {
+      "kind": "design_metric",
+      "metric": "alias_matrix",
+      "key": "matrix.6.6",
+      "model": "main_effects"
+     }
+    },
+    {
+     "what": "alias",
+     "term": "β₆ row, β₃₄ column",
+     "value": "0.125",
+     "analysis": "Table 5, alias matrix of the ORTH-augmented design with 4 continuous and 2 categorical factors: bias of the estimate of β₆ from the interaction β₃₄, first-order model",
+     "where": {
+      "page": 127,
+      "pdf_page": 7,
+      "source_kind": "table",
+      "quote": "β₆ 0.125 −0.125 −0.125 −0.125 −0.125 0.125 0.25 0 0 0 −0.25 0 0 0 0"
+     },
+     "check": {
+      "kind": "design_metric",
+      "metric": "alias_matrix",
+      "key": "matrix.6.9",
+      "model": "main_effects"
+     }
+    },
+    {
+     "what": "alias",
+     "term": "β₆ row, β₁₅ column",
+     "value": "0.25",
+     "analysis": "Table 5, alias matrix of the ORTH-augmented design with 4 continuous and 2 categorical factors: bias of the estimate of β₆ from the interaction β₁₅, first-order model",
+     "where": {
+      "page": 127,
+      "pdf_page": 7,
+      "source_kind": "table",
+      "quote": "β₆ 0.125 −0.125 −0.125 −0.125 −0.125 0.125 0.25 0 0 0 −0.25 0 0 0 0"
+     },
+     "check": {
+      "kind": "design_metric",
+      "metric": "alias_matrix",
+      "key": "matrix.6.3",
+      "model": "main_effects"
+     }
+    },
+    {
+     "what": "alias",
+     "term": "β₆ row, β₁₆ column",
+     "value": "0",
+     "analysis": "Table 5, alias matrix of the ORTH-augmented design with 4 continuous and 2 categorical factors: bias of the estimate of β₆ from the interaction β₁₆, first-order model",
+     "where": {
+      "page": 127,
+      "pdf_page": 7,
+      "source_kind": "table",
+      "quote": "β₆ 0.125 −0.125 −0.125 −0.125 −0.125 0.125 0.25 0 0 0 −0.25 0 0 0 0"
+     },
+     "check": {
+      "kind": "design_metric",
+      "metric": "alias_matrix",
+      "key": "matrix.6.4",
+      "model": "main_effects",
+      "expression": true
+     }
+    },
+    {
+     "what": "alias",
+     "term": "β₆ row, β₂₅ column",
+     "value": "0",
+     "analysis": "Table 5, alias matrix of the ORTH-augmented design with 4 continuous and 2 categorical factors: bias of the estimate of β₆ from the interaction β₂₅, first-order model",
+     "where": {
+      "page": 127,
+      "pdf_page": 7,
+      "source_kind": "table",
+      "quote": "β₆ 0.125 −0.125 −0.125 −0.125 −0.125 0.125 0.25 0 0 0 −0.25 0 0 0 0"
+     },
+     "check": {
+      "kind": "design_metric",
+      "metric": "alias_matrix",
+      "key": "matrix.6.7",
+      "model": "main_effects",
+      "expression": true
+     }
+    },
+    {
+     "what": "alias",
+     "term": "β₆ row, β₂₆ column",
+     "value": "0",
+     "analysis": "Table 5, alias matrix of the ORTH-augmented design with 4 continuous and 2 categorical factors: bias of the estimate of β₆ from the interaction β₂₆, first-order model",
+     "where": {
+      "page": 127,
+      "pdf_page": 7,
+      "source_kind": "table",
+      "quote": "β₆ 0.125 −0.125 −0.125 −0.125 −0.125 0.125 0.25 0 0 0 −0.25 0 0 0 0"
+     },
+     "check": {
+      "kind": "design_metric",
+      "metric": "alias_matrix",
+      "key": "matrix.6.8",
+      "model": "main_effects",
+      "expression": true
+     }
+    },
+    {
+     "what": "alias",
+     "term": "β₆ row, β₃₅ column",
+     "value": "−0.25",
+     "analysis": "Table 5, alias matrix of the ORTH-augmented design with 4 continuous and 2 categorical factors: bias of the estimate of β₆ from the interaction β₃₅, first-order model",
+     "where": {
+      "page": 127,
+      "pdf_page": 7,
+      "source_kind": "table",
+      "quote": "β₆ 0.125 −0.125 −0.125 −0.125 −0.125 0.125 0.25 0 0 0 −0.25 0 0 0 0"
+     },
+     "check": {
+      "kind": "design_metric",
+      "metric": "alias_matrix",
+      "key": "matrix.6.10",
+      "model": "main_effects"
+     }
+    },
+    {
+     "what": "alias",
+     "term": "β₆ row, β₃₆ column",
+     "value": "0",
+     "analysis": "Table 5, alias matrix of the ORTH-augmented design with 4 continuous and 2 categorical factors: bias of the estimate of β₆ from the interaction β₃₆, first-order model",
+     "where": {
+      "page": 127,
+      "pdf_page": 7,
+      "source_kind": "table",
+      "quote": "β₆ 0.125 −0.125 −0.125 −0.125 −0.125 0.125 0.25 0 0 0 −0.25 0 0 0 0"
+     },
+     "check": {
+      "kind": "design_metric",
+      "metric": "alias_matrix",
+      "key": "matrix.6.11",
+      "model": "main_effects",
+      "expression": true
+     }
+    },
+    {
+     "what": "alias",
+     "term": "β₆ row, β₄₅ column",
+     "value": "0",
+     "analysis": "Table 5, alias matrix of the ORTH-augmented design with 4 continuous and 2 categorical factors: bias of the estimate of β₆ from the interaction β₄₅, first-order model",
+     "where": {
+      "page": 127,
+      "pdf_page": 7,
+      "source_kind": "table",
+      "quote": "β₆ 0.125 −0.125 −0.125 −0.125 −0.125 0.125 0.25 0 0 0 −0.25 0 0 0 0"
+     },
+     "check": {
+      "kind": "design_metric",
+      "metric": "alias_matrix",
+      "key": "matrix.6.12",
+      "model": "main_effects",
+      "expression": true
+     }
+    },
+    {
+     "what": "alias",
+     "term": "β₆ row, β₄₆ column",
+     "value": "0",
+     "analysis": "Table 5, alias matrix of the ORTH-augmented design with 4 continuous and 2 categorical factors: bias of the estimate of β₆ from the interaction β₄₆, first-order model",
+     "where": {
+      "page": 127,
+      "pdf_page": 7,
+      "source_kind": "table",
+      "quote": "β₆ 0.125 −0.125 −0.125 −0.125 −0.125 0.125 0.25 0 0 0 −0.25 0 0 0 0"
+     },
+     "check": {
+      "kind": "design_metric",
+      "metric": "alias_matrix",
+      "key": "matrix.6.13",
+      "model": "main_effects",
+      "expression": true
+     }
+    },
+    {
+     "what": "alias",
+     "term": "β₆ row, β₅₆ column",
+     "value": "0",
+     "analysis": "Table 5, alias matrix of the ORTH-augmented design with 4 continuous and 2 categorical factors: bias of the estimate of β₆ from the interaction β₅₆, first-order model",
+     "where": {
+      "page": 127,
+      "pdf_page": 7,
+      "source_kind": "table",
+      "quote": "β₆ 0.125 −0.125 −0.125 −0.125 −0.125 0.125 0.25 0 0 0 −0.25 0 0 0 0"
+     },
+     "check": {
+      "kind": "design_metric",
+      "metric": "alias_matrix",
+      "key": "matrix.6.14",
+      "model": "main_effects",
+      "expression": true
+     }
+    },
+    {
+     "what": "alias_max_abs",
+     "term": "all rows",
+     "value": "0.4",
+     "analysis": "largest magnitude of the alias matrix entries, which 'range in magnitude from 0 to 0.4'",
+     "where": {
+      "page": 127,
+      "pdf_page": 7,
+      "source_kind": "text",
+      "quote": "The alias matrix entries range in magnitude from 0 to 0.4"
+     },
+     "check": {
+      "kind": "design_metric",
+      "metric": "alias_matrix",
+      "key": "max_abs",
+      "model": "main_effects"
+     }
+    },
+    {
+     "what": "information matrix",
+     "term": "X'X diagonal, intercept and categorical",
+     "value": "n",
+     "analysis": "diagonal of the first-order model's X'X for an ORTH-augmented design, i = 1 and i = m + 2, ..., m + c + 1",
+     "where": {
+      "page": 127,
+      "pdf_page": 7,
+      "source_kind": "equation",
+      "quote": "X'X_i,i = n for i = 1 and i = m + 2, ..., m + c + 1"
+     },
+     "check": {
+      "manual": "a formula, and no check kind reports X'X; for this design (n = 16) those diagonal entries are 16, and X'X is diagonal"
+     }
+    },
+    {
+     "what": "information matrix",
+     "term": "X'X diagonal, continuous",
+     "value": "n1 = n − 4",
+     "analysis": "diagonal of the first-order model's X'X for an ORTH-augmented design, i = 2, ..., m + 1",
+     "where": {
+      "page": 127,
+      "pdf_page": 7,
+      "source_kind": "equation",
+      "quote": "n1 = n − 4 for i = 2, ..., m + 1"
+     },
+     "check": {
+      "manual": "a formula, and no check kind reports X'X. It does not hold for the printed designs with c = 2 to 4: a continuous column is 0 in one fold-over pair as well as in the centre runs, so its diagonal entry is n1 - 2 = n - 6, which is 10 for this design (n = 16, n1 = 12) and 14 for c = 3 and 4 (n = 20, n1 = 16), not 12 and 16; equation (2) likewise has 10 for n1 = 12"
+     }
+    },
+    {
+     "what": "correlation",
+     "term": "quadratic main effects",
+     "value": "2/3 − 2/(n − 6)",
+     "analysis": "correlation between the quadratic main effects columns of an ORTH-augmented design, as a function of n",
+     "where": {
+      "page": 129,
+      "pdf_page": 9,
+      "source_kind": "text",
+      "quote": "For the ORTH-augment designs, this correlation is 2/3 − 2/(n − 6)"
+     },
+     "check": {
+      "manual": "a formula in n, not a number. The Pearson correlation of two squared continuous columns is 0.4667 here (n = 16) and 0.5238 for c = 3 and 4 (n = 20), as the formula gives; it assumes four centre runs, and the c = 1 design (two centre runs, n = 14) has 0.3000. evaluate_design's correlation metric residualises the squares on the main effects first, so it gives 0.3846, not 0.4667, here"
+     }
+    },
+    {
+     "what": "inner product",
+     "term": "linear main effects with quadratic main effects",
+     "value": "+2",
+     "analysis": "inner product of the linear main effects columns with the quadratic main effects columns, ORTH-augment designs",
+     "where": {
+      "page": 128,
+      "pdf_page": 8,
+      "source_kind": "text",
+      "quote": "the inner product between the linear main effects columns and the quadratic main effects columns is equal to +2"
+     },
+     "check": {
+      "manual": "a cross product of two design columns, which no check kind reports; in every Figure 1b design each categorical column has cross product +2 with each squared continuous column; the continuous columns' cross products with the squares are 0"
+     }
+    }
+   ]
+  },
+  {
+   "name": "jn2013-orth-augment-m4-c3",
+   "title": "ORTH-augmented design for 4 continuous factors and 3 two-level categorical factors",
+   "where": {
+    "section": "3, Orthogonal Column Augmentation: ORTH-Augment Procedure",
+    "pages": "126",
+    "figures": ["Figure 1(b)"],
+    "tables": ["Table 4"]
+   },
+   "design": {
+    "type": "ORTH-augmented definitive screening design (ORTH-augment method)",
+    "factors": 7,
+    "n_runs": 20,
+    "details": "the categorical columns' zeros set to +1, with four centre runs carrying the columns of the 4 x 4 matrix B"
+   },
+   "factors": [
+    {
+     "name": "x1",
+     "description": "Continuous factor 1 (column d1+ of Table 2)",
+     "low": -1,
+     "high": 1,
+     "units": "coded",
+     "type": "numeric"
+    },
+    {
+     "name": "x2",
+     "description": "Continuous factor 2 (column d2+ of Table 2)",
+     "low": -1,
+     "high": 1,
+     "units": "coded",
+     "type": "numeric"
+    },
+    {
+     "name": "x3",
+     "description": "Continuous factor 3 (column d3+ of Table 2)",
+     "low": -1,
+     "high": 1,
+     "units": "coded",
+     "type": "numeric"
+    },
+    {
+     "name": "x4",
+     "description": "Continuous factor 4 (column d4+ of Table 2)",
+     "low": -1,
+     "high": 1,
+     "units": "coded",
+     "type": "numeric"
+    },
+    {
+     "name": "x5",
+     "description": "Two-level categorical factor 1 (column a1+ of Table 2)",
+     "low": "first level",
+     "high": "second level",
+     "units": "",
+     "type": "categorical"
+    },
+    {
+     "name": "x6",
+     "description": "Two-level categorical factor 2 (column a2+ of Table 2)",
+     "low": "first level",
+     "high": "second level",
+     "units": "",
+     "type": "categorical"
+    },
+    {
+     "name": "x7",
+     "description": "Two-level categorical factor 3 (column a3+ of Table 2)",
+     "low": "first level",
+     "high": "second level",
+     "units": "",
+     "type": "categorical"
+    }
+   ],
+   "responses": [],
+   "runs": {
+    "columns": ["Run", "x1", "x2", "x3", "x4", "x5", "x6", "x7"],
+    "rows": [
+     [1, 0, 1, 1, 1, 1, 1, 1],
+     [2, 0, -1, -1, -1, -1, -1, -1],
+     [3, -1, 0, 1, 1, -1, 1, -1],
+     [4, 1, 0, -1, -1, 1, -1, 1],
+     [5, -1, -1, 0, 1, 1, -1, 1],
+     [6, 1, 1, 0, -1, -1, 1, -1],
+     [7, -1, -1, -1, 0, 1, 1, -1],
+     [8, 1, 1, 1, 0, -1, -1, 1],
+     [9, -1, 1, -1, -1, 1, 1, 1],
+     [10, 1, -1, 1, 1, 1, -1, -1],
+     [11, -1, -1, 1, -1, -1, 1, 1],
+     [12, 1, 1, -1, 1, 1, 1, -1],
+     [13, -1, 1, -1, 1, -1, -1, 1],
+     [14, 1, -1, 1, -1, 1, 1, 1],
+     [15, -1, 1, 1, -1, 1, -1, -1],
+     [16, 1, -1, -1, 1, -1, 1, 1],
+     [17, 0, 0, 0, 0, -1, -1, -1],
+     [18, 0, 0, 0, 0, -1, -1, 1],
+     [19, 0, 0, 0, 0, -1, 1, -1],
+     [20, 0, 0, 0, 0, 1, -1, -1]
+    ],
+    "coded": true,
+    "notes": "Figure 1 prints each run as a string of 0, + and -, continuous factors first; + is +1 and - is -1, and for a categorical factor -1 and +1 are its two levels. Run is the printed run number."
+   },
+   "notes": "The first-order model's X'X is diagonal for this printed design.",
+   "expected": [
+    {
+     "what": "n_runs",
+     "term": "n_ORTH",
+     "value": "20",
+     "analysis": "run size of the ORTH-augmented design for m = 4 and c = 3",
+     "where": {
+      "page": 125,
+      "pdf_page": 5,
+      "source_kind": "table",
+      "quote": "18 20 4 3 7 1 1.03 0.1111"
+     },
+     "check": {
+      "kind": "design_metric",
+      "metric": "prediction_variance",
+      "key": "len",
+      "model": "main_effects"
+     }
+    }
+   ]
+  },
+  {
+   "name": "jn2013-orth-augment-m4-c4",
+   "title": "ORTH-augmented design for 4 continuous factors and 4 two-level categorical factors",
+   "where": {
+    "section": "3, Orthogonal Column Augmentation: ORTH-Augment Procedure",
+    "pages": "126",
+    "figures": ["Figure 1(b)"],
+    "tables": ["Table 4", "Table 6"]
+   },
+   "design": {
+    "type": "ORTH-augmented definitive screening design (ORTH-augment method)",
+    "factors": 8,
+    "n_runs": 20,
+    "details": "the categorical columns' zeros set to +1, with four centre runs carrying the columns of the 4 x 4 matrix B"
+   },
+   "factors": [
+    {
+     "name": "x1",
+     "description": "Continuous factor 1 (column d1+ of Table 2)",
+     "low": -1,
+     "high": 1,
+     "units": "coded",
+     "type": "numeric"
+    },
+    {
+     "name": "x2",
+     "description": "Continuous factor 2 (column d2+ of Table 2)",
+     "low": -1,
+     "high": 1,
+     "units": "coded",
+     "type": "numeric"
+    },
+    {
+     "name": "x3",
+     "description": "Continuous factor 3 (column d3+ of Table 2)",
+     "low": -1,
+     "high": 1,
+     "units": "coded",
+     "type": "numeric"
+    },
+    {
+     "name": "x4",
+     "description": "Continuous factor 4 (column d4+ of Table 2)",
+     "low": -1,
+     "high": 1,
+     "units": "coded",
+     "type": "numeric"
+    },
+    {
+     "name": "x5",
+     "description": "Two-level categorical factor 1 (column a1+ of Table 2)",
+     "low": "first level",
+     "high": "second level",
+     "units": "",
+     "type": "categorical"
+    },
+    {
+     "name": "x6",
+     "description": "Two-level categorical factor 2 (column a2+ of Table 2)",
+     "low": "first level",
+     "high": "second level",
+     "units": "",
+     "type": "categorical"
+    },
+    {
+     "name": "x7",
+     "description": "Two-level categorical factor 3 (column a3+ of Table 2)",
+     "low": "first level",
+     "high": "second level",
+     "units": "",
+     "type": "categorical"
+    },
+    {
+     "name": "x8",
+     "description": "Two-level categorical factor 4 (column a4+ of Table 2)",
+     "low": "first level",
+     "high": "second level",
+     "units": "",
+     "type": "categorical"
+    }
+   ],
+   "responses": [],
+   "runs": {
+    "columns": ["Run", "x1", "x2", "x3", "x4", "x5", "x6", "x7", "x8"],
+    "rows": [
+     [1, 0, 1, 1, 1, 1, 1, 1, 1],
+     [2, 0, -1, -1, -1, -1, -1, -1, -1],
+     [3, -1, 0, 1, 1, -1, 1, -1, -1],
+     [4, 1, 0, -1, -1, 1, -1, 1, 1],
+     [5, -1, -1, 0, 1, 1, -1, 1, -1],
+     [6, 1, 1, 0, -1, -1, 1, -1, 1],
+     [7, -1, -1, -1, 0, 1, 1, -1, 1],
+     [8, 1, 1, 1, 0, -1, -1, 1, -1],
+     [9, -1, 1, -1, -1, 1, 1, 1, -1],
+     [10, 1, -1, 1, 1, 1, -1, -1, 1],
+     [11, -1, -1, 1, -1, -1, 1, 1, 1],
+     [12, 1, 1, -1, 1, 1, 1, -1, -1],
+     [13, -1, 1, -1, 1, -1, -1, 1, 1],
+     [14, 1, -1, 1, -1, 1, 1, 1, -1],
+     [15, -1, 1, 1, -1, 1, -1, -1, 1],
+     [16, 1, -1, -1, 1, -1, 1, 1, 1],
+     [17, 0, 0, 0, 0, -1, -1, -1, 1],
+     [18, 0, 0, 0, 0, -1, -1, 1, -1],
+     [19, 0, 0, 0, 0, -1, 1, -1, -1],
+     [20, 0, 0, 0, 0, 1, -1, -1, -1]
+    ],
+    "coded": true,
+    "notes": "Figure 1 prints each run as a string of 0, + and -, continuous factors first; + is +1 and - is -1, and for a categorical factor -1 and +1 are its two levels. Run is the printed run number."
+   },
+   "notes": "The first-order model's X'X is diagonal for this printed design.",
+   "expected": [
+    {
+     "what": "n_runs",
+     "term": "n_ORTH",
+     "value": "20",
+     "analysis": "run size of the ORTH-augmented design for m = 4 and c = 4",
+     "where": {
+      "page": 125,
+      "pdf_page": 5,
+      "source_kind": "table",
+      "quote": "18 20 4 4 8 1 1.01 0.1111"
+     },
+     "check": {
+      "kind": "design_metric",
+      "metric": "prediction_variance",
+      "key": "len",
+      "model": "main_effects"
+     }
+    },
+    {
+     "what": "count",
+     "term": "nonzero off-diagonal entries of X'X",
+     "value": "0",
+     "analysis": "number of nonzero entries in the information matrix of the ORTH-augmented design, m = 4, c = 4",
+     "where": {
+      "page": 128,
+      "pdf_page": 8,
+      "source_kind": "table",
+      "quote": "4 4 0 0.0000"
+     },
+     "check": {
+      "manual": "a count of X'X entries, which no check kind reports; this design's X'X is diagonal, so 0"
+     }
+    },
+    {
+     "what": "fraction",
+     "term": "nonzero off-diagonal entries of X'X",
+     "value": "0.0000",
+     "analysis": "fraction of nonzero entries among the off-diagonal elements of the information matrix, m = 4, c = 4",
+     "where": {
+      "page": 128,
+      "pdf_page": 8,
+      "source_kind": "table",
+      "quote": "4 4 0 0.0000"
+     },
+     "check": {
+      "manual": "a fraction of X'X entries, which no check kind reports; this design's X'X is diagonal, so 0"
+     }
+    }
+   ]
+  },
+  {
+   "name": "jn2013-table4-other-sizes",
+   "title": "DSD- and ORTH-augmented designs for 5 to 12 continuous factors (Table 4), not printed",
+   "where": {
+    "section": "2 and 3",
+    "pages": "124-125, 128",
+    "tables": ["Table 4"]
+   },
+   "design": {
+    "type": "DSD-augmented and ORTH-augmented definitive screening designs",
+    "details": "Table 4 rows for m = 5 to 12 and c = 1 to 4; two rows are sampled here, the rest are in not_captured"
+   },
+   "notes": "generate_design(design_type='dsd') with m continuous and c two-level categorical factors reproduces n_DSD, the maximum intercept-row alias and the normalized efficiency (against the closed-form X'X of the ORTH design) of all 36 rows of Table 4 to the printed digits.",
+   "expected": [
+    {
+     "what": "n_runs",
+     "term": "n_DSD",
+     "value": "14",
+     "analysis": "run size of the DSD-augmented design, m = 5, c = 1",
+     "where": {
+      "page": 125,
+      "pdf_page": 5,
+      "source_kind": "table",
+      "quote": "14 14 5 1 6 1 0.98 0.1429"
+     },
+     "check": {
+      "manual": "the design is not printed, and no check kind can make a design with categorical factors; generate_design(design_type='dsd') with 5 continuous and 1 two-level categorical factors gives 14 runs"
+     }
+    },
+    {
+     "what": "n_runs",
+     "term": "n_ORTH",
+     "value": "14",
+     "analysis": "run size of the ORTH-augmented design, m = 5, c = 1",
+     "where": {
+      "page": 125,
+      "pdf_page": 5,
+      "source_kind": "table",
+      "quote": "14 14 5 1 6 1 0.98 0.1429"
+     },
+     "check": {
+      "manual": "the ORTH-augmented design is not printed and the library does not build ORTH-augmented designs; n_ORTH = n1 + 2 with n1 = 12 (the DSD-augmented run size less two) gives 14"
+     }
+    },
+    {
+     "what": "number of factors",
+     "term": "p",
+     "value": "6",
+     "analysis": "the column headed p, m + c, for m = 5, c = 1",
+     "where": {
+      "page": 125,
+      "pdf_page": 5,
+      "source_kind": "table",
+      "quote": "14 14 5 1 6 1 0.98 0.1429"
+     },
+     "check": {
+      "manual": "m + c = 6; the design is not printed, and no check kind can make a design with categorical factors"
+     }
+    },
+    {
+     "what": "relative D-efficiency",
+     "term": "DSD-augment vs. optimal DSD-augment",
+     "value": "1",
+     "analysis": "D-efficiency of the DSD-augmented design relative to a constrained D-optimal augmentation, m = 5, c = 1",
+     "where": {
+      "page": 125,
+      "pdf_page": 5,
+      "source_kind": "table",
+      "quote": "14 14 5 1 6 1 0.98 0.1429"
+     },
+     "check": {
+      "manual": "a ratio to a coordinate-exchange optimum that is not printed; no check kind compares two designs"
+     }
+    },
+    {
+     "what": "normalized D-efficiency ratio",
+     "term": "DSD-augment vs. ORTH-augment",
+     "value": "0.98",
+     "analysis": "per-run D-efficiency of the DSD-augmented over the ORTH-augmented design, m = 5, c = 1",
+     "where": {
+      "page": 125,
+      "pdf_page": 5,
+      "source_kind": "table",
+      "quote": "14 14 5 1 6 1 0.98 0.1429"
+     },
+     "check": {
+      "manual": "the design is not printed, and no check kind can make a design with categorical factors; generate_design(design_type='dsd') with 5 continuous and 1 two-level categorical factors, over the ORTH design's closed-form diagonal X'X (n_ORTH on the intercept and categorical entries, n1 - 2 on the continuous ones), gives 0.9782"
+     }
+    },
+    {
+     "what": "alias_max_abs",
+     "term": "intercept row",
+     "value": "0.1429",
+     "analysis": "maximum absolute element of the constant-term row of the alias matrix, m = 5, c = 1",
+     "where": {
+      "page": 125,
+      "pdf_page": 5,
+      "source_kind": "table",
+      "quote": "14 14 5 1 6 1 0.98 0.1429"
+     },
+     "check": {
+      "manual": "the design is not printed, and no check kind can make a design with categorical factors; generate_design(design_type='dsd') with 5 continuous and 1 two-level categorical factors gives 0.142857"
+     }
+    },
+    {
+     "what": "n_runs",
+     "term": "n_DSD",
+     "value": "34",
+     "analysis": "run size of the DSD-augmented design, m = 12, c = 4",
+     "where": {
+      "page": 125,
+      "pdf_page": 5,
+      "source_kind": "table",
+      "quote": "34 36 12 4 16 1 1.03 0.0588"
+     },
+     "check": {
+      "manual": "the design is not printed, and no check kind can make a design with categorical factors; generate_design(design_type='dsd') with 12 continuous and 4 two-level categorical factors gives 34 runs"
+     }
+    },
+    {
+     "what": "n_runs",
+     "term": "n_ORTH",
+     "value": "36",
+     "analysis": "run size of the ORTH-augmented design, m = 12, c = 4",
+     "where": {
+      "page": 125,
+      "pdf_page": 5,
+      "source_kind": "table",
+      "quote": "34 36 12 4 16 1 1.03 0.0588"
+     },
+     "check": {
+      "manual": "the ORTH-augmented design is not printed and the library does not build ORTH-augmented designs; n_ORTH = n1 + 4 with n1 = 32 (the DSD-augmented run size less two) gives 36"
+     }
+    },
+    {
+     "what": "number of factors",
+     "term": "p",
+     "value": "16",
+     "analysis": "the column headed p, m + c, for m = 12, c = 4",
+     "where": {
+      "page": 125,
+      "pdf_page": 5,
+      "source_kind": "table",
+      "quote": "34 36 12 4 16 1 1.03 0.0588"
+     },
+     "check": {
+      "manual": "m + c = 16; the design is not printed, and no check kind can make a design with categorical factors"
+     }
+    },
+    {
+     "what": "relative D-efficiency",
+     "term": "DSD-augment vs. optimal DSD-augment",
+     "value": "1",
+     "analysis": "D-efficiency of the DSD-augmented design relative to a constrained D-optimal augmentation, m = 12, c = 4",
+     "where": {
+      "page": 125,
+      "pdf_page": 5,
+      "source_kind": "table",
+      "quote": "34 36 12 4 16 1 1.03 0.0588"
+     },
+     "check": {
+      "manual": "a ratio to a coordinate-exchange optimum that is not printed; no check kind compares two designs"
+     }
+    },
+    {
+     "what": "normalized D-efficiency ratio",
+     "term": "DSD-augment vs. ORTH-augment",
+     "value": "1.03",
+     "analysis": "per-run D-efficiency of the DSD-augmented over the ORTH-augmented design, m = 12, c = 4",
+     "where": {
+      "page": 125,
+      "pdf_page": 5,
+      "source_kind": "table",
+      "quote": "34 36 12 4 16 1 1.03 0.0588"
+     },
+     "check": {
+      "manual": "the design is not printed, and no check kind can make a design with categorical factors; generate_design(design_type='dsd') with 12 continuous and 4 two-level categorical factors, over the ORTH design's closed-form diagonal X'X (n_ORTH on the intercept and categorical entries, n1 - 2 on the continuous ones), gives 1.0282"
+     }
+    },
+    {
+     "what": "alias_max_abs",
+     "term": "intercept row",
+     "value": "0.0588",
+     "analysis": "maximum absolute element of the constant-term row of the alias matrix, m = 12, c = 4",
+     "where": {
+      "page": 125,
+      "pdf_page": 5,
+      "source_kind": "table",
+      "quote": "34 36 12 4 16 1 1.03 0.0588"
+     },
+     "check": {
+      "manual": "the design is not printed, and no check kind can make a design with categorical factors; generate_design(design_type='dsd') with 12 continuous and 4 two-level categorical factors gives 0.058824"
+     }
+    },
+    {
+     "what": "alias_max_abs",
+     "term": "intercept row",
+     "value": "1/7",
+     "analysis": "maximum absolute entry in the first row of the alias matrix for m = 5 and c = 1, the largest over Table 4",
+     "where": {
+      "page": 124,
+      "pdf_page": 4,
+      "source_kind": "text",
+      "quote": "and for m = 5 and c = 1, in which case the maximum absolute entry in the first row of the alias matrix was 1/7"
+     },
+     "check": {
+      "manual": "the design is not printed, and no check kind can make a design with categorical factors; generate_design(design_type='dsd') with 5 continuous and 1 two-level categorical factors gives 0.142857 = 1/7. Table 4 also prints 0.1429 for m = 4, c = 2, which this sentence does not list"
+     }
+    },
+    {
+     "what": "normalized D-efficiency ratio",
+     "term": "worst case",
+     "value": "98%",
+     "analysis": "worst-case normalized (per run) D-efficiency of a DSD-augmented design relative to the ORTH-augmented design",
+     "where": {
+      "page": 128,
+      "pdf_page": 8,
+      "source_kind": "text",
+      "quote": "the worst-case D-efficiency of a DSD-based design is 98%"
+     },
+     "check": {
+      "manual": "the smallest entry of Table 4's normalized-efficiency column (0.98, for c = 1 with m = 4 and 5); a comparison of two designs, which no check kind makes. Over all 36 rows, generate_design(design_type='dsd') against the closed-form ORTH X'X gives its smallest value, 0.9782, at m = 5, c = 1"
+     }
+    }
+   ]
+  },
+  {
+   "name": "jn2013-orth-augment-more-than-four",
+   "title": "ORTH-augmented designs with more than four categorical factors (Table 6), not printed",
+   "where": {
+    "section": "3",
+    "pages": "128",
+    "tables": ["Table 6"]
+   },
+   "design": {
+    "type": "ORTH-augmented definitive screening designs with c > 4, B replaced by (B, B, ...)",
+    "details": "Table 6 rows for m = 4; the m = 4, c = 4 row is on jn2013-orth-augment-m4-c4"
+   },
+   "notes": "Every row of Table 6 (m = 4, 8, 12 and c = 4, 6, 8, 10) agrees with the paper's formula and with the design built as described.",
+   "expected": [
+    {
+     "what": "count",
+     "term": "nonzero off-diagonal entries of X'X",
+     "value": "4",
+     "analysis": "number of nonzero entries in the information matrix of the ORTH-augmented design, m = 4, c = 6",
+     "where": {
+      "page": 128,
+      "pdf_page": 8,
+      "source_kind": "table",
+      "quote": "4 6 4 0.0364"
+     },
+     "check": {
+      "manual": "the ORTH-augmented design for c > 4 is not printed and the library does not build one; the paper's formula n_nz = 2 n_B (c - 2 n_B - 2), over (m + c + 1)(m + c) for the fraction, gives 4, and so does building the design as the paper describes (a DSD from the library's conference_matrix, the categorical zeros set to +1, four centre runs carrying (B, B, ...)) and counting X'X's nonzero off-diagonal entries"
+     }
+    },
+    {
+     "what": "fraction",
+     "term": "nonzero off-diagonal entries of X'X",
+     "value": "0.0364",
+     "analysis": "fraction of nonzero entries among the off-diagonal elements of the information matrix, m = 4, c = 6",
+     "where": {
+      "page": 128,
+      "pdf_page": 8,
+      "source_kind": "table",
+      "quote": "4 6 4 0.0364"
+     },
+     "check": {
+      "manual": "the ORTH-augmented design for c > 4 is not printed and the library does not build one; the paper's formula n_nz = 2 n_B (c - 2 n_B - 2), over (m + c + 1)(m + c) for the fraction, gives 0.0364, and so does building the design as the paper describes (a DSD from the library's conference_matrix, the categorical zeros set to +1, four centre runs carrying (B, B, ...)) and counting X'X's nonzero off-diagonal entries"
+     }
+    },
+    {
+     "what": "count",
+     "term": "nonzero off-diagonal entries of X'X",
+     "value": "8",
+     "analysis": "number of nonzero entries in the information matrix of the ORTH-augmented design, m = 4, c = 8",
+     "where": {
+      "page": 128,
+      "pdf_page": 8,
+      "source_kind": "table",
+      "quote": "4 8 8 0.0513"
+     },
+     "check": {
+      "manual": "the ORTH-augmented design for c > 4 is not printed and the library does not build one; the paper's formula n_nz = 2 n_B (c - 2 n_B - 2), over (m + c + 1)(m + c) for the fraction, gives 8, and so does building the design as the paper describes (a DSD from the library's conference_matrix, the categorical zeros set to +1, four centre runs carrying (B, B, ...)) and counting X'X's nonzero off-diagonal entries"
+     }
+    },
+    {
+     "what": "fraction",
+     "term": "nonzero off-diagonal entries of X'X",
+     "value": "0.0513",
+     "analysis": "fraction of nonzero entries among the off-diagonal elements of the information matrix, m = 4, c = 8",
+     "where": {
+      "page": 128,
+      "pdf_page": 8,
+      "source_kind": "table",
+      "quote": "4 8 8 0.0513"
+     },
+     "check": {
+      "manual": "the ORTH-augmented design for c > 4 is not printed and the library does not build one; the paper's formula n_nz = 2 n_B (c - 2 n_B - 2), over (m + c + 1)(m + c) for the fraction, gives 0.0513, and so does building the design as the paper describes (a DSD from the library's conference_matrix, the categorical zeros set to +1, four centre runs carrying (B, B, ...)) and counting X'X's nonzero off-diagonal entries"
+     }
+    },
+    {
+     "what": "count",
+     "term": "nonzero off-diagonal entries of X'X",
+     "value": "16",
+     "analysis": "number of nonzero entries in the information matrix of the ORTH-augmented design, m = 4, c = 10",
+     "where": {
+      "page": 128,
+      "pdf_page": 8,
+      "source_kind": "table",
+      "quote": "4 10 16 0.0762"
+     },
+     "check": {
+      "manual": "the ORTH-augmented design for c > 4 is not printed and the library does not build one; the paper's formula n_nz = 2 n_B (c - 2 n_B - 2), over (m + c + 1)(m + c) for the fraction, gives 16, and so does building the design as the paper describes (a DSD from the library's conference_matrix, the categorical zeros set to +1, four centre runs carrying (B, B, ...)) and counting X'X's nonzero off-diagonal entries"
+     }
+    },
+    {
+     "what": "fraction",
+     "term": "nonzero off-diagonal entries of X'X",
+     "value": "0.0762",
+     "analysis": "fraction of nonzero entries among the off-diagonal elements of the information matrix, m = 4, c = 10",
+     "where": {
+      "page": 128,
+      "pdf_page": 8,
+      "source_kind": "table",
+      "quote": "4 10 16 0.0762"
+     },
+     "check": {
+      "manual": "the ORTH-augmented design for c > 4 is not printed and the library does not build one; the paper's formula n_nz = 2 n_B (c - 2 n_B - 2), over (m + c + 1)(m + c) for the fraction, gives 0.0762, and so does building the design as the paper describes (a DSD from the library's conference_matrix, the categorical zeros set to +1, four centre runs carrying (B, B, ...)) and counting X'X's nonzero off-diagonal entries"
+     }
+    },
+    {
+     "what": "fraction",
+     "term": "worst case of Table 6",
+     "value": "0.0762",
+     "analysis": "the largest fraction of nonzero off-diagonal entries in Table 6, at m = 4 and c = 10",
+     "where": {
+      "page": 128,
+      "pdf_page": 8,
+      "source_kind": "text",
+      "quote": "for m = 4 and c = 10, in which case fnz = 0.0762"
+     },
+     "check": {
+      "manual": "the ORTH-augmented design for c > 4 is not printed and the library does not build one; the paper's formula n_nz = 2 n_B (c - 2 n_B - 2), over (m + c + 1)(m + c) for the fraction, gives 0.0762, and so does building the design as the paper describes (a DSD from the library's conference_matrix, the categorical zeros set to +1, four centre runs carrying (B, B, ...)) and counting X'X's nonzero off-diagonal entries"
+     }
+    },
+    {
+     "what": "fraction",
+     "term": "limit as c grows",
+     "value": "25%",
+     "analysis": "limit of the fraction of nonzero off-diagonal entries as c tends to infinity",
+     "where": {
+      "page": 128,
+      "pdf_page": 8,
+      "source_kind": "text",
+      "quote": "This fraction approaches 25% as c → ∞"
+     },
+     "check": {
+      "manual": "a limit of the paper's formula, not a property of a printed design: 2 n_B (c - 2 n_B - 2) with n_B about c/4 grows as c^2/4, over (m + c + 1)(m + c), which grows as c^2"
+     }
+    },
+    {
+     "what": "count",
+     "term": "new nonzero correlations per added factor, c = 13 to 16",
+     "value": "three",
+     "analysis": "nonzero correlations added to the upper triangle of X'X by each categorical factor beyond eight, for c = 13 to 16",
+     "where": {
+      "page": 128,
+      "pdf_page": 8,
+      "source_kind": "text",
+      "quote": "For c = 13 through c = 16, each categorical factor added beyond eight adds three new nonzero correlations"
+     },
+     "check": {
+      "manual": "a property of designs that are not printed. Building them as the paper describes, and the paper's own formula, give 12 nonzero upper-triangle entries at c = 12 and 15, 18, 21, 24 at c = 13 to 16: three per factor beyond twelve, not beyond eight (counting from eight, c = 13 would have 4 + 5 x 3 = 19)"
+     }
+    }
+   ]
+  },
+  {
+   "name": "jn2013-standard-dsd",
+   "title": "Standard definitive screening design (Jones and Nachtsheim 2011), as the paper cites it",
+   "where": {
+    "section": "4, Discussion",
+    "pages": "129"
+   },
+   "design": {
+    "type": "definitive screening design",
+    "details": "2m + 1 runs for m factors, no categorical factors"
+   },
+   "expected": [
+    {
+     "what": "correlation",
+     "term": "quadratic main effects",
+     "value": "1/3 − 2/(n − 3)",
+     "analysis": "correlation between quadratic main effects columns of a standard DSD with n runs, bounded above by 1/3",
+     "where": {
+      "page": 129,
+      "pdf_page": 9,
+      "source_kind": "text",
+      "quote": "For a standard DSD design, JN showed that the correlation is 1/3 − 2/(n − 3)"
+     },
+     "check": {
+      "manual": "a formula in n, not a number; for generate_design(design_type='dsd') with 4, 6, 8 and 10 factors (9, 13, 17 and 21 runs) the Pearson correlation of two squared columns is 0, 0.1333, 0.1905 and 0.2222, as the formula gives"
+     }
+    }
+   ]
+  }
+ ],
+ "not_captured": ["Table 1 and Table 2: the general DSD and augmented-design structures, printed with symbols (0, ±1, z_j,k, B), not numbers; Table 2's row 2m + 8 prints z4,1 where z4,2 is meant.", "Table 4 rows for m = 5 to 12 other than m = 5, c = 1 and m = 12, c = 4 (30 rows of 8 numbers): sampled, since their designs are not printed; generate_design(design_type='dsd') with categorical factors reproduces n_DSD, the normalized efficiency (against the ORTH design's closed-form X'X) and the maximum alias of every row, and n_ORTH = n_DSD + 2 for c > 1.", "Table 4's m and c columns: they name each row's design, captured as the design's factors.", "Table 6 rows for m = 8 and m = 12 (8 rows): sampled; each agrees with the paper's formula and with the design built as described.", "Introduction: the six advantages of DSDs listed from Jones and Nachtsheim (2011), '2m + 1 runs', and the orthogonality of the m = 4, 6, 8, 10 DSDs: general statements about standard DSDs, not about this paper's designs.", "Section 2: the run-size identities n1 = 2m + 8, n = n1 + 2 and n = n1 + 4, and the 2^(2c) sign choices: formulas whose values for m = 4 are the run sizes captured from Table 4.", "Section 2: 'less than a minute for c ≤ 20 on a PC': a computing time.", "Section 3: the steps proving the ORTH-augmented X'X diagonal (1'a'_j = +2, 1'b_j = -2, d_i'a_j = 0, a_i'a_j = 0): a proof; its conclusion holds for every Figure 1b design.", "Section 3: the bullets for c = 5 to 8 (one new nonzero correlation per factor) and c = 9 to 12 (two): they agree with Table 6 and the formula; the c = 13 to 16 bullet is captured for its typo.", "Section 4: 'two fewer center point runs' and 'approaching 2/3', 'approaches 1/2', 'bounded above by 1/3': restatements of Table 4 and limits of the captured correlation formulas."]
+}

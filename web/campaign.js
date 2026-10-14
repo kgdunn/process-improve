@@ -262,6 +262,9 @@ export function shareable(campaign, withResults) {
  */
 export const BOOK_PARAM = "book";
 
+/** The query parameter a link names an example of another published source by: https://factori.al/?example=<name>. */
+export const EXAMPLE_PARAM = "example";
+
 /** A book example's name: lowercase words and numbers joined by hyphens, such as two-level-pollutant. */
 const BOOK_NAME = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 
@@ -283,18 +286,33 @@ export function indexedName(index, name) {
   return found.name;
 }
 
+/** A web address an example links to, which must be https. */
+function address(value, what) {
+  const url = text(value, what, 300);
+  if (!url.startsWith("https://")) refuse(`${what} is not a web address`);
+  return url;
+}
+
 /**
- * Check one of the book's examples as the build writes book/<name>.json: its name, its title,
- * the page of the book it is on, a note on how the page holds it, and the campaign it opens.
+ * Check one of the examples as the build writes book/<name>.json: its name, its title, the page
+ * of the book it is on (or, for another published source, its citation, where in the source its
+ * runs are printed and the source's address), a note on how the page holds it, and the campaign it opens.
  */
 export function checkBookExample(data, name) {
   if (!isObject(data) || data.name !== name) refuse(`the book's example ${JSON.stringify(name)} could not be read`);
-  const book = text(data.book, "its page in the book", 300);
-  if (!book.startsWith("https://")) refuse("its page in the book is not a web address");
+  const cited = data.source !== undefined;
+  if (cited && !isObject(data.source)) refuse("its source could not be read");
   return {
     name,
     title: text(data.title, "its title"),
-    book,
+    book: cited ? null : address(data.book, "its page in the book"),
+    source: cited
+      ? {
+          cite: text(data.source.cite, "its source", 300),
+          where: text(data.source.where, "where its source prints it", 300),
+          url: address(data.source.url, "its source"),
+        }
+      : null,
     note: text(data.note ?? "", "its note", 1000),
     campaign: checkCampaign(data.campaign),
   };

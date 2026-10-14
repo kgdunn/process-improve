@@ -10,7 +10,9 @@ It also runs the page's worked example through ``web/bootstrap.py``, the code th
 page runs, and writes the results to ``demo.json``: the page draws them at first
 paint while Python loads in the browser. Each of the book's examples in
 ``web/book-examples.json`` is made the same way into ``book/<name>.json``, which the page
-opens from ``?book=<name>``, a link the book prints. The docs workflow runs this into
+opens from ``?book=<name>``, a link the book prints; so is each example of another published
+source in ``web/published-examples.json``, opened from ``?example=<name>`` with its citation.
+The docs workflow runs this into
 ``docs/_build/html/app``.
 
     uv run python scripts/build_web_app.py --serve
@@ -162,6 +164,9 @@ def worked_example() -> dict[str, Any]:
 
 #: The book's examples that the page opens by name: ``?book=<name>`` opens ``book/<name>.json``, built from each.
 BOOK_EXAMPLES = WEB_SRC / "book-examples.json"
+#: Examples from published sources other than the book, each with its citation: ``?example=<name>``
+#: opens one from the same ``book/`` folder and index as the book's.
+PUBLISHED_EXAMPLES = WEB_SRC / "published-examples.json"
 #: Where the book is published; each example names its page under here.
 BOOK = "https://learnche.org/pid/"
 #: The campaign format the page reads (``CAMPAIGN_VERSION`` in ``web/campaign.js``).
@@ -174,6 +179,11 @@ CODED_TOLERANCE = 0.01
 def book_examples() -> list[dict[str, Any]]:
     """Return the book's examples as ``web/book-examples.json`` lists them."""
     return json.loads(BOOK_EXAMPLES.read_text(encoding="utf-8"))["examples"]
+
+
+def published_examples() -> list[dict[str, Any]]:
+    """Return the examples of published sources that the page opens, as ``web/published-examples.json`` lists them."""
+    return json.loads(PUBLISHED_EXAMPLES.read_text(encoding="utf-8"))["examples"]
 
 
 def coded(setting: float | str, factor: dict[str, Any]) -> float:
@@ -219,14 +229,44 @@ def in_book_order(design: dict[str, Any], entry: dict[str, Any], days: dict[int,
 
 
 def book_example(entry: dict[str, Any]) -> dict[str, Any]:
-    """Make one of the book's examples into the campaign the page opens from ``?book=<name>``.
+    """Make one of the book's examples into what the page opens from ``?book=<name>``: its campaign and its page."""
+    return {
+        "name": entry["name"],
+        "title": entry["title"],
+        "book": BOOK + entry["page"],
+        "note": entry.get("note", ""),
+        "campaign": campaign_of(entry, f"the book's example {entry['name']!r}"),
+    }
 
-    The design is made as step 1 makes it, and its runs put in the order of the book's table,
-    each with the book's result, so the page's run sheet reads as the book's table does. The
-    design may number its blocks otherwise than the book numbers its days: each way of
+
+def published_example(entry: dict[str, Any]) -> dict[str, Any]:
+    """Make an example of a published source into what the page opens from ``?example=<name>``.
+
+    In place of the book's page it carries its source, as the reference catalogue cites it: the
+    citation, where in the source its runs are printed, and the address the source is read at.
+    """
+    from process_improve.experiments.reference_catalogue import (  # noqa: PLC0415 - the docs environment has it
+        reference_sources,
+    )
+
+    source = reference_sources()[entry["source"]]
+    return {
+        "name": entry["name"],
+        "title": entry["title"],
+        "source": {"cite": source["cite"], "where": entry["where"], "url": source["url"]},
+        "note": entry.get("note", ""),
+        "campaign": campaign_of(entry, f"the published example {entry['name']!r}"),
+    }
+
+
+def campaign_of(entry: dict[str, Any], what: str) -> dict[str, Any]:
+    """Return the campaign an example opens: its design, and its runs and results in the source's order.
+
+    The design is made as step 1 makes it, and its runs put in the order of the source's table,
+    each with the source's result, so the page's run sheet reads as the source's table does. The
+    design may number its blocks otherwise than the source numbers its days: each way of
     pairing them is tried.
     """
-    what = f"the book's example {entry['name']!r}"
     design = caller(what)("api_make_design", entry["design"])
     labels = sorted(set(entry.get("blocks", [])))
     attempts = [
@@ -236,7 +276,7 @@ def book_example(entry: dict[str, Any]) -> dict[str, Any]:
     rows = next((rows for rows in attempts if isinstance(rows, list)), None)
     if rows is None:
         raise SystemExit(f"{what}: {attempts[0]}")
-    campaign = {
+    return {
         "v": CAMPAIGN_VERSION,
         "title": entry["title"],
         "design": {
@@ -252,18 +292,15 @@ def book_example(entry: dict[str, Any]) -> dict[str, Any]:
         "sources": ["entered"] * len(rows),
         "model": entry.get("model", ""),
     }
-    return {
-        "name": entry["name"],
-        "title": entry["title"],
-        "book": BOOK + entry["page"],
-        "note": entry.get("note", ""),
-        "campaign": campaign,
-    }
 
 
 def write_book(out_dir: Path) -> None:
-    """Write ``book/<name>.json`` for each of the book's examples, and ``book/index.json`` naming them all."""
+    """Write ``book/<name>.json`` for each example, the book's and the published ones, and ``book/index.json``."""
     examples = [book_example(entry) for entry in book_examples()]
+    examples += [published_example(entry) for entry in published_examples()]
+    names = [example["name"] for example in examples]
+    if len(set(names)) != len(names):
+        raise SystemExit(f"Two examples share a name: {sorted({n for n in names if names.count(n) > 1})}")
     (out_dir / "book").mkdir()
     for example in examples:
         (out_dir / "book" / f"{example['name']}.json").write_text(json.dumps(example, separators=(",", ":")) + "\n")
@@ -271,8 +308,9 @@ def write_book(out_dir: Path) -> None:
 
 
 def book_index(examples: list[dict[str, Any]]) -> dict[str, Any]:
-    """Return ``book/index.json``: each example's name, title and page of the book, for the page and the book."""
-    return {"examples": [{key: example[key] for key in ("name", "title", "book")} for example in examples]}
+    """Return ``book/index.json``: each example's name, title, and its page of the book or its source."""
+    keys = ("name", "title", "book", "source")
+    return {"examples": [{key: example[key] for key in keys if key in example} for example in examples]}
 
 
 def assemble(out_dir: Path, dist: Path = ROOT / "dist" / "web") -> str:
