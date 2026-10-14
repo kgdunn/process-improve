@@ -18,13 +18,13 @@
   ],
   "title": "Statistics for Experimenters: An Introduction to Design, Data Analysis, and Model Building",
   "edition": "1st edition (1978)",
-  "pages": "chapters 1 to 3, pp. 1-92",
+  "pages": "chapters 1 to 5 and the problems for Part I, pp. 1-164",
   "year": 1978,
   "publisher": "John Wiley & Sons, New York",
   "isbn": "0-471-09315-7",
   "url": "https://search.worldcat.org/search?q=bn:0471093157",
   "cite": "Box, G. E. P., Hunter, W. G. and Hunter, J. S. (1978), Statistics for Experimenters, Wiley",
-  "read": "2026-10-14, from scans of the front matter and chapters 1 to 3; tables taken from the text layer and checked against the totals and averages the book prints; Table 2.3's circled entries, one average of Table 2.2 and Exercise 2.6 read from the page image",
+  "read": "2026-10-14, from scans of the front matter, chapters 1 to 5 and the problems for Part I; tables taken from the text layer and checked against the totals and averages the book prints; Table 2.3's circled entries, one average of Table 2.2 and Exercise 2.6 read from the page image",
   "rights": "The book is protected by copyright (© 1978 John Wiley & Sons, Inc.) and is not reproduced here. This file holds facts it reports (numbers, layouts, data) and short quotations that locate each one, for citation and for checking software. The MIT licence of process-improve does not extend to them."
  },
  "experiments": [
@@ -16447,6 +16447,894 @@
      }
     }
    ]
+  },
+  {
+   "name": "bhh-tomato-fertilizer",
+   "title": "Tomato yields: 11 plants in a row, 5 given the standard fertilizer A and 6 the modified B, assigned at random",
+   "kind": "example",
+   "where": {
+    "section": "4.1 and 5.3",
+    "pages": "93-97, 115-116",
+    "tables": [
+     "Table 4.1",
+     "Table 4.2"
+    ],
+    "figures": [
+     "Figure 4.1"
+    ]
+   },
+   "factors": [
+    {
+     "name": "fertilizer",
+     "description": "fertilizer mixture: A the standard, B the modified",
+     "low": "A",
+     "high": "B",
+     "levels": [
+      "A",
+      "B"
+     ],
+     "units": "",
+     "type": "categorical"
+    }
+   ],
+   "responses": [
+    {
+     "name": "y",
+     "description": "yield of tomatoes",
+     "units": "lb"
+    }
+   ],
+   "design": {
+    "type": "completely randomized two-group comparison",
+    "details": "5 plants with A and 6 with B, the labels dealt from shuffled cards",
+    "n_runs": 11
+   },
+   "runs": {
+    "columns": [
+     "Position",
+     "fertilizer",
+     "y"
+    ],
+    "rows": [
+     [
+      1,
+      "A",
+      29.9
+     ],
+     [
+      2,
+      "A",
+      11.4
+     ],
+     [
+      3,
+      "B",
+      26.6
+     ],
+     [
+      4,
+      "B",
+      23.7
+     ],
+     [
+      5,
+      "A",
+      25.3
+     ],
+     [
+      6,
+      "B",
+      28.5
+     ],
+     [
+      7,
+      "B",
+      14.2
+     ],
+     [
+      8,
+      "B",
+      17.9
+     ],
+     [
+      9,
+      "A",
+      16.5
+     ],
+     [
+      10,
+      "A",
+      21.1
+     ],
+     [
+      11,
+      "B",
+      24.3
+     ]
+    ],
+    "coded": false,
+    "notes": "Table 4.1, in position along the row; position 7 (B, 14.2) is restored from the B column of the table, the totals 104.2 and 135.2 check"
+   },
+   "expected": [
+    {
+     "what": "mean",
+     "term": "A",
+     "value": "20.84",
+     "where": {
+      "page": 94,
+      "source_kind": "table",
+      "quote": "yA = 20.84 yB = 22.53"
+     },
+     "check": {
+      "kind": "mean",
+      "runs": [
+       1,
+       2,
+       5,
+       9,
+       10
+      ]
+     }
+    },
+    {
+     "what": "mean",
+     "term": "B",
+     "value": "22.53",
+     "where": {
+      "page": 94,
+      "source_kind": "table",
+      "quote": "yA = 20.84 yB = 22.53"
+     },
+     "check": {
+      "kind": "mean",
+      "runs": [
+       3,
+       4,
+       6,
+       7,
+       8,
+       11
+      ]
+     }
+    },
+    {
+     "what": "effect",
+     "term": "fertilizer",
+     "value": "1.69",
+     "where": {
+      "page": 94,
+      "source_kind": "table",
+      "quote": "difference in averages (modified minus standard) yB - yA = 1.69"
+     },
+     "check": {
+      "kind": "effect",
+      "term": "fertilizer",
+      "model": "fertilizer"
+     }
+    },
+    {
+     "what": "ss_residual",
+     "term": "A",
+     "value": "209.9920",
+     "where": {
+      "page": 96,
+      "source_kind": "table",
+      "quote": "s²A = [Σy²A - (ΣyA)²/nA]/(nA - 1) = 209.9920/4 = 52.50"
+     },
+     "check": {
+      "kind": "ss_residual",
+      "model": "1",
+      "runs": [
+       1,
+       2,
+       5,
+       9,
+       10
+      ]
+     }
+    },
+    {
+     "what": "ss_residual",
+     "term": "B",
+     "value": "147.5333",
+     "where": {
+      "page": 96,
+      "source_kind": "table",
+      "quote": "s²B = 147.5333/5 = 29.51"
+     },
+     "check": {
+      "kind": "ss_residual",
+      "model": "1",
+      "runs": [
+       3,
+       4,
+       6,
+       7,
+       8,
+       11
+      ]
+     }
+    },
+    {
+     "what": "variance",
+     "term": "A",
+     "value": "52.50",
+     "where": {
+      "page": 96,
+      "source_kind": "table",
+      "quote": "209.9920/4 = 52.50"
+     },
+     "check": {
+      "kind": "variance",
+      "runs": [
+       1,
+       2,
+       5,
+       9,
+       10
+      ]
+     }
+    },
+    {
+     "what": "variance",
+     "term": "B",
+     "value": "29.51",
+     "where": {
+      "page": 96,
+      "source_kind": "table",
+      "quote": "147.5333/5 = 29.51"
+     },
+     "check": {
+      "kind": "variance",
+      "runs": [
+       3,
+       4,
+       6,
+       7,
+       8,
+       11
+      ]
+     }
+    },
+    {
+     "what": "ms_residual",
+     "term": null,
+     "value": "39.73",
+     "where": {
+      "page": 96,
+      "source_kind": "table",
+      "quote": "s² = [4(52.50) + 5(29.51)]/(4 + 5) = 39.73 with ν = nA + nB - 2 = 9 degrees of freedom"
+     },
+     "check": {
+      "kind": "ms_residual",
+      "model": "fertilizer"
+     }
+    },
+    {
+     "what": "residual_df",
+     "term": null,
+     "value": "9",
+     "where": {
+      "page": 96,
+      "source_kind": "table",
+      "quote": "with ν = nA + nB - 2 = vA + vB = 9 degrees of freedom"
+     },
+     "check": {
+      "kind": "residual_df",
+      "model": "fertilizer"
+     }
+    },
+    {
+     "what": "variance",
+     "term": "difference",
+     "value": "14.57",
+     "where": {
+      "page": 96,
+      "source_kind": "table",
+      "quote": "The estimated variance of yB - yA is s²(1/nB + 1/nA) = 39.73(1/6 + 1/5) = 14.57"
+     },
+     "check": {
+      "manual": "the square of the standard error of the difference, which is checked as 3.82"
+     }
+    },
+    {
+     "what": "effect_std_error",
+     "term": "fertilizer",
+     "value": "3.82",
+     "where": {
+      "page": 96,
+      "source_kind": "table",
+      "quote": "The standard error of yB - yA is √14.57 = 3.82"
+     },
+     "check": {
+      "kind": "effect_std_error",
+      "term": "fertilizer",
+      "model": "fertilizer"
+     }
+    },
+    {
+     "what": "t_value",
+     "term": "fertilizer",
+     "value": "0.44",
+     "where": {
+      "page": 95,
+      "source_kind": "table",
+      "quote": "t0 = (1.69 - 0)/3.82 = 0.44"
+     },
+     "check": {
+      "kind": "t_value",
+      "term": "fertilizer",
+      "model": "fertilizer"
+     }
+    },
+    {
+     "what": "p_value",
+     "term": "fertilizer",
+     "value": "0.34",
+     "analysis": "one-sided, for the alternative that B gives more",
+     "where": {
+      "page": 96,
+      "source_kind": "table",
+      "quote": "Pr(t > t0) = 0.34"
+     },
+     "check": {
+      "kind": "p_value",
+      "term": "fertilizer",
+      "model": "fertilizer",
+      "alternative": "greater",
+      "disagreement": "the one-sided level is 0.334 (t = 0.444 on 9 df); the book reads 0.34 off its t table by graphical interpolation"
+     }
+    },
+    {
+     "what": "p_value",
+     "term": "randomization",
+     "value": "0.33",
+     "where": {
+      "page": 95,
+      "source_kind": "table",
+      "quote": "154 of the possible 462 arrangements yield differences greater than 1.69 ... 154/462 = 0.33"
+     },
+     "check": {
+      "manual": "a randomization test over the 462 ways to label 5 plants A and 6 B, which no check computes (it reproduces: 154 arrangements reach 1.69, the observed one included)"
+     }
+    },
+    {
+     "what": "ci_low",
+     "term": "fertilizer",
+     "value": "-6.95",
+     "where": {
+      "page": 116,
+      "source_kind": "table",
+      "quote": "the 95% interval for δ extends from -6.95 to 10.33"
+     },
+     "check": {
+      "kind": "ci_low",
+      "term": "fertilizer",
+      "model": "fertilizer",
+      "scale": "effect",
+      "disagreement": "the 95% lower limit is -6.940; the book takes 1.69 less 3.82 x 2.262 = 8.64, both rounded"
+     }
+    },
+    {
+     "what": "ci_high",
+     "term": "fertilizer",
+     "value": "10.33",
+     "where": {
+      "page": 116,
+      "source_kind": "table",
+      "quote": "the 95% interval for δ extends from -6.95 to 10.33"
+     },
+     "check": {
+      "kind": "ci_high",
+      "term": "fertilizer",
+      "model": "fertilizer",
+      "scale": "effect"
+     }
+    }
+   ]
+  },
+  {
+   "name": "bhh-boys-shoes-paired",
+   "title": "Wear of shoe soles: 10 boys each wore one sole of material A and one of B, the foot for A chosen by a coin",
+   "kind": "example",
+   "where": {
+    "section": "4.2 and 5.2",
+    "pages": "97-101, 110-114",
+    "tables": [
+     "Table 4.3",
+     "Table 5.1",
+     "Table 5.2"
+    ],
+    "figures": [
+     "Figure 4.2",
+     "Figure 4.3",
+     "Figure 5.1",
+     "Figure 5.2"
+    ]
+   },
+   "factors": [
+    {
+     "name": "boy",
+     "description": "the boy, a block of two soles",
+     "low": "1",
+     "high": "2",
+     "levels": [
+      "1",
+      "2",
+      "3",
+      "4",
+      "5",
+      "6",
+      "7",
+      "8",
+      "9",
+      "10"
+     ],
+     "units": "",
+     "type": "categorical"
+    },
+    {
+     "name": "material",
+     "description": "sole material: A the standard, B the cheaper substitute",
+     "low": "A",
+     "high": "B",
+     "levels": [
+      "A",
+      "B"
+     ],
+     "units": "",
+     "type": "categorical"
+    }
+   ],
+   "responses": [
+    {
+     "name": "y",
+     "description": "amount of wear",
+     "units": ""
+    }
+   ],
+   "design": {
+    "type": "randomized paired comparison",
+    "details": "10 boys as blocks of two, the material on each foot assigned by a coin (T T H T H T T T H T)",
+    "n_runs": 20
+   },
+   "runs": {
+    "columns": [
+     "No.",
+     "boy",
+     "material",
+     "foot",
+     "y"
+    ],
+    "rows": [
+     [
+      1,
+      "1",
+      "A",
+      "L",
+      13.2
+     ],
+     [
+      2,
+      "1",
+      "B",
+      "R",
+      14.0
+     ],
+     [
+      3,
+      "2",
+      "A",
+      "L",
+      8.2
+     ],
+     [
+      4,
+      "2",
+      "B",
+      "R",
+      8.8
+     ],
+     [
+      5,
+      "3",
+      "A",
+      "R",
+      10.9
+     ],
+     [
+      6,
+      "3",
+      "B",
+      "L",
+      11.2
+     ],
+     [
+      7,
+      "4",
+      "A",
+      "L",
+      14.3
+     ],
+     [
+      8,
+      "4",
+      "B",
+      "R",
+      14.2
+     ],
+     [
+      9,
+      "5",
+      "A",
+      "R",
+      10.7
+     ],
+     [
+      10,
+      "5",
+      "B",
+      "L",
+      11.8
+     ],
+     [
+      11,
+      "6",
+      "A",
+      "L",
+      6.6
+     ],
+     [
+      12,
+      "6",
+      "B",
+      "R",
+      6.4
+     ],
+     [
+      13,
+      "7",
+      "A",
+      "L",
+      9.5
+     ],
+     [
+      14,
+      "7",
+      "B",
+      "R",
+      9.8
+     ],
+     [
+      15,
+      "8",
+      "A",
+      "L",
+      10.8
+     ],
+     [
+      16,
+      "8",
+      "B",
+      "R",
+      11.3
+     ],
+     [
+      17,
+      "9",
+      "A",
+      "R",
+      8.8
+     ],
+     [
+      18,
+      "9",
+      "B",
+      "L",
+      9.3
+     ],
+     [
+      19,
+      "10",
+      "A",
+      "L",
+      13.3
+     ],
+     [
+      20,
+      "10",
+      "B",
+      "R",
+      13.6
+     ]
+    ],
+    "coded": false,
+    "notes": "Table 4.3, each boy's A then B; foot is the sole the material was worn on"
+   },
+   "notes": "The paired t-test is the randomized-block analysis with boys as blocks: the material effect is the average difference B - A and its standard error sd/√n.",
+   "expected": [
+    {
+     "what": "difference_of_means",
+     "term": "B less A",
+     "value": "0.41",
+     "where": {
+      "page": 100,
+      "source_kind": "table",
+      "quote": "average difference = 0.41"
+     },
+     "check": {
+      "kind": "difference_of_means",
+      "runs": [
+       2,
+       4,
+       6,
+       8,
+       10,
+       12,
+       14,
+       16,
+       18,
+       20
+      ],
+      "minus": [
+       1,
+       3,
+       5,
+       7,
+       9,
+       11,
+       13,
+       15,
+       17,
+       19
+      ]
+     }
+    },
+    {
+     "what": "effect",
+     "term": "material",
+     "value": "0.41",
+     "analysis": "the material effect within boys, the paired analysis as a randomized block",
+     "where": {
+      "page": 100,
+      "source_kind": "table",
+      "quote": "average difference = 0.41"
+     },
+     "check": {
+      "kind": "effect",
+      "term": "material",
+      "model": "boy + material"
+     }
+    },
+    {
+     "what": "variance",
+     "term": "differences",
+     "value": "0.149",
+     "where": {
+      "page": 101,
+      "source_kind": "table",
+      "quote": "s²d = (3.030 - 1.681)/9 = 0.149"
+     },
+     "check": {
+      "manual": "the variance of the 10 differences, which no kind reads directly (it is 0.1499; the block model's residual mean square is half of it)"
+     }
+    },
+    {
+     "what": "std_dev",
+     "term": "differences",
+     "value": "0.386",
+     "where": {
+      "page": 101,
+      "source_kind": "table",
+      "quote": "sd = √0.149 = 0.386"
+     },
+     "check": {
+      "manual": "the standard deviation of the 10 differences (it is 0.387)"
+     }
+    },
+    {
+     "what": "effect_std_error",
+     "term": "material",
+     "value": "0.122",
+     "where": {
+      "page": 101,
+      "source_kind": "table",
+      "quote": "sd/√n = 0.386/√10 = 0.122"
+     },
+     "check": {
+      "kind": "effect_std_error",
+      "term": "material",
+      "model": "boy + material"
+     }
+    },
+    {
+     "what": "t_value",
+     "term": "material",
+     "value": "3.4",
+     "where": {
+      "page": 101,
+      "source_kind": "table",
+      "quote": "t0 = 0.41/0.12 = 3.4"
+     },
+     "check": {
+      "kind": "t_value",
+      "term": "material",
+      "model": "boy + material",
+      "disagreement": "t is 3.349 for these differences; the book works with the standard error rounded to 0.12, 0.41/0.12 = 3.42"
+     }
+    },
+    {
+     "what": "p_value",
+     "term": "material",
+     "value": "0.004",
+     "analysis": "one-sided, for the alternative that B wears more",
+     "where": {
+      "page": 101,
+      "source_kind": "table",
+      "quote": "Pr(t > 3.4) ≈ 0.004"
+     },
+     "check": {
+      "kind": "p_value",
+      "term": "material",
+      "model": "boy + material",
+      "alternative": "greater"
+     }
+    },
+    {
+     "what": "p_value",
+     "term": "material, two-sided",
+     "value": "0.008",
+     "where": {
+      "page": 110,
+      "source_kind": "table",
+      "quote": "δ0 = 0.00 0.008"
+     },
+     "check": {
+      "kind": "p_value",
+      "term": "material",
+      "model": "boy + material",
+      "disagreement": "the two-sided level is 0.0085 (t = 3.349); the book's 0.008 is for its rounded t = 3.4"
+     }
+    },
+    {
+     "what": "p_value",
+     "term": "randomization",
+     "value": "0.005",
+     "where": {
+      "page": 100,
+      "source_kind": "table",
+      "quote": "If we include half these ties, we obtain a significance level of 5/1024 = 0.005"
+     },
+     "check": {
+      "manual": "a randomization test over the 1024 sign patterns, which no check computes (it reproduces: 3 averages above 0.41 and 4 equal)"
+     }
+    },
+    {
+     "what": "t_value",
+     "term": "delta 0.10",
+     "value": "2.6",
+     "where": {
+      "page": 110,
+      "source_kind": "table",
+      "quote": "t0 = (0.41 - 0.10)/0.12 = 2.6; Pr(t > 2.6) ≈ 0.014"
+     },
+     "check": {
+      "manual": "a test against a stated difference of 0.10, which no check computes (2.53 from the unrounded standard error)"
+     }
+    },
+    {
+     "what": "p_value",
+     "term": "delta 0.10",
+     "value": "0.014",
+     "where": {
+      "page": 110,
+      "source_kind": "table",
+      "quote": "Pr(t > 2.6) ≈ 0.014"
+     },
+     "check": {
+      "manual": "a test against a stated difference of 0.10, which no check computes (0.016 from the unrounded standard error)"
+     }
+    },
+    {
+     "what": "ci_low",
+     "term": "material",
+     "value": "0.14",
+     "where": {
+      "page": 111,
+      "source_kind": "table",
+      "quote": "The 95% confidence limits for δ are thus 0.41 ± 2.262 x 0.12 or 0.41 ± 0.27 ... from 0.14 to 0.68"
+     },
+     "check": {
+      "kind": "ci_low",
+      "term": "material",
+      "model": "boy + material",
+      "scale": "effect",
+      "disagreement": "the 95% lower limit is 0.133; the book works with the standard error rounded to 0.12"
+     }
+    },
+    {
+     "what": "ci_high",
+     "term": "material",
+     "value": "0.68",
+     "where": {
+      "page": 111,
+      "source_kind": "table",
+      "quote": "This interval extends from 0.14 to 0.68"
+     },
+     "check": {
+      "kind": "ci_high",
+      "term": "material",
+      "model": "boy + material",
+      "scale": "effect",
+      "disagreement": "the 95% upper limit is 0.687; the book works with the standard error rounded to 0.12"
+     }
+    },
+    {
+     "what": "confidence_interval",
+     "term": "0.999 confidence",
+     "value": "-0.16 to 0.98",
+     "where": {
+      "page": 113,
+      "source_kind": "table",
+      "quote": "0.999 -0.16 0.98"
+     },
+     "check": {
+      "manual": "a confidence interval at a level other than 95%, which no check reads (from the unrounded standard error it is -0.175 to 0.995)"
+     }
+    },
+    {
+     "what": "confidence_interval",
+     "term": "0.99 confidence",
+     "value": "0.01 to 0.81",
+     "where": {
+      "page": 113,
+      "source_kind": "table",
+      "quote": "0.99 0.01 0.81"
+     },
+     "check": {
+      "manual": "a confidence interval at a level other than 95%, which no check reads (from the unrounded standard error it is 0.012 to 0.808)"
+     }
+    },
+    {
+     "what": "confidence_interval",
+     "term": "0.90 confidence",
+     "value": "0.19 to 0.63",
+     "where": {
+      "page": 113,
+      "source_kind": "table",
+      "quote": "0.90 0.19 0.63"
+     },
+     "check": {
+      "manual": "a confidence interval at a level other than 95%, which no check reads (from the unrounded standard error it is 0.186 to 0.634)"
+     }
+    },
+    {
+     "what": "confidence_interval",
+     "term": "0.80 confidence",
+     "value": "0.24 to 0.58",
+     "where": {
+      "page": 113,
+      "source_kind": "table",
+      "quote": "0.80 0.24 0.58"
+     },
+     "check": {
+      "manual": "a confidence interval at a level other than 95%, which no check reads (from the unrounded standard error it is 0.241 to 0.579)"
+     }
+    },
+    {
+     "what": "p_value",
+     "term": "randomization at the 95% limits",
+     "value": "25/1024 and 19/1024",
+     "where": {
+      "page": 113,
+      "source_kind": "table",
+      "quote": "just 25 out of the 1024 possible averages (i.e., 2.4%) ... just 19 out of 1024"
+     },
+     "check": {
+      "manual": "randomization tests at the two limits, which no check computes"
+     }
+    }
+   ]
   }
  ],
  "designs": [],
@@ -16457,6 +17345,9 @@
   "Exercises 3.1 and 3.2 (pp. 61-63): a correlation coefficient and a lag-1 autocorrelation of small samples, which no check computes (0.85 and 0.32 reproduce)",
   "Exercise 3.4 (p. 72): specific gravities, with no printed answer",
   "Table 3.3 (p. 81): rejection rates of the t and Wilcoxon tests from simulations, not reproducible",
-  "Appendices 3A to 3C (pp. 87-92): theory, no data"
+  "Appendices 3A to 3C (pp. 87-92): theory, no data",
+  "Exercises 4.1 to 4.4 and 5.1 to 5.10 (pp. 97-101, 109-121): single-factor comparisons (two groups or pairs) with printed answers, left out as the catalogue concentrates on designs in two or more factors; the worked examples of chapters 4 and 5 are held",
+  "5.4 to 5.7 and Exercises 5.11 to 5.20 (pp. 117-151): inferences about variances, proportions (binomial), frequencies (Poisson) and contingency tables (Tables 5.3 to 5.9), not designed experiments",
+  "Problems for Part I (pp. 152-164): 34 problems on one- and two-sample comparisons, distributions and contingency tables, mostly without printed answers; left out for the same reason"
  ]
 }

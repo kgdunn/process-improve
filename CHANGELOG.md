@@ -28,10 +28,10 @@ those changes.
   with missing cells, two-level factorials, multi-level factorials with their orthogonal
   polynomial components, factorials confounded in blocks, fractional factorials, and response
   surface work (two stages of steepest ascent, a 3^2 factorial and a composite design with their
-  canonical analyses, and orthogonal composite designs); of chapters 1 to 3 of Box, Hunter and
+  canonical analyses, and orthogonal composite designs); of chapters 1 to 5 of Box, Hunter and
   Hunter, *Statistics for Experimenters* (1978): a two-method plant trial, the 210-batch
-  production record that gives its external reference distributions, and the exercises with
-  data; and of five papers on definitive screening and OMARS designs and
+  production record that gives its external reference distributions, the randomized tomato
+  and paired boys' shoes experiments, and the exercises with data of chapters 2 and 3; and of five papers on definitive screening and OMARS designs and
   trend-robust run orders (Jones and Nachtsheim 2013; Nunez Ares and Goos 2019, 2020; Nunez
   Ares, Schoen and Goos 2023; Goos 2025). For each it keeps the factors,
   responses and runs exactly as printed, and every number the source prints: each as the
