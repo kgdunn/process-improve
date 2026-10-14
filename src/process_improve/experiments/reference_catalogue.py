@@ -53,6 +53,7 @@ from process_improve.experiments.designs_response_surface import blocking_alpha
 from process_improve.experiments.evaluate import evaluate_design
 from process_improve.experiments.factor import Factor
 from process_improve.experiments.omars_trade_off import omars_minimum_runs
+from process_improve.experiments.optimization import optimize_responses
 
 _CATALOGUE_DIR = Path(__file__).resolve().parents[1] / "datasets" / "experiments" / "reference_catalogue"
 
@@ -334,6 +335,57 @@ def _prediction(out: dict, check: dict, experiment: dict) -> float:
     return float(found["predictions"][0]["predicted"])
 
 
+def _response_model(out: dict, experiment: dict) -> dict:
+    """Return a fit as :func:`optimize_responses` takes it: coded coefficients, the factors in the entry's order."""
+    return {
+        "response_name": out["y"].name,
+        "coefficients": out["coefficients"],
+        "factor_names": [f["name"] for f in experiment["factors"]],
+    }
+
+
+def _factor_ranges(experiment: dict) -> dict[str, dict[str, float]]:
+    """Return each numeric factor's range in actual units, for the library's coded-to-actual conversion."""
+    return {f["name"]: {"low": f["low"], "high": f["high"]} for f in experiment["factors"] if f["type"] == "numeric"}
+
+
+def _optimum(out: dict, check: dict, experiment: dict) -> float:
+    """Return one number of the library's analysis of a fitted quadratic: its stationary point or canonical form.
+
+    ``check["method"]`` is ``"stationary_point"`` or ``"canonical_analysis"`` of
+    :func:`optimize_responses`, and ``check["key"]`` reads into its result, as
+    ``stationary_point.stationary_point_actual.T`` or ``canonical_analysis.eigenvectors.0.1``.
+    An eigenvector's sign is arbitrary, so ``"abs": true`` compares its size only.
+    """
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        found = optimize_responses(
+            [_response_model(out, experiment)], method=check["method"], factor_ranges=_factor_ranges(experiment)
+        )
+    value = _read(found, check["key"])
+    return abs(value) if check.get("abs") else value
+
+
+def _steepest_path(out: dict, check: dict, experiment: dict) -> float:
+    """Return a setting, in actual units, on the library's path of steepest ascent, set out as a source sets it out.
+
+    A source steps along the path by a round change in one factor (``check["change"]`` actual units
+    of ``check["per"]``) and moves the others in proportion; the setting of ``check["key"]`` after
+    ``check["steps"]`` such steps is returned, or its change from the centre with ``"from_centre": true``.
+    """
+    model, ranges = _response_model(out, experiment), _factor_ranges(experiment)
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        unit = optimize_responses([model], method="steepest_ascent", step_size=1.0, n_steps=1, factor_ranges=ranges)
+        start, one = (step["actual"] for step in unit["steepest_path"]["steps"])
+        size = check["change"] / (one[check["per"]] - start[check["per"]])  # the coded step making that change
+        path = optimize_responses(
+            [model], method="steepest_ascent", step_size=size, n_steps=check["steps"], factor_ranges=ranges
+        )
+    setting = path["steepest_path"]["steps"][-1]["actual"][check["key"]]
+    return setting - start[check["key"]] if check.get("from_centre") else setting
+
+
 def _run(check: dict) -> int:
     return int(check["run"]) - 1
 
@@ -381,6 +433,8 @@ _FIT_KINDS: dict[str, Callable[[dict, dict, dict], float]] = {
     "pure_error_ms": lambda out, _c, _e: out["lack_of_fit"]["ms_pure_error"],
     "curvature_difference": lambda out, _c, _e: out["curvature_test"]["difference"],
     "prediction": _prediction,
+    "optimum": _optimum,
+    "steepest_path": _steepest_path,
 }
 
 
@@ -613,7 +667,9 @@ def reproduce_reference_catalogue(source: str | None = None) -> pd.DataFrame:
     check names (on the runs it names), and the result compared with the printed text to within
     half a unit in its last printed digit. A design's generators, resolution, defining relation
     and aliases are compared with the fraction this library makes, and a list of runs (those
-    making a fraction, or their standard order) with the runs' coded settings. A number without
+    making a fraction, or their standard order) with the runs' coded settings. A fitted
+    quadratic's stationary point and canonical form, and a setting on a path of steepest ascent,
+    are recomputed with :func:`~process_improve.experiments.optimize_responses`. A number without
     a check is reported with the reason it is not recomputed.
 
     Parameters
