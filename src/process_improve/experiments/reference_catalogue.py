@@ -54,6 +54,7 @@ from process_improve.experiments.evaluate import evaluate_design
 from process_improve.experiments.factor import Factor
 from process_improve.experiments.omars_trade_off import omars_minimum_runs
 from process_improve.experiments.optimization import optimize_responses
+from process_improve.regression._variance_components import fit_variance_components
 
 _CATALOGUE_DIR = Path(__file__).resolve().parents[1] / "datasets" / "experiments" / "reference_catalogue"
 
@@ -148,9 +149,12 @@ def _tolerance(printed: str) -> float:
     """Half a unit in the last digit printed: the most the source's rounding accounts for.
 
     The digits count as printed: 0.40 is rounded to hundredths, so it allows 0.005, not 0.05.
+    A little more is allowed for floating-point error, never more than a thousandth of the half
+    unit, so a number printed as 0.798e-8 is held to its own digits.
     """
     exponent = Decimal(printed).as_tuple().exponent
-    return 0.5 * 10.0 ** min(0, int(exponent)) + 1e-9
+    half = 0.5 * 10.0 ** min(0, int(exponent))
+    return half + min(1e-9, half * 1e-3)
 
 
 _ARITHMETIC: dict[type, Callable[[float, float], float]] = {
@@ -202,7 +206,10 @@ def _agrees(found: float, printed: str, *, expression: bool = False) -> bool:
 
 # --------------------------------------------------------------------------- the runs as a model sees them
 def _coded_runs(experiment: dict, positions: list[int] | None) -> tuple[pd.DataFrame, pd.DataFrame]:
-    """Return the factor settings in coded units and the responses, for the runs at these 1-based positions."""
+    """Return the factor settings in coded units and the responses, for the runs at these 1-based positions.
+
+    A factor marked ``"coding": "none"`` is fitted in its own units, as a source's regression on it is.
+    """
     runs = experiment["runs"]
     table = pd.DataFrame(runs["rows"], columns=runs["columns"])
     if positions is not None:
@@ -211,6 +218,9 @@ def _coded_runs(experiment: dict, positions: list[int] | None) -> tuple[pd.DataF
     settings = {}
     for f in experiment["factors"]:
         column = table[f["name"]]
+        if f.get("coding") == "none":
+            settings[f["name"]] = column.astype(float)
+            continue
         if f.get("levels") and len(f["levels"]) > 2 and f["type"] == "categorical":
             settings[f["name"]] = column.astype(str)  # a factor at three or more levels is fitted by name
             continue
@@ -335,6 +345,17 @@ def _prediction(out: dict, check: dict, experiment: dict) -> float:
     return float(found["predictions"][0]["predicted"])
 
 
+def _box_cox(out: dict, check: dict, _experiment: dict) -> float:
+    """Return a number of the library's Box-Cox analysis of ``check["model"]``: ``lambda`` or ``lambda_ci.0``, ``.1``.
+
+    Run on demand, so that a response that is not positive does not cost every other check its fit.
+    """
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        found = analyze_experiment(out["settings"], out["y"], model=check["model"], analysis_type="box_cox")
+    return _read(found["box_cox"], check["key"])
+
+
 def _response_model(out: dict, experiment: dict) -> dict:
     """Return a fit as :func:`optimize_responses` takes it: coded coefficients, the factors in the entry's order."""
     return {
@@ -386,6 +407,20 @@ def _steepest_path(out: dict, check: dict, experiment: dict) -> float:
     return setting - start[check["key"]] if check.get("from_centre") else setting
 
 
+def _p_value(row: dict, alternative: str | None) -> float:
+    """Return a coefficient's p-value: two-sided, or one-sided when a source tests one direction.
+
+    ``alternative`` is ``"greater"`` (the coefficient is above zero) or ``"less"``; the one-sided
+    p-value is half the two-sided one when the estimate lies on that side, and one less that half
+    when it does not.
+    """
+    p = float(row["p_value"])
+    if alternative is None:
+        return p
+    agrees = row["coefficient"] > 0 if alternative == "greater" else row["coefficient"] < 0
+    return p / 2 if agrees else 1 - p / 2
+
+
 def _run(check: dict) -> int:
     return int(check["run"]) - 1
 
@@ -396,7 +431,7 @@ _FIT_KINDS: dict[str, Callable[[dict, dict, dict], float]] = {
     "std_error": lambda out, c, _e: _coefficient_row(out, c["term"])["std_error"],
     "effect_std_error": lambda out, c, _e: 2 * _coefficient_row(out, c["term"])["std_error"],
     "t_value": lambda out, c, _e: _coefficient_row(out, c["term"])["t_value"],
-    "p_value": lambda out, c, _e: _coefficient_row(out, c["term"])["p_value"],
+    "p_value": lambda out, c, _e: _p_value(_coefficient_row(out, c["term"]), c.get("alternative")),
     "ci_low": lambda out, c, _e: _coefficient_row(out, c["term"])["ci_low"] * (2 if c.get("scale") == "effect" else 1),
     "ci_high": lambda out, c, _e: (
         _coefficient_row(out, c["term"])["ci_high"] * (2 if c.get("scale") == "effect" else 1)
@@ -407,6 +442,7 @@ _FIT_KINDS: dict[str, Callable[[dict, dict, dict], float]] = {
     "observation": lambda out, c, _e: float(out["y"].to_numpy()[_run(c)]),
     "mean": lambda out, _c, _e: float(out["y"].mean()),
     "std_dev": lambda out, _c, _e: float(out["y"].std(ddof=1)),
+    "variance": lambda out, _c, _e: float(out["y"].var(ddof=1)),
     "n_runs": lambda out, _c, _e: float(len(out["y"])),
     "r_squared": lambda out, _c, _e: out["model_summary"]["r_squared"],
     "r_squared_adj": lambda out, _c, _e: out["model_summary"]["r_squared_adj"],
@@ -434,6 +470,7 @@ _FIT_KINDS: dict[str, Callable[[dict, dict, dict], float]] = {
     "curvature_difference": lambda out, _c, _e: out["curvature_test"]["difference"],
     "prediction": _prediction,
     "optimum": _optimum,
+    "box_cox": _box_cox,
     "steepest_path": _steepest_path,
 }
 
@@ -516,6 +553,18 @@ def _design_check(check: dict, printed: str, k: int) -> tuple[str, bool]:
 _DESIGN_KINDS = {"generator", "resolution", "defining_relation", "aliases"}
 
 
+def _block_confounding(check: dict, printed: str) -> tuple[str, bool]:
+    """Check the interactions a source confounds with blocks against those the library's blocking confounds.
+
+    ``check["design"]`` names the blocked design for ``generate_design`` (``n_blocks`` among its
+    ``options``). The factors of a full factorial are interchangeable, so the two arrangements agree
+    when they confound as many interactions of each order: two-factor, three-factor, and so on.
+    """
+    made = _made(json.dumps(check["design"], sort_keys=True))
+    found = made.metadata["blocking"]["confounded_with"]
+    return ", ".join(found), sorted(map(len, _words(printed))) == sorted(map(len, found))
+
+
 def _design_property(check: dict) -> float:
     """Return a property of a design the library makes: its run count, axial distance or resolution.
 
@@ -594,14 +643,19 @@ def _read(found: Any, key: str | None) -> float:  # noqa: ANN401 - a library res
     return float(found)
 
 
-_LIBRARY: dict[str, Callable[..., Any]] = {"blocking_alpha": blocking_alpha, "omars_minimum_runs": omars_minimum_runs}
+_LIBRARY: dict[str, Callable[..., Any]] = {
+    "blocking_alpha": blocking_alpha,
+    "omars_minimum_runs": omars_minimum_runs,
+    "optimize_responses": optimize_responses,
+}
 
 
 def _library_value(check: dict) -> float:
     """Return what a library function gives: ``check["function"]``, one of a few named here, on its arguments.
 
     For a number the library computes directly, such as the run count of the OMARS estimability
-    frontier, without building a design to read it from.
+    frontier, without building a design to read it from, or the canonical analysis of a fitted
+    equation a source prints without its data.
     """
     found = _LIBRARY[check["function"]](*check.get("args", []), **check.get("kwargs", {}))
     return _read(found, check.get("key"))
@@ -615,10 +669,40 @@ def _active(out: dict, check: dict) -> tuple[str, bool]:
     return ", ".join(sorted(found)), same
 
 
+def _difference_of_means(experiment: dict, check: dict) -> float:
+    """Return the average of the runs ``check["runs"]`` less the average of the runs ``check["minus"]``.
+
+    For a difference a source works between two groups of runs that no factor of the entry marks,
+    such as averages of adjacent stretches of a production record.
+    """
+    _, after = _coded_runs(experiment, check["runs"])
+    _, before = _coded_runs(experiment, check["minus"])
+    column = check.get("response") or after.columns[0]
+    return float(after[column].mean() - before[column].mean())
+
+
+def _variance_component(experiment: dict, check: dict) -> float:
+    """Return a variance component of the library's REML fit with a random intercept for each of ``check["groups"]``.
+
+    The fixed part is the overall mean. ``check["key"]`` names one of the groups, or ``"residual"``
+    for the error variance; nested groups are written with labels unique across the whole study.
+    """
+    runs = experiment["runs"]
+    table = pd.DataFrame(runs["rows"], columns=runs["columns"])
+    y = table[check.get("response") or experiment["responses"][0]["name"]].to_numpy(dtype=float)
+    groups = [pd.factorize(table[name])[0] for name in check["groups"]]
+    fit = fit_variance_components(y, np.ones((len(y), 1)), groups)
+    if check["key"] == "residual":
+        return fit.sigma2
+    return float(fit.variances[check["groups"].index(check["key"])])
+
+
 _VALUE_KINDS: dict[str, Callable[[dict, dict], float]] = {
+    "difference_of_means": _difference_of_means,
     "design_property": lambda _e, c: _design_property(c),
     "design_metric": _design_metric,
     "library_value": lambda _e, c: _library_value(c),
+    "variance_component": _variance_component,
 }
 
 
@@ -628,6 +712,8 @@ def _reproduce(experiment: dict, expected: dict, check: dict, fits: _Fits) -> tu
     printed = check.get("printed", expected["value"])
     if kind in _DESIGN_KINDS:
         return _design_check(check, str(printed), len(experiment.get("factors") or []))
+    if kind == "block_confounding":
+        return _block_confounding(check, str(printed))
     if kind in _VALUE_KINDS:
         found = _VALUE_KINDS[kind](experiment, check)
         wanted = str(_ROMAN.get(str(printed).strip(), printed))  # a resolution may be printed as a Roman numeral
@@ -669,7 +755,10 @@ def reproduce_reference_catalogue(source: str | None = None) -> pd.DataFrame:
     and aliases are compared with the fraction this library makes, and a list of runs (those
     making a fraction, or their standard order) with the runs' coded settings. A fitted
     quadratic's stationary point and canonical form, and a setting on a path of steepest ascent,
-    are recomputed with :func:`~process_improve.experiments.optimize_responses`. A number without
+    are recomputed with :func:`~process_improve.experiments.optimize_responses`, and a Box-Cox
+    power with the library's Box-Cox analysis, and a variance component with its REML fit of random
+    intercepts. The interactions a source confounds with blocks
+    are compared with those of the library's blocking of the same factorial. A number without
     a check is reported with the reason it is not recomputed.
 
     Parameters

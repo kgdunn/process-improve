@@ -171,6 +171,24 @@ def test_each_kind_of_check_reports_what_it_finds(monkeypatch, tmp_path):
     assert reasons == ["KeyError", "KeyError", "KeyError", "ValueError", "ValueError"]
 
 
+def test_a_one_sided_p_value_is_half_the_two_sided_on_the_side_of_the_estimate():
+    """A source testing one direction quotes half the two-sided p-value, or one less that half."""
+    from process_improve.experiments.reference_catalogue import _p_value
+
+    row = {"coefficient": 0.65, "p_value": 0.39}
+    assert _p_value(row, None) == 0.39
+    assert _p_value(row, "greater") == pytest.approx(0.195)
+    assert _p_value(row, "less") == pytest.approx(0.805)
+
+
+def test_a_tiny_printed_number_is_held_to_its_own_digits():
+    """The allowance for floating-point error never swamps the half unit of a number like 0.798e-8."""
+    from process_improve.experiments.reference_catalogue import _agrees
+
+    assert _agrees(7.977e-9, "0.798e-8")
+    assert not _agrees(7.9e-9, "0.798e-8")
+
+
 def test_a_trailing_zero_is_a_printed_digit():
     """0.40 is printed to hundredths: 0.37 does not round to it, though it rounds to 0.4."""
     from process_improve.experiments.reference_catalogue import _agrees
@@ -178,3 +196,41 @@ def test_a_trailing_zero_is_a_printed_digit():
     assert not _agrees(0.37, "0.40")
     assert _agrees(0.37, "0.4")
     assert _agrees(0.404, "0.40")
+
+
+def test_a_blocking_arrangement_is_compared_by_how_many_interactions_of_each_order_it_confounds():
+    """The factors of a full factorial are interchangeable: 124, 134, 23 is as good as the library's ABC, ABD, CD."""
+    from process_improve.experiments.reference_catalogue import _block_confounding
+
+    check = {"design": {"design_type": "full_factorial", "k": 4, "options": {"n_blocks": 4}}}
+    assert _block_confounding(check, "124, 134, 23")[1]
+    assert not _block_confounding(check, "12, 34, 1234")[1]  # two two-factor interactions where one will do
+
+
+def test_a_regressor_marked_uncoded_is_fitted_in_its_own_units():
+    """A source's slope is per unit of x: a factor with ``"coding": "none"`` is not rescaled to -1 and +1."""
+    from process_improve.experiments.reference_catalogue import _coded_runs
+
+    def factor(coding):
+        return {"name": "x", "type": "numeric", "low": 10, "high": 30, **coding}
+
+    entry = {
+        "responses": [{"name": "y"}],
+        "runs": {"columns": ["x", "y"], "rows": [[10, 1], [20, 2], [30, 3]], "coded": False},
+    }
+    coded, _ = _coded_runs({**entry, "factors": [factor({})]}, None)
+    own, _ = _coded_runs({**entry, "factors": [factor({"coding": "none"})]}, None)
+    assert coded["x"].tolist() == [-1.0, 0.0, 1.0]
+    assert own["x"].tolist() == [10.0, 20.0, 30.0]
+
+
+def test_a_variance_component_is_read_from_the_library_reml_fit():
+    """Balanced, REML gives the analysis-of-variance estimates: the pooled variance within groups, 1.25, and between."""
+    from process_improve.experiments.reference_catalogue import _variance_component
+
+    rows = [["a", 1], ["a", 3], ["b", 4], ["b", 6], ["c", 1], ["c", 2], ["d", 5], ["d", 6]]
+    entry = {"responses": [{"name": "y"}], "runs": {"columns": ["group", "y"], "rows": rows}}
+    check = {"groups": ["group"]}
+    assert _variance_component(entry, {**check, "key": "residual"}) == pytest.approx(1.25)
+    between = (sum((sum(r[1] for r in rows[i : i + 2]) / 2 - 3.5) ** 2 for i in range(0, 8, 2)) / 3) - 1.25 / 2
+    assert _variance_component(entry, {**check, "key": "group"}) == pytest.approx(between, abs=1e-6)
