@@ -28,7 +28,7 @@ those changes.
   with missing cells, two-level factorials, multi-level factorials with their orthogonal
   polynomial components, factorials confounded in blocks, fractional factorials, and response
   surface work (two stages of steepest ascent, a 3^2 factorial and a composite design with their
-  canonical analyses, and orthogonal composite designs); of chapters 1 to 8 of Box, Hunter and
+  canonical analyses, and orthogonal composite designs); of chapters 1 to 9 and the problems for Parts I and II of Box, Hunter and
   Hunter, *Statistics for Experimenters* (1978): two-treatment comparisons (a plant trial
   against a 210-batch production record, randomized and paired experiments, and the
   exercises of chapters 2 and 3, each labelled as a one-factor design), one-way analyses of

@@ -19,13 +19,13 @@
   ],
   "title": "Statistics for Experimenters: An Introduction to Design, Data Analysis, and Model Building",
   "edition": "1st edition (1978)",
-  "pages": "chapters 1 to 8 and the problems for Part I, pp. 1-280",
+  "pages": "chapters 1 to 9 and the problems for Parts I and II, pp. 1-305",
   "year": 1978,
   "publisher": "John Wiley & Sons, New York",
   "isbn": "0-471-09315-7",
   "url": "https://search.worldcat.org/search?q=bn:0471093157",
   "cite": "Box, G. E. P., Hunter, W. G. and Hunter, J. S. (1978), Statistics for Experimenters, Wiley",
-  "read": "2026-10-14, from scans of the front matter, chapters 1 to 8 and the problems for Part I; tables taken from the text layer and checked against the totals and averages the book prints; Table 2.3's circled entries, one average of Table 2.2, Exercise 2.6, the run orders of Tables 6.1 and 7.1, Exercise 7.1 (a), Table 7.15 and the second square of Table 8.8 read from the page image",
+  "read": "2026-10-14, from scans of the front matter, chapters 1 to 9 and the problems for Parts I and II; tables taken from the text layer and checked against the totals and averages the book prints; Table 2.3's circled entries, one average of Table 2.2, Exercise 2.6, the run orders of Tables 6.1 and 7.1, Exercise 7.1 (a), Table 7.15, the second square of Table 8.8 and the days of Problem 11 of Part II read from the page image",
   "rights": "The book is protected by copyright (© 1978 John Wiley & Sons, Inc.) and is not reproduced here. This file holds facts it reports (numbers, layouts, data) and short quotations that locate each one, for citation and for checking software. The MIT licence of process-improve does not extend to them."
  },
  "experiments": [
@@ -27105,6 +27105,1028 @@
      }
     }
    ]
+  },
+  {
+   "name": "bhh-problem-ii-6-wire-calibration",
+   "title": "Horizontal tension tests of a standard wire in three laboratories (Problem 6 of Part II)",
+   "kind": "exercise",
+   "where": {
+    "section": "Problems for Part II, 6",
+    "pages": "282-283",
+    "tables": [],
+    "figures": []
+   },
+   "factors": [
+    {
+     "name": "laboratory",
+     "description": "laboratory",
+     "levels": [
+      "A",
+      "B",
+      "C"
+     ],
+     "units": "",
+     "type": "categorical"
+    }
+   ],
+   "responses": [
+    {
+     "name": "y",
+     "description": "tension test result",
+     "units": ""
+    }
+   ],
+   "design": {
+    "type": "completely randomized design",
+    "details": "one factor at three levels, 3, 4 and 3 tests",
+    "n_runs": 10,
+    "treatment_factors": 1
+   },
+   "runs": {
+    "columns": [
+     "No.",
+     "laboratory",
+     "y"
+    ],
+    "rows": [
+     [
+      1,
+      "A",
+      48
+     ],
+     [
+      2,
+      "A",
+      49
+     ],
+     [
+      3,
+      "A",
+      50
+     ],
+     [
+      4,
+      "B",
+      50
+     ],
+     [
+      5,
+      "B",
+      50
+     ],
+     [
+      6,
+      "B",
+      48
+     ],
+     [
+      7,
+      "B",
+      52
+     ],
+     [
+      8,
+      "C",
+      51
+     ],
+     [
+      9,
+      "C",
+      52
+     ],
+     [
+      10,
+      "C",
+      50
+     ]
+    ],
+    "coded": false
+   },
+   "notes": "The book prints the decomposition into average, laboratory deviations and residuals, and the total for the analysis of variance it asks the reader to complete.",
+   "expected": [
+    {
+     "what": "mean",
+     "term": null,
+     "value": "50",
+     "where": {
+      "page": 282,
+      "source_kind": "exercise",
+      "quote": "These data can be broken up into the following tables: average 50 50 50"
+     },
+     "check": {
+      "kind": "mean"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "laboratory[A]",
+     "value": "-1",
+     "where": {
+      "page": 282,
+      "source_kind": "exercise",
+      "quote": "laboratory deviations -1 0 +1"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "laboratory[A]",
+      "model": "C(laboratory, Sum)",
+      "printed": "-1"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "laboratory[B]",
+     "value": "0",
+     "where": {
+      "page": 282,
+      "source_kind": "exercise",
+      "quote": "laboratory deviations -1 0 +1"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "laboratory[B]",
+      "model": "C(laboratory, Sum)",
+      "printed": "0"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "laboratory[C]",
+     "value": "+1",
+     "where": {
+      "page": 282,
+      "source_kind": "exercise",
+      "quote": "laboratory deviations -1 0 +1"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "laboratory[C]",
+      "model": "C(laboratory, Sum)",
+      "printed": "1"
+     }
+    },
+    {
+     "what": "residual",
+     "term": "run 1",
+     "value": "-1",
+     "where": {
+      "page": 282,
+      "source_kind": "exercise",
+      "quote": "residuals ... -1"
+     },
+     "check": {
+      "kind": "residual",
+      "run": 1,
+      "model": "laboratory",
+      "printed": "-1"
+     }
+    },
+    {
+     "what": "residual",
+     "term": "run 2",
+     "value": "0",
+     "where": {
+      "page": 282,
+      "source_kind": "exercise",
+      "quote": "residuals ... 0"
+     },
+     "check": {
+      "kind": "residual",
+      "run": 2,
+      "model": "laboratory",
+      "printed": "0"
+     }
+    },
+    {
+     "what": "residual",
+     "term": "run 3",
+     "value": "+1",
+     "where": {
+      "page": 282,
+      "source_kind": "exercise",
+      "quote": "residuals ... +1"
+     },
+     "check": {
+      "kind": "residual",
+      "run": 3,
+      "model": "laboratory",
+      "printed": "1"
+     }
+    },
+    {
+     "what": "residual",
+     "term": "run 4",
+     "value": "0",
+     "where": {
+      "page": 282,
+      "source_kind": "exercise",
+      "quote": "residuals ... 0"
+     },
+     "check": {
+      "kind": "residual",
+      "run": 4,
+      "model": "laboratory",
+      "printed": "0"
+     }
+    },
+    {
+     "what": "residual",
+     "term": "run 5",
+     "value": "0",
+     "where": {
+      "page": 282,
+      "source_kind": "exercise",
+      "quote": "residuals ... 0"
+     },
+     "check": {
+      "kind": "residual",
+      "run": 5,
+      "model": "laboratory",
+      "printed": "0"
+     }
+    },
+    {
+     "what": "residual",
+     "term": "run 6",
+     "value": "-2",
+     "where": {
+      "page": 282,
+      "source_kind": "exercise",
+      "quote": "residuals ... -2"
+     },
+     "check": {
+      "kind": "residual",
+      "run": 6,
+      "model": "laboratory",
+      "printed": "-2"
+     }
+    },
+    {
+     "what": "residual",
+     "term": "run 7",
+     "value": "+2",
+     "where": {
+      "page": 282,
+      "source_kind": "exercise",
+      "quote": "residuals ... +2"
+     },
+     "check": {
+      "kind": "residual",
+      "run": 7,
+      "model": "laboratory",
+      "printed": "2"
+     }
+    },
+    {
+     "what": "residual",
+     "term": "run 8",
+     "value": "0",
+     "where": {
+      "page": 282,
+      "source_kind": "exercise",
+      "quote": "residuals ... 0"
+     },
+     "check": {
+      "kind": "residual",
+      "run": 8,
+      "model": "laboratory",
+      "printed": "0"
+     }
+    },
+    {
+     "what": "residual",
+     "term": "run 9",
+     "value": "+1",
+     "where": {
+      "page": 282,
+      "source_kind": "exercise",
+      "quote": "residuals ... +1"
+     },
+     "check": {
+      "kind": "residual",
+      "run": 9,
+      "model": "laboratory",
+      "printed": "1"
+     }
+    },
+    {
+     "what": "residual",
+     "term": "run 10",
+     "value": "-1",
+     "where": {
+      "page": 282,
+      "source_kind": "exercise",
+      "quote": "residuals ... -1"
+     },
+     "check": {
+      "kind": "residual",
+      "run": 10,
+      "model": "laboratory",
+      "printed": "-1"
+     }
+    },
+    {
+     "what": "ss",
+     "term": "total",
+     "value": "25,018",
+     "where": {
+      "page": 283,
+      "source_kind": "exercise",
+      "quote": "total 25,018"
+     },
+     "check": {
+      "manual": "the crude sum of squares, Σy², which the library's sums about the mean leave out (it reproduces)"
+     }
+    }
+   ]
+  },
+  {
+   "name": "bhh-problem-ii-8-fabric-areas",
+   "title": "Wear of fabric samples from four areas of a sheet, four runs of four positions (Problem 8 of Part II)",
+   "kind": "exercise",
+   "where": {
+    "section": "Problems for Part II, 8",
+    "pages": "283-284",
+    "tables": [],
+    "figures": []
+   },
+   "factors": [
+    {
+     "name": "run",
+     "description": "run of the machine",
+     "levels": [
+      "I",
+      "II",
+      "III",
+      "IV"
+     ],
+     "units": "",
+     "type": "categorical"
+    },
+    {
+     "name": "position",
+     "description": "position in the machine",
+     "levels": [
+      "1",
+      "2",
+      "3",
+      "4"
+     ],
+     "units": "",
+     "type": "categorical"
+    },
+    {
+     "name": "area",
+     "description": "area of the sheet",
+     "levels": [
+      "A",
+      "B",
+      "C",
+      "D"
+     ],
+     "units": "",
+     "type": "categorical"
+    }
+   ],
+   "responses": [
+    {
+     "name": "y",
+     "description": "wear",
+     "units": "mg"
+    }
+   ],
+   "design": {
+    "type": "Latin square",
+    "details": "4 x 4: areas by runs and positions",
+    "n_runs": 16,
+    "treatment_factors": 1
+   },
+   "runs": {
+    "columns": [
+     "No.",
+     "run",
+     "position",
+     "area",
+     "y"
+    ],
+    "rows": [
+     [
+      1,
+      "I",
+      "1",
+      "A",
+      26.1
+     ],
+     [
+      2,
+      "I",
+      "2",
+      "B",
+      22.3
+     ],
+     [
+      3,
+      "I",
+      "3",
+      "C",
+      29.0
+     ],
+     [
+      4,
+      "I",
+      "4",
+      "D",
+      30.6
+     ],
+     [
+      5,
+      "II",
+      "1",
+      "D",
+      20.0
+     ],
+     [
+      6,
+      "II",
+      "2",
+      "A",
+      26.9
+     ],
+     [
+      7,
+      "II",
+      "3",
+      "B",
+      22.4
+     ],
+     [
+      8,
+      "II",
+      "4",
+      "C",
+      28.8
+     ],
+     [
+      9,
+      "III",
+      "1",
+      "C",
+      32.4
+     ],
+     [
+      10,
+      "III",
+      "2",
+      "D",
+      21.5
+     ],
+     [
+      11,
+      "III",
+      "3",
+      "A",
+      26.3
+     ],
+     [
+      12,
+      "III",
+      "4",
+      "B",
+      25.2
+     ],
+     [
+      13,
+      "IV",
+      "1",
+      "B",
+      20.7
+     ],
+     [
+      14,
+      "IV",
+      "2",
+      "C",
+      35.0
+     ],
+     [
+      15,
+      "IV",
+      "3",
+      "D",
+      22.8
+     ],
+     [
+      16,
+      "IV",
+      "4",
+      "A",
+      26.4
+     ]
+    ],
+    "coded": false,
+    "notes": "listed run by run, positions 1 to 4 down each column of the book's table"
+   },
+   "unanswered": "the book asks the problem and prints no solution, so there is no result to reproduce; the runs are kept as data",
+   "expected": []
+  },
+  {
+   "name": "bhh-problem-ii-9-soil-nitrogen",
+   "title": "Soil nitrogen by five operators on three days, a sample each day split among them (Problem 9 of Part II)",
+   "kind": "exercise",
+   "where": {
+    "section": "Problems for Part II, 9",
+    "pages": "284-285",
+    "tables": [],
+    "figures": []
+   },
+   "factors": [
+    {
+     "name": "day",
+     "description": "day (block)",
+     "levels": [
+      "Tuesday",
+      "Wednesday",
+      "Friday"
+     ],
+     "units": "",
+     "type": "categorical"
+    },
+    {
+     "name": "operator",
+     "description": "operator",
+     "levels": [
+      "A",
+      "B",
+      "C",
+      "D",
+      "E"
+     ],
+     "units": "",
+     "type": "categorical"
+    }
+   ],
+   "responses": [
+    {
+     "name": "y",
+     "description": "nitrogen determination",
+     "units": ""
+    }
+   ],
+   "design": {
+    "type": "randomized complete block design",
+    "details": "5 operators in each of 3 days, the parts of each day's sample assigned at random",
+    "n_runs": 15,
+    "treatment_factors": 1
+   },
+   "runs": {
+    "columns": [
+     "No.",
+     "day",
+     "operator",
+     "y"
+    ],
+    "rows": [
+     [
+      1,
+      "Tuesday",
+      "A",
+      509
+     ],
+     [
+      2,
+      "Tuesday",
+      "B",
+      512
+     ],
+     [
+      3,
+      "Tuesday",
+      "C",
+      532
+     ],
+     [
+      4,
+      "Tuesday",
+      "D",
+      506
+     ],
+     [
+      5,
+      "Tuesday",
+      "E",
+      509
+     ],
+     [
+      6,
+      "Wednesday",
+      "A",
+      505
+     ],
+     [
+      7,
+      "Wednesday",
+      "B",
+      507
+     ],
+     [
+      8,
+      "Wednesday",
+      "C",
+      542
+     ],
+     [
+      9,
+      "Wednesday",
+      "D",
+      520
+     ],
+     [
+      10,
+      "Wednesday",
+      "E",
+      519
+     ],
+     [
+      11,
+      "Friday",
+      "A",
+      465
+     ],
+     [
+      12,
+      "Friday",
+      "B",
+      472
+     ],
+     [
+      13,
+      "Friday",
+      "C",
+      498
+     ],
+     [
+      14,
+      "Friday",
+      "D",
+      483
+     ],
+     [
+      15,
+      "Friday",
+      "E",
+      475
+     ]
+    ],
+    "coded": false
+   },
+   "unanswered": "the book asks the problem and prints no solution, so there is no result to reproduce; the runs are kept as data",
+   "expected": []
+  },
+  {
+   "name": "bhh-problem-ii-11-machines-operators",
+   "title": "Units produced per day by four operators on five machines, each combination on two days spread over 84 working days (Problems 11 and 12 of Part II)",
+   "kind": "exercise",
+   "where": {
+    "section": "Problems for Part II, 11 and 12",
+    "pages": "285-286",
+    "tables": [],
+    "figures": []
+   },
+   "factors": [
+    {
+     "name": "machine",
+     "description": "machine",
+     "levels": [
+      "1",
+      "2",
+      "3",
+      "4",
+      "5"
+     ],
+     "units": "",
+     "type": "categorical"
+    },
+    {
+     "name": "operator",
+     "description": "operator",
+     "levels": [
+      "A",
+      "B",
+      "C",
+      "D"
+     ],
+     "units": "",
+     "type": "categorical"
+    }
+   ],
+   "responses": [
+    {
+     "name": "y",
+     "description": "units produced in a day",
+     "units": ""
+    }
+   ],
+   "design": {
+    "type": "replicated 5 x 4 factorial",
+    "details": "every machine and operator combination on two days; day is the working day of the run (1 to 84)",
+    "n_runs": 40,
+    "treatment_factors": 2
+   },
+   "runs": {
+    "columns": [
+     "No.",
+     "machine",
+     "operator",
+     "day",
+     "y"
+    ],
+    "rows": [
+     [
+      1,
+      "1",
+      "A",
+      9,
+      18
+     ],
+     [
+      2,
+      "1",
+      "A",
+      76,
+      17
+     ],
+     [
+      3,
+      "1",
+      "B",
+      11,
+      16
+     ],
+     [
+      4,
+      "1",
+      "B",
+      77,
+      18
+     ],
+     [
+      5,
+      "1",
+      "C",
+      22,
+      17
+     ],
+     [
+      6,
+      "1",
+      "C",
+      72,
+      20
+     ],
+     [
+      7,
+      "1",
+      "D",
+      3,
+      27
+     ],
+     [
+      8,
+      "1",
+      "D",
+      73,
+      27
+     ],
+     [
+      9,
+      "2",
+      "A",
+      1,
+      17
+     ],
+     [
+      10,
+      "2",
+      "A",
+      71,
+      13
+     ],
+     [
+      11,
+      "2",
+      "B",
+      3,
+      18
+     ],
+     [
+      12,
+      "2",
+      "B",
+      73,
+      18
+     ],
+     [
+      13,
+      "2",
+      "C",
+      57,
+      20
+     ],
+     [
+      14,
+      "2",
+      "C",
+      70,
+      16
+     ],
+     [
+      15,
+      "2",
+      "D",
+      2,
+      28
+     ],
+     [
+      16,
+      "2",
+      "D",
+      78,
+      23
+     ],
+     [
+      17,
+      "3",
+      "A",
+      3,
+      16
+     ],
+     [
+      18,
+      "3",
+      "A",
+      77,
+      17
+     ],
+     [
+      19,
+      "3",
+      "B",
+      7,
+      17
+     ],
+     [
+      20,
+      "3",
+      "B",
+      70,
+      19
+     ],
+     [
+      21,
+      "3",
+      "C",
+      25,
+      20
+     ],
+     [
+      22,
+      "3",
+      "C",
+      73,
+      16
+     ],
+     [
+      23,
+      "3",
+      "D",
+      33,
+      31
+     ],
+     [
+      24,
+      "3",
+      "D",
+      72,
+      30
+     ],
+     [
+      25,
+      "4",
+      "A",
+      2,
+      15
+     ],
+     [
+      26,
+      "4",
+      "A",
+      72,
+      17
+     ],
+     [
+      27,
+      "4",
+      "B",
+      4,
+      21
+     ],
+     [
+      28,
+      "4",
+      "B",
+      74,
+      22
+     ],
+     [
+      29,
+      "4",
+      "C",
+      5,
+      16
+     ],
+     [
+      30,
+      "4",
+      "C",
+      71,
+      16
+     ],
+     [
+      31,
+      "4",
+      "D",
+      6,
+      31
+     ],
+     [
+      32,
+      "4",
+      "D",
+      75,
+      24
+     ],
+     [
+      33,
+      "5",
+      "A",
+      17,
+      17
+     ],
+     [
+      34,
+      "5",
+      "A",
+      84,
+      18
+     ],
+     [
+      35,
+      "5",
+      "B",
+      10,
+      16
+     ],
+     [
+      36,
+      "5",
+      "B",
+      72,
+      18
+     ],
+     [
+      37,
+      "5",
+      "C",
+      39,
+      14
+     ],
+     [
+      38,
+      "5",
+      "C",
+      74,
+      13
+     ],
+     [
+      39,
+      "5",
+      "D",
+      7,
+      28
+     ],
+     [
+      40,
+      "5",
+      "D",
+      82,
+      22
+     ]
+    ],
+    "coded": false,
+    "notes": "the days in parentheses read from the page image; Problem 12 repeats the analysis with the runs up to day 60"
+   },
+   "unanswered": "the book asks the problem and prints no solution, so there is no result to reproduce; the runs are kept as data",
+   "expected": []
   }
  ],
  "designs": [],
@@ -27122,6 +28144,8 @@
   "Appendix 6C (pp. 203-206): Tukey's and Dunnett's multiple comparisons, worked from the averages and variances of a diaphragm experiment whose observations are not printed",
   "Appendix 8A and 8C (pp. 261-262, 269-274): lists of Latin squares and balanced incomplete block designs, designs without data; Table 8.7 and Tables 8.10 and 8.11 are layouts without results",
   "Appendix 8B, Case 3 (p. 268): a hypothetical rearrangement of the yarn data with new spinnerets in each replicate, not held",
+  "Problems for Part II (pp. 281-287): 1 to 4 re-use the penicillin data of Table 7.1 (with 10 added to a column, a row or one reading) and are not held again; 5 (devices control, wetted or dropped) and 10 are single-factor or incomplete, 7 and 13 give analysis-of-variance entries without data, and 14 to 16 are questions in words. Problems 6, 8, 9 and 11 are held, the last three as data without printed answers",
+  "chapter 9 (pp. 291-305): empirical modelling in words; Table 9.1 is a 2 x 3 layout without results and the figures show no values",
   "Problems for Part I (pp. 152-164): 34 problems on one- and two-sample comparisons, distributions and contingency tables, mostly without printed answers; left out for the same reason"
  ]
 }
