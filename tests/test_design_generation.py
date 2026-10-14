@@ -5,7 +5,7 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-from process_improve.experiments.designs import _auto_select, generate_design
+from process_improve.experiments.designs import _DESIGN_REGISTRY, _OPTIMAL_FAMILIES, _auto_select, generate_design
 from process_improve.experiments.factor import Constraint, Factor, FactorType
 
 _HAS_PYOPTEX = False
@@ -841,6 +841,34 @@ class TestSplitPlot:
         )
         assert result.metadata.get("hard_to_change") == ["A"]
         assert result.metadata.get("backend") == "pyoptex"
+
+
+class TestHardToChangeRefused:
+    """``hard_to_change`` on a design type that cannot build split plots raises instead of being dropped."""
+
+    @pytest.mark.parametrize("design_type", sorted(set(_DESIGN_REGISTRY) - _OPTIMAL_FAMILIES))
+    def test_non_optimal_design_type_raises(self, design_type: str) -> None:
+        """Every design type outside the optimal families refuses it, naming the factors and the way out."""
+        with pytest.raises(ValueError, match=r"hard_to_change=\['A'\] asks for a split-plot design.*d_optimal"):
+            generate_design(_continuous_factors(4, "ABCD"), design_type=design_type, hard_to_change=["A"])
+
+    def test_empty_list_is_not_a_request(self) -> None:
+        """An empty list asks for no split plots, so a CCD is built as usual."""
+        result = generate_design(_continuous_factors(3, "ABC"), design_type="ccd", hard_to_change=[])
+        assert result.design_type == "ccd"
+
+    @pytest.mark.filterwarnings("ignore:hard_to_change.*is ignored:UserWarning")
+    def test_unset_design_type_still_chooses_d_optimal(self) -> None:
+        """With design_type unset, a split-plot request is still routed to the D-optimal family."""
+        result = generate_design(_continuous_factors(3, "ABC"), budget=12, hard_to_change=["A"])
+        assert result.design_type == "d_optimal"
+
+    def test_mixture_components_get_no_optimal_hint(self) -> None:
+        """All-mixture factors are auto-routed to a mixture design, and the message does not point at d_optimal."""
+        factors = [Factor(name=f"x{i}", type="mixture") for i in range(3)]
+        with pytest.raises(ValueError, match="Split-plot mixture designs are not supported") as info:
+            generate_design(factors, hard_to_change=["x0"])
+        assert "Use design_type" not in str(info.value)
 
 
 # ---------------------------------------------------------------------------
