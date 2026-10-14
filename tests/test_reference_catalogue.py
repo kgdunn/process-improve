@@ -222,3 +222,15 @@ def test_a_regressor_marked_uncoded_is_fitted_in_its_own_units():
     own, _ = _coded_runs({**entry, "factors": [factor({"coding": "none"})]}, None)
     assert coded["x"].tolist() == [-1.0, 0.0, 1.0]
     assert own["x"].tolist() == [10.0, 20.0, 30.0]
+
+
+def test_a_variance_component_is_read_from_the_library_reml_fit():
+    """Balanced, REML gives the analysis-of-variance estimates: the pooled variance within groups, 1.25, and between."""
+    from process_improve.experiments.reference_catalogue import _variance_component
+
+    rows = [["a", 1], ["a", 3], ["b", 4], ["b", 6], ["c", 1], ["c", 2], ["d", 5], ["d", 6]]
+    entry = {"responses": [{"name": "y"}], "runs": {"columns": ["group", "y"], "rows": rows}}
+    check = {"groups": ["group"]}
+    assert _variance_component(entry, {**check, "key": "residual"}) == pytest.approx(1.25)
+    between = (sum((sum(r[1] for r in rows[i : i + 2]) / 2 - 3.5) ** 2 for i in range(0, 8, 2)) / 3) - 1.25 / 2
+    assert _variance_component(entry, {**check, "key": "group"}) == pytest.approx(between, abs=1e-6)

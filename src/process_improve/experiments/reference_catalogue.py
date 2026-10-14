@@ -54,6 +54,7 @@ from process_improve.experiments.evaluate import evaluate_design
 from process_improve.experiments.factor import Factor
 from process_improve.experiments.omars_trade_off import omars_minimum_runs
 from process_improve.experiments.optimization import optimize_responses
+from process_improve.regression._variance_components import fit_variance_components
 
 _CATALOGUE_DIR = Path(__file__).resolve().parents[1] / "datasets" / "experiments" / "reference_catalogue"
 
@@ -675,11 +676,28 @@ def _difference_of_means(experiment: dict, check: dict) -> float:
     return float(after[column].mean() - before[column].mean())
 
 
+def _variance_component(experiment: dict, check: dict) -> float:
+    """Return a variance component of the library's REML fit with a random intercept for each of ``check["groups"]``.
+
+    The fixed part is the overall mean. ``check["key"]`` names one of the groups, or ``"residual"``
+    for the error variance; nested groups are written with labels unique across the whole study.
+    """
+    runs = experiment["runs"]
+    table = pd.DataFrame(runs["rows"], columns=runs["columns"])
+    y = table[check.get("response") or experiment["responses"][0]["name"]].to_numpy(dtype=float)
+    groups = [pd.factorize(table[name])[0] for name in check["groups"]]
+    fit = fit_variance_components(y, np.ones((len(y), 1)), groups)
+    if check["key"] == "residual":
+        return fit.sigma2
+    return float(fit.variances[check["groups"].index(check["key"])])
+
+
 _VALUE_KINDS: dict[str, Callable[[dict, dict], float]] = {
     "difference_of_means": _difference_of_means,
     "design_property": lambda _e, c: _design_property(c),
     "design_metric": _design_metric,
     "library_value": lambda _e, c: _library_value(c),
+    "variance_component": _variance_component,
 }
 
 
@@ -733,7 +751,8 @@ def reproduce_reference_catalogue(source: str | None = None) -> pd.DataFrame:
     making a fraction, or their standard order) with the runs' coded settings. A fitted
     quadratic's stationary point and canonical form, and a setting on a path of steepest ascent,
     are recomputed with :func:`~process_improve.experiments.optimize_responses`, and a Box-Cox
-    power with the library's Box-Cox analysis. The interactions a source confounds with blocks
+    power with the library's Box-Cox analysis, and a variance component with its REML fit of random
+    intercepts. The interactions a source confounds with blocks
     are compared with those of the library's blocking of the same factorial. A number without
     a check is reported with the reason it is not recomputed.
 
