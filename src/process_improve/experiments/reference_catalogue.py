@@ -1,23 +1,25 @@
-"""Reference designed experiments from published sources, and their reproduction with this library.
+"""The reference catalogue: designed experiments from published sources, reproduced with this library.
 
-The reference experiments are worked examples, exercises and case studies of published sources
-(a textbook, an encyclopedia article, a course's quizzes), recorded so that software can be
-checked against them.
-Each one holds its data exactly as printed (factors, responses, runs) and every number the
-source prints for it, as the text printed, with where it is printed. A number also carries a
-check, saying how to recompute it (the kind of result, the term, the model, the runs it uses),
-or why it is not recomputed.
+The reference catalogue holds worked examples, exercises, case studies and designs of published
+sources (a textbook, an encyclopedia article, a course's quizzes, tutorial slides, journal
+papers), recorded so that software can be checked against them. Each entry holds its data
+exactly as printed (factors, responses, runs) and every number the source prints for it, as the
+text printed, with where it is printed. A number also carries a check, saying how to recompute
+it (the kind of result, the term, the model, the runs it uses), or why it is not recomputed.
 
-:func:`reproduce_reference` recomputes every checked number with this library and reports, row
-by row, the printed text, the value found, whether they agree to within the source's own
-rounding, and where the number is printed.
+:func:`reproduce_reference_catalogue` recomputes every checked number with this library and
+reports, row by row, the printed text, the value found, whether they agree to within the
+source's own rounding, and where the number is printed.
 
 Examples
 --------
->>> from process_improve.experiments.reference import reference_experiments, reproduce_reference
+>>> from process_improve.experiments.reference_catalogue import (
+...     reference_experiments,
+...     reproduce_reference_catalogue,
+... )
 >>> [e["name"] for e in reference_experiments("ullmann-doe-2012")][:2]
 ['ullmann-catalyst-temperature', 'ullmann-agitator']
->>> report = reproduce_reference("ullmann-doe-2012")
+>>> report = reproduce_reference_catalogue("ullmann-doe-2012")
 >>> bool(report.loc[report["checked"], "agrees"].all())
 True
 """
@@ -47,13 +49,13 @@ from process_improve.experiments.evaluate import evaluate_design
 from process_improve.experiments.factor import Factor
 from process_improve.experiments.omars_trade_off import omars_minimum_runs
 
-_REFERENCE_DIR = Path(__file__).resolve().parents[1] / "datasets" / "experiments" / "reference"
+_CATALOGUE_DIR = Path(__file__).resolve().parents[1] / "datasets" / "experiments" / "reference_catalogue"
 
 
-# --------------------------------------------------------------------------- reading the catalogue
+# --------------------------------------------------------------------------- reading the reference catalogue
 def _files() -> list[dict[str, Any]]:
-    """Read every reference file, in the order of their names."""
-    return [json.loads(path.read_text(encoding="utf-8")) for path in sorted(_REFERENCE_DIR.glob("*.json"))]
+    """Read every source file of the reference catalogue, in the order of their names."""
+    return [json.loads(path.read_text(encoding="utf-8")) for path in sorted(_CATALOGUE_DIR.glob("*.json"))]
 
 
 def _selected(source: str | None) -> list[dict[str, Any]]:
@@ -65,7 +67,7 @@ def _selected(source: str | None) -> list[dict[str, Any]]:
 
 
 def reference_sources() -> dict[str, dict[str, Any]]:
-    """Return the citation of each source of the reference experiments, by its key.
+    """Return the citation of each source of the reference catalogue, by its key.
 
     Returns
     -------
@@ -83,7 +85,7 @@ def reference_sources() -> dict[str, dict[str, Any]]:
 
 
 def reference_experiments(source: str | None = None) -> list[dict[str, Any]]:
-    """Return the reference experiments: their data, where each was published, and every printed number.
+    """Return the experiments of the reference catalogue: their data, where each was published, every printed number.
 
     Parameters
     ----------
@@ -114,7 +116,7 @@ def reference_experiments(source: str | None = None) -> list[dict[str, Any]]:
 
 
 def reference_designs(source: str | None = None) -> list[dict[str, Any]]:
-    """Return the reference designs: designs without responses whose properties a source states.
+    """Return the designs of the reference catalogue: designs without responses whose properties a source states.
 
     Parameters
     ----------
@@ -590,7 +592,7 @@ def _checks(expected: dict) -> list[dict]:
 
 
 def _each_check(source: str | None = None) -> Iterator[tuple[str, dict, dict, dict]]:
-    """Yield each check of the catalogue, with its source's key, its entry and the number it checks."""
+    """Yield each check of the reference catalogue, with its source's key, its entry and the number it checks."""
     for f in _selected(source):
         for entry in [*f["experiments"], *f.get("designs", [])]:
             for expected in entry["expected"]:
@@ -598,8 +600,8 @@ def _each_check(source: str | None = None) -> Iterator[tuple[str, dict, dict, di
                     yield f["source"]["key"], entry, expected, check
 
 
-def reproduce_reference(source: str | None = None) -> pd.DataFrame:
-    """Recompute every printed number of the reference experiments and designs with this library.
+def reproduce_reference_catalogue(source: str | None = None) -> pd.DataFrame:
+    """Recompute every printed number of the reference catalogue with this library.
 
     Each number with a check is recomputed: the experiment's runs are fitted with the model the
     check names (on the runs it names), and the result compared with the printed text to within
@@ -629,7 +631,7 @@ def reproduce_reference(source: str | None = None) -> pd.DataFrame:
 
     Examples
     --------
-    >>> report = reproduce_reference("ullmann-doe-2012")
+    >>> report = reproduce_reference_catalogue("ullmann-doe-2012")
     >>> int(report["checked"].sum()) > 50
     True
     """

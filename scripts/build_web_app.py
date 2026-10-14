@@ -242,10 +242,12 @@ def book_example(entry: dict[str, Any]) -> dict[str, Any]:
 def published_example(entry: dict[str, Any]) -> dict[str, Any]:
     """Make an example of a published source into what the page opens from ``?example=<name>``.
 
-    In place of the book's page it carries its source: the citation of its reference experiment's
-    source, where in the source its runs are printed, and the address the source is read at.
+    In place of the book's page it carries its source, as the reference catalogue cites it: the
+    citation, where in the source its runs are printed, and the address the source is read at.
     """
-    from process_improve.experiments.reference import reference_sources  # noqa: PLC0415 - the docs environment has it
+    from process_improve.experiments.reference_catalogue import (  # noqa: PLC0415 - the docs environment has it
+        reference_sources,
+    )
 
     source = reference_sources()[entry["source"]]
     return {

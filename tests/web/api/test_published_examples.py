@@ -1,10 +1,11 @@
 """Designed experiments from published sources other than the book, as the page opens them.
 
-``web/published-examples.json`` lists the examples Factorial opens from ``?example=<name>``. Each is
-a reference experiment of ``process_improve.experiments.reference`` of the same name, which holds
-the source's citation, where each example and each printed number sits, and every number the source
-prints; ``tests/test_doe_reference.py`` reproduces those numbers with the library. Here each example
-is checked to open the reference experiment's runs and results, and every printed number the page
+``web/published-examples.json`` lists the examples Factorial opens from ``?example=<name>``. Each
+is an experiment of the same name in the reference catalogue
+(``process_improve.experiments.reference_catalogue``), which holds the source's citation, where
+each example and each printed number sits, and every number the source prints;
+``tests/test_reference_catalogue.py`` reproduces those numbers with the library. Here each example
+is checked to open the catalogue experiment's runs and results, and every printed number the page
 itself shows (coefficients, effects, R², Q², the residual error, a fraction's generators and aliases)
 is checked through the page's entry point, as the page analyses the campaign its link opens.
 """
@@ -19,7 +20,7 @@ from typing import TYPE_CHECKING
 
 import pytest
 
-from process_improve.experiments.reference import _agrees, _plain, reference_experiments, reference_sources
+from process_improve.experiments.reference_catalogue import _agrees, _plain, reference_experiments, reference_sources
 from tests.web._support import WEB, no_bytecode
 
 if TYPE_CHECKING:
@@ -37,10 +38,10 @@ REFERENCE = {e["name"]: e for e in reference_experiments()}
 EXAMPLES = catalogue()
 
 
-def test_every_example_is_a_reference_experiment_of_its_source():
+def test_every_example_is_in_the_reference_catalogue():
     sources = reference_sources()
     for name, entry in EXAMPLES.items():
-        assert name in REFERENCE, f"{name}: no reference experiment of this name"
+        assert name in REFERENCE, f"{name}: no experiment of this name in the reference catalogue"
         assert REFERENCE[name]["source"] == entry["source"], name
         assert sources[entry["source"]]["url"].startswith("https://doi.org/"), name
         assert re.search(r"\bpp?\. \d", entry["where"]), f"{name}: where says no page"
@@ -54,7 +55,7 @@ def test_every_name_opens_one_example_whether_from_the_book_or_another_source():
 
 
 @pytest.mark.parametrize("name", list(EXAMPLES))
-def test_the_page_opens_the_reference_experiment_s_runs_and_results(name):
+def test_the_page_opens_the_catalogue_s_runs_and_results(name):
     """The same factors, the same coded settings in the same order, and the same results."""
     entry, reference = EXAMPLES[name], REFERENCE[name]
     factors = [{k: f[k] for k in ("name", "low", "high", "units")} for f in reference["factors"]]

@@ -1,6 +1,6 @@
 {
  "schema": 1,
- "about": ["Reference designed experiments from Vijay Nair's tutorial slides on fractional factorial designs (2004).", "Each worked example is an experiment (its coded runs and results); each design the slides construct is a", "design. expected: every number, alias and defining relation the slides print, with where (the slide number,", "a quotation) and a check. The slides number factors 1, 2, 3, ... (5 = 123), and those digits name the factors", "of the fractions here. Read with process_improve.experiments.reference."],
+ "about": ["Part of the reference catalogue: designed experiments from Vijay Nair's tutorial slides on fractional factorial designs (2004).", "Each worked example is an experiment (its coded runs and results); each design the slides construct is a", "design. expected: every number, alias and defining relation the slides print, with where (the slide number,", "a quotation) and a check. The slides number factors 1, 2, 3, ... (5 = 123), and those digits name the factors", "of the fractions here. Read with process_improve.experiments.reference_catalogue."],
  "source": {
   "key": "nair-ffd-tutorial-2004",
   "authors": ["Vijay N. Nair"],

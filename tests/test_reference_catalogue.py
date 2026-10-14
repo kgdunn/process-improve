@@ -1,8 +1,8 @@
-"""The reference designed experiments, reproduced with this library.
+"""The reference catalogue, reproduced with this library.
 
-``process_improve.experiments.reference`` holds worked examples, exercises and case studies of
+``process_improve.experiments.reference_catalogue`` holds worked examples, exercises and case studies of
 published sources, each with its runs as printed and every number the source prints for it, with
-where it is printed. ``reproduce_reference`` recomputes every number that carries a check; here
+where it is printed. ``reproduce_reference_catalogue`` recomputes every number that carries a check; here
 each one must agree with the printed text to within the source's own rounding. A number that is
 not recomputed must say why. A change to the library that contradicts a published source fails
 here, and so does a number copied wrongly into the catalogue.
@@ -14,16 +14,16 @@ import json
 
 import pytest
 
-from process_improve.experiments import reference
-from process_improve.experiments.reference import (
+from process_improve.experiments import reference_catalogue
+from process_improve.experiments.reference_catalogue import (
     reference_designs,
     reference_experiments,
     reference_sources,
-    reproduce_reference,
+    reproduce_reference_catalogue,
 )
 
-CHECKS = list(reference._each_check())
-FITS = reference._Fits()
+CHECKS = list(reference_catalogue._each_check())
+FITS = reference_catalogue._Fits()
 SEARCHED = {"omars_ilp"}  # designs built by search take seconds each: check what they would show more cheaply
 
 
@@ -34,7 +34,7 @@ def _case(key: str, entry: dict, expected: dict, check: dict) -> pytest.param:
 
 @pytest.mark.parametrize(("entry", "expected", "check"), [_case(*c) for c in CHECKS if "kind" in c[3]])
 def test_every_printed_number_is_reproduced(entry, expected, check):
-    found, agrees = reference._reproduce(entry, expected, check, FITS)
+    found, agrees = reference_catalogue._reproduce(entry, expected, check, FITS)
     printed = check.get("printed", expected["value"])
     if check.get("disagreement"):
         assert not agrees, f"{entry['name']}: it reproduces now ({found}); take away the disagreement it records"
@@ -57,7 +57,7 @@ def test_every_number_not_recomputed_says_why():
 
 
 def test_the_report_has_a_row_for_every_check():
-    report = reproduce_reference("ullmann-doe-2012")
+    report = reproduce_reference_catalogue("ullmann-doe-2012")
     assert len(report) == sum(key == "ullmann-doe-2012" for key, *_ in CHECKS)
     assert report.loc[report["checked"], "agrees"].all()
 
@@ -99,20 +99,20 @@ def test_an_unknown_source_is_refused():
 
 def test_a_wrong_number_is_reported_and_not_agreed(monkeypatch, tmp_path):
     """The report says so when a printed number does not reproduce: a check that cannot fail checks nothing."""
-    from process_improve.experiments import reference
+    from process_improve.experiments import reference_catalogue
 
-    source = json.loads(next(reference._REFERENCE_DIR.glob("ullmann-*.json")).read_text(encoding="utf-8"))
+    source = json.loads(next(reference_catalogue._CATALOGUE_DIR.glob("ullmann-*.json")).read_text(encoding="utf-8"))
     source["experiments"][0]["expected"][0]["value"] = "11"  # the effect of A is 10
     (tmp_path / "wrong.json").write_text(json.dumps(source), encoding="utf-8")
-    monkeypatch.setattr(reference, "_REFERENCE_DIR", tmp_path)
-    report = reproduce_reference()
+    monkeypatch.setattr(reference_catalogue, "_CATALOGUE_DIR", tmp_path)
+    report = reproduce_reference_catalogue()
     first = report.iloc[0]
     assert (first["printed"], first["found"], first["agrees"]) == ("11", "10", False)
 
 
 def test_each_kind_of_check_reports_what_it_finds(monkeypatch, tmp_path):
     """A small source with one check of each remaining kind: ANOVA, bounds, a design's metrics, and errors."""
-    from process_improve.experiments import reference
+    from process_improve.experiments import reference_catalogue
 
     def item(value, check):
         return {"what": "x", "term": None, "value": value, "where": {"page": 1, "quote": "x"}, "check": check}
@@ -156,8 +156,8 @@ def test_each_kind_of_check_reports_what_it_finds(monkeypatch, tmp_path):
     }
     source = {"key": "small", "authors": ["A"], "title": "t", "url": "u", "year": 2026, "read": "r"}
     (tmp_path / "small.json").write_text(json.dumps({"source": source, "experiments": [experiment]}), encoding="utf-8")
-    monkeypatch.setattr(reference, "_REFERENCE_DIR", tmp_path)
-    report = reproduce_reference("small")
+    monkeypatch.setattr(reference_catalogue, "_CATALOGUE_DIR", tmp_path)
+    report = reproduce_reference_catalogue("small")
     assert report["agrees"].tolist() == [True] * 8 + [False] * 5
     assert report["found"].iloc[6] == "0.0714286"
     reasons = report["reason"].iloc[8:].str.split(":").str[0].tolist()
@@ -166,7 +166,7 @@ def test_each_kind_of_check_reports_what_it_finds(monkeypatch, tmp_path):
 
 def test_a_trailing_zero_is_a_printed_digit():
     """0.40 is printed to hundredths: 0.37 does not round to it, though it rounds to 0.4."""
-    from process_improve.experiments.reference import _agrees
+    from process_improve.experiments.reference_catalogue import _agrees
 
     assert not _agrees(0.37, "0.40")
     assert _agrees(0.37, "0.4")
