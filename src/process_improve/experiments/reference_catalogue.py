@@ -205,7 +205,10 @@ def _agrees(found: float, printed: str, *, expression: bool = False) -> bool:
 
 # --------------------------------------------------------------------------- the runs as a model sees them
 def _coded_runs(experiment: dict, positions: list[int] | None) -> tuple[pd.DataFrame, pd.DataFrame]:
-    """Return the factor settings in coded units and the responses, for the runs at these 1-based positions."""
+    """Return the factor settings in coded units and the responses, for the runs at these 1-based positions.
+
+    A factor marked ``"coding": "none"`` is fitted in its own units, as a source's regression on it is.
+    """
     runs = experiment["runs"]
     table = pd.DataFrame(runs["rows"], columns=runs["columns"])
     if positions is not None:
@@ -214,6 +217,9 @@ def _coded_runs(experiment: dict, positions: list[int] | None) -> tuple[pd.DataF
     settings = {}
     for f in experiment["factors"]:
         column = table[f["name"]]
+        if f.get("coding") == "none":
+            settings[f["name"]] = column.astype(float)
+            continue
         if f.get("levels") and len(f["levels"]) > 2 and f["type"] == "categorical":
             settings[f["name"]] = column.astype(str)  # a factor at three or more levels is fitted by name
             continue

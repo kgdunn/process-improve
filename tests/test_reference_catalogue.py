@@ -205,3 +205,20 @@ def test_a_blocking_arrangement_is_compared_by_how_many_interactions_of_each_ord
     check = {"design": {"design_type": "full_factorial", "k": 4, "options": {"n_blocks": 4}}}
     assert _block_confounding(check, "124, 134, 23")[1]
     assert not _block_confounding(check, "12, 34, 1234")[1]  # two two-factor interactions where one will do
+
+
+def test_a_regressor_marked_uncoded_is_fitted_in_its_own_units():
+    """A source's slope is per unit of x: a factor with ``"coding": "none"`` is not rescaled to -1 and +1."""
+    from process_improve.experiments.reference_catalogue import _coded_runs
+
+    def factor(coding):
+        return {"name": "x", "type": "numeric", "low": 10, "high": 30, **coding}
+
+    entry = {
+        "responses": [{"name": "y"}],
+        "runs": {"columns": ["x", "y"], "rows": [[10, 1], [20, 2], [30, 3]], "coded": False},
+    }
+    coded, _ = _coded_runs({**entry, "factors": [factor({})]}, None)
+    own, _ = _coded_runs({**entry, "factors": [factor({"coding": "none"})]}, None)
+    assert coded["x"].tolist() == [-1.0, 0.0, 1.0]
+    assert own["x"].tolist() == [10.0, 20.0, 30.0]
