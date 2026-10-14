@@ -117,6 +117,13 @@ those changes.
   enough to be worth showing, so a quick analysis does not make the page jump.
 - **The residuals-vs-fitted plot names the response on its x axis** ("Fitted Conversion"
   rather than "Fitted Values") when `create_plot` is given `response_column`.
+- **`generate_design` refuses `hard_to_change` for a design type that cannot build split
+  plots.** Only the optimal families (`d_optimal`, `i_optimal`, ...) build a split-plot
+  design. Every other design type (a fractional factorial, a CCD, a Box-Behnken design and
+  the rest) dropped the argument and randomised every run, so the hard-to-change factors
+  were reset from run to run with no warning. They now raise `ValueError`, as
+  `candidates` and `fixed_runs` already did. With `design_type` unset, a split-plot
+  request is still given a D-optimal design.
 
 ## [1.98.0] - 2026-10-12
 
