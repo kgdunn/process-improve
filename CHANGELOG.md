@@ -39,6 +39,9 @@ those changes.
   evaluates it with `evaluate_design`: D-, A-, G-efficiency, correlations, prediction
   variance, power).
   `tests/test_reference_catalogue.py` requires every checked number to agree.
+  The catalogue holds facts and short quotations, not the sources themselves, and the MIT
+  licence covers the package's code, not them: each source states its own terms in `rights`,
+  and the folder's `NOTICE.md` explains the split.
 - **Factorial opens examples from published sources other than the book:
   `https://factori.al/?example=<name>`.** They are listed in `web/published-examples.json`, each
   the experiment of the same name in the reference catalogue (above), and the opening banner cites the source and

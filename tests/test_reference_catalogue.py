@@ -89,7 +89,14 @@ def test_each_name_is_one_entry():
 def test_the_sources_are_cited_in_full():
     for key, source in reference_sources().items():
         assert source["authors"], key
-        assert all(source.get(field) for field in ("title", "url", "year", "read")), key
+        assert all(source.get(field) for field in ("title", "url", "year", "read", "rights")), key
+
+
+def test_the_terms_of_the_sources_are_stated_beside_them():
+    """The MIT licence covers the code; the notice beside the data says it does not cover the sources' contents."""
+    notice = (reference_catalogue._CATALOGUE_DIR / "NOTICE.md").read_text(encoding="utf-8")
+    assert "does not extend" in notice
+    assert "source.rights" in notice
 
 
 def test_an_unknown_source_is_refused():

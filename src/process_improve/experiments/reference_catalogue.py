@@ -11,6 +11,10 @@ it (the kind of result, the term, the model, the runs it uses), or why it is not
 reports, row by row, the printed text, the value found, whether they agree to within the
 source's own rounding, and where the number is printed.
 
+The catalogue's files hold facts and short quotations from their sources, not the sources
+themselves. The MIT licence of this package covers its code, not them: each source states its
+own terms in ``rights`` (see :func:`reference_sources` and the folder's ``NOTICE.md``).
+
 Examples
 --------
 >>> from process_improve.experiments.reference_catalogue import (
@@ -75,7 +79,8 @@ def reference_sources() -> dict[str, dict[str, Any]]:
     dict[str, dict]
         For each source key, its citation: ``authors``, ``title``, ``url``, ``year``, and where they
         apply ``work``, ``volume``, ``pages``, ``publisher``, ``doi``, the ``version`` and ``commit``
-        that was read, and ``read``: when and from what the numbers were taken.
+        that was read, ``read``: when and from what the numbers were taken, and ``rights``: the terms
+        of the source's numbers and quotations, which the MIT licence of this package does not cover.
 
     Examples
     --------

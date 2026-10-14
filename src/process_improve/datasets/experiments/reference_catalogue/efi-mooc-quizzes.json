@@ -11,7 +11,8 @@
   "url": "https://www.coursera.org/learn/experimentation",
   "assets": "https://d396qusza40orc.cloudfront.net/experiments/quiz_assets/",
   "cite": "Dunn, K. G. (2014-2015), Experimentation for Improvement, McMaster University on Coursera: the graded and ungraded practice quizzes, as exported in August 2015",
-  "read": "2026-10-13, from the quizzes' XML exports (Coursera's 2014-2015 quiz format), supplied by the author: each number copied from a question, an option or an explanation, with the quiz, the question's and option's ids, and the option's answer key"
+  "read": "2026-10-13, from the quizzes' XML exports (Coursera's 2014-2015 quiz format), supplied by the author: each number copied from a question, an option or an explanation, with the quiz, the question's and option's ids, and the option's answer key",
+  "rights": "Written by Kevin G. Dunn for the course, and included here by the author. The MIT licence of process-improve covers its code, not the quizzes."
  },
  "experiments": [
   {

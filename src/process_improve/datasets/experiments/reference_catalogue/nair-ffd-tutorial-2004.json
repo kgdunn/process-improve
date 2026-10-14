@@ -9,7 +9,8 @@
   "year": 2004,
   "url": "https://www.slideshare.net/slideshow/fractional-factorial-design-tutorial/15739157",
   "cite": "Nair, V. N. (2004), Fractional Factorial Designs: A Tutorial, slides, University of Michigan",
-  "read": "2026-10-13, from the PowerPoint file supplied by the user (48 slides, last saved 14 November 2004), converted to PDF to read the slides drawn as images; every number copied by hand with its slide"
+  "read": "2026-10-13, from the PowerPoint file supplied by the user (48 slides, last saved 14 November 2004), converted to PDF to read the slides drawn as images; every number copied by hand with its slide",
+  "rights": "The slide deck is protected by copyright and is not reproduced here; read it through its URL. This file holds facts it reports (numbers, design matrices, data) and short quotations that locate each one, for citation and for checking software. The MIT licence of process-improve does not extend to them."
  },
  "experiments": [
   {
