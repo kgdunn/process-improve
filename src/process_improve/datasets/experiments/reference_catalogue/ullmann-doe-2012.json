@@ -1,0 +1,1433 @@
+{
+ "schema": 1,
+ "about": ["Part of the reference catalogue: designed experiments from one published source, for testing that software reproduces them.", "source: the citation, with what was read and when. experiments: each with its data (factors, responses, runs", "exactly as printed, in the printed order), where it is printed, and expected: every number the source prints for", "it, as printed text, with what it is, where it is printed (a line or page, and a quotation) and check: how to", "recompute it (the kind of result, the term, the model in the library's formula notation, and runs, the 1-based", "positions of the runs used when not all), or manual, the reason it is not recomputed. designs: designs without", "responses, with the properties the source states. Read with process_improve.experiments.reference_catalogue.", "reference_experiments; tests/test_reference_catalogue.py recomputes every number that has a check."],
+ "source": {
+  "key": "ullmann-doe-2012",
+  "authors": ["Sergio Soravia", "Andreas Orth"],
+  "title": "Design of Experiments",
+  "work": "Ullmann's Encyclopedia of Industrial Chemistry",
+  "volume": "11",
+  "pages": "165-202",
+  "year": 2012,
+  "publisher": "Wiley-VCH Verlag GmbH & Co. KGaA, Weinheim",
+  "doi": "10.1002/14356007.e08_e01.pub3",
+  "url": "https://doi.org/10.1002/14356007.e08_e01.pub3",
+  "cite": "Soravia and Orth (2012), \"Design of Experiments\", Ullmann's Encyclopedia of Industrial Chemistry",
+  "read": "2026-10-13, from the article's PDF (article e08_e01, 38 pages); every number copied by hand",
+  "rights": "The article is protected by copyright and is not reproduced here; read it through its DOI. This file holds facts it reports (numbers, design matrices, data) and short quotations that locate each one, for citation and for checking software. The MIT licence of process-improve does not extend to them."
+ },
+ "experiments": [
+  {
+   "name": "ullmann-catalyst-temperature",
+   "title": "Yield against catalyst A and temperature B, with a centre run",
+   "kind": "example",
+   "where": {
+    "section": "3.2, The 2^2 Factorial Design",
+    "pages": "173-176",
+    "figures": ["Figure 5", "Figure 6", "Figure 7"],
+    "tables": ["Table 4", "Table 5"]
+   },
+   "factors": [
+    {
+     "name": "A",
+     "description": "Catalyst",
+     "low": 100,
+     "high": 150,
+     "units": "g",
+     "type": "numeric"
+    },
+    {
+     "name": "B",
+     "description": "Temperature",
+     "low": 70,
+     "high": 90,
+     "units": "°C",
+     "type": "numeric"
+    }
+   ],
+   "responses": [
+    {
+     "name": "y",
+     "description": "Yield of the product in a stirred tank reactor",
+     "units": "%"
+    }
+   ],
+   "design": {
+    "type": "2^2 full factorial with a centre run",
+    "details": "the centre run, 125 g and 80 °C, is described on pp. 175 to 176 and is run 5 of Tables 4 and 5",
+    "n_runs": 5
+   },
+   "runs": {
+    "columns": ["No.", "A", "B", "y"],
+    "rows": [
+     [1, -1, -1, 60],
+     [2, 1, -1, 62],
+     [3, -1, 1, 74],
+     [4, 1, 1, 92],
+     [5, 0, 0, 70]
+    ],
+    "coded": true,
+    "notes": "No. is the standard order; the article prints no run order"
+   },
+   "notes": "The article's effects are twice its coefficients (Section 4.2, p. 184). Its Q2 is the predicted R-squared, 1 - PRESS/SS_tot.",
+   "expected": [
+    {
+     "what": "effect",
+     "term": "A",
+     "value": "10",
+     "analysis": "effects of the four corner runs",
+     "where": {
+      "page": 174,
+      "source_kind": "math",
+      "quote": "Main effect of A = ME(A) ... = 10%"
+     },
+     "check": {
+      "kind": "effect",
+      "term": "A",
+      "model": "A*B",
+      "runs": [1, 2, 3, 4]
+     }
+    },
+    {
+     "what": "effect",
+     "term": "B",
+     "value": "22",
+     "analysis": "effects of the four corner runs",
+     "where": {
+      "page": 174,
+      "source_kind": "math",
+      "quote": "Main effect of B = ME(B) ... = 22%"
+     },
+     "check": {
+      "kind": "effect",
+      "term": "B",
+      "model": "A*B",
+      "runs": [1, 2, 3, 4]
+     }
+    },
+    {
+     "what": "effect",
+     "term": "A·B",
+     "value": "8",
+     "analysis": "effects of the four corner runs",
+     "where": {
+      "page": 175,
+      "source_kind": "math",
+      "quote": "= IE(BA) = +8%"
+     },
+     "check": {
+      "kind": "effect",
+      "term": "A·B",
+      "model": "A*B",
+      "runs": [1, 2, 3, 4]
+     }
+    },
+    {
+     "what": "mean",
+     "term": "y",
+     "value": "72",
+     "analysis": "effects of the four corner runs",
+     "where": {
+      "page": 176,
+      "source_kind": "prose",
+      "quote": "slightly below the 72 % obtained by averaging the four results of the factorial design"
+     },
+     "check": {
+      "kind": "mean",
+      "term": "y",
+      "model": "A*B",
+      "runs": [1, 2, 3, 4]
+     }
+    },
+    {
+     "what": "effect",
+     "term": "A",
+     "value": "2",
+     "analysis": "effect of A at the low temperature",
+     "where": {
+      "page": 173,
+      "source_kind": "math",
+      "quote": "Effect of A for B- = E_B-(A) = y_A+B- - y_A-B- = +2%"
+     },
+     "check": {
+      "kind": "effect",
+      "term": "A",
+      "model": "A",
+      "runs": [1, 2]
+     }
+    },
+    {
+     "what": "effect",
+     "term": "A",
+     "value": "18",
+     "analysis": "effect of A at the high temperature",
+     "where": {
+      "page": 173,
+      "source_kind": "math",
+      "quote": "Effect of A for B+ = E_B+(A) = y_A+B+ - y_A-B+ = +18%"
+     },
+     "check": {
+      "kind": "effect",
+      "term": "A",
+      "model": "A",
+      "runs": [3, 4]
+     }
+    },
+    {
+     "what": "effect",
+     "term": "B",
+     "value": "14",
+     "analysis": "effect of B at the low catalyst quantity",
+     "where": {
+      "page": 173,
+      "source_kind": "math",
+      "quote": "Effect of B for A- = E_A-(B) = y_A-B+ - y_A-B- = +14%"
+     },
+     "check": {
+      "kind": "effect",
+      "term": "B",
+      "model": "B",
+      "runs": [1, 3]
+     }
+    },
+    {
+     "what": "effect",
+     "term": "B",
+     "value": "30",
+     "analysis": "effect of B at the high catalyst quantity",
+     "where": {
+      "page": 173,
+      "source_kind": "math",
+      "quote": "Effect of B for A+ = E_A+(B) = y_A+B+ - y_A-B- = +30%"
+     },
+     "check": {
+      "kind": "effect",
+      "term": "B",
+      "model": "B",
+      "runs": [2, 4]
+     }
+    },
+    {
+     "what": "mean",
+     "term": "y",
+     "value": "67",
+     "analysis": "average yield at the low catalyst quantity",
+     "where": {
+      "page": 174,
+      "source_kind": "prose",
+      "quote": "the yield increases on average by 10% from (60+74)/2 = 67% to (62+92)/2 = 77%"
+     },
+     "check": {
+      "kind": "mean",
+      "term": "y",
+      "model": null,
+      "runs": [1, 3]
+     }
+    },
+    {
+     "what": "mean",
+     "term": "y",
+     "value": "77",
+     "analysis": "average yield at the high catalyst quantity",
+     "where": {
+      "page": 174,
+      "source_kind": "prose",
+      "quote": "the yield increases on average by 10% from (60+74)/2 = 67% to (62+92)/2 = 77%"
+     },
+     "check": {
+      "kind": "mean",
+      "term": "y",
+      "model": null,
+      "runs": [2, 4]
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "Intercept",
+     "value": "71.6",
+     "analysis": "interaction model fitted to all five runs",
+     "where": {
+      "page": 184,
+      "source_kind": "math",
+      "quote": "b0 = 1/5 (74+92+70+60+62) = 71.6%"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "Intercept",
+      "model": "A*B"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "A",
+     "value": "5",
+     "analysis": "interaction model fitted to all five runs",
+     "where": {
+      "page": 184,
+      "source_kind": "math",
+      "quote": "bA = ME(A)/2 = 5%"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "A",
+      "model": "A*B"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "B",
+     "value": "11",
+     "analysis": "interaction model fitted to all five runs",
+     "where": {
+      "page": 184,
+      "source_kind": "math",
+      "quote": "bB = ME(B)/2 = 11%"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "B",
+      "model": "A*B"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "A·B",
+     "value": "4",
+     "analysis": "interaction model fitted to all five runs",
+     "where": {
+      "page": 184,
+      "source_kind": "math",
+      "quote": "bAB = IE(AB)/2 = 4%"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "A·B",
+      "model": "A*B"
+     }
+    },
+    {
+     "what": "fitted",
+     "term": "run 1",
+     "value": "59.6",
+     "analysis": "interaction model fitted to all five runs",
+     "where": {
+      "page": 187,
+      "source_kind": "table",
+      "quote": "Table 4: 1 - - 60 59.6"
+     },
+     "check": {
+      "kind": "fitted",
+      "model": "A*B",
+      "run": 1
+     }
+    },
+    {
+     "what": "fitted",
+     "term": "run 2",
+     "value": "61.6",
+     "analysis": "interaction model fitted to all five runs",
+     "where": {
+      "page": 187,
+      "source_kind": "table",
+      "quote": "Table 4: 2 + - 62 61.6"
+     },
+     "check": {
+      "kind": "fitted",
+      "model": "A*B",
+      "run": 2
+     }
+    },
+    {
+     "what": "fitted",
+     "term": "run 3",
+     "value": "73.6",
+     "analysis": "interaction model fitted to all five runs",
+     "where": {
+      "page": 187,
+      "source_kind": "table",
+      "quote": "Table 4: 3 - + 74 73.6"
+     },
+     "check": {
+      "kind": "fitted",
+      "model": "A*B",
+      "run": 3
+     }
+    },
+    {
+     "what": "fitted",
+     "term": "run 4",
+     "value": "91.6",
+     "analysis": "interaction model fitted to all five runs",
+     "where": {
+      "page": 187,
+      "source_kind": "table",
+      "quote": "Table 4: 4 + + 92 91.6"
+     },
+     "check": {
+      "kind": "fitted",
+      "model": "A*B",
+      "run": 4
+     }
+    },
+    {
+     "what": "fitted",
+     "term": "run 5",
+     "value": "71.6",
+     "analysis": "interaction model fitted to all five runs",
+     "where": {
+      "page": 187,
+      "source_kind": "table",
+      "quote": "Table 4: 5 0 0 70 71.6"
+     },
+     "check": {
+      "kind": "fitted",
+      "model": "A*B",
+      "run": 5
+     }
+    },
+    {
+     "what": "residual",
+     "term": "run 1",
+     "value": "0.4",
+     "analysis": "interaction model fitted to all five runs",
+     "where": {
+      "page": 187,
+      "source_kind": "table",
+      "quote": "Table 4, column y_i - y^_i"
+     },
+     "check": {
+      "kind": "residual",
+      "model": "A*B",
+      "run": 1
+     }
+    },
+    {
+     "what": "residual",
+     "term": "run 2",
+     "value": "0.4",
+     "analysis": "interaction model fitted to all five runs",
+     "where": {
+      "page": 187,
+      "source_kind": "table",
+      "quote": "Table 4, column y_i - y^_i"
+     },
+     "check": {
+      "kind": "residual",
+      "model": "A*B",
+      "run": 2
+     }
+    },
+    {
+     "what": "residual",
+     "term": "run 3",
+     "value": "0.4",
+     "analysis": "interaction model fitted to all five runs",
+     "where": {
+      "page": 187,
+      "source_kind": "table",
+      "quote": "Table 4, column y_i - y^_i"
+     },
+     "check": {
+      "kind": "residual",
+      "model": "A*B",
+      "run": 3
+     }
+    },
+    {
+     "what": "residual",
+     "term": "run 4",
+     "value": "0.4",
+     "analysis": "interaction model fitted to all five runs",
+     "where": {
+      "page": 187,
+      "source_kind": "table",
+      "quote": "Table 4, column y_i - y^_i"
+     },
+     "check": {
+      "kind": "residual",
+      "model": "A*B",
+      "run": 4
+     }
+    },
+    {
+     "what": "residual",
+     "term": "run 5",
+     "value": "-1.6",
+     "analysis": "interaction model fitted to all five runs",
+     "where": {
+      "page": 187,
+      "source_kind": "table",
+      "quote": "Table 4, column y_i - y^_i"
+     },
+     "check": {
+      "kind": "residual",
+      "model": "A*B",
+      "run": 5
+     }
+    },
+    {
+     "what": "left_out_prediction",
+     "term": "run 1",
+     "value": "52",
+     "analysis": "interaction model fitted to all five runs",
+     "where": {
+      "page": 188,
+      "source_kind": "table",
+      "quote": "Table 5: 1 - - 60 52 8"
+     },
+     "check": {
+      "kind": "left_out_prediction",
+      "model": "A*B",
+      "run": 1
+     }
+    },
+    {
+     "what": "left_out_prediction",
+     "term": "run 2",
+     "value": "54",
+     "analysis": "interaction model fitted to all five runs",
+     "where": {
+      "page": 188,
+      "source_kind": "table",
+      "quote": "Table 5: 2 + - 62 54 8"
+     },
+     "check": {
+      "kind": "left_out_prediction",
+      "model": "A*B",
+      "run": 2
+     }
+    },
+    {
+     "what": "left_out_prediction",
+     "term": "run 3",
+     "value": "66",
+     "analysis": "interaction model fitted to all five runs",
+     "where": {
+      "page": 188,
+      "source_kind": "table",
+      "quote": "Table 5: 3 - + 74 66 8"
+     },
+     "check": {
+      "kind": "left_out_prediction",
+      "model": "A*B",
+      "run": 3
+     }
+    },
+    {
+     "what": "left_out_prediction",
+     "term": "run 4",
+     "value": "84",
+     "analysis": "interaction model fitted to all five runs",
+     "where": {
+      "page": 188,
+      "source_kind": "table",
+      "quote": "Table 5: 4 + + 92 84 8"
+     },
+     "check": {
+      "kind": "left_out_prediction",
+      "model": "A*B",
+      "run": 4
+     }
+    },
+    {
+     "what": "left_out_prediction",
+     "term": "run 5",
+     "value": "72",
+     "analysis": "interaction model fitted to all five runs",
+     "where": {
+      "page": 188,
+      "source_kind": "table",
+      "quote": "Table 5: 5 0 0 70 72 -2"
+     },
+     "check": {
+      "kind": "left_out_prediction",
+      "model": "A*B",
+      "run": 5
+     }
+    },
+    {
+     "what": "ss_residual",
+     "term": null,
+     "value": "3.2",
+     "analysis": "interaction model fitted to all five runs",
+     "where": {
+      "page": 187,
+      "source_kind": "caption",
+      "quote": "Table 4 ... SS_res = 3.2, SS_reg = 648, SS_tot = 651.2"
+     },
+     "check": {
+      "kind": "ss_residual",
+      "term": null,
+      "model": "A*B"
+     }
+    },
+    {
+     "what": "ss_regression",
+     "term": null,
+     "value": "648",
+     "analysis": "interaction model fitted to all five runs",
+     "where": {
+      "page": 187,
+      "source_kind": "caption",
+      "quote": "Table 4 ... SS_res = 3.2, SS_reg = 648, SS_tot = 651.2"
+     },
+     "check": {
+      "kind": "ss_regression",
+      "term": null,
+      "model": "A*B"
+     }
+    },
+    {
+     "what": "ss_total",
+     "term": null,
+     "value": "651.2",
+     "analysis": "interaction model fitted to all five runs",
+     "where": {
+      "page": 187,
+      "source_kind": "caption",
+      "quote": "Table 4 ... SS_res = 3.2, SS_reg = 648, SS_tot = 651.2"
+     },
+     "check": {
+      "kind": "ss_total",
+      "term": null,
+      "model": "A*B"
+     }
+    },
+    {
+     "what": "r_squared",
+     "term": null,
+     "value": "0.995",
+     "analysis": "interaction model fitted to all five runs",
+     "where": {
+      "page": 187,
+      "source_kind": "caption",
+      "quote": "hence R2 = 1 - SS_res/SS_tot = 0.995"
+     },
+     "check": {
+      "kind": "r_squared",
+      "term": null,
+      "model": "A*B"
+     }
+    },
+    {
+     "what": "press",
+     "term": null,
+     "value": "260",
+     "analysis": "interaction model fitted to all five runs",
+     "where": {
+      "page": 188,
+      "source_kind": "caption",
+      "quote": "Table 5. Calculation of Q2 for the example above: PRESS = 260"
+     },
+     "check": {
+      "kind": "press",
+      "term": null,
+      "model": "A*B"
+     }
+    },
+    {
+     "what": "r_squared_pred",
+     "term": null,
+     "value": "0.601",
+     "analysis": "interaction model fitted to all five runs",
+     "where": {
+      "page": 188,
+      "source_kind": "caption",
+      "quote": "Q2 = 1 - 260/651.2 = 0.601"
+     },
+     "check": {
+      "kind": "r_squared_pred",
+      "term": null,
+      "model": "A*B"
+     }
+    },
+    {
+     "what": "df_model",
+     "term": null,
+     "value": "3",
+     "analysis": "interaction model fitted to all five runs",
+     "where": {
+      "page": 189,
+      "source_kind": "prose",
+      "quote": "SS_reg = 648, p - 1 = 3, hence MS_reg = 216"
+     },
+     "check": {
+      "kind": "df_model",
+      "term": null,
+      "model": "A*B"
+     }
+    },
+    {
+     "what": "ms_regression",
+     "term": null,
+     "value": "216",
+     "analysis": "interaction model fitted to all five runs",
+     "where": {
+      "page": 189,
+      "source_kind": "prose",
+      "quote": "SS_reg = 648, p - 1 = 3, hence MS_reg = 216"
+     },
+     "check": {
+      "kind": "ms_regression",
+      "term": null,
+      "model": "A*B"
+     }
+    },
+    {
+     "what": "residual_df",
+     "term": null,
+     "value": "1",
+     "analysis": "interaction model fitted to all five runs",
+     "where": {
+      "page": 189,
+      "source_kind": "prose",
+      "quote": "SS_res = 3.2, n - p = 1, hence MS_res = 3.2"
+     },
+     "check": {
+      "kind": "residual_df",
+      "term": null,
+      "model": "A*B"
+     }
+    },
+    {
+     "what": "ms_residual",
+     "term": null,
+     "value": "3.2",
+     "analysis": "interaction model fitted to all five runs",
+     "where": {
+      "page": 189,
+      "source_kind": "prose",
+      "quote": "SS_res = 3.2, n - p = 1, hence MS_res = 3.2"
+     },
+     "check": {
+      "kind": "ms_residual",
+      "term": null,
+      "model": "A*B"
+     }
+    },
+    {
+     "what": "residual_std_error",
+     "term": null,
+     "value": "1.789",
+     "analysis": "interaction model fitted to all five runs",
+     "where": {
+      "page": 189,
+      "source_kind": "prose",
+      "quote": "the estimate RSD = sqrt(MS_res) = 1.789"
+     },
+     "check": {
+      "kind": "residual_std_error",
+      "term": null,
+      "model": "A*B"
+     }
+    }
+   ]
+  },
+  {
+   "name": "ullmann-agitator",
+   "title": "Yield against catalyst A, temperature B and agitator type C",
+   "kind": "example",
+   "where": {
+    "section": "3.3, The 2^3 Factorial Design",
+    "pages": "176-179",
+    "figures": ["Figure 8", "Figure 9"],
+    "tables": []
+   },
+   "factors": [
+    {
+     "name": "A",
+     "description": "Catalyst",
+     "low": 100,
+     "high": 150,
+     "units": "g",
+     "type": "numeric"
+    },
+    {
+     "name": "B",
+     "description": "Temperature",
+     "low": 70,
+     "high": 90,
+     "units": "°C",
+     "type": "numeric"
+    },
+    {
+     "name": "C",
+     "description": "Agitator type",
+     "low": "current",
+     "high": "new",
+     "units": "",
+     "type": "categorical"
+    }
+   ],
+   "responses": [
+    {
+     "name": "y",
+     "description": "Yield",
+     "units": "%"
+    }
+   ],
+   "design": {
+    "type": "2^3 full factorial",
+    "details": "the runs with the current agitator are the 2^2 of Figure 5",
+    "n_runs": 8
+   },
+   "runs": {
+    "columns": ["No.", "A", "B", "C", "y"],
+    "rows": [
+     [1, -1, -1, -1, 60],
+     [2, 1, -1, -1, 62],
+     [3, -1, 1, -1, 74],
+     [4, 1, 1, -1, 92],
+     [5, -1, -1, 1, 57],
+     [6, 1, -1, 1, 59],
+     [7, -1, 1, 1, 67],
+     [8, 1, 1, 1, 82]
+    ],
+    "coded": true,
+    "notes": "No. is the standard order; C at -1 is the current agitator and at +1 the new one"
+   },
+   "notes": "Figure 9 (p. 178) prints the same three effects of A, B and A·B worked by hand: +9.25, +19.25 and +7.25.",
+   "expected": [
+    {
+     "what": "effect",
+     "term": "A",
+     "value": "9.25",
+     "analysis": "all main effects and interactions",
+     "where": {
+      "page": 179,
+      "source_kind": "table",
+      "quote": "ME(A) = 9.25 %"
+     },
+     "check": {
+      "kind": "effect",
+      "term": "A",
+      "model": "A*B*C"
+     }
+    },
+    {
+     "what": "effect",
+     "term": "B",
+     "value": "19.25",
+     "analysis": "all main effects and interactions",
+     "where": {
+      "page": 179,
+      "source_kind": "table",
+      "quote": "ME(B) = 19.25 %"
+     },
+     "check": {
+      "kind": "effect",
+      "term": "B",
+      "model": "A*B*C"
+     }
+    },
+    {
+     "what": "effect",
+     "term": "C",
+     "value": "-5.75",
+     "analysis": "all main effects and interactions",
+     "where": {
+      "page": 179,
+      "source_kind": "table",
+      "quote": "ME(C) = - 5.75 %"
+     },
+     "check": {
+      "kind": "effect",
+      "term": "C",
+      "model": "A*B*C"
+     }
+    },
+    {
+     "what": "effect",
+     "term": "A·B",
+     "value": "7.25",
+     "analysis": "all main effects and interactions",
+     "where": {
+      "page": 177,
+      "source_kind": "math",
+      "quote": "Interaction effect between A and B ... = +7.25%"
+     },
+     "check": {
+      "kind": "effect",
+      "term": "A·B",
+      "model": "A*B*C"
+     }
+    },
+    {
+     "what": "effect",
+     "term": "A·C",
+     "value": "-0.75",
+     "analysis": "all main effects and interactions",
+     "where": {
+      "page": 179,
+      "source_kind": "table",
+      "quote": "IE(AC) = - 0.75 %"
+     },
+     "check": {
+      "kind": "effect",
+      "term": "A·C",
+      "model": "A*B*C"
+     }
+    },
+    {
+     "what": "effect",
+     "term": "B·C",
+     "value": "-2.75",
+     "analysis": "all main effects and interactions",
+     "where": {
+      "page": 179,
+      "source_kind": "table",
+      "quote": "IE(BC) = - 2.75 %"
+     },
+     "check": {
+      "kind": "effect",
+      "term": "B·C",
+      "model": "A*B*C"
+     }
+    },
+    {
+     "what": "effect",
+     "term": "A·B·C",
+     "value": "-0.75",
+     "analysis": "all main effects and interactions",
+     "where": {
+      "page": 179,
+      "source_kind": "math",
+      "quote": "IE(ABC) = ... = -0.75%"
+     },
+     "check": {
+      "kind": "effect",
+      "term": "A·B·C",
+      "model": "A*B*C"
+     }
+    }
+   ]
+  },
+  {
+   "name": "ullmann-agitator-half-fraction",
+   "title": "Half fraction of the agitator experiment: catalyst A, temperature B, agitator type C",
+   "kind": "example",
+   "where": {
+    "section": "3.4, Fractional Factorial Designs",
+    "pages": "179-181",
+    "figures": ["Figure 10", "Figure 11"],
+    "tables": []
+   },
+   "factors": [
+    {
+     "name": "A",
+     "description": "Catalyst",
+     "low": 100,
+     "high": 150,
+     "units": "g",
+     "type": "numeric"
+    },
+    {
+     "name": "B",
+     "description": "Temperature",
+     "low": 70,
+     "high": 90,
+     "units": "°C",
+     "type": "numeric"
+    },
+    {
+     "name": "C",
+     "description": "Agitator type",
+     "low": "current",
+     "high": "new",
+     "units": "",
+     "type": "categorical"
+    }
+   ],
+   "responses": [
+    {
+     "name": "y",
+     "description": "Yield",
+     "units": "%"
+    }
+   ],
+   "design": {
+    "type": "2^(3-1) fractional factorial",
+    "details": "generator C = AB, resolution III (Figure 11)",
+    "n_runs": 4
+   },
+   "runs": {
+    "columns": ["No.", "A", "B", "C", "y"],
+    "rows": [
+     [1, -1, -1, 1, 57],
+     [2, 1, -1, -1, 62],
+     [3, -1, 1, -1, 74],
+     [4, 1, 1, 1, 82]
+    ],
+    "coded": true,
+    "notes": "runs 5, 2, 3 and 8 of the 2^3 of Figure 8"
+   },
+   "notes": "Figure 10 prints the effect of C as the sum, not as a number: it is 1.5.",
+   "expected": [
+    {
+     "what": "effect",
+     "term": "C",
+     "value": "(57 + 82) / 2 - (62 + 74) / 2",
+     "value_kind": "expression",
+     "analysis": "main effects, each confounded with a two-factor interaction",
+     "where": {
+      "page": 180,
+      "source_kind": "caption",
+      "quote": "Figure 10: ME(C) = (57 + 82)/2 - (62 + 74)/2; IE(AB) = (57 + 82)/2 - (62 + 74)/2"
+     },
+     "check": {
+      "kind": "effect",
+      "term": "C",
+      "model": "A + B + C",
+      "expression": true
+     }
+    },
+    {
+     "what": "generator",
+     "term": null,
+     "value": "C = AB",
+     "analysis": "main effects, each confounded with a two-factor interaction",
+     "where": {
+      "page": 181,
+      "source_kind": "caption",
+      "quote": "Figure 11: 2^(3-1) design (generator: C = AB, resolution: III)"
+     },
+     "check": {
+      "kind": "generator",
+      "k": 3,
+      "resolution": 3
+     }
+    },
+    {
+     "what": "resolution",
+     "term": null,
+     "value": "III",
+     "analysis": "main effects, each confounded with a two-factor interaction",
+     "where": {
+      "page": 181,
+      "source_kind": "caption",
+      "quote": "Figure 11: 2^(3-1) design (generator: C = AB, resolution: III)"
+     },
+     "check": {
+      "kind": "resolution",
+      "k": 3,
+      "resolution": 3
+     }
+    },
+    {
+     "what": "aliases",
+     "term": "C",
+     "value": "AB",
+     "analysis": "main effects, each confounded with a two-factor interaction",
+     "where": {
+      "page": 180,
+      "source_kind": "prose",
+      "quote": "It is actually the sum ME(C)+IE(AB) of both effects"
+     },
+     "check": {
+      "kind": "aliases",
+      "term": "C",
+      "k": 3,
+      "resolution": 3
+     }
+    },
+    {
+     "what": "aliases",
+     "term": "A",
+     "value": "BC",
+     "analysis": "main effects, each confounded with a two-factor interaction",
+     "where": {
+      "page": 180,
+      "source_kind": "prose",
+      "quote": "ME(A) is confounded with IE(BC)"
+     },
+     "check": {
+      "kind": "aliases",
+      "term": "A",
+      "k": 3,
+      "resolution": 3
+     }
+    },
+    {
+     "what": "aliases",
+     "term": "B",
+     "value": "AC",
+     "analysis": "main effects, each confounded with a two-factor interaction",
+     "where": {
+      "page": 180,
+      "source_kind": "prose",
+      "quote": "and ME(B) with IE(AC)"
+     },
+     "check": {
+      "kind": "aliases",
+      "term": "B",
+      "k": 3,
+      "resolution": 3
+     }
+    }
+   ]
+  },
+  {
+   "name": "ullmann-three-level-categorical",
+   "title": "One categorical factor at three instances, coded by two dummy variables",
+   "kind": "example",
+   "where": {
+    "section": "7.2, Designs for Categorical Factors",
+    "pages": "198",
+    "figures": ["Figure 28"],
+    "tables": ["Table 7"]
+   },
+   "factors": [
+    {
+     "name": "instance",
+     "description": "A categorical factor (a supplier, a solvent, a strain)",
+     "low": null,
+     "high": null,
+     "levels": ["i1", "i2", "i3"],
+     "units": "",
+     "type": "categorical"
+    }
+   ],
+   "responses": [
+    {
+     "name": "y",
+     "description": "A response",
+     "units": ""
+    }
+   ],
+   "design": {
+    "type": "one categorical factor at three levels",
+    "details": "coded by dummy variables p1 and p2: i1 = (1, 0), i2 = (0, 1), i3 = (-1, -1), Table 7",
+    "n_runs": 3
+   },
+   "runs": {
+    "columns": ["instance", "p1", "p2", "y"],
+    "rows": [
+     ["i1", 1, 0, 6],
+     ["i2", 0, 1, 8],
+     ["i3", -1, -1, 13]
+    ],
+    "coded": false,
+    "notes": "p1 and p2 are the dummy variables of Table 7; the fit uses the instance, coded to sum to zero"
+   },
+   "notes": "The page's Factorial app cannot open this: its categorical factors have two levels.",
+   "expected": [
+    {
+     "what": "coefficient",
+     "term": "Intercept",
+     "value": "9",
+     "analysis": "dummy variables that sum to zero",
+     "where": {
+      "page": 198,
+      "source_kind": "prose",
+      "quote": "For the example shown in Figure 28 the coefficients are c0 = 9, c1 = -3, c2 = -1, c3 = 4"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "Intercept",
+      "model": "C(instance, Sum)"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "instance[i1]",
+     "value": "-3",
+     "analysis": "dummy variables that sum to zero",
+     "where": {
+      "page": 198,
+      "source_kind": "prose",
+      "quote": "c1 = -3"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "instance[i1]",
+      "model": "C(instance, Sum)"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "instance[i2]",
+     "value": "-1",
+     "analysis": "dummy variables that sum to zero",
+     "where": {
+      "page": 198,
+      "source_kind": "prose",
+      "quote": "c2 = -1"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "instance[i2]",
+      "model": "C(instance, Sum)"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "instance[i3]",
+     "value": "4",
+     "analysis": "dummy variables that sum to zero",
+     "where": {
+      "page": 198,
+      "source_kind": "prose",
+      "quote": "By additionally setting c3 = -c1 - c2 ... c3 = 4"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "instance[i3]",
+      "model": "C(instance, Sum)"
+     }
+    }
+   ]
+  }
+ ],
+ "designs": [
+  {
+   "name": "ullmann-half-fraction-2-4-1",
+   "title": "The 2^(4-1) half fraction",
+   "where": {
+    "section": "3.4",
+    "pages": "181",
+    "figures": ["Figure 11"]
+   },
+   "design": {
+    "type": "2^(4-1) fractional factorial",
+    "factors": 4,
+    "n_runs": 8
+   },
+   "expected": [
+    {
+     "what": "generator",
+     "value": "D = ABC",
+     "where": {
+      "page": 181,
+      "source_kind": "caption",
+      "quote": "2^(4-1) design (generator: D = ABC, resolution: IV)"
+     },
+     "check": {
+      "kind": "generator",
+      "k": 4,
+      "resolution": 4
+     }
+    },
+    {
+     "what": "resolution",
+     "value": "IV",
+     "where": {
+      "page": 181,
+      "source_kind": "caption",
+      "quote": "2^(4-1) design (generator: D = ABC, resolution: IV)"
+     },
+     "check": {
+      "kind": "resolution",
+      "k": 4,
+      "resolution": 4
+     }
+    }
+   ]
+  },
+  {
+   "name": "ullmann-half-fraction-2-5-1",
+   "title": "The 2^(5-1) half fraction",
+   "where": {
+    "section": "3.4",
+    "pages": "181",
+    "figures": ["Figure 11"]
+   },
+   "design": {
+    "type": "2^(5-1) fractional factorial",
+    "factors": 5,
+    "n_runs": 16
+   },
+   "expected": [
+    {
+     "what": "generator",
+     "value": "E = ABCD",
+     "where": {
+      "page": 181,
+      "source_kind": "caption",
+      "quote": "2^(5-1) design (generator: E = ABCD, resolution: V)"
+     },
+     "check": {
+      "kind": "generator",
+      "k": 5,
+      "resolution": 5
+     }
+    },
+    {
+     "what": "resolution",
+     "value": "V",
+     "where": {
+      "page": 181,
+      "source_kind": "caption",
+      "quote": "2^(5-1) design (generator: E = ABCD, resolution: V)"
+     },
+     "check": {
+      "kind": "resolution",
+      "k": 5,
+      "resolution": 5
+     }
+    }
+   ]
+  },
+  {
+   "name": "ullmann-ccd-two-factors",
+   "title": "Central composite design for two factors",
+   "where": {
+    "section": "4.3",
+    "pages": "186",
+    "tables": ["Table 3"],
+    "figures": ["Figure 13"]
+   },
+   "design": {
+    "type": "CCD",
+    "factors": 2,
+    "n_runs": 9,
+    "details": "runs 1 to 4 the factorial design, 5 to 8 the star points, 9 the centre point"
+   },
+   "runs": {
+    "columns": ["No.", "A", "B"],
+    "rows": [
+     [1, -1, -1],
+     [2, 1, -1],
+     [3, -1, 1],
+     [4, 1, 1],
+     [5, -1.41, 0],
+     [6, 1.41, 0],
+     [7, 0, -1.41],
+     [8, 0, 1.41],
+     [9, 0, 0]
+    ],
+    "coded": true
+   },
+   "expected": [
+    {
+     "what": "axial_distance",
+     "value": "1.41",
+     "where": {
+      "page": 186,
+      "source_kind": "table",
+      "quote": "Table 3 ... 5 -1.41 0"
+     },
+     "check": {
+      "kind": "design_property",
+      "property": "alpha",
+      "design": {
+       "design_type": "ccd",
+       "k": 2,
+       "options": {
+        "alpha": "rotatable"
+       }
+      }
+     }
+    },
+    {
+     "what": "n_runs",
+     "value": "9",
+     "where": {
+      "page": 186,
+      "source_kind": "caption",
+      "quote": "The run Nos. 1 to 4 form the factorial design, Nos. 5 to 8 the star points, and No. 9 the center point"
+     },
+     "check": {
+      "kind": "design_property",
+      "property": "n_runs",
+      "design": {
+       "design_type": "ccd",
+       "k": 2,
+       "options": {
+        "alpha": "rotatable",
+        "n_center_points": 1
+       }
+      }
+     }
+    }
+   ]
+  },
+  {
+   "name": "ullmann-axial-simplex",
+   "title": "Axial simplex design for three mixture components",
+   "where": {
+    "section": "7.1, Mixture Designs",
+    "pages": "197",
+    "tables": ["Table 6"],
+    "figures": ["Figure 27"]
+   },
+   "design": {
+    "type": "axial simplex",
+    "factors": 3,
+    "n_runs": 7
+   },
+   "runs": {
+    "columns": ["Run no.", "A", "B", "C"],
+    "rows": [
+     [1, 1, 0, 0],
+     [2, 0, 1, 0],
+     [3, 0, 0, 1],
+     [4, 0.6666, 0.1667, 0.1667],
+     [5, 0.1667, 0.6666, 0.1667],
+     [6, 0.1667, 0.1667, 0.6666],
+     [7, 0.3333, 0.3333, 0.3334]
+    ],
+    "coded": false
+   },
+   "expected": [
+    {
+     "what": "n_runs",
+     "value": "7",
+     "check": {
+      "manual": "the library generates no axial simplex design"
+     },
+     "where": {
+      "page": 197,
+      "source_kind": "table",
+      "quote": "Table 6. Design matrix for an axial simplex design for three mixture-components"
+     }
+    }
+   ]
+  },
+  {
+   "name": "ullmann-robust-inner-outer",
+   "title": "A 2^(4-1) inner array with three centre runs, crossed with a 2^2 outer array",
+   "where": {
+    "section": "7.4, Robust Design as a Tool for Quality Engineering",
+    "pages": "200-201",
+    "tables": ["Table 8"]
+   },
+   "design": {
+    "type": "crossed inner and outer arrays",
+    "details": "inner: 2^(4-1) in design factors A, B, C, D with 3 centre runs; outer: 2^2 in the environmental factors humidity H and temperature T",
+    "n_runs": 11
+   },
+   "runs": {
+    "columns": ["Run", "A", "B", "C", "D"],
+    "rows": [
+     [1, -1, -1, -1, -1],
+     [2, 1, -1, -1, 1],
+     [3, -1, 1, -1, 1],
+     [4, 1, 1, -1, -1],
+     [5, -1, -1, 1, 1],
+     [6, 1, -1, 1, -1],
+     [7, -1, 1, 1, -1],
+     [8, 1, 1, 1, 1],
+     [9, 0, 0, 0, 0],
+     [10, 0, 0, 0, 0],
+     [11, 0, 0, 0, 0]
+    ],
+    "coded": true
+   },
+   "expected": [
+    {
+     "what": "n_runs",
+     "value": "44",
+     "value_kind": "derived",
+     "check": {
+      "manual": "the library generates no crossed inner and outer arrays; 11 inner runs times 4 outer runs, as Table 8 lays them out"
+     },
+     "where": {
+      "page": 200,
+      "source_kind": "table",
+      "quote": "Table 8. A design for a quality engineering problem, using a 2^(4-1) factorial with center point as inner array and a 2^2 factorial as an outer array"
+     }
+    }
+   ]
+  }
+ ]
+}

@@ -13,6 +13,44 @@ those changes.
 
 ### Added
 
+- **The reference catalogue, `process_improve.experiments.reference_catalogue`: designed
+  experiments from published sources, and `reproduce_reference_catalogue()`, which recomputes
+  every number they print.** The reference catalogue, bundled as JSON under
+  `datasets/experiments/reference_catalogue/`, holds each worked example, exercise and case
+  study of the book *Process Improvement using Data* (read from
+  its source at a stated commit), of Soravia and Orth's "Design of Experiments" in
+  *Ullmann's Encyclopedia of Industrial Chemistry* (2012), of the graded and practice
+  quizzes of the *Experimentation for Improvement* course, of Nair's tutorial on fractional
+  factorial designs (2004), of Chapter 5 (Process Improvement) of the NIST/SEMATECH
+  *e-Handbook of Statistical Methods*, and of five papers on definitive screening and OMARS designs and
+  trend-robust run orders (Jones and Nachtsheim 2013; Nunez Ares and Goos 2019, 2020; Nunez
+  Ares, Schoen and Goos 2023; Goos 2025). For each it keeps the factors,
+  responses and runs exactly as printed, and every number the source prints: each as the
+  printed text, with where it is printed (file and line, or page, and a quotation) and how to
+  recompute it (the kind of result, the term, the model and the runs used). Designs without
+  responses keep the properties the source states. `reference_sources()`,
+  `reference_experiments()` and `reference_designs()` read it. `reproduce_reference_catalogue()`
+  returns one row per printed number: the printed text, the value this library computes,
+  whether they agree to within the source's own rounding, and where it is printed. A number
+  the library does not recompute says why, and one known not to reproduce says what differs.
+  A quiz's answer key is tested as well: the numbers printed in options the key marks
+  incorrect are recomputed too, and must not reproduce.
+  A design printed without results is checked through its properties (`design_metric`
+  evaluates it with `evaluate_design`: D-, A-, G-efficiency, correlations, prediction
+  variance, power).
+  `tests/test_reference_catalogue.py` requires every checked number to agree.
+  The catalogue holds facts and short quotations, not the sources themselves, and the MIT
+  licence covers the package's code, not them: each source states its own terms in `rights`,
+  and the folder's `NOTICE.md` explains the split.
+- **Factorial opens examples from published sources other than the book:
+  `https://factori.al/?example=<name>`.** They are listed in `web/published-examples.json`, each
+  the experiment of the same name in the reference catalogue (above), and the opening banner cites the source and
+  links to its DOI. The first source is Soravia and Orth, "Design of Experiments", *Ullmann's
+  Encyclopedia of Industrial Chemistry* (2012): its 2² factorial with a centre run, its 2³ with a
+  categorical agitator type, and the 2³⁻¹ half fraction of that 2³. The article's three-level
+  categorical factor is in the reference catalogue only, since the app's categorical factors have
+  two levels. `tests/web/api/test_published_examples.py` checks that each opens the reference
+  catalogue's runs and that every printed number the page shows agrees.
 - **Factorial opens the book's examples by name: `https://factori.al/?book=<name>`.** The
   19 design-of-experiments examples and exercises of *Process Improvement using Data* that
   the app can reproduce are listed in `web/book-examples.json`, with the book's factors,

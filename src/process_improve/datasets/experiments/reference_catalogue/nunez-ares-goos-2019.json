@@ -1,0 +1,3717 @@
+{
+ "schema": 1,
+ "about": ["Part of the reference catalogue: designed experiments from one published source, for testing that software reproduces them.", "This source studies run orders: it prints designs (a 3^3 factorial, face-centred CCDs, a Box-Behnken design", "and a 17-run design from a definitive screening design) in run orders found by integer programming, beside", "orthogonal-polynomial time trends, and tabulates the average (Ave) and maximum (Max) absolute correlation", "|cos| (equation [5]) between groups of model columns (ME main effects, IE two-factor interactions, QE", "squares, uncentred) and each trend component (L linear, Q quadratic, C cubic). designs: each printed run order", "(factors X1.. in coded units, runs with the time slot t and the trend columns Z1, Z2, Z3), with every number", "printed for it, as printed text, where it is printed (journal page, PDF page and a quotation) and check: how", "to recompute it, or manual, the reason it is not recomputed. The last entry holds run counts of designs the", "paper names, from its Figures 3 and 4 and its text. Read with process_improve.experiments.reference_catalogue."],
+ "source": {
+  "key": "nunez-ares-goos-2019",
+  "authors": ["José Núñez Ares", "Peter Goos"],
+  "title": "An integer linear programing approach to find trend-robust run orders of experimental designs",
+  "work": "Journal of Quality Technology",
+  "volume": "51",
+  "issue": "1",
+  "pages": "37-50",
+  "year": 2019,
+  "publisher": "Taylor & Francis, for the American Society for Quality",
+  "doi": "10.1080/00224065.2018.1545496",
+  "url": "https://doi.org/10.1080/00224065.2018.1545496",
+  "cite": "Núñez Ares and Goos (2019), \"An integer linear programing approach to find trend-robust run orders of experimental designs\", Journal of Quality Technology 51(1), 37-50",
+  "read": "2026-10-13, from the article's PDF (15 pages), supplied by the user; every number copied by hand with its page and a short quotation",
+  "rights": "The article is protected by copyright and is not reproduced here; read it through its DOI. This file holds facts it reports (numbers, design matrices, data) and short quotations that locate each one, for citation and for checking software. The MIT licence of process-improve does not extend to them."
+ },
+ "experiments": [],
+ "designs": [
+  {
+   "name": "nunez-ares-goos-fccd-2-factors-standard-order",
+   "title": "Face-centred CCD in two factors with one centre point, in standard order, with a linear time trend",
+   "kind": "design",
+   "where": {
+    "section": "1, Time trends and optimal design of experiments",
+    "pages": "37-38",
+    "tables": ["Table 1"]
+   },
+   "factors": [
+    {
+     "name": "X1",
+     "description": "factor 1 of the design, in coded units (the paper's X1, written X1t in its run-order tables)",
+     "low": -1,
+     "high": 1,
+     "units": "coded",
+     "type": "numeric"
+    },
+    {
+     "name": "X2",
+     "description": "factor 2 of the design, in coded units (the paper's X2, written X2t in its run-order tables)",
+     "low": -1,
+     "high": 1,
+     "units": "coded",
+     "type": "numeric"
+    }
+   ],
+   "responses": [],
+   "design": {
+    "type": "face-centred central composite design (full factorial cube), two factors, one centre point, in standard order",
+    "factors": 2,
+    "n_runs": 9
+   },
+   "runs": {
+    "columns": ["Run", "X1", "X2", "Time"],
+    "rows": [
+     [1, -1, -1, -4],
+     [2, -1, 1, -3],
+     [3, 1, -1, -2],
+     [4, 1, 1, -1],
+     [5, -1, 0, 0],
+     [6, 1, 0, 1],
+     [7, 0, -1, 2],
+     [8, 0, 1, 3],
+     [9, 0, 0, 4]
+    ],
+    "coded": true,
+    "notes": "Run is the time slot; Time is the paper's linear time trend, centred on zero (-4 to 4). It is not a factor."
+   },
+   "expected": [
+    {
+     "what": "dot product",
+     "term": "X1 and the linear time trend",
+     "value": "5",
+     "analysis": "the dot product of the main-effect contrast vector X1 with the linear time trend, standard order",
+     "where": {
+      "page": 38,
+      "pdf_page": 3,
+      "source_kind": "equation",
+      "quote": "(-1)·(-4) + (-1)·(-3) + 1·(-2) + 1·(-1) + (-1)·0 + 1·1 + 0·2 + 0·3 + 0·4 = 5"
+     },
+     "check": {
+      "manual": "process_improve has no run-order or time-trend function (searched experiments/ for run order, trend, time trend and level changes), and evaluate_design's correlation metric only correlates second-order terms with each other, so no check kind can recompute it; numpy on the printed Table 1 gives 5"
+     }
+    },
+    {
+     "what": "angle",
+     "term": "X1 and the linear time trend",
+     "value": "75°",
+     "analysis": "the angle between X1 and the linear time trend, from their dot product of 5",
+     "where": {
+      "page": 38,
+      "pdf_page": 3,
+      "source_kind": "text",
+      "quote": "the vector X1 and the linear time trend are far from being orthogonal, forming an angle of approximately 75°"
+     },
+     "check": {
+      "manual": "process_improve has no run-order or time-trend function (searched experiments/ for run order, trend, time trend and level changes), and evaluate_design's correlation metric only correlates second-order terms with each other, so no check kind can recompute it; numpy on the printed Table 1 gives |cos| = 0.2635, an angle of 74.72°, which the paper rounds to approximately 75°"
+     }
+    }
+   ]
+  },
+  {
+   "name": "nunez-ares-goos-fccd-2-factors-trend-robust",
+   "title": "Face-centred CCD in two factors with one centre point, in a run order robust to a linear time trend",
+   "kind": "design",
+   "where": {
+    "section": "1, Time trends and optimal design of experiments",
+    "pages": "38",
+    "tables": ["Table 2"]
+   },
+   "factors": [
+    {
+     "name": "X1",
+     "description": "factor 1 of the design, in coded units (the paper's X1, written X1t in its run-order tables)",
+     "low": -1,
+     "high": 1,
+     "units": "coded",
+     "type": "numeric"
+    },
+    {
+     "name": "X2",
+     "description": "factor 2 of the design, in coded units (the paper's X2, written X2t in its run-order tables)",
+     "low": -1,
+     "high": 1,
+     "units": "coded",
+     "type": "numeric"
+    }
+   ],
+   "responses": [],
+   "design": {
+    "type": "face-centred central composite design, two factors, one centre point, trend-robust run order",
+    "factors": 2,
+    "n_runs": 9
+   },
+   "runs": {
+    "columns": ["Run", "X1", "X2", "Time"],
+    "rows": [
+     [1, -1, 0, -4],
+     [2, 1, -1, -3],
+     [3, 0, 1, -2],
+     [4, 1, 1, -1],
+     [5, 0, 0, 0],
+     [6, -1, -1, 1],
+     [7, 0, -1, 2],
+     [8, -1, 1, 3],
+     [9, 1, 0, 4]
+    ],
+    "coded": true,
+    "notes": "The runs of Table 1 in another order. Run is the time slot; Time is the linear time trend. It is not a factor."
+   },
+   "expected": [
+    {
+     "what": "orthogonality",
+     "term": "main effects and second-order effects against the linear time trend",
+     "value": "orthogonal",
+     "analysis": "every main-effect, interaction and quadratic column of this run order is orthogonal to the linear time trend",
+     "where": {
+      "page": 38,
+      "pdf_page": 3,
+      "source_kind": "text",
+      "quote": "the contrast vectors of all main effects and second-order effects are orthogonal to the linear time trend"
+     },
+     "check": {
+      "manual": "a statement, not a number; process_improve has no run-order or time-trend function (searched experiments/ for run order, trend, time trend and level changes), and evaluate_design's correlation metric only correlates second-order terms with each other, so no check kind can recompute it; numpy on the printed Table 2 gives a dot product of 0 for X1, X2, X1X2, X1^2 and X2^2 with Time"
+     }
+    }
+   ]
+  },
+  {
+   "name": "nunez-ares-goos-3-3-standard-order",
+   "title": "The 3^3 factorial in standard order, with its coded cubic time trend",
+   "kind": "design",
+   "where": {
+    "section": "5.2.1, 3^3 factorial design",
+    "pages": "43-44",
+    "tables": ["Table 5", "Table 6"],
+    "figures": ["Figure 1"]
+   },
+   "factors": [
+    {
+     "name": "X1",
+     "description": "factor 1 of the design, in coded units (the paper's X1, written X1t in its run-order tables)",
+     "low": -1,
+     "high": 1,
+     "units": "coded",
+     "type": "numeric"
+    },
+    {
+     "name": "X2",
+     "description": "factor 2 of the design, in coded units (the paper's X2, written X2t in its run-order tables)",
+     "low": -1,
+     "high": 1,
+     "units": "coded",
+     "type": "numeric"
+    },
+    {
+     "name": "X3",
+     "description": "factor 3 of the design, in coded units (the paper's X3, written X3t in its run-order tables)",
+     "low": -1,
+     "high": 1,
+     "units": "coded",
+     "type": "numeric"
+    }
+   ],
+   "responses": [],
+   "design": {
+    "type": "3^3 full factorial, standard order (first factor slowest)",
+    "factors": 3,
+    "n_runs": 27
+   },
+   "runs": {
+    "columns": ["t", "X1", "X2", "X3", "Z1", "Z2", "Z3"],
+    "rows": [
+     [1, -1, -1, -1, -13, 325, -130],
+     [2, -1, -1, 0, -12, 250, -70],
+     [3, -1, -1, 1, -11, 181, -22],
+     [4, -1, 0, -1, -10, 118, 15],
+     [5, -1, 0, 0, -9, 61, 42],
+     [6, -1, 0, 1, -8, 10, 60],
+     [7, -1, 1, -1, -7, -35, 70],
+     [8, -1, 1, 0, -6, -74, 73],
+     [9, -1, 1, 1, -5, -107, 70],
+     [10, 0, -1, -1, -4, -134, 62],
+     [11, 0, -1, 0, -3, -155, 50],
+     [12, 0, -1, 1, -2, -170, 35],
+     [13, 0, 0, -1, -1, -179, 18],
+     [14, 0, 0, 0, 0, -182, 0],
+     [15, 0, 0, 1, 1, -179, -18],
+     [16, 0, 1, -1, 2, -170, -35],
+     [17, 0, 1, 0, 3, -155, -50],
+     [18, 0, 1, 1, 4, -134, -62],
+     [19, 1, -1, -1, 5, -107, -70],
+     [20, 1, -1, 0, 6, -74, -73],
+     [21, 1, -1, 1, 7, -35, -70],
+     [22, 1, 0, -1, 8, 10, -60],
+     [23, 1, 0, 0, 9, 61, -42],
+     [24, 1, 0, 1, 10, 118, -15],
+     [25, 1, 1, -1, 11, 181, 22],
+     [26, 1, 1, 0, 12, 250, 70],
+     [27, 1, 1, 1, 13, 325, 130]
+    ],
+    "coded": true,
+    "notes": "t is the time slot, the position in the run order. Z1, Z2 and Z3 are the paper's Z1t, Z2t and Z3t: the linear, quadratic and cubic time-trend components, orthogonal polynomials in t scaled to integers, printed beside the run order. They are not factors."
+   },
+   "expected": [
+    {
+     "what": "absolute correlation",
+     "term": "ME, L, Ave",
+     "value": "0.454",
+     "analysis": "Table 6: the average absolute correlation |cos| (equation [5]) between the main-effect columns and the linear time-trend component, standard run order of the 3^3 design",
+     "where": {
+      "page": 44,
+      "pdf_page": 9,
+      "source_kind": "table",
+      "quote": "Table 6: L 0.454 0.943 0 0 0 0"
+     },
+     "check": {
+      "manual": "process_improve has no run-order or time-trend function (searched experiments/ for run order, trend, time trend and level changes), and evaluate_design's correlation metric only correlates second-order terms with each other, so no check kind can recompute it; numpy on the printed run order and time trend gives 0.4543"
+     }
+    },
+    {
+     "what": "absolute correlation",
+     "term": "ME, L, Max",
+     "value": "0.943",
+     "analysis": "Table 6: the maximum absolute correlation |cos| (equation [5]) between the main-effect columns and the linear time-trend component, standard run order of the 3^3 design",
+     "where": {
+      "page": 44,
+      "pdf_page": 9,
+      "source_kind": "table",
+      "quote": "Table 6: L 0.454 0.943 0 0 0 0"
+     },
+     "check": {
+      "manual": "process_improve has no run-order or time-trend function (searched experiments/ for run order, trend, time trend and level changes), and evaluate_design's correlation metric only correlates second-order terms with each other, so no check kind can recompute it; numpy on the printed run order and time trend gives 0.9435"
+     }
+    },
+    {
+     "what": "absolute correlation",
+     "term": "IE, L, Ave",
+     "value": "0",
+     "analysis": "Table 6: the average absolute correlation |cos| (equation [5]) between the interaction columns and the linear time-trend component, standard run order of the 3^3 design",
+     "where": {
+      "page": 44,
+      "pdf_page": 9,
+      "source_kind": "table",
+      "quote": "Table 6: L 0.454 0.943 0 0 0 0"
+     },
+     "check": {
+      "manual": "process_improve has no run-order or time-trend function (searched experiments/ for run order, trend, time trend and level changes), and evaluate_design's correlation metric only correlates second-order terms with each other, so no check kind can recompute it; numpy on the printed run order and time trend gives 0"
+     }
+    },
+    {
+     "what": "absolute correlation",
+     "term": "IE, L, Max",
+     "value": "0",
+     "analysis": "Table 6: the maximum absolute correlation |cos| (equation [5]) between the interaction columns and the linear time-trend component, standard run order of the 3^3 design",
+     "where": {
+      "page": 44,
+      "pdf_page": 9,
+      "source_kind": "table",
+      "quote": "Table 6: L 0.454 0.943 0 0 0 0"
+     },
+     "check": {
+      "manual": "process_improve has no run-order or time-trend function (searched experiments/ for run order, trend, time trend and level changes), and evaluate_design's correlation metric only correlates second-order terms with each other, so no check kind can recompute it; numpy on the printed run order and time trend gives 0"
+     }
+    },
+    {
+     "what": "absolute correlation",
+     "term": "QE, L, Ave",
+     "value": "0",
+     "analysis": "Table 6: the average absolute correlation |cos| (equation [5]) between the quadratic-effect columns and the linear time-trend component, standard run order of the 3^3 design",
+     "where": {
+      "page": 44,
+      "pdf_page": 9,
+      "source_kind": "table",
+      "quote": "Table 6: L 0.454 0.943 0 0 0 0"
+     },
+     "check": {
+      "manual": "process_improve has no run-order or time-trend function (searched experiments/ for run order, trend, time trend and level changes), and evaluate_design's correlation metric only correlates second-order terms with each other, so no check kind can recompute it; numpy on the printed run order and time trend gives 0"
+     }
+    },
+    {
+     "what": "absolute correlation",
+     "term": "QE, L, Max",
+     "value": "0",
+     "analysis": "Table 6: the maximum absolute correlation |cos| (equation [5]) between the quadratic-effect columns and the linear time-trend component, standard run order of the 3^3 design",
+     "where": {
+      "page": 44,
+      "pdf_page": 9,
+      "source_kind": "table",
+      "quote": "Table 6: L 0.454 0.943 0 0 0 0"
+     },
+     "check": {
+      "manual": "process_improve has no run-order or time-trend function (searched experiments/ for run order, trend, time trend and level changes), and evaluate_design's correlation metric only correlates second-order terms with each other, so no check kind can recompute it; numpy on the printed run order and time trend gives 0"
+     }
+    },
+    {
+     "what": "absolute correlation",
+     "term": "ME, Q, Ave",
+     "value": "0",
+     "analysis": "Table 6: the average absolute correlation |cos| (equation [5]) between the main-effect columns and the quadratic time-trend component, standard run order of the 3^3 design",
+     "where": {
+      "page": 44,
+      "pdf_page": 9,
+      "source_kind": "table",
+      "quote": "Table 6: Q 0 0 0.320 0.665 0.152 0.407"
+     },
+     "check": {
+      "manual": "process_improve has no run-order or time-trend function (searched experiments/ for run order, trend, time trend and level changes), and evaluate_design's correlation metric only correlates second-order terms with each other, so no check kind can recompute it; numpy on the printed run order and time trend gives 0"
+     }
+    },
+    {
+     "what": "absolute correlation",
+     "term": "ME, Q, Max",
+     "value": "0",
+     "analysis": "Table 6: the maximum absolute correlation |cos| (equation [5]) between the main-effect columns and the quadratic time-trend component, standard run order of the 3^3 design",
+     "where": {
+      "page": 44,
+      "pdf_page": 9,
+      "source_kind": "table",
+      "quote": "Table 6: Q 0 0 0.320 0.665 0.152 0.407"
+     },
+     "check": {
+      "manual": "process_improve has no run-order or time-trend function (searched experiments/ for run order, trend, time trend and level changes), and evaluate_design's correlation metric only correlates second-order terms with each other, so no check kind can recompute it; numpy on the printed run order and time trend gives 0"
+     }
+    },
+    {
+     "what": "absolute correlation",
+     "term": "IE, Q, Ave",
+     "value": "0.320",
+     "analysis": "Table 6: the average absolute correlation |cos| (equation [5]) between the interaction columns and the quadratic time-trend component, standard run order of the 3^3 design",
+     "where": {
+      "page": 44,
+      "pdf_page": 9,
+      "source_kind": "table",
+      "quote": "Table 6: Q 0 0 0.320 0.665 0.152 0.407"
+     },
+     "check": {
+      "manual": "process_improve has no run-order or time-trend function (searched experiments/ for run order, trend, time trend and level changes), and evaluate_design's correlation metric only correlates second-order terms with each other, so no check kind can recompute it; numpy on the printed run order and time trend gives 0.3201"
+     }
+    },
+    {
+     "what": "absolute correlation",
+     "term": "IE, Q, Max",
+     "value": "0.665",
+     "analysis": "Table 6: the maximum absolute correlation |cos| (equation [5]) between the interaction columns and the quadratic time-trend component, standard run order of the 3^3 design",
+     "where": {
+      "page": 44,
+      "pdf_page": 9,
+      "source_kind": "table",
+      "quote": "Table 6: Q 0 0 0.320 0.665 0.152 0.407"
+     },
+     "check": {
+      "manual": "process_improve has no run-order or time-trend function (searched experiments/ for run order, trend, time trend and level changes), and evaluate_design's correlation metric only correlates second-order terms with each other, so no check kind can recompute it; numpy on the printed run order and time trend gives 0.6648"
+     }
+    },
+    {
+     "what": "absolute correlation",
+     "term": "QE, Q, Ave",
+     "value": "0.152",
+     "analysis": "Table 6: the average absolute correlation |cos| (equation [5]) between the quadratic-effect columns and the quadratic time-trend component, standard run order of the 3^3 design",
+     "where": {
+      "page": 44,
+      "pdf_page": 9,
+      "source_kind": "table",
+      "quote": "Table 6: Q 0 0 0.320 0.665 0.152 0.407"
+     },
+     "check": {
+      "manual": "process_improve has no run-order or time-trend function (searched experiments/ for run order, trend, time trend and level changes), and evaluate_design's correlation metric only correlates second-order terms with each other, so no check kind can recompute it; numpy on the printed run order and time trend gives 0.1525"
+     }
+    },
+    {
+     "what": "absolute correlation",
+     "term": "QE, Q, Max",
+     "value": "0.407",
+     "analysis": "Table 6: the maximum absolute correlation |cos| (equation [5]) between the quadratic-effect columns and the quadratic time-trend component, standard run order of the 3^3 design",
+     "where": {
+      "page": 44,
+      "pdf_page": 9,
+      "source_kind": "table",
+      "quote": "Table 6: Q 0 0 0.320 0.665 0.152 0.407"
+     },
+     "check": {
+      "manual": "process_improve has no run-order or time-trend function (searched experiments/ for run order, trend, time trend and level changes), and evaluate_design's correlation metric only correlates second-order terms with each other, so no check kind can recompute it; numpy on the printed run order and time trend gives 0.4071"
+     }
+    },
+    {
+     "what": "absolute correlation",
+     "term": "ME, C, Ave",
+     "value": "0.248",
+     "analysis": "Table 6: the average absolute correlation |cos| (equation [5]) between the main-effect columns and the cubic time-trend component, standard run order of the 3^3 design",
+     "where": {
+      "page": 44,
+      "pdf_page": 9,
+      "source_kind": "table",
+      "quote": "Table 6: C 0.248 0.426 0 0 0 0"
+     },
+     "check": {
+      "manual": "process_improve has no run-order or time-trend function (searched experiments/ for run order, trend, time trend and level changes), and evaluate_design's correlation metric only correlates second-order terms with each other, so no check kind can recompute it; numpy on the printed run order and time trend gives 0.2482"
+     }
+    },
+    {
+     "what": "absolute correlation",
+     "term": "ME, C, Max",
+     "value": "0.426",
+     "analysis": "Table 6: the maximum absolute correlation |cos| (equation [5]) between the main-effect columns and the cubic time-trend component, standard run order of the 3^3 design",
+     "where": {
+      "page": 44,
+      "pdf_page": 9,
+      "source_kind": "table",
+      "quote": "Table 6: C 0.248 0.426 0 0 0 0"
+     },
+     "check": {
+      "manual": "process_improve has no run-order or time-trend function (searched experiments/ for run order, trend, time trend and level changes), and evaluate_design's correlation metric only correlates second-order terms with each other, so no check kind can recompute it; numpy on the printed run order and time trend gives 0.4255"
+     }
+    },
+    {
+     "what": "absolute correlation",
+     "term": "IE, C, Ave",
+     "value": "0",
+     "analysis": "Table 6: the average absolute correlation |cos| (equation [5]) between the interaction columns and the cubic time-trend component, standard run order of the 3^3 design",
+     "where": {
+      "page": 44,
+      "pdf_page": 9,
+      "source_kind": "table",
+      "quote": "Table 6: C 0.248 0.426 0 0 0 0"
+     },
+     "check": {
+      "manual": "process_improve has no run-order or time-trend function (searched experiments/ for run order, trend, time trend and level changes), and evaluate_design's correlation metric only correlates second-order terms with each other, so no check kind can recompute it; numpy on the printed run order and time trend gives 0"
+     }
+    },
+    {
+     "what": "absolute correlation",
+     "term": "IE, C, Max",
+     "value": "0",
+     "analysis": "Table 6: the maximum absolute correlation |cos| (equation [5]) between the interaction columns and the cubic time-trend component, standard run order of the 3^3 design",
+     "where": {
+      "page": 44,
+      "pdf_page": 9,
+      "source_kind": "table",
+      "quote": "Table 6: C 0.248 0.426 0 0 0 0"
+     },
+     "check": {
+      "manual": "process_improve has no run-order or time-trend function (searched experiments/ for run order, trend, time trend and level changes), and evaluate_design's correlation metric only correlates second-order terms with each other, so no check kind can recompute it; numpy on the printed run order and time trend gives 0"
+     }
+    },
+    {
+     "what": "absolute correlation",
+     "term": "QE, C, Ave",
+     "value": "0",
+     "analysis": "Table 6: the average absolute correlation |cos| (equation [5]) between the quadratic-effect columns and the cubic time-trend component, standard run order of the 3^3 design",
+     "where": {
+      "page": 44,
+      "pdf_page": 9,
+      "source_kind": "table",
+      "quote": "Table 6: C 0.248 0.426 0 0 0 0"
+     },
+     "check": {
+      "manual": "process_improve has no run-order or time-trend function (searched experiments/ for run order, trend, time trend and level changes), and evaluate_design's correlation metric only correlates second-order terms with each other, so no check kind can recompute it; numpy on the printed run order and time trend gives 0"
+     }
+    },
+    {
+     "what": "absolute correlation",
+     "term": "QE, C, Max",
+     "value": "0",
+     "analysis": "Table 6: the maximum absolute correlation |cos| (equation [5]) between the quadratic-effect columns and the cubic time-trend component, standard run order of the 3^3 design",
+     "where": {
+      "page": 44,
+      "pdf_page": 9,
+      "source_kind": "table",
+      "quote": "Table 6: C 0.248 0.426 0 0 0 0"
+     },
+     "check": {
+      "manual": "process_improve has no run-order or time-trend function (searched experiments/ for run order, trend, time trend and level changes), and evaluate_design's correlation metric only correlates second-order terms with each other, so no check kind can recompute it; numpy on the printed run order and time trend gives 0"
+     }
+    },
+    {
+     "what": "absolute correlation",
+     "term": "ME, L, Ave",
+     "value": "0.454",
+     "analysis": "the average absolute correlation between the main effects and the linear time trend, standard order, quoted in the text from Table 6",
+     "where": {
+      "page": 44,
+      "pdf_page": 9,
+      "source_kind": "text",
+      "quote": "the pair of values in the upper left corner of the table, (0.454, 0.934), shows the average and maximum value"
+     },
+     "check": {
+      "manual": "process_improve has no run-order or time-trend function (searched experiments/ for run order, trend, time trend and level changes), and evaluate_design's correlation metric only correlates second-order terms with each other, so no check kind can recompute it; numpy on the printed run order gives 0.4543"
+     }
+    },
+    {
+     "what": "absolute correlation",
+     "term": "ME, L, Max",
+     "value": "0.934",
+     "analysis": "the maximum absolute correlation between the main effects and the linear time trend, standard order, quoted in the text from Table 6",
+     "where": {
+      "page": 44,
+      "pdf_page": 9,
+      "source_kind": "text",
+      "quote": "the pair of values in the upper left corner of the table, (0.454, 0.934), shows the average and maximum value"
+     },
+     "check": {
+      "manual": "process_improve has no run-order or time-trend function (searched experiments/ for run order, trend, time trend and level changes), and evaluate_design's correlation metric only correlates second-order terms with each other, so no check kind can recompute it; numpy on the printed run order gives 0.9435, which is Table 6's 0.943: the text's 0.934 transposes its last two digits"
+     }
+    }
+   ]
+  },
+  {
+   "name": "nunez-ares-goos-3-3-run-order-1",
+   "title": "The 3^3 factorial in run order 1, robust for a main-effects model",
+   "kind": "design",
+   "where": {
+    "section": "5.2.1, 3^3 factorial design",
+    "pages": "43-44",
+    "tables": ["Table 5", "Table 7"],
+    "figures": ["Figure 1"]
+   },
+   "factors": [
+    {
+     "name": "X1",
+     "description": "factor 1 of the design, in coded units (the paper's X1, written X1t in its run-order tables)",
+     "low": -1,
+     "high": 1,
+     "units": "coded",
+     "type": "numeric"
+    },
+    {
+     "name": "X2",
+     "description": "factor 2 of the design, in coded units (the paper's X2, written X2t in its run-order tables)",
+     "low": -1,
+     "high": 1,
+     "units": "coded",
+     "type": "numeric"
+    },
+    {
+     "name": "X3",
+     "description": "factor 3 of the design, in coded units (the paper's X3, written X3t in its run-order tables)",
+     "low": -1,
+     "high": 1,
+     "units": "coded",
+     "type": "numeric"
+    }
+   ],
+   "responses": [],
+   "design": {
+    "type": "3^3 full factorial, trend-robust run order 1 (multistage optimisation for a main-effects model)",
+    "factors": 3,
+    "n_runs": 27
+   },
+   "runs": {
+    "columns": ["t", "X1", "X2", "X3", "Z1", "Z2", "Z3"],
+    "rows": [
+     [1, 1, 1, 1, -13, 325, -130],
+     [2, -1, -1, 0, -12, 250, -70],
+     [3, 0, -1, -1, -11, 181, -22],
+     [4, -1, 1, 0, -10, 118, 15],
+     [5, -1, -1, -1, -9, 61, 42],
+     [6, 1, 0, 0, -8, 10, 60],
+     [7, 1, 1, -1, -7, -35, 70],
+     [8, 1, 0, 1, -6, -74, 73],
+     [9, 0, 1, 1, -5, -107, 70],
+     [10, -1, 1, 1, -4, -134, 62],
+     [11, 1, -1, -1, -3, -155, 50],
+     [12, 0, 0, 0, -2, -170, 35],
+     [13, 1, -1, 0, -1, -179, 18],
+     [14, -1, -1, 1, 0, -182, 0],
+     [15, -1, 0, 0, 1, -179, -18],
+     [16, -1, 0, 1, 2, -170, -35],
+     [17, -1, 0, -1, 3, -155, -50],
+     [18, 1, 0, -1, 4, -134, -62],
+     [19, 0, 1, -1, 5, -107, -70],
+     [20, 1, 1, 0, 6, -74, -73],
+     [21, 0, -1, 0, 7, -35, -70],
+     [22, 0, 0, 1, 8, 10, -60],
+     [23, 0, 1, 0, 9, 61, -42],
+     [24, 0, 0, -1, 10, 118, -15],
+     [25, 0, -1, 1, 11, 181, 22],
+     [26, 1, -1, 1, 12, 250, 70],
+     [27, -1, 1, -1, 13, 325, 130]
+    ],
+    "coded": true,
+    "notes": "t is the time slot, the position in the run order. Z1, Z2 and Z3 are the paper's Z1t, Z2t and Z3t: the linear, quadratic and cubic time-trend components, orthogonal polynomials in t scaled to integers, printed beside the run order. They are not factors."
+   },
+   "expected": [
+    {
+     "what": "absolute correlation",
+     "term": "ME, L, Ave",
+     "value": "0",
+     "analysis": "Table 7: the average absolute correlation |cos| (equation [5]) between the main-effect columns and the linear time-trend component, run order 1 of the 3^3 design (found for a main-effects model)",
+     "where": {
+      "page": 44,
+      "pdf_page": 9,
+      "source_kind": "table",
+      "quote": "Table 7: L 0 0 0.307 0.563 0.105 0.186"
+     },
+     "check": {
+      "manual": "process_improve has no run-order or time-trend function (searched experiments/ for run order, trend, time trend and level changes), and evaluate_design's correlation metric only correlates second-order terms with each other, so no check kind can recompute it; numpy on the printed run order and time trend gives 0"
+     }
+    },
+    {
+     "what": "absolute correlation",
+     "term": "ME, L, Max",
+     "value": "0",
+     "analysis": "Table 7: the maximum absolute correlation |cos| (equation [5]) between the main-effect columns and the linear time-trend component, run order 1 of the 3^3 design (found for a main-effects model)",
+     "where": {
+      "page": 44,
+      "pdf_page": 9,
+      "source_kind": "table",
+      "quote": "Table 7: L 0 0 0.307 0.563 0.105 0.186"
+     },
+     "check": {
+      "manual": "process_improve has no run-order or time-trend function (searched experiments/ for run order, trend, time trend and level changes), and evaluate_design's correlation metric only correlates second-order terms with each other, so no check kind can recompute it; numpy on the printed run order and time trend gives 0"
+     }
+    },
+    {
+     "what": "absolute correlation",
+     "term": "IE, L, Ave",
+     "value": "0.307",
+     "analysis": "Table 7: the average absolute correlation |cos| (equation [5]) between the interaction columns and the linear time-trend component, run order 1 of the 3^3 design (found for a main-effects model)",
+     "where": {
+      "page": 44,
+      "pdf_page": 9,
+      "source_kind": "table",
+      "quote": "Table 7: L 0 0 0.307 0.563 0.105 0.186"
+     },
+     "check": {
+      "manual": "process_improve has no run-order or time-trend function (searched experiments/ for run order, trend, time trend and level changes), and evaluate_design's correlation metric only correlates second-order terms with each other, so no check kind can recompute it; numpy on the printed run order and time trend gives 0.3067"
+     }
+    },
+    {
+     "what": "absolute correlation",
+     "term": "IE, L, Max",
+     "value": "0.563",
+     "analysis": "Table 7: the maximum absolute correlation |cos| (equation [5]) between the interaction columns and the linear time-trend component, run order 1 of the 3^3 design (found for a main-effects model)",
+     "where": {
+      "page": 44,
+      "pdf_page": 9,
+      "source_kind": "table",
+      "quote": "Table 7: L 0 0 0.307 0.563 0.105 0.186"
+     },
+     "check": {
+      "manual": "process_improve has no run-order or time-trend function (searched experiments/ for run order, trend, time trend and level changes), and evaluate_design's correlation metric only correlates second-order terms with each other, so no check kind can recompute it; numpy on the printed run order and time trend gives 0.5635"
+     }
+    },
+    {
+     "what": "absolute correlation",
+     "term": "QE, L, Ave",
+     "value": "0.105",
+     "analysis": "Table 7: the average absolute correlation |cos| (equation [5]) between the quadratic-effect columns and the linear time-trend component, run order 1 of the 3^3 design (found for a main-effects model)",
+     "where": {
+      "page": 44,
+      "pdf_page": 9,
+      "source_kind": "table",
+      "quote": "Table 7: L 0 0 0.307 0.563 0.105 0.186"
+     },
+     "check": {
+      "manual": "process_improve has no run-order or time-trend function (searched experiments/ for run order, trend, time trend and level changes), and evaluate_design's correlation metric only correlates second-order terms with each other, so no check kind can recompute it; numpy on the printed run order and time trend gives 0.1048"
+     }
+    },
+    {
+     "what": "absolute correlation",
+     "term": "QE, L, Max",
+     "value": "0.186",
+     "analysis": "Table 7: the maximum absolute correlation |cos| (equation [5]) between the quadratic-effect columns and the linear time-trend component, run order 1 of the 3^3 design (found for a main-effects model)",
+     "where": {
+      "page": 44,
+      "pdf_page": 9,
+      "source_kind": "table",
+      "quote": "Table 7: L 0 0 0.307 0.563 0.105 0.186"
+     },
+     "check": {
+      "manual": "process_improve has no run-order or time-trend function (searched experiments/ for run order, trend, time trend and level changes), and evaluate_design's correlation metric only correlates second-order terms with each other, so no check kind can recompute it; numpy on the printed run order and time trend gives 0.1864"
+     }
+    },
+    {
+     "what": "absolute correlation",
+     "term": "ME, Q, Ave",
+     "value": "0",
+     "analysis": "Table 7: the average absolute correlation |cos| (equation [5]) between the main-effect columns and the quadratic time-trend component, run order 1 of the 3^3 design (found for a main-effects model)",
+     "where": {
+      "page": 44,
+      "pdf_page": 9,
+      "source_kind": "table",
+      "quote": "Table 7: Q 0 0 0.219 0.527 0.100 0.208"
+     },
+     "check": {
+      "manual": "process_improve has no run-order or time-trend function (searched experiments/ for run order, trend, time trend and level changes), and evaluate_design's correlation metric only correlates second-order terms with each other, so no check kind can recompute it; numpy on the printed run order and time trend gives 0"
+     }
+    },
+    {
+     "what": "absolute correlation",
+     "term": "ME, Q, Max",
+     "value": "0",
+     "analysis": "Table 7: the maximum absolute correlation |cos| (equation [5]) between the main-effect columns and the quadratic time-trend component, run order 1 of the 3^3 design (found for a main-effects model)",
+     "where": {
+      "page": 44,
+      "pdf_page": 9,
+      "source_kind": "table",
+      "quote": "Table 7: Q 0 0 0.219 0.527 0.100 0.208"
+     },
+     "check": {
+      "manual": "process_improve has no run-order or time-trend function (searched experiments/ for run order, trend, time trend and level changes), and evaluate_design's correlation metric only correlates second-order terms with each other, so no check kind can recompute it; numpy on the printed run order and time trend gives 0"
+     }
+    },
+    {
+     "what": "absolute correlation",
+     "term": "IE, Q, Ave",
+     "value": "0.219",
+     "analysis": "Table 7: the average absolute correlation |cos| (equation [5]) between the interaction columns and the quadratic time-trend component, run order 1 of the 3^3 design (found for a main-effects model)",
+     "where": {
+      "page": 44,
+      "pdf_page": 9,
+      "source_kind": "table",
+      "quote": "Table 7: Q 0 0 0.219 0.527 0.100 0.208"
+     },
+     "check": {
+      "manual": "process_improve has no run-order or time-trend function (searched experiments/ for run order, trend, time trend and level changes), and evaluate_design's correlation metric only correlates second-order terms with each other, so no check kind can recompute it; numpy on the printed run order and time trend gives 0.2192"
+     }
+    },
+    {
+     "what": "absolute correlation",
+     "term": "IE, Q, Max",
+     "value": "0.527",
+     "analysis": "Table 7: the maximum absolute correlation |cos| (equation [5]) between the interaction columns and the quadratic time-trend component, run order 1 of the 3^3 design (found for a main-effects model)",
+     "where": {
+      "page": 44,
+      "pdf_page": 9,
+      "source_kind": "table",
+      "quote": "Table 7: Q 0 0 0.219 0.527 0.100 0.208"
+     },
+     "check": {
+      "manual": "process_improve has no run-order or time-trend function (searched experiments/ for run order, trend, time trend and level changes), and evaluate_design's correlation metric only correlates second-order terms with each other, so no check kind can recompute it; numpy on the printed run order and time trend gives 0.5273"
+     }
+    },
+    {
+     "what": "absolute correlation",
+     "term": "QE, Q, Ave",
+     "value": "0.100",
+     "analysis": "Table 7: the average absolute correlation |cos| (equation [5]) between the quadratic-effect columns and the quadratic time-trend component, run order 1 of the 3^3 design (found for a main-effects model)",
+     "where": {
+      "page": 44,
+      "pdf_page": 9,
+      "source_kind": "table",
+      "quote": "Table 7: Q 0 0 0.219 0.527 0.100 0.208"
+     },
+     "check": {
+      "manual": "process_improve has no run-order or time-trend function (searched experiments/ for run order, trend, time trend and level changes), and evaluate_design's correlation metric only correlates second-order terms with each other, so no check kind can recompute it; numpy on the printed run order and time trend gives 0.09996"
+     }
+    },
+    {
+     "what": "absolute correlation",
+     "term": "QE, Q, Max",
+     "value": "0.208",
+     "analysis": "Table 7: the maximum absolute correlation |cos| (equation [5]) between the quadratic-effect columns and the quadratic time-trend component, run order 1 of the 3^3 design (found for a main-effects model)",
+     "where": {
+      "page": 44,
+      "pdf_page": 9,
+      "source_kind": "table",
+      "quote": "Table 7: Q 0 0 0.219 0.527 0.100 0.208"
+     },
+     "check": {
+      "manual": "process_improve has no run-order or time-trend function (searched experiments/ for run order, trend, time trend and level changes), and evaluate_design's correlation metric only correlates second-order terms with each other, so no check kind can recompute it; numpy on the printed run order and time trend gives 0.2077"
+     }
+    },
+    {
+     "what": "absolute correlation",
+     "term": "ME, C, Ave",
+     "value": "2.22 · 10^-3",
+     "analysis": "Table 7: the average absolute correlation |cos| (equation [5]) between the main-effect columns and the cubic time-trend component, run order 1 of the 3^3 design (found for a main-effects model)",
+     "where": {
+      "page": 44,
+      "pdf_page": 9,
+      "source_kind": "table",
+      "quote": "Table 7: C 2.22 · 10^-3 5.91 · 10^-3 0.213 0.458 0.091 0.112"
+     },
+     "check": {
+      "manual": "process_improve has no run-order or time-trend function (searched experiments/ for run order, trend, time trend and level changes), and evaluate_design's correlation metric only correlates second-order terms with each other, so no check kind can recompute it; numpy on the printed run order and time trend gives 0.002216"
+     }
+    },
+    {
+     "what": "absolute correlation",
+     "term": "ME, C, Max",
+     "value": "5.91 · 10^-3",
+     "analysis": "Table 7: the maximum absolute correlation |cos| (equation [5]) between the main-effect columns and the cubic time-trend component, run order 1 of the 3^3 design (found for a main-effects model)",
+     "where": {
+      "page": 44,
+      "pdf_page": 9,
+      "source_kind": "table",
+      "quote": "Table 7: C 2.22 · 10^-3 5.91 · 10^-3 0.213 0.458 0.091 0.112"
+     },
+     "check": {
+      "manual": "process_improve has no run-order or time-trend function (searched experiments/ for run order, trend, time trend and level changes), and evaluate_design's correlation metric only correlates second-order terms with each other, so no check kind can recompute it; numpy on the printed run order and time trend gives 0.00591"
+     }
+    },
+    {
+     "what": "absolute correlation",
+     "term": "IE, C, Ave",
+     "value": "0.213",
+     "analysis": "Table 7: the average absolute correlation |cos| (equation [5]) between the interaction columns and the cubic time-trend component, run order 1 of the 3^3 design (found for a main-effects model)",
+     "where": {
+      "page": 44,
+      "pdf_page": 9,
+      "source_kind": "table",
+      "quote": "Table 7: C 2.22 · 10^-3 5.91 · 10^-3 0.213 0.458 0.091 0.112"
+     },
+     "check": {
+      "manual": "process_improve has no run-order or time-trend function (searched experiments/ for run order, trend, time trend and level changes), and evaluate_design's correlation metric only correlates second-order terms with each other, so no check kind can recompute it; numpy on the printed run order and time trend gives 0.2129"
+     }
+    },
+    {
+     "what": "absolute correlation",
+     "term": "IE, C, Max",
+     "value": "0.458",
+     "analysis": "Table 7: the maximum absolute correlation |cos| (equation [5]) between the interaction columns and the cubic time-trend component, run order 1 of the 3^3 design (found for a main-effects model)",
+     "where": {
+      "page": 44,
+      "pdf_page": 9,
+      "source_kind": "table",
+      "quote": "Table 7: C 2.22 · 10^-3 5.91 · 10^-3 0.213 0.458 0.091 0.112"
+     },
+     "check": {
+      "manual": "process_improve has no run-order or time-trend function (searched experiments/ for run order, trend, time trend and level changes), and evaluate_design's correlation metric only correlates second-order terms with each other, so no check kind can recompute it; numpy on the printed run order and time trend gives 0.4578"
+     }
+    },
+    {
+     "what": "absolute correlation",
+     "term": "QE, C, Ave",
+     "value": "0.091",
+     "analysis": "Table 7: the average absolute correlation |cos| (equation [5]) between the quadratic-effect columns and the cubic time-trend component, run order 1 of the 3^3 design (found for a main-effects model)",
+     "where": {
+      "page": 44,
+      "pdf_page": 9,
+      "source_kind": "table",
+      "quote": "Table 7: C 2.22 · 10^-3 5.91 · 10^-3 0.213 0.458 0.091 0.112"
+     },
+     "check": {
+      "manual": "process_improve has no run-order or time-trend function (searched experiments/ for run order, trend, time trend and level changes), and evaluate_design's correlation metric only correlates second-order terms with each other, so no check kind can recompute it; numpy on the printed run order and time trend gives 0.09087"
+     }
+    },
+    {
+     "what": "absolute correlation",
+     "term": "QE, C, Max",
+     "value": "0.112",
+     "analysis": "Table 7: the maximum absolute correlation |cos| (equation [5]) between the quadratic-effect columns and the cubic time-trend component, run order 1 of the 3^3 design (found for a main-effects model)",
+     "where": {
+      "page": 44,
+      "pdf_page": 9,
+      "source_kind": "table",
+      "quote": "Table 7: C 2.22 · 10^-3 5.91 · 10^-3 0.213 0.458 0.091 0.112"
+     },
+     "check": {
+      "manual": "process_improve has no run-order or time-trend function (searched experiments/ for run order, trend, time trend and level changes), and evaluate_design's correlation metric only correlates second-order terms with each other, so no check kind can recompute it; numpy on the printed run order and time trend gives 0.1123"
+     }
+    },
+    {
+     "what": "angle",
+     "term": "ME, C, Ave: deviation from orthogonality",
+     "value": "0.13°",
+     "analysis": "the angle by which an absolute correlation of 2.22·10^-3 (main effects against the cubic trend, run order 1) deviates from 90°",
+     "where": {
+      "page": 44,
+      "pdf_page": 9,
+      "source_kind": "text",
+      "quote": "The average absolute correlation of 2.22 · 10^-3 corresponds to an angle that deviates only 0.13° from orthogonality"
+     },
+     "check": {
+      "manual": "process_improve has no run-order or time-trend function (searched experiments/ for run order, trend, time trend and level changes), and evaluate_design's correlation metric only correlates second-order terms with each other, so no check kind can recompute it; numpy on the printed run order gives |cos| = 0.002216, 90° - arccos of which is 0.127°"
+     }
+    },
+    {
+     "what": "angle",
+     "term": "ME, C, Max: deviation from orthogonality",
+     "value": "0.34°",
+     "analysis": "the angle by which the maximum absolute correlation, 5.91·10^-3 (main effects against the cubic trend, run order 1), deviates from 90°",
+     "where": {
+      "page": 44,
+      "pdf_page": 9,
+      "source_kind": "text",
+      "quote": "The maximum deviation is 0.34°."
+     },
+     "check": {
+      "manual": "process_improve has no run-order or time-trend function (searched experiments/ for run order, trend, time trend and level changes), and evaluate_design's correlation metric only correlates second-order terms with each other, so no check kind can recompute it; numpy on the printed run order gives |cos| = 0.00591, 90° - arccos of which is 0.339°"
+     }
+    }
+   ]
+  },
+  {
+   "name": "nunez-ares-goos-3-3-run-order-2",
+   "title": "The 3^3 factorial in run order 2, robust for a full quadratic model",
+   "kind": "design",
+   "where": {
+    "section": "5.2.1, 3^3 factorial design",
+    "pages": "43-45",
+    "tables": ["Table 5", "Table 8"],
+    "figures": ["Figure 1"]
+   },
+   "factors": [
+    {
+     "name": "X1",
+     "description": "factor 1 of the design, in coded units (the paper's X1, written X1t in its run-order tables)",
+     "low": -1,
+     "high": 1,
+     "units": "coded",
+     "type": "numeric"
+    },
+    {
+     "name": "X2",
+     "description": "factor 2 of the design, in coded units (the paper's X2, written X2t in its run-order tables)",
+     "low": -1,
+     "high": 1,
+     "units": "coded",
+     "type": "numeric"
+    },
+    {
+     "name": "X3",
+     "description": "factor 3 of the design, in coded units (the paper's X3, written X3t in its run-order tables)",
+     "low": -1,
+     "high": 1,
+     "units": "coded",
+     "type": "numeric"
+    }
+   ],
+   "responses": [],
+   "design": {
+    "type": "3^3 full factorial, trend-robust run order 2 (multistage optimisation for a full quadratic model)",
+    "factors": 3,
+    "n_runs": 27
+   },
+   "runs": {
+    "columns": ["t", "X1", "X2", "X3", "Z1", "Z2", "Z3"],
+    "rows": [
+     [1, -1, 1, -1, -13, 325, -130],
+     [2, -1, 0, 1, -12, 250, -70],
+     [3, 0, -1, 0, -11, 181, -22],
+     [4, 0, 1, 1, -10, 118, 15],
+     [5, 1, -1, 0, -9, 61, 42],
+     [6, -1, -1, -1, -8, 10, 60],
+     [7, 1, 0, 0, -7, -35, 70],
+     [8, 1, 1, -1, -6, -74, 73],
+     [9, 1, 0, 1, -5, -107, 70],
+     [10, 1, 1, 0, -4, -134, 62],
+     [11, 0, -1, 1, -3, -155, 50],
+     [12, 1, -1, -1, -2, -170, 35],
+     [13, 0, 0, -1, -1, -179, 18],
+     [14, 0, 0, 0, 0, -182, 0],
+     [15, 0, 0, 1, 1, -179, -18],
+     [16, -1, 1, 1, 2, -170, -35],
+     [17, 0, 1, -1, 3, -155, -50],
+     [18, -1, -1, 0, 4, -134, -62],
+     [19, -1, 0, -1, 5, -107, -70],
+     [20, -1, -1, 1, 6, -74, -73],
+     [21, -1, 0, 0, 7, -35, -70],
+     [22, 1, 1, 1, 8, 10, -60],
+     [23, -1, 1, 0, 9, 61, -42],
+     [24, 0, -1, -1, 10, 118, -15],
+     [25, 0, 1, 0, 11, 181, 22],
+     [26, 1, 0, -1, 12, 250, 70],
+     [27, 1, -1, 1, 13, 325, 130]
+    ],
+    "coded": true,
+    "notes": "t is the time slot, the position in the run order. Z1, Z2 and Z3 are the paper's Z1t, Z2t and Z3t: the linear, quadratic and cubic time-trend components, orthogonal polynomials in t scaled to integers, printed beside the run order. They are not factors."
+   },
+   "expected": [
+    {
+     "what": "absolute correlation",
+     "term": "ME, L, Ave",
+     "value": "0",
+     "analysis": "Table 8: the average absolute correlation |cos| (equation [5]) between the main-effect columns and the linear time-trend component, run order 2 of the 3^3 design (found for a full quadratic model)",
+     "where": {
+      "page": 44,
+      "pdf_page": 9,
+      "source_kind": "table",
+      "quote": "Table 8: L 0 0 0 0 0 0"
+     },
+     "check": {
+      "manual": "process_improve has no run-order or time-trend function (searched experiments/ for run order, trend, time trend and level changes), and evaluate_design's correlation metric only correlates second-order terms with each other, so no check kind can recompute it; numpy on the printed run order and time trend gives 0"
+     }
+    },
+    {
+     "what": "absolute correlation",
+     "term": "ME, L, Max",
+     "value": "0",
+     "analysis": "Table 8: the maximum absolute correlation |cos| (equation [5]) between the main-effect columns and the linear time-trend component, run order 2 of the 3^3 design (found for a full quadratic model)",
+     "where": {
+      "page": 44,
+      "pdf_page": 9,
+      "source_kind": "table",
+      "quote": "Table 8: L 0 0 0 0 0 0"
+     },
+     "check": {
+      "manual": "process_improve has no run-order or time-trend function (searched experiments/ for run order, trend, time trend and level changes), and evaluate_design's correlation metric only correlates second-order terms with each other, so no check kind can recompute it; numpy on the printed run order and time trend gives 0"
+     }
+    },
+    {
+     "what": "absolute correlation",
+     "term": "IE, L, Ave",
+     "value": "0",
+     "analysis": "Table 8: the average absolute correlation |cos| (equation [5]) between the interaction columns and the linear time-trend component, run order 2 of the 3^3 design (found for a full quadratic model)",
+     "where": {
+      "page": 44,
+      "pdf_page": 9,
+      "source_kind": "table",
+      "quote": "Table 8: L 0 0 0 0 0 0"
+     },
+     "check": {
+      "manual": "process_improve has no run-order or time-trend function (searched experiments/ for run order, trend, time trend and level changes), and evaluate_design's correlation metric only correlates second-order terms with each other, so no check kind can recompute it; numpy on the printed run order and time trend gives 0"
+     }
+    },
+    {
+     "what": "absolute correlation",
+     "term": "IE, L, Max",
+     "value": "0",
+     "analysis": "Table 8: the maximum absolute correlation |cos| (equation [5]) between the interaction columns and the linear time-trend component, run order 2 of the 3^3 design (found for a full quadratic model)",
+     "where": {
+      "page": 44,
+      "pdf_page": 9,
+      "source_kind": "table",
+      "quote": "Table 8: L 0 0 0 0 0 0"
+     },
+     "check": {
+      "manual": "process_improve has no run-order or time-trend function (searched experiments/ for run order, trend, time trend and level changes), and evaluate_design's correlation metric only correlates second-order terms with each other, so no check kind can recompute it; numpy on the printed run order and time trend gives 0"
+     }
+    },
+    {
+     "what": "absolute correlation",
+     "term": "QE, L, Ave",
+     "value": "0",
+     "analysis": "Table 8: the average absolute correlation |cos| (equation [5]) between the quadratic-effect columns and the linear time-trend component, run order 2 of the 3^3 design (found for a full quadratic model)",
+     "where": {
+      "page": 44,
+      "pdf_page": 9,
+      "source_kind": "table",
+      "quote": "Table 8: L 0 0 0 0 0 0"
+     },
+     "check": {
+      "manual": "process_improve has no run-order or time-trend function (searched experiments/ for run order, trend, time trend and level changes), and evaluate_design's correlation metric only correlates second-order terms with each other, so no check kind can recompute it; numpy on the printed run order and time trend gives 0"
+     }
+    },
+    {
+     "what": "absolute correlation",
+     "term": "QE, L, Max",
+     "value": "0",
+     "analysis": "Table 8: the maximum absolute correlation |cos| (equation [5]) between the quadratic-effect columns and the linear time-trend component, run order 2 of the 3^3 design (found for a full quadratic model)",
+     "where": {
+      "page": 44,
+      "pdf_page": 9,
+      "source_kind": "table",
+      "quote": "Table 8: L 0 0 0 0 0 0"
+     },
+     "check": {
+      "manual": "process_improve has no run-order or time-trend function (searched experiments/ for run order, trend, time trend and level changes), and evaluate_design's correlation metric only correlates second-order terms with each other, so no check kind can recompute it; numpy on the printed run order and time trend gives 0"
+     }
+    },
+    {
+     "what": "absolute correlation",
+     "term": "ME, Q, Ave",
+     "value": "0",
+     "analysis": "Table 8: the average absolute correlation |cos| (equation [5]) between the main-effect columns and the quadratic time-trend component, run order 2 of the 3^3 design (found for a full quadratic model)",
+     "where": {
+      "page": 44,
+      "pdf_page": 9,
+      "source_kind": "table",
+      "quote": "Table 8: Q 0 0 0.176 0.283 0.057 0.090"
+     },
+     "check": {
+      "manual": "process_improve has no run-order or time-trend function (searched experiments/ for run order, trend, time trend and level changes), and evaluate_design's correlation metric only correlates second-order terms with each other, so no check kind can recompute it; numpy on the printed run order and time trend gives 0"
+     }
+    },
+    {
+     "what": "absolute correlation",
+     "term": "ME, Q, Max",
+     "value": "0",
+     "analysis": "Table 8: the maximum absolute correlation |cos| (equation [5]) between the main-effect columns and the quadratic time-trend component, run order 2 of the 3^3 design (found for a full quadratic model)",
+     "where": {
+      "page": 44,
+      "pdf_page": 9,
+      "source_kind": "table",
+      "quote": "Table 8: Q 0 0 0.176 0.283 0.057 0.090"
+     },
+     "check": {
+      "manual": "process_improve has no run-order or time-trend function (searched experiments/ for run order, trend, time trend and level changes), and evaluate_design's correlation metric only correlates second-order terms with each other, so no check kind can recompute it; numpy on the printed run order and time trend gives 0"
+     }
+    },
+    {
+     "what": "absolute correlation",
+     "term": "IE, Q, Ave",
+     "value": "0.176",
+     "analysis": "Table 8: the average absolute correlation |cos| (equation [5]) between the interaction columns and the quadratic time-trend component, run order 2 of the 3^3 design (found for a full quadratic model)",
+     "where": {
+      "page": 44,
+      "pdf_page": 9,
+      "source_kind": "table",
+      "quote": "Table 8: Q 0 0 0.176 0.283 0.057 0.090"
+     },
+     "check": {
+      "manual": "process_improve has no run-order or time-trend function (searched experiments/ for run order, trend, time trend and level changes), and evaluate_design's correlation metric only correlates second-order terms with each other, so no check kind can recompute it; numpy on the printed run order and time trend gives 0.1765"
+     }
+    },
+    {
+     "what": "absolute correlation",
+     "term": "IE, Q, Max",
+     "value": "0.283",
+     "analysis": "Table 8: the maximum absolute correlation |cos| (equation [5]) between the interaction columns and the quadratic time-trend component, run order 2 of the 3^3 design (found for a full quadratic model)",
+     "where": {
+      "page": 44,
+      "pdf_page": 9,
+      "source_kind": "table",
+      "quote": "Table 8: Q 0 0 0.176 0.283 0.057 0.090"
+     },
+     "check": {
+      "manual": "process_improve has no run-order or time-trend function (searched experiments/ for run order, trend, time trend and level changes), and evaluate_design's correlation metric only correlates second-order terms with each other, so no check kind can recompute it; numpy on the printed run order and time trend gives 0.2832"
+     }
+    },
+    {
+     "what": "absolute correlation",
+     "term": "QE, Q, Ave",
+     "value": "0.057",
+     "analysis": "Table 8: the average absolute correlation |cos| (equation [5]) between the quadratic-effect columns and the quadratic time-trend component, run order 2 of the 3^3 design (found for a full quadratic model)",
+     "where": {
+      "page": 44,
+      "pdf_page": 9,
+      "source_kind": "table",
+      "quote": "Table 8: Q 0 0 0.176 0.283 0.057 0.090"
+     },
+     "check": {
+      "manual": "process_improve has no run-order or time-trend function (searched experiments/ for run order, trend, time trend and level changes), and evaluate_design's correlation metric only correlates second-order terms with each other, so no check kind can recompute it; numpy on the printed run order and time trend gives 0.05696"
+     }
+    },
+    {
+     "what": "absolute correlation",
+     "term": "QE, Q, Max",
+     "value": "0.090",
+     "analysis": "Table 8: the maximum absolute correlation |cos| (equation [5]) between the quadratic-effect columns and the quadratic time-trend component, run order 2 of the 3^3 design (found for a full quadratic model)",
+     "where": {
+      "page": 44,
+      "pdf_page": 9,
+      "source_kind": "table",
+      "quote": "Table 8: Q 0 0 0.176 0.283 0.057 0.090"
+     },
+     "check": {
+      "manual": "process_improve has no run-order or time-trend function (searched experiments/ for run order, trend, time trend and level changes), and evaluate_design's correlation metric only correlates second-order terms with each other, so no check kind can recompute it; numpy on the printed run order and time trend gives 0.09047"
+     }
+    },
+    {
+     "what": "absolute correlation",
+     "term": "ME, C, Ave",
+     "value": "0.318",
+     "analysis": "Table 8: the average absolute correlation |cos| (equation [5]) between the main-effect columns and the cubic time-trend component, run order 2 of the 3^3 design (found for a full quadratic model)",
+     "where": {
+      "page": 44,
+      "pdf_page": 9,
+      "source_kind": "table",
+      "quote": "Table 8: C 0.318 0.727 0 0 0 0"
+     },
+     "check": {
+      "manual": "process_improve has no run-order or time-trend function (searched experiments/ for run order, trend, time trend and level changes), and evaluate_design's correlation metric only correlates second-order terms with each other, so no check kind can recompute it; numpy on the printed run order and time trend gives 0.3182"
+     }
+    },
+    {
+     "what": "absolute correlation",
+     "term": "ME, C, Max",
+     "value": "0.727",
+     "analysis": "Table 8: the maximum absolute correlation |cos| (equation [5]) between the main-effect columns and the cubic time-trend component, run order 2 of the 3^3 design (found for a full quadratic model)",
+     "where": {
+      "page": 44,
+      "pdf_page": 9,
+      "source_kind": "table",
+      "quote": "Table 8: C 0.318 0.727 0 0 0 0"
+     },
+     "check": {
+      "manual": "process_improve has no run-order or time-trend function (searched experiments/ for run order, trend, time trend and level changes), and evaluate_design's correlation metric only correlates second-order terms with each other, so no check kind can recompute it; numpy on the printed run order and time trend gives 0.727"
+     }
+    },
+    {
+     "what": "absolute correlation",
+     "term": "IE, C, Ave",
+     "value": "0",
+     "analysis": "Table 8: the average absolute correlation |cos| (equation [5]) between the interaction columns and the cubic time-trend component, run order 2 of the 3^3 design (found for a full quadratic model)",
+     "where": {
+      "page": 44,
+      "pdf_page": 9,
+      "source_kind": "table",
+      "quote": "Table 8: C 0.318 0.727 0 0 0 0"
+     },
+     "check": {
+      "manual": "process_improve has no run-order or time-trend function (searched experiments/ for run order, trend, time trend and level changes), and evaluate_design's correlation metric only correlates second-order terms with each other, so no check kind can recompute it; numpy on the printed run order and time trend gives 0"
+     }
+    },
+    {
+     "what": "absolute correlation",
+     "term": "IE, C, Max",
+     "value": "0",
+     "analysis": "Table 8: the maximum absolute correlation |cos| (equation [5]) between the interaction columns and the cubic time-trend component, run order 2 of the 3^3 design (found for a full quadratic model)",
+     "where": {
+      "page": 44,
+      "pdf_page": 9,
+      "source_kind": "table",
+      "quote": "Table 8: C 0.318 0.727 0 0 0 0"
+     },
+     "check": {
+      "manual": "process_improve has no run-order or time-trend function (searched experiments/ for run order, trend, time trend and level changes), and evaluate_design's correlation metric only correlates second-order terms with each other, so no check kind can recompute it; numpy on the printed run order and time trend gives 0"
+     }
+    },
+    {
+     "what": "absolute correlation",
+     "term": "QE, C, Ave",
+     "value": "0",
+     "analysis": "Table 8: the average absolute correlation |cos| (equation [5]) between the quadratic-effect columns and the cubic time-trend component, run order 2 of the 3^3 design (found for a full quadratic model)",
+     "where": {
+      "page": 44,
+      "pdf_page": 9,
+      "source_kind": "table",
+      "quote": "Table 8: C 0.318 0.727 0 0 0 0"
+     },
+     "check": {
+      "manual": "process_improve has no run-order or time-trend function (searched experiments/ for run order, trend, time trend and level changes), and evaluate_design's correlation metric only correlates second-order terms with each other, so no check kind can recompute it; numpy on the printed run order and time trend gives 0"
+     }
+    },
+    {
+     "what": "absolute correlation",
+     "term": "QE, C, Max",
+     "value": "0",
+     "analysis": "Table 8: the maximum absolute correlation |cos| (equation [5]) between the quadratic-effect columns and the cubic time-trend component, run order 2 of the 3^3 design (found for a full quadratic model)",
+     "where": {
+      "page": 44,
+      "pdf_page": 9,
+      "source_kind": "table",
+      "quote": "Table 8: C 0.318 0.727 0 0 0 0"
+     },
+     "check": {
+      "manual": "process_improve has no run-order or time-trend function (searched experiments/ for run order, trend, time trend and level changes), and evaluate_design's correlation metric only correlates second-order terms with each other, so no check kind can recompute it; numpy on the printed run order and time trend gives 0"
+     }
+    }
+   ]
+  },
+  {
+   "name": "nunez-ares-goos-fccd-3-factors-run-order-1",
+   "title": "Face-centred CCD in three factors with one centre point, run order 1",
+   "kind": "design",
+   "where": {
+    "section": "5.3.1, Central composite designs (CCD)",
+    "pages": "45-46",
+    "tables": ["Table 11", "Table 12"]
+   },
+   "factors": [
+    {
+     "name": "X1",
+     "description": "factor 1 of the design, in coded units (the paper's X1, written X1t in its run-order tables)",
+     "low": -1,
+     "high": 1,
+     "units": "coded",
+     "type": "numeric"
+    },
+    {
+     "name": "X2",
+     "description": "factor 2 of the design, in coded units (the paper's X2, written X2t in its run-order tables)",
+     "low": -1,
+     "high": 1,
+     "units": "coded",
+     "type": "numeric"
+    },
+    {
+     "name": "X3",
+     "description": "factor 3 of the design, in coded units (the paper's X3, written X3t in its run-order tables)",
+     "low": -1,
+     "high": 1,
+     "units": "coded",
+     "type": "numeric"
+    }
+   ],
+   "responses": [],
+   "design": {
+    "type": "face-centred central composite design (full factorial cube), three factors, one centre point, trend-robust run order 1",
+    "factors": 3,
+    "n_runs": 15
+   },
+   "runs": {
+    "columns": ["t", "X1", "X2", "X3", "Z1", "Z2", "Z3"],
+    "rows": [
+     [1, 0, 1, 0, -7, 91, -91],
+     [2, 0, 0, -1, -6, 52, -13],
+     [3, 1, -1, 1, -5, 19, 35],
+     [4, -1, -1, -1, -4, -8, 58],
+     [5, -1, 1, 1, -3, -29, 61],
+     [6, 0, 0, 1, -2, -44, 49],
+     [7, 1, -1, -1, -1, -53, 27],
+     [8, 1, 1, 1, 0, -56, 0],
+     [9, 0, -1, 0, 1, -53, -27],
+     [10, -1, 0, 0, 2, -44, -49],
+     [11, -1, 1, -1, 3, -29, -61],
+     [12, 0, 0, 0, 4, -8, -58],
+     [13, 1, 1, -1, 5, 19, -35],
+     [14, 1, 0, 0, 6, 52, 13],
+     [15, -1, -1, 1, 7, 91, 91]
+    ],
+    "coded": true,
+    "notes": "t is the time slot, the position in the run order. Z1, Z2 and Z3 are the paper's Z1t, Z2t and Z3t: the linear, quadratic and cubic time-trend components, orthogonal polynomials in t scaled to integers, printed beside the run order. They are not factors."
+   },
+   "expected": [
+    {
+     "what": "absolute correlation",
+     "term": "ME, L, Ave",
+     "value": "0",
+     "analysis": "Table 12: the average absolute correlation |cos| (equation [5]) between the main-effect columns and the linear time-trend component, run order 1 of the three-factor face-centred CCD with one centre point",
+     "where": {
+      "page": 45,
+      "pdf_page": 10,
+      "source_kind": "table",
+      "quote": "Table 12: L 0 0 0.324 0.380 0.126 0.189"
+     },
+     "check": {
+      "manual": "process_improve has no run-order or time-trend function (searched experiments/ for run order, trend, time trend and level changes), and evaluate_design's correlation metric only correlates second-order terms with each other, so no check kind can recompute it; numpy on the printed run order and time trend gives 0"
+     }
+    },
+    {
+     "what": "absolute correlation",
+     "term": "ME, L, Max",
+     "value": "0",
+     "analysis": "Table 12: the maximum absolute correlation |cos| (equation [5]) between the main-effect columns and the linear time-trend component, run order 1 of the three-factor face-centred CCD with one centre point",
+     "where": {
+      "page": 45,
+      "pdf_page": 10,
+      "source_kind": "table",
+      "quote": "Table 12: L 0 0 0.324 0.380 0.126 0.189"
+     },
+     "check": {
+      "manual": "process_improve has no run-order or time-trend function (searched experiments/ for run order, trend, time trend and level changes), and evaluate_design's correlation metric only correlates second-order terms with each other, so no check kind can recompute it; numpy on the printed run order and time trend gives 0"
+     }
+    },
+    {
+     "what": "absolute correlation",
+     "term": "IE, L, Ave",
+     "value": "0.324",
+     "analysis": "Table 12: the average absolute correlation |cos| (equation [5]) between the interaction columns and the linear time-trend component, run order 1 of the three-factor face-centred CCD with one centre point",
+     "where": {
+      "page": 45,
+      "pdf_page": 10,
+      "source_kind": "table",
+      "quote": "Table 12: L 0 0 0.324 0.380 0.126 0.189"
+     },
+     "check": {
+      "manual": "process_improve has no run-order or time-trend function (searched experiments/ for run order, trend, time trend and level changes), and evaluate_design's correlation metric only correlates second-order terms with each other, so no check kind can recompute it; numpy on the printed run order and time trend gives 0.324"
+     }
+    },
+    {
+     "what": "absolute correlation",
+     "term": "IE, L, Max",
+     "value": "0.380",
+     "analysis": "Table 12: the maximum absolute correlation |cos| (equation [5]) between the interaction columns and the linear time-trend component, run order 1 of the three-factor face-centred CCD with one centre point",
+     "where": {
+      "page": 45,
+      "pdf_page": 10,
+      "source_kind": "table",
+      "quote": "Table 12: L 0 0 0.324 0.380 0.126 0.189"
+     },
+     "check": {
+      "manual": "process_improve has no run-order or time-trend function (searched experiments/ for run order, trend, time trend and level changes), and evaluate_design's correlation metric only correlates second-order terms with each other, so no check kind can recompute it; numpy on the printed run order and time trend gives 0.3803"
+     }
+    },
+    {
+     "what": "absolute correlation",
+     "term": "QE, L, Ave",
+     "value": "0.126",
+     "analysis": "Table 12: the average absolute correlation |cos| (equation [5]) between the quadratic-effect columns and the linear time-trend component, run order 1 of the three-factor face-centred CCD with one centre point",
+     "where": {
+      "page": 45,
+      "pdf_page": 10,
+      "source_kind": "table",
+      "quote": "Table 12: L 0 0 0.324 0.380 0.126 0.189"
+     },
+     "check": {
+      "manual": "process_improve has no run-order or time-trend function (searched experiments/ for run order, trend, time trend and level changes), and evaluate_design's correlation metric only correlates second-order terms with each other, so no check kind can recompute it; numpy on the printed run order and time trend gives 0.126"
+     }
+    },
+    {
+     "what": "absolute correlation",
+     "term": "QE, L, Max",
+     "value": "0.189",
+     "analysis": "Table 12: the maximum absolute correlation |cos| (equation [5]) between the quadratic-effect columns and the linear time-trend component, run order 1 of the three-factor face-centred CCD with one centre point",
+     "where": {
+      "page": 45,
+      "pdf_page": 10,
+      "source_kind": "table",
+      "quote": "Table 12: L 0 0 0.324 0.380 0.126 0.189"
+     },
+     "check": {
+      "manual": "process_improve has no run-order or time-trend function (searched experiments/ for run order, trend, time trend and level changes), and evaluate_design's correlation metric only correlates second-order terms with each other, so no check kind can recompute it; numpy on the printed run order and time trend gives 0.189"
+     }
+    },
+    {
+     "what": "absolute correlation",
+     "term": "ME, Q, Ave",
+     "value": "0",
+     "analysis": "Table 12: the average absolute correlation |cos| (equation [5]) between the main-effect columns and the quadratic time-trend component, run order 1 of the three-factor face-centred CCD with one centre point",
+     "where": {
+      "page": 45,
+      "pdf_page": 10,
+      "source_kind": "table",
+      "quote": "Table 12: Q 0 0 0.297 0.451 0.046 0.062"
+     },
+     "check": {
+      "manual": "process_improve has no run-order or time-trend function (searched experiments/ for run order, trend, time trend and level changes), and evaluate_design's correlation metric only correlates second-order terms with each other, so no check kind can recompute it; numpy on the printed run order and time trend gives 0"
+     }
+    },
+    {
+     "what": "absolute correlation",
+     "term": "ME, Q, Max",
+     "value": "0",
+     "analysis": "Table 12: the maximum absolute correlation |cos| (equation [5]) between the main-effect columns and the quadratic time-trend component, run order 1 of the three-factor face-centred CCD with one centre point",
+     "where": {
+      "page": 45,
+      "pdf_page": 10,
+      "source_kind": "table",
+      "quote": "Table 12: Q 0 0 0.297 0.451 0.046 0.062"
+     },
+     "check": {
+      "manual": "process_improve has no run-order or time-trend function (searched experiments/ for run order, trend, time trend and level changes), and evaluate_design's correlation metric only correlates second-order terms with each other, so no check kind can recompute it; numpy on the printed run order and time trend gives 0"
+     }
+    },
+    {
+     "what": "absolute correlation",
+     "term": "IE, Q, Ave",
+     "value": "0.297",
+     "analysis": "Table 12: the average absolute correlation |cos| (equation [5]) between the interaction columns and the quadratic time-trend component, run order 1 of the three-factor face-centred CCD with one centre point",
+     "where": {
+      "page": 45,
+      "pdf_page": 10,
+      "source_kind": "table",
+      "quote": "Table 12: Q 0 0 0.297 0.451 0.046 0.062"
+     },
+     "check": {
+      "manual": "process_improve has no run-order or time-trend function (searched experiments/ for run order, trend, time trend and level changes), and evaluate_design's correlation metric only correlates second-order terms with each other, so no check kind can recompute it; numpy on the printed run order and time trend gives 0.2972"
+     }
+    },
+    {
+     "what": "absolute correlation",
+     "term": "IE, Q, Max",
+     "value": "0.451",
+     "analysis": "Table 12: the maximum absolute correlation |cos| (equation [5]) between the interaction columns and the quadratic time-trend component, run order 1 of the three-factor face-centred CCD with one centre point",
+     "where": {
+      "page": 45,
+      "pdf_page": 10,
+      "source_kind": "table",
+      "quote": "Table 12: Q 0 0 0.297 0.451 0.046 0.062"
+     },
+     "check": {
+      "manual": "process_improve has no run-order or time-trend function (searched experiments/ for run order, trend, time trend and level changes), and evaluate_design's correlation metric only correlates second-order terms with each other, so no check kind can recompute it; numpy on the printed run order and time trend gives 0.4514"
+     }
+    },
+    {
+     "what": "absolute correlation",
+     "term": "QE, Q, Ave",
+     "value": "0.046",
+     "analysis": "Table 12: the average absolute correlation |cos| (equation [5]) between the quadratic-effect columns and the quadratic time-trend component, run order 1 of the three-factor face-centred CCD with one centre point",
+     "where": {
+      "page": 45,
+      "pdf_page": 10,
+      "source_kind": "table",
+      "quote": "Table 12: Q 0 0 0.297 0.451 0.046 0.062"
+     },
+     "check": {
+      "manual": "process_improve has no run-order or time-trend function (searched experiments/ for run order, trend, time trend and level changes), and evaluate_design's correlation metric only correlates second-order terms with each other, so no check kind can recompute it; numpy on the printed run order and time trend gives 0.04595"
+     }
+    },
+    {
+     "what": "absolute correlation",
+     "term": "QE, Q, Max",
+     "value": "0.062",
+     "analysis": "Table 12: the maximum absolute correlation |cos| (equation [5]) between the quadratic-effect columns and the quadratic time-trend component, run order 1 of the three-factor face-centred CCD with one centre point",
+     "where": {
+      "page": 45,
+      "pdf_page": 10,
+      "source_kind": "table",
+      "quote": "Table 12: Q 0 0 0.297 0.451 0.046 0.062"
+     },
+     "check": {
+      "manual": "process_improve has no run-order or time-trend function (searched experiments/ for run order, trend, time trend and level changes), and evaluate_design's correlation metric only correlates second-order terms with each other, so no check kind can recompute it; numpy on the printed run order and time trend gives 0.06236"
+     }
+    },
+    {
+     "what": "absolute correlation",
+     "term": "ME, C, Ave",
+     "value": "0.333",
+     "analysis": "Table 12: the average absolute correlation |cos| (equation [5]) between the main-effect columns and the cubic time-trend component, run order 1 of the three-factor face-centred CCD with one centre point",
+     "where": {
+      "page": 45,
+      "pdf_page": 10,
+      "source_kind": "table",
+      "quote": "Table 12: C 0.333 0.492 0.165 0.206 0.217 0.336"
+     },
+     "check": {
+      "manual": "process_improve has no run-order or time-trend function (searched experiments/ for run order, trend, time trend and level changes), and evaluate_design's correlation metric only correlates second-order terms with each other, so no check kind can recompute it; numpy on the printed run order and time trend gives 0.333"
+     }
+    },
+    {
+     "what": "absolute correlation",
+     "term": "ME, C, Max",
+     "value": "0.492",
+     "analysis": "Table 12: the maximum absolute correlation |cos| (equation [5]) between the main-effect columns and the cubic time-trend component, run order 1 of the three-factor face-centred CCD with one centre point",
+     "where": {
+      "page": 45,
+      "pdf_page": 10,
+      "source_kind": "table",
+      "quote": "Table 12: C 0.333 0.492 0.165 0.206 0.217 0.336"
+     },
+     "check": {
+      "manual": "process_improve has no run-order or time-trend function (searched experiments/ for run order, trend, time trend and level changes), and evaluate_design's correlation metric only correlates second-order terms with each other, so no check kind can recompute it; numpy on the printed run order and time trend gives 0.4915"
+     }
+    },
+    {
+     "what": "absolute correlation",
+     "term": "IE, C, Ave",
+     "value": "0.165",
+     "analysis": "Table 12: the average absolute correlation |cos| (equation [5]) between the interaction columns and the cubic time-trend component, run order 1 of the three-factor face-centred CCD with one centre point",
+     "where": {
+      "page": 45,
+      "pdf_page": 10,
+      "source_kind": "table",
+      "quote": "Table 12: C 0.333 0.492 0.165 0.206 0.217 0.336"
+     },
+     "check": {
+      "manual": "process_improve has no run-order or time-trend function (searched experiments/ for run order, trend, time trend and level changes), and evaluate_design's correlation metric only correlates second-order terms with each other, so no check kind can recompute it; numpy on the printed run order and time trend gives 0.1654"
+     }
+    },
+    {
+     "what": "absolute correlation",
+     "term": "IE, C, Max",
+     "value": "0.206",
+     "analysis": "Table 12: the maximum absolute correlation |cos| (equation [5]) between the interaction columns and the cubic time-trend component, run order 1 of the three-factor face-centred CCD with one centre point",
+     "where": {
+      "page": 45,
+      "pdf_page": 10,
+      "source_kind": "table",
+      "quote": "Table 12: C 0.333 0.492 0.165 0.206 0.217 0.336"
+     },
+     "check": {
+      "manual": "process_improve has no run-order or time-trend function (searched experiments/ for run order, trend, time trend and level changes), and evaluate_design's correlation metric only correlates second-order terms with each other, so no check kind can recompute it; numpy on the printed run order and time trend gives 0.2056"
+     }
+    },
+    {
+     "what": "absolute correlation",
+     "term": "QE, C, Ave",
+     "value": "0.217",
+     "analysis": "Table 12: the average absolute correlation |cos| (equation [5]) between the quadratic-effect columns and the cubic time-trend component, run order 1 of the three-factor face-centred CCD with one centre point",
+     "where": {
+      "page": 45,
+      "pdf_page": 10,
+      "source_kind": "table",
+      "quote": "Table 12: C 0.333 0.492 0.165 0.206 0.217 0.336"
+     },
+     "check": {
+      "manual": "process_improve has no run-order or time-trend function (searched experiments/ for run order, trend, time trend and level changes), and evaluate_design's correlation metric only correlates second-order terms with each other, so no check kind can recompute it; numpy on the printed run order and time trend gives 0.2167"
+     }
+    },
+    {
+     "what": "absolute correlation",
+     "term": "QE, C, Max",
+     "value": "0.336",
+     "analysis": "Table 12: the maximum absolute correlation |cos| (equation [5]) between the quadratic-effect columns and the cubic time-trend component, run order 1 of the three-factor face-centred CCD with one centre point",
+     "where": {
+      "page": 45,
+      "pdf_page": 10,
+      "source_kind": "table",
+      "quote": "Table 12: C 0.333 0.492 0.165 0.206 0.217 0.336"
+     },
+     "check": {
+      "manual": "process_improve has no run-order or time-trend function (searched experiments/ for run order, trend, time trend and level changes), and evaluate_design's correlation metric only correlates second-order terms with each other, so no check kind can recompute it; numpy on the printed run order and time trend gives 0.3361"
+     }
+    }
+   ]
+  },
+  {
+   "name": "nunez-ares-goos-fccd-3-factors-run-order-2",
+   "title": "Face-centred CCD in three factors with one centre point, run order 2",
+   "kind": "design",
+   "where": {
+    "section": "5.3.1, Central composite designs (CCD)",
+    "pages": "45-46",
+    "tables": ["Table 11", "Table 13"]
+   },
+   "factors": [
+    {
+     "name": "X1",
+     "description": "factor 1 of the design, in coded units (the paper's X1, written X1t in its run-order tables)",
+     "low": -1,
+     "high": 1,
+     "units": "coded",
+     "type": "numeric"
+    },
+    {
+     "name": "X2",
+     "description": "factor 2 of the design, in coded units (the paper's X2, written X2t in its run-order tables)",
+     "low": -1,
+     "high": 1,
+     "units": "coded",
+     "type": "numeric"
+    },
+    {
+     "name": "X3",
+     "description": "factor 3 of the design, in coded units (the paper's X3, written X3t in its run-order tables)",
+     "low": -1,
+     "high": 1,
+     "units": "coded",
+     "type": "numeric"
+    }
+   ],
+   "responses": [],
+   "design": {
+    "type": "face-centred central composite design (full factorial cube), three factors, one centre point, trend-robust run order 2",
+    "factors": 3,
+    "n_runs": 15
+   },
+   "runs": {
+    "columns": ["t", "X1", "X2", "X3", "Z1", "Z2", "Z3"],
+    "rows": [
+     [1, 0, -1, 0, -7, 91, -91],
+     [2, 1, 1, -1, -6, 52, -13],
+     [3, -1, 1, 1, -5, 19, 35],
+     [4, 0, 0, 1, -4, -8, 58],
+     [5, -1, -1, -1, -3, -29, 61],
+     [6, 1, 0, 0, -2, -44, 49],
+     [7, 1, -1, 1, -1, -53, 27],
+     [8, -1, 0, 0, 0, -56, 0],
+     [9, -1, 1, -1, 1, -53, -27],
+     [10, 0, 0, -1, 2, -44, -49],
+     [11, 1, 1, 1, 3, -29, -61],
+     [12, 0, 0, 0, 4, -8, -58],
+     [13, 1, -1, -1, 5, 19, -35],
+     [14, -1, -1, 1, 6, 52, 13],
+     [15, 0, 1, 0, 7, 91, 91]
+    ],
+    "coded": true,
+    "notes": "t is the time slot, the position in the run order. Z1, Z2 and Z3 are the paper's Z1t, Z2t and Z3t: the linear, quadratic and cubic time-trend components, orthogonal polynomials in t scaled to integers, printed beside the run order. They are not factors."
+   },
+   "expected": [
+    {
+     "what": "absolute correlation",
+     "term": "ME, L, Ave",
+     "value": "0",
+     "analysis": "Table 13: the average absolute correlation |cos| (equation [5]) between the main-effect columns and the linear time-trend component, run order 2 of the three-factor face-centred CCD with one centre point",
+     "where": {
+      "page": 45,
+      "pdf_page": 10,
+      "source_kind": "table",
+      "quote": "Table 13: L 0 0 0 0 0.025 0.038"
+     },
+     "check": {
+      "manual": "process_improve has no run-order or time-trend function (searched experiments/ for run order, trend, time trend and level changes), and evaluate_design's correlation metric only correlates second-order terms with each other, so no check kind can recompute it; numpy on the printed run order and time trend gives 0"
+     }
+    },
+    {
+     "what": "absolute correlation",
+     "term": "ME, L, Max",
+     "value": "0",
+     "analysis": "Table 13: the maximum absolute correlation |cos| (equation [5]) between the main-effect columns and the linear time-trend component, run order 2 of the three-factor face-centred CCD with one centre point",
+     "where": {
+      "page": 45,
+      "pdf_page": 10,
+      "source_kind": "table",
+      "quote": "Table 13: L 0 0 0 0 0.025 0.038"
+     },
+     "check": {
+      "manual": "process_improve has no run-order or time-trend function (searched experiments/ for run order, trend, time trend and level changes), and evaluate_design's correlation metric only correlates second-order terms with each other, so no check kind can recompute it; numpy on the printed run order and time trend gives 0"
+     }
+    },
+    {
+     "what": "absolute correlation",
+     "term": "IE, L, Ave",
+     "value": "0",
+     "analysis": "Table 13: the average absolute correlation |cos| (equation [5]) between the interaction columns and the linear time-trend component, run order 2 of the three-factor face-centred CCD with one centre point",
+     "where": {
+      "page": 45,
+      "pdf_page": 10,
+      "source_kind": "table",
+      "quote": "Table 13: L 0 0 0 0 0.025 0.038"
+     },
+     "check": {
+      "manual": "process_improve has no run-order or time-trend function (searched experiments/ for run order, trend, time trend and level changes), and evaluate_design's correlation metric only correlates second-order terms with each other, so no check kind can recompute it; numpy on the printed run order and time trend gives 0"
+     }
+    },
+    {
+     "what": "absolute correlation",
+     "term": "IE, L, Max",
+     "value": "0",
+     "analysis": "Table 13: the maximum absolute correlation |cos| (equation [5]) between the interaction columns and the linear time-trend component, run order 2 of the three-factor face-centred CCD with one centre point",
+     "where": {
+      "page": 45,
+      "pdf_page": 10,
+      "source_kind": "table",
+      "quote": "Table 13: L 0 0 0 0 0.025 0.038"
+     },
+     "check": {
+      "manual": "process_improve has no run-order or time-trend function (searched experiments/ for run order, trend, time trend and level changes), and evaluate_design's correlation metric only correlates second-order terms with each other, so no check kind can recompute it; numpy on the printed run order and time trend gives 0"
+     }
+    },
+    {
+     "what": "absolute correlation",
+     "term": "QE, L, Ave",
+     "value": "0.025",
+     "analysis": "Table 13: the average absolute correlation |cos| (equation [5]) between the quadratic-effect columns and the linear time-trend component, run order 2 of the three-factor face-centred CCD with one centre point",
+     "where": {
+      "page": 45,
+      "pdf_page": 10,
+      "source_kind": "table",
+      "quote": "Table 13: L 0 0 0 0 0.025 0.038"
+     },
+     "check": {
+      "manual": "process_improve has no run-order or time-trend function (searched experiments/ for run order, trend, time trend and level changes), and evaluate_design's correlation metric only correlates second-order terms with each other, so no check kind can recompute it; numpy on the printed run order and time trend gives 0.0252"
+     }
+    },
+    {
+     "what": "absolute correlation",
+     "term": "QE, L, Max",
+     "value": "0.038",
+     "analysis": "Table 13: the maximum absolute correlation |cos| (equation [5]) between the quadratic-effect columns and the linear time-trend component, run order 2 of the three-factor face-centred CCD with one centre point",
+     "where": {
+      "page": 45,
+      "pdf_page": 10,
+      "source_kind": "table",
+      "quote": "Table 13: L 0 0 0 0 0.025 0.038"
+     },
+     "check": {
+      "manual": "process_improve has no run-order or time-trend function (searched experiments/ for run order, trend, time trend and level changes), and evaluate_design's correlation metric only correlates second-order terms with each other, so no check kind can recompute it; numpy on the printed run order and time trend gives 0.0378"
+     }
+    },
+    {
+     "what": "absolute correlation",
+     "term": "ME, Q, Ave",
+     "value": "0.026",
+     "analysis": "Table 13: the average absolute correlation |cos| (equation [5]) between the main-effect columns and the quadratic time-trend component, run order 2 of the three-factor face-centred CCD with one centre point",
+     "where": {
+      "page": 45,
+      "pdf_page": 10,
+      "source_kind": "table",
+      "quote": "Table 13: Q 0.026 0.059 0.268 0.561 0.195 0.263"
+     },
+     "check": {
+      "manual": "process_improve has no run-order or time-trend function (searched experiments/ for run order, trend, time trend and level changes), and evaluate_design's correlation metric only correlates second-order terms with each other, so no check kind can recompute it; numpy on the printed run order and time trend gives 0.02626"
+     }
+    },
+    {
+     "what": "absolute correlation",
+     "term": "ME, Q, Max",
+     "value": "0.059",
+     "analysis": "Table 13: the maximum absolute correlation |cos| (equation [5]) between the main-effect columns and the quadratic time-trend component, run order 2 of the three-factor face-centred CCD with one centre point",
+     "where": {
+      "page": 45,
+      "pdf_page": 10,
+      "source_kind": "table",
+      "quote": "Table 13: Q 0.026 0.059 0.268 0.561 0.195 0.263"
+     },
+     "check": {
+      "manual": "process_improve has no run-order or time-trend function (searched experiments/ for run order, trend, time trend and level changes), and evaluate_design's correlation metric only correlates second-order terms with each other, so no check kind can recompute it; numpy on the printed run order and time trend gives 0.05908"
+     }
+    },
+    {
+     "what": "absolute correlation",
+     "term": "IE, Q, Ave",
+     "value": "0.268",
+     "analysis": "Table 13: the average absolute correlation |cos| (equation [5]) between the interaction columns and the quadratic time-trend component, run order 2 of the three-factor face-centred CCD with one centre point",
+     "where": {
+      "page": 45,
+      "pdf_page": 10,
+      "source_kind": "table",
+      "quote": "Table 13: Q 0.026 0.059 0.268 0.561 0.195 0.263"
+     },
+     "check": {
+      "manual": "process_improve has no run-order or time-trend function (searched experiments/ for run order, trend, time trend and level changes), and evaluate_design's correlation metric only correlates second-order terms with each other, so no check kind can recompute it; numpy on the printed run order and time trend gives 0.2679"
+     }
+    },
+    {
+     "what": "absolute correlation",
+     "term": "IE, Q, Max",
+     "value": "0.561",
+     "analysis": "Table 13: the maximum absolute correlation |cos| (equation [5]) between the interaction columns and the quadratic time-trend component, run order 2 of the three-factor face-centred CCD with one centre point",
+     "where": {
+      "page": 45,
+      "pdf_page": 10,
+      "source_kind": "table",
+      "quote": "Table 13: Q 0.026 0.059 0.268 0.561 0.195 0.263"
+     },
+     "check": {
+      "manual": "process_improve has no run-order or time-trend function (searched experiments/ for run order, trend, time trend and level changes), and evaluate_design's correlation metric only correlates second-order terms with each other, so no check kind can recompute it; numpy on the printed run order and time trend gives 0.5615"
+     }
+    },
+    {
+     "what": "absolute correlation",
+     "term": "QE, Q, Ave",
+     "value": "0.195",
+     "analysis": "Table 13: the average absolute correlation |cos| (equation [5]) between the quadratic-effect columns and the quadratic time-trend component, run order 2 of the three-factor face-centred CCD with one centre point",
+     "where": {
+      "page": 45,
+      "pdf_page": 10,
+      "source_kind": "table",
+      "quote": "Table 13: Q 0.026 0.059 0.268 0.561 0.195 0.263"
+     },
+     "check": {
+      "manual": "process_improve has no run-order or time-trend function (searched experiments/ for run order, trend, time trend and level changes), and evaluate_design's correlation metric only correlates second-order terms with each other, so no check kind can recompute it; numpy on the printed run order and time trend gives 0.1948"
+     }
+    },
+    {
+     "what": "absolute correlation",
+     "term": "QE, Q, Max",
+     "value": "0.263",
+     "analysis": "Table 13: the maximum absolute correlation |cos| (equation [5]) between the quadratic-effect columns and the quadratic time-trend component, run order 2 of the three-factor face-centred CCD with one centre point",
+     "where": {
+      "page": 45,
+      "pdf_page": 10,
+      "source_kind": "table",
+      "quote": "Table 13: Q 0.026 0.059 0.268 0.561 0.195 0.263"
+     },
+     "check": {
+      "manual": "process_improve has no run-order or time-trend function (searched experiments/ for run order, trend, time trend and level changes), and evaluate_design's correlation metric only correlates second-order terms with each other, so no check kind can recompute it; numpy on the printed run order and time trend gives 0.2626"
+     }
+    },
+    {
+     "what": "absolute correlation",
+     "term": "ME, C, Ave",
+     "value": "0.159",
+     "analysis": "Table 13: the average absolute correlation |cos| (equation [5]) between the main-effect columns and the cubic time-trend component, run order 2 of the three-factor face-centred CCD with one centre point",
+     "where": {
+      "page": 45,
+      "pdf_page": 10,
+      "source_kind": "table",
+      "quote": "Table 13: C 0.159 0.214 0 0 0.031 0.078"
+     },
+     "check": {
+      "manual": "process_improve has no run-order or time-trend function (searched experiments/ for run order, trend, time trend and level changes), and evaluate_design's correlation metric only correlates second-order terms with each other, so no check kind can recompute it; numpy on the printed run order and time trend gives 0.1586"
+     }
+    },
+    {
+     "what": "absolute correlation",
+     "term": "ME, C, Max",
+     "value": "0.214",
+     "analysis": "Table 13: the maximum absolute correlation |cos| (equation [5]) between the main-effect columns and the cubic time-trend component, run order 2 of the three-factor face-centred CCD with one centre point",
+     "where": {
+      "page": 45,
+      "pdf_page": 10,
+      "source_kind": "table",
+      "quote": "Table 13: C 0.159 0.214 0 0 0.031 0.078"
+     },
+     "check": {
+      "manual": "process_improve has no run-order or time-trend function (searched experiments/ for run order, trend, time trend and level changes), and evaluate_design's correlation metric only correlates second-order terms with each other, so no check kind can recompute it; numpy on the printed run order and time trend gives 0.214"
+     }
+    },
+    {
+     "what": "absolute correlation",
+     "term": "IE, C, Ave",
+     "value": "0",
+     "analysis": "Table 13: the average absolute correlation |cos| (equation [5]) between the interaction columns and the cubic time-trend component, run order 2 of the three-factor face-centred CCD with one centre point",
+     "where": {
+      "page": 45,
+      "pdf_page": 10,
+      "source_kind": "table",
+      "quote": "Table 13: C 0.159 0.214 0 0 0.031 0.078"
+     },
+     "check": {
+      "manual": "process_improve has no run-order or time-trend function (searched experiments/ for run order, trend, time trend and level changes), and evaluate_design's correlation metric only correlates second-order terms with each other, so no check kind can recompute it; numpy on the printed run order and time trend gives 0"
+     }
+    },
+    {
+     "what": "absolute correlation",
+     "term": "IE, C, Max",
+     "value": "0",
+     "analysis": "Table 13: the maximum absolute correlation |cos| (equation [5]) between the interaction columns and the cubic time-trend component, run order 2 of the three-factor face-centred CCD with one centre point",
+     "where": {
+      "page": 45,
+      "pdf_page": 10,
+      "source_kind": "table",
+      "quote": "Table 13: C 0.159 0.214 0 0 0.031 0.078"
+     },
+     "check": {
+      "manual": "process_improve has no run-order or time-trend function (searched experiments/ for run order, trend, time trend and level changes), and evaluate_design's correlation metric only correlates second-order terms with each other, so no check kind can recompute it; numpy on the printed run order and time trend gives 0"
+     }
+    },
+    {
+     "what": "absolute correlation",
+     "term": "QE, C, Ave",
+     "value": "0.031",
+     "analysis": "Table 13: the average absolute correlation |cos| (equation [5]) between the quadratic-effect columns and the cubic time-trend component, run order 2 of the three-factor face-centred CCD with one centre point",
+     "where": {
+      "page": 45,
+      "pdf_page": 10,
+      "source_kind": "table",
+      "quote": "Table 13: C 0.159 0.214 0 0 0.031 0.078"
+     },
+     "check": {
+      "manual": "process_improve has no run-order or time-trend function (searched experiments/ for run order, trend, time trend and level changes), and evaluate_design's correlation metric only correlates second-order terms with each other, so no check kind can recompute it; numpy on the printed run order and time trend gives 0.03065"
+     }
+    },
+    {
+     "what": "absolute correlation",
+     "term": "QE, C, Max",
+     "value": "0.078",
+     "analysis": "Table 13: the maximum absolute correlation |cos| (equation [5]) between the quadratic-effect columns and the cubic time-trend component, run order 2 of the three-factor face-centred CCD with one centre point",
+     "where": {
+      "page": 45,
+      "pdf_page": 10,
+      "source_kind": "table",
+      "quote": "Table 13: C 0.159 0.214 0 0 0.031 0.078"
+     },
+     "check": {
+      "manual": "process_improve has no run-order or time-trend function (searched experiments/ for run order, trend, time trend and level changes), and evaluate_design's correlation metric only correlates second-order terms with each other, so no check kind can recompute it; numpy on the printed run order and time trend gives 0.07769"
+     }
+    },
+    {
+     "what": "angle",
+     "term": "QE, L, Max: deviation from orthogonality",
+     "value": "2.18°",
+     "analysis": "the largest deviation from orthogonality of a quadratic-effect column and the linear time trend, run order 2, from Table 13's 0.038",
+     "where": {
+      "page": 46,
+      "pdf_page": 11,
+      "source_kind": "equation",
+      "quote": "the maximum deviation from orthogonality equals 90° - cos^-1(0.038) = 2.18°"
+     },
+     "check": {
+      "manual": "process_improve has no run-order or time-trend function (searched experiments/ for run order, trend, time trend and level changes), and evaluate_design's correlation metric only correlates second-order terms with each other, so no check kind can recompute it; numpy on the printed run order gives |cos| = 0.0378, and 90° - arccos(0.038) = 2.178°"
+     }
+    }
+   ]
+  },
+  {
+   "name": "nunez-ares-goos-bbd-3-factors",
+   "title": "Box-Behnken design in three factors with one centre point, in its best trend-robust run order",
+   "kind": "design",
+   "where": {
+    "section": "5.3.3, Box-Behnken designs (BBD)",
+    "pages": "46-47",
+    "tables": ["Table 16", "Table 17"]
+   },
+   "factors": [
+    {
+     "name": "X1",
+     "description": "factor 1 of the design, in coded units (the paper's X1, written X1t in its run-order tables)",
+     "low": -1,
+     "high": 1,
+     "units": "coded",
+     "type": "numeric"
+    },
+    {
+     "name": "X2",
+     "description": "factor 2 of the design, in coded units (the paper's X2, written X2t in its run-order tables)",
+     "low": -1,
+     "high": 1,
+     "units": "coded",
+     "type": "numeric"
+    },
+    {
+     "name": "X3",
+     "description": "factor 3 of the design, in coded units (the paper's X3, written X3t in its run-order tables)",
+     "low": -1,
+     "high": 1,
+     "units": "coded",
+     "type": "numeric"
+    }
+   ],
+   "responses": [],
+   "design": {
+    "type": "Box-Behnken design, three factors, one centre point, trend-robust run order (solved to optimality)",
+    "factors": 3,
+    "n_runs": 13
+   },
+   "runs": {
+    "columns": ["t", "X1", "X2", "X3", "Z1", "Z2", "Z3"],
+    "rows": [
+     [1, 1, 0, -1, -6, 22, -11],
+     [2, -1, -1, 0, -5, 11, 0],
+     [3, -1, 1, 0, -4, 2, 6],
+     [4, 1, 0, 1, -3, -5, 8],
+     [5, 0, 1, 1, -2, -10, 7],
+     [6, 0, -1, 1, -1, -13, 4],
+     [7, 0, 0, 0, 0, -14, 0],
+     [8, 0, 1, -1, 1, -13, -4],
+     [9, 0, -1, -1, 2, -10, -7],
+     [10, -1, 0, -1, 3, -5, -8],
+     [11, 1, -1, 0, 4, 2, -6],
+     [12, 1, 1, 0, 5, 11, 0],
+     [13, -1, 0, 1, 6, 22, 11]
+    ],
+    "coded": true,
+    "notes": "t is the time slot, the position in the run order. Z1, Z2 and Z3 are the paper's Z1t, Z2t and Z3t: the linear, quadratic and cubic time-trend components, orthogonal polynomials in t scaled to integers, printed beside the run order. They are not factors. The paper prints this table transposed (one row per column); it is stored one row per run."
+   },
+   "expected": [
+    {
+     "what": "absolute correlation",
+     "term": "ME, L, Ave",
+     "value": "0",
+     "analysis": "Table 17: the average absolute correlation |cos| (equation [5]) between the main-effect columns and the linear time-trend component, the trend-robust run order of the three-factor Box-Behnken design",
+     "where": {
+      "page": 46,
+      "pdf_page": 11,
+      "source_kind": "table",
+      "quote": "Table 17: L 0 0 0 0 0 0"
+     },
+     "check": {
+      "manual": "process_improve has no run-order or time-trend function (searched experiments/ for run order, trend, time trend and level changes), and evaluate_design's correlation metric only correlates second-order terms with each other, so no check kind can recompute it; numpy on the printed run order and time trend gives 0"
+     }
+    },
+    {
+     "what": "absolute correlation",
+     "term": "ME, L, Max",
+     "value": "0",
+     "analysis": "Table 17: the maximum absolute correlation |cos| (equation [5]) between the main-effect columns and the linear time-trend component, the trend-robust run order of the three-factor Box-Behnken design",
+     "where": {
+      "page": 46,
+      "pdf_page": 11,
+      "source_kind": "table",
+      "quote": "Table 17: L 0 0 0 0 0 0"
+     },
+     "check": {
+      "manual": "process_improve has no run-order or time-trend function (searched experiments/ for run order, trend, time trend and level changes), and evaluate_design's correlation metric only correlates second-order terms with each other, so no check kind can recompute it; numpy on the printed run order and time trend gives 0"
+     }
+    },
+    {
+     "what": "absolute correlation",
+     "term": "IE, L, Ave",
+     "value": "0",
+     "analysis": "Table 17: the average absolute correlation |cos| (equation [5]) between the interaction columns and the linear time-trend component, the trend-robust run order of the three-factor Box-Behnken design",
+     "where": {
+      "page": 46,
+      "pdf_page": 11,
+      "source_kind": "table",
+      "quote": "Table 17: L 0 0 0 0 0 0"
+     },
+     "check": {
+      "manual": "process_improve has no run-order or time-trend function (searched experiments/ for run order, trend, time trend and level changes), and evaluate_design's correlation metric only correlates second-order terms with each other, so no check kind can recompute it; numpy on the printed run order and time trend gives 0"
+     }
+    },
+    {
+     "what": "absolute correlation",
+     "term": "IE, L, Max",
+     "value": "0",
+     "analysis": "Table 17: the maximum absolute correlation |cos| (equation [5]) between the interaction columns and the linear time-trend component, the trend-robust run order of the three-factor Box-Behnken design",
+     "where": {
+      "page": 46,
+      "pdf_page": 11,
+      "source_kind": "table",
+      "quote": "Table 17: L 0 0 0 0 0 0"
+     },
+     "check": {
+      "manual": "process_improve has no run-order or time-trend function (searched experiments/ for run order, trend, time trend and level changes), and evaluate_design's correlation metric only correlates second-order terms with each other, so no check kind can recompute it; numpy on the printed run order and time trend gives 0"
+     }
+    },
+    {
+     "what": "absolute correlation",
+     "term": "QE, L, Ave",
+     "value": "0",
+     "analysis": "Table 17: the average absolute correlation |cos| (equation [5]) between the quadratic-effect columns and the linear time-trend component, the trend-robust run order of the three-factor Box-Behnken design",
+     "where": {
+      "page": 46,
+      "pdf_page": 11,
+      "source_kind": "table",
+      "quote": "Table 17: L 0 0 0 0 0 0"
+     },
+     "check": {
+      "manual": "process_improve has no run-order or time-trend function (searched experiments/ for run order, trend, time trend and level changes), and evaluate_design's correlation metric only correlates second-order terms with each other, so no check kind can recompute it; numpy on the printed run order and time trend gives 0"
+     }
+    },
+    {
+     "what": "absolute correlation",
+     "term": "QE, L, Max",
+     "value": "0",
+     "analysis": "Table 17: the maximum absolute correlation |cos| (equation [5]) between the quadratic-effect columns and the linear time-trend component, the trend-robust run order of the three-factor Box-Behnken design",
+     "where": {
+      "page": 46,
+      "pdf_page": 11,
+      "source_kind": "table",
+      "quote": "Table 17: L 0 0 0 0 0 0"
+     },
+     "check": {
+      "manual": "process_improve has no run-order or time-trend function (searched experiments/ for run order, trend, time trend and level changes), and evaluate_design's correlation metric only correlates second-order terms with each other, so no check kind can recompute it; numpy on the printed run order and time trend gives 0"
+     }
+    },
+    {
+     "what": "absolute correlation",
+     "term": "ME, Q, Ave",
+     "value": "0",
+     "analysis": "Table 17: the average absolute correlation |cos| (equation [5]) between the main-effect columns and the quadratic time-trend component, the trend-robust run order of the three-factor Box-Behnken design",
+     "where": {
+      "page": 46,
+      "pdf_page": 11,
+      "source_kind": "table",
+      "quote": "Table 17: Q 0 0 0.291 0.603 0.242 0.474"
+     },
+     "check": {
+      "manual": "process_improve has no run-order or time-trend function (searched experiments/ for run order, trend, time trend and level changes), and evaluate_design's correlation metric only correlates second-order terms with each other, so no check kind can recompute it; numpy on the printed run order and time trend gives 0"
+     }
+    },
+    {
+     "what": "absolute correlation",
+     "term": "ME, Q, Max",
+     "value": "0",
+     "analysis": "Table 17: the maximum absolute correlation |cos| (equation [5]) between the main-effect columns and the quadratic time-trend component, the trend-robust run order of the three-factor Box-Behnken design",
+     "where": {
+      "page": 46,
+      "pdf_page": 11,
+      "source_kind": "table",
+      "quote": "Table 17: Q 0 0 0.291 0.603 0.242 0.474"
+     },
+     "check": {
+      "manual": "process_improve has no run-order or time-trend function (searched experiments/ for run order, trend, time trend and level changes), and evaluate_design's correlation metric only correlates second-order terms with each other, so no check kind can recompute it; numpy on the printed run order and time trend gives 0"
+     }
+    },
+    {
+     "what": "absolute correlation",
+     "term": "IE, Q, Ave",
+     "value": "0.291",
+     "analysis": "Table 17: the average absolute correlation |cos| (equation [5]) between the interaction columns and the quadratic time-trend component, the trend-robust run order of the three-factor Box-Behnken design",
+     "where": {
+      "page": 46,
+      "pdf_page": 11,
+      "source_kind": "table",
+      "quote": "Table 17: Q 0 0 0.291 0.603 0.242 0.474"
+     },
+     "check": {
+      "manual": "process_improve has no run-order or time-trend function (searched experiments/ for run order, trend, time trend and level changes), and evaluate_design's correlation metric only correlates second-order terms with each other, so no check kind can recompute it; numpy on the printed run order and time trend gives 0.2905"
+     }
+    },
+    {
+     "what": "absolute correlation",
+     "term": "IE, Q, Max",
+     "value": "0.603",
+     "analysis": "Table 17: the maximum absolute correlation |cos| (equation [5]) between the interaction columns and the quadratic time-trend component, the trend-robust run order of the three-factor Box-Behnken design",
+     "where": {
+      "page": 46,
+      "pdf_page": 11,
+      "source_kind": "table",
+      "quote": "Table 17: Q 0 0 0.291 0.603 0.242 0.474"
+     },
+     "check": {
+      "manual": "process_improve has no run-order or time-trend function (searched experiments/ for run order, trend, time trend and level changes), and evaluate_design's correlation metric only correlates second-order terms with each other, so no check kind can recompute it; numpy on the printed run order and time trend gives 0.6034"
+     }
+    },
+    {
+     "what": "absolute correlation",
+     "term": "QE, Q, Ave",
+     "value": "0.242",
+     "analysis": "Table 17: the average absolute correlation |cos| (equation [5]) between the quadratic-effect columns and the quadratic time-trend component, the trend-robust run order of the three-factor Box-Behnken design",
+     "where": {
+      "page": 46,
+      "pdf_page": 11,
+      "source_kind": "table",
+      "quote": "Table 17: Q 0 0 0.291 0.603 0.242 0.474"
+     },
+     "check": {
+      "manual": "process_improve has no run-order or time-trend function (searched experiments/ for run order, trend, time trend and level changes), and evaluate_design's correlation metric only correlates second-order terms with each other, so no check kind can recompute it; numpy on the printed run order and time trend gives 0.2423"
+     }
+    },
+    {
+     "what": "absolute correlation",
+     "term": "QE, Q, Max",
+     "value": "0.474",
+     "analysis": "Table 17: the maximum absolute correlation |cos| (equation [5]) between the quadratic-effect columns and the quadratic time-trend component, the trend-robust run order of the three-factor Box-Behnken design",
+     "where": {
+      "page": 46,
+      "pdf_page": 11,
+      "source_kind": "table",
+      "quote": "Table 17: Q 0 0 0.291 0.603 0.242 0.474"
+     },
+     "check": {
+      "manual": "process_improve has no run-order or time-trend function (searched experiments/ for run order, trend, time trend and level changes), and evaluate_design's correlation metric only correlates second-order terms with each other, so no check kind can recompute it; numpy on the printed run order and time trend gives 0.4741"
+     }
+    },
+    {
+     "what": "absolute correlation",
+     "term": "ME, C, Ave",
+     "value": "0.473",
+     "analysis": "Table 17: the average absolute correlation |cos| (equation [5]) between the main-effect columns and the cubic time-trend component, the trend-robust run order of the three-factor Box-Behnken design",
+     "where": {
+      "page": 46,
+      "pdf_page": 11,
+      "source_kind": "table",
+      "quote": "Table 17: C 0.473 0.887 0 0 0 0"
+     },
+     "check": {
+      "manual": "process_improve has no run-order or time-trend function (searched experiments/ for run order, trend, time trend and level changes), and evaluate_design's correlation metric only correlates second-order terms with each other, so no check kind can recompute it; numpy on the printed run order and time trend gives 0.473"
+     }
+    },
+    {
+     "what": "absolute correlation",
+     "term": "ME, C, Max",
+     "value": "0.887",
+     "analysis": "Table 17: the maximum absolute correlation |cos| (equation [5]) between the main-effect columns and the cubic time-trend component, the trend-robust run order of the three-factor Box-Behnken design",
+     "where": {
+      "page": 46,
+      "pdf_page": 11,
+      "source_kind": "table",
+      "quote": "Table 17: C 0.473 0.887 0 0 0 0"
+     },
+     "check": {
+      "manual": "process_improve has no run-order or time-trend function (searched experiments/ for run order, trend, time trend and level changes), and evaluate_design's correlation metric only correlates second-order terms with each other, so no check kind can recompute it; numpy on the printed run order and time trend gives 0.887"
+     }
+    },
+    {
+     "what": "absolute correlation",
+     "term": "IE, C, Ave",
+     "value": "0",
+     "analysis": "Table 17: the average absolute correlation |cos| (equation [5]) between the interaction columns and the cubic time-trend component, the trend-robust run order of the three-factor Box-Behnken design",
+     "where": {
+      "page": 46,
+      "pdf_page": 11,
+      "source_kind": "table",
+      "quote": "Table 17: C 0.473 0.887 0 0 0 0"
+     },
+     "check": {
+      "manual": "process_improve has no run-order or time-trend function (searched experiments/ for run order, trend, time trend and level changes), and evaluate_design's correlation metric only correlates second-order terms with each other, so no check kind can recompute it; numpy on the printed run order and time trend gives 0"
+     }
+    },
+    {
+     "what": "absolute correlation",
+     "term": "IE, C, Max",
+     "value": "0",
+     "analysis": "Table 17: the maximum absolute correlation |cos| (equation [5]) between the interaction columns and the cubic time-trend component, the trend-robust run order of the three-factor Box-Behnken design",
+     "where": {
+      "page": 46,
+      "pdf_page": 11,
+      "source_kind": "table",
+      "quote": "Table 17: C 0.473 0.887 0 0 0 0"
+     },
+     "check": {
+      "manual": "process_improve has no run-order or time-trend function (searched experiments/ for run order, trend, time trend and level changes), and evaluate_design's correlation metric only correlates second-order terms with each other, so no check kind can recompute it; numpy on the printed run order and time trend gives 0"
+     }
+    },
+    {
+     "what": "absolute correlation",
+     "term": "QE, C, Ave",
+     "value": "0",
+     "analysis": "Table 17: the average absolute correlation |cos| (equation [5]) between the quadratic-effect columns and the cubic time-trend component, the trend-robust run order of the three-factor Box-Behnken design",
+     "where": {
+      "page": 46,
+      "pdf_page": 11,
+      "source_kind": "table",
+      "quote": "Table 17: C 0.473 0.887 0 0 0 0"
+     },
+     "check": {
+      "manual": "process_improve has no run-order or time-trend function (searched experiments/ for run order, trend, time trend and level changes), and evaluate_design's correlation metric only correlates second-order terms with each other, so no check kind can recompute it; numpy on the printed run order and time trend gives 0"
+     }
+    },
+    {
+     "what": "absolute correlation",
+     "term": "QE, C, Max",
+     "value": "0",
+     "analysis": "Table 17: the maximum absolute correlation |cos| (equation [5]) between the quadratic-effect columns and the cubic time-trend component, the trend-robust run order of the three-factor Box-Behnken design",
+     "where": {
+      "page": 46,
+      "pdf_page": 11,
+      "source_kind": "table",
+      "quote": "Table 17: C 0.473 0.887 0 0 0 0"
+     },
+     "check": {
+      "manual": "process_improve has no run-order or time-trend function (searched experiments/ for run order, trend, time trend and level changes), and evaluate_design's correlation metric only correlates second-order terms with each other, so no check kind can recompute it; numpy on the printed run order and time trend gives 0"
+     }
+    }
+   ]
+  },
+  {
+   "name": "nunez-ares-goos-dsd-17-runs-run-order-1",
+   "title": "Three columns of an eight-factor definitive screening design (17 runs), run order 1",
+   "kind": "design",
+   "where": {
+    "section": "5.3.4, Definitive screening designs (DSD)",
+    "pages": "47",
+    "tables": ["Table 19", "Table 20"]
+   },
+   "factors": [
+    {
+     "name": "X1",
+     "description": "factor 1 of the design, in coded units (the paper's X1, written X1t in its run-order tables)",
+     "low": -1,
+     "high": 1,
+     "units": "coded",
+     "type": "numeric"
+    },
+    {
+     "name": "X2",
+     "description": "factor 2 of the design, in coded units (the paper's X2, written X2t in its run-order tables)",
+     "low": -1,
+     "high": 1,
+     "units": "coded",
+     "type": "numeric"
+    },
+    {
+     "name": "X3",
+     "description": "factor 3 of the design, in coded units (the paper's X3, written X3t in its run-order tables)",
+     "low": -1,
+     "high": 1,
+     "units": "coded",
+     "type": "numeric"
+    }
+   ],
+   "responses": [],
+   "design": {
+    "type": "three factors of an eight-factor definitive screening design (17 runs, centre run included), trend-robust run order 1 (main-effects model)",
+    "factors": 3,
+    "n_runs": 17
+   },
+   "runs": {
+    "columns": ["t", "X1", "X2", "X3", "Z1", "Z2", "Z3"],
+    "rows": [
+     [1, 1, -1, 0, -8, 40, -28],
+     [2, -1, 1, 0, -7, 25, -7],
+     [3, 1, 1, -1, -6, 12, 7],
+     [4, -1, -1, 1, -5, 1, 15],
+     [5, -1, -1, 1, -4, -8, 18],
+     [6, -1, 1, -1, -3, -15, 17],
+     [7, 1, 1, 1, -2, -20, 13],
+     [8, 0, -1, -1, -1, -23, 7],
+     [9, 1, 1, -1, 0, -24, 0],
+     [10, 1, 0, 1, 1, -23, -7],
+     [11, 1, -1, 1, 2, -20, -13],
+     [12, -1, -1, -1, 3, -15, -17],
+     [13, -1, 0, -1, 4, -8, -18],
+     [14, 0, 0, 0, 5, 1, -15],
+     [15, 0, 1, 1, 6, 12, -7],
+     [16, -1, 1, 1, 7, 25, 7],
+     [17, 1, -1, -1, 8, 40, 28]
+    ],
+    "coded": true,
+    "notes": "t is the time slot, the position in the run order. Z1, Z2 and Z3 are the paper's Z1t, Z2t and Z3t: the linear, quadratic and cubic time-trend components, orthogonal polynomials in t scaled to integers, printed beside the run order. They are not factors."
+   },
+   "expected": [
+    {
+     "what": "absolute correlation",
+     "term": "ME, L, Ave",
+     "value": "0",
+     "analysis": "Table 20: the average absolute correlation |cos| (equation [5]) between the main-effect columns and the linear time-trend component, run order 1 of the 17-run three-factor design based on an eight-factor DSD",
+     "where": {
+      "page": 47,
+      "pdf_page": 12,
+      "source_kind": "table",
+      "quote": "Table 20: L 0 0 0.262 0.529 0.132 0.132"
+     },
+     "check": {
+      "manual": "process_improve has no run-order or time-trend function (searched experiments/ for run order, trend, time trend and level changes), and evaluate_design's correlation metric only correlates second-order terms with each other, so no check kind can recompute it; numpy on the printed run order and time trend gives 0"
+     }
+    },
+    {
+     "what": "absolute correlation",
+     "term": "ME, L, Max",
+     "value": "0",
+     "analysis": "Table 20: the maximum absolute correlation |cos| (equation [5]) between the main-effect columns and the linear time-trend component, run order 1 of the 17-run three-factor design based on an eight-factor DSD",
+     "where": {
+      "page": 47,
+      "pdf_page": 12,
+      "source_kind": "table",
+      "quote": "Table 20: L 0 0 0.262 0.529 0.132 0.132"
+     },
+     "check": {
+      "manual": "process_improve has no run-order or time-trend function (searched experiments/ for run order, trend, time trend and level changes), and evaluate_design's correlation metric only correlates second-order terms with each other, so no check kind can recompute it; numpy on the printed run order and time trend gives 0"
+     }
+    },
+    {
+     "what": "absolute correlation",
+     "term": "IE, L, Ave",
+     "value": "0.262",
+     "analysis": "Table 20: the average absolute correlation |cos| (equation [5]) between the interaction columns and the linear time-trend component, run order 1 of the 17-run three-factor design based on an eight-factor DSD",
+     "where": {
+      "page": 47,
+      "pdf_page": 12,
+      "source_kind": "table",
+      "quote": "Table 20: L 0 0 0.262 0.529 0.132 0.132"
+     },
+     "check": {
+      "manual": "process_improve has no run-order or time-trend function (searched experiments/ for run order, trend, time trend and level changes), and evaluate_design's correlation metric only correlates second-order terms with each other, so no check kind can recompute it; numpy on the printed run order and time trend gives 0.262"
+     }
+    },
+    {
+     "what": "absolute correlation",
+     "term": "IE, L, Max",
+     "value": "0.529",
+     "analysis": "Table 20: the maximum absolute correlation |cos| (equation [5]) between the interaction columns and the linear time-trend component, run order 1 of the 17-run three-factor design based on an eight-factor DSD",
+     "where": {
+      "page": 47,
+      "pdf_page": 12,
+      "source_kind": "table",
+      "quote": "Table 20: L 0 0 0.262 0.529 0.132 0.132"
+     },
+     "check": {
+      "manual": "process_improve has no run-order or time-trend function (searched experiments/ for run order, trend, time trend and level changes), and evaluate_design's correlation metric only correlates second-order terms with each other, so no check kind can recompute it; numpy on the printed run order and time trend gives 0.5288"
+     }
+    },
+    {
+     "what": "absolute correlation",
+     "term": "QE, L, Ave",
+     "value": "0.132",
+     "analysis": "Table 20: the average absolute correlation |cos| (equation [5]) between the quadratic-effect columns and the linear time-trend component, run order 1 of the 17-run three-factor design based on an eight-factor DSD",
+     "where": {
+      "page": 47,
+      "pdf_page": 12,
+      "source_kind": "table",
+      "quote": "Table 20: L 0 0 0.262 0.529 0.132 0.132"
+     },
+     "check": {
+      "manual": "process_improve has no run-order or time-trend function (searched experiments/ for run order, trend, time trend and level changes), and evaluate_design's correlation metric only correlates second-order terms with each other, so no check kind can recompute it; numpy on the printed run order and time trend gives 0.1323"
+     }
+    },
+    {
+     "what": "absolute correlation",
+     "term": "QE, L, Max",
+     "value": "0.132",
+     "analysis": "Table 20: the maximum absolute correlation |cos| (equation [5]) between the quadratic-effect columns and the linear time-trend component, run order 1 of the 17-run three-factor design based on an eight-factor DSD",
+     "where": {
+      "page": 47,
+      "pdf_page": 12,
+      "source_kind": "table",
+      "quote": "Table 20: L 0 0 0.262 0.529 0.132 0.132"
+     },
+     "check": {
+      "manual": "process_improve has no run-order or time-trend function (searched experiments/ for run order, trend, time trend and level changes), and evaluate_design's correlation metric only correlates second-order terms with each other, so no check kind can recompute it; numpy on the printed run order and time trend gives 0.1323"
+     }
+    },
+    {
+     "what": "absolute correlation",
+     "term": "ME, Q, Ave",
+     "value": "0",
+     "analysis": "Table 20: the average absolute correlation |cos| (equation [5]) between the main-effect columns and the quadratic time-trend component, run order 1 of the 17-run three-factor design based on an eight-factor DSD",
+     "where": {
+      "page": 47,
+      "pdf_page": 12,
+      "source_kind": "table",
+      "quote": "Table 20: Q 0 0 0.403 0.489 0.107 0.200"
+     },
+     "check": {
+      "manual": "process_improve has no run-order or time-trend function (searched experiments/ for run order, trend, time trend and level changes), and evaluate_design's correlation metric only correlates second-order terms with each other, so no check kind can recompute it; numpy on the printed run order and time trend gives 0"
+     }
+    },
+    {
+     "what": "absolute correlation",
+     "term": "ME, Q, Max",
+     "value": "0",
+     "analysis": "Table 20: the maximum absolute correlation |cos| (equation [5]) between the main-effect columns and the quadratic time-trend component, run order 1 of the 17-run three-factor design based on an eight-factor DSD",
+     "where": {
+      "page": 47,
+      "pdf_page": 12,
+      "source_kind": "table",
+      "quote": "Table 20: Q 0 0 0.403 0.489 0.107 0.200"
+     },
+     "check": {
+      "manual": "process_improve has no run-order or time-trend function (searched experiments/ for run order, trend, time trend and level changes), and evaluate_design's correlation metric only correlates second-order terms with each other, so no check kind can recompute it; numpy on the printed run order and time trend gives 0"
+     }
+    },
+    {
+     "what": "absolute correlation",
+     "term": "IE, Q, Ave",
+     "value": "0.403",
+     "analysis": "Table 20: the average absolute correlation |cos| (equation [5]) between the interaction columns and the quadratic time-trend component, run order 1 of the 17-run three-factor design based on an eight-factor DSD",
+     "where": {
+      "page": 47,
+      "pdf_page": 12,
+      "source_kind": "table",
+      "quote": "Table 20: Q 0 0 0.403 0.489 0.107 0.200"
+     },
+     "check": {
+      "manual": "process_improve has no run-order or time-trend function (searched experiments/ for run order, trend, time trend and level changes), and evaluate_design's correlation metric only correlates second-order terms with each other, so no check kind can recompute it; numpy on the printed run order and time trend gives 0.4033"
+     }
+    },
+    {
+     "what": "absolute correlation",
+     "term": "IE, Q, Max",
+     "value": "0.489",
+     "analysis": "Table 20: the maximum absolute correlation |cos| (equation [5]) between the interaction columns and the quadratic time-trend component, run order 1 of the 17-run three-factor design based on an eight-factor DSD",
+     "where": {
+      "page": 47,
+      "pdf_page": 12,
+      "source_kind": "table",
+      "quote": "Table 20: Q 0 0 0.403 0.489 0.107 0.200"
+     },
+     "check": {
+      "manual": "process_improve has no run-order or time-trend function (searched experiments/ for run order, trend, time trend and level changes), and evaluate_design's correlation metric only correlates second-order terms with each other, so no check kind can recompute it; numpy on the printed run order and time trend gives 0.4885"
+     }
+    },
+    {
+     "what": "absolute correlation",
+     "term": "QE, Q, Ave",
+     "value": "0.107",
+     "analysis": "Table 20: the average absolute correlation |cos| (equation [5]) between the quadratic-effect columns and the quadratic time-trend component, run order 1 of the 17-run three-factor design based on an eight-factor DSD",
+     "where": {
+      "page": 47,
+      "pdf_page": 12,
+      "source_kind": "table",
+      "quote": "Table 20: Q 0 0 0.403 0.489 0.107 0.200"
+     },
+     "check": {
+      "manual": "process_improve has no run-order or time-trend function (searched experiments/ for run order, trend, time trend and level changes), and evaluate_design's correlation metric only correlates second-order terms with each other, so no check kind can recompute it; numpy on the printed run order and time trend gives 0.1073"
+     }
+    },
+    {
+     "what": "absolute correlation",
+     "term": "QE, Q, Max",
+     "value": "0.200",
+     "analysis": "Table 20: the maximum absolute correlation |cos| (equation [5]) between the quadratic-effect columns and the quadratic time-trend component, run order 1 of the 17-run three-factor design based on an eight-factor DSD",
+     "where": {
+      "page": 47,
+      "pdf_page": 12,
+      "source_kind": "table",
+      "quote": "Table 20: Q 0 0 0.403 0.489 0.107 0.200"
+     },
+     "check": {
+      "manual": "process_improve has no run-order or time-trend function (searched experiments/ for run order, trend, time trend and level changes), and evaluate_design's correlation metric only correlates second-order terms with each other, so no check kind can recompute it; numpy on the printed run order and time trend gives 0.2003"
+     }
+    },
+    {
+     "what": "absolute correlation",
+     "term": "ME, C, Ave",
+     "value": "0.053",
+     "analysis": "Table 20: the average absolute correlation |cos| (equation [5]) between the main-effect columns and the cubic time-trend component, run order 1 of the 17-run three-factor design based on an eight-factor DSD",
+     "where": {
+      "page": 47,
+      "pdf_page": 12,
+      "source_kind": "table",
+      "quote": "Table 20: C 0.053 0.086 0.224 0.464 0.150 0.215"
+     },
+     "check": {
+      "manual": "process_improve has no run-order or time-trend function (searched experiments/ for run order, trend, time trend and level changes), and evaluate_design's correlation metric only correlates second-order terms with each other, so no check kind can recompute it; numpy on the printed run order and time trend gives 0.05294"
+     }
+    },
+    {
+     "what": "absolute correlation",
+     "term": "ME, C, Max",
+     "value": "0.086",
+     "analysis": "Table 20: the maximum absolute correlation |cos| (equation [5]) between the main-effect columns and the cubic time-trend component, run order 1 of the 17-run three-factor design based on an eight-factor DSD",
+     "where": {
+      "page": 47,
+      "pdf_page": 12,
+      "source_kind": "table",
+      "quote": "Table 20: C 0.053 0.086 0.224 0.464 0.150 0.215"
+     },
+     "check": {
+      "manual": "process_improve has no run-order or time-trend function (searched experiments/ for run order, trend, time trend and level changes), and evaluate_design's correlation metric only correlates second-order terms with each other, so no check kind can recompute it; numpy on the printed run order and time trend gives 0.08586"
+     }
+    },
+    {
+     "what": "absolute correlation",
+     "term": "IE, C, Ave",
+     "value": "0.224",
+     "analysis": "Table 20: the average absolute correlation |cos| (equation [5]) between the interaction columns and the cubic time-trend component, run order 1 of the 17-run three-factor design based on an eight-factor DSD",
+     "where": {
+      "page": 47,
+      "pdf_page": 12,
+      "source_kind": "table",
+      "quote": "Table 20: C 0.053 0.086 0.224 0.464 0.150 0.215"
+     },
+     "check": {
+      "manual": "process_improve has no run-order or time-trend function (searched experiments/ for run order, trend, time trend and level changes), and evaluate_design's correlation metric only correlates second-order terms with each other, so no check kind can recompute it; numpy on the printed run order and time trend gives 0.2241"
+     }
+    },
+    {
+     "what": "absolute correlation",
+     "term": "IE, C, Max",
+     "value": "0.464",
+     "analysis": "Table 20: the maximum absolute correlation |cos| (equation [5]) between the interaction columns and the cubic time-trend component, run order 1 of the 17-run three-factor design based on an eight-factor DSD",
+     "where": {
+      "page": 47,
+      "pdf_page": 12,
+      "source_kind": "table",
+      "quote": "Table 20: C 0.053 0.086 0.224 0.464 0.150 0.215"
+     },
+     "check": {
+      "manual": "process_improve has no run-order or time-trend function (searched experiments/ for run order, trend, time trend and level changes), and evaluate_design's correlation metric only correlates second-order terms with each other, so no check kind can recompute it; numpy on the printed run order and time trend gives 0.4637"
+     }
+    },
+    {
+     "what": "absolute correlation",
+     "term": "QE, C, Ave",
+     "value": "0.150",
+     "analysis": "Table 20: the average absolute correlation |cos| (equation [5]) between the quadratic-effect columns and the cubic time-trend component, run order 1 of the 17-run three-factor design based on an eight-factor DSD",
+     "where": {
+      "page": 47,
+      "pdf_page": 12,
+      "source_kind": "table",
+      "quote": "Table 20: C 0.053 0.086 0.224 0.464 0.150 0.215"
+     },
+     "check": {
+      "manual": "process_improve has no run-order or time-trend function (searched experiments/ for run order, trend, time trend and level changes), and evaluate_design's correlation metric only correlates second-order terms with each other, so no check kind can recompute it; numpy on the printed run order and time trend gives 0.1502"
+     }
+    },
+    {
+     "what": "absolute correlation",
+     "term": "QE, C, Max",
+     "value": "0.215",
+     "analysis": "Table 20: the maximum absolute correlation |cos| (equation [5]) between the quadratic-effect columns and the cubic time-trend component, run order 1 of the 17-run three-factor design based on an eight-factor DSD",
+     "where": {
+      "page": 47,
+      "pdf_page": 12,
+      "source_kind": "table",
+      "quote": "Table 20: C 0.053 0.086 0.224 0.464 0.150 0.215"
+     },
+     "check": {
+      "manual": "process_improve has no run-order or time-trend function (searched experiments/ for run order, trend, time trend and level changes), and evaluate_design's correlation metric only correlates second-order terms with each other, so no check kind can recompute it; numpy on the printed run order and time trend gives 0.2146"
+     }
+    }
+   ]
+  },
+  {
+   "name": "nunez-ares-goos-dsd-17-runs-run-order-2",
+   "title": "Three columns of an eight-factor definitive screening design (17 runs), run order 2",
+   "kind": "design",
+   "where": {
+    "section": "5.3.4, Definitive screening designs (DSD)",
+    "pages": "47",
+    "tables": ["Table 19", "Table 21"]
+   },
+   "factors": [
+    {
+     "name": "X1",
+     "description": "factor 1 of the design, in coded units (the paper's X1, written X1t in its run-order tables)",
+     "low": -1,
+     "high": 1,
+     "units": "coded",
+     "type": "numeric"
+    },
+    {
+     "name": "X2",
+     "description": "factor 2 of the design, in coded units (the paper's X2, written X2t in its run-order tables)",
+     "low": -1,
+     "high": 1,
+     "units": "coded",
+     "type": "numeric"
+    },
+    {
+     "name": "X3",
+     "description": "factor 3 of the design, in coded units (the paper's X3, written X3t in its run-order tables)",
+     "low": -1,
+     "high": 1,
+     "units": "coded",
+     "type": "numeric"
+    }
+   ],
+   "responses": [],
+   "design": {
+    "type": "three factors of an eight-factor definitive screening design (17 runs, centre run included), trend-robust run order 2 (full quadratic model)",
+    "factors": 3,
+    "n_runs": 17
+   },
+   "runs": {
+    "columns": ["t", "X1", "X2", "X3", "Z1", "Z2", "Z3"],
+    "rows": [
+     [1, -1, 0, -1, -8, 40, -28],
+     [2, -1, -1, 1, -7, 25, -7],
+     [3, 0, 1, 1, -6, 12, 7],
+     [4, 1, 1, -1, -5, 1, 15],
+     [5, 1, -1, -1, -4, -8, 18],
+     [6, 1, 1, 1, -3, -15, 17],
+     [7, 1, -1, 0, -2, -20, 13],
+     [8, 1, -1, 1, -1, -23, 7],
+     [9, 0, 0, 0, 0, -24, 0],
+     [10, -1, 1, -1, 1, -23, -7],
+     [11, -1, 1, 0, 2, -20, -13],
+     [12, -1, -1, -1, 3, -15, -17],
+     [13, -1, 1, 1, 4, -8, -18],
+     [14, -1, -1, 1, 5, 1, -15],
+     [15, 0, -1, -1, 6, 12, -7],
+     [16, 1, 1, -1, 7, 25, 7],
+     [17, 1, 0, 1, 8, 40, 28]
+    ],
+    "coded": true,
+    "notes": "t is the time slot, the position in the run order. Z1, Z2 and Z3 are the paper's Z1t, Z2t and Z3t: the linear, quadratic and cubic time-trend components, orthogonal polynomials in t scaled to integers, printed beside the run order. They are not factors."
+   },
+   "expected": [
+    {
+     "what": "absolute correlation",
+     "term": "ME, L, Ave",
+     "value": "0",
+     "analysis": "Table 21: the average absolute correlation |cos| (equation [5]) between the main-effect columns and the linear time-trend component, run order 2 of the 17-run three-factor design based on an eight-factor DSD",
+     "where": {
+      "page": 47,
+      "pdf_page": 12,
+      "source_kind": "table",
+      "quote": "Table 21: L 0 0 0 0 0 0"
+     },
+     "check": {
+      "manual": "process_improve has no run-order or time-trend function (searched experiments/ for run order, trend, time trend and level changes), and evaluate_design's correlation metric only correlates second-order terms with each other, so no check kind can recompute it; numpy on the printed run order and time trend gives 0"
+     }
+    },
+    {
+     "what": "absolute correlation",
+     "term": "ME, L, Max",
+     "value": "0",
+     "analysis": "Table 21: the maximum absolute correlation |cos| (equation [5]) between the main-effect columns and the linear time-trend component, run order 2 of the 17-run three-factor design based on an eight-factor DSD",
+     "where": {
+      "page": 47,
+      "pdf_page": 12,
+      "source_kind": "table",
+      "quote": "Table 21: L 0 0 0 0 0 0"
+     },
+     "check": {
+      "manual": "process_improve has no run-order or time-trend function (searched experiments/ for run order, trend, time trend and level changes), and evaluate_design's correlation metric only correlates second-order terms with each other, so no check kind can recompute it; numpy on the printed run order and time trend gives 0"
+     }
+    },
+    {
+     "what": "absolute correlation",
+     "term": "IE, L, Ave",
+     "value": "0",
+     "analysis": "Table 21: the average absolute correlation |cos| (equation [5]) between the interaction columns and the linear time-trend component, run order 2 of the 17-run three-factor design based on an eight-factor DSD",
+     "where": {
+      "page": 47,
+      "pdf_page": 12,
+      "source_kind": "table",
+      "quote": "Table 21: L 0 0 0 0 0 0"
+     },
+     "check": {
+      "manual": "process_improve has no run-order or time-trend function (searched experiments/ for run order, trend, time trend and level changes), and evaluate_design's correlation metric only correlates second-order terms with each other, so no check kind can recompute it; numpy on the printed run order and time trend gives 0"
+     }
+    },
+    {
+     "what": "absolute correlation",
+     "term": "IE, L, Max",
+     "value": "0",
+     "analysis": "Table 21: the maximum absolute correlation |cos| (equation [5]) between the interaction columns and the linear time-trend component, run order 2 of the 17-run three-factor design based on an eight-factor DSD",
+     "where": {
+      "page": 47,
+      "pdf_page": 12,
+      "source_kind": "table",
+      "quote": "Table 21: L 0 0 0 0 0 0"
+     },
+     "check": {
+      "manual": "process_improve has no run-order or time-trend function (searched experiments/ for run order, trend, time trend and level changes), and evaluate_design's correlation metric only correlates second-order terms with each other, so no check kind can recompute it; numpy on the printed run order and time trend gives 0"
+     }
+    },
+    {
+     "what": "absolute correlation",
+     "term": "QE, L, Ave",
+     "value": "0",
+     "analysis": "Table 21: the average absolute correlation |cos| (equation [5]) between the quadratic-effect columns and the linear time-trend component, run order 2 of the 17-run three-factor design based on an eight-factor DSD",
+     "where": {
+      "page": 47,
+      "pdf_page": 12,
+      "source_kind": "table",
+      "quote": "Table 21: L 0 0 0 0 0 0"
+     },
+     "check": {
+      "manual": "process_improve has no run-order or time-trend function (searched experiments/ for run order, trend, time trend and level changes), and evaluate_design's correlation metric only correlates second-order terms with each other, so no check kind can recompute it; numpy on the printed run order and time trend gives 0"
+     }
+    },
+    {
+     "what": "absolute correlation",
+     "term": "QE, L, Max",
+     "value": "0",
+     "analysis": "Table 21: the maximum absolute correlation |cos| (equation [5]) between the quadratic-effect columns and the linear time-trend component, run order 2 of the 17-run three-factor design based on an eight-factor DSD",
+     "where": {
+      "page": 47,
+      "pdf_page": 12,
+      "source_kind": "table",
+      "quote": "Table 21: L 0 0 0 0 0 0"
+     },
+     "check": {
+      "manual": "process_improve has no run-order or time-trend function (searched experiments/ for run order, trend, time trend and level changes), and evaluate_design's correlation metric only correlates second-order terms with each other, so no check kind can recompute it; numpy on the printed run order and time trend gives 0"
+     }
+    },
+    {
+     "what": "absolute correlation",
+     "term": "ME, Q, Ave",
+     "value": "0",
+     "analysis": "Table 21: the average absolute correlation |cos| (equation [5]) between the main-effect columns and the quadratic time-trend component, run order 2 of the 17-run three-factor design based on an eight-factor DSD",
+     "where": {
+      "page": 47,
+      "pdf_page": 12,
+      "source_kind": "table",
+      "quote": "Table 21: Q 0 0 0.201 0.407 0.121 0.194"
+     },
+     "check": {
+      "manual": "process_improve has no run-order or time-trend function (searched experiments/ for run order, trend, time trend and level changes), and evaluate_design's correlation metric only correlates second-order terms with each other, so no check kind can recompute it; numpy on the printed run order and time trend gives 0"
+     }
+    },
+    {
+     "what": "absolute correlation",
+     "term": "ME, Q, Max",
+     "value": "0",
+     "analysis": "Table 21: the maximum absolute correlation |cos| (equation [5]) between the main-effect columns and the quadratic time-trend component, run order 2 of the 17-run three-factor design based on an eight-factor DSD",
+     "where": {
+      "page": 47,
+      "pdf_page": 12,
+      "source_kind": "table",
+      "quote": "Table 21: Q 0 0 0.201 0.407 0.121 0.194"
+     },
+     "check": {
+      "manual": "process_improve has no run-order or time-trend function (searched experiments/ for run order, trend, time trend and level changes), and evaluate_design's correlation metric only correlates second-order terms with each other, so no check kind can recompute it; numpy on the printed run order and time trend gives 0"
+     }
+    },
+    {
+     "what": "absolute correlation",
+     "term": "IE, Q, Ave",
+     "value": "0.201",
+     "analysis": "Table 21: the average absolute correlation |cos| (equation [5]) between the interaction columns and the quadratic time-trend component, run order 2 of the 17-run three-factor design based on an eight-factor DSD",
+     "where": {
+      "page": 47,
+      "pdf_page": 12,
+      "source_kind": "table",
+      "quote": "Table 21: Q 0 0 0.201 0.407 0.121 0.194"
+     },
+     "check": {
+      "manual": "process_improve has no run-order or time-trend function (searched experiments/ for run order, trend, time trend and level changes), and evaluate_design's correlation metric only correlates second-order terms with each other, so no check kind can recompute it; numpy on the printed run order and time trend gives 0.2011"
+     }
+    },
+    {
+     "what": "absolute correlation",
+     "term": "IE, Q, Max",
+     "value": "0.407",
+     "analysis": "Table 21: the maximum absolute correlation |cos| (equation [5]) between the interaction columns and the quadratic time-trend component, run order 2 of the 17-run three-factor design based on an eight-factor DSD",
+     "where": {
+      "page": 47,
+      "pdf_page": 12,
+      "source_kind": "table",
+      "quote": "Table 21: Q 0 0 0.201 0.407 0.121 0.194"
+     },
+     "check": {
+      "manual": "process_improve has no run-order or time-trend function (searched experiments/ for run order, trend, time trend and level changes), and evaluate_design's correlation metric only correlates second-order terms with each other, so no check kind can recompute it; numpy on the printed run order and time trend gives 0.4066"
+     }
+    },
+    {
+     "what": "absolute correlation",
+     "term": "QE, Q, Ave",
+     "value": "0.121",
+     "analysis": "Table 21: the average absolute correlation |cos| (equation [5]) between the quadratic-effect columns and the quadratic time-trend component, run order 2 of the 17-run three-factor design based on an eight-factor DSD",
+     "where": {
+      "page": 47,
+      "pdf_page": 12,
+      "source_kind": "table",
+      "quote": "Table 21: Q 0 0 0.201 0.407 0.121 0.194"
+     },
+     "check": {
+      "manual": "process_improve has no run-order or time-trend function (searched experiments/ for run order, trend, time trend and level changes), and evaluate_design's correlation metric only correlates second-order terms with each other, so no check kind can recompute it; numpy on the printed run order and time trend gives 0.1214"
+     }
+    },
+    {
+     "what": "absolute correlation",
+     "term": "QE, Q, Max",
+     "value": "0.194",
+     "analysis": "Table 21: the maximum absolute correlation |cos| (equation [5]) between the quadratic-effect columns and the quadratic time-trend component, run order 2 of the 17-run three-factor design based on an eight-factor DSD",
+     "where": {
+      "page": 47,
+      "pdf_page": 12,
+      "source_kind": "table",
+      "quote": "Table 21: Q 0 0 0.201 0.407 0.121 0.194"
+     },
+     "check": {
+      "manual": "process_improve has no run-order or time-trend function (searched experiments/ for run order, trend, time trend and level changes), and evaluate_design's correlation metric only correlates second-order terms with each other, so no check kind can recompute it; numpy on the printed run order and time trend gives 0.1943"
+     }
+    },
+    {
+     "what": "absolute correlation",
+     "term": "ME, C, Ave",
+     "value": "0.378",
+     "analysis": "Table 21: the average absolute correlation |cos| (equation [5]) between the main-effect columns and the cubic time-trend component, run order 2 of the 17-run three-factor design based on an eight-factor DSD",
+     "where": {
+      "page": 47,
+      "pdf_page": 12,
+      "source_kind": "table",
+      "quote": "Table 21: C 0.378 0.901 0 0 0 0"
+     },
+     "check": {
+      "manual": "process_improve has no run-order or time-trend function (searched experiments/ for run order, trend, time trend and level changes), and evaluate_design's correlation metric only correlates second-order terms with each other, so no check kind can recompute it; numpy on the printed run order and time trend gives 0.3778"
+     }
+    },
+    {
+     "what": "absolute correlation",
+     "term": "ME, C, Max",
+     "value": "0.901",
+     "analysis": "Table 21: the maximum absolute correlation |cos| (equation [5]) between the main-effect columns and the cubic time-trend component, run order 2 of the 17-run three-factor design based on an eight-factor DSD",
+     "where": {
+      "page": 47,
+      "pdf_page": 12,
+      "source_kind": "table",
+      "quote": "Table 21: C 0.378 0.901 0 0 0 0"
+     },
+     "check": {
+      "manual": "process_improve has no run-order or time-trend function (searched experiments/ for run order, trend, time trend and level changes), and evaluate_design's correlation metric only correlates second-order terms with each other, so no check kind can recompute it; numpy on the printed run order and time trend gives 0.9015"
+     }
+    },
+    {
+     "what": "absolute correlation",
+     "term": "IE, C, Ave",
+     "value": "0",
+     "analysis": "Table 21: the average absolute correlation |cos| (equation [5]) between the interaction columns and the cubic time-trend component, run order 2 of the 17-run three-factor design based on an eight-factor DSD",
+     "where": {
+      "page": 47,
+      "pdf_page": 12,
+      "source_kind": "table",
+      "quote": "Table 21: C 0.378 0.901 0 0 0 0"
+     },
+     "check": {
+      "manual": "process_improve has no run-order or time-trend function (searched experiments/ for run order, trend, time trend and level changes), and evaluate_design's correlation metric only correlates second-order terms with each other, so no check kind can recompute it; numpy on the printed run order and time trend gives 0"
+     }
+    },
+    {
+     "what": "absolute correlation",
+     "term": "IE, C, Max",
+     "value": "0",
+     "analysis": "Table 21: the maximum absolute correlation |cos| (equation [5]) between the interaction columns and the cubic time-trend component, run order 2 of the 17-run three-factor design based on an eight-factor DSD",
+     "where": {
+      "page": 47,
+      "pdf_page": 12,
+      "source_kind": "table",
+      "quote": "Table 21: C 0.378 0.901 0 0 0 0"
+     },
+     "check": {
+      "manual": "process_improve has no run-order or time-trend function (searched experiments/ for run order, trend, time trend and level changes), and evaluate_design's correlation metric only correlates second-order terms with each other, so no check kind can recompute it; numpy on the printed run order and time trend gives 0"
+     }
+    },
+    {
+     "what": "absolute correlation",
+     "term": "QE, C, Ave",
+     "value": "0",
+     "analysis": "Table 21: the average absolute correlation |cos| (equation [5]) between the quadratic-effect columns and the cubic time-trend component, run order 2 of the 17-run three-factor design based on an eight-factor DSD",
+     "where": {
+      "page": 47,
+      "pdf_page": 12,
+      "source_kind": "table",
+      "quote": "Table 21: C 0.378 0.901 0 0 0 0"
+     },
+     "check": {
+      "manual": "process_improve has no run-order or time-trend function (searched experiments/ for run order, trend, time trend and level changes), and evaluate_design's correlation metric only correlates second-order terms with each other, so no check kind can recompute it; numpy on the printed run order and time trend gives 0"
+     }
+    },
+    {
+     "what": "absolute correlation",
+     "term": "QE, C, Max",
+     "value": "0",
+     "analysis": "Table 21: the maximum absolute correlation |cos| (equation [5]) between the quadratic-effect columns and the cubic time-trend component, run order 2 of the 17-run three-factor design based on an eight-factor DSD",
+     "where": {
+      "page": 47,
+      "pdf_page": 12,
+      "source_kind": "table",
+      "quote": "Table 21: C 0.378 0.901 0 0 0 0"
+     },
+     "check": {
+      "manual": "process_improve has no run-order or time-trend function (searched experiments/ for run order, trend, time trend and level changes), and evaluate_design's correlation metric only correlates second-order terms with each other, so no check kind can recompute it; numpy on the printed run order and time trend gives 0"
+     }
+    }
+   ]
+  },
+  {
+   "name": "nunez-ares-goos-design-sizes",
+   "title": "Run counts of the response surface designs for which trend-robust run orders were found",
+   "kind": "design",
+   "where": {
+    "section": "2.1 and 5.3 to 5.4",
+    "pages": "39, 46-48",
+    "figures": ["Figure 3", "Figure 4"],
+    "tables": ["Table 19"]
+   },
+   "factors": [],
+   "responses": [],
+   "design": {
+    "type": "central composite, small central composite, Box-Behnken and definitive screening designs in two to six factors",
+    "details": "one design per item, named in its check"
+   },
+   "runs": null,
+   "notes": "Figures 3 and 4 plot, for each number of factors, the smallest design of each kind with a run order meeting their caption's orthogonality conditions; the number in a symbol is the centre runs (squares, open squares, diamonds) or the factor count of the definitive screening design whose columns are used (triangles). The run count is read from the gridline the symbol sits on. The figures name the DSD by an odd factor count (7, 9, 11, 13) where the text names the even one (8, 10, 12) of the same run count. The paper plots the six-factor sCCD at 45 runs (a 32-run cube); a small CCD with a 16-run resolution III* cube (I = ABE = CDF = ABCDEF) and one centre run would have 29; the paper does not say which cube it used.",
+   "expected": [
+    {
+     "what": "n_runs",
+     "term": "CCD in 2 factors with 1 centre point",
+     "value": "9",
+     "analysis": "Figure 3: the square (central composite design) labelled 1 at 2 factors, plotted at 9 runs; the smallest design of its kind with a run order that has main effects orthogonal to the linear and quadratic trends",
+     "where": {
+      "page": 48,
+      "pdf_page": 13,
+      "source_kind": "figure",
+      "quote": "Figure 3. Response surface designs with a run order for which the main effects are orthogonal to linear and quadratic time trend components."
+     },
+     "check": {
+      "kind": "design_property",
+      "design": {
+       "design_type": "ccd",
+       "k": 2,
+       "options": {
+        "alpha": "face_centered",
+        "n_center_points": 1
+       }
+      },
+      "property": "n_runs"
+     }
+    },
+    {
+     "what": "n_runs",
+     "term": "Box-Behnken design in 3 factors with 1 centre point",
+     "value": "13",
+     "analysis": "Figure 3: the diamond (Box-Behnken design) labelled 1 at 3 factors, plotted at 13 runs; the smallest design of its kind with a run order that has main effects orthogonal to the linear and quadratic trends",
+     "where": {
+      "page": 48,
+      "pdf_page": 13,
+      "source_kind": "figure",
+      "quote": "Figure 3. Response surface designs with a run order for which the main effects are orthogonal to linear and quadratic time trend components."
+     },
+     "check": {
+      "kind": "design_property",
+      "design": {
+       "design_type": "box_behnken",
+       "k": 3,
+       "options": {
+        "n_center_points": 1
+       }
+      },
+      "property": "n_runs"
+     }
+    },
+    {
+     "what": "n_runs",
+     "term": "CCD in 3 factors with 1 centre point",
+     "value": "15",
+     "analysis": "Figure 3: the square (central composite design) labelled 1 at 3 factors, plotted at 15 runs; the smallest design of its kind with a run order that has main effects orthogonal to the linear and quadratic trends",
+     "where": {
+      "page": 48,
+      "pdf_page": 13,
+      "source_kind": "figure",
+      "quote": "Figure 3. Response surface designs with a run order for which the main effects are orthogonal to linear and quadratic time trend components."
+     },
+     "check": {
+      "kind": "design_property",
+      "design": {
+       "design_type": "ccd",
+       "k": 3,
+       "options": {
+        "alpha": "face_centered",
+        "n_center_points": 1
+       }
+      },
+      "property": "n_runs"
+     }
+    },
+    {
+     "what": "n_runs",
+     "term": "3 factors of the definitive screening design for 7 factors",
+     "value": "17",
+     "analysis": "Figure 3: the triangle (design based on a definitive screening design) labelled 7 at 3 factors, plotted at 17 runs; the smallest design of its kind with a run order that has main effects orthogonal to the linear and quadratic trends",
+     "where": {
+      "page": 48,
+      "pdf_page": 13,
+      "source_kind": "figure",
+      "quote": "Figure 3. Response surface designs with a run order for which the main effects are orthogonal to linear and quadratic time trend components."
+     },
+     "check": {
+      "kind": "design_property",
+      "design": {
+       "design_type": "dsd",
+       "k": 7
+      },
+      "property": "n_runs"
+     }
+    },
+    {
+     "what": "n_runs",
+     "term": "small CCD in 3 factors with 7 centre points",
+     "value": "17",
+     "analysis": "Figure 3: the open square (small central composite design) labelled 7 at 3 factors, plotted at 17 runs; the smallest design of its kind with a run order that has main effects orthogonal to the linear and quadratic trends",
+     "where": {
+      "page": 48,
+      "pdf_page": 13,
+      "source_kind": "figure",
+      "quote": "Figure 3. Response surface designs with a run order for which the main effects are orthogonal to linear and quadratic time trend components."
+     },
+     "check": {
+      "manual": "a small CCD (Hartley 1959) with a 4-run resolution III cube, 6 axial runs and 7 centre runs: 4 + 6 + 7 = 17; generate_design refuses a CCD cube below resolution V (it raises ValueError), so no check kind makes this design"
+     }
+    },
+    {
+     "what": "n_runs",
+     "term": "small CCD in 4 factors with 4 centre points",
+     "value": "20",
+     "analysis": "Figure 3: the open square (small central composite design) labelled 4 at 4 factors, plotted at 20 runs; the smallest design of its kind with a run order that has main effects orthogonal to the linear and quadratic trends",
+     "where": {
+      "page": 48,
+      "pdf_page": 13,
+      "source_kind": "figure",
+      "quote": "Figure 3. Response surface designs with a run order for which the main effects are orthogonal to linear and quadratic time trend components."
+     },
+     "check": {
+      "manual": "a small CCD (Hartley 1959) with a 8-run resolution III cube, 8 axial runs and 4 centre runs: 8 + 8 + 4 = 20; generate_design refuses a CCD cube below resolution V (it raises ValueError), so no check kind makes this design"
+     }
+    },
+    {
+     "what": "n_runs",
+     "term": "4 factors of the definitive screening design for 9 factors",
+     "value": "21",
+     "analysis": "Figure 3: the triangle (design based on a definitive screening design) labelled 9 at 4 factors, plotted at 21 runs; the smallest design of its kind with a run order that has main effects orthogonal to the linear and quadratic trends",
+     "where": {
+      "page": 48,
+      "pdf_page": 13,
+      "source_kind": "figure",
+      "quote": "Figure 3. Response surface designs with a run order for which the main effects are orthogonal to linear and quadratic time trend components."
+     },
+     "check": {
+      "kind": "design_property",
+      "design": {
+       "design_type": "dsd",
+       "k": 9
+      },
+      "property": "n_runs"
+     }
+    },
+    {
+     "what": "n_runs",
+     "term": "Box-Behnken design in 4 factors with 1 centre point",
+     "value": "25",
+     "analysis": "Figure 3: the diamond (Box-Behnken design) labelled 1 at 4 factors, plotted at 25 runs; the smallest design of its kind with a run order that has main effects orthogonal to the linear and quadratic trends",
+     "where": {
+      "page": 48,
+      "pdf_page": 13,
+      "source_kind": "figure",
+      "quote": "Figure 3. Response surface designs with a run order for which the main effects are orthogonal to linear and quadratic time trend components."
+     },
+     "check": {
+      "kind": "design_property",
+      "design": {
+       "design_type": "box_behnken",
+       "k": 4,
+       "options": {
+        "n_center_points": 1
+       }
+      },
+      "property": "n_runs"
+     }
+    },
+    {
+     "what": "n_runs",
+     "term": "CCD in 4 factors with 1 centre point",
+     "value": "25",
+     "analysis": "Figure 3: the square (central composite design) labelled 1 at 4 factors, plotted at 25 runs; the smallest design of its kind with a run order that has main effects orthogonal to the linear and quadratic trends",
+     "where": {
+      "page": 48,
+      "pdf_page": 13,
+      "source_kind": "figure",
+      "quote": "Figure 3. Response surface designs with a run order for which the main effects are orthogonal to linear and quadratic time trend components."
+     },
+     "check": {
+      "kind": "design_property",
+      "design": {
+       "design_type": "ccd",
+       "k": 4,
+       "options": {
+        "alpha": "face_centered",
+        "n_center_points": 1
+       }
+      },
+      "property": "n_runs"
+     }
+    },
+    {
+     "what": "n_runs",
+     "term": "5 factors of the definitive screening design for 9 factors",
+     "value": "21",
+     "analysis": "Figure 3: the triangle (design based on a definitive screening design) labelled 9 at 5 factors, plotted at 21 runs; the smallest design of its kind with a run order that has main effects orthogonal to the linear and quadratic trends",
+     "where": {
+      "page": 48,
+      "pdf_page": 13,
+      "source_kind": "figure",
+      "quote": "Figure 3. Response surface designs with a run order for which the main effects are orthogonal to linear and quadratic time trend components."
+     },
+     "check": {
+      "kind": "design_property",
+      "design": {
+       "design_type": "dsd",
+       "k": 9
+      },
+      "property": "n_runs"
+     }
+    },
+    {
+     "what": "n_runs",
+     "term": "small CCD in 5 factors with 1 centre point",
+     "value": "27",
+     "analysis": "Figure 3: the open square (small central composite design) labelled 1 at 5 factors, plotted at 27 runs; the smallest design of its kind with a run order that has main effects orthogonal to the linear and quadratic trends; 27 runs is a 16-run (2^(5-1)) cube, 10 axial runs and one centre run, which is the size of generate_design's CCD with cube='fractional'",
+     "where": {
+      "page": 48,
+      "pdf_page": 13,
+      "source_kind": "figure",
+      "quote": "Figure 3. Response surface designs with a run order for which the main effects are orthogonal to linear and quadratic time trend components."
+     },
+     "check": {
+      "kind": "design_property",
+      "design": {
+       "design_type": "ccd",
+       "k": 5,
+       "options": {
+        "alpha": "face_centered",
+        "n_center_points": 1,
+        "cube": "fractional"
+       }
+      },
+      "property": "n_runs"
+     }
+    },
+    {
+     "what": "n_runs",
+     "term": "Box-Behnken design in 5 factors with 1 centre point",
+     "value": "41",
+     "analysis": "Figure 3: the diamond (Box-Behnken design) labelled 1 at 5 factors, plotted at 41 runs; the smallest design of its kind with a run order that has main effects orthogonal to the linear and quadratic trends",
+     "where": {
+      "page": 48,
+      "pdf_page": 13,
+      "source_kind": "figure",
+      "quote": "Figure 3. Response surface designs with a run order for which the main effects are orthogonal to linear and quadratic time trend components."
+     },
+     "check": {
+      "kind": "design_property",
+      "design": {
+       "design_type": "box_behnken",
+       "k": 5,
+       "options": {
+        "n_center_points": 1
+       }
+      },
+      "property": "n_runs"
+     }
+    },
+    {
+     "what": "n_runs",
+     "term": "6 factors of the definitive screening design for 11 factors",
+     "value": "25",
+     "analysis": "Figure 3: the triangle (design based on a definitive screening design) labelled 11 at 6 factors, plotted at 25 runs; the smallest design of its kind with a run order that has main effects orthogonal to the linear and quadratic trends",
+     "where": {
+      "page": 48,
+      "pdf_page": 13,
+      "source_kind": "figure",
+      "quote": "Figure 3. Response surface designs with a run order for which the main effects are orthogonal to linear and quadratic time trend components."
+     },
+     "check": {
+      "kind": "design_property",
+      "design": {
+       "design_type": "dsd",
+       "k": 11
+      },
+      "property": "n_runs"
+     }
+    },
+    {
+     "what": "n_runs",
+     "term": "small CCD in 6 factors with 1 centre point",
+     "value": "45",
+     "analysis": "Figure 3: the open square (small central composite design) labelled 1 at 6 factors, plotted at 45 runs; the smallest design of its kind with a run order that has main effects orthogonal to the linear and quadratic trends; 45 runs is a 32-run (2^(6-1)) cube, 12 axial runs and one centre run, which is the size of generate_design's CCD with cube='fractional'",
+     "where": {
+      "page": 48,
+      "pdf_page": 13,
+      "source_kind": "figure",
+      "quote": "Figure 3. Response surface designs with a run order for which the main effects are orthogonal to linear and quadratic time trend components."
+     },
+     "check": {
+      "kind": "design_property",
+      "design": {
+       "design_type": "ccd",
+       "k": 6,
+       "options": {
+        "alpha": "face_centered",
+        "n_center_points": 1,
+        "cube": "fractional"
+       }
+      },
+      "property": "n_runs"
+     }
+    },
+    {
+     "what": "n_runs",
+     "term": "CCD in 2 factors with 1 centre point",
+     "value": "9",
+     "analysis": "Figure 4: the square (central composite design) labelled 1 at 2 factors, plotted at 9 runs; the smallest design of its kind with a run order that has main effects orthogonal to the linear and quadratic trends, second-order effects to the linear trend",
+     "where": {
+      "page": 48,
+      "pdf_page": 13,
+      "source_kind": "figure",
+      "quote": "Figure 4. Response surface designs with a run order for which ... the second-order effects are orthogonal to linear time trend component."
+     },
+     "check": {
+      "kind": "design_property",
+      "design": {
+       "design_type": "ccd",
+       "k": 2,
+       "options": {
+        "alpha": "face_centered",
+        "n_center_points": 1
+       }
+      },
+      "property": "n_runs"
+     }
+    },
+    {
+     "what": "n_runs",
+     "term": "Box-Behnken design in 3 factors with 1 centre point",
+     "value": "13",
+     "analysis": "Figure 4: the diamond (Box-Behnken design) labelled 1 at 3 factors, plotted at 13 runs; the smallest design of its kind with a run order that has main effects orthogonal to the linear and quadratic trends, second-order effects to the linear trend",
+     "where": {
+      "page": 48,
+      "pdf_page": 13,
+      "source_kind": "figure",
+      "quote": "Figure 4. Response surface designs with a run order for which ... the second-order effects are orthogonal to linear time trend component."
+     },
+     "check": {
+      "kind": "design_property",
+      "design": {
+       "design_type": "box_behnken",
+       "k": 3,
+       "options": {
+        "n_center_points": 1
+       }
+      },
+      "property": "n_runs"
+     }
+    },
+    {
+     "what": "n_runs",
+     "term": "CCD in 3 factors with 3 centre points",
+     "value": "17",
+     "analysis": "Figure 4: the square (central composite design) labelled 3 at 3 factors, plotted at 17 runs; the smallest design of its kind with a run order that has main effects orthogonal to the linear and quadratic trends, second-order effects to the linear trend",
+     "where": {
+      "page": 48,
+      "pdf_page": 13,
+      "source_kind": "figure",
+      "quote": "Figure 4. Response surface designs with a run order for which ... the second-order effects are orthogonal to linear time trend component."
+     },
+     "check": {
+      "kind": "design_property",
+      "design": {
+       "design_type": "ccd",
+       "k": 3,
+       "options": {
+        "alpha": "face_centered",
+        "n_center_points": 3
+       }
+      },
+      "property": "n_runs"
+     }
+    },
+    {
+     "what": "n_runs",
+     "term": "3 factors of the definitive screening design for 7 factors",
+     "value": "17",
+     "analysis": "Figure 4: the triangle (design based on a definitive screening design) labelled 7 at 3 factors, plotted at 17 runs; the smallest design of its kind with a run order that has main effects orthogonal to the linear and quadratic trends, second-order effects to the linear trend",
+     "where": {
+      "page": 48,
+      "pdf_page": 13,
+      "source_kind": "figure",
+      "quote": "Figure 4. Response surface designs with a run order for which ... the second-order effects are orthogonal to linear time trend component."
+     },
+     "check": {
+      "kind": "design_property",
+      "design": {
+       "design_type": "dsd",
+       "k": 7
+      },
+      "property": "n_runs"
+     }
+    },
+    {
+     "what": "n_runs",
+     "term": "4 factors of the definitive screening design for 9 factors",
+     "value": "21",
+     "analysis": "Figure 4: the triangle (design based on a definitive screening design) labelled 9 at 4 factors, plotted at 21 runs; the smallest design of its kind with a run order that has main effects orthogonal to the linear and quadratic trends, second-order effects to the linear trend",
+     "where": {
+      "page": 48,
+      "pdf_page": 13,
+      "source_kind": "figure",
+      "quote": "Figure 4. Response surface designs with a run order for which ... the second-order effects are orthogonal to linear time trend component."
+     },
+     "check": {
+      "kind": "design_property",
+      "design": {
+       "design_type": "dsd",
+       "k": 9
+      },
+      "property": "n_runs"
+     }
+    },
+    {
+     "what": "n_runs",
+     "term": "CCD in 4 factors with 1 centre point",
+     "value": "25",
+     "analysis": "Figure 4: the square (central composite design) labelled 1 at 4 factors, plotted at 25 runs; the smallest design of its kind with a run order that has main effects orthogonal to the linear and quadratic trends, second-order effects to the linear trend",
+     "where": {
+      "page": 48,
+      "pdf_page": 13,
+      "source_kind": "figure",
+      "quote": "Figure 4. Response surface designs with a run order for which ... the second-order effects are orthogonal to linear time trend component."
+     },
+     "check": {
+      "kind": "design_property",
+      "design": {
+       "design_type": "ccd",
+       "k": 4,
+       "options": {
+        "alpha": "face_centered",
+        "n_center_points": 1
+       }
+      },
+      "property": "n_runs"
+     }
+    },
+    {
+     "what": "n_runs",
+     "term": "Box-Behnken design in 4 factors with 1 centre point",
+     "value": "25",
+     "analysis": "Figure 4: the diamond (Box-Behnken design) labelled 1 at 4 factors, plotted at 25 runs; the smallest design of its kind with a run order that has main effects orthogonal to the linear and quadratic trends, second-order effects to the linear trend",
+     "where": {
+      "page": 48,
+      "pdf_page": 13,
+      "source_kind": "figure",
+      "quote": "Figure 4. Response surface designs with a run order for which ... the second-order effects are orthogonal to linear time trend component."
+     },
+     "check": {
+      "kind": "design_property",
+      "design": {
+       "design_type": "box_behnken",
+       "k": 4,
+       "options": {
+        "n_center_points": 1
+       }
+      },
+      "property": "n_runs"
+     }
+    },
+    {
+     "what": "n_runs",
+     "term": "5 factors of the definitive screening design for 11 factors",
+     "value": "25",
+     "analysis": "Figure 4: the triangle (design based on a definitive screening design) labelled 11 at 5 factors, plotted at 25 runs; the smallest design of its kind with a run order that has main effects orthogonal to the linear and quadratic trends, second-order effects to the linear trend",
+     "where": {
+      "page": 48,
+      "pdf_page": 13,
+      "source_kind": "figure",
+      "quote": "Figure 4. Response surface designs with a run order for which ... the second-order effects are orthogonal to linear time trend component."
+     },
+     "check": {
+      "kind": "design_property",
+      "design": {
+       "design_type": "dsd",
+       "k": 11
+      },
+      "property": "n_runs"
+     }
+    },
+    {
+     "what": "n_runs",
+     "term": "Box-Behnken design in 5 factors with 6 centre points",
+     "value": "46",
+     "analysis": "Figure 4: the diamond (Box-Behnken design) labelled 6 at 5 factors, plotted at 46 runs; the smallest design of its kind with a run order that has main effects orthogonal to the linear and quadratic trends, second-order effects to the linear trend",
+     "where": {
+      "page": 48,
+      "pdf_page": 13,
+      "source_kind": "figure",
+      "quote": "Figure 4. Response surface designs with a run order for which ... the second-order effects are orthogonal to linear time trend component."
+     },
+     "check": {
+      "kind": "design_property",
+      "design": {
+       "design_type": "box_behnken",
+       "k": 5,
+       "options": {
+        "n_center_points": 6
+       }
+      },
+      "property": "n_runs"
+     }
+    },
+    {
+     "what": "n_runs",
+     "term": "6 factors of the definitive screening design for 13 factors",
+     "value": "29",
+     "analysis": "Figure 4: the triangle (design based on a definitive screening design) labelled 13 at 6 factors, plotted at 29 runs; the smallest design of its kind with a run order that has main effects orthogonal to the linear and quadratic trends, second-order effects to the linear trend",
+     "where": {
+      "page": 48,
+      "pdf_page": 13,
+      "source_kind": "figure",
+      "quote": "Figure 4. Response surface designs with a run order for which ... the second-order effects are orthogonal to linear time trend component."
+     },
+     "check": {
+      "kind": "design_property",
+      "design": {
+       "design_type": "dsd",
+       "k": 13
+      },
+      "property": "n_runs"
+     }
+    },
+    {
+     "what": "n_runs",
+     "term": "small CCD in 6 factors with 1 centre point",
+     "value": "45",
+     "analysis": "Figure 4: the open square (small central composite design) labelled 1 at 6 factors, plotted at 45 runs; the smallest design of its kind with a run order that has main effects orthogonal to the linear and quadratic trends, second-order effects to the linear trend; 45 runs is a 32-run (2^(6-1)) cube, 12 axial runs and one centre run, which is the size of generate_design's CCD with cube='fractional'",
+     "where": {
+      "page": 48,
+      "pdf_page": 13,
+      "source_kind": "figure",
+      "quote": "Figure 4. Response surface designs with a run order for which ... the second-order effects are orthogonal to linear time trend component."
+     },
+     "check": {
+      "kind": "design_property",
+      "design": {
+       "design_type": "ccd",
+       "k": 6,
+       "options": {
+        "alpha": "face_centered",
+        "n_center_points": 1,
+        "cube": "fractional"
+       }
+      },
+      "property": "n_runs"
+     }
+    },
+    {
+     "what": "n_runs",
+     "term": "definitive screening design in three factors",
+     "value": "9",
+     "analysis": "the run count of the standard definitive screening design for three factors",
+     "where": {
+      "page": 39,
+      "pdf_page": 4,
+      "source_kind": "text",
+      "quote": "the standard designs for three and four factors have 9 and 13 runs, respectively"
+     },
+     "check": {
+      "kind": "design_property",
+      "design": {
+       "design_type": "dsd",
+       "k": 3
+      },
+      "property": "n_runs"
+     }
+    },
+    {
+     "what": "n_runs",
+     "term": "definitive screening design in four factors",
+     "value": "13",
+     "analysis": "the run count of the standard definitive screening design for four factors",
+     "where": {
+      "page": 39,
+      "pdf_page": 4,
+      "source_kind": "text",
+      "quote": "the standard designs for three and four factors have 9 and 13 runs, respectively"
+     },
+     "check": {
+      "kind": "design_property",
+      "design": {
+       "design_type": "dsd",
+       "k": 4
+      },
+      "property": "n_runs",
+      "disagreement": "generate_design's DSD for four factors folds a conference matrix of order 4: 2·4 + 1 = 9 runs (definitive_screening_runs(4) = 9). The paper's 13-run four-factor DSD is the size of a design folded from a conference matrix of order 6 (2·6 + 1 = 13); a different, larger construction for four factors, not a copying error; found 9"
+     }
+    },
+    {
+     "what": "n_runs",
+     "term": "three columns of the four-factor definitive screening design",
+     "value": "13",
+     "analysis": "the run count of the three-factor design made of the first three columns of the four-factor DSD",
+     "where": {
+      "page": 39,
+      "pdf_page": 4,
+      "source_kind": "text",
+      "quote": "we obtain a 13-run definitive screening design for a model with three factors"
+     },
+     "check": {
+      "kind": "design_property",
+      "design": {
+       "design_type": "dsd",
+       "k": 4
+      },
+      "property": "n_runs",
+      "disagreement": "generate_design's DSD for four factors folds a conference matrix of order 4: 2·4 + 1 = 9 runs (definitive_screening_runs(4) = 9). The paper's 13-run four-factor DSD is the size of a design folded from a conference matrix of order 6 (2·6 + 1 = 13); a different, larger construction for four factors, not a copying error; found 9"
+     }
+    },
+    {
+     "what": "n_runs",
+     "term": "three columns of the eight-factor definitive screening design",
+     "value": "17",
+     "analysis": "the run count of the three-factor design whose run orders Table 19 prints: the eight-factor DSD's",
+     "where": {
+      "page": 47,
+      "pdf_page": 12,
+      "source_kind": "caption",
+      "quote": "Table 19. Trend-robust run orders of a 17-run three-factor DSD with coded time trend."
+     },
+     "check": {
+      "kind": "design_property",
+      "design": {
+       "design_type": "dsd",
+       "k": 8
+      },
+      "property": "n_runs"
+     }
+    },
+    {
+     "what": "n_runs",
+     "term": "definitive screening design in eight factors",
+     "value": "17",
+     "analysis": "the run count of the eight-factor DSD whose first three columns make the design of Table 19",
+     "where": {
+      "page": 47,
+      "pdf_page": 12,
+      "source_kind": "text",
+      "quote": "the three-factor design based on an eight-factor DSD (which has 17 runs and which is shown in Table 19)"
+     },
+     "check": {
+      "kind": "design_property",
+      "design": {
+       "design_type": "dsd",
+       "k": 8
+      },
+      "property": "n_runs"
+     }
+    },
+    {
+     "what": "n_runs",
+     "term": "definitive screening design in ten factors",
+     "value": "21",
+     "analysis": "the run count of the ten-factor DSD whose columns give a four-factor design with a run order robust in the sense of Figure 4",
+     "where": {
+      "page": 48,
+      "pdf_page": 13,
+      "source_kind": "text",
+      "quote": "the four-factor design based on a 10-factor DSD (21 runs) has a trend-robust run order"
+     },
+     "check": {
+      "kind": "design_property",
+      "design": {
+       "design_type": "dsd",
+       "k": 10
+      },
+      "property": "n_runs"
+     }
+    },
+    {
+     "what": "n_runs",
+     "term": "definitive screening design in twelve factors",
+     "value": "25",
+     "analysis": "the run count of the twelve-factor DSD whose columns give a five-factor design with a run order robust in the sense of Figure 4",
+     "where": {
+      "page": 48,
+      "pdf_page": 13,
+      "source_kind": "text",
+      "quote": "the five-factor design based on a 12-factor DSD (25 runs) meets these orthogonality conditions"
+     },
+     "check": {
+      "kind": "design_property",
+      "design": {
+       "design_type": "dsd",
+       "k": 12
+      },
+      "property": "n_runs"
+     }
+    },
+    {
+     "what": "n_center_points",
+     "term": "small CCD in three factors",
+     "value": "seven",
+     "analysis": "the fewest centre runs for which a three-factor sCCD has a run order with the main effects orthogonal to the linear and quadratic trends",
+     "where": {
+      "page": 46,
+      "pdf_page": 11,
+      "source_kind": "text",
+      "quote": "We need seven center points to obtain a run order for which the main effects are orthogonal to linear and quadratic time trend"
+     },
+     "check": {
+      "manual": "a result of the paper's integer-programming search over run orders; process_improve has no run-order or time-trend function, so nothing here runs that search; the size, 17 runs, is in Figure 3"
+     }
+    },
+    {
+     "what": "n_center_points",
+     "term": "small CCD in four factors",
+     "value": "four",
+     "analysis": "the centre runs of the four-factor sCCD for which a trend-robust run order was found",
+     "where": {
+      "page": 47,
+      "pdf_page": 12,
+      "source_kind": "text",
+      "quote": "We found a trend-robust run order for the four-factor sCCD with four center points."
+     },
+     "check": {
+      "manual": "a result of the paper's integer-programming search over run orders; process_improve has no run-order or time-trend function, so nothing here runs that search; the size, 20 runs, is in Figure 3"
+     }
+    }
+   ]
+  }
+ ],
+ "not_captured": ["Table 3 (p. 40): the orthogonal-polynomial coding of a cubic time trend for 11 runs, a coding table rather than a design. Its entries are the textbook orthogonal polynomials in the centred time t - (n + 1)/2 (Z3 scaled by 5/6). Equations [3] and [4] as printed use (t - 1) where the centred Z1t of equation [2] is needed: with (t - 1) they give Z2 = -10, -9, -6, ... for n = 11, not Table 3's 15, 6, -1, ...", "The angle intervals of Section 3.2 (p. 41), [89.43°, 90.57°], [84.26°, 95.74°] and [75.52°, 104.48°] for |cos| at most 0.01, 0.1 and 0.25: arithmetic on the measure, not about a design (arccos gives all six).", "Table 4 (p. 43): computing times in seconds of SAS/OR 9.4 and CPLEX 12.61 for six optimisations of five designs, with the hardware (2.3-GHz i7-4712HQ, 16 GB) and the 1-hour limit: timings, not design properties.", "Tables 9 and 10 (pp. 44-45): check marks saying which run orders of the 3^2 to 5^4 factorials are robust to each trend component. The run orders are only in the supplementary material, so nothing can be recomputed. The text on p. 45 lists 5^3 among the designs orthogonal to the cubic trend for a main-effects model and leaves out 5^4, while Table 9's cubic row has a cross for 5^3 and a tick for 5^4.", "Tables 14, 15 and 18 (p. 46): absolute correlations of the best run orders of the three-factor CCD with three centre points, the three-factor sCCD and the three-factor DSD. Those run orders are not printed (they are in the supplementary material), so the 54 numbers cannot be recomputed from the paper.", "Figures 1 and 2 (p. 45): heat maps of Tables 6 to 8 on a five-step grey scale with cut-offs 0.01, 0.1, 0.25, 0.5 and 1; the numbers are those of the tables.", "Repetitions of '17-run' in the captions of Tables 20 and 21 and in the text of p. 47 ('this 17-run design'): the run count captured twice already.", "Counts describing the method rather than a design: six optimisation problems in the multistage approach (three for a main-effects model), the 30 designs of the supplementary material, and the list of designs studied (two to six factors)."]
+}

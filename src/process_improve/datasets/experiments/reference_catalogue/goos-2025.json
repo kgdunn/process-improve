@@ -1,0 +1,1848 @@
+{
+ "schema": 1,
+ "about": ["Part of the reference catalogue: designs from one published source, a review of OMARS (orthogonal minimally aliased response", "surface) designs, for testing that software reproduces them. The review prints five design matrices", "(Tables 1 to 5: uniform-precision, non-uniform-precision, mixed-level and orthogonally blocked OMARS", "designs) and describes a sixth (a folded-over circulant weighing matrix); each is a design entry with its", "runs in coded units, and its run size, factor count and other stated properties are recomputed from the", "runs with design_metric. It also states the run sizes of the 6-factor face-centered central composite and", "Box-Behnken designs (design_property) and counts of non-isomorphic OMARS designs from enumerations it", "cites (manual). The review has no experiment with data: its Data Availability Statement says no data were", "created or analysed, so experiments is empty. Read with process_improve.experiments.reference_catalogue."],
+ "source": {
+  "key": "goos-2025",
+  "authors": ["Peter Goos"],
+  "title": "OMARS Designs for Factor Screening and Response Surface Experimentation in One Step: A Review",
+  "work": "Wiley Interdisciplinary Reviews: Computational Statistics",
+  "volume": "17",
+  "issue": "2",
+  "pages": "e70018",
+  "year": 2025,
+  "publisher": "Wiley Periodicals LLC",
+  "doi": "10.1002/wics.70018",
+  "url": "https://doi.org/10.1002/wics.70018",
+  "cite": "Goos (2025), \"OMARS Designs for Factor Screening and Response Surface Experimentation in One Step: A Review\", WIREs Computational Statistics 17(2), e70018",
+  "read": "2026-10-13, from the article's PDF (13 pages), supplied by the user; every number copied by hand with its page and a short quotation",
+  "rights": "The article is protected by copyright and is not reproduced here; read it through its DOI. This file holds facts it reports (numbers, design matrices, data) and short quotations that locate each one, for citation and for checking software. The MIT licence of process-improve does not extend to them."
+ },
+ "experiments": [],
+ "designs": [
+  {
+   "name": "goos-2025-table1-27-run-8-factor-up-omars",
+   "title": "Table 1: an 8-factor 27-run foldover uniform-precision OMARS design with one center run",
+   "kind": "design",
+   "where": {
+    "section": "2.1, Uniform-Precision OMARS Designs",
+    "pages": "2-3",
+    "tables": ["Table 1"]
+   },
+   "factors": [
+    {
+     "name": "x1",
+     "description": "factor x1, three-level, quantitative; the paper gives no name, units or ranges",
+     "low": -1,
+     "high": 1,
+     "levels": [-1, 0, 1],
+     "units": "",
+     "type": "numeric"
+    },
+    {
+     "name": "x2",
+     "description": "factor x2, three-level, quantitative; the paper gives no name, units or ranges",
+     "low": -1,
+     "high": 1,
+     "levels": [-1, 0, 1],
+     "units": "",
+     "type": "numeric"
+    },
+    {
+     "name": "x3",
+     "description": "factor x3, three-level, quantitative; the paper gives no name, units or ranges",
+     "low": -1,
+     "high": 1,
+     "levels": [-1, 0, 1],
+     "units": "",
+     "type": "numeric"
+    },
+    {
+     "name": "x4",
+     "description": "factor x4, three-level, quantitative; the paper gives no name, units or ranges",
+     "low": -1,
+     "high": 1,
+     "levels": [-1, 0, 1],
+     "units": "",
+     "type": "numeric"
+    },
+    {
+     "name": "x5",
+     "description": "factor x5, three-level, quantitative; the paper gives no name, units or ranges",
+     "low": -1,
+     "high": 1,
+     "levels": [-1, 0, 1],
+     "units": "",
+     "type": "numeric"
+    },
+    {
+     "name": "x6",
+     "description": "factor x6, three-level, quantitative; the paper gives no name, units or ranges",
+     "low": -1,
+     "high": 1,
+     "levels": [-1, 0, 1],
+     "units": "",
+     "type": "numeric"
+    },
+    {
+     "name": "x7",
+     "description": "factor x7, three-level, quantitative; the paper gives no name, units or ranges",
+     "low": -1,
+     "high": 1,
+     "levels": [-1, 0, 1],
+     "units": "",
+     "type": "numeric"
+    },
+    {
+     "name": "x8",
+     "description": "factor x8, three-level, quantitative; the paper gives no name, units or ranges",
+     "low": -1,
+     "high": 1,
+     "levels": [-1, 0, 1],
+     "units": "",
+     "type": "numeric"
+    }
+   ],
+   "responses": [],
+   "design": {
+    "type": "three-level uniform-precision OMARS design, foldover, with one center run",
+    "details": "13 foldover pairs (run 2k is the negative of run 2k - 1) and the center run 27",
+    "factors": 8,
+    "n_runs": 27
+   },
+   "runs": {
+    "columns": ["Run", "x1", "x2", "x3", "x4", "x5", "x6", "x7", "x8"],
+    "rows": [
+     [1, -1, -1, -1, -1, -1, -1, -1, -1],
+     [2, 1, 1, 1, 1, 1, 1, 1, 1],
+     [3, -1, -1, -1, 1, 1, 1, 0, 0],
+     [4, 1, 1, 1, -1, -1, -1, 0, 0],
+     [5, -1, -1, 1, -1, 0, 0, 1, 1],
+     [6, 1, 1, -1, 1, 0, 0, -1, -1],
+     [7, -1, 1, -1, 0, 0, 1, 1, 0],
+     [8, 1, -1, 1, 0, 0, -1, -1, 0],
+     [9, -1, 1, 0, -1, 0, 1, 0, -1],
+     [10, 1, -1, 0, 1, 0, -1, 0, 1],
+     [11, -1, 1, 0, 0, -1, 0, -1, 1],
+     [12, 1, -1, 0, 0, 1, 0, 1, -1],
+     [13, -1, 0, 1, 1, 1, 0, -1, 0],
+     [14, 1, 0, -1, -1, -1, 0, 1, 0],
+     [15, -1, 0, 1, 0, 1, -1, 0, -1],
+     [16, 1, 0, -1, 0, -1, 1, 0, 1],
+     [17, -1, 0, 0, 1, -1, -1, 1, 1],
+     [18, 1, 0, 0, -1, 1, 1, -1, -1],
+     [19, 0, -1, -1, -1, 1, 0, 0, 1],
+     [20, 0, 1, 1, 1, -1, 0, 0, -1],
+     [21, 0, -1, 1, 0, -1, 1, 1, -1],
+     [22, 0, 1, -1, 0, 1, -1, -1, 1],
+     [23, 0, -1, 0, 1, -1, 1, -1, 0],
+     [24, 0, 1, 0, -1, 1, -1, 1, 0],
+     [25, 0, 0, -1, 1, 0, -1, 1, -1],
+     [26, 0, 0, 1, -1, 0, 1, -1, 1],
+     [27, 0, 0, 0, 0, 0, 0, 0, 0]
+    ],
+    "coded": true,
+    "notes": "Copied from Table 1 (p. 3) through the PDF's text layer and compared with the page image. Checks on the copy: every column has nine -1, nine 0 and nine +1; the main effects are orthogonal to each other and to every quadratic and two-factor interaction column (is_omars() is True); runs 2k and 2k - 1 are mirror images, as p. 2 says."
+   },
+   "notes": "The design is an OMARS design: process_improve.experiments.is_omars() returns True for the runs.",
+   "expected": [
+    {
+     "what": "n_runs",
+     "term": null,
+     "value": "27",
+     "analysis": "the run size of the uniform-precision OMARS design shown in Table 1",
+     "where": {
+      "page": 2,
+      "pdf_page": 2,
+      "source_kind": "text",
+      "quote": "An example of a uniform-precision OMARS design involving 27 runs, eight factors, and one center run is shown in Table 1."
+     },
+     "check": {
+      "kind": "design_metric",
+      "metric": "prediction_variance",
+      "key": "len",
+      "model": "main_effects"
+     }
+    },
+    {
+     "what": "n_factors",
+     "term": null,
+     "value": "8",
+     "analysis": "the number of factors of the Table 1 design",
+     "where": {
+      "page": 3,
+      "pdf_page": 3,
+      "source_kind": "caption",
+      "quote": "TABLE 1 | 8-factor 27-run foldover uniform-precision OMARS design including one center run."
+     },
+     "check": {
+      "kind": "design_metric",
+      "metric": "vif",
+      "key": "len",
+      "model": "main_effects"
+     }
+    },
+    {
+     "what": "n_center_runs",
+     "term": null,
+     "value": "one",
+     "analysis": "the number of center runs of the Table 1 design",
+     "where": {
+      "page": 2,
+      "pdf_page": 2,
+      "source_kind": "text",
+      "quote": "involving 27 runs, eight factors, and one center run is shown in Table 1"
+     },
+     "check": {
+      "manual": "printed in words (one), which no check can compare as digits; no check kind counts center runs (run 27 is the only all-zero run of the transcription)"
+     }
+    },
+    {
+     "what": "n_main_effects",
+     "term": null,
+     "value": "eight",
+     "analysis": "main effects the design allows to be investigated",
+     "where": {
+      "page": 2,
+      "pdf_page": 2,
+      "source_kind": "text",
+      "quote": "The design allows the investigation of eight main effects, eight quadratic effects, and 28 two-factor interaction effects"
+     },
+     "check": {
+      "manual": "printed in words (eight), which no check can compare as digits; it is the factor count, checked as 8 from the caption of Table 1"
+     }
+    },
+    {
+     "what": "n_quadratic_effects",
+     "term": null,
+     "value": "eight",
+     "analysis": "quadratic effects the design allows to be investigated",
+     "where": {
+      "page": 2,
+      "pdf_page": 2,
+      "source_kind": "text",
+      "quote": "The design allows the investigation of eight main effects, eight quadratic effects, and 28 two-factor interaction effects"
+     },
+     "check": {
+      "manual": "printed in words (eight), which no check can compare as digits; one quadratic effect per three-level factor, so the factor count checked from the caption"
+     }
+    },
+    {
+     "what": "n_two_factor_interactions",
+     "term": null,
+     "value": "28",
+     "analysis": "two-factor interaction effects the design allows to be investigated",
+     "where": {
+      "page": 2,
+      "pdf_page": 2,
+      "source_kind": "text",
+      "quote": "eight main effects, eight quadratic effects, and 28 two-factor interaction effects in just 27 experimental runs"
+     },
+     "check": {
+      "kind": "design_metric",
+      "metric": "alias_matrix",
+      "key": "alias_terms.len",
+      "model": "main_effects"
+     }
+    },
+    {
+     "what": "middle_level_count",
+     "term": null,
+     "value": "nine times",
+     "analysis": "how often each factor is at its middle level",
+     "where": {
+      "page": 2,
+      "pdf_page": 2,
+      "source_kind": "text",
+      "quote": "Each of the eight factors in the design is visited at its middle level nine times."
+     },
+     "check": {
+      "manual": "a count of the levels in the printed columns, given in words; no check kind counts how often a level occurs (nine 0s in each of the eight columns, by a numpy count over the transcribed matrix)"
+     }
+    },
+    {
+     "what": "outer_level_count",
+     "term": null,
+     "value": "nine times each",
+     "analysis": "how often each factor is at its high and at its low level",
+     "where": {
+      "page": 2,
+      "pdf_page": 2,
+      "source_kind": "text",
+      "quote": "The high and low levels are also visited nine times each"
+     },
+     "check": {
+      "manual": "a count of the levels in the printed columns, given in words; no check kind counts how often a level occurs (nine -1s and nine +1s in each of the eight columns, by a numpy count over the transcribed matrix)"
+     }
+    }
+   ]
+  },
+  {
+   "name": "goos-2025-table2-32-run-8-factor-up-omars",
+   "title": "Table 2: an 8-factor 32-run non-foldover uniform-precision OMARS design",
+   "kind": "design",
+   "where": {
+    "section": "2.1, Uniform-Precision OMARS Designs",
+    "pages": "3",
+    "tables": ["Table 2"]
+   },
+   "factors": [
+    {
+     "name": "x1",
+     "description": "factor x1, three-level, quantitative; the paper gives no name, units or ranges",
+     "low": -1,
+     "high": 1,
+     "levels": [-1, 0, 1],
+     "units": "",
+     "type": "numeric"
+    },
+    {
+     "name": "x2",
+     "description": "factor x2, three-level, quantitative; the paper gives no name, units or ranges",
+     "low": -1,
+     "high": 1,
+     "levels": [-1, 0, 1],
+     "units": "",
+     "type": "numeric"
+    },
+    {
+     "name": "x3",
+     "description": "factor x3, three-level, quantitative; the paper gives no name, units or ranges",
+     "low": -1,
+     "high": 1,
+     "levels": [-1, 0, 1],
+     "units": "",
+     "type": "numeric"
+    },
+    {
+     "name": "x4",
+     "description": "factor x4, three-level, quantitative; the paper gives no name, units or ranges",
+     "low": -1,
+     "high": 1,
+     "levels": [-1, 0, 1],
+     "units": "",
+     "type": "numeric"
+    },
+    {
+     "name": "x5",
+     "description": "factor x5, three-level, quantitative; the paper gives no name, units or ranges",
+     "low": -1,
+     "high": 1,
+     "levels": [-1, 0, 1],
+     "units": "",
+     "type": "numeric"
+    },
+    {
+     "name": "x6",
+     "description": "factor x6, three-level, quantitative; the paper gives no name, units or ranges",
+     "low": -1,
+     "high": 1,
+     "levels": [-1, 0, 1],
+     "units": "",
+     "type": "numeric"
+    },
+    {
+     "name": "x7",
+     "description": "factor x7, three-level, quantitative; the paper gives no name, units or ranges",
+     "low": -1,
+     "high": 1,
+     "levels": [-1, 0, 1],
+     "units": "",
+     "type": "numeric"
+    },
+    {
+     "name": "x8",
+     "description": "factor x8, three-level, quantitative; the paper gives no name, units or ranges",
+     "low": -1,
+     "high": 1,
+     "levels": [-1, 0, 1],
+     "units": "",
+     "type": "numeric"
+    }
+   ],
+   "responses": [],
+   "design": {
+    "type": "three-level uniform-precision OMARS design, not a foldover, without a center run",
+    "details": "runs 1 and 2 are the same test combination, as are runs 31 and 32",
+    "factors": 8,
+    "n_runs": 32
+   },
+   "runs": {
+    "columns": ["Run", "x1", "x2", "x3", "x4", "x5", "x6", "x7", "x8"],
+    "rows": [
+     [1, -1, -1, -1, -1, -1, -1, -1, 0],
+     [2, -1, -1, -1, -1, -1, -1, -1, 0],
+     [3, -1, -1, -1, 1, 1, 1, 0, -1],
+     [4, -1, -1, -1, 1, 1, 0, 1, 1],
+     [5, -1, -1, 1, -1, 1, 1, 0, 1],
+     [6, -1, -1, 1, -1, 0, 1, 1, -1],
+     [7, -1, 0, 1, 1, -1, -1, 1, 1],
+     [8, -1, 0, 1, 1, 1, -1, -1, -1],
+     [9, -1, 1, -1, 1, -1, 0, 1, -1],
+     [10, -1, 1, -1, 1, 0, 1, -1, 1],
+     [11, -1, 1, 0, -1, -1, 1, 1, 1],
+     [12, -1, 1, 0, -1, 1, -1, 1, -1],
+     [13, -1, 1, 1, 0, -1, 1, -1, -1],
+     [14, -1, 1, 1, 0, 1, -1, -1, 1],
+     [15, 0, -1, 1, 1, -1, -1, 1, -1],
+     [16, 0, -1, 1, 1, -1, 1, -1, 1],
+     [17, 0, 1, -1, -1, 1, -1, 1, 1],
+     [18, 0, 1, -1, -1, 1, 1, -1, -1],
+     [19, 1, -1, -1, 0, -1, 1, 1, 1],
+     [20, 1, -1, -1, 0, 1, -1, 1, -1],
+     [21, 1, -1, 0, 1, -1, 1, -1, -1],
+     [22, 1, -1, 0, 1, 1, -1, -1, 1],
+     [23, 1, -1, 1, -1, 1, 0, -1, -1],
+     [24, 1, -1, 1, -1, 0, -1, 1, 1],
+     [25, 1, 0, -1, -1, -1, 1, 1, -1],
+     [26, 1, 0, -1, -1, 1, 1, -1, 1],
+     [27, 1, 1, -1, 1, -1, -1, 0, 1],
+     [28, 1, 1, -1, 1, 0, -1, -1, -1],
+     [29, 1, 1, 1, -1, -1, -1, 0, -1],
+     [30, 1, 1, 1, -1, -1, 0, -1, 1],
+     [31, 1, 1, 1, 1, 1, 1, 1, 0],
+     [32, 1, 1, 1, 1, 1, 1, 1, 0]
+    ],
+    "coded": true,
+    "notes": "Copied from Table 2 (p. 3) through the PDF's text layer and compared with the page image. Checks on the copy: every column has fourteen -1, four 0 and fourteen +1; is_omars() is True; not every run's mirror image is in the design; runs 1 and 2, and 31 and 32, are duplicates, as p. 3 says."
+   },
+   "notes": "The paper says the first and second runs, and the last two runs, use the same settings, so the design allows a pure-error estimate without a center run; evaluate_design's degrees_of_freedom gives 2 pure-error degrees of freedom. The paper prints no number for this, so it is not an expected item.",
+   "expected": [
+    {
+     "what": "n_runs",
+     "term": null,
+     "value": "32",
+     "analysis": "the run size of the Table 2 design",
+     "where": {
+      "page": 3,
+      "pdf_page": 3,
+      "source_kind": "caption",
+      "quote": "TABLE 2 | 8-factor 32-run non-foldover uniform-precision OMARS design."
+     },
+     "check": {
+      "kind": "design_metric",
+      "metric": "prediction_variance",
+      "key": "len",
+      "model": "main_effects"
+     }
+    },
+    {
+     "what": "n_factors",
+     "term": null,
+     "value": "8",
+     "analysis": "the number of factors of the Table 2 design",
+     "where": {
+      "page": 3,
+      "pdf_page": 3,
+      "source_kind": "caption",
+      "quote": "TABLE 2 | 8-factor 32-run non-foldover uniform-precision OMARS design."
+     },
+     "check": {
+      "kind": "design_metric",
+      "metric": "vif",
+      "key": "len",
+      "model": "main_effects"
+     }
+    }
+   ]
+  },
+  {
+   "name": "goos-2025-table3-24-run-4-factor-nup-omars",
+   "title": "Table 3: a 4-factor 24-run non-uniform-precision OMARS design",
+   "kind": "design",
+   "where": {
+    "section": "2.2, Non-Uniform-Precision OMARS Designs",
+    "pages": "4",
+    "tables": ["Table 3"]
+   },
+   "factors": [
+    {
+     "name": "x1",
+     "description": "factor x1, three-level, quantitative; the paper gives no name, units or ranges",
+     "low": -1,
+     "high": 1,
+     "levels": [-1, 0, 1],
+     "units": "",
+     "type": "numeric"
+    },
+    {
+     "name": "x2",
+     "description": "factor x2, three-level, quantitative; the paper gives no name, units or ranges",
+     "low": -1,
+     "high": 1,
+     "levels": [-1, 0, 1],
+     "units": "",
+     "type": "numeric"
+    },
+    {
+     "name": "x3",
+     "description": "factor x3, three-level, quantitative; the paper gives no name, units or ranges",
+     "low": -1,
+     "high": 1,
+     "levels": [-1, 0, 1],
+     "units": "",
+     "type": "numeric"
+    },
+    {
+     "name": "x4",
+     "description": "factor x4, three-level, quantitative; the paper gives no name, units or ranges",
+     "low": -1,
+     "high": 1,
+     "levels": [-1, 0, 1],
+     "units": "",
+     "type": "numeric"
+    }
+   ],
+   "responses": [],
+   "design": {
+    "type": "three-level non-uniform-precision OMARS design, not a foldover",
+    "details": "the middle level is used 6, 6, 8 and 8 times in x1 to x4",
+    "factors": 4,
+    "n_runs": 24
+   },
+   "runs": {
+    "columns": ["Run", "x1", "x2", "x3", "x4"],
+    "rows": [
+     [1, 1, -1, -1, 1],
+     [2, 0, 1, 0, 1],
+     [3, 0, -1, 1, 0],
+     [4, -1, 0, 1, 1],
+     [5, -1, 1, -1, -1],
+     [6, 1, -1, 1, 1],
+     [7, 1, 0, -1, -1],
+     [8, -1, 0, -1, 1],
+     [9, -1, -1, -1, -1],
+     [10, -1, -1, 0, 0],
+     [11, 1, 1, 1, -1],
+     [12, -1, 1, 0, 0],
+     [13, 1, 0, 0, 0],
+     [14, 0, -1, -1, 0],
+     [15, 0, -1, 1, -1],
+     [16, -1, 0, 1, -1],
+     [17, 1, 1, -1, 0],
+     [18, 0, 1, -1, 1],
+     [19, -1, 1, 1, 0],
+     [20, 1, 0, 0, 0],
+     [21, -1, -1, 0, 1],
+     [22, 1, 1, 1, 1],
+     [23, 1, -1, 0, -1],
+     [24, 0, 1, 0, -1]
+    ],
+    "coded": true,
+    "notes": "Copied from Table 3 (p. 4), printed in two panels (runs 1-12 and 13-24), through the PDF's text layer and compared with the page image. Checks on the copy: the 0 counts are 6, 6, 8, 8 as the text says; is_omars() is True; it is not a foldover. Runs 13 and 20 are the same test combination (1, 0, 0, 0), which the paper does not mention."
+   },
+   "expected": [
+    {
+     "what": "n_runs",
+     "term": null,
+     "value": "24",
+     "analysis": "the run size of the Table 3 design",
+     "where": {
+      "page": 4,
+      "pdf_page": 4,
+      "source_kind": "caption",
+      "quote": "TABLE 3 | 4-factor 24-run non-uniform-precision OMARS design."
+     },
+     "check": {
+      "kind": "design_metric",
+      "metric": "prediction_variance",
+      "key": "len",
+      "model": "main_effects"
+     }
+    },
+    {
+     "what": "n_factors",
+     "term": null,
+     "value": "4",
+     "analysis": "the number of factors of the Table 3 design",
+     "where": {
+      "page": 4,
+      "pdf_page": 4,
+      "source_kind": "caption",
+      "quote": "TABLE 3 | 4-factor 24-run non-uniform-precision OMARS design."
+     },
+     "check": {
+      "kind": "design_metric",
+      "metric": "vif",
+      "key": "len",
+      "model": "main_effects"
+     }
+    },
+    {
+     "what": "middle_level_count",
+     "term": "x1, x2",
+     "value": "six times",
+     "analysis": "how often the first two factors are at their middle level",
+     "where": {
+      "page": 4,
+      "pdf_page": 4,
+      "source_kind": "text",
+      "quote": "the middle level is used six times for the first two factors and eight times for the last two factors"
+     },
+     "check": {
+      "manual": "a count of the levels in the printed columns, given in words; no check kind counts how often a level occurs (six 0s in x1 and in x2, by a numpy count over the transcribed matrix)"
+     }
+    },
+    {
+     "what": "middle_level_count",
+     "term": "x3, x4",
+     "value": "eight times",
+     "analysis": "how often the last two factors are at their middle level",
+     "where": {
+      "page": 4,
+      "pdf_page": 4,
+      "source_kind": "text",
+      "quote": "the middle level is used six times for the first two factors and eight times for the last two factors"
+     },
+     "check": {
+      "manual": "a count of the levels in the printed columns, given in words; no check kind counts how often a level occurs (eight 0s in x3 and in x4, by a numpy count over the transcribed matrix)"
+     }
+    }
+   ]
+  },
+  {
+   "name": "goos-2025-table4-40-run-mixed-level-omars",
+   "title": "Table 4: a 40-run mixed-level OMARS design with six three-level and four two-level factors",
+   "kind": "design",
+   "where": {
+    "section": "3, Mixed-Level OMARS Designs",
+    "pages": "5-6",
+    "tables": ["Table 4"]
+   },
+   "factors": [
+    {
+     "name": "x1",
+     "description": "factor x1, three-level, quantitative; the paper gives no name, units or ranges",
+     "low": -1,
+     "high": 1,
+     "levels": [-1, 0, 1],
+     "units": "",
+     "type": "numeric"
+    },
+    {
+     "name": "x2",
+     "description": "factor x2, three-level, quantitative; the paper gives no name, units or ranges",
+     "low": -1,
+     "high": 1,
+     "levels": [-1, 0, 1],
+     "units": "",
+     "type": "numeric"
+    },
+    {
+     "name": "x3",
+     "description": "factor x3, three-level, quantitative; the paper gives no name, units or ranges",
+     "low": -1,
+     "high": 1,
+     "levels": [-1, 0, 1],
+     "units": "",
+     "type": "numeric"
+    },
+    {
+     "name": "x4",
+     "description": "factor x4, three-level, quantitative; the paper gives no name, units or ranges",
+     "low": -1,
+     "high": 1,
+     "levels": [-1, 0, 1],
+     "units": "",
+     "type": "numeric"
+    },
+    {
+     "name": "x5",
+     "description": "factor x5, three-level, quantitative; the paper gives no name, units or ranges",
+     "low": -1,
+     "high": 1,
+     "levels": [-1, 0, 1],
+     "units": "",
+     "type": "numeric"
+    },
+    {
+     "name": "x6",
+     "description": "factor x6, three-level, quantitative; the paper gives no name, units or ranges",
+     "low": -1,
+     "high": 1,
+     "levels": [-1, 0, 1],
+     "units": "",
+     "type": "numeric"
+    },
+    {
+     "name": "x7",
+     "description": "factor x7, two-level, quantitative or categorical; the paper gives no name, units or ranges",
+     "low": -1,
+     "high": 1,
+     "levels": [-1, 1],
+     "units": "",
+     "type": "numeric"
+    },
+    {
+     "name": "x8",
+     "description": "factor x8, two-level, quantitative or categorical; the paper gives no name, units or ranges",
+     "low": -1,
+     "high": 1,
+     "levels": [-1, 1],
+     "units": "",
+     "type": "numeric"
+    },
+    {
+     "name": "x9",
+     "description": "factor x9, two-level, quantitative or categorical; the paper gives no name, units or ranges",
+     "low": -1,
+     "high": 1,
+     "levels": [-1, 1],
+     "units": "",
+     "type": "numeric"
+    },
+    {
+     "name": "x10",
+     "description": "factor x10, two-level, quantitative or categorical; the paper gives no name, units or ranges",
+     "low": -1,
+     "high": 1,
+     "levels": [-1, 1],
+     "units": "",
+     "type": "numeric"
+    }
+   ],
+   "responses": [],
+   "design": {
+    "type": "mixed-level OMARS design, foldover",
+    "details": "x1-x6 at three levels, x7-x10 at two levels; runs 35-37 are one test combination and runs 38-40 another",
+    "factors": 10,
+    "n_runs": 40
+   },
+   "runs": {
+    "columns": ["Run", "x1", "x2", "x3", "x4", "x5", "x6", "x7", "x8", "x9", "x10"],
+    "rows": [
+     [1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1],
+     [2, -1, -1, -1, 1, -1, -1, -1, 1, 1, 1],
+     [3, -1, -1, 0, -1, 1, 0, 1, -1, 1, -1],
+     [4, -1, -1, 1, 0, 0, 1, -1, -1, -1, 1],
+     [5, -1, 0, 0, 1, -1, 1, 1, -1, 1, -1],
+     [6, -1, 0, 1, -1, 0, -1, 1, 1, 1, 1],
+     [7, -1, 0, 1, 0, 1, -1, 1, 1, -1, -1],
+     [8, -1, 0, 1, 1, 1, 0, -1, -1, 1, 1],
+     [9, -1, 1, -1, 0, 1, 0, -1, 1, -1, 1],
+     [10, -1, 1, -1, 1, 0, 0, 1, -1, -1, -1],
+     [11, -1, 1, 0, -1, 0, 1, -1, 1, -1, -1],
+     [12, -1, 1, 0, 0, -1, 1, 1, 1, 1, 1],
+     [13, 0, -1, -1, 0, 1, 1, 1, 1, 1, -1],
+     [14, 0, -1, -1, 1, 1, 0, 1, 1, -1, 1],
+     [15, 0, -1, 0, -1, -1, 1, 1, 1, -1, 1],
+     [16, 0, -1, 1, 1, 0, 1, -1, 1, -1, -1],
+     [17, 0, 0, -1, -1, 1, 1, -1, -1, 1, 1],
+     [18, 0, 0, 1, 1, -1, -1, 1, 1, -1, -1],
+     [19, 0, 1, -1, -1, 0, -1, 1, -1, 1, 1],
+     [20, 0, 1, 0, 1, 1, -1, -1, -1, 1, -1],
+     [21, 0, 1, 1, -1, -1, 0, -1, -1, 1, -1],
+     [22, 0, 1, 1, 0, -1, -1, -1, -1, -1, 1],
+     [23, 1, -1, 0, 0, 1, -1, -1, -1, -1, -1],
+     [24, 1, -1, 0, 1, 0, -1, 1, -1, 1, 1],
+     [25, 1, -1, 1, -1, 0, 0, -1, 1, 1, 1],
+     [26, 1, -1, 1, 0, -1, 0, 1, -1, 1, -1],
+     [27, 1, 0, -1, -1, -1, 0, 1, 1, -1, -1],
+     [28, 1, 0, -1, 0, -1, 1, -1, -1, 1, 1],
+     [29, 1, 0, -1, 1, 0, 1, -1, -1, -1, -1],
+     [30, 1, 0, 0, -1, 1, -1, -1, 1, -1, 1],
+     [31, 1, 1, -1, 0, 0, -1, 1, 1, 1, -1],
+     [32, 1, 1, 0, 1, -1, 0, -1, 1, -1, 1],
+     [33, 1, 1, 1, -1, 1, 1, 1, -1, -1, -1],
+     [34, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
+     [35, 0, 0, 0, 0, 0, 0, -1, 1, 1, -1],
+     [36, 0, 0, 0, 0, 0, 0, -1, 1, 1, -1],
+     [37, 0, 0, 0, 0, 0, 0, -1, 1, 1, -1],
+     [38, 0, 0, 0, 0, 0, 0, 1, -1, -1, 1],
+     [39, 0, 0, 0, 0, 0, 0, 1, -1, -1, 1],
+     [40, 0, 0, 0, 0, 0, 0, 1, -1, -1, 1]
+    ],
+    "coded": true,
+    "notes": "Copied from Table 4 (p. 5, printed rotated in two panels, runs 1-20 and 21-40) through the PDF's text layer and compared with the page image. Checks on the copy: x1-x6 have sixteen 0s each and x7-x10 none; the main effects are orthogonal to each other and to every second-order column; it is a foldover (run 1 mirrors run 34, and so on); runs 35-37 and 38-40 are triplicates, as p. 6 says; x1-x6 alone pass is_omars(), and x7-x10 alone are an orthogonal array of strength 3."
+   },
+   "notes": "is_omars() is False for all ten columns only because x7-x10 have no middle level (it tests three-level designs); the mixed-level OMARS properties hold.",
+   "expected": [
+    {
+     "what": "n_runs",
+     "term": null,
+     "value": "40",
+     "analysis": "the run size of the mixed-level OMARS design of Table 4",
+     "where": {
+      "page": 5,
+      "pdf_page": 5,
+      "source_kind": "caption",
+      "quote": "TABLE 4 | 40-run mixed-level OMARS design involving six three-level factors (x1–x6) and four two-level factors (x7–x10)."
+     },
+     "check": {
+      "kind": "design_metric",
+      "metric": "prediction_variance",
+      "key": "len",
+      "model": "main_effects"
+     }
+    },
+    {
+     "what": "n_factors",
+     "term": null,
+     "value": "10",
+     "analysis": "the number of factors of the Table 4 design",
+     "where": {
+      "page": 6,
+      "pdf_page": 6,
+      "source_kind": "text",
+      "quote": "Table 4 shows a 10-factor mixed-level OMARS design."
+     },
+     "check": {
+      "kind": "design_metric",
+      "metric": "vif",
+      "key": "len",
+      "model": "main_effects"
+     }
+    },
+    {
+     "what": "n_three_level_factors",
+     "term": null,
+     "value": "six",
+     "analysis": "the number of three-level factors",
+     "where": {
+      "page": 6,
+      "pdf_page": 6,
+      "source_kind": "text",
+      "quote": "The first six factors are studied at three levels, while the last four are studied at two levels only."
+     },
+     "check": {
+      "manual": "printed in words (six), which no check can compare as digits; no check kind counts the levels of a column (x1-x6 take -1, 0 and +1 in the transcription)"
+     }
+    },
+    {
+     "what": "n_two_level_factors",
+     "term": null,
+     "value": "four",
+     "analysis": "the number of two-level factors",
+     "where": {
+      "page": 6,
+      "pdf_page": 6,
+      "source_kind": "text",
+      "quote": "The first six factors are studied at three levels, while the last four are studied at two levels only."
+     },
+     "check": {
+      "manual": "printed in words (four), which no check can compare as digits; no check kind counts the levels of a column (x7-x10 take only -1 and +1 in the transcription)"
+     }
+    },
+    {
+     "what": "replicated_runs",
+     "term": null,
+     "value": "runs 35–37",
+     "analysis": "the first of two triplicated test combinations",
+     "where": {
+      "page": 6,
+      "pdf_page": 6,
+      "source_kind": "text",
+      "quote": "runs 35–37 are all performed at one given factor level combination, while runs 38–40 are all performed at another"
+     },
+     "check": {
+      "manual": "run labels of replicated test combinations; no check kind finds replicates (the transcription's runs 35, 36 and 37 are identical, and evaluate_design's degrees_of_freedom gives 4 pure-error degrees of freedom for the two triplicates)"
+     }
+    },
+    {
+     "what": "replicated_runs",
+     "term": null,
+     "value": "runs 38–40",
+     "analysis": "the second of two triplicated test combinations",
+     "where": {
+      "page": 6,
+      "pdf_page": 6,
+      "source_kind": "text",
+      "quote": "runs 35–37 are all performed at one given factor level combination, while runs 38–40 are all performed at another"
+     },
+     "check": {
+      "manual": "run labels of replicated test combinations; no check kind finds replicates (the transcription's runs 38, 39 and 40 are identical)"
+     }
+    },
+    {
+     "what": "n_factors",
+     "term": null,
+     "value": "6-factor",
+     "analysis": "the projection onto the three-level factors x1-x6",
+     "where": {
+      "page": 6,
+      "pdf_page": 6,
+      "source_kind": "text",
+      "quote": "The three-level design obtained by dropping the four two-level factors is a uniform-precision three-level 6-factor OMARS design."
+     },
+     "check": {
+      "manual": "a property of the projection onto x1-x6, and a design_metric check evaluates all of an entry's factors; omars_properties() on those six columns gives n_factors 6 and is_omars True, with sixteen 0s in every column (uniform precision)"
+     }
+    }
+   ]
+  },
+  {
+   "name": "goos-2025-table4-two-level-projection",
+   "title": "The two-level design obtained by dropping the six three-level factors of Table 4",
+   "kind": "design",
+   "where": {
+    "section": "3, Mixed-Level OMARS Designs",
+    "pages": "5-6",
+    "tables": ["Table 4"]
+   },
+   "factors": [
+    {
+     "name": "x7",
+     "description": "factor x7, two-level, quantitative or categorical; the paper gives no name, units or ranges",
+     "low": -1,
+     "high": 1,
+     "levels": [-1, 1],
+     "units": "",
+     "type": "numeric"
+    },
+    {
+     "name": "x8",
+     "description": "factor x8, two-level, quantitative or categorical; the paper gives no name, units or ranges",
+     "low": -1,
+     "high": 1,
+     "levels": [-1, 1],
+     "units": "",
+     "type": "numeric"
+    },
+    {
+     "name": "x9",
+     "description": "factor x9, two-level, quantitative or categorical; the paper gives no name, units or ranges",
+     "low": -1,
+     "high": 1,
+     "levels": [-1, 1],
+     "units": "",
+     "type": "numeric"
+    },
+    {
+     "name": "x10",
+     "description": "factor x10, two-level, quantitative or categorical; the paper gives no name, units or ranges",
+     "low": -1,
+     "high": 1,
+     "levels": [-1, 1],
+     "units": "",
+     "type": "numeric"
+    }
+   ],
+   "responses": [],
+   "design": {
+    "type": "two-level orthogonal array of strength 3",
+    "details": "columns x7-x10 of Table 4",
+    "factors": 4,
+    "n_runs": 40
+   },
+   "runs": {
+    "columns": ["Run", "x7", "x8", "x9", "x10"],
+    "rows": [
+     [1, -1, -1, -1, -1],
+     [2, -1, 1, 1, 1],
+     [3, 1, -1, 1, -1],
+     [4, -1, -1, -1, 1],
+     [5, 1, -1, 1, -1],
+     [6, 1, 1, 1, 1],
+     [7, 1, 1, -1, -1],
+     [8, -1, -1, 1, 1],
+     [9, -1, 1, -1, 1],
+     [10, 1, -1, -1, -1],
+     [11, -1, 1, -1, -1],
+     [12, 1, 1, 1, 1],
+     [13, 1, 1, 1, -1],
+     [14, 1, 1, -1, 1],
+     [15, 1, 1, -1, 1],
+     [16, -1, 1, -1, -1],
+     [17, -1, -1, 1, 1],
+     [18, 1, 1, -1, -1],
+     [19, 1, -1, 1, 1],
+     [20, -1, -1, 1, -1],
+     [21, -1, -1, 1, -1],
+     [22, -1, -1, -1, 1],
+     [23, -1, -1, -1, -1],
+     [24, 1, -1, 1, 1],
+     [25, -1, 1, 1, 1],
+     [26, 1, -1, 1, -1],
+     [27, 1, 1, -1, -1],
+     [28, -1, -1, 1, 1],
+     [29, -1, -1, -1, -1],
+     [30, -1, 1, -1, 1],
+     [31, 1, 1, 1, -1],
+     [32, -1, 1, -1, 1],
+     [33, 1, -1, -1, -1],
+     [34, 1, 1, 1, 1],
+     [35, -1, 1, 1, -1],
+     [36, -1, 1, 1, -1],
+     [37, -1, 1, 1, -1],
+     [38, 1, -1, -1, 1],
+     [39, 1, -1, -1, 1],
+     [40, 1, -1, -1, 1]
+    ],
+    "coded": true,
+    "notes": "Columns x7-x10 of the Table 4 entry (goos-2025-table4-40-run-mixed-level-omars), as the paper describes this projection on p. 6; not printed separately."
+   },
+   "expected": [
+    {
+     "what": "strength",
+     "term": null,
+     "value": "strength-3",
+     "analysis": "the strength of the two-level orthogonal array",
+     "where": {
+      "page": 6,
+      "pdf_page": 6,
+      "source_kind": "text",
+      "quote": "The two-level design obtained by dropping the six three-level factors is a strength-3 two-level orthogonal array"
+     },
+     "check": {
+      "kind": "design_metric",
+      "metric": "moment_aberration",
+      "key": "strength",
+      "model": "main_effects",
+      "printed": "3"
+     }
+    },
+    {
+     "what": "n_runs",
+     "term": null,
+     "value": "40",
+     "analysis": "the run size of the orthogonal array",
+     "where": {
+      "page": 6,
+      "pdf_page": 6,
+      "source_kind": "text",
+      "quote": "That orthogonal array is the best one available to study the main effects and the two-factor interaction effects of four factors in 40 experimental runs."
+     },
+     "check": {
+      "kind": "design_metric",
+      "metric": "prediction_variance",
+      "key": "len",
+      "model": "main_effects"
+     }
+    },
+    {
+     "what": "n_factors",
+     "term": null,
+     "value": "four",
+     "analysis": "the number of factors of the orthogonal array",
+     "where": {
+      "page": 6,
+      "pdf_page": 6,
+      "source_kind": "text",
+      "quote": "the best one available to study the main effects and the two-factor interaction effects of four factors in 40 experimental runs"
+     },
+     "check": {
+      "manual": "printed in words (four), which no check can compare as digits; the count of columns x7-x10; that it is the best array for these effects is a claim the paper does not quantify"
+     }
+    }
+   ]
+  },
+  {
+   "name": "goos-2025-table5-24-run-mixed-level-blocked-omars",
+   "title": "Table 5: a 24-run mixed-level OMARS design with four three-level and four two-level factors, and five orthogonal blocking arrangements",
+   "kind": "design",
+   "where": {
+    "section": "5.3, Arranging OMARS Designs in Blocks",
+    "pages": "8-9",
+    "tables": ["Table 5"]
+   },
+   "factors": [
+    {
+     "name": "x1",
+     "description": "factor x1, three-level, quantitative; the paper gives no name, units or ranges",
+     "low": -1,
+     "high": 1,
+     "levels": [-1, 0, 1],
+     "units": "",
+     "type": "numeric"
+    },
+    {
+     "name": "x2",
+     "description": "factor x2, three-level, quantitative; the paper gives no name, units or ranges",
+     "low": -1,
+     "high": 1,
+     "levels": [-1, 0, 1],
+     "units": "",
+     "type": "numeric"
+    },
+    {
+     "name": "x3",
+     "description": "factor x3, three-level, quantitative; the paper gives no name, units or ranges",
+     "low": -1,
+     "high": 1,
+     "levels": [-1, 0, 1],
+     "units": "",
+     "type": "numeric"
+    },
+    {
+     "name": "x4",
+     "description": "factor x4, three-level, quantitative; the paper gives no name, units or ranges",
+     "low": -1,
+     "high": 1,
+     "levels": [-1, 0, 1],
+     "units": "",
+     "type": "numeric"
+    },
+    {
+     "name": "x5",
+     "description": "factor x5, two-level, quantitative or categorical; the paper gives no name, units or ranges",
+     "low": -1,
+     "high": 1,
+     "levels": [-1, 1],
+     "units": "",
+     "type": "numeric"
+    },
+    {
+     "name": "x6",
+     "description": "factor x6, two-level, quantitative or categorical; the paper gives no name, units or ranges",
+     "low": -1,
+     "high": 1,
+     "levels": [-1, 1],
+     "units": "",
+     "type": "numeric"
+    },
+    {
+     "name": "x7",
+     "description": "factor x7, two-level, quantitative or categorical; the paper gives no name, units or ranges",
+     "low": -1,
+     "high": 1,
+     "levels": [-1, 1],
+     "units": "",
+     "type": "numeric"
+    },
+    {
+     "name": "x8",
+     "description": "factor x8, two-level, quantitative or categorical; the paper gives no name, units or ranges",
+     "low": -1,
+     "high": 1,
+     "levels": [-1, 1],
+     "units": "",
+     "type": "numeric"
+    }
+   ],
+   "responses": [],
+   "design": {
+    "type": "mixed-level OMARS design, foldover, with five orthogonal blocking arrangements",
+    "details": "x1-x4 at three levels, x5-x8 at two levels; columns A to E give each run's block in two, three, four, six and twelve blocks",
+    "factors": 8,
+    "n_runs": 24
+   },
+   "runs": {
+    "columns": ["Run", "x1", "x2", "x3", "x4", "x5", "x6", "x7", "x8", "A", "B", "C", "D", "E"],
+    "rows": [
+     [1, -1, -1, -1, -1, 1, 1, -1, -1, 2, 3, 1, 3, 9],
+     [2, -1, -1, -1, 0, -1, -1, 1, -1, 1, 2, 3, 2, 10],
+     [3, -1, -1, 0, -1, 1, -1, 1, 1, 1, 1, 2, 5, 5],
+     [4, -1, -1, 1, 1, -1, 1, -1, 1, 2, 3, 3, 3, 3],
+     [5, -1, 0, -1, 1, -1, 1, 1, 1, 1, 1, 2, 6, 6],
+     [6, -1, 0, 1, 1, 1, -1, -1, -1, 1, 2, 4, 6, 4],
+     [7, -1, 1, -1, 1, 1, -1, -1, 1, 2, 3, 2, 1, 2],
+     [8, -1, 1, 0, -1, -1, 1, -1, -1, 1, 2, 3, 5, 7],
+     [9, -1, 1, 1, -1, 1, 1, 1, 1, 2, 3, 4, 1, 11],
+     [10, -1, 1, 1, 0, -1, -1, 1, -1, 1, 1, 1, 2, 12],
+     [11, 0, -1, 1, -1, -1, -1, -1, 1, 2, 2, 1, 4, 1],
+     [12, 0, -1, 1, 1, 1, 1, 1, -1, 2, 1, 4, 4, 8],
+     [13, 0, 1, -1, -1, -1, -1, -1, 1, 2, 1, 4, 4, 8],
+     [14, 0, 1, -1, 1, 1, 1, 1, -1, 2, 2, 1, 4, 1],
+     [15, 1, -1, -1, 0, 1, 1, -1, 1, 1, 1, 1, 2, 12],
+     [16, 1, -1, -1, 1, -1, -1, -1, -1, 2, 3, 4, 1, 11],
+     [17, 1, -1, 0, 1, 1, -1, 1, 1, 1, 2, 3, 5, 7],
+     [18, 1, -1, 1, -1, -1, 1, 1, -1, 2, 3, 2, 1, 2],
+     [19, 1, 0, -1, -1, -1, 1, 1, 1, 1, 2, 4, 6, 4],
+     [20, 1, 0, 1, -1, 1, -1, -1, -1, 1, 1, 2, 6, 6],
+     [21, 1, 1, -1, -1, 1, -1, 1, -1, 2, 3, 3, 3, 3],
+     [22, 1, 1, 0, 1, -1, 1, -1, -1, 1, 1, 2, 5, 5],
+     [23, 1, 1, 1, 0, 1, 1, -1, 1, 1, 2, 3, 2, 10],
+     [24, 1, 1, 1, 1, -1, -1, 1, 1, 2, 3, 1, 3, 9]
+    ],
+    "coded": true,
+    "notes": "Copied from Table 5 (p. 8) through the PDF's text layer and compared with the page image. A to E are the blocking arrangements (block labels), not factors. Checks on the copy: x1-x4 have four 0s each; the main effects are orthogonal to each other and to every second-order column; it is a foldover; in every arrangement every factor's levels sum to zero within each block, as p. 9 says."
+   },
+   "expected": [
+    {
+     "what": "n_runs",
+     "term": null,
+     "value": "24",
+     "analysis": "the run size of the blocked mixed-level OMARS design",
+     "where": {
+      "page": 8,
+      "pdf_page": 8,
+      "source_kind": "caption",
+      "quote": "TABLE 5 | 24-run mixed-level OMARS design with four three-level factors and four two-level factors"
+     },
+     "check": {
+      "kind": "design_metric",
+      "metric": "prediction_variance",
+      "key": "len",
+      "model": "main_effects"
+     }
+    },
+    {
+     "what": "n_three_level_factors",
+     "term": null,
+     "value": "four",
+     "analysis": "the number of three-level factors",
+     "where": {
+      "page": 8,
+      "pdf_page": 8,
+      "source_kind": "caption",
+      "quote": "24-run mixed-level OMARS design with four three-level factors and four two-level factors"
+     },
+     "check": {
+      "manual": "printed in words (four), which no check can compare as digits; no check kind counts the levels of a column (x1-x4 take -1, 0 and +1 in the transcription)"
+     }
+    },
+    {
+     "what": "n_two_level_factors",
+     "term": null,
+     "value": "four",
+     "analysis": "the number of two-level factors",
+     "where": {
+      "page": 8,
+      "pdf_page": 8,
+      "source_kind": "caption",
+      "quote": "24-run mixed-level OMARS design with four three-level factors and four two-level factors"
+     },
+     "check": {
+      "manual": "printed in words (four), which no check can compare as digits; no check kind counts the levels of a column (x5-x8 take only -1 and +1 in the transcription)"
+     }
+    },
+    {
+     "what": "n_blocking_arrangements",
+     "term": null,
+     "value": "five",
+     "analysis": "the number of orthogonal blocking arrangements shown",
+     "where": {
+      "page": 9,
+      "pdf_page": 9,
+      "source_kind": "text",
+      "quote": "Table 5 shows five orthogonal blocking arrangements of a 24-run mixed-level OMARS design"
+     },
+     "check": {
+      "manual": "printed in words (five), which no check can compare as digits; the columns A to E of Table 5"
+     }
+    },
+    {
+     "what": "blocks",
+     "term": "A",
+     "value": "two blocks of 12 runs",
+     "analysis": "blocking arrangement A",
+     "where": {
+      "page": 9,
+      "pdf_page": 9,
+      "source_kind": "text",
+      "quote": "involve two blocks of 12 runs, three blocks of eight runs, four blocks of six runs"
+     },
+     "check": {
+      "manual": "a count of runs per block label in the printed arrangement A; no check kind reads a blocking column (the transcription has blocks 1 and 2 with 12 runs each, and the levels of every factor sum to zero within every block)"
+     }
+    },
+    {
+     "what": "blocks",
+     "term": "B",
+     "value": "three blocks of eight runs",
+     "analysis": "blocking arrangement B",
+     "where": {
+      "page": 9,
+      "pdf_page": 9,
+      "source_kind": "text",
+      "quote": "involve two blocks of 12 runs, three blocks of eight runs, four blocks of six runs"
+     },
+     "check": {
+      "manual": "a count of runs per block label in the printed arrangement B; no check kind reads a blocking column (the transcription has blocks 1 to 3 with 8 runs each, and the levels of every factor sum to zero within every block)"
+     }
+    },
+    {
+     "what": "blocks",
+     "term": "C",
+     "value": "four blocks of six runs",
+     "analysis": "blocking arrangement C",
+     "where": {
+      "page": 9,
+      "pdf_page": 9,
+      "source_kind": "text",
+      "quote": "three blocks of eight runs, four blocks of six runs, six blocks of four runs"
+     },
+     "check": {
+      "manual": "a count of runs per block label in the printed arrangement C; no check kind reads a blocking column (the transcription has blocks 1 to 4 with 6 runs each, and the levels of every factor sum to zero within every block)"
+     }
+    },
+    {
+     "what": "blocks",
+     "term": "D",
+     "value": "six blocks of four runs",
+     "analysis": "blocking arrangement D",
+     "where": {
+      "page": 9,
+      "pdf_page": 9,
+      "source_kind": "text",
+      "quote": "four blocks of six runs, six blocks of four runs, and twelve blocks of two runs, respectively"
+     },
+     "check": {
+      "manual": "a count of runs per block label in the printed arrangement D; no check kind reads a blocking column (the transcription has blocks 1 to 6 with 4 runs each, and the levels of every factor sum to zero within every block)"
+     }
+    },
+    {
+     "what": "blocks",
+     "term": "E",
+     "value": "twelve blocks of two runs",
+     "analysis": "blocking arrangement E",
+     "where": {
+      "page": 9,
+      "pdf_page": 9,
+      "source_kind": "text",
+      "quote": "six blocks of four runs, and twelve blocks of two runs, respectively"
+     },
+     "check": {
+      "manual": "a count of runs per block label in the printed arrangement E; no check kind reads a blocking column (the transcription has blocks 1 to 12 with 2 runs each, and the levels of every factor sum to zero within every block)"
+     }
+    }
+   ]
+  },
+  {
+   "name": "goos-2025-weighing-matrix-14-run-7-factor-omars",
+   "title": "A 7-factor 14-run OMARS design folded over from a circulant weighing matrix of order 7 and weight 4",
+   "kind": "design",
+   "where": {
+    "section": "5.4.1, Folding Over a Conference Matrix or a Weighing Matrix",
+    "pages": "9"
+   },
+   "factors": [
+    {
+     "name": "x1",
+     "description": "factor x1, three-level, quantitative; the paper gives no name, units or ranges",
+     "low": -1,
+     "high": 1,
+     "levels": [-1, 0, 1],
+     "units": "",
+     "type": "numeric"
+    },
+    {
+     "name": "x2",
+     "description": "factor x2, three-level, quantitative; the paper gives no name, units or ranges",
+     "low": -1,
+     "high": 1,
+     "levels": [-1, 0, 1],
+     "units": "",
+     "type": "numeric"
+    },
+    {
+     "name": "x3",
+     "description": "factor x3, three-level, quantitative; the paper gives no name, units or ranges",
+     "low": -1,
+     "high": 1,
+     "levels": [-1, 0, 1],
+     "units": "",
+     "type": "numeric"
+    },
+    {
+     "name": "x4",
+     "description": "factor x4, three-level, quantitative; the paper gives no name, units or ranges",
+     "low": -1,
+     "high": 1,
+     "levels": [-1, 0, 1],
+     "units": "",
+     "type": "numeric"
+    },
+    {
+     "name": "x5",
+     "description": "factor x5, three-level, quantitative; the paper gives no name, units or ranges",
+     "low": -1,
+     "high": 1,
+     "levels": [-1, 0, 1],
+     "units": "",
+     "type": "numeric"
+    },
+    {
+     "name": "x6",
+     "description": "factor x6, three-level, quantitative; the paper gives no name, units or ranges",
+     "low": -1,
+     "high": 1,
+     "levels": [-1, 0, 1],
+     "units": "",
+     "type": "numeric"
+    },
+    {
+     "name": "x7",
+     "description": "factor x7, three-level, quantitative; the paper gives no name, units or ranges",
+     "low": -1,
+     "high": 1,
+     "levels": [-1, 0, 1],
+     "units": "",
+     "type": "numeric"
+    }
+   ],
+   "responses": [],
+   "design": {
+    "type": "three-level uniform-precision OMARS design, foldover of a weighing matrix",
+    "details": "W is the circulant matrix generated by (0, -1, 1, 1, 0, 1, 0); the design is [W; -W]",
+    "factors": 7,
+    "n_runs": 14
+   },
+   "runs": {
+    "columns": ["Run", "x1", "x2", "x3", "x4", "x5", "x6", "x7"],
+    "rows": [
+     [1, 0, -1, 1, 1, 0, 1, 0],
+     [2, 0, 0, -1, 1, 1, 0, 1],
+     [3, 1, 0, 0, -1, 1, 1, 0],
+     [4, 0, 1, 0, 0, -1, 1, 1],
+     [5, 1, 0, 1, 0, 0, -1, 1],
+     [6, 1, 1, 0, 1, 0, 0, -1],
+     [7, -1, 1, 1, 0, 1, 0, 0],
+     [8, 0, 1, -1, -1, 0, -1, 0],
+     [9, 0, 0, 1, -1, -1, 0, -1],
+     [10, -1, 0, 0, 1, -1, -1, 0],
+     [11, 0, -1, 0, 0, 1, -1, -1],
+     [12, -1, 0, -1, 0, 0, 1, -1],
+     [13, -1, -1, 0, -1, 0, 0, 1],
+     [14, 1, -1, -1, 0, -1, 0, 0]
+    ],
+    "coded": true,
+    "notes": "Not printed: built from the generating vector the paper prints, (0, -1, 1, 1, 0, 1, 0). Runs 1-7 are W, each row the one above shifted cyclically one place to the right (shifting left gives the same seven rows in another order); runs 8-14 are -W, the foldover. Checks: W'W = 4I; every column of the design has six 0s; is_omars() is True. The run order is ours."
+   },
+   "expected": [
+    {
+     "what": "order",
+     "term": null,
+     "value": "7",
+     "analysis": "the order of the weighing matrix built by cyclically permuting the vector",
+     "where": {
+      "page": 9,
+      "pdf_page": 9,
+      "source_kind": "text",
+      "quote": "By cyclically permuting this vector, we can construct a weighing matrix of order 7 and weight 4."
+     },
+     "check": {
+      "kind": "design_metric",
+      "metric": "prediction_variance",
+      "key": "len",
+      "model": "x1 + x2 + x3 + x4 + x5 + x6 + x7 - 1",
+      "runs": [1, 2, 3, 4, 5, 6, 7]
+     }
+    },
+    {
+     "what": "weight",
+     "term": null,
+     "value": "4",
+     "analysis": "the weight w of the weighing matrix, W'W = wI",
+     "where": {
+      "page": 9,
+      "pdf_page": 9,
+      "source_kind": "text",
+      "quote": "By cyclically permuting this vector, we can construct a weighing matrix of order 7 and weight 4."
+     },
+     "check": {
+      "kind": "design_metric",
+      "metric": "e_optimality",
+      "model": "x1 + x2 + x3 + x4 + x5 + x6 + x7 - 1",
+      "runs": [1, 2, 3, 4, 5, 6, 7]
+     }
+    },
+    {
+     "what": "n_factors",
+     "term": null,
+     "value": "7",
+     "analysis": "the number of factors of the folded-over design",
+     "where": {
+      "page": 9,
+      "pdf_page": 9,
+      "source_kind": "text",
+      "quote": "Folding over this weighing matrix produces a 7-factor OMARS design with 14 runs and six zeros per column."
+     },
+     "check": {
+      "kind": "design_metric",
+      "metric": "vif",
+      "key": "len",
+      "model": "main_effects"
+     }
+    },
+    {
+     "what": "n_runs",
+     "term": null,
+     "value": "14",
+     "analysis": "the run size of the folded-over design",
+     "where": {
+      "page": 9,
+      "pdf_page": 9,
+      "source_kind": "text",
+      "quote": "Folding over this weighing matrix produces a 7-factor OMARS design with 14 runs and six zeros per column."
+     },
+     "check": {
+      "kind": "design_metric",
+      "metric": "prediction_variance",
+      "key": "len",
+      "model": "main_effects"
+     }
+    },
+    {
+     "what": "middle_level_count",
+     "term": null,
+     "value": "six zeros per column",
+     "analysis": "how often each factor is at its middle level",
+     "where": {
+      "page": 9,
+      "pdf_page": 9,
+      "source_kind": "text",
+      "quote": "Folding over this weighing matrix produces a 7-factor OMARS design with 14 runs and six zeros per column."
+     },
+     "check": {
+      "manual": "a count of the levels in the printed columns, given in words; no check kind counts how often a level occurs (six 0s in each of the seven columns, by a numpy count over the transcribed matrix)"
+     }
+    }
+   ]
+  },
+  {
+   "name": "goos-2025-six-factor-response-surface-designs",
+   "title": "Run sizes of the 6-factor face-centered central composite and Box-Behnken designs, each with one center run, against strong OMARS designs",
+   "kind": "design",
+   "where": {
+    "section": "4, Strong OMARS Designs",
+    "pages": "6"
+   },
+   "design": {
+    "type": "face-centered central composite and Box-Behnken designs for six factors, one center run each",
+    "details": "45 runs is the central composite design whose cube is the 2^(6-1) half fraction (32 + 12 axial + 1 center); with the full 2^6 cube it would have 77 runs. The paper does not name the cube, but only the half fraction gives its 45 runs. The Box-Behnken design has 48 runs plus the center run."
+   },
+   "expected": [
+    {
+     "what": "n_runs",
+     "term": "central composite",
+     "value": "45",
+     "analysis": "the face-centered 6-factor central composite design, with one center run",
+     "where": {
+      "page": 6,
+      "pdf_page": 6,
+      "source_kind": "text",
+      "quote": "assuming they include one center run, the face-centered 6-factor central composite design and the 6-factor Box–Behnken design involve 45 and 49 runs"
+     },
+     "check": {
+      "kind": "design_property",
+      "property": "n_runs",
+      "design": {
+       "design_type": "ccd",
+       "k": 6,
+       "options": {
+        "alpha": "face_centered",
+        "cube": "fractional",
+        "n_center_points": 1
+       }
+      }
+     }
+    },
+    {
+     "what": "n_runs",
+     "term": "Box-Behnken",
+     "value": "49",
+     "analysis": "the 6-factor Box-Behnken design, with one center run",
+     "where": {
+      "page": 6,
+      "pdf_page": 6,
+      "source_kind": "text",
+      "quote": "assuming they include one center run, the face-centered 6-factor central composite design and the 6-factor Box–Behnken design involve 45 and 49 runs"
+     },
+     "check": {
+      "kind": "design_property",
+      "property": "n_runs",
+      "design": {
+       "design_type": "box_behnken",
+       "k": 6,
+       "options": {
+        "n_center_points": 1
+       }
+      }
+     }
+    },
+    {
+     "what": "n_runs",
+     "term": "strong OMARS",
+     "value": "40",
+     "analysis": "the run size of multiple three-level strong OMARS designs for six factors",
+     "where": {
+      "page": 6,
+      "pdf_page": 6,
+      "source_kind": "text",
+      "quote": "There exist, however, multiple three-level strong OMARS designs with 40 runs only"
+     },
+     "check": {
+      "manual": "a result of Goos and Núñez Ares (2025), cited without the designs; the library builds foldover OMARS designs (generate_omars) but has no strong-OMARS constraint (two-factor interactions orthogonal to each other and to the quadratics), so it cannot confirm that one exists"
+     }
+    }
+   ]
+  },
+  {
+   "name": "goos-2025-definitive-screening-middle-level",
+   "title": "Definitive screening designs with one center run, as uniform-precision OMARS designs",
+   "kind": "design",
+   "where": {
+    "section": "2.1, Uniform-Precision OMARS Designs",
+    "pages": "2"
+   },
+   "design": {
+    "type": "definitive screening design with one center run",
+    "details": "any number of factors"
+   },
+   "expected": [
+    {
+     "what": "middle_level_count",
+     "term": null,
+     "value": "three times",
+     "analysis": "how often a definitive screening design with one center run visits each factor's middle level",
+     "where": {
+      "page": 2,
+      "pdf_page": 2,
+      "source_kind": "text",
+      "quote": "definitive screening designs involving one center run visit every factor at its middle level only three times"
+     },
+     "check": {
+      "manual": "printed in words, and no check kind counts how often a level occurs; generate_design(design_type='dsd') gives three 0s in every column for 4, 5, 6, 7 and 8 factors (confirmed): one from each half of the folded conference matrix and one from the center run"
+     }
+    }
+   ]
+  },
+  {
+   "name": "goos-2025-omars-catalogue-counts",
+   "title": "Numbers of non-isomorphic OMARS designs found by enumeration",
+   "kind": "design",
+   "where": {
+    "section": "2.4, Number of Different OMARS Designs; 7.2, OMARS Designs in the EFFEX Software",
+    "pages": "4, 11"
+   },
+   "design": {
+    "type": "catalogue of three-level OMARS designs",
+    "details": "counts of non-isomorphic uniform-precision and non-uniform-precision OMARS designs reported from Núñez Ares and Goos (2020) and later work; no design of the catalogue is printed"
+   },
+   "notes": "The 5-factor counts are consistent with each other: 5373 + 26 = 5399, 5350 + 23 = 5373, and 5373 of 5399 is 99.5%, more than 99%.",
+   "expected": [
+    {
+     "what": "n_designs",
+     "term": "3 factors",
+     "value": "five",
+     "analysis": "uniform-precision OMARS designs with 3 factors",
+     "where": {
+      "page": 4,
+      "pdf_page": 4,
+      "source_kind": "text",
+      "quote": "found the following numbers of uniform-precision OMARS designs: five 3-factor designs, 41 4-factor designs"
+     },
+     "check": {
+      "manual": "a count of non-isomorphic designs from the enumeration of Núñez Ares and Goos (2020) and their later catalogue, reported here without the designs; the library cannot enumerate non-isomorphic OMARS designs (generate_omars searches for one foldover design, and its exhaustive mode counts selections, not isomorphism classes)"
+     }
+    },
+    {
+     "what": "n_designs",
+     "term": "4 factors",
+     "value": "41",
+     "analysis": "uniform-precision OMARS designs with 4 factors",
+     "where": {
+      "page": 4,
+      "pdf_page": 4,
+      "source_kind": "text",
+      "quote": "five 3-factor designs, 41 4-factor designs, 5399 5-factor designs, 1406 6-factor designs"
+     },
+     "check": {
+      "manual": "a count of non-isomorphic designs from the enumeration of Núñez Ares and Goos (2020) and their later catalogue, reported here without the designs; the library cannot enumerate non-isomorphic OMARS designs (generate_omars searches for one foldover design, and its exhaustive mode counts selections, not isomorphism classes)"
+     }
+    },
+    {
+     "what": "n_designs",
+     "term": "5 factors",
+     "value": "5399",
+     "analysis": "uniform-precision OMARS designs with 5 factors",
+     "where": {
+      "page": 4,
+      "pdf_page": 4,
+      "source_kind": "text",
+      "quote": "five 3-factor designs, 41 4-factor designs, 5399 5-factor designs, 1406 6-factor designs"
+     },
+     "check": {
+      "manual": "a count of non-isomorphic designs from the enumeration of Núñez Ares and Goos (2020) and their later catalogue, reported here without the designs; the library cannot enumerate non-isomorphic OMARS designs (generate_omars searches for one foldover design, and its exhaustive mode counts selections, not isomorphism classes)"
+     }
+    },
+    {
+     "what": "n_designs",
+     "term": "6 factors",
+     "value": "1406",
+     "analysis": "uniform-precision OMARS designs with 6 factors",
+     "where": {
+      "page": 4,
+      "pdf_page": 4,
+      "source_kind": "text",
+      "quote": "5399 5-factor designs, 1406 6-factor designs, and 1082 7-factor designs"
+     },
+     "check": {
+      "manual": "a count of non-isomorphic designs from the enumeration of Núñez Ares and Goos (2020) and their later catalogue, reported here without the designs; the library cannot enumerate non-isomorphic OMARS designs (generate_omars searches for one foldover design, and its exhaustive mode counts selections, not isomorphism classes)"
+     }
+    },
+    {
+     "what": "n_designs",
+     "term": "7 factors",
+     "value": "1082",
+     "analysis": "uniform-precision OMARS designs with 7 factors",
+     "where": {
+      "page": 4,
+      "pdf_page": 4,
+      "source_kind": "text",
+      "quote": "5399 5-factor designs, 1406 6-factor designs, and 1082 7-factor designs"
+     },
+     "check": {
+      "manual": "a count of non-isomorphic designs from the enumeration of Núñez Ares and Goos (2020) and their later catalogue, reported here without the designs; the library cannot enumerate non-isomorphic OMARS designs (generate_omars searches for one foldover design, and its exhaustive mode counts selections, not isomorphism classes)"
+     }
+    },
+    {
+     "what": "n_designs",
+     "term": "7 factors, 30 runs",
+     "value": "20,019",
+     "analysis": "uniform-precision OMARS designs with 7 factors and 30 runs, in later work",
+     "where": {
+      "page": 4,
+      "pdf_page": 4,
+      "source_kind": "text",
+      "quote": "they found 20,019 7-factor uniform-precision OMARS designs with 30 runs"
+     },
+     "check": {
+      "manual": "a count of non-isomorphic designs from the enumeration of Núñez Ares and Goos (2020) and their later catalogue, reported here without the designs; the library cannot enumerate non-isomorphic OMARS designs (generate_omars searches for one foldover design, and its exhaustive mode counts selections, not isomorphism classes)"
+     }
+    },
+    {
+     "what": "n_designs",
+     "term": "8 factors, 32 runs",
+     "value": "31",
+     "analysis": "uniform-precision OMARS designs with 8 factors and 32 runs, in later work",
+     "where": {
+      "page": 4,
+      "pdf_page": 4,
+      "source_kind": "text",
+      "quote": "31 8-factor uniform-precision OMARS designs with 32 runs"
+     },
+     "check": {
+      "manual": "a count of non-isomorphic designs from the enumeration of Núñez Ares and Goos (2020) and their later catalogue, reported here without the designs; the library cannot enumerate non-isomorphic OMARS designs (generate_omars searches for one foldover design, and its exhaustive mode counts selections, not isomorphism classes)"
+     }
+    },
+    {
+     "what": "percent",
+     "term": "5 factors, even run size",
+     "value": "More than 99%",
+     "analysis": "the share of the 5399 5-factor uniform-precision designs with an even number of runs",
+     "where": {
+      "page": 4,
+      "pdf_page": 4,
+      "source_kind": "text",
+      "quote": "a total of 5399 5-factor uniform-precision OMARS designs were reported. More than 99% of these have an even number of runs."
+     },
+     "check": {
+      "manual": "a count of non-isomorphic designs from the enumeration of Núñez Ares and Goos (2020) and their later catalogue, reported here without the designs; the library cannot enumerate non-isomorphic OMARS designs (generate_omars searches for one foldover design, and its exhaustive mode counts selections, not isomorphism classes); consistent with the counts printed beside it, 5373 of 5399 being 99.5%"
+     }
+    },
+    {
+     "what": "n_designs",
+     "term": "5 factors, even run size",
+     "value": "5373",
+     "analysis": "5-factor uniform-precision designs with an even number of runs",
+     "where": {
+      "page": 4,
+      "pdf_page": 4,
+      "source_kind": "text",
+      "quote": "there are 5373 designs with an even number of runs, 5350 of which are foldover designs"
+     },
+     "check": {
+      "manual": "a count of non-isomorphic designs from the enumeration of Núñez Ares and Goos (2020) and their later catalogue, reported here without the designs; the library cannot enumerate non-isomorphic OMARS designs (generate_omars searches for one foldover design, and its exhaustive mode counts selections, not isomorphism classes); consistent: 5350 + 23 = 5373"
+     }
+    },
+    {
+     "what": "n_designs",
+     "term": "5 factors, even, foldover",
+     "value": "5350",
+     "analysis": "5-factor uniform-precision designs with an even number of runs that are foldover designs",
+     "where": {
+      "page": 4,
+      "pdf_page": 4,
+      "source_kind": "text",
+      "quote": "5350 of which are foldover designs and 23 of which are not foldover designs"
+     },
+     "check": {
+      "manual": "a count of non-isomorphic designs from the enumeration of Núñez Ares and Goos (2020) and their later catalogue, reported here without the designs; the library cannot enumerate non-isomorphic OMARS designs (generate_omars searches for one foldover design, and its exhaustive mode counts selections, not isomorphism classes)"
+     }
+    },
+    {
+     "what": "n_designs",
+     "term": "5 factors, even, not foldover",
+     "value": "23",
+     "analysis": "5-factor uniform-precision designs with an even number of runs that are not foldover designs",
+     "where": {
+      "page": 4,
+      "pdf_page": 4,
+      "source_kind": "text",
+      "quote": "5350 of which are foldover designs and 23 of which are not foldover designs"
+     },
+     "check": {
+      "manual": "a count of non-isomorphic designs from the enumeration of Núñez Ares and Goos (2020) and their later catalogue, reported here without the designs; the library cannot enumerate non-isomorphic OMARS designs (generate_omars searches for one foldover design, and its exhaustive mode counts selections, not isomorphism classes)"
+     }
+    },
+    {
+     "what": "n_designs",
+     "term": "5 factors, odd run size",
+     "value": "26",
+     "analysis": "5-factor uniform-precision designs with an odd number of runs",
+     "where": {
+      "page": 4,
+      "pdf_page": 4,
+      "source_kind": "text",
+      "quote": "Only 26 5-factor uniform-precision OMARS designs reported by Núñez Ares and Goos (2020) have an odd number of runs."
+     },
+     "check": {
+      "manual": "a count of non-isomorphic designs from the enumeration of Núñez Ares and Goos (2020) and their later catalogue, reported here without the designs; the library cannot enumerate non-isomorphic OMARS designs (generate_omars searches for one foldover design, and its exhaustive mode counts selections, not isomorphism classes); consistent: 5373 + 26 = 5399"
+     }
+    },
+    {
+     "what": "n_designs",
+     "term": "7 factors, 30 runs",
+     "value": "about 55 million",
+     "analysis": "three-level OMARS designs (uniform and non-uniform precision) with 7 factors and 30 runs",
+     "where": {
+      "page": 4,
+      "pdf_page": 4,
+      "source_kind": "text",
+      "quote": "there are about 55 million three-level 7-factor OMARS designs involving 30 runs"
+     },
+     "check": {
+      "manual": "a count of non-isomorphic designs from the enumeration of Núñez Ares and Goos (2020) and their later catalogue, reported here without the designs; the library cannot enumerate non-isomorphic OMARS designs (generate_omars searches for one foldover design, and its exhaustive mode counts selections, not isomorphism classes)"
+     }
+    },
+    {
+     "what": "n_designs",
+     "term": "8 factors, 32 runs",
+     "value": "100,000",
+     "analysis": "three-level OMARS designs (uniform and non-uniform precision) with 8 factors and 32 runs",
+     "where": {
+      "page": 4,
+      "pdf_page": 4,
+      "source_kind": "text",
+      "quote": "and 100,000 8-factor OMARS designs involving 32 runs"
+     },
+     "check": {
+      "manual": "a count of non-isomorphic designs from the enumeration of Núñez Ares and Goos (2020) and their later catalogue, reported here without the designs; the library cannot enumerate non-isomorphic OMARS designs (generate_omars searches for one foldover design, and its exhaustive mode counts selections, not isomorphism classes)"
+     }
+    },
+    {
+     "what": "max_runs",
+     "term": null,
+     "value": "48",
+     "analysis": "the largest run size in the EFFEX catalogue of OMARS designs",
+     "where": {
+      "page": 11,
+      "pdf_page": 11,
+      "source_kind": "text",
+      "quote": "a catalog of millions of OMARS designs with up to two dozen factors and 48 runs"
+     },
+     "check": {
+      "manual": "a description of a commercial catalogue (EFFEX), not a property of a printed design"
+     }
+    },
+    {
+     "what": "max_factors",
+     "term": null,
+     "value": "two dozen",
+     "analysis": "the largest number of factors in the EFFEX catalogue of OMARS designs",
+     "where": {
+      "page": 11,
+      "pdf_page": 11,
+      "source_kind": "text",
+      "quote": "a catalog of millions of OMARS designs with up to two dozen factors and 48 runs"
+     },
+     "check": {
+      "manual": "a description of a commercial catalogue (EFFEX), not a property of a printed design"
+     }
+    }
+   ]
+  }
+ ],
+ "not_captured": ["Section 6 (two-step analysis of Hameed et al. 2023, and MIO of Vazquez et al. 2021): methods described without data or numerical results; the paper analyses no data (Data Availability Statement), so there is nothing for analyze_omars to recompute.", "Section 3, p. 6: the necessary conditions that a mixed-level OMARS design with one, two, or three or more two-level factors has a run size that is even, a multiple of four, or a multiple of eight; a theorem cited from Núñez Ares et al. (2023), not a property of a printed design (Tables 4 and 5, with four two-level factors, have 40 and 24 runs, both multiples of eight).", "Section 3, p. 6: Jones et al. (2023)'s second construction gives run sizes that are multiples of 16; a property of a construction the paper does not apply.", "Section 5.1, equations (1) to (11), and Section 5.2: the integer-programming formulation (3^m candidate points, m(m - 1)/2 interaction contrasts, 3^m1 2^m2 candidates for a mixed-level design); algebra in m, not numbers.", "Section 5.4.1, p. 9: definitive screening designs with 2(m + 2) or 2(m + 3) runs instead of 2m or 2(m + 1) (center runs not counted); formulas in m. definitive_screening_runs(k) gives 2k + 1 and 2k + 3 with the center run, matching 2m and 2(m + 1) without it.", "Section 5.4.2, equations (12) and (13): OMARS designs with 4k runs and k three-level and k two-level factors, or 2k three-level factors, from conference, Hadamard and weighing matrices; constructions in k with no design printed.", "Figure 1 (p. 11): a diagram of the classes of OMARS designs, with no numbers.", "Table 1's foldover pairing ('the second run is the negative of the first, the fourth run is the negative of the third'), Table 2's duplicated runs ('the first and second runs ... as do the last and the one but last run') and Table 5's blocking condition ('the levels of every factor sum to zero within each block') are statements without a number; each holds for the transcription and is recorded in the entry's notes."]
+}
