@@ -22,7 +22,10 @@ those changes.
   *Ullmann's Encyclopedia of Industrial Chemistry* (2012), of the graded and practice
   quizzes of the *Experimentation for Improvement* course, of Nair's tutorial on fractional
   factorial designs (2004), of Chapter 5 (Process Improvement) of the NIST/SEMATECH
-  *e-Handbook of Statistical Methods*, and of five papers on definitive screening and OMARS designs and
+  *e-Handbook of Statistical Methods*, of chapters 2 to 7 of Davies (ed.), *The Design and
+  Analysis of Industrial Experiments* (1956): paired comparisons, nested sampling studies,
+  randomised blocks, Latin, Graeco-Latin and Youden squares, balanced incomplete blocks, a table
+  with missing cells and two-level factorials; and of five papers on definitive screening and OMARS designs and
   trend-robust run orders (Jones and Nachtsheim 2013; Nunez Ares and Goos 2019, 2020; Nunez
   Ares, Schoen and Goos 2023; Goos 2025). For each it keeps the factors,
   responses and runs exactly as printed, and every number the source prints: each as the
