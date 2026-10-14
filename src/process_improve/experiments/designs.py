@@ -753,7 +753,9 @@ def generate_design(  # noqa: PLR0913
         ``"maxpro"`` space-filling designs. Other design types do not enforce them and set
         ``metadata["constraints_enforced"] = False``.
     hard_to_change : list[str] or None
-        Names of hard-to-change factors (triggers split-plot structure).
+        Names of hard-to-change factors, for a split-plot design. Only the optimal
+        families build one, so any other *design_type* raises ``ValueError``; with
+        *design_type* unset, a D-optimal design is chosen.
     model_type : str
         Model the optimal designs (``"d_optimal"``, ``"i_optimal"``,
         ``"a_optimal"``, ``"e_optimal"``, ``"g_optimal"``, ``"k_optimal"``) are built
@@ -850,7 +852,7 @@ def generate_design(  # noqa: PLR0913
 
     if design_type not in _DESIGN_REGISTRY:
         raise ValueError(f"Unknown design_type={design_type!r}.  Choose from: {', '.join(sorted(_DESIGN_REGISTRY))}.")
-    _refuse_optimal_only_arguments(design_type, candidates, fixed_runs)
+    _refuse_optimal_only_arguments(design_type, candidates, fixed_runs, hard_to_change, factors)
     _refuse_duplicate_names(factors)
     refuse_reserved_names(factors)
     _refuse_mixture_process(factors)
@@ -935,10 +937,29 @@ def generate_design(  # noqa: PLR0913
 
 
 def _refuse_optimal_only_arguments(
-    design_type: str, candidates: pd.DataFrame | None, fixed_runs: pd.DataFrame | None
+    design_type: str,
+    candidates: pd.DataFrame | None,
+    fixed_runs: pd.DataFrame | None,
+    hard_to_change: list[str] | None,
+    factors: list[Factor],
 ) -> None:
-    """Raise when ``candidates`` or ``fixed_runs`` is given to a design type other than the optimal families."""
+    """Raise when an argument only the optimal families honour is given to another design type.
+
+    ``candidates``, ``fixed_runs`` and ``hard_to_change`` are those arguments. Only the
+    optimal families build split-plot structure; any other design type would drop
+    ``hard_to_change`` and randomise every run, resetting the hard-to-change factors from
+    run to run.
+    """
     families = ", ".join(sorted(_OPTIMAL_FAMILIES))
+    if hard_to_change and design_type not in _OPTIMAL_FAMILIES:
+        if all(f.type == FactorType.mixture for f in factors):
+            hint = "Split-plot mixture designs are not supported."
+        else:
+            hint = "Use design_type='d_optimal' or 'i_optimal', or leave design_type unset to choose one."
+        raise ValueError(
+            f"hard_to_change={list(hard_to_change)} asks for a split-plot design, which only the optimal design "
+            f"families ({families}) build; design_type={design_type!r} would randomise every run. {hint}"
+        )
     if candidates is not None and design_type not in _OPTIMAL_FAMILIES:
         raise ValueError(
             f"candidates is only supported for the optimal design families ({families}); "
