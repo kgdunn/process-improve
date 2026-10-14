@@ -10,7 +10,8 @@ against it:
 **The MIT licence does not extend to these files' contents.** Each file states the terms of
 its source in `source.rights`, and `reference_sources()` returns them:
 
-- A journal article or a slide deck is protected by copyright and is not reproduced here.
+- A journal article, a book under copyright (such as Davies, *The Design and Analysis of
+  Industrial Experiments*) or a slide deck is protected by copyright and is not reproduced here.
   Its facts are held for citation and for checking software, and its quotations are short and
   attributed. Read the source itself through its DOI or URL.
 - The book *Process Improvement using Data* is under the Creative Commons
