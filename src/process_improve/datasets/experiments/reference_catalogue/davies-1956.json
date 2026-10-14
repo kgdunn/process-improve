@@ -1,7 +1,7 @@
 {
  "schema": 1,
  "about": [
-  "Part of the reference catalogue: designed experiments from chapters 2 to 8 of Davies (ed.), The Design and Analysis",
+  "Part of the reference catalogue: designed experiments from chapters 2 to 9 of Davies (ed.), The Design and Analysis",
   "of Industrial Experiments, for testing that software reproduces them. source: the citation, with what was read and",
   "when. experiments: each worked example with data (factors, responses, runs exactly as printed, in the printed",
   "order), where it is printed, and expected: every number the book prints for it, as printed text (with a period",
@@ -24,13 +24,13 @@
   "editor": "Owen L. Davies",
   "title": "The Design and Analysis of Industrial Experiments",
   "edition": "2nd edition (1956), reprinted with corrections 1978; the 1979 reprint",
-  "pages": "chapters 1 to 8, pp. 1-366, of 637",
+  "pages": "chapters 1 to 9, pp. 1-434, of 637",
   "year": 1956,
   "publisher": "Longman Group Limited, London and New York, for Imperial Chemical Industries Limited",
   "isbn": "0-582-46053-0",
   "url": "https://search.worldcat.org/search?q=bn:0582460530",
   "cite": "Davies, O. L. (ed.) (1956), The Design and Analysis of Industrial Experiments, 2nd edition, Longman for ICI",
-  "read": "2026-10-14, from scans of pp. i-xiii and 1-366 (chapters 1 to 8) of the 1979 reprint; every number copied by hand and checked against the totals the book prints; two tables printed sideways (4-1 and 5-6) taken from their reprints in the appendices, and Tables 4-3, 8-3 and 8-61 read from the page image",
+  "read": "2026-10-14, from scans of pp. i-xiii and 1-434 (chapters 1 to 9) of the 1979 reprint; every number copied by hand and checked against the totals the book prints; two tables printed sideways (4-1 and 5-6) taken from their reprints in the appendices, and Tables 4-3, 8-3, 8-61 and 9-3 read from the page image",
   "rights": "The book is protected by copyright (© 1956 Imperial Chemical Industries Limited) and is not reproduced here. This file holds facts it reports (numbers, layouts, data) and short quotations that locate each one, for citation and for checking software. The MIT licence of process-improve does not extend to them."
  },
  "experiments": [
@@ -14737,13 +14737,14 @@
    "title": "Yield of a direct cotton dyestuff: concentration, volume of free water and amount of a second reactant, a 3^3 factorial in duplicate",
    "kind": "example",
    "where": {
-    "section": "8.7 to 8.72 and Appendix 8F",
-    "pages": "332-335, 352-361",
+    "section": "8.7 to 8.72 and Appendix 8F, Appendix 9F",
+    "pages": "332-335, 352-361, 431-434",
     "tables": [
      "Table 8-61",
      "Table 8-62",
      "Table 8-63",
-     "Table 8F-1"
+     "Table 8F-1",
+     "Table 9F-1"
     ],
     "figures": []
    },
@@ -14771,6 +14772,20 @@
      "high": 2,
      "units": "level",
      "type": "numeric"
+    },
+    {
+     "name": "Group",
+     "description": "block of nine runs (the Greek letter and replicate printed beside each yield): W(CVN) confounded in the first replicate and Y(CVN) in the second",
+     "levels": [
+      "alpha1",
+      "beta1",
+      "gamma1",
+      "alpha2",
+      "beta2",
+      "gamma2"
+     ],
+     "units": "",
+     "type": "categorical"
     }
    ],
    "responses": [
@@ -16297,6 +16312,2065 @@
        54
       ]
      }
+    },
+    {
+     "what": "anova_sum_sq",
+     "term": "Group",
+     "value": "979",
+     "analysis": "Example 9-4: confounded in six blocks of nine",
+     "where": {
+      "page": 433,
+      "source_kind": "math",
+      "quote": "(1194^2 + 1191^2 + 1242^2 + 1227^2 + 1165^2 + 1126^2)/9 - (3627 + 3518)^2/54 = 946,368 - 945,389 = 979"
+     },
+     "check": {
+      "kind": "anova_sum_sq",
+      "term": "Group",
+      "model": "Group + C + I(C**2) + V + I(V**2) + N + I(N**2) + C:V + C:I(V**2) + C:N + C:I(N**2) + I(C**2):V + I(C**2):I(V**2) + I(C**2):N + I(C**2):I(N**2) + V:N + V:I(N**2) + I(V**2):N + I(V**2):I(N**2)"
+     }
+    },
+    {
+     "what": "ss_residual",
+     "term": null,
+     "value": "29803",
+     "analysis": "Example 9-4: blocks, main effects and two-factor interactions; the replication and the unconfounded three-factor interactions as error",
+     "where": {
+      "page": 434,
+      "source_kind": "text",
+      "quote": "The sum of squares for this remainder is 29,803, based on 30 degrees of freedom"
+     },
+     "check": {
+      "kind": "ss_residual",
+      "model": "Group + C + I(C**2) + V + I(V**2) + N + I(N**2) + C:V + C:I(V**2) + C:N + C:I(N**2) + I(C**2):V + I(C**2):I(V**2) + I(C**2):N + I(C**2):I(N**2) + V:N + V:I(N**2) + I(V**2):N + I(V**2):I(N**2)",
+      "disagreement": "by subtraction from the rounded sums of squares of Table 8-62 and the blocks; unrounded it is 29,805.7"
+     }
+    },
+    {
+     "what": "anova_sum_sq",
+     "term": "X(CVN)",
+     "value": "6191",
+     "where": {
+      "page": 433,
+      "source_kind": "table",
+      "quote": "X = [2148^2 + 2620^2 + 2377^2]/18 - 7145^2/54 = 951,580 - 945,389 = 6191"
+     },
+     "check": {
+      "manual": "an I/J/W/X/Y/Z component of the three-factor interaction, which no check computes"
+     }
+    },
+    {
+     "what": "anova_sum_sq",
+     "term": "Z(CVN)",
+     "value": "1002",
+     "where": {
+      "page": 433,
+      "source_kind": "table",
+      "quote": "Z = [2342^2 + 2490^2 + 2313^2]/18 - 7145^2/54 ... = 1002"
+     },
+     "check": {
+      "manual": "a component of the three-factor interaction, which no check computes"
+     }
+    },
+    {
+     "what": "anova_sum_sq",
+     "term": "W(CVN), second replicate",
+     "value": "2939",
+     "where": {
+      "page": 434,
+      "source_kind": "table",
+      "quote": "(180^2 + 214^2 + 34^2)/27 = 2939"
+     },
+     "check": {
+      "manual": "a component of the three-factor interaction from the replicate in which it is not confounded"
+     }
+    },
+    {
+     "what": "anova_sum_sq",
+     "term": "Y(CVN), first replicate",
+     "value": "664",
+     "where": {
+      "page": 434,
+      "source_kind": "table",
+      "quote": "(47^2 + 109^2 + 62^2)/27 = 664"
+     },
+     "check": {
+      "manual": "a component of the three-factor interaction from the replicate in which it is not confounded"
+     }
+    }
+   ]
+  },
+  {
+   "name": "davies-organic-chemical-confounded",
+   "title": "Yield of an organic chemical: quality and amount of ammonium chloride and two units, a 2^3 in duplicate with ABC confounded with four lots of base material",
+   "kind": "example",
+   "where": {
+    "section": "9.14 to 9.18 and Appendix 9A",
+    "pages": "372-378, 410-413",
+    "tables": [
+     "Table 9-2",
+     "Table 9-21",
+     "Table 9-22",
+     "Table 9A-1",
+     "Table 9A-3",
+     "Table 9A-4",
+     "Table 9A-5"
+    ],
+    "figures": []
+   },
+   "factors": [
+    {
+     "name": "Lot",
+     "description": "lot of base material (the block)",
+     "levels": [
+      "1",
+      "2",
+      "3",
+      "4"
+     ],
+     "units": "",
+     "type": "categorical"
+    },
+    {
+     "name": "A",
+     "description": "quality of ammonium chloride",
+     "low": "coarse",
+     "high": "fine",
+     "levels": [
+      "coarse",
+      "fine"
+     ],
+     "units": "",
+     "type": "categorical"
+    },
+    {
+     "name": "B",
+     "description": "amount of ammonium chloride",
+     "low": "normal",
+     "high": "+10%",
+     "levels": [
+      "normal",
+      "+10%"
+     ],
+     "units": "",
+     "type": "categorical"
+    },
+    {
+     "name": "C",
+     "description": "plant unit",
+     "low": "1",
+     "high": "2",
+     "levels": [
+      "1",
+      "2"
+     ],
+     "units": "",
+     "type": "categorical"
+    }
+   ],
+   "responses": [
+    {
+     "name": "Yield",
+     "description": "yield of the chemical",
+     "units": "lb"
+    }
+   ],
+   "design": {
+    "type": "2^3 full factorial in blocks",
+    "details": "two replicates of the 2^3, each in two blocks of four (lots of base material), confounding ABC; lots 1 and 4 hold the treatments with ABC at -1, lots 2 and 3 those with ABC at +1",
+    "n_runs": 16
+   },
+   "runs": {
+    "columns": [
+     "Lot",
+     "A",
+     "B",
+     "C",
+     "Treatment",
+     "Yield"
+    ],
+    "rows": [
+     [
+      1,
+      "coarse",
+      "normal",
+      "1",
+      "1",
+      155
+     ],
+     [
+      1,
+      "coarse",
+      "+10%",
+      "2",
+      "bc",
+      152
+     ],
+     [
+      1,
+      "fine",
+      "normal",
+      "2",
+      "ac",
+      150
+     ],
+     [
+      1,
+      "fine",
+      "+10%",
+      "1",
+      "ab",
+      157
+     ],
+     [
+      2,
+      "coarse",
+      "normal",
+      "2",
+      "c",
+      156
+     ],
+     [
+      2,
+      "coarse",
+      "+10%",
+      "1",
+      "b",
+      168
+     ],
+     [
+      2,
+      "fine",
+      "normal",
+      "1",
+      "a",
+      162
+     ],
+     [
+      2,
+      "fine",
+      "+10%",
+      "2",
+      "abc",
+      161
+     ],
+     [
+      3,
+      "coarse",
+      "normal",
+      "2",
+      "c",
+      161
+     ],
+     [
+      3,
+      "coarse",
+      "+10%",
+      "1",
+      "b",
+      175
+     ],
+     [
+      3,
+      "fine",
+      "normal",
+      "1",
+      "a",
+      171
+     ],
+     [
+      3,
+      "fine",
+      "+10%",
+      "2",
+      "abc",
+      173
+     ],
+     [
+      4,
+      "coarse",
+      "normal",
+      "1",
+      "1",
+      164
+     ],
+     [
+      4,
+      "coarse",
+      "+10%",
+      "2",
+      "bc",
+      162
+     ],
+     [
+      4,
+      "fine",
+      "normal",
+      "2",
+      "ac",
+      153
+     ],
+     [
+      4,
+      "fine",
+      "+10%",
+      "1",
+      "ab",
+      171
+     ]
+    ],
+    "coded": false,
+    "notes": "Table 9-2; Table 9A-1 prints the same less 150 lb"
+   },
+   "notes": "Ignoring confounding, ABC and the differences between lots fall into the error (Table 9-21); with confounding, the lots take ABC and two more degrees of freedom out of it (Table 9-22).",
+   "expected": [
+    {
+     "what": "anova_sum_sq",
+     "term": "A",
+     "value": "1.56",
+     "analysis": "ignoring confounding",
+     "where": {
+      "page": 412,
+      "source_kind": "table",
+      "quote": "Quality (A) .. 1·56 1 1·56"
+     },
+     "check": {
+      "kind": "anova_sum_sq",
+      "term": "A",
+      "model": "A*B*C"
+     }
+    },
+    {
+     "what": "anova_mean_sq",
+     "term": "A",
+     "value": "1.56",
+     "analysis": "ignoring confounding",
+     "where": {
+      "page": 412,
+      "source_kind": "table",
+      "quote": "Quality (A) .. 1·56 1 1·56"
+     },
+     "check": {
+      "kind": "anova_mean_sq",
+      "term": "A",
+      "model": "A*B*C"
+     }
+    },
+    {
+     "what": "anova_sum_sq",
+     "term": "B",
+     "value": "138.06",
+     "analysis": "ignoring confounding",
+     "where": {
+      "page": 412,
+      "source_kind": "table",
+      "quote": "Amount (B) 138·06 1 138·06"
+     },
+     "check": {
+      "kind": "anova_sum_sq",
+      "term": "B",
+      "model": "A*B*C"
+     }
+    },
+    {
+     "what": "anova_mean_sq",
+     "term": "B",
+     "value": "138.06",
+     "analysis": "ignoring confounding",
+     "where": {
+      "page": 412,
+      "source_kind": "table",
+      "quote": "Amount (B) 138·06 1 138·06"
+     },
+     "check": {
+      "kind": "anova_mean_sq",
+      "term": "B",
+      "model": "A*B*C"
+     }
+    },
+    {
+     "what": "anova_sum_sq",
+     "term": "C",
+     "value": "189.06",
+     "analysis": "ignoring confounding",
+     "where": {
+      "page": 412,
+      "source_kind": "table",
+      "quote": "Between units (C) 189·06 1 189·06"
+     },
+     "check": {
+      "kind": "anova_sum_sq",
+      "term": "C",
+      "model": "A*B*C"
+     }
+    },
+    {
+     "what": "anova_mean_sq",
+     "term": "C",
+     "value": "189.06",
+     "analysis": "ignoring confounding",
+     "where": {
+      "page": 412,
+      "source_kind": "table",
+      "quote": "Between units (C) 189·06 1 189·06"
+     },
+     "check": {
+      "kind": "anova_mean_sq",
+      "term": "C",
+      "model": "A*B*C"
+     }
+    },
+    {
+     "what": "anova_sum_sq",
+     "term": "A·B",
+     "value": "1.56",
+     "analysis": "ignoring confounding",
+     "where": {
+      "page": 412,
+      "source_kind": "table",
+      "quote": "AB 1·56 1 1·56"
+     },
+     "check": {
+      "kind": "anova_sum_sq",
+      "term": "A·B",
+      "model": "A*B*C"
+     }
+    },
+    {
+     "what": "anova_mean_sq",
+     "term": "A·B",
+     "value": "1.56",
+     "analysis": "ignoring confounding",
+     "where": {
+      "page": 412,
+      "source_kind": "table",
+      "quote": "AB 1·56 1 1·56"
+     },
+     "check": {
+      "kind": "anova_mean_sq",
+      "term": "A·B",
+      "model": "A*B*C"
+     }
+    },
+    {
+     "what": "anova_sum_sq",
+     "term": "A·C",
+     "value": "3.06",
+     "analysis": "ignoring confounding",
+     "where": {
+      "page": 412,
+      "source_kind": "table",
+      "quote": "AC 3·06 1 3·06"
+     },
+     "check": {
+      "kind": "anova_sum_sq",
+      "term": "A·C",
+      "model": "A*B*C"
+     }
+    },
+    {
+     "what": "anova_mean_sq",
+     "term": "A·C",
+     "value": "3.06",
+     "analysis": "ignoring confounding",
+     "where": {
+      "page": 412,
+      "source_kind": "table",
+      "quote": "AC 3·06 1 3·06"
+     },
+     "check": {
+      "kind": "anova_mean_sq",
+      "term": "A·C",
+      "model": "A*B*C"
+     }
+    },
+    {
+     "what": "anova_sum_sq",
+     "term": "B·C",
+     "value": "5.06",
+     "analysis": "ignoring confounding",
+     "where": {
+      "page": 412,
+      "source_kind": "table",
+      "quote": "BC 5·06 1 5·06"
+     },
+     "check": {
+      "kind": "anova_sum_sq",
+      "term": "B·C",
+      "model": "A*B*C"
+     }
+    },
+    {
+     "what": "anova_mean_sq",
+     "term": "B·C",
+     "value": "5.06",
+     "analysis": "ignoring confounding",
+     "where": {
+      "page": 412,
+      "source_kind": "table",
+      "quote": "BC 5·06 1 5·06"
+     },
+     "check": {
+      "kind": "anova_mean_sq",
+      "term": "B·C",
+      "model": "A*B*C"
+     }
+    },
+    {
+     "what": "anova_sum_sq",
+     "term": "A·B·C",
+     "value": "248.06",
+     "analysis": "ignoring confounding",
+     "where": {
+      "page": 412,
+      "source_kind": "table",
+      "quote": "ABC 248·06 1 248·06"
+     },
+     "check": {
+      "kind": "anova_sum_sq",
+      "term": "A·B·C",
+      "model": "A*B*C"
+     }
+    },
+    {
+     "what": "anova_mean_sq",
+     "term": "A·B·C",
+     "value": "248.06",
+     "analysis": "ignoring confounding",
+     "where": {
+      "page": 412,
+      "source_kind": "table",
+      "quote": "ABC 248·06 1 248·06"
+     },
+     "check": {
+      "kind": "anova_mean_sq",
+      "term": "A·B·C",
+      "model": "A*B*C"
+     }
+    },
+    {
+     "what": "ss_residual",
+     "term": null,
+     "value": "342.52",
+     "analysis": "ignoring confounding",
+     "where": {
+      "page": 412,
+      "source_kind": "table",
+      "quote": "Remainder = error 342·52 8 42·82"
+     },
+     "check": {
+      "kind": "ss_residual",
+      "model": "A*B*C",
+      "disagreement": "by subtraction from sums of squares rounded to two decimals; the replicate differences give 685/2 = 342.50 exactly, as the book notes (9A.4)"
+     }
+    },
+    {
+     "what": "ms_residual",
+     "term": null,
+     "value": "42.82",
+     "analysis": "ignoring confounding",
+     "where": {
+      "page": 412,
+      "source_kind": "table",
+      "quote": "Remainder = error 342·52 8 42·82"
+     },
+     "check": {
+      "kind": "ms_residual",
+      "model": "A*B*C",
+      "disagreement": "342.52 / 8 from the rounded remainder; unrounded 42.8125"
+     }
+    },
+    {
+     "what": "ss_total",
+     "term": null,
+     "value": "928.94",
+     "where": {
+      "page": 412,
+      "source_kind": "math",
+      "quote": "(5^2 + 6^2 + ... + 23^2 + 21^2) - 191^2/16 = 3209 - 2280·06 = 928·94"
+     },
+     "check": {
+      "kind": "ss_total",
+      "model": "A*B*C"
+     }
+    },
+    {
+     "what": "ss_residual",
+     "term": null,
+     "value": "342.50",
+     "analysis": "the replicate differences",
+     "where": {
+      "page": 412,
+      "source_kind": "math",
+      "quote": "The sum of squares of the eight differences is 685, which has to be divided by 2. This gives 342·50"
+     },
+     "check": {
+      "kind": "ss_residual",
+      "model": "A*B*C"
+     }
+    },
+    {
+     "what": "anova_sum_sq",
+     "term": "Lot",
+     "value": "546.19",
+     "analysis": "the three-factor interaction confounded with lots",
+     "where": {
+      "page": 413,
+      "source_kind": "table",
+      "quote": "Between lots of base material 546·19 3 182·06"
+     },
+     "check": {
+      "kind": "anova_sum_sq",
+      "term": "Lot",
+      "model": "Lot + A + B + C + A:B + A:C + B:C"
+     }
+    },
+    {
+     "what": "anova_mean_sq",
+     "term": "Lot",
+     "value": "182.06",
+     "analysis": "the three-factor interaction confounded with lots",
+     "where": {
+      "page": 413,
+      "source_kind": "table",
+      "quote": "Between lots of base material 546·19 3 182·06"
+     },
+     "check": {
+      "kind": "anova_mean_sq",
+      "term": "Lot",
+      "model": "Lot + A + B + C + A:B + A:C + B:C"
+     }
+    },
+    {
+     "what": "ss_residual",
+     "term": null,
+     "value": "44.39",
+     "analysis": "the three-factor interaction confounded with lots",
+     "where": {
+      "page": 413,
+      "source_kind": "table",
+      "quote": "Remainder (= error) 44·39 6 7·40"
+     },
+     "check": {
+      "kind": "ss_residual",
+      "model": "Lot + A + B + C + A:B + A:C + B:C",
+      "disagreement": "by subtraction from sums of squares rounded to two decimals; unrounded it is 44.375, which rounds to 44.38"
+     }
+    },
+    {
+     "what": "ms_residual",
+     "term": null,
+     "value": "7.40",
+     "analysis": "the three-factor interaction confounded with lots",
+     "where": {
+      "page": 413,
+      "source_kind": "table",
+      "quote": "Remainder (= error) 44·39 6 7·40"
+     },
+     "check": {
+      "kind": "ms_residual",
+      "model": "Lot + A + B + C + A:B + A:C + B:C"
+     }
+    },
+    {
+     "what": "effect",
+     "term": "A",
+     "value": "0.63",
+     "analysis": "Yates's method on the sums over the two replicates",
+     "where": {
+      "page": 411,
+      "source_kind": "table",
+      "quote": "A = 0·63"
+     },
+     "check": {
+      "kind": "effect",
+      "term": "A",
+      "model": "A*B*C"
+     }
+    },
+    {
+     "what": "effect",
+     "term": "B",
+     "value": "5.88",
+     "analysis": "Yates's method on the sums over the two replicates",
+     "where": {
+      "page": 411,
+      "source_kind": "table",
+      "quote": "B = 5·88"
+     },
+     "check": {
+      "kind": "effect",
+      "term": "B",
+      "model": "A*B*C"
+     }
+    },
+    {
+     "what": "effect",
+     "term": "A·B",
+     "value": "0.63",
+     "analysis": "Yates's method on the sums over the two replicates",
+     "where": {
+      "page": 411,
+      "source_kind": "table",
+      "quote": "AB = 0·63"
+     },
+     "check": {
+      "kind": "effect",
+      "term": "A·B",
+      "model": "A*B*C"
+     }
+    },
+    {
+     "what": "effect",
+     "term": "C",
+     "value": "-6.88",
+     "analysis": "Yates's method on the sums over the two replicates",
+     "where": {
+      "page": 411,
+      "source_kind": "table",
+      "quote": "C = -6·88"
+     },
+     "check": {
+      "kind": "effect",
+      "term": "C",
+      "model": "A*B*C"
+     }
+    },
+    {
+     "what": "effect",
+     "term": "A·C",
+     "value": "0.88",
+     "analysis": "Yates's method on the sums over the two replicates",
+     "where": {
+      "page": 411,
+      "source_kind": "table",
+      "quote": "AC = 0·88"
+     },
+     "check": {
+      "kind": "effect",
+      "term": "A·C",
+      "model": "A*B*C"
+     }
+    },
+    {
+     "what": "effect",
+     "term": "B·C",
+     "value": "1.13",
+     "analysis": "Yates's method on the sums over the two replicates",
+     "where": {
+      "page": 411,
+      "source_kind": "table",
+      "quote": "BC = 1·13"
+     },
+     "check": {
+      "kind": "effect",
+      "term": "B·C",
+      "model": "A*B*C"
+     }
+    },
+    {
+     "what": "effect",
+     "term": "A·B·C",
+     "value": "7.88",
+     "analysis": "Yates's method on the sums over the two replicates",
+     "where": {
+      "page": 411,
+      "source_kind": "table",
+      "quote": "ABC = 7·88"
+     },
+     "check": {
+      "kind": "effect",
+      "term": "A·B·C",
+      "model": "A*B*C"
+     }
+    },
+    {
+     "what": "mean",
+     "term": "unit 1",
+     "value": "15.375",
+     "where": {
+      "page": 413,
+      "source_kind": "math",
+      "quote": "Mean ... = 15·375 (yield less 150 lb)"
+     },
+     "check": {
+      "kind": "mean",
+      "runs": [
+       1,
+       4,
+       6,
+       7,
+       10,
+       11,
+       13,
+       16
+      ],
+      "printed": "165.375"
+     }
+    },
+    {
+     "what": "mean",
+     "term": "unit 2",
+     "value": "8.500",
+     "where": {
+      "page": 413,
+      "source_kind": "math",
+      "quote": "Mean ... = 8·500 (yield less 150 lb)"
+     },
+     "check": {
+      "kind": "mean",
+      "runs": [
+       2,
+       3,
+       5,
+       8,
+       9,
+       12,
+       14,
+       15
+      ],
+      "printed": "158.500"
+     }
+    },
+    {
+     "what": "mean",
+     "term": "+10% ammonium chloride",
+     "value": "14.875",
+     "where": {
+      "page": 413,
+      "source_kind": "math",
+      "quote": "Mean ... = 14·875 (yield less 150 lb)"
+     },
+     "check": {
+      "kind": "mean",
+      "runs": [
+       2,
+       4,
+       6,
+       8,
+       10,
+       12,
+       14,
+       16
+      ],
+      "printed": "164.875"
+     }
+    },
+    {
+     "what": "mean",
+     "term": "normal amount",
+     "value": "9.000",
+     "where": {
+      "page": 413,
+      "source_kind": "math",
+      "quote": "Mean ... = 9·000 (yield less 150 lb)"
+     },
+     "check": {
+      "kind": "mean",
+      "runs": [
+       1,
+       3,
+       5,
+       7,
+       9,
+       11,
+       13,
+       15
+      ],
+      "printed": "159.000"
+     }
+    },
+    {
+     "what": "ss_residual",
+     "term": null,
+     "value": "6.25",
+     "where": {
+      "page": 413,
+      "source_kind": "table",
+      "quote": "Process variation 6·25"
+     },
+     "check": {
+      "manual": "a variance from past records of the process, not from this experiment"
+     }
+    },
+    {
+     "what": "effect",
+     "term": "B, confidence limits",
+     "value": "5.88 +/- 2.45",
+     "where": {
+      "page": 378,
+      "source_kind": "table",
+      "quote": "Effect of a 10% increase in amount of ammonium chloride = 5·88 +/- 2·45"
+     },
+     "check": {
+      "manual": "limits from the known process variance, 6.25, not from the experiment"
+     }
+    }
+   ]
+  },
+  {
+   "name": "davies-penicillin-2-5",
+   "title": "Penicillin in surface culture: corn steep liquor, lactose, precursor, sodium nitrate and glucose, a 2^5 in two weeks (and in four blocks of eight)",
+   "kind": "example",
+   "where": {
+    "section": "9.32 to 9.33, 9.424 to 9.425 and Appendix 9C",
+    "pages": "383-387, 394-395, 416-418",
+    "tables": [
+     "Table 9-3",
+     "Table 9-31",
+     "Table 9-32",
+     "Table 9-321",
+     "Table 9-46",
+     "Table 9-461",
+     "Table 9-47"
+    ],
+    "figures": []
+   },
+   "factors": [
+    {
+     "name": "A",
+     "description": "strength of corn steep liquor",
+     "low": 2,
+     "high": 3,
+     "units": "%",
+     "type": "numeric"
+    },
+    {
+     "name": "B",
+     "description": "lactose",
+     "low": 2,
+     "high": 3,
+     "units": "%",
+     "type": "numeric"
+    },
+    {
+     "name": "C",
+     "description": "precursor",
+     "low": 0,
+     "high": 0.05,
+     "units": "%",
+     "type": "numeric"
+    },
+    {
+     "name": "D",
+     "description": "sodium nitrate",
+     "low": 0,
+     "high": 0.3,
+     "units": "%",
+     "type": "numeric"
+    },
+    {
+     "name": "E",
+     "description": "glucose",
+     "low": 0,
+     "high": 0.5,
+     "units": "%",
+     "type": "numeric"
+    },
+    {
+     "name": "Week",
+     "description": "block of Example 9-2: the left-hand (odd number of letters) or right-hand member of each cell of Table 9-3; the book does not say which week was first",
+     "low": "right",
+     "high": "left",
+     "levels": [
+      "right",
+      "left"
+     ],
+     "units": "",
+     "type": "categorical"
+    },
+    {
+     "name": "Set",
+     "description": "block of eight in Example 9-3, numbered as Table 9-461 orders them",
+     "levels": [
+      "1",
+      "2",
+      "3",
+      "4"
+     ],
+     "units": "",
+     "type": "categorical"
+    }
+   ],
+   "responses": [
+    {
+     "name": "Yield",
+     "description": "yield of penicillin",
+     "units": ""
+    },
+    {
+     "name": "LogYield",
+     "description": "log10 of the yield, as Table 9-31 prints it (three decimals)",
+     "units": ""
+    }
+   ],
+   "design": {
+    "type": "2^5 full factorial in blocks",
+    "details": "Example 9-2: two blocks of sixteen (weeks), confounding ABCDE. Example 9-3: the same runs in four blocks of eight, confounding ABC, ADE and BCDE",
+    "n_runs": 32
+   },
+   "runs": {
+    "columns": [
+     "Treatment",
+     "A",
+     "B",
+     "C",
+     "D",
+     "E",
+     "Week",
+     "Set",
+     "Yield",
+     "LogYield"
+    ],
+    "rows": [
+     [
+      "1",
+      2,
+      2,
+      0,
+      0,
+      0,
+      "right",
+      "1",
+      142,
+      2.152
+     ],
+     [
+      "a",
+      3,
+      2,
+      0,
+      0,
+      0,
+      "left",
+      "4",
+      114,
+      2.057
+     ],
+     [
+      "b",
+      2,
+      3,
+      0,
+      0,
+      0,
+      "left",
+      "3",
+      129,
+      2.111
+     ],
+     [
+      "ab",
+      3,
+      3,
+      0,
+      0,
+      0,
+      "right",
+      "2",
+      109,
+      2.037
+     ],
+     [
+      "c",
+      2,
+      2,
+      0.05,
+      0,
+      0,
+      "left",
+      "3",
+      185,
+      2.267
+     ],
+     [
+      "ac",
+      3,
+      2,
+      0.05,
+      0,
+      0,
+      "right",
+      "2",
+      162,
+      2.21
+     ],
+     [
+      "bc",
+      2,
+      3,
+      0.05,
+      0,
+      0,
+      "right",
+      "1",
+      200,
+      2.301
+     ],
+     [
+      "abc",
+      3,
+      3,
+      0.05,
+      0,
+      0,
+      "left",
+      "4",
+      172,
+      2.236
+     ],
+     [
+      "d",
+      2,
+      2,
+      0,
+      0.3,
+      0,
+      "left",
+      "2",
+      148,
+      2.17
+     ],
+     [
+      "ad",
+      3,
+      2,
+      0,
+      0.3,
+      0,
+      "right",
+      "3",
+      108,
+      2.033
+     ],
+     [
+      "bd",
+      2,
+      3,
+      0,
+      0.3,
+      0,
+      "right",
+      "4",
+      146,
+      2.164
+     ],
+     [
+      "abd",
+      3,
+      3,
+      0,
+      0.3,
+      0,
+      "left",
+      "1",
+      95,
+      1.978
+     ],
+     [
+      "cd",
+      2,
+      2,
+      0.05,
+      0.3,
+      0,
+      "right",
+      "4",
+      200,
+      2.301
+     ],
+     [
+      "acd",
+      3,
+      2,
+      0.05,
+      0.3,
+      0,
+      "left",
+      "1",
+      164,
+      2.215
+     ],
+     [
+      "bcd",
+      2,
+      3,
+      0.05,
+      0.3,
+      0,
+      "left",
+      "2",
+      215,
+      2.332
+     ],
+     [
+      "abcd",
+      3,
+      3,
+      0.05,
+      0.3,
+      0,
+      "right",
+      "3",
+      118,
+      2.072
+     ],
+     [
+      "e",
+      2,
+      2,
+      0,
+      0,
+      0.5,
+      "left",
+      "2",
+      106,
+      2.025
+     ],
+     [
+      "ae",
+      3,
+      2,
+      0,
+      0,
+      0.5,
+      "right",
+      "3",
+      106,
+      2.025
+     ],
+     [
+      "be",
+      2,
+      3,
+      0,
+      0,
+      0.5,
+      "right",
+      "4",
+      88,
+      1.944
+     ],
+     [
+      "abe",
+      3,
+      3,
+      0,
+      0,
+      0.5,
+      "left",
+      "1",
+      98,
+      1.991
+     ],
+     [
+      "ce",
+      2,
+      2,
+      0.05,
+      0,
+      0.5,
+      "right",
+      "4",
+      113,
+      2.053
+     ],
+     [
+      "ace",
+      3,
+      2,
+      0.05,
+      0,
+      0.5,
+      "left",
+      "1",
+      88,
+      1.944
+     ],
+     [
+      "bce",
+      2,
+      3,
+      0.05,
+      0,
+      0.5,
+      "left",
+      "2",
+      166,
+      2.22
+     ],
+     [
+      "abce",
+      3,
+      3,
+      0.05,
+      0,
+      0.5,
+      "right",
+      "3",
+      79,
+      1.898
+     ],
+     [
+      "de",
+      2,
+      2,
+      0,
+      0.3,
+      0.5,
+      "right",
+      "1",
+      101,
+      2.004
+     ],
+     [
+      "ade",
+      3,
+      2,
+      0,
+      0.3,
+      0.5,
+      "left",
+      "4",
+      114,
+      2.057
+     ],
+     [
+      "bde",
+      2,
+      3,
+      0,
+      0.3,
+      0.5,
+      "left",
+      "3",
+      140,
+      2.146
+     ],
+     [
+      "abde",
+      3,
+      3,
+      0,
+      0.3,
+      0.5,
+      "right",
+      "2",
+      72,
+      1.857
+     ],
+     [
+      "cde",
+      2,
+      2,
+      0.05,
+      0.3,
+      0.5,
+      "left",
+      "3",
+      130,
+      2.114
+     ],
+     [
+      "acde",
+      3,
+      2,
+      0.05,
+      0.3,
+      0.5,
+      "right",
+      "2",
+      83,
+      1.919
+     ],
+     [
+      "bcde",
+      2,
+      3,
+      0.05,
+      0.3,
+      0.5,
+      "right",
+      "1",
+      145,
+      2.161
+     ],
+     [
+      "abcde",
+      3,
+      3,
+      0.05,
+      0.3,
+      0.5,
+      "left",
+      "4",
+      110,
+      2.041
+     ]
+    ],
+    "coded": false,
+    "notes": "Table 9-3 (read from the page image) and Table 9-31; every log is log10 of the yield rounded to three decimals. Set is worked out from the signs of ABC and ADE and matches the four block totals of Table 9-461"
+   },
+   "notes": "The book analyses log yields because the error was expected to be proportional to the yield. Example 9-3 is an illustration on the same data, not a separate experiment.",
+   "expected": [
+    {
+     "what": "effect",
+     "term": "A",
+     "value": "-0.1184",
+     "analysis": "log10 yield",
+     "where": {
+      "page": 385,
+      "source_kind": "table",
+      "quote": "A (-0·1184)"
+     },
+     "check": {
+      "kind": "effect",
+      "term": "A",
+      "model": "A*B*C*D*E",
+      "response": "LogYield"
+     }
+    },
+    {
+     "what": "effect",
+     "term": "C",
+     "value": "0.0958",
+     "analysis": "log10 yield",
+     "where": {
+      "page": 385,
+      "source_kind": "table",
+      "quote": "C (0·0958)"
+     },
+     "check": {
+      "kind": "effect",
+      "term": "C",
+      "model": "A*B*C*D*E",
+      "response": "LogYield"
+     }
+    },
+    {
+     "what": "effect",
+     "term": "E",
+     "value": "-0.1398",
+     "analysis": "log10 yield",
+     "where": {
+      "page": 385,
+      "source_kind": "table",
+      "quote": "E (-0·1398)"
+     },
+     "check": {
+      "kind": "effect",
+      "term": "E",
+      "model": "A*B*C*D*E",
+      "response": "LogYield"
+     }
+    },
+    {
+     "what": "effect",
+     "term": "C·E",
+     "value": "-0.0582",
+     "analysis": "log10 yield",
+     "where": {
+      "page": 385,
+      "source_kind": "table",
+      "quote": "CE (-0·0582)"
+     },
+     "check": {
+      "kind": "effect",
+      "term": "C·E",
+      "model": "A*B*C*D*E",
+      "response": "LogYield"
+     }
+    },
+    {
+     "what": "anova_mean_sq",
+     "term": "A",
+     "value": "0.1122",
+     "analysis": "log10 yield; one degree of freedom each",
+     "where": {
+      "page": 385,
+      "source_kind": "table",
+      "quote": "A ... 1 0·1122"
+     },
+     "check": {
+      "kind": "anova_mean_sq",
+      "term": "A",
+      "model": "(A + B + C + D + E)**2 + Week",
+      "response": "LogYield"
+     }
+    },
+    {
+     "what": "anova_mean_sq",
+     "term": "B",
+     "value": "0.0001",
+     "analysis": "log10 yield; one degree of freedom each",
+     "where": {
+      "page": 385,
+      "source_kind": "table",
+      "quote": "B ... 1 0·0001"
+     },
+     "check": {
+      "kind": "anova_mean_sq",
+      "term": "B",
+      "model": "(A + B + C + D + E)**2 + Week",
+      "response": "LogYield"
+     }
+    },
+    {
+     "what": "anova_mean_sq",
+     "term": "C",
+     "value": "0.0734",
+     "analysis": "log10 yield; one degree of freedom each",
+     "where": {
+      "page": 385,
+      "source_kind": "table",
+      "quote": "C ... 1 0·0734"
+     },
+     "check": {
+      "kind": "anova_mean_sq",
+      "term": "C",
+      "model": "(A + B + C + D + E)**2 + Week",
+      "response": "LogYield"
+     }
+    },
+    {
+     "what": "anova_mean_sq",
+     "term": "D",
+     "value": "0.0003",
+     "analysis": "log10 yield; one degree of freedom each",
+     "where": {
+      "page": 385,
+      "source_kind": "table",
+      "quote": "D ... 1 0·0003"
+     },
+     "check": {
+      "kind": "anova_mean_sq",
+      "term": "D",
+      "model": "(A + B + C + D + E)**2 + Week",
+      "response": "LogYield"
+     }
+    },
+    {
+     "what": "anova_mean_sq",
+     "term": "E",
+     "value": "0.1564",
+     "analysis": "log10 yield; one degree of freedom each",
+     "where": {
+      "page": 385,
+      "source_kind": "table",
+      "quote": "E ... 1 0·1564"
+     },
+     "check": {
+      "kind": "anova_mean_sq",
+      "term": "E",
+      "model": "(A + B + C + D + E)**2 + Week",
+      "response": "LogYield"
+     }
+    },
+    {
+     "what": "anova_mean_sq",
+     "term": "C·E",
+     "value": "0.0271",
+     "analysis": "log10 yield; one degree of freedom each",
+     "where": {
+      "page": 385,
+      "source_kind": "table",
+      "quote": "CE ... 1 0·0271"
+     },
+     "check": {
+      "kind": "anova_mean_sq",
+      "term": "C·E",
+      "model": "(A + B + C + D + E)**2 + Week",
+      "response": "LogYield"
+     }
+    },
+    {
+     "what": "anova_mean_sq",
+     "term": "Week",
+     "value": "0.0187",
+     "analysis": "log10 yield; one degree of freedom each",
+     "where": {
+      "page": 385,
+      "source_kind": "table",
+      "quote": "Five-factor interaction = between weeks 1 0·0187"
+     },
+     "check": {
+      "kind": "anova_mean_sq",
+      "term": "Week",
+      "model": "(A + B + C + D + E)**2 + Week",
+      "response": "LogYield"
+     }
+    },
+    {
+     "what": "ms_residual",
+     "term": null,
+     "value": "0.0034",
+     "analysis": "three- and four-factor interactions pooled as error, 15 df",
+     "where": {
+      "page": 385,
+      "source_kind": "table",
+      "quote": "Three-factor interactions 0·0020 ... Four-factor interactions .. 0·0044 ... 0·0034"
+     },
+     "check": {
+      "kind": "ms_residual",
+      "model": "(A + B + C + D + E)**2 + Week",
+      "response": "LogYield"
+     }
+    },
+    {
+     "what": "ms_residual",
+     "term": "four-factor interactions",
+     "value": "0.0044",
+     "analysis": "the five four-factor interactions",
+     "where": {
+      "page": 385,
+      "source_kind": "table",
+      "quote": "Four-factor interactions .. 0·0044"
+     },
+     "check": {
+      "kind": "ms_residual",
+      "model": "(A + B + C + D + E)**3 + Week",
+      "response": "LogYield"
+     }
+    },
+    {
+     "what": "anova_mean_sq",
+     "term": "remaining two-factor interactions",
+     "value": "0.0051",
+     "where": {
+      "page": 385,
+      "source_kind": "table",
+      "quote": "Remaining two-factor interactions 9 0·0051"
+     },
+     "check": {
+      "manual": "the nine two-factor interactions other than CE pooled; each is a row of the library's ANOVA"
+     }
+    },
+    {
+     "what": "anova_mean_sq",
+     "term": "three-factor interactions",
+     "value": "0.0020",
+     "where": {
+      "page": 385,
+      "source_kind": "table",
+      "quote": "Three-factor interactions 0·0020"
+     },
+     "check": {
+      "manual": "the ten three-factor interactions pooled; each is a row of the library's ANOVA"
+     }
+    },
+    {
+     "what": "mean",
+     "term": "C 0, E 0",
+     "value": "2.0878",
+     "analysis": "log10 yield",
+     "where": {
+      "page": 387,
+      "source_kind": "table",
+      "quote": "Table 9·321 ... 2·0878"
+     },
+     "check": {
+      "kind": "mean",
+      "response": "LogYield",
+      "runs": [
+       1,
+       2,
+       3,
+       4,
+       9,
+       10,
+       11,
+       12
+      ]
+     }
+    },
+    {
+     "what": "mean",
+     "term": "C 0.05%, E 0",
+     "value": "2.2418",
+     "analysis": "log10 yield",
+     "where": {
+      "page": 387,
+      "source_kind": "table",
+      "quote": "Table 9·321 ... 2·2418"
+     },
+     "check": {
+      "kind": "mean",
+      "response": "LogYield",
+      "runs": [
+       5,
+       6,
+       7,
+       8,
+       13,
+       14,
+       15,
+       16
+      ]
+     }
+    },
+    {
+     "what": "mean",
+     "term": "C 0, E 0.5%",
+     "value": "2.0061",
+     "analysis": "log10 yield",
+     "where": {
+      "page": 387,
+      "source_kind": "table",
+      "quote": "Table 9·321 ... 2·0061"
+     },
+     "check": {
+      "kind": "mean",
+      "response": "LogYield",
+      "runs": [
+       17,
+       18,
+       19,
+       20,
+       25,
+       26,
+       27,
+       28
+      ]
+     }
+    },
+    {
+     "what": "mean",
+     "term": "C 0.05%, E 0.5%",
+     "value": "2.0438",
+     "analysis": "log10 yield",
+     "where": {
+      "page": 387,
+      "source_kind": "table",
+      "quote": "Table 9·321 ... 2·0438"
+     },
+     "check": {
+      "kind": "mean",
+      "response": "LogYield",
+      "runs": [
+       21,
+       22,
+       23,
+       24,
+       29,
+       30,
+       31,
+       32
+      ]
+     }
+    },
+    {
+     "what": "mean",
+     "term": "E = 0",
+     "value": "2.1648",
+     "analysis": "log10 yield",
+     "where": {
+      "page": 387,
+      "source_kind": "table",
+      "quote": "Mean ... 2·1648"
+     },
+     "check": {
+      "kind": "mean",
+      "response": "LogYield",
+      "runs": [
+       1,
+       2,
+       3,
+       4,
+       5,
+       6,
+       7,
+       8,
+       9,
+       10,
+       11,
+       12,
+       13,
+       14,
+       15,
+       16
+      ]
+     }
+    },
+    {
+     "what": "mean",
+     "term": "E = 0.5%",
+     "value": "2.0249",
+     "analysis": "log10 yield",
+     "where": {
+      "page": 387,
+      "source_kind": "table",
+      "quote": "Mean ... 2·0249"
+     },
+     "check": {
+      "kind": "mean",
+      "response": "LogYield",
+      "runs": [
+       17,
+       18,
+       19,
+       20,
+       21,
+       22,
+       23,
+       24,
+       25,
+       26,
+       27,
+       28,
+       29,
+       30,
+       31,
+       32
+      ]
+     }
+    },
+    {
+     "what": "mean",
+     "term": "C = 0",
+     "value": "2.0469",
+     "analysis": "log10 yield",
+     "where": {
+      "page": 387,
+      "source_kind": "table",
+      "quote": "Mean ... 2·0469"
+     },
+     "check": {
+      "kind": "mean",
+      "response": "LogYield",
+      "runs": [
+       1,
+       2,
+       3,
+       4,
+       9,
+       10,
+       11,
+       12,
+       17,
+       18,
+       19,
+       20,
+       25,
+       26,
+       27,
+       28
+      ]
+     }
+    },
+    {
+     "what": "mean",
+     "term": "C = 0.05%",
+     "value": "2.1428",
+     "analysis": "log10 yield",
+     "where": {
+      "page": 387,
+      "source_kind": "table",
+      "quote": "Mean ... 2·1428"
+     },
+     "check": {
+      "kind": "mean",
+      "response": "LogYield",
+      "runs": [
+       5,
+       6,
+       7,
+       8,
+       13,
+       14,
+       15,
+       16,
+       21,
+       22,
+       23,
+       24,
+       29,
+       30,
+       31,
+       32
+      ]
+     }
+    },
+    {
+     "what": "mean",
+     "term": null,
+     "value": "2.0948",
+     "analysis": "log10 yield",
+     "where": {
+      "page": 387,
+      "source_kind": "table",
+      "quote": "Mean .. 2·0948"
+     },
+     "check": {
+      "kind": "mean",
+      "response": "LogYield"
+     }
+    },
+    {
+     "what": "anova_sum_sq",
+     "term": "Set",
+     "value": "0.0022",
+     "analysis": "Example 9-3: four blocks of eight, confounding ABC, ADE and BCDE",
+     "where": {
+      "page": 395,
+      "source_kind": "table",
+      "quote": "Blocks (ABC, ADE, BCDE) 0·0022 3 0·0007"
+     },
+     "check": {
+      "kind": "anova_sum_sq",
+      "term": "Set",
+      "model": "Set + (A + B + C + D + E)**2",
+      "response": "LogYield"
+     }
+    },
+    {
+     "what": "ss_total",
+     "term": null,
+     "value": "0.4850",
+     "analysis": "Example 9-3",
+     "where": {
+      "page": 395,
+      "source_kind": "table",
+      "quote": "0·4850 31"
+     },
+     "check": {
+      "kind": "ss_total",
+      "model": "Set + A + B + C + D + E",
+      "response": "LogYield",
+      "disagreement": "the sum of the rows of Table 9-47 as rounded; the corrected sum of squares of the 32 log yields is 0.48489, which rounds to 0.4849"
+     }
+    },
+    {
+     "what": "anova_sum_sq",
+     "term": "main effects",
+     "value": "0.3424",
+     "where": {
+      "page": 395,
+      "source_kind": "table",
+      "quote": "Main effects 0·3424 5 0·0685"
+     },
+     "check": {
+      "manual": "the five main effects together; each is checked above through its mean square"
+     }
+    },
+    {
+     "what": "anova_sum_sq",
+     "term": "two-factor interactions",
+     "value": "0.0727",
+     "where": {
+      "page": 395,
+      "source_kind": "table",
+      "quote": "Two-factor 0·0727 10 0·0073"
+     },
+     "check": {
+      "manual": "the ten two-factor interactions together; each is a row of the library's ANOVA"
+     }
+    },
+    {
+     "what": "mean",
+     "term": "block 1 of Example 9-3",
+     "value": "16.746",
+     "analysis": "Example 9-3: the total of the eight log yields in the block",
+     "where": {
+      "page": 395,
+      "source_kind": "table",
+      "quote": "Totals ... 16·746"
+     },
+     "check": {
+      "kind": "mean",
+      "response": "LogYield",
+      "runs": [
+       1,
+       7,
+       12,
+       14,
+       20,
+       22,
+       25,
+       31
+      ],
+      "printed": "16.746 / 8",
+      "expression": true
+     }
+    },
+    {
+     "what": "mean",
+     "term": "block 2 of Example 9-3",
+     "value": "16.770",
+     "analysis": "Example 9-3: the total of the eight log yields in the block",
+     "where": {
+      "page": 395,
+      "source_kind": "table",
+      "quote": "Totals ... 16·770"
+     },
+     "check": {
+      "kind": "mean",
+      "response": "LogYield",
+      "runs": [
+       4,
+       6,
+       9,
+       15,
+       17,
+       23,
+       28,
+       30
+      ],
+      "printed": "16.770 / 8",
+      "expression": true
+     }
+    },
+    {
+     "what": "mean",
+     "term": "block 3 of Example 9-3",
+     "value": "16.666",
+     "analysis": "Example 9-3: the total of the eight log yields in the block",
+     "where": {
+      "page": 395,
+      "source_kind": "table",
+      "quote": "Totals ... 16·666"
+     },
+     "check": {
+      "kind": "mean",
+      "response": "LogYield",
+      "runs": [
+       3,
+       5,
+       10,
+       16,
+       18,
+       24,
+       27,
+       29
+      ],
+      "printed": "16.666 / 8",
+      "expression": true
+     }
+    },
+    {
+     "what": "mean",
+     "term": "block 4 of Example 9-3",
+     "value": "16.853",
+     "analysis": "Example 9-3: the total of the eight log yields in the block",
+     "where": {
+      "page": 395,
+      "source_kind": "table",
+      "quote": "Totals ... 16·853"
+     },
+     "check": {
+      "kind": "mean",
+      "response": "LogYield",
+      "runs": [
+       2,
+       8,
+       11,
+       13,
+       19,
+       21,
+       26,
+       32
+      ],
+      "printed": "16.853 / 8",
+      "expression": true
+     }
     }
    ]
   }
@@ -16314,6 +18388,9 @@
   "Appendix 6C (pp. 245-247): the tyre data of Example 6-1 worked again by the missing-value method; the exact results are checked under davies-tyre-road-test",
   "Tables 7-4, 7-6 and 7-8 and Appendices 7A to 7D: notation, sign tables and expectations of mean squares, no data",
   "8.4 to 8.6, Appendices 8A, 8C to 8E: general methods, orthogonal polynomial tables and expectations of mean squares, no new data",
+  "9.1 to 9.3, 9.4 to 9.9 except the examples, Appendices 9B, 9D and 9E: the construction of confounded designs (Tables 9-1 to 9-9 and the lists of 9E), designs without data; Table 9-8 confounds W(ABC) and J(AB) and prints no results",
+  "Appendix 9C (pp. 416-418): the Yates analysis of Example 9-2, whose results are checked under davies-penicillin-2-5",
+  "Table 9F-2 (p. 435) is not in the scans read; the two numbers of p. 434 that lead to it are checked",
   "Appendices 8F and 8G (pp. 352-366): the data of Example 8-5 worked again (sums of pairs, I and J components, Yates's method for 3^n); the analysis of the runs is checked under davies-cotton-dyestuff-3-3"
  ]
 }
