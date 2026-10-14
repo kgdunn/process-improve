@@ -24,13 +24,13 @@
   "editor": "Owen L. Davies",
   "title": "The Design and Analysis of Industrial Experiments",
   "edition": "2nd edition (1956), reprinted with corrections 1978; the 1979 reprint",
-  "pages": "chapters 1 to 9, pp. 1-434, of 637",
+  "pages": "chapters 1 to 9, pp. 1-439, of 637",
   "year": 1956,
   "publisher": "Longman Group Limited, London and New York, for Imperial Chemical Industries Limited",
   "isbn": "0-582-46053-0",
   "url": "https://search.worldcat.org/search?q=bn:0582460530",
   "cite": "Davies, O. L. (ed.) (1956), The Design and Analysis of Industrial Experiments, 2nd edition, Longman for ICI",
-  "read": "2026-10-14, from scans of pp. i-xiii and 1-434 (chapters 1 to 9) of the 1979 reprint; every number copied by hand and checked against the totals the book prints; two tables printed sideways (4-1 and 5-6) taken from their reprints in the appendices, and Tables 4-3, 8-3, 8-61 and 9-3 read from the page image",
+  "read": "2026-10-14, from scans of pp. i-xiii and 1-439 (chapters 1 to 9) of the 1979 reprint; every number copied by hand and checked against the totals the book prints; two tables printed sideways (4-1 and 5-6) taken from their reprints in the appendices, and Tables 4-3, 8-3, 8-61 and 9-3 read from the page image",
   "rights": "The book is protected by copyright (© 1956 Imperial Chemical Industries Limited) and is not reproduced here. This file holds facts it reports (numbers, layouts, data) and short quotations that locate each one, for citation and for checking software. The MIT licence of process-improve does not extend to them."
  },
  "experiments": [
@@ -13936,7 +13936,7 @@
      ]
     ],
     "coded": false,
-    "notes": "Table 8-3 (p. 305), read from the page image; its row and column sums check"
+    "notes": "Table 8-3 (p. 305), read from the page image and confirmed against a clean re-scan of the page; its row and column sums check"
    },
    "notes": "Each polynomial component is checked in the model that holds it and the lower ones: with five equally spaced levels, B, B^2, B^3 and B^4 adjusted for the lower powers are the orthogonal polynomials. The slopes and curvatures of Table 8-35 are per level of B and are not checked.",
    "expected": [
@@ -14738,13 +14738,14 @@
    "kind": "example",
    "where": {
     "section": "8.7 to 8.72 and Appendix 8F, Appendix 9F",
-    "pages": "332-335, 352-361, 431-434",
+    "pages": "332-335, 352-361, 431-435",
     "tables": [
      "Table 8-61",
      "Table 8-62",
      "Table 8-63",
      "Table 8F-1",
-     "Table 9F-1"
+     "Table 9F-1",
+     "Table 9F-2"
     ],
     "figures": []
    },
@@ -16343,6 +16344,108 @@
       "kind": "ss_residual",
       "model": "Group + C + I(C**2) + V + I(V**2) + N + I(N**2) + C:V + C:I(V**2) + C:N + C:I(N**2) + I(C**2):V + I(C**2):I(V**2) + I(C**2):N + I(C**2):I(N**2) + V:N + V:I(N**2) + I(V**2):N + I(V**2):I(N**2)",
       "disagreement": "by subtraction from the rounded sums of squares of Table 8-62 and the blocks; unrounded it is 29,805.7"
+     }
+    },
+    {
+     "what": "ms_residual",
+     "term": null,
+     "value": "993",
+     "analysis": "Example 9-4: blocks, main effects and two-factor interactions",
+     "where": {
+      "page": 435,
+      "source_kind": "text",
+      "quote": "The sum of squares for this remainder is 29,803, based on 30 degrees of freedom, giving a mean square of 993"
+     },
+     "check": {
+      "kind": "ms_residual",
+      "model": "Group + C + I(C**2) + V + I(V**2) + N + I(N**2) + C:V + C:I(V**2) + C:N + C:I(N**2) + I(C**2):V + I(C**2):I(V**2) + I(C**2):N + I(C**2):I(N**2) + V:N + V:I(N**2) + I(V**2):N + I(V**2):I(N**2)",
+      "disagreement": "29,803 / 30 from the remainder as the book rounds it; unrounded 29,805.7 / 30 = 993.5"
+     }
+    },
+    {
+     "what": "anova_mean_sq",
+     "term": "Group",
+     "value": "196",
+     "analysis": "Example 9-4: Table 9F-2",
+     "where": {
+      "page": 435,
+      "source_kind": "table",
+      "quote": "Blocks 979 5 196"
+     },
+     "check": {
+      "kind": "anova_mean_sq",
+      "term": "Group",
+      "model": "Group + C + I(C**2) + V + I(V**2) + N + I(N**2) + C:V + C:I(V**2) + C:N + C:I(N**2) + I(C**2):V + I(C**2):I(V**2) + I(C**2):N + I(C**2):I(N**2) + V:N + V:I(N**2) + I(V**2):N + I(V**2):I(N**2)"
+     }
+    },
+    {
+     "what": "ss_residual",
+     "term": null,
+     "value": "19007",
+     "analysis": "Example 9-4: Table 9F-2, all effects and the blocks; the replication less the blocks as error",
+     "where": {
+      "page": 435,
+      "source_kind": "table",
+      "quote": "Remainder (= error) 19,007 22 864"
+     },
+     "check": {
+      "kind": "ss_residual",
+      "model": "Group + C + I(C**2) + V + I(V**2) + N + I(N**2) + C:V + C:I(V**2) + C:N + C:I(N**2) + I(C**2):V + I(C**2):I(V**2) + I(C**2):N + I(C**2):I(N**2) + V:N + V:I(N**2) + I(V**2):N + I(V**2):I(N**2) + C:V:N + C:V:I(N**2) + C:I(V**2):N + C:I(V**2):I(N**2) + I(C**2):V:N + I(C**2):V:I(N**2) + I(C**2):I(V**2):N + I(C**2):I(V**2):I(N**2)",
+      "disagreement": "by subtraction from the rounded sums of squares above; unrounded it is 19,010.9"
+     }
+    },
+    {
+     "what": "ms_residual",
+     "term": null,
+     "value": "864",
+     "analysis": "Example 9-4: Table 9F-2",
+     "where": {
+      "page": 435,
+      "source_kind": "table",
+      "quote": "Remainder (= error) 19,007 22 864"
+     },
+     "check": {
+      "kind": "ms_residual",
+      "model": "Group + C + I(C**2) + V + I(V**2) + N + I(N**2) + C:V + C:I(V**2) + C:N + C:I(N**2) + I(C**2):V + I(C**2):I(V**2) + I(C**2):N + I(C**2):I(N**2) + V:N + V:I(N**2) + I(V**2):N + I(V**2):I(N**2) + C:V:N + C:V:I(N**2) + C:I(V**2):N + C:I(V**2):I(N**2) + I(C**2):V:N + I(C**2):V:I(N**2) + I(C**2):I(V**2):N + I(C**2):I(V**2):I(N**2)"
+     }
+    },
+    {
+     "what": "anova_sum_sq",
+     "term": "main effects",
+     "value": "165383",
+     "where": {
+      "page": 435,
+      "source_kind": "table",
+      "quote": "Main effects.. 165,383 6"
+     },
+     "check": {
+      "manual": "the six main-effect components together, each checked under Table 8-62"
+     }
+    },
+    {
+     "what": "anova_sum_sq",
+     "term": "two-factor interactions",
+     "value": "43881",
+     "where": {
+      "page": 435,
+      "source_kind": "table",
+      "quote": "Two-factor interactions 43,881 12"
+     },
+     "check": {
+      "manual": "the twelve two-factor components together, each checked under Table 8-62"
+     }
+    },
+    {
+     "what": "anova_sum_sq",
+     "term": "unconfounded three-factor interactions",
+     "value": "10796",
+     "where": {
+      "page": 435,
+      "source_kind": "table",
+      "quote": "Unconfounded three-factor interactions (X) 6,191 (Z) 1,002 (W) 2,939 (Y) 664 10,796 8 1,350"
+     },
+     "check": {
+      "manual": "the sum of the X, Z, W and Y components, which no check computes"
      }
     },
     {
@@ -18390,7 +18493,7 @@
   "8.4 to 8.6, Appendices 8A, 8C to 8E: general methods, orthogonal polynomial tables and expectations of mean squares, no new data",
   "9.1 to 9.3, 9.4 to 9.9 except the examples, Appendices 9B, 9D and 9E: the construction of confounded designs (Tables 9-1 to 9-9 and the lists of 9E), designs without data; Table 9-8 confounds W(ABC) and J(AB) and prints no results",
   "Appendix 9C (pp. 416-418): the Yates analysis of Example 9-2, whose results are checked under davies-penicillin-2-5",
-  "Table 9F-2 (p. 435) is not in the scans read; the two numbers of p. 434 that lead to it are checked",
+  "Appendix 9G (pp. 435-439): confounded 3^n designs (three or nine runs a block), designs without data",
   "Appendices 8F and 8G (pp. 352-366): the data of Example 8-5 worked again (sums of pairs, I and J components, Yates's method for 3^n); the analysis of the runs is checked under davies-cotton-dyestuff-3-3"
  ]
 }
