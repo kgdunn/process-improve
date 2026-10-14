@@ -129,33 +129,17 @@ def worked_example() -> dict[str, Any]:
     request = {**held, "responses": simulation["responses"], "model": inputs["model"], "truth": simulation["truth"]}
     design.pop("xlsx_base64")  # the page writes the workbook when it is asked for
 
-    # The designs that can learn what the example aims to: every design the page offers for the same factors,
-    # compared on the nine measures, with power for the smallest change its response names.
-    model = inputs["design"]["aim"]
-    described = inputs["design"]["response_info"]
-    plan = call(
-        "api_compare_plan",
+    # The designs that can learn what the example aims to, as Plan lists them: every design the page offers for
+    # the same factors, made and compared on the nine measures, with power for the smallest change its response names.
+    comparison = call(
+        "api_candidates",
         {
             "factors": inputs["design"]["factors"],
-            "model": model,
+            "model": inputs["design"]["aim"],
             "response": inputs["design"]["response"],
-            "response_info": described,
+            "response_info": inputs["design"]["response_info"],
         },
     )
-    made = []
-    for item in plan["designs"]:
-        generated = call("api_make_design", item["spec"])
-        generated.pop("xlsx_base64")
-        made.append({**item, "design": generated})
-    contenders = [
-        {
-            "label": m["label"],
-            "spec": m["design"]["spec"],
-            "columns": m["design"]["columns"],
-            "rows": m["design"]["rows"],
-        }
-        for m in made
-    ]
     return {
         "version": version("process-improve"),
         "inputs": inputs,
@@ -163,20 +147,7 @@ def worked_example() -> dict[str, Any]:
         "simulation": simulation,
         "analysis": call("api_analyze_runs", request),
         "plots": call("api_plots", request),
-        "comparison": {
-            "model": model,
-            "made": made,
-            "notes": plan["notes"],
-            "result": call(
-                "api_compare",
-                {
-                    "model": model,
-                    "designs": contenders,
-                    "noise": described["noise"],
-                    "smallest_change": described["smallest_change"],
-                },
-            ),
-        },
+        "comparison": comparison,
     }
 
 
@@ -187,6 +158,8 @@ BOOK_EXAMPLES = WEB_SRC / "book-examples.json"
 PUBLISHED_EXAMPLES = WEB_SRC / "published-examples.json"
 #: Where the book is published; each example names its page under here.
 BOOK = "https://learnche.org/pid/"
+#: The name ``?example=`` gives the worked example (``WORKED`` in ``web/campaign.js``), which no other may take.
+WORKED = "worked"
 #: The campaign format the page reads (``CAMPAIGN_VERSION`` in ``web/campaign.js``).
 CAMPAIGN_VERSION = 1
 #: How near, in coded units, a run of the book must come to a run of the design: the book prints
@@ -280,7 +253,7 @@ def published_example(entry: dict[str, Any]) -> dict[str, Any]:
 def campaign_of(entry: dict[str, Any], what: str) -> dict[str, Any]:
     """Return the campaign an example opens: its design, and its runs and results in the source's order.
 
-    The design is made as step 1 makes it, and its runs put in the order of the source's table,
+    The design is made as Plan makes it, and its runs put in the order of the source's table,
     each with the source's result, so the page's run sheet reads as the source's table does. The
     design may number its blocks otherwise than the source numbers its days: each way of
     pairing them is tried.
@@ -319,6 +292,8 @@ def write_book(out_dir: Path) -> None:
     names = [example["name"] for example in examples]
     if len(set(names)) != len(names):
         raise SystemExit(f"Two examples share a name: {sorted({n for n in names if names.count(n) > 1})}")
+    if WORKED in names:
+        raise SystemExit(f"An example is named {WORKED!r}, which ?example= keeps for the worked example.")
     (out_dir / "book").mkdir()
     for example in examples:
         (out_dir / "book" / f"{example['name']}.json").write_text(json.dumps(example, separators=(",", ":")) + "\n")

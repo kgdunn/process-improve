@@ -259,7 +259,7 @@ SCENARIOS: dict[str, dict[str, Any]] = {
     },
 }
 
-#: The worked example, which "Explore a worked example" shows and "Run the worked example" runs live. Its
+#: The worked example, which "Explore a worked example" shows and "Run it again in your browser" runs live. Its
 #: response is the reactor's yield, near 62 % with a run-to-run noise of 1 %: the reactor process's own
 #: intercept and noise, so the results are those the process gives in coded units, and a change of 2 % is a
 #: coefficient of one noise standard deviation, the size a comparison scores power at by default.
@@ -1677,7 +1677,7 @@ def _dressed(figure: dict, kind: str, spec: dict, pair: list[str]) -> dict:
 
 # --------------------------------------------------------------------------- comparing designs
 #: The options each design is compared with: the page's own defaults, so a design in the
-#: comparison is the one step 1 would generate. The CCD is face-centred, to keep its runs
+#: comparison is the one Plan would make. The CCD is face-centred, to keep its runs
 #: inside the ranges the other designs are scored over.
 COMPARE_OPTIONS: dict[str, dict[str, Any]] = {
     "full_factorial": {"n_center_points": 3},
@@ -1721,7 +1721,7 @@ def compare_plan(request: dict) -> dict:
 
     Every design the factor count allows is included, with the page's default options;
     the optimal designs are built for the comparison's model (see :data:`OPTIMAL_MODEL`).
-    The response is the reader's, so a design taken into step 1 keeps it. A comparison has
+    The response is the reader's, so a design taken into the plan keeps it. A comparison has
     no results, so when that name is blank or a factor's, the first of y, y1, y2, ... that
     no factor takes stands in.
     """
@@ -1816,6 +1816,53 @@ def compare(request: dict) -> dict:
     return result
 
 
+#: From this many factors, the optimal designs' search for a model beyond main effects takes seconds
+#: to tens of seconds (an I-optimal design in six factors, about 20 s in the browser), so the designs
+#: listed as the reader types leave them out until the reader asks for the search.
+SEARCH_FROM = 5
+
+
+def candidates(request: dict) -> dict:
+    """Make and score, in one call, every design the page offers for these factors and this aim.
+
+    The designs are :func:`compare_plan`'s, each made as :func:`make_design` makes it, with
+    the library's warnings for it kept beside it, and all of them scored by :func:`compare` on
+    the model the reader aims to learn, at the power for the response's smallest change worth
+    finding. A design that cannot be made is left out, with a note saying why. With
+    :data:`SEARCH_FROM` factors or more and a model beyond main effects, the optimal designs
+    are left out unless ``search`` is true, and listed in ``waiting``.
+    """
+    plan = compare_plan(request)
+    k = len(request.get("factors") or [])
+    slow = k >= SEARCH_FROM and plan["model"] != "main_effects" and not request.get("search")
+    made, waiting, notes = [], [], list(plan["notes"])
+    for item in plan["designs"]:
+        if slow and "model_type" in DESIGNS[item["design_type"]]["options"]:
+            waiting.append({"design_type": item["design_type"], "label": item["label"]})
+            continue
+        with _listening() as heard:
+            try:
+                design = make_design(item["spec"])
+            except Exception as exc:  # noqa: BLE001 - one design that cannot be made leaves the others to compare
+                notes.append(f"{item['label']} could not be made: {exc}")
+                continue
+        design.pop("xlsx_base64", None)
+        made.append({**item, "design": design, "warnings": list(dict.fromkeys(heard))})
+    if not made:
+        raise ValueError("None of the designs this page offers can be made for these factors.")
+    info = _response_info(request.get("response_info"))
+    scored = [{"label": m["label"], **{key: m["design"][key] for key in ("spec", "columns", "rows")}} for m in made]
+    result = compare(
+        {
+            "model": plan["model"],
+            "designs": scored,
+            "noise": info.get("noise"),
+            "smallest_change": info.get("smallest_change"),
+        }
+    )
+    return {"model": plan["model"], "made": made, "waiting": waiting, "notes": notes, "result": result}
+
+
 # --------------------------------------------------------------------------- JSON entry points
 def api_catalogue(payload: str = "{}") -> str:
     """JSON wrapper around :func:`catalogue`."""
@@ -1865,3 +1912,8 @@ def api_compare_plan(payload: str) -> str:
 def api_compare(payload: str) -> str:
     """JSON wrapper around :func:`compare`."""
     return _reply(compare, payload)
+
+
+def api_candidates(payload: str) -> str:
+    """JSON wrapper around :func:`candidates`."""
+    return _reply(candidates, payload)

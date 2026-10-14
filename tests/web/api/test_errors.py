@@ -95,7 +95,7 @@ def _supplied(**change: object) -> Callable[[Example], dict]:
 
 #: Each refusal: the entry point, the request as a function of the worked example, and the message.
 REFUSALS: dict[str, tuple[str, Callable[[Example], dict], str]] = {
-    # The factors, as typed into step 1.
+    # The factors, as typed into the brief.
     "one factor": ("api_make_design", _make(factors=FACTORS[:1]), "Enter at least two factors."),
     "repeated name": (
         "api_make_design",
@@ -336,6 +336,16 @@ REFUSALS: dict[str, tuple[str, Callable[[Example], dict], str]] = {
     ),
     "unknown process": ("api_simulate", _runs(scenario="rocket"), "Unknown process 'rocket'."),
     "no noise": ("api_simulate", _runs(sigma=0), "The noise standard deviation must be a number above 0."),
+    "no design for these factors": (
+        "api_candidates",
+        lambda _: {
+            "factors": [
+                *({"name": f"X{i}", "low": -1, "high": 1} for i in range(11)),
+                {"name": "S", "low": "A", "high": "B"},
+            ],
+        },
+        "None of the designs this page offers can be made for these factors.",
+    ),
     "a true process over other factors": (
         "api_analyze_runs",
         _runs(truth=[{"term": "Z", "coefficient": 1.0}]),

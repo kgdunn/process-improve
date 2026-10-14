@@ -48,7 +48,7 @@ def test_the_built_worked_example_carries_what_the_page_draws(built_example):
 
 @pytest.mark.slow
 def test_the_built_worked_example_includes_the_comparison(built_example):
-    """The page draws step 4 at first paint too, from the comparison the build computes."""
+    """The worked example lists the designs that can learn it, from the comparison the build computes."""
     compared = built_example["comparison"]
     assert compared["model"] == "main_quadratic"
     assert [m["design_type"] for m in compared["made"]] == [

@@ -1,6 +1,6 @@
-"""Comparing designs: ``api_compare_plan`` lists the designs, ``api_compare`` scores them, for step 4 of the page.
+"""Comparing designs: ``api_compare_plan`` lists the designs and ``api_compare`` scores them, for ``api_candidates``.
 
-Every design the factor count allows is generated as step 1 would make it, then all of them
+Every design the factor count allows is generated as Plan would make it, then all of them
 are scored for one model on the nine measures of ``compare_designs``, with an FDS curve for
 each design that can fit the model.
 """
@@ -59,7 +59,7 @@ def test_each_design_is_compared_as_step_1_would_generate_it(api, bootstrap):
 
 
 def test_the_comparison_s_designs_keep_the_reader_s_response(api):
-    """A design taken from the comparison into step 1 keeps the response name typed there."""
+    """A design taken from the comparison into the plan keeps the response named in the brief."""
     plan = api.ok("api_compare_plan", {"factors": FACTORS, "response": "Yield"})
     assert {item["spec"]["response"] for item in plan["designs"]} == {"Yield"}
 
