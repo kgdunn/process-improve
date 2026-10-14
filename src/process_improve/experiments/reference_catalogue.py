@@ -338,6 +338,17 @@ def _prediction(out: dict, check: dict, experiment: dict) -> float:
     return float(found["predictions"][0]["predicted"])
 
 
+def _box_cox(out: dict, check: dict, _experiment: dict) -> float:
+    """Return a number of the library's Box-Cox analysis of ``check["model"]``: ``lambda`` or ``lambda_ci.0``, ``.1``.
+
+    Run on demand, so that a response that is not positive does not cost every other check its fit.
+    """
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        found = analyze_experiment(out["settings"], out["y"], model=check["model"], analysis_type="box_cox")
+    return _read(found["box_cox"], check["key"])
+
+
 def _response_model(out: dict, experiment: dict) -> dict:
     """Return a fit as :func:`optimize_responses` takes it: coded coefficients, the factors in the entry's order."""
     return {
@@ -452,6 +463,7 @@ _FIT_KINDS: dict[str, Callable[[dict, dict, dict], float]] = {
     "curvature_difference": lambda out, _c, _e: out["curvature_test"]["difference"],
     "prediction": _prediction,
     "optimum": _optimum,
+    "box_cox": _box_cox,
     "steepest_path": _steepest_path,
 }
 
@@ -700,7 +712,8 @@ def reproduce_reference_catalogue(source: str | None = None) -> pd.DataFrame:
     and aliases are compared with the fraction this library makes, and a list of runs (those
     making a fraction, or their standard order) with the runs' coded settings. A fitted
     quadratic's stationary point and canonical form, and a setting on a path of steepest ascent,
-    are recomputed with :func:`~process_improve.experiments.optimize_responses`. A number without
+    are recomputed with :func:`~process_improve.experiments.optimize_responses`, and a Box-Cox
+    power with the library's Box-Cox analysis. A number without
     a check is reported with the reason it is not recomputed.
 
     Parameters
