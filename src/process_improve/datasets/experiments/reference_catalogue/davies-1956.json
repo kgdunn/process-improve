@@ -1,7 +1,7 @@
 {
  "schema": 1,
  "about": [
-  "Part of the reference catalogue: designed experiments from chapters 2 to 10 of Davies (ed.), The Design and Analysis",
+  "Part of the reference catalogue: designed experiments from chapters 2 to 11 of Davies (ed.), The Design and Analysis",
   "of Industrial Experiments, for testing that software reproduces them. source: the citation, with what was read and",
   "when. experiments: each worked example with data (factors, responses, runs exactly as printed, in the printed",
   "order), where it is printed, and expected: every number the book prints for it, as printed text (with a period",
@@ -24,13 +24,13 @@
   "editor": "Owen L. Davies",
   "title": "The Design and Analysis of Industrial Experiments",
   "edition": "2nd edition (1956), reprinted with corrections 1978; the 1979 reprint",
-  "pages": "chapters 1 to 10, pp. 1-494, of 637",
+  "pages": "chapters 1 to 11, pp. 1-578, of 637",
   "year": 1956,
   "publisher": "Longman Group Limited, London and New York, for Imperial Chemical Industries Limited",
   "isbn": "0-582-46053-0",
   "url": "https://search.worldcat.org/search?q=bn:0582460530",
   "cite": "Davies, O. L. (ed.) (1956), The Design and Analysis of Industrial Experiments, 2nd edition, Longman for ICI",
-  "read": "2026-10-14, from scans of pp. i-xiii and 1-494 (chapters 1 to 10) of the 1979 reprint; every number copied by hand and checked against the totals the book prints; two tables printed sideways (4-1 and 5-6) taken from their reprints in the appendices, and Tables 4-3, 8-3, 8-61, 9-3 and 10-31 read from the page image",
+  "read": "2026-10-14, from scans of pp. i-xiii and 1-578 (chapters 1 to 11) of the 1979 reprint; every number copied by hand and checked against the totals the book prints; two tables printed sideways (4-1 and 5-6) taken from their reprints in the appendices, and Tables 4-3, 8-3, 8-61, 9-3, 10-31, 11-21, 11-411 and the estimates of pp. 512 and 517 read from the page image",
   "rights": "The book is protected by copyright (© 1956 Imperial Chemical Industries Limited) and is not reproduced here. This file holds facts it reports (numbers, layouts, data) and short quotations that locate each one, for citation and for checking software. The MIT licence of process-improve does not extend to them."
  },
  "experiments": [
@@ -21338,9 +21338,3236 @@
      }
     }
    ]
+  },
+  {
+   "name": "davies-steepest-ascent-first-experiment",
+   "title": "Yield of a laboratory reaction, first stage of steepest ascent: five factors in eight runs, a 2^(5-2) with x4 = x1x2x3 and x5 = -x2x3",
+   "kind": "example",
+   "where": {
+    "section": "11.4 to 11.41",
+    "pages": "511-514",
+    "tables": [
+     "Table 11-2",
+     "Table 11-21",
+     "Table 11-22"
+    ],
+    "figures": []
+   },
+   "factors": [
+    {
+     "name": "x1",
+     "description": "amount of solvent E",
+     "low": 200,
+     "high": 250,
+     "units": "c.c.",
+     "type": "numeric"
+    },
+    {
+     "name": "x2",
+     "description": "amount of C",
+     "low": 4.0,
+     "high": 4.5,
+     "units": "mol per mol of A",
+     "type": "numeric"
+    },
+    {
+     "name": "x3",
+     "description": "concentration of C",
+     "low": 90,
+     "high": 93,
+     "units": "%",
+     "type": "numeric"
+    },
+    {
+     "name": "x4",
+     "description": "time of reaction",
+     "low": 1,
+     "high": 2,
+     "units": "h",
+     "type": "numeric"
+    },
+    {
+     "name": "x5",
+     "description": "amount of B",
+     "low": 3.0,
+     "high": 3.5,
+     "units": "mol per mol of A",
+     "type": "numeric"
+    }
+   ],
+   "responses": [
+    {
+     "name": "y",
+     "description": "yield of D, as a percentage of the theoretical",
+     "units": "%"
+    }
+   ],
+   "design": {
+    "type": "2^(5-2) fractional factorial",
+    "details": "quarter replicate with x4 = x1x2x3 and x5 = -x2x3, keeping the x1x3 comparison free of main effects",
+    "n_runs": 8
+   },
+   "runs": {
+    "columns": [
+     "Trial",
+     "x1",
+     "x2",
+     "x3",
+     "x4",
+     "x5",
+     "y"
+    ],
+    "rows": [
+     [
+      1,
+      -1,
+      -1,
+      -1,
+      -1,
+      -1,
+      34.4
+     ],
+     [
+      2,
+      -1,
+      -1,
+      1,
+      1,
+      1,
+      51.6
+     ],
+     [
+      3,
+      -1,
+      1,
+      -1,
+      1,
+      1,
+      31.2
+     ],
+     [
+      4,
+      -1,
+      1,
+      1,
+      -1,
+      -1,
+      45.1
+     ],
+     [
+      5,
+      1,
+      -1,
+      -1,
+      1,
+      -1,
+      54.1
+     ],
+     [
+      6,
+      1,
+      -1,
+      1,
+      -1,
+      1,
+      62.4
+     ],
+     [
+      7,
+      1,
+      1,
+      -1,
+      -1,
+      1,
+      50.2
+     ],
+     [
+      8,
+      1,
+      1,
+      1,
+      1,
+      -1,
+      58.6
+     ]
+    ],
+    "coded": true,
+    "notes": "Table 11-21; the trials were run in random order, and the factor columns read back from the defining relations reproduce every estimate the book prints"
+   },
+   "notes": "The path of steepest ascent (Table 11-22) steps 10 c.c. in x1 at a time from the base levels, moving the other factors in proportion to their slopes times their units; trials (9) and (10) were run on it.",
+   "expected": [
+    {
+     "what": "mean",
+     "term": null,
+     "value": "48.5",
+     "where": {
+      "page": 512,
+      "source_kind": "table",
+      "quote": "b0 -> + β0(+ β11* + β22 + β33* + β44 + β55) = 48·5"
+     },
+     "check": {
+      "kind": "mean"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "x1",
+     "value": "7.9",
+     "analysis": "each estimate b = Σyx/Σx², with the aliases the book brackets",
+     "where": {
+      "page": 512,
+      "source_kind": "table",
+      "quote": "b1 -> + β1(- β45) = 7·9"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "x1",
+      "model": "x1 + x2 + x3 + x4 + x5 + x1:x2 + x1:x3"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "x2",
+     "value": "-2.2",
+     "analysis": "each estimate b = Σyx/Σx², with the aliases the book brackets",
+     "where": {
+      "page": 512,
+      "source_kind": "table",
+      "quote": "b2 -> + β2(- β35) = -2·2"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "x2",
+      "model": "x1 + x2 + x3 + x4 + x5 + x1:x2 + x1:x3"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "x3",
+     "value": "6.0",
+     "analysis": "each estimate b = Σyx/Σx², with the aliases the book brackets",
+     "where": {
+      "page": 512,
+      "source_kind": "table",
+      "quote": "b3 -> + β3(- β25) = 6·0"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "x3",
+      "model": "x1 + x2 + x3 + x4 + x5 + x1:x2 + x1:x3"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "x4",
+     "value": "0.4",
+     "analysis": "each estimate b = Σyx/Σx², with the aliases the book brackets",
+     "where": {
+      "page": 512,
+      "source_kind": "table",
+      "quote": "b123 -> + β4(- β15) = 0·4"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "x4",
+      "model": "x1 + x2 + x3 + x4 + x5 + x1:x2 + x1:x3"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "x1:x3",
+     "value": "-1.8",
+     "analysis": "each estimate b = Σyx/Σx², with the aliases the book brackets",
+     "where": {
+      "page": 512,
+      "source_kind": "table",
+      "quote": "b13 -> 0 (+ β13* + β24) = -1·8"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "x1:x3",
+      "model": "x1 + x2 + x3 + x4 + x5 + x1:x2 + x1:x3"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "x1:x2",
+     "value": "0.2",
+     "analysis": "each estimate b = Σyx/Σx², with the aliases the book brackets",
+     "where": {
+      "page": 512,
+      "source_kind": "table",
+      "quote": "b12 -> 0 (+ β12 + β34) = 0·2"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "x1:x2",
+      "model": "x1 + x2 + x3 + x4 + x5 + x1:x2 + x1:x3"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "x5",
+     "value": "-0.4",
+     "analysis": "b23 estimates -B5, since x5 = -x2x3: the library's coefficient of x5 is minus the book's b23",
+     "where": {
+      "page": 512,
+      "source_kind": "table",
+      "quote": "b23 -> - β5(+ β14 + β23) = -0·4"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "x5",
+      "model": "x1 + x2 + x3 + x4 + x5 + x1:x2 + x1:x3",
+      "printed": "0.4"
+     }
+    },
+    {
+     "what": "std_error",
+     "term": null,
+     "value": "0.4",
+     "where": {
+      "page": 512,
+      "source_kind": "table",
+      "quote": "(Approximate standard error of estimates is 0·4, assuming σ = 1)"
+     },
+     "check": {
+      "manual": "a standard error from an assumed σ = 1 (1/√8 = 0.35), not from these runs"
+     }
+    },
+    {
+     "what": "defining_relation",
+     "term": null,
+     "value": "1 = x1x2x3x4 = -x2x3x5 = -x1x4x5",
+     "analysis": "the defining relation, x1 to x5 lettered A to E",
+     "where": {
+      "page": 512,
+      "source_kind": "table",
+      "quote": "whence 1 = x1² = ... = x1x2x3x4 = -x2x3x5 = -x1x4x5"
+     },
+     "check": {
+      "kind": "defining_relation",
+      "generators": [
+       "D = ABC",
+       "E = -BC"
+      ],
+      "k": 5,
+      "printed": "ABCD = -BCE = -ADE"
+     }
+    },
+    {
+     "what": "slope",
+     "term": "x1",
+     "value": "197.5",
+     "where": {
+      "page": 513,
+      "source_kind": "table",
+      "quote": "(4) Unit X b .. 197·5 -0·55 9·0 0·2 0·1"
+     },
+     "check": {
+      "manual": "the unit times a slope rounded to one decimal (25 x 7.9); the slopes are checked as coefficients"
+     }
+    },
+    {
+     "what": "steepest_path",
+     "term": "x2",
+     "value": "-0.028",
+     "analysis": "the change in each factor per 10 c.c. step in x1, along the path of steepest ascent",
+     "where": {
+      "page": 513,
+      "source_kind": "table",
+      "quote": "(5) Change in level per 10 c.c. change in x1 10 -0·028 0·456 0·010 0·005"
+     },
+     "check": {
+      "kind": "steepest_path",
+      "model": "x1 + x2 + x3 + x4 + x5",
+      "per": "x1",
+      "change": 10,
+      "steps": 1,
+      "key": "x2",
+      "from_centre": true
+     }
+    },
+    {
+     "what": "steepest_path",
+     "term": "x3",
+     "value": "0.456",
+     "analysis": "the change in each factor per 10 c.c. step in x1, along the path of steepest ascent",
+     "where": {
+      "page": 513,
+      "source_kind": "table",
+      "quote": "(5) Change in level per 10 c.c. change in x1 10 -0·028 0·456 0·010 0·005"
+     },
+     "check": {
+      "kind": "steepest_path",
+      "model": "x1 + x2 + x3 + x4 + x5",
+      "per": "x1",
+      "change": 10,
+      "steps": 1,
+      "key": "x3",
+      "from_centre": true,
+      "disagreement": "the change in x3 per 10 c.c. is 0.4552 from the fitted slopes; the book's 0.456 = 10 x 9.0/197.5 is worked from the slopes rounded to 6.0 and 7.9"
+     }
+    },
+    {
+     "what": "steepest_path",
+     "term": "x4",
+     "value": "0.010",
+     "analysis": "the change in each factor per 10 c.c. step in x1, along the path of steepest ascent",
+     "where": {
+      "page": 513,
+      "source_kind": "table",
+      "quote": "(5) Change in level per 10 c.c. change in x1 10 -0·028 0·456 0·010 0·005"
+     },
+     "check": {
+      "kind": "steepest_path",
+      "model": "x1 + x2 + x3 + x4 + x5",
+      "per": "x1",
+      "change": 10,
+      "steps": 1,
+      "key": "x4",
+      "from_centre": true,
+      "disagreement": "the change in x4 per 10 c.c. is 0.0108 from the fitted slopes; the book's 0.010 = 10 x 0.2/197.5 is worked from the slopes rounded to 0.4 and 7.9"
+     }
+    },
+    {
+     "what": "steepest_path",
+     "term": "x5",
+     "value": "0.005",
+     "analysis": "the change in each factor per 10 c.c. step in x1, along the path of steepest ascent",
+     "where": {
+      "page": 513,
+      "source_kind": "table",
+      "quote": "(5) Change in level per 10 c.c. change in x1 10 -0·028 0·456 0·010 0·005"
+     },
+     "check": {
+      "kind": "steepest_path",
+      "model": "x1 + x2 + x3 + x4 + x5",
+      "per": "x1",
+      "change": 10,
+      "steps": 1,
+      "key": "x5",
+      "from_centre": true
+     }
+    },
+    {
+     "what": "steepest_path",
+     "term": "x1",
+     "value": "275",
+     "analysis": "a setting on the path of steepest ascent, a step of 10 c.c. in x1 at a time",
+     "where": {
+      "page": 513,
+      "source_kind": "table",
+      "quote": "Trial (9) .. 275 4·11 93·8 1·6 3·27"
+     },
+     "check": {
+      "kind": "steepest_path",
+      "model": "x1 + x2 + x3 + x4 + x5",
+      "per": "x1",
+      "change": 10,
+      "steps": 5,
+      "key": "x1"
+     }
+    },
+    {
+     "what": "steepest_path",
+     "term": "x2",
+     "value": "4.11",
+     "analysis": "a setting on the path of steepest ascent, a step of 10 c.c. in x1 at a time",
+     "where": {
+      "page": 513,
+      "source_kind": "table",
+      "quote": "Trial (9) .. 275 4·11 93·8 1·6 3·27"
+     },
+     "check": {
+      "kind": "steepest_path",
+      "model": "x1 + x2 + x3 + x4 + x5",
+      "per": "x1",
+      "change": 10,
+      "steps": 5,
+      "key": "x2"
+     }
+    },
+    {
+     "what": "steepest_path",
+     "term": "x3",
+     "value": "93.8",
+     "analysis": "a setting on the path of steepest ascent, a step of 10 c.c. in x1 at a time",
+     "where": {
+      "page": 513,
+      "source_kind": "table",
+      "quote": "Trial (9) .. 275 4·11 93·8 1·6 3·27"
+     },
+     "check": {
+      "kind": "steepest_path",
+      "model": "x1 + x2 + x3 + x4 + x5",
+      "per": "x1",
+      "change": 10,
+      "steps": 5,
+      "key": "x3"
+     }
+    },
+    {
+     "what": "steepest_path",
+     "term": "x4",
+     "value": "1.6",
+     "analysis": "a setting on the path of steepest ascent, a step of 10 c.c. in x1 at a time",
+     "where": {
+      "page": 513,
+      "source_kind": "table",
+      "quote": "Trial (9) .. 275 4·11 93·8 1·6 3·27"
+     },
+     "check": {
+      "kind": "steepest_path",
+      "model": "x1 + x2 + x3 + x4 + x5",
+      "per": "x1",
+      "change": 10,
+      "steps": 5,
+      "key": "x4"
+     }
+    },
+    {
+     "what": "steepest_path",
+     "term": "x5",
+     "value": "3.27",
+     "analysis": "a setting on the path of steepest ascent, a step of 10 c.c. in x1 at a time",
+     "where": {
+      "page": 513,
+      "source_kind": "table",
+      "quote": "Trial (9) .. 275 4·11 93·8 1·6 3·27"
+     },
+     "check": {
+      "kind": "steepest_path",
+      "model": "x1 + x2 + x3 + x4 + x5",
+      "per": "x1",
+      "change": 10,
+      "steps": 5,
+      "key": "x5",
+      "disagreement": "x5 at trial (9) is 3.2754 from the fitted slopes; the book adds its rounded step of 0.005 per 10 c.c. (the book sets the path out from slopes rounded to one decimal)"
+     }
+    },
+    {
+     "what": "steepest_path",
+     "term": "x1",
+     "value": "295",
+     "analysis": "a setting on the path of steepest ascent, a step of 10 c.c. in x1 at a time",
+     "where": {
+      "page": 513,
+      "source_kind": "table",
+      "quote": "Trial (10) .. 295 4·06 94·7 1·6 3·28"
+     },
+     "check": {
+      "kind": "steepest_path",
+      "model": "x1 + x2 + x3 + x4 + x5",
+      "per": "x1",
+      "change": 10,
+      "steps": 7,
+      "key": "x1"
+     }
+    },
+    {
+     "what": "steepest_path",
+     "term": "x2",
+     "value": "4.06",
+     "analysis": "a setting on the path of steepest ascent, a step of 10 c.c. in x1 at a time",
+     "where": {
+      "page": 513,
+      "source_kind": "table",
+      "quote": "Trial (10) .. 295 4·06 94·7 1·6 3·28"
+     },
+     "check": {
+      "kind": "steepest_path",
+      "model": "x1 + x2 + x3 + x4 + x5",
+      "per": "x1",
+      "change": 10,
+      "steps": 7,
+      "key": "x2"
+     }
+    },
+    {
+     "what": "steepest_path",
+     "term": "x3",
+     "value": "94.7",
+     "analysis": "a setting on the path of steepest ascent, a step of 10 c.c. in x1 at a time",
+     "where": {
+      "page": 513,
+      "source_kind": "table",
+      "quote": "Trial (10) .. 295 4·06 94·7 1·6 3·28"
+     },
+     "check": {
+      "kind": "steepest_path",
+      "model": "x1 + x2 + x3 + x4 + x5",
+      "per": "x1",
+      "change": 10,
+      "steps": 7,
+      "key": "x3"
+     }
+    },
+    {
+     "what": "steepest_path",
+     "term": "x4",
+     "value": "1.6",
+     "analysis": "a setting on the path of steepest ascent, a step of 10 c.c. in x1 at a time",
+     "where": {
+      "page": 513,
+      "source_kind": "table",
+      "quote": "Trial (10) .. 295 4·06 94·7 1·6 3·28"
+     },
+     "check": {
+      "kind": "steepest_path",
+      "model": "x1 + x2 + x3 + x4 + x5",
+      "per": "x1",
+      "change": 10,
+      "steps": 7,
+      "key": "x4"
+     }
+    },
+    {
+     "what": "steepest_path",
+     "term": "x5",
+     "value": "3.28",
+     "analysis": "a setting on the path of steepest ascent, a step of 10 c.c. in x1 at a time",
+     "where": {
+      "page": 513,
+      "source_kind": "table",
+      "quote": "Trial (10) .. 295 4·06 94·7 1·6 3·28"
+     },
+     "check": {
+      "kind": "steepest_path",
+      "model": "x1 + x2 + x3 + x4 + x5",
+      "per": "x1",
+      "change": 10,
+      "steps": 7,
+      "key": "x5",
+      "disagreement": "x5 at trial (10) is 3.2856 from the fitted slopes; the book adds its rounded step of 0.005 per 10 c.c. (the book sets the path out from slopes rounded to one decimal)"
+     }
+    },
+    {
+     "what": "observation",
+     "term": "trial 9",
+     "value": "80",
+     "where": {
+      "page": 514,
+      "source_kind": "table",
+      "quote": "This gave a yield of 80% compared with a mean yield for the first eight trials of 48·5%"
+     },
+     "check": {
+      "manual": "a run on the path of steepest ascent, outside the design the model is fitted to"
+     }
+    },
+    {
+     "what": "observation",
+     "term": "trial 10",
+     "value": "79.4",
+     "where": {
+      "page": 514,
+      "source_kind": "table",
+      "quote": "A yield of 79·4% was obtained in this trial"
+     },
+     "check": {
+      "manual": "a run on the path of steepest ascent, outside the design the model is fitted to"
+     }
+    }
+   ]
+  },
+  {
+   "name": "davies-steepest-ascent-second-experiment",
+   "title": "Yield of a laboratory reaction, second stage of steepest ascent: a 2^(5-2) with x4 = x1x2x3 and x5 = x1x2, around trial (10)",
+   "kind": "example",
+   "where": {
+    "section": "11.42 to 11.43",
+    "pages": "515-518",
+    "tables": [
+     "Table 11-3",
+     "Table 11-31",
+     "Table 11-32"
+    ],
+    "figures": []
+   },
+   "factors": [
+    {
+     "name": "x1",
+     "description": "amount of solvent E",
+     "low": 280,
+     "high": 310,
+     "units": "c.c.",
+     "type": "numeric"
+    },
+    {
+     "name": "x2",
+     "description": "amount of C",
+     "low": 3.85,
+     "high": 4.15,
+     "units": "mol per mol of A",
+     "type": "numeric"
+    },
+    {
+     "name": "x3",
+     "description": "concentration of C",
+     "low": 94,
+     "high": 96,
+     "units": "%",
+     "type": "numeric"
+    },
+    {
+     "name": "x4",
+     "description": "time of reaction",
+     "low": 2,
+     "high": 4,
+     "units": "h",
+     "type": "numeric"
+    },
+    {
+     "name": "x5",
+     "description": "amount of B",
+     "low": 3.5,
+     "high": 5.5,
+     "units": "mol per mol of A",
+     "type": "numeric"
+    }
+   ],
+   "responses": [
+    {
+     "name": "y",
+     "description": "yield of D, as a percentage of the theoretical",
+     "units": "%"
+    }
+   ],
+   "design": {
+    "type": "2^(5-2) fractional factorial",
+    "details": "quarter replicate with x4 = x1x2x3 and x5 = x1x2, the aliases rearranged from the first experiment",
+    "n_runs": 8
+   },
+   "runs": {
+    "columns": [
+     "Trial",
+     "x1",
+     "x2",
+     "x3",
+     "x4",
+     "x5",
+     "y"
+    ],
+    "rows": [
+     [
+      11,
+      -1,
+      -1,
+      -1,
+      -1,
+      1,
+      77.1
+     ],
+     [
+      12,
+      -1,
+      -1,
+      1,
+      1,
+      1,
+      69.0
+     ],
+     [
+      13,
+      -1,
+      1,
+      -1,
+      1,
+      -1,
+      75.5
+     ],
+     [
+      14,
+      -1,
+      1,
+      1,
+      -1,
+      -1,
+      72.6
+     ],
+     [
+      15,
+      1,
+      -1,
+      -1,
+      1,
+      -1,
+      67.9
+     ],
+     [
+      16,
+      1,
+      -1,
+      1,
+      -1,
+      -1,
+      68.4
+     ],
+     [
+      17,
+      1,
+      1,
+      -1,
+      -1,
+      1,
+      71.5
+     ],
+     [
+      18,
+      1,
+      1,
+      1,
+      1,
+      1,
+      63.4
+     ]
+    ],
+    "coded": true,
+    "notes": "Table 11-31 (trials 11 to 18); the factor columns read back from the defining relations reproduce every estimate the book prints"
+   },
+   "notes": "The base levels of x4 and x5 were moved away from the first path and their units enlarged (11.42). The path of Table 11-32 steps -10 c.c. in x1 from the base levels, which is the direction the fitted slopes point.",
+   "expected": [
+    {
+     "what": "mean",
+     "term": null,
+     "value": "70.7",
+     "where": {
+      "page": 517,
+      "source_kind": "table",
+      "quote": "b0 -> β0 (+ β11 + β22 + β33 + β44 + β55) = 70·7"
+     },
+     "check": {
+      "kind": "mean"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "x1",
+     "value": "-2.9",
+     "analysis": "each estimate b = Σyx/Σx², with the aliases the book brackets",
+     "where": {
+      "page": 517,
+      "source_kind": "table",
+      "quote": "b1 -> β1 (+ β25) = -2·9"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "x1",
+      "model": "x1 + x2 + x3 + x4 + x5 + x1:x3 + x2:x3"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "x2",
+     "value": "0.1",
+     "analysis": "each estimate b = Σyx/Σx², with the aliases the book brackets",
+     "where": {
+      "page": 517,
+      "source_kind": "table",
+      "quote": "b2 -> β2 (+ β15) = 0·1"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "x2",
+      "model": "x1 + x2 + x3 + x4 + x5 + x1:x3 + x2:x3"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "x3",
+     "value": "-2.3",
+     "analysis": "each estimate b = Σyx/Σx², with the aliases the book brackets",
+     "where": {
+      "page": 517,
+      "source_kind": "table",
+      "quote": "b3 -> β3 (+ β45) = -2·3"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "x3",
+      "model": "x1 + x2 + x3 + x4 + x5 + x1:x3 + x2:x3"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "x4",
+     "value": "-1.7",
+     "analysis": "each estimate b = Σyx/Σx², with the aliases the book brackets",
+     "where": {
+      "page": 517,
+      "source_kind": "table",
+      "quote": "b123 -> β4 (+ β35) = -1·7"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "x4",
+      "model": "x1 + x2 + x3 + x4 + x5 + x1:x3 + x2:x3"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "x5",
+     "value": "-0.4",
+     "analysis": "each estimate b = Σyx/Σx², with the aliases the book brackets",
+     "where": {
+      "page": 517,
+      "source_kind": "table",
+      "quote": "b12 -> β5 (+ β12 + β34) = -0·4"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "x5",
+      "model": "x1 + x2 + x3 + x4 + x5 + x1:x3 + x2:x3"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "x1:x3",
+     "value": "0.4",
+     "analysis": "each estimate b = Σyx/Σx², with the aliases the book brackets",
+     "where": {
+      "page": 517,
+      "source_kind": "table",
+      "quote": "b13 -> 0 (+ β13 + β24) = 0·4"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "x1:x3",
+      "model": "x1 + x2 + x3 + x4 + x5 + x1:x3 + x2:x3"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "x2:x3",
+     "value": "-0.4",
+     "analysis": "each estimate b = Σyx/Σx², with the aliases the book brackets",
+     "where": {
+      "page": 517,
+      "source_kind": "table",
+      "quote": "b23 -> 0 (+ β23 + β14) = -0·4"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "x2:x3",
+      "model": "x1 + x2 + x3 + x4 + x5 + x1:x3 + x2:x3"
+     }
+    },
+    {
+     "what": "std_error",
+     "term": null,
+     "value": "0.4",
+     "where": {
+      "page": 517,
+      "source_kind": "table",
+      "quote": "(Approximate standard error of estimates is 0·4, assuming σ = 1)"
+     },
+     "check": {
+      "manual": "a standard error from an assumed σ = 1, not from these runs"
+     }
+    },
+    {
+     "what": "defining_relation",
+     "term": null,
+     "value": "1 = x1x2x3x4 = x1x2x5 = x3x4x5",
+     "analysis": "the defining relation, x1 to x5 lettered A to E",
+     "where": {
+      "page": 516,
+      "source_kind": "table",
+      "quote": "whence 1 = x1² = ... = x1x2x3x4 = x1x2x5 = x3x4x5"
+     },
+     "check": {
+      "kind": "defining_relation",
+      "generators": [
+       "D = ABC",
+       "E = AB"
+      ],
+      "k": 5,
+      "printed": "ABCD = ABE = CDE"
+     }
+    },
+    {
+     "what": "steepest_path",
+     "term": "x1",
+     "value": "285",
+     "analysis": "a setting on the path of steepest ascent, 1 step(s) of -10 c.c. in x1 from the base levels",
+     "where": {
+      "page": 517,
+      "source_kind": "table",
+      "quote": "Trial (19) 285 4·0 94·5 2·6 4·4"
+     },
+     "check": {
+      "kind": "steepest_path",
+      "model": "x1 + x2 + x3 + x4 + x5",
+      "per": "x1",
+      "change": -10,
+      "steps": 1,
+      "key": "x1"
+     }
+    },
+    {
+     "what": "steepest_path",
+     "term": "x2",
+     "value": "4.0",
+     "analysis": "a setting on the path of steepest ascent, 1 step(s) of -10 c.c. in x1 from the base levels",
+     "where": {
+      "page": 517,
+      "source_kind": "table",
+      "quote": "Trial (19) 285 4·0 94·5 2·6 4·4"
+     },
+     "check": {
+      "kind": "steepest_path",
+      "model": "x1 + x2 + x3 + x4 + x5",
+      "per": "x1",
+      "change": -10,
+      "steps": 1,
+      "key": "x2"
+     }
+    },
+    {
+     "what": "steepest_path",
+     "term": "x3",
+     "value": "94.5",
+     "analysis": "a setting on the path of steepest ascent, 1 step(s) of -10 c.c. in x1 from the base levels",
+     "where": {
+      "page": 517,
+      "source_kind": "table",
+      "quote": "Trial (19) 285 4·0 94·5 2·6 4·4"
+     },
+     "check": {
+      "kind": "steepest_path",
+      "model": "x1 + x2 + x3 + x4 + x5",
+      "per": "x1",
+      "change": -10,
+      "steps": 1,
+      "key": "x3"
+     }
+    },
+    {
+     "what": "steepest_path",
+     "term": "x4",
+     "value": "2.6",
+     "analysis": "a setting on the path of steepest ascent, 1 step(s) of -10 c.c. in x1 from the base levels",
+     "where": {
+      "page": 517,
+      "source_kind": "table",
+      "quote": "Trial (19) 285 4·0 94·5 2·6 4·4"
+     },
+     "check": {
+      "kind": "steepest_path",
+      "model": "x1 + x2 + x3 + x4 + x5",
+      "per": "x1",
+      "change": -10,
+      "steps": 1,
+      "key": "x4"
+     }
+    },
+    {
+     "what": "steepest_path",
+     "term": "x5",
+     "value": "4.4",
+     "analysis": "a setting on the path of steepest ascent, 1 step(s) of -10 c.c. in x1 from the base levels",
+     "where": {
+      "page": 517,
+      "source_kind": "table",
+      "quote": "Trial (19) 285 4·0 94·5 2·6 4·4"
+     },
+     "check": {
+      "kind": "steepest_path",
+      "model": "x1 + x2 + x3 + x4 + x5",
+      "per": "x1",
+      "change": -10,
+      "steps": 1,
+      "key": "x5"
+     }
+    },
+    {
+     "what": "steepest_path",
+     "term": "x1",
+     "value": "275",
+     "analysis": "a setting on the path of steepest ascent, 2 step(s) of -10 c.c. in x1 from the base levels",
+     "where": {
+      "page": 517,
+      "source_kind": "table",
+      "quote": "(no trial) 275 4·0 93·9 2·2 4·3"
+     },
+     "check": {
+      "kind": "steepest_path",
+      "model": "x1 + x2 + x3 + x4 + x5",
+      "per": "x1",
+      "change": -10,
+      "steps": 2,
+      "key": "x1"
+     }
+    },
+    {
+     "what": "steepest_path",
+     "term": "x2",
+     "value": "4.0",
+     "analysis": "a setting on the path of steepest ascent, 2 step(s) of -10 c.c. in x1 from the base levels",
+     "where": {
+      "page": 517,
+      "source_kind": "table",
+      "quote": "(no trial) 275 4·0 93·9 2·2 4·3"
+     },
+     "check": {
+      "kind": "steepest_path",
+      "model": "x1 + x2 + x3 + x4 + x5",
+      "per": "x1",
+      "change": -10,
+      "steps": 2,
+      "key": "x2"
+     }
+    },
+    {
+     "what": "steepest_path",
+     "term": "x3",
+     "value": "93.9",
+     "analysis": "a setting on the path of steepest ascent, 2 step(s) of -10 c.c. in x1 from the base levels",
+     "where": {
+      "page": 517,
+      "source_kind": "table",
+      "quote": "(no trial) 275 4·0 93·9 2·2 4·3"
+     },
+     "check": {
+      "kind": "steepest_path",
+      "model": "x1 + x2 + x3 + x4 + x5",
+      "per": "x1",
+      "change": -10,
+      "steps": 2,
+      "key": "x3"
+     }
+    },
+    {
+     "what": "steepest_path",
+     "term": "x4",
+     "value": "2.2",
+     "analysis": "a setting on the path of steepest ascent, 2 step(s) of -10 c.c. in x1 from the base levels",
+     "where": {
+      "page": 517,
+      "source_kind": "table",
+      "quote": "(no trial) 275 4·0 93·9 2·2 4·3"
+     },
+     "check": {
+      "kind": "steepest_path",
+      "model": "x1 + x2 + x3 + x4 + x5",
+      "per": "x1",
+      "change": -10,
+      "steps": 2,
+      "key": "x4"
+     }
+    },
+    {
+     "what": "steepest_path",
+     "term": "x5",
+     "value": "4.3",
+     "analysis": "a setting on the path of steepest ascent, 2 step(s) of -10 c.c. in x1 from the base levels",
+     "where": {
+      "page": 517,
+      "source_kind": "table",
+      "quote": "(no trial) 275 4·0 93·9 2·2 4·3"
+     },
+     "check": {
+      "kind": "steepest_path",
+      "model": "x1 + x2 + x3 + x4 + x5",
+      "per": "x1",
+      "change": -10,
+      "steps": 2,
+      "key": "x5"
+     }
+    },
+    {
+     "what": "steepest_path",
+     "term": "x1",
+     "value": "265",
+     "analysis": "a setting on the path of steepest ascent, 3 step(s) of -10 c.c. in x1 from the base levels",
+     "where": {
+      "page": 517,
+      "source_kind": "table",
+      "quote": "Trial (20) 265 4·0 93·4 1·8 4·2"
+     },
+     "check": {
+      "kind": "steepest_path",
+      "model": "x1 + x2 + x3 + x4 + x5",
+      "per": "x1",
+      "change": -10,
+      "steps": 3,
+      "key": "x1"
+     }
+    },
+    {
+     "what": "steepest_path",
+     "term": "x2",
+     "value": "4.0",
+     "analysis": "a setting on the path of steepest ascent, 3 step(s) of -10 c.c. in x1 from the base levels",
+     "where": {
+      "page": 517,
+      "source_kind": "table",
+      "quote": "Trial (20) 265 4·0 93·4 1·8 4·2"
+     },
+     "check": {
+      "kind": "steepest_path",
+      "model": "x1 + x2 + x3 + x4 + x5",
+      "per": "x1",
+      "change": -10,
+      "steps": 3,
+      "key": "x2"
+     }
+    },
+    {
+     "what": "steepest_path",
+     "term": "x3",
+     "value": "93.4",
+     "analysis": "a setting on the path of steepest ascent, 3 step(s) of -10 c.c. in x1 from the base levels",
+     "where": {
+      "page": 517,
+      "source_kind": "table",
+      "quote": "Trial (20) 265 4·0 93·4 1·8 4·2"
+     },
+     "check": {
+      "kind": "steepest_path",
+      "model": "x1 + x2 + x3 + x4 + x5",
+      "per": "x1",
+      "change": -10,
+      "steps": 3,
+      "key": "x3"
+     }
+    },
+    {
+     "what": "steepest_path",
+     "term": "x4",
+     "value": "1.8",
+     "analysis": "a setting on the path of steepest ascent, 3 step(s) of -10 c.c. in x1 from the base levels",
+     "where": {
+      "page": 517,
+      "source_kind": "table",
+      "quote": "Trial (20) 265 4·0 93·4 1·8 4·2"
+     },
+     "check": {
+      "kind": "steepest_path",
+      "model": "x1 + x2 + x3 + x4 + x5",
+      "per": "x1",
+      "change": -10,
+      "steps": 3,
+      "key": "x4"
+     }
+    },
+    {
+     "what": "steepest_path",
+     "term": "x5",
+     "value": "4.2",
+     "analysis": "a setting on the path of steepest ascent, 3 step(s) of -10 c.c. in x1 from the base levels",
+     "where": {
+      "page": 517,
+      "source_kind": "table",
+      "quote": "Trial (20) 265 4·0 93·4 1·8 4·2"
+     },
+     "check": {
+      "kind": "steepest_path",
+      "model": "x1 + x2 + x3 + x4 + x5",
+      "per": "x1",
+      "change": -10,
+      "steps": 3,
+      "key": "x5"
+     }
+    },
+    {
+     "what": "steepest_path",
+     "term": "x1",
+     "value": "255",
+     "analysis": "a setting on the path of steepest ascent, 4 step(s) of -10 c.c. in x1 from the base levels",
+     "where": {
+      "page": 517,
+      "source_kind": "table",
+      "quote": "Trial (21) 255 4·0 92·8 1·4 4·1"
+     },
+     "check": {
+      "kind": "steepest_path",
+      "model": "x1 + x2 + x3 + x4 + x5",
+      "per": "x1",
+      "change": -10,
+      "steps": 4,
+      "key": "x1"
+     }
+    },
+    {
+     "what": "steepest_path",
+     "term": "x2",
+     "value": "4.0",
+     "analysis": "a setting on the path of steepest ascent, 4 step(s) of -10 c.c. in x1 from the base levels",
+     "where": {
+      "page": 517,
+      "source_kind": "table",
+      "quote": "Trial (21) 255 4·0 92·8 1·4 4·1"
+     },
+     "check": {
+      "kind": "steepest_path",
+      "model": "x1 + x2 + x3 + x4 + x5",
+      "per": "x1",
+      "change": -10,
+      "steps": 4,
+      "key": "x2"
+     }
+    },
+    {
+     "what": "steepest_path",
+     "term": "x3",
+     "value": "92.8",
+     "analysis": "a setting on the path of steepest ascent, 4 step(s) of -10 c.c. in x1 from the base levels",
+     "where": {
+      "page": 517,
+      "source_kind": "table",
+      "quote": "Trial (21) 255 4·0 92·8 1·4 4·1"
+     },
+     "check": {
+      "kind": "steepest_path",
+      "model": "x1 + x2 + x3 + x4 + x5",
+      "per": "x1",
+      "change": -10,
+      "steps": 4,
+      "key": "x3"
+     }
+    },
+    {
+     "what": "steepest_path",
+     "term": "x4",
+     "value": "1.4",
+     "analysis": "a setting on the path of steepest ascent, 4 step(s) of -10 c.c. in x1 from the base levels",
+     "where": {
+      "page": 517,
+      "source_kind": "table",
+      "quote": "Trial (21) 255 4·0 92·8 1·4 4·1"
+     },
+     "check": {
+      "kind": "steepest_path",
+      "model": "x1 + x2 + x3 + x4 + x5",
+      "per": "x1",
+      "change": -10,
+      "steps": 4,
+      "key": "x4"
+     }
+    },
+    {
+     "what": "steepest_path",
+     "term": "x5",
+     "value": "4.1",
+     "analysis": "a setting on the path of steepest ascent, 4 step(s) of -10 c.c. in x1 from the base levels",
+     "where": {
+      "page": 517,
+      "source_kind": "table",
+      "quote": "Trial (21) 255 4·0 92·8 1·4 4·1"
+     },
+     "check": {
+      "kind": "steepest_path",
+      "model": "x1 + x2 + x3 + x4 + x5",
+      "per": "x1",
+      "change": -10,
+      "steps": 4,
+      "key": "x5"
+     }
+    },
+    {
+     "what": "observation",
+     "term": "trial 19",
+     "value": "80.8",
+     "where": {
+      "page": 518,
+      "source_kind": "table",
+      "quote": "Trials (19), (20), and (21) performed along the path gave yields of 80·8%, 84·0%, and 81·5% respectively"
+     },
+     "check": {
+      "manual": "a run on the path of steepest ascent, outside the design the model is fitted to"
+     }
+    },
+    {
+     "what": "observation",
+     "term": "trial 20",
+     "value": "84.0",
+     "where": {
+      "page": 518,
+      "source_kind": "table",
+      "quote": "Trials (19), (20), and (21) performed along the path gave yields of 80·8%, 84·0%, and 81·5% respectively"
+     },
+     "check": {
+      "manual": "a run on the path of steepest ascent, outside the design the model is fitted to"
+     }
+    },
+    {
+     "what": "observation",
+     "term": "trial 21",
+     "value": "81.5",
+     "where": {
+      "page": 518,
+      "source_kind": "table",
+      "quote": "Trials (19), (20), and (21) performed along the path gave yields of 80·8%, 84·0%, and 81·5% respectively"
+     },
+     "check": {
+      "manual": "a run on the path of steepest ascent, outside the design the model is fitted to"
+     }
+    }
+   ]
+  },
+  {
+   "name": "davies-near-stationary-3x3",
+   "title": "Yield in a near-stationary region: a 3^2 factorial, a second-degree fit and its canonical analysis",
+   "kind": "example",
+   "where": {
+    "section": "11.5 to 11.533",
+    "pages": "518-529",
+    "tables": [
+     "Table 11-4",
+     "Table 11-41",
+     "Table 11-411"
+    ],
+    "figures": [
+     "Fig. 11-4"
+    ]
+   },
+   "factors": [
+    {
+     "name": "x1",
+     "description": "first factor, in the units of the design",
+     "low": -1,
+     "high": 1,
+     "units": "",
+     "type": "numeric"
+    },
+    {
+     "name": "x2",
+     "description": "second factor, in the units of the design",
+     "low": -1,
+     "high": 1,
+     "units": "",
+     "type": "numeric"
+    }
+   ],
+   "responses": [
+    {
+     "name": "y",
+     "description": "yield",
+     "units": "%"
+    }
+   ],
+   "design": {
+    "type": "3^2 factorial",
+    "details": "levels -1, 0, 1; the same as the orthogonal composite design for two factors (Table 11-6)",
+    "n_runs": 9
+   },
+   "runs": {
+    "columns": [
+     "Trial",
+     "x1",
+     "x2",
+     "y"
+    ],
+    "rows": [
+     [
+      1,
+      -1,
+      -1,
+      71.7
+     ],
+     [
+      2,
+      0,
+      -1,
+      79.2
+     ],
+     [
+      3,
+      1,
+      -1,
+      80.1
+     ],
+     [
+      4,
+      -1,
+      0,
+      75.2
+     ],
+     [
+      5,
+      0,
+      0,
+      81.5
+     ],
+     [
+      6,
+      1,
+      0,
+      79.1
+     ],
+     [
+      7,
+      -1,
+      1,
+      76.3
+     ],
+     [
+      8,
+      0,
+      1,
+      80.2
+     ],
+     [
+      9,
+      1,
+      1,
+      75.8
+     ]
+    ],
+    "coded": true,
+    "notes": "Table 11-4, x1 changing fastest; Σy = 699.1 and Σy² = 54,383.01 check"
+   },
+   "notes": "The book fits the orthogonal form (11-52), with x² - 2/3 in place of x², so the constant estimates the mean η0; its b0 follows from (11-53). Standard errors use the prior σ² = 0.6.",
+   "expected": [
+    {
+     "what": "mean",
+     "term": null,
+     "value": "77.68",
+     "analysis": "the estimate of η0, the mean, in the orthogonal form (11-52)",
+     "where": {
+      "page": 521,
+      "source_kind": "table",
+      "quote": "η0 9 699·1 77·68 (1) 54,304·53"
+     },
+     "check": {
+      "kind": "mean"
+     }
+    },
+    {
+     "what": "sum_of_squares",
+     "term": "η0",
+     "value": "54,304.53",
+     "where": {
+      "page": 521,
+      "source_kind": "table",
+      "quote": "η0 9 699·1 77·68 (1) 54,304·53"
+     },
+     "check": {
+      "manual": "the correction for the mean, n times the mean squared (699.1²/9); the library's sums of squares are about the mean"
+     }
+    },
+    {
+     "what": "sum_of_squares",
+     "term": "Total",
+     "value": "54,383.01",
+     "where": {
+      "page": 521,
+      "source_kind": "table",
+      "quote": "Total .. (9) 54,383·01"
+     },
+     "check": {
+      "manual": "the uncorrected total, Σy²; the library's total is about the mean (78.48 = 78.06 + 0.42)"
+     }
+    },
+    {
+     "what": "ss_regression",
+     "term": null,
+     "value": "78.06",
+     "analysis": "the five first- and second-order components together",
+     "where": {
+      "page": 521,
+      "source_kind": "table",
+      "quote": "(1) 30·94 }78·06"
+     },
+     "check": {
+      "kind": "ss_regression",
+      "model": "x1 + x2 + x1:x2 + I(x1**2) + I(x2**2)"
+     }
+    },
+    {
+     "what": "ss_residual",
+     "term": null,
+     "value": "0.42",
+     "where": {
+      "page": 521,
+      "source_kind": "table",
+      "quote": "Deviations from regression .. (3) 0·42"
+     },
+     "check": {
+      "kind": "ss_residual",
+      "model": "x1 + x2 + x1:x2 + I(x1**2) + I(x2**2)"
+     }
+    },
+    {
+     "what": "residual_df",
+     "term": null,
+     "value": "3",
+     "where": {
+      "page": 521,
+      "source_kind": "table",
+      "quote": "Deviations from regression .. (3) 0·42"
+     },
+     "check": {
+      "kind": "residual_df",
+      "model": "x1 + x2 + x1:x2 + I(x1**2) + I(x2**2)"
+     }
+    },
+    {
+     "what": "ms_residual",
+     "term": null,
+     "value": "0.14",
+     "where": {
+      "page": 522,
+      "source_kind": "table",
+      "quote": "larger than the residual estimate of 0·14"
+     },
+     "check": {
+      "kind": "ms_residual",
+      "model": "x1 + x2 + x1:x2 + I(x1**2) + I(x2**2)"
+     }
+    },
+    {
+     "what": "ms_residual",
+     "term": "prior",
+     "value": "0.6",
+     "where": {
+      "page": 521,
+      "source_kind": "table",
+      "quote": "previous experiments had suggested that the value of σ² was about 0·6"
+     },
+     "check": {
+      "manual": "an error variance from earlier experiments, not from these runs"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "x1",
+     "value": "1.97",
+     "analysis": "the estimate, Σyx/Σx²",
+     "where": {
+      "page": 521,
+      "source_kind": "table",
+      "quote": "x1 ... 1·97"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "x1",
+      "model": "x1 + x2 + x1:x2 + I(x1**2) + I(x2**2)"
+     }
+    },
+    {
+     "what": "anova_sum_sq",
+     "term": "x1",
+     "value": "23.21",
+     "analysis": "the component sum of squares, (Σyx)²/Σx²",
+     "where": {
+      "page": 521,
+      "source_kind": "table",
+      "quote": "x1 ... (1) 23·21"
+     },
+     "check": {
+      "kind": "anova_sum_sq",
+      "term": "x1",
+      "model": "x1 + x2 + x1:x2 + I(x1**2) + I(x2**2)"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "x2",
+     "value": "0.22",
+     "analysis": "the estimate, Σyx/Σx²",
+     "where": {
+      "page": 521,
+      "source_kind": "table",
+      "quote": "x2 ... 0·22"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "x2",
+      "model": "x1 + x2 + x1:x2 + I(x1**2) + I(x2**2)"
+     }
+    },
+    {
+     "what": "anova_sum_sq",
+     "term": "x2",
+     "value": "0.28",
+     "analysis": "the component sum of squares, (Σyx)²/Σx²",
+     "where": {
+      "page": 521,
+      "source_kind": "table",
+      "quote": "x2 ... (1) 0·28"
+     },
+     "check": {
+      "kind": "anova_sum_sq",
+      "term": "x2",
+      "model": "x1 + x2 + x1:x2 + I(x1**2) + I(x2**2)"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "x1²",
+     "value": "-3.93",
+     "analysis": "the estimate, Σyx/Σx²",
+     "where": {
+      "page": 521,
+      "source_kind": "table",
+      "quote": "x1² ... -3·93"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "x1²",
+      "model": "x1 + x2 + x1:x2 + I(x1**2) + I(x2**2)"
+     }
+    },
+    {
+     "what": "anova_sum_sq",
+     "term": "x1²",
+     "value": "30.94",
+     "analysis": "the component sum of squares, (Σyx)²/Σx²",
+     "where": {
+      "page": 521,
+      "source_kind": "table",
+      "quote": "x1² ... (1) 30·94"
+     },
+     "check": {
+      "kind": "anova_sum_sq",
+      "term": "x1²",
+      "model": "x1 + x2 + x1:x2 + I(x1**2) + I(x2**2)"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "x2²",
+     "value": "-1.38",
+     "analysis": "the estimate, Σyx/Σx²",
+     "where": {
+      "page": 521,
+      "source_kind": "table",
+      "quote": "x2² ... -1·38"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "x2²",
+      "model": "x1 + x2 + x1:x2 + I(x1**2) + I(x2**2)"
+     }
+    },
+    {
+     "what": "anova_sum_sq",
+     "term": "x2²",
+     "value": "3.83",
+     "analysis": "the component sum of squares, (Σyx)²/Σx²",
+     "where": {
+      "page": 521,
+      "source_kind": "table",
+      "quote": "x2² ... (1) 3·83"
+     },
+     "check": {
+      "kind": "anova_sum_sq",
+      "term": "x2²",
+      "model": "x1 + x2 + x1:x2 + I(x1**2) + I(x2**2)"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "x1·x2",
+     "value": "-2.22",
+     "analysis": "the estimate, Σyx/Σx²",
+     "where": {
+      "page": 521,
+      "source_kind": "table",
+      "quote": "x1·x2 ... -2·22"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "x1·x2",
+      "model": "x1 + x2 + x1:x2 + I(x1**2) + I(x2**2)"
+     }
+    },
+    {
+     "what": "anova_sum_sq",
+     "term": "x1·x2",
+     "value": "19.80",
+     "analysis": "the component sum of squares, (Σyx)²/Σx²",
+     "where": {
+      "page": 521,
+      "source_kind": "table",
+      "quote": "x1·x2 ... (1) 19·80"
+     },
+     "check": {
+      "kind": "anova_sum_sq",
+      "term": "x1·x2",
+      "model": "x1 + x2 + x1:x2 + I(x1**2) + I(x2**2)"
+     }
+    },
+    {
+     "what": "sum_of_products",
+     "term": "Σyx",
+     "value": "11.8",
+     "where": {
+      "page": 521,
+      "source_kind": "table",
+      "quote": "β1 6 11·8 1·97 (1) 23·21"
+     },
+     "check": {
+      "manual": "a sum of products on the way to the estimate, which is checked"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "Intercept",
+     "value": "81.22",
+     "analysis": "b0 recovered from η0 by (11-53)",
+     "where": {
+      "page": 522,
+      "source_kind": "table",
+      "quote": "b0 = 77·68 + (3·93 X 0·67) + (1·38 X 0·67) = 81·22"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "Intercept",
+      "model": "x1 + x2 + x1:x2 + I(x1**2) + I(x2**2)"
+     }
+    },
+    {
+     "what": "std_error",
+     "term": "Intercept",
+     "value": "0.58",
+     "where": {
+      "page": 522,
+      "source_kind": "table",
+      "quote": "b0 = 81·22 ± 0·58"
+     },
+     "check": {
+      "manual": "standard errors from the prior σ² = 0.6, not from these runs' residual; V(b0) = 0.5555σ²"
+     }
+    },
+    {
+     "what": "std_error",
+     "term": "x1",
+     "value": "0.32",
+     "where": {
+      "page": 522,
+      "source_kind": "table",
+      "quote": "b1 = 1·97 ± 0·32"
+     },
+     "check": {
+      "manual": "standard errors from the prior σ² = 0.6, not from these runs' residual"
+     }
+    },
+    {
+     "what": "stationary_point",
+     "term": "x1",
+     "value": "0.30",
+     "analysis": "the centre S of the fitted contours",
+     "where": {
+      "page": 524,
+      "source_kind": "table",
+      "quote": "the centre of the system is at x1 = 0·30, x2 = -0·16"
+     },
+     "check": {
+      "kind": "optimum",
+      "method": "stationary_point",
+      "model": "x1 + x2 + x1:x2 + I(x1**2) + I(x2**2)",
+      "key": "stationary_point.stationary_point_coded.x1",
+      "disagreement": "x1S is 0.2949 from the fitted coefficients; the book solves (11-6) with the coefficients rounded to two decimals, which gives 0.2952"
+     }
+    },
+    {
+     "what": "stationary_point",
+     "term": "x2",
+     "value": "-0.16",
+     "analysis": "the centre S of the fitted contours",
+     "where": {
+      "page": 524,
+      "source_kind": "table",
+      "quote": "the centre of the system is at x1 = 0·30, x2 = -0·16"
+     },
+     "check": {
+      "kind": "optimum",
+      "method": "stationary_point",
+      "model": "x1 + x2 + x1:x2 + I(x1**2) + I(x2**2)",
+      "key": "stationary_point.stationary_point_coded.x2"
+     }
+    },
+    {
+     "what": "stationary_point",
+     "term": "predicted",
+     "value": "81.49",
+     "analysis": "the response predicted at S",
+     "where": {
+      "page": 527,
+      "source_kind": "table",
+      "quote": "Substitution of these values in Equation (11-6) gives Ys = 81·49"
+     },
+     "check": {
+      "kind": "optimum",
+      "method": "stationary_point",
+      "model": "x1 + x2 + x1:x2 + I(x1**2) + I(x2**2)",
+      "key": "stationary_point.predicted_response",
+      "disagreement": "Ys is 81.4950 from the fitted coefficients; the book substitutes its S, rounded to (0.30, -0.16), in the equation with rounded coefficients, which gives 81.4934"
+     }
+    },
+    {
+     "what": "eigenvalue",
+     "term": "B11",
+     "value": "-4.35",
+     "analysis": "the canonical coefficients, roots of the characteristic equation (11-621)",
+     "where": {
+      "page": 528,
+      "source_kind": "table",
+      "quote": "The roots of this equation are B = -4·35 and -0·96"
+     },
+     "check": {
+      "kind": "optimum",
+      "method": "stationary_point",
+      "model": "x1 + x2 + x1:x2 + I(x1**2) + I(x2**2)",
+      "key": "stationary_point.eigenvalues.0"
+     }
+    },
+    {
+     "what": "eigenvalue",
+     "term": "B22",
+     "value": "-0.96",
+     "analysis": "the canonical coefficients, roots of the characteristic equation (11-621)",
+     "where": {
+      "page": 528,
+      "source_kind": "table",
+      "quote": "The roots of this equation are B = -4·35 and -0·96"
+     },
+     "check": {
+      "kind": "optimum",
+      "method": "stationary_point",
+      "model": "x1 + x2 + x1:x2 + I(x1**2) + I(x2**2)",
+      "key": "stationary_point.eigenvalues.1",
+      "disagreement": "the root is -0.9662 from the fitted coefficients; the book's -0.96 (-0.9645) solves the characteristic equation written with the coefficients rounded to two decimals"
+     }
+    },
+    {
+     "what": "characteristic_equation",
+     "term": null,
+     "value": "B² + 5.31B + 4.1913 = 0",
+     "where": {
+      "page": 528,
+      "source_kind": "table",
+      "quote": "B² + 5·31B + 4·1913 = 0"
+     },
+     "check": {
+      "manual": "the characteristic polynomial, whose coefficients are minus the sum and the product of the eigenvalues; from the fitted coefficients they are 5.317 and 4.204, the book's coming from coefficients rounded to two decimals"
+     }
+    },
+    {
+     "what": "eigenvector",
+     "term": "m11",
+     "value": "0.936",
+     "analysis": "the rotation to the canonical axes X1 and X2, each row a unit eigenvector (its sign arbitrary)",
+     "where": {
+      "page": 529,
+      "source_kind": "table",
+      "quote": "X1 = 0·936(x1 - 0·30) + 0·352(x2 + 0·16); X2 = 0·352(x1 - 0·30) - 0·936(x2 + 0·16)"
+     },
+     "check": {
+      "kind": "optimum",
+      "method": "canonical_analysis",
+      "model": "x1 + x2 + x1:x2 + I(x1**2) + I(x2**2)",
+      "key": "canonical_analysis.eigenvectors.0.0",
+      "abs": true,
+      "printed": "0.936"
+     }
+    },
+    {
+     "what": "eigenvector",
+     "term": "m12",
+     "value": "0.352",
+     "analysis": "the rotation to the canonical axes X1 and X2, each row a unit eigenvector (its sign arbitrary)",
+     "where": {
+      "page": 529,
+      "source_kind": "table",
+      "quote": "X1 = 0·936(x1 - 0·30) + 0·352(x2 + 0·16); X2 = 0·352(x1 - 0·30) - 0·936(x2 + 0·16)"
+     },
+     "check": {
+      "kind": "optimum",
+      "method": "canonical_analysis",
+      "model": "x1 + x2 + x1:x2 + I(x1**2) + I(x2**2)",
+      "key": "canonical_analysis.eigenvectors.0.1",
+      "abs": true,
+      "printed": "0.352",
+      "disagreement": "the eigenvector's x2 element is 0.3511 from the fitted coefficients; the book's 0.352 normalises its ratio 0.376, the mean of 0.378 and 0.374 worked from rounded coefficients"
+     }
+    },
+    {
+     "what": "eigenvector",
+     "term": "m21",
+     "value": "0.352",
+     "analysis": "the rotation to the canonical axes X1 and X2, each row a unit eigenvector (its sign arbitrary)",
+     "where": {
+      "page": 529,
+      "source_kind": "table",
+      "quote": "X1 = 0·936(x1 - 0·30) + 0·352(x2 + 0·16); X2 = 0·352(x1 - 0·30) - 0·936(x2 + 0·16)"
+     },
+     "check": {
+      "kind": "optimum",
+      "method": "canonical_analysis",
+      "model": "x1 + x2 + x1:x2 + I(x1**2) + I(x2**2)",
+      "key": "canonical_analysis.eigenvectors.1.0",
+      "abs": true,
+      "printed": "0.352",
+      "disagreement": "the eigenvector's x1 element is 0.3511 from the fitted coefficients; the book's 0.352 normalises its ratio 0.376, the mean of 0.378 and 0.374 worked from rounded coefficients"
+     }
+    },
+    {
+     "what": "eigenvector",
+     "term": "m22",
+     "value": "-0.936",
+     "analysis": "the rotation to the canonical axes X1 and X2, each row a unit eigenvector (its sign arbitrary)",
+     "where": {
+      "page": 529,
+      "source_kind": "table",
+      "quote": "X1 = 0·936(x1 - 0·30) + 0·352(x2 + 0·16); X2 = 0·352(x1 - 0·30) - 0·936(x2 + 0·16)"
+     },
+     "check": {
+      "kind": "optimum",
+      "method": "canonical_analysis",
+      "model": "x1 + x2 + x1:x2 + I(x1**2) + I(x2**2)",
+      "key": "canonical_analysis.eigenvectors.1.1",
+      "abs": true,
+      "printed": "0.936"
+     }
+    }
+   ]
+  },
+  {
+   "name": "davies-composite-three-factor",
+   "title": "Yield of C in a reaction A + B -> C + D: a 2^3 factorial completed to a composite design (alpha = 2), with canonical analysis",
+   "kind": "example",
+   "where": {
+    "section": "11.7 to 11.741",
+    "pages": "541-550",
+    "tables": [
+     "Table 11-7",
+     "Table 11-71",
+     "Table 11-72",
+     "Table 11-73"
+    ],
+    "figures": [
+     "Fig. 11-9",
+     "Fig. 11-91"
+    ]
+   },
+   "factors": [
+    {
+     "name": "T",
+     "description": "temperature",
+     "low": 142,
+     "high": 152,
+     "units": "°C",
+     "type": "numeric"
+    },
+    {
+     "name": "c",
+     "description": "initial concentration of A",
+     "low": 35,
+     "high": 40,
+     "units": "%",
+     "type": "numeric"
+    },
+    {
+     "name": "t",
+     "description": "time of reaction",
+     "low": 7,
+     "high": 10,
+     "units": "h",
+     "type": "numeric"
+    }
+   ],
+   "responses": [
+    {
+     "name": "y",
+     "description": "yield of C",
+     "units": "%"
+    }
+   ],
+   "design": {
+    "type": "central composite design",
+    "details": "2^3 factorial (trials 1 to 8), then one centre run and six axial runs at alpha = 2 (trials 9 to 15); not orthogonal",
+    "n_runs": 15
+   },
+   "runs": {
+    "columns": [
+     "Trial",
+     "T",
+     "c",
+     "t",
+     "y"
+    ],
+    "rows": [
+     [
+      1,
+      -1,
+      -1,
+      -1,
+      55.9
+     ],
+     [
+      2,
+      -1,
+      -1,
+      1,
+      63.3
+     ],
+     [
+      3,
+      -1,
+      1,
+      -1,
+      67.5
+     ],
+     [
+      4,
+      -1,
+      1,
+      1,
+      68.8
+     ],
+     [
+      5,
+      1,
+      -1,
+      -1,
+      70.6
+     ],
+     [
+      6,
+      1,
+      -1,
+      1,
+      68.0
+     ],
+     [
+      7,
+      1,
+      1,
+      -1,
+      68.6
+     ],
+     [
+      8,
+      1,
+      1,
+      1,
+      62.4
+     ],
+     [
+      9,
+      0,
+      0,
+      0,
+      66.9
+     ],
+     [
+      10,
+      2,
+      0,
+      0,
+      65.4
+     ],
+     [
+      11,
+      -2,
+      0,
+      0,
+      56.9
+     ],
+     [
+      12,
+      0,
+      2,
+      0,
+      67.5
+     ],
+     [
+      13,
+      0,
+      -2,
+      0,
+      65.0
+     ],
+     [
+      14,
+      0,
+      0,
+      2,
+      68.9
+     ],
+     [
+      15,
+      0,
+      0,
+      -2,
+      60.3
+     ]
+    ],
+    "coded": true,
+    "notes": "Tables 11-71 and 11-73, in coded units x1 = (T - 147)/5, x2 = (c - 37.5)/2.5, x3 = (t - 8.5)/1.5; Σy and Σxi²y match the normal equations of p. 543"
+   },
+   "notes": "The book reads the canonical form as a stationary plane ridge: B22 is negligible and further runs along the X3 axis showed no rise, so it treats B33 as zero too (11.74). The library classifies the fitted surface as a saddle point.",
+   "expected": [
+    {
+     "what": "mean",
+     "term": null,
+     "value": "65.64",
+     "analysis": "the 2^3 factorial alone (trials 1 to 8)",
+     "where": {
+      "page": 542,
+      "source_kind": "table",
+      "quote": "b0 -> B0 + B11 + B22 + B33 = 65·64 ± 0·4"
+     },
+     "check": {
+      "kind": "mean",
+      "runs": [
+       1,
+       2,
+       3,
+       4,
+       5,
+       6,
+       7,
+       8
+      ]
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "T",
+     "value": "1.76",
+     "analysis": "the 2^3 factorial alone (trials 1 to 8)",
+     "where": {
+      "page": 542,
+      "source_kind": "table",
+      "quote": "b1 -> B1 = 1·76 ± 0·4"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "T",
+      "model": "T * c * t",
+      "runs": [
+       1,
+       2,
+       3,
+       4,
+       5,
+       6,
+       7,
+       8
+      ]
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "c",
+     "value": "1.19",
+     "analysis": "the 2^3 factorial alone (trials 1 to 8)",
+     "where": {
+      "page": 542,
+      "source_kind": "table",
+      "quote": "b2 -> B2 = 1·19 ± 0·4"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "c",
+      "model": "T * c * t",
+      "runs": [
+       1,
+       2,
+       3,
+       4,
+       5,
+       6,
+       7,
+       8
+      ]
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "t",
+     "value": "-0.01",
+     "analysis": "the 2^3 factorial alone (trials 1 to 8)",
+     "where": {
+      "page": 542,
+      "source_kind": "table",
+      "quote": "b3 -> B3 = -0·01 ± 0·4"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "t",
+      "model": "T * c * t",
+      "runs": [
+       1,
+       2,
+       3,
+       4,
+       5,
+       6,
+       7,
+       8
+      ]
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "T:c",
+     "value": "-3.09",
+     "analysis": "the 2^3 factorial alone (trials 1 to 8)",
+     "where": {
+      "page": 542,
+      "source_kind": "table",
+      "quote": "b12 -> B12 = -3·09 ± 0·4"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "T:c",
+      "model": "T * c * t",
+      "runs": [
+       1,
+       2,
+       3,
+       4,
+       5,
+       6,
+       7,
+       8
+      ]
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "T:t",
+     "value": "-2.19",
+     "analysis": "the 2^3 factorial alone (trials 1 to 8)",
+     "where": {
+      "page": 542,
+      "source_kind": "table",
+      "quote": "b13 -> B13 = -2·19 ± 0·4"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "T:t",
+      "model": "T * c * t",
+      "runs": [
+       1,
+       2,
+       3,
+       4,
+       5,
+       6,
+       7,
+       8
+      ]
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "c:t",
+     "value": "-1.21",
+     "analysis": "the 2^3 factorial alone (trials 1 to 8)",
+     "where": {
+      "page": 542,
+      "source_kind": "table",
+      "quote": "b23 -> B23 = -1·21 ± 0·4"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "c:t",
+      "model": "T * c * t",
+      "runs": [
+       1,
+       2,
+       3,
+       4,
+       5,
+       6,
+       7,
+       8
+      ]
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "T:c:t",
+     "value": "0.31",
+     "analysis": "the 2^3 factorial alone (trials 1 to 8)",
+     "where": {
+      "page": 542,
+      "source_kind": "table",
+      "quote": "b123 -> 0 = 0·31 ± 0·4"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "T:c:t",
+      "model": "T * c * t",
+      "runs": [
+       1,
+       2,
+       3,
+       4,
+       5,
+       6,
+       7,
+       8
+      ]
+     }
+    },
+    {
+     "what": "std_error",
+     "term": "2^3",
+     "value": "0.4",
+     "where": {
+      "page": 542,
+      "source_kind": "table",
+      "quote": "65·64 ± 0·4"
+     },
+     "check": {
+      "manual": "a standard error from an assumed σ = 1%, for which there was prior evidence, not from these runs"
+     }
+    },
+    {
+     "what": "normal_equations",
+     "term": null,
+     "value": "976.0",
+     "where": {
+      "page": 543,
+      "source_kind": "table",
+      "quote": "15b0 + 16b11 + 16b22 + 16b33 = 976·0"
+     },
+     "check": {
+      "manual": "a right-hand side of the normal equations (11-83), Σy; the estimates they give are checked"
+     }
+    },
+    {
+     "what": "normal_equations",
+     "term": null,
+     "value": "1014.3",
+     "where": {
+      "page": 543,
+      "source_kind": "table",
+      "quote": "16b0 + 40b11 + 8b22 + 8b33 = 1014·3"
+     },
+     "check": {
+      "manual": "a right-hand side of the normal equations (11-83), Σx1²y; the estimates they give are checked"
+     }
+    },
+    {
+     "what": "reciprocal_matrix",
+     "term": null,
+     "value": "224/288",
+     "where": {
+      "page": 544,
+      "source_kind": "table",
+      "quote": "V(b0) = (224/288)σ²"
+     },
+     "check": {
+      "manual": "an element of the inverse of the C-matrix, a variance multiplier of the design"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "Intercept",
+     "value": "67.711",
+     "analysis": "the full second-degree fit to the 15 runs of the composite design",
+     "where": {
+      "page": 544,
+      "source_kind": "table",
+      "quote": "b0 = 67·711"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "Intercept",
+      "model": "(T + c + t)**2 + I(T**2) + I(c**2) + I(t**2)"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "T",
+     "value": "1.944",
+     "analysis": "the full second-degree fit to the 15 runs of the composite design",
+     "where": {
+      "page": 544,
+      "source_kind": "table",
+      "quote": "b1 = 1·944"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "T",
+      "model": "(T + c + t)**2 + I(T**2) + I(c**2) + I(t**2)"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "c",
+     "value": "0.906",
+     "analysis": "the full second-degree fit to the 15 runs of the composite design",
+     "where": {
+      "page": 544,
+      "source_kind": "table",
+      "quote": "b2 = 0·906"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "c",
+      "model": "(T + c + t)**2 + I(T**2) + I(c**2) + I(t**2)"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "t",
+     "value": "1.069",
+     "analysis": "the full second-degree fit to the 15 runs of the composite design",
+     "where": {
+      "page": 544,
+      "source_kind": "table",
+      "quote": "b3 = 1·069"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "t",
+      "model": "(T + c + t)**2 + I(T**2) + I(c**2) + I(t**2)"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "T²",
+     "value": "-1.539",
+     "analysis": "the full second-degree fit to the 15 runs of the composite design",
+     "where": {
+      "page": 544,
+      "source_kind": "table",
+      "quote": "b11 = -1·539"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "T²",
+      "model": "(T + c + t)**2 + I(T**2) + I(c**2) + I(t**2)"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "c²",
+     "value": "-0.264",
+     "analysis": "the full second-degree fit to the 15 runs of the composite design",
+     "where": {
+      "page": 544,
+      "source_kind": "table",
+      "quote": "b22 = -0·264"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "c²",
+      "model": "(T + c + t)**2 + I(T**2) + I(c**2) + I(t**2)"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "t²",
+     "value": "-0.676",
+     "analysis": "the full second-degree fit to the 15 runs of the composite design",
+     "where": {
+      "page": 544,
+      "source_kind": "table",
+      "quote": "b33 = -0·676"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "t²",
+      "model": "(T + c + t)**2 + I(T**2) + I(c**2) + I(t**2)"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "T:c",
+     "value": "-3.088",
+     "analysis": "the full second-degree fit to the 15 runs of the composite design",
+     "where": {
+      "page": 544,
+      "source_kind": "table",
+      "quote": "b12 = -3·088"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "T:c",
+      "model": "(T + c + t)**2 + I(T**2) + I(c**2) + I(t**2)"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "T:t",
+     "value": "-2.188",
+     "analysis": "the full second-degree fit to the 15 runs of the composite design",
+     "where": {
+      "page": 544,
+      "source_kind": "table",
+      "quote": "b13 = -2·188"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "T:t",
+      "model": "(T + c + t)**2 + I(T**2) + I(c**2) + I(t**2)"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "c:t",
+     "value": "-1.212",
+     "analysis": "the full second-degree fit to the 15 runs of the composite design",
+     "where": {
+      "page": 544,
+      "source_kind": "table",
+      "quote": "b23 = -1·212"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "c:t",
+      "model": "(T + c + t)**2 + I(T**2) + I(c**2) + I(t**2)"
+     }
+    },
+    {
+     "what": "std_error",
+     "term": "composite",
+     "value": "0.9",
+     "where": {
+      "page": 544,
+      "source_kind": "table",
+      "quote": "the standard error of b0 ... is equal to about 0·9"
+     },
+     "check": {
+      "manual": "standard errors from an assumed σ² = 1, not from these runs' residual"
+     }
+    },
+    {
+     "what": "ms_residual",
+     "term": null,
+     "value": "4.85",
+     "where": {
+      "page": 544,
+      "source_kind": "table",
+      "quote": "The estimate of the residual mean square based on five degrees of freedom was 4·85"
+     },
+     "check": {
+      "kind": "ms_residual",
+      "model": "(T + c + t)**2 + I(T**2) + I(c**2) + I(t**2)"
+     }
+    },
+    {
+     "what": "residual_df",
+     "term": null,
+     "value": "5",
+     "where": {
+      "page": 544,
+      "source_kind": "table",
+      "quote": "The estimate of the residual mean square based on five degrees of freedom was 4·85"
+     },
+     "check": {
+      "kind": "residual_df",
+      "model": "(T + c + t)**2 + I(T**2) + I(c**2) + I(t**2)"
+     }
+    },
+    {
+     "what": "residual_std_error",
+     "term": null,
+     "value": "2.20",
+     "where": {
+      "page": 544,
+      "source_kind": "table",
+      "quote": "multiplied by √4·85 = 2·20"
+     },
+     "check": {
+      "kind": "residual_std_error",
+      "model": "(T + c + t)**2 + I(T**2) + I(c**2) + I(t**2)"
+     }
+    },
+    {
+     "what": "stationary_point",
+     "term": "T",
+     "value": "0.060",
+     "analysis": "the centre S of the fitted contours, in the units of the design",
+     "where": {
+      "page": 545,
+      "source_kind": "table",
+      "quote": "xS1 = 0·060 xS2 = 0·215 xS3 = 0·501"
+     },
+     "check": {
+      "kind": "optimum",
+      "method": "stationary_point",
+      "model": "(T + c + t)**2 + I(T**2) + I(c**2) + I(t**2)",
+      "key": "stationary_point.stationary_point_coded.T",
+      "disagreement": "S is worked from the coefficients rounded to three decimals, which move it in the third decimal: from the fitted coefficients x1S = 0.0615"
+     }
+    },
+    {
+     "what": "stationary_point",
+     "term": "c",
+     "value": "0.215",
+     "analysis": "the centre S of the fitted contours, in the units of the design",
+     "where": {
+      "page": 545,
+      "source_kind": "table",
+      "quote": "xS1 = 0·060 xS2 = 0·215 xS3 = 0·501"
+     },
+     "check": {
+      "kind": "optimum",
+      "method": "stationary_point",
+      "model": "(T + c + t)**2 + I(T**2) + I(c**2) + I(t**2)",
+      "key": "stationary_point.stationary_point_coded.c",
+      "disagreement": "S is worked from the coefficients rounded to three decimals, which move it in the third decimal: from the fitted coefficients x2S = 0.2163"
+     }
+    },
+    {
+     "what": "stationary_point",
+     "term": "t",
+     "value": "0.501",
+     "analysis": "the centre S of the fitted contours, in the units of the design",
+     "where": {
+      "page": 545,
+      "source_kind": "table",
+      "quote": "xS1 = 0·060 xS2 = 0·215 xS3 = 0·501"
+     },
+     "check": {
+      "kind": "optimum",
+      "method": "stationary_point",
+      "model": "(T + c + t)**2 + I(T**2) + I(c**2) + I(t**2)",
+      "key": "stationary_point.stationary_point_coded.t",
+      "disagreement": "S is worked from the coefficients rounded to three decimals, which move it in the third decimal: from the fitted coefficients x3S = 0.4968"
+     }
+    },
+    {
+     "what": "stationary_point",
+     "term": "predicted",
+     "value": "68.14",
+     "where": {
+      "page": 545,
+      "source_kind": "table",
+      "quote": "For the present example this formula gives Ys = 68·14"
+     },
+     "check": {
+      "kind": "optimum",
+      "method": "stationary_point",
+      "model": "(T + c + t)**2 + I(T**2) + I(c**2) + I(t**2)",
+      "key": "stationary_point.predicted_response",
+      "disagreement": "Ys is 68.134 from the fitted coefficients, and 68.1345 by the book's formula (11-92) from its own rounded S; the book rounds up"
+     }
+    },
+    {
+     "what": "stationary_point",
+     "term": "T (actual)",
+     "value": "147.3",
+     "analysis": "the centre S in the original units, by (11-9)",
+     "where": {
+      "page": 545,
+      "source_kind": "table",
+      "quote": "Ts = 147·3° C. cs = 38·04% ts = 9·25 hours"
+     },
+     "check": {
+      "kind": "optimum",
+      "method": "stationary_point",
+      "model": "(T + c + t)**2 + I(T**2) + I(c**2) + I(t**2)",
+      "key": "stationary_point.stationary_point_actual.T"
+     }
+    },
+    {
+     "what": "stationary_point",
+     "term": "c (actual)",
+     "value": "38.04",
+     "analysis": "the centre S in the original units, by (11-9)",
+     "where": {
+      "page": 545,
+      "source_kind": "table",
+      "quote": "Ts = 147·3° C. cs = 38·04% ts = 9·25 hours"
+     },
+     "check": {
+      "kind": "optimum",
+      "method": "stationary_point",
+      "model": "(T + c + t)**2 + I(T**2) + I(c**2) + I(t**2)",
+      "key": "stationary_point.stationary_point_actual.c"
+     }
+    },
+    {
+     "what": "stationary_point",
+     "term": "t (actual)",
+     "value": "9.25",
+     "analysis": "the centre S in the original units, by (11-9)",
+     "where": {
+      "page": 545,
+      "source_kind": "table",
+      "quote": "Ts = 147·3° C. cs = 38·04% ts = 9·25 hours"
+     },
+     "check": {
+      "kind": "optimum",
+      "method": "stationary_point",
+      "model": "(T + c + t)**2 + I(T**2) + I(c**2) + I(t**2)",
+      "key": "stationary_point.stationary_point_actual.t"
+     }
+    },
+    {
+     "what": "eigenvalue",
+     "term": "B11",
+     "value": "-3.190",
+     "analysis": "the canonical coefficients",
+     "where": {
+      "page": 546,
+      "source_kind": "table",
+      "quote": "B11 = -3·190 B22 = -0·069 B33 = 0·780"
+     },
+     "check": {
+      "kind": "optimum",
+      "method": "stationary_point",
+      "model": "(T + c + t)**2 + I(T**2) + I(c**2) + I(t**2)",
+      "key": "stationary_point.eigenvalues.0"
+     }
+    },
+    {
+     "what": "eigenvalue",
+     "term": "B22",
+     "value": "-0.069",
+     "analysis": "the canonical coefficients",
+     "where": {
+      "page": 546,
+      "source_kind": "table",
+      "quote": "B11 = -3·190 B22 = -0·069 B33 = 0·780"
+     },
+     "check": {
+      "kind": "optimum",
+      "method": "stationary_point",
+      "model": "(T + c + t)**2 + I(T**2) + I(c**2) + I(t**2)",
+      "key": "stationary_point.eigenvalues.1"
+     }
+    },
+    {
+     "what": "eigenvalue",
+     "term": "B33",
+     "value": "0.780",
+     "analysis": "the canonical coefficients",
+     "where": {
+      "page": 546,
+      "source_kind": "table",
+      "quote": "B11 = -3·190 B22 = -0·069 B33 = 0·780"
+     },
+     "check": {
+      "kind": "optimum",
+      "method": "stationary_point",
+      "model": "(T + c + t)**2 + I(T**2) + I(c**2) + I(t**2)",
+      "key": "stationary_point.eigenvalues.2"
+     }
+    },
+    {
+     "what": "eigenvector",
+     "term": "X1 m1",
+     "value": "0.7511",
+     "analysis": "the rotation (11-95) to the canonical axes, each row a unit eigenvector (its sign arbitrary)",
+     "where": {
+      "page": 547,
+      "source_kind": "table",
+      "quote": "X1 = 0·7511(x1 - x1S) + 0·4884(x2 - x2S) + 0·4443(x3 - x3S)"
+     },
+     "check": {
+      "kind": "optimum",
+      "method": "canonical_analysis",
+      "model": "(T + c + t)**2 + I(T**2) + I(c**2) + I(t**2)",
+      "key": "canonical_analysis.eigenvectors.0.0",
+      "abs": true,
+      "printed": "0.7511",
+      "disagreement": "the element is 0.7510 from the fitted coefficients; the book's 0.7511 comes from its proportional solution 1.6906, 1.0992, 1.0000, worked with B11 rounded to -3.190"
+     }
+    },
+    {
+     "what": "eigenvector",
+     "term": "X1 m2",
+     "value": "0.4884",
+     "analysis": "the rotation (11-95) to the canonical axes, each row a unit eigenvector (its sign arbitrary)",
+     "where": {
+      "page": 547,
+      "source_kind": "table",
+      "quote": "X1 = 0·7511(x1 - x1S) + 0·4884(x2 - x2S) + 0·4443(x3 - x3S)"
+     },
+     "check": {
+      "kind": "optimum",
+      "method": "canonical_analysis",
+      "model": "(T + c + t)**2 + I(T**2) + I(c**2) + I(t**2)",
+      "key": "canonical_analysis.eigenvectors.0.1",
+      "abs": true,
+      "printed": "0.4884",
+      "disagreement": "the element is 0.4883 from the fitted coefficients; the book's 0.4884 comes from its proportional solution 1.6906, 1.0992, 1.0000, worked with B11 rounded to -3.190"
+     }
+    },
+    {
+     "what": "eigenvector",
+     "term": "X1 m3",
+     "value": "0.4443",
+     "analysis": "the rotation (11-95) to the canonical axes, each row a unit eigenvector (its sign arbitrary)",
+     "where": {
+      "page": 547,
+      "source_kind": "table",
+      "quote": "X1 = 0·7511(x1 - x1S) + 0·4884(x2 - x2S) + 0·4443(x3 - x3S)"
+     },
+     "check": {
+      "kind": "optimum",
+      "method": "canonical_analysis",
+      "model": "(T + c + t)**2 + I(T**2) + I(c**2) + I(t**2)",
+      "key": "canonical_analysis.eigenvectors.0.2",
+      "abs": true,
+      "printed": "0.4443",
+      "disagreement": "the element is 0.4445 from the fitted coefficients; the book's 0.4443 comes from its proportional solution 1.6906, 1.0992, 1.0000, worked with B11 rounded to -3.190"
+     }
+    },
+    {
+     "what": "eigenvector",
+     "term": "X2 m1",
+     "value": "0.3066",
+     "analysis": "the rotation (11-95) to the canonical axes, each row a unit eigenvector (its sign arbitrary)",
+     "where": {
+      "page": 547,
+      "source_kind": "table",
+      "quote": "X2 = 0·3066(x1 - x1S) + 0·3383(x2 - x2S) + -0·8897(x3 - x3S)"
+     },
+     "check": {
+      "kind": "optimum",
+      "method": "canonical_analysis",
+      "model": "(T + c + t)**2 + I(T**2) + I(c**2) + I(t**2)",
+      "key": "canonical_analysis.eigenvectors.2.0",
+      "abs": true,
+      "printed": "0.3066"
+     }
+    },
+    {
+     "what": "eigenvector",
+     "term": "X2 m2",
+     "value": "0.3383",
+     "analysis": "the rotation (11-95) to the canonical axes, each row a unit eigenvector (its sign arbitrary)",
+     "where": {
+      "page": 547,
+      "source_kind": "table",
+      "quote": "X2 = 0·3066(x1 - x1S) + 0·3383(x2 - x2S) + -0·8897(x3 - x3S)"
+     },
+     "check": {
+      "kind": "optimum",
+      "method": "canonical_analysis",
+      "model": "(T + c + t)**2 + I(T**2) + I(c**2) + I(t**2)",
+      "key": "canonical_analysis.eigenvectors.2.1",
+      "abs": true,
+      "printed": "0.3383"
+     }
+    },
+    {
+     "what": "eigenvector",
+     "term": "X2 m3",
+     "value": "-0.8897",
+     "analysis": "the rotation (11-95) to the canonical axes, each row a unit eigenvector (its sign arbitrary)",
+     "where": {
+      "page": 547,
+      "source_kind": "table",
+      "quote": "X2 = 0·3066(x1 - x1S) + 0·3383(x2 - x2S) + -0·8897(x3 - x3S)"
+     },
+     "check": {
+      "kind": "optimum",
+      "method": "canonical_analysis",
+      "model": "(T + c + t)**2 + I(T**2) + I(c**2) + I(t**2)",
+      "key": "canonical_analysis.eigenvectors.2.2",
+      "abs": true,
+      "printed": "0.8897"
+     }
+    },
+    {
+     "what": "eigenvector",
+     "term": "X3 m1",
+     "value": "0.5848",
+     "analysis": "the rotation (11-95) to the canonical axes, each row a unit eigenvector (its sign arbitrary)",
+     "where": {
+      "page": 547,
+      "source_kind": "table",
+      "quote": "X3 = 0·5848(x1 - x1S) + -0·8044(x2 - x2S) + -0·1044(x3 - x3S)"
+     },
+     "check": {
+      "kind": "optimum",
+      "method": "canonical_analysis",
+      "model": "(T + c + t)**2 + I(T**2) + I(c**2) + I(t**2)",
+      "key": "canonical_analysis.eigenvectors.1.0",
+      "abs": true,
+      "printed": "0.5848"
+     }
+    },
+    {
+     "what": "eigenvector",
+     "term": "X3 m2",
+     "value": "-0.8044",
+     "analysis": "the rotation (11-95) to the canonical axes, each row a unit eigenvector (its sign arbitrary)",
+     "where": {
+      "page": 547,
+      "source_kind": "table",
+      "quote": "X3 = 0·5848(x1 - x1S) + -0·8044(x2 - x2S) + -0·1044(x3 - x3S)"
+     },
+     "check": {
+      "kind": "optimum",
+      "method": "canonical_analysis",
+      "model": "(T + c + t)**2 + I(T**2) + I(c**2) + I(t**2)",
+      "key": "canonical_analysis.eigenvectors.1.1",
+      "abs": true,
+      "printed": "0.8044"
+     }
+    },
+    {
+     "what": "eigenvector",
+     "term": "X3 m3",
+     "value": "-0.1044",
+     "analysis": "the rotation (11-95) to the canonical axes, each row a unit eigenvector (its sign arbitrary)",
+     "where": {
+      "page": 547,
+      "source_kind": "table",
+      "quote": "X3 = 0·5848(x1 - x1S) + -0·8044(x2 - x2S) + -0·1044(x3 - x3S)"
+     },
+     "check": {
+      "kind": "optimum",
+      "method": "canonical_analysis",
+      "model": "(T + c + t)**2 + I(T**2) + I(c**2) + I(t**2)",
+      "key": "canonical_analysis.eigenvectors.1.2",
+      "abs": true,
+      "printed": "0.1044"
+     }
+    },
+    {
+     "what": "canonical_plane",
+     "term": null,
+     "value": "0.1502T + 0.1954c + 0.2962t = 32.30",
+     "where": {
+      "page": 548,
+      "source_kind": "table",
+      "quote": "0·1502T + 0·1954c + 0·2962t = 32·30"
+     },
+     "check": {
+      "manual": "the plane X1 = 0 in the original units, the first eigenvector divided by the units; no check computes a canonical axis in actual units (from the library's eigenvector it is 0.1502T + 0.1953c + 0.2963t = 32.30)"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "z",
+     "value": "18.379",
+     "where": {
+      "page": 550,
+      "source_kind": "table",
+      "quote": "Z = 18·379 + 5·150x1 + 2·362x2 + 2·188x3 + 0·728x1² ..."
+     },
+     "check": {
+      "manual": "the fit to the yield of the by-product D, whose data the book does not print"
+     }
+    }
+   ]
   }
  ],
- "designs": [],
+ "designs": [
+  {
+   "name": "davies-orthogonal-composite-designs",
+   "title": "Orthogonal composite designs for two to five factors, one centre run",
+   "kind": "design",
+   "where": {
+    "section": "11.612",
+    "pages": "534",
+    "tables": [
+     "Table 11-6"
+    ],
+    "figures": []
+   },
+   "design": {
+    "type": "orthogonal composite designs",
+    "details": "2^k cube (half replicate for k = 5), 2k axial points at alpha, one centre run",
+    "n_runs": null
+   },
+   "notes": "A 2^k factorial (a half replicate for five factors) with 2k axial points and one centre run; alpha makes the centred squared columns orthogonal. For k = 2 it is the 3^2 factorial.",
+   "expected": [
+    {
+     "what": "alpha",
+     "term": "k = 2",
+     "value": "1.000",
+     "analysis": "the orthogonal alpha for 2 factors, 2^2 cube and one centre run",
+     "where": {
+      "page": 534,
+      "source_kind": "table",
+      "quote": "Distance of axial points from centre (α) 1·000 1·215 1·414 1·547"
+     },
+     "check": {
+      "kind": "design_property",
+      "property": "alpha",
+      "design": {
+       "design_type": "ccd",
+       "k": 2,
+       "options": {
+        "alpha": "orthogonal",
+        "n_center_points": 1
+       }
+      }
+     }
+    },
+    {
+     "what": "alpha",
+     "term": "k = 3",
+     "value": "1.215",
+     "analysis": "the orthogonal alpha for 3 factors, 2^3 cube and one centre run",
+     "where": {
+      "page": 534,
+      "source_kind": "table",
+      "quote": "Distance of axial points from centre (α) 1·000 1·215 1·414 1·547"
+     },
+     "check": {
+      "kind": "design_property",
+      "property": "alpha",
+      "design": {
+       "design_type": "ccd",
+       "k": 3,
+       "options": {
+        "alpha": "orthogonal",
+        "n_center_points": 1
+       }
+      }
+     }
+    },
+    {
+     "what": "alpha",
+     "term": "k = 4",
+     "value": "1.414",
+     "analysis": "the orthogonal alpha for 4 factors, 2^4 cube and one centre run",
+     "where": {
+      "page": 534,
+      "source_kind": "table",
+      "quote": "Distance of axial points from centre (α) 1·000 1·215 1·414 1·547"
+     },
+     "check": {
+      "kind": "design_property",
+      "property": "alpha",
+      "design": {
+       "design_type": "ccd",
+       "k": 4,
+       "options": {
+        "alpha": "orthogonal",
+        "n_center_points": 1
+       }
+      }
+     }
+    },
+    {
+     "what": "alpha",
+     "term": "k = 5",
+     "value": "1.547",
+     "analysis": "the orthogonal alpha for 5 factors, half-replicate 2^5 cube and one centre run",
+     "where": {
+      "page": 534,
+      "source_kind": "table",
+      "quote": "Distance of axial points from centre (α) 1·000 1·215 1·414 1·547"
+     },
+     "check": {
+      "kind": "design_property",
+      "property": "alpha",
+      "design": {
+       "design_type": "ccd",
+       "k": 5,
+       "options": {
+        "alpha": "orthogonal",
+        "n_center_points": 1,
+        "cube": "fractional"
+       }
+      }
+     }
+    },
+    {
+     "what": "extra_points",
+     "term": "k = 2",
+     "value": "5",
+     "analysis": "the 5 extra points on top of the 4-run cube, as the library's run count",
+     "where": {
+      "page": 534,
+      "source_kind": "table",
+      "quote": "Number of extra points (2k + 1) 5 7 9 11"
+     },
+     "check": {
+      "kind": "design_property",
+      "property": "n_runs",
+      "printed": "4 + 5",
+      "expression": true,
+      "design": {
+       "design_type": "ccd",
+       "k": 2,
+       "options": {
+        "alpha": "orthogonal",
+        "n_center_points": 1
+       }
+      }
+     }
+    },
+    {
+     "what": "extra_points",
+     "term": "k = 3",
+     "value": "7",
+     "analysis": "the 7 extra points on top of the 8-run cube, as the library's run count",
+     "where": {
+      "page": 534,
+      "source_kind": "table",
+      "quote": "Number of extra points (2k + 1) 5 7 9 11"
+     },
+     "check": {
+      "kind": "design_property",
+      "property": "n_runs",
+      "printed": "8 + 7",
+      "expression": true,
+      "design": {
+       "design_type": "ccd",
+       "k": 3,
+       "options": {
+        "alpha": "orthogonal",
+        "n_center_points": 1
+       }
+      }
+     }
+    },
+    {
+     "what": "extra_points",
+     "term": "k = 4",
+     "value": "9",
+     "analysis": "the 9 extra points on top of the 16-run cube, as the library's run count",
+     "where": {
+      "page": 534,
+      "source_kind": "table",
+      "quote": "Number of extra points (2k + 1) 5 7 9 11"
+     },
+     "check": {
+      "kind": "design_property",
+      "property": "n_runs",
+      "printed": "16 + 9",
+      "expression": true,
+      "design": {
+       "design_type": "ccd",
+       "k": 4,
+       "options": {
+        "alpha": "orthogonal",
+        "n_center_points": 1
+       }
+      }
+     }
+    },
+    {
+     "what": "extra_points",
+     "term": "k = 5",
+     "value": "11",
+     "analysis": "the 11 extra points on top of the 16-run cube, as the library's run count",
+     "where": {
+      "page": 534,
+      "source_kind": "table",
+      "quote": "Number of extra points (2k + 1) 5 7 9 11"
+     },
+     "check": {
+      "kind": "design_property",
+      "property": "n_runs",
+      "printed": "16 + 11",
+      "expression": true,
+      "design": {
+       "design_type": "ccd",
+       "k": 5,
+       "options": {
+        "alpha": "orthogonal",
+        "n_center_points": 1,
+        "cube": "fractional"
+       }
+      }
+     }
+    }
+   ]
+  }
+ ],
  "not_captured": [
   "chapter 1 (pp. 1-11): introduction, no data",
   "2.33 to 2.36 (efficiency of a polymer blender, strength of yarn, two methods of analysis): summary figures only (151 coloured chips of 312; s^2 = 0.248 on 19 df), no runs",
@@ -21357,6 +24584,11 @@
   "Appendix 9C (pp. 416-418): the Yates analysis of Example 9-2, whose results are checked under davies-penicillin-2-5",
   "10.1 to 10.3 and 10.8 (the weighing problem, construction of fractional replicates, 3^n fractions), Table 10-81 and Appendices 10A and 10B: designs and methods without data",
   "Appendix 9G (pp. 435-439): confounded 3^n designs (three or nine runs a block), designs without data",
+  "11.1 to 11.3 (pp. 495-511): the geometry of response surfaces and the method of steepest ascent, no data; Tables 11-1, 11-11 and 11-12 are symbolic",
+  "11.44 (p. 518): a second investigation, a compromise path between steepest ascent for D and descent for E, summary figures only",
+  "11.54 (pp. 529-531): a rising ridge, worked from a fitted equation (11-7) whose runs the book does not print; the library's canonical analysis of those coefficients reproduces S = (2.370, 9.157), Ys = 109.68 and B = -3.925, -0.513, but no check works from coefficients alone",
+  "11.6 to 11.65 except Table 11-6 (pp. 531-541): composite designs and contour systems in general, Table 11-5 symbolic",
+  "Appendices 11A and 11B (pp. 552-578): solving linear equations, inverting matrices, the roots of the characteristic equation and least squares, worked on the numbers of the composite example (11.7), whose results are checked under davies-composite-three-factor",
   "Appendices 8F and 8G (pp. 352-366): the data of Example 8-5 worked again (sums of pairs, I and J components, Yates's method for 3^n); the analysis of the runs is checked under davies-cotton-dyestuff-3-3"
  ]
 }
