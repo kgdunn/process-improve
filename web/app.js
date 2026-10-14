@@ -896,6 +896,7 @@ function renderCandidates(busy = null) {
   const c = state.comparison;
   const current = Boolean(c) && c.key === candidateKey() && !busy;
   $("#compare").disabled = !current || !c.result;
+  $("#compare").hidden = !c?.result; // nothing to compare in detail before the brief's first designs
   $("#search").hidden = !current || !c.waiting?.length;
   let note = null;
   if (current && c.error) note = ["hint error", c.error];
