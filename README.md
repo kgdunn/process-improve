@@ -30,14 +30,16 @@ pip install process-improve
 
 ## Try it without installing anything
 
-<a href="https://factori.al/"><img width="600" alt="The designed-experiments app in a browser tab: a Box-Behnken design, its results simulated from a known process, the fitted coefficients beside the true ones, and every design for the same factors compared on nine measures" src="https://raw.githubusercontent.com/kgdunn/process-improve/main/docs/_static/readme/app-demo.gif"></a>
+<a href="https://factori.al/"><img width="600" alt="The designed-experiments app in a browser tab: the yield of a reactor and the factors that may change it, the designs that can learn its curvature compared on nine measures, a Box-Behnken run sheet with results simulated from a known process, and the fitted coefficients beside the true ones" src="https://raw.githubusercontent.com/kgdunn/process-improve/main/docs/_static/readme/app-demo.gif"></a>
 
 [Factorial](https://factori.al/), the designed-experiments app, runs
-this package inside your browser tab (Pyodide / WebAssembly). Design an experiment, then simulate
-its results from a process whose true model is known, or type in your own, and read the
-analysis beside the truth. Compare every design for your factors on the nine measures of
-[Process Improvement using Data](https://learnche.org/pid), and copy the Python behind each
-step. The analysis runs on your machine, and your data never leave it.
+this package inside your browser tab (Pyodide / WebAssembly). Say what you will measure, with
+its units and goal, and what might change it: the app lists the designs that can learn how the
+one depends on the other, scored on the nine measures of
+[Process Improvement using Data](https://learnche.org/pid) and on their power to find the change
+you care about. Run the one you pick, type in the results or practise with results simulated from
+a process whose true model is known, and read the analysis, beside the truth when it is known.
+Copy the Python behind each step. The analysis runs on your machine, and your data never leave it.
 
 ## Learn the methods
 
