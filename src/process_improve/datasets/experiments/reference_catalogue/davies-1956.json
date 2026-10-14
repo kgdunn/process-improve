@@ -1,7 +1,7 @@
 {
  "schema": 1,
  "about": [
-  "Part of the reference catalogue: designed experiments from chapters 2 to 11 of Davies (ed.), The Design and Analysis",
+  "Part of the reference catalogue: designed experiments from chapters 2 to 11 and the glossary of Davies (ed.), The Design and Analysis",
   "of Industrial Experiments, for testing that software reproduces them. source: the citation, with what was read and",
   "when. experiments: each worked example with data (factors, responses, runs exactly as printed, in the printed",
   "order), where it is printed, and expected: every number the book prints for it, as printed text (with a period",
@@ -24,13 +24,13 @@
   "editor": "Owen L. Davies",
   "title": "The Design and Analysis of Industrial Experiments",
   "edition": "2nd edition (1956), reprinted with corrections 1978; the 1979 reprint",
-  "pages": "chapters 1 to 11, pp. 1-578, of 637",
+  "pages": "the whole book: chapters 1 to 11, the glossary and the tables, pp. 1-637",
   "year": 1956,
   "publisher": "Longman Group Limited, London and New York, for Imperial Chemical Industries Limited",
   "isbn": "0-582-46053-0",
   "url": "https://search.worldcat.org/search?q=bn:0582460530",
   "cite": "Davies, O. L. (ed.) (1956), The Design and Analysis of Industrial Experiments, 2nd edition, Longman for ICI",
-  "read": "2026-10-14, from scans of pp. i-xiii and 1-578 (chapters 1 to 11) of the 1979 reprint; every number copied by hand and checked against the totals the book prints; two tables printed sideways (4-1 and 5-6) taken from their reprints in the appendices, and Tables 4-3, 8-3, 8-61, 9-3, 10-31, 11-21, 11-411 and the estimates of pp. 512 and 517 read from the page image",
+  "read": "2026-10-14, from scans of pp. i-xiii and 1-637 (chapters 1 to 11, glossary, tables and indexes) of the 1979 reprint; every number copied by hand and checked against the totals the book prints; two tables printed sideways (4-1 and 5-6) taken from their reprints in the appendices, and Tables 4-3, 8-3, 8-61, 9-3, 10-31, 11-21, 11-411 and the estimates of pp. 512 and 517 read from the page image",
   "rights": "The book is protected by copyright (© 1956 Imperial Chemical Industries Limited) and is not reproduced here. This file holds facts it reports (numbers, layouts, data) and short quotations that locate each one, for citation and for checking software. The MIT licence of process-improve does not extend to them."
  },
  "experiments": [
@@ -24349,6 +24349,203 @@
      }
     }
    ]
+  },
+  {
+   "name": "davies-glossary-interaction",
+   "title": "A hypothetical 2^2: the yield of a reaction, to define main effects and interaction",
+   "kind": "example",
+   "where": {
+    "section": "Glossary, under Factor",
+    "pages": "584-585",
+    "tables": [],
+    "figures": []
+   },
+   "factors": [
+    {
+     "name": "A",
+     "description": "first factor (lower at -1, higher at +1)",
+     "low": -1,
+     "high": 1,
+     "units": "",
+     "type": "numeric"
+    },
+    {
+     "name": "B",
+     "description": "second factor (lower at -1, higher at +1)",
+     "low": -1,
+     "high": 1,
+     "units": "",
+     "type": "numeric"
+    }
+   ],
+   "responses": [
+    {
+     "name": "y",
+     "description": "yield",
+     "units": "%"
+    }
+   ],
+   "design": {
+    "type": "2^2 factorial",
+    "details": "one run at each treatment, a hypothetical example",
+    "n_runs": 4
+   },
+   "runs": {
+    "columns": [
+     "No.",
+     "A",
+     "B",
+     "y"
+    ],
+    "rows": [
+     [
+      1,
+      -1,
+      -1,
+      77
+     ],
+     [
+      2,
+      1,
+      -1,
+      85
+     ],
+     [
+      3,
+      -1,
+      1,
+      84
+     ],
+     [
+      4,
+      1,
+      1,
+      83
+     ]
+    ],
+    "coded": true,
+    "notes": "the two-way table of the glossary, A across and B down, written in standard order"
+   },
+   "expected": [
+    {
+     "what": "mean",
+     "term": "A higher",
+     "value": "84",
+     "where": {
+      "page": 584,
+      "source_kind": "table",
+      "quote": "the difference between the mean yields at its two levels, i.e. 84% - 80·5%"
+     },
+     "check": {
+      "kind": "mean",
+      "runs": [
+       2,
+       4
+      ]
+     }
+    },
+    {
+     "what": "mean",
+     "term": "A lower",
+     "value": "80.5",
+     "where": {
+      "page": 584,
+      "source_kind": "table",
+      "quote": "the difference between the mean yields at its two levels, i.e. 84% - 80·5%"
+     },
+     "check": {
+      "kind": "mean",
+      "runs": [
+       1,
+       3
+      ]
+     }
+    },
+    {
+     "what": "mean",
+     "term": "B higher",
+     "value": "83.5",
+     "where": {
+      "page": 585,
+      "source_kind": "table",
+      "quote": "the main effect of B similarly would be measured by 83·5% - 81%"
+     },
+     "check": {
+      "kind": "mean",
+      "runs": [
+       3,
+       4
+      ]
+     }
+    },
+    {
+     "what": "mean",
+     "term": "B lower",
+     "value": "81",
+     "where": {
+      "page": 585,
+      "source_kind": "table",
+      "quote": "the main effect of B similarly would be measured by 83·5% - 81%"
+     },
+     "check": {
+      "kind": "mean",
+      "runs": [
+       1,
+       2
+      ]
+     }
+    },
+    {
+     "what": "effect",
+     "term": "A",
+     "value": "84 - 80.5",
+     "analysis": "the main effect, written as a difference of means",
+     "where": {
+      "page": 584,
+      "source_kind": "table",
+      "quote": "The Main Effect of A in this case would be measured by the difference between the mean yields at its two levels, i.e. 84% - 80·5%"
+     },
+     "check": {
+      "kind": "effect",
+      "term": "A",
+      "model": "A * B",
+      "expression": true
+     }
+    },
+    {
+     "what": "effect",
+     "term": "B",
+     "value": "83.5 - 81",
+     "analysis": "the main effect, written as a difference of means",
+     "where": {
+      "page": 585,
+      "source_kind": "table",
+      "quote": "the main effect of B similarly would be measured by 83·5% - 81%"
+     },
+     "check": {
+      "kind": "effect",
+      "term": "B",
+      "model": "A * B",
+      "expression": true
+     }
+    },
+    {
+     "what": "effect",
+     "term": "A·B",
+     "value": "-4.5",
+     "analysis": "the interaction, half the difference between the two diagonals' sums",
+     "where": {
+      "page": 585,
+      "source_kind": "table",
+      "quote": "The interaction of A and B is measured by {½(77 + 83) - ½(84 + 85)}%, i.e. -4·5%"
+     },
+     "check": {
+      "kind": "effect",
+      "term": "A·B",
+      "model": "A * B"
+     }
+    }
+   ]
   }
  ],
  "designs": [
@@ -24589,6 +24786,8 @@
   "11.54 (pp. 529-531): a rising ridge, worked from a fitted equation (11-7) whose runs the book does not print; the library's canonical analysis of those coefficients reproduces S = (2.370, 9.157), Ys = 109.68 and B = -3.925, -0.513, but no check works from coefficients alone",
   "11.6 to 11.65 except Table 11-6 (pp. 531-541): composite designs and contour systems in general, Table 11-5 symbolic",
   "Appendices 11A and 11B (pp. 552-578): solving linear equations, inverting matrices, the roots of the characteristic equation and least squares, worked on the numbers of the composite example (11.7), whose results are checked under davies-composite-three-factor",
+  "Tables A to N (pp. 593-628): percentage points of the Normal, chi-squared, t and F distributions, sample sizes for t-, chi-squared and F-tests (Tables E to H and K), the arcsine transformation, Barnard's sequential t-test (Table L, its example the data of 3.311), the signs of effects in 2^n designs (Table M) and random numbers; tables and their illustrations, no experiments. No number in this file is read from them: the book's statements of significance are checked through the library's p-values",
+  "The glossary (pp. 579-592): definitions; its one illustration with data is held as davies-glossary-interaction",
   "Appendices 8F and 8G (pp. 352-366): the data of Example 8-5 worked again (sums of pairs, I and J components, Yates's method for 3^n); the analysis of the runs is checked under davies-cotton-dyestuff-3-3"
  ]
 }
