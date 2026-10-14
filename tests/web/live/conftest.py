@@ -17,7 +17,7 @@ from typing import TYPE_CHECKING, Any
 import pytest
 
 from tests.web._browser import BOOT_TIMEOUT, Console, cache_downloads, failed, serve
-from tests.web.e2e._page import status
+from tests.web.e2e._page import EXAMPLE_CHARTS, status
 
 if TYPE_CHECKING:
     from collections.abc import Iterator
@@ -64,7 +64,7 @@ def own_context(chromium: Any, request: pytest.FixtureRequest) -> Iterator[Any]:
 
 @pytest.fixture(scope="module")
 def live(chromium: Any, app_url: str, request: pytest.FixtureRequest) -> Iterator[Live]:  # noqa: ANN401
-    """Open the app once for the module, and return it once Python has started and the first paint is done."""
+    """Open the worked example once for the module, and return it once Python has started and its charts are drawn."""
     context = new_context(chromium, request)
     tracing = bool(request.config.getoption("--e2e-artifacts"))
     if tracing:
@@ -72,7 +72,7 @@ def live(chromium: Any, app_url: str, request: pytest.FixtureRequest) -> Iterato
     console = Console()
     page = context.new_page()
     console.watch(page)
-    page.goto(app_url)
+    page.goto(f"{app_url}?example=worked")
     page.wait_for_function(
         "/^(Ready|Could not)/.test(document.querySelector('#status .status__text').textContent)", timeout=BOOT_TIMEOUT
     )
@@ -80,10 +80,9 @@ def live(chromium: Any, app_url: str, request: pytest.FixtureRequest) -> Iterato
     if not text.startswith("Ready"):
         pytest.fail(f"Python did not start in the page: {text}")
     demo = page.evaluate("fetch('demo.json').then((r) => r.json())")
-    charts = 1 + len(demo["comparison"]["result"]["designs"])
     page.wait_for_function(
         "window.__pi.count('api_catalogue') === 1 && window.__pi.idle()"
-        f" && document.querySelectorAll('#compare-charts .js-plotly-plot').length === {charts}",
+        f" && document.querySelectorAll('#charts .js-plotly-plot').length === {EXAMPLE_CHARTS}",
         timeout=60_000,
     )
     yield Live(page, console, context, demo)

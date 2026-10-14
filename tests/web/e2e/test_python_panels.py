@@ -6,7 +6,7 @@ import base64
 import re
 
 from tests.web._support import FACTORS, fill_workbook, quadratic
-from tests.web.e2e._page import settled, type_results
+from tests.web.e2e._page import reveal, settled, type_results
 
 
 def code(page, step: str) -> str:
@@ -17,10 +17,14 @@ def test_each_step_shows_the_python_that_does_the_same(page):
     assert 'generate_design(factors, design_type="box_behnken"' in code(page, "design")
     assert "TrueProcess(" in code(page, "run")
     assert "analyze_experiment(" in code(page, "analyse")
-    assert 'compare_designs(designs, model="main_quadratic")' in code(page, "compare")
-    for step in ("design", "run", "analyse", "compare"):
+    for step in ("design", "run", "analyse"):
+        reveal(page, f"#py-{step}")
         assert page.is_visible(f"#py-{step}"), step
         assert page.text_content(f"#py-{step} summary") == "Show the Python code"
+    reveal(page, "#compare")
+    page.click("#compare")
+    assert 'compare_designs(designs, model="main_quadratic")' in code(page, "compare")
+    assert page.is_visible("#py-compare"), "in the detailed comparison"
 
 
 def test_each_panel_holds_the_steps_before_it_so_its_code_runs_on_its_own(page):
@@ -34,11 +38,12 @@ def test_each_panel_holds_the_steps_before_it_so_its_code_runs_on_its_own(page):
         "from process_improve.experiments import Factor, TrueProcess, analyze_experiment, generate_design",
         "",
     ], "the imports of every step, merged, at the top"
-    assert design.split("\n\n", 1)[1] in run, "step 1 as its own panel shows it"
+    assert design.split("\n\n", 1)[1] in run, "the design as its own panel shows it"
 
 
 def test_copy_puts_the_code_on_the_clipboard(context, page, site):
     context.grant_permissions(["clipboard-read", "clipboard-write"], origin=site.rstrip("/"))
+    reveal(page, "#py-design")
     page.click("#py-design summary")
     page.click("#py-design .copy")
     assert page.evaluate("navigator.clipboard.readText()") == code(page, "design")
@@ -52,6 +57,7 @@ def test_after_an_upload_the_panels_show_the_workbook_s_design_and_results(page,
     design = api.ok("api_make_design", {"design_type": "ccd", "factors": FACTORS})
     path = tmp_path / "filled.xlsx"
     path.write_bytes(base64.b64decode(fill_workbook(design["xlsx_base64"], quadratic, blank_rows=(0,))))
+    reveal(page, "#tab-real")
     page.click("#tab-real")
     page.set_input_files("#upload", path)
     settled(page)
@@ -73,6 +79,7 @@ def test_a_refused_clipboard_selects_the_code_to_copy_by_hand(page):
         "() => { navigator.clipboard.writeText = () =>"
         " Promise.reject(new DOMException('Write permission denied.', 'NotAllowedError')); }"
     )
+    reveal(page, "#py-design")
     page.click("#py-design summary")
     page.click("#py-design .copy")
     page.wait_for_function("document.querySelector('#py-design .copy').textContent !== 'Copy the code'", timeout=5_000)

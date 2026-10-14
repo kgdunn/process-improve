@@ -1,4 +1,4 @@
-"""The charts of step 3: the page's coefficient chart, then the library's own plots, drawn with Plotly.js.
+"""The charts in Learn: the page's coefficient chart, then the library's own plots, drawn with Plotly.js.
 
 Each chart sits beside a table that holds its numbers, so a chart that cannot be drawn costs
 the picture and not the result.
@@ -11,7 +11,7 @@ import re
 import pytest
 
 from tests.web._support import factors_named
-from tests.web.e2e._page import first_paint_done, generate, set_factors, type_results
+from tests.web.e2e._page import first_paint_done, generate, reveal, set_factors, type_results
 
 TITLES = ["Coefficients", "Fitted response surface", "True response surface", "Residuals against fitted values"]
 
@@ -63,11 +63,14 @@ def test_without_plotly_the_tables_still_hold_the_numbers(context, site, console
     console.allow(r"plotly|ERR_FAILED")
     context.route(re.compile(r"/plotly\.min\.js$"), lambda route: route.abort())
     page = context.new_page()
-    page.goto(site)
-    page.wait_for_function("document.querySelector('#compare-charts p.hint')")
+    page.goto(f"{site}?example=worked")
+    page.wait_for_function("document.querySelector('#charts p.hint')")
     assert "The charts could not be drawn" in page.text_content("#charts")
     assert "the tables above hold the numbers" in page.text_content("#charts")
     assert page.locator("#analysis table").count() >= 2, "the coefficients and the ANOVA"
+    reveal(page, "#compare")
+    page.click("#compare")
+    page.wait_for_function("document.querySelector('#compare-charts p.hint')")
     assert "The charts could not be drawn" in page.text_content("#compare-charts")
 
 
@@ -112,8 +115,8 @@ def test_the_coefficients_switch_to_the_book_s_pareto_plot_and_back(context, pag
     assert sizes == [c["label"] for c in by_size], "the largest at the top"
 
     again = context.new_page()
-    again.goto(site)
-    first_paint_done(again, first_paint)
+    again.goto(f"{site}?example=worked")
+    first_paint_done(again)
     assert view(again) == "Pareto plot", "the view chosen is kept in this browser"
     again.click("#charts .views button[data-view='estimates']")
     again.wait_for_function("document.querySelector('#charts .chart.wide .js-plotly-plot').data[0].type === 'scatter'")
@@ -125,6 +128,7 @@ def test_with_no_degrees_of_freedom_the_pareto_plot_draws_lenth_s_margins(blank_
     generate(page, design_type="plackett_burman", n_center_points=0)
     type_results(page, {0: 12.1, 1: 15.4, 2: 9.8, 3: 14.0, 4: 11.2, 5: 13.3, 6: 10.1, 7: 16.0})
     page.wait_for_function("document.querySelectorAll('#charts .js-plotly-plot').length === 3")
+    reveal(page, "#charts")
     page.click("#charts .views button[data-view='pareto']")
     page.wait_for_function("document.querySelector('#charts .chart.wide .js-plotly-plot').data[0].type === 'bar'")
     marks = coefficient_plot(page).evaluate("d => d.layout.annotations.map((a) => a.text)")
@@ -132,3 +136,17 @@ def test_with_no_degrees_of_freedom_the_pareto_plot_draws_lenth_s_margins(blank_
     names = [t["name"] for t in plots(page)[0]]
     assert "Margin of error (ME)" in names, "the legend names the lines"
     assert "95% interval" not in names, "no degrees of freedom are left for an interval"
+
+
+def test_charts_drawn_while_learn_was_hidden_fit_its_width(blank_page):
+    """Results typed in Run are analysed and drawn there and then; showing Learn fits each chart to its card."""
+    page = blank_page
+    generate(page, design_type="box_behnken")
+    type_results(page, {run: 60 + (run % 5) for run in range(15)})
+    page.wait_for_function("document.querySelectorAll('#charts .js-plotly-plot').length === 3")
+    reveal(page, "#charts")
+    fitted = """() => [...document.querySelectorAll('#charts figure')].every((card) => {
+         const chart = card.querySelector('.js-plotly-plot .main-svg').getBoundingClientRect().width;
+         return chart <= card.clientWidth && chart >= 0.8 * card.clientWidth;
+       })"""
+    page.wait_for_function(fitted, timeout=5_000)  # Plotly fits a chart a moment after it is asked to

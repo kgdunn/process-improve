@@ -13,16 +13,26 @@ import numpy as np
 import pandas as pd
 
 from tests.web._support import FACTORS, factors_named, fill_workbook, quadratic
-from tests.web.e2e._page import choose, factor_table, run_sheet, settled, status
+from tests.web.e2e._page import choose, factor_table, reveal, run_sheet, settled, status
+
+
+def upload(page, path) -> None:
+    """Choose a workbook in Run, under Enter results, as a reader would."""
+    reveal(page, "#tab-real")
+    page.click("#tab-real")
+    page.set_input_files("#upload", path)
 
 
 def test_the_downloaded_workbook_holds_the_page_s_runs_and_results(page, first_paint):
+    reveal(page, "#download")
     with page.expect_download() as download:
         page.click("#download")
     assert download.value.suggested_filename == "box_behnken-15-runs.xlsx"
     sheets = pd.read_excel(download.value.path(), sheet_name=None)
     runs = sheets["Runs"]
-    np.testing.assert_allclose(runs["y"], first_paint["simulation"]["responses"])
+    np.testing.assert_allclose(runs["Yield"], first_paint["simulation"]["responses"])
+    spec = json.loads(sheets["_pi_design"]["spec"].iloc[0])
+    assert spec["response_info"] == first_paint["inputs"]["design"]["response_info"], "the response as described"
     assert runs["Result source"].tolist() == ["simulated"] * 15
     assert json.loads(sheets["_pi_design"]["spec"].iloc[0])["simulated"] == {
         "scenario": "reactor",
@@ -50,14 +60,14 @@ def assert_the_page_holds(page, design: dict) -> None:
     assert "Still to run: 1" in page.text_content("#analysis")
     assert page.is_hidden("#demo-banner")
     assert page.is_hidden("#truth"), "nothing is known about the process behind measured results"
+    assert page.get_attribute("#workspace", "data-phase") == "learn", "a workbook with results opens on its analysis"
 
 
 def test_an_uploaded_workbook_fills_every_step(page, api, tmp_path):
     design, workbook = filled_ccd(api)
     path = tmp_path / "filled.xlsx"
     path.write_bytes(workbook)
-    page.click("#tab-real")
-    page.set_input_files("#upload", path)
+    upload(page, path)
     page.wait_for_function("window.__pi.count('api_read_workbook') === 1")
     settled(page)
     assert_the_page_holds(page, design)
@@ -65,6 +75,7 @@ def test_an_uploaded_workbook_fills_every_step(page, api, tmp_path):
 
 def test_a_workbook_dropped_on_the_page_is_read_as_an_uploaded_one(page, api):
     design, workbook = filled_ccd(api)
+    reveal(page, "#tab-real")
     page.click("#tab-real")
     page.evaluate(
         """([name, data]) => {
@@ -85,8 +96,7 @@ def test_a_workbook_dropped_on_the_page_is_read_as_an_uploaded_one(page, api):
 def test_a_file_that_is_not_a_workbook_is_refused(page, tmp_path):
     path = tmp_path / "notes.xlsx"
     path.write_text("not a workbook")
-    page.click("#tab-real")
-    page.set_input_files("#upload", path)
+    upload(page, path)
     # The page reads the file before it calls Python, so wait for the call: idle at once is the moment before it.
     page.wait_for_function("window.__pi.count('api_read_workbook') === 1")
     settled(page)
@@ -98,8 +108,7 @@ def test_a_workbook_with_no_results_yet_is_read_and_the_page_waits_for_them(page
     design = api.ok("api_make_design", {"design_type": "ccd", "factors": FACTORS})
     path = tmp_path / "fresh.xlsx"
     path.write_bytes(base64.b64decode(design["xlsx_base64"]))
-    page.click("#tab-real")
-    page.set_input_files("#upload", path)
+    upload(page, path)
     page.wait_for_function("window.__pi.count('api_read_workbook') === 1 && window.__pi.idle()")
     assert status(page) == ("No results to analyse yet.", "ok")
     assert page.is_hidden("#analysis")
@@ -111,8 +120,7 @@ def upload_design(page, api, tmp_path, request: dict) -> dict:
     design = api.ok("api_make_design", request)
     path = tmp_path / "design.xlsx"
     path.write_bytes(base64.b64decode(design["xlsx_base64"]))
-    page.click("#tab-real")
-    page.set_input_files("#upload", path)
+    upload(page, path)
     page.wait_for_function("window.__pi.count('api_read_workbook') === 1 && window.__pi.idle()")
     return design
 
@@ -125,6 +133,7 @@ def test_an_uploaded_optimal_design_keeps_its_runs_in_the_form(page, api, tmp_pa
     choose(page, model_type="quadratic")
     assert page.input_value("#budget") == "20", "kept as a number the reader chose"
     choose(page, model_type="interactions")
+    reveal(page, "#generate")
     page.click("#generate")
     settled(page)
     assert page.locator("#design-table tbody tr").count() == 20, "generating again makes the same design"
@@ -154,12 +163,12 @@ def test_the_same_workbook_can_be_read_again_after_edits_on_the_page(page, api, 
     design, workbook = filled_ccd(api)
     path = tmp_path / "filled.xlsx"
     path.write_bytes(workbook)
-    page.click("#tab-real")
-    page.set_input_files("#upload", path)
+    upload(page, path)
     page.wait_for_function("window.__pi.count('api_read_workbook') === 1")
     settled(page)
+    reveal(page, "#design-table")
     page.fill('#design-table input[data-index="1"]', "999")
-    page.set_input_files("#upload", path)
+    upload(page, path)
     page.wait_for_function("window.__pi.count('api_read_workbook') === 2", timeout=10_000)
     settled(page)
     assert page.input_value('#design-table input[data-index="1"]') != "999"

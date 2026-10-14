@@ -58,7 +58,8 @@ body {
   color: var(--fg);
   font: 16px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif;
 }
-main { max-width: 860px; margin: 0 auto; padding: 24px 16px 48px; }
+main { max-width: 1320px; margin: 0 auto; padding: 24px 16px 48px; }
+@media (max-width: 1099px) { main { max-width: 860px; } }
 h1 {
   margin: 0; font: 700 2.3rem/1 "Iowan Old Style", "Palatino Linotype", Palatino, "Book Antiqua", Georgia,
     "DejaVu Serif", serif;
@@ -153,8 +154,9 @@ section {
 .facts { color: var(--muted); }
 .facts li, .warnings li { margin: 2px 0; overflow-wrap: anywhere; }
 .warnings { border-left: 3px solid var(--warn); padding: 2px 0 2px 1.6em; color: var(--fg); }
-/* The factor table no longer describes the design on the page. */
+/* The plan no longer describes the run sheet on the page. */
 .stale { border-left: 3px solid var(--warn); padding: 2px 0 2px 10px; margin: 10px 0; font-size: 0.92rem; }
+.stale p { margin: 4px 0; }
 .equation { font-family: ui-monospace, "SFMono-Regular", Menlo, monospace; overflow-wrap: anywhere; }
 .row { display: flex; flex-wrap: wrap; gap: 16px; margin: 12px 0; }
 .row label, label[data-option] { display: flex; flex-direction: column; gap: 4px; font-size: 0.9rem; min-width: 0; max-width: 100%; }
@@ -205,13 +207,13 @@ button:disabled { opacity: 0.5; cursor: progress; }
 .factors input:disabled { background: transparent; border-style: dashed; }
 .factors [aria-invalid] { border-color: var(--error); }
 .add-factors { display: flex; flex-wrap: wrap; gap: 0 16px; margin: 0; }
-/* On a phone each factor is a card of its own, numbered, with its name and type above its levels
-   and units, every box under its heading: six columns side by side cut the words short, and two
-   factors' boxes in one run of lines were hard to tell apart. */
+/* In a narrow column (the brief beside a phase, or a phone) each factor is a card of its own, numbered,
+   with its name and type above its levels and units, every box under its heading: six columns side by
+   side cut the words short, and two factors' boxes in one run of lines were hard to tell apart. */
 .factors tbody { counter-reset: factor; }
 .factors tbody tr { counter-increment: factor; }
-@media (max-width: 480px) {
-  section { padding: 16px 12px; }
+.brief { container: brief / inline-size; }
+@container brief (max-width: 560px) {
   .factors, .factors tbody { display: block; }
   .factors thead { display: none; }
   .factors tr {
@@ -232,6 +234,9 @@ button:disabled { opacity: 0.5; cursor: progress; }
     content: attr(data-label); display: block; font-size: 0.75rem; font-weight: 600; color: var(--muted);
   }
   .factors input { padding: 6px; }
+}
+@media (max-width: 480px) {
+  section { padding: 16px 12px; }
 }
 .scroll { overflow-x: auto; margin: 12px 0; }
 table.data { border-collapse: collapse; font-size: 0.9rem; font-variant-numeric: tabular-nums; }
@@ -260,26 +265,138 @@ th[aria-sort="descending"] button.sort::after { content: " ▼"; color: var(--ac
 .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
 footer { color: var(--muted); font-size: 0.88rem; }
 
-/* The worked example: a button in the header, and a banner while the first paint is the
-   copy computed when the page was built. */
-.hero { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; margin: 4px 0 0; }
-.hero .hint { flex: 1 1 260px; }
+/* New study and the worked example: buttons in the header, and a banner while the worked example is
+   the copy computed when the page was built. */
+.hero { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; margin: 4px 0 0; }
+.banner p { margin: 4px 0; }
 .banner {
   margin: 16px 0 0; padding: 10px 14px; border-radius: 8px; font-size: 0.92rem;
   background: var(--panel); border: 1px dashed var(--accent);
 }
 
-/* The steps, kept in reach while the page scrolls. */
-.stepper {
-  position: sticky; top: 0; z-index: 2; display: flex; gap: 6px 18px; flex-wrap: wrap;
-  margin: 16px -16px 0; padding: 8px 16px; background: var(--bg); border-bottom: 1px solid var(--line);
-  /* The bar and its rule span the window, so the wider step 4 scrolls under the bar rather than beside it.
-     A border image drawn outside the box does not widen the page. */
+/* The study bar: the study's name and its three phases, kept in reach while the page scrolls, with the
+   status line under them. The bar and its rule span the window; a border image drawn outside the box
+   does not widen the page. */
+.studybar {
+  position: sticky; top: 0; z-index: 3; margin: 16px -16px 0; padding: 8px 16px 6px; background: var(--bg);
+  border-bottom: 1px solid var(--line);
   border-image: linear-gradient(to top, var(--line) 1px, var(--bg) 1px) fill 0 / 0 / 0 100vmax;
 }
-.stepper a { display: inline-flex; align-items: center; gap: 6px; color: var(--fg); text-decoration: none; font-size: 0.95rem; }
-.stepper .step { width: 22px; height: 22px; font-size: 0.8rem; }
-section { scroll-margin-top: 56px; }
+.studybar__row { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 6px 16px; }
+.studybar__title {
+  margin: 0; min-width: 0; flex: 1 1 260px; font-weight: 600; overflow: hidden; text-overflow: ellipsis;
+  white-space: nowrap;
+}
+#study-about { color: var(--muted); font-weight: 400; font-size: 0.9rem; }
+.phases { display: flex; gap: 4px; }
+.phases [role="tab"] {
+  display: inline-flex; align-items: center; gap: 6px; border: none; border-bottom: 3px solid transparent;
+  border-radius: 6px 6px 0 0; background: none; padding: 6px 10px; color: var(--muted); font-size: 0.95rem;
+}
+.phases [role="tab"]:hover { color: var(--fg); }
+.phases [role="tab"][aria-selected="true"] { color: var(--fg); border-bottom-color: var(--accent); font-weight: 600; }
+.phases [role="tab"]:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.phases .step { width: 22px; height: 22px; font-size: 0.8rem; }
+.phases [role="tab"][aria-selected="false"] .step { background: var(--line); color: var(--fg); }
+.badge {
+  margin-left: 2px; padding: 0 7px; border-radius: 10px; font-size: 0.75rem; font-weight: 600; line-height: 1.5;
+  background: var(--panel); border: 1px solid var(--line); color: var(--muted); white-space: nowrap;
+}
+.badge[data-state="stale"] { border-color: var(--warn); color: var(--warn); }
+.badge[data-state="done"] { border-color: var(--ok); color: var(--ok); }
+.studybar .status { margin: 6px 0 2px; padding: 6px 12px; }
+section { scroll-margin-top: 120px; }
+@media (max-width: 600px) {
+  .studybar__title { flex-basis: 100%; font-size: 0.95rem; }
+  #study-about { display: none; }
+  .phases { width: 100%; }
+  /* Three tabs share the width, each its badge under its name, so the bar never pushes the page sideways. */
+  .phases [role="tab"] {
+    flex: 1 1 0; min-width: 0; flex-wrap: wrap; justify-content: center; gap: 2px 4px; padding: 4px 2px;
+    font-size: 0.9rem;
+  }
+  .phases .step { display: none; }
+  .phases .badge { margin: 0; font-size: 0.7rem; padding: 0 5px; }
+}
+
+/* The workspace: on a wide screen, the brief (the response, the factors, the aim) in a column of its own
+   beside the phase on show; on a narrow one, the brief opens Plan, and Run and Learn take the width. */
+.workspace { margin: 16px 0 0; }
+.card {
+  background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 16px; margin: 0 0 16px;
+}
+.card h2, .pane h2 { margin-bottom: 4px; }
+.card > .hint:first-of-type { margin-top: 0; }
+.pane { margin: 0 0 16px; }
+@media (min-width: 1100px) {
+  .workspace { display: grid; grid-template-columns: minmax(340px, 420px) minmax(0, 1fr); gap: 20px; align-items: start; }
+  .brief {
+    position: sticky; top: calc(var(--bar-height, 72px) + 12px); max-height: calc(100vh - var(--bar-height, 72px) - 24px);
+    overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin;
+  }
+  .brief .card:last-child { margin-bottom: 0; }
+  /* In Plan the brief is the form being filled in, so it scrolls with the page; beside Run and Learn it stays in view. */
+  .workspace[data-phase="plan"] .brief { position: static; max-height: none; overflow: visible; }
+}
+@media (max-width: 1099px) {
+  .workspace:not([data-phase="plan"]) > .brief { display: none; }
+}
+
+/* The response: its name and units side by side, its goal as a row of choices, and what the reader
+   knows of it behind a reveal; a number box carries the units after it. */
+.row label.grow { flex: 1 1 12rem; }
+.row label.grow input { width: 100%; }
+.goal { display: flex; flex-wrap: wrap; gap: 4px 16px; margin: 4px 0 8px; padding: 0; border: none; }
+.goal legend { padding: 0; margin-bottom: 4px; font-size: 0.9rem; }
+.goal label, .aim { display: inline-flex; align-items: center; gap: 6px; font-size: 0.95rem; cursor: pointer; }
+.goal input, .aim input, .pick input { width: auto; margin: 0; accent-color: var(--accent); }
+label.inline { display: flex; flex-direction: column; gap: 4px; font-size: 0.9rem; margin: 0 0 8px; }
+.with-unit { display: inline-flex; align-items: center; gap: 6px; }
+.with-unit .unit { color: var(--muted); font-size: 0.9rem; }
+.known { margin: 6px 0 0; }
+.known .row label { flex: 1 1 9rem; }
+
+/* What the study is to learn: one choice, each with what it means. */
+.aims { display: grid; gap: 8px; margin: 6px 0 4px; }
+.aim { align-items: flex-start; padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg); }
+.aim input { margin-top: 4px; }
+.aim > span { display: grid; gap: 2px; }
+.aim .hint { font-size: 0.85rem; }
+.aim:has(input:checked) { border-color: var(--accent); box-shadow: inset 3px 0 0 var(--accent); }
+.aim:has(input:focus-visible) { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+/* The designs that can learn the aim: a row each, picked with one tap; the one in the plan is marked. */
+.candidates { margin: 8px 0 0; }
+.candidates .busy { display: flex; align-items: center; gap: 8px; }
+table.pick { width: 100%; }
+table.pick tbody tr { cursor: pointer; }
+table.pick tbody tr:hover td { background: var(--bg); }
+table.pick tbody tr[aria-selected="true"] td { background: color-mix(in srgb, var(--accent) 12%, var(--panel)); }
+table.pick td:first-child label { display: inline-flex; align-items: center; gap: 8px; cursor: pointer; font-weight: 600; }
+table.pick td.low { color: var(--warn); }
+/* While the brief's own designs are made, the last list stays in view, dimmed, and cannot be picked from. */
+.candidates[data-stale="true"] > :not(.busy) { opacity: 0.5; }
+.candidates[data-stale="true"] table.pick tbody tr { cursor: default; }
+.hint.busy::before {
+  content: ""; display: inline-block; width: 9px; height: 9px; margin-right: 8px; border-radius: 50%;
+  background: var(--accent); animation: busy 1.2s ease-in-out infinite;
+}
+@keyframes busy { 0%, 100% { opacity: 0.2; } 50% { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .hint.busy::before { animation: none; } }
+.design-card { margin: 18px 0 0; padding: 14px 0 0; border-top: 1px solid var(--line); }
+.design-card h3 { margin-top: 0; }
+
+/* The detailed comparison, over the page: as wide as its table needs, and scrolled within. */
+dialog.sheet {
+  width: min(1200px, 100vw - 32px); max-height: calc(100vh - 48px); padding: 18px 20px; overflow: auto;
+  background: var(--panel); color: var(--fg); border: 1px solid var(--line); border-radius: 12px;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.3);
+}
+dialog.sheet::backdrop { background: rgba(0, 0, 0, 0.45); }
+.sheet__head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.sheet__head h2 { margin: 0; }
+.sheet__head .link { font-size: 1.2rem; line-height: 1; }
+@media (max-width: 480px) { dialog.sheet { width: 100vw; max-width: 100vw; max-height: 100vh; border-radius: 0; padding: 14px 12px; } }
 
 /* Where the results come from: simulated, or entered. */
 .tabs { display: flex; gap: 0; margin: 12px 0; border-bottom: 1px solid var(--line); }
@@ -297,6 +414,8 @@ table.runs input {
   width: 6.5em; padding: 2px 6px; text-align: right; font: inherit; font-variant-numeric: tabular-nums;
 }
 table.runs input.sim { font-style: italic; color: var(--muted); }
+/* A heading's units, under its name: the run sheet's factors and its response. */
+.col-unit { display: block; padding: 0 10px 4px; font-size: 0.75rem; font-weight: 400; color: var(--muted); }
 
 /* The charts: one wide card for the coefficients, then two to a row where there is room. */
 .charts { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 16px; margin: 16px 0 0; }
@@ -315,7 +434,6 @@ table.runs input.sim { font-style: italic; color: var(--muted); }
 @media (max-width: 480px) {
   .charts { grid-template-columns: 1fr; }
   .chart { padding: 8px 6px 10px; }
-  .stepper { gap: 6px 12px; }
 }
 
 /* The comparison: measures grouped as the book groups them, the preferred direction as an arrow. */
@@ -333,10 +451,6 @@ table.compare th:first-child, table.compare tr:not(.group) td:first-child {
   position: sticky; left: 0; z-index: 1; background: var(--panel);
 }
 table.compare tr.group span { position: sticky; left: 10px; display: inline-block; }
-/* Step 4 has a column per design: on a wide screen it takes the room its table needs. */
-@media (min-width: 1000px) {
-  #step-compare { --wide: min(1200px, 100vw - 64px); width: var(--wide); margin-left: calc((100% - var(--wide)) / 2); }
-}
 .charts > .hint.wide { grid-column: 1 / -1; margin: 0; }
 
 /* Show the Python code: the code a step's results came from, ready to copy. */
@@ -347,7 +461,7 @@ details.python pre {
 }
 details.python code { font-family: ui-monospace, "SFMono-Regular", Menlo, monospace; }
 
-/* Your designs: what this browser keeps, each to open or delete. */
+/* Your studies: what this browser keeps, each to open or delete. */
 .library { margin: 12px 0 0; font-size: 0.92rem; }
 .library ul { list-style: none; padding: 0; margin: 6px 0 0; }
 .library li { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 10px; padding: 4px 0; border-bottom: 1px solid var(--line); }

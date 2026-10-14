@@ -293,6 +293,9 @@ export const BOOK_PARAM = "book";
 /** The query parameter a link names an example of another published source by: https://factori.al/?example=<name>. */
 export const EXAMPLE_PARAM = "example";
 
+/** The name ``?example=`` gives the worked example the page was built with; the build lets no other example take it. */
+export const WORKED = "worked";
+
 /** A book example's name: lowercase words and numbers joined by hyphens, such as two-level-pollutant. */
 const BOOK_NAME = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 

@@ -7,7 +7,7 @@ and says where in the book it comes from.
 
 from __future__ import annotations
 
-from tests.web.e2e._page import factor_table, first_paint_done, run_sheet, settled, status, type_results
+from tests.web.e2e._page import factor_table, run_sheet, settled, status, type_results
 
 BANNER = "#campaign-banner"
 
@@ -47,6 +47,8 @@ def test_a_book_example_opens_with_its_factors_runs_and_results(context, site, b
         {"name": "S", "low": "200", "high": "400", "units": "rpm"},
     ]
     assert page.input_value("#response") == "Pollutant"
+    assert page.get_attribute("#workspace", "data-phase") == "learn", "the book's results, analysed"
+    assert page.is_hidden("#demo-banner"), "a book's example is not the worked example"
     categorical = page.eval_on_selector_all("#factors tbody [name=categorical]", "boxes => boxes.map((b) => b.checked)")
     assert categorical == [True, False, False], "the chemical, P or Q, is categorical"
     # The run sheet is the book's table, row by row: its experiment number, and the order it was run in.
@@ -100,29 +102,32 @@ def test_an_example_of_another_published_source_opens_with_its_citation(context,
     saved(page, 1)
 
 
-def test_a_name_the_book_does_not_have_is_refused_and_the_worked_example_shown(context, site, first_paint):
+def started(page) -> None:
+    page.wait_for_function("window.__pi.count('api_catalogue') === 1 && window.__pi.idle()")
+
+
+def test_a_name_the_book_does_not_have_is_refused_and_a_new_study_started(context, site):
     """The name is looked up in the index first: no file is asked for that the index does not list."""
     page = context.new_page()
     fetched = []
     page.on("request", lambda request: fetched.append(request.url) if "/book/" in request.url else None)
     page.goto(f"{site}?book=no-such-example")
-    first_paint_done(page, first_paint)
-    assert page.text_content(BANNER) == (
-        'This design could not be opened: the book has no example named "no-such-example". '
-        "Here is the worked example instead."
+    started(page)
+    assert (
+        page.text_content(BANNER) == 'This design could not be opened: the book has no example named "no-such-example".'
     )
     assert page.get_attribute(BANNER, "class") == "banner error"
-    assert page.is_visible("#demo-banner")
+    assert page.get_attribute("#workspace", "data-phase") == "plan"
     assert status(page)[1] == "ok"
     assert fetched == [f"{site}book/index.json"]
 
 
-def test_a_name_no_book_could_print_is_refused_before_anything_is_fetched(context, site, first_paint):
+def test_a_name_no_book_could_print_is_refused_before_anything_is_fetched(context, site):
     page = context.new_page()
     fetched = []
     page.on("request", lambda request: fetched.append(request.url) if "/book/" in request.url else None)
     page.goto(f"{site}?book=../demo")
-    first_paint_done(page, first_paint)
+    started(page)
     assert page.text_content(BANNER).startswith(
         'This design could not be opened: "../demo" is not the name of an example in the book.'
     )
