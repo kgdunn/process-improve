@@ -28,13 +28,17 @@ those changes.
   with missing cells, two-level factorials, multi-level factorials with their orthogonal
   polynomial components, factorials confounded in blocks, fractional factorials, and response
   surface work (two stages of steepest ascent, a 3^2 factorial and a composite design with their
-  canonical analyses, and orthogonal composite designs); and of five papers on definitive screening and OMARS designs and
+  canonical analyses, and orthogonal composite designs); of chapters 1 to 3 of Box, Hunter and
+  Hunter, *Statistics for Experimenters* (1978): a two-method plant trial, the 210-batch
+  production record that gives its external reference distributions, and the exercises with
+  data; and of five papers on definitive screening and OMARS designs and
   trend-robust run orders (Jones and Nachtsheim 2013; Nunez Ares and Goos 2019, 2020; Nunez
   Ares, Schoen and Goos 2023; Goos 2025). For each it keeps the factors,
   responses and runs exactly as printed, and every number the source prints: each as the
   printed text, with where it is printed (file and line, or page, and a quotation) and how to
   recompute it (the kind of result, the term, the model and the runs used; a stationary point,
-  canonical form or path of steepest ascent is recomputed with `optimize_responses`). Designs without
+  canonical form or path of steepest ascent is recomputed with `optimize_responses`; a one-sided
+  p-value, a variance or a difference between two groups of runs is read as a source quotes it). Designs without
   responses keep the properties the source states. `reference_sources()`,
   `reference_experiments()` and `reference_designs()` read it. `reproduce_reference_catalogue()`
   returns one row per printed number: the printed text, the value this library computes,
