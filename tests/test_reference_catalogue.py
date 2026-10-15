@@ -219,6 +219,17 @@ def test_a_difference_of_two_rounded_averages_carries_both_roundings():
     assert not _agrees(0.1262, ".128", of_rounded=2)
 
 
+def test_a_difference_of_rounded_averages_worked_without_a_fit_carries_both_roundings_too():
+    """Averages 9.35663 and 9.35987, printed 9.3566 and 9.3599, differ by .00324; the source prints .0033."""
+    rows = [[1, 9.35663], [1, 9.35663], [2, 9.35987], [2, 9.35987]]
+    runs = {"columns": ["level", "y"], "rows": rows}
+    entry = {"name": "pair", "factors": [], "responses": [{"name": "y"}], "runs": runs}
+    check = {"kind": "difference_of_means", "runs": [3, 4], "minus": [1, 2]}
+    fits = reference_catalogue._Fits()
+    assert not reference_catalogue._reproduce(entry, {"value": ".0033"}, check, fits)[1]
+    assert reference_catalogue._reproduce(entry, {"value": ".0033"}, {**check, "of_rounded": 2}, fits)[1]
+
+
 def test_a_regressor_marked_uncoded_is_fitted_in_its_own_units():
     """A source's slope is per unit of x: a factor with ``"coding": "none"`` is not rescaled to -1 and +1."""
     from process_improve.experiments.reference_catalogue import _coded_runs
@@ -569,6 +580,17 @@ def test_a_factor_left_out_of_a_prediction_point_sits_at_its_centre():
     check = {"kind": "prediction", "model": "x1", "point": {"x1": 1}}
     out = reference_catalogue._Fits()(entry, check)
     assert reference_catalogue._prediction(out, check, entry) == pytest.approx(12.0)
+
+
+def test_a_statistic_can_be_worked_in_other_units_than_the_readings_are_printed_in():
+    """Readings printed in units of 10^17: ln s in the readings' own units is ln s printed plus ln 10^17."""
+    from process_improve.experiments.reference_catalogue import _summarised
+
+    table = pd.DataFrame({"y1": [0.70, 2.0], "y2": [0.66, 1.6]})
+    plain = _summarised(table, {"of": ["y1", "y2"], "statistic": "ln_std_dev"})
+    scaled = _summarised(table, {"of": ["y1", "y2"], "statistic": "ln_std_dev", "scale": 1e17})
+    assert scaled.iloc[:, 0].to_numpy() == pytest.approx(plain.iloc[:, 0].to_numpy() + math.log(1e17))
+    assert scaled.iloc[0, 0] == pytest.approx(35.578, abs=5e-4)  # as Schmidt and Launsby's GaAs case study prints it
 
 
 def test_a_variance_component_is_read_from_the_library_reml_fit():

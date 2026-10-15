@@ -238,9 +238,13 @@ def _summarised(table: pd.DataFrame, summary: dict) -> pd.DataFrame:
     standard deviation), or one of Taguchi's signal-to-noise ratios in decibels: ``"sn_larger"``
     (-10 log10 of the mean of 1/y^2), ``"sn_smaller"`` (-10 log10 of the mean of y^2) and
     ``"sn_nominal"`` (10 log10 of the squared mean over the variance). A source that rounds each
-    run's value before averaging it gives ``summary["round"]``, the decimals it keeps.
+    run's value before averaging it gives ``summary["round"]``, the decimals it keeps. A source
+    that prints its readings in one unit and works the statistic in another gives
+    ``summary["scale"]``, the factor the readings are multiplied by first (1e17 for readings
+    printed in units of 10^17).
     """
-    values = _STATISTICS[summary["statistic"]](table[summary["of"]].astype(float))
+    readings = table[summary["of"]].astype(float) * summary.get("scale", 1)
+    values = _STATISTICS[summary["statistic"]](readings)
     if summary.get("round") is not None:
         values = values.round(summary["round"])
     return values.rename(summary["statistic"]).to_frame()
@@ -1037,7 +1041,8 @@ def _reproduce(experiment: dict, expected: dict, check: dict, fits: _Fits) -> tu
     if kind in _VALUE_KINDS:
         found = _VALUE_KINDS[kind](experiment, check)
         wanted = str(_ROMAN.get(str(printed).strip(), printed))  # a resolution may be printed as a Roman numeral
-        return f"{found:.6g}", _agrees(found, wanted, expression=bool(check.get("expression")))
+        of_rounded = check.get("of_rounded", 1)
+        return f"{found:.6g}", _agrees(found, wanted, expression=bool(check.get("expression")), of_rounded=of_rounded)
     if kind in _RUN_KINDS:
         found_runs = _RUN_KINDS[kind](experiment, check)
         listed = [int(n) for n in re.findall(r"\d+", str(printed))]

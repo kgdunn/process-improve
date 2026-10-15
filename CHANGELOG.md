@@ -13,7 +13,7 @@ those changes.
 
 ### Added
 
-- **The reference catalogue holds chapters 1 to 7 of Schmidt and Launsby, *Understanding Industrial
+- **The reference catalogue holds chapters 1 to 8 of Schmidt and Launsby, *Understanding Industrial
   Designed Experiments* (4th edition).** Chapters 1 and 2: bond strengths confounded with batches, a
   twenty-week mileage record with its Cpk, a control chart's subgroup averages, the gas mileage and
   aircraft painting 2^(4-1) fractions analysed for their averages and standard deviations, the
@@ -33,7 +33,12 @@ those changes.
   smaller-is-better signal-to-noise ratios. Chapter 7: yield searched one factor at a time and by a
   3^2, then by response surface methods: a 2^2 with centre points and its path of steepest ascent, a
   second 2^2 at the best point along it, and the rotatable composite design that completes it, with
-  its stationary point and eigenvalues. 2631 printed numbers, 2430 checked. 190 are recorded as not
+  its stationary point and eigenvalues. Chapter 8, pp. 8-1 to 8-113: the industrial case studies
+  that print data, among them a 2^(8-4) screening design, a one-way analysis of variance with
+  unequal groups, L8 studies of a linear motor, an injection molded part and gold wire bonding, a
+  simulated computer network fitted in its inputs' own units (SAS's three regression tables and lack
+  of fit), duplicated 2^3 paper helicopters, lunar concrete in an 18-run D-optimal design, and a
+  duplicated L4 for GaAs doping. 3135 printed numbers, 2860 checked. 223 are recorded as not
   reproducing, each explained: most come from the book's rounding (run averages and standard
   deviations that do not follow from their readings, squares of rounded effects, coefficients that
   are halves of rounded effects, values cut rather than rounded), some are misprints (a wrong sign,
@@ -42,15 +47,16 @@ those changes.
   not recomputed: `evaluate_design` takes the rank of X'X, whose condition number in the factors'
   own units squares X's, and calls that full-rank model singular. A catalogue check can now analyse
   each run's mean, standard deviation, ln s or one of Taguchi's signal-to-noise ratios (larger,
-  smaller and nominal is best), or every reading as an observation of its own (`summary`); solve for
-  the setting of a factor at which a fitted line or parabola reaches a target (`target_setting`);
-  compute a Cpk with `calculate_cpk` (`capability`); read a term's tolerance as one over its VIF and
-  its squared correlation with the others as one less that (`reciprocal`, `complement`); read a
-  limit of a prediction's interval (`bound`); check Multiple R and the F ratio of the whole
-  regression with its p-value (`multiple_r`, `f_regression`, `f_regression_p`); find a dispersion
-  effect as ln(s+²/s-²), from run standard deviations or from the residuals' spread at each level
-  (`log_variance_ratio`, `residual_std_dev`, `residual_log_variance_ratio`); give a number printed
-  as the difference of two rounded averages the rounding of both (`of_rounded`); compare a printed
+  smaller and nominal is best), or every reading as an observation of its own, in other units than
+  the readings are printed in if need be (`summary`); solve for the setting of a factor at which a
+  fitted line or parabola reaches a target (`target_setting`); compute a Cpk with `calculate_cpk`
+  (`capability`); read a term's tolerance as one over its VIF and its squared correlation with the
+  others as one less that (`reciprocal`, `complement`); read a limit of a prediction's interval
+  (`bound`); check Multiple R and the F ratio of the whole regression with its p-value
+  (`multiple_r`, `f_regression`, `f_regression_p`); find a dispersion effect as ln(s+²/s-²), from
+  run standard deviations or from the residuals' spread at each level (`log_variance_ratio`,
+  `residual_std_dev`, `residual_log_variance_ratio`); give a number printed as the difference of two
+  rounded averages the rounding of both, with or without a fit (`of_rounded`); compare a printed
   design matrix, coded or in the factors' own units, with the library's design or stored orthogonal
   array whatever the run order, and if need be the order and signs of its columns, a subset of an
   array's columns, or numbers rounded as printed (`same_runs`); read a step of steepest ascent in
