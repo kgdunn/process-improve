@@ -64,7 +64,7 @@ def test_the_designs_that_can_learn_the_brief_are_made_and_scored_as_it_is_typed
     assert picked(page) == "dsd", "the fewest runs that leave three or more to estimate the noise"
     assert page.input_value("#design-type") == "dsd"
     assert "cannot fit this model" in page.text_content("#candidates")
-    assert "finding a change of 2 % from a factor's low setting to its high one" in page.text_content("#candidates")
+    assert page.text_content("#candidates thead th[colspan]") == "Power to find a change of 2 %"
 
 
 def test_another_aim_lists_the_designs_that_can_learn_it(blank_page):
@@ -75,7 +75,8 @@ def test_another_aim_lists_the_designs_that_can_learn_it(blank_page):
     assert "fractional_factorial" in listed(page), "a two-level fraction can learn the main effects"
     assert picked(page) == "fractional_factorial"
     headings = page.locator("#candidates thead th").all_text_contents()
-    assert headings == ["Design", "Runs", "Spare runs", "Power, main effect"]
+    power = "Power to find a change of two noise standard deviations"  # no smallest change given
+    assert headings == ["Design", "Runs", "Spare runs", power, "Main effect"]
 
 
 def test_power_is_for_the_smallest_change_worth_finding(blank_page):
@@ -85,7 +86,7 @@ def test_power_is_for_the_smallest_change_worth_finding(blank_page):
     candidates_done(page)
     reply = last_reply(page, "api_candidates")["result"]
     assert reply["result"]["effect_size"] == 2.0, "a change of 6 is a coefficient of 3, two noise standard deviations"
-    assert "finding a change of 6 %" in page.text_content("#candidates")
+    assert page.text_content("#candidates thead th[colspan]") == "Power to find a change of 6 %"
 
 
 def test_picking_a_design_puts_it_in_the_plan_and_the_reader_s_choice_is_kept(blank_page):
@@ -146,7 +147,7 @@ def test_with_five_factors_the_optimal_designs_wait_to_be_searched_for(fresh_pag
     set_aim(page, "main_quadratic")
     candidates_done(page)
     assert "d_optimal" not in listed(page)
-    assert "search for them to add them here" in page.text_content("#candidates")
+    assert "designs take a while to search for with 5 factors" in page.text_content("#candidates")
     page.click("#search")
     page.wait_for_function("window.__pi.count('api_candidates') === 3", timeout=10_000)
     candidates_done(page)

@@ -274,6 +274,18 @@ def test_every_tab_controls_a_panel_on_the_page():
     assert controlled - set(page().ids) == set()
 
 
+def test_every_question_mark_opens_a_definition_of_its_own():
+    """A "?" beside a term names what it is about and opens one definition on the page, a popover; none is left over."""
+    buttons = page().popover_buttons
+    assert len(buttons) >= 6, "the definitions the page opens on request"
+    for button in buttons:
+        assert "tip" in str(button.get("class")).split(), button
+        assert str(button.get("aria-label")).startswith("About "), button
+        assert "popover" in page().ids.get(str(button["popovertarget"]), {}), button
+    popovers = {name for name, attrs in page().ids.items() if "popover" in attrs}
+    assert sorted(str(b["popovertarget"]) for b in buttons) == sorted(popovers), "one ? for each definition"
+
+
 def test_the_list_of_saved_designs_says_how_many_store_js_keeps():
     """The page tells the reader that only the most recent designs are kept; the number is store.js's."""
     keep = re.search(r"export const KEEP = (\d+);", source("store.js"))

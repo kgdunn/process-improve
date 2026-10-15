@@ -159,8 +159,27 @@ section {
 .stale p { margin: 4px 0; }
 .equation { font-family: ui-monospace, "SFMono-Regular", Menlo, monospace; overflow-wrap: anywhere; }
 .row { display: flex; flex-wrap: wrap; gap: 16px; margin: 12px 0; }
-.row label, label[data-option] { display: flex; flex-direction: column; gap: 4px; font-size: 0.9rem; min-width: 0; max-width: 100%; }
+.row > label, .row > .field { display: flex; flex-direction: column; gap: 4px; font-size: 0.9rem; min-width: 0; max-width: 100%; }
 [hidden] { display: none !important; }
+
+/* A definition on request: a small "?" beside its term opens the definition under it, over the page, and a
+   click elsewhere, Escape or the page scrolling closes it. The "?" is drawn here, so a heading's text is the
+   term alone; the button's name says what it is about. A box with a "?" is a .field: its label and the "?"
+   on one line, the box under them. */
+.field__name { display: inline-flex; align-items: center; }
+.tip {
+  display: inline-grid; place-items: center; flex: none; width: 20px; height: 20px; margin: 0 0 0 6px; padding: 0;
+  border: 1px solid var(--line); border-radius: 50%; background: var(--panel); color: var(--muted);
+  font: 700 0.72rem/1 system-ui, -apple-system, "Segoe UI", sans-serif; vertical-align: 0.1em; cursor: help;
+}
+.tip::before { content: "?"; }
+.tip:hover, .tip:focus-visible, .tip[data-open] { color: var(--accent); border-color: var(--accent); }
+.tip-text {
+  position: fixed; inset: auto; margin: 0; width: max-content; max-width: min(20rem, calc(100vw - 16px));
+  padding: 8px 12px; border: 1px solid var(--line); border-radius: 8px; background: var(--panel); color: var(--fg);
+  box-shadow: 0 6px 20px rgb(0 0 0 / 0.18); font: 400 0.88rem/1.45 system-ui, -apple-system, "Segoe UI", sans-serif;
+  text-align: left; text-transform: none; letter-spacing: normal; white-space: normal;
+}
 /* The terms a reader ticks for the model: one group per kind of term, wrapping on a phone. */
 .terms { border: 1px solid var(--line); border-radius: 6px; padding: 8px 12px; margin: 0 0 12px; max-width: 100%; }
 .terms legend { font-size: 0.9rem; padding: 0 4px; }
@@ -354,7 +373,7 @@ label.inline { display: flex; flex-direction: column; gap: 4px; font-size: 0.9re
 .with-unit { display: inline-flex; align-items: center; gap: 6px; }
 .with-unit .unit { color: var(--muted); font-size: 0.9rem; }
 .known { margin: 6px 0 0; }
-.known .row label { flex: 1 1 9rem; }
+.known .row > label, .known .row > .field { flex: 1 1 9rem; }
 
 /* What the study is to learn: one choice, each with what it means. */
 .aims { display: grid; gap: 8px; margin: 6px 0 4px; }
@@ -369,6 +388,10 @@ label.inline { display: flex; flex-direction: column; gap: 4px; font-size: 0.9re
 .candidates { margin: 8px 0 0; }
 .candidates .busy { display: flex; align-items: center; gap: 8px; }
 table.pick { width: 100%; }
+/* The power columns share one heading, which says what the power is for: the change worth finding. */
+table.pick th { padding: 2px 10px; vertical-align: bottom; }
+table.pick th[colspan] { text-align: center; }
+table.pick tr + tr th:first-child { text-align: right; }
 table.pick tbody tr { cursor: pointer; }
 table.pick tbody tr:hover td { background: var(--bg); }
 table.pick tbody tr[aria-selected="true"] td { background: color-mix(in srgb, var(--accent) 12%, var(--panel)); }

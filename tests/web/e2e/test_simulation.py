@@ -37,8 +37,9 @@ def test_simulating_fills_every_run_and_keeps_the_true_process_to_hand(blank_pag
     assert len(simulated_results(page)) == len(run_sheet(page)) == 11
     assert page.is_visible("#truth")
     assert page.text_content("#truth-equation").startswith("y = 62 + 4·T - 3.1·P + 1.75·F + 1.5·T·P")
-    assert 'simulated from "Reactor yield", with noise of standard deviation 1 (seed 1)' in page.text_content(
-        "#run-source"
+    assert page.text_content("#run-source") == (
+        '11 of 11 results simulated from "Reactor yield" (noise 1, seed 1), in italics: '
+        "type over any to enter your own."
     )
     assert "TrueProcess(" in page.text_content("#py-run code")
 

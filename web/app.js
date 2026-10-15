@@ -60,12 +60,12 @@ import {
   nextMode,
   percent,
   pickCandidate,
+  powerScale,
   pval,
   responseName,
   responseProblems,
   responseTitle,
   runBadge,
-  termLabel,
 } from "./logic.js";
 import {
   AIMS,
@@ -554,7 +554,7 @@ function showAim() {
   const p = aimTerms(factors, aim);
   const screening = !aimChosen && aim === "main_effects" && factors.length >= SCREEN_FROM;
   $("#aim-terms").textContent = factors.length
-    ? `${p} coefficients to estimate, the intercept included.${screening ? ` With ${SCREEN_FROM} factors or more a study starts by finding which matter; choose another aim to learn more of each.` : ""}`
+    ? `${p} coefficients, the intercept included.${screening ? ` With ${SCREEN_FROM} factors or more, a study starts by finding which matter.` : ""}`
     : "";
 }
 
@@ -682,15 +682,12 @@ function planKey() {
 
 const planIsStale = () => Boolean(state.design) && state.planKey !== null && planKey() !== state.planKey;
 
-/** Say when the plan has changed since the run sheet was made, in Run and on Plan's button, until it is made again. */
+/** Say when the plan has changed since the run sheet was made, in Run and beside Plan's button, until it is made again. */
 function markStale() {
   const stale = planIsStale();
   $("#design-stale").hidden = !stale;
-  const note = $("#plan-note");
-  note.hidden = !state.design;
-  note.textContent = stale
-    ? "The run sheet in Run was made from an earlier plan: make the new one to use these settings."
-    : "The run sheet in Run is this plan's.";
+  $("#plan-note").hidden = !stale;
+  $("#plan-note").textContent = stale ? "The run sheet in Run is from an earlier plan." : "";
   renderBadges();
 }
 
@@ -784,13 +781,7 @@ function showDesign(design, warnings = [], { save = true } = {}) {
   scheduleSave();
 }
 
-/** The model the analysis fits, in words: the design's own, a named model, or the terms ticked. */
-function analysedWith() {
-  const chosen = modelChoice();
-  if (chosen && typeof chosen === "object") return `the terms ${listNames(chosen.terms.map(termLabel))}`;
-  return `the ${(chosen || state.design.model).replace("_", " ")} model`;
-}
-
+/** Say what the run sheet holds, and anything about its runs to check before they are made. */
 function renderDesign(warnings = state.designWarnings ?? []) {
   if (!state.design) return;
   state.designWarnings = warnings;
@@ -801,15 +792,7 @@ function renderDesign(warnings = state.designWarnings ?? []) {
     const outside = r.outside_range?.length
       ? ` Some runs of ${r.outside_range.join(", ")} lie outside the ranges you entered; check they are safe to run.`
       : "";
-    parts.push(
-      el(
-        "p",
-        "",
-        `${r.n_runs} runs${centre}, listed below in randomised run order. The results will be analysed with ` +
-          `${analysedWith()} unless you choose another in Learn.${outside}`,
-      ),
-      ...noteList(r.facts.notes),
-    );
+    parts.push(el("p", "", `${r.n_runs} runs${centre}, in random run order.${outside}`), ...noteList(r.facts.notes));
   } else {
     parts.push(el("p", "", `${r.rows.length} runs, read from the workbook.`));
   }
@@ -912,35 +895,48 @@ function renderCandidates(busy = null) {
   if (current) markPicked();
 }
 
-/** The comparison's designs as a list to pick from: those that fit the model in a table, and why the others do not. */
+/**
+ * The comparison's designs as a list to pick from: those that fit the model in a table, sorted by
+ * their runs, and which do not. The table's headings say what its numbers are; what spare runs
+ * and power mean is a "?" away.
+ */
 function candidateList(c, current) {
   const rows = candidateRows(c.result, c.made);
   const kinds = [
-    ["main", "main effect"],
-    ["interaction", "interaction"],
-    ["quadratic", "curvature"],
+    ["main", "Main effect"],
+    ["interaction", "Interaction"],
+    ["quadratic", "Curvature"],
   ].filter(([kind]) => rows.some((r) => r.power[kind] !== null));
   const fitting = rows.filter((r) => r.fits);
-  const terms = c.result.terms.filter((t) => t !== "Intercept").map(prettyTerm);
-  const parts = [
-    el(
-      "p",
-      "hint",
-      `The model has ${c.result.terms.length} coefficients: ${listNames(terms)} and the intercept. ` +
-        `${fitting.length ? `${fitting.length} of the designs can fit it, sorted here by their runs. ` : "No design here can fit it. "}` +
-        `Power is a design's chance of finding ${changeWords(readResponseInfo())} from a factor's low setting to its high ` +
-        `one, at the ${Math.round(100 * c.result.significance_level)}% level.`,
-    ),
-  ];
+  const parts = [];
   if (fitting.length) {
     const t = el("table", "data pick", "");
+    const info = readResponseInfo();
+    const [spareTip, spareNote] = tip(
+      "spare runs",
+      `The runs left once the model's ${c.result.terms.length} coefficients are fitted: they estimate the ` +
+        `run-to-run noise. Fewer than ${SPARE_FOR_NOISE} are marked.`,
+    );
+    const [powerTip, powerNote] = tip(
+      "power",
+      `The chance that the analysis finds ${changeWords(info)} from a factor's low setting to its high one, at ` +
+        `the ${Math.round(100 * c.result.significance_level)}% level.` +
+        (powerScale(info) ? "" : " To set your own, give the noise and the change under What you know of it already."),
+    );
+    const heading = (text, span = {}) => Object.assign(el("th", "", text), span);
     const head = el("tr", "", "");
-    const spare = el("th", "", "Spare runs");
-    spare.title = "The runs left after the fit to estimate the run-to-run noise.";
-    head.append(el("th", "", "Design"), el("th", "", "Runs"), spare);
-    for (const [, words] of kinds) head.append(el("th", "", `Power, ${words}`));
+    const spare = heading("Spare runs", { rowSpan: 2 });
+    spare.append(spareTip);
+    head.append(heading("Design", { rowSpan: 2 }), heading("Runs", { rowSpan: 2 }), spare);
+    const sub = el("tr", "", "");
+    if (kinds.length) {
+      const power = heading(`Power to find ${changeWords(info)}`, { colSpan: kinds.length });
+      power.append(powerTip);
+      head.append(power);
+      for (const [, words] of kinds) sub.append(el("th", "", words));
+    }
     const thead = el("thead", "", "");
-    thead.append(head);
+    thead.append(head, ...(kinds.length ? [sub] : []));
     const tbody = el("tbody", "", "");
     for (const r of fitting) {
       const tr = el("tr", "", "");
@@ -962,27 +958,18 @@ function candidateList(c, current) {
     t.append(thead, tbody);
     const wrap = el("div", "scroll", "");
     wrap.append(t);
-    parts.push(wrap);
+    parts.push(wrap, spareNote, powerNote);
   }
   const unfit = rows.filter((r) => !r.fits);
-  if (unfit.length) {
-    parts.push(
-      el(
-        "p",
-        "hint",
-        `${listNames(unfit.map((r) => r.label))} cannot fit this model with the runs ${unfit.length === 1 ? "it makes" : "they make"}: ` +
-          "two of its terms or more cannot be told apart.",
-      ),
-    );
-  }
+  if (unfit.length) parts.push(el("p", "hint", `${listNames(unfit.map((r) => r.label))} cannot fit this model.`));
   if (c.waiting?.length) {
-    const designs = listNames(c.waiting.map((w) => w.label));
+    const one = c.waiting.length === 1;
     parts.push(
       el(
         "p",
         "hint",
-        `The ${designs} design${c.waiting.length === 1 ? "" : "s"} search for their runs, which takes a while with ` +
-          `${factorCount()} factors: search for them to add them here.`,
+        `The ${listNames(c.waiting.map((w) => w.label))} design${one ? " takes" : "s take"} a while to search for ` +
+          `with ${factorCount()} factors.`,
       ),
     );
   }
@@ -1090,25 +1077,20 @@ function renderComparison(result, made, notes) {
     more.hidden = wrap.scrollWidth <= wrap.clientWidth + 1;
   });
   comparisonFit.observe(wrap);
-  const designNotes = result.designs.flatMap((label) => result.notes[label].map((n) => `${label}: ${prettyTerm(n)}`));
+  // A note several designs share, such as the same terms they cannot tell apart, is said once for all of them.
+  const shared = new Map();
+  for (const label of result.designs) for (const n of result.notes[label]) shared.set(n, [...(shared.get(n) ?? []), label]);
+  const designNotes = [...shared].map(([n, labels]) => `${listNames(labels)}: ${prettyTerm(n)}`);
+  const es = +result.effect_size.toPrecision(4);
   out.replaceChildren(
     el(
       "p",
       "",
-      `Model: ${result.terms.length} terms (${result.terms.map(prettyTerm).join(", ")}). Power is for a coefficient of ` +
-        `${+result.effect_size.toPrecision(4)} noise standard deviation${result.effect_size === 1 ? "" : "s"} at a significance level of ` +
-        `${result.significance_level}. G is searched over ${result.g_points}.`,
+      `Model: ${result.terms.map(prettyTerm).join(", ")}. Power is for a coefficient of ${es} noise standard ` +
+        `deviation${es === 1 ? "" : "s"}, at the ${Math.round(100 * result.significance_level)}% level.`,
     ),
     more,
     wrap,
-    el(
-      "p",
-      "",
-      "No design is best on every row, and which row matters depends on what the experiment is for: A/p or E " +
-        "for precise coefficients, I or G for prediction over the region, max |r| for keeping second-order " +
-        "effects apart, and power for detecting an effect of a stated size. Hover over a measure for its " +
-        "definition, or follow its link to the book.",
-    ),
     ...noteList([...notes, ...designNotes].map(prettyTerm)),
   );
 }
@@ -1131,9 +1113,8 @@ async function drawComparison(result, k) {
   const caption = el(
     "figcaption",
     "hint",
-    "Each curve sorts a design's prediction variance, in units of the noise variance, over points spread " +
-      "evenly through the cube: a low, flat curve predicts with the same precision everywhere, and its right " +
-      "end is the worst case, G. Designs that cannot fit the model have no curve. ",
+    "A low, flat curve predicts with the same precision everywhere; its right end is the worst case, G. A design " +
+      "that cannot fit the model has no curve. ",
   );
   caption.append(link(BOOK_PAGES.fds, "Reading an FDS plot"));
   fds.append(el("h3", "", "Fraction of design space (FDS)"), fdsPlot, caption);
@@ -1152,9 +1133,8 @@ async function drawComparison(result, k) {
       el(
         "p",
         "hint wide",
-        "The correlation maps show |r| between the main effects, the squares and the two-factor interactions, " +
-          "in three blocks; a darker square is a pair of terms the design finds harder to tell apart, and a blank " +
-          "row is a term that does not vary in the design.",
+        "A darker square is a pair of terms the design finds harder to tell apart; a blank row is a term that " +
+          "does not vary in the design.",
       ),
     );
   } catch (err) {
@@ -1218,11 +1198,12 @@ function describeSource() {
   const done = state.responses.filter((v) => v !== null).length;
   const simulated = state.sources.filter((s) => s === "simulated").length;
   const sim = state.simulation;
-  let text = done ? `${done} of ${n} results in.` : `No results yet: type them into the ${responseWords().label} column as the runs are made.`;
+  const { label, units } = responseWords();
+  let text = done ? `${done} of ${n} results in.` : `No results yet: type them into the ${label} column as the runs are made.`;
   if (simulated && sim) {
     text =
-      `${simulated} of ${n} results simulated from "${sim.label}", with noise of standard deviation ${sim.sigma} ` +
-      `(seed ${sim.seed}). Simulated values are in italics; type over any of them to enter your own.`;
+      `${simulated} of ${n} results simulated from "${sim.label}" (noise ${sim.sigma}${units ? ` ${units}` : ""}, ` +
+      `seed ${sim.seed}), in italics: type over any to enter your own.`;
   }
   $("#run-source").textContent = text;
 }
@@ -1433,7 +1414,7 @@ function renderAnalysis(reply) {
   showPython("analyse", analyseCode(r.formula ?? r.model, state.responses.every((v) => v !== null)));
   const parts = [
     el("p", "equation", r.equation),
-    el("p", "hint", "Coefficients are in coded units: each factor runs from -1 at its low value to +1 at its high value."),
+    el("p", "hint", "In coded units: -1 is each factor's low setting, +1 its high one."),
     ...noteList(fitStatistics(s, r.n_completed, r.pending_runs), "fit"),
     ...noteList(r.notes),
     ...warningList(reply.warnings),
@@ -1448,29 +1429,25 @@ function renderAnalysis(reply) {
         pval(c.p_value),
         ...(simulated ? [fmt(c.true_value)] : []),
       ]),
+      {
+        "True value":
+          "What the coefficient estimates for the process the results were simulated from: the estimate the " +
+          "same fit gives without noise.",
+      },
     ),
   ];
-  if (simulated) {
-    parts.push(
-      el(
-        "p",
-        "hint",
-        "The true value is what the coefficient estimates for the process the results were simulated from: the " +
-          "estimate the same fit gives without noise.",
-      ),
-    );
-  }
   if (r.lenth) {
     const heading = el("h3", "", "Effects, judged with ");
-    heading.append(link(BOOK_PAGES.lenth, "Lenth's method"));
+    const [lenthTip, lenthNote] = tip(
+      "Lenth's method",
+      "Each effect is twice its coefficient: the change from the factor's low setting to its high one. PSE is the " +
+        "pseudo standard error, and ME and SME are the margins of error for one effect and for all of them at once.",
+    );
+    heading.append(link(BOOK_PAGES.lenth, "Lenth's method"), lenthTip);
     parts.push(
       heading,
-      el(
-        "p",
-        "hint",
-        "Each effect is twice its coefficient: the change from the factor's low level to its high level. " +
-          `Pseudo standard error PSE = ${fmt(r.lenth.PSE)}; margins ME = ${fmt(r.lenth.ME)} and SME = ${fmt(r.lenth.SME)}.`,
-      ),
+      lenthNote,
+      el("p", "hint", `PSE = ${fmt(r.lenth.PSE)}; ME = ${fmt(r.lenth.ME)}; SME = ${fmt(r.lenth.SME)}.`),
       table(
         ["Term", "Effect", "Beyond ME", "Beyond SME"],
         r.lenth.effects.map((e) => [e.label, fmt(e.effect), e.active_ME ? "yes" : "no", e.active_SME ? "yes" : "no"]),
@@ -1548,7 +1525,6 @@ function setModel(model) {
     if (model === CHOSEN_TERMS) startTermList();
   }
   $("#terms").hidden = $("#model").value !== CHOSEN_TERMS;
-  renderDesign();
 }
 
 // ---------------------------------------------------------------- charts
@@ -2088,8 +2064,7 @@ async function start() {
       await openCampaign(
         c,
         { id: last.id, created: last.created },
-        `Picked up where you left off: ${c.title}, saved ${timeAgo(last.updated)}. Your other studies are ` +
-          "listed under Your studies, and New study, at the top, starts afresh.",
+        `Picked up where you left off: ${c.title}, saved ${timeAgo(last.updated)}.`,
       );
       return;
     } catch {
@@ -2187,9 +2162,9 @@ async function shareLink() {
   );
   $("#share-note").textContent =
     `${copied ? "" : "Copy the link from the box. "}Whoever opens it gets ` +
-    `${withResults ? "this study and its results" : "this study, without its results"}, saved in their own ` +
-    `browser. Everything is in the link itself, ${url.length} characters long; nothing is stored on a server.` +
-    (url.length > 8000 ? " Some chat apps cut links this long: the workbook is the surer way to send it." : "");
+    `${withResults ? "this study and its results" : "this study, without its results"}. The link holds it all: ` +
+    "nothing is stored on a server." +
+    (url.length > 8000 ? ` At ${url.length} characters, some chat apps cut it: the workbook is the surer way to send it.` : "");
   $("#share-out").hidden = false;
   $("#share-url").select();
 }
@@ -2266,12 +2241,67 @@ function link(href, text, target = "pid-book") {
   return a;
 }
 
-function table(columns, rows) {
+/**
+ * A table of results; `tips` gives a column's definition, opened from a "?" in its heading. The
+ * definitions follow the table, so a heading's text stays its name.
+ */
+function table(columns, rows, tips = {}) {
   const wrap = el("div", "scroll", "");
   const t = el("table", "data", "");
   renderTable(t, columns, rows);
   wrap.append(t);
+  for (const [i, name] of columns.entries()) {
+    if (!tips[name]) continue;
+    const [button, note] = tip(name.toLowerCase(), tips[name]);
+    t.tHead.rows[0].cells[i].append(button);
+    wrap.append(note);
+  }
   return wrap;
+}
+
+// ---------------------------------------------------------------- definitions on request
+let openTip = null; // the definition on show, if any
+let tipCount = 0;
+
+/**
+ * Show a definition under the "?" that opened it, inside the window: above it when there is no
+ * room below. It is placed once, as it opens; scrolling closes it rather than leave it behind.
+ */
+function placeTip(note) {
+  const button = document.querySelector(`[popovertarget="${note.id}"]`);
+  if (!button) return;
+  const at = button.getBoundingClientRect();
+  const { offsetWidth: w, offsetHeight: h } = note;
+  const below = at.bottom + 6;
+  note.style.left = `${Math.max(8, Math.min(at.left + at.width / 2 - w / 2, innerWidth - w - 8))}px`;
+  note.style.top = `${below + h <= innerHeight - 8 ? below : Math.max(8, at.top - 6 - h)}px`;
+}
+
+/** Make a definition (an element with the popover attribute) open in place, and its "?" show that it is open. */
+function wireTip(note) {
+  note.addEventListener("toggle", (e) => {
+    const open = e.newState === "open";
+    openTip = open ? note : openTip === note ? null : openTip;
+    document.querySelector(`[popovertarget="${note.id}"]`)?.toggleAttribute("data-open", open);
+    if (open) placeTip(note);
+  });
+}
+
+/**
+ * A "?" that opens a definition of `term`: the page says what a term means once, on request,
+ * rather than in a sentence under every box. Returns the button, to go beside the term, and the
+ * definition, to go anywhere near it: it opens over the page.
+ */
+function tip(term, text) {
+  const note = el("span", "tip-text", text);
+  note.id = `tip-${++tipCount}`;
+  note.popover = "auto";
+  wireTip(note);
+  const button = el("button", "tip", "");
+  button.type = "button";
+  button.setAttribute("popovertarget", note.id);
+  button.setAttribute("aria-label", `About ${term}`);
+  return [button, note];
 }
 
 /**
@@ -2354,6 +2384,10 @@ systemDark.addEventListener("change", () => {
 applyMode(MODES.includes(document.documentElement.dataset.mode) ? document.documentElement.dataset.mode : "auto");
 
 // ---------------------------------------------------------------- wiring
+for (const note of document.querySelectorAll(".tip-text[popover]")) wireTip(note);
+// A definition opens where its "?" was, so it closes when anything under it scrolls, or the window changes size.
+document.addEventListener("scroll", () => openTip?.hidePopover(), { capture: true, passive: true });
+window.addEventListener("resize", () => openTip?.hidePopover());
 // The study bar stays at the top as the page scrolls; the brief beside it starts below it.
 new ResizeObserver(([entry]) => {
   document.documentElement.style.setProperty("--bar-height", `${Math.ceil(entry.borderBoxSize[0].blockSize)}px`);
@@ -2448,12 +2482,10 @@ $("#model").onchange = () => {
   if ($("#model").value === CHOSEN_TERMS && state.design) startTermList();
   else modelBefore = $("#model").value;
   $("#terms").hidden = $("#model").value !== CHOSEN_TERMS || !state.design;
-  renderDesign();
   analyseRuns();
   scheduleSave();
 };
 $("#term-list").onchange = () => {
-  renderDesign();
   scheduleAnalysis(); // a moment after the last tick, as for typed results
   scheduleSave();
 };

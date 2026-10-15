@@ -56,8 +56,8 @@ def test_the_summary_says_what_the_design_is(blank_page, api):
     generate(page, design_type="fractional_factorial")
     made = api.ok("api_make_design", calls(page, "api_make_design")[-1]["payload"])
     summary = page.text_content("#design-summary p")
-    assert summary.startswith(f"{made['n_runs']} runs, {made['facts']['center_runs']} of them at the center")
-    assert "main effects model" in summary
+    centre = made["facts"]["center_runs"]
+    assert summary == f"{made['n_runs']} runs, {centre} of them at the center of the ranges, in random run order."
     assert page.locator("#design-summary ul.facts li").all_text_contents() == made["facts"]["notes"]
 
 

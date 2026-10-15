@@ -69,10 +69,7 @@ DESIGNS: dict[str, dict[str, Any]] = {
     },
     "fractional_factorial": {
         "label": "Fractional factorial (2-level)",
-        "hint": (
-            "A fraction of the full factorial. Its resolution says what is aliased: at III, main effects "
-            "with two-factor interactions; at IV, two-factor interactions with each other; at V, neither."
-        ),
+        "hint": "A fraction of the full factorial; its resolution says what is aliased with what.",
         "model": "main_effects",
         "options": ["n_center_points", "resolution", "n_replicates", "n_blocks"],
         "min_factors": 3,
@@ -91,10 +88,7 @@ DESIGNS: dict[str, dict[str, Any]] = {
     },
     "dsd": {
         "label": "Definitive screening (DSD)",
-        "hint": (
-            "Three levels in 2k+1 runs (2k+3 for odd k), one of them at the center, plus any further center "
-            "runs; main effects clear of interactions and quadratics."
-        ),
+        "hint": "Three levels in 2k+1 runs (2k+3 for odd k); main effects clear of interactions and quadratics.",
         "model": "main_effects",
         "options": ["n_center_points", "n_replicates", "n_blocks"],
         "min_factors": 3,
