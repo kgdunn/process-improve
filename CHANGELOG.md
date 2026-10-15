@@ -11,6 +11,34 @@ those changes.
 
 ## [Unreleased]
 
+### Added
+
+- **The reference catalogue holds chapters 1 and 2 of Schmidt and Launsby, *Understanding
+  Industrial Designed Experiments* (4th edition).** Bond strengths of two agents whose batches of
+  raw material are confounded with them, a vehicle's twenty-week mileage record with its Cpk, the
+  subgroup averages of a control chart, the gas mileage 2^(4-1) fraction with three weekly
+  readings a run, the nickel plating 2^2 with five readings a run, a 2 x 3 factorial without
+  interaction, the aircraft painting 2^(4-1) fraction analysed for its average and its standard
+  deviation, an L12 and an L18 screening design with four readings a run, a 3^2 factorial, a
+  two-factor central composite design fitted whole and with a row missing, the generators and
+  aliases of two fractions, and Problem 2's data: 501 printed numbers, 481 checked. Twenty-six are
+  recorded as not reproducing, each explained: seventeen run averages or standard deviations that
+  do not follow from their printed readings (twelve of them in one table), five predictions and
+  settings worked from the book's rounded coefficients, and four summary numbers. A catalogue
+  check can now analyse each run's mean or standard deviation of its readings, or every reading as
+  an observation of its own (`summary`), solve for the setting of a factor at which a fitted line
+  or parabola reaches a target (`target_setting`), compute a Cpk with `calculate_cpk`
+  (`capability`), read a term's tolerance as one over its VIF (`reciprocal`), check the F ratio of
+  the whole regression and its p-value (`f_regression`, `f_regression_p`), and give a number
+  printed as the difference of two rounded averages the rounding of both (`of_rounded`).
+
+### Fixed
+
+- **The reference catalogue's regression sum of squares is the total less the residual's.** It
+  was the sum of the Type II rows of the ANOVA, which leaves out what correlated terms share, such
+  as the squares of a composite design; for orthogonal designs the two are the same, and every
+  number already in the catalogue still reproduces.
+
 ## [1.99.0] - 2026-10-15
 
 ### Added
