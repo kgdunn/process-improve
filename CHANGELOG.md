@@ -127,6 +127,17 @@ those changes.
   simulated again only while practising. Any change to the plan (the factors, the design or a
   setting) marks the run sheet out of date until it is made again or the plan is put back. New
   study clears the page, and Your designs is now Your studies.
+- **Factorial says less, and defines its terms on request.** Each screen keeps what only it
+  can say (a warning, a fact about the study, a result) and leaves the rest to its headings,
+  labels and tables. The running text a reader meets falls by more than half on every screen,
+  from 296 to 77 words on a first visit. The run-to-run noise, the smallest change worth
+  finding, categorical factors, replicates, blocks, spare runs, power, the true value, Lenth's
+  margins and a model's terms each have a "?" beside them that opens the definition there. The
+  designs that can learn the brief show their power under one heading that names the change it
+  is for ("Power to find a change of 2 %"), and the run sheet's summary no longer names the
+  analysis model, which Learn's Model box shows. The response surface's caption no longer
+  calls the runs coded, since its axes are in the factors' own units. A browser test holds
+  each screen to a budget of words.
 - **Factorial says which factors are categorical.** Each factor in the brief has a Type,
   Numeric or Categorical: choosing Categorical gives it two labels to edit (A and B to
   start) and takes away its units, and choosing Numeric brings its numbers back. **+ Add
