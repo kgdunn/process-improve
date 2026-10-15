@@ -55,7 +55,7 @@ _CERTIFY_SLACK = 1e-3
 _SNAP = 1e-6
 #: Most the rounded coefficients (coded units, scaled to a sum of sizes of 1) may move from the plane found.
 _MOVE = 0.01
-#: Significant digits tried for the coefficients; beyond the last, the coefficients are written unrounded.
+#: Most significant digits tried for the coefficients: at 15 digits a float is written as it is.
 _MAX_DIGITS = 15
 #: Most significant digits a number of the limit through cut points is written with.
 _CUT_DIGITS = 12
@@ -215,9 +215,7 @@ def _separation(cannot: np.ndarray, can: np.ndarray) -> tuple[np.ndarray, float,
 
 
 def _in_hull(point: np.ndarray, others: np.ndarray) -> bool:
-    """Return whether ``point`` lies in the convex hull of ``others`` (coded units, all inside the box)."""
-    if not len(others):
-        return False
+    """Return whether ``point`` lies in the convex hull of ``others`` (coded units, all inside the box; some given)."""
     if np.any(np.all(np.abs(others - point) <= _TOL, axis=1)):
         return True
     if np.any(point < others.min(axis=0) - _TOL) or np.any(point > others.max(axis=0) + _TOL):
@@ -299,7 +297,8 @@ def _max_margin_plane(cannot: np.ndarray, can: np.ndarray, start: tuple[np.ndarr
     weight ``_OFFSET_WEIGHT`` (it is free in the original), and is solved through
     :func:`_least_distance`; SLSQP from the separating plane ``start`` takes over when that
     answer cannot be certified. Coefficients below ``_SNAP`` of the sum of their sizes are
-    set to zero, so a factor the sets do not depend on gets exactly zero.
+    set to zero, smallest first and each only while the plane still separates the sets, so
+    a factor the sets do not depend on gets exactly zero.
 
     Parameters
     ----------
@@ -329,9 +328,12 @@ def _max_margin_plane(cannot: np.ndarray, can: np.ndarray, start: tuple[np.ndarr
             w_lp, c_lp, t = _separation(cannot, can)
             start = (w_lp / t, c_lp / t)
         w = _slsqp_plane(cannot, can, start)
-    snapped = np.where(np.abs(w) < _SNAP * np.abs(w).sum(), 0.0, w)
-    if _separates(snapped, cannot, can):
-        w = snapped
+    small = np.flatnonzero(np.abs(w) < _SNAP * np.abs(w).sum())
+    for j in small[np.argsort(np.abs(w[small]), kind="stable")]:  # smallest first, each only if the cut still holds
+        snapped = w.copy()
+        snapped[j] = 0.0
+        if _separates(snapped, cannot, can):
+            w = snapped
     gap = float(np.min(cannot @ w) - np.max(can @ w))
     return w * 2.0 / gap
 
@@ -420,11 +422,10 @@ def _roundest(low: Fraction, high: Fraction) -> Fraction:
     if left <= 0 <= right:
         return Fraction(0)
     top = max(abs(left), abs(right))
-    exponent = math.floor(math.log10(top))
-    while Fraction(10) ** exponent > top:
+    # The power of ten at or below ``top``, exactly: the digits of its numerator and denominator place it within one.
+    exponent = len(str(top.numerator)) - len(str(top.denominator))
+    if Fraction(10) ** exponent > top:
         exponent -= 1
-    while Fraction(10) ** (exponent + 1) <= top:
-        exponent += 1
     while True:  # a step no wider than the interval always has a multiple in it, so this ends
         for factor in (5, 2, 1):
             step = factor * Fraction(10) ** exponent
@@ -460,14 +461,9 @@ def _gap(
 def _rounded(a: np.ndarray, half: np.ndarray, cannot: np.ndarray, can: np.ndarray) -> tuple[list[Fraction], Fraction]:
     """Round the plane ``a @ x = .`` (actual units) for a reader, keeping every point on its side.
 
-    Two scalings are tried: the smallest coefficient made 1, and the largest. For each,
-    the fewest significant digits are found at which the coefficients, in coded units and
-    scaled to a sum of sizes of 1, move by at most ``_MOVE`` in total and still put every
-    point of ``cannot`` above every point of ``can``; the right-hand side is then the
-    roundest number in the middle fifth of the gap between the two (see :func:`_roundest`),
-    and every point is verified to lie strictly on its side, in exact arithmetic. The
-    scaling whose coefficients take fewer digits to write is kept, the smallest made 1 on a
-    tie.
+    Two scalings are tried: the smallest coefficient made 1, and the largest; each is
+    rounded by :func:`_round_scaling`. The scaling whose coefficients take fewer digits to
+    write is kept, the smallest made 1 on a tie.
 
     Returns
     -------
@@ -477,27 +473,34 @@ def _rounded(a: np.ndarray, half: np.ndarray, cannot: np.ndarray, can: np.ndarra
     """
     target = a * half / np.abs(a * half).sum()
     sizes = np.abs(a[a != 0])
-    best: tuple[int, list[Fraction], Fraction] | None = None
-    for scale in dict.fromkeys((float(sizes.min()), float(sizes.max()))):
-        scaled = a / scale
-        for digits in [*range(1, _MAX_DIGITS + 1), None]:
-            coefficients = scaled if digits is None else round_significant(scaled, digits)
-            coded = coefficients * half
-            if np.abs(coded / np.abs(coded).sum() - target).sum() > _MOVE + 1e-12:
-                continue
-            exact = [_exact(c) for c in coefficients]
-            gap = _gap(coefficients, cannot, can, exact)
-            if gap is None:
-                continue
-            rhs = _roundest(*gap)
-            if gap[0] < rhs < gap[1]:
-                written = _digits_written(exact)
-                if best is None or written < best[0]:
-                    best = (written, exact, rhs)
-                break
-    if best is None:  # pragma: no cover - the unrounded plane separates the points with a margin
-        raise RuntimeError("The proposed limit could not be written without moving a setting to the wrong side.")
-    return best[1], best[2]
+    written = [_round_scaling(a / scale, half, target, cannot, can) for scale in (sizes.min(), sizes.max())]
+    return min(written, key=lambda form: _digits_written(form[0]))
+
+
+def _round_scaling(
+    scaled: np.ndarray, half: np.ndarray, target: np.ndarray, cannot: np.ndarray, can: np.ndarray
+) -> tuple[list[Fraction], Fraction]:
+    """Round the coefficients ``scaled`` to the fewest significant digits that keep the plane where it was.
+
+    The digits are the fewest at which the coefficients, in coded units and scaled to a
+    sum of sizes of 1, move by at most ``_MOVE`` in total from ``target`` and still put
+    every point of ``cannot`` above every point of ``can``, which is checked exactly (see
+    :func:`_gap`). The right-hand side is then the roundest number in the middle fifth of
+    the gap between the two (see :func:`_roundest`), so every point lies strictly on its
+    side.
+    """
+    for digits in range(1, _MAX_DIGITS + 1):
+        coefficients = round_significant(scaled, digits)
+        coded = coefficients * half
+        if np.abs(coded / np.abs(coded).sum() - target).sum() > _MOVE + 1e-12:
+            continue
+        exact = [_exact(c) for c in coefficients]
+        gap = _gap(coefficients, cannot, can, exact)
+        if gap is not None:
+            return exact, _roundest(*gap)
+    raise RuntimeError(  # pragma: no cover - at 15 digits the plane is where it was, and separates by its margin
+        "The proposed limit could not be written without moving a setting to the wrong side."
+    )
 
 
 def _expression(names: Sequence[str], coefficients: Sequence[Fraction], rhs: Fraction) -> str:
