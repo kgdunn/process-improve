@@ -192,6 +192,23 @@ def _inside_polygon(points: np.ndarray, polygon: np.ndarray, tol: float) -> np.n
     return np.all(cross >= -tol * lengths, axis=1)
 
 
+def _is_hull_of(polygon: np.ndarray, points: np.ndarray, tol: float = 1e-6) -> bool:
+    """Whether ``polygon`` is the convex hull of ``points``, with no corner that lies on an edge.
+
+    Its corners must all be among the points, every point must lie inside it, and it must turn
+    at every corner: together these pin the hull down without computing one.
+    """
+    if not len(points):
+        return not len(polygon)
+    corners_are_points = all(np.min(np.max(np.abs(points - c), axis=1)) <= tol for c in polygon)
+    holds_points = _inside_polygon(points, polygon, tol).all()
+    if len(polygon) < 3:
+        return bool(corners_are_points and holds_points)
+    before, after = polygon - np.roll(polygon, 1, axis=0), np.roll(polygon, -1, axis=0) - polygon
+    turns = before[:, 0] * after[:, 1] - before[:, 1] * after[:, 0]
+    return bool(corners_are_points and holds_points and np.all(turns > 0))
+
+
 @st.composite
 def linear_regions(draw, max_factors: int = 4, max_limits: int = 4):
     """Draw a box of 2 to ``max_factors`` factors with integer ranges, cut by integer linear limits.
@@ -568,12 +585,7 @@ class TestShadow:
         if not len(vertices):
             assert not len(points)
             return
-        projected = vertices[:, :2]
-        try:
-            expected = projected[ConvexHull(projected).vertices]
-        except QhullError:  # a segment or a point: its ends
-            expected = points
-        assert _same_rows(points, expected, atol=1e-6)
+        assert _is_hull_of(points, vertices[:, :2])
         # Every allowed point of a sample of the box falls inside the shadow.
         sample = lows + (highs - lows) * np.random.default_rng(0).random((4000, len(lows)))
         allowed = sample[np.all(sample @ coefficients.T <= rhs + 1e-12, axis=1)]
@@ -653,12 +665,7 @@ class TestSlicePolygon:
         points = np.array(region.slice_polygon("X0", "X1", at)["points"]).reshape(-1, 2)
         # The slice is {low <= (X0, X1) <= high, c[:2] @ p <= rhs - c[2:] @ held}: try every pair of boundaries.
         expected = _brute_vertices(lows[:2], highs[:2], coefficients[:, :2], rhs - coefficients[:, 2:] @ held)
-        if len(expected) > 2:
-            try:
-                expected = expected[ConvexHull(expected).vertices]
-            except QhullError:
-                expected = expected[[np.argmin(expected @ [1, 1e-3]), np.argmax(expected @ [1, 1e-3])]]
-        assert _same_rows(points, expected, atol=1e-6)
+        assert _is_hull_of(points, expected)
         full = np.column_stack([points, np.tile(held, (len(points), 1))])
         assert np.all(full @ coefficients.T <= rhs + 1e-7)
         assert np.all((points >= lows[:2] - 1e-9) & (points <= highs[:2] + 1e-9))
@@ -776,6 +783,16 @@ class TestGeometry:
         assert geometry.convex_polygon(np.array([[0.5, 0.5], [0.5, 0.5]])).tolist() == [[0.5, 0.5]]
         line = np.array([[1.0, 1.0], [0.0, 0.0], [0.5, 0.5], [-1.0, -1.0]])
         assert geometry.convex_polygon(line).tolist() == [[-1.0, -1.0], [1.0, 1.0]]
+
+    def test_convex_polygon_drops_a_point_just_off_an_edge(self):
+        """(1/3, -1/3) lies on the edge from (-1, -1) to (1, 0); rounding 1/3 to 12 decimals moves it off by 5e-13.
+
+        The hull alone then lists it as a fourth corner.
+        """
+        third = round(1 / 3, 12)
+        points = np.array([[-1.0, -1.0], [1.0, -1.0], [1.0, 0.0], [third, -third]])
+        assert len(ConvexHull(points).vertices) == 4
+        assert geometry.convex_polygon(points).tolist() == [[-1.0, -1.0], [1.0, -1.0], [1.0, 0.0]]
 
     def test_convex_polygon_falls_back_to_a_segment(self, monkeypatch):
         def flat(*_args, **_kwargs):

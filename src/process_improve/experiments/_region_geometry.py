@@ -218,8 +218,25 @@ def convex_polygon(points: np.ndarray) -> np.ndarray:
         ring = unique[ConvexHull(unique).vertices]  # counter-clockwise in two dimensions
     except QhullError:  # flatter than the test above could tell
         return _segment(unique, axes[0])
+    ring = _without_straight_corners(ring)
     first = np.lexsort((ring[:, 1], ring[:, 0]))[0]
     return np.roll(ring, -first, axis=0)
+
+
+def _without_straight_corners(ring: np.ndarray) -> np.ndarray:
+    """Return a hull's corners without those where it turns by less than ``1e-9`` (a point on an edge).
+
+    Coordinates rounded to 12 decimals, or computed with rounding error, can move a point
+    of an edge off it by ``1e-13``, and the hull then lists it as a corner.
+    """
+    while len(ring) > 3:  # a triangle keeps its corners
+        before, after = ring - np.roll(ring, 1, axis=0), np.roll(ring, -1, axis=0) - ring
+        turn = before[:, 0] * after[:, 1] - before[:, 1] * after[:, 0]
+        straight = np.abs(turn) <= 1e-9 * np.linalg.norm(before, axis=1) * np.linalg.norm(after, axis=1)
+        if not straight.any():
+            break
+        ring = np.delete(ring, int(np.argmax(straight)), axis=0)
+    return ring
 
 
 def _segment(points: np.ndarray, direction: np.ndarray) -> np.ndarray:
