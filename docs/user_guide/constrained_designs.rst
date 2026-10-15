@@ -1,3 +1,5 @@
+.. _constrained-designs:
+
 Designs over a Constrained Region
 =================================
 
@@ -87,6 +89,8 @@ How the design is chosen
    swap improves it. Five random starts guard against a poor local optimum;
    ``random_state`` makes the result reproducible.
 
+.. _constrained-writing-constraints:
+
 Writing constraints
 -------------------
 
@@ -102,6 +106,8 @@ Writing constraints
 
 The expression is parsed into an arithmetic tree and evaluated with numpy; it is never
 passed to ``eval``, so an expression from an untrusted source can only compute a number.
+:ref:`region-limits` shows how to check what a set of limits leaves, propose a limit from
+the settings that cannot be run, and draw the region.
 
 Combining with other options
 ----------------------------

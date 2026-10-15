@@ -26,7 +26,7 @@ import functools
 import itertools
 import logging
 import warnings
-from collections.abc import Callable, Sequence
+from collections.abc import Callable
 from typing import Any, NamedTuple
 
 import numpy as np
@@ -35,7 +35,7 @@ import pandas as pd
 from process_improve._random import resolve_deprecated_seed
 from process_improve.experiments._classical import ff2n
 from process_improve.experiments.designs_utils import build_design_result, categorical_codes, refuse_reserved_names
-from process_improve.experiments.factor import Constraint, DesignResult, Factor, FactorType
+from process_improve.experiments.factor import Constraint, DesignResult, Factor, FactorType, as_constraints
 from process_improve.experiments.omars import _full_second_order, _quadratic_columns
 
 logger = logging.getLogger(__name__)
@@ -319,25 +319,8 @@ def _refuse_mixture_in_box_family(factors: list[Factor], design_type: str) -> No
         )
 
 
-def _as_constraints(constraints: Sequence[Constraint | dict | str] | None) -> list[Constraint] | None:
-    """Accept constraints as ``Constraint`` objects, their dict form or bare expressions.
-
-    The dict form is what a JSON round trip of a ``Constraint`` gives, for example the
-    ``design_params`` of a stage from ``recommend_strategy``.
-    """
-    if constraints is None:
-        return None
-    out: list[Constraint] = []
-    for c in constraints:
-        if isinstance(c, Constraint):
-            out.append(c)
-        elif isinstance(c, dict):
-            out.append(Constraint(**c))
-        elif isinstance(c, str):
-            out.append(Constraint(expression=c))
-        else:
-            raise TypeError(f"A constraint must be a Constraint, a dict or an expression string; got {c!r}.")
-    return out
+#: Moved to :func:`process_improve.experiments.factor.as_constraints`; kept for callers of the old name.
+_as_constraints = as_constraints
 
 
 def _refuse_duplicate_names(factors: list[Factor]) -> None:

@@ -76,6 +76,58 @@ those changes.
   numbers rounded as printed (`same_runs`); read a step of steepest ascent in coded units (`units`);
   check that a printed matrix obeys its printed generators (`generator_holds`); sum a product of
   columns (`dot_product`); and make a design for more factors than there are letters.
+- **A region that describes its limits, in actual units.** `DesignRegion` now takes its
+  constraints as `Constraint` objects, their dict form or bare expressions such as
+  `"3*T + 5*D <= 600"`, and a box region reports: the share of the box it keeps
+  (`volume_fraction()`, from a fixed Sobol sample, so the same on every platform); whether
+  any setting is left (`is_empty()`); the range each factor can still reach
+  (`implied_bounds()`); a central setting that can be run, to hold unplotted factors at
+  (`centroid()`); the limits that remove nothing the others do not
+  (`redundant_constraints()`); each limit's affine form, rounded so no floating-point residue
+  shows (`linear_forms()`); its corners (`vertices()`); and pictures on any two factors: the
+  shadow of the region (`shadow(x, y)`), a slice through it at given values of the others
+  (`slice_polygon`, `slice_lines`) and the slack of a grid, at or below zero exactly where a
+  point can be run (`slice_slack`). Linear limits are handled exactly (a polygon, with a
+  segment or a point where the region is flat), curved ones by a mask. With 8 factors and 8
+  limits, everything a change to one limit needs takes about 70 ms.
+- **`rename_factors(expression, names)`**: rename factors
+  inside a limit, all at once (so a swap works), leaving function names such as `sqrt`
+  alone, and return the canonical text, which renaming back reproduces.
+- **A limit proposed from the settings that cannot be run.**
+  `separating_constraint(factors, cannot, can)` takes settings that cannot be run (corners
+  of the box, say) and settings that can, and proposes the straight limit that rules out
+  exactly the first, written for a reader in actual units: marking the corners where `T`
+  and `P` are both high, with the centre runnable, gives `"T + 25 * P <= 250"`. The cut is
+  the plane of maximum margin between the two sets, which is unique, so a symmetric pattern
+  gives a symmetric limit and a factor the pattern ignores is left out; its coefficients are
+  rounded to the fewest digits that move them by at most 1% and keep every setting on its
+  side, and the right-hand side is the roundest number in the middle of the gap. When no
+  straight cut separates the sets, `NotSeparableError` (a `ValueError`) names the settings
+  that lie between those of the other set. `constraint_through_cuts(factors, corner, cuts)`
+  writes the limit through a cut on each factor from one corner, in exact arithmetic: from
+  `(200, 3)`, `T` up to 190 and `P` up to 2.5 give `"T + 20 * P <= 250"`. Both run under
+  Pyodide and give the same text on every platform.
+- **Designs compared over the settings that can be run.** `compare_designs(...,
+  region=)` takes a `DesignRegion` (or its dict) and computes I and G over it rather than
+  over the cube: I averages the prediction variance over 20000 points drawn uniformly from
+  the region with a fixed seed, and G searches the region's support points, the grid's
+  points inside it and that sample. The other measures do not depend on where predictions
+  are made and do not change. `DesignComparison` gains `region` (also in `to_dict()`) and a
+  `measures` property whose definitions of I and G say "over the region"; a design with
+  runs outside the region is noted. A mixture region, or one that names a factor the
+  designs lack, is refused. Without a region every value is what it was.
+- **Response plots shade the settings that cannot be run.** The contour, 3D surface and
+  prediction-variance plots, and `visualize_doe`, take `region=` (a `DesignRegion` or its
+  dict). The contour and prediction-variance plots add a second trace after the response
+  (which stays `data[0]`): a translucent constraint contour of the limits' slack, named
+  "Cannot be run", so a straight limit is drawn straight. The 3D surface is `NaN` where a
+  setting cannot be run. The Plotly adapter passes a layer's `fillcolor` and `hoverinfo`
+  through, and the ECharts adapter draws a constraint contour as a masked heatmap. Without
+  a region, or with one without limits, every figure is unchanged.
+- **A user-guide page on limits on the settings.** "Limits on the Settings" covers writing
+  limits as text, what they leave of the factor ranges, renaming a factor inside them,
+  proposing a limit from the settings that cannot be run, pictures of the region, and
+  comparing designs and plotting a response over it; its examples run with the test suite.
 
 ### Fixed
 
@@ -87,6 +139,11 @@ those changes.
   allows half a million either side; it was held to half a unit, so a correct number printed that way
   could not agree. No number already in the catalogue was printed in E-notation with a positive
   exponent.
+- **Linear constraints in 6 or more factors are recognised as linear.** The test for an
+  affine constraint fitted it on points that, from 6 factors, do not determine an affine
+  function, so every linear constraint was treated as curved: the candidate set of a
+  constrained optimal design lost the region's vertices, and its sampler fell back to a
+  slower method.
 
 ## [1.99.0] - 2026-10-15
 

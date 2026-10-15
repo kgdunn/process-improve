@@ -13,6 +13,7 @@ from typing import Any
 
 from process_improve.visualization.adapters.base import AbstractAdapter
 from process_improve.visualization.colors import (
+    CANNOT_RUN_FILL,
     DOE_PALETTE,
 )
 from process_improve.visualization.spec import (
@@ -245,7 +246,7 @@ class EChartsAdapter(AbstractAdapter):
             return self._scatter_series(layer), False
 
         if mark in (MarkType.contour, MarkType.heatmap):
-            return self._heatmap_series(layer), False
+            return self._grid_series(layer), False
 
         if mark == MarkType.surface:
             return self._surface_series(layer), True
@@ -370,6 +371,52 @@ class EChartsAdapter(AbstractAdapter):
             "name": layer.name,
             "data": data,
             "emphasis": {"itemStyle": {"shadowBlur": 10}},
+        }
+
+    def _grid_series(self, layer: LayerSpec) -> dict[str, Any]:
+        """Build the series of a grid layer: a masked heatmap for a constraint contour, else a heatmap."""
+        if layer.style.get("contours", {}).get("type") == "constraint":
+            return self._constraint_series(layer)
+        return self._heatmap_series(layer)
+
+    def _constraint_series(self, layer: LayerSpec) -> dict[str, Any]:
+        """Build a masked heatmap: the cells a constraint contour excludes, in its fill colour.
+
+        ECharts has no constraint contour, so the cells on the side of
+        ``contours.value`` that ``contours.operation`` does not keep are drawn, one
+        ``[x, y, 1]`` per cell, and the cells kept are left out. The grid is the one a
+        contour's response is drawn on (see :meth:`_heatmap_series`), so the mask covers
+        the response cell for cell; drawn after it, it sits on top. The fill colour is the
+        series' own, and the series is silent, without a tooltip.
+
+        Raises
+        ------
+        ValueError
+            If ``style['z_matrix']`` does not match ``x_grid`` and ``y_grid`` (as for
+            :meth:`_heatmap_series`), or the operation is not one of ``<``, ``<=``,
+            ``>`` and ``>=``.
+        """
+        contours = layer.style.get("contours", {})
+        value = float(contours.get("value", 0.0))
+        operation = contours.get("operation", "<=")
+        keeps = {
+            "<": lambda z: z < value,
+            "<=": lambda z: z <= value,
+            ">": lambda z: z > value,
+            ">=": lambda z: z >= value,
+        }
+        if operation not in keeps:
+            msg = f"A constraint contour on layer {layer.name!r} has operation {operation!r}; use <, <=, > or >=."
+            raise ValueError(msg)
+        kept = keeps[operation]
+        cells = self._heatmap_series(layer)["data"]
+        return {
+            "type": "heatmap",
+            "name": layer.name,
+            "data": [[x, y, 1] for x, y, z in cells if z is not None and math.isfinite(z) and not kept(z)],
+            "itemStyle": {"color": layer.style.get("fillcolor", CANNOT_RUN_FILL)},
+            "silent": True,
+            "tooltip": {"show": False},
         }
 
     def _surface_series(self, layer: LayerSpec) -> dict[str, Any]:

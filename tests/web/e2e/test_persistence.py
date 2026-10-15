@@ -22,6 +22,7 @@ from tests.web.e2e._page import (
     practise,
     reveal,
     run_sheet,
+    saved_studies,
     set_factors,
     settled,
     status,
@@ -144,12 +145,8 @@ def test_a_result_typed_just_before_the_page_is_hidden_is_saved(context, site):
             document.dispatchEvent(new Event("visibilitychange"));
         }"""
     )
-    read = "async () => (await import('./store.js')).savedCampaigns()"
-    for _ in range(50):  # the browser writes it in the background; the page's timers stay stopped
-        if page.evaluate(read)[0]["responses"][0] == 12.5:
-            break
-        page.wait_for_timeout(100)
-    assert page.evaluate(read)[0]["responses"][0] == 12.5
+    # The browser writes it in the background; the page's timers stay stopped.
+    assert saved_studies(page, lambda saved: saved[0]["responses"][0] == 12.5)[0]["responses"][0] == 12.5
 
 
 def test_your_studies_opens_an_earlier_study_and_deletes_one(page):

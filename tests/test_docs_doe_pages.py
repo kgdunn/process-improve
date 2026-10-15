@@ -45,6 +45,7 @@ def python_blocks(path: Path) -> list[tuple[int, str]]:
     "page",
     [
         "constrained_designs.rst",
+        "region_limits.rst",
         "design_evaluation.rst",
         "screening_and_space_filling.rst",
         "doe_strategy.rst",

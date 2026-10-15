@@ -103,6 +103,14 @@ SWEET_SPOT_COLORSCALE: list[list[float | str]] = [
 ]
 
 # ---------------------------------------------------------------------------
+# Settings that cannot be run: a translucent grey laid over a contour plot where
+# the limits on the settings rule a point out, so the response stays readable
+# beneath it and the settings that can be run are left clear.
+# ---------------------------------------------------------------------------
+
+CANNOT_RUN_FILL: str = "rgba(75, 85, 99, 0.45)"
+
+# ---------------------------------------------------------------------------
 # Font stacks (shared by the registered Plotly base themes)
 # ---------------------------------------------------------------------------
 

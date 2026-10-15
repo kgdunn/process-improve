@@ -38,7 +38,12 @@ def _linear_row(a: np.ndarray, b: float) -> _Inequality:
 def _probe_points(low: np.ndarray, high: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
     """Points to fit an affine form on, and more points to check it on, spread through the box ``[low, high]``.
 
-    The fit uses the start of the unscrambled Halton sequence. The check adds the box
+    The fit uses the centre of the box, a step of a quarter of the range from it along
+    each axis, and the first point of the unscrambled Halton sequence: ``k + 2`` points
+    of which the first ``k + 1`` are affinely independent, so an affine form is always
+    recovered exactly. (The first ``k + 2`` Halton points alone are not: in a base larger
+    than ``k + 2`` the coordinates are ``i / p``, so from 6 factors several columns are
+    proportional and every linear constraint failed the test.) The check adds the box
     corners (up to ``2**_CORNER_DIMENSIONS`` of them) and ``_AFFINE_CHECKS`` pseudo-random
     points from a fixed seed, so the probes reach every part of the box, its edges
     included. Nothing depends on the caller's random generator.
@@ -46,7 +51,8 @@ def _probe_points(low: np.ndarray, high: np.ndarray) -> tuple[np.ndarray, np.nda
     k = len(low)
     span = np.where(np.isfinite(high - low), high - low, 1.0)
     base = np.where(np.isfinite(low), low, 0.0)
-    fit = base + span * qmc.Halton(d=k, scramble=False).random(k + 3)[1:]
+    steps = np.vstack([np.full((1, k), 0.5), 0.5 + 0.25 * np.eye(k), qmc.Halton(d=k, scramble=False).random(2)[1:]])
+    fit = base + span * steps
     unit = [np.random.default_rng(0).random((_AFFINE_CHECKS, k))]
     if k <= _CORNER_DIMENSIONS:
         unit.append(np.array(list(itertools.product((0.0, 1.0), repeat=k))).reshape(-1, k))
