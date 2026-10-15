@@ -407,6 +407,11 @@ class TestRedundantConstraints:
         assert DesignRegion(HEAT_FACTORS, ["1 <= 2", HEAT]).redundant_constraints() == [0]
         assert DesignRegion(HEAT_FACTORS, ["2 <= 1", HEAT]).redundant_constraints() == [1]
 
+    def test_a_region_without_numeric_factors(self):
+        cat = [Factor(name="Cat", type="categorical", levels=["a", "b"])]
+        assert DesignRegion(cat, ["2 <= 1", "1 <= 2"]).redundant_constraints() == [1]
+        assert DesignRegion(cat, ["2 <= 1", "3 <= 1"]).redundant_constraints() == [0, 1]
+
 
 # ---------------------------------------------------------------------------
 # Affine forms of the limits
@@ -625,6 +630,10 @@ class TestSlicePolygon:
         assert region.slice_polygon("T", "P", {"F": 20})["points"] == []  # 150 + 25 + 100 > 250
         assert region.slice_polygon("T", "P", {"F": 5}) == {"kind": "polygon", "points": []}  # outside F's range
         assert DesignRegion(TPF, ["F <= 12"]).slice_polygon("T", "P", {"F": 15}) == {"kind": "polygon", "points": []}
+
+    def test_a_limit_on_the_held_factors_alone_keeps_or_empties_the_whole_rectangle(self):
+        rectangle = [[150.0, 1.0], [200.0, 1.0], [200.0, 3.0], [150.0, 3.0]]
+        assert DesignRegion(TPF, ["F <= 12"]).slice_polygon("T", "P", {"F": 11})["points"] == rectangle
 
     def test_a_slice_can_be_a_segment_or_a_point(self):
         region = DesignRegion(TPF, ["T + 25*P + 5*F <= 225"])
