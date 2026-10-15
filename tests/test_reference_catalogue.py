@@ -313,6 +313,102 @@ def test_a_capability_index_is_the_library_cpk_on_the_plain_mean_and_standard_de
     assert _capability(entry, {"lower": 17, "upper": 22}) == pytest.approx(2 / (3 * sd))
 
 
+def _printed_design(columns, rows):
+    """Return a design entry holding a printed coded matrix, its factors named by its columns."""
+    factors = [{"name": c, "type": "numeric", "low": -1, "high": 1} for c in columns]
+    return {"name": "printed", "factors": factors, "responses": [], "runs": {"columns": columns, "rows": rows}}
+
+
+HALF_FRACTION = [[-1, -1, 1], [-1, 1, -1], [1, -1, -1], [1, 1, 1]]  # C = AB, in another run order
+
+
+def test_a_printed_matrix_is_compared_with_the_library_design_whatever_the_run_order():
+    from process_improve.experiments.reference_catalogue import _same_runs
+
+    entry = _printed_design(["A", "B", "C"], HALF_FRACTION)
+    fraction = {
+        "design": {
+            "design_type": "fractional_factorial",
+            "k": 3,
+            "options": {"generators": ["C=AB"], "n_center_points": 0},
+        }
+    }
+    assert _same_runs(entry, fraction, "4") == ("4 of 4 printed runs, of 4 the library's", True)
+    assert not _same_runs(entry, fraction, "5")[1]  # a printed run count must be the one compared
+    other = {"design": {**fraction["design"], "options": {"generators": ["C=-AB"], "n_center_points": 0}}}
+    assert _same_runs(entry, other, "4") == ("0 of 4 printed runs, of 4 the library's", False)
+
+
+def test_two_constructions_of_one_design_agree_once_columns_are_reordered_and_signs_changed():
+    """With B and C swapped and a sign changed, the runs are the fraction C = -AB; a sign change makes it C = AB."""
+    from process_improve.experiments.reference_catalogue import _same_runs
+
+    swapped = [[a, -c, b] for a, b, c in HALF_FRACTION]
+    entry = _printed_design(["A", "B", "C"], swapped)
+    fraction = {
+        "design": {
+            "design_type": "fractional_factorial",
+            "k": 3,
+            "options": {"generators": ["C=AB"], "n_center_points": 0},
+        }
+    }
+    assert not _same_runs(entry, fraction, "4")[1]
+    assert not _same_runs(entry, {**fraction, "relabel": "columns"}, "4")[1]
+    relabelled = _same_runs(entry, {**fraction, "relabel": "columns and signs"}, "4")
+    assert relabelled == ("the library's columns 1, 2, -3", True)  # the first relabelling found; 1, -3, 2 also works
+
+
+def test_a_printed_alpha_is_the_axial_distance_of_the_library_design():
+    from process_improve.experiments.reference_catalogue import _same_runs
+
+    cube = [[a, b] for a in (-1, 1) for b in (-1, 1)]
+    alpha = "\u03b1"  # the axial distance, as a source prints it
+    axial = [[alpha, 0], ["-" + alpha, 0], [0, alpha], [0, "-" + alpha]]
+    entry = _printed_design(["A", "B"], [*cube, [0, 0], *axial])
+    ccd = {"design": {"design_type": "ccd", "k": 2, "options": {"n_center_points": 1, "alpha": "rotatable"}}}
+    assert _same_runs(entry, ccd, "9")[1]
+
+
+def test_a_stored_array_can_have_a_column_written_as_two():
+    """The six levels of the first column of L18(6^1 3^6) are a two-level and a three-level column."""
+    from process_improve.experiments.reference_catalogue import _array_runs
+
+    split = _array_runs({"array": "L18(6^1 3^6)", "split": {"0": [2, 3]}})
+    assert split.shape == (18, 8)
+    assert sorted(set(split[:, 0])) == [-1, 1]
+    assert sorted(set(split[:, 1])) == [-1, 0, 1]
+    assert len({tuple(row) for row in split[:, :2]}) == 6  # each pair of levels once in every three runs
+
+
+def test_a_printed_matrix_obeys_its_generators_in_every_run_or_says_where_not():
+    from process_improve.experiments.reference_catalogue import _generator_holds
+
+    entry = _printed_design(["A", "B", "C"], HALF_FRACTION)
+    assert _generator_holds(entry, {}, "C = AB") == ("every run", True)
+    assert _generator_holds(entry, {}, "C = A \u00d7 B, C = -AB") == ("not in runs 1, 2, 3, 4", False)
+    runs = {"runs": [1, 2]}
+    flipped = _printed_design(["A", "B", "C"], [*HALF_FRACTION[:2], [1, -1, 1], [0, 0, 0]])
+    assert _generator_holds(flipped, runs, "C = AB") == ("every run", True)
+    assert _generator_holds(flipped, {}, "C = AB") == ("not in runs 3, 4", False)
+
+
+def test_the_dot_product_of_two_columns_is_zero_when_they_are_orthogonal():
+    from process_improve.experiments.reference_catalogue import _dot_product
+
+    entry = _printed_design(["A", "B", "C"], [[1, 1, 1], [1, -1, -1], [-1, 1, 1], [-1, -1, -1]])
+    assert _dot_product(entry, {"columns": ["B", "C"]}) == 4
+    assert _dot_product(entry, {"columns": ["A", "B"]}) == 0
+
+
+def test_a_design_of_three_level_factors_is_made_from_its_levels():
+    from process_improve.experiments.reference_catalogue import _design_property
+
+    spec = {"design_type": "full_factorial", "k": 3, "levels": 3, "options": {"n_center_points": 0}}
+    assert _design_property({"property": "n_runs", "design": spec}) == 27
+    mixed = {"design_type": "taguchi", "k": 4, "levels": [2, 3, 3, 3]}
+    assert _design_property({"property": "n_runs", "design": mixed}) == 18
+
+
 def test_a_variance_component_is_read_from_the_library_reml_fit():
     """Balanced, REML gives the analysis-of-variance estimates: the pooled variance within groups, 1.25, and between."""
     from process_improve.experiments.reference_catalogue import _variance_component

@@ -39,6 +39,7 @@ import operator
 import re
 import statistics
 import warnings
+from collections import Counter
 from collections.abc import Callable, Iterator
 from decimal import Decimal
 from pathlib import Path
@@ -48,6 +49,7 @@ import numpy as np
 import pandas as pd
 from scipy.stats import f as f_distribution
 
+from process_improve.experiments._orthogonal_arrays import orthogonal_array
 from process_improve.experiments.analysis import analyze_experiment
 from process_improve.experiments.designs import generate_design
 from process_improve.experiments.designs_response_surface import blocking_alpha
@@ -677,12 +679,134 @@ def _design_property(check: dict) -> float:
 
 @functools.cache
 def _made(spec_json: str) -> Any:  # noqa: ANN401 - the library's DesignResult
-    """Return the design a specification names, made once however many numbers are read from it."""
+    """Return the design a specification names, made once however many numbers are read from it.
+
+    ``spec["levels"]``, a number or one per factor, gives a factor more than two equally spaced
+    levels, coded -1 to +1, as a three-level factor of a Taguchi array or full factorial has.
+    """
     spec = json.loads(spec_json)
-    factors = [Factor(name=_LETTERS[i], low=-1, high=1) for i in range(spec["k"])]
+    levels = spec.get("levels") or 2
+    counts = levels if isinstance(levels, list) else [levels] * spec["k"]
+    factors = [
+        Factor(name=_LETTERS[i], low=-1, high=1, levels=np.linspace(-1, 1, n).tolist() if n > 2 else None)
+        for i, n in enumerate(counts)
+    ]
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
         return generate_design(factors, design_type=spec["design_type"], **spec.get("options", {}))
+
+
+def _printed_matrix(
+    experiment: dict, columns: list[str], alpha: float | None, positions: list[int] | None = None
+) -> np.ndarray:
+    """Return a printed design matrix in coded units, its axial distance written ``\u03b1`` read as ``alpha``.
+
+    ``positions`` keeps only the runs at these 1-based positions.
+    """
+    runs = experiment["runs"]
+    table = pd.DataFrame(runs["rows"], columns=runs["columns"])[columns]
+    if positions is not None:
+        table = table.iloc[[p - 1 for p in positions]]
+    symbols = {"\u03b1": alpha, "-\u03b1": None if alpha is None else -alpha}
+    return table.map(lambda v: symbols[v] if isinstance(v, str) else v).to_numpy(dtype=float)
+
+
+def _array_runs(check: dict) -> np.ndarray:
+    """Return a stored orthogonal array in coded units, each column's levels spread evenly from -1 to +1.
+
+    ``check["split"]`` writes a column as two: ``{"0": [2, 3]}`` turns a six-level column 0 into a
+    two-level column (its level divided by 3) followed by a three-level one (the remainder).
+    """
+    array = orthogonal_array(check["array"])
+    split = {int(j): sizes for j, sizes in (check.get("split") or {}).items()}
+    columns: list[tuple[np.ndarray, int]] = []
+    for j in range(array.shape[1]):
+        if j in split:
+            outer, inner = split[j]
+            columns += [(array[:, j] // inner, outer), (array[:, j] % inner, inner)]
+        else:
+            columns.append((array[:, j], int(array[:, j].max()) + 1))
+    return np.column_stack([2 * level / (n - 1) - 1 for level, n in columns])
+
+
+def _relabelling(printed: np.ndarray, library: np.ndarray, *, signs: bool) -> list[tuple[int, int]] | None:
+    """Return, for each printed column, the library column and sign that make the two sets of runs one, or ``None``.
+
+    A design keeps its properties when its columns are put in another order or, for two-level
+    factors, a column's signs are changed; the search assigns the printed columns in turn and
+    drops an assignment as soon as the runs on the columns assigned so far differ.
+    """
+    chosen: list[tuple[int, int]] = []
+
+    def search(j: int) -> bool:
+        if j == printed.shape[1]:
+            return True
+        used = {c for c, _ in chosen}
+        for column, sign in itertools.product(range(library.shape[1]), (1, -1) if signs else (1,)):
+            if column in used:
+                continue
+            chosen.append((column, sign))
+            relabelled = np.column_stack([library[:, c] * s for c, s in chosen])
+            if _run_counts(printed[:, : j + 1]) == _run_counts(relabelled) and search(j + 1):
+                return True
+            chosen.pop()
+        return False
+
+    return list(chosen) if printed.shape == library.shape and search(0) else None
+
+
+def _run_counts(matrix: np.ndarray) -> Counter:
+    """Return how often each run occurs: a design's runs, whatever their order."""
+    return Counter(map(tuple, np.round(matrix, 6)))
+
+
+def _same_runs(experiment: dict, check: dict, printed: str) -> tuple[str, bool]:
+    """Check that a printed design matrix holds the same runs as the library's, whatever their order.
+
+    The library's design is ``check["design"]`` (as :func:`_made` makes it) or the stored
+    orthogonal array ``check["array"]`` (see :func:`_array_runs`). ``check["columns"]`` names the
+    printed columns that match its factors, in order (all the entry's factors by default); a
+    printed ``\u03b1`` is the library design's axial distance. ``check["relabel"]`` allows the columns
+    to be matched in another order (``"columns"``) and with their signs changed
+    (``"columns and signs"``), as two constructions of the same design may differ. A printed
+    number of runs, when the text is one, must be the number compared.
+    """
+    if "array" in check:
+        library, alpha = _array_runs(check), None
+    else:
+        made = _made(json.dumps(check["design"], sort_keys=True))
+        library, alpha = made.design[made.factor_names].to_numpy(dtype=float), made.alpha
+    columns = check.get("columns") or [f["name"] for f in experiment["factors"]]
+    matrix = _printed_matrix(experiment, columns, alpha)
+    count_agrees = not str(printed).strip().isdigit() or int(printed) == len(matrix)
+    relabel = check.get("relabel")
+    if relabel:
+        found = _relabelling(matrix, library, signs=relabel == "columns and signs")
+        if found is None:
+            return "no relabelling of the library's columns gives the printed runs", False
+        named = [f"{'-' if s < 0 else ''}{c + 1}" for c, s in found]
+        return f"the library's columns {', '.join(named)}", count_agrees
+    shared = sum((_run_counts(matrix) & _run_counts(library)).values())
+    same = _run_counts(matrix) == _run_counts(library)
+    return f"{shared} of {len(matrix)} printed runs, of {len(library)} the library's", same and count_agrees
+
+
+def _generator_holds(experiment: dict, check: dict, printed: str) -> tuple[str, bool]:
+    """Check that a printed design matrix obeys the generators printed with it, in every run.
+
+    ``E = ABC`` holds when the product of a run's E, A, B and C settings is +1 (-1 for ``E = -ABC``);
+    several generators may be printed together, separated by commas. ``check["runs"]`` keeps the
+    runs the generators make, such as the cube of a composite design.
+    """
+    positions = check.get("runs") or list(range(1, len(experiment["runs"]["rows"]) + 1))
+    failing = set()
+    for generator in str(check.get("printed", printed)).split(","):
+        word = _generator_word(generator)
+        sign = -1.0 if word.startswith("-") else 1.0
+        product = _printed_matrix(experiment, list(word.lstrip("-")), None, positions).prod(axis=1)
+        failing |= {run for run, value in zip(positions, product, strict=True) if not np.isclose(value, sign)}
+    found = "every run" if not failing else f"not in runs {', '.join(map(str, sorted(failing)))}"
+    return found, not failing
 
 
 def _fraction_runs(experiment: dict, check: dict) -> list[int]:
@@ -799,6 +923,11 @@ def _capability(experiment: dict, check: dict) -> float:
         return float(calculate_cpk(responses, column, specifications=specifications, trim_percentile=0).cpk)
 
 
+def _dot_product(experiment: dict, check: dict) -> float:
+    """Return the sum over the runs of the product of the printed columns ``check["columns"]``: zero when orthogonal."""
+    return float(_printed_matrix(experiment, check["columns"], None).prod(axis=1).sum())
+
+
 def _variance_component(experiment: dict, check: dict) -> float:
     """Return a variance component of the library's REML fit with a random intercept for each of ``check["groups"]``.
 
@@ -818,10 +947,18 @@ def _variance_component(experiment: dict, check: dict) -> float:
 _VALUE_KINDS: dict[str, Callable[[dict, dict], float]] = {
     "capability": _capability,
     "difference_of_means": _difference_of_means,
+    "dot_product": _dot_product,
     "design_property": lambda _e, c: _design_property(c),
     "design_metric": _design_metric,
     "library_value": lambda _e, c: _library_value(c),
     "variance_component": _variance_component,
+}
+
+
+_STRUCTURE_KINDS: dict[str, Callable[[dict, dict, str], tuple[str, bool]]] = {
+    "block_confounding": lambda _e, c, printed: _block_confounding(c, printed),
+    "same_runs": _same_runs,
+    "generator_holds": _generator_holds,
 }
 
 
@@ -831,8 +968,8 @@ def _reproduce(experiment: dict, expected: dict, check: dict, fits: _Fits) -> tu
     printed = check.get("printed", expected["value"])
     if kind in _DESIGN_KINDS:
         return _design_check(check, str(printed), len(experiment.get("factors") or []))
-    if kind == "block_confounding":
-        return _block_confounding(check, str(printed))
+    if kind in _STRUCTURE_KINDS:
+        return _STRUCTURE_KINDS[kind](experiment, check, str(printed))
     if kind in _VALUE_KINDS:
         found = _VALUE_KINDS[kind](experiment, check)
         wanted = str(_ROMAN.get(str(printed).strip(), printed))  # a resolution may be printed as a Roman numeral
