@@ -20,17 +20,54 @@ Two kinds of region exist, and each works in its own *design units*:
 
 ``generate_design`` records the region it used in ``DesignResult.metadata["region"]``
 as a plain dict, which :meth:`DesignRegion.from_dict` turns back into a region.
+
+A box region also describes itself, in actual units, for someone writing limits on
+the settings: the share of the box it keeps (:meth:`~DesignRegion.volume_fraction`),
+whether anything is left (:meth:`~DesignRegion.is_empty`), the range each factor can
+still reach (:meth:`~DesignRegion.implied_bounds`), the limits that remove nothing
+(:meth:`~DesignRegion.redundant_constraints`), each limit's affine form
+(:meth:`~DesignRegion.linear_forms`), its corners (:meth:`~DesignRegion.vertices`),
+and pictures of it on any two factors: its shadow (:meth:`~DesignRegion.shadow`), a
+slice through it (:meth:`~DesignRegion.slice_polygon`, :meth:`~DesignRegion.slice_lines`)
+and the slack of a grid (:meth:`~DesignRegion.slice_slack`). Every answer is
+deterministic, and fast enough to recompute on each edit of 8 limits on 8 factors.
 """
 
 from __future__ import annotations
 
-from collections.abc import Callable, Sequence
-from typing import Any, Literal
+import ast
+import math
+from collections.abc import Callable, Mapping, Sequence
+from dataclasses import dataclass
+from typing import Any, Literal, cast
 
 import numpy as np
+from scipy.optimize import linprog
+from scipy.stats import qmc
 
-from process_improve.experiments._uniform_sampling import _TOL, UniformSampler, _Inequality, _linear_row
+from process_improve.experiments._region_geometry import (
+    box_vertices,
+    clip_square,
+    convex_polygon,
+    points_inside,
+    round_significant,
+)
+from process_improve.experiments._uniform_sampling import _TOL, UniformSampler, _affine_form, _Inequality, _linear_row
 from process_improve.experiments.factor import Constraint, Factor, FactorType, as_constraints
+
+#: Sobol points behind :meth:`DesignRegion.volume_fraction` and the searches of a curved region.
+_N_SAMPLES = 2**14
+#: Points spread inside the polytope of the linear constraints, to search a curved region with.
+_N_INSIDE = 2**12
+#: Cells per axis of a shadow mask, and grid points per axis of a slice mask.
+_SHADOW_CELLS = 40
+_SLICE_POINTS = 61
+#: Significant figures of the numbers reported in actual units, and the relative size below which a
+#: coefficient or a coordinate is taken to be zero.
+_DIGITS = 12
+_SNAP = 1e-9
+#: ``scipy.optimize.linprog`` status of a problem with no feasible point.
+_INFEASIBLE = 2
 
 
 class DesignRegion:
@@ -66,7 +103,14 @@ class DesignRegion:
         self.kind: Literal["box", "mixture"] = "mixture" if all(is_mixture) and self.factors else "box"
         #: Names of the numeric columns the region acts on, in order.
         self.names = [f.name for f in self.factors if f.type != FactorType.categorical]
+        numeric = [f for f in self.factors if f.type != FactorType.categorical]
+        self._low = np.array([f.low for f in numeric], dtype=float)
+        self._high = np.array([f.high for f in numeric], dtype=float)
+        self._centre, self._half = (self._low + self._high) / 2.0, (self._high - self._low) / 2.0
+        #: For each inequality, the index of the constraint it came from (a chain gives several).
+        self._limit_of: list[int] = []
         self._inequalities = self._build_inequalities()
+        self._cache: dict[str, Any] = {}
 
     # -- construction ---------------------------------------------------------
 
@@ -81,12 +125,10 @@ class DesignRegion:
 
         from process_improve.experiments.designs_constrained import parse_constraint  # noqa: PLC0415
 
-        continuous = [f for f in self.factors if f.type != FactorType.categorical]
-        low = np.array([f.low for f in continuous], dtype=float)
-        high = np.array([f.high for f in continuous], dtype=float)
-        centre, half = (low + high) / 2.0, (high - low) / 2.0
-        names = {f.name for f in continuous}
-        gs = [g for c in self.constraints for g in parse_constraint(c.expression, names)]
+        centre, half = self._centre, self._half
+        per_limit = [parse_constraint(c.expression, set(self.names)) for c in self.constraints]
+        gs = [g for group in per_limit for g in group]
+        self._limit_of = [i for i, group in enumerate(per_limit) for _ in group]
         self._actual_inequalities = gs
 
         def wrap(g: Callable) -> _Inequality:
@@ -141,7 +183,7 @@ class DesignRegion:
     def feasible(self, x: np.ndarray, tol: float = _TOL) -> np.ndarray:
         """Return a boolean per row of ``x`` (design units): inside the bounds and every constraint."""
         x = np.atleast_2d(np.asarray(x, dtype=float))
-        low, high = np.array(self.bounds).T
+        low, high = np.array(self.bounds, dtype=float).reshape(-1, 2).T
         ok = np.all((x >= low - tol) & (x <= high + tol), axis=1)
         if self.kind == "mixture":
             ok &= np.abs(x.sum(axis=1) - 1.0) <= 1e-6
@@ -207,3 +249,675 @@ class DesignRegion:
         continuous = [f for f in self.factors if f.type != FactorType.categorical]
         coded, _cats, _ = build_candidates(_Region(continuous, [], self._actual_inequalities), n_levels=3)
         return coded
+
+    # -- diagnostics of a box region (actual units in, actual units out) -------
+
+    def _require_box(self, method: str) -> None:
+        """Raise for a mixture region, where a box diagnostic has no meaning."""
+        if self.kind == "mixture":
+            raise ValueError(
+                f"DesignRegion.{method}() describes a box of factor settings; this region holds mixture "
+                "proportions that sum to 1, where it does not apply."
+            )
+
+    def _linear(self) -> _Rows:
+        """Return the inequalities in coded units, split into unit-length affine rows and the rest (cached)."""
+        if "rows" not in self._cache:
+            self._cache["rows"] = _Rows.of(self._inequalities, self._limit_of, len(self.names))
+        return self._cache["rows"]
+
+    def _vertices_coded(self) -> np.ndarray | None:
+        """Return the vertices of the box cut by the affine rows, in coded units, or None when too many (cached)."""
+        if "vertices" not in self._cache:
+            rows = self._linear()
+            try:
+                self._cache["vertices"] = box_vertices(rows.a, rows.b)
+            except ValueError as err:
+                self._cache["vertices"], self._cache["too_many"] = None, str(err)
+        return self._cache["vertices"]
+
+    def _unit_sample(self, n_samples: int) -> np.ndarray:
+        """Return ``n_samples`` unscrambled Sobol points, moved to their cells' midpoints, in coded units."""
+        k = len(self.names)
+        if k == 0:
+            return np.zeros((1, 0))
+        m = max(0, math.ceil(math.log2(max(n_samples, 1))))
+        unit = qmc.Sobol(d=k, scramble=False).random_base2(m)[:n_samples]
+        return 2.0 * (unit + 0.5 / 2**m) - 1.0
+
+    def _cloud(self) -> np.ndarray:
+        """Return the points a curved region is searched with (cached).
+
+        They are a Sobol sample of the box, and the vertices of the polytope the linear
+        constraints leave with points spread through it, which land inside a region too
+        thin for the box sample to reach. (The support points would add the crossings of a
+        grid's edges with the curved boundaries, but cost over 100 ms with 8 factors and 8
+        constraints, against a few milliseconds for these.)
+        """
+        if "cloud" not in self._cache:
+            parts = [self._unit_sample(_N_SAMPLES)]
+            vertices = self._vertices_coded()
+            if vertices is not None and len(vertices):
+                parts += [vertices, points_inside(vertices, _N_INSIDE)]
+            self._cache["cloud"] = np.vstack(parts)
+        return self._cache["cloud"]
+
+    def _cloud_slack(self) -> np.ndarray:
+        """Return every inequality at every :meth:`_cloud` point, ``(points, inequalities)`` (cached)."""
+        if "cloud_slack" not in self._cache:
+            cloud = self._cloud()
+            columns = [g(cloud) for g in self._inequalities]
+            self._cache["cloud_slack"] = np.column_stack(columns) if columns else np.empty((len(cloud), 0))
+        return self._cache["cloud_slack"]
+
+    def _cloud_allowed(self) -> np.ndarray:
+        """Return the :meth:`_cloud` points that meet every constraint (cached; all lie in the box)."""
+        if "allowed" not in self._cache:
+            self._cache["allowed"] = self._cloud()[np.all(self._cloud_slack() <= _TOL, axis=1)]
+        return self._cache["allowed"]
+
+    def _actual(self, coded: np.ndarray, columns: list[int] | None = None) -> np.ndarray:
+        """Return coded values in actual units, exact at the box faces, rounded to 12 significant figures."""
+        cols = list(range(len(self.names))) if columns is None else columns
+        low, high, centre, half = self._low[cols], self._high[cols], self._centre[cols], self._half[cols]
+        coded = np.asarray(coded, dtype=float)
+        actual = np.where(coded == -1.0, low, np.where(coded == 1.0, high, centre + coded * half))
+        actual = np.where(np.abs(actual) <= _SNAP * (high - low), 0.0, actual)
+        return round_significant(actual, _DIGITS)
+
+    def _columns(self, x: str, y: str) -> tuple[int, int]:
+        """Return the positions of the factors ``x`` and ``y``, which must be two different numeric factors."""
+        for name in (x, y):
+            if name not in self.names:
+                raise ValueError(f"{name!r} is not a numeric factor of this region; it has {self.names}.")
+        if x == y:
+            raise ValueError(f"A picture of the region needs two different factors; got {x!r} twice.")
+        return self.names.index(x), self.names.index(y)
+
+    def _coded_point(self, at: Mapping[str, float] | None, skip: tuple[int, int]) -> np.ndarray:
+        """Return the coded point at the values ``at`` (actual units), each factor not given at its centre."""
+        point = np.zeros(len(self.names))
+        for name, value in (at or {}).items():
+            if name not in self.names:
+                raise ValueError(f"{name!r} is not a numeric factor of this region; it has {self.names}.")
+            if not math.isfinite(float(value)):
+                raise ValueError(f"The value of {name!r} must be a finite number; got {value!r}.")
+            j = self.names.index(name)
+            if j not in skip:
+                point[j] = (float(value) - self._centre[j]) / self._half[j]
+        return point
+
+    def volume_fraction(self, n_samples: int = 2**14) -> float:
+        """Return the share of the factor box that the constraints leave: 1 without constraints, 0 when empty.
+
+        The share is the fraction of ``n_samples`` points of the unscrambled Sobol
+        sequence (moved to the midpoints of their cells) that meet every constraint. The
+        points are fixed, so the result is the same on every run and on every platform;
+        with the default ``2**14`` points it is within about 0.005 of the exact share
+        for the regions of a few factors that limits describe.
+
+        Parameters
+        ----------
+        n_samples : int
+            Number of points; a power of two keeps the sequence balanced.
+
+        Returns
+        -------
+        float
+            The share of the box, between 0 and 1.
+
+        Raises
+        ------
+        ValueError
+            For a mixture region, or ``n_samples`` below 1.
+
+        Examples
+        --------
+        >>> T, D = Factor(name="T", low=100, high=150), Factor(name="D", low=20, high=60)
+        >>> round(DesignRegion([T, D], ["3*T + 5*D <= 600"]).volume_fraction(), 3)  # exactly 0.625
+        0.625
+        """
+        self._require_box("volume_fraction")
+        if n_samples < 1:
+            raise ValueError(f"n_samples must be at least 1; got {n_samples}.")
+        if not self.constraints:
+            return 1.0
+        if n_samples == _N_SAMPLES:
+            if "kept" not in self._cache:
+                self._cache["kept"] = float(np.mean(self.feasible(self._unit_sample(_N_SAMPLES))))
+            return self._cache["kept"]
+        return float(np.mean(self.feasible(self._unit_sample(n_samples))))
+
+    def is_empty(self) -> bool:
+        """Return True when no setting inside the factor ranges meets every constraint.
+
+        The linear constraints are decided exactly, from the vertices of the box they cut
+        (a linear program when there are too many vertices to list). When some
+        constraints are curved, a setting is searched for among a Sobol sample of the
+        box and points spread through the polytope the linear constraints leave, its
+        vertices included; a region so thin that none of these falls inside it is
+        reported empty.
+
+        Returns
+        -------
+        bool
+            Whether the region holds no setting at all.
+
+        Raises
+        ------
+        ValueError
+            For a mixture region.
+        """
+        self._require_box("is_empty")
+        rows = self._linear()
+        vertices = self._vertices_coded()
+        if vertices is not None and not len(vertices):
+            return True
+        if vertices is None and _lp_extreme(np.zeros(len(self.names)), rows.a, rows.b) is None:
+            return True
+        if not rows.nonlinear:
+            return False
+        return not len(self._cloud_allowed())
+
+    def implied_bounds(self) -> dict[str, tuple[float, float]] | None:
+        """Return the range each factor can still take, in actual units, given the linear constraints.
+
+        A limit can keep a factor inside its own range everywhere: with ``T`` from 150 to
+        200 and ``P`` from 1 to 3, ``T + 25*P <= 215`` keeps ``T`` at or below 190 (``P`` is
+        at least 1) and ``P`` at or below 2.6 (``T`` is at least 150). These bounds are
+        the smallest and largest value of each factor over the region cut by the linear
+        constraints, from its vertices (or a linear program per bound when there are too
+        many vertices). Curved constraints are left out, so with any of them the bounds
+        are outer bounds: no setting lies outside them, but the extremes may not be
+        reachable.
+
+        Returns
+        -------
+        dict[str, tuple[float, float]] or None
+            ``{name: (low, high)}`` for every numeric factor, in factor order, rounded to
+            12 significant figures; ``None`` when the linear constraints leave no setting.
+
+        Raises
+        ------
+        ValueError
+            For a mixture region.
+
+        Examples
+        --------
+        >>> factors = [Factor(name="T", low=150, high=200), Factor(name="P", low=1, high=3)]
+        >>> DesignRegion(factors, ["T + 25*P <= 215"]).implied_bounds()
+        {'T': (150.0, 190.0), 'P': (1.0, 2.6)}
+        """
+        self._require_box("implied_bounds")
+        k = len(self.names)
+        vertices = self._vertices_coded()
+        if vertices is not None:
+            if not len(vertices):
+                return None
+            lows, highs = vertices.min(axis=0), vertices.max(axis=0)
+        else:
+            rows = self._linear()
+            if _lp_extreme(np.zeros(k), rows.a, rows.b) is None:
+                return None
+            lows, highs = -np.ones(k), np.ones(k)
+            for j, unit in enumerate(np.eye(k)):  # the region is not empty, so each program has a solution
+                lows[j] = cast("np.ndarray", _lp_extreme(unit, rows.a, rows.b))[j]
+                highs[j] = cast("np.ndarray", _lp_extreme(-unit, rows.a, rows.b))[j]
+        lows, highs = self._actual(np.clip(lows, -1, 1)), self._actual(np.clip(highs, -1, 1))
+        return {name: (float(lo), float(hi)) for name, lo, hi in zip(self.names, lows, highs, strict=True)}
+
+    def redundant_constraints(self) -> list[int]:
+        """Return the indices of the constraints that remove nothing the others do not already remove.
+
+        Each constraint is tested against the region left by all the others: a linear one
+        by a linear program per inequality (its largest value over that region), a curved
+        one, or one the linear test cannot clear because some other constraint is curved,
+        by checking that it removes none of the points that :meth:`is_empty` searches
+        with (a Sobol sample of the box, and points spread through the polytope of the
+        linear constraints) that the others keep. Two copies of the same constraint are
+        both reported, since each removes nothing given the other; removing both is not
+        safe.
+
+        Returns
+        -------
+        list[int]
+            Indices into ``constraints``, in order.
+
+        Raises
+        ------
+        ValueError
+            For a mixture region.
+        """
+        self._require_box("redundant_constraints")
+        return [i for i in range(len(self.constraints)) if self._removes_nothing(i)]
+
+    def _removes_nothing(self, i: int) -> bool:
+        """Return whether constraint ``i`` removes no setting that the other constraints keep."""
+        rows = self._linear()
+        mine = rows.limit == i
+        curved_here = i in rows.nonlinear_limit
+        if not curved_here:
+            others_a, others_b = rows.a[~mine], rows.b[~mine]
+            for a_row, b_val in zip(rows.a[mine], rows.b[mine], strict=True):
+                highest = _lp_extreme(-a_row, others_a, others_b)
+                if highest is not None and a_row @ highest > b_val + _TOL:
+                    break
+            else:
+                return True
+            if not rows.nonlinear:  # the linear programs were exact
+                return False
+        slack = self._cloud_slack()
+        limit_of = np.array(self._limit_of, dtype=int)
+        kept_by_others = np.all(slack[:, limit_of != i] <= _TOL, axis=1)
+        removed_here = np.any(slack[:, limit_of == i] > _TOL, axis=1)
+        return not bool(np.any(kept_by_others & removed_here))
+
+    def linear_forms(self) -> list[tuple[dict[str, float], float | None, float | None] | None]:
+        """Return each constraint as ``(coefficients, low, high)`` in actual units, or None where it is not affine.
+
+        ``"3*T + 5*D <= 600"`` gives ``({"T": 3.0, "D": 5.0}, None, 600.0)`` and
+        ``"400 <= 3*T + 5*D <= 600"`` gives ``({"T": 3.0, "D": 5.0}, 400.0, 600.0)``: the
+        constraint reads ``low <= sum(coefficient * factor) <= high``, with ``None`` for a
+        side it does not bound. The factors stay on the side they were written on, so
+        ``"600 >= 3*T + 5*D"`` gives the same form, and ``"T <= 2*D"`` gives
+        ``({"T": 1.0, "D": -2.0}, None, 0.0)``. Each comparison is tested for being
+        affine over the factor box, the test the design engines use, and its form is read
+        off there; coefficients whose effect over the box is below ``1e-9`` of the largest
+        are set to zero, and every number is rounded to 12 significant figures, so
+        floating-point residue such as ``1.65e-14`` or ``250.00000000000009`` does not
+        appear.
+
+        Returns
+        -------
+        list
+            One entry per constraint, in order: the tuple above, or ``None`` for a
+            constraint that is not affine, compares only numbers, or chains two different
+            combinations of factors (``"A <= B <= 2"``).
+        """
+        from process_improve.experiments.designs_constrained import _compile, _factor_names  # noqa: PLC0415
+
+        names = set(self.names)
+        out: list[tuple[dict[str, float], float | None, float | None] | None] = []
+        for constraint in self.constraints:
+            # parse_constraint checked, when the region was built, that the expression is a comparison.
+            compare = cast("ast.Compare", ast.parse(constraint.expression, mode="eval").body)
+            terms = [compare.left, *compare.comparators]
+            pairs = []
+            for op, left, right in zip(compare.ops, terms[:-1], terms[1:], strict=True):
+                g_left, g_right = _compile(left, names), _compile(right, names)
+                mirrored = not _factor_names(left) and bool(_factor_names(right))
+                upper = isinstance(op, ast.Lt | ast.LtE) != mirrored
+                first, second = (g_right, g_left) if mirrored else (g_left, g_right)
+                pairs.append((self._affine_actual(first, second), upper))
+            out.append(_combine_forms(pairs, self.names))
+        return out
+
+    def _affine_actual(self, first: Callable, second: Callable) -> tuple[np.ndarray, float] | None:
+        """Return ``first - second`` as ``(c, r)``, with ``first - second = c @ X - r`` in actual units, or None."""
+        centre, half = self._centre, self._half
+
+        def coded(x: np.ndarray) -> np.ndarray:
+            actual = centre + np.atleast_2d(x) * half
+            env = {n: actual[:, j] for j, n in enumerate(self.names)}
+            value = np.asarray(first(env), dtype=float) - np.asarray(second(env), dtype=float)
+            return np.broadcast_to(value, (actual.shape[0],))
+
+        ones = np.ones(len(self.names))
+        form = _affine_form(coded, -ones, ones)
+        if form is None:
+            return None
+        a, b = form
+        a = np.where(np.abs(a) <= _SNAP * (np.abs(a).sum() + abs(b)), 0.0, a)  # effect on g below 1e-9 of its size
+        coef = a / half
+        rhs = b + float(coef @ centre)
+        scale = float(np.abs(coef) @ np.maximum(np.abs(self._low), np.abs(self._high))) + abs(rhs)
+        rhs = 0.0 if abs(rhs) <= _SNAP * scale else rhs
+        return round_significant(coef, _DIGITS), float(round_significant(np.array(rhs), _DIGITS))
+
+    def vertices(self) -> np.ndarray:
+        """Return the vertices of the region, in actual units, when every constraint is linear.
+
+        The region is then a convex polytope: the box cut by the constraints. Its vertices
+        are where the extreme settings (and the runs of a D-optimal design) lie. They are
+        found by cutting the box one constraint at a time (see
+        :func:`~process_improve.experiments._region_geometry.box_vertices`), so the work
+        grows with the number of vertices rather than with the ways of choosing ``k``
+        boundaries.
+
+        Returns
+        -------
+        np.ndarray
+            ``(n, k)`` vertices, one column per numeric factor, without duplicates,
+            sorted row by row in coded order and rounded to 12 significant figures; no
+            rows when the region is empty.
+
+        Raises
+        ------
+        ValueError
+            For a mixture region, a region with a curved constraint, or a region with
+            too many vertices to list (more than 65536).
+        """
+        self._require_box("vertices")
+        rows = self._linear()
+        if rows.nonlinear:
+            curved = sorted({self.constraints[i].expression for i in rows.nonlinear_limit})
+            raise ValueError(f"The region has curved constraints {curved}, so it has no vertices to list.")
+        vertices = self._vertices_coded()
+        if vertices is None:
+            raise ValueError(self._cache["too_many"])
+        return self._actual(vertices)
+
+    def shadow(self, x: str, y: str) -> dict[str, Any]:
+        """Return the region's shadow on the factors ``x`` and ``y``: the settings of the two that some run can use.
+
+        A pair ``(x, y)`` is in the shadow when at least one setting of the other factors
+        makes it allowed: the region seen from above, along the other factors' axes. For
+        a region whose constraints are all linear the shadow is exact: the convex hull of
+        the vertices' projections. Otherwise it is a mask of 40 by 40 cells, each marked
+        where an allowed point falls, among those :meth:`is_empty` searches with.
+
+        Parameters
+        ----------
+        x, y : str
+            Two different numeric factors.
+
+        Returns
+        -------
+        dict
+            ``{"kind": "polygon", "points": [[x, y], ...]}`` in actual units: the corners
+            counter-clockwise from the one with the smallest ``x``; two points when the
+            shadow is a segment, one when it is a point, none when the region is empty.
+            Or ``{"kind": "mask", "x": [...], "y": [...], "z": [[0 or 1, ...], ...]}``:
+            the 40 cell centres along each axis, and ``z[i][j]`` for the cell at
+            ``(x[j], y[i])``.
+
+        Raises
+        ------
+        ValueError
+            For a mixture region, or when ``x`` and ``y`` are not two different numeric
+            factors.
+        """
+        self._require_box("shadow")
+        ix, iy = self._columns(x, y)
+        vertices = None if self._linear().nonlinear else self._vertices_coded()
+        if vertices is None:
+            return self._shadow_mask(ix, iy)
+        corners = convex_polygon(vertices[:, [ix, iy]])
+        return {"kind": "polygon", "points": self._actual(corners, [ix, iy]).tolist()}
+
+    def _shadow_mask(self, ix: int, iy: int) -> dict[str, Any]:
+        """Return the shadow on columns ``ix``, ``iy`` as a mask of cells holding an allowed point of the cloud."""
+        allowed = self._cloud_allowed()
+        cells = np.clip(np.floor((allowed[:, [ix, iy]] + 1.0) / 2.0 * _SHADOW_CELLS), 0, _SHADOW_CELLS - 1).astype(int)
+        z = np.zeros((_SHADOW_CELLS, _SHADOW_CELLS), dtype=int)
+        z[cells[:, 1], cells[:, 0]] = 1
+        centres = -1.0 + (2.0 * np.arange(_SHADOW_CELLS) + 1.0) / _SHADOW_CELLS
+        return {
+            "kind": "mask",
+            "x": self._actual(centres, [ix] * _SHADOW_CELLS).tolist(),
+            "y": self._actual(centres, [iy] * _SHADOW_CELLS).tolist(),
+            "z": z.tolist(),
+        }
+
+    def slice_polygon(self, x: str, y: str, at: Mapping[str, float] | None = None) -> dict[str, Any]:
+        """Return the settings of ``x`` and ``y`` that are allowed with every other factor held at ``at``.
+
+        For linear constraints this is exact: the ``x``-``y`` rectangle of the two
+        factors' ranges, clipped by each constraint's half-plane at the held values
+        (Sutherland-Hodgman). With a curved constraint it is a mask on a 61 by 61 grid
+        over the rectangle.
+
+        Parameters
+        ----------
+        x, y : str
+            Two different numeric factors.
+        at : Mapping[str, float] or None
+            Values (actual units) of the other numeric factors; a factor not given is held
+            at the centre of its range, and entries for ``x`` and ``y`` are ignored. A
+            value outside a factor's range leaves nothing to run.
+
+        Returns
+        -------
+        dict
+            ``{"kind": "polygon", "points": [[x, y], ...]}`` in actual units, as for
+            :meth:`shadow` (no points when nothing can be run there), or
+            ``{"kind": "mask", "x": [...], "y": [...], "z": [[0 or 1, ...], ...]}`` with
+            the 61 grid values along each axis and ``z[i][j]`` for the point
+            ``(x[j], y[i])``.
+
+        Raises
+        ------
+        ValueError
+            For a mixture region, when ``x`` and ``y`` are not two different numeric
+            factors, or when ``at`` names a factor the region does not have or gives a
+            value that is not a finite number.
+        """
+        self._require_box("slice_polygon")
+        ix, iy = self._columns(x, y)
+        point = self._coded_point(at, (ix, iy))
+        rows = self._linear()
+        if rows.nonlinear:
+            grid = np.linspace(-1.0, 1.0, _SLICE_POINTS)
+            xs, ys = self._actual(grid, [ix] * _SLICE_POINTS), self._actual(grid, [iy] * _SLICE_POINTS)
+            allowed = self.slice_slack(x, y, xs[None, :], ys[:, None], self._at_actual(point)) <= 0
+            return {"kind": "mask", "x": xs.tolist(), "y": ys.tolist(), "z": allowed.astype(int).tolist()}
+        others = [j for j in range(len(self.names)) if j not in (ix, iy)]
+        if np.any(np.abs(point[others]) > 1.0 + _TOL):
+            return {"kind": "polygon", "points": []}
+        half_planes = []
+        for a_row, b_val in zip(rows.a, rows.b, strict=True):
+            c, d = a_row[[ix, iy]], b_val - a_row[others] @ point[others]
+            size = float(np.linalg.norm(c))
+            if size <= _SNAP:
+                if d < -_TOL:
+                    return {"kind": "polygon", "points": []}
+                continue
+            half_planes.append((c / size, d / size))
+        corners = convex_polygon(clip_square(half_planes))
+        return {"kind": "polygon", "points": self._actual(corners, [ix, iy]).tolist()}
+
+    def _at_actual(self, point: np.ndarray) -> dict[str, float]:
+        """Return a coded point as ``{name: actual value}`` (not rounded: it is passed straight back in)."""
+        return {n: float(c + p * h) for n, c, p, h in zip(self.names, self._centre, point, self._half, strict=True)}
+
+    def slice_lines(self, x: str, y: str, at: Mapping[str, float] | None = None) -> list[dict[str, Any]]:
+        """Return where each linear constraint's boundary crosses the ``x``-``y`` rectangle, the others held at ``at``.
+
+        These are the lines a picture of the region draws and numbers: for a constraint
+        in ``x`` and ``y`` alone the line does not depend on ``at``; for one that also
+        names other factors it is the line in the slice at ``at`` (see
+        :meth:`slice_polygon`). Each boundary is clipped to the rectangle of the two
+        factors' ranges only, not by the other constraints.
+
+        Parameters
+        ----------
+        x, y : str
+            Two different numeric factors.
+        at : Mapping[str, float] or None
+            Values (actual units) of the other numeric factors, as for :meth:`slice_polygon`.
+
+        Returns
+        -------
+        list[dict]
+            ``{"limit": i, "points": [[x1, y1], [x2, y2]]}`` in actual units, one per
+            inequality whose boundary crosses the rectangle, in constraint order; a
+            chained constraint such as ``"400 <= 3*T + 5*D <= 600"`` can give two, both
+            with its index ``i``. A boundary that misses the rectangle, only touches a
+            corner of it, or does not involve ``x`` or ``y`` gives none, and curved
+            constraints give none.
+
+        Raises
+        ------
+        ValueError
+            For a mixture region, when ``x`` and ``y`` are not two different numeric
+            factors, or when ``at`` names a factor the region does not have or gives a
+            value that is not a finite number.
+        """
+        self._require_box("slice_lines")
+        ix, iy = self._columns(x, y)
+        point = self._coded_point(at, (ix, iy))
+        others = [j for j in range(len(self.names)) if j not in (ix, iy)]
+        rows = self._linear()
+        lines = []
+        for a_row, b_val, limit in zip(rows.a, rows.b, rows.limit, strict=True):
+            c, d = a_row[[ix, iy]], b_val - a_row[others] @ point[others]
+            size = float(np.linalg.norm(c))
+            if size <= _SNAP:
+                continue
+            ends = convex_polygon(clip_square([(c / size, d / size), (-c / size, -d / size)]))
+            if len(ends) == 2:  # a segment, not a corner the boundary only touches
+                lines.append({"limit": int(limit), "points": self._actual(ends, [ix, iy]).tolist()})
+        return lines
+
+    def slice_slack(
+        self, x: str, y: str, x_grid: np.ndarray, y_grid: np.ndarray, at: Mapping[str, float] | None = None
+    ) -> np.ndarray:
+        """Return how far each grid point is from being allowed: ``<= 0`` exactly where it can be run.
+
+        Each value is the largest slack over the factor ranges and the constraints, with
+        the other factors held at ``at``. A linear constraint's slack is its signed
+        distance from its boundary in coded units, so it varies linearly over the grid and
+        a contour of it at zero draws a straight limit straight; a curved constraint's
+        slack is its own value (the left side minus the right). A value within ``1e-9`` of
+        zero is returned as zero, the tolerance :meth:`feasible` uses, so ``<= 0`` here
+        agrees with :meth:`feasible` at every point.
+
+        Parameters
+        ----------
+        x, y : str
+            Two different numeric factors.
+        x_grid, y_grid : np.ndarray
+            Values of ``x`` and ``y`` in actual units; they are broadcast together, so the
+            two arrays from ``np.meshgrid`` (or a row and a column) give a grid.
+        at : Mapping[str, float] or None
+            Values (actual units) of the other numeric factors, each one not given held at
+            the centre of its range; entries for ``x`` and ``y`` are ignored.
+
+        Returns
+        -------
+        np.ndarray
+            The slack, of the broadcast shape of ``x_grid`` and ``y_grid``.
+
+        Raises
+        ------
+        ValueError
+            For a mixture region, when ``x`` and ``y`` are not two different numeric
+            factors, or when ``at`` names a factor the region does not have or gives a
+            value that is not a finite number.
+        """
+        self._require_box("slice_slack")
+        ix, iy = self._columns(x, y)
+        xs, ys = np.broadcast_arrays(np.asarray(x_grid, dtype=float), np.asarray(y_grid, dtype=float))
+        coded = np.tile(self._coded_point(at, (ix, iy)), (xs.size, 1))
+        coded[:, ix] = (xs.ravel() - self._centre[ix]) / self._half[ix]
+        coded[:, iy] = (ys.ravel() - self._centre[iy]) / self._half[iy]
+        return self._slack(coded).reshape(xs.shape)
+
+    def _slack(self, coded: np.ndarray) -> np.ndarray:
+        """Return the largest slack per coded point, over the box and every inequality, zero within the tolerance."""
+        rows = self._linear()
+        box = np.abs(coded) - 1.0
+        parts = [np.where(np.abs(box) <= _TOL, 0.0, box)]
+        for g, scale in zip(self._inequalities, rows.scale, strict=True):
+            value = g(coded)
+            parts.append(np.where(np.abs(value) <= _TOL, 0.0, value / scale)[:, None])
+        return np.max(np.hstack(parts), axis=1, initial=-np.inf)
+
+
+@dataclass(frozen=True)
+class _Rows:
+    """A box region's inequalities in coded units: unit-length affine rows ``a @ x <= b``, and the rest.
+
+    Attributes
+    ----------
+    a, b : np.ndarray
+        The affine rows ``(r, k)`` and right-hand sides ``(r,)``. An inequality that
+        compares numbers only is left out when it holds, and kept as ``0 @ x <= -1`` when
+        it does not.
+    limit : np.ndarray
+        For each row, the index of the constraint it came from.
+    scale : list[float]
+        For each inequality (affine or not, in order), the length of its coded gradient
+        (1 for a curved or constant one): dividing by it turns a value into a distance.
+    nonlinear, nonlinear_limit : list
+        The inequalities that are not affine over the box, and their constraints' indices.
+    """
+
+    a: np.ndarray
+    b: np.ndarray
+    limit: np.ndarray
+    scale: list[float]
+    nonlinear: list[_Inequality]
+    nonlinear_limit: list[int]
+
+    @classmethod
+    def of(cls, inequalities: list[_Inequality], limit_of: list[int], k: int) -> _Rows:
+        """Classify ``inequalities`` (coded functions) with the test the design engines use."""
+        ones = np.ones(k)
+        a_rows, b_rows, limits, scale, nonlinear, nonlinear_limit = [], [], [], [], [], []
+        for g, limit in zip(inequalities, limit_of, strict=True):
+            form = _affine_form(g, -ones, ones) if k else (np.zeros(0), -float(g(np.zeros((1, 0)))[0]))
+            if form is None:
+                nonlinear.append(g)
+                nonlinear_limit.append(limit)
+                scale.append(1.0)
+                continue
+            a, b = form
+            size = float(np.linalg.norm(a))
+            if size <= _SNAP * (1.0 + abs(b)):  # compares numbers only
+                scale.append(1.0)
+                if b < -_TOL:
+                    a_rows.append(np.zeros(k))
+                    b_rows.append(-1.0)
+                    limits.append(limit)
+                continue
+            a = np.where(np.abs(a) <= _SNAP * size, 0.0, a)
+            size = float(np.linalg.norm(a))
+            scale.append(size)
+            a_rows.append(a / size)
+            b_rows.append(b / size)
+            limits.append(limit)
+        a_mat = np.array(a_rows, dtype=float).reshape(len(a_rows), k)
+        return cls(a_mat, np.array(b_rows, dtype=float), np.array(limits, dtype=int), scale, nonlinear, nonlinear_limit)
+
+
+def _lp_extreme(c: np.ndarray, a: np.ndarray, b: np.ndarray) -> np.ndarray | None:
+    """Return the point of ``{x in [-1, 1]^k : a @ x <= b}`` minimising ``c @ x``, or None when there is none."""
+    k = len(c)
+    if k == 0:
+        return np.zeros(0) if np.all(b >= -_TOL) else None
+    result = linprog(
+        c, A_ub=a if len(b) else None, b_ub=b if len(b) else None, bounds=[(-1.0, 1.0)] * k, method="highs"
+    )
+    return None if result.status == _INFEASIBLE else np.asarray(result.x)
+
+
+def _combine_forms(
+    pairs: list[tuple[tuple[np.ndarray, float] | None, bool]], names: list[str]
+) -> tuple[dict[str, float], float | None, float | None] | None:
+    """Join the comparisons of one constraint into ``(coefficients, low, high)``, or None when they do not share one.
+
+    Each pair is ``((c, r), upper)``: the comparison reads ``c @ X <= r`` when ``upper``,
+    else ``c @ X >= r``; ``None`` in place of ``(c, r)`` marks a comparison that is not affine.
+    """
+    coefficients: np.ndarray | None = None
+    low: float | None = None
+    high: float | None = None
+    for form, upper in pairs:
+        if form is None:
+            return None
+        c, r = form
+        if not np.any(c):  # compares numbers: drop it when it holds
+            if (r >= 0) if upper else (r <= 0):
+                continue
+            return None
+        if coefficients is not None and not np.array_equal(c, coefficients):
+            return None
+        coefficients = c
+        if upper:
+            high = r if high is None else min(high, r)
+        else:
+            low = r if low is None else max(low, r)
+    if coefficients is None:
+        return None
+    return {n: float(v) for n, v in zip(names, coefficients, strict=True) if v != 0}, low, high

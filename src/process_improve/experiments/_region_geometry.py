@@ -151,7 +151,7 @@ def _cut(
 
 
 def _no_third_vertex(weights: np.ndarray, common: np.ndarray) -> np.ndarray:
-    """For each pair's shared boundaries, whether only the pair's own two vertices lie on all of them."""
+    """Return, for each pair's shared boundaries, whether only the pair's own two vertices lie on all of them."""
     need = common.sum(axis=1)
     holders = (weights @ common.T.astype(float)) >= need  # (vertices, pairs)
     return holders.sum(axis=0) == 2
