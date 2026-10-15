@@ -29,6 +29,11 @@ from process_improve.experiments.omars_trade_off import (
 )
 from process_improve.experiments.optimization import optimize_responses
 from process_improve.experiments.region import DesignRegion
+from process_improve.experiments.separating import (
+    NotSeparableError,
+    constraint_through_cuts,
+    separating_constraint,
+)
 from process_improve.experiments.simulations import grocery, manufacture, popcorn
 from process_improve.experiments.strategy import recommend_strategy
 from process_improve.experiments.structures import (
@@ -53,6 +58,7 @@ __all__ = [
     "Factor",
     "Model",
     "MomentAberrationResult",
+    "NotSeparableError",
     "NotTwoLevelError",
     "OmarsResult",
     "OmarsTradeOffTableEntry",
@@ -66,6 +72,7 @@ __all__ = [
     "box_behnken_runs",
     "c",
     "compare_designs",
+    "constraint_through_cuts",
     "definitive_screening_runs",
     "doe_knowledge",
     "evaluate_all",
@@ -92,6 +99,7 @@ __all__ = [
     "predict",
     "recommend_strategy",
     "rename_factors",
+    "separating_constraint",
     "summary",
     "supplement",
     "trade_off_table",
