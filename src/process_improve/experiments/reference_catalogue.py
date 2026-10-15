@@ -198,27 +198,20 @@ def _number(printed: str) -> tuple[str | None, str]:
     return match.group(1), match.group(2)
 
 
-def _agrees(  # noqa: PLR0913 - each keyword is one way a source's rounding reaches a number
-    found: float,
-    printed: str,
-    *,
-    expression: bool = False,
-    of_rounded: int = 1,
-    decimals: int | None = None,
-    slack: float = 0.0,
+def _agrees(
+    found: float, printed: str, *, expression: bool = False, of_rounded: int = 1, decimals: int | None = None
 ) -> bool:
     """Whether a value found agrees with the printed text, to within the source's rounding.
 
     A number the source works out from ``of_rounded`` numbers it has itself rounded to the same
     digits, such as the difference of two averages it prints, carries their rounding too: it is
     allowed that many half units. Software that prints more digits than its arithmetic carries,
-    as single precision does, is held to ``decimals`` places instead of all it prints. ``slack``
-    is the rounding a number carries from the data it is worked from (see :func:`_carried_rounding`).
+    as single precision does, is held to ``decimals`` places instead of all it prints.
     """
     if expression:
         return math.isclose(found, _arithmetic(printed), rel_tol=1e-9, abs_tol=1e-9)
     bound, digits = _number(printed)
-    allowed = of_rounded * (_tolerance(digits) if decimals is None else 0.5 * 10.0**-decimals) + slack
+    allowed = of_rounded * (_tolerance(digits) if decimals is None else 0.5 * 10.0**-decimals)
     if bound in ("<", "<=", "\u2264"):
         return found < float(digits) or abs(found - float(digits)) <= allowed
     if bound in (">", ">=", "\u2265"):
@@ -1101,9 +1094,12 @@ def _reproduce(experiment: dict, expected: dict, check: dict, fits: _Fits) -> tu
     found = float(_FIT_KINDS[kind](out, check, experiment))
     found = 1 - found if check.get("complement") else found  # a confidence 1 - p, as some software prints it
     expression, of_rounded = bool(check.get("expression")), check.get("of_rounded", 1)
-    slack = _carried_rounding(out, check) if check.get("data_rounding") else 0.0
+    nearest = found
+    if check.get("data_rounding"):  # the source's fit may sit this far from one to its data as printed, rounded
+        target, slack = float(_number(str(printed))[1]), _carried_rounding(out, check)
+        nearest = target if abs(found - target) <= slack else found - math.copysign(slack, found - target)
     return f"{found:.6g}", _agrees(
-        found, str(printed), expression=expression, of_rounded=of_rounded, decimals=check.get("decimals"), slack=slack
+        nearest, str(printed), expression=expression, of_rounded=of_rounded, decimals=check.get("decimals")
     )
 
 
