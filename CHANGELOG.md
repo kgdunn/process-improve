@@ -44,6 +44,27 @@ those changes.
   writes the limit through a cut on each factor from one corner, in exact arithmetic: from
   `(200, 3)`, `T` up to 190 and `P` up to 2.5 give `"T + 20 * P <= 250"`. Both run under
   Pyodide and give the same text on every platform.
+- **Designs compared over the settings that can be run.** `compare_designs(...,
+  region=)` takes a `DesignRegion` (or its dict) and computes I and G over it rather than
+  over the cube: I averages the prediction variance over 20000 points drawn uniformly from
+  the region with a fixed seed, and G searches the region's support points, the grid's
+  points inside it and that sample. The other measures do not depend on where predictions
+  are made and do not change. `DesignComparison` gains `region` (also in `to_dict()`) and a
+  `measures` property whose definitions of I and G say "over the region"; a design with
+  runs outside the region is noted. A mixture region, or one that names a factor the
+  designs lack, is refused. Without a region every value is what it was.
+- **Response plots shade the settings that cannot be run.** The contour, 3D surface and
+  prediction-variance plots, and `visualize_doe`, take `region=` (a `DesignRegion` or its
+  dict). The contour and prediction-variance plots add a second trace after the response
+  (which stays `data[0]`): a translucent constraint contour of the limits' slack, named
+  "Cannot be run", so a straight limit is drawn straight. The 3D surface is `NaN` where a
+  setting cannot be run. The Plotly adapter passes a layer's `fillcolor` and `hoverinfo`
+  through, and the ECharts adapter draws a constraint contour as a masked heatmap. Without
+  a region, or with one without limits, every figure is unchanged.
+- **A user-guide page on limits on the settings.** "Limits on the Settings" covers writing
+  limits as text, what they leave of the factor ranges, renaming a factor inside them,
+  proposing a limit from the settings that cannot be run, pictures of the region, and
+  comparing designs and plotting a response over it; its examples run with the test suite.
 
 ### Fixed
 
