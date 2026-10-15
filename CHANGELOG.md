@@ -11,6 +11,33 @@ those changes.
 
 ## [Unreleased]
 
+### Added
+
+- **A region that describes its limits, in actual units.** `DesignRegion` now takes its
+  constraints as `Constraint` objects, their dict form or bare expressions such as
+  `"3*T + 5*D <= 600"`, and a box region reports: the share of the box it keeps
+  (`volume_fraction()`, from a fixed Sobol sample, so the same on every platform); whether
+  any setting is left (`is_empty()`); the range each factor can still reach
+  (`implied_bounds()`); the limits that remove nothing the others do not
+  (`redundant_constraints()`); each limit's affine form, rounded so no floating-point residue
+  shows (`linear_forms()`); its corners (`vertices()`); and pictures on any two factors: the
+  shadow of the region (`shadow(x, y)`), a slice through it at given values of the others
+  (`slice_polygon`, `slice_lines`) and the slack of a grid, at or below zero exactly where a
+  point can be run (`slice_slack`). Linear limits are handled exactly (a polygon, with a
+  segment or a point where the region is flat), curved ones by a mask. With 8 factors and 8
+  limits, everything a change to one limit needs takes about 70 ms.
+- **`rename_factors(expression, names)` and `Constraint.renamed(names)`**: rename factors
+  inside a limit, all at once (so a swap works), leaving function names such as `sqrt`
+  alone, and return the canonical text, which renaming back reproduces.
+
+### Fixed
+
+- **Linear constraints in 6 or more factors are recognised as linear.** The test for an
+  affine constraint fitted it on points that, from 6 factors, do not determine an affine
+  function, so every linear constraint was treated as curved: the candidate set of a
+  constrained optimal design lost the region's vertices, and its sampler fell back to a
+  slower method.
+
 ## [1.99.0] - 2026-10-15
 
 ### Added

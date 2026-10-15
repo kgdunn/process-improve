@@ -27,7 +27,7 @@ Designed Experiments
    :members: dispatch_mixture
 
 .. automodule:: process_improve.experiments.designs_constrained
-   :members: constrained_optimal_design, ConstrainedOptions, Criterion, parse_constraint, build_candidates, model_matrix, fedorov_exchange
+   :members: constrained_optimal_design, ConstrainedOptions, Criterion, parse_constraint, rename_factors, build_candidates, model_matrix, fedorov_exchange
 
 .. automodule:: process_improve.experiments.region
    :members: DesignRegion
