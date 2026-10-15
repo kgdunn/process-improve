@@ -11,6 +11,8 @@ those changes.
 
 ## [Unreleased]
 
+## [1.99.0] - 2026-10-15
+
 ### Added
 
 - **How Factorial works: a page of the app (`about.html`), linked from its footer.** It says
@@ -8226,7 +8228,8 @@ this entry records them together.
 - Reworked the README with a sharper value proposition and a
   "Why not scikit-learn?" comparison table.
 
-[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.98.0...HEAD
+[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.99.0...HEAD
+[1.99.0]: https://github.com/kgdunn/process-improve/compare/v1.98.0...v1.99.0
 [1.98.0]: https://github.com/kgdunn/process-improve/compare/v1.97.2...v1.98.0
 [1.97.2]: https://github.com/kgdunn/process-improve/compare/v1.97.1...v1.97.2
 [1.97.1]: https://github.com/kgdunn/process-improve/compare/v1.97.0...v1.97.1
