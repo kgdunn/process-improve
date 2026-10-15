@@ -125,8 +125,7 @@ Renaming a factor inside a limit
 
 Limits name the factors, so renaming a factor must rename it inside every limit too.
 :func:`~process_improve.experiments.designs_constrained.rename_factors` does so for one
-expression, and :meth:`~process_improve.experiments.factor.Constraint.renamed` for a
-constraint:
+expression:
 
 .. code-block:: python
 
@@ -134,7 +133,7 @@ constraint:
 
    print(rename_factors("T + 25*P <= 250", {"T": "Temp", "P": "Pres"}))  # Temp + 25 * Pres <= 250
    print(rename_factors("T*F <= 3600", {"T": "F", "F": "T"}))  # F * T <= 3600
-   print(Constraint(expression="sqrt(T) * P <= 40").renamed({"T": "Temp"}).expression)  # sqrt(Temp) * P <= 40
+   print(rename_factors("sqrt(T) * P <= 40", {"T": "Temp"}))  # sqrt(Temp) * P <= 40
 
 Every name is renamed at once, so a swap works, and function names such as ``sqrt`` are
 left alone. The expression is checked before and after, and the result is written in one

@@ -107,10 +107,6 @@ class TestRenameFactors:
     def test_names_the_expression_does_not_use_are_ignored(self):
         assert rename_factors("T <= 140", {"Z": "Zeta"}) == "T <= 140"
 
-    def test_the_constraint_method_keeps_the_type(self):
-        renamed = Constraint(expression="A*B <= 3", type="nonlinear").renamed({"A": "B", "B": "A"})
-        assert renamed == Constraint(expression="B * A <= 3", type="nonlinear")
-
     @pytest.mark.parametrize(
         ("expression", "names", "match"),
         [

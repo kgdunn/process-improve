@@ -27,7 +27,7 @@ those changes.
   point can be run (`slice_slack`). Linear limits are handled exactly (a polygon, with a
   segment or a point where the region is flat), curved ones by a mask. With 8 factors and 8
   limits, everything a change to one limit needs takes about 70 ms.
-- **`rename_factors(expression, names)` and `Constraint.renamed(names)`**: rename factors
+- **`rename_factors(expression, names)`**: rename factors
   inside a limit, all at once (so a swap works), leaving function names such as `sqrt`
   alone, and return the canonical text, which renaming back reproduces.
 - **A limit proposed from the settings that cannot be run.**
