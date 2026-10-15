@@ -22,6 +22,10 @@ at all: its runs, whether it can fit the model, and the degrees of freedom it le
 to estimate the error. No single design is best on every row, and the comparison
 does not pick one.
 
+When some settings cannot be run, a :class:`~process_improve.experiments.DesignRegion`
+with the limits on them can be given: :math:`I` and :math:`G` are then taken over the
+settings that can be run instead of over the whole cube.
+
 Also see
 --------
 process_improve.experiments.evaluate.evaluate_design : many more measures, one design at a time.
@@ -30,8 +34,10 @@ process_improve.experiments.true_process.TrueProcess : simulate a design's resul
 
 from __future__ import annotations
 
+import dataclasses
 import itertools
 import math
+from collections.abc import Mapping
 from dataclasses import dataclass
 from types import MappingProxyType
 from typing import TYPE_CHECKING, Any
@@ -41,11 +47,12 @@ import pandas as pd
 
 from process_improve.experiments.designs_utils import RESERVED_COLUMN_NAMES
 from process_improve.experiments.evaluate import _coefficient_power
-from process_improve.experiments.factor import DesignResult
+from process_improve.experiments.factor import DesignResult, Factor, FactorType
+from process_improve.experiments.region import DesignRegion
 from process_improve.tool_spec import clean
 
 if TYPE_CHECKING:
-    from collections.abc import Mapping, Sequence
+    from collections.abc import Sequence
 
 #: The models a comparison can be made for. ``main_quadratic`` is the book's model for
 #: the nine measures: the intercept, the main effects and the pure quadratics, without
@@ -65,6 +72,11 @@ _SAMPLED_POINTS = 20_000
 
 #: Rows of the prediction grid expanded into model columns at a time.
 _CHUNK = 4096
+
+#: Over a region, I is averaged over this many points drawn uniformly from it, with a
+#: generator seeded with :data:`_REGION_SEED`, so every comparison draws the same points.
+_REGION_SAMPLES = 20_000
+_REGION_SEED = 0
 
 #: A column whose centred norm is below this, relative to the run count, is constant.
 _CONSTANT = 1e-9
@@ -186,6 +198,13 @@ MEASURES: tuple[Measure, ...] = (
     ),
 )
 
+#: The definitions of I and G when they are taken over a region rather than over the cube.
+_OVER_THE_REGION = {
+    "i": "tr(M^-1 B): the variance of a prediction averaged over the region, in units of sigma^2; B holds the "
+    "averages of the products of the model terms over a uniform sample of the region.",
+    "g": "The variance of a prediction at the worst point of the region, in units of sigma^2.",
+}
+
 _ARROWS = {"higher": "↑", "lower": "↓", "": ""}
 
 #: The term types power is reported for, and the measure each one fills.
@@ -224,6 +243,9 @@ class DesignComparison:
         ``"max_r"`` reads.
     g_points : str
         The points over which G was searched, shared by every design.
+    region : DesignRegion or None
+        The region I and G were taken over, as it was given; ``None`` for the cube
+        :math:`[-1, 1]^k`.
     """
 
     model: str
@@ -235,6 +257,21 @@ class DesignComparison:
     notes: Mapping[str, tuple[str, ...]]
     correlations: Mapping[str, pd.DataFrame]
     g_points: str
+    region: DesignRegion | None = None
+
+    @property
+    def measures(self) -> tuple[Measure, ...]:
+        """Return the rows of the comparison, with I and G defined over the region when there is one.
+
+        Returns
+        -------
+        tuple[Measure, ...]
+            :data:`MEASURES` without a region; with one, the same rows with the
+            descriptions of I and G saying they are taken over the region.
+        """
+        if self.region is None:
+            return MEASURES
+        return tuple(dataclasses.replace(m, description=_OVER_THE_REGION.get(m.key, m.description)) for m in MEASURES)
 
     @property
     def table(self) -> pd.DataFrame:
@@ -289,9 +326,10 @@ class DesignComparison:
         Returns
         -------
         dict
-            The attributes, with the measures' definitions under ``"measures"`` and each
-            correlation matrix as ``{"terms": [...], "matrix": [[...]]}``; ``NaN`` and
-            infinities become ``None``.
+            The attributes, with the measures' definitions (:attr:`measures`) under
+            ``"measures"``, each correlation matrix as ``{"terms": [...], "matrix":
+            [[...]]}`` and the region as :meth:`DesignRegion.to_dict` writes it (``None``
+            without one); ``NaN`` and infinities become ``None``.
         """
         return clean(
             {
@@ -300,7 +338,7 @@ class DesignComparison:
                 "effect_size": self.effect_size,
                 "significance_level": self.significance_level,
                 "designs": list(self.designs),
-                "measures": [m.__dict__ for m in MEASURES],
+                "measures": [m.__dict__ for m in self.measures],
                 "values": {label: dict(v) for label, v in self.values.items()},
                 "notes": {label: list(n) for label, n in self.notes.items()},
                 "correlations": {
@@ -309,6 +347,7 @@ class DesignComparison:
                 },
                 "g_points": self.g_points,
                 "book": BOOK_URL,
+                "region": None if self.region is None else self.region.to_dict(),
             }
         )
 
@@ -332,9 +371,10 @@ class _Model:
     exponents: np.ndarray  # (p, k) integer powers of each factor in each term
     terms: tuple[str, ...]
     kinds: tuple[str, ...]  # "intercept", "main", "interaction" or "quadratic"
-    moments: np.ndarray  # (p, p) averages of the products of the terms over the cube
+    moments: np.ndarray  # (p, p) averages of the products of the terms over the cube, or over the region
     grid: np.ndarray  # (n_points, p) the model's columns at the points G is searched over
     g_points: str
+    region: DesignRegion | None = None  # the region over the designs' factors, None for the cube
 
 
 def _model_exponents(k: int, model: str) -> np.ndarray:
@@ -390,20 +430,52 @@ def _g_points(k: int) -> tuple[np.ndarray, str]:
     )
 
 
-def _build_model(k: int, model: str, names: Sequence[str]) -> _Model:
-    """Set up a model once, for scoring every design on it."""
+def _expand_in_chunks(points: np.ndarray, exponents: np.ndarray) -> np.ndarray:
+    """Return the model's columns at many points, :data:`_CHUNK` rows at a time."""
+    return np.vstack([_expand(points[i : i + _CHUNK], exponents) for i in range(0, len(points), _CHUNK)])
+
+
+def _region_points(region: DesignRegion, k: int) -> tuple[np.ndarray, np.ndarray, str]:
+    """Return a uniform sample of the region, the points G is searched over, and how they were chosen.
+
+    The sample is :data:`_REGION_SAMPLES` points drawn with a generator seeded with
+    :data:`_REGION_SEED`, the same on every run. G is searched over the region's support
+    points (its vertices, where its constraints cross the edges of a 3-level grid, and
+    that grid's points inside it), the points of the cube's own grid (see
+    :func:`_g_points`) that lie in the region, and the sample.
+    """
+    sample = region.sample(_REGION_SAMPLES, np.random.default_rng(_REGION_SEED))
+    grid, described = _g_points(k)
+    inside = grid[region.feasible(grid)]
+    support = region.seed_points()  # none for a box too large for a boundary grid
+    parts = [f"the {len(inside)} points of {described} that lie in the region"]
+    if len(support):
+        parts.append(f"its {len(support)} support points")
+    parts.append(f"{len(sample)} points drawn uniformly from it")
+    description = ", ".join(parts[:-1]) + " and " + parts[-1]
+    return sample, np.vstack([support, inside, sample]), description
+
+
+def _build_model(k: int, model: str, names: Sequence[str], region: DesignRegion | None = None) -> _Model:
+    """Set up a model once, for scoring every design on it, over the cube or over a region."""
     exponents = _model_exponents(k, model)
     named = [_term_name(e, names) for e in exponents]
-    points, description = _g_points(k)
-    grid = np.vstack([_expand(points[i : i + _CHUNK], exponents) for i in range(0, len(points), _CHUNK)])
+    if region is None:
+        points, description = _g_points(k)
+        moments = _moments(exponents)
+    else:
+        sample, points, description = _region_points(region, k)
+        sampled = _expand_in_chunks(sample, exponents)
+        moments = sampled.T @ sampled / len(sample)
     return _Model(
         name=model,
         exponents=exponents,
         terms=tuple(n for n, _ in named),
         kinds=tuple(kind for _, kind in named),
-        moments=_moments(exponents),
-        grid=grid,
+        moments=moments,
+        grid=_expand_in_chunks(points, exponents),
         g_points=description,
+        region=region,
     )
 
 
@@ -555,13 +627,27 @@ def _score(x: np.ndarray, model: _Model, effect_size: float, alpha: float) -> tu
     values.update(_power(c, n - p, model, effect_size, alpha))
     if n == p:
         notes.append("No degrees of freedom are left to estimate the error, so there is no test and no power.")
-    reach = float(np.abs(x).max())
-    if reach > 1 + 1e-9:
-        notes.append(
-            f"Some runs lie outside the cube [-1, 1], up to {reach:.3g} from the center on a factor, "
-            "while I and G are computed over the cube."
-        )
+    outside = _outside(x, model.region)
+    if outside:
+        notes.append(outside)
     return values, notes
+
+
+def _outside(x: np.ndarray, region: DesignRegion | None) -> str | None:
+    """Say how far a design's runs leave the cube, or how many leave the region, when any do."""
+    if region is None:
+        reach = float(np.abs(x).max())
+        if reach > 1 + 1e-9:
+            return (
+                f"Some runs lie outside the cube [-1, 1], up to {reach:.3g} from the center on a factor, "
+                "while I and G are computed over the cube."
+            )
+        return None
+    count = int(np.count_nonzero(~region.feasible(x)))
+    if not count:
+        return None
+    verb = "lies" if count == 1 else "lie"
+    return f"{count} of its {len(x)} runs {verb} outside the region, while I and G are computed over the region."
 
 
 def _check_settings(model: str, effect_size: float, significance_level: float) -> None:
@@ -574,12 +660,66 @@ def _check_settings(model: str, effect_size: float, significance_level: float) -
         raise ValueError(f"significance_level must lie between 0 and 1, not {significance_level}.")
 
 
+def _as_region(region: object) -> DesignRegion:
+    """Return a region given as a :class:`DesignRegion` or as its dict form.
+
+    Raises
+    ------
+    TypeError
+        If ``region`` is neither.
+    """
+    if isinstance(region, DesignRegion):
+        return region
+    if isinstance(region, Mapping):
+        return DesignRegion.from_dict(dict(region))
+    raise TypeError(f"region must be a DesignRegion or its dict form, not {type(region).__name__}.")
+
+
+def _region_over(region: DesignRegion, names: Sequence[str]) -> DesignRegion | None:
+    """Return the region over the designs' factors, in their order, refusing one that cannot be compared over.
+
+    A factor the region does not name is free over its whole range, ``[-1, 1]``.
+
+    Returns
+    -------
+    DesignRegion or None
+        The region, or ``None`` when it has no constraints: it is then the cube, whose
+        exact moments are used.
+
+    Raises
+    ------
+    ValueError
+        If the region is a mixture region, names a factor the designs do not have, or
+        leaves no setting at all.
+    """
+    if region.kind == "mixture":
+        raise ValueError(
+            "compare_designs scores designs over a box of factor settings; a mixture region, of proportions that "
+            "sum to 1, cannot be compared over."
+        )
+    missing = [f.name for f in region.factors if f.name not in names]
+    if missing:
+        raise ValueError(f"The region names {missing}, which the designs do not have; their factors are {list(names)}.")
+    if region.is_empty():
+        raise ValueError(
+            "No setting in the region meets every one of its constraints, so there is nothing to average the "
+            "prediction variance over."
+        )
+    if not region.is_constrained:
+        return None
+    numeric = {f.name: f for f in region.factors if f.type != FactorType.categorical}
+    if list(numeric) == list(names):
+        return region
+    return DesignRegion([numeric.get(n) or Factor(name=n, low=-1, high=1) for n in names], region.constraints)
+
+
 def compare_designs(
     designs: Mapping[str, DesignResult | pd.DataFrame | np.ndarray] | Sequence[DesignResult],
     model: str = "main_quadratic",
     *,
     effect_size: float = 1.0,
     significance_level: float = 0.05,
+    region: DesignRegion | Mapping[str, Any] | None = None,
 ) -> DesignComparison:
     r"""Score designs for one fixed model on the nine measures of design quality.
 
@@ -614,6 +754,17 @@ def compare_designs(
     :math:`A/p`, :math:`I` and :math:`G` are in units of :math:`\sigma^2`, the
     run-to-run noise variance.
 
+    When some settings cannot be run, ``region`` holds the limits on them, and
+    :math:`I` and :math:`G` are taken over the settings that can be run rather than
+    over the cube: :math:`\mathbf{B}` is averaged over 20000 points drawn uniformly
+    from the region (with a fixed seed, so the numbers are the same on every run), and
+    :math:`G` is searched over the region's support points (its vertices, and where its
+    limits cross the edges of a 3-level grid), the points of the grid above that lie in
+    it, and the same sample. The other measures do not depend on where predictions are
+    made, and are the same with or without a region. A design with runs outside the
+    region is noted. Without a region, or with one that has no constraints, the cube's
+    exact moments are used.
+
     Parameters
     ----------
     designs : mapping of str to design, or sequence of DesignResult
@@ -632,6 +783,11 @@ def compare_designs(
         low-to-high change of two standard deviations.
     significance_level : float, default 0.05
         The level of the tests behind the power.
+    region : DesignRegion, dict or None
+        The settings that can be run: a box region (or its :meth:`DesignRegion.to_dict`
+        form) over the designs' factors, whose coded units the designs are in. A factor
+        it does not name is free over its whole range. ``None``, the default, is the
+        cube :math:`[-1, 1]^k`.
 
     Returns
     -------
@@ -643,10 +799,12 @@ def compare_designs(
     ------
     ValueError
         If ``model`` is not one of :data:`MODELS`, ``effect_size`` is not positive,
-        ``significance_level`` is not between 0 and 1, no design is given, or the
-        designs differ in their factors.
+        ``significance_level`` is not between 0 and 1, no design is given, the
+        designs differ in their factors, or ``region`` is a mixture region, names a
+        factor the designs do not have, or leaves no setting to run.
     TypeError
-        If a single design is passed instead of a collection of them.
+        If a single design is passed instead of a collection of them, or ``region`` is
+        neither a :class:`DesignRegion` nor its dict form.
 
     Examples
     --------
@@ -667,7 +825,8 @@ def compare_designs(
         raise ValueError("Give at least one design to compare.")
     runs = [_coded_runs(design) for _, design in labelled]
     names = _factor_names(runs)
-    scored = _build_model(len(names), model, names)
+    given = None if region is None else _as_region(region)
+    scored = _build_model(len(names), model, names, None if given is None else _region_over(given, names))
 
     labels: list[str] = []
     values: dict[str, Mapping[str, Any]] = {}
@@ -693,6 +852,7 @@ def compare_designs(
         notes=MappingProxyType(notes),
         correlations=MappingProxyType(correlations),
         g_points=scored.g_points,
+        region=given,
     )
 
 

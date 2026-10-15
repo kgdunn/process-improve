@@ -10,6 +10,7 @@ import dataclasses
 import itertools
 import json
 import math
+import pathlib
 
 import numpy as np
 import pandas as pd
@@ -17,6 +18,7 @@ import pytest
 
 from process_improve.experiments import (
     DesignComparison,
+    DesignRegion,
     Factor,
     TrueProcess,
     analyze_experiment,
@@ -405,3 +407,200 @@ def test_the_coefficients_are_read_only():
         process.coefficients["A:B"] = 2.0  # type: ignore[index]
     with pytest.raises(dataclasses.FrozenInstanceError):
         process.sigma = 2.0  # type: ignore[misc]
+
+
+# --------------------------------------------------------------------------- without a region: as before
+GOLDEN = json.loads((pathlib.Path(__file__).parent / "fixtures" / "compare_designs_golden" / "golden.json").read_text())
+
+
+def _assert_same(got, recorded, path="result"):
+    """Compare JSON values: numbers to 1e-12 (a last-bit platform difference), everything else exactly."""
+    if isinstance(recorded, dict):
+        assert isinstance(got, dict), path
+        assert list(got) == list(recorded), path
+        for key, value in recorded.items():
+            _assert_same(got[key], value, f"{path}[{key!r}]")
+    elif isinstance(recorded, list):
+        assert isinstance(got, list), path
+        assert len(got) == len(recorded), path
+        for i, (a, b) in enumerate(zip(got, recorded, strict=True)):
+            _assert_same(a, b, f"{path}[{i}]")
+    elif isinstance(recorded, float) and not isinstance(got, bool):
+        assert got == pytest.approx(recorded, rel=1e-12, abs=1e-12), path
+    else:
+        assert got == recorded, path
+        assert type(got) is type(recorded), path
+
+
+@pytest.mark.parametrize("case", GOLDEN["cases"], ids=lambda case: case["name"])
+def test_without_a_region_the_comparison_is_what_it_was(case):
+    """Recorded before ``region`` was added: every value, note and definition is unchanged.
+
+    See tests/fixtures/compare_designs_golden/README.md; on the platform that recorded the
+    fixture the result is bit-identical.
+    """
+    designs = {
+        label: pd.DataFrame(design["runs"], columns=design["columns"]) for label, design in case["designs"].items()
+    }
+    comparison = compare_designs(designs, case["model"], **case["kwargs"])
+    assert comparison.region is None
+    assert comparison.measures is MEASURES
+    result = comparison.to_dict()
+    assert result.pop("region") is None
+    if not case["correlations"]:
+        result.pop("correlations")
+    _assert_same(result, case["result"])
+    explicit = compare_designs(designs, case["model"], region=None, **case["kwargs"]).to_dict()
+    assert json.dumps(explicit) == json.dumps(comparison.to_dict()), "region=None is the default"
+
+
+# --------------------------------------------------------------------------- over a region
+HEAT = [Factor(name="T", low=100, high=150), Factor(name="D", low=20, high=60)]
+HEAT_LIMIT = "3*T + 5*D <= 600"
+
+
+def heat_designs() -> dict[str, object]:
+    """Two quadratic designs inside the heat limit, and a face-centred CCD with three corners outside it."""
+    inside = {
+        name: generate_design(HEAT, name, constraints=[HEAT_LIMIT], budget=9, model_type="quadratic", random_state=1)
+        for name in ("d_optimal", "i_optimal")
+    }
+    return {**inside, "CCD": generate_design(HEAT, "ccd", alpha="face_centered", n_center_points=1)}
+
+
+def prediction_variance(design, points: np.ndarray, model: str = "quadratic") -> np.ndarray:
+    """Return f(x)' M^-1 f(x) at coded points, for a two-factor design, written out independently."""
+
+    def expand(p):
+        columns = [np.ones(len(p)), p[:, 0], p[:, 1]]
+        if model == "quadratic":
+            columns += [p[:, 0] * p[:, 1], p[:, 0] ** 2, p[:, 1] ** 2]
+        return np.column_stack(columns)
+
+    x = expand(design.design[["T", "D"]].to_numpy(dtype=float))
+    f = expand(points)
+    return np.einsum("ij,jk,ik->i", f, np.linalg.inv(x.T @ x), f)
+
+
+def test_i_over_the_region_is_the_average_over_an_independent_sample():
+    region = DesignRegion(HEAT, [HEAT_LIMIT])
+    designs = heat_designs()
+    comparison = compare_designs(designs, "quadratic", region=region)
+    sample = region.sample(200_000, np.random.default_rng(12345))
+    for (name, design), label in zip(designs.items(), comparison.designs, strict=True):
+        independent = prediction_variance(design, sample).mean()
+        assert comparison.values[label]["i"] == pytest.approx(independent, rel=0.01), name
+
+
+def test_g_over_the_region_is_its_largest_prediction_variance():
+    """At least the variance at every vertex and nearly the largest over a dense independent sample."""
+    region = DesignRegion(HEAT, [HEAT_LIMIT])
+    designs = heat_designs()
+    comparison = compare_designs(designs, "quadratic", region=region)
+    vertices = (region.vertices() - [125.0, 40.0]) / [25.0, 20.0]
+    sample = region.sample(100_000, np.random.default_rng(7))
+    for (name, design), label in zip(designs.items(), comparison.designs, strict=True):
+        g = comparison.values[label]["g"]
+        assert g >= prediction_variance(design, vertices).max() - 1e-12, name
+        assert g == pytest.approx(max(prediction_variance(design, sample).max(), g), rel=0.01), name
+
+
+def test_a_region_changes_only_i_and_g():
+    region = DesignRegion(HEAT, [HEAT_LIMIT])
+    designs = heat_designs()
+    over_cube = compare_designs(designs, "quadratic")
+    over_region = compare_designs(designs, "quadratic", region=region)
+    for label in over_cube.designs:
+        cube, limited = over_cube.values[label], over_region.values[label]
+        assert {k: v for k, v in cube.items() if k not in "ig"} == {k: v for k, v in limited.items() if k not in "ig"}
+    pd.testing.assert_frame_equal(over_cube.correlations["CCD [n=9]"], over_region.correlations["CCD [n=9]"])
+    d_optimal = "d_optimal [n=9]"
+    assert over_region.values[d_optimal]["g"] < over_cube.values[d_optimal]["g"], "the cube's far corner is excluded"
+
+
+def test_a_region_that_removes_nothing_gives_the_cubes_numbers():
+    designs = heat_designs()
+    over_cube = compare_designs(designs, "quadratic")
+    loose = compare_designs(designs, "quadratic", region=DesignRegion(HEAT, ["T + D <= 1000"]))
+    assert loose.g_points.startswith("the 49 points of a 7-level grid of 49 points that lie in the region")
+    for label in over_cube.designs:
+        assert loose.values[label]["i"] == pytest.approx(over_cube.values[label]["i"], rel=0.02)
+        assert loose.values[label]["g"] == pytest.approx(over_cube.values[label]["g"], rel=1e-12)
+        assert loose.notes[label] == over_cube.notes[label] == ()
+
+
+def test_a_region_without_constraints_is_the_cube_exactly():
+    designs = heat_designs()
+    over_cube = compare_designs(designs, "quadratic").to_dict()
+    unlimited = compare_designs(designs, "quadratic", region=DesignRegion(HEAT))
+    result = unlimited.to_dict()
+    assert result.pop("region") == DesignRegion(HEAT).to_dict()
+    over_cube.pop("region")
+    i_and_g = {"i", "g"}
+    assert [m for m in result.pop("measures") if m["key"] not in i_and_g] == [
+        m for m in over_cube.pop("measures") if m["key"] not in i_and_g
+    ]
+    assert result == over_cube
+
+
+def test_the_comparison_records_its_region_and_says_what_i_and_g_are_over():
+    region = DesignRegion(HEAT, [HEAT_LIMIT])
+    comparison = compare_designs(heat_designs(), "quadratic", region=region)
+    assert comparison.region is region
+    payload = comparison.to_dict()
+    json.dumps(payload, allow_nan=False)
+    assert payload["region"] == region.to_dict()
+    described = {m["key"]: m["description"] for m in payload["measures"]}
+    assert "averaged over the region" in described["i"]
+    assert "worst point of the region" in described["g"]
+    assert [m["key"] for m in payload["measures"]] == [m.key for m in MEASURES]
+    assert "the cube" not in described["i"] + described["g"]
+    assert comparison.g_points.endswith("support points and 20000 points drawn uniformly from it")
+
+
+def test_runs_outside_the_region_are_noted():
+    comparison = compare_designs(heat_designs(), "quadratic", region=DesignRegion(HEAT, [HEAT_LIMIT]))
+    assert comparison.notes["d_optimal [n=9]"] == comparison.notes["i_optimal [n=9]"] == ()
+    assert comparison.notes["CCD [n=9]"] == (
+        "3 of its 9 runs lie outside the region, while I and G are computed over the region.",
+    )
+    one_out = compare_designs(
+        {"one": np.array([[1.0, 1.0], [-1.0, -1.0], [-1.0, 1.0], [1.0, -1.0], [0.0, 0.0]])},
+        "main_effects",
+        region=DesignRegion([Factor(name=n, low=-1, high=1) for n in "AB"], ["A + B <= 1.5"]),
+    )
+    assert one_out.notes["one [n=5]"] == (
+        "1 of its 5 runs lies outside the region, while I and G are computed over the region.",
+    )
+
+
+def test_the_region_can_be_given_as_its_dict_and_is_deterministic():
+    region = DesignRegion(HEAT, [HEAT_LIMIT])
+    designs = heat_designs()
+    first = compare_designs(designs, "quadratic", region=region)
+    again = compare_designs(designs, "quadratic", region=region.to_dict())
+    assert json.dumps(first.to_dict()) == json.dumps(again.to_dict())
+    assert isinstance(again.region, DesignRegion)
+
+
+def test_a_factor_the_region_does_not_name_is_free_over_its_range():
+    """Limits on A and B leave C free: the region over A, B and C is the A-B region times C's range."""
+    design = generate_design(factors(), "box_behnken", n_center_points=3)
+    partial = compare_designs({"BBD": design}, region=DesignRegion(factors("AB"), ["A + B <= 1"]))
+    full = compare_designs({"BBD": design}, region=DesignRegion(factors("BAC"), ["A + B <= 1"]))
+    assert partial.values["BBD [n=15]"] == full.values["BBD [n=15]"]
+    assert partial.region.names == ["A", "B"]
+
+
+@pytest.mark.parametrize(
+    ("region", "error", "match"),
+    [
+        (DesignRegion([Factor(name=n, type="mixture", low=0, high=1) for n in "ABC"]), ValueError, "mixture region"),
+        (DesignRegion(factors("ABZ"), ["A + Z <= 1"]), ValueError, r"names \['Z'\], which the designs do not have"),
+        (DesignRegion(factors("AB"), ["A + B >= 3"]), ValueError, "nothing to average"),
+        ("A + B <= 1", TypeError, "DesignRegion or its dict form"),
+    ],
+)
+def test_regions_that_cannot_be_compared_over_are_refused(region, error, match):
+    with pytest.raises(error, match=match):
+        compare_designs({"BBD": with_centre_runs(3)}, region=region)
