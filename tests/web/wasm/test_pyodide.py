@@ -111,6 +111,16 @@ def test_a_workbook_written_under_pyodide_reads_back_the_same_either_way(pyodide
     assert pyodide.ok("api_read_workbook", book) == api.ok("api_read_workbook", book)
 
 
+def test_a_run_sheet_renamed_under_pyodide_is_native_python_s(pyodide, api, design, simulated):
+    """A fraction's notes name its factors, so the renamed notes are read off the runs again: both ways alike."""
+    fraction = api.ok("api_make_design", {"design_type": "fractional_factorial", "factors": factors_named(*"ABCD")})
+    for made, simulation in ((design, simulated), (fraction, None)):
+        factors = [{**f, "name": f"{f['name']}_new"} for f in made["spec"]["factors"]]
+        sent = {**held_of(made), "facts": made["facts"], "outside_range": made["outside_range"]}
+        request = {"design": sent, "factors": factors, "simulation": simulation}
+        assert pyodide.ok("api_relabel", request) == api.ok("api_relabel", request)
+
+
 def test_refusals_and_warnings_come_back_as_they_do_natively(pyodide, api):
     bad = {"design_type": "box_behnken", "factors": [*FACTORS[:2], {**FACTORS[2], "name": "a b"}]}
     assert pyodide.error("api_make_design", bad) == api.error("api_make_design", bad)
