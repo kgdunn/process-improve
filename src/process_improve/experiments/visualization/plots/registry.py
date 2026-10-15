@@ -161,7 +161,7 @@ class BasePlot(ABC):
         that the design can estimate.
     region : DesignRegion, dict or None
         The settings that can be run (a
-        :class:`~process_improve.experiments.DesignRegion` or its ``to_dict()``
+        :class:`~process_improve.experiments.region.DesignRegion` or its ``to_dict()``
         form), whose factor ranges define the coded units the plots are drawn in.
         The contour and prediction-variance plots shade the settings it rules out,
         and the 3D surface leaves them out; the other plots ignore it.

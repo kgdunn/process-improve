@@ -12,6 +12,7 @@ User Guide
    design_evaluation
    omars_designs
    constrained_designs
+   region_limits
    screening_and_space_filling
    split_plot_analysis
    sensory_panel

@@ -22,7 +22,7 @@ at all: its runs, whether it can fit the model, and the degrees of freedom it le
 to estimate the error. No single design is best on every row, and the comparison
 does not pick one.
 
-When some settings cannot be run, a :class:`~process_improve.experiments.DesignRegion`
+When some settings cannot be run, a :class:`~process_improve.experiments.region.DesignRegion`
 with the limits on them can be given: :math:`I` and :math:`G` are then taken over the
 settings that can be run instead of over the whole cube.
 

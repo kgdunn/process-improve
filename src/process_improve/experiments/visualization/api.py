@@ -83,7 +83,7 @@ def visualize_doe(  # noqa: PLR0913
         design can estimate.
     region : DesignRegion, dict or None
         The settings that can be run, as a
-        :class:`~process_improve.experiments.DesignRegion` or its ``to_dict()``
+        :class:`~process_improve.experiments.region.DesignRegion` or its ``to_dict()``
         form; its factor ranges define the coded units. The ``"contour"`` and
         ``"prediction_variance"`` plots shade the settings it rules out (with the
         factors not plotted held at *hold_values*), and ``"surface_3d"`` leaves
