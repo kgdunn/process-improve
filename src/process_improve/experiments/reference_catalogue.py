@@ -196,17 +196,20 @@ def _number(printed: str) -> tuple[str | None, str]:
     return match.group(1), match.group(2)
 
 
-def _agrees(found: float, printed: str, *, expression: bool = False, of_rounded: int = 1) -> bool:
+def _agrees(
+    found: float, printed: str, *, expression: bool = False, of_rounded: int = 1, decimals: int | None = None
+) -> bool:
     """Whether a value found agrees with the printed text, to within the source's rounding.
 
     A number the source works out from ``of_rounded`` numbers it has itself rounded to the same
     digits, such as the difference of two averages it prints, carries their rounding too: it is
-    allowed that many half units.
+    allowed that many half units. Software that prints more digits than its arithmetic carries,
+    as single precision does, is held to ``decimals`` places instead of all it prints.
     """
     if expression:
         return math.isclose(found, _arithmetic(printed), rel_tol=1e-9, abs_tol=1e-9)
     bound, digits = _number(printed)
-    allowed = of_rounded * _tolerance(digits)
+    allowed = of_rounded * (_tolerance(digits) if decimals is None else 0.5 * 10.0**-decimals)
     if bound in ("<", "<=", "\u2264"):
         return found < float(digits) or abs(found - float(digits)) <= allowed
     if bound in (">", ">=", "\u2265"):
@@ -217,6 +220,7 @@ def _agrees(found: float, printed: str, *, expression: bool = False, of_rounded:
 # --------------------------------------------------------------------------- the runs as a model sees them
 _STATISTICS: dict[str, Callable[[pd.DataFrame], pd.Series]] = {
     "mean": lambda readings: readings.mean(axis=1),
+    "total": lambda readings: readings.sum(axis=1),
     "std_dev": lambda readings: readings.std(axis=1, ddof=1),
     "variance": lambda readings: readings.var(axis=1, ddof=1),
     "ln_std_dev": lambda readings: np.log(readings.std(axis=1, ddof=1)),
@@ -234,8 +238,9 @@ def _summarised(table: pd.DataFrame, summary: dict) -> pd.DataFrame:
     """Return each run's statistic of its repeated readings, as the one response a source then analyses.
 
     ``summary["of"]`` names the columns holding a run's readings and ``summary["statistic"]`` is
-    ``"mean"``, ``"std_dev"``, ``"variance"``, ``"ln_std_dev"`` (the natural logarithm of the
-    standard deviation), or one of Taguchi's signal-to-noise ratios in decibels: ``"sn_larger"``
+    ``"mean"``, ``"total"`` (the sum of the readings, as Yates's algorithm takes them),
+    ``"std_dev"``, ``"variance"``, ``"ln_std_dev"`` (the natural logarithm of the standard
+    deviation), or one of Taguchi's signal-to-noise ratios in decibels: ``"sn_larger"``
     (-10 log10 of the mean of 1/y^2), ``"sn_smaller"`` (-10 log10 of the mean of y^2) and
     ``"sn_nominal"`` (10 log10 of the squared mean over the variance). A source that rounds each
     run's value before averaging it gives ``summary["round"]``, the decimals it keeps. A source
@@ -725,13 +730,19 @@ def _made(spec_json: str) -> Any:  # noqa: ANN401 - the library's DesignResult
     """Return the design a specification names, made once however many numbers are read from it.
 
     ``spec["levels"]``, a number or one per factor, gives a factor more than two equally spaced
-    levels, coded -1 to +1, as a three-level factor of a Taguchi array or full factorial has.
+    levels, coded -1 to +1, as a three-level factor of a Taguchi array or full factorial has. Past
+    the alphabet, factors are named X26, X27, and so on, as a screening design for many inputs has.
     """
     spec = json.loads(spec_json)
     levels = spec.get("levels") or 2
     counts = levels if isinstance(levels, list) else [levels] * spec["k"]
     factors = [
-        Factor(name=_LETTERS[i], low=-1, high=1, levels=np.linspace(-1, 1, n).tolist() if n > 2 else None)
+        Factor(
+            name=_LETTERS[i] if i < len(_LETTERS) else f"X{i + 1}",
+            low=-1,
+            high=1,
+            levels=np.linspace(-1, 1, n).tolist() if n > 2 else None,
+        )
         for i, n in enumerate(counts)
     ]
     with warnings.catch_warnings():
@@ -1041,8 +1052,10 @@ def _reproduce(experiment: dict, expected: dict, check: dict, fits: _Fits) -> tu
     if kind in _VALUE_KINDS:
         found = _VALUE_KINDS[kind](experiment, check)
         wanted = str(_ROMAN.get(str(printed).strip(), printed))  # a resolution may be printed as a Roman numeral
-        of_rounded = check.get("of_rounded", 1)
-        return f"{found:.6g}", _agrees(found, wanted, expression=bool(check.get("expression")), of_rounded=of_rounded)
+        of_rounded, decimals = check.get("of_rounded", 1), check.get("decimals")
+        return f"{found:.6g}", _agrees(
+            found, wanted, expression=bool(check.get("expression")), of_rounded=of_rounded, decimals=decimals
+        )
     if kind in _RUN_KINDS:
         found_runs = _RUN_KINDS[kind](experiment, check)
         listed = [int(n) for n in re.findall(r"\d+", str(printed))]
@@ -1054,8 +1067,11 @@ def _reproduce(experiment: dict, expected: dict, check: dict, fits: _Fits) -> tu
     if kind not in _FIT_KINDS:
         raise KeyError(f"No check of the kind {kind!r}.")
     found = float(_FIT_KINDS[kind](out, check, experiment))
+    found = 1 - found if check.get("complement") else found  # a confidence 1 - p, as some software prints it
     expression, of_rounded = bool(check.get("expression")), check.get("of_rounded", 1)
-    return f"{found:.6g}", _agrees(found, str(printed), expression=expression, of_rounded=of_rounded)
+    return f"{found:.6g}", _agrees(
+        found, str(printed), expression=expression, of_rounded=of_rounded, decimals=check.get("decimals")
+    )
 
 
 def _checks(expected: dict) -> list[dict]:

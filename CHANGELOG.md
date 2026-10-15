@@ -33,26 +33,34 @@ those changes.
   smaller-is-better signal-to-noise ratios. Chapter 7: yield searched one factor at a time and by a
   3^2, then by response surface methods: a 2^2 with centre points and its path of steepest ascent, a
   second 2^2 at the best point along it, and the rotatable composite design that completes it, with
-  its stationary point and eigenvalues. Chapter 8, pp. 8-1 to 8-113: the industrial case studies
+  its stationary point and eigenvalues. Chapter 8, pp. 8-1 to 8-228: the industrial case studies
   that print data, among them a 2^(8-4) screening design, a one-way analysis of variance with
   unequal groups, L8 studies of a linear motor, an injection molded part and gold wire bonding, a
   simulated computer network fitted in its inputs' own units (SAS's three regression tables and lack
-  of fit), duplicated 2^3 paper helicopters, lunar concrete in an 18-run D-optimal design, and a
-  duplicated L4 for GaAs doping. 3135 printed numbers, 2860 checked. 223 are recorded as not
-  reproducing, each explained: most come from the book's rounding (run averages and standard
-  deviations that do not follow from their readings, squares of rounded effects, coefficients that
-  are halves of rounded effects, values cut rather than rounded), some are misprints (a wrong sign,
-  two exchanged digits, rows swapped), and the L18: the library stores it (as L18(6^1 3^6)) but its
-  Taguchi design takes 36 runs for one two-level and seven three-level factors. Five tolerances are
-  not recomputed: `evaluate_design` takes the rank of X'X, whose condition number in the factors'
-  own units squares X's, and calls that full-rank model singular. A catalogue check can now analyse
-  each run's mean, standard deviation, ln s or one of Taguchi's signal-to-noise ratios (larger,
-  smaller and nominal is best), or every reading as an observation of its own, in other units than
-  the readings are printed in if need be (`summary`); solve for the setting of a factor at which a
-  fitted line or parabola reaches a target (`target_setting`); compute a Cpk with `calculate_cpk`
-  (`capability`); read a term's tolerance as one over its VIF and its squared correlation with the
-  others as one less that (`reciprocal`, `complement`); read a limit of a prediction's interval
-  (`bound`); check Multiple R and the F ratio of the whole regression with its p-value
+  of fit), duplicated 2^3 paper helicopters, lunar concrete in an 18-run D-optimal design, a
+  duplicated L4 for GaAs doping, an L16 of rubber formulations with seven responses and Design
+  Cube's level effects, a plasma etch central composite design, an 18-run D-optimal design with an
+  outer array, rivet protrusion regressed in four unbalanced blocks, a quarter fraction of a
+  simulated sludge plant, two duplicated Karl Fischer fractions, a 2^4 on circular runout with
+  Q-EDGE's regressions of the readings and their standard deviations, and the run counts of a
+  136-run Plackett-Burman design for 134 inputs and a mixed-level full factorial of 49152 cases.
+  4043 printed numbers, 3659 checked. 317 are recorded as not reproducing, each explained: most come
+  from the book's rounding (run averages and standard deviations that do not follow from their
+  readings, squares of rounded effects, coefficients that are halves of rounded effects, values cut
+  rather than rounded), some are misprints (a wrong sign, two exchanged digits, rows swapped,
+  Yates's algorithm run on totals listed in run order rather than Yates order), and the L18: the
+  library stores it (as L18(6^1 3^6)) but its Taguchi design takes 36 runs for one two-level and
+  seven three-level factors. Five tolerances are not recomputed: `evaluate_design` takes the rank of
+  X'X, whose condition number in the factors' own units squares X's, and calls that full-rank model
+  singular. A catalogue check can now analyse each run's mean, total, standard deviation, ln s or
+  one of Taguchi's signal-to-noise ratios (larger, smaller and nominal is best), or every reading as
+  an observation of its own, in other units than the readings are printed in if need be (`summary`);
+  solve for the setting of a factor at which a fitted line or parabola reaches a target
+  (`target_setting`); compute a Cpk with `calculate_cpk` (`capability`); read a term's tolerance as
+  one over its VIF, and its squared correlation with the others or a confidence printed as 1 - p as
+  one less that (`reciprocal`, `complement`); hold a number that software prints with more digits
+  than its arithmetic carries to fewer decimals (`decimals`); read a limit of a prediction's
+  interval (`bound`); check Multiple R and the F ratio of the whole regression with its p-value
   (`multiple_r`, `f_regression`, `f_regression_p`); find a dispersion effect as ln(s+²/s-²), from
   run standard deviations or from the residuals' spread at each level (`log_variance_ratio`,
   `residual_std_dev`, `residual_log_variance_ratio`); give a number printed as the difference of two
@@ -61,7 +69,8 @@ those changes.
   array whatever the run order, and if need be the order and signs of its columns, a subset of an
   array's columns, or numbers rounded as printed (`same_runs`); read a step of steepest ascent in
   coded units (`units`); check that a printed matrix obeys its printed generators
-  (`generator_holds`); and sum a product of columns (`dot_product`).
+  (`generator_holds`); sum a product of columns (`dot_product`); and make a design for more factors
+  than there are letters.
 
 ### Fixed
 

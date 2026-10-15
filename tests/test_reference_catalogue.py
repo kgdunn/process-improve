@@ -603,3 +603,41 @@ def test_a_variance_component_is_read_from_the_library_reml_fit():
     assert _variance_component(entry, {**check, "key": "residual"}) == pytest.approx(1.25)
     between = (sum((sum(r[1] for r in rows[i : i + 2]) / 2 - 3.5) ** 2 for i in range(0, 8, 2)) / 3) - 1.25 / 2
     assert _variance_component(entry, {**check, "key": "group"}) == pytest.approx(between, abs=1e-6)
+
+
+def test_a_confidence_printed_as_one_less_the_p_value_is_checked_as_its_complement():
+    """Design Cube prints 1 - p as its "Probability"; a fit's check with ``complement`` reads it that way."""
+    entry = _replicated_2x2([(10, 12), (20, 21), (11, 13), (22, 20)])
+    check = {"kind": "anova_p", "term": "A", "model": "A * B", "summary": {"of": ["y1", "y2"], "statistic": "each"}}
+    fits = reference_catalogue._Fits()
+    p = float(reference_catalogue._reproduce(entry, {"value": "0"}, check, fits)[0])
+    confidence = {"value": f"{1 - p:.4f}"}
+    found, agrees = reference_catalogue._reproduce(entry, confidence, {**check, "complement": True}, fits)
+    assert agrees
+    assert float(found) == pytest.approx(1 - p, abs=1e-6)
+
+
+def test_the_total_of_a_runs_readings_is_what_yates_algorithm_takes():
+    """Schmidt and Launsby's Karl Fischer case study prints each run's total of its two readings."""
+    from process_improve.experiments.reference_catalogue import _summarised
+
+    table = pd.DataFrame({"y1": [1.2402, 0.8562], "y2": [1.1005, 0.9602]})
+    total = _summarised(table, {"of": ["y1", "y2"], "statistic": "total"})
+    assert total.iloc[:, 0].tolist() == pytest.approx([2.3407, 1.8164])
+
+
+def test_software_that_prints_more_digits_than_it_carries_is_held_to_fewer():
+    """A fitted value printed -4.70511 by single-precision software, where the fit gives -4.70513."""
+    from process_improve.experiments.reference_catalogue import _agrees
+
+    assert not _agrees(-4.70513, "-4.70511")
+    assert _agrees(-4.70513, "-4.70511", decimals=4)
+    assert not _agrees(-4.7052, "-4.70511", decimals=4)
+
+
+def test_a_design_for_more_factors_than_there_are_letters_is_made():
+    """A Plackett-Burman design for 134 inputs, as Schmidt and Launsby's AIDS model case study screens, has 136 runs."""
+    from process_improve.experiments.reference_catalogue import _design_property
+
+    design = {"design_type": "plackett_burman", "k": 134, "options": {"n_center_points": 0}}
+    assert _design_property({"property": "n_runs", "design": design}) == 136
