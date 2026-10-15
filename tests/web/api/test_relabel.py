@@ -41,6 +41,11 @@ CASES = {
     ),
     "a Plackett-Burman design": ({"design_type": "plackett_burman"}, factors_named(*"ABCDE"), {"E": "Speed"}),
     "a replicated Box-Behnken design": ({"design_type": "box_behnken", "n_replicates": 2}, FACTORS, WORDS),
+    "a Box-Behnken design in blocks that confound no effect": (
+        {"design_type": "box_behnken", "n_blocks": 2},
+        FACTORS,
+        WORDS,
+    ),
     "a rotatable CCD, outside its ranges": ({"design_type": "ccd", "alpha": "rotatable"}, FACTORS, WORDS),
     "a categorical factor": (
         {"design_type": "full_factorial"},
@@ -126,6 +131,20 @@ def test_a_renamed_run_sheet_is_analysed_under_its_new_names(api, design, simula
     got = api.ok("api_analyze_runs", {**held, **analysed})
     assert got == api.ok("api_analyze_runs", {**held_of(after), **analysed})
     assert [c["label"] for c in got["coefficients"]][:4] == ["Intercept", "Temperature", "Pressure", "Feed_rate"]
+
+
+def test_a_run_sheet_read_from_a_workbook_has_no_notes_and_is_renamed_all_the_same(api, design, simulated):
+    """A workbook brings back the runs and the design's specification, not its notes: there are none to rename."""
+    book = api.ok("api_workbook", {**held_of(design), "responses": simulated["responses"]})
+    read = api.ok("api_read_workbook", book)
+    held = {key: read[key] for key in ("spec", "columns", "rows")}
+    renamed = api.ok("api_relabel", {"design": held, "factors": named(FACTORS, WORDS)})
+    assert "facts" not in renamed
+    assert renamed["columns"] == [WORDS.get(c, c) for c in read["columns"]]
+
+    request = {"spec": renamed["spec"], "columns": renamed["columns"], "rows": read["rows"]}
+    analysed = api.ok("api_analyze_runs", {**request, "responses": read["responses"]})
+    assert [c["label"] for c in analysed["coefficients"]][1:4] == ["Temperature", "Pressure", "Feed_rate"]
 
 
 def test_the_terms_a_workbook_was_analysed_with_are_renamed(api, design):
