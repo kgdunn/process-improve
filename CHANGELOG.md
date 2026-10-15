@@ -30,6 +30,20 @@ those changes.
 - **`rename_factors(expression, names)` and `Constraint.renamed(names)`**: rename factors
   inside a limit, all at once (so a swap works), leaving function names such as `sqrt`
   alone, and return the canonical text, which renaming back reproduces.
+- **A limit proposed from the settings that cannot be run.**
+  `separating_constraint(factors, cannot, can)` takes settings that cannot be run (corners
+  of the box, say) and settings that can, and proposes the straight limit that rules out
+  exactly the first, written for a reader in actual units: marking the corners where `T`
+  and `P` are both high, with the centre runnable, gives `"T + 25 * P <= 250"`. The cut is
+  the plane of maximum margin between the two sets, which is unique, so a symmetric pattern
+  gives a symmetric limit and a factor the pattern ignores is left out; its coefficients are
+  rounded to the fewest digits that move them by at most 1% and keep every setting on its
+  side, and the right-hand side is the roundest number in the middle of the gap. When no
+  straight cut separates the sets, `NotSeparableError` (a `ValueError`) names the settings
+  that lie between those of the other set. `constraint_through_cuts(factors, corner, cuts)`
+  writes the limit through a cut on each factor from one corner, in exact arithmetic: from
+  `(200, 3)`, `T` up to 190 and `P` up to 2.5 give `"T + 20 * P <= 250"`. Both run under
+  Pyodide and give the same text on every platform.
 
 ### Fixed
 

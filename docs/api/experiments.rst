@@ -32,6 +32,10 @@ Designed Experiments
 .. automodule:: process_improve.experiments.region
    :members: DesignRegion
 
+.. automodule:: process_improve.experiments.separating
+   :members: separating_constraint, constraint_through_cuts, NotSeparableError
+   :show-inheritance:
+
 .. automodule:: process_improve.experiments.designs_mixture_constrained
    :members: constrained_mixture_design, extreme_vertices, mixture_candidates, mixture_inequalities, scheffe_matrix
 
