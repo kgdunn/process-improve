@@ -5,7 +5,7 @@
 from __future__ import annotations
 
 import math
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any, Literal
@@ -198,6 +198,37 @@ class Constraint(BaseModel):
 
     expression: str
     type: Literal["linear", "nonlinear"] = "linear"
+
+    def renamed(self, names: Mapping[str, str]) -> Constraint:
+        """Return a copy with factors renamed, all at once, so ``{"A": "B", "B": "A"}`` swaps them.
+
+        Parameters
+        ----------
+        names : Mapping[str, str]
+            Old factor name to new factor name. Names the expression does not use are
+            ignored, and function names such as ``sqrt`` are never renamed.
+
+        Returns
+        -------
+        Constraint
+            The same constraint, of the same ``type``, with its expression rewritten in
+            the canonical form ``ast.unparse`` gives (see
+            :func:`~process_improve.experiments.designs_constrained.rename_factors`).
+
+        Raises
+        ------
+        ValueError
+            If the expression is not a valid constraint, a new name is not a valid
+            identifier, or the renaming would merge two factors into one.
+
+        Examples
+        --------
+        >>> Constraint(expression="3*T + 5*D <= 600").renamed({"T": "Temp"}).expression
+        '3 * Temp + 5 * D <= 600'
+        """
+        from process_improve.experiments.designs_constrained import rename_factors  # noqa: PLC0415
+
+        return Constraint(expression=rename_factors(self.expression, names), type=self.type)
 
 
 def as_constraints(constraints: Sequence[Constraint | dict | str] | None) -> list[Constraint] | None:

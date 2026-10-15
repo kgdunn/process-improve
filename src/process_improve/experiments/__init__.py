@@ -9,6 +9,7 @@ from process_improve.experiments.analysis import analyze_experiment
 from process_improve.experiments.augment import augment_design
 from process_improve.experiments.compare import DesignComparison, compare_designs
 from process_improve.experiments.designs import generate_design
+from process_improve.experiments.designs_constrained import rename_factors
 from process_improve.experiments.designs_factorial import full_factorial
 from process_improve.experiments.designs_omars import is_omars, omars_properties
 from process_improve.experiments.designs_omars_ilp import generate_omars
@@ -90,6 +91,7 @@ __all__ = [
     "popcorn",
     "predict",
     "recommend_strategy",
+    "rename_factors",
     "summary",
     "supplement",
     "trade_off_table",
