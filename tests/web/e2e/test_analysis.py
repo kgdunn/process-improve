@@ -9,7 +9,17 @@ from __future__ import annotations
 
 import re
 
-from tests.web.e2e._page import calls, choose, generate, headers, practise, settled, status, type_results
+from tests.web.e2e._page import (
+    calls,
+    choose,
+    definition,
+    generate,
+    headers,
+    practise,
+    settled,
+    status,
+    type_results,
+)
 
 
 def coefficient_rows(page) -> list[list[str]]:
@@ -31,10 +41,7 @@ def test_each_estimate_stands_beside_its_true_value(page, first_paint):
     rows = coefficient_rows(page)
     assert [row[0] for row in rows] == [c["label"] for c in analysis["coefficients"]]
     assert [float(row[-1]) for row in rows] == [c["true_value"] for c in analysis["coefficients"]]
-    tip = page.locator("#analysis table th button.tip")
-    assert tip.get_attribute("aria-label") == "About true value", "the column's definition, on request"
-    tip.click()
-    shown = page.locator(".tip-text:popover-open").text_content()
+    shown = definition(page, '#analysis table th .term[data-term="true-value"]')
     assert shown.startswith("What the coefficient estimates for the process the results were simulated from")
 
 
@@ -58,7 +65,7 @@ def test_a_saturated_two_level_design_is_judged_with_lenth_s_method(blank_page):
     text = page.text_content("#analysis")
     assert "Effects, judged with Lenth's method" in text
     assert re.search(r"PSE = [-\d.]+; ME = [-\d.]+; SME = [-\d.]+\.", text)
-    assert "Each effect is twice its coefficient" in text, "the method's definition, behind a ? in its heading"
+    assert definition(page, '#analysis h3 .term[data-term="effect"]').endswith("twice its coefficient.")
     assert "Predicted R² cannot be computed: at least one run cannot be predicted from the others" in text
     lenth = page.locator("#analysis table").nth(1)
     assert lenth.locator("thead th").all_text_contents() == ["Term", "Effect", "Beyond ME", "Beyond SME"]

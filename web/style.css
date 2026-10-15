@@ -110,7 +110,7 @@ section {
 
 /* A short message at the foot of the screen, over the page: a link or code copied. */
 .toast {
-  position: fixed; left: 50%; bottom: calc(20px + env(safe-area-inset-bottom)); z-index: 10;
+  pointer-events: none; position: fixed; left: 50%; bottom: calc(20px + env(safe-area-inset-bottom)); z-index: 10;
   width: max-content; max-width: calc(100vw - 32px); padding: 10px 16px; border-radius: 8px;
   background: var(--fg); color: var(--bg); font-size: 0.92rem; box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25);
   opacity: 0; transform: translate(-50%, 8px); transition: opacity 0.25s ease, transform 0.25s ease;
@@ -159,27 +159,33 @@ section {
 .stale p { margin: 4px 0; }
 .equation { font-family: ui-monospace, "SFMono-Regular", Menlo, monospace; overflow-wrap: anywhere; }
 .row { display: flex; flex-wrap: wrap; gap: 16px; margin: 12px 0; }
-.row > label, .row > .field { display: flex; flex-direction: column; gap: 4px; font-size: 0.9rem; min-width: 0; max-width: 100%; }
+.row > label { display: flex; flex-direction: column; gap: 4px; font-size: 0.9rem; min-width: 0; max-width: 100%; }
 [hidden] { display: none !important; }
 
-/* A definition on request: a small "?" beside its term opens the definition under it, over the page, and a
-   click elsewhere, Escape or the page scrolling closes it. The "?" is drawn here, so a heading's text is the
-   term alone; the button's name says what it is about. A box with a "?" is a .field: its label and the "?"
-   on one line, the box under them. */
-.field__name { display: inline-flex; align-items: center; }
-.tip {
-  display: inline-grid; place-items: center; flex: none; width: 20px; height: 20px; margin: 0 0 0 6px; padding: 0;
-  border: 1px solid var(--line); border-radius: 50%; background: var(--panel); color: var(--muted);
-  font: 700 0.72rem/1 system-ui, -apple-system, "Segoe UI", sans-serif; vertical-align: 0.1em; cursor: help;
+/* A word with a definition: a dotted underline, and its definition in a small pop-up beside it on a press
+   and hold, a hover or keyboard focus (terms.js). A word that stands alone is a button, drawn as the word. */
+.term {
+  text-decoration: underline dotted color-mix(in srgb, currentColor 55%, transparent); text-decoration-thickness: 1px;
+  text-underline-offset: 3px; cursor: help;
 }
-.tip::before { content: "?"; }
-.tip:hover, .tip:focus-visible, .tip[data-open] { color: var(--accent); border-color: var(--accent); }
-.tip-text {
-  position: fixed; inset: auto; margin: 0; width: max-content; max-width: min(20rem, calc(100vw - 16px));
-  padding: 8px 12px; border: 1px solid var(--line); border-radius: 8px; background: var(--panel); color: var(--fg);
-  box-shadow: 0 6px 20px rgb(0 0 0 / 0.18); font: 400 0.88rem/1.45 system-ui, -apple-system, "Segoe UI", sans-serif;
+button.term {
+  display: inline; margin: 0; padding: 0; border: none; border-radius: 3px; background: none; color: inherit;
+  font: inherit; text-align: inherit; letter-spacing: inherit; text-transform: inherit;
+}
+button.term:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.term.shown { background: color-mix(in srgb, var(--accent) 16%, transparent); border-radius: 3px; }
+/* A finger resting on a word opens its definition, so the word is not also selected, nor a link's menu opened. */
+@media (pointer: coarse) {
+  .term, a:has(.term) { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
+}
+.term-tip {
+  position: fixed; inset: auto; margin: 0; width: max-content; max-width: min(19rem, calc(100vw - 16px));
+  padding: 8px 12px; border: none; border-radius: 8px; background: var(--fg); color: var(--bg);
+  box-shadow: 0 6px 20px rgb(0 0 0 / 0.25); font: 400 0.88rem/1.45 system-ui, -apple-system, "Segoe UI", sans-serif;
   text-align: left; text-transform: none; letter-spacing: normal; white-space: normal;
 }
+/* One that follows the keyboard is read, not touched: it never stands in the way of a click. */
+.term-tip[data-how="keyboard"] { pointer-events: none; }
 /* The terms a reader ticks for the model: one group per kind of term, wrapping on a phone. */
 .terms { border: 1px solid var(--line); border-radius: 6px; padding: 8px 12px; margin: 0 0 12px; max-width: 100%; }
 .terms legend { font-size: 0.9rem; padding: 0 4px; }
@@ -373,7 +379,7 @@ label.inline { display: flex; flex-direction: column; gap: 4px; font-size: 0.9re
 .with-unit { display: inline-flex; align-items: center; gap: 6px; }
 .with-unit .unit { color: var(--muted); font-size: 0.9rem; }
 .known { margin: 6px 0 0; }
-.known .row > label, .known .row > .field { flex: 1 1 9rem; }
+.known .row > label { flex: 1 1 9rem; }
 
 /* What the study is to learn: one choice, each with what it means. */
 .aims { display: grid; gap: 8px; margin: 6px 0 4px; }

@@ -90,6 +90,8 @@ import {
 } from "./campaign.js";
 import { analyseCode, compareCode, cumulative, designCode, notebook, resultsCode } from "./python.js";
 import { forgetCampaign, saveCampaign, savedCampaigns } from "./store.js";
+import { GLOSSARY, MARKED } from "./glossary.js";
+import { installTerms, marked, term } from "./terms.js";
 
 // Where Process Improvement using Data explains each design, method and measure the page uses.
 const BOOK = "https://learnche.org/pid/design-analysis-experiments";
@@ -553,9 +555,11 @@ function showAim() {
   const aim = currentAim();
   const p = aimTerms(factors, aim);
   const screening = !aimChosen && aim === "main_effects" && factors.length >= SCREEN_FROM;
-  $("#aim-terms").textContent = factors.length
-    ? `${p} coefficients, the intercept included.${screening ? ` With ${SCREEN_FROM} factors or more, a study starts by finding which matter.` : ""}`
-    : "";
+  const box = $("#aim-terms");
+  box.replaceChildren();
+  if (!factors.length) return;
+  box.append(`${p} `, term("coefficients", { key: "coefficient", alone: true }), ", the intercept included.");
+  if (screening) box.append(` With ${SCREEN_FROM} factors or more, a study starts by finding which matter.`);
 }
 
 // ---------------------------------------------------------------- the design
@@ -564,6 +568,13 @@ function showAim() {
 let budgetEdited = false;
 let resolutionEdited = false;
 let designChosen = false; // the reader chose the design, or a study opened with one; else Plan picks it
+
+/** What a design type is, as the design list says under it. */
+const designHint = (designType) =>
+  [...$("#design-type").options].find((o) => o.value === designType)?.dataset.hint ?? "";
+
+/** The glossary's entry for each kind of term power is reckoned for. */
+const KIND_TERMS = { main: "main-effect", interaction: "interaction", quadratic: "square" };
 
 /** A design type's name as the design list gives it. */
 function designLabel(designType) {
@@ -792,7 +803,7 @@ function renderDesign(warnings = state.designWarnings ?? []) {
     const outside = r.outside_range?.length
       ? ` Some runs of ${r.outside_range.join(", ")} lie outside the ranges you entered; check they are safe to run.`
       : "";
-    parts.push(el("p", "", `${r.n_runs} runs${centre}, in random run order.${outside}`), ...noteList(r.facts.notes));
+    parts.push(said("", `${r.n_runs} runs${centre}, in random run order.${outside}`), ...noteList(r.facts.notes));
   } else {
     parts.push(el("p", "", `${r.rows.length} runs, read from the workbook.`));
   }
@@ -912,28 +923,31 @@ function candidateList(c, current) {
   if (fitting.length) {
     const t = el("table", "data pick", "");
     const info = readResponseInfo();
-    const [spareTip, spareNote] = tip(
-      "spare runs",
-      `The runs left once the model's ${c.result.terms.length} coefficients are fitted: they estimate the ` +
+    const heading = (word, span = {}) => {
+      const th = Object.assign(el("th", "", ""), span);
+      th.append(word);
+      return th;
+    };
+    // What spare runs and power are depends on the brief: the model's size, and the change worth finding.
+    const spare = term("Spare runs", {
+      alone: true,
+      definition:
+        `The runs left once the model's ${c.result.terms.length} coefficients are fitted: they estimate the ` +
         `run-to-run noise. Fewer than ${SPARE_FOR_NOISE} are marked.`,
-    );
-    const [powerTip, powerNote] = tip(
-      "power",
-      `The chance that the analysis finds ${changeWords(info)} from a factor's low setting to its high one, at ` +
+    });
+    const power = term(`Power to find ${changeWords(info)}`, {
+      alone: true,
+      definition:
+        `The chance that the analysis finds ${changeWords(info)} from a factor's low setting to its high one, at ` +
         `the ${Math.round(100 * c.result.significance_level)}% level.` +
         (powerScale(info) ? "" : " To set your own, give the noise and the change under What you know of it already."),
-    );
-    const heading = (text, span = {}) => Object.assign(el("th", "", text), span);
+    });
     const head = el("tr", "", "");
-    const spare = heading("Spare runs", { rowSpan: 2 });
-    spare.append(spareTip);
-    head.append(heading("Design", { rowSpan: 2 }), heading("Runs", { rowSpan: 2 }), spare);
+    head.append(heading("Design", { rowSpan: 2 }), heading("Runs", { rowSpan: 2 }), heading(spare, { rowSpan: 2 }));
     const sub = el("tr", "", "");
     if (kinds.length) {
-      const power = heading(`Power to find ${changeWords(info)}`, { colSpan: kinds.length });
-      power.append(powerTip);
-      head.append(power);
-      for (const [, words] of kinds) sub.append(el("th", "", words));
+      head.append(heading(power, { colSpan: kinds.length }));
+      for (const [kind, words] of kinds) sub.append(heading(term(words, { key: KIND_TERMS[kind], alone: true })));
     }
     const thead = el("thead", "", "");
     thead.append(head, ...(kinds.length ? [sub] : []));
@@ -948,7 +962,7 @@ function candidateList(c, current) {
       radio.name = "candidate";
       radio.value = r.design_type;
       radio.disabled = !current;
-      label.append(radio, r.label);
+      label.append(radio, term(r.label, { definition: designHint(r.design_type) }));
       name.append(label);
       tr.append(name, el("td", "", String(r.runs)), el("td", r.spare < SPARE_FOR_NOISE ? "low" : "", String(r.spare)));
       for (const [kind] of kinds) tr.append(el("td", "", percent(r.power[kind])));
@@ -958,7 +972,7 @@ function candidateList(c, current) {
     t.append(thead, tbody);
     const wrap = el("div", "scroll", "");
     wrap.append(t);
-    parts.push(wrap, spareNote, powerNote);
+    parts.push(wrap);
   }
   const unfit = rows.filter((r) => !r.fits);
   if (unfit.length) parts.push(el("p", "hint", `${listNames(unfit.map((r) => r.label))} cannot fit this model.`));
@@ -1060,8 +1074,13 @@ function renderComparison(result, made, notes) {
     }
     const tr = el("tr", "", "");
     const name = el("td", "", "");
-    name.append(m.group === "Feasibility" ? m.label : link(BOOK_PAGES.measures, m.label));
-    name.title = m.description;
+    if (m.group === "Feasibility") {
+      name.append(term(m.label, { definition: m.description, alone: true }));
+    } else {
+      const to = link(BOOK_PAGES.measures, "");
+      to.append(term(m.label, { definition: m.description }));
+      name.append(to);
+    }
     tr.append(name, el("td", "arrow", m.direction === "higher" ? "↑" : m.direction === "lower" ? "↓" : ""));
     for (const label of result.designs) tr.append(el("td", "", result.display[label][row]));
     tbody.append(tr);
@@ -1117,7 +1136,9 @@ async function drawComparison(result, k) {
       "that cannot fit the model has no curve. ",
   );
   caption.append(link(BOOK_PAGES.fds, "Reading an FDS plot"));
-  fds.append(el("h3", "", "Fraction of design space (FDS)"), fdsPlot, caption);
+  const fdsTitle = el("h3", "", "");
+  fdsTitle.append(term("Fraction of design space (FDS)", { key: "fds", alone: true }));
+  fds.append(fdsTitle, fdsPlot, caption);
   box.append(fds);
   try {
     await draw(fdsPlot, fdsFigure(result.fds), version, 380);
@@ -1125,7 +1146,9 @@ async function drawComparison(result, k) {
       const { terms, matrix } = result.correlations[label];
       const card = el("figure", "chart", "");
       const plot = el("div", "plot", "");
-      card.append(el("h3", "", `Correlation map, ${label}`), plot);
+      const title = el("h3", "", "");
+      title.append(term("Correlation map", { key: "correlation-map", alone: true }), `, ${label}`);
+      card.append(title, plot);
       box.append(card);
       await draw(plot, () => correlationFigure(terms, matrix, k), version, 320);
     }
@@ -1173,7 +1196,7 @@ function renderRuns() {
   const factorUnits = Object.fromEntries(d.spec.factors.map((f) => [f.name, f.units ?? ""]));
   const headings = d.columns.map((c) => (c === response ? label : c));
   const colUnits = d.columns.map((c) => (c === response ? units : (factorUnits[c] ?? "")));
-  renderTable(t, headings, rows, "Run order", colUnits);
+  renderTable(t, headings, rows, "Run order", colUnits, { "Std order": "std-order", "Run order": "run-order", Block: "blocks" });
   t.oninput = (e) => {
     const input = e.target.closest("input[data-index]");
     if (!input) return;
@@ -1414,7 +1437,7 @@ function renderAnalysis(reply) {
   showPython("analyse", analyseCode(r.formula ?? r.model, state.responses.every((v) => v !== null)));
   const parts = [
     el("p", "equation", r.equation),
-    el("p", "hint", "In coded units: -1 is each factor's low setting, +1 its high one."),
+    said("hint", "In coded units."),
     ...noteList(fitStatistics(s, r.n_completed, r.pending_runs), "fit"),
     ...noteList(r.notes),
     ...warningList(reply.warnings),
@@ -1430,44 +1453,43 @@ function renderAnalysis(reply) {
         ...(simulated ? [fmt(c.true_value)] : []),
       ]),
       {
-        "True value":
-          "What the coefficient estimates for the process the results were simulated from: the estimate the " +
-          "same fit gives without noise.",
+        Coefficient: "coefficient",
+        "Std. error": "std-error",
+        "95% interval": "interval",
+        "p-value": "p-value",
+        "True value": "true-value",
       },
     ),
   ];
   if (r.lenth) {
-    const heading = el("h3", "", "Effects, judged with ");
-    const [lenthTip, lenthNote] = tip(
-      "Lenth's method",
-      "Each effect is twice its coefficient: the change from the factor's low setting to its high one. PSE is the " +
-        "pseudo standard error, and ME and SME are the margins of error for one effect and for all of them at once.",
-    );
-    heading.append(link(BOOK_PAGES.lenth, "Lenth's method"), lenthTip);
+    const heading = el("h3", "", "");
+    heading.append(term("Effects", { key: "effect", alone: true }), ", judged with ", link(BOOK_PAGES.lenth, "Lenth's method"));
     parts.push(
       heading,
-      lenthNote,
-      el("p", "hint", `PSE = ${fmt(r.lenth.PSE)}; ME = ${fmt(r.lenth.ME)}; SME = ${fmt(r.lenth.SME)}.`),
+      said("hint", `PSE = ${fmt(r.lenth.PSE)}; ME = ${fmt(r.lenth.ME)}; SME = ${fmt(r.lenth.SME)}.`),
       table(
         ["Term", "Effect", "Beyond ME", "Beyond SME"],
         r.lenth.effects.map((e) => [e.label, fmt(e.effect), e.active_ME ? "yes" : "no", e.active_SME ? "yes" : "no"]),
+        { Effect: "effect", "Beyond ME": "me", "Beyond SME": "sme" },
       ),
     );
   }
   if (r.anova.length) {
+    const heading = el("h3", "", "");
+    heading.append(term("ANOVA", { key: "anova", alone: true }));
     parts.push(
-      el("h3", "", "ANOVA"),
+      heading,
       table(
         ["Source", "df", "Sum of squares", "F", "p-value"],
         r.anova.map((a) => [a.source, a.df, fmt(a.sum_sq), fmt(a.F), pval(a.p_value)]),
+        { df: "df", "Sum of squares": "sum-of-squares", F: "f-value", "p-value": "p-value" },
       ),
     );
   }
   const lof = r.lack_of_fit;
   if (lof && lof.p_value !== null && lof.p_value !== undefined) {
     parts.push(
-      el(
-        "p",
+      said(
         "",
         `Lack of fit: F = ${fmt(lof.f_statistic)}, p = ${pval(lof.p_value)} ` +
           `(pure error from the replicated runs: ${lof.df_pure_error} degree${lof.df_pure_error === 1 ? "" : "s"} of freedom).`,
@@ -1528,10 +1550,15 @@ function setModel(model) {
 }
 
 // ---------------------------------------------------------------- charts
+/** The glossary's entry for a chart's title, where it has one. */
+const CHART_TERMS = { contour: "response-surface", true_contour: "true-process", residuals: "residuals", half_normal: "half-normal" };
+
 function chartCard(key, caption, wide = false) {
   const card = el("figure", wide ? "chart wide" : "chart", "");
   const plot = el("div", "plot", "");
-  card.append(el("h3", "", TITLES[key]), plot, ...(caption ? [el("figcaption", "hint", caption)] : []));
+  const title = el("h3", "", CHART_TERMS[key] ? "" : TITLES[key]);
+  if (CHART_TERMS[key]) title.append(term(TITLES[key], { key: CHART_TERMS[key], alone: true }));
+  card.append(title, plot, ...(caption ? [el("figcaption", "hint", caption)] : []));
   return { card, plot };
 }
 
@@ -1561,7 +1588,8 @@ function coefficientCard(analysis, simulated) {
     ["estimates", "Estimates"],
     ["pareto", "Pareto plot"],
   ].map(([view, text]) => {
-    const button = el("button", "", text);
+    const button = el("button", "", "");
+    button.append(view === "pareto" ? term(text, { key: "pareto" }) : text);
     button.type = "button";
     button.dataset.view = view;
     return button;
@@ -2215,8 +2243,19 @@ async function readManifest() {
 function noteList(notes, cls = "facts") {
   if (!notes || !notes.length) return [];
   const list = el("ul", cls, "");
-  list.append(...notes.map((note) => el("li", "", note)));
+  for (const note of notes) {
+    const item = el("li", "", "");
+    item.append(...marked(note, MARKED));
+    list.append(item);
+  }
   return [list];
+}
+
+/** A paragraph of `text`, its glossary words marked. */
+function said(cls, text) {
+  const p = el("p", cls, "");
+  p.append(...marked(text, MARKED));
+  return p;
 }
 
 /** The library's warnings for a call, set apart from the result, or nothing. */
@@ -2241,67 +2280,13 @@ function link(href, text, target = "pid-book") {
   return a;
 }
 
-/**
- * A table of results; `tips` gives a column's definition, opened from a "?" in its heading. The
- * definitions follow the table, so a heading's text stays its name.
- */
-function table(columns, rows, tips = {}) {
+/** A table of results; `terms` names the glossary entry of a column whose heading is a term. */
+function table(columns, rows, terms = {}) {
   const wrap = el("div", "scroll", "");
   const t = el("table", "data", "");
-  renderTable(t, columns, rows);
+  renderTable(t, columns, rows, null, [], terms);
   wrap.append(t);
-  for (const [i, name] of columns.entries()) {
-    if (!tips[name]) continue;
-    const [button, note] = tip(name.toLowerCase(), tips[name]);
-    t.tHead.rows[0].cells[i].append(button);
-    wrap.append(note);
-  }
   return wrap;
-}
-
-// ---------------------------------------------------------------- definitions on request
-let openTip = null; // the definition on show, if any
-let tipCount = 0;
-
-/**
- * Show a definition under the "?" that opened it, inside the window: above it when there is no
- * room below. It is placed once, as it opens; scrolling closes it rather than leave it behind.
- */
-function placeTip(note) {
-  const button = document.querySelector(`[popovertarget="${note.id}"]`);
-  if (!button) return;
-  const at = button.getBoundingClientRect();
-  const { offsetWidth: w, offsetHeight: h } = note;
-  const below = at.bottom + 6;
-  note.style.left = `${Math.max(8, Math.min(at.left + at.width / 2 - w / 2, innerWidth - w - 8))}px`;
-  note.style.top = `${below + h <= innerHeight - 8 ? below : Math.max(8, at.top - 6 - h)}px`;
-}
-
-/** Make a definition (an element with the popover attribute) open in place, and its "?" show that it is open. */
-function wireTip(note) {
-  note.addEventListener("toggle", (e) => {
-    const open = e.newState === "open";
-    openTip = open ? note : openTip === note ? null : openTip;
-    document.querySelector(`[popovertarget="${note.id}"]`)?.toggleAttribute("data-open", open);
-    if (open) placeTip(note);
-  });
-}
-
-/**
- * A "?" that opens a definition of `term`: the page says what a term means once, on request,
- * rather than in a sentence under every box. Returns the button, to go beside the term, and the
- * definition, to go anywhere near it: it opens over the page.
- */
-function tip(term, text) {
-  const note = el("span", "tip-text", text);
-  note.id = `tip-${++tipCount}`;
-  note.popover = "auto";
-  wireTip(note);
-  const button = el("button", "tip", "");
-  button.type = "button";
-  button.setAttribute("popovertarget", note.id);
-  button.setAttribute("aria-label", `About ${term}`);
-  return [button, note];
 }
 
 /**
@@ -2312,11 +2297,12 @@ function tip(term, text) {
  * gives each column's units, shown under its heading; a table may give
  * `t._cell(row, col)` to draw a cell itself (the run sheet's inputs).
  */
-function renderTable(t, columns, rows, sortedBy = null, units = []) {
+function renderTable(t, columns, rows, sortedBy = null, units = [], terms = {}) {
   const head = columns
     .map((c, i) => {
       const unit = units[i] ? `<span class="col-unit">${escape(units[i])}</span>` : "";
-      return `<th aria-sort="${c === sortedBy ? "ascending" : "none"}"><button type="button" class="sort" data-col="${i}">${escape(c)}</button>${unit}</th>`;
+      const name = terms[c] ? `<span class="term" data-term="${terms[c]}">${escape(c)}</span>` : escape(c);
+      return `<th aria-sort="${c === sortedBy ? "ascending" : "none"}"><button type="button" class="sort" data-col="${i}">${name}</button>${unit}</th>`;
     })
     .join("");
   t.innerHTML = `<thead><tr>${head}</tr></thead><tbody></tbody>`;
@@ -2384,10 +2370,17 @@ systemDark.addEventListener("change", () => {
 applyMode(MODES.includes(document.documentElement.dataset.mode) ? document.documentElement.dataset.mode : "auto");
 
 // ---------------------------------------------------------------- wiring
-for (const note of document.querySelectorAll(".tip-text[popover]")) wireTip(note);
-// A definition opens where its "?" was, so it closes when anything under it scrolls, or the window changes size.
-document.addEventListener("scroll", () => openTip?.hidePopover(), { capture: true, passive: true });
-window.addEventListener("resize", () => openTip?.hidePopover());
+installTerms(GLOSSARY);
+// A press and hold is not something a page shows, so a touch screen is told of it once, on a first visit.
+const TERMS_HINTED = "factorial-terms-hinted";
+try {
+  if (window.matchMedia("(pointer: coarse)").matches && !localStorage.getItem(TERMS_HINTED)) {
+    localStorage.setItem(TERMS_HINTED, "yes");
+    setTimeout(() => toast("Press and hold a dotted word to see what it means."), 1500);
+  }
+} catch {
+  /* storage refused: no hint, rather than one on every visit */
+}
 // The study bar stays at the top as the page scrolls; the brief beside it starts below it.
 new ResizeObserver(([entry]) => {
   document.documentElement.style.setProperty("--bar-height", `${Math.ceil(entry.borderBoxSize[0].blockSize)}px`);

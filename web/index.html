@@ -106,7 +106,7 @@
       <section id="response-card" class="card" aria-labelledby="h-response">
         <h2 id="h-response">What will you measure?</h2>
         <div class="row">
-          <label class="grow">Response
+          <label class="grow"><span class="term" data-term="response">Response</span>
             <input id="response" maxlength="64" placeholder="Yield" autocomplete="off" spellcheck="false">
           </label>
           <label>Units
@@ -126,24 +126,16 @@
         <details id="response-known" class="known">
           <summary>What you know of it already</summary>
           <div class="row">
-            <label>Typical value
+            <label><span class="term" data-term="typical">Typical value</span>
               <span class="with-unit"><input id="response-typical" type="number" step="any"><span class="unit"></span></span>
             </label>
-            <div class="field">
-              <span class="field__name"><label for="response-noise">Run-to-run noise</label><button type="button"
-                class="tip" popovertarget="tip-noise" aria-label="About the run-to-run noise"></button></span>
-              <span class="with-unit"><input id="response-noise" type="number" min="0" step="any" aria-describedby="tip-noise"><span class="unit"></span></span>
-            </div>
-            <div class="field">
-              <span class="field__name"><label for="response-change">Smallest change worth finding</label><button
-                type="button" class="tip" popovertarget="tip-change" aria-label="About the smallest change worth finding"></button></span>
-              <span class="with-unit"><input id="response-change" type="number" min="0" step="any" aria-describedby="tip-change"><span class="unit"></span></span>
-            </div>
+            <label><span class="term" data-term="noise">Run-to-run noise</span>
+              <span class="with-unit"><input id="response-noise" type="number" min="0" step="any"><span class="unit"></span></span>
+            </label>
+            <label><span class="term" data-term="change">Smallest change worth finding</span>
+              <span class="with-unit"><input id="response-change" type="number" min="0" step="any"><span class="unit"></span></span>
+            </label>
           </div>
-          <p id="tip-noise" class="tip-text" popover>The standard deviation of repeats of one run. Practice results
-            are simulated with it, around the typical value.</p>
-          <p id="tip-change" class="tip-text" popover>A change from a factor's low setting to its high one. Each
-            design's power is its chance of finding a change this size.</p>
         </details>
         <p id="response-problems" class="hint error" role="status" hidden></p>
       </section>
@@ -156,13 +148,10 @@
         </table>
         <p id="factor-problems" class="hint error" role="status" hidden></p>
         <p class="add-factors">
-          <button type="button" id="add-factor" class="link">+ Add factor</button>
-          <span class="field__name"><button type="button" id="add-categorical" class="link">+ Add categorical
-            factor</button><button type="button" class="tip" popovertarget="tip-categorical"
-            aria-label="About categorical factors"></button></span>
+          <button type="button" id="add-factor" class="link">+ Add <span class="term" data-term="factor">factor</span></button>
+          <button type="button" id="add-categorical" class="link">+ Add <span class="term"
+            data-term="categorical">categorical factor</span></button>
         </p>
-        <p id="tip-categorical" class="tip-text" popover>A factor with two labels rather than a range, such as
-          supplier A and B: the first is coded -1, the second +1. Only the two-level designs take one.</p>
       </section>
 
       <section id="aim-card" class="card" aria-labelledby="h-aim">
@@ -171,13 +160,16 @@
              tests/web/page/test_parity.py keeps them in step. -->
         <div class="aims" role="radiogroup" aria-labelledby="h-aim">
           <label class="aim"><input type="radio" name="aim" value="main_effects"><span><strong>Which factors
-            matter</strong><span class="hint">Main effects</span></span></label>
+            matter</strong><span class="hint"><span class="term" data-term="main-effect">Main effects</span></span></span></label>
           <label class="aim"><input type="radio" name="aim" value="interactions"><span><strong>Which matter, and how
-            they act together</strong><span class="hint">Main effects and two-factor interactions</span></span></label>
+            they act together</strong><span class="hint">Main effects and <span class="term"
+            data-term="interaction">two-factor interactions</span></span></span></label>
           <label class="aim"><input type="radio" name="aim" value="main_quadratic" checked><span><strong>Where each
-            factor's effect curves</strong><span class="hint">Main effects and squares, the book's model</span></span></label>
+            factor's effect curves</strong><span class="hint">Main effects and <span class="term"
+            data-term="square">squares</span>, the book's model</span></span></label>
           <label class="aim"><input type="radio" name="aim" value="quadratic"><span><strong>The whole response
-            surface</strong><span class="hint">The full quadratic model</span></span></label>
+            surface</strong><span class="hint">The <span class="term" data-term="quadratic">full quadratic
+            model</span></span></span></label>
         </div>
         <p id="aim-terms" class="hint"></p>
       </section>
@@ -222,10 +214,10 @@
           <p id="design-hint" class="hint"></p>
 
           <div class="row" id="options">
-            <label data-option="n_center_points">Center points
+            <label data-option="n_center_points"><span class="term" data-term="center-points">Center points</span>
               <input id="n_center_points" type="number" min="0" max="10" value="3">
             </label>
-            <label data-option="alpha">Axial points
+            <label data-option="alpha"><span class="term" data-term="axial">Axial points</span>
               <select id="alpha">
                 <option value="face_centered">Face-centred (inside the ranges)</option>
                 <option value="rotatable">Rotatable (outside the ranges)</option>
@@ -238,7 +230,7 @@
               <span id="alpha-hint" class="hint">How far each axial run lies from the center along its factor, where the
                 factorial runs are at -1 and +1.</span>
             </label>
-            <label data-option="resolution">Resolution
+            <label data-option="resolution"><span class="term" data-term="resolution">Resolution</span>
               <select id="resolution">
                 <option value="3">III: main effects aliased with two-factor interactions</option>
                 <option value="4" selected>IV: main effects clear of two-factor interactions</option>
@@ -249,20 +241,12 @@
               <input id="budget" type="number" min="3" max="200" aria-describedby="budget-hint">
               <span id="budget-hint" class="hint"></span>
             </label>
-            <div class="field" data-option="n_replicates">
-              <span class="field__name"><label for="n_replicates">Replicates</label><button type="button" class="tip"
-                popovertarget="replicates-hint" aria-label="About replicates"></button></span>
-              <input id="n_replicates" type="number" min="1" max="10" value="1" aria-describedby="replicates-hint">
-              <span id="replicates-hint" class="tip-text" popover>Each run but the center runs is made this many
-                times.</span>
-            </div>
-            <div class="field" data-option="n_blocks">
-              <span class="field__name"><label for="n_blocks">Blocks</label><button type="button" class="tip"
-                popovertarget="blocks-hint" aria-label="About blocks"></button></span>
-              <input id="n_blocks" type="number" min="1" max="8" value="1" aria-describedby="blocks-hint">
-              <span id="blocks-hint" class="tip-text" popover>Groups of runs made in like conditions, such as a day or
-                a batch of raw material. 1 for none.</span>
-            </div>
+            <label data-option="n_replicates"><span class="term" data-term="replicates">Replicates</span>
+              <input id="n_replicates" type="number" min="1" max="10" value="1">
+            </label>
+            <label data-option="n_blocks"><span class="term" data-term="blocks">Blocks</span>
+              <input id="n_blocks" type="number" min="1" max="8" value="1">
+            </label>
             <label data-option="model_type">Model to design for
               <select id="model_type">
                 <option value="quadratic">Quadratic</option>
@@ -311,7 +295,7 @@
           </div>
           <div id="panel-simulate" role="tabpanel" aria-labelledby="tab-simulate" hidden>
             <div class="row">
-              <label>True process
+              <label><span class="term" data-term="true-process">True process</span>
                 <!-- Mirrors bootstrap.SCENARIOS (label, hint); tests/web/page/test_parity.py keeps them in step. -->
                 <select id="scenario" autocomplete="off">
                   <option value="reactor" selected data-hint="Two strong main effects, an interaction between them, and curvature in the third factor.">Reactor yield</option>
@@ -322,7 +306,7 @@
                   <option value="random" data-hint="Two or three active factors drawn at random, with an interaction or curvature; new noise draws a new process.">A random process</option>
                 </select>
               </label>
-              <label>Noise (standard deviation)
+              <label><span class="term" data-term="noise">Noise</span> (standard deviation)
                 <span class="with-unit"><input id="sigma" type="number" min="0.01" step="any" value="1"><span class="unit" id="sigma-unit"></span></span>
               </label>
             </div>
@@ -375,10 +359,7 @@
           </label>
         </div>
         <fieldset id="terms" class="terms" hidden>
-          <legend>Terms in the model<button type="button" class="tip" popovertarget="terms-hint"
-            aria-label="About the terms in the model"></button></legend>
-          <p id="terms-hint" class="tip-text" popover>The intercept is always in. A term the design cannot tell apart
-            from another is estimated with it, as their sum.</p>
+          <legend><button type="button" class="term" data-term="model-terms">Terms in the model</button></legend>
           <div id="term-list"></div>
         </fieldset>
         <div id="analysis" hidden></div>

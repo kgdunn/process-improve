@@ -178,3 +178,14 @@ def sort_by(page: Any, column: str, table: str = "#design-table") -> None:  # no
 def last_reply(page: Any, fn: str) -> dict:  # noqa: ANN401
     """Return the last reply the page got from ``fn``, as the harness recorded it."""
     return page.evaluate("(fn) => window.__pi.replies.filter((r) => r.fn === fn).at(-1).reply", fn)
+
+
+def definition(page: Any, word: str) -> str:  # noqa: ANN401 - a Playwright Page
+    """Rest the mouse on a dotted word and return the definition that opens beside it, then close it."""
+    reveal(page, word)
+    page.hover(word)
+    tip = page.locator(".term-tip")
+    tip.wait_for(state="visible")
+    text = tip.text_content()
+    page.keyboard.press("Escape")
+    return text
