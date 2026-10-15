@@ -200,6 +200,42 @@ class Constraint(BaseModel):
     type: Literal["linear", "nonlinear"] = "linear"
 
 
+def as_constraints(constraints: Sequence[Constraint | dict | str] | None) -> list[Constraint] | None:
+    """Accept constraints as ``Constraint`` objects, their dict form or bare expressions.
+
+    The dict form is what a JSON round trip of a ``Constraint`` gives, for example the
+    ``design_params`` of a stage from ``recommend_strategy``.
+
+    Parameters
+    ----------
+    constraints : Sequence[Constraint | dict | str] or None
+        The constraints in any of the three forms, mixed freely.
+
+    Returns
+    -------
+    list[Constraint] or None
+        One ``Constraint`` per item, in order; ``None`` when ``constraints`` is ``None``.
+
+    Raises
+    ------
+    TypeError
+        For an item that is none of the three forms.
+    """
+    if constraints is None:
+        return None
+    out: list[Constraint] = []
+    for c in constraints:
+        if isinstance(c, Constraint):
+            out.append(c)
+        elif isinstance(c, dict):
+            out.append(Constraint(**c))
+        elif isinstance(c, str):
+            out.append(Constraint(expression=c))
+        else:
+            raise TypeError(f"A constraint must be a Constraint, a dict or an expression string; got {c!r}.")
+    return out
+
+
 class ResponseGoal(str, Enum):
     """Goal direction for a response variable."""
 

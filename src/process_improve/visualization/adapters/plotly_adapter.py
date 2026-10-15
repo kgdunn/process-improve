@@ -316,8 +316,10 @@ class PlotlyAdapter(AbstractAdapter):
         }
 
         # Only forward the optional keys when set: passing zmin/zmax of None
-        # would override plotly's own auto-ranging.
-        for key in ("zmin", "zmax", "ncontours"):
+        # would override plotly's own auto-ranging. ``fillcolor`` shades the
+        # excluded side of a constraint contour (``contours.type`` "constraint"),
+        # and ``hoverinfo`` "skip" keeps such a layer out of the hover labels.
+        for key in ("zmin", "zmax", "ncontours", "fillcolor", "hoverinfo"):
             value = layer.style.get(key)
             if value is not None:
                 trace_kwargs[key] = value
