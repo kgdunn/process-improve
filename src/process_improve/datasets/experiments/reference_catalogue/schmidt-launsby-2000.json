@@ -1,8 +1,7 @@
 {
  "schema": 1,
  "about": [
-  "Part of the reference catalogue: designed experiments from chapters 1 and 2 of Schmidt and Launsby,",
-  "Understanding Industrial Designed Experiments, for testing that software reproduces them. source: the citation,",
+  "Part of the reference catalogue: designed experiments and designs from chapters 1 to 3 of Schmidt and Launsby,Understanding Industrial Designed Experiments, for testing that software reproduces them. source: the citation,",
   "with what was read and when. experiments: each worked example with data (factors, responses, runs exactly as",
   "printed, in the printed order), where it is printed, and expected: every number the book prints for it, as",
   "printed text, with where it is printed (a page and a quotation) and check: how to recompute it, or manual, the",
@@ -12,7 +11,9 @@
   "the readings), and the book's tables of averages at each level are worked from the columns the book worked",
   "from, which each entry's notes name. The book prints each effect Δ as the difference of the two averages it has",
   "rounded, so an effect's check carries of_rounded: 2, the rounding of both. design.treatment_factors counts the factors varied as treatments: 0 for",
-  "a record, 1 for a one-factor comparison. designs: fractions whose generators and aliases the book states.",
+  "a record, 1 for a one-factor comparison. designs: the printed design matrices and the fractions, arrays and run",
+  "counts the book states; a printed matrix is held in coded units, its axial distance as the symbol it prints, and",
+  "compared with the design the library makes (same_runs), whatever the run order.",
   "not_captured: what in these pages is not an experiment with data. Read with",
   "process_improve.experiments.reference_catalogue.reference_experiments; tests/test_reference_catalogue.py",
   "recomputes every number that has a check."
@@ -26,13 +27,13 @@
   "editor": "Mark J. Kiemele",
   "title": "Understanding Industrial Designed Experiments",
   "edition": "4th edition; the printing whose copyright page lists 1988, 1990, 1992, 1994, 1997, 1998 and 2000",
-  "pages": "chapters 1 and 2, pp. 1-1 to 1-74 and 2-1 to 2-57",
+  "pages": "chapters 1 to 3, pp. 1-1 to 1-74, 2-1 to 2-57 and 3-1 to 3-62",
   "year": 2000,
   "publisher": "Air Academy Press, Colorado Springs",
   "isbn": "1-880156-03-2",
   "url": "https://search.worldcat.org/search?q=bn:1880156032",
   "cite": "Schmidt, S. R. and Launsby, R. G. (2000), Understanding Industrial Designed Experiments, 4th edition, edited by M. J. Kiemele, Air Academy Press",
-  "read": "2026-10-15, from scans of the front matter and contents and chapters 1 and 2 (pp. 1-1 to 1-74 and 2-1 to 2-57); every number copied by hand, Tables 1.13, 2.15, 2.19, 2.22, 2.23 and 2.24 and Figure 3 of p. 1-60 read again from the page image at 300 to 450 dpi, and the twenty weekly mileages of 1.12 read from Figures 1.20 and 1.21",
+  "read": "2026-10-15, from scans of the front matter and contents and chapters 1 to 3 (pp. 1-1 to 1-74, 2-1 to 2-57 and 3-1 to 3-62); every number copied by hand, Tables 1.13, 2.15, 2.19, 2.22, 2.23, 2.24, 3.11, 3.31 and 3.33, the fractions of pp. 3-16 and 3-17 and Figure 3 of p. 1-60 read again from the page image at 300 to 450 dpi, and the twenty weekly mileages of 1.12 read from Figures 1.20 and 1.21",
   "rights": "The book is protected by copyright (© 1988 to 2000 Air Academy Press & Associates) and is not reproduced here. This file holds facts it reports (numbers, layouts, data) and short quotations that locate each one, for citation and for checking software. The MIT licence of process-improve does not extend to them."
  },
  "experiments": [
@@ -13880,6 +13881,9742 @@
      }
     }
    ]
+  },
+  {
+   "name": "schmidt-table-3-2-orthogonal",
+   "title": "Three factors in four runs, balanced and orthogonal",
+   "kind": "design",
+   "where": {
+    "section": "3.1",
+    "pages": "3-1 to 3-3",
+    "tables": [
+     "Table 3.1",
+     "Table 3.2"
+    ],
+    "figures": []
+   },
+   "factors": [
+    {
+     "name": "A",
+     "description": "column A",
+     "low": -1,
+     "high": 1,
+     "units": "",
+     "type": "numeric"
+    },
+    {
+     "name": "B",
+     "description": "column B",
+     "low": -1,
+     "high": 1,
+     "units": "",
+     "type": "numeric"
+    },
+    {
+     "name": "C",
+     "description": "column C",
+     "low": -1,
+     "high": 1,
+     "units": "",
+     "type": "numeric"
+    }
+   ],
+   "responses": [],
+   "design": {
+    "type": "2^(3-1) fractional factorial",
+    "details": "three two-level factors in four runs; Table 3.1 holds the same runs in actual settings",
+    "n_runs": 4,
+    "treatment_factors": 3
+   },
+   "runs": {
+    "columns": [
+     "No.",
+     "A",
+     "B",
+     "C"
+    ],
+    "rows": [
+     [
+      1,
+      1,
+      1,
+      1
+     ],
+     [
+      2,
+      1,
+      -1,
+      -1
+     ],
+     [
+      3,
+      -1,
+      1,
+      -1
+     ],
+     [
+      4,
+      -1,
+      -1,
+      1
+     ]
+    ],
+    "coded": true,
+    "notes": "Table 3.2a; Table 3.1's actual settings (A 20 or 10, B 800 or 600, C 50 or 30) code to it by Equation 3.1"
+   },
+   "expected": [
+    {
+     "what": "design matrix",
+     "term": null,
+     "value": "4",
+     "analysis": "the four runs are the half fraction with C = AB, which the library makes",
+     "where": {
+      "page": "3-1",
+      "source_kind": "prose",
+      "quote": "Table 3.1 contains 3 factors and 4 runs"
+     },
+     "check": {
+      "kind": "same_runs",
+      "design": {
+       "design_type": "fractional_factorial",
+       "k": 3,
+       "options": {
+        "generators": [
+         "C=AB"
+        ],
+        "n_center_points": 0
+       }
+      }
+     }
+    },
+    {
+     "what": "dot product",
+     "term": "sum of A",
+     "value": "0",
+     "analysis": "the column's sum: zero for a balanced column",
+     "where": {
+      "page": "3-3",
+      "source_kind": "prose",
+      "quote": "A design of n runs is considered to be balanced vertically when the coded values ... sum to zero ... The reader should verify that the design in Table 3.2 is balanced and orthogonal."
+     },
+     "check": {
+      "kind": "dot_product",
+      "columns": [
+       "A"
+      ]
+     }
+    },
+    {
+     "what": "dot product",
+     "term": "sum of B",
+     "value": "0",
+     "analysis": "the column's sum: zero for a balanced column",
+     "where": {
+      "page": "3-3",
+      "source_kind": "prose",
+      "quote": "A design of n runs is considered to be balanced vertically when the coded values ... sum to zero ... The reader should verify that the design in Table 3.2 is balanced and orthogonal."
+     },
+     "check": {
+      "kind": "dot_product",
+      "columns": [
+       "B"
+      ]
+     }
+    },
+    {
+     "what": "dot product",
+     "term": "sum of C",
+     "value": "0",
+     "analysis": "the column's sum: zero for a balanced column",
+     "where": {
+      "page": "3-3",
+      "source_kind": "prose",
+      "quote": "A design of n runs is considered to be balanced vertically when the coded values ... sum to zero ... The reader should verify that the design in Table 3.2 is balanced and orthogonal."
+     },
+     "check": {
+      "kind": "dot_product",
+      "columns": [
+       "C"
+      ]
+     }
+    },
+    {
+     "what": "dot product",
+     "term": "A·B",
+     "value": "0",
+     "analysis": "the sum of the products of the two columns: zero for orthogonal columns",
+     "where": {
+      "page": "3-3",
+      "source_kind": "prose",
+      "quote": "the dot product of all possible column pairs is zero ... The reader should verify that the design in Table 3.2 is balanced and orthogonal."
+     },
+     "check": {
+      "kind": "dot_product",
+      "columns": [
+       "A",
+       "B"
+      ]
+     }
+    },
+    {
+     "what": "dot product",
+     "term": "A·C",
+     "value": "0",
+     "analysis": "the sum of the products of the two columns: zero for orthogonal columns",
+     "where": {
+      "page": "3-3",
+      "source_kind": "prose",
+      "quote": "the dot product of all possible column pairs is zero ... The reader should verify that the design in Table 3.2 is balanced and orthogonal."
+     },
+     "check": {
+      "kind": "dot_product",
+      "columns": [
+       "A",
+       "C"
+      ]
+     }
+    },
+    {
+     "what": "dot product",
+     "term": "B·C",
+     "value": "0",
+     "analysis": "the sum of the products of the two columns: zero for orthogonal columns",
+     "where": {
+      "page": "3-3",
+      "source_kind": "prose",
+      "quote": "the dot product of all possible column pairs is zero ... The reader should verify that the design in Table 3.2 is balanced and orthogonal."
+     },
+     "check": {
+      "kind": "dot_product",
+      "columns": [
+       "B",
+       "C"
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "name": "schmidt-table-3-3-aliased",
+   "title": "A balanced matrix that is not orthogonal: columns B and C are the same",
+   "kind": "design",
+   "where": {
+    "section": "3.1",
+    "pages": "3-3 to 3-4",
+    "tables": [
+     "Table 3.3"
+    ],
+    "figures": []
+   },
+   "factors": [
+    {
+     "name": "A",
+     "description": "column A",
+     "low": -1,
+     "high": 1,
+     "units": "",
+     "type": "numeric"
+    },
+    {
+     "name": "B",
+     "description": "column B",
+     "low": -1,
+     "high": 1,
+     "units": "",
+     "type": "numeric"
+    },
+    {
+     "name": "C",
+     "description": "column C",
+     "low": -1,
+     "high": 1,
+     "units": "",
+     "type": "numeric"
+    }
+   ],
+   "responses": [],
+   "design": {
+    "type": "two-level design matrix",
+    "details": "four runs, three columns, B and C aliased",
+    "n_runs": 4,
+    "treatment_factors": 3
+   },
+   "runs": {
+    "columns": [
+     "No.",
+     "A",
+     "B",
+     "C"
+    ],
+    "rows": [
+     [
+      1,
+      1,
+      1,
+      1
+     ],
+     [
+      2,
+      1,
+      -1,
+      -1
+     ],
+     [
+      3,
+      -1,
+      1,
+      1
+     ],
+     [
+      4,
+      -1,
+      -1,
+      -1
+     ]
+    ],
+    "coded": true,
+    "notes": "as printed, in coded units"
+   },
+   "expected": [
+    {
+     "what": "dot product",
+     "term": "B·C",
+     "value": "4",
+     "where": {
+      "page": "3-4",
+      "source_kind": "prose",
+      "quote": "Notice that the B and C dot product in Table 3.3 equals 4, not 0"
+     },
+     "check": {
+      "kind": "dot_product",
+      "columns": [
+       "B",
+       "C"
+      ]
+     }
+    },
+    {
+     "what": "dot product",
+     "term": "sum of A",
+     "value": "0",
+     "analysis": "the column's sum: zero for a balanced column",
+     "where": {
+      "page": "3-3",
+      "source_kind": "prose",
+      "quote": "Designs for 2-level factors that exhibit only vertical balance will not be orthogonal (see Table 3.3)"
+     },
+     "check": {
+      "kind": "dot_product",
+      "columns": [
+       "A"
+      ]
+     }
+    },
+    {
+     "what": "dot product",
+     "term": "sum of B",
+     "value": "0",
+     "analysis": "the column's sum: zero for a balanced column",
+     "where": {
+      "page": "3-3",
+      "source_kind": "prose",
+      "quote": "Designs for 2-level factors that exhibit only vertical balance will not be orthogonal (see Table 3.3)"
+     },
+     "check": {
+      "kind": "dot_product",
+      "columns": [
+       "B"
+      ]
+     }
+    },
+    {
+     "what": "dot product",
+     "term": "sum of C",
+     "value": "0",
+     "analysis": "the column's sum: zero for a balanced column",
+     "where": {
+      "page": "3-3",
+      "source_kind": "prose",
+      "quote": "Designs for 2-level factors that exhibit only vertical balance will not be orthogonal (see Table 3.3)"
+     },
+     "check": {
+      "kind": "dot_product",
+      "columns": [
+       "C"
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "name": "schmidt-table-3-4-partially-confounded",
+   "title": "A balanced, non-orthogonal matrix without aliased columns",
+   "kind": "design",
+   "where": {
+    "section": "3.1",
+    "pages": "3-4 to 3-5",
+    "tables": [
+     "Table 3.4"
+    ],
+    "figures": []
+   },
+   "factors": [
+    {
+     "name": "A",
+     "description": "column A",
+     "low": -1,
+     "high": 1,
+     "units": "",
+     "type": "numeric"
+    },
+    {
+     "name": "B",
+     "description": "column B",
+     "low": -1,
+     "high": 1,
+     "units": "",
+     "type": "numeric"
+    },
+    {
+     "name": "C",
+     "description": "column C",
+     "low": -1,
+     "high": 1,
+     "units": "",
+     "type": "numeric"
+    },
+    {
+     "name": "D",
+     "description": "column D",
+     "low": -1,
+     "high": 1,
+     "units": "",
+     "type": "numeric"
+    }
+   ],
+   "responses": [],
+   "design": {
+    "type": "two-level design matrix",
+    "details": "ten runs, four columns, every pair partially correlated",
+    "n_runs": 10,
+    "treatment_factors": 4
+   },
+   "runs": {
+    "columns": [
+     "No.",
+     "A",
+     "B",
+     "C",
+     "D"
+    ],
+    "rows": [
+     [
+      1,
+      1,
+      -1,
+      -1,
+      -1
+     ],
+     [
+      2,
+      -1,
+      1,
+      -1,
+      -1
+     ],
+     [
+      3,
+      -1,
+      -1,
+      1,
+      -1
+     ],
+     [
+      4,
+      -1,
+      -1,
+      -1,
+      1
+     ],
+     [
+      5,
+      1,
+      1,
+      1,
+      1
+     ],
+     [
+      6,
+      -1,
+      1,
+      1,
+      1
+     ],
+     [
+      7,
+      1,
+      -1,
+      1,
+      1
+     ],
+     [
+      8,
+      1,
+      1,
+      -1,
+      1
+     ],
+     [
+      9,
+      1,
+      1,
+      1,
+      -1
+     ],
+     [
+      10,
+      -1,
+      -1,
+      -1,
+      -1
+     ]
+    ],
+    "coded": true,
+    "notes": "as printed, in coded units"
+   },
+   "notes": "The book also says each dot product of two columns is not zero; it prints none of them (A and B give 2).",
+   "expected": [
+    {
+     "what": "dot product",
+     "term": "sum of A",
+     "value": "0",
+     "analysis": "the column's sum: zero for a balanced column",
+     "where": {
+      "page": "3-4",
+      "source_kind": "prose",
+      "quote": "the design in Table 3.4 is a vertically balanced, non-orthogonal design without any two vectors (or columns) identical"
+     },
+     "check": {
+      "kind": "dot_product",
+      "columns": [
+       "A"
+      ]
+     }
+    },
+    {
+     "what": "dot product",
+     "term": "sum of B",
+     "value": "0",
+     "analysis": "the column's sum: zero for a balanced column",
+     "where": {
+      "page": "3-4",
+      "source_kind": "prose",
+      "quote": "the design in Table 3.4 is a vertically balanced, non-orthogonal design without any two vectors (or columns) identical"
+     },
+     "check": {
+      "kind": "dot_product",
+      "columns": [
+       "B"
+      ]
+     }
+    },
+    {
+     "what": "dot product",
+     "term": "sum of C",
+     "value": "0",
+     "analysis": "the column's sum: zero for a balanced column",
+     "where": {
+      "page": "3-4",
+      "source_kind": "prose",
+      "quote": "the design in Table 3.4 is a vertically balanced, non-orthogonal design without any two vectors (or columns) identical"
+     },
+     "check": {
+      "kind": "dot_product",
+      "columns": [
+       "C"
+      ]
+     }
+    },
+    {
+     "what": "dot product",
+     "term": "sum of D",
+     "value": "0",
+     "analysis": "the column's sum: zero for a balanced column",
+     "where": {
+      "page": "3-4",
+      "source_kind": "prose",
+      "quote": "the design in Table 3.4 is a vertically balanced, non-orthogonal design without any two vectors (or columns) identical"
+     },
+     "check": {
+      "kind": "dot_product",
+      "columns": [
+       "D"
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "name": "schmidt-table-3-5-l9",
+   "title": "An orthogonal design for four factors at three levels in nine runs",
+   "kind": "design",
+   "where": {
+    "section": "3.1",
+    "pages": "3-5 to 3-6",
+    "tables": [
+     "Table 3.5"
+    ],
+    "figures": []
+   },
+   "factors": [
+    {
+     "name": "A",
+     "description": "column A",
+     "low": -1,
+     "high": 1,
+     "units": "",
+     "type": "numeric",
+     "levels": [
+      -1,
+      0,
+      1
+     ]
+    },
+    {
+     "name": "B",
+     "description": "column B",
+     "low": -1,
+     "high": 1,
+     "units": "",
+     "type": "numeric",
+     "levels": [
+      -1,
+      0,
+      1
+     ]
+    },
+    {
+     "name": "C",
+     "description": "column C",
+     "low": -1,
+     "high": 1,
+     "units": "",
+     "type": "numeric",
+     "levels": [
+      -1,
+      0,
+      1
+     ]
+    },
+    {
+     "name": "D",
+     "description": "column D",
+     "low": -1,
+     "high": 1,
+     "units": "",
+     "type": "numeric",
+     "levels": [
+      -1,
+      0,
+      1
+     ]
+    }
+   ],
+   "responses": [],
+   "design": {
+    "type": "3^(4-2) fractional factorial (L9)",
+    "details": "nine runs, four three-level factors",
+    "n_runs": 9,
+    "treatment_factors": 4
+   },
+   "runs": {
+    "columns": [
+     "No.",
+     "A",
+     "B",
+     "C",
+     "D"
+    ],
+    "rows": [
+     [
+      1,
+      -1,
+      -1,
+      -1,
+      -1
+     ],
+     [
+      2,
+      -1,
+      0,
+      0,
+      0
+     ],
+     [
+      3,
+      -1,
+      1,
+      1,
+      1
+     ],
+     [
+      4,
+      0,
+      -1,
+      0,
+      1
+     ],
+     [
+      5,
+      0,
+      0,
+      1,
+      -1
+     ],
+     [
+      6,
+      0,
+      1,
+      -1,
+      0
+     ],
+     [
+      7,
+      1,
+      -1,
+      1,
+      0
+     ],
+     [
+      8,
+      1,
+      0,
+      -1,
+      1
+     ],
+     [
+      9,
+      1,
+      1,
+      0,
+      -1
+     ]
+    ],
+    "coded": true,
+    "notes": "as printed, in coded units"
+   },
+   "expected": [
+    {
+     "what": "design matrix",
+     "term": null,
+     "value": "9",
+     "analysis": "the library's Taguchi design for four three-level factors, the L9",
+     "where": {
+      "page": "3-6",
+      "source_kind": "table",
+      "quote": "Table 3.5 Example of an Orthogonal Design for 4 Factors, Each at 3 Levels"
+     },
+     "check": {
+      "kind": "same_runs",
+      "design": {
+       "design_type": "taguchi",
+       "k": 4,
+       "options": {},
+       "levels": 3
+      }
+     }
+    }
+   ]
+  },
+  {
+   "name": "schmidt-table-3-7-2-3",
+   "title": "The 2^3 full factorial in coded units",
+   "kind": "design",
+   "where": {
+    "section": "3.2",
+    "pages": "3-6 to 3-8",
+    "tables": [
+     "Table 3.6",
+     "Table 3.7"
+    ],
+    "figures": [
+     "Figure 3.1"
+    ]
+   },
+   "factors": [
+    {
+     "name": "A",
+     "description": "column A",
+     "low": -1,
+     "high": 1,
+     "units": "",
+     "type": "numeric"
+    },
+    {
+     "name": "B",
+     "description": "column B",
+     "low": -1,
+     "high": 1,
+     "units": "",
+     "type": "numeric"
+    },
+    {
+     "name": "C",
+     "description": "column C",
+     "low": -1,
+     "high": 1,
+     "units": "",
+     "type": "numeric"
+    }
+   ],
+   "responses": [],
+   "design": {
+    "type": "2^3 full factorial",
+    "details": "every combination of three two-level factors",
+    "n_runs": 8,
+    "treatment_factors": 3
+   },
+   "runs": {
+    "columns": [
+     "No.",
+     "A",
+     "B",
+     "C"
+    ],
+    "rows": [
+     [
+      1,
+      -1,
+      -1,
+      -1
+     ],
+     [
+      2,
+      -1,
+      -1,
+      1
+     ],
+     [
+      3,
+      -1,
+      1,
+      -1
+     ],
+     [
+      4,
+      -1,
+      1,
+      1
+     ],
+     [
+      5,
+      1,
+      -1,
+      -1
+     ],
+     [
+      6,
+      1,
+      -1,
+      1
+     ],
+     [
+      7,
+      1,
+      1,
+      -1
+     ],
+     [
+      8,
+      1,
+      1,
+      1
+     ]
+    ],
+    "coded": true,
+    "notes": "Table 3.7's A, B and C columns; its AB, AC, BC and ABC columns are their products"
+   },
+   "expected": [
+    {
+     "what": "design matrix",
+     "term": null,
+     "value": "8",
+     "where": {
+      "page": "3-7",
+      "source_kind": "table",
+      "quote": "Table 3.7 Coded Design Matrix for a Full Factorial of 3 Factors Each at 2 Levels (2^3 Design)"
+     },
+     "check": {
+      "kind": "same_runs",
+      "design": {
+       "design_type": "full_factorial",
+       "k": 3,
+       "options": {
+        "n_center_points": 0
+       }
+      }
+     }
+    },
+    {
+     "what": "effects",
+     "term": null,
+     "value": "7",
+     "where": {
+      "page": "3-7",
+      "source_kind": "prose",
+      "quote": "In this example, a total of 7 effects can be analyzed in 8 runs"
+     },
+     "check": {
+      "manual": "n - 1 orthogonal columns of an 8-run design, the seven of Table 3.6; the runs are checked"
+     }
+    },
+    {
+     "what": "n_runs",
+     "term": null,
+     "value": "128",
+     "where": {
+      "page": "3-8",
+      "source_kind": "prose",
+      "quote": "A full factorial for 7 factors, each at 2 levels, is 2^7 or 128 runs"
+     },
+     "check": {
+      "kind": "design_property",
+      "property": "n_runs",
+      "design": {
+       "design_type": "full_factorial",
+       "k": 7,
+       "options": {
+        "n_center_points": 0
+       }
+      }
+     }
+    }
+   ]
+  },
+  {
+   "name": "schmidt-table-3-8-3-3",
+   "title": "The 3^3 full factorial in coded units",
+   "kind": "design",
+   "where": {
+    "section": "3.2",
+    "pages": "3-8 to 3-9",
+    "tables": [
+     "Table 3.8"
+    ],
+    "figures": [
+     "Figure 3.2"
+    ]
+   },
+   "factors": [
+    {
+     "name": "A",
+     "description": "column A",
+     "low": -1,
+     "high": 1,
+     "units": "",
+     "type": "numeric",
+     "levels": [
+      -1,
+      0,
+      1
+     ]
+    },
+    {
+     "name": "B",
+     "description": "column B",
+     "low": -1,
+     "high": 1,
+     "units": "",
+     "type": "numeric",
+     "levels": [
+      -1,
+      0,
+      1
+     ]
+    },
+    {
+     "name": "C",
+     "description": "column C",
+     "low": -1,
+     "high": 1,
+     "units": "",
+     "type": "numeric",
+     "levels": [
+      -1,
+      0,
+      1
+     ]
+    }
+   ],
+   "responses": [],
+   "design": {
+    "type": "3^3 full factorial",
+    "details": "every combination of three three-level factors",
+    "n_runs": 27,
+    "treatment_factors": 3
+   },
+   "runs": {
+    "columns": [
+     "No.",
+     "A",
+     "B",
+     "C"
+    ],
+    "rows": [
+     [
+      1,
+      1,
+      1,
+      1
+     ],
+     [
+      2,
+      1,
+      1,
+      0
+     ],
+     [
+      3,
+      1,
+      1,
+      -1
+     ],
+     [
+      4,
+      1,
+      0,
+      1
+     ],
+     [
+      5,
+      1,
+      0,
+      0
+     ],
+     [
+      6,
+      1,
+      0,
+      -1
+     ],
+     [
+      7,
+      1,
+      -1,
+      1
+     ],
+     [
+      8,
+      1,
+      -1,
+      0
+     ],
+     [
+      9,
+      1,
+      -1,
+      -1
+     ],
+     [
+      10,
+      0,
+      1,
+      1
+     ],
+     [
+      11,
+      0,
+      1,
+      0
+     ],
+     [
+      12,
+      0,
+      1,
+      -1
+     ],
+     [
+      13,
+      0,
+      0,
+      1
+     ],
+     [
+      14,
+      0,
+      0,
+      0
+     ],
+     [
+      15,
+      0,
+      0,
+      -1
+     ],
+     [
+      16,
+      0,
+      -1,
+      1
+     ],
+     [
+      17,
+      0,
+      -1,
+      0
+     ],
+     [
+      18,
+      0,
+      -1,
+      -1
+     ],
+     [
+      19,
+      -1,
+      1,
+      1
+     ],
+     [
+      20,
+      -1,
+      1,
+      0
+     ],
+     [
+      21,
+      -1,
+      1,
+      -1
+     ],
+     [
+      22,
+      -1,
+      0,
+      1
+     ],
+     [
+      23,
+      -1,
+      0,
+      0
+     ],
+     [
+      24,
+      -1,
+      0,
+      -1
+     ],
+     [
+      25,
+      -1,
+      -1,
+      1
+     ],
+     [
+      26,
+      -1,
+      -1,
+      0
+     ],
+     [
+      27,
+      -1,
+      -1,
+      -1
+     ]
+    ],
+    "coded": true,
+    "notes": "as printed, in coded units"
+   },
+   "expected": [
+    {
+     "what": "design matrix",
+     "term": null,
+     "value": "27",
+     "where": {
+      "page": "3-9",
+      "source_kind": "table",
+      "quote": "Table 3.8 Full Factorial for 3 Factors, Each at 3 Levels"
+     },
+     "check": {
+      "kind": "same_runs",
+      "design": {
+       "design_type": "full_factorial",
+       "k": 3,
+       "options": {
+        "n_center_points": 0
+       },
+       "levels": 3
+      }
+     }
+    },
+    {
+     "what": "n_runs",
+     "term": null,
+     "value": "27",
+     "where": {
+      "page": "3-8",
+      "source_kind": "prose",
+      "quote": "For 3 factors, each with 3 levels, a full factorial design consists of 3^3 = 27 runs"
+     },
+     "check": {
+      "kind": "design_property",
+      "property": "n_runs",
+      "design": {
+       "design_type": "full_factorial",
+       "k": 3,
+       "options": {
+        "n_center_points": 0
+       },
+       "levels": 3
+      }
+     }
+    },
+    {
+     "what": "n_runs",
+     "term": null,
+     "value": "2187",
+     "where": {
+      "page": "3-8",
+      "source_kind": "prose",
+      "quote": "a full factorial for 7 factors, each at 3 levels, is 3^7 or 2187 runs"
+     },
+     "check": {
+      "kind": "design_property",
+      "property": "n_runs",
+      "design": {
+       "design_type": "full_factorial",
+       "k": 7,
+       "options": {
+        "n_center_points": 0
+       },
+       "levels": 3
+      }
+     }
+    }
+   ]
+  },
+  {
+   "name": "schmidt-table-3-9-2-4-1",
+   "title": "Four factors in eight runs: the half fraction D = ABC and its aliasing pattern",
+   "kind": "design",
+   "where": {
+    "section": "3.3",
+    "pages": "3-10 to 3-13",
+    "tables": [
+     "Table 3.9",
+     "Table 3.10"
+    ],
+    "figures": []
+   },
+   "factors": [
+    {
+     "name": "A",
+     "description": "column A",
+     "low": -1,
+     "high": 1,
+     "units": "",
+     "type": "numeric"
+    },
+    {
+     "name": "B",
+     "description": "column B",
+     "low": -1,
+     "high": 1,
+     "units": "",
+     "type": "numeric"
+    },
+    {
+     "name": "C",
+     "description": "column C",
+     "low": -1,
+     "high": 1,
+     "units": "",
+     "type": "numeric"
+    },
+    {
+     "name": "D",
+     "description": "column D",
+     "low": -1,
+     "high": 1,
+     "units": "",
+     "type": "numeric"
+    }
+   ],
+   "responses": [],
+   "design": {
+    "type": "2^(4-1) fractional factorial",
+    "details": "half fraction with D = ABC",
+    "n_runs": 8,
+    "treatment_factors": 4
+   },
+   "runs": {
+    "columns": [
+     "No.",
+     "A",
+     "B",
+     "C",
+     "D"
+    ],
+    "rows": [
+     [
+      1,
+      -1,
+      -1,
+      -1,
+      -1
+     ],
+     [
+      2,
+      -1,
+      -1,
+      1,
+      1
+     ],
+     [
+      3,
+      -1,
+      1,
+      -1,
+      1
+     ],
+     [
+      4,
+      -1,
+      1,
+      1,
+      -1
+     ],
+     [
+      5,
+      1,
+      -1,
+      -1,
+      1
+     ],
+     [
+      6,
+      1,
+      -1,
+      1,
+      -1
+     ],
+     [
+      7,
+      1,
+      1,
+      -1,
+      -1
+     ],
+     [
+      8,
+      1,
+      1,
+      1,
+      1
+     ]
+    ],
+    "coded": true,
+    "notes": "as printed, in coded units"
+   },
+   "expected": [
+    {
+     "what": "design matrix",
+     "term": null,
+     "value": "8",
+     "where": {
+      "page": "3-10",
+      "source_kind": "prose",
+      "quote": "a fractional factorial can be accomplished in 2^4/2 or 2^(4-1) = 8 runs"
+     },
+     "check": {
+      "kind": "same_runs",
+      "design": {
+       "design_type": "fractional_factorial",
+       "k": 4,
+       "options": {
+        "generators": [
+         "D=ABC"
+        ],
+        "n_center_points": 0
+       }
+      }
+     }
+    },
+    {
+     "what": "generators",
+     "term": null,
+     "value": "D = ABC",
+     "where": {
+      "page": "3-11",
+      "source_kind": "table",
+      "quote": "Table 3.9 A 2^(4-1) Fractional Factorial Design Matrix ... D=ABC"
+     },
+     "check": {
+      "kind": "generator_holds"
+     }
+    },
+    {
+     "what": "n_runs",
+     "term": null,
+     "value": "16",
+     "where": {
+      "page": "3-10",
+      "source_kind": "prose",
+      "quote": "The full factorial for k = 4 requires 2^4 = 16 runs"
+     },
+     "check": {
+      "kind": "design_property",
+      "property": "n_runs",
+      "design": {
+       "design_type": "full_factorial",
+       "k": 4,
+       "options": {
+        "n_center_points": 0
+       }
+      }
+     }
+    },
+    {
+     "what": "defining_relation",
+     "term": null,
+     "value": "ABCD",
+     "where": {
+      "page": "3-11",
+      "source_kind": "math",
+      "quote": "the relation I = ABCD is referred to as the defining relation"
+     },
+     "check": {
+      "kind": "defining_relation",
+      "k": 4,
+      "generators": [
+       "D=ABC"
+      ]
+     }
+    },
+    {
+     "what": "aliases",
+     "term": "AB",
+     "value": "CD",
+     "where": {
+      "page": "3-11",
+      "source_kind": "math",
+      "quote": "AB(I) = AB(ABCD) = A^2B^2CD = IICD = CD; therefore, AB = CD"
+     },
+     "check": {
+      "kind": "aliases",
+      "k": 4,
+      "generators": [
+       "D=ABC"
+      ],
+      "term": "AB"
+     }
+    },
+    {
+     "what": "aliases",
+     "term": "A",
+     "value": "BCD",
+     "where": {
+      "page": "3-12",
+      "source_kind": "table",
+      "quote": "Table 3.10 Aliasing Pattern for a 2^(4-1) Fractional Factorial Design with Generator D = ABC ... A BCD"
+     },
+     "check": {
+      "kind": "aliases",
+      "k": 4,
+      "generators": [
+       "D=ABC"
+      ],
+      "term": "A"
+     }
+    },
+    {
+     "what": "aliases",
+     "term": "B",
+     "value": "ACD",
+     "where": {
+      "page": "3-12",
+      "source_kind": "table",
+      "quote": "Table 3.10 Aliasing Pattern for a 2^(4-1) Fractional Factorial Design with Generator D = ABC ... B ACD"
+     },
+     "check": {
+      "kind": "aliases",
+      "k": 4,
+      "generators": [
+       "D=ABC"
+      ],
+      "term": "B"
+     }
+    },
+    {
+     "what": "aliases",
+     "term": "C",
+     "value": "ABD",
+     "where": {
+      "page": "3-12",
+      "source_kind": "table",
+      "quote": "Table 3.10 Aliasing Pattern for a 2^(4-1) Fractional Factorial Design with Generator D = ABC ... C ABD"
+     },
+     "check": {
+      "kind": "aliases",
+      "k": 4,
+      "generators": [
+       "D=ABC"
+      ],
+      "term": "C"
+     }
+    },
+    {
+     "what": "aliases",
+     "term": "D",
+     "value": "ABC",
+     "where": {
+      "page": "3-12",
+      "source_kind": "table",
+      "quote": "Table 3.10 Aliasing Pattern for a 2^(4-1) Fractional Factorial Design with Generator D = ABC ... D ABC"
+     },
+     "check": {
+      "kind": "aliases",
+      "k": 4,
+      "generators": [
+       "D=ABC"
+      ],
+      "term": "D"
+     }
+    },
+    {
+     "what": "aliases",
+     "term": "AB",
+     "value": "CD",
+     "where": {
+      "page": "3-12",
+      "source_kind": "table",
+      "quote": "Table 3.10 Aliasing Pattern for a 2^(4-1) Fractional Factorial Design with Generator D = ABC ... AB CD"
+     },
+     "check": {
+      "kind": "aliases",
+      "k": 4,
+      "generators": [
+       "D=ABC"
+      ],
+      "term": "AB"
+     }
+    },
+    {
+     "what": "aliases",
+     "term": "AC",
+     "value": "BD",
+     "where": {
+      "page": "3-12",
+      "source_kind": "table",
+      "quote": "Table 3.10 Aliasing Pattern for a 2^(4-1) Fractional Factorial Design with Generator D = ABC ... AC BD"
+     },
+     "check": {
+      "kind": "aliases",
+      "k": 4,
+      "generators": [
+       "D=ABC"
+      ],
+      "term": "AC"
+     }
+    },
+    {
+     "what": "aliases",
+     "term": "AD",
+     "value": "BC",
+     "where": {
+      "page": "3-12",
+      "source_kind": "table",
+      "quote": "Table 3.10 Aliasing Pattern for a 2^(4-1) Fractional Factorial Design with Generator D = ABC ... AD BC"
+     },
+     "check": {
+      "kind": "aliases",
+      "k": 4,
+      "generators": [
+       "D=ABC"
+      ],
+      "term": "AD"
+     }
+    },
+    {
+     "what": "aliases",
+     "term": "BC",
+     "value": "AD",
+     "where": {
+      "page": "3-12",
+      "source_kind": "table",
+      "quote": "Table 3.10 Aliasing Pattern for a 2^(4-1) Fractional Factorial Design with Generator D = ABC ... BC AD"
+     },
+     "check": {
+      "kind": "aliases",
+      "k": 4,
+      "generators": [
+       "D=ABC"
+      ],
+      "term": "BC"
+     }
+    },
+    {
+     "what": "aliases",
+     "term": "BD",
+     "value": "AC",
+     "where": {
+      "page": "3-12",
+      "source_kind": "table",
+      "quote": "Table 3.10 Aliasing Pattern for a 2^(4-1) Fractional Factorial Design with Generator D = ABC ... BD AC"
+     },
+     "check": {
+      "kind": "aliases",
+      "k": 4,
+      "generators": [
+       "D=ABC"
+      ],
+      "term": "BD"
+     }
+    },
+    {
+     "what": "aliases",
+     "term": "CD",
+     "value": "AB",
+     "where": {
+      "page": "3-12",
+      "source_kind": "table",
+      "quote": "Table 3.10 Aliasing Pattern for a 2^(4-1) Fractional Factorial Design with Generator D = ABC ... CD AB"
+     },
+     "check": {
+      "kind": "aliases",
+      "k": 4,
+      "generators": [
+       "D=ABC"
+      ],
+      "term": "CD"
+     }
+    },
+    {
+     "what": "aliases",
+     "term": "ABC",
+     "value": "D",
+     "where": {
+      "page": "3-12",
+      "source_kind": "table",
+      "quote": "Table 3.10 Aliasing Pattern for a 2^(4-1) Fractional Factorial Design with Generator D = ABC ... ABC D"
+     },
+     "check": {
+      "kind": "aliases",
+      "k": 4,
+      "generators": [
+       "D=ABC"
+      ],
+      "term": "ABC"
+     }
+    },
+    {
+     "what": "aliases",
+     "term": "ABD",
+     "value": "C",
+     "where": {
+      "page": "3-12",
+      "source_kind": "table",
+      "quote": "Table 3.10 Aliasing Pattern for a 2^(4-1) Fractional Factorial Design with Generator D = ABC ... ABD C"
+     },
+     "check": {
+      "kind": "aliases",
+      "k": 4,
+      "generators": [
+       "D=ABC"
+      ],
+      "term": "ABD"
+     }
+    },
+    {
+     "what": "aliases",
+     "term": "ACD",
+     "value": "B",
+     "where": {
+      "page": "3-12",
+      "source_kind": "table",
+      "quote": "Table 3.10 Aliasing Pattern for a 2^(4-1) Fractional Factorial Design with Generator D = ABC ... ACD B"
+     },
+     "check": {
+      "kind": "aliases",
+      "k": 4,
+      "generators": [
+       "D=ABC"
+      ],
+      "term": "ACD"
+     }
+    },
+    {
+     "what": "aliases",
+     "term": "BCD",
+     "value": "A",
+     "where": {
+      "page": "3-12",
+      "source_kind": "table",
+      "quote": "Table 3.10 Aliasing Pattern for a 2^(4-1) Fractional Factorial Design with Generator D = ABC ... BCD A"
+     },
+     "check": {
+      "kind": "aliases",
+      "k": 4,
+      "generators": [
+       "D=ABC"
+      ],
+      "term": "BCD"
+     }
+    },
+    {
+     "what": "defining_relation",
+     "term": null,
+     "value": "ABCD",
+     "where": {
+      "page": "3-12",
+      "source_kind": "table",
+      "quote": "Table 3.10 ... ABCD I"
+     },
+     "check": {
+      "kind": "defining_relation",
+      "k": 4,
+      "generators": [
+       "D=ABC"
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "name": "schmidt-table-3-11-2-7-3",
+   "title": "Seven factors in sixteen runs: the 2^(7-3) with E = ABC, F = BCD and G = ABD",
+   "kind": "design",
+   "where": {
+    "section": "3.3",
+    "pages": "3-13 to 3-14",
+    "tables": [
+     "Table 3.11"
+    ],
+    "figures": []
+   },
+   "factors": [
+    {
+     "name": "A",
+     "description": "column A",
+     "low": -1,
+     "high": 1,
+     "units": "",
+     "type": "numeric"
+    },
+    {
+     "name": "B",
+     "description": "column B",
+     "low": -1,
+     "high": 1,
+     "units": "",
+     "type": "numeric"
+    },
+    {
+     "name": "C",
+     "description": "column C",
+     "low": -1,
+     "high": 1,
+     "units": "",
+     "type": "numeric"
+    },
+    {
+     "name": "D",
+     "description": "column D",
+     "low": -1,
+     "high": 1,
+     "units": "",
+     "type": "numeric"
+    },
+    {
+     "name": "E",
+     "description": "column E",
+     "low": -1,
+     "high": 1,
+     "units": "",
+     "type": "numeric"
+    },
+    {
+     "name": "F",
+     "description": "column F",
+     "low": -1,
+     "high": 1,
+     "units": "",
+     "type": "numeric"
+    },
+    {
+     "name": "G",
+     "description": "column G",
+     "low": -1,
+     "high": 1,
+     "units": "",
+     "type": "numeric"
+    }
+   ],
+   "responses": [],
+   "design": {
+    "type": "2^(7-3) fractional factorial",
+    "details": "one-eighth fraction with E = ABC, F = BCD, G = ABD",
+    "n_runs": 16,
+    "treatment_factors": 7
+   },
+   "runs": {
+    "columns": [
+     "No.",
+     "A",
+     "B",
+     "C",
+     "D",
+     "E",
+     "F",
+     "G"
+    ],
+    "rows": [
+     [
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1
+     ],
+     [
+      2,
+      1,
+      1,
+      1,
+      -1,
+      1,
+      -1,
+      -1
+     ],
+     [
+      3,
+      1,
+      1,
+      -1,
+      1,
+      -1,
+      -1,
+      1
+     ],
+     [
+      4,
+      1,
+      1,
+      -1,
+      -1,
+      -1,
+      1,
+      -1
+     ],
+     [
+      5,
+      1,
+      -1,
+      1,
+      1,
+      -1,
+      -1,
+      -1
+     ],
+     [
+      6,
+      1,
+      -1,
+      1,
+      -1,
+      -1,
+      1,
+      1
+     ],
+     [
+      7,
+      1,
+      -1,
+      -1,
+      1,
+      1,
+      1,
+      -1
+     ],
+     [
+      8,
+      1,
+      -1,
+      -1,
+      -1,
+      1,
+      -1,
+      1
+     ],
+     [
+      9,
+      -1,
+      1,
+      1,
+      1,
+      -1,
+      1,
+      -1
+     ],
+     [
+      10,
+      -1,
+      1,
+      1,
+      -1,
+      -1,
+      -1,
+      1
+     ],
+     [
+      11,
+      -1,
+      1,
+      -1,
+      1,
+      1,
+      -1,
+      -1
+     ],
+     [
+      12,
+      -1,
+      1,
+      -1,
+      -1,
+      1,
+      1,
+      1
+     ],
+     [
+      13,
+      -1,
+      -1,
+      1,
+      1,
+      1,
+      -1,
+      1
+     ],
+     [
+      14,
+      -1,
+      -1,
+      1,
+      -1,
+      1,
+      1,
+      -1
+     ],
+     [
+      15,
+      -1,
+      -1,
+      -1,
+      1,
+      -1,
+      1,
+      1
+     ],
+     [
+      16,
+      -1,
+      -1,
+      -1,
+      -1,
+      -1,
+      -1,
+      -1
+     ]
+    ],
+    "coded": true,
+    "notes": "as printed, in coded units"
+   },
+   "expected": [
+    {
+     "what": "design matrix",
+     "term": null,
+     "value": "16",
+     "where": {
+      "page": "3-13",
+      "source_kind": "table",
+      "quote": "Table 3.11 Coded Matrix for a 2^(7-3) Design"
+     },
+     "check": {
+      "kind": "same_runs",
+      "design": {
+       "design_type": "fractional_factorial",
+       "k": 7,
+       "options": {
+        "generators": [
+         "E=ABC",
+         "F=BCD",
+         "G=ABD"
+        ],
+        "n_center_points": 0
+       }
+      }
+     }
+    },
+    {
+     "what": "generators",
+     "term": null,
+     "value": "E = ABC, F = BCD, G = ABD",
+     "where": {
+      "page": "3-13",
+      "source_kind": "table",
+      "quote": "Table 3.11 ... E=ABC F=BCD G=ABD"
+     },
+     "check": {
+      "kind": "generator_holds"
+     }
+    },
+    {
+     "what": "n_runs",
+     "term": null,
+     "value": "128",
+     "where": {
+      "page": "3-13",
+      "source_kind": "prose",
+      "quote": "Not wanting to do n = 2^7 = 128 runs"
+     },
+     "check": {
+      "kind": "design_property",
+      "property": "n_runs",
+      "design": {
+       "design_type": "full_factorial",
+       "k": 7,
+       "options": {
+        "n_center_points": 0
+       }
+      }
+     }
+    },
+    {
+     "what": "defining_relation",
+     "term": null,
+     "value": "ABCE = BCDF = ABDG = ADEF = CDEG = ACFG = BEFG",
+     "where": {
+      "page": "3-14",
+      "source_kind": "math",
+      "quote": "I = ABCE = BCDF = ABDG = ADEF = CDEG = ACFG = BEFG"
+     },
+     "check": {
+      "kind": "defining_relation",
+      "k": 7,
+      "generators": [
+       "E=ABC",
+       "F=BCD",
+       "G=ABD"
+      ]
+     }
+    },
+    {
+     "what": "aliases",
+     "term": "A",
+     "value": "BCE = ABCDF = BDG = DEF = ACDEG = CFG = ABEFG",
+     "where": {
+      "page": "3-14",
+      "source_kind": "math",
+      "quote": "A = BCE = ABCDF = BDG = DEF = ACDEG = CFG = ABEFG"
+     },
+     "check": {
+      "kind": "aliases",
+      "k": 7,
+      "generators": [
+       "E=ABC",
+       "F=BCD",
+       "G=ABD"
+      ],
+      "term": "A"
+     }
+    },
+    {
+     "what": "aliases",
+     "term": "EF",
+     "value": "ABCF = BCDE = ABDEFG = AD = CDFG = ACEG = BG",
+     "where": {
+      "page": "3-14",
+      "source_kind": "math",
+      "quote": "EF = ABCF = BCDE = ABDEFG = AD = CDFG = ACEG = BG"
+     },
+     "check": {
+      "kind": "aliases",
+      "k": 7,
+      "generators": [
+       "E=ABC",
+       "F=BCD",
+       "G=ABD"
+      ],
+      "term": "EF"
+     }
+    },
+    {
+     "what": "resolution",
+     "term": null,
+     "value": "IV",
+     "where": {
+      "page": "3-14",
+      "source_kind": "prose",
+      "quote": "this 2^(7-3) fractional factorial has a resolution of IV"
+     },
+     "check": {
+      "kind": "resolution",
+      "k": 7,
+      "generators": [
+       "E=ABC",
+       "F=BCD",
+       "G=ABD"
+      ]
+     }
+    },
+    {
+     "what": "fractions",
+     "term": null,
+     "value": "8",
+     "where": {
+      "page": "3-14",
+      "source_kind": "prose",
+      "quote": "there exists 2^q = 2^3 = 8 different 1/8 fractional designs"
+     },
+     "check": {
+      "manual": "the sign choices of three generators, E = ±ABC, F = ±BCD and G = ±ABD: 2^3"
+     }
+    }
+   ]
+  },
+  {
+   "name": "schmidt-fraction-2-5-2",
+   "title": "Five factors in eight runs: the 2^(5-2) with D = BC and E = ABC",
+   "kind": "design",
+   "where": {
+    "section": "3.3, example i",
+    "pages": "3-16",
+    "tables": [],
+    "figures": []
+   },
+   "factors": [
+    {
+     "name": "A",
+     "description": "column A",
+     "low": -1,
+     "high": 1,
+     "units": "",
+     "type": "numeric"
+    },
+    {
+     "name": "B",
+     "description": "column B",
+     "low": -1,
+     "high": 1,
+     "units": "",
+     "type": "numeric"
+    },
+    {
+     "name": "C",
+     "description": "column C",
+     "low": -1,
+     "high": 1,
+     "units": "",
+     "type": "numeric"
+    },
+    {
+     "name": "D",
+     "description": "column D",
+     "low": -1,
+     "high": 1,
+     "units": "",
+     "type": "numeric"
+    },
+    {
+     "name": "E",
+     "description": "column E",
+     "low": -1,
+     "high": 1,
+     "units": "",
+     "type": "numeric"
+    }
+   ],
+   "responses": [],
+   "design": {
+    "type": "2^(5-2) fractional factorial",
+    "details": "quarter fraction with D = BC, E = ABC",
+    "n_runs": 8,
+    "treatment_factors": 5
+   },
+   "runs": {
+    "columns": [
+     "No.",
+     "A",
+     "B",
+     "C",
+     "D",
+     "E"
+    ],
+    "rows": [
+     [
+      1,
+      -1,
+      -1,
+      -1,
+      1,
+      -1
+     ],
+     [
+      2,
+      -1,
+      -1,
+      1,
+      -1,
+      1
+     ],
+     [
+      3,
+      -1,
+      1,
+      -1,
+      -1,
+      1
+     ],
+     [
+      4,
+      -1,
+      1,
+      1,
+      1,
+      -1
+     ],
+     [
+      5,
+      1,
+      -1,
+      -1,
+      1,
+      1
+     ],
+     [
+      6,
+      1,
+      -1,
+      1,
+      -1,
+      -1
+     ],
+     [
+      7,
+      1,
+      1,
+      -1,
+      -1,
+      -1
+     ],
+     [
+      8,
+      1,
+      1,
+      1,
+      1,
+      1
+     ]
+    ],
+    "coded": true,
+    "notes": "the A, B, C, D and E columns as printed; the AB and AC columns are their products"
+   },
+   "expected": [
+    {
+     "what": "design matrix",
+     "term": null,
+     "value": "8",
+     "where": {
+      "page": "3-16",
+      "source_kind": "table",
+      "quote": "i) 2^(5-2) ... Run 1 to 8"
+     },
+     "check": {
+      "kind": "same_runs",
+      "design": {
+       "design_type": "fractional_factorial",
+       "k": 5,
+       "options": {
+        "generators": [
+         "D=BC",
+         "E=ABC"
+        ],
+        "n_center_points": 0
+       }
+      }
+     }
+    },
+    {
+     "what": "generators",
+     "term": null,
+     "value": "D = BC, E = ABC",
+     "where": {
+      "page": "3-16",
+      "source_kind": "table",
+      "quote": "2^(5-2) ... D = BC E = ABC"
+     },
+     "check": {
+      "kind": "generator_holds"
+     }
+    },
+    {
+     "what": "defining_relation",
+     "term": null,
+     "value": "BCD = ABCE = ADE",
+     "where": {
+      "page": "3-16",
+      "source_kind": "math",
+      "quote": "I = BCD = ABCE = ADE"
+     },
+     "check": {
+      "kind": "defining_relation",
+      "k": 5,
+      "generators": [
+       "D=BC",
+       "E=ABC"
+      ]
+     }
+    },
+    {
+     "what": "resolution",
+     "term": null,
+     "value": "III",
+     "where": {
+      "page": "3-16",
+      "source_kind": "prose",
+      "quote": "Design is of Resolution III."
+     },
+     "check": {
+      "kind": "resolution",
+      "k": 5,
+      "generators": [
+       "D=BC",
+       "E=ABC"
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "name": "schmidt-fraction-2-6-3",
+   "title": "Six factors in eight runs: the 2^(6-3) with D = AC, E = BC and F = ABC",
+   "kind": "design",
+   "where": {
+    "section": "3.3, example ii",
+    "pages": "3-16",
+    "tables": [],
+    "figures": []
+   },
+   "factors": [
+    {
+     "name": "A",
+     "description": "column A",
+     "low": -1,
+     "high": 1,
+     "units": "",
+     "type": "numeric"
+    },
+    {
+     "name": "B",
+     "description": "column B",
+     "low": -1,
+     "high": 1,
+     "units": "",
+     "type": "numeric"
+    },
+    {
+     "name": "C",
+     "description": "column C",
+     "low": -1,
+     "high": 1,
+     "units": "",
+     "type": "numeric"
+    },
+    {
+     "name": "D",
+     "description": "column D",
+     "low": -1,
+     "high": 1,
+     "units": "",
+     "type": "numeric"
+    },
+    {
+     "name": "E",
+     "description": "column E",
+     "low": -1,
+     "high": 1,
+     "units": "",
+     "type": "numeric"
+    },
+    {
+     "name": "F",
+     "description": "column F",
+     "low": -1,
+     "high": 1,
+     "units": "",
+     "type": "numeric"
+    }
+   ],
+   "responses": [],
+   "design": {
+    "type": "2^(6-3) fractional factorial",
+    "details": "one-eighth fraction with D = AC, E = BC, F = ABC",
+    "n_runs": 8,
+    "treatment_factors": 6
+   },
+   "runs": {
+    "columns": [
+     "No.",
+     "A",
+     "B",
+     "C",
+     "D",
+     "E",
+     "F"
+    ],
+    "rows": [
+     [
+      1,
+      -1,
+      -1,
+      -1,
+      1,
+      1,
+      -1
+     ],
+     [
+      2,
+      -1,
+      -1,
+      1,
+      -1,
+      -1,
+      1
+     ],
+     [
+      3,
+      -1,
+      1,
+      -1,
+      1,
+      -1,
+      1
+     ],
+     [
+      4,
+      -1,
+      1,
+      1,
+      -1,
+      1,
+      -1
+     ],
+     [
+      5,
+      1,
+      -1,
+      -1,
+      -1,
+      1,
+      1
+     ],
+     [
+      6,
+      1,
+      -1,
+      1,
+      1,
+      -1,
+      -1
+     ],
+     [
+      7,
+      1,
+      1,
+      -1,
+      -1,
+      -1,
+      -1
+     ],
+     [
+      8,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1
+     ]
+    ],
+    "coded": true,
+    "notes": "the A, B, C, D, E and F columns as printed; the AB column is a product"
+   },
+   "expected": [
+    {
+     "what": "design matrix",
+     "term": null,
+     "value": "8",
+     "where": {
+      "page": "3-16",
+      "source_kind": "table",
+      "quote": "ii) 2^(6-3) ... Run 1 to 8"
+     },
+     "check": {
+      "kind": "same_runs",
+      "design": {
+       "design_type": "fractional_factorial",
+       "k": 6,
+       "options": {
+        "generators": [
+         "D=AC",
+         "E=BC",
+         "F=ABC"
+        ],
+        "n_center_points": 0
+       }
+      }
+     }
+    },
+    {
+     "what": "generators",
+     "term": null,
+     "value": "D = AC, E = BC, F = ABC",
+     "where": {
+      "page": "3-16",
+      "source_kind": "table",
+      "quote": "2^(6-3) ... D = AC E = BC F = ABC"
+     },
+     "check": {
+      "kind": "generator_holds"
+     }
+    },
+    {
+     "what": "defining_relation",
+     "term": null,
+     "value": "ACD = BCE = ABCF = ABDE = BDF = AEF = CDEF",
+     "where": {
+      "page": "3-16",
+      "source_kind": "math",
+      "quote": "I = ACD = BCE = ABCF = ABDE = BDF = AEF = CDEF"
+     },
+     "check": {
+      "kind": "defining_relation",
+      "k": 6,
+      "generators": [
+       "D=AC",
+       "E=BC",
+       "F=ABC"
+      ]
+     }
+    },
+    {
+     "what": "resolution",
+     "term": null,
+     "value": "III",
+     "where": {
+      "page": "3-16",
+      "source_kind": "prose",
+      "quote": "Design is of Resolution III."
+     },
+     "check": {
+      "kind": "resolution",
+      "k": 6,
+      "generators": [
+       "D=AC",
+       "E=BC",
+       "F=ABC"
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "name": "schmidt-fraction-2-5-1",
+   "title": "Five factors in sixteen runs: the 2^(5-1) with E = ABCD",
+   "kind": "design",
+   "where": {
+    "section": "3.3, example iii",
+    "pages": "3-17",
+    "tables": [],
+    "figures": []
+   },
+   "factors": [
+    {
+     "name": "A",
+     "description": "column A",
+     "low": -1,
+     "high": 1,
+     "units": "",
+     "type": "numeric"
+    },
+    {
+     "name": "B",
+     "description": "column B",
+     "low": -1,
+     "high": 1,
+     "units": "",
+     "type": "numeric"
+    },
+    {
+     "name": "C",
+     "description": "column C",
+     "low": -1,
+     "high": 1,
+     "units": "",
+     "type": "numeric"
+    },
+    {
+     "name": "D",
+     "description": "column D",
+     "low": -1,
+     "high": 1,
+     "units": "",
+     "type": "numeric"
+    },
+    {
+     "name": "E",
+     "description": "column E",
+     "low": -1,
+     "high": 1,
+     "units": "",
+     "type": "numeric"
+    }
+   ],
+   "responses": [],
+   "design": {
+    "type": "2^(5-1) fractional factorial",
+    "details": "half fraction with E = ABCD",
+    "n_runs": 16,
+    "treatment_factors": 5
+   },
+   "runs": {
+    "columns": [
+     "No.",
+     "A",
+     "B",
+     "C",
+     "D",
+     "E"
+    ],
+    "rows": [
+     [
+      1,
+      -1,
+      -1,
+      -1,
+      -1,
+      1
+     ],
+     [
+      2,
+      -1,
+      -1,
+      -1,
+      1,
+      -1
+     ],
+     [
+      3,
+      -1,
+      -1,
+      1,
+      -1,
+      -1
+     ],
+     [
+      4,
+      -1,
+      -1,
+      1,
+      1,
+      1
+     ],
+     [
+      5,
+      -1,
+      1,
+      -1,
+      -1,
+      -1
+     ],
+     [
+      6,
+      -1,
+      1,
+      -1,
+      1,
+      1
+     ],
+     [
+      7,
+      -1,
+      1,
+      1,
+      -1,
+      1
+     ],
+     [
+      8,
+      -1,
+      1,
+      1,
+      1,
+      -1
+     ],
+     [
+      9,
+      1,
+      -1,
+      -1,
+      -1,
+      -1
+     ],
+     [
+      10,
+      1,
+      -1,
+      -1,
+      1,
+      1
+     ],
+     [
+      11,
+      1,
+      -1,
+      1,
+      -1,
+      1
+     ],
+     [
+      12,
+      1,
+      -1,
+      1,
+      1,
+      -1
+     ],
+     [
+      13,
+      1,
+      1,
+      -1,
+      -1,
+      1
+     ],
+     [
+      14,
+      1,
+      1,
+      -1,
+      1,
+      -1
+     ],
+     [
+      15,
+      1,
+      1,
+      1,
+      -1,
+      -1
+     ],
+     [
+      16,
+      1,
+      1,
+      1,
+      1,
+      1
+     ]
+    ],
+    "coded": true,
+    "notes": "columns 1, 2, 4, 8 and 15 of the printed table (A, B, C, D and ABCD = E); its other ten columns are their products, which were checked to agree with the labels when it was read"
+   },
+   "expected": [
+    {
+     "what": "design matrix",
+     "term": null,
+     "value": "16",
+     "where": {
+      "page": "3-17",
+      "source_kind": "table",
+      "quote": "iii) 2^(5-1) ... RUN 1 to 16"
+     },
+     "check": {
+      "kind": "same_runs",
+      "design": {
+       "design_type": "fractional_factorial",
+       "k": 5,
+       "options": {
+        "generators": [
+         "E=ABCD"
+        ],
+        "n_center_points": 0
+       }
+      }
+     }
+    },
+    {
+     "what": "generators",
+     "term": null,
+     "value": "E = ABCD",
+     "where": {
+      "page": "3-17",
+      "source_kind": "table",
+      "quote": "2^(5-1) ... column 15 ABCD E"
+     },
+     "check": {
+      "kind": "generator_holds"
+     }
+    },
+    {
+     "what": "defining_relation",
+     "term": null,
+     "value": "ABCDE",
+     "where": {
+      "page": "3-17",
+      "source_kind": "math",
+      "quote": "I = ABCDE"
+     },
+     "check": {
+      "kind": "defining_relation",
+      "k": 5,
+      "generators": [
+       "E=ABCD"
+      ]
+     }
+    },
+    {
+     "what": "resolution",
+     "term": null,
+     "value": "V",
+     "where": {
+      "page": "3-17",
+      "source_kind": "prose",
+      "quote": "Design is of Resolution V."
+     },
+     "check": {
+      "kind": "resolution",
+      "k": 5,
+      "generators": [
+       "E=ABCD"
+      ]
+     }
+    },
+    {
+     "what": "aliases",
+     "term": "ABC",
+     "value": "DE",
+     "where": {
+      "page": "3-17",
+      "source_kind": "table",
+      "quote": "2^(5-1) ... column 7: ABC DE"
+     },
+     "check": {
+      "kind": "aliases",
+      "k": 5,
+      "generators": [
+       "E=ABCD"
+      ],
+      "term": "ABC"
+     }
+    },
+    {
+     "what": "aliases",
+     "term": "ABD",
+     "value": "CE",
+     "where": {
+      "page": "3-17",
+      "source_kind": "table",
+      "quote": "2^(5-1) ... column 11: ABD CE"
+     },
+     "check": {
+      "kind": "aliases",
+      "k": 5,
+      "generators": [
+       "E=ABCD"
+      ],
+      "term": "ABD"
+     }
+    },
+    {
+     "what": "aliases",
+     "term": "ACD",
+     "value": "BE",
+     "where": {
+      "page": "3-17",
+      "source_kind": "table",
+      "quote": "2^(5-1) ... column 13: ACD BE"
+     },
+     "check": {
+      "kind": "aliases",
+      "k": 5,
+      "generators": [
+       "E=ABCD"
+      ],
+      "term": "ACD"
+     }
+    },
+    {
+     "what": "aliases",
+     "term": "BCD",
+     "value": "AE",
+     "where": {
+      "page": "3-17",
+      "source_kind": "table",
+      "quote": "2^(5-1) ... column 14: BCD AE"
+     },
+     "check": {
+      "kind": "aliases",
+      "k": 5,
+      "generators": [
+       "E=ABCD"
+      ],
+      "term": "BCD"
+     }
+    },
+    {
+     "what": "aliases",
+     "term": "ABCD",
+     "value": "E",
+     "where": {
+      "page": "3-17",
+      "source_kind": "table",
+      "quote": "2^(5-1) ... column 15: ABCD E"
+     },
+     "check": {
+      "kind": "aliases",
+      "k": 5,
+      "generators": [
+       "E=ABCD"
+      ],
+      "term": "ABCD"
+     }
+    }
+   ]
+  },
+  {
+   "name": "schmidt-fraction-2-6-2",
+   "title": "Six factors in sixteen runs: the 2^(6-2) with E = ACD and F = BCD",
+   "kind": "design",
+   "where": {
+    "section": "3.3, example iv",
+    "pages": "3-18",
+    "tables": [],
+    "figures": []
+   },
+   "factors": [
+    {
+     "name": "A",
+     "description": "column A",
+     "low": -1,
+     "high": 1,
+     "units": "",
+     "type": "numeric"
+    },
+    {
+     "name": "B",
+     "description": "column B",
+     "low": -1,
+     "high": 1,
+     "units": "",
+     "type": "numeric"
+    },
+    {
+     "name": "C",
+     "description": "column C",
+     "low": -1,
+     "high": 1,
+     "units": "",
+     "type": "numeric"
+    },
+    {
+     "name": "D",
+     "description": "column D",
+     "low": -1,
+     "high": 1,
+     "units": "",
+     "type": "numeric"
+    },
+    {
+     "name": "E",
+     "description": "column E",
+     "low": -1,
+     "high": 1,
+     "units": "",
+     "type": "numeric"
+    },
+    {
+     "name": "F",
+     "description": "column F",
+     "low": -1,
+     "high": 1,
+     "units": "",
+     "type": "numeric"
+    }
+   ],
+   "responses": [],
+   "design": {
+    "type": "2^(6-2) fractional factorial",
+    "details": "quarter fraction with E = ACD, F = BCD; only A to D printed",
+    "n_runs": 16,
+    "treatment_factors": 6
+   },
+   "notes": "The book prints the A to D columns of the 2^4 and leaves E, F and the interaction columns to the reader.",
+   "expected": [
+    {
+     "what": "generator",
+     "term": "E",
+     "value": "E = ACD",
+     "where": {
+      "page": "3-18",
+      "source_kind": "table",
+      "quote": "iv) 2^(6-2) ... E=ACD F=BCD"
+     },
+     "check": {
+      "kind": "generator",
+      "k": 6,
+      "generators": [
+       "E=ACD",
+       "F=BCD"
+      ]
+     }
+    },
+    {
+     "what": "generator",
+     "term": "F",
+     "value": "F = BCD",
+     "where": {
+      "page": "3-18",
+      "source_kind": "table",
+      "quote": "iv) 2^(6-2) ... E=ACD F=BCD"
+     },
+     "check": {
+      "kind": "generator",
+      "k": 6,
+      "generators": [
+       "E=ACD",
+       "F=BCD"
+      ]
+     }
+    },
+    {
+     "what": "defining_relation",
+     "term": null,
+     "value": "ACDE = BCDF = ABEF",
+     "where": {
+      "page": "3-18",
+      "source_kind": "math",
+      "quote": "I = ACDE = BCDF = ABEF"
+     },
+     "check": {
+      "kind": "defining_relation",
+      "k": 6,
+      "generators": [
+       "E=ACD",
+       "F=BCD"
+      ]
+     }
+    },
+    {
+     "what": "resolution",
+     "term": null,
+     "value": "IV",
+     "where": {
+      "page": "3-18",
+      "source_kind": "prose",
+      "quote": "Design is of Resolution IV."
+     },
+     "check": {
+      "kind": "resolution",
+      "k": 6,
+      "generators": [
+       "E=ACD",
+       "F=BCD"
+      ]
+     }
+    },
+    {
+     "what": "resolution",
+     "term": null,
+     "value": "III",
+     "where": {
+      "page": "3-18",
+      "source_kind": "prose",
+      "quote": "if E = ABCD, the resolution would have been III instead of IV"
+     },
+     "check": {
+      "kind": "resolution",
+      "k": 6,
+      "generators": [
+       "E=ABCD",
+       "F=BCD"
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "name": "schmidt-fraction-2-8-4",
+   "title": "Eight factors in sixteen runs: the 2^(8-4) with E = ABC, F = ABD, G = ACD and H = BCD",
+   "kind": "design",
+   "where": {
+    "section": "3.3, example vi",
+    "pages": "3-19",
+    "tables": [],
+    "figures": []
+   },
+   "factors": [
+    {
+     "name": "A",
+     "description": "column A",
+     "low": -1,
+     "high": 1,
+     "units": "",
+     "type": "numeric"
+    },
+    {
+     "name": "B",
+     "description": "column B",
+     "low": -1,
+     "high": 1,
+     "units": "",
+     "type": "numeric"
+    },
+    {
+     "name": "C",
+     "description": "column C",
+     "low": -1,
+     "high": 1,
+     "units": "",
+     "type": "numeric"
+    },
+    {
+     "name": "D",
+     "description": "column D",
+     "low": -1,
+     "high": 1,
+     "units": "",
+     "type": "numeric"
+    },
+    {
+     "name": "E",
+     "description": "column E",
+     "low": -1,
+     "high": 1,
+     "units": "",
+     "type": "numeric"
+    },
+    {
+     "name": "F",
+     "description": "column F",
+     "low": -1,
+     "high": 1,
+     "units": "",
+     "type": "numeric"
+    },
+    {
+     "name": "G",
+     "description": "column G",
+     "low": -1,
+     "high": 1,
+     "units": "",
+     "type": "numeric"
+    },
+    {
+     "name": "H",
+     "description": "column H",
+     "low": -1,
+     "high": 1,
+     "units": "",
+     "type": "numeric"
+    }
+   ],
+   "responses": [],
+   "design": {
+    "type": "2^(8-4) fractional factorial",
+    "details": "one-sixteenth fraction; the matrix is left to the reader",
+    "n_runs": 16,
+    "treatment_factors": 8
+   },
+   "expected": [
+    {
+     "what": "generator",
+     "term": "E",
+     "value": "E = ABC",
+     "where": {
+      "page": "3-19",
+      "source_kind": "table",
+      "quote": "vi) 2^(8-4) ... E=ABC F=ABD G=ACD H=BCD"
+     },
+     "check": {
+      "kind": "generator",
+      "k": 8,
+      "generators": [
+       "E=ABC",
+       "F=ABD",
+       "G=ACD",
+       "H=BCD"
+      ]
+     }
+    },
+    {
+     "what": "generator",
+     "term": "F",
+     "value": "F = ABD",
+     "where": {
+      "page": "3-19",
+      "source_kind": "table",
+      "quote": "vi) 2^(8-4) ... E=ABC F=ABD G=ACD H=BCD"
+     },
+     "check": {
+      "kind": "generator",
+      "k": 8,
+      "generators": [
+       "E=ABC",
+       "F=ABD",
+       "G=ACD",
+       "H=BCD"
+      ]
+     }
+    },
+    {
+     "what": "generator",
+     "term": "G",
+     "value": "G = ACD",
+     "where": {
+      "page": "3-19",
+      "source_kind": "table",
+      "quote": "vi) 2^(8-4) ... E=ABC F=ABD G=ACD H=BCD"
+     },
+     "check": {
+      "kind": "generator",
+      "k": 8,
+      "generators": [
+       "E=ABC",
+       "F=ABD",
+       "G=ACD",
+       "H=BCD"
+      ]
+     }
+    },
+    {
+     "what": "generator",
+     "term": "H",
+     "value": "H = BCD",
+     "where": {
+      "page": "3-19",
+      "source_kind": "table",
+      "quote": "vi) 2^(8-4) ... E=ABC F=ABD G=ACD H=BCD"
+     },
+     "check": {
+      "kind": "generator",
+      "k": 8,
+      "generators": [
+       "E=ABC",
+       "F=ABD",
+       "G=ACD",
+       "H=BCD"
+      ]
+     }
+    },
+    {
+     "what": "defining_relation",
+     "term": null,
+     "value": "ABCE = ABDF = ACDG = BCDH = CDEF = BDEG = ADEH = BCFG = ACFH = ABGH = AEFG = BEFH = DFGH = CEGH = ABCDEFGH",
+     "where": {
+      "page": "3-19",
+      "source_kind": "math",
+      "quote": "I = ABCE = ABDF = ACDG = BCDH = CDEF = BDEG = ADEH = BCFG = ACFH = ABGH = AEFG = BEFH = DFGH = CEGH = ABCDEFGH"
+     },
+     "check": {
+      "kind": "defining_relation",
+      "k": 8,
+      "generators": [
+       "E=ABC",
+       "F=ABD",
+       "G=ACD",
+       "H=BCD"
+      ]
+     }
+    },
+    {
+     "what": "resolution",
+     "term": null,
+     "value": "IV",
+     "where": {
+      "page": "3-19",
+      "source_kind": "prose",
+      "quote": "This design is of Resolution IV."
+     },
+     "check": {
+      "kind": "resolution",
+      "k": 8,
+      "generators": [
+       "E=ABC",
+       "F=ABD",
+       "G=ACD",
+       "H=BCD"
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "name": "schmidt-table-3-12-2-3-1",
+   "title": "Three factors in four runs, resolution III: C = A × B",
+   "kind": "design",
+   "where": {
+    "section": "3.4",
+    "pages": "3-20",
+    "tables": [
+     "Table 3.12"
+    ],
+    "figures": []
+   },
+   "factors": [
+    {
+     "name": "A",
+     "description": "column A",
+     "low": -1,
+     "high": 1,
+     "units": "",
+     "type": "numeric"
+    },
+    {
+     "name": "B",
+     "description": "column B",
+     "low": -1,
+     "high": 1,
+     "units": "",
+     "type": "numeric"
+    },
+    {
+     "name": "C",
+     "description": "column C",
+     "low": -1,
+     "high": 1,
+     "units": "",
+     "type": "numeric"
+    }
+   ],
+   "responses": [],
+   "design": {
+    "type": "2^(3-1) fractional factorial",
+    "details": "half fraction with C = AB",
+    "n_runs": 4,
+    "treatment_factors": 3
+   },
+   "runs": {
+    "columns": [
+     "No.",
+     "A",
+     "B",
+     "C"
+    ],
+    "rows": [
+     [
+      1,
+      -1,
+      -1,
+      1
+     ],
+     [
+      2,
+      -1,
+      1,
+      -1
+     ],
+     [
+      3,
+      1,
+      -1,
+      -1
+     ],
+     [
+      4,
+      1,
+      1,
+      1
+     ]
+    ],
+    "coded": true,
+    "notes": "as printed, in coded units"
+   },
+   "expected": [
+    {
+     "what": "design matrix",
+     "term": null,
+     "value": "4",
+     "where": {
+      "page": "3-20",
+      "source_kind": "table",
+      "quote": "Table 3.12 Coded Matrix for a 2^(3-1) R_III Design"
+     },
+     "check": {
+      "kind": "same_runs",
+      "design": {
+       "design_type": "fractional_factorial",
+       "k": 3,
+       "options": {
+        "generators": [
+         "C=AB"
+        ],
+        "n_center_points": 0
+       }
+      }
+     }
+    },
+    {
+     "what": "generators",
+     "term": null,
+     "value": "C = A × B",
+     "where": {
+      "page": "3-20",
+      "source_kind": "table",
+      "quote": "Table 3.12 ... C = A × B"
+     },
+     "check": {
+      "kind": "generator_holds"
+     }
+    },
+    {
+     "what": "defining_relation",
+     "term": null,
+     "value": "ABC",
+     "where": {
+      "page": "3-20",
+      "source_kind": "prose",
+      "quote": "The defining relation for the design in Table 3.12 is I = ABC."
+     },
+     "check": {
+      "kind": "defining_relation",
+      "k": 3,
+      "generators": [
+       "C=AB"
+      ]
+     }
+    },
+    {
+     "what": "resolution",
+     "term": null,
+     "value": "III",
+     "where": {
+      "page": "3-20",
+      "source_kind": "prose",
+      "quote": "Therefore, the 2^(3-1) design is of resolution III."
+     },
+     "check": {
+      "kind": "resolution",
+      "k": 3,
+      "generators": [
+       "C=AB"
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "name": "schmidt-table-3-13-foldover",
+   "title": "The foldover of Table 3.12: four runs reversed, with a blocking column D",
+   "kind": "design",
+   "where": {
+    "section": "3.4",
+    "pages": "3-20 to 3-21",
+    "tables": [
+     "Table 3.13"
+    ],
+    "figures": []
+   },
+   "factors": [
+    {
+     "name": "A",
+     "description": "column A",
+     "low": -1,
+     "high": 1,
+     "units": "",
+     "type": "numeric"
+    },
+    {
+     "name": "B",
+     "description": "column B",
+     "low": -1,
+     "high": 1,
+     "units": "",
+     "type": "numeric"
+    },
+    {
+     "name": "C",
+     "description": "column C",
+     "low": -1,
+     "high": 1,
+     "units": "",
+     "type": "numeric"
+    },
+    {
+     "name": "D",
+     "description": "column D",
+     "low": -1,
+     "high": 1,
+     "units": "",
+     "type": "numeric"
+    }
+   ],
+   "responses": [],
+   "design": {
+    "type": "2^(4-1) fractional factorial",
+    "details": "the 2^(3-1) of Table 3.12 and its reverse, D = -1 for the first four runs and +1 for the second",
+    "n_runs": 8,
+    "treatment_factors": 4
+   },
+   "runs": {
+    "columns": [
+     "No.",
+     "A",
+     "B",
+     "C",
+     "D"
+    ],
+    "rows": [
+     [
+      1,
+      -1,
+      -1,
+      1,
+      -1
+     ],
+     [
+      2,
+      -1,
+      1,
+      -1,
+      -1
+     ],
+     [
+      3,
+      1,
+      -1,
+      -1,
+      -1
+     ],
+     [
+      4,
+      1,
+      1,
+      1,
+      -1
+     ],
+     [
+      5,
+      1,
+      1,
+      -1,
+      1
+     ],
+     [
+      6,
+      1,
+      -1,
+      1,
+      1
+     ],
+     [
+      7,
+      -1,
+      1,
+      1,
+      1
+     ],
+     [
+      8,
+      -1,
+      -1,
+      -1,
+      1
+     ]
+    ],
+    "coded": true,
+    "notes": "as printed, in coded units"
+   },
+   "expected": [
+    {
+     "what": "design matrix",
+     "term": null,
+     "value": "8",
+     "analysis": "the half fraction with D = -ABC, which the library makes from that generator",
+     "where": {
+      "page": "3-20",
+      "source_kind": "prose",
+      "quote": "By folding over this R_III design, we obtain the 8 runs displayed in Table 3.13"
+     },
+     "check": {
+      "kind": "same_runs",
+      "design": {
+       "design_type": "fractional_factorial",
+       "k": 4,
+       "options": {
+        "generators": [
+         "D=-ABC"
+        ],
+        "n_center_points": 0
+       }
+      }
+     }
+    },
+    {
+     "what": "generators",
+     "term": null,
+     "value": "D = -ABC",
+     "where": {
+      "page": "3-20",
+      "source_kind": "table",
+      "quote": "For both sets of 4 runs the blocking variable, D = -ABC"
+     },
+     "check": {
+      "kind": "generator_holds"
+     }
+    },
+    {
+     "what": "defining_relation",
+     "term": null,
+     "value": "-ABCD",
+     "where": {
+      "page": "3-20",
+      "source_kind": "prose",
+      "quote": "therefore, the defining relation is I = -ABCD"
+     },
+     "check": {
+      "kind": "defining_relation",
+      "k": 4,
+      "generators": [
+       "D=-ABC"
+      ]
+     }
+    },
+    {
+     "what": "resolution",
+     "term": null,
+     "value": "IV",
+     "where": {
+      "page": "3-20",
+      "source_kind": "prose",
+      "quote": "Thus, the resulting 8-run design resolution is R_IV."
+     },
+     "check": {
+      "kind": "resolution",
+      "k": 4,
+      "generators": [
+       "D=-ABC"
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "name": "schmidt-table-3-14-plackett-burman-8",
+   "title": "The Plackett-Burman 8-run design, built from its generating vector",
+   "kind": "design",
+   "where": {
+    "section": "3.5",
+    "pages": "3-21 to 3-24",
+    "tables": [
+     "Table 3.14"
+    ],
+    "figures": []
+   },
+   "factors": [
+    {
+     "name": "A",
+     "description": "column A",
+     "low": -1,
+     "high": 1,
+     "units": "",
+     "type": "numeric"
+    },
+    {
+     "name": "B",
+     "description": "column B",
+     "low": -1,
+     "high": 1,
+     "units": "",
+     "type": "numeric"
+    },
+    {
+     "name": "C",
+     "description": "column C",
+     "low": -1,
+     "high": 1,
+     "units": "",
+     "type": "numeric"
+    },
+    {
+     "name": "D",
+     "description": "column D",
+     "low": -1,
+     "high": 1,
+     "units": "",
+     "type": "numeric"
+    },
+    {
+     "name": "E",
+     "description": "column E",
+     "low": -1,
+     "high": 1,
+     "units": "",
+     "type": "numeric"
+    },
+    {
+     "name": "F",
+     "description": "column F",
+     "low": -1,
+     "high": 1,
+     "units": "",
+     "type": "numeric"
+    },
+    {
+     "name": "G",
+     "description": "column G",
+     "low": -1,
+     "high": 1,
+     "units": "",
+     "type": "numeric"
+    }
+   ],
+   "responses": [],
+   "design": {
+    "type": "Plackett-Burman",
+    "details": "seven factors in eight runs: cyclic shifts of (+ + + - + - -) and a row of minus signs",
+    "n_runs": 8,
+    "treatment_factors": 7
+   },
+   "runs": {
+    "columns": [
+     "No.",
+     "A",
+     "B",
+     "C",
+     "D",
+     "E",
+     "F",
+     "G"
+    ],
+    "rows": [
+     [
+      1,
+      1,
+      -1,
+      -1,
+      1,
+      -1,
+      1,
+      1
+     ],
+     [
+      2,
+      1,
+      1,
+      -1,
+      -1,
+      1,
+      -1,
+      1
+     ],
+     [
+      3,
+      1,
+      1,
+      1,
+      -1,
+      -1,
+      1,
+      -1
+     ],
+     [
+      4,
+      -1,
+      1,
+      1,
+      1,
+      -1,
+      -1,
+      1
+     ],
+     [
+      5,
+      1,
+      -1,
+      1,
+      1,
+      1,
+      -1,
+      -1
+     ],
+     [
+      6,
+      -1,
+      1,
+      -1,
+      1,
+      1,
+      1,
+      -1
+     ],
+     [
+      7,
+      -1,
+      -1,
+      1,
+      -1,
+      1,
+      1,
+      1
+     ],
+     [
+      8,
+      -1,
+      -1,
+      -1,
+      -1,
+      -1,
+      -1,
+      -1
+     ]
+    ],
+    "coded": true,
+    "notes": "as printed, in coded units"
+   },
+   "expected": [
+    {
+     "what": "generators",
+     "term": null,
+     "value": "D = -AB",
+     "where": {
+      "page": "3-22",
+      "source_kind": "prose",
+      "quote": "each 2-way interaction will be positively or negatively aliased with a main effect (see Table 3.14 and verify D = -AB)"
+     },
+     "check": {
+      "kind": "generator_holds"
+     }
+    },
+    {
+     "what": "design matrix",
+     "term": null,
+     "value": "8",
+     "analysis": "the library's Plackett-Burman design for seven factors, the same up to the order and signs of its columns",
+     "where": {
+      "page": "3-22",
+      "source_kind": "table",
+      "quote": "Table 3.14 Plackett-Burman 8-Run Design"
+     },
+     "check": {
+      "kind": "same_runs",
+      "design": {
+       "design_type": "plackett_burman",
+       "k": 7,
+       "options": {
+        "n_center_points": 0
+       }
+      },
+      "relabel": "columns and signs"
+     }
+    },
+    {
+     "what": "generating vector",
+     "term": "n = 8",
+     "value": "(+ + + - + - -)",
+     "where": {
+      "page": "3-23",
+      "source_kind": "prose",
+      "quote": "if n = 8 combinations, the unique generating vector consists of the following (n - 1) values (+ + + - + - -)"
+     },
+     "check": {
+      "manual": "Table 3.14's column A, whose design is checked"
+     }
+    }
+   ]
+  },
+  {
+   "name": "schmidt-table-3-15-plackett-burman-12",
+   "title": "The Plackett-Burman 12-run design, built from its generating vector",
+   "kind": "design",
+   "where": {
+    "section": "3.5",
+    "pages": "3-22 to 3-24",
+    "tables": [
+     "Table 3.15",
+     "Table 3.30"
+    ],
+    "figures": []
+   },
+   "factors": [
+    {
+     "name": "A",
+     "description": "column A",
+     "low": -1,
+     "high": 1,
+     "units": "",
+     "type": "numeric"
+    },
+    {
+     "name": "B",
+     "description": "column B",
+     "low": -1,
+     "high": 1,
+     "units": "",
+     "type": "numeric"
+    },
+    {
+     "name": "C",
+     "description": "column C",
+     "low": -1,
+     "high": 1,
+     "units": "",
+     "type": "numeric"
+    },
+    {
+     "name": "D",
+     "description": "column D",
+     "low": -1,
+     "high": 1,
+     "units": "",
+     "type": "numeric"
+    },
+    {
+     "name": "E",
+     "description": "column E",
+     "low": -1,
+     "high": 1,
+     "units": "",
+     "type": "numeric"
+    },
+    {
+     "name": "F",
+     "description": "column F",
+     "low": -1,
+     "high": 1,
+     "units": "",
+     "type": "numeric"
+    },
+    {
+     "name": "G",
+     "description": "column G",
+     "low": -1,
+     "high": 1,
+     "units": "",
+     "type": "numeric"
+    },
+    {
+     "name": "H",
+     "description": "column H",
+     "low": -1,
+     "high": 1,
+     "units": "",
+     "type": "numeric"
+    },
+    {
+     "name": "J",
+     "description": "column J",
+     "low": -1,
+     "high": 1,
+     "units": "",
+     "type": "numeric"
+    },
+    {
+     "name": "K",
+     "description": "column K",
+     "low": -1,
+     "high": 1,
+     "units": "",
+     "type": "numeric"
+    },
+    {
+     "name": "L",
+     "description": "column L",
+     "low": -1,
+     "high": 1,
+     "units": "",
+     "type": "numeric"
+    }
+   ],
+   "responses": [],
+   "design": {
+    "type": "Plackett-Burman",
+    "details": "eleven factors in twelve runs: cyclic shifts of (+ + - + + + - - - + -) and a row of minus signs",
+    "n_runs": 12,
+    "treatment_factors": 11
+   },
+   "runs": {
+    "columns": [
+     "No.",
+     "A",
+     "B",
+     "C",
+     "D",
+     "E",
+     "F",
+     "G",
+     "H",
+     "J",
+     "K",
+     "L"
+    ],
+    "rows": [
+     [
+      1,
+      1,
+      -1,
+      1,
+      -1,
+      -1,
+      -1,
+      1,
+      1,
+      1,
+      -1,
+      1
+     ],
+     [
+      2,
+      1,
+      1,
+      -1,
+      1,
+      -1,
+      -1,
+      -1,
+      1,
+      1,
+      1,
+      -1
+     ],
+     [
+      3,
+      -1,
+      1,
+      1,
+      -1,
+      1,
+      -1,
+      -1,
+      -1,
+      1,
+      1,
+      1
+     ],
+     [
+      4,
+      1,
+      -1,
+      1,
+      1,
+      -1,
+      1,
+      -1,
+      -1,
+      -1,
+      1,
+      1
+     ],
+     [
+      5,
+      1,
+      1,
+      -1,
+      1,
+      1,
+      -1,
+      1,
+      -1,
+      -1,
+      -1,
+      1
+     ],
+     [
+      6,
+      1,
+      1,
+      1,
+      -1,
+      1,
+      1,
+      -1,
+      1,
+      -1,
+      -1,
+      -1
+     ],
+     [
+      7,
+      -1,
+      1,
+      1,
+      1,
+      -1,
+      1,
+      1,
+      -1,
+      1,
+      -1,
+      -1
+     ],
+     [
+      8,
+      -1,
+      -1,
+      1,
+      1,
+      1,
+      -1,
+      1,
+      1,
+      -1,
+      1,
+      -1
+     ],
+     [
+      9,
+      -1,
+      -1,
+      -1,
+      1,
+      1,
+      1,
+      -1,
+      1,
+      1,
+      -1,
+      1
+     ],
+     [
+      10,
+      1,
+      -1,
+      -1,
+      -1,
+      1,
+      1,
+      1,
+      -1,
+      1,
+      1,
+      -1
+     ],
+     [
+      11,
+      -1,
+      1,
+      -1,
+      -1,
+      -1,
+      1,
+      1,
+      1,
+      -1,
+      1,
+      1
+     ],
+     [
+      12,
+      -1,
+      -1,
+      -1,
+      -1,
+      -1,
+      -1,
+      -1,
+      -1,
+      -1,
+      -1,
+      -1
+     ]
+    ],
+    "coded": true,
+    "notes": "Table 3.15 as printed; its columns are labelled A to K, held here as A to L without I, the catalogue's letters"
+   },
+   "expected": [
+    {
+     "what": "design matrix",
+     "term": null,
+     "value": "12",
+     "analysis": "the library's Plackett-Burman design for eleven factors, the same up to the order and signs of its columns",
+     "where": {
+      "page": "3-23",
+      "source_kind": "table",
+      "quote": "Table 3.15 Plackett-Burman 12-Run Design"
+     },
+     "check": {
+      "kind": "same_runs",
+      "design": {
+       "design_type": "plackett_burman",
+       "k": 11,
+       "options": {
+        "n_center_points": 0
+       }
+      },
+      "relabel": "columns and signs"
+     }
+    },
+    {
+     "what": "same design",
+     "term": null,
+     "value": "12",
+     "analysis": "the L12 the library stores, which is Table 3.30's (checked under schmidt-taguchi-l12), reordered by column only",
+     "where": {
+      "page": "3-45",
+      "source_kind": "table",
+      "quote": "Table 3.30 ... (This is the same matrix as the Plackett-Burman 12-run design; however, the columns and rows have been permuted.)"
+     },
+     "check": {
+      "kind": "same_runs",
+      "array": "L12(2^11)",
+      "relabel": "columns"
+     }
+    },
+    {
+     "what": "generating vector",
+     "term": "n = 12",
+     "value": "(+ + - + + + - - - + -)",
+     "where": {
+      "page": "3-24",
+      "source_kind": "prose",
+      "quote": "n = 12 (+ + - + + + - - - + -)"
+     },
+     "check": {
+      "manual": "Table 3.15's column A, whose design is checked"
+     }
+    }
+   ]
+  },
+  {
+   "name": "schmidt-table-3-19-latin-square",
+   "title": "A Latin square as a 3^(3-1) design",
+   "kind": "design",
+   "where": {
+    "section": "3.7",
+    "pages": "3-28 to 3-29",
+    "tables": [
+     "Table 3.18",
+     "Table 3.19"
+    ],
+    "figures": []
+   },
+   "factors": [
+    {
+     "name": "A",
+     "description": "column A",
+     "low": -1,
+     "high": 1,
+     "units": "",
+     "type": "numeric",
+     "levels": [
+      -1,
+      0,
+      1
+     ]
+    },
+    {
+     "name": "B",
+     "description": "column B",
+     "low": -1,
+     "high": 1,
+     "units": "",
+     "type": "numeric",
+     "levels": [
+      -1,
+      0,
+      1
+     ]
+    },
+    {
+     "name": "C",
+     "description": "column C",
+     "low": -1,
+     "high": 1,
+     "units": "",
+     "type": "numeric",
+     "levels": [
+      -1,
+      0,
+      1
+     ]
+    }
+   ],
+   "responses": [],
+   "design": {
+    "type": "3^(3-1) fractional factorial (Latin square)",
+    "details": "nine runs: B and C cross, and A is the letter of the square",
+    "n_runs": 9,
+    "treatment_factors": 3
+   },
+   "runs": {
+    "columns": [
+     "No.",
+     "A",
+     "B",
+     "C"
+    ],
+    "rows": [
+     [
+      1,
+      -1,
+      -1,
+      -1
+     ],
+     [
+      2,
+      0,
+      0,
+      -1
+     ],
+     [
+      3,
+      1,
+      1,
+      -1
+     ],
+     [
+      4,
+      0,
+      -1,
+      0
+     ],
+     [
+      5,
+      1,
+      0,
+      0
+     ],
+     [
+      6,
+      -1,
+      1,
+      0
+     ],
+     [
+      7,
+      1,
+      -1,
+      1
+     ],
+     [
+      8,
+      -1,
+      0,
+      1
+     ],
+     [
+      9,
+      0,
+      1,
+      1
+     ]
+    ],
+    "coded": true,
+    "notes": "as printed, in coded units"
+   },
+   "expected": [
+    {
+     "what": "design matrix",
+     "term": null,
+     "value": "9",
+     "analysis": "the library's Taguchi design for three three-level factors (the first three columns of its L9), with its factors in the order C, B, A",
+     "where": {
+      "page": "3-29",
+      "source_kind": "table",
+      "quote": "Table 3.19 Coded Matrix for Latin Square Design for 3 Factors Each at 3 Levels"
+     },
+     "check": {
+      "kind": "same_runs",
+      "design": {
+       "design_type": "taguchi",
+       "k": 3,
+       "options": {},
+       "levels": 3
+      },
+      "columns": [
+       "C",
+       "B",
+       "A"
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "name": "schmidt-box-behnken-3",
+   "title": "The Box-Behnken design for three factors",
+   "kind": "design",
+   "where": {
+    "section": "3.8",
+    "pages": "3-32",
+    "tables": [],
+    "figures": [
+     "Figure 3.3"
+    ]
+   },
+   "factors": [
+    {
+     "name": "A",
+     "description": "column A",
+     "low": -1,
+     "high": 1,
+     "units": "",
+     "type": "numeric",
+     "levels": [
+      -1,
+      0,
+      1
+     ]
+    },
+    {
+     "name": "B",
+     "description": "column B",
+     "low": -1,
+     "high": 1,
+     "units": "",
+     "type": "numeric",
+     "levels": [
+      -1,
+      0,
+      1
+     ]
+    },
+    {
+     "name": "C",
+     "description": "column C",
+     "low": -1,
+     "high": 1,
+     "units": "",
+     "type": "numeric",
+     "levels": [
+      -1,
+      0,
+      1
+     ]
+    }
+   ],
+   "responses": [],
+   "design": {
+    "type": "Box-Behnken",
+    "details": "the 2^2 of each pair of factors with the third at its centre, and three centre runs",
+    "n_runs": 15,
+    "treatment_factors": 3
+   },
+   "runs": {
+    "columns": [
+     "No.",
+     "A",
+     "B",
+     "C"
+    ],
+    "rows": [
+     [
+      1,
+      -1,
+      -1,
+      0
+     ],
+     [
+      2,
+      -1,
+      1,
+      0
+     ],
+     [
+      3,
+      1,
+      -1,
+      0
+     ],
+     [
+      4,
+      1,
+      1,
+      0
+     ],
+     [
+      5,
+      -1,
+      0,
+      -1
+     ],
+     [
+      6,
+      -1,
+      0,
+      1
+     ],
+     [
+      7,
+      1,
+      0,
+      -1
+     ],
+     [
+      8,
+      1,
+      0,
+      1
+     ],
+     [
+      9,
+      0,
+      -1,
+      -1
+     ],
+     [
+      10,
+      0,
+      -1,
+      1
+     ],
+     [
+      11,
+      0,
+      1,
+      -1
+     ],
+     [
+      12,
+      0,
+      1,
+      1
+     ],
+     [
+      13,
+      0,
+      0,
+      0
+     ],
+     [
+      14,
+      0,
+      0,
+      0
+     ],
+     [
+      15,
+      0,
+      0,
+      0
+     ]
+    ],
+    "coded": true,
+    "notes": "as printed, in coded units"
+   },
+   "expected": [
+    {
+     "what": "design matrix",
+     "term": null,
+     "value": "15",
+     "where": {
+      "page": "3-32",
+      "source_kind": "figure",
+      "quote": "Figure 3.3 Design Matrix and Geometric Representation of a Box-Behnken Design for 3 Factors"
+     },
+     "check": {
+      "kind": "same_runs",
+      "design": {
+       "design_type": "box_behnken",
+       "k": 3,
+       "options": {
+        "n_center_points": 3
+       }
+      }
+     }
+    }
+   ]
+  },
+  {
+   "name": "schmidt-table-3-20b-box-behnken-4",
+   "title": "The Box-Behnken design for four factors, in three orthogonal blocks of nine runs",
+   "kind": "design",
+   "where": {
+    "section": "3.8",
+    "pages": "3-30 to 3-31",
+    "tables": [
+     "Table 3.20a",
+     "Table 3.20b"
+    ],
+    "figures": []
+   },
+   "factors": [
+    {
+     "name": "A",
+     "description": "column A",
+     "low": -1,
+     "high": 1,
+     "units": "",
+     "type": "numeric",
+     "levels": [
+      -1,
+      0,
+      1
+     ]
+    },
+    {
+     "name": "B",
+     "description": "column B",
+     "low": -1,
+     "high": 1,
+     "units": "",
+     "type": "numeric",
+     "levels": [
+      -1,
+      0,
+      1
+     ]
+    },
+    {
+     "name": "C",
+     "description": "column C",
+     "low": -1,
+     "high": 1,
+     "units": "",
+     "type": "numeric",
+     "levels": [
+      -1,
+      0,
+      1
+     ]
+    },
+    {
+     "name": "D",
+     "description": "column D",
+     "low": -1,
+     "high": 1,
+     "units": "",
+     "type": "numeric",
+     "levels": [
+      -1,
+      0,
+      1
+     ]
+    }
+   ],
+   "responses": [],
+   "design": {
+    "type": "Box-Behnken",
+    "details": "the 2^2 of each pair of factors with the others at their centre, one centre run in each of three blocks",
+    "n_runs": 27,
+    "treatment_factors": 4
+   },
+   "runs": {
+    "columns": [
+     "No.",
+     "A",
+     "B",
+     "C",
+     "D"
+    ],
+    "rows": [
+     [
+      1,
+      -1,
+      -1,
+      0,
+      0
+     ],
+     [
+      2,
+      -1,
+      1,
+      0,
+      0
+     ],
+     [
+      3,
+      1,
+      -1,
+      0,
+      0
+     ],
+     [
+      4,
+      1,
+      1,
+      0,
+      0
+     ],
+     [
+      5,
+      0,
+      0,
+      -1,
+      -1
+     ],
+     [
+      6,
+      0,
+      0,
+      -1,
+      1
+     ],
+     [
+      7,
+      0,
+      0,
+      1,
+      -1
+     ],
+     [
+      8,
+      0,
+      0,
+      1,
+      1
+     ],
+     [
+      9,
+      0,
+      0,
+      0,
+      0
+     ],
+     [
+      10,
+      -1,
+      0,
+      0,
+      -1
+     ],
+     [
+      11,
+      -1,
+      0,
+      0,
+      1
+     ],
+     [
+      12,
+      1,
+      0,
+      0,
+      -1
+     ],
+     [
+      13,
+      1,
+      0,
+      0,
+      1
+     ],
+     [
+      14,
+      0,
+      -1,
+      -1,
+      0
+     ],
+     [
+      15,
+      0,
+      -1,
+      1,
+      0
+     ],
+     [
+      16,
+      0,
+      1,
+      -1,
+      0
+     ],
+     [
+      17,
+      0,
+      1,
+      1,
+      0
+     ],
+     [
+      18,
+      0,
+      0,
+      0,
+      0
+     ],
+     [
+      19,
+      -1,
+      0,
+      -1,
+      0
+     ],
+     [
+      20,
+      -1,
+      0,
+      1,
+      0
+     ],
+     [
+      21,
+      1,
+      0,
+      -1,
+      0
+     ],
+     [
+      22,
+      1,
+      0,
+      1,
+      0
+     ],
+     [
+      23,
+      0,
+      -1,
+      0,
+      -1
+     ],
+     [
+      24,
+      0,
+      -1,
+      0,
+      1
+     ],
+     [
+      25,
+      0,
+      1,
+      0,
+      -1
+     ],
+     [
+      26,
+      0,
+      1,
+      0,
+      1
+     ],
+     [
+      27,
+      0,
+      0,
+      0,
+      0
+     ]
+    ],
+    "coded": true,
+    "notes": "as printed, in coded units"
+   },
+   "expected": [
+    {
+     "what": "design matrix",
+     "term": null,
+     "value": "27",
+     "analysis": "the library's design, whose run order does not follow the blocks",
+     "where": {
+      "page": "3-30",
+      "source_kind": "prose",
+      "quote": "The completed 27 run Box-Behnken for k = 4 is shown in Table 3.20b."
+     },
+     "check": {
+      "kind": "same_runs",
+      "design": {
+       "design_type": "box_behnken",
+       "k": 4,
+       "options": {
+        "n_center_points": 3
+       }
+      }
+     }
+    }
+   ]
+  },
+  {
+   "name": "schmidt-table-3-21-box-behnken",
+   "title": "Box-Behnken designs for three, four and five factors: their run counts",
+   "kind": "design",
+   "where": {
+    "section": "3.8",
+    "pages": "3-33",
+    "tables": [
+     "Table 3.21"
+    ],
+    "figures": []
+   },
+   "factors": [],
+   "responses": [],
+   "design": {
+    "type": "Box-Behnken",
+    "details": "k = 3, 4 and 5",
+    "n_runs": null,
+    "treatment_factors": "3 to 5"
+   },
+   "notes": "The library makes the designs without blocks; the run counts include every block's centre runs.",
+   "expected": [
+    {
+     "what": "n_runs",
+     "term": "k = 3",
+     "value": "15",
+     "where": {
+      "page": "3-33",
+      "source_kind": "table",
+      "quote": "Table 3.21 ... k = 3 ... 3 replicated center points ... n = 15"
+     },
+     "check": {
+      "kind": "design_property",
+      "property": "n_runs",
+      "design": {
+       "design_type": "box_behnken",
+       "k": 3,
+       "options": {
+        "n_center_points": 3
+       }
+      }
+     }
+    },
+    {
+     "what": "n_runs",
+     "term": "k = 4",
+     "value": "27",
+     "where": {
+      "page": "3-33",
+      "source_kind": "table",
+      "quote": "Table 3.21 ... k = 4 ... 3 blocks of 9 runs each and 1 center point per block ... n = 27"
+     },
+     "check": {
+      "kind": "design_property",
+      "property": "n_runs",
+      "design": {
+       "design_type": "box_behnken",
+       "k": 4,
+       "options": {
+        "n_center_points": 3
+       }
+      }
+     }
+    },
+    {
+     "what": "n_runs",
+     "term": "k = 5",
+     "value": "46",
+     "where": {
+      "page": "3-33",
+      "source_kind": "table",
+      "quote": "Table 3.21 ... k = 5 ... 2 blocks of 23 runs each and 3 replicated center points per block ... n = 46"
+     },
+     "check": {
+      "kind": "design_property",
+      "property": "n_runs",
+      "design": {
+       "design_type": "box_behnken",
+       "k": 5,
+       "options": {
+        "n_center_points": 6
+       }
+      }
+     }
+    }
+   ]
+  },
+  {
+   "name": "schmidt-table-3-22a-ccd-3",
+   "title": "The central composite design for three factors on the full 2^3",
+   "kind": "design",
+   "where": {
+    "section": "3.9",
+    "pages": "3-34 to 3-35",
+    "tables": [
+     "Table 3.22"
+    ],
+    "figures": [
+     "Figure 3.4"
+    ]
+   },
+   "factors": [
+    {
+     "name": "A",
+     "description": "column A",
+     "low": -1,
+     "high": 1,
+     "units": "",
+     "type": "numeric"
+    },
+    {
+     "name": "B",
+     "description": "column B",
+     "low": -1,
+     "high": 1,
+     "units": "",
+     "type": "numeric"
+    },
+    {
+     "name": "C",
+     "description": "column C",
+     "low": -1,
+     "high": 1,
+     "units": "",
+     "type": "numeric"
+    }
+   ],
+   "responses": [],
+   "design": {
+    "type": "central composite design",
+    "details": "the 2^3, six centre runs and six axial runs at alpha",
+    "n_runs": 20,
+    "treatment_factors": 3
+   },
+   "runs": {
+    "columns": [
+     "No.",
+     "A",
+     "B",
+     "C"
+    ],
+    "rows": [
+     [
+      1,
+      -1,
+      -1,
+      -1
+     ],
+     [
+      2,
+      -1,
+      -1,
+      1
+     ],
+     [
+      3,
+      -1,
+      1,
+      -1
+     ],
+     [
+      4,
+      -1,
+      1,
+      1
+     ],
+     [
+      5,
+      1,
+      -1,
+      -1
+     ],
+     [
+      6,
+      1,
+      -1,
+      1
+     ],
+     [
+      7,
+      1,
+      1,
+      -1
+     ],
+     [
+      8,
+      1,
+      1,
+      1
+     ],
+     [
+      9,
+      0,
+      0,
+      0
+     ],
+     [
+      10,
+      0,
+      0,
+      0
+     ],
+     [
+      11,
+      0,
+      0,
+      0
+     ],
+     [
+      12,
+      0,
+      0,
+      0
+     ],
+     [
+      13,
+      0,
+      0,
+      0
+     ],
+     [
+      14,
+      0,
+      0,
+      0
+     ],
+     [
+      15,
+      "α",
+      0,
+      0
+     ],
+     [
+      16,
+      "-α",
+      0,
+      0
+     ],
+     [
+      17,
+      0,
+      "α",
+      0
+     ],
+     [
+      18,
+      0,
+      "-α",
+      0
+     ],
+     [
+      19,
+      0,
+      0,
+      "α"
+     ],
+     [
+      20,
+      0,
+      0,
+      "-α"
+     ]
+    ],
+    "coded": true,
+    "notes": "Table 3.22a, alpha printed as the symbol"
+   },
+   "expected": [
+    {
+     "what": "design matrix",
+     "term": null,
+     "value": "20",
+     "analysis": "the library's rotatable design; the book's alpha, unnumbered here, is read as the library's, (n_F)^(1/4) = 8^(1/4) as the book recommends",
+     "where": {
+      "page": "3-34",
+      "source_kind": "table",
+      "quote": "Table 3.22 Central Composite Designs for 3 Factors a) Full Factorial 2-Level Portion"
+     },
+     "check": {
+      "kind": "same_runs",
+      "design": {
+       "design_type": "ccd",
+       "k": 3,
+       "options": {
+        "n_center_points": 6,
+        "alpha": "rotatable"
+       }
+      }
+     }
+    }
+   ]
+  },
+  {
+   "name": "schmidt-table-3-22b-ccd-3-half",
+   "title": "The central composite design for three factors on the half fraction 2^(3-1)",
+   "kind": "design",
+   "where": {
+    "section": "3.9",
+    "pages": "3-34",
+    "tables": [
+     "Table 3.22"
+    ],
+    "figures": []
+   },
+   "factors": [
+    {
+     "name": "A",
+     "description": "column A",
+     "low": -1,
+     "high": 1,
+     "units": "",
+     "type": "numeric"
+    },
+    {
+     "name": "B",
+     "description": "column B",
+     "low": -1,
+     "high": 1,
+     "units": "",
+     "type": "numeric"
+    },
+    {
+     "name": "C",
+     "description": "column C",
+     "low": -1,
+     "high": 1,
+     "units": "",
+     "type": "numeric"
+    }
+   ],
+   "responses": [],
+   "design": {
+    "type": "central composite design",
+    "details": "the 2^(3-1) with C = -AB, three centre runs and six axial runs at alpha",
+    "n_runs": 13,
+    "treatment_factors": 3
+   },
+   "runs": {
+    "columns": [
+     "No.",
+     "A",
+     "B",
+     "C"
+    ],
+    "rows": [
+     [
+      1,
+      -1,
+      -1,
+      -1
+     ],
+     [
+      2,
+      -1,
+      1,
+      1
+     ],
+     [
+      3,
+      1,
+      -1,
+      1
+     ],
+     [
+      4,
+      1,
+      1,
+      -1
+     ],
+     [
+      5,
+      0,
+      0,
+      0
+     ],
+     [
+      6,
+      0,
+      0,
+      0
+     ],
+     [
+      7,
+      0,
+      0,
+      0
+     ],
+     [
+      8,
+      "α",
+      0,
+      0
+     ],
+     [
+      9,
+      "-α",
+      0,
+      0
+     ],
+     [
+      10,
+      0,
+      "α",
+      0
+     ],
+     [
+      11,
+      0,
+      "-α",
+      0
+     ],
+     [
+      12,
+      0,
+      0,
+      "α"
+     ],
+     [
+      13,
+      0,
+      0,
+      "-α"
+     ]
+    ],
+    "coded": true,
+    "notes": "Table 3.22b, alpha printed as the symbol"
+   },
+   "expected": [
+    {
+     "what": "n_runs",
+     "term": null,
+     "value": "13",
+     "where": {
+      "page": "3-34",
+      "source_kind": "table",
+      "quote": "Table 3.22 ... b) Fractional Factorial 2-Level Portion ... Run 1 to 13"
+     },
+     "check": {
+      "manual": "the library builds a composite design's cube at resolution V or more, so a full quadratic model can be fitted, and refuses this resolution III half fraction; it cannot make these thirteen runs"
+     }
+    }
+   ]
+  },
+  {
+   "name": "schmidt-table-3-23-ccd-5",
+   "title": "The central composite design for five factors on the 2^(5-1) with E = ABCD",
+   "kind": "design",
+   "where": {
+    "section": "3.9",
+    "pages": "3-38 to 3-39",
+    "tables": [
+     "Table 3.23"
+    ],
+    "figures": []
+   },
+   "factors": [
+    {
+     "name": "A",
+     "description": "column A",
+     "low": -1,
+     "high": 1,
+     "units": "",
+     "type": "numeric"
+    },
+    {
+     "name": "B",
+     "description": "column B",
+     "low": -1,
+     "high": 1,
+     "units": "",
+     "type": "numeric"
+    },
+    {
+     "name": "C",
+     "description": "column C",
+     "low": -1,
+     "high": 1,
+     "units": "",
+     "type": "numeric"
+    },
+    {
+     "name": "D",
+     "description": "column D",
+     "low": -1,
+     "high": 1,
+     "units": "",
+     "type": "numeric"
+    },
+    {
+     "name": "E",
+     "description": "column E",
+     "low": -1,
+     "high": 1,
+     "units": "",
+     "type": "numeric"
+    }
+   ],
+   "responses": [],
+   "design": {
+    "type": "central composite design",
+    "details": "the resolution V half fraction, seven centre runs and ten axial runs at alpha = 2",
+    "n_runs": 33,
+    "treatment_factors": 5
+   },
+   "runs": {
+    "columns": [
+     "No.",
+     "A",
+     "B",
+     "C",
+     "D",
+     "E"
+    ],
+    "rows": [
+     [
+      1,
+      -1,
+      -1,
+      -1,
+      -1,
+      1
+     ],
+     [
+      2,
+      -1,
+      -1,
+      -1,
+      1,
+      -1
+     ],
+     [
+      3,
+      -1,
+      -1,
+      1,
+      -1,
+      -1
+     ],
+     [
+      4,
+      -1,
+      -1,
+      1,
+      1,
+      1
+     ],
+     [
+      5,
+      -1,
+      1,
+      -1,
+      -1,
+      -1
+     ],
+     [
+      6,
+      -1,
+      1,
+      -1,
+      1,
+      1
+     ],
+     [
+      7,
+      -1,
+      1,
+      1,
+      -1,
+      1
+     ],
+     [
+      8,
+      -1,
+      1,
+      1,
+      1,
+      -1
+     ],
+     [
+      9,
+      1,
+      -1,
+      -1,
+      -1,
+      -1
+     ],
+     [
+      10,
+      1,
+      -1,
+      -1,
+      1,
+      1
+     ],
+     [
+      11,
+      1,
+      -1,
+      1,
+      -1,
+      1
+     ],
+     [
+      12,
+      1,
+      -1,
+      1,
+      1,
+      -1
+     ],
+     [
+      13,
+      1,
+      1,
+      -1,
+      -1,
+      1
+     ],
+     [
+      14,
+      1,
+      1,
+      -1,
+      1,
+      -1
+     ],
+     [
+      15,
+      1,
+      1,
+      1,
+      -1,
+      -1
+     ],
+     [
+      16,
+      1,
+      1,
+      1,
+      1,
+      1
+     ],
+     [
+      17,
+      0,
+      0,
+      0,
+      0,
+      0
+     ],
+     [
+      18,
+      0,
+      0,
+      0,
+      0,
+      0
+     ],
+     [
+      19,
+      0,
+      0,
+      0,
+      0,
+      0
+     ],
+     [
+      20,
+      0,
+      0,
+      0,
+      0,
+      0
+     ],
+     [
+      21,
+      0,
+      0,
+      0,
+      0,
+      0
+     ],
+     [
+      22,
+      0,
+      0,
+      0,
+      0,
+      0
+     ],
+     [
+      23,
+      0,
+      0,
+      0,
+      0,
+      0
+     ],
+     [
+      24,
+      "α",
+      0,
+      0,
+      0,
+      0
+     ],
+     [
+      25,
+      "-α",
+      0,
+      0,
+      0,
+      0
+     ],
+     [
+      26,
+      0,
+      "α",
+      0,
+      0,
+      0
+     ],
+     [
+      27,
+      0,
+      "-α",
+      0,
+      0,
+      0
+     ],
+     [
+      28,
+      0,
+      0,
+      "α",
+      0,
+      0
+     ],
+     [
+      29,
+      0,
+      0,
+      "-α",
+      0,
+      0
+     ],
+     [
+      30,
+      0,
+      0,
+      0,
+      "α",
+      0
+     ],
+     [
+      31,
+      0,
+      0,
+      0,
+      "-α",
+      0
+     ],
+     [
+      32,
+      0,
+      0,
+      0,
+      0,
+      "α"
+     ],
+     [
+      33,
+      0,
+      0,
+      0,
+      0,
+      "-α"
+     ]
+    ],
+    "coded": true,
+    "notes": "Table 3.23, alpha printed as the symbol"
+   },
+   "expected": [
+    {
+     "what": "design matrix",
+     "term": null,
+     "value": "33",
+     "where": {
+      "page": "3-39",
+      "source_kind": "table",
+      "quote": "Table 3.23 CCD for k = 5 with R_V"
+     },
+     "check": {
+      "kind": "same_runs",
+      "design": {
+       "design_type": "ccd",
+       "k": 5,
+       "options": {
+        "n_center_points": 7,
+        "alpha": "rotatable",
+        "cube": "fractional",
+        "generators": [
+         "E=ABCD"
+        ]
+       }
+      }
+     }
+    },
+    {
+     "what": "generators",
+     "term": null,
+     "value": "E = ABCD",
+     "analysis": "in the sixteen runs of the cube",
+     "where": {
+      "page": "3-39",
+      "source_kind": "table",
+      "quote": "Table 3.23 ... E = ABCD"
+     },
+     "check": {
+      "kind": "generator_holds",
+      "runs": [
+       1,
+       2,
+       3,
+       4,
+       5,
+       6,
+       7,
+       8,
+       9,
+       10,
+       11,
+       12,
+       13,
+       14,
+       15,
+       16
+      ]
+     }
+    },
+    {
+     "what": "alpha",
+     "term": null,
+     "value": "2.0",
+     "where": {
+      "page": "3-38",
+      "source_kind": "math",
+      "quote": "a recommended α value of α = (n_F)^(1/4) = (16)^(1/4) = 2.0"
+     },
+     "check": {
+      "kind": "design_property",
+      "property": "alpha",
+      "design": {
+       "design_type": "ccd",
+       "k": 5,
+       "options": {
+        "n_center_points": 7,
+        "alpha": "rotatable",
+        "cube": "fractional",
+        "generators": [
+         "E=ABCD"
+        ]
+       }
+      }
+     }
+    },
+    {
+     "what": "centre runs",
+     "term": null,
+     "value": "7",
+     "where": {
+      "page": "3-38",
+      "source_kind": "math",
+      "quote": "n_c = 4√(n_F + 1) - 2k which results in n_c = 4√(16 + 1) - 2(5) ≐ 7"
+     },
+     "check": {
+      "manual": "the book's own rule for the number of centre runs, 4√(n_F + 1) - 2k rounded up (6.49 here); no library function computes it"
+     }
+    },
+    {
+     "what": "axial runs",
+     "term": null,
+     "value": "10",
+     "where": {
+      "page": "3-38",
+      "source_kind": "math",
+      "quote": "The number of axial points is n_a = 2k = 10"
+     },
+     "check": {
+      "manual": "two axial runs a factor, which the design's runs (checked) hold"
+     }
+    },
+    {
+     "what": "n_runs",
+     "term": "cube (i)",
+     "value": "32",
+     "where": {
+      "page": "3-38",
+      "source_kind": "prose",
+      "quote": "Let n_F = 2^5 = 32 runs, i.e., use a full factorial"
+     },
+     "check": {
+      "kind": "design_property",
+      "property": "n_runs",
+      "design": {
+       "design_type": "full_factorial",
+       "k": 5,
+       "options": {
+        "n_center_points": 0
+       }
+      }
+     }
+    },
+    {
+     "what": "n_runs",
+     "term": "cube (ii)",
+     "value": "16",
+     "where": {
+      "page": "3-38",
+      "source_kind": "prose",
+      "quote": "Let n_F = 2^(5-1) = 16 runs where factor E = ABCD"
+     },
+     "check": {
+      "kind": "design_property",
+      "property": "n_runs",
+      "design": {
+       "design_type": "fractional_factorial",
+       "k": 5,
+       "options": {
+        "generators": [
+         "E=ABCD"
+        ],
+        "n_center_points": 0
+       }
+      }
+     }
+    },
+    {
+     "what": "defining_relation",
+     "term": null,
+     "value": "ABCDE",
+     "where": {
+      "page": "3-38",
+      "source_kind": "prose",
+      "quote": "and I = ABCDE. This design is R_V"
+     },
+     "check": {
+      "kind": "defining_relation",
+      "k": 5,
+      "generators": [
+       "E=ABCD"
+      ]
+     }
+    },
+    {
+     "what": "resolution",
+     "term": null,
+     "value": "V",
+     "where": {
+      "page": "3-38",
+      "source_kind": "prose",
+      "quote": "This design is R_V and a big savings over the full factorial"
+     },
+     "check": {
+      "kind": "resolution",
+      "k": 5,
+      "generators": [
+       "E=ABCD"
+      ]
+     }
+    },
+    {
+     "what": "n_runs",
+     "term": "cube (iii)",
+     "value": "8",
+     "where": {
+      "page": "3-38",
+      "source_kind": "prose",
+      "quote": "Let n_F = 2^(5-2) = 8 runs where D = AB, E = ABC"
+     },
+     "check": {
+      "kind": "design_property",
+      "property": "n_runs",
+      "design": {
+       "design_type": "fractional_factorial",
+       "k": 5,
+       "options": {
+        "generators": [
+         "D=AB",
+         "E=ABC"
+        ],
+        "n_center_points": 0
+       }
+      }
+     }
+    },
+    {
+     "what": "defining_relation",
+     "term": null,
+     "value": "ABD = ABCE = CDE",
+     "where": {
+      "page": "3-38",
+      "source_kind": "math",
+      "quote": "and I = ABD = ABCE = CDE"
+     },
+     "check": {
+      "kind": "defining_relation",
+      "k": 5,
+      "generators": [
+       "D=AB",
+       "E=ABC"
+      ]
+     }
+    },
+    {
+     "what": "resolution",
+     "term": null,
+     "value": "less than R_IV",
+     "analysis": "the book says only that it is less than IV; its shortest word, ABD, makes it III",
+     "where": {
+      "page": "3-38",
+      "source_kind": "prose",
+      "quote": "Since this design is less than R_IV"
+     },
+     "check": {
+      "kind": "resolution",
+      "k": 5,
+      "generators": [
+       "D=AB",
+       "E=ABC"
+      ],
+      "printed": "III"
+     }
+    }
+   ]
+  },
+  {
+   "name": "schmidt-table-3-24-design-comparison",
+   "title": "Run counts of five three-level design types for five scenarios",
+   "kind": "design",
+   "where": {
+    "section": "3.10",
+    "pages": "3-40 to 3-41",
+    "tables": [
+     "Table 3.24",
+     "Table 3.25"
+    ],
+    "figures": []
+   },
+   "factors": [],
+   "responses": [],
+   "design": {
+    "type": "comparison of design types",
+    "details": "3^(k-q), Box-Behnken, central composite, D-optimal and full factorial",
+    "n_runs": null,
+    "treatment_factors": "3 to 7"
+   },
+   "notes": "Numbers in parentheses are the centre runs included. The D-optimal counts are the minimum, one run per term of the model with its constant (the footnote says most software adds two).",
+   "expected": [
+    {
+     "what": "n_runs",
+     "term": "3^(k-q), k = 3 with no interactions",
+     "value": "9(0)",
+     "analysis": "the library's Taguchi design for three three-level factors, the L9",
+     "where": {
+      "page": "3-40",
+      "source_kind": "table",
+      "quote": "Table 3.24 Comparison of Design Types for Quantitative Factor Scenarios ... k = 3 with no interactions ... 3^(k-q) 9(0)"
+     },
+     "check": {
+      "kind": "design_property",
+      "property": "n_runs",
+      "design": {
+       "design_type": "taguchi",
+       "k": 3,
+       "options": {},
+       "levels": 3
+      },
+      "printed": "9"
+     }
+    },
+    {
+     "what": "n_runs",
+     "term": "Box-Behnken, k = 3 with no interactions",
+     "value": "15(3)",
+     "where": {
+      "page": "3-40",
+      "source_kind": "table",
+      "quote": "Table 3.24 Comparison of Design Types for Quantitative Factor Scenarios ... k = 3 with no interactions ... Box-Behnken 15(3)"
+     },
+     "check": {
+      "kind": "design_property",
+      "property": "n_runs",
+      "design": {
+       "design_type": "box_behnken",
+       "k": 3,
+       "options": {
+        "n_center_points": 3
+       }
+      },
+      "printed": "15"
+     }
+    },
+    {
+     "what": "n_runs",
+     "term": "CCD, k = 3 with no interactions",
+     "value": "13(3)*",
+     "where": {
+      "page": "3-40",
+      "source_kind": "table",
+      "quote": "Table 3.24 Comparison of Design Types for Quantitative Factor Scenarios ... k = 3 with no interactions ... CCD** 13(3)*"
+     },
+     "check": {
+      "manual": "a composite design on a resolution III or IV cube (the counts are n_F + n_c + 2k), which the library refuses: it builds a composite design's cube at resolution V or more"
+     }
+    },
+    {
+     "what": "model terms",
+     "term": "D-optimal, k = 3 with no interactions",
+     "value": "7(0)",
+     "analysis": "the minimum runs, one per term of the model with its constant: the model's degrees of freedom, which the library counts on the 3^3 factorial, are one fewer",
+     "where": {
+      "page": "3-40",
+      "source_kind": "table",
+      "quote": "Table 3.24 Comparison of Design Types for Quantitative Factor Scenarios ... k = 3 with no interactions ... D-opt*** 7(0)"
+     },
+     "check": {
+      "kind": "design_metric",
+      "metric": "degrees_of_freedom",
+      "key": "model",
+      "model": "A + B + C + I(A ** 2) + I(B ** 2) + I(C ** 2)",
+      "design": {
+       "design_type": "full_factorial",
+       "k": 3,
+       "options": {
+        "n_center_points": 0
+       },
+       "levels": 3
+      },
+      "printed": "7 - 1",
+      "expression": true
+     }
+    },
+    {
+     "what": "n_runs",
+     "term": "full factorial, k = 3 with no interactions",
+     "value": "27(1)",
+     "where": {
+      "page": "3-40",
+      "source_kind": "table",
+      "quote": "Table 3.24 Comparison of Design Types for Quantitative Factor Scenarios ... k = 3 with no interactions ... Full Factorial 27(1)"
+     },
+     "check": {
+      "kind": "design_property",
+      "property": "n_runs",
+      "design": {
+       "design_type": "full_factorial",
+       "k": 3,
+       "options": {
+        "n_center_points": 0
+       },
+       "levels": 3
+      },
+      "printed": "27"
+     }
+    },
+    {
+     "what": "n_runs",
+     "term": "3^(k-q), k = 4 with 3 2-way linear interactions",
+     "value": "27(0)",
+     "where": {
+      "page": "3-40",
+      "source_kind": "table",
+      "quote": "Table 3.24 Comparison of Design Types for Quantitative Factor Scenarios ... k = 4 with 3 2-way linear interactions ... 3^(k-q) 27(0)"
+     },
+     "check": {
+      "manual": "a three-level fraction that also estimates the named interactions; the library makes three-level fractions only as Taguchi arrays chosen for the main effects"
+     }
+    },
+    {
+     "what": "n_runs",
+     "term": "Box-Behnken, k = 4 with 3 2-way linear interactions",
+     "value": "27(3)",
+     "where": {
+      "page": "3-40",
+      "source_kind": "table",
+      "quote": "Table 3.24 Comparison of Design Types for Quantitative Factor Scenarios ... k = 4 with 3 2-way linear interactions ... Box-Behnken 27(3)"
+     },
+     "check": {
+      "kind": "design_property",
+      "property": "n_runs",
+      "design": {
+       "design_type": "box_behnken",
+       "k": 4,
+       "options": {
+        "n_center_points": 3
+       }
+      },
+      "printed": "27"
+     }
+    },
+    {
+     "what": "n_runs",
+     "term": "CCD, k = 4 with 3 2-way linear interactions",
+     "value": "20(4)*",
+     "where": {
+      "page": "3-40",
+      "source_kind": "table",
+      "quote": "Table 3.24 Comparison of Design Types for Quantitative Factor Scenarios ... k = 4 with 3 2-way linear interactions ... CCD** 20(4)*"
+     },
+     "check": {
+      "manual": "a composite design on a resolution III or IV cube (the counts are n_F + n_c + 2k), which the library refuses: it builds a composite design's cube at resolution V or more"
+     }
+    },
+    {
+     "what": "model terms",
+     "term": "D-optimal, k = 4 with 3 2-way linear interactions",
+     "value": "12(0)",
+     "analysis": "the minimum runs, one per term of the model with its constant: the model's degrees of freedom, which the library counts on the 3^4 factorial, are one fewer",
+     "where": {
+      "page": "3-40",
+      "source_kind": "table",
+      "quote": "Table 3.24 Comparison of Design Types for Quantitative Factor Scenarios ... k = 4 with 3 2-way linear interactions ... D-opt*** 12(0)"
+     },
+     "check": {
+      "kind": "design_metric",
+      "metric": "degrees_of_freedom",
+      "key": "model",
+      "model": "A + B + C + D + I(A ** 2) + I(B ** 2) + I(C ** 2) + I(D ** 2) + A:B + A:C + A:D",
+      "design": {
+       "design_type": "full_factorial",
+       "k": 4,
+       "options": {
+        "n_center_points": 0
+       },
+       "levels": 3
+      },
+      "printed": "12 - 1",
+      "expression": true
+     }
+    },
+    {
+     "what": "n_runs",
+     "term": "full factorial, k = 4 with 3 2-way linear interactions",
+     "value": "81(1)",
+     "where": {
+      "page": "3-40",
+      "source_kind": "table",
+      "quote": "Table 3.24 Comparison of Design Types for Quantitative Factor Scenarios ... k = 4 with 3 2-way linear interactions ... Full Factorial 81(1)"
+     },
+     "check": {
+      "kind": "design_property",
+      "property": "n_runs",
+      "design": {
+       "design_type": "full_factorial",
+       "k": 4,
+       "options": {
+        "n_center_points": 0
+       },
+       "levels": 3
+      },
+      "printed": "81"
+     }
+    },
+    {
+     "what": "n_runs",
+     "term": "3^(k-q), k = 5 with 1 2-way linear interaction",
+     "value": "27(0)",
+     "where": {
+      "page": "3-40",
+      "source_kind": "table",
+      "quote": "Table 3.24 Comparison of Design Types for Quantitative Factor Scenarios ... k = 5 with 1 2-way linear interaction ... 3^(k-q) 27(0)"
+     },
+     "check": {
+      "manual": "a three-level fraction that also estimates the named interactions; the library makes three-level fractions only as Taguchi arrays chosen for the main effects"
+     }
+    },
+    {
+     "what": "n_runs",
+     "term": "Box-Behnken, k = 5 with 1 2-way linear interaction",
+     "value": "46(6)",
+     "where": {
+      "page": "3-40",
+      "source_kind": "table",
+      "quote": "Table 3.24 Comparison of Design Types for Quantitative Factor Scenarios ... k = 5 with 1 2-way linear interaction ... Box-Behnken 46(6)"
+     },
+     "check": {
+      "kind": "design_property",
+      "property": "n_runs",
+      "design": {
+       "design_type": "box_behnken",
+       "k": 5,
+       "options": {
+        "n_center_points": 6
+       }
+      },
+      "printed": "46"
+     }
+    },
+    {
+     "what": "n_runs",
+     "term": "CCD, k = 5 with 1 2-way linear interaction",
+     "value": "20(2)*",
+     "where": {
+      "page": "3-40",
+      "source_kind": "table",
+      "quote": "Table 3.24 Comparison of Design Types for Quantitative Factor Scenarios ... k = 5 with 1 2-way linear interaction ... CCD** 20(2)*"
+     },
+     "check": {
+      "manual": "a composite design on a resolution III or IV cube (the counts are n_F + n_c + 2k), which the library refuses: it builds a composite design's cube at resolution V or more"
+     }
+    },
+    {
+     "what": "model terms",
+     "term": "D-optimal, k = 5 with 1 2-way linear interaction",
+     "value": "12(0)",
+     "analysis": "the minimum runs, one per term of the model with its constant: the model's degrees of freedom, which the library counts on the 3^5 factorial, are one fewer",
+     "where": {
+      "page": "3-40",
+      "source_kind": "table",
+      "quote": "Table 3.24 Comparison of Design Types for Quantitative Factor Scenarios ... k = 5 with 1 2-way linear interaction ... D-opt*** 12(0)"
+     },
+     "check": {
+      "kind": "design_metric",
+      "metric": "degrees_of_freedom",
+      "key": "model",
+      "model": "A + B + C + D + E + I(A ** 2) + I(B ** 2) + I(C ** 2) + I(D ** 2) + I(E ** 2) + A:B",
+      "design": {
+       "design_type": "full_factorial",
+       "k": 5,
+       "options": {
+        "n_center_points": 0
+       },
+       "levels": 3
+      },
+      "printed": "12 - 1",
+      "expression": true
+     }
+    },
+    {
+     "what": "n_runs",
+     "term": "full factorial, k = 5 with 1 2-way linear interaction",
+     "value": "243(1)",
+     "where": {
+      "page": "3-40",
+      "source_kind": "table",
+      "quote": "Table 3.24 Comparison of Design Types for Quantitative Factor Scenarios ... k = 5 with 1 2-way linear interaction ... Full Factorial 243(1)"
+     },
+     "check": {
+      "kind": "design_property",
+      "property": "n_runs",
+      "design": {
+       "design_type": "full_factorial",
+       "k": 5,
+       "options": {
+        "n_center_points": 0
+       },
+       "levels": 3
+      },
+      "printed": "243"
+     }
+    },
+    {
+     "what": "n_runs",
+     "term": "3^(k-q), k = 5 with all 2-way linear interactions",
+     "value": "81(0)",
+     "where": {
+      "page": "3-40",
+      "source_kind": "table",
+      "quote": "Table 3.24 Comparison of Design Types for Quantitative Factor Scenarios ... k = 5 with all 2-way linear interactions ... 3^(k-q) 81(0)"
+     },
+     "check": {
+      "manual": "a three-level fraction that also estimates the named interactions; the library makes three-level fractions only as Taguchi arrays chosen for the main effects"
+     }
+    },
+    {
+     "what": "n_runs",
+     "term": "Box-Behnken, k = 5 with all 2-way linear interactions",
+     "value": "46(6)",
+     "where": {
+      "page": "3-40",
+      "source_kind": "table",
+      "quote": "Table 3.24 Comparison of Design Types for Quantitative Factor Scenarios ... k = 5 with all 2-way linear interactions ... Box-Behnken 46(6)"
+     },
+     "check": {
+      "kind": "design_property",
+      "property": "n_runs",
+      "design": {
+       "design_type": "box_behnken",
+       "k": 5,
+       "options": {
+        "n_center_points": 6
+       }
+      },
+      "printed": "46"
+     }
+    },
+    {
+     "what": "n_runs",
+     "term": "CCD, k = 5 with all 2-way linear interactions",
+     "value": "33(7)*",
+     "analysis": "the composite design on the resolution V half fraction, 16 + 7 + 10 runs",
+     "where": {
+      "page": "3-40",
+      "source_kind": "table",
+      "quote": "Table 3.24 Comparison of Design Types for Quantitative Factor Scenarios ... k = 5 with all 2-way linear interactions ... CCD** 33(7)*"
+     },
+     "check": {
+      "kind": "design_property",
+      "property": "n_runs",
+      "design": {
+       "design_type": "ccd",
+       "k": 5,
+       "options": {
+        "n_center_points": 7,
+        "alpha": "rotatable",
+        "cube": "fractional",
+        "generators": [
+         "E=ABCD"
+        ]
+       }
+      },
+      "printed": "33"
+     }
+    },
+    {
+     "what": "model terms",
+     "term": "D-optimal, k = 5 with all 2-way linear interactions",
+     "value": "21(0)",
+     "analysis": "the minimum runs, one per term of the model with its constant: the model's degrees of freedom, which the library counts on the 3^5 factorial, are one fewer",
+     "where": {
+      "page": "3-40",
+      "source_kind": "table",
+      "quote": "Table 3.24 Comparison of Design Types for Quantitative Factor Scenarios ... k = 5 with all 2-way linear interactions ... D-opt*** 21(0)"
+     },
+     "check": {
+      "kind": "design_metric",
+      "metric": "degrees_of_freedom",
+      "key": "model",
+      "model": "A + B + C + D + E + I(A ** 2) + I(B ** 2) + I(C ** 2) + I(D ** 2) + I(E ** 2) + A:B + A:C + A:D + A:E + B:C + B:D + B:E + C:D + C:E + D:E",
+      "design": {
+       "design_type": "full_factorial",
+       "k": 5,
+       "options": {
+        "n_center_points": 0
+       },
+       "levels": 3
+      },
+      "printed": "21 - 1",
+      "expression": true
+     }
+    },
+    {
+     "what": "n_runs",
+     "term": "full factorial, k = 5 with all 2-way linear interactions",
+     "value": "243(1)",
+     "where": {
+      "page": "3-40",
+      "source_kind": "table",
+      "quote": "Table 3.24 Comparison of Design Types for Quantitative Factor Scenarios ... k = 5 with all 2-way linear interactions ... Full Factorial 243(1)"
+     },
+     "check": {
+      "kind": "design_property",
+      "property": "n_runs",
+      "design": {
+       "design_type": "full_factorial",
+       "k": 5,
+       "options": {
+        "n_center_points": 0
+       },
+       "levels": 3
+      },
+      "printed": "243"
+     }
+    },
+    {
+     "what": "n_runs",
+     "term": "3^(k-q), k = 7 with 7 2-way linear interactions",
+     "value": "81(0)",
+     "where": {
+      "page": "3-40",
+      "source_kind": "table",
+      "quote": "Table 3.24 Comparison of Design Types for Quantitative Factor Scenarios ... k = 7 with 7 2-way linear interactions ... 3^(k-q) 81(0)"
+     },
+     "check": {
+      "manual": "a three-level fraction that also estimates the named interactions; the library makes three-level fractions only as Taguchi arrays chosen for the main effects"
+     }
+    },
+    {
+     "what": "n_runs",
+     "term": "Box-Behnken, k = 7 with 7 2-way linear interactions",
+     "value": "62(6)",
+     "where": {
+      "page": "3-40",
+      "source_kind": "table",
+      "quote": "Table 3.24 Comparison of Design Types for Quantitative Factor Scenarios ... k = 7 with 7 2-way linear interactions ... Box-Behnken 62(6)"
+     },
+     "check": {
+      "kind": "design_property",
+      "property": "n_runs",
+      "design": {
+       "design_type": "box_behnken",
+       "k": 7,
+       "options": {
+        "n_center_points": 6
+       }
+      },
+      "printed": "62"
+     }
+    },
+    {
+     "what": "n_runs",
+     "term": "CCD, k = 7 with 7 2-way linear interactions",
+     "value": "33(3)*",
+     "where": {
+      "page": "3-40",
+      "source_kind": "table",
+      "quote": "Table 3.24 Comparison of Design Types for Quantitative Factor Scenarios ... k = 7 with 7 2-way linear interactions ... CCD** 33(3)*"
+     },
+     "check": {
+      "manual": "a composite design on a resolution III or IV cube (the counts are n_F + n_c + 2k), which the library refuses: it builds a composite design's cube at resolution V or more"
+     }
+    },
+    {
+     "what": "model terms",
+     "term": "D-optimal, k = 7 with 7 2-way linear interactions",
+     "value": "22(0)",
+     "analysis": "the minimum runs, one per term of the model with its constant: the model's degrees of freedom, which the library counts on the 3^7 factorial, are one fewer",
+     "where": {
+      "page": "3-40",
+      "source_kind": "table",
+      "quote": "Table 3.24 Comparison of Design Types for Quantitative Factor Scenarios ... k = 7 with 7 2-way linear interactions ... D-opt*** 22(0)"
+     },
+     "check": {
+      "kind": "design_metric",
+      "metric": "degrees_of_freedom",
+      "key": "model",
+      "model": "A + B + C + D + E + F + G + I(A ** 2) + I(B ** 2) + I(C ** 2) + I(D ** 2) + I(E ** 2) + I(F ** 2) + I(G ** 2) + A:B + A:C + A:D + A:E + A:F + A:G + B:C",
+      "design": {
+       "design_type": "full_factorial",
+       "k": 7,
+       "options": {
+        "n_center_points": 0
+       },
+       "levels": 3
+      },
+      "printed": "22 - 1",
+      "expression": true
+     }
+    },
+    {
+     "what": "n_runs",
+     "term": "full factorial, k = 7 with 7 2-way linear interactions",
+     "value": "2187(1)",
+     "where": {
+      "page": "3-40",
+      "source_kind": "table",
+      "quote": "Table 3.24 Comparison of Design Types for Quantitative Factor Scenarios ... k = 7 with 7 2-way linear interactions ... Full Factorial 2187(1)"
+     },
+     "check": {
+      "kind": "design_property",
+      "property": "n_runs",
+      "design": {
+       "design_type": "full_factorial",
+       "k": 7,
+       "options": {
+        "n_center_points": 0
+       },
+       "levels": 3
+      },
+      "printed": "2187"
+     }
+    },
+    {
+     "what": "centre runs",
+     "term": "footnote",
+     "value": "n_c = 4√(n_F + 1) - 2k",
+     "where": {
+      "page": "3-40",
+      "source_kind": "table",
+      "quote": "*n_c = 4√(n_F + 1) - 2k"
+     },
+     "check": {
+      "manual": "the book's own rule for the centre runs of a composite design; no library function computes it"
+     }
+    }
+   ]
+  },
+  {
+   "name": "schmidt-table-3-26-taguchi-designs",
+   "title": "The most frequently used Taguchi designs, and how many factors each screens",
+   "kind": "design",
+   "where": {
+    "section": "3.11",
+    "pages": "3-42",
+    "tables": [
+     "Table 3.26"
+    ],
+    "figures": []
+   },
+   "factors": [],
+   "responses": [],
+   "design": {
+    "type": "Taguchi orthogonal arrays",
+    "details": "L4, L8, L9, L12, L16, L18 and L27",
+    "n_runs": null,
+    "treatment_factors": "3 to 15"
+   },
+   "notes": "The full factorial and resolution V columns of the table are checked on the arrays themselves, under schmidt-taguchi-l4 to schmidt-taguchi-l27.",
+   "expected": [
+    {
+     "what": "n_runs",
+     "term": "L4, screening",
+     "value": "3",
+     "analysis": "the library's Taguchi design for 3 factors of the array's levels has 4 runs",
+     "where": {
+      "page": "3-42",
+      "source_kind": "table",
+      "quote": "Table 3.26 Most Frequently Used Taguchi Designs ... L4 ... # of Factors for Screening 3"
+     },
+     "check": {
+      "kind": "design_property",
+      "property": "n_runs",
+      "design": {
+       "design_type": "taguchi",
+       "k": 3,
+       "options": {}
+      },
+      "printed": "4"
+     }
+    },
+    {
+     "what": "n_runs",
+     "term": "L8, screening",
+     "value": "7",
+     "analysis": "the library's Taguchi design for 7 factors of the array's levels has 8 runs",
+     "where": {
+      "page": "3-42",
+      "source_kind": "table",
+      "quote": "Table 3.26 Most Frequently Used Taguchi Designs ... L8 ... # of Factors for Screening 7"
+     },
+     "check": {
+      "kind": "design_property",
+      "property": "n_runs",
+      "design": {
+       "design_type": "taguchi",
+       "k": 7,
+       "options": {}
+      },
+      "printed": "8"
+     }
+    },
+    {
+     "what": "n_runs",
+     "term": "L9, screening",
+     "value": "4",
+     "analysis": "the library's Taguchi design for 4 factors of the array's levels has 9 runs",
+     "where": {
+      "page": "3-42",
+      "source_kind": "table",
+      "quote": "Table 3.26 Most Frequently Used Taguchi Designs ... L9 ... # of Factors for Screening 4"
+     },
+     "check": {
+      "kind": "design_property",
+      "property": "n_runs",
+      "design": {
+       "design_type": "taguchi",
+       "k": 4,
+       "options": {},
+       "levels": 3
+      },
+      "printed": "9"
+     }
+    },
+    {
+     "what": "n_runs",
+     "term": "L12, screening",
+     "value": "11",
+     "analysis": "the library's Taguchi design for 11 factors of the array's levels has 12 runs",
+     "where": {
+      "page": "3-42",
+      "source_kind": "table",
+      "quote": "Table 3.26 Most Frequently Used Taguchi Designs ... L12 ... # of Factors for Screening 11"
+     },
+     "check": {
+      "kind": "design_property",
+      "property": "n_runs",
+      "design": {
+       "design_type": "taguchi",
+       "k": 11,
+       "options": {}
+      },
+      "printed": "12"
+     }
+    },
+    {
+     "what": "n_runs",
+     "term": "L16, screening",
+     "value": "15",
+     "analysis": "the library's Taguchi design for 15 factors of the array's levels has 16 runs",
+     "where": {
+      "page": "3-42",
+      "source_kind": "table",
+      "quote": "Table 3.26 Most Frequently Used Taguchi Designs ... L16 ... # of Factors for Screening 15"
+     },
+     "check": {
+      "kind": "design_property",
+      "property": "n_runs",
+      "design": {
+       "design_type": "taguchi",
+       "k": 15,
+       "options": {}
+      },
+      "printed": "16"
+     }
+    },
+    {
+     "what": "n_runs",
+     "term": "L18, screening",
+     "value": "8",
+     "analysis": "the library's Taguchi design for 8 factors of the array's levels has 18 runs",
+     "where": {
+      "page": "3-42",
+      "source_kind": "table",
+      "quote": "Table 3.26 Most Frequently Used Taguchi Designs ... L18 ... # of Factors for Screening 8"
+     },
+     "check": {
+      "kind": "design_property",
+      "property": "n_runs",
+      "design": {
+       "design_type": "taguchi",
+       "k": 8,
+       "options": {},
+       "levels": [
+        2,
+        3,
+        3,
+        3,
+        3,
+        3,
+        3,
+        3
+       ]
+      },
+      "printed": "18",
+      "disagreement": "the book's L18 is the library's stored L18(6^1 3^6) with its six-level column written as a two-level and a three-level column (checked under schmidt-taguchi-l18), but the library's Taguchi design does not split a column, so for one two-level and seven three-level factors it takes the 36-run L36(3^23)"
+     }
+    },
+    {
+     "what": "n_runs",
+     "term": "L27, screening",
+     "value": "13",
+     "analysis": "the library's Taguchi design for 13 factors of the array's levels has 27 runs",
+     "where": {
+      "page": "3-42",
+      "source_kind": "table",
+      "quote": "Table 3.26 Most Frequently Used Taguchi Designs ... L27 ... # of Factors for Screening 13"
+     },
+     "check": {
+      "kind": "design_property",
+      "property": "n_runs",
+      "design": {
+       "design_type": "taguchi",
+       "k": 13,
+       "options": {},
+       "levels": 3
+      },
+      "printed": "27"
+     }
+    }
+   ]
+  },
+  {
+   "name": "schmidt-taguchi-l4",
+   "title": "The Taguchi L4 orthogonal array",
+   "kind": "design",
+   "where": {
+    "section": "3.11",
+    "pages": "3-43",
+    "tables": [
+     "Table 3.27"
+    ],
+    "figures": []
+   },
+   "factors": [
+    {
+     "name": "A",
+     "description": "column A",
+     "low": -1,
+     "high": 1,
+     "units": "",
+     "type": "numeric"
+    },
+    {
+     "name": "B",
+     "description": "column B",
+     "low": -1,
+     "high": 1,
+     "units": "",
+     "type": "numeric"
+    },
+    {
+     "name": "C",
+     "description": "column C",
+     "low": -1,
+     "high": 1,
+     "units": "",
+     "type": "numeric"
+    }
+   ],
+   "responses": [],
+   "design": {
+    "type": "Taguchi orthogonal array",
+    "details": "3 columns",
+    "n_runs": 4,
+    "treatment_factors": 3
+   },
+   "runs": {
+    "columns": [
+     "No.",
+     "A",
+     "B",
+     "C"
+    ],
+    "rows": [
+     [
+      1,
+      -1,
+      -1,
+      -1
+     ],
+     [
+      2,
+      -1,
+      1,
+      1
+     ],
+     [
+      3,
+      1,
+      -1,
+      1
+     ],
+     [
+      4,
+      1,
+      1,
+      -1
+     ]
+    ],
+    "coded": true,
+    "notes": "Table 3.27, its columns 1 to 3 named A, B, C, ... in order (I skipped)"
+   },
+   "expected": [
+    {
+     "what": "design matrix",
+     "term": null,
+     "value": "4",
+     "analysis": "the library's stored L4(2^3)",
+     "where": {
+      "page": "3-43",
+      "source_kind": "table",
+      "quote": "Table 3.27 L4 Design [11]"
+     },
+     "check": {
+      "kind": "same_runs",
+      "array": "L4(2^3)"
+     }
+    },
+    {
+     "what": "Taguchi design",
+     "term": null,
+     "value": "4",
+     "analysis": "the library's Taguchi design for 3 factors, which takes every column of its L4(2^3)",
+     "where": {
+      "page": "3-43",
+      "source_kind": "table",
+      "quote": "Table 3.27 L4 Design [11]"
+     },
+     "check": {
+      "kind": "same_runs",
+      "design": {
+       "design_type": "taguchi",
+       "k": 3,
+       "options": {}
+      }
+     }
+    },
+    {
+     "what": "generators",
+     "term": null,
+     "value": "a b -ab",
+     "analysis": "the columns named by their position, A for column 1 and so on (I is skipped); a, b, c and d are the columns 1, 2, 4 and 8",
+     "where": {
+      "page": "3-43",
+      "source_kind": "table",
+      "quote": "Table 3.27 ... Original factors and interactions used to generate the matrix a b -ab"
+     },
+     "check": {
+      "kind": "generator_holds",
+      "printed": "C = -AB"
+     }
+    },
+    {
+     "what": "columns",
+     "term": "2 factors",
+     "value": "1, 2",
+     "analysis": "these columns are the library's design of that many factors",
+     "where": {
+      "page": "3-43",
+      "source_kind": "table",
+      "quote": "Table 3.27 ... Strategy # Factors Which Columns? ... Full Factorial 2 1, 2"
+     },
+     "check": {
+      "kind": "same_runs",
+      "design": {
+       "design_type": "full_factorial",
+       "k": 2,
+       "options": {
+        "n_center_points": 0
+       }
+      },
+      "columns": [
+       "A",
+       "B"
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "name": "schmidt-taguchi-l8",
+   "title": "The Taguchi L8 orthogonal array",
+   "kind": "design",
+   "where": {
+    "section": "3.11",
+    "pages": "3-43",
+    "tables": [
+     "Table 3.28"
+    ],
+    "figures": []
+   },
+   "factors": [
+    {
+     "name": "A",
+     "description": "column A",
+     "low": -1,
+     "high": 1,
+     "units": "",
+     "type": "numeric"
+    },
+    {
+     "name": "B",
+     "description": "column B",
+     "low": -1,
+     "high": 1,
+     "units": "",
+     "type": "numeric"
+    },
+    {
+     "name": "C",
+     "description": "column C",
+     "low": -1,
+     "high": 1,
+     "units": "",
+     "type": "numeric"
+    },
+    {
+     "name": "D",
+     "description": "column D",
+     "low": -1,
+     "high": 1,
+     "units": "",
+     "type": "numeric"
+    },
+    {
+     "name": "E",
+     "description": "column E",
+     "low": -1,
+     "high": 1,
+     "units": "",
+     "type": "numeric"
+    },
+    {
+     "name": "F",
+     "description": "column F",
+     "low": -1,
+     "high": 1,
+     "units": "",
+     "type": "numeric"
+    },
+    {
+     "name": "G",
+     "description": "column G",
+     "low": -1,
+     "high": 1,
+     "units": "",
+     "type": "numeric"
+    }
+   ],
+   "responses": [],
+   "design": {
+    "type": "Taguchi orthogonal array",
+    "details": "7 columns",
+    "n_runs": 8,
+    "treatment_factors": 7
+   },
+   "runs": {
+    "columns": [
+     "No.",
+     "A",
+     "B",
+     "C",
+     "D",
+     "E",
+     "F",
+     "G"
+    ],
+    "rows": [
+     [
+      1,
+      -1,
+      -1,
+      -1,
+      -1,
+      -1,
+      -1,
+      -1
+     ],
+     [
+      2,
+      -1,
+      -1,
+      -1,
+      1,
+      1,
+      1,
+      1
+     ],
+     [
+      3,
+      -1,
+      1,
+      1,
+      -1,
+      -1,
+      1,
+      1
+     ],
+     [
+      4,
+      -1,
+      1,
+      1,
+      1,
+      1,
+      -1,
+      -1
+     ],
+     [
+      5,
+      1,
+      -1,
+      1,
+      -1,
+      1,
+      -1,
+      1
+     ],
+     [
+      6,
+      1,
+      -1,
+      1,
+      1,
+      -1,
+      1,
+      -1
+     ],
+     [
+      7,
+      1,
+      1,
+      -1,
+      -1,
+      1,
+      1,
+      -1
+     ],
+     [
+      8,
+      1,
+      1,
+      -1,
+      1,
+      -1,
+      -1,
+      1
+     ]
+    ],
+    "coded": true,
+    "notes": "Table 3.28, its columns 1 to 7 named A, B, C, ... in order (I skipped)"
+   },
+   "expected": [
+    {
+     "what": "design matrix",
+     "term": null,
+     "value": "8",
+     "analysis": "the library's stored L8(2^7)",
+     "where": {
+      "page": "3-43",
+      "source_kind": "table",
+      "quote": "Table 3.28 L8 Design [11]"
+     },
+     "check": {
+      "kind": "same_runs",
+      "array": "L8(2^7)"
+     }
+    },
+    {
+     "what": "Taguchi design",
+     "term": null,
+     "value": "8",
+     "analysis": "the library's Taguchi design for 7 factors, which takes every column of its L8(2^7)",
+     "where": {
+      "page": "3-43",
+      "source_kind": "table",
+      "quote": "Table 3.28 L8 Design [11]"
+     },
+     "check": {
+      "kind": "same_runs",
+      "design": {
+       "design_type": "taguchi",
+       "k": 7,
+       "options": {}
+      }
+     }
+    },
+    {
+     "what": "generators",
+     "term": null,
+     "value": "a b -ab c -ac -bc abc",
+     "analysis": "the columns named by their position, A for column 1 and so on (I is skipped); a, b, c and d are the columns 1, 2, 4 and 8",
+     "where": {
+      "page": "3-43",
+      "source_kind": "table",
+      "quote": "Table 3.28 ... Original factors and interactions used to generate the matrix a b -ab c -ac -bc abc"
+     },
+     "check": {
+      "kind": "generator_holds",
+      "printed": "C = -AB, E = -AD, F = -BD, G = ABD"
+     }
+    },
+    {
+     "what": "columns",
+     "term": "3 factors",
+     "value": "1, 2, 4",
+     "analysis": "these columns are the library's design of that many factors",
+     "where": {
+      "page": "3-43",
+      "source_kind": "table",
+      "quote": "Table 3.28 ... Strategy # Factors Which Columns? ... Full Factorial 3 1, 2, 4"
+     },
+     "check": {
+      "kind": "same_runs",
+      "design": {
+       "design_type": "full_factorial",
+       "k": 3,
+       "options": {
+        "n_center_points": 0
+       }
+      },
+      "columns": [
+       "A",
+       "B",
+       "D"
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "name": "schmidt-taguchi-l9",
+   "title": "The Taguchi L9 orthogonal array",
+   "kind": "design",
+   "where": {
+    "section": "3.11",
+    "pages": "3-44",
+    "tables": [
+     "Table 3.29"
+    ],
+    "figures": []
+   },
+   "factors": [
+    {
+     "name": "A",
+     "description": "column A",
+     "low": -1,
+     "high": 1,
+     "units": "",
+     "type": "numeric",
+     "levels": [
+      -1,
+      0,
+      1
+     ]
+    },
+    {
+     "name": "B",
+     "description": "column B",
+     "low": -1,
+     "high": 1,
+     "units": "",
+     "type": "numeric",
+     "levels": [
+      -1,
+      0,
+      1
+     ]
+    },
+    {
+     "name": "C",
+     "description": "column C",
+     "low": -1,
+     "high": 1,
+     "units": "",
+     "type": "numeric",
+     "levels": [
+      -1,
+      0,
+      1
+     ]
+    },
+    {
+     "name": "D",
+     "description": "column D",
+     "low": -1,
+     "high": 1,
+     "units": "",
+     "type": "numeric",
+     "levels": [
+      -1,
+      0,
+      1
+     ]
+    }
+   ],
+   "responses": [],
+   "design": {
+    "type": "Taguchi orthogonal array",
+    "details": "4 columns",
+    "n_runs": 9,
+    "treatment_factors": 4
+   },
+   "runs": {
+    "columns": [
+     "No.",
+     "A",
+     "B",
+     "C",
+     "D"
+    ],
+    "rows": [
+     [
+      1,
+      -1,
+      -1,
+      -1,
+      -1
+     ],
+     [
+      2,
+      -1,
+      0,
+      0,
+      0
+     ],
+     [
+      3,
+      -1,
+      1,
+      1,
+      1
+     ],
+     [
+      4,
+      0,
+      -1,
+      0,
+      1
+     ],
+     [
+      5,
+      0,
+      0,
+      1,
+      -1
+     ],
+     [
+      6,
+      0,
+      1,
+      -1,
+      0
+     ],
+     [
+      7,
+      1,
+      -1,
+      1,
+      0
+     ],
+     [
+      8,
+      1,
+      0,
+      -1,
+      1
+     ],
+     [
+      9,
+      1,
+      1,
+      0,
+      -1
+     ]
+    ],
+    "coded": true,
+    "notes": "Table 3.29, its columns 1 to 4 named A, B, C, ... in order (I skipped)"
+   },
+   "expected": [
+    {
+     "what": "design matrix",
+     "term": null,
+     "value": "9",
+     "analysis": "the library's stored L9(3^4)",
+     "where": {
+      "page": "3-44",
+      "source_kind": "table",
+      "quote": "Table 3.29 L9 Design [11]"
+     },
+     "check": {
+      "kind": "same_runs",
+      "array": "L9(3^4)"
+     }
+    },
+    {
+     "what": "Taguchi design",
+     "term": null,
+     "value": "9",
+     "analysis": "the library's Taguchi design for 4 factors, which takes every column of its L9(3^4)",
+     "where": {
+      "page": "3-44",
+      "source_kind": "table",
+      "quote": "Table 3.29 L9 Design [11]"
+     },
+     "check": {
+      "kind": "same_runs",
+      "design": {
+       "design_type": "taguchi",
+       "k": 4,
+       "options": {},
+       "levels": 3
+      }
+     }
+    },
+    {
+     "what": "columns",
+     "term": "2 factors",
+     "value": "1, 2",
+     "analysis": "these columns are the library's design of that many factors",
+     "where": {
+      "page": "3-44",
+      "source_kind": "table",
+      "quote": "Table 3.29 ... Strategy # Factors Which Columns? ... Full Factorial 2 1, 2"
+     },
+     "check": {
+      "kind": "same_runs",
+      "design": {
+       "design_type": "full_factorial",
+       "k": 2,
+       "options": {
+        "n_center_points": 0
+       },
+       "levels": 3
+      },
+      "columns": [
+       "A",
+       "B"
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "name": "schmidt-taguchi-l12",
+   "title": "The Taguchi L12 orthogonal array",
+   "kind": "design",
+   "where": {
+    "section": "3.11",
+    "pages": "3-45",
+    "tables": [
+     "Table 3.30"
+    ],
+    "figures": []
+   },
+   "factors": [
+    {
+     "name": "A",
+     "description": "column A",
+     "low": -1,
+     "high": 1,
+     "units": "",
+     "type": "numeric"
+    },
+    {
+     "name": "B",
+     "description": "column B",
+     "low": -1,
+     "high": 1,
+     "units": "",
+     "type": "numeric"
+    },
+    {
+     "name": "C",
+     "description": "column C",
+     "low": -1,
+     "high": 1,
+     "units": "",
+     "type": "numeric"
+    },
+    {
+     "name": "D",
+     "description": "column D",
+     "low": -1,
+     "high": 1,
+     "units": "",
+     "type": "numeric"
+    },
+    {
+     "name": "E",
+     "description": "column E",
+     "low": -1,
+     "high": 1,
+     "units": "",
+     "type": "numeric"
+    },
+    {
+     "name": "F",
+     "description": "column F",
+     "low": -1,
+     "high": 1,
+     "units": "",
+     "type": "numeric"
+    },
+    {
+     "name": "G",
+     "description": "column G",
+     "low": -1,
+     "high": 1,
+     "units": "",
+     "type": "numeric"
+    },
+    {
+     "name": "H",
+     "description": "column H",
+     "low": -1,
+     "high": 1,
+     "units": "",
+     "type": "numeric"
+    },
+    {
+     "name": "J",
+     "description": "column J",
+     "low": -1,
+     "high": 1,
+     "units": "",
+     "type": "numeric"
+    },
+    {
+     "name": "K",
+     "description": "column K",
+     "low": -1,
+     "high": 1,
+     "units": "",
+     "type": "numeric"
+    },
+    {
+     "name": "L",
+     "description": "column L",
+     "low": -1,
+     "high": 1,
+     "units": "",
+     "type": "numeric"
+    }
+   ],
+   "responses": [],
+   "design": {
+    "type": "Taguchi orthogonal array",
+    "details": "11 columns",
+    "n_runs": 12,
+    "treatment_factors": 11
+   },
+   "runs": {
+    "columns": [
+     "No.",
+     "A",
+     "B",
+     "C",
+     "D",
+     "E",
+     "F",
+     "G",
+     "H",
+     "J",
+     "K",
+     "L"
+    ],
+    "rows": [
+     [
+      1,
+      -1,
+      -1,
+      -1,
+      -1,
+      -1,
+      -1,
+      -1,
+      -1,
+      -1,
+      -1,
+      -1
+     ],
+     [
+      2,
+      -1,
+      -1,
+      -1,
+      -1,
+      -1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1
+     ],
+     [
+      3,
+      -1,
+      -1,
+      1,
+      1,
+      1,
+      -1,
+      -1,
+      -1,
+      1,
+      1,
+      1
+     ],
+     [
+      4,
+      -1,
+      1,
+      -1,
+      1,
+      1,
+      -1,
+      1,
+      1,
+      -1,
+      -1,
+      1
+     ],
+     [
+      5,
+      -1,
+      1,
+      1,
+      -1,
+      1,
+      1,
+      -1,
+      1,
+      -1,
+      1,
+      -1
+     ],
+     [
+      6,
+      -1,
+      1,
+      1,
+      1,
+      -1,
+      1,
+      1,
+      -1,
+      1,
+      -1,
+      -1
+     ],
+     [
+      7,
+      1,
+      -1,
+      1,
+      1,
+      -1,
+      -1,
+      1,
+      1,
+      -1,
+      1,
+      -1
+     ],
+     [
+      8,
+      1,
+      -1,
+      1,
+      -1,
+      1,
+      1,
+      1,
+      -1,
+      -1,
+      -1,
+      1
+     ],
+     [
+      9,
+      1,
+      -1,
+      -1,
+      1,
+      1,
+      1,
+      -1,
+      1,
+      1,
+      -1,
+      -1
+     ],
+     [
+      10,
+      1,
+      1,
+      1,
+      -1,
+      -1,
+      -1,
+      -1,
+      1,
+      1,
+      -1,
+      1
+     ],
+     [
+      11,
+      1,
+      1,
+      -1,
+      1,
+      -1,
+      1,
+      -1,
+      -1,
+      -1,
+      1,
+      1
+     ],
+     [
+      12,
+      1,
+      1,
+      -1,
+      -1,
+      1,
+      -1,
+      1,
+      -1,
+      1,
+      1,
+      -1
+     ]
+    ],
+    "coded": true,
+    "notes": "Table 3.30, its columns 1 to 11 named A, B, C, ... in order (I skipped)"
+   },
+   "expected": [
+    {
+     "what": "design matrix",
+     "term": null,
+     "value": "12",
+     "analysis": "the library's stored L12(2^11)",
+     "where": {
+      "page": "3-45",
+      "source_kind": "table",
+      "quote": "Table 3.30 L12 Design [11]"
+     },
+     "check": {
+      "kind": "same_runs",
+      "array": "L12(2^11)"
+     }
+    },
+    {
+     "what": "Taguchi design",
+     "term": null,
+     "value": "12",
+     "analysis": "the library's Taguchi design for 11 factors, which takes every column of its L12(2^11)",
+     "where": {
+      "page": "3-45",
+      "source_kind": "table",
+      "quote": "Table 3.30 L12 Design [11]"
+     },
+     "check": {
+      "kind": "same_runs",
+      "design": {
+       "design_type": "taguchi",
+       "k": 11,
+       "options": {}
+      }
+     }
+    }
+   ]
+  },
+  {
+   "name": "schmidt-taguchi-l16",
+   "title": "The Taguchi L16 orthogonal array",
+   "kind": "design",
+   "where": {
+    "section": "3.11",
+    "pages": "3-46",
+    "tables": [
+     "Table 3.31"
+    ],
+    "figures": []
+   },
+   "factors": [
+    {
+     "name": "A",
+     "description": "column A",
+     "low": -1,
+     "high": 1,
+     "units": "",
+     "type": "numeric"
+    },
+    {
+     "name": "B",
+     "description": "column B",
+     "low": -1,
+     "high": 1,
+     "units": "",
+     "type": "numeric"
+    },
+    {
+     "name": "C",
+     "description": "column C",
+     "low": -1,
+     "high": 1,
+     "units": "",
+     "type": "numeric"
+    },
+    {
+     "name": "D",
+     "description": "column D",
+     "low": -1,
+     "high": 1,
+     "units": "",
+     "type": "numeric"
+    },
+    {
+     "name": "E",
+     "description": "column E",
+     "low": -1,
+     "high": 1,
+     "units": "",
+     "type": "numeric"
+    },
+    {
+     "name": "F",
+     "description": "column F",
+     "low": -1,
+     "high": 1,
+     "units": "",
+     "type": "numeric"
+    },
+    {
+     "name": "G",
+     "description": "column G",
+     "low": -1,
+     "high": 1,
+     "units": "",
+     "type": "numeric"
+    },
+    {
+     "name": "H",
+     "description": "column H",
+     "low": -1,
+     "high": 1,
+     "units": "",
+     "type": "numeric"
+    },
+    {
+     "name": "J",
+     "description": "column J",
+     "low": -1,
+     "high": 1,
+     "units": "",
+     "type": "numeric"
+    },
+    {
+     "name": "K",
+     "description": "column K",
+     "low": -1,
+     "high": 1,
+     "units": "",
+     "type": "numeric"
+    },
+    {
+     "name": "L",
+     "description": "column L",
+     "low": -1,
+     "high": 1,
+     "units": "",
+     "type": "numeric"
+    },
+    {
+     "name": "M",
+     "description": "column M",
+     "low": -1,
+     "high": 1,
+     "units": "",
+     "type": "numeric"
+    },
+    {
+     "name": "N",
+     "description": "column N",
+     "low": -1,
+     "high": 1,
+     "units": "",
+     "type": "numeric"
+    },
+    {
+     "name": "O",
+     "description": "column O",
+     "low": -1,
+     "high": 1,
+     "units": "",
+     "type": "numeric"
+    },
+    {
+     "name": "P",
+     "description": "column P",
+     "low": -1,
+     "high": 1,
+     "units": "",
+     "type": "numeric"
+    }
+   ],
+   "responses": [],
+   "design": {
+    "type": "Taguchi orthogonal array",
+    "details": "15 columns",
+    "n_runs": 16,
+    "treatment_factors": 15
+   },
+   "runs": {
+    "columns": [
+     "No.",
+     "A",
+     "B",
+     "C",
+     "D",
+     "E",
+     "F",
+     "G",
+     "H",
+     "J",
+     "K",
+     "L",
+     "M",
+     "N",
+     "O",
+     "P"
+    ],
+    "rows": [
+     [
+      1,
+      -1,
+      -1,
+      -1,
+      -1,
+      -1,
+      -1,
+      -1,
+      -1,
+      -1,
+      -1,
+      -1,
+      -1,
+      -1,
+      -1,
+      -1
+     ],
+     [
+      2,
+      -1,
+      -1,
+      -1,
+      -1,
+      -1,
+      -1,
+      -1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1
+     ],
+     [
+      3,
+      -1,
+      -1,
+      -1,
+      1,
+      1,
+      1,
+      1,
+      -1,
+      -1,
+      -1,
+      -1,
+      1,
+      1,
+      1,
+      1
+     ],
+     [
+      4,
+      -1,
+      -1,
+      -1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      -1,
+      -1,
+      -1,
+      -1
+     ],
+     [
+      5,
+      -1,
+      1,
+      1,
+      -1,
+      -1,
+      1,
+      1,
+      -1,
+      -1,
+      1,
+      1,
+      -1,
+      -1,
+      1,
+      1
+     ],
+     [
+      6,
+      -1,
+      1,
+      1,
+      -1,
+      -1,
+      1,
+      1,
+      1,
+      1,
+      -1,
+      -1,
+      1,
+      1,
+      -1,
+      -1
+     ],
+     [
+      7,
+      -1,
+      1,
+      1,
+      1,
+      1,
+      -1,
+      -1,
+      -1,
+      -1,
+      1,
+      1,
+      1,
+      1,
+      -1,
+      -1
+     ],
+     [
+      8,
+      -1,
+      1,
+      1,
+      1,
+      1,
+      -1,
+      -1,
+      1,
+      1,
+      -1,
+      -1,
+      -1,
+      -1,
+      1,
+      1
+     ],
+     [
+      9,
+      1,
+      -1,
+      1,
+      -1,
+      1,
+      -1,
+      1,
+      -1,
+      1,
+      -1,
+      1,
+      -1,
+      1,
+      -1,
+      1
+     ],
+     [
+      10,
+      1,
+      -1,
+      1,
+      -1,
+      1,
+      -1,
+      1,
+      1,
+      -1,
+      1,
+      -1,
+      1,
+      -1,
+      1,
+      -1
+     ],
+     [
+      11,
+      1,
+      -1,
+      1,
+      1,
+      -1,
+      1,
+      -1,
+      -1,
+      1,
+      -1,
+      1,
+      1,
+      -1,
+      1,
+      -1
+     ],
+     [
+      12,
+      1,
+      -1,
+      1,
+      1,
+      -1,
+      1,
+      -1,
+      1,
+      -1,
+      1,
+      -1,
+      -1,
+      1,
+      -1,
+      1
+     ],
+     [
+      13,
+      1,
+      1,
+      -1,
+      -1,
+      1,
+      1,
+      -1,
+      -1,
+      1,
+      1,
+      -1,
+      -1,
+      1,
+      1,
+      -1
+     ],
+     [
+      14,
+      1,
+      1,
+      -1,
+      -1,
+      1,
+      1,
+      -1,
+      1,
+      -1,
+      -1,
+      1,
+      1,
+      -1,
+      -1,
+      1
+     ],
+     [
+      15,
+      1,
+      1,
+      -1,
+      1,
+      -1,
+      -1,
+      1,
+      -1,
+      1,
+      1,
+      -1,
+      1,
+      -1,
+      -1,
+      1
+     ],
+     [
+      16,
+      1,
+      1,
+      -1,
+      1,
+      -1,
+      -1,
+      1,
+      1,
+      -1,
+      -1,
+      1,
+      -1,
+      1,
+      1,
+      -1
+     ]
+    ],
+    "coded": true,
+    "notes": "Table 3.31, its columns 1 to 15 named A, B, C, ... in order (I skipped)"
+   },
+   "expected": [
+    {
+     "what": "design matrix",
+     "term": null,
+     "value": "16",
+     "analysis": "the library's stored L16(2^15)",
+     "where": {
+      "page": "3-46",
+      "source_kind": "table",
+      "quote": "Table 3.31 L16 Design [11]"
+     },
+     "check": {
+      "kind": "same_runs",
+      "array": "L16(2^15)"
+     }
+    },
+    {
+     "what": "Taguchi design",
+     "term": null,
+     "value": "16",
+     "analysis": "the library's Taguchi design for 15 factors, which takes every column of its L16(2^15)",
+     "where": {
+      "page": "3-46",
+      "source_kind": "table",
+      "quote": "Table 3.31 L16 Design [11]"
+     },
+     "check": {
+      "kind": "same_runs",
+      "design": {
+       "design_type": "taguchi",
+       "k": 15,
+       "options": {}
+      }
+     }
+    },
+    {
+     "what": "generators",
+     "term": null,
+     "value": "a b -ab c -ac -bc abc d -ad -bd abd -cd acd bcd -abcd",
+     "analysis": "the columns named by their position, A for column 1 and so on (I is skipped); a, b, c and d are the columns 1, 2, 4 and 8",
+     "where": {
+      "page": "3-46",
+      "source_kind": "table",
+      "quote": "Table 3.31 ... Original factors and interactions used to generate the matrix a b -ab c -ac -bc abc d -ad -bd abd -cd acd bcd -abcd"
+     },
+     "check": {
+      "kind": "generator_holds",
+      "printed": "C = -AB, E = -AD, F = -BD, G = ABD, J = -AH, K = -BH, L = ABH, M = -DH, N = ADH, O = BDH, P = -ABDH"
+     }
+    },
+    {
+     "what": "columns",
+     "term": "4 factors",
+     "value": "1, 2, 4, 8",
+     "analysis": "these columns are the library's design of that many factors",
+     "where": {
+      "page": "3-46",
+      "source_kind": "table",
+      "quote": "Table 3.31 ... Strategy # Factors Which Columns? ... Full Factorial 4 1, 2, 4, 8"
+     },
+     "check": {
+      "kind": "same_runs",
+      "design": {
+       "design_type": "full_factorial",
+       "k": 4,
+       "options": {
+        "n_center_points": 0
+       }
+      },
+      "columns": [
+       "A",
+       "B",
+       "D",
+       "H"
+      ]
+     }
+    },
+    {
+     "what": "columns",
+     "term": "5 factors",
+     "value": "1, 2, 4, 8, 15",
+     "analysis": "these columns are the library's design of that many factors",
+     "where": {
+      "page": "3-46",
+      "source_kind": "table",
+      "quote": "Table 3.31 ... Strategy # Factors Which Columns? ... Resolution V 5 1, 2, 4, 8, 15"
+     },
+     "check": {
+      "kind": "same_runs",
+      "design": {
+       "design_type": "fractional_factorial",
+       "k": 5,
+       "options": {
+        "generators": [
+         "E=-ABCD"
+        ],
+        "n_center_points": 0
+       }
+      },
+      "columns": [
+       "A",
+       "B",
+       "D",
+       "H",
+       "P"
+      ]
+     }
+    },
+    {
+     "what": "resolution",
+     "term": null,
+     "value": "V",
+     "analysis": "column 15 is -abcd, so the fifth factor is E = -ABCD",
+     "where": {
+      "page": "3-46",
+      "source_kind": "table",
+      "quote": "Table 3.31 ... Resolution V 5 1, 2, 4, 8, 15"
+     },
+     "check": {
+      "kind": "resolution",
+      "k": 5,
+      "generators": [
+       "E=-ABCD"
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "name": "schmidt-taguchi-l18",
+   "title": "The Taguchi L18 orthogonal array",
+   "kind": "design",
+   "where": {
+    "section": "3.11",
+    "pages": "3-47",
+    "tables": [
+     "Table 3.32"
+    ],
+    "figures": []
+   },
+   "factors": [
+    {
+     "name": "A",
+     "description": "column A",
+     "low": -1,
+     "high": 1,
+     "units": "",
+     "type": "numeric"
+    },
+    {
+     "name": "B",
+     "description": "column B",
+     "low": -1,
+     "high": 1,
+     "units": "",
+     "type": "numeric",
+     "levels": [
+      -1,
+      0,
+      1
+     ]
+    },
+    {
+     "name": "C",
+     "description": "column C",
+     "low": -1,
+     "high": 1,
+     "units": "",
+     "type": "numeric",
+     "levels": [
+      -1,
+      0,
+      1
+     ]
+    },
+    {
+     "name": "D",
+     "description": "column D",
+     "low": -1,
+     "high": 1,
+     "units": "",
+     "type": "numeric",
+     "levels": [
+      -1,
+      0,
+      1
+     ]
+    },
+    {
+     "name": "E",
+     "description": "column E",
+     "low": -1,
+     "high": 1,
+     "units": "",
+     "type": "numeric",
+     "levels": [
+      -1,
+      0,
+      1
+     ]
+    },
+    {
+     "name": "F",
+     "description": "column F",
+     "low": -1,
+     "high": 1,
+     "units": "",
+     "type": "numeric",
+     "levels": [
+      -1,
+      0,
+      1
+     ]
+    },
+    {
+     "name": "G",
+     "description": "column G",
+     "low": -1,
+     "high": 1,
+     "units": "",
+     "type": "numeric",
+     "levels": [
+      -1,
+      0,
+      1
+     ]
+    },
+    {
+     "name": "H",
+     "description": "column H",
+     "low": -1,
+     "high": 1,
+     "units": "",
+     "type": "numeric",
+     "levels": [
+      -1,
+      0,
+      1
+     ]
+    }
+   ],
+   "responses": [],
+   "design": {
+    "type": "Taguchi orthogonal array",
+    "details": "8 columns",
+    "n_runs": 18,
+    "treatment_factors": 8
+   },
+   "runs": {
+    "columns": [
+     "No.",
+     "A",
+     "B",
+     "C",
+     "D",
+     "E",
+     "F",
+     "G",
+     "H"
+    ],
+    "rows": [
+     [
+      1,
+      -1,
+      -1,
+      -1,
+      -1,
+      -1,
+      -1,
+      -1,
+      -1
+     ],
+     [
+      2,
+      -1,
+      -1,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+     ],
+     [
+      3,
+      -1,
+      -1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1
+     ],
+     [
+      4,
+      -1,
+      0,
+      -1,
+      -1,
+      0,
+      0,
+      1,
+      1
+     ],
+     [
+      5,
+      -1,
+      0,
+      0,
+      0,
+      1,
+      1,
+      -1,
+      -1
+     ],
+     [
+      6,
+      -1,
+      0,
+      1,
+      1,
+      -1,
+      -1,
+      0,
+      0
+     ],
+     [
+      7,
+      -1,
+      1,
+      -1,
+      0,
+      -1,
+      1,
+      0,
+      1
+     ],
+     [
+      8,
+      -1,
+      1,
+      0,
+      1,
+      0,
+      -1,
+      1,
+      -1
+     ],
+     [
+      9,
+      -1,
+      1,
+      1,
+      -1,
+      1,
+      0,
+      -1,
+      0
+     ],
+     [
+      10,
+      1,
+      -1,
+      -1,
+      1,
+      1,
+      0,
+      0,
+      -1
+     ],
+     [
+      11,
+      1,
+      -1,
+      0,
+      -1,
+      -1,
+      1,
+      1,
+      0
+     ],
+     [
+      12,
+      1,
+      -1,
+      1,
+      0,
+      0,
+      -1,
+      -1,
+      1
+     ],
+     [
+      13,
+      1,
+      0,
+      -1,
+      0,
+      1,
+      -1,
+      1,
+      0
+     ],
+     [
+      14,
+      1,
+      0,
+      0,
+      1,
+      -1,
+      0,
+      -1,
+      1
+     ],
+     [
+      15,
+      1,
+      0,
+      1,
+      -1,
+      0,
+      1,
+      0,
+      -1
+     ],
+     [
+      16,
+      1,
+      1,
+      -1,
+      1,
+      0,
+      1,
+      -1,
+      0
+     ],
+     [
+      17,
+      1,
+      1,
+      0,
+      -1,
+      1,
+      -1,
+      0,
+      1
+     ],
+     [
+      18,
+      1,
+      1,
+      1,
+      0,
+      -1,
+      0,
+      1,
+      -1
+     ]
+    ],
+    "coded": true,
+    "notes": "Table 3.32, its columns 1 to 8 named A, B, C, ... in order (I skipped)"
+   },
+   "expected": [
+    {
+     "what": "design matrix",
+     "term": null,
+     "value": "18",
+     "analysis": "the library's stored L18(6^1 3^6), its six-level column written as a two-level and a three-level column",
+     "where": {
+      "page": "3-47",
+      "source_kind": "table",
+      "quote": "Table 3.32 L18 Design [11] for (1) 2-Level Factor and (7) 3-Level Factors"
+     },
+     "check": {
+      "kind": "same_runs",
+      "array": "L18(6^1 3^6)",
+      "split": {
+       "0": [
+        2,
+        3
+       ]
+      }
+     }
+    }
+   ]
+  },
+  {
+   "name": "schmidt-taguchi-l27",
+   "title": "The Taguchi L27 orthogonal array",
+   "kind": "design",
+   "where": {
+    "section": "3.11",
+    "pages": "3-48",
+    "tables": [
+     "Table 3.33"
+    ],
+    "figures": []
+   },
+   "factors": [
+    {
+     "name": "A",
+     "description": "column A",
+     "low": -1,
+     "high": 1,
+     "units": "",
+     "type": "numeric",
+     "levels": [
+      -1,
+      0,
+      1
+     ]
+    },
+    {
+     "name": "B",
+     "description": "column B",
+     "low": -1,
+     "high": 1,
+     "units": "",
+     "type": "numeric",
+     "levels": [
+      -1,
+      0,
+      1
+     ]
+    },
+    {
+     "name": "C",
+     "description": "column C",
+     "low": -1,
+     "high": 1,
+     "units": "",
+     "type": "numeric",
+     "levels": [
+      -1,
+      0,
+      1
+     ]
+    },
+    {
+     "name": "D",
+     "description": "column D",
+     "low": -1,
+     "high": 1,
+     "units": "",
+     "type": "numeric",
+     "levels": [
+      -1,
+      0,
+      1
+     ]
+    },
+    {
+     "name": "E",
+     "description": "column E",
+     "low": -1,
+     "high": 1,
+     "units": "",
+     "type": "numeric",
+     "levels": [
+      -1,
+      0,
+      1
+     ]
+    },
+    {
+     "name": "F",
+     "description": "column F",
+     "low": -1,
+     "high": 1,
+     "units": "",
+     "type": "numeric",
+     "levels": [
+      -1,
+      0,
+      1
+     ]
+    },
+    {
+     "name": "G",
+     "description": "column G",
+     "low": -1,
+     "high": 1,
+     "units": "",
+     "type": "numeric",
+     "levels": [
+      -1,
+      0,
+      1
+     ]
+    },
+    {
+     "name": "H",
+     "description": "column H",
+     "low": -1,
+     "high": 1,
+     "units": "",
+     "type": "numeric",
+     "levels": [
+      -1,
+      0,
+      1
+     ]
+    },
+    {
+     "name": "J",
+     "description": "column J",
+     "low": -1,
+     "high": 1,
+     "units": "",
+     "type": "numeric",
+     "levels": [
+      -1,
+      0,
+      1
+     ]
+    },
+    {
+     "name": "K",
+     "description": "column K",
+     "low": -1,
+     "high": 1,
+     "units": "",
+     "type": "numeric",
+     "levels": [
+      -1,
+      0,
+      1
+     ]
+    },
+    {
+     "name": "L",
+     "description": "column L",
+     "low": -1,
+     "high": 1,
+     "units": "",
+     "type": "numeric",
+     "levels": [
+      -1,
+      0,
+      1
+     ]
+    },
+    {
+     "name": "M",
+     "description": "column M",
+     "low": -1,
+     "high": 1,
+     "units": "",
+     "type": "numeric",
+     "levels": [
+      -1,
+      0,
+      1
+     ]
+    },
+    {
+     "name": "N",
+     "description": "column N",
+     "low": -1,
+     "high": 1,
+     "units": "",
+     "type": "numeric",
+     "levels": [
+      -1,
+      0,
+      1
+     ]
+    }
+   ],
+   "responses": [],
+   "design": {
+    "type": "Taguchi orthogonal array",
+    "details": "13 columns",
+    "n_runs": 27,
+    "treatment_factors": 13
+   },
+   "runs": {
+    "columns": [
+     "No.",
+     "A",
+     "B",
+     "C",
+     "D",
+     "E",
+     "F",
+     "G",
+     "H",
+     "J",
+     "K",
+     "L",
+     "M",
+     "N"
+    ],
+    "rows": [
+     [
+      1,
+      -1,
+      -1,
+      -1,
+      -1,
+      -1,
+      -1,
+      -1,
+      -1,
+      -1,
+      -1,
+      -1,
+      -1,
+      -1
+     ],
+     [
+      2,
+      -1,
+      -1,
+      -1,
+      -1,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+     ],
+     [
+      3,
+      -1,
+      -1,
+      -1,
+      -1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1
+     ],
+     [
+      4,
+      -1,
+      0,
+      0,
+      0,
+      -1,
+      -1,
+      -1,
+      0,
+      0,
+      0,
+      1,
+      1,
+      1
+     ],
+     [
+      5,
+      -1,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      1,
+      1,
+      1,
+      -1,
+      -1,
+      -1
+     ],
+     [
+      6,
+      -1,
+      0,
+      0,
+      0,
+      1,
+      1,
+      1,
+      -1,
+      -1,
+      -1,
+      0,
+      0,
+      0
+     ],
+     [
+      7,
+      -1,
+      1,
+      1,
+      1,
+      -1,
+      -1,
+      -1,
+      1,
+      1,
+      1,
+      0,
+      0,
+      0
+     ],
+     [
+      8,
+      -1,
+      1,
+      1,
+      1,
+      0,
+      0,
+      0,
+      -1,
+      -1,
+      -1,
+      1,
+      1,
+      1
+     ],
+     [
+      9,
+      -1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      0,
+      0,
+      0,
+      -1,
+      -1,
+      -1
+     ],
+     [
+      10,
+      0,
+      -1,
+      0,
+      1,
+      -1,
+      0,
+      1,
+      -1,
+      0,
+      1,
+      -1,
+      0,
+      1
+     ],
+     [
+      11,
+      0,
+      -1,
+      0,
+      1,
+      0,
+      1,
+      -1,
+      0,
+      1,
+      -1,
+      0,
+      1,
+      -1
+     ],
+     [
+      12,
+      0,
+      -1,
+      0,
+      1,
+      1,
+      -1,
+      0,
+      1,
+      -1,
+      0,
+      1,
+      -1,
+      0
+     ],
+     [
+      13,
+      0,
+      0,
+      1,
+      -1,
+      -1,
+      0,
+      1,
+      0,
+      1,
+      -1,
+      1,
+      -1,
+      0
+     ],
+     [
+      14,
+      0,
+      0,
+      1,
+      -1,
+      0,
+      1,
+      -1,
+      1,
+      -1,
+      0,
+      -1,
+      0,
+      1
+     ],
+     [
+      15,
+      0,
+      0,
+      1,
+      -1,
+      1,
+      -1,
+      0,
+      -1,
+      0,
+      1,
+      0,
+      1,
+      -1
+     ],
+     [
+      16,
+      0,
+      1,
+      -1,
+      0,
+      -1,
+      0,
+      1,
+      1,
+      -1,
+      0,
+      0,
+      1,
+      -1
+     ],
+     [
+      17,
+      0,
+      1,
+      -1,
+      0,
+      0,
+      1,
+      -1,
+      -1,
+      0,
+      1,
+      1,
+      -1,
+      0
+     ],
+     [
+      18,
+      0,
+      1,
+      -1,
+      0,
+      1,
+      -1,
+      0,
+      0,
+      1,
+      -1,
+      -1,
+      0,
+      1
+     ],
+     [
+      19,
+      1,
+      -1,
+      1,
+      0,
+      -1,
+      1,
+      0,
+      -1,
+      1,
+      0,
+      -1,
+      1,
+      0
+     ],
+     [
+      20,
+      1,
+      -1,
+      1,
+      0,
+      0,
+      -1,
+      1,
+      0,
+      -1,
+      1,
+      0,
+      -1,
+      1
+     ],
+     [
+      21,
+      1,
+      -1,
+      1,
+      0,
+      1,
+      0,
+      -1,
+      1,
+      0,
+      -1,
+      1,
+      0,
+      -1
+     ],
+     [
+      22,
+      1,
+      0,
+      -1,
+      1,
+      -1,
+      1,
+      0,
+      0,
+      -1,
+      1,
+      1,
+      0,
+      -1
+     ],
+     [
+      23,
+      1,
+      0,
+      -1,
+      1,
+      0,
+      -1,
+      1,
+      1,
+      0,
+      -1,
+      -1,
+      1,
+      0
+     ],
+     [
+      24,
+      1,
+      0,
+      -1,
+      1,
+      1,
+      0,
+      -1,
+      -1,
+      1,
+      0,
+      0,
+      -1,
+      1
+     ],
+     [
+      25,
+      1,
+      1,
+      0,
+      -1,
+      -1,
+      1,
+      0,
+      1,
+      0,
+      -1,
+      0,
+      -1,
+      1
+     ],
+     [
+      26,
+      1,
+      1,
+      0,
+      -1,
+      0,
+      -1,
+      1,
+      -1,
+      1,
+      0,
+      1,
+      0,
+      -1
+     ],
+     [
+      27,
+      1,
+      1,
+      0,
+      -1,
+      1,
+      0,
+      -1,
+      0,
+      -1,
+      1,
+      -1,
+      1,
+      0
+     ]
+    ],
+    "coded": true,
+    "notes": "Table 3.33, its columns 1 to 13 named A, B, C, ... in order (I skipped)"
+   },
+   "expected": [
+    {
+     "what": "design matrix",
+     "term": null,
+     "value": "27",
+     "analysis": "the library's stored L27(2^1 3^12)",
+     "where": {
+      "page": "3-48",
+      "source_kind": "table",
+      "quote": "Table 3.33 L27 Design [11]"
+     },
+     "check": {
+      "kind": "same_runs",
+      "array": "L27(2^1 3^12)"
+     }
+    },
+    {
+     "what": "Taguchi design",
+     "term": null,
+     "value": "27",
+     "analysis": "the library's Taguchi design for 13 factors, which takes every column of its L27(2^1 3^12)",
+     "where": {
+      "page": "3-48",
+      "source_kind": "table",
+      "quote": "Table 3.33 L27 Design [11]"
+     },
+     "check": {
+      "kind": "same_runs",
+      "design": {
+       "design_type": "taguchi",
+       "k": 13,
+       "options": {},
+       "levels": 3
+      }
+     }
+    },
+    {
+     "what": "columns",
+     "term": "3 factors",
+     "value": "1, 2, 5",
+     "analysis": "these columns are the library's design of that many factors",
+     "where": {
+      "page": "3-48",
+      "source_kind": "table",
+      "quote": "Table 3.33 ... Strategy # Factors Which Columns? ... Full Factorial 3 1, 2, 5"
+     },
+     "check": {
+      "kind": "same_runs",
+      "design": {
+       "design_type": "full_factorial",
+       "k": 3,
+       "options": {
+        "n_center_points": 0
+       },
+       "levels": 3
+      },
+      "columns": [
+       "A",
+       "B",
+       "E"
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "name": "schmidt-design-selection-scenarios",
+   "title": "Run counts of the designs proposed for two design selection scenarios",
+   "kind": "design",
+   "where": {
+    "section": "3.12",
+    "pages": "3-49 to 3-52",
+    "tables": [],
+    "figures": []
+   },
+   "factors": [],
+   "responses": [],
+   "design": {
+    "type": "design selection",
+    "details": "Scenario 1: eleven quantitative factors to screen, four to model; Scenario 2: one qualitative and five quantitative factors",
+    "n_runs": null,
+    "treatment_factors": "4 to 11"
+   },
+   "expected": [
+    {
+     "what": "n_runs",
+     "term": "Scenario 1, screening (A)",
+     "value": "12",
+     "where": {
+      "page": "3-49",
+      "source_kind": "prose",
+      "quote": "Use a Plackett-Burman 12-run design and Pareto the effects"
+     },
+     "check": {
+      "kind": "design_property",
+      "property": "n_runs",
+      "design": {
+       "design_type": "plackett_burman",
+       "k": 11,
+       "options": {
+        "n_center_points": 0
+       }
+      }
+     }
+    },
+    {
+     "what": "n_runs",
+     "term": "Scenario 1, screening (B)",
+     "value": "16",
+     "analysis": "the library's resolution III fraction for eleven factors",
+     "where": {
+      "page": "3-49",
+      "source_kind": "prose",
+      "quote": "Use a 2^(11-7) fractional factorial design with 16 runs"
+     },
+     "check": {
+      "kind": "design_property",
+      "property": "n_runs",
+      "design": {
+       "design_type": "fractional_factorial",
+       "k": 11,
+       "options": {
+        "resolution": 3,
+        "n_center_points": 0
+       }
+      }
+     }
+    },
+    {
+     "what": "n_runs",
+     "term": "Scenario 1, modelling (B)",
+     "value": "27",
+     "where": {
+      "page": "3-50",
+      "source_kind": "prose",
+      "quote": "Use a Box-Behnken design for 4 factors with n = 27 (see Table 3.21)"
+     },
+     "check": {
+      "kind": "design_property",
+      "property": "n_runs",
+      "design": {
+       "design_type": "box_behnken",
+       "k": 4,
+       "options": {
+        "n_center_points": 3
+       }
+      }
+     }
+    },
+    {
+     "what": "n_runs",
+     "term": "Scenario 1, modelling (C)(i)",
+     "value": "8",
+     "where": {
+      "page": "3-50",
+      "source_kind": "math",
+      "quote": "a factorial portion of n_F = 2^(4-1) = 8 runs (R_IV)"
+     },
+     "check": {
+      "kind": "design_property",
+      "property": "n_runs",
+      "design": {
+       "design_type": "fractional_factorial",
+       "k": 4,
+       "options": {
+        "generators": [
+         "D=ABC"
+        ],
+        "n_center_points": 0
+       }
+      }
+     }
+    },
+    {
+     "what": "centre runs",
+     "term": "Scenario 1, modelling (C)(i)",
+     "value": "4",
+     "where": {
+      "page": "3-50",
+      "source_kind": "math",
+      "quote": "n_c = 4√(8 + 1) - 2(4) = 4 runs"
+     },
+     "check": {
+      "manual": "the book's own rule for centre runs, 4√(n_F + 1) - 2k; no library function computes it"
+     }
+    },
+    {
+     "what": "axial runs",
+     "term": "Scenario 1, modelling (C)(i)",
+     "value": "8",
+     "where": {
+      "page": "3-50",
+      "source_kind": "math",
+      "quote": "n_a = 2(k) = 8 runs"
+     },
+     "check": {
+      "manual": "two axial runs a factor"
+     }
+    },
+    {
+     "what": "alpha",
+     "term": "Scenario 1, modelling (C)(i)",
+     "value": "1.68",
+     "analysis": "the library's rotatable distance for eight cube runs, read from its design on the full 2^3 (it does not build one on the 2^(4-1))",
+     "where": {
+      "page": "3-50",
+      "source_kind": "math",
+      "quote": "α = (n_F)^(1/4) = (8)^(1/4) = 1.68"
+     },
+     "check": {
+      "kind": "design_property",
+      "property": "alpha",
+      "design": {
+       "design_type": "ccd",
+       "k": 3,
+       "options": {
+        "n_center_points": 6,
+        "alpha": "rotatable"
+       }
+      }
+     }
+    },
+    {
+     "what": "n_runs",
+     "term": "Scenario 1, modelling (C)(i)",
+     "value": "20",
+     "where": {
+      "page": "3-50",
+      "source_kind": "math",
+      "quote": "n(total) = 20 runs, or"
+     },
+     "check": {
+      "manual": "a composite design on a resolution III or IV cube (the counts are n_F + n_c + 2k), which the library refuses: it builds a composite design's cube at resolution V or more"
+     }
+    },
+    {
+     "what": "n_runs",
+     "term": "Scenario 1, modelling (C)(ii)",
+     "value": "16",
+     "where": {
+      "page": "3-50",
+      "source_kind": "math",
+      "quote": "a factorial portion of n_F = 2^4 = 16 runs (full factorial)"
+     },
+     "check": {
+      "kind": "design_property",
+      "property": "n_runs",
+      "design": {
+       "design_type": "full_factorial",
+       "k": 4,
+       "options": {
+        "n_center_points": 0
+       }
+      }
+     }
+    },
+    {
+     "what": "centre runs",
+     "term": "Scenario 1, modelling (C)(ii)",
+     "value": "9",
+     "where": {
+      "page": "3-50",
+      "source_kind": "math",
+      "quote": "n_c = 4√(16 + 1) - 2(4) = 9 runs"
+     },
+     "check": {
+      "manual": "the book's own rule for centre runs, rounded up from 8.49; no library function computes it"
+     }
+    },
+    {
+     "what": "axial runs",
+     "term": "Scenario 1, modelling (C)(ii)",
+     "value": "8",
+     "where": {
+      "page": "3-50",
+      "source_kind": "math",
+      "quote": "n_a = 2(k) = 8 runs"
+     },
+     "check": {
+      "manual": "two axial runs a factor"
+     }
+    },
+    {
+     "what": "alpha",
+     "term": "Scenario 1, modelling (C)(ii)",
+     "value": "2.0",
+     "where": {
+      "page": "3-50",
+      "source_kind": "math",
+      "quote": "α = (n_F)^(1/4) = (16)^(1/4) = 2.0"
+     },
+     "check": {
+      "kind": "design_property",
+      "property": "alpha",
+      "design": {
+       "design_type": "ccd",
+       "k": 4,
+       "options": {
+        "n_center_points": 9,
+        "alpha": "rotatable"
+       }
+      }
+     }
+    },
+    {
+     "what": "n_runs",
+     "term": "Scenario 1, modelling (C)(ii)",
+     "value": "33",
+     "where": {
+      "page": "3-50",
+      "source_kind": "math",
+      "quote": "n(total) = 33 runs."
+     },
+     "check": {
+      "kind": "design_property",
+      "property": "n_runs",
+      "design": {
+       "design_type": "ccd",
+       "k": 4,
+       "options": {
+        "n_center_points": 9,
+        "alpha": "rotatable"
+       }
+      }
+     }
+    },
+    {
+     "what": "model terms",
+     "term": "Scenario 1, modelling (D)",
+     "value": "15",
+     "analysis": "the full quadratic in four factors: 4 linear terms, 4 squares, 6 interactions and the constant",
+     "where": {
+      "page": "3-50",
+      "source_kind": "math",
+      "quote": "Use a D-optimal design where n_min = 4 + 4 + 6 + 1 = 15"
+     },
+     "check": {
+      "kind": "design_metric",
+      "metric": "degrees_of_freedom",
+      "key": "model",
+      "model": "quadratic",
+      "design": {
+       "design_type": "full_factorial",
+       "k": 4,
+       "options": {
+        "n_center_points": 0
+       },
+       "levels": 3
+      },
+      "printed": "15 - 1",
+      "expression": true
+     }
+    },
+    {
+     "what": "interactions",
+     "term": "Scenario 1, modelling (D)",
+     "value": "6",
+     "where": {
+      "page": "3-50",
+      "source_kind": "math",
+      "quote": "(4 choose 2) = 4!/(2! 2!) = 6 2-way linear interactions"
+     },
+     "check": {
+      "manual": "the six interactions of the quadratic model whose terms are checked"
+     }
+    },
+    {
+     "what": "model terms",
+     "term": "Scenario 2 (C)",
+     "value": "27",
+     "analysis": "the model of one two-level factor A and five quantitative factors with their squares and every interaction of the six; the library counts its degrees of freedom on the 3^6 factorial, one fewer than its terms",
+     "where": {
+      "page": "3-51",
+      "source_kind": "math",
+      "quote": "n_min = 1 (for the qualitative factor) + 5 (for the quantitative linear effects) + 5 (for the quantitative quadratic effects) + 15 (for all 2-way linear interactions) + 1 (for estimating the constant). Therefore, n_min = 27."
+     },
+     "check": {
+      "kind": "design_metric",
+      "metric": "degrees_of_freedom",
+      "key": "model",
+      "model": "(A + B + C + D + E + F) ** 2 + I(B ** 2) + I(C ** 2) + I(D ** 2) + I(E ** 2) + I(F ** 2)",
+      "design": {
+       "design_type": "full_factorial",
+       "k": 6,
+       "options": {
+        "n_center_points": 0
+       },
+       "levels": 3
+      },
+      "printed": "27 - 1",
+      "expression": true
+     }
+    }
+   ]
+  },
+  {
+   "name": "schmidt-problem-3-13-octane",
+   "title": "Five octane additives in eight runs with D = AC and E = BC (Problem 13 of chapter 3)",
+   "kind": "design",
+   "where": {
+    "section": "Problem Set of chapter 3, Problem 13",
+    "pages": "3-58 to 3-59",
+    "tables": [],
+    "figures": []
+   },
+   "factors": [
+    {
+     "name": "A",
+     "description": "additive A",
+     "low": -1,
+     "high": 1,
+     "units": "",
+     "type": "numeric"
+    },
+    {
+     "name": "B",
+     "description": "additive B",
+     "low": -1,
+     "high": 1,
+     "units": "",
+     "type": "numeric"
+    },
+    {
+     "name": "C",
+     "description": "additive C",
+     "low": -1,
+     "high": 1,
+     "units": "",
+     "type": "numeric"
+    },
+    {
+     "name": "D",
+     "description": "additive D",
+     "low": -1,
+     "high": 1,
+     "units": "",
+     "type": "numeric"
+    },
+    {
+     "name": "E",
+     "description": "additive E",
+     "low": -1,
+     "high": 1,
+     "units": "",
+     "type": "numeric"
+    }
+   ],
+   "responses": [],
+   "design": {
+    "type": "2^(5-2) fractional factorial",
+    "details": "quarter fraction with D = AC, E = BC",
+    "n_runs": 8,
+    "treatment_factors": 5
+   },
+   "runs": {
+    "columns": [
+     "No.",
+     "A",
+     "B",
+     "C",
+     "D",
+     "E"
+    ],
+    "rows": [
+     [
+      1,
+      1,
+      1,
+      1,
+      1,
+      1
+     ],
+     [
+      2,
+      1,
+      1,
+      -1,
+      -1,
+      -1
+     ],
+     [
+      3,
+      1,
+      -1,
+      1,
+      1,
+      -1
+     ],
+     [
+      4,
+      1,
+      -1,
+      -1,
+      -1,
+      1
+     ],
+     [
+      5,
+      -1,
+      1,
+      1,
+      -1,
+      1
+     ],
+     [
+      6,
+      -1,
+      1,
+      -1,
+      1,
+      -1
+     ],
+     [
+      7,
+      -1,
+      -1,
+      1,
+      -1,
+      -1
+     ],
+     [
+      8,
+      -1,
+      -1,
+      -1,
+      1,
+      1
+     ]
+    ],
+    "coded": true,
+    "notes": "as printed, in coded units"
+   },
+   "unanswered": "the problem asks for the defining relation, the aliases of the interactions AB, AE, BD, DE, CE and AD, the foldover and its defining relation; the answers are in Appendix J, which has not been read",
+   "expected": [
+    {
+     "what": "generators",
+     "term": null,
+     "value": "D = AC, E = BC",
+     "where": {
+      "page": "3-58",
+      "source_kind": "prose",
+      "quote": "The engineer ran the following screening design: (Note: D = AC, E = BC)"
+     },
+     "check": {
+      "kind": "generator_holds"
+     }
+    },
+    {
+     "what": "design matrix",
+     "term": null,
+     "value": "8",
+     "analysis": "the library's quarter fraction with the printed generators",
+     "where": {
+      "page": "3-58",
+      "source_kind": "table",
+      "quote": "Runs 1 to 8 ... D = AC E = BC"
+     },
+     "check": {
+      "kind": "same_runs",
+      "design": {
+       "design_type": "fractional_factorial",
+       "k": 5,
+       "options": {
+        "generators": [
+         "D=AC",
+         "E=BC"
+        ],
+        "n_center_points": 0
+       }
+      }
+     }
+    }
+   ]
   }
  ],
  "not_captured": [
@@ -13899,6 +23636,20 @@
   "Figures 2.14 to 2.19 (pp. 2-39 to 2-45): the Pareto chart of the s effects of Table 2.20, the plots of averages and the interaction plot of the rubber factorial, the dispensing system and its inputs, and the plots of Table 2.23's averages, all held in the tables checked here or without data",
   "Figures 2.20 to 2.23 (pp. 2-49 to 2-52): surface and contour plots of the two fitted quadratics of 2.8; the response ranges they label are bands of the plot, not results",
   "2.9 and the bibliography of chapter 2 (pp. 2-53 and 2-57): no data",
-  "Problems 1 and 3 to 5 of chapter 2 (pp. 2-54 to 2-56): a tree diagram and design matrix to draw up for Problem 2's factors, which is held as schmidt-problem-2-2-surface-finish, its interaction plot and best settings, a team exercise, and the Factsim simulator on the book's disk; their answers are in Appendix J, not read"
+  "Problems 1 and 3 to 5 of chapter 2 (pp. 2-54 to 2-56): a tree diagram and design matrix to draw up for Problem 2's factors, which is held as schmidt-problem-2-2-surface-finish, its interaction plot and best settings, a team exercise, and the Factsim simulator on the book's disk; their answers are in Appendix J, not read",
+  "Equation 3.1 and the coding of Table 3.1 (pp. 3-1 to 3-3): Table 3.1's actual settings code to Table 3.2a, which is held as schmidt-table-3-2-orthogonal",
+  "Table 3.6 and Figures 3.1, 3.2 and 3.4 (pp. 3-6 to 3-35): the effects of a 2^3 and drawings of designs whose runs are checked",
+  "3.3's definitions of resolution (p. 3-15) and the counts of runs in the text (2^k, 2^(k-q)): words and arithmetic, the resolutions of the printed fractions are checked",
+  "3.5's generating vectors for n = 16, 20 and 24 (p. 3-24): no matrix is printed for them; no check builds a design from a generating vector",
+  "3.5's statement that the BC interaction of Table 3.15 is partially correlated with the other main effects (p. 3-22): no correlation is printed",
+  "3.6 (pp. 3-24 to 3-28): the random balanced design, the one-at-a-time design and the foldover Koshal design of Tables 3.16 and 3.17, which the library does not make and of which the book prints no property in numbers, and three D-optimal examples and the A-, G- and V-optimality criteria, without designs",
+  "Table 3.18 (p. 3-29): the Latin square whose runs are Table 3.19, held as schmidt-table-3-19-latin-square",
+  "Table 3.20a (p. 3-30): the shorthand of Table 3.20b, which is held",
+  "3.9's coding of a five-level factor with α = 1.5 between 100 and 300 (p. 3-36): arithmetic of the coding, Δ = 66.66, 133.33 and 266.67, which no check computes",
+  "3.9's statements that a composite design can be up to 47% more efficient than a Box-Behnken and that John's rule is n_c = 4(√n_F + 1) - 2k (p. 3-37): cited from other sources, no design",
+  "Table 3.25 (p. 3-41): the objectives of the three-level design types, in words",
+  "3.13 Nested designs and 3.14 Mixture designs (pp. 3-52 to 3-56): tree diagrams and the K.I.S.S. advice, a 2^3 of three gas amounts whose totals (75 to 130) are sums of the settings, and a ratio design whose run 1 needs 12.5, 25 and 62.5 of A, B and C: arithmetic of the settings, which no check computes",
+  "3.15 and the bibliography of chapter 3 (pp. 3-56 and 3-62): no data",
+  "Problems 1 to 12 and 14 to 18 of chapter 3 (pp. 3-57 to 3-61): questions in words, defining relations, run counts and correlations to work out; their answers are in Appendix J, which has not been read"
  ]
 }
