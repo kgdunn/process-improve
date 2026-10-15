@@ -363,6 +363,33 @@ class TestImpliedBounds:
         np.testing.assert_allclose(got[:, 1], vertices.max(axis=0), atol=1e-7)
 
 
+class TestCentroid:
+    def test_the_heat_region(self):
+        """The region is a 50 x 10 rectangle (centroid (125, 25)) plus a triangle of area 750 (centroid (116.7, 40))."""
+        middle = DesignRegion(HEAT_FACTORS, [HEAT]).centroid()
+        assert middle == pytest.approx({"T": 120.0, "D": 34.0}, abs=0.05)
+
+    def test_without_limits_it_is_the_centre_of_the_box(self):
+        assert DesignRegion(HEAT_FACTORS).centroid() == {"T": 125.0, "D": 40.0}
+
+    def test_a_ring_gives_an_allowed_point_near_its_centre(self):
+        region = DesignRegion(UNIT_SQUARE, ["A**2 + B**2 >= 0.5"])
+        middle = region.centroid()
+        assert middle is not None
+        point = np.array([[middle["A"], middle["B"]]])
+        assert region.feasible(point)[0]
+        assert np.hypot(*point[0]) == pytest.approx(math.sqrt(0.5), abs=0.01)
+
+    def test_a_sliver_too_thin_for_the_box_sample(self):
+        region = DesignRegion(UNIT_SQUARE, ["A + B <= 0.001", "A + B >= -0.001", "A*B <= 0"])
+        middle = region.centroid()
+        assert middle is not None
+        assert region.feasible(np.array([[middle["A"], middle["B"]]]))[0]
+
+    def test_an_empty_region_has_none(self):
+        assert DesignRegion(HEAT_FACTORS, ["T <= 110", "T >= 140"]).centroid() is None
+
+
 # ---------------------------------------------------------------------------
 # Redundant limits
 # ---------------------------------------------------------------------------
@@ -744,6 +771,7 @@ class TestSliceSlack:
     ("method", "args"),
     [
         ("volume_fraction", ()),
+        ("centroid", ()),
         ("is_empty", ()),
         ("implied_bounds", ()),
         ("redundant_constraints", ()),

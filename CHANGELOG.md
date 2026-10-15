@@ -18,7 +18,8 @@ those changes.
   `"3*T + 5*D <= 600"`, and a box region reports: the share of the box it keeps
   (`volume_fraction()`, from a fixed Sobol sample, so the same on every platform); whether
   any setting is left (`is_empty()`); the range each factor can still reach
-  (`implied_bounds()`); the limits that remove nothing the others do not
+  (`implied_bounds()`); a central setting that can be run, to hold unplotted factors at
+  (`centroid()`); the limits that remove nothing the others do not
   (`redundant_constraints()`); each limit's affine form, rounded so no floating-point residue
   shows (`linear_forms()`); its corners (`vertices()`); and pictures on any two factors: the
   shadow of the region (`shadow(x, y)`), a slice through it at given values of the others

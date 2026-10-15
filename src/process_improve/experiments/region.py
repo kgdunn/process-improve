@@ -24,7 +24,8 @@ as a plain dict, which :meth:`DesignRegion.from_dict` turns back into a region.
 A box region also describes itself, in actual units, for someone writing limits on
 the settings: the share of the box it keeps (:meth:`~DesignRegion.volume_fraction`),
 whether anything is left (:meth:`~DesignRegion.is_empty`), the range each factor can
-still reach (:meth:`~DesignRegion.implied_bounds`), the limits that remove nothing
+still reach (:meth:`~DesignRegion.implied_bounds`), a central setting to hold other
+factors at (:meth:`~DesignRegion.centroid`), the limits that remove nothing
 (:meth:`~DesignRegion.redundant_constraints`), each limit's affine form
 (:meth:`~DesignRegion.linear_forms`), its corners (:meth:`~DesignRegion.vertices`),
 and pictures of it on any two factors: its shadow (:meth:`~DesignRegion.shadow`), a
@@ -383,10 +384,53 @@ class DesignRegion:
         if not self.constraints:
             return 1.0
         if n_samples == _N_SAMPLES:
-            if "kept" not in self._cache:
-                self._cache["kept"] = float(np.mean(self.feasible(self._unit_sample(_N_SAMPLES))))
-            return self._cache["kept"]
+            return float(np.mean(self._sample_allowed()))
         return float(np.mean(self.feasible(self._unit_sample(n_samples))))
+
+    def _sample_allowed(self) -> np.ndarray:
+        """Return whether each point of the default Sobol sample is allowed (cached)."""
+        if "sample_allowed" not in self._cache:
+            self._cache["sample_allowed"] = self.feasible(self._unit_sample(_N_SAMPLES))
+        return self._cache["sample_allowed"]
+
+    def centroid(self) -> dict[str, float] | None:
+        """Return a central setting of the region, in actual units: where to hold factors that are not plotted.
+
+        It is the mean of the allowed points of the Sobol sample behind
+        :meth:`volume_fraction` (of the points :meth:`is_empty` searches with, when the
+        region is too thin for that sample), so it is the region's centroid to within the
+        sample's accuracy. A region that is not convex, such as a ring, can have its
+        centroid outside it; the allowed point nearest the centroid is returned then, so
+        the result can always be run.
+
+        Returns
+        -------
+        dict[str, float] or None
+            ``{name: value}`` for every numeric factor, rounded to 12 significant figures;
+            ``None`` when no allowed point is found (see :meth:`is_empty`).
+
+        Raises
+        ------
+        ValueError
+            For a mixture region.
+
+        Examples
+        --------
+        >>> factors = [Factor(name="A", low=-1, high=1), Factor(name="B", low=-1, high=1)]
+        >>> middle = DesignRegion(factors, ["A + B >= 1"]).centroid()  # the triangle's centroid is (2/3, 2/3)
+        >>> {name: round(value, 2) for name, value in middle.items()}
+        {'A': 0.66, 'B': 0.66}
+        """
+        self._require_box("centroid")
+        allowed = self._unit_sample(_N_SAMPLES)[self._sample_allowed()]
+        if not len(allowed):
+            allowed = self._cloud_allowed()
+        if not len(allowed):
+            return None
+        middle = allowed.mean(axis=0)
+        if not self.feasible(middle[None, :])[0]:
+            middle = allowed[np.argmin(np.sum((allowed - middle) ** 2, axis=1))]
+        return {name: float(v) for name, v in zip(self.names, self._actual(middle), strict=True)}
 
     def is_empty(self) -> bool:
         """Return True when no setting inside the factor ranges meets every constraint.
