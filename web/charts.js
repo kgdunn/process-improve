@@ -114,6 +114,16 @@ export async function redrawAll() {
   }
 }
 
+/**
+ * Fit the charts inside ``root`` to the room they have now: a chart drawn while its phase was hidden
+ * took Plotly's default width, and a phase shown again gives it its own.
+ */
+export function resizeWithin(root) {
+  const Plotly = window.Plotly;
+  if (!Plotly) return;
+  for (const div of root.querySelectorAll(".js-plotly-plot")) Plotly.Plots.resize(div);
+}
+
 async function react(div, figure, version, height) {
   const Plotly = await loadPlotly(version);
   await Plotly.react(div, figure.data, pageLayout(figure.layout || {}, height), plotConfig());

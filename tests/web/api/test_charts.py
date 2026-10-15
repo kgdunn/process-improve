@@ -1,4 +1,4 @@
-"""The charts: ``api_plots``, which draws step 3's analysis with the library's own plots, as Plotly figures.
+"""The charts: ``api_plots``, which draws the analysis in Learn with the library's own plots, as Plotly figures.
 
 The page draws them with Plotly.js at the version ``plotly_js`` names, beside the tables that
 hold their numbers.

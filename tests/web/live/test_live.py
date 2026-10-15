@@ -1,4 +1,4 @@
-"""The steps that cross the worker under Pyodide: a refusal, the workbook out and back in, and the comparison.
+"""The steps that cross the worker under Pyodide: a refusal, the workbook out and back in, and the designs compared.
 
 Each compares what Pyodide computed in the browser with what native Python computes, or with
 what the build computed: the same numbers, to rounding.
@@ -13,45 +13,43 @@ import pandas as pd
 import pytest
 
 from tests.web._browser import BOOT_TIMEOUT, Console
-from tests.web.e2e._page import last_reply, run_sheet, settled, status
+from tests.web._support import FACTORS
+from tests.web.e2e._page import choose, generate, last_reply, reveal, run_sheet, set_factors, settled, status
 
 
 def test_a_refusal_from_python_reaches_the_status_line(page):
-    name = page.locator("#factors tbody tr").first.locator("[name=name]")
-    name.fill("a b")
     try:
-        page.click("#generate")
-        settled(page)
-        assert status(page) == (
-            "Factor names must be unique and look like variable names (letters, digits, _).",
-            "error",
-        )
+        generate(page, design_type="full_factorial", n_blocks=3)
+        assert status(page) == ("A two-level factorial splits into 2, 4, 8, ... blocks; got n_blocks=3.", "error")
     finally:
-        name.fill("T")
+        choose(page, design_type="box_behnken", n_blocks=1)
 
 
 def test_the_workbook_goes_out_and_comes_back_in_under_pyodide(page, demo, tmp_path):
+    reveal(page, "#download")
     with page.expect_download() as download:
         page.click("#download")
     path = tmp_path / download.value.suggested_filename
     download.value.save_as(path)
     runs = pd.read_excel(path, sheet_name="Runs")
-    np.testing.assert_allclose(runs["y"], [float(row[-1]) for row in run_sheet(page)])
+    np.testing.assert_allclose(runs["Yield"], [float(row[-1]) for row in run_sheet(page)])
 
     page.click("#tab-real")
     page.set_input_files("#upload", path)
     page.wait_for_function("window.__pi.count('api_read_workbook') === 1")
     settled(page, timeout=120_000)
     read = last_reply(page, "api_read_workbook")["result"]
-    assert read["responses"] == pytest.approx(runs["y"].tolist())
+    assert read["responses"] == pytest.approx(runs["Yield"].tolist())
     assert "15 completed runs" in page.text_content("#analysis")
 
 
-def test_the_comparison_under_pyodide_scores_as_the_build_did(page, demo):
-    page.click("#compare")
-    page.wait_for_function("window.__pi.count('api_compare') === 1 && window.__pi.idle()", timeout=300_000)
-    settled(page)
-    live = last_reply(page, "api_compare")["result"]
+def test_the_designs_compared_under_pyodide_score_as_the_build_did(page, demo):
+    """The worked example's designs, made and scored in the page's own worker, as the build made them natively."""
+    design = demo["inputs"]["design"]
+    request = {key: design[key] for key in ("factors", "response", "response_info")} | {"model": design["aim"]}
+    reply = page.evaluate("(request) => window.__pi.ask('api_candidates', request)", request)
+    assert reply["ok"], reply.get("error")
+    live = reply["result"]["result"]
     built = demo["comparison"]["result"]
     assert live["designs"] == built["designs"]
     for label in built["designs"]:
@@ -88,10 +86,16 @@ def test_a_design_comes_back_and_is_analysed_again_under_pyodide(own_context, ap
     console.watch(first)
     first.goto(app_url)
     started(first)
-    first.select_option("#design-type", "full_factorial")
-    first.fill("#n_center_points", "2")
+    set_factors(first, FACTORS)
+    first.wait_for_function(
+        "!document.querySelector('#candidates').hasAttribute('aria-busy') && window.__pi.idle()", timeout=120_000
+    )
+    choose(first, design_type="full_factorial", n_center_points=2)
+    reveal(first, "#generate")
     first.click("#generate")
     settled(first, timeout=120_000)
+    reveal(first, "#tab-simulate")
+    first.click("#tab-simulate")
     first.click("#simulate")
     first.wait_for_function("document.querySelector('#library-count').textContent === '1'", timeout=60_000)
     settled(first, timeout=120_000)

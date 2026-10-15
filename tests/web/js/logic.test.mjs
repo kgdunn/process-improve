@@ -19,7 +19,21 @@ import {
   factorType,
   fitStatistics,
   fmt,
-  formMatches,
+  GOALS,
+  OPTIMAL_MODEL,
+  SCREEN_FROM,
+  aimTerms,
+  analysisModel,
+  candidateRows,
+  changeWords,
+  defaultAim,
+  describeResponse,
+  holds,
+  nameProblem,
+  percent,
+  pickCandidate,
+  responseProblems,
+  runBadge,
   isBlank,
   isCategorical,
   isLabel,
@@ -32,10 +46,14 @@ import {
   needsCentre,
   nextMode,
   numberOrNull,
+  powerScale,
   pval,
+  responseName,
+  responseTitle,
   shownTheme,
   sortNumber,
   termLabel,
+  withUnits,
 } from "../../../web/logic.js";
 
 describe("the design's settings", () => {
@@ -71,42 +89,65 @@ describe("the design's settings", () => {
   });
 });
 
-describe("the form against the design", () => {
-  const spec = { response: "y", factors: [{ name: "T", low: 150, high: 200, units: "degC" }, { name: "P", low: 1, high: 3 }] };
-  const form = [
-    { name: "T", low: 150, high: 200, units: "degC" },
-    { name: "P", low: 1, high: 3, units: "" },
-  ];
-
-  test("the same factors and response match, a missing unit reading as none", () => {
-    assert.ok(formMatches(form, "y", spec));
-  });
-
-  test("a renamed factor, a changed range, an added factor or another response do not", () => {
-    assert.ok(!formMatches([{ ...form[0], name: "Temp" }, form[1]], "y", spec));
-    assert.ok(!formMatches([form[0], { ...form[1], high: 4 }], "y", spec));
-    assert.ok(!formMatches([...form, { name: "F", low: 0, high: 1, units: "" }], "y", spec));
-    assert.ok(!formMatches(form, "Yield", spec));
-  });
-
-  test("a blank response is the y the design was made with", () => {
-    assert.ok(formMatches(form, "", spec));
-    assert.ok(!formMatches(form, "", { ...spec, response: "Yield" }));
-  });
-
-  test("a design read from a workbook keeps its ranges as numbers or as text", () => {
-    assert.ok(formMatches(form, "y", { ...spec, factors: spec.factors.map((f) => ({ ...f, low: String(f.low) })) }));
-  });
-
-  test("anything matches before there is a design", () => {
-    assert.ok(formMatches(form, "y", undefined));
-  });
-
-  test("a blank box is sent as null, never as zero", () => {
+describe("a blank box", () => {
+  test("is sent as null, never as zero", () => {
     assert.equal(numberOrNull(""), null);
     assert.equal(numberOrNull("  "), null);
     assert.equal(numberOrNull("1.5"), 1.5);
     assert.ok(Number.isNaN(numberOrNull("abc")), "Python refuses it, with a message");
+  });
+});
+
+describe("the response, as the reader names it", () => {
+  test("a name in words becomes a column every spreadsheet and Python read alike", () => {
+    assert.equal(responseName("Yield"), "Yield");
+    assert.equal(responseName("Tensile strength (MPa)"), "Tensile_strength_MPa");
+    assert.equal(responseName("  Purity, % "), "Purity");
+    assert.equal(responseName("Viscosité"), "Viscosite", "an accent is dropped, the letter kept");
+  });
+
+  test("nothing left is y, and a leading digit is prefixed", () => {
+    assert.deepEqual(["", "  ", "%", null, undefined].map((label) => responseName(label)), Array(5).fill("y"));
+    assert.equal(responseName("2nd pass yield"), "y_2nd_pass_yield");
+    assert.equal(responseName("yield"), "yield", "the run sheet's column, never a variable of the code");
+  });
+
+  test("a name a factor or the blocks already take is numbered", () => {
+    assert.equal(responseName("T", ["T", "P"]), "T_2");
+    assert.equal(responseName("T", ["T", "T_2"]), "T_3");
+    assert.equal(responseName("Block"), "Block_2");
+  });
+
+  test("a long name is cut to forty characters, never ending in _", () => {
+    const name = responseName(`${"a".repeat(39)} b`);
+    assert.equal(name, "a".repeat(39));
+    assert.ok(responseName("x".repeat(80)).length <= 40);
+  });
+
+  test("a quantity with its units, or the name alone", () => {
+    assert.equal(withUnits("T", "degC"), "T (degC)");
+    assert.equal(withUnits("T", ""), "T");
+  });
+
+  test("the study's title names the response, its units and its goal", () => {
+    assert.equal(responseTitle({ label: "Yield", units: "%", goal: "maximize" }), "Yield (%), maximise");
+    assert.equal(responseTitle({ label: "Cost", goal: "minimize" }), "Cost, minimise");
+    assert.equal(responseTitle({ label: "Purity", units: "%", goal: "target", target: 99.5 }), "Purity (%), target 99.5");
+    assert.equal(responseTitle({ label: "Purity", goal: "target" }), "Purity, on target");
+    assert.equal(responseTitle({ label: "Hardness", goal: "learn" }), "Hardness");
+    assert.equal(responseTitle(undefined, "Yield_pct"), "Yield_pct", "a design made before the page asked");
+    assert.equal(responseTitle({}, ""), "y");
+  });
+
+  test("each goal has its words", () => {
+    assert.deepEqual(Object.keys(GOALS), ["maximize", "minimize", "target", "learn"]);
+  });
+
+  test("power is for the smallest change worth finding: half of it, over the noise", () => {
+    assert.deepEqual(powerScale({ noise: 1.5, smallest_change: 6 }), { change: 6, coefficient: 2 });
+    assert.equal(powerScale({ noise: 1.5 }), null);
+    assert.equal(powerScale({ noise: 0, smallest_change: 2 }), null);
+    assert.equal(powerScale(undefined), null);
   });
 });
 
@@ -216,12 +257,6 @@ describe("a factor's levels", () => {
     assert.ok(!isCategorical({ low: 1, high: 3 }));
   });
 
-  test("a design whose labels are as the form shows them still matches the form", () => {
-    const spec = { response: "y", factors: [{ name: "S", low: "A", high: "B", units: "" }] };
-    assert.ok(formMatches([{ name: "S", low: "A", high: "B", units: "" }], "y", spec));
-    assert.ok(!formMatches([{ name: "S", low: "A", high: "C", units: "" }], "y", spec));
-  });
-
   test("each box holds a number, a label, or nothing", () => {
     assert.deepEqual(["150", " -1.5 ", "old", "inf", "", "  ", null].map(levelKind), [
       "number",
@@ -295,5 +330,144 @@ describe("the colour mode", () => {
 
   test("a mode the page does not know starts the cycle again", () => {
     assert.equal(nextMode("sepia", false), "auto");
+  });
+});
+
+describe("a factor's name", () => {
+  test("is a variable name, as Python reads one", () => {
+    for (const name of ["T", "Temp_2", "_x", "Température", "pH"]) assert.equal(nameProblem(name), "", name);
+    assert.match(nameProblem("a b"), /^a b: a name is letters, digits and _/);
+    assert.match(nameProblem("2x"), /^2x: /);
+    assert.match(nameProblem("x-y"), /^x-y: /);
+  });
+
+  test("is given, and is no other factor's", () => {
+    assert.equal(nameProblem("  ", [], 3), "Factor 3 needs a name.");
+    assert.equal(nameProblem("T", ["T", "P"]), "T: two factors cannot share a name.");
+  });
+});
+
+describe("the response's description", () => {
+  const fields = (more) => ({ label: "", units: "", goal: "learn", target: "", typical: "", noise: "", smallest_change: "", ...more });
+
+  test("keeps the words trimmed and the numbers that are numbers", () => {
+    assert.deepEqual(describeResponse(fields({ label: " Yield ", units: "%", typical: "62", noise: "1", smallest_change: "2" })), {
+      label: "Yield",
+      units: "%",
+      goal: "learn",
+      typical: 62,
+      noise: 1,
+      smallest_change: 2,
+    });
+  });
+
+  test("leaves out an empty box, a target without its goal, and a noise or change that is not above 0", () => {
+    assert.deepEqual(describeResponse(fields({ target: "5", noise: "0", smallest_change: "-1" })), { goal: "learn" });
+    assert.deepEqual(describeResponse(fields({ goal: "target", target: "99.5" })), { goal: "target", target: 99.5 });
+    assert.deepEqual(describeResponse(fields({ goal: "soar" })), { goal: "learn" });
+  });
+
+  test("says what a number still needs, as bootstrap.py refuses it", () => {
+    assert.deepEqual(responseProblems(fields({ noise: "0", smallest_change: "-2" })), [
+      "The run-to-run noise must be a number above 0.",
+      "The smallest change worth finding must be a number above 0.",
+    ]);
+    assert.deepEqual(responseProblems(fields({ noise: "", smallest_change: "3" })), []);
+  });
+});
+
+describe("what a study aims to learn", () => {
+  const numeric = ["T", "P", "F"].map((name) => ({ name, low: -1, high: 1 }));
+
+  test("starts from each factor's curvature, and from screening for many factors", () => {
+    assert.equal(defaultAim(3), "main_quadratic");
+    assert.equal(defaultAim(SCREEN_FROM), "main_effects");
+  });
+
+  test("an aim's model has its coefficients, and no square of a categorical factor", () => {
+    assert.deepEqual(["main_effects", "interactions", "main_quadratic", "quadratic"].map((aim) => aimTerms(numeric, aim)), [4, 7, 7, 10]);
+    assert.equal(aimTerms([...numeric.slice(0, 2), { name: "S", low: "A", high: "B" }], "main_quadratic"), 6);
+  });
+
+  test("an optimal design is built for the smallest model it takes that holds the aim", () => {
+    assert.equal(OPTIMAL_MODEL.main_quadratic, "quadratic");
+    for (const [aim, model] of Object.entries(OPTIMAL_MODEL)) assert.ok(holds(model, aim), aim);
+  });
+
+  test("a model holds another when it has every kind of term the other has", () => {
+    assert.ok(holds("quadratic", "main_quadratic"));
+    assert.ok(holds("interactions", "main_effects"));
+    assert.ok(!holds("interactions", "main_quadratic"));
+    assert.ok(!holds("main_effects", "interactions"));
+  });
+
+  test("a run sheet is analysed for the aim when its design can fit it, and holds less", () => {
+    assert.equal(analysisModel("quadratic", "main_quadratic", true, numeric), "", "the design's own holds it");
+    assert.deepEqual(analysisModel("main_effects", "main_quadratic", true, numeric), {
+      terms: [["T"], ["P"], ["F"], ["T", "T"], ["P", "P"], ["F", "F"]],
+    });
+    assert.equal(analysisModel("main_effects", "interactions", true, numeric), "interactions");
+    assert.equal(analysisModel("main_effects", "main_quadratic", false, numeric), "", "a design that cannot fit it");
+    assert.equal(analysisModel("main_effects", undefined, true, numeric), "", "a study made before aims");
+  });
+});
+
+describe("the designs that can learn the brief", () => {
+  const value = (runs, fits, df, main, quadratic = null) => ({
+    runs,
+    fits,
+    residual_df: df,
+    power_main: main,
+    power_interaction: null,
+    power_quadratic: quadratic,
+  });
+  const result = {
+    designs: ["Full factorial [n=11]", "DSD [n=11]", "Box-Behnken [n=15]", "D-optimal [n=8]"],
+    values: {
+      "Full factorial [n=11]": value(11, false, 6, null),
+      "DSD [n=11]": value(11, true, 4, 0.46, 0.23),
+      "Box-Behnken [n=15]": value(15, true, 8, 0.7, 0.39),
+      "D-optimal [n=8]": value(8, true, 1, 0.3, 0.1),
+    },
+  };
+  const made = [
+    { design_type: "full_factorial", label: "Full factorial" },
+    { design_type: "dsd", label: "DSD" },
+    { design_type: "box_behnken", label: "Box-Behnken" },
+    { design_type: "d_optimal", label: "D-optimal" },
+  ];
+
+  test("are listed by their runs, those that fit first, with their spare runs and power", () => {
+    const rows = candidateRows(result, made);
+    assert.deepEqual(rows.map((r) => r.design_type), ["d_optimal", "dsd", "box_behnken", "full_factorial"]);
+    assert.deepEqual(rows[1], {
+      design_type: "dsd",
+      label: "DSD",
+      runs: 11,
+      fits: true,
+      spare: 4,
+      power: { main: 0.46, interaction: null, quadratic: 0.23 },
+      order: 1,
+    });
+    assert.equal(rows[3].spare, null, "no spare runs for a design that cannot fit the model");
+  });
+
+  test("the one picked has the fewest runs that leave three to estimate the noise", () => {
+    assert.equal(pickCandidate(candidateRows(result, made)), "dsd");
+    const tight = { ...result, values: { ...result.values, "DSD [n=11]": value(11, true, 2, 0.4), "Box-Behnken [n=15]": value(15, true, 2, 0.5) } };
+    assert.equal(pickCandidate(candidateRows(tight, made)), "d_optimal", "else the fewest runs that fit");
+    assert.equal(pickCandidate([]), null);
+  });
+
+  test("power reads as a percentage, for the change in the reader's units", () => {
+    assert.deepEqual([0.4626, 1, null].map(percent), ["46%", "100%", ""]);
+    assert.equal(changeWords({ units: "%", noise: 1, smallest_change: 2 }), "a change of 2 %");
+    assert.equal(changeWords({ noise: 1 }), "a change of two noise standard deviations");
+  });
+
+  test("the Run tab counts the runs, then the results in", () => {
+    assert.equal(runBadge([]), "");
+    assert.equal(runBadge([null, null]), "2 runs");
+    assert.equal(runBadge([1, null, 3]), "2 of 3");
   });
 });

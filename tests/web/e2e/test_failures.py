@@ -35,7 +35,7 @@ def test_a_refused_python_download_is_reported_and_nothing_waits_for_it(context,
 
     context.route(re.compile(r"/pyodide\.mjs$"), hold)
     page = context.new_page()
-    page.goto(site)
+    page.goto(f"{site}?example=worked")
     page.click("#run-example")
     assert page.text_content("#run-example") == "Waiting for Python to start..."
     deadline = time.monotonic() + 15
@@ -44,8 +44,10 @@ def test_a_refused_python_download_is_reported_and_nothing_waits_for_it(context,
         page.wait_for_timeout(50)
     refused[0].abort("blockedbyclient")
     assert "pyodide.mjs" in failed_to_start(page)
-    assert page.text_content("#run-example") == "Run the worked example"
+    assert page.text_content("#run-example") == "Run it again in your browser"
     assert page.is_disabled("#run-example")
-    for control in ("#generate", "#simulate", "#compare", "#upload"):
+    for control in ("#generate", "#simulate", "#upload"):
         assert page.is_disabled(control), control
     assert page.locator("#design-table tbody tr").count() == 15, "the worked example drawn at first paint stays"
+    page.click("#go-plan")
+    assert page.locator("#candidates tbody tr").count() == 5, "the designs the build compared stay listed"

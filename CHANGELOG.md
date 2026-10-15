@@ -70,6 +70,28 @@ those changes.
   The catalogue holds facts and short quotations, not the sources themselves, and the MIT
   licence covers the package's code, not them: each source states its own terms in `rights`,
   and the folder's `NOTICE.md` explains the split.
+- **Factorial starts a study from its response.** The first question is what the experiment
+  measures: its name, its units, the goal (maximise, minimise, hit a target, or just learn)
+  and, when the reader knows them, its typical value, run-to-run noise and the smallest change
+  worth finding. A design keeps this description in its specification (`response_info`, beside
+  the column the results go in, which is derived from the name and then fixed), and so do its
+  workbook, saved study and link; a design made before keeps working as it was. The response
+  names the study, the run sheet's column (each heading now carries its units), the equations,
+  the notebook and the charts, whose axes are in the reader's words and units, and the reader
+  can rename it at any time without remaking the run sheet. Practice results are centred on the
+  typical value with the run-to-run noise.
+- **Factorial lists the designs that can learn the brief.** After the response come the factors
+  that might change it and what the study is to learn: which factors matter (main effects),
+  how they act together (interactions), where each factor's effect curves (main effects and
+  squares, the book's model) or the whole response surface. As the brief is typed, Plan makes
+  every design the page offers for it and scores them on that model, with each one's power to
+  find the smallest change worth finding (`api_candidates`, one call for `api_compare_plan`, the
+  designs and `api_compare`). The designs that can fit the model are listed by their runs, with
+  their spare runs and power, the fewest runs that leave three to estimate the noise picked
+  until the reader picks another; a design picked is made into the run sheet as it was scored.
+  With five factors or more the optimal designs' slow search waits for a Search button. The
+  nine measures, FDS curves and correlation maps open over the page, and a run sheet whose
+  design can fit the aim is analysed for it (a DSD made to learn curvature fits the squares).
 - **Factorial opens examples from published sources other than the book:
   `https://factori.al/?example=<name>`.** They are listed in `web/published-examples.json`, each
   the experiment of the same name in the reference catalogue (above), and the opening banner cites the source and
@@ -93,24 +115,33 @@ those changes.
 
 ### Changed
 
-- **Factorial says which factors are categorical.** Each factor in step 1 has a Type,
+- **Factorial is laid out as Plan, Run and Learn.** A bar that stays at the top names the study
+  and its three phases, each tab marked with how far it has got (the plan changed since the run
+  sheet, the results in, the fit's R²), above the status line. On a wide screen the brief (the
+  response, the factors, the aim) has a column of its own beside the phase on show; on a phone
+  it opens Plan. A first visit starts a new study at its response, a returning reader picks up
+  the last study, and a brief not yet made into a run sheet is kept as a draft in the browser.
+  The worked example opens on request (Explore a worked example, or `?example=worked`), from the
+  build at once, and Run it again computes it in the tab. Results are entered by default;
+  simulated ones are asked for under Practise with simulated results, and a new run sheet is
+  simulated again only while practising. Any change to the plan (the factors, the design or a
+  setting) marks the run sheet out of date until it is made again or the plan is put back. New
+  study clears the page, and Your designs is now Your studies.
+- **Factorial says which factors are categorical.** Each factor in the brief has a Type,
   Numeric or Categorical: choosing Categorical gives it two labels to edit (A and B to
   start) and takes away its units, and choosing Numeric brings its numbers back. **+ Add
   categorical factor** sits beside + Add factor. Typing two labels still makes a factor
   categorical, and now the Type shows it. A sentence under the table says, as the reader
   types, what a factor's levels still need (two numbers with the low below the high, or two
-  labels that differ and are not numbers), and Generate waits until they have it. On a
-  phone each factor is a card of two lines, every box under its heading.
+  labels that differ and are not numbers), and a factor's name is checked as it is typed;
+  the run sheet waits until they are ready. In a narrow column each factor is a card of two
+  lines, every box under its heading.
 
 - **Factorial has a colour-mode switch, as the book has.** An icon at the top right cycles
   the system's mode, dark and light (light first on a dark system), with the book's
   sun, moon and half-circle and its "light/dark" tooltip. The choice is kept in this
   browser and put on the page before it is drawn, so it never flashes; the charts are
   drawn again in its colours, and now also follow the system when it changes.
-- **The worked-example button no longer reads as a run of the design on the page.** Beside
-  a design of the reader's, a book example or a link's, it becomes a secondary "Open the
-  worked example instead", and says it takes that design's place, and whether the design
-  stays under Your designs.
 - **Factorial's links into the book open in one tab**, reused on the next click, rather
   than a new tab each time.
 - **Factorial's factors are easier to tell apart.** The first column reads Factor name, the

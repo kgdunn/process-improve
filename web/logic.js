@@ -69,8 +69,29 @@ export function namedModelTerms(model, factors) {
   const names = factors.map((f) => f.name);
   const terms = names.map((n) => [n]);
   if (model === "interactions" || model === "quadratic") terms.push(...combinations(names, 2));
-  if (model === "quadratic") terms.push(...squared(factors));
+  if (model === "quadratic" || model === "main_quadratic") terms.push(...squared(factors));
   return terms;
+}
+
+/** The kinds of term each model holds: main effects, two-factor interactions, squares. */
+const KINDS = {
+  main_effects: ["main"],
+  interactions: ["main", "interaction"],
+  main_quadratic: ["main", "square"],
+  quadratic: ["main", "interaction", "square"],
+};
+
+/** Whether a model holds every kind of term another does: the full quadratic holds them all. */
+export const holds = (model, aim) => (KINDS[aim] ?? []).every((kind) => (KINDS[model] ?? []).includes(kind));
+
+/**
+ * The model a new run sheet's results are analysed with: "" for the design's own when it holds what
+ * the study aims to learn; else the aim's, when the design can fit it (``fits``, as the comparison
+ * found), as a named model or, for main effects and squares, as their terms; else the design's own.
+ */
+export function analysisModel(designModel, aim, fits, factors) {
+  if (!aim || !fits || holds(designModel, aim)) return "";
+  return aim === "main_quadratic" ? { terms: namedModelTerms(aim, factors) } : aim;
 }
 
 /** The designs that take a categorical factor; mirrors bootstrap.CATEGORICAL_DESIGNS. */
@@ -132,17 +153,183 @@ export const numberOrNull = (text) => (text.trim() === "" ? null : Number(text))
 /** The response a blank box names: y, as Python names it when it makes the design. */
 export const DEFAULT_RESPONSE = "y";
 
-/** Whether the factors and response in the form still describe the design ``spec`` holds; a blank response is y. */
-export function formMatches(factors, response, spec) {
-  if (!spec?.factors) return true;
-  const level = (v) => (isLabel(v) ? String(v).trim() : Number(v));
-  const same = (f, g) =>
-    f.name === g.name && f.low === level(g.low) && f.high === level(g.high) && f.units === (g.units ?? "");
-  return (
-    (response || DEFAULT_RESPONSE) === spec.response &&
-    factors.length === spec.factors.length &&
-    factors.every((f, i) => same(f, spec.factors[i]))
-  );
+/** The run sheet's column of each run's block, which no factor or response may be named; mirrors bootstrap.BLOCK. */
+export const BLOCK = "Block";
+
+/**
+ * The run sheet's column for a response the reader names in words: "Yield" stays Yield, and "Tensile
+ * strength (MPa)" becomes Tensile_strength_MPa. Only ASCII letters, digits and _, so Python and every
+ * spreadsheet read it alike, and never a factor's name or Block: y when nothing is left.
+ */
+export function responseName(label, factorNames = []) {
+  const plain = String(label ?? "").normalize("NFKD").replace(/[\u0300-\u036f]/g, "");
+  let name = plain.replace(/[^A-Za-z0-9_]+/g, "_").replace(/^_+|_+$/g, "").slice(0, 40).replace(/_+$/, "");
+  if (!name) name = DEFAULT_RESPONSE;
+  if (/^[0-9]/.test(name)) name = `y_${name}`;
+  const taken = new Set([...factorNames, BLOCK]);
+  if (!taken.has(name)) return name;
+  let i = 2;
+  while (taken.has(`${name}_${i}`)) i += 1;
+  return `${name}_${i}`;
+}
+
+/** What the reader can want of the response, as the response card words it; the keys are bootstrap.GOALS. */
+export const GOALS = { maximize: "Maximise", minimize: "Minimise", target: "Hit a target", learn: "Just learn" };
+
+/** A quantity's name with its units, as a heading or an axis shows it: "T (degC)", or the name alone. */
+export const withUnits = (name, units) => (units ? `${name} (${units})` : name);
+
+/**
+ * The response as the study's title names it: "Yield (%), maximise", "Purity (%), target 99.5",
+ * "Hardness", or the column's name for a design made before the page asked for more.
+ */
+export function responseTitle(info, name = DEFAULT_RESPONSE) {
+  const head = withUnits(info?.label || name || DEFAULT_RESPONSE, info?.units ?? "");
+  if (info?.goal === "maximize") return `${head}, maximise`;
+  if (info?.goal === "minimize") return `${head}, minimise`;
+  if (info?.goal === "target") return isFiniteNumber(info.target) ? `${head}, target ${info.target}` : `${head}, on target`;
+  return head;
+}
+
+const isFiniteNumber = (v) => typeof v === "number" && Number.isFinite(v);
+
+/**
+ * The power the designs are compared at, in the reader's words: the smallest change worth finding,
+ * from a factor's low setting to its high one, and the coefficient in noise standard deviations it
+ * is (half the change, over the noise); null without both numbers, when the default of one noise
+ * standard deviation holds.
+ */
+export function powerScale(info) {
+  if (!isFiniteNumber(info?.noise) || !isFiniteNumber(info?.smallest_change)) return null;
+  if (info.noise <= 0 || info.smallest_change <= 0) return null;
+  return { change: info.smallest_change, coefficient: info.smallest_change / (2 * info.noise) };
+}
+
+/** A variable name, as Python's str.isidentifier reads one: a letter or _, then letters, digits and _. */
+const IDENTIFIER = /^[\p{ID_Start}_][\p{ID_Continue}]*$/u;
+
+/**
+ * What a factor's name needs, in a sentence the page shows as the reader types; "" when it is ready.
+ * The rules are those bootstrap.py applies: a variable name, unlike every other factor's.
+ */
+export function nameProblem(name, others = [], place = 1) {
+  const n = String(name ?? "").trim();
+  if (!n) return `Factor ${place} needs a name.`;
+  if (!IDENTIFIER.test(n)) return `${n}: a name is letters, digits and _, and starts with a letter, such as Temp_2.`;
+  if (others.includes(n)) return `${n}: two factors cannot share a name.`;
+  return "";
+}
+
+/**
+ * The response as the reader describes it, cleaned as bootstrap.py cleans it: the words trimmed and an
+ * empty one left out, the goal (with its target only when the goal is one), and only the numbers that
+ * are numbers; the noise and the smallest change only above 0. ``fields`` holds the boxes' text.
+ */
+export function describeResponse(fields) {
+  const info = {};
+  for (const key of ["label", "units"]) {
+    const text = String(fields[key] ?? "").trim();
+    if (text) info[key] = text;
+  }
+  info.goal = GOALS[fields.goal] ? fields.goal : "learn";
+  const number = (key) => {
+    const text = String(fields[key] ?? "").trim();
+    const value = text === "" ? null : Number(text);
+    return value !== null && Number.isFinite(value) ? value : null;
+  };
+  if (info.goal === "target" && number("target") !== null) info.target = number("target");
+  if (number("typical") !== null) info.typical = number("typical");
+  for (const key of ["noise", "smallest_change"]) if (number(key) > 0) info[key] = number(key);
+  return info;
+}
+
+/** What the response's numbers still need, a sentence each; the rules are bootstrap.py's. */
+export function responseProblems(fields) {
+  const said = [];
+  const given = (key) => String(fields[key] ?? "").trim() !== "";
+  if (given("noise") && !(Number(fields.noise) > 0)) said.push("The run-to-run noise must be a number above 0.");
+  if (given("smallest_change") && !(Number(fields.smallest_change) > 0)) {
+    said.push("The smallest change worth finding must be a number above 0.");
+  }
+  return said;
+}
+
+/** The model an optimal design is built for, for each aim: the smallest it takes that contains it; mirrors bootstrap.OPTIMAL_MODEL. */
+export const OPTIMAL_MODEL = {
+  main_effects: "main_effects",
+  interactions: "interactions",
+  main_quadratic: "quadratic",
+  quadratic: "quadratic",
+};
+
+/** From this many factors a study starts from the screening aim, which the reader can change. */
+export const SCREEN_FROM = 5;
+
+/** The aim a study starts from: which factors matter, for many factors; else where each one's effect curves. */
+export const defaultAim = (k) => (k >= SCREEN_FROM ? "main_effects" : "main_quadratic");
+
+/** Count the coefficients, intercept included, of the model an aim names, over these factors: no square of a categorical one. */
+export function aimTerms(factors, aim) {
+  const k = factors.length;
+  const pairs = aim === "interactions" || aim === "quadratic" ? (k * (k - 1)) / 2 : 0;
+  const squares = aim === "main_quadratic" || aim === "quadratic" ? factors.filter((f) => !isCategorical(f)).length : 0;
+  return 1 + k + pairs + squares;
+}
+
+/** Spare runs a design must leave for the noise to be the one picked when the reader has not chosen one. */
+export const SPARE_FOR_NOISE = 3;
+
+/**
+ * The designs of a comparison as Plan lists them, sorted by their runs, those that can fit the model
+ * first: each design's type, its short name, its runs, the runs left over to estimate the noise, and
+ * its power for each kind of term the model has (null for a kind it lacks, or with no runs left over).
+ * ``made`` is the comparison's designs in the order scored, each {design_type, label}.
+ */
+export function candidateRows(result, made) {
+  const rows = result.designs.map((sized, i) => {
+    const v = result.values[sized];
+    return {
+      design_type: made[i].design_type,
+      label: made[i].label,
+      runs: v.runs,
+      fits: Boolean(v.fits),
+      spare: v.fits ? v.residual_df : null,
+      power: { main: v.power_main ?? null, interaction: v.power_interaction ?? null, quadratic: v.power_quadratic ?? null },
+      order: i,
+    };
+  });
+  return rows.sort((a, b) => Number(b.fits) - Number(a.fits) || a.runs - b.runs || a.order - b.order);
+}
+
+/**
+ * The design picked when the reader has not chosen one: of those that can fit the model, the fewest
+ * runs that leave SPARE_FOR_NOISE to estimate the noise, else the fewest runs; null when none fits.
+ */
+export function pickCandidate(rows) {
+  const fitting = rows.filter((r) => r.fits);
+  const spare = fitting.filter((r) => r.spare >= SPARE_FOR_NOISE);
+  return (spare[0] ?? fitting[0] ?? null)?.design_type ?? null;
+}
+
+/** A power as the page prints it: a whole percentage. */
+export const percent = (p) => (p === null || p === undefined ? "" : `${Math.round(100 * p)}%`);
+
+/**
+ * The change the designs' power is for, in the reader's words: the smallest change worth finding in
+ * the response's units, else two noise standard deviations, which the comparison's default is.
+ */
+export function changeWords(info) {
+  const scale = powerScale(info);
+  if (!scale) return "a change of two noise standard deviations";
+  return `a change of ${scale.change}${info.units ? ` ${info.units}` : ""}`;
+}
+
+/** The run sheet's progress, as the Run tab's badge shows it: "15 runs", or "9 of 15" once results come in. */
+export function runBadge(responses) {
+  const n = responses.length;
+  const done = responses.filter((v) => v !== null && v !== undefined).length;
+  if (!n) return "";
+  return done ? `${done} of ${n}` : `${n} runs`;
 }
 
 /** Join names as a sentence does: "A", "A and B", "A, B and C". */

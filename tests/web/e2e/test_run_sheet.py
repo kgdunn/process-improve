@@ -1,4 +1,4 @@
-"""Step 2's run sheet: the runs in the order to make them, sortable by any column.
+"""The run sheet in Run: the runs in the order to make them, sortable by any column, each heading with its units.
 
 A sort never loses a result: the results column is read from what the reader typed, and a
 run still to do sorts last either way.
@@ -39,13 +39,23 @@ def test_a_column_heading_sorts_the_sheet_up_then_down(page):
 def test_runs_still_to_do_sort_last_either_way(page):
     type_results(page, {0: "", 1: ""})
     for _ in range(2):
-        sort_by(page, "y")
+        sort_by(page, "Yield")
         results = [row[-1] for row in run_sheet(page)]
         assert results[-2:] == ["", ""]
         assert all(results[:-2])
 
 
+def test_each_heading_carries_its_units_and_the_response_is_named_as_the_reader_names_it(page):
+    units = page.locator("#design-table thead th").evaluate_all(
+        "ths => ths.map((th) => th.querySelector('.col-unit')?.textContent ?? '')"
+    )
+    assert units == ["", "", "degC", "bar", "L/min", "%"]
+    page.fill("#response", "Yield of the reactor")
+    assert page.locator("#design-table thead th button.sort").last.text_content() == "Yield of the reactor"
+    assert page.get_attribute('#design-table input[data-index="0"]', "aria-label") == "Yield of the reactor, run 1"
+
+
 def test_a_typed_result_survives_a_sort(page):
     type_results(page, {3: "123.5"})
-    sort_by(page, "y")
+    sort_by(page, "Yield")
     assert run_sheet(page)[-1][-1] == "123.5", "the largest result, sorted last"

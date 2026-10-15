@@ -210,25 +210,29 @@ def edit_workbook(xlsx_base64: str, edit: Callable[[dict[str, pd.DataFrame]], ob
 def fill_workbook(
     xlsx_base64: str, response: Callable[[pd.DataFrame], object], blank_rows: tuple[int, ...] = ()
 ) -> str:
-    """Fill the Runs sheet's ``y`` column as a reader would, in Excel, leaving the runs in ``blank_rows`` to do."""
+    """Fill the Runs sheet's response column as a reader would, in Excel, leaving the runs in ``blank_rows`` to do."""
 
     def fill(sheets: dict[str, pd.DataFrame]) -> None:
         runs = sheets["Runs"]
-        runs["y"] = response(runs)
-        runs.loc[list(blank_rows), "y"] = np.nan
+        name = json.loads(sheets["_pi_design"]["spec"].iloc[0])["response"]
+        runs[name] = response(runs)
+        runs.loc[list(blank_rows), name] = np.nan
 
     return edit_workbook(xlsx_base64, fill)
 
 
 # --------------------------------------------------------------------------- the page
 class Page(html.parser.HTMLParser):
-    """``web/index.html`` as the tests read it: every element that has an id, and the options of every <select>."""
+    """``web/index.html`` as the tests read it: every element that has an id, the options of every <select>,
+    and the choices of every group of radio buttons, by its name.
+    """
 
     def __init__(self, text: str) -> None:
         super().__init__()
         self.ids: dict[str, dict[str, str | None]] = {}
         self.options: dict[str, list[dict[str, str | None]]] = {}
         self.data_options: list[str] = []
+        self.radios: dict[str, list[dict[str, str | None]]] = {}
         self._select: str | None = None
         self.feed(text)
         self.close()
@@ -245,6 +249,8 @@ class Page(html.parser.HTMLParser):
             self.options[self._select] = []
         elif tag == "option" and self._select is not None:
             self.options[self._select].append({**found, "label": ""})
+        elif tag == "input" and found.get("type") == "radio":
+            self.radios.setdefault(str(found.get("name")), []).append(found)
 
     def handle_endtag(self, tag: str) -> None:
         """Leave a <select>."""
@@ -265,6 +271,11 @@ class Page(html.parser.HTMLParser):
         """Return the value a <select> opens on: the option marked ``selected``, else the first, as a browser does."""
         marked = [o for o in self.options[select] if "selected" in o]
         return str((marked or self.options[select])[0]["value"])
+
+    def checked(self, name: str) -> str | None:
+        """Return the value of the radio button of the group ``name`` the page opens on, or None for none."""
+        marked = [r for r in self.radios[name] if "checked" in r]
+        return str(marked[0]["value"]) if marked else None
 
 
 @cache

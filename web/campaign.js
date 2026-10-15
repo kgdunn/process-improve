@@ -18,6 +18,12 @@ const MAX_BYTES = 2 ** 20;
 /** The named models the analysis offers; "" is the model the design was made for. */
 const MODELS = ["", "main_effects", "interactions", "quadratic"];
 
+/** What a study may aim to learn: the models designs are compared on; mirrors process_improve.experiments.compare.MODELS. */
+export const AIMS = ["main_effects", "interactions", "main_quadratic", "quadratic"];
+
+/** What the reader can want of the response; mirrors bootstrap.GOALS. */
+const GOAL_VALUES = ["maximize", "minimize", "target", "learn"];
+
 const SOURCES = ["simulated", "entered", null];
 
 /** Refuse a campaign, saying what is wrong with it. */
@@ -69,6 +75,26 @@ function options(value) {
   return out;
 }
 
+/**
+ * What a design's specification says of its response besides its column's name: the reader's own
+ * name for it, its units, the goal, and the numbers the reader knows of it. A field of the wrong
+ * kind is refused; a goal this page does not know is dropped, so a later page can add one.
+ */
+function responseInfo(value) {
+  if (!isObject(value)) refuse("the response's description is not one");
+  const out = {};
+  if (value.label !== undefined) out.label = text(value.label, "the response's name", 64);
+  if (value.units !== undefined) out.units = text(value.units, "the response's units", 32);
+  if (GOAL_VALUES.includes(value.goal)) out.goal = value.goal;
+  for (const key of ["target", "typical", "noise", "smallest_change"]) {
+    if (value[key] === undefined || value[key] === null) continue;
+    const positive = key === "noise" || key === "smallest_change";
+    if (!isFiniteNumber(value[key]) || (positive && value[key] <= 0)) refuse(`the response's ${key.replace("_", " ")} is not a number`);
+    out[key] = value[key];
+  }
+  return out;
+}
+
 function spec(value) {
   if (!isObject(value)) refuse("it holds no design");
   const factors = list(value.factors, "the factor list", 12).map(factor);
@@ -81,6 +107,8 @@ function spec(value) {
     options: options(value.options),
   };
   if (value.version !== undefined) out.version = value.version;
+  if (value.response_info !== undefined && value.response_info !== null) out.response_info = responseInfo(value.response_info);
+  if (AIMS.includes(value.aim)) out.aim = value.aim;
   return out;
 }
 
@@ -265,6 +293,9 @@ export const BOOK_PARAM = "book";
 /** The query parameter a link names an example of another published source by: https://factori.al/?example=<name>. */
 export const EXAMPLE_PARAM = "example";
 
+/** The name ``?example=`` gives the worked example the page was built with; the build lets no other example take it. */
+export const WORKED = "worked";
+
 /** A book example's name: lowercase words and numbers joined by hyphens, such as two-level-pollutant. */
 const BOOK_NAME = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 
@@ -325,10 +356,13 @@ export function sameCampaign(a, b) {
 }
 
 // ---------------------------------------------------------------- words
-/** A campaign's name in the list of saved designs: the design and the factors it varies. */
-export function campaignTitle(designLabel, factorNames) {
+/**
+ * A campaign's name in the list of saved studies: the design and the factors it varies, after the
+ * response it is about when the reader described one ("Yield (%), maximise: Box-Behnken in T, P and F").
+ */
+export function campaignTitle(designLabel, factorNames, response = "") {
   const names = factorNames.length > 1 ? `${factorNames.slice(0, -1).join(", ")} and ${factorNames.at(-1)}` : factorNames.join("");
-  return `${designLabel} in ${names}`;
+  return `${response ? `${response}: ` : ""}${designLabel} in ${names}`;
 }
 
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];

@@ -1,9 +1,9 @@
-"""Generating a design from step 1: what the page sends, and how it shows what comes back.
+"""Making the run sheet from the plan: what the page sends, and how it shows what comes back.
 
-Each design type the page offers is generated from the form; the run sheet must list
-exactly the runs Python made, in their randomised order, and the summary must say what the
-design is. A refusal reaches the status line; the library's warnings are listed under the
-design.
+Each design type the page offers is made from the plan; the run sheet must list exactly the
+runs Python made, in their randomised order, and the summary must say what the design is. The
+design Plan already made for the brief is taken as it is, not made again. A refusal reaches the
+status line; the library's warnings are listed under the design.
 """
 
 from __future__ import annotations
@@ -11,17 +11,33 @@ from __future__ import annotations
 import pytest
 
 from tests.web._support import ALL_DESIGNS, FACTORS, factors_named
-from tests.web.e2e._page import calls, generate, headers, run_sheet, set_factors, settled, status
+from tests.web.e2e._page import (
+    calls,
+    choose,
+    generate,
+    headers,
+    last_reply,
+    practise,
+    reveal,
+    run_sheet,
+    set_factors,
+    status,
+)
 
 
 @pytest.mark.parametrize("design_type", ALL_DESIGNS)
 def test_each_design_reaches_the_run_sheet_as_python_made_it(blank_page, api, design_type):
     page = blank_page
+    before = len(calls(page, "api_make_design"))
     generate(page, design_type=design_type)
-    request = calls(page, "api_make_design")[-1]["payload"]
-    assert request["design_type"] == design_type
-    assert request["factors"] == [{key: f[key] for key in ("name", "low", "high", "units")} for f in FACTORS]
-    made = api.ok("api_make_design", request)  # the same request again: the design is seeded
+    if len(calls(page, "api_make_design")) > before:
+        request = calls(page, "api_make_design")[-1]["payload"]
+        assert request["design_type"] == design_type
+        assert request["factors"] == [{key: f[key] for key in ("name", "low", "high", "units")} for f in FACTORS]
+        made = api.ok("api_make_design", request)  # the same request again: the design is seeded
+    else:  # the design Plan picked for the brief, already made: taken as it is
+        listed = last_reply(page, "api_candidates")["result"]["made"]
+        made = next(m["design"] for m in listed if m["design_type"] == design_type)
 
     assert status(page) == (f"{made['n_runs']} runs generated.", "ok")
     assert headers(page) == made["columns"]
@@ -45,11 +61,13 @@ def test_the_summary_says_what_the_design_is(blank_page, api):
     assert page.locator("#design-summary ul.facts li").all_text_contents() == made["facts"]["notes"]
 
 
-def test_a_refused_design_says_why_in_the_status_line(page):
-    set_factors(page, [{**FACTORS[0], "name": "a b"}, *FACTORS[1:]])
-    generate(page)
-    assert status(page) == ("Factor names must be unique and look like variable names (letters, digits, _).", "error")
+def test_a_refused_design_says_why_in_the_status_line(page, api):
+    """Three blocks of a two-level factorial is Python's to refuse: it splits into 2, 4, 8, ... blocks."""
+    generate(page, design_type="full_factorial", n_blocks=3)
+    request = calls(page, "api_make_design")[-1]["payload"]
+    assert status(page) == (api.error("api_make_design", request), "error")
     assert page.is_visible("#demo-banner"), "the worked example stays"
+    assert page.get_attribute("#workspace", "data-phase") == "plan", "the plan stays on show, to be changed"
 
 
 def test_the_library_s_warnings_are_listed_under_the_design(page):
@@ -89,8 +107,23 @@ def test_a_categorical_factor_s_labels_reach_the_run_sheet_and_the_analysis(blan
     assert {row[supplier] for row in run_sheet(page)} == {"old", "new"}
     assert page.is_hidden("#design-stale"), "the labels the form holds are the design's"
     assert 'Factor(name="Supplier", type="categorical", levels=["old", "new"])' in page.text_content("#py-design code")
-    page.click("#simulate")
-    settled(page)
+    practise(page)
     terms = page.locator("#analysis table").first.locator("tbody tr td:first-child").all_text_contents()
     assert "Supplier" in terms
     assert '"Supplier": runs["Supplier"].map({"old": -1.0, "new": 1.0}),' in page.text_content("#py-analyse code")
+
+
+def test_the_design_plan_picked_is_taken_as_made_and_its_settings_make_another(blank_page):
+    """The run sheet of a design Plan made and scored is that design; a setting changed since makes it again."""
+    page = blank_page
+    picked = page.get_attribute('#candidates tbody tr[aria-selected="true"]', "data-design")
+    generate(page)
+    assert calls(page, "api_make_design") == [], "Plan made it already"
+    listed = last_reply(page, "api_candidates")["result"]["made"]
+    rows = next(m["design"]["rows"] for m in listed if m["design_type"] == picked)
+    assert [r[:-1] for r in run_sheet(page)] == [[f"{v:g}" for v in r[:-1]] for r in rows]
+    choose(page, n_center_points=4)
+    reveal(page, "#generate")
+    page.click("#generate")
+    page.wait_for_function("window.__pi.count('api_make_design') === 1 && window.__pi.idle()")
+    assert calls(page, "api_make_design")[0]["payload"]["n_center_points"] == 4

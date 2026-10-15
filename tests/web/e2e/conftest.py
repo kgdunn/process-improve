@@ -19,8 +19,8 @@ from typing import TYPE_CHECKING, Any
 import pytest
 
 from tests.web._browser import Console, keep_artifacts, serve
-from tests.web._support import ENTRY_POINT, WEB, no_bytecode
-from tests.web.e2e._page import first_paint_done
+from tests.web._support import ENTRY_POINT, FACTORS, WEB, no_bytecode
+from tests.web.e2e._page import candidates_done, first_paint_done, set_factors
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Iterator
@@ -163,20 +163,29 @@ def context(open_context: Callable[[], Any]) -> Any:  # noqa: ANN401 - a Playwri
 
 
 @pytest.fixture
-def page(context: Any, site: str, first_paint: dict[str, Any]) -> Any:  # noqa: ANN401 - a Playwright Page
-    """Open the page, and return it once it has drawn the worked example and Python has answered."""
+def page(context: Any, site: str) -> Any:  # noqa: ANN401 - a Playwright Page
+    """Open the worked example, ``?example=worked``; return the page once its charts are drawn and Python answered."""
     page = context.new_page()
-    page.goto(site)
-    first_paint_done(page, first_paint)
+    page.goto(f"{site}?example=worked")
+    first_paint_done(page)
     return page
 
 
 @pytest.fixture
-def blank_page(context: Any, site: str, console: Console) -> Any:  # noqa: ANN401 - a Playwright Page
-    """Open the page as a plain preview of ``web/`` shows it: no worked example, so every step waits for a design."""
-    console.allow(r"404")  # the browser reports the missing demo.json
-    context.route(f"{site}demo.json", lambda route: route.fulfill(status=404))
+def fresh_page(context: Any, site: str) -> Any:  # noqa: ANN401 - a Playwright Page
+    """Open the page as a first visit finds it, once Python has answered: a new study, nothing typed in yet."""
     page = context.new_page()
     page.goto(site)
     page.wait_for_function("window.__pi.count('api_catalogue') === 1 && window.__pi.idle()")
     return page
+
+
+@pytest.fixture
+def blank_page(fresh_page: Any) -> Any:  # noqa: ANN401 - a Playwright Page
+    """Return a first visit with the worked example's three factors typed in and the response left blank, ``y``.
+
+    The study has no run sheet yet; the designs that can learn the brief are listed before it is returned.
+    """
+    set_factors(fresh_page, FACTORS)
+    candidates_done(fresh_page)
+    return fresh_page

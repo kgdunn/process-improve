@@ -1,11 +1,14 @@
 // The page: builds the form, talks to the Python worker, renders results.
 // All computation happens in worker.js; this file moves JSON around and draws it.
 //
-// The page holds one campaign at a time: a design's runs, a response per run (typed,
-// simulated or read from a workbook), the process they were simulated from, and the
-// analysis. Each step re-renders from that state, so the worked example drawn at first
-// paint, the live run, an uploaded workbook, a saved design and a shared link all show the
-// same way. Every campaign but the worked example is saved in this browser as it changes.
+// A study runs in three phases. Plan: the brief (the response, the factors that might change
+// it, and what the study is to learn) and the designs that can learn it, made and scored as
+// the reader types. Run: the run sheet, its results typed in, read from a workbook, or
+// simulated for practice. Learn: the analysis. The page holds one study at a time: a design's
+// runs, a response per run, the process they were simulated from, and the analysis. Each phase
+// re-renders from that state, so the worked example, the live run, an uploaded workbook, a
+// saved study and a shared link all show the same way. Every study but the worked example is
+// saved in this browser as it changes, and a brief not yet made into a run sheet is kept as a draft.
 
 import {
   coefficientFigure,
@@ -15,6 +18,7 @@ import {
   paretoFigure,
   prettyTerm,
   redrawAll,
+  resizeWithin,
   shareContourScale,
 } from "./charts.js";
 import {
@@ -25,33 +29,51 @@ import {
   CHOSEN_TERMS,
   MODES,
   NUMERIC,
+  OPTIMAL_MODEL,
+  SCREEN_FROM,
+  SPARE_FOR_NOISE,
   SPARE_RUNS,
   TITLES,
+  aimTerms,
+  analysisModel,
   axialDistance,
+  candidateRows,
   candidateTerms,
+  changeWords,
   compareCells,
+  defaultAim,
   defaultResolution,
+  describeResponse,
   escape,
   factorType,
   fitStatistics,
   fmt,
-  formMatches,
   isBlank,
   isCategorical,
   levelProblem,
   levelValue,
   listNames,
   nTerms,
+  nameProblem,
   namedModelTerms,
   needsCentre,
   nextMode,
+  percent,
+  pickCandidate,
   pval,
+  responseName,
+  responseProblems,
+  responseTitle,
+  runBadge,
+  termLabel,
 } from "./logic.js";
 import {
+  AIMS,
   BOOK_PARAM,
   EXAMPLE_PARAM,
   CAMPAIGN_VERSION,
   LINK_KEY,
+  WORKED,
   bookName,
   campaignTitle,
   checkBookExample,
@@ -119,8 +141,8 @@ function call(fn, payload = {}) {
 }
 
 /**
- * Python could not start: say why, and stop everything that waits for it. The worked
- * example drawn at first paint stays, and every call is answered with the reason.
+ * Python could not start: say why, and stop everything that waits for it. A worked example on
+ * the page stays, and every call is answered with the reason.
  */
 function pythonFailed(reason) {
   if (pythonFailure) return;
@@ -130,9 +152,9 @@ function pythonFailed(reason) {
   for (const resolve of pending.values()) resolve({ ok: false, error: reason, warnings: [] });
   pending.clear();
   rejectReady(new Error(reason));
+  renderCandidates();
 }
 
-/** Show a status message; state is "busy" (spinner), "ok" (tick) or "error". */
 /** How long a success stays on the status line before it fades, and how long the fade takes. */
 const STATUS_SHOWN = 5000;
 const STATUS_FADE = 600;
@@ -141,9 +163,10 @@ const STATUS_WAIT = 400;
 let statusTimer = null;
 
 /**
- * Say what Python is doing on the status line. A success fades after five seconds, giving its
- * room back to the page; an error comes back at once, and a busy spell once it has lasted long
- * enough to be worth showing, so a quick analysis does not make the page jump.
+ * Say what Python is doing on the status line; state is "busy" (the mark's runs light up), "ok"
+ * (a tick) or "error". A success fades after five seconds, giving its room back to the page; an
+ * error comes back at once, and a busy spell once it has lasted long enough to be worth showing,
+ * so a quick analysis does not make the page jump.
  */
 function setStatus(text, state = "ok") {
   const box = $("#status");
@@ -187,13 +210,19 @@ function toast(text, state = "ok") {
 
 // ---------------------------------------------------------------- state
 const state = {
+  phase: "plan", // the phase on show: "plan", "run" or "learn"
   design: null, // what api_make_design returned, or the runs of an uploaded workbook
+  planKey: null, // the plan (factors, design and settings) the run sheet on the page was made from
   responses: [], // one per run, in the design's row order: a number, or null while still to run
   sources: [], // one per run: "simulated", "entered" or null
   simulation: null, // what api_simulate returned: the true process, its noise and seed
+  practising: false, // the reader chose to practise with simulated results
   analysis: null,
+  comparison: null, // the designs that can learn the brief: what api_candidates returned, and the brief's key
+  picked: null, // a design taken from the comparison, {key, design}, made again only if the plan changes
   plotlyJs: null, // the Plotly.js version the Python plotly package names
-  campaign: null, // this browser's record of the campaign on the page, {id, created, title}; null for the worked example
+  campaign: null, // this browser's record of the study on the page, {id, created, title}; null for the worked example
+  example: false, // the worked example is on the page, as the build made it or as run again here
   version: null, // the process-improve release Python runs, once it has started
 };
 let seed = 1;
@@ -211,15 +240,156 @@ whenReady.catch(() => {}); // a failure is shown in the status line, whoever wai
 /** The runs as the Python side expects them back. */
 const held = () => ({ spec: state.design.spec, columns: state.design.columns, rows: state.design.rows });
 
-// ---------------------------------------------------------------- factor table
-const DEFAULT_FACTORS = [
-  { name: "T", low: 150, high: 200, units: "degC" },
-  { name: "P", low: 1, high: 3, units: "bar" },
-  { name: "F", low: 10, high: 20, units: "L/min" },
-];
+// ---------------------------------------------------------------- the phases
+const PANES = { plan: "#step-plan", run: "#step-run", learn: "#step-analyse" };
 
-/** The levels a new factor of each type starts from. */
-const START_LEVELS = { [NUMERIC]: ["-1", "1"], [CATEGORICAL]: ["A", "B"] };
+/**
+ * Show a phase: its tab is marked, its pane shown, and on a narrow screen the brief goes with
+ * Plan. Charts drawn while their pane was hidden are fitted to it, and the designs that can learn
+ * the brief are made once Plan is on show.
+ */
+function showPhase(phase) {
+  state.phase = phase;
+  $("#workspace").dataset.phase = phase;
+  for (const [name, pane] of Object.entries(PANES)) {
+    const on = name === phase;
+    const tab = $(`#go-${name}`);
+    tab.setAttribute("aria-selected", String(on));
+    tab.tabIndex = on ? 0 : -1;
+    $(pane).hidden = !on;
+  }
+  resizeWithin($(PANES[phase]));
+  if (phase !== "plan") cancelCandidates();
+  // The top of the workspace in view, under the study bar, when the phase starts above the window's top.
+  const top = $("#workspace").getBoundingClientRect().top - $("#studybar").offsetHeight - 8;
+  if (top < 0) window.scrollBy({ top, behavior: "instant" });
+  if (phase === "plan") scheduleCandidates();
+}
+
+/** The tabs of a tablist answer the arrow keys, Home and End, as a reader of a screen reader expects. */
+function arrowKeys(list, select) {
+  list.addEventListener("keydown", (e) => {
+    const tabs = [...list.querySelectorAll('[role="tab"]')];
+    const at = tabs.indexOf(document.activeElement);
+    if (at < 0) return;
+    const to = { ArrowRight: at + 1, ArrowLeft: at - 1, Home: 0, End: tabs.length - 1 }[e.key];
+    if (to === undefined) return;
+    e.preventDefault();
+    const tab = tabs[(to + tabs.length) % tabs.length];
+    tab.focus();
+    select(tab);
+  });
+}
+
+/** Say on each tab how far its phase has got: the plan changed since the run sheet, the results in, the fit. */
+function renderBadges() {
+  const badge = (name, text, mark = "") => {
+    const el = $(`#badge-${name}`);
+    el.textContent = text;
+    el.hidden = !text;
+    if (mark) el.dataset.state = mark;
+    else delete el.dataset.state;
+  };
+  const stale = planIsStale();
+  badge("plan", stale ? "changed" : "", stale ? "stale" : "");
+  const done = state.responses.length > 0 && state.responses.every((v) => v !== null);
+  badge("run", state.design ? runBadge(state.responses) : "", done ? "done" : "");
+  const r2 = state.analysis?.summary?.r_squared;
+  badge("learn", r2 === null || r2 === undefined ? "" : `R² ${Number(r2).toFixed(2)}`);
+}
+
+/** Name the study in the bar: its response as the brief describes it, and the design or the factors. */
+function renderStudyBar() {
+  const info = readResponseInfo();
+  const name = info.label ?? state.design?.spec.response ?? "";
+  $("#study-title").textContent = name ? responseTitle(info, name) : "A new study";
+  const k = readFactors().length;
+  const about = state.design
+    ? `${designLabel(state.design.spec.design_type)}, ${state.design.rows.length} runs`
+    : k
+      ? `${k} factor${k === 1 ? "" : "s"}`
+      : "";
+  $("#study-about").textContent = about ? `· ${about}` : "";
+  renderBadges();
+}
+
+// ---------------------------------------------------------------- the response
+/** The response card's boxes as the reader left them, as text. */
+function responseFields() {
+  return {
+    label: $("#response").value,
+    units: $("#response-units").value,
+    goal: document.querySelector('input[name="goal"]:checked')?.value ?? "learn",
+    target: $("#response-target").value,
+    typical: $("#response-typical").value,
+    noise: $("#response-noise").value,
+    smallest_change: $("#response-change").value,
+  };
+}
+
+/** The response as the reader describes it: what a design keeps as its ``response_info``. */
+const readResponseInfo = () => describeResponse(responseFields());
+
+/** Put a design's response into the card: the reader's description, else its column's name. */
+function setResponse(spec) {
+  const info = spec.response_info ?? {};
+  $("#response").value = info.label ?? spec.response ?? "";
+  $("#response-units").value = info.units ?? "";
+  const goal = document.querySelector(`input[name="goal"][value="${info.goal ?? "learn"}"]`);
+  if (goal) goal.checked = true;
+  $("#response-target").value = info.target ?? "";
+  $("#response-typical").value = info.typical ?? "";
+  $("#response-noise").value = info.noise ?? "";
+  $("#response-change").value = info.smallest_change ?? "";
+  $("#response-known").open = ["typical", "noise", "smallest_change"].some((key) => info[key] !== undefined);
+  if (info.noise !== undefined) $("#sigma").value = info.noise;
+  showResponse();
+}
+
+/** Show what the response's boxes imply: the target's box for that goal, its units after each number, and problems. */
+function showResponse() {
+  const fields = responseFields();
+  $("#target-box").hidden = fields.goal !== "target";
+  for (const unit of document.querySelectorAll(".with-unit .unit")) unit.textContent = fields.units.trim();
+  const said = responseProblems(fields);
+  $("#response-problems").textContent = said.join(" ");
+  $("#response-problems").hidden = said.length === 0;
+  for (const [id, key] of [["#response-noise", "noise"], ["#response-change", "smallest_change"]]) {
+    $(id).toggleAttribute("aria-invalid", said.some((s) => s.includes(key === "noise" ? "noise" : "smallest change")));
+  }
+}
+
+/**
+ * The reader changed the response card. The description is the reader's, not the design's: a run
+ * sheet already made keeps its column and runs, and takes the new words, units and numbers, so the
+ * title, the run sheet, the charts and the saved study follow. Practice results follow a new typical
+ * value or noise, and the designs are scored again for a new noise or smallest change.
+ */
+function responseChanged() {
+  showResponse();
+  const info = readResponseInfo();
+  if (info.noise !== undefined) $("#sigma").value = info.noise;
+  if (state.design) {
+    const before = state.design.spec.response_info ?? {};
+    const titled = state.campaign && state.campaign.title === titleOf(state.design.spec);
+    state.design.spec = { ...state.design.spec, response_info: info };
+    if (titled) state.campaign.title = titleOf(state.design.spec);
+    renderRuns();
+    renderTruth();
+    showResultsCode();
+    const changed = (keys) => keys.some((key) => before[key] !== info[key]);
+    if (state.sources.includes("simulated") && changed(["typical", "noise"])) scheduleSimulation();
+    else if (state.analysis && changed(["label", "units"])) scheduleAnalysis();
+    scheduleSave();
+  }
+  scheduleCandidates();
+  renderStudyBar();
+  saveDraft();
+}
+
+// ---------------------------------------------------------------- the factors
+/** The levels a new factor of each type starts from: a numeric one's are typed in, a categorical one's are labels. */
+const START_LEVELS = { [NUMERIC]: ["", ""], [CATEGORICAL]: ["A", "B"] };
 
 /** One of a factor row's boxes, by its name: name, categorical (the type's switch), low, high or units. */
 const box = (tr, name) => tr.querySelector(`[name=${name}]`);
@@ -227,11 +397,15 @@ const box = (tr, name) => tr.querySelector(`[name=${name}]`);
 /** A factor row's type, as its switch shows it. */
 const typeOf = (tr) => (box(tr, "categorical").checked ? CATEGORICAL : NUMERIC);
 
-function addFactor(f = { name: "", low: -1, high: 1, units: "" }) {
+/** The factor rows of the table, and whether one is still blank: no name and no levels, which is no factor yet. */
+const factorRows = () => [...document.querySelectorAll("#factors tbody tr")];
+const blankRow = (tr) => ["name", "low", "high"].every((key) => box(tr, key).value.trim() === "");
+
+function addFactor(f = { name: "", low: "", high: "", units: "" }) {
   const tr = document.createElement("tr");
-  // Each cell carries its column's heading, which a phone shows above the box (style.css).
+  // Each cell carries its column's heading, which a narrow column shows above the box (style.css).
   tr.innerHTML = `
-    <td data-label="Factor name"><input name="name" aria-label="Factor name" size="8"></td>
+    <td data-label="Factor name"><input name="name" aria-label="Factor name" size="8" autocomplete="off" spellcheck="false"></td>
     <td data-label="Type"><label class="switch">
       <input type="checkbox" name="categorical" role="switch" aria-label="Categorical">
       <span class="switch__track" aria-hidden="true"></span><span class="switch__text">Numeric</span>
@@ -248,10 +422,15 @@ function addFactor(f = { name: "", low: -1, high: 1, units: "" }) {
     box(tr, name).addEventListener("input", () =>
       showType(tr, factorType(box(tr, "low").value, box(tr, "high").value, typeOf(tr))),
     );
+    box(tr, name).addEventListener("focusout", () => {
+      if (tr.dataset.visited || blankRow(tr)) return;
+      tr.dataset.visited = "yes";
+      showFactorProblems();
+    });
   }
   tr.querySelector("button").onclick = () => {
     tr.remove();
-    refreshDesign();
+    factorsChanged();
   };
   $("#factors tbody").append(tr);
   return tr;
@@ -285,7 +464,7 @@ function showType(tr, type) {
 
 /**
  * The reader flipped a factor's type: its levels become those it last had as that type, else the
- * type's own start (-1 and 1, or A and B). A factor made categorical has its first label selected,
+ * type's own start (blank, or A and B). A factor made categorical has its first label selected,
  * ready to be typed over; one made numeric again leaves the keyboard where it was.
  */
 function switchType(tr, type) {
@@ -299,41 +478,113 @@ function switchType(tr, type) {
   low.select();
 }
 
-/** Say under the table what each factor's levels still need for its type; return whether any does. */
+/** Whether a factor still needs something before Python can take it, said or not yet said. */
+let factorsUnready = false;
+
+/**
+ * Say under the table what each factor still needs, its name and its levels for its type, and
+ * return whether any does. A row left blank is no factor yet, and needs nothing; a row named but
+ * with both level boxes still empty is not told so until the reader has been to them.
+ */
 function showFactorProblems() {
-  const problems = [...document.querySelectorAll("#factors tbody tr")].map((tr) => {
-    const problem = levelProblem(
-      { name: box(tr, "name").value, low: box(tr, "low").value, high: box(tr, "high").value },
-      typeOf(tr),
-    );
-    for (const name of ["low", "high"]) box(tr, name).toggleAttribute("aria-invalid", Boolean(problem));
-    return problem;
+  const all = factorRows();
+  const rows = all.filter((tr) => !blankRow(tr));
+  const names = rows.map((tr) => box(tr, "name").value.trim());
+  let unready = false;
+  const problems = rows.map((tr, i) => {
+    const named = nameProblem(names[i], names.slice(0, i), all.indexOf(tr) + 1);
+    const levels = levelProblem({ name: names[i], low: box(tr, "low").value, high: box(tr, "high").value }, typeOf(tr));
+    unready ||= Boolean(named || levels);
+    const untouched = !tr.dataset.visited && !box(tr, "low").value.trim() && !box(tr, "high").value.trim();
+    const said = [named, untouched ? "" : levels].filter(Boolean);
+    box(tr, "name").toggleAttribute("aria-invalid", Boolean(named));
+    for (const name of ["low", "high"]) box(tr, name).toggleAttribute("aria-invalid", Boolean(levels) && !untouched);
+    return said.join(" ");
   });
+  for (const tr of all.filter(blankRow)) {
+    for (const name of ["name", "low", "high"]) box(tr, name).removeAttribute("aria-invalid");
+  }
   const said = problems.filter(Boolean);
   $("#factor-problems").textContent = said.join(" ");
   $("#factor-problems").hidden = said.length === 0;
-  return said.length > 0;
+  factorsUnready = unready;
+  return unready;
 }
-
-const factorCount = () => document.querySelectorAll("#factors tbody tr").length;
 
 function readFactors() {
   // A blank box is sent as null, which Python reports, rather than as Number("") = 0; a label, as text.
   // A factor's type is not sent: two labels make it categorical, as bootstrap.py reads it.
-  return [...document.querySelectorAll("#factors tbody tr")].map((tr) => ({
-    name: tr.querySelector("[name=name]").value.trim(),
-    low: levelValue(tr.querySelector("[name=low]").value),
-    high: levelValue(tr.querySelector("[name=high]").value),
-    units: tr.querySelector("[name=units]").value.trim(),
-  }));
+  return factorRows()
+    .filter((tr) => !blankRow(tr))
+    .map((tr) => ({
+      name: box(tr, "name").value.trim(),
+      low: levelValue(box(tr, "low").value),
+      high: levelValue(box(tr, "high").value),
+      units: box(tr, "units").value.trim(),
+    }));
 }
 
-/** Put a design specification (the worked example's, or a workbook's) into the form. */
+const factorCount = () => readFactors().length;
+
+/** The factor table changed: the design settings, the aim, the designs that can learn it and the draft follow. */
+function factorsChanged() {
+  if (!aimChosen) setAim(defaultAim(factorCount()));
+  refreshDesign();
+  scheduleCandidates();
+  renderStudyBar();
+  saveDraft();
+}
+
+// ---------------------------------------------------------------- what to learn
+let aimChosen = false; // the reader chose the aim, or a study opened with one
+
+const currentAim = () => document.querySelector('input[name="aim"]:checked')?.value ?? "main_quadratic";
+
+/** Set the aim: an optimal design is built for its model, and the card says how many coefficients it has. */
+function setAim(aim) {
+  const radio = document.querySelector(`input[name="aim"][value="${aim}"]`);
+  if (radio) radio.checked = true;
+  $("#model_type").value = OPTIMAL_MODEL[currentAim()];
+  showAim();
+}
+
+function showAim() {
+  const factors = readFactors();
+  const aim = currentAim();
+  const p = aimTerms(factors, aim);
+  const screening = !aimChosen && aim === "main_effects" && factors.length >= SCREEN_FROM;
+  $("#aim-terms").textContent = factors.length
+    ? `${p} coefficients to estimate, the intercept included.${screening ? ` With ${SCREEN_FROM} factors or more a study starts by finding which matter; choose another aim to learn more of each.` : ""}`
+    : "";
+}
+
+// ---------------------------------------------------------------- the design
+// The design list, its hints, which settings each design takes and how many factors it accepts
+// are in the HTML, so the form is right from the first paint, before Python has loaded.
+let budgetEdited = false;
+let resolutionEdited = false;
+let designChosen = false; // the reader chose the design, or a study opened with one; else Plan picks it
+
+/** A design type's name as the design list gives it. */
+function designLabel(designType) {
+  const option = [...$("#design-type").options].find((o) => o.value === designType);
+  return option ? option.textContent.trim() : designType;
+}
+
+/** Put a design specification (a saved study's, a workbook's, the worked example's) into the brief and the plan. */
 function setForm(spec) {
   $("#factors tbody").replaceChildren();
   spec.factors.forEach(addFactor);
+  setResponse(spec);
+  aimChosen = true;
+  setAim(spec.aim ?? (AIMS.includes(spec.model) ? spec.model : defaultAim(spec.factors.length)));
+  designChosen = true;
+  setDesignForm(spec);
+}
+
+/** Put a design's type and settings into the plan, leaving the brief as it is. */
+function setDesignForm(spec) {
   $("#design-type").value = spec.design_type;
-  $("#response").value = spec.response || "y";
   const options = spec.options || spec;
   if (options.n_center_points !== undefined) $("#n_center_points").value = options.n_center_points;
   if (typeof options.alpha === "number") {
@@ -348,20 +599,13 @@ function setForm(spec) {
   $("#n_blocks").value = options.n_blocks ?? 1;
   if (options.model_type) $("#model_type").value = options.model_type;
   // A resolution or a number of runs other than the page's own pick is kept, as if the reader had chosen it.
-  const k = spec.factors.length;
+  const k = factorCount();
   resolutionEdited = Boolean(options.resolution) && options.resolution !== defaultResolution(k);
   if (options.resolution) $("#resolution").value = String(options.resolution);
   budgetEdited = Boolean(options.budget) && options.budget !== nTerms(k, options.model_type) + SPARE_RUNS;
   if (options.budget) $("#budget").value = options.budget;
   refreshDesign();
 }
-
-// ---------------------------------------------------------------- design step
-// The design list, its hints, which settings each design takes and how many
-// factors it accepts are in the HTML, so the form is right from the first paint,
-// before Python has loaded.
-let budgetEdited = false;
-let resolutionEdited = false;
 
 /**
  * Bring the design settings in line with the factors: designs the factor count rules
@@ -410,19 +654,72 @@ function refreshDesign() {
   }
   hint.classList.toggle("error", option.disabled);
   const unready = showFactorProblems();
-  $("#generate").disabled = !pythonReady || option.disabled || unready;
-  markStale(); // a factor added or removed
+  $("#generate").disabled = !pythonReady || option.disabled || unready || k < 2;
+  $("#design-card").hidden = k < 2 && !state.design;
+  showAim();
+  markPicked();
+  markStale();
 }
 
-/** Generate the design the form describes; resolves to true when it is on the page. */
+/**
+ * The plan as the form holds it now: the factors, the design and the settings it takes. The run
+ * sheet on the page is out of date when this differs from the plan it was made from.
+ */
+function planKey() {
+  const option = $("#design-type").selectedOptions[0];
+  const values = {
+    n_center_points: $("#n_center_points").value,
+    alpha: axialDistance($("#alpha").value, $("#alpha_value").value),
+    resolution: $("#resolution").value,
+    budget: $("#budget").value,
+    n_replicates: $("#n_replicates").value,
+    n_blocks: $("#n_blocks").value,
+    model_type: $("#model_type").value,
+  };
+  const taken = option.dataset.options.split(" ").map((key) => [key, values[key]]);
+  return JSON.stringify([option.value, readFactors(), Object.fromEntries(taken)]);
+}
+
+const planIsStale = () => Boolean(state.design) && state.planKey !== null && planKey() !== state.planKey;
+
+/** Say when the plan has changed since the run sheet was made, in Run and on Plan's button, until it is made again. */
+function markStale() {
+  const stale = planIsStale();
+  $("#design-stale").hidden = !stale;
+  const note = $("#plan-note");
+  note.hidden = !state.design;
+  note.textContent = stale
+    ? "The run sheet in Run was made from an earlier plan: make the new one to use these settings."
+    : "The run sheet in Run is this plan's.";
+  renderBadges();
+}
+
+/** Make the run sheet the plan describes; resolves to true when it is on the page. */
 async function generate() {
+  cancelCandidates(); // the reader has chosen: the designs can wait until Plan is shown again
+  const key = planKey();
+  const info = readResponseInfo();
+  const factors = readFactors();
+  const response = responseName(info.label, factors.map((f) => f.name));
+  if (state.picked?.key === key) {
+    // The design Plan made for this plan already: the same runs, with the brief's words on them.
+    const design = structuredClone(state.picked.design);
+    const was = design.spec.response;
+    design.columns = design.columns.map((c) => (c === was ? response : c));
+    design.spec = { ...design.spec, factors, response, response_info: info, aim: currentAim() };
+    setStatus(`${design.n_runs} runs generated.`);
+    madeRunSheet(design, state.picked.warnings ?? [], key);
+    return true;
+  }
   const button = $("#generate");
   button.disabled = true;
   setStatus("Generating design...", "busy");
   const spec = {
     design_type: $("#design-type").value,
-    factors: readFactors(),
-    response: $("#response").value.trim(),
+    factors,
+    response,
+    response_info: info,
+    aim: currentAim(),
     n_center_points: Number($("#n_center_points").value),
     alpha: axialDistance($("#alpha").value, $("#alpha_value").value),
     n_replicates: Number($("#n_replicates").value),
@@ -433,29 +730,43 @@ async function generate() {
   };
   const reply = await call("api_make_design", spec);
   button.disabled = false;
+  refreshDesign();
   if (!reply.ok) {
     setStatus(reply.error, "error");
     return false;
   }
   setStatus(`${reply.result.n_runs} runs generated.`);
-  $("#demo-banner").hidden = true;
-  showDesign(reply.result, reply.warnings);
+  madeRunSheet(reply.result, reply.warnings, key);
   return true;
 }
 
+/** A run sheet made from the plan ``key``: it is the reader's study now, shown in Run. */
+function madeRunSheet(design, warnings, key) {
+  $("#demo-banner").hidden = true;
+  $("#campaign-banner").hidden = true;
+  if (new URLSearchParams(location.search).get(EXAMPLE_PARAM) === WORKED) history.replaceState(null, "", location.pathname);
+  showDesign(design, warnings);
+  state.planKey = key;
+  const c = state.comparison;
+  const row = c?.result && c.key === candidateKey() ? candidateRows(c.result, c.made).find((r) => r.design_type === design.spec.design_type) : null;
+  setModel(analysisModel(design.model, design.spec.aim, Boolean(row?.fits), design.spec.factors));
+  clearDraft();
+  markStale();
+  showPhase("run");
+}
+
 /**
- * Make a new set of runs the campaign: no results yet, nothing simulated, nothing analysed. It is
- * saved in this browser as a campaign of its own, unless it follows a design made on this page
- * that holds no result the reader typed in: trying one design after another while simulating
- * keeps one entry in Your designs, not one per try. A design opened from the list or from a
- * link is never replaced. The worked example passes ``save: false``.
+ * Make a new set of runs the study: no results yet, nothing simulated, nothing analysed. It is
+ * saved in this browser as a study of its own, unless it follows a design made on this page that
+ * holds no result the reader typed in: trying one design after another while practising keeps one
+ * entry in Your studies, not one per try. A study opened from the list or from a link is never
+ * replaced. The worked example passes ``save: false``.
  */
 function showDesign(design, warnings = [], { save = true } = {}) {
   flushSave();
   const replaces = state.campaign?.replaceable && !state.sources.includes("entered");
-  state.campaign = save
-    ? { ...(replaces ? state.campaign : newCampaign()), title: titleOf(design.spec), example: false }
-    : null;
+  state.campaign = save ? { ...(replaces ? state.campaign : newCampaign()), title: titleOf(design.spec) } : null;
+  state.example = !save;
   state.design = design;
   $("#share-out").hidden = true;
   state.responses = design.rows.map(() => null);
@@ -469,11 +780,20 @@ function showDesign(design, warnings = [], { save = true } = {}) {
   clearAnalysis();
   if (design.spec.options) showPython("design", designCode(design.spec));
   hidePython("run");
+  renderStudyBar();
   scheduleSave();
 }
 
-function renderDesign(warnings = []) {
-  showExampleButton();
+/** The model the analysis fits, in words: the design's own, a named model, or the terms ticked. */
+function analysedWith() {
+  const chosen = modelChoice();
+  if (chosen && typeof chosen === "object") return `the terms ${listNames(chosen.terms.map(termLabel))}`;
+  return `the ${(chosen || state.design.model).replace("_", " ")} model`;
+}
+
+function renderDesign(warnings = state.designWarnings ?? []) {
+  if (!state.design) return;
+  state.designWarnings = warnings;
   const r = state.design;
   const parts = [];
   if (r.facts) {
@@ -485,8 +805,8 @@ function renderDesign(warnings = []) {
       el(
         "p",
         "",
-        `${r.n_runs} runs${centre}, listed in step 2 in randomised run order. The results will be analysed with ` +
-          `the ${r.model.replace("_", " ")} model unless you choose another.${outside}`,
+        `${r.n_runs} runs${centre}, listed below in randomised run order. The results will be analysed with ` +
+          `${analysedWith()} unless you choose another in Learn.${outside}`,
       ),
       ...noteList(r.facts.notes),
     );
@@ -499,20 +819,360 @@ function renderDesign(warnings = []) {
   markStale();
 }
 
-/** Whether the factor table and response name still describe the design the page holds. */
-function formMatchesDesign() {
-  return formMatches(readFactors(), $("#response").value.trim(), state.design?.spec);
+// ---------------------------------------------------------------- the designs that can learn the brief
+/** How long the brief rests before its designs are made and scored: a pause in the typing. */
+const CANDIDATE_WAIT = 450;
+let candidateTimer = null;
+let candidateTicket = 0;
+let candidatesRunning = false;
+
+/** What api_candidates is asked for the brief as it is now. */
+function candidateRequest() {
+  const factors = readFactors();
+  const info = readResponseInfo();
+  return { factors, model: currentAim(), response: responseName(info.label, factors.map((f) => f.name)), response_info: info };
 }
 
-/** Say when the factors have been edited since the design was generated, until it is generated again. */
-function markStale() {
-  $("#design-stale").hidden = formMatchesDesign();
+/** What makes two briefs' designs the same: the factors, the aim, and the noise and change power is for. */
+function candidateKey(request = candidateRequest()) {
+  const { noise = null, smallest_change: change = null } = request.response_info;
+  return JSON.stringify([request.factors, request.model, noise, change]);
+}
+
+/** Whether the brief is ready for its designs: two factors or more, each as Python takes it. */
+const briefReady = () => factorCount() >= 2 && !factorsUnready;
+
+/**
+ * Make and score the brief's designs a moment after its last change, while Plan is on show, unless
+ * they are on the page already. One search at a time: a brief changed during one is searched again
+ * once it is back.
+ */
+function scheduleCandidates() {
+  clearTimeout(candidateTimer);
+  candidateTimer = null;
+  const due = state.phase === "plan" && pythonReady && briefReady() && state.comparison?.key !== candidateKey();
+  if (due && !candidatesRunning) {
+    $("#candidates").setAttribute("aria-busy", "true");
+    candidateTimer = setTimeout(() => findCandidates(), CANDIDATE_WAIT);
+  }
+  renderCandidates();
+}
+
+/** Stop a search that has not started: the reader made the run sheet, or left Plan. */
+function cancelCandidates() {
+  clearTimeout(candidateTimer);
+  candidateTimer = null;
+  if (!candidatesRunning) $("#candidates").removeAttribute("aria-busy");
+}
+
+async function findCandidates({ search = false } = {}) {
+  candidateTimer = null;
+  const request = candidateRequest();
+  const key = candidateKey(request);
+  const mine = ++candidateTicket;
+  candidatesRunning = true;
+  $("#candidates").setAttribute("aria-busy", "true");
+  renderCandidates(search ? "Searching for the optimal designs as well..." : null);
+  const reply = await call("api_candidates", { ...request, search });
+  candidatesRunning = false;
+  $("#candidates").removeAttribute("aria-busy");
+  if (mine !== candidateTicket) return;
+  state.comparison = reply.ok ? { key, ...reply.result } : { key, error: reply.error };
+  if (reply.ok && !designChosen) {
+    const picked = pickCandidate(candidateRows(reply.result.result, reply.result.made));
+    if (picked) pickDesign(picked, { byReader: false });
+  }
+  renderCandidates();
+  if ($("#compare-dialog").open) showComparison();
+  if (key !== candidateKey()) scheduleCandidates(); // the brief changed while its designs were made
+}
+
+/**
+ * The designs of the comparison on the page as Plan lists them, in a table to pick from. While the
+ * brief's own designs are made, the last list stays, dimmed and not to be picked from.
+ */
+function renderCandidates(busy = null) {
+  const box = $("#candidates");
+  const c = state.comparison;
+  const current = Boolean(c) && c.key === candidateKey() && !busy;
+  $("#compare").disabled = !current || !c.result;
+  $("#compare").hidden = !c?.result; // nothing to compare in detail before the brief's first designs
+  $("#search").hidden = !current || !c.waiting?.length;
+  let note = null;
+  if (current && c.error) note = ["hint error", c.error];
+  else if (current) note = null;
+  else if (pythonFailure) note = ["hint error", "The designs are made with Python, which could not start here."];
+  else if (briefReady() && !pythonReady) note = ["hint", "The designs that can learn this are listed once Python has started."];
+  else if (busy || briefReady()) note = ["hint busy", busy ?? "Making and scoring the designs that can learn this..."];
+  const listed = c?.result && briefReady() ? candidateList(c, current) : [];
+  $("#plan-empty").hidden = Boolean(note) || listed.length > 0;
+  box.hidden = !note && !listed.length;
+  box.dataset.stale = String(!current);
+  box.replaceChildren(...(note ? [el("p", note[0], note[1])] : []), ...listed);
+  if (current) markPicked();
+}
+
+/** The comparison's designs as a list to pick from: those that fit the model in a table, and why the others do not. */
+function candidateList(c, current) {
+  const rows = candidateRows(c.result, c.made);
+  const kinds = [
+    ["main", "main effect"],
+    ["interaction", "interaction"],
+    ["quadratic", "curvature"],
+  ].filter(([kind]) => rows.some((r) => r.power[kind] !== null));
+  const fitting = rows.filter((r) => r.fits);
+  const terms = c.result.terms.filter((t) => t !== "Intercept").map(prettyTerm);
+  const parts = [
+    el(
+      "p",
+      "hint",
+      `The model has ${c.result.terms.length} coefficients: ${listNames(terms)} and the intercept. ` +
+        `${fitting.length ? `${fitting.length} of the designs can fit it, sorted here by their runs. ` : "No design here can fit it. "}` +
+        `Power is a design's chance of finding ${changeWords(readResponseInfo())} from a factor's low setting to its high ` +
+        `one, at the ${Math.round(100 * c.result.significance_level)}% level.`,
+    ),
+  ];
+  if (fitting.length) {
+    const t = el("table", "data pick", "");
+    const head = el("tr", "", "");
+    const spare = el("th", "", "Spare runs");
+    spare.title = "The runs left after the fit to estimate the run-to-run noise.";
+    head.append(el("th", "", "Design"), el("th", "", "Runs"), spare);
+    for (const [, words] of kinds) head.append(el("th", "", `Power, ${words}`));
+    const thead = el("thead", "", "");
+    thead.append(head);
+    const tbody = el("tbody", "", "");
+    for (const r of fitting) {
+      const tr = el("tr", "", "");
+      tr.dataset.design = r.design_type;
+      const name = el("td", "", "");
+      const label = el("label", "", "");
+      const radio = el("input", "", "");
+      radio.type = "radio";
+      radio.name = "candidate";
+      radio.value = r.design_type;
+      radio.disabled = !current;
+      label.append(radio, r.label);
+      name.append(label);
+      tr.append(name, el("td", "", String(r.runs)), el("td", r.spare < SPARE_FOR_NOISE ? "low" : "", String(r.spare)));
+      for (const [kind] of kinds) tr.append(el("td", "", percent(r.power[kind])));
+      if (current) tr.onclick = () => pickDesign(r.design_type);
+      tbody.append(tr);
+    }
+    t.append(thead, tbody);
+    const wrap = el("div", "scroll", "");
+    wrap.append(t);
+    parts.push(wrap);
+  }
+  const unfit = rows.filter((r) => !r.fits);
+  if (unfit.length) {
+    parts.push(
+      el(
+        "p",
+        "hint",
+        `${listNames(unfit.map((r) => r.label))} cannot fit this model with the runs ${unfit.length === 1 ? "it makes" : "they make"}: ` +
+          "two of its terms or more cannot be told apart.",
+      ),
+    );
+  }
+  if (c.waiting?.length) {
+    const designs = listNames(c.waiting.map((w) => w.label));
+    parts.push(
+      el(
+        "p",
+        "hint",
+        `The ${designs} design${c.waiting.length === 1 ? "" : "s"} search for their runs, which takes a while with ` +
+          `${factorCount()} factors: search for them to add them here.`,
+      ),
+    );
+  }
+  parts.push(...noteList(c.notes.map(prettyTerm)));
+  return parts;
+}
+
+/** Mark the design the plan holds in the list of designs that can learn the brief. */
+function markPicked() {
+  const chosen = $("#design-type").value;
+  for (const tr of document.querySelectorAll("#candidates tbody tr")) {
+    const on = tr.dataset.design === chosen;
+    tr.setAttribute("aria-selected", String(on));
+    tr.querySelector("input").checked = on;
+  }
+}
+
+/**
+ * Take a design from the comparison into the plan: its type and settings, as Plan made it. Making
+ * the run sheet then uses the runs already made, unless the plan changes first.
+ */
+function pickDesign(designType, { byReader = true } = {}) {
+  const item = state.comparison?.made?.find((m) => m.design_type === designType);
+  if (!item) return;
+  if (byReader) designChosen = true;
+  setDesignForm(item.design.spec);
+  state.picked = { key: planKey(), design: item.design, warnings: item.warnings ?? [] };
+  markPicked();
+  markStale();
+  renderStudyBar();
+  saveDraft();
+}
+
+/** Show the comparison in detail, over the page: every design on the nine measures, the FDS curves and correlation maps. */
+async function showComparison() {
+  const c = state.comparison;
+  if (!c?.result) return;
+  const dialog = $("#compare-dialog");
+  if (!dialog.open) dialog.showModal();
+  if (dialog.dataset.key === c.key) {
+    resizeWithin(dialog);
+    return;
+  }
+  dialog.dataset.key = c.key;
+  renderComparison(c.result, c.made, c.notes);
+  showPython(
+    "compare",
+    compareCode(
+      readFactors(),
+      c.made.map((m) => ({ label: m.label, design_type: m.design_type, options: m.design.spec.options })),
+      c.model,
+    ),
+  );
+  await drawComparison(c.result, readFactors().length);
+}
+
+let comparisonFit = null; // watches whether the comparison table fits its box
+
+function renderComparison(result, made, notes) {
+  const out = $("#comparison");
+  out.hidden = false;
+  const t = el("table", "data compare", "");
+  const head = el("tr", "", "");
+  head.append(el("th", "", "Measure"), el("th", "", "Better"));
+  result.designs.forEach((label, i) => {
+    const th = el("th", "", label);
+    const use = el("button", "link", "Use this design");
+    use.type = "button";
+    use.onclick = () => useDesign(made[i]);
+    th.append(el("br", "", ""), use);
+    head.append(th);
+  });
+  const thead = el("thead", "", "");
+  thead.append(head);
+  const tbody = el("tbody", "", "");
+  let group = null;
+  result.measures.forEach((m, row) => {
+    // A row no design can fill, such as interaction power for a model without interactions, is left out.
+    if (result.designs.every((label) => result.display[label][row] === "")) return;
+    if (m.group !== group) {
+      group = m.group;
+      const tr = el("tr", "group", "");
+      const td = el("td", "", "");
+      td.append(el("span", "", group)); // a span, so the label can stay in view as the table scrolls
+      td.colSpan = result.designs.length + 2;
+      tr.append(td);
+      tbody.append(tr);
+    }
+    const tr = el("tr", "", "");
+    const name = el("td", "", "");
+    name.append(m.group === "Feasibility" ? m.label : link(BOOK_PAGES.measures, m.label));
+    name.title = m.description;
+    tr.append(name, el("td", "arrow", m.direction === "higher" ? "↑" : m.direction === "lower" ? "↓" : ""));
+    for (const label of result.designs) tr.append(el("td", "", result.display[label][row]));
+    tbody.append(tr);
+  });
+  t.append(thead, tbody);
+  const wrap = el("div", "scroll", "");
+  wrap.append(t);
+  // A phone or a narrow window shows only the first few designs, so say that the rest are there.
+  const more = el("p", "hint", `Scroll the table sideways to see all ${result.designs.length} designs.`);
+  more.hidden = true;
+  comparisonFit?.disconnect();
+  comparisonFit = new ResizeObserver(() => {
+    more.hidden = wrap.scrollWidth <= wrap.clientWidth + 1;
+  });
+  comparisonFit.observe(wrap);
+  const designNotes = result.designs.flatMap((label) => result.notes[label].map((n) => `${label}: ${prettyTerm(n)}`));
+  out.replaceChildren(
+    el(
+      "p",
+      "",
+      `Model: ${result.terms.length} terms (${result.terms.map(prettyTerm).join(", ")}). Power is for a coefficient of ` +
+        `${+result.effect_size.toPrecision(4)} noise standard deviation${result.effect_size === 1 ? "" : "s"} at a significance level of ` +
+        `${result.significance_level}. G is searched over ${result.g_points}.`,
+    ),
+    more,
+    wrap,
+    el(
+      "p",
+      "",
+      "No design is best on every row, and which row matters depends on what the experiment is for: A/p or E " +
+        "for precise coefficients, I or G for prediction over the region, max |r| for keeping second-order " +
+        "effects apart, and power for detecting an effect of a stated size. Hover over a measure for its " +
+        "definition, or follow its link to the book.",
+    ),
+    ...noteList([...notes, ...designNotes].map(prettyTerm)),
+  );
+}
+
+/** Take a design from the detailed comparison into the plan, and close the comparison. */
+function useDesign(item) {
+  pickDesign(item.design_type);
+  $("#compare-dialog").close();
+  setStatus(`The ${item.label} design is in the plan: make its run sheet when it is ready.`);
+}
+
+async function drawComparison(result, k) {
+  const box = $("#compare-charts");
+  box.hidden = false;
+  box.replaceChildren();
+  const version = state.plotlyJs;
+  if (!version) return;
+  const fds = el("figure", "chart wide", "");
+  const fdsPlot = el("div", "plot", "");
+  const caption = el(
+    "figcaption",
+    "hint",
+    "Each curve sorts a design's prediction variance, in units of the noise variance, over points spread " +
+      "evenly through the cube: a low, flat curve predicts with the same precision everywhere, and its right " +
+      "end is the worst case, G. Designs that cannot fit the model have no curve. ",
+  );
+  caption.append(link(BOOK_PAGES.fds, "Reading an FDS plot"));
+  fds.append(el("h3", "", "Fraction of design space (FDS)"), fdsPlot, caption);
+  box.append(fds);
+  try {
+    await draw(fdsPlot, fdsFigure(result.fds), version, 380);
+    for (const label of result.designs) {
+      const { terms, matrix } = result.correlations[label];
+      const card = el("figure", "chart", "");
+      const plot = el("div", "plot", "");
+      card.append(el("h3", "", `Correlation map, ${label}`), plot);
+      box.append(card);
+      await draw(plot, () => correlationFigure(terms, matrix, k), version, 320);
+    }
+    box.append(
+      el(
+        "p",
+        "hint wide",
+        "The correlation maps show |r| between the main effects, the squares and the two-factor interactions, " +
+          "in three blocks; a darker square is a pair of terms the design finds harder to tell apart, and a blank " +
+          "row is a term that does not vary in the design.",
+      ),
+    );
+  } catch (err) {
+    box.append(el("p", "hint", `The charts could not be drawn (${err.message}); the table above holds the numbers.`));
+  }
 }
 
 // ---------------------------------------------------------------- run step
+/** The response's name and units as the run sheet, the equations and the charts show them. */
+function responseWords(spec = state.design.spec) {
+  const info = spec.response_info ?? {};
+  return { label: info.label || spec.response, units: info.units ?? "" };
+}
+
 /**
  * The run sheet, sortable by any column, with the response column as inputs: a reader
- * types each result as it comes in. Simulated values are marked until they are edited.
+ * types each result as it comes in. Simulated values are marked until they are edited. Each
+ * heading carries its units under it, and the response's is named as the reader names it.
  */
 function renderRuns() {
   const d = state.design;
@@ -520,6 +1180,7 @@ function renderRuns() {
   $("#run-out").hidden = false;
   const t = $("#design-table");
   const response = d.spec.response;
+  const { label, units } = responseWords();
   const at = d.columns.indexOf(response);
   const rows = d.rows.map((row, i) => Object.assign([...row], { index: i }));
   t._cell = (row, col) => {
@@ -527,9 +1188,12 @@ function renderRuns() {
     const i = row.index;
     const value = state.responses[i];
     const cls = state.sources[i] === "simulated" ? "sim" : "";
-    return `<input class="${cls}" type="number" step="any" inputmode="decimal" data-index="${i}" aria-label="${escape(response)}, run ${i + 1}" value="${value ?? ""}">`;
+    return `<input class="${cls}" type="number" step="any" inputmode="decimal" data-index="${i}" aria-label="${escape(label)}, run ${i + 1}" value="${value ?? ""}">`;
   };
-  renderTable(t, d.columns, rows, "Run order");
+  const factorUnits = Object.fromEntries(d.spec.factors.map((f) => [f.name, f.units ?? ""]));
+  const headings = d.columns.map((c) => (c === response ? label : c));
+  const colUnits = d.columns.map((c) => (c === response ? units : (factorUnits[c] ?? "")));
+  renderTable(t, headings, rows, "Run order", colUnits);
   t.oninput = (e) => {
     const input = e.target.closest("input[data-index]");
     if (!input) return;
@@ -540,10 +1204,12 @@ function renderRuns() {
     describeSource();
     renderTruth();
     showResultsCode();
+    renderBadges();
     scheduleAnalysis();
     scheduleSave();
   };
   describeSource();
+  renderBadges();
 }
 
 /** Say where the results in the run sheet came from. */
@@ -552,7 +1218,7 @@ function describeSource() {
   const done = state.responses.filter((v) => v !== null).length;
   const simulated = state.sources.filter((s) => s === "simulated").length;
   const sim = state.simulation;
-  let text = done ? `${done} of ${n} results in.` : `No results yet: simulate them, or type them into the ${state.design.spec.response} column.`;
+  let text = done ? `${done} of ${n} results in.` : `No results yet: type them into the ${responseWords().label} column as the runs are made.`;
   if (simulated && sim) {
     text =
       `${simulated} of ${n} results simulated from "${sim.label}", with noise of standard deviation ${sim.sigma} ` +
@@ -572,11 +1238,20 @@ function renderTruth() {
   const note = $("#truth-inactive");
   note.hidden = !quiet.length;
   note.textContent = quiet.length
-    ? `${listNames(quiet)} ${quiet.length === 1 ? "does" : "do"} not affect ${state.design.spec.response} in this process.`
+    ? `${listNames(quiet)} ${quiet.length === 1 ? "does" : "do"} not affect ${responseWords().label} in this process.`
     : "";
 }
 
+let simulationTimer = null;
+
+/** Simulate again a moment after the response's typical value or noise was last typed, rather than on every key. */
+function scheduleSimulation() {
+  clearTimeout(simulationTimer);
+  simulationTimer = setTimeout(simulateResults, 600);
+}
+
 async function simulateResults() {
+  clearTimeout(simulationTimer);
   if (!state.design) return;
   setStatus("Simulating the results...", "busy");
   const reply = await call("api_simulate", {
@@ -599,11 +1274,14 @@ async function simulateResults() {
   await analyseRuns();
 }
 
+/** Choose where the results come from: entered by the reader, or simulated for practice. */
 function selectTab(name) {
   for (const tab of ["simulate", "real"]) {
     $(`#tab-${tab}`).setAttribute("aria-selected", String(tab === name));
+    $(`#tab-${tab}`).tabIndex = tab === name ? 0 : -1;
     $(`#panel-${tab}`).hidden = tab !== name;
   }
+  state.practising = name === "simulate";
 }
 
 async function downloadWorkbook() {
@@ -626,17 +1304,17 @@ async function downloadWorkbook() {
 
 /** Hand the reader a file, as a download. */
 function download(blob, name) {
-  const link = document.createElement("a");
-  link.href = URL.createObjectURL(blob);
-  link.download = name;
-  document.body.append(link);
-  link.click();
-  link.remove();
-  setTimeout(() => URL.revokeObjectURL(link.href), 10_000);
+  const anchor = document.createElement("a");
+  anchor.href = URL.createObjectURL(blob);
+  anchor.download = name;
+  document.body.append(anchor);
+  anchor.click();
+  anchor.remove();
+  setTimeout(() => URL.revokeObjectURL(anchor.href), 10_000);
 }
 
 /**
- * Download the campaign as a Jupyter notebook: each step's code, as its "Show the Python code"
+ * Download the study as a Jupyter notebook: each step's code, as its "Show the Python code"
  * panel shows it, a cell a step, so it runs to the page's design, results and analysis.
  */
 function downloadNotebook() {
@@ -671,17 +1349,22 @@ async function readUpload(file) {
   flushSave();
   setForm(r.spec);
   state.design = { spec: r.spec, columns: r.columns, rows: r.rows, model: r.spec.model, facts: null };
+  state.planKey = planKey();
   state.responses = r.responses;
   state.sources = r.sources;
   state.simulation = null;
+  state.example = false;
   state.campaign = { ...newCampaign(false), title: `${titleOf(r.spec)}, from ${file.name}`.slice(0, 200) };
+  clearDraft();
   setModel(r.spec.analysis_model ?? $("#model").value);
   renderDesign(reply.warnings);
   renderRuns();
   renderTruth();
   showPython("design", designCode(r.spec));
   showResultsCode();
+  renderStudyBar();
   scheduleSave();
+  if (state.responses.some((v) => v !== null)) showPhase("learn");
   await analyseRuns();
 }
 
@@ -698,11 +1381,14 @@ function scheduleAnalysis() {
 /** Take the analysis away: its runs or their results are gone. A reply still on its way is dropped. */
 function clearAnalysis() {
   ticket += 1;
+  state.analysis = null;
   $("#analysis").hidden = true;
   $("#py-analyse").hidden = true;
   $("#charts").hidden = true;
   $("#charts").replaceChildren();
   $("#analyse-empty").hidden = false;
+  $("#to-learn").hidden = true;
+  renderBadges();
 }
 
 async function analyseRuns() {
@@ -730,6 +1416,8 @@ function renderAnalysis(reply) {
   const out = $("#analysis");
   out.hidden = false;
   $("#analyse-empty").hidden = true;
+  $("#to-learn").hidden = !reply.ok;
+  renderBadges();
   if (!reply.ok) {
     setStatus("The results could not be analysed.", "error");
     out.replaceChildren(el("p", "error", reply.error), ...warningList(reply.warnings));
@@ -820,19 +1508,19 @@ function modelChoice() {
   return $("#model").value === CHOSEN_TERMS ? { terms: tickedTerms() } : $("#model").value;
 }
 
-const tickedTerms = () => [...document.querySelectorAll("#term-list input:checked")].map((box) => JSON.parse(box.value));
+const tickedTerms = () => [...document.querySelectorAll("#term-list input:checked")].map((b) => JSON.parse(b.value));
 
 /** List every term the design's factors allow, grouped, with `ticked` ticked. */
 function renderTermList(ticked) {
   const chosen = new Set(ticked.map((term) => JSON.stringify(term)));
   const groups = new Map();
   for (const { term, label, group } of candidateTerms(state.design.spec.factors)) {
-    const box = el("input", "", "");
-    box.type = "checkbox";
-    box.value = JSON.stringify(term);
-    box.checked = chosen.has(box.value);
+    const tick = el("input", "", "");
+    tick.type = "checkbox";
+    tick.value = JSON.stringify(term);
+    tick.checked = chosen.has(tick.value);
     const item = el("label", "", "");
-    item.append(box, ` ${label}`);
+    item.append(tick, ` ${label}`);
     if (!groups.has(group)) groups.set(group, []);
     groups.get(group).push(item);
   }
@@ -850,7 +1538,7 @@ function startTermList() {
   renderTermList(namedModelTerms(modelBefore || state.design.spec.model, state.design.spec.factors));
 }
 
-/** Put a model into step 3: a named one, "" for the design's own, or {terms} to tick. */
+/** Put a model into the analysis: a named one, "" for the design's own, or {terms} to tick. */
 function setModel(model) {
   if (model && typeof model === "object") {
     $("#model").value = CHOSEN_TERMS;
@@ -860,6 +1548,7 @@ function setModel(model) {
     if (model === CHOSEN_TERMS) startTermList();
   }
   $("#terms").hidden = $("#model").value !== CHOSEN_TERMS;
+  renderDesign();
 }
 
 // ---------------------------------------------------------------- charts
@@ -927,11 +1616,11 @@ function coefficientCard(analysis, simulated) {
 
 /** Draw the coefficient chart, then the library's plots for the same analysis. */
 async function drawCharts(request, mine, given = null) {
-  const box = $("#charts");
-  box.hidden = false;
+  const charts = $("#charts");
+  charts.hidden = false;
   const simulated = Boolean(request.truth);
   const coefficients = coefficientCard(state.analysis, simulated);
-  box.replaceChildren(coefficients.card);
+  charts.replaceChildren(coefficients.card);
   await coefficients.show(coefficientView());
 
   const plots = given ?? (await libraryPlots(request, mine));
@@ -951,11 +1640,11 @@ async function drawCharts(request, mine, given = null) {
       if (!figures[key]) continue;
       const caption = typeof CAPTIONS[key] === "function" ? CAPTIONS[key](plots.contour_factors) : CAPTIONS[key];
       const card = chartCard(key, caption);
-      box.append(card.card);
+      charts.append(card.card);
       await draw(card.plot, figures[key], version);
     }
   } catch (err) {
-    box.append(el("p", "hint", `The charts could not be drawn (${err.message}); the tables above hold the numbers.`));
+    charts.append(el("p", "hint", `The charts could not be drawn (${err.message}); the tables above hold the numbers.`));
   }
 }
 
@@ -966,22 +1655,40 @@ async function libraryPlots(request, mine) {
 }
 
 // ---------------------------------------------------------------- the worked example
-/** Draw the worked example computed when the page was built, while Python loads. */
-async function showBuiltExample() {
-  let example;
+/** The worked example the build computed into demo.json, fetched once; null in a plain preview of web/. */
+let builtExample;
+async function fetchExample() {
+  if (builtExample !== undefined) return builtExample;
   try {
     const res = await fetch("demo.json", { cache: "no-store" });
-    if (!res.ok) return;
-    example = await res.json();
+    builtExample = res.ok ? await res.json() : null;
   } catch {
-    return; // a plain local preview has no demo.json
+    builtExample = null; // a plain local preview has no demo.json
   }
-  if (state.design) return; // the reader has already started
+  return builtExample;
+}
+
+/**
+ * Show the worked example as the build computed it, at once and before Python has started: its
+ * brief, the designs that can learn it, its run sheet with results simulated from a known process,
+ * and their analysis, in Learn. Without demo.json it is run here instead. Resolves to whether it shows.
+ */
+async function showBuiltExample() {
+  const example = await fetchExample();
+  if (!example) {
+    if (pythonFailure) return false;
+    await runExample();
+    return true;
+  }
+  flushSave();
+  $("#campaign-banner").hidden = true;
   setForm(example.inputs.design);
   $("#scenario").value = example.inputs.scenario;
   $("#sigma").value = example.inputs.sigma;
   showScenarioHint();
   showDesign(example.design, [], { save: false });
+  state.planKey = planKey();
+  selectTab("simulate");
   state.simulation = example.simulation;
   state.responses = [...example.simulation.responses];
   state.sources = state.responses.map(() => "simulated");
@@ -992,61 +1699,37 @@ async function showBuiltExample() {
   state.analysis = example.analysis;
   renderAnalysis({ ok: true, result: example.analysis, warnings: [] });
   $("#demo-version").textContent = `process-improve ${example.version}`;
+  $("#demo-when").textContent = "when this page was built";
   $("#demo-banner").hidden = false;
-  if (!pythonReady && !pythonFailure) setStatus("Showing the worked example while Python starts...", "busy");
-  const request = { truth: example.simulation.truth };
-  await drawCharts(request, ticket, example.plots);
-  const compared = example.comparison;
-  if (compared && !$("#comparison").textContent) {
-    $("#compare-model").value = compared.model;
-    renderComparison(compared.result, compared.made, compared.notes);
-    showPython(
-      "compare",
-      compareCode(
-        example.inputs.design.factors,
-        compared.made.map((m) => ({ label: m.label, design_type: m.design_type, options: m.design.spec.options })),
-        compared.model,
-      ),
-    );
-    await drawComparison(compared.result, example.inputs.design.factors.length);
+  if (example.comparison) {
+    state.comparison = { key: candidateKey(), ...example.comparison };
+    state.picked = null;
+    renderCandidates();
   }
+  renderStudyBar();
+  markStale();
+  showPhase("learn");
+  if (!pythonReady && !pythonFailure) setStatus("Showing the worked example while Python starts...", "busy");
+  await drawCharts({ truth: example.simulation.truth }, ticket, example.plots);
+  return true;
 }
 
-/**
- * Say what the button at the top does. While the worked example is on the page it runs it again in
- * this tab. Once a design of the reader's is open (made here, or from a link, a workbook, Your
- * designs or the book) it reads as a step aside, not as a run of that design: it puts the worked
- * example in its place, and says whether that design stays under Your designs. One opened from a
- * link or the list, or with a result typed in, does; one only tried here is replaced (see showDesign).
- */
-function showExampleButton() {
-  const button = $("#run-example");
-  const other = state.campaign && !state.campaign.example ? state.campaign.title : null;
-  const kept = other && !(state.campaign.replaceable && !state.sources.includes("entered"));
-  if (!button.dataset.waiting) button.textContent = other ? "Open the worked example instead" : "Run the worked example";
-  button.classList.toggle("primary", !other);
-  const example = "The worked example, a Box-Behnken design in three factors with results simulated from a known process,";
-  $("#example-hint").textContent = !other
-    ? "A Box-Behnken design in three factors, results simulated from a known process, and their analysis, " +
-      "computed in this tab."
-    : kept
-      ? `${example} takes the place of ${other}, which stays under Your designs.`
-      : `${example} takes the place of ${other}.`;
-}
-
+/** Run the worked example again in this tab: the design made, the results simulated and analysed, live. */
 async function runExample() {
   const button = $("#run-example");
   if (!pythonReady) {
     button.disabled = true;
-    button.dataset.waiting = "yes";
     button.textContent = "Waiting for Python to start...";
-    const started = await whenReady.then(() => true, () => false);
-    delete button.dataset.waiting;
-    showExampleButton();
+    const started = await whenReady.then(
+      () => true,
+      () => false,
+    );
+    button.textContent = "Run it again in your browser";
     button.disabled = !started;
     if (!started) return;
   }
   const example = catalogue.demo;
+  flushSave();
   setForm(example.design);
   $("#scenario").value = example.scenario;
   $("#sigma").value = example.sigma;
@@ -1055,202 +1738,143 @@ async function runExample() {
   seed = example.seed;
   selectTab("simulate");
   if (!(await generate())) return;
-  if (state.campaign) state.campaign.example = true; // the worked example run here, until its design changes
-  showExampleButton();
+  state.campaign = null; // the worked example, run here, is not saved
+  state.example = true;
+  history.replaceState(null, "", `${location.pathname}?${EXAMPLE_PARAM}=${WORKED}`);
+  $("#demo-version").textContent = `process-improve ${state.version ?? ""}`.trim();
+  $("#demo-when").textContent = "in this tab, just now";
+  $("#demo-banner").hidden = false;
   await simulateResults();
-  $("#step-analyse").scrollIntoView({ behavior: "smooth", block: "start" });
+  showPhase("learn");
 }
 
 function showScenarioHint() {
   $("#scenario-hint").textContent = $("#scenario").selectedOptions[0].dataset.hint;
 }
 
-// ---------------------------------------------------------------- compare step
-/**
- * Generate every design the factor count allows, one call each so the page can say how
- * far it has got, then score them all for one model on the nine measures.
- */
-async function compareDesigns() {
-  const button = $("#compare");
-  button.disabled = true;
-  const factors = readFactors();
-  const model = $("#compare-model").value;
-  setStatus("Choosing the designs to compare...", "busy");
-  const plan = await call("api_compare_plan", { factors, model, response: $("#response").value.trim() });
-  if (!plan.ok) {
-    setStatus(plan.error, "error");
-    button.disabled = false;
-    return;
-  }
-  const made = [];
-  const notes = [...plan.result.notes];
-  for (const [i, item] of plan.result.designs.entries()) {
-    setStatus(`Generating ${item.label}, ${i + 1} of ${plan.result.designs.length}...`, "busy");
-    const reply = await call("api_make_design", item.spec);
-    if (reply.ok) made.push({ ...item, design: reply.result });
-    else notes.push(`${item.label} could not be generated: ${reply.error}`);
-  }
-  if (!made.length) {
-    // Nothing to score: say why each design could not be made, in place of the last comparison.
-    button.disabled = false;
-    setStatus("None of the designs could be generated, so there is nothing to compare.", "error");
-    $("#comparison").hidden = false;
-    $("#comparison").replaceChildren(...noteList(notes));
-    $("#compare-charts").hidden = true;
-    $("#py-compare").hidden = true;
-    return;
-  }
-  setStatus("Scoring the designs...", "busy");
-  const designs = made.map((m) => ({ label: m.label, spec: m.design.spec, columns: m.design.columns, rows: m.design.rows }));
-  const reply = await call("api_compare", { model, designs });
-  button.disabled = false;
-  if (!reply.ok) {
-    setStatus(reply.error, "error");
-    return;
-  }
-  setStatus(`${made.length} designs compared.`);
-  renderComparison(reply.result, made, notes);
-  showPython(
-    "compare",
-    compareCode(
-      factors,
-      made.map((m) => ({ label: m.label, design_type: m.design_type, options: m.design.spec.options })),
-      model,
-    ),
-  );
-  await drawComparison(reply.result, factors.length);
+// ---------------------------------------------------------------- a new study
+/** Clear the page for a new study: an empty brief, no run sheet and no analysis, in Plan, at the response. */
+function newStudy() {
+  flushSave();
+  cancelCandidates();
+  Object.assign(state, {
+    design: null,
+    planKey: null,
+    responses: [],
+    sources: [],
+    simulation: null,
+    analysis: null,
+    comparison: null,
+    picked: null,
+    campaign: null,
+    example: false,
+  });
+  clearTimeout(analysisTimer);
+  setResponse({ response: "" });
+  $("#response-known").open = false;
+  $("#factors tbody").replaceChildren();
+  addFactor();
+  addFactor();
+  aimChosen = false;
+  seed = 1;
+  $("#sigma").value = 1;
+  designChosen = false;
+  setDesignForm({ design_type: "box_behnken", options: { n_center_points: 3, alpha: "face_centered" } });
+  setAim(defaultAim(0));
+  for (const id of ["#demo-banner", "#campaign-banner", "#run-out", "#design-out", "#share-out"]) $(id).hidden = true;
+  $("#run-empty").hidden = false;
+  clearAnalysis();
+  setModel("");
+  for (const key of ["design", "run", "analyse", "compare"]) hidePython(key);
+  delete $("#compare-dialog").dataset.key;
+  selectTab("real");
+  if (location.search) history.replaceState(null, "", location.pathname);
+  clearDraft(); // a draft left from before is not this study's
+  renderStudyBar();
+  refreshLibrary();
+  showPhase("plan");
 }
 
-let comparisonFit = null; // watches whether the comparison table fits its box
+// ---------------------------------------------------------------- the draft of a brief
+/** A brief not yet made into a run sheet, kept in this browser so a reload or a closed tab does not lose it. */
+const DRAFT_KEY = "factorial-draft";
+let draftTimer = null;
 
-function renderComparison(result, made, notes) {
-  const out = $("#comparison");
-  out.hidden = false;
-  const t = el("table", "data compare", "");
-  const head = el("tr", "", "");
-  head.append(el("th", "", "Measure"), el("th", "", "Better"));
-  result.designs.forEach((label, i) => {
-    const th = el("th", "", label);
-    const use = el("button", "link", "Use this design");
-    use.type = "button";
-    use.onclick = () => useDesign(made[i]);
-    th.append(el("br", "", ""), use);
-    head.append(th);
-  });
-  const thead = el("thead", "", "");
-  thead.append(head);
-  const tbody = el("tbody", "", "");
-  let group = null;
-  result.measures.forEach((m, row) => {
-    // A row no design can fill, such as interaction power for a model without interactions, is left out.
-    if (result.designs.every((label) => result.display[label][row] === "")) return;
-    if (m.group !== group) {
-      group = m.group;
-      const tr = el("tr", "group", "");
-      const td = el("td", "", "");
-      td.append(el("span", "", group)); // a span, so the label can stay in view as the table scrolls
-      td.colSpan = result.designs.length + 2;
-      tr.append(td);
-      tbody.append(tr);
+function saveDraft() {
+  if (state.design || state.example) return;
+  clearTimeout(draftTimer);
+  draftTimer = setTimeout(() => {
+    const draft = {
+      response: responseFields(),
+      factors: factorRows().map((tr) => ({
+        name: box(tr, "name").value,
+        low: box(tr, "low").value,
+        high: box(tr, "high").value,
+        units: box(tr, "units").value,
+      })),
+      aim: aimChosen ? currentAim() : null,
+    };
+    try {
+      localStorage.setItem(DRAFT_KEY, JSON.stringify(draft));
+    } catch {
+      /* storage refused: the brief holds for this visit */
     }
-    const tr = el("tr", "", "");
-    const name = el("td", "", "");
-    name.append(m.group === "Feasibility" ? m.label : link(BOOK_PAGES.measures, m.label));
-    name.title = m.description;
-    tr.append(name, el("td", "arrow", m.direction === "higher" ? "↑" : m.direction === "lower" ? "↓" : ""));
-    for (const label of result.designs) tr.append(el("td", "", result.display[label][row]));
-    tbody.append(tr);
-  });
-  t.append(thead, tbody);
-  const wrap = el("div", "scroll", "");
-  wrap.append(t);
-  // A phone or a narrow window shows only the first few designs, so say that the rest are there.
-  const more = el("p", "hint", `Scroll the table sideways to see all ${result.designs.length} designs.`);
-  more.hidden = true;
-  comparisonFit?.disconnect();
-  comparisonFit = new ResizeObserver(() => {
-    more.hidden = wrap.scrollWidth <= wrap.clientWidth + 1;
-  });
-  comparisonFit.observe(wrap);
-  const designNotes = result.designs.flatMap((label) => result.notes[label].map((n) => `${label}: ${prettyTerm(n)}`));
-  out.replaceChildren(
-    el(
-      "p",
-      "",
-      `Model: ${result.terms.length} terms (${result.terms.map(prettyTerm).join(", ")}). Power is for a coefficient of ` +
-        `${result.effect_size} noise standard deviation at a significance level of ${result.significance_level}. ` +
-        `G is searched over ${result.g_points}.`,
-    ),
-    more,
-    wrap,
-    el(
-      "p",
-      "",
-      "No design is best on every row, and which row matters depends on what the experiment is for: A/p or E " +
-        "for precise coefficients, I or G for prediction over the region, max |r| for keeping second-order " +
-        "effects apart, and power for detecting an effect of a stated size. Hover over a measure for its " +
-        "definition, or follow its link to the book.",
-    ),
-    ...noteList([...notes, ...designNotes]),
-  );
+  }, 300);
 }
 
-/** Load a design from the comparison into step 1 and the run sheet, as if it had been generated there. */
-function useDesign(item) {
-  const simulated = state.sources.includes("simulated");
-  setForm(item.design.spec);
-  $("#demo-banner").hidden = true;
-  showDesign(item.design);
-  setStatus(`${item.design.n_runs} runs of the ${item.label} design are in step 2.`);
-  if (simulated) simulateResults(); // the same process, noise and seed, on the new runs
-  $("#step-design").scrollIntoView({ behavior: "smooth", block: "start" });
-}
-
-async function drawComparison(result, k) {
-  const box = $("#compare-charts");
-  box.hidden = false;
-  box.replaceChildren();
-  const version = state.plotlyJs;
-  if (!version) return;
-  const fds = el("figure", "chart wide", "");
-  const fdsPlot = el("div", "plot", "");
-  const caption = el(
-    "figcaption",
-    "hint",
-    "Each curve sorts a design's prediction variance, in units of the noise variance, over points spread " +
-      "evenly through the cube: a low, flat curve predicts with the same precision everywhere, and its right " +
-      "end is the worst case, G. Designs that cannot fit the model have no curve. ",
-  );
-  caption.append(link(BOOK_PAGES.fds, "Reading an FDS plot"));
-  fds.append(el("h3", "", "Fraction of design space (FDS)"), fdsPlot, caption);
-  box.append(fds);
+function clearDraft() {
+  clearTimeout(draftTimer);
   try {
-    await draw(fdsPlot, fdsFigure(result.fds), version, 380);
-    for (const label of result.designs) {
-      const { terms, matrix } = result.correlations[label];
-      const card = el("figure", "chart", "");
-      const plot = el("div", "plot", "");
-      card.append(el("h3", "", `Correlation map, ${label}`), plot);
-      box.append(card);
-      await draw(plot, () => correlationFigure(terms, matrix, k), version, 320);
-    }
-    box.append(
-      el(
-        "p",
-        "hint wide",
-        "The correlation maps show |r| between the main effects, the squares and the two-factor interactions, " +
-          "in three blocks; a darker square is a pair of terms the design finds harder to tell apart, and a blank " +
-          "row is a term that does not vary in the design.",
-      ),
-    );
-  } catch (err) {
-    box.append(el("p", "hint", `The charts could not be drawn (${err.message}); the table above holds the numbers.`));
+    localStorage.removeItem(DRAFT_KEY);
+  } catch {
+    /* nothing kept */
   }
 }
 
-// ---------------------------------------------------------------- saved designs and links
+/** The draft kept in this browser, its text checked field by field; null when there is none. */
+function readDraft() {
+  let draft;
+  try {
+    draft = JSON.parse(localStorage.getItem(DRAFT_KEY) ?? "null");
+  } catch {
+    return null;
+  }
+  if (!draft || typeof draft !== "object") return null;
+  const text = (v, most = 64) => (typeof v === "string" ? v.slice(0, most) : "");
+  const r = draft.response && typeof draft.response === "object" ? draft.response : {};
+  const response = Object.fromEntries(
+    ["label", "units", "goal", "target", "typical", "noise", "smallest_change"].map((k) => [k, text(r[k])]),
+  );
+  const factors = (Array.isArray(draft.factors) ? draft.factors.slice(0, 12) : [])
+    .filter((f) => f && typeof f === "object")
+    .map((f) => ({ name: text(f.name), low: text(f.low), high: text(f.high), units: text(f.units, 32) }));
+  return { response, factors, aim: AIMS.includes(draft.aim) ? draft.aim : null };
+}
+
+/** Put a draft brief back on the page, in Plan. */
+function restoreDraft(draft) {
+  const f = draft.response;
+  $("#response").value = f.label;
+  $("#response-units").value = f.units;
+  const goal = document.querySelector(`input[name="goal"][value="${f.goal}"]`);
+  if (goal) goal.checked = true;
+  $("#response-target").value = f.target;
+  $("#response-typical").value = f.typical;
+  $("#response-noise").value = f.noise;
+  $("#response-change").value = f.smallest_change;
+  $("#response-known").open = Boolean(f.typical || f.noise || f.smallest_change);
+  showResponse();
+  $("#factors tbody").replaceChildren();
+  (draft.factors.length ? draft.factors : [{}, {}]).forEach((factor) => addFactor(factor));
+  aimChosen = Boolean(draft.aim);
+  setAim(draft.aim ?? defaultAim(factorCount()));
+  refreshDesign();
+  renderStudyBar();
+}
+
+// ---------------------------------------------------------------- saved studies and links
 /**
- * A new campaign's record in this browser: an id of its own, when it began, and whether the next
+ * A new study's record in this browser: an id of its own, when it began, and whether the next
  * design made on the page may take its place (see showDesign).
  */
 function newCampaign(replaceable = true) {
@@ -1258,13 +1882,14 @@ function newCampaign(replaceable = true) {
   return { id, created: Date.now(), replaceable };
 }
 
-/** A design's name in the list of saved designs: its type as step 1 names it, and its factors. */
+/** A study's name in the list of saved studies: its response when the reader named one, its design and its factors. */
 function titleOf(spec) {
-  const option = [...$("#design-type").options].find((o) => o.value === spec.design_type);
-  return campaignTitle(option ? option.textContent.trim() : spec.design_type, spec.factors.map((f) => f.name));
+  const info = spec.response_info;
+  const response = info?.label ? responseTitle(info, spec.response) : "";
+  return campaignTitle(designLabel(spec.design_type), spec.factors.map((f) => f.name), response);
 }
 
-/** The campaign on the page, as campaign.js describes one. */
+/** The study on the page, as campaign.js describes one. */
 function currentCampaign() {
   const { spec, columns, rows, model, facts, outside_range: outside } = state.design;
   return {
@@ -1281,9 +1906,8 @@ function currentCampaign() {
 
 let saveTimer = null;
 
-/** Save the campaign on the page in this browser, a moment after its last change. The worked example is not saved. */
+/** Save the study on the page in this browser, a moment after its last change. The worked example is not saved. */
 function scheduleSave() {
-  showExampleButton(); // a result typed in keeps the design under Your designs
   if (!state.campaign || !state.design) return;
   clearTimeout(saveTimer);
   saveTimer = setTimeout(() => {
@@ -1294,8 +1918,8 @@ function scheduleSave() {
 
 /**
  * Write a save that is still waiting for its moment, at once. The page calls this before another
- * campaign takes this one's place, and when the reader leaves, so a result typed just before is
- * kept. saveNow reads the campaign before it first waits, so the record is this campaign's.
+ * study takes this one's place, and when the reader leaves, so a result typed just before is
+ * kept. saveNow reads the study before it first waits, so the record is this study's.
  */
 function flushSave() {
   if (saveTimer === null) return;
@@ -1311,7 +1935,7 @@ async function saveNow() {
   await refreshLibrary();
 }
 
-/** List the designs saved in this browser, each to open or delete; the one on the page is marked. */
+/** List the studies saved in this browser, each to open or delete; the one on the page is marked. */
 async function refreshLibrary() {
   const saved = await savedCampaigns();
   $("#library").hidden = saved.length === 0;
@@ -1322,7 +1946,7 @@ async function refreshLibrary() {
 function libraryItem(record) {
   const item = el("li", "", "");
   const here = record.id === state.campaign?.id;
-  const title = record.title || "A saved design";
+  const title = record.title || "A saved study";
   const open = el("button", "link", title);
   open.type = "button";
   open.disabled = here;
@@ -1372,8 +1996,9 @@ function showBanner(message, error = false) {
 }
 
 /**
- * Put a saved or shared campaign on the page as it was left: the form, the runs, their results,
- * the process they were simulated from and the model. The analysis follows once Python has started.
+ * Put a saved or shared study on the page as it was left: the brief, the plan, the runs, their
+ * results, the process they were simulated from and the model, in Run, or in Learn once it has
+ * results. The analysis follows once Python has started.
  */
 async function openCampaign(c, record, message) {
   flushSave();
@@ -1381,17 +2006,22 @@ async function openCampaign(c, record, message) {
   setForm(c.design.spec);
   state.campaign = { ...record, title: c.title || titleOf(c.design.spec) };
   state.design = { ...c.design };
+  state.planKey = planKey();
   state.responses = [...c.responses];
   state.sources = [...c.sources];
   state.simulation = c.simulation;
   state.analysis = null;
+  state.example = false;
+  state.picked = null;
+  clearDraft();
   const { scenario, sigma, seed: kept } = c.simulate;
   if (scenario && [...$("#scenario").options].some((o) => o.value === scenario)) $("#scenario").value = scenario;
   if (sigma) $("#sigma").value = sigma;
   if (kept !== null) seed = kept;
   showScenarioHint();
+  selectTab(state.sources.includes("simulated") ? "simulate" : "real");
   setModel(c.model);
-  renderDesign();
+  renderDesign([]);
   renderRuns();
   renderTruth();
   clearAnalysis();
@@ -1401,7 +2031,9 @@ async function openCampaign(c, record, message) {
   if (done) showResultsCode();
   else hidePython("run");
   showBanner(message);
-  scheduleSave(); // the design opened most recently is the one a later visit picks up
+  renderStudyBar();
+  showPhase(done ? "learn" : "run");
+  scheduleSave(); // the study opened most recently is the one a later visit picks up
   if (!done) return;
   const mine = state.campaign.id;
   await whenReady.then(
@@ -1410,19 +2042,23 @@ async function openCampaign(c, record, message) {
   );
 }
 
-/** Resolve to the designs saved in this browser, or to none if the browser has not answered in a moment. */
+/** Resolve to the studies saved in this browser, or to none if the browser has not answered in a moment. */
 const savedSoon = () => Promise.race([savedCampaigns(), new Promise((resolve) => setTimeout(() => resolve([]), 2000))]);
 
 /**
- * Open what the address asks for: one of the book's examples, or a link's design, either saved
- * here as a campaign of its own; else the design worked on last in this browser; else the worked
- * example. The address loses what named it, so a reload opens the saved copy rather than the link again.
+ * Open what the address asks for: the worked example, one of the book's examples, or a link's
+ * study, the last two saved here as a study of their own; else a brief left as a draft; else the
+ * study worked on last in this browser; else a new study, at its response. The address loses a
+ * book's example or a link, so a reload opens the saved copy rather than the link again.
  */
 async function start() {
   const { hash } = location;
   const params = new URLSearchParams(location.search);
   const book = params.get(BOOK_PARAM) ?? params.get(EXAMPLE_PARAM); // the book's examples and the published ones share one index
-  if (book !== null || hash.startsWith(LINK_KEY)) {
+  if (book === WORKED) {
+    await refreshLibrary();
+    if (await showBuiltExample()) return;
+  } else if (book !== null || hash.startsWith(LINK_KEY)) {
     history.replaceState(null, "", book !== null ? location.pathname : `${location.pathname}${location.search}`);
     try {
       if (book !== null) {
@@ -1432,30 +2068,37 @@ async function start() {
       const c = await unpackCampaign(hash.slice(LINK_KEY.length));
       if (await resultsCameBack(c)) return;
       const title = c.title || titleOf(c.design.spec);
-      await openCampaign(c, newCampaign(false), `Opened from a link: ${title}. It is saved in this browser now, under Your designs.`);
+      await openCampaign(c, newCampaign(false), `Opened from a link: ${title}. It is saved in this browser now, under Your studies.`);
       return;
     } catch (err) {
-      showBanner(`${err.message} Here is the worked example instead.`, true);
-    }
-  } else {
-    const [last] = await savedSoon();
-    if (last) {
-      try {
-        const c = checkCampaign(last);
-        await openCampaign(
-          c,
-          { id: last.id, created: last.created },
-          `Picked up where you left off: ${c.title}, saved ${timeAgo(last.updated)}. Your other designs are ` +
-            "listed under Your designs, and Open the worked example instead, at the top, starts afresh.",
-        );
-        return;
-      } catch {
-        /* a design this page cannot read: show the worked example */
-      }
+      showBanner(err.message, true);
     }
   }
   await refreshLibrary();
-  await showBuiltExample();
+  const draft = readDraft();
+  if (draft) {
+    restoreDraft(draft);
+    showPhase("plan");
+    return;
+  }
+  const [last] = await savedSoon();
+  if (last) {
+    try {
+      const c = checkCampaign(last);
+      await openCampaign(
+        c,
+        { id: last.id, created: last.created },
+        `Picked up where you left off: ${c.title}, saved ${timeAgo(last.updated)}. Your other studies are ` +
+          "listed under Your studies, and New study, at the top, starts afresh.",
+      );
+      return;
+    } catch {
+      /* a study this page cannot read: start a new one */
+    }
+  }
+  showPhase("plan");
+  const touch = window.matchMedia("(pointer: coarse)").matches;
+  if (!touch && !$("#campaign-banner").textContent) $("#response").focus({ preventScroll: true });
 }
 
 /**
@@ -1492,7 +2135,7 @@ async function openBookExample(name) {
         link(source.url, "Read the source", "source"),
       ]
     : [`Opened the book's example: ${example.title}, with the book's results. `, link(example.book, "Read it in the book")];
-  await openCampaign(c, record, [...opened, `.${note} It is saved in this browser, under Your designs.`]);
+  await openCampaign(c, record, [...opened, `.${note} It is saved in this browser, under Your studies.`]);
 }
 
 /**
@@ -1523,7 +2166,7 @@ async function resultsCameBack(c) {
   return true;
 }
 
-/** Copy a link that carries the design on the page, and its results when asked, after the address's "#". */
+/** Copy a link that carries the study on the page, and its results when asked, after the address's "#". */
 async function shareLink() {
   if (!state.design) return;
   const withResults = $("#share-results").checked;
@@ -1544,7 +2187,7 @@ async function shareLink() {
   );
   $("#share-note").textContent =
     `${copied ? "" : "Copy the link from the box. "}Whoever opens it gets ` +
-    `${withResults ? "this design and its results" : "this design, without its results"}, saved in their own ` +
+    `${withResults ? "this study and its results" : "this study, without its results"}, saved in their own ` +
     `browser. Everything is in the link itself, ${url.length} characters long; nothing is stored on a server.` +
     (url.length > 8000 ? " Some chat apps cut links this long: the workbook is the surer way to send it." : "");
   $("#share-out").hidden = false;
@@ -1558,7 +2201,7 @@ const stepCode = {};
 
 /**
  * Show a step's code in its panel, after the code of the steps it builds on, so what is copied
- * from any panel runs as it is. Step 4's comparison stands on its own.
+ * from any panel runs as it is. The comparison stands on its own.
  */
 function showPython(key, code) {
   stepCode[key] = code;
@@ -1576,7 +2219,7 @@ function hidePython(key) {
   $(`#py-${key}`).hidden = true;
 }
 
-/** Show step 2's code: the simulation while every result is as simulated, else the results on the page. */
+/** Show the run's code: the simulation while every result is as simulated, else the results on the page. */
 function showResultsCode() {
   const simulated = state.simulation && state.sources.every((source) => source === "simulated");
   showPython("run", resultsCode(state.design, state.responses, simulated ? state.simulation : null));
@@ -1635,12 +2278,16 @@ function table(columns, rows) {
  * Render a table whose column headers sort it: click once for ascending,
  * again for descending. Each header is a <button> inside the <th>, so it is
  * reachable by keyboard, and aria-sort tells a screen reader the current order.
- * `sortedBy` names the column the rows already arrive sorted on, if any; a table
- * may give `t._cell(row, col)` to draw a cell itself (the run sheet's inputs).
+ * `sortedBy` names the column the rows already arrive sorted on, if any, and `units`
+ * gives each column's units, shown under its heading; a table may give
+ * `t._cell(row, col)` to draw a cell itself (the run sheet's inputs).
  */
-function renderTable(t, columns, rows, sortedBy = null) {
+function renderTable(t, columns, rows, sortedBy = null, units = []) {
   const head = columns
-    .map((c, i) => `<th aria-sort="${c === sortedBy ? "ascending" : "none"}"><button type="button" class="sort" data-col="${i}">${escape(c)}</button></th>`)
+    .map((c, i) => {
+      const unit = units[i] ? `<span class="col-unit">${escape(units[i])}</span>` : "";
+      return `<th aria-sort="${c === sortedBy ? "ascending" : "none"}"><button type="button" class="sort" data-col="${i}">${escape(c)}</button>${unit}</th>`;
+    })
     .join("");
   t.innerHTML = `<thead><tr>${head}</tr></thead><tbody></tbody>`;
   t._rows = rows;
@@ -1663,7 +2310,7 @@ function renderTable(t, columns, rows, sortedBy = null) {
 function fillBody(t, rows) {
   const cell = (row, v, c) => {
     const own = t._cell ? t._cell(row, c) : null;
-    return own ?? escape(typeof v === "number" ? +v.toPrecision(6) : v ?? "");
+    return own ?? escape(typeof v === "number" ? +v.toPrecision(6) : (v ?? ""));
   };
   t.tBodies[0].innerHTML = rows.map((row) => `<tr>${row.map((v, c) => `<td>${cell(row, v, c)}</td>`).join("")}</tr>`).join("");
 }
@@ -1707,32 +2354,77 @@ systemDark.addEventListener("change", () => {
 applyMode(MODES.includes(document.documentElement.dataset.mode) ? document.documentElement.dataset.mode : "auto");
 
 // ---------------------------------------------------------------- wiring
-DEFAULT_FACTORS.forEach(addFactor);
+// The study bar stays at the top as the page scrolls; the brief beside it starts below it.
+new ResizeObserver(([entry]) => {
+  document.documentElement.style.setProperty("--bar-height", `${Math.ceil(entry.borderBoxSize[0].blockSize)}px`);
+}).observe($("#studybar"));
+
+for (const name of Object.keys(PANES)) $(`#go-${name}`).onclick = () => showPhase(name);
+arrowKeys($(".phases"), (tab) => showPhase(tab.id.replace("go-", "")));
+arrowKeys($("#step-run .tabs"), (tab) => selectTab(tab.id.replace("tab-", "")));
+
+$("#new-study").onclick = newStudy;
+$("#show-example").onclick = () => {
+  history.replaceState(null, "", `${location.pathname}?${EXAMPLE_PARAM}=${WORKED}`);
+  showBuiltExample();
+};
+for (const id of ["#response", "#response-units", "#response-target", "#response-typical", "#response-noise", "#response-change"]) {
+  $(id).addEventListener("input", responseChanged);
+}
+$("#goal").addEventListener("change", responseChanged);
+$("#factors").addEventListener("input", factorsChanged); // a label typed for a level makes the factor categorical
 $("#add-factor").onclick = () => {
-  addFactor();
-  refreshDesign();
+  box(addFactor(), "name").focus();
+  factorsChanged();
 };
 $("#add-categorical").onclick = () => {
   const [low, high] = START_LEVELS[CATEGORICAL];
   box(addFactor({ name: "", low, high, units: "" }), "name").focus();
+  factorsChanged();
+};
+for (const radio of document.querySelectorAll('input[name="aim"]')) {
+  radio.onchange = () => {
+    aimChosen = true;
+    setAim(radio.value);
+    refreshDesign();
+    if (state.design) {
+      state.design.spec = { ...state.design.spec, aim: radio.value };
+      scheduleSave();
+    }
+    scheduleCandidates();
+    saveDraft();
+  };
+}
+$("#design-type").onchange = () => {
+  designChosen = true;
   refreshDesign();
 };
-$("#generate").onclick = async () => {
-  // Results simulated for the old design are simulated again for the new one, from the same process, noise and
-  // seed, so the true process and the analysis follow the factors as they now are.
-  const simulated = state.sources.includes("simulated");
-  if ((await generate()) && simulated) await simulateResults();
-};
-$("#factors").addEventListener("input", refreshDesign); // a label typed for a level makes the factor categorical
-$("#response").addEventListener("input", markStale);
-for (const id of ["#design-type", "#alpha", "#model_type"]) $(id).onchange = refreshDesign;
+for (const id of ["#alpha", "#model_type"]) $(id).onchange = refreshDesign;
 $("#alpha_value").oninput = refreshDesign; // a typed distance can put every run but the center runs on one sphere
 $("#budget").oninput = () => {
   budgetEdited = $("#budget").value !== "";
+  markStale();
 };
 $("#resolution").onchange = () => {
   resolutionEdited = true;
+  markStale();
 };
+for (const id of ["#n_center_points", "#n_replicates", "#n_blocks"]) $(id).addEventListener("input", markStale);
+$("#generate").onclick = async () => {
+  // While practising, the new runs are simulated from the same process, noise and seed, so the true process
+  // and the analysis follow the plan as it now is.
+  if ((await generate()) && state.practising) await simulateResults();
+};
+$("#remake").onclick = $("#generate").onclick;
+$("#restore-plan").onclick = () => {
+  setForm(state.design.spec);
+  state.planKey = planKey();
+  markStale();
+  renderStudyBar();
+};
+$("#search").onclick = () => findCandidates({ search: true });
+$("#compare").onclick = showComparison;
+$("#compare-close").onclick = () => $("#compare-dialog").close();
 $("#run-example").onclick = runExample;
 $("#simulate").onclick = simulateResults;
 $("#reroll").onclick = () => {
@@ -1748,6 +2440,7 @@ $("#sigma").onchange = () => {
 };
 $("#tab-simulate").onclick = () => selectTab("simulate");
 $("#tab-real").onclick = () => selectTab("real");
+$("#to-learn").onclick = () => showPhase("learn");
 $("#download").onclick = downloadWorkbook;
 $("#notebook").onclick = downloadNotebook;
 $("#share").onclick = shareLink;
@@ -1755,14 +2448,15 @@ $("#model").onchange = () => {
   if ($("#model").value === CHOSEN_TERMS && state.design) startTermList();
   else modelBefore = $("#model").value;
   $("#terms").hidden = $("#model").value !== CHOSEN_TERMS || !state.design;
+  renderDesign();
   analyseRuns();
   scheduleSave();
 };
 $("#term-list").onchange = () => {
+  renderDesign();
   scheduleAnalysis(); // a moment after the last tick, as for typed results
   scheduleSave();
 };
-$("#compare").onclick = compareDesigns;
 for (const button of document.querySelectorAll("details.python .copy")) {
   button.onclick = async () => {
     const code = button.parentElement.querySelector("code");
@@ -1799,8 +2493,13 @@ drop.ondrop = (e) => {
 document.addEventListener("visibilitychange", () => {
   if (document.visibilityState === "hidden") flushSave();
 });
+addFactor();
+addFactor();
+setAim(defaultAim(0));
+showResponse();
 showScenarioHint();
 refreshDesign();
+renderStudyBar();
 readManifest();
 start();
 
@@ -1812,7 +2511,8 @@ call("api_catalogue").then((reply) => {
   catalogue = reply.result;
   state.version = catalogue.version ?? null;
   pythonReady = true;
-  for (const id of ["#upload", "#simulate", "#reroll", "#compare"]) $(id).disabled = false;
+  for (const id of ["#upload", "#simulate", "#reroll"]) $(id).disabled = false;
   refreshDesign();
+  scheduleCandidates();
   resolveReady();
 });

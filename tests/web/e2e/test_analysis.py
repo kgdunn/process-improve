@@ -1,4 +1,4 @@
-"""Step 3's analysis as the page shows it: the fitted equation, the tables, and the sentences around them.
+"""The analysis in Learn as the page shows it: the fitted equation, the tables, and the sentences around them.
 
 When the results were simulated, each coefficient stands beside the true value of what it
 estimates. A saturated two-level fit is judged with Lenth's method; replicated center runs
@@ -7,7 +7,7 @@ give a lack-of-fit test; a model the design cannot fit is refused in a sentence.
 
 from __future__ import annotations
 
-from tests.web.e2e._page import calls, choose, generate, headers, settled, status, type_results
+from tests.web.e2e._page import calls, choose, generate, headers, practise, settled, status, type_results
 
 
 def coefficient_rows(page) -> list[list[str]]:
@@ -80,8 +80,7 @@ def test_a_blocked_design_shows_each_run_s_block_and_fits_the_blocks(blank_page)
     generate(page, design_type="full_factorial", n_center_points=2, n_blocks=2)
     assert headers(page)[:3] == ["Std order", "Run order", "Block"]
     assert calls(page, "api_make_design")[-1]["payload"]["n_blocks"] == 2
-    page.click("#simulate")
-    settled(page)
+    practise(page)
     assert "Block 1" in [row[0] for row in coefficient_rows(page)]
     anova = page.locator("#analysis table").last.locator("tbody tr td:first-child").all_text_contents()
     assert "Block" in anova
@@ -98,8 +97,7 @@ def ticked(page) -> list[str]:
 def test_the_terms_to_fit_can_be_ticked_three_factor_interactions_included(blank_page):
     page = blank_page
     generate(page, design_type="full_factorial", n_center_points=2)
-    page.click("#simulate")
-    settled(page)
+    practise(page)
     assert page.is_hidden("#terms")
     choose(page, model="terms")
     settled(page)
@@ -125,3 +123,21 @@ def test_the_terms_start_from_the_named_model_chosen_before(blank_page):
     assert ticked(page)[-3:] == ["T²", "P²", "F²"]
     choose(page, model="")
     assert page.is_hidden("#terms")
+
+
+def test_a_design_that_can_fit_the_aim_is_analysed_for_it(blank_page):
+    """A DSD made to learn each factor's curvature is analysed with the squares, not with its own main effects."""
+    page = blank_page
+    generate(page, design_type="dsd")
+    assert page.input_value("#model") == "terms"
+    assert ticked(page) == ["T", "P", "F", "T²", "P²", "F²"]
+    assert "analysed with the terms T, P, F, T², P² and F²" in page.text_content("#design-summary p")
+    practise(page)
+    assert [row[0] for row in coefficient_rows(page)] == ["Intercept", "T", "P", "F", "T²", "P²", "F²"]
+
+
+def test_a_design_that_cannot_fit_the_aim_is_analysed_as_designed(blank_page):
+    page = blank_page
+    generate(page, design_type="fractional_factorial")
+    assert page.input_value("#model") == "", "a two-level design cannot tell the squares apart"
+    assert "analysed with the main effects model" in page.text_content("#design-summary p")

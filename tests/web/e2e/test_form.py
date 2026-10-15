@@ -1,8 +1,9 @@
-"""Step 1's form: it keeps its settings in line with the factors before anything is sent to Python.
+"""The plan's form: it keeps its settings in line with the factors before anything is sent to Python.
 
 The design list, which settings each design shows, the resolution, the center runs and an
-optimal design's runs all follow the factor table as the reader edits it, and the page says
-when the factors no longer describe the design it holds.
+optimal design's runs all follow the factor table as the reader edits it, a factor's name and
+levels are checked as they are typed, and the page says when the plan no longer describes the
+run sheet it holds.
 """
 
 from __future__ import annotations
@@ -12,7 +13,7 @@ from itertools import pairwise
 import pytest
 
 from tests.web._support import ALL_DESIGNS, factors_named
-from tests.web.e2e._page import choose, factor_table, generate, set_factors, settled
+from tests.web.e2e._page import choose, factor_table, generate, reveal, set_factors, settled
 
 NAMES = "ABCDEFGHJKLM"
 
@@ -106,31 +107,94 @@ def test_designs_that_need_a_center_run_keep_one(page, design_type, alpha, least
     assert page.input_value("#n_center_points") == str(least)
 
 
-def test_the_page_says_when_the_factors_no_longer_describe_the_design(page):
+def stale(page) -> bool:
+    """Whether Run says the plan has changed since its run sheet was made, and Plan's tab says so too."""
+    shown = page.get_attribute("#design-stale", "hidden") is None
+    assert shown == (page.text_content("#badge-plan") == "changed")
+    return shown
+
+
+def test_the_page_says_when_the_plan_no_longer_describes_the_run_sheet(page):
     name = page.locator("#factors tbody tr").first.locator("[name=name]")
-    assert page.is_hidden("#design-stale")
+    assert not stale(page)
     name.fill("Temp")
-    assert page.is_visible("#design-stale")
+    assert stale(page)
     name.fill("T")
-    assert page.is_hidden("#design-stale"), "back as the design has it"
-    page.fill("#response", "Yield")
-    assert page.is_visible("#design-stale"), "the response name counts too"
+    assert not stale(page), "back as the run sheet has it"
+    choose(page, n_center_points=5)
+    assert stale(page), "the design's settings count too"
+    choose(page, n_center_points=3)
+    assert not stale(page)
+    choose(page, design_type="ccd")
+    assert stale(page)
+    reveal(page, "#design-stale")
+    assert page.is_visible("#design-stale")
+    page.click("#restore-plan")
+    assert not stale(page), "the plan put back as the run sheet was made"
+    assert page.input_value("#design-type") == "box_behnken"
+
+
+def test_renaming_the_response_leaves_the_run_sheet_as_it_is(page):
+    page.fill("#response", "Yield of the reactor")
+    page.fill("#response-units", "mol%")
+    assert not stale(page), "the response is the reader's to rename: its runs and its column stay"
+    assert page.text_content("#study-title") == "Yield of the reactor (mol%), maximise"
+
+
+def test_the_new_run_sheet_is_made_from_the_stale_notice(page):
+    page.locator("#factors tbody tr").first.locator("[name=name]").fill("Temp")
+    reveal(page, "#remake")
+    page.click("#remake")
+    settled(page)
+    assert not stale(page)
+    assert "Temp" in page.locator("#design-table thead th button.sort").all_text_contents()
 
 
 def test_a_blank_response_is_the_y_the_design_is_made_with(blank_page):
     page = blank_page
     page.fill("#response", "")
     generate(page)
-    assert page.is_hidden("#design-stale")
+    assert not stale(page)
+    assert page.locator("#design-table thead th button.sort").last.text_content() == "y"
     page.fill("#response", "y")
-    assert page.is_hidden("#design-stale"), "typing the name it stands for changes nothing"
+    assert not stale(page), "typing the name it stands for changes nothing"
 
 
-def test_a_new_factor_starts_from_minus_one_to_one_and_can_be_removed(page):
+def test_a_new_factor_starts_blank_and_can_be_removed(page):
     page.click("#add-factor")
-    assert factor_table(page)[-1] == {"name": "", "low": "-1", "high": "1", "units": ""}
+    assert factor_table(page)[-1] == {"name": "", "low": "", "high": "", "units": ""}
+    assert page.evaluate("document.activeElement.getAttribute('aria-label')") == "Factor name"
+    assert page.is_hidden("#factor-problems"), "a blank row is no factor yet"
     page.locator("#factors tbody tr").last.get_by_role("button", name="Remove factor").click()
     assert len(factor_table(page)) == 3
+
+
+def test_a_factor_s_name_is_checked_as_it_is_typed(page):
+    """Python takes a variable name, unlike every other factor's: the page says so before Python is asked."""
+    name = page.locator("#factors tbody tr").first.locator("[name=name]")
+    name.fill("a b")
+    assert problems(page) == "a b: a name is letters, digits and _, and starts with a letter, such as Temp_2."
+    assert name.get_attribute("aria-invalid") is not None
+    assert page.is_disabled("#generate")
+    name.fill("P")
+    assert problems(page) == "P: two factors cannot share a name."
+    name.fill("Temp_2")
+    assert problems(page) is None
+    assert page.is_enabled("#generate")
+
+
+def test_a_named_factor_s_empty_levels_are_pointed_out_once_the_reader_has_been_to_them(page):
+    page.click("#add-factor")
+    added = row(page, 3)
+    added.locator("[name=name]").fill("Salt")
+    assert problems(page) is None, "not before the levels are reached"
+    assert page.is_disabled("#generate"), "but the run sheet waits for them"
+    added.locator("[name=low]").focus()
+    added.locator("[name=units]").focus()
+    assert (
+        problems(page)
+        == "Salt: give a number for both the low and the high value, or make it categorical for two labels."
+    )
 
 
 def test_a_typed_axial_distance_has_a_box_only_while_it_is_chosen(page):
@@ -154,7 +218,7 @@ def test_a_typed_distance_at_the_corners_radius_keeps_a_center_run(page):
 
 def test_replicates_chosen_for_one_design_do_not_carry_over_to_the_next_one_loaded(page):
     choose(page, n_replicates=3)
-    page.click("#run-example")
+    page.click("#show-example")
     settled(page)
     assert page.input_value("#n_replicates") == "1", "the worked example is made once"
 
@@ -276,6 +340,7 @@ def test_what_a_factor_s_labels_still_need_is_said_before_python_is_asked(page):
 
 @pytest.mark.parametrize("context_options", [{"viewport": {"width": 390, "height": 844}, "is_mobile": True}])
 def test_on_a_phone_each_factor_is_a_numbered_card_with_its_headings(page):
+    reveal(page, "#factors")
     flip(row(page, 1))
     captions = row(page, 1).evaluate(
         "tr => [...tr.cells].map((td) => getComputedStyle(td, '::before').content).filter((c) => c !== 'none')"

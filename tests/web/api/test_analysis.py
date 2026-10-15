@@ -1,4 +1,4 @@
-"""Analysing the results: ``api_analyze_runs``, which step 3 of the page calls, and ``api_analyze`` for a workbook.
+"""Analysing the results: ``api_analyze_runs``, which Learn calls, and ``api_analyze`` for a workbook.
 
 Factors are coded to -1 and +1 from their ranges. Terms a design cannot tell apart are
 estimated once, as their sum; a saturated two-level fit is judged with Lenth's method; and

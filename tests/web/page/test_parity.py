@@ -1,7 +1,7 @@
 """The page against the Python it mirrors.
 
 ``web/index.html`` and ``web/app.js`` repeat some of ``web/bootstrap.py``'s choices (the design
-list and what each design takes, the processes, the worked example's inputs) so the form is
+list and what each design takes, the processes, the aims and goals, the defaults) so the form is
 right from the first paint, before Python has loaded. Each copy must say what the Python says,
 or a reader would see one design's settings and generate another's.
 """
@@ -27,7 +27,7 @@ def test_page_design_list_matches_bootstrap(bootstrap):
         assert option["data-options"].split() == info["options"], key
         assert int(option["data-min-factors"]) == info["min_factors"], key
         assert int(option["data-max-factors"]) == info["max_factors"], key
-    assert page().selected("design-type") == bootstrap.DEMO["design"]["design_type"], "it opens on the worked example"
+    assert page().selected("design-type") == bootstrap.DEMO["design"]["design_type"], "until the brief picks one"
 
 
 def test_the_page_lists_the_scenarios_bootstrap_simulates(bootstrap):
@@ -38,16 +38,6 @@ def test_the_page_lists_the_scenarios_bootstrap_simulates(bootstrap):
         assert in_page[key]["label"] == info["label"], key
         assert in_page[key]["data-hint"] == info["hint"], key
     assert page().selected("scenario") == bootstrap.DEMO["scenario"]
-
-
-def test_the_page_s_default_factors_are_the_worked_example_s(bootstrap):
-    block = re.search(r"const DEFAULT_FACTORS = \[(.*?)\];", source("app.js"), re.DOTALL).group(1)
-    in_page = [
-        {"name": n, "low": float(lo), "high": float(hi), "units": u}
-        for n, lo, hi, u in re.findall(r'name: "(\w+)", low: ([\d.]+), high: ([\d.]+), units: "([^"]*)"', block)
-    ]
-    demo = [{**f, "low": float(f["low"]), "high": float(f["high"])} for f in bootstrap.DEMO["design"]["factors"]]
-    assert in_page == demo
 
 
 # --------------------------------------------------------------------------- links to the book
@@ -155,21 +145,32 @@ def test_the_page_reads_a_label_where_bootstrap_does(bootstrap, node):
     assert asked == [bootstrap._label(text) is not None for text in typed]
 
 
-def test_the_models_to_compare_on_are_the_comparison_s(api, bootstrap):
+def test_the_aims_are_the_models_designs_are_compared_on(api, bootstrap, node):
+    """Each aim the brief offers is a model the comparison scores; a study of few factors opens on the comparison's."""
     from process_improve.experiments.compare import MODELS as COMPARISON_MODELS
 
-    assert sorted(page().values("compare-model")) == sorted(COMPARISON_MODELS)
+    assert [r["value"] for r in page().radios["aim"]] == list(COMPARISON_MODELS)
     plan = api.ok("api_compare_plan", {"factors": bootstrap.DEMO["design"]["factors"]})
-    assert page().selected("compare-model") == plan["model"]
+    (opened,) = javascript(node, source("logic.js"), [("defaultAim", [3])])
+    assert page().checked("aim") == opened == plan["model"]
 
 
-def test_the_form_opens_on_the_worked_example(api, bootstrap):
-    """Before Python loads, the form already holds what the worked example used and bootstrap's defaults."""
+def test_an_optimal_design_is_built_for_the_aim_as_the_comparison_builds_it(bootstrap, node):
+    (built,) = javascript(node, source("logic.js"), [("OPTIMAL_MODEL", [])])
+    assert built == bootstrap.OPTIMAL_MODEL
+
+
+def test_the_goals_are_bootstrap_s_and_a_new_study_just_learns(bootstrap):
+    assert [r["value"] for r in page().radios["goal"]] == list(bootstrap.GOALS)
+    assert page().checked("goal") == "learn"
+
+
+def test_the_form_opens_on_a_new_study_with_bootstrap_s_defaults(api, bootstrap):
+    """Before Python loads, the response is blank and every setting is the one bootstrap.py would use."""
     demo = bootstrap.DEMO
     ids = page().ids
-    assert ids["response"]["value"] == demo["design"]["response"]
+    assert ids["response"].get("value") is None, "a new study's response is the reader's to name"
     assert float(ids["sigma"]["value"]) == demo["sigma"] == bootstrap.SCENARIOS[demo["scenario"]]["sigma"]
-    assert int(ids["n_center_points"]["value"]) == demo["design"]["n_center_points"]
     made = api.ok("api_make_design", {"design_type": "full_factorial", "factors": demo["design"]["factors"]})
     assert int(ids["n_center_points"]["value"]) == made["spec"]["options"]["n_center_points"], "bootstrap's default"
 
@@ -183,6 +184,39 @@ def test_a_blank_response_on_the_page_is_the_one_bootstrap_names(api, node):
     """The page reads a blank response box as the name Python gives a design made with one."""
     made = api.ok("api_make_design", {"design_type": "full_factorial", "factors": FACTORS[:2], "response": ""})
     assert javascript(node, source("logic.js"), [("DEFAULT_RESPONSE", [])]) == [made["spec"]["response"]]
+
+
+@pytest.mark.parametrize(
+    ("label", "factor_names"),
+    [
+        ("Yield", ["T", "P"]),
+        ("Tensile strength (MPa)", ["T", "P"]),
+        ("2nd pass yield", ["T", "P"]),
+        ("yield", ["T", "P"]),
+        ("T", ["T", "T_2"]),
+        ("Block", ["T", "P"]),
+        ("Viscosité, Pa·s", ["T", "P"]),
+        ("%", ["y", "P"]),
+        ("", ["y", "y_2"]),
+    ],
+)
+def test_the_page_names_the_results_column_as_bootstrap_takes_it(bootstrap, node, label, factor_names):
+    """The column the page derives from the reader's words is one bootstrap.py accepts as a response's name."""
+    (name,) = javascript(node, source("logic.js"), [("responseName", [label, factor_names])])
+    factors = bootstrap._factors({"factors": [{"name": n, "low": -1, "high": 1} for n in factor_names]})
+    assert bootstrap._response_name(name, factors) == name
+
+
+def test_the_page_s_block_column_and_goals_are_bootstrap_s(bootstrap, node):
+    block, goals = javascript(node, source("logic.js"), [("BLOCK", []), ("GOALS", [])])
+    assert block == bootstrap.BLOCK
+    assert list(goals) == list(bootstrap.GOALS)
+
+
+def test_the_aims_a_study_keeps_are_the_comparison_s_models(node):
+    from process_improve.experiments.compare import MODELS as COMPARISON_MODELS
+
+    assert javascript(node, source("campaign.js"), [("AIMS", [])]) == [list(COMPARISON_MODELS)]
 
 
 def test_the_page_counts_a_model_s_coefficients_as_bootstrap_does(bootstrap, node):
@@ -234,10 +268,10 @@ def test_every_element_app_js_looks_up_is_on_the_page():
     assert ids - set(page().ids) == set()
 
 
-def test_every_link_within_the_page_leads_somewhere():
-    targets = set(re.findall(r'href="#([\w-]+)"', source("index.html")))
-    assert targets, "the stepper links to each step"
-    assert targets - set(page().ids) == set()
+def test_every_tab_controls_a_panel_on_the_page():
+    controlled = {attrs["aria-controls"] for attrs in page().ids.values() if attrs.get("aria-controls")}
+    assert {"step-plan", "step-run", "step-analyse", "panel-real", "panel-simulate"} <= controlled
+    assert controlled - set(page().ids) == set()
 
 
 def test_the_list_of_saved_designs_says_how_many_store_js_keeps():

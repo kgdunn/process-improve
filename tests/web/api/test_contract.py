@@ -15,7 +15,7 @@ from typing import TYPE_CHECKING, Any
 
 import pytest
 
-from tests.web._support import FACTORS, generate_all, held_of, source
+from tests.web._support import FACTORS, held_of, source
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -33,6 +33,13 @@ READS: dict[str, list[str]] = {
         "demo.design.factors[].low: number",
         "demo.design.factors[].high: number",
         "demo.design.factors[].units: str",
+        "demo.design.response_info.label: str",
+        "demo.design.response_info.units: str",
+        "demo.design.response_info.goal: str",
+        "demo.design.response_info.typical: number",
+        "demo.design.response_info.noise: number",
+        "demo.design.response_info.smallest_change: number",
+        "demo.design.aim: str",
         "demo.scenario: str",
         "demo.sigma: number",
         "demo.model: str",
@@ -55,6 +62,9 @@ READS: dict[str, list[str]] = {
         "spec.factors[].low: number",
         "spec.factors[].high: number",
         "spec.factors[].units: str",
+        "spec.response_info.label: str",
+        "spec.response_info.units: str",
+        "spec.aim: str",
     ],
     "simulation": [
         "scenario: str",
@@ -128,30 +138,45 @@ READS: dict[str, list[str]] = {
         "responses[]: number?",
         "sources[]: str?",
     ],
-    "comparison plan": [
+    "candidates": [
+        "model: str",
         "notes: list",
-        "designs[].label: str",
-        "designs[].design_type: str",
-        "designs[].spec: dict",
+        "waiting: list",
+        "made[].label: str",
+        "made[].design_type: str",
+        "made[].warnings: list",
+        "made[].design.n_runs: int",
+        "made[].design.model: str",
+        "made[].design.columns[]: str",
+        "made[].design.rows[]: list",
+        "made[].design.spec.response: str",
+        "made[].design.spec.options: dict",
+        "result.designs[]: str",
+        "result.measures[].key: str",
+        "result.measures[].group: str",
+        "result.measures[].label: str",
+        "result.measures[].description: str",
+        "result.measures[].direction: str?",
+        "result.display{}.[]: str",
+        "result.notes{}: list",
+        "result.terms[]: str",
+        "result.effect_size: number",
+        "result.significance_level: number",
+        "result.g_points: any",
+        "result.values{}.runs: int",
+        "result.values{}.fits: bool",
+        "result.values{}.residual_df: int",
+        "result.values{}.power_main: number?",
+        "result.values{}.power_interaction: number?",
+        "result.values{}.power_quadratic: number?",
+        "result.fds{}.fraction[]: number",
+        "result.fds{}.variance[]: number",
+        "result.correlations{}.terms[]: str",
+        "result.correlations{}.matrix[].[]: number?",
     ],
-    "comparison": [
-        "designs[]: str",
-        "measures[].key: str",
-        "measures[].group: str",
-        "measures[].label: str",
-        "measures[].description: str",
-        "measures[].direction: str?",
-        "display{}.[]: str",
-        "notes{}: list",
-        "terms[]: str",
-        "effect_size: number",
-        "significance_level: number",
-        "g_points: any",
-        "values{}.fits: bool",
-        "fds{}.fraction[]: number",
-        "fds{}.variance[]: number",
-        "correlations{}.terms[]: str",
-        "correlations{}.matrix[].[]: number?",
+    "slow candidates": [
+        "waiting[].label: str",
+        "waiting[].design_type: str",
     ],
 }
 
@@ -165,14 +190,15 @@ ENTRY_POINTS = {
     "charts": "api_plots",
     "workbook": "api_workbook",
     "upload": "api_read_workbook",
-    "comparison plan": "api_compare_plan",
-    "comparison": "api_compare",
+    "candidates": "api_candidates",
+    "slow candidates": "api_candidates",
 }
 
 #: Entry points the page does not call: ``api_analyze`` analyses a workbook in one call, for the
 #: tests (``tests/web/wasm`` among them) and for scripted use; the page reads a workbook and then
-#: analyses its runs.
-NOT_CALLED_BY_THE_PAGE = {"api_analyze"}
+#: analyses its runs. ``api_compare_plan`` and ``api_compare`` are the two halves of
+#: ``api_candidates``, which the page calls once for both.
+NOT_CALLED_BY_THE_PAGE = {"api_analyze", "api_compare_plan", "api_compare"}
 
 TYPES = {
     "int": lambda v: isinstance(v, int) and not isinstance(v, bool),
@@ -216,8 +242,8 @@ def reply(api, worked_example: dict[str, Any]) -> Callable[[str], dict]:
     def upload() -> dict:
         return api.ok("api_workbook", {**analysed, "sources": ["simulated"] * 15, "simulated": simulated})
 
-    def comparison() -> dict:
-        return {"model": "main_quadratic", "designs": generate_all(api, FACTORS, "main_quadratic")[1]}
+    def slow() -> dict:
+        return {"factors": [{"name": n, "low": -1, "high": 1} for n in "ABCDE"], "model": "quadratic"}
 
     requests: dict[str, Callable[[], dict]] = {
         "catalogue": dict,
@@ -228,8 +254,8 @@ def reply(api, worked_example: dict[str, Any]) -> Callable[[str], dict]:
         "charts": lambda: analysed,
         "workbook": lambda: analysed,
         "upload": upload,
-        "comparison plan": lambda: {"factors": FACTORS, "model": "main_quadratic"},
-        "comparison": comparison,
+        "candidates": lambda: {"factors": FACTORS, "model": "main_quadratic"},
+        "slow candidates": slow,
     }
     return functools.cache(lambda kind: api.ok(ENTRY_POINTS[kind], requests[kind]()))
 
@@ -256,7 +282,7 @@ def test_each_chart_is_a_plotly_figure_the_page_can_restyle(reply):
 
 
 def test_each_measure_has_a_cell_for_each_design(reply):
-    comparison = reply("comparison")
+    comparison = reply("candidates")["result"]
     for label in comparison["designs"]:
         assert len(comparison["display"][label]) == len(comparison["measures"]), label
         assert label in comparison["notes"], label

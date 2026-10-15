@@ -64,7 +64,7 @@ def _blank(rows: int) -> Callable[[dict], None]:
     """Clear the results of the first ``rows`` runs, as runs still to do."""
 
     def edit(sheets: dict) -> None:
-        sheets["Runs"].loc[: rows - 1, "y"] = None
+        sheets["Runs"].loc[: rows - 1, "Yield"] = None
 
     return edit
 
@@ -95,7 +95,7 @@ def _supplied(**change: object) -> Callable[[Example], dict]:
 
 #: Each refusal: the entry point, the request as a function of the worked example, and the message.
 REFUSALS: dict[str, tuple[str, Callable[[Example], dict], str]] = {
-    # The factors, as typed into step 1.
+    # The factors, as typed into the brief.
     "one factor": ("api_make_design", _make(factors=FACTORS[:1]), "Enter at least two factors."),
     "repeated name": (
         "api_make_design",
@@ -197,6 +197,37 @@ REFUSALS: dict[str, tuple[str, Callable[[Example], dict], str]] = {
         "api_make_design",
         _make(response="Block"),
         "The response cannot be named Block: a blocked design's run sheet has a Block column.",
+    ),
+    # The response's description, from the response card.
+    "a description of the response that is not one": (
+        "api_make_design",
+        _make(response_info="Yield, in %"),
+        "The page sent a description of the response this page did not write.",
+    ),
+    "a response's units that are not text": (
+        "api_make_design",
+        _make(response_info={"label": "Yield", "units": 5}),
+        "The page sent a description of the response this page did not write.",
+    ),
+    "a typical value that is not a number": (
+        "api_make_design",
+        _make(response_info={"typical": "about sixty"}),
+        "The response's typical value must be a number.",
+    ),
+    "a target that is not a number": (
+        "api_make_design",
+        _make(response_info={"goal": "target", "target": "high"}),
+        "The response's target must be a number.",
+    ),
+    "no run-to-run noise": (
+        "api_make_design",
+        _make(response_info={"noise": 0}),
+        "The run-to-run noise must be a number above 0.",
+    ),
+    "a smallest change below 0": (
+        "api_compare",
+        lambda _: {"model": "main_effects", "designs": [], "noise": 1.5, "smallest_change": -2},
+        "The smallest change worth finding must be a number above 0.",
     ),
     "a blocked workbook without its blocks": (
         "api_analyze",
@@ -305,6 +336,16 @@ REFUSALS: dict[str, tuple[str, Callable[[Example], dict], str]] = {
     ),
     "unknown process": ("api_simulate", _runs(scenario="rocket"), "Unknown process 'rocket'."),
     "no noise": ("api_simulate", _runs(sigma=0), "The noise standard deviation must be a number above 0."),
+    "no design for these factors": (
+        "api_candidates",
+        lambda _: {
+            "factors": [
+                *({"name": f"X{i}", "low": -1, "high": 1} for i in range(11)),
+                {"name": "S", "low": "A", "high": "B"},
+            ],
+        },
+        "None of the designs this page offers can be made for these factors.",
+    ),
     "a true process over other factors": (
         "api_analyze_runs",
         _runs(truth=[{"term": "Z", "coefficient": 1.0}]),
@@ -340,8 +381,8 @@ REFUSALS: dict[str, tuple[str, Callable[[Example], dict], str]] = {
     ),
     "a workbook without its results column": (
         "api_read_workbook",
-        _workbook(lambda sheets: sheets["Runs"].pop("y")),
-        "The Runs sheet has no 'y' column for the results.",
+        _workbook(lambda sheets: sheets["Runs"].pop("Yield")),
+        "The Runs sheet has no 'Yield' column for the results.",
     ),
     "an uploaded workbook without a factor": (
         "api_analyze",
