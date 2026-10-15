@@ -22,6 +22,7 @@ from tests.web.e2e._page import (
     practise,
     reveal,
     run_sheet,
+    saved_studies,
     set_factors,
     settled,
 )
@@ -174,9 +175,7 @@ def test_a_renamed_study_is_kept_renamed(context, blank_page):
     rename(page, 0, "Temperature")
     sheet = run_sheet(page)
 
-    read = "async () => (await import('./store.js')).savedCampaigns()"
-    page.wait_for_function(f"({read})().then((saved) => saved[0].design.columns.includes('Temperature'))")
-    kept = page.evaluate(read)[0]
+    kept = saved_studies(page, lambda saved: "Temperature" in saved[0]["design"]["columns"])[0]
     assert kept["title"] == "Full factorial (2-level) in Temperature, P and F"
     assert kept["design"]["spec"]["factors"][0]["name"] == "Temperature"
 

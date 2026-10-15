@@ -30,6 +30,7 @@ from __future__ import annotations
 
 import ast
 import itertools
+import keyword
 import logging
 import math
 from collections.abc import Callable, Iterator, Mapping
@@ -187,6 +188,86 @@ def parse_constraint(expression: str, names: set[str]) -> list[_Evaluator]:
             )
         inequalities.append(_difference(rhs, lhs) if flip else _difference(lhs, rhs))
     return inequalities
+
+
+def _factor_names(tree: ast.AST) -> list[str]:
+    """Names in ``tree`` that stand for factors (every ``ast.Name`` except a called function), in order of use."""
+    functions = {id(node.func) for node in ast.walk(tree) if isinstance(node, ast.Call)}
+    seen: dict[str, None] = {}
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Name) and id(node) not in functions:
+            seen.setdefault(node.id, None)
+    return list(seen)
+
+
+class _Renamer(ast.NodeTransformer):
+    """Rename factor names in one pass, leaving called function names alone."""
+
+    def __init__(self, names: Mapping[str, str]) -> None:
+        self.names = names
+
+    def visit_Call(self, node: ast.Call) -> ast.Call:
+        node.args = [self.visit(arg) for arg in node.args]
+        return node
+
+    def visit_Name(self, node: ast.Name) -> ast.Name:
+        return ast.copy_location(ast.Name(id=self.names.get(node.id, node.id), ctx=node.ctx), node)
+
+
+def rename_factors(expression: str, names: Mapping[str, str]) -> str:
+    """Rename factors in a constraint expression, all at once, and return it in canonical form.
+
+    Every name is replaced in a single pass over the parsed expression, so a swap such
+    as ``{"A": "B", "B": "A"}`` works. Function names (``sqrt``, ``log``, ...) are left
+    alone even when a factor shares them. The result is ``ast.unparse`` of the renamed
+    expression, so ``rename_factors(expression, {})`` gives the canonical text of an
+    expression, and renaming back with the inverse mapping gives that canonical text.
+
+    Parameters
+    ----------
+    expression : str
+        A constraint, e.g. ``"3*T + 5*D <= 600"``, as :func:`parse_constraint` accepts.
+    names : Mapping[str, str]
+        Old name to new name. Names the expression does not use are ignored.
+
+    Returns
+    -------
+    str
+        The renamed expression, e.g. ``"3 * Temp + 5 * D <= 600"``.
+
+    Raises
+    ------
+    ValueError
+        If ``expression`` is not a constraint :func:`parse_constraint` accepts (before
+        or after renaming, which also bounds the length of the result), a new name is
+        not a valid identifier, or two different factors of the expression would end
+        up with the same name.
+
+    Examples
+    --------
+    >>> rename_factors("3*T + 5*D <= 600", {"T": "D", "D": "T"})
+    '3 * D + 5 * T <= 600'
+    >>> rename_factors("sqrt(log) <= 2", {"log": "L"})
+    'sqrt(L) <= 2'
+    """
+    if len(expression) > MAX_EXPRESSION_LENGTH:
+        raise ValueError(f"Constraint expression is longer than {MAX_EXPRESSION_LENGTH} characters.")
+    try:
+        tree = ast.parse(expression, mode="eval")
+    except SyntaxError as err:
+        raise ValueError(f"Constraint {expression!r} is not a valid expression: {err.msg}.") from err
+    used = _factor_names(tree)
+    parse_constraint(expression, set(used))
+    for new in names.values():
+        if not (isinstance(new, str) and new.isidentifier() and not keyword.iskeyword(new)):
+            raise ValueError(f"{new!r} cannot be a factor name in a constraint: it is not a valid identifier.")
+    renamed = [names.get(name, name) for name in used]
+    if len(set(renamed)) < len(renamed):
+        merged = sorted(name for name in used if renamed.count(names.get(name, name)) > 1)
+        raise ValueError(f"Renaming {expression!r} with {dict(names)} would merge the factors {merged} into one.")
+    text = ast.unparse(_Renamer(names).visit(tree))
+    parse_constraint(text, set(renamed))
+    return text
 
 
 # ---------------------------------------------------------------------------

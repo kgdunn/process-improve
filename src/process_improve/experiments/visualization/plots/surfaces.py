@@ -4,16 +4,21 @@ These plots evaluate a fitted model over a 2D grid of two factors
 (holding others at their centre or ``hold_values``).  They answer
 questions like Q47 ("How do I draw a contour plot?") and Q121
 ("BBD contour plots and optimal salt/temperature/time").
+
+Given a ``region`` with limits on the settings, the contour and
+prediction-variance plots shade the settings that cannot be run, and the
+3D surface leaves them out.
 """
 
 from __future__ import annotations
 
 import re
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import numpy as np
 
 from process_improve.experiments.visualization.plots.registry import BasePlot, register_plot
+from process_improve.visualization.colors import CANNOT_RUN_FILL
 from process_improve.visualization.spec import (
     Annotation,
     ChartSpec,
@@ -22,6 +27,9 @@ from process_improve.visualization.spec import (
     PanelSpec,
 )
 from process_improve.visualization.types import AnnotationType, MarkType
+
+if TYPE_CHECKING:
+    from process_improve.experiments.region import DesignRegion
 
 # ---------------------------------------------------------------------------
 # Shared model evaluator
@@ -121,6 +129,89 @@ def _compute_grid(
     return x_grid, y_grid, z_matrix
 
 
+def _limit_slack(
+    region: DesignRegion,
+    axes: tuple[str, str],
+    grid: tuple[list[float], list[float]],
+    hold_values: dict[str, Any],
+) -> np.ndarray:
+    """Return how far each grid point is from meeting every limit: ``<= 0`` exactly where it can be run.
+
+    ``axes`` names the factors along x and y, and ``grid`` holds their values; rows follow
+    the y values and columns the x values, as in a plot's ``z_matrix``. The grid and
+    ``hold_values`` are in coded units, which the region's factor ranges define; a factor
+    of the region that is neither plotted nor held is at the centre of its range.
+    A straight limit's slack is its signed distance from its boundary, linear over the
+    grid, so a contour of it at zero is drawn straight.
+
+    Raises
+    ------
+    ValueError
+        If the region names neither plotted factor, so it cannot vary over the plot.
+    """
+    names = region.names
+    factor_x, factor_y = axes
+    x_grid, y_grid = grid
+    if factor_x not in names and factor_y not in names:
+        raise ValueError(
+            f"The region's factors {names} include neither {factor_x!r} nor {factor_y!r}, the factors plotted; "
+            "give the region over the same factors as the plot."
+        )
+    gx, gy = np.meshgrid(np.asarray(x_grid, dtype=float), np.asarray(y_grid, dtype=float))
+    coded = np.zeros((gx.size, len(names)))
+    for j, name in enumerate(names):
+        if name == factor_x:
+            coded[:, j] = gx.ravel()
+        elif name == factor_y:
+            coded[:, j] = gy.ravel()
+        else:
+            coded[:, j] = float(hold_values.get(name, 0.0))
+    return region._limit_slack(coded).reshape(gx.shape)
+
+
+def _cannot_run_layer(
+    slack: np.ndarray, x_grid: list[float], y_grid: list[float], x_title: str, y_title: str
+) -> LayerSpec:
+    """Return the layer that shades the settings that cannot be run: a constraint contour of the slack at zero.
+
+    The settings where the slack is at most zero are kept clear; the rest are shaded
+    with :data:`~process_improve.visualization.colors.CANNOT_RUN_FILL`, translucent so
+    the response stays readable beneath.
+    """
+    return LayerSpec(
+        mark=MarkType.contour,
+        data=[],
+        x=Encoding(field="x", title=x_title),
+        y=Encoding(field="y", title=y_title),
+        name="Cannot be run",
+        style={
+            "x_grid": list(x_grid),
+            "y_grid": list(y_grid),
+            "z_matrix": slack.tolist(),
+            "contours": {"type": "constraint", "operation": "<=", "value": 0},
+            "fillcolor": CANNOT_RUN_FILL,
+            "hoverinfo": "skip",
+            "showscale": False,
+            "showlabels": False,
+        },
+    )
+
+
+def _shading(
+    plot: BasePlot,
+    axes: tuple[str, str],
+    grid: tuple[list[float], list[float]],
+    titles: tuple[str, str],
+) -> tuple[LayerSpec | None, dict[str, Any]]:
+    """Return a plot's shading layer and the metadata saying how much it covers, or ``(None, {})`` without limits."""
+    region = plot._get_region()
+    if region is None or not region.constraints:
+        return None, {}
+    slack = _limit_slack(region, axes, grid, plot.hold_values)
+    layer = _cannot_run_layer(slack, *grid, *titles)
+    return layer, {"cannot_run_share": float(np.mean(slack > 0))}
+
+
 # ---------------------------------------------------------------------------
 # Contour plot
 # ---------------------------------------------------------------------------
@@ -144,6 +235,13 @@ class ContourPlot(BasePlot):
     ``design_data`` for the experimental-point overlay and
     ``factor_labels`` (a ``{symbol: full_name}`` mapping) for the
     axis titles.
+
+    With a ``region`` that has limits on the settings, a second layer, after
+    the response, shades the settings that cannot be run with the other
+    factors held at ``hold_values``: a constraint contour of the limits' slack
+    at zero (``"Cannot be run"``). The experimental points are drawn last, on
+    top. Without a region, or with one without limits, the figure is the same
+    as before.
     """
 
     def to_spec(self) -> ChartSpec:
@@ -187,6 +285,9 @@ class ContourPlot(BasePlot):
         )
 
         layers: list[LayerSpec] = [contour_layer]
+        shading, shaded = _shading(self, (factor_x, factor_y), (x_grid, y_grid), (x_title, y_title))
+        if shading is not None:
+            layers.append(shading)
         point_layer = self._build_design_point_layer(factor_x, factor_y)
         if point_layer is not None:
             layers.append(point_layer)
@@ -208,6 +309,7 @@ class ContourPlot(BasePlot):
                 "factors": [factor_x, factor_y],
                 "factor_labels": {factor_x: x_title, factor_y: y_title},
                 "hold_values": self.hold_values,
+                **shaded,
             },
         )
 
@@ -357,7 +459,8 @@ class Surface3DPlot(BasePlot):
     """3D response surface for two factors.
 
     Same computation as :class:`ContourPlot` but rendered as an
-    interactive 3D surface.
+    interactive 3D surface. With a ``region`` that has limits on the settings,
+    the surface is ``NaN`` (not drawn) over the settings that cannot be run.
 
     Data sources
     ------------
@@ -388,6 +491,12 @@ class Surface3DPlot(BasePlot):
             factor_y,
             self.hold_values,
         )
+        shaded: dict[str, Any] = {}
+        region = self._get_region()
+        if region is not None and region.constraints:
+            slack = _limit_slack(region, (factor_x, factor_y), (x_grid, y_grid), self.hold_values)
+            z_matrix = np.where(slack > 0, np.nan, np.asarray(z_matrix, dtype=float)).tolist()
+            shaded = {"cannot_run_share": float(np.mean(slack > 0))}
 
         surface_layer = LayerSpec(
             mark=MarkType.surface,
@@ -419,6 +528,7 @@ class Surface3DPlot(BasePlot):
                 "factors": [factor_x, factor_y],
                 "hold_values": self.hold_values,
                 "requires_gl": True,
+                **shaded,
             },
         )
 
@@ -438,7 +548,8 @@ class PredictionVariancePlot(BasePlot):
     :func:`~process_improve.experiments.visualization.plots.design_quality.design_model`)
     is built from every factor of the design; the factors not plotted are held at
     ``hold_values`` (default: 0 for a quantitative factor, the first level for a
-    categorical one).
+    categorical one). With a ``region`` that has limits on the settings, a second
+    layer shades the settings that cannot be run, as in :class:`ContourPlot`.
 
     Data sources
     ------------
@@ -518,8 +629,13 @@ class PredictionVariancePlot(BasePlot):
             },
         )
 
+        layers: list[LayerSpec] = [contour_layer]
+        shading, shaded = _shading(self, (factor_x, factor_y), (x_grid, y_grid), (factor_x, factor_y))
+        if shading is not None:
+            layers.append(shading)
+
         panel = PanelSpec(
-            layers=[contour_layer],
+            layers=layers,
             title=f"Prediction Variance: {factor_x} x {factor_y}",
             x_title=factor_x,
             y_title=factor_y,
@@ -529,5 +645,5 @@ class PredictionVariancePlot(BasePlot):
             panels=[panel],
             title=f"Scaled Prediction Variance: {factor_x} x {factor_y}",
             plot_type="prediction_variance",
-            metadata={"model": model, "hold_values": self.hold_values},
+            metadata={"model": model, "hold_values": self.hold_values, **shaded},
         )

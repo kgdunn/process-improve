@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import numpy as np
+import pytest
 
 from process_improve.experiments import Constraint, DesignRegion, Factor
 from process_improve.experiments._uniform_sampling import _affine_form
@@ -61,3 +62,19 @@ def test_thin_mixture_sliver_is_sampled_along_its_length() -> None:
 def test_region_of_categorical_factors_only_samples_no_columns() -> None:
     region = DesignRegion([Factor(name="C", type="categorical", levels=["a", "b"])])
     assert region.sample(5, np.random.default_rng(0)).shape == (5, 0)
+
+
+def test_affine_constraints_are_recognised_in_any_number_of_factors() -> None:
+    """The first k + 2 Halton points are not affinely independent from 6 factors, so the fit missed every row.
+
+    In a base larger than k + 2 the unscrambled Halton coordinates are i / p, which makes those
+    columns proportional; ``A + 2*B + ... <= 1`` was then classified as non-linear.
+    """
+    for k in range(1, 13):
+        coefficients = np.arange(1.0, k + 1.0)
+        form = _affine_form(lambda x, c=coefficients: np.atleast_2d(x) @ c - 1.0, -np.ones(k), np.ones(k))
+        assert form is not None, k
+        np.testing.assert_allclose(form[0], coefficients, atol=1e-9)
+        assert form[1] == pytest.approx(1.0)
+        curved = _affine_form(lambda x: (np.atleast_2d(x) ** 2).sum(axis=1) - 1.0, -np.ones(k), np.ones(k))
+        assert curved is None, k

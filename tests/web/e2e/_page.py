@@ -10,10 +10,15 @@ as a reader would, by pressing the phase's tab.
 from __future__ import annotations
 
 import re
+import time
+from collections.abc import Callable
 from typing import Any
 
 #: The <select>s of the form; every other setting is an <input>.
 SELECTS = {"design-type", "alpha", "resolution", "model_type", "scenario", "model"}
+
+#: The studies kept in this browser, the one saved most recently first, as the page's store reads them.
+SAVED = "async () => (await import('./store.js')).savedCampaigns()"
 
 
 def reveal(page: Any, selector: str) -> None:  # noqa: ANN401 - a Playwright Page
@@ -28,6 +33,19 @@ def settled(page: Any, timeout: float = 30_000) -> None:  # noqa: ANN401 - a Pla
     page.wait_for_function(
         "window.__pi.idle() && document.querySelector('#status').dataset.state !== 'busy'", timeout=timeout
     )
+
+
+def saved_studies(page: Any, until: Callable[[list[dict]], bool], timeout: float = 10_000) -> list[dict]:  # noqa: ANN401
+    """Return the studies kept in this browser once ``until`` holds for them, or as they are at ``timeout`` ms.
+
+    The page saves a study a moment after its last change, so a test reads the store until the
+    save it expects has landed. ``page.wait_for_function`` cannot wait for it: a predicate that
+    returns a promise counts as true at once, whatever the promise resolves to.
+    """
+    deadline = time.monotonic() + timeout / 1000
+    while not until(saved := page.evaluate(SAVED)) and time.monotonic() < deadline:
+        page.wait_for_timeout(50)
+    return saved
 
 
 #: The worked example's charts in Learn: the coefficients, the fitted and the true surface, and the residuals.
