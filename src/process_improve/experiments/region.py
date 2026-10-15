@@ -859,13 +859,26 @@ class DesignRegion:
 
     def _slack(self, coded: np.ndarray) -> np.ndarray:
         """Return the largest slack per coded point, over the box and every inequality, zero within the tolerance."""
-        rows = self._linear()
         box = np.abs(coded) - 1.0
-        parts = [np.where(np.abs(box) <= _TOL, 0.0, box)]
+        box_slack = np.max(np.where(np.abs(box) <= _TOL, 0.0, box), axis=1, initial=-np.inf)
+        return np.maximum(box_slack, self._limit_slack(coded))
+
+    def _limit_slack(self, coded: np.ndarray) -> np.ndarray:
+        """Return the largest slack per coded point over the inequalities alone, zero within the tolerance.
+
+        A linear inequality's slack is its signed distance from its boundary in coded
+        units, a curved one's its own value; ``-inf`` without inequalities. Leaving the
+        box out keeps the slack of straight limits linear up to the box's faces, so a
+        contour of it at zero is straight there too.
+        """
+        rows = self._linear()
+        parts = []
         for g, scale in zip(self._inequalities, rows.scale, strict=True):
             value = g(coded)
             parts.append(np.where(np.abs(value) <= _TOL, 0.0, value / scale)[:, None])
-        return np.max(np.hstack(parts), axis=1, initial=-np.inf)
+        if not parts:
+            return np.full(len(coded), -np.inf)
+        return np.max(np.hstack(parts), axis=1)
 
 
 @dataclass(frozen=True)
