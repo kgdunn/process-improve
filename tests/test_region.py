@@ -2,10 +2,15 @@
 
 from __future__ import annotations
 
+import itertools
+import math
+
 import numpy as np
 import pytest
+from scipy.spatial import ConvexHull, QhullError
 
 from process_improve.experiments import Constraint, DesignRegion, Factor, rename_factors
+from process_improve.experiments import _region_geometry as geometry
 from process_improve.experiments.designs import _as_constraints
 from process_improve.experiments.factor import as_constraints
 
@@ -113,3 +118,102 @@ class TestRenameFactors:
         expression = " + ".join(["A"] * 120) + " <= 1"
         with pytest.raises(ValueError, match="longer than 500"):
             rename_factors(expression, {"A": "Alpha"})
+
+
+# ---------------------------------------------------------------------------
+# Geometry of the cut box
+# ---------------------------------------------------------------------------
+
+
+def _brute_vertices(lows, highs, coefficients, rhs) -> np.ndarray:
+    """Every vertex of ``{low <= X <= high, coefficients @ X <= rhs}``: solve each choice of k boundaries."""
+    k = len(lows)
+    a = np.vstack([np.eye(k), -np.eye(k), np.reshape(coefficients, (-1, k))]).astype(float)
+    b = np.concatenate([highs, -np.asarray(lows, dtype=float), np.ravel(rhs)]).astype(float)
+    found = []
+    for rows in itertools.combinations(range(len(a)), k):
+        system = a[list(rows)]
+        if abs(np.linalg.det(system)) < 1e-9:
+            continue
+        x = np.linalg.solve(system, b[list(rows)])
+        if np.all(a @ x <= b + 1e-7 * (1 + np.abs(b))):
+            found.append(x)
+    return _distinct(np.reshape(found, (-1, k)))
+
+
+def _distinct(points: np.ndarray, atol: float = 1e-7) -> np.ndarray:
+    """Drop every point within ``atol`` (in each coordinate) of one kept before it."""
+    kept: list[np.ndarray] = []
+    for p in points:
+        if not any(np.max(np.abs(p - q)) <= atol for q in kept):
+            kept.append(p)
+    return np.reshape(kept, (-1, points.shape[1]))
+
+
+def _same_rows(got: np.ndarray, expected: np.ndarray, atol: float = 1e-7) -> bool:
+    """Whether the two sets of points match one to one, within ``atol``, in any order."""
+    got = np.asarray(got, dtype=float).reshape(-1, expected.shape[1])
+    if len(got) != len(expected):
+        return False
+    if not len(got):
+        return True
+    gap = np.abs(got[:, None, :] - expected[None, :, :]).max(axis=2)
+    return bool((gap.min(axis=1) <= atol).all() and (gap.min(axis=0) <= atol).all())
+
+
+class TestGeometry:
+    def test_round_significant(self):
+        got = geometry.round_significant(np.array([250.00000000000009, 1.65e-14, -0.30000000000000004, 0.0, 1e22 / 3]))
+        assert got.tolist() == [250.0, 1.65e-14, -0.3, 0.0, 3.33333333333e21]
+
+    def test_box_vertices_match_every_choice_of_k_boundaries(self):
+        rng = np.random.default_rng(3)
+        for k, m in [(1, 1), (2, 1), (3, 3), (4, 4), (5, 3)]:
+            for _ in range(10):
+                a = rng.normal(size=(m, k))
+                a /= np.linalg.norm(a, axis=1, keepdims=True)
+                b = rng.uniform(-0.5, 1.2, m)
+                expected = _brute_vertices(-np.ones(k), np.ones(k), a, b)
+                assert _same_rows(geometry.box_vertices(a, b), expected)
+
+    def test_box_vertices_of_a_zero_row(self):
+        assert geometry.box_vertices(np.zeros((1, 2)), np.array([-1.0])).shape == (0, 2)
+        assert len(geometry.box_vertices(np.zeros((0, 3)), np.zeros(0))) == 8
+
+    def test_box_vertices_refuse_too_many(self, monkeypatch):
+        monkeypatch.setattr(geometry, "MAX_VERTICES", 4)
+        with pytest.raises(ValueError, match="more than 4 vertices"):  # a square with one corner cut has 5
+            geometry.box_vertices(np.array([[1.0, 1.0]]) / math.sqrt(2), np.array([1.0]))
+        with pytest.raises(ValueError, match="8 corners"):
+            geometry.box_vertices(np.zeros((0, 3)), np.zeros(0))
+
+    def test_convex_polygon(self):
+        square = np.array([[1.0, 1.0], [-1.0, -1.0], [1.0, -1.0], [-1.0, 1.0], [0.0, 0.0], [0.5, -1.0]])
+        assert geometry.convex_polygon(square).tolist() == [[-1.0, -1.0], [1.0, -1.0], [1.0, 1.0], [-1.0, 1.0]]
+        assert geometry.convex_polygon(np.empty((0, 2))).shape == (0, 2)
+        assert geometry.convex_polygon(np.array([[0.5, 0.5], [0.5, 0.5]])).tolist() == [[0.5, 0.5]]
+        line = np.array([[1.0, 1.0], [0.0, 0.0], [0.5, 0.5], [-1.0, -1.0]])
+        assert geometry.convex_polygon(line).tolist() == [[-1.0, -1.0], [1.0, 1.0]]
+
+    def test_convex_polygon_falls_back_to_a_segment(self, monkeypatch):
+        def flat(*_args, **_kwargs):
+            raise QhullError("QH6154 initial simplex is flat")
+
+        monkeypatch.setattr(geometry, "ConvexHull", flat)
+        points = np.array([[0.0, 0.0], [1.0, 0.0], [0.0, 1.0]])
+        assert len(geometry.convex_polygon(points)) == 2
+
+    def test_clip_square(self):
+        half = geometry.clip_square([(np.array([1.0, 0.0]), 0.0)])
+        assert geometry.convex_polygon(half).tolist() == [[-1.0, -1.0], [0.0, -1.0], [0.0, 1.0], [-1.0, 1.0]]
+        assert geometry.clip_square([(np.array([1.0, 0.0]), -2.0)]).shape == (0, 2)
+        assert geometry.clip_square([]).shape == (4, 2)
+
+    def test_points_inside_lie_in_the_hull_and_are_fixed(self):
+        vertices = np.array([[0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0], [1.0, 1.0, 1.0]])
+        points = geometry.points_inside(vertices, 500)
+        assert points.shape == (500, 3)
+        hull = ConvexHull(vertices)
+        assert np.all(points @ hull.equations[:, :3].T + hull.equations[:, 3] <= 1e-12)
+        np.testing.assert_array_equal(points, geometry.points_inside(vertices, 500))
+        np.testing.assert_array_equal(geometry.points_inside(vertices[:1], 3), np.zeros((3, 3)))
