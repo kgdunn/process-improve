@@ -446,7 +446,8 @@ def test_without_a_region_the_comparison_is_what_it_was(case):
     assert comparison.region is None
     assert comparison.measures is MEASURES
     result = comparison.to_dict()
-    assert result.pop("region") is None
+    region = result.pop("region")
+    assert region is None
     if not case["correlations"]:
         result.pop("correlations")
     _assert_same(result, case["result"])
@@ -534,12 +535,12 @@ def test_a_region_without_constraints_is_the_cube_exactly():
     over_cube = compare_designs(designs, "quadratic").to_dict()
     unlimited = compare_designs(designs, "quadratic", region=DesignRegion(HEAT))
     result = unlimited.to_dict()
-    assert result.pop("region") == DesignRegion(HEAT).to_dict()
+    region = result.pop("region")
+    assert region == DesignRegion(HEAT).to_dict()
     over_cube.pop("region")
     i_and_g = {"i", "g"}
-    assert [m for m in result.pop("measures") if m["key"] not in i_and_g] == [
-        m for m in over_cube.pop("measures") if m["key"] not in i_and_g
-    ]
+    measures, cube_measures = result.pop("measures"), over_cube.pop("measures")
+    assert [m for m in measures if m["key"] not in i_and_g] == [m for m in cube_measures if m["key"] not in i_and_g]
     assert result == over_cube
 
 
