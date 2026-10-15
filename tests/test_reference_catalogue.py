@@ -11,7 +11,10 @@ here, and so does a number copied wrongly into the catalogue.
 from __future__ import annotations
 
 import json
+import math
 
+import numpy as np
+import pandas as pd
 import pytest
 
 from process_improve.experiments import reference_catalogue
@@ -456,6 +459,62 @@ def test_a_term_with_a_squared_factor_takes_the_library_name():
     assert _library_term("x1²·x2") == "I(x1 ** 2):x2"
     assert _library_term("A·B") == "A:B"
     assert _library_term("C²") == "I(C ** 2)"
+
+
+def test_a_run_is_summarised_by_ln_s_and_by_taguchi_signal_to_noise_ratios():
+    """Readings 20 and 30: ln s = 1.956, S/NL = 27.43 dB, S/NS = -28.13 dB and S/NN = 10 log10(625/50) = 10.97 dB."""
+    from process_improve.experiments.reference_catalogue import _summarised
+
+    table = pd.DataFrame({"y1": [20.0], "y2": [30.0]})
+    found = {
+        stat: float(_summarised(table, {"of": ["y1", "y2"], "statistic": stat}).iloc[0, 0])
+        for stat in ("ln_std_dev", "sn_larger", "sn_smaller", "sn_nominal")
+    }
+    assert found["ln_std_dev"] == pytest.approx(math.log(50**0.5))
+    assert found["sn_larger"] == pytest.approx(-10 * math.log10((1 / 400 + 1 / 900) / 2))
+    assert found["sn_smaller"] == pytest.approx(-10 * math.log10((400 + 900) / 2))
+    assert found["sn_nominal"] == pytest.approx(10 * math.log10(625 / 50))
+
+
+def test_a_dispersion_effect_is_twice_the_log_ratio_of_the_spreads_at_the_two_levels():
+    """Standard deviations 1 at A = -1 and 2 at A = +1: ln(s+² / s-²) = 2 ln 2."""
+    from process_improve.experiments.reference_catalogue import _log_variance_ratio
+
+    entry = _replicated_2x2([[0, 2**0.5], [0, 8**0.5], [0, 2**0.5], [0, 8**0.5]])  # s = 1, 2, 1, 2
+    summary = {"of": ["y1", "y2"], "statistic": "std_dev"}
+    assert _log_variance_ratio(entry, {"runs": [2, 4], "minus": [1, 3], "summary": summary}) == pytest.approx(
+        2 * math.log(2)
+    )
+
+
+def test_the_spread_of_the_residuals_at_one_level_can_be_worked_from_rounded_residuals():
+    """A source working from its printed residuals rounds them first; the ratio of two levels' spreads does too."""
+    entry = _line([1.0, 2.1, 2.9, 4.0])
+    fits = reference_catalogue._Fits()
+    out = fits(entry, {"model": "x"})
+    residuals = reference_catalogue._residuals(out)[1]
+    exact = reference_catalogue._residual_std_dev(out, [1, 2])
+    assert exact == pytest.approx(float(np.std(residuals[:2], ddof=1)))
+    rounded = reference_catalogue._residual_std_dev(out, [1, 2], 1)
+    assert rounded == pytest.approx(float(np.std(np.round(residuals[:2], 1), ddof=1)))
+    ratio = reference_catalogue._FIT_KINDS["residual_log_variance_ratio"](out, {"at": [1, 2], "versus": [3, 4]}, entry)
+    assert ratio == pytest.approx(2 * math.log(exact / reference_catalogue._residual_std_dev(out, [3, 4])))
+
+
+def test_a_matrix_printed_in_the_factors_own_units_is_compared_in_coded_units():
+    from process_improve.experiments.reference_catalogue import _same_runs
+
+    rows = [[t, n] for t in (4, 12) for n in (10, 18)]
+    entry = {
+        "factors": [
+            {"name": "T", "type": "numeric", "low": 4, "high": 12},
+            {"name": "N", "type": "numeric", "low": 10, "high": 18},
+        ],
+        "responses": [],
+        "runs": {"columns": ["T", "N"], "rows": rows, "coded": False},
+    }
+    full = {"design": {"design_type": "full_factorial", "k": 2, "options": {"n_center_points": 0}}}
+    assert _same_runs(entry, full, "4") == ("4 of 4 printed runs, of 4 the library's", True)
 
 
 def test_a_variance_component_is_read_from_the_library_reml_fit():

@@ -219,6 +219,14 @@ _STATISTICS: dict[str, Callable[[pd.DataFrame], pd.Series]] = {
     "mean": lambda readings: readings.mean(axis=1),
     "std_dev": lambda readings: readings.std(axis=1, ddof=1),
     "variance": lambda readings: readings.var(axis=1, ddof=1),
+    "ln_std_dev": lambda readings: np.log(readings.std(axis=1, ddof=1)),
+    # Taguchi's signal-to-noise ratios, in decibels: larger is better, smaller is better, and
+    # nominal is best in the form 10 log10(mean^2 / variance)
+    "sn_larger": lambda readings: -10 * np.log10((1 / readings**2).mean(axis=1)),
+    "sn_smaller": lambda readings: -10 * np.log10((readings**2).mean(axis=1)),
+    "sn_nominal": lambda readings: pd.Series(
+        10 * np.log10(readings.mean(axis=1) ** 2 / readings.var(axis=1, ddof=1)), index=readings.index
+    ),
 }
 
 
@@ -226,8 +234,11 @@ def _summarised(table: pd.DataFrame, summary: dict) -> pd.DataFrame:
     """Return each run's statistic of its repeated readings, as the one response a source then analyses.
 
     ``summary["of"]`` names the columns holding a run's readings and ``summary["statistic"]`` is
-    ``"mean"``, ``"std_dev"`` or ``"variance"``. A source that rounds each run's value before
-    averaging it gives ``summary["round"]``, the decimals it keeps.
+    ``"mean"``, ``"std_dev"``, ``"variance"``, ``"ln_std_dev"`` (the natural logarithm of the
+    standard deviation), or one of Taguchi's signal-to-noise ratios in decibels: ``"sn_larger"``
+    (-10 log10 of the mean of 1/y^2), ``"sn_smaller"`` (-10 log10 of the mean of y^2) and
+    ``"sn_nominal"`` (10 log10 of the squared mean over the variance). A source that rounds each
+    run's value before averaging it gives ``summary["round"]``, the decimals it keeps.
     """
     values = _STATISTICS[summary["statistic"]](table[summary["of"]].astype(float))
     if summary.get("round") is not None:
@@ -531,6 +542,15 @@ def _run(check: dict) -> int:
     return int(check["run"]) - 1
 
 
+def _residual_std_dev(out: dict, at: list[int], digits: int | None = None) -> float:
+    """Return the standard deviation of the fit's residuals at these 1-based runs, one level of a factor, say.
+
+    A source that works from its printed residuals gives ``digits``, the decimals they are rounded to.
+    """
+    residuals = _residuals(out)[1][[p - 1 for p in at]]
+    return float(np.std(residuals if digits is None else np.round(residuals, digits), ddof=1))
+
+
 _FIT_KINDS: dict[str, Callable[[dict, dict, dict], float]] = {
     "coefficient": lambda out, c, _e: _coefficient_row(out, c["term"])["coefficient"],
     "effect": lambda out, c, _e: 2 * _coefficient_row(out, c["term"])["coefficient"],
@@ -545,6 +565,13 @@ _FIT_KINDS: dict[str, Callable[[dict, dict, dict], float]] = {
     "fitted": lambda out, c, _e: float(_residuals(out)[0][_run(c)]),
     "residual": lambda out, c, _e: float(_residuals(out)[1][_run(c)]),
     "left_out_prediction": lambda out, c, _e: _left_out(out, _run(c)),
+    "residual_std_dev": lambda out, c, _e: _residual_std_dev(out, c["at"], c.get("round")),
+    "residual_log_variance_ratio": lambda out, c, _e: (
+        2
+        * math.log(
+            _residual_std_dev(out, c["at"], c.get("round")) / _residual_std_dev(out, c["versus"], c.get("round"))
+        )
+    ),
     "observation": lambda out, c, _e: float(out["y"].to_numpy()[_run(c)]),
     "mean": lambda out, _c, _e: float(out["y"].mean()),
     "std_dev": lambda out, _c, _e: float(out["y"].std(ddof=1)),
@@ -784,7 +811,10 @@ def _same_runs(experiment: dict, check: dict, printed: str) -> tuple[str, bool]:
         made = _made(json.dumps(check["design"], sort_keys=True))
         library, alpha = made.design[made.factor_names].to_numpy(dtype=float), made.alpha
     columns = check.get("columns") or [f["name"] for f in experiment["factors"]]
-    matrix = _printed_matrix(experiment, columns, alpha)
+    if experiment["runs"].get("coded", True):
+        matrix = _printed_matrix(experiment, columns, alpha)
+    else:  # a matrix printed in the factors' own units is compared in coded units
+        matrix = _coded_runs(experiment, None)[0][columns].to_numpy(dtype=float)
     count_agrees = not str(printed).strip().isdigit() or int(printed) == len(matrix)
     relabel = check.get("relabel")
     if relabel:
@@ -932,6 +962,19 @@ def _capability(experiment: dict, check: dict) -> float:
         return float(calculate_cpk(responses, column, specifications=specifications, trim_percentile=0).cpk)
 
 
+def _log_variance_ratio(experiment: dict, check: dict) -> float:
+    """Return ln(s+^2 / s-^2), twice the log of a statistic's average at ``check["runs"]`` over ``check["minus"]``.
+
+    The statistic is a run's standard deviation (``check["summary"]``) or a printed column
+    (``check["response"]``); a source compares the two levels of a factor this way to find a
+    dispersion effect.
+    """
+    _, plus = _coded_runs(experiment, check["runs"], check.get("summary"))
+    _, minus = _coded_runs(experiment, check["minus"], check.get("summary"))
+    column = check.get("response") or plus.columns[0]
+    return 2 * math.log(float(plus[column].mean()) / float(minus[column].mean()))
+
+
 def _dot_product(experiment: dict, check: dict) -> float:
     """Return the sum over the runs of the product of the printed columns ``check["columns"]``: zero when orthogonal."""
     return float(_printed_matrix(experiment, check["columns"], None).prod(axis=1).sum())
@@ -957,6 +1000,7 @@ _VALUE_KINDS: dict[str, Callable[[dict, dict], float]] = {
     "capability": _capability,
     "difference_of_means": _difference_of_means,
     "dot_product": _dot_product,
+    "log_variance_ratio": _log_variance_ratio,
     "design_property": lambda _e, c: _design_property(c),
     "design_metric": _design_metric,
     "library_value": lambda _e, c: _library_value(c),

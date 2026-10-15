@@ -13,39 +13,45 @@ those changes.
 
 ### Added
 
-- **The reference catalogue holds chapters 1 to 4 of Schmidt and Launsby, *Understanding
+- **The reference catalogue holds chapters 1 to 5 of Schmidt and Launsby, *Understanding
   Industrial Designed Experiments* (4th edition).** Chapters 1 and 2: bond strengths confounded
   with batches, a twenty-week mileage record with its Cpk, a control chart's subgroup averages,
   the gas mileage and aircraft painting 2^(4-1) fractions analysed for their averages and standard
   deviations, the nickel plating 2^2, a 2 x 3 factorial, L12 and L18 screening designs, a 3^2
   factorial, and a two-factor central composite design fitted whole and with a row missing.
-  Chapter 3: its design matrices, each compared with the design the library makes (two-level
-  fractions with their generators, defining relations, aliases and resolutions, a foldover, the
-  Plackett-Burman 8- and 12-run designs, a Latin square, Box-Behnken and central composite designs
-  and the Taguchi L4 to L27 arrays) and the run counts of Tables 3.21, 3.24 and 3.26. Chapter 4:
-  one- and two-factor analyses of variance, a replicated 2^3 with a setting that reaches a target,
-  simple, polynomial and multiple regression with MYSTAT's tables (coefficients, standard errors,
-  tolerances, t, p, R, R², the analysis of variance and lack of fit) and prediction intervals, a
-  Box-Behnken design fitted in actual and in coded units, and two groups compared four ways; and
-  the data of the problems. 1198 printed numbers, 1095 checked. Eighty-three are recorded as not
+  Chapter 3: its design matrices, each compared with the design the library makes, and the run
+  counts of Tables 3.21, 3.24 and 3.26. Chapter 4: analyses of variance, simple, polynomial and
+  multiple regression with MYSTAT's tables and prediction intervals, and a Box-Behnken design
+  fitted in actual and in coded units. Chapter 5: an L8 analysed by average effects, analysis of
+  variance and regression, and its variance and ln s modelled; signal-to-noise ratios and ln s
+  compared; a turbine blade 2^3 with its dispersion effects; dispersion found from the residuals'
+  spread at each level; an injection molding L8 with an outer array of noise factors;
+  multi-variate charts of wafers and lots; a four-factor face-centred composite design modelled
+  for its average and standard deviation; and one plating process run as a composite design, a
+  D-optimal design, a Box-Behnken design and a 3^3, with RS/Discover's tables and each model's
+  predictions at 27 points. 2424 printed numbers, 2248 checked. 181 are recorded as not
   reproducing, each explained: most come from the book's rounding (run averages and standard
-  deviations that do not follow from their readings, squares of rounded effects, a mean rounded
-  to 2.792 that takes .022 from a total sum of squares and every number worked from it, and
-  values cut rather than rounded), two from a lost digit in MYSTAT's standard error, and the L18:
-  the library stores it (as L18(6^1 3^6)) but its Taguchi design takes 36 runs for one two-level
-  and seven three-level factors. Five tolerances are not recomputed: `evaluate_design` takes the
-  rank of X'X, whose condition number in the factors' own units squares X's, and calls that full
-  rank model singular. A catalogue check can now analyse each run's mean or standard deviation of
-  its readings, or every reading as an observation of its own (`summary`), solve for the setting
-  of a factor at which a fitted line or parabola reaches a target (`target_setting`), compute a
-  Cpk with `calculate_cpk` (`capability`), read a term's tolerance as one over its VIF and its
-  squared correlation with the others as one less that (`reciprocal`, `complement`), read a limit
-  of a prediction's interval (`bound`), check Multiple R and the F ratio of the whole regression
-  with its p-value (`multiple_r`, `f_regression`, `f_regression_p`), give a number printed as the
-  difference of two rounded averages the rounding of both (`of_rounded`), compare a printed
-  design matrix with the library's design or stored orthogonal array whatever the run order, and
-  if need be the order and signs of its columns (`same_runs`), check that a printed matrix obeys
-  its printed generators (`generator_holds`), and sum a product of columns (`dot_product`).
+  deviations that do not follow from their readings, squares of rounded effects, coefficients
+  that are halves of rounded effects, values cut rather than rounded), some are misprints (a
+  wrong sign, two exchanged digits, rows swapped), and the L18: the library stores it (as
+  L18(6^1 3^6)) but its Taguchi design takes 36 runs for one two-level and seven three-level
+  factors. Five tolerances are not recomputed: `evaluate_design` takes the rank of X'X, whose
+  condition number in the factors' own units squares X's, and calls that full-rank model
+  singular. A catalogue check can now analyse each run's mean, standard deviation, ln s or one of
+  Taguchi's signal-to-noise ratios (larger, smaller and nominal is best), or every reading as an
+  observation of its own (`summary`); solve for the setting of a factor at which a fitted line or
+  parabola reaches a target (`target_setting`); compute a Cpk with `calculate_cpk` (`capability`);
+  read a term's tolerance as one over its VIF and its squared correlation with the others as one
+  less that (`reciprocal`, `complement`); read a limit of a prediction's interval (`bound`); check
+  Multiple R and the F ratio of the whole regression with its p-value (`multiple_r`,
+  `f_regression`, `f_regression_p`); find a dispersion effect as ln(s+²/s-²), from run standard
+  deviations or from the residuals' spread at each level (`log_variance_ratio`,
+  `residual_std_dev`, `residual_log_variance_ratio`); give a number printed as the difference of
+  two rounded averages the rounding of both (`of_rounded`); compare a printed design matrix,
+  coded or in the factors' own units, with the library's design or stored orthogonal array
+  whatever the run order, and if need be the order and signs of its columns (`same_runs`); check
+  that a printed matrix obeys its printed generators (`generator_holds`); and sum a product of
+  columns (`dot_product`).
 
 ### Fixed
 
