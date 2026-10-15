@@ -24,13 +24,13 @@ as a plain dict, which :meth:`DesignRegion.from_dict` turns back into a region.
 
 from __future__ import annotations
 
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from typing import Any, Literal
 
 import numpy as np
 
 from process_improve.experiments._uniform_sampling import _TOL, UniformSampler, _Inequality, _linear_row
-from process_improve.experiments.factor import Constraint, Factor, FactorType
+from process_improve.experiments.factor import Constraint, Factor, FactorType, as_constraints
 
 
 class DesignRegion:
@@ -40,22 +40,24 @@ class DesignRegion:
     ----------
     factors : list[Factor]
         Either all mixture components, or continuous and categorical factors.
-    constraints : list[Constraint] or None
-        Inequalities in actual units (proportions for mixtures).
+    constraints : Sequence[Constraint | dict | str] or None
+        Inequalities in actual units (proportions for mixtures): ``Constraint`` objects,
+        their dict form (as :meth:`to_dict` writes it) or bare expressions such as
+        ``"3*T + 5*D <= 600"``, mixed freely.
 
     Examples
     --------
     >>> region = DesignRegion(
     ...     [Factor(name="T", low=100, high=150), Factor(name="D", low=20, high=60)],
-    ...     [Constraint(expression="3*T + 5*D <= 600")],
+    ...     ["3*T + 5*D <= 600"],
     ... )
     >>> region.feasible(np.array([[1.0, 1.0], [-1.0, -1.0]]))  # coded (150, 60) and (100, 20)
     array([False,  True])
     """
 
-    def __init__(self, factors: list[Factor], constraints: list[Constraint] | None = None) -> None:
+    def __init__(self, factors: list[Factor], constraints: Sequence[Constraint | dict | str] | None = None) -> None:
         self.factors = list(factors)
-        self.constraints = list(constraints or [])
+        self.constraints: list[Constraint] = as_constraints(constraints) or []
         is_mixture = [f.type == FactorType.mixture for f in self.factors]
         if any(is_mixture) and not all(is_mixture):
             raise ValueError(
