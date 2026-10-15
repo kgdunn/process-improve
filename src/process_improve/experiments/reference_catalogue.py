@@ -46,6 +46,7 @@ from typing import Any
 
 import numpy as np
 import pandas as pd
+from scipy.stats import f as f_distribution
 
 from process_improve.experiments.analysis import analyze_experiment
 from process_improve.experiments.designs import generate_design
@@ -54,6 +55,7 @@ from process_improve.experiments.evaluate import evaluate_design
 from process_improve.experiments.factor import Factor
 from process_improve.experiments.omars_trade_off import omars_minimum_runs
 from process_improve.experiments.optimization import optimize_responses
+from process_improve.monitoring.metrics import calculate_cpk
 from process_improve.regression._variance_components import fit_variance_components
 
 _CATALOGUE_DIR = Path(__file__).resolve().parents[1] / "datasets" / "experiments" / "reference_catalogue"
@@ -192,23 +194,62 @@ def _number(printed: str) -> tuple[str | None, str]:
     return match.group(1), match.group(2)
 
 
-def _agrees(found: float, printed: str, *, expression: bool = False) -> bool:
-    """Whether a value found agrees with the printed text, to within the source's rounding."""
+def _agrees(found: float, printed: str, *, expression: bool = False, of_rounded: int = 1) -> bool:
+    """Whether a value found agrees with the printed text, to within the source's rounding.
+
+    A number the source works out from ``of_rounded`` numbers it has itself rounded to the same
+    digits, such as the difference of two averages it prints, carries their rounding too: it is
+    allowed that many half units.
+    """
     if expression:
         return math.isclose(found, _arithmetic(printed), rel_tol=1e-9, abs_tol=1e-9)
     bound, digits = _number(printed)
+    allowed = of_rounded * _tolerance(digits)
     if bound in ("<", "<=", "\u2264"):
-        return found < float(digits) or abs(found - float(digits)) <= _tolerance(digits)
+        return found < float(digits) or abs(found - float(digits)) <= allowed
     if bound in (">", ">=", "\u2265"):
-        return found > float(digits) or abs(found - float(digits)) <= _tolerance(digits)
-    return abs(found - float(digits)) <= _tolerance(digits)
+        return found > float(digits) or abs(found - float(digits)) <= allowed
+    return abs(found - float(digits)) <= allowed
 
 
 # --------------------------------------------------------------------------- the runs as a model sees them
-def _coded_runs(experiment: dict, positions: list[int] | None) -> tuple[pd.DataFrame, pd.DataFrame]:
+_STATISTICS: dict[str, Callable[[pd.DataFrame], pd.Series]] = {
+    "mean": lambda readings: readings.mean(axis=1),
+    "std_dev": lambda readings: readings.std(axis=1, ddof=1),
+    "variance": lambda readings: readings.var(axis=1, ddof=1),
+}
+
+
+def _summarised(table: pd.DataFrame, summary: dict) -> pd.DataFrame:
+    """Return each run's statistic of its repeated readings, as the one response a source then analyses.
+
+    ``summary["of"]`` names the columns holding a run's readings and ``summary["statistic"]`` is
+    ``"mean"``, ``"std_dev"`` or ``"variance"``. A source that rounds each run's value before
+    averaging it gives ``summary["round"]``, the decimals it keeps.
+    """
+    values = _STATISTICS[summary["statistic"]](table[summary["of"]].astype(float))
+    if summary.get("round") is not None:
+        values = values.round(summary["round"])
+    return values.rename(summary["statistic"]).to_frame()
+
+
+def _each_reading(settings: pd.DataFrame, readings: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame]:
+    """Return every reading as a run of its own at its run's settings, run by run; a blank reading is left out."""
+    values = readings.to_numpy(dtype=float).ravel()
+    kept = ~np.isnan(values)
+    rows = np.repeat(np.arange(len(readings)), readings.shape[1])[kept]
+    return settings.iloc[rows].reset_index(drop=True), pd.DataFrame({"each": values[kept]})
+
+
+def _coded_runs(
+    experiment: dict, positions: list[int] | None, summary: dict | None = None
+) -> tuple[pd.DataFrame, pd.DataFrame]:
     """Return the factor settings in coded units and the responses, for the runs at these 1-based positions.
 
     A factor marked ``"coding": "none"`` is fitted in its own units, as a source's regression on it is.
+    With a ``summary`` (see :func:`_summarised`) the responses are replaced by each run's statistic
+    of its readings; with the statistic ``"each"``, every reading is an observation of its own, as
+    a source fits a model to all the readings of a replicated design.
     """
     runs = experiment["runs"]
     table = pd.DataFrame(runs["rows"], columns=runs["columns"])
@@ -234,6 +275,10 @@ def _coded_runs(experiment: dict, positions: list[int] | None) -> tuple[pd.DataF
         for printed, value in exact.items():  # a setting printed rounded, such as 1.41 for the square root of 2
             values = values.mask(np.isclose(values.abs(), printed), np.sign(values) * value)
         settings[f["name"]] = values
+    if summary and summary["statistic"] == "each":
+        return _each_reading(pd.DataFrame(settings), table[summary["of"]])
+    if summary:
+        return pd.DataFrame(settings), _summarised(table, summary)
     names = [r["name"] for r in experiment["responses"] if r["name"] in table.columns]
     return pd.DataFrame(settings), table[names].astype(float)
 
@@ -249,14 +294,19 @@ class _Fits:
 
     def __call__(self, experiment: dict, check: dict) -> dict[str, Any]:
         positions = tuple(check["runs"]) if check.get("runs") else None
-        key = (experiment["name"], check.get("model"), positions, check.get("response"))
+        summary = json.dumps(check["summary"], sort_keys=True) if check.get("summary") else None
+        key = (experiment["name"], check.get("model"), positions, check.get("response"), summary)
         if key not in self._done:
-            self._done[key] = self._fit(experiment, check.get("model"), positions, check.get("response"))
+            self._done[key] = self._fit(experiment, check.get("model"), positions, check.get("response"), summary)
         return self._done[key]
 
     @staticmethod
-    def _fit(experiment: dict, model: str | None, positions: tuple | None, response: str | None) -> dict[str, Any]:
-        settings, responses = _coded_runs(experiment, list(positions) if positions else None)
+    def _fit(
+        experiment: dict, model: str | None, positions: tuple | None, response: str | None, summary: str | None
+    ) -> dict[str, Any]:
+        settings, responses = _coded_runs(
+            experiment, list(positions) if positions else None, json.loads(summary) if summary else None
+        )
         y = responses[response or responses.columns[0]]
         out: dict[str, Any] = {"y": y, "settings": settings}
         if model is None:
@@ -315,11 +365,26 @@ def _left_out(out: dict, i: int) -> float:
 
 
 def _anova_sums(out: dict) -> tuple[float, float, int]:
-    """Return the sum of squares the model explains, the residual's, and the model's degrees of freedom."""
+    """Return the sum of squares the model explains, the residual's, and the model's degrees of freedom.
+
+    The model's is the total about the mean less the residual's. That is the sum of the terms' rows
+    only when the terms are orthogonal, as in a two-level factorial; when they are correlated, as the
+    squares of a composite design are, the Type II rows leave out what the terms share.
+    """
     table = out["anova_table"]
     residual = next(row for row in table if row["source"] == "Residual")
     model = [row for row in table if row["source"] != "Residual"]
-    return sum(row["sum_sq"] for row in model), residual["sum_sq"], sum(row["df"] for row in model)
+    y = out["y"].to_numpy(dtype=float)
+    total = float(np.nansum((y - np.nanmean(y)) ** 2))
+    return total - residual["sum_sq"], residual["sum_sq"], sum(row["df"] for row in model)
+
+
+def _f_regression(out: dict) -> tuple[float, float]:
+    """Return the F ratio of the whole regression, its mean square over the residual's, and its p-value."""
+    explained, unexplained, df_model = _anova_sums(out)
+    df_residual = out["model_summary"]["df_residual"]
+    ratio = (explained / df_model) / (unexplained / df_residual)
+    return ratio, float(f_distribution.sf(ratio, df_model, df_residual))
 
 
 def _anova_row(out: dict, term: str) -> dict:
@@ -343,6 +408,39 @@ def _prediction(out: dict, check: dict, experiment: dict) -> float:
             out["settings"], out["y"], model=check["model"], analysis_type="prediction", new_points=point
         )
     return float(found["predictions"][0]["predicted"])
+
+
+def _target_setting(out: dict, check: dict, experiment: dict) -> float:
+    """Return the setting of one factor at which the fitted model predicts a target, the others held fixed.
+
+    ``check["solve"]`` names the factor, ``check["target"]`` is the response wanted and
+    ``check["point"]`` holds the other factors' coded settings (a factor it leaves out sits at its
+    centre). The prediction is a line or a parabola in the solved factor (a model of main effects,
+    interactions and squares), read through its values at -1, 0 and +1; of a parabola's two
+    settings, the one nearer the centre of the design is returned. The setting is in coded units,
+    or in the factor's own with ``"units": "actual"``.
+    """
+
+    def predicted(setting: float) -> float:
+        point = {f["name"]: 0.0 for f in experiment["factors"]} | check.get("point", {}) | {check["solve"]: setting}
+        return _prediction(out, {**check, "point": point}, experiment)
+
+    low, centre, high = predicted(-1.0), predicted(0.0), predicted(1.0)
+    slope, curvature = (high - low) / 2, (high + low) / 2 - centre
+    if math.isclose(curvature, 0.0, abs_tol=1e-9 * max(1.0, abs(centre))):
+        if slope == 0:
+            raise ValueError(f"The prediction does not change with {check['solve']} at this point.")
+        coded = (check["target"] - centre) / slope
+    else:
+        roots = np.roots([curvature, slope, centre - check["target"]])
+        real = roots[np.isreal(roots)].real
+        if not len(real):
+            raise ValueError(f"No setting of {check['solve']} reaches {check['target']} at this point.")
+        coded = float(real[np.argmin(np.abs(real))])
+    if check.get("units") != "actual":
+        return coded
+    factor = next(f for f in experiment["factors"] if f["name"] == check["solve"])
+    return (factor["high"] + factor["low"]) / 2 + coded * (factor["high"] - factor["low"]) / 2
 
 
 def _box_cox(out: dict, check: dict, _experiment: dict) -> float:
@@ -455,6 +553,8 @@ _FIT_KINDS: dict[str, Callable[[dict, dict, dict], float]] = {
     "ss_regression": lambda out, _c, _e: _anova_sums(out)[0],
     "ss_total": lambda out, _c, _e: sum(_anova_sums(out)[:2]),
     "ms_regression": lambda out, _c, _e: _anova_sums(out)[0] / _anova_sums(out)[2],
+    "f_regression": lambda out, _c, _e: _f_regression(out)[0],
+    "f_regression_p": lambda out, _c, _e: _f_regression(out)[1],
     "press": lambda out, _c, _e: float(np.sum((_residuals(out)[1] / (1 - _residuals(out)[2])) ** 2)),
     "lenth_pse": lambda out, c, _e: _lenth(out, "PSE", c),
     "lenth_me": lambda out, c, _e: _lenth(out, "ME", c),
@@ -469,6 +569,7 @@ _FIT_KINDS: dict[str, Callable[[dict, dict, dict], float]] = {
     "pure_error_ms": lambda out, _c, _e: out["lack_of_fit"]["ms_pure_error"],
     "curvature_difference": lambda out, _c, _e: out["curvature_test"]["difference"],
     "prediction": _prediction,
+    "target_setting": _target_setting,
     "optimum": _optimum,
     "box_cox": _box_cox,
     "steepest_path": _steepest_path,
@@ -619,7 +720,8 @@ def _design_metric(experiment: dict, check: dict) -> float:
     ``check["metric"]`` names an :func:`~process_improve.experiments.evaluate_design` metric, evaluated
     for ``check["model"]`` with ``check["options"]``; ``check["key"]`` reads into its result, step by
     step (``"correlation"`` then ``"max_abs_r"``), where ``max``, ``min``, ``mean`` and ``len`` reduce
-    a dict's values or a list.
+    a dict's values or a list. ``"reciprocal": true`` returns one over the number read, as a source
+    prints a term's tolerance, one over its variance inflation factor.
     """
     if check.get("design"):
         design: Any = _made(json.dumps(check["design"], sort_keys=True))
@@ -630,7 +732,8 @@ def _design_metric(experiment: dict, check: dict) -> float:
         found: Any = evaluate_design(
             design, model=check.get("model"), metric=check["metric"], **check.get("options", {})
         )
-    return _read(found[check["metric"]], check.get("key"))
+    value = _read(found[check["metric"]], check.get("key"))
+    return 1 / value if check.get("reciprocal") else value
 
 
 def _read(found: Any, key: str | None) -> float:  # noqa: ANN401 - a library result: a number, dict or list
@@ -675,10 +778,25 @@ def _difference_of_means(experiment: dict, check: dict) -> float:
     For a difference a source works between two groups of runs that no factor of the entry marks,
     such as averages of adjacent stretches of a production record.
     """
-    _, after = _coded_runs(experiment, check["runs"])
-    _, before = _coded_runs(experiment, check["minus"])
+    _, after = _coded_runs(experiment, check["runs"], check.get("summary"))
+    _, before = _coded_runs(experiment, check["minus"], check.get("summary"))
     column = check.get("response") or after.columns[0]
     return float(after[column].mean() - before[column].mean())
+
+
+def _capability(experiment: dict, check: dict) -> float:
+    """Return the library's Cpk of a response: the nearer specification's distance from the mean, over 3 sigma.
+
+    ``check["lower"]`` and ``check["upper"]`` are the specifications, either left out when a source
+    gives only one. The mean and standard deviation are the plain ones a source works by hand.
+    """
+    _, responses = _coded_runs(experiment, check.get("runs"))
+    column = check.get("response") or responses.columns[0]
+    lower, upper = (np.nan if check.get(side) is None else float(check[side]) for side in ("lower", "upper"))
+    specifications = (lower, upper)
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")  # the side with no specification warns that it has no spread
+        return float(calculate_cpk(responses, column, specifications=specifications, trim_percentile=0).cpk)
 
 
 def _variance_component(experiment: dict, check: dict) -> float:
@@ -698,6 +816,7 @@ def _variance_component(experiment: dict, check: dict) -> float:
 
 
 _VALUE_KINDS: dict[str, Callable[[dict, dict], float]] = {
+    "capability": _capability,
     "difference_of_means": _difference_of_means,
     "design_property": lambda _e, c: _design_property(c),
     "design_metric": _design_metric,
@@ -729,7 +848,8 @@ def _reproduce(experiment: dict, expected: dict, check: dict, fits: _Fits) -> tu
     if kind not in _FIT_KINDS:
         raise KeyError(f"No check of the kind {kind!r}.")
     found = float(_FIT_KINDS[kind](out, check, experiment))
-    return f"{found:.6g}", _agrees(found, str(printed), expression=bool(check.get("expression")))
+    expression, of_rounded = bool(check.get("expression")), check.get("of_rounded", 1)
+    return f"{found:.6g}", _agrees(found, str(printed), expression=expression, of_rounded=of_rounded)
 
 
 def _checks(expected: dict) -> list[dict]:
@@ -757,7 +877,11 @@ def reproduce_reference_catalogue(source: str | None = None) -> pd.DataFrame:
     quadratic's stationary point and canonical form, and a setting on a path of steepest ascent,
     are recomputed with :func:`~process_improve.experiments.optimize_responses`, and a Box-Cox
     power with the library's Box-Cox analysis, and a variance component with its REML fit of random
-    intercepts. The interactions a source confounds with blocks
+    intercepts. A run read several times can be analysed through each run's mean or standard
+    deviation of its readings, or with every reading an observation of its own; the setting of a
+    factor that brings a fitted model to a target is solved from the library's predictions, and a
+    process capability index is the library's Cpk.
+    The interactions a source confounds with blocks
     are compared with those of the library's blocking of the same factorial. A number without
     a check is reported with the reason it is not recomputed.
 

@@ -207,6 +207,15 @@ def test_a_blocking_arrangement_is_compared_by_how_many_interactions_of_each_ord
     assert not _block_confounding(check, "12, 34, 1234")[1]  # two two-factor interactions where one will do
 
 
+def test_a_difference_of_two_rounded_averages_carries_both_roundings():
+    """.695 - .567 = .128, from averages of .69450 and .56725: a half unit each, a whole unit in their difference."""
+    from process_improve.experiments.reference_catalogue import _agrees
+
+    assert not _agrees(0.12725, ".128")
+    assert _agrees(0.12725, ".128", of_rounded=2)
+    assert not _agrees(0.1262, ".128", of_rounded=2)
+
+
 def test_a_regressor_marked_uncoded_is_fitted_in_its_own_units():
     """A source's slope is per unit of x: a factor with ``"coding": "none"`` is not rescaled to -1 and +1."""
     from process_improve.experiments.reference_catalogue import _coded_runs
@@ -222,6 +231,86 @@ def test_a_regressor_marked_uncoded_is_fitted_in_its_own_units():
     own, _ = _coded_runs({**entry, "factors": [factor({"coding": "none"})]}, None)
     assert coded["x"].tolist() == [-1.0, 0.0, 1.0]
     assert own["x"].tolist() == [10.0, 20.0, 30.0]
+
+
+def _replicated_2x2(readings):
+    """Return a 2^2 factorial in coded units, each run read twice: the columns as a source prints them."""
+    rows = [[a, b, *r] for (a, b), r in zip([(-1, -1), (1, -1), (-1, 1), (1, 1)], readings, strict=True)]
+    return {
+        "name": "replicated",
+        "factors": [{"name": n, "type": "numeric", "low": 10, "high": 20} for n in "AB"],
+        "responses": [{"name": "y1"}, {"name": "y2"}],
+        "runs": {"columns": ["A", "B", "y1", "y2"], "rows": rows, "coded": True},
+    }
+
+
+def test_a_run_read_several_times_is_analysed_through_its_mean_or_standard_deviation():
+    """Each run's statistic of its readings is the response: its effects are those of the column a source works out."""
+    from process_improve.experiments.reference_catalogue import _coded_runs
+
+    entry = _replicated_2x2([[1, 3], [2, 2.5], [4, 4], [6, 9]])
+    summary = {"of": ["y1", "y2"], "statistic": "std_dev"}
+    _, s = _coded_runs(entry, None, summary)
+    assert s["std_dev"].tolist() == pytest.approx([2**0.5, 0.125**0.5, 0, 4.5**0.5])
+    _, rounded = _coded_runs(entry, [1, 2], {**summary, "round": 2})
+    assert rounded["std_dev"].tolist() == [1.41, 0.35]
+    fits = reference_catalogue._Fits()
+    mean_check = {"kind": "effect", "term": "A", "model": "A * B", "summary": {**summary, "statistic": "mean"}}
+    s_check = {"kind": "effect", "term": "A", "model": "A * B", "summary": summary}
+    assert reference_catalogue._reproduce(entry, {"value": "1.875"}, mean_check, fits) == ("1.875", True)
+    expected_s = (0.125**0.5 + 4.5**0.5 - 2**0.5) / 2
+    found, agrees = reference_catalogue._reproduce(entry, {"value": f"{expected_s:.6f}"}, s_check, fits)
+    assert agrees, found
+
+
+def test_the_setting_that_reaches_a_target_is_solved_from_the_fitted_model():
+    """The fit is 3 + A + 2B + AB; at A = +1 it is 4 + 3B, so 5.5 needs B = 0.5 coded, 17.5 in its own units."""
+    entry = _replicated_2x2([[1, 1], [1, 1], [3, 3], [7, 7]])
+    fits = reference_catalogue._Fits()
+    check = {"kind": "target_setting", "model": "A * B", "response": "y1", "solve": "B", "target": 5.5}
+    at_a_high = {**check, "point": {"A": 1}}
+    assert reference_catalogue._reproduce(entry, {"value": "0.5"}, at_a_high, fits) == ("0.5", True)
+    actual = {**at_a_high, "units": "actual"}
+    assert reference_catalogue._reproduce(entry, {"value": "17.5"}, actual, fits) == ("17.5", True)
+    flat = _replicated_2x2([[1, 1], [3, 3], [1, 1], [3, 3]])  # B has no effect: no setting of it reaches the target
+    with pytest.raises(ValueError, match="does not change with B"):
+        reference_catalogue._reproduce(flat, {"value": "0"}, check, reference_catalogue._Fits())
+
+
+def test_on_a_parabola_the_setting_nearer_the_centre_is_taken():
+    """The fit (1 + A)^2 reaches 2.25 at A = 0.5 and at A = -2.5; the first lies within the design."""
+    entry = {
+        "name": "parabola",
+        "factors": [{"name": "A", "type": "numeric", "low": 10, "high": 20}],
+        "responses": [{"name": "y"}],
+        "runs": {"columns": ["A", "y"], "rows": [[-1, 0], [0, 1], [1, 4]], "coded": True},
+    }
+    check = {"kind": "target_setting", "model": "A + I(A ** 2)", "solve": "A", "target": 2.25}
+    assert reference_catalogue._reproduce(entry, {"value": "0.5"}, check, reference_catalogue._Fits()) == ("0.5", True)
+    out_of_reach = {**check, "target": -1}
+    with pytest.raises(ValueError, match="No setting of A reaches -1"):
+        reference_catalogue._reproduce(entry, {"value": "0"}, out_of_reach, reference_catalogue._Fits())
+
+
+def test_each_reading_of_a_replicated_run_can_be_an_observation_of_its_own():
+    """Four runs read twice are eight observations, a blank reading left out."""
+    from process_improve.experiments.reference_catalogue import _coded_runs
+
+    entry = _replicated_2x2([[1, 3], [2, None], [4, 4], [6, 9]])
+    settings, y = _coded_runs(entry, None, {"of": ["y1", "y2"], "statistic": "each"})
+    assert y["each"].tolist() == [1, 3, 2, 4, 4, 6, 9]
+    assert settings["A"].tolist() == [-1, -1, 1, -1, -1, 1, 1]
+
+
+def test_a_capability_index_is_the_library_cpk_on_the_plain_mean_and_standard_deviation():
+    """Mean 20 and standard deviation 1.298 against a lower specification of 17: Cpk = 3 / (3 x 1.298)."""
+    from process_improve.experiments.reference_catalogue import _capability
+
+    weeks = [21, 19, 20, 22, 18, 21, 20, 20, 18, 20, 19, 22, 20, 21, 19, 20, 19, 21, 18, 22]
+    entry = {"factors": [], "responses": [{"name": "y"}], "runs": {"columns": ["y"], "rows": [[w] for w in weeks]}}
+    sd = (32 / 19) ** 0.5
+    assert _capability(entry, {"lower": 17}) == pytest.approx(3 / (3 * sd))
+    assert _capability(entry, {"lower": 17, "upper": 22}) == pytest.approx(2 / (3 * sd))
 
 
 def test_a_variance_component_is_read_from_the_library_reml_fit():
