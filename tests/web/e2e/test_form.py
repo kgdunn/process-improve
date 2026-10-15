@@ -2,7 +2,7 @@
 
 The design list, which settings each design shows, the resolution, the center runs and an
 optimal design's runs all follow the factor table as the reader edits it, a factor's name and
-levels are checked as they are typed, and the page says when the plan no longer describes the
+levels are checked as they are typed, and the page says when the design no longer describes the
 run sheet it holds.
 """
 
@@ -108,7 +108,7 @@ def test_designs_that_need_a_center_run_keep_one(page, design_type, alpha, least
 
 
 def stale(page) -> bool:
-    """Whether Run says the plan has changed since its run sheet was made, and Plan's tab says so too."""
+    """Whether Run says the design has changed since its run sheet was made, and Design's tab says so too."""
     shown = page.get_attribute("#design-stale", "hidden") is None
     assert shown == (page.text_content("#badge-plan") == "changed")
     return shown

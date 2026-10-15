@@ -137,10 +137,10 @@ def card(path: Path) -> None:
     sans = {"family": "DejaVu Sans"}
     ax.text(96, 160, "PROCESS-IMPROVE  ·  IN YOUR BROWSER", color=RED, fontsize=15, **sans, weight="bold")
     ax.text(92, 268, "Factorial", color=INK, fontsize=70, **serif)
-    ax.text(96, 352, "Design an experiment, run it,", color=INK, fontsize=24, **sans)
-    ax.text(96, 392, "and analyse the results.", color=INK, fontsize=24, **sans)
-    ax.text(96, 462, "Python runs inside the page: nothing to install,", color=MUTED, fontsize=17, **sans)
-    ax.text(96, 492, "and your data stay on your machine.", color=MUTED, fontsize=17, **sans)
+    ax.text(96, 352, "Design, Run and Learn", color=INK, fontsize=24, **sans)
+    ax.text(96, 392, "from your experiments.", color=INK, fontsize=24, **sans)
+    ax.text(96, 462, "Nothing to install.", color=MUTED, fontsize=17, **sans)
+    ax.text(96, 492, "Data never leaves your machine.", color=MUTED, fontsize=17, **sans)
     ax.add_patch(
         FancyBboxPatch((760, 135), 360, 360, boxstyle="round,pad=0,rounding_size=36", fc="white", ec="#e7e3d9", lw=1.2)
     )

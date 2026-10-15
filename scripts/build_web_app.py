@@ -45,6 +45,7 @@ ROOT = Path(__file__).resolve().parent.parent
 WEB_SRC = ROOT / "web"
 APP_FILES = (
     "index.html",
+    "about.html",
     "app.js",
     "logic.js",
     "charts.js",

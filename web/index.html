@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Factorial: designed experiments in your browser</title>
-  <meta name="description" content="Design an experiment, run it, and analyse the results in your browser with process-improve. Nothing to install; your data stay on your machine.">
+  <meta name="description" content="Design, Run and Learn from your experiments in your browser, with the process-improve Python package. Nothing to install. Data never leaves your machine.">
   <!-- The app's address, factori.al. A link card needs absolute URLs, so the address is written out here;
        tests/web/page/test_brand.py checks it is the one docs.yml deploys to and checks. The copy on GitHub
        Pages names it too, so search engines treat the two as one page. -->
@@ -29,12 +29,12 @@
   <meta property="og:type" content="website">
   <meta property="og:site_name" content="process-improve">
   <meta property="og:title" content="Factorial: designed experiments in your browser">
-  <meta property="og:description" content="Design an experiment, run it, and analyse the results. Python runs inside the page: nothing to install, and your data stay on your machine.">
+  <meta property="og:description" content="Design, Run and Learn from your experiments. Nothing to install. Data never leaves your machine.">
   <meta property="og:url" content="https://factori.al/">
   <meta property="og:image" content="https://factori.al/og-card.png">
   <meta property="og:image:width" content="1200">
   <meta property="og:image:height" content="630">
-  <meta property="og:image:alt" content="Factorial: a two-level factorial in three factors, drawn as a cube seen down its diagonal with its centre run, beside the words: design an experiment, run it, and analyse the results.">
+  <meta property="og:image:alt" content="Factorial: a two-level factorial in three factors, drawn as a cube seen down its diagonal with its centre run, beside the words: design, run and learn from your experiments.">
   <meta name="twitter:card" content="summary_large_image">
   <link rel="stylesheet" href="style.css">
 </head>
@@ -61,10 +61,7 @@
         <svg data-for="dark" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M20.5 14.2A8.5 8.5 0 1 1 9.8 3.5a6.8 6.8 0 0 0 10.7 10.7z" fill="currentColor"/></svg>
       </button>
     </div>
-    <p class="lede">
-      Designed experiments, with the <a href="https://github.com/kgdunn/process-improve">process-improve</a> Python
-      package running in this tab: nothing to install, and your data stay on your machine.
-    </p>
+    <p class="lede">Design, Run and Learn from your experiments. Nothing to install. Data never leaves your machine.</p>
     <div class="hero">
       <button type="button" id="new-study" class="button">New study</button>
       <button type="button" id="show-example" class="button">Explore a worked example</button>
@@ -80,8 +77,8 @@
   <nav id="studybar" class="studybar" aria-label="The study">
     <div class="studybar__row">
       <p class="studybar__title"><span id="study-title">A new study</span> <span id="study-about"></span></p>
-      <div class="phases" role="tablist" aria-label="Plan, run, learn">
-        <button type="button" role="tab" id="go-plan" aria-controls="step-plan" aria-selected="true"><span class="step">1</span> Plan<span id="badge-plan" class="badge" hidden></span></button>
+      <div class="phases" role="tablist" aria-label="Design, run, learn">
+        <button type="button" role="tab" id="go-plan" aria-controls="step-plan" aria-selected="true"><span class="step">1</span> Design<span id="badge-plan" class="badge" hidden></span></button>
         <button type="button" role="tab" id="go-run" aria-controls="step-run" aria-selected="false" tabindex="-1"><span class="step">2</span> Run<span id="badge-run" class="badge" hidden></span></button>
         <button type="button" role="tab" id="go-learn" aria-controls="step-analyse" aria-selected="false" tabindex="-1"><span class="step">3</span> Learn<span id="badge-learn" class="badge" hidden></span></button>
       </div>
@@ -101,7 +98,7 @@
 
   <div id="workspace" class="workspace" data-phase="plan">
     <!-- The brief: what the study measures, what might change it, and what it is to learn. Beside every phase on a
-         wide screen; on a narrow one, at the top of Plan. -->
+         wide screen; on a narrow one, at the top of Design. -->
     <div id="brief" class="brief" data-pane="plan">
       <section id="response-card" class="card" aria-labelledby="h-response">
         <h2 id="h-response">What will you measure?</h2>
@@ -271,13 +268,13 @@
 
       <section id="step-run" class="pane" data-pane="run" role="tabpanel" aria-labelledby="h-run" hidden>
         <h2 id="h-run">Run the experiments</h2>
-        <p id="run-empty" class="hint">No run sheet yet: make it in Plan.</p>
+        <p id="run-empty" class="hint">No run sheet yet: make it in Design.</p>
         <div id="run-out" hidden>
           <div id="design-stale" class="stale" role="status" hidden>
-            <p>The plan has changed since this run sheet was made.</p>
+            <p>The design has changed since this run sheet was made.</p>
             <p class="actions">
               <button type="button" id="remake" class="primary">Make the new run sheet</button>
-              <button type="button" id="restore-plan" class="link">Put the plan back as it was</button>
+              <button type="button" id="restore-plan" class="link">Put the design back as it was</button>
             </p>
           </div>
           <div id="design-out" hidden>
@@ -380,7 +377,7 @@
       <h2 id="h-compare">The designs compared in detail</h2>
       <button type="button" id="compare-close" class="link" aria-label="Close the comparison">✕</button>
     </div>
-    <p>Each design as Plan makes it, scored on
+    <p>Each design scored on
       <a href="https://learnche.org/pid/design-analysis-experiments/omars-designs#doe-omars-metric-choice">the book's
       nine measures</a>.</p>
     <div id="comparison" hidden></div>
@@ -404,15 +401,8 @@
 
   <footer>
     <p>Factorial is the browser app of <a href="https://github.com/kgdunn/process-improve">process-improve</a>, the
-      Python package that accompanies the book <a href="https://learnche.org/pid">Process Improvement using Data</a>.</p>
-    <details>
-      <summary>How this works</summary>
-      <p><a href="https://pyodide.org">Pyodide</a> runs CPython compiled to WebAssembly. The page loads it from a
-        public CDN, installs process-improve into it, and runs the same <code>generate_design</code>,
-        <code>compare_designs</code>, <code>TrueProcess</code> and <code>analyze_experiment</code> you would call in
-        Python; the charts are the library's own plots, drawn with <a href="https://plotly.com/javascript/">Plotly</a>.
-        Nothing is uploaded: your runs stay in this tab and in the workbook you download.</p>
-    </details>
+      Python package that accompanies the book <a href="https://learnche.org/pid">Process Improvement using Data</a>.
+      Everything here runs in your browser tab, nothing on our server. <a href="about.html">Read more here</a>.</p>
   </footer>
 </main>
 <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>

@@ -1,6 +1,6 @@
 """Comparing designs: ``api_compare_plan`` lists the designs and ``api_compare`` scores them, for ``api_candidates``.
 
-Every design the factor count allows is generated as Plan would make it, then all of them
+Every design the factor count allows is generated as Design would make it, then all of them
 are scored for one model on the nine measures of ``compare_designs``, with an FDS curve for
 each design that can fit the model.
 """

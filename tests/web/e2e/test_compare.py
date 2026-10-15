@@ -1,7 +1,7 @@
 """The designs that can learn the brief: made and scored as it is typed, picked from a list, compared in detail.
 
-Plan asks Python, once the brief has two factors and the typing pauses, for every design the
-page offers for these factors, each made as Plan makes it and all scored on the model the study
+Design asks Python, once the brief has two factors and the typing pauses, for every design the
+page offers for these factors, each made as Design makes it and all scored on the model the study
 aims to learn, with power for the response's smallest change worth finding. The designs that fit
 are listed by their runs, one picked for a reader who has not chosen; the detailed comparison
 shows the nine measures, the FDS curves and a correlation map per design, and any design can be

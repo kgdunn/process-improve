@@ -1,0 +1,167 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>How Factorial works</title>
+  <meta name="description" content="How Factorial runs the process-improve Python package in your browser tab: what runs where, what reaches a server, what it is built with, where to read the code, and how to run it yourself.">
+  <link rel="icon" href="favicon.svg" type="image/svg+xml">
+  <meta name="theme-color" content="#faf8f3" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#141517" media="(prefers-color-scheme: dark)">
+  <script>
+    /* The colour mode chosen in the app (index.html), put on the page before it is drawn. */
+    try {
+      const mode = localStorage.getItem("factorial-mode");
+      if (mode === "light" || mode === "dark") document.documentElement.dataset.theme = mode;
+    } catch {
+      /* storage refused: the system's mode */
+    }
+  </script>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+<main class="about">
+  <p class="about__back"><a href="./"><img src="favicon.svg" alt="" width="28" height="28"> Back to Factorial</a></p>
+  <h1>How Factorial works</h1>
+  <p class="lede">Factorial runs the process-improve Python package inside your browser tab. The server sends the
+    app's files and nothing more: your factors, results and analyses stay on your machine.</p>
+
+  <section aria-labelledby="h-where">
+    <h2 id="h-where">What runs where</h2>
+    <figure class="flow" aria-label="The app's files and Python come from three servers into your browser tab, where the page and Python run, and your studies are kept.">
+      <div class="flow__sources">
+        <div class="flow__box"><strong>factori.al</strong><span>the app's files and the process-improve wheel</span></div>
+        <div class="flow__box"><strong>jsDelivr</strong><span>Pyodide, its Python packages, and Plotly.js</span></div>
+        <div class="flow__box"><strong>PyPI</strong><span>openpyxl and plotly</span></div>
+      </div>
+      <p class="flow__arrow" aria-hidden="true">downloaded into</p>
+      <div class="flow__tab">
+        <p class="flow__label">Your browser tab</p>
+        <div class="flow__inside">
+          <div class="flow__box"><strong>The page</strong><span>the form, the tables and the charts</span></div>
+          <p class="flow__arrow flow__arrow--side" aria-hidden="true">JSON</p>
+          <div class="flow__box"><strong>A worker running Python</strong><span>CPython in WebAssembly, with
+            process-improve</span></div>
+        </div>
+        <div class="flow__box flow__box--store"><strong>This browser's storage</strong><span>your studies and a draft
+          of the one you are writing</span></div>
+      </div>
+    </figure>
+    <ul>
+      <li><strong>The page</strong> (<code>index.html</code> and its JavaScript modules) draws the form, the run sheet,
+        the tables and the charts, and holds the study you are working on.</li>
+      <li><strong>A Web Worker runs Python.</strong> <a href="https://pyodide.org">Pyodide</a> is CPython compiled to
+        WebAssembly; in a worker, a long computation leaves the page free to scroll and type in. The page sends it
+        each request as JSON, and <code>web/bootstrap.py</code> answers with the same process-improve functions you
+        would call in Python: <code>generate_design</code>, <code>compare_designs</code>, <code>TrueProcess</code>
+        and <code>analyze_experiment</code>.</li>
+      <li><strong>The charts</strong> are process-improve's own Plotly figures, drawn in the page with
+        <a href="https://plotly.com/javascript/">Plotly.js</a>.</li>
+      <li><strong>Your studies</strong> are saved in this browser's IndexedDB as you work, the 30 most recent, and a
+        brief not yet made into a run sheet is kept in its local storage. Clearing this site's data in the browser
+        deletes them.</li>
+      <li><strong>A link to a study</strong> holds the study itself, compressed, after the <code>#</code>. A browser
+        does not send that part of an address to any server: the link travels only where you paste it.</li>
+      <li><strong>The workbook and the notebook</strong> (<code>.xlsx</code> and <code>.ipynb</code>) are written in
+        the tab and saved by your browser, as any download is.</li>
+    </ul>
+  </section>
+
+  <section aria-labelledby="h-servers">
+    <h2 id="h-servers">What reaches a server</h2>
+    <ul>
+      <li><strong>factori.al</strong> sends the app's files. It has no database, no accounts, no cookies and no
+        tracking script. Its web server writes one line per request, as web servers do: the time, the file asked for,
+        the result, the browser's name (its <code>User-Agent</code>) and the page that linked here. Your address is
+        cut to its network before the line is written (the first 24 bits of an IPv4 address, the first 48 of an IPv6
+        one), and the lines are kept for 90 days, to count visits.</li>
+      <li><strong>jsDelivr and PyPI</strong> send Python and its packages, the first time and after a new version;
+        your browser keeps them. They see an ordinary download, as for any web page that uses them, and nothing of
+        your study.</li>
+    </ul>
+  </section>
+
+  <section aria-labelledby="h-stack">
+    <h2 id="h-stack">What this copy is built with</h2>
+    <p>These are the versions this copy of Factorial loads, read from the files it loads them by:
+      <a href="runtime.json"><code>runtime.json</code></a> and <a href="wheels/manifest.json"><code>wheels/manifest.json</code></a>.</p>
+    <table class="data stack" id="stack">
+      <tbody>
+        <tr><th scope="row">process-improve</th><td id="stack-process-improve">the wheel built with this copy</td></tr>
+        <tr><th scope="row">Python, in WebAssembly</th><td id="stack-pyodide">Pyodide</td></tr>
+        <tr><th scope="row">From the Pyodide release</th><td id="stack-packages">numpy, pandas, scipy, statsmodels and more</td></tr>
+        <tr><th scope="row">From PyPI</th><td id="stack-pypi">openpyxl and plotly</td></tr>
+        <tr><th scope="row">Charts</th><td id="stack-plotly-js">Plotly.js</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <section aria-labelledby="h-code">
+    <h2 id="h-code">Read the code</h2>
+    <p>All of it is open source, under the MIT license, at
+      <a href="https://github.com/kgdunn/process-improve">github.com/kgdunn/process-improve</a><span id="stack-commit"></span>.
+      To check what it does with your data, these are the places to read:</p>
+    <ul>
+      <li><a href="https://github.com/kgdunn/process-improve/tree/main/web"><code>web/</code></a>: the page, and
+        <code>worker.js</code>, which starts Python;</li>
+      <li><a href="https://github.com/kgdunn/process-improve/blob/main/web/bootstrap.py"><code>web/bootstrap.py</code></a>:
+        every call the page makes into Python;</li>
+      <li><a href="https://github.com/kgdunn/process-improve/blob/main/scripts/build_web_app.py"><code>scripts/build_web_app.py</code></a>:
+        how this site is built from the repository;</li>
+      <li><a href="https://github.com/kgdunn/process-improve/tree/main/deploy/factorial"><code>deploy/factorial/</code></a>:
+        the server at factori.al, its configuration and what it logs;</li>
+      <li><a href="https://github.com/kgdunn/process-improve/tree/main/tests/web"><code>tests/web/</code></a>: the
+        tests that check the page, in a real browser and under Pyodide, on every change.</li>
+    </ul>
+  </section>
+
+  <section aria-labelledby="h-yours">
+    <h2 id="h-yours">Run it yourself</h2>
+    <p>Factorial is a folder of plain files, so it runs on any web server. To build that folder from the code and
+      serve it on your own machine (with <a href="https://docs.astral.sh/uv/">uv</a> installed):</p>
+    <pre><code>git clone https://github.com/kgdunn/process-improve
+cd process-improve
+uv sync --all-extras
+uv run python scripts/build_web_app.py --out site --serve</code></pre>
+    <p>then open <code>http://localhost:8000</code>. The <code>site</code> folder can be copied to any web server:
+      nginx, Apache, Caddy, an internal server or GitHub Pages. It has to be served over HTTP, as Python's files are
+      fetched by the worker, so opening <code>index.html</code> from a disk does not work.
+      <a href="https://github.com/kgdunn/process-improve/tree/main/deploy/factorial"><code>deploy/factorial/</code></a>
+      holds the setup that serves factori.al, with deploys and roll-backs, as a worked example.</p>
+    <p>On a network without access to the internet, the browser has to fetch Pyodide, the two PyPI packages and
+      Plotly.js from inside it as well: copy them to a server there, and change their addresses in
+      <code>web/worker.js</code> (Pyodide and the PyPI packages) and <code>web/charts.js</code> (Plotly.js).</p>
+  </section>
+</main>
+<script type="module">
+  // Fill in the versions this copy loads, from the two files the app reads them from.
+  const read = async (path) => {
+    try {
+      const res = await fetch(path, { cache: "no-store" });
+      return res.ok ? await res.json() : null;
+    } catch {
+      return null;
+    }
+  };
+  const put = (id, text) => {
+    if (text) document.getElementById(id).textContent = text;
+  };
+  const [runtime, built] = await Promise.all([read("runtime.json"), read("wheels/manifest.json")]);
+  if (runtime) {
+    put("stack-pyodide", `Pyodide ${runtime.pyodide}`);
+    put("stack-packages", runtime.packages.join(", "));
+    put("stack-pypi", [...runtime.micropip, ...(built?.plotly ? [`plotly==${built.plotly}`] : ["plotly"])].join(", "));
+  }
+  const wheel = built?.wheel?.match(/process_improve-([^-]+)-/)?.[1];
+  put("stack-process-improve", wheel && `process-improve ${wheel}`);
+  put("stack-plotly-js", built?.plotly_js && `Plotly.js ${built.plotly_js}`);
+  if (built?.commit) {
+    const commit = document.getElementById("stack-commit");
+    const link = document.createElement("a");
+    link.href = `https://github.com/kgdunn/process-improve/commit/${built.commit}`;
+    link.textContent = built.commit.slice(0, 7);
+    commit.append("; this copy was built from commit ", link);
+  }
+</script>
+</body>
+</html>

@@ -314,7 +314,7 @@ def test_results_sent_back_by_link_fill_in_the_design_kept_here(open_context, bl
 
 
 def test_a_brief_not_yet_made_into_a_run_sheet_is_kept_as_a_draft(context, fresh_page):
-    """A reload, or a tab closed and opened again, finds the brief as the reader left it, in Plan."""
+    """A reload, or a tab closed and opened again, finds the brief as the reader left it, in Design."""
     name_response(fresh_page, "Purity", "%", goal="target", target=99.5)
     set_factors(fresh_page, FACTORS[:2])
     fresh_page.check('input[name="aim"][value="interactions"]')

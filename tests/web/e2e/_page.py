@@ -2,7 +2,7 @@
 
 Every helper takes a Playwright page. ``window.__pi`` is the harness's record of the page's
 calls to Python (``harness.js``); a helper that starts work waits until nothing is in flight
-and the status line has stopped saying it is busy. The page shows one phase at a time (Plan,
+and the status line has stopped saying it is busy. The page shows one phase at a time (Design,
 Run or Learn), so a helper that types or clicks first shows the phase that holds its element,
 as a reader would, by pressing the phase's tab.
 """

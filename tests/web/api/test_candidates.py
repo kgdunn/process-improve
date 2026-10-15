@@ -1,4 +1,4 @@
-"""The designs that can learn the brief: ``api_candidates`` makes and scores them in one call, for Plan.
+"""The designs that can learn the brief: ``api_candidates`` makes and scores them in one call, for Design.
 
 It is ``api_compare_plan`` and ``api_make_design`` for each design, then ``api_compare`` on
 them all, at the power for the response's smallest change worth finding. With five factors or

@@ -2,7 +2,7 @@
 
 Each design type the page offers is made from the plan; the run sheet must list exactly the
 runs Python made, in their randomised order, and the summary must say what the design is. The
-design Plan already made for the brief is taken as it is, not made again. A refusal reaches the
+design the Design tab already made for the brief is taken as it is, not made again. A refusal reaches the
 status line; the library's warnings are listed under the design.
 """
 
@@ -35,7 +35,7 @@ def test_each_design_reaches_the_run_sheet_as_python_made_it(blank_page, api, de
         assert request["design_type"] == design_type
         assert request["factors"] == [{key: f[key] for key in ("name", "low", "high", "units")} for f in FACTORS]
         made = api.ok("api_make_design", request)  # the same request again: the design is seeded
-    else:  # the design Plan picked for the brief, already made: taken as it is
+    else:  # the design the Design tab picked for the brief, already made: taken as it is
         listed = last_reply(page, "api_candidates")["result"]["made"]
         made = next(m["design"] for m in listed if m["design_type"] == design_type)
 
@@ -114,11 +114,11 @@ def test_a_categorical_factor_s_labels_reach_the_run_sheet_and_the_analysis(blan
 
 
 def test_the_design_plan_picked_is_taken_as_made_and_its_settings_make_another(blank_page):
-    """The run sheet of a design Plan made and scored is that design; a setting changed since makes it again."""
+    """The run sheet of a design the Design tab made and scored is that design; a changed setting makes it again."""
     page = blank_page
     picked = page.get_attribute('#candidates tbody tr[aria-selected="true"]', "data-design")
     generate(page)
-    assert calls(page, "api_make_design") == [], "Plan made it already"
+    assert calls(page, "api_make_design") == [], "Design made it already"
     listed = last_reply(page, "api_candidates")["result"]["made"]
     rows = next(m["design"]["rows"] for m in listed if m["design_type"] == picked)
     assert [r[:-1] for r in run_sheet(page)] == [[f"{v:g}" for v in r[:-1]] for r in rows]

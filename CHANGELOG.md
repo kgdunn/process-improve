@@ -13,6 +13,14 @@ those changes.
 
 ### Added
 
+- **How Factorial works: a page of the app (`about.html`), linked from its footer.** It says
+  what runs where (the page, a worker running Python compiled to WebAssembly, this browser's
+  storage, and links that carry a study after the `#`), what reaches a server (factori.al's
+  access log, its addresses cut to their network and kept for 90 days, and the public servers
+  Python is downloaded from), the versions this copy loads, read from the files it loads them
+  by, where to read the code, and how to build and serve the app yourself. Tests hold each of
+  these to the file it describes: the server's configuration, the build script and the
+  repository's layout.
 - **The reference catalogue, `process_improve.experiments.reference_catalogue`: designed
   experiments from published sources, and `reproduce_reference_catalogue()`, which recomputes
   every number they print.** The reference catalogue, bundled as JSON under
@@ -83,7 +91,7 @@ those changes.
 - **Factorial lists the designs that can learn the brief.** After the response come the factors
   that might change it and what the study is to learn: which factors matter (main effects),
   how they act together (interactions), where each factor's effect curves (main effects and
-  squares, the book's model) or the whole response surface. As the brief is typed, Plan makes
+  squares, the book's model) or the whole response surface. As the brief is typed, Design makes
   every design the page offers for it and scores them on that model, with each one's power to
   find the smallest change worth finding (`api_candidates`, one call for `api_compare_plan`, the
   designs and `api_compare`). The designs that can fit the model are listed by their runs, with
@@ -115,11 +123,11 @@ those changes.
 
 ### Changed
 
-- **Factorial is laid out as Plan, Run and Learn.** A bar that stays at the top names the study
+- **Factorial is laid out as Design, Run and Learn.** A bar that stays at the top names the study
   and its three phases, each tab marked with how far it has got (the plan changed since the run
   sheet, the results in, the fit's R²), above the status line. On a wide screen the brief (the
   response, the factors, the aim) has a column of its own beside the phase on show; on a phone
-  it opens Plan. A first visit starts a new study at its response, a returning reader picks up
+  it opens Design. A first visit starts a new study at its response, a returning reader picks up
   the last study, and a brief not yet made into a run sheet is kept as a draft in the browser.
   The worked example opens on request (Explore a worked example, or `?example=worked`), from the
   build at once, and Run it again computes it in the tab. Results are entered by default;
@@ -142,6 +150,9 @@ those changes.
   a change of 2 %"), and the run sheet's summary no longer names the analysis model, which
   Learn's Model box shows. The response surface's caption no longer calls the runs coded, since
   its axes are in the factors' own units. A browser test holds each screen to a budget of words.
+  The opening line now reads "Design, Run and Learn from your experiments. Nothing to install.
+  Data never leaves your machine.", as do the link card and the app's description, and the
+  footer says in one sentence that everything runs in the browser tab.
 - **Factorial says which factors are categorical.** Each factor in the brief has a Type,
   Numeric or Categorical: choosing Categorical gives it two labels to edit (A and B to
   start) and takes away its units, and choosing Numeric brings its numbers back. **+ Add

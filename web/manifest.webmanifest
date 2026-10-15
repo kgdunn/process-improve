@@ -1,7 +1,7 @@
 {
   "name": "Factorial: designed experiments in your browser",
   "short_name": "Factorial",
-  "description": "Design an experiment, run it, and analyse the results, with process-improve running inside the page. Nothing to install; your data stay on your machine.",
+  "description": "Design, Run and Learn from your experiments, with process-improve running inside the page. Nothing to install. Data never leaves your machine.",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",

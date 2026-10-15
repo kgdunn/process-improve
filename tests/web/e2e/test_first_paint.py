@@ -1,6 +1,6 @@
 """The first paint: a new study at its response, or the worked example the build computed, drawn while Python starts.
 
-A first visit opens a new study in Plan, its response asked for first. ``?example=worked``, or
+A first visit opens a new study in Design, its response asked for first. ``?example=worked``, or
 Explore a worked example, shows a whole study at once (its brief, the designs that can learn it,
 its run sheet with simulated results, and the analysis beside the true process) before Pyodide
 has loaded, and nothing that needs Python can be pressed until it has.

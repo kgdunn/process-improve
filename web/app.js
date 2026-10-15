@@ -1,7 +1,7 @@
 // The page: builds the form, talks to the Python worker, renders results.
 // All computation happens in worker.js; this file moves JSON around and draws it.
 //
-// A study runs in three phases. Plan: the brief (the response, the factors that might change
+// A study runs in three phases. Design: the brief (the response, the factors that might change
 // it, and what the study is to learn) and the designs that can learn it, made and scored as
 // the reader types. Run: the run sheet, its results typed in, read from a workbook, or
 // simulated for practice. Learn: the analysis. The page holds one study at a time: a design's
@@ -9,6 +9,8 @@
 // re-renders from that state, so the worked example, the live run, an uploaded workbook, a
 // saved study and a shared link all show the same way. Every study but the worked example is
 // saved in this browser as it changes, and a brief not yet made into a run sheet is kept as a draft.
+// In the code the first phase keeps its earlier name, plan: its tab and pane ids, and planKey,
+// the form's settings a run sheet was made from.
 
 import {
   coefficientFigure,
@@ -247,8 +249,8 @@ const PANES = { plan: "#step-plan", run: "#step-run", learn: "#step-analyse" };
 
 /**
  * Show a phase: its tab is marked, its pane shown, and on a narrow screen the brief goes with
- * Plan. Charts drawn while their pane was hidden are fitted to it, and the designs that can learn
- * the brief are made once Plan is on show.
+ * Design. Charts drawn while their pane was hidden are fitted to it, and the designs that can learn
+ * the brief are made once Design is on show.
  */
 function showPhase(phase) {
   state.phase = phase;
@@ -567,7 +569,7 @@ function showAim() {
 // are in the HTML, so the form is right from the first paint, before Python has loaded.
 let budgetEdited = false;
 let resolutionEdited = false;
-let designChosen = false; // the reader chose the design, or a study opened with one; else Plan picks it
+let designChosen = false; // the reader chose the design, or a study opened with one; else Design picks it
 
 /** What a design type is, as the design list says under it. */
 const designHint = (designType) =>
@@ -693,24 +695,24 @@ function planKey() {
 
 const planIsStale = () => Boolean(state.design) && state.planKey !== null && planKey() !== state.planKey;
 
-/** Say when the plan has changed since the run sheet was made, in Run and beside Plan's button, until it is made again. */
+/** Say when the plan has changed since the run sheet was made, in Run and beside Design's button, until it is made again. */
 function markStale() {
   const stale = planIsStale();
   $("#design-stale").hidden = !stale;
   $("#plan-note").hidden = !stale;
-  $("#plan-note").textContent = stale ? "The run sheet in Run is from an earlier plan." : "";
+  $("#plan-note").textContent = stale ? "The run sheet in Run is from an earlier design." : "";
   renderBadges();
 }
 
 /** Make the run sheet the plan describes; resolves to true when it is on the page. */
 async function generate() {
-  cancelCandidates(); // the reader has chosen: the designs can wait until Plan is shown again
+  cancelCandidates(); // the reader has chosen: the designs can wait until Design is shown again
   const key = planKey();
   const info = readResponseInfo();
   const factors = readFactors();
   const response = responseName(info.label, factors.map((f) => f.name));
   if (state.picked?.key === key) {
-    // The design Plan made for this plan already: the same runs, with the brief's words on them.
+    // The design the Design tab made for this plan already: the same runs, with the brief's words on them.
     const design = structuredClone(state.picked.design);
     const was = design.spec.response;
     design.columns = design.columns.map((c) => (c === was ? response : c));
@@ -837,7 +839,7 @@ function candidateKey(request = candidateRequest()) {
 const briefReady = () => factorCount() >= 2 && !factorsUnready;
 
 /**
- * Make and score the brief's designs a moment after its last change, while Plan is on show, unless
+ * Make and score the brief's designs a moment after its last change, while Design is on show, unless
  * they are on the page already. One search at a time: a brief changed during one is searched again
  * once it is back.
  */
@@ -852,7 +854,7 @@ function scheduleCandidates() {
   renderCandidates();
 }
 
-/** Stop a search that has not started: the reader made the run sheet, or left Plan. */
+/** Stop a search that has not started: the reader made the run sheet, or left Design. */
 function cancelCandidates() {
   clearTimeout(candidateTimer);
   candidateTimer = null;
@@ -882,7 +884,7 @@ async function findCandidates({ search = false } = {}) {
 }
 
 /**
- * The designs of the comparison on the page as Plan lists them, in a table to pick from. While the
+ * The designs of the comparison on the page as Design lists them, in a table to pick from. While the
  * brief's own designs are made, the last list stays, dimmed and not to be picked from.
  */
 function renderCandidates(busy = null) {
@@ -1002,7 +1004,7 @@ function markPicked() {
 }
 
 /**
- * Take a design from the comparison into the plan: its type and settings, as Plan made it. Making
+ * Take a design from the comparison into the plan: its type and settings, as Design made it. Making
  * the run sheet then uses the runs already made, unless the plan changes first.
  */
 function pickDesign(designType, { byReader = true } = {}) {
@@ -1118,7 +1120,7 @@ function renderComparison(result, made, notes) {
 function useDesign(item) {
   pickDesign(item.design_type);
   $("#compare-dialog").close();
-  setStatus(`The ${item.label} design is in the plan: make its run sheet when it is ready.`);
+  setStatus(`The ${item.label} design is chosen: make its run sheet when it is ready.`);
 }
 
 async function drawComparison(result, k) {
@@ -1757,7 +1759,7 @@ function showScenarioHint() {
 }
 
 // ---------------------------------------------------------------- a new study
-/** Clear the page for a new study: an empty brief, no run sheet and no analysis, in Plan, at the response. */
+/** Clear the page for a new study: an empty brief, no run sheet and no analysis, in Design, at the response. */
 function newStudy() {
   flushSave();
   cancelCandidates();
@@ -1855,7 +1857,7 @@ function readDraft() {
   return { response, factors, aim: AIMS.includes(draft.aim) ? draft.aim : null };
 }
 
-/** Put a draft brief back on the page, in Plan. */
+/** Put a draft brief back on the page, in Design. */
 function restoreDraft(draft) {
   const f = draft.response;
   $("#response").value = f.label;

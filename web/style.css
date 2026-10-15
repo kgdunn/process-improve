@@ -345,7 +345,7 @@ section { scroll-margin-top: 120px; }
 }
 
 /* The workspace: on a wide screen, the brief (the response, the factors, the aim) in a column of its own
-   beside the phase on show; on a narrow one, the brief opens Plan, and Run and Learn take the width. */
+   beside the phase on show; on a narrow one, the brief opens Design, and Run and Learn take the width. */
 .workspace { margin: 16px 0 0; }
 .card {
   background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 16px; margin: 0 0 16px;
@@ -360,7 +360,7 @@ section { scroll-margin-top: 120px; }
     overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin;
   }
   .brief .card:last-child { margin-bottom: 0; }
-  /* In Plan the brief is the form being filled in, so it scrolls with the page; beside Run and Learn it stays in view. */
+  /* In Design the brief is the form being filled in, so it scrolls with the page; beside Run and Learn it stays in view. */
   .workspace[data-phase="plan"] .brief { position: static; max-height: none; overflow: visible; }
 }
 @media (max-width: 1099px) {
@@ -504,3 +504,36 @@ details.python code { font-family: ui-monospace, "SFMono-Regular", Menlo, monosp
 .share input { width: 100%; font-family: ui-monospace, "SFMono-Regular", Menlo, monospace; font-size: 0.82rem; }
 .share .hint { margin: 6px 0 0; }
 
+
+/* How Factorial works (about.html): a page of prose, in a column a reader's eye can follow, with a
+   drawing of what runs where that stacks on a phone. */
+main.about { max-width: 780px; }
+.about h1 { margin: 8px 0 12px; font-size: 2rem; }
+.about h2 { margin: 0 0 8px; }
+.about li { margin: 6px 0; }
+.about pre { overflow-x: auto; padding: 10px 12px; border-radius: 6px; font-size: 0.86rem; background: var(--panel);
+  border: 1px solid var(--line); }
+.about code { font-family: ui-monospace, "SFMono-Regular", Menlo, monospace; font-size: 0.9em; }
+.about__back { margin: 0; }
+.about__back a { display: inline-flex; align-items: center; gap: 8px; text-decoration: none; font-weight: 600; }
+table.stack { width: 100%; }
+table.stack th, table.stack td { text-align: left; vertical-align: top; padding: 6px 10px; }
+table.stack th { width: 34%; font-weight: 600; }
+.flow { margin: 12px 0 16px; display: grid; gap: 6px; }
+.flow__sources { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.flow__box { display: grid; gap: 2px; padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px;
+  background: var(--panel); font-size: 0.88rem; }
+.flow__box span { color: var(--muted); }
+.flow__arrow { margin: 0; text-align: center; color: var(--muted); font-size: 0.82rem; }
+.flow__arrow::before { content: "\2193\00a0"; }
+.flow__arrow--side::before { content: "\2190\00a0"; }
+.flow__arrow--side::after { content: "\00a0\2192"; }
+.flow__tab { display: grid; gap: 8px; padding: 10px; border: 2px solid var(--accent); border-radius: 10px; }
+.flow__label { margin: 0; font-weight: 700; color: var(--accent); font-size: 0.9rem; }
+.flow__inside { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); align-items: center; gap: 8px; }
+.flow__box--store { border-style: dashed; }
+@media (max-width: 600px) {
+  .flow__sources, .flow__inside { grid-template-columns: 1fr; }
+  .flow__arrow--side::before { content: "\2191\00a0"; }
+  .flow__arrow--side::after { content: "\00a0\2193"; }
+}

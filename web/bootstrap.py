@@ -1671,7 +1671,7 @@ def _dressed(figure: dict, kind: str, spec: dict, pair: list[str]) -> dict:
 
 # --------------------------------------------------------------------------- comparing designs
 #: The options each design is compared with: the page's own defaults, so a design in the
-#: comparison is the one Plan would make. The CCD is face-centred, to keep its runs
+#: comparison is the one Design would make. The CCD is face-centred, to keep its runs
 #: inside the ranges the other designs are scored over.
 COMPARE_OPTIONS: dict[str, dict[str, Any]] = {
     "full_factorial": {"n_center_points": 3},

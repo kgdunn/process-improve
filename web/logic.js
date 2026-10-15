@@ -280,7 +280,7 @@ export function aimTerms(factors, aim) {
 export const SPARE_FOR_NOISE = 3;
 
 /**
- * The designs of a comparison as Plan lists them, sorted by their runs, those that can fit the model
+ * The designs of a comparison as Design lists them, sorted by their runs, those that can fit the model
  * first: each design's type, its short name, its runs, the runs left over to estimate the noise, and
  * its power for each kind of term the model has (null for a kind it lacks, or with no runs left over).
  * ``made`` is the comparison's designs in the order scored, each {design_type, label}.

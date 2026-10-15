@@ -203,7 +203,7 @@ def test_the_keyboard_opens_the_definition_of_the_box_it_reaches_and_a_screen_re
 
 
 def test_every_dotted_word_has_a_definition_its_control_describes(page):
-    """Each word marked in the worked example, in Plan, Run, Learn and the comparison, opens a definition."""
+    """Each word marked in the worked example, in Design, Run, Learn and the comparison, opens a definition."""
     undescribed = """() => [...document.querySelectorAll('.term')].filter((word) => {
         const control = word.matches('button') ? word : word.closest('button, a') ?? word.closest('label')?.control;
         const ids = (control?.getAttribute('aria-describedby') ?? '').split(' ').filter(Boolean);
