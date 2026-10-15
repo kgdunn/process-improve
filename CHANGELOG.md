@@ -132,9 +132,21 @@ those changes.
   The worked example opens on request (Explore a worked example, or `?example=worked`), from the
   build at once, and Run it again computes it in the tab. Results are entered by default;
   simulated ones are asked for under Practise with simulated results, and a new run sheet is
-  simulated again only while practising. Any change to the plan (the factors, the design or a
-  setting) marks the run sheet out of date until it is made again or the plan is put back. New
+  simulated again only while practising. Any change to the plan (the factors' levels, the design
+  or a setting) marks the run sheet out of date until it is made again or the plan is put back. New
   study clears the page, and Your designs is now Your studies.
+- **Factorial renames a factor everywhere when the reader leaves its box.** A factor's name and
+  units are labels, taken on Tab, Enter or a click elsewhere, and a run sheet already made takes
+  them without being made again: its runs, their order and their results stay, and Design does
+  not mark it changed. Python writes the new name into all it wrote with the old (the run sheet's
+  headings, the design's notes on its resolution, aliases and blocks, the factors outside their
+  ranges, and the process practice results come from), and the analysis is fitted again, so the
+  equations, coefficients, charts, Python and the study's title follow. Renaming a design gives
+  exactly what making it under the new names gives, which a test checks for every kind of note. A
+  name Python would refuse (another factor's, the results column's, Block on a blocked run sheet,
+  or not a variable name) is not taken: it stays marked under the table, both factors that share
+  a name are marked, and the old name stays everywhere until it is put right. Results sent back by
+  link still find a study whose factors were renamed since.
 - **Factorial says less, and defines its words on request.** Each screen keeps what only it
   can say (a warning, a fact about the study, a result) and leaves the rest to its headings,
   labels and tables. The running text a reader meets falls by more than half on every screen,

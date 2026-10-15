@@ -124,6 +124,26 @@ READS: dict[str, list[str]] = {
     "workbook": [
         "xlsx_base64: str",
     ],
+    "relabel": [
+        "spec.design_type: str",
+        "spec.response: str",
+        "spec.options: dict",
+        "spec.factors[].name: str",
+        "spec.factors[].low: number",
+        "spec.factors[].high: number",
+        "spec.factors[].units: str",
+        "columns[]: str",
+        "outside_range: list",
+        "facts.center_runs: int",
+        "facts.notes[]: str",
+        "simulation.label: str",
+        "simulation.sigma: number",
+        "simulation.seed: int",
+        "simulation.equation: str",
+        "simulation.inactive: list",
+        "simulation.truth[].term: str",
+        "simulation.truth[].coefficient: number",
+    ],
     "upload": [
         "spec.design_type: str",
         "spec.response: str",
@@ -189,6 +209,7 @@ ENTRY_POINTS = {
     "saturated analysis": "api_analyze_runs",
     "charts": "api_plots",
     "workbook": "api_workbook",
+    "relabel": "api_relabel",
     "upload": "api_read_workbook",
     "candidates": "api_candidates",
     "slow candidates": "api_candidates",
@@ -245,6 +266,12 @@ def reply(api, worked_example: dict[str, Any]) -> Callable[[str], dict]:
     def slow() -> dict:
         return {"factors": [{"name": n, "low": -1, "high": 1} for n in "ABCDE"], "model": "quadratic"}
 
+    def relabel() -> dict:
+        design = worked_example["design"]
+        sent = {**held, "facts": design["facts"], "outside_range": design["outside_range"]}
+        factors = [{**f, "name": f"{f['name']}_new"} for f in held["spec"]["factors"]]
+        return {"design": sent, "factors": factors, "simulation": simulated}
+
     requests: dict[str, Callable[[], dict]] = {
         "catalogue": dict,
         "design": lambda: worked_example["demo"]["design"],
@@ -253,6 +280,7 @@ def reply(api, worked_example: dict[str, Any]) -> Callable[[str], dict]:
         "saturated analysis": saturated,
         "charts": lambda: analysed,
         "workbook": lambda: analysed,
+        "relabel": relabel,
         "upload": upload,
         "candidates": lambda: {"factors": FACTORS, "model": "main_quadratic"},
         "slow candidates": slow,

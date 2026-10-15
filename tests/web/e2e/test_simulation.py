@@ -73,7 +73,11 @@ def test_the_true_process_names_the_factors_it_leaves_out(page):
 
 def test_a_new_design_is_simulated_from_the_same_process(page):
     """Results simulated for the old runs are simulated again for the new ones, over the factors as they are now."""
-    page.locator("#factors tbody tr").first.locator("[name=name]").fill("Temp")
+    first = page.locator("#factors tbody tr").first
+    first.locator("[name=name]").fill("Temp")
+    first.locator("[name=name]").press("Tab")
+    settled(page)
+    first.locator("[name=high]").fill("210")
     generate(page)
     fns = [c["fn"] for c in calls(page)]
     assert fns[-4:] == ["api_make_design", "api_simulate", "api_analyze_runs", "api_plots"]

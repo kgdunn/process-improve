@@ -48,6 +48,8 @@ import {
   numberOrNull,
   powerScale,
   pval,
+  renameTerms,
+  renaming,
   responseName,
   responseTitle,
   shownTheme,
@@ -344,6 +346,41 @@ describe("a factor's name", () => {
   test("is given, and is no other factor's", () => {
     assert.equal(nameProblem("  ", [], 3), "Factor 3 needs a name.");
     assert.equal(nameProblem("T", ["T", "P"]), "T: two factors cannot share a name.");
+  });
+
+  test("is not a column the run sheet has besides its factors, when it is renamed on one", () => {
+    const taken = ["Yield", "Block"];
+    assert.equal(nameProblem("Yield", [], 1, taken), "Yield: the run sheet has a Yield column already.");
+    assert.equal(nameProblem("Block", [], 1, taken), "Block: the run sheet has a Block column already.");
+    assert.equal(nameProblem("Block"), "", "without a run sheet to rename, Python takes it");
+  });
+});
+
+describe("renaming the factors of a run sheet", () => {
+  const made = [
+    { name: "T", low: 150, high: 200, units: "degC" },
+    { name: "Supplier", low: "old", high: "new", units: "" },
+  ];
+
+  test("maps each old name to its new one when only names and units change", () => {
+    const after = [{ ...made[0], name: "Temperature", units: "K" }, made[1]];
+    assert.deepEqual(renaming(made, after), { T: "Temperature", Supplier: "Supplier" });
+    assert.deepEqual(renaming(made, [{ ...made[0], units: "K" }, made[1]]), { T: "T", Supplier: "Supplier" });
+    const swapped = [{ ...made[0], name: "Supplier" }, { ...made[1], name: "T" }];
+    assert.deepEqual(renaming(made, swapped), { T: "Supplier", Supplier: "T" });
+  });
+
+  test("is no rename when the factors' number or a level changes, or nothing does", () => {
+    assert.equal(renaming(made, made.map((f) => ({ ...f }))), null);
+    assert.equal(renaming(made, [{ ...made[0], name: "Temp", high: 210 }, made[1]]), null);
+    assert.equal(renaming(made, [made[0], { ...made[1], name: "Vendor", high: "newer" }]), null);
+    assert.equal(renaming(made, [{ ...made[0], low: "150", high: "200" }, made[1]]), null, "a label is not a number");
+    assert.equal(renaming(made, [made[0]]), null);
+  });
+
+  test("renames the factors of chosen terms: main effects, interactions and squares", () => {
+    const terms = [["T"], ["T", "P"], ["T", "T"], ["F"]];
+    assert.deepEqual(renameTerms(terms, { T: "Temp", P: "Pres" }), [["Temp"], ["Temp", "Pres"], ["Temp", "Temp"], ["F"]]);
   });
 });
 

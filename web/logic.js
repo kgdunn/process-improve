@@ -210,15 +210,32 @@ const IDENTIFIER = /^[\p{ID_Start}_][\p{ID_Continue}]*$/u;
 
 /**
  * What a factor's name needs, in a sentence the page shows as the reader types; "" when it is ready.
- * The rules are those bootstrap.py applies: a variable name, unlike every other factor's.
+ * The rules are those bootstrap.py applies: a variable name, unlike every other factor's, and unlike
+ * ``taken``, the run sheet's other columns a factor renamed on it cannot take (its results, its blocks).
  */
-export function nameProblem(name, others = [], place = 1) {
+export function nameProblem(name, others = [], place = 1, taken = []) {
   const n = String(name ?? "").trim();
   if (!n) return `Factor ${place} needs a name.`;
   if (!IDENTIFIER.test(n)) return `${n}: a name is letters, digits and _, and starts with a letter, such as Temp_2.`;
   if (others.includes(n)) return `${n}: two factors cannot share a name.`;
+  if (taken.includes(n)) return `${n}: the run sheet has a ${n} column already.`;
   return "";
 }
+
+/**
+ * What the factor table renames, when that is all it changes: ``after`` holds the design's factors in
+ * the same places with the same levels, and only names or units differ. Returns each old name's new
+ * one, or null when the number of factors or a level differs, or when nothing does.
+ */
+export function renaming(before, after) {
+  const sameLevels = (f, i) => f.low === after[i].low && f.high === after[i].high;
+  if (before.length !== after.length || !before.every(sameLevels)) return null;
+  const relabelled = (f, i) => f.name !== after[i].name || (f.units ?? "") !== (after[i].units ?? "");
+  return before.some(relabelled) ? Object.fromEntries(before.map((f, i) => [f.name, after[i].name])) : null;
+}
+
+/** Chosen model terms, each a list of factor names, with the factors renamed as ``names`` maps them. */
+export const renameTerms = (terms, names) => terms.map((term) => term.map((name) => names[name] ?? name));
 
 /**
  * The response as the reader describes it, cleaned as bootstrap.py cleans it: the words trimmed and an

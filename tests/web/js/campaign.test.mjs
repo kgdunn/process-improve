@@ -289,6 +289,17 @@ describe("results that come back by link", () => {
     assert.equal(designKey(here.design), designKey(renamed.design));
   });
 
+  test("a factor renamed since does not make it another design, and a changed level does", () => {
+    const here = campaign();
+    const renamed = campaign();
+    renamed.design.spec.factors[0] = { name: "Temperature", low: 150, high: 200, units: "K" };
+    renamed.design.columns = ["Std order", "Run order", "Temperature", "Supplier", "y"];
+    assert.equal(designKey(here.design), designKey(renamed.design));
+    const moved = campaign();
+    moved.design.spec.factors[0] = { ...moved.design.spec.factors[0], high: 210 };
+    assert.notEqual(designKey(here.design), designKey(moved.design));
+  });
+
   test("a run without a result here takes the link's, and one with a result keeps it", () => {
     const here = { responses: [12.5, null, null, 14], sources: ["entered", null, null, "entered"] };
     const incoming = { responses: [12.5, 9.5, null, 15], sources: ["entered", "entered", null, "entered"] };

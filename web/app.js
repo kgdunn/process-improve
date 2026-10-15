@@ -25,6 +25,7 @@ import {
 } from "./charts.js";
 import {
   AXIAL_DISTANCE,
+  BLOCK,
   CAPTIONS,
   CATEGORICAL,
   CATEGORICAL_DESIGNS,
@@ -64,6 +65,8 @@ import {
   pickCandidate,
   powerScale,
   pval,
+  renameTerms,
+  renaming,
   responseName,
   responseProblems,
   responseTitle,
@@ -494,9 +497,11 @@ function showFactorProblems() {
   const all = factorRows();
   const rows = all.filter((tr) => !blankRow(tr));
   const names = rows.map((tr) => box(tr, "name").value.trim());
+  const taken = takenNames();
   let unready = false;
   const problems = rows.map((tr, i) => {
-    const named = nameProblem(names[i], names.slice(0, i), all.indexOf(tr) + 1);
+    const others = names.filter((_, j) => j !== i); // both factors that share a name are marked
+    const named = nameProblem(names[i], others, all.indexOf(tr) + 1, taken);
     const levels = levelProblem({ name: names[i], low: box(tr, "low").value, high: box(tr, "high").value }, typeOf(tr));
     unready ||= Boolean(named || levels);
     const untouched = !tr.dataset.visited && !box(tr, "low").value.trim() && !box(tr, "high").value.trim();
@@ -508,7 +513,7 @@ function showFactorProblems() {
   for (const tr of all.filter(blankRow)) {
     for (const name of ["name", "low", "high"]) box(tr, name).removeAttribute("aria-invalid");
   }
-  const said = problems.filter(Boolean);
+  const said = [...new Set(problems.filter(Boolean))];
   $("#factor-problems").textContent = said.join(" ");
   $("#factor-problems").hidden = said.length === 0;
   factorsUnready = unready;
@@ -530,6 +535,17 @@ function readFactors() {
 
 const factorCount = () => readFactors().length;
 
+/**
+ * The run sheet's columns besides its factors, which a factor renamed on it cannot take: its results
+ * and its blocks. None while the factors differ from the run sheet's by more than their labels: a run
+ * sheet made again names its results afresh.
+ */
+function takenNames() {
+  const d = state.design;
+  if (!d || !renaming(d.spec.factors, readFactors())) return [];
+  return [d.spec.response, ...(d.columns.includes(BLOCK) ? [BLOCK] : [])];
+}
+
 /** The factor table changed: the design settings, the aim, the designs that can learn it and the draft follow. */
 function factorsChanged() {
   if (!aimChosen) setAim(defaultAim(factorCount()));
@@ -537,6 +553,67 @@ function factorsChanged() {
   scheduleCandidates();
   renderStudyBar();
   saveDraft();
+}
+
+/** Each rename waits for the one before it, and starts from the run sheet that one left. */
+let renamed = Promise.resolve();
+
+/**
+ * The reader left a factor's name or units box. The brief takes the new label, and so does a run
+ * sheet made with these factors' levels: it keeps its runs and their results, and Python writes the
+ * new label into all it wrote with the old (the run sheet's columns, the design's notes, the process
+ * practice results come from). A name Python would refuse is not taken: it stays marked under the
+ * table, and the old name stays everywhere until it is put right.
+ */
+function factorRenamed() {
+  factorsChanged();
+  renamed = renamed.then(renameRunSheet).catch(reportError); // a rename that fails is reported, and the next still runs
+}
+
+/** What Python needs of a design to rename its factors: the runs as the page holds them, and their notes. */
+const renameRequest = ({ spec, columns, rows, facts, outside_range: outside }) => ({
+  spec,
+  columns,
+  rows,
+  facts: facts ?? null,
+  outside_range: outside ?? [],
+});
+
+async function renameRunSheet() {
+  const design = state.design;
+  const factors = readFactors();
+  const names = design && !factorsUnready ? renaming(design.spec.factors, factors) : null;
+  if (!names) return;
+  const reply = await call("api_relabel", { design: renameRequest(design), factors, simulation: state.simulation });
+  if (state.design !== design) return; // another run sheet took its place meanwhile
+  if (!reply.ok) {
+    setStatus(reply.error, "error");
+    return;
+  }
+  showRenamed(reply.result, names);
+}
+
+/**
+ * Put the renamed run sheet on the page with all that shows its factors: the summary and its notes,
+ * the run sheet, the true process, the ticked terms, the Python, the study's title, and the analysis
+ * and its charts, fitted again under the new names.
+ */
+function showRenamed({ spec, simulation, ...design }, names) {
+  const titled = state.campaign && state.campaign.title === titleOf(state.design.spec);
+  // Python renames the factors, and the terms a workbook was analysed with; the rest of the spec stays the page's.
+  const terms = spec.analysis_model ? { analysis_model: spec.analysis_model } : {};
+  state.design = { ...state.design, ...design, spec: { ...state.design.spec, factors: spec.factors, ...terms } };
+  if (simulation) state.simulation = simulation;
+  if (titled) state.campaign.title = titleOf(state.design.spec);
+  if ($("#model").value === CHOSEN_TERMS) renderTermList(renameTerms(tickedTerms(), names));
+  renderDesign();
+  renderRuns();
+  renderTruth();
+  showPython("design", designCode(state.design.spec));
+  showResultsCode();
+  renderStudyBar();
+  scheduleSave();
+  if (state.responses.some((v) => v !== null)) analyseRuns();
 }
 
 // ---------------------------------------------------------------- what to learn
@@ -666,17 +743,23 @@ function refreshDesign() {
     hint.replaceChildren(`${option.dataset.hint} `, link(BOOK_PAGES[option.value], "More in the book"));
   }
   hint.classList.toggle("error", option.disabled);
-  const unready = showFactorProblems();
-  $("#generate").disabled = !pythonReady || option.disabled || unready || k < 2;
+  showMakeable(showFactorProblems());
   $("#design-card").hidden = k < 2 && !state.design;
   showAim();
   markPicked();
   markStale();
 }
 
+/** Let the run sheet be made only once Python has started, the design takes these factors, and each is ready. */
+function showMakeable(unready) {
+  const fits = !$("#design-type").selectedOptions[0].disabled; // the design takes this many factors, of these kinds
+  $("#generate").disabled = !pythonReady || !fits || unready || factorCount() < 2;
+}
+
 /**
- * The plan as the form holds it now: the factors, the design and the settings it takes. The run
- * sheet on the page is out of date when this differs from the plan it was made from.
+ * The plan as the form holds it now: the factors' levels, the design and the settings it takes. The
+ * run sheet on the page is out of date when this differs from the plan it was made from. A factor's
+ * name and units are labels, not part of the plan: a run sheet takes them as they change.
  */
 function planKey() {
   const option = $("#design-type").selectedOptions[0];
@@ -690,7 +773,8 @@ function planKey() {
     model_type: $("#model_type").value,
   };
   const taken = option.dataset.options.split(" ").map((key) => [key, values[key]]);
-  return JSON.stringify([option.value, readFactors(), Object.fromEntries(taken)]);
+  const levels = readFactors().map((f) => [f.low, f.high]);
+  return JSON.stringify([option.value, levels, Object.fromEntries(taken)]);
 }
 
 const planIsStale = () => Boolean(state.design) && state.planKey !== null && planKey() !== state.planKey;
@@ -711,14 +795,15 @@ async function generate() {
   const info = readResponseInfo();
   const factors = readFactors();
   const response = responseName(info.label, factors.map((f) => f.name));
-  if (state.picked?.key === key) {
+  const picked = state.picked?.key === key ? state.picked : null;
+  const design = picked && (await pickedDesign(picked, factors));
+  if (design) {
     // The design the Design tab made for this plan already: the same runs, with the brief's words on them.
-    const design = structuredClone(state.picked.design);
     const was = design.spec.response;
     design.columns = design.columns.map((c) => (c === was ? response : c));
     design.spec = { ...design.spec, factors, response, response_info: info, aim: currentAim() };
     setStatus(`${design.n_runs} runs generated.`);
-    madeRunSheet(design, state.picked.warnings ?? [], key);
+    madeRunSheet(design, picked.warnings ?? [], key);
     return true;
   }
   const button = $("#generate");
@@ -748,6 +833,18 @@ async function generate() {
   setStatus(`${reply.result.n_runs} runs generated.`);
   madeRunSheet(reply.result, reply.warnings, key);
   return true;
+}
+
+/**
+ * The design the Design tab made for this plan, with the factors' names and units the brief has now:
+ * renamed by Python if they changed since. Null if Python refuses the names on it (one is its results
+ * column's name): the run sheet is then made afresh, with its results named to suit.
+ */
+async function pickedDesign(picked, factors) {
+  const design = structuredClone(picked.design);
+  if (!renaming(design.spec.factors, factors)) return design;
+  const reply = await call("api_relabel", { design: renameRequest(design), factors });
+  return reply.ok ? { ...design, ...reply.result } : null;
 }
 
 /** A run sheet made from the plan ``key``: it is the reader's study now, shown in Run. */
@@ -2401,7 +2498,21 @@ for (const id of ["#response", "#response-units", "#response-target", "#response
   $(id).addEventListener("input", responseChanged);
 }
 $("#goal").addEventListener("change", responseChanged);
-$("#factors").addEventListener("input", factorsChanged); // a label typed for a level makes the factor categorical
+// A factor's name and units are labels, taken when the reader leaves the box (Tab, Enter or a click elsewhere), so a
+// name half typed reaches no run sheet, note or chart; what it still needs is said as it is typed. Its levels and type
+// take effect at once: a label typed for a level makes the factor categorical.
+const labelBox = (target) => target.matches('[name="name"], [name="units"]');
+$("#factors").addEventListener("input", (e) => {
+  if (labelBox(e.target)) {
+    showMakeable(showFactorProblems());
+    saveDraft();
+  } else {
+    factorsChanged();
+  }
+});
+$("#factors").addEventListener("change", (e) => {
+  if (labelBox(e.target)) factorRenamed();
+});
 $("#add-factor").onclick = () => {
   box(addFactor(), "name").focus();
   factorsChanged();

@@ -83,6 +83,7 @@ def set_factors(page: Any, factors: list[dict]) -> None:  # noqa: ANN401
             box = row.locator(f"[name={key}]")
             if box.is_enabled():  # two labels make a factor categorical, and take away its units
                 box.fill(str(factor.get(key, "")))
+    page.evaluate("document.activeElement.blur()")  # a name or units is taken when the reader leaves its box
 
 
 def name_response(page: Any, label: str, units: str = "", **known: object) -> None:  # noqa: ANN401

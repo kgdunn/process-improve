@@ -395,15 +395,20 @@ export function progress(responses) {
 }
 
 // ---------------------------------------------------------------- results coming back
-/** What makes two campaigns the same design: its type, factors, response and runs, whatever their results. */
+/**
+ * What makes two campaigns the same design: its type, its factors' levels, its response and its runs,
+ * whatever their results. A factor's name and units are labels, which the reader can change on a run
+ * sheet already made, so results sent back from a copy shared before a rename still find their design.
+ */
 export function designKey(design) {
   const { spec, columns, rows } = design;
   const at = columns.indexOf(spec.response);
+  const place = new Map(spec.factors.map((f, i) => [f.name, i]));
   return JSON.stringify([
     spec.design_type,
-    spec.factors.map((f) => [f.name, f.low, f.high, f.units ?? ""]),
+    spec.factors.map((f) => [f.low, f.high]),
     spec.response,
-    columns,
+    columns.map((c) => place.get(c) ?? c),
     rows.map((row) => row.filter((_, i) => i !== at)),
   ]);
 }
