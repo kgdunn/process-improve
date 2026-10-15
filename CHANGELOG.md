@@ -13,33 +13,39 @@ those changes.
 
 ### Added
 
-- **The reference catalogue holds chapters 1 to 3 of Schmidt and Launsby, *Understanding
-  Industrial Designed Experiments* (4th edition).** Bond strengths of two agents whose batches of
-  raw material are confounded with them, a vehicle's twenty-week mileage record with its Cpk, the
-  subgroup averages of a control chart, the gas mileage 2^(4-1) fraction with three weekly
-  readings a run, the nickel plating 2^2 with five readings a run, a 2 x 3 factorial without
-  interaction, the aircraft painting 2^(4-1) fraction analysed for its average and its standard
-  deviation, an L12 and an L18 screening design with four readings a run, a 3^2 factorial, a
-  two-factor central composite design fitted whole and with a row missing, and Problem 2's data;
-  and chapter 3's design matrices, each compared with the design the library makes: two-level
+- **The reference catalogue holds chapters 1 to 4 of Schmidt and Launsby, *Understanding
+  Industrial Designed Experiments* (4th edition).** Chapters 1 and 2: bond strengths confounded
+  with batches, a twenty-week mileage record with its Cpk, a control chart's subgroup averages,
+  the gas mileage and aircraft painting 2^(4-1) fractions analysed for their averages and standard
+  deviations, the nickel plating 2^2, a 2 x 3 factorial, L12 and L18 screening designs, a 3^2
+  factorial, and a two-factor central composite design fitted whole and with a row missing.
+  Chapter 3: its design matrices, each compared with the design the library makes (two-level
   fractions with their generators, defining relations, aliases and resolutions, a foldover, the
-  Plackett-Burman 8- and 12-run designs, a Latin square, Box-Behnken and central composite
-  designs, the Taguchi L4 to L27 arrays and the run counts of Tables 3.21, 3.24 and 3.26: 687
-  printed numbers, 645 checked. Twenty-seven are recorded as not reproducing, each explained:
-  seventeen run averages or standard deviations that do not follow from their printed readings
-  (twelve of them in one table), five predictions and settings worked from the book's rounded
-  coefficients, four summary numbers, and the L18: the library stores it (as L18(6^1 3^6), whose
-  six-level column is the book's two-level and first three-level column) but its Taguchi design
-  takes 36 runs for one two-level and seven three-level factors. A catalogue check can now analyse
-  each run's mean or standard deviation of its readings, or every reading as an observation of
-  its own (`summary`), solve for the setting of a factor at which a fitted line or parabola reaches
-  a target (`target_setting`), compute a Cpk with `calculate_cpk` (`capability`), read a term's
-  tolerance as one over its VIF (`reciprocal`), check the F ratio of the whole regression and its
-  p-value (`f_regression`, `f_regression_p`), give a number printed as the difference of two
-  rounded averages the rounding of both (`of_rounded`), compare a printed design matrix with the
-  library's design or stored orthogonal array whatever the run order, and if need be the order and
-  signs of its columns (`same_runs`), check that a printed matrix obeys its printed generators
-  (`generator_holds`), and sum a product of columns (`dot_product`).
+  Plackett-Burman 8- and 12-run designs, a Latin square, Box-Behnken and central composite designs
+  and the Taguchi L4 to L27 arrays) and the run counts of Tables 3.21, 3.24 and 3.26. Chapter 4:
+  one- and two-factor analyses of variance, a replicated 2^3 with a setting that reaches a target,
+  simple, polynomial and multiple regression with MYSTAT's tables (coefficients, standard errors,
+  tolerances, t, p, R, R², the analysis of variance and lack of fit) and prediction intervals, a
+  Box-Behnken design fitted in actual and in coded units, and two groups compared four ways; and
+  the data of the problems. 1198 printed numbers, 1095 checked. Eighty-three are recorded as not
+  reproducing, each explained: most come from the book's rounding (run averages and standard
+  deviations that do not follow from their readings, squares of rounded effects, a mean rounded
+  to 2.792 that takes .022 from a total sum of squares and every number worked from it, and
+  values cut rather than rounded), two from a lost digit in MYSTAT's standard error, and the L18:
+  the library stores it (as L18(6^1 3^6)) but its Taguchi design takes 36 runs for one two-level
+  and seven three-level factors. Five tolerances are not recomputed: `evaluate_design` takes the
+  rank of X'X, whose condition number in the factors' own units squares X's, and calls that full
+  rank model singular. A catalogue check can now analyse each run's mean or standard deviation of
+  its readings, or every reading as an observation of its own (`summary`), solve for the setting
+  of a factor at which a fitted line or parabola reaches a target (`target_setting`), compute a
+  Cpk with `calculate_cpk` (`capability`), read a term's tolerance as one over its VIF and its
+  squared correlation with the others as one less that (`reciprocal`, `complement`), read a limit
+  of a prediction's interval (`bound`), check Multiple R and the F ratio of the whole regression
+  with its p-value (`multiple_r`, `f_regression`, `f_regression_p`), give a number printed as the
+  difference of two rounded averages the rounding of both (`of_rounded`), compare a printed
+  design matrix with the library's design or stored orthogonal array whatever the run order, and
+  if need be the order and signs of its columns (`same_runs`), check that a printed matrix obeys
+  its printed generators (`generator_holds`), and sum a product of columns (`dot_product`).
 
 ### Fixed
 

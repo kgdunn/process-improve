@@ -409,6 +409,55 @@ def test_a_design_of_three_level_factors_is_made_from_its_levels():
     assert _design_property({"property": "n_runs", "design": mixed}) == 18
 
 
+def _line(ys):
+    """Return a regression entry: y against x in its own units, x at 1, 2, 3, 4."""
+    rows = [[x, y] for x, y in zip((1, 2, 3, 4), ys, strict=True)]
+    return {
+        "name": "line",
+        "factors": [{"name": "x", "type": "numeric", "low": 1, "high": 4, "coding": "none"}],
+        "responses": [{"name": "y"}],
+        "runs": {"columns": ["x", "y"], "rows": rows, "coded": False},
+    }
+
+
+def test_a_prediction_interval_limit_and_the_multiple_correlation_are_read_from_the_fit():
+    """The interval is symmetric about the prediction; R is the square root of R², as a source prints Multiple R."""
+    entry = _line([1.0, 2.5, 2.5, 4.0])  # y = 1 x exactly at the ends, R² = 0.9
+    fits = reference_catalogue._Fits()
+    check = {"kind": "prediction", "model": "x", "point": {"x": 2.5}}
+    out = fits(entry, check)
+    middle, low, high = (
+        reference_catalogue._prediction(out, {**check, "bound": b}, entry) for b in ("predicted", "pi_low", "pi_high")
+    )
+    assert middle == pytest.approx(2.5)
+    assert low < middle
+    assert middle - low == pytest.approx(high - middle)
+    r = reference_catalogue._reproduce(entry, {"value": "0.949"}, {"kind": "multiple_r", "model": "x"}, fits)
+    assert r == ("0.948683", True)
+
+
+def test_the_squared_correlation_of_a_term_with_the_others_is_one_less_one_over_its_vif():
+    """1, 2, 3 and their squares are 97.96% collinear; -1, 0, +1 and theirs not at all."""
+    from process_improve.experiments.reference_catalogue import _design_metric
+
+    def entry(levels, coding):
+        factor = {"name": "A", "type": "numeric", "low": min(levels), "high": max(levels), **coding}
+        rows = [[v] for v in levels for _ in range(2)]
+        return {"factors": [factor], "responses": [], "runs": {"columns": ["A"], "rows": rows, "coded": False}}
+
+    check = {"metric": "vif", "model": "A + I(A ** 2)", "key": "A", "reciprocal": True, "complement": True}
+    assert _design_metric(entry([1, 2, 3], {"coding": "none"}), check) == pytest.approx(0.979592, abs=1e-6)
+    assert _design_metric(entry([-1, 0, 1], {}), check) == pytest.approx(0, abs=1e-12)
+
+
+def test_a_term_with_a_squared_factor_takes_the_library_name():
+    from process_improve.experiments.reference_catalogue import _library_term
+
+    assert _library_term("x1²·x2") == "I(x1 ** 2):x2"
+    assert _library_term("A·B") == "A:B"
+    assert _library_term("C²") == "I(C ** 2)"
+
+
 def test_a_variance_component_is_read_from_the_library_reml_fit():
     """Balanced, REML gives the analysis-of-variance estimates: the pooled variance within groups, 1.25, and between."""
     from process_improve.experiments.reference_catalogue import _variance_component

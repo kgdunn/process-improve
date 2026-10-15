@@ -325,13 +325,15 @@ class _Fits:
 
 
 def _library_term(term: str) -> str:
-    """Return the library's name for a term written A, A·B, A² or Intercept."""
+    """Return the library's name for a term written A, A·B, A², A²·B or Intercept."""
     if term == "Intercept":
         return term
-    squared = re.fullmatch(r"(\w+)²", term)
-    if squared:
-        return f"I({squared.group(1)} ** 2)"
-    return ":".join(term.split("·"))
+
+    def part(name: str) -> str:
+        squared = re.fullmatch(r"(\w+)²", name)
+        return f"I({squared.group(1)} ** 2)" if squared else name
+
+    return ":".join(part(name) for name in term.split("·"))
 
 
 def _coefficient_row(out: dict, term: str) -> dict:
@@ -402,14 +404,18 @@ def _lenth(out: dict, key: str, check: dict) -> float:
 
 
 def _prediction(out: dict, check: dict, experiment: dict) -> float:
-    """Return the model's prediction at a point in coded units, as the library predicts new runs."""
+    """Return the model's prediction at a point in coded units, as the library predicts new runs.
+
+    ``check["bound"]`` reads a limit of its 95% interval instead: ``"pi_low"`` or ``"pi_high"`` for
+    a new observation, ``"ci_low"`` or ``"ci_high"`` for the mean.
+    """
     point = pd.DataFrame([check["point"]])[[f["name"] for f in experiment["factors"]]]
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
         found = analyze_experiment(
             out["settings"], out["y"], model=check["model"], analysis_type="prediction", new_points=point
         )
-    return float(found["predictions"][0]["predicted"])
+    return float(found["predictions"][0][check.get("bound", "predicted")])
 
 
 def _target_setting(out: dict, check: dict, experiment: dict) -> float:
@@ -545,6 +551,7 @@ _FIT_KINDS: dict[str, Callable[[dict, dict, dict], float]] = {
     "variance": lambda out, _c, _e: float(out["y"].var(ddof=1)),
     "n_runs": lambda out, _c, _e: float(len(out["y"])),
     "r_squared": lambda out, _c, _e: out["model_summary"]["r_squared"],
+    "multiple_r": lambda out, _c, _e: out["model_summary"]["r_squared"] ** 0.5,
     "r_squared_adj": lambda out, _c, _e: out["model_summary"]["r_squared_adj"],
     "r_squared_pred": lambda out, _c, _e: out["model_summary"]["r_squared_pred"],
     "residual_df": lambda out, _c, _e: out["model_summary"]["df_residual"],
@@ -845,7 +852,8 @@ def _design_metric(experiment: dict, check: dict) -> float:
     for ``check["model"]`` with ``check["options"]``; ``check["key"]`` reads into its result, step by
     step (``"correlation"`` then ``"max_abs_r"``), where ``max``, ``min``, ``mean`` and ``len`` reduce
     a dict's values or a list. ``"reciprocal": true`` returns one over the number read, as a source
-    prints a term's tolerance, one over its variance inflation factor.
+    prints a term's tolerance, one over its variance inflation factor; ``"complement": true`` then
+    returns one less it, as the squared multiple correlation of a term with the others, 1 - 1/VIF.
     """
     if check.get("design"):
         design: Any = _made(json.dumps(check["design"], sort_keys=True))
@@ -857,7 +865,8 @@ def _design_metric(experiment: dict, check: dict) -> float:
             design, model=check.get("model"), metric=check["metric"], **check.get("options", {})
         )
     value = _read(found[check["metric"]], check.get("key"))
-    return 1 / value if check.get("reciprocal") else value
+    value = 1 / value if check.get("reciprocal") else value
+    return 1 - value if check.get("complement") else value
 
 
 def _read(found: Any, key: str | None) -> float:  # noqa: ANN401 - a library result: a number, dict or list
