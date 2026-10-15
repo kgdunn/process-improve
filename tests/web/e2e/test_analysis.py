@@ -7,7 +7,19 @@ give a lack-of-fit test; a model the design cannot fit is refused in a sentence.
 
 from __future__ import annotations
 
-from tests.web.e2e._page import calls, choose, generate, headers, practise, settled, status, type_results
+import re
+
+from tests.web.e2e._page import (
+    calls,
+    choose,
+    definition,
+    generate,
+    headers,
+    practise,
+    settled,
+    status,
+    type_results,
+)
 
 
 def coefficient_rows(page) -> list[list[str]]:
@@ -29,7 +41,8 @@ def test_each_estimate_stands_beside_its_true_value(page, first_paint):
     rows = coefficient_rows(page)
     assert [row[0] for row in rows] == [c["label"] for c in analysis["coefficients"]]
     assert [float(row[-1]) for row in rows] == [c["true_value"] for c in analysis["coefficients"]]
-    assert "The true value is what the coefficient estimates" in page.text_content("#analysis")
+    shown = definition(page, '#analysis table th .term[data-term="true-value"]')
+    assert shown.startswith("What the coefficient estimates for the process the results were simulated from")
 
 
 def test_results_typed_in_have_no_true_values(blank_page):
@@ -51,8 +64,8 @@ def test_a_saturated_two_level_design_is_judged_with_lenth_s_method(blank_page):
     type_results(page, {0: 12.1, 1: 15.4, 2: 9.8, 3: 14.0})
     text = page.text_content("#analysis")
     assert "Effects, judged with Lenth's method" in text
-    assert "Pseudo standard error PSE = " in text
-    assert "Each effect is twice its coefficient" in text
+    assert re.search(r"PSE = [-\d.]+; ME = [-\d.]+; SME = [-\d.]+\.", text)
+    assert definition(page, '#analysis h3 .term[data-term="effect"]').endswith("twice its coefficient.")
     assert "Predicted R² cannot be computed: at least one run cannot be predicted from the others" in text
     lenth = page.locator("#analysis table").nth(1)
     assert lenth.locator("thead th").all_text_contents() == ["Term", "Effect", "Beyond ME", "Beyond SME"]
@@ -131,7 +144,6 @@ def test_a_design_that_can_fit_the_aim_is_analysed_for_it(blank_page):
     generate(page, design_type="dsd")
     assert page.input_value("#model") == "terms"
     assert ticked(page) == ["T", "P", "F", "T²", "P²", "F²"]
-    assert "analysed with the terms T, P, F, T², P² and F²" in page.text_content("#design-summary p")
     practise(page)
     assert [row[0] for row in coefficient_rows(page)] == ["Intercept", "T", "P", "F", "T²", "P²", "F²"]
 
@@ -140,4 +152,3 @@ def test_a_design_that_cannot_fit_the_aim_is_analysed_as_designed(blank_page):
     page = blank_page
     generate(page, design_type="fractional_factorial")
     assert page.input_value("#model") == "", "a two-level design cannot tell the squares apart"
-    assert "analysed with the main effects model" in page.text_content("#design-summary p")

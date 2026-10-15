@@ -69,10 +69,7 @@ DESIGNS: dict[str, dict[str, Any]] = {
     },
     "fractional_factorial": {
         "label": "Fractional factorial (2-level)",
-        "hint": (
-            "A fraction of the full factorial. Its resolution says what is aliased: at III, main effects "
-            "with two-factor interactions; at IV, two-factor interactions with each other; at V, neither."
-        ),
+        "hint": "A fraction of the full factorial; its resolution says what is aliased with what.",
         "model": "main_effects",
         "options": ["n_center_points", "resolution", "n_replicates", "n_blocks"],
         "min_factors": 3,
@@ -91,10 +88,7 @@ DESIGNS: dict[str, dict[str, Any]] = {
     },
     "dsd": {
         "label": "Definitive screening (DSD)",
-        "hint": (
-            "Three levels in 2k+1 runs (2k+3 for odd k), one of them at the center, plus any further center "
-            "runs; main effects clear of interactions and quadratics."
-        ),
+        "hint": "Three levels in 2k+1 runs (2k+3 for odd k); main effects clear of interactions and quadratics.",
         "model": "main_effects",
         "options": ["n_center_points", "n_replicates", "n_blocks"],
         "min_factors": 3,
@@ -748,9 +742,7 @@ def _design_facts(result: Any, coded: np.ndarray, names: list[str], kwargs: dict
     groups = _aliased_groups(coded, names)
     notes = []
     if result.resolution:
-        generators = [_spaced(g, names) for g in result.generators or []]
-        label = "generator" if len(generators) == 1 else "generators"
-        notes.append(f"Resolution {ROMAN.get(result.resolution, result.resolution)}, {label} {', '.join(generators)}.")
+        notes.append(_resolution_sentence(result.resolution, [_spaced(g, names) for g in result.generators or []]))
     notes.append(_aliasing_sentence(groups))
     replicates = kwargs.get("n_replicates", 1)
     if replicates > 1:
@@ -808,6 +800,12 @@ def _aliased_groups(coded: np.ndarray, names: list[str]) -> list[list[str]]:
         if len(members) > 1:
             groups.append([labels[varying[m]] for m in members])
     return groups
+
+
+def _resolution_sentence(resolution: int, generators: list[str]) -> str:
+    """Say a fraction's resolution and the generators that make it, each written with its factors apart."""
+    label = "generator" if len(generators) == 1 else "generators"
+    return f"Resolution {ROMAN.get(resolution, resolution)}, {label} {', '.join(generators)}."
 
 
 def _aliasing_sentence(groups: list[list[str]]) -> str:
@@ -1675,9 +1673,119 @@ def _dressed(figure: dict, kind: str, spec: dict, pair: list[str]) -> dict:
     return figure
 
 
+# --------------------------------------------------------------------------- renaming the factors
+def relabel(request: dict) -> dict:
+    """Rename a run sheet's factors and their units, keeping its runs and their results.
+
+    A factor's name and units are labels, so the runs stay as they were made. ``factors`` are
+    the design's factors in the same places with the same levels; only their names and units may
+    differ, and each new name must be a variable name the run sheet does not use already.
+    Everything this module wrote with the old names is written again with the new: the run
+    sheet's columns, the design's facts and notes, the factors outside their ranges and, when
+    ``simulation`` is given, the process the results were simulated from, with its equation and
+    the factors it leaves out. Renaming a design this way gives what making it under the new
+    names would have, which ``tests/web/api/test_relabel.py`` checks for each kind of note.
+    """
+    design = request.get("design") or {}
+    spec = _checked_spec(design.get("spec") or {})
+    renamed = _factors({"factors": request.get("factors")})
+    before = spec["factors"]
+    after = [_factor_spec(f) for f in renamed]
+    levels = [(f["low"], f["high"]) for f in before]
+    if [(f["low"], f["high"]) for f in after] != levels:
+        raise ValueError("Only the factors' names and units can change without making the run sheet again.")
+    columns = [str(c) for c in design.get("columns") or []]
+    for taken in (spec["response"], *([BLOCK] if BLOCK in columns else [])):
+        if taken in {f.name for f in renamed}:
+            raise ValueError(f"A factor cannot be named {taken}: the run sheet has a {taken} column.")
+    names = {old["name"]: new["name"] for old, new in zip(before, after, strict=True)}
+    spec = {**spec, "factors": after}
+    if isinstance(chosen := spec.get("analysis_model"), dict):  # the terms a workbook was last analysed with
+        spec["analysis_model"] = {"terms": [[names.get(n, n) for n in term] for term in chosen["terms"]]}
+    reply: dict[str, Any] = {
+        "spec": spec,
+        "columns": [names.get(c, c) for c in columns],
+        "outside_range": [names.get(n, n) for n in design.get("outside_range") or []],
+    }
+    if design.get("facts"):
+        coded = _coded(_runs_frame({**design, "columns": reply["columns"]}, spec), after).to_numpy(dtype=float)
+        reply["facts"] = _relabelled_facts(design["facts"], coded, names)
+    if simulation := request.get("simulation"):
+        truth = [
+            {"term": term, "label": _pretty(term), "coefficient": t["coefficient"]}
+            for t in simulation.get("truth") or []
+            for term in [_renamed_term(str(t["term"]), names)]
+        ]
+        reply["simulation"] = {
+            **simulation,
+            "truth": truth,
+            "equation": _equation(_response_words(spec)[0], truth),
+            "inactive": [names.get(n, n) for n in simulation.get("inactive") or []],
+        }
+    return reply
+
+
+def _renamed_term(term: str, names: dict[str, str]) -> str:
+    """Rename the factors of a term as the analysis names it: ``T``, ``T:P`` or ``I(T ** 2)``."""
+    if square := re.fullmatch(r"I\((\w+) \*\* 2\)", term):
+        return f"I({names.get(square[1], square[1])} ** 2)"
+    return ":".join(names.get(part, part) for part in term.split(":"))
+
+
+def _renamed_word(word: str, names: dict[str, str]) -> str:
+    """Rename the factors of a word written with its factors apart: ``A·B``, or ``-A·B``."""
+    sign, body = ("-", word[1:]) if word.startswith("-") else ("", word)
+    return sign + "·".join(names.get(part, part) for part in body.split("·"))
+
+
+def _relabelled_facts(facts: dict, coded: np.ndarray, names: dict[str, str]) -> dict[str, Any]:
+    """Write a design's facts again under new factor names, from the same runs.
+
+    The alias groups are found again in the renamed runs, so they come out as the design would
+    have found them; the generators and the defining relation, written with their factors
+    apart, are renamed word by word. Each note that names factors is written again from its
+    parts; the others name none, and stay as they are.
+    """
+
+    def spaced(word: str) -> str:
+        left, _, right = word.partition(" = ")
+        return f"{left if left == 'I' else _renamed_word(left, names)} = {_renamed_word(right, names)}"
+
+    generators = [spaced(g) for g in facts.get("generators") or []]
+    groups = _aliased_groups(coded, list(names.values()))
+    notes = []
+    for note in facts.get("notes") or []:
+        if note.startswith("Resolution ") and facts.get("resolution"):
+            notes.append(_resolution_sentence(facts["resolution"], generators))
+        elif note.startswith(("No main effect", "Main effects are")):
+            notes.append(_aliasing_sentence(groups))
+        elif note.startswith("The runs are made in "):
+            notes.append(_relabelled_blocking(note, names))
+        else:
+            notes.append(note)
+    return {
+        **facts,
+        "generators": generators,
+        "defining_relation": [spaced(w) for w in facts.get("defining_relation") or []],
+        "aliases": groups,
+        "notes": notes,
+    }
+
+
+def _relabelled_blocking(note: str, names: dict[str, str]) -> str:
+    """Rename the effects a blocking sentence says are confounded with the blocks."""
+    head, said, tail = note.partition("does not inflate the error. ")
+    found = re.fullmatch(r"(.+?) (is|are) (confounded with the blocks.*)", tail)
+    if not said or not found:
+        return note
+    listed, verb, rest = found.groups()
+    words = [_renamed_word(word, names) for word in re.split(r", | and ", listed)]
+    return f"{head}{said}{_listed(words)} {verb} {rest}"
+
+
 # --------------------------------------------------------------------------- comparing designs
 #: The options each design is compared with: the page's own defaults, so a design in the
-#: comparison is the one Plan would make. The CCD is face-centred, to keep its runs
+#: comparison is the one Design would make. The CCD is face-centred, to keep its runs
 #: inside the ranges the other designs are scored over.
 COMPARE_OPTIONS: dict[str, dict[str, Any]] = {
     "full_factorial": {"n_center_points": 3},
@@ -1917,3 +2025,8 @@ def api_compare(payload: str) -> str:
 def api_candidates(payload: str) -> str:
     """JSON wrapper around :func:`candidates`."""
     return _reply(candidates, payload)
+
+
+def api_relabel(payload: str) -> str:
+    """JSON wrapper around :func:`relabel`."""
+    return _reply(relabel, payload)

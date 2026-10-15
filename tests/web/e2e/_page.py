@@ -2,7 +2,7 @@
 
 Every helper takes a Playwright page. ``window.__pi`` is the harness's record of the page's
 calls to Python (``harness.js``); a helper that starts work waits until nothing is in flight
-and the status line has stopped saying it is busy. The page shows one phase at a time (Plan,
+and the status line has stopped saying it is busy. The page shows one phase at a time (Design,
 Run or Learn), so a helper that types or clicks first shows the phase that holds its element,
 as a reader would, by pressing the phase's tab.
 """
@@ -83,6 +83,7 @@ def set_factors(page: Any, factors: list[dict]) -> None:  # noqa: ANN401
             box = row.locator(f"[name={key}]")
             if box.is_enabled():  # two labels make a factor categorical, and take away its units
                 box.fill(str(factor.get(key, "")))
+    page.evaluate("document.activeElement.blur()")  # a name or units is taken when the reader leaves its box
 
 
 def name_response(page: Any, label: str, units: str = "", **known: object) -> None:  # noqa: ANN401
@@ -178,3 +179,14 @@ def sort_by(page: Any, column: str, table: str = "#design-table") -> None:  # no
 def last_reply(page: Any, fn: str) -> dict:  # noqa: ANN401
     """Return the last reply the page got from ``fn``, as the harness recorded it."""
     return page.evaluate("(fn) => window.__pi.replies.filter((r) => r.fn === fn).at(-1).reply", fn)
+
+
+def definition(page: Any, word: str) -> str:  # noqa: ANN401 - a Playwright Page
+    """Rest the mouse on a dotted word and return the definition that opens beside it, then close it."""
+    reveal(page, word)
+    page.hover(word)
+    tip = page.locator(".term-tip")
+    tip.wait_for(state="visible")
+    text = tip.text_content()
+    page.keyboard.press("Escape")
+    return text

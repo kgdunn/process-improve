@@ -1,4 +1,4 @@
-"""Generating a design: ``api_make_design``, which Plan calls to make the run sheet.
+"""Generating a design: ``api_make_design``, which Design calls to make the run sheet.
 
 The run sheet lists the runs in the order they are to be run; the facts say what the design is
 and what it aliases; the options each design takes reach the library; and a design the factor

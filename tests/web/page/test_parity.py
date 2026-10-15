@@ -274,6 +274,23 @@ def test_every_tab_controls_a_panel_on_the_page():
     assert controlled - set(page().ids) == set()
 
 
+def test_every_marked_word_has_a_definition_and_every_definition_a_word(node):
+    """A word marked on the page names a glossary entry, and each entry is a word the page or app.js marks.
+
+    Each definition is one or two short sentences, as a pop-up holds: the page says what a word means
+    once, there, rather than in a sentence under every box.
+    """
+    glossary, marked = javascript(node, source("glossary.js"), [("GLOSSARY", []), ("MARKED", [])])
+    assert set(page().terms) <= set(glossary), "a word on the page with no definition"
+    assert set(marked.values()) <= set(glossary), "a phrase app.js marks with no definition"
+    named = set(page().terms) | set(marked.values()) | set(re.findall(r'"([\w-]+)"', source("app.js")))
+    assert set(glossary) <= named, "a definition no word opens"
+    for key, text in glossary.items():
+        assert text.endswith("."), key
+        assert len(text.split()) <= 40, key
+        assert "\u2014" not in text, key
+
+
 def test_the_list_of_saved_designs_says_how_many_store_js_keeps():
     """The page tells the reader that only the most recent designs are kept; the number is store.js's."""
     keep = re.search(r"export const KEEP = (\d+);", source("store.js"))

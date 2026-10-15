@@ -26,8 +26,8 @@ Notes:
 - `app_demo.js` drives the live app at <https://factori.al/> with Playwright, or the build
   `APP_URL` names: it runs the worked example (the reactor's yield and the factors that may change
   it, the designs that can learn its curvature, a Box-Behnken design with results simulated from a
-  known process, and the analysis beside the truth), capturing Plan, the detailed comparison, Run
-  and Learn. `PLAYWRIGHT_PROXY`, if set, routes the browser through a proxy.
+  known process, and the analysis beside the truth), capturing Design, the detailed comparison,
+  Run and Learn. `PLAYWRIGHT_PROXY`, if set, routes the browser through a proxy.
 - `app_mark.py` draws Factorial's mark, the browser app's, from one `generate_design` call: the
   2³ factorial and its centre run, seen down the cube's diagonal. Six corners land on a hexagon;
   the other two fall behind the centre run, which is red as the banner draws centre runs. The

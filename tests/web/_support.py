@@ -40,6 +40,7 @@ BUILD_SCRIPT = ROOT / "scripts" / "build_web_app.py"
 #: ``tests/web``. ``page/test_build.py`` checks that the list is complete.
 APP_SOURCES = (
     "index.html",
+    "about.html",
     "style.css",
     "app.js",
     "logic.js",
@@ -47,6 +48,8 @@ APP_SOURCES = (
     "python.js",
     "campaign.js",
     "store.js",
+    "glossary.js",
+    "terms.js",
     "worker.js",
     "bootstrap.py",
     "runtime.json",
@@ -224,7 +227,7 @@ def fill_workbook(
 # --------------------------------------------------------------------------- the page
 class Page(html.parser.HTMLParser):
     """``web/index.html`` as the tests read it: every element that has an id, the options of every <select>,
-    and the choices of every group of radio buttons, by its name.
+    the choices of every group of radio buttons, by its name, and the glossary entry of every word marked as a term.
     """
 
     def __init__(self, text: str) -> None:
@@ -233,6 +236,7 @@ class Page(html.parser.HTMLParser):
         self.options: dict[str, list[dict[str, str | None]]] = {}
         self.data_options: list[str] = []
         self.radios: dict[str, list[dict[str, str | None]]] = {}
+        self.terms: list[str] = []
         self._select: str | None = None
         self.feed(text)
         self.close()
@@ -244,6 +248,8 @@ class Page(html.parser.HTMLParser):
             self.ids[str(found["id"])] = {"tag": tag, **found}
         if found.get("data-option"):
             self.data_options.append(str(found["data-option"]))
+        if found.get("data-term"):
+            self.terms.append(str(found["data-term"]))
         if tag == "select":
             self._select = str(found.get("id"))
             self.options[self._select] = []

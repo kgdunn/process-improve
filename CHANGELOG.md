@@ -13,6 +13,14 @@ those changes.
 
 ### Added
 
+- **How Factorial works: a page of the app (`about.html`), linked from its footer.** It says
+  what runs where (the page, a worker running Python compiled to WebAssembly, this browser's
+  storage, and links that carry a study after the `#`), what reaches a server (factori.al's
+  access log, its addresses cut to their network and kept for 90 days, and the public servers
+  Python is downloaded from), the versions this copy loads, read from the files it loads them
+  by, where to read the code, and how to build and serve the app yourself. Tests hold each of
+  these to the file it describes: the server's configuration, the build script and the
+  repository's layout.
 - **The reference catalogue, `process_improve.experiments.reference_catalogue`: designed
   experiments from published sources, and `reproduce_reference_catalogue()`, which recomputes
   every number they print.** The reference catalogue, bundled as JSON under
@@ -83,7 +91,7 @@ those changes.
 - **Factorial lists the designs that can learn the brief.** After the response come the factors
   that might change it and what the study is to learn: which factors matter (main effects),
   how they act together (interactions), where each factor's effect curves (main effects and
-  squares, the book's model) or the whole response surface. As the brief is typed, Plan makes
+  squares, the book's model) or the whole response surface. As the brief is typed, Design makes
   every design the page offers for it and scores them on that model, with each one's power to
   find the smallest change worth finding (`api_candidates`, one call for `api_compare_plan`, the
   designs and `api_compare`). The designs that can fit the model are listed by their runs, with
@@ -115,18 +123,48 @@ those changes.
 
 ### Changed
 
-- **Factorial is laid out as Plan, Run and Learn.** A bar that stays at the top names the study
+- **Factorial is laid out as Design, Run and Learn.** A bar that stays at the top names the study
   and its three phases, each tab marked with how far it has got (the plan changed since the run
   sheet, the results in, the fit's R²), above the status line. On a wide screen the brief (the
   response, the factors, the aim) has a column of its own beside the phase on show; on a phone
-  it opens Plan. A first visit starts a new study at its response, a returning reader picks up
+  it opens Design. A first visit starts a new study at its response, a returning reader picks up
   the last study, and a brief not yet made into a run sheet is kept as a draft in the browser.
   The worked example opens on request (Explore a worked example, or `?example=worked`), from the
   build at once, and Run it again computes it in the tab. Results are entered by default;
   simulated ones are asked for under Practise with simulated results, and a new run sheet is
-  simulated again only while practising. Any change to the plan (the factors, the design or a
-  setting) marks the run sheet out of date until it is made again or the plan is put back. New
+  simulated again only while practising. Any change to the plan (the factors' levels, the design
+  or a setting) marks the run sheet out of date until it is made again or the plan is put back. New
   study clears the page, and Your designs is now Your studies.
+- **Factorial renames a factor everywhere when the reader leaves its box.** A factor's name and
+  units are labels, taken on Tab, Enter or a click elsewhere, and a run sheet already made takes
+  them without being made again: its runs, their order and their results stay, and Design does
+  not mark it changed. Python writes the new name into all it wrote with the old (the run sheet's
+  headings, the design's notes on its resolution, aliases and blocks, the factors outside their
+  ranges, and the process practice results come from), and the analysis is fitted again, so the
+  equations, coefficients, charts, Python and the study's title follow. Renaming a design gives
+  exactly what making it under the new names gives, which a test checks for every kind of note. A
+  name Python would refuse (another factor's, the results column's, Block on a blocked run sheet,
+  or not a variable name) is not taken: it stays marked under the table, both factors that share
+  a name are marked, and the old name stays everywhere until it is put right. Results sent back by
+  link still find a study whose factors were renamed since.
+- **Factorial says less, and defines its words on request.** Each screen keeps what only it
+  can say (a warning, a fact about the study, a result) and leaves the rest to its headings,
+  labels and tables. The running text a reader meets falls by more than half on every screen,
+  from 296 to 77 words on a first visit. In its place, the words a newcomer may not know (the
+  response, a factor, an interaction, resolution, blocks, spare runs, power, the run order, R²,
+  the p-value, Lenth's margins and some sixty more) have a dotted underline, and their
+  definition, in the book's words, opens in a small pop-up beside them: on a phone with a press
+  and hold, which does not also press the choice or button the word is part of; with a mouse
+  by resting on it; and from the keyboard on reaching its box. A word that stands alone also
+  opens with a tap. A screen reader reads each definition as its control's description, and a
+  phone is told once, on a first visit, that the dotted words open. The designs that can learn
+  the brief show their power under one heading that names the change it is for ("Power to find
+  a change of 2 %"), and the run sheet's summary no longer names the analysis model, which
+  Learn's Model box shows. The response surface's caption no longer calls the runs coded, since
+  its axes are in the factors' own units. A browser test holds each screen to a budget of words.
+  The opening line now reads "Design, Run and Learn from your experiments. Nothing to install.
+  Data never leaves your machine.", as do the link card and the app's description, and the
+  footer says in one sentence that everything runs in the browser tab.
 - **Factorial says which factors are categorical.** Each factor in the brief has a Type,
   Numeric or Categorical: choosing Categorical gives it two labels to edit (A and B to
   start) and takes away its units, and choosing Numeric brings its numbers back. **+ Add

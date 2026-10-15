@@ -210,15 +210,32 @@ const IDENTIFIER = /^[\p{ID_Start}_][\p{ID_Continue}]*$/u;
 
 /**
  * What a factor's name needs, in a sentence the page shows as the reader types; "" when it is ready.
- * The rules are those bootstrap.py applies: a variable name, unlike every other factor's.
+ * The rules are those bootstrap.py applies: a variable name, unlike every other factor's, and unlike
+ * ``taken``, the run sheet's other columns a factor renamed on it cannot take (its results, its blocks).
  */
-export function nameProblem(name, others = [], place = 1) {
+export function nameProblem(name, others = [], place = 1, taken = []) {
   const n = String(name ?? "").trim();
   if (!n) return `Factor ${place} needs a name.`;
   if (!IDENTIFIER.test(n)) return `${n}: a name is letters, digits and _, and starts with a letter, such as Temp_2.`;
   if (others.includes(n)) return `${n}: two factors cannot share a name.`;
+  if (taken.includes(n)) return `${n}: the run sheet has a ${n} column already.`;
   return "";
 }
+
+/**
+ * What the factor table renames, when that is all it changes: ``after`` holds the design's factors in
+ * the same places with the same levels, and only names or units differ. Returns each old name's new
+ * one, or null when the number of factors or a level differs, or when nothing does.
+ */
+export function renaming(before, after) {
+  const sameLevels = (f, i) => f.low === after[i].low && f.high === after[i].high;
+  if (before.length !== after.length || !before.every(sameLevels)) return null;
+  const relabelled = (f, i) => f.name !== after[i].name || (f.units ?? "") !== (after[i].units ?? "");
+  return before.some(relabelled) ? Object.fromEntries(before.map((f, i) => [f.name, after[i].name])) : null;
+}
+
+/** Chosen model terms, each a list of factor names, with the factors renamed as ``names`` maps them. */
+export const renameTerms = (terms, names) => terms.map((term) => term.map((name) => names[name] ?? name));
 
 /**
  * The response as the reader describes it, cleaned as bootstrap.py cleans it: the words trimmed and an
@@ -280,7 +297,7 @@ export function aimTerms(factors, aim) {
 export const SPARE_FOR_NOISE = 3;
 
 /**
- * The designs of a comparison as Plan lists them, sorted by their runs, those that can fit the model
+ * The designs of a comparison as Design lists them, sorted by their runs, those that can fit the model
  * first: each design's type, its short name, its runs, the runs left over to estimate the noise, and
  * its power for each kind of term the model has (null for a kind it lacks, or with no runs left over).
  * ``made`` is the comparison's designs in the order scored, each {design_type, label}.
@@ -396,15 +413,11 @@ export const TITLES = {
 /** What each chart shows and how to read it; some name the factors drawn. */
 export const CAPTIONS = {
   contour: (pair) =>
-    `The fitted model over ${pair.join(" and ")}, the two factors with the largest main effects, with any other ` +
-    "factor at the center of its range; the dots are the runs, in coded units.",
-  true_contour: (pair) => `The process the results were simulated from, over ${pair.join(" and ")}, on the same scale.`,
-  residuals:
-    "What the model leaves unexplained in each run, against its fitted value. A curve or a funnel points to a " +
-    "missing term or a changing noise level.",
-  half_normal:
-    "With no degrees of freedom left to estimate the error, the effects are judged against each other: effects " +
-    "far above the line, past Lenth's margin of error, are likely real.",
+    `Drawn over ${pair.join(" and ")}, the two factors with the largest main effects, with the others at their ` +
+    "center; the dots are the runs.",
+  true_contour: "The process the results were simulated from, on the same scale.",
+  residuals: "A curve or a funnel points to a missing term or a changing noise level.",
+  half_normal: "Effects far above the line, past Lenth's margin of error, are likely real.",
 };
 
 // ---------------------------------------------------------------- colour mode

@@ -110,7 +110,7 @@ section {
 
 /* A short message at the foot of the screen, over the page: a link or code copied. */
 .toast {
-  position: fixed; left: 50%; bottom: calc(20px + env(safe-area-inset-bottom)); z-index: 10;
+  pointer-events: none; position: fixed; left: 50%; bottom: calc(20px + env(safe-area-inset-bottom)); z-index: 10;
   width: max-content; max-width: calc(100vw - 32px); padding: 10px 16px; border-radius: 8px;
   background: var(--fg); color: var(--bg); font-size: 0.92rem; box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25);
   opacity: 0; transform: translate(-50%, 8px); transition: opacity 0.25s ease, transform 0.25s ease;
@@ -159,8 +159,33 @@ section {
 .stale p { margin: 4px 0; }
 .equation { font-family: ui-monospace, "SFMono-Regular", Menlo, monospace; overflow-wrap: anywhere; }
 .row { display: flex; flex-wrap: wrap; gap: 16px; margin: 12px 0; }
-.row label, label[data-option] { display: flex; flex-direction: column; gap: 4px; font-size: 0.9rem; min-width: 0; max-width: 100%; }
+.row > label { display: flex; flex-direction: column; gap: 4px; font-size: 0.9rem; min-width: 0; max-width: 100%; }
 [hidden] { display: none !important; }
+
+/* A word with a definition: a dotted underline, and its definition in a small pop-up beside it on a press
+   and hold, a hover or keyboard focus (terms.js). A word that stands alone is a button, drawn as the word. */
+.term {
+  text-decoration: underline dotted color-mix(in srgb, currentColor 55%, transparent); text-decoration-thickness: 1px;
+  text-underline-offset: 3px; cursor: help;
+}
+button.term {
+  display: inline; margin: 0; padding: 0; border: none; border-radius: 3px; background: none; color: inherit;
+  font: inherit; text-align: inherit; letter-spacing: inherit; text-transform: inherit;
+}
+button.term:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.term.shown { background: color-mix(in srgb, var(--accent) 16%, transparent); border-radius: 3px; }
+/* A finger resting on a word opens its definition, so the word is not also selected, nor a link's menu opened. */
+@media (pointer: coarse) {
+  .term, a:has(.term) { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
+}
+.term-tip {
+  position: fixed; inset: auto; margin: 0; width: max-content; max-width: min(19rem, calc(100vw - 16px));
+  padding: 8px 12px; border: none; border-radius: 8px; background: var(--fg); color: var(--bg);
+  box-shadow: 0 6px 20px rgb(0 0 0 / 0.25); font: 400 0.88rem/1.45 system-ui, -apple-system, "Segoe UI", sans-serif;
+  text-align: left; text-transform: none; letter-spacing: normal; white-space: normal;
+}
+/* One that follows the keyboard is read, not touched: it never stands in the way of a click. */
+.term-tip[data-how="keyboard"] { pointer-events: none; }
 /* The terms a reader ticks for the model: one group per kind of term, wrapping on a phone. */
 .terms { border: 1px solid var(--line); border-radius: 6px; padding: 8px 12px; margin: 0 0 12px; max-width: 100%; }
 .terms legend { font-size: 0.9rem; padding: 0 4px; }
@@ -320,7 +345,7 @@ section { scroll-margin-top: 120px; }
 }
 
 /* The workspace: on a wide screen, the brief (the response, the factors, the aim) in a column of its own
-   beside the phase on show; on a narrow one, the brief opens Plan, and Run and Learn take the width. */
+   beside the phase on show; on a narrow one, the brief opens Design, and Run and Learn take the width. */
 .workspace { margin: 16px 0 0; }
 .card {
   background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 16px; margin: 0 0 16px;
@@ -335,7 +360,7 @@ section { scroll-margin-top: 120px; }
     overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin;
   }
   .brief .card:last-child { margin-bottom: 0; }
-  /* In Plan the brief is the form being filled in, so it scrolls with the page; beside Run and Learn it stays in view. */
+  /* In Design the brief is the form being filled in, so it scrolls with the page; beside Run and Learn it stays in view. */
   .workspace[data-phase="plan"] .brief { position: static; max-height: none; overflow: visible; }
 }
 @media (max-width: 1099px) {
@@ -354,7 +379,7 @@ label.inline { display: flex; flex-direction: column; gap: 4px; font-size: 0.9re
 .with-unit { display: inline-flex; align-items: center; gap: 6px; }
 .with-unit .unit { color: var(--muted); font-size: 0.9rem; }
 .known { margin: 6px 0 0; }
-.known .row label { flex: 1 1 9rem; }
+.known .row > label { flex: 1 1 9rem; }
 
 /* What the study is to learn: one choice, each with what it means. */
 .aims { display: grid; gap: 8px; margin: 6px 0 4px; }
@@ -369,6 +394,10 @@ label.inline { display: flex; flex-direction: column; gap: 4px; font-size: 0.9re
 .candidates { margin: 8px 0 0; }
 .candidates .busy { display: flex; align-items: center; gap: 8px; }
 table.pick { width: 100%; }
+/* The power columns share one heading, which says what the power is for: the change worth finding. */
+table.pick th { padding: 2px 10px; vertical-align: bottom; }
+table.pick th[colspan] { text-align: center; }
+table.pick tr + tr th:first-child { text-align: right; }
 table.pick tbody tr { cursor: pointer; }
 table.pick tbody tr:hover td { background: var(--bg); }
 table.pick tbody tr[aria-selected="true"] td { background: color-mix(in srgb, var(--accent) 12%, var(--panel)); }
@@ -475,3 +504,36 @@ details.python code { font-family: ui-monospace, "SFMono-Regular", Menlo, monosp
 .share input { width: 100%; font-family: ui-monospace, "SFMono-Regular", Menlo, monospace; font-size: 0.82rem; }
 .share .hint { margin: 6px 0 0; }
 
+
+/* How Factorial works (about.html): a page of prose, in a column a reader's eye can follow, with a
+   drawing of what runs where that stacks on a phone. */
+main.about { max-width: 780px; }
+.about h1 { margin: 8px 0 12px; font-size: 2rem; }
+.about h2 { margin: 0 0 8px; }
+.about li { margin: 6px 0; }
+.about pre { overflow-x: auto; padding: 10px 12px; border-radius: 6px; font-size: 0.86rem; background: var(--panel);
+  border: 1px solid var(--line); }
+.about code { font-family: ui-monospace, "SFMono-Regular", Menlo, monospace; font-size: 0.9em; }
+.about__back { margin: 0; }
+.about__back a { display: inline-flex; align-items: center; gap: 8px; text-decoration: none; font-weight: 600; }
+table.stack { width: 100%; }
+table.stack th, table.stack td { text-align: left; vertical-align: top; padding: 6px 10px; }
+table.stack th { width: 34%; font-weight: 600; }
+.flow { margin: 12px 0 16px; display: grid; gap: 6px; }
+.flow__sources { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.flow__box { display: grid; gap: 2px; padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px;
+  background: var(--panel); font-size: 0.88rem; }
+.flow__box span { color: var(--muted); }
+.flow__arrow { margin: 0; text-align: center; color: var(--muted); font-size: 0.82rem; }
+.flow__arrow::before { content: "\2193\00a0"; }
+.flow__arrow--side::before { content: "\2190\00a0"; }
+.flow__arrow--side::after { content: "\00a0\2192"; }
+.flow__tab { display: grid; gap: 8px; padding: 10px; border: 2px solid var(--accent); border-radius: 10px; }
+.flow__label { margin: 0; font-weight: 700; color: var(--accent); font-size: 0.9rem; }
+.flow__inside { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); align-items: center; gap: 8px; }
+.flow__box--store { border-style: dashed; }
+@media (max-width: 600px) {
+  .flow__sources, .flow__inside { grid-template-columns: 1fr; }
+  .flow__arrow--side::before { content: "\2191\00a0"; }
+  .flow__arrow--side::after { content: "\00a0\2193"; }
+}

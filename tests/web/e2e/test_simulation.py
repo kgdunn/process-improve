@@ -37,8 +37,9 @@ def test_simulating_fills_every_run_and_keeps_the_true_process_to_hand(blank_pag
     assert len(simulated_results(page)) == len(run_sheet(page)) == 11
     assert page.is_visible("#truth")
     assert page.text_content("#truth-equation").startswith("y = 62 + 4·T - 3.1·P + 1.75·F + 1.5·T·P")
-    assert 'simulated from "Reactor yield", with noise of standard deviation 1 (seed 1)' in page.text_content(
-        "#run-source"
+    assert page.text_content("#run-source") == (
+        '11 of 11 results simulated from "Reactor yield" (noise 1, seed 1), in italics: '
+        "type over any to enter your own."
     )
     assert "TrueProcess(" in page.text_content("#py-run code")
 
@@ -72,7 +73,11 @@ def test_the_true_process_names_the_factors_it_leaves_out(page):
 
 def test_a_new_design_is_simulated_from_the_same_process(page):
     """Results simulated for the old runs are simulated again for the new ones, over the factors as they are now."""
-    page.locator("#factors tbody tr").first.locator("[name=name]").fill("Temp")
+    first = page.locator("#factors tbody tr").first
+    first.locator("[name=name]").fill("Temp")
+    first.locator("[name=name]").press("Tab")
+    settled(page)
+    first.locator("[name=high]").fill("210")
     generate(page)
     fns = [c["fn"] for c in calls(page)]
     assert fns[-4:] == ["api_make_design", "api_simulate", "api_analyze_runs", "api_plots"]

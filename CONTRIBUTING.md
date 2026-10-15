@@ -193,7 +193,7 @@ When you change the app, the tests move with it:
 - A new control, step or message on the page: a test in `tests/web/e2e`, which drives the
   page as a reader would. `window.__pi` (`tests/web/harness.js`) records each call to
   Python, and can hold a reply back or give one, for races and error paths. The page shows
-  one phase at a time (Plan, Run or Learn): a test shows the phase that holds what it types
+  one phase at a time (Design, Run or Learn): a test shows the phase that holds what it types
   into or clicks first, with `reveal` in `tests/web/e2e/_page.py`, as a reader presses its tab.
 - A new package the page loads into Pyodide: in `web/runtime.json` only, which
   `web/worker.js`, the wasm tier and CI read. One from PyPI is pinned (`name==version`)

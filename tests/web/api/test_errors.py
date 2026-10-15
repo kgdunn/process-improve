@@ -69,6 +69,11 @@ def _blank(rows: int) -> Callable[[dict], None]:
     return edit
 
 
+def _renamed(factors: list[dict]) -> Callable[[Example], dict]:
+    """Build a request to rename the factors of the worked example's run sheet, giving them ``factors``."""
+    return lambda ex: {"design": ex["held"], "factors": factors}
+
+
 def _foreign_file(_: Example) -> dict:
     return {"xlsx_base64": base64.b64encode(b"not a workbook").decode()}
 
@@ -388,6 +393,17 @@ REFUSALS: dict[str, tuple[str, Callable[[Example], dict], str]] = {
         "api_analyze",
         _workbook(lambda sheets: sheets["Runs"].pop("T")),
         "The Runs sheet is missing column(s): T.",
+    ),
+    # Renaming the factors of a run sheet.
+    "a rename that moves a level": (
+        "api_relabel",
+        _renamed([{**FACTORS[0], "name": "Temp", "high": 210}, *FACTORS[1:]]),
+        "Only the factors' names and units can change without making the run sheet again.",
+    ),
+    "a factor renamed as the results column": (
+        "api_relabel",
+        _renamed([{**FACTORS[0], "name": "Yield"}, *FACTORS[1:]]),
+        "A factor cannot be named Yield: the run sheet has a Yield column.",
     ),
     # Comparisons.
     "unknown model to compare on": (

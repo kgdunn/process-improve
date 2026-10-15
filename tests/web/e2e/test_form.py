@@ -2,7 +2,7 @@
 
 The design list, which settings each design shows, the resolution, the center runs and an
 optimal design's runs all follow the factor table as the reader edits it, a factor's name and
-levels are checked as they are typed, and the page says when the plan no longer describes the
+levels are checked as they are typed, and the page says when the design no longer describes the
 run sheet it holds.
 """
 
@@ -13,7 +13,7 @@ from itertools import pairwise
 import pytest
 
 from tests.web._support import ALL_DESIGNS, factors_named
-from tests.web.e2e._page import choose, factor_table, generate, reveal, set_factors, settled
+from tests.web.e2e._page import choose, factor_table, generate, reveal, run_sheet, set_factors, settled
 
 NAMES = "ABCDEFGHJKLM"
 
@@ -108,18 +108,18 @@ def test_designs_that_need_a_center_run_keep_one(page, design_type, alpha, least
 
 
 def stale(page) -> bool:
-    """Whether Run says the plan has changed since its run sheet was made, and Plan's tab says so too."""
+    """Whether Run says the design has changed since its run sheet was made, and Design's tab says so too."""
     shown = page.get_attribute("#design-stale", "hidden") is None
     assert shown == (page.text_content("#badge-plan") == "changed")
     return shown
 
 
 def test_the_page_says_when_the_plan_no_longer_describes_the_run_sheet(page):
-    name = page.locator("#factors tbody tr").first.locator("[name=name]")
+    high = page.locator("#factors tbody tr").first.locator("[name=high]")
     assert not stale(page)
-    name.fill("Temp")
+    high.fill("210")
     assert stale(page)
-    name.fill("T")
+    high.fill("200")
     assert not stale(page), "back as the run sheet has it"
     choose(page, n_center_points=5)
     assert stale(page), "the design's settings count too"
@@ -142,12 +142,12 @@ def test_renaming_the_response_leaves_the_run_sheet_as_it_is(page):
 
 
 def test_the_new_run_sheet_is_made_from_the_stale_notice(page):
-    page.locator("#factors tbody tr").first.locator("[name=name]").fill("Temp")
+    page.locator("#factors tbody tr").first.locator("[name=high]").fill("210")
     reveal(page, "#remake")
     page.click("#remake")
     settled(page)
     assert not stale(page)
-    assert "Temp" in page.locator("#design-table thead th button.sort").all_text_contents()
+    assert max(float(row[2]) for row in run_sheet(page)) == 210, "T's runs reach its new high value"
 
 
 def test_a_blank_response_is_the_y_the_design_is_made_with(blank_page):

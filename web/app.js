@@ -1,7 +1,7 @@
 // The page: builds the form, talks to the Python worker, renders results.
 // All computation happens in worker.js; this file moves JSON around and draws it.
 //
-// A study runs in three phases. Plan: the brief (the response, the factors that might change
+// A study runs in three phases. Design: the brief (the response, the factors that might change
 // it, and what the study is to learn) and the designs that can learn it, made and scored as
 // the reader types. Run: the run sheet, its results typed in, read from a workbook, or
 // simulated for practice. Learn: the analysis. The page holds one study at a time: a design's
@@ -9,6 +9,8 @@
 // re-renders from that state, so the worked example, the live run, an uploaded workbook, a
 // saved study and a shared link all show the same way. Every study but the worked example is
 // saved in this browser as it changes, and a brief not yet made into a run sheet is kept as a draft.
+// In the code the first phase keeps its earlier name, plan: its tab and pane ids, and planKey,
+// the form's settings a run sheet was made from.
 
 import {
   coefficientFigure,
@@ -23,6 +25,7 @@ import {
 } from "./charts.js";
 import {
   AXIAL_DISTANCE,
+  BLOCK,
   CAPTIONS,
   CATEGORICAL,
   CATEGORICAL_DESIGNS,
@@ -60,12 +63,14 @@ import {
   nextMode,
   percent,
   pickCandidate,
+  powerScale,
   pval,
+  renameTerms,
+  renaming,
   responseName,
   responseProblems,
   responseTitle,
   runBadge,
-  termLabel,
 } from "./logic.js";
 import {
   AIMS,
@@ -90,6 +95,8 @@ import {
 } from "./campaign.js";
 import { analyseCode, compareCode, cumulative, designCode, notebook, resultsCode } from "./python.js";
 import { forgetCampaign, saveCampaign, savedCampaigns } from "./store.js";
+import { GLOSSARY, MARKED } from "./glossary.js";
+import { installTerms, marked, term } from "./terms.js";
 
 // Where Process Improvement using Data explains each design, method and measure the page uses.
 const BOOK = "https://learnche.org/pid/design-analysis-experiments";
@@ -245,8 +252,8 @@ const PANES = { plan: "#step-plan", run: "#step-run", learn: "#step-analyse" };
 
 /**
  * Show a phase: its tab is marked, its pane shown, and on a narrow screen the brief goes with
- * Plan. Charts drawn while their pane was hidden are fitted to it, and the designs that can learn
- * the brief are made once Plan is on show.
+ * Design. Charts drawn while their pane was hidden are fitted to it, and the designs that can learn
+ * the brief are made once Design is on show.
  */
 function showPhase(phase) {
   state.phase = phase;
@@ -490,9 +497,11 @@ function showFactorProblems() {
   const all = factorRows();
   const rows = all.filter((tr) => !blankRow(tr));
   const names = rows.map((tr) => box(tr, "name").value.trim());
+  const taken = takenNames();
   let unready = false;
   const problems = rows.map((tr, i) => {
-    const named = nameProblem(names[i], names.slice(0, i), all.indexOf(tr) + 1);
+    const others = names.filter((_, j) => j !== i); // both factors that share a name are marked
+    const named = nameProblem(names[i], others, all.indexOf(tr) + 1, taken);
     const levels = levelProblem({ name: names[i], low: box(tr, "low").value, high: box(tr, "high").value }, typeOf(tr));
     unready ||= Boolean(named || levels);
     const untouched = !tr.dataset.visited && !box(tr, "low").value.trim() && !box(tr, "high").value.trim();
@@ -504,7 +513,7 @@ function showFactorProblems() {
   for (const tr of all.filter(blankRow)) {
     for (const name of ["name", "low", "high"]) box(tr, name).removeAttribute("aria-invalid");
   }
-  const said = problems.filter(Boolean);
+  const said = [...new Set(problems.filter(Boolean))];
   $("#factor-problems").textContent = said.join(" ");
   $("#factor-problems").hidden = said.length === 0;
   factorsUnready = unready;
@@ -526,6 +535,17 @@ function readFactors() {
 
 const factorCount = () => readFactors().length;
 
+/**
+ * The run sheet's columns besides its factors, which a factor renamed on it cannot take: its results
+ * and its blocks. None while the factors differ from the run sheet's by more than their labels: a run
+ * sheet made again names its results afresh.
+ */
+function takenNames() {
+  const d = state.design;
+  if (!d || !renaming(d.spec.factors, readFactors())) return [];
+  return [d.spec.response, ...(d.columns.includes(BLOCK) ? [BLOCK] : [])];
+}
+
 /** The factor table changed: the design settings, the aim, the designs that can learn it and the draft follow. */
 function factorsChanged() {
   if (!aimChosen) setAim(defaultAim(factorCount()));
@@ -533,6 +553,67 @@ function factorsChanged() {
   scheduleCandidates();
   renderStudyBar();
   saveDraft();
+}
+
+/** Each rename waits for the one before it, and starts from the run sheet that one left. */
+let renamed = Promise.resolve();
+
+/**
+ * The reader left a factor's name or units box. The brief takes the new label, and so does a run
+ * sheet made with these factors' levels: it keeps its runs and their results, and Python writes the
+ * new label into all it wrote with the old (the run sheet's columns, the design's notes, the process
+ * practice results come from). A name Python would refuse is not taken: it stays marked under the
+ * table, and the old name stays everywhere until it is put right.
+ */
+function factorRenamed() {
+  factorsChanged();
+  renamed = renamed.then(renameRunSheet).catch(reportError); // a rename that fails is reported, and the next still runs
+}
+
+/** What Python needs of a design to rename its factors: the runs as the page holds them, and their notes. */
+const renameRequest = ({ spec, columns, rows, facts, outside_range: outside }) => ({
+  spec,
+  columns,
+  rows,
+  facts: facts ?? null,
+  outside_range: outside ?? [],
+});
+
+async function renameRunSheet() {
+  const design = state.design;
+  const factors = readFactors();
+  const names = design && !factorsUnready ? renaming(design.spec.factors, factors) : null;
+  if (!names) return;
+  const reply = await call("api_relabel", { design: renameRequest(design), factors, simulation: state.simulation });
+  if (state.design !== design) return; // another run sheet took its place meanwhile
+  if (!reply.ok) {
+    setStatus(reply.error, "error");
+    return;
+  }
+  showRenamed(reply.result, names);
+}
+
+/**
+ * Put the renamed run sheet on the page with all that shows its factors: the summary and its notes,
+ * the run sheet, the true process, the ticked terms, the Python, the study's title, and the analysis
+ * and its charts, fitted again under the new names.
+ */
+function showRenamed({ spec, simulation, ...design }, names) {
+  const titled = state.campaign && state.campaign.title === titleOf(state.design.spec);
+  // Python renames the factors, and the terms a workbook was analysed with; the rest of the spec stays the page's.
+  const terms = spec.analysis_model ? { analysis_model: spec.analysis_model } : {};
+  state.design = { ...state.design, ...design, spec: { ...state.design.spec, factors: spec.factors, ...terms } };
+  if (simulation) state.simulation = simulation;
+  if (titled) state.campaign.title = titleOf(state.design.spec);
+  if ($("#model").value === CHOSEN_TERMS) renderTermList(renameTerms(tickedTerms(), names));
+  renderDesign();
+  renderRuns();
+  renderTruth();
+  showPython("design", designCode(state.design.spec));
+  showResultsCode();
+  renderStudyBar();
+  scheduleSave();
+  if (state.responses.some((v) => v !== null)) analyseRuns();
 }
 
 // ---------------------------------------------------------------- what to learn
@@ -553,9 +634,11 @@ function showAim() {
   const aim = currentAim();
   const p = aimTerms(factors, aim);
   const screening = !aimChosen && aim === "main_effects" && factors.length >= SCREEN_FROM;
-  $("#aim-terms").textContent = factors.length
-    ? `${p} coefficients to estimate, the intercept included.${screening ? ` With ${SCREEN_FROM} factors or more a study starts by finding which matter; choose another aim to learn more of each.` : ""}`
-    : "";
+  const box = $("#aim-terms");
+  box.replaceChildren();
+  if (!factors.length) return;
+  box.append(`${p} `, term("coefficients", { key: "coefficient", alone: true }), ", the intercept included.");
+  if (screening) box.append(` With ${SCREEN_FROM} factors or more, a study starts by finding which matter.`);
 }
 
 // ---------------------------------------------------------------- the design
@@ -563,7 +646,14 @@ function showAim() {
 // are in the HTML, so the form is right from the first paint, before Python has loaded.
 let budgetEdited = false;
 let resolutionEdited = false;
-let designChosen = false; // the reader chose the design, or a study opened with one; else Plan picks it
+let designChosen = false; // the reader chose the design, or a study opened with one; else Design picks it
+
+/** What a design type is, as the design list says under it. */
+const designHint = (designType) =>
+  [...$("#design-type").options].find((o) => o.value === designType)?.dataset.hint ?? "";
+
+/** The glossary's entry for each kind of term power is reckoned for. */
+const KIND_TERMS = { main: "main-effect", interaction: "interaction", quadratic: "square" };
 
 /** A design type's name as the design list gives it. */
 function designLabel(designType) {
@@ -653,17 +743,23 @@ function refreshDesign() {
     hint.replaceChildren(`${option.dataset.hint} `, link(BOOK_PAGES[option.value], "More in the book"));
   }
   hint.classList.toggle("error", option.disabled);
-  const unready = showFactorProblems();
-  $("#generate").disabled = !pythonReady || option.disabled || unready || k < 2;
+  showMakeable(showFactorProblems());
   $("#design-card").hidden = k < 2 && !state.design;
   showAim();
   markPicked();
   markStale();
 }
 
+/** Let the run sheet be made only once Python has started, the design takes these factors, and each is ready. */
+function showMakeable(unready) {
+  const fits = !$("#design-type").selectedOptions[0].disabled; // the design takes this many factors, of these kinds
+  $("#generate").disabled = !pythonReady || !fits || unready || factorCount() < 2;
+}
+
 /**
- * The plan as the form holds it now: the factors, the design and the settings it takes. The run
- * sheet on the page is out of date when this differs from the plan it was made from.
+ * The plan as the form holds it now: the factors' levels, the design and the settings it takes. The
+ * run sheet on the page is out of date when this differs from the plan it was made from. A factor's
+ * name and units are labels, not part of the plan: a run sheet takes them as they change.
  */
 function planKey() {
   const option = $("#design-type").selectedOptions[0];
@@ -677,38 +773,37 @@ function planKey() {
     model_type: $("#model_type").value,
   };
   const taken = option.dataset.options.split(" ").map((key) => [key, values[key]]);
-  return JSON.stringify([option.value, readFactors(), Object.fromEntries(taken)]);
+  const levels = readFactors().map((f) => [f.low, f.high]);
+  return JSON.stringify([option.value, levels, Object.fromEntries(taken)]);
 }
 
 const planIsStale = () => Boolean(state.design) && state.planKey !== null && planKey() !== state.planKey;
 
-/** Say when the plan has changed since the run sheet was made, in Run and on Plan's button, until it is made again. */
+/** Say when the plan has changed since the run sheet was made, in Run and beside Design's button, until it is made again. */
 function markStale() {
   const stale = planIsStale();
   $("#design-stale").hidden = !stale;
-  const note = $("#plan-note");
-  note.hidden = !state.design;
-  note.textContent = stale
-    ? "The run sheet in Run was made from an earlier plan: make the new one to use these settings."
-    : "The run sheet in Run is this plan's.";
+  $("#plan-note").hidden = !stale;
+  $("#plan-note").textContent = stale ? "The run sheet in Run is from an earlier design." : "";
   renderBadges();
 }
 
 /** Make the run sheet the plan describes; resolves to true when it is on the page. */
 async function generate() {
-  cancelCandidates(); // the reader has chosen: the designs can wait until Plan is shown again
+  cancelCandidates(); // the reader has chosen: the designs can wait until Design is shown again
   const key = planKey();
   const info = readResponseInfo();
   const factors = readFactors();
   const response = responseName(info.label, factors.map((f) => f.name));
-  if (state.picked?.key === key) {
-    // The design Plan made for this plan already: the same runs, with the brief's words on them.
-    const design = structuredClone(state.picked.design);
+  const picked = state.picked?.key === key ? state.picked : null;
+  const design = picked && (await pickedDesign(picked, factors));
+  if (design) {
+    // The design the Design tab made for this plan already: the same runs, with the brief's words on them.
     const was = design.spec.response;
     design.columns = design.columns.map((c) => (c === was ? response : c));
     design.spec = { ...design.spec, factors, response, response_info: info, aim: currentAim() };
     setStatus(`${design.n_runs} runs generated.`);
-    madeRunSheet(design, state.picked.warnings ?? [], key);
+    madeRunSheet(design, picked.warnings ?? [], key);
     return true;
   }
   const button = $("#generate");
@@ -738,6 +833,18 @@ async function generate() {
   setStatus(`${reply.result.n_runs} runs generated.`);
   madeRunSheet(reply.result, reply.warnings, key);
   return true;
+}
+
+/**
+ * The design the Design tab made for this plan, with the factors' names and units the brief has now:
+ * renamed by Python if they changed since. Null if Python refuses the names on it (one is its results
+ * column's name): the run sheet is then made afresh, with its results named to suit.
+ */
+async function pickedDesign(picked, factors) {
+  const design = structuredClone(picked.design);
+  if (!renaming(design.spec.factors, factors)) return design;
+  const reply = await call("api_relabel", { design: renameRequest(design), factors });
+  return reply.ok ? { ...design, ...reply.result } : null;
 }
 
 /** A run sheet made from the plan ``key``: it is the reader's study now, shown in Run. */
@@ -784,13 +891,7 @@ function showDesign(design, warnings = [], { save = true } = {}) {
   scheduleSave();
 }
 
-/** The model the analysis fits, in words: the design's own, a named model, or the terms ticked. */
-function analysedWith() {
-  const chosen = modelChoice();
-  if (chosen && typeof chosen === "object") return `the terms ${listNames(chosen.terms.map(termLabel))}`;
-  return `the ${(chosen || state.design.model).replace("_", " ")} model`;
-}
-
+/** Say what the run sheet holds, and anything about its runs to check before they are made. */
 function renderDesign(warnings = state.designWarnings ?? []) {
   if (!state.design) return;
   state.designWarnings = warnings;
@@ -801,15 +902,7 @@ function renderDesign(warnings = state.designWarnings ?? []) {
     const outside = r.outside_range?.length
       ? ` Some runs of ${r.outside_range.join(", ")} lie outside the ranges you entered; check they are safe to run.`
       : "";
-    parts.push(
-      el(
-        "p",
-        "",
-        `${r.n_runs} runs${centre}, listed below in randomised run order. The results will be analysed with ` +
-          `${analysedWith()} unless you choose another in Learn.${outside}`,
-      ),
-      ...noteList(r.facts.notes),
-    );
+    parts.push(said("", `${r.n_runs} runs${centre}, in random run order.${outside}`), ...noteList(r.facts.notes));
   } else {
     parts.push(el("p", "", `${r.rows.length} runs, read from the workbook.`));
   }
@@ -843,7 +936,7 @@ function candidateKey(request = candidateRequest()) {
 const briefReady = () => factorCount() >= 2 && !factorsUnready;
 
 /**
- * Make and score the brief's designs a moment after its last change, while Plan is on show, unless
+ * Make and score the brief's designs a moment after its last change, while Design is on show, unless
  * they are on the page already. One search at a time: a brief changed during one is searched again
  * once it is back.
  */
@@ -858,7 +951,7 @@ function scheduleCandidates() {
   renderCandidates();
 }
 
-/** Stop a search that has not started: the reader made the run sheet, or left Plan. */
+/** Stop a search that has not started: the reader made the run sheet, or left Design. */
 function cancelCandidates() {
   clearTimeout(candidateTimer);
   candidateTimer = null;
@@ -888,7 +981,7 @@ async function findCandidates({ search = false } = {}) {
 }
 
 /**
- * The designs of the comparison on the page as Plan lists them, in a table to pick from. While the
+ * The designs of the comparison on the page as Design lists them, in a table to pick from. While the
  * brief's own designs are made, the last list stays, dimmed and not to be picked from.
  */
 function renderCandidates(busy = null) {
@@ -912,35 +1005,51 @@ function renderCandidates(busy = null) {
   if (current) markPicked();
 }
 
-/** The comparison's designs as a list to pick from: those that fit the model in a table, and why the others do not. */
+/**
+ * The comparison's designs as a list to pick from: those that fit the model in a table, sorted by
+ * their runs, and which do not. The table's headings say what its numbers are; what spare runs
+ * and power mean is a "?" away.
+ */
 function candidateList(c, current) {
   const rows = candidateRows(c.result, c.made);
   const kinds = [
-    ["main", "main effect"],
-    ["interaction", "interaction"],
-    ["quadratic", "curvature"],
+    ["main", "Main effect"],
+    ["interaction", "Interaction"],
+    ["quadratic", "Curvature"],
   ].filter(([kind]) => rows.some((r) => r.power[kind] !== null));
   const fitting = rows.filter((r) => r.fits);
-  const terms = c.result.terms.filter((t) => t !== "Intercept").map(prettyTerm);
-  const parts = [
-    el(
-      "p",
-      "hint",
-      `The model has ${c.result.terms.length} coefficients: ${listNames(terms)} and the intercept. ` +
-        `${fitting.length ? `${fitting.length} of the designs can fit it, sorted here by their runs. ` : "No design here can fit it. "}` +
-        `Power is a design's chance of finding ${changeWords(readResponseInfo())} from a factor's low setting to its high ` +
-        `one, at the ${Math.round(100 * c.result.significance_level)}% level.`,
-    ),
-  ];
+  const parts = [];
   if (fitting.length) {
     const t = el("table", "data pick", "");
+    const info = readResponseInfo();
+    const heading = (word, span = {}) => {
+      const th = Object.assign(el("th", "", ""), span);
+      th.append(word);
+      return th;
+    };
+    // What spare runs and power are depends on the brief: the model's size, and the change worth finding.
+    const spare = term("Spare runs", {
+      alone: true,
+      definition:
+        `The runs left once the model's ${c.result.terms.length} coefficients are fitted: they estimate the ` +
+        `run-to-run noise. Fewer than ${SPARE_FOR_NOISE} are marked.`,
+    });
+    const power = term(`Power to find ${changeWords(info)}`, {
+      alone: true,
+      definition:
+        `The chance that the analysis finds ${changeWords(info)} from a factor's low setting to its high one, at ` +
+        `the ${Math.round(100 * c.result.significance_level)}% level.` +
+        (powerScale(info) ? "" : " To set your own, give the noise and the change under What you know of it already."),
+    });
     const head = el("tr", "", "");
-    const spare = el("th", "", "Spare runs");
-    spare.title = "The runs left after the fit to estimate the run-to-run noise.";
-    head.append(el("th", "", "Design"), el("th", "", "Runs"), spare);
-    for (const [, words] of kinds) head.append(el("th", "", `Power, ${words}`));
+    head.append(heading("Design", { rowSpan: 2 }), heading("Runs", { rowSpan: 2 }), heading(spare, { rowSpan: 2 }));
+    const sub = el("tr", "", "");
+    if (kinds.length) {
+      head.append(heading(power, { colSpan: kinds.length }));
+      for (const [kind, words] of kinds) sub.append(heading(term(words, { key: KIND_TERMS[kind], alone: true })));
+    }
     const thead = el("thead", "", "");
-    thead.append(head);
+    thead.append(head, ...(kinds.length ? [sub] : []));
     const tbody = el("tbody", "", "");
     for (const r of fitting) {
       const tr = el("tr", "", "");
@@ -952,7 +1061,7 @@ function candidateList(c, current) {
       radio.name = "candidate";
       radio.value = r.design_type;
       radio.disabled = !current;
-      label.append(radio, r.label);
+      label.append(radio, term(r.label, { definition: designHint(r.design_type) }));
       name.append(label);
       tr.append(name, el("td", "", String(r.runs)), el("td", r.spare < SPARE_FOR_NOISE ? "low" : "", String(r.spare)));
       for (const [kind] of kinds) tr.append(el("td", "", percent(r.power[kind])));
@@ -965,24 +1074,15 @@ function candidateList(c, current) {
     parts.push(wrap);
   }
   const unfit = rows.filter((r) => !r.fits);
-  if (unfit.length) {
-    parts.push(
-      el(
-        "p",
-        "hint",
-        `${listNames(unfit.map((r) => r.label))} cannot fit this model with the runs ${unfit.length === 1 ? "it makes" : "they make"}: ` +
-          "two of its terms or more cannot be told apart.",
-      ),
-    );
-  }
+  if (unfit.length) parts.push(el("p", "hint", `${listNames(unfit.map((r) => r.label))} cannot fit this model.`));
   if (c.waiting?.length) {
-    const designs = listNames(c.waiting.map((w) => w.label));
+    const one = c.waiting.length === 1;
     parts.push(
       el(
         "p",
         "hint",
-        `The ${designs} design${c.waiting.length === 1 ? "" : "s"} search for their runs, which takes a while with ` +
-          `${factorCount()} factors: search for them to add them here.`,
+        `The ${listNames(c.waiting.map((w) => w.label))} design${one ? " takes" : "s take"} a while to search for ` +
+          `with ${factorCount()} factors.`,
       ),
     );
   }
@@ -1001,7 +1101,7 @@ function markPicked() {
 }
 
 /**
- * Take a design from the comparison into the plan: its type and settings, as Plan made it. Making
+ * Take a design from the comparison into the plan: its type and settings, as Design made it. Making
  * the run sheet then uses the runs already made, unless the plan changes first.
  */
 function pickDesign(designType, { byReader = true } = {}) {
@@ -1073,8 +1173,13 @@ function renderComparison(result, made, notes) {
     }
     const tr = el("tr", "", "");
     const name = el("td", "", "");
-    name.append(m.group === "Feasibility" ? m.label : link(BOOK_PAGES.measures, m.label));
-    name.title = m.description;
+    if (m.group === "Feasibility") {
+      name.append(term(m.label, { definition: m.description, alone: true }));
+    } else {
+      const to = link(BOOK_PAGES.measures, "");
+      to.append(term(m.label, { definition: m.description }));
+      name.append(to);
+    }
     tr.append(name, el("td", "arrow", m.direction === "higher" ? "↑" : m.direction === "lower" ? "↓" : ""));
     for (const label of result.designs) tr.append(el("td", "", result.display[label][row]));
     tbody.append(tr);
@@ -1090,25 +1195,20 @@ function renderComparison(result, made, notes) {
     more.hidden = wrap.scrollWidth <= wrap.clientWidth + 1;
   });
   comparisonFit.observe(wrap);
-  const designNotes = result.designs.flatMap((label) => result.notes[label].map((n) => `${label}: ${prettyTerm(n)}`));
+  // A note several designs share, such as the same terms they cannot tell apart, is said once for all of them.
+  const shared = new Map();
+  for (const label of result.designs) for (const n of result.notes[label]) shared.set(n, [...(shared.get(n) ?? []), label]);
+  const designNotes = [...shared].map(([n, labels]) => `${listNames(labels)}: ${prettyTerm(n)}`);
+  const es = +result.effect_size.toPrecision(4);
   out.replaceChildren(
     el(
       "p",
       "",
-      `Model: ${result.terms.length} terms (${result.terms.map(prettyTerm).join(", ")}). Power is for a coefficient of ` +
-        `${+result.effect_size.toPrecision(4)} noise standard deviation${result.effect_size === 1 ? "" : "s"} at a significance level of ` +
-        `${result.significance_level}. G is searched over ${result.g_points}.`,
+      `Model: ${result.terms.map(prettyTerm).join(", ")}. Power is for a coefficient of ${es} noise standard ` +
+        `deviation${es === 1 ? "" : "s"}, at the ${Math.round(100 * result.significance_level)}% level.`,
     ),
     more,
     wrap,
-    el(
-      "p",
-      "",
-      "No design is best on every row, and which row matters depends on what the experiment is for: A/p or E " +
-        "for precise coefficients, I or G for prediction over the region, max |r| for keeping second-order " +
-        "effects apart, and power for detecting an effect of a stated size. Hover over a measure for its " +
-        "definition, or follow its link to the book.",
-    ),
     ...noteList([...notes, ...designNotes].map(prettyTerm)),
   );
 }
@@ -1117,7 +1217,7 @@ function renderComparison(result, made, notes) {
 function useDesign(item) {
   pickDesign(item.design_type);
   $("#compare-dialog").close();
-  setStatus(`The ${item.label} design is in the plan: make its run sheet when it is ready.`);
+  setStatus(`The ${item.label} design is chosen: make its run sheet when it is ready.`);
 }
 
 async function drawComparison(result, k) {
@@ -1131,12 +1231,13 @@ async function drawComparison(result, k) {
   const caption = el(
     "figcaption",
     "hint",
-    "Each curve sorts a design's prediction variance, in units of the noise variance, over points spread " +
-      "evenly through the cube: a low, flat curve predicts with the same precision everywhere, and its right " +
-      "end is the worst case, G. Designs that cannot fit the model have no curve. ",
+    "A low, flat curve predicts with the same precision everywhere; its right end is the worst case, G. A design " +
+      "that cannot fit the model has no curve. ",
   );
   caption.append(link(BOOK_PAGES.fds, "Reading an FDS plot"));
-  fds.append(el("h3", "", "Fraction of design space (FDS)"), fdsPlot, caption);
+  const fdsTitle = el("h3", "", "");
+  fdsTitle.append(term("Fraction of design space (FDS)", { key: "fds", alone: true }));
+  fds.append(fdsTitle, fdsPlot, caption);
   box.append(fds);
   try {
     await draw(fdsPlot, fdsFigure(result.fds), version, 380);
@@ -1144,7 +1245,9 @@ async function drawComparison(result, k) {
       const { terms, matrix } = result.correlations[label];
       const card = el("figure", "chart", "");
       const plot = el("div", "plot", "");
-      card.append(el("h3", "", `Correlation map, ${label}`), plot);
+      const title = el("h3", "", "");
+      title.append(term("Correlation map", { key: "correlation-map", alone: true }), `, ${label}`);
+      card.append(title, plot);
       box.append(card);
       await draw(plot, () => correlationFigure(terms, matrix, k), version, 320);
     }
@@ -1152,9 +1255,8 @@ async function drawComparison(result, k) {
       el(
         "p",
         "hint wide",
-        "The correlation maps show |r| between the main effects, the squares and the two-factor interactions, " +
-          "in three blocks; a darker square is a pair of terms the design finds harder to tell apart, and a blank " +
-          "row is a term that does not vary in the design.",
+        "A darker square is a pair of terms the design finds harder to tell apart; a blank row is a term that " +
+          "does not vary in the design.",
       ),
     );
   } catch (err) {
@@ -1193,7 +1295,7 @@ function renderRuns() {
   const factorUnits = Object.fromEntries(d.spec.factors.map((f) => [f.name, f.units ?? ""]));
   const headings = d.columns.map((c) => (c === response ? label : c));
   const colUnits = d.columns.map((c) => (c === response ? units : (factorUnits[c] ?? "")));
-  renderTable(t, headings, rows, "Run order", colUnits);
+  renderTable(t, headings, rows, "Run order", colUnits, { "Std order": "std-order", "Run order": "run-order", Block: "blocks" });
   t.oninput = (e) => {
     const input = e.target.closest("input[data-index]");
     if (!input) return;
@@ -1218,11 +1320,12 @@ function describeSource() {
   const done = state.responses.filter((v) => v !== null).length;
   const simulated = state.sources.filter((s) => s === "simulated").length;
   const sim = state.simulation;
-  let text = done ? `${done} of ${n} results in.` : `No results yet: type them into the ${responseWords().label} column as the runs are made.`;
+  const { label, units } = responseWords();
+  let text = done ? `${done} of ${n} results in.` : `No results yet: type them into the ${label} column as the runs are made.`;
   if (simulated && sim) {
     text =
-      `${simulated} of ${n} results simulated from "${sim.label}", with noise of standard deviation ${sim.sigma} ` +
-      `(seed ${sim.seed}). Simulated values are in italics; type over any of them to enter your own.`;
+      `${simulated} of ${n} results simulated from "${sim.label}" (noise ${sim.sigma}${units ? ` ${units}` : ""}, ` +
+      `seed ${sim.seed}), in italics: type over any to enter your own.`;
   }
   $("#run-source").textContent = text;
 }
@@ -1433,7 +1536,7 @@ function renderAnalysis(reply) {
   showPython("analyse", analyseCode(r.formula ?? r.model, state.responses.every((v) => v !== null)));
   const parts = [
     el("p", "equation", r.equation),
-    el("p", "hint", "Coefficients are in coded units: each factor runs from -1 at its low value to +1 at its high value."),
+    said("hint", "In coded units."),
     ...noteList(fitStatistics(s, r.n_completed, r.pending_runs), "fit"),
     ...noteList(r.notes),
     ...warningList(reply.warnings),
@@ -1448,49 +1551,44 @@ function renderAnalysis(reply) {
         pval(c.p_value),
         ...(simulated ? [fmt(c.true_value)] : []),
       ]),
+      {
+        Coefficient: "coefficient",
+        "Std. error": "std-error",
+        "95% interval": "interval",
+        "p-value": "p-value",
+        "True value": "true-value",
+      },
     ),
   ];
-  if (simulated) {
-    parts.push(
-      el(
-        "p",
-        "hint",
-        "The true value is what the coefficient estimates for the process the results were simulated from: the " +
-          "estimate the same fit gives without noise.",
-      ),
-    );
-  }
   if (r.lenth) {
-    const heading = el("h3", "", "Effects, judged with ");
-    heading.append(link(BOOK_PAGES.lenth, "Lenth's method"));
+    const heading = el("h3", "", "");
+    heading.append(term("Effects", { key: "effect", alone: true }), ", judged with ", link(BOOK_PAGES.lenth, "Lenth's method"));
     parts.push(
       heading,
-      el(
-        "p",
-        "hint",
-        "Each effect is twice its coefficient: the change from the factor's low level to its high level. " +
-          `Pseudo standard error PSE = ${fmt(r.lenth.PSE)}; margins ME = ${fmt(r.lenth.ME)} and SME = ${fmt(r.lenth.SME)}.`,
-      ),
+      said("hint", `PSE = ${fmt(r.lenth.PSE)}; ME = ${fmt(r.lenth.ME)}; SME = ${fmt(r.lenth.SME)}.`),
       table(
         ["Term", "Effect", "Beyond ME", "Beyond SME"],
         r.lenth.effects.map((e) => [e.label, fmt(e.effect), e.active_ME ? "yes" : "no", e.active_SME ? "yes" : "no"]),
+        { Effect: "effect", "Beyond ME": "me", "Beyond SME": "sme" },
       ),
     );
   }
   if (r.anova.length) {
+    const heading = el("h3", "", "");
+    heading.append(term("ANOVA", { key: "anova", alone: true }));
     parts.push(
-      el("h3", "", "ANOVA"),
+      heading,
       table(
         ["Source", "df", "Sum of squares", "F", "p-value"],
         r.anova.map((a) => [a.source, a.df, fmt(a.sum_sq), fmt(a.F), pval(a.p_value)]),
+        { df: "df", "Sum of squares": "sum-of-squares", F: "f-value", "p-value": "p-value" },
       ),
     );
   }
   const lof = r.lack_of_fit;
   if (lof && lof.p_value !== null && lof.p_value !== undefined) {
     parts.push(
-      el(
-        "p",
+      said(
         "",
         `Lack of fit: F = ${fmt(lof.f_statistic)}, p = ${pval(lof.p_value)} ` +
           `(pure error from the replicated runs: ${lof.df_pure_error} degree${lof.df_pure_error === 1 ? "" : "s"} of freedom).`,
@@ -1548,14 +1646,18 @@ function setModel(model) {
     if (model === CHOSEN_TERMS) startTermList();
   }
   $("#terms").hidden = $("#model").value !== CHOSEN_TERMS;
-  renderDesign();
 }
 
 // ---------------------------------------------------------------- charts
+/** The glossary's entry for a chart's title, where it has one. */
+const CHART_TERMS = { contour: "response-surface", true_contour: "true-process", residuals: "residuals", half_normal: "half-normal" };
+
 function chartCard(key, caption, wide = false) {
   const card = el("figure", wide ? "chart wide" : "chart", "");
   const plot = el("div", "plot", "");
-  card.append(el("h3", "", TITLES[key]), plot, ...(caption ? [el("figcaption", "hint", caption)] : []));
+  const title = el("h3", "", CHART_TERMS[key] ? "" : TITLES[key]);
+  if (CHART_TERMS[key]) title.append(term(TITLES[key], { key: CHART_TERMS[key], alone: true }));
+  card.append(title, plot, ...(caption ? [el("figcaption", "hint", caption)] : []));
   return { card, plot };
 }
 
@@ -1585,7 +1687,8 @@ function coefficientCard(analysis, simulated) {
     ["estimates", "Estimates"],
     ["pareto", "Pareto plot"],
   ].map(([view, text]) => {
-    const button = el("button", "", text);
+    const button = el("button", "", "");
+    button.append(view === "pareto" ? term(text, { key: "pareto" }) : text);
     button.type = "button";
     button.dataset.view = view;
     return button;
@@ -1753,7 +1856,7 @@ function showScenarioHint() {
 }
 
 // ---------------------------------------------------------------- a new study
-/** Clear the page for a new study: an empty brief, no run sheet and no analysis, in Plan, at the response. */
+/** Clear the page for a new study: an empty brief, no run sheet and no analysis, in Design, at the response. */
 function newStudy() {
   flushSave();
   cancelCandidates();
@@ -1851,7 +1954,7 @@ function readDraft() {
   return { response, factors, aim: AIMS.includes(draft.aim) ? draft.aim : null };
 }
 
-/** Put a draft brief back on the page, in Plan. */
+/** Put a draft brief back on the page, in Design. */
 function restoreDraft(draft) {
   const f = draft.response;
   $("#response").value = f.label;
@@ -2088,8 +2191,7 @@ async function start() {
       await openCampaign(
         c,
         { id: last.id, created: last.created },
-        `Picked up where you left off: ${c.title}, saved ${timeAgo(last.updated)}. Your other studies are ` +
-          "listed under Your studies, and New study, at the top, starts afresh.",
+        `Picked up where you left off: ${c.title}, saved ${timeAgo(last.updated)}.`,
       );
       return;
     } catch {
@@ -2187,9 +2289,9 @@ async function shareLink() {
   );
   $("#share-note").textContent =
     `${copied ? "" : "Copy the link from the box. "}Whoever opens it gets ` +
-    `${withResults ? "this study and its results" : "this study, without its results"}, saved in their own ` +
-    `browser. Everything is in the link itself, ${url.length} characters long; nothing is stored on a server.` +
-    (url.length > 8000 ? " Some chat apps cut links this long: the workbook is the surer way to send it." : "");
+    `${withResults ? "this study and its results" : "this study, without its results"}. The link holds it all: ` +
+    "nothing is stored on a server." +
+    (url.length > 8000 ? ` At ${url.length} characters, some chat apps cut it: the workbook is the surer way to send it.` : "");
   $("#share-out").hidden = false;
   $("#share-url").select();
 }
@@ -2240,8 +2342,19 @@ async function readManifest() {
 function noteList(notes, cls = "facts") {
   if (!notes || !notes.length) return [];
   const list = el("ul", cls, "");
-  list.append(...notes.map((note) => el("li", "", note)));
+  for (const note of notes) {
+    const item = el("li", "", "");
+    item.append(...marked(note, MARKED));
+    list.append(item);
+  }
   return [list];
+}
+
+/** A paragraph of `text`, its glossary words marked. */
+function said(cls, text) {
+  const p = el("p", cls, "");
+  p.append(...marked(text, MARKED));
+  return p;
 }
 
 /** The library's warnings for a call, set apart from the result, or nothing. */
@@ -2266,10 +2379,11 @@ function link(href, text, target = "pid-book") {
   return a;
 }
 
-function table(columns, rows) {
+/** A table of results; `terms` names the glossary entry of a column whose heading is a term. */
+function table(columns, rows, terms = {}) {
   const wrap = el("div", "scroll", "");
   const t = el("table", "data", "");
-  renderTable(t, columns, rows);
+  renderTable(t, columns, rows, null, [], terms);
   wrap.append(t);
   return wrap;
 }
@@ -2282,11 +2396,12 @@ function table(columns, rows) {
  * gives each column's units, shown under its heading; a table may give
  * `t._cell(row, col)` to draw a cell itself (the run sheet's inputs).
  */
-function renderTable(t, columns, rows, sortedBy = null, units = []) {
+function renderTable(t, columns, rows, sortedBy = null, units = [], terms = {}) {
   const head = columns
     .map((c, i) => {
       const unit = units[i] ? `<span class="col-unit">${escape(units[i])}</span>` : "";
-      return `<th aria-sort="${c === sortedBy ? "ascending" : "none"}"><button type="button" class="sort" data-col="${i}">${escape(c)}</button>${unit}</th>`;
+      const name = terms[c] ? `<span class="term" data-term="${terms[c]}">${escape(c)}</span>` : escape(c);
+      return `<th aria-sort="${c === sortedBy ? "ascending" : "none"}"><button type="button" class="sort" data-col="${i}">${name}</button>${unit}</th>`;
     })
     .join("");
   t.innerHTML = `<thead><tr>${head}</tr></thead><tbody></tbody>`;
@@ -2354,6 +2469,17 @@ systemDark.addEventListener("change", () => {
 applyMode(MODES.includes(document.documentElement.dataset.mode) ? document.documentElement.dataset.mode : "auto");
 
 // ---------------------------------------------------------------- wiring
+installTerms(GLOSSARY);
+// A press and hold is not something a page shows, so a touch screen is told of it once, on a first visit.
+const TERMS_HINTED = "factorial-terms-hinted";
+try {
+  if (window.matchMedia("(pointer: coarse)").matches && !localStorage.getItem(TERMS_HINTED)) {
+    localStorage.setItem(TERMS_HINTED, "yes");
+    setTimeout(() => toast("Press and hold a dotted word to see what it means."), 1500);
+  }
+} catch {
+  /* storage refused: no hint, rather than one on every visit */
+}
 // The study bar stays at the top as the page scrolls; the brief beside it starts below it.
 new ResizeObserver(([entry]) => {
   document.documentElement.style.setProperty("--bar-height", `${Math.ceil(entry.borderBoxSize[0].blockSize)}px`);
@@ -2372,7 +2498,21 @@ for (const id of ["#response", "#response-units", "#response-target", "#response
   $(id).addEventListener("input", responseChanged);
 }
 $("#goal").addEventListener("change", responseChanged);
-$("#factors").addEventListener("input", factorsChanged); // a label typed for a level makes the factor categorical
+// A factor's name and units are labels, taken when the reader leaves the box (Tab, Enter or a click elsewhere), so a
+// name half typed reaches no run sheet, note or chart; what it still needs is said as it is typed. Its levels and type
+// take effect at once: a label typed for a level makes the factor categorical.
+const labelBox = (target) => target.matches('[name="name"], [name="units"]');
+$("#factors").addEventListener("input", (e) => {
+  if (labelBox(e.target)) {
+    showMakeable(showFactorProblems());
+    saveDraft();
+  } else {
+    factorsChanged();
+  }
+});
+$("#factors").addEventListener("change", (e) => {
+  if (labelBox(e.target)) factorRenamed();
+});
 $("#add-factor").onclick = () => {
   box(addFactor(), "name").focus();
   factorsChanged();
@@ -2448,12 +2588,10 @@ $("#model").onchange = () => {
   if ($("#model").value === CHOSEN_TERMS && state.design) startTermList();
   else modelBefore = $("#model").value;
   $("#terms").hidden = $("#model").value !== CHOSEN_TERMS || !state.design;
-  renderDesign();
   analyseRuns();
   scheduleSave();
 };
 $("#term-list").onchange = () => {
-  renderDesign();
   scheduleAnalysis(); // a moment after the last tick, as for typed results
   scheduleSave();
 };

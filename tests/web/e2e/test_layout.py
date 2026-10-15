@@ -1,7 +1,7 @@
 """The page on a phone and on a desktop: it reads in both themes, scrolls only downwards, and lays the study out.
 
 On a desktop the brief (the response, the factors, the aim) has a column of its own beside the
-phase on show; on a phone the brief opens Plan, and Run and Learn take the width. The detailed
+phase on show; on a phone the brief opens Design, and Run and Learn take the width. The detailed
 comparison is wider than a phone: it scrolls sideways inside its own box, and says so, rather
 than pushing the page sideways.
 """
