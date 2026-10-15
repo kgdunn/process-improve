@@ -517,6 +517,60 @@ def test_a_matrix_printed_in_the_factors_own_units_is_compared_in_coded_units():
     assert _same_runs(entry, full, "4") == ("4 of 4 printed runs, of 4 the library's", True)
 
 
+def test_an_axial_distance_printed_rounded_matches_once_both_matrices_are_rounded():
+    from process_improve.experiments.reference_catalogue import _same_runs
+
+    cube = [[a, b] for a in (-1, 1) for b in (-1, 1)]
+    axial = [[1.414, 0], [-1.414, 0], [0, 1.414], [0, -1.414]]  # the square root of 2, as a source prints it
+    entry = _printed_design(["A", "B"], [*cube, [0, 0], *axial])
+    ccd = {"design": {"design_type": "ccd", "k": 2, "options": {"n_center_points": 1, "alpha": "rotatable"}}}
+    assert not _same_runs(entry, ccd, "9")[1]
+    assert _same_runs(entry, {**ccd, "round": 3}, "9")[1]
+
+
+def test_a_printed_design_may_use_only_some_columns_of_a_stored_array():
+    """Two factors on an L4 take two of its three columns; the third is left for their interaction."""
+    from process_improve.experiments.reference_catalogue import _same_runs
+
+    l4 = {"array": "L4(2^3)", "relabel": "columns"}
+    entry = _printed_design(["A", "B"], [[a, b] for a in (-1, 1) for b in (-1, 1)])
+    assert _same_runs(entry, l4, "4") == ("the library's columns 1, 2", True)
+    repeated = _printed_design(["A", "B"], [[-1, -1], [-1, -1], [1, -1], [1, 1]])
+    assert not _same_runs(repeated, l4, "4")[1]
+
+
+def _plane(a, b):
+    """Return a 2^2 with a centre point, y = 10 + a x1 + b x2 exactly, x1 from 100 to 200 and x2 from 125 to 175."""
+    runs = [(-1, -1), (-1, 1), (1, -1), (1, 1), (0, 0)]
+    return {
+        "name": "plane",
+        "factors": [
+            {"name": "x1", "type": "numeric", "low": 100, "high": 200},
+            {"name": "x2", "type": "numeric", "low": 125, "high": 175},
+        ],
+        "responses": [{"name": "y"}],
+        "runs": {"columns": ["x1", "x2", "y"], "rows": [[u, v, 10 + a * u + b * v] for u, v in runs], "coded": True},
+    }
+
+
+def test_a_step_on_the_path_of_steepest_ascent_can_be_read_in_coded_units():
+    """A step of -25 in x2 is -1 coded; along the gradient (3, -1), x1 then moves +3 coded, 150 in its own units."""
+    entry = _plane(3, -1)
+    check = {"kind": "steepest_path", "model": "x1 + x2", "per": "x2", "change": -25, "steps": 1, "key": "x1"}
+    out = reference_catalogue._Fits()(entry, check)
+    assert reference_catalogue._steepest_path(out, {**check, "units": "coded"}, entry) == pytest.approx(3.0)
+    assert reference_catalogue._steepest_path(out, check, entry) == pytest.approx(300.0)
+    from_centre = {**check, "units": "coded", "from_centre": True, "steps": 2}
+    assert reference_catalogue._steepest_path(out, from_centre, entry) == pytest.approx(6.0)
+
+
+def test_a_factor_left_out_of_a_prediction_point_sits_at_its_centre():
+    entry = _plane(2, 1)
+    check = {"kind": "prediction", "model": "x1", "point": {"x1": 1}}
+    out = reference_catalogue._Fits()(entry, check)
+    assert reference_catalogue._prediction(out, check, entry) == pytest.approx(12.0)
+
+
 def test_a_variance_component_is_read_from_the_library_reml_fit():
     """Balanced, REML gives the analysis-of-variance estimates: the pooled variance within groups, 1.25, and between."""
     from process_improve.experiments.reference_catalogue import _variance_component

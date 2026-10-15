@@ -1,7 +1,7 @@
 {
  "schema": 1,
  "about": [
-  "Part of the reference catalogue: designed experiments and designs from chapters 1 to 5 of Schmidt and Launsby,Understanding Industrial Designed Experiments, for testing that software reproduces them. source: the citation,",
+  "Part of the reference catalogue: designed experiments and designs from chapters 1 to 7 of Schmidt and Launsby,Understanding Industrial Designed Experiments, for testing that software reproduces them. source: the citation,",
   "with what was read and when. experiments: each worked example with data (factors, responses, runs exactly as",
   "printed, in the printed order), where it is printed, and expected: every number the book prints for it, as",
   "printed text, with where it is printed (a page and a quotation) and check: how to recompute it, or manual, the",
@@ -27,13 +27,13 @@
   "editor": "Mark J. Kiemele",
   "title": "Understanding Industrial Designed Experiments",
   "edition": "4th edition; the printing whose copyright page lists 1988, 1990, 1992, 1994, 1997, 1998 and 2000",
-  "pages": "chapters 1 to 5, pp. 1-1 to 1-74, 2-1 to 2-57, 3-1 to 3-62, 4-1 to 4-74 (without 4-55 and 4-56) and 5-1 to 5-81",
+  "pages": "chapters 1 to 7, pp. 1-1 to 1-74, 2-1 to 2-57, 3-1 to 3-62, 4-1 to 4-74 (without 4-55 and 4-56), 5-1 to 5-81, 6-1 to 6-28 and 7-1 to 7-19",
   "year": 2000,
   "publisher": "Air Academy Press, Colorado Springs",
   "isbn": "1-880156-03-2",
   "url": "https://search.worldcat.org/search?q=bn:1880156032",
   "cite": "Schmidt, S. R. and Launsby, R. G. (2000), Understanding Industrial Designed Experiments, 4th edition, edited by M. J. Kiemele, Air Academy Press",
-  "read": "2026-10-15, from scans of the front matter and contents and chapters 1 to 5 (pp. 1-1 to 1-74, 2-1 to 2-57, 3-1 to 3-62, 4-1 to 4-74 and 5-1 to 5-81; pp. 4-55 and 4-56 are missing from the scans); every number copied by hand, Tables 1.13, 2.15, 2.19, 2.22, 2.23, 2.24, 3.11, 3.31, 3.33, 5.12 and 5.24, the fractions of pp. 3-16 and 3-17 and Figure 3 of p. 1-60 read again from the page image at 300 to 450 dpi, and the twenty weekly mileages of 1.12 read from Figures 1.20 and 1.21",
+  "read": "2026-10-15, from scans of the front matter and contents and chapters 1 to 7 (pp. 1-1 to 1-74, 2-1 to 2-57, 3-1 to 3-62, 4-1 to 4-74, 5-1 to 5-81, 6-1 to 6-28 and 7-1 to 7-19; pp. 4-55 and 4-56 are missing from the scans); every number copied by hand, Tables 1.13, 2.15, 2.19, 2.22, 2.23, 2.24, 3.11, 3.31, 3.33, 5.12 and 5.24, the fractions of pp. 3-16 and 3-17 and Figure 3 of p. 1-60 read again from the page image at 300 to 450 dpi, and the twenty weekly mileages of 1.12 read from Figures 1.20 and 1.21",
   "rights": "The book is protected by copyright (© 1988 to 2000 Air Academy Press & Associates) and is not reproduced here. This file holds facts it reports (numbers, layouts, data) and short quotations that locate each one, for citation and for checking software. The MIT licence of process-improve does not extend to them."
  },
  "experiments": [
@@ -53152,6 +53152,4344 @@
    },
    "unanswered": "the problem asks for settings that give 3 mm robustly and the interaction plots with ambient temperature; the answers are in Appendix J, which has not been read",
    "expected": []
+  },
+  {
+   "name": "schmidt-wave-solder-taguchi",
+   "title": "Solder defects of a wave solder process: five control factors in an L8 inner array, three noise factors in an L4 outer array",
+   "kind": "example",
+   "where": {
+    "section": "6.4",
+    "pages": "6-13 to 6-20",
+    "tables": [
+     "Table 6.1",
+     "Table 6.2a",
+     "Table 6.2b",
+     "Table 6.3",
+     "Table 6.4"
+    ],
+    "figures": [
+     "Figure 6.5",
+     "Figure 6.6"
+    ]
+   },
+   "factors": [
+    {
+     "name": "S",
+     "description": "solder pot temperature",
+     "low": 480,
+     "high": 510,
+     "units": "°F",
+     "type": "numeric"
+    },
+    {
+     "name": "C",
+     "description": "conveyor speed",
+     "low": 7.2,
+     "high": 10.0,
+     "units": "ft/min",
+     "type": "numeric"
+    },
+    {
+     "name": "F",
+     "description": "flux density",
+     "low": 0.9,
+     "high": 1.0,
+     "units": "°",
+     "type": "numeric"
+    },
+    {
+     "name": "P",
+     "description": "preheat temperature",
+     "low": 150,
+     "high": 200,
+     "units": "°F",
+     "type": "numeric"
+    },
+    {
+     "name": "W",
+     "description": "wave height",
+     "low": 0.5,
+     "high": 0.6,
+     "units": "in",
+     "type": "numeric"
+    }
+   ],
+   "responses": [
+    {
+     "name": "y1",
+     "description": "solder defects per million joints at outer-array run 1 (assembly #1, conveyor -0.2 ft/min, solder -5 °F)",
+     "units": "ppm"
+    },
+    {
+     "name": "y2",
+     "description": "solder defects per million joints at outer-array run 2 (assembly #1, conveyor +0.2 ft/min, solder +5 °F)",
+     "units": "ppm"
+    },
+    {
+     "name": "y3",
+     "description": "solder defects per million joints at outer-array run 3 (assembly #2, conveyor -0.2 ft/min, solder +5 °F)",
+     "units": "ppm"
+    },
+    {
+     "name": "y4",
+     "description": "solder defects per million joints at outer-array run 4 (assembly #2, conveyor +0.2 ft/min, solder -5 °F)",
+     "units": "ppm"
+    },
+    {
+     "name": "mean",
+     "description": "average of the four readings, as printed",
+     "units": "ppm"
+    },
+    {
+     "name": "sn",
+     "description": "S/N smaller is better, as printed",
+     "units": "dB"
+    }
+   ],
+   "design": {
+    "type": "Taguchi L8 inner array with an L4 outer array",
+    "details": "five two-level control factors and the interaction of S and C in the inner array; product (assembly), conveyor speed tolerance and solder pot tolerance as noise",
+    "n_runs": 8,
+    "treatment_factors": 5
+   },
+   "runs": {
+    "columns": [
+     "Run",
+     "S",
+     "C",
+     "F",
+     "P",
+     "W",
+     "y1",
+     "y2",
+     "y3",
+     "y4",
+     "mean",
+     "sn"
+    ],
+    "rows": [
+     [
+      1,
+      510,
+      10.0,
+      1.0,
+      150,
+      0.5,
+      194,
+      197,
+      193,
+      275,
+      215.0,
+      -46.75
+     ],
+     [
+      2,
+      510,
+      10.0,
+      0.9,
+      200,
+      0.6,
+      136,
+      136,
+      132,
+      136,
+      135.0,
+      -42.61
+     ],
+     [
+      3,
+      510,
+      7.2,
+      1.0,
+      150,
+      0.6,
+      185,
+      261,
+      264,
+      264,
+      244.0,
+      -47.81
+     ],
+     [
+      4,
+      510,
+      7.2,
+      0.9,
+      200,
+      0.5,
+      47,
+      125,
+      127,
+      42,
+      85.0,
+      -39.51
+     ],
+     [
+      5,
+      480,
+      10.0,
+      1.0,
+      200,
+      0.5,
+      295,
+      216,
+      204,
+      293,
+      252.0,
+      -48.15
+     ],
+     [
+      6,
+      480,
+      10.0,
+      0.9,
+      150,
+      0.6,
+      234,
+      159,
+      231,
+      157,
+      195.0,
+      -45.97
+     ],
+     [
+      7,
+      480,
+      7.2,
+      1.0,
+      200,
+      0.6,
+      328,
+      326,
+      247,
+      322,
+      305.0,
+      -49.76
+     ],
+     [
+      8,
+      480,
+      7.2,
+      0.9,
+      150,
+      0.5,
+      186,
+      187,
+      105,
+      104,
+      145.0,
+      -43.59
+     ]
+    ],
+    "coded": false,
+    "notes": "Table 6.3; the data are simulated, as the book says (p. 6-13)"
+   },
+   "notes": "The objective is to minimise defects, so the S/N is the smaller-the-better form, -10 log10 of the mean square of the four readings. Run 4 is the experimental best result; the predicted best is S = 510, C = 10.0, F = 0.9, P = 150 and W = 0.5, with C and P set on economic grounds. The interaction plot of Figure 6.6 prints no values.",
+   "expected": [
+    {
+     "what": "design matrix",
+     "term": null,
+     "value": "8",
+     "analysis": "five columns of the library's stored L8, leaving a column free for the interaction of S and C",
+     "where": {
+      "page": "6-15",
+      "source_kind": "table",
+      "quote": "Table 6.2a Runs Used in Wave Solder Example"
+     },
+     "check": {
+      "kind": "same_runs",
+      "array": "L8(2^7)",
+      "relabel": "columns and signs"
+     }
+    },
+    {
+     "what": "mean of readings",
+     "term": "run 1",
+     "value": "215",
+     "where": {
+      "page": "6-17",
+      "source_kind": "table",
+      "quote": "Table 6.3 Experimental Results for Wave Solder Example ... run 1 ... Mean 215"
+     },
+     "check": {
+      "kind": "observation",
+      "run": 1,
+      "summary": {
+       "of": [
+        "y1",
+        "y2",
+        "y3",
+        "y4"
+       ],
+       "statistic": "mean"
+      }
+     }
+    },
+    {
+     "what": "mean of readings",
+     "term": "run 2",
+     "value": "135",
+     "where": {
+      "page": "6-17",
+      "source_kind": "table",
+      "quote": "Table 6.3 Experimental Results for Wave Solder Example ... run 2 ... Mean 135"
+     },
+     "check": {
+      "kind": "observation",
+      "run": 2,
+      "summary": {
+       "of": [
+        "y1",
+        "y2",
+        "y3",
+        "y4"
+       ],
+       "statistic": "mean"
+      }
+     }
+    },
+    {
+     "what": "mean of readings",
+     "term": "run 3",
+     "value": "244",
+     "where": {
+      "page": "6-17",
+      "source_kind": "table",
+      "quote": "Table 6.3 Experimental Results for Wave Solder Example ... run 3 ... Mean 244"
+     },
+     "check": {
+      "kind": "observation",
+      "run": 3,
+      "summary": {
+       "of": [
+        "y1",
+        "y2",
+        "y3",
+        "y4"
+       ],
+       "statistic": "mean"
+      }
+     }
+    },
+    {
+     "what": "mean of readings",
+     "term": "run 4",
+     "value": "85",
+     "where": {
+      "page": "6-17",
+      "source_kind": "table",
+      "quote": "Table 6.3 Experimental Results for Wave Solder Example ... run 4 ... Mean 85"
+     },
+     "check": {
+      "kind": "observation",
+      "run": 4,
+      "summary": {
+       "of": [
+        "y1",
+        "y2",
+        "y3",
+        "y4"
+       ],
+       "statistic": "mean"
+      }
+     }
+    },
+    {
+     "what": "mean of readings",
+     "term": "run 5",
+     "value": "252",
+     "where": {
+      "page": "6-17",
+      "source_kind": "table",
+      "quote": "Table 6.3 Experimental Results for Wave Solder Example ... run 5 ... Mean 252"
+     },
+     "check": {
+      "kind": "observation",
+      "run": 5,
+      "summary": {
+       "of": [
+        "y1",
+        "y2",
+        "y3",
+        "y4"
+       ],
+       "statistic": "mean"
+      }
+     }
+    },
+    {
+     "what": "mean of readings",
+     "term": "run 6",
+     "value": "195",
+     "where": {
+      "page": "6-17",
+      "source_kind": "table",
+      "quote": "Table 6.3 Experimental Results for Wave Solder Example ... run 6 ... Mean 195"
+     },
+     "check": {
+      "kind": "observation",
+      "run": 6,
+      "summary": {
+       "of": [
+        "y1",
+        "y2",
+        "y3",
+        "y4"
+       ],
+       "statistic": "mean"
+      }
+     }
+    },
+    {
+     "what": "mean of readings",
+     "term": "run 7",
+     "value": "305",
+     "where": {
+      "page": "6-17",
+      "source_kind": "table",
+      "quote": "Table 6.3 Experimental Results for Wave Solder Example ... run 7 ... Mean 305"
+     },
+     "check": {
+      "kind": "observation",
+      "run": 7,
+      "summary": {
+       "of": [
+        "y1",
+        "y2",
+        "y3",
+        "y4"
+       ],
+       "statistic": "mean"
+      },
+      "disagreement": "the four readings average 305.75, which rounds to 306; the book cuts it to 305"
+     }
+    },
+    {
+     "what": "mean of readings",
+     "term": "run 8",
+     "value": "145",
+     "where": {
+      "page": "6-17",
+      "source_kind": "table",
+      "quote": "Table 6.3 Experimental Results for Wave Solder Example ... run 8 ... Mean 145"
+     },
+     "check": {
+      "kind": "observation",
+      "run": 8,
+      "summary": {
+       "of": [
+        "y1",
+        "y2",
+        "y3",
+        "y4"
+       ],
+       "statistic": "mean"
+      }
+     }
+    },
+    {
+     "what": "S/N smaller is better",
+     "term": "run 1",
+     "value": "-46.75",
+     "where": {
+      "page": "6-17",
+      "source_kind": "table",
+      "quote": "Table 6.3 Experimental Results for Wave Solder Example ... run 1 ... S/N -46.75"
+     },
+     "check": {
+      "kind": "observation",
+      "run": 1,
+      "summary": {
+       "of": [
+        "y1",
+        "y2",
+        "y3",
+        "y4"
+       ],
+       "statistic": "sn_smaller"
+      }
+     }
+    },
+    {
+     "what": "S/N smaller is better",
+     "term": "run 2",
+     "value": "-42.61",
+     "where": {
+      "page": "6-17",
+      "source_kind": "table",
+      "quote": "Table 6.3 Experimental Results for Wave Solder Example ... run 2 ... S/N -42.61"
+     },
+     "check": {
+      "kind": "observation",
+      "run": 2,
+      "summary": {
+       "of": [
+        "y1",
+        "y2",
+        "y3",
+        "y4"
+       ],
+       "statistic": "sn_smaller"
+      }
+     }
+    },
+    {
+     "what": "S/N smaller is better",
+     "term": "run 3",
+     "value": "-47.81",
+     "where": {
+      "page": "6-17",
+      "source_kind": "table",
+      "quote": "Table 6.3 Experimental Results for Wave Solder Example ... run 3 ... S/N -47.81"
+     },
+     "check": {
+      "kind": "observation",
+      "run": 3,
+      "summary": {
+       "of": [
+        "y1",
+        "y2",
+        "y3",
+        "y4"
+       ],
+       "statistic": "sn_smaller"
+      }
+     }
+    },
+    {
+     "what": "S/N smaller is better",
+     "term": "run 4",
+     "value": "-39.51",
+     "where": {
+      "page": "6-17",
+      "source_kind": "table",
+      "quote": "Table 6.3 Experimental Results for Wave Solder Example ... run 4 ... S/N -39.51"
+     },
+     "check": {
+      "kind": "observation",
+      "run": 4,
+      "summary": {
+       "of": [
+        "y1",
+        "y2",
+        "y3",
+        "y4"
+       ],
+       "statistic": "sn_smaller"
+      }
+     }
+    },
+    {
+     "what": "S/N smaller is better",
+     "term": "run 5",
+     "value": "-48.15",
+     "where": {
+      "page": "6-17",
+      "source_kind": "table",
+      "quote": "Table 6.3 Experimental Results for Wave Solder Example ... run 5 ... S/N -48.15"
+     },
+     "check": {
+      "kind": "observation",
+      "run": 5,
+      "summary": {
+       "of": [
+        "y1",
+        "y2",
+        "y3",
+        "y4"
+       ],
+       "statistic": "sn_smaller"
+      }
+     }
+    },
+    {
+     "what": "S/N smaller is better",
+     "term": "run 6",
+     "value": "-45.97",
+     "where": {
+      "page": "6-17",
+      "source_kind": "table",
+      "quote": "Table 6.3 Experimental Results for Wave Solder Example ... run 6 ... S/N -45.97"
+     },
+     "check": {
+      "kind": "observation",
+      "run": 6,
+      "summary": {
+       "of": [
+        "y1",
+        "y2",
+        "y3",
+        "y4"
+       ],
+       "statistic": "sn_smaller"
+      }
+     }
+    },
+    {
+     "what": "S/N smaller is better",
+     "term": "run 7",
+     "value": "-49.76",
+     "where": {
+      "page": "6-17",
+      "source_kind": "table",
+      "quote": "Table 6.3 Experimental Results for Wave Solder Example ... run 7 ... S/N -49.76"
+     },
+     "check": {
+      "kind": "observation",
+      "run": 7,
+      "summary": {
+       "of": [
+        "y1",
+        "y2",
+        "y3",
+        "y4"
+       ],
+       "statistic": "sn_smaller"
+      }
+     }
+    },
+    {
+     "what": "S/N smaller is better",
+     "term": "run 8",
+     "value": "-43.59",
+     "where": {
+      "page": "6-17",
+      "source_kind": "table",
+      "quote": "Table 6.3 Experimental Results for Wave Solder Example ... run 8 ... S/N -43.59"
+     },
+     "check": {
+      "kind": "observation",
+      "run": 8,
+      "summary": {
+       "of": [
+        "y1",
+        "y2",
+        "y3",
+        "y4"
+       ],
+       "statistic": "sn_smaller"
+      }
+     }
+    },
+    {
+     "what": "mean",
+     "term": "S (-)",
+     "value": "225",
+     "where": {
+      "page": "6-18",
+      "source_kind": "table",
+      "quote": "Table 6.4 Analysis of Results for Wave Solder Example ... Solder Pot Temperature ... 480 ... Mean 225"
+     },
+     "check": {
+      "kind": "mean",
+      "runs": [
+       5,
+       6,
+       7,
+       8
+      ],
+      "summary": {
+       "of": [
+        "y1",
+        "y2",
+        "y3",
+        "y4"
+       ],
+       "statistic": "mean"
+      }
+     }
+    },
+    {
+     "what": "mean",
+     "term": "sn_smaller: S (-)",
+     "value": "-46.87",
+     "where": {
+      "page": "6-18",
+      "source_kind": "table",
+      "quote": "Table 6.4 Analysis of Results for Wave Solder Example ... Solder Pot Temperature ... 480 ... S/N -46.87"
+     },
+     "check": {
+      "kind": "mean",
+      "runs": [
+       5,
+       6,
+       7,
+       8
+      ],
+      "summary": {
+       "of": [
+        "y1",
+        "y2",
+        "y3",
+        "y4"
+       ],
+       "statistic": "sn_smaller"
+      }
+     }
+    },
+    {
+     "what": "mean",
+     "term": "S (+)",
+     "value": "170",
+     "where": {
+      "page": "6-18",
+      "source_kind": "table",
+      "quote": "Table 6.4 Analysis of Results for Wave Solder Example ... Solder Pot Temperature ... 510 ... Mean 170"
+     },
+     "check": {
+      "kind": "mean",
+      "runs": [
+       1,
+       2,
+       3,
+       4
+      ],
+      "summary": {
+       "of": [
+        "y1",
+        "y2",
+        "y3",
+        "y4"
+       ],
+       "statistic": "mean"
+      }
+     }
+    },
+    {
+     "what": "mean",
+     "term": "sn_smaller: S (+)",
+     "value": "-44.17",
+     "where": {
+      "page": "6-18",
+      "source_kind": "table",
+      "quote": "Table 6.4 Analysis of Results for Wave Solder Example ... Solder Pot Temperature ... 510 ... S/N -44.17*"
+     },
+     "check": {
+      "kind": "mean",
+      "runs": [
+       1,
+       2,
+       3,
+       4
+      ],
+      "summary": {
+       "of": [
+        "y1",
+        "y2",
+        "y3",
+        "y4"
+       ],
+       "statistic": "sn_smaller"
+      }
+     }
+    },
+    {
+     "what": "mean",
+     "term": "C (-)",
+     "value": "195",
+     "where": {
+      "page": "6-18",
+      "source_kind": "table",
+      "quote": "Table 6.4 Analysis of Results for Wave Solder Example ... Conveyor Speed ... 7.2 ... Mean 195"
+     },
+     "check": {
+      "kind": "mean",
+      "runs": [
+       3,
+       4,
+       7,
+       8
+      ],
+      "summary": {
+       "of": [
+        "y1",
+        "y2",
+        "y3",
+        "y4"
+       ],
+       "statistic": "mean"
+      }
+     }
+    },
+    {
+     "what": "mean",
+     "term": "sn_smaller: C (-)",
+     "value": "-45.17",
+     "where": {
+      "page": "6-18",
+      "source_kind": "table",
+      "quote": "Table 6.4 Analysis of Results for Wave Solder Example ... Conveyor Speed ... 7.2 ... S/N -45.17"
+     },
+     "check": {
+      "kind": "mean",
+      "runs": [
+       3,
+       4,
+       7,
+       8
+      ],
+      "summary": {
+       "of": [
+        "y1",
+        "y2",
+        "y3",
+        "y4"
+       ],
+       "statistic": "sn_smaller"
+      }
+     }
+    },
+    {
+     "what": "mean",
+     "term": "C (+)",
+     "value": "200",
+     "where": {
+      "page": "6-18",
+      "source_kind": "table",
+      "quote": "Table 6.4 Analysis of Results for Wave Solder Example ... Conveyor Speed ... 10.0 ... Mean 200"
+     },
+     "check": {
+      "kind": "mean",
+      "runs": [
+       1,
+       2,
+       5,
+       6
+      ],
+      "summary": {
+       "of": [
+        "y1",
+        "y2",
+        "y3",
+        "y4"
+       ],
+       "statistic": "mean"
+      },
+      "disagreement": "the sixteen readings average 199.25, which rounds to 199; the book prints 200"
+     }
+    },
+    {
+     "what": "mean",
+     "term": "sn_smaller: C (+)",
+     "value": "-45.87",
+     "where": {
+      "page": "6-18",
+      "source_kind": "table",
+      "quote": "Table 6.4 Analysis of Results for Wave Solder Example ... Conveyor Speed ... 10.0 ... S/N -45.87"
+     },
+     "check": {
+      "kind": "mean",
+      "runs": [
+       1,
+       2,
+       5,
+       6
+      ],
+      "summary": {
+       "of": [
+        "y1",
+        "y2",
+        "y3",
+        "y4"
+       ],
+       "statistic": "sn_smaller"
+      }
+     }
+    },
+    {
+     "what": "mean",
+     "term": "F (-)",
+     "value": "140",
+     "where": {
+      "page": "6-18",
+      "source_kind": "table",
+      "quote": "Table 6.4 Analysis of Results for Wave Solder Example ... Flux Density ... 0.9 ... Mean 140"
+     },
+     "check": {
+      "kind": "mean",
+      "runs": [
+       2,
+       4,
+       6,
+       8
+      ],
+      "summary": {
+       "of": [
+        "y1",
+        "y2",
+        "y3",
+        "y4"
+       ],
+       "statistic": "mean"
+      }
+     }
+    },
+    {
+     "what": "mean",
+     "term": "sn_smaller: F (-)",
+     "value": "-42.91",
+     "where": {
+      "page": "6-18",
+      "source_kind": "table",
+      "quote": "Table 6.4 Analysis of Results for Wave Solder Example ... Flux Density ... 0.9 ... S/N -42.91*"
+     },
+     "check": {
+      "kind": "mean",
+      "runs": [
+       2,
+       4,
+       6,
+       8
+      ],
+      "summary": {
+       "of": [
+        "y1",
+        "y2",
+        "y3",
+        "y4"
+       ],
+       "statistic": "sn_smaller"
+      },
+      "disagreement": "the four S/N average -42.918, which rounds to -42.92; the book cuts it to -42.91"
+     }
+    },
+    {
+     "what": "mean",
+     "term": "F (+)",
+     "value": "255",
+     "where": {
+      "page": "6-18",
+      "source_kind": "table",
+      "quote": "Table 6.4 Analysis of Results for Wave Solder Example ... Flux Density ... 1.0 ... Mean 255"
+     },
+     "check": {
+      "kind": "mean",
+      "runs": [
+       1,
+       3,
+       5,
+       7
+      ],
+      "summary": {
+       "of": [
+        "y1",
+        "y2",
+        "y3",
+        "y4"
+       ],
+       "statistic": "mean"
+      },
+      "disagreement": "the sixteen readings average 254.0, which rounds to 254; the book prints 255"
+     }
+    },
+    {
+     "what": "mean",
+     "term": "sn_smaller: F (+)",
+     "value": "-48.11",
+     "where": {
+      "page": "6-18",
+      "source_kind": "table",
+      "quote": "Table 6.4 Analysis of Results for Wave Solder Example ... Flux Density ... 1.0 ... S/N -48.11"
+     },
+     "check": {
+      "kind": "mean",
+      "runs": [
+       1,
+       3,
+       5,
+       7
+      ],
+      "summary": {
+       "of": [
+        "y1",
+        "y2",
+        "y3",
+        "y4"
+       ],
+       "statistic": "sn_smaller"
+      },
+      "disagreement": "the four S/N average -48.118, which rounds to -48.12; the book cuts it to -48.11"
+     }
+    },
+    {
+     "what": "mean",
+     "term": "P (-)",
+     "value": "200",
+     "where": {
+      "page": "6-18",
+      "source_kind": "table",
+      "quote": "Table 6.4 Analysis of Results for Wave Solder Example ... Preheat Temperature ... 150 ... Mean 200"
+     },
+     "check": {
+      "kind": "mean",
+      "runs": [
+       1,
+       3,
+       6,
+       8
+      ],
+      "summary": {
+       "of": [
+        "y1",
+        "y2",
+        "y3",
+        "y4"
+       ],
+       "statistic": "mean"
+      }
+     }
+    },
+    {
+     "what": "mean",
+     "term": "sn_smaller: P (-)",
+     "value": "-46.03",
+     "where": {
+      "page": "6-18",
+      "source_kind": "table",
+      "quote": "Table 6.4 Analysis of Results for Wave Solder Example ... Preheat Temperature ... 150 ... S/N -46.03"
+     },
+     "check": {
+      "kind": "mean",
+      "runs": [
+       1,
+       3,
+       6,
+       8
+      ],
+      "summary": {
+       "of": [
+        "y1",
+        "y2",
+        "y3",
+        "y4"
+       ],
+       "statistic": "sn_smaller"
+      }
+     }
+    },
+    {
+     "what": "mean",
+     "term": "P (+)",
+     "value": "194",
+     "where": {
+      "page": "6-18",
+      "source_kind": "table",
+      "quote": "Table 6.4 Analysis of Results for Wave Solder Example ... Preheat Temperature ... 200 ... Mean 194"
+     },
+     "check": {
+      "kind": "mean",
+      "runs": [
+       2,
+       4,
+       5,
+       7
+      ],
+      "summary": {
+       "of": [
+        "y1",
+        "y2",
+        "y3",
+        "y4"
+       ],
+       "statistic": "mean"
+      }
+     }
+    },
+    {
+     "what": "mean",
+     "term": "sn_smaller: P (+)",
+     "value": "-45.01",
+     "where": {
+      "page": "6-18",
+      "source_kind": "table",
+      "quote": "Table 6.4 Analysis of Results for Wave Solder Example ... Preheat Temperature ... 200 ... S/N -45.01"
+     },
+     "check": {
+      "kind": "mean",
+      "runs": [
+       2,
+       4,
+       5,
+       7
+      ],
+      "summary": {
+       "of": [
+        "y1",
+        "y2",
+        "y3",
+        "y4"
+       ],
+       "statistic": "sn_smaller"
+      }
+     }
+    },
+    {
+     "what": "mean",
+     "term": "W (-)",
+     "value": "174",
+     "where": {
+      "page": "6-18",
+      "source_kind": "table",
+      "quote": "Table 6.4 Analysis of Results for Wave Solder Example ... Wave Height ... 0.5\" ... Mean 174"
+     },
+     "check": {
+      "kind": "mean",
+      "runs": [
+       1,
+       4,
+       5,
+       8
+      ],
+      "summary": {
+       "of": [
+        "y1",
+        "y2",
+        "y3",
+        "y4"
+       ],
+       "statistic": "mean"
+      }
+     }
+    },
+    {
+     "what": "mean",
+     "term": "sn_smaller: W (-)",
+     "value": "-44.50",
+     "where": {
+      "page": "6-18",
+      "source_kind": "table",
+      "quote": "Table 6.4 Analysis of Results for Wave Solder Example ... Wave Height ... 0.5\" ... S/N -44.50*"
+     },
+     "check": {
+      "kind": "mean",
+      "runs": [
+       1,
+       4,
+       5,
+       8
+      ],
+      "summary": {
+       "of": [
+        "y1",
+        "y2",
+        "y3",
+        "y4"
+       ],
+       "statistic": "sn_smaller"
+      }
+     }
+    },
+    {
+     "what": "mean",
+     "term": "W (+)",
+     "value": "220",
+     "where": {
+      "page": "6-18",
+      "source_kind": "table",
+      "quote": "Table 6.4 Analysis of Results for Wave Solder Example ... Wave Height ... 0.6\" ... Mean 220"
+     },
+     "check": {
+      "kind": "mean",
+      "runs": [
+       2,
+       3,
+       6,
+       7
+      ],
+      "summary": {
+       "of": [
+        "y1",
+        "y2",
+        "y3",
+        "y4"
+       ],
+       "statistic": "mean"
+      }
+     }
+    },
+    {
+     "what": "mean",
+     "term": "sn_smaller: W (+)",
+     "value": "-46.54",
+     "where": {
+      "page": "6-18",
+      "source_kind": "table",
+      "quote": "Table 6.4 Analysis of Results for Wave Solder Example ... Wave Height ... 0.6\" ... S/N -46.54"
+     },
+     "check": {
+      "kind": "mean",
+      "runs": [
+       2,
+       3,
+       6,
+       7
+      ],
+      "summary": {
+       "of": [
+        "y1",
+        "y2",
+        "y3",
+        "y4"
+       ],
+       "statistic": "sn_smaller"
+      }
+     }
+    },
+    {
+     "what": "mean",
+     "term": "S (+), in the text",
+     "value": "170",
+     "where": {
+      "page": "6-16",
+      "source_kind": "prose",
+      "quote": "These sixteen results ... are combined together to obtain an average of 170 solder defects per million."
+     },
+     "check": {
+      "kind": "mean",
+      "runs": [
+       1,
+       2,
+       3,
+       4
+      ],
+      "summary": {
+       "of": [
+        "y1",
+        "y2",
+        "y3",
+        "y4"
+       ],
+       "statistic": "mean"
+      }
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "sn_smaller: Intercept",
+     "value": "-45.52",
+     "where": {
+      "page": "6-18",
+      "source_kind": "math",
+      "quote": "S/N = -45.52 + 1.35(S) -2.60(F)"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "Intercept",
+      "model": "S + F",
+      "summary": {
+       "of": [
+        "y1",
+        "y2",
+        "y3",
+        "y4"
+       ],
+       "statistic": "sn_smaller"
+      }
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "sn_smaller: S",
+     "value": "1.35",
+     "where": {
+      "page": "6-18",
+      "source_kind": "math",
+      "quote": "S/N = -45.52 + 1.35(S) -2.60(F)"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "S",
+      "model": "S + F",
+      "summary": {
+       "of": [
+        "y1",
+        "y2",
+        "y3",
+        "y4"
+       ],
+       "statistic": "sn_smaller"
+      }
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "sn_smaller: F",
+     "value": "-2.60",
+     "where": {
+      "page": "6-18",
+      "source_kind": "math",
+      "quote": "S/N = -45.52 + 1.35(S) -2.60(F)"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "F",
+      "model": "S + F",
+      "summary": {
+       "of": [
+        "y1",
+        "y2",
+        "y3",
+        "y4"
+       ],
+       "statistic": "sn_smaller"
+      }
+     }
+    },
+    {
+     "what": "prediction",
+     "term": "sn_smaller at S = +1, F = -1",
+     "value": "41.57",
+     "where": {
+      "page": "6-18",
+      "source_kind": "prose",
+      "quote": "Thus the best, predicted value for our S/N equation is 41.57."
+     },
+     "check": {
+      "kind": "prediction",
+      "model": "S + F",
+      "point": {
+       "S": 1,
+       "F": -1
+      },
+      "summary": {
+       "of": [
+        "y1",
+        "y2",
+        "y3",
+        "y4"
+       ],
+       "statistic": "sn_smaller"
+      },
+      "disagreement": "-45.52 + 1.35 + 2.60 is -41.57; the book drops the minus sign"
+     }
+    }
+   ]
+  },
+  {
+   "name": "schmidt-yield-one-factor-at-a-time",
+   "title": "Yield against temperature and pressure, varied one factor at a time",
+   "kind": "example",
+   "where": {
+    "section": "7.1",
+    "pages": "7-2 to 7-5",
+    "tables": [],
+    "figures": [
+     "Figure 7.1a",
+     "Figure 7.1b",
+     "Figure 7.2a",
+     "Figure 7.2b",
+     "Figure 7.3"
+    ]
+   },
+   "factors": [
+    {
+     "name": "f1",
+     "description": "temperature",
+     "low": 100,
+     "high": 400,
+     "units": "°F",
+     "type": "numeric"
+    },
+    {
+     "name": "f2",
+     "description": "pressure",
+     "low": 100,
+     "high": 200,
+     "units": "psi",
+     "type": "numeric"
+    }
+   ],
+   "responses": [
+    {
+     "name": "y",
+     "description": "yield",
+     "units": "%"
+    }
+   ],
+   "design": {
+    "type": "one factor at a time",
+    "details": "temperature varied at 150 psi, then pressure at 200 °F",
+    "n_runs": 10,
+    "treatment_factors": 2
+   },
+   "runs": {
+    "columns": [
+     "No.",
+     "f1",
+     "f2",
+     "y"
+    ],
+    "rows": [
+     [
+      1,
+      100,
+      150,
+      72.4
+     ],
+     [
+      2,
+      150,
+      150,
+      78.3
+     ],
+     [
+      3,
+      200,
+      150,
+      85.3
+     ],
+     [
+      4,
+      250,
+      150,
+      82.4
+     ],
+     [
+      5,
+      300,
+      150,
+      78.9
+     ],
+     [
+      6,
+      200,
+      100,
+      69.2
+     ],
+     [
+      7,
+      200,
+      125,
+      80.1
+     ],
+     [
+      8,
+      200,
+      150,
+      83.9
+     ],
+     [
+      9,
+      200,
+      175,
+      75.7
+     ],
+     [
+      10,
+      200,
+      200,
+      65.3
+     ]
+    ],
+    "coded": false,
+    "notes": "Figures 7.1a and 7.2a; the setting 200 °F and 150 psi is run in both sweeps, with yields 85.3% and 83.9%"
+   },
+   "notes": "The process is hypothetical; Figure 7.3 draws its true response contours, whose maximum of 100% lies outside both sweeps.",
+   "expected": [
+    {
+     "what": "observation",
+     "term": "run 3",
+     "value": "85.3",
+     "analysis": "the best reading of the temperature sweep",
+     "where": {
+      "page": "7-2",
+      "source_kind": "prose",
+      "quote": "which appears to occur at 200°F with a corresponding yield of 85.3%."
+     },
+     "check": {
+      "kind": "observation",
+      "run": 3,
+      "model": "f1"
+     }
+    },
+    {
+     "what": "label",
+     "term": "average yield",
+     "value": "84.7",
+     "where": {
+      "page": "7-5",
+      "source_kind": "figure",
+      "quote": "Figure 7.3 Response Surface Contour Plot ... Average yield 84.7"
+     },
+     "check": {
+      "manual": "a label on the plot of the true surface, whose equation the book does not give; the two readings at 200 °F and 150 psi average 84.6"
+     }
+    }
+   ]
+  },
+  {
+   "name": "schmidt-yield-3-2",
+   "title": "Yield in a 3^2 factorial over a region that does not hold the optimum",
+   "kind": "example",
+   "where": {
+    "section": "7.1",
+    "pages": "7-6",
+    "tables": [],
+    "figures": [
+     "Figure 7.4"
+    ]
+   },
+   "factors": [
+    {
+     "name": "f1",
+     "description": "temperature",
+     "low": 100,
+     "high": 200,
+     "units": "°F",
+     "type": "numeric"
+    },
+    {
+     "name": "f2",
+     "description": "pressure",
+     "low": 125,
+     "high": 175,
+     "units": "psi",
+     "type": "numeric"
+    }
+   ],
+   "responses": [
+    {
+     "name": "y",
+     "description": "yield",
+     "units": "%"
+    }
+   ],
+   "design": {
+    "type": "3^2 factorial",
+    "details": "100 to 200 °F and 125 to 175 psi",
+    "n_runs": 9,
+    "treatment_factors": 2
+   },
+   "runs": {
+    "columns": [
+     "No.",
+     "f1",
+     "f2",
+     "y"
+    ],
+    "rows": [
+     [
+      1,
+      200,
+      125,
+      81.1
+     ],
+     [
+      2,
+      200,
+      150,
+      84.3
+     ],
+     [
+      3,
+      200,
+      175,
+      75.7
+     ],
+     [
+      4,
+      150,
+      125,
+      75.1
+     ],
+     [
+      5,
+      150,
+      150,
+      78.2
+     ],
+     [
+      6,
+      150,
+      175,
+      75.3
+     ],
+     [
+      7,
+      100,
+      125,
+      69.5
+     ],
+     [
+      8,
+      100,
+      150,
+      72.4
+     ],
+     [
+      9,
+      100,
+      175,
+      71.0
+     ]
+    ],
+    "coded": false,
+    "notes": "Figure 7.4, read row by row from the top"
+   },
+   "notes": "The book picks f1 = 200 and f2 = 150 from the marginal averages, the same setting as the one-factor-at-a-time search.",
+   "expected": [
+    {
+     "what": "observation",
+     "term": "run 2",
+     "value": "84.3",
+     "analysis": "the reading at the best settings",
+     "where": {
+      "page": "7-6",
+      "source_kind": "prose",
+      "quote": "which will produce an estimated average response of approximately 84.3."
+     },
+     "check": {
+      "kind": "observation",
+      "run": 2,
+      "model": "f1"
+     }
+    }
+   ]
+  },
+  {
+   "name": "schmidt-yield-first-order",
+   "title": "Yield in a 2^2 factorial with two centre points: a first-order model and its path of steepest ascent",
+   "kind": "example",
+   "where": {
+    "section": "7.2",
+    "pages": "7-9 to 7-11",
+    "tables": [
+     "Table 7.1"
+    ],
+    "figures": [
+     "Figure 7.5"
+    ]
+   },
+   "factors": [
+    {
+     "name": "x1",
+     "description": "temperature, f1",
+     "low": 100,
+     "high": 200,
+     "units": "°F",
+     "type": "numeric"
+    },
+    {
+     "name": "x2",
+     "description": "pressure, f2",
+     "low": 125,
+     "high": 175,
+     "units": "psi",
+     "type": "numeric"
+    }
+   ],
+   "responses": [
+    {
+     "name": "y",
+     "description": "yield",
+     "units": "%"
+    }
+   ],
+   "design": {
+    "type": "2^2 factorial with centre points",
+    "details": "two centre points, to estimate pure error and test for curvature",
+    "n_runs": 6,
+    "treatment_factors": 2
+   },
+   "runs": {
+    "columns": [
+     "f1",
+     "f2",
+     "x1",
+     "x2",
+     "y"
+    ],
+    "rows": [
+     [
+      200,
+      175,
+      1,
+      1,
+      75.9
+     ],
+     [
+      200,
+      125,
+      1,
+      -1,
+      82.1
+     ],
+     [
+      100,
+      175,
+      -1,
+      1,
+      70.1
+     ],
+     [
+      100,
+      125,
+      -1,
+      -1,
+      69.7
+     ],
+     [
+      150,
+      150,
+      0,
+      0,
+      75.6
+     ],
+     [
+      150,
+      150,
+      0,
+      0,
+      76.2
+     ]
+    ],
+    "coded": true,
+    "notes": "the table on p. 7-9; its x1·x2 column is the product of x1 and x2"
+   },
+   "notes": "The 'quadratic term' of Table 7.1 is a column that is 1 at the cube and 0 at the centre, so its coefficient is the cube average less the centre average. The runs along the path, R1 = (3.14, -1), R2 and R3 in coded units, gave 91.0, 89.4 and 77.0 (p. 7-11); R1 is the centre of the next region, schmidt-yield-second-region.",
+   "expected": [
+    {
+     "what": "n_runs",
+     "term": null,
+     "value": "6",
+     "where": {
+      "page": "7-10",
+      "source_kind": "table",
+      "quote": "Table 7.1 Regression Analysis Table for Initial Experimental Region ... No. cases / N 6"
+     },
+     "check": {
+      "kind": "n_runs",
+      "model": "x1 + x2 + x1:x2 + I(x1 ** 2)"
+     }
+    },
+    {
+     "what": "multiple_r",
+     "term": null,
+     "value": ".999",
+     "where": {
+      "page": "7-10",
+      "source_kind": "table",
+      "quote": "Table 7.1 Regression Analysis Table for Initial Experimental Region ... Multiple R .999"
+     },
+     "check": {
+      "kind": "multiple_r",
+      "model": "x1 + x2 + x1:x2 + I(x1 ** 2)"
+     }
+    },
+    {
+     "what": "r_squared",
+     "term": null,
+     "value": ".998",
+     "where": {
+      "page": "7-10",
+      "source_kind": "table",
+      "quote": "Table 7.1 Regression Analysis Table for Initial Experimental Region ... R² .998"
+     },
+     "check": {
+      "kind": "r_squared",
+      "model": "x1 + x2 + x1:x2 + I(x1 ** 2)"
+     }
+    },
+    {
+     "what": "r_squared_adj",
+     "term": null,
+     "value": ".991",
+     "where": {
+      "page": "7-10",
+      "source_kind": "table",
+      "quote": "Table 7.1 Regression Analysis Table for Initial Experimental Region ... Adj R² .991"
+     },
+     "check": {
+      "kind": "r_squared_adj",
+      "model": "x1 + x2 + x1:x2 + I(x1 ** 2)"
+     }
+    },
+    {
+     "what": "residual_std_error",
+     "term": null,
+     "value": "0.424",
+     "where": {
+      "page": "7-10",
+      "source_kind": "table",
+      "quote": "Table 7.1 Regression Analysis Table for Initial Experimental Region ... Std Error of Estimate / RMS Error 0.424"
+     },
+     "check": {
+      "kind": "residual_std_error",
+      "model": "x1 + x2 + x1:x2 + I(x1 ** 2)"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "Intercept",
+     "value": "75.900",
+     "where": {
+      "page": "7-10",
+      "source_kind": "table",
+      "quote": "Table 7.1 Regression Analysis Table for Initial Experimental Region ... Constant ... 75.900"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "Intercept",
+      "model": "x1 + x2 + x1:x2 + I(x1 ** 2)"
+     }
+    },
+    {
+     "what": "std_error",
+     "term": "Intercept",
+     "value": "0.300",
+     "where": {
+      "page": "7-10",
+      "source_kind": "table",
+      "quote": "Table 7.1 Regression Analysis Table for Initial Experimental Region ... Constant ... 0.300"
+     },
+     "check": {
+      "kind": "std_error",
+      "term": "Intercept",
+      "model": "x1 + x2 + x1:x2 + I(x1 ** 2)"
+     }
+    },
+    {
+     "what": "t_value",
+     "term": "Intercept",
+     "value": "253.000",
+     "where": {
+      "page": "7-10",
+      "source_kind": "table",
+      "quote": "Table 7.1 Regression Analysis Table for Initial Experimental Region ... Constant ... 253.000"
+     },
+     "check": {
+      "kind": "t_value",
+      "term": "Intercept",
+      "model": "x1 + x2 + x1:x2 + I(x1 ** 2)"
+     }
+    },
+    {
+     "what": "p_value",
+     "term": "Intercept",
+     "value": "0.003",
+     "where": {
+      "page": "7-10",
+      "source_kind": "table",
+      "quote": "Table 7.1 Regression Analysis Table for Initial Experimental Region ... Constant ... 0.003"
+     },
+     "check": {
+      "kind": "p_value",
+      "term": "Intercept",
+      "model": "x1 + x2 + x1:x2 + I(x1 ** 2)"
+     }
+    },
+    {
+     "what": "standardised coefficient",
+     "term": "Intercept",
+     "value": "0.000",
+     "where": {
+      "page": "7-10",
+      "source_kind": "table",
+      "quote": "Table 7.1 Regression Analysis Table for Initial Experimental Region ... Constant ... Std Coef 0.000"
+     },
+     "check": {
+      "manual": "a coefficient in standard deviations of the response per standard deviation of the term; no check computes it"
+     }
+    },
+    {
+     "what": "tolerance",
+     "term": "Intercept",
+     "value": "1.0000000",
+     "analysis": "one over the term's variance inflation factor",
+     "where": {
+      "page": "7-10",
+      "source_kind": "table",
+      "quote": "Table 7.1 Regression Analysis Table for Initial Experimental Region ... Constant ... Tolerance 1.0000000"
+     },
+     "check": {
+      "manual": "printed for the constant, which has no variance inflation factor"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "x1",
+     "value": "4.550",
+     "where": {
+      "page": "7-10",
+      "source_kind": "table",
+      "quote": "Table 7.1 Regression Analysis Table for Initial Experimental Region ... x1 ... 4.550"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "x1",
+      "model": "x1 + x2 + x1:x2 + I(x1 ** 2)"
+     }
+    },
+    {
+     "what": "std_error",
+     "term": "x1",
+     "value": "0.212",
+     "where": {
+      "page": "7-10",
+      "source_kind": "table",
+      "quote": "Table 7.1 Regression Analysis Table for Initial Experimental Region ... x1 ... 0.212"
+     },
+     "check": {
+      "kind": "std_error",
+      "term": "x1",
+      "model": "x1 + x2 + x1:x2 + I(x1 ** 2)"
+     }
+    },
+    {
+     "what": "t_value",
+     "term": "x1",
+     "value": "21.449",
+     "where": {
+      "page": "7-10",
+      "source_kind": "table",
+      "quote": "Table 7.1 Regression Analysis Table for Initial Experimental Region ... x1 ... 21.449"
+     },
+     "check": {
+      "kind": "t_value",
+      "term": "x1",
+      "model": "x1 + x2 + x1:x2 + I(x1 ** 2)"
+     }
+    },
+    {
+     "what": "p_value",
+     "term": "x1",
+     "value": "0.030",
+     "where": {
+      "page": "7-10",
+      "source_kind": "table",
+      "quote": "Table 7.1 Regression Analysis Table for Initial Experimental Region ... x1 ... 0.030"
+     },
+     "check": {
+      "kind": "p_value",
+      "term": "x1",
+      "model": "x1 + x2 + x1:x2 + I(x1 ** 2)"
+     }
+    },
+    {
+     "what": "standardised coefficient",
+     "term": "x1",
+     "value": "0.888",
+     "where": {
+      "page": "7-10",
+      "source_kind": "table",
+      "quote": "Table 7.1 Regression Analysis Table for Initial Experimental Region ... x1 ... Std Coef 0.888"
+     },
+     "check": {
+      "manual": "a coefficient in standard deviations of the response per standard deviation of the term; no check computes it"
+     }
+    },
+    {
+     "what": "tolerance",
+     "term": "x1",
+     "value": "1.0000000",
+     "analysis": "one over the term's variance inflation factor",
+     "where": {
+      "page": "7-10",
+      "source_kind": "table",
+      "quote": "Table 7.1 Regression Analysis Table for Initial Experimental Region ... x1 ... Tolerance 1.0000000"
+     },
+     "check": {
+      "kind": "design_metric",
+      "metric": "vif",
+      "model": "x1 + x2 + x1:x2 + I(x1 ** 2)",
+      "key": "x1",
+      "reciprocal": true
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "x2",
+     "value": "-1.450",
+     "where": {
+      "page": "7-10",
+      "source_kind": "table",
+      "quote": "Table 7.1 Regression Analysis Table for Initial Experimental Region ... x2 ... -1.450"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "x2",
+      "model": "x1 + x2 + x1:x2 + I(x1 ** 2)"
+     }
+    },
+    {
+     "what": "std_error",
+     "term": "x2",
+     "value": "0.212",
+     "where": {
+      "page": "7-10",
+      "source_kind": "table",
+      "quote": "Table 7.1 Regression Analysis Table for Initial Experimental Region ... x2 ... 0.212"
+     },
+     "check": {
+      "kind": "std_error",
+      "term": "x2",
+      "model": "x1 + x2 + x1:x2 + I(x1 ** 2)"
+     }
+    },
+    {
+     "what": "t_value",
+     "term": "x2",
+     "value": "-6.835",
+     "where": {
+      "page": "7-10",
+      "source_kind": "table",
+      "quote": "Table 7.1 Regression Analysis Table for Initial Experimental Region ... x2 ... -6.835"
+     },
+     "check": {
+      "kind": "t_value",
+      "term": "x2",
+      "model": "x1 + x2 + x1:x2 + I(x1 ** 2)"
+     }
+    },
+    {
+     "what": "p_value",
+     "term": "x2",
+     "value": "0.092",
+     "where": {
+      "page": "7-10",
+      "source_kind": "table",
+      "quote": "Table 7.1 Regression Analysis Table for Initial Experimental Region ... x2 ... 0.092"
+     },
+     "check": {
+      "kind": "p_value",
+      "term": "x2",
+      "model": "x1 + x2 + x1:x2 + I(x1 ** 2)"
+     }
+    },
+    {
+     "what": "standardised coefficient",
+     "term": "x2",
+     "value": "-0.283",
+     "where": {
+      "page": "7-10",
+      "source_kind": "table",
+      "quote": "Table 7.1 Regression Analysis Table for Initial Experimental Region ... x2 ... Std Coef -0.283"
+     },
+     "check": {
+      "manual": "a coefficient in standard deviations of the response per standard deviation of the term; no check computes it"
+     }
+    },
+    {
+     "what": "tolerance",
+     "term": "x2",
+     "value": "1.0000000",
+     "analysis": "one over the term's variance inflation factor",
+     "where": {
+      "page": "7-10",
+      "source_kind": "table",
+      "quote": "Table 7.1 Regression Analysis Table for Initial Experimental Region ... x2 ... Tolerance 1.0000000"
+     },
+     "check": {
+      "kind": "design_metric",
+      "metric": "vif",
+      "model": "x1 + x2 + x1:x2 + I(x1 ** 2)",
+      "key": "x2",
+      "reciprocal": true
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "x1·x2",
+     "value": "-1.650",
+     "where": {
+      "page": "7-10",
+      "source_kind": "table",
+      "quote": "Table 7.1 Regression Analysis Table for Initial Experimental Region ... x1 · x2 ... -1.650"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "x1·x2",
+      "model": "x1 + x2 + x1:x2 + I(x1 ** 2)"
+     }
+    },
+    {
+     "what": "std_error",
+     "term": "x1·x2",
+     "value": "0.212",
+     "where": {
+      "page": "7-10",
+      "source_kind": "table",
+      "quote": "Table 7.1 Regression Analysis Table for Initial Experimental Region ... x1 · x2 ... 0.212"
+     },
+     "check": {
+      "kind": "std_error",
+      "term": "x1·x2",
+      "model": "x1 + x2 + x1:x2 + I(x1 ** 2)"
+     }
+    },
+    {
+     "what": "t_value",
+     "term": "x1·x2",
+     "value": "-7.778",
+     "where": {
+      "page": "7-10",
+      "source_kind": "table",
+      "quote": "Table 7.1 Regression Analysis Table for Initial Experimental Region ... x1 · x2 ... -7.778"
+     },
+     "check": {
+      "kind": "t_value",
+      "term": "x1·x2",
+      "model": "x1 + x2 + x1:x2 + I(x1 ** 2)"
+     }
+    },
+    {
+     "what": "p_value",
+     "term": "x1·x2",
+     "value": "0.081",
+     "where": {
+      "page": "7-10",
+      "source_kind": "table",
+      "quote": "Table 7.1 Regression Analysis Table for Initial Experimental Region ... x1 · x2 ... 0.081"
+     },
+     "check": {
+      "kind": "p_value",
+      "term": "x1·x2",
+      "model": "x1 + x2 + x1:x2 + I(x1 ** 2)"
+     }
+    },
+    {
+     "what": "standardised coefficient",
+     "term": "x1·x2",
+     "value": "-0.322",
+     "where": {
+      "page": "7-10",
+      "source_kind": "table",
+      "quote": "Table 7.1 Regression Analysis Table for Initial Experimental Region ... x1 · x2 ... Std Coef -0.322"
+     },
+     "check": {
+      "manual": "a coefficient in standard deviations of the response per standard deviation of the term; no check computes it"
+     }
+    },
+    {
+     "what": "tolerance",
+     "term": "x1·x2",
+     "value": "1.0000000",
+     "analysis": "one over the term's variance inflation factor",
+     "where": {
+      "page": "7-10",
+      "source_kind": "table",
+      "quote": "Table 7.1 Regression Analysis Table for Initial Experimental Region ... x1 · x2 ... Tolerance 1.0000000"
+     },
+     "check": {
+      "kind": "design_metric",
+      "metric": "vif",
+      "model": "x1 + x2 + x1:x2 + I(x1 ** 2)",
+      "key": "x1:x2",
+      "reciprocal": true
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "x1²",
+     "value": "-1.450",
+     "where": {
+      "page": "7-10",
+      "source_kind": "table",
+      "quote": "Table 7.1 Regression Analysis Table for Initial Experimental Region ... quadratic term ... -1.450"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "x1²",
+      "model": "x1 + x2 + x1:x2 + I(x1 ** 2)"
+     }
+    },
+    {
+     "what": "std_error",
+     "term": "x1²",
+     "value": "0.367",
+     "where": {
+      "page": "7-10",
+      "source_kind": "table",
+      "quote": "Table 7.1 Regression Analysis Table for Initial Experimental Region ... quadratic term ... 0.367"
+     },
+     "check": {
+      "kind": "std_error",
+      "term": "x1²",
+      "model": "x1 + x2 + x1:x2 + I(x1 ** 2)"
+     }
+    },
+    {
+     "what": "t_value",
+     "term": "x1²",
+     "value": "-3.946",
+     "where": {
+      "page": "7-10",
+      "source_kind": "table",
+      "quote": "Table 7.1 Regression Analysis Table for Initial Experimental Region ... quadratic term ... -3.946"
+     },
+     "check": {
+      "kind": "t_value",
+      "term": "x1²",
+      "model": "x1 + x2 + x1:x2 + I(x1 ** 2)"
+     }
+    },
+    {
+     "what": "p_value",
+     "term": "x1²",
+     "value": "0.158",
+     "where": {
+      "page": "7-10",
+      "source_kind": "table",
+      "quote": "Table 7.1 Regression Analysis Table for Initial Experimental Region ... quadratic term ... 0.158"
+     },
+     "check": {
+      "kind": "p_value",
+      "term": "x1²",
+      "model": "x1 + x2 + x1:x2 + I(x1 ** 2)"
+     }
+    },
+    {
+     "what": "standardised coefficient",
+     "term": "x1²",
+     "value": "-0.163",
+     "where": {
+      "page": "7-10",
+      "source_kind": "table",
+      "quote": "Table 7.1 Regression Analysis Table for Initial Experimental Region ... quadratic term ... Std Coef -0.163"
+     },
+     "check": {
+      "manual": "a coefficient in standard deviations of the response per standard deviation of the term; no check computes it"
+     }
+    },
+    {
+     "what": "tolerance",
+     "term": "x1²",
+     "value": "1.0000000",
+     "analysis": "one over the term's variance inflation factor",
+     "where": {
+      "page": "7-10",
+      "source_kind": "table",
+      "quote": "Table 7.1 Regression Analysis Table for Initial Experimental Region ... quadratic term ... Tolerance 1.0000000"
+     },
+     "check": {
+      "kind": "design_metric",
+      "metric": "vif",
+      "model": "x1 + x2 + x1:x2 + I(x1 ** 2)",
+      "key": "I(x1 ** 2)",
+      "reciprocal": true
+     }
+    },
+    {
+     "what": "ss_regression",
+     "term": null,
+     "value": "104.913",
+     "where": {
+      "page": "7-10",
+      "source_kind": "table",
+      "quote": "Table 7.1 Regression Analysis Table for Initial Experimental Region ... Regression SS 104.913"
+     },
+     "check": {
+      "kind": "ss_regression",
+      "model": "x1 + x2 + x1:x2 + I(x1 ** 2)"
+     }
+    },
+    {
+     "what": "df_model",
+     "term": null,
+     "value": "4",
+     "where": {
+      "page": "7-10",
+      "source_kind": "table",
+      "quote": "Table 7.1 Regression Analysis Table for Initial Experimental Region ... Regression df 4"
+     },
+     "check": {
+      "kind": "df_model",
+      "model": "x1 + x2 + x1:x2 + I(x1 ** 2)"
+     }
+    },
+    {
+     "what": "ms_regression",
+     "term": null,
+     "value": "26.228",
+     "where": {
+      "page": "7-10",
+      "source_kind": "table",
+      "quote": "Table 7.1 Regression Analysis Table for Initial Experimental Region ... Regression MS 26.228"
+     },
+     "check": {
+      "kind": "ms_regression",
+      "model": "x1 + x2 + x1:x2 + I(x1 ** 2)"
+     }
+    },
+    {
+     "what": "f_regression",
+     "term": null,
+     "value": "145.713",
+     "where": {
+      "page": "7-10",
+      "source_kind": "table",
+      "quote": "Table 7.1 Regression Analysis Table for Initial Experimental Region ... F-Ratio 145.713"
+     },
+     "check": {
+      "kind": "f_regression",
+      "model": "x1 + x2 + x1:x2 + I(x1 ** 2)"
+     }
+    },
+    {
+     "what": "f_regression_p",
+     "term": null,
+     "value": "0.062",
+     "where": {
+      "page": "7-10",
+      "source_kind": "table",
+      "quote": "Table 7.1 Regression Analysis Table for Initial Experimental Region ... P / Significance 0.062"
+     },
+     "check": {
+      "kind": "f_regression_p",
+      "model": "x1 + x2 + x1:x2 + I(x1 ** 2)"
+     }
+    },
+    {
+     "what": "ss_residual",
+     "term": null,
+     "value": "0.180",
+     "where": {
+      "page": "7-10",
+      "source_kind": "table",
+      "quote": "Table 7.1 Regression Analysis Table for Initial Experimental Region ... Residual SS 0.180"
+     },
+     "check": {
+      "kind": "ss_residual",
+      "model": "x1 + x2 + x1:x2 + I(x1 ** 2)"
+     }
+    },
+    {
+     "what": "residual_df",
+     "term": null,
+     "value": "1",
+     "where": {
+      "page": "7-10",
+      "source_kind": "table",
+      "quote": "Table 7.1 Regression Analysis Table for Initial Experimental Region ... Resid. df 1"
+     },
+     "check": {
+      "kind": "residual_df",
+      "model": "x1 + x2 + x1:x2 + I(x1 ** 2)"
+     }
+    },
+    {
+     "what": "ms_residual",
+     "term": null,
+     "value": "0.180",
+     "where": {
+      "page": "7-10",
+      "source_kind": "table",
+      "quote": "Table 7.1 Regression Analysis Table for Initial Experimental Region ... Residual MS 0.180"
+     },
+     "check": {
+      "kind": "ms_residual",
+      "model": "x1 + x2 + x1:x2 + I(x1 ** 2)"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "Intercept",
+     "value": "75.9",
+     "analysis": "the fit of Table 7.1, its quadratic term (the centre points' curvature) left out of the equation",
+     "where": {
+      "page": "7-9",
+      "source_kind": "math",
+      "quote": "ŷ = 75.9 + 4.55x1 - 1.45x2 - 1.65x1x2"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "Intercept",
+      "model": "x1 + x2 + x1:x2 + I(x1 ** 2)"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "x1",
+     "value": "4.55",
+     "analysis": "the fit of Table 7.1, its quadratic term (the centre points' curvature) left out of the equation",
+     "where": {
+      "page": "7-9",
+      "source_kind": "math",
+      "quote": "ŷ = 75.9 + 4.55x1 - 1.45x2 - 1.65x1x2"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "x1",
+      "model": "x1 + x2 + x1:x2 + I(x1 ** 2)"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "x2",
+     "value": "-1.45",
+     "analysis": "the fit of Table 7.1, its quadratic term (the centre points' curvature) left out of the equation",
+     "where": {
+      "page": "7-9",
+      "source_kind": "math",
+      "quote": "ŷ = 75.9 + 4.55x1 - 1.45x2 - 1.65x1x2"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "x2",
+      "model": "x1 + x2 + x1:x2 + I(x1 ** 2)"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "x1·x2",
+     "value": "-1.65",
+     "analysis": "the fit of Table 7.1, its quadratic term (the centre points' curvature) left out of the equation",
+     "where": {
+      "page": "7-9",
+      "source_kind": "math",
+      "quote": "ŷ = 75.9 + 4.55x1 - 1.45x2 - 1.65x1x2"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "x1·x2",
+      "model": "x1 + x2 + x1:x2 + I(x1 ** 2)"
+     }
+    },
+    {
+     "what": "gradient",
+     "term": "x1",
+     "value": "4.55",
+     "analysis": "the first-order model's slopes, its gradient at the centre",
+     "where": {
+      "page": "7-10",
+      "source_kind": "math",
+      "quote": "g = (∂ŷ/∂x1, ∂ŷ/∂x2) at x1 = 0, x2 = 0 = (4.55, -1.45)."
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "x1",
+      "model": "x1 + x2"
+     }
+    },
+    {
+     "what": "gradient",
+     "term": "x2",
+     "value": "-1.45",
+     "analysis": "the first-order model's slopes, its gradient at the centre",
+     "where": {
+      "page": "7-10",
+      "source_kind": "math",
+      "quote": "g = (∂ŷ/∂x1, ∂ŷ/∂x2) at x1 = 0, x2 = 0 = (4.55, -1.45)."
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "x2",
+      "model": "x1 + x2"
+     }
+    },
+    {
+     "what": "divisor",
+     "term": "smallest component of g",
+     "value": "1.45",
+     "where": {
+      "page": "7-11",
+      "source_kind": "prose",
+      "quote": "In this case, we divide by 1.45"
+     },
+     "check": {
+      "manual": "the smaller size of the two slopes, which are checked"
+     }
+    },
+    {
+     "what": "steepest_path",
+     "term": "x1 at R1, coded",
+     "value": "3.14",
+     "analysis": "x1 on the path of steepest ascent after one step of -1 in x2 (25 psi)",
+     "where": {
+      "page": "7-11",
+      "source_kind": "prose",
+      "quote": "the first new experiment, R1, should be conducted at (3.14, -1)."
+     },
+     "check": {
+      "kind": "steepest_path",
+      "key": "x1",
+      "units": "coded",
+      "model": "x1 + x2",
+      "per": "x2",
+      "change": -25,
+      "steps": 1
+     }
+    },
+    {
+     "what": "steepest_path",
+     "term": "x2 at R1, coded",
+     "value": "-1",
+     "where": {
+      "page": "7-11",
+      "source_kind": "prose",
+      "quote": "the first new experiment, R1, should be conducted at (3.14, -1)."
+     },
+     "check": {
+      "manual": "the step in x2 the book chooses, dividing g by its smaller component; it sets the path's increments"
+     }
+    },
+    {
+     "what": "steepest_path",
+     "term": "f1 at R1",
+     "value": "307",
+     "analysis": "the temperature at R1, the centre of the new region: 150 + 50 × 3.14",
+     "where": {
+      "page": "7-13",
+      "source_kind": "prose",
+      "quote": "f̄1 = 307, f1max = 357, f1min = 257"
+     },
+     "check": {
+      "kind": "steepest_path",
+      "key": "x1",
+      "model": "x1 + x2",
+      "per": "x2",
+      "change": -25,
+      "steps": 1
+     }
+    }
+   ]
+  },
+  {
+   "name": "schmidt-yield-second-region",
+   "title": "Yield in a 2^2 factorial with two centre points, centred on the best run along the path of steepest ascent",
+   "kind": "example",
+   "where": {
+    "section": "7.2",
+    "pages": "7-11 to 7-14",
+    "tables": [
+     "Table 7.2"
+    ],
+    "figures": []
+   },
+   "factors": [
+    {
+     "name": "w1",
+     "description": "temperature, f1",
+     "low": 257,
+     "high": 357,
+     "units": "°F",
+     "type": "numeric"
+    },
+    {
+     "name": "w2",
+     "description": "pressure, f2",
+     "low": 100,
+     "high": 150,
+     "units": "psi",
+     "type": "numeric"
+    }
+   ],
+   "responses": [
+    {
+     "name": "y",
+     "description": "yield",
+     "units": "%"
+    }
+   ],
+   "design": {
+    "type": "2^2 factorial with centre points",
+    "details": "centred on R1, at 307 °F and 125 psi",
+    "n_runs": 6,
+    "treatment_factors": 2
+   },
+   "runs": {
+    "columns": [
+     "f1",
+     "f2",
+     "x1",
+     "x2",
+     "w1",
+     "w2",
+     "y"
+    ],
+    "rows": [
+     [
+      357,
+      150,
+      4.14,
+      0.0,
+      1,
+      1,
+      87.0
+     ],
+     [
+      357,
+      100,
+      4.14,
+      -2.0,
+      1,
+      -1,
+      83.1
+     ],
+     [
+      257,
+      150,
+      2.14,
+      0.0,
+      -1,
+      1,
+      75.7
+     ],
+     [
+      257,
+      100,
+      2.14,
+      -2.0,
+      -1,
+      -1,
+      86.9
+     ],
+     [
+      307,
+      125,
+      3.14,
+      -1.0,
+      0,
+      0,
+      91.0
+     ],
+     [
+      307,
+      125,
+      3.14,
+      -1.0,
+      0,
+      0,
+      90.1
+     ]
+    ],
+    "coded": true,
+    "notes": "the tables on pp. 7-11 and 7-12: x1 and x2 in the first region's coding, w1 and w2 in the new region's"
+   },
+   "notes": "The quadratic term is significant at the .05 level (p = .047), so axial runs are added to fit the second-order model.",
+   "expected": [
+    {
+     "what": "n_runs",
+     "term": null,
+     "value": "6",
+     "where": {
+      "page": "7-13",
+      "source_kind": "table",
+      "quote": "Table 7.2 Regression Analysis Table for Final Experimental Region (without α points) ... No. cases / N 6"
+     },
+     "check": {
+      "kind": "n_runs",
+      "model": "w1 + w2 + w1:w2 + I(w1 ** 2)"
+     }
+    },
+    {
+     "what": "multiple_r",
+     "term": null,
+     "value": ".999",
+     "where": {
+      "page": "7-13",
+      "source_kind": "table",
+      "quote": "Table 7.2 Regression Analysis Table for Final Experimental Region (without α points) ... Multiple R .999"
+     },
+     "check": {
+      "kind": "multiple_r",
+      "model": "w1 + w2 + w1:w2 + I(w1 ** 2)"
+     }
+    },
+    {
+     "what": "r_squared",
+     "term": null,
+     "value": ".997",
+     "where": {
+      "page": "7-13",
+      "source_kind": "table",
+      "quote": "Table 7.2 Regression Analysis Table for Final Experimental Region (without α points) ... R² .997"
+     },
+     "check": {
+      "kind": "r_squared",
+      "model": "w1 + w2 + w1:w2 + I(w1 ** 2)"
+     }
+    },
+    {
+     "what": "r_squared_adj",
+     "term": null,
+     "value": ".987",
+     "where": {
+      "page": "7-13",
+      "source_kind": "table",
+      "quote": "Table 7.2 Regression Analysis Table for Final Experimental Region (without α points) ... Adj R² .987"
+     },
+     "check": {
+      "kind": "r_squared_adj",
+      "model": "w1 + w2 + w1:w2 + I(w1 ** 2)"
+     }
+    },
+    {
+     "what": "residual_std_error",
+     "term": null,
+     "value": "0.636",
+     "where": {
+      "page": "7-13",
+      "source_kind": "table",
+      "quote": "Table 7.2 Regression Analysis Table for Final Experimental Region (without α points) ... Std Error of Estimate / RMS Error 0.636"
+     },
+     "check": {
+      "kind": "residual_std_error",
+      "model": "w1 + w2 + w1:w2 + I(w1 ** 2)"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "Intercept",
+     "value": "90.550",
+     "where": {
+      "page": "7-13",
+      "source_kind": "table",
+      "quote": "Table 7.2 Regression Analysis Table for Final Experimental Region (without α points) ... Constant ... 90.550"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "Intercept",
+      "model": "w1 + w2 + w1:w2 + I(w1 ** 2)"
+     }
+    },
+    {
+     "what": "std_error",
+     "term": "Intercept",
+     "value": "0.450",
+     "where": {
+      "page": "7-13",
+      "source_kind": "table",
+      "quote": "Table 7.2 Regression Analysis Table for Final Experimental Region (without α points) ... Constant ... 0.450"
+     },
+     "check": {
+      "kind": "std_error",
+      "term": "Intercept",
+      "model": "w1 + w2 + w1:w2 + I(w1 ** 2)"
+     }
+    },
+    {
+     "what": "t_value",
+     "term": "Intercept",
+     "value": "201.222",
+     "where": {
+      "page": "7-13",
+      "source_kind": "table",
+      "quote": "Table 7.2 Regression Analysis Table for Final Experimental Region (without α points) ... Constant ... 201.222"
+     },
+     "check": {
+      "kind": "t_value",
+      "term": "Intercept",
+      "model": "w1 + w2 + w1:w2 + I(w1 ** 2)"
+     }
+    },
+    {
+     "what": "p_value",
+     "term": "Intercept",
+     "value": "0.003",
+     "where": {
+      "page": "7-13",
+      "source_kind": "table",
+      "quote": "Table 7.2 Regression Analysis Table for Final Experimental Region (without α points) ... Constant ... 0.003"
+     },
+     "check": {
+      "kind": "p_value",
+      "term": "Intercept",
+      "model": "w1 + w2 + w1:w2 + I(w1 ** 2)"
+     }
+    },
+    {
+     "what": "standardised coefficient",
+     "term": "Intercept",
+     "value": "0.000",
+     "where": {
+      "page": "7-13",
+      "source_kind": "table",
+      "quote": "Table 7.2 Regression Analysis Table for Final Experimental Region (without α points) ... Constant ... Std Coef 0.000"
+     },
+     "check": {
+      "manual": "a coefficient in standard deviations of the response per standard deviation of the term; no check computes it"
+     }
+    },
+    {
+     "what": "tolerance",
+     "term": "Intercept",
+     "value": "1.0000000",
+     "analysis": "one over the term's variance inflation factor",
+     "where": {
+      "page": "7-13",
+      "source_kind": "table",
+      "quote": "Table 7.2 Regression Analysis Table for Final Experimental Region (without α points) ... Constant ... Tolerance 1.0000000"
+     },
+     "check": {
+      "manual": "printed for the constant, which has no variance inflation factor"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "w1",
+     "value": "1.875",
+     "where": {
+      "page": "7-13",
+      "source_kind": "table",
+      "quote": "Table 7.2 Regression Analysis Table for Final Experimental Region (without α points) ... w1 ... 1.875"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "w1",
+      "model": "w1 + w2 + w1:w2 + I(w1 ** 2)"
+     }
+    },
+    {
+     "what": "std_error",
+     "term": "w1",
+     "value": "0.318",
+     "where": {
+      "page": "7-13",
+      "source_kind": "table",
+      "quote": "Table 7.2 Regression Analysis Table for Final Experimental Region (without α points) ... w1 ... 0.318"
+     },
+     "check": {
+      "kind": "std_error",
+      "term": "w1",
+      "model": "w1 + w2 + w1:w2 + I(w1 ** 2)"
+     }
+    },
+    {
+     "what": "t_value",
+     "term": "w1",
+     "value": "5.893",
+     "where": {
+      "page": "7-13",
+      "source_kind": "table",
+      "quote": "Table 7.2 Regression Analysis Table for Final Experimental Region (without α points) ... w1 ... 5.893"
+     },
+     "check": {
+      "kind": "t_value",
+      "term": "w1",
+      "model": "w1 + w2 + w1:w2 + I(w1 ** 2)"
+     }
+    },
+    {
+     "what": "p_value",
+     "term": "w1",
+     "value": "0.107",
+     "where": {
+      "page": "7-13",
+      "source_kind": "table",
+      "quote": "Table 7.2 Regression Analysis Table for Final Experimental Region (without α points) ... w1 ... 0.107"
+     },
+     "check": {
+      "kind": "p_value",
+      "term": "w1",
+      "model": "w1 + w2 + w1:w2 + I(w1 ** 2)"
+     }
+    },
+    {
+     "what": "standardised coefficient",
+     "term": "w1",
+     "value": "0.299",
+     "where": {
+      "page": "7-13",
+      "source_kind": "table",
+      "quote": "Table 7.2 Regression Analysis Table for Final Experimental Region (without α points) ... w1 ... Std Coef 0.299"
+     },
+     "check": {
+      "manual": "a coefficient in standard deviations of the response per standard deviation of the term; no check computes it"
+     }
+    },
+    {
+     "what": "tolerance",
+     "term": "w1",
+     "value": "1.0000000",
+     "analysis": "one over the term's variance inflation factor",
+     "where": {
+      "page": "7-13",
+      "source_kind": "table",
+      "quote": "Table 7.2 Regression Analysis Table for Final Experimental Region (without α points) ... w1 ... Tolerance 1.0000000"
+     },
+     "check": {
+      "kind": "design_metric",
+      "metric": "vif",
+      "model": "w1 + w2 + w1:w2 + I(w1 ** 2)",
+      "key": "w1",
+      "reciprocal": true
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "w2",
+     "value": "-1.825",
+     "where": {
+      "page": "7-13",
+      "source_kind": "table",
+      "quote": "Table 7.2 Regression Analysis Table for Final Experimental Region (without α points) ... w2 ... -1.825"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "w2",
+      "model": "w1 + w2 + w1:w2 + I(w1 ** 2)"
+     }
+    },
+    {
+     "what": "std_error",
+     "term": "w2",
+     "value": "0.318",
+     "where": {
+      "page": "7-13",
+      "source_kind": "table",
+      "quote": "Table 7.2 Regression Analysis Table for Final Experimental Region (without α points) ... w2 ... 0.318"
+     },
+     "check": {
+      "kind": "std_error",
+      "term": "w2",
+      "model": "w1 + w2 + w1:w2 + I(w1 ** 2)"
+     }
+    },
+    {
+     "what": "t_value",
+     "term": "w2",
+     "value": "-5.735",
+     "where": {
+      "page": "7-13",
+      "source_kind": "table",
+      "quote": "Table 7.2 Regression Analysis Table for Final Experimental Region (without α points) ... w2 ... -5.735"
+     },
+     "check": {
+      "kind": "t_value",
+      "term": "w2",
+      "model": "w1 + w2 + w1:w2 + I(w1 ** 2)"
+     }
+    },
+    {
+     "what": "p_value",
+     "term": "w2",
+     "value": "0.110",
+     "where": {
+      "page": "7-13",
+      "source_kind": "table",
+      "quote": "Table 7.2 Regression Analysis Table for Final Experimental Region (without α points) ... w2 ... 0.110"
+     },
+     "check": {
+      "kind": "p_value",
+      "term": "w2",
+      "model": "w1 + w2 + w1:w2 + I(w1 ** 2)"
+     }
+    },
+    {
+     "what": "standardised coefficient",
+     "term": "w2",
+     "value": "-0.291",
+     "where": {
+      "page": "7-13",
+      "source_kind": "table",
+      "quote": "Table 7.2 Regression Analysis Table for Final Experimental Region (without α points) ... w2 ... Std Coef -0.291"
+     },
+     "check": {
+      "manual": "a coefficient in standard deviations of the response per standard deviation of the term; no check computes it"
+     }
+    },
+    {
+     "what": "tolerance",
+     "term": "w2",
+     "value": "1.0000000",
+     "analysis": "one over the term's variance inflation factor",
+     "where": {
+      "page": "7-13",
+      "source_kind": "table",
+      "quote": "Table 7.2 Regression Analysis Table for Final Experimental Region (without α points) ... w2 ... Tolerance 1.0000000"
+     },
+     "check": {
+      "kind": "design_metric",
+      "metric": "vif",
+      "model": "w1 + w2 + w1:w2 + I(w1 ** 2)",
+      "key": "w2",
+      "reciprocal": true
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "w1·w2",
+     "value": "3.775",
+     "where": {
+      "page": "7-13",
+      "source_kind": "table",
+      "quote": "Table 7.2 Regression Analysis Table for Final Experimental Region (without α points) ... w1 × w2 ... 3.775"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "w1·w2",
+      "model": "w1 + w2 + w1:w2 + I(w1 ** 2)"
+     }
+    },
+    {
+     "what": "std_error",
+     "term": "w1·w2",
+     "value": "0.318",
+     "where": {
+      "page": "7-13",
+      "source_kind": "table",
+      "quote": "Table 7.2 Regression Analysis Table for Final Experimental Region (without α points) ... w1 × w2 ... 0.318"
+     },
+     "check": {
+      "kind": "std_error",
+      "term": "w1·w2",
+      "model": "w1 + w2 + w1:w2 + I(w1 ** 2)"
+     }
+    },
+    {
+     "what": "t_value",
+     "term": "w1·w2",
+     "value": "11.864",
+     "where": {
+      "page": "7-13",
+      "source_kind": "table",
+      "quote": "Table 7.2 Regression Analysis Table for Final Experimental Region (without α points) ... w1 × w2 ... 11.864"
+     },
+     "check": {
+      "kind": "t_value",
+      "term": "w1·w2",
+      "model": "w1 + w2 + w1:w2 + I(w1 ** 2)"
+     }
+    },
+    {
+     "what": "p_value",
+     "term": "w1·w2",
+     "value": "0.054",
+     "where": {
+      "page": "7-13",
+      "source_kind": "table",
+      "quote": "Table 7.2 Regression Analysis Table for Final Experimental Region (without α points) ... w1 × w2 ... 0.054"
+     },
+     "check": {
+      "kind": "p_value",
+      "term": "w1·w2",
+      "model": "w1 + w2 + w1:w2 + I(w1 ** 2)"
+     }
+    },
+    {
+     "what": "standardised coefficient",
+     "term": "w1·w2",
+     "value": "0.602",
+     "where": {
+      "page": "7-13",
+      "source_kind": "table",
+      "quote": "Table 7.2 Regression Analysis Table for Final Experimental Region (without α points) ... w1 × w2 ... Std Coef 0.602"
+     },
+     "check": {
+      "manual": "a coefficient in standard deviations of the response per standard deviation of the term; no check computes it"
+     }
+    },
+    {
+     "what": "tolerance",
+     "term": "w1·w2",
+     "value": "1.0000000",
+     "analysis": "one over the term's variance inflation factor",
+     "where": {
+      "page": "7-13",
+      "source_kind": "table",
+      "quote": "Table 7.2 Regression Analysis Table for Final Experimental Region (without α points) ... w1 × w2 ... Tolerance 1.0000000"
+     },
+     "check": {
+      "kind": "design_metric",
+      "metric": "vif",
+      "model": "w1 + w2 + w1:w2 + I(w1 ** 2)",
+      "key": "w1:w2",
+      "reciprocal": true
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "w1²",
+     "value": "-7.375",
+     "where": {
+      "page": "7-13",
+      "source_kind": "table",
+      "quote": "Table 7.2 Regression Analysis Table for Final Experimental Region (without α points) ... quadratic ... -7.375"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "w1²",
+      "model": "w1 + w2 + w1:w2 + I(w1 ** 2)"
+     }
+    },
+    {
+     "what": "std_error",
+     "term": "w1²",
+     "value": "0.551",
+     "where": {
+      "page": "7-13",
+      "source_kind": "table",
+      "quote": "Table 7.2 Regression Analysis Table for Final Experimental Region (without α points) ... quadratic ... 0.551"
+     },
+     "check": {
+      "kind": "std_error",
+      "term": "w1²",
+      "model": "w1 + w2 + w1:w2 + I(w1 ** 2)"
+     }
+    },
+    {
+     "what": "t_value",
+     "term": "w1²",
+     "value": "-13.381",
+     "where": {
+      "page": "7-13",
+      "source_kind": "table",
+      "quote": "Table 7.2 Regression Analysis Table for Final Experimental Region (without α points) ... quadratic ... -13.381"
+     },
+     "check": {
+      "kind": "t_value",
+      "term": "w1²",
+      "model": "w1 + w2 + w1:w2 + I(w1 ** 2)"
+     }
+    },
+    {
+     "what": "p_value",
+     "term": "w1²",
+     "value": "0.047",
+     "where": {
+      "page": "7-13",
+      "source_kind": "table",
+      "quote": "Table 7.2 Regression Analysis Table for Final Experimental Region (without α points) ... quadratic ... 0.047"
+     },
+     "check": {
+      "kind": "p_value",
+      "term": "w1²",
+      "model": "w1 + w2 + w1:w2 + I(w1 ** 2)"
+     }
+    },
+    {
+     "what": "standardised coefficient",
+     "term": "w1²",
+     "value": "-0.679",
+     "where": {
+      "page": "7-13",
+      "source_kind": "table",
+      "quote": "Table 7.2 Regression Analysis Table for Final Experimental Region (without α points) ... quadratic ... Std Coef -0.679"
+     },
+     "check": {
+      "manual": "a coefficient in standard deviations of the response per standard deviation of the term; no check computes it"
+     }
+    },
+    {
+     "what": "tolerance",
+     "term": "w1²",
+     "value": "1.0000000",
+     "analysis": "one over the term's variance inflation factor",
+     "where": {
+      "page": "7-13",
+      "source_kind": "table",
+      "quote": "Table 7.2 Regression Analysis Table for Final Experimental Region (without α points) ... quadratic ... Tolerance 1.0000000"
+     },
+     "check": {
+      "kind": "design_metric",
+      "metric": "vif",
+      "model": "w1 + w2 + w1:w2 + I(w1 ** 2)",
+      "key": "I(w1 ** 2)",
+      "reciprocal": true
+     }
+    },
+    {
+     "what": "ss_regression",
+     "term": null,
+     "value": "156.908",
+     "where": {
+      "page": "7-13",
+      "source_kind": "table",
+      "quote": "Table 7.2 Regression Analysis Table for Final Experimental Region (without α points) ... Regression SS 156.908"
+     },
+     "check": {
+      "kind": "ss_regression",
+      "model": "w1 + w2 + w1:w2 + I(w1 ** 2)"
+     }
+    },
+    {
+     "what": "df_model",
+     "term": null,
+     "value": "4",
+     "where": {
+      "page": "7-13",
+      "source_kind": "table",
+      "quote": "Table 7.2 Regression Analysis Table for Final Experimental Region (without α points) ... Regression df 4"
+     },
+     "check": {
+      "kind": "df_model",
+      "model": "w1 + w2 + w1:w2 + I(w1 ** 2)"
+     }
+    },
+    {
+     "what": "ms_regression",
+     "term": null,
+     "value": "39.227",
+     "where": {
+      "page": "7-13",
+      "source_kind": "table",
+      "quote": "Table 7.2 Regression Analysis Table for Final Experimental Region (without α points) ... Regression MS 39.227"
+     },
+     "check": {
+      "kind": "ms_regression",
+      "model": "w1 + w2 + w1:w2 + I(w1 ** 2)"
+     }
+    },
+    {
+     "what": "f_regression",
+     "term": null,
+     "value": "96.857",
+     "where": {
+      "page": "7-13",
+      "source_kind": "table",
+      "quote": "Table 7.2 Regression Analysis Table for Final Experimental Region (without α points) ... F-Ratio 96.857"
+     },
+     "check": {
+      "kind": "f_regression",
+      "model": "w1 + w2 + w1:w2 + I(w1 ** 2)"
+     }
+    },
+    {
+     "what": "f_regression_p",
+     "term": null,
+     "value": "0.076",
+     "where": {
+      "page": "7-13",
+      "source_kind": "table",
+      "quote": "Table 7.2 Regression Analysis Table for Final Experimental Region (without α points) ... P / Significance 0.076"
+     },
+     "check": {
+      "kind": "f_regression_p",
+      "model": "w1 + w2 + w1:w2 + I(w1 ** 2)"
+     }
+    },
+    {
+     "what": "ss_residual",
+     "term": null,
+     "value": "0.405",
+     "where": {
+      "page": "7-13",
+      "source_kind": "table",
+      "quote": "Table 7.2 Regression Analysis Table for Final Experimental Region (without α points) ... Residual SS 0.405"
+     },
+     "check": {
+      "kind": "ss_residual",
+      "model": "w1 + w2 + w1:w2 + I(w1 ** 2)"
+     }
+    },
+    {
+     "what": "residual_df",
+     "term": null,
+     "value": "1",
+     "where": {
+      "page": "7-13",
+      "source_kind": "table",
+      "quote": "Table 7.2 Regression Analysis Table for Final Experimental Region (without α points) ... Resid. df 1"
+     },
+     "check": {
+      "kind": "residual_df",
+      "model": "w1 + w2 + w1:w2 + I(w1 ** 2)"
+     }
+    },
+    {
+     "what": "ms_residual",
+     "term": null,
+     "value": "0.405",
+     "where": {
+      "page": "7-13",
+      "source_kind": "table",
+      "quote": "Table 7.2 Regression Analysis Table for Final Experimental Region (without α points) ... Residual MS 0.405"
+     },
+     "check": {
+      "kind": "ms_residual",
+      "model": "w1 + w2 + w1:w2 + I(w1 ** 2)"
+     }
+    },
+    {
+     "what": "axial distance",
+     "term": null,
+     "value": "1.414",
+     "analysis": "the axial distance of the library's rotatable CCD on two factors",
+     "where": {
+      "page": "7-14",
+      "source_kind": "math",
+      "quote": "α = (nF)^1/4 = (4)^1/4 = 1.414"
+     },
+     "check": {
+      "kind": "design_property",
+      "design": {
+       "design_type": "ccd",
+       "k": 2,
+       "options": {
+        "n_center_points": 2,
+        "alpha": "rotatable"
+       }
+      },
+      "property": "alpha"
+     }
+    }
+   ]
+  },
+  {
+   "name": "schmidt-yield-ccd",
+   "title": "Yield in a rotatable central composite design: the second-order model, its stationary point and canonical analysis",
+   "kind": "example",
+   "where": {
+    "section": "7.2",
+    "pages": "7-14 to 7-16",
+    "tables": [
+     "Table 7.3"
+    ],
+    "figures": [
+     "Figure 7.6"
+    ]
+   },
+   "factors": [
+    {
+     "name": "w1",
+     "description": "temperature, f1",
+     "low": 257,
+     "high": 357,
+     "units": "°F",
+     "type": "numeric"
+    },
+    {
+     "name": "w2",
+     "description": "pressure, f2",
+     "low": 100,
+     "high": 150,
+     "units": "psi",
+     "type": "numeric"
+    }
+   ],
+   "responses": [
+    {
+     "name": "y",
+     "description": "yield",
+     "units": "%"
+    }
+   ],
+   "design": {
+    "type": "central composite design",
+    "details": "the 2^2 with two centre points of the second region, with four axial runs at 1.414",
+    "n_runs": 10,
+    "treatment_factors": 2
+   },
+   "runs": {
+    "columns": [
+     "w1",
+     "w2",
+     "y"
+    ],
+    "rows": [
+     [
+      1,
+      1,
+      87.0
+     ],
+     [
+      1,
+      -1,
+      83.1
+     ],
+     [
+      -1,
+      1,
+      75.7
+     ],
+     [
+      -1,
+      -1,
+      86.9
+     ],
+     [
+      0,
+      0,
+      91.0
+     ],
+     [
+      0,
+      0,
+      90.1
+     ],
+     [
+      1.414,
+      0,
+      85.4
+     ],
+     [
+      -1.414,
+      0,
+      77.6
+     ],
+     [
+      0,
+      1.414,
+      80.5
+     ],
+     [
+      0,
+      -1.414,
+      77.4
+     ]
+    ],
+    "coded": true,
+    "notes": "the table on p. 7-14; the axial runs are fitted at 1.414, as printed, which is what reproduces the tolerance .8164322 of Table 7.3"
+   },
+   "notes": "At the .10 level the book drops w2 and finds the stationary point of the simplified model, a maximum since both eigenvalues of B, the matrix of second-order coefficients, are negative.",
+   "expected": [
+    {
+     "what": "design matrix",
+     "term": null,
+     "value": "10",
+     "analysis": "the library's rotatable CCD on two factors with two centre points",
+     "where": {
+      "page": "7-14",
+      "source_kind": "table",
+      "quote": "the completed data set is shown next ... 1.414 0 ... -1.414 0 ... 0 1.414 ... 0 -1.414"
+     },
+     "check": {
+      "kind": "same_runs",
+      "design": {
+       "design_type": "ccd",
+       "k": 2,
+       "options": {
+        "n_center_points": 2,
+        "alpha": "rotatable"
+       }
+      },
+      "round": 3
+     }
+    },
+    {
+     "what": "n_runs",
+     "term": null,
+     "value": "10",
+     "where": {
+      "page": "7-15",
+      "source_kind": "table",
+      "quote": "Table 7.3 Regression Analysis Table for Final Experimental Region (with α points) ... No. cases / N 10"
+     },
+     "check": {
+      "kind": "n_runs",
+      "model": "w1 + w2 + w1:w2 + I(w1 ** 2) + I(w2 ** 2)"
+     }
+    },
+    {
+     "what": "multiple_r",
+     "term": null,
+     "value": ".930",
+     "where": {
+      "page": "7-15",
+      "source_kind": "table",
+      "quote": "Table 7.3 Regression Analysis Table for Final Experimental Region (with α points) ... Multiple R .930"
+     },
+     "check": {
+      "kind": "multiple_r",
+      "model": "w1 + w2 + w1:w2 + I(w1 ** 2) + I(w2 ** 2)"
+     }
+    },
+    {
+     "what": "r_squared",
+     "term": null,
+     "value": ".865",
+     "where": {
+      "page": "7-15",
+      "source_kind": "table",
+      "quote": "Table 7.3 Regression Analysis Table for Final Experimental Region (with α points) ... R² .865"
+     },
+     "check": {
+      "kind": "r_squared",
+      "model": "w1 + w2 + w1:w2 + I(w1 ** 2) + I(w2 ** 2)"
+     }
+    },
+    {
+     "what": "r_squared_adj",
+     "term": null,
+     "value": ".695",
+     "where": {
+      "page": "7-15",
+      "source_kind": "table",
+      "quote": "Table 7.3 Regression Analysis Table for Final Experimental Region (with α points) ... Adj R² .695"
+     },
+     "check": {
+      "kind": "r_squared_adj",
+      "model": "w1 + w2 + w1:w2 + I(w1 ** 2) + I(w2 ** 2)"
+     }
+    },
+    {
+     "what": "residual_std_error",
+     "term": null,
+     "value": "3.019",
+     "where": {
+      "page": "7-15",
+      "source_kind": "table",
+      "quote": "Table 7.3 Regression Analysis Table for Final Experimental Region (with α points) ... Std Error of Estimate / RMS Error 3.019"
+     },
+     "check": {
+      "kind": "residual_std_error",
+      "model": "w1 + w2 + w1:w2 + I(w1 ** 2) + I(w2 ** 2)"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "Intercept",
+     "value": "90.549",
+     "where": {
+      "page": "7-15",
+      "source_kind": "table",
+      "quote": "Table 7.3 Regression Analysis Table for Final Experimental Region (with α points) ... Constant ... 90.549"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "Intercept",
+      "model": "w1 + w2 + w1:w2 + I(w1 ** 2) + I(w2 ** 2)"
+     }
+    },
+    {
+     "what": "std_error",
+     "term": "Intercept",
+     "value": "2.135",
+     "where": {
+      "page": "7-15",
+      "source_kind": "table",
+      "quote": "Table 7.3 Regression Analysis Table for Final Experimental Region (with α points) ... Constant ... 2.135"
+     },
+     "check": {
+      "kind": "std_error",
+      "term": "Intercept",
+      "model": "w1 + w2 + w1:w2 + I(w1 ** 2) + I(w2 ** 2)"
+     }
+    },
+    {
+     "what": "t_value",
+     "term": "Intercept",
+     "value": "42.412",
+     "where": {
+      "page": "7-15",
+      "source_kind": "table",
+      "quote": "Table 7.3 Regression Analysis Table for Final Experimental Region (with α points) ... Constant ... 42.412"
+     },
+     "check": {
+      "kind": "t_value",
+      "term": "Intercept",
+      "model": "w1 + w2 + w1:w2 + I(w1 ** 2) + I(w2 ** 2)"
+     }
+    },
+    {
+     "what": "p_value",
+     "term": "Intercept",
+     "value": "0.000",
+     "where": {
+      "page": "7-15",
+      "source_kind": "table",
+      "quote": "Table 7.3 Regression Analysis Table for Final Experimental Region (with α points) ... Constant ... 0.000"
+     },
+     "check": {
+      "kind": "p_value",
+      "term": "Intercept",
+      "model": "w1 + w2 + w1:w2 + I(w1 ** 2) + I(w2 ** 2)"
+     }
+    },
+    {
+     "what": "standardised coefficient",
+     "term": "Intercept",
+     "value": "0.000",
+     "where": {
+      "page": "7-15",
+      "source_kind": "table",
+      "quote": "Table 7.3 Regression Analysis Table for Final Experimental Region (with α points) ... Constant ... Std Coef 0.000"
+     },
+     "check": {
+      "manual": "a coefficient in standard deviations of the response per standard deviation of the term; no check computes it"
+     }
+    },
+    {
+     "what": "tolerance",
+     "term": "Intercept",
+     "value": "1.0000000",
+     "analysis": "one over the term's variance inflation factor",
+     "where": {
+      "page": "7-15",
+      "source_kind": "table",
+      "quote": "Table 7.3 Regression Analysis Table for Final Experimental Region (with α points) ... Constant ... Tolerance 1.0000000"
+     },
+     "check": {
+      "manual": "printed for the constant, which has no variance inflation factor"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "w1",
+     "value": "2.316",
+     "where": {
+      "page": "7-15",
+      "source_kind": "table",
+      "quote": "Table 7.3 Regression Analysis Table for Final Experimental Region (with α points) ... w1 ... 2.316"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "w1",
+      "model": "w1 + w2 + w1:w2 + I(w1 ** 2) + I(w2 ** 2)"
+     }
+    },
+    {
+     "what": "std_error",
+     "term": "w1",
+     "value": "1.068",
+     "where": {
+      "page": "7-15",
+      "source_kind": "table",
+      "quote": "Table 7.3 Regression Analysis Table for Final Experimental Region (with α points) ... w1 ... 1.068"
+     },
+     "check": {
+      "kind": "std_error",
+      "term": "w1",
+      "model": "w1 + w2 + w1:w2 + I(w1 ** 2) + I(w2 ** 2)"
+     }
+    },
+    {
+     "what": "t_value",
+     "term": "w1",
+     "value": "2.170",
+     "where": {
+      "page": "7-15",
+      "source_kind": "table",
+      "quote": "Table 7.3 Regression Analysis Table for Final Experimental Region (with α points) ... w1 ... 2.170"
+     },
+     "check": {
+      "kind": "t_value",
+      "term": "w1",
+      "model": "w1 + w2 + w1:w2 + I(w1 ** 2) + I(w2 ** 2)"
+     }
+    },
+    {
+     "what": "p_value",
+     "term": "w1",
+     "value": "0.096",
+     "where": {
+      "page": "7-15",
+      "source_kind": "table",
+      "quote": "Table 7.3 Regression Analysis Table for Final Experimental Region (with α points) ... w1 ... 0.096"
+     },
+     "check": {
+      "kind": "p_value",
+      "term": "w1",
+      "model": "w1 + w2 + w1:w2 + I(w1 ** 2) + I(w2 ** 2)"
+     }
+    },
+    {
+     "what": "standardised coefficient",
+     "term": "w1",
+     "value": "0.399",
+     "where": {
+      "page": "7-15",
+      "source_kind": "table",
+      "quote": "Table 7.3 Regression Analysis Table for Final Experimental Region (with α points) ... w1 ... Std Coef 0.399"
+     },
+     "check": {
+      "manual": "a coefficient in standard deviations of the response per standard deviation of the term; no check computes it"
+     }
+    },
+    {
+     "what": "tolerance",
+     "term": "w1",
+     "value": "1.0000000",
+     "analysis": "one over the term's variance inflation factor",
+     "where": {
+      "page": "7-15",
+      "source_kind": "table",
+      "quote": "Table 7.3 Regression Analysis Table for Final Experimental Region (with α points) ... w1 ... Tolerance 1.0000000"
+     },
+     "check": {
+      "kind": "design_metric",
+      "metric": "vif",
+      "model": "w1 + w2 + w1:w2 + I(w1 ** 2) + I(w2 ** 2)",
+      "key": "w1",
+      "reciprocal": true
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "w2",
+     "value": "-0.365",
+     "where": {
+      "page": "7-15",
+      "source_kind": "table",
+      "quote": "Table 7.3 Regression Analysis Table for Final Experimental Region (with α points) ... w2 ... -0.365"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "w2",
+      "model": "w1 + w2 + w1:w2 + I(w1 ** 2) + I(w2 ** 2)"
+     }
+    },
+    {
+     "what": "std_error",
+     "term": "w2",
+     "value": "1.068",
+     "where": {
+      "page": "7-15",
+      "source_kind": "table",
+      "quote": "Table 7.3 Regression Analysis Table for Final Experimental Region (with α points) ... w2 ... 1.068"
+     },
+     "check": {
+      "kind": "std_error",
+      "term": "w2",
+      "model": "w1 + w2 + w1:w2 + I(w1 ** 2) + I(w2 ** 2)"
+     }
+    },
+    {
+     "what": "t_value",
+     "term": "w2",
+     "value": "-0.342",
+     "where": {
+      "page": "7-15",
+      "source_kind": "table",
+      "quote": "Table 7.3 Regression Analysis Table for Final Experimental Region (with α points) ... w2 ... -0.342"
+     },
+     "check": {
+      "kind": "t_value",
+      "term": "w2",
+      "model": "w1 + w2 + w1:w2 + I(w1 ** 2) + I(w2 ** 2)"
+     }
+    },
+    {
+     "what": "p_value",
+     "term": "w2",
+     "value": "0.750",
+     "where": {
+      "page": "7-15",
+      "source_kind": "table",
+      "quote": "Table 7.3 Regression Analysis Table for Final Experimental Region (with α points) ... w2 ... 0.750"
+     },
+     "check": {
+      "kind": "p_value",
+      "term": "w2",
+      "model": "w1 + w2 + w1:w2 + I(w1 ** 2) + I(w2 ** 2)"
+     }
+    },
+    {
+     "what": "standardised coefficient",
+     "term": "w2",
+     "value": "-0.063",
+     "where": {
+      "page": "7-15",
+      "source_kind": "table",
+      "quote": "Table 7.3 Regression Analysis Table for Final Experimental Region (with α points) ... w2 ... Std Coef -0.063"
+     },
+     "check": {
+      "manual": "a coefficient in standard deviations of the response per standard deviation of the term; no check computes it"
+     }
+    },
+    {
+     "what": "tolerance",
+     "term": "w2",
+     "value": "1.0000000",
+     "analysis": "one over the term's variance inflation factor",
+     "where": {
+      "page": "7-15",
+      "source_kind": "table",
+      "quote": "Table 7.3 Regression Analysis Table for Final Experimental Region (with α points) ... w2 ... Tolerance 1.0000000"
+     },
+     "check": {
+      "kind": "design_metric",
+      "metric": "vif",
+      "model": "w1 + w2 + w1:w2 + I(w1 ** 2) + I(w2 ** 2)",
+      "key": "w2",
+      "reciprocal": true
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "w1·w2",
+     "value": "3.775",
+     "where": {
+      "page": "7-15",
+      "source_kind": "table",
+      "quote": "Table 7.3 Regression Analysis Table for Final Experimental Region (with α points) ... w1 × w2 ... 3.775"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "w1·w2",
+      "model": "w1 + w2 + w1:w2 + I(w1 ** 2) + I(w2 ** 2)"
+     }
+    },
+    {
+     "what": "std_error",
+     "term": "w1·w2",
+     "value": "1.510",
+     "where": {
+      "page": "7-15",
+      "source_kind": "table",
+      "quote": "Table 7.3 Regression Analysis Table for Final Experimental Region (with α points) ... w1 × w2 ... 1.510"
+     },
+     "check": {
+      "kind": "std_error",
+      "term": "w1·w2",
+      "model": "w1 + w2 + w1:w2 + I(w1 ** 2) + I(w2 ** 2)"
+     }
+    },
+    {
+     "what": "t_value",
+     "term": "w1·w2",
+     "value": "2.501",
+     "where": {
+      "page": "7-15",
+      "source_kind": "table",
+      "quote": "Table 7.3 Regression Analysis Table for Final Experimental Region (with α points) ... w1 × w2 ... 2.501"
+     },
+     "check": {
+      "kind": "t_value",
+      "term": "w1·w2",
+      "model": "w1 + w2 + w1:w2 + I(w1 ** 2) + I(w2 ** 2)"
+     }
+    },
+    {
+     "what": "p_value",
+     "term": "w1·w2",
+     "value": "0.067",
+     "where": {
+      "page": "7-15",
+      "source_kind": "table",
+      "quote": "Table 7.3 Regression Analysis Table for Final Experimental Region (with α points) ... w1 × w2 ... 0.067"
+     },
+     "check": {
+      "kind": "p_value",
+      "term": "w1·w2",
+      "model": "w1 + w2 + w1:w2 + I(w1 ** 2) + I(w2 ** 2)"
+     }
+    },
+    {
+     "what": "standardised coefficient",
+     "term": "w1·w2",
+     "value": "0.460",
+     "where": {
+      "page": "7-15",
+      "source_kind": "table",
+      "quote": "Table 7.3 Regression Analysis Table for Final Experimental Region (with α points) ... w1 × w2 ... Std Coef 0.460"
+     },
+     "check": {
+      "manual": "a coefficient in standard deviations of the response per standard deviation of the term; no check computes it"
+     }
+    },
+    {
+     "what": "tolerance",
+     "term": "w1·w2",
+     "value": "1.0000000",
+     "analysis": "one over the term's variance inflation factor",
+     "where": {
+      "page": "7-15",
+      "source_kind": "table",
+      "quote": "Table 7.3 Regression Analysis Table for Final Experimental Region (with α points) ... w1 × w2 ... Tolerance 1.0000000"
+     },
+     "check": {
+      "kind": "design_metric",
+      "metric": "vif",
+      "model": "w1 + w2 + w1:w2 + I(w1 ** 2) + I(w2 ** 2)",
+      "key": "w1:w2",
+      "reciprocal": true
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "w1²",
+     "value": "-3.787",
+     "where": {
+      "page": "7-15",
+      "source_kind": "table",
+      "quote": "Table 7.3 Regression Analysis Table for Final Experimental Region (with α points) ... (w1)² ... -3.787"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "w1²",
+      "model": "w1 + w2 + w1:w2 + I(w1 ** 2) + I(w2 ** 2)"
+     }
+    },
+    {
+     "what": "std_error",
+     "term": "w1²",
+     "value": "1.412",
+     "where": {
+      "page": "7-15",
+      "source_kind": "table",
+      "quote": "Table 7.3 Regression Analysis Table for Final Experimental Region (with α points) ... (w1)² ... 1.412"
+     },
+     "check": {
+      "kind": "std_error",
+      "term": "w1²",
+      "model": "w1 + w2 + w1:w2 + I(w1 ** 2) + I(w2 ** 2)"
+     }
+    },
+    {
+     "what": "t_value",
+     "term": "w1²",
+     "value": "-2.681",
+     "where": {
+      "page": "7-15",
+      "source_kind": "table",
+      "quote": "Table 7.3 Regression Analysis Table for Final Experimental Region (with α points) ... (w1)² ... -2.681"
+     },
+     "check": {
+      "kind": "t_value",
+      "term": "w1²",
+      "model": "w1 + w2 + w1:w2 + I(w1 ** 2) + I(w2 ** 2)"
+     }
+    },
+    {
+     "what": "p_value",
+     "term": "w1²",
+     "value": "0.055",
+     "where": {
+      "page": "7-15",
+      "source_kind": "table",
+      "quote": "Table 7.3 Regression Analysis Table for Final Experimental Region (with α points) ... (w1)² ... 0.055"
+     },
+     "check": {
+      "kind": "p_value",
+      "term": "w1²",
+      "model": "w1 + w2 + w1:w2 + I(w1 ** 2) + I(w2 ** 2)"
+     }
+    },
+    {
+     "what": "standardised coefficient",
+     "term": "w1²",
+     "value": "-0.546",
+     "where": {
+      "page": "7-15",
+      "source_kind": "table",
+      "quote": "Table 7.3 Regression Analysis Table for Final Experimental Region (with α points) ... (w1)² ... Std Coef -0.546"
+     },
+     "check": {
+      "manual": "a coefficient in standard deviations of the response per standard deviation of the term; no check computes it"
+     }
+    },
+    {
+     "what": "tolerance",
+     "term": "w1²",
+     "value": ".8164322",
+     "analysis": "one over the term's variance inflation factor",
+     "where": {
+      "page": "7-15",
+      "source_kind": "table",
+      "quote": "Table 7.3 Regression Analysis Table for Final Experimental Region (with α points) ... (w1)² ... Tolerance .8164322"
+     },
+     "check": {
+      "kind": "design_metric",
+      "metric": "vif",
+      "model": "w1 + w2 + w1:w2 + I(w1 ** 2) + I(w2 ** 2)",
+      "key": "I(w1 ** 2)",
+      "reciprocal": true
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "w2²",
+     "value": "-5.063",
+     "where": {
+      "page": "7-15",
+      "source_kind": "table",
+      "quote": "Table 7.3 Regression Analysis Table for Final Experimental Region (with α points) ... (w2)² ... -5.063"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "w2²",
+      "model": "w1 + w2 + w1:w2 + I(w1 ** 2) + I(w2 ** 2)"
+     }
+    },
+    {
+     "what": "std_error",
+     "term": "w2²",
+     "value": "1.412",
+     "where": {
+      "page": "7-15",
+      "source_kind": "table",
+      "quote": "Table 7.3 Regression Analysis Table for Final Experimental Region (with α points) ... (w2)² ... 1.412"
+     },
+     "check": {
+      "kind": "std_error",
+      "term": "w2²",
+      "model": "w1 + w2 + w1:w2 + I(w1 ** 2) + I(w2 ** 2)"
+     }
+    },
+    {
+     "what": "t_value",
+     "term": "w2²",
+     "value": "-3.584",
+     "where": {
+      "page": "7-15",
+      "source_kind": "table",
+      "quote": "Table 7.3 Regression Analysis Table for Final Experimental Region (with α points) ... (w2)² ... -3.584"
+     },
+     "check": {
+      "kind": "t_value",
+      "term": "w2²",
+      "model": "w1 + w2 + w1:w2 + I(w1 ** 2) + I(w2 ** 2)"
+     }
+    },
+    {
+     "what": "p_value",
+     "term": "w2²",
+     "value": "0.023",
+     "where": {
+      "page": "7-15",
+      "source_kind": "table",
+      "quote": "Table 7.3 Regression Analysis Table for Final Experimental Region (with α points) ... (w2)² ... 0.023"
+     },
+     "check": {
+      "kind": "p_value",
+      "term": "w2²",
+      "model": "w1 + w2 + w1:w2 + I(w1 ** 2) + I(w2 ** 2)"
+     }
+    },
+    {
+     "what": "standardised coefficient",
+     "term": "w2²",
+     "value": "-0.730",
+     "where": {
+      "page": "7-15",
+      "source_kind": "table",
+      "quote": "Table 7.3 Regression Analysis Table for Final Experimental Region (with α points) ... (w2)² ... Std Coef -0.730"
+     },
+     "check": {
+      "manual": "a coefficient in standard deviations of the response per standard deviation of the term; no check computes it"
+     }
+    },
+    {
+     "what": "tolerance",
+     "term": "w2²",
+     "value": ".8164322",
+     "analysis": "one over the term's variance inflation factor",
+     "where": {
+      "page": "7-15",
+      "source_kind": "table",
+      "quote": "Table 7.3 Regression Analysis Table for Final Experimental Region (with α points) ... (w2)² ... Tolerance .8164322"
+     },
+     "check": {
+      "kind": "design_metric",
+      "metric": "vif",
+      "model": "w1 + w2 + w1:w2 + I(w1 ** 2) + I(w2 ** 2)",
+      "key": "I(w2 ** 2)",
+      "reciprocal": true
+     }
+    },
+    {
+     "what": "ss_regression",
+     "term": null,
+     "value": "232.776",
+     "where": {
+      "page": "7-15",
+      "source_kind": "table",
+      "quote": "Table 7.3 Regression Analysis Table for Final Experimental Region (with α points) ... Regression SS 232.776"
+     },
+     "check": {
+      "kind": "ss_regression",
+      "model": "w1 + w2 + w1:w2 + I(w1 ** 2) + I(w2 ** 2)"
+     }
+    },
+    {
+     "what": "df_model",
+     "term": null,
+     "value": "5",
+     "where": {
+      "page": "7-15",
+      "source_kind": "table",
+      "quote": "Table 7.3 Regression Analysis Table for Final Experimental Region (with α points) ... Regression df 5"
+     },
+     "check": {
+      "kind": "df_model",
+      "model": "w1 + w2 + w1:w2 + I(w1 ** 2) + I(w2 ** 2)"
+     }
+    },
+    {
+     "what": "ms_regression",
+     "term": null,
+     "value": "46.555",
+     "where": {
+      "page": "7-15",
+      "source_kind": "table",
+      "quote": "Table 7.3 Regression Analysis Table for Final Experimental Region (with α points) ... Regression MS 46.555"
+     },
+     "check": {
+      "kind": "ms_regression",
+      "model": "w1 + w2 + w1:w2 + I(w1 ** 2) + I(w2 ** 2)"
+     }
+    },
+    {
+     "what": "f_regression",
+     "term": null,
+     "value": "5.107",
+     "where": {
+      "page": "7-15",
+      "source_kind": "table",
+      "quote": "Table 7.3 Regression Analysis Table for Final Experimental Region (with α points) ... F-Ratio 5.107"
+     },
+     "check": {
+      "kind": "f_regression",
+      "model": "w1 + w2 + w1:w2 + I(w1 ** 2) + I(w2 ** 2)"
+     }
+    },
+    {
+     "what": "f_regression_p",
+     "term": null,
+     "value": "0.070",
+     "where": {
+      "page": "7-15",
+      "source_kind": "table",
+      "quote": "Table 7.3 Regression Analysis Table for Final Experimental Region (with α points) ... P / Significance 0.070"
+     },
+     "check": {
+      "kind": "f_regression_p",
+      "model": "w1 + w2 + w1:w2 + I(w1 ** 2) + I(w2 ** 2)"
+     }
+    },
+    {
+     "what": "ss_residual",
+     "term": null,
+     "value": "36.465",
+     "where": {
+      "page": "7-15",
+      "source_kind": "table",
+      "quote": "Table 7.3 Regression Analysis Table for Final Experimental Region (with α points) ... Residual SS 36.465"
+     },
+     "check": {
+      "kind": "ss_residual",
+      "model": "w1 + w2 + w1:w2 + I(w1 ** 2) + I(w2 ** 2)"
+     }
+    },
+    {
+     "what": "residual_df",
+     "term": null,
+     "value": "4",
+     "where": {
+      "page": "7-15",
+      "source_kind": "table",
+      "quote": "Table 7.3 Regression Analysis Table for Final Experimental Region (with α points) ... Resid. df 4"
+     },
+     "check": {
+      "kind": "residual_df",
+      "model": "w1 + w2 + w1:w2 + I(w1 ** 2) + I(w2 ** 2)"
+     }
+    },
+    {
+     "what": "ms_residual",
+     "term": null,
+     "value": "9.116",
+     "where": {
+      "page": "7-15",
+      "source_kind": "table",
+      "quote": "Table 7.3 Regression Analysis Table for Final Experimental Region (with α points) ... Residual MS 9.116"
+     },
+     "check": {
+      "kind": "ms_residual",
+      "model": "w1 + w2 + w1:w2 + I(w1 ** 2) + I(w2 ** 2)"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "simplified: Intercept",
+     "value": "90.549",
+     "analysis": "w2 is orthogonal to every other column, so dropping it leaves the other coefficients as they were",
+     "where": {
+      "page": "7-15",
+      "source_kind": "math",
+      "quote": "ŷ = 90.549 + 2.316w1 + 3.775w1 × w2 - 3.787(w1)² - 5.063(w2)²."
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "Intercept",
+      "model": "w1 + w1:w2 + I(w1 ** 2) + I(w2 ** 2)"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "simplified: w1",
+     "value": "2.316",
+     "analysis": "w2 is orthogonal to every other column, so dropping it leaves the other coefficients as they were",
+     "where": {
+      "page": "7-15",
+      "source_kind": "math",
+      "quote": "ŷ = 90.549 + 2.316w1 + 3.775w1 × w2 - 3.787(w1)² - 5.063(w2)²."
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "w1",
+      "model": "w1 + w1:w2 + I(w1 ** 2) + I(w2 ** 2)"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "simplified: w1·w2",
+     "value": "3.775",
+     "analysis": "w2 is orthogonal to every other column, so dropping it leaves the other coefficients as they were",
+     "where": {
+      "page": "7-15",
+      "source_kind": "math",
+      "quote": "ŷ = 90.549 + 2.316w1 + 3.775w1 × w2 - 3.787(w1)² - 5.063(w2)²."
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "w1·w2",
+      "model": "w1 + w1:w2 + I(w1 ** 2) + I(w2 ** 2)"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "simplified: w1²",
+     "value": "-3.787",
+     "analysis": "w2 is orthogonal to every other column, so dropping it leaves the other coefficients as they were",
+     "where": {
+      "page": "7-15",
+      "source_kind": "math",
+      "quote": "ŷ = 90.549 + 2.316w1 + 3.775w1 × w2 - 3.787(w1)² - 5.063(w2)²."
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "w1²",
+      "model": "w1 + w1:w2 + I(w1 ** 2) + I(w2 ** 2)"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "simplified: w2²",
+     "value": "-5.063",
+     "analysis": "w2 is orthogonal to every other column, so dropping it leaves the other coefficients as they were",
+     "where": {
+      "page": "7-15",
+      "source_kind": "math",
+      "quote": "ŷ = 90.549 + 2.316w1 + 3.775w1 × w2 - 3.787(w1)² - 5.063(w2)²."
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "w2²",
+      "model": "w1 + w1:w2 + I(w1 ** 2) + I(w2 ** 2)"
+     }
+    },
+    {
+     "what": "derivative",
+     "term": "∂ŷ/∂w1: w1",
+     "value": "-7.574",
+     "where": {
+      "page": "7-15",
+      "source_kind": "math",
+      "quote": "(1) ∂ŷ/∂w1 = 2.316 + 3.775w2 - 7.574w1 = 0"
+     },
+     "check": {
+      "manual": "twice the coefficient of (w1)², which is checked"
+     }
+    },
+    {
+     "what": "derivative",
+     "term": "∂ŷ/∂w2: w2",
+     "value": "-10.126",
+     "where": {
+      "page": "7-15",
+      "source_kind": "math",
+      "quote": "(2) ∂ŷ/∂w2 = -10.126w2 + 3.775w1 = 0"
+     },
+     "check": {
+      "manual": "twice the coefficient of (w2)², which is checked"
+     }
+    },
+    {
+     "what": "intermediate",
+     "term": "w1 / w2",
+     "value": "2.682",
+     "where": {
+      "page": "7-15",
+      "source_kind": "math",
+      "quote": "Solving for w1 in (2) results in w1 = 2.682w2."
+     },
+     "check": {
+      "manual": "10.126/3.775, arithmetic of two checked coefficients"
+     }
+    },
+    {
+     "what": "stationary point",
+     "term": "w2, coded",
+     "value": "0.140",
+     "where": {
+      "page": "7-15",
+      "source_kind": "math",
+      "quote": "3.775w2 - 7.574(2.682)w2 = -2.316 or w2 = 0.140."
+     },
+     "check": {
+      "kind": "optimum",
+      "key": "stationary_point.stationary_point_coded.w2",
+      "method": "stationary_point",
+      "model": "w1 + w1:w2 + I(w1 ** 2) + I(w2 ** 2)"
+     }
+    },
+    {
+     "what": "stationary point",
+     "term": "w1, coded",
+     "value": ".375",
+     "where": {
+      "page": "7-16",
+      "source_kind": "math",
+      "quote": "Now, substituting this value in (2) results in w1 = .375."
+     },
+     "check": {
+      "kind": "optimum",
+      "key": "stationary_point.stationary_point_coded.w1",
+      "method": "stationary_point",
+      "model": "w1 + w1:w2 + I(w1 ** 2) + I(w2 ** 2)",
+      "disagreement": "the book multiplies its rounded w2 = .140 by 2.682, giving .3755; unrounded the stationary point has w1 = .3756"
+     }
+    },
+    {
+     "what": "canonical",
+     "term": "λ1",
+     "value": "-6.419",
+     "where": {
+      "page": "7-16",
+      "source_kind": "prose",
+      "quote": "The eigenvalues of B (computations not shown) are -6.419 and -2.433."
+     },
+     "check": {
+      "kind": "optimum",
+      "key": "stationary_point.eigenvalues.0",
+      "method": "stationary_point",
+      "model": "w1 + w1:w2 + I(w1 ** 2) + I(w2 ** 2)",
+      "disagreement": "the eigenvalues of B are -6.4174 and -2.4328, from the fitted coefficients and from the printed ones alike; the book prints -6.419"
+     }
+    },
+    {
+     "what": "canonical",
+     "term": "λ2",
+     "value": "-2.433",
+     "where": {
+      "page": "7-16",
+      "source_kind": "prose",
+      "quote": "The eigenvalues of B (computations not shown) are -6.419 and -2.433."
+     },
+     "check": {
+      "kind": "optimum",
+      "key": "stationary_point.eigenvalues.1",
+      "method": "stationary_point",
+      "model": "w1 + w1:w2 + I(w1 ** 2) + I(w2 ** 2)"
+     }
+    },
+    {
+     "what": "stationary point",
+     "term": "f1",
+     "value": "325.75",
+     "where": {
+      "page": "7-16",
+      "source_kind": "prose",
+      "quote": "The actual-value coordinates of the stationary point are (325.75, 128.5)."
+     },
+     "check": {
+      "kind": "optimum",
+      "key": "stationary_point.stationary_point_actual.w1",
+      "method": "stationary_point",
+      "model": "w1 + w1:w2 + I(w1 ** 2) + I(w2 ** 2)",
+      "disagreement": "307 + 50(.375) from the rounded w1; unrounded, 307 + 50(.3756) = 325.78"
+     }
+    },
+    {
+     "what": "stationary point",
+     "term": "f2",
+     "value": "128.5",
+     "where": {
+      "page": "7-16",
+      "source_kind": "prose",
+      "quote": "The actual-value coordinates of the stationary point are (325.75, 128.5)."
+     },
+     "check": {
+      "kind": "optimum",
+      "key": "stationary_point.stationary_point_actual.w2",
+      "method": "stationary_point",
+      "model": "w1 + w1:w2 + I(w1 ** 2) + I(w2 ** 2)"
+     }
+    }
+   ]
   }
  ],
  "designs": [
@@ -63134,6 +67472,105 @@
      }
     }
    ]
+  },
+  {
+   "name": "schmidt-wave-solder-outer-array",
+   "title": "The outer array of the wave solder example: three noise factors in an L4",
+   "kind": "design",
+   "where": {
+    "section": "6.4",
+    "pages": "6-16",
+    "tables": [
+     "Table 6.2b"
+    ],
+    "figures": []
+   },
+   "factors": [
+    {
+     "name": "product",
+     "description": "product noise",
+     "low": "Assembly #1",
+     "high": "Assembly #2",
+     "units": "",
+     "type": "categorical"
+    },
+    {
+     "name": "conveyor",
+     "description": "conveyor speed tolerance",
+     "low": -0.2,
+     "high": 0.2,
+     "units": "ft/min",
+     "type": "numeric"
+    },
+    {
+     "name": "solder",
+     "description": "solder pot tolerance",
+     "low": -5,
+     "high": 5,
+     "units": "°F",
+     "type": "numeric"
+    }
+   ],
+   "responses": [],
+   "design": {
+    "type": "Taguchi orthogonal array",
+    "details": "the outer array, run at each of the inner array's eight settings",
+    "n_runs": 4,
+    "treatment_factors": 3
+   },
+   "runs": {
+    "columns": [
+     "Run",
+     "product",
+     "conveyor",
+     "solder"
+    ],
+    "rows": [
+     [
+      1,
+      "Assembly #1",
+      -0.2,
+      -5
+     ],
+     [
+      2,
+      "Assembly #1",
+      0.2,
+      5
+     ],
+     [
+      3,
+      "Assembly #2",
+      -0.2,
+      5
+     ],
+     [
+      4,
+      "Assembly #2",
+      0.2,
+      -5
+     ]
+    ],
+    "coded": false,
+    "notes": "Table 6.2b, its runs as rows"
+   },
+   "expected": [
+    {
+     "what": "design matrix",
+     "term": null,
+     "value": "4",
+     "analysis": "the library's stored L4(2^3)",
+     "where": {
+      "page": "6-16",
+      "source_kind": "table",
+      "quote": "Table 6.2b Noise Factors for Wave Solder Example"
+     },
+     "check": {
+      "kind": "same_runs",
+      "array": "L4(2^3)"
+     }
+    }
+   ]
   }
  ],
  "not_captured": [
@@ -63186,6 +67623,16 @@
   "the summary of the four plating designs (p. 5-62): its R² and run counts are checked under each design; the total runs including the screening portion (34, 35, 26 and 47) add the twenty screening runs, and the models repeat Tables 5.32, 5.35, 5.38 and 5.40 (the D-optimal row drops the sign of temperature's coefficient)",
   "Table 5.41's actual-model column (p. 5-64): Thickness = 5.0(time)² - 2.3(temp) + 4.0(nickel) at the 27 points, arithmetic of the simulator's equation; the four models' predictions are checked under each design",
   "5.11 (pp. 5-65 to 5-73): a Monte Carlo comparison of dispersion-effect methods; Tables 5.42 to 5.45 and Figure 5.14 report detection rates of 50 simulations each, which cannot be reproduced without the random numbers, and the table of replicates (L4 8 and 9, L8 4 and 5, L16 2 and 3, L32 1 and 2) is a rule of thumb",
-  "Problems 1 to 6 of chapter 5 (pp. 5-74 to 5-79): held with their data where they print data; their answers are in Appendix J, which has not been read"
+  "Problems 1 to 6 of chapter 5 (pp. 5-74 to 5-79): held with their data where they print data; their answers are in Appendix J, which has not been read",
+  "6.1 to 6.3 (pp. 6-1 to 6-13): the quadratic loss function and its split into variance and squared bias, Cp and Cpk, and the three S/N formulas, all without data; the S/N formulas are the ones the checks of 5.4, 5.7 and 6.4 compute",
+  "Figures 6.1 to 6.4 (pp. 6-4 to 6-10): sketches of the loss function, of two distributions against specifications, and of a transistor's characteristic curve, without data",
+  "Figures 6.5 and 6.6 (pp. 6-19 and 6-20): the plot of the averages of Table 6.4, and an interaction plot of S and C that prints no values",
+  "6.5 (pp. 6-21 to 6-26): a twelve-point comparison of classical and Taguchi approaches, without data",
+  "Problems 1 to 10 of chapter 6 (p. 6-27): redo the chapter 5 problems with S/N ratios, and questions without data",
+  "7.1 (pp. 7-1 to 7-6): the four questions to ask when a best response is unsatisfactory, and the comparison of methods, without data",
+  "Figures 7.3, 7.5 and 7.6 (pp. 7-5 to 7-16): contour plots of the hypothetical true surface, whose equation the book does not give",
+  "7.2's Taylor series (pp. 7-7 to 7-8) and the table of eigenvalue signs and stationary points (p. 7-17), without data",
+  "the coded settings x1 and x2 of the second region (p. 7-11) and the conversion x1 = 4.14 to f1 = 357 (p. 7-12): the design's settings in the first region's coding, held in schmidt-yield-second-region's runs",
+  "Problems 1 to 5 of chapter 7 (p. 7-18): questions without data, and a gradient g = (-2.67, 1.33) to step along with no fitted model"
  ]
 }

@@ -417,10 +417,12 @@ def _lenth(out: dict, key: str, check: dict) -> float:
 def _prediction(out: dict, check: dict, experiment: dict) -> float:
     """Return the model's prediction at a point in coded units, as the library predicts new runs.
 
+    A factor ``check["point"]`` leaves out, as one the model does not hold, sits at its centre.
     ``check["bound"]`` reads a limit of its 95% interval instead: ``"pi_low"`` or ``"pi_high"`` for
     a new observation, ``"ci_low"`` or ``"ci_high"`` for the mean.
     """
-    point = pd.DataFrame([check["point"]])[[f["name"] for f in experiment["factors"]]]
+    names = [f["name"] for f in experiment["factors"]]
+    point = pd.DataFrame([dict.fromkeys(names, 0.0) | check["point"]])[names]
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
         found = analyze_experiment(
@@ -510,6 +512,7 @@ def _steepest_path(out: dict, check: dict, experiment: dict) -> float:
     A source steps along the path by a round change in one factor (``check["change"]`` actual units
     of ``check["per"]``) and moves the others in proportion; the setting of ``check["key"]`` after
     ``check["steps"]`` such steps is returned, or its change from the centre with ``"from_centre": true``.
+    ``"units": "coded"`` returns it in coded units, as a source that steps in coded units prints it.
     """
     model, ranges = _response_model(out, experiment), _factor_ranges(experiment)
     with warnings.catch_warnings():
@@ -520,8 +523,10 @@ def _steepest_path(out: dict, check: dict, experiment: dict) -> float:
         path = optimize_responses(
             [model], method="steepest_ascent", step_size=size, n_steps=check["steps"], factor_ranges=ranges
         )
-    setting = path["steepest_path"]["steps"][-1]["actual"][check["key"]]
-    return setting - start[check["key"]] if check.get("from_centre") else setting
+    steps = path["steepest_path"]["steps"]
+    units = check.get("units", "actual")
+    setting = steps[-1][units][check["key"]]
+    return setting - steps[0][units][check["key"]] if check.get("from_centre") else setting
 
 
 def _p_value(row: dict, alternative: str | None) -> float:
@@ -768,7 +773,9 @@ def _relabelling(printed: np.ndarray, library: np.ndarray, *, signs: bool) -> li
 
     A design keeps its properties when its columns are put in another order or, for two-level
     factors, a column's signs are changed; the search assigns the printed columns in turn and
-    drops an assignment as soon as the runs on the columns assigned so far differ.
+    drops an assignment as soon as the runs on the columns assigned so far differ. A printed
+    design may use only some of the library's columns, as factors are assigned to some columns
+    of an orthogonal array and the others are left for interactions.
     """
     chosen: list[tuple[int, int]] = []
 
@@ -786,7 +793,8 @@ def _relabelling(printed: np.ndarray, library: np.ndarray, *, signs: bool) -> li
             chosen.pop()
         return False
 
-    return list(chosen) if printed.shape == library.shape and search(0) else None
+    fits = len(printed) == len(library) and printed.shape[1] <= library.shape[1]
+    return list(chosen) if fits and search(0) else None
 
 
 def _run_counts(matrix: np.ndarray) -> Counter:
@@ -803,7 +811,8 @@ def _same_runs(experiment: dict, check: dict, printed: str) -> tuple[str, bool]:
     printed ``\u03b1`` is the library design's axial distance. ``check["relabel"]`` allows the columns
     to be matched in another order (``"columns"``) and with their signs changed
     (``"columns and signs"``), as two constructions of the same design may differ. A printed
-    number of runs, when the text is one, must be the number compared.
+    number of runs, when the text is one, must be the number compared. ``check["round"]`` rounds
+    both matrices to that many decimals first, for an axial distance printed as 1.414.
     """
     if "array" in check:
         library, alpha = _array_runs(check), None
@@ -815,6 +824,8 @@ def _same_runs(experiment: dict, check: dict, printed: str) -> tuple[str, bool]:
         matrix = _printed_matrix(experiment, columns, alpha)
     else:  # a matrix printed in the factors' own units is compared in coded units
         matrix = _coded_runs(experiment, None)[0][columns].to_numpy(dtype=float)
+    if "round" in check:
+        library, matrix = np.round(library, check["round"]), np.round(matrix, check["round"])
     count_agrees = not str(printed).strip().isdigit() or int(printed) == len(matrix)
     relabel = check.get("relabel")
     if relabel:
