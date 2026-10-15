@@ -641,3 +641,53 @@ def test_a_design_for_more_factors_than_there_are_letters_is_made():
 
     design = {"design_type": "plackett_burman", "k": 134, "options": {"n_center_points": 0}}
     assert _design_property({"property": "n_runs", "design": design}) == 136
+
+
+def test_a_number_printed_in_e_notation_is_held_to_the_digits_it_prints():
+    """1.25E+08 is rounded to the nearest million: 125,272,056 agrees with it, 125,600,000 does not."""
+    from process_improve.experiments.reference_catalogue import _agrees
+
+    assert _agrees(125_272_056, "1.25E+08")
+    assert not _agrees(125_600_000, "1.25E+08")
+
+
+def _plain_2x2(y):
+    rows = [[a, b, v] for (a, b), v in zip([(-1, -1), (1, -1), (-1, 1), (1, 1)], y, strict=True)]
+    return {
+        "name": "plain",
+        "factors": [{"name": n, "type": "numeric", "low": -1, "high": 1} for n in "AB"],
+        "responses": [{"name": "y"}],
+        "runs": {"columns": ["A", "B", "y"], "rows": rows, "coded": True},
+    }
+
+
+def test_a_coefficient_fitted_to_responses_printed_rounded_may_carry_their_rounding():
+    """Fitted to readings it does not print, a source's intercept is 25.04; its runs, printed rounded, give 25.00.
+
+    Each printed run may be off by 0.05 and the intercept weighs each by 1/4, so it may move by 0.05:
+    the printed 25.04 agrees, and a coefficient of the wrong sign still does not.
+    """
+    entry = _plain_2x2([10.0, 20.0, 30.0, 40.0])
+    check = {"kind": "coefficient", "term": "Intercept", "model": "A + B"}
+    fits = reference_catalogue._Fits()
+    assert not reference_catalogue._reproduce(entry, {"value": "25.04"}, check, fits)[1]
+    rounded = {**check, "data_rounding": {"decimals": 1}}
+    assert reference_catalogue._reproduce(entry, {"value": "25.04"}, rounded, fits)[1]
+    assert not reference_catalogue._reproduce(entry, {"value": "-25.04"}, rounded, fits)[1]
+    assert reference_catalogue._carried_rounding(fits(entry, rounded), rounded) == pytest.approx(0.05)
+
+
+def test_the_durbin_watson_statistic_is_read_from_the_library_fit():
+    """The sum of the squared differences of successive residuals over the sum of the squared residuals."""
+    x, y = np.arange(1.0, 7.0), np.array([1.0, 3.0, 2.0, 4.0, 3.0, 5.0])
+    entry = {
+        "name": "line",
+        "factors": [{"name": "x", "type": "numeric", "low": 1, "high": 6, "coding": "none"}],
+        "responses": [{"name": "y"}],
+        "runs": {"columns": ["x", "y"], "rows": [[a, b] for a, b in zip(x, y, strict=True)], "coded": False},
+    }
+    check = {"kind": "durbin_watson", "model": "x"}
+    residuals = y - np.polyval(np.polyfit(x, y, 1), x)
+    expected = np.sum(np.diff(residuals) ** 2) / np.sum(residuals**2)
+    found = reference_catalogue._FIT_KINDS["durbin_watson"](reference_catalogue._Fits()(entry, check), check, entry)
+    assert found == pytest.approx(expected)

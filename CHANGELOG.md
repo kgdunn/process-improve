@@ -14,63 +14,68 @@ those changes.
 ### Added
 
 - **The reference catalogue holds chapters 1 to 8 of Schmidt and Launsby, *Understanding Industrial
-  Designed Experiments* (4th edition).** Chapters 1 and 2: bond strengths confounded with batches, a
-  twenty-week mileage record with its Cpk, a control chart's subgroup averages, the gas mileage and
-  aircraft painting 2^(4-1) fractions analysed for their averages and standard deviations, the
-  nickel plating 2^2, a 2 x 3 factorial, L12 and L18 screening designs, a 3^2 factorial, and a
-  two-factor central composite design fitted whole and with a row missing. Chapter 3: its design
-  matrices, each compared with the design the library makes, and the run counts of Tables 3.21, 3.24
-  and 3.26. Chapter 4: analyses of variance, simple, polynomial and multiple regression with
-  MYSTAT's tables and prediction intervals, and a Box-Behnken design fitted in actual and in coded
-  units. Chapter 5: an L8 analysed by average effects, analysis of variance and regression, and its
-  variance and ln s modelled; signal-to-noise ratios and ln s compared; a turbine blade 2^3 with its
-  dispersion effects; dispersion found from the residuals' spread at each level; an injection
-  molding L8 with an outer array of noise factors; multi-variate charts of wafers and lots; a
-  four-factor face-centred composite design modelled for its average and standard deviation; and one
-  plating process run as a composite design, a D-optimal design, a Box-Behnken design and a 3^3,
-  with RS/Discover's tables and each model's predictions at 27 points. Chapter 6: a wave solder L8
-  inner array with an L4 outer array of noise factors, analysed by its averages and
+  Designed Experiments* (4th edition), with the answers of its Appendix J.** Chapters 1 and 2: bond
+  strengths confounded with batches, a twenty-week mileage record with its Cpk, a control chart's
+  subgroup averages, the gas mileage and aircraft painting 2^(4-1) fractions analysed for their
+  averages and standard deviations, the nickel plating 2^2, a 2 x 3 factorial, L12 and L18 screening
+  designs, a 3^2 factorial, and a two-factor central composite design fitted whole and with a row
+  missing. Chapter 3: its design matrices, each compared with the design the library makes, and the
+  run counts of Tables 3.21, 3.24 and 3.26. Chapter 4: analyses of variance, simple, polynomial and
+  multiple regression with MYSTAT's tables and prediction intervals, and a Box-Behnken design fitted
+  in actual and in coded units. Chapter 5: an L8 analysed by average effects, analysis of variance
+  and regression, and its variance and ln s modelled; signal-to-noise ratios and ln s compared; a
+  turbine blade 2^3 with its dispersion effects; dispersion found from the residuals' spread at each
+  level; an injection molding L8 with an outer array of noise factors; multi-variate charts of
+  wafers and lots; a four-factor face-centred composite design modelled for its average and standard
+  deviation; and one plating process run as a composite design, a D-optimal design, a Box-Behnken
+  design and a 3^3, with RS/Discover's tables and each model's predictions at 27 points. Chapter 6:
+  a wave solder L8 inner array with an L4 outer array of noise factors, analysed by its averages and
   smaller-is-better signal-to-noise ratios. Chapter 7: yield searched one factor at a time and by a
   3^2, then by response surface methods: a 2^2 with centre points and its path of steepest ascent, a
   second 2^2 at the best point along it, and the rotatable composite design that completes it, with
-  its stationary point and eigenvalues. Chapter 8, pp. 8-1 to 8-228: the industrial case studies
-  that print data, among them a 2^(8-4) screening design, a one-way analysis of variance with
-  unequal groups, L8 studies of a linear motor, an injection molded part and gold wire bonding, a
-  simulated computer network fitted in its inputs' own units (SAS's three regression tables and lack
-  of fit), duplicated 2^3 paper helicopters, lunar concrete in an 18-run D-optimal design, a
-  duplicated L4 for GaAs doping, an L16 of rubber formulations with seven responses and Design
-  Cube's level effects, a plasma etch central composite design, an 18-run D-optimal design with an
-  outer array, rivet protrusion regressed in four unbalanced blocks, a quarter fraction of a
-  simulated sludge plant, two duplicated Karl Fischer fractions, a 2^4 on circular runout with
-  Q-EDGE's regressions of the readings and their standard deviations, and the run counts of a
-  136-run Plackett-Burman design for 134 inputs and a mixed-level full factorial of 49152 cases.
-  4043 printed numbers, 3659 checked. 317 are recorded as not reproducing, each explained: most come
-  from the book's rounding (run averages and standard deviations that do not follow from their
-  readings, squares of rounded effects, coefficients that are halves of rounded effects, values cut
-  rather than rounded), some are misprints (a wrong sign, two exchanged digits, rows swapped,
-  Yates's algorithm run on totals listed in run order rather than Yates order), and the L18: the
-  library stores it (as L18(6^1 3^6)) but its Taguchi design takes 36 runs for one two-level and
-  seven three-level factors. Five tolerances are not recomputed: `evaluate_design` takes the rank of
-  X'X, whose condition number in the factors' own units squares X's, and calls that full-rank model
-  singular. A catalogue check can now analyse each run's mean, total, standard deviation, ln s or
-  one of Taguchi's signal-to-noise ratios (larger, smaller and nominal is best), or every reading as
-  an observation of its own, in other units than the readings are printed in if need be (`summary`);
-  solve for the setting of a factor at which a fitted line or parabola reaches a target
-  (`target_setting`); compute a Cpk with `calculate_cpk` (`capability`); read a term's tolerance as
-  one over its VIF, and its squared correlation with the others or a confidence printed as 1 - p as
-  one less that (`reciprocal`, `complement`); hold a number that software prints with more digits
-  than its arithmetic carries to fewer decimals (`decimals`); read a limit of a prediction's
-  interval (`bound`); check Multiple R and the F ratio of the whole regression with its p-value
-  (`multiple_r`, `f_regression`, `f_regression_p`); find a dispersion effect as ln(s+²/s-²), from
-  run standard deviations or from the residuals' spread at each level (`log_variance_ratio`,
-  `residual_std_dev`, `residual_log_variance_ratio`); give a number printed as the difference of two
-  rounded averages the rounding of both, with or without a fit (`of_rounded`); compare a printed
-  design matrix, coded or in the factors' own units, with the library's design or stored orthogonal
-  array whatever the run order, and if need be the order and signs of its columns, a subset of an
-  array's columns, or numbers rounded as printed (`same_runs`); read a step of steepest ascent in
-  coded units (`units`); check that a printed matrix obeys its printed generators
-  (`generator_holds`); sum a product of columns (`dot_product`); and make a design for more factors
-  than there are letters.
+  its stationary point and eigenvalues. Chapter 8: the industrial case studies that print data,
+  among them a 2^(8-4) screening design, a one-way analysis of variance with unequal groups, L8
+  studies of a linear motor, an injection molded part and gold wire bonding, a simulated computer
+  network fitted in its inputs' own units (SAS's three regression tables and lack of fit),
+  duplicated 2^3 paper helicopters, lunar concrete in an 18-run D-optimal design, a duplicated L4
+  for GaAs doping, an L16 of rubber formulations with seven responses and Design Cube's level
+  effects, a plasma etch central composite design, an 18-run D-optimal design with an outer array,
+  rivet protrusion regressed in four unbalanced blocks, a quarter fraction of a simulated sludge
+  plant, two duplicated Karl Fischer fractions, a 2^4 on circular runout with Q-EDGE's regressions
+  of the readings and their standard deviations, a ball weld D-optimal design, an analog filter
+  screened in an L12 and modelled in a 33-run composite design on a half fraction, a PSPICE 2^2, a
+  solderability L18 with a dummy-level column, a 2^4 on chemiluminescence with centre runs, and the
+  run counts of a 136-run Plackett-Burman design for 134 inputs and a mixed-level full factorial of
+  49152 cases. Appendix J's answers are checked against the problems they answer. 4500 printed
+  numbers, 4062 checked. 397 are recorded as not reproducing, each explained: most come from the
+  book's rounding (run averages and standard deviations that do not follow from their readings,
+  squares of rounded effects, coefficients that are halves of rounded effects, values cut rather
+  than rounded), some are misprints (a wrong sign, two exchanged digits, rows swapped, Yates's
+  algorithm run on totals listed in run order rather than Yates order, an answer's resolution IV for
+  a design with three-letter words), and the L18: the library stores it (as L18(6^1 3^6)) but its
+  Taguchi design takes 36 runs for one two-level and seven three-level factors. Five tolerances are
+  not recomputed: `evaluate_design` takes the rank of X'X, whose condition number in the factors'
+  own units squares X's, and calls that full-rank model singular. A catalogue check can now analyse
+  each run's mean, total, standard deviation, ln s or one of Taguchi's signal-to-noise ratios
+  (larger, smaller and nominal is best), or every reading as an observation of its own, in other
+  units than the readings are printed in if need be (`summary`); solve for the setting of a factor
+  at which a fitted line or parabola reaches a target (`target_setting`); compute a Cpk with
+  `calculate_cpk` (`capability`); read a term's tolerance as one over its VIF, and its squared
+  correlation with the others or a confidence printed as 1 - p as one less that (`reciprocal`,
+  `complement`); hold a number that software prints with more digits than its arithmetic carries to
+  fewer decimals (`decimals`); allow a coefficient the rounding it carries from responses printed
+  rounded, through its row of the pseudo-inverse of the model matrix (`data_rounding`); read the
+  Durbin-Watson statistic (`durbin_watson`); read a limit of a prediction's interval (`bound`);
+  check Multiple R and the F ratio of the whole regression with its p-value (`multiple_r`,
+  `f_regression`, `f_regression_p`); find a dispersion effect as ln(s+²/s-²), from run standard
+  deviations or from the residuals' spread at each level (`log_variance_ratio`, `residual_std_dev`,
+  `residual_log_variance_ratio`); give a number printed as the difference of two rounded averages
+  the rounding of both, with or without a fit (`of_rounded`); compare a printed design matrix, coded
+  or in the factors' own units, with the library's design or stored orthogonal array whatever the
+  run order, and if need be the order and signs of its columns, a subset of an array's columns, or
+  numbers rounded as printed (`same_runs`); read a step of steepest ascent in coded units (`units`);
+  check that a printed matrix obeys its printed generators (`generator_holds`); sum a product of
+  columns (`dot_product`); and make a design for more factors than there are letters.
 
 ### Fixed
 
@@ -78,6 +83,10 @@ those changes.
   was the sum of the Type II rows of the ANOVA, which leaves out what correlated terms share, such
   as the squares of a composite design; for orthogonal designs the two are the same, and every
   number already in the catalogue still reproduces.
+- **A number the reference catalogue reads in E-notation is held to the digits it prints.** 1.25E+08
+  allows half a million either side; it was held to half a unit, so a correct number printed that way
+  could not agree. No number already in the catalogue was printed in E-notation with a positive
+  exponent.
 
 ## [1.99.0] - 2026-10-15
 

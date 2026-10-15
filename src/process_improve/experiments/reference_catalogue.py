@@ -47,6 +47,7 @@ from typing import Any
 
 import numpy as np
 import pandas as pd
+from patsy import dmatrix
 from scipy.stats import f as f_distribution
 
 from process_improve.experiments._orthogonal_arrays import orthogonal_array
@@ -152,12 +153,13 @@ def reference_designs(source: str | None = None) -> list[dict[str, Any]]:
 def _tolerance(printed: str) -> float:
     """Half a unit in the last digit printed: the most the source's rounding accounts for.
 
-    The digits count as printed: 0.40 is rounded to hundredths, so it allows 0.005, not 0.05.
-    A little more is allowed for floating-point error, never more than a thousandth of the half
-    unit, so a number printed as 0.798e-8 is held to its own digits.
+    The digits count as printed: 0.40 is rounded to hundredths, so it allows 0.005, not 0.05, and
+    1.25E+08 to the nearest million, so it allows 500000. A little more is allowed for
+    floating-point error, never more than a thousandth of the half unit, so a number printed as
+    0.798e-8 is held to its own digits.
     """
     exponent = Decimal(printed).as_tuple().exponent
-    half = 0.5 * 10.0 ** min(0, int(exponent))
+    half = 0.5 * 10.0 ** int(exponent)
     return half + min(1e-9, half * 1e-3)
 
 
@@ -196,20 +198,27 @@ def _number(printed: str) -> tuple[str | None, str]:
     return match.group(1), match.group(2)
 
 
-def _agrees(
-    found: float, printed: str, *, expression: bool = False, of_rounded: int = 1, decimals: int | None = None
+def _agrees(  # noqa: PLR0913 - each keyword is one way a source's rounding reaches a number
+    found: float,
+    printed: str,
+    *,
+    expression: bool = False,
+    of_rounded: int = 1,
+    decimals: int | None = None,
+    slack: float = 0.0,
 ) -> bool:
     """Whether a value found agrees with the printed text, to within the source's rounding.
 
     A number the source works out from ``of_rounded`` numbers it has itself rounded to the same
     digits, such as the difference of two averages it prints, carries their rounding too: it is
     allowed that many half units. Software that prints more digits than its arithmetic carries,
-    as single precision does, is held to ``decimals`` places instead of all it prints.
+    as single precision does, is held to ``decimals`` places instead of all it prints. ``slack``
+    is the rounding a number carries from the data it is worked from (see :func:`_carried_rounding`).
     """
     if expression:
         return math.isclose(found, _arithmetic(printed), rel_tol=1e-9, abs_tol=1e-9)
     bound, digits = _number(printed)
-    allowed = of_rounded * (_tolerance(digits) if decimals is None else 0.5 * 10.0**-decimals)
+    allowed = of_rounded * (_tolerance(digits) if decimals is None else 0.5 * 10.0**-decimals) + slack
     if bound in ("<", "<=", "\u2264"):
         return found < float(digits) or abs(found - float(digits)) <= allowed
     if bound in (">", ">=", "\u2265"):
@@ -372,6 +381,28 @@ def _coefficient_row(out: dict, term: str) -> dict:
         if key == wanted or set(key.split(":")) == set(wanted.split(":")):
             return row
     raise KeyError(f"The fit has no term {term!r}: {sorted(rows)}.")
+
+
+def _carried_rounding(out: dict, check: dict) -> float:
+    """Return how far a coefficient can move when each response it is fitted to is off by half its last printed digit.
+
+    A source that prints its runs' responses rounded, and fits its model to readings it does not
+    print, gives ``check["data_rounding"]``: the responses' ``"decimals"``, or their ``"significant"``
+    figures. A coefficient is a fixed weighted sum of the responses, its row of the pseudo-inverse of
+    the model matrix, so it moves at most the sum of each weight's size times that response's half unit.
+    """
+    if check["kind"] != "coefficient":
+        raise ValueError(f"data_rounding is carried into a coefficient, not a {check['kind']!r}.")
+    rounding = check["data_rounding"]
+    y = out["y"].to_numpy(dtype=float)
+    if "decimals" in rounding:
+        exponent = np.full(len(y), -float(rounding["decimals"]))
+    else:
+        exponent = np.floor(np.log10(np.abs(y))) - rounding["significant"] + 1
+    matrix = dmatrix(check["model"], out["settings"], return_type="dataframe")
+    wanted = set(_coefficient_row(out, check["term"])["term"].split(":"))
+    row = next(i for i, name in enumerate(matrix.columns) if set(name.split(":")) == wanted)
+    return float(np.abs(np.linalg.pinv(matrix.to_numpy())[row]) @ (0.5 * 10.0**exponent))
 
 
 def _residuals(out: dict) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
@@ -578,6 +609,7 @@ _FIT_KINDS: dict[str, Callable[[dict, dict, dict], float]] = {
     ),
     "fitted": lambda out, c, _e: float(_residuals(out)[0][_run(c)]),
     "residual": lambda out, c, _e: float(_residuals(out)[1][_run(c)]),
+    "durbin_watson": lambda out, _c, _e: out["residual_diagnostics"]["durbin_watson"],
     "left_out_prediction": lambda out, c, _e: _left_out(out, _run(c)),
     "residual_std_dev": lambda out, c, _e: _residual_std_dev(out, c["at"], c.get("round")),
     "residual_log_variance_ratio": lambda out, c, _e: (
@@ -1069,8 +1101,9 @@ def _reproduce(experiment: dict, expected: dict, check: dict, fits: _Fits) -> tu
     found = float(_FIT_KINDS[kind](out, check, experiment))
     found = 1 - found if check.get("complement") else found  # a confidence 1 - p, as some software prints it
     expression, of_rounded = bool(check.get("expression")), check.get("of_rounded", 1)
+    slack = _carried_rounding(out, check) if check.get("data_rounding") else 0.0
     return f"{found:.6g}", _agrees(
-        found, str(printed), expression=expression, of_rounded=of_rounded, decimals=check.get("decimals")
+        found, str(printed), expression=expression, of_rounded=of_rounded, decimals=check.get("decimals"), slack=slack
     )
 
 
