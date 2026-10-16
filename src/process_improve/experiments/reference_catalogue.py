@@ -39,6 +39,7 @@ import operator
 import re
 import statistics
 import warnings
+from collections import Counter
 from collections.abc import Callable, Iterator
 from decimal import Decimal
 from pathlib import Path
@@ -46,7 +47,10 @@ from typing import Any
 
 import numpy as np
 import pandas as pd
+from patsy import dmatrix
+from scipy.stats import f as f_distribution
 
+from process_improve.experiments._orthogonal_arrays import orthogonal_array
 from process_improve.experiments.analysis import analyze_experiment
 from process_improve.experiments.designs import generate_design
 from process_improve.experiments.designs_response_surface import blocking_alpha
@@ -54,6 +58,7 @@ from process_improve.experiments.evaluate import evaluate_design
 from process_improve.experiments.factor import Factor
 from process_improve.experiments.omars_trade_off import omars_minimum_runs
 from process_improve.experiments.optimization import optimize_responses
+from process_improve.monitoring.metrics import calculate_cpk
 from process_improve.regression._variance_components import fit_variance_components
 
 _CATALOGUE_DIR = Path(__file__).resolve().parents[1] / "datasets" / "experiments" / "reference_catalogue"
@@ -148,12 +153,13 @@ def reference_designs(source: str | None = None) -> list[dict[str, Any]]:
 def _tolerance(printed: str) -> float:
     """Half a unit in the last digit printed: the most the source's rounding accounts for.
 
-    The digits count as printed: 0.40 is rounded to hundredths, so it allows 0.005, not 0.05.
-    A little more is allowed for floating-point error, never more than a thousandth of the half
-    unit, so a number printed as 0.798e-8 is held to its own digits.
+    The digits count as printed: 0.40 is rounded to hundredths, so it allows 0.005, not 0.05, and
+    1.25E+08 to the nearest million, so it allows 500000. A little more is allowed for
+    floating-point error, never more than a thousandth of the half unit, so a number printed as
+    0.798e-8 is held to its own digits.
     """
     exponent = Decimal(printed).as_tuple().exponent
-    half = 0.5 * 10.0 ** min(0, int(exponent))
+    half = 0.5 * 10.0 ** int(exponent)
     return half + min(1e-9, half * 1e-3)
 
 
@@ -192,23 +198,82 @@ def _number(printed: str) -> tuple[str | None, str]:
     return match.group(1), match.group(2)
 
 
-def _agrees(found: float, printed: str, *, expression: bool = False) -> bool:
-    """Whether a value found agrees with the printed text, to within the source's rounding."""
+def _agrees(
+    found: float, printed: str, *, expression: bool = False, of_rounded: int = 1, decimals: int | None = None
+) -> bool:
+    """Whether a value found agrees with the printed text, to within the source's rounding.
+
+    A number the source works out from ``of_rounded`` numbers it has itself rounded to the same
+    digits, such as the difference of two averages it prints, carries their rounding too: it is
+    allowed that many half units. Software that prints more digits than its arithmetic carries,
+    as single precision does, is held to ``decimals`` places instead of all it prints.
+    """
     if expression:
         return math.isclose(found, _arithmetic(printed), rel_tol=1e-9, abs_tol=1e-9)
     bound, digits = _number(printed)
+    allowed = of_rounded * (_tolerance(digits) if decimals is None else 0.5 * 10.0**-decimals)
     if bound in ("<", "<=", "\u2264"):
-        return found < float(digits) or abs(found - float(digits)) <= _tolerance(digits)
+        return found < float(digits) or abs(found - float(digits)) <= allowed
     if bound in (">", ">=", "\u2265"):
-        return found > float(digits) or abs(found - float(digits)) <= _tolerance(digits)
-    return abs(found - float(digits)) <= _tolerance(digits)
+        return found > float(digits) or abs(found - float(digits)) <= allowed
+    return abs(found - float(digits)) <= allowed
 
 
 # --------------------------------------------------------------------------- the runs as a model sees them
-def _coded_runs(experiment: dict, positions: list[int] | None) -> tuple[pd.DataFrame, pd.DataFrame]:
+_STATISTICS: dict[str, Callable[[pd.DataFrame], pd.Series]] = {
+    "mean": lambda readings: readings.mean(axis=1),
+    "total": lambda readings: readings.sum(axis=1),
+    "std_dev": lambda readings: readings.std(axis=1, ddof=1),
+    "variance": lambda readings: readings.var(axis=1, ddof=1),
+    "ln_std_dev": lambda readings: np.log(readings.std(axis=1, ddof=1)),
+    # Taguchi's signal-to-noise ratios, in decibels: larger is better, smaller is better, and
+    # nominal is best in the form 10 log10(mean^2 / variance)
+    "sn_larger": lambda readings: -10 * np.log10((1 / readings**2).mean(axis=1)),
+    "sn_smaller": lambda readings: -10 * np.log10((readings**2).mean(axis=1)),
+    "sn_nominal": lambda readings: pd.Series(
+        10 * np.log10(readings.mean(axis=1) ** 2 / readings.var(axis=1, ddof=1)), index=readings.index
+    ),
+}
+
+
+def _summarised(table: pd.DataFrame, summary: dict) -> pd.DataFrame:
+    """Return each run's statistic of its repeated readings, as the one response a source then analyses.
+
+    ``summary["of"]`` names the columns holding a run's readings and ``summary["statistic"]`` is
+    ``"mean"``, ``"total"`` (the sum of the readings, as Yates's algorithm takes them),
+    ``"std_dev"``, ``"variance"``, ``"ln_std_dev"`` (the natural logarithm of the standard
+    deviation), or one of Taguchi's signal-to-noise ratios in decibels: ``"sn_larger"``
+    (-10 log10 of the mean of 1/y^2), ``"sn_smaller"`` (-10 log10 of the mean of y^2) and
+    ``"sn_nominal"`` (10 log10 of the squared mean over the variance). A source that rounds each
+    run's value before averaging it gives ``summary["round"]``, the decimals it keeps. A source
+    that prints its readings in one unit and works the statistic in another gives
+    ``summary["scale"]``, the factor the readings are multiplied by first (1e17 for readings
+    printed in units of 10^17).
+    """
+    readings = table[summary["of"]].astype(float) * summary.get("scale", 1)
+    values = _STATISTICS[summary["statistic"]](readings)
+    if summary.get("round") is not None:
+        values = values.round(summary["round"])
+    return values.rename(summary["statistic"]).to_frame()
+
+
+def _each_reading(settings: pd.DataFrame, readings: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame]:
+    """Return every reading as a run of its own at its run's settings, run by run; a blank reading is left out."""
+    values = readings.to_numpy(dtype=float).ravel()
+    kept = ~np.isnan(values)
+    rows = np.repeat(np.arange(len(readings)), readings.shape[1])[kept]
+    return settings.iloc[rows].reset_index(drop=True), pd.DataFrame({"each": values[kept]})
+
+
+def _coded_runs(
+    experiment: dict, positions: list[int] | None, summary: dict | None = None
+) -> tuple[pd.DataFrame, pd.DataFrame]:
     """Return the factor settings in coded units and the responses, for the runs at these 1-based positions.
 
     A factor marked ``"coding": "none"`` is fitted in its own units, as a source's regression on it is.
+    With a ``summary`` (see :func:`_summarised`) the responses are replaced by each run's statistic
+    of its readings; with the statistic ``"each"``, every reading is an observation of its own, as
+    a source fits a model to all the readings of a replicated design.
     """
     runs = experiment["runs"]
     table = pd.DataFrame(runs["rows"], columns=runs["columns"])
@@ -234,6 +299,10 @@ def _coded_runs(experiment: dict, positions: list[int] | None) -> tuple[pd.DataF
         for printed, value in exact.items():  # a setting printed rounded, such as 1.41 for the square root of 2
             values = values.mask(np.isclose(values.abs(), printed), np.sign(values) * value)
         settings[f["name"]] = values
+    if summary and summary["statistic"] == "each":
+        return _each_reading(pd.DataFrame(settings), table[summary["of"]])
+    if summary:
+        return pd.DataFrame(settings), _summarised(table, summary)
     names = [r["name"] for r in experiment["responses"] if r["name"] in table.columns]
     return pd.DataFrame(settings), table[names].astype(float)
 
@@ -249,14 +318,19 @@ class _Fits:
 
     def __call__(self, experiment: dict, check: dict) -> dict[str, Any]:
         positions = tuple(check["runs"]) if check.get("runs") else None
-        key = (experiment["name"], check.get("model"), positions, check.get("response"))
+        summary = json.dumps(check["summary"], sort_keys=True) if check.get("summary") else None
+        key = (experiment["name"], check.get("model"), positions, check.get("response"), summary)
         if key not in self._done:
-            self._done[key] = self._fit(experiment, check.get("model"), positions, check.get("response"))
+            self._done[key] = self._fit(experiment, check.get("model"), positions, check.get("response"), summary)
         return self._done[key]
 
     @staticmethod
-    def _fit(experiment: dict, model: str | None, positions: tuple | None, response: str | None) -> dict[str, Any]:
-        settings, responses = _coded_runs(experiment, list(positions) if positions else None)
+    def _fit(
+        experiment: dict, model: str | None, positions: tuple | None, response: str | None, summary: str | None
+    ) -> dict[str, Any]:
+        settings, responses = _coded_runs(
+            experiment, list(positions) if positions else None, json.loads(summary) if summary else None
+        )
         y = responses[response or responses.columns[0]]
         out: dict[str, Any] = {"y": y, "settings": settings}
         if model is None:
@@ -273,13 +347,15 @@ class _Fits:
 
 
 def _library_term(term: str) -> str:
-    """Return the library's name for a term written A, A·B, A² or Intercept."""
+    """Return the library's name for a term written A, A·B, A², A²·B or Intercept."""
     if term == "Intercept":
         return term
-    squared = re.fullmatch(r"(\w+)²", term)
-    if squared:
-        return f"I({squared.group(1)} ** 2)"
-    return ":".join(term.split("·"))
+
+    def part(name: str) -> str:
+        squared = re.fullmatch(r"(\w+)²", name)
+        return f"I({squared.group(1)} ** 2)" if squared else name
+
+    return ":".join(part(name) for name in term.split("·"))
 
 
 def _coefficient_row(out: dict, term: str) -> dict:
@@ -300,6 +376,28 @@ def _coefficient_row(out: dict, term: str) -> dict:
     raise KeyError(f"The fit has no term {term!r}: {sorted(rows)}.")
 
 
+def _carried_rounding(out: dict, check: dict) -> float:
+    """Return how far a coefficient can move when each response it is fitted to is off by half its last printed digit.
+
+    A source that prints its runs' responses rounded, and fits its model to readings it does not
+    print, gives ``check["data_rounding"]``: the responses' ``"decimals"``, or their ``"significant"``
+    figures. A coefficient is a fixed weighted sum of the responses, its row of the pseudo-inverse of
+    the model matrix, so it moves at most the sum of each weight's size times that response's half unit.
+    """
+    if check["kind"] != "coefficient":
+        raise ValueError(f"data_rounding is carried into a coefficient, not a {check['kind']!r}.")
+    rounding = check["data_rounding"]
+    y = out["y"].to_numpy(dtype=float)
+    if "decimals" in rounding:
+        exponent = np.full(len(y), -float(rounding["decimals"]))
+    else:
+        exponent = np.floor(np.log10(np.abs(y))) - rounding["significant"] + 1
+    matrix = dmatrix(check["model"], out["settings"], return_type="dataframe")
+    wanted = set(_coefficient_row(out, check["term"])["term"].split(":"))
+    row = next(i for i, name in enumerate(matrix.columns) if set(name.split(":")) == wanted)
+    return float(np.abs(np.linalg.pinv(matrix.to_numpy())[row]) @ (0.5 * 10.0**exponent))
+
+
 def _residuals(out: dict) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     diagnostics = out["residual_diagnostics"]
     fitted, residuals, leverage = (
@@ -315,11 +413,26 @@ def _left_out(out: dict, i: int) -> float:
 
 
 def _anova_sums(out: dict) -> tuple[float, float, int]:
-    """Return the sum of squares the model explains, the residual's, and the model's degrees of freedom."""
+    """Return the sum of squares the model explains, the residual's, and the model's degrees of freedom.
+
+    The model's is the total about the mean less the residual's. That is the sum of the terms' rows
+    only when the terms are orthogonal, as in a two-level factorial; when they are correlated, as the
+    squares of a composite design are, the Type II rows leave out what the terms share.
+    """
     table = out["anova_table"]
     residual = next(row for row in table if row["source"] == "Residual")
     model = [row for row in table if row["source"] != "Residual"]
-    return sum(row["sum_sq"] for row in model), residual["sum_sq"], sum(row["df"] for row in model)
+    y = out["y"].to_numpy(dtype=float)
+    total = float(np.nansum((y - np.nanmean(y)) ** 2))
+    return total - residual["sum_sq"], residual["sum_sq"], sum(row["df"] for row in model)
+
+
+def _f_regression(out: dict) -> tuple[float, float]:
+    """Return the F ratio of the whole regression, its mean square over the residual's, and its p-value."""
+    explained, unexplained, df_model = _anova_sums(out)
+    df_residual = out["model_summary"]["df_residual"]
+    ratio = (explained / df_model) / (unexplained / df_residual)
+    return ratio, float(f_distribution.sf(ratio, df_model, df_residual))
 
 
 def _anova_row(out: dict, term: str) -> dict:
@@ -335,14 +448,53 @@ def _lenth(out: dict, key: str, check: dict) -> float:
 
 
 def _prediction(out: dict, check: dict, experiment: dict) -> float:
-    """Return the model's prediction at a point in coded units, as the library predicts new runs."""
-    point = pd.DataFrame([check["point"]])[[f["name"] for f in experiment["factors"]]]
+    """Return the model's prediction at a point in coded units, as the library predicts new runs.
+
+    A factor ``check["point"]`` leaves out, as one the model does not hold, sits at its centre.
+    ``check["bound"]`` reads a limit of its 95% interval instead: ``"pi_low"`` or ``"pi_high"`` for
+    a new observation, ``"ci_low"`` or ``"ci_high"`` for the mean.
+    """
+    names = [f["name"] for f in experiment["factors"]]
+    point = pd.DataFrame([dict.fromkeys(names, 0.0) | check["point"]])[names]
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
         found = analyze_experiment(
             out["settings"], out["y"], model=check["model"], analysis_type="prediction", new_points=point
         )
-    return float(found["predictions"][0]["predicted"])
+    return float(found["predictions"][0][check.get("bound", "predicted")])
+
+
+def _target_setting(out: dict, check: dict, experiment: dict) -> float:
+    """Return the setting of one factor at which the fitted model predicts a target, the others held fixed.
+
+    ``check["solve"]`` names the factor, ``check["target"]`` is the response wanted and
+    ``check["point"]`` holds the other factors' coded settings (a factor it leaves out sits at its
+    centre). The prediction is a line or a parabola in the solved factor (a model of main effects,
+    interactions and squares), read through its values at -1, 0 and +1; of a parabola's two
+    settings, the one nearer the centre of the design is returned. The setting is in coded units,
+    or in the factor's own with ``"units": "actual"``.
+    """
+
+    def predicted(setting: float) -> float:
+        point = {f["name"]: 0.0 for f in experiment["factors"]} | check.get("point", {}) | {check["solve"]: setting}
+        return _prediction(out, {**check, "point": point}, experiment)
+
+    low, centre, high = predicted(-1.0), predicted(0.0), predicted(1.0)
+    slope, curvature = (high - low) / 2, (high + low) / 2 - centre
+    if math.isclose(curvature, 0.0, abs_tol=1e-9 * max(1.0, abs(centre))):
+        if slope == 0:
+            raise ValueError(f"The prediction does not change with {check['solve']} at this point.")
+        coded = (check["target"] - centre) / slope
+    else:
+        roots = np.roots([curvature, slope, centre - check["target"]])
+        real = roots[np.isreal(roots)].real
+        if not len(real):
+            raise ValueError(f"No setting of {check['solve']} reaches {check['target']} at this point.")
+        coded = float(real[np.argmin(np.abs(real))])
+    if check.get("units") != "actual":
+        return coded
+    factor = next(f for f in experiment["factors"] if f["name"] == check["solve"])
+    return (factor["high"] + factor["low"]) / 2 + coded * (factor["high"] - factor["low"]) / 2
 
 
 def _box_cox(out: dict, check: dict, _experiment: dict) -> float:
@@ -393,6 +545,7 @@ def _steepest_path(out: dict, check: dict, experiment: dict) -> float:
     A source steps along the path by a round change in one factor (``check["change"]`` actual units
     of ``check["per"]``) and moves the others in proportion; the setting of ``check["key"]`` after
     ``check["steps"]`` such steps is returned, or its change from the centre with ``"from_centre": true``.
+    ``"units": "coded"`` returns it in coded units, as a source that steps in coded units prints it.
     """
     model, ranges = _response_model(out, experiment), _factor_ranges(experiment)
     with warnings.catch_warnings():
@@ -403,8 +556,10 @@ def _steepest_path(out: dict, check: dict, experiment: dict) -> float:
         path = optimize_responses(
             [model], method="steepest_ascent", step_size=size, n_steps=check["steps"], factor_ranges=ranges
         )
-    setting = path["steepest_path"]["steps"][-1]["actual"][check["key"]]
-    return setting - start[check["key"]] if check.get("from_centre") else setting
+    steps = path["steepest_path"]["steps"]
+    units = check.get("units", "actual")
+    setting = steps[-1][units][check["key"]]
+    return setting - steps[0][units][check["key"]] if check.get("from_centre") else setting
 
 
 def _p_value(row: dict, alternative: str | None) -> float:
@@ -425,6 +580,15 @@ def _run(check: dict) -> int:
     return int(check["run"]) - 1
 
 
+def _residual_std_dev(out: dict, at: list[int], digits: int | None = None) -> float:
+    """Return the standard deviation of the fit's residuals at these 1-based runs, one level of a factor, say.
+
+    A source that works from its printed residuals gives ``digits``, the decimals they are rounded to.
+    """
+    residuals = _residuals(out)[1][[p - 1 for p in at]]
+    return float(np.std(residuals if digits is None else np.round(residuals, digits), ddof=1))
+
+
 _FIT_KINDS: dict[str, Callable[[dict, dict, dict], float]] = {
     "coefficient": lambda out, c, _e: _coefficient_row(out, c["term"])["coefficient"],
     "effect": lambda out, c, _e: 2 * _coefficient_row(out, c["term"])["coefficient"],
@@ -438,13 +602,22 @@ _FIT_KINDS: dict[str, Callable[[dict, dict, dict], float]] = {
     ),
     "fitted": lambda out, c, _e: float(_residuals(out)[0][_run(c)]),
     "residual": lambda out, c, _e: float(_residuals(out)[1][_run(c)]),
+    "durbin_watson": lambda out, _c, _e: out["residual_diagnostics"]["durbin_watson"],
     "left_out_prediction": lambda out, c, _e: _left_out(out, _run(c)),
+    "residual_std_dev": lambda out, c, _e: _residual_std_dev(out, c["at"], c.get("round")),
+    "residual_log_variance_ratio": lambda out, c, _e: (
+        2
+        * math.log(
+            _residual_std_dev(out, c["at"], c.get("round")) / _residual_std_dev(out, c["versus"], c.get("round"))
+        )
+    ),
     "observation": lambda out, c, _e: float(out["y"].to_numpy()[_run(c)]),
     "mean": lambda out, _c, _e: float(out["y"].mean()),
     "std_dev": lambda out, _c, _e: float(out["y"].std(ddof=1)),
     "variance": lambda out, _c, _e: float(out["y"].var(ddof=1)),
     "n_runs": lambda out, _c, _e: float(len(out["y"])),
     "r_squared": lambda out, _c, _e: out["model_summary"]["r_squared"],
+    "multiple_r": lambda out, _c, _e: out["model_summary"]["r_squared"] ** 0.5,
     "r_squared_adj": lambda out, _c, _e: out["model_summary"]["r_squared_adj"],
     "r_squared_pred": lambda out, _c, _e: out["model_summary"]["r_squared_pred"],
     "residual_df": lambda out, _c, _e: out["model_summary"]["df_residual"],
@@ -455,6 +628,8 @@ _FIT_KINDS: dict[str, Callable[[dict, dict, dict], float]] = {
     "ss_regression": lambda out, _c, _e: _anova_sums(out)[0],
     "ss_total": lambda out, _c, _e: sum(_anova_sums(out)[:2]),
     "ms_regression": lambda out, _c, _e: _anova_sums(out)[0] / _anova_sums(out)[2],
+    "f_regression": lambda out, _c, _e: _f_regression(out)[0],
+    "f_regression_p": lambda out, _c, _e: _f_regression(out)[1],
     "press": lambda out, _c, _e: float(np.sum((_residuals(out)[1] / (1 - _residuals(out)[2])) ** 2)),
     "lenth_pse": lambda out, c, _e: _lenth(out, "PSE", c),
     "lenth_me": lambda out, c, _e: _lenth(out, "ME", c),
@@ -469,6 +644,7 @@ _FIT_KINDS: dict[str, Callable[[dict, dict, dict], float]] = {
     "pure_error_ms": lambda out, _c, _e: out["lack_of_fit"]["ms_pure_error"],
     "curvature_difference": lambda out, _c, _e: out["curvature_test"]["difference"],
     "prediction": _prediction,
+    "target_setting": _target_setting,
     "optimum": _optimum,
     "box_cox": _box_cox,
     "steepest_path": _steepest_path,
@@ -576,12 +752,149 @@ def _design_property(check: dict) -> float:
 
 @functools.cache
 def _made(spec_json: str) -> Any:  # noqa: ANN401 - the library's DesignResult
-    """Return the design a specification names, made once however many numbers are read from it."""
+    """Return the design a specification names, made once however many numbers are read from it.
+
+    ``spec["levels"]``, a number or one per factor, gives a factor more than two equally spaced
+    levels, coded -1 to +1, as a three-level factor of a Taguchi array or full factorial has. Past
+    the alphabet, factors are named X26, X27, and so on, as a screening design for many inputs has.
+    """
     spec = json.loads(spec_json)
-    factors = [Factor(name=_LETTERS[i], low=-1, high=1) for i in range(spec["k"])]
+    levels = spec.get("levels") or 2
+    counts = levels if isinstance(levels, list) else [levels] * spec["k"]
+    factors = [
+        Factor(
+            name=_LETTERS[i] if i < len(_LETTERS) else f"X{i + 1}",
+            low=-1,
+            high=1,
+            levels=np.linspace(-1, 1, n).tolist() if n > 2 else None,
+        )
+        for i, n in enumerate(counts)
+    ]
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
         return generate_design(factors, design_type=spec["design_type"], **spec.get("options", {}))
+
+
+def _printed_matrix(
+    experiment: dict, columns: list[str], alpha: float | None, positions: list[int] | None = None
+) -> np.ndarray:
+    """Return a printed design matrix in coded units, its axial distance written ``\u03b1`` read as ``alpha``.
+
+    ``positions`` keeps only the runs at these 1-based positions.
+    """
+    runs = experiment["runs"]
+    table = pd.DataFrame(runs["rows"], columns=runs["columns"])[columns]
+    if positions is not None:
+        table = table.iloc[[p - 1 for p in positions]]
+    symbols = {"\u03b1": alpha, "-\u03b1": None if alpha is None else -alpha}
+    return table.map(lambda v: symbols[v] if isinstance(v, str) else v).to_numpy(dtype=float)
+
+
+def _array_runs(check: dict) -> np.ndarray:
+    """Return a stored orthogonal array in coded units, each column's levels spread evenly from -1 to +1.
+
+    ``check["split"]`` writes a column as two: ``{"0": [2, 3]}`` turns a six-level column 0 into a
+    two-level column (its level divided by 3) followed by a three-level one (the remainder).
+    """
+    array = orthogonal_array(check["array"])
+    split = {int(j): sizes for j, sizes in (check.get("split") or {}).items()}
+    columns: list[tuple[np.ndarray, int]] = []
+    for j in range(array.shape[1]):
+        if j in split:
+            outer, inner = split[j]
+            columns += [(array[:, j] // inner, outer), (array[:, j] % inner, inner)]
+        else:
+            columns.append((array[:, j], int(array[:, j].max()) + 1))
+    return np.column_stack([2 * level / (n - 1) - 1 for level, n in columns])
+
+
+def _relabelling(printed: np.ndarray, library: np.ndarray, *, signs: bool) -> list[tuple[int, int]] | None:
+    """Return, for each printed column, the library column and sign that make the two sets of runs one, or ``None``.
+
+    A design keeps its properties when its columns are put in another order or, for two-level
+    factors, a column's signs are changed; the search assigns the printed columns in turn and
+    drops an assignment as soon as the runs on the columns assigned so far differ. A printed
+    design may use only some of the library's columns, as factors are assigned to some columns
+    of an orthogonal array and the others are left for interactions.
+    """
+    chosen: list[tuple[int, int]] = []
+
+    def search(j: int) -> bool:
+        if j == printed.shape[1]:
+            return True
+        used = {c for c, _ in chosen}
+        for column, sign in itertools.product(range(library.shape[1]), (1, -1) if signs else (1,)):
+            if column in used:
+                continue
+            chosen.append((column, sign))
+            relabelled = np.column_stack([library[:, c] * s for c, s in chosen])
+            if _run_counts(printed[:, : j + 1]) == _run_counts(relabelled) and search(j + 1):
+                return True
+            chosen.pop()
+        return False
+
+    fits = len(printed) == len(library) and printed.shape[1] <= library.shape[1]
+    return list(chosen) if fits and search(0) else None
+
+
+def _run_counts(matrix: np.ndarray) -> Counter:
+    """Return how often each run occurs: a design's runs, whatever their order."""
+    return Counter(map(tuple, np.round(matrix, 6)))
+
+
+def _same_runs(experiment: dict, check: dict, printed: str) -> tuple[str, bool]:
+    """Check that a printed design matrix holds the same runs as the library's, whatever their order.
+
+    The library's design is ``check["design"]`` (as :func:`_made` makes it) or the stored
+    orthogonal array ``check["array"]`` (see :func:`_array_runs`). ``check["columns"]`` names the
+    printed columns that match its factors, in order (all the entry's factors by default); a
+    printed ``\u03b1`` is the library design's axial distance. ``check["relabel"]`` allows the columns
+    to be matched in another order (``"columns"``) and with their signs changed
+    (``"columns and signs"``), as two constructions of the same design may differ. A printed
+    number of runs, when the text is one, must be the number compared. ``check["round"]`` rounds
+    both matrices to that many decimals first, for an axial distance printed as 1.414.
+    """
+    if "array" in check:
+        library, alpha = _array_runs(check), None
+    else:
+        made = _made(json.dumps(check["design"], sort_keys=True))
+        library, alpha = made.design[made.factor_names].to_numpy(dtype=float), made.alpha
+    columns = check.get("columns") or [f["name"] for f in experiment["factors"]]
+    if experiment["runs"].get("coded", True):
+        matrix = _printed_matrix(experiment, columns, alpha)
+    else:  # a matrix printed in the factors' own units is compared in coded units
+        matrix = _coded_runs(experiment, None)[0][columns].to_numpy(dtype=float)
+    if "round" in check:
+        library, matrix = np.round(library, check["round"]), np.round(matrix, check["round"])
+    count_agrees = not str(printed).strip().isdigit() or int(printed) == len(matrix)
+    relabel = check.get("relabel")
+    if relabel:
+        found = _relabelling(matrix, library, signs=relabel == "columns and signs")
+        if found is None:
+            return "no relabelling of the library's columns gives the printed runs", False
+        named = [f"{'-' if s < 0 else ''}{c + 1}" for c, s in found]
+        return f"the library's columns {', '.join(named)}", count_agrees
+    shared = sum((_run_counts(matrix) & _run_counts(library)).values())
+    same = _run_counts(matrix) == _run_counts(library)
+    return f"{shared} of {len(matrix)} printed runs, of {len(library)} the library's", same and count_agrees
+
+
+def _generator_holds(experiment: dict, check: dict, printed: str) -> tuple[str, bool]:
+    """Check that a printed design matrix obeys the generators printed with it, in every run.
+
+    ``E = ABC`` holds when the product of a run's E, A, B and C settings is +1 (-1 for ``E = -ABC``);
+    several generators may be printed together, separated by commas. ``check["runs"]`` keeps the
+    runs the generators make, such as the cube of a composite design.
+    """
+    positions = check.get("runs") or list(range(1, len(experiment["runs"]["rows"]) + 1))
+    failing = set()
+    for generator in str(check.get("printed", printed)).split(","):
+        word = _generator_word(generator)
+        sign = -1.0 if word.startswith("-") else 1.0
+        product = _printed_matrix(experiment, list(word.lstrip("-")), None, positions).prod(axis=1)
+        failing |= {run for run, value in zip(positions, product, strict=True) if not np.isclose(value, sign)}
+    found = "every run" if not failing else f"not in runs {', '.join(map(str, sorted(failing)))}"
+    return found, not failing
 
 
 def _fraction_runs(experiment: dict, check: dict) -> list[int]:
@@ -619,7 +932,9 @@ def _design_metric(experiment: dict, check: dict) -> float:
     ``check["metric"]`` names an :func:`~process_improve.experiments.evaluate_design` metric, evaluated
     for ``check["model"]`` with ``check["options"]``; ``check["key"]`` reads into its result, step by
     step (``"correlation"`` then ``"max_abs_r"``), where ``max``, ``min``, ``mean`` and ``len`` reduce
-    a dict's values or a list.
+    a dict's values or a list. ``"reciprocal": true`` returns one over the number read, as a source
+    prints a term's tolerance, one over its variance inflation factor; ``"complement": true`` then
+    returns one less it, as the squared multiple correlation of a term with the others, 1 - 1/VIF.
     """
     if check.get("design"):
         design: Any = _made(json.dumps(check["design"], sort_keys=True))
@@ -630,7 +945,9 @@ def _design_metric(experiment: dict, check: dict) -> float:
         found: Any = evaluate_design(
             design, model=check.get("model"), metric=check["metric"], **check.get("options", {})
         )
-    return _read(found[check["metric"]], check.get("key"))
+    value = _read(found[check["metric"]], check.get("key"))
+    value = 1 / value if check.get("reciprocal") else value
+    return 1 - value if check.get("complement") else value
 
 
 def _read(found: Any, key: str | None) -> float:  # noqa: ANN401 - a library result: a number, dict or list
@@ -675,10 +992,43 @@ def _difference_of_means(experiment: dict, check: dict) -> float:
     For a difference a source works between two groups of runs that no factor of the entry marks,
     such as averages of adjacent stretches of a production record.
     """
-    _, after = _coded_runs(experiment, check["runs"])
-    _, before = _coded_runs(experiment, check["minus"])
+    _, after = _coded_runs(experiment, check["runs"], check.get("summary"))
+    _, before = _coded_runs(experiment, check["minus"], check.get("summary"))
     column = check.get("response") or after.columns[0]
     return float(after[column].mean() - before[column].mean())
+
+
+def _capability(experiment: dict, check: dict) -> float:
+    """Return the library's Cpk of a response: the nearer specification's distance from the mean, over 3 sigma.
+
+    ``check["lower"]`` and ``check["upper"]`` are the specifications, either left out when a source
+    gives only one. The mean and standard deviation are the plain ones a source works by hand.
+    """
+    _, responses = _coded_runs(experiment, check.get("runs"))
+    column = check.get("response") or responses.columns[0]
+    lower, upper = (np.nan if check.get(side) is None else float(check[side]) for side in ("lower", "upper"))
+    specifications = (lower, upper)
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")  # the side with no specification warns that it has no spread
+        return float(calculate_cpk(responses, column, specifications=specifications, trim_percentile=0).cpk)
+
+
+def _log_variance_ratio(experiment: dict, check: dict) -> float:
+    """Return ln(s+^2 / s-^2), twice the log of a statistic's average at ``check["runs"]`` over ``check["minus"]``.
+
+    The statistic is a run's standard deviation (``check["summary"]``) or a printed column
+    (``check["response"]``); a source compares the two levels of a factor this way to find a
+    dispersion effect.
+    """
+    _, plus = _coded_runs(experiment, check["runs"], check.get("summary"))
+    _, minus = _coded_runs(experiment, check["minus"], check.get("summary"))
+    column = check.get("response") or plus.columns[0]
+    return 2 * math.log(float(plus[column].mean()) / float(minus[column].mean()))
+
+
+def _dot_product(experiment: dict, check: dict) -> float:
+    """Return the sum over the runs of the product of the printed columns ``check["columns"]``: zero when orthogonal."""
+    return float(_printed_matrix(experiment, check["columns"], None).prod(axis=1).sum())
 
 
 def _variance_component(experiment: dict, check: dict) -> float:
@@ -698,11 +1048,21 @@ def _variance_component(experiment: dict, check: dict) -> float:
 
 
 _VALUE_KINDS: dict[str, Callable[[dict, dict], float]] = {
+    "capability": _capability,
     "difference_of_means": _difference_of_means,
+    "dot_product": _dot_product,
+    "log_variance_ratio": _log_variance_ratio,
     "design_property": lambda _e, c: _design_property(c),
     "design_metric": _design_metric,
     "library_value": lambda _e, c: _library_value(c),
     "variance_component": _variance_component,
+}
+
+
+_STRUCTURE_KINDS: dict[str, Callable[[dict, dict, str], tuple[str, bool]]] = {
+    "block_confounding": lambda _e, c, printed: _block_confounding(c, printed),
+    "same_runs": _same_runs,
+    "generator_holds": _generator_holds,
 }
 
 
@@ -712,12 +1072,15 @@ def _reproduce(experiment: dict, expected: dict, check: dict, fits: _Fits) -> tu
     printed = check.get("printed", expected["value"])
     if kind in _DESIGN_KINDS:
         return _design_check(check, str(printed), len(experiment.get("factors") or []))
-    if kind == "block_confounding":
-        return _block_confounding(check, str(printed))
+    if kind in _STRUCTURE_KINDS:
+        return _STRUCTURE_KINDS[kind](experiment, check, str(printed))
     if kind in _VALUE_KINDS:
         found = _VALUE_KINDS[kind](experiment, check)
         wanted = str(_ROMAN.get(str(printed).strip(), printed))  # a resolution may be printed as a Roman numeral
-        return f"{found:.6g}", _agrees(found, wanted, expression=bool(check.get("expression")))
+        of_rounded, decimals = check.get("of_rounded", 1), check.get("decimals")
+        return f"{found:.6g}", _agrees(
+            found, wanted, expression=bool(check.get("expression")), of_rounded=of_rounded, decimals=decimals
+        )
     if kind in _RUN_KINDS:
         found_runs = _RUN_KINDS[kind](experiment, check)
         listed = [int(n) for n in re.findall(r"\d+", str(printed))]
@@ -729,7 +1092,15 @@ def _reproduce(experiment: dict, expected: dict, check: dict, fits: _Fits) -> tu
     if kind not in _FIT_KINDS:
         raise KeyError(f"No check of the kind {kind!r}.")
     found = float(_FIT_KINDS[kind](out, check, experiment))
-    return f"{found:.6g}", _agrees(found, str(printed), expression=bool(check.get("expression")))
+    found = 1 - found if check.get("complement") else found  # a confidence 1 - p, as some software prints it
+    expression, of_rounded = bool(check.get("expression")), check.get("of_rounded", 1)
+    nearest = found
+    if check.get("data_rounding"):  # the source's fit may sit this far from one to its data as printed, rounded
+        target, slack = float(_number(str(printed))[1]), _carried_rounding(out, check)
+        nearest = target if abs(found - target) <= slack else found - math.copysign(slack, found - target)
+    return f"{found:.6g}", _agrees(
+        nearest, str(printed), expression=expression, of_rounded=of_rounded, decimals=check.get("decimals")
+    )
 
 
 def _checks(expected: dict) -> list[dict]:
@@ -757,7 +1128,11 @@ def reproduce_reference_catalogue(source: str | None = None) -> pd.DataFrame:
     quadratic's stationary point and canonical form, and a setting on a path of steepest ascent,
     are recomputed with :func:`~process_improve.experiments.optimize_responses`, and a Box-Cox
     power with the library's Box-Cox analysis, and a variance component with its REML fit of random
-    intercepts. The interactions a source confounds with blocks
+    intercepts. A run read several times can be analysed through each run's mean or standard
+    deviation of its readings, or with every reading an observation of its own; the setting of a
+    factor that brings a fitted model to a target is solved from the library's predictions, and a
+    process capability index is the library's Cpk.
+    The interactions a source confounds with blocks
     are compared with those of the library's blocking of the same factorial. A number without
     a check is reported with the reason it is not recomputed.
 
