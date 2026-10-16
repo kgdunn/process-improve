@@ -35,7 +35,6 @@ const $$ = (selector, root = document) => [...root.querySelectorAll(selector)];
 const PAGE = 48;
 /** The most factors the map draws: a design with more is in the list, and the map says how many. */
 const MAP_FACTORS = 16;
-const SWITCHES = ["blocked", "splitPlot", "mixture", "hasData", "recomputed", "differs", "opens"];
 
 let catalog = null;
 let state = structuredClone({ ...DEFAULT_STATE });
