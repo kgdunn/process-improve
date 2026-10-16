@@ -85,7 +85,7 @@ def test_a_limit_that_cannot_be_read_says_why_and_holds_the_brief_back(blank_pag
 
 def test_a_limit_typed_with_a_phone_s_signs_is_read_as_typed(blank_page):
     page = blank_page
-    type_limit(page, "T − 25·P ≥ 100")
+    type_limit(page, "T \u2212 25\u00b7P \u2265 100")
     assert limit_row(page).locator("[name=expression]").input_value() == "T - 25 * P >= 100"
 
 
@@ -156,7 +156,7 @@ def test_a_saved_study_keeps_its_limits(blank_page):
 
 
 def test_set_factors_keeps_the_limits_when_the_ranges_change(blank_page):
-    """A limit is a physical statement in the factors' units: a range changed leaves its text, and its effect changes."""
+    """A limit is a statement in the factors' units: a range changed leaves its text, and changes its effect."""
     page = blank_page
     type_limit(page, HEAT)
     before = limit_row(page).locator(".limit-effect").text_content()

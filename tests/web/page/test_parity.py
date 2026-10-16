@@ -309,7 +309,11 @@ def test_the_limits_on_the_settings_are_held_as_bootstrap_holds_them(bootstrap, 
         list(bootstrap.REGION_DESIGNS),
         {chr(code): op for code, op in bootstrap._SYMBOLS.items()},
     ]
-    held = {"count": bootstrap.MAX_CONSTRAINTS, "expression": bootstrap.MAX_EXPRESSION_LENGTH, "note": bootstrap.NOTE_LENGTH}
+    held = {
+        "count": bootstrap.MAX_CONSTRAINTS,
+        "expression": bootstrap.MAX_EXPRESSION_LENGTH,
+        "note": bootstrap.NOTE_LENGTH,
+    }
     assert javascript(node, source("campaign.js"), [("LIMITS_HELD", [])]) == [held], "a saved study is checked alike"
 
 
