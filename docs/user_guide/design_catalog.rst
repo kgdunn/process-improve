@@ -154,3 +154,27 @@ a method that differs from the library's. Every other recomputed number agrees w
 the test suite requires. The catalog's page lists them by source and by words, and
 ``catalog/feed.xml`` (:func:`~process_improve.experiments.design_catalog.catalog_feed`) is an Atom
 feed with an entry for each source as it enters the catalogue.
+
+Opening a design, and limits on its settings
+--------------------------------------------
+
+A design whose type the browser app makes opens with the runs the app makes, which the build checks
+are the source's runs. Any other design with a complete table of runs, of 2 to 12 numeric or
+two-level factors and without blocks or whole plots, opens as *runs as given*: the source's runs, in
+its order and its factors' own units, with its results. Factorial analyses them as it analyses a
+design it made, with the largest model the runs estimate in full.
+
+A limit on the settings, typed beside the list in coded units (``A + B <= 1``, with ``A`` a design's
+first factor and ``B`` its second), keeps the designs whose every run meets it. A design's page marks
+the runs outside the limit, and opens the design in Factorial with the limit written in the design's
+own factors and units. There, the run sheet's notes name the runs outside the limit, and the
+D-optimal and I-optimal designs make runs inside it.
+
+Proposing a design
+------------------
+
+A design printed in a book, a paper or a handbook can be proposed for the catalogue with the
+`catalog entry form <https://github.com/kgdunn/process-improve/issues/new?template=catalog_entry.yml>`_.
+It asks for the source, where the runs are printed, the factors, the runs and the numbers the source
+prints for them. The entry enters the reference catalogue once the library recomputes those numbers,
+each agreeing with the source or recorded with the reason it does not.

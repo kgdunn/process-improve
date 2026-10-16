@@ -69,6 +69,10 @@ _SLICE_POINTS = 61
 #: coefficient or a coordinate is taken to be zero.
 _DIGITS = 12
 _SNAP = 1e-9
+#: A setting reported in actual units is rounded no coarser than this share of its factor's range, which
+#: takes more than 12 figures for a range narrow next to its values, up to 16 figures (see ``_actual``).
+_RESOLUTION = 1e-10
+_MOST_DIGITS = 16
 #: ``scipy.optimize.linprog`` status of a problem with no feasible point.
 _INFEASIBLE = 2
 
@@ -209,11 +213,13 @@ class DesignRegion:
         tol : float
             How far a point may lie outside. For a straight limit of a box region whose
             coded gradient is longer than 1 it is a distance in coded units (the limit's
-            value divided by that length), so a limit multiplied through by a constant
-            accepts the same points, and the corners the region reports
-            (:meth:`vertices`, :meth:`shadow`, :meth:`slice_polygon`), rounded within
-            ``1e-12`` of their boundaries, pass; otherwise it is in the limit's own units,
-            as for a curved limit.
+            value divided by that length); otherwise it is in the limit's own units, as for
+            a curved limit. Either way a point within ``tol`` of a straight limit's
+            boundary, in coded units, passes, however the limit is scaled. So do the
+            corners the region reports (:meth:`vertices`, :meth:`shadow`,
+            :meth:`slice_polygon`), whose rounding (see :meth:`vertices`) moves a
+            coordinate by at most ``1e-10`` in coded units, or a few times that for a
+            factor whose values pass 100000 times its range.
 
         Returns
         -------
@@ -367,13 +373,23 @@ class DesignRegion:
         return self._cache["allowed"]
 
     def _actual(self, coded: np.ndarray, columns: list[int] | None = None) -> np.ndarray:
-        """Return coded values in actual units, exact at the box faces, rounded to 12 significant figures."""
+        """Return coded values in actual units, exact at the box faces and rounded as :meth:`vertices` describes.
+
+        Twelve figures alone are not enough for a factor whose range is narrow next to its
+        values: they move a time stamp near ``1.7e9`` with a range of an hour by up to
+        ``0.005``, ``3e-6`` in coded units, which takes a corner on a limit's boundary well
+        outside the tolerance of :meth:`feasible`.
+        """
         cols = list(range(len(self.names))) if columns is None else columns
         low, high, centre, half = self._low[cols], self._high[cols], self._centre[cols], self._half[cols]
         coded = np.asarray(coded, dtype=float)
         actual = np.where(coded == -1.0, low, np.where(coded == 1.0, high, centre + coded * half))
         actual = np.where(np.abs(actual) <= _SNAP * (high - low), 0.0, actual)
-        return round_significant(actual, _DIGITS)
+        with np.errstate(divide="ignore", invalid="ignore"):
+            places = np.ceil(-np.log10(_RESOLUTION * (high - low)))  # decimal places that resolve 1e-10 of the range
+            figures = np.floor(np.log10(np.abs(actual))) + 1 + places  # -inf for a zero, which keeps 12 figures
+        figures = np.clip(np.nan_to_num(figures, nan=_DIGITS), _DIGITS, _MOST_DIGITS)
+        return round_significant(actual, figures.astype(int))
 
     def _columns(self, x: str, y: str) -> tuple[int, int]:
         """Return the positions of the factors ``x`` and ``y``, which must be two different numeric factors."""
@@ -489,8 +505,8 @@ class DesignRegion:
         Returns
         -------
         dict[str, float] or None
-            ``{name: value}`` for every numeric factor, rounded to 12 significant figures;
-            ``None`` when no allowed point is found (see :meth:`is_empty`).
+            ``{name: value}`` for every numeric factor, rounded as :meth:`vertices`
+            describes; ``None`` when no allowed point is found (see :meth:`is_empty`).
 
         Raises
         ------
@@ -561,8 +577,9 @@ class DesignRegion:
         Returns
         -------
         dict[str, tuple[float, float]] or None
-            ``{name: (low, high)}`` for every numeric factor, in factor order, rounded to
-            12 significant figures; ``None`` when the linear constraints leave no setting.
+            ``{name: (low, high)}`` for every numeric factor, in factor order, rounded as
+            :meth:`vertices` describes; ``None`` when the linear constraints leave no
+            setting.
 
         Raises
         ------
@@ -682,8 +699,9 @@ class DesignRegion:
         off the expression in exact arithmetic, with each number taken as written, so
         ``"TK + 0.01*P <= 340"`` gives ``0.01`` and not ``0.00999999999999``; where the
         expression is affine over the box only (``abs(T)`` with ``T`` positive), it is read
-        off a fit there. Coefficients whose effect over the box is below ``1e-9`` of the
-        largest are set to zero, and every number is rounded to 12 significant figures, so
+        off a fit there. A coefficient whose effect over the box is below ``1e-9`` of the
+        largest is set to zero, its factor held at the centre of its range, where its term's
+        value joins the bound; and every number is rounded to 12 significant figures, so
         floating-point residue such as ``1.65e-14`` or ``250.00000000000009`` does not
         appear.
 
@@ -738,14 +756,20 @@ class DesignRegion:
         if exact is not None:
             coef, rhs = exact
             effect = np.abs(coef) * half
-            coef = np.where(effect <= _SNAP * effect.max(initial=0.0), 0.0, coef)
+            dropped = effect <= _SNAP * effect.max(initial=0.0)
+            # A term dropped for its effect is held at its factor's centre, as the fit below and the coded rows
+            # behind vertices() hold it: its value there moves into the bound. (Held at zero, it moved the bound
+            # of A + B <= 6 with A from 1 to 1 + 1e-9 from 4.9999999995 to 6.)
+            rhs -= float(coef[dropped] @ centre[dropped])
+            coef = np.where(dropped, 0.0, coef)
         else:
             a, b = form
             a = np.where(np.abs(a) <= _SNAP * (np.abs(a).sum() + abs(b)), 0.0, a)  # effect on g below 1e-9 of its size
             coef = a / half
             rhs = b + float(coef @ centre)
-        scale = float(np.abs(coef) @ np.maximum(np.abs(self._low), np.abs(self._high))) + abs(rhs)
-        rhs = 0.0 if abs(rhs) <= _SNAP * scale else rhs
+            # A fitted bound of zero carries the fit's residue; the bound read off the expression has none.
+            scale = float(np.abs(coef) @ np.maximum(np.abs(self._low), np.abs(self._high))) + abs(rhs)
+            rhs = 0.0 if abs(rhs) <= _SNAP * scale else rhs
         return round_significant(coef, _DIGITS), float(round_significant(np.array(rhs), _DIGITS))
 
     def vertices(self) -> np.ndarray:
@@ -753,7 +777,7 @@ class DesignRegion:
 
         The region is then a convex polytope: the box cut by the constraints. Its vertices
         are the extreme settings, where a D-optimal design for a main-effects model puts
-        its runs (one for a quadratic model also uses edge midpoints and face centres).
+        its runs (one for a quadratic model also puts runs between them).
         They are found by cutting the box one constraint at a time (see
         :func:`~process_improve.experiments._region_geometry.box_vertices`), so the work
         grows with the number of vertices rather than with the ways of choosing ``k``
@@ -763,8 +787,13 @@ class DesignRegion:
         -------
         np.ndarray
             ``(n, k)`` vertices, one column per numeric factor, without duplicates,
-            sorted row by row in coded order and rounded to 12 significant figures; no
-            rows when the region is empty.
+            sorted row by row in coded order; no rows when the region is empty. Each
+            value is rounded to 12 significant figures, so that ``250.00000000000009``
+            reads ``250.0``, or to more where its factor's range is narrow next to its
+            values (a year, an absolute pressure, a time stamp): to the decimal place of
+            ``1e-10`` times the range, up to 16 figures, about what a double holds.
+            Every vertex then passes :meth:`feasible`, short of a factor whose values
+            pass a million times its range, which a double cannot resolve that finely.
 
         Raises
         ------
@@ -1050,19 +1079,15 @@ class _Rows:
         a_rows, b_rows, limits, scale, nonlinear, nonlinear_limit = [], [], [], [], [], []
         for g, limit in zip(inequalities, limit_of, strict=True):
             form = _affine_form(g, -ones, ones) if k else (np.zeros(0), -float(g(np.zeros((1, 0)))[0]))
-            if form is None:
+            # The length without squaring: np.linalg.norm squares, which overflows from a length of 1e154, so
+            # T <= 1e200 (whose fit carries noise near 1e184) and 1e200*T <= 1.2e202 were taken for curved.
+            size = math.hypot(*form[0]) if form is not None else math.inf
+            if not math.isfinite(size):  # not affine (a length past 1.8e308 would have overflowed the fit too)
                 nonlinear.append(g)
                 nonlinear_limit.append(limit)
                 scale.append(1.0)
                 continue
-            a, b = form
-            with np.errstate(over="ignore"):
-                size = float(np.linalg.norm(a))
-            if not (math.isfinite(size) and math.isfinite(b)):  # a constant near 1e300 overflowed the fit
-                nonlinear.append(g)
-                nonlinear_limit.append(limit)
-                scale.append(1.0)
-                continue
+            a, b = cast("tuple[np.ndarray, float]", form)
             if size <= _SNAP * (1.0 + abs(b)):  # compares numbers only
                 scale.append(1.0)
                 if b < -_TOL:
@@ -1071,7 +1096,7 @@ class _Rows:
                     limits.append(limit)
                 continue
             a = np.where(np.abs(a) <= _SNAP * size, 0.0, a)
-            size = float(np.linalg.norm(a))
+            size = math.hypot(*a)
             scale.append(size)
             a_rows.append(a / size)
             b_rows.append(b / size)
@@ -1081,6 +1106,9 @@ class _Rows:
 
 
 _Exact = tuple[dict[str, Fraction], Fraction]
+#: Most bits a power of constants may give and still be computed exactly: a limit of 500 characters can nest
+#: powers, as in ``(((0.5**64)**64)**64)**64``, whose exact value takes a billion bits. Past this, floating point.
+_EXACT_BITS = 4096
 
 
 def _exact_difference(first: ast.expr, second: ast.expr, names: list[str]) -> tuple[np.ndarray, float] | None:
@@ -1099,9 +1127,10 @@ def _exact_affine(node: ast.expr) -> _Exact | None:
     """Return a parsed expression as ``({name: coefficient}, constant)`` in exact arithmetic, or None.
 
     Numbers are taken as written (``Fraction("0.01")``, not the double nearest it), and
-    ``+``, ``-``, a product with a constant and a division by one are kept exact. A part
-    without factors (``2**0.5``, ``sqrt(2)``) is evaluated in floating point. Anything
-    else (a product of factors, a function of one) gives None.
+    ``+``, ``-``, a product with a constant, a division by one and a whole power of a
+    number (up to the 64th, and up to :data:`_EXACT_BITS` bits) are kept exact. Another
+    part without factors (``2**0.5``, ``sqrt(2)``, ``(0.5**64)**64``) is evaluated in
+    floating point. Anything else (a product of factors, a function of one) gives None.
     """
     if isinstance(node, ast.Constant) and isinstance(node.value, int | float) and not isinstance(node.value, bool):
         finite = math.isfinite(node.value)
@@ -1117,7 +1146,7 @@ def _exact_affine(node: ast.expr) -> _Exact | None:
     if isinstance(node, ast.Call) and isinstance(node.func, ast.Name) and len(node.args) == 1:
         argument = _exact_affine(node.args[0])
         return None if argument is None or _varies(argument) else _exact_function(node.func.id, argument[1])
-    return None
+    return None  # pragma: no cover - parse_constraint has refused every other node before the text is read here
 
 
 def _varies(form: _Exact) -> bool:
@@ -1138,7 +1167,9 @@ def _exact_operation(op: ast.operator, left: _Exact, right: _Exact) -> _Exact | 
         return _scaled(left, 1 / right[1])
     if isinstance(op, ast.Pow) and not _varies(left) and not _varies(right):
         base, power = left[1], right[1]
-        if power.denominator == 1 and abs(power) <= 64 and (base != 0 or power > 0):
+        size = max(base.numerator.bit_length(), base.denominator.bit_length())
+        whole = power.denominator == 1 and abs(power) <= 64
+        if whole and abs(power) * size <= _EXACT_BITS and (base != 0 or power > 0):
             return {}, base ** int(power)
         return _constant(lambda: float(base) ** float(power))
     return None

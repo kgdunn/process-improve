@@ -19,7 +19,16 @@ from tests.web._support import ENTRY_POINT, FACTORS, javascript, page, source
 def test_page_design_list_matches_bootstrap(bootstrap):
     """The page lists the designs in HTML so the form is right before Python loads."""
     in_page = {o["value"]: o for o in page().options["design-type"]}
+    given = in_page.pop(bootstrap.GIVEN)
     assert list(in_page) == list(bootstrap.DESIGNS)
+    assert "hidden" in given, "the list offers runs as given only while a study of given runs is open"
+    assert given["label"] == bootstrap.GIVEN_INFO["label"]
+    assert given["data-hint"] == bootstrap.GIVEN_INFO["hint"]
+    assert (given["data-options"], int(given["data-min-factors"]), int(given["data-max-factors"])) == (
+        "",
+        bootstrap.GIVEN_INFO["min_factors"],
+        bootstrap.GIVEN_INFO["max_factors"],
+    )
     for key, info in bootstrap.DESIGNS.items():
         option = in_page[key]
         assert option["label"] == info["label"], key
@@ -136,6 +145,11 @@ def test_the_terms_to_tick_are_the_terms_bootstrap_fits(bootstrap, node, categor
 
 def test_the_designs_that_take_a_categorical_factor_are_bootstrap_s(bootstrap, node):
     assert javascript(node, source("logic.js"), [("CATEGORICAL_DESIGNS", [])]) == [list(bootstrap.CATEGORICAL_DESIGNS)]
+
+
+def test_the_page_names_runs_as_given_as_bootstrap_does(bootstrap, node):
+    assert javascript(node, source("logic.js"), [("GIVEN", [])]) == [bootstrap.GIVEN]
+    assert bootstrap.GIVEN not in bootstrap.DESIGNS, "the page holds runs as given, and never makes them from the form"
 
 
 def test_the_page_reads_a_label_where_bootstrap_does(bootstrap, node):

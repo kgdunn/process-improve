@@ -7,6 +7,12 @@ import { describe, test } from "node:test";
 import {
   COMPARE_MOST,
   DEFAULT_STATE,
+  LETTERS,
+  limitInUnits,
+  limitLine,
+  limitOutcome,
+  meets,
+  parseLimit,
   checkIndex,
   compareRefusal,
   compareRows,
@@ -289,6 +295,8 @@ describe("the address", () => {
       unprinted: true,
       compare: ["lib-ccd-k3", "pilot-plant"],
       view: "compare",
+      limit: "A + B <= 1",
+      limitAll: true,
     });
     assert.deepEqual(fromHash(toHash(chosen), CATALOG.families, CATALOG.sources), chosen);
   });
@@ -565,5 +573,68 @@ describe("the timeline and where a design leads", () => {
       ["fractional_factorial", "#fam=fractional_factorial&k=3-"],
     ]);
     assert.deepEqual(nextSteps(CATALOG.designs[1], CATALOG), []);
+  });
+});
+
+// ---------------------------------------------------------------- phase 4: limits on the coded settings
+describe("a limit on the coded settings", () => {
+  test("factors by their letters, numbers, + - * / ^, brackets and one or more signs", () => {
+    for (const text of ["A + B <= 1", "-0.5 <= A - C <= 0.5", "2A + B^2 >= -1", "A*B < 0.5", "A ≤ 0.5", "(A + B) / 2 > -1", "A**2 <= 1"]) {
+      assert.equal(parseLimit(text).ok, true, text);
+    }
+    assert.deepEqual(parseLimit("-0.5 <= A - C <= 0.5").factors, [0, 2]);
+    assert.equal(LETTERS.slice(7, 10), "HJK", "no I, as the library names factors");
+  });
+
+  test("a limit that cannot be read says why", () => {
+    assert.match(parseLimit("A + B").error, /write <= for at most/);
+    assert.match(parseLimit("(A + B <= 1").error, /a bracket is not closed/);
+    assert.match(parseLimit("A + I <= 1").error, /I names no factor/);
+    assert.match(parseLimit("A <= 1 1").error, /is not where it can be read/);
+    assert.match(parseLimit("2 <= 3").error, /names no factor/);
+    assert.match(parseLimit("A <= 1; alert(1)").error, /cannot be read from/);
+    assert.equal(parseLimit("").error, "");
+  });
+
+  test("a run meets a limit, within a hair of its boundary", () => {
+    const limit = parseLimit("-0.5 <= A - C <= 0.5");
+    assert.equal(meets(limit, [0.5, 9, 0]), true);
+    assert.equal(meets(limit, [0.5 + 1e-12, 9, 0]), true);
+    assert.equal(meets(limit, [1, 0, 0]), false);
+    assert.equal(meets(parseLimit("A / B <= 1"), [1, 0]), false, "a division by zero meets no limit");
+  });
+
+  test("a design is judged on its numeric factors with every setting given", () => {
+    const limit = parseLimit("A + B <= 1");
+    const runs = [[1, 1, 0], [1, 0, 0], [-1, 1, 0], [0.5, 0.5, 0]];
+    assert.deepEqual(limitOutcome(limit, runs, ["numeric", "numeric", "numeric"]), { judged: true, outside: [0] });
+    assert.match(limitOutcome(parseLimit("D <= 0"), runs, ["numeric", "numeric", "numeric"]).why, /names D, and the design has 3 factors/);
+    assert.match(limitOutcome(limit, runs, ["numeric", "categorical", "numeric"]).why, /B is a categorical factor/);
+    assert.match(limitOutcome(limit, [[null, 1, 0]], ["numeric", "numeric", "numeric"]).why, /not printed/);
+    assert.match(limitOutcome(limit, [], ["numeric"]).why, /no table of its runs/);
+  });
+
+  test("its outcome, in a sentence", () => {
+    const limit = parseLimit("A + B <= 1");
+    assert.equal(limitLine(limit, { judged: true, outside: [] }, 8), "Every one of its 8 runs meets the limit A + B <= 1.");
+    assert.equal(limitLine(limit, { judged: true, outside: [3, 7] }, 8), "Runs 4 and 8 are outside the limit A + B <= 1, of its 8 runs.");
+    assert.equal(limitLine(limit, { judged: false, why: "no runs" }, 8), "The limit A + B <= 1 cannot be judged on this design: no runs.");
+  });
+
+  test("it is written in a design's factors and their own units, for Factorial", () => {
+    const factors = [{ name: "T", low: 150, high: 200 }, { name: "P", low: 1, high: 3 }, { name: "F", low: -2, high: 2 }];
+    assert.equal(limitInUnits(parseLimit("A + B <= 1"), factors), "((T - 175) / 25) + (P - 2) <= 1");
+    assert.equal(limitInUnits(parseLimit("-0.5 <= B - 2*C <= 0.5"), factors), "-0.5 <= (P - 2) - (2 * (F / 2)) <= 0.5");
+    assert.equal(limitInUnits(parseLimit("A^2 <= 1"), factors), "((T - 175) / 25) ** 2 <= 1");
+  });
+
+  test("the list keeps the designs whose every run meets it, or every design it can judge", () => {
+    const catalog = {
+      ...CATALOG,
+      designs: [design({ id: "in", limit_outside: 0 }), design({ id: "out", limit_outside: 2 }), design({ id: "unjudged", limit_outside: null })],
+    };
+    assert.deepEqual(ids(results(catalog, state({ limit: "A + B <= 1" }))), ["in"]);
+    assert.deepEqual(ids(results(catalog, state({ limit: "A + B <= 1", limitAll: true }))), ["in", "out"]);
+    assert.deepEqual(ids(results(catalog, state({ limit: "A + B" }))), ["in", "out", "unjudged"], "a limit that cannot be read keeps every design");
   });
 });

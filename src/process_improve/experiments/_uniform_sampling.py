@@ -55,7 +55,7 @@ def _probe_points(low: np.ndarray, high: np.ndarray) -> tuple[np.ndarray, np.nda
     fit = base + span * steps
     unit = [np.random.default_rng(0).random((_AFFINE_CHECKS, k))]
     if k <= _CORNER_DIMENSIONS:
-        unit.append(np.array(list(itertools.product((0.0, 1.0), repeat=k))).reshape(-1, k))
+        unit.append(np.array(list(itertools.product((0.0, 1.0), repeat=k))).reshape(2**k, k))  # one corner when k is 0
     return fit, base + span * np.vstack(unit)
 
 
@@ -85,12 +85,10 @@ def _affine_form(g: _Inequality, low: np.ndarray, high: np.ndarray) -> tuple[np.
         return None
     design = np.column_stack([points, np.ones(len(points))])
     coef = np.linalg.lstsq(design[: len(fit)], values[: len(fit)], rcond=None)[0]
-    if not np.all(np.isfinite(coef)):
-        return None
     with np.errstate(all="ignore"):
         error = float(np.max(np.abs(design @ coef - values)))
         tolerance = 1e-9 * (1.0 + float(np.max(np.abs(values))))
-    if not error <= tolerance:  # written so that a NaN fails the test too
+    if not error <= tolerance:  # written so that a NaN fails the test too, as from a coefficient that overflowed
         return None
     return coef[:k], -float(coef[k])
 
@@ -240,8 +238,12 @@ class UniformSampler:
 
         The square root is the Cholesky factor: any ``L`` with ``L @ L.T`` equal to the
         covariance gives the same Gaussian directions, and this one is unique, so the
-        chains take the same steps on every platform. (Eigenvectors are not: their signs
-        differed between native LAPACK and Pyodide, and so did the sampled points.)
+        chains do not depend on the signs an eigensolver happens to return. (Eigenvectors'
+        signs differed between native LAPACK and Pyodide, and averages over the samples
+        differed in the third or fourth figure.) The chains still magnify differences in
+        the last bit of the platforms' linear algebra: in 6 or more factors their points
+        drift apart, by up to about 0.002 in coded units over thousands of steps, and
+        averages over them agree to about 7 to 11 figures.
         """
         k = points.shape[1]
         cov = np.cov(points, rowvar=False).reshape(k, k) if len(points) > 1 else np.zeros((k, k))

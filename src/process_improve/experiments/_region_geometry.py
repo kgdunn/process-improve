@@ -37,41 +37,56 @@ _PAIR_CHUNK = 512
 _PRODUCT_CELLS = 2**22
 #: The square ``[-1, 1]^2``, counter-clockwise from its lower-left corner.
 _SQUARE = np.array([[-1.0, -1.0], [1.0, -1.0], [1.0, 1.0], [-1.0, 1.0]])
+#: The largest power of ten that a double holds exactly, ``10.0**22``.
+_EXACT_POWER = 22
 
 
-def round_significant(values: np.ndarray, digits: int = 12) -> np.ndarray:
+def round_significant(values: np.ndarray, digits: int | np.ndarray = 12) -> np.ndarray:
     """Round every value to ``digits`` significant figures.
+
+    Each value comes back as the double nearest its rounded decimal, at every magnitude
+    a double can hold.
 
     Parameters
     ----------
     values : np.ndarray
-        Finite numbers.
-    digits : int
-        Significant figures to keep.
+        Numbers. Zeros, infinities and NaN are returned as they are.
+    digits : int or np.ndarray
+        Significant figures to keep: one number for every value, or whole numbers that
+        broadcast against ``values``, one for each value.
 
     Returns
     -------
     np.ndarray
-        The rounded values, as floats; zeros stay zero.
+        The rounded values, as floats.
 
     Examples
     --------
     >>> round_significant(np.array([250.00000000000009, 1.65e-14, -0.30000000000000004])).tolist()
     [250.0, 1.65e-14, -0.3]
+    >>> round_significant(np.array([1e-300, 2e-12, 1e40])).tolist()
+    [1e-300, 2e-12, 1e+40]
     """
     v = np.asarray(values, dtype=float)
-    with np.errstate(divide="ignore"):
-        magnitude = np.floor(np.log10(np.abs(v)))
-    exponent = digits - 1 - np.where(np.isfinite(magnitude), magnitude, 0.0)
-    power = 10.0 ** np.abs(exponent)
-    # Dividing by an exact power of ten rounds once, so a whole number of units in the last kept digit comes
-    # back as the double nearest that decimal (multiplying by 10**-n would not: 10**-n is inexact). Both
-    # branches are computed, and the one not taken can overflow for numbers near 1e300.
-    with np.errstate(over="ignore", invalid="ignore"):
-        return np.where(exponent >= 0, np.round(v * power) / power, np.round(v / power) * power)
+    figures = np.broadcast_to(np.asarray(digits), v.shape)
+    finite = np.isfinite(v) & (v != 0)
+    magnitude = np.floor(np.log10(np.abs(np.where(finite, v, 1.0))))
+    exponent = figures - 1 - magnitude
+    # Multiplying or dividing by an exact power of ten, rounding to a whole number and undoing the scaling
+    # rounds once, so the result is the double nearest the rounded decimal (multiplying by 10**-n would not
+    # be: 10**-n is inexact). Only powers up to 10**22 are exact doubles, and beyond 10**308 the power
+    # overflows, so a value further from 1 than that has its decimal text rounded instead (below 1e-11 or
+    # from 1e34 at 12 figures).
+    exact = finite & (np.abs(exponent) <= _EXACT_POWER)
+    power = 10.0 ** np.where(exact, np.abs(exponent), 0.0)
+    out = np.where(exact, np.where(exponent >= 0, np.round(v * power) / power, np.round(v / power) * power), v)
+    flat, values_flat, figures_flat = out.reshape(-1), v.reshape(-1), figures.reshape(-1)
+    for i in np.flatnonzero(finite & ~exact):
+        flat[i] = float(f"{values_flat[i]:.{int(figures_flat[i]) - 1}e}")
+    return out
 
 
-def box_vertices(a: np.ndarray, b: np.ndarray) -> np.ndarray:
+def box_vertices(a: np.ndarray, b: np.ndarray, max_vertices: int | None = None) -> np.ndarray:
     """Vertices of ``{x in [-1, 1]^k : a @ x <= b}``, by the double-description method.
 
     The box's ``2**k`` corners are cut by one row at a time. A cut keeps the vertices on
@@ -89,6 +104,9 @@ def box_vertices(a: np.ndarray, b: np.ndarray) -> np.ndarray:
         no point meets).
     b : np.ndarray
         Right-hand sides ``(m,)``.
+    max_vertices : int or None
+        Most vertices the cut box may have, or have on the way; ``None`` for
+        ``MAX_VERTICES``.
 
     Returns
     -------
@@ -99,7 +117,7 @@ def box_vertices(a: np.ndarray, b: np.ndarray) -> np.ndarray:
     Raises
     ------
     ValueError
-        When the box has more than ``MAX_VERTICES`` corners, or a cut would leave more
+        When the box has more than ``max_vertices`` corners, or a cut would leave more
         than that many vertices.
 
     References
@@ -108,8 +126,9 @@ def box_vertices(a: np.ndarray, b: np.ndarray) -> np.ndarray:
     *Combinatorics and Computer Science*, LNCS 1120, 91-111.
     """
     m, k = a.shape
-    if 2**k > MAX_VERTICES:
-        raise ValueError(f"A box in {k} factors has {2**k} corners; vertices are listed for up to {MAX_VERTICES}.")
+    max_vertices = MAX_VERTICES if max_vertices is None else max_vertices
+    if 2**k > max_vertices:
+        raise ValueError(f"A box in {k} factors has {2**k} corners; vertices are listed for up to {max_vertices}.")
     vertices = np.array(list(itertools.product((-1.0, 1.0), repeat=k)), dtype=float).reshape(2**k, k)
     # Which boundary each vertex lies on: the k upper faces, the k lower faces, then the m rows.
     active = np.hstack([vertices == 1.0, vertices == -1.0, np.zeros((len(vertices), m), dtype=bool)])
@@ -117,8 +136,8 @@ def box_vertices(a: np.ndarray, b: np.ndarray) -> np.ndarray:
         vertices, active = _cut(vertices, active, a[row], float(b[row]), 2 * k + row)
         if not len(vertices):
             break
-        if len(vertices) > MAX_VERTICES:
-            raise ValueError(f"The region has more than {MAX_VERTICES} vertices; they are not listed.")
+        if len(vertices) > max_vertices:
+            raise ValueError(f"The region has more than {max_vertices} vertices; they are not listed.")
     vertices = np.where(np.abs(np.abs(vertices) - 1.0) <= 1e-12, np.sign(vertices), vertices)
     vertices = np.where(np.abs(vertices) <= 1e-12, 0.0, vertices)
     return np.unique(vertices.round(12), axis=0)

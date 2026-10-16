@@ -213,8 +213,10 @@ def test_a_design_inside_the_limits_is_native_python_s(pyodide, api, design_type
     assert under["spec"]["constraints"] == native["spec"]["constraints"]
 
 
-def test_the_comparison_inside_the_limits_scores_as_native_python_does(pyodide, api):
-    _, designs = generate_all(api, FACTORS, "main_quadratic", LIMITS[:1])
+@pytest.mark.parametrize("limits", [LIMITS[:1], LIMITS], ids=["straight", "curved"])
+def test_the_comparison_inside_the_limits_scores_as_native_python_does(pyodide, api, limits):
+    """With a curved limit, G is climbed by SLSQP from its best points: under Pyodide too."""
+    _, designs = generate_all(api, FACTORS, "main_quadratic", limits)
     under, native = (
         python.ok("api_compare", {"model": "main_quadratic", "designs": designs}) for python in (pyodide, api)
     )

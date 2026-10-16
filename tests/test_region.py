@@ -5,9 +5,11 @@ from __future__ import annotations
 import doctest
 import importlib
 import itertools
+import json
 import math
 import time
 import tracemalloc
+import warnings
 from fractions import Fraction
 
 import numpy as np
@@ -645,16 +647,54 @@ class TestLinearForms:
             ("T <= 140 <= 200", ({"T": 1.0}, None, 140.0)),
             ("T <= 140 >= T", ({"T": 1.0}, None, 140.0)),
             ("abs(T) <= 140", ({"T": 1.0}, None, 140.0)),  # affine over the box, where T > 0
+            # Parts without factors: abs exactly, a fractional or large power in floating point
+            ("abs(-3)*T + 5*D <= 600", ({"T": 3.0, "D": 5.0}, None, 600.0)),
+            ("T + 2**0.5*D <= 300", ({"T": 1.0, "D": 1.41421356237}, None, 300.0)),
+            ("T <= 2**70 / 2**63", ({"T": 1.0}, None, 128.0)),
+            ("T <= 10**100 / 10**98", ({"T": 1.0}, None, 100.0)),
+            ("T + 0**0*D <= 300", ({"T": 1.0, "D": 1.0}, None, 300.0)),
         ],
     )
     def test_affine_limits(self, expression, form):
         assert DesignRegion(HEAT_FACTORS, [expression]).linear_forms() == [form]
 
     @pytest.mark.parametrize(
-        "expression", ["T*D <= 6000", "T <= D <= 2", "T <= 140 <= 100", "1 <= 2", "2 <= 1", "abs(T - 125) <= 10"]
+        ("ranges", "expression", "form"),
+        [
+            ({"T": (100, 150), "D": (20, 60)}, "T**2 - (T - 1)**2 <= 250", ({"T": 2.0}, None, 251.0)),
+            ({"T": (100, 150), "D": (20, 60)}, "T**1 + D <= 190", ({"T": 1.0, "D": 1.0}, None, 190.0)),
+            ({"T": (100, 150), "D": (1, 1 + 1e-12)}, "T*D <= 140", ({"T": 1.0}, None, 140.0)),
+            ({"T": (100, 150), "D": (1, 1 + 1e-12)}, "T/(D + 1) <= 70", ({"T": 0.5}, None, 70.0)),
+            # A number a double cannot hold, or cannot compute at all, on the way to one it can
+            ({"T": (100, 150), "D": (20, 60)}, "T + 1/exp(1000) <= 140", ({"T": 1.0}, None, 140.0)),
+            ({"T": (100, 150), "D": (20, 60)}, "T + 1/10**400 <= 140", ({"T": 1.0}, None, 140.0)),
+            ({"T": (100, 150), "D": (20, 60)}, "T + 1/(0**-1) <= 140", ({"T": 1.0}, None, 140.0)),
+        ],
+    )
+    def test_a_limit_affine_over_the_box_only_is_read_off_a_fit(self, ranges, expression, form):
+        """A product, quotient or power of factors, and a number past a double's range, are not read off the text."""
+        factors = [Factor(name=n, low=lo, high=hi) for n, (lo, hi) in ranges.items()]
+        assert DesignRegion(factors, [expression]).linear_forms() == [form]
+
+    @pytest.mark.parametrize(
+        "expression",
+        [
+            "T*D <= 6000",
+            "T <= D <= 2",
+            "T <= 140 <= 100",
+            "1 <= 2",
+            "2 <= 1",
+            "abs(T - 125) <= 10",
+            "1.7e308*(2*abs(abs(2*(T - 125)/25) - 1) - 1) <= 0",  # a zigzag whose fit overflows
+        ],
     )
     def test_limits_without_one_affine_form(self, expression):
         assert DesignRegion(HEAT_FACTORS, [expression]).linear_forms() == [None]
+
+    @pytest.mark.parametrize("factors", [[Factor(name="Cat", type="categorical", levels=["x", "y"])], []])
+    def test_a_region_without_numeric_factors_has_no_forms(self, factors):
+        """A limit there compares numbers only; reading it used to fail on reshaping an empty set of probe points."""
+        assert DesignRegion(factors, ["1 <= 2", "2 <= 1"]).linear_forms() == [None, None]
 
     def test_one_entry_per_limit_in_order(self):
         forms = DesignRegion(HEAT_FACTORS, [HEAT, "T*D <= 6000", "D >= 25"]).linear_forms()
@@ -680,12 +720,42 @@ class TestLinearForms:
             ),
             ({"T": (100, 150), "D": (20, 60)}, "T <= 3e10", ({"T": 1.0}, None, 3e10)),  # was None: snapped against 3e10
             ({"T": (100, 150), "D": (20, 60)}, "sqrt(4)*T - 2**-1*D <= 10**2*3", ({"T": 2.0, "D": -0.5}, None, 300.0)),
+            # 2**0.5 is computed in floating point, then taken as its shortest decimal; a fit gives P 0.00999999999999
+            (
+                {"TK": (298, 348), "P": (1, 3)},
+                "TK + 0.01*P <= 240 * 2**0.5",
+                ({"TK": 1.0, "P": 0.01}, None, 339.41125497),
+            ),
+            (
+                {"Pa": (1e5, 2e5), "T": (20, 40)},
+                "Pa + 2**0.5*T <= 180000",
+                ({"Pa": 1.0, "T": 1.41421356237}, None, 180000.0),
+            ),
         ],
     )
     def test_the_coefficients_are_the_ones_written(self, ranges, expression, form):
         """A coded fit loses the digits of a term whose effect over the box is small next to the constant."""
         factors = [Factor(name=n, low=lo, high=hi) for n, (lo, hi) in ranges.items()]
         assert DesignRegion(factors, [expression]).linear_forms() == [form]
+
+    @pytest.mark.parametrize(
+        ("expression", "bound"),
+        [
+            ("T + (((((0.5)**64)**64)**64)**64)**64 <= 140", 140.0),  # 2**-1073741824, a billion bits exactly
+            ("T + ((1.0000001)**64)**64 <= 140", 138.999590316),  # 98304 bits exactly; in floating point now
+            ("T + ((((1.0000001)**64)**64)**64)**64 <= 140", 134.646655445),
+        ],
+    )
+    def test_nested_powers_of_numbers_stay_small(self, expression, bound):
+        """Nested powers multiply the size of an exact number: the first took 9 s and 1 GB, the last over 150 s."""
+        tracemalloc.start()
+        try:
+            forms = DesignRegion(HEAT_FACTORS, [expression]).linear_forms()
+            peak = tracemalloc.get_traced_memory()[1]
+        finally:
+            tracemalloc.stop()
+        assert forms == [({"T": 1.0}, None, bound)]
+        assert peak < 16 * 2**20
 
     def test_round_coefficients_over_ordinary_ranges_come_back_as_written(self):
         """One limit in twelve used to come back with residue such as 0.00999999999999."""
@@ -700,13 +770,112 @@ class TestLinearForms:
             expression = f"{c1}*A - {c2}*B <= {rhs}"
             assert DesignRegion(factors, [expression]).linear_forms() == [({"A": c1, "B": -c2}, None, rhs)], expression
 
-    def test_a_huge_constant_is_handled(self):
-        """The coded fit of ``T <= 1e300`` overflows; its rows then divided by a zero length."""
-        region = DesignRegion(HEAT_FACTORS, ["T <= 1e300"])
-        assert region.linear_forms() == [({"T": 1.0}, None, 1e300)]
+    @pytest.mark.parametrize(
+        ("ranges", "expression", "form"),
+        [
+            # A's effect over its range is 1e-10 of B's: it is dropped, held at its centre, not at zero (bound 6)
+            ({"A": (1, 1 + 1e-9), "B": (0, 10)}, "A + B <= 6", ({"B": 1.0}, None, 4.9999999995)),
+            (
+                {"t1": (1.7e9, 1.7e9 + 3600), "t2": (1.7e9, 1.7e9 + 3600)},
+                "t1 - t2 <= 1",
+                ({"t1": 1.0, "t2": -1.0}, None, 1.0),
+            ),
+            (
+                {"A": (1e6 - 5, 1e6 + 5), "C": (1e6 - 5e-4, 1e6 + 5e-4)},
+                "-1 <= 1000*A - 1000*C <= 0",
+                ({"A": 1000.0, "C": -1000.0}, -1.0, 0.0),
+            ),
+        ],
+    )
+    def test_a_bound_read_off_the_expression_is_kept(self, ranges, expression, form):
+        """The last two bounds were snapped to zero as a fit's residue would be; the chain became an equality."""
+        factors = [Factor(name=n, low=lo, high=hi) for n, (lo, hi) in ranges.items()]
+        region = DesignRegion(factors, [expression])
+        assert region.linear_forms() == [form]
+        if len(form[0]) == 1:  # the dropped factor's bound agrees with the region's own
+            assert region.implied_bounds()["B"] == (0.0, form[2])  # type: ignore[index]
+
+    def test_each_form_agrees_with_the_region(self):
+        """A setting meets a form's bounds where the region holds it, but for a sliver along the boundary.
+
+        Random straight limits over factors whose ranges are narrow or wide next to their values,
+        with coefficients from 1e-6 to 1e3. A term held at zero rather than at its factor's centre
+        once made the form and the region disagree on up to 10% of the box.
+        """
+        rng = np.random.default_rng(5)
+        checked = 0
+        for _ in range(120):
+            k = int(rng.integers(2, 4))
+            centres = rng.choice([0.0, 1.0, 40.0, 300.0, 1e5, 1.7e9], size=k)
+            halves = np.maximum(np.abs(centres), 1.0) * rng.choice([1e-9, 1e-6, 1e-3, 0.2, 1.0], size=k)
+            names = [f"X{j}" for j in range(k)]
+            factors = [Factor(name=n, low=c - h, high=c + h) for n, c, h in zip(names, centres, halves, strict=True)]
+            sizes, signs = rng.choice([1e-6, 0.01, 1.0, 7.0, 1e3], size=k), rng.choice([-1, 1], size=k)
+            coefficients = [float(c) for c in sizes * signs]
+            inside = centres + rng.uniform(-0.5, 0.5, size=k) * halves
+            rhs = float(f"{sum(c * x for c, x in zip(coefficients, inside, strict=True)):.12g}")
+            expression = " + ".join(f"({c!r})*{n}" for c, n in zip(coefficients, names, strict=True)) + f" <= {rhs!r}"
+            region = DesignRegion(factors, [expression])
+            form = region.linear_forms()[0]
+            # Skip a limit the affine test cannot tell from a curved one in double precision, and one that changes
+            # by less than 1e-5 over the box, where feasible()'s tolerance of 1e-9 in its own units is wide.
+            if form is None or region._linear().scale[0] < 1e-5:
+                continue
+            checked += 1
+            coded = rng.uniform(-1, 1, size=(4000, k))
+            actual = region._centre + coded * region._half
+            lhs = actual @ np.array([form[0].get(n, 0.0) for n in names])
+            assert form[1] is None
+            agree = (lhs <= form[2]) == region.feasible(coded)
+            assert agree.mean() >= 0.999, expression
+        assert checked >= 60
+
+    @pytest.mark.parametrize(
+        ("ranges", "expression", "form"),
+        [
+            ({"A": (0, 1)}, "2 <= 3 <= A * 1e-300", ({"A": 1e-300}, 3.0, None)),  # the coefficient came back NaN
+            ({"A": (0, 1), "B": (0, 1)}, "1e-300*A + 1e-300*B <= 2e-300", ({"A": 1e-300, "B": 1e-300}, None, 2e-300)),
+            ({"A": (0, 1), "B": (0, 1e12)}, "A + 1e-12*B <= 1", ({"A": 1.0, "B": 1e-12}, None, 1.0)),  # 1.0...02e-12
+            ({"T": (100, 150), "D": (20, 60)}, "T <= 1e40", ({"T": 1.0}, None, 1e40)),  # 9.999999999999999e+39
+        ],
+    )
+    def test_tiny_and_huge_numbers_are_the_ones_written(self, ranges, expression, form):
+        factors = [Factor(name=n, low=lo, high=hi) for n, (lo, hi) in ranges.items()]
+        with warnings.catch_warnings():
+            warnings.simplefilter("error")
+            forms = DesignRegion(factors, [expression]).linear_forms()
+        assert forms == [form]
+        json.dumps(forms, allow_nan=False)
+
+    @pytest.mark.parametrize("expression", ["T <= 1e300", "T + D <= 1e200", "T + D <= 1e170"])
+    def test_a_huge_constant_is_handled(self, expression):
+        """A straight limit that holds everywhere, however large its constant.
+
+        The coded fit of ``T <= 1e300`` overflowed, and its rows then divided by a zero
+        length. Later the length of a fit's noise, near ``1e-16`` of the constant, overflowed
+        when it was squared, from a constant of about ``1e170``: the limit was taken for curved,
+        so it had no vertices and a mask for a shadow.
+        """
+        region = DesignRegion(HEAT_FACTORS, [expression])
+        form = region.linear_forms()[0]
+        assert form is not None
+        assert form[2] == float(expression.split("<=")[1])
         assert not region.is_empty()
         assert region.implied_bounds() == {"T": (100.0, 150.0), "D": (20.0, 60.0)}
         assert region.redundant_constraints() == [0]
+        assert region.vertices().tolist() == [[100.0, 20.0], [100.0, 60.0], [150.0, 20.0], [150.0, 60.0]]
+        corners = [[100.0, 20.0], [150.0, 20.0], [150.0, 60.0], [100.0, 60.0]]
+        assert region.shadow("T", "D") == region.slice_polygon("T", "D") == {"kind": "polygon", "points": corners}
+
+    def test_a_huge_coefficient_is_a_straight_limit(self):
+        """``1e200*T <= 1.2e202`` is ``T <= 120``; the length of its coded gradient overflowed when squared."""
+        region = DesignRegion(HEAT_FACTORS, ["1e200*T <= 1.2e202"])
+        assert region.linear_forms() == [({"T": 1e200}, None, 1.2e202)]
+        assert region.implied_bounds() == {"T": (100.0, 120.0), "D": (20.0, 60.0)}
+        assert region.vertices().tolist() == [[100.0, 20.0], [100.0, 60.0], [120.0, 20.0], [120.0, 60.0]]
+        assert region.slice_lines("T", "D") == [{"limit": 0, "points": [[120.0, 20.0], [120.0, 60.0]]}]
+        assert region.feasible(np.array([[-0.2, 0.0], [-0.2 + 1e-6, 0.0], [1.0, 1.0]])).tolist() == [True, False, False]
+        assert region.redundant_constraints() == []
 
     def test_mixture_limits_have_forms_too(self):
         assert DesignRegion(MIXTURE, ["x0 + 2*x1 <= 0.8"]).linear_forms() == [({"x0": 1.0, "x1": 2.0}, None, 0.8)]
@@ -744,6 +913,39 @@ class TestLinearForms:
             shadow = np.array(region.shadow("A", "B")["z"])
             assert shadow.any()
             assert not shadow[20:, :].any(), "nothing above B = 0.5 can be run"
+
+
+class TestFeasible:
+    @pytest.mark.parametrize(
+        ("limit", "length"),
+        [
+            ("300*T + 500*D <= 60000", 12500.0),
+            ("3*T + 5*D <= 600", 125.0),
+            ("(3*T + 5*D) / 100 <= 6", 1.25),
+            ("(3*T + 5*D) / 1000 <= 0.6", 0.125),
+            ("(3*T + 5*D) / 1e5 <= 0.006", 0.00125),
+        ],
+    )
+    def test_a_point_within_the_tolerance_passes_however_a_straight_limit_is_scaled(self, limit, length):
+        """One limit written five ways: within 1e-9 of its boundary, in coded units, a point passes every one.
+
+        Beyond that the scaling matters once the coded gradient is shorter than 1, where the tolerance stays
+        1e-9 in the limit's own units, a coded distance of 1e-9 divided by that length. The changelog and
+        feasible() once said that a limit multiplied through by any constant accepts the same points; a
+        point 2e-9 (coded) outside fails the first three forms and passes the last two.
+        """
+        region = DesignRegion(HEAT_FACTORS, [limit])
+        assert region._linear().scale[0] == pytest.approx(length)
+
+        # Coded, 3*T + 5*D - 600 is 75*t + 100*d - 25: its boundary passes through (0.5, -0.125), normal (0.6, 0.8).
+        def passes(distance: float) -> bool:
+            return bool(region.feasible(np.array([[0.5 + 0.6 * distance, -0.125 + 0.8 * distance]]))[0])
+
+        reach = 1e-9 / min(length, 1.0)  # how far outside, in coded units, a point still passes
+        assert passes(0.5e-9)
+        assert passes(0.9 * reach)
+        assert not passes(1.1 * reach)
+        assert passes(2e-9) == (length < 1)
 
 
 # ---------------------------------------------------------------------------
@@ -798,7 +1000,7 @@ class TestVertices:
         ],
     )
     def test_the_corners_it_reports_can_be_run_however_the_limit_is_scaled(self, factors, limit):
-        """Rounded to 12 figures, a corner lies up to 1e-12 off its boundary; times a steep limit's gradient, over 1e-9.
+        """Rounded for a reader, a corner lies up to 1e-12 off its boundary; times a steep limit's gradient, over 1e-9.
 
         feasible() used to compare the limit's value in its own units with 1e-9, so the
         corners of these regions, and the same limit divided by 100 did not, failed it.
@@ -816,7 +1018,61 @@ class TestVertices:
             assert each.feasible((full - each._centre) / each._half).all()
         probes = np.random.default_rng(0).uniform(-1, 1, (2000, len(factors)))
         probes = np.vstack([probes, (region.vertices() - region._centre) / region._half + 1e-11])
+        # Equal only because divided by 100 these coded gradients stay longer than 1 (see TestFeasible).
+        assert min(region._linear().scale[0], scaled._linear().scale[0]) > 1
         np.testing.assert_array_equal(region.feasible(probes), scaled.feasible(probes))
+
+    @pytest.mark.parametrize(
+        ("ranges", "limit"),
+        [
+            ({"Year": (2020, 2026), "X": (0, 1)}, "3*Year - X <= 6066.73"),
+            ({"P": (101.3, 101.5), "T": (20, 30)}, "30*P - 0.13*T <= 3040.41"),  # kPa
+            ({"P": (101000, 101500), "T": (20, 40)}, "3*P + 7*T <= 304000"),
+            ({"Pa": (101000, 101650), "TK": (300, 300.9)}, "Pa + 333*TK <= 200952.326903595"),
+            ({"t": (1.7e9, 1.7e9 + 3600), "F": (0, 10)}, "t + 100*F <= 1700003000.127"),
+            ({"Pa": (101325, 101425), "T": (20, 40), "F": (1, 7)}, "3*Pa + T + 3*F <= 304233"),
+            ({"t": (1.7e9, 1.7e9 + 3600), "F": (0, 10), "G": (0, 10)}, "3*t + F + G <= 5100009000"),
+        ],
+    )
+    def test_the_corners_of_a_range_narrow_next_to_its_values_can_be_run(self, ranges, limit):
+        """Twelve figures of a value move it by up to 5e-12 of the value: up to 5e-6 in coded units for a time stamp.
+
+        The corners of these regions failed feasible(), each by more than its tolerance.
+        """
+        factors = [Factor(name=n, low=lo, high=hi) for n, (lo, hi) in ranges.items()]
+        region = DesignRegion(factors, [limit])
+        assert region.feasible((region.vertices() - region._centre) / region._half).all()
+        for x, y in itertools.combinations(region.names, 2):
+            others = [name for name in region.names if name not in (x, y)]
+            for held in [{n: ranges[n][end] for n in others} for end in (0, 1)] if others else [{}]:
+                pictures = [region.slice_polygon(x, y, held)] + ([] if others else [region.shadow(x, y)])
+                for picture in (p for p in pictures if p["points"]):  # a slice at a held corner can be empty
+                    full = np.tile(region._centre, (len(picture["points"]), 1))
+                    full[:, [region.names.index(x), region.names.index(y)]] = picture["points"]
+                    for name, value in held.items():
+                        full[:, region.names.index(name)] = value
+                    assert region.feasible((full - region._centre) / region._half).all(), (x, y, held, picture)
+
+    def test_a_range_narrow_next_to_its_values_is_reported_to_the_digits_it_needs(self):
+        clock = [Factor(name="t", low=1.7e9, high=1.7e9 + 3600), Factor(name="F", low=0, high=10)]
+        region = DesignRegion(clock, ["t + 100*F <= 1700003000.127"])
+        assert region.vertices().tolist() == [
+            [1.7e9, 0.0],
+            [1.7e9, 10.0],
+            [1700002000.127, 10.0],
+            [1700003000.127, 0.0],
+        ]
+        assert region.implied_bounds() == {"t": (1.7e9, 1700003000.127), "F": (0.0, 10.0)}
+        pressure = [Factor(name="P", low=101000, high=101500), Factor(name="T", low=20, high=40)]
+        assert DesignRegion(pressure, ["3*P + 7*T <= 304000"]).vertices()[-1].tolist() == [101286.66666667, 20.0]
+        heat = DesignRegion(HEAT_FACTORS, ["3*T + 3*D <= 580"]).vertices()  # 12 figures for ordinary ranges
+        assert heat.tolist() == [
+            [100.0, 20.0],
+            [100.0, 60.0],
+            [133.333333333, 60.0],
+            [150.0, 20.0],
+            [150.0, 43.3333333333],
+        ]
 
     @_settings
     @given(linear_regions())
@@ -1164,6 +1420,24 @@ class TestGeometry:
         got = geometry.round_significant(np.array([250.00000000000009, 1.65e-14, -0.30000000000000004, 0.0, 1e22 / 3]))
         assert got.tolist() == [250.0, 1.65e-14, -0.3, 0.0, 3.33333333333e21]
 
+    def test_round_significant_at_every_magnitude(self):
+        """Beyond 10**22 a power of ten is not a double, and beyond 10**308 it overflowed: 1e-300 came back NaN."""
+        values = [1e-300, 2.5e-297, 1e-290, 1e-12, 2e-12, 2.5e-12, 1e34, 1e40, 1e170, -1e300, 5e-324]
+        with warnings.catch_warnings():
+            warnings.simplefilter("error")
+            got = geometry.round_significant(np.array(values))
+            special = geometry.round_significant(np.array([math.inf, -math.inf, math.nan]))
+        assert got.tolist() == values
+        assert special[:2].tolist() == [math.inf, -math.inf]
+        assert math.isnan(special[2])
+        assert geometry.round_significant(np.array(1 / 3e-300), 3).item() == 3.33e299
+
+    def test_round_significant_to_figures_that_differ_by_value(self):
+        values = np.array([[1.23456789, 9.87654321], [1 / 3e-300, 2 / 3e-300]])
+        got = geometry.round_significant(values, np.array([2, 4]))
+        assert got.tolist() == [[1.2, 9.877], [3.3e299, 6.667e299]]
+        assert geometry.round_significant(np.array(2 / 3), 3).item() == 0.667  # a single number too
+
     def test_box_vertices_match_every_choice_of_k_boundaries(self):
         rng = np.random.default_rng(3)
         for k, m in [(1, 1), (2, 1), (3, 3), (4, 4), (5, 3)]:
@@ -1201,6 +1475,13 @@ class TestGeometry:
     def test_box_vertices_of_a_zero_row(self):
         assert geometry.box_vertices(np.zeros((1, 2)), np.array([-1.0])).shape == (0, 2)
         assert len(geometry.box_vertices(np.zeros((0, 3)), np.zeros(0))) == 8
+
+    def test_box_vertices_refuse_more_than_asked(self):
+        with pytest.raises(ValueError, match="has 8 corners; vertices are listed for up to 4"):
+            geometry.box_vertices(np.zeros((0, 3)), np.zeros(0), max_vertices=4)
+        with pytest.raises(ValueError, match="more than 9 vertices"):  # the cut adds 3 vertices to the 8 corners
+            geometry.box_vertices(np.ones((1, 3)) / math.sqrt(3), np.array([0.9]), max_vertices=9)
+        assert len(geometry.box_vertices(np.ones((1, 3)) / math.sqrt(3), np.array([0.9]), max_vertices=10)) == 10
 
     def test_box_vertices_refuse_too_many(self, monkeypatch):
         monkeypatch.setattr(geometry, "MAX_VERTICES", 4)

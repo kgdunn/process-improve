@@ -279,3 +279,27 @@ def test_a_notebook_of_typed_results_writes_them_out_and_waits_for_an_analysis(a
     assert not any("analyze_experiment" in cell for cell in code)
     unpinned = notebook_of(node, design=held, responses=responses, sources=["entered"] * 8, model=None, version=None)
     assert "".join(unpinned["cells"][1]["source"]) == "%pip install process-improve"
+
+
+def test_the_code_for_runs_as_given_lists_the_runs_and_gives_the_page_s_analysis(api, node):
+    """Runs as given are made by no call: step 1 holds the factors and the limits, step 2 the runs themselves."""
+    runs = [[t, p, f] for t in (150, 200) for p in (1, 3) for f in (10, 20)] + [[175, 2, 15]] * 3
+    spec = {
+        "design_type": "given",
+        "factors": FACTORS,
+        "runs": runs,
+        "constraints": [{"expression": "T + 25*P <= 300"}],
+    }
+    held = held_of(api.ok("api_make_design", spec))
+    responses = [float(i % 5) + 0.1 * i for i in range(len(runs))]
+    analysis = api.ok("api_analyze_runs", {**held, "responses": responses})
+    step_one = run(page_code(node, "designCode", held["spec"]))
+    assert [f.name for f in step_one["factors"]] == ["T", "P", "F"]
+    assert step_one["constraints"] == [held["spec"]["constraints"][0]["expression"]], "as Python wrote it"
+    code = panel(
+        node,
+        ("designCode", [held["spec"]]),
+        ("resultsCode", [held, responses]),
+        ("analyseCode", [analysis["formula"], True]),
+    )
+    assert_same_fit(run(code), analysis)
