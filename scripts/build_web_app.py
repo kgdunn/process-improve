@@ -24,6 +24,7 @@ The docs workflow runs this into
 from __future__ import annotations
 
 import argparse
+import dataclasses
 import functools
 import hashlib
 import http.server
@@ -320,8 +321,9 @@ def book_index(examples: list[dict[str, Any]]) -> dict[str, Any]:
 #: The format of ``catalog/index.json`` and its detail files, which ``web/catalog.js`` reads.
 CATALOG_VERSION = 1
 #: What the catalog page reads of every design at once beyond the library's facets: whether the page's
-#: design has the source's runs, whether the page opens the design, and the detail file that holds it.
-CATALOG_FIELDS = ("regenerable", "open", "detail")
+#: design has the source's runs, whether the page opens the design, the detail file that holds it, and
+#: whether its detail holds the measures the page compares designs on.
+CATALOG_FIELDS = ("regenerable", "open", "detail", "compared")
 #: The longest title and units a campaign may carry (``checkCampaign`` in ``web/campaign.js``).
 TITLE_MOST, UNITS_MOST = 200, 32
 
@@ -453,21 +455,28 @@ def published_campaign(record: dict[str, Any]) -> tuple[dict[str, Any] | None, s
 
 
 def write_catalog(out_dir: Path) -> None:
-    """Write ``catalog/index.json``, the facets of every design, and a detail file for each source and for the rest.
+    """Write the catalog: ``catalog/index.json``, a detail file for each source and the rest, the errata and a feed.
 
     The index holds what the page searches, filters, maps and draws for every design at once; a detail
-    file holds what it shows on opening one: its factors, coded runs, results, notes and, where the page
-    makes the design, the campaign that opens it.
+    file holds what it shows on opening one: its factors, coded runs, results, notes, the measures it is
+    compared on and, where the page makes the design, the campaign that opens it. ``errata.json`` lists
+    every printed number the library does not reproduce, and ``feed.xml`` is an Atom feed of the sources.
     """
-    from process_improve.experiments.design_catalog import (  # noqa: PLC0415 - the docs environment has it
+    from process_improve.experiments.compare import MEASURES  # noqa: PLC0415 - the docs environment has it
+    from process_improve.experiments.design_catalog import (  # noqa: PLC0415
         INDEX_FIELDS,
+        catalog_comparisons,
+        catalog_errata,
         catalog_families,
+        catalog_feed,
         catalog_records,
         catalog_sources,
     )
 
+    records = catalog_records()
+    comparisons = catalog_comparisons(records)
     designs, details = [], {}
-    for record in catalog_records():
+    for record in records:
         if record["collection"] == "generated":
             (campaign, reason), regenerable = generated_campaign(record), None
         else:
@@ -480,6 +489,7 @@ def write_catalog(out_dir: Path) -> None:
                 "regenerable": regenerable,
                 "open": bool(campaign),
                 "detail": shard,
+                "compared": record["id"] in comparisons,
             }
         )
         details.setdefault(shard, {})[record["id"]] = {
@@ -497,6 +507,7 @@ def write_catalog(out_dir: Path) -> None:
             "leverage": record["leverage"],
             "campaign": campaign,
             "closed": reason,
+            "compare": comparisons.get(record["id"]),
         }
     index = {
         "version": CATALOG_VERSION,
@@ -504,14 +515,21 @@ def write_catalog(out_dir: Path) -> None:
         "fields": [*INDEX_FIELDS, *CATALOG_FIELDS],
         "families": catalog_families(),
         "sources": catalog_sources(),
+        "measures": [dataclasses.asdict(measure) for measure in MEASURES],
         "designs": designs,
     }
-    (out_dir / "catalog" / "detail").mkdir(parents=True)
-    # The page reads these with JSON.parse, which refuses NaN: a value that is no number stops the build here.
-    (out_dir / "catalog" / "index.json").write_text(json.dumps(index, separators=(",", ":"), allow_nan=False) + "\n")
+    folder = out_dir / "catalog"
+    (folder / "detail").mkdir(parents=True)
+
+    def write(path: Path, data: dict[str, Any]) -> None:
+        # The page reads these with JSON.parse, which refuses NaN: a value that is no number stops the build here.
+        path.write_text(json.dumps(data, separators=(",", ":"), allow_nan=False) + "\n")
+
+    write(folder / "index.json", index)
     for shard, held in details.items():
-        text = json.dumps({"version": CATALOG_VERSION, "designs": held}, separators=(",", ":"), allow_nan=False)
-        (out_dir / "catalog" / "detail" / f"{shard}.json").write_text(text + "\n")
+        write(folder / "detail" / f"{shard}.json", {"version": CATALOG_VERSION, "designs": held})
+    write(folder / "errata.json", {"version": CATALOG_VERSION, "errata": catalog_errata()})
+    (folder / "feed.xml").write_text(catalog_feed(records))
 
 
 def assemble(out_dir: Path, dist: Path = ROOT / "dist" / "web") -> str:
