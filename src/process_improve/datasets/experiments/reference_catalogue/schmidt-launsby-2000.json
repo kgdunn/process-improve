@@ -18821,7 +18821,7 @@
     },
     {
      "what": "pure error",
-     "term": "sum of squares",
+     "term": null,
      "value": "0.19",
      "where": {
       "page": "4-40",
@@ -18829,12 +18829,13 @@
       "quote": "SSEpure = Σ(nj - 1) sj² = 0.19"
      },
      "check": {
-      "manual": "the pure error's sum of squares, its mean square times its 10 degrees of freedom, both checked"
+      "kind": "pure_error_ss",
+      "model": "x1 + x2"
      }
     },
     {
      "what": "lack of fit",
-     "term": "sum of squares",
+     "term": null,
      "value": "2.664",
      "where": {
       "page": "4-40",
@@ -18842,12 +18843,13 @@
       "quote": "SSELF = 2.854 - .19 = 2.664"
      },
      "check": {
-      "manual": "the residual sum of squares less the pure error's, both checked"
+      "kind": "lack_of_fit_ss",
+      "model": "x1 + x2"
      }
     },
     {
      "what": "lack of fit",
-     "term": "mean square",
+     "term": null,
      "value": "0.3806",
      "where": {
       "page": "4-40",
@@ -18855,7 +18857,8 @@
       "quote": "MSELF = SSELF/dfLF = 2.664/(17 - 10) = 0.3806"
      },
      "check": {
-      "manual": "the lack of fit's sum of squares over its 7 degrees of freedom; its F is checked"
+      "kind": "lack_of_fit_ms",
+      "model": "x1 + x2"
      }
     },
     {
@@ -19508,7 +19511,7 @@
     },
     {
      "what": "lack of fit",
-     "term": "sum of squares",
+     "term": null,
      "value": "2.66",
      "where": {
       "page": "4-41",
@@ -19516,7 +19519,8 @@
       "quote": "SSELF = SSE - SSEpure = 2.850 - .19 = 2.66"
      },
      "check": {
-      "manual": "the residual sum of squares less the pure error's, both checked"
+      "kind": "lack_of_fit_ss",
+      "model": "x1 + x2 + x1:x2 + I(x1 ** 2)"
      }
     },
     {
@@ -27786,13 +27790,23 @@
      "what": "contribution",
      "term": "A",
      "value": ".155",
+     "analysis": "the term's sum of squares as a percentage of the total",
      "where": {
       "page": "5-10",
       "source_kind": "table",
       "quote": "Table 5.3 Standard ANOVA Table for Table 5.2 Data Results ... A ... % Contrib. .155"
      },
      "check": {
-      "manual": "the term's sum of squares as a percentage of the total, both checked"
+      "kind": "percent_of_total",
+      "term": "A",
+      "model": "A + B + C + D + E + F + G",
+      "summary": {
+       "of": [
+        "y1",
+        "y2"
+       ],
+       "statistic": "each"
+      }
      }
     },
     {
@@ -27887,13 +27901,23 @@
      "what": "contribution",
      "term": "B",
      "value": "1.397",
+     "analysis": "the term's sum of squares as a percentage of the total",
      "where": {
       "page": "5-10",
       "source_kind": "table",
       "quote": "Table 5.3 Standard ANOVA Table for Table 5.2 Data Results ... B ... % Contrib. 1.397"
      },
      "check": {
-      "manual": "the term's sum of squares as a percentage of the total, both checked"
+      "kind": "percent_of_total",
+      "term": "B",
+      "model": "A + B + C + D + E + F + G",
+      "summary": {
+       "of": [
+        "y1",
+        "y2"
+       ],
+       "statistic": "each"
+      }
      }
     },
     {
@@ -27988,13 +28012,23 @@
      "what": "contribution",
      "term": "C",
      "value": "82.100",
+     "analysis": "the term's sum of squares as a percentage of the total",
      "where": {
       "page": "5-10",
       "source_kind": "table",
       "quote": "Table 5.3 Standard ANOVA Table for Table 5.2 Data Results ... C ... % Contrib. 82.100"
      },
      "check": {
-      "manual": "the term's sum of squares as a percentage of the total, both checked"
+      "kind": "percent_of_total",
+      "term": "C",
+      "model": "A + B + C + D + E + F + G",
+      "summary": {
+       "of": [
+        "y1",
+        "y2"
+       ],
+       "statistic": "each"
+      }
      }
     },
     {
@@ -28089,13 +28123,23 @@
      "what": "contribution",
      "term": "D",
      "value": ".845",
+     "analysis": "the term's sum of squares as a percentage of the total",
      "where": {
       "page": "5-10",
       "source_kind": "table",
       "quote": "Table 5.3 Standard ANOVA Table for Table 5.2 Data Results ... D ... % Contrib. .845"
      },
      "check": {
-      "manual": "the term's sum of squares as a percentage of the total, both checked"
+      "kind": "percent_of_total",
+      "term": "D",
+      "model": "A + B + C + D + E + F + G",
+      "summary": {
+       "of": [
+        "y1",
+        "y2"
+       ],
+       "statistic": "each"
+      }
      }
     },
     {
@@ -28190,13 +28234,23 @@
      "what": "contribution",
      "term": "E",
      "value": ".017",
+     "analysis": "the term's sum of squares as a percentage of the total",
      "where": {
       "page": "5-10",
       "source_kind": "table",
       "quote": "Table 5.3 Standard ANOVA Table for Table 5.2 Data Results ... E ... % Contrib. .017"
      },
      "check": {
-      "manual": "the term's sum of squares as a percentage of the total, both checked"
+      "kind": "percent_of_total",
+      "term": "E",
+      "model": "A + B + C + D + E + F + G",
+      "summary": {
+       "of": [
+        "y1",
+        "y2"
+       ],
+       "statistic": "each"
+      }
      }
     },
     {
@@ -28291,13 +28345,23 @@
      "what": "contribution",
      "term": "F",
      "value": ".017",
+     "analysis": "the term's sum of squares as a percentage of the total",
      "where": {
       "page": "5-10",
       "source_kind": "table",
       "quote": "Table 5.3 Standard ANOVA Table for Table 5.2 Data Results ... F ... % Contrib. .017"
      },
      "check": {
-      "manual": "the term's sum of squares as a percentage of the total, both checked"
+      "kind": "percent_of_total",
+      "term": "F",
+      "model": "A + B + C + D + E + F + G",
+      "summary": {
+       "of": [
+        "y1",
+        "y2"
+       ],
+       "statistic": "each"
+      }
      }
     },
     {
@@ -28392,13 +28456,23 @@
      "what": "contribution",
      "term": "G",
      "value": ".431",
+     "analysis": "the term's sum of squares as a percentage of the total",
      "where": {
       "page": "5-10",
       "source_kind": "table",
       "quote": "Table 5.3 Standard ANOVA Table for Table 5.2 Data Results ... G ... % Contrib. .431"
      },
      "check": {
-      "manual": "the term's sum of squares as a percentage of the total, both checked"
+      "kind": "percent_of_total",
+      "term": "G",
+      "model": "A + B + C + D + E + F + G",
+      "summary": {
+       "of": [
+        "y1",
+        "y2"
+       ],
+       "statistic": "each"
+      }
      }
     },
     {
@@ -28468,13 +28542,23 @@
      "what": "contribution",
      "term": "Error",
      "value": "15.037",
+     "analysis": "the error sum of squares as a percentage of the total",
      "where": {
       "page": "5-10",
       "source_kind": "table",
       "quote": "Table 5.3 Standard ANOVA Table for Table 5.2 Data Results ... Error ... 15.037"
      },
      "check": {
-      "manual": "the error sum of squares as a percentage of the total, both checked"
+      "kind": "percent_of_total",
+      "term": "Residual",
+      "model": "A + B + C + D + E + F + G",
+      "summary": {
+       "of": [
+        "y1",
+        "y2"
+       ],
+       "statistic": "each"
+      }
      }
     },
     {
@@ -46873,28 +46957,305 @@
     },
     {
      "what": "anova",
-     "term": "Linear and non-linear",
-     "value": "326482, 73.74, 0.0005; 12464, 1246, 0.28, 0.9527",
+     "term": "Linear: mean square",
+     "value": "326482",
+     "analysis": "the linear terms' regression sum of squares over its degrees of freedom, tested against the full model's residual mean square",
      "where": {
       "page": "5-52",
       "source_kind": "table",
-      "quote": "Table 5.30 RS/Discover Computer Output for Table 5.28 Data with Centerpoints ... Linear ... Non-linear 10 12464 1246 0.28 0.9527"
+      "quote": "Table 5.30 RS/Discover Computer Output for Table 5.28 Data with Centerpoints ... 3 Linear 5 1632409 326482 73.74 0.0005"
      },
      "check": {
-      "manual": "the split of the regression sum of squares into its linear and non-linear parts, from the sums of squares checked"
+      "kind": "extra_ms",
+      "model": "(T + TE + N + P + PHO) ** 2",
+      "part": "T + TE + N + P + PHO",
+      "runs": [
+       1,
+       2,
+       3,
+       4,
+       5,
+       6,
+       7,
+       8,
+       9,
+       10,
+       11,
+       12,
+       13,
+       14,
+       15,
+       16,
+       17,
+       18,
+       19,
+       20
+      ]
+     }
+    },
+    {
+     "what": "anova",
+     "term": "Linear: p",
+     "value": "0.0005",
+     "analysis": "the linear terms' regression sum of squares over its degrees of freedom, tested against the full model's residual mean square",
+     "where": {
+      "page": "5-52",
+      "source_kind": "table",
+      "quote": "Table 5.30 RS/Discover Computer Output for Table 5.28 Data with Centerpoints ... 3 Linear 5 1632409 326482 73.74 0.0005"
+     },
+     "check": {
+      "kind": "extra_p",
+      "model": "(T + TE + N + P + PHO) ** 2",
+      "part": "T + TE + N + P + PHO",
+      "runs": [
+       1,
+       2,
+       3,
+       4,
+       5,
+       6,
+       7,
+       8,
+       9,
+       10,
+       11,
+       12,
+       13,
+       14,
+       15,
+       16,
+       17,
+       18,
+       19,
+       20
+      ]
+     }
+    },
+    {
+     "what": "anova",
+     "term": "Linear: F",
+     "value": "73.74",
+     "analysis": "the linear terms' regression sum of squares over its degrees of freedom, tested against the full model's residual mean square",
+     "where": {
+      "page": "5-52",
+      "source_kind": "table",
+      "quote": "Table 5.30 RS/Discover Computer Output for Table 5.28 Data with Centerpoints ... 3 Linear 5 1632409 326482 73.74 0.0005"
+     },
+     "check": {
+      "kind": "extra_f",
+      "model": "(T + TE + N + P + PHO) ** 2",
+      "part": "T + TE + N + P + PHO",
+      "runs": [
+       1,
+       2,
+       3,
+       4,
+       5,
+       6,
+       7,
+       8,
+       9,
+       10,
+       11,
+       12,
+       13,
+       14,
+       15,
+       16,
+       17,
+       18,
+       19,
+       20
+      ]
+     }
+    },
+    {
+     "what": "anova",
+     "term": "Non-linear: sum of squares",
+     "value": "12464",
+     "analysis": "what the remaining terms add to the linear ones' regression sum of squares, tested against the full model's residual mean square",
+     "where": {
+      "page": "5-52",
+      "source_kind": "table",
+      "quote": "Table 5.30 RS/Discover Computer Output for Table 5.28 Data with Centerpoints ... Non-linear 10 12464 1246 0.28 0.9527"
+     },
+     "check": {
+      "kind": "extra_ss",
+      "model": "(T + TE + N + P + PHO) ** 2",
+      "after": "T + TE + N + P + PHO",
+      "runs": [
+       1,
+       2,
+       3,
+       4,
+       5,
+       6,
+       7,
+       8,
+       9,
+       10,
+       11,
+       12,
+       13,
+       14,
+       15,
+       16,
+       17,
+       18,
+       19,
+       20
+      ]
+     }
+    },
+    {
+     "what": "anova",
+     "term": "Non-linear: mean square",
+     "value": "1246",
+     "analysis": "what the remaining terms add to the linear ones' regression sum of squares, tested against the full model's residual mean square",
+     "where": {
+      "page": "5-52",
+      "source_kind": "table",
+      "quote": "Table 5.30 RS/Discover Computer Output for Table 5.28 Data with Centerpoints ... Non-linear 10 12464 1246 0.28 0.9527"
+     },
+     "check": {
+      "kind": "extra_ms",
+      "model": "(T + TE + N + P + PHO) ** 2",
+      "after": "T + TE + N + P + PHO",
+      "runs": [
+       1,
+       2,
+       3,
+       4,
+       5,
+       6,
+       7,
+       8,
+       9,
+       10,
+       11,
+       12,
+       13,
+       14,
+       15,
+       16,
+       17,
+       18,
+       19,
+       20
+      ]
+     }
+    },
+    {
+     "what": "anova",
+     "term": "Non-linear: F",
+     "value": "0.28",
+     "analysis": "what the remaining terms add to the linear ones' regression sum of squares, tested against the full model's residual mean square",
+     "where": {
+      "page": "5-52",
+      "source_kind": "table",
+      "quote": "Table 5.30 RS/Discover Computer Output for Table 5.28 Data with Centerpoints ... Non-linear 10 12464 1246 0.28 0.9527"
+     },
+     "check": {
+      "kind": "extra_f",
+      "model": "(T + TE + N + P + PHO) ** 2",
+      "after": "T + TE + N + P + PHO",
+      "runs": [
+       1,
+       2,
+       3,
+       4,
+       5,
+       6,
+       7,
+       8,
+       9,
+       10,
+       11,
+       12,
+       13,
+       14,
+       15,
+       16,
+       17,
+       18,
+       19,
+       20
+      ]
+     }
+    },
+    {
+     "what": "anova",
+     "term": "Non-linear: p",
+     "value": "0.9527",
+     "analysis": "what the remaining terms add to the linear ones' regression sum of squares, tested against the full model's residual mean square",
+     "where": {
+      "page": "5-52",
+      "source_kind": "table",
+      "quote": "Table 5.30 RS/Discover Computer Output for Table 5.28 Data with Centerpoints ... Non-linear 10 12464 1246 0.28 0.9527"
+     },
+     "check": {
+      "kind": "extra_p",
+      "model": "(T + TE + N + P + PHO) ** 2",
+      "after": "T + TE + N + P + PHO",
+      "runs": [
+       1,
+       2,
+       3,
+       4,
+       5,
+       6,
+       7,
+       8,
+       9,
+       10,
+       11,
+       12,
+       13,
+       14,
+       15,
+       16,
+       17,
+       18,
+       19,
+       20
+      ]
      }
     },
     {
      "what": "lack of fit",
      "term": "sum of squares and mean square",
      "value": "16331",
+     "analysis": "with one degree of freedom, the lack of fit's sum of squares and mean square are one number",
      "where": {
       "page": "5-52",
       "source_kind": "table",
       "quote": "Table 5.30 RS/Discover Computer Output for Table 5.28 Data with Centerpoints ... 6 Lack of fit 1 16331 16331 35.53"
      },
      "check": {
-      "manual": "the residual sum of squares less the pure error's, both checked through their mean squares"
+      "kind": "lack_of_fit_ss",
+      "model": "(T + TE + N + P + PHO) ** 2",
+      "runs": [
+       1,
+       2,
+       3,
+       4,
+       5,
+       6,
+       7,
+       8,
+       9,
+       10,
+       11,
+       12,
+       13,
+       14,
+       15,
+       16,
+       17,
+       18,
+       19,
+       20
+      ]
      }
     },
     {
@@ -46907,7 +47268,30 @@
       "quote": "Table 5.30 RS/Discover Computer Output for Table 5.28 Data with Centerpoints ... 7 Pure error 3 1379 460"
      },
      "check": {
-      "manual": "the pure error's mean square times its 3 degrees of freedom, both checked"
+      "kind": "pure_error_ss",
+      "model": "(T + TE + N + P + PHO) ** 2",
+      "runs": [
+       1,
+       2,
+       3,
+       4,
+       5,
+       6,
+       7,
+       8,
+       9,
+       10,
+       11,
+       12,
+       13,
+       14,
+       15,
+       16,
+       17,
+       18,
+       19,
+       20
+      ]
      }
     },
     {
@@ -49597,28 +49981,143 @@
     },
     {
      "what": "anova",
-     "term": "Linear and non-linear",
-     "value": "419846, 905.70, 0.0000; 22030, 3672, 7.92, 0.0325",
+     "term": "Linear: mean square",
+     "value": "419846",
+     "analysis": "the linear terms' regression sum of squares over its degrees of freedom, tested against the full model's residual mean square",
      "where": {
       "page": "5-57",
       "source_kind": "table",
-      "quote": "Table 5.34 RS/Discover Computer Output for D-optimal Design for the Plating Example ... 3. Linear ... 4. Non-linear 6 22030 3672 7.92 0.0325"
+      "quote": "Table 5.34 RS/Discover Computer Output for D-optimal Design for the Plating Example ... 3. Linear 3 1259538 419846 905.70 0.0000"
      },
      "check": {
-      "manual": "the split of the regression sum of squares into its linear and non-linear parts, from the sums of squares checked"
+      "kind": "extra_ms",
+      "model": "T + TE + N + I(T ** 2) + T:TE + T:N + I(TE ** 2) + TE:N + I(N ** 2)",
+      "part": "T + TE + N"
+     }
+    },
+    {
+     "what": "anova",
+     "term": "Linear: p",
+     "value": "0.0000",
+     "analysis": "the linear terms' regression sum of squares over its degrees of freedom, tested against the full model's residual mean square",
+     "where": {
+      "page": "5-57",
+      "source_kind": "table",
+      "quote": "Table 5.34 RS/Discover Computer Output for D-optimal Design for the Plating Example ... 3. Linear 3 1259538 419846 905.70 0.0000"
+     },
+     "check": {
+      "kind": "extra_p",
+      "model": "T + TE + N + I(T ** 2) + T:TE + T:N + I(TE ** 2) + TE:N + I(N ** 2)",
+      "part": "T + TE + N"
+     }
+    },
+    {
+     "what": "anova",
+     "term": "Linear: F",
+     "value": "905.70",
+     "analysis": "the linear terms' regression sum of squares over its degrees of freedom, tested against the full model's residual mean square; RS/Discover's sums of squares carry single precision, so this F is held to one decimal",
+     "where": {
+      "page": "5-57",
+      "source_kind": "table",
+      "quote": "Table 5.34 RS/Discover Computer Output for D-optimal Design for the Plating Example ... 3. Linear 3 1259538 419846 905.70 0.0000"
+     },
+     "check": {
+      "kind": "extra_f",
+      "model": "T + TE + N + I(T ** 2) + T:TE + T:N + I(TE ** 2) + TE:N + I(N ** 2)",
+      "part": "T + TE + N",
+      "decimals": 1
+     }
+    },
+    {
+     "what": "anova",
+     "term": "Non-linear: sum of squares",
+     "value": "22030",
+     "analysis": "what the remaining terms add to the linear ones' regression sum of squares, tested against the full model's residual mean square",
+     "where": {
+      "page": "5-57",
+      "source_kind": "table",
+      "quote": "Table 5.34 RS/Discover Computer Output for D-optimal Design for the Plating Example ... 4. Non-linear 6 22030 3672 7.92 0.0325"
+     },
+     "check": {
+      "kind": "extra_ss",
+      "model": "T + TE + N + I(T ** 2) + T:TE + T:N + I(TE ** 2) + TE:N + I(N ** 2)",
+      "after": "T + TE + N"
+     }
+    },
+    {
+     "what": "anova",
+     "term": "Non-linear: mean square",
+     "value": "3672",
+     "analysis": "what the remaining terms add to the linear ones' regression sum of squares, tested against the full model's residual mean square",
+     "where": {
+      "page": "5-57",
+      "source_kind": "table",
+      "quote": "Table 5.34 RS/Discover Computer Output for D-optimal Design for the Plating Example ... 4. Non-linear 6 22030 3672 7.92 0.0325"
+     },
+     "check": {
+      "kind": "extra_ms",
+      "model": "T + TE + N + I(T ** 2) + T:TE + T:N + I(TE ** 2) + TE:N + I(N ** 2)",
+      "after": "T + TE + N"
+     }
+    },
+    {
+     "what": "anova",
+     "term": "Non-linear: F",
+     "value": "7.92",
+     "analysis": "what the remaining terms add to the linear ones' regression sum of squares, tested against the full model's residual mean square",
+     "where": {
+      "page": "5-57",
+      "source_kind": "table",
+      "quote": "Table 5.34 RS/Discover Computer Output for D-optimal Design for the Plating Example ... 4. Non-linear 6 22030 3672 7.92 0.0325"
+     },
+     "check": {
+      "kind": "extra_f",
+      "model": "T + TE + N + I(T ** 2) + T:TE + T:N + I(TE ** 2) + TE:N + I(N ** 2)",
+      "after": "T + TE + N"
+     }
+    },
+    {
+     "what": "anova",
+     "term": "Non-linear: p",
+     "value": "0.0325",
+     "analysis": "what the remaining terms add to the linear ones' regression sum of squares, tested against the full model's residual mean square",
+     "where": {
+      "page": "5-57",
+      "source_kind": "table",
+      "quote": "Table 5.34 RS/Discover Computer Output for D-optimal Design for the Plating Example ... 4. Non-linear 6 22030 3672 7.92 0.0325"
+     },
+     "check": {
+      "kind": "extra_p",
+      "model": "T + TE + N + I(T ** 2) + T:TE + T:N + I(TE ** 2) + TE:N + I(N ** 2)",
+      "after": "T + TE + N"
      }
     },
     {
      "what": "lack of fit",
-     "term": "sum of squares and mean square",
-     "value": "1588, 794",
+     "term": "sum of squares",
+     "value": "1588",
      "where": {
       "page": "5-57",
       "source_kind": "table",
       "quote": "Table 5.34 RS/Discover Computer Output for D-optimal Design for the Plating Example ... 6. Lack of fit 2 1588 794"
      },
      "check": {
-      "manual": "the residual sum of squares less the pure error's, both checked through their mean squares"
+      "kind": "lack_of_fit_ss",
+      "model": "T + TE + N + I(T ** 2) + T:TE + T:N + I(TE ** 2) + TE:N + I(N ** 2)"
+     }
+    },
+    {
+     "what": "lack of fit",
+     "term": "mean square",
+     "value": "794",
+     "where": {
+      "page": "5-57",
+      "source_kind": "table",
+      "quote": "Table 5.34 RS/Discover Computer Output for D-optimal Design for the Plating Example ... 6. Lack of fit 2 1588 794"
+     },
+     "check": {
+      "kind": "lack_of_fit_ms",
+      "model": "T + TE + N + I(T ** 2) + T:TE + T:N + I(TE ** 2) + TE:N + I(N ** 2)"
      }
     },
     {
@@ -49631,7 +50130,8 @@
       "quote": "Table 5.34 RS/Discover Computer Output for D-optimal Design for the Plating Example ... 7. Pure error 2 266 133"
      },
      "check": {
-      "manual": "the pure error's mean square times its degrees of freedom, both checked"
+      "kind": "pure_error_ss",
+      "model": "T + TE + N + I(T ** 2) + T:TE + T:N + I(TE ** 2) + TE:N + I(N ** 2)"
      }
     },
     {
@@ -51417,28 +51917,143 @@
     },
     {
      "what": "anova",
-     "term": "Linear and non-linear",
-     "value": "272725.6, 349.70, 0.0000; 29397.2, 4899.5, 6.28, 0.0311",
+     "term": "Linear: mean square",
+     "value": "272725.6",
+     "analysis": "the linear terms' regression sum of squares over its degrees of freedom, tested against the full model's residual mean square",
      "where": {
       "page": "5-59",
       "source_kind": "table",
-      "quote": "Table 5.37 RS/Discover Computer Output Using Box-Behnken Design for Plating Example ... 3. Linear ... 4. Non-linear 6 29397.2 4899.5 6.28 0.0311"
+      "quote": "Table 5.37 RS/Discover Computer Output Using Box-Behnken Design for Plating Example ... 3. Linear 3 818176.8 272725.6 349.70 0.0000"
      },
      "check": {
-      "manual": "the split of the regression sum of squares into its linear and non-linear parts, from the sums of squares checked"
+      "kind": "extra_ms",
+      "model": "T + TE + N + I(T ** 2) + T:TE + T:N + I(TE ** 2) + TE:N + I(N ** 2)",
+      "part": "T + TE + N"
+     }
+    },
+    {
+     "what": "anova",
+     "term": "Linear: p",
+     "value": "0.0000",
+     "analysis": "the linear terms' regression sum of squares over its degrees of freedom, tested against the full model's residual mean square",
+     "where": {
+      "page": "5-59",
+      "source_kind": "table",
+      "quote": "Table 5.37 RS/Discover Computer Output Using Box-Behnken Design for Plating Example ... 3. Linear 3 818176.8 272725.6 349.70 0.0000"
+     },
+     "check": {
+      "kind": "extra_p",
+      "model": "T + TE + N + I(T ** 2) + T:TE + T:N + I(TE ** 2) + TE:N + I(N ** 2)",
+      "part": "T + TE + N"
+     }
+    },
+    {
+     "what": "anova",
+     "term": "Linear: F",
+     "value": "349.70",
+     "analysis": "the linear terms' regression sum of squares over its degrees of freedom, tested against the full model's residual mean square; RS/Discover's sums of squares carry single precision, so this F is held to one decimal",
+     "where": {
+      "page": "5-59",
+      "source_kind": "table",
+      "quote": "Table 5.37 RS/Discover Computer Output Using Box-Behnken Design for Plating Example ... 3. Linear 3 818176.8 272725.6 349.70 0.0000"
+     },
+     "check": {
+      "kind": "extra_f",
+      "model": "T + TE + N + I(T ** 2) + T:TE + T:N + I(TE ** 2) + TE:N + I(N ** 2)",
+      "part": "T + TE + N",
+      "decimals": 1
+     }
+    },
+    {
+     "what": "anova",
+     "term": "Non-linear: sum of squares",
+     "value": "29397.2",
+     "analysis": "what the remaining terms add to the linear ones' regression sum of squares, tested against the full model's residual mean square",
+     "where": {
+      "page": "5-59",
+      "source_kind": "table",
+      "quote": "Table 5.37 RS/Discover Computer Output Using Box-Behnken Design for Plating Example ... 4. Non-linear 6 29397.2 4899.5 6.28 0.0311"
+     },
+     "check": {
+      "kind": "extra_ss",
+      "model": "T + TE + N + I(T ** 2) + T:TE + T:N + I(TE ** 2) + TE:N + I(N ** 2)",
+      "after": "T + TE + N"
+     }
+    },
+    {
+     "what": "anova",
+     "term": "Non-linear: mean square",
+     "value": "4899.5",
+     "analysis": "what the remaining terms add to the linear ones' regression sum of squares, tested against the full model's residual mean square",
+     "where": {
+      "page": "5-59",
+      "source_kind": "table",
+      "quote": "Table 5.37 RS/Discover Computer Output Using Box-Behnken Design for Plating Example ... 4. Non-linear 6 29397.2 4899.5 6.28 0.0311"
+     },
+     "check": {
+      "kind": "extra_ms",
+      "model": "T + TE + N + I(T ** 2) + T:TE + T:N + I(TE ** 2) + TE:N + I(N ** 2)",
+      "after": "T + TE + N"
+     }
+    },
+    {
+     "what": "anova",
+     "term": "Non-linear: F",
+     "value": "6.28",
+     "analysis": "what the remaining terms add to the linear ones' regression sum of squares, tested against the full model's residual mean square",
+     "where": {
+      "page": "5-59",
+      "source_kind": "table",
+      "quote": "Table 5.37 RS/Discover Computer Output Using Box-Behnken Design for Plating Example ... 4. Non-linear 6 29397.2 4899.5 6.28 0.0311"
+     },
+     "check": {
+      "kind": "extra_f",
+      "model": "T + TE + N + I(T ** 2) + T:TE + T:N + I(TE ** 2) + TE:N + I(N ** 2)",
+      "after": "T + TE + N"
+     }
+    },
+    {
+     "what": "anova",
+     "term": "Non-linear: p",
+     "value": "0.0311",
+     "analysis": "what the remaining terms add to the linear ones' regression sum of squares, tested against the full model's residual mean square",
+     "where": {
+      "page": "5-59",
+      "source_kind": "table",
+      "quote": "Table 5.37 RS/Discover Computer Output Using Box-Behnken Design for Plating Example ... 4. Non-linear 6 29397.2 4899.5 6.28 0.0311"
+     },
+     "check": {
+      "kind": "extra_p",
+      "model": "T + TE + N + I(T ** 2) + T:TE + T:N + I(TE ** 2) + TE:N + I(N ** 2)",
+      "after": "T + TE + N"
      }
     },
     {
      "what": "lack of fit",
-     "term": "sum of squares and mean square",
-     "value": "1923.7, 641.2",
+     "term": "sum of squares",
+     "value": "1923.7",
      "where": {
       "page": "5-59",
       "source_kind": "table",
       "quote": "Table 5.37 RS/Discover Computer Output Using Box-Behnken Design for Plating Example ... 6. Lack of fit 3 1923.7 641.2"
      },
      "check": {
-      "manual": "the residual sum of squares less the pure error's, both checked through their mean squares"
+      "kind": "lack_of_fit_ss",
+      "model": "T + TE + N + I(T ** 2) + T:TE + T:N + I(TE ** 2) + TE:N + I(N ** 2)"
+     }
+    },
+    {
+     "what": "lack of fit",
+     "term": "mean square",
+     "value": "641.2",
+     "where": {
+      "page": "5-59",
+      "source_kind": "table",
+      "quote": "Table 5.37 RS/Discover Computer Output Using Box-Behnken Design for Plating Example ... 6. Lack of fit 3 1923.7 641.2"
+     },
+     "check": {
+      "kind": "lack_of_fit_ms",
+      "model": "T + TE + N + I(T ** 2) + T:TE + T:N + I(TE ** 2) + TE:N + I(N ** 2)"
      }
     },
     {
@@ -51451,7 +52066,8 @@
       "quote": "Table 5.37 RS/Discover Computer Output Using Box-Behnken Design for Plating Example ... 7. Pure error 2 1976.0 988.0"
      },
      "check": {
-      "manual": "the pure error's mean square times its degrees of freedom, both checked"
+      "kind": "pure_error_ss",
+      "model": "T + TE + N + I(T ** 2) + T:TE + T:N + I(TE ** 2) + TE:N + I(N ** 2)"
      }
     },
     {
@@ -75805,7 +76421,9 @@
       "quote": "Table 4 ANOVA TABLE ... 1 W WAX TYPE ... 1 2304.00 2304.00 ... 18.67 ... .9960"
      },
      "check": {
-      "manual": "each column of a two-level array has one degree of freedom"
+      "kind": "anova_df",
+      "term": "W",
+      "model": "W + X + X:XL + ZL + B + W:WL + WL + X:Z"
      }
     },
     {
@@ -75860,13 +76478,17 @@
      "what": "% contribution",
      "term": "W",
      "value": "1.54",
+     "analysis": "Taguchi's percent contribution, (SS - df x error mean square)/total SS x 100",
      "where": {
       "page": "8-123",
       "source_kind": "table",
       "quote": "Table 4 ANOVA TABLE ... 1 W WAX TYPE ... 1 2304.00 2304.00 ... 18.67 ... .9960"
      },
      "check": {
-      "manual": "Taguchi's percent contribution, (SS - df x error mean square)/total SS x 100, from numbers that are checked"
+      "kind": "percent_contribution",
+      "term": "W",
+      "model": "W + X + X:XL + ZL + B + W:WL + WL + X:Z",
+      "disagreement": "the coefficient is {0}; Q-EDGE cuts it to the digits it prints rather than rounding"
      }
     },
     {
@@ -75894,7 +76516,9 @@
       "quote": "Table 4 ANOVA TABLE ... 2 X ANTIOX. ... 1 14400.00 14400.00 ... 116.67 ... .9998"
      },
      "check": {
-      "manual": "each column of a two-level array has one degree of freedom"
+      "kind": "anova_df",
+      "term": "X",
+      "model": "W + X + X:XL + ZL + B + W:WL + WL + X:Z"
      }
     },
     {
@@ -75949,13 +76573,16 @@
      "what": "% contribution",
      "term": "X",
      "value": "10.12",
+     "analysis": "Taguchi's percent contribution, (SS - df x error mean square)/total SS x 100",
      "where": {
       "page": "8-123",
       "source_kind": "table",
       "quote": "Table 4 ANOVA TABLE ... 2 X ANTIOX. ... 1 14400.00 14400.00 ... 116.67 ... .9998"
      },
      "check": {
-      "manual": "Taguchi's percent contribution, (SS - df x error mean square)/total SS x 100, from numbers that are checked"
+      "kind": "percent_contribution",
+      "term": "X",
+      "model": "W + X + X:XL + ZL + B + W:WL + WL + X:Z"
      }
     },
     {
@@ -75983,7 +76610,9 @@
       "quote": "Table 4 ANOVA TABLE ... 6 XxXL ... 1 1296.00 1296.00 ... 10.50 ... .9858"
      },
      "check": {
-      "manual": "each column of a two-level array has one degree of freedom"
+      "kind": "anova_df",
+      "term": "X·XL",
+      "model": "W + X + X:XL + ZL + B + W:WL + WL + X:Z"
      }
     },
     {
@@ -76037,13 +76666,16 @@
      "what": "% contribution",
      "term": "X·XL",
      "value": ".83",
+     "analysis": "Taguchi's percent contribution, (SS - df x error mean square)/total SS x 100",
      "where": {
       "page": "8-123",
       "source_kind": "table",
       "quote": "Table 4 ANOVA TABLE ... 6 XxXL ... 1 1296.00 1296.00 ... 10.50 ... .9858"
      },
      "check": {
-      "manual": "Taguchi's percent contribution, (SS - df x error mean square)/total SS x 100, from numbers that are checked"
+      "kind": "percent_contribution",
+      "term": "X·XL",
+      "model": "W + X + X:XL + ZL + B + W:WL + WL + X:Z"
      }
     },
     {
@@ -76071,7 +76703,9 @@
       "quote": "Table 4 ANOVA TABLE ... 8 ZL ANTIOZ LVL ... 1 2304.00 2304.00 ... 18.67 ... .9960"
      },
      "check": {
-      "manual": "each column of a two-level array has one degree of freedom"
+      "kind": "anova_df",
+      "term": "ZL",
+      "model": "W + X + X:XL + ZL + B + W:WL + WL + X:Z"
      }
     },
     {
@@ -76126,13 +76760,17 @@
      "what": "% contribution",
      "term": "ZL",
      "value": "1.54",
+     "analysis": "Taguchi's percent contribution, (SS - df x error mean square)/total SS x 100",
      "where": {
       "page": "8-123",
       "source_kind": "table",
       "quote": "Table 4 ANOVA TABLE ... 8 ZL ANTIOZ LVL ... 1 2304.00 2304.00 ... 18.67 ... .9960"
      },
      "check": {
-      "manual": "Taguchi's percent contribution, (SS - df x error mean square)/total SS x 100, from numbers that are checked"
+      "kind": "percent_contribution",
+      "term": "ZL",
+      "model": "W + X + X:XL + ZL + B + W:WL + WL + X:Z",
+      "disagreement": "the coefficient is {0}; Q-EDGE cuts it to the digits it prints rather than rounding"
      }
     },
     {
@@ -76160,7 +76798,9 @@
       "quote": "Table 4 ANOVA TABLE ... 9 B TEST BLOCK ... 1 112896.00 112896.00 ... 914.67 ... .9999"
      },
      "check": {
-      "manual": "each column of a two-level array has one degree of freedom"
+      "kind": "anova_df",
+      "term": "B",
+      "model": "W + X + X:XL + ZL + B + W:WL + WL + X:Z"
      }
     },
     {
@@ -76215,13 +76855,16 @@
      "what": "% contribution",
      "term": "B",
      "value": "79.91",
+     "analysis": "Taguchi's percent contribution, (SS - df x error mean square)/total SS x 100",
      "where": {
       "page": "8-123",
       "source_kind": "table",
       "quote": "Table 4 ANOVA TABLE ... 9 B TEST BLOCK ... 1 112896.00 112896.00 ... 914.67 ... .9999"
      },
      "check": {
-      "manual": "Taguchi's percent contribution, (SS - df x error mean square)/total SS x 100, from numbers that are checked"
+      "kind": "percent_contribution",
+      "term": "B",
+      "model": "W + X + X:XL + ZL + B + W:WL + WL + X:Z"
      }
     },
     {
@@ -76249,7 +76892,9 @@
       "quote": "Table 4 ANOVA TABLE ... 10 WxWL ... 1 576.00 576.00 ... 4.67 ... .9341"
      },
      "check": {
-      "manual": "each column of a two-level array has one degree of freedom"
+      "kind": "anova_df",
+      "term": "W·WL",
+      "model": "W + X + X:XL + ZL + B + W:WL + WL + X:Z"
      }
     },
     {
@@ -76304,13 +76949,16 @@
      "what": "% contribution",
      "term": "W·WL",
      "value": ".32",
+     "analysis": "Taguchi's percent contribution, (SS - df x error mean square)/total SS x 100",
      "where": {
       "page": "8-123",
       "source_kind": "table",
       "quote": "Table 4 ANOVA TABLE ... 10 WxWL ... 1 576.00 576.00 ... 4.67 ... .9341"
      },
      "check": {
-      "manual": "Taguchi's percent contribution, (SS - df x error mean square)/total SS x 100, from numbers that are checked"
+      "kind": "percent_contribution",
+      "term": "W·WL",
+      "model": "W + X + X:XL + ZL + B + W:WL + WL + X:Z"
      }
     },
     {
@@ -76338,7 +76986,9 @@
       "quote": "Table 4 ANOVA TABLE ... 11 WL WAX LEVEL ... 1 5184.00 5184.00 ... 42.00 ... .9993"
      },
      "check": {
-      "manual": "each column of a two-level array has one degree of freedom"
+      "kind": "anova_df",
+      "term": "WL",
+      "model": "W + X + X:XL + ZL + B + W:WL + WL + X:Z"
      }
     },
     {
@@ -76393,13 +77043,16 @@
      "what": "% contribution",
      "term": "WL",
      "value": "3.59",
+     "analysis": "Taguchi's percent contribution, (SS - df x error mean square)/total SS x 100",
      "where": {
       "page": "8-123",
       "source_kind": "table",
       "quote": "Table 4 ANOVA TABLE ... 11 WL WAX LEVEL ... 1 5184.00 5184.00 ... 42.00 ... .9993"
      },
      "check": {
-      "manual": "Taguchi's percent contribution, (SS - df x error mean square)/total SS x 100, from numbers that are checked"
+      "kind": "percent_contribution",
+      "term": "WL",
+      "model": "W + X + X:XL + ZL + B + W:WL + WL + X:Z"
      }
     },
     {
@@ -76427,7 +77080,9 @@
       "quote": "Table 4 ANOVA TABLE ... 13 XxZ ... 1 1296.00 1296.00 ... 10.50 ... .9858"
      },
      "check": {
-      "manual": "each column of a two-level array has one degree of freedom"
+      "kind": "anova_df",
+      "term": "X·Z",
+      "model": "W + X + X:XL + ZL + B + W:WL + WL + X:Z"
      }
     },
     {
@@ -76481,13 +77136,16 @@
      "what": "% contribution",
      "term": "X·Z",
      "value": ".83",
+     "analysis": "Taguchi's percent contribution, (SS - df x error mean square)/total SS x 100",
      "where": {
       "page": "8-123",
       "source_kind": "table",
       "quote": "Table 4 ANOVA TABLE ... 13 XxZ ... 1 1296.00 1296.00 ... 10.50 ... .9858"
      },
      "check": {
-      "manual": "Taguchi's percent contribution, (SS - df x error mean square)/total SS x 100, from numbers that are checked"
+      "kind": "percent_contribution",
+      "term": "X·Z",
+      "model": "W + X + X:XL + ZL + B + W:WL + WL + X:Z"
      }
     },
     {
@@ -76516,7 +77174,9 @@
       "quote": "Table 4 ANOVA TABLE ... e 3 WxX 1 0.00 0.00"
      },
      "check": {
-      "manual": "each column of a two-level array has one degree of freedom"
+      "kind": "anova_df",
+      "term": "W·X",
+      "model": "W + X + X:XL + ZL + B + W:WL + WL + X:Z + W:X"
      }
     },
     {
@@ -76573,7 +77233,9 @@
       "quote": "Table 4 ANOVA TABLE ... e 4 XL ANTIOX LVL 1 144.00 144.00"
      },
      "check": {
-      "manual": "each column of a two-level array has one degree of freedom"
+      "kind": "anova_df",
+      "term": "XL",
+      "model": "W + X + X:XL + ZL + B + W:WL + WL + X:Z + XL"
      }
     },
     {
@@ -76630,7 +77292,9 @@
       "quote": "Table 4 ANOVA TABLE ... e 5 N NEOPRENE 1 144.00 144.00"
      },
      "check": {
-      "manual": "each column of a two-level array has one degree of freedom"
+      "kind": "anova_df",
+      "term": "N",
+      "model": "W + X + X:XL + ZL + B + W:WL + WL + X:Z + N"
      }
     },
     {
@@ -76687,7 +77351,9 @@
       "quote": "Table 4 ANOVA TABLE ... e 7 ZxZL 1 144.00 144.00"
      },
      "check": {
-      "manual": "each column of a two-level array has one degree of freedom"
+      "kind": "anova_df",
+      "term": "Z·ZL",
+      "model": "W + X + X:XL + ZL + B + W:WL + WL + X:Z + Z:ZL"
      }
     },
     {
@@ -76744,7 +77410,9 @@
       "quote": "Table 4 ANOVA TABLE ... e 12 XLxZL 1 144.00 144.00"
      },
      "check": {
-      "manual": "each column of a two-level array has one degree of freedom"
+      "kind": "anova_df",
+      "term": "XL·ZL",
+      "model": "W + X + X:XL + ZL + B + W:WL + WL + X:Z + XL:ZL"
      }
     },
     {
@@ -76801,7 +77469,9 @@
       "quote": "Table 4 ANOVA TABLE ... e 14 WxZ 1 144.00 144.00"
      },
      "check": {
-      "manual": "each column of a two-level array has one degree of freedom"
+      "kind": "anova_df",
+      "term": "W·Z",
+      "model": "W + X + X:XL + ZL + B + W:WL + WL + X:Z + W:Z"
      }
     },
     {
@@ -76858,7 +77528,9 @@
       "quote": "Table 4 ANOVA TABLE ... e 15 Z ANTIOZ. 1 144.00 144.00"
      },
      "check": {
-      "manual": "each column of a two-level array has one degree of freedom"
+      "kind": "anova_df",
+      "term": "Z",
+      "model": "W + X + X:XL + ZL + B + W:WL + WL + X:Z + Z"
      }
     },
     {
@@ -76935,13 +77607,16 @@
      "what": "% contribution",
      "term": "error",
      "value": "1.31",
+     "analysis": "Taguchi's percent contribution of the error, its SS plus what the columns gave up (their df x error mean square), over the total SS",
      "where": {
       "page": "8-123",
       "source_kind": "table",
       "quote": "Table 4 ANOVA TABLE ... Error ... 1.31"
      },
      "check": {
-      "manual": "Taguchi's percent contribution, (error SS + - df x error mean square)/total SS x 100, from numbers that are checked"
+      "kind": "percent_contribution",
+      "term": "Residual",
+      "model": "W + X + X:XL + ZL + B + W:WL + WL + X:Z"
      }
     },
     {
@@ -91843,91 +92518,116 @@
      "what": "% contribution",
      "term": "ozone: test block",
      "value": "79.9%",
+     "analysis": "Taguchi's percent contribution, (SS - df x error mean square)/total SS x 100",
      "where": {
       "page": "8-122",
       "source_kind": "prose",
       "quote": "TEST BLOCK ... to be the largest effect on ozone performance (79.9% contribution)"
      },
      "check": {
-      "manual": "Taguchi's percent contribution, (SS - df x error mean square)/total SS x 100, from numbers that are checked"
+      "kind": "percent_contribution",
+      "term": "B",
+      "model": "W + X + X:XL + ZL + B + W:WL + WL + X:Z"
      }
     },
     {
      "what": "% contribution",
      "term": "ozone: antioxidant type",
      "value": "10.1%",
+     "analysis": "Taguchi's percent contribution, (SS - df x error mean square)/total SS x 100",
      "where": {
       "page": "8-122",
       "source_kind": "prose",
       "quote": "followed by ANTIOXIDANT TYPE (10.1%)"
      },
      "check": {
-      "manual": "Taguchi's percent contribution, (SS - df x error mean square)/total SS x 100, from numbers that are checked"
+      "kind": "percent_contribution",
+      "term": "X",
+      "model": "W + X + X:XL + ZL + B + W:WL + WL + X:Z"
      }
     },
     {
      "what": "% contribution",
      "term": "ozone: wax level",
      "value": "3.6%",
+     "analysis": "Taguchi's percent contribution, (SS - df x error mean square)/total SS x 100",
      "where": {
       "page": "8-122",
       "source_kind": "prose",
       "quote": "and WAX LEVEL (3.6%)"
      },
      "check": {
-      "manual": "Taguchi's percent contribution, (SS - df x error mean square)/total SS x 100, from numbers that are checked"
+      "kind": "percent_contribution",
+      "term": "WL",
+      "model": "W + X + X:XL + ZL + B + W:WL + WL + X:Z"
      }
     },
     {
      "what": "% contribution",
      "term": "dupont: antioxidant type",
      "value": "59.5%",
+     "analysis": "Taguchi's percent contribution, (SS - df x error mean square)/total SS x 100, the error's mean square being zero",
      "where": {
       "page": "8-126",
       "source_kind": "prose",
       "quote": "an effect from the ANTIOXIDANT TYPE (59.5% contribution)"
      },
      "check": {
-      "manual": "Taguchi's percent contribution, (SS - df x error mean square)/total SS x 100, from numbers that are checked"
+      "kind": "percent_contribution",
+      "term": "X",
+      "model": "X + Z + ZL + X:Z + W:X + XL + X:XL + B + W:WL",
+      "response": "dupont"
      }
     },
     {
      "what": "% contribution",
      "term": "dupont: antiozonant type",
      "value": "9.5%",
+     "analysis": "Taguchi's percent contribution, (SS - df x error mean square)/total SS x 100, the error's mean square being zero",
      "where": {
       "page": "8-126",
       "source_kind": "prose",
       "quote": "the ANTIOZONANT TYPE (9.5%)"
      },
      "check": {
-      "manual": "Taguchi's percent contribution, (SS - df x error mean square)/total SS x 100, from numbers that are checked"
+      "kind": "percent_contribution",
+      "term": "Z",
+      "model": "X + Z + ZL + X:Z + W:X + XL + X:XL + B + W:WL",
+      "response": "dupont"
      }
     },
     {
      "what": "% contribution",
      "term": "dupont: antiozonant level",
      "value": "9.5%",
+     "analysis": "Taguchi's percent contribution, (SS - df x error mean square)/total SS x 100, the error's mean square being zero",
      "where": {
       "page": "8-126",
       "source_kind": "prose",
       "quote": "the ANTIOZONANT LEVEL (9.5%)"
      },
      "check": {
-      "manual": "Taguchi's percent contribution, (SS - df x error mean square)/total SS x 100, from numbers that are checked"
+      "kind": "percent_contribution",
+      "term": "ZL",
+      "model": "X + Z + ZL + X:Z + W:X + XL + X:XL + B + W:WL",
+      "response": "dupont"
      }
     },
     {
      "what": "% contribution",
      "term": "dupont: antioxidant type x antiozonant type",
      "value": "9.5%",
+     "analysis": "Taguchi's percent contribution, (SS - df x error mean square)/total SS x 100, the error's mean square being zero",
      "where": {
       "page": "8-126",
       "source_kind": "prose",
       "quote": "and an ANTIOXIDANT TYPE / ANTIOZONANT TYPE interaction (9.5%)"
      },
      "check": {
-      "manual": "Taguchi's percent contribution, (SS - df x error mean square)/total SS x 100, from numbers that are checked"
+      "kind": "percent_contribution",
+      "term": "X·Z",
+      "model": "X + Z + ZL + X:Z + W:X + XL + X:XL + B + W:WL",
+      "response": "dupont"
      }
     }
    ]
@@ -106049,7 +106749,17 @@
       "quote": "Table 3 Analysis of Variance Table ... IP 1 14900.2 14900.2 4.21 0.0466"
      },
      "check": {
-      "manual": "the term's degrees of freedom: levels less one, their product for the interaction"
+      "kind": "anova_df",
+      "term": "IP",
+      "model": "IP + LOC + EXT + INT + TEMP + CONV + IP:LOC",
+      "summary": {
+       "of": [
+        "y1",
+        "y2",
+        "y3"
+       ],
+       "statistic": "each"
+      }
      }
     },
     {
@@ -106154,7 +106864,17 @@
       "quote": "Table 3 Analysis of Variance Table ... LOC 2 112355.8 56177.9 15.88 0.0001"
      },
      "check": {
-      "manual": "the term's degrees of freedom: levels less one, their product for the interaction"
+      "kind": "anova_df",
+      "term": "LOC",
+      "model": "IP + LOC + EXT + INT + TEMP + CONV + IP:LOC",
+      "summary": {
+       "of": [
+        "y1",
+        "y2",
+        "y3"
+       ],
+       "statistic": "each"
+      }
      }
     },
     {
@@ -106261,7 +106981,17 @@
       "quote": "Table 3 Analysis of Variance Table ... EXT 2 9498.5 4749.2 1.34 0.2725"
      },
      "check": {
-      "manual": "the term's degrees of freedom: levels less one, their product for the interaction"
+      "kind": "anova_df",
+      "term": "EXT",
+      "model": "IP + LOC + EXT + INT + TEMP + CONV + IP:LOC",
+      "summary": {
+       "of": [
+        "y1",
+        "y2",
+        "y3"
+       ],
+       "statistic": "each"
+      }
      }
     },
     {
@@ -106366,7 +107096,17 @@
       "quote": "Table 3 Analysis of Variance Table ... INT 1 3223.1 3223.1 0.91 0.3454"
      },
      "check": {
-      "manual": "the term's degrees of freedom: levels less one, their product for the interaction"
+      "kind": "anova_df",
+      "term": "INT",
+      "model": "IP + LOC + EXT + INT + TEMP + CONV + IP:LOC",
+      "summary": {
+       "of": [
+        "y1",
+        "y2",
+        "y3"
+       ],
+       "statistic": "each"
+      }
      }
     },
     {
@@ -106471,7 +107211,17 @@
       "quote": "Table 3 Analysis of Variance Table ... TEMP 2 1272.3 636.1 0.18 0.8361"
      },
      "check": {
-      "manual": "the term's degrees of freedom: levels less one, their product for the interaction"
+      "kind": "anova_df",
+      "term": "TEMP",
+      "model": "IP + LOC + EXT + INT + TEMP + CONV + IP:LOC",
+      "summary": {
+       "of": [
+        "y1",
+        "y2",
+        "y3"
+       ],
+       "statistic": "each"
+      }
      }
     },
     {
@@ -106576,7 +107326,17 @@
       "quote": "Table 3 Analysis of Variance Table ... CONV 2 5175.6 2587.8 0.73 0.4874"
      },
      "check": {
-      "manual": "the term's degrees of freedom: levels less one, their product for the interaction"
+      "kind": "anova_df",
+      "term": "CONV",
+      "model": "IP + LOC + EXT + INT + TEMP + CONV + IP:LOC",
+      "summary": {
+       "of": [
+        "y1",
+        "y2",
+        "y3"
+       ],
+       "statistic": "each"
+      }
      }
     },
     {
@@ -106681,7 +107441,17 @@
       "quote": "Table 3 Analysis of Variance Table ... IP X LOC 2 9847.0 4923.5 1.39 0.2602"
      },
      "check": {
-      "manual": "the term's degrees of freedom: levels less one, their product for the interaction"
+      "kind": "anova_df",
+      "term": "IP·LOC",
+      "model": "IP + LOC + EXT + INT + TEMP + CONV + IP:LOC",
+      "summary": {
+       "of": [
+        "y1",
+        "y2",
+        "y3"
+       ],
+       "statistic": "each"
+      }
      }
     },
     {
