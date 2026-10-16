@@ -372,7 +372,7 @@ def test_each_design_is_scored_as_compare_designs_scores_it_alongside_others():
         assert values["i"] == pytest.approx(direct[label]["i"], rel=1e-3)
         assert values["max_r"] == pytest.approx(direct[label]["max_r"], rel=1e-3)
         assert len(values["fds"]) == 21
-        assert set(values) == {m.key for m in MEASURES} | {"fds"}
+        assert set(values) == {m.key for m in MEASURES} | {"rank", "fds"}
 
 
 def test_a_model_a_design_cannot_fit_is_scored_as_such_without_a_curve():

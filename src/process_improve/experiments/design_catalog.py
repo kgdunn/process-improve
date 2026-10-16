@@ -949,8 +949,8 @@ def catalog_comparisons(records: Sequence[dict[str, Any]]) -> dict[str, dict[str
     dict
         For each scored design's ``id``, for each model in
         :data:`~process_improve.experiments.design_measures.MODELS`, the values ``compare_designs``
-        reports (the keys of :data:`~process_improve.experiments.compare.MEASURES`), to four
-        significant figures, and ``fds``, the design's
+        reports (the keys of :data:`~process_improve.experiments.compare.MEASURES`, and the model
+        matrix's ``rank``), to four significant figures, and ``fds``, the design's
         :func:`~process_improve.experiments.design_measures.fds_curve` for the model (``None`` when
         the design cannot fit it).
 
@@ -962,7 +962,7 @@ def catalog_comparisons(records: Sequence[dict[str, Any]]) -> dict[str, dict[str
     >>> scored["quadratic"]["fits"], scored["quadratic"]["residual_df"]
     (True, 7)
     """
-    keys = {measure.key for measure in MEASURES}
+    keys = {measure.key for measure in MEASURES} | {"rank"}
     by_size: dict[int, dict[str, np.ndarray]] = {}
     for record in records:
         if (runs := _comparable(record)) is not None:

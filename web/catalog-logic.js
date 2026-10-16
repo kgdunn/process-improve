@@ -58,6 +58,8 @@ export const DEFAULT_STATE = Object.freeze({
   recomputed: false,
   differs: false,
   opens: false,
+  source: "",
+  unprinted: false,
   survives: false,
   projection: 0,
   projectivity: 0,
@@ -65,7 +67,12 @@ export const DEFAULT_STATE = Object.freeze({
   addedSince: "",
   sort: "default",
   design: "",
+  compare: [],
+  view: "",
 });
+
+/** The views the page opens over the list: the comparison of the designs chosen, and the errata. */
+export const VIEWS = ["compare", "errata"];
 
 /** The fewest runs a model in k factors needs: one per coefficient, intercept included. */
 export function minimumRuns(k, model) {
@@ -133,6 +140,7 @@ export function parseQuery(text) {
   take(/(?:has|with) data|results|responses/g, () => (found.hasData = true));
   take(/reproduced|recomputed|verified|checked/g, () => (found.recomputed = true));
   take(/errata|does not reproduce|disagree(?:s|ment)?/g, () => (found.differs = true));
+  take(/\bgaps?\b|not (?:yet )?(?:printed|published)|no source prints it/g, () => (found.unprinted = true));
   take(/surviv(?:es|ing)?(?: (?:the )?loss of (?:a|any) run)?|robust to a lost run|(?:any|a) (?:lost|missing) run/g, () => (found.survives = true));
   take(/(\d{4})\s*(?:-|to)\s*(\d{4})/g, (m) => (found.years = range(+m[1], +m[2])));
   take(/since\s*(\d{4})|after\s*(\d{4})/g, (m) => (found.years = range(m[1] ? +m[1] : +m[2] + 1, null)));
@@ -173,6 +181,8 @@ export function filtersOf(state) {
     recomputed: state.recomputed || Boolean(asked.recomputed),
     differs: state.differs || Boolean(asked.differs),
     opens: state.opens,
+    source: state.source,
+    unprinted: state.unprinted || Boolean(asked.unprinted),
     survives: state.survives || Boolean(asked.survives),
     projection: Math.max(state.projection, asked.projection ?? 0),
     projectivity: Math.max(state.projectivity, asked.projectivity ?? 0),
@@ -207,6 +217,8 @@ const TESTS = {
   recomputed: (d, f) => !f.recomputed || (d.checks?.checked ?? 0) > 0,
   differs: (d, f) => !f.differs || (d.checks?.explained ?? 0) > 0,
   opens: (d, f) => !f.opens || d.open,
+  source: (d, f) => !f.source || d.source === f.source,
+  unprinted: (d, f) => !f.unprinted || (d.collection === "generated" && !d.in_source),
   survives: (d, f) => !f.survives || d.survives_run_loss === true,
   projection: (d, f) => !f.projection || (d.quadratic_projection ?? 0) >= f.projection,
   projectivity: (d, f) => !f.projectivity || (d.projectivity ?? 0) >= f.projectivity,
@@ -276,18 +288,39 @@ export function yearBins(catalog, state, width = 5) {
   const first = Math.floor(Math.min(...years) / width) * width;
   const last = Math.floor(Math.max(...years) / width) * width;
   const bins = [];
+  const kept = catalog.designs.filter((d) => d.year !== null && passes(d, filters, catalog, "years"));
   for (let from = first; from <= last; from += width) {
-    bins.push({ from, to: from + width - 1, count: years.filter((y) => y >= from && y < from + width).length });
+    const inside = kept.filter((d) => d.year >= from && d.year < from + width);
+    const families = {};
+    for (const d of inside) families[d.family] = (families[d.family] ?? 0) + 1;
+    bins.push({ from, to: from + width - 1, count: inside.length, families });
   }
   return bins;
+}
+
+/** The families first published within the years the bars span, each with its year: the marks on the timeline. */
+export function familyMarks(catalog, bins) {
+  if (!bins.length) return [];
+  const [first, last] = [bins[0].from, bins.at(-1).to];
+  return Object.entries(catalog.families ?? {})
+    .filter(([, f]) => f.year && f.year >= first && f.year <= last)
+    .map(([family, f]) => ({ family, year: f.year, label: f.label }))
+    .sort((a, b) => a.year - b.year);
 }
 
 // ---------------------------------------------------------------- the address
 const KEYS = {
   collection: "col", query: "q", families: "fam", runs: "runs", factors: "k", model: "model", categorical: "cat",
   blocked: "blk", splitPlot: "sp", mixture: "mix", hasData: "data", recomputed: "rec", differs: "err", opens: "open",
-  survives: "surv", projection: "qp", projectivity: "proj", years: "year", addedSince: "added", sort: "sort", design: "d",
+  source: "src", unprinted: "gap", survives: "surv", projection: "qp", projectivity: "proj", years: "year",
+  addedSince: "added", sort: "sort", design: "d", compare: "cmp", view: "view",
 };
+
+/** The filters held as a list of names, written into the address joined by commas. */
+const LISTS = new Set(["families", "compare"]);
+
+/** A design's id, as the address may name one. */
+const AN_ID = /^[a-z0-9][a-z0-9-]{0,120}$/;
 
 const writeRange = ([low, high]) => `${low ?? ""}-${high ?? ""}`;
 
@@ -304,8 +337,8 @@ export function toHash(state) {
     const value = state[name];
     const base = DEFAULT_STATE[name];
     if (Array.isArray(value)) {
-      if (name === "families" ? value.length : value[0] !== null || value[1] !== null) {
-        params.set(key, name === "families" ? value.join(",") : writeRange(value));
+      if (LISTS.has(name) ? value.length : value[0] !== null || value[1] !== null) {
+        params.set(key, LISTS.has(name) ? value.join(",") : writeRange(value));
       }
     } else if (value !== base) {
       params.set(key, value === true ? "1" : String(value));
@@ -319,7 +352,7 @@ export function toHash(state) {
  * Read the filters back from an address. The address is text anyone can write: a value of the
  * wrong kind, a family the catalog does not have, or an unknown key is ignored.
  */
-export function fromHash(text, families = {}) {
+export function fromHash(text, families = {}, sources = {}) {
   const params = new URLSearchParams(String(text ?? "").replace(/^#/, ""));
   const state = structuredClone({ ...DEFAULT_STATE });
   const read = (name) => params.get(KEYS[name]);
@@ -328,7 +361,8 @@ export function fromHash(text, families = {}) {
   state.families = (read("families") ?? "").split(",").filter((f) => Object.hasOwn(families, f));
   for (const name of ["runs", "factors", "categorical", "years"]) state[name] = readRange(read(name));
   if (Object.hasOwn(MODELS, read("model"))) state.model = read("model");
-  for (const name of ["blocked", "splitPlot", "mixture", "hasData", "recomputed", "differs", "opens", "survives"]) {
+  if (Object.hasOwn(sources, read("source"))) state.source = read("source");
+  for (const name of ["blocked", "splitPlot", "mixture", "hasData", "recomputed", "differs", "opens", "unprinted", "survives"]) {
     state[name] = read(name) === "1";
   }
   for (const name of ["projection", "projectivity"]) {
@@ -337,7 +371,9 @@ export function fromHash(text, families = {}) {
   }
   if (/^\d{4}-\d{2}-\d{2}$/.test(read("addedSince") ?? "")) state.addedSince = read("addedSince");
   if (Object.hasOwn(SORTS, read("sort"))) state.sort = read("sort");
-  if (/^[a-z0-9][a-z0-9-]{0,120}$/.test(read("design") ?? "")) state.design = read("design");
+  if (AN_ID.test(read("design") ?? "")) state.design = read("design");
+  state.compare = [...new Set((read("compare") ?? "").split(",").filter((id) => AN_ID.test(id)))].slice(0, COMPARE_MOST);
+  if (VIEWS.includes(read("view"))) state.view = read("view");
   return state;
 }
 
@@ -518,5 +554,208 @@ export function checkIndex(data) {
   }
   if (JSON.stringify(data.fields) !== JSON.stringify(INDEX_FIELDS)) throw new Error("The catalog's fields are not the ones this page reads.");
   if (!Array.isArray(data.designs)) throw new Error("The catalog lists no designs.");
+  markInSource(data.designs);
   return data;
+}
+
+/**
+ * Mark each design that some source prints: a published design, and a generated one of the same
+ * class as a published one (see sameDesigns). A generated design left unmarked is one no source in
+ * the catalogue prints.
+ */
+export function markInSource(designs) {
+  const printed = new Set(designs.filter((d) => d.collection === "published" && d.design_class).map((d) => d.design_class));
+  for (const d of designs) d.in_source = d.collection === "published" || printed.has(d.design_class);
+  return designs;
+}
+
+// ---------------------------------------------------------------- designs side by side
+/** The most designs the comparison sets side by side. */
+export const COMPARE_MOST = 4;
+
+/** Why a design cannot join the designs being compared, in words; empty when it can. */
+export function compareRefusal(catalog, ids, id) {
+  const design = catalog.designs.find((d) => d.id === id);
+  if (!design?.compared) {
+    return "the catalog compares designs whose factors are all numeric, with at most 12 factors and 1000 runs";
+  }
+  if (ids.length >= COMPARE_MOST) return `the comparison holds ${COMPARE_MOST} designs at most`;
+  const first = catalog.designs.find((d) => d.id === ids[0]);
+  if (first && first.n_factors !== design.n_factors) {
+    return `the designs compared have ${plural(first.n_factors, "factor")}, and this one has ${design.n_factors}`;
+  }
+  return "";
+}
+
+/** The list of ids with this one added, or taken out when it is there. */
+export function toggled(ids, id) {
+  return ids.includes(id) ? ids.filter((x) => x !== id) : [...ids, id];
+}
+
+/** The largest model every design compared fits: the model the comparison opens on. */
+export function sharedModel(scored) {
+  return ["quadratic", "interactions", "main_effects"].find((m) => scored.every((s) => s?.[m]?.fits)) ?? "main_effects";
+}
+
+const COUNTS = new Set(["runs", "residual_df"]);
+
+/** A measure's value as compare_designs' table prints it: counts whole, the rest to four significant figures. */
+export function shownValue(key, values) {
+  const value = values?.[key];
+  if (key === "fits") return value ? "yes" : `no (rank ${values?.rank})`;
+  if (value === null || value === undefined) return "";
+  return COUNTS.has(key) ? String(value) : Number(value).toPrecision(4);
+}
+
+/** The comparison's rows, one per measure: its label, the direction preferred and each design's value. */
+export function compareRows(measures, scored, model) {
+  const arrows = { higher: "↑", lower: "↓" };
+  return measures.map((m) => ({ ...m, arrow: arrows[m.direction] ?? "", cells: scored.map((s) => shownValue(m.key, s?.[model])) }));
+}
+
+// ---------------------------------------------------------------- a design's projections
+/** The distinct settings of the chosen factors, each with how many runs land on it. */
+export function projected(runs, columns) {
+  const held = new Map();
+  for (const row of runs) {
+    const point = columns.map((c) => row[c]);
+    if (point.some((v) => v === null || v === undefined)) continue;
+    const key = point.map((v) => Math.round(v * 1e4)).join(",");
+    if (held.has(key)) held.get(key).count += 1;
+    else held.set(key, { point, count: 1 });
+  }
+  return [...held.values()];
+}
+
+/** The rank of a matrix, by Gaussian elimination with partial pivoting. */
+export function rank(matrix, tolerance = 1e-8) {
+  const a = matrix.map((row) => [...row]);
+  const rows = a.length;
+  const cols = rows ? a[0].length : 0;
+  const scale = Math.max(1, ...a.map((row) => Math.max(...row.map(Math.abs))));
+  let found = 0;
+  for (let c = 0; c < cols && found < rows; c++) {
+    let pivot = found;
+    for (let i = found + 1; i < rows; i++) if (Math.abs(a[i][c]) > Math.abs(a[pivot][c])) pivot = i;
+    if (Math.abs(a[pivot][c]) <= tolerance * scale) continue;
+    [a[found], a[pivot]] = [a[pivot], a[found]];
+    for (let i = found + 1; i < rows; i++) {
+      const f = a[i][c] / a[found][c];
+      if (f !== 0) for (let j = c; j < cols; j++) a[i][j] -= f * a[found][j];
+    }
+    found += 1;
+  }
+  return found;
+}
+
+/** The full quadratic's model matrix in the chosen factors: intercept, main effects, interactions, squares. */
+export function quadraticRows(runs, columns) {
+  return runs
+    .filter((row) => columns.every((c) => row[c] !== null && row[c] !== undefined))
+    .map((row) => {
+      const x = columns.map((c) => row[c]);
+      const out = [1, ...x];
+      for (let i = 0; i < x.length; i++) for (let j = i + 1; j < x.length; j++) out.push(x[i] * x[j]);
+      return [...out, ...x.map((v) => v * v)];
+    });
+}
+
+/** What a projection holds: its distinct settings, whether it estimates the full quadratic, its corners. */
+export function projectionSummary(runs, columns) {
+  const points = projected(runs, columns);
+  const matrix = quadraticRows(runs, columns);
+  const terms = ((columns.length + 1) * (columns.length + 2)) / 2;
+  const found = rank(matrix);
+  const corners = points.filter((p) => p.point.every((v) => Math.abs(Math.abs(v) - 1) < 1e-6)).length;
+  return { distinct: points.length, terms, rank: found, quadratic: found === terms, corners, allCorners: corners === 2 ** columns.length };
+}
+
+const joined = (names) => (names.length < 2 ? names.join("") : `${names.slice(0, -1).join(", ")} and ${names.at(-1)}`);
+
+/** A projection's summary, in a sentence or two. */
+export function projectionText(summary, names) {
+  const fits = summary.quadratic
+    ? `estimate the full quadratic in them (${summary.terms} terms)`
+    : `do not estimate the full quadratic in them: its ${summary.terms} terms have rank ${summary.rank}`;
+  const lines = [`In ${joined(names)}, the runs sit at ${plural(summary.distinct, "distinct setting")} and ${fits}.`];
+  if (summary.allCorners) {
+    lines.push(`They hold all ${summary.corners} corners: a full 2^${names.length} factorial in these factors.`);
+  }
+  return lines.join(" ");
+}
+
+// ---------------------------------------------------------------- a design's correlations
+/**
+ * The absolute correlation between a design's main effects, squares and two-factor interactions, as
+ * compare_designs reads them: each column centred and scaled to length 1. A column that does not
+ * vary, such as the square of a two-level factor, is left out.
+ */
+export function correlationMap(runs, names) {
+  const rows = runs.filter((row) => row.every((v) => v !== null && v !== undefined));
+  const k = names.length;
+  const columns = [];
+  for (let j = 0; j < k; j++) columns.push({ label: names[j], kind: "main", values: rows.map((r) => r[j]) });
+  for (let j = 0; j < k; j++) columns.push({ label: `${names[j]}²`, kind: "square", values: rows.map((r) => r[j] ** 2) });
+  for (let i = 0; i < k; i++) {
+    for (let j = i + 1; j < k; j++) columns.push({ label: `${names[i]}${names[j]}`, kind: "interaction", values: rows.map((r) => r[i] * r[j]) });
+  }
+  const n = rows.length;
+  const kept = [];
+  for (const column of columns) {
+    const mean = column.values.reduce((a, b) => a + b, 0) / n;
+    const centred = column.values.map((v) => v - mean);
+    const norm = Math.sqrt(centred.reduce((a, v) => a + v * v, 0));
+    if (norm > 1e-9 * Math.sqrt(n)) kept.push({ label: column.label, kind: column.kind, unit: centred.map((v) => v / norm) });
+  }
+  const r = kept.map((a) =>
+    kept.map((b) => {
+      const v = Math.min(1, Math.abs(a.unit.reduce((sum, x, i) => sum + x * b.unit[i], 0)));
+      return v < 1e-9 ? 0 : v;
+    }),
+  );
+  return { labels: kept.map((c) => c.label), kinds: kept.map((c) => c.kind), r };
+}
+
+/** The largest |r| between two different second-order terms (squares and interactions); null without a pair. */
+export function largestSecondOrderR(map) {
+  let most = null;
+  map.kinds.forEach((a, i) =>
+    map.kinds.forEach((b, j) => {
+      if (i !== j && a !== "main" && b !== "main") most = Math.max(most ?? 0, map.r[i][j]);
+    }),
+  );
+  return most;
+}
+
+// ---------------------------------------------------------------- the errata
+/** The errata a reader asks for: of one source or all, the ones whose reason mentions rounding or not, with words. */
+export function errataShown(errata, { source = "", words = "", rounding = true } = {}) {
+  const wanted = String(words).toLowerCase().split(/\s+/).filter(Boolean);
+  return errata.filter((e) => {
+    if ((source && e.source !== source) || (!rounding && e.rounding)) return false;
+    const text = [e.id, e.what, e.term, e.printed, e.where, e.reason, e.quote].filter(Boolean).join(" ").toLowerCase();
+    return wanted.every((w) => text.includes(w));
+  });
+}
+
+/** How many errata each source has. */
+export function errataCounts(errata) {
+  const counts = {};
+  for (const e of errata) counts[e.source] = (counts[e.source] ?? 0) + 1;
+  return counts;
+}
+
+// ---------------------------------------------------------------- where a design leads
+/**
+ * The families a design can lead to, each with how and the address of the catalog filtered to its
+ * designs: of at most as many factors (a follow-up keeps the factors that matter), or at least as
+ * many when the step is to more factors.
+ */
+export function nextSteps(design, catalog) {
+  const k = design.n_factors;
+  return (catalog.families?.[design.family]?.next ?? []).map((step) => {
+    const factors = !k ? [null, null] : /more factors/i.test(step.how) ? [k, null] : [null, k];
+    const filters = { ...structuredClone({ ...DEFAULT_STATE }), families: [step.family], factors };
+    return { ...step, label: catalog.families?.[step.family]?.label ?? step.family, hash: toHash(filters) };
+  });
 }
