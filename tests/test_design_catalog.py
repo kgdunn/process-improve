@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import dataclasses
 import warnings
 
 import numpy as np
@@ -14,6 +15,7 @@ from process_improve.experiments.design_catalog import (
     GENERATED,
     GLYPH_ROWS,
     INDEX_FIELDS,
+    CatalogQuery,
     catalog_families,
     catalog_records,
     catalog_sources,
@@ -318,6 +320,13 @@ def test_a_search_refuses_a_family_or_model_the_catalog_does_not_have():
         search_catalog(families=["nope"])
     with pytest.raises(ValueError, match="Unknown model 'cubic'"):
         search_catalog(model="cubic")
+
+
+def test_a_search_takes_a_query_whose_fields_named_ones_replace_and_refuses_a_misspelt_one():
+    query = CatalogQuery(families=("dsd",), sort="factors")
+    assert dataclasses.replace(query, max_runs=13).families == ("dsd",)
+    with pytest.raises(TypeError, match="min_factor"):
+        search_catalog(query, min_factor=3)
 
 
 def test_the_search_tool_is_registered_with_a_strict_schema():

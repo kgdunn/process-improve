@@ -20,6 +20,7 @@ Examples
 
 from __future__ import annotations
 
+import dataclasses
 import functools
 import re
 import warnings
@@ -785,56 +786,89 @@ def _within(value: float | None, low: float | None, high: float | None) -> bool:
     return value is not None and (low is None or value >= low) and (high is None or value <= high)
 
 
-def search_catalog(  # noqa: PLR0913 - one keyword per filter the catalog page offers
-    *,
-    min_factors: int | None = None,
-    max_factors: int | None = None,
-    min_runs: int | None = None,
-    max_runs: int | None = None,
-    model: str | None = None,
-    min_categorical: int | None = None,
-    max_categorical: int | None = None,
-    families: Sequence[str] | None = None,
-    collection: Collection = "both",
-    has_results: bool = False,
-    survives_run_loss: bool = False,
-    min_quadratic_projection: int | None = None,
-    min_projectivity: int | None = None,
-    year_from: int | None = None,
-    year_to: int | None = None,
-    text: str = "",
-    sort: Literal["runs", "factors", "newest"] = "runs",
-) -> list[dict[str, Any]]:
+@dataclass(frozen=True)
+class CatalogQuery:
+    """The filters of a search of the catalog, each one a design must pass, and the order of what passes.
+
+    Every filter left at its default keeps every design.
+
+    Attributes
+    ----------
+    min_factors, max_factors : int or None
+        The fewest and most factors.
+    min_runs, max_runs : int or None
+        The fewest and most runs.
+    model : {"main_effects", "interactions", "quadratic"} or None
+        A model the design must estimate in full.
+    min_categorical, max_categorical : int or None
+        The fewest and most categorical factors.
+    families : tuple of str or None
+        The families to keep (keys of :data:`FAMILIES`).
+    collection : {"both", "published", "generated"}
+        Published designs, those the library makes, or both.
+    has_results : bool
+        Keep only published experiments printed with their results.
+    survives_run_loss : bool
+        Keep only designs that still estimate their largest model after losing any one run.
+    min_quadratic_projection : int or None
+        Keep only designs whose every projection onto this many factors estimates the full quadratic.
+    min_projectivity : int or None
+        Keep only two-level designs of at least this projectivity.
+    year_from, year_to : int or None
+        The years the source appeared in; a generated design has none, so either drops them.
+    text : str
+        Words, each looked for in the design's title, family, design type and source.
+    sort : {"runs", "factors", "newest"}
+        The order: fewest runs, fewest factors, or the most recent source first.
+    """
+
+    min_factors: int | None = None
+    max_factors: int | None = None
+    min_runs: int | None = None
+    max_runs: int | None = None
+    model: str | None = None
+    min_categorical: int | None = None
+    max_categorical: int | None = None
+    families: tuple[str, ...] | None = None
+    collection: Collection = "both"
+    has_results: bool = False
+    survives_run_loss: bool = False
+    min_quadratic_projection: int | None = None
+    min_projectivity: int | None = None
+    year_from: int | None = None
+    year_to: int | None = None
+    text: str = ""
+    sort: Literal["runs", "factors", "newest"] = "runs"
+
+
+def _passes(r: dict[str, Any], q: CatalogQuery, haystack: str) -> bool:
+    """Say whether one design's facets pass every filter of a query."""
+    return (
+        (q.collection == "both" or r["collection"] == q.collection)
+        and _within(r["n_factors"], q.min_factors, q.max_factors)
+        and _within(r["n_runs"], q.min_runs, q.max_runs)
+        and (q.model is None or r["models"].get(q.model) is True)
+        and _within(r["n_categorical"], q.min_categorical, q.max_categorical)
+        and (q.families is None or r["family"] in q.families)
+        and (not q.has_results or r["has_responses"])
+        and (not q.survives_run_loss or r["survives_run_loss"] is True)
+        and (q.min_quadratic_projection is None or (r["quadratic_projection"] or 0) >= q.min_quadratic_projection)
+        and (q.min_projectivity is None or (r["projectivity"] or 0) >= q.min_projectivity)
+        and _within(r["year"], q.year_from, q.year_to)
+        and all(word in haystack for word in q.text.lower().split())
+    )
+
+
+def search_catalog(query: CatalogQuery | None = None, **filters: Any) -> list[dict[str, Any]]:  # noqa: ANN401
     """Return the catalog's designs that pass every filter given, as the catalog page filters them.
 
     Parameters
     ----------
-    min_factors, max_factors : int, optional
-        The fewest and most factors.
-    min_runs, max_runs : int, optional
-        The fewest and most runs.
-    model : {"main_effects", "interactions", "quadratic"}, optional
-        A model the design must estimate in full.
-    min_categorical, max_categorical : int, optional
-        The fewest and most categorical factors.
-    families : sequence of str, optional
-        The families to keep (keys of :data:`FAMILIES`).
-    collection : {"both", "published", "generated"}, default "both"
-        Published designs, those the library makes, or both.
-    has_results : bool, default False
-        Keep only published experiments printed with their results.
-    survives_run_loss : bool, default False
-        Keep only designs that still estimate their largest model after losing any one run.
-    min_quadratic_projection : int, optional
-        Keep only designs whose every projection onto this many factors estimates the full quadratic.
-    min_projectivity : int, optional
-        Keep only two-level designs of at least this projectivity.
-    year_from, year_to : int, optional
-        The years the source appeared in; a generated design has none, so either drops them.
-    text : str, default ""
-        Words, each looked for in the design's title, family, design type and source.
-    sort : {"runs", "factors", "newest"}, default "runs"
-        The order: fewest runs, fewest factors, or the most recent source first.
+    query : CatalogQuery, optional
+        The filters and the order; every design, the fewest runs first, when not given.
+    **filters
+        Fields of :class:`CatalogQuery`, by name, such as ``min_factors=6``: they replace the
+        query's.
 
     Returns
     -------
@@ -847,6 +881,8 @@ def search_catalog(  # noqa: PLR0913 - one keyword per filter the catalog page o
     ------
     ValueError
         If a family is not one of :data:`FAMILIES`, or the model is not one of ``MODELS``.
+    TypeError
+        If a filter is not a field of :class:`CatalogQuery`.
 
     Examples
     --------
@@ -854,12 +890,15 @@ def search_catalog(  # noqa: PLR0913 - one keyword per filter the catalog page o
     >>> sorted({d["family"] for d in found})
     ['dsd', 'omars']
     """
+    if "families" in filters and filters["families"] is not None:
+        filters["families"] = tuple(filters["families"])
+    q = dataclasses.replace(query or CatalogQuery(), **filters)
+    families, model = q.families, q.model
     if families is not None and (unknown := set(families) - set(FAMILIES)):
         raise ValueError(f"Unknown families {sorted(unknown)}: choose from {', '.join(FAMILIES)}.")
     if model is not None and model not in MODELS:
         raise ValueError(f"Unknown model {model!r}: choose from {', '.join(MODELS)}.")
     sources = catalog_sources()
-    words = text.lower().split()
     records = _searchable()
     classes = Counter(r["design_class"] for r in records if r["design_class"])
     found = []
@@ -868,21 +907,7 @@ def search_catalog(  # noqa: PLR0913 - one keyword per filter the catalog page o
         haystack = " ".join(
             str(v) for v in (r["id"], r["title"], r["design_text"], FAMILIES[r["family"]].label, source.get("cite"))
         ).lower()
-        keep = (
-            (collection == "both" or r["collection"] == collection)
-            and _within(r["n_factors"], min_factors, max_factors)
-            and _within(r["n_runs"], min_runs, max_runs)
-            and (model is None or r["models"].get(model) is True)
-            and _within(r["n_categorical"], min_categorical, max_categorical)
-            and (families is None or r["family"] in families)
-            and (not has_results or r["has_responses"])
-            and (not survives_run_loss or r["survives_run_loss"] is True)
-            and (min_quadratic_projection is None or (r["quadratic_projection"] or 0) >= min_quadratic_projection)
-            and (min_projectivity is None or (r["projectivity"] or 0) >= min_projectivity)
-            and _within(r["year"], year_from, year_to)
-            and all(word in haystack for word in words)
-        )
-        if keep:
+        if _passes(r, q, haystack):
             found.append(
                 {
                     **{key: r[key] for key in INDEX_FIELDS if key != "glyph"},
@@ -896,5 +921,5 @@ def search_catalog(  # noqa: PLR0913 - one keyword per filter the catalog page o
         "runs": lambda d: (d["n_runs"] is None, d["n_runs"] or 0, d["n_factors"] or 0),
         "factors": lambda d: (d["n_factors"] is None, d["n_factors"] or 0, d["n_runs"] or 0),
         "newest": lambda d: (d["year"] is None, -(d["year"] or 0)),
-    }[sort]
+    }[q.sort]
     return sorted(found, key=order)
