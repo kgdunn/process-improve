@@ -171,6 +171,8 @@ def evaluate_projections(
     ValueError
         For an unknown model, a group size without groups, or more than ``MOST_PROJECTIONS`` projections.
     """
+    if model not in PROJECTION_MODELS:
+        raise ValueError(f"model must be one of {PROJECTION_MODELS}; got model={model!r}.")
     frame = _factor_frame(design_matrix)
     subsets = _subsets(list(frame.columns), size, groups)
     if len(subsets) > MOST_PROJECTIONS:

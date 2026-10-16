@@ -191,7 +191,7 @@ def test_each_kind_of_check_reports_what_it_finds(monkeypatch, tmp_path):
         item("2", {"kind": "no_such_kind"}),
         item("2", {"kind": "library_value", "function": "no_such_function"}),
         item("2", {"kind": "coefficient", "term": "C", **fit}),
-        item("2 ** 3", {"kind": "coefficient", "term": "A", "expression": True, **fit}),
+        item("2 ^ 3", {"kind": "coefficient", "term": "A", "expression": True, **fit}),  # ^ is not arithmetic here
         item("about two", {"kind": "coefficient", "term": "A", **fit}),
     ]
     experiment = {
