@@ -1723,3 +1723,90 @@ def test_a_reml_group_can_be_the_interaction_of_two_random_factors():
     assert _variance_component(entry, {**check, "key": "f:g"}) == pytest.approx(
         (ms["f:g"] - ms["Residual"]) / 2, rel=1e-4
     )
+
+
+_STRENGTH = {  # Montgomery's Table 14.16: temperature -> replicate 1's methods 1 to 3, replicate 2's, replicate 3's
+    "200": (30, 34, 29, 28, 31, 31, 31, 35, 32),
+    "225": (35, 41, 26, 32, 36, 30, 37, 40, 34),
+    "250": (37, 38, 33, 40, 42, 32, 41, 39, 39),
+    "275": (36, 42, 36, 41, 40, 40, 40, 44, 45),
+}
+
+
+def _split_plot_entry():
+    """Return the tensile strength split-plot: methods in the whole plots (batches), temperatures in the subplots."""
+    rows = [[str(1 + i // 3), str(1 + i % 3), temp, values[i]] for temp, values in _STRENGTH.items() for i in range(9)]
+
+    def factor(name, levels):
+        return {"name": name, "type": "categorical", "low": levels[0], "high": levels[1], "levels": levels}
+
+    return {
+        "name": "strength",
+        "factors": [
+            factor("replicate", ["1", "2", "3"]),
+            factor("method", ["1", "2", "3"]),
+            factor("temp", list(_STRENGTH)),
+        ],
+        "responses": [{"name": "y"}],
+        "runs": {"columns": ["replicate", "method", "temp", "y"], "rows": rows, "coded": False},
+    }
+
+
+def test_the_split_plot_check_tests_the_whole_plot_factor_against_the_whole_plot_error():
+    """In a balanced split-plot, REML gives the analysis of variance: F_A = MS_A/MS_WP on (a - 1, (r - 1)(a - 1))."""
+    from process_improve.experiments.reference_catalogue import _split_plot
+
+    entry = _split_plot_entry()
+    check = {"model": "y ~ C(replicate, Sum) + C(method, Sum) * C(temp, Sum)", "whole_plot": ["replicate", "method"]}
+    out = reference_catalogue._Fits()(entry, check)
+    y = np.array([_STRENGTH[t][i] for t in _STRENGTH for i in range(9)], dtype=float).reshape(
+        4, 3, 3
+    )  # temp, rep, method
+    grand, rm = y.mean(), y.mean(axis=0)
+    ms_a = 12 * ((y.mean(axis=(0, 1)) - grand) ** 2).sum() / 2
+    ms_wp = 4 * ((rm - rm.mean(axis=1, keepdims=True) - rm.mean(axis=0) + grand) ** 2).sum() / 4
+    keys = ("f.C(method, Sum)", "df_den.C(method, Sum)", "whole_plot", "residual")
+    found = {key: _split_plot(out, {**check, "key": key}, entry) for key in keys}
+    assert found["f.C(method, Sum)"] == pytest.approx(ms_a / ms_wp)
+    assert found["df_den.C(method, Sum)"] == pytest.approx(4)
+    assert found["whole_plot"] == pytest.approx(1.2743056, rel=1e-6)  # JMP's Table 14.19, its "Subplots"
+    assert found["residual"] == pytest.approx(3.9722222, rel=1e-6)
+    assert _split_plot(out, {**check, "key": "whole_plot_error_df"}, entry) == 4
+
+
+def test_a_two_level_factor_coded_by_name_keeps_the_factor_nested_in_it_within_each_level():
+    """Operators 1 to 4 within each of two layouts: by name, layout:operator has 2 x 3 = 6 degrees of freedom."""
+    rows = [
+        [layout, str(op), r, 20 + 3 * (layout == "2") + op + (r == 2)]
+        for layout in ("1", "2")
+        for op in (1, 2, 3, 4)
+        for r in (1, 2)
+    ]
+    entry = {
+        "name": "layouts",
+        "factors": [
+            {"name": "layout", "type": "categorical", "low": "1", "high": "2", "levels": ["1", "2"], "coding": "name"},
+            {"name": "operator", "type": "categorical", "low": "1", "high": "2", "levels": ["1", "2", "3", "4"]},
+        ],
+        "responses": [{"name": "y"}],
+        "runs": {"columns": ["layout", "operator", "replicate", "y"], "rows": rows, "coded": False},
+    }
+    settings, _ = reference_catalogue._coded_runs(entry, None)
+    assert settings["layout"].tolist()[:2] == ["1", "1"]
+    out = reference_catalogue._Fits()(entry, {"model": "layout + layout:operator"})
+    assert reference_catalogue._anova_row(out, "layout:operator")["df"] == 6
+
+
+def test_a_wald_interval_can_take_jmp_s_rounded_multiplier():
+    """Some JMP versions print the estimate less or plus 1.96 standard errors, others the normal's 1.95996."""
+    from process_improve.experiments.reference_catalogue import _mean_squares
+
+    entry, ms, df = _two_factor_replicated()
+    out = reference_catalogue._Fits()(entry, {"model": "f * g"})
+    check = {"terms": {"f": 1, "f:g": -1}, "divisor": 4}
+    value = (ms["f"] - ms["f:g"]) / 4
+    error = math.sqrt(2 * (ms["f"] ** 2 / df["f"] + ms["f:g"] ** 2 / df["f:g"])) / 4
+    assert _mean_squares(out, {**check, "key": "wald_low", "z": 1.96}, entry) == pytest.approx(value - 1.96 * error)
+    assert _mean_squares(out, {**check, "key": "wald_high"}, entry) == pytest.approx(
+        value + stats.norm.ppf(0.975) * error
+    )

@@ -370,7 +370,9 @@ def _coded_runs(
     """Return the factor settings in coded units and the responses, for the runs at these 1-based positions.
 
     A factor marked ``"coding": "none"`` is fitted in its own units, as a source's regression on it is,
-    and one marked ``"pseudocomponent"`` as a pseudocomponent (see :func:`_pseudocomponents`).
+    one marked ``"pseudocomponent"`` as a pseudocomponent (see :func:`_pseudocomponents`), and one
+    marked ``"name"`` by its level names, as a factor at three or more levels is: a two-level factor
+    that another is nested in keeps its levels, so the nested term is fitted within each of them.
     ``runs["exact"]`` maps a setting printed rounded to its exact value: 1.414 to the root of 2, in
     coded units, or a level in a factor's own units, as 92.07 for 85 + 5√2; ``as_printed`` keeps the
     settings as printed, for a source that fitted its model to them. With a ``summary`` (see
@@ -393,7 +395,7 @@ def _coded_runs(
         if f.get("coding") == "none":
             settings[f["name"]] = _exact_settings(column.astype(float), exact)
             continue
-        if f.get("levels") and len(f["levels"]) > 2 and f["type"] == "categorical":
+        if f.get("coding") == "name" or (f.get("levels") and len(f["levels"]) > 2 and f["type"] == "categorical"):
             settings[f["name"]] = column.astype(str)  # a factor at three or more levels is fitted by name
             continue
         if runs["coded"]:
@@ -785,8 +787,9 @@ def _mean_squares(out: dict, check: dict, _experiment: dict) -> float:
     - ``"value"``, and ``"root"``, its square root (the standard error of a mean, say);
     - ``"df"``, Satterthwaite's degrees of freedom (sum of w MS)^2 / sum of (w MS)^2/f;
     - ``"std_error"``, the estimate's standard error from Var(MS) = 2 MS^2/f, and ``"wald_low"`` and
-      ``"wald_high"``, the estimate less or plus 1.96 of them, which in a balanced design are the
-      standard errors and 95% intervals JMP prints for its REML variance components;
+      ``"wald_high"``, the estimate less or plus 1.96 of them (``check["z"]``, if given), which in a
+      balanced design are the standard errors and 95% intervals JMP prints for its REML variance
+      components;
     - ``"chi2_low"`` and ``"chi2_high"``, the 95% interval f v / chi2(0.975, f) to f v / chi2(0.025, f)
       on the f degrees of freedom of the estimate v, which JMP prints for the residual;
     - ``"mls_low"``, the modified large-sample lower limit of Ting et al. (1990), v - sqrt(VL), for an
@@ -845,8 +848,8 @@ def _mean_squares(out: dict, check: dict, _experiment: dict) -> float:
             "root": lambda: math.sqrt(value),
             "df": lambda: df_num,
             "std_error": lambda: error,
-            "wald_low": lambda: value - _Z_975 * error,
-            "wald_high": lambda: value + _Z_975 * error,
+            "wald_low": lambda: value - float(check.get("z", _Z_975)) * error,
+            "wald_high": lambda: value + float(check.get("z", _Z_975)) * error,
             "chi2_low": lambda: df_num * value / float(chi2_distribution.ppf(0.975, df_num)),
             "chi2_high": lambda: df_num * value / float(chi2_distribution.ppf(0.025, df_num)),
             "mls_vl": lambda: modified_large_sample(float(check.get("alpha", 0.05))),
@@ -858,6 +861,38 @@ def _mean_squares(out: dict, check: dict, _experiment: dict) -> float:
     ratio = numerator / denominator
     tests = {"f": ratio, "p": float(f_distribution.sf(ratio, df_num, df_den)), "df_num": df_num, "df_den": df_den}
     return tests[key]
+
+
+def _split_plot(out: dict, check: dict, experiment: dict) -> float:
+    """Return a number of the library's split-plot analysis: REML with the whole plots as a random effect.
+
+    ``check["whole_plot"]`` lists the columns whose combination is a run's whole plot (the replicate
+    and the hard-to-change factor, say), and the model is ``check["model"]``, a formula; categorical
+    factors written ``C(name, Sum)`` are coded to sum to zero, as their main effects' tests need.
+    ``check["key"]`` is ``"whole_plot"`` or ``"residual"``, a variance; ``"whole_plot_error_df"`` or
+    ``"subplot_error_df"``; or ``"f.<term>"``, ``"p.<term>"``, ``"df.<term>"`` or ``"df_den.<term>"``
+    for a term's F test on Satterthwaite's degrees of freedom, the term named as the library names it.
+    """
+    runs = experiment["runs"]
+    whole_plots = tuple(check["whole_plot"])
+    cache = out.setdefault("split_plot_fits", {})
+    if whole_plots not in cache:
+        table = pd.DataFrame(runs["rows"], columns=runs["columns"])
+        labels = table[list(whole_plots)].astype(str).agg(":".join, axis=1).to_numpy()
+        settings = out["settings"].assign(WholePlot=labels)
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            cache[whole_plots] = analyze_experiment(
+                settings, out["y"], model=check["model"], analysis_type="split_plot", whole_plot="WholePlot"
+            )["split_plot"]
+    fit = cache[whole_plots]
+    kind, _, term = check["key"].partition(".")
+    if kind in fit["variance_components"]:
+        return float(fit["variance_components"][kind])
+    if kind.endswith("_error_df"):
+        return float(fit["error_df"][kind.removesuffix("_error_df")])
+    test = next(row for row in fit["tests"] if row["source"] == term)
+    return float({"f": test["F"], "p": test["p_value"], "df": test["df"], "df_den": test["df_denominator"]}[kind])
 
 
 def _transmitted_variance(out: dict, check: dict, experiment: dict) -> float:
@@ -1057,6 +1092,7 @@ _FIT_KINDS: dict[str, Callable[[dict, dict, dict], float]] = {
     "steepest_path": _steepest_path,
     "transmitted_variance": _transmitted_variance,
     "mean_squares": _mean_squares,
+    "split_plot": _split_plot,
 }
 
 
@@ -2248,7 +2284,8 @@ def _variance_component(experiment: dict, check: dict) -> float:
       or the residual's share of the total;
     - ``"std_error.<part>"`` and ``"covariance.<part>.<part>"``, from the asymptotic covariance of
       the variance estimates, and ``"wald_low.<part>"`` and ``"wald_high.<part>"``, the estimate less
-      or plus 1.96 standard errors, the 95% interval JMP prints for a random effect;
+      or plus 1.96 standard errors, the 95% interval JMP prints for a random effect: the normal's
+      97.5th percentile, or ``check["z"]``, as some versions of JMP take 1.96 itself;
     - ``"rmse"``, the root of the residual variance, and ``"reml_criterion"``, minus twice the
       restricted log-likelihood, JMP's "-2 LogLikelihood";
     - ``"mean"``, ``"mean_std_error"``, ``"mean_t"`` and ``"mean_df"``, the overall mean of an
@@ -2271,6 +2308,7 @@ def _variance_component(experiment: dict, check: dict) -> float:
         return parts[check["key"]]
     kind, _, name = check["key"].partition(".")
     total = sum(parts.values())
+    z = float(check.get("z", _Z_975))
 
     def covariance(first: str, second: str) -> float:
         return float(fit.vc_cov[estimated.index(first), estimated.index(second)])
@@ -2298,8 +2336,8 @@ def _variance_component(experiment: dict, check: dict) -> float:
         "percent": lambda: 100 * parts[name] / total,
         "covariance": lambda: covariance(*name.split(".")),
         "std_error": lambda: math.sqrt(covariance(name, name)),
-        "wald_low": lambda: parts[name] - _Z_975 * math.sqrt(covariance(name, name)),
-        "wald_high": lambda: parts[name] + _Z_975 * math.sqrt(covariance(name, name)),
+        "wald_low": lambda: parts[name] - z * math.sqrt(covariance(name, name)),
+        "wald_high": lambda: parts[name] + z * math.sqrt(covariance(name, name)),
         "mean": lambda: float(fit.beta[0]),
         "mean_std_error": lambda: math.sqrt(fit.cov_beta[0, 0]),
         "mean_df": lambda: fit.satterthwaite_df(np.eye(len(fit.beta))[0]),
