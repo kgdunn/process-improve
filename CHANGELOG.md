@@ -117,7 +117,7 @@ those changes.
   region=)` takes a `DesignRegion` (or its dict) and computes I and G over it rather than
   over the cube: I averages the prediction variance over 20000 points drawn uniformly from
   the region with a fixed seed, and G searches the region's vertices, its support points,
-  the grid's points inside it and that sample. The other measures do not depend on where predictions
+  points on the boundary of a curved limit, the grid's points inside it and that sample. The other measures do not depend on where predictions
   are made and do not change. `DesignComparison` gains `region` (also in `to_dict()`) and a
   `measures` property whose definitions of I and G say "over the region"; a design with
   runs outside the region is noted. A mixture region, or one that names a factor the

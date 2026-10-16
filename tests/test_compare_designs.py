@@ -534,6 +534,35 @@ def test_g_is_at_least_the_variance_at_every_vertex_of_a_region_with_many_limits
     assert "its 758 vertices" in comparison.g_points
 
 
+@pytest.mark.parametrize("seed", [0, 1, 2])
+def test_g_reaches_a_curved_boundary(seed):
+    """G usually sits on the boundary, which a uniform sample rarely reaches and a 3-level grid touches at a few points.
+
+    Over the cylinder A**2 + B**2 <= 1 G used to come out up to 12% below the variance at a
+    point of its surface; it is now within 1% of a dense search of that surface and its caps.
+    """
+    region = DesignRegion(factors("ABC"), ["A**2 + B**2 <= 1"])
+    runs = region.sample(14, np.random.default_rng(seed))
+    comparison = compare_designs({"inside": pd.DataFrame(runs, columns=list("ABC"))}, "quadratic", region=region)
+    g = comparison.values["inside [n=14]"]["g"]
+    angle, height = np.meshgrid(np.linspace(0, 2 * np.pi, 721), np.linspace(-1, 1, 81))
+    side = np.column_stack([np.cos(angle.ravel()), np.sin(angle.ravel()), height.ravel()]) * [1 - 1e-12, 1 - 1e-12, 1]
+    radius, turn = np.meshgrid(np.linspace(0, 1 - 1e-12, 41), np.linspace(0, 2 * np.pi, 181))
+    disc = np.column_stack([radius.ravel() * np.cos(turn.ravel()), radius.ravel() * np.sin(turn.ravel())])
+    caps = np.vstack([np.column_stack([disc, np.full(len(disc), z)]) for z in (-1.0, 1.0)])
+    surface = np.vstack([side, caps])
+    assert region.feasible(surface).all()
+
+    def expand(x):
+        a, b, c = x.T
+        return np.column_stack([np.ones(len(x)), a, b, c, a * b, a * c, b * c, a**2, b**2, c**2])
+
+    f, design = expand(surface), expand(runs)
+    densest = np.einsum("ij,jk,ik->i", f, np.linalg.inv(design.T @ design), f).max()
+    assert g == pytest.approx(max(densest, g), rel=0.01)
+    assert "points on its boundary" in comparison.g_points
+
+
 def test_a_region_changes_only_i_and_g():
     region = DesignRegion(HEAT, [HEAT_LIMIT])
     designs = heat_designs()
