@@ -5,7 +5,6 @@ from __future__ import annotations
 import warnings
 
 import numpy as np
-import pandas as pd
 import pytest
 
 from process_improve.experiments import generate_design
@@ -21,10 +20,15 @@ from process_improve.experiments.design_catalog import (
     estimable_models,
     glyph,
     normalise_family,
+    printed_checks,
     published_runs,
 )
 from process_improve.experiments.factor import Factor
-from process_improve.experiments.reference_catalogue import reference_designs, reference_experiments
+from process_improve.experiments.reference_catalogue import (
+    reference_designs,
+    reference_experiments,
+    reproduce_reference_catalogue,
+)
 
 
 @pytest.fixture(scope="module")
@@ -224,22 +228,34 @@ def test_every_record_carries_every_field_the_page_reads(records):
 
 
 # --------------------------------------------------------------------------- checks and sources
-def test_a_report_s_checks_are_counted_entry_by_entry():
-    report = pd.DataFrame(
-        {
-            "experiment": ["bhh-pilot-plant-2-3"] * 4,
-            "checked": [True, True, True, False],
-            "agrees": [True, True, False, None],
-            "disagreement": [None, None, "the book rounds twice", None],
-        }
-    )
-    published = catalog_records("published", report=report)
-    record = next(r for r in published if r["id"] == "bhh-pilot-plant-2-3")
-    assert record["checks"] == {"printed": 4, "checked": 3, "agree": 2, "explained": 1}
-    assert next(r for r in published if r["id"] != record["id"])["checks"] is None
+def test_an_entry_s_printed_numbers_are_counted_by_what_their_checks_say():
+    entry = {
+        "expected": [
+            {"check": {"kind": "coefficient"}},
+            {"check": [{"kind": "anova"}, {"kind": "anova", "disagreement": "the book rounds twice"}]},
+            {"check": {"manual": "printed in words"}},
+        ]
+    }
+    assert printed_checks(entry) == {"printed": 4, "checked": 3, "agree": 2, "explained": 1}
 
 
-def test_without_a_report_no_record_counts_checks():
+@pytest.mark.slow
+@pytest.mark.dataset
+def test_the_counts_are_what_the_reproduce_report_finds():
+    """The counts read from the catalogue are the report's, since the tests make every check agree or explain it."""
+    report = reproduce_reference_catalogue("ullmann-doe-2012")
+    published = {r["id"]: r for r in catalog_records("published") if r["source"] == "ullmann-doe-2012"}
+    for name, rows in report.groupby("experiment"):
+        checked = rows[rows["checked"].astype(bool)]
+        assert published[name]["checks"] == {
+            "printed": len(rows),
+            "checked": len(checked),
+            "agree": int(checked["agrees"].astype(bool).sum()),
+            "explained": int(checked["disagreement"].notna().sum()),
+        }, name
+
+
+def test_generated_records_count_no_checks():
     assert all(r["checks"] is None for r in catalog_records("generated"))
 
 

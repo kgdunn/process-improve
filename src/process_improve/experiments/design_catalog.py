@@ -40,8 +40,6 @@ from process_improve.experiments.reference_catalogue import (
 if TYPE_CHECKING:
     from collections.abc import Sequence
 
-    import pandas as pd
-
 Collection = Literal["published", "generated", "both"]
 
 
@@ -665,44 +663,53 @@ INDEX_FIELDS = (
 )
 
 
-def _checks(report: pd.DataFrame | None) -> dict[str, dict[str, int]]:
-    """Count, entry by entry, the printed numbers a reproduce report checked, and how many agree or are explained."""
-    if report is None:
-        return {}
-    out = {}
-    for name, rows in report.groupby("experiment"):
-        checked = rows[rows["checked"].astype(bool)]
-        agrees = checked["agrees"].fillna(value=False).astype(bool)
-        explained = checked["disagreement"].notna() & ~agrees
-        out[str(name)] = {
-            "printed": len(rows),
-            "checked": len(checked),
-            "agree": int(agrees.sum()),
-            "explained": int(explained.sum()),
-        }
-    return out
+def printed_checks(entry: dict[str, Any]) -> dict[str, int]:
+    """Count an entry's printed numbers: all of them, those recomputed, those that agree, those known not to.
+
+    :func:`~process_improve.experiments.reference_catalogue.reproduce_reference_catalogue` recomputes
+    every number that carries a check, and the test suite requires each to agree with the printed
+    text unless the catalogue records why it does not (its ``disagreement``). So, on a commit whose
+    tests pass, the counts here are what that report finds, without the minutes it takes to run.
+
+    Parameters
+    ----------
+    entry : dict
+        An experiment or design of the reference catalogue.
+
+    Returns
+    -------
+    dict[str, int]
+        ``printed`` (every number the source prints for it), ``checked`` (those recomputed),
+        ``agree`` (those that reproduce) and ``explained`` (those known not to, with the reason).
+    """
+    checks = [
+        check
+        for expected in entry.get("expected", [])
+        for check in (
+            expected.get("check") if isinstance(expected.get("check"), list) else [expected.get("check") or {}]
+        )
+    ]
+    checked = [check for check in checks if "kind" in check]
+    explained = sum(bool(check.get("disagreement")) for check in checked)
+    return {"printed": len(checks), "checked": len(checked), "agree": len(checked) - explained, "explained": explained}
 
 
-def catalog_records(collection: Collection = "both", report: pd.DataFrame | None = None) -> list[dict[str, Any]]:
+def catalog_records(collection: Collection = "both") -> list[dict[str, Any]]:
     """Return the catalog: a record for each published design, each generated design, or both.
 
     Parameters
     ----------
     collection : {"both", "published", "generated"}
         Which designs to describe: the reference catalogue's, the ones :data:`GENERATED` lists, or both.
-    report : pd.DataFrame, optional
-        A report of :func:`~process_improve.experiments.reference_catalogue.reproduce_reference_catalogue`.
-        When given, each published record's ``checks`` counts its printed numbers that are
-        recomputed, that agree, and that are known not to reproduce, with the reason recorded;
-        otherwise ``checks`` is ``None``.
 
     Returns
     -------
     list[dict]
-        One record per design. The fields in :data:`INDEX_FIELDS` describe it for searching;
-        ``factors``, ``responses``, ``coded_runs``, ``response_values``, ``details``, ``notes``
-        and ``where_full`` hold what a reader sees on opening it, and ``spec`` names a generated
-        design as :data:`GENERATED` does.
+        One record per design. The fields in :data:`INDEX_FIELDS` describe it for searching; a
+        published record's ``checks`` counts its printed numbers (see :func:`printed_checks`) and
+        a generated record's is ``None``. ``factors``, ``responses``, ``coded_runs``,
+        ``response_values``, ``details``, ``notes`` and ``where_full`` hold what a reader sees on
+        opening a design, and ``spec`` names a generated design as :data:`GENERATED` does.
 
     Raises
     ------
@@ -714,11 +721,10 @@ def catalog_records(collection: Collection = "both", report: pd.DataFrame | None
     records: list[dict[str, Any]] = []
     if collection in {"both", "published"}:
         sources = reference_sources()
-        checks = _checks(report)
-        for entry in [*reference_experiments(), *reference_designs()]:
-            record = _published_record(entry, sources[entry["source"]])
-            record["checks"] = checks.get(entry["name"]) if report is not None else None
-            records.append(record)
+        records += [
+            {**_published_record(entry, sources[entry["source"]]), "checks": printed_checks(entry)}
+            for entry in [*reference_experiments(), *reference_designs()]
+        ]
     if collection in {"both", "generated"}:
         records += [{**_generated_record(spec), "checks": None} for spec in GENERATED]
     return records
