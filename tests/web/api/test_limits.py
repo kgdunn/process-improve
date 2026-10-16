@@ -181,22 +181,6 @@ def test_a_straight_limit_comes_with_its_bounds_to_edit(api, limit, linear, kind
     assert entry["type"] == kind
 
 
-def test_renaming_factors_renames_them_inside_the_limits(api):
-    """A swap of two names is a swap: each limit keeps its meaning, and what it rules out stays as it was."""
-    before = described(api, HEAT, "T * F <= 3000")
-    swapped = [{**FACTORS[0], "name": "P"}, {**FACTORS[1], "name": "T"}, FACTORS[2]]
-    after = described(api, HEAT, "T * F <= 3000", factors=swapped, rename={"T": "P", "P": "T"})
-    assert [e["expression"] for e in after["constraints"]] == ["P + 25 * T <= 250", "P * F <= 3000"]
-    assert [e["removes"] for e in after["constraints"]] == [e["removes"] for e in before["constraints"]]
-    assert after["kept"] == before["kept"]
-
-
-def test_a_limit_that_cannot_be_read_is_renamed_by_nobody(api):
-    after = described(api, "T + (P <= 3", factors=[{**FACTORS[0], "name": "Temp"}, *FACTORS[1:]], rename={"T": "Temp"})
-    assert after["constraints"][0]["expression"] == "T + (P <= 3"
-    assert "cannot be read" in after["constraints"][0]["problem"]
-
-
 def test_a_note_is_kept_on_one_line(api):
     entry = described(api, {"expression": HEAT, "note": "  chars the\tproduct\n "})["constraints"][0]
     assert entry["note"] == "chars the product"

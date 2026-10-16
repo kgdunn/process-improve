@@ -2290,10 +2290,9 @@ def limits(request: dict) -> dict:
     """Describe the limits on the settings the reader is typing, and propose limits from the settings marked.
 
     ``factors`` are the brief's and ``constraints`` its limits, each ``{expression, note}`` in the
-    factors' own units; ``rename`` (``{old: new}``) renames factors inside the limits first, as a
-    factor renamed in the brief is renamed in them. Each limit comes back in its canonical text
-    with what it does, or with the sentence that says what to change, so a limit that cannot be
-    read leaves the others described. What a limit does over the factors' ranges:
+    factors' own units. Each limit comes back in its canonical text with what it does, or with
+    the sentence that says what to change, so a limit that cannot be read leaves the others
+    described. What a limit does over the factors' ranges:
 
     - ``removed``, the share of the ranges it rules out on its own, and ``removes``, the rows of
       ``probes`` it rules out;
@@ -2347,18 +2346,17 @@ def limits(request: dict) -> dict:
 
 
 def _limit_entries(request: dict, factors: list[Factor]) -> list[dict[str, Any]]:
-    """Read each limit the panel holds, renamed as the brief renamed a factor: its canonical text, or its problem."""
-    renaming = _renaming(request.get("rename"))
-    entries: list[dict[str, Any]] = []
-    for typed, note in _limit_items(request.get("constraints")):
-        text = _renamed_limit(typed, renaming)
-        try:
-            canonical, named = _read_limit(text, factors)
-        except ValueError as exc:
-            entries.append({"expression": text, "note": note, "problem": str(exc)})
-        else:
-            entries.append({"expression": canonical, "note": note, "factors": named})
-    return entries
+    """Read each limit the panel holds: its canonical text and the factors it names, or its problem."""
+    return [_limit_entry(text, note, factors) for text, note in _limit_items(request.get("constraints"))]
+
+
+def _limit_entry(text: str, note: str, factors: list[Factor]) -> dict[str, Any]:
+    """Read one limit: its canonical text and the factors it names, or the sentence that says what to change."""
+    try:
+        canonical, named = _read_limit(text, factors)
+    except ValueError as exc:
+        return {"expression": text, "note": note, "problem": str(exc)}
+    return {"expression": canonical, "note": note, "factors": named}
 
 
 def _describe_each(
@@ -2401,25 +2399,6 @@ def _limits_refusal(entries: list[dict], read: list[int], factors: list[Factor],
     except ValueError as exc:
         return str(exc)
     return None
-
-
-def _renaming(raw: object) -> dict[str, str]:
-    """Check a renaming of the factors the page sent with its limits: each old name to its new one."""
-    if raw is None:
-        return {}
-    if not isinstance(raw, dict) or not all(isinstance(k, str) and isinstance(v, str) for k, v in raw.items()):
-        raise ValueError("The page sent a renaming this page did not write.")
-    return raw
-
-
-def _renamed_limit(text: str, renaming: dict[str, str]) -> str:
-    """Rename the factors inside a limit, all at once; a limit that cannot be read is left as typed, to say why."""
-    if not renaming:
-        return text
-    try:
-        return rename_factors(text, renaming)
-    except ValueError:
-        return text
 
 
 def _probes(numeric: list[Factor]) -> tuple[np.ndarray, np.ndarray] | None:

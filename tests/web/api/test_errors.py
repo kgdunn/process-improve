@@ -566,11 +566,6 @@ REFUSALS: dict[str, tuple[str, Callable[[Example], dict], str]] = {
         lambda _: {"factors": FACTORS, "constraints": [{"expression": "T <= 190", "note": "x" * 81}]},
         "A limit's note is at most 80 characters, on one line.",
     ),
-    "a renaming the page did not write": (
-        "api_limits",
-        _typed("T <= 190", rename=["T", "Temp"]),
-        "The page sent a renaming this page did not write.",
-    ),
     "a marked row the table does not have": (
         "api_limits",
         _typed(marked=[9]),  # the worked example's table has 8 corners and the centre, rows 0 to 8
