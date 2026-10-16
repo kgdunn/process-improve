@@ -118,3 +118,39 @@ those three; :func:`~process_improve.experiments.design_measures.same_design` co
 finding the relabelling itself. The catalog groups its designs so: the 12-run Plackett-Burman design
 it makes is also the Taguchi L12 array printed by Schmidt and Launsby and the design of Table 3.18 of
 the NIST e-Handbook.
+
+Comparing designs
+-----------------
+
+Designs with the same number of factors can be set side by side on the measures of
+:func:`~process_improve.experiments.compare.compare_designs`, for one model: the feasibility rows,
+the averages :math:`A/p` and :math:`I`, the worst cases :math:`E` and :math:`G`, :math:`D`, the
+largest correlation between second-order terms, and the power for each kind of term. Each design is
+scored at its own size, so its values do not depend on the other designs it is set beside.
+:func:`~process_improve.experiments.design_catalog.catalog_comparisons` scores every design of
+numeric factors for each of the catalog's three models, with its fraction-of-design-space curve
+from :func:`~process_improve.experiments.design_measures.fds_curve`: the prediction variance that
+each fraction of the cube does not exceed.
+
+.. code-block:: python
+
+   from process_improve.experiments.design_catalog import catalog_comparisons, catalog_records
+
+   chosen = [r for r in catalog_records("generated") if r["id"] in {"lib-dsd-k6", "lib-omars-k6"}]
+   for name, scored in catalog_comparisons(chosen).items():
+       print(name, scored["main_effects"]["i"], scored["main_effects"]["fds"][10])
+
+On the catalog's page, a design's page also projects its runs onto any two or three of its factors
+and says whether that projection estimates the full quadratic, draws its correlation map, and links
+to the families it can be augmented to.
+
+The errata
+----------
+
+:func:`~process_improve.experiments.design_catalog.catalog_errata` lists every printed number that
+the library recomputes and does not reproduce, with the value as printed, where it is printed, the
+source's words around it and the reason the catalogue records: the source's rounding, a misprint, or
+a method that differs from the library's. Every other recomputed number agrees with its source, as
+the test suite requires. The catalog's page lists them by source and by words, and
+``catalog/feed.xml`` (:func:`~process_improve.experiments.design_catalog.catalog_feed`) is an Atom
+feed with an entry for each source as it enters the catalogue.

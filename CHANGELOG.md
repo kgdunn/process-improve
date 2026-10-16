@@ -44,6 +44,19 @@ those changes.
   Plackett-Burman design, which is also Schmidt and Launsby's Taguchi L12 and Table 3.18 of the NIST
   e-Handbook. `estimable_models` and `model_matrix` are here too. The catalog filters on all of them,
   and a design's page draws its runs' leverages.
+- **The design catalog compares designs, explores their projections and lists the errata.** Up to
+  four designs of one size are set side by side on the measures of `compare_designs`, for the model
+  they all fit, with their fraction-of-design-space curves (`design_measures.fds_curve`); 409 designs
+  of numeric factors are scored at build time (`design_catalog.catalog_comparisons`). A design's
+  page projects its runs onto any two or three of its factors, says whether that projection
+  estimates the full quadratic, draws its correlation map, and links to the families it can be
+  augmented to (`catalog_families` reads them from the knowledge base). A timeline under the map
+  counts the published designs by year in their families' colours, marks the year each family was
+  first published, and keeps the years a reader drags across. The errata list the 887 printed
+  numbers the library does not reproduce, each with the value printed, its page and the recorded
+  reason (`catalog_errata`). A source filter and a "no source prints it" filter find the generated
+  designs no source in the catalogue prints. `catalog/feed.xml` is an Atom feed with an entry for
+  each source as it enters the catalogue (`catalog_feed`).
 - **Standardised coefficients.** Each row of `analyze_experiment`'s `"coefficients"` (and
   `coefficients_actual`) now carries `standardised_coefficient`: the coefficient times the standard
   deviation of its column of the model matrix, over the standard deviation of the response, as
