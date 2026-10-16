@@ -56,6 +56,7 @@ from process_improve.experiments.designs import generate_design
 from process_improve.experiments.designs_response_surface import blocking_alpha
 from process_improve.experiments.evaluate import evaluate_design
 from process_improve.experiments.factor import Factor
+from process_improve.experiments.marginal_means import marginal_means_prediction
 from process_improve.experiments.omars_trade_off import omars_minimum_runs
 from process_improve.experiments.optimization import optimize_responses
 from process_improve.monitoring.metrics import calculate_cpk
@@ -1032,6 +1033,35 @@ def _dot_product(experiment: dict, check: dict) -> float:
     return float(_printed_matrix(experiment, check["columns"], None).prod(axis=1).sum())
 
 
+@functools.cache
+def _experiments_by_name() -> dict[str, dict[str, Any]]:
+    return {e["name"]: e for f in _files() for e in f["experiments"]}
+
+
+def _marginal_means(experiment: dict, check: dict) -> float:
+    """Return the library's prediction from marginal means at a run's settings, or the run's deviation from it.
+
+    The means are of ``check["response"]`` over the runs of the entry named ``check["from"]`` (this
+    one when left out), for the factors ``check["factors"]`` and the pairs ``check["interactions"]``,
+    as :func:`~process_improve.experiments.marginal_means_prediction` works them. With
+    ``check["deviation"]`` the run's own value, ``check["observed"]`` (a column, or the mean of a list
+    of columns), is compared: ``"difference"`` is it less the prediction, ``"percent"`` that over it,
+    times 100.
+    """
+    source = _experiments_by_name()[check["from"]] if "from" in check else experiment
+    runs, here = (pd.DataFrame(e["runs"]["rows"], columns=e["runs"]["columns"]) for e in (source, experiment))
+    point = here.iloc[[check["run"] - 1]][check["factors"]]
+    pairs = [(first, second) for first, second in check.get("interactions", [])]
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")  # a design not balanced in pairs is warned of; a source may use one anyway
+        predicted = float(marginal_means_prediction(runs, runs[check["response"]], point, pairs).iloc[0])
+    if "deviation" not in check:
+        return predicted
+    observed = float(np.mean(here.iloc[check["run"] - 1][check["observed"]]))
+    difference = observed - predicted
+    return difference if check["deviation"] == "difference" else 100 * difference / observed
+
+
 def _variance_component(experiment: dict, check: dict) -> float:
     """Return a variance component of the library's REML fit with a random intercept for each of ``check["groups"]``.
 
@@ -1056,6 +1086,7 @@ _VALUE_KINDS: dict[str, Callable[[dict, dict], float]] = {
     "design_property": lambda _e, c: _design_property(c),
     "design_metric": _design_metric,
     "library_value": lambda _e, c: _library_value(c),
+    "marginal_means": _marginal_means,
     "variance_component": _variance_component,
 }
 
