@@ -166,7 +166,7 @@ COLOURS = """() => {
 def luminance(colour: str) -> float:
     """Return the relative luminance of a computed ``rgb(r, g, b)`` colour, as WCAG reckons it."""
     channels = [int(v) / 255 for v in colour.removeprefix("rgb(").removesuffix(")").split(", ")[:3]]
-    linear = [c / 12.92 if c <= 0.04045 else ((c + 0.055) / 1.055) ** 2.4 for c in channels]  # noqa: PLR2004
+    linear = [c / 12.92 if c <= 0.04045 else ((c + 0.055) / 1.055) ** 2.4 for c in channels]
     return 0.2126 * linear[0] + 0.7152 * linear[1] + 0.0722 * linear[2]
 
 
