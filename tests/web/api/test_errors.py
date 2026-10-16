@@ -490,6 +490,11 @@ REFUSALS: dict[str, tuple[str, Callable[[Example], dict], str]] = {
         _typed("T + 25*P"),
         "The limit 'T + 25*P' is not an inequality: write it as one, such as 2*T + P <= 10.",
     ),
+    "a sum with no comparison, in a brief of one numeric factor": (
+        "api_limits",
+        _typed("T + 25", factors=[FACTORS[0], WITH_SUPPLIER[2]]),
+        "The limit 'T + 25' is not an inequality: write it as one, such as 2*T <= 10.",
+    ),
     "an equality": (
         "api_limits",
         _typed("T == 175"),
