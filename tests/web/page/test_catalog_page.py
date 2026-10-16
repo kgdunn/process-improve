@@ -48,11 +48,14 @@ def test_every_file_the_catalog_loads_is_published(build_script):
     imported = set(re.findall(r'from "\./([^"]+)"', source("catalog.js")))
     fetched = set(re.findall(r'fetch\(app\(`?"?([\w./-]+)', source("catalog.js")))
     assert {"style.css", "catalog.js", "."} <= loaded, "the page's stylesheet, its script, and the app"
-    assert {"campaign.js", "charts.js", "catalog-logic.js"} <= imported
-    assert fetched == {"catalog/index.json", "wheels/manifest.json", "catalog/detail/"}
+    assert {"campaign.js", "charts.js", "catalog-logic.js", "catalog-views.js"} <= imported
+    assert set(re.findall(r'from "\./([^"]+)"', source("catalog-views.js"))) == {"catalog-logic.js"}
+    assert fetched == {"catalog/index.json", "wheels/manifest.json", "catalog/detail/", "catalog/errata.json"}
     assert source("catalog.js").count("fetch(") == len(fetched), "every fetch goes through app()"
     assert not any(ref.startswith("/") for ref in refs | fetched), "an absolute address breaks on GitHub Pages"
-    assert (loaded - {"."}) | imported <= set(build_script.APP_FILES)
+    written = {"catalog/feed.xml"}  # by write_catalog, beside the index
+    assert written <= loaded, "the page links to the feed of new sources"
+    assert (loaded - {"."} - written) | imported <= set(build_script.APP_FILES)
     assert "app.js" not in imported, "importing app.js would start the app's Python worker"
 
 
@@ -65,6 +68,7 @@ def test_the_catalog_names_its_own_address_for_a_link_card():
     page = source(PAGE)
     assert '<link rel="canonical" href="https://factori.al/catalog/">' in page
     assert '<meta property="og:url" content="https://factori.al/catalog/">' in page
+    assert '<link rel="alternate" type="application/atom+xml"' in page, "a feed reader finds the feed from the page"
 
 
 def _run(code: str) -> dict:

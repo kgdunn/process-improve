@@ -296,3 +296,41 @@ def test_the_list_of_saved_designs_says_how_many_store_js_keeps():
     keep = re.search(r"export const KEEP = (\d+);", source("store.js"))
     assert keep
     assert f"The {keep.group(1)} most recent are kept." in " ".join(source("index.html").split())
+
+
+def test_the_limits_on_the_settings_are_held_as_bootstrap_holds_them(bootstrap, node):
+    """The most limits, the longest note and limit, the designs that keep to them, and the signs read as operators."""
+    asked = ["MAX_CONSTRAINTS", "NOTE_LENGTH", "EXPRESSION_LENGTH", "REGION_DESIGNS", "LIMIT_SYMBOLS"]
+    got = javascript(node, source("logic.js"), [(name, []) for name in asked])
+    assert got == [
+        bootstrap.MAX_CONSTRAINTS,
+        bootstrap.NOTE_LENGTH,
+        bootstrap.MAX_EXPRESSION_LENGTH,
+        list(bootstrap.REGION_DESIGNS),
+        {chr(code): op for code, op in bootstrap._SYMBOLS.items()},
+    ]
+    held = {
+        "count": bootstrap.MAX_CONSTRAINTS,
+        "expression": bootstrap.MAX_EXPRESSION_LENGTH,
+        "note": bootstrap.NOTE_LENGTH,
+    }
+    assert javascript(node, source("campaign.js"), [("LIMITS_HELD", [])]) == [held], "a saved study is checked alike"
+
+
+def test_a_limit_s_key_is_the_same_as_typed_and_as_python_writes_it(api, node):
+    """A run sheet is keyed to its limits as typed; the text Python gives back for each must key the same."""
+    typed = [
+        "T+25*P<=250",
+        "T \u2264 190",
+        "T^2/100 + P <= 400",
+        "250>=T+25*P",
+        "400<=3*T+5*P<=600",
+        "sqrt(T)+P<=15",
+        "T*F <= 3600",
+        "0.04*T + F/2 <= 14.5",
+    ]
+    reply = api.ok("api_limits", {"factors": FACTORS, "constraints": [{"expression": text} for text in typed]})
+    names = [f["name"] for f in FACTORS]
+    stored = [entry["expression"] for entry in reply["constraints"]]
+    keys = javascript(node, source("logic.js"), [("positional", [text, names]) for text in [*typed, *stored]])
+    assert keys[: len(typed)] == keys[len(typed) :]

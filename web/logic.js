@@ -412,13 +412,264 @@ export const TITLES = {
 
 /** What each chart shows and how to read it; some name the factors drawn. */
 export const CAPTIONS = {
-  contour: (pair) =>
-    `Drawn over ${pair.join(" and ")}, the two factors with the largest main effects, with the others at their ` +
-    "center; the dots are the runs.",
+  /**
+   * With limits on the settings the surface is greyed where a setting cannot be run, and when the
+   * center of the ranges cannot be run, the others are held at a central setting that can (``held``,
+   * in their own units).
+   */
+  contour: (pair, { shaded = false, held = [], factors = [] } = {}) => {
+    const units = Object.fromEntries(factors.map((f) => [f.name, f.units ?? ""]));
+    const others = held.length
+      ? `, with ${listNames(held.map((h) => `${h.name} at ${inUnits(h.value, units[h.name])}`))}, since the center of ` +
+        "the ranges cannot be run"
+      : ", with the others at their center";
+    const grey = shaded ? "; grey: settings outside your limits" : "";
+    return `Drawn over ${pair.join(" and ")}, the two factors with the largest main effects${others}${grey}; the dots are the runs.`;
+  },
   true_contour: "The process the results were simulated from, on the same scale.",
   residuals: "A curve or a funnel points to a missing term or a changing noise level.",
   half_normal: "Effects far above the line, past Lenth's margin of error, are likely real.",
 };
+
+// ---------------------------------------------------------------- limits on the settings
+/** The most limits a study can have on its settings; mirrors bootstrap.MAX_CONSTRAINTS. */
+export const MAX_CONSTRAINTS = 8;
+
+/** The most characters of a limit's note, which the page shows beside it and never reads; mirrors bootstrap.NOTE_LENGTH. */
+export const NOTE_LENGTH = 80;
+
+/** The longest limit Python reads; mirrors process_improve.experiments.designs_constrained.MAX_EXPRESSION_LENGTH. */
+export const EXPRESSION_LENGTH = 500;
+
+/** The designs that keep every run inside limits on the settings; mirrors bootstrap.REGION_DESIGNS. */
+export const REGION_DESIGNS = ["d_optimal", "i_optimal"];
+
+/**
+ * What a reader may type or paste in a limit for an operator, and the operator a limit is written with;
+ * mirrors bootstrap._SYMBOLS: the signs for at most, at least and not equal, the minus sign and the en
+ * dash, the multiplication sign and the middle dot, the division sign, and ^ for a power, as a
+ * spreadsheet writes it.
+ */
+export const LIMIT_SYMBOLS = {
+  "≤": "<=",
+  "≥": ">=",
+  "≠": "!=",
+  "−": "-",
+  "–": "-",
+  "×": "*",
+  "·": "*",
+  "÷": "/",
+  "^": "**",
+};
+
+/**
+ * A limit's text in tokens, as Python reads it: a number (so the e of 1e5 is no name), a name, a
+ * run of spaces, or any other character. A name followed by "(" is a function's, such as sqrt.
+ */
+const TOKEN =
+  /(0[xXoObB][\dA-Fa-f_]+|(?:\d[\d_]*\.?[\d_]*|\.\d[\d_]*)(?:[eE][+-]?\d+)?[jJ]?)|([\p{ID_Start}_][\p{ID_Continue}]*)|(\s+)|([^])/gu;
+
+function limitTokens(text) {
+  const tokens = [...String(text).matchAll(TOKEN)].map(([whole, number, name, space]) => ({
+    text: whole,
+    kind: number ? "number" : name ? "name" : space ? "space" : "other",
+  }));
+  for (const [i, token] of tokens.entries()) {
+    const next = tokens.slice(i + 1).find((t) => t.kind !== "space");
+    token.called = token.kind === "name" && next?.text === "(";
+  }
+  return tokens;
+}
+
+/**
+ * A limit with each factor's name replaced by its place in the brief (#0, #1, ...), spaces dropped and
+ * typed signs read as the operators they stand for: what keys a run sheet to the limits it was made
+ * with. Renaming a factor leaves it as it was; changing a limit, or the order of the factors, does not.
+ */
+export function positional(expression, names) {
+  const read = Object.entries(LIMIT_SYMBOLS).reduce((text, [sign, op]) => text.replaceAll(sign, op), String(expression));
+  return limitTokens(read)
+    .filter((t) => t.kind !== "space")
+    .map((t) => (t.kind === "name" && !t.called && names.includes(t.text) ? `#${names.indexOf(t.text)}` : t.text))
+    .join("");
+}
+
+/**
+ * A limit with its factors renamed as ``names`` maps them (old name to new), all at once, so a swap
+ * works; a function's name, such as sqrt, and the spacing typed are left as they were.
+ */
+export const renameLimit = (expression, names) =>
+  limitTokens(expression)
+    .map((t) => (t.kind === "name" && !t.called && Object.hasOwn(names, t.text) ? names[t.text] : t.text))
+    .join("");
+
+/** A straight limit written from its left side and its bounds, as a bound box rebuilds it; null for an open side. */
+export function withBounds(lhs, low, high) {
+  if (low !== null && high !== null) return `${low} <= ${lhs} <= ${high}`;
+  if (high !== null) return `${lhs} <= ${high}`;
+  return `${lhs} >= ${low}`;
+}
+
+/**
+ * Text with ``piece`` put in place of the selection from ``start`` to ``end``, set apart by a space from
+ * a name, a number or a bracket beside it, so a name tapped in after another does not join it; and where
+ * the caret goes after it.
+ */
+export function insertAt(text, start, end, piece) {
+  const before = text.slice(0, start);
+  const after = text.slice(end);
+  const lead = /[\p{ID_Continue})]$/u.test(before) ? " " : "";
+  const trail = /^[\p{ID_Continue}(]/u.test(after) ? " " : "";
+  const placed = `${lead}${piece}${trail}`;
+  return { text: `${before}${placed}${after}`, caret: start + lead.length + piece.length };
+}
+
+/**
+ * A percent to ``digits`` decimals, a half to the even neighbour. Rounding a half up writes an eighth and
+ * the seven eighths it leaves as 13% and 88%; to the even neighbour they are 12% and 88%, so a share and
+ * what it leaves always sum to 100%.
+ */
+function evenPercent(percent, digits) {
+  const scaled = percent * 10 ** digits;
+  const below = Math.floor(scaled);
+  const half = Math.abs(scaled - below - 0.5) < 1e-6;
+  return (half ? below + (below % 2) : Math.round(scaled)) / 10 ** digits;
+}
+
+/**
+ * A share of the factors' ranges as the page writes it: a whole percent, a tenth within 1% of none or of
+ * all, and never a false 0% or 100%. A share and what it leaves sum to 100%, so a lone limit's "rules out"
+ * agrees with the "leave" written beside it.
+ */
+export function shareText(share) {
+  if (share <= 0) return "none";
+  if (share < 0.001) return "less than 0.1%";
+  if (share > 0.999 && share < 1) return "more than 99.9%";
+  const digits = share < 0.01 || (share > 0.99 && share < 1) ? 1 : 0;
+  return `${evenPercent(100 * share, digits).toFixed(digits)}%`;
+}
+
+/**
+ * What one limit does over the factors' ranges, as the panel says it under the limit: the share it rules
+ * out and how many corners of the ranges, from api_limits' description of it. "" for a limit that cannot be
+ * read, which says its problem instead.
+ */
+export function limitEffect(entry, probes) {
+  if (entry.problem) return "";
+  if (entry.redundant === "alone") return "Rules out nothing within your ranges.";
+  if (entry.redundant === "others") return "Rules out nothing the other limits do not.";
+  // From here the limit rules out a part of the ranges, even one too thin for the sample or the rounding to see.
+  const share = `Rules out ${entry.removed > 0 ? shareText(entry.removed) : "less than 0.1%"} of your ranges`;
+  if (!probes || !entry.removes) return `${share}.`;
+  const corners = entry.removes.filter((row) => row !== probes.center).length;
+  const centre = entry.removes.includes(probes.center) ? ", and their center" : "";
+  return `${share}: ${corners || "none"} of the ${probes.center} corners${centre}.`;
+}
+
+/** A value in a factor's units, as the panel writes it: four significant figures, and the units after. */
+const inUnits = (value, units) => `${Number(Number(value).toPrecision(4))}${units ? ` ${units}` : ""}`;
+
+/**
+ * What all the limits leave of the factors' ranges, a sentence each, from api_limits' reply: the share
+ * kept, whether the center of the ranges can still be run, and each range they narrow, in the factors'
+ * units. Each is ``{text, error}``. A refusal that holds the brief back comes first, unless it is a
+ * limit's own problem, which is said under that limit.
+ */
+export function limitsSummary(reply, factors) {
+  const read = reply.constraints.filter((c) => !c.problem);
+  const own = reply.constraints.some((c) => c.problem === reply.refusal);
+  const said = reply.refusal && !own ? [{ text: reply.refusal, error: true }] : [];
+  if (!read.length || reply.empty) return said;
+  // Some setting can be run, and a limit that rules out anything leaves less than all, however thin either part.
+  const cuts = read.some((c) => c.redundant !== "alone");
+  const kept =
+    reply.kept <= 0 ? "less than 0.1%" : cuts && reply.kept >= 1 ? "more than 99.9%" : shareText(reply.kept);
+  said.push({ text: `The limits leave ${kept} of your ranges to run.`, error: false });
+  if (!reply.center_allowed) said.push({ text: "The center of the ranges cannot be run.", error: false });
+  const units = Object.fromEntries(factors.map((f) => [f.name, f.units ?? ""]));
+  for (const b of reply.bounds ?? []) {
+    const u = units[b.name];
+    const text =
+      b.low !== null && b.high !== null
+        ? `So ${b.name} stays between ${inUnits(b.low, "")} and ${inUnits(b.high, u)}.`
+        : b.high !== null
+          ? `So ${b.name} never goes above ${inUnits(b.high, u)}.`
+          : `So ${b.name} never goes below ${inUnits(b.low, u)}.`;
+    said.push({ text, error: false });
+  }
+  return said;
+}
+
+/** A setting of the factors as the page names it: "T 200 degC, P 3 bar, F 10 L/min", each value to four figures. */
+export function settingLabel(values, columns, factors) {
+  const units = Object.fromEntries(factors.map((f) => [f.name, f.units ?? ""]));
+  return columns.map((name, j) => `${name} ${inUnits(values[j], units[name])}`).join(", ");
+}
+
+/** From this many numeric factors the table of corners can be narrowed, factor by factor, to the corners wanted. */
+export const FILTER_CORNERS_FROM = 5;
+
+/** The most rows of corners shown at once; more come on request. */
+export const CORNERS_SHOWN = 32;
+
+/**
+ * The rows of the table of corners a reader's filters leave: each factor ``"low"``, ``"high"`` or
+ * ``"any"`` (the default), by column. The centre is no corner, and is left to the caller.
+ */
+export function filterCorners(rows, columns, factors, filters = {}) {
+  const ends = Object.fromEntries(factors.map((f) => [f.name, f]));
+  return rows
+    .map((row, i) => [row, i])
+    .filter(([row]) =>
+      columns.every((name, j) => {
+        const want = filters[name] ?? "any";
+        return want === "any" || row[j] === (want === "low" ? ends[name].low : ends[name].high);
+      }),
+    )
+    .map(([, i]) => i);
+}
+
+/**
+ * The question asked of one factor when a proposed limit is adjusted from its corner: with the others
+ * held at the corner, how far the factor can go before the limit is met. From a factor's high end it
+ * "can go up to" the cut; from its low end it "must be at least" the cut.
+ */
+export const cutWords = (cut, factor) => (cut.at === factor.high ? "can go up to" : "must be at least");
+
+/** The settings a proposed limit rules out that the reader did not mark, and no limit rules out already. */
+export const alsoRuledOut = (proposal, marked, ruledOutBy) =>
+  (proposal.removes ?? []).filter((row) => !marked.includes(row) && !ruledOutBy[row]?.length);
+
+/** Up to this many corners a sentence names one by one; from more, the first two and how many others. */
+const CORNERS_NAMED = 3;
+
+/**
+ * Settings of the table of corners named in a sentence, by their rows of ``probes``. One corner is named
+ * by its settings. Corners that make up a face of the ranges are named by what they share ("the 2
+ * corners where T is 200 degC and P is 3 bar"), since that is how a reader marks them; other corners
+ * one by one, up to three. The center of the ranges comes last.
+ */
+export function cornersWords(rows, probes, factors) {
+  const units = Object.fromEntries(factors.map((f) => [f.name, f.units ?? ""]));
+  const { columns } = probes;
+  const corners = rows.filter((row) => row !== probes.center);
+  const label = (row) => settingLabel(probes.rows[row], columns, factors);
+  const parts = [];
+  if (corners.length === 1) parts.push(`the corner ${label(corners[0])}`);
+  if (corners.length > 1) {
+    const fixed = columns.filter((_, j) => new Set(corners.map((row) => probes.rows[row][j])).size === 1);
+    const at = (name) => `${name} is ${inUnits(probes.rows[corners[0]][columns.indexOf(name)], units[name])}`;
+    if (corners.length === 2 ** (columns.length - fixed.length)) {
+      parts.push(fixed.length ? `the ${corners.length} corners where ${listNames(fixed.map(at))}` : "every corner");
+    } else {
+      const named =
+        corners.length <= CORNERS_NAMED ? corners.map(label) : [...corners.slice(0, 2).map(label), `and ${corners.length - 2} more`];
+      parts.push(`the ${corners.length} corners (${named.join("; ")})`);
+    }
+  }
+  if (rows.includes(probes.center)) parts.push("the center of the ranges");
+  return parts.join(", and ");
+}
 
 // ---------------------------------------------------------------- colour mode
 /** The colour modes the switch in the header offers: the system's, light and dark, as the book's does. */

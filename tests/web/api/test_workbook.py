@@ -218,3 +218,13 @@ def test_a_categorical_factor_s_labels_go_through_the_workbook(api):
     assert [row[4] for row in read["rows"]] == [row[4] for row in design["rows"]], "each run keeps its label"
     analysis = api.ok("api_analyze", {"xlsx_base64": filled})
     assert "Supplier" in [c["term"] for c in analysis["coefficients"]]
+
+
+def test_a_design_s_limits_go_through_the_workbook(api):
+    limits = [{"expression": "T + 25*P <= 250", "note": "the product chars"}]
+    design = api.ok("api_make_design", {"design_type": "d_optimal", "factors": FACTORS, "constraints": limits})
+    read = api.ok("api_read_workbook", {"xlsx_base64": design["xlsx_base64"]})
+    assert read["spec"]["constraints"] == [
+        {"expression": "T + 25 * P <= 250", "type": "linear", "note": "the product chars"}
+    ]
+    assert read["spec"] == design["spec"]

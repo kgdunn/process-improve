@@ -10,7 +10,8 @@ import json
 
 import pytest
 
-from tests.web._support import factors_named, held_of
+from process_improve.experiments import DesignRegion, Factor
+from tests.web._support import FACTORS, factors_named, held_of, run_sheet
 
 pytest.importorskip("plotly", reason="the page installs plotly for its first chart")
 
@@ -60,3 +61,44 @@ def test_a_blocked_design_is_charted(api):
     responses = [float((i * 7) % 11) for i in range(design["n_runs"])]
     plots = api.ok("api_plots", {**held_of(design), "responses": responses})
     assert {"contour", "residuals"} <= set(plots["figures"])
+
+
+# --------------------------------------------------------------------------- limits on the settings
+def _limited(api, limit: str) -> tuple[dict, list[float]]:
+    """Make a D-optimal design inside a limit, and results that rise with T and P, so they are the factors plotted."""
+    design = api.ok(
+        "api_make_design", {"design_type": "d_optimal", "factors": FACTORS, "constraints": [{"expression": limit}]}
+    )
+    sheet = run_sheet(design)
+    responses = (50 + 3 * (sheet["T"] - 175) / 25 + 2 * (sheet["P"] - 2) + 0.1 * (sheet["F"] - 15) / 5).tolist()
+    return design, responses
+
+
+def test_a_design_with_limits_shades_the_settings_that_cannot_be_run(api):
+    design, responses = _limited(api, "T + 25 * P <= 250")
+    result = api.ok("api_plots", {**held_of(design), "responses": responses})
+    contour = json.loads(result["figures"]["contour"])
+    shading = next(trace for trace in contour["data"] if trace.get("name") == "Cannot be run")
+    assert contour["data"][0]["type"] == "contour", "the response stays the first trace, which the page restyles"
+    assert contour["data"].index(shading) > 0
+    assert shading["contours"]["type"] == "constraint"
+    assert "title" not in shading.get("colorbar", {}), "the shading has no scale to title"
+    assert contour["data"][0]["colorbar"]["title"]["text"] == "y"
+    assert (result["contour_factors"], result["shaded"], result["held"]) == (["T", "P"], True, [])
+
+
+def test_with_the_centre_ruled_out_the_others_are_held_at_a_setting_that_can_be_run(api):
+    """F is not plotted: it is held where the region's settings centre, and the reply says where, in L/min."""
+    limit = "T + 25 * P + 5 * F <= 290"
+    design, responses = _limited(api, limit)
+    result = api.ok("api_plots", {**held_of(design), "responses": responses})
+    region = DesignRegion([Factor(name=f["name"], low=f["low"], high=f["high"]) for f in FACTORS], [limit])
+    assert result["held"] == [{"name": "F", "value": pytest.approx(region.centroid()["F"])}]
+    assert result["held"][0]["value"] < 15, "the limit leaves more settings at low F"
+
+
+def test_a_design_without_limits_is_drawn_as_before(api, held, simulated):
+    result = api.ok("api_plots", {**held, "responses": simulated["responses"]})
+    contour = json.loads(result["figures"]["contour"])
+    assert all(trace.get("name") != "Cannot be run" for trace in contour["data"])
+    assert (result["shaded"], result["held"]) == (False, [])

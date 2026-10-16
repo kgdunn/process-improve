@@ -138,3 +138,85 @@ def test_the_comparison_under_pyodide_scores_as_native_python_does(pyodide, api)
         for key, value in native["values"][label].items():
             if isinstance(value, float):
                 assert under["values"][label][key] == pytest.approx(value, rel=1e-6, abs=1e-9), (label, key)
+
+
+# --------------------------------------------------------------------------- limits on the settings
+#: Limits on the worked example's settings: a straight one, with a note, and a curved one.
+LIMITS = [{"expression": "T + 25*P <= 250", "note": "the product chars"}, {"expression": "T * F <= 3600"}]
+
+
+def agree(under: object, native: object, at: str = "the reply") -> None:
+    """Assert two replies agree: the same keys, lists and texts, and the same numbers to rounding."""
+    if isinstance(native, dict):
+        assert isinstance(under, dict), at
+        assert under.keys() == native.keys(), at
+        for key, value in native.items():
+            agree(under[key], value, f"{at}.{key}")
+    elif isinstance(native, list):
+        assert isinstance(under, list), at
+        assert len(under) == len(native), at
+        for i, (u, n) in enumerate(zip(under, native, strict=True)):
+            agree(u, n, f"{at}[{i}]")
+    elif isinstance(native, float):
+        assert under == pytest.approx(native, rel=1e-6, abs=1e-9), at
+    else:
+        assert under == native, at
+
+
+def test_the_limits_are_read_and_pictured_as_native_python_reads_them(pyodide, api):
+    """The share kept (a fixed sample), the narrowed ranges (linprog), the corners and the picture, a slice traced."""
+    request = {"factors": FACTORS, "constraints": LIMITS, "slice": {"x": "T", "y": "P", "at": {"F": 18}}}
+    agree(pyodide.ok("api_limits", request), api.ok("api_limits", request))
+
+
+#: Straight limits whose shares are known exactly. The heat limit cuts an eighth off the T-P square and
+#: ``T + 10*F <= 325`` half the T-F square; the two share T and keep 11/24 of the box together. The band
+#: ``190 <= T + 25*P <= 260`` keeps 91% of the T-P square.
+EXACT = {
+    "chained": [{"expression": "T + 25*P <= 250"}, {"expression": "T + 10*F <= 325"}],
+    "band": [{"expression": "190 <= T + 25*P <= 260"}],
+}
+
+
+def test_a_straight_limit_s_share_is_worked_out_exactly_under_pyodide(pyodide, api):
+    """One limit by its closed form, a band between two parallel ones, and limits sharing T by Qhull's volume.
+
+    A share drawn from a sample would miss each of these values by far more than 1e-9.
+    """
+    under = {}
+    for name, limits in EXACT.items():
+        request = {"factors": FACTORS, "constraints": limits}
+        under[name] = pyodide.ok("api_limits", request)
+        agree(under[name], api.ok("api_limits", request), name)
+    assert [c["removed"] for c in under["chained"]["constraints"]] == [1 / 8, 1 / 2]
+    assert under["chained"]["kept"] == pytest.approx(11 / 24, abs=1e-9)
+    assert under["band"]["kept"] == 0.91
+
+
+@pytest.mark.parametrize("marked", [[7], [6, 7], [3, 6, 7], [0, 7], [4, 5, 6, 7, 8], [8]])
+def test_the_limit_proposed_for_corners_marked_is_native_python_s(pyodide, api, marked):
+    """The cut between the corners marked and the others (a least-distance plane), and its round numbers."""
+    request = {
+        "factors": FACTORS,
+        "constraints": [],
+        "marked": marked,
+        "cuts": {"marked": [7], "corner": 7, "values": [190, 2.5, None]},
+    }
+    agree(pyodide.ok("api_limits", request), api.ok("api_limits", request))
+
+
+@pytest.mark.parametrize("design_type", ["d_optimal", "i_optimal"])
+def test_a_design_inside_the_limits_is_native_python_s(pyodide, api, design_type):
+    request = {"design_type": design_type, "factors": FACTORS, "constraints": LIMITS}
+    under, native = (python.ok("api_make_design", request) for python in (pyodide, api))
+    np.testing.assert_allclose(numbers(under["rows"]), numbers(native["rows"]), rtol=1e-9)
+    assert under["spec"]["constraints"] == native["spec"]["constraints"]
+
+
+def test_the_comparison_inside_the_limits_scores_as_native_python_does(pyodide, api):
+    _, designs = generate_all(api, FACTORS, "main_quadratic", LIMITS[:1])
+    under, native = (
+        python.ok("api_compare", {"model": "main_quadratic", "designs": designs}) for python in (pyodide, api)
+    )
+    agree(under["values"], native["values"])
+    agree(under["fds"], native["fds"])

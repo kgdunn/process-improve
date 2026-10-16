@@ -74,6 +74,8 @@ These summarise the information matrix :math:`X^\top X` for the fitted model.
 - ``vif`` - variance inflation factor per term; how much each coefficient
   variance is inflated by non-orthogonality.
 - ``condition_number`` - conditioning of the model matrix.
+- ``scaled_condition_number`` - the same with each column scaled to unit length, so
+  the factors' units do not count: 1 for orthogonal columns.
 
 Term correlation
 ~~~~~~~~~~~~~~~~~

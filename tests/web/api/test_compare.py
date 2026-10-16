@@ -10,7 +10,7 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-from process_improve.experiments import compare_designs
+from process_improve.experiments import DesignRegion, Factor, compare_designs
 from tests.web._support import FACTORS, coded, factors_named, generate_all, held_of, run_sheet
 
 
@@ -145,3 +145,48 @@ def test_a_comparison_with_a_categorical_factor_offers_the_two_level_designs(api
     factors = [*FACTORS, {"name": "Supplier", "low": "A", "high": "B", "units": ""}]
     plan = api.ok("api_compare_plan", {"factors": factors, "model": "main_effects"})
     assert [d["design_type"] for d in plan["designs"]] == ["full_factorial", "fractional_factorial", "plackett_burman"]
+
+
+# --------------------------------------------------------------------------- limits on the settings
+#: The heat limit, which cuts the corner where T and P are both high off the worked example's box.
+LIMITS = [{"expression": "T + 25 * P <= 250"}]
+
+
+def _limited_designs(api) -> tuple[list[dict], list[dict]]:
+    """Make a comparison's designs with the heat limit, as Design makes them; return them, and what the page holds."""
+    plan = api.ok("api_compare_plan", {"factors": FACTORS, "model": "main_quadratic", "constraints": LIMITS})
+    made = [{**item, "design": api.ok("api_make_design", item["spec"])} for item in plan["designs"]]
+    return made, [{"label": m["label"], **held_of(m["design"])} for m in made]
+
+
+def test_with_limits_only_the_designs_that_keep_to_them_are_compared(api, bootstrap):
+    plan = api.ok("api_compare_plan", {"factors": FACTORS, "model": "main_quadratic", "constraints": LIMITS})
+    assert [d["design_type"] for d in plan["designs"]] == ["d_optimal", "i_optimal"]
+    for item in plan["designs"]:
+        assert item["spec"]["constraints"] == [{"expression": "T + 25 * P <= 250", "type": "linear"}]
+    assert plan["notes"][0] == bootstrap.LIMITED_DESIGNS
+
+
+def test_a_comparison_with_limits_is_scored_over_the_settings_that_can_be_run(api):
+    made, held = _limited_designs(api)
+    result = api.ok("api_compare", {"model": "main_quadratic", "designs": held})
+    region = DesignRegion(
+        [Factor(name=f["name"], low=f["low"], high=f["high"]) for f in FACTORS], [LIMITS[0]["expression"]]
+    )
+    runs = {m["label"]: coded(run_sheet(m["design"]), FACTORS) for m in made}
+    direct = compare_designs(runs, "main_quadratic", region=region)
+    for label in direct.designs:
+        for key, value in direct.values[label].items():
+            if isinstance(value, float):
+                assert result["values"][label][key] == pytest.approx(value, rel=1e-9), (label, key)
+    assert result["region"]["constraints"][0]["expression"] == "T + 25 * P <= 250"
+
+
+def test_a_comparison_with_limits_draws_its_fds_curves_over_the_settings_that_can_be_run(api):
+    _, held = _limited_designs(api)
+    over_region = api.ok("api_compare", {"model": "main_quadratic", "designs": held})
+    without = [{**h, "spec": {k: v for k, v in h["spec"].items() if k != "constraints"}} for h in held]
+    over_cube = api.ok("api_compare", {"model": "main_quadratic", "designs": without})
+    assert over_cube["region"] is None
+    for label, curve in over_region["fds"].items():
+        assert curve["variance"] != over_cube["fds"][label]["variance"], label

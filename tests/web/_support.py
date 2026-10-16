@@ -44,9 +44,13 @@ APP_SOURCES = (
     "catalog/index.html",
     "catalog.js",
     "catalog-logic.js",
+    "catalog-views.js",
     "style.css",
     "app.js",
     "logic.js",
+    "limits.js",
+    "corners.js",
+    "picture.js",
     "charts.js",
     "python.js",
     "campaign.js",
@@ -163,9 +167,14 @@ def held_of(design: dict) -> dict:
     return {"spec": design["spec"], "columns": design["columns"], "rows": design["rows"]}
 
 
-def generate_all(api: Api, factors: list[dict], model: str) -> tuple[list[dict], list[dict]]:
-    """Generate every design of a comparison as the page does, one call each; return them, and what the page holds."""
-    plan = api.ok("api_compare_plan", {"factors": factors, "model": model})
+def generate_all(
+    api: Api, factors: list[dict], model: str, constraints: list[dict] | None = None
+) -> tuple[list[dict], list[dict]]:
+    """Generate every design of a comparison as the page does, one call each; return them, and what the page holds.
+
+    With ``constraints``, the limits on the settings, only the designs that keep to them are made.
+    """
+    plan = api.ok("api_compare_plan", {"factors": factors, "model": model, "constraints": constraints or []})
     made = [{**item, "design": api.ok("api_make_design", item["spec"])} for item in plan["designs"]]
     return made, [{"label": m["label"], **held_of(m["design"])} for m in made]
 

@@ -1,9 +1,9 @@
 """The contract between the page's JavaScript and its Python: what each reply must hold.
 
-``web/app.js``, ``web/charts.js`` and ``web/python.js`` read the replies of ``web/bootstrap.py``
-key by key. A key renamed on one side and not the other breaks the page without breaking any
-Python, so ``READS`` lists every key the JavaScript reads and the type it expects, and each
-entry point's reply is checked against it.
+``web/app.js``, ``web/limits.js`` (with ``web/corners.js`` and ``web/picture.js``), ``web/charts.js``
+and ``web/python.js`` read the replies of ``web/bootstrap.py`` key by key. A key renamed on one side
+and not the other breaks the page without breaking any Python, so ``READS`` lists every key the
+JavaScript reads and the type it expects, and each entry point's reply is checked against it.
 """
 
 from __future__ import annotations
@@ -198,6 +198,103 @@ READS: dict[str, list[str]] = {
         "waiting[].label: str",
         "waiting[].design_type: str",
     ],
+    "design with limits": [
+        "spec.constraints[].expression: str",
+        "spec.constraints[].type: str",
+        "facts.notes[]: str",
+    ],
+    "limits": [
+        "constraints[].expression: str",
+        "constraints[].note: str",
+        "constraints[].type: str",
+        "constraints[].removed: number",
+        "constraints[].removes: list",
+        "constraints[].redundant: str?",
+        "constraints[].linear.lhs: str",
+        "constraints[].linear.low: number?",
+        "constraints[].linear.high: number?",
+        "probes.center: int",
+        "probes.columns[]: str",
+        "probes.rows[].[]: number",
+        "probes.ruled_out_by[]: list",
+        "kept: number",
+        "empty: bool",
+        "center_allowed: bool",
+        "bounds[].name: str",
+        "bounds[].low: number?",
+        "bounds[].high: number?",
+        "refusal: str?",
+    ],
+    "limits with a problem": [
+        "constraints[].expression: str",
+        "constraints[].problem: str",
+        "refusal: str",
+    ],
+    "limits proposed": [
+        "proposals[].marked[]: int",
+        "proposals[].expression: str",
+        "proposals[].removes: list",
+        "proposals[].removed: number",
+        "proposals[].corner: int?",
+        "proposals[].cuts[].name: str",
+        "proposals[].cuts[].at: number",
+        "proposals[].cuts[].cut: number?",
+        "adjusted.marked: list",
+        "adjusted.expression: str",
+        "adjusted.removes: list",
+        "adjusted.removed: number",
+        "adjusted.cuts[].cut: number?",
+    ],
+    "limits not proposed": [
+        "proposals[].marked: list",
+        "proposals[].problem: str",
+        "adjusted.problem: str",
+    ],
+    "picture": [
+        "picture.pairs[].x: str",
+        "picture.pairs[].y: str",
+        "picture.pairs[].shadow.kind: str",
+        "picture.pairs[].shadow.points: list",
+        "picture.pairs[].lines[].limit: int",
+        "picture.pairs[].lines[].points[].[]: number",
+        "picture.pairs[].trace: any?",
+        "picture.pairs[].curves: list",
+        "picture.shown[]: str",
+        "picture.center{}: number",
+        "slice.x: str",
+        "slice.y: str",
+        "slice.at{}: number",
+        "slice.region.kind: str",
+        "slice.region.points[].[]: number",
+        "slice.lines[].limit: int",
+        "slice.lines[].points[].[]: number",
+        "slice.trace: any?",
+        "slice.curves: list",
+    ],
+    "curved picture": [
+        "picture.pairs[].shadow.kind: str",
+        "picture.pairs[].shadow.x[]: number",
+        "picture.pairs[].shadow.y[]: number",
+        "picture.pairs[].shadow.z[]: list",
+        "picture.pairs[].trace.x[]: number",
+        "picture.pairs[].trace.y[]: number",
+        "picture.pairs[].trace.z[].[]: int",
+        "picture.pairs[].trace.crossings[].[]: number",
+        "picture.pairs[].curves[].limit: int",
+        "picture.pairs[].curves[].trace.z[].[]: int",
+        "picture.pairs[].curves[].trace.crossings[].[]: number",
+    ],
+    "curved slice": [
+        "slice.region.kind: str",
+        "slice.region.z[].[]: int",
+        "slice.trace.x[]: number",
+        "slice.trace.y[]: number",
+        "slice.trace.z[].[]: int",
+        "slice.trace.crossings[].[]: number",
+        "slice.curves[].limit: int",
+        "slice.curves[].trace.x[]: number",
+        "slice.curves[].trace.crossings[].[]: number",
+    ],
 }
 
 #: The entry point each reply comes from.
@@ -213,6 +310,14 @@ ENTRY_POINTS = {
     "upload": "api_read_workbook",
     "candidates": "api_candidates",
     "slow candidates": "api_candidates",
+    "design with limits": "api_make_design",
+    "limits": "api_limits",
+    "limits with a problem": "api_limits",
+    "limits proposed": "api_limits",
+    "limits not proposed": "api_limits",
+    "picture": "api_limits",
+    "curved picture": "api_limits",
+    "curved slice": "api_limits",
 }
 
 #: Entry points the page does not call: ``api_analyze`` analyses a workbook in one call, for the
@@ -220,6 +325,9 @@ ENTRY_POINTS = {
 #: analyses its runs. ``api_compare_plan`` and ``api_compare`` are the two halves of
 #: ``api_candidates``, which the page calls once for both.
 NOT_CALLED_BY_THE_PAGE = {"api_analyze", "api_compare_plan", "api_compare"}
+
+#: Two straight limits, one with a note: between them they narrow both ranges, so ``bounds`` has entries to read.
+LIMITS = [{"expression": "T + 25*P <= 215", "note": "the product chars"}, {"expression": "400 <= 3*T + 5*P <= 600"}]
 
 TYPES = {
     "int": lambda v: isinstance(v, int) and not isinstance(v, bool),
@@ -284,6 +392,32 @@ def reply(api, worked_example: dict[str, Any]) -> Callable[[str], dict]:
         "upload": upload,
         "candidates": lambda: {"factors": FACTORS, "model": "main_quadratic"},
         "slow candidates": slow,
+        "design with limits": lambda: {"design_type": "d_optimal", "factors": FACTORS, "constraints": LIMITS},
+        "limits": lambda: {"factors": FACTORS, "constraints": LIMITS},
+        "limits with a problem": lambda: {"factors": FACTORS, "constraints": [{"expression": "T + Z <= 3"}]},
+        "limits proposed": lambda: {
+            "factors": FACTORS,
+            "constraints": [],
+            "marked": [6, 7],
+            "cuts": {"marked": [6, 7], "corner": 6, "values": [180, 2.5, None]},
+        },
+        "limits not proposed": lambda: {
+            "factors": FACTORS,
+            "constraints": [],
+            "marked": [8],
+            "cuts": {"marked": [7], "corner": 7, "values": [200, None, None]},
+        },
+        "picture": lambda: {
+            "factors": FACTORS,
+            "constraints": [{"expression": "T + 25*P <= 250"}],
+            "slice": {"x": "T", "y": "P", "at": {"F": 15}},
+        },
+        "curved picture": lambda: {"factors": FACTORS[:2], "constraints": [{"expression": "T * P <= 450"}]},
+        "curved slice": lambda: {
+            "factors": FACTORS,
+            "constraints": [{"expression": "T * F <= 3000"}],
+            "slice": {"x": "T", "y": "F", "at": {"P": 2}},
+        },
     }
     return functools.cache(lambda kind: api.ok(ENTRY_POINTS[kind], requests[kind]()))
 
@@ -316,8 +450,12 @@ def test_each_measure_has_a_cell_for_each_design(reply):
         assert label in comparison["notes"], label
 
 
+#: The page's modules that call Python.
+CALLERS = ("app.js", "limits.js")
+
+
 def test_the_page_calls_only_entry_points_this_contract_covers(bootstrap):
-    called = set(re.findall(r'call\("(api_\w+)"', source("app.js")))
+    called = {fn for module in CALLERS for fn in re.findall(r'call\("(api_\w+)"', source(module))}
     defined = {name for name in dir(bootstrap) if name.startswith("api_")}
     assert called <= defined, "app.js calls an entry point bootstrap.py does not define"
     assert called == set(ENTRY_POINTS.values()), "a new call from app.js needs its READS here"

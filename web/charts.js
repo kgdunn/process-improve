@@ -340,7 +340,8 @@ export const prettyTerm = (term) => term.replace(/I\((\w+) \*\* 2\)/g, "$1²").r
  * of the noise variance, sorted over points spread evenly through the cube. The right end
  * of a curve is its worst case, G.
  */
-export function fdsFigure(fds) {
+export function fdsFigure(fds, { region = false } = {}) {
+  const over = region ? "the settings you can run" : "the cube"; // with limits, the curves are over what they leave
   const data = Object.entries(fds).map(([label, curve]) => ({
     type: "scatter",
     mode: "lines",
@@ -348,12 +349,12 @@ export function fdsFigure(fds) {
     x: curve.fraction,
     y: curve.variance,
     line: { width: 2 },
-    hovertemplate: `${label}: %{y:.3g} or less over %{x:.0%} of the cube<extra></extra>`,
+    hovertemplate: `${label}: %{y:.3g} or less over %{x:.0%} of ${over}<extra></extra>`,
   }));
   return {
     data,
     layout: {
-      xaxis: { title: { text: "Fraction of the cube" }, tickformat: ".0%", range: [0, 1] },
+      xaxis: { title: { text: `Fraction of ${over}` }, tickformat: ".0%", range: [0, 1] },
       yaxis: { title: { text: "Prediction variance / σ²" }, rangemode: "tozero" },
       showlegend: true,
     },

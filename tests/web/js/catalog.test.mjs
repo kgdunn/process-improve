@@ -5,8 +5,25 @@ import assert from "node:assert/strict";
 import { describe, test } from "node:test";
 
 import {
+  COMPARE_MOST,
   DEFAULT_STATE,
   checkIndex,
+  compareRefusal,
+  compareRows,
+  correlationMap,
+  errataCounts,
+  errataShown,
+  familyMarks,
+  largestSecondOrderR,
+  markInSource,
+  nextSteps,
+  projected,
+  projectionSummary,
+  projectionText,
+  rank,
+  sharedModel,
+  shownValue,
+  toggled,
   checkLine,
   csvText,
   decodeGlyph,
@@ -244,8 +261,8 @@ describe("the filters", () => {
 
   test("the year bars count published designs only, in bins of five years", () => {
     const bins = yearBins(CATALOG, state());
-    assert.deepEqual(bins[0], { from: 1975, to: 1979, count: 1 });
-    assert.deepEqual(bins.at(-1), { from: 2010, to: 2014, count: 1 });
+    assert.deepEqual(bins[0], { from: 1975, to: 1979, count: 1, families: { full_factorial: 1 } });
+    assert.deepEqual(bins.at(-1), { from: 2010, to: 2014, count: 1, families: { dsd: 1 } });
     assert.equal(bins.reduce((n, b) => n + b.count, 0), 2);
   });
 });
@@ -268,8 +285,12 @@ describe("the address", () => {
       projectivity: 2,
       sort: "newest",
       design: "pilot-plant",
+      source: "jn",
+      unprinted: true,
+      compare: ["lib-ccd-k3", "pilot-plant"],
+      view: "compare",
     });
-    assert.deepEqual(fromHash(toHash(chosen), CATALOG.families), chosen);
+    assert.deepEqual(fromHash(toHash(chosen), CATALOG.families, CATALOG.sources), chosen);
   });
 
   test("anything the page did not write is ignored", () => {
@@ -283,6 +304,10 @@ describe("the address", () => {
     assert.equal(read.blocked, false);
     assert.equal(read.projection, 0);
     assert.equal(read.projectivity, 0);
+    const more = fromHash("#src=nobody&cmp=a,../b,a,c,d,e,f&view=everything", CATALOG.families, CATALOG.sources);
+    assert.equal(more.source, "");
+    assert.deepEqual(more.compare, ["a", "c", "d", "e"], "valid ids, once each, four at most");
+    assert.equal(more.view, "");
   });
 });
 
@@ -383,5 +408,162 @@ describe("what a design is copied as", () => {
     assert.throws(() => checkIndex({ version: 2, fields: INDEX_FIELDS, designs: [] }), /format 2/);
     assert.throws(() => checkIndex({ version: 1, fields: ["id"], designs: [] }), /fields/);
     assert.deepEqual(checkIndex({ version: 1, fields: INDEX_FIELDS, designs: [] }).designs, []);
+  });
+});
+
+// ---------------------------------------------------------------- phase 3: the views over the list
+const CUBE = [[-1, -1, -1], [1, -1, -1], [-1, 1, -1], [1, 1, -1], [-1, -1, 1], [1, -1, 1], [-1, 1, 1], [1, 1, 1]];
+const HALF = [[-1, -1, 1], [1, -1, -1], [-1, 1, -1], [1, 1, 1]];
+const FACES = [[-1, 0, 0], [1, 0, 0], [0, -1, 0], [0, 1, 0], [0, 0, -1], [0, 0, 1]];
+const CCD = [...CUBE, ...FACES, [0, 0, 0], [0, 0, 0], [0, 0, 0]];
+
+describe("which designs no source prints", () => {
+  test("a generated design of a published design's class is printed; one of no such class is a gap", () => {
+    const designs = markInSource([
+      design({ id: "printed", design_class: "cube" }),
+      design({ id: "made-too", collection: "generated", design_class: "cube" }),
+      design({ id: "only-made", collection: "generated", design_class: "omars" }),
+      design({ id: "no-class", collection: "generated", design_class: null }),
+    ]);
+    assert.deepEqual(designs.map((d) => d.in_source), [true, true, false, false]);
+    const catalog = { ...CATALOG, designs };
+    assert.deepEqual(ids(results(catalog, state({ unprinted: true }))), ["only-made", "no-class"]);
+    assert.deepEqual(ids(results(catalog, state({ query: "gaps" }))), ["only-made", "no-class"]);
+  });
+
+  test("a source keeps its own designs", () => {
+    assert.deepEqual(ids(results(CATALOG, state({ source: "jn" }))), ["dsd-categorical"]);
+  });
+});
+
+describe("designs side by side", () => {
+  const catalog = {
+    ...CATALOG,
+    designs: [
+      design({ id: "a", compared: true }),
+      design({ id: "b", compared: true }),
+      design({ id: "c", compared: true, n_factors: 4 }),
+      design({ id: "d", compared: false }),
+    ],
+  };
+
+  test("a design joins when it is scored, has the others' factors, and there is room", () => {
+    assert.equal(compareRefusal(catalog, [], "a"), "");
+    assert.equal(compareRefusal(catalog, ["a"], "b"), "");
+    assert.match(compareRefusal(catalog, ["a"], "c"), /have 3 factors, and this one has 4/);
+    assert.match(compareRefusal(catalog, [], "d"), /all numeric/);
+    assert.match(compareRefusal(catalog, ["a", "b", "a", "b"], "b"), new RegExp(`${COMPARE_MOST} designs at most`));
+    assert.deepEqual(toggled(["a", "b"], "a"), ["b"]);
+    assert.deepEqual(toggled(["b"], "a"), ["b", "a"]);
+  });
+
+  test("the comparison opens on the largest model every design fits", () => {
+    const fits = (m, i, q) => ({ main_effects: { fits: m }, interactions: { fits: i }, quadratic: { fits: q } });
+    assert.equal(sharedModel([fits(true, true, true), fits(true, true, false)]), "interactions");
+    assert.equal(sharedModel([fits(true, true, true)]), "quadratic");
+    assert.equal(sharedModel([fits(false, false, false)]), "main_effects");
+  });
+
+  test("values are printed as compare_designs prints its table", () => {
+    const values = { runs: 17, fits: true, residual_df: 7, d: 7.02, e: 2, i: 0.3234, power_main: null, rank: 10 };
+    assert.equal(shownValue("runs", values), "17");
+    assert.equal(shownValue("fits", values), "yes");
+    assert.equal(shownValue("fits", { ...values, fits: false, rank: 7 }), "no (rank 7)");
+    assert.equal(shownValue("d", values), "7.020");
+    assert.equal(shownValue("e", values), "2.000");
+    assert.equal(shownValue("i", values), "0.3234");
+    assert.equal(shownValue("power_main", values), "");
+    const measures = [{ key: "runs", label: "Runs", direction: "" }, { key: "i", label: "I", direction: "lower" }];
+    const rows = compareRows(measures, [{ quadratic: values }, { quadratic: { runs: 9, i: 0.5 } }], "quadratic");
+    assert.deepEqual(rows.map((r) => [r.label, r.arrow, r.cells]), [["Runs", "", ["17", "9"]], ["I", "↓", ["0.3234", "0.5000"]]]);
+  });
+});
+
+describe("a design's projections", () => {
+  test("the rank of a matrix", () => {
+    assert.equal(rank([[1, 0, 0], [0, 1, 0], [0, 0, 1]]), 3);
+    assert.equal(rank([[1, 2], [2, 4], [3, 6]]), 1);
+    assert.equal(rank([]), 0);
+  });
+
+  test("runs that land on one setting are counted once, with their number", () => {
+    const points = projected(CCD, [0, 1]);
+    assert.equal(points.length, 9, "a 3-by-3 grid");
+    assert.equal(points.find((p) => p.point[0] === 0 && p.point[1] === 0).count, 5, "two face runs and three centre runs");
+  });
+
+  test("a central composite design fits the quadratic in any two factors; a two-level design does not", () => {
+    const ccd = projectionSummary(CCD, [0, 2]);
+    assert.deepEqual([ccd.distinct, ccd.terms, ccd.quadratic, ccd.allCorners], [9, 6, true, true]);
+    const cube = projectionSummary(CUBE, [1, 2]);
+    assert.deepEqual([cube.distinct, cube.rank, cube.quadratic], [4, 4, false]);
+    assert.equal(
+      projectionText(cube, ["B", "C"]),
+      "In B and C, the runs sit at 4 distinct settings and do not estimate the full quadratic in them: its 6 terms have rank 4. They hold all 4 corners: a full 2^2 factorial in these factors.",
+    );
+    assert.match(projectionText(projectionSummary(CCD, [0, 1, 2]), ["A", "B", "C"]), /15 distinct settings and estimate the full quadratic in them \(10 terms\)/);
+  });
+});
+
+describe("a design's correlations", () => {
+  test("a half fraction aliases each main effect with an interaction", () => {
+    const map = correlationMap(HALF, ["A", "B", "C"]);
+    const at = (a, b) => map.matrix[map.terms.indexOf(a)][map.terms.indexOf(b)];
+    assert.deepEqual(map.terms, ["A", "B", "C", "I(A ** 2)", "I(B ** 2)", "I(C ** 2)", "A:B", "A:C", "B:C"]);
+    assert.equal(at("A", "B:C"), 1);
+    assert.equal(at("A", "B"), 0);
+    assert.equal(at("I(A ** 2)", "A"), null, "the squares of a two-level design do not vary");
+    assert.equal(largestSecondOrderR(map), 0, "AB is C and AC is B: aliased with main effects, not with each other");
+  });
+
+  test("a full factorial's terms are uncorrelated; the face-centred CCD's are as compare_designs finds", () => {
+    assert.equal(largestSecondOrderR(correlationMap(CUBE, ["A", "B", "C"])), 0);
+    const ccd = correlationMap(CCD, ["A", "B", "C"]);
+    assert.ok(ccd.matrix.flat().every((r) => r !== null), "every term varies in a CCD");
+    assert.ok(Math.abs(largestSecondOrderR(ccd) - 0.5143) < 1e-4, "max |r| 0.5143, between two squares");
+  });
+});
+
+describe("the errata", () => {
+  const errata = [
+    { id: "a", source: "bhh", what: "variance", printed: "8.29", where: "p. 590", reason: "the square of a rounded value", rounding: true },
+    { id: "b", source: "bhh", what: "effect", printed: "-3.1", where: "p. 310", reason: "a misprint: the sign", rounding: false },
+    { id: "c", source: "jn", what: "D-efficiency", printed: "0.9", where: "p. 4", reason: "another method", rounding: false },
+  ];
+
+  test("by source, by reason and by words", () => {
+    assert.deepEqual(errataShown(errata).map((e) => e.id), ["a", "b", "c"]);
+    assert.deepEqual(errataShown(errata, { source: "bhh" }).map((e) => e.id), ["a", "b"]);
+    assert.deepEqual(errataShown(errata, { rounding: false }).map((e) => e.id), ["b", "c"]);
+    assert.deepEqual(errataShown(errata, { words: "Misprint 310" }).map((e) => e.id), ["b"]);
+    assert.deepEqual(errataCounts(errata), { bhh: 2, jn: 1 });
+  });
+});
+
+describe("the timeline and where a design leads", () => {
+  test("the families first published within the years the bars span are marked", () => {
+    const catalog = { ...CATALOG, families: { ...CATALOG.families, full_factorial: { label: "Full factorial", year: 1926 }, dsd: { label: "Definitive screening", year: 2011 } } };
+    const marks = familyMarks(catalog, yearBins(catalog, state()));
+    assert.deepEqual(marks, [{ family: "dsd", year: 2011, label: "Definitive screening" }]);
+    assert.deepEqual(familyMarks(catalog, []), []);
+  });
+
+  test("a step leads to the family's designs of at most as many factors, or at least as many for more factors", () => {
+    const catalog = {
+      ...CATALOG,
+      families: {
+        ...CATALOG.families,
+        full_factorial: {
+          label: "Full factorial",
+          next: [{ family: "ccd", how: "Add center + axial points" }, { family: "fractional_factorial", how: "Use a fraction for more factors" }],
+        },
+      },
+    };
+    const steps = nextSteps(CATALOG.designs[0], catalog);
+    assert.deepEqual(steps.map((s) => [s.label, s.hash]), [
+      ["Central composite", "#fam=ccd&k=-3"],
+      ["fractional_factorial", "#fam=fractional_factorial&k=3-"],
+    ]);
+    assert.deepEqual(nextSteps(CATALOG.designs[1], CATALOG), []);
   });
 });

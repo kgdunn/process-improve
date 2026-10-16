@@ -12,7 +12,7 @@ from __future__ import annotations
 
 import pytest
 
-from tests.web.e2e._page import generate, practise, reveal
+from tests.web.e2e._page import candidates_done, corners_done, generate, mark_corners, practise, reveal, type_limit
 
 #: The words of running text a reader sees inside ``root`` (the page when null): text in a paragraph, a
 #: hint, a caption, a list item or a banner, shown, and not inside a heading, label, button, table cell,
@@ -41,6 +41,8 @@ PROSE = r"""
 BUDGET = {
     "a first visit": 85,
     "the designs for a brief": 140,
+    "a brief with a limit": 240,
+    "a limit proposed from a corner": 270,
     "a new run sheet": 125,
     "practising": 150,
     "the worked example's analysis": 200,
@@ -70,6 +72,22 @@ def test_a_first_visit(fresh_page):
 @WINDOWS
 def test_the_designs_for_a_brief(blank_page):
     within_budget(blank_page, "the designs for a brief")
+
+
+@WINDOWS
+def test_a_brief_with_a_limit(blank_page):
+    """The limits panel open on a limit: what it rules out, the picture of what is left, and the corners to mark."""
+    type_limit(blank_page, "T + 25 * P <= 250")
+    candidates_done(blank_page)
+    within_budget(blank_page, "a brief with a limit")
+
+
+@WINDOWS
+def test_a_limit_proposed_from_a_corner(blank_page):
+    type_limit(blank_page, "T + 25 * P <= 250")
+    corners_done(blank_page)
+    mark_corners(blank_page, 3)
+    within_budget(blank_page, "a limit proposed from a corner")
 
 
 @WINDOWS

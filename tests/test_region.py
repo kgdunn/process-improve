@@ -2,8 +2,13 @@
 
 from __future__ import annotations
 
+import doctest
+import importlib
 import itertools
 import math
+import time
+import tracemalloc
+from fractions import Fraction
 
 import numpy as np
 import pytest
@@ -13,6 +18,7 @@ from scipy.spatial import ConvexHull, QhullError
 
 from process_improve.experiments import Constraint, DesignRegion, Factor, rename_factors
 from process_improve.experiments import _region_geometry as geometry
+from process_improve.experiments._region_geometry import box_share
 from process_improve.experiments.designs import _as_constraints
 from process_improve.experiments.factor import as_constraints
 
@@ -60,6 +66,14 @@ class TestConstraintsAsText:
         with pytest.raises(TypeError, match="Constraint, a dict or an expression string"):
             DesignRegion(HEAT_FACTORS, [42])  # type: ignore[list-item]
 
+    @pytest.mark.parametrize("alone", ["T <= 140", {"expression": "T <= 140"}, Constraint(expression="T <= 140")])
+    def test_a_single_limit_outside_a_list_is_refused_with_the_fix(self, alone):
+        """Iterated, a string gives its characters and a dict its keys: the error would blame a limit named 'T'."""
+        with pytest.raises(TypeError, match=r"wrap a single limit in a list: \["):
+            DesignRegion(HEAT_FACTORS, alone)  # type: ignore[arg-type]
+        with pytest.raises(TypeError, match="wrap a single limit in a list"):
+            as_constraints(alone)  # type: ignore[arg-type]
+
     def test_the_designs_module_keeps_the_old_name(self):
         assert _as_constraints is as_constraints
         assert as_constraints(None) is None
@@ -68,6 +82,15 @@ class TestConstraintsAsText:
         region = DesignRegion(HEAT_FACTORS, [HEAT])
         again = DesignRegion.from_dict(region.to_dict())
         assert again.constraints == region.constraints
+
+    def test_a_dict_takes_every_form_the_constructor_takes(self):
+        factors = [f.model_dump(mode="json") for f in HEAT_FACTORS]
+        written = DesignRegion.from_dict({"factors": factors, "constraints": [HEAT, {"expression": "T <= 140"}]})
+        assert [c.expression for c in written.constraints] == [HEAT, "T <= 140"]
+        for missing in ({"factors": factors}, {"factors": factors, "constraints": None}):
+            assert DesignRegion.from_dict(missing).constraints == []
+        with pytest.raises(TypeError, match="Constraint, a dict or an expression string"):
+            DesignRegion.from_dict({"factors": factors, "constraints": [3]})
 
 
 # ---------------------------------------------------------------------------
@@ -246,7 +269,7 @@ def linear_regions(draw, max_factors: int = 4, max_limits: int = 4):
 
 class TestVolumeFraction:
     def test_the_heat_limit_keeps_five_eighths_of_the_box(self):
-        assert DesignRegion(HEAT_FACTORS, [HEAT]).volume_fraction() == pytest.approx(0.625, abs=0.005)
+        assert DesignRegion(HEAT_FACTORS, [HEAT]).volume_fraction() == 0.625, "exact, as for every straight limit"
 
     def test_a_circle_keeps_a_quarter_of_pi(self):
         kept = DesignRegion(UNIT_SQUARE, ["A**2 + B**2 <= 1"]).volume_fraction()
@@ -263,9 +286,10 @@ class TestVolumeFraction:
         assert DesignRegion(HEAT_FACTORS).volume_fraction() == 1.0
         assert DesignRegion(HEAT_FACTORS, ["T <= 110", "T >= 140"]).volume_fraction() == 0.0
 
-    def test_another_sample_size(self):
-        kept = DesignRegion(HEAT_FACTORS, [HEAT]).volume_fraction(n_samples=1000)
-        assert kept == pytest.approx(0.625, abs=0.01)
+    def test_another_sample_size_for_a_curved_limit(self):
+        kept = DesignRegion(UNIT_SQUARE, ["A**2 + B**2 <= 1"]).volume_fraction(n_samples=1000)
+        assert kept == pytest.approx(math.pi / 4, abs=0.01)
+        assert DesignRegion(HEAT_FACTORS, [HEAT]).volume_fraction(n_samples=1000) == 0.625, "a straight one is exact"
 
     def test_a_sample_size_below_one_is_refused(self):
         with pytest.raises(ValueError, match="at least 1"):
@@ -293,7 +317,149 @@ class TestVolumeFraction:
             exact = ConvexHull(vertices).volume / np.prod(highs - lows) if len(vertices) > len(lows) else 0.0
         except QhullError:  # a flat region: no volume
             exact = 0.0
-        assert DesignRegion(factors, expressions).volume_fraction() == pytest.approx(exact, abs=0.005)
+        assert DesignRegion(factors, expressions).volume_fraction() == pytest.approx(exact, abs=1e-9)
+
+
+#: Eight factors from -1 to +1, so a setting and its coded value agree.
+UNITS = [Factor(name=n, low=-1, high=1) for n in "ABCDEFGH"]
+
+
+def irwin_hall(m: int, t: float) -> float:
+    """Return the chance that the sum of ``m`` uniforms on [0, 1] is at most ``t``, in exact fractions."""
+    terms = (Fraction((-1) ** j * math.comb(m, j)) * (Fraction(t) - j) ** m for j in range(math.floor(t) + 1))
+    return float(sum(terms, Fraction(0)) / math.factorial(m))
+
+
+def hull_share(region: DesignRegion) -> float:
+    """Return the share of the box a region of straight limits leaves, from the hull of its vertices."""
+    coded = (region.vertices() - region._centre) / region._half
+    return ConvexHull(coded).volume / 2 ** len(region.names)
+
+
+class TestExactShare:
+    """With straight limits only, the share of the box is exact: in closed form, or from the polytope's hull."""
+
+    def test_a_corner_cut_off_is_exact_where_a_sample_is_not(self):
+        factors = [
+            Factor(name="T", low=150, high=200),
+            Factor(name="P", low=1, high=3),
+            Factor(name="F", low=10, high=20),
+        ]
+        region = DesignRegion(factors, ["T + 25*P <= 250"])
+        assert region.volume_fraction() == 0.875
+        assert float(np.mean(region._sample_allowed())) != 0.875, "the fixed sample is close, not exact"
+
+    def test_a_chained_limit_is_exact(self):
+        region = DesignRegion(HEAT_FACTORS, ["500 <= 3*T + 5*D <= 600"])
+        assert region.volume_fraction() == pytest.approx(11 / 24, abs=1e-12)
+        assert region.volume_fraction() == pytest.approx(hull_share(region), abs=1e-9), "corners rounded to 12 figures"
+
+    def test_factors_no_limit_ties_together_multiply_their_shares(self):
+        region = DesignRegion(UNITS[:4], ["A + B <= 1", "C + D <= 0"])
+        assert region.volume_fraction() == 7 / 16, "7/8 of A and B, and half of C and D"
+        assert DesignRegion(UNITS, ["A + B <= 1"]).volume_fraction() == 7 / 8, "factors no limit names keep it all"
+
+    def test_one_limit_over_eight_factors_is_in_closed_form(self):
+        """The sum of eight coded factors at most 2 is the sum of eight uniforms on [0, 1] at most 5."""
+        region = DesignRegion(UNITS, ["A + B + C + D + E + F + G + H <= 2"])
+        assert region.volume_fraction() == pytest.approx(irwin_hall(8, 5), rel=1e-12)
+        assert DesignRegion(UNITS, ["2 <= A + B + C + D + E + F + G + H"]).volume_fraction() == pytest.approx(
+            1 - irwin_hall(8, 5), rel=1e-12
+        )
+        assert DesignRegion(UNITS, ["A - B + 0.5*C - 2*D <= 0.3"]).volume_fraction() == pytest.approx(
+            float(np.mean(DesignRegion(UNITS, ["A - B + 0.5*C - 2*D <= 0.3"]).feasible(_uniform(400_000, 8)))),
+            abs=0.003,
+        ), "signs and weights of every size"
+
+    def test_up_to_five_factors_under_several_limits_it_is_the_hull_volume(self):
+        region = DesignRegion(UNITS[:5], ["A + B + C <= 1", "C - D + E >= -1", "A - E <= 1.5"])
+        assert region._exact_share() is not None
+        assert region.volume_fraction() == pytest.approx(hull_share(region), abs=1e-9)
+
+    def test_six_factors_under_several_limits_are_sampled(self):
+        region = DesignRegion(UNITS[:6], ["A + B + C <= 1", "C - D + E >= -1", "A - F <= 1.5"])
+        assert region._exact_share() is None, "the hull would take tenths of a second"
+        assert region.volume_fraction() == pytest.approx(hull_share(region), abs=0.005)
+
+    def test_a_curved_limit_is_sampled(self):
+        assert DesignRegion(UNIT_SQUARE, ["A**2 + B**2 <= 1"])._exact_share() is None
+
+    @pytest.mark.parametrize(
+        ("ceiling", "exact"),
+        [
+            # Integrated in closed form over T, with P and F held to the lengths the two limits allow.
+            (3600, (500 + 95 + (810000 * math.log(10 / 9) - 79000) / 25) / 1000),
+            (3990, 0.875 - (2247.5 - 897750 * math.log(400 / 399)) / 25 / 1000),
+        ],
+    )
+    def test_beside_a_curved_limit_the_straight_share_stays_exact(self, ceiling, exact):
+        """The points count only what ``T*F <= ceiling`` takes from the heat limit's exact 7/8.
+
+        Counted over all of them, the share is off by about 2e-3 in both cases; the sliver
+        ``T*F <= 3990`` takes 1.3e-5, which the points miss altogether.
+        """
+        factors = [
+            Factor(name="T", low=150, high=200),
+            Factor(name="P", low=1, high=3),
+            Factor(name="F", low=10, high=20),
+        ]
+        region = DesignRegion(factors, ["T + 25*P <= 250", f"T*F <= {ceiling}"])
+        assert region._exact_share() is None
+        assert region.volume_fraction() == pytest.approx(exact, abs=1e-4)
+
+    def test_straight_limits_too_thin_for_any_point_leave_the_share_to_all_the_points(self):
+        # T within 0.0001 of its top is 2e-6 of the box: no point of the sample lies in it.
+        region = DesignRegion(HEAT_FACTORS, ["T >= 149.9999", "T * D <= 9000"])
+        assert region._straight_share() == pytest.approx(2e-6, rel=1e-6)
+        assert region.volume_fraction() == 0.0
+
+    def test_a_region_with_no_volume_keeps_nothing(self):
+        assert DesignRegion(HEAT_FACTORS, ["T <= 120", "T >= 120"]).volume_fraction() == 0.0, "a flat slab"
+        assert DesignRegion(UNITS[:3], ["A + B <= -1.5", "A - B >= 1.5"]).volume_fraction() == 0.0, "nothing left"
+        assert DesignRegion(UNITS[:3], ["A + B + C <= 3", "A + B <= -2"]).volume_fraction() == 0.0, "a corner only"
+
+    def test_the_share_is_had_fast_in_eight_factors(self):
+        start = time.perf_counter()
+        DesignRegion(UNITS, ["A + B + C + D + E + F + G + H <= 2"]).volume_fraction()
+        DesignRegion(UNITS, ["A + B <= 1", "C + D + E <= 0", "C - E <= 1", "F - G + H <= 0.5"]).volume_fraction()
+        assert time.perf_counter() - start < 2.0
+
+
+def _uniform(n: int, k: int) -> np.ndarray:
+    """Return ``n`` settings drawn uniformly from the coded box ``[-1, 1]^k``, with a fixed seed."""
+    return np.random.default_rng(7).uniform(-1, 1, (n, k))
+
+
+class TestBoxShare:
+    def test_rows_no_point_meets_and_rows_naming_no_factor(self):
+        assert box_share(np.zeros((1, 2)), np.array([-1.0])) == 0.0
+        assert box_share(np.zeros((1, 2)), np.array([0.5])) == 1.0, "0 <= 0.5 holds everywhere"
+        assert box_share(np.zeros((0, 2)), np.zeros(0)) == 1.0
+
+    def test_a_half_space_that_misses_the_box_or_holds_all_of_it(self):
+        row = np.array([[1.0, 0.0]])
+        assert box_share(row, np.array([-2.0])) == 0.0
+        assert box_share(row, np.array([2.0])) == 1.0
+        assert box_share(row, np.array([0.0])) == 0.5
+
+    def test_a_band_between_parallel_rows_and_one_with_no_width(self):
+        row = np.array([[1.0, 0.0], [-1.0, 0.0]])
+        assert box_share(row, np.array([0.5, 0.5])) == 0.5, "-0.5 <= x <= 0.5"
+        assert box_share(row, np.array([0.5, -0.5])) == 0.0, "0.5 <= x <= 0.5 has no width"
+        assert box_share(row[:1].repeat(2, axis=0), np.array([0.5, 0.0])) == 0.5, "the lower of two upper bounds"
+
+    @pytest.mark.parametrize(
+        ("name", "failure"),
+        [("box_vertices", ValueError("too many vertices")), ("ConvexHull", QhullError("a precision failure"))],
+    )
+    def test_a_polytope_whose_volume_cannot_be_had_leaves_the_share_to_the_sample(self, monkeypatch, name, failure):
+        def fail(*_args: object) -> None:
+            raise failure
+
+        monkeypatch.setattr(geometry, name, fail)
+        # Two rows that share the middle factor: the share would come from the polytope's volume.
+        a = np.array([[1.0, 1.0, 0.0], [0.0, 1.0, 1.0]]) / np.sqrt(2)
+        assert box_share(a, np.array([0.5, 0.5])) is None
 
 
 class TestIsEmpty:
@@ -436,6 +602,26 @@ class TestRedundantConstraints:
         assert DesignRegion(cat, ["2 <= 1", "3 <= 1"]).redundant_constraints() == [0, 1]
 
 
+class TestCurvedConstraints:
+    def test_straight_limits_are_not_curved_whatever_their_form(self):
+        straight = [HEAT, "600 >= 3*T + 5*D", "T <= 2*D", "400 <= 3*T + 5*D <= 600", "T/2 + D <= 90", "1 <= 2"]
+        assert DesignRegion(HEAT_FACTORS, straight).curved_constraints() == []
+
+    def test_a_chain_of_two_straight_comparisons_is_straight_though_it_has_no_one_affine_form(self):
+        region = DesignRegion(HEAT_FACTORS, ["D <= T <= 140"])
+        assert region.linear_forms() == [None]
+        assert region.curved_constraints() == []
+
+    def test_curved_limits_by_index(self):
+        limits = ["T * D <= 7000", HEAT, "sqrt(T) + D <= 50", "D <= T**2 / 300 <= 60"]
+        assert DesignRegion(HEAT_FACTORS, limits).curved_constraints() == [0, 2, 3]
+
+    def test_a_function_that_is_affine_over_the_box_is_straight(self):
+        """``abs(T)`` is ``T`` over a box where ``T`` is positive, as the design engines see it."""
+        assert DesignRegion(HEAT_FACTORS, ["abs(T) + D <= 180"]).curved_constraints() == []
+        assert DesignRegion(UNIT_SQUARE, ["abs(A) + B <= 1"]).curved_constraints() == [0]
+
+
 # ---------------------------------------------------------------------------
 # Affine forms of the limits
 # ---------------------------------------------------------------------------
@@ -481,8 +667,83 @@ class TestLinearForms:
         assert low is None
         assert high == 0.4
 
+    @pytest.mark.parametrize(
+        ("ranges", "expression", "form"),
+        [
+            ({"TK": (298, 348), "P": (1, 3)}, "TK + 0.01*P <= 340", ({"TK": 1.0, "P": 0.01}, None, 340.0)),
+            ({"Pa": (1e5, 2e5), "T": (20, 40)}, "Pa + 0.7*T <= 180000", ({"Pa": 1.0, "T": 0.7}, None, 180000.0)),
+            ({"A": (5, 9), "B": (1, 3)}, "20*A - 0.01*B <= 140", ({"A": 20.0, "B": -0.01}, None, 140.0)),
+            (
+                {"t": (1.7e9, 1.7e9 + 3600), "F": (0, 10)},
+                "t + 100*F <= 1700003000",
+                ({"t": 1.0, "F": 100.0}, None, 1.700003e9),
+            ),
+            ({"T": (100, 150), "D": (20, 60)}, "T <= 3e10", ({"T": 1.0}, None, 3e10)),  # was None: snapped against 3e10
+            ({"T": (100, 150), "D": (20, 60)}, "sqrt(4)*T - 2**-1*D <= 10**2*3", ({"T": 2.0, "D": -0.5}, None, 300.0)),
+        ],
+    )
+    def test_the_coefficients_are_the_ones_written(self, ranges, expression, form):
+        """A coded fit loses the digits of a term whose effect over the box is small next to the constant."""
+        factors = [Factor(name=n, low=lo, high=hi) for n, (lo, hi) in ranges.items()]
+        assert DesignRegion(factors, [expression]).linear_forms() == [form]
+
+    def test_round_coefficients_over_ordinary_ranges_come_back_as_written(self):
+        """One limit in twelve used to come back with residue such as 0.00999999999999."""
+        nice = [0.01, 0.02, 0.05, 0.1, 0.3, 0.7, 1, 2, 3, 7, 25, 100]
+        ranges = [(100, 150), (20, 60), (1, 3), (298, 348), (0.5, 2.5), (60, 600), (5, 9), (1000, 3000)]
+        rng = np.random.default_rng(1)
+        for _ in range(150):
+            (l1, h1), (l2, h2) = (ranges[i] for i in rng.choice(len(ranges), 2, replace=False))
+            c1, c2 = (float(nice[i]) for i in rng.integers(len(nice), size=2))
+            rhs = float(f"{c1 * (l1 + h1) / 2 - c2 * (l2 + h2) / 2:.3g}")
+            factors = [Factor(name="A", low=l1, high=h1), Factor(name="B", low=l2, high=h2)]
+            expression = f"{c1}*A - {c2}*B <= {rhs}"
+            assert DesignRegion(factors, [expression]).linear_forms() == [({"A": c1, "B": -c2}, None, rhs)], expression
+
+    def test_a_huge_constant_is_handled(self):
+        """The coded fit of ``T <= 1e300`` overflows; its rows then divided by a zero length."""
+        region = DesignRegion(HEAT_FACTORS, ["T <= 1e300"])
+        assert region.linear_forms() == [({"T": 1.0}, None, 1e300)]
+        assert not region.is_empty()
+        assert region.implied_bounds() == {"T": (100.0, 150.0), "D": (20.0, 60.0)}
+        assert region.redundant_constraints() == [0]
+
     def test_mixture_limits_have_forms_too(self):
         assert DesignRegion(MIXTURE, ["x0 + 2*x1 <= 0.8"]).linear_forms() == [({"x0": 1.0, "x1": 2.0}, None, 0.8)]
+
+    @pytest.mark.parametrize(
+        ("ranges", "expression"),
+        [
+            ({"A": (0, 1), "B": (0, 1)}, "A/B >= 10"),  # infinite (and 0/0) where B is 0
+            ({"A": (0, 1), "B": (0, 1)}, "0.5 <= A/B <= 2"),
+            ({"A": (100, 150), "B": (20, 60)}, "sqrt(A - 120) + B <= 70"),  # undefined below A = 120
+            ({"A": (-1, 1), "B": (-1, 1)}, "log(A) + B <= 0"),
+            ({"A": (-1, 3), "B": (0, 4)}, "sqrt(A) <= 5"),
+        ],
+    )
+    def test_a_limit_undefined_over_part_of_the_box_is_curved(self, ranges, expression):
+        """Where it cannot be evaluated it cannot be run, so no plane can stand in for it."""
+        region = DesignRegion([Factor(name=n, low=lo, high=hi) for n, (lo, hi) in ranges.items()], [expression])
+        with np.errstate(all="ignore"):
+            assert region.linear_forms() == [None]
+            with pytest.raises(ValueError, match="curved constraints"):
+                region.vertices()
+            assert region.shadow("A", "B")["kind"] == "mask"
+            assert region.slice_polygon("A", "B")["kind"] == "mask"
+            assert region.slice_lines("A", "B") == []
+            assert not region.is_empty()
+            assert region.redundant_constraints() == []  # each removes the settings where it is undefined
+
+    def test_a_ratio_limit_is_found_where_it_holds(self):
+        """``A/B >= 10`` keeps a thin wedge along B = 0; it used to be reported empty, with no shadow."""
+        region = DesignRegion([Factor(name="A", low=0, high=1), Factor(name="B", low=0, high=1)], ["A/B >= 10"])
+        with np.errstate(all="ignore"):
+            assert region.volume_fraction() == pytest.approx(0.05, abs=0.005)
+            assert not region.is_empty()
+            assert region.implied_bounds() == {"A": (0.0, 1.0), "B": (0.0, 1.0)}  # outer bounds: no linear limits
+            shadow = np.array(region.shadow("A", "B")["z"])
+            assert shadow.any()
+            assert not shadow[20:, :].any(), "nothing above B = 0.5 can be run"
 
 
 # ---------------------------------------------------------------------------
@@ -527,6 +788,35 @@ class TestVertices:
         coefficients = [[1, 1, 0], [-1, 25, 0], [1, 1, 0], [-0.4, 0, 1]]
         expected = _brute_vertices([150, 1, 10], [200, 3, 20], coefficients, [152, -125, 152, -50])
         assert _same_rows(region.vertices(), expected)
+
+    @pytest.mark.parametrize(
+        ("factors", "limit"),
+        [
+            ([Factor(name="Flow", low=1000, high=5000), Factor(name="Temp", low=50, high=90)], "Flow + 70*Temp <= 9e3"),
+            (HEAT_FACTORS, "30*T + 70*D <= 7000"),
+            ([*HEAT_FACTORS, Factor(name="F", low=1, high=7)], "120*T + 33*D + 450*F <= 17000"),
+        ],
+    )
+    def test_the_corners_it_reports_can_be_run_however_the_limit_is_scaled(self, factors, limit):
+        """Rounded to 12 figures, a corner lies up to 1e-12 off its boundary; times a steep limit's gradient, over 1e-9.
+
+        feasible() used to compare the limit's value in its own units with 1e-9, so the
+        corners of these regions, and the same limit divided by 100 did not, failed it.
+        """
+        region = DesignRegion(factors, [limit])
+        lhs, rhs = limit.split("<=")
+        scaled = DesignRegion(factors, [f"({lhs}) / 100 <= {rhs} / 100"])
+        for each in (region, scaled):
+            coded = (each.vertices() - each._centre) / each._half
+            assert each.feasible(coded).all()
+            x, y = each.names[:2]
+            at = {each.names[-1]: factors[-1].high} if len(factors) > 2 else None
+            corners = np.array(each.slice_polygon(x, y, at)["points"])
+            full = np.column_stack([corners, np.full(len(corners), factors[-1].high)]) if at else corners
+            assert each.feasible((full - each._centre) / each._half).all()
+        probes = np.random.default_rng(0).uniform(-1, 1, (2000, len(factors)))
+        probes = np.vstack([probes, (region.vertices() - region._centre) / region._half + 1e-11])
+        np.testing.assert_array_equal(region.feasible(probes), scaled.feasible(probes))
 
     @_settings
     @given(linear_regions())
@@ -588,6 +878,23 @@ class TestShadow:
         assert z[radius < 0.95].all()  # every cell well inside the circle holds a sampled point
         assert not z[radius > 1.05].any()
 
+    def test_a_mask_on_a_pair_after_the_first_two_factors(self):
+        """The shadow of the ellipsoid a**2/2 + b**2 + c**2 <= 1 (coded) on B and C is the unit disc there.
+
+        On A and B it is the wider ellipse a**2/2 + b**2 <= 1, so the columns cannot be mixed up unseen.
+        """
+        factors = [Factor(name="A", low=-1, high=1), Factor(name="B", low=0, high=4), Factor(name="C", low=10, high=20)]
+        region = DesignRegion(factors, ["A**2/2 + (B - 2)**2/4 + (C - 15)**2/25 <= 1"])
+        shadow = region.shadow("B", "C")
+        assert shadow["kind"] == "mask"
+        assert shadow["x"][:2] == [0.05, 0.15]
+        assert shadow["y"][:2] == [10.125, 10.375]
+        z = np.array(shadow["z"])
+        b, c = np.meshgrid((np.array(shadow["x"]) - 2) / 2, (np.array(shadow["y"]) - 15) / 5)
+        assert z[np.hypot(b, c) < 0.95].all()
+        assert not z[np.hypot(b, c) > 1.05].any()
+        np.testing.assert_array_equal(np.array(region.shadow("C", "B")["z"]), z.T)
+
     def test_a_mask_is_drawn_in_actual_units(self):
         factors = [Factor(name="A", low=0, high=4), Factor(name="B", low=10, high=12)]
         shadow = DesignRegion(factors, ["(A - 2)**2 + (B - 11)**2 <= 1"]).shadow("A", "B")
@@ -604,20 +911,22 @@ class TestShadow:
             DesignRegion(HEAT_FACTORS, [HEAT]).shadow(x, y)
 
     @_settings
-    @given(linear_regions())
-    def test_it_is_the_hull_of_the_projected_vertices_and_holds_every_allowed_point(self, case):
+    @given(linear_regions(), st.data())
+    def test_it_is_the_hull_of_the_projected_vertices_and_holds_every_allowed_point(self, case, data):
+        """On any ordered pair of factors, so a mix-up of the columns or their ranges shows."""
         factors, expressions, lows, highs, coefficients, rhs = case
+        pair = data.draw(st.lists(st.integers(0, len(factors) - 1), min_size=2, max_size=2, unique=True))
         region = DesignRegion(factors, expressions)
-        points = np.array(region.shadow("X0", "X1")["points"]).reshape(-1, 2)
+        points = np.array(region.shadow(f"X{pair[0]}", f"X{pair[1]}")["points"]).reshape(-1, 2)
         vertices = _brute_vertices(lows, highs, coefficients, rhs)
         if not len(vertices):
             assert not len(points)
             return
-        assert _is_hull_of(points, vertices[:, :2])
+        assert _is_hull_of(points, vertices[:, pair])
         # Every allowed point of a sample of the box falls inside the shadow.
         sample = lows + (highs - lows) * np.random.default_rng(0).random((4000, len(lows)))
         allowed = sample[np.all(sample @ coefficients.T <= rhs + 1e-12, axis=1)]
-        assert _inside_polygon(allowed[:, :2], points, tol=1e-6).all()
+        assert _inside_polygon(allowed[:, pair], points, tol=1e-6).all()
 
 
 class TestSlicePolygon:
@@ -686,21 +995,41 @@ class TestSlicePolygon:
             DesignRegion(TPF, ["T <= 190"]).slice_polygon("T", "P", at)
 
     @_settings
-    @given(linear_regions(max_factors=4), st.integers(0, 8))
-    def test_its_corners_meet_every_limit_and_it_is_the_clipped_rectangle(self, case, eighths):
-        """Held values on a grid of eighths: exact, so the boundary cases are decided the same way by both."""
+    @given(linear_regions(max_factors=4), st.integers(0, 8), st.data())
+    def test_its_corners_meet_every_limit_and_it_is_the_clipped_rectangle(self, case, eighths, data):
+        """Held values on a grid of eighths: exact, so the boundary cases are decided the same way by both.
+
+        The pair is any ordered pair of factors, so a mix-up of the columns or their ranges shows.
+        """
         factors, expressions, lows, highs, coefficients, rhs = case
+        pair = data.draw(st.lists(st.integers(0, len(factors) - 1), min_size=2, max_size=2, unique=True))
+        others = [j for j in range(len(factors)) if j not in pair]
         share = eighths / 8
         region = DesignRegion(factors, expressions)
-        held = lows[2:] + share * (highs[2:] - lows[2:])
-        at = {f"X{j + 2}": float(v) for j, v in enumerate(held)}
-        points = np.array(region.slice_polygon("X0", "X1", at)["points"]).reshape(-1, 2)
-        # The slice is {low <= (X0, X1) <= high, c[:2] @ p <= rhs - c[2:] @ held}: try every pair of boundaries.
-        expected = _brute_vertices(lows[:2], highs[:2], coefficients[:, :2], rhs - coefficients[:, 2:] @ held)
+        held = lows[others] + share * (highs[others] - lows[others])
+        at = {f"X{j}": float(v) for j, v in zip(others, held, strict=True)}
+        points = np.array(region.slice_polygon(f"X{pair[0]}", f"X{pair[1]}", at)["points"]).reshape(-1, 2)
+        # The slice is {low <= p <= high, c[pair] @ p <= rhs - c[others] @ held}: try every pair of boundaries.
+        reduced = rhs - coefficients[:, others] @ held
+        expected = _brute_vertices(lows[pair], highs[pair], coefficients[:, pair], reduced)
         assert _is_hull_of(points, expected)
-        full = np.column_stack([points, np.tile(held, (len(points), 1))])
+        full = np.zeros((len(points), len(factors)))
+        full[:, pair], full[:, others] = points, held
         assert np.all(full @ coefficients.T <= rhs + 1e-7)
-        assert np.all((points >= lows[:2] - 1e-9) & (points <= highs[:2] + 1e-9))
+        assert np.all((points >= lows[pair] - 1e-9) & (points <= highs[pair] + 1e-9))
+
+    def test_the_axes_follow_the_names_given(self):
+        region = DesignRegion(TPF, ["T + 25*P + 5*F <= 350"])
+        forward = region.slice_polygon("T", "P", {"F": 20})["points"]
+        swapped = region.slice_polygon("P", "T", {"F": 20})["points"]
+        assert swapped == [[1.0, 150.0], [3.0, 150.0], [3.0, 175.0], [2.0, 200.0], [1.0, 200.0]]
+        assert sorted(point[::-1] for point in swapped) == sorted(forward)
+
+    def test_a_pair_after_the_first_two_factors_uses_its_own_ranges(self):
+        """T and F, with P held: F runs from 10 to 20, where P runs from 1 to 3."""
+        region = DesignRegion(TPF, ["T + 5*F <= 250"])
+        assert region.slice_polygon("T", "F", {"P": 2})["points"] == [[150.0, 10.0], [200.0, 10.0], [150.0, 20.0]]
+        assert region.slice_polygon("F", "T")["points"] == [[10.0, 150.0], [20.0, 150.0], [10.0, 200.0]]
 
 
 class TestSliceLines:
@@ -720,6 +1049,13 @@ class TestSliceLines:
         region = DesignRegion(HEAT_FACTORS, ["560 <= 3*T + 5*D <= 600"])
         assert [line["limit"] for line in region.slice_lines("T", "D")] == [0, 0]
 
+    def test_lines_on_any_pair_in_either_order(self):
+        region = DesignRegion(TPF, ["T + 5*F <= 250"])
+        assert region.slice_lines("T", "F") == [{"limit": 0, "points": [[150.0, 20.0], [200.0, 10.0]]}]
+        assert region.slice_lines("F", "T") == [{"limit": 0, "points": [[10.0, 200.0], [20.0, 150.0]]}]
+        held = DesignRegion(TPF, ["T + 25*P + 5*F <= 350"])
+        assert held.slice_lines("P", "T", {"F": 20}) == [{"limit": 0, "points": [[2.0, 200.0], [3.0, 175.0]]}]
+
     def test_a_boundary_touching_only_a_corner_gives_no_line(self):
         assert DesignRegion(HEAT_FACTORS, ["T + D <= 120"]).slice_lines("T", "D") == []
         assert DesignRegion(HEAT_FACTORS, ["T + D <= 125"]).slice_lines("T", "D") != []
@@ -735,6 +1071,37 @@ class TestSliceSlack:
             assert slack.shape == (41, 51)
             coded = np.column_stack([(t.ravel() - 125) / 25, (d.ravel() - 40) / 20, np.zeros(t.size)])
             np.testing.assert_array_equal(slack.ravel() <= 0, region.feasible(coded))
+
+    def test_a_limit_that_cannot_be_evaluated_is_infinitely_far_from_allowed(self):
+        """Where ``sqrt(A)`` is undefined no setting can be run: the slack is +inf there, never NaN."""
+        region = DesignRegion([Factor(name="A", low=-1, high=3), Factor(name="B", low=0, high=4)], ["sqrt(A) + B <= 3"])
+        a, b = np.meshgrid(np.linspace(-1, 3, 41), np.linspace(0, 4, 41))
+        slack = region.slice_slack("A", "B", a, b)
+        assert not np.isnan(slack).any()
+        assert np.all(slack[a < 0] == np.inf)
+        with np.errstate(invalid="ignore"):
+            allowed = region.feasible(np.column_stack([(a.ravel() - 1) / 2, (b.ravel() - 2) / 2]))
+        np.testing.assert_array_equal(slack.ravel() > 0, ~allowed)
+        np.testing.assert_array_equal(slack.ravel() <= 0, allowed)
+
+    def test_the_slack_follows_the_names_given(self):
+        """P along x and T along y, with F held: (P, T) = (3, 150) can be run and (3, 200) cannot."""
+        region = DesignRegion(TPF, ["T + 25*P + 5*F <= 350"])
+        p, t = np.meshgrid(np.linspace(1, 3, 9), np.linspace(150, 200, 11))
+        swapped = region.slice_slack("P", "T", p, t, {"F": 20})
+        np.testing.assert_array_equal(swapped, region.slice_slack("T", "P", t, p, {"F": 20}))
+        assert swapped[0, -1] == 0.0
+        assert swapped[-1, -1] > 0
+        coded = np.column_stack([(t.ravel() - 175) / 25, p.ravel() - 2, np.ones(t.size)])
+        np.testing.assert_array_equal(swapped.ravel() <= 0, region.feasible(coded))
+
+    def test_the_slack_of_a_pair_after_the_first_two_factors(self):
+        region = DesignRegion(TPF, ["T + 5*F <= 250"])
+        t, f = np.meshgrid(np.linspace(150, 200, 11), np.linspace(10, 20, 11))
+        slack = region.slice_slack("T", "F", t, f, {"P": 3})
+        coded = np.column_stack([(t.ravel() - 175) / 25, np.ones(t.size), (f.ravel() - 15) / 5])
+        np.testing.assert_array_equal(slack.ravel() <= 0, region.feasible(coded))
+        assert 0 < (slack <= 0).mean() < 1
 
     def test_a_linear_limit_gives_its_distance_in_coded_units(self):
         region = DesignRegion(HEAT_FACTORS, [HEAT])
@@ -771,6 +1138,7 @@ class TestSliceSlack:
         ("is_empty", ()),
         ("implied_bounds", ()),
         ("redundant_constraints", ()),
+        ("curved_constraints", ()),
         ("vertices", ()),
         ("shadow", ("x0", "x1")),
         ("slice_polygon", ("x0", "x1")),
@@ -781,6 +1149,14 @@ class TestSliceSlack:
 def test_box_diagnostics_refuse_a_mixture(method, args):
     with pytest.raises(ValueError, match="mixture proportions"):
         getattr(DesignRegion(MIXTURE, ["x0 <= 0.5"]), method)(*args)
+
+
+@pytest.mark.parametrize("module", ["_region_geometry", "region", "compare", "separating", "designs_constrained"])
+def test_the_examples_in_the_docstrings_print_what_they_show(module):
+    """No CI step runs doctests, so an example whose output drifted (an array repr, say) would go unnoticed."""
+    result = doctest.testmod(importlib.import_module(f"process_improve.experiments.{module}"), report=False)
+    assert result.attempted > 0
+    assert result.failed == 0
 
 
 class TestGeometry:
@@ -797,6 +1173,30 @@ class TestGeometry:
                 b = rng.uniform(-0.5, 1.2, m)
                 expected = _brute_vertices(-np.ones(k), np.ones(k), a, b)
                 assert _same_rows(geometry.box_vertices(a, b), expected)
+
+    def test_box_vertices_in_blocks_of_any_size_are_the_same(self, monkeypatch):
+        rng = np.random.default_rng(5)
+        a = rng.normal(size=(4, 5))
+        a /= np.linalg.norm(a, axis=1, keepdims=True)
+        b = rng.uniform(-0.3, 0.8, 4)
+        whole = geometry.box_vertices(a, b)
+        monkeypatch.setattr(geometry, "_PRODUCT_CELLS", 3)  # one kept vertex per block
+        np.testing.assert_array_equal(geometry.box_vertices(a, b), whole)
+
+    def test_box_vertices_count_shared_boundaries_a_block_at_a_time(self):
+        """One dense (kept x removed) matrix took 0.3 GB here, 2.5 GB at 15 factors and 6 GB at 16.
+
+        ``is_empty()`` reaches it, and compare_designs(region=) calls that on every region.
+        """
+        k = 14
+        tracemalloc.start()
+        try:
+            vertices = geometry.box_vertices(np.ones((1, k)) / math.sqrt(k), np.zeros(1))
+            peak = tracemalloc.get_traced_memory()[1]
+        finally:
+            tracemalloc.stop()
+        assert len(vertices) == (2**k + math.comb(k, k // 2)) // 2  # the corners on or below the plane
+        assert peak < 128 * 2**20
 
     def test_box_vertices_of_a_zero_row(self):
         assert geometry.box_vertices(np.zeros((1, 2)), np.array([-1.0])).shape == (0, 2)
@@ -878,7 +1278,7 @@ class TestEightFactors:
         region = DesignRegion(EIGHT, EIGHT_LIMITS)
         vertices = region.vertices()
         coded = (vertices - region._centre) / region._half
-        assert region.feasible(coded, tol=1e-7).all()
+        assert region.feasible(coded).all()
         bounds = region.implied_bounds()
         assert bounds is not None
         np.testing.assert_allclose(np.array(list(bounds.values())), np.column_stack([vertices.min(0), vertices.max(0)]))

@@ -98,6 +98,24 @@ def _supplied(**change: object) -> Callable[[Example], dict]:
     return lambda _: {**SUPPLIED, **change}
 
 
+def _typed(*limits: str, factors: list[dict] = FACTORS, **change: object) -> Callable[[Example], dict]:
+    """Build the request the limits panel sends as the reader types: the brief's factors, and these limits."""
+    return lambda _: {"factors": factors, "constraints": [{"expression": text} for text in limits], **change}
+
+
+def _limited(design_type: str, *limits: str) -> Callable[[Example], dict]:
+    """Build a design request, in the worked example's factors, with limits on the settings."""
+    sent = [{"expression": text} for text in limits]
+    return lambda _: {"design_type": design_type, "factors": FACTORS, "constraints": sent}
+
+
+#: A temperature, a pressure and a supplier, A or B.
+WITH_SUPPLIER = [*FACTORS[:2], {"name": "S", "low": "A", "high": "B", "units": ""}]
+
+#: The functions a limit can use, as a refusal lists them.
+FUNCTIONS = "abs, sqrt, exp, log and log10"
+
+
 #: Each refusal: the entry point, the request as a function of the worked example, and the message.
 REFUSALS: dict[str, tuple[str, Callable[[Example], dict], str]] = {
     # The factors, as typed into the brief.
@@ -421,6 +439,153 @@ REFUSALS: dict[str, tuple[str, Callable[[Example], dict], str]] = {
         lambda _: {"model": "main_effects", "designs": []},
         "Give at least one design to compare.",
     ),
+    # Limits on the settings, as the reader types them: the panel shows each limit's problem beside it.
+    "an empty limit": (
+        "api_limits",
+        _typed(""),
+        "Write each limit as an inequality of your factors, such as 2*T + P <= 10.",
+    ),
+    "a product without its *": (
+        "api_limits",
+        _typed("2T + P <= 300"),
+        "The limit '2T + P <= 300' cannot be read: write 2*T for 2 times T.",
+    ),
+    "an equals sign for a limit": (
+        "api_limits",
+        _typed("T + P = 200"),
+        "The limit 'T + P = 200' cannot be read: write <= for at most, and >= for at least.",
+    ),
+    "an unclosed bracket": (
+        "api_limits",
+        _typed("T + (P <= 3"),
+        "The limit 'T + (P <= 3' cannot be read: '(' was never closed.",
+    ),
+    "an unfinished limit": (
+        "api_limits",
+        _typed("T + P <"),
+        "The limit 'T + P <' cannot be read: check it for a missing number, factor or bracket.",
+    ),
+    "a decimal comma": (
+        "api_limits",
+        _typed("0,5*T + P <= 100"),
+        "The limit '0,5*T + P <= 100' cannot be read: write a decimal number with a point, as in 0.5, not 0,5.",
+    ),
+    "a number before a bracket": (
+        "api_limits",
+        _typed("2(T + P) <= 300"),
+        "The limit '2(T + P) <= 300' cannot be read: write 2*(T + P) for 2 times (T + P).",
+    ),
+    "two limits in one": (
+        "api_limits",
+        _typed("T <= 190, P <= 2.5"),
+        "The limit 'T <= 190, P <= 2.5' holds 2 comparisons: type each as a limit of its own.",
+    ),
+    "a limit with or": (
+        "api_limits",
+        _typed("T <= 160 or P <= 1.5"),
+        "The limit 'T <= 160 or P <= 1.5' joins comparisons with or, which a limit cannot: each limit must hold.",
+    ),
+    "a sum with no comparison": (
+        "api_limits",
+        _typed("T + 25*P"),
+        "The limit 'T + 25*P' is not an inequality: write it as one, such as 2*T + P <= 10.",
+    ),
+    "a sum with no comparison, in a brief of one numeric factor": (
+        "api_limits",
+        _typed("T + 25", factors=[FACTORS[0], WITH_SUPPLIER[2]]),
+        "The limit 'T + 25' is not an inequality: write it as one, such as 2*T <= 10.",
+    ),
+    "an equality": (
+        "api_limits",
+        _typed("T == 175"),
+        "The limit 'T == 175' must compare with <, <=, > or >=, not with ==.",
+    ),
+    "a function a limit cannot use": (
+        "api_limits",
+        _typed("sin(T) <= 0.5"),
+        f"The limit 'sin(T) <= 0.5' uses sin, which a limit cannot: the functions it can use are {FUNCTIONS}.",
+    ),
+    "an operator a limit cannot use": (
+        "api_limits",
+        _typed("T % 7 <= 3"),
+        (
+            "The limit 'T % 7 <= 3' cannot use 'T % 7': a limit is written with numbers, your factors, + - * / ** "
+            f"and the functions {FUNCTIONS}."
+        ),
+    ),
+    "a limit on a categorical factor": (
+        "api_limits",
+        _typed("T + S <= 3", factors=WITH_SUPPLIER),
+        "The limit 'T + S <= 3' names S, which is categorical: limits are on numeric factors only.",
+    ),
+    "a limit on another factor": (
+        "api_limits",
+        _typed("T + Z <= 300"),
+        "The limit 'T + Z <= 300' names Z, which is not one of your factors: T, P and F.",
+    ),
+    "a limit on no factor": ("api_limits", _typed("3 <= 5"), "The limit '3 <= 5' names none of your factors."),
+    "a limit too long": (
+        "api_limits",
+        _typed("T + " * 130 + "P <= 3"),
+        "The limit 'T + T + T + T + T + T + ...' is longer than 500 characters.",
+    ),
+    "limits with a categorical factor": (
+        "api_limits",
+        _typed("T <= 190", factors=WITH_SUPPLIER),
+        (
+            "Limits on the settings work with numeric factors only on this page, and S is categorical: remove the "
+            "limits, or that factor."
+        ),
+    ),
+    "limits in more factors than an optimal design takes": (
+        "api_limits",
+        _typed("X0 + X1 <= 1", factors=factors_named(*(f"X{i}" for i in range(9)))),
+        "With limits on the settings, the page makes designs in up to 8 factors; you have 9.",
+    ),
+    "limits that leave nothing": (
+        "api_make_design",
+        _limited("d_optimal", "T + P >= 300"),
+        "No setting in your ranges meets every limit: loosen a limit, or widen a range.",
+    ),
+    "limits with a design that cannot keep to them": (
+        "api_make_design",
+        _limited("box_behnken", "T + 25*P <= 250"),
+        (
+            "The Box-Behnken design cannot keep its runs inside limits on the settings: choose the D-optimal or "
+            "I-optimal design, or remove the limits."
+        ),
+    ),
+    # What only a script, or a doctored workbook, could send.
+    "limits the page did not write": (
+        "api_make_design",
+        lambda _: {"design_type": "d_optimal", "factors": FACTORS, "constraints": "T <= 190"},
+        "The page sent limits this page did not write.",
+    ),
+    "too many limits": (
+        "api_limits",
+        _typed(*(f"T <= {190 + i}" for i in range(9))),
+        "A study can have at most 8 limits on its settings.",
+    ),
+    "a note too long": (
+        "api_limits",
+        lambda _: {"factors": FACTORS, "constraints": [{"expression": "T <= 190", "note": "x" * 81}]},
+        "A limit's note is at most 80 characters, on one line.",
+    ),
+    "a marked row the table does not have": (
+        "api_limits",
+        _typed(marked=[9]),  # the worked example's table has 8 corners and the centre, rows 0 to 8
+        "The page sent marked settings this page did not write.",
+    ),
+    "cuts from the centre, which is no corner": (
+        "api_limits",
+        _typed(marked=[8], cuts={"marked": [8], "corner": 8, "values": [190, None, None]}),
+        "The page sent marked settings this page did not write.",
+    ),
+    "a slice along one factor twice": (
+        "api_limits",
+        _typed("T <= 190", slice={"x": "T", "y": "T", "at": {}}),
+        "The page sent a slice of the settings this page did not write.",
+    ),
 }
 
 
@@ -432,11 +597,21 @@ def example(worked_example: dict[str, Any], api) -> Example:
 
 
 def refusal(api, example: Example, case: str) -> str:
-    """Return the message the page shows for one case of ``REFUSALS``."""
+    """Return the message the page shows for one case of ``REFUSALS``.
+
+    ``api_limits`` describes a limit that cannot be read, or limits no design can keep to, and
+    goes on describing the others, so its message is the reply's ``refusal``, which holds the
+    brief back; only a request the page did not write is refused outright.
+    """
     fn, request, _ = REFUSALS[case]
     if fn == "api_plots":
         pytest.importorskip("plotly", reason="the page installs plotly for its first chart")
-    return api.error(fn, request(example))
+    answer = api.reply(fn, request(example))
+    if fn == "api_limits" and answer["ok"]:
+        assert answer["result"]["refusal"], "api_limits described limits it should hold the brief back for"
+        return answer["result"]["refusal"]
+    assert not answer["ok"], f"{fn} accepted a request it should refuse"
+    return answer["error"]
 
 
 @pytest.mark.parametrize("case", REFUSALS)

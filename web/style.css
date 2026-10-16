@@ -381,6 +381,106 @@ label.inline { display: flex; flex-direction: column; gap: 4px; font-size: 0.9re
 .known { margin: 6px 0 0; }
 .known .row > label { flex: 1 1 9rem; }
 
+/* The limits on the settings: one card each, its number (as the picture numbers its boundary), its text in a box
+   as wide as the column, its bounds and its note under it, and what Python says of it last. */
+.limits summary .badge { margin-left: 4px; }
+.limit {
+  display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 4px 8px; margin: 8px 0;
+  padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg);
+}
+.limit__number { grid-row: 1; font-weight: 700; color: var(--muted); min-width: 1.2em; text-align: right; }
+.limit__text {
+  grid-row: 1; grid-column: 2; width: 100%; font-family: ui-monospace, "SFMono-Regular", Menlo, monospace;
+  font-size: 0.95rem;
+}
+.limit__remove { grid-row: 1; grid-column: 3; }
+.limit__text[aria-invalid] { border-color: var(--error); }
+.limit__bounds, .limit__note, .limit-effect, .limit-problem { grid-column: 2 / -1; }
+.limit__bounds { display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 0.9rem; color: var(--muted); }
+.limit__bound input { width: 7em; margin-left: 4px; }
+.limit__note { width: 100%; font-size: 0.9rem; }
+.limit-effect, .limit-problem { margin: 0; }
+.limit-names { display: flex; flex-wrap: wrap; gap: 6px; margin: 4px 0; }
+.chip {
+  min-height: 34px; padding: 4px 12px; border-radius: 17px; font-family: ui-monospace, "SFMono-Regular", Menlo,
+    monospace; font-size: 0.9rem;
+}
+@media (pointer: coarse) { .chip, .limit__remove { min-width: 44px; min-height: 44px; } }
+#limits-summary .error { display: block; }
+
+/* The corners of the ranges, to mark those that cannot be run: a corner a limit rules out already is ticked and
+   greyed, one marked is tinted, and each proposal is a card like a limit's, its text in the limits' type. */
+.corners h3 { font-size: 0.98rem; margin: 18px 0 4px; }
+.corner-filters { display: flex; flex-wrap: wrap; gap: 6px 14px; margin: 8px 0; font-size: 0.9rem; }
+.corner-filters label { display: inline-flex; align-items: center; gap: 6px; }
+.corner-filters select { width: auto; }
+table.corner-table td:first-child { white-space: nowrap; }
+.corner__mark { display: inline-flex; align-items: center; gap: 6px; min-height: 28px; cursor: pointer; }
+.corner__mark input { width: auto; margin: 0; accent-color: var(--accent); }
+@media (pointer: coarse) { .corner__mark { min-height: 44px; min-width: 44px; } }
+table.corner-table tr.marked td { background: color-mix(in srgb, var(--warn) 14%, var(--panel)); }
+table.corner-table tr.ruled td { color: var(--muted); }
+table.corner-table tr.ruled .corner__mark { cursor: default; }
+.proposals { display: grid; gap: 8px; margin: 8px 0 0; }
+.proposal { padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg); }
+.proposal p { margin: 4px 0; }
+.proposal .actions { margin: 6px 0 2px; }
+.proposal__text { font-family: ui-monospace, "SFMono-Regular", Menlo, monospace; font-size: 0.95rem; overflow-wrap: anywhere; }
+.hint.warn { color: var(--warn); }
+.link[aria-disabled="true"] { opacity: 0.5; cursor: default; }
+table.corner-table th { padding: 4px 10px; vertical-align: bottom; }
+table.corner-table .col-unit { padding: 0; }
+.cuts { margin: 4px 0 0; padding: 6px 0 0; border-top: 1px solid var(--line); }
+.cut { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 14px; margin: 6px 0; font-size: 0.92rem; }
+.cut__question input { width: 7em; margin: 0 4px; }
+.cut__free { display: inline-flex; align-items: center; gap: 6px; color: var(--muted); }
+.cut__free input { width: auto; margin: 0; accent-color: var(--accent); }
+
+/* The picture of the settings that can be run: a panel per pair of factors, hatched where nothing can be run and
+   shaded where something can; a limit's boundary is dashed, with its number on it as the list numbers it. */
+.region h3 { font-size: 0.98rem; margin: 18px 0 4px; }
+.region h4 { font-size: 0.92rem; margin: 10px 0 4px; }
+.region__defs { position: absolute; width: 0; height: 0; overflow: hidden; }
+.region-panels { display: grid; grid-template-columns: repeat(auto-fill, minmax(165px, 1fr)); gap: 10px; margin: 8px 0; }
+.region-panels.one { grid-template-columns: minmax(0, 340px); }
+.region__cell { margin: 0; min-width: 0; }
+.region__pick {
+  display: block; width: 100%; padding: 0; border: 1px solid transparent; border-radius: 6px; background: none;
+  cursor: zoom-in;
+}
+.region__pick:hover { border-color: var(--line); }
+.region__pick:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.region__panel { display: block; width: 100%; height: auto; overflow: visible; }
+.slice-panel { max-width: 420px; }
+.region__out { fill: url(#region-hatch); }
+.region__hatch-ground { fill: var(--panel); }
+.region__hatch { stroke: var(--line); stroke-width: 2; }
+.region__allowed { fill: color-mix(in srgb, var(--accent) 24%, var(--panel)); stroke: var(--accent); stroke-width: 1.2; stroke-linejoin: round; }
+.region__fill { stroke: none; }
+.region__edge { fill: none; stroke: var(--accent); stroke-width: 1.4; stroke-linecap: round; }
+.region__edge--only { stroke-width: 3; }
+.region__dot { fill: var(--accent); }
+.region__frame { fill: none; stroke: var(--muted); stroke-width: 1; }
+.region__limit { fill: none; stroke: var(--fg); stroke-width: 1.4; stroke-dasharray: 5 3; stroke-linejoin: round; }
+.region__tag circle { fill: var(--panel); stroke: var(--fg); stroke-width: 1; }
+.region__tag text { fill: var(--fg); font-size: 11px; font-weight: 700; text-anchor: middle; dominant-baseline: central; }
+.region__tick { fill: var(--muted); font-size: 12px; }
+.region__axis { fill: var(--fg); font-size: 12.5px; font-weight: 600; }
+.region__centre { fill: none; stroke: var(--mark-centre); stroke-width: 2; }
+.region__run { fill: var(--panel); stroke: var(--fg); stroke-width: 1.3; }
+.region__glyph--centre { color: var(--mark-centre); }
+.region__glyph--run { color: var(--fg); font-weight: 700; }
+#every-pair[aria-pressed="true"]::before { content: "\2713  "; }
+.slice-held { display: grid; gap: 6px; margin: 4px 0 8px; }
+.held {
+  display: grid; grid-template-columns: minmax(2em, auto) minmax(5rem, 1fr) 6em minmax(0, auto); align-items: center;
+  gap: 4px 8px; font-size: 0.92rem;
+}
+.held__name { font-weight: 600; overflow-wrap: anywhere; }
+.held input[type="range"] { width: 100%; margin: 0; accent-color: var(--accent); }
+.held input[type="number"] { width: 100%; }
+.held__units { color: var(--muted); }
+
 /* What the study is to learn: one choice, each with what it means. */
 .aims { display: grid; gap: 8px; margin: 6px 0 4px; }
 .aim { align-items: flex-start; padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg); }
@@ -577,11 +677,6 @@ main.catalog h1 { margin: 8px 0; font-size: 2rem; }
 }
 .facets__range input { width: 100%; min-width: 0; }
 .facets select { width: 100%; margin: 4px 0; }
-.facets__bars { display: block; width: 100%; height: auto; margin: 4px 0; }
-.facets__bars .bar { fill: var(--accent); cursor: pointer; }
-.facets__bars .bar--out { fill: var(--line); }
-.facets__bars .bar:focus-visible { outline: 2px solid var(--accent); }
-.facets__bars .bars__label { fill: var(--muted); font-size: 10px; }
 .facets__added { display: block; font-size: 0.9rem; }
 .facets #reset { width: 100%; margin-top: 12px; }
 .catalog__map {
@@ -625,3 +720,64 @@ dialog.detail { width: min(980px, 100vw - 32px); }
 .detail__twins { margin: 4px 0 12px; padding-left: 1.2em; }
 .detail__twins li { margin: 2px 0; }
 .detail__twins .link { padding: 0; text-align: left; }
+
+/* The catalog's views: the timeline, the comparison tray and table, a design's projections, the errata. */
+.catalog__views { display: flex; flex-wrap: wrap; gap: 6px 18px; margin: -6px 0 12px; font-size: 0.92rem; }
+.catalog__views .link { padding: 0; text-align: left; }
+.catalog__timeline {
+  margin: 0 0 12px; padding: 8px 10px; background: var(--panel); border: 1px solid var(--line); border-radius: 10px;
+}
+.catalog__timeline figcaption { margin: 4px 4px 0; }
+.timeline { display: block; width: 100%; height: auto; touch-action: pan-y; user-select: none; }
+.timeline .bin { cursor: pointer; }
+.timeline .bin--out rect { opacity: 0.22; }
+.timeline .bin__hit { fill: transparent; }
+.timeline .bin:focus { outline: none; }
+.timeline .bin:focus-visible .bin__hit { stroke: var(--accent); stroke-width: 2; }
+.timeline__year { fill: var(--muted); font-size: 11px; }
+.timeline__mark { stroke: var(--panel); stroke-width: 1; }
+.timeline__brush { fill: var(--accent); opacity: 0.18; pointer-events: none; }
+.result__actions { display: flex; flex-direction: column; gap: 6px; }
+.compare-toggle[aria-pressed="true"] { border-color: var(--accent); color: var(--accent); }
+.tray {
+  position: fixed; z-index: 20; left: 50%; bottom: 12px; transform: translateX(-50%); width: min(820px, 100vw - 32px);
+  display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; padding: 10px 14px; background: var(--panel);
+  border: 1px solid var(--accent); border-radius: 10px; box-shadow: 0 6px 24px rgb(0 0 0 / 0.18);
+}
+.tray[hidden] { display: none; }
+.tray__text { margin: 0; flex-basis: 100%; color: var(--muted); font-size: 0.9rem; }
+.tray__list { display: flex; flex: 1 1 auto; flex-wrap: wrap; gap: 6px; min-width: 0; margin: 0; padding: 0; list-style: none; }
+.tray__list li {
+  display: flex; align-items: center; gap: 4px; max-width: 100%; padding: 2px 8px; border: 1px solid var(--line);
+  border-radius: 999px; font-size: 0.86rem;
+}
+.tray__list li span { max-width: 240px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tray__actions { display: flex; align-items: center; gap: 10px; }
+body:has(#tray:not([hidden])) main.catalog { padding-bottom: 130px; }
+#compare-model { margin: 4px 0 8px; }
+.compare th[scope="row"] { font-weight: 500; text-align: left; }
+.compare__group th {
+  padding-top: 10px; color: var(--muted); font-size: 0.78rem; text-align: left; text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.compare__arrow { text-align: center; }
+.explorer__picks { display: flex; flex-wrap: wrap; gap: 6px; margin: 6px 0; }
+.chip { padding: 3px 10px; border-radius: 999px; font-size: 0.86rem; }
+.chip[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: var(--accent-fg); }
+.projection { display: block; width: min(320px, 100%); height: auto; }
+.projection__box { stroke: var(--line); stroke-width: 1.2; }
+.projection__point { fill: var(--accent); fill-opacity: 0.75; stroke: var(--panel); stroke-width: 1; }
+.projection__count { fill: var(--muted); font-size: 10px; }
+.projection__axis { fill: var(--fg); font-size: 12px; font-weight: 600; }
+.detail__steps { margin: 4px 0 12px; padding-left: 1.2em; }
+.errata__controls { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; margin: 8px 0; }
+.errata__controls input[type="search"] { flex: 1 1 240px; min-width: 0; }
+.errata__table td:last-child { min-width: 260px; }
+.timeline__marks { display: flex; flex-wrap: wrap; gap: 4px 14px; margin: 6px 0 0; padding: 0; list-style: none; }
+.timeline__marks li { display: flex; align-items: center; gap: 5px; }
+.errata__table th, .errata__table td { text-align: left; vertical-align: top; }
+.errata__table td:first-child { min-width: 7em; }
+@media (max-width: 640px) {
+  .tray { gap: 6px 10px; padding: 8px 12px; }
+  .tray__list { display: none; }
+}

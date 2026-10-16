@@ -20,6 +20,7 @@ formula that ``analyze_experiment`` builds itself.
 
 from __future__ import annotations
 
+import ast
 import base64
 import contextlib
 import io
@@ -28,6 +29,7 @@ import json
 import logging
 import math
 import re
+import unicodedata
 import warnings
 from importlib.metadata import PackageNotFoundError, version
 from typing import TYPE_CHECKING, Any
@@ -35,8 +37,20 @@ from typing import TYPE_CHECKING, Any
 import numpy as np
 import pandas as pd
 
-from process_improve.experiments import Factor, TrueProcess, analyze_experiment, compare_designs, generate_design
+from process_improve.experiments import (
+    DesignRegion,
+    Factor,
+    NotSeparableError,
+    TrueProcess,
+    analyze_experiment,
+    compare_designs,
+    constraint_through_cuts,
+    generate_design,
+    rename_factors,
+    separating_constraint,
+)
 from process_improve.experiments.compare import MODELS as COMPARISON_MODELS
+from process_improve.experiments.designs_constrained import MAX_EXPRESSION_LENGTH, parse_constraint
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Iterator
@@ -149,6 +163,25 @@ MAX_BLOCKS = 8
 #: The designs that take a categorical factor, one whose two levels are labels (supplier A and B):
 #: the two-level designs, which need only the two levels of each factor.
 CATEGORICAL_DESIGNS = ("full_factorial", "fractional_factorial", "plackett_burman")
+
+#: The most limits a study can have on its settings. The optimal designs take the corners of the region the
+#: limits leave as candidate runs, and with 8 limits in 8 factors those are still quick to find in the browser.
+MAX_CONSTRAINTS = 8
+
+#: The designs that keep every run inside limits on the settings: they choose their runs among candidates inside.
+REGION_DESIGNS = ("d_optimal", "i_optimal")
+
+#: The most characters of a limit's note, which the page shows beside it and never reads.
+NOTE_LENGTH = 80
+
+#: The functions a limit can use, as the library reads them.
+LIMIT_FUNCTIONS = ("abs", "sqrt", "exp", "log", "log10")
+
+#: The most numeric factors whose corners the page lists for marking: 2**8 = 256 settings, and the centre.
+PROBE_FACTORS = 8
+
+#: The share of a factor's range the limits must take off one end before the page says the range is narrower.
+NARROWED = 0.005
 
 #: Text a spreadsheet reads back as a blank cell (pandas' defaults), so no level's label can be it.
 BLANK_LABELS = frozenset(
@@ -455,6 +488,192 @@ def _categorical_names(spec: dict) -> tuple[str, ...]:
     return tuple(f["name"] for f in spec["factors"] if _categorical(f))
 
 
+# --------------------------------------------------------------------------- limits on the settings
+#: What a reader may type or paste in a limit for an operator, and the operator a limit is written with: the
+#: signs for at most, at least and not equal, the minus sign and the en dash, the multiplication sign and the
+#: middle dot, the division sign, and ^ for a power, as a spreadsheet writes it.
+_SYMBOLS = str.maketrans(
+    {
+        "\u2264": "<=",
+        "\u2265": ">=",
+        "\u2260": "!=",
+        "\u2212": "-",
+        "\u2013": "-",
+        "\u00d7": "*",
+        "\u00b7": "*",
+        "\u00f7": "/",
+        "^": "**",
+    }
+)
+
+#: A number written against a name, as in 2T or 2 T for two times T.
+_UNWRITTEN_PRODUCT = re.compile(r"(?<![\w.])(\d+(?:\.\d*)?(?:[eE][+-]?\d+)?)\s*([A-Za-z_]\w*)")
+
+#: An equals sign on its own, or a comparison written backwards, as =< or =>.
+_EQUALS = re.compile(r"=<|=>|(?<![<>=!])=(?!=)")
+
+#: How each comparison a limit cannot make is written.
+_NOT_A_LIMIT = {ast.Eq: "==", ast.NotEq: "!=", ast.Is: "is", ast.IsNot: "is not", ast.In: "in", ast.NotIn: "not in"}
+
+
+def _limit_items(raw: object) -> list[tuple[str, str]]:
+    """Read the limits the page sent as ``(text, note)`` pairs, refusing a list this page did not write.
+
+    A note is the reader's own words beside a limit: its spaces are joined into one, as on one line.
+    """
+    if raw is None:
+        return []
+    if not isinstance(raw, list) or not all(isinstance(i, dict) and isinstance(i.get("expression"), str) for i in raw):
+        raise ValueError("The page sent limits this page did not write.")
+    if len(raw) > MAX_CONSTRAINTS:
+        raise ValueError(f"A study can have at most {MAX_CONSTRAINTS} limits on its settings.")
+    items = []
+    for item in raw:
+        note = item.get("note") or ""
+        note = " ".join(note.split()) if isinstance(note, str) else None
+        if note is None or len(note) > NOTE_LENGTH or any(unicodedata.category(ch) == "Cc" for ch in note):
+            raise ValueError(f"A limit's note is at most {NOTE_LENGTH} characters, on one line.")
+        items.append((item["expression"].strip().translate(_SYMBOLS), note))
+    return items
+
+
+def _read_limit(text: str, factors: list[Factor]) -> tuple[str, list[str]]:
+    """Return a limit's canonical text and the factors it names, in the factors' order; refuse it saying what to change.
+
+    The text is parsed and checked as the library parses it, and never evaluated. The canonical
+    text is the library's (``ast.unparse``), so a limit written in two ways is stored one way.
+    """
+    numeric = [f.name for f in factors if f.type != "categorical"]
+    if not text:
+        raise ValueError(f"Write each limit as an inequality of your factors, such as {_example(numeric)}.")
+    _short_enough(text)
+    tree, hint = _parsed(text)
+    if hint:
+        raise ValueError(f"The limit {text!r} cannot be read: {hint}")
+    _one_comparison(text, tree, numeric)
+    named = _factors_named(text, tree, factors)
+    try:
+        parse_constraint(text, set(numeric))
+    except ValueError as exc:
+        found = re.fullmatch(r"Unsupported syntax in constraint: (.+)\.", str(exc), re.DOTALL)
+        raise ValueError(
+            f"The limit {text!r} cannot use {found[1] if found else exc}: a limit is written with numbers, your "
+            f"factors, + - * / ** and the functions {_listed(list(LIMIT_FUNCTIONS))}."
+        ) from exc
+    canonical = ast.unparse(tree)
+    _short_enough(canonical)
+    return canonical, [name for name in numeric if name in named]
+
+
+def _one_comparison(text: str, tree: ast.expr, numeric: list[str]) -> None:
+    """Refuse a limit that is not one comparison with <, <=, > or >=, a chain such as ``a <= b <= c`` included."""
+    if not isinstance(tree, ast.Compare):
+        if isinstance(tree, ast.BoolOp) and isinstance(tree.op, ast.Or):
+            raise ValueError(  # noqa: TRY004 - a refusal, like the rest
+                f"The limit {text!r} joins comparisons with or, which a limit cannot: each limit must hold."
+            )
+        parts = tree.values if isinstance(tree, ast.BoolOp) else tree.elts if isinstance(tree, ast.Tuple) else []
+        if len(parts) > 1 and all(isinstance(part, ast.Compare) for part in parts):
+            raise ValueError(f"The limit {text!r} holds {len(parts)} comparisons: type each as a limit of its own.")
+        raise ValueError(  # noqa: TRY004 - a refusal, like the rest
+            f"The limit {text!r} is not an inequality: write it as one, such as {_example(numeric)}."
+        )
+    if wrong := [_NOT_A_LIMIT[type(op)] for op in tree.ops if type(op) in _NOT_A_LIMIT]:
+        raise ValueError(f"The limit {text!r} must compare with <, <=, > or >=, not with {wrong[0]}.")
+
+
+def _factors_named(text: str, tree: ast.expr, factors: list[Factor]) -> list[str]:
+    """Return the names a limit uses for factors, refusing a function, a factor or a name it cannot use."""
+    names = [f.name for f in factors]
+    numeric = [f.name for f in factors if f.type != "categorical"]
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Call) and not (isinstance(node.func, ast.Name) and node.func.id in LIMIT_FUNCTIONS):
+            raise ValueError(
+                f"The limit {text!r} uses {ast.unparse(node.func)}, which a limit cannot: the functions it can use "
+                f"are {_listed(list(LIMIT_FUNCTIONS))}."
+            )
+    named = _named(tree)
+    for name in named:
+        if name in names and name not in numeric:
+            raise ValueError(
+                f"The limit {text!r} names {name}, which is categorical: limits are on numeric factors only."
+            )
+        if name not in numeric:
+            raise ValueError(f"The limit {text!r} names {name}, which is not one of your factors: {_listed(names)}.")
+    if not named:
+        raise ValueError(f"The limit {text!r} names none of your factors.")
+    return named
+
+
+def _short_enough(text: str) -> None:
+    """Refuse a limit longer than the library reads: as typed, and as the page writes it out."""
+    if len(text) > MAX_EXPRESSION_LENGTH:
+        raise ValueError(f"The limit {text[:24] + '...'!r} is longer than {MAX_EXPRESSION_LENGTH} characters.")
+
+
+def _parsed(text: str) -> tuple[ast.expr | None, str | None]:
+    """Parse a limit's text: return its expression, or None and what to change for Python to read it."""
+    try:
+        tree = ast.parse(text, mode="eval").body
+    except (SyntaxError, ValueError) as err:  # ValueError: a null byte, before Python 3.12
+        return None, _misread(text, err)
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Call) and isinstance(node.func, ast.Constant):  # 2(T + P), for 2 times (T + P)
+            number, inner = ast.unparse(node.func), ", ".join(ast.unparse(a) for a in node.args)
+            return None, f"write {number}*({inner}) for {number} times ({inner})."
+    if isinstance(tree, ast.Tuple) and re.search(r"\d,\d", text):
+        return None, "write a decimal number with a point, as in 0.5, not 0,5."
+    return tree, None
+
+
+def _misread(text: str, error: Exception) -> str:
+    """Say what to change in a limit Python cannot read, for the slips a reader makes most."""
+    if found := _UNWRITTEN_PRODUCT.search(text):
+        return f"write {found[1]}*{found[2]} for {found[1]} times {found[2]}."
+    if _EQUALS.search(text):
+        return "write <= for at most, and >= for at least."
+    message = str(getattr(error, "msg", error))
+    return (
+        "check it for a missing number, factor or bracket." if message.startswith("invalid syntax") else f"{message}."
+    )
+
+
+def _named(tree: ast.AST) -> list[str]:
+    """Return the names a parsed limit uses for factors, every name but a function's, in the order they are written."""
+    called = {id(node.func) for node in ast.walk(tree) if isinstance(node, ast.Call)}
+    found = [node for node in ast.walk(tree) if isinstance(node, ast.Name) and id(node) not in called]
+    return list(dict.fromkeys(node.id for node in sorted(found, key=lambda node: node.col_offset)))
+
+
+def _example(numeric: list[str]) -> str:
+    """Write an example limit in the reader's own factors, as a refusal shows it."""
+    if len(numeric) == 1:
+        return f"2*{numeric[0]} <= 10"
+    first, second = numeric[:2] if numeric else ("A", "B")
+    return f"2*{first} + {second} <= 10"
+
+
+def _checked_constraints(raw: object, factors: list[Factor]) -> list[dict[str, Any]]:
+    """Check the limits a specification carries, and return them as a study stores them.
+
+    Each limit is its canonical text (see :func:`_read_limit`), its ``type``, which is worked out
+    here and never read, and the reader's ``note`` when there is one, which is shown and never
+    read either. A specification without limits stores none, so it stays as it was before the
+    page had them.
+    """
+    limits = [(_read_limit(text, factors)[0], note) for text, note in _limit_items(raw)]
+    curved = set(_region(factors, [text for text, _ in limits]).curved_constraints()) if limits else set()
+    return [
+        {"expression": text, "type": "nonlinear" if i in curved else "linear", **({"note": note} if note else {})}
+        for i, (text, note) in enumerate(limits)
+    ]
+
+
+def _region(factors: list[Factor], expressions: list[str]) -> DesignRegion:
+    """Return the region of settings that meets every limit, over the numeric factors."""
+    return DesignRegion([f for f in factors if f.type != "categorical"], expressions)
+
+
 # --------------------------------------------------------------------------- public API
 def _release() -> str | None:
     """Name the process-improve release the page runs, or None when it is not installed as a package."""
@@ -491,6 +710,9 @@ def make_design(spec: dict) -> dict:
         raise ValueError(f"Unknown design type {design_type!r}.")
     factors = _factors(spec)
     _check_factor_count(design_type, len(factors))
+    limits = _checked_constraints(spec.get("constraints"), factors)
+    expressions = [limit["expression"] for limit in limits]
+    region = _region_refusal(factors, _region(factors, expressions), design_type) if limits else None
     if (labelled := [f.name for f in factors if f.type == "categorical"]) and design_type not in CATEGORICAL_DESIGNS:
         verb = "is" if len(labelled) == 1 else "are"
         raise ValueError(
@@ -501,7 +723,10 @@ def make_design(spec: dict) -> dict:
     described = _described(spec)
 
     kwargs = _design_options(spec, design_type)
-    result = generate_design(factors, design_type=design_type, **kwargs)
+    # The limits are passed apart from the options, which hold one design's settings, as the comparison reuses them.
+    result = generate_design(
+        factors, design_type=design_type, **kwargs, **({"constraints": expressions} if limits else {})
+    )
 
     # The library returns the runs already randomised, and ``run_order[i]`` is the
     # standard-order position of its i-th run: the sheet keeps the rows as they come.
@@ -521,17 +746,57 @@ def make_design(spec: dict) -> dict:
         "model": kwargs.get("model_type") or _designed_model(design_type, result.resolution),
         "options": kwargs,
         **described,
+        **({"constraints": limits} if limits else {}),
     }
+    coded = _coded(runs, stored["factors"])
+    facts = _design_facts(result, coded.to_numpy(dtype=float), names, kwargs)
+    if region is not None:
+        if not region.feasible(coded[region.names].to_numpy(dtype=float)).all():
+            raise RuntimeError("The design has a run outside the limits on the settings, which it must not have.")
+        facts["notes"].append(INSIDE_LIMITS)
     return {
         "n_runs": len(runs),
         "columns": list(runs.columns),
         "rows": [list(row) for row in runs.itertuples(index=False)],
         "outside_range": _outside_range(runs, factors),
         "model": stored["model"],
-        "facts": _design_facts(result, _coded(runs, stored["factors"]).to_numpy(dtype=float), names, kwargs),
+        "facts": facts,
         "spec": stored,
         "xlsx_base64": _to_workbook(runs, stored),
     }
+
+
+#: What a design made with limits on the settings says of its runs. It names no factor, so a renaming keeps it.
+INSIDE_LIMITS = "Every run is inside your limits on the settings."
+
+
+def _region_refusal(factors: list[Factor], region: DesignRegion, design_type: str | None = None) -> DesignRegion:
+    """Refuse limits on the settings that no design on this page can keep to, and return the region they leave.
+
+    The optimal designs are the only ones that place their runs inside limits, and on this page
+    they take numeric factors only; so the refusals come in that order, which names the real
+    conflict: a full factorial and a D-optimal design would otherwise each send the reader to
+    the other. ``design_type`` is the design asked for, or None when none is asked for yet.
+    """
+    if labelled := [f.name for f in factors if f.type == "categorical"]:
+        verb, which = ("is", "that factor") if len(labelled) == 1 else ("are", "those factors")
+        raise ValueError(
+            f"Limits on the settings work with numeric factors only on this page, and {_listed(labelled)} {verb} "
+            f"categorical: remove the limits, or {which}."
+        )
+    if design_type is not None and design_type not in REGION_DESIGNS:
+        raise ValueError(
+            f"The {DESIGNS[design_type]['label']} design cannot keep its runs inside limits on the settings: choose "
+            "the D-optimal or I-optimal design, or remove the limits."
+        )
+    most = max(DESIGNS[d]["max_factors"] for d in REGION_DESIGNS)
+    if len(factors) > most:
+        raise ValueError(
+            f"With limits on the settings, the page makes designs in up to {most} factors; you have {len(factors)}."
+        )
+    if region.is_empty():
+        raise ValueError("No setting in your ranges meets every limit: loosen a limit, or widen a range.")
+    return region
 
 
 def _response_name(response: str, factors: list[Factor]) -> str:
@@ -1308,7 +1573,8 @@ def _checked_spec(spec: dict) -> dict[str, Any]:
 
     The specification travels through the page, and a workbook can carry one in, so it
     is checked as data: the design type and model must be ones the page offers, the
-    factor and response names must be variable names, and the blocks a whole number.
+    factor and response names must be variable names, the blocks a whole number, and the
+    limits on the settings ones the page reads, each stored in its canonical text.
     """
     if not isinstance(spec, dict) or spec.get("design_type") not in DESIGNS:
         raise ValueError("The page sent a design this page did not make.")
@@ -1323,7 +1589,8 @@ def _checked_spec(spec: dict) -> dict[str, Any]:
     if "analysis_model" in spec:  # the model the reader last analysed with, which a workbook keeps
         labelled = tuple(f.name for f in factors if f.type == "categorical")
         _checked_model(spec["analysis_model"], [f.name for f in factors], labelled)
-    checked = {key: value for key, value in spec.items() if key not in ("response_info", "aim")}
+    checked = {key: value for key, value in spec.items() if key not in ("response_info", "aim", "constraints")}
+    limits = _checked_constraints(spec.get("constraints"), factors)
     return {
         **checked,
         "factors": [_factor_spec(f) for f in factors],
@@ -1331,6 +1598,7 @@ def _checked_spec(spec: dict) -> dict[str, Any]:
         "model": model,
         "options": {**options, **({"n_blocks": blocks} if (blocks := _blocks(options)) > 1 else {})},
         **_described(spec),
+        **({"constraints": limits} if limits else {}),
     }
 
 
@@ -1594,6 +1862,10 @@ def plots(request: dict) -> dict:
     results were simulated; the residuals against the fitted values; and, for a
     saturated two-level design, the half-normal plot of the effects with Lenth's
     margins. Each figure is JSON text, for Plotly.js at the version ``plotly_js`` names.
+
+    With limits on the settings, the surfaces are ``shaded`` where a setting cannot be run;
+    when the centre of the ranges cannot be run either, the other factors are held at a
+    central setting that can, which ``held`` lists in their own units.
     """
     from plotly.offline import get_plotlyjs_version  # noqa: PLC0415 - plotly is installed for the first chart
     from plotly.utils import PlotlyJSONEncoder  # noqa: PLC0415
@@ -1615,25 +1887,52 @@ def plots(request: dict) -> dict:
         out = analyze_experiment(coded, y, model=fit["formula"], analysis_type=["coefficients", "residual_diagnostics"])
     rows = coded.assign(**{response: y}).to_dict("records")
     pair = _contour_pair(out["coefficients"], names)
+    shading, held = _shading(spec, pair)
 
     def draw(kind: str, results: dict, **options: Any) -> str:  # noqa: ANN401
         figure = create_plot(kind, analysis_results=results, design_data=rows, response_column=response, **options)
         return json.dumps(_dressed(figure.to_plotly(), kind, spec, pair), cls=PlotlyJSONEncoder)
 
-    figures = {"contour": draw("contour", out, factors_to_plot=pair)}
+    figures = {"contour": draw("contour", out, factors_to_plot=pair, **shading)}
     truth = request.get("truth")
     if truth:
         process = TrueProcess({t["term"]: t["coefficient"] for t in truth}, sigma=1.0)
         missing = [f for f in process.factors if f not in names]
         if missing:
             raise ValueError(f"The true process names factors the design does not have: {missing}.")
-        figures["true_contour"] = draw("contour", {"coefficients": _truth(process)}, factors_to_plot=pair)
+        figures["true_contour"] = draw("contour", {"coefficients": _truth(process)}, factors_to_plot=pair, **shading)
     if fit["out"]["model_summary"]["df_residual"] > 0:
         figures["residuals"] = draw("residuals_vs_fitted", out)
     if fit["lenth"]:
         effects = analyze_experiment(coded, y, model=fit["formula"], analysis_type="effects")["effects"]
         figures["half_normal"] = draw("half_normal", {"effects": effects, "lenth_method": fit["lenth"]})
-    return {"figures": figures, "contour_factors": pair, "plotly_js": get_plotlyjs_version()}
+    return {
+        "figures": figures,
+        "contour_factors": pair,
+        "shaded": bool(shading),
+        "held": held,
+        "plotly_js": get_plotlyjs_version(),
+    }
+
+
+def _shading(spec: dict, pair: list[str]) -> tuple[dict[str, Any], list[dict[str, Any]]]:
+    """Return what a response surface needs to shade the settings that cannot be run, and where it holds the others.
+
+    Without limits on the settings, nothing. With them, the region, and the coded values the
+    factors not plotted are held at: their centre when the centre of the ranges can be run, as
+    without limits, else a central setting that can be (see ``DesignRegion.centroid``), which is
+    listed in the factors' own units for the caption to say.
+    """
+    if not spec.get("constraints"):
+        return {}, []
+    factors = _factors(spec)
+    region = _region(factors, [limit["expression"] for limit in spec["constraints"]])
+    if region.feasible(np.zeros((1, len(region.names))))[0]:
+        return {"region": region}, []
+    centroid = region.centroid() or {}
+    others = [f for f in factors if f.type != "categorical" and f.name not in pair]
+    hold = {f.name: (centroid[f.name] - (f.low + f.high) / 2) / ((f.high - f.low) / 2) for f in others}
+    return {"region": region, "hold_values": hold}, [{"name": f.name, "value": centroid[f.name]} for f in others]
 
 
 def _ticks(factor: dict) -> dict[str, Any]:
@@ -1662,8 +1961,8 @@ def _dressed(figure: dict, kind: str, spec: dict, pair: list[str]) -> dict:
         factors = {f["name"]: f for f in spec["factors"]}
         for axis, name in zip(("xaxis", "yaxis"), pair, strict=False):
             title(axis, _with_units(name, factors[name]["units"]), **_ticks(factors[name]))
-        for trace in figure.get("data", []):
-            if trace.get("type") == "contour":
+        for trace in figure.get("data", []):  # the response's contours; the shading of a region's limits has no scale
+            if trace.get("type") == "contour" and trace.get("contours", {}).get("type") != "constraint":
                 trace["colorbar"] = {**trace.get("colorbar", {}), "title": {"text": _with_units(label, units)}}
     elif kind == "residuals_vs_fitted":
         title("xaxis", _with_units(f"Fitted {label}", units))
@@ -1681,7 +1980,8 @@ def relabel(request: dict) -> dict:
     the design's factors in the same places with the same levels; only their names and units may
     differ, and each new name must be a variable name the run sheet does not use already.
     Everything this module wrote with the old names is written again with the new: the run
-    sheet's columns, the design's facts and notes, the factors outside their ranges and, when
+    sheet's columns, the limits on the settings, the design's facts and notes, the factors
+    outside their ranges and, when
     ``simulation`` is given, the process the results were simulated from, with its equation and
     the factors it leaves out. Renaming a design this way gives what making it under the new
     names would have, which ``tests/web/api/test_relabel.py`` checks for each kind of note.
@@ -1700,6 +2000,8 @@ def relabel(request: dict) -> dict:
             raise ValueError(f"A factor cannot be named {taken}: the run sheet has a {taken} column.")
     names = {old["name"]: new["name"] for old, new in zip(before, after, strict=True)}
     spec = {**spec, "factors": after}
+    if limits := spec.get("constraints"):  # the limits on the settings, written with the new names, all at once
+        spec["constraints"] = [{**limit, "expression": rename_factors(limit["expression"], names)} for limit in limits]
     if isinstance(chosen := spec.get("analysis_model"), dict):  # the terms a workbook was last analysed with
         spec["analysis_model"] = {"terms": [[names.get(n, n) for n in term] for term in chosen["terms"]]}
     reply: dict[str, Any] = {
@@ -1819,6 +2121,9 @@ COMPARE_LABELS = {
     "i_optimal": "I-optimal",
 }
 
+#: What a comparison with limits on the settings says of the designs it lists.
+LIMITED_DESIGNS = "With limits on the settings, only the D-optimal and I-optimal designs keep every run inside them."
+
 #: Points the FDS curves are computed from, and points along each curve.
 FDS_SAMPLES = 4096
 FDS_POINTS = 101
@@ -1831,12 +2136,16 @@ def compare_plan(request: dict) -> dict:
     the optimal designs are built for the comparison's model (see :data:`OPTIMAL_MODEL`).
     The response is the reader's, so a design taken into the plan keeps it. A comparison has
     no results, so when that name is blank or a factor's, the first of y, y1, y2, ... that
-    no factor takes stands in.
+    no factor takes stands in. With limits on the settings (``constraints``), only the designs
+    that keep their runs inside them are listed, each made with the limits.
     """
     model = request.get("model") or "main_quadratic"
     if model not in COMPARISON_MODELS:
         raise ValueError(f"Model must be one of {', '.join(COMPARISON_MODELS)}.")
     factors = _factors(request)
+    limits = _checked_constraints(request.get("constraints"), factors)
+    if limits:
+        _region_refusal(factors, _region(factors, [limit["expression"] for limit in limits]))
     k = len(factors)
     names = {f.name for f in factors}
     candidates = [str(request.get("response") or "").strip(), "y", *(f"y{i}" for i in range(1, k + 1))]
@@ -1849,12 +2158,16 @@ def compare_plan(request: dict) -> dict:
     for design_type, info in DESIGNS.items():
         if not info["min_factors"] <= k <= info["max_factors"] or (labelled and design_type not in CATEGORICAL_DESIGNS):
             continue
+        if limits and design_type not in REGION_DESIGNS:
+            continue
         options = dict(COMPARE_OPTIONS[design_type])
         if "model_type" in info["options"]:
             options["model_type"] = OPTIMAL_MODEL[model]
         spec = {"design_type": design_type, "factors": request["factors"], "response": response, **options, **described}
+        if limits:
+            spec["constraints"] = limits
         plan.append({"design_type": design_type, "label": COMPARE_LABELS[design_type], "spec": spec})
-    notes = []
+    notes = [LIMITED_DESIGNS] if limits else []
     if model != OPTIMAL_MODEL[model] and any("model_type" in DESIGNS[d["design_type"]]["options"] for d in plan):
         notes.append(
             f"The D- and I-optimal designs are built for the {OPTIMAL_MODEL[model]} model, the smallest model "
@@ -1888,7 +2201,9 @@ def compare(request: dict) -> dict:
 
     Each design arrives as the page holds it (its stored specification, columns and rows)
     and is coded from its own ranges. The FDS curve is each design's prediction variance,
-    in units of the noise variance, sorted over points drawn uniformly from the cube.
+    in units of the noise variance, sorted over points drawn uniformly from the cube; with
+    limits on the settings, the first design's, from the settings that meet them, and the
+    measures that average or search the prediction variance do so over those settings too.
     """
     from process_improve.experiments import evaluate_design  # noqa: PLC0415
 
@@ -1896,11 +2211,14 @@ def compare(request: dict) -> dict:
     if model not in COMPARISON_MODELS:
         raise ValueError(f"Model must be one of {', '.join(COMPARISON_MODELS)}.")
     designs = {}
+    region = None
     for item in request.get("designs") or []:
         spec = _checked_spec(item.get("spec") or {})
         designs[str(item["label"])] = _coded(_runs_frame(item, spec), spec["factors"])
+        if region is None and spec.get("constraints"):
+            region = _region(_factors(spec), [limit["expression"] for limit in spec["constraints"]])
     with _listening():
-        comparison = compare_designs(designs, model, effect_size=_effect_size(request))
+        comparison = compare_designs(designs, model, effect_size=_effect_size(request), region=region)
     result = comparison.to_dict()
     table = comparison.table
     result["display"] = {label: table[label].tolist() for label in comparison.designs}
@@ -1918,6 +2236,7 @@ def compare(request: dict) -> dict:
                 n_samples=FDS_SAMPLES,
                 fds_resolution=FDS_POINTS,
                 random_state=1,
+                region=region,
             )["fds"]["curve"]
         fds[sized] = {"fraction": curve["fraction"], "variance": curve["prediction_variance"]}
     result["fds"] = fds
@@ -1938,7 +2257,8 @@ def candidates(request: dict) -> dict:
     the model the reader aims to learn, at the power for the response's smallest change worth
     finding. A design that cannot be made is left out, with a note saying why. With
     :data:`SEARCH_FROM` factors or more and a model beyond main effects, the optimal designs
-    are left out unless ``search`` is true, and listed in ``waiting``.
+    are left out unless ``search`` is true, and listed in ``waiting``; with limits on the
+    settings they are the only designs, so then ``made`` can be empty and ``result`` null.
     """
     plan = compare_plan(request)
     k = len(request.get("factors") or [])
@@ -1956,19 +2276,565 @@ def candidates(request: dict) -> dict:
                 continue
         design.pop("xlsx_base64", None)
         made.append({**item, "design": design, "warnings": list(dict.fromkeys(heard))})
-    if not made:
+    if not made and not waiting:
         raise ValueError("None of the designs this page offers can be made for these factors.")
     info = _response_info(request.get("response_info"))
     scored = [{"label": m["label"], **{key: m["design"][key] for key in ("spec", "columns", "rows")}} for m in made]
-    result = compare(
-        {
-            "model": plan["model"],
-            "designs": scored,
-            "noise": info.get("noise"),
-            "smallest_change": info.get("smallest_change"),
-        }
-    )
+    asked = {"model": plan["model"], "designs": scored, **{k: info.get(k) for k in ("noise", "smallest_change")}}
+    result = compare(asked) if made else None
     return {"model": plan["model"], "made": made, "waiting": waiting, "notes": notes, "result": result}
+
+
+# --------------------------------------------------------------------------- limits, as the reader types them
+def limits(request: dict) -> dict:
+    """Describe the limits on the settings the reader is typing, and propose limits from the settings marked.
+
+    ``factors`` are the brief's and ``constraints`` its limits, each ``{expression, note}`` in the
+    factors' own units. Each limit comes back in its canonical text with what it does, or with
+    the sentence that says what to change, so a limit that cannot be read leaves the others
+    described. What a limit does over the factors' ranges:
+
+    - ``removed``, the share of the ranges it rules out on its own, and ``removes``, the rows of
+      ``probes`` it rules out;
+    - ``redundant``: ``"alone"`` when it rules out nothing within the ranges, ``"others"`` when
+      the other limits rule out all it does, else null;
+    - ``linear``, its straight form ``low <= lhs <= high`` for a bound box to edit, else null.
+
+    Over every limit that can be read: ``kept``, the share of the ranges left; ``empty``;
+    ``center_allowed``, whether the centre of the ranges can still be run; ``bounds``, each factor
+    whose range they narrow at an end, by more than :data:`NARROWED` of it (null with a curved
+    limit, where the narrowing is not exact, or with nothing left); ``refusal``, the sentence
+    making a design would refuse them with, or null; and ``picture``, the region on each pair of
+    numeric factors (see :func:`_picture`; ``every_pair`` asks for every pair).
+
+    ``probes`` are the corners of the numeric factors' ranges, then their centre, with the limits
+    that rule out each (see :func:`_probes`). ``marked`` lists the rows the reader marked "cannot
+    run", and ``proposals`` the straight limit proposed for each group of them (see
+    :func:`_proposals`); ``cuts`` asks for a proposal rebuilt through a cut on each factor, which
+    comes back as ``adjusted`` (see :func:`_adjusted`); and ``slice`` asks to look inside the
+    region at given values of the other factors (see :func:`_sliced`).
+    """
+    factors = _factors(request)
+    numeric = [f for f in factors if f.type != "categorical"]
+    entries = _limit_entries(request, factors)
+    read = [i for i, entry in enumerate(entries) if "problem" not in entry]
+    region = _region(factors, [entries[i]["expression"] for i in read])
+    probes = _probes(numeric)
+    alone = _describe_each(entries, read, region, factors, probes)
+    marked = _marked(request.get("marked"), probes)
+    table = None if probes is None else _probe_table(probes[1], numeric, entries, read)
+    empty = region.is_empty()
+    curved = any(entries[i]["type"] == "nonlinear" for i in read)
+    reply = {
+        "constraints": entries,
+        "probes": table,
+        "kept": region.volume_fraction(),
+        "empty": empty,
+        "center_allowed": not read or bool(region.feasible(np.zeros((1, len(numeric))))[0]),
+        "bounds": None if curved or empty else _narrowed(region.implied_bounds(), numeric),
+        "refusal": _limits_refusal(entries, read, factors, region),
+        "proposals": [],
+        "picture": _picture(region, factors, entries, alone, every_pair=request.get("every_pair") is True),
+    }
+    if marked and probes is not None and table is not None:
+        reply["proposals"] = _proposals(marked, probes, numeric, [bool(by) for by in table["ruled_out_by"]])
+    if "cuts" in request:
+        reply["adjusted"] = _adjusted(request["cuts"], probes, numeric)
+    if "slice" in request:
+        reply["slice"] = _sliced(request["slice"], factors, region, entries, alone)
+    return reply
+
+
+def _limit_entries(request: dict, factors: list[Factor]) -> list[dict[str, Any]]:
+    """Read each limit the panel holds: its canonical text and the factors it names, or its problem."""
+    return [_limit_entry(text, note, factors) for text, note in _limit_items(request.get("constraints"))]
+
+
+def _limit_entry(text: str, note: str, factors: list[Factor]) -> dict[str, Any]:
+    """Read one limit: its canonical text and the factors it names, or the sentence that says what to change."""
+    try:
+        canonical, named = _read_limit(text, factors)
+    except ValueError as exc:
+        return {"expression": text, "note": note, "problem": str(exc)}
+    return {"expression": canonical, "note": note, "factors": named}
+
+
+def _describe_each(
+    entries: list[dict[str, Any]],
+    read: list[int],
+    region: DesignRegion,
+    factors: list[Factor],
+    probes: tuple[np.ndarray, np.ndarray] | None,
+) -> dict[int, DesignRegion]:
+    """Add to each limit that can be read what it does over the factors' ranges; return each one's own region."""
+    names = [f.name for f in factors if f.type != "categorical"]
+    curved = {read[j] for j in region.curved_constraints()}
+    covered = {read[j] for j in region.redundant_constraints()}
+    alone = {}
+    for i in read:
+        alone[i] = own = _region(factors, [entries[i]["expression"]])
+        removed = 1.0 - own.volume_fraction()
+        removes = None if probes is None else np.flatnonzero(~own.feasible(probes[0])).tolist()
+        # A straight limit that keeps every corner keeps the whole box, so the corners decide it exactly; a curved
+        # one is judged by them and the sample, as the library judges it.
+        nothing = bool(own.redundant_constraints()) if removes is None else not removes and removed == 0
+        entries[i].update(
+            type="nonlinear" if i in curved else "linear",
+            removed=removed,
+            removes=removes,
+            redundant="alone" if nothing else "others" if i in covered else None,
+            linear=_linear_entry(own.linear_forms()[0], names),
+        )
+    return alone
+
+
+def _limits_refusal(entries: list[dict], read: list[int], factors: list[Factor], region: DesignRegion) -> str | None:
+    """Return the sentence making a design would refuse the limits with: the first limit's problem, or the region's."""
+    if problem := next((entry["problem"] for entry in entries if "problem" in entry), None):
+        return problem
+    if not read:
+        return None
+    try:
+        _region_refusal(factors, region)
+    except ValueError as exc:
+        return str(exc)
+    return None
+
+
+def _probes(numeric: list[Factor]) -> tuple[np.ndarray, np.ndarray] | None:
+    """Return the settings the page lists for marking, coded and in actual units: the corners, then the centre.
+
+    The corners of the numeric factors' ranges come in ``itertools.product`` order, the first factor
+    changing slowest and each factor's low end before its high end; the centre of the ranges is
+    last. None without numeric factors, or with more than :data:`PROBE_FACTORS`.
+    """
+    k = len(numeric)
+    if not 1 <= k <= PROBE_FACTORS:
+        return None
+    coded = np.vstack([np.array(list(itertools.product((-1.0, 1.0), repeat=k))), np.zeros((1, k))])
+    low = np.array([f.low for f in numeric], dtype=float)
+    high = np.array([f.high for f in numeric], dtype=float)
+    return coded, np.where(coded < 0, low, np.where(coded > 0, high, (low + high) / 2))
+
+
+def _probe_table(actual: np.ndarray, numeric: list[Factor], entries: list[dict], read: list[int]) -> dict[str, Any]:
+    """Return the probes as the page's table of corners: each row's settings, and the limits that rule it out."""
+    removes = {i: set(entries[i]["removes"]) for i in read}
+    return {
+        "columns": [f.name for f in numeric],
+        "rows": actual.tolist(),
+        "center": len(actual) - 1,
+        "ruled_out_by": [[i for i in read if row in removes[i]] for row in range(len(actual))],
+    }
+
+
+def _linear_entry(form: tuple[dict[str, float], float | None, float | None] | None, names: list[str]) -> dict | None:
+    """Return a straight limit as ``{lhs, low, high}``, ``low <= lhs <= high`` with null for an open side, or None."""
+    if form is None:
+        return None
+    coefficients, low, high = form
+    terms: list[str] = []
+    for name in names:
+        if not (c := coefficients.get(name, 0.0)):
+            continue
+        size = str(int(abs(c))) if float(c).is_integer() and abs(c) < 1e15 else repr(abs(c))
+        term = name if size == "1" else f"{size} * {name}"
+        terms.append((f"-{term}" if c < 0 else term) if not terms else f"{'-' if c < 0 else '+'} {term}")
+    return {"lhs": ast.unparse(ast.parse(" ".join(terms), mode="eval")), "low": low, "high": high}
+
+
+def _narrowed(implied: dict[str, tuple[float, float]] | None, numeric: list[Factor]) -> list[dict[str, Any]] | None:
+    """List the factors whose range the limits narrow, with each new end, or null for an end left where it was."""
+    if implied is None:
+        return None
+    narrowed = []
+    for f in numeric:
+        low, high = implied[f.name]
+        span = f.high - f.low
+        ends = (low if low - f.low > NARROWED * span else None, high if f.high - high > NARROWED * span else None)
+        if ends != (None, None):
+            narrowed.append({"name": f.name, "low": ends[0], "high": ends[1]})
+    return narrowed
+
+
+# --------------------------------------------------------------------------- limits proposed from the settings marked
+#: What the page says when every corner is marked or ruled out. A straight cut that rules out every corner of the
+#: box rules out all of it, since the box is the convex hull of its corners.
+EVERY_CORNER = (
+    "Every corner is marked or ruled out: a straight cut that rules them all out leaves no settings. Narrow the "
+    "ranges instead, or type a curved limit."
+)
+
+
+def _marked(raw: object, probes: tuple[np.ndarray, np.ndarray] | None) -> list[int]:
+    """Check the rows of the table of corners the reader marked "cannot run"; return each once, in order."""
+    if raw is None:
+        return []
+    count = 0 if probes is None else len(probes[0])
+    if not isinstance(raw, list) or not all(type(row) is int and 0 <= row < count for row in raw):
+        raise ValueError("The page sent marked settings this page did not write.")
+    return sorted(set(raw))
+
+
+def _proposals(
+    marked: list[int], probes: tuple[np.ndarray, np.ndarray], numeric: list[Factor], ruled_out: list[bool]
+) -> list[dict[str, Any]]:
+    """Propose one straight limit for each group of marked settings that no limit rules out yet.
+
+    One straight cut removes corners that hang together along the edges of the box, so the
+    marked corners are grouped by those edges and each group gets its own limit: the cut of
+    :func:`~process_improve.experiments.separating_constraint` between the group and the
+    settings neither marked nor ruled out, the other groups counting neither way. The centre,
+    which no edge joins to a corner, goes with the first group that one cut can rule out
+    together with it, or else is a group of its own.
+    """
+    coded = probes[0]
+    centre = len(coded) - 1
+    left = [row for row in marked if not ruled_out[row]]
+    if not left:
+        return []
+    if all(row in marked or ruled_out[row] for row in range(centre)):
+        return [{"marked": left, "problem": EVERY_CORNER}]
+    runnable = [row for row in range(len(coded)) if row not in marked and not ruled_out[row]]
+    proposals = []
+    centre_left = centre in left
+    for group in _joined([row for row in left if row != centre], coded):
+        proposal = _proposal([*group, centre], runnable, probes, numeric) if centre_left else None
+        if proposal is None or "problem" in proposal:
+            proposal = _proposal(group, runnable, probes, numeric)
+        if centre_left and centre in proposal.get("removes", ()):
+            proposal["marked"], centre_left = [*group, centre], False
+        proposals.append(proposal)
+    if centre_left:
+        proposals.append(_proposal([centre], runnable, probes, numeric))
+    return proposals
+
+
+def _joined(rows: list[int], coded: np.ndarray) -> list[list[int]]:
+    """Group corners joined by the edges of the box, two corners being joined when they differ in one factor."""
+    left, groups = sorted(rows), []
+    while left:
+        group, reach = [], [left.pop(0)]
+        while reach:
+            row = reach.pop()
+            group.append(row)
+            joined = [r for r in left if np.count_nonzero(coded[r] != coded[row]) == 1]
+            left = [r for r in left if r not in joined]
+            reach += joined
+        groups.append(sorted(group))
+    return groups
+
+
+def _proposal(
+    group: list[int], runnable: list[int], probes: tuple[np.ndarray, np.ndarray], numeric: list[Factor]
+) -> dict[str, Any]:
+    """Propose the straight limit that rules out the rows of ``group`` and keeps ``runnable``, or say why none can."""
+    actual = probes[1]
+    try:
+        constraint = separating_constraint(numeric, actual[group], actual[runnable])
+    except NotSeparableError as exc:
+        return {"marked": group, "problem": _inseparable(exc, group, runnable, len(actual) - 1)}
+    return {"marked": group, **_limit_proposed(constraint.expression, group, probes, numeric)}
+
+
+def _inseparable(exc: NotSeparableError, group: list[int], runnable: list[int], centre: int) -> str:
+    """Say why no straight cut rules out a group of marked settings and keeps the others.
+
+    A corner of the box lies between no other settings of the box, so the setting to blame, when
+    there is one, is the centre: marked, between corners that can be run, or runnable, between
+    marked corners.
+    """
+    if centre in [group[i] for i in exc.inside_can]:
+        return (
+            "The center of the ranges lies between settings you can run, so no straight cut rules it out alone. Type "
+            "a curved limit, or mark more."
+        )
+    if centre in [runnable[i] for i in exc.inside_cannot]:
+        return (
+            "The center of the ranges lies between the corners you marked, so a straight cut that rules them out "
+            "rules it out too. Mark it as well, or type a limit."
+        )
+    return (
+        "No single straight cut rules out these corners and keeps the others. Mark them in smaller groups, or type a "
+        "limit."
+    )
+
+
+def _limit_proposed(
+    expression: str, group: list[int], probes: tuple[np.ndarray, np.ndarray], numeric: list[Factor]
+) -> dict[str, Any]:
+    """Describe a proposed limit as a typed one is described, with where it cuts each factor from one corner.
+
+    The corner is the marked corner deepest beyond the limit. Each factor's cut is where the
+    limit's boundary crosses the edge from that corner to the factor's other end, the others held
+    at the corner, so the limit is the plane through the cuts and the reader can move them one at
+    a time (see :func:`_adjusted`). When the boundary misses the edge of a factor the limit
+    depends on, no question about that edge gives this limit, and ``corner`` and ``cuts`` are null.
+    """
+    coded, actual = probes
+    alone = DesignRegion(numeric, [expression])
+    form = alone.linear_forms()[0]
+    if form is None:  # a limit proposed is straight, with one bound
+        raise RuntimeError(f"The limit proposed, {expression!r}, is not a straight limit with one bound.")
+    coefficients, low, high = form
+    names = [f.name for f in numeric]
+    a = np.array([coefficients.get(name, 0.0) for name in names])
+    bound = high if high is not None else low
+    corners = [row for row in group if row != len(coded) - 1]
+    depth = [abs(float(a @ actual[row]) - bound) for row in corners]
+    corner = corners[int(np.argmax(depth))] if corners else None
+    cuts = None if corner is None else _cuts(a, bound, actual[corner], numeric)
+    return {
+        "expression": expression,
+        "type": "linear",
+        "linear": _linear_entry(form, names),
+        "removes": np.flatnonzero(~alone.feasible(coded)).tolist(),
+        "removed": 1.0 - alone.volume_fraction(),
+        "corner": None if cuts is None else corner,
+        "cuts": cuts,
+    }
+
+
+def _cuts(a: np.ndarray, bound: float, corner: np.ndarray, numeric: list[Factor]) -> list[dict[str, Any]] | None:
+    """Return where a limit's boundary crosses each edge of the box from a corner, or None when it misses one.
+
+    A factor the limit does not depend on has no cut: moving it alone never reaches the boundary.
+    """
+    cuts = []
+    for weight, at, factor in zip(a, corner, numeric, strict=True):
+        if weight == 0:
+            cuts.append({"name": factor.name, "at": float(at), "cut": None})
+            continue
+        cut = float(f"{at + (bound - float(a @ corner)) / weight:.12g}")
+        far = factor.low if at == factor.high else factor.high
+        if cut == at or not min(at, far) <= cut <= max(at, far):
+            return None
+        cuts.append({"name": factor.name, "at": float(at), "cut": cut})
+    return cuts
+
+
+def _adjusted(raw: object, probes: tuple[np.ndarray, np.ndarray] | None, numeric: list[Factor]) -> dict[str, Any]:
+    """Rebuild a proposed limit through the cut the reader gave each factor, from the corner it was proposed at.
+
+    ``raw`` is ``{marked, corner, values}``: the marked rows the limit is for, the row of its
+    corner, and per numeric factor the value it can reach from the corner with the others held
+    there, or null where the factor does not limit it. A cut no limit can be drawn through
+    (outside the range, or at or beyond the corner) comes back as the problem to show.
+    """
+    values = raw.get("values") if isinstance(raw, dict) else None
+    if probes is None or not (
+        isinstance(values, list)
+        and len(values) == len(numeric)
+        and all(v is None or _number(v) is not None for v in values)
+        and type(raw.get("corner")) is int
+        and 0 <= raw["corner"] < len(probes[0]) - 1
+    ):
+        raise ValueError("The page sent marked settings this page did not write.")
+    marked = _marked(raw.get("marked"), probes)
+    corner = probes[1][raw["corner"]]
+    cuts = {f.name: None if v is None else _number(v) for f, v in zip(numeric, values, strict=True)}
+    try:
+        constraint = constraint_through_cuts(numeric, corner.tolist(), cuts)
+    except ValueError as exc:
+        return {"marked": marked, "problem": str(exc)}
+    return {"marked": marked, **_limit_proposed(constraint.expression, [raw["corner"]], probes, numeric)}
+
+
+# --------------------------------------------------------------------------- pictures of the region
+#: Up to this many numeric factors, the picture of the region shows every pair of them.
+PICTURE_EVERY_PAIR = 4
+
+#: Points along each axis of the grid a curved limit's boundary is traced on, as many as a slice's mask has.
+TRACE_POINTS = 61
+
+#: How many times the step between two points of that grid is halved to find where the boundary crosses it.
+TRACE_HALVINGS = 20
+
+
+def _picture(
+    region: DesignRegion,
+    factors: list[Factor],
+    entries: list[dict[str, Any]],
+    alone: dict[int, DesignRegion],
+    *,
+    every_pair: bool,
+) -> dict[str, Any]:
+    """Return the region on each pair of numeric factors, for the panels the page draws.
+
+    Each pair's ``shadow`` is the settings of the two that some setting of the others can run
+    (see :meth:`~process_improve.experiments.DesignRegion.shadow`), and ``lines`` the boundary of
+    each straight limit that names no other factor, numbered by its place in the list. With
+    curved limits that name no factor but the pair's, ``trace`` traces the shadow exactly (see
+    :func:`_trace`), and ``curves`` the boundary of each, numbered alike; else ``trace`` is null,
+    and the shadow is a mask. Every pair
+    is shown up to :data:`PICTURE_EVERY_PAIR` numeric factors, or with ``every_pair``; from more,
+    the pairs of the factors the limits name. ``center`` is where the page holds the other factors
+    when it looks inside: the centre of the ranges when it can be run, else a central setting
+    that can be, and null when none can.
+    """
+    numeric = [f for f in factors if f.type != "categorical"]
+    names = [f.name for f in numeric]
+    named = {name for i in alone for name in entries[i]["factors"]}
+    shown = names if every_pair or len(names) <= PICTURE_EVERY_PAIR else [n for n in names if n in named]
+    curved = [i for i in alone if entries[i]["type"] == "nonlinear"]
+    straight = DesignRegion(numeric, [entries[i]["expression"] for i in alone if entries[i]["type"] == "linear"])
+    within = DesignRegion(numeric, [entries[i]["expression"] for i in curved])
+    ends = {f.name: f for f in numeric}
+    pairs = []
+    for x, y in itertools.combinations(shown, 2):
+        lines = [
+            {"limit": i, "points": line["points"]}
+            for i, own in alone.items()
+            if entries[i]["type"] == "linear" and set(entries[i]["factors"]) <= {x, y}
+            for line in own.slice_lines(x, y)
+        ]
+        on_pair = [i for i in curved if set(entries[i]["factors"]) <= {x, y}]
+        trace = None
+        if curved and len(on_pair) == len(curved):
+            # The curved limits name no other factor, so the shadow is the straight limits' shadow cut by them.
+            inside = _inside_polygon(straight.shadow(x, y)["points"], ends[x], ends[y])
+            meets = _runnable_at(within, numeric, x, y)
+            trace = _trace(lambda u, v, inside=inside, meets=meets: inside(u, v) & meets(u, v), numeric, x, y)
+        curves = _curves(alone, on_pair, lambda own, x=x, y=y: _trace(_runnable_at(own, numeric, x, y), numeric, x, y))
+        pairs.append({"x": x, "y": y, "shadow": region.shadow(x, y), "lines": lines, "trace": trace, "curves": curves})
+    middle = {f.name: (f.low + f.high) / 2 for f in numeric}
+    center = middle if region.feasible(np.zeros((1, len(numeric))))[0] else region.centroid()
+    return {"pairs": pairs, "shown": shown, "center": center}
+
+
+def _sliced(
+    raw: object,
+    factors: list[Factor],
+    region: DesignRegion,
+    entries: list[dict[str, Any]],
+    alone: dict[int, DesignRegion],
+) -> dict[str, Any]:
+    """Return the slice of the region the page looks inside: two factors, the others held at ``at``.
+
+    ``region`` is the settings of ``x`` and ``y`` that can be run there (see
+    :meth:`~process_improve.experiments.DesignRegion.slice_polygon`), ``lines`` each straight
+    limit's boundary there, numbered by its place in the list. With a curved limit, ``trace``
+    traces the settings that can be run (see :func:`_trace`), else it is null, and ``curves`` is
+    the boundary of each curved limit there (see :func:`_curves`).
+    """
+    names = [f.name for f in factors if f.type != "categorical"]
+    at = raw.get("at") if isinstance(raw, dict) else None
+    if not (
+        isinstance(at, dict)
+        and raw.get("x") in names
+        and raw.get("y") in names
+        and raw["x"] != raw["y"]
+        and all(name in names and _number(value) is not None for name, value in at.items())
+    ):
+        raise ValueError("The page sent a slice of the settings this page did not write.")
+    x, y, held = raw["x"], raw["y"], {name: _number(value) for name, value in at.items()}
+    lines = [
+        {"limit": i, "points": line["points"]}
+        for i, own in alone.items()
+        if entries[i]["type"] == "linear"
+        for line in own.slice_lines(x, y, held)
+    ]
+    numeric = [f for f in factors if f.type != "categorical"]
+    curved = [i for i in alone if entries[i]["type"] == "nonlinear"]
+    return {
+        "x": x,
+        "y": y,
+        "at": held,
+        "region": region.slice_polygon(x, y, held),
+        "lines": lines,
+        "trace": _trace(_runnable_at(region, numeric, x, y, held), numeric, x, y) if curved else None,
+        "curves": _curves(alone, curved, lambda own: _trace(_runnable_at(own, numeric, x, y, held), numeric, x, y)),
+    }
+
+
+def _curves(
+    alone: dict[int, DesignRegion], limits: list[int], trace: Callable[[DesignRegion], dict]
+) -> list[dict[str, Any]]:
+    """Return the boundary of each of these curved limits, as ``trace`` traces the limit on its own.
+
+    Each is ``{"limit": i, "trace": ...}`` (see :func:`_trace`), numbered by its place in the list;
+    a limit whose boundary misses the rectangle of the two factors' ranges has none.
+    """
+    curves = [{"limit": i, "trace": trace(alone[i])} for i in limits]
+    return [curve for curve in curves if curve["trace"]["crossings"]]
+
+
+def _trace(runnable: Callable[[np.ndarray, np.ndarray], np.ndarray], numeric: list[Factor], x: str, y: str) -> dict:
+    """Return which settings of two factors can be run on a grid, and where the boundary crosses the grid's lines.
+
+    ``runnable`` takes coded values of ``x`` and ``y``, two arrays of one shape, and says which of
+    those settings can be run. In the result, ``x`` and ``y`` are :data:`TRACE_POINTS` values from
+    each factor's low end to its high end, and ``z[i][j]`` is 1 where ``(x[j], y[i])`` can be run.
+    Each crossing is ``[i, j, along, t]``: on the grid line from point ``(i, j)`` to ``(i, j + 1)``
+    (``along`` 0) or to ``(i + 1, j)`` (``along`` 1), the share ``t`` of the way along it where the
+    setting changes between can and cannot be run, found by halving the step
+    :data:`TRACE_HALVINGS` times. The page draws a smooth boundary through the crossings, where a
+    mask of the settings that can be run would be stepped.
+    """
+    grid = np.linspace(-1.0, 1.0, TRACE_POINTS)
+    step = grid[1] - grid[0]
+    gx, gy = np.meshgrid(grid, grid)
+    can = runnable(gx, gy)
+    crossings = []
+    for along, (di, dj) in enumerate([(0, 1), (1, 0)]):
+        first = can[: TRACE_POINTS - di, : TRACE_POINTS - dj]
+        rows, cols = np.nonzero(first != can[di:, dj:])
+        lo, hi = np.zeros(len(rows)), np.ones(len(rows))  # the share of the step, from the end that can be run
+        from_first = first[rows, cols]
+        for _ in range(TRACE_HALVINGS):
+            middle = (lo + hi) / 2
+            share = np.where(from_first, middle, 1.0 - middle)
+            ok = runnable(grid[cols] + share * step * dj, grid[rows] + share * step * di)
+            lo, hi = np.where(ok, middle, lo), np.where(ok, hi, middle)
+        share = np.where(from_first, (lo + hi) / 2, 1.0 - (lo + hi) / 2)
+        crossings += [[int(i), int(j), along, round(float(t), 6)] for i, j, t in zip(rows, cols, share, strict=True)]
+    ends = {f.name: f for f in numeric}
+
+    def actual(factor: Factor) -> list[float]:
+        return [float(f"{(factor.low + factor.high) / 2 + c * (factor.high - factor.low) / 2:.12g}") for c in grid]
+
+    return {"x": actual(ends[x]), "y": actual(ends[y]), "z": can.astype(int).tolist(), "crossings": crossings}
+
+
+def _runnable_at(
+    region: DesignRegion, numeric: list[Factor], x: str, y: str, held: dict[str, float] | None = None
+) -> Callable[[np.ndarray, np.ndarray], np.ndarray]:
+    """Return the region's test of settings of ``x`` and ``y``, the others held at ``held`` (else at their centre)."""
+    names = [f.name for f in numeric]
+    ix, iy = names.index(x), names.index(y)
+    given = held or {}
+    base = np.array([_coded_value(f, given[f.name]) if f.name in given else 0.0 for f in numeric])
+
+    def runnable(u: np.ndarray, v: np.ndarray) -> np.ndarray:
+        points = np.tile(base, (u.size, 1))
+        points[:, ix], points[:, iy] = u.ravel(), v.ravel()
+        return region.feasible(points).reshape(u.shape)
+
+    return runnable
+
+
+def _inside_polygon(
+    polygon: list[list[float]], fx: Factor, fy: Factor
+) -> Callable[[np.ndarray, np.ndarray], np.ndarray]:
+    """Return the test of settings of two factors, in coded units, against a convex polygon in actual units.
+
+    The polygon's corners run counter-clockwise, as :meth:`~process_improve.experiments.DesignRegion.shadow`
+    gives them; a setting on an edge is inside. A segment or a point holds no setting.
+    """
+    corners = np.array([[_coded_value(fx, px), _coded_value(fy, py)] for px, py in polygon]).reshape(-1, 2)
+
+    def inside(u: np.ndarray, v: np.ndarray) -> np.ndarray:
+        held = np.full(u.shape, len(corners) >= 3)
+        for (ax, ay), (bx, by) in zip(corners, np.roll(corners, -1, axis=0), strict=True):
+            held &= (bx - ax) * (v - ay) - (by - ay) * (u - ax) >= -1e-9
+        return held
+
+    return inside
+
+
+def _coded_value(factor: Factor, value: float) -> float:
+    """Return a numeric factor's value in coded units: -1 at its low end, +1 at its high end."""
+    return (value - (factor.low + factor.high) / 2) / ((factor.high - factor.low) / 2)
 
 
 # --------------------------------------------------------------------------- JSON entry points
@@ -2030,3 +2896,8 @@ def api_candidates(payload: str) -> str:
 def api_relabel(payload: str) -> str:
     """JSON wrapper around :func:`relabel`."""
     return _reply(relabel, payload)
+
+
+def api_limits(payload: str) -> str:
+    """JSON wrapper around :func:`limits`."""
+    return _reply(limits, payload)

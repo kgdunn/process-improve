@@ -92,6 +92,7 @@ class _EvalContext:
     XtX: np.ndarray
     XtX_inv: np.ndarray | None  # None when X'X is singular
     is_singular: bool
+    rank: int  # of X, decided with each column scaled to unit length
     generators: list[str] | None
     defining_relation: list[str] | None
     resolution: int | None
@@ -237,6 +238,13 @@ def _build_model_matrix(
     return X, column_names, dm.design_info
 
 
+def _unit_length_columns(X: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+    """Return ``X`` with each column scaled to unit length, and the lengths; a column of zeros stays as it is."""
+    lengths = np.linalg.norm(X, axis=0)
+    lengths = np.where(lengths > 0, lengths, 1.0)
+    return X / lengths, lengths
+
+
 def _build_context(req: _EvalRequest) -> _EvalContext:
     """Build the shared evaluation context."""
     X, column_names, design_info = _build_model_matrix(
@@ -245,11 +253,15 @@ def _build_context(req: _EvalRequest) -> _EvalContext:
     N, p = X.shape
     XtX = X.T @ X
 
-    rank = np.linalg.matrix_rank(XtX)
+    # The rank and (X'X)^-1 are worked on X with unit-length columns, which changes neither. In
+    # the factors' own units the columns' lengths can differ by many orders (x1 beside x1^2 x2);
+    # X'X squares X's condition number, and a full-rank model could fall under the rank tolerance.
+    scaled, lengths = _unit_length_columns(X)
+    rank = int(np.linalg.matrix_rank(scaled))
     is_singular = rank < p
     XtX_inv: np.ndarray | None = None
     if not is_singular:
-        XtX_inv = np.linalg.inv(XtX)
+        XtX_inv = np.linalg.inv(scaled.T @ scaled) / np.outer(lengths, lengths)
 
     return _EvalContext(
         X=X,
@@ -262,6 +274,7 @@ def _build_context(req: _EvalRequest) -> _EvalContext:
         XtX=XtX,
         XtX_inv=XtX_inv,
         is_singular=is_singular,
+        rank=rank,
         generators=req.generators,
         defining_relation=req.defining_relation,
         resolution=req.resolution,
@@ -794,6 +807,16 @@ def _compute_condition_number(ctx: _EvalContext) -> dict[str, float]:
     return {"condition_number": cn}
 
 
+def _compute_scaled_condition_number(ctx: _EvalContext) -> dict[str, float]:
+    """Condition number of the model matrix X with each column scaled to unit length.
+
+    The scaling removes what the factors' units contribute, so the number measures only how
+    nearly the columns are collinear: 1 for orthogonal columns, whatever their units. Belsley,
+    Kuh and Welsch scale this way for their condition indexes; RS/Discover prints it as Cond. No.
+    """
+    return {"scaled_condition_number": float(np.linalg.cond(_unit_length_columns(ctx.X)[0]))}
+
+
 def _coefficient_power(
     coefficient_over_sigma: float | np.ndarray, c_jj: float, df_resid: int, alpha: float
 ) -> float | np.ndarray:
@@ -880,7 +903,7 @@ def _compute_degrees_of_freedom(ctx: _EvalContext) -> dict[str, Any]:
     number of distinct settings) and ``lack_of_fit``; both are always reported, as 0
     when there are no replicates. A rank-deficient model says so in a note.
     """
-    rank = int(np.linalg.matrix_rank(ctx.X))
+    rank = ctx.rank
     mean_df = int(_spans_constant(ctx.X))
 
     # Detect replicates by counting distinct factor-setting rows. Round the
@@ -1315,6 +1338,7 @@ _METRIC_REGISTRY: dict[str, Callable[[_EvalContext], Any]] = {
     "prediction_variance": _compute_prediction_variance,
     "vif": _compute_vif,
     "condition_number": _compute_condition_number,
+    "scaled_condition_number": _compute_scaled_condition_number,
     "power": _compute_power,
     "degrees_of_freedom": _compute_degrees_of_freedom,
     "alias_structure": _compute_alias_structure,
@@ -1492,7 +1516,8 @@ def evaluate_design(  # noqa: PLR0913
         ``"average_prediction_variance"`` (the I-criterion), ``"g_efficiency"``, ``"a_optimality"``,
         ``"e_optimality"``, ``"correlation"``, ``"alias_matrix"``, ``"fds"``,
         ``"prediction_variance"``, ``"vif"``, ``"condition_number"``,
-        ``"power"``, ``"degrees_of_freedom"``, ``"alias_structure"``,
+        ``"scaled_condition_number"`` (with each column of the model matrix scaled to
+        unit length, so the factors' units do not count), ``"power"``, ``"degrees_of_freedom"``, ``"alias_structure"``,
         ``"confounding"``, ``"resolution"``, ``"defining_relation"``,
         ``"clear_effects"``, ``"minimum_aberration"``, ``"moment_aberration"``.
         ``"i_efficiency"`` still works but is deprecated (since 1.97.0, removed in
@@ -1554,7 +1579,7 @@ def evaluate_design(  # noqa: PLR0913
         and second level in sorted order), and a factor with ``L > 2`` levels gets ``L - 1``
         columns, the last level at -1 in every column (names such as ``"C[S.lo]"``).
         ``"treatment"`` is patsy's 0/1 dummy coding against the first level (``"C[T.y]"``),
-        which earlier releases used. The A- and E-criteria, VIF, the condition number,
+        which earlier releases used. The A- and E-criteria, VIF, both condition numbers,
         power and the alias matrix depend on the coding; the prediction-variance metrics,
         D rankings and the degrees of freedom do not. A ``Block`` column named in the
         formula is sum-coded under ``"effect"``, as ``analyze_experiment`` codes blocks.

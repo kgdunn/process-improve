@@ -35,6 +35,11 @@ TPF = [
 CORNERS = [list(c) for c in itertools.product((150, 200), (1, 3), (10, 20))]
 CENTRE = [175, 2, 15]
 SQUARE = [Factor(name="A", low=-1, high=1), Factor(name="B", low=-1, high=1)]
+#: Six factors whose half-ranges (25, 1, 5, 0.5, 22.5 and 1) make coefficients that are exactly halfway at a digit.
+SIX = [
+    Factor(name=name, low=low, high=high)
+    for name, low, high in [("A", 150, 200), ("B", 1, 3), ("C", 10, 20), ("D", 0, 1), ("E", 5, 50), ("F", -1, 1)]
+]
 
 _settings = settings(max_examples=60, deadline=None, suppress_health_check=[HealthCheck.too_slow])
 
@@ -43,6 +48,14 @@ def _split(rule, centre: bool = True) -> tuple[list[list[float]], list[list[floa
     """Return the corners ``rule`` marks as cannot, and the other corners (with the centre) as can."""
     cannot = [c for c in CORNERS if rule(*c)]
     can = [c for c in CORNERS if not rule(*c)] + ([CENTRE] if centre else [])
+    return cannot, can
+
+
+def _six_factor_split() -> tuple[list[list[float]], list[list[float]]]:
+    """Return the corners of ``SIX`` with B to F all high as cannot, and the other corners (with the centre) as can."""
+    corners = [list(c) for c in itertools.product(*[(f.low, f.high) for f in SIX])]
+    cannot = [c for c in corners if all(v == f.high for v, f in zip(c[1:], SIX[1:], strict=True))]
+    can = [c for c in corners if c not in cannot] + [[(f.low + f.high) / 2 for f in SIX]]
     return cannot, can
 
 
@@ -255,6 +268,31 @@ class TestTiesAndDeterminism:
         assert limit.expression == "T + 12.5 * P + 2.5 * F <= 260"
         direction = _direction(limit, TPF)
         assert direction[1] == direction[2]
+
+    def test_equal_coefficients_exactly_halfway_between_two_round_alike(self):
+        # B to F all high cannot be run, whatever A; the plane of maximum margin gives B to F the same coded
+        # coefficient, which in actual units, the smallest made 1, is exactly 22.5 for B and for F. Rounded as the
+        # solver returned them, a few units in the last place apart, B went to 23 and F to 22.
+        cannot, can = _six_factor_split()
+        limit = separating_constraint(SIX, cannot, can)
+        assert limit.expression == "22.5 * B + 4.5 * C + 45 * D + E + 22.5 * F <= 250"
+        direction = _direction(limit, SIX)
+        assert direction[0] == 0.0
+        np.testing.assert_array_equal(direction[1:], direction[1])
+
+    def test_the_solvers_last_bit_noise_does_not_change_the_limit(self):
+        # Native Python and Pyodide find planes a few units in the last place apart. Nudged by that much, each
+        # coefficient its own way, the plane of the test above is still written the same.
+        cannot, can = (np.array(points, dtype=float) for points in _six_factor_split())
+        half = np.array([(f.high - f.low) / 2 for f in SIX])
+        w = np.array([0.0, 1.0, 1.0, 1.0, 1.0, 1.0])
+        expected = sep._rounded(w / half, half, cannot, can)
+        assert sep._expression([f.name for f in SIX], *expected).startswith("22.5 * B + ")
+        eps = np.finfo(float).eps
+        rng = np.random.default_rng(0)
+        for _ in range(20):
+            nudged = w * (1.0 + rng.integers(-4, 5, size=len(w)) * eps)
+            assert sep._rounded(nudged / half, half, cannot, can) == expected
 
     def test_the_square_corner_gives_the_diagonal(self):
         cannot = [[1, 1]]

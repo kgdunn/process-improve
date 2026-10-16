@@ -6,7 +6,7 @@ import numpy as np
 import pytest
 
 from process_improve.experiments import Constraint, DesignRegion, Factor
-from process_improve.experiments._uniform_sampling import _affine_form
+from process_improve.experiments._uniform_sampling import UniformSampler, _affine_form
 
 
 def _box(*names: str) -> list[Factor]:
@@ -78,3 +78,36 @@ def test_affine_constraints_are_recognised_in_any_number_of_factors() -> None:
         assert form[1] == pytest.approx(1.0)
         curved = _affine_form(lambda x: (np.atleast_2d(x) ** 2).sum(axis=1) - 1.0, -np.ones(k), np.ones(k))
         assert curved is None, k
+
+
+@pytest.mark.parametrize(
+    "g",
+    [
+        lambda x: np.where(np.atleast_2d(x)[:, 0] > 0.5, np.inf, np.atleast_2d(x)[:, 0]),  # the tolerance was inf
+        lambda x: np.where(np.atleast_2d(x)[:, 0] < -0.5, np.nan, np.atleast_2d(x)[:, 0]),  # nan > tol was False
+        lambda x: np.sqrt(np.atleast_2d(x)[:, 0]) + np.atleast_2d(x)[:, 1],  # undefined where the first is negative
+        lambda x: np.full(len(np.atleast_2d(x)), 1e308) * np.atleast_2d(x)[:, 0] * 10,  # overflows to inf
+    ],
+)
+def test_a_constraint_undefined_somewhere_in_the_box_is_not_affine(g) -> None:
+    """A secant plane through the points where it is finite used to stand in for such a constraint."""
+    with np.errstate(all="ignore"):
+        assert _affine_form(g, -np.ones(2), np.ones(2)) is None
+
+
+def test_the_step_directions_use_the_unique_square_root_of_their_covariance() -> None:
+    """Eigenvectors of the covariance have no fixed sign, and native LAPACK and Pyodide chose differently.
+
+    The chains then took different steps from the same starts, and compare_designs(region=) gave a
+    different I in the browser for a region thinner than about 1% of the box. The Cholesky factor
+    (lower triangular, positive diagonal) is the one square root both platforms agree on.
+    """
+    points = np.random.default_rng(3).normal(size=(200, 4)) @ np.array(
+        [[1.0, 0.3, 0.0, 0.2], [0.0, 0.5, 0.1, 0.0], [0.0, 0.0, 0.2, 0.05], [0.0, 0.0, 0.0, 0.01]]
+    )
+    sampler = UniformSampler([], (-np.ones(4), np.ones(4)), lambda m: np.zeros((m, 4)))
+    shape = sampler._direction_shape(points)
+    cov = np.cov(points, rowvar=False)
+    np.testing.assert_allclose(shape @ shape.T, cov + 1e-3 * np.trace(cov) / 4 * np.eye(4), rtol=1e-12, atol=1e-15)
+    np.testing.assert_array_equal(np.triu(shape, 1), 0.0)
+    assert np.all(np.diag(shape) > 0)

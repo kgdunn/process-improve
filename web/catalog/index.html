@@ -6,6 +6,7 @@
   <title>Design catalog: Factorial</title>
   <meta name="description" content="Search the designed experiments of published sources and the designs process-improve makes: filter by size, factors, model and date, see where each one sits, and open it in Factorial.">
   <link rel="canonical" href="https://factori.al/catalog/">
+  <link rel="alternate" type="application/atom+xml" title="Design catalog: the sources it holds" href="feed.xml">
   <link rel="icon" href="../favicon.svg" type="image/svg+xml">
   <meta name="theme-color" content="#faf8f3" media="(prefers-color-scheme: light)">
   <meta name="theme-color" content="#141517" media="(prefers-color-scheme: dark)">
@@ -52,6 +53,11 @@
     <button type="button" class="link try">box hunter 1978 with data</button>
     <button type="button" class="link try">3-factor projection, survives a lost run</button>
     <button type="button" class="link try">errata</button>
+    <button type="button" class="link try">gaps</button>
+  </p>
+  <p class="catalog__views">
+    <button type="button" class="link" id="errata-open">Errata: every printed number that does not reproduce</button>
+    <a href="feed.xml">Follow new sources (Atom feed)</a>
   </p>
 
   <div class="catalog__body">
@@ -113,10 +119,11 @@
           <label class="facets__switch"><input type="checkbox" data-switch="recomputed"> Printed numbers recomputed <span class="count"></span></label>
           <label class="facets__switch"><input type="checkbox" data-switch="differs"> A printed number differs <span class="count"></span></label>
           <label class="facets__switch"><input type="checkbox" data-switch="opens"> Opens in Factorial <span class="count"></span></label>
+          <label class="facets__switch"><input type="checkbox" data-switch="unprinted"> No source prints it <span class="count"></span></label>
+          <select id="source" aria-label="The source that prints the design"><option value="">Every source</option></select>
         </fieldset>
         <fieldset>
           <legend>Date published</legend>
-          <svg id="year-bars" class="facets__bars" role="group" aria-label="Designs by the year their source appeared"></svg>
           <div class="facets__range"><span>Years</span>
             <input id="year-min" type="number" min="1900" max="2100" inputmode="numeric" aria-label="From the year" placeholder="from">
             <input id="year-max" type="number" min="1900" max="2100" inputmode="numeric" aria-label="To the year" placeholder="to"></div>
@@ -134,6 +141,15 @@
           runs each model needs: a design below a line cannot estimate that model. Drag a box to filter; click a mark
           to open its design.</figcaption>
       </figure>
+      <figure class="catalog__timeline">
+        <svg id="year-bars" class="timeline" role="group" aria-label="Published designs by the year their source appeared"></svg>
+        <figcaption class="hint" id="timeline-caption">The published designs by the year their source appeared, in the
+          colours of their families; a diamond marks the year a family was first published. Drag across the years, or
+          choose a bar, to keep those years.
+          <span class="visually-hidden">First published:</span>
+          <ul class="timeline__marks" id="timeline-marks" aria-label="The families first published in these years"></ul>
+        </figcaption>
+      </figure>
       <div class="catalog__listhead">
         <label>Order <select id="sort"></select></label>
       </div>
@@ -150,12 +166,38 @@
     <div id="detail-body"></div>
   </dialog>
 
+  <dialog id="compare" class="sheet detail" aria-labelledby="compare-title">
+    <div class="sheet__head">
+      <h2 id="compare-title">Designs side by side</h2>
+      <button type="button" class="link" data-close="compare" aria-label="Close">✕</button>
+    </div>
+    <div id="compare-body"></div>
+  </dialog>
+
+  <dialog id="errata" class="sheet detail" aria-labelledby="errata-title">
+    <div class="sheet__head">
+      <h2 id="errata-title">Errata</h2>
+      <button type="button" class="link" data-close="errata" aria-label="Close">✕</button>
+    </div>
+    <div id="errata-body"></div>
+  </dialog>
+
+  <div class="tray" id="tray" hidden>
+    <p class="tray__text" id="tray-text"></p>
+    <ul class="tray__list" id="tray-list"></ul>
+    <div class="tray__actions">
+      <button type="button" class="button primary" id="tray-open">Compare</button>
+      <button type="button" class="link" id="tray-clear">Clear</button>
+    </div>
+  </div>
+
   <footer>
     <p>The published designs are from the reference catalogue of
       <a href="https://github.com/kgdunn/process-improve">process-improve</a>, which holds each source's runs and
       every number it prints, with where it is printed, and recomputes them on each change to the library. The
       numbers and short quotations belong to their sources, whose terms each design shows; the MIT licence of
-      process-improve does not cover them. <a href="../about.html">How Factorial works</a>.</p>
+      process-improve does not cover them. <a href="../about.html">How Factorial works</a>.
+      <a href="feed.xml">The feed of new sources</a> says when a source is added.</p>
   </footer>
 </main>
 <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
