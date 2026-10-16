@@ -81,6 +81,33 @@ def projection_formula(frame: pd.DataFrame, factors: list[str], model: str) -> s
     return rhs
 
 
+def _numeric_model_matrix(frame: pd.DataFrame, factors: list[str], model: str) -> np.ndarray | None:
+    """Return a numeric projection's model matrix as :func:`projection_formula` builds it; ``None`` for labels."""
+    columns = frame[factors]
+    if not all(pd.api.types.is_numeric_dtype(columns[f]) for f in factors):
+        return None
+    values = columns.to_numpy(dtype=float)
+    parts = [np.ones((len(values), 1)), values]
+    if model != "main_effects":
+        parts += [values[:, [a]] * values[:, [b]] for a, b in itertools.combinations(range(len(factors)), 2)]
+    if model == "quadratic":
+        parts += [values[:, [j]] ** 2 for j, f in enumerate(factors) if columns[f].round(9).nunique() >= 3]
+    return np.hstack(parts)
+
+
+def _estimates(frame: pd.DataFrame, factors: list[str], model: str) -> bool:
+    """Say whether a projection estimates the model: its model matrix has full column rank."""
+    matrix = _numeric_model_matrix(frame, factors, model)
+    if matrix is None:
+        info = evaluate_design(
+            frame[factors], model=projection_formula(frame, factors, model), metric="information_matrix"
+        )
+        return bool(info["information_matrix"]["rank"] == info["information_matrix"]["n_parameters"])
+    lengths = np.linalg.norm(matrix, axis=0)
+    scaled = matrix / np.where(lengths > 0, lengths, 1.0)
+    return bool(matrix.shape[0] >= matrix.shape[1] and np.linalg.matrix_rank(scaled) == matrix.shape[1])
+
+
 def _subsets(names: list[str], size: int | dict[str, int], groups: dict[str, list[str]] | None) -> list[list[str]]:
     """Return every projection's factors: any ``size`` of them, or that many from each group."""
     if isinstance(size, int):
@@ -135,7 +162,7 @@ def evaluate_projections(
     dict[str, Any]
         ``n_projections``, ``n_estimable`` and ``fraction_estimable``; ``projections``, one dict
         per projection with its ``factors``, whether it is ``estimable``, and its metrics'
-        results under ``metrics``; and ``mean``, each number a metric returns (such as
+        results under ``metrics``; and ``averages``, each number a metric returns (such as
         ``"d_efficiency"`` and ``"max_prediction_variance"`` for ``"g_efficiency"``) averaged
         over the projections that estimate the model.
 
@@ -151,12 +178,14 @@ def evaluate_projections(
     metrics = [] if metric is None else [metric] if isinstance(metric, str) else list(metric)
     projections: list[dict[str, Any]] = []
     for factors in subsets:
-        formula = projection_formula(frame, factors, model)
-        found = evaluate_design(frame[factors], model=formula, metric=["information_matrix", *metrics], **options)
-        info = found.pop("information_matrix")
-        found.pop("notes", None)
-        estimable = info["rank"] == info["n_parameters"]
-        projections.append({"factors": factors, "estimable": estimable, "metrics": found if estimable else {}})
+        estimable = _estimates(frame, factors, model)
+        found: dict[str, Any] = {}
+        if estimable and metrics:
+            found = evaluate_design(
+                frame[factors], model=projection_formula(frame, factors, model), metric=metrics, **options
+            )
+            found.pop("notes", None)
+        projections.append({"factors": factors, "estimable": estimable, "metrics": found})
     usable = [p for p in projections if p["estimable"]]
     numbers: dict[str, list[float]] = {}
     for p in usable:
@@ -170,5 +199,5 @@ def evaluate_projections(
         "n_estimable": len(usable),
         "fraction_estimable": len(usable) / len(projections) if projections else float("nan"),
         "projections": projections,
-        "mean": {key: float(np.mean(values)) for key, values in numbers.items()},
+        "averages": {key: float(np.mean(values)) for key, values in numbers.items()},
     }

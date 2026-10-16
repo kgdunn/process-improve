@@ -28,10 +28,10 @@ def test_the_average_of_a_metric_is_over_the_estimable_projections() -> None:
     one = next(p for p in found["projections"] if p["factors"] == ["A", "B", "C"])
     direct = evaluate_design(design[["A", "B", "C"]], model=projection_formula(design, ["A", "B", "C"], "quadratic"))
     assert one["metrics"]["d_efficiency"] == pytest.approx(direct["d_efficiency"])
-    assert found["mean"]["d_efficiency"] == pytest.approx(
+    assert found["averages"]["d_efficiency"] == pytest.approx(
         np.mean([p["metrics"]["d_efficiency"] for p in found["projections"]])
     )
-    assert "max_prediction_variance" in found["mean"]
+    assert "max_prediction_variance" in found["averages"]
 
 
 def test_a_two_level_factor_has_no_square_in_a_projection() -> None:

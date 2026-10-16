@@ -571,12 +571,14 @@ def design_structure(
     -------
     dict[str, Any]
         - ``n_runs``, ``n_factors``, ``n_distinct_runs``;
-        - ``levels`` and ``level_counts``: each factor's distinct levels, and how often each occurs;
+        - ``levels``, each factor's distinct levels, and ``level_counts``, by level (written as
+          ``"-1"``, ``"0"``, ``"1"``), how often each factor takes it;
         - ``n_two_level``, ``n_three_level``: how many factors have two and three levels;
         - ``n_center_runs``: the runs with every three-level factor at 0;
         - ``zeros``: ``main_effects``, each three-level factor's zeros, and ``interactions``, each
           product of two three-level factors' zeros, both over the runs that are not centre runs,
-          with ``n0ME`` and ``n0IE``, the value they all share (``None`` when they differ);
+          with ``n0ME`` and ``n0IE``, the value they all share (``None`` when they differ), and
+          ``zeros_with_center_runs``, the same counted over every run;
         - ``mirror_pairs``: how many pairs of the runs that are not centre runs are each other's
           negative, and ``foldover``, whether every such run is in one;
         - ``replicated``: the groups of runs (0-based) with the same settings, each of two or more;
@@ -602,6 +604,10 @@ def design_structure(
     pairs = {
         f"{names[a]}:{names[b]}": _zero_count(rest[:, a] * rest[:, b]) for a, b in itertools.combinations(three, 2)
     }
+    with_centre_main = {names[j]: _zero_count(coded[:, j]) for j in three}
+    with_centre_pairs = {
+        f"{names[a]}:{names[b]}": _zero_count(coded[:, a] * coded[:, b]) for a, b in itertools.combinations(three, 2)
+    }
     remaining = Counter(map(tuple, np.round(rest, 9)))
     mirror = 0
     for row in list(remaining):
@@ -618,7 +624,10 @@ def design_structure(
         "n_factors": n_factors,
         "n_distinct_runs": len(groups),
         "levels": levels,
-        "level_counts": {name: dict(Counter(rounded[:, j].tolist())) for j, name in enumerate(names)},
+        "level_counts": {
+            f"{level:g}": {name: int(np.isclose(coded[:, j], level).sum()) for j, name in enumerate(names)}
+            for level in sorted(set(rounded.ravel().tolist()))
+        },
         "n_two_level": sum(len(v) == 2 for v in levels.values()),
         "n_three_level": sum(len(v) == 3 for v in levels.values()),
         "n_center_runs": int(centre.sum()),
@@ -627,6 +636,12 @@ def design_structure(
             "interactions": pairs,
             "n0ME": _same_or_none(list(main.values())),
             "n0IE": _same_or_none(list(pairs.values())),
+        },
+        "zeros_with_center_runs": {
+            "main_effects": with_centre_main,
+            "interactions": with_centre_pairs,
+            "n0ME": _same_or_none(list(with_centre_main.values())),
+            "n0IE": _same_or_none(list(with_centre_pairs.values())),
         },
         "mirror_pairs": mirror,
         "foldover": bool(len(rest) > 0 and 2 * mirror == len(rest)),

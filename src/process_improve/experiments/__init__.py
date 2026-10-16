@@ -5,6 +5,7 @@ from process_improve.experiments._moment_aberration import (
     NotTwoLevelError,
     moment_aberration,
 )
+from process_improve.experiments.allocation import allocate_runs
 from process_improve.experiments.analysis import analyze_experiment
 from process_improve.experiments.augment import augment_design
 from process_improve.experiments.compare import DesignComparison, compare_designs
@@ -68,6 +69,7 @@ __all__ = [
     "ResponseGoal",
     "TradeOffTableEntry",
     "TrueProcess",
+    "allocate_runs",
     "analyze_experiment",
     "analyze_omars",
     "augment_design",

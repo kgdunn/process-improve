@@ -260,7 +260,7 @@ def test_a_definitive_screening_design_s_zeros_centre_run_and_mirror_pairs() -> 
     found = design_measures.design_structure(runs, list("ABCDEF"))
     assert (found["n_center_runs"], found["zeros"]["n0ME"], found["zeros"]["n0IE"]) == (3, 2, 4)
     assert (found["mirror_pairs"], found["foldover"], found["n_three_level"]) == (6, True, 6)
-    assert found["level_counts"]["A"] == {-1.0: 5, 0.0: 5, 1.0: 5}
+    assert {level: counts["A"] for level, counts in found["level_counts"].items()} == {"-1": 5, "0": 5, "1": 5}
     assert [len(group) for group in found["replicated"]] == [3]  # the centre runs
 
 

@@ -168,7 +168,7 @@ estimation capacity) and each metric's average over them:
    from process_improve.experiments import evaluate_projections
 
    found = evaluate_projections(design, 3, model="quadratic", metric=["d_efficiency", "g_efficiency"])
-   found["n_estimable"], found["n_projections"], found["mean"]["d_efficiency"]
+   found["n_estimable"], found["n_projections"], found["averages"]["d_efficiency"]
 
 Under ``model="quadratic"`` a projection's model squares only the factors it runs at
 three or more levels, so a mixed-level design's two-level factors enter by their main
