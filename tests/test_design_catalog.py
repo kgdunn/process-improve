@@ -9,6 +9,7 @@ import pytest
 
 from process_improve.experiments import design_catalog, generate_design
 from process_improve.experiments.design_catalog import (
+    CATALOG_URL,
     FAMILIES,
     GENERATED,
     GLYPH_ROWS,
@@ -21,6 +22,7 @@ from process_improve.experiments.design_catalog import (
     normalise_family,
     printed_checks,
     published_runs,
+    search_catalog,
 )
 from process_improve.experiments.design_measures import estimable_models
 from process_improve.experiments.factor import Factor
@@ -285,3 +287,55 @@ def test_each_source_carries_its_citation_and_terms():
     assert sources["davies-1956"]["short"] == "Davies"
     assert sources["schmidt-launsby-2000"]["short"] == "Schmidt and Launsby"
     assert all(0 < len(source["short"]) <= 50 for source in sources.values())
+
+
+# --------------------------------------------------------------------------- searching the catalog
+@pytest.mark.slow
+@pytest.mark.dataset
+def test_a_search_keeps_the_designs_that_pass_every_filter():
+    found = search_catalog(min_factors=6, max_factors=6, max_runs=17, min_quadratic_projection=3)
+    assert {d["family"] for d in found} == {"dsd", "omars"}
+    assert [d["n_runs"] for d in found] == sorted(d["n_runs"] for d in found), "the fewest runs first"
+    assert all(d["url"] == f"{CATALOG_URL}#d={d['id']}" for d in found)
+    published = search_catalog(text="pilot plant", collection="published", has_results=True)
+    assert "bhh-pilot-plant-2-3" in {d["id"] for d in published}
+    pilot = next(d for d in published if d["id"] == "bhh-pilot-plant-2-3")
+    assert pilot["source_short"] == "Box, Hunter and Hunter (1978)"
+    assert pilot["same_design"] >= 1, "the 2^3 factorial is printed in many places"
+
+
+@pytest.mark.slow
+@pytest.mark.dataset
+def test_a_year_keeps_published_designs_and_the_newest_come_first():
+    found = search_catalog(year_from=2019, sort="newest")
+    assert found
+    assert all(d["collection"] == "published" and d["year"] >= 2019 for d in found)
+    assert [d["year"] for d in found] == sorted((d["year"] for d in found), reverse=True)
+
+
+def test_a_search_refuses_a_family_or_model_the_catalog_does_not_have():
+    with pytest.raises(ValueError, match=r"Unknown families \['nope'\]"):
+        search_catalog(families=["nope"])
+    with pytest.raises(ValueError, match="Unknown model 'cubic'"):
+        search_catalog(model="cubic")
+
+
+def test_the_search_tool_is_registered_with_a_strict_schema():
+    from process_improve.tool_spec import discover_tools, get_tool_specs
+
+    discover_tools()
+    spec = {s["name"]: s for s in get_tool_specs()}["search_design_catalog"]
+    assert spec["category"] == "experiments"
+    assert spec["input_schema"]["additionalProperties"] is False
+    assert "https://factori.al/catalog/" in spec["description"]
+
+
+@pytest.mark.slow
+@pytest.mark.dataset
+def test_the_search_tool_returns_designs_with_their_pages():
+    from process_improve.tool_spec import execute_tool_call
+
+    found = execute_tool_call("search_design_catalog", {"families": ["box_behnken"], "max_factors": 3, "limit": 2})
+    assert found["count"] >= found["shown"] == len(found["designs"]) == 2
+    assert all(d["family"] == "box_behnken" and d["url"].startswith(CATALOG_URL) for d in found["designs"])
+    assert execute_tool_call("search_design_catalog", {"families": ["nope"]})["error"].startswith("Unknown families")

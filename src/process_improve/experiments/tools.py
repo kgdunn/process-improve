@@ -35,6 +35,7 @@ from process_improve.experiments._tools.visualize_doe import visualize_doe_tool
 from process_improve.experiments._tools.doe_knowledge import doe_knowledge_tool
 from process_improve.experiments._tools.recommend_strategy import recommend_strategy_tool
 from process_improve.experiments._tools.trade_off_table import trade_off_table_tool
+from process_improve.experiments._tools.search_design_catalog import search_design_catalog_tool
 
 __all__ = [
     "analyze_experiment_tool",
@@ -47,6 +48,7 @@ __all__ = [
     "get_experiments_tool_specs",
     "optimize_responses_tool",
     "recommend_strategy_tool",
+    "search_design_catalog_tool",
     "trade_off_table_tool",
     "visualize_doe_tool",
 ]

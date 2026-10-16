@@ -20,8 +20,10 @@ Examples
 
 from __future__ import annotations
 
+import functools
 import re
 import warnings
+from collections import Counter
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, Literal
 
@@ -763,3 +765,136 @@ def catalog_sources() -> dict[str, dict[str, Any]]:
 def catalog_families() -> dict[str, dict[str, Any]]:
     """Return each family's name on the page, and the year and work that first published it."""
     return {key: {"label": f.label, "year": f.year, "reference": f.reference} for key, f in FAMILIES.items()}
+
+
+# --------------------------------------------------------------------------- searching the catalog
+#: Where the catalog is published: a design's page is this, then ``#d=`` and its id.
+CATALOG_URL = "https://factori.al/catalog/"
+
+
+@functools.cache
+def _searchable() -> tuple[dict[str, Any], ...]:
+    """Return every record's facets once, built on the first search: building the catalog takes seconds."""
+    return tuple({key: record[key] for key in (*INDEX_FIELDS, "design_text")} for record in catalog_records())
+
+
+def _within(value: float | None, low: float | None, high: float | None) -> bool:
+    """Say whether a value lies between two bounds, either of them absent; a missing value lies within none."""
+    if low is None and high is None:
+        return True
+    return value is not None and (low is None or value >= low) and (high is None or value <= high)
+
+
+def search_catalog(  # noqa: PLR0913 - one keyword per filter the catalog page offers
+    *,
+    min_factors: int | None = None,
+    max_factors: int | None = None,
+    min_runs: int | None = None,
+    max_runs: int | None = None,
+    model: str | None = None,
+    min_categorical: int | None = None,
+    max_categorical: int | None = None,
+    families: Sequence[str] | None = None,
+    collection: Collection = "both",
+    has_results: bool = False,
+    survives_run_loss: bool = False,
+    min_quadratic_projection: int | None = None,
+    min_projectivity: int | None = None,
+    year_from: int | None = None,
+    year_to: int | None = None,
+    text: str = "",
+    sort: Literal["runs", "factors", "newest"] = "runs",
+) -> list[dict[str, Any]]:
+    """Return the catalog's designs that pass every filter given, as the catalog page filters them.
+
+    Parameters
+    ----------
+    min_factors, max_factors : int, optional
+        The fewest and most factors.
+    min_runs, max_runs : int, optional
+        The fewest and most runs.
+    model : {"main_effects", "interactions", "quadratic"}, optional
+        A model the design must estimate in full.
+    min_categorical, max_categorical : int, optional
+        The fewest and most categorical factors.
+    families : sequence of str, optional
+        The families to keep (keys of :data:`FAMILIES`).
+    collection : {"both", "published", "generated"}, default "both"
+        Published designs, those the library makes, or both.
+    has_results : bool, default False
+        Keep only published experiments printed with their results.
+    survives_run_loss : bool, default False
+        Keep only designs that still estimate their largest model after losing any one run.
+    min_quadratic_projection : int, optional
+        Keep only designs whose every projection onto this many factors estimates the full quadratic.
+    min_projectivity : int, optional
+        Keep only two-level designs of at least this projectivity.
+    year_from, year_to : int, optional
+        The years the source appeared in; a generated design has none, so either drops them.
+    text : str, default ""
+        Words, each looked for in the design's title, family, design type and source.
+    sort : {"runs", "factors", "newest"}, default "runs"
+        The order: fewest runs, fewest factors, or the most recent source first.
+
+    Returns
+    -------
+    list[dict]
+        Each design's facets (the fields of :data:`INDEX_FIELDS`), with ``family_label``,
+        ``source_short`` (its source's authors and year), ``same_design`` (how many other designs of
+        the catalog are this one) and ``url`` (its page in the catalog).
+
+    Raises
+    ------
+    ValueError
+        If a family is not one of :data:`FAMILIES`, or the model is not one of ``MODELS``.
+
+    Examples
+    --------
+    >>> found = search_catalog(min_factors=6, max_factors=6, max_runs=17, min_quadratic_projection=3)
+    >>> sorted({d["family"] for d in found})
+    ['dsd', 'omars']
+    """
+    if families is not None and (unknown := set(families) - set(FAMILIES)):
+        raise ValueError(f"Unknown families {sorted(unknown)}: choose from {', '.join(FAMILIES)}.")
+    if model is not None and model not in MODELS:
+        raise ValueError(f"Unknown model {model!r}: choose from {', '.join(MODELS)}.")
+    sources = catalog_sources()
+    words = text.lower().split()
+    records = _searchable()
+    classes = Counter(r["design_class"] for r in records if r["design_class"])
+    found = []
+    for r in records:
+        source = sources.get(r["source"] or "", {})
+        haystack = " ".join(
+            str(v) for v in (r["id"], r["title"], r["design_text"], FAMILIES[r["family"]].label, source.get("cite"))
+        ).lower()
+        keep = (
+            (collection == "both" or r["collection"] == collection)
+            and _within(r["n_factors"], min_factors, max_factors)
+            and _within(r["n_runs"], min_runs, max_runs)
+            and (model is None or r["models"].get(model) is True)
+            and _within(r["n_categorical"], min_categorical, max_categorical)
+            and (families is None or r["family"] in families)
+            and (not has_results or r["has_responses"])
+            and (not survives_run_loss or r["survives_run_loss"] is True)
+            and (min_quadratic_projection is None or (r["quadratic_projection"] or 0) >= min_quadratic_projection)
+            and (min_projectivity is None or (r["projectivity"] or 0) >= min_projectivity)
+            and _within(r["year"], year_from, year_to)
+            and all(word in haystack for word in words)
+        )
+        if keep:
+            found.append(
+                {
+                    **{key: r[key] for key in INDEX_FIELDS if key != "glyph"},
+                    "family_label": FAMILIES[r["family"]].label,
+                    "source_short": f"{source['short']} ({source['year']})" if source else None,
+                    "same_design": classes[r["design_class"]] - 1 if r["design_class"] else 0,
+                    "url": f"{CATALOG_URL}#d={r['id']}",
+                }
+            )
+    order = {
+        "runs": lambda d: (d["n_runs"] is None, d["n_runs"] or 0, d["n_factors"] or 0),
+        "factors": lambda d: (d["n_factors"] is None, d["n_factors"] or 0, d["n_runs"] or 0),
+        "newest": lambda d: (d["year"] is None, -(d["year"] or 0)),
+    }[sort]
+    return sorted(found, key=order)
