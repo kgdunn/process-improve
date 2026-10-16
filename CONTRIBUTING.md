@@ -212,7 +212,8 @@ passed to both (`deploy-factorial` sends it to factori.al's server over SSH) and
 smoke tests against each once it is served. [`deploy/factorial/README.md`](deploy/factorial/README.md)
 covers the server: its one-time setup, what it logs, and how to roll back.
 - A new design type or simulated process: in `ALL_DESIGNS` or `ALL_SCENARIOS` in
-  `tests/web/_support.py`, so the tests that run over every one include it.
+  `tests/web/_support.py` (a mixture design in `ALL_MIXTURES`), so the tests that run over every one
+  include it.
 
 ## Linting and formatting
 
