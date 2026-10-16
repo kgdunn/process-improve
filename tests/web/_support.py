@@ -41,6 +41,9 @@ BUILD_SCRIPT = ROOT / "scripts" / "build_web_app.py"
 APP_SOURCES = (
     "index.html",
     "about.html",
+    "catalog.html",
+    "catalog.js",
+    "catalog-logic.js",
     "style.css",
     "app.js",
     "logic.js",

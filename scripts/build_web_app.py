@@ -47,6 +47,9 @@ WEB_SRC = ROOT / "web"
 APP_FILES = (
     "index.html",
     "about.html",
+    "catalog.html",
+    "catalog.js",
+    "catalog-logic.js",
     "app.js",
     "logic.js",
     "charts.js",
@@ -486,6 +489,7 @@ def write_catalog(out_dir: Path) -> None:
             "notes": record["notes"],
             "where": record["where_full"],
             "spec": record.get("spec"),
+            "listed": record.get("listed"),
             "campaign": campaign,
             "closed": reason,
         }

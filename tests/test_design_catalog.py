@@ -271,3 +271,7 @@ def test_each_source_carries_its_citation_and_terms():
     assert sources["box-hunter-hunter-1978"]["year"] == 1978
     assert sources["jones-nachtsheim-2013"]["doi"] == "10.1080/00224065.2013.11917921"
     assert all(source["cite"] and source["rights"] for source in sources.values())
+    assert sources["box-hunter-hunter-1978"]["short"] == "Box, Hunter and Hunter"
+    assert sources["davies-1956"]["short"] == "Davies"
+    assert sources["schmidt-launsby-2000"]["short"] == "Schmidt and Launsby"
+    assert all(0 < len(source["short"]) <= 50 for source in sources.values())

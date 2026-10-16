@@ -710,7 +710,10 @@ def catalog_records(collection: Collection = "both") -> list[dict[str, Any]]:
         published record's ``checks`` counts its printed numbers (see :func:`printed_checks`) and
         a generated record's is ``None``. ``factors``, ``responses``, ``coded_runs``,
         ``response_values``, ``details``, ``notes`` and ``where_full`` hold what a reader sees on
-        opening a design, and ``spec`` names a generated design as :data:`GENERATED` does.
+        opening a design. ``listed`` says whether a published entry is one of
+        :func:`~process_improve.experiments.reference_catalogue.reference_experiments` or of
+        :func:`~process_improve.experiments.reference_catalogue.reference_designs`, and ``spec``
+        names a generated design as :data:`GENERATED` does.
 
     Raises
     ------
@@ -722,19 +725,43 @@ def catalog_records(collection: Collection = "both") -> list[dict[str, Any]]:
     records: list[dict[str, Any]] = []
     if collection in {"both", "published"}:
         sources = reference_sources()
+        listed = [
+            *(("experiments", e) for e in reference_experiments()),
+            *(("designs", d) for d in reference_designs()),
+        ]
         records += [
-            {**_published_record(entry, sources[entry["source"]]), "checks": printed_checks(entry)}
-            for entry in [*reference_experiments(), *reference_designs()]
+            {**_published_record(entry, sources[entry["source"]]), "checks": printed_checks(entry), "listed": where}
+            for where, entry in listed
         ]
     if collection in {"both", "generated"}:
-        records += [{**_generated_record(spec), "checks": None} for spec in GENERATED]
+        records += [{**_generated_record(spec), "checks": None, "listed": None} for spec in GENERATED]
     return records
 
 
+def short_citation(cite: str) -> str:
+    """Return the authors' surnames of a citation, as a list of designs names its source: "Box, Hunter and Hunter".
+
+    Examples
+    --------
+    >>> short_citation("Núñez Ares, J. and Goos, P. (2020), Enumeration and multicriteria selection")
+    'Núñez Ares and Goos'
+    """
+    names = re.sub(r"\b(?:[A-Z]\.\s*)+|\(ed\.\)", "", cite.split(" (", 1)[0])  # initials, and an editor's "(ed.)"
+    names = re.sub(r"\s*,\s*(?=,|and\b|$)", " ", names)  # the commas the initials leave behind
+    names = re.sub(r"\s+", " ", re.sub(r"\s+,", ",", names)).strip(" ,")
+    return names if len(names) <= 40 else names.split(", ", 1)[0]
+
+
 def catalog_sources() -> dict[str, dict[str, Any]]:
-    """Return what the catalog shows of each published source: its citation, address, year and terms of use."""
+    """Return what the catalog shows of each published source: its citation, address, year and terms of use.
+
+    ``short`` names the source as the list of designs does: its authors' surnames (see :func:`short_citation`).
+    """
     keys = ("title", "authors", "year", "doi", "url", "cite", "rights")
-    return {key: {k: source.get(k) for k in keys} for key, source in reference_sources().items()}
+    return {
+        key: {**{k: source.get(k) for k in keys}, "short": short_citation(source.get("cite") or source["title"])}
+        for key, source in reference_sources().items()
+    }
 
 
 def catalog_families() -> dict[str, dict[str, Any]]:

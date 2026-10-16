@@ -27,11 +27,15 @@ def few() -> list[dict]:
     sources = reference_sources()
     entries = [e for e in reference_experiments("box-hunter-hunter-1978") if e["name"] in PUBLISHED]
     published = [
-        {**design_catalog._published_record(e, sources[e["source"]]), "checks": design_catalog.printed_checks(e)}
+        {
+            **design_catalog._published_record(e, sources[e["source"]]),
+            "checks": design_catalog.printed_checks(e),
+            "listed": "experiments",
+        }
         for e in entries
     ]
     generated = [
-        {**design_catalog._generated_record(spec), "checks": None}
+        {**design_catalog._generated_record(spec), "checks": None, "listed": None}
         for spec in design_catalog.GENERATED
         if design_catalog._spec_id(spec) in GENERATED
     ]
