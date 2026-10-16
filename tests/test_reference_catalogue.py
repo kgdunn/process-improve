@@ -343,6 +343,14 @@ def test_on_a_parabola_the_setting_nearer_the_centre_is_taken():
         reference_catalogue._reproduce(entry, {"value": "0"}, out_of_reach, reference_catalogue._Fits())
 
 
+def test_the_rounding_of_the_data_is_carried_into_a_coefficient_only():
+    """A coefficient is a weighted sum of the responses, so their rounding bounds it; no other statistic gets it."""
+    entry = _replicated_2x2([[1, 1], [1, 1], [3, 3], [7, 7]])
+    check = {"kind": "r_squared", "model": "A + B", "response": "y1", "data_rounding": {"decimals": 1}}
+    with pytest.raises(ValueError, match="carried into a coefficient, not a 'r_squared'"):
+        reference_catalogue._reproduce(entry, {"value": "0.9"}, check, reference_catalogue._Fits())
+
+
 def test_each_reading_of_a_replicated_run_can_be_an_observation_of_its_own():
     """Four runs read twice are eight observations, a blank reading left out."""
     from process_improve.experiments.reference_catalogue import _coded_runs
@@ -982,13 +990,14 @@ def test_lenth_pseudo_t_is_an_effect_over_the_pse_on_a_third_as_many_degrees_of_
     assert reference_catalogue._FIT_KINDS["lenth_p"](out, check, entry) == pytest.approx(2 * stats.t.sf(t, 5))
 
 
-def test_a_percent_contribution_is_a_term_s_share_of_the_total_sum_of_squares():
+def test_a_percent_of_total_is_a_term_s_share_of_the_total_sum_of_squares():
+    """Montgomery's percent contribution: a term's sum of squares as a percentage of the total, not Taguchi's."""
     entry = _factorial(4, FILTRATION)
     fits = reference_catalogue._Fits()
     check = {"model": "A * B * C * D - A:B:C:D", "term": "A"}
     out = fits(entry, check)
     total = np.sum((np.array(FILTRATION) - np.mean(FILTRATION)) ** 2)
-    assert reference_catalogue._FIT_KINDS["percent_contribution"](out, check, entry) == pytest.approx(
+    assert reference_catalogue._FIT_KINDS["percent_of_total"](out, check, entry) == pytest.approx(
         100 * 1870.5625 / total
     )
 

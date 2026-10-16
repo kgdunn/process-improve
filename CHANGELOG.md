@@ -159,7 +159,7 @@ those changes.
   `nested_test` tests a model against a fuller one fitted to the same runs (Design-Expert's lack of
   fit against pure error, or a group of terms); `lenth_t` and `lenth_p` read an effect's pseudo
   t-ratio on Lenth's PSE and its p-value on m/3 degrees of freedom, as JMP's screening platform
-  prints them; `percent_contribution`, `curvature` (the library's test for pure quadratic curvature),
+  prints them; `percent_of_total`, `curvature` (the library's test for pure quadratic curvature),
   `max_r_squared`, a run's `range`, `column_correlation` and `generalized_interactions` (the effects
   confounded with blocks, as the products of those chosen to generate them); `fraction_runs` takes
   several generators, and a path into a library result may be a list of keys. For chapter 8: a
@@ -197,8 +197,8 @@ those changes.
   with squares and `estimable_projections` the full quadratic model; `nested_test` takes its error
   from a third model, as Design-Expert tests a mixture's linear blending; a factor can be coded as
   a pseudocomponent; `runs.exact` maps settings in a factor's own units too, and `"settings":
-  "as_printed"` fits them as printed; the lack-of-fit and pure error sums of squares, degrees of
-  freedom and mean squares are read directly; a contrast's value is read from a saturated fit; a
+  "as_printed"` fits them as printed; the lack of fit's degrees of freedom is read directly
+  (`lack_of_fit_df`); a contrast's value is read from a saturated fit; a
   library value or design property can be squared; a path into a result can take `sum` and `prod`;
   and the canonical analysis holds only the factors its model holds.
 - **Standardised coefficients.** Each row of `analyze_experiment`'s `"coefficients"` (and
@@ -241,8 +241,8 @@ those changes.
   screened in an L12 and modelled in a 33-run composite design on a half fraction, a PSPICE 2^2, a
   solderability L18 with a dummy-level column, a 2^4 on chemiluminescence with centre runs, and the
   run counts of a 136-run Plackett-Burman design for 134 inputs and a mixed-level full factorial of
-  49152 cases. Appendix J's answers are checked against the problems they answer. 4500 printed
-  numbers, 4119 checked. 396 are recorded as not reproducing, each explained: most come from the
+  49152 cases. Appendix J's answers are checked against the problems they answer. 4520 printed
+  numbers, 4198 checked. 398 are recorded as not reproducing, each explained: most come from the
   book's rounding (run averages and standard deviations that do not follow from their readings,
   squares of rounded effects, coefficients that are halves of rounded effects, values cut rather
   than rounded), some are misprints (a wrong sign, two exchanged digits, rows swapped, Yates's
@@ -269,7 +269,13 @@ those changes.
   run order, and if need be the order and signs of its columns, a subset of an array's columns, or
   numbers rounded as printed (`same_runs`); read a step of steepest ascent in coded units (`units`);
   check that a printed matrix obeys its printed generators (`generator_holds`); sum a product of
-  columns (`dot_product`); and make a design for more factors than there are letters.
+  columns (`dot_product`); make a design for more factors than there are letters; read a term's
+  degrees of freedom, its sum of squares as a percentage of the total, and Taguchi's percent
+  contribution (`anova_df`, `percent_of_total`, `percent_contribution`); read the lack of fit's and
+  the pure error's sums of squares and the lack of fit's mean square (`lack_of_fit_ss`,
+  `lack_of_fit_ms`, `pure_error_ss`); and split a regression into what one model explains and what
+  a larger one adds, each tested against the full model's residual, as RS/Discover splits a
+  quadratic into its linear and non-linear parts (`extra_ss`, `extra_ms`, `extra_f`, `extra_p`).
 - **A region that describes its limits, in actual units.** `DesignRegion` now takes its
   constraints as `Constraint` objects, their dict form or bare expressions such as
   `"3*T + 5*D <= 600"`, and a box region reports: the share of the box it keeps

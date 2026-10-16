@@ -56567,7 +56567,7 @@
       "quote": "the main effect of C (Power) really dominates this process, accounting for over 70 percent of the total variability"
      },
      "check": {
-      "kind": "percent_contribution",
+      "kind": "percent_of_total",
       "term": "C",
       "model": "A * B * C",
       "summary": {
@@ -56590,7 +56590,7 @@
       "quote": "whereas the main effect of A (Gap) and the AC interaction account for about 8 and 18 percent"
      },
      "check": {
-      "kind": "percent_contribution",
+      "kind": "percent_of_total",
       "term": "A",
       "model": "A * B * C",
       "summary": {
@@ -56613,7 +56613,7 @@
       "quote": "whereas the main effect of A (Gap) and the AC interaction account for about 8 and 18 percent"
      },
      "check": {
-      "kind": "percent_contribution",
+      "kind": "percent_of_total",
       "term": "A·C",
       "model": "A * B * C",
       "summary": {
@@ -56680,7 +56680,7 @@
       "quote": "Table 6.5 Effect Estimate Summary for Example 6.1 ... A -101.625 41,310.5625 7.7736"
      },
      "check": {
-      "kind": "percent_contribution",
+      "kind": "percent_of_total",
       "term": "A",
       "model": "A * B * C",
       "summary": {
@@ -56746,7 +56746,7 @@
       "quote": "Table 6.5 Effect Estimate Summary for Example 6.1 ... B 7.375 217.5625 0.0409"
      },
      "check": {
-      "kind": "percent_contribution",
+      "kind": "percent_of_total",
       "term": "B",
       "model": "A * B * C",
       "summary": {
@@ -56812,7 +56812,7 @@
       "quote": "Table 6.5 Effect Estimate Summary for Example 6.1 ... C 306.125 374,850.0625 70.5373"
      },
      "check": {
-      "kind": "percent_contribution",
+      "kind": "percent_of_total",
       "term": "C",
       "model": "A * B * C",
       "summary": {
@@ -56878,7 +56878,7 @@
       "quote": "Table 6.5 Effect Estimate Summary for Example 6.1 ... AB -24.875 2475.0625 0.4657"
      },
      "check": {
-      "kind": "percent_contribution",
+      "kind": "percent_of_total",
       "term": "A·B",
       "model": "A * B * C",
       "summary": {
@@ -56944,7 +56944,7 @@
       "quote": "Table 6.5 Effect Estimate Summary for Example 6.1 ... AC -153.625 94,402.5625 17.7642"
      },
      "check": {
-      "kind": "percent_contribution",
+      "kind": "percent_of_total",
       "term": "A·C",
       "model": "A * B * C",
       "summary": {
@@ -57010,7 +57010,7 @@
       "quote": "Table 6.5 Effect Estimate Summary for Example 6.1 ... BC -2.125 18.0625 0.0034"
      },
      "check": {
-      "kind": "percent_contribution",
+      "kind": "percent_of_total",
       "term": "B·C",
       "model": "A * B * C",
       "summary": {
@@ -57076,7 +57076,7 @@
       "quote": "Table 6.5 Effect Estimate Summary for Example 6.1 ... ABC 5.625 126.5625 0.0238"
      },
      "check": {
-      "kind": "percent_contribution",
+      "kind": "percent_of_total",
       "term": "A·B·C",
       "model": "A * B * C",
       "summary": {
@@ -63925,7 +63925,7 @@
       "quote": "Table 6.12 Factor Effect Estimates and Sums of Squares for the 2^4 Factorial in Example 6.2 ... A 21.625 1870.56 32.6397"
      },
      "check": {
-      "kind": "percent_contribution",
+      "kind": "percent_of_total",
       "term": "A",
       "model": "A * B * C * D - A:B:C:D"
      }
@@ -63970,7 +63970,7 @@
       "quote": "Table 6.12 Factor Effect Estimates and Sums of Squares for the 2^4 Factorial in Example 6.2 ... B 3.125 39.0625 0.681608"
      },
      "check": {
-      "kind": "percent_contribution",
+      "kind": "percent_of_total",
       "term": "B",
       "model": "A * B * C * D - A:B:C:D"
      }
@@ -64015,7 +64015,7 @@
       "quote": "Table 6.12 Factor Effect Estimates and Sums of Squares for the 2^4 Factorial in Example 6.2 ... C 9.875 390.062 6.80626"
      },
      "check": {
-      "kind": "percent_contribution",
+      "kind": "percent_of_total",
       "term": "C",
       "model": "A * B * C * D - A:B:C:D"
      }
@@ -64060,7 +64060,7 @@
       "quote": "Table 6.12 Factor Effect Estimates and Sums of Squares for the 2^4 Factorial in Example 6.2 ... D 14.625 855.563 14.9288"
      },
      "check": {
-      "kind": "percent_contribution",
+      "kind": "percent_of_total",
       "term": "D",
       "model": "A * B * C * D - A:B:C:D"
      }
@@ -64105,7 +64105,7 @@
       "quote": "Table 6.12 Factor Effect Estimates and Sums of Squares for the 2^4 Factorial in Example 6.2 ... AB 0.125 0.0625 0.00109057"
      },
      "check": {
-      "kind": "percent_contribution",
+      "kind": "percent_of_total",
       "term": "A·B",
       "model": "A * B * C * D - A:B:C:D"
      }
@@ -64150,7 +64150,7 @@
       "quote": "Table 6.12 Factor Effect Estimates and Sums of Squares for the 2^4 Factorial in Example 6.2 ... AC -18.125 1314.06 22.9293"
      },
      "check": {
-      "kind": "percent_contribution",
+      "kind": "percent_of_total",
       "term": "A·C",
       "model": "A * B * C * D - A:B:C:D"
      }
@@ -64195,7 +64195,7 @@
       "quote": "Table 6.12 Factor Effect Estimates and Sums of Squares for the 2^4 Factorial in Example 6.2 ... AD 16.625 1105.56 19.2911"
      },
      "check": {
-      "kind": "percent_contribution",
+      "kind": "percent_of_total",
       "term": "A·D",
       "model": "A * B * C * D - A:B:C:D"
      }
@@ -64240,7 +64240,7 @@
       "quote": "Table 6.12 Factor Effect Estimates and Sums of Squares for the 2^4 Factorial in Example 6.2 ... BC 2.375 22.5625 0.393696"
      },
      "check": {
-      "kind": "percent_contribution",
+      "kind": "percent_of_total",
       "term": "B·C",
       "model": "A * B * C * D - A:B:C:D"
      }
@@ -64285,7 +64285,7 @@
       "quote": "Table 6.12 Factor Effect Estimates and Sums of Squares for the 2^4 Factorial in Example 6.2 ... BD -0.375 0.5625 0.00981515"
      },
      "check": {
-      "kind": "percent_contribution",
+      "kind": "percent_of_total",
       "term": "B·D",
       "model": "A * B * C * D - A:B:C:D"
      }
@@ -64330,7 +64330,7 @@
       "quote": "Table 6.12 Factor Effect Estimates and Sums of Squares for the 2^4 Factorial in Example 6.2 ... CD -1.125 5.0625 0.0883363"
      },
      "check": {
-      "kind": "percent_contribution",
+      "kind": "percent_of_total",
       "term": "C·D",
       "model": "A * B * C * D - A:B:C:D"
      }
@@ -64375,7 +64375,7 @@
       "quote": "Table 6.12 Factor Effect Estimates and Sums of Squares for the 2^4 Factorial in Example 6.2 ... ABC 1.875 14.0625 0.245379"
      },
      "check": {
-      "kind": "percent_contribution",
+      "kind": "percent_of_total",
       "term": "A·B·C",
       "model": "A * B * C * D - A:B:C:D"
      }
@@ -64420,7 +64420,7 @@
       "quote": "Table 6.12 Factor Effect Estimates and Sums of Squares for the 2^4 Factorial in Example 6.2 ... ABD 4.125 68.0625 1.18763"
      },
      "check": {
-      "kind": "percent_contribution",
+      "kind": "percent_of_total",
       "term": "A·B·D",
       "model": "A * B * C * D - A:B:C:D"
      }
@@ -64465,7 +64465,7 @@
       "quote": "Table 6.12 Factor Effect Estimates and Sums of Squares for the 2^4 Factorial in Example 6.2 ... ACD -1.625 10.5625 0.184307"
      },
      "check": {
-      "kind": "percent_contribution",
+      "kind": "percent_of_total",
       "term": "A·C·D",
       "model": "A * B * C * D - A:B:C:D"
      }
@@ -64510,7 +64510,7 @@
       "quote": "Table 6.12 Factor Effect Estimates and Sums of Squares for the 2^4 Factorial in Example 6.2 ... BCD -2.625 27.5625 0.480942"
      },
      "check": {
-      "kind": "percent_contribution",
+      "kind": "percent_of_total",
       "term": "B·C·D",
       "model": "A * B * C * D - A:B:C:D"
      }
@@ -64555,7 +64555,7 @@
       "quote": "Table 6.12 Factor Effect Estimates and Sums of Squares for the 2^4 Factorial in Example 6.2 ... ABCD 1.375 7.5625 0.131959"
      },
      "check": {
-      "kind": "percent_contribution",
+      "kind": "percent_of_total",
       "term": "A·B·C·D",
       "model": "A * B * C * D - A:B:C"
      }
@@ -73671,7 +73671,7 @@
       "quote": "Table 6.19 Effect Estimates for Example 6.5, Response Variable Is Average Oxide Thickness ... A 43.125 7439.06 67.9339"
      },
      "check": {
-      "kind": "percent_contribution",
+      "kind": "percent_of_total",
       "term": "A",
       "model": "A * B * C * D - A:B:C:D",
       "summary": {
@@ -73743,7 +73743,7 @@
       "quote": "Table 6.19 Effect Estimates for Example 6.5, Response Variable Is Average Oxide Thickness ... B 18.125 1314.06 12.0001"
      },
      "check": {
-      "kind": "percent_contribution",
+      "kind": "percent_of_total",
       "term": "B",
       "model": "A * B * C * D - A:B:C:D",
       "summary": {
@@ -73815,7 +73815,7 @@
       "quote": "Table 6.19 Effect Estimates for Example 6.5, Response Variable Is Average Oxide Thickness ... C -10.375 430.562 3.93192"
      },
      "check": {
-      "kind": "percent_contribution",
+      "kind": "percent_of_total",
       "term": "C",
       "model": "A * B * C * D - A:B:C:D",
       "summary": {
@@ -73887,7 +73887,7 @@
       "quote": "Table 6.19 Effect Estimates for Example 6.5, Response Variable Is Average Oxide Thickness ... D -1.625 10.5625 0.0964573"
      },
      "check": {
-      "kind": "percent_contribution",
+      "kind": "percent_of_total",
       "term": "D",
       "model": "A * B * C * D - A:B:C:D",
       "summary": {
@@ -73959,7 +73959,7 @@
       "quote": "Table 6.19 Effect Estimates for Example 6.5, Response Variable Is Average Oxide Thickness ... AB 16.875 1139.06 10.402"
      },
      "check": {
-      "kind": "percent_contribution",
+      "kind": "percent_of_total",
       "term": "A·B",
       "model": "A * B * C * D - A:B:C:D",
       "summary": {
@@ -74031,7 +74031,7 @@
       "quote": "Table 6.19 Effect Estimates for Example 6.5, Response Variable Is Average Oxide Thickness ... AC -10.625 451.563 4.12369"
      },
      "check": {
-      "kind": "percent_contribution",
+      "kind": "percent_of_total",
       "term": "A·C",
       "model": "A * B * C * D - A:B:C:D",
       "summary": {
@@ -74103,7 +74103,7 @@
       "quote": "Table 6.19 Effect Estimates for Example 6.5, Response Variable Is Average Oxide Thickness ... AD 1.125 5.0625 0.046231"
      },
      "check": {
-      "kind": "percent_contribution",
+      "kind": "percent_of_total",
       "term": "A·D",
       "model": "A * B * C * D - A:B:C:D",
       "summary": {
@@ -74175,7 +74175,7 @@
       "quote": "Table 6.19 Effect Estimates for Example 6.5, Response Variable Is Average Oxide Thickness ... BC 3.875 60.0625 0.548494"
      },
      "check": {
-      "kind": "percent_contribution",
+      "kind": "percent_of_total",
       "term": "B·C",
       "model": "A * B * C * D - A:B:C:D",
       "summary": {
@@ -74247,7 +74247,7 @@
       "quote": "Table 6.19 Effect Estimates for Example 6.5, Response Variable Is Average Oxide Thickness ... BD -3.875 60.0625 0.548494"
      },
      "check": {
-      "kind": "percent_contribution",
+      "kind": "percent_of_total",
       "term": "B·D",
       "model": "A * B * C * D - A:B:C:D",
       "summary": {
@@ -74319,7 +74319,7 @@
       "quote": "Table 6.19 Effect Estimates for Example 6.5, Response Variable Is Average Oxide Thickness ... CD 1.125 5.0625 0.046231"
      },
      "check": {
-      "kind": "percent_contribution",
+      "kind": "percent_of_total",
       "term": "C·D",
       "model": "A * B * C * D - A:B:C:D",
       "summary": {
@@ -74391,7 +74391,7 @@
       "quote": "Table 6.19 Effect Estimates for Example 6.5, Response Variable Is Average Oxide Thickness ... ABC -0.375 0.5625 0.00513678"
      },
      "check": {
-      "kind": "percent_contribution",
+      "kind": "percent_of_total",
       "term": "A·B·C",
       "model": "A * B * C * D - A:B:C:D",
       "summary": {
@@ -74463,7 +74463,7 @@
       "quote": "Table 6.19 Effect Estimates for Example 6.5, Response Variable Is Average Oxide Thickness ... ABD 2.875 33.0625 0.301929"
      },
      "check": {
-      "kind": "percent_contribution",
+      "kind": "percent_of_total",
       "term": "A·B·D",
       "model": "A * B * C * D - A:B:C:D",
       "summary": {
@@ -74535,7 +74535,7 @@
       "quote": "Table 6.19 Effect Estimates for Example 6.5, Response Variable Is Average Oxide Thickness ... ACD -0.125 0.0625 0.000570753"
      },
      "check": {
-      "kind": "percent_contribution",
+      "kind": "percent_of_total",
       "term": "A·C·D",
       "model": "A * B * C * D - A:B:C:D",
       "summary": {
@@ -74607,7 +74607,7 @@
       "quote": "Table 6.19 Effect Estimates for Example 6.5, Response Variable Is Average Oxide Thickness ... BCD -0.625 1.5625 0.0142688"
      },
      "check": {
-      "kind": "percent_contribution",
+      "kind": "percent_of_total",
       "term": "B·C·D",
       "model": "A * B * C * D - A:B:C:D",
       "summary": {
@@ -74679,7 +74679,7 @@
       "quote": "Table 6.19 Effect Estimates for Example 6.5, Response Variable Is Average Oxide Thickness ... ABCD 0.125 0.0625 0.000570753"
      },
      "check": {
-      "kind": "percent_contribution",
+      "kind": "percent_of_total",
       "term": "A·B·C·D",
       "model": "A * B * C * D - A:B:C",
       "summary": {
@@ -87808,7 +87808,7 @@
       "quote": "Table 7.6 Effect Estimates for the Blocked 2^4 Design in Example 7.2 ... A 10.81 21.625 1870.5625 26.30"
      },
      "check": {
-      "kind": "percent_contribution",
+      "kind": "percent_of_total",
       "term": "A",
       "model": "A * B * C * D - A:B:C:D",
       "disagreement": "1870.5625 is 26.305 percent of 7110.9375, 26.31 to two places; the table cuts it to 26.30"
@@ -87869,7 +87869,7 @@
       "quote": "Table 7.6 Effect Estimates for the Blocked 2^4 Design in Example 7.2 ... B 1.56 3.125 39.0625 0.55"
      },
      "check": {
-      "kind": "percent_contribution",
+      "kind": "percent_of_total",
       "term": "B",
       "model": "A * B * C * D - A:B:C:D"
      }
@@ -87929,7 +87929,7 @@
       "quote": "Table 7.6 Effect Estimates for the Blocked 2^4 Design in Example 7.2 ... C 4.94 9.875 390.0625 5.49"
      },
      "check": {
-      "kind": "percent_contribution",
+      "kind": "percent_of_total",
       "term": "C",
       "model": "A * B * C * D - A:B:C:D"
      }
@@ -87989,7 +87989,7 @@
       "quote": "Table 7.6 Effect Estimates for the Blocked 2^4 Design in Example 7.2 ... D 7.31 14.625 855.5625 12.03"
      },
      "check": {
-      "kind": "percent_contribution",
+      "kind": "percent_of_total",
       "term": "D",
       "model": "A * B * C * D - A:B:C:D"
      }
@@ -88049,7 +88049,7 @@
       "quote": "Table 7.6 Effect Estimates for the Blocked 2^4 Design in Example 7.2 ... AB 0.062 0.125 0.0625 <0.01"
      },
      "check": {
-      "kind": "percent_contribution",
+      "kind": "percent_of_total",
       "term": "A·B",
       "model": "A * B * C * D - A:B:C:D"
      }
@@ -88109,7 +88109,7 @@
       "quote": "Table 7.6 Effect Estimates for the Blocked 2^4 Design in Example 7.2 ... AC -9.06 -18.125 1314.0625 18.48"
      },
      "check": {
-      "kind": "percent_contribution",
+      "kind": "percent_of_total",
       "term": "A·C",
       "model": "A * B * C * D - A:B:C:D"
      }
@@ -88169,7 +88169,7 @@
       "quote": "Table 7.6 Effect Estimates for the Blocked 2^4 Design in Example 7.2 ... AD 8.31 16.625 1105.5625 15.55"
      },
      "check": {
-      "kind": "percent_contribution",
+      "kind": "percent_of_total",
       "term": "A·D",
       "model": "A * B * C * D - A:B:C:D"
      }
@@ -88229,7 +88229,7 @@
       "quote": "Table 7.6 Effect Estimates for the Blocked 2^4 Design in Example 7.2 ... BC 1.19 2.375 22.5625 0.32"
      },
      "check": {
-      "kind": "percent_contribution",
+      "kind": "percent_of_total",
       "term": "B·C",
       "model": "A * B * C * D - A:B:C:D"
      }
@@ -88289,7 +88289,7 @@
       "quote": "Table 7.6 Effect Estimates for the Blocked 2^4 Design in Example 7.2 ... BD -0.19 -0.375 0.5625 <0.01"
      },
      "check": {
-      "kind": "percent_contribution",
+      "kind": "percent_of_total",
       "term": "B·D",
       "model": "A * B * C * D - A:B:C:D"
      }
@@ -88349,7 +88349,7 @@
       "quote": "Table 7.6 Effect Estimates for the Blocked 2^4 Design in Example 7.2 ... CD -0.56 -1.125 5.0625 0.07"
      },
      "check": {
-      "kind": "percent_contribution",
+      "kind": "percent_of_total",
       "term": "C·D",
       "model": "A * B * C * D - A:B:C:D"
      }
@@ -88409,7 +88409,7 @@
       "quote": "Table 7.6 Effect Estimates for the Blocked 2^4 Design in Example 7.2 ... ABC 0.94 1.875 14.0625 0.20"
      },
      "check": {
-      "kind": "percent_contribution",
+      "kind": "percent_of_total",
       "term": "A·B·C",
       "model": "A * B * C * D - A:B:C:D"
      }
@@ -88469,7 +88469,7 @@
       "quote": "Table 7.6 Effect Estimates for the Blocked 2^4 Design in Example 7.2 ... ABD 2.06 4.125 68.0625 0.96"
      },
      "check": {
-      "kind": "percent_contribution",
+      "kind": "percent_of_total",
       "term": "A·B·D",
       "model": "A * B * C * D - A:B:C:D"
      }
@@ -88529,7 +88529,7 @@
       "quote": "Table 7.6 Effect Estimates for the Blocked 2^4 Design in Example 7.2 ... ACD -0.81 -1.625 10.5625 0.15"
      },
      "check": {
-      "kind": "percent_contribution",
+      "kind": "percent_of_total",
       "term": "A·C·D",
       "model": "A * B * C * D - A:B:C:D"
      }
@@ -88589,7 +88589,7 @@
       "quote": "Table 7.6 Effect Estimates for the Blocked 2^4 Design in Example 7.2 ... BCD -1.31 -2.625 27.5625 0.39"
      },
      "check": {
-      "kind": "percent_contribution",
+      "kind": "percent_of_total",
       "term": "B·C·D",
       "model": "A * B * C * D - A:B:C:D"
      }
@@ -88634,7 +88634,7 @@
       "quote": "Table 7.6 Effect Estimates for the Blocked 2^4 Design in Example 7.2 ... Block (ABCD) −18.625 1387.5625 19.51"
      },
      "check": {
-      "kind": "percent_contribution",
+      "kind": "percent_of_total",
       "term": "A·B·C·D",
       "model": "A * B * C * D - A:B:C"
      }

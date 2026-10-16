@@ -582,6 +582,48 @@ def _anova_row(out: dict, term: str) -> dict:
     )
 
 
+def _percent_of_total(out: dict, check: dict, _experiment: dict) -> float:
+    """Return a row's sum of squares (a term's, or the ``Residual``) as a percentage of the total about the mean."""
+    return 100 * _anova_row(out, check["term"])["sum_sq"] / sum(_anova_sums(out)[:2])
+
+
+def _percent_contribution(out: dict, check: dict, _experiment: dict) -> float:
+    """Return Taguchi's percent contribution of a term: its SS less df x the error mean square, over the total SS.
+
+    The ``Residual``'s is its sum of squares plus what every term gave up, so that the contributions
+    add to 100. A source pools small columns into the error first; the check's model is the one left.
+    """
+    row = _anova_row(out, check["term"])
+    error = out["model_summary"]["mse_residual"]
+    df = -out["model_summary"]["df_model"] if row["source"] == "Residual" else row["df"]
+    return 100 * (row["sum_sq"] - df * error) / sum(_anova_sums(out)[:2])
+
+
+def _extra_sums(out: dict, check: dict) -> dict[str, float]:
+    """Return what model ``check["part"]`` explains beyond ``check["after"]``: its sum of squares, mean square, F and p.
+
+    Both are fitted to the check's runs; ``part`` is the check's own model when left out, and
+    ``after`` no model at all. F divides the mean square by the residual mean square of the check's
+    model, as RS/Discover splits a quadratic's regression into its linear and non-linear parts.
+    """
+
+    def explained(model: str | None) -> tuple[float, int]:
+        if not model:
+            return 0.0, 0
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            fitted = analyze_experiment(out["settings"], out["y"], model=model, analysis_type="anova")
+        ss, _, df = _anova_sums({**fitted, "y": out["y"]})
+        return ss, df
+
+    ss_part, df_part = explained(check.get("part", check["model"]))
+    ss_after, df_after = explained(check.get("after"))
+    ss, df = ss_part - ss_after, df_part - df_after
+    f_ratio = ss / df / out["model_summary"]["mse_residual"]
+    p_value = float(f_distribution.sf(f_ratio, df, out["model_summary"]["df_residual"]))
+    return {"sum_sq": ss, "mean_sq": ss / df, "F": f_ratio, "p_value": p_value}
+
+
 def _lenth(out: dict, key: str, check: dict) -> float:
     """Return one of Lenth's margins, on the effects' scale or, when the source works with coefficients, on theirs."""
     return float(out["lenth_method"][key]) / (2.0 if check.get("scale") == "coefficient" else 1.0)
@@ -860,7 +902,13 @@ _FIT_KINDS: dict[str, Callable[[dict, dict, dict], float]] = {
     "anova_mean_sq": lambda out, c, _e: _anova_row(out, c["term"])["mean_sq"],
     "anova_f": lambda out, c, _e: _anova_row(out, c["term"])["F"],
     "anova_p": lambda out, c, _e: _anova_row(out, c["term"])["p_value"],
-    "percent_contribution": lambda out, c, _e: 100 * _anova_row(out, c["term"])["sum_sq"] / sum(_anova_sums(out)[:2]),
+    "anova_df": lambda out, c, _e: _anova_row(out, c["term"])["df"],
+    "percent_of_total": _percent_of_total,
+    "percent_contribution": _percent_contribution,
+    "extra_ss": lambda out, c, _e: _extra_sums(out, c)["sum_sq"],
+    "extra_ms": lambda out, c, _e: _extra_sums(out, c)["mean_sq"],
+    "extra_f": lambda out, c, _e: _extra_sums(out, c)["F"],
+    "extra_p": lambda out, c, _e: _extra_sums(out, c)["p_value"],
     "lack_of_fit_ss": lambda out, _c, _e: out["lack_of_fit"]["ss_lack_of_fit"],
     "lack_of_fit_df": lambda out, _c, _e: out["lack_of_fit"]["df_lack_of_fit"],
     "lack_of_fit_ms": lambda out, _c, _e: out["lack_of_fit"]["ms_lack_of_fit"],
@@ -2247,24 +2295,26 @@ def reproduce_reference_catalogue(source: str | None = None) -> pd.DataFrame:
     intercepts. A run read several times can be analysed through each run's mean or standard
     deviation of its readings, or with every reading an observation of its own; the setting of a
     factor that brings a fitted model to a target is solved from the library's predictions, and a
-    process capability index is the library's Cpk. Two groups of runs are compared with the
-    library's two-sample and paired t-tests. The interactions a source confounds with blocks
-    are compared with those of the library's blocking of the same factorial, and with the
-    products of the effects the source chose to generate the blocks. A test of lack of fit is
-    also worked as the F test of the model against a fuller one, and the pseudo t-ratio of an
-    unreplicated design's effect on Lenth's PSE. A fraction's word lengths are read from the defining
-    relation of the library's fraction made from its generators; a printed column of signs is the
-    product of the factor columns it is headed with; a Plackett-Burman design is matched to the
-    library's by its projections onto one, two and three columns; and a stepwise regression's tests
-    are nested tests, held to what the rounding of responses printed rounded carries. A 3^k design's
-    components of interaction, blocks and fractions are worked from their defining contrasts modulo
-    3; screening designs are compared on their main-effect and two-factor interaction columns; and
-    JMP's relative variances code a categorical factor as JMP does. A response surface design is
-    compared on |(X'X)^-1|, its trace and the prediction variance at a point, and on how far its runs
-    lie from the centre, whether its blocks are orthogonal and whether its runs are fold-over pairs;
-    several fitted responses are scored at a point by the library's desirability functions, and a
-    mixture is fitted in pseudocomponents. A number without a check is reported with the reason it
-    is not recomputed.
+    process capability index is the library's Cpk. A term's degrees of freedom, its share of the
+    total sum of squares and Taguchi's percent contribution are read from the library's analysis of
+    variance, and the split of a regression between two nested models from the fits of both. Two
+    groups of runs are compared with the library's two-sample and paired t-tests. The interactions a
+    source confounds with blocks are compared with those of the library's blocking of the same
+    factorial, and with the products of the effects the source chose to generate the blocks. A test
+    of lack of fit is also worked as the F test of the model against a fuller one, and the pseudo
+    t-ratio of an unreplicated design's effect on Lenth's PSE. A fraction's word lengths are read
+    from the defining relation of the library's fraction made from its generators; a printed column
+    of signs is the product of the factor columns it is headed with; a Plackett-Burman design is
+    matched to the library's by its projections onto one, two and three columns; and a stepwise
+    regression's tests are nested tests, held to what the rounding of responses printed rounded
+    carries. A 3^k design's components of interaction, blocks and fractions are worked from their
+    defining contrasts modulo 3; screening designs are compared on their main-effect and two-factor
+    interaction columns; and JMP's relative variances code a categorical factor as JMP does. A
+    response surface design is compared on |(X'X)^-1|, its trace and the prediction variance at a
+    point, and on how far its runs lie from the centre, whether its blocks are orthogonal and
+    whether its runs are fold-over pairs; several fitted responses are scored at a point by the
+    library's desirability functions, and a mixture is fitted in pseudocomponents. A number
+    without a check is reported with the reason it is not recomputed.
 
     Parameters
     ----------
