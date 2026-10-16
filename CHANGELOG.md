@@ -224,6 +224,15 @@ those changes.
   function, so every linear constraint was treated as curved: the candidate set of a
   constrained optimal design lost the region's vertices, and its sampler fell back to a
   slower method.
+- **Constrained optimal designs and `evaluate_design(region=)` reach every vertex of a
+  region with many limits.** The vertices among the candidates, and among the support
+  points that `evaluate_design` takes its worst case over, came from solving every choice
+  of `k` boundaries, which was given up past 200000 choices (8 factors and 5 limits): a
+  region of 8 factors and 6 limits had 236 of its 758 vertices listed, its D-optimal
+  designs lost about 5% of D, and `evaluate_design` gave a worst case 7% below the
+  variance at a vertex. They are now found by cutting the box with one limit at a time, as
+  `DesignRegion` finds them: the same vertices wherever the old way finished, and every
+  one up to 8192 of them.
 - **A constraint that cannot be evaluated over part of the factor box is treated as
   curved.** Where `sqrt` or `log` of a negative number, or a division by zero, made the
   constraint infinite or `NaN` at some probe point, the test for an affine constraint

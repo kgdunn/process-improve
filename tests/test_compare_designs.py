@@ -506,10 +506,10 @@ def test_g_over_the_region_is_its_largest_prediction_variance():
         assert g == pytest.approx(max(prediction_variance(design, sample).max(), g), rel=0.01), name
 
 
-def test_g_is_at_least_the_variance_at_every_vertex_of_a_region_with_many_limits():
-    """With 8 factors and 6 limits there are too many ways of choosing 8 boundaries for the support points to try.
+def many_limits() -> tuple[DesignRegion, np.ndarray, np.ndarray]:
+    """Return a region of 8 factors and 6 limits with 758 vertices, 41 runs in it, and their variance at each vertex.
 
-    They then held 236 of the region's 758 vertices, and G, usually at a vertex, came out 7% low.
+    The variance is for the model with every two-factor interaction, written out independently.
     """
     names = [f"X{j}" for j in range(8)]
     rng = np.random.default_rng(0)
@@ -520,18 +520,42 @@ def test_g_is_at_least_the_variance_at_every_vertex_of_a_region_with_many_limits
         limits.append(f"{lhs} <= {rng.integers(1, 4)}")
     region = DesignRegion([Factor(name=n, low=-1, high=1) for n in names], limits)
     runs = region.sample(41, np.random.default_rng(1))
-    comparison = compare_designs({"inside": pd.DataFrame(runs, columns=names)}, "interactions", region=region)
 
     def expand(x):
         pairs = [x[:, i] * x[:, j] for i, j in itertools.combinations(range(8), 2)]
         return np.column_stack([np.ones(len(x)), x, *pairs])
 
     vertices = (region.vertices() - region._centre) / region._half
-    assert len(vertices) == 758
     f, design = expand(vertices), expand(runs)
-    variance = np.einsum("ij,jk,ik->i", f, np.linalg.inv(design.T @ design), f)
+    return region, runs, np.einsum("ij,jk,ik->i", f, np.linalg.inv(design.T @ design), f)
+
+
+def test_g_is_at_least_the_variance_at_every_vertex_of_a_region_with_many_limits():
+    """With 8 factors and 6 limits there are too many ways of choosing 8 boundaries for the support points to try.
+
+    They then held 236 of the region's 758 vertices, and G, usually at a vertex, came out 7% low.
+    """
+    region, runs, variance = many_limits()
+    assert len(variance) == 758
+    comparison = compare_designs({"inside": pd.DataFrame(runs, columns=region.names)}, "interactions", region=region)
     assert comparison.values["inside [n=41]"]["g"] >= variance.max() * (1 - 1e-12)
     assert "its 758 vertices" in comparison.g_points
+
+
+def test_evaluate_design_reaches_every_vertex_of_a_region_with_many_limits():
+    """evaluate_design(region=) takes its worst case over the region's support points, which now list every vertex.
+
+    They listed the vertices by solving every choice of 8 boundaries, which was given up here, so they
+    held 236 of the 758, and evaluate_design's largest variance came out 7% below compare_designs' G.
+    """
+    region, runs, variance = many_limits()
+    support = {tuple(point) for point in region.support_points().round(9)}
+    vertices = (region.vertices() - region._centre) / region._half
+    assert all(tuple(vertex) in support for vertex in vertices.round(9))
+    result = evaluate_design(
+        pd.DataFrame(runs, columns=region.names), "interactions", "g_efficiency", region=region, random_state=1
+    )
+    assert result["max_prediction_variance"] == pytest.approx(variance.max(), rel=1e-9)
 
 
 @pytest.mark.parametrize("seed", [0, 1, 2])

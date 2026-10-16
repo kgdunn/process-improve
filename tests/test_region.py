@@ -1441,6 +1441,13 @@ class TestGeometry:
         assert geometry.box_vertices(np.zeros((1, 2)), np.array([-1.0])).shape == (0, 2)
         assert len(geometry.box_vertices(np.zeros((0, 3)), np.zeros(0))) == 8
 
+    def test_box_vertices_refuse_more_than_asked(self):
+        with pytest.raises(ValueError, match="has 8 corners; vertices are listed for up to 4"):
+            geometry.box_vertices(np.zeros((0, 3)), np.zeros(0), max_vertices=4)
+        with pytest.raises(ValueError, match="more than 9 vertices"):  # the cut adds 3 vertices to the 8 corners
+            geometry.box_vertices(np.ones((1, 3)) / math.sqrt(3), np.array([0.9]), max_vertices=9)
+        assert len(geometry.box_vertices(np.ones((1, 3)) / math.sqrt(3), np.array([0.9]), max_vertices=10)) == 10
+
     def test_box_vertices_refuse_too_many(self, monkeypatch):
         monkeypatch.setattr(geometry, "MAX_VERTICES", 4)
         with pytest.raises(ValueError, match="more than 4 vertices"):  # a square with one corner cut has 5

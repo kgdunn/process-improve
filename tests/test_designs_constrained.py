@@ -27,6 +27,7 @@ from process_improve.experiments.designs_constrained import (
     _greedy_start,
     _n_starts,
     _phi_p,
+    _polytope_vertices,
     _quadratic_forms,
     _Region,
     build_candidates,
@@ -127,6 +128,29 @@ class TestCandidates:
         f = model_matrix(region, coded, cats, model_type)
         assert f.shape[1] == _n_model_parameters([TEMP, DOSE, cat], model_type)
         assert np.linalg.matrix_rank(f) == f.shape[1]
+
+    def test_every_vertex_of_a_region_with_many_limits_is_a_candidate(self) -> None:
+        """Solving every choice of 8 of the region's 22 boundaries was given up: 236 of 758 vertices were candidates.
+
+        A D-optimal design for the model with interactions then lost 5% of D to one built from every vertex.
+        """
+        names = [f"X{j}" for j in range(8)]
+        rng = np.random.default_rng(0)
+        limits = []
+        for _ in range(6):
+            lhs = " + ".join(f"{c}*{n}" for c, n in zip(rng.integers(-2, 3, size=8), names, strict=True))
+            limits.append(f"{lhs} <= {rng.integers(1, 4)}")
+        factors = [Factor(name=n, low=-1, high=1) for n in names]
+        region = _Region(factors, [], [g for limit in limits for g in parse_constraint(limit, set(names))])
+        _coded, _cats, counts = build_candidates(region, n_levels=3)
+        assert counts["n_vertex_points"] == 758
+
+    def test_a_region_with_too_many_vertices_lists_none(self) -> None:
+        """Past the cap the exchange's cost would grow with every vertex, so none are taken, as before."""
+        names = [f"X{j}" for j in range(14)]
+        factors = [Factor(name=n, low=-1, high=1) for n in names]
+        region = _Region(factors, [], parse_constraint(" + ".join(names) + " <= 0", set(names)))
+        assert _polytope_vertices(region).shape == (0, 14)
 
     def test_grid_too_large_to_list_is_sampled(self) -> None:
         region = _Region([Factor(name=f"X{i}", low=0, high=1) for i in range(12)], [], [])

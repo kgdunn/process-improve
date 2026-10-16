@@ -86,7 +86,7 @@ def round_significant(values: np.ndarray, digits: int | np.ndarray = 12) -> np.n
     return out
 
 
-def box_vertices(a: np.ndarray, b: np.ndarray) -> np.ndarray:
+def box_vertices(a: np.ndarray, b: np.ndarray, max_vertices: int | None = None) -> np.ndarray:
     """Vertices of ``{x in [-1, 1]^k : a @ x <= b}``, by the double-description method.
 
     The box's ``2**k`` corners are cut by one row at a time. A cut keeps the vertices on
@@ -104,6 +104,9 @@ def box_vertices(a: np.ndarray, b: np.ndarray) -> np.ndarray:
         no point meets).
     b : np.ndarray
         Right-hand sides ``(m,)``.
+    max_vertices : int or None
+        Most vertices the cut box may have, or have on the way; ``None`` for
+        ``MAX_VERTICES``.
 
     Returns
     -------
@@ -114,7 +117,7 @@ def box_vertices(a: np.ndarray, b: np.ndarray) -> np.ndarray:
     Raises
     ------
     ValueError
-        When the box has more than ``MAX_VERTICES`` corners, or a cut would leave more
+        When the box has more than ``max_vertices`` corners, or a cut would leave more
         than that many vertices.
 
     References
@@ -123,8 +126,9 @@ def box_vertices(a: np.ndarray, b: np.ndarray) -> np.ndarray:
     *Combinatorics and Computer Science*, LNCS 1120, 91-111.
     """
     m, k = a.shape
-    if 2**k > MAX_VERTICES:
-        raise ValueError(f"A box in {k} factors has {2**k} corners; vertices are listed for up to {MAX_VERTICES}.")
+    max_vertices = MAX_VERTICES if max_vertices is None else max_vertices
+    if 2**k > max_vertices:
+        raise ValueError(f"A box in {k} factors has {2**k} corners; vertices are listed for up to {max_vertices}.")
     vertices = np.array(list(itertools.product((-1.0, 1.0), repeat=k)), dtype=float).reshape(2**k, k)
     # Which boundary each vertex lies on: the k upper faces, the k lower faces, then the m rows.
     active = np.hstack([vertices == 1.0, vertices == -1.0, np.zeros((len(vertices), m), dtype=bool)])
@@ -132,8 +136,8 @@ def box_vertices(a: np.ndarray, b: np.ndarray) -> np.ndarray:
         vertices, active = _cut(vertices, active, a[row], float(b[row]), 2 * k + row)
         if not len(vertices):
             break
-        if len(vertices) > MAX_VERTICES:
-            raise ValueError(f"The region has more than {MAX_VERTICES} vertices; they are not listed.")
+        if len(vertices) > max_vertices:
+            raise ValueError(f"The region has more than {max_vertices} vertices; they are not listed.")
     vertices = np.where(np.abs(np.abs(vertices) - 1.0) <= 1e-12, np.sign(vertices), vertices)
     vertices = np.where(np.abs(vertices) <= 1e-12, 0.0, vertices)
     return np.unique(vertices.round(12), axis=0)
