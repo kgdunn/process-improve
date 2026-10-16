@@ -71,6 +71,15 @@ class TestConstraintsAsText:
         again = DesignRegion.from_dict(region.to_dict())
         assert again.constraints == region.constraints
 
+    def test_a_dict_takes_every_form_the_constructor_takes(self):
+        factors = [f.model_dump(mode="json") for f in HEAT_FACTORS]
+        written = DesignRegion.from_dict({"factors": factors, "constraints": [HEAT, {"expression": "T <= 140"}]})
+        assert [c.expression for c in written.constraints] == [HEAT, "T <= 140"]
+        for missing in ({"factors": factors}, {"factors": factors, "constraints": None}):
+            assert DesignRegion.from_dict(missing).constraints == []
+        with pytest.raises(TypeError, match="Constraint, a dict or an expression string"):
+            DesignRegion.from_dict({"factors": factors, "constraints": [3]})
+
 
 # ---------------------------------------------------------------------------
 # Renaming factors inside a constraint

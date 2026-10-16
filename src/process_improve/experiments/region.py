@@ -159,8 +159,24 @@ class DesignRegion:
 
     @classmethod
     def from_dict(cls, spec: dict[str, Any]) -> DesignRegion:
-        """Rebuild a region from :meth:`to_dict` output."""
-        return cls([Factor(**f) for f in spec["factors"]], [Constraint(**c) for c in spec.get("constraints", [])])
+        """Rebuild a region from :meth:`to_dict` output.
+
+        The constraints go through the constructor, so they may take any form it accepts
+        (``Constraint`` dicts as :meth:`to_dict` writes them, or bare expressions), and a
+        missing or ``None`` entry means no constraints.
+
+        Parameters
+        ----------
+        spec : dict[str, Any]
+            ``{"factors": [...], "constraints": [...]}``; a ``"kind"`` entry is ignored,
+            since the factors decide it.
+
+        Returns
+        -------
+        DesignRegion
+            The region.
+        """
+        return cls([Factor(**f) for f in spec["factors"]], spec.get("constraints") or [])
 
     def __repr__(self) -> str:
         """Return a short summary."""

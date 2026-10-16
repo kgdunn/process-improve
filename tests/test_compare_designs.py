@@ -582,6 +582,9 @@ def test_the_region_can_be_given_as_its_dict_and_is_deterministic():
     again = compare_designs(designs, "quadratic", region=region.to_dict())
     assert json.dumps(first.to_dict()) == json.dumps(again.to_dict())
     assert isinstance(again.region, DesignRegion)
+    written = {"factors": [f.model_dump(mode="json") for f in HEAT], "constraints": [HEAT_LIMIT]}
+    by_hand = compare_designs(designs, "quadratic", region=written)
+    assert json.dumps(by_hand.to_dict()) == json.dumps(first.to_dict()), "a bare expression in the dict form"
 
 
 def test_a_factor_the_region_does_not_name_is_free_over_its_range():
