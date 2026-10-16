@@ -22,10 +22,10 @@ those changes.
   or two `topics`: what it is about (semiconductors, food and beverages, ...), as opposed to how it
   is designed. `reference_topics()` returns the vocabulary of 30 topics, each with its nearest UN
   ISIC Rev. 4 industries and OECD FORD field of research, and `reference_experiments` and
-  `reference_designs` take `topic=` to select by it. Of the 1013 entries, 583 state an application;
-  the other 430 (mostly tables of designs) are `"general"`.
-- **The reference catalogue holds chapters 1 to 15 of Montgomery, *Design and Analysis of
-  Experiments* (8th edition).** Chapters 1 and 2: the golf 2^2 factorial and its three effects; the
+  `reference_designs` take `topic=` to select by it. Of the 1039 entries, 583 state an application;
+  the other 456 (mostly tables of designs) are `"general"`.
+- **The reference catalogue holds chapters 1 to 15 and the appendix of Montgomery, *Design and
+  Analysis of Experiments* (8th edition).** Chapters 1 and 2: the golf 2^2 factorial and its three effects; the
   Portland cement mortar two-sample t-test with Minitab's and JMP's output, its confidence interval
   and Minitab's power table; the nerve and muscle fluorescence compared by Welch's test; the
   hardness tips' paired t-test beside the pooled test that ignores the specimens; the run counts of
@@ -126,10 +126,14 @@ those changes.
   battery data with proportional cell counts; the fibre strength analysis of covariance, by hand
   and in Minitab, with its adjusted means; a 2^3 with a covariate in JMP, with common and with
   separate slopes; and a D-optimal design that chooses raw material samples by two covariates,
-  with its relative variances and alias matrix. The data of the
+  with its relative variances and alias matrix. The appendix: Table X's 26 fractions of 3 to 15
+  factors in 4 to 64 runs, each with its fraction, run count, resolution, generators, defining
+  relation, every alias chain and the effects confounded with its blocks; its tables of the
+  normal, t, chi-square, F, studentized range and Dunnett distributions and of orthogonal
+  polynomials are screened against scipy, and their misprints listed with them. The data of the
   184 problems that have data are kept as data, since the book prints no answers; the totals, means, ranges, standard
   deviations, response rates and transformations some of their tables print are checked, and the two
-  models Problem 9.6 prints. 10371 printed numbers, 9607 checked. 489 are recorded as not
+  models Problem 9.6 prints. 11150 printed numbers, 10382 checked. 492 are recorded as not
   reproducing, each explained: the book's rounding (test statistics, P-values, fitted values and
   residuals worked from rounded values, a Tukey critical difference from a table's rounded point,
   three standard deviations in each of Tables 3.7 and P8.3, dispersion statistics from rounded
@@ -167,7 +171,8 @@ those changes.
   fitted with 38.03 where Table 14.22 prints 38.08; in chapter 15 the least-squares columns of
   Tables 15.3 and 15.5, which are those of models fitted to slightly other data than the book
   prints, a machine total of 184 for 180, two signs of Table 15.24's alias matrix, and Table
-  15.21's asterisks, which mark five samples twice), Design-Expert's Box-Cox λ and its
+  15.21's asterisks, which mark five samples twice; in the appendix Table X's defining relation
+  of design (r), CDFGI for CDFGJ, and the heading of design (z), 5 factors for 15), Design-Expert's Box-Cox λ and its
   interval, which is symmetric about λ where the library's likelihood-ratio interval is not,
   JMP's REML estimates in chapter 13,
   which leave a variance component negative where the library's REML, like lme4, keeps every
@@ -180,7 +185,7 @@ those changes.
   blocking does, and three numbers where the library's design differs from the book's: its 24-run
   Plackett-Burman design is the 12-run one doubled (11 of its three-column products completely
   aliased) rather than the cyclic design of Table 8.23, its 36-run design is of another class,
-  its 16-run fraction for 12 factors has one more word of length three than Table 8.14's, and
+  its 16-run fraction for 12 factors has one more word of length three than that of Tables 8.14 and X, and
   Figure 11.32's 12-factor definitive screening design is not a conference-matrix design like the
   library's (its main effects are correlated); those for 4, 6, 8 and 10 factors are the library's
   with their columns reordered and their signs changed.
@@ -258,7 +263,13 @@ those changes.
   15: `box_cox` reads SSE(λ) and its log at any λ; a value can be read back from a transformed
   scale (`"log10"`, and `"back_transform": "freeman_tukey_sqrt"`); `cross_products` reads an
   analysis of covariance's sums of squares and products, total, treatments and error; and a
-  prediction reads its standard error, an adjusted mean's at the covariate's mean.
+  prediction reads its standard error, an adjusted mean's at the covariate's mean. For the
+  appendix: `aliases` takes `up_to`, so a printed chain must hold every alias of up to that many
+  factors and no other; `block_effects` reads the effects confounded with blocks, each chosen
+  effect and every product of them, as alias chains; `design_property` reads the `fraction` of the
+  full factorial a design runs and its runs per block (`blocks`); and a defining relation of more
+  than ten generators, which the library leaves out of a design's metadata, is worked out with
+  `evaluate_design`, so the 15-factor fraction in 16 runs is compared word by word.
 - **A design catalog, at factori.al/catalog.** It lists the reference catalogue's 665 published
   experiments and designs, and 117 designs the library makes. A reader searches them in words ("4
   factors, <=30 runs, quadratic, since 1990"); filters them by family, runs, factors, the model they
