@@ -22,9 +22,9 @@ those changes.
   or two `topics`: what it is about (semiconductors, food and beverages, ...), as opposed to how it
   is designed. `reference_topics()` returns the vocabulary of 30 topics, each with its nearest UN
   ISIC Rev. 4 industries and OECD FORD field of research, and `reference_experiments` and
-  `reference_designs` take `topic=` to select by it. Of the 921 entries, 518 state an application;
-  the other 403 (mostly tables of designs) are `"general"`.
-- **The reference catalogue holds chapters 1 to 10 of Montgomery, *Design and Analysis of
+  `reference_designs` take `topic=` to select by it. Of the 964 entries, 539 state an application;
+  the other 425 (mostly tables of designs) are `"general"`.
+- **The reference catalogue holds chapters 1 to 11 of Montgomery, *Design and Analysis of
   Experiments* (8th edition).** Chapters 1 and 2: the golf 2^2 factorial and its three effects; the
   Portland cement mortar two-sample t-test with Minitab's and JMP's output, its confidence interval
   and Minitab's power table; the nerve and muscle fluorescence compared by Welch's test; the
@@ -90,10 +90,23 @@ those changes.
   of squares of the feed rate, a confidence interval on a coefficient and PRESS; the 2^3 with four
   centre runs fitted by regression, again with run 8 missing and again at the levels reached; a
   2^(4-1) augmented to de-alias AB from CD, by one run or by four in a block of their own; and the
-  prediction interval on Example 8.1's confirmation run. The data of the 144 problems that have data
-  are kept as data, since the book prints no answers; the totals, means, ranges, standard
+  prediction interval on Example 8.1's confirmation run. Chapter 11: the yield's first-order model,
+  its interaction and curvature checks and Table 11.3's path of steepest ascent; the central
+  composite design of Example 11.2 with all of Design-Expert's Table 11.7 (sequential sums of
+  squares, lack-of-fit tests, model summaries, the case statistics and the equation in actual
+  factors), the stationary point, the eigenvalues and eigenvectors of the canonical analysis, the
+  viscosity and molecular weight models and the constrained and desirability solutions; the
+  Box-Behnken, small composite and hybrid designs; orthogonal blocking of a CCD and Table 11.11's
+  nine blocked designs; the inscribed CCD, D-optimal and modified D-optimal designs of the adhesive's
+  constrained region; JMP's 16-run D- and I-optimal designs in four factors, their relative
+  variances and maximum prediction variances; the definitive screening designs of Figure 11.32 for
+  4 to 12 factors, read from the page image, and the conference matrix of order 6; the CFD plume
+  experiment; the yarn elongation simplex lattice, the augmented simplex lattice and the paint
+  formulation fitted in pseudocomponents with Design-Expert's Tables 11.21 and 11.22; and the EVOP
+  of Example 11.7, its averages, sums, differences and effects cycle by cycle. The data of the 160
+  problems that have data are kept as data, since the book prints no answers; the totals, means, ranges, standard
   deviations, response rates and transformations some of their tables print are checked, and the two
-  models Problem 9.6 prints. 7458 printed numbers, 6987 checked. 219 are recorded as not
+  models Problem 9.6 prints. 8334 printed numbers, 7785 checked. 255 are recorded as not
   reproducing, each explained: the book's rounding (test statistics, P-values, fitted values and
   residuals worked from rounded values, a Tukey critical difference from a table's rounded point,
   three standard deviations in each of Tables 3.7 and P8.3, dispersion statistics from rounded
@@ -101,7 +114,9 @@ those changes.
   off rather than rounded, Table 9.2's P-values worked from F rounded to two decimals and sums of
   squares cut rather than rounded, and chapter 10's confidence and prediction limits worked with t
   rounded to two decimals, a partial F from rounded sums of squares, and Example 10.4's (X'X)^-1
-  inverted from X'X rounded to four decimals), misprints (sums of squares and mean squares, an F of
+  inverted from X'X rounded to four decimals, and in chapter 11 P-values worked from F rounded, the
+  path of steepest ascent stepped by Δx2 rounded to 0.42 and 2°F, the w equations' coefficients and
+  a determinant cut rather than rounded), misprints (sums of squares and mean squares, an F of
   3.95 for 3.93, an error degrees of freedom of 19 for 20, a residual of 26.00 for −6.00, a dropped
   sign in two coefficients or limits, a range of 59 for 54, Table 6.28's analysis of variance copied
   from Table 6.26, one row of Table 7.9 that prints the interactions of other generators, a column
@@ -113,14 +128,21 @@ those changes.
   other than Table 9.1's, the Hall columns named for Tables 9.21 and 9.22, an E(s²) of 14.20 for
   14.22, two counts of Table 9.35's levels exchanged, Example 10.3's coefficients, which are not the
   product of the (X'X)^-1 and X'y it prints, and an entry of Example 10.4's (X'X)^-1 printed 4.37851
-  for 4.37351), Design-Expert's equations in actual temperature, whose linear coefficients add the
+  for 4.37351; in chapter 11 the characteristic equation λ² + 2.3788λ + 1.3639 = 0 for
+  λ² + 2.3775λ + 1.3624, the temperatures 179 and 181 of steps 11 and 12 of the path for 177 and
+  179, Table 11.11's N = 80 for 90, Table 11.22's mean square 1465.66 for 1465.55, the EVOP's
+  change in mean of 0.02 for −0.02 and 225°F for 255°F, and the desirability solutions, whose D and
+  predictions do not match their printed settings), Design-Expert's equations in actual temperature, whose linear coefficients add the
   quadratic ones, Minitab's Tukey intervals, which use a studentized range point of 4.0504 where the
   library's, like R's, is 4.0461, a residual mean square of "about 109" that no model of the data
   gives, two rows of Table 7.9 that confound one more two-factor interaction than the library's
   blocking does, and three numbers where the library's design differs from the book's: its 24-run
   Plackett-Burman design is the 12-run one doubled (11 of its three-column products completely
-  aliased) rather than the cyclic design of Table 8.23, its 36-run design is of another class, and
-  its 16-run fraction for 12 factors has one more word of length three than Table 8.14's.
+  aliased) rather than the cyclic design of Table 8.23, its 36-run design is of another class,
+  its 16-run fraction for 12 factors has one more word of length three than Table 8.14's, and
+  Figure 11.32's 12-factor definitive screening design is not a conference-matrix design like the
+  library's (its main effects are correlated); those for 4, 6, 8 and 10 factors are the library's
+  with their columns reordered and their signs changed.
 
   New checks: `t_test` compares two groups of runs with the library's pooled, Welch and paired
   t-tests; `contrast` weighs a fit's level means (its value, standard error, t, F, sum of squares,
@@ -166,7 +188,19 @@ those changes.
   what it reads, as trace(AA') is the alias matrix's squared norm; `distinct_runs` takes levels
   printed as names, and a subset of the runs. For chapter 10: `normal_equations` reads an entry of
   X'X, X'y or (X'X)^-1; a prediction reads its interval's half-width for a new observation and the
-  point's x0'(X'X)^-1 x0; and `dot_product` takes a subset of the runs.
+  point's x0'(X'X)^-1 x0; and `dot_product` takes a subset of the runs. For chapter 11:
+  `normal_equations` also reads |(X'X)^-1|, its trace, x0'(X'X)^-1 x0 at a point and the D-efficiency
+  of one set of runs relative to another; `desirability` scores several fitted responses at a
+  point with the library's desirability functions; `run_radius`, `blocks_orthogonal` (both of
+  Box and Hunter's conditions, the second the library's `squares_orthogonal_to_blocks`) and
+  `fold_over_pairs` read a design's runs; `interaction_columns` reads the correlation of main effects
+  with squares and `estimable_projections` the full quadratic model; `nested_test` takes its error
+  from a third model, as Design-Expert tests a mixture's linear blending; a factor can be coded as
+  a pseudocomponent; `runs.exact` maps settings in a factor's own units too, and `"settings":
+  "as_printed"` fits them as printed; the lack-of-fit and pure error sums of squares, degrees of
+  freedom and mean squares are read directly; a contrast's value is read from a saturated fit; a
+  library value or design property can be squared; a path into a result can take `sum` and `prod`;
+  and the canonical analysis holds only the factors its model holds.
 - **Standardised coefficients.** Each row of `analyze_experiment`'s `"coefficients"` (and
   `coefficients_actual`) now carries `standardised_coefficient`: the coefficient times the standard
   deviation of its column of the model matrix, over the standard deviation of the response, as
