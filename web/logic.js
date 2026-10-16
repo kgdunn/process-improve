@@ -104,6 +104,81 @@ export const CATEGORICAL_DESIGNS = ["full_factorial", "fractional_factorial", "p
  */
 export const GIVEN = "given";
 
+// ---------------------------------------------------------------- mixtures
+/**
+ * The mixture designs, as bootstrap.MIXTURES names them: the factors are the components of a blend, each a
+ * proportion between its lower and upper bounds, and every run's proportions sum to 1.
+ */
+export const MIXTURES = ["simplex_lattice", "simplex_centroid", "extreme_vertices"];
+
+/** Whether a design type is a mixture's. */
+export const isMixture = (designType) => MIXTURES.includes(designType);
+
+/** The models a mixture is analysed with; mirrors bootstrap.MIXTURE_MODELS. */
+export const MIXTURE_MODELS = ["scheffe_linear", "scheffe_quadratic", "scheffe_special_cubic"];
+
+/** A component's bound as the form sends it: a blank box is the bound's default, 0 for the lower and 1 for the upper. */
+export const proportionValue = (text, blank) => (String(text ?? "").trim() === "" ? blank : levelValue(text));
+
+/**
+ * What a component's bounds need, in a sentence the page shows under the table; "" when they are ready. A
+ * blank box is 0 or 1. The rules are those bootstrap.py applies to a mixture's components.
+ */
+export function componentProblem({ name, low, high }) {
+  const who = String(name ?? "").trim() || "A component without a name";
+  const [lower, upper] = [proportionValue(low, 0), proportionValue(high, 1)];
+  if (typeof lower !== "number" || typeof upper !== "number" || !Number.isFinite(lower) || !Number.isFinite(upper)) {
+    return `${who}: enter its lower and upper proportions as numbers, or leave them blank for 0 and 1.`;
+  }
+  if (lower < 0 || upper > 1) {
+    return (
+      `${who} runs from ${lower} to ${upper}, which is no proportion: each component of a mixture lies between 0 ` +
+      "and 1, and a mixture on this page takes no process variables, such as a temperature."
+    );
+  }
+  if (!(lower < upper)) return `${who}: its lower proportion must be below its upper proportion.`;
+  return "";
+}
+
+/** The components whose bounds cut the simplex: a lower proportion above 0, or an upper one below 1. */
+export const boundedComponents = (factors) => factors.filter((f) => f.low > 0 || f.high < 1).map((f) => f.name);
+
+/**
+ * What a mixture's components, each ready on its own, still need together for the design type, in a sentence;
+ * "" when nothing. The lower proportions must sum to less than 1 and the upper ones to more than 1; extreme
+ * vertices need a bound, and the simplex designs none. ``factors`` are as the form sends them for a mixture.
+ */
+export function mixtureProblem(factors, designType, label) {
+  const sum = (key) => factors.reduce((total, f) => total + f[key], 0);
+  const figures = (x) => Number(x.toPrecision(4));
+  if (sum("low") > 1 - 1e-9) {
+    return (
+      `The lower proportions sum to ${figures(sum("low"))}, and must sum to less than 1: above 1 no blend gives every ` +
+      "component its lower proportion, and at 1 only one blend does. Lower some of them."
+    );
+  }
+  if (sum("high") < 1 + 1e-9) {
+    return (
+      `The upper proportions sum to ${figures(sum("high"))}, and must sum to more than 1: below 1 no blend of the ` +
+      "components reaches 1, and at 1 only one does. Raise some of them."
+    );
+  }
+  const bounded = boundedComponents(factors);
+  if (designType === "extreme_vertices" && !bounded.length) {
+    return (
+      "Extreme vertices are for a mixture with bounds: give a component a lower or upper proportion, or choose the " +
+      "simplex lattice or simplex centroid."
+    );
+  }
+  if (designType !== "extreme_vertices" && bounded.length) {
+    return (
+      `The ${label} design covers every blend, each component from 0 to 1, and ${listNames(bounded)} ` +
+      `${bounded.length === 1 ? "has" : "have"} bounds: choose extreme vertices for a mixture with bounds.`
+    );
+  }
+  return "";
+}
+
 /** Whether text typed as a level is a label, such as old: neither blank nor a number (nor inf or nan). */
 export function isLabel(text) {
   const t = String(text ?? "").trim();
@@ -415,6 +490,9 @@ export const TITLES = {
   true_contour: "True response surface",
   residuals: "Residuals against fitted values",
   half_normal: "Half-normal plot of the effects",
+  ternary: "Fitted response over the blends",
+  true_ternary: "True response over the blends",
+  cox: "Fitted response along each Cox direction",
 };
 
 /** What each chart shows and how to read it; some name the factors drawn. */
@@ -434,6 +512,13 @@ export const CAPTIONS = {
     return `Drawn over ${pair.join(" and ")}, the two factors with the largest main effects${others}${grey}; the dots are the runs.`;
   },
   true_contour: "The process the results were simulated from, on the same scale.",
+  ternary:
+    "Each corner is a pure component and each point a blend, coloured by the fitted response, over the blends the " +
+    "bounds allow; the white dots are the runs.",
+  true_ternary: "The process the results were simulated from, on the same scale.",
+  cox:
+    "Each line changes one component's share of the reference blend, the centroid of the design's blends, while the " +
+    "others keep their proportions to each other; the lines cross at the reference blend.",
   residuals: "A curve or a funnel points to a missing term or a changing noise level.",
   half_normal: "Effects far above the line, past Lenth's margin of error, are likely real.",
 };

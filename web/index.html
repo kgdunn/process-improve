@@ -141,7 +141,7 @@
       <section id="factors-card" class="card" aria-labelledby="h-factors">
         <h2 id="h-factors">What might change it?</h2>
         <table class="factors" id="factors">
-          <thead><tr><th>Factor name</th><th>Type</th><th>Low</th><th>High</th><th>Units</th><th><span class="sr">Remove</span></th></tr></thead>
+          <thead><tr><th>Factor name</th><th>Type</th><th id="h-low">Low</th><th id="h-high">High</th><th>Units</th><th><span class="sr">Remove</span></th></tr></thead>
           <tbody></tbody>
         </table>
         <p id="factor-problems" class="hint error" role="status" hidden></p>
@@ -153,6 +153,8 @@
         <!-- The limits on the settings (limits.js): closed until a study has some, so a first visit reads no more. -->
         <details id="limits" class="known limits">
           <summary>Settings you cannot run <span id="limits-count" class="badge" hidden></span></summary>
+          <p id="limits-mixture" class="hint" hidden>A mixture takes no limits on the settings on this page: give each
+            component its lower and upper proportions instead.</p>
           <p class="hint">Type each <button type="button" class="term" data-term="limit">limit</button> as an inequality
             in the factors' own units, with + - * / and ** for a power.</p>
           <div id="limit-list"></div>
@@ -256,6 +258,15 @@
                   data-hint="Most precise predictions, on average over the factor space, for a fixed number of runs. The search takes longest of the designs here: up to 20 s at six factors.">I-optimal</option>
                 <option value="given" data-options="" data-min-factors="2" data-max-factors="12" hidden
                   data-hint="The runs of a design you have already, such as one a book prints: the page takes them as they are.">Runs as given</option>
+                <!-- Mirrors bootstrap.MIXTURES: the factors are the components of a blend, each a proportion. -->
+                <optgroup label="Mixtures: proportions that sum to 1">
+                  <option value="simplex_lattice" data-options="lattice_degree n_replicates" data-min-factors="3" data-max-factors="6"
+                    data-hint="The pure components and, at degree 2, every 50:50 blend of two, with the overall centroid to check the fit.">Simplex lattice (mixture)</option>
+                  <option value="simplex_centroid" data-options="n_replicates" data-min-factors="3" data-max-factors="4"
+                    data-hint="Every blend of equal parts: the pure components, the 50:50 blends, the blends in thirds, and so on to the overall centroid.">Simplex centroid (mixture)</option>
+                  <option value="extreme_vertices" data-options="mixture_model n_replicates" data-min-factors="3" data-max-factors="6"
+                    data-hint="The corners of the blends your lower and upper proportions allow, the midpoints of the edges between them for the quadratic model, and their centroid.">Extreme vertices (mixture with bounds)</option>
+                </optgroup>
               </select>
             </label>
           </div>
@@ -300,6 +311,20 @@
                 <option value="quadratic">Quadratic</option>
                 <option value="interactions">Interactions</option>
                 <option value="main_effects">Main effects</option>
+              </select>
+            </label>
+            <!-- A simplex lattice's degree, and the Scheffé model extreme vertices are built for: bootstrap.LATTICE_DEGREES
+                 and bootstrap.VERTICES_MODELS. -->
+            <label data-option="lattice_degree"><span class="term" data-term="lattice-degree">Degree</span>
+              <select id="lattice_degree">
+                <option value="2" selected>2: and every 50:50 blend</option>
+                <option value="1">1: the pure components</option>
+              </select>
+            </label>
+            <label data-option="mixture_model">Model to design for
+              <select id="mixture_model">
+                <option value="scheffe_quadratic" selected>Quadratic blending</option>
+                <option value="scheffe_linear">Linear blending</option>
               </select>
             </label>
           </div>
@@ -352,6 +377,8 @@
                   <option value="optimum" data-hint="A curved surface in the first two factors, highest at a point inside their ranges.">A maximum inside the ranges</option>
                   <option value="nothing" data-hint="No factor changes the response: whatever the analysis finds is noise.">Nothing active</option>
                   <option value="random" data-hint="Two or three active factors drawn at random, with an interaction or curvature; new noise draws a new process.">A random process</option>
+                  <!-- bootstrap.MIXTURE_SCENARIOS: offered for a mixture's run sheet only, in place of the ones above. -->
+                  <option value="blend" data-mixture hidden data-hint="The first two components blend in synergy, and the second and third against each other.">A synergy and an antagonism</option>
                 </select>
               </label>
               <label><span class="term" data-term="noise">Noise</span> (standard deviation)
@@ -367,7 +394,7 @@
               <summary>Show the true process</summary>
               <p id="truth-equation" class="equation"></p>
               <p id="truth-inactive" hidden></p>
-              <p class="hint">In coded units. The analysis estimates these coefficients from the noisy results.</p>
+              <p id="truth-units" class="hint">In coded units. The analysis estimates these coefficients from the noisy results.</p>
             </details>
           </div>
           <p id="run-source" class="hint"></p>
@@ -403,6 +430,10 @@
               <option value="interactions">Main effects + two-factor interactions</option>
               <option value="quadratic">Full quadratic</option>
               <option value="terms">Terms you choose</option>
+              <!-- bootstrap.MIXTURE_MODELS: offered for a mixture's runs only, in place of the ones above. -->
+              <option value="scheffe_linear" data-mixture hidden>Linear blending</option>
+              <option value="scheffe_quadratic" data-mixture hidden>Quadratic blending</option>
+              <option value="scheffe_special_cubic" data-mixture hidden>Special cubic blending</option>
             </select>
           </label>
         </div>

@@ -17,10 +17,7 @@ import pandas as pd
 import pytest
 
 from process_improve.experiments import Factor, generate_design
-from tests.web._support import held_of, run_sheet, sheets_of
-
-#: Every mixture design the page offers; ``test_every_mixture_the_page_offers_is_tested_here`` keeps it whole.
-ALL_MIXTURES = ("simplex_lattice", "simplex_centroid", "extreme_vertices")
+from tests.web._support import ALL_MIXTURES, held_of, run_sheet, sheets_of
 
 
 def components(*names: str, **bounds: tuple[float, float]) -> list[dict]:

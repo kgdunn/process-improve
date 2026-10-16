@@ -180,7 +180,7 @@ const termAxis = (labels) => ({
   dtick: 1,
 });
 
-export function coefficientFigure(coefficients, simulated, colours = palette()) {
+export function coefficientFigure(coefficients, simulated, colours = palette(), { mixture = false } = {}) {
   const terms = coefficients.filter((c) => c.term !== "Intercept");
   const labels = terms.map((c) => c.label);
   const above = terms.map((c) => (c.ci_high === null || c.ci_high === undefined ? 0 : c.ci_high - c.coefficient));
@@ -225,7 +225,8 @@ export function coefficientFigure(coefficients, simulated, colours = palette()) 
   return {
     data,
     layout: {
-      xaxis: { title: { text: "Coefficient, coded units" }, zeroline: true },
+      // A mixture is fitted in its proportions: a component's coefficient is its response alone, in the response's units.
+      xaxis: { title: { text: mixture ? "Coefficient" : "Coefficient, coded units" }, zeroline: true },
       yaxis: termAxis(labels),
       legend: LEGEND_ABOVE,
       showlegend: true,
@@ -330,6 +331,139 @@ const BLUES = [
   [0.875, "#08519c"],
   [1, "#08306b"],
 ];
+
+// ---------------------------------------------------------------- a mixture's pictures
+/** The library's colours for a response surface, light for low and dark for high, as its contour plots draw them. */
+export const SURFACE = [
+  [0, "#EFF6FF"],
+  [0.25, "#93C5FD"],
+  [0.5, "#3B82F6"],
+  [0.75, "#1D4ED8"],
+  [1, "#1E3A8A"],
+];
+
+/** A run's marker on a surface: a white face and a dark edge, which read on its light and its dark blues alike. */
+const RUN_MARKER = { symbol: "circle", size: 10, color: "#ffffff", line: { width: 1.5, color: "#1a1a1a" } };
+
+/** A quantity's name with its units, as an axis or a colour bar shows it. */
+const withUnits = (name, units) => (units ? `${name} (${units})` : name);
+
+/**
+ * The lowest and highest response a ternary plot colours: over the fitted values, and the true ones when the
+ * results were simulated, so the fitted and the true surface share one scale.
+ */
+export function ternaryRange(ternary) {
+  const values = [...ternary.grid.fitted, ...(ternary.grid.true ?? [])].filter(Number.isFinite);
+  return [Math.min(...values), Math.max(...values)];
+}
+
+/**
+ * A mixture of three components over its triangle (``ternary``, as api_plots gives it): each blend of the grid
+ * coloured by the response, the ``fitted`` one or the ``true`` one, and the runs marked on top. Each corner is
+ * a pure component, labelled with its name; ``range`` is the colour scale's ends, shared by the fitted and the
+ * true surface.
+ */
+export function ternaryFigure(ternary, { response, units = "", values = "fitted", range = ternaryRange(ternary) }, colours = palette()) {
+  const [a, b, c] = ternary.components;
+  const { grid, runs } = ternary;
+  const axis = (title) => ({
+    title: { text: title, font: { size: 13 } },
+    min: 0,
+    linecolor: colours.muted,
+    gridcolor: colours.line,
+    tickfont: { color: colours.muted, size: 10 },
+  });
+  const at = `${a} %{a:.3f}<br>${b} %{b:.3f}<br>${c} %{c:.3f}`;
+  return {
+    data: [
+      {
+        type: "scatterternary",
+        mode: "markers",
+        name: values === "true" ? "True response" : "Fitted response",
+        a: grid.a,
+        b: grid.b,
+        c: grid.c,
+        customdata: grid[values],
+        marker: {
+          symbol: "circle",
+          size: 7,
+          color: grid[values],
+          colorscale: SURFACE,
+          cmin: range[0],
+          cmax: range[1],
+          line: { width: 0 },
+          colorbar: { title: { text: withUnits(response, units) }, thickness: 12, len: 0.8 },
+        },
+        hovertemplate: `${at}<br>${response}: %{customdata:.4g}<extra></extra>`,
+        showlegend: false,
+      },
+      {
+        type: "scatterternary",
+        mode: "markers",
+        name: "Runs",
+        a: runs.a,
+        b: runs.b,
+        c: runs.c,
+        customdata: runs.y,
+        marker: RUN_MARKER,
+        hovertemplate: `${at}<br>${response}, run: %{customdata:.4g}<extra></extra>`,
+        showlegend: false,
+      },
+    ],
+    layout: {
+      ternary: { sum: 1, bgcolor: "rgba(0,0,0,0)", aaxis: axis(a), baxis: axis(b), caxis: axis(c) },
+      margin: { l: 36, r: 36, t: 36, b: 36 },
+      showlegend: false,
+    },
+  };
+}
+
+/** Okabe and Ito's colourblind-safe colours, one per component of a Cox trace plot. */
+const COMPONENT_COLOURS = ["#0072B2", "#E69F00", "#009E73", "#CC79A7", "#56B4E9", "#D55E00"];
+
+/**
+ * A mixture of four components or more, along each component's Cox direction (``cox``, as api_plots gives it):
+ * the fitted response as the component's share moves from the reference blend, the others keeping their
+ * proportions to each other, a line per component; with the true process, its response dotted in the same colour.
+ */
+export function coxFigure(cox, { response, units = "" }, colours = palette()) {
+  const data = cox.traces.flatMap((trace, i) => {
+    const color = COMPONENT_COLOURS[i % COMPONENT_COLOURS.length];
+    const fitted = {
+      type: "scatter",
+      mode: "lines",
+      name: trace.component,
+      legendgroup: trace.component,
+      x: trace.change,
+      y: trace.fitted,
+      line: { color, width: 2.5 },
+      hovertemplate: `${trace.component} %{x:+.3f}: %{y:.4g}<extra></extra>`,
+    };
+    if (!trace.true) return [fitted];
+    const truth = {
+      type: "scatter",
+      mode: "lines",
+      name: `${trace.component}, true`,
+      legendgroup: trace.component,
+      showlegend: false,
+      x: trace.change,
+      y: trace.true,
+      line: { color, width: 1.5, dash: "dot" },
+      hovertemplate: `${trace.component} %{x:+.3f}, true: %{y:.4g}<extra></extra>`,
+    };
+    return [fitted, truth];
+  });
+  if (cox.traces.some((trace) => trace.true)) data.push(legendKey("True process", colours.muted, "dot"));
+  return {
+    data,
+    layout: {
+      xaxis: { title: { text: "Change in the component's proportion from the reference blend" }, zeroline: true },
+      yaxis: { title: { text: withUnits(`Fitted ${response}`, units) } },
+      legend: LEGEND_ABOVE,
+      showlegend: true,
+    },
+  };
+}
 
 /** Write a model term as the page shows it: ``I(T ** 2)`` as ``T²`` and ``T:P`` as ``T·P``. */
 // Only a colon between two names is a product, so a sentence's own colons are left alone.

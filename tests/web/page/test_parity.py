@@ -20,7 +20,9 @@ def test_page_design_list_matches_bootstrap(bootstrap):
     """The page lists the designs in HTML so the form is right before Python loads."""
     in_page = {o["value"]: o for o in page().options["design-type"]}
     given = in_page.pop(bootstrap.GIVEN)
+    mixtures = {key: in_page.pop(key) for key in list(in_page) if key in bootstrap.MIXTURES}
     assert list(in_page) == list(bootstrap.DESIGNS)
+    assert list(mixtures) == list(bootstrap.MIXTURES), "the mixtures follow the designs for factors with ranges"
     assert "hidden" in given, "the list offers runs as given only while a study of given runs is open"
     assert given["label"] == bootstrap.GIVEN_INFO["label"]
     assert given["data-hint"] == bootstrap.GIVEN_INFO["hint"]
@@ -29,8 +31,8 @@ def test_page_design_list_matches_bootstrap(bootstrap):
         bootstrap.GIVEN_INFO["min_factors"],
         bootstrap.GIVEN_INFO["max_factors"],
     )
-    for key, info in bootstrap.DESIGNS.items():
-        option = in_page[key]
+    for key, info in [*bootstrap.DESIGNS.items(), *bootstrap.MIXTURES.items()]:
+        option = in_page.get(key) or mixtures[key]
         assert option["label"] == info["label"], key
         assert option["data-hint"] == info["hint"], key
         assert option["data-options"].split() == info["options"], key
@@ -39,13 +41,77 @@ def test_page_design_list_matches_bootstrap(bootstrap):
     assert page().selected("design-type") == bootstrap.DEMO["design"]["design_type"], "until the brief picks one"
 
 
+def test_the_page_names_the_mixtures_as_bootstrap_does(bootstrap, node):
+    """logic.js and python.js each know which designs are a mixture's: the factors are then a blend's components."""
+    assert javascript(node, source("logic.js"), [("MIXTURES", []), ("MIXTURE_MODELS", [])]) == [
+        list(bootstrap.MIXTURES),
+        list(bootstrap.MIXTURE_MODELS),
+    ]
+    assert javascript(node, source("python.js"), [("MIXTURES", [])]) == [list(bootstrap.MIXTURES)]
+
+
+def test_a_mixture_s_settings_are_bootstrap_s(api, bootstrap):
+    """A lattice's degrees and the models extreme vertices are built for, each opening on bootstrap's default."""
+    assert page().values("lattice_degree") == [str(d) for d in sorted(bootstrap.LATTICE_DEGREES, reverse=True)]
+    assert page().selected("lattice_degree") == str(bootstrap.DEFAULT_LATTICE_DEGREE)
+    assert page().values("mixture_model") == list(bootstrap.VERTICES_MODELS)
+    blank = [{"name": n, "low": None, "high": None} for n in "ABC"]
+    lattice = api.ok("api_make_design", {"design_type": "simplex_lattice", "factors": blank})
+    assert lattice["spec"]["options"]["model_type"] == bootstrap.LATTICE_DEGREES[int(page().selected("lattice_degree"))]
+    bounded = [{**blank[0], "low": 0.2}, *blank[1:]]
+    vertices = api.ok("api_make_design", {"design_type": "extreme_vertices", "factors": bounded})
+    assert vertices["spec"]["options"]["model_type"] == page().selected("mixture_model")
+
+
+@pytest.mark.parametrize(
+    "case",
+    [
+        ("simplex_lattice", [("", ""), ("", ""), ("", "")], False),
+        ("simplex_lattice", [("0.2", ""), ("", ""), ("", "")], True),
+        ("extreme_vertices", [("0.2", ""), ("", ""), ("", "")], False),
+        ("extreme_vertices", [("", ""), ("", ""), ("", "")], True),
+        ("extreme_vertices", [("0.5", ""), ("0.4", ""), ("0.3", "")], True),
+        ("extreme_vertices", [("", "0.3"), ("", "0.3"), ("", "0.3")], True),
+        ("simplex_centroid", [("150", "200"), ("", ""), ("", "")], False),
+        ("simplex_centroid", [("", "most"), ("", ""), ("", "")], False),
+        ("extreme_vertices", [("0.6", "0.4"), ("", ""), ("", "")], False),
+    ],
+)
+def test_the_page_reads_a_mixture_s_bounds_as_bootstrap_does(api, bootstrap, node, case):
+    """A blank bound is 0 or 1 on both sides; a component the page marks Python refuses, in the same words for the
+    bounds taken together. Each case is the design type, each component's bounds as typed, and whether the page
+    finds a problem only in the bounds taken together.
+    """
+    design_type, typed, together = case
+    names = ["A", "B", "C"]
+    rows = [{"name": n, "low": low, "high": high} for n, (low, high) in zip(names, typed, strict=True)]
+    calls = [("proportionValue", [r["low"], 0]) for r in rows] + [("proportionValue", [r["high"], 1]) for r in rows]
+    calls += [("componentProblem", [r]) for r in rows]
+    asked = javascript(node, source("logic.js"), calls)
+    sent = [{"name": n, "low": low, "high": high} for n, low, high in zip(names, asked[:3], asked[3:6], strict=True)]
+    reply = api.reply("api_make_design", {"design_type": design_type, "factors": sent})
+    each = [problem for problem in asked[6:] if problem]
+    label = bootstrap.MIXTURES[design_type]["label"]
+    # The page says what the bounds need together once each component is ready on its own.
+    whole = "" if each else javascript(node, source("logic.js"), [("mixtureProblem", [sent, design_type, label])])[0]
+    assert bool(each or whole) == (not reply["ok"]), reply.get("error")
+    assert bool(whole) == together
+    if together:
+        assert whole == reply["error"]
+
+
 def test_the_page_lists_the_scenarios_bootstrap_simulates(bootstrap):
-    """The process list is in the HTML, so it reads right before Python loads; it says what SCENARIOS says."""
+    """The process list is in the HTML, so it reads right before Python loads; it says what SCENARIOS says.
+
+    A mixture's processes come last, marked, and hidden until a mixture's run sheet is on the page.
+    """
     in_page = {o["value"]: o for o in page().options["scenario"]}
-    assert list(in_page) == list(bootstrap.SCENARIOS)
-    for key, info in bootstrap.SCENARIOS.items():
+    assert list(in_page) == [*bootstrap.SCENARIOS, *bootstrap.MIXTURE_SCENARIOS]
+    for key, info in [*bootstrap.SCENARIOS.items(), *bootstrap.MIXTURE_SCENARIOS.items()]:
         assert in_page[key]["label"] == info["label"], key
         assert in_page[key]["data-hint"] == info["hint"], key
+        assert ("data-mixture" in in_page[key]) == (key in bootstrap.MIXTURE_SCENARIOS), key
+        assert ("hidden" in in_page[key]) == (key in bootstrap.MIXTURE_SCENARIOS), key
     assert page().selected("scenario") == bootstrap.DEMO["scenario"]
 
 
@@ -64,6 +130,7 @@ def test_every_link_to_the_book_is_extensionless_and_one_the_page_checked():
         "optimal-designs#doe-optimal-designs",
         "full-factorial-designs/assessing-significance-of-main-effects-and-interactions#doe-lenth-method",
         "judging-and-comparing-designs#doe-fds-plot",
+        "mixture-experiments#doe-mixture-designs",
     }
     text = source("index.html") + source("app.js")
     links = set(re.findall(r"learnche\.org/pid/design-analysis-experiments/([\w/#.-]+)", text))
@@ -75,13 +142,14 @@ def test_every_link_to_the_book_is_extensionless_and_one_the_page_checked():
 
 def test_every_design_links_to_the_book(bootstrap):
     block = re.search(r"const BOOK_PAGES = \{(.*?)\};", source("app.js"), re.DOTALL).group(1)
-    assert set(bootstrap.DESIGNS) <= set(re.findall(r"^\s*(\w+):", block, re.MULTILINE))
+    assert {*bootstrap.DESIGNS, *bootstrap.MIXTURES} <= set(re.findall(r"^\s*(\w+):", block, re.MULTILINE))
 
 
 # --------------------------------------------------------------------------- the design settings
 def test_every_setting_a_design_takes_has_one_control(bootstrap):
     """The page shows the controls a design names in its ``options``; each must exist, once."""
-    named = {option for info in bootstrap.DESIGNS.values() for option in info["options"]}
+    designs = [*bootstrap.DESIGNS.values(), *bootstrap.MIXTURES.values()]
+    named = {option for info in designs for option in info["options"]}
     assert sorted(page().data_options) == sorted(named)
 
 
@@ -118,8 +186,13 @@ def test_the_models_to_design_for_are_bootstrap_s(api, bootstrap):
 
 def test_the_models_to_analyse_with_are_bootstrap_s_after_as_designed(bootstrap, node):
     (chosen,) = javascript(node, source("logic.js"), [("CHOSEN_TERMS", [])])
-    assert page().values("model") == ["", *bootstrap.MODELS, chosen], "then the terms the reader ticks"
+    models = ["", *bootstrap.MODELS, chosen, *bootstrap.MIXTURE_MODELS]
+    assert page().values("model") == models, "then the terms the reader ticks, then a mixture's models"
     assert page().selected("model") == bootstrap.DEMO["model"] == ""
+    marked = [o["value"] for o in page().options["model"] if "data-mixture" in o and "hidden" in o]
+    assert marked == list(bootstrap.MIXTURE_MODELS), "offered for a mixture's runs only"
+    (kept,) = javascript(node, source("campaign.js"), [("MODELS", [])])
+    assert kept == ["", *bootstrap.MODELS, *bootstrap.MIXTURE_MODELS], "a saved study's model is one of these"
 
 
 @pytest.mark.parametrize("categorical", [(), ("S",)], ids=["numeric factors", "a categorical factor"])

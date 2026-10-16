@@ -27,11 +27,20 @@ const kwargs = (options) =>
 /** Whether a factor is categorical: its levels are labels, which the page holds as its low and high. */
 const labelled = (f) => typeof f.low === "string";
 
-function factorList(factors) {
+/**
+ * The page's mixture designs, as bootstrap.MIXTURES names them; each is the library's design type "mixture",
+ * built for the Scheffé model its options name, and its factors are the components of a blend.
+ */
+export const MIXTURES = ["simplex_lattice", "simplex_centroid", "extreme_vertices"];
+
+const isMixture = (spec) => MIXTURES.includes(spec.design_type);
+
+function factorList(factors, mixture = false) {
+  const units = (f) => (f.units ? `, units=${repr(f.units)}` : "");
   const rows = factors.map((f) =>
     labelled(f)
       ? `    Factor(name=${repr(f.name)}, type="categorical", levels=[${repr(f.low)}, ${repr(f.high)}]),`
-      : `    Factor(name=${repr(f.name)}, low=${f.low}, high=${f.high}${f.units ? `, units=${repr(f.units)}` : ""}),`,
+      : `    Factor(name=${repr(f.name)}${mixture ? ', type="mixture"' : ""}, low=${f.low}, high=${f.high}${units(f)}),`,
   );
   return ["factors = [", ...rows, "]"].join("\n");
 }
@@ -57,6 +66,17 @@ export function designCode(spec) {
       factorList(spec.factors),
       ...constraintLines(limits),
       "# The runs are taken as they were given: step 2 lists them, in the order given.",
+    ].join("\n");
+  }
+  if (isMixture(spec)) {
+    // Each component a proportion between its bounds; the library's mixture design, for the model its options name.
+    return [
+      "from process_improve.experiments import Factor, generate_design",
+      "",
+      "# The components of the blend, each a proportion between its lower and upper bounds.",
+      factorList(spec.factors, true),
+      `result = generate_design(factors, design_type="mixture", ${kwargs(options)})`,
+      "print(result.design_actual)  # the blends, in randomised order: each run's proportions sum to 1",
     ].join("\n");
   }
   return [
@@ -131,6 +151,7 @@ export function resultsCode(design, responses, simulation = null) {
   const at = (name) => columns.indexOf(name);
   const settings = (f) => rows.map((row) => (labelled(f) ? row[at(f.name)] : Number(row[at(f.name)])));
   const blocked = at("Block") >= 0 && (spec.options?.n_blocks ?? 1) > 1;
+  const mixture = isMixture(spec);
   const response = spec.response || "y";
   const runs = [
     ...spec.factors.flatMap((f) => columnLines(f.name, settings(f))),
@@ -151,10 +172,12 @@ export function resultsCode(design, responses, simulation = null) {
     ...runs,
     "    }",
     ")",
-    "# The settings in coded units, as the model is fitted: -1 at a factor's low level, +1 at its high.",
+    mixture
+      ? "# The proportions, as the Scheffé model is fitted: a mixture's components are not coded."
+      : "# The settings in coded units, as the model is fitted: -1 at a factor's low level, +1 at its high.",
     "X = pd.DataFrame(",
     "    {",
-    ...spec.factors.map(codedLine),
+    ...spec.factors.map((f) => (mixture ? `        ${repr(f.name)}: runs[${repr(f.name)}],` : codedLine(f))),
     ...(blocked ? ['        "Block": runs["Block"],'] : []),
     "    }",
     ")",

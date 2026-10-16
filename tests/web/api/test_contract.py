@@ -121,6 +121,54 @@ READS: dict[str, list[str]] = {
         "contour_factors[]: str",
         "figures{}: str",
     ],
+    "mixture design": [
+        "n_runs: int",
+        "columns[]: str",
+        "rows[].[]: number?",
+        "model: str",
+        "facts.center_runs: int",
+        "facts.notes[]: str",
+        "spec.design_type: str",
+        "spec.model: str",
+        "spec.options.model_type: str",
+        "spec.factors[].name: str",
+        "spec.factors[].low: number",
+        "spec.factors[].high: number",
+    ],
+    "mixture analysis": [
+        "spec.design_type: str",
+        "model: str",
+        "formula: str",
+        "equation: str",
+        "lenth: any?",
+        "coefficients[].label: str",
+        "coefficients[].true_value: number?",
+        "anova[].source: str",
+        "effects[].component: str",
+        "effects[].effect: number",
+        "effects[].low: number",
+        "effects[].high: number",
+    ],
+    "mixture charts": [
+        "plotly_js: str",
+        "figures{}: str",
+        "ternary.components[]: str",
+        "ternary.grid.a[]: number",
+        "ternary.grid.b[]: number",
+        "ternary.grid.c[]: number",
+        "ternary.grid.fitted[]: number",
+        "ternary.grid.true[]: number",
+        "ternary.runs.a[]: number",
+        "ternary.runs.b[]: number",
+        "ternary.runs.c[]: number",
+        "ternary.runs.y[]: number",
+    ],
+    "mixture traces": [
+        "cox.traces[].component: str",
+        "cox.traces[].change[]: number",
+        "cox.traces[].fitted[]: number",
+        "cox.traces[].true[]: number",
+    ],
     "workbook": [
         "xlsx_base64: str",
     ],
@@ -305,6 +353,10 @@ ENTRY_POINTS = {
     "analysis": "api_analyze_runs",
     "saturated analysis": "api_analyze_runs",
     "charts": "api_plots",
+    "mixture design": "api_make_design",
+    "mixture analysis": "api_analyze_runs",
+    "mixture charts": "api_plots",
+    "mixture traces": "api_plots",
     "workbook": "api_workbook",
     "relabel": "api_relabel",
     "upload": "api_read_workbook",
@@ -374,6 +426,14 @@ def reply(api, worked_example: dict[str, Any]) -> Callable[[str], dict]:
     def slow() -> dict:
         return {"factors": [{"name": n, "low": -1, "high": 1} for n in "ABCDE"], "model": "quadratic"}
 
+    def blend(q: int) -> dict:
+        """Return a replicated simplex lattice in ``q`` components, with results simulated from a blend."""
+        factors = [{"name": n, "low": None, "high": None, "units": ""} for n in "ABCD"[:q]]
+        spec = {"design_type": "simplex_lattice", "factors": factors, "n_replicates": 2}
+        made = held_of(api.ok("api_make_design", spec))
+        simulation = api.ok("api_simulate", made)
+        return {**made, "responses": simulation["responses"], "truth": simulation["truth"]}
+
     def relabel() -> dict:
         design = worked_example["design"]
         sent = {**held, "facts": design["facts"], "outside_range": design["outside_range"]}
@@ -387,6 +447,13 @@ def reply(api, worked_example: dict[str, Any]) -> Callable[[str], dict]:
         "analysis": lambda: analysed,
         "saturated analysis": saturated,
         "charts": lambda: analysed,
+        "mixture design": lambda: {
+            "design_type": "simplex_centroid",
+            "factors": [{"name": n, "low": 0, "high": 1, "units": ""} for n in "ABC"],
+        },
+        "mixture analysis": lambda: blend(3),
+        "mixture charts": lambda: blend(3),
+        "mixture traces": lambda: blend(4),
         "workbook": lambda: analysed,
         "relabel": relabel,
         "upload": upload,
