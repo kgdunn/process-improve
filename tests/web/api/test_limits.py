@@ -430,3 +430,37 @@ def test_a_slice_through_a_curved_region_is_a_mask_that_matches_the_limit(api):
     assert shown["kind"] == "mask"
     for row, p in zip(shown["z"], shown["y"], strict=True):
         assert row == [int(t * 16 <= 3000 + 1e-9) for t in shown["x"]], p
+
+
+def crossed(trace: dict) -> list[tuple[float, float]]:
+    """Return the settings where a traced boundary crosses the lines of its grid."""
+    xs, ys = trace["x"], trace["y"]
+    return [
+        (xs[j] + t * (xs[j + 1] - xs[j]), ys[i]) if along == 0 else (xs[j], ys[i] + t * (ys[i + 1] - ys[i]))
+        for i, j, along, t in trace["crossings"]
+    ]
+
+
+def test_a_curved_limit_on_two_factors_is_traced_where_it_crosses_the_grid(api, bootstrap):
+    """The page draws the curve through these points, smooth where a mask of the region is stepped."""
+    [pair] = described(api, "T * P <= 450", factors=FACTORS[:2])["picture"]["pairs"]
+    trace = pair["trace"]
+    assert len(trace["x"]) == len(trace["y"]) == bootstrap.TRACE_POINTS
+    on_the_curve = 1e-6  # T 500/3 degC and P 2.7 bar lie on it: the region's tolerance counts them in
+    assert trace["z"] == [[int(t * p <= 450 + on_the_curve) for t in trace["x"]] for p in trace["y"]]
+    points = crossed(trace)
+    assert len(points) > bootstrap.TRACE_POINTS, "the curve crosses many lines of the grid"
+    assert all(abs(t * p - 450) <= 1e-3 for t, p in points), "each crossing is on the curve"
+
+
+def test_looking_inside_a_curved_region_traces_its_boundary_there(api):
+    shown = described(api, "T * F <= 3000", slice={"x": "T", "y": "P", "at": {"F": 16}})["slice"]
+    assert {round(t, 6) for t, _p in crossed(shown["trace"])} == {187.5}, "T * 16 <= 3000 is T <= 187.5"
+
+
+def test_straight_limits_are_drawn_exactly_with_nothing_to_trace(api):
+    shown = described(api, HEAT, slice={"x": "T", "y": "P", "at": {"F": 15}})
+    assert shown["slice"]["trace"] is None
+    assert [pair["trace"] for pair in shown["picture"]["pairs"]] == [None, None, None]
+    [pair] = described(api, HEAT, factors=FACTORS[:2])["picture"]["pairs"]
+    assert pair["trace"] is None

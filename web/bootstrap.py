@@ -2644,6 +2644,12 @@ def _adjusted(raw: object, probes: tuple[np.ndarray, np.ndarray] | None, numeric
 #: Up to this many numeric factors, the picture of the region shows every pair of them.
 PICTURE_EVERY_PAIR = 4
 
+#: Points along each axis of the grid a curved limit's boundary is traced on, as many as a slice's mask has.
+TRACE_POINTS = 61
+
+#: How many times the step between two points of that grid is halved to find where the boundary crosses it.
+TRACE_HALVINGS = 20
+
 
 def _picture(
     region: DesignRegion,
@@ -2657,7 +2663,9 @@ def _picture(
 
     Each pair's ``shadow`` is the settings of the two that some setting of the others can run
     (see :meth:`~process_improve.experiments.DesignRegion.shadow`), and ``lines`` the boundary of
-    each straight limit that names no other factor, numbered by its place in the list. Every pair
+    each straight limit that names no other factor, numbered by its place in the list. With two
+    numeric factors and a curved limit, ``trace`` is the grid a smooth boundary is traced on (see
+    :func:`_traced`); else it is null. Every pair
     is shown up to :data:`PICTURE_EVERY_PAIR` numeric factors, or with ``every_pair``; from more,
     the pairs of the factors the limits name. ``center`` is where the page holds the other factors
     when it looks inside: the centre of the ranges when it can be run, else a central setting
@@ -2675,7 +2683,8 @@ def _picture(
             if entries[i]["type"] == "linear" and set(entries[i]["factors"]) <= {x, y}
             for line in own.slice_lines(x, y)
         ]
-        pairs.append({"x": x, "y": y, "shadow": region.shadow(x, y), "lines": lines})
+        trace = _traced(region, numeric, x, y) if len(names) == 2 else None  # the shadow of two factors is the region
+        pairs.append({"x": x, "y": y, "shadow": region.shadow(x, y), "lines": lines, "trace": trace})
     middle = {f.name: (f.low + f.high) / 2 for f in numeric}
     center = middle if region.feasible(np.zeros((1, len(numeric))))[0] else region.centroid()
     return {"pairs": pairs, "shown": shown, "center": center}
@@ -2691,8 +2700,9 @@ def _sliced(
     """Return the slice of the region the page looks inside: two factors, the others held at ``at``.
 
     ``region`` is the settings of ``x`` and ``y`` that can be run there (see
-    :meth:`~process_improve.experiments.DesignRegion.slice_polygon`), and ``lines`` each straight
-    limit's boundary there, numbered by its place in the list.
+    :meth:`~process_improve.experiments.DesignRegion.slice_polygon`), ``lines`` each straight
+    limit's boundary there, numbered by its place in the list, and ``trace`` the grid a curved
+    limit's boundary is traced on, or null (see :func:`_traced`).
     """
     names = [f.name for f in factors if f.type != "categorical"]
     at = raw.get("at") if isinstance(raw, dict) else None
@@ -2711,7 +2721,78 @@ def _sliced(
         if entries[i]["type"] == "linear"
         for line in own.slice_lines(x, y, held)
     ]
-    return {"x": x, "y": y, "at": held, "region": region.slice_polygon(x, y, held), "lines": lines}
+    numeric = [f for f in factors if f.type != "categorical"]
+    return {
+        "x": x,
+        "y": y,
+        "at": held,
+        "region": region.slice_polygon(x, y, held),
+        "lines": lines,
+        "trace": _traced(region, numeric, x, y, held),
+    }
+
+
+def _traced(
+    region: DesignRegion, numeric: list[Factor], x: str, y: str, held: dict[str, float] | None = None
+) -> dict[str, Any] | None:
+    """Return the settings of two factors that can be run on a grid, and where its boundary crosses the grid's lines.
+
+    The page traces a curved limit's boundary through the crossings, smooth where a mask of the
+    settings that can be run would be stepped; with straight limits only, a polygon is exact
+    already and this is null. ``x`` and ``y`` are :data:`TRACE_POINTS` values from each factor's
+    low end to its high end, the other factors held at ``held`` (at the centre of the range when
+    not given), and ``z[i][j]`` is 1 where ``(x[j], y[i])`` can be run. Each crossing is
+    ``[i, j, along, t]``: on the grid line from point ``(i, j)`` to ``(i, j + 1)`` (``along`` 0) or
+    to ``(i + 1, j)`` (``along`` 1), the share ``t`` of the way along it where the setting changes
+    between can and cannot be run, found by halving the step with the region's own test of a
+    setting (see :meth:`~process_improve.experiments.DesignRegion.feasible`).
+    """
+    if not region.curved_constraints():
+        return None
+    names = [f.name for f in numeric]
+    ix, iy = names.index(x), names.index(y)
+    given = held or {}
+    base = np.array([_coded_value(f, given[f.name]) if f.name in given else 0.0 for f in numeric])
+    grid = np.linspace(-1.0, 1.0, TRACE_POINTS)
+
+    def settings(u: np.ndarray, v: np.ndarray) -> np.ndarray:
+        points = np.tile(base, (u.size, 1))
+        points[:, ix], points[:, iy] = u.ravel(), v.ravel()
+        return points
+
+    gx, gy = np.meshgrid(grid, grid)
+    runnable = region.feasible(settings(gx, gy)).reshape(gx.shape)
+    crossings = []
+    for along, (di, dj) in enumerate([(0, 1), (1, 0)]):
+        first = runnable[: TRACE_POINTS - di, : TRACE_POINTS - dj]
+        rows, cols = np.nonzero(first != runnable[di:, dj:])
+        start = np.stack([grid[cols], grid[rows]], axis=1)
+        step = np.array([dj, di], dtype=float) * (grid[1] - grid[0])
+        lo, hi = np.zeros(len(rows)), np.ones(len(rows))  # the share of the step, from the end that can be run
+        inside_first = first[rows, cols]
+        for _ in range(TRACE_HALVINGS):
+            middle = (lo + hi) / 2
+            share = np.where(inside_first, middle, 1.0 - middle)
+            point = start + share[:, np.newaxis] * step
+            ok = region.feasible(settings(point[:, 0], point[:, 1]))
+            lo, hi = np.where(ok, middle, lo), np.where(ok, hi, middle)
+        share = np.where(inside_first, (lo + hi) / 2, 1.0 - (lo + hi) / 2)
+        crossings += [[int(i), int(j), along, round(float(t), 6)] for i, j, t in zip(rows, cols, share, strict=True)]
+
+    def actual(factor: Factor) -> list[float]:
+        return [float(f"{(factor.low + factor.high) / 2 + c * (factor.high - factor.low) / 2:.12g}") for c in grid]
+
+    return {
+        "x": actual(numeric[ix]),
+        "y": actual(numeric[iy]),
+        "z": runnable.astype(int).tolist(),
+        "crossings": crossings,
+    }
+
+
+def _coded_value(factor: Factor, value: float) -> float:
+    """Return a numeric factor's value in coded units: -1 at its low end, +1 at its high end."""
+    return (value - (factor.low + factor.high) / 2) / ((factor.high - factor.low) / 2)
 
 
 # --------------------------------------------------------------------------- JSON entry points
