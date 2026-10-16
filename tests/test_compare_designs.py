@@ -26,7 +26,7 @@ from process_improve.experiments import (
     evaluate_design,
     generate_design,
 )
-from process_improve.experiments.compare import MEASURES, _model_exponents, _moments
+from process_improve.experiments.compare import MEASURES, _curved_boundary, _model_exponents, _moments
 from process_improve.experiments.visualization.plots import create_plot
 
 #: The twelve design points behind the book's centre-run example: six half-rows and their negations.
@@ -558,7 +558,7 @@ def test_evaluate_design_reaches_every_vertex_of_a_region_with_many_limits():
     assert result["max_prediction_variance"] == pytest.approx(variance.max(), rel=1e-9)
 
 
-@pytest.mark.parametrize("seed", [0, 1, 2])
+@pytest.mark.parametrize("seed", range(10))
 def test_g_reaches_a_curved_boundary(seed):
     """G usually sits on the boundary, which a uniform sample rarely reaches and a 3-level grid touches at a few points.
 
@@ -587,6 +587,25 @@ def test_g_reaches_a_curved_boundary(seed):
     densest = np.einsum("ij,jk,ik->i", f, np.linalg.inv(design.T @ design), f).max()
     assert densest * (1 - 1e-12) <= g <= densest * (1 + 1e-3)
     assert "points on its boundary" in comparison.g_points
+
+
+def test_the_boundary_points_lie_on_a_curved_limit():
+    """A ray the cylinder's surface stops is bisected onto it; one the box stops ends on a cap.
+
+    G reached the cylinder's surface through the local searches whatever these points were,
+    and with no bisection every one of them was the point inside the region its ray started
+    from, so G alone could not show that the bisection works.
+    """
+    region = DesignRegion(factors("ABC"), ["A**2 + B**2 <= 1"])
+    sample = region.sample(2000, np.random.default_rng(0))
+    boundary = _curved_boundary(region, sample)
+    assert len(boundary) == len(sample)
+    assert region.feasible(boundary).all()
+    radius = np.hypot(boundary[:, 0], boundary[:, 1])
+    on_a_cap = np.abs(np.abs(boundary[:, 2]) - 1.0) <= 1e-12
+    assert np.all(np.abs(radius[~on_a_cap] - 1.0) <= 1e-9)
+    assert (~on_a_cap).sum() > len(boundary) / 2, "most rays meet the curved surface"
+    assert _curved_boundary(DesignRegion(factors("ABC"), ["A + B <= 1"]), sample).shape == (0, 3)
 
 
 def sphere_meets_faces(free_levels: int) -> np.ndarray:
