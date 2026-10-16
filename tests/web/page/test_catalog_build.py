@@ -70,7 +70,7 @@ def test_each_design_s_detail_is_in_the_file_the_index_names(catalog, index):
 def test_the_page_reads_every_campaign_the_build_wrote(node, details):
     """Each campaign passes the page's own check, ``checkCampaign``, as a link to it is checked on opening."""
     campaigns = {name: d["campaign"] for name, d in details.items() if d["campaign"]}
-    assert set(campaigns) == {"bhh-pilot-plant-2-3", "lib-ccd-k3-face-centered"}
+    assert set(campaigns) == {"bhh-pilot-plant-2-3", "lib-ccd-k3-face-centered", "lib-full-factorial-k3"}
     checked = javascript(node, source("campaign.js"), [("checkCampaign", [c]) for c in campaigns.values()])
     for (name, campaign), read in zip(campaigns.items(), checked, strict=True):
         assert read["design"]["rows"] == campaign["design"]["rows"], name

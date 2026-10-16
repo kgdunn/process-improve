@@ -332,8 +332,15 @@ def javascript(node: str, module_source: str, calls: list[tuple[str, list]]) -> 
 # --------------------------------------------------------------------------- the design catalog
 #: Published entries and generated designs that show each way the catalog opens a design, or does not:
 #: a published experiment the page regenerates, with its results; a comparison, no design the page makes;
-#: a generated design the page makes; and one it does not.
-CATALOG_SAMPLE = ("bhh-pilot-plant-2-3", "bhh-plant-trial-two-methods", "lib-ccd-k3-face-centered", "lib-omars-k4")
+#: a generated design the page makes; one it does not; and the 2^3 factorial, which is the published
+#: experiment's design.
+CATALOG_SAMPLE = (
+    "bhh-pilot-plant-2-3",
+    "bhh-plant-trial-two-methods",
+    "lib-ccd-k3-face-centered",
+    "lib-omars-k4",
+    "lib-full-factorial-k3",
+)
 
 
 def catalog_sample() -> list[dict]:
@@ -359,4 +366,4 @@ def catalog_sample() -> list[dict]:
         for spec in design_catalog.GENERATED
         if design_catalog._spec_id(spec) in CATALOG_SAMPLE
     ]
-    return [*published, *generated]
+    return design_catalog._classified([*published, *generated])

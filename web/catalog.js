@@ -21,8 +21,11 @@ import {
   familyCounts,
   fromHash,
   minimumRuns,
+  projectionLines,
   pythonCode,
   results,
+  runLossLine,
+  sameDesigns,
   settingColour,
   sourceLine,
   switchCount,
@@ -38,6 +41,8 @@ const app = (path) => new URL(path, import.meta.url).href;
 
 /** How many designs the list shows at first, and adds with each press of "Show more". */
 const PAGE = 48;
+/** The most places a design's detail lists where the same design is printed or made. */
+const TWINS_SHOWN = 15;
 /** The most factors the map draws: a design with more is in the list, and the map says how many. */
 const MAP_FACTORS = 16;
 
@@ -113,6 +118,8 @@ function readForm() {
   state.factors = [numberOrNull($("#factors-min")), numberOrNull($("#factors-max"))];
   state.years = [numberOrNull($("#year-min")), numberOrNull($("#year-max"))];
   state.model = $("#model").value;
+  state.projection = Number($("#projection").value);
+  state.projectivity = Number($("#projectivity").value);
   state.categorical = { none: [null, 0], some: [1, null] }[$("#categorical").value] ?? [null, null];
   for (const box of $$("[data-switch]")) state[box.dataset.switch] = box.checked;
   state.addedSince = $("#added").value;
@@ -130,6 +137,8 @@ function writeForm() {
   put("#year-min", state.years[0]);
   put("#year-max", state.years[1]);
   $("#model").value = state.model;
+  $("#projection").value = String(state.projection);
+  $("#projectivity").value = String(state.projectivity);
   const [low, high] = state.categorical;
   $("#categorical").value = high === 0 ? "none" : low !== null && low >= 1 ? "some" : "";
   for (const box of $$("[data-switch]")) box.checked = state[box.dataset.switch];
@@ -220,6 +229,12 @@ function card(design) {
   const checks = checkLine(design.checks);
   const badge = design.collection === "generated" ? element("span", { class: "badge", text: "generated" }) : null;
   const data = design.has_responses ? element("span", { class: "badge badge--data", text: "with results" }) : null;
+  const robust = design.survives_run_loss ? element("span", { class: "badge", text: "survives a lost run" }) : null;
+  const projects = design.quadratic_projection >= 2 && design.quadratic_projection < design.n_numeric
+    ? element("span", { class: "badge", text: `any ${design.quadratic_projection} factors: quadratic` })
+    : null;
+  const twins = sameDesigns(catalog, design).length;
+  const elsewhere = twins ? element("span", { class: "badge", text: `same design in ${twins} more ${twins === 1 ? "place" : "places"}` }) : null;
   return element(
     "li",
     { class: "result" },
@@ -227,7 +242,16 @@ function card(design) {
     element(
       "div",
       { class: "result__body" },
-      element("h3", {}, element("button", { type: "button", class: "link result__title", "data-id": design.id, text: design.title }), badge, data),
+      element(
+        "h3",
+        {},
+        element("button", { type: "button", class: "link result__title", "data-id": design.id, text: design.title }),
+        badge,
+        data,
+        robust,
+        projects,
+        elsewhere,
+      ),
       element("p", { class: "result__facts", text: factLine(design, catalog) }),
       element("p", { class: "result__source", text: [sourceLine(design, catalog), checks].filter(Boolean).join(" · ") }),
     ),
@@ -476,6 +500,8 @@ function detailBody(design, detail) {
   );
   body.push(actions);
 
+  body.push(...measures(design, detail));
+
   const runs = detail.coded_runs ?? [];
   if (runs.length) {
     const k = runs[0].length;
@@ -515,6 +541,78 @@ function detailBody(design, detail) {
   );
   if (source?.rights) body.push(element("p", { class: "hint detail__rights", text: source.rights }));
   return body;
+}
+
+/**
+ * Draw each run's leverage as a bar, with a line at 1: a run at 1 cannot be lost, since without it the model
+ * matrix loses its rank. Those runs are drawn in vermillion, the others in the page's accent.
+ */
+function drawLeverage(canvas, leverage) {
+  const ratio = window.devicePixelRatio || 1;
+  const width = Math.min(640, Math.max(160, 12 * leverage.length));
+  const height = 72;
+  canvas.width = Math.round(width * ratio);
+  canvas.height = Math.round(height * ratio);
+  canvas.style.width = `${width}px`;
+  canvas.style.height = `${height}px`;
+  const g = canvas.getContext("2d");
+  if (!g) return;
+  g.scale(ratio, ratio);
+  const colours = palette();
+  const step = width / leverage.length;
+  const top = 6;
+  leverage.forEach((h, i) => {
+    g.fillStyle = h >= 0.999999 ? "#D55E00" : colours.accent;
+    const bar = (height - top) * h;
+    g.fillRect(i * step + 1, height - bar, Math.max(step - 2, 1), bar);
+  });
+  g.strokeStyle = colours.muted;
+  g.setLineDash([4, 3]);
+  g.beginPath();
+  g.moveTo(0, top);
+  g.lineTo(width, top);
+  g.stroke();
+}
+
+/** What a design withstands: losing a run, and being projected onto fewer factors; and where else it is printed. */
+function measures(design, detail) {
+  const out = [];
+  const loss = runLossLine(design, detail.run_loss_model);
+  const projections = projectionLines(design);
+  if (loss || projections.length) out.push(element("h3", { text: "What it withstands" }));
+  if (loss) {
+    out.push(element("p", { text: loss }));
+    if (detail.leverage?.length) {
+      const canvas = element("canvas", { class: "leverage", "aria-hidden": "true" });
+      drawLeverage(canvas, detail.leverage);
+      out.push(
+        canvas,
+        element("p", { class: "hint", text: "Each run's leverage, in run order. Losing a run scales the determinant of X'X by one less its leverage, so a run at the line, 1, cannot be lost." }),
+      );
+    }
+  }
+  out.push(...projections.map((line) => element("p", { text: line })));
+  const twins = sameDesigns(catalog, design);
+  if (twins.length) {
+    out.push(
+      element("h3", { text: "The same design elsewhere" }),
+      element("p", { class: "hint", text: "Its runs, with the runs, the factors or a factor's two levels in another order." }),
+      element(
+        "ul",
+        { class: "detail__twins" },
+        ...twins.slice(0, TWINS_SHOWN).map((d) =>
+          element(
+            "li",
+            {},
+            element("button", { type: "button", class: "link", "data-id": d.id, text: d.title }),
+            element("span", { class: "hint", text: ` (${sourceLine(d, catalog)})` }),
+          ),
+        ),
+      ),
+    );
+    if (twins.length > TWINS_SHOWN) out.push(element("p", { class: "hint", text: `And ${twins.length - TWINS_SHOWN} more.` }));
+  }
+  return out;
 }
 
 async function openDetail(id) {

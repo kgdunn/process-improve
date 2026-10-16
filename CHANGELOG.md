@@ -260,7 +260,7 @@ those changes.
   analysis of covariance's sums of squares and products, total, treatments and error; and a
   prediction reads its standard error, an adjusted mean's at the covariate's mean.
 - **A design catalog, at factori.al/catalog.** It lists the reference catalogue's 665 published
-  experiments and designs, and 118 designs the library makes. A reader searches them in words ("4
+  experiments and designs, and 117 designs the library makes. A reader searches them in words ("4
   factors, <=30 runs, quadratic, since 1990"); filters them by family, runs, factors, the model they
   estimate in full, categorical factors, blocks, split plot, mixture, printed results, recomputed
   numbers, and the year the source appeared or the date the entry was added; and sees each one on a
@@ -269,8 +269,23 @@ those changes.
   generated design of the eight types the app makes. The filters are kept in the address, so a
   filtered view can be shared. `process_improve.experiments.design_catalog` makes the records:
   `catalog_records`, `normalise_family` (a source's free-text design type, read into a family),
-  `estimable_models`, `design_facets`, `glyph`, `printed_checks`, `short_citation`,
-  `catalog_sources` and `catalog_families`.
+  `design_facets`, `glyph`, `printed_checks`, `short_citation`, `catalog_sources`,
+  `catalog_families`, and `search_catalog`, which filters them as the page does. The tool
+  `search_design_catalog` searches the same records for an agent or the MCP server, and returns each
+  design with its page in the catalog. The user guide's new page, *The Design Catalog*, lists what a
+  record holds.
+- **What a design withstands, read off its runs: `process_improve.experiments.design_measures`.**
+  `run_loss` says whether a design still estimates its model if any one run is lost, and the
+  D-efficiency the worst loss leaves: losing run *i* scales det(X'X) by 1 - h_i, with h_i its
+  leverage, so one hat matrix answers it for every run. `quadratic_projection` is the most factors
+  whose every projection estimates the full quadratic in them (3 for a six-factor definitive
+  screening design), and `projectivity` the most whose every projection holds all their two-level
+  combinations (3 for the 12-run Plackett-Burman design). `fingerprint`, `same_design` and
+  `design_classes` find one design under other labels, its runs, factors or levels reordered: the
+  catalog lists 76 designs printed or made in more than one place, among them the 12-run
+  Plackett-Burman design, which is also Schmidt and Launsby's Taguchi L12 and Table 3.18 of the NIST
+  e-Handbook. `estimable_models` and `model_matrix` are here too. The catalog filters on all of them,
+  and a design's page draws its runs' leverages.
 - **Standardised coefficients.** Each row of `analyze_experiment`'s `"coefficients"` (and
   `coefficients_actual`) now carries `standardised_coefficient`: the coefficient times the standard
   deviation of its column of the model matrix, over the standard deviation of the response, as

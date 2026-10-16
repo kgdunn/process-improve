@@ -62,6 +62,7 @@ from process_improve.experiments._blocking import squares_orthogonal_to_blocks
 from process_improve.experiments._desirability import composite_desirability, individual_desirability
 from process_improve.experiments._orthogonal_arrays import orthogonal_array
 from process_improve.experiments.analysis import analyze_experiment
+from process_improve.experiments.design_measures import relabelling, run_counts
 from process_improve.experiments.designs import generate_design
 from process_improve.experiments.designs_response_surface import blocking_alpha
 from process_improve.experiments.evaluate import evaluate_design
@@ -1318,40 +1319,6 @@ def _array_runs(check: dict) -> np.ndarray:
     return np.column_stack([2 * level / (n - 1) - 1 for level, n in columns])
 
 
-def _relabelling(printed: np.ndarray, library: np.ndarray, *, signs: bool) -> list[tuple[int, int]] | None:
-    """Return, for each printed column, the library column and sign that make the two sets of runs one, or ``None``.
-
-    A design keeps its properties when its columns are put in another order or, for two-level
-    factors, a column's signs are changed; the search assigns the printed columns in turn and
-    drops an assignment as soon as the runs on the columns assigned so far differ. A printed
-    design may use only some of the library's columns, as factors are assigned to some columns
-    of an orthogonal array and the others are left for interactions.
-    """
-    chosen: list[tuple[int, int]] = []
-
-    def search(j: int) -> bool:
-        if j == printed.shape[1]:
-            return True
-        used = {c for c, _ in chosen}
-        for column, sign in itertools.product(range(library.shape[1]), (1, -1) if signs else (1,)):
-            if column in used:
-                continue
-            chosen.append((column, sign))
-            relabelled = np.column_stack([library[:, c] * s for c, s in chosen])
-            if _run_counts(printed[:, : j + 1]) == _run_counts(relabelled) and search(j + 1):
-                return True
-            chosen.pop()
-        return False
-
-    fits = len(printed) == len(library) and printed.shape[1] <= library.shape[1]
-    return list(chosen) if fits and search(0) else None
-
-
-def _run_counts(matrix: np.ndarray) -> Counter:
-    """Return how often each run occurs: a design's runs, whatever their order."""
-    return Counter(map(tuple, np.round(matrix, 6)))
-
-
 def _same_runs(experiment: dict, check: dict, printed: str) -> tuple[str, bool]:
     """Check that a printed design matrix holds the same runs as the library's, whatever their order.
 
@@ -1379,13 +1346,13 @@ def _same_runs(experiment: dict, check: dict, printed: str) -> tuple[str, bool]:
     count_agrees = not str(printed).strip().isdigit() or int(printed) == len(matrix)
     relabel = check.get("relabel")
     if relabel:
-        found = _relabelling(matrix, library, signs=relabel == "columns and signs")
+        found = relabelling(matrix, library, signs=relabel == "columns and signs")
         if found is None:
             return "no relabelling of the library's columns gives the printed runs", False
         named = [f"{'-' if s < 0 else ''}{c + 1}" for c, s in found]
         return f"the library's columns {', '.join(named)}", count_agrees
-    shared = sum((_run_counts(matrix) & _run_counts(library)).values())
-    same = _run_counts(matrix) == _run_counts(library)
+    shared = sum((run_counts(matrix) & run_counts(library)).values())
+    same = run_counts(matrix) == run_counts(library)
     return f"{shared} of {len(matrix)} printed runs, of {len(library)} the library's", same and count_agrees
 
 

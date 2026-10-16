@@ -9,6 +9,7 @@ User Guide
    showcase
    doe_strategy
    doe_coverage
+   design_catalog
    design_evaluation
    omars_designs
    constrained_designs
