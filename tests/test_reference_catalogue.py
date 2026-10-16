@@ -306,6 +306,14 @@ def test_on_a_parabola_the_setting_nearer_the_centre_is_taken():
         reference_catalogue._reproduce(entry, {"value": "0"}, out_of_reach, reference_catalogue._Fits())
 
 
+def test_the_rounding_of_the_data_is_carried_into_a_coefficient_only():
+    """A coefficient is a weighted sum of the responses, so their rounding bounds it; no other statistic gets it."""
+    entry = _replicated_2x2([[1, 1], [1, 1], [3, 3], [7, 7]])
+    check = {"kind": "r_squared", "model": "A + B", "response": "y1", "data_rounding": {"decimals": 1}}
+    with pytest.raises(ValueError, match="carried into a coefficient, not a 'r_squared'"):
+        reference_catalogue._reproduce(entry, {"value": "0.9"}, check, reference_catalogue._Fits())
+
+
 def test_each_reading_of_a_replicated_run_can_be_an_observation_of_its_own():
     """Four runs read twice are eight observations, a blank reading left out."""
     from process_improve.experiments.reference_catalogue import _coded_runs
