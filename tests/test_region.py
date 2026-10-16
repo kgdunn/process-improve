@@ -658,6 +658,11 @@ class TestLinearForms:
     def test_limits_without_one_affine_form(self, expression):
         assert DesignRegion(HEAT_FACTORS, [expression]).linear_forms() == [None]
 
+    @pytest.mark.parametrize("factors", [[Factor(name="Cat", type="categorical", levels=["x", "y"])], []])
+    def test_a_region_without_numeric_factors_has_no_forms(self, factors):
+        """A limit there compares numbers only; reading it used to fail on reshaping an empty set of probe points."""
+        assert DesignRegion(factors, ["1 <= 2", "2 <= 1"]).linear_forms() == [None, None]
+
     def test_one_entry_per_limit_in_order(self):
         forms = DesignRegion(HEAT_FACTORS, [HEAT, "T*D <= 6000", "D >= 25"]).linear_forms()
         assert forms == [({"T": 3.0, "D": 5.0}, None, 600.0), None, ({"D": 1.0}, 25.0, None)]

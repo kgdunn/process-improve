@@ -55,7 +55,7 @@ def _probe_points(low: np.ndarray, high: np.ndarray) -> tuple[np.ndarray, np.nda
     fit = base + span * steps
     unit = [np.random.default_rng(0).random((_AFFINE_CHECKS, k))]
     if k <= _CORNER_DIMENSIONS:
-        unit.append(np.array(list(itertools.product((0.0, 1.0), repeat=k))).reshape(-1, k))
+        unit.append(np.array(list(itertools.product((0.0, 1.0), repeat=k))).reshape(2**k, k))  # one corner when k is 0
     return fit, base + span * np.vstack(unit)
 
 
