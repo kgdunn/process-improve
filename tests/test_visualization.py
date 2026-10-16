@@ -795,6 +795,38 @@ class TestRegionShading:
         mask = plot.to_echarts()["series"][1]["data"]
         assert len(mask) == int((~allowed).sum())
 
+    @pytest.mark.parametrize("plot_type", ["contour", "surface_3d"])
+    @pytest.mark.parametrize(("x", "y", "held"), [("A", "C", "B"), ("C", "B", "A"), ("B", "A", "C")])
+    def test_any_pair_of_the_regions_factors_is_shaded_by_name(
+        self, plot_type: str, x: str, y: str, held: str, quadratic_coefficients: list
+    ) -> None:
+        """The shading looks each factor up by name: plotted along x, along y, or held.
+
+        Every other test plots A and B, the region's first two factors, where filling the
+        region's first column with the x grid and its second with the y grid gives the same.
+        """
+        region = DesignRegion(REGION_FACTORS, [STRAIGHT, CURVED, "A + 10*C <= 150"])
+        spec = create_plot(
+            plot_type,
+            analysis_results={"coefficients": quadratic_coefficients},
+            factors_to_plot=[x, y],
+            hold_values={held: -0.6},
+            region=region,
+        ).to_spec()
+        layer = spec.panels[0].layers[0 if plot_type == "surface_3d" else 1]
+        gx, gy = _coded_grid(layer.style["x_grid"], layer.style["y_grid"])
+        coded = np.zeros((gx.size, 3))
+        coded[:, region.names.index(x)], coded[:, region.names.index(y)] = gx, gy
+        coded[:, region.names.index(held)] = -0.6
+        allowed = region.feasible(coded)
+        assert 0.05 < allowed.mean() < 0.95
+        z = np.asarray(layer.style["z_matrix"], dtype=float).ravel()
+        if plot_type == "surface_3d":
+            np.testing.assert_array_equal(np.isnan(z), ~allowed)
+        else:
+            np.testing.assert_array_equal(z > 0, ~allowed)
+        assert spec.metadata["cannot_run_share"] == pytest.approx(1 - allowed.mean())
+
     def test_a_straight_limit_has_a_linear_slack_so_its_edge_is_drawn_straight(
         self, quadratic_coefficients: list
     ) -> None:
