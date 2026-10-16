@@ -1179,7 +1179,11 @@ def _design_check(check: dict, printed: str, k: int) -> tuple[str, bool]:
     words, the word length pattern printed as {4, 5, 5}; ``"clear"`` holds when the term is aliased
     with no main effect or two-factor interaction; ``"minimum_aberration"`` compares the fraction
     with the one the library chooses for its resolution: they agree when both have as many runs and
-    the same word lengths.
+    the same word lengths. With ``"up_to": n``, the aliases printed must be all of the term's aliases
+    of n factors or fewer, so a chain printed empty says the term has none. ``"block_effects"``
+    holds when the effects printed are those confounded with the blocks that ``check["of"]``
+    makes: each of the chosen effects and every product of them, any of which may be printed as
+    another word of its alias chain.
     """
     made = _fraction(check, check.get("k", k))
     kind = check["kind"]
@@ -1192,10 +1196,19 @@ def _design_check(check: dict, printed: str, k: int) -> tuple[str, bool]:
     return _relation_check(made, check, printed, check.get("k", k))
 
 
+def _relation_words(made: Any) -> list[str]:  # noqa: ANN401 - a DesignResult
+    """Return the words of a fraction's defining relation, each with its letters in order.
+
+    The library lists a relation of up to ten generators with the design, and works out a longer one on request.
+    """
+    relation = made.defining_relation or evaluate_design(made, metric="defining_relation")["defining_relation"]
+    return sorted(_word(w.split("=")[-1]) for w in relation or [])
+
+
 def _relation_check(made: Any, check: dict, printed: str, k: int) -> tuple[str, bool]:  # noqa: ANN401 - a DesignResult
     """Check what a source states of a fraction's defining relation: itself, its word lengths, or a term's aliases."""
     kind = check["kind"]
-    words = sorted(_word(w.split("=")[-1]) for w in made.defining_relation or [])
+    words = _relation_words(made)
     if kind == "defining_relation":
         return ", ".join(words), sorted(_words(printed)) == words
     lengths = sorted(len(w.lstrip("-")) for w in words)
@@ -1203,13 +1216,35 @@ def _relation_check(made: Any, check: dict, printed: str, k: int) -> tuple[str, 
         return ", ".join(map(str, lengths)), sorted(int(n) for n in re.findall(r"\d+", printed)) == lengths
     if kind == "minimum_aberration":  # the fraction the library chooses for this resolution, of as many runs
         chosen = _fraction({"resolution": made.resolution, "factors": check.get("factors")}, k)
-        chosen_lengths = sorted(len(_word(w.split("=")[-1]).lstrip("-")) for w in chosen.defining_relation or [])
+        chosen_lengths = sorted(len(w.lstrip("-")) for w in _relation_words(chosen))
         same = len(chosen.design) == len(made.design) and chosen_lengths == lengths
         return ", ".join(chosen.generators or []), same
+    if kind == "block_effects":
+        return _block_effects(words, check, printed)
+    return _alias_check(words, check, printed)
+
+
+def _block_effects(words: list[str], check: dict, printed: str) -> tuple[str, bool]:
+    """Check the effects confounded with blocks: the chosen effects and their products, each read as its alias chain."""
+
+    def chain(word: str) -> frozenset[str]:
+        return frozenset(_multiply(word, w) for w in ["", *words])
+
+    chosen = _words(check["of"])
+    found = {chain(_multiply(*s)) for r in range(1, len(chosen) + 1) for s in itertools.combinations(chosen, r)}
+    shown = ", ".join(min(c, key=lambda w: (len(w), w)) for c in found)
+    return shown, {chain(w) for w in _words(printed)} == found
+
+
+def _alias_check(words: list[str], check: dict, printed: str) -> tuple[str, bool]:
+    """Check a term's aliases, as a fraction's defining relation ``words`` gives them, or that it is clear."""
     aliases = sorted({_multiply(_word(check["term"]), word) for word in words})
-    if kind == "clear":  # aliased with no main effect or two-factor interaction
+    if check["kind"] == "clear":  # aliased with no main effect or two-factor interaction
         short = [a for a in aliases if len(a.lstrip("-")) <= 2]
         return ", ".join(short) or "no main effect or two-factor interaction", not short
+    if "up_to" in check:  # every alias of up to that many factors, and only those
+        short = sorted((a for a in aliases if len(a.lstrip("-")) <= check["up_to"]), key=lambda w: (len(w), w))
+        return ", ".join(short) or "none", set(_words(printed)) == set(short)
     return ", ".join(aliases), bool(_words(printed)) and set(_words(printed)) <= set(aliases)  # kind == "aliases"
 
 
@@ -1221,6 +1256,7 @@ _DESIGN_KINDS = {
     "minimum_aberration",
     "aliases",
     "clear",
+    "block_effects",
 }
 
 
@@ -1255,9 +1291,14 @@ def _design_property(check: dict) -> float:
 
     ``check["design"]`` names it: ``design_type``, ``k`` factors, and ``options`` for ``generate_design``.
     A resolution may be printed as a Roman numeral. ``"squared": true`` returns its square, as a
-    source compares the square of a rotatable design's axial distance.
+    source compares the square of a rotatable design's axial distance. The property ``"fraction"``
+    is the share of the full factorial a fraction runs, printed as 1/4, and ``"blocks": b`` divides
+    the property among b blocks, as a source gives the runs in each block.
     """
-    value = float(getattr(_made(json.dumps(check["design"], sort_keys=True)), check["property"]))
+    made = _made(json.dumps(check["design"], sort_keys=True))
+    prop = check["property"]
+    value = made.n_runs / 2**made.n_factors if prop == "fraction" else float(getattr(made, prop))
+    value = value / check.get("blocks", 1)
     return value**2 if check.get("squared") else value
 
 
@@ -2495,7 +2536,9 @@ def reproduce_reference_catalogue(source: str | None = None) -> pd.DataFrame:
     prediction variance at a point, and on how far its runs lie from the centre, whether its blocks
     are orthogonal and whether its runs are fold-over pairs; several fitted responses are scored at
     a point by the library's desirability functions, and a mixture is fitted in pseudocomponents. A
-    number without a check is reported with the reason it is not recomputed.
+    printed alias chain can be held to every alias up to an order, and the effects confounded with a
+    fraction's blocks are read as alias chains. A number without a check is reported with the reason
+    it is not recomputed.
 
     Parameters
     ----------

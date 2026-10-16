@@ -1083,6 +1083,46 @@ def test_generators_are_compared_by_word_lengths_with_the_fraction_the_library_c
     assert not _design_check({**table, "generators": ["F=ABC", "G=ABD", "H=ACD", "J=BCD"]}, "", 9)[1]
 
 
+def test_an_alias_chain_up_to_an_order_must_list_every_alias_that_short():
+    """Montgomery's Table X, design (j): in I = ABCDF = ABDEG = CEFG, C = EFG, and A has no alias of three factors."""
+    from process_improve.experiments.reference_catalogue import _design_check
+
+    design_j = {"kind": "aliases", "generators": ["F=ABCD", "G=ABDE"], "up_to": 3}
+    assert _design_check({**design_j, "term": "C"}, "EFG", 7) == ("EFG", True)
+    assert _design_check({**design_j, "term": "A"}, "", 7) == ("none", True)
+    assert not _design_check({**design_j, "term": "AB"}, "CDF", 7)[1]  # AB = CDF = DEG: one alias left out
+
+
+def test_blocks_confound_the_chosen_effects_and_their_products_read_as_alias_chains():
+    """Table X, design (q): four blocks from CFG and AGJ also confound ADE, an alias of their product ACFJ."""
+    from process_improve.experiments.reference_catalogue import _design_check
+
+    design_q = {"kind": "block_effects", "generators": ["G=ABCD", "H=ACEF", "J=CDEF"], "of": "CFG, AGJ"}
+    assert _design_check(design_q, "CFG, AGJ = BEF = DGH, ADE = EHJ", 9)[1]
+    assert not _design_check(design_q, "CFG, AGJ, ABC", 9)[1]
+
+
+def test_a_fraction_of_a_full_factorial_and_the_runs_in_each_block_are_design_properties():
+    from process_improve.experiments.reference_catalogue import _design_property
+
+    spec = {
+        "design_type": "fractional_factorial",
+        "k": 6,
+        "options": {"generators": ["E=ABC", "F=BCD"], "n_center_points": 0},
+    }
+    assert _design_property({"property": "fraction", "design": spec}) == pytest.approx(1 / 4)
+    assert _design_property({"property": "n_runs", "design": spec, "blocks": 2}) == 8
+
+
+def test_a_defining_relation_of_more_than_ten_generators_is_worked_out_on_request():
+    """Table X, design (z): 15 factors in 16 runs, whose 2047 words the design does not list."""
+    from process_improve.experiments.reference_catalogue import _design_check
+
+    generators = ["E=ABC", "F=ABD", "G=ACD", "H=BCD", "J=ABCD", "K=AB", "L=AC", "M=AD", "N=BC", "O=BD", "P=CD"]
+    check = {"kind": "aliases", "generators": generators, "term": "P", "up_to": 2}
+    assert _design_check(check, "CD = EF = AG = BH = JK = LM = NO", 15)[1]
+
+
 def test_a_printed_column_of_signs_is_the_product_of_the_effects_it_is_headed_with():
     from process_improve.experiments.reference_catalogue import _product_column
 
