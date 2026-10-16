@@ -26,6 +26,7 @@ from process_improve.experiments import (
     evaluate_design,
     generate_design,
 )
+from process_improve.experiments import _region_geometry as geometry
 from process_improve.experiments.compare import MEASURES, _curved_boundary, _model_exponents, _moments
 from process_improve.experiments.visualization.plots import create_plot
 
@@ -540,6 +541,19 @@ def test_g_is_at_least_the_variance_at_every_vertex_of_a_region_with_many_limits
     comparison = compare_designs({"inside": pd.DataFrame(runs, columns=region.names)}, "interactions", region=region)
     assert comparison.values["inside [n=41]"]["g"] >= variance.max() * (1 - 1e-12)
     assert "its 758 vertices" in comparison.g_points
+
+
+def test_g_says_when_the_vertices_are_not_listed(monkeypatch):
+    """Past 65536 vertices none are listed, and G, usually at a vertex, can come out low: 3.6% for 14 factors."""
+    region = DesignRegion(HEAT, [HEAT_LIMIT])
+    assert "not listed" not in compare_designs(heat_designs(), "quadratic", region=region).g_points
+    monkeypatch.setattr(geometry, "MAX_VERTICES", 2)  # the heat region has 4
+    g_points = compare_designs(heat_designs(), "quadratic", region=DesignRegion(HEAT, [HEAT_LIMIT])).g_points
+    assert "vertices" not in g_points.split(";")[0]
+    assert g_points.endswith(
+        "; the region's vertices are not listed (there can be more than 65536), so G can come out below its "
+        "largest variance, which usually sits at a vertex"
+    )
 
 
 def test_evaluate_design_reaches_every_vertex_of_a_region_with_many_limits():

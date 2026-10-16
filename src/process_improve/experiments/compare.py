@@ -46,6 +46,7 @@ import numpy as np
 import pandas as pd
 from scipy.optimize import minimize
 
+from process_improve.experiments._region_geometry import MAX_VERTICES
 from process_improve.experiments._uniform_sampling import _TOL, _Inequality
 from process_improve.experiments.designs_utils import RESERVED_COLUMN_NAMES
 from process_improve.experiments.evaluate import _coefficient_power
@@ -465,12 +466,12 @@ def _region_points(region: DesignRegion, k: int) -> tuple[np.ndarray, np.ndarray
     (every corner the straight limits leave that the curved ones keep, listed exactly
     whenever there are at most 65536), its support points (where its constraints cross
     the edges of a 3-level grid, and that grid's points inside it), the points of the
-    cube's own grid (see :func:`_g_points`) that lie in the region, and the sample. The
-    support points alone miss vertices once there are too many ways of choosing ``k``
-    boundaries to try (8 factors and 5 limits), and G, a maximum, usually sits at one.
-    With a curved limit, G is also searched on its boundary (see :func:`_curved_boundary`),
-    and then by local searches from the points where each design's variance is largest
-    (see :func:`_ascent`).
+    cube's own grid (see :func:`_g_points`) that lie in the region, and the sample. A
+    region with more vertices than that has none listed, and G, a maximum that usually
+    sits at a vertex, can then come out low; the description says so. With a curved
+    limit, G is also searched on its boundary (see :func:`_curved_boundary`), and then by
+    local searches from the points where each design's variance is largest (see
+    :func:`_ascent`).
     """
     sample = region.sample(_REGION_SAMPLES, np.random.default_rng(_REGION_SEED))
     grid, described = _g_points(k)
@@ -488,6 +489,11 @@ def _region_points(region: DesignRegion, k: int) -> tuple[np.ndarray, np.ndarray
         parts.append(f"{len(boundary)} points on its boundary")
     parts.append(f"{len(sample)} points drawn uniformly from it")
     description = ", ".join(parts[:-1]) + " and " + parts[-1]
+    if vertices is None:
+        description += (
+            f"; the region's vertices are not listed (there can be more than {MAX_VERTICES}), so G can come out "
+            "below its largest variance, which usually sits at a vertex"
+        )
     if region._linear().nonlinear:
         description += (
             f"; then, for each design, local searches for a larger variance from up to {_ASCENTS} of those "
@@ -976,16 +982,18 @@ def compare_designs(
     :math:`I` and :math:`G` are taken over the settings that can be run rather than
     over the cube: :math:`\mathbf{B}` is averaged over 20000 points drawn uniformly
     from the region (with a fixed seed, so the numbers are the same on every run), and
-    :math:`G` is searched over the region's vertices, its support points (where its
-    limits cross the edges of a 3-level grid), points on the boundary of a curved limit
-    (one on a ray from each point of the sample), the points of the grid above that lie
-    in it, and the same sample. With a curved limit, local searches (SLSQP) then climb
-    each design's prediction variance from up to 8 of those points where it is largest:
-    the largest variance usually sits where the curved boundary meets faces of the box,
-    which no fixed set of points reaches. The other measures do not depend on where
-    predictions are made, and are the same with or without a region. A design with runs outside the
-    region is noted. Without a region, or with one that has no constraints, the cube's
-    exact moments are used.
+    :math:`G` is searched over the region's vertices (up to 65536 of them: a region with
+    more has none listed, and its :math:`G` can come out below the largest variance, as
+    ``g_points`` then says), its support points (where its limits cross the edges of a
+    3-level grid), points on the boundary of a curved limit (one on a ray from each point
+    of the sample), the points of the grid above that lie in it, and the same sample.
+    With a curved limit, local searches (SLSQP) then climb each design's prediction
+    variance from up to 8 of those points where it is largest: the largest variance
+    usually sits where the curved boundary meets faces of the box, which no fixed set of
+    points reaches. The other measures do not depend on where predictions are made, and
+    are the same with or without a region. A design with runs outside the region is
+    noted. Without a region, or with one that has no constraints, the cube's exact
+    moments are used.
 
     Parameters
     ----------

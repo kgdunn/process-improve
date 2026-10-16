@@ -155,8 +155,9 @@ those changes.
 - **Designs compared over the settings that can be run.** `compare_designs(...,
   region=)` takes a `DesignRegion` (or its dict) and computes I and G over it rather than
   over the cube: I averages the prediction variance over 20000 points drawn uniformly from
-  the region with a fixed seed, and G searches the region's vertices, its support points,
-  points on the boundary of a curved limit, the grid's points inside it and that sample.
+  the region with a fixed seed, and G searches the region's vertices (up to 65536 of
+  them; past that `g_points` says that G can come out low), its support points, points
+  on the boundary of a curved limit, the grid's points inside it and that sample.
   With a curved limit, local searches (SLSQP) then climb each design's prediction variance
   from the points where it is largest, since the largest value usually sits where the
   curved boundary meets faces of the box, which no fixed set of points reaches. The other
