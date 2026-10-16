@@ -99,8 +99,9 @@ def test_the_share_each_limit_rules_out_and_the_share_all_of_them_keep_are_the_l
         alone = DesignRegion(LIBRARY_FACTORS, [entry["expression"]])
         assert entry["removed"] == pytest.approx(1 - alone.volume_fraction(), abs=1e-12)
     assert shown["kept"] == DesignRegion(LIBRARY_FACTORS, list(AS_PYTHON)).volume_fraction()
-    # The heat limit cuts a triangle of an eighth of the T-P square off the box, whatever F is.
-    assert shown["constraints"][0]["removed"] == pytest.approx(1 / 8, abs=0.005)
+    # The heat limit cuts a triangle of an eighth of the T-P square off the box, whatever F is: exactly, as
+    # the share of a straight limit is worked out, not sampled.
+    assert shown["constraints"][0]["removed"] == 1 / 8
 
 
 def test_the_ranges_the_limits_narrow_are_the_settings_left_at_their_ends(api):
