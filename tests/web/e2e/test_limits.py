@@ -13,6 +13,8 @@ from __future__ import annotations
 
 from typing import Any
 
+import pytest
+
 from tests.web._support import FACTORS, factors_named
 from tests.web.e2e._page import (
     calls,
@@ -21,9 +23,11 @@ from tests.web.e2e._page import (
     generate,
     limits_done,
     mark_corners,
+    practise,
     reveal,
     run_sheet,
     saved_studies,
+    set_aim,
     set_factors,
     settled,
     type_limit,
@@ -87,6 +91,39 @@ def test_a_limit_that_cannot_be_read_says_why_and_holds_the_brief_back(blank_pag
     reveal(page, "#generate")
     assert page.locator("#generate").is_disabled()
     assert page.text_content("#candidates") == message
+
+
+@pytest.mark.slow
+def test_with_limits_and_five_factors_the_designs_wait_for_their_search(fresh_page):
+    """Only the optimal designs keep to limits, and from five factors they wait until the reader asks."""
+    page = fresh_page
+    set_factors(page, factors_named(*"ABCDE"))
+    candidates_done(page)
+    set_aim(page, "main_quadratic")
+    type_limit(page, "A + B <= 1")
+    candidates_done(page)
+    shown = page.text_content("#candidates")
+    assert "The D-optimal and I-optimal designs take a while to search for with 5 factors." in shown
+    assert page.is_visible("#search")
+    assert page.is_hidden("#plan-empty")
+    page.click("#search")
+    page.wait_for_function("window.__pi.calls.filter((c) => c.fn === 'api_candidates').at(-1).payload.search")
+    candidates_done(page)
+    listed = page.locator("#candidates tbody tr").evaluate_all("rows => rows.map((tr) => tr.dataset.design)")
+    assert sorted(listed) == ["d_optimal", "i_optimal"]
+
+
+def test_learn_greys_the_settings_outside_the_limits(blank_page):
+    """With the center of the ranges ruled out, the surface holds the other factors at a setting that can be run."""
+    page = blank_page
+    type_limit(page, "T + 25 * P <= 220")
+    candidates_done(page)
+    generate(page)
+    practise(page)
+    reveal(page, "#charts")
+    page.wait_for_function("document.querySelectorAll('#charts .js-plotly-plot').length >= 3", timeout=30_000)
+    caption = page.locator("#charts figcaption").first.text_content()
+    assert "since the center of the ranges cannot be run; grey: settings outside your limits;" in caption
 
 
 def test_a_limit_typed_with_a_phone_s_signs_is_read_as_typed(blank_page):

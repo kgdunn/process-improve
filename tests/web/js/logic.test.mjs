@@ -201,6 +201,20 @@ describe("words and numbers", () => {
   test("the captions name the factors drawn", () => {
     assert.match(CAPTIONS.contour(["T", "P"]), /over T and P, the two factors/);
   });
+
+  test("with limits, the caption says what is grey, and where the others are held when the center cannot be run", () => {
+    const factors = [{ name: "F", units: "L/min" }];
+    assert.equal(
+      CAPTIONS.contour(["T", "P"], { shaded: true, held: [], factors }),
+      "Drawn over T and P, the two factors with the largest main effects, with the others at their center; grey: " +
+        "settings outside your limits; the dots are the runs.",
+    );
+    assert.equal(
+      CAPTIONS.contour(["T", "P"], { shaded: true, held: [{ name: "F", value: 16.666666667 }], factors }),
+      "Drawn over T and P, the two factors with the largest main effects, with F at 16.67 L/min, since the center " +
+        "of the ranges cannot be run; grey: settings outside your limits; the dots are the runs.",
+    );
+  });
 });
 
 describe("sorting a table", () => {

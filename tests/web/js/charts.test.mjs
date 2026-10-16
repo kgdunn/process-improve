@@ -157,6 +157,14 @@ describe("the comparison's charts", () => {
     assert.deepEqual(figure.data[1].y, [0.3, 0.6]);
   });
 
+  test("with limits on the settings, the curves run over the settings you can run, not the cube", () => {
+    const fds = { "D-optimal [n=14]": { fraction: [0, 1], variance: [0.2, 0.5] } };
+    assert.equal(fdsFigure(fds).layout.xaxis.title.text, "Fraction of the cube");
+    const limited = fdsFigure(fds, { region: true });
+    assert.equal(limited.layout.xaxis.title.text, "Fraction of the settings you can run");
+    assert.match(limited.data[0].hovertemplate, /of the settings you can run</);
+  });
+
   test("a correlation map with lines between the main effects, the squares and the interactions", () => {
     const terms = ["A", "B", "I(A ** 2)", "I(B ** 2)", "A:B"];
     const matrix = terms.map(() => terms.map(() => 0.5));

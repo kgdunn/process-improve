@@ -1060,7 +1060,7 @@ async function findCandidates({ search = false } = {}) {
   $("#candidates").removeAttribute("aria-busy");
   if (mine !== candidateTicket) return;
   state.comparison = reply.ok ? { key, ...reply.result } : { key, error: reply.error };
-  if (reply.ok && !designChosen) {
+  if (reply.ok && reply.result.result && !designChosen) {
     const picked = pickCandidate(candidateRows(reply.result.result, reply.result.made));
     if (picked) pickDesign(picked, { byReader: false });
   }
@@ -1089,7 +1089,8 @@ function renderCandidates(busy = null) {
   else if (pythonFailure) note = ["hint error", "The designs are made with Python, which could not start here."];
   else if (briefReady() && !pythonReady) note = ["hint", "The designs that can learn this are listed once Python has started."];
   else if (busy || briefReady()) note = ["hint busy", busy ?? "Making and scoring the designs that can learn this..."];
-  const listed = c?.result && briefReady() ? candidateList(c, current) : [];
+  const waiting = current && !c.result && c.waiting?.length ? [waitingNote(c), ...noteList(c.notes.map(prettyTerm))] : [];
+  const listed = !briefReady() ? [] : c?.result ? candidateList(c, current) : waiting;
   $("#plan-empty").hidden = Boolean(note) || listed.length > 0;
   box.hidden = !note && !listed.length;
   box.dataset.stale = String(!current);
@@ -1167,19 +1168,20 @@ function candidateList(c, current) {
   }
   const unfit = rows.filter((r) => !r.fits);
   if (unfit.length) parts.push(el("p", "hint", `${listNames(unfit.map((r) => r.label))} cannot fit this model.`));
-  if (c.waiting?.length) {
-    const one = c.waiting.length === 1;
-    parts.push(
-      el(
-        "p",
-        "hint",
-        `The ${listNames(c.waiting.map((w) => w.label))} design${one ? " takes" : "s take"} a while to search for ` +
-          `with ${factorCount()} factors.`,
-      ),
-    );
-  }
+  if (c.waiting?.length) parts.push(waitingNote(c));
   parts.push(...noteList(c.notes.map(prettyTerm)));
   return parts;
+}
+
+/** Which designs wait for the reader to ask for their search, as Design says it beside the button. */
+function waitingNote(c) {
+  const one = c.waiting.length === 1;
+  return el(
+    "p",
+    "hint",
+    `The ${listNames(c.waiting.map((w) => w.label))} design${one ? " takes" : "s take"} a while to search for ` +
+      `with ${factorCount()} factors.`,
+  );
 }
 
 /** Mark the design the plan holds in the list of designs that can learn the brief. */
@@ -1333,7 +1335,7 @@ async function drawComparison(result, k) {
   fds.append(fdsTitle, fdsPlot, caption);
   box.append(fds);
   try {
-    await draw(fdsPlot, fdsFigure(result.fds), version, 380);
+    await draw(fdsPlot, fdsFigure(result.fds, { region: Boolean(result.region) }), version, 380);
     for (const label of result.designs) {
       const { terms, matrix } = result.correlations[label];
       const card = el("figure", "chart", "");
@@ -1834,7 +1836,8 @@ async function drawCharts(request, mine, given = null) {
     if (figures.true_contour) shareContourScale(figures.contour, figures.true_contour);
     for (const key of ["contour", "true_contour", "residuals", "half_normal"]) {
       if (!figures[key]) continue;
-      const caption = typeof CAPTIONS[key] === "function" ? CAPTIONS[key](plots.contour_factors) : CAPTIONS[key];
+      const limits = { shaded: plots.shaded, held: plots.held, factors: state.design.spec.factors };
+      const caption = typeof CAPTIONS[key] === "function" ? CAPTIONS[key](plots.contour_factors, limits) : CAPTIONS[key];
       const card = chartCard(key, caption);
       charts.append(card.card);
       await draw(card.plot, figures[key], version);

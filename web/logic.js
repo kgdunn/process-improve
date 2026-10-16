@@ -412,9 +412,20 @@ export const TITLES = {
 
 /** What each chart shows and how to read it; some name the factors drawn. */
 export const CAPTIONS = {
-  contour: (pair) =>
-    `Drawn over ${pair.join(" and ")}, the two factors with the largest main effects, with the others at their ` +
-    "center; the dots are the runs.",
+  /**
+   * With limits on the settings the surface is greyed where a setting cannot be run, and when the
+   * center of the ranges cannot be run, the others are held at a central setting that can (``held``,
+   * in their own units).
+   */
+  contour: (pair, { shaded = false, held = [], factors = [] } = {}) => {
+    const units = Object.fromEntries(factors.map((f) => [f.name, f.units ?? ""]));
+    const others = held.length
+      ? `, with ${listNames(held.map((h) => `${h.name} at ${inUnits(h.value, units[h.name])}`))}, since the center of ` +
+        "the ranges cannot be run"
+      : ", with the others at their center";
+    const grey = shaded ? "; grey: settings outside your limits" : "";
+    return `Drawn over ${pair.join(" and ")}, the two factors with the largest main effects${others}${grey}; the dots are the runs.`;
+  },
   true_contour: "The process the results were simulated from, on the same scale.",
   residuals: "A curve or a funnel points to a missing term or a changing noise level.",
   half_normal: "Effects far above the line, past Lenth's margin of error, are likely real.",
