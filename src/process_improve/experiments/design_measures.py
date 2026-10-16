@@ -15,6 +15,8 @@ model and no responses: these are properties of the design, known before it is r
   of their two levels (a two-level design).
 - :func:`fingerprint` and :func:`same_design`: whether two designs are one design, with their runs in
   another order, their factors in another order, or a factor's levels swapped.
+- :func:`fds_curve`: the fraction-of-design-space curve, the prediction variance that each fraction
+  of the cube does not exceed.
 
 Examples
 --------
@@ -34,9 +36,11 @@ import itertools
 import json
 import math
 from collections import Counter
-from typing import TYPE_CHECKING, Any, Literal
+from typing import TYPE_CHECKING, Any, Literal, cast
 
 import numpy as np
+
+from process_improve._random import check_random_state
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
@@ -55,6 +59,9 @@ MOST_STEPS = 200_000
 
 #: A leverage this close to 1 is 1: the run cannot be lost.
 _ONE = 1 - 1e-9
+
+#: The points drawn uniformly from the cube that a fraction-of-design-space curve is read from.
+FDS_SAMPLES = 4096
 
 
 # --------------------------------------------------------------------------- the model matrix
@@ -215,6 +222,66 @@ def run_loss(coded: np.ndarray, kinds: Sequence[str], model: Model) -> dict[str,
         "worst_d_ratio": round(max(0.0, 1 - worst) ** (1 / matrix.shape[1]), 4),
         "leverage": [round(float(v), 4) for v in h],
     }
+
+
+# --------------------------------------------------------------------------- the prediction variance
+def fds_curve(
+    coded: np.ndarray,
+    kinds: Sequence[str],
+    model: Model,
+    *,
+    n_points: int = 21,
+    random_state: int | np.random.Generator | None = 0,
+) -> list[float] | None:
+    r"""Return a design's fraction-of-design-space curve: the prediction variance at each fraction of the cube.
+
+    The variance of the model's prediction at a point :math:`\mathbf{x}` of the cube
+    :math:`[-1, 1]^k` is :math:`\mathbf{f}(\mathbf{x})^\top (X^\top X)^{-1} \mathbf{f}(\mathbf{x})`
+    in units of :math:`\sigma^2`, the run-to-run noise variance, where :math:`\mathbf{f}(\mathbf{x})`
+    is the model's row at the point (see :func:`model_matrix`). The curve gives, for each fraction
+    from 0 to 1, the variance that this fraction of the cube's points does not exceed: its value at
+    0.5 is the median prediction variance over the cube, and at 1 the largest found. The variance is
+    not scaled by the number of runs, so a design is read at its own size, as
+    :func:`~process_improve.experiments.compare.compare_designs` reads it.
+
+    Parameters
+    ----------
+    coded : np.ndarray
+        The runs in coded units, one column per factor.
+    kinds : Sequence[str]
+        Each factor's type; the curve is drawn for designs whose factors are all ``"numeric"``.
+    model : {"main_effects", "interactions", "quadratic"}
+        The model whose predictions are read.
+    n_points : int, default 21
+        The fractions, spaced evenly from 0 to 1, at which the curve is given.
+    random_state : int, np.random.Generator or None, default 0
+        Seeds the :data:`FDS_SAMPLES` points drawn uniformly from the cube, so the same design gives
+        the same curve.
+
+    Returns
+    -------
+    list[float] or None
+        The prediction variance at each fraction, rising, to four significant figures; ``None``
+        when a factor is not numeric, a setting is missing, or the design does not estimate the model.
+
+    Examples
+    --------
+    >>> import numpy as np
+    >>> square = np.array([[-1, -1], [1, -1], [-1, 1], [1, 1]], dtype=float)
+    >>> curve = fds_curve(square, ["numeric", "numeric"], "main_effects", n_points=3)
+    >>> curve[0], curve[-1] <= 0.75
+    (0.25, True)
+    """
+    coded = np.asarray(coded, dtype=float)
+    if any(kind != "numeric" for kind in kinds):
+        return None
+    matrix = model_matrix(coded, kinds, model)
+    if matrix is None or not full_rank(matrix):
+        return None
+    points = check_random_state(random_state).uniform(-1.0, 1.0, size=(FDS_SAMPLES, coded.shape[1]))
+    rows = cast("np.ndarray", model_matrix(points, kinds, model))  # numeric points with no gap: never None
+    variance = np.sum(rows * np.linalg.solve(matrix.T @ matrix, rows.T).T, axis=1)
+    return [float(f"{v:.4g}") for v in np.quantile(variance, np.linspace(0.0, 1.0, n_points))]
 
 
 # --------------------------------------------------------------------------- projections
