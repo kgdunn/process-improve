@@ -22,9 +22,9 @@ those changes.
   or two `topics`: what it is about (semiconductors, food and beverages, ...), as opposed to how it
   is designed. `reference_topics()` returns the vocabulary of 30 topics, each with its nearest UN
   ISIC Rev. 4 industries and OECD FORD field of research, and `reference_experiments` and
-  `reference_designs` take `topic=` to select by it. Of the 768 entries, 431 state an application;
-  the other 337 (mostly tables of designs) are `"general"`.
-- **The reference catalogue holds chapters 1 to 5 of Montgomery, *Design and Analysis of
+  `reference_designs` take `topic=` to select by it. Of the 816 entries, 471 state an application;
+  the other 345 (mostly tables of designs) are `"general"`.
+- **The reference catalogue holds chapters 1 to 7 of Montgomery, *Design and Analysis of
   Experiments* (8th edition).** Chapters 1 and 2: the golf 2^2 factorial and its three effects; the
   Portland cement mortar two-sample t-test with Minitab's and JMP's output, its confidence interval
   and Minitab's power table; the nerve and muscle fluorescence compared by Welch's test; the hardness
@@ -49,14 +49,31 @@ those changes.
   the tool life 3^2 as a categorical analysis and as JMP's second-order and expanded models, with
   the prediction profiler's optimum; and the radar detection factorial with the operators as fixed
   and as random blocks (JMP's REML table, its -2 log-likelihood included), then run in a 6 x 6 Latin
-  square. The data of the 79 problems that have data are kept as data, since the book prints no
-  answers. 2138 printed numbers, 1978 checked. 48 are recorded as not reproducing, each explained:
-  the book's rounding (test statistics and P-values worked from rounded values, a Tukey critical
-  difference from a table's rounded point, three standard deviations in Table 3.7), misprints (an
-  error sum of squares, a mean square used as 330.70, an F of 3.95 for 3.93, an error degrees of
-  freedom of 19 for 20, a residual of 26.00 for −6.00), Design-Expert's equations in actual
-  temperature, whose linear coefficients add the quadratic ones, and Minitab's Tukey intervals,
-  which use a studentized range point of 4.0504 where the library's, like R's, is 4.0461.
+  square. Chapter 6: the chemical process 2^2 with its residuals and its equation in natural units;
+  the plasma etch 2^3 with Design-Expert's full and reduced models, their 16 rows of case statistics,
+  equations in actual factors and lack of fit, and the ranges of Figure 6.8; the filtration 2^4 in a
+  single replicate with its projection on A, C and D, Lenth's method, JMP's screening platform
+  (estimates, pseudo t-ratios and p-values) and fitted model with its lack of fit and profiler, and
+  again with four centre runs and the test for pure quadratic curvature; the drill in ln y; the
+  aircraft panels' dispersion effects; the oxide thickness with duplicate measurements, its ln(s²)
+  model and Design-Expert's tables; the credit card mailing in JMP; the optimality of the 2^2; and
+  the circuit fitted in coded and in engineering units. Chapter 7: the chemical process in three
+  blocks; the filtration 2^4 in two blocks with ABCD confounded, and unblocked with a shift; the 2^5
+  in four blocks and the 2^6 in eight; Table 7.9's blocking arrangements, compared with the library's
+  blocking and with the products of the effects each row chooses; and the plasma etch in two
+  replicates partially confounded. The data of the 107 problems that have data are kept as data,
+  since the book prints no answers. 3580 printed numbers, 3461 checked. 123 are recorded as not
+  reproducing, each explained: the book's rounding (test statistics, P-values, fitted values and
+  residuals worked from rounded values, a Tukey critical difference from a table's rounded point,
+  three standard deviations in Table 3.7, dispersion statistics from rounded standard deviations),
+  misprints (sums of squares and mean squares, an F of 3.95 for 3.93, an error degrees of freedom of
+  19 for 20, a residual of 26.00 for −6.00, a dropped sign in two coefficients or limits, a range of
+  59 for 54, Table 6.28's analysis of variance copied from Table 6.26, and one row of Table 7.9 that
+  prints the interactions of other generators), Design-Expert's equations in actual temperature,
+  whose linear coefficients add the quadratic ones, Minitab's Tukey intervals, which use a
+  studentized range point of 4.0504 where the library's, like R's, is 4.0461, a residual mean square
+  of "about 109" that no model of the data gives, and two rows of Table 7.9 that confound one more
+  two-factor interaction than the library's blocking does.
 
   New checks: `t_test` compares two groups of runs with the library's pooled, Welch and paired
   t-tests; `contrast` weighs a fit's level means (its value, standard error, t, F, sum of squares,
@@ -69,7 +86,14 @@ those changes.
   half-width of its interval, as a prediction profiler prints it. Checks can also read a run's leverage,
   Cook's distance and studentized residuals, a sum, a median, a minimum and a maximum, the adequate
   precision, and a percentage point of the t distribution (`t_value`). A term written as the library
-  names it, such as `C(power)[160.0]`, is read as that row of the coefficients.
+  names it, such as `C(power)[160.0]`, is read as that row of the coefficients. For chapters 6 and 7:
+  `nested_test` tests a model against a fuller one fitted to the same runs (Design-Expert's lack of
+  fit against pure error, or a group of terms); `lenth_t` and `lenth_p` read an effect's pseudo
+  t-ratio on Lenth's PSE and its p-value on m/3 degrees of freedom, as JMP's screening platform
+  prints them; `percent_contribution`, `curvature` (the library's test for pure quadratic curvature),
+  `max_r_squared`, a run's `range`, `column_correlation` and `generalized_interactions` (the effects
+  confounded with blocks, as the products of those chosen to generate them); `fraction_runs` takes
+  several generators, and a path into a library result may be a list of keys.
 - **Standardised coefficients.** Each row of `analyze_experiment`'s `"coefficients"` (and
   `coefficients_actual`) now carries `standardised_coefficient`: the coefficient times the standard
   deviation of its column of the model matrix, over the standard deviation of the response, as
