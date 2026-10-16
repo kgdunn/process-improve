@@ -190,3 +190,19 @@ def test_a_rename_that_would_change_the_run_sheet_is_refused(api, case):
         request["n_blocks"] = 2
     made = api.ok("api_make_design", request)
     assert message in api.error("api_relabel", {"design": sent(made), "factors": factors})
+
+
+def test_renaming_a_design_with_limits_renames_inside_them(api):
+    """Swapping two names swaps them in every limit, as making the design under the new names writes the limits."""
+    request = {"design_type": "d_optimal", "budget": 12}
+    limits = [{"expression": "T + 25*P <= 250"}, {"expression": "T*F <= 3600", "note": "heat"}]
+    swapped = [{"expression": "F + 25*P <= 250"}, {"expression": "F*T <= 3600", "note": "heat"}]
+    before = api.ok("api_make_design", {**request, "factors": FACTORS, "constraints": limits})
+    after = api.ok(
+        "api_make_design", {**request, "factors": named(FACTORS, {"T": "F", "F": "T"}), "constraints": swapped}
+    )
+    assert after["rows"] == before["rows"], "the same limits, by the factors' places"
+    renamed = api.ok("api_relabel", {"design": sent(before), "factors": after["spec"]["factors"]})
+    assert renamed["spec"] == after["spec"]
+    assert renamed["facts"] == after["facts"]
+    assert [c["expression"] for c in renamed["spec"]["constraints"]] == ["F + 25 * P <= 250", "F * T <= 3600"]

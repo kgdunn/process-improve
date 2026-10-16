@@ -208,3 +208,44 @@ def definition(page: Any, word: str) -> str:  # noqa: ANN401 - a Playwright Page
     text = tip.text_content()
     page.keyboard.press("Escape")
     return text
+
+
+def limits_done(page: Any) -> None:  # noqa: ANN401
+    """Wait until Python has read the limits as they are typed, and nothing is in flight."""
+    page.wait_for_function(
+        "window.__pi.idle() && [...document.querySelectorAll('#limit-list .limit-effect, #limit-list .limit-problem')]"
+        ".some((p) => p.textContent) || !document.querySelector('#limit-list .limit')",
+        timeout=30_000,
+    )
+    page.wait_for_timeout(300)  # the panel waits for the typing to rest before it asks
+    page.wait_for_function("window.__pi.idle()", timeout=30_000)
+
+
+def type_limit(page: Any, text: str, note: str = "") -> None:  # noqa: ANN401
+    """Open the limits on the settings, add a limit and type it (and its note), as a reader would; wait for Python."""
+    reveal(page, "#limits")
+    if not page.evaluate("document.querySelector('#limits').open"):
+        page.click("#limits summary")
+    page.click("#add-limit")
+    row = page.locator("#limit-list .limit").last
+    row.locator("[name=expression]").fill(text)
+    if note:
+        row.locator("[name=note]").fill(note)
+    row.locator("[name=expression]").press("Tab")
+    limits_done(page)
+
+
+def corners_done(page: Any) -> None:  # noqa: ANN401
+    """Open the limits on the settings, if they are closed, and wait until Python has drawn the table of corners."""
+    reveal(page, "#limits")
+    if not page.evaluate("document.querySelector('#limits').open"):
+        page.click("#limits summary")
+    page.wait_for_timeout(300)  # the panel waits for the clicking to rest before it asks
+    page.wait_for_function("window.__pi.idle() && !document.querySelector('#corners').hidden", timeout=30_000)
+
+
+def mark_corners(page: Any, *rows: int) -> None:  # noqa: ANN401
+    """Tick "cannot run" on these rows of the table of corners, and wait for the limit Python proposes."""
+    for row in rows:
+        page.click(f'#corner-table tr[data-row="{row}"] input')
+    corners_done(page)

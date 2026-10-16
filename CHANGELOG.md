@@ -23,8 +23,12 @@ those changes.
   against the 42 predictions and deviations of Schmidt and Launsby's lunar concrete study, which it
   held as not recomputed until now: 40 agree, and two are the book's errors (run 14's prediction
   has two digits exchanged, and run 16's deviation does not follow from its values).
+- **`evaluate_design(..., metric="scaled_condition_number")`**: the condition number of the model
+  matrix with each column scaled to unit length, so the factors' units do not count: 1 for
+  orthogonal columns, whatever their units. RS/Discover prints it as Cond. No.; the nine that
+  Schmidt and Launsby print (eight plating models and the ball weld D-optimal design) agree.
 - **A design catalog, at factori.al/catalog.** It lists the reference catalogue's 665 published
-  experiments and designs, and 118 designs the library makes. A reader searches them in words ("4
+  experiments and designs, and 117 designs the library makes. A reader searches them in words ("4
   factors, <=30 runs, quadratic, since 1990"); filters them by family, runs, factors, the model they
   estimate in full, categorical factors, blocks, split plot, mixture, printed results, recomputed
   numbers, and the year the source appeared or the date the entry was added; and sees each one on a
@@ -33,8 +37,23 @@ those changes.
   generated design of the eight types the app makes. The filters are kept in the address, so a
   filtered view can be shared. `process_improve.experiments.design_catalog` makes the records:
   `catalog_records`, `normalise_family` (a source's free-text design type, read into a family),
-  `estimable_models`, `design_facets`, `glyph`, `printed_checks`, `short_citation`,
-  `catalog_sources` and `catalog_families`.
+  `design_facets`, `glyph`, `printed_checks`, `short_citation`, `catalog_sources`,
+  `catalog_families`, and `search_catalog`, which filters them as the page does. The tool
+  `search_design_catalog` searches the same records for an agent or the MCP server, and returns each
+  design with its page in the catalog. The user guide's new page, *The Design Catalog*, lists what a
+  record holds.
+- **What a design withstands, read off its runs: `process_improve.experiments.design_measures`.**
+  `run_loss` says whether a design still estimates its model if any one run is lost, and the
+  D-efficiency the worst loss leaves: losing run *i* scales det(X'X) by 1 - h_i, with h_i its
+  leverage, so one hat matrix answers it for every run. `quadratic_projection` is the most factors
+  whose every projection estimates the full quadratic in them (3 for a six-factor definitive
+  screening design), and `projectivity` the most whose every projection holds all their two-level
+  combinations (3 for the 12-run Plackett-Burman design). `fingerprint`, `same_design` and
+  `design_classes` find one design under other labels, its runs, factors or levels reordered: the
+  catalog lists 76 designs printed or made in more than one place, among them the 12-run
+  Plackett-Burman design, which is also Schmidt and Launsby's Taguchi L12 and Table 3.18 of the NIST
+  e-Handbook. `estimable_models` and `model_matrix` are here too. The catalog filters on all of them,
+  and a design's page draws its runs' leverages.
 - **Standardised coefficients.** Each row of `analyze_experiment`'s `"coefficients"` (and
   `coefficients_actual`) now carries `standardised_coefficient`: the coefficient times the standard
   deviation of its column of the model matrix, over the standard deviation of the response, as
@@ -76,14 +95,12 @@ those changes.
   solderability L18 with a dummy-level column, a 2^4 on chemiluminescence with centre runs, and the
   run counts of a 136-run Plackett-Burman design for 134 inputs and a mixed-level full factorial of
   49152 cases. Appendix J's answers are checked against the problems they answer. 4520 printed
-  numbers, 4240 checked. 400 are recorded as not reproducing, each explained: most come from the
+  numbers, 4253 checked. 400 are recorded as not reproducing, each explained: most come from the
   book's rounding (run averages and standard deviations that do not follow from their readings,
   squares of rounded effects, coefficients that are halves of rounded effects, values cut rather
   than rounded), some are misprints (a wrong sign, two exchanged digits, rows swapped, Yates's
   algorithm run on totals listed in run order rather than Yates order, an answer's resolution IV for
-  a design with three-letter words). Five tolerances are
-  not recomputed: `evaluate_design` takes the rank of X'X, whose condition number in the factors'
-  own units squares X's, and calls that full-rank model singular. A catalogue check can now analyse
+  a design with three-letter words). A catalogue check can now analyse
   each run's mean, total, standard deviation, ln s or one of Taguchi's signal-to-noise ratios
   (larger, smaller and nominal is best), or every reading as an observation of its own, in other
   units than the readings are printed in if need be (`summary`); solve for the setting of a factor
@@ -113,11 +130,15 @@ those changes.
 - **A region that describes its limits, in actual units.** `DesignRegion` now takes its
   constraints as `Constraint` objects, their dict form or bare expressions such as
   `"3*T + 5*D <= 600"`, and a box region reports: the share of the box it keeps
-  (`volume_fraction()`, from a fixed Sobol sample, so the same on every platform); whether
+  (`volume_fraction()`: exact for straight limits, in closed form for the factors one limit
+  ties together and from the polytope's volume for up to five tied together by several;
+  else from a fixed Sobol sample, so the same on every platform, which beside straight
+  limits counts only what the curved ones take from the share the straight ones leave); whether
   any setting is left (`is_empty()`); the range each factor can still reach
   (`implied_bounds()`); a central setting that can be run, to hold unplotted factors at
   (`centroid()`); the limits that remove nothing the others do not
-  (`redundant_constraints()`); each limit's affine form, rounded so no floating-point residue
+  (`redundant_constraints()`); the limits that are curved over the box rather than straight
+  (`curved_constraints()`); each limit's affine form, rounded so no floating-point residue
   shows (`linear_forms()`); its corners (`vertices()`); and pictures on any two factors: the
   shadow of the region (`shadow(x, y)`), a slice through it at given values of the others
   (`slice_polygon`, `slice_lines`) and the slack of a grid, at or below zero exactly where a
@@ -144,8 +165,8 @@ those changes.
 - **Designs compared over the settings that can be run.** `compare_designs(...,
   region=)` takes a `DesignRegion` (or its dict) and computes I and G over it rather than
   over the cube: I averages the prediction variance over 20000 points drawn uniformly from
-  the region with a fixed seed, and G searches the region's support points, the grid's
-  points inside it and that sample. The other measures do not depend on where predictions
+  the region with a fixed seed, and G searches the region's vertices, its support points,
+  points on the boundary of a curved limit, the grid's points inside it and that sample. The other measures do not depend on where predictions
   are made and do not change. `DesignComparison` gains `region` (also in `to_dict()`) and a
   `measures` property whose definitions of I and G say "over the region"; a design with
   runs outside the region is noted. A mixture region, or one that names a factor the
@@ -162,9 +183,31 @@ those changes.
   limits as text, what they leave of the factor ranges, renaming a factor inside them,
   proposing a limit from the settings that cannot be run, pictures of the region, and
   comparing designs and plotting a response over it; its examples run with the test suite.
+- **Factorial takes limits on the settings that can be run.** Under the factors, "Settings you
+  cannot run" holds up to 8 limits, each an inequality in the factors' own units over any number
+  of factors (`T + 25*P <= 250`, `0.5 <= A/B <= 2`, `T*F <= 3600`), with buttons that type the
+  factors' names and the signs a phone lacks. Python reads each limit as the library will and says
+  what it rules out, or what to change in it; together, the limits say what share of the ranges
+  they leave, whether the center can still be run, and how far each factor can still go. A limit
+  can also be had by marking the corners of the ranges that cannot be run: the page proposes the
+  straight limit that rules out just those, to add as it is or to adjust factor by factor from
+  its corner. A picture shows, for each pair of factors, the settings that can be run, each
+  straight limit's boundary and the run sheet's runs, and opens to look inside at values of the
+  other factors the reader sets; a curved limit is traced smoothly. With limits, only the
+  D-optimal and I-optimal designs are offered, every run is checked to be inside, the designs are
+  compared over the settings that can be run, Learn greys the response surface outside them, and
+  the Python shown, the notebook, the workbook, saved studies and links all carry them. Renaming a
+  factor renames it inside the limits, and the run sheet keeps its runs.
 
 ### Fixed
 
+- **`evaluate_design` no longer calls a full-rank model rank-deficient because of its factors'
+  units.** It took the rank of X'X, whose condition number is the square of X's: with a column of
+  x1 (to 100) beside one of x1²x2 (to 2,000,000), X's is 7e7 and X'X's passes the precision of a
+  double, so the model got no VIFs, D-efficiency or prediction variance. The rank, and the inverse
+  of X'X, are now worked on X with each column scaled to unit length, which changes neither. The
+  five tolerances of Schmidt and Launsby's Table 4.20, which the reference catalogue could not check
+  before, are checked: four agree, and the fifth repeats the next row's value in the book.
 - **A Taguchi design for one 2-level and seven 3-level factors takes 18 runs, not 36.** The
   library stores the L18 as `L18(6^1 3^6)`, and the design gave each factor a column of its own, so
   the eighth factor found none and the design moved on to `L36(3^23)`. When no array has a column
@@ -187,6 +230,26 @@ those changes.
   function, so every linear constraint was treated as curved: the candidate set of a
   constrained optimal design lost the region's vertices, and its sampler fell back to a
   slower method.
+- **A constraint that cannot be evaluated over part of the factor box is treated as
+  curved.** Where `sqrt` or `log` of a negative number, or a division by zero, made the
+  constraint infinite or `NaN` at some probe point, the test for an affine constraint
+  passed it, and the secant plane through the points where it was finite stood in for it:
+  `0.5 <= A/B <= 2` with `B` from 0, or `sqrt(A - 120) + B <= 70` with `A` from 100, got
+  vertices, bounds and a hit-and-run sampler cut by a plane the constraint does not have.
+- **Samples of a thin region are the same on every platform.** When a region keeps under
+  about 1% of the box, its uniform samples come from hit-and-run chains whose directions
+  used eigenvectors of a covariance, and those have no fixed sign: native Python and
+  Pyodide took different steps, so I-optimal designs and averages over such a region
+  differed. The directions now use the Cholesky factor, which is unique.
+- **`DesignRegion.feasible` does not depend on how a straight limit is scaled.** It
+  compared a limit's value with `1e-9` in the limit's own units, so a point on the
+  boundary of `120*T + 33*D + 450*F <= 17000` could fail where the same limit divided by
+  100 passed. For a straight limit whose coded gradient is longer than 1, the tolerance
+  is now a distance of `1e-9` in coded units; nothing that passed before fails.
+- **A single limit passed outside a list is refused with a clear message.**
+  `constraints="T <= 160"` was read character by character and reported that a limit
+  named `'T'` is not an inequality; a lone string, dict or `Constraint` now raises a
+  `TypeError` that shows the list to write.
 
 ## [1.99.0] - 2026-10-15
 

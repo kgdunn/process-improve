@@ -506,6 +506,63 @@ def test_g_over_the_region_is_its_largest_prediction_variance():
         assert g == pytest.approx(max(prediction_variance(design, sample).max(), g), rel=0.01), name
 
 
+def test_g_is_at_least_the_variance_at_every_vertex_of_a_region_with_many_limits():
+    """With 8 factors and 6 limits there are too many ways of choosing 8 boundaries for the support points to try.
+
+    They then held 236 of the region's 758 vertices, and G, usually at a vertex, came out 7% low.
+    """
+    names = [f"X{j}" for j in range(8)]
+    rng = np.random.default_rng(0)
+    limits = []
+    for _ in range(6):
+        coefficients = rng.integers(-2, 3, size=8)
+        lhs = " + ".join(f"{c}*{n}" for c, n in zip(coefficients, names, strict=True))
+        limits.append(f"{lhs} <= {rng.integers(1, 4)}")
+    region = DesignRegion([Factor(name=n, low=-1, high=1) for n in names], limits)
+    runs = region.sample(41, np.random.default_rng(1))
+    comparison = compare_designs({"inside": pd.DataFrame(runs, columns=names)}, "interactions", region=region)
+
+    def expand(x):
+        pairs = [x[:, i] * x[:, j] for i, j in itertools.combinations(range(8), 2)]
+        return np.column_stack([np.ones(len(x)), x, *pairs])
+
+    vertices = (region.vertices() - region._centre) / region._half
+    assert len(vertices) == 758
+    f, design = expand(vertices), expand(runs)
+    variance = np.einsum("ij,jk,ik->i", f, np.linalg.inv(design.T @ design), f)
+    assert comparison.values["inside [n=41]"]["g"] >= variance.max() * (1 - 1e-12)
+    assert "its 758 vertices" in comparison.g_points
+
+
+@pytest.mark.parametrize("seed", [0, 1, 2])
+def test_g_reaches_a_curved_boundary(seed):
+    """G usually sits on the boundary, which a uniform sample rarely reaches and a 3-level grid touches at a few points.
+
+    Over the cylinder A**2 + B**2 <= 1 G used to come out up to 12% below the variance at a
+    point of its surface; it is now within 1% of a dense search of that surface and its caps.
+    """
+    region = DesignRegion(factors("ABC"), ["A**2 + B**2 <= 1"])
+    runs = region.sample(14, np.random.default_rng(seed))
+    comparison = compare_designs({"inside": pd.DataFrame(runs, columns=list("ABC"))}, "quadratic", region=region)
+    g = comparison.values["inside [n=14]"]["g"]
+    angle, height = np.meshgrid(np.linspace(0, 2 * np.pi, 721), np.linspace(-1, 1, 81))
+    side = np.column_stack([np.cos(angle.ravel()), np.sin(angle.ravel()), height.ravel()]) * [1 - 1e-12, 1 - 1e-12, 1]
+    radius, turn = np.meshgrid(np.linspace(0, 1 - 1e-12, 41), np.linspace(0, 2 * np.pi, 181))
+    disc = np.column_stack([radius.ravel() * np.cos(turn.ravel()), radius.ravel() * np.sin(turn.ravel())])
+    caps = np.vstack([np.column_stack([disc, np.full(len(disc), z)]) for z in (-1.0, 1.0)])
+    surface = np.vstack([side, caps])
+    assert region.feasible(surface).all()
+
+    def expand(x):
+        a, b, c = x.T
+        return np.column_stack([np.ones(len(x)), a, b, c, a * b, a * c, b * c, a**2, b**2, c**2])
+
+    f, design = expand(surface), expand(runs)
+    densest = np.einsum("ij,jk,ik->i", f, np.linalg.inv(design.T @ design), f).max()
+    assert g == pytest.approx(max(densest, g), rel=0.01)
+    assert "points on its boundary" in comparison.g_points
+
+
 def test_a_region_changes_only_i_and_g():
     region = DesignRegion(HEAT, [HEAT_LIMIT])
     designs = heat_designs()
@@ -538,10 +595,8 @@ def test_a_region_without_constraints_is_the_cube_exactly():
     region = result.pop("region")
     assert region == DesignRegion(HEAT).to_dict()
     over_cube.pop("region")
-    i_and_g = {"i", "g"}
-    measures, cube_measures = result.pop("measures"), over_cube.pop("measures")
-    assert [m for m in measures if m["key"] not in i_and_g] == [m for m in cube_measures if m["key"] not in i_and_g]
-    assert result == over_cube
+    assert result == over_cube, "the definitions of I and G too: they are the cube's exact moments and grid"
+    assert "uniform sample" not in {m.key: m.description for m in unlimited.measures}["i"]
 
 
 def test_the_comparison_records_its_region_and_says_what_i_and_g_are_over():
@@ -575,6 +630,14 @@ def test_runs_outside_the_region_are_noted():
     )
 
 
+def test_a_design_of_the_regions_own_vertices_lies_inside_it():
+    """A steep limit's corners are rounded within 1e-12 of its boundary; they used to be noted as outside."""
+    steep = [Factor(name="T", low=100, high=150), Factor(name="D", low=20, high=60), Factor(name="F", low=1, high=7)]
+    region = DesignRegion(steep, ["120*T + 33*D + 450*F <= 17000"])
+    design = pd.DataFrame((region.vertices() - region._centre) / region._half, columns=region.names)
+    assert compare_designs({"corners": design}, "main_effects", region=region).notes["corners [n=8]"] == ()
+
+
 def test_the_region_can_be_given_as_its_dict_and_is_deterministic():
     region = DesignRegion(HEAT, [HEAT_LIMIT])
     designs = heat_designs()
@@ -582,15 +645,26 @@ def test_the_region_can_be_given_as_its_dict_and_is_deterministic():
     again = compare_designs(designs, "quadratic", region=region.to_dict())
     assert json.dumps(first.to_dict()) == json.dumps(again.to_dict())
     assert isinstance(again.region, DesignRegion)
+    written = {"factors": [f.model_dump(mode="json") for f in HEAT], "constraints": [HEAT_LIMIT]}
+    by_hand = compare_designs(designs, "quadratic", region=written)
+    assert json.dumps(by_hand.to_dict()) == json.dumps(first.to_dict()), "a bare expression in the dict form"
 
 
 def test_a_factor_the_region_does_not_name_is_free_over_its_range():
-    """Limits on A and B leave C free: the region over A, B and C is the A-B region times C's range."""
+    """Limits on A and B leave C free: the region over A, B and C is the A-B region times C's range.
+
+    The region over B, A and C lists its factors in another order than the design's columns,
+    and the limit is not symmetric in A and B, so reading the design's A column as the
+    region's B would change the numbers.
+    """
     design = generate_design(factors(), "box_behnken", n_center_points=3)
-    partial = compare_designs({"BBD": design}, region=DesignRegion(factors("AB"), ["A + B <= 1"]))
-    full = compare_designs({"BBD": design}, region=DesignRegion(factors("BAC"), ["A + B <= 1"]))
+    partial = compare_designs({"BBD": design}, region=DesignRegion(factors("AB"), ["A + 0.5*B <= 0.5"]))
+    full = compare_designs({"BBD": design}, region=DesignRegion(factors("BAC"), ["A + 0.5*B <= 0.5"]))
     assert partial.values["BBD [n=15]"] == full.values["BBD [n=15]"]
+    assert partial.notes["BBD [n=15]"] == full.notes["BBD [n=15]"]
     assert partial.region.names == ["A", "B"]
+    swapped = compare_designs({"BBD": design}, region=DesignRegion(factors("AB"), ["B + 0.5*A <= 0.5"]))
+    assert swapped.values["BBD [n=15]"]["i"] != partial.values["BBD [n=15]"]["i"], "the test can tell A from B"
 
 
 @pytest.mark.parametrize(

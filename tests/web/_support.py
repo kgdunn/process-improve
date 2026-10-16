@@ -47,6 +47,9 @@ APP_SOURCES = (
     "style.css",
     "app.js",
     "logic.js",
+    "limits.js",
+    "corners.js",
+    "picture.js",
     "charts.js",
     "python.js",
     "campaign.js",
@@ -163,9 +166,14 @@ def held_of(design: dict) -> dict:
     return {"spec": design["spec"], "columns": design["columns"], "rows": design["rows"]}
 
 
-def generate_all(api: Api, factors: list[dict], model: str) -> tuple[list[dict], list[dict]]:
-    """Generate every design of a comparison as the page does, one call each; return them, and what the page holds."""
-    plan = api.ok("api_compare_plan", {"factors": factors, "model": model})
+def generate_all(
+    api: Api, factors: list[dict], model: str, constraints: list[dict] | None = None
+) -> tuple[list[dict], list[dict]]:
+    """Generate every design of a comparison as the page does, one call each; return them, and what the page holds.
+
+    With ``constraints``, the limits on the settings, only the designs that keep to them are made.
+    """
+    plan = api.ok("api_compare_plan", {"factors": factors, "model": model, "constraints": constraints or []})
     made = [{**item, "design": api.ok("api_make_design", item["spec"])} for item in plan["designs"]]
     return made, [{"label": m["label"], **held_of(m["design"])} for m in made]
 
@@ -332,8 +340,15 @@ def javascript(node: str, module_source: str, calls: list[tuple[str, list]]) -> 
 # --------------------------------------------------------------------------- the design catalog
 #: Published entries and generated designs that show each way the catalog opens a design, or does not:
 #: a published experiment the page regenerates, with its results; a comparison, no design the page makes;
-#: a generated design the page makes; and one it does not.
-CATALOG_SAMPLE = ("bhh-pilot-plant-2-3", "bhh-plant-trial-two-methods", "lib-ccd-k3-face-centered", "lib-omars-k4")
+#: a generated design the page makes; one it does not; and the 2^3 factorial, which is the published
+#: experiment's design.
+CATALOG_SAMPLE = (
+    "bhh-pilot-plant-2-3",
+    "bhh-plant-trial-two-methods",
+    "lib-ccd-k3-face-centered",
+    "lib-omars-k4",
+    "lib-full-factorial-k3",
+)
 
 
 def catalog_sample() -> list[dict]:
@@ -359,4 +374,4 @@ def catalog_sample() -> list[dict]:
         for spec in design_catalog.GENERATED
         if design_catalog._spec_id(spec) in CATALOG_SAMPLE
     ]
-    return [*published, *generated]
+    return design_catalog._classified([*published, *generated])

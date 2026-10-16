@@ -33,6 +33,7 @@ import {
   MODES,
   NUMERIC,
   OPTIMAL_MODEL,
+  REGION_DESIGNS,
   SCREEN_FROM,
   SPARE_FOR_NOISE,
   SPARE_RUNS,
@@ -63,6 +64,7 @@ import {
   nextMode,
   percent,
   pickCandidate,
+  positional,
   powerScale,
   pval,
   renameTerms,
@@ -83,6 +85,7 @@ import {
   campaignTitle,
   checkBookExample,
   checkCampaign,
+  checkConstraints,
   designKey,
   indexedName,
   mergeResults,
@@ -93,6 +96,19 @@ import {
   timeAgo,
   unpackCampaign,
 } from "./campaign.js";
+import {
+  adoptLimits,
+  currentLimits,
+  factorsChangedForLimits,
+  hasLimits,
+  installLimits,
+  limitsHold,
+  limitsKey,
+  limitsUnready,
+  renameInLimits,
+  setLimits,
+} from "./limits.js";
+import { redrawRuns } from "./picture.js";
 import { analyseCode, compareCode, cumulative, designCode, notebook, resultsCode } from "./python.js";
 import { forgetCampaign, saveCampaign, savedCampaigns } from "./store.js";
 import { GLOSSARY, MARKED } from "./glossary.js";
@@ -422,6 +438,7 @@ function addFactor(f = { name: "", low: "", high: "", units: "" }) {
     <td data-label="Units"><input name="units" aria-label="Units" size="6"></td>
     <td><button type="button" class="link" aria-label="Remove factor">✕</button></td>`;
   for (const key of ["name", "low", "high", "units"]) box(tr, key).value = f[key] ?? "";
+  tr.dataset.name = box(tr, "name").value.trim(); // the name the limits know it by
   showType(tr, factorType(box(tr, "low").value, box(tr, "high").value, NUMERIC));
   // The row settles its type before the table's own listener refreshes the design.
   box(tr, "categorical").addEventListener("input", () => switchType(tr, typeOf(tr)));
@@ -549,6 +566,7 @@ function takenNames() {
 /** The factor table changed: the design settings, the aim, the designs that can learn it and the draft follow. */
 function factorsChanged() {
   if (!aimChosen) setAim(defaultAim(factorCount()));
+  factorsChangedForLimits();
   refreshDesign();
   scheduleCandidates();
   renderStudyBar();
@@ -565,9 +583,47 @@ let renamed = Promise.resolve();
  * practice results come from). A name Python would refuse is not taken: it stays marked under the
  * table, and the old name stays everywhere until it is put right.
  */
-function factorRenamed() {
+function factorRenamed(tr) {
+  if (tr) limitsFollow(tr);
   factorsChanged();
   renamed = renamed.then(renameRunSheet).catch(reportError); // a rename that fails is reported, and the next still runs
+}
+
+/**
+ * A factor's new name is taken into every limit that names it, at once, so the limits key the run sheet
+ * as before. A name the brief cannot take yet (blank, not a name, another factor's) waits until it is
+ * put right, and the limits keep the last name taken.
+ */
+function limitsFollow(tr) {
+  const before = tr.dataset.name ?? "";
+  const after = box(tr, "name").value.trim();
+  const others = factorRows()
+    .filter((row) => row !== tr && !blankRow(row))
+    .map((row) => box(row, "name").value.trim());
+  if (nameProblem(after, others, 1, takenNames())) return;
+  if (before && before !== after) renameInLimits({ [before]: after });
+  tr.dataset.name = after;
+}
+
+/**
+ * The limits changed, or Python has read them: the designs that keep to them, the run sheet's key,
+ * the designs that can learn the brief and the draft follow. A note changed on the limits a run sheet
+ * was made with is a label: the run sheet takes it.
+ */
+function limitsChanged() {
+  refreshDesign();
+  scheduleCandidates();
+  renderStudyBar();
+  saveDraft();
+  const stored = state.design?.spec.constraints;
+  if (stored && !planIsStale()) {
+    const typed = currentLimits();
+    state.design.spec.constraints = stored.map((limit, i) => {
+      const { note: _, ...rest } = limit;
+      return typed[i]?.note ? { ...rest, note: typed[i].note } : rest;
+    });
+    scheduleSave();
+  }
 }
 
 /** What Python needs of a design to rename its factors: the runs as the page holds them, and their notes. */
@@ -602,7 +658,8 @@ function showRenamed({ spec, simulation, ...design }, names) {
   const titled = state.campaign && state.campaign.title === titleOf(state.design.spec);
   // Python renames the factors, and the terms a workbook was analysed with; the rest of the spec stays the page's.
   const terms = spec.analysis_model ? { analysis_model: spec.analysis_model } : {};
-  state.design = { ...state.design, ...design, spec: { ...state.design.spec, factors: spec.factors, ...terms } };
+  const limits = spec.constraints ? { constraints: spec.constraints } : {};
+  state.design = { ...state.design, ...design, spec: { ...state.design.spec, factors: spec.factors, ...terms, ...limits } };
   if (simulation) state.simulation = simulation;
   if (titled) state.campaign.title = titleOf(state.design.spec);
   if ($("#model").value === CHOSEN_TERMS) renderTermList(renameTerms(tickedTerms(), names));
@@ -665,6 +722,7 @@ function designLabel(designType) {
 function setForm(spec) {
   $("#factors tbody").replaceChildren();
   spec.factors.forEach(addFactor);
+  setLimits(spec.constraints ?? []);
   setResponse(spec);
   aimChosen = true;
   setAim(spec.aim ?? (AIMS.includes(spec.model) ? spec.model : defaultAim(spec.factors.length)));
@@ -708,8 +766,11 @@ function refreshDesign() {
   const select = $("#design-type");
   const labelled = readFactors().filter(isCategorical).map((f) => f.name);
   const numericOnly = (option) => labelled.length > 0 && !CATEGORICAL_DESIGNS.includes(option.value);
+  const limited = hasLimits();
+  const outsideLimits = (option) => limited && !REGION_DESIGNS.includes(option.value);
   for (const option of select.options) {
-    option.disabled = k < Number(option.dataset.minFactors) || k > Number(option.dataset.maxFactors) || numericOnly(option);
+    option.disabled =
+      k < Number(option.dataset.minFactors) || k > Number(option.dataset.maxFactors) || numericOnly(option) || outsideLimits(option);
   }
   const option = select.selectedOptions[0];
   const allowed = option.dataset.options.split(" ");
@@ -733,7 +794,14 @@ function refreshDesign() {
   $("#budget-hint").textContent = `The model has ${p} coefficients.`;
 
   const hint = $("#design-hint");
-  if (option.disabled && numericOnly(option)) {
+  const one = labelled.length === 1;
+  if (option.disabled && limited && labelled.length) {
+    hint.textContent =
+      `Limits on the settings work with numeric factors only on this page, and ${listNames(labelled)} ${one ? "is" : "are"} ` +
+      `categorical: remove the limits, or ${one ? "that factor" : "those factors"}.`;
+  } else if (option.disabled && outsideLimits(option)) {
+    hint.textContent = `${option.textContent} cannot keep its runs inside your limits on the settings: choose D-optimal or I-optimal.`;
+  } else if (option.disabled && numericOnly(option)) {
     hint.textContent =
       `${option.textContent} needs numeric factors, and ${listNames(labelled)} ${labelled.length === 1 ? "is" : "are"} ` +
       "categorical: choose a full factorial, fractional factorial or Plackett-Burman design.";
@@ -753,13 +821,14 @@ function refreshDesign() {
 /** Let the run sheet be made only once Python has started, the design takes these factors, and each is ready. */
 function showMakeable(unready) {
   const fits = !$("#design-type").selectedOptions[0].disabled; // the design takes this many factors, of these kinds
-  $("#generate").disabled = !pythonReady || !fits || unready || factorCount() < 2;
+  $("#generate").disabled = !pythonReady || !fits || unready || factorCount() < 2 || limitsUnready();
 }
 
 /**
- * The plan as the form holds it now: the factors' levels, the design and the settings it takes. The
- * run sheet on the page is out of date when this differs from the plan it was made from. A factor's
- * name and units are labels, not part of the plan: a run sheet takes them as they change.
+ * The plan as the form holds it now: the factors' levels, the design and the settings it takes, and the
+ * limits on the settings. The run sheet on the page is out of date when this differs from the plan it
+ * was made from. A factor's name and units are labels, not part of the plan: a run sheet takes them as
+ * they change, and the limits name each factor by its place.
  */
 function planKey() {
   const option = $("#design-type").selectedOptions[0];
@@ -773,8 +842,9 @@ function planKey() {
     model_type: $("#model_type").value,
   };
   const taken = option.dataset.options.split(" ").map((key) => [key, values[key]]);
-  const levels = readFactors().map((f) => [f.low, f.high]);
-  return JSON.stringify([option.value, levels, Object.fromEntries(taken)]);
+  const factors = readFactors();
+  const levels = factors.map((f) => [f.low, f.high]);
+  return JSON.stringify([option.value, levels, Object.fromEntries(taken), limitsKey(factors.map((f) => f.name))]);
 }
 
 const planIsStale = () => Boolean(state.design) && state.planKey !== null && planKey() !== state.planKey;
@@ -786,12 +856,20 @@ function markStale() {
   $("#plan-note").hidden = !stale;
   $("#plan-note").textContent = stale ? "The run sheet in Run is from an earlier design." : "";
   renderBadges();
+  redrawRuns(); // the picture of the limits draws the runs of the run sheet made for them
+}
+
+/** The run sheet's runs as the picture of the limits draws them, each setting by its factor's name; none while it is from an earlier plan. */
+function picturedRuns() {
+  const d = state.design;
+  if (!d || planIsStale()) return [];
+  return d.rows.map((row) => Object.fromEntries(d.columns.map((name, j) => [name, Number(row[j])])));
 }
 
 /** Make the run sheet the plan describes; resolves to true when it is on the page. */
 async function generate() {
   cancelCandidates(); // the reader has chosen: the designs can wait until Design is shown again
-  const key = planKey();
+  let key = planKey();
   const info = readResponseInfo();
   const factors = readFactors();
   const response = responseName(info.label, factors.map((f) => f.name));
@@ -802,8 +880,9 @@ async function generate() {
     const was = design.spec.response;
     design.columns = design.columns.map((c) => (c === was ? response : c));
     design.spec = { ...design.spec, factors, response, response_info: info, aim: currentAim() };
+    adoptLimits(design.spec.constraints);
     setStatus(`${design.n_runs} runs generated.`);
-    madeRunSheet(design, picked.warnings ?? [], key);
+    madeRunSheet(design, picked.warnings ?? [], planKey());
     return true;
   }
   const button = $("#generate");
@@ -822,6 +901,7 @@ async function generate() {
     resolution: Number($("#resolution").value),
     budget: Number($("#budget").value),
     model_type: $("#model_type").value,
+    constraints: currentLimits(),
   };
   const reply = await call("api_make_design", spec);
   button.disabled = false;
@@ -831,6 +911,11 @@ async function generate() {
     return false;
   }
   setStatus(`${reply.result.n_runs} runs generated.`);
+  if (planKey() === key) {
+    // The brief takes Python's text for the limits the run sheet was made with, so the two key alike.
+    adoptLimits(reply.result.spec.constraints);
+    key = planKey();
+  }
   madeRunSheet(reply.result, reply.warnings, key);
   return true;
 }
@@ -923,17 +1008,19 @@ let candidatesRunning = false;
 function candidateRequest() {
   const factors = readFactors();
   const info = readResponseInfo();
-  return { factors, model: currentAim(), response: responseName(info.label, factors.map((f) => f.name)), response_info: info };
+  const response = responseName(info.label, factors.map((f) => f.name));
+  return { factors, model: currentAim(), response, response_info: info, constraints: currentLimits() };
 }
 
-/** What makes two briefs' designs the same: the factors, the aim, and the noise and change power is for. */
+/** What makes two briefs' designs the same: the factors, the aim, the limits, and the noise and change power is for. */
 function candidateKey(request = candidateRequest()) {
   const { noise = null, smallest_change: change = null } = request.response_info;
-  return JSON.stringify([request.factors, request.model, noise, change]);
+  const limits = request.constraints.map((limit) => positional(limit.expression, request.factors.map((f) => f.name)));
+  return JSON.stringify([request.factors, request.model, noise, change, limits]);
 }
 
 /** Whether the brief is ready for its designs: two factors or more, each as Python takes it. */
-const briefReady = () => factorCount() >= 2 && !factorsUnready;
+const briefReady = () => factorCount() >= 2 && !factorsUnready && !limitsUnready();
 
 /**
  * Make and score the brief's designs a moment after its last change, while Design is on show, unless
@@ -947,6 +1034,8 @@ function scheduleCandidates() {
   if (due && !candidatesRunning) {
     $("#candidates").setAttribute("aria-busy", "true");
     candidateTimer = setTimeout(() => findCandidates(), CANDIDATE_WAIT);
+  } else if (!candidatesRunning) {
+    $("#candidates").removeAttribute("aria-busy"); // a search that was waiting to start is called off
   }
   renderCandidates();
 }
@@ -971,7 +1060,7 @@ async function findCandidates({ search = false } = {}) {
   $("#candidates").removeAttribute("aria-busy");
   if (mine !== candidateTicket) return;
   state.comparison = reply.ok ? { key, ...reply.result } : { key, error: reply.error };
-  if (reply.ok && !designChosen) {
+  if (reply.ok && reply.result.result && !designChosen) {
     const picked = pickCandidate(candidateRows(reply.result.result, reply.result.made));
     if (picked) pickDesign(picked, { byReader: false });
   }
@@ -992,12 +1081,16 @@ function renderCandidates(busy = null) {
   $("#compare").hidden = !c?.result; // nothing to compare in detail before the brief's first designs
   $("#search").hidden = !current || !c.waiting?.length;
   let note = null;
-  if (current && c.error) note = ["hint error", c.error];
+  const holding = limitsHold();
+  if (holding) note = ["hint error", holding];
+  else if (limitsUnready() && factorCount() >= 2 && !factorsUnready) note = ["hint busy", "Reading the limits on the settings..."];
+  else if (current && c.error) note = ["hint error", c.error];
   else if (current) note = null;
   else if (pythonFailure) note = ["hint error", "The designs are made with Python, which could not start here."];
   else if (briefReady() && !pythonReady) note = ["hint", "The designs that can learn this are listed once Python has started."];
   else if (busy || briefReady()) note = ["hint busy", busy ?? "Making and scoring the designs that can learn this..."];
-  const listed = c?.result && briefReady() ? candidateList(c, current) : [];
+  const waiting = current && !c.result && c.waiting?.length ? [waitingNote(c), ...noteList(c.notes.map(prettyTerm))] : [];
+  const listed = !briefReady() ? [] : c?.result ? candidateList(c, current) : waiting;
   $("#plan-empty").hidden = Boolean(note) || listed.length > 0;
   box.hidden = !note && !listed.length;
   box.dataset.stale = String(!current);
@@ -1075,19 +1168,20 @@ function candidateList(c, current) {
   }
   const unfit = rows.filter((r) => !r.fits);
   if (unfit.length) parts.push(el("p", "hint", `${listNames(unfit.map((r) => r.label))} cannot fit this model.`));
-  if (c.waiting?.length) {
-    const one = c.waiting.length === 1;
-    parts.push(
-      el(
-        "p",
-        "hint",
-        `The ${listNames(c.waiting.map((w) => w.label))} design${one ? " takes" : "s take"} a while to search for ` +
-          `with ${factorCount()} factors.`,
-      ),
-    );
-  }
+  if (c.waiting?.length) parts.push(waitingNote(c));
   parts.push(...noteList(c.notes.map(prettyTerm)));
   return parts;
+}
+
+/** Which designs wait for the reader to ask for their search, as Design says it beside the button. */
+function waitingNote(c) {
+  const one = c.waiting.length === 1;
+  return el(
+    "p",
+    "hint",
+    `The ${listNames(c.waiting.map((w) => w.label))} design${one ? " takes" : "s take"} a while to search for ` +
+      `with ${factorCount()} factors.`,
+  );
 }
 
 /** Mark the design the plan holds in the list of designs that can learn the brief. */
@@ -1134,6 +1228,7 @@ async function showComparison() {
       readFactors(),
       c.made.map((m) => ({ label: m.label, design_type: m.design_type, options: m.design.spec.options })),
       c.model,
+      c.made[0]?.design.spec.constraints ?? [],
     ),
   );
   await drawComparison(c.result, readFactors().length);
@@ -1240,7 +1335,7 @@ async function drawComparison(result, k) {
   fds.append(fdsTitle, fdsPlot, caption);
   box.append(fds);
   try {
-    await draw(fdsPlot, fdsFigure(result.fds), version, 380);
+    await draw(fdsPlot, fdsFigure(result.fds, { region: Boolean(result.region) }), version, 380);
     for (const label of result.designs) {
       const { terms, matrix } = result.correlations[label];
       const card = el("figure", "chart", "");
@@ -1741,7 +1836,8 @@ async function drawCharts(request, mine, given = null) {
     if (figures.true_contour) shareContourScale(figures.contour, figures.true_contour);
     for (const key of ["contour", "true_contour", "residuals", "half_normal"]) {
       if (!figures[key]) continue;
-      const caption = typeof CAPTIONS[key] === "function" ? CAPTIONS[key](plots.contour_factors) : CAPTIONS[key];
+      const limits = { shaded: plots.shaded, held: plots.held, factors: state.design.spec.factors };
+      const caption = typeof CAPTIONS[key] === "function" ? CAPTIONS[key](plots.contour_factors, limits) : CAPTIONS[key];
       const card = chartCard(key, caption);
       charts.append(card.card);
       await draw(card.plot, figures[key], version);
@@ -1878,6 +1974,7 @@ function newStudy() {
   $("#factors tbody").replaceChildren();
   addFactor();
   addFactor();
+  setLimits([]);
   aimChosen = false;
   seed = 1;
   $("#sigma").value = 1;
@@ -1916,6 +2013,7 @@ function saveDraft() {
         units: box(tr, "units").value,
       })),
       aim: aimChosen ? currentAim() : null,
+      limits: currentLimits(),
     };
     try {
       localStorage.setItem(DRAFT_KEY, JSON.stringify(draft));
@@ -1951,7 +2049,13 @@ function readDraft() {
   const factors = (Array.isArray(draft.factors) ? draft.factors.slice(0, 12) : [])
     .filter((f) => f && typeof f === "object")
     .map((f) => ({ name: text(f.name), low: text(f.low), high: text(f.high), units: text(f.units, 32) }));
-  return { response, factors, aim: AIMS.includes(draft.aim) ? draft.aim : null };
+  let limits = [];
+  try {
+    limits = checkConstraints(draft.limits ?? []);
+  } catch {
+    /* limits this page did not write: the brief comes back without them */
+  }
+  return { response, factors, aim: AIMS.includes(draft.aim) ? draft.aim : null, limits };
 }
 
 /** Put a draft brief back on the page, in Design. */
@@ -1969,6 +2073,7 @@ function restoreDraft(draft) {
   showResponse();
   $("#factors tbody").replaceChildren();
   (draft.factors.length ? draft.factors : [{}, {}]).forEach((factor) => addFactor(factor));
+  setLimits(draft.limits);
   aimChosen = Boolean(draft.aim);
   setAim(draft.aim ?? defaultAim(factorCount()));
   refreshDesign();
@@ -2511,7 +2616,7 @@ $("#factors").addEventListener("input", (e) => {
   }
 });
 $("#factors").addEventListener("change", (e) => {
-  if (labelBox(e.target)) factorRenamed();
+  if (labelBox(e.target)) factorRenamed(e.target.closest("tr"));
 });
 $("#add-factor").onclick = () => {
   box(addFactor(), "name").focus();
@@ -2631,6 +2736,7 @@ drop.ondrop = (e) => {
 document.addEventListener("visibilitychange", () => {
   if (document.visibilityState === "hidden") flushSave();
 });
+installLimits({ call, factors: readFactors, changed: limitsChanged, runs: picturedRuns });
 addFactor();
 addFactor();
 setAim(defaultAim(0));

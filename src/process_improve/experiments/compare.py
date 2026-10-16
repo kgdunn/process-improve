@@ -45,6 +45,7 @@ from typing import TYPE_CHECKING, Any
 import numpy as np
 import pandas as pd
 
+from process_improve.experiments._uniform_sampling import _TOL
 from process_improve.experiments.designs_utils import RESERVED_COLUMN_NAMES
 from process_improve.experiments.evaluate import _coefficient_power
 from process_improve.experiments.factor import DesignResult, Factor, FactorType
@@ -77,6 +78,11 @@ _CHUNK = 4096
 #: generator seeded with :data:`_REGION_SEED`, so every comparison draws the same points.
 _REGION_SAMPLES = 20_000
 _REGION_SEED = 0
+
+#: Over a region with a curved limit, G is also searched on its boundary: from each point of the
+#: sample, a ray in a random direction (a generator seeded with :data:`_REGION_SEED` + 1) to the
+#: box's surface, bisected this many times where the region rejects its far end.
+_BISECTIONS = 40
 
 #: A column whose centred norm is below this, relative to the run count, is constant.
 _CONSTANT = 1e-9
@@ -266,10 +272,11 @@ class DesignComparison:
         Returns
         -------
         tuple[Measure, ...]
-            :data:`MEASURES` without a region; with one, the same rows with the
+            :data:`MEASURES` without a region, or with one that has no constraints (the
+            cube's exact moments are used then); otherwise the same rows with the
             descriptions of I and G saying they are taken over the region.
         """
-        if self.region is None:
+        if self.region is None or not self.region.is_constrained:
             return MEASURES
         return tuple(dataclasses.replace(m, description=_OVER_THE_REGION.get(m.key, m.description)) for m in MEASURES)
 
@@ -439,21 +446,73 @@ def _region_points(region: DesignRegion, k: int) -> tuple[np.ndarray, np.ndarray
     """Return a uniform sample of the region, the points G is searched over, and how they were chosen.
 
     The sample is :data:`_REGION_SAMPLES` points drawn with a generator seeded with
-    :data:`_REGION_SEED`, the same on every run. G is searched over the region's support
-    points (its vertices, where its constraints cross the edges of a 3-level grid, and
-    that grid's points inside it), the points of the cube's own grid (see
-    :func:`_g_points`) that lie in the region, and the sample.
+    :data:`_REGION_SEED`, the same on every run. G is searched over the region's vertices
+    (every corner the straight limits leave that the curved ones keep, listed exactly
+    whenever there are at most 65536), its support points (where its constraints cross
+    the edges of a 3-level grid, and that grid's points inside it), the points of the
+    cube's own grid (see :func:`_g_points`) that lie in the region, and the sample. The
+    support points alone miss vertices once there are too many ways of choosing ``k``
+    boundaries to try (8 factors and 5 limits), and G, a maximum, usually sits at one.
+    With a curved limit, G is also searched on its boundary (see :func:`_curved_boundary`).
     """
     sample = region.sample(_REGION_SAMPLES, np.random.default_rng(_REGION_SEED))
     grid, described = _g_points(k)
     inside = grid[region.feasible(grid)]
+    vertices = region._vertices_coded()  # None when there are too many to list
+    corners = np.empty((0, k)) if vertices is None else vertices[region.feasible(vertices)]
     support = region.seed_points()  # none for a box too large for a boundary grid
+    boundary = _curved_boundary(region, sample)
     parts = [f"the {len(inside)} points of {described} that lie in the region"]
+    if len(corners):
+        parts.append(f"its {len(corners)} vertices")
     if len(support):
         parts.append(f"its {len(support)} support points")
+    if len(boundary):
+        parts.append(f"{len(boundary)} points on its boundary")
     parts.append(f"{len(sample)} points drawn uniformly from it")
     description = ", ".join(parts[:-1]) + " and " + parts[-1]
-    return sample, np.vstack([support, inside, sample]), description
+    return sample, np.vstack([corners, support, boundary, inside, sample]), description
+
+
+def _curved_boundary(region: DesignRegion, sample: np.ndarray) -> np.ndarray:
+    """Return points on the boundary of a region with a curved limit, one per sample point; none without one.
+
+    The support points touch a curved boundary only where it crosses the edges of a
+    3-level grid, and a uniform sample rarely lands on it, while G usually sits there.
+    From each sample point a ray in a random direction runs to where the box or a
+    straight limit stops it, found exactly; where a curved limit rejects that end,
+    :data:`_BISECTIONS` halvings of the segment find a point of the region within
+    ``2**-40`` of the segment's length of the curved boundary it crosses.
+    """
+    rows = region._linear()
+    if not rows.nonlinear or not len(sample):
+        return np.empty((0, sample.shape[1]))
+    direction = np.random.default_rng(_REGION_SEED + 1).standard_normal(sample.shape)
+    with np.errstate(divide="ignore", invalid="ignore"):
+        reach = np.where(direction != 0, (np.sign(direction) - sample) / direction, np.inf).min(axis=1)
+        if len(rows.b):
+            rate = direction @ rows.a.T  # how fast each straight limit's left side grows along the ray
+            room = np.maximum(rows.b - sample @ rows.a.T, 0.0)
+            reach = np.minimum(reach, np.where(rate > 0, room / rate, np.inf).min(axis=1))
+
+    def kept(points: np.ndarray) -> np.ndarray:
+        ok = np.ones(len(points), dtype=bool)
+        with np.errstate(invalid="ignore", divide="ignore"):
+            for g in rows.nonlinear:
+                ok &= g(points) <= _TOL  # the tolerance feasible() gives a curved limit
+        return ok
+
+    near = sample.copy()
+    far = sample + reach[:, None] * direction
+    reached = kept(far)
+    near[reached] = far[reached]
+    low, high = near[~reached], far[~reached]
+    for _ in range(_BISECTIONS):
+        middle = (low + high) / 2.0
+        inside = kept(middle)
+        low[inside], high[~inside] = middle[inside], middle[~inside]
+    near[~reached] = low
+    return near[region.feasible(near)]
 
 
 def _build_model(k: int, model: str, names: Sequence[str], region: DesignRegion | None = None) -> _Model:
@@ -758,9 +817,10 @@ def compare_designs(
     :math:`I` and :math:`G` are taken over the settings that can be run rather than
     over the cube: :math:`\mathbf{B}` is averaged over 20000 points drawn uniformly
     from the region (with a fixed seed, so the numbers are the same on every run), and
-    :math:`G` is searched over the region's support points (its vertices, and where its
-    limits cross the edges of a 3-level grid), the points of the grid above that lie in
-    it, and the same sample. The other measures do not depend on where predictions are
+    :math:`G` is searched over the region's vertices, its support points (where its
+    limits cross the edges of a 3-level grid), points on the boundary of a curved limit
+    (one on a ray from each point of the sample), the points of the grid above that lie
+    in it, and the same sample. The other measures do not depend on where predictions are
     made, and are the same with or without a region. A design with runs outside the
     region is noted. Without a region, or with one that has no constraints, the cube's
     exact moments are used.

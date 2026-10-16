@@ -22,16 +22,16 @@ Two kinds of region exist, and each works in its own *design units*:
 as a plain dict, which :meth:`DesignRegion.from_dict` turns back into a region.
 
 A box region also describes itself, in actual units, for someone writing limits on
-the settings: the share of the box it keeps (:meth:`~DesignRegion.volume_fraction`),
-whether anything is left (:meth:`~DesignRegion.is_empty`), the range each factor can
-still reach (:meth:`~DesignRegion.implied_bounds`), a central setting to hold other
-factors at (:meth:`~DesignRegion.centroid`), the limits that remove nothing
-(:meth:`~DesignRegion.redundant_constraints`), each limit's affine form
-(:meth:`~DesignRegion.linear_forms`), its corners (:meth:`~DesignRegion.vertices`),
-and pictures of it on any two factors: its shadow (:meth:`~DesignRegion.shadow`), a
-slice through it (:meth:`~DesignRegion.slice_polygon`, :meth:`~DesignRegion.slice_lines`)
-and the slack of a grid (:meth:`~DesignRegion.slice_slack`). Every answer is
-deterministic, and fast enough to recompute on each edit of 8 limits on 8 factors.
+the settings: the share of the box it keeps (:meth:`~DesignRegion.volume_fraction`,
+exact for straight limits), whether anything is left (:meth:`~DesignRegion.is_empty`),
+the range each factor can still reach (:meth:`~DesignRegion.implied_bounds`), a central
+setting to hold other factors at (:meth:`~DesignRegion.centroid`), the limits that remove
+nothing (:meth:`~DesignRegion.redundant_constraints`), each limit's affine form
+(:meth:`~DesignRegion.linear_forms`), its corners (:meth:`~DesignRegion.vertices`), and
+pictures of it on any two factors: its shadow (:meth:`~DesignRegion.shadow`), a slice
+through it (:meth:`~DesignRegion.slice_polygon`, :meth:`~DesignRegion.slice_lines`) and
+the slack of a grid (:meth:`~DesignRegion.slice_slack`). Every answer is deterministic,
+and fast enough to recompute on each edit of 8 limits on 8 factors.
 """
 
 from __future__ import annotations
@@ -40,6 +40,7 @@ import ast
 import math
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
+from fractions import Fraction
 from typing import Any, Literal, cast
 
 import numpy as np
@@ -47,6 +48,7 @@ from scipy.optimize import linprog
 from scipy.stats import qmc
 
 from process_improve.experiments._region_geometry import (
+    box_share,
     box_vertices,
     clip_square,
     convex_polygon,
@@ -159,8 +161,24 @@ class DesignRegion:
 
     @classmethod
     def from_dict(cls, spec: dict[str, Any]) -> DesignRegion:
-        """Rebuild a region from :meth:`to_dict` output."""
-        return cls([Factor(**f) for f in spec["factors"]], [Constraint(**c) for c in spec.get("constraints", [])])
+        """Rebuild a region from :meth:`to_dict` output.
+
+        The constraints go through the constructor, so they may take any form it accepts
+        (``Constraint`` dicts as :meth:`to_dict` writes them, or bare expressions), and a
+        missing or ``None`` entry means no constraints.
+
+        Parameters
+        ----------
+        spec : dict[str, Any]
+            ``{"factors": [...], "constraints": [...]}``; a ``"kind"`` entry is ignored,
+            since the factors decide it.
+
+        Returns
+        -------
+        DesignRegion
+            The region.
+        """
+        return cls([Factor(**f) for f in spec["factors"]], spec.get("constraints") or [])
 
     def __repr__(self) -> str:
         """Return a short summary."""
@@ -182,15 +200,46 @@ class DesignRegion:
         return [(-1.0, 1.0)] * len(self.names)
 
     def feasible(self, x: np.ndarray, tol: float = _TOL) -> np.ndarray:
-        """Return a boolean per row of ``x`` (design units): inside the bounds and every constraint."""
+        """Return a boolean per row of ``x`` (design units): inside the bounds and every constraint.
+
+        Parameters
+        ----------
+        x : np.ndarray
+            Points ``(n, k)`` in design units (coded for a box, proportions for a mixture).
+        tol : float
+            How far a point may lie outside. For a straight limit of a box region whose
+            coded gradient is longer than 1 it is a distance in coded units (the limit's
+            value divided by that length), so a limit multiplied through by a constant
+            accepts the same points, and the corners the region reports
+            (:meth:`vertices`, :meth:`shadow`, :meth:`slice_polygon`), rounded within
+            ``1e-12`` of their boundaries, pass; otherwise it is in the limit's own units,
+            as for a curved limit.
+
+        Returns
+        -------
+        np.ndarray
+            A boolean per row.
+        """
         x = np.atleast_2d(np.asarray(x, dtype=float))
         low, high = np.array(self.bounds, dtype=float).reshape(-1, 2).T
         ok = np.all((x >= low - tol) & (x <= high + tol), axis=1)
         if self.kind == "mixture":
             ok &= np.abs(x.sum(axis=1) - 1.0) <= 1e-6
-        for g in self._inequalities:
-            ok &= g(x) <= tol
+        for g, widen in zip(self._inequalities, self._widen(), strict=True):
+            ok &= g(x) <= tol * widen
         return ok
+
+    def _widen(self) -> np.ndarray:
+        """Return, per inequality, what the tolerance on its value is multiplied by (cached).
+
+        For a straight limit of a box region it is the length of its coded gradient when
+        above 1, which turns the tolerance into a distance; else 1, which keeps the
+        tolerance of a gently sloped or curved limit in its own units.
+        """
+        if "widen" not in self._cache:
+            scale = self._linear().scale if self.kind == "box" else [1.0] * len(self._inequalities)
+            self._cache["widen"] = np.maximum(np.asarray(scale, dtype=float), 1.0).reshape(len(self._inequalities))
+        return self._cache["widen"]
 
     def sample(self, n: int, rng: np.random.Generator) -> np.ndarray:
         """Draw ``n`` points uniformly from the region, in design units: an ``(n, 0)`` array without continuous factors.
@@ -314,7 +363,7 @@ class DesignRegion:
     def _cloud_allowed(self) -> np.ndarray:
         """Return the :meth:`_cloud` points that meet every constraint (cached; all lie in the box)."""
         if "allowed" not in self._cache:
-            self._cache["allowed"] = self._cloud()[np.all(self._cloud_slack() <= _TOL, axis=1)]
+            self._cache["allowed"] = self._cloud()[np.all(self._cloud_slack() <= _TOL * self._widen(), axis=1)]
         return self._cache["allowed"]
 
     def _actual(self, coded: np.ndarray, columns: list[int] | None = None) -> np.ndarray:
@@ -351,16 +400,31 @@ class DesignRegion:
     def volume_fraction(self, n_samples: int = 2**14) -> float:
         """Return the share of the factor box that the constraints leave: 1 without constraints, 0 when empty.
 
-        The share is the fraction of ``n_samples`` points of the unscrambled Sobol
-        sequence (moved to the midpoints of their cells) that meet every constraint. The
-        points are fixed, so the result is the same on every run and on every platform;
-        with the default ``2**14`` points it is within about 0.005 of the exact share
-        for the regions of a few factors that limits describe.
+        With straight constraints only, the share is exact, to rounding. The factors are
+        split into the groups the constraints tie together (a factor no constraint names
+        keeps its whole range), and the share is the product of the groups' shares: in
+        closed form for a group under one constraint, a chained one such as ``"400 <= 3*T +
+        5*D <= 600"`` included, and from the volume of the polytope's convex hull for a group
+        of up to five factors under several (see
+        :func:`~process_improve.experiments._region_geometry.box_share`).
+
+        Otherwise (a curved constraint, or six factors or more that several constraints tie
+        together), the share is counted over ``n_samples`` points of the unscrambled Sobol
+        sequence (moved to the midpoints of their cells). Beside a curved constraint, the
+        share the straight ones leave is still exact, and the points count only what the
+        curved ones take from it: the share is that exact share times the fraction of the
+        points inside the straight constraints that meet every constraint. Else (or when the
+        straight constraints leave too thin a region for any point to lie in it) it is the
+        fraction of all the points that meet every constraint. The points are fixed, so the
+        result is the same on every run and on every platform; with the default ``2**14``
+        points it is within about 0.005 of the exact share for the regions of a few factors
+        that limits describe.
 
         Parameters
         ----------
         n_samples : int
-            Number of points; a power of two keeps the sequence balanced.
+            Number of points, when the share is sampled; a power of two keeps the sequence
+            balanced.
 
         Returns
         -------
@@ -383,9 +447,28 @@ class DesignRegion:
             raise ValueError(f"n_samples must be at least 1; got {n_samples}.")
         if not self.constraints:
             return 1.0
-        if n_samples == _N_SAMPLES:
-            return float(np.mean(self._sample_allowed()))
-        return float(np.mean(self.feasible(self._unit_sample(n_samples))))
+        exact = self._exact_share()
+        if exact is not None:
+            return exact
+        sample = self._unit_sample(n_samples)
+        allowed = self._sample_allowed() if n_samples == _N_SAMPLES else self.feasible(sample)
+        rows = self._linear()
+        straight = self._straight_share()
+        inside = np.all(sample @ rows.a.T <= rows.b + _TOL, axis=1)
+        if straight is None or not inside.any():
+            return float(np.mean(allowed))
+        return straight * float(np.mean(allowed[inside]))
+
+    def _exact_share(self) -> float | None:
+        """Return the exact share of the box with straight constraints only, or None when it is sampled."""
+        return None if self._linear().nonlinear else self._straight_share()
+
+    def _straight_share(self) -> float | None:
+        """Return the exact share of the box its straight constraints leave, or None when not had fast (cached)."""
+        if "straight_share" not in self._cache:
+            rows = self._linear()
+            self._cache["straight_share"] = box_share(rows.a, rows.b)
+        return self._cache["straight_share"]
 
     def _sample_allowed(self) -> np.ndarray:
         """Return whether each point of the default Sobol sample is allowed (cached)."""
@@ -552,9 +635,39 @@ class DesignRegion:
                 return False
         slack = self._cloud_slack()
         limit_of = np.array(self._limit_of, dtype=int)
-        kept_by_others = np.all(slack[:, limit_of != i] <= _TOL, axis=1)
-        removed_here = np.any(slack[:, limit_of == i] > _TOL, axis=1)
+        within = slack <= _TOL * self._widen()  # NaN, where a limit is undefined, is not within: it removes
+        kept_by_others = np.all(within[:, limit_of != i], axis=1)
+        removed_here = np.any(~within[:, limit_of == i], axis=1)
         return not bool(np.any(kept_by_others & removed_here))
+
+    def curved_constraints(self) -> list[int]:
+        """Return the indices of the constraints that are curved: not affine over the factor box.
+
+        A constraint is straight when each of its comparisons is affine over the box, by
+        the test the design engines use, so ``"400 <= 3*T + 5*D <= 600"`` and ``"T <= 2*D"``
+        are straight, and so is ``"abs(T) <= 3"`` over a box where ``T`` keeps one sign. The
+        diagnostics treat the straight ones exactly and the curved ones by sampling (see
+        :meth:`is_empty`); :meth:`implied_bounds` leaves the curved ones out, and
+        :meth:`vertices` refuses a region that has any.
+
+        Returns
+        -------
+        list[int]
+            Indices into ``constraints``, in order.
+
+        Raises
+        ------
+        ValueError
+            For a mixture region.
+
+        Examples
+        --------
+        >>> T, D = Factor(name="T", low=100, high=150), Factor(name="D", low=20, high=60)
+        >>> DesignRegion([T, D], ["3*T + 5*D <= 600", "T * D <= 7000", "T <= 2*D"]).curved_constraints()
+        [1]
+        """
+        self._require_box("curved_constraints")
+        return sorted(set(self._linear().nonlinear_limit))
 
     def linear_forms(self) -> list[tuple[dict[str, float], float | None, float | None] | None]:
         """Return each constraint as ``(coefficients, low, high)`` in actual units, or None where it is not affine.
@@ -565,9 +678,12 @@ class DesignRegion:
         side it does not bound. The factors stay on the side they were written on, so
         ``"600 >= 3*T + 5*D"`` gives the same form, and ``"T <= 2*D"`` gives
         ``({"T": 1.0, "D": -2.0}, None, 0.0)``. Each comparison is tested for being
-        affine over the factor box, the test the design engines use, and its form is read
-        off there; coefficients whose effect over the box is below ``1e-9`` of the largest
-        are set to zero, and every number is rounded to 12 significant figures, so
+        affine over the factor box, the test the design engines use. Its form is then read
+        off the expression in exact arithmetic, with each number taken as written, so
+        ``"TK + 0.01*P <= 340"`` gives ``0.01`` and not ``0.00999999999999``; where the
+        expression is affine over the box only (``abs(T)`` with ``T`` positive), it is read
+        off a fit there. Coefficients whose effect over the box is below ``1e-9`` of the
+        largest are set to zero, and every number is rounded to 12 significant figures, so
         floating-point residue such as ``1.65e-14`` or ``250.00000000000009`` does not
         appear.
 
@@ -592,12 +708,20 @@ class DesignRegion:
                 mirrored = not _factor_names(left) and bool(_factor_names(right))
                 upper = isinstance(op, ast.Lt | ast.LtE) != mirrored
                 first, second = (g_right, g_left) if mirrored else (g_left, g_right)
-                pairs.append((self._affine_actual(first, second), upper))
+                written = (right, left) if mirrored else (left, right)
+                pairs.append((self._affine_actual(first, second, written), upper))
             out.append(_combine_forms(pairs, self.names))
         return out
 
-    def _affine_actual(self, first: Callable, second: Callable) -> tuple[np.ndarray, float] | None:
-        """Return ``first - second`` as ``(c, r)``, with ``first - second = c @ X - r`` in actual units, or None."""
+    def _affine_actual(
+        self, first: Callable, second: Callable, written: tuple[ast.expr, ast.expr] | None = None
+    ) -> tuple[np.ndarray, float] | None:
+        """Return ``first - second`` as ``(c, r)``, with ``first - second = c @ X - r`` in actual units, or None.
+
+        ``written`` holds the two sides as parsed: when both are affine by their syntax,
+        the form is read off them exactly rather than off the fit in coded units, whose
+        digits run out when a constant is large next to a coefficient's effect over the box.
+        """
         centre, half = self._centre, self._half
 
         def coded(x: np.ndarray) -> np.ndarray:
@@ -610,10 +734,16 @@ class DesignRegion:
         form = _affine_form(coded, -ones, ones)
         if form is None:
             return None
-        a, b = form
-        a = np.where(np.abs(a) <= _SNAP * (np.abs(a).sum() + abs(b)), 0.0, a)  # effect on g below 1e-9 of its size
-        coef = a / half
-        rhs = b + float(coef @ centre)
+        exact = None if written is None else _exact_difference(*written, self.names)
+        if exact is not None:
+            coef, rhs = exact
+            effect = np.abs(coef) * half
+            coef = np.where(effect <= _SNAP * effect.max(initial=0.0), 0.0, coef)
+        else:
+            a, b = form
+            a = np.where(np.abs(a) <= _SNAP * (np.abs(a).sum() + abs(b)), 0.0, a)  # effect on g below 1e-9 of its size
+            coef = a / half
+            rhs = b + float(coef @ centre)
         scale = float(np.abs(coef) @ np.maximum(np.abs(self._low), np.abs(self._high))) + abs(rhs)
         rhs = 0.0 if abs(rhs) <= _SNAP * scale else rhs
         return round_significant(coef, _DIGITS), float(round_significant(np.array(rhs), _DIGITS))
@@ -622,8 +752,9 @@ class DesignRegion:
         """Return the vertices of the region, in actual units, when every constraint is linear.
 
         The region is then a convex polytope: the box cut by the constraints. Its vertices
-        are where the extreme settings (and the runs of a D-optimal design) lie. They are
-        found by cutting the box one constraint at a time (see
+        are the extreme settings, where a D-optimal design for a main-effects model puts
+        its runs (one for a quadratic model also uses edge midpoints and face centres).
+        They are found by cutting the box one constraint at a time (see
         :func:`~process_improve.experiments._region_geometry.box_vertices`), so the work
         grows with the number of vertices rather than with the ways of choosing ``k``
         boundaries.
@@ -822,9 +953,10 @@ class DesignRegion:
         the other factors held at ``at``. A linear constraint's slack is its signed
         distance from its boundary in coded units, so it varies linearly over the grid and
         a contour of it at zero draws a straight limit straight; a curved constraint's
-        slack is its own value (the left side minus the right). A value within ``1e-9`` of
-        zero is returned as zero, the tolerance :meth:`feasible` uses, so ``<= 0`` here
-        agrees with :meth:`feasible` at every point.
+        slack is its own value (the left side minus the right), and ``+inf`` where it cannot
+        be evaluated. A value within the default tolerance of :meth:`feasible` (``1e-9``,
+        as a coded distance for a steep straight limit) is returned as zero, so ``<= 0``
+        here agrees with :meth:`feasible` at every point.
 
         Parameters
         ----------
@@ -867,15 +999,19 @@ class DesignRegion:
         """Return the largest slack per coded point over the inequalities alone, zero within the tolerance.
 
         A linear inequality's slack is its signed distance from its boundary in coded
-        units, a curved one's its own value; ``-inf`` without inequalities. Leaving the
-        box out keeps the slack of straight limits linear up to the box's faces, so a
-        contour of it at zero is straight there too.
+        units, a curved one's its own value, and ``+inf`` where a curved one cannot be
+        evaluated (``sqrt`` or ``log`` of a negative number): :meth:`feasible` cannot run
+        such a setting either, so ``> 0`` and ``<= 0`` both agree with it. ``-inf`` without
+        inequalities. Leaving the box out keeps the slack of straight limits linear up to
+        the box's faces, so a contour of it at zero is straight there too.
         """
         rows = self._linear()
         parts = []
-        for g, scale in zip(self._inequalities, rows.scale, strict=True):
-            value = g(coded)
-            parts.append(np.where(np.abs(value) <= _TOL, 0.0, value / scale)[:, None])
+        for g, scale, widen in zip(self._inequalities, rows.scale, self._widen(), strict=True):
+            with np.errstate(invalid="ignore", divide="ignore"):
+                value = g(coded)
+            value = np.where(np.isnan(value), np.inf, value)
+            parts.append(np.where(np.abs(value) <= _TOL * widen, 0.0, value / scale)[:, None])
         if not parts:
             return np.full(len(coded), -np.inf)
         return np.max(np.hstack(parts), axis=1)
@@ -920,7 +1056,13 @@ class _Rows:
                 scale.append(1.0)
                 continue
             a, b = form
-            size = float(np.linalg.norm(a))
+            with np.errstate(over="ignore"):
+                size = float(np.linalg.norm(a))
+            if not (math.isfinite(size) and math.isfinite(b)):  # a constant near 1e300 overflowed the fit
+                nonlinear.append(g)
+                nonlinear_limit.append(limit)
+                scale.append(1.0)
+                continue
             if size <= _SNAP * (1.0 + abs(b)):  # compares numbers only
                 scale.append(1.0)
                 if b < -_TOL:
@@ -936,6 +1078,92 @@ class _Rows:
             limits.append(limit)
         a_mat = np.array(a_rows, dtype=float).reshape(len(a_rows), k)
         return cls(a_mat, np.array(b_rows, dtype=float), np.array(limits, dtype=int), scale, nonlinear, nonlinear_limit)
+
+
+_Exact = tuple[dict[str, Fraction], Fraction]
+
+
+def _exact_difference(first: ast.expr, second: ast.expr, names: list[str]) -> tuple[np.ndarray, float] | None:
+    """Return ``first - second`` as ``(c, r)`` with ``first - second = c @ X - r``, exactly, or None.
+
+    None unless both sides are affine by their syntax (see :func:`_exact_affine`).
+    """
+    left, right = _exact_affine(first), _exact_affine(second)
+    if left is None or right is None:
+        return None
+    coefficients = np.array([float(left[0].get(n, 0) - right[0].get(n, 0)) for n in names])
+    return coefficients, float(right[1] - left[1])
+
+
+def _exact_affine(node: ast.expr) -> _Exact | None:
+    """Return a parsed expression as ``({name: coefficient}, constant)`` in exact arithmetic, or None.
+
+    Numbers are taken as written (``Fraction("0.01")``, not the double nearest it), and
+    ``+``, ``-``, a product with a constant and a division by one are kept exact. A part
+    without factors (``2**0.5``, ``sqrt(2)``) is evaluated in floating point. Anything
+    else (a product of factors, a function of one) gives None.
+    """
+    if isinstance(node, ast.Constant) and isinstance(node.value, int | float) and not isinstance(node.value, bool):
+        finite = math.isfinite(node.value)
+        return ({}, Fraction(node.value if isinstance(node.value, int) else repr(node.value))) if finite else None
+    if isinstance(node, ast.Name):
+        return {node.id: Fraction(1)}, Fraction(0)
+    if isinstance(node, ast.UnaryOp) and isinstance(node.op, ast.USub | ast.UAdd):
+        inner = _exact_affine(node.operand)
+        return inner if inner is None or isinstance(node.op, ast.UAdd) else _scaled(inner, Fraction(-1))
+    if isinstance(node, ast.BinOp):
+        left, right = _exact_affine(node.left), _exact_affine(node.right)
+        return None if left is None or right is None else _exact_operation(node.op, left, right)
+    if isinstance(node, ast.Call) and isinstance(node.func, ast.Name) and len(node.args) == 1:
+        argument = _exact_affine(node.args[0])
+        return None if argument is None or _varies(argument) else _exact_function(node.func.id, argument[1])
+    return None
+
+
+def _varies(form: _Exact) -> bool:
+    """Return whether an exact affine form depends on a factor."""
+    return any(form[0].values())
+
+
+def _exact_operation(op: ast.operator, left: _Exact, right: _Exact) -> _Exact | None:
+    """Return ``left op right`` for two exact affine forms, or None when the result is not affine."""
+    if isinstance(op, ast.Add | ast.Sub):
+        sign = 1 if isinstance(op, ast.Add) else -1
+        zero = Fraction(0)
+        coefficients = {n: left[0].get(n, zero) + sign * right[0].get(n, zero) for n in set(left[0]) | set(right[0])}
+        return coefficients, left[1] + sign * right[1]
+    if isinstance(op, ast.Mult) and not (_varies(left) and _varies(right)):
+        return _scaled(right, left[1]) if not _varies(left) else _scaled(left, right[1])
+    if isinstance(op, ast.Div) and not _varies(right) and right[1] != 0:
+        return _scaled(left, 1 / right[1])
+    if isinstance(op, ast.Pow) and not _varies(left) and not _varies(right):
+        base, power = left[1], right[1]
+        if power.denominator == 1 and abs(power) <= 64 and (base != 0 or power > 0):
+            return {}, base ** int(power)
+        return _constant(lambda: float(base) ** float(power))
+    return None
+
+
+def _exact_function(name: str, value: Fraction) -> _Exact | None:
+    """Return one of the allowed functions of a constant: ``abs`` exactly, the others in floating point."""
+    if name == "abs":
+        return {}, abs(value)
+    function = {"sqrt": math.sqrt, "exp": math.exp, "log": math.log, "log10": math.log10}.get(name)
+    return None if function is None else _constant(lambda: function(float(value)))
+
+
+def _scaled(form: _Exact, factor: Fraction) -> _Exact:
+    """Return an exact affine form multiplied by a constant."""
+    return {n: c * factor for n, c in form[0].items()}, form[1] * factor
+
+
+def _constant(evaluate: Callable[[], Any]) -> _Exact | None:
+    """Return a constant computed in floating point as an exact form, or None where it is not a finite number."""
+    try:
+        value = evaluate()
+    except (ValueError, OverflowError, ZeroDivisionError):
+        return None
+    return ({}, Fraction(repr(value))) if isinstance(value, float) and math.isfinite(value) else None
 
 
 def _lp_extreme(c: np.ndarray, a: np.ndarray, b: np.ndarray) -> np.ndarray | None:

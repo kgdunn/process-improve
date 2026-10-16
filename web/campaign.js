@@ -95,6 +95,36 @@ function responseInfo(value) {
   return out;
 }
 
+/**
+ * The most limits a study can have on its settings, and the most characters of a limit and of its note:
+ * as bootstrap.py holds them, and logic.js (tests/web/page/test_parity.py keeps the three in step).
+ */
+export const LIMITS_HELD = { count: 8, expression: 500, note: 80 };
+
+/** A control character, which no limit or note typed on the page holds. */
+const CONTROL = /[\u0000-\u001f\u007f]/;
+
+/**
+ * The limits on a study's settings, checked for their shape only: Python reads each one when it is used.
+ * Each is its text, its type when that is one Python writes, and its note when it has one; anything else
+ * is dropped, and a list that is not one of limits is refused.
+ */
+export function checkConstraints(value) {
+  const limits = list(value, "the limits on the settings", LIMITS_HELD.count);
+  return limits.map((c, i) => {
+    if (!isObject(c)) refuse(`limit ${i + 1} is not a limit`);
+    const expression = text(c.expression, `limit ${i + 1}`, LIMITS_HELD.expression);
+    if (CONTROL.test(expression)) refuse(`limit ${i + 1} is not one line of text`);
+    const out = { expression };
+    if (c.type === "linear" || c.type === "nonlinear") out.type = c.type;
+    if (c.note !== undefined && c.note !== "") {
+      out.note = text(c.note, `limit ${i + 1}'s note`, LIMITS_HELD.note);
+      if (CONTROL.test(out.note)) refuse(`limit ${i + 1}'s note is not one line of text`);
+    }
+    return out;
+  });
+}
+
 function spec(value) {
   if (!isObject(value)) refuse("it holds no design");
   const factors = list(value.factors, "the factor list", 12).map(factor);
@@ -109,6 +139,10 @@ function spec(value) {
   if (value.version !== undefined) out.version = value.version;
   if (value.response_info !== undefined && value.response_info !== null) out.response_info = responseInfo(value.response_info);
   if (AIMS.includes(value.aim)) out.aim = value.aim;
+  if (value.constraints !== undefined && value.constraints !== null) {
+    const limits = checkConstraints(value.constraints);
+    if (limits.length) out.constraints = limits;
+  }
   return out;
 }
 
