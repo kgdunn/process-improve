@@ -473,13 +473,16 @@ def _polytope_vertices(region: _Region) -> np.ndarray:
         return np.empty((0, k))
     a_rows, b_rows = [], []
     for a, b in rows:
+        # Over the box |a @ x| <= sum |a|, so a row with less than |b| there (a limit on numbers only, whose
+        # fit leaves a gradient of rounding noise) holds everywhere or nowhere, by the sign of b.
+        if not a.any() or np.abs(a).sum() < abs(b):
+            if b < 0:  # no point meets it
+                a_rows.append(np.zeros(k))
+                b_rows.append(-1.0)
+            continue
         size = math.hypot(*a)
-        if size > 0:
-            a_rows.append(a / size)
-            b_rows.append(b / size)
-        elif b < 0:  # compares numbers only, and fails: no point meets it
-            a_rows.append(np.zeros(k))
-            b_rows.append(-1.0)
+        a_rows.append(a / size)
+        b_rows.append(b / size)
     try:
         return box_vertices(np.array(a_rows).reshape(len(a_rows), k), np.array(b_rows), _MAX_VERTEX_CANDIDATES)
     except ValueError:  # more vertices than the candidate set takes

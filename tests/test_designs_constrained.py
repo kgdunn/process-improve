@@ -229,6 +229,17 @@ class TestCandidates:
         region = _Region(factors, [], parse_constraint(" + ".join(names) + " <= 0", set(names)))
         assert _polytope_vertices(region).shape == (0, 14)
 
+    def test_a_limit_on_numbers_alone_removes_every_vertex_or_none(self) -> None:
+        """``2 <= 1`` holds nowhere, so no vertex is left; ``1 <= 2`` holds everywhere and changes none."""
+        names = {"T", "D"}
+        heat = parse_constraint(HEAT.expression, names)
+        alone = _polytope_vertices(_Region([TEMP, DOSE], [], heat))
+        assert len(alone) == 4
+        failing = _Region([TEMP, DOSE], [], heat + parse_constraint("2 <= 1", names))
+        assert _polytope_vertices(failing).shape == (0, 2)
+        holding = _Region([TEMP, DOSE], [], heat + parse_constraint("1 <= 2", names))
+        np.testing.assert_array_equal(_polytope_vertices(holding), alone)
+
     def test_grid_too_large_to_list_is_sampled(self) -> None:
         region = _Region([Factor(name=f"X{i}", low=0, high=1) for i in range(12)], [], [])
         coded, _cats, counts = build_candidates(region)
