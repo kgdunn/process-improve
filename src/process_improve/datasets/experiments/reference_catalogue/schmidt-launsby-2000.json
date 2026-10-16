@@ -70983,7 +70983,7 @@
     "coded": false,
     "notes": "Table 2"
    },
-   "notes": "The averages of Table 3 and T are worked from the printed Actual column, including run 5's 2946.91, which is 50 below the average of its two readings. Table 1 lists the equation's predictions for all 80 combinations. The deviations of runs 14 and 16 do not follow from their actual and predicted values (14.57% and -32.87%).",
+   "notes": "The averages of Table 3 and T are worked from the printed Actual column, including run 5's 2946.91, which is 50 below the average of its two readings. Table 1 lists the equation's predictions for all 80 combinations. Equation [8] predicts from marginal averages: T plus each factor's deviation, plus the W x E, E x P and W x P two-factor averages' deviations. Run 14's printed prediction has two digits exchanged, and run 16's deviation does not follow from its actual and predicted values (-32.87%).",
    "expected": [
     {
      "what": "mean of readings",
@@ -71368,468 +71368,1388 @@
      "what": "predicted",
      "term": "run 1",
      "value": "3893.40",
+     "analysis": "the book's equation [8], from marginal averages: T plus each factor's deviation, plus the W x E, E x P and W x P two-factor averages' deviations, each average printed rounded",
      "where": {
       "page": "8-98",
       "source_kind": "table",
       "quote": "Table 2 Actual Generations and Compressive Strength (psi) ... run 1 ... Predicted 3893.40"
      },
      "check": {
-      "manual": "the book's prediction equation [8], built from marginal averages and three two-factor averages; no check computes it"
+      "kind": "marginal_means",
+      "run": 1,
+      "of_rounded": 9,
+      "response": "actual",
+      "factors": [
+       "C",
+       "E",
+       "W",
+       "P",
+       "A"
+      ],
+      "interactions": [
+       [
+        "W",
+        "E"
+       ],
+       [
+        "E",
+        "P"
+       ],
+       [
+        "W",
+        "P"
+       ]
+      ]
      }
     },
     {
      "what": "deviation",
      "term": "run 1",
      "value": "-2.98",
+     "analysis": "(actual - predicted)/actual x 100, the prediction by equation [8]",
      "where": {
       "page": "8-98",
       "source_kind": "table",
       "quote": "Table 2 Actual Generations and Compressive Strength (psi) ... run 1 ... Deviation (%) -2.98"
      },
      "check": {
-      "manual": "(actual - predicted)/actual x 100, from a predicted value no check computes"
+      "kind": "marginal_means",
+      "run": 1,
+      "deviation": "percent",
+      "observed": "actual",
+      "response": "actual",
+      "factors": [
+       "C",
+       "E",
+       "W",
+       "P",
+       "A"
+      ],
+      "interactions": [
+       [
+        "W",
+        "E"
+       ],
+       [
+        "E",
+        "P"
+       ],
+       [
+        "W",
+        "P"
+       ]
+      ]
      }
     },
     {
      "what": "predicted",
      "term": "run 2",
      "value": "4962.02",
+     "analysis": "the book's equation [8], from marginal averages: T plus each factor's deviation, plus the W x E, E x P and W x P two-factor averages' deviations, each average printed rounded",
      "where": {
       "page": "8-98",
       "source_kind": "table",
       "quote": "Table 2 Actual Generations and Compressive Strength (psi) ... run 2 ... Predicted 4962.02"
      },
      "check": {
-      "manual": "the book's prediction equation [8], built from marginal averages and three two-factor averages; no check computes it"
+      "kind": "marginal_means",
+      "run": 2,
+      "of_rounded": 9,
+      "response": "actual",
+      "factors": [
+       "C",
+       "E",
+       "W",
+       "P",
+       "A"
+      ],
+      "interactions": [
+       [
+        "W",
+        "E"
+       ],
+       [
+        "E",
+        "P"
+       ],
+       [
+        "W",
+        "P"
+       ]
+      ]
      }
     },
     {
      "what": "deviation",
      "term": "run 2",
      "value": "+10.68",
+     "analysis": "(actual - predicted)/actual x 100, the prediction by equation [8]",
      "where": {
       "page": "8-98",
       "source_kind": "table",
       "quote": "Table 2 Actual Generations and Compressive Strength (psi) ... run 2 ... Deviation (%) +10.68"
      },
      "check": {
-      "manual": "(actual - predicted)/actual x 100, from a predicted value no check computes"
+      "kind": "marginal_means",
+      "run": 2,
+      "deviation": "percent",
+      "observed": "actual",
+      "response": "actual",
+      "factors": [
+       "C",
+       "E",
+       "W",
+       "P",
+       "A"
+      ],
+      "interactions": [
+       [
+        "W",
+        "E"
+       ],
+       [
+        "E",
+        "P"
+       ],
+       [
+        "W",
+        "P"
+       ]
+      ]
      }
     },
     {
      "what": "predicted",
      "term": "run 3",
      "value": "5064.10",
+     "analysis": "the book's equation [8], from marginal averages: T plus each factor's deviation, plus the W x E, E x P and W x P two-factor averages' deviations, each average printed rounded",
      "where": {
       "page": "8-98",
       "source_kind": "table",
       "quote": "Table 2 Actual Generations and Compressive Strength (psi) ... run 3 ... Predicted 5064.10"
      },
      "check": {
-      "manual": "the book's prediction equation [8], built from marginal averages and three two-factor averages; no check computes it"
+      "kind": "marginal_means",
+      "run": 3,
+      "of_rounded": 9,
+      "response": "actual",
+      "factors": [
+       "C",
+       "E",
+       "W",
+       "P",
+       "A"
+      ],
+      "interactions": [
+       [
+        "W",
+        "E"
+       ],
+       [
+        "E",
+        "P"
+       ],
+       [
+        "W",
+        "P"
+       ]
+      ]
      }
     },
     {
      "what": "deviation",
      "term": "run 3",
      "value": "-9.95",
+     "analysis": "(actual - predicted)/actual x 100, the prediction by equation [8]",
      "where": {
       "page": "8-98",
       "source_kind": "table",
       "quote": "Table 2 Actual Generations and Compressive Strength (psi) ... run 3 ... Deviation (%) -9.95"
      },
      "check": {
-      "manual": "(actual - predicted)/actual x 100, from a predicted value no check computes"
+      "kind": "marginal_means",
+      "run": 3,
+      "deviation": "percent",
+      "observed": "actual",
+      "response": "actual",
+      "factors": [
+       "C",
+       "E",
+       "W",
+       "P",
+       "A"
+      ],
+      "interactions": [
+       [
+        "W",
+        "E"
+       ],
+       [
+        "E",
+        "P"
+       ],
+       [
+        "W",
+        "P"
+       ]
+      ]
      }
     },
     {
      "what": "predicted",
      "term": "run 4",
      "value": "6119.87",
+     "analysis": "the book's equation [8], from marginal averages: T plus each factor's deviation, plus the W x E, E x P and W x P two-factor averages' deviations, each average printed rounded",
      "where": {
       "page": "8-98",
       "source_kind": "table",
       "quote": "Table 2 Actual Generations and Compressive Strength (psi) ... run 4 ... Predicted 6119.87"
      },
      "check": {
-      "manual": "the book's prediction equation [8], built from marginal averages and three two-factor averages; no check computes it"
+      "kind": "marginal_means",
+      "run": 4,
+      "of_rounded": 9,
+      "response": "actual",
+      "factors": [
+       "C",
+       "E",
+       "W",
+       "P",
+       "A"
+      ],
+      "interactions": [
+       [
+        "W",
+        "E"
+       ],
+       [
+        "E",
+        "P"
+       ],
+       [
+        "W",
+        "P"
+       ]
+      ]
      }
     },
     {
      "what": "deviation",
      "term": "run 4",
      "value": "+5.51",
+     "analysis": "(actual - predicted)/actual x 100, the prediction by equation [8]",
      "where": {
       "page": "8-98",
       "source_kind": "table",
       "quote": "Table 2 Actual Generations and Compressive Strength (psi) ... run 4 ... Deviation (%) +5.51"
      },
      "check": {
-      "manual": "(actual - predicted)/actual x 100, from a predicted value no check computes"
+      "kind": "marginal_means",
+      "run": 4,
+      "deviation": "percent",
+      "observed": "actual",
+      "response": "actual",
+      "factors": [
+       "C",
+       "E",
+       "W",
+       "P",
+       "A"
+      ],
+      "interactions": [
+       [
+        "W",
+        "E"
+       ],
+       [
+        "E",
+        "P"
+       ],
+       [
+        "W",
+        "P"
+       ]
+      ]
      }
     },
     {
      "what": "predicted",
      "term": "run 5",
      "value": "2214.17",
+     "analysis": "the book's equation [8], from marginal averages: T plus each factor's deviation, plus the W x E, E x P and W x P two-factor averages' deviations, each average printed rounded",
      "where": {
       "page": "8-98",
       "source_kind": "table",
       "quote": "Table 2 Actual Generations and Compressive Strength (psi) ... run 5 ... Predicted 2214.17"
      },
      "check": {
-      "manual": "the book's prediction equation [8], built from marginal averages and three two-factor averages; no check computes it"
+      "kind": "marginal_means",
+      "run": 5,
+      "of_rounded": 9,
+      "response": "actual",
+      "factors": [
+       "C",
+       "E",
+       "W",
+       "P",
+       "A"
+      ],
+      "interactions": [
+       [
+        "W",
+        "E"
+       ],
+       [
+        "E",
+        "P"
+       ],
+       [
+        "W",
+        "P"
+       ]
+      ]
      }
     },
     {
      "what": "deviation",
      "term": "run 5",
      "value": "+24.86",
+     "analysis": "(actual - predicted)/actual x 100, the prediction by equation [8]",
      "where": {
       "page": "8-98",
       "source_kind": "table",
       "quote": "Table 2 Actual Generations and Compressive Strength (psi) ... run 5 ... Deviation (%) +24.86"
      },
      "check": {
-      "manual": "(actual - predicted)/actual x 100, from a predicted value no check computes"
+      "kind": "marginal_means",
+      "run": 5,
+      "deviation": "percent",
+      "observed": "actual",
+      "response": "actual",
+      "factors": [
+       "C",
+       "E",
+       "W",
+       "P",
+       "A"
+      ],
+      "interactions": [
+       [
+        "W",
+        "E"
+       ],
+       [
+        "E",
+        "P"
+       ],
+       [
+        "W",
+        "P"
+       ]
+      ]
      }
     },
     {
      "what": "predicted",
      "term": "run 6",
      "value": "2188.99",
+     "analysis": "the book's equation [8], from marginal averages: T plus each factor's deviation, plus the W x E, E x P and W x P two-factor averages' deviations, each average printed rounded",
      "where": {
       "page": "8-98",
       "source_kind": "table",
       "quote": "Table 2 Actual Generations and Compressive Strength (psi) ... run 6 ... Predicted 2188.99"
      },
      "check": {
-      "manual": "the book's prediction equation [8], built from marginal averages and three two-factor averages; no check computes it"
+      "kind": "marginal_means",
+      "run": 6,
+      "of_rounded": 9,
+      "response": "actual",
+      "factors": [
+       "C",
+       "E",
+       "W",
+       "P",
+       "A"
+      ],
+      "interactions": [
+       [
+        "W",
+        "E"
+       ],
+       [
+        "E",
+        "P"
+       ],
+       [
+        "W",
+        "P"
+       ]
+      ]
      }
     },
     {
      "what": "deviation",
      "term": "run 6",
      "value": "+10.87",
+     "analysis": "(actual - predicted)/actual x 100, the prediction by equation [8]",
      "where": {
       "page": "8-98",
       "source_kind": "table",
       "quote": "Table 2 Actual Generations and Compressive Strength (psi) ... run 6 ... Deviation (%) +10.87"
      },
      "check": {
-      "manual": "(actual - predicted)/actual x 100, from a predicted value no check computes"
+      "kind": "marginal_means",
+      "run": 6,
+      "deviation": "percent",
+      "observed": "actual",
+      "response": "actual",
+      "factors": [
+       "C",
+       "E",
+       "W",
+       "P",
+       "A"
+      ],
+      "interactions": [
+       [
+        "W",
+        "E"
+       ],
+       [
+        "E",
+        "P"
+       ],
+       [
+        "W",
+        "P"
+       ]
+      ]
      }
     },
     {
      "what": "predicted",
      "term": "run 7",
      "value": "2702.07",
+     "analysis": "the book's equation [8], from marginal averages: T plus each factor's deviation, plus the W x E, E x P and W x P two-factor averages' deviations, each average printed rounded",
      "where": {
       "page": "8-98",
       "source_kind": "table",
       "quote": "Table 2 Actual Generations and Compressive Strength (psi) ... run 7 ... Predicted 2702.07"
      },
      "check": {
-      "manual": "the book's prediction equation [8], built from marginal averages and three two-factor averages; no check computes it"
+      "kind": "marginal_means",
+      "run": 7,
+      "of_rounded": 9,
+      "response": "actual",
+      "factors": [
+       "C",
+       "E",
+       "W",
+       "P",
+       "A"
+      ],
+      "interactions": [
+       [
+        "W",
+        "E"
+       ],
+       [
+        "E",
+        "P"
+       ],
+       [
+        "W",
+        "P"
+       ]
+      ]
      }
     },
     {
      "what": "deviation",
      "term": "run 7",
      "value": "+18.06",
+     "analysis": "(actual - predicted)/actual x 100, the prediction by equation [8]",
      "where": {
       "page": "8-98",
       "source_kind": "table",
       "quote": "Table 2 Actual Generations and Compressive Strength (psi) ... run 7 ... Deviation (%) +18.06"
      },
      "check": {
-      "manual": "(actual - predicted)/actual x 100, from a predicted value no check computes"
+      "kind": "marginal_means",
+      "run": 7,
+      "deviation": "percent",
+      "observed": "actual",
+      "response": "actual",
+      "factors": [
+       "C",
+       "E",
+       "W",
+       "P",
+       "A"
+      ],
+      "interactions": [
+       [
+        "W",
+        "E"
+       ],
+       [
+        "E",
+        "P"
+       ],
+       [
+        "W",
+        "P"
+       ]
+      ]
      }
     },
     {
      "what": "predicted",
      "term": "run 8",
      "value": "4030.06",
+     "analysis": "the book's equation [8], from marginal averages: T plus each factor's deviation, plus the W x E, E x P and W x P two-factor averages' deviations, each average printed rounded",
      "where": {
       "page": "8-98",
       "source_kind": "table",
       "quote": "Table 2 Actual Generations and Compressive Strength (psi) ... run 8 ... Predicted 4030.06"
      },
      "check": {
-      "manual": "the book's prediction equation [8], built from marginal averages and three two-factor averages; no check computes it"
+      "kind": "marginal_means",
+      "run": 8,
+      "of_rounded": 9,
+      "response": "actual",
+      "factors": [
+       "C",
+       "E",
+       "W",
+       "P",
+       "A"
+      ],
+      "interactions": [
+       [
+        "W",
+        "E"
+       ],
+       [
+        "E",
+        "P"
+       ],
+       [
+        "W",
+        "P"
+       ]
+      ]
      }
     },
     {
      "what": "deviation",
      "term": "run 8",
      "value": "+5.23",
+     "analysis": "(actual - predicted)/actual x 100, the prediction by equation [8]",
      "where": {
       "page": "8-98",
       "source_kind": "table",
       "quote": "Table 2 Actual Generations and Compressive Strength (psi) ... run 8 ... Deviation (%) +5.23"
      },
      "check": {
-      "manual": "(actual - predicted)/actual x 100, from a predicted value no check computes"
+      "kind": "marginal_means",
+      "run": 8,
+      "deviation": "percent",
+      "observed": "actual",
+      "response": "actual",
+      "factors": [
+       "C",
+       "E",
+       "W",
+       "P",
+       "A"
+      ],
+      "interactions": [
+       [
+        "W",
+        "E"
+       ],
+       [
+        "E",
+        "P"
+       ],
+       [
+        "W",
+        "P"
+       ]
+      ]
      }
     },
     {
      "what": "predicted",
      "term": "run 9",
      "value": "3665.31",
+     "analysis": "the book's equation [8], from marginal averages: T plus each factor's deviation, plus the W x E, E x P and W x P two-factor averages' deviations, each average printed rounded",
      "where": {
       "page": "8-98",
       "source_kind": "table",
       "quote": "Table 2 Actual Generations and Compressive Strength (psi) ... run 9 ... Predicted 3665.31"
      },
      "check": {
-      "manual": "the book's prediction equation [8], built from marginal averages and three two-factor averages; no check computes it"
+      "kind": "marginal_means",
+      "run": 9,
+      "of_rounded": 9,
+      "response": "actual",
+      "factors": [
+       "C",
+       "E",
+       "W",
+       "P",
+       "A"
+      ],
+      "interactions": [
+       [
+        "W",
+        "E"
+       ],
+       [
+        "E",
+        "P"
+       ],
+       [
+        "W",
+        "P"
+       ]
+      ]
      }
     },
     {
      "what": "deviation",
      "term": "run 9",
      "value": "+4.55",
+     "analysis": "(actual - predicted)/actual x 100, the prediction by equation [8]",
      "where": {
       "page": "8-98",
       "source_kind": "table",
       "quote": "Table 2 Actual Generations and Compressive Strength (psi) ... run 9 ... Deviation (%) +4.55"
      },
      "check": {
-      "manual": "(actual - predicted)/actual x 100, from a predicted value no check computes"
+      "kind": "marginal_means",
+      "run": 9,
+      "deviation": "percent",
+      "observed": "actual",
+      "response": "actual",
+      "factors": [
+       "C",
+       "E",
+       "W",
+       "P",
+       "A"
+      ],
+      "interactions": [
+       [
+        "W",
+        "E"
+       ],
+       [
+        "E",
+        "P"
+       ],
+       [
+        "W",
+        "P"
+       ]
+      ]
      }
     },
     {
      "what": "predicted",
      "term": "run 10",
      "value": "4989.60",
+     "analysis": "the book's equation [8], from marginal averages: T plus each factor's deviation, plus the W x E, E x P and W x P two-factor averages' deviations, each average printed rounded",
      "where": {
       "page": "8-98",
       "source_kind": "table",
       "quote": "Table 2 Actual Generations and Compressive Strength (psi) ... run 10 ... Predicted 4989.60"
      },
      "check": {
-      "manual": "the book's prediction equation [8], built from marginal averages and three two-factor averages; no check computes it"
+      "kind": "marginal_means",
+      "run": 10,
+      "of_rounded": 9,
+      "response": "actual",
+      "factors": [
+       "C",
+       "E",
+       "W",
+       "P",
+       "A"
+      ],
+      "interactions": [
+       [
+        "W",
+        "E"
+       ],
+       [
+        "E",
+        "P"
+       ],
+       [
+        "W",
+        "P"
+       ]
+      ]
      }
     },
     {
      "what": "deviation",
      "term": "run 10",
      "value": "-2.68",
+     "analysis": "(actual - predicted)/actual x 100, the prediction by equation [8]",
      "where": {
       "page": "8-98",
       "source_kind": "table",
       "quote": "Table 2 Actual Generations and Compressive Strength (psi) ... run 10 ... Deviation (%) -2.68"
      },
      "check": {
-      "manual": "(actual - predicted)/actual x 100, from a predicted value no check computes"
+      "kind": "marginal_means",
+      "run": 10,
+      "deviation": "percent",
+      "observed": "actual",
+      "response": "actual",
+      "factors": [
+       "C",
+       "E",
+       "W",
+       "P",
+       "A"
+      ],
+      "interactions": [
+       [
+        "W",
+        "E"
+       ],
+       [
+        "E",
+        "P"
+       ],
+       [
+        "W",
+        "P"
+       ]
+      ]
      }
     },
     {
      "what": "predicted",
      "term": "run 11",
      "value": "2125.84",
+     "analysis": "the book's equation [8], from marginal averages: T plus each factor's deviation, plus the W x E, E x P and W x P two-factor averages' deviations, each average printed rounded",
      "where": {
       "page": "8-98",
       "source_kind": "table",
       "quote": "Table 2 Actual Generations and Compressive Strength (psi) ... run 11 ... Predicted 2125.84"
      },
      "check": {
-      "manual": "the book's prediction equation [8], built from marginal averages and three two-factor averages; no check computes it"
+      "kind": "marginal_means",
+      "run": 11,
+      "of_rounded": 9,
+      "response": "actual",
+      "factors": [
+       "C",
+       "E",
+       "W",
+       "P",
+       "A"
+      ],
+      "interactions": [
+       [
+        "W",
+        "E"
+       ],
+       [
+        "E",
+        "P"
+       ],
+       [
+        "W",
+        "P"
+       ]
+      ]
      }
     },
     {
      "what": "deviation",
      "term": "run 11",
      "value": "-9.70",
+     "analysis": "(actual - predicted)/actual x 100, the prediction by equation [8]",
      "where": {
       "page": "8-98",
       "source_kind": "table",
       "quote": "Table 2 Actual Generations and Compressive Strength (psi) ... run 11 ... Deviation (%) -9.70"
      },
      "check": {
-      "manual": "(actual - predicted)/actual x 100, from a predicted value no check computes"
+      "kind": "marginal_means",
+      "run": 11,
+      "deviation": "percent",
+      "observed": "actual",
+      "response": "actual",
+      "factors": [
+       "C",
+       "E",
+       "W",
+       "P",
+       "A"
+      ],
+      "interactions": [
+       [
+        "W",
+        "E"
+       ],
+       [
+        "E",
+        "P"
+       ],
+       [
+        "W",
+        "P"
+       ]
+      ]
      }
     },
     {
      "what": "predicted",
      "term": "run 12",
      "value": "5100.78",
+     "analysis": "the book's equation [8], from marginal averages: T plus each factor's deviation, plus the W x E, E x P and W x P two-factor averages' deviations, each average printed rounded",
      "where": {
       "page": "8-98",
       "source_kind": "table",
       "quote": "Table 2 Actual Generations and Compressive Strength (psi) ... run 12 ... Predicted 5100.78"
      },
      "check": {
-      "manual": "the book's prediction equation [8], built from marginal averages and three two-factor averages; no check computes it"
+      "kind": "marginal_means",
+      "run": 12,
+      "of_rounded": 9,
+      "response": "actual",
+      "factors": [
+       "C",
+       "E",
+       "W",
+       "P",
+       "A"
+      ],
+      "interactions": [
+       [
+        "W",
+        "E"
+       ],
+       [
+        "E",
+        "P"
+       ],
+       [
+        "W",
+        "P"
+       ]
+      ]
      }
     },
     {
      "what": "deviation",
      "term": "run 12",
      "value": "-2.11",
+     "analysis": "(actual - predicted)/actual x 100, the prediction by equation [8]",
      "where": {
       "page": "8-98",
       "source_kind": "table",
       "quote": "Table 2 Actual Generations and Compressive Strength (psi) ... run 12 ... Deviation (%) -2.11"
      },
      "check": {
-      "manual": "(actual - predicted)/actual x 100, from a predicted value no check computes"
+      "kind": "marginal_means",
+      "run": 12,
+      "deviation": "percent",
+      "observed": "actual",
+      "response": "actual",
+      "factors": [
+       "C",
+       "E",
+       "W",
+       "P",
+       "A"
+      ],
+      "interactions": [
+       [
+        "W",
+        "E"
+       ],
+       [
+        "E",
+        "P"
+       ],
+       [
+        "W",
+        "P"
+       ]
+      ]
      }
     },
     {
      "what": "predicted",
      "term": "run 13",
      "value": "4993.30",
+     "analysis": "the book's equation [8], from marginal averages: T plus each factor's deviation, plus the W x E, E x P and W x P two-factor averages' deviations, each average printed rounded",
      "where": {
       "page": "8-98",
       "source_kind": "table",
       "quote": "Table 2 Actual Generations and Compressive Strength (psi) ... run 13 ... Predicted 4993.30"
      },
      "check": {
-      "manual": "the book's prediction equation [8], built from marginal averages and three two-factor averages; no check computes it"
+      "kind": "marginal_means",
+      "run": 13,
+      "of_rounded": 9,
+      "response": "actual",
+      "factors": [
+       "C",
+       "E",
+       "W",
+       "P",
+       "A"
+      ],
+      "interactions": [
+       [
+        "W",
+        "E"
+       ],
+       [
+        "E",
+        "P"
+       ],
+       [
+        "W",
+        "P"
+       ]
+      ]
      }
     },
     {
      "what": "deviation",
      "term": "run 13",
      "value": "-9.98",
+     "analysis": "(actual - predicted)/actual x 100, the prediction by equation [8]",
      "where": {
       "page": "8-98",
       "source_kind": "table",
       "quote": "Table 2 Actual Generations and Compressive Strength (psi) ... run 13 ... Deviation (%) -9.98"
      },
      "check": {
-      "manual": "(actual - predicted)/actual x 100, from a predicted value no check computes"
+      "kind": "marginal_means",
+      "run": 13,
+      "deviation": "percent",
+      "observed": "actual",
+      "response": "actual",
+      "factors": [
+       "C",
+       "E",
+       "W",
+       "P",
+       "A"
+      ],
+      "interactions": [
+       [
+        "W",
+        "E"
+       ],
+       [
+        "E",
+        "P"
+       ],
+       [
+        "W",
+        "P"
+       ]
+      ]
      }
     },
     {
      "what": "predicted",
      "term": "run 14",
      "value": "4863.01",
+     "analysis": "the book's equation [8], from marginal averages: T plus each factor's deviation, plus the W x E, E x P and W x P two-factor averages' deviations, each average printed rounded",
      "where": {
       "page": "8-98",
       "source_kind": "table",
       "quote": "Table 2 Actual Generations and Compressive Strength (psi) ... run 14 ... Predicted 4863.01"
      },
      "check": {
-      "manual": "the book's prediction equation [8], built from marginal averages and three two-factor averages; no check computes it"
+      "kind": "marginal_means",
+      "run": 14,
+      "of_rounded": 9,
+      "response": "actual",
+      "factors": [
+       "C",
+       "E",
+       "W",
+       "P",
+       "A"
+      ],
+      "interactions": [
+       [
+        "W",
+        "E"
+       ],
+       [
+        "E",
+        "P"
+       ],
+       [
+        "W",
+        "P"
+       ]
+      ],
+      "disagreement": "the book's equation [8] gives 4836.01, from which the printed deviation of 15.05% follows; the printed 4863.01 has two digits exchanged"
      }
     },
     {
      "what": "deviation",
      "term": "run 14",
      "value": "+15.05",
+     "analysis": "(actual - predicted)/actual x 100, the prediction by equation [8]",
      "where": {
       "page": "8-98",
       "source_kind": "table",
       "quote": "Table 2 Actual Generations and Compressive Strength (psi) ... run 14 ... Deviation (%) +15.05"
      },
      "check": {
-      "manual": "(actual - predicted)/actual x 100, from a predicted value no check computes"
+      "kind": "marginal_means",
+      "run": 14,
+      "deviation": "percent",
+      "observed": "actual",
+      "response": "actual",
+      "factors": [
+       "C",
+       "E",
+       "W",
+       "P",
+       "A"
+      ],
+      "interactions": [
+       [
+        "W",
+        "E"
+       ],
+       [
+        "E",
+        "P"
+       ],
+       [
+        "W",
+        "P"
+       ]
+      ]
      }
     },
     {
      "what": "predicted",
      "term": "run 15",
      "value": "2534.73",
+     "analysis": "the book's equation [8], from marginal averages: T plus each factor's deviation, plus the W x E, E x P and W x P two-factor averages' deviations, each average printed rounded",
      "where": {
       "page": "8-98",
       "source_kind": "table",
       "quote": "Table 2 Actual Generations and Compressive Strength (psi) ... run 15 ... Predicted 2534.73"
      },
      "check": {
-      "manual": "the book's prediction equation [8], built from marginal averages and three two-factor averages; no check computes it"
+      "kind": "marginal_means",
+      "run": 15,
+      "of_rounded": 9,
+      "response": "actual",
+      "factors": [
+       "C",
+       "E",
+       "W",
+       "P",
+       "A"
+      ],
+      "interactions": [
+       [
+        "W",
+        "E"
+       ],
+       [
+        "E",
+        "P"
+       ],
+       [
+        "W",
+        "P"
+       ]
+      ]
      }
     },
     {
      "what": "deviation",
      "term": "run 15",
      "value": "-26.72",
+     "analysis": "(actual - predicted)/actual x 100, the prediction by equation [8]",
      "where": {
       "page": "8-98",
       "source_kind": "table",
       "quote": "Table 2 Actual Generations and Compressive Strength (psi) ... run 15 ... Deviation (%) -26.72"
      },
      "check": {
-      "manual": "(actual - predicted)/actual x 100, from a predicted value no check computes"
+      "kind": "marginal_means",
+      "run": 15,
+      "deviation": "percent",
+      "observed": "actual",
+      "response": "actual",
+      "factors": [
+       "C",
+       "E",
+       "W",
+       "P",
+       "A"
+      ],
+      "interactions": [
+       [
+        "W",
+        "E"
+       ],
+       [
+        "E",
+        "P"
+       ],
+       [
+        "W",
+        "P"
+       ]
+      ]
      }
     },
     {
      "what": "predicted",
      "term": "run 16",
      "value": "5125.97",
+     "analysis": "the book's equation [8], from marginal averages: T plus each factor's deviation, plus the W x E, E x P and W x P two-factor averages' deviations, each average printed rounded",
      "where": {
       "page": "8-98",
       "source_kind": "table",
       "quote": "Table 2 Actual Generations and Compressive Strength (psi) ... run 16 ... Predicted 5125.97"
      },
      "check": {
-      "manual": "the book's prediction equation [8], built from marginal averages and three two-factor averages; no check computes it"
+      "kind": "marginal_means",
+      "run": 16,
+      "of_rounded": 9,
+      "response": "actual",
+      "factors": [
+       "C",
+       "E",
+       "W",
+       "P",
+       "A"
+      ],
+      "interactions": [
+       [
+        "W",
+        "E"
+       ],
+       [
+        "E",
+        "P"
+       ],
+       [
+        "W",
+        "P"
+       ]
+      ]
      }
     },
     {
      "what": "deviation",
      "term": "run 16",
      "value": "-33.13",
+     "analysis": "(actual - predicted)/actual x 100, the prediction by equation [8]",
      "where": {
       "page": "8-98",
       "source_kind": "table",
       "quote": "Table 2 Actual Generations and Compressive Strength (psi) ... run 16 ... Deviation (%) -33.13"
      },
      "check": {
-      "manual": "(actual - predicted)/actual x 100, from a predicted value no check computes"
+      "kind": "marginal_means",
+      "run": 16,
+      "deviation": "percent",
+      "observed": "actual",
+      "response": "actual",
+      "factors": [
+       "C",
+       "E",
+       "W",
+       "P",
+       "A"
+      ],
+      "interactions": [
+       [
+        "W",
+        "E"
+       ],
+       [
+        "E",
+        "P"
+       ],
+       [
+        "W",
+        "P"
+       ]
+      ],
+      "disagreement": "(3857.92 - 5125.97)/3857.92 x 100 is -32.87; the book prints -33.13"
      }
     },
     {
      "what": "predicted",
      "term": "run 17",
      "value": "3692.58",
+     "analysis": "the book's equation [8], from marginal averages: T plus each factor's deviation, plus the W x E, E x P and W x P two-factor averages' deviations, each average printed rounded",
      "where": {
       "page": "8-98",
       "source_kind": "table",
       "quote": "Table 2 Actual Generations and Compressive Strength (psi) ... run 17 ... Predicted 3692.58"
      },
      "check": {
-      "manual": "the book's prediction equation [8], built from marginal averages and three two-factor averages; no check computes it"
+      "kind": "marginal_means",
+      "run": 17,
+      "of_rounded": 9,
+      "response": "actual",
+      "factors": [
+       "C",
+       "E",
+       "W",
+       "P",
+       "A"
+      ],
+      "interactions": [
+       [
+        "W",
+        "E"
+       ],
+       [
+        "E",
+        "P"
+       ],
+       [
+        "W",
+        "P"
+       ]
+      ]
      }
     },
     {
      "what": "deviation",
      "term": "run 17",
      "value": "-3.28",
+     "analysis": "(actual - predicted)/actual x 100, the prediction by equation [8]",
      "where": {
       "page": "8-98",
       "source_kind": "table",
       "quote": "Table 2 Actual Generations and Compressive Strength (psi) ... run 17 ... Deviation (%) -3.28"
      },
      "check": {
-      "manual": "(actual - predicted)/actual x 100, from a predicted value no check computes"
+      "kind": "marginal_means",
+      "run": 17,
+      "deviation": "percent",
+      "observed": "actual",
+      "response": "actual",
+      "factors": [
+       "C",
+       "E",
+       "W",
+       "P",
+       "A"
+      ],
+      "interactions": [
+       [
+        "W",
+        "E"
+       ],
+       [
+        "E",
+        "P"
+       ],
+       [
+        "W",
+        "P"
+       ]
+      ]
      }
     },
     {
      "what": "predicted",
      "term": "run 18",
      "value": "3317.47",
+     "analysis": "the book's equation [8], from marginal averages: T plus each factor's deviation, plus the W x E, E x P and W x P two-factor averages' deviations, each average printed rounded",
      "where": {
       "page": "8-98",
       "source_kind": "table",
       "quote": "Table 2 Actual Generations and Compressive Strength (psi) ... run 18 ... Predicted 3317.47"
      },
      "check": {
-      "manual": "the book's prediction equation [8], built from marginal averages and three two-factor averages; no check computes it"
+      "kind": "marginal_means",
+      "run": 18,
+      "of_rounded": 9,
+      "response": "actual",
+      "factors": [
+       "C",
+       "E",
+       "W",
+       "P",
+       "A"
+      ],
+      "interactions": [
+       [
+        "W",
+        "E"
+       ],
+       [
+        "E",
+        "P"
+       ],
+       [
+        "W",
+        "P"
+       ]
+      ]
      }
     },
     {
      "what": "deviation",
      "term": "run 18",
      "value": "-14.98",
+     "analysis": "(actual - predicted)/actual x 100, the prediction by equation [8]",
      "where": {
       "page": "8-98",
       "source_kind": "table",
       "quote": "Table 2 Actual Generations and Compressive Strength (psi) ... run 18 ... Deviation (%) -14.98"
      },
      "check": {
-      "manual": "(actual - predicted)/actual x 100, from a predicted value no check computes"
+      "kind": "marginal_means",
+      "run": 18,
+      "deviation": "percent",
+      "observed": "actual",
+      "response": "actual",
+      "factors": [
+       "C",
+       "E",
+       "W",
+       "P",
+       "A"
+      ],
+      "interactions": [
+       [
+        "W",
+        "E"
+       ],
+       [
+        "E",
+        "P"
+       ],
+       [
+        "W",
+        "P"
+       ]
+      ]
      }
     },
     {
@@ -72597,78 +73517,252 @@
      "what": "predicted",
      "term": "test 61",
      "value": "5862.0",
+     "analysis": "the book's equation [8], from marginal averages: T plus each factor's deviation, plus the W x E, E x P and W x P two-factor averages' deviations, each average printed rounded, from the 18 runs of schmidt-lunar-concrete",
      "where": {
       "page": "8-100",
       "source_kind": "table",
       "quote": "Table 4 Confirmation Results ... 61 ... Predicted 5862.0"
      },
      "check": {
-      "manual": "the book's prediction equation, as in schmidt-lunar-concrete; it is Table 1's value for this combination"
+      "kind": "marginal_means",
+      "run": 1,
+      "of_rounded": 9,
+      "from": "schmidt-lunar-concrete",
+      "response": "actual",
+      "factors": [
+       "C",
+       "E",
+       "W",
+       "P",
+       "A"
+      ],
+      "interactions": [
+       [
+        "W",
+        "E"
+       ],
+       [
+        "E",
+        "P"
+       ],
+       [
+        "W",
+        "P"
+       ]
+      ]
      }
     },
     {
      "what": "deviation",
      "term": "test 61",
      "value": "832.6",
+     "analysis": "the average of the three specimens less the prediction, both printed rounded",
      "where": {
       "page": "8-100",
       "source_kind": "table",
       "quote": "Table 4 Confirmation Results ... 61 ... Dev 832.6"
      },
      "check": {
-      "manual": "the average less the prediction, which no check computes"
+      "kind": "marginal_means",
+      "run": 1,
+      "deviation": "difference",
+      "observed": [
+       "r1",
+       "r2",
+       "r3"
+      ],
+      "of_rounded": 2,
+      "from": "schmidt-lunar-concrete",
+      "response": "actual",
+      "factors": [
+       "C",
+       "E",
+       "W",
+       "P",
+       "A"
+      ],
+      "interactions": [
+       [
+        "W",
+        "E"
+       ],
+       [
+        "E",
+        "P"
+       ],
+       [
+        "W",
+        "P"
+       ]
+      ]
      }
     },
     {
      "what": "predicted",
      "term": "test 66",
      "value": "6119.9",
+     "analysis": "the book's equation [8], from marginal averages: T plus each factor's deviation, plus the W x E, E x P and W x P two-factor averages' deviations, each average printed rounded, from the 18 runs of schmidt-lunar-concrete",
      "where": {
       "page": "8-100",
       "source_kind": "table",
       "quote": "Table 4 Confirmation Results ... 66 ... Predicted 6119.9"
      },
      "check": {
-      "manual": "the book's prediction equation, as in schmidt-lunar-concrete; it is Table 1's value for this combination"
+      "kind": "marginal_means",
+      "run": 2,
+      "of_rounded": 9,
+      "from": "schmidt-lunar-concrete",
+      "response": "actual",
+      "factors": [
+       "C",
+       "E",
+       "W",
+       "P",
+       "A"
+      ],
+      "interactions": [
+       [
+        "W",
+        "E"
+       ],
+       [
+        "E",
+        "P"
+       ],
+       [
+        "W",
+        "P"
+       ]
+      ]
      }
     },
     {
      "what": "deviation",
      "term": "test 66",
      "value": "821.7",
+     "analysis": "the average of the three specimens less the prediction, both printed rounded",
      "where": {
       "page": "8-100",
       "source_kind": "table",
       "quote": "Table 4 Confirmation Results ... 66 ... Dev 821.7"
      },
      "check": {
-      "manual": "the average less the prediction, which no check computes"
+      "kind": "marginal_means",
+      "run": 2,
+      "deviation": "difference",
+      "observed": [
+       "r1",
+       "r2",
+       "r3"
+      ],
+      "of_rounded": 2,
+      "from": "schmidt-lunar-concrete",
+      "response": "actual",
+      "factors": [
+       "C",
+       "E",
+       "W",
+       "P",
+       "A"
+      ],
+      "interactions": [
+       [
+        "W",
+        "E"
+       ],
+       [
+        "E",
+        "P"
+       ],
+       [
+        "W",
+        "P"
+       ]
+      ]
      }
     },
     {
      "what": "predicted",
      "term": "test 71",
      "value": "6163.7",
+     "analysis": "the book's equation [8], from marginal averages: T plus each factor's deviation, plus the W x E, E x P and W x P two-factor averages' deviations, each average printed rounded, from the 18 runs of schmidt-lunar-concrete",
      "where": {
       "page": "8-100",
       "source_kind": "table",
       "quote": "Table 4 Confirmation Results ... 71 ... Predicted 6163.7"
      },
      "check": {
-      "manual": "the book's prediction equation, as in schmidt-lunar-concrete; it is Table 1's value for this combination"
+      "kind": "marginal_means",
+      "run": 3,
+      "of_rounded": 9,
+      "from": "schmidt-lunar-concrete",
+      "response": "actual",
+      "factors": [
+       "C",
+       "E",
+       "W",
+       "P",
+       "A"
+      ],
+      "interactions": [
+       [
+        "W",
+        "E"
+       ],
+       [
+        "E",
+        "P"
+       ],
+       [
+        "W",
+        "P"
+       ]
+      ]
      }
     },
     {
      "what": "deviation",
      "term": "test 71",
      "value": "647.3",
+     "analysis": "the average of the three specimens less the prediction, both printed rounded",
      "where": {
       "page": "8-100",
       "source_kind": "table",
       "quote": "Table 4 Confirmation Results ... 71 ... Dev 647.3"
      },
      "check": {
-      "manual": "the average less the prediction, which no check computes"
+      "kind": "marginal_means",
+      "run": 3,
+      "deviation": "difference",
+      "observed": [
+       "r1",
+       "r2",
+       "r3"
+      ],
+      "of_rounded": 2,
+      "from": "schmidt-lunar-concrete",
+      "response": "actual",
+      "factors": [
+       "C",
+       "E",
+       "W",
+       "P",
+       "A"
+      ],
+      "interactions": [
+       [
+        "W",
+        "E"
+       ],
+       [
+        "E",
+        "P"
+       ],
+       [
+        "W",
+        "P"
+       ]
+      ]
      }
     },
     {

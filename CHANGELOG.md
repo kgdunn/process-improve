@@ -13,6 +13,16 @@ those changes.
 
 ### Added
 
+- **Prediction from marginal means, as Taguchi's additive model makes it.**
+  `marginal_means_prediction(design_matrix, responses, at, interactions=())` predicts a response at
+  given settings as the grand mean plus each factor's deviation (the mean of the runs at its level
+  less the grand mean), plus, for each named pair of factors, the deviation of their two-factor
+  mean. On a design whose levels and pairs of levels occur equally often, such as an orthogonal
+  array, the main-effect terms are the least-squares estimates; on any other a `UserWarning` says
+  the prediction is not the least-squares one. The reference catalogue checks it (`marginal_means`)
+  against the 42 predictions and deviations of Schmidt and Launsby's lunar concrete study, which it
+  held as not recomputed until now: 40 agree, and two are the book's errors (run 14's prediction
+  has two digits exchanged, and run 16's deviation does not follow from its values).
 - **`evaluate_design(..., metric="scaled_condition_number")`**: the condition number of the model
   matrix with each column scaled to unit length, so the factors' units do not count: 1 for
   orthogonal columns, whatever their units. RS/Discover prints it as Cond. No.; the nine that
@@ -85,7 +95,7 @@ those changes.
   solderability L18 with a dummy-level column, a 2^4 on chemiluminescence with centre runs, and the
   run counts of a 136-run Plackett-Burman design for 134 inputs and a mixed-level full factorial of
   49152 cases. Appendix J's answers are checked against the problems they answer. 4520 printed
-  numbers, 4211 checked. 398 are recorded as not reproducing, each explained: most come from the
+  numbers, 4253 checked. 400 are recorded as not reproducing, each explained: most come from the
   book's rounding (run averages and standard deviations that do not follow from their readings,
   squares of rounded effects, coefficients that are halves of rounded effects, values cut rather
   than rounded), some are misprints (a wrong sign, two exchanged digits, rows swapped, Yates's
