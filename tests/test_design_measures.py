@@ -7,10 +7,11 @@ import warnings
 import numpy as np
 import pytest
 
-from process_improve.experiments import Factor, design_measures, generate_design
+from process_improve.experiments import Factor, compare_designs, design_measures, generate_design
 from process_improve.experiments.design_measures import (
     design_classes,
     estimable_models,
+    fds_curve,
     fingerprint,
     leverages,
     model_matrix,
@@ -106,6 +107,42 @@ def test_a_center_run_lets_a_two_by_two_factorial_lose_any_run():
 def test_a_model_the_design_does_not_estimate_has_no_run_loss():
     assert run_loss(SQUARE, ["numeric"] * 2, "quadratic") is None
     assert run_loss(np.eye(3), ["mixture"] * 3, "main_effects") is None
+
+
+# --------------------------------------------------------------------------- the prediction variance
+def test_the_fds_curve_rises_between_the_least_and_the_largest_prediction_variance():
+    """For a 2^2 in main effects, the variance at x is (1 + x1^2 + x2^2) / 4: from 0.25 at the centre to 0.75."""
+    curve = fds_curve(SQUARE, ["numeric"] * 2, "main_effects")
+    assert len(curve) == 21
+    assert curve == sorted(curve)
+    assert 0.25 <= curve[0] < 0.26
+    assert 0.74 < curve[-1] <= 0.75
+
+
+def test_the_curve_ends_at_most_at_the_largest_prediction_variance_compare_designs_finds():
+    runs = coded("ccd", 3, alpha="face_centered", n_center_points=3)
+    g = compare_designs({"ccd": runs}, "quadratic").values["ccd [n=17]"]["g"]
+    curve = fds_curve(runs, ["numeric"] * 3, "quadratic")
+    assert 0.8 * g < curve[-1] <= g * (1 + 1e-3), "G is searched over a grid with the corners; the curve, over a sample"
+
+
+def test_replicating_a_design_halves_its_prediction_variance_everywhere():
+    once = fds_curve(SQUARE, ["numeric"] * 2, "interactions")
+    twice = fds_curve(np.vstack([SQUARE, SQUARE]), ["numeric"] * 2, "interactions")
+    assert twice == pytest.approx([v / 2 for v in once], rel=1e-3)
+
+
+def test_the_curve_is_the_same_for_the_same_seed():
+    runs = coded("dsd", 4, n_center_points=1)
+    first = fds_curve(runs, ["numeric"] * 4, "main_effects", random_state=3)
+    assert first == fds_curve(runs, ["numeric"] * 4, "main_effects", random_state=np.random.default_rng(3))
+    assert first != fds_curve(runs, ["numeric"] * 4, "main_effects", random_state=4)
+
+
+def test_a_design_of_other_factors_or_a_model_it_cannot_fit_has_no_curve():
+    assert fds_curve(SQUARE, ["numeric", "categorical"], "main_effects") is None
+    assert fds_curve(np.eye(3), ["mixture"] * 3, "main_effects") is None
+    assert fds_curve(SQUARE, ["numeric"] * 2, "quadratic") is None
 
 
 # --------------------------------------------------------------------------- projections

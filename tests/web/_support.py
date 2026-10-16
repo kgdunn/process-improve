@@ -44,6 +44,7 @@ APP_SOURCES = (
     "catalog/index.html",
     "catalog.js",
     "catalog-logic.js",
+    "catalog-views.js",
     "style.css",
     "app.js",
     "logic.js",
