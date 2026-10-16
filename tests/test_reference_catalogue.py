@@ -19,6 +19,7 @@ import pytest
 from scipy import stats
 
 from process_improve.experiments import reference_catalogue
+from process_improve.experiments.analysis import analyze_experiment
 from process_improve.experiments.reference_catalogue import (
     reference_designs,
     reference_experiments,
@@ -841,3 +842,62 @@ def test_the_reml_fit_reads_its_variances_their_covariance_and_the_fixed_effects
     assert effects == pytest.approx([2 - 3.5, 5.5 - 3.5, 3 - 3.5])  # c is the level the coding leaves out
     with pytest.raises(KeyError, match="no level 'd'"):
         _variance_component(entry, {**check, "key": "effect.treatment.d"})
+
+
+def _two_way_single(table):
+    """Return a two-factor layout with one observation per cell, rows r1.. and columns c1.."""
+    rows = [[f"r{i}", f"c{j}", y] for i, values in enumerate(table, start=1) for j, y in enumerate(values, start=1)]
+    return {
+        "name": "single",
+        "factors": [
+            {"name": "row", "type": "categorical", "low": "r1", "high": "r2", "levels": [f"r{i}" for i in range(1, 4)]},
+            {"name": "col", "type": "categorical", "low": "c1", "high": "c2", "levels": [f"c{j}" for j in range(1, 6)]},
+        ],
+        "responses": [{"name": "y"}],
+        "runs": {"columns": ["row", "col", "y"], "rows": rows, "coded": False},
+    }
+
+
+def test_tukey_nonadditivity_is_worked_from_the_row_and_column_effects():
+    """SSN = (Σ yij ri cj)² / (Σ ri² Σ cj²), ri and cj the row and column effects, one df taken from the residual."""
+    from process_improve.experiments.reference_catalogue import _nonadditivity
+
+    table = np.array([[5, 4, 6, 3, 5], [3, 1, 4, 2, 3], [1, 1, 3, 1, 2]], dtype=float)  # Montgomery's Table 5.10
+    r, c = table.mean(axis=1) - table.mean(), table.mean(axis=0) - table.mean()
+    ssn = (r @ table @ c) ** 2 / ((r**2).sum() * (c**2).sum())
+    residual = ((table - table.mean(axis=1, keepdims=True) - table.mean(axis=0) + table.mean()) ** 2).sum()
+    entry = _two_way_single(table.tolist())
+    check = {"model": "row + col"}
+    found = {key: _nonadditivity(entry, {**check, "key": key}) for key in ("ss", "ss_error", "df_error", "f", "p")}
+    assert found["ss"] == pytest.approx(ssn)
+    assert found["ss_error"] == pytest.approx(residual - ssn)
+    assert found["df_error"] == 7
+    assert found["f"] == pytest.approx(ssn / ((residual - ssn) / 7))
+    assert found["p"] == pytest.approx(stats.f.sf(found["f"], 1, 7))
+    row_ms = 5 * (r**2).sum() / 2
+    assert _nonadditivity(entry, {**check, "key": "f.row"}) == pytest.approx(row_ms / ((residual - ssn) / 7))
+
+
+def test_a_reml_fit_can_hold_an_interaction_of_fixed_factors_and_report_its_criterion():
+    """Two fixed factors and their interaction in random blocks: the interaction's F is that of the blocked ANOVA."""
+    from process_improve.experiments.reference_catalogue import _variance_component
+
+    cells = {("a", "x"): [5, 7], ("a", "y"): [6, 9], ("b", "x"): [8, 8], ("b", "y"): [12, 14]}
+    rows = [[f, g, str(block + 1), y] for (f, g), values in cells.items() for block, y in enumerate(values)]
+    entry = {"responses": [{"name": "y"}], "runs": {"columns": ["f", "g", "block", "y"], "rows": rows}}
+    check = {"groups": ["block"], "fixed": ["f", "g", "f:g"]}
+    table = pd.DataFrame(rows, columns=["f", "g", "block", "y"])
+    anova = analyze_experiment(table[["f", "g", "block"]], table["y"].astype(float), model="f * g + block")
+    interaction = next(r for r in anova["anova_table"] if r["source"] == "f:g")
+    assert _variance_component(entry, {**check, "key": "f.f:g"}) == pytest.approx(interaction["F"])
+    assert math.isfinite(_variance_component(entry, {**check, "key": "reml_criterion"}))
+
+
+def test_a_prediction_can_be_read_as_the_half_width_of_its_interval():
+    entry = _line([1.0, 2.5, 2.5, 4.0])
+    fits = reference_catalogue._Fits()
+    check = {"kind": "prediction", "model": "x", "point": {"x": 2.5}}
+    out = fits(entry, check)
+    low, high = (reference_catalogue._prediction(out, {**check, "bound": b}, entry) for b in ("ci_low", "ci_high"))
+    half = reference_catalogue._prediction(out, {**check, "bound": "ci_half_width"}, entry)
+    assert half == pytest.approx((high - low) / 2)

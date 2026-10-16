@@ -469,7 +469,8 @@ def _prediction(out: dict, check: dict, experiment: dict) -> float:
 
     A factor ``check["point"]`` leaves out, as one the model does not hold, sits at its centre.
     ``check["bound"]`` reads a limit of its 95% interval instead: ``"pi_low"`` or ``"pi_high"`` for
-    a new observation, ``"ci_low"`` or ``"ci_high"`` for the mean.
+    a new observation, ``"ci_low"`` or ``"ci_high"`` for the mean, or ``"ci_half_width"``, the
+    interval's half-width, as a prediction profiler prints it beside the prediction.
     """
     names = [f["name"] for f in experiment["factors"]]
     point = pd.DataFrame([dict.fromkeys(names, 0.0) | check["point"]])[names]
@@ -478,7 +479,10 @@ def _prediction(out: dict, check: dict, experiment: dict) -> float:
         found = analyze_experiment(
             out["settings"], out["y"], model=check["model"], analysis_type="prediction", new_points=point
         )
-    return float(found["predictions"][0][check.get("bound", "predicted")])
+    prediction = found["predictions"][0]
+    if check.get("bound") == "ci_half_width":
+        return float(prediction["ci_high"] - prediction["ci_low"]) / 2
+    return float(prediction[check.get("bound", "predicted")])
 
 
 def _target_setting(out: dict, check: dict, experiment: dict) -> float:
@@ -1146,6 +1150,49 @@ def _tukey(experiment: dict, check: dict) -> float:
     )
 
 
+def _nonadditivity(experiment: dict, check: dict) -> float:
+    """Return a number of Tukey's one-degree-of-freedom test for nonadditivity of a two-factor layout.
+
+    ``check["model"]`` is the additive model, such as ``temperature + pressure``, fitted with
+    :func:`~process_improve.experiments.analyze_experiment` to one observation per cell. Tukey's
+    test is the test of one more regressor, the square of that model's fitted values, so the model
+    is fitted again with it. ``check["key"]`` is ``"ss"`` (the sum of squares for nonadditivity),
+    ``"f"`` or ``"p"`` (its test), ``"ss_error"``, ``"df_error"`` or ``"ms_error"`` (the residual
+    once it is taken out), or ``"f.<term>"`` and ``"p.<term>"``: a term's mean square in the
+    additive model tested against that smaller error, as a source's table of the test prints it.
+    """
+    settings, responses = _coded_runs(experiment, check.get("runs"))
+    y = responses[check.get("response") or responses.columns[0]]
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        additive = analyze_experiment(
+            settings, y, model=check["model"], analysis_type=["anova", "residual_diagnostics"]
+        )
+        squared = np.square(additive["residual_diagnostics"]["fitted_values"])
+        tested = analyze_experiment(
+            settings.assign(nonadditivity=squared),
+            y,
+            model=f"{check['model']} + nonadditivity",
+            analysis_type=["anova"],
+        )
+    row = _anova_row(tested, "nonadditivity")
+    summary = tested["model_summary"]
+    kind, _, term = check["key"].partition(".")
+    if term:
+        term_row = _anova_row(additive, term)
+        ratio = term_row["mean_sq"] / summary["mse_residual"]
+        return ratio if kind == "f" else float(f_distribution.sf(ratio, term_row["df"], summary["df_residual"]))
+    found = {
+        "ss": row["sum_sq"],
+        "f": row["F"],
+        "p": row["p_value"],
+        "ss_error": summary["mse_residual"] * summary["df_residual"],
+        "df_error": summary["df_residual"],
+        "ms_error": summary["mse_residual"],
+    }
+    return float(found[kind])
+
+
 def _capability(experiment: dict, check: dict) -> float:
     """Return the library's Cpk of a response: the nearer specification's distance from the mean, over 3 sigma.
 
@@ -1187,6 +1234,20 @@ def _sum_coded(column: pd.Series, name: str) -> pd.DataFrame:
     return pd.DataFrame({f"{name}_{level}": (values == level).astype(float) - last for level in levels[:-1]})
 
 
+def _fixed_columns(table: pd.DataFrame, name: str) -> pd.DataFrame:
+    """Return a fixed term's columns: a factor's sum-coded ones, or for ``a:b`` the products of a's and b's."""
+    if ":" not in name:
+        return _sum_coded(table[name], name)
+    first, second = (_sum_coded(table[part], part) for part in name.split(":"))
+    return pd.DataFrame(
+        {
+            f"{name}_{a.partition('_')[2]}.{b.partition('_')[2]}": first[a] * second[b]
+            for a in first.columns
+            for b in second.columns
+        }
+    )
+
+
 _Z_975 = 1.959963984540054  # the standard normal's 97.5th percentile, for a 95% Wald interval
 
 
@@ -1194,7 +1255,8 @@ def _variance_component(experiment: dict, check: dict) -> float:
     """Return a number of the library's REML fit with a random intercept for each of ``check["groups"]``.
 
     The fixed part is the overall mean, and an effect for each level of the factors
-    ``check["fixed"]`` names, if any, coded to sum to zero over the levels. Nested groups are
+    ``check["fixed"]`` names, if any, coded to sum to zero over the levels; ``"clutter:filter"``
+    there is the interaction of two of them, the products of their columns. Nested groups are
     written with labels unique across the whole study. ``check["key"]`` names a group, for its
     variance, or one of:
 
@@ -1204,7 +1266,8 @@ def _variance_component(experiment: dict, check: dict) -> float:
     - ``"std_error.<part>"`` and ``"covariance.<part>.<part>"``, from the asymptotic covariance of
       the variance estimates, and ``"wald_low.<part>"`` and ``"wald_high.<part>"``, the estimate less
       or plus 1.96 standard errors, the 95% interval JMP prints for a random effect;
-    - ``"rmse"``, the root of the residual variance;
+    - ``"rmse"``, the root of the residual variance, and ``"reml_criterion"``, minus twice the
+      restricted log-likelihood, JMP's "-2 LogLikelihood";
     - ``"mean"``, ``"mean_std_error"``, ``"mean_t"`` and ``"mean_df"``, the overall mean of an
       intercept-only fit, its standard error, their ratio and its Satterthwaite degrees of freedom;
     - ``"f.<factor>"``, ``"f_df.<factor>"`` and ``"f_p.<factor>"``, the F test of a fixed factor, on
@@ -1215,7 +1278,7 @@ def _variance_component(experiment: dict, check: dict) -> float:
     runs = experiment["runs"]
     table = pd.DataFrame(runs["rows"], columns=runs["columns"])
     y = table[check.get("response") or experiment["responses"][0]["name"]].to_numpy(dtype=float)
-    fixed = [_sum_coded(table[name], name) for name in check.get("fixed", [])]
+    fixed = [_fixed_columns(table, name) for name in check.get("fixed", [])]
     design = pd.concat([pd.DataFrame({"Intercept": np.ones(len(y))}), *fixed], axis=1).astype(float)
     groups = [pd.factorize(table[name])[0] for name in check["groups"]]
     fit = fit_variance_components(y, design.to_numpy(), groups)
@@ -1259,6 +1322,7 @@ def _variance_component(experiment: dict, check: dict) -> float:
         "mean_df": lambda: fit.satterthwaite_df(np.eye(len(fit.beta))[0]),
         "mean_t": lambda: float(fit.beta[0]) / math.sqrt(fit.cov_beta[0, 0]),
         "rmse": lambda: math.sqrt(parts["residual"]),
+        "reml_criterion": lambda: fit.reml_criterion,
         "f": lambda: fixed_test(0),
         "f_df": lambda: fixed_test(1),
         "f_p": lambda: float(f_distribution.sf(fixed_test(0), int(name_df(name)), fixed_test(1))),
@@ -1275,6 +1339,7 @@ _VALUE_KINDS: dict[str, Callable[[dict, dict], float]] = {
     "design_property": lambda _e, c: _design_property(c),
     "design_metric": _design_metric,
     "library_value": lambda _e, c: _library_value(c),
+    "nonadditivity": _nonadditivity,
     "t_test": _t_test,
     "tukey": _tukey,
     "variance_component": _variance_component,
