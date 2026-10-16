@@ -13,6 +13,17 @@ those changes.
 
 ### Added
 
+- **Run orders robust to a time trend.** `run_order_trends` measures how far each term of a
+  model is confounded with the linear, quadratic and cubic time trends of a run order: the cosine
+  and angle of each term's column with each trend, their mean and largest by class of term (main
+  effects, interactions, quadratic effects), the time-count dot products and the number of level
+  changes. `trend_robust_run_order` searches, by an iterated local search with a `random_state`,
+  for an order whose main effects, and then second-order terms, are orthogonal to the trends of
+  lowest degree first; `time_trends` gives the orthogonal polynomial trends. The reference
+  catalogue checks 154 printed numbers of Núñez Ares and Goos (2019) with it, every table of
+  cosines of their run orders; two disagree, each explained (a transposed digit in the text, and
+  an angle taken from a rounded cosine).
+
 - **Studentized residuals.** `analyze_experiment`'s `"residual_diagnostics"` now lists each run's
   `studentized_residuals` (the residual over its own standard error, s √(1 − h), Design-Expert's
   "Student Residual") and `externally_studentized_residuals` (with s from the fit without that run,

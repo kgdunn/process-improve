@@ -383,3 +383,27 @@ See Also
 - :func:`~process_improve.experiments.evaluate_all` - compute every metric in
   one call.
 - :doc:`doe_strategy` - choosing which design to generate in the first place.
+
+Run order and time trends
+-------------------------
+
+When the runs are made one after another, a slow drift in the process adds a smooth function of
+time to every response, and biases any effect whose column follows it.
+:func:`~process_improve.experiments.run_order_trends` measures that exposure. For each model
+term, it gives the cosine between the term's column and each orthogonal polynomial time trend:
+0 when the column is orthogonal to the trend, 1 when it follows the trend exactly.
+:func:`~process_improve.experiments.trend_robust_run_order` searches for an order that brings
+those cosines to zero, starting with the main effects against the linear trend.
+
+.. code-block:: python
+
+   import itertools
+   import numpy as np
+   from process_improve.experiments import run_order_trends, trend_robust_run_order
+
+   cube = np.array(list(itertools.product((-1, 1), repeat=3)))   # the 2^3 in standard order
+   run_order_trends(cube, model="main_effects", degree=1)["summary"]["linear"]["main_effects"]
+   found = trend_robust_run_order(cube, model="main_effects", degree=1, random_state=0)
+   found["order"], found["trends"]["total_level_changes"]
+
+The search is a heuristic: it does not prove that a better order does not exist.
