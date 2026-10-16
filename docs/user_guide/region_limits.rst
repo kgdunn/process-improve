@@ -12,13 +12,24 @@ with limits: writing them, checking what they leave, proposing one from the sett
 known to fail, drawing the region, and comparing designs and plotting a response over it.
 
 The region's diagnostics and the two functions that propose a limit take and return the
-factors' actual units, and round what they return to 12 significant figures, so
-``250.00000000000009`` prints as ``250.0``. ``slice_slack``, the comparison of designs and
-the plots work in coded units instead, as noted where they appear. Every function is
-deterministic and uses only numpy, scipy and pandas, so it gives the same answer on every
-run, and on every platform (a browser running Python included) to within the last of
+factors' actual units. The settings they return (ranges, corners, a central setting, the
+outline of a picture) and the numbers of a limit's form are rounded to 12 significant
+figures, so ``250.00000000000009`` prints as ``250.0``; a factor whose range is narrow next
+to its values, such as a year or an absolute pressure, gets the further figures that keep
+its corners inside the region. ``slice_slack`` takes actual units too, and returns for
+each point a straight limit's distance from its boundary in coded units, or a curved
+limit's own value. The comparison of designs and the plots work in coded units, as noted
+where they appear.
+
+Every function is deterministic, so it gives the same answer on every run. The region's
+diagnostics and the proposals compute with Python, numpy and scipy alone, and give the
+same answer on every platform, a browser running Python included, to within the last of
 those 12 figures: a value whose 13th figure sits next to a 5 can round either way when two
-platforms' arithmetic differs in its last bit.
+platforms' arithmetic differs in its last bit. Averages over a thin region agree less
+closely. When so small a share of the box can be run that its points cannot be drawn by
+rejection (under 1% for the 20000 points of the comparison of designs), they come from
+chains of random steps, which magnify those last-bit differences: in 6 or more factors,
+such averages agree across platforms to about 7 to 11 figures.
 
 Writing limits as text
 ----------------------
@@ -127,8 +138,8 @@ that can be listed:
 
 The vertices are the extreme settings: here the box corners the limit keeps and the two
 ends of the cut, (175, 3) and (200, 2), each at both flows. A D-optimal design for a
-main-effects model puts its runs on them; one for a quadratic model also uses the
-midpoints of edges and the centres of faces.
+main-effects model puts its runs on them; one for a quadratic model also puts runs between
+them, on edges and faces, and with enough runs inside the region.
 
 Renaming a factor inside a limit
 --------------------------------
@@ -260,8 +271,12 @@ pair and the limits that cross it:
        ax.set(xlabel=x, ylabel=y)
 
 :meth:`~process_improve.experiments.region.DesignRegion.slice_slack` gives, on a grid of
-two factors, how far each point is from meeting every limit: at most zero exactly where it
-can be run. The plots below draw the region with it.
+two factors in actual units, with the other factors held at given values, how far each
+point is from meeting every limit: at most zero exactly where it can be run. For a straight
+limit, and for a factor's range, the slack is a distance in coded units, so it changes
+linearly across the grid; for a curved limit it is the limit's own value, in its units.
+The plots below shade the region with the limits' slack, taken on their own grid in coded
+units.
 
 Comparing designs over the region
 ---------------------------------
@@ -302,7 +317,11 @@ Box-Behnken design has two runs there, which cannot be run.
 The designs are in coded units, and the region's factor ranges define the coding. I is
 averaged over 20000 points drawn uniformly from the region with a fixed seed, and G is
 searched over the region's corners, points on its boundary (on a curved limit too), a
-grid, and the same sample (``comparison.g_points`` describes them). The other measures do not depend on where
+grid, and the same sample (``comparison.g_points`` describes them, and says when a region
+has too many corners to list, more than 65536, so that G can come out low). With a curved
+limit, local searches then climb each design's prediction variance from the points where
+it is largest: the largest value usually lies where the curved boundary meets faces of the
+box, which a fixed set of points does not reach. The other measures do not depend on where
 predictions are made and are the same with or without a region. A mixture region, or one
 that names a factor the designs do not have, is refused.
 

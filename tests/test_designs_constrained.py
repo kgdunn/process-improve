@@ -9,10 +9,11 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from process_improve.experiments import Constraint, Factor, evaluate_design, generate_design
+from process_improve.experiments import Constraint, DesignRegion, Factor, evaluate_design, generate_design
 from process_improve.experiments.augment import augment_design
 from process_improve.experiments.designs_constrained import (
     _CHUNK_ROWS,
+    _FEASIBILITY_TOL,
     _GREEDY_SLACK,
     _MAX_STARTS,
     _N_STARTS,
@@ -27,6 +28,7 @@ from process_improve.experiments.designs_constrained import (
     _greedy_start,
     _n_starts,
     _phi_p,
+    _polytope_vertices,
     _quadratic_forms,
     _Region,
     build_candidates,
@@ -127,6 +129,116 @@ class TestCandidates:
         f = model_matrix(region, coded, cats, model_type)
         assert f.shape[1] == _n_model_parameters([TEMP, DOSE, cat], model_type)
         assert np.linalg.matrix_rank(f) == f.shape[1]
+
+    def test_every_vertex_of_a_region_with_many_limits_is_a_candidate(self) -> None:
+        """Solving every choice of 8 of the region's 22 boundaries was given up: 236 of 758 vertices were candidates.
+
+        A D-optimal design for the model with interactions then lost 5% of D to one built from every vertex.
+        """
+        names = [f"X{j}" for j in range(8)]
+        rng = np.random.default_rng(0)
+        limits = []
+        for _ in range(6):
+            lhs = " + ".join(f"{c}*{n}" for c, n in zip(rng.integers(-2, 3, size=8), names, strict=True))
+            limits.append(f"{lhs} <= {rng.integers(1, 4)}")
+        factors = [Factor(name=n, low=-1, high=1) for n in names]
+        region = _Region(factors, [], [g for limit in limits for g in parse_constraint(limit, set(names))])
+        _coded, _cats, counts = build_candidates(region, n_levels=3)
+        assert counts["n_vertex_points"] == 758
+
+    @pytest.mark.parametrize(
+        ("ranges", "limit"),
+        [
+            ({"T": (100, 150), "D": (20, 60), "F": (1, 7)}, "120*T + 33*D + 450*F <= 17000"),
+            ({"T": (100, 150), "D": (20, 60)}, "30*T + 70*D <= 7000"),
+            ({"P": (101000, 101500), "T": (20, 40)}, "3*P + 7*T <= 304000"),
+        ],
+    )
+    def test_the_corners_of_a_steep_limit_are_kept(self, ranges, limit, caplog) -> None:
+        """A tolerance of 1e-9 in the limit's own units dropped corners lying 1e-12 (coded) off a steep boundary.
+
+        The first limit lost 3 of its 8 vertices from the candidates; given as candidates, the corners
+        DesignRegion reports lost as many, and given as fixed runs, one was said to lie outside.
+        """
+        factors = [Factor(name=n, low=lo, high=hi) for n, (lo, hi) in ranges.items()]
+        names = list(ranges)
+        reported = DesignRegion(factors, [limit])
+        corners = pd.DataFrame(reported.vertices(), columns=names)
+        coded = pd.DataFrame((reported.vertices() - reported._centre) / reported._half, columns=names)
+        region = _Region(factors, [], parse_constraint(limit, set(names)))
+        candidates, _cats, _counts = build_candidates(region)
+        held = {tuple(point) for point in candidates.round(9)}
+        assert all(tuple(vertex) in held for vertex in coded.to_numpy().round(9))
+        supplied = generate_design(
+            factors,
+            "d_optimal",
+            budget=len(names) + 1,
+            constraints=[limit],
+            model_type="main_effects",
+            candidates=corners,
+        )
+        assert supplied.metadata["n_candidates"] == len(corners)
+        with caplog.at_level(logging.WARNING):
+            generate_design(
+                factors,
+                "d_optimal",
+                budget=len(coded) + 1,
+                constraints=[limit],
+                model_type="main_effects",
+                fixed_runs=coded,
+            )
+        assert "outside the constrained region" not in caplog.text
+
+    @pytest.mark.parametrize(
+        ("limit", "length"),
+        [
+            ("300*T + 500*D <= 60000", 12500.0),
+            ("3*T + 5*D <= 600", 125.0),
+            ("(3*T + 5*D) / 100 <= 6", 1.25),
+            ("(3*T + 5*D) / 1000 <= 0.6", 0.125),
+            ("(3*T + 5*D) / 1e5 <= 0.006", 0.00125),
+        ],
+    )
+    def test_a_point_within_the_tolerance_passes_however_a_limit_is_scaled(self, limit: str, length: float) -> None:
+        """Within 1e-9 of a straight boundary, in coded units, a point passes; a gentle gradient reaches further.
+
+        A coded gradient shorter than 1 keeps the tolerance in the limit's own units, a coded distance
+        of 1e-9 divided by that length, as DesignRegion.feasible does.
+        """
+        region = _Region([TEMP, DOSE], [], parse_constraint(limit, {"T", "D"}))
+        assert region._gradient_lengths()[0] == pytest.approx(max(length, 1.0))
+
+        # Coded, 3*T + 5*D - 600 is 75*t + 100*d - 25: its boundary passes through (0.5, -0.125), normal (0.6, 0.8).
+        def passes(distance: float) -> bool:
+            point = np.array([[0.5 + 0.6 * distance, -0.125 + 0.8 * distance]])
+            return bool(region.slack(point)[0] <= _FEASIBILITY_TOL)
+
+        reach = _FEASIBILITY_TOL / min(length, 1.0)
+        assert passes(0.5 * _FEASIBILITY_TOL)
+        assert passes(0.9 * reach)
+        assert not passes(1.1 * reach)
+        held = DesignRegion([TEMP, DOSE], [limit])
+        for distance in (0.5e-9, 2e-9, 5e-8, 1e-6):
+            point = np.array([[0.5 + 0.6 * distance, -0.125 + 0.8 * distance]])
+            assert passes(distance) == bool(held.feasible(point)[0])
+
+    def test_a_region_with_too_many_vertices_lists_none(self) -> None:
+        """Past the cap the exchange's cost would grow with every vertex, so none are taken, as before."""
+        names = [f"X{j}" for j in range(14)]
+        factors = [Factor(name=n, low=-1, high=1) for n in names]
+        region = _Region(factors, [], parse_constraint(" + ".join(names) + " <= 0", set(names)))
+        assert _polytope_vertices(region).shape == (0, 14)
+
+    def test_a_limit_on_numbers_alone_removes_every_vertex_or_none(self) -> None:
+        """``2 <= 1`` holds nowhere, so no vertex is left; ``1 <= 2`` holds everywhere and changes none."""
+        names = {"T", "D"}
+        heat = parse_constraint(HEAT.expression, names)
+        alone = _polytope_vertices(_Region([TEMP, DOSE], [], heat))
+        assert len(alone) == 4
+        failing = _Region([TEMP, DOSE], [], heat + parse_constraint("2 <= 1", names))
+        assert _polytope_vertices(failing).shape == (0, 2)
+        holding = _Region([TEMP, DOSE], [], heat + parse_constraint("1 <= 2", names))
+        np.testing.assert_array_equal(_polytope_vertices(holding), alone)
 
     def test_grid_too_large_to_list_is_sampled(self) -> None:
         region = _Region([Factor(name=f"X{i}", low=0, high=1) for i in range(12)], [], [])

@@ -764,15 +764,24 @@ class TestRegionShading:
         assert spec.metadata["cannot_run_share"] == pytest.approx(1 - allowed.mean())
 
     @pytest.mark.parametrize("plot_type", ["contour", "prediction_variance", "surface_3d"])
+    @pytest.mark.parametrize(
+        "limit",
+        [
+            "sqrt(A - 120) + B <= 70",  # NaN below A = 120: those settings cannot be run
+            "log(A - 100) + B <= 50",  # minus infinity along A = 100, the log of 0: the limit holds there
+        ],
+    )
     def test_settings_where_a_limit_cannot_be_evaluated_are_shaded(
-        self, plot_type: str, quadratic_coefficients: list, design_data_2f: list
+        self, plot_type: str, limit: str, quadratic_coefficients: list, design_data_2f: list
     ) -> None:
         """``sqrt(A - 120)`` is undefined below A = 120; those settings cannot be run, and NaN there was left clear.
 
         A NaN slack fails both ``<= 0`` and ``> 0``, and a figure's JSON writes it (and inf) as null,
-        which Plotly leaves unshaded and the ECharts mask drops.
+        which Plotly leaves unshaded and the ECharts mask drops. ``log(A - 100)`` is minus infinity
+        along the plot's A = 100 edge instead, which meets the limit: that edge stays clear, so the
+        slack there must go below zero, not above it with the settings that cannot be evaluated.
         """
-        region = DesignRegion(REGION_FACTORS[:2], ["sqrt(A - 120) + B <= 70"])
+        region = DesignRegion(REGION_FACTORS[:2], [limit])
         kwargs: dict[str, Any] = {"factors_to_plot": ["A", "B"], "region": region}
         if plot_type == "prediction_variance":
             kwargs.update(design_data=design_data_2f, response_column="y")
@@ -782,8 +791,12 @@ class TestRegionShading:
         spec = plot.to_spec()
         layer = spec.panels[0].layers[0 if plot_type == "surface_3d" else 1]
         x, y = _coded_grid(layer.style["x_grid"], layer.style["y_grid"])
-        with np.errstate(invalid="ignore"):
+        with np.errstate(invalid="ignore", divide="ignore"):
             allowed = region.feasible(np.column_stack([x, y]))
+        if limit.startswith("log"):
+            edge = np.isclose(x, -1.0)
+            assert edge.sum() == len(layer.style["y_grid"])
+            assert allowed[edge].all(), "log(0) is minus infinity, so the limit holds all along A = 100"
         assert 0.3 < 1 - allowed.mean() < 0.5
         assert spec.metadata["cannot_run_share"] == pytest.approx(1 - allowed.mean())
         z = np.asarray(layer.style["z_matrix"], dtype=float).ravel()

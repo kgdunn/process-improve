@@ -29,12 +29,11 @@ only compute a number.
 from __future__ import annotations
 
 import ast
-import itertools
 import keyword
 import logging
 import math
 from collections.abc import Callable, Iterator, Mapping
-from dataclasses import dataclass, replace
+from dataclasses import dataclass, field, replace
 from typing import TYPE_CHECKING, Any
 
 import numpy as np
@@ -42,7 +41,8 @@ import pandas as pd
 from scipy.stats import qmc
 
 from process_improve._random import check_random_state
-from process_improve.experiments._uniform_sampling import UniformSampler
+from process_improve.experiments._region_geometry import box_vertices
+from process_improve.experiments._uniform_sampling import UniformSampler, _affine_form
 from process_improve.experiments.factor import FactorType
 
 if TYPE_CHECKING:
@@ -282,6 +282,7 @@ class _Region:
     continuous: list[Factor]
     categorical: list[Factor]
     inequalities: list[_Evaluator]
+    _lengths: np.ndarray | None = field(default=None, init=False, repr=False, compare=False)
 
     def actual(self, coded: np.ndarray) -> dict[str, np.ndarray]:
         """Map coded continuous columns to ``{name: actual values}``."""
@@ -291,10 +292,35 @@ class _Region:
         }
 
     def slack(self, coded: np.ndarray) -> np.ndarray:
-        """Return the largest ``g`` per row: the point is feasible where this is ``<= 0``."""
+        """Return the largest ``g`` per row: the point is feasible where this is ``<= 0``.
+
+        A straight constraint whose gradient in coded units is longer than 1 has its value
+        divided by that length, a distance in coded units; a gentler one keeps its own units,
+        where ``_FEASIBILITY_TOL`` reaches further. So a point within ``_FEASIBILITY_TOL`` of a
+        straight boundary, in coded units, passes however the constraint is scaled, as in
+        :meth:`~process_improve.experiments.region.DesignRegion.feasible`. In the
+        constraint's own units, ``1e-9`` dropped vertices that lie ``1e-12`` (coded) from a
+        steep boundary such as ``120*T + 33*D + 450*F <= 17000``.
+        """
         env = self.actual(coded)
-        g = [np.broadcast_to(ineq(env), (coded.shape[0],)) for ineq in self.inequalities]
+        rows = coded.shape[0]
+        g = [
+            np.broadcast_to(ineq(env), (rows,)) / size
+            for ineq, size in zip(self.inequalities, self._gradient_lengths(), strict=True)
+        ]
         return np.max(g, axis=0) if g else np.full(coded.shape[0], -np.inf)
+
+    def _gradient_lengths(self) -> np.ndarray:
+        """Return per constraint its coded gradient's length when straight and longer than 1, else 1 (cached)."""
+        if self._lengths is None:
+            k = len(self.continuous)
+            ones = np.ones(k)
+            lengths = []
+            for g in self.inequalities:
+                form = _affine_form(_coded_inequality(self, g), -ones, ones) if k else None
+                lengths.append(max(math.hypot(*form[0]), 1.0) if form is not None else 1.0)
+            self._lengths = np.array(lengths, dtype=float)
+        return self._lengths
 
 
 #: The automatic grid holds at most ``max(_MIN_CANDIDATE_CAP, _CANDIDATES_PER_COEFFICIENT * p)`` candidates for a
@@ -414,8 +440,9 @@ def _boundary_points(region: _Region, grid: np.ndarray, cat_idx: np.ndarray, ste
     return np.vstack(points), np.vstack(cats)
 
 
-#: Most linear systems solved to find the vertices of a region cut by linear constraints.
-_MAX_VERTEX_SYSTEMS = 200_000
+#: Most vertices of a region the candidate set takes; a region with more gives none. Listing them is quick up to
+#: here (0.2 s in 10 factors with 8 limits), while the exchange's cost grows with every candidate.
+_MAX_VERTEX_CANDIDATES = 2**13
 
 
 def _coded_inequality(region: _Region, g: _Evaluator) -> Callable[[np.ndarray], np.ndarray]:
@@ -427,33 +454,39 @@ def _polytope_vertices(region: _Region) -> np.ndarray:
     """Vertices of the box cut by the region's linear constraints, in coded units.
 
     A vertex is a point where ``k`` of the hyperplanes (box faces and linear constraint
-    boundaries) meet; each choice of ``k`` is solved, and the solutions inside the
-    region are kept. These are where D-optimal runs go, and two constraints usually
+    boundaries) meet. These are where D-optimal runs go, and two constraints usually
     meet away from every grid line, where neither the grid nor the boundary crossings
-    reach (Atkinson, Donev and Tobias 2007, ch. 12). Non-linear constraints only filter
-    the result. Returns no points when there is no linear constraint, or when there
-    would be more than ``_MAX_VERTEX_SYSTEMS`` systems to solve.
+    reach (Atkinson, Donev and Tobias 2007, ch. 12). They are listed by cutting the box
+    with one constraint at a time
+    (:func:`~process_improve.experiments._region_geometry.box_vertices`, which
+    :class:`~process_improve.experiments.region.DesignRegion` uses too), so the work
+    grows with the number of vertices rather than with the ways of choosing ``k``
+    boundaries. Non-linear constraints only filter the result. Returns no points when
+    there is no linear constraint, or when the region has more than
+    ``_MAX_VERTEX_CANDIDATES`` vertices.
     """
-    from process_improve.experiments._uniform_sampling import _affine_form  # noqa: PLC0415
-
     k = len(region.continuous)
     ones = np.ones(k)
     forms = [_affine_form(_coded_inequality(region, g), -ones, ones) for g in region.inequalities]
     rows = [f for f in forms if f is not None]
-    if not rows or k == 0 or math.comb(2 * k + len(rows), k) > _MAX_VERTEX_SYSTEMS:
+    if not rows or k == 0:
         return np.empty((0, k))
-    a_mat = np.vstack([np.eye(k), -np.eye(k), *[a[None, :] for a, _ in rows]])
-    b_vec = np.concatenate([ones, ones, [b for _, b in rows]])
-    norms = np.linalg.norm(a_mat, axis=1)
-    keep = norms > 0
-    a_mat, b_vec = a_mat[keep] / norms[keep, None], b_vec[keep] / norms[keep]
-    subsets = np.array(list(itertools.combinations(range(len(a_mat)), k)), dtype=int).reshape(-1, k)
-    systems, rhs = a_mat[subsets], b_vec[subsets]
-    solvable = np.abs(np.linalg.det(systems)) > 1e-10
-    points = np.linalg.solve(systems[solvable], rhs[solvable][..., None])[..., 0]
-    points = points[np.all(points @ a_mat.T <= b_vec + 1e-9, axis=1)]
-    points = np.clip(points, -1.0, 1.0)
-    return np.unique(points.round(12), axis=0)
+    a_rows, b_rows = [], []
+    for a, b in rows:
+        # Over the box |a @ x| <= sum |a|, so a row with less than |b| there (a limit on numbers only, whose
+        # fit leaves a gradient of rounding noise) holds everywhere or nowhere, by the sign of b.
+        if not a.any() or np.abs(a).sum() < abs(b):
+            if b < 0:  # no point meets it
+                a_rows.append(np.zeros(k))
+                b_rows.append(-1.0)
+            continue
+        size = math.hypot(*a)
+        a_rows.append(a / size)
+        b_rows.append(b / size)
+    try:
+        return box_vertices(np.array(a_rows).reshape(len(a_rows), k), np.array(b_rows), _MAX_VERTEX_CANDIDATES)
+    except ValueError:  # more vertices than the candidate set takes
+        return np.empty((0, k))
 
 
 def _with_every_level(points: np.ndarray, cat_shape: list[int]) -> tuple[np.ndarray, np.ndarray]:

@@ -186,9 +186,14 @@ those changes.
 - **Designs compared over the settings that can be run.** `compare_designs(...,
   region=)` takes a `DesignRegion` (or its dict) and computes I and G over it rather than
   over the cube: I averages the prediction variance over 20000 points drawn uniformly from
-  the region with a fixed seed, and G searches the region's vertices, its support points,
-  points on the boundary of a curved limit, the grid's points inside it and that sample. The other measures do not depend on where predictions
-  are made and do not change. `DesignComparison` gains `region` (also in `to_dict()`) and a
+  the region with a fixed seed, and G searches the region's vertices (up to 65536 of
+  them; past that `g_points` says that G can come out low), its support points, points
+  on the boundary of a curved limit, the grid's points inside it and that sample.
+  With a curved limit, local searches (SLSQP) then climb each design's prediction variance
+  from the points where it is largest, since the largest value usually sits where the
+  curved boundary meets faces of the box, which no fixed set of points reaches. The other
+  measures do not depend on where predictions are made and do not change.
+  `DesignComparison` gains `region` (also in `to_dict()`) and a
   `measures` property whose definitions of I and G say "over the region"; a design with
   runs outside the region is noted. A mixture region, or one that names a factor the
   designs lack, is refused. Without a region every value is what it was.
@@ -251,22 +256,50 @@ those changes.
   function, so every linear constraint was treated as curved: the candidate set of a
   constrained optimal design lost the region's vertices, and its sampler fell back to a
   slower method.
+- **Constrained optimal designs and `evaluate_design(region=)` reach every vertex of a
+  region with many limits.** The vertices among the candidates, and among the support
+  points that `evaluate_design` takes its worst case over, came from solving every choice
+  of `k` boundaries, which was given up past 200000 choices (8 factors and 5 limits): a
+  region of 8 factors and 6 limits had 236 of its 758 vertices listed, its D-optimal
+  designs lost about 5% of D, and `evaluate_design` gave a worst case 7% below the
+  variance at a vertex. They are now found by cutting the box with one limit at a time, as
+  `DesignRegion` finds them: the same vertices wherever the old way finished, and every
+  one up to 8192 of them.
+- **Constrained optimal designs keep the corners of a steep straight limit.** Candidates,
+  supplied candidates and fixed runs were held to each limit with a tolerance of `1e-9` in
+  the limit's own units, so a corner lying `1e-12` (coded) off the boundary of a steep limit
+  failed it: `120*T + 33*D + 450*F <= 17000` lost 3 of its 8 vertices from the candidates,
+  the corners that `DesignRegion.vertices()` reports were dropped when supplied as
+  candidates (`30*T + 70*D <= 7000` then kept too few to fit a model), and one of them, as
+  a fixed run, was said to lie outside the region. As in `DesignRegion.feasible`, the
+  tolerance is now a distance of `1e-9` in coded units for a straight limit whose coded
+  gradient is longer than 1.
 - **A constraint that cannot be evaluated over part of the factor box is treated as
   curved.** Where `sqrt` or `log` of a negative number, or a division by zero, made the
   constraint infinite or `NaN` at some probe point, the test for an affine constraint
-  passed it, and the secant plane through the points where it was finite stood in for it:
-  `0.5 <= A/B <= 2` with `B` from 0, or `sqrt(A - 120) + B <= 70` with `A` from 100, got
-  vertices, bounds and a hit-and-run sampler cut by a plane the constraint does not have.
-- **Samples of a thin region are the same on every platform.** When a region keeps under
-  about 1% of the box, its uniform samples come from hit-and-run chains whose directions
-  used eigenvectors of a covariance, and those have no fixed sign: native Python and
-  Pyodide took different steps, so I-optimal designs and averages over such a region
-  differed. The directions now use the Cholesky factor, which is unique.
-- **`DesignRegion.feasible` does not depend on how a straight limit is scaled.** It
-  compared a limit's value with `1e-9` in the limit's own units, so a point on the
-  boundary of `120*T + 33*D + 450*F <= 17000` could fail where the same limit divided by
-  100 passed. For a straight limit whose coded gradient is longer than 1, the tolerance
-  is now a distance of `1e-9` in coded units; nothing that passed before fails.
+  passed it, and its fitted form stood in for it: the secant plane through the points
+  where it was finite (`0.5 <= A/B <= 2` with `B` from 0), or a form of `NaN`, which the
+  hit-and-run chains ignore (`sqrt(A - 149) + B <= 21` with `A` from 100 to 150 and `B`
+  from 20 to 60). In a region too thin to sample by rejection, the chains then did not
+  keep to the constraint: none of 2000 samples of that `sqrt` limit met it, so
+  `evaluate_design(region=)` and the moments of an I-optimal design averaged over settings
+  outside it, and none of the 6 runs of a maximin or a maxpro design met it.
+- **Samples of a thin region no longer depend on the sign of an eigenvector.** A region too
+  thin to sample by rejection (one that keeps under 1% of the box for the 20000 points that
+  `compare_designs` and an I-optimal design's moments draw, or under 5% for the 100000 of
+  `evaluate_design`) is sampled by hit-and-run chains, whose directions used eigenvectors
+  of a covariance, and those have no fixed sign: native Python and Pyodide took different
+  steps, and their averages over such a region differed in the third or fourth figure.
+  The directions now use the Cholesky factor, which is unique. The chains still magnify
+  differences in the last bit of the platforms' arithmetic, so in 6 or more factors these
+  averages agree to about 7 to 11 figures, not to every one.
+- **`DesignRegion.feasible` accepts a point on a straight limit's boundary however the
+  limit is scaled.** It compared a limit's value with `1e-9` in the limit's own units, so
+  a point on the boundary of `120*T + 33*D + 450*F <= 17000` could fail where the same
+  limit divided by 100 passed. For a straight limit whose coded gradient is longer than 1,
+  the tolerance is now a distance of `1e-9` in coded units; a gentler limit keeps its
+  tolerance in its own units, which is the wider of the two, so nothing that passed before
+  fails.
 - **A single limit passed outside a list is refused with a clear message.**
   `constraints="T <= 160"` was read character by character and reported that a limit
   named `'T'` is not an inequality; a lone string, dict or `Constraint` now raises a

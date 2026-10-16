@@ -26,7 +26,8 @@ from process_improve.experiments import (
     evaluate_design,
     generate_design,
 )
-from process_improve.experiments.compare import MEASURES, _model_exponents, _moments
+from process_improve.experiments import _region_geometry as geometry
+from process_improve.experiments.compare import MEASURES, _curved_boundary, _model_exponents, _moments, _within
 from process_improve.experiments.visualization.plots import create_plot
 
 #: The twelve design points behind the book's centre-run example: six half-rows and their negations.
@@ -506,10 +507,10 @@ def test_g_over_the_region_is_its_largest_prediction_variance():
         assert g == pytest.approx(max(prediction_variance(design, sample).max(), g), rel=0.01), name
 
 
-def test_g_is_at_least_the_variance_at_every_vertex_of_a_region_with_many_limits():
-    """With 8 factors and 6 limits there are too many ways of choosing 8 boundaries for the support points to try.
+def many_limits() -> tuple[DesignRegion, np.ndarray, np.ndarray]:
+    """Return a region of 8 factors and 6 limits with 758 vertices, 41 runs in it, and their variance at each vertex.
 
-    They then held 236 of the region's 758 vertices, and G, usually at a vertex, came out 7% low.
+    The variance is for the model with every two-factor interaction, written out independently.
     """
     names = [f"X{j}" for j in range(8)]
     rng = np.random.default_rng(0)
@@ -520,26 +521,77 @@ def test_g_is_at_least_the_variance_at_every_vertex_of_a_region_with_many_limits
         limits.append(f"{lhs} <= {rng.integers(1, 4)}")
     region = DesignRegion([Factor(name=n, low=-1, high=1) for n in names], limits)
     runs = region.sample(41, np.random.default_rng(1))
-    comparison = compare_designs({"inside": pd.DataFrame(runs, columns=names)}, "interactions", region=region)
 
     def expand(x):
         pairs = [x[:, i] * x[:, j] for i, j in itertools.combinations(range(8), 2)]
         return np.column_stack([np.ones(len(x)), x, *pairs])
 
     vertices = (region.vertices() - region._centre) / region._half
-    assert len(vertices) == 758
     f, design = expand(vertices), expand(runs)
-    variance = np.einsum("ij,jk,ik->i", f, np.linalg.inv(design.T @ design), f)
+    return region, runs, np.einsum("ij,jk,ik->i", f, np.linalg.inv(design.T @ design), f)
+
+
+def test_g_is_at_least_the_variance_at_every_vertex_of_a_region_with_many_limits():
+    """With 8 factors and 6 limits there are too many ways of choosing 8 boundaries for the support points to try.
+
+    They then held 236 of the region's 758 vertices, and G, usually at a vertex, came out 7% low.
+    """
+    region, runs, variance = many_limits()
+    assert len(variance) == 758
+    comparison = compare_designs({"inside": pd.DataFrame(runs, columns=region.names)}, "interactions", region=region)
     assert comparison.values["inside [n=41]"]["g"] >= variance.max() * (1 - 1e-12)
     assert "its 758 vertices" in comparison.g_points
 
 
-@pytest.mark.parametrize("seed", [0, 1, 2])
+def test_g_says_when_the_vertices_are_not_listed(monkeypatch):
+    """Past 65536 vertices none are listed, and G, usually at a vertex, can come out low: 3.6% for 14 factors."""
+    region = DesignRegion(HEAT, [HEAT_LIMIT])
+    assert "not listed" not in compare_designs(heat_designs(), "quadratic", region=region).g_points
+    monkeypatch.setattr(geometry, "MAX_VERTICES", 2)  # the heat region has 4
+    g_points = compare_designs(heat_designs(), "quadratic", region=DesignRegion(HEAT, [HEAT_LIMIT])).g_points
+    assert "vertices" not in g_points.split(";")[0]
+    assert g_points.endswith(
+        "; the region's vertices are not listed (there can be more than 65536), so G can come out below its "
+        "largest variance, which usually sits at a vertex"
+    )
+
+
+def test_evaluate_design_reaches_every_vertex_of_a_region_with_many_limits():
+    """evaluate_design(region=) takes its worst case over the region's support points, which now list every vertex.
+
+    They listed the vertices by solving every choice of 8 boundaries, which was given up here, so they
+    held 236 of the 758, and evaluate_design's largest variance came out 7% below compare_designs' G.
+    """
+    region, runs, variance = many_limits()
+    support = {tuple(point) for point in region.support_points().round(9)}
+    vertices = (region.vertices() - region._centre) / region._half
+    assert all(tuple(vertex) in support for vertex in vertices.round(9))
+    result = evaluate_design(
+        pd.DataFrame(runs, columns=region.names), "interactions", "g_efficiency", region=region, random_state=1
+    )
+    assert result["max_prediction_variance"] == pytest.approx(variance.max(), rel=1e-9)
+
+
+def test_a_climb_that_ends_outside_the_region_is_pulled_back_to_its_boundary():
+    """A local search's end a little outside a curved limit, or not a number, gives a setting the region accepts."""
+    region = DesignRegion(factors("AB"), ["A**2 + B**2 <= 1"])
+    start, inside = np.zeros(2), np.array([0.3, 0.4])
+    back = _within(region, start, np.array([1.0, 1.0]))
+    assert region.feasible(back[None, :])[0]
+    assert np.hypot(*back) == pytest.approx(1.0, abs=1e-9), "where the segment from the start leaves the disc"
+    assert back[0] == pytest.approx(back[1]), "on the segment back to the start"
+    assert _within(region, start, inside) is inside
+    assert _within(region, start, np.array([np.nan, 0.5])) is start
+
+
+@pytest.mark.parametrize("seed", range(10))
 def test_g_reaches_a_curved_boundary(seed):
     """G usually sits on the boundary, which a uniform sample rarely reaches and a 3-level grid touches at a few points.
 
     Over the cylinder A**2 + B**2 <= 1 G used to come out up to 12% below the variance at a
-    point of its surface; it is now within 1% of a dense search of that surface and its caps.
+    point of its surface. With the points on the boundary it came within 1% of a dense search
+    of that surface and its caps, and with the local searches from the best of them it is at
+    least the search's largest value and within 0.1% of it.
     """
     region = DesignRegion(factors("ABC"), ["A**2 + B**2 <= 1"])
     runs = region.sample(14, np.random.default_rng(seed))
@@ -559,8 +611,81 @@ def test_g_reaches_a_curved_boundary(seed):
 
     f, design = expand(surface), expand(runs)
     densest = np.einsum("ij,jk,ik->i", f, np.linalg.inv(design.T @ design), f).max()
-    assert g == pytest.approx(max(densest, g), rel=0.01)
+    assert densest * (1 - 1e-12) <= g <= densest * (1 + 1e-3)
     assert "points on its boundary" in comparison.g_points
+
+
+def test_the_boundary_points_lie_on_a_curved_limit():
+    """A ray the cylinder's surface stops is bisected onto it; one the box stops ends on a cap.
+
+    G reached the cylinder's surface through the local searches whatever these points were,
+    and with no bisection every one of them was the point inside the region its ray started
+    from, so G alone could not show that the bisection works.
+    """
+    region = DesignRegion(factors("ABC"), ["A**2 + B**2 <= 1"])
+    sample = region.sample(2000, np.random.default_rng(0))
+    boundary = _curved_boundary(region, sample)
+    assert len(boundary) == len(sample)
+    assert region.feasible(boundary).all()
+    radius = np.hypot(boundary[:, 0], boundary[:, 1])
+    on_a_cap = np.abs(np.abs(boundary[:, 2]) - 1.0) <= 1e-12
+    assert np.all(np.abs(radius[~on_a_cap] - 1.0) <= 1e-9)
+    assert (~on_a_cap).sum() > len(boundary) / 2, "most rays meet the curved surface"
+    assert _curved_boundary(DesignRegion(factors("ABC"), ["A + B <= 1"]), sample).shape == (0, 3)
+
+
+def sphere_meets_faces(free_levels: int) -> np.ndarray:
+    """Return points where the sphere A**2 + B**2 + C**2 = 1.5 meets faces of the box of A to E.
+
+    These are the sphere's surface inside the box with D and E at their bounds, and the arcs
+    where it meets a face of A, B or C (the other two on a circle of radius sqrt(0.5)) with D at
+    ``free_levels`` settings across its range and E at its bounds. Each point is moved inside
+    the sphere by a relative 1e-12, so that every one of them can be run.
+    """
+    radius = math.sqrt(1.5) * (1 - 1e-12)
+    polar, turn = (a.ravel() for a in np.meshgrid(np.linspace(0, np.pi, 181), np.linspace(0, 2 * np.pi, 361)))
+    surface = radius * np.column_stack([np.sin(polar) * np.cos(turn), np.sin(polar) * np.sin(turn), np.cos(polar)])
+    surface = surface[np.all(np.abs(surface) <= 1, axis=1)]
+    parts = [
+        np.column_stack([surface, np.tile(corner, (len(surface), 1))]) for corner in itertools.product([-1, 1], [-1, 1])
+    ]
+    angle = np.linspace(0, 2 * np.pi, 361)
+    circle = math.sqrt(0.5) * (1 - 1e-12) * np.column_stack([np.cos(angle), np.sin(angle)])
+    for face, sign, d, e in itertools.product(range(3), [-1, 1], np.linspace(-1, 1, free_levels), [-1, 1]):
+        arc = np.empty((len(circle), 5))
+        arc[:, face], arc[:, [j for j in range(3) if j != face]], arc[:, 3], arc[:, 4] = sign, circle, d, e
+        parts.append(arc)
+    return np.vstack(parts)
+
+
+@pytest.mark.parametrize(("model", "n_runs"), [("quadratic", 30), ("main_quadratic", 16)])
+def test_g_reaches_where_a_curved_limit_meets_faces_of_the_box(model, n_runs):
+    """With a limit on three of five factors, G sits where the curved boundary meets faces of the box.
+
+    For these designs that is on the sphere with D and E at their bounds (quadratic model), and
+    on an arc where it meets the face C = 1 with D inside its range (main effects and squares).
+    The boundary points, each on a ray from a point inside the region, reach the sphere with D
+    and E inside their ranges, and G came out 12% and 5% below the largest variance there; the
+    local searches from the points of largest variance now reach it.
+    """
+    names = list("ABCDE")
+    region = DesignRegion(factors(names), ["A**2 + B**2 + C**2 <= 1.5"])
+    runs = region.sample(n_runs, np.random.default_rng(1))
+    comparison = compare_designs({"inside": pd.DataFrame(runs, columns=names)}, model, region=region)
+    g = comparison.values[f"inside [n={n_runs}]"]["g"]
+    points = sphere_meets_faces(free_levels=41)
+    assert region.feasible(points).all()
+
+    def expand(x):
+        pairs = [x[:, i] * x[:, j] for i, j in itertools.combinations(range(5), 2)] if model == "quadratic" else []
+        return np.column_stack([np.ones(len(x)), x, *pairs, x**2])
+
+    f, design = expand(points), expand(runs)
+    densest = ((f @ np.linalg.inv(design.T @ design)) * f).sum(axis=1).max()
+    assert densest * (1 - 1e-12) <= g <= densest * (1 + 1e-3), "at least the scan's largest, and within 0.1% of it"
+    assert "local searches" in comparison.g_points
+    again = compare_designs({"inside": pd.DataFrame(runs, columns=names)}, model, region=region)
+    assert again.values[f"inside [n={n_runs}]"]["g"] == g, "the same on every run"
 
 
 def test_a_region_changes_only_i_and_g():
@@ -630,12 +755,31 @@ def test_runs_outside_the_region_are_noted():
     )
 
 
-def test_a_design_of_the_regions_own_vertices_lies_inside_it():
-    """A steep limit's corners are rounded within 1e-12 of its boundary; they used to be noted as outside."""
-    steep = [Factor(name="T", low=100, high=150), Factor(name="D", low=20, high=60), Factor(name="F", low=1, high=7)]
-    region = DesignRegion(steep, ["120*T + 33*D + 450*F <= 17000"])
+@pytest.mark.parametrize(
+    ("factors", "limit"),
+    [
+        (
+            [Factor(name="T", low=100, high=150), Factor(name="D", low=20, high=60), Factor(name="F", low=1, high=7)],
+            "120*T + 33*D + 450*F <= 17000",
+        ),
+        ([Factor(name="P", low=100000, high=100100), Factor(name="T", low=0, high=1)], "3*P + 7*T <= 300251"),
+        (
+            [Factor(name="t", low=1.7e9, high=1.7e9 + 3600), Factor(name="F", low=0, high=10)],
+            "t + 77*F <= 1700000908.5892",
+        ),
+    ],
+)
+def test_a_design_of_the_regions_own_vertices_lies_inside_it(factors, limit):
+    """A reported corner lies within about 1e-10 (coded) of its boundary; these used to be noted as outside.
+
+    The first, a steep limit, failed the tolerance in the limit's own units; the others, factors
+    whose range is narrow next to their values (a 100 Pa window at 1 bar, an hour of a time
+    stamp), failed after their corners were rounded to 12 significant figures.
+    """
+    region = DesignRegion(factors, [limit])
     design = pd.DataFrame((region.vertices() - region._centre) / region._half, columns=region.names)
-    assert compare_designs({"corners": design}, "main_effects", region=region).notes["corners [n=8]"] == ()
+    notes = compare_designs({"corners": design}, "main_effects", region=region).notes
+    assert not any("outside" in note for note in notes[f"corners [n={len(design)}]"])
 
 
 def test_the_region_can_be_given_as_its_dict_and_is_deterministic():
