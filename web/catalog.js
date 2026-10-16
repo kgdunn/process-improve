@@ -645,7 +645,7 @@ function detailBody(design, detail) {
     const checks = checkLine(design.checks);
     if (checks) body.push(element("p", { text: `Printed numbers: ${checks}. The library recomputes them on every change to it.` }));
     if (design.regenerable === true) body.push(element("p", { class: "detail__ok", text: "The library makes this design: the page's runs are the source's runs, to within its rounding." }));
-    if (design.regenerable === false) body.push(element("p", { class: "hint", text: `The design the page makes from this description is not the source's: ${detail.closed}.` }));
+    if (design.regenerable === false) body.push(element("p", { class: "hint", text: `The design the page makes from this description is not the source's: ${detail.unmade}.` }));
   } else {
     body.push(element("p", { text: "Made by process-improve's generate_design, with the call below." }));
   }
@@ -655,6 +655,10 @@ function detailBody(design, detail) {
   const actions = element("div", { class: "actions" });
   if (detail.campaign) {
     actions.append(element("button", { type: "button", class: "button primary", "data-open": design.id, text: "Open in Factorial" }));
+    if (detail.opens_as === "given") {
+      const whose = source ? "the source's runs as it prints them" : "these runs as the library made them";
+      body.push(element("p", { class: "hint", text: `Factorial opens ${whose}, in their order: ${detail.unmade}.` }));
+    }
   } else {
     body.push(element("p", { class: "hint", text: `Factorial does not open this design: ${detail.closed}.` }));
   }

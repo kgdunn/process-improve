@@ -124,13 +124,28 @@ def test_the_robustness_filters_keep_the_designs_that_withstand_more(context, si
     assert survives.locator(".count").text_content() == "3", "each of the three survives losing a run"
 
 
-def test_a_design_the_page_does_not_make_says_why_it_does_not_open(context, site):
-    page = open_catalog(context, site, f"#d={OMARS}")
+def test_a_design_the_page_cannot_take_says_why_it_does_not_open(context, site):
+    page = open_catalog(context, site, f"#d={COMPARISON}")
     page.wait_for_selector("#detail[open]")
-    assert "Factorial does not open this design: the page does not make this kind of design." in page.text_content(
+    assert "Factorial does not open this design: the page opens designs of 2 to 12 factors." in page.text_content(
         "#detail-body"
     )
-    assert page.locator(f"#detail-body [data-open='{OMARS}']").count() == 0
+    assert page.locator(f"#detail-body [data-open='{COMPARISON}']").count() == 0
+
+
+def test_a_design_the_page_does_not_make_opens_with_its_runs_as_given(context, site):
+    """The page makes no OMARS design: Factorial opens the library's runs as they are, and lists them in Design."""
+    page = open_catalog(context, site, f"#d={OMARS}")
+    page.wait_for_selector("#detail[open]")
+    assert "Factorial opens these runs as the library made them, in their order" in page.text_content("#detail-body")
+    page.click(f"#detail-body [data-open='{OMARS}']")
+    page.wait_for_selector("#campaign-banner", state="visible")
+    page.wait_for_function("window.__pi.count('api_catalogue') === 1 && window.__pi.idle()")
+    settled(page)
+    assert len(run_sheet(page)) == 9
+    assert page.input_value("#design-type") == "given"
+    shown = page.eval_on_selector("#design-type option[value=given]", "o => !o.hidden")
+    assert shown, "the list offers runs as given while they are open"
 
 
 def test_a_published_design_opens_in_factorial_with_the_source_s_results(context, site):

@@ -70,7 +70,12 @@ def test_each_design_s_detail_is_in_the_file_the_index_names(catalog, index):
 def test_the_page_reads_every_campaign_the_build_wrote(node, details):
     """Each campaign passes the page's own check, ``checkCampaign``, as a link to it is checked on opening."""
     campaigns = {name: d["campaign"] for name, d in details.items() if d["campaign"]}
-    assert set(campaigns) == {"bhh-pilot-plant-2-3", "lib-ccd-k3-face-centered", "lib-full-factorial-k3"}
+    assert set(campaigns) == {
+        "bhh-pilot-plant-2-3",
+        "lib-ccd-k3-face-centered",
+        "lib-full-factorial-k3",
+        "lib-omars-k4",
+    }
     checked = javascript(node, source("campaign.js"), [("checkCampaign", [c]) for c in campaigns.values()])
     for (name, campaign), read in zip(campaigns.items(), checked, strict=True):
         assert read["design"]["rows"] == campaign["design"]["rows"], name
@@ -88,12 +93,53 @@ def test_a_published_design_the_library_regenerates_opens_with_its_results(index
     assert runs.to_numpy().tolist() == detail["coded_runs"]
 
 
-def test_a_design_the_page_does_not_make_says_why_it_does_not_open(index, details):
-    for name in ("bhh-plant-trial-two-methods", "lib-omars-k4"):
-        design = _design(index, name)
-        assert (design["open"], design["regenerable"]) == (False, None), name
-        assert details[name]["campaign"] is None
-        assert details[name]["closed"] == "the page does not make this kind of design"
+def test_a_design_the_page_does_not_make_opens_with_its_runs_as_given(index, details):
+    """The page makes no OMARS design: Factorial opens the library's runs as they are, in their order."""
+    design, detail = _design(index, "lib-omars-k4"), details["lib-omars-k4"]
+    assert (design["open"], design["regenerable"]) == (True, None)
+    assert (detail["opens_as"], detail["unmade"], detail["closed"]) == (
+        "given",
+        "the page does not make this kind of design",
+        "",
+    )
+    campaign = detail["campaign"]
+    assert campaign["design"]["spec"]["design_type"] == "given"
+    runs = coded(run_sheet(campaign["design"]), campaign["design"]["spec"]["factors"])
+    assert runs.to_numpy().tolist() == detail["coded_runs"]
+
+
+def test_a_design_the_page_cannot_take_says_why_it_does_not_open(index, details):
+    design, detail = _design(index, "bhh-plant-trial-two-methods"), details["bhh-plant-trial-two-methods"]
+    assert (design["open"], detail["campaign"], detail["opens_as"]) == (False, None, None)
+    assert detail["closed"] == "the page opens designs of 2 to 12 factors"
+
+
+def test_a_design_with_runs_the_page_makes_otherwise_opens_as_printed(build_script, few):
+    """The pilot plant with its first run moved: the page's 2^3 lacks that run, so the source's runs open as given."""
+    record = next(r for r in few if r["id"] == "bhh-pilot-plant-2-3")
+    moved = {**record, "coded_runs": [[0.5, -1.0, -1.0], *record["coded_runs"][1:]]}
+    with no_bytecode():
+        campaign, reason = build_script.given_campaign(moved)
+    assert reason == ""
+    assert campaign["design"]["spec"]["design_type"] == "given"
+    assert campaign["responses"] == [60, 72, 54, 68, 52, 83, 45, 80]
+    assert campaign["design"]["rows"][0][2:5] == [175.0, 20.0, "A"], "the moved run, in the factors' own units"
+
+
+@pytest.mark.parametrize(
+    ("change", "reason"),
+    [
+        ({"blocked": True}, "the page opens designs without blocks or whole plots"),
+        ({"coded_runs": None}, "the source prints no complete table of runs"),
+        ({"n_mixture": 3}, "the page has no model for a mixture's proportions"),
+        ({"coded_runs": [[0.0, -1.0, 0.0]]}, "a categorical factor has more than the two levels the page takes"),
+    ],
+    ids=["blocked", "no-runs", "mixture", "a-third-level"],
+)
+def test_runs_the_page_cannot_take_are_not_given(build_script, few, change, reason):
+    record = next(r for r in few if r["id"] == "bhh-pilot-plant-2-3")
+    with no_bytecode():
+        assert build_script.given_campaign({**record, **change}) == (None, reason)
 
 
 def test_a_generated_design_opens_in_the_page_s_randomised_run_order(index, details):
@@ -137,8 +183,8 @@ def test_the_whole_catalog_opens_every_generated_design_the_page_makes(build_scr
     generated = [d for d in designs if d["collection"] == "generated"]
     assert all(d["open"] for d in generated if d["design_type"] in makes)
     published = [d for d in designs if d["collection"] == "published"]
-    assert sum(d["open"] for d in published) >= 150, "most published factorials and response surfaces open"
-    assert all(d["open"] == bool(d["regenerable"]) for d in published)
+    assert sum(d["open"] for d in published) >= 300, "a published design with a complete table of runs opens"
+    assert all(d["open"] for d in published if d["regenerable"])
 
 
 def test_the_index_names_the_measures_designs_are_compared_on(index):
