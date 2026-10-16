@@ -123,7 +123,9 @@ def test_a_categorical_factor_enters_with_a_column_per_extra_level():
     runs = np.array([[s, t] for s in (-1.0, 0.0, 1.0) for t in (-1.0, 1.0)])
     models = estimable_models(runs, ["categorical", "numeric"])
     assert models == {"main_effects": True, "interactions": True, "quadratic": False}
-    assert estimable_models(runs[:, :1], ["categorical"])["quadratic"] is None, "no numeric factor to square"
+    one = estimable_models(runs[:, :1], ["categorical"])
+    assert one["interactions"] is None, "one factor has no interactions"
+    assert one["quadratic"] is None, "no numeric factor to square"
 
 
 def test_a_mixture_or_a_missing_setting_leaves_the_models_unstated():

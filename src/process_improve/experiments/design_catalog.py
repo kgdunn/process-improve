@@ -225,9 +225,9 @@ def estimable_models(coded: np.ndarray, kinds: Sequence[str]) -> dict[str, bool 
     -------
     dict[str, bool | None]
         For each name in :data:`MODELS`, whether the design estimates it. Every value is ``None``
-        for a mixture design, whose models are Scheffé's, or when a setting is missing; the
-        quadratic is ``None`` when no factor is numeric, and ``False`` when a numeric factor has
-        fewer than three levels.
+        for a mixture design, whose models are Scheffé's, or when a setting is missing. The
+        interactions are ``None`` for a single factor; the quadratic is ``None`` when no factor
+        is numeric, and ``False`` when a numeric factor has fewer than three levels.
 
     Examples
     --------
@@ -245,7 +245,7 @@ def estimable_models(coded: np.ndarray, kinds: Sequence[str]) -> dict[str, bool 
     numeric = [j for j, kind in enumerate(kinds) if kind == "numeric"]
     out: dict[str, bool | None] = {
         "main_effects": _full_rank(main),
-        "interactions": _full_rank([*main, *pairs]),
+        "interactions": _full_rank([*main, *pairs]) if len(kinds) > 1 else None,
         "quadratic": None,
     }
     if numeric:
@@ -496,8 +496,9 @@ def _generated_specs() -> list[dict[str, Any]]:
         if r < k
     ]
     specs += [{"design_type": "plackett_burman", "k": k, "options": {"n_center_points": 0}} for k in range(2, 12)]
-    specs += [{"design_type": "dsd", "k": k, "options": {}} for k in range(3, 13)]
-    specs += [{"design_type": "omars", "k": k, "options": {}} for k in range(3, 9)]
+    # A definitive screening or OMARS design counts its own center run among ``n_center_points``: one, as published.
+    specs += [{"design_type": "dsd", "k": k, "options": {"n_center_points": 1}} for k in range(3, 13)]
+    specs += [{"design_type": "omars", "k": k, "options": {"n_center_points": 1}} for k in range(3, 9)]
     specs += [{"design_type": "box_behnken", "k": k, "options": {"n_center_points": 3}} for k in range(3, 8)]
     specs += [
         {

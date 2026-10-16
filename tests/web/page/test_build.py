@@ -106,6 +106,13 @@ def test_a_change_to_any_file_of_the_app_runs_every_test_here(monkeypatch):
         assert here <= selected, f"a change to {name} leaves out {sorted(p.name for p in here - selected)}"
 
 
+def _stand_in_catalog(out: Path) -> None:
+    """Write the catalog's files as ``write_catalog`` lays them out, without describing 783 designs."""
+    (out / "catalog" / "detail").mkdir(parents=True)
+    (out / "catalog" / "index.json").write_text("{}")
+    (out / "catalog" / "detail" / "generated.json").write_text("{}")
+
+
 def test_assemble_lays_out_what_the_page_and_its_worker_read(build_script, tmp_path, monkeypatch):
     """The page, the wheel in a folder of its own under wheels/, the manifest naming it, and the worked example."""
     from importlib.metadata import version
@@ -123,6 +130,7 @@ def test_assemble_lays_out_what_the_page_and_its_worker_read(build_script, tmp_p
     monkeypatch.setattr(build_script, "worked_example", lambda: {"the": "worked example"})
     monkeypatch.setattr(build_script, "book_example", lambda entry: {"name": entry["name"], "title": "", "book": ""})
     monkeypatch.setattr(build_script, "published_example", lambda entry: {"name": entry["name"], "title": ""})
+    monkeypatch.setattr(build_script, "write_catalog", _stand_in_catalog)
     out = tmp_path / "app"
     (out / "stale").mkdir(parents=True)
     assert build_script.assemble(out) == "process_improve-9.9.9-py3-none-any.whl"
@@ -131,7 +139,8 @@ def test_assemble_lays_out_what_the_page_and_its_worker_read(build_script, tmp_p
     wheel = f"{hashlib.sha256(b'a wheel').hexdigest()[:16]}/process_improve-9.9.9-py3-none-any.whl"
     examples = [*build_script.book_examples(), *build_script.published_examples()]
     book = {"book/index.json", *(f"book/{entry['name']}.json" for entry in examples)}
-    assert published == {*build_script.APP_FILES, *BUILT, *book, f"wheels/{wheel}"}, "and nothing left from before"
+    catalog = {"catalog/index.json", "catalog/detail/generated.json"}
+    assert published == {*build_script.APP_FILES, *BUILT, *book, *catalog, f"wheels/{wheel}"}, "and nothing from before"
     for name in build_script.APP_FILES:
         assert (out / name).read_bytes() == (WEB / name).read_bytes(), name
     manifest = json.loads((out / "wheels" / "manifest.json").read_text())
@@ -153,6 +162,7 @@ def _assemble_around(build_script, out: Path, wheel: bytes, monkeypatch) -> dict
     monkeypatch.setattr(build_script, "build_wheel", lambda _dist: built)
     monkeypatch.setattr(build_script, "worked_example", dict)
     monkeypatch.setattr(build_script, "write_book", lambda _out: None)
+    monkeypatch.setattr(build_script, "write_catalog", lambda _out: None)
     build_script.assemble(out)
     return json.loads((out / "wheels" / "manifest.json").read_text())
 
