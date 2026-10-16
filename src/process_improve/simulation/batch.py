@@ -1205,14 +1205,16 @@ class BioreactorSimulator:
         n_starts: int = 5,
         random_state: int | np.random.Generator | None = 0,
     ) -> Bunch:
-        """Find the true optimal setpoint schedule for a batch's initial conditions.
+        """Optimise the setpoint schedule for a batch's initial conditions on the simulator's own model.
 
         Maximises the deterministic (disturbance-free) final titer over pH and
         temperature schedules parameterised by ``n_knots`` values each,
         linearly interpolated across the batch and held per interval. Because
-        the optimiser queries the simulator's own model, the result is the
-        *true* optimum for these initial conditions: the ceiling any
-        data-driven scheme can be scored against.
+        the optimiser queries the simulator's own model rather than a fitted
+        one, the result is the feedforward reference any data-driven scheme
+        can be scored against. The search is a multi-start local one within
+        the knot parameterisation, so its titer is a lower bound on the true
+        optimum for these initial conditions.
 
         Parameters
         ----------
@@ -1338,10 +1340,12 @@ class BioreactorSimulator:
               perfectly consistent history contains no information about how
               the controls affect quality; this policy produces a history
               that does.
-            - ``"adapted"``: each batch runs the *true* optimal schedule for
-              its own initial conditions, computed from the simulator's model
-              via :meth:`optimal_trajectory`. This is the ceiling a perfect
-              feedforward scheme could reach, not an implementable policy.
+            - ``"adapted"``: each batch runs the schedule that maximises the
+              disturbance-free titer for its own initial conditions,
+              computed from the simulator's model via
+              :meth:`optimal_trajectory`. This estimates the ceiling a
+              feedforward scheme with a perfect process model could reach;
+              it is not an implementable policy.
         trajectory : pd.DataFrame, optional
             The schedule used by ``"replay"`` and ``"historical"``; defaults
             to :meth:`nominal_trajectory`. Ignored by ``"adapted"``.
@@ -1360,9 +1364,11 @@ class BioreactorSimulator:
             local schedule shapes (an early-only or late-only move), which a
             constant-plus-ramp variation cannot, so a regression fitted on
             the campaign carries causal information about partial-batch
-            moves; deliberate moves of the shapes the controller will use
-            are the data requirement Flores-Cerrillo and MacGregor (2004)
-            state for mid-course-correction models.
+            moves. Flores-Cerrillo and MacGregor (2004) identified their
+            mid-course-correction model from batches with deliberate moves
+            in the manipulated trajectories at the decision points, and
+            suggest batch-to-batch updating for a model identified from
+            historical data alone.
         n_knots, n_starts : int
             Passed to :meth:`optimal_trajectory` for the ``"adapted"``
             policy, which runs the optimiser once per batch; lower values
