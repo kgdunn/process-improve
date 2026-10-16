@@ -9,6 +9,7 @@ against the library's region, and the narrowed ranges against a grid of settings
 from __future__ import annotations
 
 import itertools
+from typing import TYPE_CHECKING
 
 import numpy as np
 import pytest
@@ -16,6 +17,9 @@ import pytest
 from process_improve.experiments import DesignRegion, Factor
 from process_improve.experiments.designs_constrained import _FUNCTIONS
 from tests.web._support import FACTORS, factors_named
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
 
 #: The worked example's factors as the library holds them.
 LIBRARY_FACTORS = [Factor(name=f["name"], low=f["low"], high=f["high"]) for f in FACTORS]
@@ -234,3 +238,211 @@ def test_a_stored_limit_is_checked_and_its_type_worked_out_again(bootstrap, held
     ]
     with pytest.raises(ValueError, match="names Z, which is not one of your factors"):
         bootstrap._checked_spec({**held["spec"], "constraints": [{"expression": "Z <= 3"}]})
+
+
+# --------------------------------------------------------------------------- limits proposed from the corners marked
+#: The worked example's corners, in the order of the table of corners; its centre is row 8.
+CORNERS = [tuple(c) for c in itertools.product(*[(f["low"], f["high"]) for f in FACTORS])]
+
+
+def corners_where(condition: Callable[[float, float, float], bool]) -> list[int]:
+    """Return the rows of the table of corners whose settings meet ``condition(t, p, f)``."""
+    return [row for row, corner in enumerate(CORNERS) if condition(*corner)]
+
+
+@pytest.mark.parametrize(
+    ("condition", "proposed"),
+    [
+        (lambda t, p, f: (t, p, f) == (200, 3, 20), "T + 25 * P + 5 * F <= 350"),
+        (lambda t, p, _f: t == 200 and p == 3, "T + 25 * P <= 250"),
+        (lambda t, p, _f: t == 200 and p == 1, "T - 25 * P <= 150"),
+        (lambda t, _p, _f: t == 200, "T <= 190"),
+    ],
+)
+def test_marking_corners_proposes_the_limit_that_rules_out_just_those(api, condition, proposed):
+    """The cut lies halfway between the corners marked and those that can be run, written in round numbers."""
+    marked = corners_where(condition)
+    [proposal] = described(api, marked=marked)["proposals"]
+    assert proposal["marked"] == marked
+    assert proposal["expression"] == proposed
+    assert proposal["removes"] == marked, "the centre and every other corner can still be run"
+    assert proposal["linear"]["high"] is not None
+
+
+def test_marking_the_centre_as_well_moves_the_limit_past_it(api):
+    marked = [*corners_where(lambda t, _p, _f: t == 200), 8]
+    [proposal] = described(api, marked=marked)["proposals"]
+    assert (proposal["expression"], proposal["marked"]) == ("T <= 160", marked)
+
+
+def test_corners_no_edge_joins_get_a_limit_each(api):
+    """One straight cut removes corners that hang together along the edges of the box; these two need two cuts."""
+    proposals = described(api, marked=[0, 7])["proposals"]
+    assert [p["marked"] for p in proposals] == [[0], [7]]
+    assert [p["expression"] for p in proposals] == ["T + 25 * P + 5 * F >= 250", "T + 25 * P + 5 * F <= 350"]
+
+
+def test_a_corner_a_limit_rules_out_already_is_left_out_of_the_proposal(api):
+    assert described(api, HEAT, marked=[6, 7])["proposals"] == []
+    [proposal] = described(api, "T <= 190", marked=[3, 6, 7])["proposals"]
+    assert proposal["marked"] == [3]
+    assert proposal["expression"] == "5 * P + F <= 30", "the corners T <= 190 rules out count neither way"
+
+
+#: Why no straight cut can be proposed, as the page says it beside the corners marked.
+CENTRE_ALONE = (
+    "The centre of the ranges lies between settings you can run, so no straight cut rules it out alone. Type a curved "
+    "limit, or mark more."
+)
+CENTRE_BETWEEN = (
+    "The centre of the ranges lies between the corners you marked, so a straight cut that rules them out rules it out "
+    "too. Mark it as well, or type a limit."
+)
+INTERLEAVED = (
+    "No single straight cut rules out these corners and keeps the others. Mark them in smaller groups, or type a limit."
+)
+
+
+@pytest.mark.parametrize(
+    ("marked", "factors", "problem"),
+    [
+        (list(range(8)), FACTORS, None),
+        ([8], FACTORS, CENTRE_ALONE),
+        ([0, 1, 3], FACTORS[:2], CENTRE_BETWEEN),  # three corners of the T-P square: their triangle holds the centre
+        ([0, 1, 2, 5], factors_named(*"ABCD"), INTERLEAVED),  # interleaved with corners that can be run
+    ],
+)
+def test_when_no_straight_cut_can_be_proposed_the_page_says_why(api, bootstrap, marked, factors, problem):
+    [proposal] = described(api, marked=marked, factors=factors)["proposals"]
+    assert proposal == {"marked": marked, "problem": problem or bootstrap.EVERY_CORNER}
+
+
+def test_a_proposal_says_where_it_cuts_each_factor_from_its_corner(api):
+    """From the corner marked, each factor can go as far as the limit's boundary with the others held there."""
+    [proposal] = described(api, marked=[7])["proposals"]
+    assert proposal["corner"] == 7
+    assert proposal["cuts"] == [
+        {"name": "T", "at": 200, "cut": 175},
+        {"name": "P", "at": 3, "cut": 2},
+        {"name": "F", "at": 20, "cut": 15},
+    ]
+    [both] = described(api, marked=[6, 7])["proposals"]
+    assert both["cuts"][2] == {"name": "F", "at": 10, "cut": None}, "a factor the limit does not depend on is not cut"
+
+
+def test_a_proposal_whose_boundary_misses_an_edge_from_every_corner_has_no_cuts(api):
+    """P high with T or F high: from each of the three corners the limit's boundary misses one edge of the box."""
+    [proposal] = described(api, marked=[3, 6, 7])["proposals"]
+    assert proposal["expression"] == "T + 50 * P + 5 * F <= 380"
+    assert (proposal["corner"], proposal["cuts"]) == (None, None)
+
+
+def test_moving_the_cuts_rebuilds_the_limit_through_them(api):
+    shown = described(api, marked=[7], cuts={"marked": [7], "corner": 7, "values": [190, 2.5, None]})
+    adjusted = shown["adjusted"]
+    assert adjusted["expression"] == "T + 20 * P <= 250"
+    assert adjusted["marked"] == [7]
+    assert adjusted["removes"] == [6, 7], "with F not limiting it, the corner beside the one marked goes too"
+    assert [cut["cut"] for cut in adjusted["cuts"]] == [190, 2.5, None]
+
+
+def test_a_cut_no_limit_goes_through_is_a_problem_to_show(api):
+    shown = described(api, marked=[7], cuts={"marked": [7], "corner": 7, "values": [200, None, None]})
+    assert shown["adjusted"] == {
+        "marked": [7],
+        "problem": (
+            "The cut of 'T' at 200 is at or beyond the corner's T = 200: it must lie between the corner and the other "
+            "end of the range."
+        ),
+    }
+
+
+# --------------------------------------------------------------------------- the picture of the region
+def inside(point: list[float], polygon: list[list[float]]) -> bool:
+    """Return whether a point lies in a convex polygon whose corners run counter-clockwise.
+
+    A point on an edge counts as inside, to within the 12 significant figures the corners are given to.
+    """
+    corners = np.asarray(polygon, dtype=float)
+    edges = np.roll(corners, -1, axis=0) - corners
+    to_point = np.asarray(point, dtype=float) - corners
+    distance = (edges[:, 0] * to_point[:, 1] - edges[:, 1] * to_point[:, 0]) / np.linalg.norm(edges, axis=1)
+    return bool(np.all(distance >= -1e-9 * np.abs(corners).max()))
+
+
+def test_the_picture_shows_every_pair_of_up_to_four_factors(api):
+    picture = described(api, HEAT)["picture"]
+    assert [(pair["x"], pair["y"]) for pair in picture["pairs"]] == [("T", "P"), ("T", "F"), ("P", "F")]
+    assert picture["shown"] == ["T", "P", "F"]
+    assert picture["centre"] == {"T": 175, "P": 2, "F": 15}
+
+
+def test_a_shadow_holds_every_setting_that_can_be_run_and_no_more(api):
+    """A setting of two factors is in their shadow when some setting of the others can be run with it."""
+    limits = {
+        "T + 25 * P + 5 * F <= 300": lambda t, p, f: t + 25 * p + 5 * f <= 300,
+        "P - F / 10 >= 0": lambda _t, p, f: p - f / 10 >= 0,
+    }
+    pairs = described(api, *limits)["picture"]["pairs"]
+    grid = itertools.product(np.linspace(150, 200, 11), np.linspace(1, 3, 11), np.linspace(10, 20, 11))
+    allowed = [s for s in grid if all(holds(*s) for holds in limits.values())]
+    assert allowed
+    columns = {"T": 0, "P": 1, "F": 2}
+    for pair in pairs:
+        assert pair["shadow"]["kind"] == "polygon"
+        x, y = columns[pair["x"]], columns[pair["y"]]
+        assert all(inside([s[x], s[y]], pair["shadow"]["points"]) for s in allowed), (pair["x"], pair["y"])
+    t_p = next(pair for pair in pairs if (pair["x"], pair["y"]) == ("T", "P"))
+    assert t_p["shadow"]["points"] == [[150, 1], [200, 1], [200, 2], [175, 3], [150, 3]], "F at its lowest, 10"
+
+
+def test_a_straight_limit_is_drawn_on_the_panels_of_the_factors_it_names(api):
+    pairs = {(p["x"], p["y"]): p["lines"] for p in described(api, HEAT, "T <= 190")["picture"]["pairs"]}
+    assert pairs[("T", "P")] == [
+        {"limit": 0, "points": [[175, 3], [200, 2]]},
+        {"limit": 1, "points": [[190, 1], [190, 3]]},
+    ]
+    assert pairs[("T", "F")] == [{"limit": 1, "points": [[190, 10], [190, 20]]}]
+    assert pairs[("P", "F")] == []
+
+
+def test_a_curved_region_is_drawn_from_a_mask(api):
+    pairs = described(api, "T * F <= 3000")["picture"]["pairs"]
+    shadow = pairs[1]["shadow"]
+    assert (pairs[1]["x"], pairs[1]["y"], shadow["kind"]) == ("T", "F", "mask")
+    assert len(shadow["x"]) == len(shadow["y"]) == 40
+    for i, f in enumerate(shadow["y"]):
+        for j, t in enumerate(shadow["x"]):
+            if t * f <= 2900:  # well inside, so some sampled setting falls in the cell
+                assert shadow["z"][i][j] == 1, (t, f)
+            if t * f >= 3100:
+                assert shadow["z"][i][j] == 0, (t, f)
+
+
+def test_from_five_factors_the_picture_shows_the_pairs_of_factors_the_limits_name(api):
+    five = factors_named(*"ABCDE")
+    assert described(api, "A + D <= 1", factors=five)["picture"]["shown"] == ["A", "D"]
+    every = described(api, "A + D <= 1", factors=five, every_pair=True)["picture"]
+    assert (every["shown"], len(every["pairs"])) == (list("ABCDE"), 10)
+
+
+def test_the_picture_holds_the_others_at_a_setting_that_can_be_run(api):
+    """With the centre of the ranges ruled out, the page looks inside at a central setting that can be run."""
+    centre = described(api, "T + 25 * P <= 220")["picture"]["centre"]
+    assert centre["T"] + 25 * centre["P"] <= 220
+    assert described(api, "T >= 210")["picture"]["centre"] is None
+
+
+def test_looking_inside_holds_the_other_factors_where_asked(api):
+    """At F = 18 L/min, T + 25 P + 5 F <= 350 leaves T + 25 P <= 260."""
+    shown = described(api, "T + 25 * P + 5 * F <= 350", slice={"x": "T", "y": "P", "at": {"F": 18}})["slice"]
+    assert shown["region"] == {"kind": "polygon", "points": [[150, 1], [200, 1], [200, 2.4], [185, 3], [150, 3]]}
+    assert shown["lines"] == [{"limit": 0, "points": [[185, 3], [200, 2.4]]}]
+    assert (shown["x"], shown["y"], shown["at"]) == ("T", "P", {"F": 18})
+
+
+def test_a_slice_through_a_curved_region_is_a_mask_that_matches_the_limit(api):
+    shown = described(api, "T * F <= 3000", slice={"x": "T", "y": "P", "at": {"F": 16}})["slice"]["region"]
+    assert shown["kind"] == "mask"
+    for row, p in zip(shown["z"], shown["y"], strict=True):
+        assert row == [int(t * 16 <= 3000 + 1e-9) for t in shown["x"]], p

@@ -40,11 +40,14 @@ import pandas as pd
 from process_improve.experiments import (
     DesignRegion,
     Factor,
+    NotSeparableError,
     TrueProcess,
     analyze_experiment,
     compare_designs,
+    constraint_through_cuts,
     generate_design,
     rename_factors,
+    separating_constraint,
 )
 from process_improve.experiments.compare import MODELS as COMPARISON_MODELS
 from process_improve.experiments.designs_constrained import MAX_EXPRESSION_LENGTH, parse_constraint
@@ -2238,7 +2241,7 @@ def candidates(request: dict) -> dict:
 
 # --------------------------------------------------------------------------- limits, as the reader types them
 def limits(request: dict) -> dict:
-    """Describe the limits on the settings the reader is typing, for the panel that lists them.
+    """Describe the limits on the settings the reader is typing, and propose limits from the settings marked.
 
     ``factors`` are the brief's and ``constraints`` its limits, each ``{expression, note}`` in the
     factors' own units; ``rename`` (``{old: new}``) renames factors inside the limits first, as a
@@ -2255,13 +2258,51 @@ def limits(request: dict) -> dict:
     Over every limit that can be read: ``kept``, the share of the ranges left; ``empty``;
     ``center_allowed``, whether the centre of the ranges can still be run; ``bounds``, each factor
     whose range they narrow at an end, by more than :data:`NARROWED` of it (null with a curved
-    limit, where the narrowing is not exact, or with nothing left); and ``refusal``, the sentence
-    making a design would refuse them with, or null. ``probes`` are the corners of the numeric
-    factors' ranges, then their centre, with the limits that rule out each (see :func:`_probes`).
+    limit, where the narrowing is not exact, or with nothing left); ``refusal``, the sentence
+    making a design would refuse them with, or null; and ``picture``, the region on each pair of
+    numeric factors (see :func:`_picture`; ``every_pair`` asks for every pair).
+
+    ``probes`` are the corners of the numeric factors' ranges, then their centre, with the limits
+    that rule out each (see :func:`_probes`). ``marked`` lists the rows the reader marked "cannot
+    run", and ``proposals`` the straight limit proposed for each group of them (see
+    :func:`_proposals`); ``cuts`` asks for a proposal rebuilt through a cut on each factor, which
+    comes back as ``adjusted`` (see :func:`_adjusted`); and ``slice`` asks to look inside the
+    region at given values of the other factors (see :func:`_sliced`).
     """
     factors = _factors(request)
-    renaming = _renaming(request.get("rename"))
     numeric = [f for f in factors if f.type != "categorical"]
+    entries = _limit_entries(request, factors)
+    read = [i for i, entry in enumerate(entries) if "problem" not in entry]
+    region = _region(factors, [entries[i]["expression"] for i in read])
+    probes = _probes(numeric)
+    alone = _describe_each(entries, read, region, factors, probes)
+    marked = _marked(request.get("marked"), probes)
+    table = None if probes is None else _probe_table(probes[1], numeric, entries, read)
+    empty = region.is_empty()
+    curved = any(entries[i]["type"] == "nonlinear" for i in read)
+    reply = {
+        "constraints": entries,
+        "probes": table,
+        "kept": region.volume_fraction(),
+        "empty": empty,
+        "center_allowed": not read or bool(region.feasible(np.zeros((1, len(numeric))))[0]),
+        "bounds": None if curved or empty else _narrowed(region.implied_bounds(), numeric),
+        "refusal": _limits_refusal(entries, read, factors, region),
+        "proposals": [],
+        "picture": _picture(region, factors, entries, alone, every_pair=request.get("every_pair") is True),
+    }
+    if marked and probes is not None and table is not None:
+        reply["proposals"] = _proposals(marked, probes, numeric, [bool(by) for by in table["ruled_out_by"]])
+    if "cuts" in request:
+        reply["adjusted"] = _adjusted(request["cuts"], probes, numeric)
+    if "slice" in request:
+        reply["slice"] = _sliced(request["slice"], factors, region, entries, alone)
+    return reply
+
+
+def _limit_entries(request: dict, factors: list[Factor]) -> list[dict[str, Any]]:
+    """Read each limit the panel holds, renamed as the brief renamed a factor: its canonical text, or its problem."""
+    renaming = _renaming(request.get("rename"))
     entries: list[dict[str, Any]] = []
     for typed, note in _limit_items(request.get("constraints")):
         text = _renamed_limit(typed, renaming)
@@ -2271,41 +2312,49 @@ def limits(request: dict) -> dict:
             entries.append({"expression": text, "note": note, "problem": str(exc)})
         else:
             entries.append({"expression": canonical, "note": note, "factors": named})
-    read = [i for i, entry in enumerate(entries) if "problem" not in entry]
-    region = _region(factors, [entries[i]["expression"] for i in read])
+    return entries
+
+
+def _describe_each(
+    entries: list[dict[str, Any]],
+    read: list[int],
+    region: DesignRegion,
+    factors: list[Factor],
+    probes: tuple[np.ndarray, np.ndarray] | None,
+) -> dict[int, DesignRegion]:
+    """Add to each limit that can be read what it does over the factors' ranges; return each one's own region."""
+    names = [f.name for f in factors if f.type != "categorical"]
     curved = {read[j] for j in region.curved_constraints()}
     covered = {read[j] for j in region.redundant_constraints()}
-    probes = _probes(numeric)
+    alone = {}
     for i in read:
-        alone = _region(factors, [entries[i]["expression"]])
-        removed = 1.0 - alone.volume_fraction()
-        removes = None if probes is None else np.flatnonzero(~alone.feasible(probes[0])).tolist()
+        alone[i] = own = _region(factors, [entries[i]["expression"]])
+        removed = 1.0 - own.volume_fraction()
+        removes = None if probes is None else np.flatnonzero(~own.feasible(probes[0])).tolist()
         # A straight limit that keeps every corner keeps the whole box, so the corners decide it exactly; a curved
         # one is judged by them and the sample, as the library judges it.
-        nothing = bool(alone.redundant_constraints()) if removes is None else not removes and removed == 0
+        nothing = bool(own.redundant_constraints()) if removes is None else not removes and removed == 0
         entries[i].update(
             type="nonlinear" if i in curved else "linear",
             removed=removed,
             removes=removes,
             redundant="alone" if nothing else "others" if i in covered else None,
-            linear=_linear_entry(alone.linear_forms()[0], [f.name for f in numeric]),
+            linear=_linear_entry(own.linear_forms()[0], names),
         )
-    empty = region.is_empty()
-    refusal = next((entry["problem"] for entry in entries if "problem" in entry), None)
-    if refusal is None and read:
-        try:
-            _region_refusal(factors, region)
-        except ValueError as exc:
-            refusal = str(exc)
-    return {
-        "constraints": entries,
-        "probes": None if probes is None else _probe_table(probes[1], numeric, [entries[i] for i in read], read),
-        "kept": region.volume_fraction(),
-        "empty": empty,
-        "center_allowed": not read or bool(region.feasible(np.zeros((1, len(numeric))))[0]),
-        "bounds": None if curved or empty else _narrowed(region.implied_bounds(), numeric),
-        "refusal": refusal,
-    }
+    return alone
+
+
+def _limits_refusal(entries: list[dict], read: list[int], factors: list[Factor], region: DesignRegion) -> str | None:
+    """Return the sentence making a design would refuse the limits with: the first limit's problem, or the region's."""
+    if problem := next((entry["problem"] for entry in entries if "problem" in entry), None):
+        return problem
+    if not read:
+        return None
+    try:
+        _region_refusal(factors, region)
+    except ValueError as exc:
+        return str(exc)
+    return None
 
 
 def _renaming(raw: object) -> dict[str, str]:
@@ -2343,15 +2392,14 @@ def _probes(numeric: list[Factor]) -> tuple[np.ndarray, np.ndarray] | None:
     return coded, np.where(coded < 0, low, np.where(coded > 0, high, (low + high) / 2))
 
 
-def _probe_table(actual: np.ndarray, numeric: list[Factor], read: list[dict], indices: list[int]) -> dict[str, Any]:
+def _probe_table(actual: np.ndarray, numeric: list[Factor], entries: list[dict], read: list[int]) -> dict[str, Any]:
     """Return the probes as the page's table of corners: each row's settings, and the limits that rule it out."""
+    removes = {i: set(entries[i]["removes"]) for i in read}
     return {
         "columns": [f.name for f in numeric],
         "rows": actual.tolist(),
         "center": len(actual) - 1,
-        "ruled_out_by": [
-            [i for i, entry in zip(indices, read, strict=True) if row in entry["removes"]] for row in range(len(actual))
-        ],
+        "ruled_out_by": [[i for i in read if row in removes[i]] for row in range(len(actual))],
     }
 
 
@@ -2382,6 +2430,263 @@ def _narrowed(implied: dict[str, tuple[float, float]] | None, numeric: list[Fact
         if ends != (None, None):
             narrowed.append({"name": f.name, "low": ends[0], "high": ends[1]})
     return narrowed
+
+
+# --------------------------------------------------------------------------- limits proposed from the settings marked
+#: What the page says when every corner is marked or ruled out. A straight cut that rules out every corner of the
+#: box rules out all of it, since the box is the convex hull of its corners.
+EVERY_CORNER = (
+    "Every corner is marked or ruled out: a straight cut that rules them all out leaves no settings. Narrow the "
+    "ranges instead, or type a curved limit."
+)
+
+
+def _marked(raw: object, probes: tuple[np.ndarray, np.ndarray] | None) -> list[int]:
+    """Check the rows of the table of corners the reader marked "cannot run"; return each once, in order."""
+    if raw is None:
+        return []
+    count = 0 if probes is None else len(probes[0])
+    if not isinstance(raw, list) or not all(type(row) is int and 0 <= row < count for row in raw):
+        raise ValueError("The page sent marked settings this page did not write.")
+    return sorted(set(raw))
+
+
+def _proposals(
+    marked: list[int], probes: tuple[np.ndarray, np.ndarray], numeric: list[Factor], ruled_out: list[bool]
+) -> list[dict[str, Any]]:
+    """Propose one straight limit for each group of marked settings that no limit rules out yet.
+
+    One straight cut removes corners that hang together along the edges of the box, so the
+    marked corners are grouped by those edges and each group gets its own limit: the cut of
+    :func:`~process_improve.experiments.separating_constraint` between the group and the
+    settings neither marked nor ruled out, the other groups counting neither way. The centre,
+    which no edge joins to a corner, goes with the first group that one cut can rule out
+    together with it, or else is a group of its own.
+    """
+    coded = probes[0]
+    centre = len(coded) - 1
+    left = [row for row in marked if not ruled_out[row]]
+    if not left:
+        return []
+    if all(row in marked or ruled_out[row] for row in range(centre)):
+        return [{"marked": left, "problem": EVERY_CORNER}]
+    runnable = [row for row in range(len(coded)) if row not in marked and not ruled_out[row]]
+    proposals = []
+    centre_left = centre in left
+    for group in _joined([row for row in left if row != centre], coded):
+        proposal = _proposal([*group, centre], runnable, probes, numeric) if centre_left else None
+        if proposal is None or "problem" in proposal:
+            proposal = _proposal(group, runnable, probes, numeric)
+        if centre_left and centre in proposal.get("removes", ()):
+            proposal["marked"], centre_left = [*group, centre], False
+        proposals.append(proposal)
+    if centre_left:
+        proposals.append(_proposal([centre], runnable, probes, numeric))
+    return proposals
+
+
+def _joined(rows: list[int], coded: np.ndarray) -> list[list[int]]:
+    """Group corners joined by the edges of the box, two corners being joined when they differ in one factor."""
+    left, groups = sorted(rows), []
+    while left:
+        group, reach = [], [left.pop(0)]
+        while reach:
+            row = reach.pop()
+            group.append(row)
+            joined = [r for r in left if np.count_nonzero(coded[r] != coded[row]) == 1]
+            left = [r for r in left if r not in joined]
+            reach += joined
+        groups.append(sorted(group))
+    return groups
+
+
+def _proposal(
+    group: list[int], runnable: list[int], probes: tuple[np.ndarray, np.ndarray], numeric: list[Factor]
+) -> dict[str, Any]:
+    """Propose the straight limit that rules out the rows of ``group`` and keeps ``runnable``, or say why none can."""
+    actual = probes[1]
+    try:
+        constraint = separating_constraint(numeric, actual[group], actual[runnable])
+    except NotSeparableError as exc:
+        return {"marked": group, "problem": _inseparable(exc, group, runnable, len(actual) - 1)}
+    return {"marked": group, **_limit_proposed(constraint.expression, group, probes, numeric)}
+
+
+def _inseparable(exc: NotSeparableError, group: list[int], runnable: list[int], centre: int) -> str:
+    """Say why no straight cut rules out a group of marked settings and keeps the others.
+
+    A corner of the box lies between no other settings of the box, so the setting to blame, when
+    there is one, is the centre: marked, between corners that can be run, or runnable, between
+    marked corners.
+    """
+    if centre in [group[i] for i in exc.inside_can]:
+        return (
+            "The centre of the ranges lies between settings you can run, so no straight cut rules it out alone. Type "
+            "a curved limit, or mark more."
+        )
+    if centre in [runnable[i] for i in exc.inside_cannot]:
+        return (
+            "The centre of the ranges lies between the corners you marked, so a straight cut that rules them out "
+            "rules it out too. Mark it as well, or type a limit."
+        )
+    return (
+        "No single straight cut rules out these corners and keeps the others. Mark them in smaller groups, or type a "
+        "limit."
+    )
+
+
+def _limit_proposed(
+    expression: str, group: list[int], probes: tuple[np.ndarray, np.ndarray], numeric: list[Factor]
+) -> dict[str, Any]:
+    """Describe a proposed limit as a typed one is described, with where it cuts each factor from one corner.
+
+    The corner is the marked corner deepest beyond the limit. Each factor's cut is where the
+    limit's boundary crosses the edge from that corner to the factor's other end, the others held
+    at the corner, so the limit is the plane through the cuts and the reader can move them one at
+    a time (see :func:`_adjusted`). When the boundary misses the edge of a factor the limit
+    depends on, no question about that edge gives this limit, and ``corner`` and ``cuts`` are null.
+    """
+    coded, actual = probes
+    alone = DesignRegion(numeric, [expression])
+    form = alone.linear_forms()[0]
+    if form is None:  # a limit proposed is straight, with one bound
+        raise RuntimeError(f"The limit proposed, {expression!r}, is not a straight limit with one bound.")
+    coefficients, low, high = form
+    names = [f.name for f in numeric]
+    a = np.array([coefficients.get(name, 0.0) for name in names])
+    bound = high if high is not None else low
+    corners = [row for row in group if row != len(coded) - 1]
+    depth = [abs(float(a @ actual[row]) - bound) for row in corners]
+    corner = corners[int(np.argmax(depth))] if corners else None
+    cuts = None if corner is None else _cuts(a, bound, actual[corner], numeric)
+    return {
+        "expression": expression,
+        "type": "linear",
+        "linear": _linear_entry(form, names),
+        "removes": np.flatnonzero(~alone.feasible(coded)).tolist(),
+        "removed": 1.0 - alone.volume_fraction(),
+        "corner": None if cuts is None else corner,
+        "cuts": cuts,
+    }
+
+
+def _cuts(a: np.ndarray, bound: float, corner: np.ndarray, numeric: list[Factor]) -> list[dict[str, Any]] | None:
+    """Return where a limit's boundary crosses each edge of the box from a corner, or None when it misses one.
+
+    A factor the limit does not depend on has no cut: moving it alone never reaches the boundary.
+    """
+    cuts = []
+    for weight, at, factor in zip(a, corner, numeric, strict=True):
+        if weight == 0:
+            cuts.append({"name": factor.name, "at": float(at), "cut": None})
+            continue
+        cut = float(f"{at + (bound - float(a @ corner)) / weight:.12g}")
+        far = factor.low if at == factor.high else factor.high
+        if cut == at or not min(at, far) <= cut <= max(at, far):
+            return None
+        cuts.append({"name": factor.name, "at": float(at), "cut": cut})
+    return cuts
+
+
+def _adjusted(raw: object, probes: tuple[np.ndarray, np.ndarray] | None, numeric: list[Factor]) -> dict[str, Any]:
+    """Rebuild a proposed limit through the cut the reader gave each factor, from the corner it was proposed at.
+
+    ``raw`` is ``{marked, corner, values}``: the marked rows the limit is for, the row of its
+    corner, and per numeric factor the value it can reach from the corner with the others held
+    there, or null where the factor does not limit it. A cut no limit can be drawn through
+    (outside the range, or at or beyond the corner) comes back as the problem to show.
+    """
+    values = raw.get("values") if isinstance(raw, dict) else None
+    if probes is None or not (
+        isinstance(values, list)
+        and len(values) == len(numeric)
+        and all(v is None or _number(v) is not None for v in values)
+        and type(raw.get("corner")) is int
+        and 0 <= raw["corner"] < len(probes[0]) - 1
+    ):
+        raise ValueError("The page sent marked settings this page did not write.")
+    marked = _marked(raw.get("marked"), probes)
+    corner = probes[1][raw["corner"]]
+    cuts = {f.name: None if v is None else _number(v) for f, v in zip(numeric, values, strict=True)}
+    try:
+        constraint = constraint_through_cuts(numeric, corner.tolist(), cuts)
+    except ValueError as exc:
+        return {"marked": marked, "problem": str(exc)}
+    return {"marked": marked, **_limit_proposed(constraint.expression, [raw["corner"]], probes, numeric)}
+
+
+# --------------------------------------------------------------------------- pictures of the region
+#: Up to this many numeric factors, the picture of the region shows every pair of them.
+PICTURE_EVERY_PAIR = 4
+
+
+def _picture(
+    region: DesignRegion,
+    factors: list[Factor],
+    entries: list[dict[str, Any]],
+    alone: dict[int, DesignRegion],
+    *,
+    every_pair: bool,
+) -> dict[str, Any]:
+    """Return the region on each pair of numeric factors, for the panels the page draws.
+
+    Each pair's ``shadow`` is the settings of the two that some setting of the others can run
+    (see :meth:`~process_improve.experiments.DesignRegion.shadow`), and ``lines`` the boundary of
+    each straight limit that names no other factor, numbered by its place in the list. Every pair
+    is shown up to :data:`PICTURE_EVERY_PAIR` numeric factors, or with ``every_pair``; from more,
+    the pairs of the factors the limits name. ``centre`` is where the page holds the other factors
+    when it looks inside: the centre of the ranges when it can be run, else a central setting
+    that can be, and null when none can.
+    """
+    numeric = [f for f in factors if f.type != "categorical"]
+    names = [f.name for f in numeric]
+    named = {name for i in alone for name in entries[i]["factors"]}
+    shown = names if every_pair or len(names) <= PICTURE_EVERY_PAIR else [n for n in names if n in named]
+    pairs = []
+    for x, y in itertools.combinations(shown, 2):
+        lines = [
+            {"limit": i, "points": line["points"]}
+            for i, own in alone.items()
+            if entries[i]["type"] == "linear" and set(entries[i]["factors"]) <= {x, y}
+            for line in own.slice_lines(x, y)
+        ]
+        pairs.append({"x": x, "y": y, "shadow": region.shadow(x, y), "lines": lines})
+    middle = {f.name: (f.low + f.high) / 2 for f in numeric}
+    centre = middle if region.feasible(np.zeros((1, len(numeric))))[0] else region.centroid()
+    return {"pairs": pairs, "shown": shown, "centre": centre}
+
+
+def _sliced(
+    raw: object,
+    factors: list[Factor],
+    region: DesignRegion,
+    entries: list[dict[str, Any]],
+    alone: dict[int, DesignRegion],
+) -> dict[str, Any]:
+    """Return the slice of the region the page looks inside: two factors, the others held at ``at``.
+
+    ``region`` is the settings of ``x`` and ``y`` that can be run there (see
+    :meth:`~process_improve.experiments.DesignRegion.slice_polygon`), and ``lines`` each straight
+    limit's boundary there, numbered by its place in the list.
+    """
+    names = [f.name for f in factors if f.type != "categorical"]
+    at = raw.get("at") if isinstance(raw, dict) else None
+    if not (
+        isinstance(at, dict)
+        and raw.get("x") in names
+        and raw.get("y") in names
+        and raw["x"] != raw["y"]
+        and all(name in names and _number(value) is not None for name, value in at.items())
+    ):
+        raise ValueError("The page sent a slice of the settings this page did not write.")
+    x, y, held = raw["x"], raw["y"], {name: _number(value) for name, value in at.items()}
+    lines = [
+        {"limit": i, "points": line["points"]}
+        for i, own in alone.items()
+        if entries[i]["type"] == "linear"
+        for line in own.slice_lines(x, y, held)
+    ]
+    return {"x": x, "y": y, "at": held, "region": region.slice_polygon(x, y, held), "lines": lines}
 
 
 # --------------------------------------------------------------------------- JSON entry points

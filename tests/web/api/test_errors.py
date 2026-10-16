@@ -571,6 +571,21 @@ REFUSALS: dict[str, tuple[str, Callable[[Example], dict], str]] = {
         _typed("T <= 190", rename=["T", "Temp"]),
         "The page sent a renaming this page did not write.",
     ),
+    "a marked row the table does not have": (
+        "api_limits",
+        _typed(marked=[9]),  # the worked example's table has 8 corners and the centre, rows 0 to 8
+        "The page sent marked settings this page did not write.",
+    ),
+    "cuts from the centre, which is no corner": (
+        "api_limits",
+        _typed(marked=[8], cuts={"marked": [8], "corner": 8, "values": [190, None, None]}),
+        "The page sent marked settings this page did not write.",
+    ),
+    "a slice along one factor twice": (
+        "api_limits",
+        _typed("T <= 190", slice={"x": "T", "y": "T", "at": {}}),
+        "The page sent a slice of the settings this page did not write.",
+    ),
 }
 
 
