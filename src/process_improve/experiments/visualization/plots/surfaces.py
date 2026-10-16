@@ -142,7 +142,11 @@ def _limit_slack(
     ``hold_values`` are in coded units, which the region's factor ranges define; a factor
     of the region that is neither plotted nor held is at the centre of its range.
     A straight limit's slack is its signed distance from its boundary, linear over the
-    grid, so a contour of it at zero is drawn straight.
+    grid, so a contour of it at zero is drawn straight. Where a curved limit cannot be
+    evaluated (``sqrt`` or ``log`` of a negative number) or is infinite, the setting
+    cannot be run, and its slack is set one above the largest finite slack (an infinite
+    allowed value one below the smallest): a figure's JSON writes ``inf`` and ``NaN`` as
+    ``null``, which Plotly leaves unshaded and the ECharts mask drops.
 
     Raises
     ------
@@ -166,7 +170,15 @@ def _limit_slack(
             coded[:, j] = gy.ravel()
         else:
             coded[:, j] = float(hold_values.get(name, 0.0))
-    return region._limit_slack(coded).reshape(gx.shape)
+    return _finite(region._limit_slack(coded).reshape(gx.shape))
+
+
+def _finite(slack: np.ndarray) -> np.ndarray:
+    """Return the slack with ``NaN`` and ``+inf`` one above its largest finite value and 0, ``-inf`` one below."""
+    finite = slack[np.isfinite(slack)]
+    above = max(float(finite.max()) if finite.size else 0.0, 0.0) + 1.0
+    below = min(float(finite.min()) if finite.size else 0.0, 0.0) - 1.0
+    return np.where(np.isnan(slack) | (slack == np.inf), above, np.where(slack == -np.inf, below, slack))
 
 
 def _cannot_run_layer(
@@ -209,7 +221,7 @@ def _shading(
         return None, {}
     slack = _limit_slack(region, axes, grid, plot.hold_values)
     layer = _cannot_run_layer(slack, *grid, *titles)
-    return layer, {"cannot_run_share": float(np.mean(slack > 0))}
+    return layer, {"cannot_run_share": float(np.mean(~(slack <= 0)))}
 
 
 # ---------------------------------------------------------------------------
@@ -495,8 +507,9 @@ class Surface3DPlot(BasePlot):
         region = self._get_region()
         if region is not None and region.constraints:
             slack = _limit_slack(region, (factor_x, factor_y), (x_grid, y_grid), self.hold_values)
-            z_matrix = np.where(slack > 0, np.nan, np.asarray(z_matrix, dtype=float)).tolist()
-            shaded = {"cannot_run_share": float(np.mean(slack > 0))}
+            ruled_out = ~(slack <= 0)
+            z_matrix = np.where(ruled_out, np.nan, np.asarray(z_matrix, dtype=float)).tolist()
+            shaded = {"cannot_run_share": float(np.mean(ruled_out))}
 
         surface_layer = LayerSpec(
             mark=MarkType.surface,

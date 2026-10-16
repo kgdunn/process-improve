@@ -524,7 +524,7 @@ class TestLinearForms:
             assert region.slice_polygon("A", "B")["kind"] == "mask"
             assert region.slice_lines("A", "B") == []
             assert not region.is_empty()
-            region.redundant_constraints()  # a NaN plane made the linear program raise
+            assert region.redundant_constraints() == []  # each removes the settings where it is undefined
 
     def test_a_ratio_limit_is_found_where_it_holds(self):
         """``A/B >= 10`` keeps a thin wedge along B = 0; it used to be reported empty, with no shadow."""
@@ -788,6 +788,18 @@ class TestSliceSlack:
             assert slack.shape == (41, 51)
             coded = np.column_stack([(t.ravel() - 125) / 25, (d.ravel() - 40) / 20, np.zeros(t.size)])
             np.testing.assert_array_equal(slack.ravel() <= 0, region.feasible(coded))
+
+    def test_a_limit_that_cannot_be_evaluated_is_infinitely_far_from_allowed(self):
+        """Where ``sqrt(A)`` is undefined no setting can be run: the slack is +inf there, never NaN."""
+        region = DesignRegion([Factor(name="A", low=-1, high=3), Factor(name="B", low=0, high=4)], ["sqrt(A) + B <= 3"])
+        a, b = np.meshgrid(np.linspace(-1, 3, 41), np.linspace(0, 4, 41))
+        slack = region.slice_slack("A", "B", a, b)
+        assert not np.isnan(slack).any()
+        assert np.all(slack[a < 0] == np.inf)
+        with np.errstate(invalid="ignore"):
+            allowed = region.feasible(np.column_stack([(a.ravel() - 1) / 2, (b.ravel() - 2) / 2]))
+        np.testing.assert_array_equal(slack.ravel() > 0, ~allowed)
+        np.testing.assert_array_equal(slack.ravel() <= 0, allowed)
 
     def test_a_linear_limit_gives_its_distance_in_coded_units(self):
         region = DesignRegion(HEAT_FACTORS, [HEAT])

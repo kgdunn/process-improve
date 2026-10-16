@@ -759,8 +759,41 @@ class TestRegionShading:
         allowed = region.feasible(np.column_stack([x, y, np.full(x.size, hold_c)]))
         slack = np.asarray(style["z_matrix"]).ravel()
         np.testing.assert_array_equal(slack <= 0, allowed)
+        np.testing.assert_array_equal(slack > 0, ~allowed, err_msg="the side a constraint contour shades")
         assert 0 < allowed.mean() < 1
         assert spec.metadata["cannot_run_share"] == pytest.approx(1 - allowed.mean())
+
+    @pytest.mark.parametrize("plot_type", ["contour", "prediction_variance", "surface_3d"])
+    def test_settings_where_a_limit_cannot_be_evaluated_are_shaded(
+        self, plot_type: str, quadratic_coefficients: list, design_data_2f: list
+    ) -> None:
+        """``sqrt(A - 120)`` is undefined below A = 120; those settings cannot be run, and NaN there was left clear.
+
+        A NaN slack fails both ``<= 0`` and ``> 0``, and a figure's JSON writes it (and inf) as null,
+        which Plotly leaves unshaded and the ECharts mask drops.
+        """
+        region = DesignRegion(REGION_FACTORS[:2], ["sqrt(A - 120) + B <= 70"])
+        kwargs: dict[str, Any] = {"factors_to_plot": ["A", "B"], "region": region}
+        if plot_type == "prediction_variance":
+            kwargs.update(design_data=design_data_2f, response_column="y")
+        else:
+            kwargs["analysis_results"] = {"coefficients": quadratic_coefficients}
+        plot = create_plot(plot_type, **kwargs)
+        spec = plot.to_spec()
+        layer = spec.panels[0].layers[0 if plot_type == "surface_3d" else 1]
+        x, y = _coded_grid(layer.style["x_grid"], layer.style["y_grid"])
+        with np.errstate(invalid="ignore"):
+            allowed = region.feasible(np.column_stack([x, y]))
+        assert 0.3 < 1 - allowed.mean() < 0.5
+        assert spec.metadata["cannot_run_share"] == pytest.approx(1 - allowed.mean())
+        z = np.asarray(layer.style["z_matrix"], dtype=float).ravel()
+        if plot_type == "surface_3d":
+            np.testing.assert_array_equal(np.isnan(z), ~allowed)
+            return
+        assert np.isfinite(z).all(), "inf and NaN would reach the figure as null"
+        np.testing.assert_array_equal(z > 0, ~allowed)
+        mask = plot.to_echarts()["series"][1]["data"]
+        assert len(mask) == int((~allowed).sum())
 
     def test_a_straight_limit_has_a_linear_slack_so_its_edge_is_drawn_straight(
         self, quadratic_coefficients: list

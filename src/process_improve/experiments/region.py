@@ -569,7 +569,7 @@ class DesignRegion:
         slack = self._cloud_slack()
         limit_of = np.array(self._limit_of, dtype=int)
         kept_by_others = np.all(slack[:, limit_of != i] <= _TOL, axis=1)
-        removed_here = np.any(slack[:, limit_of == i] > _TOL, axis=1)
+        removed_here = np.any(~(slack[:, limit_of == i] <= _TOL), axis=1)  # NaN, where it is undefined, removes
         return not bool(np.any(kept_by_others & removed_here))
 
     def linear_forms(self) -> list[tuple[dict[str, float], float | None, float | None] | None]:
@@ -838,9 +838,9 @@ class DesignRegion:
         the other factors held at ``at``. A linear constraint's slack is its signed
         distance from its boundary in coded units, so it varies linearly over the grid and
         a contour of it at zero draws a straight limit straight; a curved constraint's
-        slack is its own value (the left side minus the right). A value within ``1e-9`` of
-        zero is returned as zero, the tolerance :meth:`feasible` uses, so ``<= 0`` here
-        agrees with :meth:`feasible` at every point.
+        slack is its own value (the left side minus the right), and ``+inf`` where it cannot
+        be evaluated. A value within ``1e-9`` of zero is returned as zero, the tolerance
+        :meth:`feasible` uses, so ``<= 0`` here agrees with :meth:`feasible` at every point.
 
         Parameters
         ----------
@@ -883,14 +883,18 @@ class DesignRegion:
         """Return the largest slack per coded point over the inequalities alone, zero within the tolerance.
 
         A linear inequality's slack is its signed distance from its boundary in coded
-        units, a curved one's its own value; ``-inf`` without inequalities. Leaving the
-        box out keeps the slack of straight limits linear up to the box's faces, so a
-        contour of it at zero is straight there too.
+        units, a curved one's its own value, and ``+inf`` where a curved one cannot be
+        evaluated (``sqrt`` or ``log`` of a negative number): :meth:`feasible` cannot run
+        such a setting either, so ``> 0`` and ``<= 0`` both agree with it. ``-inf`` without
+        inequalities. Leaving the box out keeps the slack of straight limits linear up to
+        the box's faces, so a contour of it at zero is straight there too.
         """
         rows = self._linear()
         parts = []
         for g, scale in zip(self._inequalities, rows.scale, strict=True):
-            value = g(coded)
+            with np.errstate(invalid="ignore", divide="ignore"):
+                value = g(coded)
+            value = np.where(np.isnan(value), np.inf, value)
             parts.append(np.where(np.abs(value) <= _TOL, 0.0, value / scale)[:, None])
         if not parts:
             return np.full(len(coded), -np.inf)
