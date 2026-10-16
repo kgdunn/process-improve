@@ -70,17 +70,20 @@ export function fractionRuns(k, resolution) {
   return TRADE_OFF_RUNS.find(reaches) ?? null;
 }
 
+/** The resolution the form asks for to make a fraction cell: the cell's own, or the highest the page offers (V). */
+export const cellResolution = (cell) => Math.min(cell, Math.max(...RESOLUTIONS));
+
 /**
  * The design a pick of a cell sets, or null for a cell the page cannot make: the full factorial for a FULL
- * cell; else a fraction at the cell's resolution, or at the highest the page offers (V) for a higher one,
- * when the page makes that resolution in exactly the cell's runs. In seven factors resolution IV takes 16
- * runs, so the 32-run cell of resolution IV is not offered.
+ * cell; else a fraction at the cell's resolution, or at V for a higher one, when the page makes that
+ * resolution in exactly the cell's runs. In seven factors resolution IV takes 16 runs, so the 32-run cell
+ * of resolution IV is not offered.
  */
 export function cellDesign(runs, k) {
   const cell = tradeOffCell(runs, k);
   if (cell === null) return null;
   if (cell === FULL) return { design_type: "full_factorial" };
-  const resolution = Math.min(cell, Math.max(...RESOLUTIONS));
+  const resolution = cellResolution(cell);
   return fractionRuns(k, resolution) === runs ? { design_type: "fractional_factorial", resolution } : null;
 }
 

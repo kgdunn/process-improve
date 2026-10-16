@@ -75,6 +75,7 @@ import {
   TRADE_OFF_RUNS,
   cellBand,
   cellDesign,
+  cellResolution,
   cellText,
   fractionRuns,
   tradeOffCell,
@@ -146,6 +147,10 @@ describe("the trade-off grid of a fraction", () => {
     assert.deepEqual(cellDesign(16, 5), fraction(5));
     assert.deepEqual(cellDesign(16, 6), fraction(4));
     assert.deepEqual(cellDesign(128, 10), fraction(5));
+  });
+
+  test("a fraction cell asks for its own resolution, or V above it", () => {
+    assert.deepEqual([3, 4, 5, 6, 8].map(cellResolution), [3, 4, 5, 5, 5]);
   });
 
   test("a cell of a higher resolution sets V when V gives exactly its runs", () => {

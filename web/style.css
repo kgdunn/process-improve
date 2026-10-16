@@ -14,6 +14,13 @@
   --mark-run: #2c5f7c;
   --mark-centre: #a93226;
   --mark-edge: #a6a49e;
+  /* The trade-off grid's bands, each a cell in the column that takes a pick and a muted one beside it. */
+  --band-high: #cfe9d7;
+  --band-high-away: #ebf5ee;
+  --band-iv: #f6e2b8;
+  --band-iv-away: #fbf2e0;
+  --band-iii: #f5d0cc;
+  --band-iii-away: #fbebe9;
   color-scheme: light;
 }
 @media (prefers-color-scheme: dark) {
@@ -31,6 +38,12 @@
     --mark-run: #8db8d6;
     --mark-centre: #f0907f;
     --mark-edge: #5b5f66;
+    --band-high: #1f4a31;
+    --band-high-away: #1d2b23;
+    --band-iv: #544015;
+    --band-iv-away: #2c2619;
+    --band-iii: #5a2a25;
+    --band-iii-away: #30201e;
     color-scheme: dark;
   }
 }
@@ -48,6 +61,12 @@
   --mark-run: #8db8d6;
   --mark-centre: #f0907f;
   --mark-edge: #5b5f66;
+  --band-high: #1f4a31;
+  --band-high-away: #1d2b23;
+  --band-iv: #544015;
+  --band-iv-away: #2c2619;
+  --band-iii: #5a2a25;
+  --band-iii-away: #30201e;
   color-scheme: dark;
 }
 
@@ -514,6 +533,38 @@ table.pick td.low { color: var(--warn); }
 @media (prefers-reduced-motion: reduce) { .hint.busy::before { animation: none; } }
 .design-card { margin: 18px 0 0; padding: 14px 0 0; border-top: 1px solid var(--line); }
 .design-card h3 { margin-top: 0; }
+
+/* The trade-off of a fraction: runs down, factors across, each cell coloured by its resolution's band. The column
+   of the brief's factors is in full colour and takes a pick; the others are muted. The pressed cell is the form's. */
+.trade-off { margin: 0 0 8px; }
+.trade-off .hint { margin: 4px 0; }
+.trade-off .scroll { margin: 6px 0; }
+table.trade-off-table { border-collapse: separate; border-spacing: 3px; font-size: 0.88rem; font-variant-numeric: tabular-nums; }
+.trade-off-table th { padding: 2px 6px; font-weight: 600; color: var(--muted); text-align: center; }
+.trade-off-table tbody th { text-align: right; }
+.trade-off-table thead th.here { color: var(--fg); box-shadow: inset 0 -3px 0 var(--accent); }
+.trade-off-table td { min-width: 2.6rem; height: 2rem; padding: 0 4px; border-radius: 4px; text-align: center; color: var(--muted); }
+.trade-off-table td.here { color: var(--fg); font-weight: 600; }
+.trade-off-table td[data-band="high"] { background: var(--band-high-away); }
+.trade-off-table td[data-band="iv"] { background: var(--band-iv-away); }
+.trade-off-table td[data-band="iii"] { background: var(--band-iii-away); }
+.trade-off-table td.here[data-band="high"] { background: var(--band-high); }
+.trade-off-table td.here[data-band="iv"] { background: var(--band-iv); }
+.trade-off-table td.here[data-band="iii"] { background: var(--band-iii); }
+.trade-off-table td:has(button) { padding: 0; }
+.trade-off-table button {
+  all: unset; box-sizing: border-box; display: block; width: 100%; min-height: 2rem; padding: 4px; border-radius: 4px;
+  cursor: pointer; text-align: center; box-shadow: inset 0 0 0 1px var(--muted);
+}
+.trade-off-table button:hover { box-shadow: inset 0 0 0 2px var(--accent); }
+.trade-off-table button:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.trade-off-table button[aria-pressed="true"] { box-shadow: inset 0 0 0 3px var(--fg); font-weight: 700; }
+@media (max-width: 480px) {
+  table.trade-off-table { border-spacing: 2px; font-size: 0.8rem; }
+  .trade-off-table th { padding: 2px 3px; }
+  .trade-off-table td { min-width: 1.9rem; padding: 0 2px; }
+}
+@media (pointer: coarse) { .trade-off-table button { min-height: 44px; } }
 
 /* The detailed comparison, over the page: as wide as its table needs, and scrolled within. */
 dialog.sheet {

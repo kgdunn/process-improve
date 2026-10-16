@@ -30,20 +30,28 @@ import {
   CATEGORICAL,
   CATEGORICAL_DESIGNS,
   CHOSEN_TERMS,
+  FULL,
   GIVEN,
   MODES,
   NUMERIC,
   OPTIMAL_MODEL,
   REGION_DESIGNS,
+  ROMAN,
   SCREEN_FROM,
   SPARE_FOR_NOISE,
   SPARE_RUNS,
   TITLES,
+  TRADE_OFF_FACTORS,
+  TRADE_OFF_RUNS,
   aimTerms,
   analysisModel,
   axialDistance,
   candidateRows,
   candidateTerms,
+  cellBand,
+  cellDesign,
+  cellResolution,
+  cellText,
   changeWords,
   compareCells,
   defaultAim,
@@ -53,6 +61,7 @@ import {
   factorType,
   fitStatistics,
   fmt,
+  fractionRuns,
   isBlank,
   isCategorical,
   levelProblem,
@@ -74,6 +83,7 @@ import {
   responseProblems,
   responseTitle,
   runBadge,
+  tradeOffCell,
 } from "./logic.js";
 import {
   AIMS,
@@ -815,11 +825,97 @@ function refreshDesign() {
     hint.replaceChildren(`${option.dataset.hint} `, BOOK_PAGES[option.value] ? link(BOOK_PAGES[option.value], "More in the book") : "");
   }
   hint.classList.toggle("error", option.disabled);
+  showTradeOff();
   showMakeable(showFactorProblems());
   $("#design-card").hidden = k < 2 && !state.design;
   showAim();
   markPicked();
   markStale();
+}
+
+// ---------------------------------------------------------------- the trade-off grid
+// Runs down, factors across, each cell the resolution of the best fraction (logic.js TRADE_OFF), shown with a
+// design that takes a resolution. The column of the brief's factors takes a pick; the others are muted, there to
+// show what a factor more or fewer would cost. The cell of the design the form now makes is pressed.
+let tradeOffDrawn = null; // the factor count, and whether the column takes a pick, the grid was drawn for
+
+/** Show the grid with a design that takes a resolution, drawn for the brief's factors, the form's design pressed. */
+function showTradeOff() {
+  const grid = $("#trade-off");
+  const option = $("#design-type").selectedOptions[0];
+  grid.hidden = !option.dataset.options.split(" ").includes("resolution");
+  if (grid.hidden) return;
+  const k = factorCount();
+  const picking = !option.disabled; // a design the factors or the limits rule out takes no pick
+  if (tradeOffDrawn !== `${k} ${picking}`) {
+    tradeOffDrawn = `${k} ${picking}`;
+    drawTradeOff(k, picking);
+  }
+  const made = fractionRuns(k, Number($("#resolution").value));
+  for (const button of grid.querySelectorAll("button[data-runs]")) {
+    button.setAttribute("aria-pressed", String(Number(button.dataset.runs) === made));
+  }
+}
+
+/** Draw the grid: a button in each cell of the column for k factors that a pick can make, text in every other. */
+function drawTradeOff(k, picking) {
+  const head = el("thead", "", "");
+  const across = el("tr", "", "");
+  const factors = el("th", "", "Factors");
+  factors.colSpan = TRADE_OFF_FACTORS.length;
+  factors.scope = "colgroup";
+  across.append(el("td", "", ""), factors);
+  const columns = el("tr", "", "");
+  for (const [cls, text] of [["", "Runs"], ...TRADE_OFF_FACTORS.map((j) => [j === k ? "here" : "", String(j)])]) {
+    columns.append(Object.assign(el("th", cls, text), { scope: "col" }));
+  }
+  head.append(across, columns);
+  const body = el("tbody", "", "");
+  for (const runs of TRADE_OFF_RUNS) {
+    const tr = el("tr", "", "");
+    tr.append(Object.assign(el("th", "", String(runs)), { scope: "row" }));
+    for (const j of TRADE_OFF_FACTORS) {
+      const cell = tradeOffCell(runs, j);
+      const td = el("td", j === k ? "here" : "away", "");
+      if (cell !== null) td.dataset.band = cellBand(cell);
+      const design = j === k && picking ? cellDesign(runs, k) : null;
+      if (design) {
+        const what = cell === FULL ? "the full factorial" : `resolution ${ROMAN[cell]}`;
+        const button = el("button", "", cellText(cell));
+        button.type = "button";
+        button.dataset.runs = runs;
+        button.setAttribute("aria-label", `${runs} runs, ${k} factors: ${what}`);
+        td.append(button);
+      } else {
+        td.textContent = cellText(cell);
+        if (j === k && picking && cell !== null) {
+          const asked = cellResolution(cell);
+          td.title = `Not offered: the page makes resolution ${ROMAN[asked]} in ${fractionRuns(k, asked)} runs.`;
+        }
+      }
+      tr.append(td);
+    }
+    body.append(tr);
+  }
+  $("#trade-off-table").replaceChildren(head, body);
+  const move = "Add or remove a factor in the brief to move across.";
+  $("#trade-off-hint").textContent = TRADE_OFF_FACTORS.includes(k) ? `The column of your ${k} factors takes a pick. ${move}` : move;
+}
+
+/** Take a cell of the grid into the plan: its resolution, or the full factorial. */
+function pickCell(runs) {
+  const design = cellDesign(runs, factorCount());
+  if (!design) return;
+  designChosen = true;
+  if (design.design_type === "full_factorial") {
+    $("#design-type").value = design.design_type;
+    refreshDesign();
+    $("#design-type").focus(); // the grid goes with the fraction: the focus stays on the choice it made
+    return;
+  }
+  $("#resolution").value = String(design.resolution);
+  resolutionEdited = true;
+  refreshDesign();
 }
 
 /** Let the run sheet be made only once Python has started, the design takes these factors, and each is ready. */
@@ -2666,8 +2762,13 @@ $("#budget").oninput = () => {
 };
 $("#resolution").onchange = () => {
   resolutionEdited = true;
+  showTradeOff();
   markStale();
 };
+$("#trade-off-table").addEventListener("click", (e) => {
+  const button = e.target.closest("button[data-runs]");
+  if (button) pickCell(Number(button.dataset.runs));
+});
 for (const id of ["#n_center_points", "#n_replicates", "#n_blocks"]) $(id).addEventListener("input", markStale);
 $("#generate").onclick = async () => {
   // While practising, the new runs are simulated from the same process, noise and seed, so the true process
