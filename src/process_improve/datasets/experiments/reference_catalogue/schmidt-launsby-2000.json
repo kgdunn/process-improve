@@ -19650,7 +19650,11 @@
       "quote": "Table 4.20 Computer Output for Quadratic Interaction Model ... x1 ... Tolerance .0011019"
      },
      "check": {
-      "manual": "evaluate_design reports this full-rank model as rank-deficient and gives no variance inflation factors: it takes the rank of X'X, whose condition number in the factors' own units (x1 to 100, x1²x2 to 2,000,000) is the square of X's, 4.7e15, past the precision of a double; X itself has rank 6"
+      "kind": "design_metric",
+      "metric": "vif",
+      "model": "x1 + x2 + x1:x2 + I(x1 ** 2) + I(x1 ** 2):x2",
+      "key": "x1",
+      "reciprocal": true
      }
     },
     {
@@ -19740,7 +19744,11 @@
       "quote": "Table 4.20 Computer Output for Quadratic Interaction Model ... x2 ... Tolerance .0025125"
      },
      "check": {
-      "manual": "evaluate_design reports this full-rank model as rank-deficient and gives no variance inflation factors: it takes the rank of X'X, whose condition number in the factors' own units (x1 to 100, x1²x2 to 2,000,000) is the square of X's, 4.7e15, past the precision of a double; X itself has rank 6"
+      "kind": "design_metric",
+      "metric": "vif",
+      "model": "x1 + x2 + x1:x2 + I(x1 ** 2) + I(x1 ** 2):x2",
+      "key": "x2",
+      "reciprocal": true
      }
     },
     {
@@ -19830,7 +19838,11 @@
       "quote": "Table 4.20 Computer Output for Quadratic Interaction Model ... x1·x2 ... Tolerance .0003606"
      },
      "check": {
-      "manual": "evaluate_design reports this full-rank model as rank-deficient and gives no variance inflation factors: it takes the rank of X'X, whose condition number in the factors' own units (x1 to 100, x1²x2 to 2,000,000) is the square of X's, 4.7e15, past the precision of a double; X itself has rank 6"
+      "kind": "design_metric",
+      "metric": "vif",
+      "model": "x1 + x2 + x1:x2 + I(x1 ** 2) + I(x1 ** 2):x2",
+      "key": "x1:x2",
+      "reciprocal": true
      }
     },
     {
@@ -19920,7 +19932,12 @@
       "quote": "Table 4.20 Computer Output for Quadratic Interaction Model ... x1² ... Tolerance .0006840"
      },
      "check": {
-      "manual": "evaluate_design reports this full-rank model as rank-deficient and gives no variance inflation factors: it takes the rank of X'X, whose condition number in the factors' own units (x1 to 100, x1²x2 to 2,000,000) is the square of X's, 4.7e15, past the precision of a double; X itself has rank 6"
+      "kind": "design_metric",
+      "metric": "vif",
+      "model": "x1 + x2 + x1:x2 + I(x1 ** 2) + I(x1 ** 2):x2",
+      "key": "I(x1 ** 2)",
+      "reciprocal": true,
+      "disagreement": "the book prints .0006840, the next row's tolerance (x1²·x2); x1²'s is .0011019, the same as x1's"
      }
     },
     {
@@ -20010,7 +20027,11 @@
       "quote": "Table 4.20 Computer Output for Quadratic Interaction Model ... x1²·x2 ... Tolerance .0006840"
      },
      "check": {
-      "manual": "evaluate_design reports this full-rank model as rank-deficient and gives no variance inflation factors: it takes the rank of X'X, whose condition number in the factors' own units (x1 to 100, x1²x2 to 2,000,000) is the square of X's, 4.7e15, past the precision of a double; X itself has rank 6"
+      "kind": "design_metric",
+      "metric": "vif",
+      "model": "x1 + x2 + x1:x2 + I(x1 ** 2) + I(x1 ** 2):x2",
+      "key": "I(x1 ** 2):x2",
+      "reciprocal": true
      }
     },
     {
@@ -46285,13 +46306,34 @@
      "what": "condition number",
      "term": null,
      "value": "1",
+     "analysis": "RS/Discover's Cond. No.: the condition number of the coded model matrix with each column scaled to unit length",
      "where": {
       "page": "5-50",
       "source_kind": "table",
       "quote": "Table 5.29 RS/Discover Computer Output for Coded Data in Table 5.28 ... Cond. No. = 1"
      },
      "check": {
-      "manual": "RS/Discover's condition number of the coded model matrix; no check computes it"
+      "kind": "design_metric",
+      "metric": "scaled_condition_number",
+      "model": "(T + TE + N + P + PHO) ** 2",
+      "runs": [
+       1,
+       2,
+       3,
+       4,
+       5,
+       6,
+       7,
+       8,
+       9,
+       10,
+       11,
+       12,
+       13,
+       14,
+       15,
+       16
+      ]
      }
     },
     {
@@ -47526,13 +47568,16 @@
      "what": "condition number",
      "term": null,
      "value": "5.68",
+     "analysis": "RS/Discover's Cond. No.: the condition number of the coded model matrix with each column scaled to unit length",
      "where": {
       "page": "5-53",
       "source_kind": "table",
       "quote": "Table 5.31 RS/Discover Computer Output for Table 5.28 Data with Centerpoints and Axial Points ... Cond. No. = 5.68"
      },
      "check": {
-      "manual": "RS/Discover's condition number; no check computes it"
+      "kind": "design_metric",
+      "metric": "scaled_condition_number",
+      "model": "T + TE + N + T:TE + T:N + TE:N + I(T ** 2) + I(TE ** 2) + I(N ** 2)"
      }
     },
     {
@@ -47854,13 +47899,16 @@
      "what": "condition number",
      "term": null,
      "value": "3.30",
+     "analysis": "RS/Discover's Cond. No.: the condition number of the coded model matrix with each column scaled to unit length",
      "where": {
       "page": "5-54",
       "source_kind": "table",
       "quote": "Table 5.32 RS/Discover Final Model for Table 5.28 Data (Using a CCF) ... Cond. No. = 3.30"
      },
      "check": {
-      "manual": "RS/Discover's condition number; no check computes it"
+      "kind": "design_metric",
+      "metric": "scaled_condition_number",
+      "model": "T + TE + N + I(T ** 2)"
      }
     },
     {
@@ -49344,13 +49392,16 @@
      "what": "condition number",
      "term": null,
      "value": "7.392",
+     "analysis": "RS/Discover's Cond. No.: the condition number of the coded model matrix with each column scaled to unit length",
      "where": {
       "page": "5-57",
       "source_kind": "table",
       "quote": "Table 5.34 RS/Discover Computer Output for D-optimal Design for the Plating Example ... Cond. No. = 7.392"
      },
      "check": {
-      "manual": "RS/Discover's condition number; no check computes it"
+      "kind": "design_metric",
+      "metric": "scaled_condition_number",
+      "model": "T + TE + N + I(T ** 2) + T:TE + T:N + I(TE ** 2) + TE:N + I(N ** 2)"
      }
     },
     {
@@ -49907,13 +49958,16 @@
      "what": "condition number",
      "term": null,
      "value": "5.328",
+     "analysis": "RS/Discover's Cond. No.: the condition number of the coded model matrix with each column scaled to unit length",
      "where": {
       "page": "5-58",
       "source_kind": "table",
       "quote": "Table 5.35 Final Model for D-optimal Design ... Cond. No. = 5.328"
      },
      "check": {
-      "manual": "RS/Discover's condition number; no check computes it"
+      "kind": "design_metric",
+      "metric": "scaled_condition_number",
+      "model": "T + TE + I(T ** 2)"
      }
     },
     {
@@ -51164,13 +51218,16 @@
      "what": "condition number",
      "term": null,
      "value": "4.522",
+     "analysis": "RS/Discover's Cond. No.: the condition number of the coded model matrix with each column scaled to unit length",
      "where": {
       "page": "5-59",
       "source_kind": "table",
       "quote": "Table 5.37 RS/Discover Computer Output Using Box-Behnken Design for Plating Example ... Cond. No. = 4.522"
      },
      "check": {
-      "manual": "RS/Discover's condition number; no check computes it"
+      "kind": "design_metric",
+      "metric": "scaled_condition_number",
+      "model": "T + TE + N + I(T ** 2) + T:TE + T:N + I(TE ** 2) + TE:N + I(N ** 2)"
      }
     },
     {
@@ -51798,13 +51855,16 @@
      "what": "condition number",
      "term": null,
      "value": "3.513",
+     "analysis": "RS/Discover's Cond. No.: the condition number of the coded model matrix with each column scaled to unit length",
      "where": {
       "page": "5-60",
       "source_kind": "table",
       "quote": "Table 5.38 Final Model for Box-Behnken Design ... Cond. No. = 3.513"
      },
      "check": {
-      "manual": "RS/Discover's condition number; no check computes it"
+      "kind": "design_metric",
+      "metric": "scaled_condition_number",
+      "model": "T + N + I(T ** 2) + T:N + I(N ** 2)"
      }
     },
     {
@@ -53086,13 +53146,16 @@
      "what": "condition number",
      "term": null,
      "value": "4.391",
+     "analysis": "RS/Discover's Cond. No.: the condition number of the coded model matrix with each column scaled to unit length",
      "where": {
       "page": "5-62",
       "source_kind": "table",
       "quote": "Table 5.40 Final Model for Full Factorial (L27) Design ... Cond. No. = 4.391"
      },
      "check": {
-      "manual": "RS/Discover's condition number; no check computes it"
+      "kind": "design_metric",
+      "metric": "scaled_condition_number",
+      "model": "T + TE + N + I(T ** 2) + I(N ** 2)"
      }
     },
     {
@@ -101707,7 +101770,7 @@
      "what": "condition number",
      "term": null,
      "value": "1.183",
-     "analysis": "the library's condition number of the model matrix X'X, the factors coded -1 to +1",
+     "analysis": "RS/Discover's Cond. No.: the condition number of the coded model matrix with each column scaled to unit length",
      "where": {
       "page": "8-232",
       "source_kind": "table",
@@ -101715,9 +101778,8 @@
      },
      "check": {
       "kind": "design_metric",
-      "metric": "condition_number",
-      "model": "C + W + WT + W:WT",
-      "disagreement": "the library's condition number of X'X, the factors coded -1 to +1, is 1.290; RS/Discover's 1.183 is that of X'X with each column of X, the constant's too, scaled to unit length first"
+      "metric": "scaled_condition_number",
+      "model": "C + W + WT + W:WT"
      }
     },
     {
