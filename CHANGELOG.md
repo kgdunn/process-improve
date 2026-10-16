@@ -47,13 +47,12 @@ those changes.
   solderability L18 with a dummy-level column, a 2^4 on chemiluminescence with centre runs, and the
   run counts of a 136-run Plackett-Burman design for 134 inputs and a mixed-level full factorial of
   49152 cases. Appendix J's answers are checked against the problems they answer. 4500 printed
-  numbers, 4062 checked. 397 are recorded as not reproducing, each explained: most come from the
+  numbers, 4062 checked. 396 are recorded as not reproducing, each explained: most come from the
   book's rounding (run averages and standard deviations that do not follow from their readings,
   squares of rounded effects, coefficients that are halves of rounded effects, values cut rather
   than rounded), some are misprints (a wrong sign, two exchanged digits, rows swapped, Yates's
   algorithm run on totals listed in run order rather than Yates order, an answer's resolution IV for
-  a design with three-letter words), and the L18: the library stores it (as L18(6^1 3^6)) but its
-  Taguchi design takes 36 runs for one two-level and seven three-level factors. Five tolerances are
+  a design with three-letter words). Five tolerances are
   not recomputed: `evaluate_design` takes the rank of X'X, whose condition number in the factors'
   own units squares X's, and calls that full-rank model singular. A catalogue check can now analyse
   each run's mean, total, standard deviation, ln s or one of Taguchi's signal-to-noise ratios
@@ -131,6 +130,15 @@ those changes.
 
 ### Fixed
 
+- **A Taguchi design for one 2-level and seven 3-level factors takes 18 runs, not 36.** The
+  library stores the L18 as `L18(6^1 3^6)`, and the design gave each factor a column of its own, so
+  the eighth factor found none and the design moved on to `L36(3^23)`. When no array has a column
+  for every factor, a column whose level count is a product of two factors' counts now carries both,
+  each factor taking a digit of the column's level: the 6-level column is the 2-level and a 3-level
+  column of Taguchi's L18, and a 4-level column of `L16(4^5)` carries two 2-level factors, so one
+  4-level and six 2-level factors take 16 runs rather than 32. Every pair of columns is still checked
+  to be balanced, `metadata["columns"]` names a shared column twice, and a design whose array
+  already had a column for every factor is unchanged.
 - **The reference catalogue's regression sum of squares is the total less the residual's.** It
   was the sum of the Type II rows of the ANOVA, which leaves out what correlated terms share, such
   as the squares of a composite design; for orthogonal designs the two are the same, and every
