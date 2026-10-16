@@ -237,9 +237,13 @@ those changes.
 - **A constraint that cannot be evaluated over part of the factor box is treated as
   curved.** Where `sqrt` or `log` of a negative number, or a division by zero, made the
   constraint infinite or `NaN` at some probe point, the test for an affine constraint
-  passed it, and the secant plane through the points where it was finite stood in for it:
-  `0.5 <= A/B <= 2` with `B` from 0, or `sqrt(A - 120) + B <= 70` with `A` from 100, got
-  vertices, bounds and a hit-and-run sampler cut by a plane the constraint does not have.
+  passed it, and its fitted form stood in for it: the secant plane through the points
+  where it was finite (`0.5 <= A/B <= 2` with `B` from 0), or a form of `NaN`, which the
+  hit-and-run chains ignore (`sqrt(A - 149) + B <= 21` with `A` from 100 to 150 and `B`
+  from 20 to 60). In a region too thin to sample by rejection, the chains then did not
+  keep to the constraint: none of 2000 samples of that `sqrt` limit met it, so
+  `evaluate_design(region=)` and the moments of an I-optimal design averaged over settings
+  outside it, and none of the 6 runs of a maximin or a maxpro design met it.
 - **Samples of a thin region no longer depend on the sign of an eigenvector.** A region too
   thin to sample by rejection (one that keeps under 1% of the box for the 20000 points that
   `compare_designs` and an I-optimal design's moments draw, or under 5% for the 100000 of
