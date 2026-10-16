@@ -30,6 +30,8 @@ TOL = 1e-9
 MAX_VERTICES = 2**16
 #: Pairs of vertices tested for adjacency at once (bounds the memory of the test).
 _PAIR_CHUNK = 512
+#: Entries of the (kept x removed) count of shared boundaries computed at once: 32 MB of float64.
+_PRODUCT_CELLS = 2**22
 #: The square ``[-1, 1]^2``, counter-clockwise from its lower-left corner.
 _SQUARE = np.array([[-1.0, -1.0], [1.0, -1.0], [1.0, 1.0], [-1.0, 1.0]])
 
@@ -130,9 +132,18 @@ def _cut(
     inner, outer = np.flatnonzero(inside), np.flatnonzero(outside)
     k = vertices.shape[1]
     weights = active.astype(float)
-    shared = weights[inner] @ weights[outer].T  # boundaries each (kept, removed) pair has in common
-    i, j = np.nonzero(shared >= k - 1)
-    u, w = inner[i], outer[j]
+    # The boundaries each (kept, removed) pair has in common, a block of kept vertices at a time: the whole
+    # (kept x removed) matrix would take gigabytes from 15 factors, where a cut through the centre leaves
+    # tens of thousands of vertices on each side.
+    rows_per_block = max(1, _PRODUCT_CELLS // len(outer))
+    removed = weights[outer].T
+    u_parts, w_parts = [np.zeros(0, dtype=int)], [np.zeros(0, dtype=int)]
+    for start in range(0, len(inner), rows_per_block):
+        block = inner[start : start + rows_per_block]
+        i, j = np.nonzero(weights[block] @ removed >= k - 1)
+        u_parts.append(block[i])
+        w_parts.append(outer[j])
+    u, w = np.concatenate(u_parts), np.concatenate(w_parts)
     common = active[u] & active[w]
     # A vertex on exactly k boundaries (a simple vertex) shares k - 1 independent ones with any vertex it is
     # joined to, and those k - 1 cut out a line holding just the two: the third-vertex test is needed only

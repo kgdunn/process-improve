@@ -6,6 +6,7 @@ import doctest
 import importlib
 import itertools
 import math
+import tracemalloc
 
 import numpy as np
 import pytest
@@ -899,6 +900,30 @@ class TestGeometry:
                 b = rng.uniform(-0.5, 1.2, m)
                 expected = _brute_vertices(-np.ones(k), np.ones(k), a, b)
                 assert _same_rows(geometry.box_vertices(a, b), expected)
+
+    def test_box_vertices_in_blocks_of_any_size_are_the_same(self, monkeypatch):
+        rng = np.random.default_rng(5)
+        a = rng.normal(size=(4, 5))
+        a /= np.linalg.norm(a, axis=1, keepdims=True)
+        b = rng.uniform(-0.3, 0.8, 4)
+        whole = geometry.box_vertices(a, b)
+        monkeypatch.setattr(geometry, "_PRODUCT_CELLS", 3)  # one kept vertex per block
+        np.testing.assert_array_equal(geometry.box_vertices(a, b), whole)
+
+    def test_box_vertices_count_shared_boundaries_a_block_at_a_time(self):
+        """One dense (kept x removed) matrix took 0.3 GB here, 2.5 GB at 15 factors and 6 GB at 16.
+
+        ``is_empty()`` reaches it, and compare_designs(region=) calls that on every region.
+        """
+        k = 14
+        tracemalloc.start()
+        try:
+            vertices = geometry.box_vertices(np.ones((1, k)) / math.sqrt(k), np.zeros(1))
+            peak = tracemalloc.get_traced_memory()[1]
+        finally:
+            tracemalloc.stop()
+        assert len(vertices) == (2**k + math.comb(k, k // 2)) // 2  # the corners on or below the plane
+        assert peak < 128 * 2**20
 
     def test_box_vertices_of_a_zero_row(self):
         assert geometry.box_vertices(np.zeros((1, 2)), np.array([-1.0])).shape == (0, 2)
