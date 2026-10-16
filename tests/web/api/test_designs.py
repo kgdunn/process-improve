@@ -363,3 +363,53 @@ def test_a_label_is_coded_minus_one_for_the_low_and_plus_one_for_the_high(api):
     found = {c["term"]: c["coefficient"] for c in analysis["coefficients"]}
     assert found["Supplier"] == pytest.approx(2.0), "half the difference from A to B, as for a numeric factor"
     assert found["T"] == pytest.approx(1.0)
+
+
+# --------------------------------------------------------------------------- limits on the settings
+#: Limits in the worked example's factors, a straight one and a curved one, and each written as Python.
+LIMITS = {
+    "T + 25 * P <= 250": lambda t, p, _f: t + 25 * p <= 250 + 1e-9,
+    "T * F <= 3600": lambda t, _p, f: t * f <= 3600 + 1e-9,
+}
+
+
+def _with_limits(design_type: str, **extra: object) -> dict:
+    return {"design_type": design_type, "factors": FACTORS, "constraints": [{"expression": t} for t in LIMITS], **extra}
+
+
+@pytest.mark.parametrize("design_type", ["d_optimal", "i_optimal"])
+@pytest.mark.parametrize("extra", [{}, {"n_blocks": 2}, {"n_replicates": 2}, {"model_type": "main_effects"}])
+def test_an_optimal_design_keeps_every_run_inside_the_limits(api, design_type, extra):
+    result = api.ok("api_make_design", _with_limits(design_type, **extra))
+    runs = run_sheet(result)[["T", "P", "F"]].itertuples(index=False)
+    assert all(holds(*run) for run in runs for holds in LIMITS.values())
+    assert result["facts"]["notes"][-1] == "Every run is inside your limits on the settings."
+
+
+def test_the_limits_change_where_the_runs_go(api):
+    """Without them, the D-optimal design runs the corner the heat limit cuts off."""
+    free = run_sheet(api.ok("api_make_design", {"design_type": "d_optimal", "factors": FACTORS}))
+    assert not all(LIMITS["T + 25 * P <= 250"](*run) for run in free[["T", "P", "F"]].itertuples(index=False))
+
+
+def test_a_design_stores_its_limits_beside_its_options(api):
+    """The options hold one design's settings, which a comparison reuses; the limits are the study's."""
+    spec = api.ok("api_make_design", _with_limits("d_optimal"))["spec"]
+    assert spec["constraints"] == [
+        {"expression": "T + 25 * P <= 250", "type": "linear"},
+        {"expression": "T * F <= 3600", "type": "nonlinear"},
+    ]
+    assert "constraints" not in spec["options"]
+
+
+def test_a_design_without_limits_is_as_it_was(api, design):
+    assert "constraints" not in design["spec"]
+    assert "Every run is inside your limits on the settings." not in design["facts"]["notes"]
+
+
+@pytest.mark.parametrize("design_type", ["full_factorial", "d_optimal"])
+def test_limits_with_a_categorical_factor_name_the_conflict_whatever_the_design(api, design_type):
+    """A full factorial would send the reader to a D-optimal design, and back: the refusal names the real conflict."""
+    factors = [*FACTORS[:2], SUPPLIER]
+    request = {"design_type": design_type, "factors": factors, "constraints": [{"expression": "T <= 190"}]}
+    assert api.error("api_make_design", request).startswith("Limits on the settings work with numeric factors only")

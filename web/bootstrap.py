@@ -20,6 +20,7 @@ formula that ``analyze_experiment`` builds itself.
 
 from __future__ import annotations
 
+import ast
 import base64
 import contextlib
 import io
@@ -28,6 +29,7 @@ import json
 import logging
 import math
 import re
+import unicodedata
 import warnings
 from importlib.metadata import PackageNotFoundError, version
 from typing import TYPE_CHECKING, Any
@@ -35,8 +37,17 @@ from typing import TYPE_CHECKING, Any
 import numpy as np
 import pandas as pd
 
-from process_improve.experiments import Factor, TrueProcess, analyze_experiment, compare_designs, generate_design
+from process_improve.experiments import (
+    DesignRegion,
+    Factor,
+    TrueProcess,
+    analyze_experiment,
+    compare_designs,
+    generate_design,
+    rename_factors,
+)
 from process_improve.experiments.compare import MODELS as COMPARISON_MODELS
+from process_improve.experiments.designs_constrained import MAX_EXPRESSION_LENGTH, parse_constraint
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Iterator
@@ -149,6 +160,25 @@ MAX_BLOCKS = 8
 #: The designs that take a categorical factor, one whose two levels are labels (supplier A and B):
 #: the two-level designs, which need only the two levels of each factor.
 CATEGORICAL_DESIGNS = ("full_factorial", "fractional_factorial", "plackett_burman")
+
+#: The most limits a study can have on its settings. The optimal designs take the corners of the region the
+#: limits leave as candidate runs, and with 8 limits in 8 factors those are still quick to find in the browser.
+MAX_CONSTRAINTS = 8
+
+#: The designs that keep every run inside limits on the settings: they choose their runs among candidates inside.
+REGION_DESIGNS = ("d_optimal", "i_optimal")
+
+#: The most characters of a limit's note, which the page shows beside it and never reads.
+NOTE_LENGTH = 80
+
+#: The functions a limit can use, as the library reads them.
+LIMIT_FUNCTIONS = ("abs", "sqrt", "exp", "log", "log10")
+
+#: The most numeric factors whose corners the page lists for marking: 2**8 = 256 settings, and the centre.
+PROBE_FACTORS = 8
+
+#: The share of a factor's range the limits must take off one end before the page says the range is narrower.
+NARROWED = 0.005
 
 #: Text a spreadsheet reads back as a blank cell (pandas' defaults), so no level's label can be it.
 BLANK_LABELS = frozenset(
@@ -455,6 +485,192 @@ def _categorical_names(spec: dict) -> tuple[str, ...]:
     return tuple(f["name"] for f in spec["factors"] if _categorical(f))
 
 
+# --------------------------------------------------------------------------- limits on the settings
+#: What a reader may type or paste in a limit for an operator, and the operator a limit is written with: the
+#: signs for at most, at least and not equal, the minus sign and the en dash, the multiplication sign and the
+#: middle dot, the division sign, and ^ for a power, as a spreadsheet writes it.
+_SYMBOLS = str.maketrans(
+    {
+        "\u2264": "<=",
+        "\u2265": ">=",
+        "\u2260": "!=",
+        "\u2212": "-",
+        "\u2013": "-",
+        "\u00d7": "*",
+        "\u00b7": "*",
+        "\u00f7": "/",
+        "^": "**",
+    }
+)
+
+#: A number written against a name, as in 2T or 2 T for two times T.
+_UNWRITTEN_PRODUCT = re.compile(r"(?<![\w.])(\d+(?:\.\d*)?(?:[eE][+-]?\d+)?)\s*([A-Za-z_]\w*)")
+
+#: An equals sign on its own, or a comparison written backwards, as =< or =>.
+_EQUALS = re.compile(r"=<|=>|(?<![<>=!])=(?!=)")
+
+#: How each comparison a limit cannot make is written.
+_NOT_A_LIMIT = {ast.Eq: "==", ast.NotEq: "!=", ast.Is: "is", ast.IsNot: "is not", ast.In: "in", ast.NotIn: "not in"}
+
+
+def _limit_items(raw: object) -> list[tuple[str, str]]:
+    """Read the limits the page sent as ``(text, note)`` pairs, refusing a list this page did not write.
+
+    A note is the reader's own words beside a limit: its spaces are joined into one, as on one line.
+    """
+    if raw is None:
+        return []
+    if not isinstance(raw, list) or not all(isinstance(i, dict) and isinstance(i.get("expression"), str) for i in raw):
+        raise ValueError("The page sent limits this page did not write.")
+    if len(raw) > MAX_CONSTRAINTS:
+        raise ValueError(f"A study can have at most {MAX_CONSTRAINTS} limits on its settings.")
+    items = []
+    for item in raw:
+        note = item.get("note") or ""
+        note = " ".join(note.split()) if isinstance(note, str) else None
+        if note is None or len(note) > NOTE_LENGTH or any(unicodedata.category(ch) == "Cc" for ch in note):
+            raise ValueError(f"A limit's note is at most {NOTE_LENGTH} characters, on one line.")
+        items.append((item["expression"].strip().translate(_SYMBOLS), note))
+    return items
+
+
+def _read_limit(text: str, factors: list[Factor]) -> tuple[str, list[str]]:
+    """Return a limit's canonical text and the factors it names, in the factors' order; refuse it saying what to change.
+
+    The text is parsed and checked as the library parses it, and never evaluated. The canonical
+    text is the library's (``ast.unparse``), so a limit written in two ways is stored one way.
+    """
+    numeric = [f.name for f in factors if f.type != "categorical"]
+    if not text:
+        raise ValueError(f"Write each limit as an inequality of your factors, such as {_example(numeric)}.")
+    _short_enough(text)
+    tree, hint = _parsed(text)
+    if hint:
+        raise ValueError(f"The limit {text!r} cannot be read: {hint}")
+    _one_comparison(text, tree, numeric)
+    named = _factors_named(text, tree, factors)
+    try:
+        parse_constraint(text, set(numeric))
+    except ValueError as exc:
+        found = re.fullmatch(r"Unsupported syntax in constraint: (.+)\.", str(exc), re.DOTALL)
+        raise ValueError(
+            f"The limit {text!r} cannot use {found[1] if found else exc}: a limit is written with numbers, your "
+            f"factors, + - * / ** and the functions {_listed(list(LIMIT_FUNCTIONS))}."
+        ) from exc
+    canonical = ast.unparse(tree)
+    _short_enough(canonical)
+    return canonical, [name for name in numeric if name in named]
+
+
+def _one_comparison(text: str, tree: ast.expr, numeric: list[str]) -> None:
+    """Refuse a limit that is not one comparison with <, <=, > or >=, a chain such as ``a <= b <= c`` included."""
+    if not isinstance(tree, ast.Compare):
+        if isinstance(tree, ast.BoolOp) and isinstance(tree.op, ast.Or):
+            raise ValueError(  # noqa: TRY004 - a refusal, like the rest
+                f"The limit {text!r} joins comparisons with or, which a limit cannot: each limit must hold."
+            )
+        parts = tree.values if isinstance(tree, ast.BoolOp) else tree.elts if isinstance(tree, ast.Tuple) else []
+        if len(parts) > 1 and all(isinstance(part, ast.Compare) for part in parts):
+            raise ValueError(f"The limit {text!r} holds {len(parts)} comparisons: type each as a limit of its own.")
+        raise ValueError(  # noqa: TRY004 - a refusal, like the rest
+            f"The limit {text!r} is not an inequality: write it as one, such as {_example(numeric)}."
+        )
+    if wrong := [_NOT_A_LIMIT[type(op)] for op in tree.ops if type(op) in _NOT_A_LIMIT]:
+        raise ValueError(f"The limit {text!r} must compare with <, <=, > or >=, not with {wrong[0]}.")
+
+
+def _factors_named(text: str, tree: ast.expr, factors: list[Factor]) -> list[str]:
+    """Return the names a limit uses for factors, refusing a function, a factor or a name it cannot use."""
+    names = [f.name for f in factors]
+    numeric = [f.name for f in factors if f.type != "categorical"]
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Call) and not (isinstance(node.func, ast.Name) and node.func.id in LIMIT_FUNCTIONS):
+            raise ValueError(
+                f"The limit {text!r} uses {ast.unparse(node.func)}, which a limit cannot: the functions it can use "
+                f"are {_listed(list(LIMIT_FUNCTIONS))}."
+            )
+    named = _named(tree)
+    for name in named:
+        if name in names and name not in numeric:
+            raise ValueError(
+                f"The limit {text!r} names {name}, which is categorical: limits are on numeric factors only."
+            )
+        if name not in numeric:
+            raise ValueError(f"The limit {text!r} names {name}, which is not one of your factors: {_listed(names)}.")
+    if not named:
+        raise ValueError(f"The limit {text!r} names none of your factors.")
+    return named
+
+
+def _short_enough(text: str) -> None:
+    """Refuse a limit longer than the library reads: as typed, and as the page writes it out."""
+    if len(text) > MAX_EXPRESSION_LENGTH:
+        raise ValueError(f"The limit {text[:24] + '...'!r} is longer than {MAX_EXPRESSION_LENGTH} characters.")
+
+
+def _parsed(text: str) -> tuple[ast.expr | None, str | None]:
+    """Parse a limit's text: return its expression, or None and what to change for Python to read it."""
+    try:
+        tree = ast.parse(text, mode="eval").body
+    except (SyntaxError, ValueError) as err:  # ValueError: a null byte, before Python 3.12
+        return None, _misread(text, err)
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Call) and isinstance(node.func, ast.Constant):  # 2(T + P), for 2 times (T + P)
+            number, inner = ast.unparse(node.func), ", ".join(ast.unparse(a) for a in node.args)
+            return None, f"write {number}*({inner}) for {number} times ({inner})."
+    if isinstance(tree, ast.Tuple) and re.search(r"\d,\d", text):
+        return None, "write a decimal number with a point, as in 0.5, not 0,5."
+    return tree, None
+
+
+def _misread(text: str, error: Exception) -> str:
+    """Say what to change in a limit Python cannot read, for the slips a reader makes most."""
+    if found := _UNWRITTEN_PRODUCT.search(text):
+        return f"write {found[1]}*{found[2]} for {found[1]} times {found[2]}."
+    if _EQUALS.search(text):
+        return "write <= for at most, and >= for at least."
+    message = str(getattr(error, "msg", error))
+    return (
+        "check it for a missing number, factor or bracket." if message.startswith("invalid syntax") else f"{message}."
+    )
+
+
+def _named(tree: ast.AST) -> list[str]:
+    """Return the names a parsed limit uses for factors, every name but a function's, in the order they are written."""
+    called = {id(node.func) for node in ast.walk(tree) if isinstance(node, ast.Call)}
+    found = [node for node in ast.walk(tree) if isinstance(node, ast.Name) and id(node) not in called]
+    return list(dict.fromkeys(node.id for node in sorted(found, key=lambda node: node.col_offset)))
+
+
+def _example(numeric: list[str]) -> str:
+    """Write an example limit in the reader's own factors, as a refusal shows it."""
+    if len(numeric) == 1:
+        return f"2*{numeric[0]} <= 10"
+    first, second = numeric[:2] if numeric else ("A", "B")
+    return f"2*{first} + {second} <= 10"
+
+
+def _checked_constraints(raw: object, factors: list[Factor]) -> list[dict[str, Any]]:
+    """Check the limits a specification carries, and return them as a study stores them.
+
+    Each limit is its canonical text (see :func:`_read_limit`), its ``type``, which is worked out
+    here and never read, and the reader's ``note`` when there is one, which is shown and never
+    read either. A specification without limits stores none, so it stays as it was before the
+    page had them.
+    """
+    limits = [(_read_limit(text, factors)[0], note) for text, note in _limit_items(raw)]
+    curved = set(_region(factors, [text for text, _ in limits]).curved_constraints()) if limits else set()
+    return [
+        {"expression": text, "type": "nonlinear" if i in curved else "linear", **({"note": note} if note else {})}
+        for i, (text, note) in enumerate(limits)
+    ]
+
+
+def _region(factors: list[Factor], expressions: list[str]) -> DesignRegion:
+    """Return the region of settings that meets every limit, over the numeric factors."""
+    return DesignRegion([f for f in factors if f.type != "categorical"], expressions)
+
+
 # --------------------------------------------------------------------------- public API
 def _release() -> str | None:
     """Name the process-improve release the page runs, or None when it is not installed as a package."""
@@ -491,6 +707,9 @@ def make_design(spec: dict) -> dict:
         raise ValueError(f"Unknown design type {design_type!r}.")
     factors = _factors(spec)
     _check_factor_count(design_type, len(factors))
+    limits = _checked_constraints(spec.get("constraints"), factors)
+    expressions = [limit["expression"] for limit in limits]
+    region = _region_refusal(factors, _region(factors, expressions), design_type) if limits else None
     if (labelled := [f.name for f in factors if f.type == "categorical"]) and design_type not in CATEGORICAL_DESIGNS:
         verb = "is" if len(labelled) == 1 else "are"
         raise ValueError(
@@ -501,7 +720,10 @@ def make_design(spec: dict) -> dict:
     described = _described(spec)
 
     kwargs = _design_options(spec, design_type)
-    result = generate_design(factors, design_type=design_type, **kwargs)
+    # The limits are passed apart from the options, which hold one design's settings, as the comparison reuses them.
+    result = generate_design(
+        factors, design_type=design_type, **kwargs, **({"constraints": expressions} if limits else {})
+    )
 
     # The library returns the runs already randomised, and ``run_order[i]`` is the
     # standard-order position of its i-th run: the sheet keeps the rows as they come.
@@ -521,17 +743,57 @@ def make_design(spec: dict) -> dict:
         "model": kwargs.get("model_type") or _designed_model(design_type, result.resolution),
         "options": kwargs,
         **described,
+        **({"constraints": limits} if limits else {}),
     }
+    coded = _coded(runs, stored["factors"])
+    facts = _design_facts(result, coded.to_numpy(dtype=float), names, kwargs)
+    if region is not None:
+        if not region.feasible(coded[region.names].to_numpy(dtype=float)).all():
+            raise RuntimeError("The design has a run outside the limits on the settings, which it must not have.")
+        facts["notes"].append(INSIDE_LIMITS)
     return {
         "n_runs": len(runs),
         "columns": list(runs.columns),
         "rows": [list(row) for row in runs.itertuples(index=False)],
         "outside_range": _outside_range(runs, factors),
         "model": stored["model"],
-        "facts": _design_facts(result, _coded(runs, stored["factors"]).to_numpy(dtype=float), names, kwargs),
+        "facts": facts,
         "spec": stored,
         "xlsx_base64": _to_workbook(runs, stored),
     }
+
+
+#: What a design made with limits on the settings says of its runs. It names no factor, so a renaming keeps it.
+INSIDE_LIMITS = "Every run is inside your limits on the settings."
+
+
+def _region_refusal(factors: list[Factor], region: DesignRegion, design_type: str | None = None) -> DesignRegion:
+    """Refuse limits on the settings that no design on this page can keep to, and return the region they leave.
+
+    The optimal designs are the only ones that place their runs inside limits, and on this page
+    they take numeric factors only; so the refusals come in that order, which names the real
+    conflict: a full factorial and a D-optimal design would otherwise each send the reader to
+    the other. ``design_type`` is the design asked for, or None when none is asked for yet.
+    """
+    if labelled := [f.name for f in factors if f.type == "categorical"]:
+        verb, which = ("is", "that factor") if len(labelled) == 1 else ("are", "those factors")
+        raise ValueError(
+            f"Limits on the settings work with numeric factors only on this page, and {_listed(labelled)} {verb} "
+            f"categorical: remove the limits, or {which}."
+        )
+    if design_type is not None and design_type not in REGION_DESIGNS:
+        raise ValueError(
+            f"The {DESIGNS[design_type]['label']} design cannot keep its runs inside limits on the settings: choose "
+            "the D-optimal or I-optimal design, or remove the limits."
+        )
+    most = max(DESIGNS[d]["max_factors"] for d in REGION_DESIGNS)
+    if len(factors) > most:
+        raise ValueError(
+            f"With limits on the settings, the page makes designs in up to {most} factors; you have {len(factors)}."
+        )
+    if region.is_empty():
+        raise ValueError("No setting in your ranges meets every limit: loosen a limit, or widen a range.")
+    return region
 
 
 def _response_name(response: str, factors: list[Factor]) -> str:
@@ -1308,7 +1570,8 @@ def _checked_spec(spec: dict) -> dict[str, Any]:
 
     The specification travels through the page, and a workbook can carry one in, so it
     is checked as data: the design type and model must be ones the page offers, the
-    factor and response names must be variable names, and the blocks a whole number.
+    factor and response names must be variable names, the blocks a whole number, and the
+    limits on the settings ones the page reads, each stored in its canonical text.
     """
     if not isinstance(spec, dict) or spec.get("design_type") not in DESIGNS:
         raise ValueError("The page sent a design this page did not make.")
@@ -1323,7 +1586,8 @@ def _checked_spec(spec: dict) -> dict[str, Any]:
     if "analysis_model" in spec:  # the model the reader last analysed with, which a workbook keeps
         labelled = tuple(f.name for f in factors if f.type == "categorical")
         _checked_model(spec["analysis_model"], [f.name for f in factors], labelled)
-    checked = {key: value for key, value in spec.items() if key not in ("response_info", "aim")}
+    checked = {key: value for key, value in spec.items() if key not in ("response_info", "aim", "constraints")}
+    limits = _checked_constraints(spec.get("constraints"), factors)
     return {
         **checked,
         "factors": [_factor_spec(f) for f in factors],
@@ -1331,6 +1595,7 @@ def _checked_spec(spec: dict) -> dict[str, Any]:
         "model": model,
         "options": {**options, **({"n_blocks": blocks} if (blocks := _blocks(options)) > 1 else {})},
         **_described(spec),
+        **({"constraints": limits} if limits else {}),
     }
 
 
@@ -1971,6 +2236,154 @@ def candidates(request: dict) -> dict:
     return {"model": plan["model"], "made": made, "waiting": waiting, "notes": notes, "result": result}
 
 
+# --------------------------------------------------------------------------- limits, as the reader types them
+def limits(request: dict) -> dict:
+    """Describe the limits on the settings the reader is typing, for the panel that lists them.
+
+    ``factors`` are the brief's and ``constraints`` its limits, each ``{expression, note}`` in the
+    factors' own units; ``rename`` (``{old: new}``) renames factors inside the limits first, as a
+    factor renamed in the brief is renamed in them. Each limit comes back in its canonical text
+    with what it does, or with the sentence that says what to change, so a limit that cannot be
+    read leaves the others described. What a limit does over the factors' ranges:
+
+    - ``removed``, the share of the ranges it rules out on its own, and ``removes``, the rows of
+      ``probes`` it rules out;
+    - ``redundant``: ``"alone"`` when it rules out nothing within the ranges, ``"others"`` when
+      the other limits rule out all it does, else null;
+    - ``linear``, its straight form ``low <= lhs <= high`` for a bound box to edit, else null.
+
+    Over every limit that can be read: ``kept``, the share of the ranges left; ``empty``;
+    ``center_allowed``, whether the centre of the ranges can still be run; ``bounds``, each factor
+    whose range they narrow at an end, by more than :data:`NARROWED` of it (null with a curved
+    limit, where the narrowing is not exact, or with nothing left); and ``refusal``, the sentence
+    making a design would refuse them with, or null. ``probes`` are the corners of the numeric
+    factors' ranges, then their centre, with the limits that rule out each (see :func:`_probes`).
+    """
+    factors = _factors(request)
+    renaming = _renaming(request.get("rename"))
+    numeric = [f for f in factors if f.type != "categorical"]
+    entries: list[dict[str, Any]] = []
+    for typed, note in _limit_items(request.get("constraints")):
+        text = _renamed_limit(typed, renaming)
+        try:
+            canonical, named = _read_limit(text, factors)
+        except ValueError as exc:
+            entries.append({"expression": text, "note": note, "problem": str(exc)})
+        else:
+            entries.append({"expression": canonical, "note": note, "factors": named})
+    read = [i for i, entry in enumerate(entries) if "problem" not in entry]
+    region = _region(factors, [entries[i]["expression"] for i in read])
+    curved = {read[j] for j in region.curved_constraints()}
+    covered = {read[j] for j in region.redundant_constraints()}
+    probes = _probes(numeric)
+    for i in read:
+        alone = _region(factors, [entries[i]["expression"]])
+        removed = 1.0 - alone.volume_fraction()
+        removes = None if probes is None else np.flatnonzero(~alone.feasible(probes[0])).tolist()
+        # A straight limit that keeps every corner keeps the whole box, so the corners decide it exactly; a curved
+        # one is judged by them and the sample, as the library judges it.
+        nothing = bool(alone.redundant_constraints()) if removes is None else not removes and removed == 0
+        entries[i].update(
+            type="nonlinear" if i in curved else "linear",
+            removed=removed,
+            removes=removes,
+            redundant="alone" if nothing else "others" if i in covered else None,
+            linear=_linear_entry(alone.linear_forms()[0], [f.name for f in numeric]),
+        )
+    empty = region.is_empty()
+    refusal = next((entry["problem"] for entry in entries if "problem" in entry), None)
+    if refusal is None and read:
+        try:
+            _region_refusal(factors, region)
+        except ValueError as exc:
+            refusal = str(exc)
+    return {
+        "constraints": entries,
+        "probes": None if probes is None else _probe_table(probes[1], numeric, [entries[i] for i in read], read),
+        "kept": region.volume_fraction(),
+        "empty": empty,
+        "center_allowed": not read or bool(region.feasible(np.zeros((1, len(numeric))))[0]),
+        "bounds": None if curved or empty else _narrowed(region.implied_bounds(), numeric),
+        "refusal": refusal,
+    }
+
+
+def _renaming(raw: object) -> dict[str, str]:
+    """Check a renaming of the factors the page sent with its limits: each old name to its new one."""
+    if raw is None:
+        return {}
+    if not isinstance(raw, dict) or not all(isinstance(k, str) and isinstance(v, str) for k, v in raw.items()):
+        raise ValueError("The page sent a renaming this page did not write.")
+    return raw
+
+
+def _renamed_limit(text: str, renaming: dict[str, str]) -> str:
+    """Rename the factors inside a limit, all at once; a limit that cannot be read is left as typed, to say why."""
+    if not renaming:
+        return text
+    try:
+        return rename_factors(text, renaming)
+    except ValueError:
+        return text
+
+
+def _probes(numeric: list[Factor]) -> tuple[np.ndarray, np.ndarray] | None:
+    """Return the settings the page lists for marking, coded and in actual units: the corners, then the centre.
+
+    The corners of the numeric factors' ranges come in ``itertools.product`` order, the first factor
+    changing slowest and each factor's low end before its high end; the centre of the ranges is
+    last. None without numeric factors, or with more than :data:`PROBE_FACTORS`.
+    """
+    k = len(numeric)
+    if not 1 <= k <= PROBE_FACTORS:
+        return None
+    coded = np.vstack([np.array(list(itertools.product((-1.0, 1.0), repeat=k))), np.zeros((1, k))])
+    low = np.array([f.low for f in numeric], dtype=float)
+    high = np.array([f.high for f in numeric], dtype=float)
+    return coded, np.where(coded < 0, low, np.where(coded > 0, high, (low + high) / 2))
+
+
+def _probe_table(actual: np.ndarray, numeric: list[Factor], read: list[dict], indices: list[int]) -> dict[str, Any]:
+    """Return the probes as the page's table of corners: each row's settings, and the limits that rule it out."""
+    return {
+        "columns": [f.name for f in numeric],
+        "rows": actual.tolist(),
+        "center": len(actual) - 1,
+        "ruled_out_by": [
+            [i for i, entry in zip(indices, read, strict=True) if row in entry["removes"]] for row in range(len(actual))
+        ],
+    }
+
+
+def _linear_entry(form: tuple[dict[str, float], float | None, float | None] | None, names: list[str]) -> dict | None:
+    """Return a straight limit as ``{lhs, low, high}``, ``low <= lhs <= high`` with null for an open side, or None."""
+    if form is None:
+        return None
+    coefficients, low, high = form
+    terms: list[str] = []
+    for name in names:
+        if not (c := coefficients.get(name, 0.0)):
+            continue
+        size = str(int(abs(c))) if float(c).is_integer() and abs(c) < 1e15 else repr(abs(c))
+        term = name if size == "1" else f"{size} * {name}"
+        terms.append((f"-{term}" if c < 0 else term) if not terms else f"{'-' if c < 0 else '+'} {term}")
+    return {"lhs": ast.unparse(ast.parse(" ".join(terms), mode="eval")), "low": low, "high": high}
+
+
+def _narrowed(implied: dict[str, tuple[float, float]] | None, numeric: list[Factor]) -> list[dict[str, Any]] | None:
+    """List the factors whose range the limits narrow, with each new end, or null for an end left where it was."""
+    if implied is None:
+        return None
+    narrowed = []
+    for f in numeric:
+        low, high = implied[f.name]
+        span = f.high - f.low
+        ends = (low if low - f.low > NARROWED * span else None, high if f.high - high > NARROWED * span else None)
+        if ends != (None, None):
+            narrowed.append({"name": f.name, "low": ends[0], "high": ends[1]})
+    return narrowed
+
+
 # --------------------------------------------------------------------------- JSON entry points
 def api_catalogue(payload: str = "{}") -> str:
     """JSON wrapper around :func:`catalogue`."""
@@ -2030,3 +2443,8 @@ def api_candidates(payload: str) -> str:
 def api_relabel(payload: str) -> str:
     """JSON wrapper around :func:`relabel`."""
     return _reply(relabel, payload)
+
+
+def api_limits(payload: str) -> str:
+    """JSON wrapper around :func:`limits`."""
+    return _reply(limits, payload)
