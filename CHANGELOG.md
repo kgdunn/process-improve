@@ -481,6 +481,13 @@ those changes.
   compared over the settings that can be run, Learn greys the response surface outside them, and
   the Python shown, the notebook, the workbook, saved studies and links all carry them. Renaming a
   factor renames it inside the limits, and the run sheet keeps its runs.
+- **Factorial picks a fractional factorial from the trade-off grid.** With a fractional factorial,
+  the Design step shows runs (4 to 128) against factors (3 to 11), each cell the resolution of the
+  minimum-aberration fraction that `trade_off_table` finds, or Full, coloured in three bands. A
+  cell in the column of the brief's factors sets the design: its resolution, V for a higher one, or
+  the full factorial. A cell whose runs the page does not make at that resolution is not offered.
+  The cell of the design the form makes is marked, and it moves as the factors or the resolution
+  change.
 
 ### Fixed
 
