@@ -22,9 +22,9 @@ those changes.
   or two `topics`: what it is about (semiconductors, food and beverages, ...), as opposed to how it
   is designed. `reference_topics()` returns the vocabulary of 30 topics, each with its nearest UN
   ISIC Rev. 4 industries and OECD FORD field of research, and `reference_experiments` and
-  `reference_designs` take `topic=` to select by it. Of the 981 entries, 553 state an application;
-  the other 428 (mostly tables of designs) are `"general"`.
-- **The reference catalogue holds chapters 1 to 13 of Montgomery, *Design and Analysis of
+  `reference_designs` take `topic=` to select by it. Of the 999 entries, 570 state an application;
+  the other 429 (mostly tables of designs) are `"general"`.
+- **The reference catalogue holds chapters 1 to 14 of Montgomery, *Design and Analysis of
   Experiments* (8th edition).** Chapters 1 and 2: the golf 2^2 factorial and its three effects; the
   Portland cement mortar two-sample t-test with Minitab's and JMP's output, its confidence interval
   and Minitab's power table; the nerve and muscle fluorescence compared by Welch's test; the
@@ -114,10 +114,16 @@ those changes.
   REML variance components, their standard errors, covariances and intervals, and the reduced model;
   and the pressure drop three-factor mixed model with its exact, approximate (Satterthwaite) and
   synthesized F tests, restricted and unrestricted, and the Satterthwaite and modified large-sample
-  intervals on a variance component. The data of the
-  167 problems that have data are kept as data, since the book prints no answers; the totals, means, ranges, standard
+  intervals on a variance component. Chapter 14: the purity of batches nested within suppliers, by hand,
+  in Minitab and in JMP, with its residuals and, analysed wrongly, as crossed; the assembly times
+  of operators nested within layouts and crossed with fixtures, under the restricted and
+  unrestricted models; the tensile strength split-plot, with its analysis of variance, JMP's REML
+  table and the library's split-plot analysis, and analysed wrongly as completely randomized;
+  the plasma etching 2^(5-1) in eight whole plots; and the split-plot layouts of Figure 14.7 and
+  Table 14.24. The data of the
+  179 problems that have data are kept as data, since the book prints no answers; the totals, means, ranges, standard
   deviations, response rates and transformations some of their tables print are checked, and the two
-  models Problem 9.6 prints. 8786 printed numbers, 8216 checked. 291 are recorded as not
+  models Problem 9.6 prints. 9316 printed numbers, 8724 checked. 323 are recorded as not
   reproducing, each explained: the book's rounding (test statistics, P-values, fitted values and
   residuals worked from rounded values, a Tukey critical difference from a table's rounded point,
   three standard deviations in each of Tables 3.7 and P8.3, dispersion statistics from rounded
@@ -128,8 +134,9 @@ those changes.
   inverted from X'X rounded to four decimals, and in chapter 11 P-values worked from F rounded, the
   path of steepest ascent stepped by Δx2 rounded to 0.42 and 2°F, the w equations' coefficients and
   a determinant cut rather than rounded, chapter 12's variance models worked from coefficients
-  rounded to two decimals, and chapter 13's variance components worked from rounded mean squares and
-  its intervals from rounded chi-square and F points), misprints (sums of squares and mean squares, an F of
+  rounded to two decimals, chapter 13's variance components worked from rounded mean squares and
+  its intervals from rounded chi-square and F points, and chapter 14's F ratios of rounded mean
+  squares), misprints (sums of squares and mean squares, an F of
   3.95 for 3.93, an error degrees of freedom of 19 for 20, a residual of 26.00 for −6.00, a dropped
   sign in two coefficients or limits, a range of 59 for 54, Table 6.28's analysis of variance copied
   from Table 6.26, one row of Table 7.9 that prints the interactions of other generators, a column
@@ -148,7 +155,10 @@ those changes.
   predictions do not match their printed settings; in chapter 12 the outer array of Table 12.2,
   whose sixth column repeats the fifth, Problem 12.9's first mean and variance, 57.75 and 121.19
   for 57.25 and 161.58, and the alias expression of β11 in Problem 12.10, which leaves out +β34;
-  in chapter 13 a P-value of 0.01 for 0.00007 in Table 13.10), JMP's REML estimates in chapter 13,
+  in chapter 13 a P-value of 0.01 for 0.00007 in Table 13.10; in chapter 14 sums of squares of
+  82.80, 71.91 and 65.84 for 82.79, 71.92 and 65.83 in Table 14.12, P-values of 0.01 for 0.002 and
+  0.0002, the degrees of freedom of the operators' two F tests, and Table 14.23's coefficients,
+  fitted with 38.03 where Table 14.22 prints 38.08), JMP's REML estimates in chapter 13,
   which leave a variance component negative where the library's REML, like lme4, keeps every
   component at or above zero (the analysis-of-variance estimates, JMP's standard errors and its
   covariances all reproduce from the library's mean squares),
@@ -229,7 +239,11 @@ those changes.
   standard error, covariance with a second combination, its Wald and chi-square intervals and the
   modified large-sample lower limit of Ting et al. (1990), and the F test of one combination against
   another; and a `variance_component` group can be an interaction of factors, such as
-  `part:operator`.
+  `part:operator`. For chapter 14: `split_plot` reads the library's split-plot analysis (REML with
+  the whole plots random, Satterthwaite's tests), the whole plots named by the columns that make
+  them; a two-level factor can be fitted by its level names (`"coding": "name"`), so a factor
+  nested in it is fitted within each level; and a Wald interval can take JMP's multiplier of 1.96
+  itself (`"z"`), as the JMP of chapter 14 does where that of chapter 13 takes 1.95996.
 - **A design catalog, at factori.al/catalog.** It lists the reference catalogue's 665 published
   experiments and designs, and 118 designs the library makes. A reader searches them in words ("4
   factors, <=30 runs, quadratic, since 1990"); filters them by family, runs, factors, the model they
