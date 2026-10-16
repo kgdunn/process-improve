@@ -68,6 +68,7 @@ def test_the_catalog_names_its_own_address_for_a_link_card():
     page = source(PAGE)
     assert '<link rel="canonical" href="https://factori.al/catalog/">' in page
     assert '<meta property="og:url" content="https://factori.al/catalog/">' in page
+    assert '<link rel="alternate" type="application/atom+xml"' in page, "a feed reader finds the feed from the page"
 
 
 def _run(code: str) -> dict:
