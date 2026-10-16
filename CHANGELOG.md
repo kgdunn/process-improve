@@ -22,9 +22,9 @@ those changes.
   or two `topics`: what it is about (semiconductors, food and beverages, ...), as opposed to how it
   is designed. `reference_topics()` returns the vocabulary of 30 topics, each with its nearest UN
   ISIC Rev. 4 industries and OECD FORD field of research, and `reference_experiments` and
-  `reference_designs` take `topic=` to select by it. Of the 816 entries, 471 state an application;
-  the other 345 (mostly tables of designs) are `"general"`.
-- **The reference catalogue holds chapters 1 to 7 of Montgomery, *Design and Analysis of
+  `reference_designs` take `topic=` to select by it. Of the 866 entries, 497 state an application;
+  the other 369 (mostly tables of designs) are `"general"`.
+- **The reference catalogue holds chapters 1 to 8 of Montgomery, *Design and Analysis of
   Experiments* (8th edition).** Chapters 1 and 2: the golf 2^2 factorial and its three effects; the
   Portland cement mortar two-sample t-test with Minitab's and JMP's output, its confidence interval
   and Minitab's power table; the nerve and muscle fluorescence compared by Welch's test; the hardness
@@ -61,19 +61,40 @@ those changes.
   blocks; the filtration 2^4 in two blocks with ABCD confounded, and unblocked with a shift; the 2^5
   in four blocks and the 2^6 in eight; Table 7.9's blocking arrangements, compared with the library's
   blocking and with the products of the effects each row chooses; and the plasma etch in two
-  replicates partially confounded. The data of the 107 problems that have data are kept as data,
-  since the book prints no answers. 3580 printed numbers, 3461 checked. 123 are recorded as not
-  reproducing, each explained: the book's rounding (test statistics, P-values, fitted values and
-  residuals worked from rounded values, a Tukey critical difference from a table's rounded point,
-  three standard deviations in Table 3.7, dispersion statistics from rounded standard deviations),
-  misprints (sums of squares and mean squares, an F of 3.95 for 3.93, an error degrees of freedom of
-  19 for 20, a residual of 26.00 for −6.00, a dropped sign in two coefficients or limits, a range of
-  59 for 54, Table 6.28's analysis of variance copied from Table 6.26, and one row of Table 7.9 that
-  prints the interactions of other generators), Design-Expert's equations in actual temperature,
+  replicates partially confounded. Chapter 8: the half fractions of the 2^3; the filtration 2^(4-1)
+  and its alternate fraction, their sums and differences the effects of the full 2^4; the integrated
+  circuit 2^(5-1); the 2^(6-2)'s construction, alias structure, alternate fraction and two blocks;
+  the injection molding 2^(6-2) with its dispersion effects (Table 8.12's sign columns included);
+  the three 2^(7-2) designs compared by word length pattern; Table 8.14's 29 designs, each compared
+  with the library's fraction for its resolution; the 2^(7-3); the CNC machine 2^(8-3) in four
+  blocks, analysed in ln s; the alias matrix of the 2^(3-1); the 2^(7-4), the 2^(6-3) and the fold
+  over on D; the eye focus 2^(7-4) and its full fold over; the Plackett-Burman designs of 12, 20, 24,
+  28 and 36 runs written from Table 8.23, compared with the library's; a 20-run Plackett-Burman design
+  in 12 factors with JMP's alias matrix (858 entries) and its initial and final stepwise regression
+  tables; the 2^(4-1) by fold over; Table 8.30; the spin coater's single-factor and partial fold
+  overs, with their coefficients' standard errors in units of σ; the smallest resolution V fractions;
+  and the supersaturated design of Table 8.34. The data of the 131 problems that have data are kept as
+  data, since the book prints no answers; the totals, means, ranges, standard deviations, response
+  rates and transformations some of their tables print are checked. 6348 printed numbers, 5953
+  checked. 157 are recorded as not reproducing, each explained: the book's rounding (test statistics,
+  P-values, fitted values and residuals worked from rounded values, a Tukey critical difference from a
+  table's rounded point, three standard deviations in each of Tables 3.7 and P8.3, dispersion
+  statistics from rounded standard deviations, F ratios divided by a rounded error mean square, and
+  Figure 8.22's averages cut off rather than rounded), misprints (sums of squares and mean squares, an F of 3.95 for 3.93, an
+  error degrees of freedom of 19 for 20, a residual of 26.00 for −6.00, a dropped sign in two
+  coefficients or limits, a range of 59 for 54, Table 6.28's analysis of variance copied from Table
+  6.26, one row of Table 7.9 that prints the interactions of other generators, a column of Table 8.12
+  headed BD = CE for BD = CF, a 0 for 0.2 in Table 8.26's alias matrix, three signs of the 12-run
+  Plackett-Burman design's alias weights, Figure 8.25's axis taken from Figure 8.26, and transformed
+  values in Tables P8.13 and P8.14), Design-Expert's equations in actual temperature,
   whose linear coefficients add the quadratic ones, Minitab's Tukey intervals, which use a
   studentized range point of 4.0504 where the library's, like R's, is 4.0461, a residual mean square
-  of "about 109" that no model of the data gives, and two rows of Table 7.9 that confound one more
-  two-factor interaction than the library's blocking does.
+  of "about 109" that no model of the data gives, two rows of Table 7.9 that confound one more
+  two-factor interaction than the library's blocking does, and three numbers where the library's
+  design differs from the book's: its 24-run Plackett-Burman design is the 12-run one doubled (11 of
+  its three-column products completely aliased) rather than the cyclic design of Table 8.23, its
+  36-run design is of another class, and its 16-run fraction for 12 factors has one more word of
+  length three than Table 8.14's.
 
   New checks: `t_test` compares two groups of runs with the library's pooled, Welch and paired
   t-tests; `contrast` weighs a fit's level means (its value, standard error, t, F, sum of squares,
@@ -93,7 +114,18 @@ those changes.
   prints them; `percent_contribution`, `curvature` (the library's test for pure quadratic curvature),
   `max_r_squared`, a run's `range`, `column_correlation` and `generalized_interactions` (the effects
   confounded with blocks, as the products of those chosen to generate them); `fraction_runs` takes
-  several generators, and a path into a library result may be a list of keys.
+  several generators, and a path into a library result may be a list of keys. For chapter 8: a
+  fraction's `word_lengths`, whether an effect is `clear` of main effects and two-factor
+  interactions, and `minimum_aberration` (its word lengths against those of the fraction the library
+  chooses for its resolution); `product_column`, a printed column of signs as the product of the
+  factor columns it is headed with; `same_projections`, a two-level design matched to the library's
+  by its one-, two- and three-column J-characteristics, without searching relabellings;
+  `distinct_runs` in a projection; `unit_std_error`, a coefficient's standard error in units of σ;
+  the per-run statistics `sqrt`, `arcsin_sqrt` and Freeman and Tukey's `freeman_tukey_sqrt` and
+  `freeman_tukey_arcsin`; and `data_rounding` on a `nested_test` and a residual sum of squares or mean
+  square, holding a number fitted to unrounded responses to the first-order bound of what the
+  printed responses' rounding moves. A design's evaluation and a nested test's fits are made once
+  however many of their numbers are read.
 - **Standardised coefficients.** Each row of `analyze_experiment`'s `"coefficients"` (and
   `coefficients_actual`) now carries `standardised_coefficient`: the coefficient times the standard
   deviation of its column of the model matrix, over the standard deviation of the response, as
