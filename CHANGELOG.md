@@ -13,6 +13,13 @@ those changes.
 
 ### Added
 
+- **Standardised coefficients.** Each row of `analyze_experiment`'s `"coefficients"` (and
+  `coefficients_actual`) now carries `standardised_coefficient`: the coefficient times the standard
+  deviation of its column of the model matrix, over the standard deviation of the response, as
+  MYSTAT prints it in its STD COEF column. It has no units, so terms measured in different units
+  compare; the intercept's is 0, and it is not a number when the response does not vary. The
+  reference catalogue checks it (`standardised_coefficient`) against the 57 that Schmidt and Launsby
+  print in chapters 4, 5 and 7, which it held as not recomputed until now; all 57 agree.
 - **The reference catalogue holds chapters 1 to 8 of Schmidt and Launsby, *Understanding Industrial
   Designed Experiments* (4th edition), with the answers of its Appendix J.** Chapters 1 and 2: bond
   strengths confounded with batches, a twenty-week mileage record with its Cpk, a control chart's
@@ -47,7 +54,7 @@ those changes.
   solderability L18 with a dummy-level column, a 2^4 on chemiluminescence with centre runs, and the
   run counts of a 136-run Plackett-Burman design for 134 inputs and a mixed-level full factorial of
   49152 cases. Appendix J's answers are checked against the problems they answer. 4500 printed
-  numbers, 4062 checked. 396 are recorded as not reproducing, each explained: most come from the
+  numbers, 4119 checked. 396 are recorded as not reproducing, each explained: most come from the
   book's rounding (run averages and standard deviations that do not follow from their readings,
   squares of rounded effects, coefficients that are halves of rounded effects, values cut rather
   than rounded), some are misprints (a wrong sign, two exchanged digits, rows swapped, Yates's

@@ -122,8 +122,23 @@ def _run_effects(
     return result
 
 
+def _standardised(ols_result: RegressionResultsWrapper) -> np.ndarray:
+    """Each coefficient in standard deviations of the response per standard deviation of its model column.
+
+    The coefficient times the standard deviation of its column of the model matrix, over the
+    standard deviation of the response: unitless, so terms in different units compare. The
+    intercept's column does not vary, so its standardised coefficient is zero. Not a number when
+    the response does not vary.
+    """
+    columns = np.asarray(ols_result.model.exog, dtype=float)
+    response = np.asarray(ols_result.model.endog, dtype=float)
+    if len(response) < 2 or np.ptp(response) == 0:  # a spread needs two values that differ
+        return np.full(columns.shape[1], np.nan)
+    return np.asarray(ols_result.params, dtype=float) * columns.std(axis=0, ddof=1) / response.std(ddof=1)
+
+
 def _run_coefficients(ols_result: RegressionResultsWrapper) -> dict[str, Any]:
-    """Coefficients with standard errors, t-values, p-values, and CIs."""
+    """Coefficients with standard errors, t-values, p-values, CIs and standardised coefficients."""
     summary_df = pd.DataFrame(
         {
             "coefficient": ols_result.params,
@@ -132,6 +147,7 @@ def _run_coefficients(ols_result: RegressionResultsWrapper) -> dict[str, Any]:
             "p_value": ols_result.pvalues,
             "ci_low": ols_result.conf_int()[0],
             "ci_high": ols_result.conf_int()[1],
+            "standardised_coefficient": _standardised(ols_result),
         }
     )
     records = []
@@ -145,6 +161,7 @@ def _run_coefficients(ols_result: RegressionResultsWrapper) -> dict[str, Any]:
                 "p_value": float(row["p_value"]),
                 "ci_low": float(row["ci_low"]),
                 "ci_high": float(row["ci_high"]),
+                "standardised_coefficient": float(row["standardised_coefficient"]),
             }
         )
     return {"coefficients": records}

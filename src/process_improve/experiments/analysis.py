@@ -784,6 +784,13 @@ def analyze_experiment(  # noqa: PLR0913
         interaction, the coefficient itself for a square such as ``I(A**2)``. The curvature test uses
         pure error from the replicated runs.
 
+        Each of the ``"coefficients"`` carries its ``std_error``, ``t_value``, ``p_value``,
+        ``ci_low`` and ``ci_high``, and its ``standardised_coefficient``: the coefficient
+        times the standard deviation of its column of the model matrix, over the standard
+        deviation of the response (the "beta" coefficient, MYSTAT's STD COEF). It has no
+        units, so terms in different units compare; the intercept's is 0. Like the
+        coefficient, it depends on ``coding`` when the model has interactions or squares.
+
         ``"split_plot"`` is for a design whose hard-to-change factors change only
         between whole plots. Every other analysis is ordinary least squares, which
         treats the runs as independent, so it makes the whole-plot effects look more

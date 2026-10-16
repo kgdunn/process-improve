@@ -593,6 +593,7 @@ _FIT_KINDS: dict[str, Callable[[dict, dict, dict], float]] = {
     "coefficient": lambda out, c, _e: _coefficient_row(out, c["term"])["coefficient"],
     "effect": lambda out, c, _e: 2 * _coefficient_row(out, c["term"])["coefficient"],
     "std_error": lambda out, c, _e: _coefficient_row(out, c["term"])["std_error"],
+    "standardised_coefficient": lambda out, c, _e: _coefficient_row(out, c["term"])["standardised_coefficient"],
     "effect_std_error": lambda out, c, _e: 2 * _coefficient_row(out, c["term"])["std_error"],
     "t_value": lambda out, c, _e: _coefficient_row(out, c["term"])["t_value"],
     "p_value": lambda out, c, _e: _p_value(_coefficient_row(out, c["term"]), c.get("alternative")),
