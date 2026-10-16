@@ -67,6 +67,14 @@ those changes.
   reason (`catalog_errata`). A source filter and a "no source prints it" filter find the generated
   designs no source in the catalogue prints. `catalog/feed.xml` is an Atom feed with an entry for
   each source as it enters the catalogue (`catalog_feed`).
+- **Every design in the catalog with a complete table of runs opens in Factorial.** Factorial holds
+  *runs as given* (`design_type="given"` in `api_make_design`): the runs of a design it does not
+  make, such as one a book prints, in their order and their factors' own units, analysed with the
+  largest model they estimate in full. 337 published designs open (183 before) and 99 generated
+  ones. A limit on the coded settings, typed in the catalog (`A + B <= 1`), keeps the designs whose
+  every run meets it, marks the runs outside it, and opens a design in Factorial with the limit in
+  its own units, where the D-optimal and I-optimal designs make runs inside it. A form for proposing
+  a published design for the catalogue is linked from the catalog.
 - **Standardised coefficients.** Each row of `analyze_experiment`'s `"coefficients"` (and
   `coefficients_actual`) now carries `standardised_coefficient`: the coefficient times the standard
   deviation of its column of the model matrix, over the standard deviation of the response, as

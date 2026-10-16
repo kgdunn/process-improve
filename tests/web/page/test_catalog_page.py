@@ -153,3 +153,16 @@ def test_a_limit_opened_in_factorial_rules_out_the_runs_the_catalog_marks(bootst
     points = np.array(runs, dtype=float)[:, [["T", "P", "F"].index(n) for n in region.names]]
     meets = np.all([g(points) <= bootstrap.LIMIT_TOLERANCE for g in region.inequalities], axis=0)
     assert np.flatnonzero(~meets).tolist() == outcome["outside"], text
+
+
+def test_the_catalog_links_to_the_form_for_proposing_a_design():
+    """The link names an issue form the repository holds, which asks for the source, the runs and where they are."""
+    import yaml
+
+    from tests.web._support import WEB
+
+    form = re.search(r"issues/new\?template=([\w.]+)", source(PAGE))
+    assert form, "the catalog links to the form"
+    held = yaml.safe_load((WEB.parent / ".github" / "ISSUE_TEMPLATE" / form[1]).read_text(encoding="utf-8"))
+    required = {item["id"] for item in held["body"] if item.get("validations", {}).get("required")}
+    assert {"source", "where", "factors", "runs"} <= required

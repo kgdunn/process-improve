@@ -1,0 +1,79 @@
+name: Propose a design for the catalog
+description: A designed experiment printed in a book, a paper or a handbook, for the design catalog at factori.al/catalog
+labels: ["catalog"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        The [design catalog](https://factori.al/catalog/) lists the designed experiments of the reference
+        catalogue (`process_improve.experiments.reference_catalogue`). An entry holds the source's runs and
+        every number the source prints for them, with the page each is printed on. It enters the catalogue
+        once the library recomputes those numbers: each one agrees with the source, or the entry records
+        why it does not (the source's rounding, a misprint, or another method).
+
+        Copy the numbers as the source prints them, without correcting them. A number that does not
+        reproduce is worth as much as one that does: the catalog lists it among the errata.
+  - type: input
+    id: source
+    attributes:
+      label: Source
+      description: The citation, as you would write it in a reference list.
+      placeholder: "Box, G. E. P., Hunter, W. G. and Hunter, J. S. (1978), Statistics for Experimenters, Wiley"
+    validations:
+      required: true
+  - type: input
+    id: link
+    attributes:
+      label: DOI or address
+      description: Where a reader can find the source.
+    validations:
+      required: false
+  - type: input
+    id: where
+    attributes:
+      label: Where it is printed
+      description: The pages, and the table or figure that holds the runs.
+      placeholder: "pp. 307-310, Table 10.1"
+    validations:
+      required: true
+  - type: textarea
+    id: factors
+    attributes:
+      label: The factors
+      description: Each factor's name, its low and high levels (or its two labels), and its units, as printed.
+      placeholder: |
+        T, temperature: 160 and 180 °C
+        C, concentration: 20 and 40 %
+        K, catalyst: A and B
+    validations:
+      required: true
+  - type: textarea
+    id: runs
+    attributes:
+      label: The runs, as printed
+      description: One line per run, in the source's order, the settings and then each result, separated by commas.
+      render: text
+    validations:
+      required: true
+  - type: textarea
+    id: printed
+    attributes:
+      label: The numbers the source prints for them
+      description: Effects, coefficients, sums of squares, F and P values and the like, each with the page it is on.
+      placeholder: "p. 310: main effect of T = 23.0; main effect of C = -5.0"
+    validations:
+      required: false
+  - type: input
+    id: rights
+    attributes:
+      label: Terms of use
+      description: The source's licence or terms, if you know them. Short quotations and numbers are cited, not copied whole.
+    validations:
+      required: false
+  - type: checkboxes
+    id: copied
+    attributes:
+      label: Copying
+      options:
+        - label: I copied the settings, results and numbers as the source prints them, without correcting any.
+          required: true
