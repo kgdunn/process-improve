@@ -530,7 +530,7 @@ def write_catalog(out_dir: Path) -> None:
     for shard, held in details.items():
         write(folder / "detail" / f"{shard}.json", {"version": CATALOG_VERSION, "designs": held})
     write(folder / "errata.json", {"version": CATALOG_VERSION, "errata": catalog_errata()})
-    (folder / "feed.xml").write_text(catalog_feed(records))
+    (folder / "feed.xml").write_text(catalog_feed(records), encoding="utf-8")
 
 
 def assemble(out_dir: Path, dist: Path = ROOT / "dist" / "web") -> str:
