@@ -87,7 +87,8 @@ those changes.
   `"3*T + 5*D <= 600"`, and a box region reports: the share of the box it keeps
   (`volume_fraction()`: exact for straight limits, in closed form for the factors one limit
   ties together and from the polytope's volume for up to five tied together by several;
-  else from a fixed Sobol sample, so the same on every platform); whether
+  else from a fixed Sobol sample, so the same on every platform, which beside straight
+  limits counts only what the curved ones take from the share the straight ones leave); whether
   any setting is left (`is_empty()`); the range each factor can still reach
   (`implied_bounds()`); a central setting that can be run, to hold unplotted factors at
   (`centroid()`); the limits that remove nothing the others do not
