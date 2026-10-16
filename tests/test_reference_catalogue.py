@@ -1579,3 +1579,44 @@ def test_a_library_value_or_design_property_may_be_squared():
     assert _library_value({"function": "blocking_alpha", "args": [8, 3, 3, 2], "squared": True}) == pytest.approx(
         64 / 22
     )
+
+
+def test_a_response_model_transmits_the_variance_of_its_noise_factor():
+    """Montgomery's Example 12.1: temperature (A) a noise factor of Example 6.2's filtration 2^4.
+
+    The slope in A is 10.8125 - 9.0625 x2 + 8.3125 x3 (C and D), so with var(z) = 1 the variance model is
+    its square plus the residual mean square, 19.51.
+    """
+    from process_improve.experiments.reference_catalogue import _transmitted_variance
+
+    entry = _factorial(4, FILTRATION)
+    check = {"model": "A + C + D + A:C + A:D", "noise": ["A"]}
+    out = reference_catalogue._Fits()(entry, check)
+    mse = out["model_summary"]["mse_residual"]
+    assert mse == pytest.approx(19.5125)
+    read = {
+        key: _transmitted_variance(out, {**check, "key": key}, entry) for key in ("Intercept", "C", "D", "C²", "C·D")
+    }
+    assert read["Intercept"] == pytest.approx(10.8125**2 + mse)
+    assert read["C"] == pytest.approx(-2 * 10.8125 * 9.0625)
+    assert read["D"] == pytest.approx(2 * 10.8125 * 8.3125)
+    assert read["C²"] == pytest.approx(9.0625**2)
+    assert read["C·D"] == pytest.approx(-2 * 9.0625 * 8.3125)
+    assert _transmitted_variance(out, {**check, "key": "Intercept", "error": False}, entry) == pytest.approx(10.8125**2)
+    point = {"C": 1.0, "D": 0.0}
+    poe = _transmitted_variance(out, {**check, "key": "poe", "point": point}, entry)
+    assert poe == pytest.approx(math.sqrt((10.8125 - 9.0625) ** 2 + mse))
+    halved = _transmitted_variance(out, {**check, "key": "variance", "point": point, "sigma_z": {"A": 0.5}}, entry)
+    assert halved == pytest.approx(0.5 * (10.8125 - 9.0625) ** 2 + mse)
+
+
+def test_a_model_of_ln_variance_is_read_back_as_a_variance():
+    """A fit with transform log predicts on the log scale; exp: true returns the variance itself."""
+    entry = _factorial(2, [0.090, 0.071, 0.001, 0.008])
+    fits = reference_catalogue._Fits()
+    check = {"kind": "prediction", "model": "B", "transform": "log", "point": {"B": 0.5}}
+    expected = {"what": "variance", "value": "0.0", "where": {}}
+    found, _ = reference_catalogue._reproduce(entry, expected, {**check, "exp": True}, fits)
+    logs = np.log([0.090, 0.071, 0.001, 0.008])
+    slope = (logs[2] + logs[3] - logs[0] - logs[1]) / 4
+    assert float(found) == pytest.approx(math.exp(logs.mean() + 0.5 * slope), rel=1e-5)

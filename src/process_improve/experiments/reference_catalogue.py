@@ -773,6 +773,49 @@ def _steepest_path(out: dict, check: dict, experiment: dict) -> float:
     return setting - steps[0][units][check["key"]] if check.get("from_centre") else setting
 
 
+def _transmitted_variance(out: dict, check: dict, experiment: dict) -> float:
+    """Return a number of the variance a fitted response model transmits from its noise factors.
+
+    The noise factors z are ``check["noise"]``, uncorrelated, each of variance ``check["sigma_z"]``
+    (1 by default, in coded units). A response model whose noise terms are the z's main effects and
+    their interactions with the controllable factors x transmits the variance
+    V(x) = sum over z of var(z) (dy/dz)^2 + s^2, where the slope dy/dz is linear in x and s^2 is the
+    model's residual mean square (Montgomery, Eq. 12.6). The library fits the model and gives its
+    coefficients; it has no propagation-of-error function of its own. ``check["key"]`` is a
+    coefficient of the variance model, written as a term of the controllable factors
+    (``"Intercept"``, ``"x2"``, ``"x2²"`` or ``"x2·x3"``), or ``"variance"`` or ``"poe"`` (its
+    square root, Design-Expert's propagation of error) at the coded point ``check["point"]``.
+    ``"error": false`` leaves s^2 out.
+    """
+    rows = {row["term"]: row["coefficient"] for row in out["coefficients"]}
+
+    def coefficient(*names: str) -> float:
+        return next((value for term, value in rows.items() if set(term.split(":")) == set(names)), 0.0)
+
+    noise = check["noise"]
+    sigma = {z: float((check.get("sigma_z") or {}).get(z, 1.0)) for z in noise}
+    controls = [f["name"] for f in experiment["factors"] if f["name"] not in noise]
+    slopes = {z: (coefficient(z), {x: coefficient(x, z) for x in controls}) for z in noise}
+    error = out["model_summary"]["mse_residual"] if check.get("error", True) else 0.0
+    key = check["key"]
+    if key in ("variance", "poe"):
+        point = check.get("point", {})
+        variance = error + sum(
+            sigma[z] * (gamma + sum(delta[x] * point.get(x, 0.0) for x in controls)) ** 2
+            for z, (gamma, delta) in slopes.items()
+        )
+        return math.sqrt(variance) if key == "poe" else variance
+    if key == "Intercept":
+        return error + sum(sigma[z] * gamma**2 for z, (gamma, _) in slopes.items())
+    factors = key.split("·")
+    if len(factors) == 2:
+        first, second = factors
+        return sum(2 * sigma[z] * delta[first] * delta[second] for z, (_, delta) in slopes.items())
+    if key.endswith("²"):
+        return sum(sigma[z] * delta[key[:-1]] ** 2 for z, (_, delta) in slopes.items())
+    return sum(2 * sigma[z] * gamma * delta[key] for z, (gamma, delta) in slopes.items())
+
+
 def _p_value(row: dict, alternative: str | None) -> float:
     """Return a coefficient's p-value: two-sided, or one-sided when a source tests one direction.
 
@@ -925,6 +968,7 @@ _FIT_KINDS: dict[str, Callable[[dict, dict, dict], float]] = {
     "optimum": _optimum,
     "box_cox": _box_cox,
     "steepest_path": _steepest_path,
+    "transmitted_variance": _transmitted_variance,
 }
 
 
@@ -2257,6 +2301,7 @@ def _reproduce(experiment: dict, expected: dict, check: dict, fits: _Fits) -> tu
         raise KeyError(f"No check of the kind {kind!r}.")
     found = float(_FIT_KINDS[kind](out, check, experiment))
     found = 1 - found if check.get("complement") else found  # a confidence 1 - p, as some software prints it
+    found = math.exp(found) if check.get("exp") else found  # a model of ln(s²) read back as a variance
     expression, of_rounded = bool(check.get("expression")), check.get("of_rounded", 1)
     nearest = found
     if check.get("data_rounding"):  # the source's fit may sit this far from one to its data as printed, rounded
