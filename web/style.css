@@ -381,6 +381,33 @@ label.inline { display: flex; flex-direction: column; gap: 4px; font-size: 0.9re
 .known { margin: 6px 0 0; }
 .known .row > label { flex: 1 1 9rem; }
 
+/* The limits on the settings: one card each, its number (as the picture numbers its boundary), its text in a box
+   as wide as the column, its bounds and its note under it, and what Python says of it last. */
+.limits summary .badge { margin-left: 4px; }
+.limit {
+  display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 4px 8px; margin: 8px 0;
+  padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg);
+}
+.limit__number { grid-row: 1; font-weight: 700; color: var(--muted); min-width: 1.2em; text-align: right; }
+.limit__text {
+  grid-row: 1; grid-column: 2; width: 100%; font-family: ui-monospace, "SFMono-Regular", Menlo, monospace;
+  font-size: 0.95rem;
+}
+.limit__remove { grid-row: 1; grid-column: 3; }
+.limit__text[aria-invalid] { border-color: var(--error); }
+.limit__bounds, .limit__note, .limit-effect, .limit-problem { grid-column: 2 / -1; }
+.limit__bounds { display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 0.9rem; color: var(--muted); }
+.limit__bound input { width: 7em; margin-left: 4px; }
+.limit__note { width: 100%; font-size: 0.9rem; }
+.limit-effect, .limit-problem { margin: 0; }
+.limit-names { display: flex; flex-wrap: wrap; gap: 6px; margin: 4px 0; }
+.chip {
+  min-height: 34px; padding: 4px 12px; border-radius: 17px; font-family: ui-monospace, "SFMono-Regular", Menlo,
+    monospace; font-size: 0.9rem;
+}
+@media (pointer: coarse) { .chip, .limit__remove { min-width: 44px; min-height: 44px; } }
+#limits-summary .error { display: block; }
+
 /* What the study is to learn: one choice, each with what it means. */
 .aims { display: grid; gap: 8px; margin: 6px 0 4px; }
 .aim { align-items: flex-start; padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg); }

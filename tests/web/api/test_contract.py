@@ -1,6 +1,6 @@
 """The contract between the page's JavaScript and its Python: what each reply must hold.
 
-``web/app.js``, ``web/charts.js`` and ``web/python.js`` read the replies of ``web/bootstrap.py``
+``web/app.js``, ``web/limits.js``, ``web/charts.js`` and ``web/python.js`` read the replies of ``web/bootstrap.py``
 key by key. A key renamed on one side and not the other breaks the page without breaking any
 Python, so ``READS`` lists every key the JavaScript reads and the type it expects, and each
 entry point's reply is checked against it.
@@ -198,6 +198,38 @@ READS: dict[str, list[str]] = {
         "waiting[].label: str",
         "waiting[].design_type: str",
     ],
+    "design with limits": [
+        "spec.constraints[].expression: str",
+        "spec.constraints[].type: str",
+        "facts.notes[]: str",
+    ],
+    "limits": [
+        "constraints[].expression: str",
+        "constraints[].note: str",
+        "constraints[].type: str",
+        "constraints[].removed: number",
+        "constraints[].removes: list",
+        "constraints[].redundant: str?",
+        "constraints[].linear.lhs: str",
+        "constraints[].linear.low: number?",
+        "constraints[].linear.high: number?",
+        "probes.center: int",
+        "probes.columns[]: str",
+        "probes.rows[].[]: number",
+        "probes.ruled_out_by[]: list",
+        "kept: number",
+        "empty: bool",
+        "center_allowed: bool",
+        "bounds[].name: str",
+        "bounds[].low: number?",
+        "bounds[].high: number?",
+        "refusal: str?",
+    ],
+    "limits with a problem": [
+        "constraints[].expression: str",
+        "constraints[].problem: str",
+        "refusal: str",
+    ],
 }
 
 #: The entry point each reply comes from.
@@ -213,13 +245,19 @@ ENTRY_POINTS = {
     "upload": "api_read_workbook",
     "candidates": "api_candidates",
     "slow candidates": "api_candidates",
+    "design with limits": "api_make_design",
+    "limits": "api_limits",
+    "limits with a problem": "api_limits",
 }
 
 #: Entry points the page does not call: ``api_analyze`` analyses a workbook in one call, for the
 #: tests (``tests/web/wasm`` among them) and for scripted use; the page reads a workbook and then
 #: analyses its runs. ``api_compare_plan`` and ``api_compare`` are the two halves of
 #: ``api_candidates``, which the page calls once for both.
-NOT_CALLED_BY_THE_PAGE = {"api_analyze", "api_compare_plan", "api_compare", "api_limits"}
+NOT_CALLED_BY_THE_PAGE = {"api_analyze", "api_compare_plan", "api_compare"}
+
+#: Two straight limits, one with a note: between them they narrow both ranges, so ``bounds`` has entries to read.
+LIMITS = [{"expression": "T + 25*P <= 215", "note": "the product chars"}, {"expression": "400 <= 3*T + 5*P <= 600"}]
 
 TYPES = {
     "int": lambda v: isinstance(v, int) and not isinstance(v, bool),
@@ -284,6 +322,9 @@ def reply(api, worked_example: dict[str, Any]) -> Callable[[str], dict]:
         "upload": upload,
         "candidates": lambda: {"factors": FACTORS, "model": "main_quadratic"},
         "slow candidates": slow,
+        "design with limits": lambda: {"design_type": "d_optimal", "factors": FACTORS, "constraints": LIMITS},
+        "limits": lambda: {"factors": FACTORS, "constraints": LIMITS},
+        "limits with a problem": lambda: {"factors": FACTORS, "constraints": [{"expression": "T + Z <= 3"}]},
     }
     return functools.cache(lambda kind: api.ok(ENTRY_POINTS[kind], requests[kind]()))
 
@@ -316,8 +357,12 @@ def test_each_measure_has_a_cell_for_each_design(reply):
         assert label in comparison["notes"], label
 
 
+#: The page's modules that call Python.
+CALLERS = ("app.js", "limits.js")
+
+
 def test_the_page_calls_only_entry_points_this_contract_covers(bootstrap):
-    called = set(re.findall(r'call\("(api_\w+)"', source("app.js")))
+    called = {fn for module in CALLERS for fn in re.findall(r'call\("(api_\w+)"', source(module))}
     defined = {name for name in dir(bootstrap) if name.startswith("api_")}
     assert called <= defined, "app.js calls an entry point bootstrap.py does not define"
     assert called == set(ENTRY_POINTS.values()), "a new call from app.js needs its READS here"

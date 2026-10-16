@@ -6,6 +6,10 @@ import { describe, test } from "node:test";
 
 import {
   AXIAL_DISTANCE,
+  alsoRuledOut,
+  cutWords,
+  filterCorners,
+  settingLabel,
   insertAt,
   limitEffect,
   limitsSummary,
@@ -625,10 +629,54 @@ describe("limits on the settings", () => {
   });
 
   test("a refusal comes first, as an error, and nothing left says only that", () => {
-    const refused = limitsSummary(reply({ refusal: "The limit 'Z <= 3' names Z, which is not one of your factors: T and P." }), factors);
-    assert.deepEqual(refused[0], { text: "The limit 'Z <= 3' names Z, which is not one of your factors: T and P.", error: true });
+    const refusal = "Limits on the settings work with numeric factors only on this page, and S is categorical.";
+    assert.deepEqual(limitsSummary(reply({ refusal }), factors)[0], { text: refusal, error: true });
+    const problem = "The limit 'Z <= 3' names Z, which is not one of your factors: T and P.";
+    const own = reply({ constraints: [{ expression: "Z <= 3", problem }, { expression: "T <= 190" }], refusal: problem });
+    assert.deepEqual(limitsSummary(own, factors)[0], { text: "The limits leave 32% of your ranges to run.", error: false }, "said under the limit, not twice");
     const empty = limitsSummary(reply({ empty: true, kept: 0, refusal: "No setting in your ranges meets every limit." }), factors);
     assert.deepEqual(empty, [{ text: "No setting in your ranges meets every limit.", error: true }]);
     assert.deepEqual(limitsSummary(reply({ constraints: [] }), factors), []);
+  });
+});
+
+describe("the table of corners", () => {
+  const factors = [
+    { name: "T", low: 150, high: 200, units: "degC" },
+    { name: "P", low: 1, high: 3, units: "bar" },
+    { name: "F", low: 10, high: 20, units: "" },
+  ];
+  const columns = ["T", "P", "F"];
+  const rows = [
+    [150, 1, 10],
+    [150, 1, 20],
+    [150, 3, 10],
+    [150, 3, 20],
+    [200, 1, 10],
+    [200, 1, 20],
+    [200, 3, 10],
+    [200, 3, 20],
+  ];
+
+  test("a setting is named factor by factor, in its units, as a screen reader says it", () => {
+    assert.equal(settingLabel([200, 3, 20], columns, factors), "T 200 degC, P 3 bar, F 20");
+    assert.equal(settingLabel([175, 2.0000001, 15], columns, factors), "T 175 degC, P 2 bar, F 15");
+  });
+
+  test("the filters leave the corners at the ends asked for", () => {
+    assert.deepEqual(filterCorners(rows, columns, factors, { T: "high" }), [4, 5, 6, 7]);
+    assert.deepEqual(filterCorners(rows, columns, factors, { T: "high", F: "low" }), [4, 6]);
+    assert.deepEqual(filterCorners(rows, columns, factors, {}), [0, 1, 2, 3, 4, 5, 6, 7]);
+  });
+
+  test("a cut is asked from the corner's end of the factor", () => {
+    assert.equal(cutWords({ name: "T", at: 200, cut: 175 }, factors[0]), "can go up to");
+    assert.equal(cutWords({ name: "T", at: 150, cut: 175 }, factors[0]), "must be at least");
+  });
+
+  test("a proposal flags the corners it rules out that were not marked, unless a limit rules them out already", () => {
+    const ruledOutBy = [[], [], [], [], [], [], [], [0], []];
+    assert.deepEqual(alsoRuledOut({ removes: [5, 6, 7] }, [6], ruledOutBy), [5]);
+    assert.deepEqual(alsoRuledOut({ problem: "no cut" }, [6], ruledOutBy), []);
   });
 });

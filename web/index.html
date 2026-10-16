@@ -149,6 +149,19 @@
           <button type="button" id="add-categorical" class="link">+ Add <span class="term"
             data-term="categorical">categorical factor</span></button>
         </p>
+        <!-- The limits on the settings (limits.js): closed until a study has some, so a first visit reads no more. -->
+        <details id="limits" class="known limits">
+          <summary>Settings you cannot run <span id="limits-count" class="badge" hidden></span></summary>
+          <p class="hint">Type each <button type="button" class="term" data-term="limit">limit</button> as an inequality
+            in the factors' own units, with + - * / and ** for a power.</p>
+          <div id="limit-list"></div>
+          <p id="limit-names" class="limit-names" aria-label="Type a factor or a sign" hidden></p>
+          <p class="actions">
+            <button type="button" id="add-limit" class="link">+ Type a limit</button>
+            <span id="limits-full" class="hint" hidden>A study can have at most 8 limits.</span>
+          </p>
+          <p id="limits-summary" class="hint" role="status" aria-live="polite" hidden></p>
+        </details>
       </section>
 
       <section id="aim-card" class="card" aria-labelledby="h-aim">

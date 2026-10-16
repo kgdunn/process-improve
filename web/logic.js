@@ -544,11 +544,13 @@ const inUnits = (value, units) => `${Number(Number(value).toPrecision(4))}${unit
 /**
  * What all the limits leave of the factors' ranges, a sentence each, from api_limits' reply: the share
  * kept, whether the center of the ranges can still be run, and each range they narrow, in the factors'
- * units. Each is ``{text, error}``; a refusal, which holds the brief back, comes first.
+ * units. Each is ``{text, error}``. A refusal that holds the brief back comes first, unless it is a
+ * limit's own problem, which is said under that limit.
  */
 export function limitsSummary(reply, factors) {
   const read = reply.constraints.filter((c) => !c.problem);
-  const said = reply.refusal ? [{ text: reply.refusal, error: true }] : [];
+  const own = reply.constraints.some((c) => c.problem === reply.refusal);
+  const said = reply.refusal && !own ? [{ text: reply.refusal, error: true }] : [];
   if (!read.length || reply.empty) return said;
   said.push({ text: `The limits leave ${shareText(reply.kept)} of your ranges to run.`, error: false });
   if (!reply.center_allowed) said.push({ text: "The center of the ranges cannot be run.", error: false });
@@ -565,6 +567,46 @@ export function limitsSummary(reply, factors) {
   }
   return said;
 }
+
+/** A setting of the factors as the page names it: "T 200 degC, P 3 bar, F 10 L/min", each value to four figures. */
+export function settingLabel(values, columns, factors) {
+  const units = Object.fromEntries(factors.map((f) => [f.name, f.units ?? ""]));
+  return columns.map((name, j) => `${name} ${inUnits(values[j], units[name])}`).join(", ");
+}
+
+/** From this many numeric factors the table of corners can be narrowed, factor by factor, to the corners wanted. */
+export const FILTER_CORNERS_FROM = 5;
+
+/** The most rows of corners shown at once; more come on request. */
+export const CORNERS_SHOWN = 32;
+
+/**
+ * The rows of the table of corners a reader's filters leave: each factor ``"low"``, ``"high"`` or
+ * ``"any"`` (the default), by column. The centre is no corner, and is left to the caller.
+ */
+export function filterCorners(rows, columns, factors, filters = {}) {
+  const ends = Object.fromEntries(factors.map((f) => [f.name, f]));
+  return rows
+    .map((row, i) => [row, i])
+    .filter(([row]) =>
+      columns.every((name, j) => {
+        const want = filters[name] ?? "any";
+        return want === "any" || row[j] === (want === "low" ? ends[name].low : ends[name].high);
+      }),
+    )
+    .map(([, i]) => i);
+}
+
+/**
+ * The question asked of one factor when a proposed limit is adjusted from its corner: with the others
+ * held at the corner, how far the factor can go before the limit is met. From a factor's high end it
+ * "can go up to" the cut; from its low end it "must be at least" the cut.
+ */
+export const cutWords = (cut, factor) => (cut.at === factor.high ? "can go up to" : "must be at least");
+
+/** The settings a proposed limit rules out that the reader did not mark, and no limit rules out already. */
+export const alsoRuledOut = (proposal, marked, ruledOutBy) =>
+  (proposal.removes ?? []).filter((row) => !marked.includes(row) && !ruledOutBy[row]?.length);
 
 // ---------------------------------------------------------------- colour mode
 /** The colour modes the switch in the header offers: the system's, light and dark, as the book's does. */
