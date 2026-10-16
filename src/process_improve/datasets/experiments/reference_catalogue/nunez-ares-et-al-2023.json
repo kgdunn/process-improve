@@ -22,6 +22,7 @@
   {
    "name": "nunez-ares-2023-design-1",
    "title": "Design 1: a 24-run mixed-level OMARS design, four three-level and four two-level factors",
+   "topics": ["general"],
    "where": {
     "section": "4.1, Example 1: a 24-run 8-factor design",
     "pages": "17-19",
@@ -327,6 +328,7 @@
   {
    "name": "nunez-ares-2023-design-2",
    "title": "Design 2: a 48-run mixed-level OMARS design, five three-level and fourteen two-level factors",
+   "topics": ["general"],
    "where": {
     "section": "4.2, Example 2: a 48-run 19-factor design",
     "pages": "17, 19-21",
@@ -789,6 +791,7 @@
   {
    "name": "nunez-ares-2023-design-2-oa",
    "title": "The 14-factor 48-run strength-3 orthogonal array Design 2 starts from",
+   "topics": ["general"],
    "where": {
     "section": "4.2, Example 2: a 48-run 19-factor design",
     "pages": "19-20",
@@ -1012,6 +1015,7 @@
   {
    "name": "nunez-ares-2023-design-3",
    "title": "Design 3: a 40-run mixed-level OMARS design, six three-level and four two-level factors",
+   "topics": ["general"],
    "where": {
     "section": "4.3, Example 3: a 40-run 10-factor design",
     "pages": "17, 21-22",
@@ -1387,6 +1391,7 @@
   {
    "name": "nunez-ares-2023-dsd-zero-counts",
    "title": "Zero counts of definitive screening designs, the reason they cannot take several two-level factors",
+   "topics": ["general"],
    "where": {
     "section": "2.1, 2.2 and 4.2",
     "pages": "7, 11, 19"
@@ -1445,6 +1450,7 @@
   {
    "name": "nunez-ares-2023-search",
    "title": "The computational search for mixed-level OMARS designs with up to 32 runs",
+   "topics": ["general"],
    "where": {
     "section": "Abstract, 1 and 5",
     "pages": "2, 6, 23-26",

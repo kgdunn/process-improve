@@ -18,6 +18,12 @@ those changes.
   "Student Residual") and `externally_studentized_residuals` (with s from the fit without that run,
   R's `rstudent`, Design-Expert's "Outlier t"). The reference catalogue checks both against the 80
   runs Design-Expert lists in Montgomery's Figures 3.12, 4.2 and 5.10; all agree.
+- **Subject-matter topics in the reference catalogue.** Every experiment and design now lists one
+  or two `topics`: what it is about (semiconductors, food and beverages, ...), as opposed to how it
+  is designed. `reference_topics()` returns the vocabulary of 30 topics, each with its nearest UN
+  ISIC Rev. 4 industries and OECD FORD field of research, and `reference_experiments` and
+  `reference_designs` take `topic=` to select by it. Of the 768 entries, 431 state an application;
+  the other 337 (mostly tables of designs) are `"general"`.
 - **The reference catalogue holds chapters 1 to 5 of Montgomery, *Design and Analysis of
   Experiments* (8th edition).** Chapters 1 and 2: the golf 2^2 factorial and its three effects; the
   Portland cement mortar two-sample t-test with Minitab's and JMP's output, its confidence interval

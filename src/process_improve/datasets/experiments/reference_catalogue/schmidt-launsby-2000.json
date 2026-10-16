@@ -40,6 +40,9 @@
   {
    "name": "schmidt-bonding-agents",
    "title": "Bond strength of two bonding agents, the batch of raw material recorded but not controlled",
+   "topics": [
+    "formulated-products"
+   ],
    "kind": "example",
    "where": {
     "section": "1.11",
@@ -268,6 +271,9 @@
   {
    "name": "schmidt-gas-mileage-weekly-record",
    "title": "Gas mileage of one vehicle, week by week for twenty weeks: its mean, spread, Cpk and control limits",
+   "topics": [
+    "automotive"
+   ],
    "kind": "example",
    "where": {
     "section": "1.12",
@@ -515,6 +521,9 @@
   {
    "name": "schmidt-gas-mileage-2-4-1",
    "title": "Gas mileage: tire pressure, timing, oil and gas in a 2^(4-1) fraction, each run driven for three weeks",
+   "topics": [
+    "automotive"
+   ],
    "kind": "example",
    "where": {
     "section": "1.12",
@@ -2254,6 +2263,9 @@
   {
    "name": "schmidt-rm2000-control-chart",
    "title": "A control chart of subgroup averages: nine subgroups of four measurements against a target of 95 ft-lb",
+   "topics": [
+    "aerospace-defence"
+   ],
    "kind": "example",
    "where": {
     "section": "1.15, the R&M 2000 article",
@@ -2597,6 +2609,9 @@
   {
    "name": "schmidt-plating-2-2",
    "title": "Nickel plating thickness: bath temperature and plating time in a 2^2 factorial, five products a run",
+   "topics": [
+    "metals"
+   ],
    "kind": "example",
    "where": {
     "section": "2.2",
@@ -3459,6 +3474,9 @@
   {
    "name": "schmidt-dwell-cure-no-interaction",
    "title": "Tensile strength against dwell time and cure temperature, a 2 x 3 factorial whose factors do not interact",
+   "topics": [
+    "plastics-rubber"
+   ],
    "kind": "example",
    "where": {
     "section": "2.2",
@@ -3584,6 +3602,10 @@
   {
    "name": "schmidt-painting-2-4-1",
    "title": "Aircraft paint thickness: thinner, fluid pressure, temperature and vendor in a 2^(4-1) fraction, four readings a run",
+   "topics": [
+    "aerospace-defence",
+    "formulated-products"
+   ],
    "kind": "example",
    "where": {
     "section": "2.4",
@@ -5556,6 +5578,9 @@
   {
    "name": "schmidt-l12-screening",
    "title": "Screening eleven factors in a Taguchi L12 design, four readings a run",
+   "topics": [
+    "general"
+   ],
    "kind": "example",
    "where": {
     "section": "2.5",
@@ -8163,6 +8188,9 @@
   {
    "name": "schmidt-rubber-durometer-3-2",
    "title": "Durometer hardness of a butadiene rubber: cure temperature and filler in a 3^2 factorial, three readings a run",
+   "topics": [
+    "plastics-rubber"
+   ],
    "kind": "example",
    "where": {
     "section": "2.6",
@@ -8710,6 +8738,9 @@
   {
    "name": "schmidt-dispense-volume-l18",
    "title": "Dispense volume of a chemical dispensing system: operator and seven sources of variation in a Taguchi L18, four readings a run",
+   "topics": [
+    "machining"
+   ],
    "kind": "example",
    "where": {
     "section": "2.7",
@@ -11503,6 +11534,9 @@
   {
    "name": "schmidt-ccd-2-factor",
    "title": "A two-factor central composite design read four times a row, analysed whole and with one row missing",
+   "topics": [
+    "general"
+   ],
    "kind": "example",
    "where": {
     "section": "2.8",
@@ -13476,6 +13510,9 @@
   {
    "name": "schmidt-problem-2-2-surface-finish",
    "title": "Surface finish of a machined steel rod: RPM, feed rate and tool radius in a 2^3 factorial, four measurements a run (Problem 2 of chapter 2)",
+   "topics": [
+    "machining"
+   ],
    "kind": "exercise",
    "where": {
     "section": "Problem Set of chapter 2, Problems 1 to 3",
@@ -14403,6 +14440,9 @@
   {
    "name": "schmidt-temperature-one-factor-anova",
    "title": "A response at two temperatures, four readings each: the one-factor analysis of variance",
+   "topics": [
+    "general"
+   ],
    "kind": "example",
    "where": {
     "section": "4.2",
@@ -14735,6 +14775,9 @@
   {
    "name": "schmidt-composite-strength-one-factor",
    "title": "Strength of a composite material at two autoclave temperatures, nine samples each: F and t tests",
+   "topics": [
+    "plastics-rubber"
+   ],
    "kind": "example",
    "where": {
     "section": "4.2",
@@ -15117,6 +15160,9 @@
   {
    "name": "schmidt-temperature-pressure-2-2-anova",
    "title": "Temperature and pressure in a 2^2 factorial, two readings a run: the analysis of variance of each effect",
+   "topics": [
+    "general"
+   ],
    "kind": "example",
    "where": {
     "section": "4.3",
@@ -15715,6 +15761,9 @@
   {
    "name": "schmidt-three-factor-2-3-anova",
    "title": "A 2^3 factorial with three readings a run: the analysis of variance of every effect, and a setting that reaches a target",
+   "topics": [
+    "general"
+   ],
    "kind": "example",
    "where": {
     "section": "4.3",
@@ -17157,6 +17206,9 @@
   {
    "name": "schmidt-temperature-simple-regression",
    "title": "A response at four temperatures, three readings each: simple linear regression, its analysis of variance and prediction intervals",
+   "topics": [
+    "general"
+   ],
    "kind": "example",
    "where": {
     "section": "4.4 to 4.6",
@@ -17870,6 +17922,9 @@
   {
    "name": "schmidt-temperature-polynomial-regression",
    "title": "The temperature data with three readings at 50°: a straight line, a line in x², and the quadratic",
+   "topics": [
+    "general"
+   ],
    "kind": "example",
    "where": {
     "section": "4.7",
@@ -18195,6 +18250,9 @@
   {
    "name": "schmidt-temperature-pressure-multiple-regression",
    "title": "Temperature and pressure, two readings at each of ten settings: multiple regression, lack of fit and multicollinearity",
+   "topics": [
+    "general"
+   ],
    "kind": "example",
    "where": {
     "section": "4.8",
@@ -20203,6 +20261,9 @@
   {
    "name": "schmidt-box-behnken-actual-vs-coded",
    "title": "A three-factor Box-Behnken design fitted in actual and in coded units: the multicollinearity of the actual units",
+   "topics": [
+    "general"
+   ],
    "kind": "example",
    "where": {
     "section": "4.9",
@@ -23114,6 +23175,9 @@
   {
    "name": "schmidt-actual-vs-coded-collinearity",
    "title": "A factor at 1, 2 and 3 and its square are 97.9% collinear; coded -1, 0 and +1 they are not",
+   "topics": [
+    "general"
+   ],
    "kind": "example",
    "where": {
     "section": "4.9",
@@ -23233,6 +23297,9 @@
   {
    "name": "schmidt-two-group-four-approaches",
    "title": "One factor at two levels, four readings each: a confidence interval, a t test, an analysis of variance and a regression agree",
+   "topics": [
+    "general"
+   ],
    "kind": "example",
    "where": {
     "section": "4.15",
@@ -23666,6 +23733,9 @@
   {
    "name": "schmidt-problem-4-1-soft-bake",
    "title": "Critical dimension under two soft bake methods, five setups each (Problem 1 of chapter 4)",
+   "topics": [
+    "semiconductors"
+   ],
    "kind": "exercise",
    "where": {
     "section": "Problem Set of chapter 4, Problem 1",
@@ -23957,6 +24027,9 @@
   {
    "name": "schmidt-problem-4-3-etch-rate",
    "title": "Etch rate at five DC bias voltages, seven wafers each (Problem 3 of chapter 4)",
+   "topics": [
+    "semiconductors"
+   ],
    "kind": "exercise",
    "where": {
     "section": "Problem Set of chapter 4, Problem 3",
@@ -24259,6 +24332,10 @@
   {
    "name": "schmidt-problem-4-4-reaction-kinetics",
    "title": "Rate of reaction against the concentration of a plating additive (Problem 4 of chapter 4)",
+   "topics": [
+    "metals",
+    "chemical-processes"
+   ],
    "kind": "exercise",
    "where": {
     "section": "Problem Set of chapter 4, Problem 4",
@@ -24418,6 +24495,9 @@
   {
    "name": "schmidt-problem-4-5-cellulose-hydrolysis",
    "title": "Rate constant of cellulose hydrolysis against temperature and sulfuric acid, two readings each (Problem 5 of chapter 4)",
+   "topics": [
+    "chemical-processes"
+   ],
    "kind": "exercise",
    "where": {
     "section": "Problem Set of chapter 4, Problem 5",
@@ -24858,6 +24938,9 @@
   {
    "name": "schmidt-problem-4-6",
    "title": "A 2^(5-2) fraction with two readings a run (Problem 6 of chapter 4)",
+   "topics": [
+    "general"
+   ],
    "kind": "exercise",
    "where": {
     "section": "Problem Set of chapter 4, Problem 6",
@@ -25407,6 +25490,9 @@
   {
    "name": "schmidt-l8-seven-factors",
    "title": "Seven factors in a Taguchi L8, one reading a run: average effect plots, a Pareto of half effects and a normal probability plot",
+   "topics": [
+    "general"
+   ],
    "kind": "example",
    "where": {
     "section": "5.2",
@@ -26265,6 +26351,9 @@
   {
    "name": "schmidt-l8-seven-factors-replicated",
    "title": "The L8 of Table 5.1 with a second reading a run: analysis of variance, regression, and models of s² and ln s",
+   "topics": [
+    "general"
+   ],
    "kind": "example",
    "where": {
     "section": "5.2 and 5.4",
@@ -30624,6 +30713,9 @@
   {
    "name": "schmidt-interaction-aliased-with-c",
    "title": "Three factors in four runs with C = A·B: the interaction mistaken for a main effect",
+   "topics": [
+    "general"
+   ],
    "kind": "example",
    "where": {
     "section": "5.3",
@@ -30872,6 +30964,9 @@
   {
    "name": "schmidt-interaction-confirmation-runs",
    "title": "Five confirmation runs at A- B+ C+ against a prediction of 9",
+   "topics": [
+    "general"
+   ],
    "kind": "example",
    "where": {
     "section": "5.3",
@@ -30981,6 +31076,9 @@
   {
    "name": "schmidt-signal-to-noise-example",
    "title": "Three factors in four runs, two readings each: S/N ratios and ln s compared for finding location and dispersion effects",
+   "topics": [
+    "general"
+   ],
    "kind": "example",
    "where": {
     "section": "5.4",
@@ -32134,6 +32232,10 @@
   {
    "name": "schmidt-turbine-blade-casting-2-3",
    "title": "Shrinkage of cast turbine blades: mold temperature, metal temperature and pour speed in a 2^3, three readings a run",
+   "topics": [
+    "metals",
+    "aerospace-defence"
+   ],
    "kind": "example",
    "where": {
     "section": "5.5",
@@ -34918,6 +35020,9 @@
   {
    "name": "schmidt-residual-dispersion-2-4",
    "title": "Simulated data in a 2^4, one reading a run: dispersion effects found from the residuals' spread at each level",
+   "topics": [
+    "general"
+   ],
    "kind": "example",
    "where": {
     "section": "5.6",
@@ -36537,6 +36642,9 @@
   {
    "name": "schmidt-injection-molding-robust-l8",
    "title": "Part shrinkage in injection molding: seven control factors in an L8 inner array, three noise factors in a four-run outer array",
+   "topics": [
+    "plastics-rubber"
+   ],
    "kind": "example",
    "where": {
     "section": "5.7",
@@ -39463,6 +39571,9 @@
   {
    "name": "schmidt-multivariate-chart-2-2",
    "title": "Coating thickness in a 2^2 of time and temperature, four wafers from each of three lots a run: wafer-to-wafer, lot-to-lot and within-wafer variation",
+   "topics": [
+    "semiconductors"
+   ],
    "kind": "example",
    "where": {
     "section": "5.8",
@@ -41209,6 +41320,9 @@
   {
    "name": "schmidt-ccf-four-factor",
    "title": "A four-factor face-centred composite design, two readings a run: models for the average and the standard deviation",
+   "topics": [
+    "general"
+   ],
    "kind": "example",
    "where": {
     "section": "5.9",
@@ -45367,6 +45481,9 @@
   {
    "name": "schmidt-plating-ccf",
    "title": "Plating thickness: a 2^(5-1) of time, temperature, nickel, pH and phosphorus, four centre runs, then axial runs in three factors (Case I of 5.10)",
+   "topics": [
+    "metals"
+   ],
    "kind": "example",
    "where": {
     "section": "5.10, Case I",
@@ -48626,6 +48743,9 @@
   {
    "name": "schmidt-plating-d-optimal",
    "title": "Plating thickness in a fourteen-run D-optimal design for the full quadratic in time, temperature and nickel (Case II of 5.10)",
+   "topics": [
+    "metals"
+   ],
    "kind": "example",
    "where": {
     "section": "5.10, Case II",
@@ -50535,6 +50655,9 @@
   {
    "name": "schmidt-plating-box-behnken",
    "title": "Plating thickness in a Box-Behnken design for time, temperature and nickel (Case II of 5.10)",
+   "topics": [
+    "metals"
+   ],
    "kind": "example",
    "where": {
     "section": "5.10, Case II",
@@ -52459,6 +52582,9 @@
   {
    "name": "schmidt-plating-3-3",
    "title": "Plating thickness in the 3^3 of time, temperature and nickel (the L27 of Case II of 5.10)",
+   "topics": [
+    "metals"
+   ],
    "kind": "example",
    "where": {
     "section": "5.10, Case II",
@@ -53745,6 +53871,9 @@
   {
    "name": "schmidt-problem-5-1",
    "title": "A 2^(4-1) with D = ABC, two readings a run (Problem 1 of chapter 5)",
+   "topics": [
+    "general"
+   ],
    "kind": "exercise",
    "where": {
     "section": "Problem Set of chapter 5, Problem 1",
@@ -54486,6 +54615,10 @@
   {
    "name": "schmidt-problem-5-2-turbine-thickness",
    "title": "Turbine blade thickness in a 2^4 of metal and mold temperature, pour time and vendor (Problem 2 of chapter 5)",
+   "topics": [
+    "metals",
+    "aerospace-defence"
+   ],
    "kind": "exercise",
    "where": {
     "section": "Problem Set of chapter 5, Problem 2",
@@ -54757,6 +54890,9 @@
   {
    "name": "schmidt-problem-5-3-circuit-etching",
    "title": "A circuit board etching process: seven factors in an L8 (Problem 3 of chapter 5)",
+   "topics": [
+    "semiconductors"
+   ],
    "kind": "exercise",
    "where": {
     "section": "Problem Set of chapter 5, Problem 3",
@@ -55362,6 +55498,9 @@
   {
    "name": "schmidt-problem-5-4-molded-width",
    "title": "Width of an injection molded part: mold temperature, injection velocity, hold pressure and cooling time, B = DAE (Problem 4 of chapter 5)",
+   "topics": [
+    "plastics-rubber"
+   ],
    "kind": "exercise",
    "where": {
     "section": "Problem Set of chapter 5, Problem 4",
@@ -55838,6 +55977,9 @@
   {
    "name": "schmidt-problem-5-5-stress-screening",
    "title": "Defects found by four environmental stress screens in a 2^(4-1), three boards a run (Problem 5 of chapter 5)",
+   "topics": [
+    "electrical-electronic"
+   ],
    "kind": "exercise",
    "where": {
     "section": "Problem Set of chapter 5, Problem 5",
@@ -56912,6 +57054,10 @@
   {
    "name": "schmidt-problem-5-6-casting-robust",
    "title": "Turbine blade thickness in a 2^(4-1) with ambient temperature in the outer array (Problem 6 of chapter 5)",
+   "topics": [
+    "metals",
+    "aerospace-defence"
+   ],
    "kind": "exercise",
    "where": {
     "section": "Problem Set of chapter 5, Problem 6",
@@ -57078,6 +57224,9 @@
   {
    "name": "schmidt-wave-solder-taguchi",
    "title": "Solder defects of a wave solder process: five control factors in an L8 inner array, three noise factors in an L4 outer array",
+   "topics": [
+    "semiconductors"
+   ],
    "kind": "example",
    "where": {
     "section": "6.4",
@@ -58390,6 +58539,9 @@
   {
    "name": "schmidt-yield-one-factor-at-a-time",
    "title": "Yield against temperature and pressure, varied one factor at a time",
+   "topics": [
+    "chemical-processes"
+   ],
    "kind": "example",
    "where": {
     "section": "7.1",
@@ -58542,6 +58694,9 @@
   {
    "name": "schmidt-yield-3-2",
    "title": "Yield in a 3^2 factorial over a region that does not hold the optimum",
+   "topics": [
+    "chemical-processes"
+   ],
    "kind": "example",
    "where": {
     "section": "7.1",
@@ -58671,6 +58826,9 @@
   {
    "name": "schmidt-yield-first-order",
    "title": "Yield in a 2^2 factorial with two centre points: a first-order model and its path of steepest ascent",
+   "topics": [
+    "chemical-processes"
+   ],
    "kind": "example",
    "where": {
     "section": "7.2",
@@ -59584,6 +59742,9 @@
   {
    "name": "schmidt-yield-second-region",
    "title": "Yield in a 2^2 factorial with two centre points, centred on the best run along the path of steepest ascent",
+   "topics": [
+    "chemical-processes"
+   ],
    "kind": "example",
    "where": {
     "section": "7.2",
@@ -60371,6 +60532,9 @@
   {
    "name": "schmidt-yield-ccd",
    "title": "Yield in a rotatable central composite design: the second-order model, its stationary point and canonical analysis",
+   "topics": [
+    "chemical-processes"
+   ],
    "kind": "example",
    "where": {
     "section": "7.2",
@@ -61464,6 +61628,9 @@
   {
    "name": "schmidt-kurt-gage-l8",
    "title": "Measurement device repeatability: five gaging factors in an L8 (Kurt Manufacturing)",
+   "topics": [
+    "measurement"
+   ],
    "kind": "example",
    "where": {
     "section": "8, Kurt Manufacturing case study",
@@ -61649,6 +61816,9 @@
   {
    "name": "schmidt-corrosion-one-way-anova",
    "title": "Material remaining on a corroding alloy after zero to three months: a one-way analysis of variance",
+   "topics": [
+    "metals"
+   ],
    "kind": "example",
    "where": {
     "section": "8, Corrosion Study",
@@ -61958,6 +62128,9 @@
   {
    "name": "schmidt-linear-motor-l8",
    "title": "Force constant of a linear motor: end cap, front cut and centre cut in an L8, analysed by S/N (Digital Equipment)",
+   "topics": [
+    "electrical-electronic"
+   ],
    "kind": "example",
    "where": {
     "section": "8, Linear Motor Design",
@@ -62591,6 +62764,9 @@
   {
    "name": "schmidt-linear-motor-end-cap-by-motor",
    "title": "Force constant of a linear motor: five end caps by three motor configurations, S/N and standard deviation",
+   "topics": [
+    "electrical-electronic"
+   ],
    "kind": "example",
    "where": {
     "section": "8, Linear Motor Design, Stages 3 and 3a",
@@ -62757,6 +62933,9 @@
   {
    "name": "schmidt-ramtron-electrode-2-2",
    "title": "Bottom electrode film stress and resistance: thickness of layer A by the presence of layer C, two readings a run (Ramtron)",
+   "topics": [
+    "semiconductors"
+   ],
    "kind": "example",
    "where": {
     "section": "8, Factorial Experiment for Bottom Electrode Stress, Stage 1",
@@ -63193,6 +63372,9 @@
   {
    "name": "schmidt-ramtron-electrode-2-3",
    "title": "Bottom electrode film stress after layer B is deposited: a 2^3 full factorial (Ramtron)",
+   "topics": [
+    "semiconductors"
+   ],
    "kind": "example",
    "where": {
     "section": "8, Factorial Experiment for Bottom Electrode Stress, Stage 2",
@@ -63425,6 +63607,9 @@
   {
    "name": "schmidt-injection-molded-part-l8",
    "title": "Shrinkage of an injection molded part: six process settings in an L8, five lengths and five widths a run",
+   "topics": [
+    "plastics-rubber"
+   ],
    "kind": "example",
    "where": {
     "section": "8, Experimental Design on an Injection Molded Plastic Part",
@@ -64871,6 +65056,9 @@
   {
    "name": "schmidt-network-performance-ccd",
    "title": "Simulated integrated computer network: mean packet delay, link utilization and calls blocked against four load and capacity inputs",
+   "topics": [
+    "computing"
+   ],
    "kind": "example",
    "where": {
     "section": "8, Computer Network Performance Analysis",
@@ -68510,6 +68698,9 @@
   {
    "name": "schmidt-paper-helicopter-2-3",
    "title": "Hang time of paper helicopters: blade ratio, paper and paper clips in a duplicated 2^3",
+   "topics": [
+    "household"
+   ],
    "kind": "example",
    "where": {
     "section": "8, Building Paper Helicopters",
@@ -69956,6 +70147,10 @@
   {
    "name": "schmidt-lunar-concrete",
    "title": "Compressive strength of concrete for lunar construction: cement, mixing, wetting agent, plasticizer and five reinforcements in 18 runs",
+   "topics": [
+    "construction",
+    "aerospace-defence"
+   ],
    "kind": "example",
    "where": {
     "section": "8, Optimizing Lunar Concrete",
@@ -71716,6 +71911,10 @@
   {
    "name": "schmidt-lunar-concrete-confirmation",
    "title": "Compressive strength of three predicted best lunar concrete mixes, confirmed with three specimens each",
+   "topics": [
+    "construction",
+    "aerospace-defence"
+   ],
    "kind": "example",
    "where": {
     "section": "8, Optimizing Lunar Concrete, Confirmation Tests",
@@ -72010,6 +72209,9 @@
   {
    "name": "schmidt-gaas-silane-doping-l4",
    "title": "Silicon doping level of GaAs: arsine, TMGa and silane flows in a duplicated L4",
+   "topics": [
+    "semiconductors"
+   ],
    "kind": "example",
    "where": {
     "section": "8, Design of Experiments: Silane Doping in GaAs",
@@ -73532,6 +73734,9 @@
   {
    "name": "schmidt-gold-wire-bonding-l8",
    "title": "Bonding gold wire to GaAs wafers: five bonder settings in an L8, 24 bonds a run scored bond or no bond (Cray Research)",
+   "topics": [
+    "semiconductors"
+   ],
    "kind": "example",
    "where": {
     "section": "8, Bonding Gold Wire to Gallium Arsenide Wafers",
@@ -74058,6 +74263,10 @@
   {
    "name": "schmidt-cv-boot-compounding-l16",
    "title": "Rubber boots for constant velocity joints: seven formulation factors, seven interactions and a test block in an L16 (Quinas)",
+   "topics": [
+    "plastics-rubber",
+    "automotive"
+   ],
    "kind": "example",
    "where": {
     "section": "8, Constant Velocity Joints on a Front Wheel Drive",
@@ -90841,6 +91050,9 @@
   {
    "name": "schmidt-plasma-etch-ccd",
    "title": "A plasma etch process window: pressure, power and etchant flow in a 20-run central composite design (Honeywell)",
+   "topics": [
+    "semiconductors"
+   ],
    "kind": "example",
    "where": {
     "section": "8, Identifying a Plasma Etch Process Window",
@@ -91901,6 +92113,9 @@
   {
    "name": "schmidt-operating-system-d-optimal",
    "title": "CPU time of a large program: seven system settings at three levels and one at two, in an 18-run D-optimal design, under three disk file schemes",
+   "topics": [
+    "computing"
+   ],
    "kind": "example",
    "where": {
     "section": "8, Applying Experimental Design Techniques to Operating Systems and Software",
@@ -93692,6 +93907,10 @@
   {
    "name": "schmidt-rivet-head-protrusion",
    "title": "Rivet head protrusion against countersink, the h parameter and head diameter, in four unbalanced blocks (regression on the data collected)",
+   "topics": [
+    "machining",
+    "aerospace-defence"
+   ],
    "kind": "example",
    "where": {
     "section": "8, The Effect of the CE Rivet H Parameter on Head Protrusion",
@@ -97001,6 +97220,9 @@
   {
    "name": "schmidt-activated-sludge-2-5-2",
    "title": "BOD removed by a simulated activated sludge system: five parameters in a quarter fraction",
+   "topics": [
+    "environment"
+   ],
    "kind": "example",
    "where": {
     "section": "8, Operation of an Activated Sludge System",
@@ -97907,6 +98129,10 @@
   {
    "name": "schmidt-karl-fischer-2-4-1",
    "title": "Moisture titrated from a freeze-dried product: methanol, chloroform, formamide and shake time in a duplicated half fraction",
+   "topics": [
+    "measurement",
+    "pharmaceuticals"
+   ],
    "kind": "example",
    "where": {
     "section": "8, Karl Fischer Moisture Designed Experiment",
@@ -99067,6 +99293,10 @@
   {
    "name": "schmidt-karl-fischer-2-2",
    "title": "Moisture titrated from a freeze-dried product: chloroform by shake time, duplicated",
+   "topics": [
+    "measurement",
+    "pharmaceuticals"
+   ],
    "kind": "example",
    "where": {
     "section": "8, Karl Fischer Moisture Designed Experiment, second experiment",
@@ -99697,6 +99927,9 @@
   {
    "name": "schmidt-circular-runout-2-4",
    "title": "Circular runout of a machined lathe part: finish cut, chuck jaws, clamping pressure and feed rate in a 2^4 with three parts a run (Ampex)",
+   "topics": [
+    "machining"
+   ],
    "kind": "example",
    "where": {
     "section": "8, A Designed Experiment to Reduce Circular Runout",
@@ -101163,6 +101396,10 @@
   {
    "name": "schmidt-ball-weld-d-optimal",
    "title": "Push-out force of a ball welded over an air bag inflator's fill port: three setup factors in a 12-point D-optimal design (Morton International)",
+   "topics": [
+    "automotive",
+    "metals"
+   ],
    "kind": "example",
    "where": {
     "section": "8, Ball Weld Experiment",
@@ -101738,6 +101975,9 @@
   {
    "name": "schmidt-analog-filter-l12",
    "title": "Screening an analog filter in SPICE: five components in the first five columns of an L12, ten repetitions a run (Texas Instruments)",
+   "topics": [
+    "electrical-electronic"
+   ],
    "kind": "example",
    "where": {
     "section": "8, Application of DOE to an Analog Filter Design, screening",
@@ -102076,6 +102316,9 @@
   {
    "name": "schmidt-analog-filter-ccd",
    "title": "Modeling an analog filter in SPICE: five components in a 33-run central composite design on a half fraction, four repetitions a run",
+   "topics": [
+    "electrical-electronic"
+   ],
    "kind": "example",
    "where": {
     "section": "8, Application of DOE to an Analog Filter Design, modeling",
@@ -104221,6 +104464,9 @@
   {
    "name": "schmidt-active-filter-2-2",
    "title": "A robust active low-pass filter: peaking and resistor value in a 2^2 simulated in PSPICE, with a centre run (Texas Instruments)",
+   "topics": [
+    "electrical-electronic"
+   ],
    "kind": "example",
    "where": {
     "section": "8, A Robust Active Filter Design",
@@ -104547,6 +104793,9 @@
   {
    "name": "schmidt-pwa-solderability-l18",
    "title": "Solder defects on printed wiring assemblies: four board design and two flow solder parameters in an L18, three boards a run (Texas Instruments)",
+   "topics": [
+    "semiconductors"
+   ],
    "kind": "example",
    "where": {
     "section": "8, Identifying Design Standards for Improved PWA Solderability",
@@ -105998,6 +106247,9 @@
   {
    "name": "schmidt-chemiluminescence-2-4",
    "title": "Light from a liquid chemiluminescence activator: three reagents and pump type in a 2^4 with a centre run for each pump (Abbott Laboratories)",
+   "topics": [
+    "medical-devices"
+   ],
    "kind": "example",
    "where": {
     "section": "8, Chemiluminescence: Can We Rule Out 3-Way Interactions?",
@@ -108628,6 +108880,9 @@
   {
    "name": "schmidt-fraction-2-3-1",
    "title": "Three factors in four runs: the half fraction with C = AB",
+   "topics": [
+    "general"
+   ],
    "kind": "design",
    "where": {
     "section": "2.3",
@@ -108724,6 +108979,9 @@
   {
    "name": "schmidt-fraction-2-4-1",
    "title": "Four factors in eight runs: the half fraction with D = ABC",
+   "topics": [
+    "general"
+   ],
    "kind": "design",
    "where": {
     "section": "2.3",
@@ -108872,6 +109130,9 @@
   {
    "name": "schmidt-table-3-2-orthogonal",
    "title": "Three factors in four runs, balanced and orthogonal",
+   "topics": [
+    "general"
+   ],
    "kind": "design",
    "where": {
     "section": "3.1",
@@ -109086,6 +109347,9 @@
   {
    "name": "schmidt-table-3-3-aliased",
    "title": "A balanced matrix that is not orthogonal: columns B and C are the same",
+   "topics": [
+    "general"
+   ],
    "kind": "design",
    "where": {
     "section": "3.1",
@@ -109238,6 +109502,9 @@
   {
    "name": "schmidt-table-3-4-partially-confounded",
    "title": "A balanced, non-orthogonal matrix without aliased columns",
+   "topics": [
+    "general"
+   ],
    "kind": "design",
    "where": {
     "section": "3.1",
@@ -109446,6 +109713,9 @@
   {
    "name": "schmidt-table-3-5-l9",
    "title": "An orthogonal design for four factors at three levels in nine runs",
+   "topics": [
+    "general"
+   ],
    "kind": "design",
    "where": {
     "section": "3.1",
@@ -109618,6 +109888,9 @@
   {
    "name": "schmidt-table-3-7-2-3",
    "title": "The 2^3 full factorial in coded units",
+   "topics": [
+    "general"
+   ],
    "kind": "design",
    "where": {
     "section": "3.2",
@@ -109783,6 +110056,9 @@
   {
    "name": "schmidt-table-3-8-3-3",
    "title": "The 3^3 full factorial in coded units",
+   "topics": [
+    "general"
+   ],
    "kind": "design",
    "where": {
     "section": "3.2",
@@ -110087,6 +110363,9 @@
   {
    "name": "schmidt-table-3-9-2-4-1",
    "title": "Four factors in eight runs: the half fraction D = ABC and its aliasing pattern",
+   "topics": [
+    "general"
+   ],
    "kind": "design",
    "where": {
     "section": "3.3",
@@ -110574,6 +110853,9 @@
   {
    "name": "schmidt-table-3-11-2-7-3",
    "title": "Seven factors in sixteen runs: the 2^(7-3) with E = ABC, F = BCD and G = ABD",
+   "topics": [
+    "general"
+   ],
    "kind": "design",
    "where": {
     "section": "3.3",
@@ -110980,6 +111262,9 @@
   {
    "name": "schmidt-fraction-2-5-2",
    "title": "Five factors in eight runs: the 2^(5-2) with D = BC and E = ABC",
+   "topics": [
+    "general"
+   ],
    "kind": "design",
    "where": {
     "section": "3.3, example i",
@@ -111193,6 +111478,9 @@
   {
    "name": "schmidt-fraction-2-6-3",
    "title": "Six factors in eight runs: the 2^(6-3) with D = AC, E = BC and F = ABC",
+   "topics": [
+    "general"
+   ],
    "kind": "design",
    "where": {
     "section": "3.3, example ii",
@@ -111426,6 +111714,9 @@
   {
    "name": "schmidt-fraction-2-5-1",
    "title": "Five factors in sixteen runs: the 2^(5-1) with E = ABCD",
+   "topics": [
+    "general"
+   ],
    "kind": "design",
    "where": {
     "section": "3.3, example iii",
@@ -111790,6 +112081,9 @@
   {
    "name": "schmidt-fraction-2-6-2",
    "title": "Six factors in sixteen runs: the 2^(6-2) with E = ACD and F = BCD",
+   "topics": [
+    "general"
+   ],
    "kind": "design",
    "where": {
     "section": "3.3, example iv",
@@ -111951,6 +112245,9 @@
   {
    "name": "schmidt-fraction-2-8-4",
    "title": "Eight factors in sixteen runs: the 2^(8-4) with E = ABC, F = ABD, G = ACD and H = BCD",
+   "topics": [
+    "general"
+   ],
    "kind": "design",
    "where": {
     "section": "3.3, example vi",
@@ -112157,6 +112454,9 @@
   {
    "name": "schmidt-table-3-12-2-3-1",
    "title": "Three factors in four runs, resolution III: C = A × B",
+   "topics": [
+    "general"
+   ],
    "kind": "design",
    "where": {
     "section": "3.4",
@@ -112311,6 +112611,9 @@
   {
    "name": "schmidt-table-3-13-foldover",
    "title": "The foldover of Table 3.12: four runs reversed, with a blocking column D",
+   "topics": [
+    "general"
+   ],
    "kind": "design",
    "where": {
     "section": "3.4",
@@ -112507,6 +112810,9 @@
   {
    "name": "schmidt-table-3-14-plackett-burman-8",
    "title": "The Plackett-Burman 8-run design, built from its generating vector",
+   "topics": [
+    "general"
+   ],
    "kind": "design",
    "where": {
     "section": "3.5",
@@ -112731,6 +113037,9 @@
   {
    "name": "schmidt-table-3-15-plackett-burman-12",
    "title": "The Plackett-Burman 12-run design, built from its generating vector",
+   "topics": [
+    "general"
+   ],
    "kind": "design",
    "where": {
     "section": "3.5",
@@ -113083,6 +113392,9 @@
   {
    "name": "schmidt-table-3-19-latin-square",
    "title": "A Latin square as a 3^(3-1) design",
+   "topics": [
+    "general"
+   ],
    "kind": "design",
    "where": {
     "section": "3.7",
@@ -113238,6 +113550,9 @@
   {
    "name": "schmidt-box-behnken-3",
    "title": "The Box-Behnken design for three factors",
+   "topics": [
+    "general"
+   ],
    "kind": "design",
    "where": {
     "section": "3.8",
@@ -113423,6 +113738,9 @@
   {
    "name": "schmidt-table-3-20b-box-behnken-4",
    "title": "The Box-Behnken design for four factors, in three orthogonal blocks of nine runs",
+   "topics": [
+    "general"
+   ],
    "kind": "design",
    "where": {
     "section": "3.8",
@@ -113723,6 +114041,9 @@
   {
    "name": "schmidt-table-3-21-box-behnken",
    "title": "Box-Behnken designs for three, four and five factors: their run counts",
+   "topics": [
+    "general"
+   ],
    "kind": "design",
    "where": {
     "section": "3.8",
@@ -113810,6 +114131,9 @@
   {
    "name": "schmidt-table-3-22a-ccd-3",
    "title": "The central composite design for three factors on the full 2^3",
+   "topics": [
+    "general"
+   ],
    "kind": "design",
    "where": {
     "section": "3.9",
@@ -114014,6 +114338,9 @@
   {
    "name": "schmidt-table-3-22b-ccd-3-half",
    "title": "The central composite design for three factors on the half fraction 2^(3-1)",
+   "topics": [
+    "general"
+   ],
    "kind": "design",
    "where": {
     "section": "3.9",
@@ -114165,6 +114492,9 @@
   {
    "name": "schmidt-table-3-23-ccd-5",
    "title": "The central composite design for five factors on the 2^(5-1) with E = ABCD",
+   "topics": [
+    "general"
+   ],
    "kind": "design",
    "where": {
     "section": "3.9",
@@ -114758,6 +115088,9 @@
   {
    "name": "schmidt-table-3-24-design-comparison",
    "title": "Run counts of five three-level design types for five scenarios",
+   "topics": [
+    "general"
+   ],
    "kind": "design",
    "where": {
     "section": "3.10",
@@ -115310,6 +115643,9 @@
   {
    "name": "schmidt-table-3-26-taguchi-designs",
    "title": "The most frequently used Taguchi designs, and how many factors each screens",
+   "topics": [
+    "general"
+   ],
    "kind": "design",
    "where": {
     "section": "3.11",
@@ -115493,6 +115829,9 @@
   {
    "name": "schmidt-taguchi-l4",
    "title": "The Taguchi L4 orthogonal array",
+   "topics": [
+    "general"
+   ],
    "kind": "design",
    "where": {
     "section": "3.11",
@@ -115651,6 +115990,9 @@
   {
    "name": "schmidt-taguchi-l8",
    "title": "The Taguchi L8 orthogonal array",
+   "topics": [
+    "general"
+   ],
    "kind": "design",
    "where": {
     "section": "3.11",
@@ -115902,6 +116244,9 @@
   {
    "name": "schmidt-taguchi-l9",
    "title": "The Taguchi L9 orthogonal array",
+   "topics": [
+    "general"
+   ],
    "kind": "design",
    "where": {
     "section": "3.11",
@@ -116115,6 +116460,9 @@
   {
    "name": "schmidt-taguchi-l12",
    "title": "The Taguchi L12 orthogonal array",
+   "topics": [
+    "general"
+   ],
    "kind": "design",
    "where": {
     "section": "3.11",
@@ -116449,6 +116797,9 @@
   {
    "name": "schmidt-taguchi-l16",
    "title": "The Taguchi L16 orthogonal array",
+   "topics": [
+    "general"
+   ],
    "kind": "design",
    "where": {
     "section": "3.11",
@@ -117030,6 +117381,9 @@
   {
    "name": "schmidt-taguchi-l18",
    "title": "The Taguchi L18 orthogonal array",
+   "topics": [
+    "general"
+   ],
    "kind": "design",
    "where": {
     "section": "3.11",
@@ -117389,6 +117743,9 @@
   {
    "name": "schmidt-taguchi-l27",
    "title": "The Taguchi L27 orthogonal array",
+   "topics": [
+    "general"
+   ],
    "kind": "design",
    "where": {
     "section": "3.11",
@@ -118098,6 +118455,9 @@
   {
    "name": "schmidt-design-selection-scenarios",
    "title": "Run counts of the designs proposed for two design selection scenarios",
+   "topics": [
+    "general"
+   ],
    "kind": "design",
    "where": {
     "section": "3.12",
@@ -118428,6 +118788,9 @@
   {
    "name": "schmidt-problem-3-13-octane",
    "title": "Five octane additives in eight runs with D = AC and E = BC (Problem 13 of chapter 3)",
+   "topics": [
+    "energy"
+   ],
    "kind": "design",
    "where": {
     "section": "Problem Set of chapter 3, Problem 13",
@@ -118740,6 +119103,9 @@
   {
    "name": "schmidt-wave-solder-outer-array",
    "title": "The outer array of the wave solder example: three noise factors in an L4",
+   "topics": [
+    "semiconductors"
+   ],
    "kind": "design",
    "where": {
     "section": "6.4",
@@ -118839,6 +119205,9 @@
   {
    "name": "schmidt-honeywell-2-8-4",
    "title": "A 2^(8-4) screening design on a photolithography process (critical dimension of CMOS III gates)",
+   "topics": [
+    "semiconductors"
+   ],
    "kind": "design",
    "where": {
     "section": "8, Honeywell case study",
@@ -119160,6 +119529,9 @@
   {
    "name": "schmidt-strategic-defense-study-size",
    "title": "Sizing a simulation study of a strategic defense architecture: twelve factors at two to four levels (Logicon/RDA)",
+   "topics": [
+    "aerospace-defence"
+   ],
    "kind": "design",
    "where": {
     "section": "8, A Strategic Defense Case Study",
@@ -119257,6 +119629,9 @@
   {
    "name": "schmidt-aids-model-plackett-burman",
    "title": "Screening 134 inputs of an AIDS epidemic model with a 136-run Plackett-Burman design",
+   "topics": [
+    "biomedical"
+   ],
    "kind": "design",
    "where": {
     "section": "8, Acquired Immune Deficiency Syndrome (AIDS) Model",
@@ -119443,6 +119818,9 @@
   {
    "name": "schmidt-pwa-solderability-l18-array",
    "title": "The L18 of the solderability case study, its INT column as the array has it before its level 3 is set to 2",
+   "topics": [
+    "semiconductors"
+   ],
    "kind": "design",
    "where": {
     "section": "8, Identifying Design Standards for Improved PWA Solderability",
@@ -119739,6 +120117,9 @@
   {
    "name": "schmidt-problem-3-6-defining-relation",
    "title": "A 2^(7-2) with F = ABCD and G = BCDE: its defining relation",
+   "topics": [
+    "general"
+   ],
    "kind": "design",
    "where": {
     "section": "Problem Set of chapter 3, Problem 6",
@@ -119796,6 +120177,9 @@
   {
    "name": "schmidt-problem-3-16-immunology-ccd",
    "title": "A rotatable central composite design on three factors with a full 2^3: axial distance, centre points and run count",
+   "topics": [
+    "biomedical"
+   ],
    "kind": "design",
    "where": {
     "section": "Problem Set of chapter 3, Problem 16",

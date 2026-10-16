@@ -11,6 +11,11 @@ it (the kind of result, the term, the model, the runs it uses), or why it is not
 reports, row by row, the printed text, the value found, whether they agree to within the
 source's own rounding, and where the number is printed.
 
+Each entry also lists its subject-matter ``topics``: what the experiment is about (semiconductors,
+food and beverages, ...), as opposed to how it is designed. :func:`reference_topics` returns the
+vocabulary, each topic with its nearest classes in UN ISIC Rev. 4 (industries) and OECD FORD
+(fields of research), and the ``topic`` argument of :func:`reference_experiments` selects by it.
+
 The catalogue's files hold facts and short quotations from their sources, not the sources
 themselves. The MIT licence of this package covers its code, not them: each source states its
 own terms in ``rights`` (see :func:`reference_sources` and the folder's ``NOTICE.md``).
@@ -65,12 +70,14 @@ from process_improve.sensory.designed import tukey_hsd
 from process_improve.univariate.metrics import t_value, t_value_cdf, ttest_independent, ttest_paired
 
 _CATALOGUE_DIR = Path(__file__).resolve().parents[1] / "datasets" / "experiments" / "reference_catalogue"
+_TOPICS_FILE = "topics.json"  # the vocabulary of subject-matter topics, beside the sources but not one of them
 
 
 # --------------------------------------------------------------------------- reading the reference catalogue
 def _files() -> list[dict[str, Any]]:
     """Read every source file of the reference catalogue, in the order of their names."""
-    return [json.loads(path.read_text(encoding="utf-8")) for path in sorted(_CATALOGUE_DIR.glob("*.json"))]
+    paths = sorted(path for path in _CATALOGUE_DIR.glob("*.json") if path.name != _TOPICS_FILE)
+    return [json.loads(path.read_text(encoding="utf-8")) for path in paths]
 
 
 def _selected(source: str | None) -> list[dict[str, Any]]:
@@ -79,6 +86,48 @@ def _selected(source: str | None) -> list[dict[str, Any]]:
     if source is not None and source not in keys:
         raise ValueError(f"Unknown source {source!r}. The sources are: {', '.join(sorted(keys))}.")
     return [f for f in files if source in (None, f["source"]["key"])]
+
+
+def _about(entries: list[dict[str, Any]], topic: str | None) -> list[dict[str, Any]]:
+    """Keep the entries that list *topic*, as their main topic or their second; all of them when ``None``."""
+    if topic is None:
+        return entries
+    topics = reference_topics()
+    if topic not in topics:
+        raise ValueError(f"Unknown topic {topic!r}. The topics are: {', '.join(topics)}.")
+    return [e for e in entries if topic in e["topics"]]
+
+
+def reference_topics() -> dict[str, dict[str, Any]]:
+    """Return the subject-matter topics of the reference catalogue: what its experiments and designs are about.
+
+    Every entry lists one or two of these topics in ``topics``, its main topic first. A topic says
+    what the experiment is about, not how it is designed (``design.type`` says that); an entry
+    whose source states no application, such as a table of designs, is ``"general"``. The topics
+    are the catalogue's own classification, not the sources'. Each one names its nearest classes
+    in two standards, so the catalogue rolls up to either: an industry in UN ISIC Rev. 4, and a
+    field of research in OECD FORD (Frascati Manual 2015).
+
+    Returns
+    -------
+    dict[str, dict]
+        For each topic id, in the vocabulary's order: ``label``, ``description``, ``isic`` (ISIC
+        Rev. 4 codes: a section letter, a two-digit division or a three-digit group; empty when no
+        class fits), ``ford`` (a FORD field code such as ``"2.4"``, or ``None``) and ``ford_field``
+        (that field's name, or ``None``).
+
+    Examples
+    --------
+    >>> topic = reference_topics()["semiconductors"]
+    >>> topic["label"], topic["isic"], topic["ford"]
+    ('Semiconductors and electronic assembly', ['261'], '2.2')
+    """
+    vocabulary = json.loads((_CATALOGUE_DIR / _TOPICS_FILE).read_text(encoding="utf-8"))
+    fields = vocabulary["standards"]["ford"]["fields"]
+    return {
+        t["id"]: {**{k: v for k, v in t.items() if k != "id"}, "ford_field": fields.get(t["ford"])}
+        for t in vocabulary["topics"]
+    }
 
 
 def reference_sources() -> dict[str, dict[str, Any]]:
@@ -100,44 +149,52 @@ def reference_sources() -> dict[str, dict[str, Any]]:
     return {f["source"]["key"]: f["source"] for f in _files()}
 
 
-def reference_experiments(source: str | None = None) -> list[dict[str, Any]]:
+def reference_experiments(source: str | None = None, topic: str | None = None) -> list[dict[str, Any]]:
     """Return the experiments of the reference catalogue: their data, where each was published, every printed number.
 
     Parameters
     ----------
     source : str, optional
         The key of one source (see :func:`reference_sources`); every source when ``None``.
+    topic : str, optional
+        The id of one subject-matter topic (see :func:`reference_topics`): only the experiments that
+        list it, as their main topic or their second. Every topic when ``None``.
 
     Returns
     -------
     list[dict]
-        One dict per experiment, with keys ``name``, ``title``, ``source``, ``kind``, ``where``,
-        ``factors``, ``responses``, ``design``, ``runs`` (``None`` when the source does not print
-        them, and ``data_source`` then says where they come from), ``expected`` and ``notes``.
-        Each item of ``expected`` has ``what``, ``term`` and ``value`` (the printed text), ``where``
-        (a file and line, or a page, with a quotation) and ``check``.
+        One dict per experiment, with keys ``name``, ``title``, ``topics``, ``source``, ``kind``,
+        ``where``, ``factors``, ``responses``, ``design``, ``runs`` (``None`` when the source does
+        not print them, and ``data_source`` then says where they come from), ``expected`` and
+        ``notes``. Each item of ``expected`` has ``what``, ``term`` and ``value`` (the printed
+        text), ``where`` (a file and line, or a page, with a quotation) and ``check``.
 
     Raises
     ------
     ValueError
-        If *source* names no source.
+        If *source* names no source, or *topic* no topic.
 
     Examples
     --------
     >>> experiment = reference_experiments("ullmann-doe-2012")[0]
     >>> experiment["name"], experiment["expected"][0]["value"]
     ('ullmann-catalyst-temperature', '10')
+    >>> [e["name"] for e in reference_experiments("montgomery-2013", topic="paper")]
+    ['montgomery-problem-3-34', 'montgomery-problem-4-42', 'montgomery-problem-5-18']
     """
-    return [{**e, "source": f["source"]["key"]} for f in _selected(source) for e in f["experiments"]]
+    experiments = [{**e, "source": f["source"]["key"]} for f in _selected(source) for e in f["experiments"]]
+    return _about(experiments, topic)
 
 
-def reference_designs(source: str | None = None) -> list[dict[str, Any]]:
+def reference_designs(source: str | None = None, topic: str | None = None) -> list[dict[str, Any]]:
     """Return the designs of the reference catalogue: designs without responses whose properties a source states.
 
     Parameters
     ----------
     source : str, optional
         The key of one source; every source when ``None``.
+    topic : str, optional
+        The id of one subject-matter topic; every topic when ``None``.
 
     Returns
     -------
@@ -147,9 +204,10 @@ def reference_designs(source: str | None = None) -> list[dict[str, Any]]:
     Raises
     ------
     ValueError
-        If *source* names no source.
+        If *source* names no source, or *topic* no topic.
     """
-    return [{**d, "source": f["source"]["key"]} for f in _selected(source) for d in f.get("designs", [])]
+    designs = [{**d, "source": f["source"]["key"]} for f in _selected(source) for d in f.get("designs", [])]
+    return _about(designs, topic)
 
 
 # --------------------------------------------------------------------------- printed numbers

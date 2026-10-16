@@ -39,6 +39,9 @@
   {
    "name": "montgomery-golf-driver-ball",
    "title": "Golf scores: type of driver by type of ball, a 2^2 factorial with two rounds at each combination",
+   "topics": [
+    "sport-recreation"
+   ],
    "kind": "example",
    "where": {
     "section": "1.1",
@@ -272,6 +275,9 @@
   {
    "name": "montgomery-portland-cement",
    "title": "Tension bond strength of Portland cement mortar, modified with a polymer latex emulsion and unmodified",
+   "topics": [
+    "construction"
+   ],
    "kind": "example",
    "where": {
     "section": "2.1 to 2.4.3",
@@ -2302,6 +2308,9 @@
   {
    "name": "montgomery-nerve-fluorescence",
    "title": "Normalized fluorescence of nerve and of muscle tissue two hours after a fluorescently labelled peptide, 12 mice",
+   "topics": [
+    "biomedical"
+   ],
    "kind": "example",
    "where": {
     "section": "2.4.4, Example 2.1",
@@ -3198,6 +3207,10 @@
   {
    "name": "montgomery-hardness-tips",
    "title": "Hardness readings of two tips on 10 metal specimens, each specimen divided in two and tested once with each tip",
+   "topics": [
+    "measurement",
+    "metals"
+   ],
    "kind": "example",
    "where": {
     "section": "2.5",
@@ -4646,6 +4659,9 @@
   {
    "name": "montgomery-problem-2-8",
    "title": "Ten sample values, to judge normality and a mean of 10 (Problem 2.8)",
+   "topics": [
+    "general"
+   ],
    "kind": "exercise",
    "where": {
     "section": "2.7, Problem 2.8",
@@ -4723,6 +4739,9 @@
   {
    "name": "montgomery-problem-2-16",
    "title": "Breaking strength of four fiber specimens, the standard deviation known to be 3 psi (Problem 2.16)",
+   "topics": [
+    "textiles"
+   ],
    "kind": "exercise",
    "where": {
     "section": "2.7, Problem 2.16",
@@ -4777,6 +4796,9 @@
   {
    "name": "montgomery-problem-2-20",
    "title": "Shelf life of ten bottles of a carbonated beverage (Problem 2.20)",
+   "topics": [
+    "food-beverages"
+   ],
    "kind": "exercise",
    "where": {
     "section": "2.7, Problem 2.20",
@@ -4854,6 +4876,9 @@
   {
    "name": "montgomery-problem-2-22",
    "title": "Repair times of 16 electronic instruments (Problem 2.22)",
+   "topics": [
+    "electrical-electronic"
+   ],
    "kind": "exercise",
    "where": {
     "section": "2.7, Problem 2.22",
@@ -4956,6 +4981,9 @@
   {
    "name": "montgomery-problem-2-24",
    "title": "Net fill volume of plastic bottles from two filling machines, their standard deviations known (Problem 2.24)",
+   "topics": [
+    "food-beverages"
+   ],
    "kind": "exercise",
    "where": {
     "section": "2.7, Problem 2.24",
@@ -5108,6 +5136,9 @@
   {
    "name": "montgomery-problem-2-26",
    "title": "Burning times of chemical flares of two formulations (Problem 2.26)",
+   "topics": [
+    "formulated-products"
+   ],
    "kind": "exercise",
    "where": {
     "section": "2.7, Problem 2.26",
@@ -5260,6 +5291,9 @@
   {
    "name": "montgomery-problem-2-27",
    "title": "Etch uniformity of silicon wafers at two C2F6 flow rates, the runs in random order (Problem 2.27)",
+   "topics": [
+    "semiconductors"
+   ],
    "kind": "exercise",
    "where": {
     "section": "2.7, Problem 2.27",
@@ -5372,6 +5406,9 @@
   {
    "name": "montgomery-problem-2-29",
    "title": "Photoresist thickness of wafers baked at two temperatures, the runs in random order (Problem 2.29)",
+   "topics": [
+    "semiconductors"
+   ],
    "kind": "exercise",
    "where": {
     "section": "2.7, Problem 2.29",
@@ -5503,6 +5540,9 @@
   {
    "name": "montgomery-problem-2-30",
    "title": "Appearance scores of cell phone housings after two cool-down times in the mold, the runs in random order (Problem 2.30)",
+   "topics": [
+    "plastics-rubber"
+   ],
    "kind": "exercise",
    "where": {
     "section": "2.7, Problem 2.30",
@@ -5754,6 +5794,9 @@
   {
    "name": "montgomery-problem-2-31",
    "title": "Etch uniformity of 20 wafers in a qualification experiment for a plasma etcher (Problem 2.31)",
+   "topics": [
+    "semiconductors"
+   ],
    "kind": "exercise",
    "where": {
     "section": "2.7, Problem 2.31",
@@ -5871,6 +5914,9 @@
   {
    "name": "montgomery-problem-2-32",
    "title": "Diameter of a ball bearing measured by 12 inspectors, each with two kinds of caliper (Problem 2.32)",
+   "topics": [
+    "measurement"
+   ],
    "kind": "exercise",
    "where": {
     "section": "2.7, Problem 2.32",
@@ -6089,6 +6135,9 @@
   {
    "name": "montgomery-problem-2-33",
    "title": "Intelligence scores of 10 pairs of monozygotic twins, by birth order (Problem 2.33)",
+   "topics": [
+    "human-factors"
+   ],
    "kind": "exercise",
    "where": {
     "section": "2.7, Problem 2.33",
@@ -6282,6 +6331,9 @@
   {
    "name": "montgomery-problem-2-34",
    "title": "Ratio of predicted to observed shear load of nine steel plate girders by the Karlsruhe and Lehigh methods (Problem 2.34)",
+   "topics": [
+    "construction"
+   ],
    "kind": "exercise",
    "where": {
     "section": "2.7, Problem 2.34",
@@ -6462,6 +6514,9 @@
   {
    "name": "montgomery-problem-2-35",
    "title": "Deflection temperature under load of ABS plastic pipe of two formulations (Problem 2.35)",
+   "topics": [
+    "plastics-rubber"
+   ],
    "kind": "exercise",
    "where": {
     "section": "2.7, Problem 2.35",
@@ -6634,6 +6689,9 @@
   {
    "name": "montgomery-problem-2-37",
    "title": "Etch rates of wafers in two wet chemical etching solutions (Problem 2.37)",
+   "topics": [
+    "semiconductors"
+   ],
    "kind": "exercise",
    "where": {
     "section": "2.7, Problem 2.37",
@@ -6765,6 +6823,9 @@
   {
    "name": "montgomery-plasma-etching",
    "title": "Etch rate of a single-wafer plasma etching tool at four levels of RF power, five wafers at each",
+   "topics": [
+    "semiconductors"
+   ],
    "kind": "example",
    "where": {
     "section": "3.1 to 3.11, Examples 3.1 to 3.4, 3.6 to 3.10 and 3.12",
@@ -13627,6 +13688,9 @@
   {
    "name": "montgomery-peak-discharge",
    "title": "Peak discharge of a watershed estimated by four methods, six estimates each",
+   "topics": [
+    "environment"
+   ],
    "kind": "example",
    "where": {
     "section": "3.4.3, Example 3.5",
@@ -14383,6 +14447,10 @@
   {
    "name": "montgomery-chocolate-antioxidant",
    "title": "Total antioxidant capacity in blood after dark chocolate, dark chocolate with milk, and milk chocolate",
+   "topics": [
+    "biomedical",
+    "food-beverages"
+   ],
    "kind": "example",
    "where": {
     "section": "3.8.1",
@@ -15219,6 +15287,9 @@
   {
    "name": "montgomery-end-aisle-displays",
    "title": "Sales from three designs of end-aisle display, each tried in five stores",
+   "topics": [
+    "business"
+   ],
    "kind": "example",
    "where": {
     "section": "3.8.2",
@@ -16195,6 +16266,9 @@
   {
    "name": "montgomery-aluminum-smelting",
    "title": "Cell voltage and its standard deviation (pot noise) under four ratio control algorithms",
+   "topics": [
+    "metals"
+   ],
    "kind": "example",
    "where": {
     "section": "3.8.3",
@@ -16570,6 +16644,9 @@
   {
    "name": "montgomery-looms-random",
    "title": "Output of four looms chosen at random from a textile mill, four readings each",
+   "topics": [
+    "textiles"
+   ],
    "kind": "example",
    "where": {
     "section": "3.9, Example 3.11",
@@ -17554,6 +17631,9 @@
   {
    "name": "montgomery-problem-3-6",
    "title": "Loss of bone mineral density in rats after four durations of a pulsed electromagnetic field (Problem 3.6)",
+   "topics": [
+    "biomedical"
+   ],
    "kind": "exercise",
    "where": {
     "section": "3.12, Problem 3.6",
@@ -18008,6 +18088,9 @@
   {
    "name": "montgomery-problem-3-7",
    "title": "Tensile strength of Portland cement made by four mixing techniques (Problem 3.7)",
+   "topics": [
+    "construction"
+   ],
    "kind": "exercise",
    "where": {
     "section": "3.12, Problem 3.7",
@@ -18142,6 +18225,9 @@
   {
    "name": "montgomery-problem-3-10",
    "title": "Tensile strength of a synthetic fiber at five weight percents of cotton (Problem 3.10)",
+   "topics": [
+    "textiles"
+   ],
    "kind": "exercise",
    "where": {
     "section": "3.12, Problem 3.10",
@@ -18323,6 +18409,9 @@
   {
    "name": "montgomery-problem-3-12",
    "title": "Bioactivity of a drug at three dosages (Problem 3.12)",
+   "topics": [
+    "pharmaceuticals"
+   ],
    "kind": "exercise",
    "where": {
     "section": "3.12, Problem 3.12",
@@ -18436,6 +18525,9 @@
   {
    "name": "montgomery-problem-3-13",
    "title": "Days a rental car is kept, by size of car (Problem 3.13)",
+   "topics": [
+    "business"
+   ],
    "kind": "exercise",
    "where": {
     "section": "3.12, Problem 3.13",
@@ -18689,6 +18781,9 @@
   {
    "name": "montgomery-problem-3-14",
    "title": "Scores of one golfer in three seasons (Problem 3.14)",
+   "topics": [
+    "sport-recreation"
+   ],
    "kind": "exercise",
    "where": {
     "section": "3.12, Problem 3.14",
@@ -18867,6 +18962,9 @@
   {
    "name": "montgomery-problem-3-15",
    "title": "Contributions to an opera company by three approaches to soliciting them (Problem 3.15)",
+   "topics": [
+    "business"
+   ],
    "kind": "exercise",
    "where": {
     "section": "3.12, Problem 3.15",
@@ -19039,6 +19137,9 @@
   {
    "name": "montgomery-problem-3-16",
    "title": "Density of bricks fired at four temperatures (Problem 3.16)",
+   "topics": [
+    "construction"
+   ],
    "kind": "exercise",
    "where": {
     "section": "3.12, Problem 3.16",
@@ -19184,6 +19285,9 @@
   {
    "name": "montgomery-problem-3-18",
    "title": "Conductivity of four types of coating for color picture tubes (Problem 3.18)",
+   "topics": [
+    "electrical-electronic"
+   ],
    "kind": "exercise",
    "where": {
     "section": "3.12, Problem 3.18",
@@ -19318,6 +19422,9 @@
   {
    "name": "montgomery-problem-3-20",
    "title": "Compressive strength of concrete at four levels of rodding (Problem 3.20)",
+   "topics": [
+    "construction"
+   ],
    "kind": "exercise",
    "where": {
     "section": "3.12, Problem 3.20",
@@ -19432,6 +19539,9 @@
   {
    "name": "montgomery-problem-3-21",
    "title": "Radon released in showers through six orifice diameters (Problem 3.21)",
+   "topics": [
+    "environment"
+   ],
    "kind": "exercise",
    "where": {
     "section": "3.12, Problem 3.21",
@@ -19608,6 +19718,9 @@
   {
    "name": "montgomery-problem-3-22",
    "title": "Response time of three types of circuit (Problem 3.22)",
+   "topics": [
+    "electrical-electronic"
+   ],
    "kind": "exercise",
    "where": {
     "section": "3.12, Problem 3.22",
@@ -19736,6 +19849,9 @@
   {
    "name": "montgomery-problem-3-23",
    "title": "Life of four insulating fluids in an accelerated test at 35 kV (Problem 3.23)",
+   "topics": [
+    "electrical-electronic"
+   ],
    "kind": "exercise",
    "where": {
     "section": "3.12, Problem 3.23",
@@ -19910,6 +20026,9 @@
   {
    "name": "montgomery-problem-3-24",
    "title": "Noise of four circuit designs (Problem 3.24)",
+   "topics": [
+    "electrical-electronic"
+   ],
    "kind": "exercise",
    "where": {
     "section": "3.12, Problem 3.24",
@@ -20064,6 +20183,9 @@
   {
    "name": "montgomery-problem-3-25",
    "title": "Percentage of methyl alcohol in one chemical, by four chemists (Problem 3.25)",
+   "topics": [
+    "measurement"
+   ],
    "kind": "exercise",
    "where": {
     "section": "3.12, Problem 3.25",
@@ -20177,6 +20299,9 @@
   {
    "name": "montgomery-problem-3-26",
    "title": "Life of three brands of battery (Problem 3.26)",
+   "topics": [
+    "electrical-electronic"
+   ],
    "kind": "exercise",
    "where": {
     "section": "3.12, Problem 3.26",
@@ -20305,6 +20430,9 @@
   {
    "name": "montgomery-problem-3-27",
    "title": "Yield of a process at four catalyst concentrations, unequal replication (Problem 3.27)",
+   "topics": [
+    "chemical-processes"
+   ],
    "kind": "exercise",
    "where": {
     "section": "3.12, Problem 3.27",
@@ -20438,6 +20566,9 @@
   {
    "name": "montgomery-problem-3-28",
    "title": "Time to failure of five types of insulating material (Problem 3.28)",
+   "topics": [
+    "electrical-electronic"
+   ],
    "kind": "exercise",
    "where": {
     "section": "3.12, Problem 3.28",
@@ -20592,6 +20723,9 @@
   {
    "name": "montgomery-problem-3-29",
    "title": "Particle count on wafers after three methods of cleaning (Problem 3.29)",
+   "topics": [
+    "semiconductors"
+   ],
    "kind": "exercise",
    "where": {
     "section": "3.12, Problem 3.29",
@@ -20719,6 +20853,9 @@
   {
    "name": "montgomery-problem-3-30",
    "title": "Calcium content of five batches of raw material chosen at random (Problem 3.30)",
+   "topics": [
+    "chemical-processes"
+   ],
    "kind": "exercise",
    "where": {
     "section": "3.12, Problem 3.30",
@@ -20899,6 +21036,9 @@
   {
    "name": "montgomery-problem-3-31",
    "title": "Temperature of three ovens chosen at random, unequal replication (Problem 3.31)",
+   "topics": [
+    "general"
+   ],
    "kind": "exercise",
    "where": {
     "section": "3.12, Problem 3.31",
@@ -21026,6 +21166,9 @@
   {
    "name": "montgomery-problem-3-32",
    "title": "Etch uniformity at four wafer positions chosen at random in a furnace (Problem 3.32)",
+   "topics": [
+    "semiconductors"
+   ],
    "kind": "exercise",
    "where": {
     "section": "3.12, Problem 3.32",
@@ -21140,6 +21283,9 @@
   {
    "name": "montgomery-problem-3-34",
    "title": "Brightness of pulp from four bleaching chemicals chosen at random (Problem 3.34)",
+   "topics": [
+    "paper"
+   ],
    "kind": "exercise",
    "where": {
     "section": "3.12, Problem 3.34",
@@ -21294,6 +21440,9 @@
   {
    "name": "montgomery-problem-3-48",
    "title": "Standard deviation of a part dimension at four feed rates of a CNC machine (Problem 3.48)",
+   "topics": [
+    "machining"
+   ],
    "kind": "exercise",
    "where": {
     "section": "3.12, Problem 3.48",
@@ -21448,6 +21597,9 @@
   {
    "name": "montgomery-problem-3-54",
    "title": "Output of five looms chosen at random (Problem 3.54)",
+   "topics": [
+    "textiles"
+   ],
    "kind": "exercise",
    "where": {
     "section": "3.12, Problem 3.54",
@@ -21627,6 +21779,9 @@
   {
    "name": "montgomery-vascular-graft",
    "title": "Yield of vascular grafts at four extrusion pressures, in a randomized complete block design on six batches of resin",
+   "topics": [
+    "medical-devices"
+   ],
    "kind": "example",
    "where": {
     "section": "4.1, Examples 4.1 and 4.2",
@@ -27391,6 +27546,9 @@
   {
    "name": "montgomery-rocket-propellant",
    "title": "Burning rate of five rocket propellant formulations in a 5 x 5 Latin square of batches and operators, then a Graeco-Latin square with test assemblies",
+   "topics": [
+    "aerospace-defence"
+   ],
    "kind": "example",
    "where": {
     "section": "4.2 and 4.3, Examples 4.3 and 4.4",
@@ -28606,6 +28764,9 @@
   {
    "name": "montgomery-catalyst-bibd",
    "title": "Reaction time with four catalysts in a balanced incomplete block design on four batches of raw material, three catalysts in each",
+   "topics": [
+    "chemical-processes"
+   ],
    "kind": "example",
    "where": {
     "section": "4.4, Example 4.5",
@@ -30470,6 +30631,9 @@
   {
    "name": "montgomery-problem-4-3",
    "title": "Tensile strength of cloth treated with four chemicals, on five bolts as blocks (Problem 4.3)",
+   "topics": [
+    "textiles"
+   ],
    "kind": "exercise",
    "where": {
     "section": "4.5, Problem 4.3",
@@ -30639,6 +30803,9 @@
   {
    "name": "montgomery-problem-4-4",
    "title": "Bacteria growth in milk containers with three washing solutions, on four days as blocks (Problem 4.4)",
+   "topics": [
+    "food-beverages"
+   ],
    "kind": "exercise",
    "where": {
     "section": "4.5, Problem 4.4",
@@ -30766,6 +30933,10 @@
   {
    "name": "montgomery-problem-4-7",
    "title": "Rockwell C hardness from four tips on four coupons as blocks, coded by subtracting 40 (Problem 4.7)",
+   "topics": [
+    "measurement",
+    "metals"
+   ],
    "kind": "exercise",
    "where": {
     "section": "4.5, Problem 4.7",
@@ -30914,6 +31085,9 @@
   {
    "name": "montgomery-problem-4-8",
    "title": "Responses to three brochure designs mailed in four regions as blocks (Problem 4.8)",
+   "topics": [
+    "business"
+   ],
    "kind": "exercise",
    "where": {
     "section": "4.5, Problem 4.8",
@@ -31041,6 +31215,9 @@
   {
    "name": "montgomery-problem-4-9",
    "title": "Brake-specific fuel consumption with three lubricating oils, on five trucks as blocks (Problem 4.9)",
+   "topics": [
+    "automotive"
+   ],
    "kind": "exercise",
    "where": {
     "section": "4.5, Problem 4.9",
@@ -31184,6 +31361,9 @@
   {
    "name": "montgomery-problem-4-10",
    "title": "Shape factor of five nozzle designs at six jet efflux velocities as blocks (Problem 4.10)",
+   "topics": [
+    "machining"
+   ],
    "kind": "exercise",
    "where": {
     "section": "4.5, Problem 4.10",
@@ -31405,6 +31585,9 @@
   {
    "name": "montgomery-problem-4-11",
    "title": "Percent error of six software cost estimation algorithms on six projects as blocks (Problem 4.11)",
+   "topics": [
+    "computing"
+   ],
    "kind": "exercise",
    "where": {
     "section": "4.5, Problem 4.11",
@@ -31657,6 +31840,9 @@
   {
    "name": "montgomery-problem-4-12",
    "title": "Expression of a gene in leukemia patients under three treatments, ten subjects each (Problem 4.12)",
+   "topics": [
+    "biomedical"
+   ],
    "kind": "exercise",
    "where": {
     "section": "4.5, Problem 4.12",
@@ -31860,6 +32046,9 @@
   {
    "name": "montgomery-problem-4-13",
    "title": "Aluminum smelting cell voltage under four ratio control algorithms, in six time periods as blocks (Problem 4.13)",
+   "topics": [
+    "metals"
+   ],
    "kind": "exercise",
    "where": {
     "section": "4.5, Problem 4.13",
@@ -32050,6 +32239,9 @@
   {
    "name": "montgomery-problem-4-14",
    "title": "Grain size of a grain refiner at four stirring rates, in four furnaces as blocks (Problem 4.14)",
+   "topics": [
+    "metals"
+   ],
    "kind": "exercise",
    "where": {
     "section": "4.5, Problem 4.14",
@@ -32198,6 +32390,9 @@
   {
    "name": "montgomery-problem-4-21",
    "title": "Eye focus time at four distances, on five subjects as blocks (Problem 4.21)",
+   "topics": [
+    "human-factors"
+   ],
    "kind": "exercise",
    "where": {
     "section": "4.5, Problem 4.21",
@@ -32367,6 +32562,9 @@
   {
    "name": "montgomery-problem-4-22",
    "title": "Reaction time of five ingredients in a 5 x 5 Latin square of batches and days (Problem 4.22)",
+   "topics": [
+    "chemical-processes"
+   ],
    "kind": "exercise",
    "where": {
     "section": "4.5, Problem 4.22",
@@ -32603,6 +32801,9 @@
   {
    "name": "montgomery-problem-4-23",
    "title": "Assembly time of four methods in a 4 x 4 Latin square of order of assembly and operators (Problem 4.23)",
+   "topics": [
+    "machining"
+   ],
    "kind": "exercise",
    "where": {
     "section": "4.5, Problem 4.23",
@@ -32782,6 +32983,9 @@
   {
    "name": "montgomery-problem-4-35",
    "title": "Yield in a 5 x 5 Graeco-Latin square: batches, acid concentrations, standing times and catalyst concentrations (Problem 4.35)",
+   "topics": [
+    "chemical-processes"
+   ],
    "kind": "exercise",
    "where": {
     "section": "4.5, Problem 4.35",
@@ -33058,6 +33262,9 @@
   {
    "name": "montgomery-problem-4-36",
    "title": "Assembly time in a 4 x 4 Graeco-Latin square with workplaces added (Problem 4.36)",
+   "topics": [
+    "machining"
+   ],
    "kind": "exercise",
    "where": {
     "section": "4.5, Problem 4.36",
@@ -33267,6 +33474,9 @@
   {
    "name": "montgomery-problem-4-40",
    "title": "Mileage with five gasoline additives in a balanced incomplete block design on five cars (Problem 4.40)",
+   "topics": [
+    "automotive"
+   ],
    "kind": "exercise",
    "where": {
     "section": "4.5, Problem 4.40",
@@ -33437,6 +33647,9 @@
   {
    "name": "montgomery-problem-4-42",
    "title": "Paper strength at seven hardwood concentrations in a balanced incomplete block design on seven days (Problem 4.42)",
+   "topics": [
+    "paper"
+   ],
    "kind": "exercise",
    "where": {
     "section": "4.5, Problem 4.42",
@@ -33617,6 +33830,9 @@
   {
    "name": "montgomery-fig-5-1-factorial",
    "title": "A two-factor factorial with one response at each corner, no interaction (Figure 5.1)",
+   "topics": [
+    "general"
+   ],
    "kind": "example",
    "where": {
     "section": "5.1",
@@ -33877,6 +34093,9 @@
   {
    "name": "montgomery-fig-5-2-factorial",
    "title": "A two-factor factorial with one response at each corner, with interaction (Figure 5.2)",
+   "topics": [
+    "general"
+   ],
    "kind": "example",
    "where": {
     "section": "5.1",
@@ -34041,6 +34260,9 @@
   {
    "name": "montgomery-battery-life",
    "title": "Life of batteries with three plate materials at three temperatures, a 3^2 factorial with four batteries at each combination",
+   "topics": [
+    "electrical-electronic"
+   ],
    "kind": "example",
    "where": {
     "section": "5.3, Examples 5.1 and 5.4",
@@ -41881,6 +42103,9 @@
   {
    "name": "montgomery-impurity-single-replicate",
    "title": "Impurity of a chemical product at three temperatures and five pressures, one observation per cell",
+   "topics": [
+    "chemical-processes"
+   ],
    "kind": "example",
    "where": {
     "section": "5.3.7, Example 5.2",
@@ -42586,6 +42811,9 @@
   {
    "name": "montgomery-soft-drink-bottling",
    "title": "Deviation from the target fill height of soft drink bottles: carbonation, operating pressure and line speed, a 3 x 2 x 2 factorial run twice",
+   "topics": [
+    "food-beverages"
+   ],
    "kind": "example",
    "where": {
     "section": "5.4, Example 5.3",
@@ -44132,6 +44360,9 @@
   {
    "name": "montgomery-tool-life",
    "title": "Effective life of a cutting tool at three tool angles and three cutting speeds, a 3^2 factorial run twice (coded data)",
+   "topics": [
+    "machining"
+   ],
    "kind": "example",
    "where": {
     "section": "5.5, Example 5.5",
@@ -46888,6 +47119,10 @@
   {
    "name": "montgomery-radar-detection-blocks",
    "title": "Intensity at which operators detect a target on a radar scope: three levels of ground clutter by two filter types, with the operators as blocks",
+   "topics": [
+    "human-factors",
+    "aerospace-defence"
+   ],
    "kind": "example",
    "where": {
     "section": "5.6, Example 5.6",
@@ -48183,6 +48418,10 @@
   {
    "name": "montgomery-radar-latin-square",
    "title": "The radar detection experiment run as a 3 x 2 factorial in a 6 x 6 Latin square of days and operators",
+   "topics": [
+    "human-factors",
+    "aerospace-defence"
+   ],
    "kind": "example",
    "where": {
     "section": "5.6",
@@ -49422,6 +49661,9 @@
   {
    "name": "montgomery-problem-5-3",
    "title": "Yield of a chemical process at three temperatures and three pressures, run twice (Problem 5.3)",
+   "topics": [
+    "chemical-processes"
+   ],
    "kind": "exercise",
    "where": {
     "section": "5.7, Problem 5.3",
@@ -49580,6 +49822,9 @@
   {
    "name": "montgomery-problem-5-4",
    "title": "Surface finish of a metal part at three feed rates and four depths of cut, run three times (Problem 5.4)",
+   "topics": [
+    "machining"
+   ],
    "kind": "exercise",
    "where": {
     "section": "5.7, Problem 5.4",
@@ -49829,6 +50074,9 @@
   {
    "name": "montgomery-problem-5-6",
    "title": "Current needed for a brightness level of a television tube, by glass type and phosphor type (Problem 5.6)",
+   "topics": [
+    "electrical-electronic"
+   ],
    "kind": "exercise",
    "where": {
     "section": "5.7, Problem 5.6",
@@ -49984,6 +50232,9 @@
   {
    "name": "montgomery-problem-5-7",
    "title": "Warping of copper plates at four temperatures and four copper contents, run twice (Problem 5.7)",
+   "topics": [
+    "metals"
+   ],
    "kind": "exercise",
    "where": {
     "section": "5.7, Problem 5.7",
@@ -50214,6 +50465,9 @@
   {
    "name": "montgomery-problem-5-8",
    "title": "Breaking strength of a synthetic fiber by three operators on four machines, run twice (Problem 5.8)",
+   "topics": [
+    "textiles"
+   ],
    "kind": "exercise",
    "where": {
     "section": "5.7, Problem 5.8",
@@ -50401,6 +50655,9 @@
   {
    "name": "montgomery-problem-5-9",
    "title": "Thrust force of a drill press at two drill speeds and four feed rates, run twice (Problem 5.9)",
+   "topics": [
+    "machining"
+   ],
    "kind": "exercise",
    "where": {
     "section": "5.7, Problem 5.9",
@@ -50548,6 +50805,9 @@
   {
    "name": "montgomery-problem-5-10",
    "title": "Light output of an oscilloscope tube with three faceplate glasses at three temperatures, run three times (Problem 5.10)",
+   "topics": [
+    "electrical-electronic"
+   ],
    "kind": "exercise",
    "where": {
     "section": "5.7, Problem 5.10",
@@ -50749,6 +51009,9 @@
   {
    "name": "montgomery-problem-5-13",
    "title": "Baked density of a carbon anode at two furnace positions and three firing temperatures, run three times (Problem 5.13)",
+   "topics": [
+    "metals"
+   ],
    "kind": "exercise",
    "where": {
     "section": "5.7, Problem 5.13",
@@ -50904,6 +51167,9 @@
   {
    "name": "montgomery-problem-5-15",
    "title": "A two-factor factorial with one observation per cell (Problem 5.15)",
+   "topics": [
+    "general"
+   ],
    "kind": "exercise",
    "where": {
     "section": "5.7, Problem 5.15",
@@ -51030,6 +51296,9 @@
   {
    "name": "montgomery-problem-5-16",
    "title": "Shear strength of an adhesive at four pressures and three temperatures, one observation per cell (Problem 5.16)",
+   "topics": [
+    "formulated-products"
+   ],
    "kind": "exercise",
    "where": {
     "section": "5.7, Problem 5.16",
@@ -51158,6 +51427,9 @@
   {
    "name": "montgomery-problem-5-18",
    "title": "Strength of paper at three hardwood concentrations, three pressures and two cooking times, run twice (Problem 5.18)",
+   "topics": [
+    "paper"
+   ],
    "kind": "exercise",
    "where": {
     "section": "5.7, Problem 5.18",
@@ -51456,6 +51728,9 @@
   {
    "name": "montgomery-problem-5-19",
    "title": "Dyeing scores of cotton-synthetic cloth by three operators, three cycle times and two temperatures, three specimens each (Problem 5.19)",
+   "topics": [
+    "textiles"
+   ],
    "kind": "exercise",
    "where": {
     "section": "5.7, Problem 5.19",
@@ -51861,6 +52136,9 @@
   {
    "name": "montgomery-problem-5-21",
    "title": "Yield of a chemical process at three temperatures and three pressures, one replicate on each of two days (Problem 5.21)",
+   "topics": [
+    "chemical-processes"
+   ],
    "kind": "exercise",
    "where": {
     "section": "5.7, Problem 5.21",
@@ -52048,6 +52326,9 @@
   {
    "name": "montgomery-problem-5-24",
    "title": "Fatigue crack growth rate at three loading frequencies in three environments (Problem 5.24)",
+   "topics": [
+    "metals"
+   ],
    "kind": "exercise",
    "where": {
     "section": "5.7, Problem 5.24",
@@ -52295,6 +52576,9 @@
   {
    "name": "montgomery-problem-5-25",
    "title": "Base current of polysilicon at two doping levels and three anneal temperatures, run twice (Problem 5.25)",
+   "topics": [
+    "semiconductors"
+   ],
    "kind": "exercise",
    "where": {
     "section": "5.7, Problem 5.25",
@@ -52422,6 +52706,9 @@
   {
    "name": "montgomery-problem-5-26",
    "title": "Life of two brands of battery in three devices, run twice (Problem 5.26)",
+   "topics": [
+    "electrical-electronic"
+   ],
    "kind": "exercise",
    "where": {
     "section": "5.7, Problem 5.26",
@@ -52546,6 +52833,9 @@
   {
    "name": "montgomery-problem-5-27",
    "title": "Golf scores with old and new clubs on three courses, three rounds each (Problem 5.27)",
+   "topics": [
+    "sport-recreation"
+   ],
    "kind": "exercise",
    "where": {
     "section": "5.7, Problem 5.27",
@@ -52700,6 +52990,9 @@
   {
    "name": "montgomery-problem-5-28",
    "title": "Stain shade after washing: formulation, number of washings and detergent booster, run twice (Problem 5.28)",
+   "topics": [
+    "formulated-products"
+   ],
    "kind": "exercise",
    "where": {
     "section": "5.7, Problem 5.28",
@@ -52873,6 +53166,9 @@
   {
    "name": "montgomery-problem-5-29",
    "title": "Force to pull out a bone anchor: three anchor types in foam of two densities, run twice (Problem 5.29)",
+   "topics": [
+    "medical-devices"
+   ],
    "kind": "exercise",
    "where": {
     "section": "5.7, Problem 5.29",
@@ -52997,6 +53293,9 @@
   {
    "name": "montgomery-problem-5-30",
    "title": "Typing speed by key size and keyboard feel, run three times (Problem 5.30)",
+   "topics": [
+    "human-factors"
+   ],
    "kind": "exercise",
    "where": {
     "section": "5.7, Problem 5.30",
@@ -53152,6 +53451,9 @@
   {
    "name": "montgomery-problem-5-31",
    "title": "Density and surface area of silver powder: ammonium, stir rate and temperature, a 2^3 run twice (Problem 5.31)",
+   "topics": [
+    "metals"
+   ],
    "kind": "exercise",
    "where": {
     "section": "5.7, Problem 5.31",
@@ -53350,6 +53652,9 @@
   {
    "name": "montgomery-problem-5-33",
    "title": "Nisin extraction in aqueous two-phase solutions: concentrations of PEG and Na2SO4, a 2^2 run twice (Problem 5.33)",
+   "topics": [
+    "bioprocessing"
+   ],
    "kind": "exercise",
    "where": {
     "section": "5.7, Problem 5.33",
@@ -53458,6 +53763,9 @@
   {
    "name": "montgomery-golf-factorials",
    "title": "The golf experiment's two-level factorial designs in three, four and ten factors, by their run counts",
+   "topics": [
+    "sport-recreation"
+   ],
    "kind": "design",
    "where": {
     "section": "1.1",
@@ -53544,6 +53852,9 @@
   {
    "name": "montgomery-golf-half-fraction",
    "title": "One-half fraction of the four-factor golf experiment: driver, ball, beverage and mode of travel in 8 runs",
+   "topics": [
+    "sport-recreation"
+   ],
    "kind": "design",
    "where": {
     "section": "1.1",
@@ -53693,6 +54004,10 @@
   {
    "name": "montgomery-web-page-factorial",
    "title": "A web page of seven components with 4, 8, 6, 5, 4, 3 and 7 choices, as a full factorial",
+   "topics": [
+    "business",
+    "computing"
+   ],
    "kind": "design",
    "where": {
     "section": "1.2, Example 1.6",

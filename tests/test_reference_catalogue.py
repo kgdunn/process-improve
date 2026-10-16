@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import json
 import math
+import re
 
 import numpy as np
 import pandas as pd
@@ -24,6 +25,7 @@ from process_improve.experiments.reference_catalogue import (
     reference_designs,
     reference_experiments,
     reference_sources,
+    reference_topics,
     reproduce_reference_catalogue,
 )
 
@@ -107,6 +109,39 @@ def test_the_terms_of_the_sources_are_stated_beside_them():
 def test_an_unknown_source_is_refused():
     with pytest.raises(ValueError, match="Unknown source 'nowhere'"):
         reference_experiments("nowhere")
+
+
+def test_every_entry_says_what_it_is_about_in_the_vocabulary():
+    """One or two topics an entry, the main one first, each from the vocabulary; the vocabulary stays 20 to 40 long."""
+    topics = reference_topics()
+    assert 20 <= len(topics) <= 40, "the vocabulary is kept between 20 and 40 topics"
+    used = set()
+    for entry in [*reference_experiments(), *reference_designs()]:
+        listed = entry["topics"]
+        assert 1 <= len(listed) <= 2, f"{entry['name']}: one or two topics"
+        assert len(set(listed)) == len(listed), f"{entry['name']}: a topic is listed once"
+        assert set(listed) <= set(topics), f"{entry['name']}: {set(listed) - set(topics)} is not in topics.json"
+        used.update(listed)
+    assert used == set(topics), f"no entry is about {set(topics) - used}: drop the topic or tag an entry with it"
+
+
+def test_each_topic_names_its_classes_in_isic_and_ford():
+    for key, topic in reference_topics().items():
+        assert topic["label"], key
+        assert topic["description"], key
+        assert all(re.fullmatch(r"[A-U]|\d{2,3}", code) for code in topic["isic"]), f"{key}: {topic['isic']}"
+        assert (topic["ford"] is None) == (topic["ford_field"] is None), f"{key}: FORD {topic['ford']} is named"
+
+
+def test_entries_are_selected_by_topic():
+    paper = reference_experiments(topic="paper")
+    assert paper
+    assert all("paper" in e["topics"] for e in paper)
+    second = [e["name"] for e in reference_experiments(topic="pharmaceuticals") if e["topics"][0] != "pharmaceuticals"]
+    assert "davies-penicillin-2-5" in second, "a second topic selects too"
+    assert all(d["topics"] == ["general"] for d in reference_designs("goos-2025", topic="general"))
+    with pytest.raises(ValueError, match="Unknown topic 'astrology'"):
+        reference_designs(topic="astrology")
 
 
 def test_a_wrong_number_is_reported_and_not_agreed(monkeypatch, tmp_path):

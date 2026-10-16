@@ -18,6 +18,7 @@
   {
    "name": "nist-5-4-7-1-ceramic-strength",
    "title": "Strength of sintered reaction-bonded silicon nitride against five machining factors: a 2^5 full factorial",
+   "topics": ["machining"],
    "kind": "example",
    "where": {
     "section": "5.4.7.1",
@@ -6086,6 +6087,7 @@
   {
    "name": "nist-5-4-7-2-catapult",
    "title": "Distance a catapult throws a ball against five factors: a 2^(5-1) resolution V with four centre runs",
+   "topics": ["household"],
    "kind": "example",
    "where": {
     "section": "5.4.7.2",
@@ -11954,6 +11956,7 @@
   {
    "name": "nist-5-4-7-3-cvd-tungsten",
    "title": "Uniformity and stress of a CVD tungsten layer against pressure and the H2/WF6 ratio: an 11-run central composite inscribed design",
+   "topics": ["semiconductors"],
    "kind": "example",
    "where": {
     "section": "5.4.7.3",
@@ -14829,6 +14832,7 @@
   {
    "name": "nist-5-4-7-3-cvd-tungsten-natural-units",
    "title": "The CVD tungsten experiment of 5.4.7.3 as its R code fits it: pressure and H2/WF6 in natural units",
+   "topics": ["semiconductors"],
    "kind": "example",
    "where": {
     "section": "5.4.7.3",
@@ -16255,6 +16259,7 @@
   {
    "name": "nist-5-3-3-3-1-uniformity",
    "title": "Product uniformity against pressure, table speed and down force: a 2^3 run twice",
+   "topics": ["machining"],
    "kind": "example",
    "where": {
     "section": "5.3.3.3.1",
@@ -16364,6 +16369,7 @@
   {
    "name": "nist-5-5-9-defective-springs",
    "title": "Defective springs: percent acceptable springs against oven temperature, carbon and quench temperature (2^3)",
+   "topics": ["metals"],
    "kind": "example",
    "where": {
     "section": "5.5.9",
@@ -18326,6 +18332,7 @@
   {
    "name": "nist-5-5-9-9-7-two-factor-example",
    "title": "A 2^2 in temperature and time with Y = 2, 4, 6, 8: effects, the prediction equation, interpolation and extrapolation",
+   "topics": ["general"],
    "kind": "example",
    "where": {
     "section": "5.5.9.9.7",
@@ -18755,6 +18762,7 @@
   {
    "name": "nist-5-6-1-eddy-current-probe",
    "title": "Eddy current probe sensitivity: impedance against wire turns, winding distance and wire gauge (2^3)",
+   "topics": ["electrical-electronic", "measurement"],
    "kind": "case study",
    "where": {
     "section": "5.6.1",
@@ -21354,6 +21362,7 @@
   {
    "name": "nist-5-6-2-sonoluminescent-light-intensity",
    "title": "Sonoluminescent light intensity: seven factors in a 16-run 2^(7-3) fractional factorial",
+   "topics": ["physical-sciences"],
    "kind": "case study",
    "where": {
     "section": "5.6.2",
@@ -23591,6 +23600,7 @@
   {
    "name": "nist-5-5-3-1-1-chemical-first-factorial",
    "title": "Chemical process yield: a 2^2 in temperature and time with five centre runs, around 200 C and 200 minutes",
+   "topics": ["chemical-processes"],
    "kind": "example",
    "where": {
     "section": "5.5.3.1.1",
@@ -24426,6 +24436,7 @@
   {
    "name": "nist-5-5-3-1-3-chemical-steepest-ascent-path",
    "title": "Chemical process yield along the path of steepest ascent from 200 C and 200 minutes",
+   "topics": ["chemical-processes"],
    "kind": "example",
    "where": {
     "section": "5.5.3.1.3",
@@ -24521,6 +24532,7 @@
   {
    "name": "nist-5-5-3-1-3-chemical-second-factorial",
    "title": "Chemical process yield: a new 2^2 with five centre runs around 189.5 C and 350 minutes",
+   "topics": ["chemical-processes"],
    "kind": "example",
    "where": {
     "section": "5.5.3.1.3",
@@ -24967,6 +24979,7 @@
   {
    "name": "nist-5-5-3-1-4-chemical-central-composite",
    "title": "Chemical process yield: the second 2^2 with centre runs augmented with four axial runs to a rotatable CCD",
+   "topics": ["chemical-processes"],
    "kind": "example",
    "where": {
     "section": "5.5.3.1.4",
@@ -26357,6 +26370,7 @@
   {
    "name": "nist-5-5-3-2-1-two-responses-steepest-ascent",
    "title": "Mean yield and its standard deviation: a weighted path of steepest ascent for two first-order models",
+   "topics": ["chemical-processes"],
    "kind": "example",
    "where": {
     "section": "5.5.3.2.1",
@@ -26698,6 +26712,7 @@
   {
    "name": "nist-5-5-3-2-2-tire-tread-desirability",
    "title": "Derringer and Suich's tire tread compound: four responses from a 20-run CCD in silica, silane and sulfur",
+   "topics": ["plastics-rubber"],
    "kind": "example",
    "where": {
     "section": "5.5.3.2.2",
@@ -27814,6 +27829,7 @@
   {
    "name": "nist-5-5-3-2-3-propellant-mathematical-programming",
    "title": "Propellant burning rate maximised subject to its variance and cost: three fitted mixture models",
+   "topics": ["aerospace-defence"],
    "kind": "example",
    "where": {
     "section": "5.5.3.2.3",
@@ -28310,6 +28326,7 @@
   {
    "name": "nist-5-5-4-2-yarn-elongation",
    "title": "Cornell's yarn elongation: a {3,2} simplex lattice in polyethylene, polystyrene and polypropylene, 15 runs",
+   "topics": ["textiles", "plastics-rubber"],
    "kind": "example",
    "where": {
     "section": "5.5.4.2",
@@ -29857,6 +29874,7 @@
   {
    "name": "nist-5-5-6-starter-motor-parameter-design",
    "title": "A fictitious starter motor: inner 2^3 in turns, gauge and ferric content crossed with outer 2^2 in temperature and voltage",
+   "topics": ["electrical-electronic", "automotive"],
    "kind": "example",
    "where": {
     "section": "5.5.6",
@@ -30298,6 +30316,7 @@
   {
    "name": "nist-5-3-3-4-1-two-cubed-observations",
    "title": "A 2^3 in X1, X2 and X3 with eight observations, and the main effects from four of its runs",
+   "topics": ["general"],
    "kind": "example",
    "where": {
     "section": "5.3.3.4.1",
@@ -30482,6 +30501,7 @@
   {
    "name": "nist-5-4-7-1-half-fraction",
    "title": "The resolution V half fraction of the ceramic 2^5 that the page considers in hindsight",
+   "topics": ["machining"],
    "where": {
     "section": "5.4.7.1",
     "url": "https://www.itl.nist.gov/div898/handbook/pri/section4/pri471.htm"
@@ -30533,6 +30553,7 @@
   {
    "name": "nist-5-1-1-three-factor-models",
    "title": "The terms of the linear and quadratic models in three factors X1, X2 and X3",
+   "topics": ["general"],
    "where": {
     "section": "5.1.1",
     "url": "https://www.itl.nist.gov/div898/handbook/pri/section1/pri11.htm"
@@ -30645,6 +30666,7 @@
   {
    "name": "nist-5-3-2-two-factor-matrix",
    "title": "Four trials of two factors at two levels, and their model matrix",
+   "topics": ["general"],
    "where": {
     "section": "5.3.2",
     "url": "https://www.itl.nist.gov/div898/handbook/pri/section3/pri32.htm"
@@ -30763,6 +30785,7 @@
   {
    "name": "nist-5-3-3-1-completely-randomized",
    "title": "A completely randomized design: one factor at 4 levels, 3 replications, in a random run order",
+   "topics": ["general"],
    "where": {
     "section": "5.3.3.1",
     "url": "https://www.itl.nist.gov/div898/handbook/pri/section3/pri331.htm"
@@ -30911,6 +30934,7 @@
   {
    "name": "nist-5-3-3-2-randomized-block-dosage",
    "title": "Wafer implant dosage (4 levels) blocked by furnace run (3 levels): a randomized block design",
+   "topics": ["semiconductors"],
    "where": {
     "section": "5.3.3.2",
     "url": "https://www.itl.nist.gov/div898/handbook/pri/section3/pri332.htm"
@@ -31076,6 +31100,7 @@
   {
    "name": "nist-5-3-3-2-1-latin-square-3x3",
    "title": "The 3-by-3 Latin square design: 3 factors at 3 levels in 9 runs",
+   "topics": ["general"],
    "where": {
     "section": "5.3.3.2.1",
     "url": "https://www.itl.nist.gov/div898/handbook/pri/section3/pri3321.htm"
@@ -31257,6 +31282,7 @@
   {
    "name": "nist-5-3-3-2-1-latin-square-4x4",
    "title": "The 4-by-4 Latin square design: 3 factors at 4 levels in 16 runs",
+   "topics": ["general"],
    "where": {
     "section": "5.3.3.2.1",
     "url": "https://www.itl.nist.gov/div898/handbook/pri/section3/pri3321.htm"
@@ -31459,6 +31485,7 @@
   {
    "name": "nist-5-3-3-2-1-latin-square-5x5",
    "title": "The 5-by-5 Latin square design: 3 factors at 5 levels in 25 runs",
+   "topics": ["general"],
    "where": {
     "section": "5.3.3.2.1",
     "url": "https://www.itl.nist.gov/div898/handbook/pri/section3/pri3321.htm"
@@ -31656,6 +31683,7 @@
   {
    "name": "nist-5-3-3-2-2-graeco-latin-square-3x3",
    "title": "The 3-by-3 Graeco-Latin square design: 4 factors at 3 levels in 9 runs",
+   "topics": ["general"],
    "where": {
     "section": "5.3.3.2.2",
     "url": "https://www.itl.nist.gov/div898/handbook/pri/section3/pri3322.htm"
@@ -31864,6 +31892,7 @@
   {
    "name": "nist-5-3-3-2-2-graeco-latin-square-4x4",
    "title": "The 4-by-4 Graeco-Latin square design: 4 factors at 4 levels in 16 runs",
+   "topics": ["general"],
    "where": {
     "section": "5.3.3.2.2",
     "url": "https://www.itl.nist.gov/div898/handbook/pri/section3/pri3322.htm"
@@ -32083,6 +32112,7 @@
   {
    "name": "nist-5-3-3-2-2-graeco-latin-square-5x5",
    "title": "The 5-by-5 Graeco-Latin square design: 4 factors at 5 levels in 25 runs",
+   "topics": ["general"],
    "where": {
     "section": "5.3.3.2.2",
     "url": "https://www.itl.nist.gov/div898/handbook/pri/section3/pri3322.htm"
@@ -32311,6 +32341,7 @@
   {
    "name": "nist-5-3-3-2-3-hyper-graeco-latin-square-4x4",
    "title": "The 4-by-4 hyper-Graeco-Latin square design: 5 factors at 4 levels in 16 runs",
+   "topics": ["general"],
    "where": {
     "section": "5.3.3.2.3",
     "url": "https://www.itl.nist.gov/div898/handbook/pri/section3/pri3323.htm"
@@ -32553,6 +32584,7 @@
   {
    "name": "nist-5-3-3-2-3-hyper-graeco-latin-square-5x5",
    "title": "The 5-by-5 hyper-Graeco-Latin square design: 5 factors at 5 levels in 25 runs",
+   "topics": ["general"],
    "where": {
     "section": "5.3.3.2.3",
     "url": "https://www.itl.nist.gov/div898/handbook/pri/section3/pri3323.htm"
@@ -32804,6 +32836,7 @@
   {
    "name": "nist-5-3-3-3-full-factorial-sizes",
    "title": "The number of runs of a two-level full factorial in 2 to 7 factors",
+   "topics": ["general"],
    "where": {
     "section": "5.3.3.3",
     "url": "https://www.itl.nist.gov/div898/handbook/pri/section3/pri333.htm"
@@ -32949,6 +32982,7 @@
   {
    "name": "nist-5-3-3-3-1-two-cubed-standard-order",
    "title": "The 2^3 full factorial in standard order",
+   "topics": ["general"],
    "where": {
     "section": "5.3.3.3.1",
     "url": "https://www.itl.nist.gov/div898/handbook/pri/section3/pri3331.htm"
@@ -33055,6 +33089,7 @@
   {
    "name": "nist-5-3-3-3-2-polishing-design-table",
    "title": "The polishing example's 2^3 in coded units and standard order, and its full model",
+   "topics": ["machining"],
    "where": {
     "section": "5.3.3.3.2",
     "url": "https://www.itl.nist.gov/div898/handbook/pri/section3/pri3332.htm"
@@ -33214,6 +33249,7 @@
   {
    "name": "nist-5-3-3-3-2-polishing-replicated",
    "title": "The polishing example's 2^3 replicated twice, in standard order, with its settings in actual units",
+   "topics": ["machining"],
    "where": {
     "section": "5.3.3.3.2",
     "url": "https://www.itl.nist.gov/div898/handbook/pri/section3/pri3332.htm"
@@ -33354,6 +33390,7 @@
   {
    "name": "nist-5-3-3-3-2-polishing-randomized",
    "title": "The polishing example's replicated 2^3 in a random run order",
+   "topics": ["machining"],
    "where": {
     "section": "5.3.3.3.2",
     "url": "https://www.itl.nist.gov/div898/handbook/pri/section3/pri3332.htm"
@@ -33451,6 +33488,7 @@
   {
    "name": "nist-5-3-3-3-2-polishing-centre-points",
    "title": "The polishing example's replicated 2^3 in a random run order, with three centre runs",
+   "topics": ["machining"],
    "where": {
     "section": "5.3.3.3.2",
     "url": "https://www.itl.nist.gov/div898/handbook/pri/section3/pri3332.htm"
@@ -33566,6 +33604,7 @@
   {
    "name": "nist-5-3-3-3-3-two-blocks",
    "title": "The 2^3 run in two blocks of four, the block confounded with the three-factor interaction",
+   "topics": ["machining"],
    "where": {
     "section": "5.3.3.3.3",
     "url": "https://www.itl.nist.gov/div898/handbook/pri/section3/pri3333.htm"
@@ -33698,6 +33737,7 @@
   {
    "name": "nist-5-3-3-6-three-level-factorial-sizes",
    "title": "Three-level full factorials against the number of coefficients of the quadratic model",
+   "topics": ["general"],
    "where": {
     "section": "5.3.3.6",
     "url": "https://www.itl.nist.gov/div898/handbook/pri/section3/pri336.htm"
@@ -34003,6 +34043,7 @@
   {
    "name": "nist-5-3-3-6-1-ccd-rotatable-alpha",
    "title": "The axial distance of a rotatable central composite design, against the factorial portion",
+   "topics": ["general"],
    "where": {
     "section": "5.3.3.6.1",
     "url": "https://www.itl.nist.gov/div898/handbook/pri/section3/pri3361.htm"
@@ -34196,6 +34237,7 @@
   {
    "name": "nist-5-3-3-6-1-ccd-types",
    "title": "Circumscribed, inscribed and face-centered central composite designs: levels per factor and star points",
+   "topics": ["general"],
    "where": {
     "section": "5.3.3.6.1",
     "url": "https://www.itl.nist.gov/div898/handbook/pri/section3/pri3361.htm"
@@ -34326,6 +34368,7 @@
   {
    "name": "nist-5-3-3-6-1-ccd-two-factors-two-blocks",
    "title": "A central composite design in two factors and two blocks that is rotatable and orthogonally blocked",
+   "topics": ["general"],
    "where": {
     "section": "5.3.3.6.1",
     "url": "https://www.itl.nist.gov/div898/handbook/pri/section3/pri3361.htm"
@@ -34422,6 +34465,7 @@
   {
    "name": "nist-5-3-3-6-3-ccc-three-factors",
    "title": "The circumscribed central composite design (CCC) in three factors, coded and with settings 10 and 20",
+   "topics": ["general"],
    "where": {
     "section": "5.3.3.6.3",
     "url": "https://www.itl.nist.gov/div898/handbook/pri/section3/pri3363.htm"
@@ -34663,6 +34707,7 @@
   {
    "name": "nist-5-3-3-6-3-cci-three-factors",
    "title": "The inscribed central composite design (CCI) in three factors, with star settings 10 and 20",
+   "topics": ["general"],
    "where": {
     "section": "5.3.3.6.3",
     "url": "https://www.itl.nist.gov/div898/handbook/pri/section3/pri3363.htm"
@@ -34868,6 +34913,7 @@
   {
    "name": "nist-5-3-3-6-3-ccf-three-factors",
    "title": "The face-centered central composite design (CCF) in three factors, coded and with settings 10 and 20",
+   "topics": ["general"],
    "where": {
     "section": "5.3.3.6.3",
     "url": "https://www.itl.nist.gov/div898/handbook/pri/section3/pri3363.htm"
@@ -35091,6 +35137,7 @@
   {
    "name": "nist-5-3-3-6-3-box-behnken-three-factors",
    "title": "The Box-Behnken design in three factors, coded and with settings 10, 15 and 20",
+   "topics": ["general"],
    "where": {
     "section": "5.3.3.6.3",
     "url": "https://www.itl.nist.gov/div898/handbook/pri/section3/pri3363.htm"
@@ -35292,6 +35339,7 @@
   {
    "name": "nist-5-3-3-6-3-run-counts",
    "title": "The number of runs of central composite and Box-Behnken designs in 2 to 6 factors",
+   "topics": ["general"],
    "where": {
     "section": "5.3.3.6.3",
     "url": "https://www.itl.nist.gov/div898/handbook/pri/section3/pri3363.htm"
@@ -35529,6 +35577,7 @@
   {
    "name": "nist-5-3-3-6-4-ccd-2-factors-2-blocks",
    "title": "A central composite design in 2 factors and 2 blocks",
+   "topics": ["general"],
    "where": {
     "section": "5.3.3.6.4",
     "url": "https://www.itl.nist.gov/div898/handbook/pri/section3/pri3364.htm"
@@ -35640,6 +35689,7 @@
   {
    "name": "nist-5-3-3-6-4-ccd-3-factors-3-blocks",
    "title": "A central composite design in 3 factors and 3 blocks",
+   "topics": ["general"],
    "where": {
     "section": "5.3.3.6.4",
     "url": "https://www.itl.nist.gov/div898/handbook/pri/section3/pri3364.htm"
@@ -35749,6 +35799,7 @@
   {
    "name": "nist-5-3-3-6-4-ccd-4-factors-3-blocks",
    "title": "A central composite design in 4 factors and 3 blocks",
+   "topics": ["general"],
    "where": {
     "section": "5.3.3.6.4",
     "url": "https://www.itl.nist.gov/div898/handbook/pri/section3/pri3364.htm"
@@ -35879,6 +35930,7 @@
   {
    "name": "nist-5-3-3-6-4-ccd-5-factors-2-blocks",
    "title": "A central composite design in 5 factors and 2 blocks",
+   "topics": ["general"],
    "where": {
     "section": "5.3.3.6.4",
     "url": "https://www.itl.nist.gov/div898/handbook/pri/section3/pri3364.htm"
@@ -36022,6 +36074,7 @@
   {
    "name": "nist-5-3-3-7-polishing-worksheet",
    "title": "The polishing example's randomized, replicated 2^3 with three centre runs, and its worksheet in actual units",
+   "topics": ["machining"],
    "where": {
     "section": "5.3.3.7",
     "url": "https://www.itl.nist.gov/div898/handbook/pri/section3/pri337.htm"
@@ -36186,6 +36239,7 @@
   {
    "name": "nist-5-3-3-9-three-squared",
    "title": "The 3^2 design: two factors at three levels",
+   "topics": ["general"],
    "where": {
     "section": "5.3.3.9",
     "url": "https://www.itl.nist.gov/div898/handbook/pri/section3/pri339.htm"
@@ -36255,6 +36309,7 @@
   {
    "name": "nist-5-3-3-9-three-cubed",
    "title": "The 3^3 design: three nominal factors at three levels, and the degrees of freedom of its model",
+   "topics": ["general"],
    "where": {
     "section": "5.3.3.9",
     "url": "https://www.itl.nist.gov/div898/handbook/pri/section3/pri339.htm"
@@ -36432,6 +36487,7 @@
   {
    "name": "nist-5-3-3-10-mixed-two-and-three-levels",
    "title": "A two-level factor A and a three-level factor X made from B and C of a 2^3 (Montgomery's scheme)",
+   "topics": ["general"],
    "where": {
     "section": "5.3.3.10",
     "url": "https://www.itl.nist.gov/div898/handbook/pri/section3/pri33a.htm"
@@ -36515,6 +36571,7 @@
   {
    "name": "nist-5-3-3-10-four-level-and-two-two-level",
    "title": "A four-level factor X made from A and B of a 2^4, and two two-level factors C and D, in 16 runs",
+   "topics": ["general"],
    "where": {
     "section": "5.3.3.10",
     "url": "https://www.itl.nist.gov/div898/handbook/pri/section3/pri33a.htm"
@@ -36640,6 +36697,7 @@
   {
    "name": "nist-5-3-3-10-taguchi-l9",
    "title": "The Taguchi L9 orthogonal array: 4 factors at three levels, 9 runs",
+   "topics": ["general"],
    "where": {
     "section": "5.3.3.10",
     "url": "https://www.itl.nist.gov/div898/handbook/pri/section3/pri33a.htm"
@@ -36786,6 +36844,7 @@
   {
    "name": "nist-5-3-3-10-taguchi-l18",
    "title": "The Taguchi L18 orthogonal array: 1 factor at two levels and seven factors at 3 levels, 18 runs",
+   "topics": ["general"],
    "where": {
     "section": "5.3.3.10",
     "url": "https://www.itl.nist.gov/div898/handbook/pri/section3/pri33a.htm"
@@ -37033,6 +37092,7 @@
   {
    "name": "nist-5-3-3-10-taguchi-l27",
    "title": "The Taguchi L27 orthogonal array: thirteen factors at three levels, 27 runs",
+   "topics": ["general"],
    "where": {
     "section": "5.3.3.10",
     "url": "https://www.itl.nist.gov/div898/handbook/pri/section3/pri33a.htm"
@@ -37341,6 +37401,7 @@
   {
    "name": "nist-5-3-3-10-taguchi-l36",
    "title": "The Taguchi L36 orthogonal array: eleven factors at two levels and twelve factors at 3 levels, 36 runs",
+   "topics": ["general"],
    "where": {
     "section": "5.3.3.10",
     "url": "https://www.itl.nist.gov/div898/handbook/pri/section3/pri33a.htm"
@@ -37846,6 +37907,7 @@
   {
    "name": "nist-5-5-9-9-9-two-factor-centre-point",
    "title": "The 2^2 full factorial in temperature and time, augmented with one centre point (5 runs)",
+   "topics": ["general"],
    "where": {
     "section": "5.5.9.9.9",
     "url": "https://www.itl.nist.gov/div898/handbook/pri/section5/pri5999.htm"
@@ -37937,6 +37999,7 @@
   {
    "name": "nist-5-5-9-4-seven-factors-eight-runs",
    "title": "Seven factors in 8 runs: the 2^(7-4), every main effect confounded with three 2-factor interactions",
+   "topics": ["general"],
    "where": {
     "section": "5.5.9.4",
     "url": "https://www.itl.nist.gov/div898/handbook/pri/section5/pri594.htm"
@@ -37990,6 +38053,7 @@
   {
    "name": "nist-5-5-9-4-seven-factors-sixteen-runs",
    "title": "Seven factors in 16 runs: a well-constructed design confounds main effects only with 3-factor interactions",
+   "topics": ["general"],
    "where": {
     "section": "5.5.9.4",
     "url": "https://www.itl.nist.gov/div898/handbook/pri/section5/pri594.htm"
@@ -38029,6 +38093,7 @@
   {
    "name": "nist-5-5-9-4-four-factor-half-fraction",
    "title": "The 2^(4-1) with X4 = X1*X2*X3: main effects clear, 2-factor interactions confounded in pairs",
+   "topics": ["general"],
    "where": {
     "section": "5.5.9.4",
     "url": "https://www.itl.nist.gov/div898/handbook/pri/section5/pri594.htm"
@@ -38078,6 +38143,7 @@
   {
    "name": "nist-5-5-9-10-7-follow-up-design",
    "title": "The follow-up 2^2 with a centre point around the springs optimum (X1, X3) = (1.5, 1.3)",
+   "topics": ["metals"],
    "where": {
     "section": "5.5.9.10.7",
     "url": "https://www.itl.nist.gov/div898/handbook/pri/section5/pri59a7.htm"
@@ -38138,6 +38204,7 @@
   {
    "name": "nist-5-6-2-sonoluminescent-design",
    "title": "The 2^(7-3) of the sonoluminescence case study: 5 = 234, 6 = 134, 7 = 123, resolution IV",
+   "topics": ["physical-sciences"],
    "where": {
     "section": "5.6.2.1",
     "url": "https://www.itl.nist.gov/div898/handbook/pri/section6/pri621.htm"
@@ -38838,6 +38905,7 @@
   {
    "name": "nist-5-5-2-1-candidate-set",
    "title": "Candidate set for a D-optimal design: X1 at five levels crossed with X2 and X3 at two (Table 5.1)",
+   "topics": ["general"],
    "where": {
     "section": "5.5.2.1",
     "url": "https://www.itl.nist.gov/div898/handbook/pri/section5/pri521.htm"
@@ -38968,6 +39036,7 @@
   {
    "name": "nist-5-5-2-1-d-optimal-design",
    "title": "The 12-run D-optimal design for Y = b0 + b1 X1 + b2 X2 + b3 X3 + b11 X1^2 (Table 5.2)",
+   "topics": ["general"],
    "where": {
     "section": "5.5.2.1",
     "url": "https://www.itl.nist.gov/div898/handbook/pri/section5/pri521.htm"
@@ -39175,6 +39244,7 @@
   {
    "name": "nist-5-5-4-2-simplex-lattice-3-3",
    "title": "The {3, 3} simplex-lattice design: ten blends of three components (Table 5.3)",
+   "topics": ["general"],
    "where": {
     "section": "5.5.4.2",
     "url": "https://www.itl.nist.gov/div898/handbook/pri/section5/pri542.htm"
@@ -39310,6 +39380,7 @@
   {
    "name": "nist-5-5-4-3-simplex-centroid-three-components",
    "title": "The three-component simplex-centroid design: three pure blends, three binary blends and the centroid",
+   "topics": ["general"],
    "where": {
     "section": "5.5.4.3",
     "url": "https://www.itl.nist.gov/div898/handbook/pri/section5/pri543.htm"
@@ -39393,6 +39464,7 @@
   {
    "name": "nist-5-5-4-3-simplex-centroid-four-components",
    "title": "The four-component simplex-centroid design: fifteen blends",
+   "topics": ["general"],
    "where": {
     "section": "5.5.4.3",
     "url": "https://www.itl.nist.gov/div898/handbook/pri/section5/pri543.htm"
@@ -39521,6 +39593,7 @@
   {
    "name": "nist-5-5-4-4-pseudo-component-simplex-centroid",
    "title": "A simplex-centroid design in pseudo components for 0.3 <= x1, 0.4 <= x2, 0.1 <= x3 (Table 5.5)",
+   "topics": ["general"],
    "where": {
     "section": "5.5.4.4",
     "url": "https://www.itl.nist.gov/div898/handbook/pri/section5/pri544.htm"
@@ -39676,6 +39749,7 @@
   {
    "name": "nist-5-5-4-5-mixture-process-variables",
    "title": "Three mixture components with three two-level process variables: a 2^3 at each blend, or a simplex at each corner",
+   "topics": ["general"],
    "where": {
     "section": "5.5.4.5",
     "url": "https://www.itl.nist.gov/div898/handbook/pri/section5/pri545.htm"
@@ -39703,6 +39777,7 @@
   {
    "name": "nist-5-5-5-wafer-sampling-plan",
    "title": "A nested sampling plan: 9 sites on each of 7 monitor wafers in each batch run",
+   "topics": ["semiconductors"],
    "where": {
     "section": "5.5.5",
     "url": "https://www.itl.nist.gov/div898/handbook/pri/section5/pri55.htm"
@@ -39758,6 +39833,7 @@
   {
    "name": "nist-5-5-5-electroplating-split-plot",
    "title": "Electroplating copper strips: a replicated 2^3 in current, temperature and concentration, run as split plots",
+   "topics": ["metals"],
    "where": {
     "section": "5.5.5",
     "url": "https://www.itl.nist.gov/div898/handbook/pri/section5/pri55.htm"
@@ -40466,6 +40542,7 @@
   {
    "name": "nist-5-5-5-implant-anneal-strip-plot",
    "title": "A strip-plot design over two process steps: a 2^3 in implant factors A, B, C and a 2^3 in anneal factors D, E, F",
+   "topics": ["semiconductors"],
    "where": {
     "section": "5.5.5",
     "url": "https://www.itl.nist.gov/div898/handbook/pri/section5/pri55.htm"
@@ -40592,6 +40669,7 @@
   {
    "name": "nist-5-5-7-half-fraction-four-factors",
    "title": "The 2^(4-1) with 4 = 123, in standard order with its two-factor interaction columns (Table 5.8)",
+   "topics": ["general"],
    "where": {
     "section": "5.5.7",
     "url": "https://www.itl.nist.gov/div898/handbook/pri/section5/pri57.htm"
@@ -40800,6 +40878,7 @@
   {
    "name": "nist-5-5-7-three-quarter-semifold",
    "title": "John's 3/4 design: the 2^(4-1) plus four runs folded over on X1 among its X1 = -1 runs (Tables 5.9 and 5.10)",
+   "topics": ["general"],
    "where": {
     "section": "5.5.7",
     "url": "https://www.itl.nist.gov/div898/handbook/pri/section5/pri57.htm"
@@ -41052,6 +41131,7 @@
   {
    "name": "nist-5-5-7-three-quarter-48-runs",
    "title": "A 48-run 3/4 design in eight factors: the 2^(8-2) resolution V less the block 135 = 246 = -1",
+   "topics": ["general"],
    "where": {
     "section": "5.5.7",
     "url": "https://www.itl.nist.gov/div898/handbook/pri/section5/pri57.htm"
@@ -41436,6 +41516,7 @@
   {
    "name": "nist-5-5-8-typical-response-surface-sizes",
    "title": "The run counts of typical central composite designs for 2 to 5 factors",
+   "topics": ["general"],
    "where": {
     "section": "5.5.8",
     "url": "https://www.itl.nist.gov/div898/handbook/pri/section5/pri58.htm"
@@ -41545,6 +41626,7 @@
   {
    "name": "nist-5-5-8-small-composite-four-factors",
    "title": "Hartley's small composite design in four factors: a resolution III 2^(4-1) with I = 123, star points and four centre runs (Table 5.11)",
+   "topics": ["general"],
    "where": {
     "section": "5.5.8",
     "url": "https://www.itl.nist.gov/div898/handbook/pri/section5/pri58.htm"
@@ -41659,6 +41741,7 @@
   {
    "name": "nist-5-3-3-4-full-factorial-six-factors",
    "title": "The 64 runs of a two-level full factorial in six factors, which fractions cut down",
+   "topics": ["general"],
    "where": {
     "section": "5.3.3.4",
     "url": "https://www.itl.nist.gov/div898/handbook/pri/section3/pri334.htm"
@@ -41695,6 +41778,7 @@
   {
    "name": "nist-5-3-3-4-1-cube-corners",
    "title": "The eight corners of the 2^3 cube in standard order, and the two half fractions they split into",
+   "topics": ["general"],
    "where": {
     "section": "5.3.3.4.1",
     "url": "https://www.itl.nist.gov/div898/handbook/pri/section3/pri3341.htm"
@@ -41850,6 +41934,7 @@
   {
    "name": "nist-5-3-3-4-2-half-fraction-x3-x1x2",
    "title": "The 2^(3-1) half fraction with X3 = X1*X2 (Table 3.14), and its aliases I = 123, 1 = 23, 2 = 13, 3 = 12",
+   "topics": ["general"],
    "where": {
     "section": "5.3.3.4.2",
     "url": "https://www.itl.nist.gov/div898/handbook/pri/section3/pri3342.htm"
@@ -42146,6 +42231,7 @@
   {
    "name": "nist-5-3-3-4-2-half-fraction-x3-minus-x1x2",
    "title": "The other 2^(3-1) half fraction, X3 = -X1*X2 (Table 3.15), with defining relation I = -123",
+   "topics": ["general"],
    "where": {
     "section": "5.3.3.4.2",
     "url": "https://www.itl.nist.gov/div898/handbook/pri/section3/pri3342.htm"
@@ -42233,6 +42319,7 @@
   {
    "name": "nist-5-3-3-4-2-pressure-table-speed-down-force",
    "title": "Pressure, table speed and down force: a 2^(3-1) with D = P*T, replicated twice, with five centre runs, in run order",
+   "topics": ["machining"],
    "where": {
     "section": "5.3.3.4.2",
     "url": "https://www.itl.nist.gov/div898/handbook/pri/section3/pri3342.htm"
@@ -42451,6 +42538,7 @@
   {
    "name": "nist-5-3-3-4-4-eight-factors-figure-3-7",
    "title": "The 2_IV^(8-3) of Figures 3.6 and 3.7: 6 = 345, 7 = 1245, 8 = 1235, its defining relation and two-factor aliases",
+   "topics": ["general"],
    "where": {
     "section": "5.3.3.4.4",
     "url": "https://www.itl.nist.gov/div898/handbook/pri/section3/pri3344.htm"
@@ -43310,6 +43398,7 @@
   {
    "name": "nist-5-3-3-4-4-eight-factors-five-length-four-words",
    "title": "A worse 2^(8-3): 6 = 12345, 7 = 135, 8 = 245, with five words of length four",
+   "topics": ["general"],
    "where": {
     "section": "5.3.3.4.4",
     "url": "https://www.itl.nist.gov/div898/handbook/pri/section3/pri3344.htm"
@@ -43416,6 +43505,7 @@
   {
    "name": "nist-5-3-3-4-7-2to3m1",
    "title": "The 2^(3-1) of Table 3.17, resolution III, 4 runs: 3 = 12",
+   "topics": ["general"],
    "where": {
     "section": "5.3.3.4.7",
     "url": "https://www.itl.nist.gov/div898/handbook/pri/section3/pri3347.htm",
@@ -43740,6 +43830,7 @@
   {
    "name": "nist-5-3-3-4-7-2to4m1",
    "title": "The 2^(4-1) of Table 3.17, resolution IV, 8 runs: 4 = 123",
+   "topics": ["general"],
    "where": {
     "section": "5.3.3.4.7",
     "url": "https://www.itl.nist.gov/div898/handbook/pri/section3/pri3347.htm",
@@ -44142,6 +44233,7 @@
   {
    "name": "nist-5-3-3-4-7-2to5m1",
    "title": "The 2^(5-1) of Table 3.17, resolution V, 16 runs: 5 = 1234",
+   "topics": ["general"],
    "where": {
     "section": "5.3.3.4.7",
     "url": "https://www.itl.nist.gov/div898/handbook/pri/section3/pri3347.htm",
@@ -44660,6 +44752,7 @@
   {
    "name": "nist-5-3-3-4-7-2to5m2",
    "title": "The 2^(5-2) of Table 3.17, resolution III, 8 runs: 4 = 12, 5 = 13",
+   "topics": ["general"],
    "where": {
     "section": "5.3.3.4.7",
     "url": "https://www.itl.nist.gov/div898/handbook/pri/section3/pri3347.htm",
@@ -45187,6 +45280,7 @@
   {
    "name": "nist-5-3-3-4-7-2to6m1",
    "title": "The 2^(6-1) of Table 3.17, resolution VI, 32 runs: 6 = 12345",
+   "topics": ["general"],
    "where": {
     "section": "5.3.3.4.7",
     "url": "https://www.itl.nist.gov/div898/handbook/pri/section3/pri3347.htm",
@@ -45849,6 +45943,7 @@
   {
    "name": "nist-5-3-3-4-7-2to6m2",
    "title": "The 2^(6-2) of Table 3.17, resolution IV, 16 runs: 5 = 123, 6 = 234",
+   "topics": ["general"],
    "where": {
     "section": "5.3.3.4.7",
     "url": "https://www.itl.nist.gov/div898/handbook/pri/section3/pri3347.htm",
@@ -46551,6 +46646,7 @@
   {
    "name": "nist-5-3-3-4-7-2to6m3",
    "title": "The 2^(6-3) of Table 3.17, resolution III, 8 runs: 4 = 12, 5 = 13, 6 = 23",
+   "topics": ["general"],
    "where": {
     "section": "5.3.3.4.7",
     "url": "https://www.itl.nist.gov/div898/handbook/pri/section3/pri3347.htm",
@@ -47224,6 +47320,7 @@
   {
    "name": "nist-5-3-3-4-7-2to7m1",
    "title": "The 2^(7-1) of Table 3.17, resolution VII, 64 runs: 7 = 123456",
+   "topics": ["general"],
    "where": {
     "section": "5.3.3.4.7",
     "url": "https://www.itl.nist.gov/div898/handbook/pri/section3/pri3347.htm",
@@ -47660,6 +47757,7 @@
   {
    "name": "nist-5-3-3-4-7-2to7m2",
    "title": "The 2^(7-2) of Table 3.17, resolution IV, 32 runs: 6 = 1234, 7 = 1245",
+   "topics": ["general"],
    "where": {
     "section": "5.3.3.4.7",
     "url": "https://www.itl.nist.gov/div898/handbook/pri/section3/pri3347.htm",
@@ -48201,6 +48299,7 @@
   {
    "name": "nist-5-3-3-4-7-2to7m3",
    "title": "The 2^(7-3) of Table 3.17, resolution IV, 16 runs: 5 = 123, 6 = 234, 7 = 134",
+   "topics": ["general"],
    "where": {
     "section": "5.3.3.4.7",
     "url": "https://www.itl.nist.gov/div898/handbook/pri/section3/pri3347.htm",
@@ -49029,6 +49128,7 @@
   {
    "name": "nist-5-3-3-4-7-2to7m4",
    "title": "The 2^(7-4) of Table 3.17, resolution III, 8 runs: 4 = 12, 5 = 13, 6 = 23, 7 = 123",
+   "topics": ["general"],
    "where": {
     "section": "5.3.3.4.7",
     "url": "https://www.itl.nist.gov/div898/handbook/pri/section3/pri3347.htm",
@@ -49880,6 +49980,7 @@
   {
    "name": "nist-5-3-3-4-7-2to8m1",
    "title": "The 2^(8-1) of Table 3.17, resolution VIII, 128 runs: 8 = 1234567",
+   "topics": ["general"],
    "where": {
     "section": "5.3.3.4.7",
     "url": "https://www.itl.nist.gov/div898/handbook/pri/section3/pri3347.htm",
@@ -50409,6 +50510,7 @@
   {
    "name": "nist-5-3-3-4-7-2to8m2",
    "title": "The 2^(8-2) of Table 3.17, resolution V, 64 runs: 7 = 1234, 8 = 1256",
+   "topics": ["general"],
    "where": {
     "section": "5.3.3.4.7",
     "url": "https://www.itl.nist.gov/div898/handbook/pri/section3/pri3347.htm",
@@ -50799,6 +50901,7 @@
   {
    "name": "nist-5-3-3-4-7-2to8m3",
    "title": "The 2^(8-3) of Table 3.17, resolution IV, 32 runs: 6 = 123, 7 = 124, 8 = 2345",
+   "topics": ["general"],
    "where": {
     "section": "5.3.3.4.7",
     "url": "https://www.itl.nist.gov/div898/handbook/pri/section3/pri3347.htm",
@@ -51616,6 +51719,7 @@
   {
    "name": "nist-5-3-3-4-7-2to8m4",
    "title": "The 2^(8-4) of Table 3.17, resolution IV, 16 runs: 5 = 234, 6 = 134, 7 = 123, 8 = 124",
+   "topics": ["general"],
    "where": {
     "section": "5.3.3.4.7",
     "url": "https://www.itl.nist.gov/div898/handbook/pri/section3/pri3347.htm",
@@ -52629,6 +52733,7 @@
   {
    "name": "nist-5-3-3-4-7-2to9m2",
    "title": "The 2^(9-2) of Table 3.17, resolution VI, 128 runs: 8 = 13467, 9 = 23567",
+   "topics": ["general"],
    "where": {
     "section": "5.3.3.4.7",
     "url": "https://www.itl.nist.gov/div898/handbook/pri/section3/pri3347.htm",
@@ -53008,6 +53113,7 @@
   {
    "name": "nist-5-3-3-4-7-2to9m3",
    "title": "The 2^(9-3) of Table 3.17, resolution IV, 64 runs: 7 = 1234, 8 = 1356, 9 = 3456",
+   "topics": ["general"],
    "where": {
     "section": "5.3.3.4.7",
     "url": "https://www.itl.nist.gov/div898/handbook/pri/section3/pri3347.htm",
@@ -53520,6 +53626,7 @@
   {
    "name": "nist-5-3-3-4-7-2to9m4",
    "title": "The 2^(9-4) of Table 3.17, resolution IV, 32 runs: 6 = 2345, 7 = 1345, 8 = 1245, 9 = 1235",
+   "topics": ["general"],
    "where": {
     "section": "5.3.3.4.7",
     "url": "https://www.itl.nist.gov/div898/handbook/pri/section3/pri3347.htm",
@@ -54558,6 +54665,7 @@
   {
    "name": "nist-5-3-3-4-7-2to9m5",
    "title": "The 2^(9-5) of Table 3.17, resolution III, 16 runs: 5 = 123, 6 = 234, 7 = 134, 8 = 124, 9 = 1234",
+   "topics": ["general"],
    "where": {
     "section": "5.3.3.4.7",
     "url": "https://www.itl.nist.gov/div898/handbook/pri/section3/pri3347.htm",
@@ -54877,6 +54985,7 @@
   {
    "name": "nist-5-3-3-4-7-2to10m3",
    "title": "The 2^(10-3) of Table 3.17, resolution V, 128 runs: 8 = 1237, 9 = 2345, 10 = 1346",
+   "topics": ["general"],
    "where": {
     "section": "5.3.3.4.7",
     "url": "https://www.itl.nist.gov/div898/handbook/pri/section3/pri3347.htm",
@@ -55292,6 +55401,7 @@
   {
    "name": "nist-5-3-3-4-7-2to10m4",
    "title": "The 2^(10-4) of Table 3.17, resolution IV, 64 runs: 7 = 2346, 8 = 1346, 9 = 1245, 10 = 1235",
+   "topics": ["general"],
    "where": {
     "section": "5.3.3.4.7",
     "url": "https://www.itl.nist.gov/div898/handbook/pri/section3/pri3347.htm",
@@ -55889,6 +55999,7 @@
   {
    "name": "nist-5-3-3-4-7-2to10m5",
    "title": "The 2^(10-5) of Table 3.17, resolution IV, 32 runs: 6 = 1234, 7 = 1235, 8 = 1245, 9 = 1345, 10 = 2345",
+   "topics": ["general"],
    "where": {
     "section": "5.3.3.4.7",
     "url": "https://www.itl.nist.gov/div898/handbook/pri/section3/pri3347.htm",
@@ -56232,6 +56343,7 @@
   {
    "name": "nist-5-3-3-4-7-2to10m6",
    "title": "The 2^(10-6) of Table 3.17, resolution III, 16 runs: 5 = 123, 6 = 234, 7 = 134, 8 = 124, 9 = 1234, 10 = 12",
+   "topics": ["general"],
    "where": {
     "section": "5.3.3.4.7",
     "url": "https://www.itl.nist.gov/div898/handbook/pri/section3/pri3347.htm",
@@ -56576,6 +56688,7 @@
   {
    "name": "nist-5-3-3-4-7-2to11m4",
    "title": "The 2^(11-4) of Table 3.17, resolution V, 128 runs: 8 = 1237, 9 = 2345, 10 = 1346, 11 = 1234567",
+   "topics": ["general"],
    "where": {
     "section": "5.3.3.4.7",
     "url": "https://www.itl.nist.gov/div898/handbook/pri/section3/pri3347.htm",
@@ -57006,6 +57119,7 @@
   {
    "name": "nist-5-3-3-4-7-2to11m5",
    "title": "The 2^(11-5) of Table 3.17, resolution IV, 64 runs: 7 = 345, 8 = 1234, 9 = 126, 10 = 2456, 11 = 1456",
+   "topics": ["general"],
    "where": {
     "section": "5.3.3.4.7",
     "url": "https://www.itl.nist.gov/div898/handbook/pri/section3/pri3347.htm",
@@ -57389,6 +57503,7 @@
   {
    "name": "nist-5-3-3-4-7-2to11m6",
    "title": "The 2^(11-6) of Table 3.17, resolution IV, 32 runs: 6 = 123, 7 = 234, 8 = 345, 9 = 134, 10 = 145, 11 = 245",
+   "topics": ["general"],
    "where": {
     "section": "5.3.3.4.7",
     "url": "https://www.itl.nist.gov/div898/handbook/pri/section3/pri3347.htm",
@@ -57757,6 +57872,7 @@
   {
    "name": "nist-5-3-3-4-7-2to11m7",
    "title": "The 2^(11-7) of Table 3.17, resolution III, 16 runs: 5 = 123, 6 = 234, 7 = 134, 8 = 124, 9 = 1234, 10 = 12, 11 = 13",
+   "topics": ["general"],
    "where": {
     "section": "5.3.3.4.7",
     "url": "https://www.itl.nist.gov/div898/handbook/pri/section3/pri3347.htm",
@@ -58126,6 +58242,7 @@
   {
    "name": "nist-5-3-3-4-7-2to15m11",
    "title": "The 2^(15-11) of Table 3.17, resolution III, 16 runs: 5 = 12, 6 = 13, 7 = 14, 8 = 23, 9 = 24, 10 = 34, 11 = 123, 12 = 124, 13 = 134, 14 = 234, 15 = 1234",
+   "topics": ["general"],
    "where": {
     "section": "5.3.3.4.7",
     "url": "https://www.itl.nist.gov/div898/handbook/pri/section3/pri3347.htm",
@@ -58673,6 +58790,7 @@
   {
    "name": "nist-5-3-3-4-7-2to31m26",
    "title": "The 2^(31-26) of Table 3.17, resolution III, 32 runs: 6 = 12, 7 = 13, 8 = 14, 9 = 15, 10 = 23, 11 = 24, 12 = 25, 13 = 34, 14 = 35, 15 = 45, 16 = 123, 17 = 124, 18 = 125, 19 = 134, 20 = 135, 21 = 145, 22 = 234, 23 = 235, 24 = 245, 25 = 345, 26 = 1234, 27 = 1235, 28 = 1245, 29 = 1345, 30 = 2345, 31 = 12345",
+   "topics": ["general"],
    "where": {
     "section": "5.3.3.4.7",
     "url": "https://www.itl.nist.gov/div898/handbook/pri/section3/pri3347.htm",
@@ -59689,6 +59807,7 @@
   {
    "name": "nist-5-3-3-2-7-summary-table",
    "title": "The earlier Table 3.17: 25 useful two-level fractions in 3 to 11 factors, their resolution, runs and generators in letters",
+   "topics": ["general"],
    "where": {
     "section": "5.3.3.2.7",
     "url": "https://www.itl.nist.gov/div898/handbook/pri/section3/pri3327.htm"
@@ -60814,6 +60933,7 @@
   {
    "name": "nist-5-3-3-5-plackett-burman-12-runs",
    "title": "The 12-run Plackett-Burman design for up to 11 factors (TABLE 3.18)",
+   "topics": ["general"],
    "where": {
     "section": "5.3.3.5",
     "url": "https://www.itl.nist.gov/div898/handbook/pri/section3/pri335.htm"
@@ -61084,6 +61204,7 @@
   {
    "name": "nist-5-3-3-5-plackett-burman-20-runs",
    "title": "The 20-run Plackett-Burman design for up to 19 factors (TABLE 3.19)",
+   "topics": ["general"],
    "where": {
     "section": "5.3.3.5",
     "url": "https://www.itl.nist.gov/div898/handbook/pri/section3/pri335.htm"
@@ -61393,6 +61514,7 @@
   {
    "name": "nist-5-3-3-5-plackett-burman-24-runs",
    "title": "The 24-run Plackett-Burman design for up to 23 factors (TABLE 3.20)",
+   "topics": ["general"],
    "where": {
     "section": "5.3.3.5",
     "url": "https://www.itl.nist.gov/div898/handbook/pri/section3/pri335.htm"
@@ -61752,6 +61874,7 @@
   {
    "name": "nist-5-3-3-8-1-mirror-image-2to5m2",
    "title": "The 2^(5-2) with 4 = 12, 5 = 13 (TABLE 3.34) and its mirror-image foldover: 16 runs of resolution IV",
+   "topics": ["general"],
    "where": {
     "section": "5.3.3.8.1",
     "url": "https://www.itl.nist.gov/div898/handbook/pri/section3/pri3381.htm"
@@ -62071,6 +62194,7 @@
   {
    "name": "nist-5-3-3-8-1-mirror-image-2to7m4",
    "title": "The 2^(7-4) with 4 = 12, 5 = 13, 6 = 23, 7 = 123 and its mirror-image foldover, which de-aliases the main effects",
+   "topics": ["general"],
    "where": {
     "section": "5.3.3.8.1",
     "url": "https://www.itl.nist.gov/div898/handbook/pri/section3/pri3381.htm"
@@ -62760,6 +62884,7 @@
   {
    "name": "nist-5-3-3-8-2-reverse-x4-foldover",
    "title": "The 2^(7-4) of 5.3.3.8.1 with its \"Reverse X4\" foldover (TABLE 3.36): 16 runs that de-alias X4 and its interactions",
+   "topics": ["general"],
    "where": {
     "section": "5.3.3.8.2",
     "url": "https://www.itl.nist.gov/div898/handbook/pri/section3/pri3382.htm"
