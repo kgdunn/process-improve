@@ -712,6 +712,23 @@ class TestShadow:
         assert z[radius < 0.95].all()  # every cell well inside the circle holds a sampled point
         assert not z[radius > 1.05].any()
 
+    def test_a_mask_on_a_pair_after_the_first_two_factors(self):
+        """The shadow of the ellipsoid a**2/2 + b**2 + c**2 <= 1 (coded) on B and C is the unit disc there.
+
+        On A and B it is the wider ellipse a**2/2 + b**2 <= 1, so the columns cannot be mixed up unseen.
+        """
+        factors = [Factor(name="A", low=-1, high=1), Factor(name="B", low=0, high=4), Factor(name="C", low=10, high=20)]
+        region = DesignRegion(factors, ["A**2/2 + (B - 2)**2/4 + (C - 15)**2/25 <= 1"])
+        shadow = region.shadow("B", "C")
+        assert shadow["kind"] == "mask"
+        assert shadow["x"][:2] == [0.05, 0.15]
+        assert shadow["y"][:2] == [10.125, 10.375]
+        z = np.array(shadow["z"])
+        b, c = np.meshgrid((np.array(shadow["x"]) - 2) / 2, (np.array(shadow["y"]) - 15) / 5)
+        assert z[np.hypot(b, c) < 0.95].all()
+        assert not z[np.hypot(b, c) > 1.05].any()
+        np.testing.assert_array_equal(np.array(region.shadow("C", "B")["z"]), z.T)
+
     def test_a_mask_is_drawn_in_actual_units(self):
         factors = [Factor(name="A", low=0, high=4), Factor(name="B", low=10, high=12)]
         shadow = DesignRegion(factors, ["(A - 2)**2 + (B - 11)**2 <= 1"]).shadow("A", "B")
@@ -728,20 +745,22 @@ class TestShadow:
             DesignRegion(HEAT_FACTORS, [HEAT]).shadow(x, y)
 
     @_settings
-    @given(linear_regions())
-    def test_it_is_the_hull_of_the_projected_vertices_and_holds_every_allowed_point(self, case):
+    @given(linear_regions(), st.data())
+    def test_it_is_the_hull_of_the_projected_vertices_and_holds_every_allowed_point(self, case, data):
+        """On any ordered pair of factors, so a mix-up of the columns or their ranges shows."""
         factors, expressions, lows, highs, coefficients, rhs = case
+        pair = data.draw(st.lists(st.integers(0, len(factors) - 1), min_size=2, max_size=2, unique=True))
         region = DesignRegion(factors, expressions)
-        points = np.array(region.shadow("X0", "X1")["points"]).reshape(-1, 2)
+        points = np.array(region.shadow(f"X{pair[0]}", f"X{pair[1]}")["points"]).reshape(-1, 2)
         vertices = _brute_vertices(lows, highs, coefficients, rhs)
         if not len(vertices):
             assert not len(points)
             return
-        assert _is_hull_of(points, vertices[:, :2])
+        assert _is_hull_of(points, vertices[:, pair])
         # Every allowed point of a sample of the box falls inside the shadow.
         sample = lows + (highs - lows) * np.random.default_rng(0).random((4000, len(lows)))
         allowed = sample[np.all(sample @ coefficients.T <= rhs + 1e-12, axis=1)]
-        assert _inside_polygon(allowed[:, :2], points, tol=1e-6).all()
+        assert _inside_polygon(allowed[:, pair], points, tol=1e-6).all()
 
 
 class TestSlicePolygon:
@@ -810,21 +829,41 @@ class TestSlicePolygon:
             DesignRegion(TPF, ["T <= 190"]).slice_polygon("T", "P", at)
 
     @_settings
-    @given(linear_regions(max_factors=4), st.integers(0, 8))
-    def test_its_corners_meet_every_limit_and_it_is_the_clipped_rectangle(self, case, eighths):
-        """Held values on a grid of eighths: exact, so the boundary cases are decided the same way by both."""
+    @given(linear_regions(max_factors=4), st.integers(0, 8), st.data())
+    def test_its_corners_meet_every_limit_and_it_is_the_clipped_rectangle(self, case, eighths, data):
+        """Held values on a grid of eighths: exact, so the boundary cases are decided the same way by both.
+
+        The pair is any ordered pair of factors, so a mix-up of the columns or their ranges shows.
+        """
         factors, expressions, lows, highs, coefficients, rhs = case
+        pair = data.draw(st.lists(st.integers(0, len(factors) - 1), min_size=2, max_size=2, unique=True))
+        others = [j for j in range(len(factors)) if j not in pair]
         share = eighths / 8
         region = DesignRegion(factors, expressions)
-        held = lows[2:] + share * (highs[2:] - lows[2:])
-        at = {f"X{j + 2}": float(v) for j, v in enumerate(held)}
-        points = np.array(region.slice_polygon("X0", "X1", at)["points"]).reshape(-1, 2)
-        # The slice is {low <= (X0, X1) <= high, c[:2] @ p <= rhs - c[2:] @ held}: try every pair of boundaries.
-        expected = _brute_vertices(lows[:2], highs[:2], coefficients[:, :2], rhs - coefficients[:, 2:] @ held)
+        held = lows[others] + share * (highs[others] - lows[others])
+        at = {f"X{j}": float(v) for j, v in zip(others, held, strict=True)}
+        points = np.array(region.slice_polygon(f"X{pair[0]}", f"X{pair[1]}", at)["points"]).reshape(-1, 2)
+        # The slice is {low <= p <= high, c[pair] @ p <= rhs - c[others] @ held}: try every pair of boundaries.
+        reduced = rhs - coefficients[:, others] @ held
+        expected = _brute_vertices(lows[pair], highs[pair], coefficients[:, pair], reduced)
         assert _is_hull_of(points, expected)
-        full = np.column_stack([points, np.tile(held, (len(points), 1))])
+        full = np.zeros((len(points), len(factors)))
+        full[:, pair], full[:, others] = points, held
         assert np.all(full @ coefficients.T <= rhs + 1e-7)
-        assert np.all((points >= lows[:2] - 1e-9) & (points <= highs[:2] + 1e-9))
+        assert np.all((points >= lows[pair] - 1e-9) & (points <= highs[pair] + 1e-9))
+
+    def test_the_axes_follow_the_names_given(self):
+        region = DesignRegion(TPF, ["T + 25*P + 5*F <= 350"])
+        forward = region.slice_polygon("T", "P", {"F": 20})["points"]
+        swapped = region.slice_polygon("P", "T", {"F": 20})["points"]
+        assert swapped == [[1.0, 150.0], [3.0, 150.0], [3.0, 175.0], [2.0, 200.0], [1.0, 200.0]]
+        assert sorted(point[::-1] for point in swapped) == sorted(forward)
+
+    def test_a_pair_after_the_first_two_factors_uses_its_own_ranges(self):
+        """T and F, with P held: F runs from 10 to 20, where P runs from 1 to 3."""
+        region = DesignRegion(TPF, ["T + 5*F <= 250"])
+        assert region.slice_polygon("T", "F", {"P": 2})["points"] == [[150.0, 10.0], [200.0, 10.0], [150.0, 20.0]]
+        assert region.slice_polygon("F", "T")["points"] == [[10.0, 150.0], [20.0, 150.0], [10.0, 200.0]]
 
 
 class TestSliceLines:
@@ -843,6 +882,13 @@ class TestSliceLines:
     def test_a_chain_can_give_two_lines(self):
         region = DesignRegion(HEAT_FACTORS, ["560 <= 3*T + 5*D <= 600"])
         assert [line["limit"] for line in region.slice_lines("T", "D")] == [0, 0]
+
+    def test_lines_on_any_pair_in_either_order(self):
+        region = DesignRegion(TPF, ["T + 5*F <= 250"])
+        assert region.slice_lines("T", "F") == [{"limit": 0, "points": [[150.0, 20.0], [200.0, 10.0]]}]
+        assert region.slice_lines("F", "T") == [{"limit": 0, "points": [[10.0, 200.0], [20.0, 150.0]]}]
+        held = DesignRegion(TPF, ["T + 25*P + 5*F <= 350"])
+        assert held.slice_lines("P", "T", {"F": 20}) == [{"limit": 0, "points": [[2.0, 200.0], [3.0, 175.0]]}]
 
     def test_a_boundary_touching_only_a_corner_gives_no_line(self):
         assert DesignRegion(HEAT_FACTORS, ["T + D <= 120"]).slice_lines("T", "D") == []
@@ -871,6 +917,25 @@ class TestSliceSlack:
             allowed = region.feasible(np.column_stack([(a.ravel() - 1) / 2, (b.ravel() - 2) / 2]))
         np.testing.assert_array_equal(slack.ravel() > 0, ~allowed)
         np.testing.assert_array_equal(slack.ravel() <= 0, allowed)
+
+    def test_the_slack_follows_the_names_given(self):
+        """P along x and T along y, with F held: (P, T) = (3, 150) can be run and (3, 200) cannot."""
+        region = DesignRegion(TPF, ["T + 25*P + 5*F <= 350"])
+        p, t = np.meshgrid(np.linspace(1, 3, 9), np.linspace(150, 200, 11))
+        swapped = region.slice_slack("P", "T", p, t, {"F": 20})
+        np.testing.assert_array_equal(swapped, region.slice_slack("T", "P", t, p, {"F": 20}))
+        assert swapped[0, -1] == 0.0
+        assert swapped[-1, -1] > 0
+        coded = np.column_stack([(t.ravel() - 175) / 25, p.ravel() - 2, np.ones(t.size)])
+        np.testing.assert_array_equal(swapped.ravel() <= 0, region.feasible(coded))
+
+    def test_the_slack_of_a_pair_after_the_first_two_factors(self):
+        region = DesignRegion(TPF, ["T + 5*F <= 250"])
+        t, f = np.meshgrid(np.linspace(150, 200, 11), np.linspace(10, 20, 11))
+        slack = region.slice_slack("T", "F", t, f, {"P": 3})
+        coded = np.column_stack([(t.ravel() - 175) / 25, np.ones(t.size), (f.ravel() - 15) / 5])
+        np.testing.assert_array_equal(slack.ravel() <= 0, region.feasible(coded))
+        assert 0 < (slack <= 0).mean() < 1
 
     def test_a_linear_limit_gives_its_distance_in_coded_units(self):
         region = DesignRegion(HEAT_FACTORS, [HEAT])
