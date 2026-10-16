@@ -233,3 +233,19 @@ def type_limit(page: Any, text: str, note: str = "") -> None:  # noqa: ANN401
         row.locator("[name=note]").fill(note)
     row.locator("[name=expression]").press("Tab")
     limits_done(page)
+
+
+def corners_done(page: Any) -> None:  # noqa: ANN401
+    """Open the limits on the settings, if they are closed, and wait until Python has drawn the table of corners."""
+    reveal(page, "#limits")
+    if not page.evaluate("document.querySelector('#limits').open"):
+        page.click("#limits summary")
+    page.wait_for_timeout(300)  # the panel waits for the clicking to rest before it asks
+    page.wait_for_function("window.__pi.idle() && !document.querySelector('#corners').hidden", timeout=30_000)
+
+
+def mark_corners(page: Any, *rows: int) -> None:  # noqa: ANN401
+    """Tick "cannot run" on these rows of the table of corners, and wait for the limit Python proposes."""
+    for row in rows:
+        page.click(f'#corner-table tr[data-row="{row}"] input')
+    corners_done(page)

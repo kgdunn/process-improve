@@ -608,6 +608,37 @@ export const cutWords = (cut, factor) => (cut.at === factor.high ? "can go up to
 export const alsoRuledOut = (proposal, marked, ruledOutBy) =>
   (proposal.removes ?? []).filter((row) => !marked.includes(row) && !ruledOutBy[row]?.length);
 
+/** Up to this many corners a sentence names one by one; from more, the first two and how many others. */
+const CORNERS_NAMED = 3;
+
+/**
+ * Settings of the table of corners named in a sentence, by their rows of ``probes``. One corner is named
+ * by its settings. Corners that make up a face of the ranges are named by what they share ("the 2
+ * corners where T is 200 degC and P is 3 bar"), since that is how a reader marks them; other corners
+ * one by one, up to three. The center of the ranges comes last.
+ */
+export function cornersWords(rows, probes, factors) {
+  const units = Object.fromEntries(factors.map((f) => [f.name, f.units ?? ""]));
+  const { columns } = probes;
+  const corners = rows.filter((row) => row !== probes.center);
+  const label = (row) => settingLabel(probes.rows[row], columns, factors);
+  const parts = [];
+  if (corners.length === 1) parts.push(`the corner ${label(corners[0])}`);
+  if (corners.length > 1) {
+    const fixed = columns.filter((_, j) => new Set(corners.map((row) => probes.rows[row][j])).size === 1);
+    const at = (name) => `${name} is ${inUnits(probes.rows[corners[0]][columns.indexOf(name)], units[name])}`;
+    if (corners.length === 2 ** (columns.length - fixed.length)) {
+      parts.push(fixed.length ? `the ${corners.length} corners where ${listNames(fixed.map(at))}` : "every corner");
+    } else {
+      const named =
+        corners.length <= CORNERS_NAMED ? corners.map(label) : [...corners.slice(0, 2).map(label), `and ${corners.length - 2} more`];
+      parts.push(`the ${corners.length} corners (${named.join("; ")})`);
+    }
+  }
+  if (rows.includes(probes.center)) parts.push("the center of the ranges");
+  return parts.join(", and ");
+}
+
 // ---------------------------------------------------------------- colour mode
 /** The colour modes the switch in the header offers: the system's, light and dark, as the book's does. */
 export const MODES = ["auto", "light", "dark"];

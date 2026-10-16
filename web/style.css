@@ -408,6 +408,34 @@ label.inline { display: flex; flex-direction: column; gap: 4px; font-size: 0.9re
 @media (pointer: coarse) { .chip, .limit__remove { min-width: 44px; min-height: 44px; } }
 #limits-summary .error { display: block; }
 
+/* The corners of the ranges, to mark those that cannot be run: a corner a limit rules out already is ticked and
+   greyed, one marked is tinted, and each proposal is a card like a limit's, its text in the limits' type. */
+.corners h3 { font-size: 0.98rem; margin: 18px 0 4px; }
+.corner-filters { display: flex; flex-wrap: wrap; gap: 6px 14px; margin: 8px 0; font-size: 0.9rem; }
+.corner-filters label { display: inline-flex; align-items: center; gap: 6px; }
+.corner-filters select { width: auto; }
+table.corner-table td:first-child { white-space: nowrap; }
+.corner__mark { display: inline-flex; align-items: center; gap: 6px; min-height: 28px; cursor: pointer; }
+.corner__mark input { width: auto; margin: 0; accent-color: var(--accent); }
+@media (pointer: coarse) { .corner__mark { min-height: 44px; min-width: 44px; } }
+table.corner-table tr.marked td { background: color-mix(in srgb, var(--warn) 14%, var(--panel)); }
+table.corner-table tr.ruled td { color: var(--muted); }
+table.corner-table tr.ruled .corner__mark { cursor: default; }
+.proposals { display: grid; gap: 8px; margin: 8px 0 0; }
+.proposal { padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg); }
+.proposal p { margin: 4px 0; }
+.proposal .actions { margin: 6px 0 2px; }
+.proposal__text { font-family: ui-monospace, "SFMono-Regular", Menlo, monospace; font-size: 0.95rem; overflow-wrap: anywhere; }
+.hint.warn { color: var(--warn); }
+.link[aria-disabled="true"] { opacity: 0.5; cursor: default; }
+table.corner-table th { padding: 4px 10px; vertical-align: bottom; }
+table.corner-table .col-unit { padding: 0; }
+.cuts { margin: 4px 0 0; padding: 6px 0 0; border-top: 1px solid var(--line); }
+.cut { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 14px; margin: 6px 0; font-size: 0.92rem; }
+.cut__question input { width: 7em; margin: 0 4px; }
+.cut__free { display: inline-flex; align-items: center; gap: 6px; color: var(--muted); }
+.cut__free input { width: auto; margin: 0; accent-color: var(--accent); }
+
 /* What the study is to learn: one choice, each with what it means. */
 .aims { display: grid; gap: 8px; margin: 6px 0 4px; }
 .aim { align-items: flex-start; padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg); }

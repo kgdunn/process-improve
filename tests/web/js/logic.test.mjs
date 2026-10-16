@@ -7,6 +7,7 @@ import { describe, test } from "node:test";
 import {
   AXIAL_DISTANCE,
   alsoRuledOut,
+  cornersWords,
   cutWords,
   filterCorners,
   settingLabel,
@@ -678,5 +679,22 @@ describe("the table of corners", () => {
     const ruledOutBy = [[], [], [], [], [], [], [], [0], []];
     assert.deepEqual(alsoRuledOut({ removes: [5, 6, 7] }, [6], ruledOutBy), [5]);
     assert.deepEqual(alsoRuledOut({ problem: "no cut" }, [6], ruledOutBy), []);
+  });
+
+  test("corners are named one by one, or by the face of the ranges they make up", () => {
+    const probes = { columns, rows: [...rows, [175, 2, 15]], center: 8 };
+    const words = (marked) => cornersWords(marked, probes, factors);
+    assert.equal(words([7]), "the corner T 200 degC, P 3 bar, F 20");
+    assert.equal(words([6, 7]), "the 2 corners where T is 200 degC and P is 3 bar");
+    assert.equal(words([4, 5, 6, 7, 8]), "the 4 corners where T is 200 degC, and the center of the ranges");
+    assert.equal(words([0, 1, 2, 3, 4, 5, 6, 7]), "every corner");
+    assert.equal(words([8]), "the center of the ranges");
+    assert.equal(
+      words([3, 6, 7]),
+      "the 3 corners (T 150 degC, P 3 bar, F 20; T 200 degC, P 3 bar, F 10; T 200 degC, P 3 bar, F 20)",
+      "three corners that are not a face are named one by one",
+    );
+    assert.equal(words([0, 3, 5, 6]), "the 4 corners (T 150 degC, P 1 bar, F 10; T 150 degC, P 3 bar, F 20; and 2 more)");
+    assert.equal(words([0, 7]), "the 2 corners (T 150 degC, P 1 bar, F 10; T 200 degC, P 3 bar, F 20)");
   });
 });

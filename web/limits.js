@@ -2,7 +2,9 @@
 // cannot be run. Each limit is typed as an inequality in the factors' own units, and Python
 // (api_limits) reads it as the library will, says what it rules out, and gives back its canonical
 // text. The panel holds the limits as the reader types them; the page asks it for them when it
-// makes the run sheet or lists the designs, and waits while a limit cannot be read.
+// makes the run sheet or lists the designs, and waits while a limit cannot be read. The settings
+// marked "cannot run" in the table of corners (corners.js) go with each request, and Python
+// proposes a limit for them.
 
 import {
   MAX_CONSTRAINTS,
@@ -15,6 +17,7 @@ import {
   renameLimit,
   withBounds,
 } from "./logic.js";
+import { clearMarks, cutsAsked, forgetCuts, installCorners, markedRows, renderCorners } from "./corners.js";
 
 const $ = (sel) => document.querySelector(sel);
 
@@ -24,12 +27,20 @@ const LIMITS_WAIT = 250;
 /** What the page lends the panel: Python's entry points, the brief's factors, and what to do when the limits change. */
 let hooks = null;
 
-/** The last reply of api_limits, and the request it answered, as JSON; a request in flight has its own ticket. */
+/**
+ * The last reply of api_limits; the request it answered, as JSON, whole and for the limits alone; and
+ * the request in flight, with its own ticket.
+ */
 let reply = null;
 let answered = null;
+let answeredLimits = null;
 let asking = null;
 let ticket = 0;
 let timer = null;
+
+/** The factors' kinds, numeric or categorical, by place, and their ranges: the table of corners stands for them. */
+let kinds = null;
+let ranges = null;
 
 /** The expression box the factor buttons type into: the one the reader was in last. */
 let typingIn = null;
@@ -57,11 +68,27 @@ export const hasLimits = () => currentLimits().length > 0;
 /** What keys a run sheet to the limits: each one by its factors' places, so a rename leaves it. */
 export const limitsKey = (names) => currentLimits().map((limit) => positional(limit.expression, names));
 
-/** The request api_limits answers for the brief as it is now. */
-const request = () => ({ factors: hooks.factors(), constraints: currentLimits() });
+/** The factors and limits Python reads: what makes the brief ready or not. */
+const limitsRequest = () => ({ factors: hooks.factors(), constraints: currentLimits() });
 
-/** Whether Python has read the limits as they are now, and found each one it can use. */
-const current = () => reply !== null && answered === JSON.stringify(request());
+/** The request api_limits answers: the limits, and the settings marked "cannot run", with a proposal being adjusted. */
+function request() {
+  const marked = markedRows();
+  const cuts = cutsAsked();
+  return { ...limitsRequest(), ...(marked.length ? { marked } : {}), ...(cuts ? { cuts } : {}) };
+}
+
+/** Whether Python has read the limits as they are now. */
+const current = () => reply !== null && answeredLimits === JSON.stringify(limitsRequest());
+
+/** Whether Python has anything to read: limits, settings marked, or the panel open on its table of corners. */
+const needed = () => hasLimits() || markedRows().length > 0 || $("#limits").open;
+
+/** Note that Python's reply holds for the request as it is now: its canonical text replaced what was typed. */
+function answeredNow() {
+  answered = JSON.stringify(request());
+  answeredLimits = JSON.stringify(limitsRequest());
+}
 
 /**
  * The sentence that holds the brief back, when a limit cannot be read or no design can keep to the
@@ -82,8 +109,10 @@ export const limitsUnready = () => hasLimits() && (!current() || limitsHold() !=
 export function setLimits(limits = []) {
   $("#limit-list").replaceChildren();
   for (const limit of limits) addLimit(limit);
+  clearMarks();
   reply = null;
   answered = null;
+  answeredLimits = null;
   $("#limits").open = limits.length > 0;
   render();
   schedule();
@@ -98,8 +127,19 @@ export function renameInLimits(names) {
   changed();
 }
 
-/** The factors changed, their ranges or their kinds: the limits are read again over them. */
+/**
+ * The factors changed, their ranges or their kinds: the limits are read again over them. A factor
+ * added, removed or made categorical changes what the table's rows stand for, so the marks go; a
+ * range changed moves the corner a proposal is adjusted from, so the cuts given from it go.
+ */
 export function factorsChangedForLimits() {
+  const factors = hooks.factors();
+  const nowKinds = factors.map((f) => (isCategorical(f) ? "c" : "n")).join("");
+  const nowRanges = JSON.stringify(factors.map((f) => (isCategorical(f) ? null : [f.low, f.high])));
+  if (kinds !== null && nowKinds !== kinds) clearMarks();
+  else if (ranges !== null && nowRanges !== ranges) forgetCuts();
+  kinds = nowKinds;
+  ranges = nowRanges;
   renderNames();
   schedule();
 }
@@ -114,7 +154,7 @@ export function adoptLimits(stored = []) {
   typed.forEach((row, i) => {
     if (stored[i]) field(row, "expression").value = stored[i].expression;
   });
-  if (fresh) answered = JSON.stringify(request()); // Python's reply holds for its canonical text as for the text typed
+  if (fresh) answeredNow(); // Python's reply holds for its canonical text as for the text typed
 }
 
 function addLimit({ expression = "", note = "" } = {}) {
@@ -155,7 +195,9 @@ function addLimit({ expression = "", note = "" } = {}) {
   problem.hidden = true;
   row.append(number, text, bounds, why, remove, effect, problem);
   text.addEventListener("focus", () => (typingIn = text));
-  text.addEventListener("blur", () => takeCanonical(row));
+  text.addEventListener("blur", () => {
+    if (takeCanonical(row)) hooks.changed(); // the box reads as the study stores it now
+  });
   for (const box of bounds.querySelectorAll("input")) box.addEventListener("input", () => fromBounds(row));
   $("#limit-list").append(row);
   numberRows();
@@ -210,14 +252,14 @@ function entryOf(row) {
   return sent && sent.expression === field(row, "expression").value.trim() ? reply.result.constraints[i] : null;
 }
 
-/** The reader left a limit's box: it takes the canonical text Python gave it, if Python read it as it is. */
+/** The reader left a limit's box: it takes the canonical text Python gave it, if Python read it as it is. Say whether it did. */
 function takeCanonical(row) {
-  if (!current()) return;
+  if (!current()) return false;
   const entry = entryOf(row);
-  if (entry && !entry.problem && field(row, "expression").value.trim() !== entry.expression) {
-    field(row, "expression").value = entry.expression;
-    answered = JSON.stringify(request()); // the reply holds for the canonical text as for the text typed
-  }
+  if (!entry || entry.problem || field(row, "expression").value.trim() === entry.expression) return false;
+  field(row, "expression").value = entry.expression;
+  answeredNow();
+  return true;
 }
 
 /** The limits changed: say so to the page, and have Python read them once the typing rests. */
@@ -234,25 +276,34 @@ function schedule() {
 
 async function check() {
   timer = null;
-  if (!hasLimits()) {
+  if (!needed()) {
     reply = null;
     answered = null;
+    answeredLimits = null;
     render();
     return;
   }
   const sent = request();
   const key = JSON.stringify(sent);
-  if (key === answered || key === asking) return;
+  if (key === asking) return;
+  if (key === answered) {
+    ticket++; // back to what Python has answered: a reply on its way for something since is not wanted
+    asking = null;
+    return;
+  }
   const mine = ++ticket;
   asking = key;
   const got = await hooks.call("api_limits", sent);
   if (mine !== ticket) return; // the limits changed again while Python read them
+  const before = answeredLimits;
   asking = null;
   reply = got;
   answered = key;
+  answeredLimits = JSON.stringify({ factors: sent.factors, constraints: sent.constraints });
   for (const row of rows()) if (document.activeElement !== field(row, "expression")) takeCanonical(row);
   render();
-  hooks.changed();
+  renderCorners(reply.ok ? reply.result : null, sent.factors);
+  if (answeredLimits !== before) hooks.changed(); // the marks alone change nothing the page shows
 }
 
 /** Show what Python said of each limit, and of all of them, beside the boxes. */
@@ -328,6 +379,18 @@ function typeInto(piece) {
 /** Wire the panel to the page: ``call`` reaches Python, ``factors`` reads the brief's, ``changed`` is told of every change. */
 export function installLimits({ call, factors, changed: onChange }) {
   hooks = { call, factors, changed: onChange };
+  installCorners({
+    changed: schedule,
+    add: (expression) => {
+      const row = addLimit({ expression });
+      changed();
+      field(row, "expression").focus(); // the limit is in the list now, where it can be edited as a typed one
+    },
+    full: () => rows().length >= MAX_CONSTRAINTS,
+  });
+  $("#limits").addEventListener("toggle", () => {
+    if ($("#limits").open) schedule(); // the table of corners is drawn from Python's reply
+  });
   $("#add-limit").onclick = () => {
     const row = addLimit();
     field(row, "expression").focus();

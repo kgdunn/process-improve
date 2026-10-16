@@ -49,6 +49,7 @@ APP_FILES = (
     "app.js",
     "logic.js",
     "limits.js",
+    "corners.js",
     "charts.js",
     "python.js",
     "campaign.js",

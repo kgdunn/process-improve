@@ -161,6 +161,20 @@
             <span id="limits-full" class="hint" hidden>A study can have at most 8 limits.</span>
           </p>
           <p id="limits-summary" class="hint" role="status" aria-live="polite" hidden></p>
+          <!-- The corners of the ranges (corners.js): mark those that cannot be run, and a limit is proposed. -->
+          <div id="corners" class="corners" hidden>
+            <h3 id="h-corners">Or mark the settings you cannot run</h3>
+            <p class="hint">Tick each corner of your ranges that cannot be run, and a limit that rules them out is
+              proposed.</p>
+            <div id="corner-filters" class="corner-filters" role="group" aria-label="Show the corners where" hidden></div>
+            <div class="scroll"><table id="corner-table" class="data corner-table" aria-labelledby="h-corners"></table></div>
+            <p class="actions">
+              <button type="button" id="mark-shown" class="link">Mark all shown</button>
+              <button type="button" id="clear-marks" class="link" hidden>Clear the marks</button>
+              <button type="button" id="more-corners" class="link" hidden></button>
+            </p>
+            <div id="limit-proposals" class="proposals" aria-live="polite"></div>
+          </div>
         </details>
       </section>
 
