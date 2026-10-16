@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import dataclasses
 import warnings
+import xml.etree.ElementTree as ET
 
 import numpy as np
 import pytest
@@ -18,7 +19,9 @@ from process_improve.experiments.design_catalog import (
     INDEX_FIELDS,
     CatalogQuery,
     catalog_comparisons,
+    catalog_errata,
     catalog_families,
+    catalog_feed,
     catalog_records,
     catalog_sources,
     design_facets,
@@ -386,3 +389,71 @@ def test_designs_with_other_factors_or_missing_settings_are_not_scored():
     gap = {**_generated("lib-full-factorial-k3")[0], "id": "gap"}
     gap["coded_runs"] = [[None, *row[1:]] if i == 0 else row for i, row in enumerate(gap["coded_runs"])]
     assert catalog_comparisons([*mixture, gap]) == {}
+
+
+# --------------------------------------------------------------------------- errata, the feed, next steps
+@pytest.mark.dataset
+def test_every_number_known_not_to_reproduce_is_an_erratum_with_its_reason():
+    errata = catalog_errata()
+    explained = sum(printed_checks(e)["explained"] for e in [*reference_experiments(), *reference_designs()])
+    assert len(errata) == explained
+    pilot = next(e for e in errata if e["id"] == "bhh-plant-trial-two-methods" and e["what"] == "std_error")
+    assert (pilot["printed"], pilot["where"], pilot["rounding"]) == ("1.16", "p. 73", True)
+    assert "already rounded" in pilot["reason"]
+
+
+@pytest.mark.parametrize(
+    ("where", "said"),
+    [
+        ({"page": 73, "quote": "..."}, "p. 73"),
+        ({"pdf_page": 4}, "PDF p. 4"),
+        ({"quiz": "Week 3", "question": "q2"}, "quiz Week 3, question q2"),
+        ({"file": "doe.rst", "line": 120}, "doe.rst, line 120"),
+        ({"file": "doe.rst"}, "doe.rst"),
+        ({"url": "https://example.org"}, ""),
+        ("Table 4", "Table 4"),
+        (None, ""),
+    ],
+)
+def test_where_an_erratum_is_printed_is_said_in_a_few_words(where, said):
+    assert design_catalog._errata_where(where) == said
+
+
+def test_the_feed_is_atom_with_an_entry_per_source_newest_first():
+    records = [
+        {
+            "collection": "published",
+            "source": "davies-1956",
+            "added": "2026-10-14",
+            "checks": {"printed": 5, "checked": 4},
+        },
+        {"collection": "published", "source": "davies-1956", "added": "2026-10-14", "checks": None},
+        {
+            "collection": "published",
+            "source": "goos-2025",
+            "added": "2026-10-13",
+            "checks": {"printed": 2, "checked": 2},
+        },
+        {"collection": "published", "source": "pid-book", "added": None, "checks": None},
+        {"collection": "generated", "source": None, "added": None, "checks": None},
+    ]
+    feed = ET.fromstring(catalog_feed(records).encode())  # noqa: S314 - the feed the library just wrote
+    atom = "{http://www.w3.org/2005/Atom}"
+    assert feed.tag == f"{atom}feed"
+    for required in ("title", "id", "updated", "author"):
+        assert feed.find(f"{atom}{required}") is not None
+    entries = feed.findall(f"{atom}entry")
+    assert [e.find(f"{atom}id").text for e in entries] == [
+        f"{CATALOG_URL}#src=davies-1956",
+        f"{CATALOG_URL}#src=goos-2025",
+    ]
+    assert feed.find(f"{atom}updated").text == "2026-10-14T00:00:00Z"
+    assert entries[0].find(f"{atom}title").text.endswith(": 2 designs and experiments")
+    assert "5 printed numbers, 4 of them recomputed" in entries[0].find(f"{atom}summary").text
+
+
+def test_a_family_says_which_families_it_can_lead_to():
+    families = catalog_families()
+    assert {"family": "ccd", "how": "Add center + axial points"} in families["full_factorial"]["next"]
+    assert families["latin_square"]["next"] == []
+    assert all(step["family"] in FAMILIES for f in families.values() for step in f["next"])

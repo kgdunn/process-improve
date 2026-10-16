@@ -24,6 +24,7 @@ import dataclasses
 import functools
 import re
 import warnings
+import xml.etree.ElementTree as ET
 from collections import Counter
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, Literal
@@ -44,6 +45,7 @@ from process_improve.experiments.design_measures import (
 )
 from process_improve.experiments.designs import generate_design
 from process_improve.experiments.factor import Factor, FactorType
+from process_improve.experiments.knowledge.engine import load_knowledge_graph
 from process_improve.experiments.reference_catalogue import (
     reference_designs,
     reference_experiments,
@@ -646,6 +648,17 @@ INDEX_FIELDS = (
 )
 
 
+def _checks(entry: dict[str, Any]) -> list[tuple[dict[str, Any], dict[str, Any]]]:
+    """Return each printed number of an entry with each of its checks: one number may carry several."""
+    return [
+        (expected, check)
+        for expected in entry.get("expected", [])
+        for check in (
+            expected.get("check") if isinstance(expected.get("check"), list) else [expected.get("check") or {}]
+        )
+    ]
+
+
 def printed_checks(entry: dict[str, Any]) -> dict[str, int]:
     """Count an entry's printed numbers: all of them, those recomputed, those that agree, those known not to.
 
@@ -665,13 +678,7 @@ def printed_checks(entry: dict[str, Any]) -> dict[str, int]:
         ``printed`` (every number the source prints for it), ``checked`` (those recomputed),
         ``agree`` (those that reproduce) and ``explained`` (those known not to, with the reason).
     """
-    checks = [
-        check
-        for expected in entry.get("expected", [])
-        for check in (
-            expected.get("check") if isinstance(expected.get("check"), list) else [expected.get("check") or {}]
-        )
-    ]
+    checks = [check for _, check in _checks(entry)]
     checked = [check for check in checks if "kind" in check]
     explained = sum(bool(check.get("disagreement")) for check in checked)
     return {"printed": len(checks), "checked": len(checked), "agree": len(checked) - explained, "explained": explained}
@@ -766,8 +773,146 @@ def catalog_sources() -> dict[str, dict[str, Any]]:
 
 
 def catalog_families() -> dict[str, dict[str, Any]]:
-    """Return each family's name on the page, and the year and work that first published it."""
-    return {key: {"label": f.label, "year": f.year, "reference": f.reference} for key, f in FAMILIES.items()}
+    """Return each family's name on the page, the year and work that first published it, and where it can lead.
+
+    ``next`` lists the families a design of this one can be augmented to, each with how (``how``), as
+    the knowledge base of design types records them (its ``can_augment_to``).
+    """
+    types = load_knowledge_graph().design_types
+    return {
+        key: {
+            "label": f.label,
+            "year": f.year,
+            "reference": f.reference,
+            "next": [
+                {"family": step["target"], "how": step["method"]}
+                for step in (types[key].can_augment_to if key in types else [])
+                if step["target"] in FAMILIES
+            ],
+        }
+        for key, f in FAMILIES.items()
+    }
+
+
+# --------------------------------------------------------------------------- errata, and the feed of sources
+def _errata_where(where: dict[str, Any] | str | None) -> str:
+    """Say in a few words where a source prints a number: its page, its file and line, or its quiz and question."""
+    if not isinstance(where, dict):
+        return str(where or "")
+    if where.get("page"):
+        return f"p. {where['page']}"
+    if where.get("pdf_page"):
+        return f"PDF p. {where['pdf_page']}"
+    if where.get("quiz"):
+        return f"quiz {where['quiz']}, question {where.get('question', '')}".strip(", ")
+    if where.get("file"):
+        return f"{where['file']}, line {where['line']}" if where.get("line") else str(where["file"])
+    return ""
+
+
+def catalog_errata() -> list[dict[str, Any]]:
+    """List every printed number of the reference catalogue that the library does not reproduce, with the reason.
+
+    The test suite requires every recomputed number to agree with its source unless the catalogue records
+    why it does not (its ``disagreement``): the source's rounding, a misprint, or a method that differs
+    from the library's. This lists each of those, in the catalogue's order.
+
+    Returns
+    -------
+    list[dict]
+        One per number: ``id`` (the entry that prints it), ``source``, ``what`` and ``term`` (the
+        quantity), ``printed`` (the value as printed), ``where`` (its page, in a few words), ``url``
+        (its address, for a web source), ``quote`` (the source's words around it), ``reason`` (why
+        the library's value differs) and ``rounding`` (whether the reason mentions rounding).
+
+    Examples
+    --------
+    >>> from process_improve.experiments.design_catalog import catalog_errata
+    >>> first = catalog_errata()[0]
+    >>> sorted(first)[:4]
+    ['id', 'printed', 'quote', 'reason']
+    """
+    found = []
+    for entry in [*reference_experiments(), *reference_designs()]:
+        for expected, check in _checks(entry):
+            if "kind" not in check or not check.get("disagreement"):
+                continue
+            where = expected.get("where")
+            reason = str(check["disagreement"])
+            found.append(
+                {
+                    "id": entry["name"],
+                    "source": entry["source"],
+                    "what": expected.get("what"),
+                    "term": expected.get("term"),
+                    "printed": expected.get("value"),
+                    "where": _errata_where(where),
+                    "url": where.get("url") if isinstance(where, dict) else None,
+                    "quote": where.get("quote") if isinstance(where, dict) else None,
+                    "reason": reason,
+                    "rounding": bool(re.search(r"\bround", reason, flags=re.IGNORECASE)),
+                }
+            )
+    return found
+
+
+def catalog_feed(records: Sequence[dict[str, Any]]) -> str:
+    """Return an Atom feed of the catalog's sources: one entry for each, by the date it entered the catalogue.
+
+    A reader who follows the feed learns when a source is added. Each entry links to the catalog filtered
+    to the source's designs, and says how many it holds and how many of their printed numbers the library
+    recomputes. A source whose date of entry is not recorded is left out.
+
+    Parameters
+    ----------
+    records : Sequence[dict]
+        Records of the catalog (see :func:`catalog_records`); the published ones are counted by source.
+
+    Returns
+    -------
+    str
+        The feed, as an XML document, the newest source first.
+    """
+    atom = "http://www.w3.org/2005/Atom"
+    ET.register_namespace("", atom)
+
+    def add(parent: ET.Element, tag: str, text: str | None = None, **attributes: str) -> ET.Element:
+        child = ET.SubElement(parent, f"{{{atom}}}{tag}", attributes)
+        child.text = text
+        return child
+
+    held: dict[str, list[dict[str, Any]]] = {}
+    for record in records:
+        if record["collection"] == "published" and record.get("added"):
+            held.setdefault(record["source"], []).append(record)
+    sources = catalog_sources()
+    dated = sorted(held, key=lambda key: (held[key][0]["added"], key), reverse=True)
+    feed = ET.Element(f"{{{atom}}}feed")
+    add(feed, "title", "Design catalog: the sources it holds")
+    add(feed, "subtitle", "Published designed experiments, each source added with its runs and printed numbers.")
+    add(feed, "id", f"{CATALOG_URL}feed.xml")
+    add(feed, "link", rel="self", href=f"{CATALOG_URL}feed.xml")
+    add(feed, "link", rel="alternate", href=CATALOG_URL)
+    add(feed, "updated", f"{held[dated[0]][0]['added']}T00:00:00Z" if dated else "1970-01-01T00:00:00Z")
+    add(add(feed, "author"), "name", "process-improve")
+    for key in dated:
+        source, entries = sources[key], held[key]
+        checks = [r["checks"] for r in entries if r.get("checks")]
+        recomputed = sum(c["checked"] for c in checks)
+        printed = sum(c["printed"] for c in checks)
+        item = add(feed, "entry")
+        add(item, "title", f"{source['short']} ({source['year']}): {len(entries)} designs and experiments")
+        add(item, "id", f"{CATALOG_URL}#src={key}")
+        add(item, "link", rel="alternate", href=f"{CATALOG_URL}#src={key}")
+        add(item, "updated", f"{entries[0]['added']}T00:00:00Z")
+        add(
+            item,
+            "summary",
+            f"{source['cite']}. {len(entries)} entries enter the catalog, with {printed} printed numbers, "
+            f"{recomputed} of them recomputed by the library.",
+        )
+    ET.indent(feed)
+    return '<?xml version="1.0" encoding="utf-8"?>\n' + ET.tostring(feed, encoding="unicode") + "\n"
 
 
 # --------------------------------------------------------------------------- comparing designs
