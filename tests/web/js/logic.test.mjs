@@ -30,6 +30,7 @@ import {
   escape,
   factorType,
   fitStatistics,
+  fittedFormula,
   fmt,
   GOALS,
   OPTIMAL_MODEL,
@@ -65,8 +66,10 @@ import {
   responseName,
   responseTitle,
   shownTheme,
+  showsVif,
   sortNumber,
   termLabel,
+  VIF_HIGH,
   withUnits,
 } from "../../../web/logic.js";
 
@@ -266,6 +269,25 @@ describe("the terms a reader ticks", () => {
     const factors = [three[0], { name: "S", low: "A", high: "B" }];
     assert.deepEqual(candidateTerms(factors).filter((t) => t.group === "Squares").map((t) => t.label), ["T²"]);
     assert.deepEqual(namedModelTerms("quadratic", factors).at(-1), ["T", "T"]);
+  });
+});
+
+describe("the coefficients table's VIF column", () => {
+  const row = (term, vif, block = false) => ({ term, vif, block });
+
+  test("shown only when a term's VIF is above VIF_HIGH, as the analysis's note says", () => {
+    const orthogonal = [row("Intercept", null), row("A", 1), row("B", 1)];
+    assert.equal(showsVif(orthogonal), false, "no column of ones");
+    assert.equal(showsVif([row("Intercept", null), row("A", VIF_HIGH), row("B", 1)]), false, "above it, not at it");
+    assert.equal(showsVif([row("Intercept", null), row("A", 10.8), row("B", 11)]), true);
+    assert.equal(showsVif([row("Intercept", null), row("Block1", 9, true), row("A", 1)]), false, "a block's own does not count");
+    assert.equal(showsVif([row("Intercept", undefined), row("A", null)]), false, "a fit with no VIFs");
+  });
+
+  test("the terms fitted, as the formula that gives their VIFs: the blocks first, as the fit has them", () => {
+    const fitted = [row("Intercept", null), row("Block1", 1.5, true), row("Block2", 1.5, true), row("A", 1), row("A:B", 1)];
+    assert.equal(fittedFormula(fitted), "Block + A + A:B");
+    assert.equal(fittedFormula([row("Intercept", null), row("A", 1), row("I(A ** 2)", 1)]), "A + I(A ** 2)");
   });
 });
 
