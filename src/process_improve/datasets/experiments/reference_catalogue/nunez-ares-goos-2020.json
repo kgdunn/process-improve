@@ -22,6 +22,7 @@
   {
    "name": "nag2020-table-1-ccd",
    "title": "Central composite designs (CCD) without centre runs, for 3 to 7 factors",
+   "topics": ["general"],
    "where": {
     "section": "1, Introduction",
     "pages": "22",
@@ -238,6 +239,7 @@
   {
    "name": "nag2020-table-1-sccd",
    "title": "Small central composite designs (SCCD) without centre runs, for 3 to 7 factors",
+   "topics": ["general"],
    "where": {
     "section": "1, Introduction",
     "pages": "22",
@@ -484,6 +486,7 @@
   {
    "name": "nag2020-table-1-bbd",
    "title": "Box-Behnken designs (BBD) without centre runs, for 3 to 7 factors",
+   "topics": ["general"],
    "where": {
     "section": "1, Introduction",
     "pages": "22",
@@ -690,6 +693,7 @@
   {
    "name": "nag2020-table-1-dsd",
    "title": "Definitive screening designs (DSD) without centre runs, for 3 to 7 factors",
+   "topics": ["general"],
    "where": {
     "section": "1, Introduction",
     "pages": "22",
@@ -856,6 +860,7 @@
   {
    "name": "nag2020-catalogue",
    "title": "The catalogue of basic OMARS designs the paper enumerates",
+   "topics": ["general"],
    "where": {
     "section": "2.4, Enumeration Results; 5.2, Example",
     "pages": "21, 24-25, 30-32",
@@ -1277,6 +1282,7 @@
   {
    "name": "nag2020-design-1",
    "title": "Design 1: bd.5.22.6.10.154.0, a five-factor basic OMARS design in 22 runs",
+   "topics": ["general"],
    "where": {
     "section": "3.2, Design Characterization",
     "pages": "25-28",
@@ -3420,6 +3426,7 @@
   {
    "name": "nag2020-xi-1",
    "title": "Design ξ1: foldover of the printed weighing matrix W (order 7, weight 4), basic design bd.7.14.6.10.1",
+   "topics": ["general"],
    "where": {
     "section": "4.1, Selected Designs",
     "pages": "27-28",
@@ -3747,6 +3754,7 @@
   {
    "name": "nag2020-xi-2",
    "title": "Design ξ2: foldover of the printed weighing matrix W (order 7, weight 4), basic design bd.7.14.6.10.1, with one centre run",
+   "topics": ["general"],
    "where": {
     "section": "4.1, Selected Designs",
     "pages": "27-28",
@@ -4060,6 +4068,7 @@
   {
    "name": "nag2020-xi-3",
    "title": "Design ξ3: foldover of the printed weighing matrix W (order 7, weight 4), basic design bd.7.14.6.10.1, with two centre runs",
+   "topics": ["general"],
    "where": {
     "section": "4.1, Selected Designs",
     "pages": "27-28",
@@ -4394,6 +4403,7 @@
   {
    "name": "nag2020-xi-4",
    "title": "Design ξ4: the 7-factor definitive screening design, basic design bd.7.16.2.4.2: the foldover of a conference matrix of order 8 with one column dropped",
+   "topics": ["general"],
    "where": {
     "section": "4.1, Selected Designs",
     "pages": "27-28",
@@ -4745,6 +4755,7 @@
   {
    "name": "nag2020-xi-5",
    "title": "Design ξ5: the 7-factor definitive screening design, basic design bd.7.16.2.4.2: the foldover of a conference matrix of order 8 with one column dropped, with one centre run",
+   "topics": ["general"],
    "where": {
     "section": "4.1, Selected Designs",
     "pages": "27-28",
@@ -5037,6 +5048,7 @@
   {
    "name": "nag2020-xi-6",
    "title": "Design ξ6: the 7-factor definitive screening design, basic design bd.7.16.2.4.2: the foldover of a conference matrix of order 8 with one column dropped, with two centre runs",
+   "topics": ["general"],
    "where": {
     "section": "4.1, Selected Designs",
     "pages": "27-28",
@@ -5329,6 +5341,7 @@
   {
    "name": "nag2020-design-2",
    "title": "Design 2: bd.6.31.9.15.353.0, a six-factor basic OMARS design in 31 runs",
+   "topics": ["general"],
    "where": {
     "section": "4.1, Selected Designs",
     "pages": "28-29",
@@ -5469,6 +5482,7 @@
   {
    "name": "nag2020-design-3",
    "title": "Design 3: bd.7.42.10.18.28.1, a seven-factor foldover OMARS design in 43 runs",
+   "topics": ["general"],
    "where": {
     "section": "4.1, Selected Designs",
     "pages": "28-29",
@@ -5611,6 +5625,7 @@
   {
    "name": "nag2020-design-4",
    "title": "Design 4: bd.6.36.6.12.400.1, a six-factor non-foldover OMARS design in 37 runs",
+   "topics": ["general"],
    "where": {
     "section": "4.2, Trade-Offs",
     "pages": "29-30, 33",
@@ -5819,6 +5834,7 @@
   {
    "name": "nag2020-design-4-first-4-columns",
    "title": "Design 4 projected on its first four factors",
+   "topics": ["general"],
    "where": {
     "section": "6, Discussion",
     "pages": "33",
@@ -5934,6 +5950,7 @@
   {
    "name": "nag2020-design-4-first-5-columns",
    "title": "Design 4 projected on its first five factors",
+   "topics": ["general"],
    "where": {
     "section": "6, Discussion",
     "pages": "33",
@@ -6057,6 +6074,7 @@
   {
    "name": "nag2020-design-5",
    "title": "Design 5: bd.6.35.17.27.275.0, a six-factor non-foldover OMARS design in 35 runs",
+   "topics": ["general"],
    "where": {
     "section": "5.2, Example",
     "pages": "31-32",
@@ -6266,6 +6284,7 @@
   {
    "name": "nag2020-design-5-plus-centre-run",
    "title": "bd.6.35.17.27.275.1: Design 5 with one centre run added, 36 runs",
+   "topics": ["general"],
    "where": {
     "section": "5.2, Example",
     "pages": "31-32",

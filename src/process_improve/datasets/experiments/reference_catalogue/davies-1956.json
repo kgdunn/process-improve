@@ -37,6 +37,9 @@
   {
    "name": "davies-abrasion-paired",
    "title": "Abrasion resistance of rubber: ten test pieces, each half treated and half untreated",
+   "topics": [
+    "plastics-rubber"
+   ],
    "kind": "example",
    "where": {
     "section": "2.21 to 2.27",
@@ -490,6 +493,9 @@
   {
    "name": "davies-method-a-b",
    "title": "Repeat analyses of one batch made by method A and one made by method B",
+   "topics": [
+    "chemical-processes"
+   ],
    "kind": "example",
    "where": {
     "section": "2.25",
@@ -612,6 +618,9 @@
   {
    "name": "davies-organic-chemical-sampling",
    "title": "Sampling and testing an organic chemical: 9 batches, 3 samples a batch, 2 tests a sample",
+   "topics": [
+    "measurement"
+   ],
    "kind": "example",
    "where": {
     "section": "4.2 to 4.3 and Appendix 4C",
@@ -1172,6 +1181,9 @@
   {
    "name": "davies-chalk-bulk-density",
    "title": "Bulk density of precipitated chalk: 11 laboratories, 2 chalks, 3 repeat tests",
+   "topics": [
+    "measurement"
+   ],
    "kind": "example",
    "where": {
     "section": "4.4 to 4.41 and Appendix 4D",
@@ -2315,6 +2327,9 @@
   {
    "name": "davies-dyestuff-testing",
    "title": "Testing dyestuffs: 6 batches, each tested 6 times by each of 2 laboratories",
+   "topics": [
+    "measurement"
+   ],
    "kind": "example",
    "where": {
     "section": "4.5 to 4.55 and Appendix 4E",
@@ -3065,6 +3080,9 @@
   {
    "name": "davies-fertiliser-sampling",
    "title": "Sampling and analysis of a fertiliser: 8 batches, 2 samples a batch, each analysed by 2 methods",
+   "topics": [
+    "measurement"
+   ],
    "kind": "example",
    "where": {
     "section": "4.6 to 4.64 and Appendix 4F",
@@ -3575,6 +3593,9 @@
   {
    "name": "davies-organic-chemical-blends",
    "title": "Loss of product in the mother liquor: five blends of acetanilide in three randomised blocks",
+   "topics": [
+    "chemical-processes"
+   ],
    "kind": "example",
    "where": {
     "section": "5.2 to 5.31 and Appendix 5B",
@@ -4528,6 +4549,9 @@
   {
    "name": "davies-fabric-wear-latin-square",
    "title": "Wear testing of rubber-covered fabric: four materials, four runs and four positions in a 4 x 4 Latin square",
+   "topics": [
+    "textiles"
+   ],
    "kind": "example",
    "where": {
     "section": "5.5 to 5.52 and Appendix 5C",
@@ -4919,6 +4943,9 @@
   {
    "name": "davies-insecticide-latin-square",
    "title": "Persistence of insecticide dusts: seven methods of mixing, forms of active ingredient and diluents in a 7 x 7 Latin square",
+   "topics": [
+    "formulated-products"
+   ],
    "kind": "example",
    "where": {
     "section": "5.53 and Appendix 5D",
@@ -5441,6 +5468,9 @@
   {
    "name": "davies-copper-tubes-graeco-latin",
    "title": "Annealing copper tubes: eight lots and a dummy factor in an 8 x 8 Graeco-Latin square on the annealing jig",
+   "topics": [
+    "metals"
+   ],
    "kind": "example",
    "where": {
     "section": "5.61 to 5.62 and Appendix 5E",
@@ -6367,6 +6397,9 @@
   {
    "name": "davies-synthetic-yarn-graeco-latin",
    "title": "Strength of synthetic yarn: times of spinning, days of drawing and two machine positions in four 3 x 3 Graeco-Latin squares",
+   "topics": [
+    "textiles"
+   ],
    "kind": "example",
    "where": {
     "section": "5.7 to 5.71 and Appendix 5F",
@@ -6930,6 +6963,10 @@
   {
    "name": "davies-tyre-road-test",
    "title": "Road tests on tyres: four tread compounds, three to a tyre, in a balanced incomplete block design",
+   "topics": [
+    "plastics-rubber",
+    "automotive"
+   ],
    "kind": "example",
    "where": {
     "section": "6.11 to 6.31 and Appendix 6C",
@@ -7334,6 +7371,9 @@
   {
    "name": "davies-rubber-youden-square",
    "title": "Abrasion resistance of rubber: five materials in five runs of the four-position wear tester, a Youden square",
+   "topics": [
+    "plastics-rubber"
+   ],
    "kind": "example",
    "where": {
     "section": "6.42 to 6.43",
@@ -7920,6 +7960,9 @@
   {
    "name": "davies-two-way-missing-values",
    "title": "A two-way table with five values missing, analysed by estimating them and by the exact method",
+   "topics": [
+    "general"
+   ],
    "kind": "example",
    "where": {
     "section": "Appendix 6B, 6B.3 to 6B.6",
@@ -8332,6 +8375,9 @@
   {
    "name": "davies-three-factor-yield",
    "title": "A 2 x 3 x 4 factorial in duplicate: two methods, three temperatures and four batches of raw material",
+   "topics": [
+    "chemical-processes"
+   ],
    "kind": "example",
    "where": {
     "section": "7.12 to 7.24",
@@ -8992,6 +9038,9 @@
   {
    "name": "davies-replicated-2x2",
    "title": "A replicated 2 x 2 factorial, used to define main effects and interaction",
+   "topics": [
+    "general"
+   ],
    "kind": "example",
    "where": {
     "section": "7.3 to 7.33",
@@ -9363,6 +9412,9 @@
   {
    "name": "davies-nitration-2-3",
    "title": "Yield of a nitration process: time of addition of nitric acid, time of stirring and heel, a 2^3 factorial",
+   "topics": [
+    "chemical-processes"
+   ],
    "kind": "example",
    "where": {
     "section": "7.43 to 7.51",
@@ -9878,6 +9930,9 @@
   {
    "name": "davies-isatin-2-4",
    "title": "Yield of an isatin derivative: acid strength, reaction time, amount of acid and temperature, a 2^4 factorial",
+   "topics": [
+    "chemical-processes"
+   ],
    "kind": "example",
    "where": {
     "section": "7.6 to 7.7",
@@ -11012,6 +11067,9 @@
   {
    "name": "davies-vulcanised-rubber-5x3x4",
    "title": "Wear resistance of vulcanised rubber: five fillers, three pretreatments and four raw rubbers, a 5 x 3 x 4 factorial",
+   "topics": [
+    "plastics-rubber"
+   ],
    "kind": "example",
    "where": {
     "section": "8.2 to 8.22",
@@ -12067,6 +12125,9 @@
   {
    "name": "davies-aluminium-alloy-corrosion",
    "title": "Corrosion of aluminium alloys: nine alloys exposed at four sites, each plate scored by four observers",
+   "topics": [
+    "metals"
+   ],
    "kind": "example",
    "where": {
     "section": "8.23 to 8.26 and Appendix 8B",
@@ -13780,6 +13841,9 @@
   {
    "name": "davies-qualitative-quantitative-4x5",
    "title": "A 4 x 5 factorial with one qualitative and one quantitative factor, analysed by orthogonal polynomials",
+   "topics": [
+    "general"
+   ],
    "kind": "example",
    "where": {
     "section": "8.32 to 8.35",
@@ -14291,6 +14355,10 @@
   {
    "name": "davies-penicillin-sugars",
    "title": "Penicillin inoculum: five sugars at four concentrations, the responses adjusted by a control",
+   "topics": [
+    "bioprocessing",
+    "pharmaceuticals"
+   ],
    "kind": "example",
    "where": {
     "section": "8.36 to 8.382",
@@ -14735,6 +14803,9 @@
   {
    "name": "davies-cotton-dyestuff-3-3",
    "title": "Yield of a direct cotton dyestuff: concentration, volume of free water and amount of a second reactant, a 3^3 factorial in duplicate",
+   "topics": [
+    "chemical-processes"
+   ],
    "kind": "example",
    "where": {
     "section": "8.7 to 8.72 and Appendix 8F, Appendix 9F",
@@ -16505,6 +16576,9 @@
   {
    "name": "davies-organic-chemical-confounded",
    "title": "Yield of an organic chemical: quality and amount of ammonium chloride and two units, a 2^3 in duplicate with ABC confounded with four lots of base material",
+   "topics": [
+    "chemical-processes"
+   ],
    "kind": "example",
    "where": {
     "section": "9.14 to 9.18 and Appendix 9A",
@@ -17313,6 +17387,10 @@
   {
    "name": "davies-penicillin-2-5",
    "title": "Penicillin in surface culture: corn steep liquor, lactose, precursor, sodium nitrate and glucose, a 2^5 in two weeks (and in four blocks of eight)",
+   "topics": [
+    "bioprocessing",
+    "pharmaceuticals"
+   ],
    "kind": "example",
    "where": {
     "section": "9.32 to 9.33, 9.424 to 9.425 and Appendix 9C",
@@ -18480,6 +18558,9 @@
   {
    "name": "davies-filtration-half-fraction",
    "title": "Filtration in the preparation of a dyestuff: four factors in eight runs, a 2^(4-1) with D = ABC",
+   "topics": [
+    "chemical-processes"
+   ],
    "kind": "example",
    "where": {
     "section": "10.421 and Appendix 10C",
@@ -18949,6 +19030,9 @@
   {
    "name": "davies-medicinal-product-quarter-fraction",
    "title": "Yield of a medicinal product: five factors in eight runs, a 2^(5-2) with D = -AC and E = AB",
+   "topics": [
+    "pharmaceuticals"
+   ],
    "kind": "example",
    "where": {
     "section": "10.43 and Appendix 10C",
@@ -19631,6 +19715,9 @@
   {
    "name": "davies-basic-dyestuff-half-fraction",
    "title": "Quality of a basic dyestuff: five factors over three stages in sixteen runs, a 2^(5-1) with E = -ABCD",
+   "topics": [
+    "chemical-processes"
+   ],
    "kind": "example",
    "where": {
     "section": "10.51 and Appendix 10C",
@@ -20547,6 +20634,10 @@
   {
    "name": "davies-penicillin-half-fraction-fermenters",
    "title": "Yield of penicillin: five factors in a 2^(5-1) with E = ABCD, in four fermenters confounding BC, BE and CE",
+   "topics": [
+    "bioprocessing",
+    "pharmaceuticals"
+   ],
    "kind": "example",
    "where": {
     "section": "10.61 to 10.62 and Appendix 10C",
@@ -21342,6 +21433,9 @@
   {
    "name": "davies-steepest-ascent-first-experiment",
    "title": "Yield of a laboratory reaction, first stage of steepest ascent: five factors in eight runs, a 2^(5-2) with x4 = x1x2x3 and x5 = -x2x3",
+   "topics": [
+    "chemical-processes"
+   ],
    "kind": "example",
    "where": {
     "section": "11.4 to 11.41",
@@ -21973,6 +22067,9 @@
   {
    "name": "davies-steepest-ascent-second-experiment",
    "title": "Yield of a laboratory reaction, second stage of steepest ascent: a 2^(5-2) with x4 = x1x2x3 and x5 = x1x2, around trial (10)",
+   "topics": [
+    "chemical-processes"
+   ],
    "kind": "example",
    "where": {
     "section": "11.42 to 11.43",
@@ -22709,6 +22806,9 @@
   {
    "name": "davies-near-stationary-3x3",
    "title": "Yield in a near-stationary region: a 3^2 factorial, a second-degree fit and its canonical analysis",
+   "topics": [
+    "chemical-processes"
+   ],
    "kind": "example",
    "where": {
     "section": "11.5 to 11.533",
@@ -23329,6 +23429,9 @@
   {
    "name": "davies-composite-three-factor",
    "title": "Yield of C in a reaction A + B -> C + D: a 2^3 factorial completed to a composite design (alpha = 2), with canonical analysis",
+   "topics": [
+    "chemical-processes"
+   ],
    "kind": "example",
    "where": {
     "section": "11.7 to 11.741",
@@ -24353,6 +24456,9 @@
   {
    "name": "davies-glossary-interaction",
    "title": "A hypothetical 2^2: the yield of a reaction, to define main effects and interaction",
+   "topics": [
+    "chemical-processes"
+   ],
    "kind": "example",
    "where": {
     "section": "Glossary, under Factor",
@@ -24552,6 +24658,9 @@
   {
    "name": "davies-orthogonal-composite-designs",
    "title": "Orthogonal composite designs for two to five factors, one centre run",
+   "topics": [
+    "general"
+   ],
    "kind": "design",
    "where": {
     "section": "11.612",

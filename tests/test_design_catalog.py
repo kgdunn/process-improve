@@ -67,10 +67,16 @@ def records() -> list[dict]:
         ("4-by-4 Graeco-Latin Square", "latin_square"),
         ("randomized complete block design", "block_design"),
         ("D-optimal, chosen from the 20 candidates of Table 5.1", "optimal"),
+        ("optimal design, two categorical factors", "optimal"),
+        ("minimum-run resolution IV design", "optimal"),
+        ("two-level resolution V design, irregular", "fractional_factorial"),
+        ("conference matrix", "dsd"),
         ("{3, 2} simplex lattice, pure blends twice and binary blends three times", "mixture"),
         ("strip plot: implant 2^3 crossed with anneal 2^3, three sizes of experimental unit", "split_plot"),
         ("two-group comparison", "comparison"),
         ("regression on one variable", "comparison"),
+        ("single-factor random effects design", "comparison"),
+        ("steps along a path of steepest ascent", "comparison"),
         ("other", "other"),
     ],
 )
@@ -85,7 +91,9 @@ def test_every_published_entry_has_a_family_and_few_have_none(records):
     assert len(published) == len(reference_experiments()) + len(reference_designs())
     assert {r["family"] for r in records} <= set(FAMILIES)
     unknown = [r["design_text"] for r in published if r["family"] == "other"]
-    assert len(unknown) <= 21, f"a rule is needed for: {sorted(set(unknown))}"
+    # pid-book's 19 "other", two projections, and three response surface designs no family holds:
+    # an equiradial hexagon, a hybrid design and a sphere-packing design
+    assert len(unknown) <= 24, f"a rule is needed for: {sorted(set(unknown))}"
 
 
 def test_every_family_with_a_year_names_the_work_that_published_it():

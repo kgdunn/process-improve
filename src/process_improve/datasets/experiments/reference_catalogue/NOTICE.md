@@ -20,5 +20,9 @@ its source in `source.rights`, and `reference_sources()` returns them:
 
 No source document, figure or image is included.
 
+One file is the exception: `topics.json` is the catalogue's own vocabulary of subject-matter
+topics, and part of this package under its MIT licence. The topics given to each entry are the
+catalogue's classification, not something its source prints.
+
 If you hold rights in a source and want something here changed or removed, open an issue at
 <https://github.com/kgdunn/process-improve/issues>.

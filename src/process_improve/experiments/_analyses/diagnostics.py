@@ -16,6 +16,13 @@ logger = logging.getLogger(__name__)
 def _run_residual_diagnostics(ols_result: RegressionResultsWrapper) -> dict[str, Any]:
     """Residual diagnostics: normality, independence, homoscedasticity.
 
+    Each run's residual is also given studentized: ``studentized_residuals`` divides it
+    by its own standard error, ``s * sqrt(1 - h)`` with ``h`` its leverage (internally
+    studentized, as Design-Expert's "Student Residual"), and
+    ``externally_studentized_residuals`` takes ``s`` from the fit without that run
+    (R's ``rstudent``, Design-Expert's "Outlier t"), which is t-distributed on one
+    degree of freedom fewer than the residual's.
+
     A saturated model (no residual degrees of freedom) fits every run exactly, so its
     residuals are rounding noise: the tests are then not run, their entries are
     ``None``, and a ``note`` says why.
@@ -29,6 +36,8 @@ def _run_residual_diagnostics(ols_result: RegressionResultsWrapper) -> dict[str,
                 "durbin_watson": None,
                 "breusch_pagan": {"statistic": None, "p_value": None},
                 "cooks_distance": [None] * len(residuals),
+                "studentized_residuals": [None] * len(residuals),
+                "externally_studentized_residuals": [None] * len(residuals),
                 "leverage": [float(h) for h in ols_result.get_influence().hat_matrix_diag],
                 "residuals": [float(r) for r in residuals],
                 "fitted_values": [float(f) for f in fitted],
@@ -84,6 +93,8 @@ def _run_residual_diagnostics(ols_result: RegressionResultsWrapper) -> dict[str,
                 "p_value": float(bp_p) if bp_p is not None else None,
             },
             "cooks_distance": [float(c) for c in cooks_d],
+            "studentized_residuals": [float(r) for r in influence.resid_studentized_internal],
+            "externally_studentized_residuals": [float(r) for r in influence.resid_studentized_external],
             "leverage": [float(h) for h in leverage],
             "residuals": [float(r) for r in residuals],
             "fitted_values": [float(f) for f in fitted],

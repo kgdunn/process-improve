@@ -134,7 +134,7 @@ FAMILIES: dict[str, Family] = {
 _FAMILY_RULES: tuple[tuple[str, str], ...] = (
     (r"mixture|simplex", "mixture"),
     (r"omars", "omars"),
-    (r"\bdsd\b|definitive screening", "dsd"),
+    (r"\bdsd\b|definitive screening|conference matrix", "dsd"),
     (r"split|strip|whole.plot|restricted randomi", "split_plot"),
     (r"box-behnken|\bbbd\b", "box_behnken"),
     (r"composite|\bccd\b|\bcc[cif]\b|axial|star points", "ccd"),
@@ -143,14 +143,17 @@ _FAMILY_RULES: tuple[tuple[str, str], ...] = (
     (r"plackett", "plackett_burman"),
     (r"latin|youden", "latin_square"),
     (r"block design|complete block|incomplete block|randomi[sz]ed blocks", "block_design"),
-    (r"\b[adgi]-optimal|candidate set", "optimal"),
-    (r"\d\^\(\d+-\d+\)|\^\(k-p\)|fraction|two-level design|mirror image|fold-?over", "fractional_factorial"),
+    (r"\b[adgi]-optimal|\boptimal designs?\b|candidate set|minimum-run resolution", "optimal"),
+    (
+        r"\d\^\(\d+-\d+\)|\^\(k-p\)|fraction|two-level design|mirror image|fold-?over|resolution (iii|iv|v) design",
+        "fractional_factorial",
+    ),
     (r"\d\^\d|\^k\b|factorial|\d+ x \d+|\d-by-\d|evop", "full_factorial"),
     (
         (
-            r"regression|comparison|single sample|single factor|one categorical|one factor at a time|process record|"
-            r"illustration|confirmation|search along|selection|second-degree|nested|hierarchical|two-way|"
-            r"completely randomi|sampling plan|design types"
+            r"regression|comparison|single sample|single.factor|one categorical|one factor at a time|process record|"
+            r"illustration|confirmation|search along|path of steepest|selection|second-degree|nested|hierarchical|"
+            r"two-way|completely randomi|sampling plan|design types"
         ),
         "comparison",
     ),

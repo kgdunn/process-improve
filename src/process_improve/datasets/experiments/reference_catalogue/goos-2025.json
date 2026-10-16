@@ -22,6 +22,7 @@
   {
    "name": "goos-2025-table1-27-run-8-factor-up-omars",
    "title": "Table 1: an 8-factor 27-run foldover uniform-precision OMARS design with one center run",
+   "topics": ["general"],
    "kind": "design",
    "where": {
     "section": "2.1, Uniform-Precision OMARS Designs",
@@ -279,6 +280,7 @@
   {
    "name": "goos-2025-table2-32-run-8-factor-up-omars",
    "title": "Table 2: an 8-factor 32-run non-foldover uniform-precision OMARS design",
+   "topics": ["general"],
    "kind": "design",
    "where": {
     "section": "2.1, Uniform-Precision OMARS Designs",
@@ -448,6 +450,7 @@
   {
    "name": "goos-2025-table3-24-run-4-factor-nup-omars",
    "title": "Table 3: a 4-factor 24-run non-uniform-precision OMARS design",
+   "topics": ["general"],
    "kind": "design",
    "where": {
     "section": "2.2, Non-Uniform-Precision OMARS Designs",
@@ -602,6 +605,7 @@
   {
    "name": "goos-2025-table4-40-run-mixed-level-omars",
    "title": "Table 4: a 40-run mixed-level OMARS design with six three-level and four two-level factors",
+   "topics": ["general"],
    "kind": "design",
    "where": {
     "section": "3, Mixed-Level OMARS Designs",
@@ -872,6 +876,7 @@
   {
    "name": "goos-2025-table4-two-level-projection",
    "title": "The two-level design obtained by dropping the six three-level factors of Table 4",
+   "topics": ["general"],
    "kind": "design",
    "where": {
     "section": "3, Mixed-Level OMARS Designs",
@@ -1028,6 +1033,7 @@
   {
    "name": "goos-2025-table5-24-run-mixed-level-blocked-omars",
    "title": "Table 5: a 24-run mixed-level OMARS design with four three-level and four two-level factors, and five orthogonal blocking arrangements",
+   "topics": ["general"],
    "kind": "design",
    "where": {
     "section": "5.3, Arranging OMARS Designs in Blocks",
@@ -1290,6 +1296,7 @@
   {
    "name": "goos-2025-weighing-matrix-14-run-7-factor-omars",
    "title": "A 7-factor 14-run OMARS design folded over from a circulant weighing matrix of order 7 and weight 4",
+   "topics": ["general"],
    "kind": "design",
    "where": {
     "section": "5.4.1, Folding Over a Conference Matrix or a Weighing Matrix",
@@ -1482,6 +1489,7 @@
   {
    "name": "goos-2025-six-factor-response-surface-designs",
    "title": "Run sizes of the 6-factor face-centered central composite and Box-Behnken designs, each with one center run, against strong OMARS designs",
+   "topics": ["general"],
    "kind": "design",
    "where": {
     "section": "4, Strong OMARS Designs",
@@ -1560,6 +1568,7 @@
   {
    "name": "goos-2025-definitive-screening-middle-level",
    "title": "Definitive screening designs with one center run, as uniform-precision OMARS designs",
+   "topics": ["general"],
    "kind": "design",
    "where": {
     "section": "2.1, Uniform-Precision OMARS Designs",
@@ -1590,6 +1599,7 @@
   {
    "name": "goos-2025-omars-catalogue-counts",
    "title": "Numbers of non-isomorphic OMARS designs found by enumeration",
+   "topics": ["general"],
    "kind": "design",
    "where": {
     "section": "2.4, Number of Different OMARS Designs; 7.2, OMARS Designs in the EFFEX Software",

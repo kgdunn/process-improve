@@ -16,6 +16,7 @@
   {
    "name": "nair-two-factor-example",
    "title": "A 2^2 experiment in X1 and X2: main effects and the interaction",
+   "topics": ["general"],
    "kind": "example",
    "where": {
     "slides": "11-16"
@@ -174,6 +175,7 @@
   {
    "name": "nair-three-factor-example",
    "title": "A 2^3 experiment in X1, X2 and X3: the main effect of X1",
+   "topics": ["general"],
    "kind": "example",
    "where": {
     "slides": "17-19"
@@ -285,6 +287,7 @@
   {
    "name": "nair-full-factorial-sizes",
    "title": "The number of runs of a two-level full factorial in 1 to 10 factors",
+   "topics": ["general"],
    "where": {
     "slides": "25"
    },
@@ -507,6 +510,7 @@
   {
    "name": "nair-half-fraction-three-factors",
    "title": "The regular half fraction of the 2^3, with X3 = X1X2",
+   "topics": ["general"],
    "where": {
     "slides": "27-34"
    },
@@ -652,6 +656,7 @@
   {
    "name": "nair-half-fraction-five-factors",
    "title": "Five factors in 16 runs: the half fraction with X5 on the highest-order interaction",
+   "topics": ["general"],
    "where": {
     "slides": "35-36"
    },
@@ -706,6 +711,7 @@
   {
    "name": "nair-quarter-fraction-resolution-iii",
    "title": "Six factors in 16 runs with X5 = X2X3X4 and X6 = X1X2X3X4: resolution III",
+   "topics": ["general"],
    "where": {
     "slides": "37, 41"
    },
@@ -771,6 +777,7 @@
   {
    "name": "nair-quarter-fraction-resolution-iv",
    "title": "Six factors in 16 runs with X5 = X1X2X3 and X6 = X2X3X4: resolution IV",
+   "topics": ["general"],
    "where": {
     "slides": "38, 39, 42, 43, 46"
    },
@@ -1126,6 +1133,7 @@
   {
    "name": "nair-resolution-v-six-factors",
    "title": "Six factors at resolution V need 32 runs",
+   "topics": ["general"],
    "where": {
     "slides": "45"
    },
@@ -1162,6 +1170,7 @@
   {
    "name": "nair-project-one-intervention",
    "title": "Project 1: a 2^(7-2) screening design of seven intervention components (12 of its 32 runs printed)",
+   "topics": ["biomedical"],
    "where": {
     "slides": "47"
    },

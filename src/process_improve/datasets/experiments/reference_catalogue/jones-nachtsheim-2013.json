@@ -22,6 +22,7 @@
   {
    "name": "jn2013-dsd-augment-m4-c1",
    "title": "DSD-augmented design for 4 continuous factors and 1 two-level categorical factor",
+   "topics": ["general"],
    "where": {
     "section": "2, DSD-Based Column Augmentation",
     "pages": "126",
@@ -238,6 +239,7 @@
   {
    "name": "jn2013-dsd-augment-m4-c2",
    "title": "DSD-augmented design for 4 continuous factors and 2 two-level categorical factors",
+   "topics": ["general"],
    "where": {
     "section": "2, DSD-Based Column Augmentation",
     "pages": "126",
@@ -1040,6 +1042,7 @@
   {
    "name": "jn2013-dsd-augment-m4-c3",
    "title": "DSD-augmented design for 4 continuous factors and 3 two-level categorical factors",
+   "topics": ["general"],
    "where": {
     "section": "2, DSD-Based Column Augmentation",
     "pages": "126",
@@ -1227,6 +1230,7 @@
   {
    "name": "jn2013-dsd-augment-m4-c4",
    "title": "DSD-augmented design for 4 continuous factors and 4 two-level categorical factors",
+   "topics": ["general"],
    "where": {
     "section": "2, DSD-Based Column Augmentation",
     "pages": "126",
@@ -1422,6 +1426,7 @@
   {
    "name": "jn2013-orth-augment-m4-c1",
    "title": "ORTH-augmented design for 4 continuous factors and 1 two-level categorical factor",
+   "topics": ["general"],
    "where": {
     "section": "3, Orthogonal Column Augmentation: ORTH-Augment Procedure",
     "pages": "126",
@@ -1538,6 +1543,7 @@
   {
    "name": "jn2013-orth-augment-m4-c2",
    "title": "ORTH-augmented design for 4 continuous factors and 2 two-level categorical factors",
+   "topics": ["general"],
    "where": {
     "section": "3, Orthogonal Column Augmentation: ORTH-Augment Procedure",
     "pages": "126",
@@ -3417,6 +3423,7 @@
   {
    "name": "jn2013-orth-augment-m4-c3",
    "title": "ORTH-augmented design for 4 continuous factors and 3 two-level categorical factors",
+   "topics": ["general"],
    "where": {
     "section": "3, Orthogonal Column Augmentation: ORTH-Augment Procedure",
     "pages": "126",
@@ -3540,6 +3547,7 @@
   {
    "name": "jn2013-orth-augment-m4-c4",
    "title": "ORTH-augmented design for 4 continuous factors and 4 two-level categorical factors",
+   "topics": ["general"],
    "where": {
     "section": "3, Orthogonal Column Augmentation: ORTH-Augment Procedure",
     "pages": "126",
@@ -3701,6 +3709,7 @@
   {
    "name": "jn2013-table4-other-sizes",
    "title": "DSD- and ORTH-augmented designs for 5 to 12 continuous factors (Table 4), not printed",
+   "topics": ["general"],
    "where": {
     "section": "2 and 3",
     "pages": "124-125, 128",
@@ -3927,6 +3936,7 @@
   {
    "name": "jn2013-orth-augment-more-than-four",
    "title": "ORTH-augmented designs with more than four categorical factors (Table 6), not printed",
+   "topics": ["general"],
    "where": {
     "section": "3",
     "pages": "128",
@@ -4078,6 +4088,7 @@
   {
    "name": "jn2013-standard-dsd",
    "title": "Standard definitive screening design (Jones and Nachtsheim 2011), as the paper cites it",
+   "topics": ["general"],
    "where": {
     "section": "4, Discussion",
     "pages": "129"

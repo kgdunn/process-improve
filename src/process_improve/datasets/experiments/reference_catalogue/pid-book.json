@@ -19,6 +19,7 @@
   {
    "name": "brittleness-tk104-tk107",
    "title": "Brittleness index, reactor TK104 against TK107: t-test and least squares give the same interval",
+   "topics": ["chemical-processes"],
    "kind": "example",
    "exercise": null,
    "group": "foundations",
@@ -243,6 +244,7 @@
   {
    "name": "brittleness-randomization",
    "title": "Randomization (permutation) reference distribution: first 8 TK104 and first 9 TK107 brittleness values",
+   "topics": ["chemical-processes"],
    "kind": "example",
    "exercise": null,
    "group": "foundations",
@@ -556,6 +558,7 @@
   {
    "name": "cost-ofat-bioreactor",
    "title": "One-factor-at-a-time search on a bioreactor: temperature, then substrate concentration",
+   "topics": ["bioprocessing"],
    "kind": "example",
    "exercise": null,
    "group": "foundations",
@@ -856,6 +859,7 @@
   {
    "name": "conversion",
    "title": "Conversion against temperature T and substrate S: main effects by hand",
+   "topics": ["bioprocessing"],
    "kind": "example",
    "exercise": null,
    "group": "full-factorial",
@@ -1341,6 +1345,7 @@
   {
    "name": "conversion-interaction",
    "title": "Conversion, where temperature and substrate interact: effects by hand",
+   "topics": ["bioprocessing"],
    "kind": "example",
    "exercise": null,
    "group": "full-factorial",
@@ -1792,6 +1797,7 @@
   {
    "name": "pollutant",
    "title": "Pollutant discharged: chemical C, temperature T and stirring speed S",
+   "topics": ["environment"],
    "kind": "example",
    "exercise": null,
    "group": "full-factorial",
@@ -2618,6 +2624,7 @@
   {
    "name": "pareto-lenth",
    "title": "A 2^4 factorial assessed with a Pareto plot, Lenth's method and a half-normal plot",
+   "topics": ["general"],
    "kind": "example",
    "exercise": null,
    "group": "full-factorial",
@@ -3027,6 +3034,7 @@
   {
    "name": "significance",
    "title": "A 2^4 factorial, refitted with its significant effects A, B, D and BD",
+   "topics": ["general"],
    "kind": "example",
    "exercise": null,
    "group": "full-factorial",
@@ -3287,6 +3295,7 @@
   {
    "name": "saturated-screening",
    "title": "A saturated 2^(7-4) resolution III design: seven factors in eight runs",
+   "topics": ["general"],
    "kind": "example",
    "exercise": null,
    "group": "fractional",
@@ -4731,6 +4740,7 @@
   {
    "name": "heredity-interaction-only-model",
    "title": "Why heredity matters: a 2^2 factorial fitted with the interaction but without its parent main effects",
+   "topics": ["general"],
    "kind": "example",
    "exercise": null,
    "group": "fractional",
@@ -4922,6 +4932,7 @@
   {
    "name": "rsm-first-factorial",
    "title": "Bioreactor profit: the first 2^2 factorial around the baseline",
+   "topics": ["bioprocessing"],
    "kind": "example",
    "exercise": null,
    "group": "rsm-mixture",
@@ -5428,6 +5439,7 @@
   {
    "name": "rsm-steepest-ascent-path",
    "title": "Bioreactor profit measured at points along the paths of steepest ascent (runs 5, 6, 7 and 12)",
+   "topics": ["bioprocessing"],
    "kind": "example",
    "exercise": null,
    "group": "rsm-mixture",
@@ -5549,6 +5561,7 @@
   {
    "name": "rsm-second-factorial",
    "title": "Bioreactor profit: the second 2^2 factorial, centred on run 6",
+   "topics": ["bioprocessing"],
    "kind": "example",
    "exercise": null,
    "group": "rsm-mixture",
@@ -5856,6 +5869,7 @@
   {
    "name": "rsm-central-composite",
    "title": "Bioreactor profit: the second factorial augmented to a rotatable central composite design",
+   "topics": ["bioprocessing"],
    "kind": "example",
    "exercise": null,
    "group": "rsm-mixture",
@@ -6162,6 +6176,7 @@
   {
    "name": "multi-response-profit",
    "title": "Bioreactor CCD around 343 K, 1.60 g/L: the profit response and its quadratic model",
+   "topics": ["bioprocessing"],
    "kind": "example",
    "exercise": null,
    "group": "rsm-mixture",
@@ -6522,6 +6537,7 @@
   {
    "name": "multi-response-purity",
    "title": "Bioreactor CCD around 343 K, 1.60 g/L: the purity response and its quadratic model",
+   "topics": ["bioprocessing"],
    "kind": "example",
    "exercise": null,
    "group": "rsm-mixture",
@@ -6869,6 +6885,7 @@
   {
    "name": "multi-response-desirability",
    "title": "Bioreactor profit and purity optimized together: sweet spot, Derringer-Suich desirability, prediction intervals",
+   "topics": ["bioprocessing"],
    "kind": "example",
    "exercise": null,
    "group": "rsm-mixture",
@@ -7463,6 +7480,7 @@
   {
    "name": "omars-fed-batch-bioreactor",
    "title": "Worked OMARS study: four factors on a simulated fed-batch bioreactor, 27-run OMARS plus three centre runs in two blocks",
+   "topics": ["bioprocessing"],
    "kind": "case-study",
    "exercise": null,
    "group": "omars",
@@ -11422,6 +11440,7 @@
   {
    "name": "reactor-screen-dsd",
    "title": "Reactor screen: a 17-run definitive screening design in six factors, yield and impurity",
+   "topics": ["chemical-processes"],
    "kind": "case-study",
    "exercise": null,
    "group": "studies",
@@ -12024,6 +12043,7 @@
   {
    "name": "reactor-heat-limit-i-optimal",
    "title": "Reactor optimisation: a 16-run I-optimal design in T, t and C inside a heat limit, with confirmation runs",
+   "topics": ["chemical-processes"],
    "kind": "case-study",
    "exercise": null,
    "group": "studies",
@@ -12778,6 +12798,7 @@
   {
    "name": "web-sales",
    "title": "Web sales: free-shipping threshold and a required profile, run on eight Tuesdays",
+   "topics": ["business", "computing"],
    "kind": "exercise",
    "exercise": "Question 2 (label DOE-exercise-web-sales), parts 1-6",
    "group": "exercises",
@@ -13276,6 +13297,7 @@
   {
    "name": "bioreactor",
    "title": "Bioreactor yield: a 2^4 full factorial in feed rate, inoculant size, substrate concentration and DO set-point",
+   "topics": ["bioprocessing"],
    "kind": "exercise",
    "exercise": "Question 4 (label DOE-exercise-bioreactor), parts 1-3",
    "group": "exercises",
@@ -13997,6 +14019,7 @@
   {
    "name": "bioreactor-half-fraction",
    "title": "Bioreactor yield: the 2^(4-1) half fraction with D = ABC",
+   "topics": ["bioprocessing"],
    "kind": "exercise",
    "exercise": "Question 4 (label DOE-exercise-bioreactor), parts 4-6",
    "group": "exercises",
@@ -14575,6 +14598,7 @@
   {
    "name": "product-stability",
    "title": "Product stability against monomer, acid, catalyst and temperature: eight runs so far",
+   "topics": ["formulated-products"],
    "kind": "exercise",
    "exercise": "Question 5 (no label; follows the bioreactor exercise)",
    "group": "exercises",
@@ -14662,6 +14686,7 @@
   {
    "name": "ccd-stirrer-question",
    "title": "Rotatable central composite design in stirrer speed and stirring time, data shown on a diagram",
+   "topics": ["general"],
    "kind": "exercise",
    "exercise": "Question 6 (no label), parts 1-3",
    "group": "exercises",
@@ -14738,6 +14763,7 @@
   {
    "name": "side-product",
    "title": "Side product formed: temperature and surfactant, 2^2 with two centre points over two days",
+   "topics": ["chemical-processes"],
    "kind": "exercise",
    "exercise": "Question 9 (label DOE-exercise-side-product), parts 1-7",
    "group": "exercises",
@@ -15127,6 +15153,7 @@
   {
    "name": "polish-formulation",
    "title": "Wood polish formulation: three yes/no quality attributes from a 2^3 factorial",
+   "topics": ["formulated-products"],
    "kind": "exercise",
    "exercise": "Question 10 (no label; adapted from Box, Hunter and Hunter), parts 1-5",
    "group": "exercises",
@@ -15295,6 +15322,7 @@
   {
    "name": "chemical-reaction",
    "title": "Conversion of a chemical reaction: temperature, pH and agitation rate in a 2^3 factorial",
+   "topics": ["chemical-processes"],
    "kind": "exercise",
    "exercise": "Question 11 (label DOE-exercise-chemical-reaction), parts 1-5",
    "group": "exercises",
@@ -16106,6 +16134,7 @@
   {
    "name": "injection-molding",
    "title": "Shrinkage of injection-molded film: seven factors in eight runs",
+   "topics": ["plastics-rubber"],
    "kind": "exercise",
    "exercise": "Question 13 (label DOE-exercise-injection-molding), parts 1-9",
    "group": "exercises",
@@ -16871,6 +16900,7 @@
   {
    "name": "breaded-chicken",
    "title": "Breaded chicken strips: cooking time, oven rack and preheating in a 2^3 factorial",
+   "topics": ["food-beverages"],
    "kind": "exercise",
    "exercise": "Question 14 (label DOE-exercise-breaded-chicken), parts 1-3",
    "group": "exercises",
@@ -17141,6 +17171,7 @@
   {
    "name": "breaded-chicken-half-fraction",
    "title": "Breaded chicken: the 2^(3-1) half fraction with P = DR",
+   "topics": ["food-beverages"],
    "kind": "exercise",
    "exercise": "Question 14 (label DOE-exercise-breaded-chicken), part 4",
    "group": "exercises",
@@ -17423,6 +17454,7 @@
   {
    "name": "microgel",
    "title": "Microgel-hydrogel composite: sodium fluorescein released, central composite design with axial runs at 1.4",
+   "topics": ["pharmaceuticals"],
    "kind": "exercise",
    "exercise": "Question 15 (label DOE-exercise-microgel), parts 1-6",
    "group": "exercises",
@@ -17676,6 +17708,7 @@
   {
    "name": "biologic-drug-yield",
    "title": "Biological drug yield: steepest ascent from a 2^(4-1) fractional factorial model",
+   "topics": ["bioprocessing", "pharmaceuticals"],
    "kind": "exercise",
    "exercise": "Question 16 (no label), parts 1-4",
    "group": "exercises",
@@ -18113,6 +18146,7 @@
   {
    "name": "coating-desirability",
    "title": "Coating process: yield and cost models, sweet spot and overall desirability",
+   "topics": ["formulated-products"],
    "kind": "exercise",
    "exercise": "Question 17 (no label), parts 1-4",
    "group": "exercises",
@@ -18569,6 +18603,7 @@
   {
    "name": "mixed-level-split-plot-chromogen-colour-profile",
    "title": "Six chromogens x four continuous factors: 60-run split-plot I-optimal design with a ten-point colour-development curve (simulated), analysed by ANOVA on the peak, PLS on the curve, and model inversion",
+   "topics": ["measurement"],
    "kind": "case-study",
    "exercise": null,
    "group": "mixed-level-profile",
@@ -22833,6 +22868,7 @@
   {
    "name": "coding-demo-three-level-factor-pls",
    "title": "Toy illustration: three-level factor plus one covariate, PLS predictions under sum vs treatment coding",
+   "topics": ["general"],
    "kind": "example",
    "exercise": null,
    "group": "mixed-level-profile",
@@ -22974,6 +23010,7 @@
   {
    "name": "allocation-equal-variance",
    "title": "Splitting 12 runs between levels A and B: equal variances, equal costs",
+   "topics": ["general"],
    "kind": "design",
    "exercise": null,
    "group": "foundations",
@@ -23281,6 +23318,7 @@
   {
    "name": "allocation-unequal-variance",
    "title": "Splitting 12 runs between levels A and B: level B nine times as variable",
+   "topics": ["general"],
    "kind": "design",
    "exercise": null,
    "group": "foundations",
@@ -23574,6 +23612,7 @@
   {
    "name": "allocation-unequal-cost",
    "title": "Splitting a cost budget of 24 between levels A and B: a run at A costs twice as much",
+   "topics": ["general"],
    "kind": "design",
    "exercise": null,
    "group": "foundations",
@@ -23658,6 +23697,7 @@
   {
    "name": "blocking-2cubed-abc",
    "title": "A 2^3 factorial run in two blocks of four (two raw-material batches), blocks confounded with ABC",
+   "topics": ["general"],
    "kind": "design",
    "exercise": null,
    "group": "foundations",
@@ -24030,6 +24070,7 @@
   {
    "name": "constrained-two-factor-bioreactor",
    "title": "Two-factor bioreactor factorial with the (T+, C+) corner replaced by two runs inside a constraint",
+   "topics": ["bioprocessing"],
    "kind": "design",
    "exercise": null,
    "group": "foundations",
@@ -24121,6 +24162,7 @@
   {
    "name": "duplicated-2k-factorial",
    "title": "A 2^k factorial with a duplicate run at every combination: pooled standard error",
+   "topics": ["general"],
    "kind": "design",
    "exercise": null,
    "group": "full-factorial",
@@ -24193,6 +24235,7 @@
   {
    "name": "replicated-2-cubed",
    "title": "A 2^3 factorial with every combination repeated",
+   "topics": ["general"],
    "kind": "design",
    "exercise": null,
    "group": "full-factorial",
@@ -24288,6 +24331,7 @@
   {
    "name": "2-cubed-with-three-centre-points",
    "title": "A 2^3 factorial with three centre points",
+   "topics": ["general"],
    "kind": "design",
    "exercise": null,
    "group": "full-factorial",
@@ -24427,6 +24471,7 @@
   {
    "name": "cost-vs-factorial-2x2",
    "title": "Variance of the T main effect: COST versus a 2^2 factorial",
+   "topics": ["bioprocessing"],
    "kind": "design",
    "exercise": null,
    "group": "full-factorial",
@@ -24532,6 +24577,7 @@
   {
    "name": "bioreactor-by-product-2-5",
    "title": "Cell-culture bioreactor by-product: five two-level factors, why a full 2^5 is too costly",
+   "topics": ["bioprocessing"],
    "kind": "design",
    "exercise": null,
    "group": "fractional",
@@ -24716,6 +24762,7 @@
   {
    "name": "half-fraction-2-3-1",
    "title": "Half fraction of a 2^3 factorial, generated by C = AB",
+   "topics": ["general"],
    "kind": "design",
    "exercise": null,
    "group": "fractional",
@@ -25088,6 +25135,7 @@
   {
    "name": "complementary-half-fraction-2-3-1",
    "title": "The complementary half fraction, C = -AB, which completes the 2^3 factorial",
+   "topics": ["general"],
    "kind": "design",
    "exercise": null,
    "group": "fractional",
@@ -25242,6 +25290,7 @@
   {
    "name": "half-fraction-2-4-1-d-abc",
    "title": "Half fraction of a 2^4 factorial, generated by D = ABC",
+   "topics": ["general"],
    "kind": "design",
    "exercise": null,
    "group": "fractional",
@@ -25431,6 +25480,7 @@
   {
    "name": "half-fraction-2-4-1-d-ac",
    "title": "Half fraction of a 2^4 factorial generated by D = AC, a poorer choice",
+   "topics": ["general"],
    "kind": "design",
    "exercise": null,
    "group": "fractional",
@@ -25579,6 +25629,7 @@
   {
    "name": "two-block-generators",
    "title": "Block defining relations for a 2^k factorial in two blocks (k = 3, 4, 5)",
+   "topics": ["general"],
    "kind": "design",
    "exercise": null,
    "group": "fractional",
@@ -25781,6 +25832,7 @@
   {
    "name": "four-lot-blocking-poor",
    "title": "A 2^3 factorial in four blocks of two: the poor choice D = ABC, E = BC",
+   "topics": ["general"],
    "kind": "design",
    "exercise": null,
    "group": "fractional",
@@ -26017,6 +26069,7 @@
   {
    "name": "four-lot-blocking-better",
    "title": "A 2^3 factorial in four blocks of two: the better choice D = AB, E = AC",
+   "topics": ["general"],
    "kind": "design",
    "exercise": null,
    "group": "fractional",
@@ -26267,6 +26320,7 @@
   {
    "name": "fractional-2-8-4-example-2",
    "title": "Eight factors in 16 runs: a 2^(8-4) resolution IV design (Example 2)",
+   "topics": ["general"],
    "kind": "design",
    "exercise": null,
    "group": "fractional",
@@ -26702,6 +26756,7 @@
   {
    "name": "fractional-2-5-1-resolution-v",
    "title": "Five factors in 16 runs: a 2^(5-1) resolution V half fraction, E = ABCD",
+   "topics": ["general"],
    "kind": "design",
    "exercise": null,
    "group": "fractional",
@@ -26864,6 +26919,7 @@
   {
    "name": "trade-off-16-runs-7-factors",
    "title": "Trade-off table cell: 7 factors in 16 runs, a 2^(7-3) resolution IV design",
+   "topics": ["general"],
    "kind": "design",
    "exercise": null,
    "group": "fractional",
@@ -27261,6 +27317,7 @@
   {
    "name": "saturated-screening-foldover-c",
    "title": "Fold-over on one factor: re-running the 2^(7-4) saturated design with the sign of C switched",
+   "topics": ["general"],
    "kind": "design",
    "exercise": null,
    "group": "fractional",
@@ -27505,6 +27562,7 @@
   {
    "name": "saturated-screening-full-foldover",
    "title": "Full fold-over of the 2^(7-4) saturated design: 16 runs of resolution IV",
+   "topics": ["general"],
    "kind": "design",
    "exercise": null,
    "group": "fractional",
@@ -27742,6 +27800,7 @@
   {
    "name": "projectivity-half-fraction-2-3-1",
    "title": "Projectivity of a 2^(3-1) half fraction: dropping one factor leaves a 2^2 full factorial",
+   "topics": ["general"],
    "kind": "design",
    "exercise": null,
    "group": "fractional",
@@ -27882,6 +27941,7 @@
   {
    "name": "projectivity-2-6-2-iv",
    "title": "Projectivity of a 2^(6-2) resolution IV design: an embedded full factorial in any 3 factors",
+   "topics": ["general"],
    "kind": "design",
    "exercise": null,
    "group": "fractional",
@@ -28025,6 +28085,7 @@
   {
    "name": "dsd-six-factors",
    "title": "A six-factor definitive screening design in 13 runs",
+   "topics": ["general"],
    "kind": "design",
    "exercise": null,
    "group": "fractional",
@@ -28368,6 +28429,7 @@
   {
    "name": "dsd-five-factors",
    "title": "A five-factor definitive screening design: thirteen runs",
+   "topics": ["general"],
    "kind": "design",
    "exercise": null,
    "group": "fractional",
@@ -28472,6 +28534,7 @@
   {
    "name": "dsd-four-factors-nine-runs",
    "title": "A four-factor DSD in nine runs, too small for a three-factor full quadratic",
+   "topics": ["general"],
    "kind": "design",
    "exercise": null,
    "group": "fractional",
@@ -28567,6 +28630,7 @@
   {
    "name": "box-behnken-k3",
    "title": "Box-Behnken design in 3 factors",
+   "topics": ["general"],
    "kind": "design",
    "exercise": null,
    "group": "rsm-mixture",
@@ -28813,6 +28877,7 @@
   {
    "name": "box-behnken-k4",
    "title": "Box-Behnken design in 4 factors",
+   "topics": ["general"],
    "kind": "design",
    "exercise": null,
    "group": "rsm-mixture",
@@ -28953,6 +29018,7 @@
   {
    "name": "box-behnken-k5",
    "title": "Box-Behnken design in 5 factors",
+   "topics": ["general"],
    "kind": "design",
    "exercise": null,
    "group": "rsm-mixture",
@@ -29079,6 +29145,7 @@
   {
    "name": "box-behnken-k6",
    "title": "Box-Behnken design in 6 factors",
+   "topics": ["general"],
    "kind": "design",
    "exercise": null,
    "group": "rsm-mixture",
@@ -29205,6 +29272,7 @@
   {
    "name": "box-behnken-k7",
    "title": "Box-Behnken design in 7 factors",
+   "topics": ["general"],
    "kind": "design",
    "exercise": null,
    "group": "rsm-mixture",
@@ -29331,6 +29399,7 @@
   {
    "name": "ccd-k3",
    "title": "Central composite design in 3 factors (axial distance and comparison with a Box-Behnken design)",
+   "topics": ["general"],
    "kind": "design",
    "exercise": null,
    "group": "rsm-mixture",
@@ -29479,6 +29548,7 @@
   {
    "name": "mixture-scheffe-quadratic-3-components",
    "title": "Support points of a second-order Scheffe model in three ingredients, with the centroid as a check run",
+   "topics": ["general"],
    "kind": "design",
    "exercise": null,
    "group": "rsm-mixture",
@@ -29566,6 +29636,7 @@
   {
    "name": "mixture-lower-bounds-pseudocomponents",
    "title": "Three-ingredient mixture region with lower bounds, expressed in pseudocomponents",
+   "topics": ["general"],
    "kind": "design",
    "exercise": null,
    "group": "rsm-mixture",
@@ -29670,6 +29741,7 @@
   {
    "name": "mixture-process-q3-m2-parameter-count",
    "title": "Mixture-process variable model: parameter count for three ingredients and two process variables",
+   "topics": ["general"],
    "kind": "design",
    "exercise": null,
    "group": "rsm-mixture",
@@ -29733,6 +29805,7 @@
   {
    "name": "one-factor-quadratic-three-run",
    "title": "One factor at three levels {-1, 0, +1} with the quadratic model: the information-matrix worked example",
+   "topics": ["general"],
    "kind": "design",
    "exercise": null,
    "group": "design-quality",
@@ -29976,6 +30049,7 @@
   {
    "name": "exchange-two-factor-interaction-four-run",
    "title": "Four-run D-optimal design for the two-factor interaction model on [-1, +1]^2 (the 2^2 factorial), reached by point-exchange and coordinate-exchange",
+   "topics": ["general"],
    "kind": "design",
    "exercise": null,
    "group": "design-quality",
@@ -30189,6 +30263,7 @@
   {
    "name": "exchange-point-start-design",
    "title": "Point-exchange starting design {(-1,-1), (0,1), (1,0), (1,1)} for the two-factor interaction model",
+   "topics": ["general"],
    "kind": "design",
    "exercise": null,
    "group": "design-quality",
@@ -30262,6 +30337,7 @@
   {
    "name": "exchange-point-after-first-swap",
    "title": "Point-exchange design after the first swap: {(-1,-1), (-1,1), (1,0), (1,1)}",
+   "topics": ["general"],
    "kind": "design",
    "exercise": null,
    "group": "design-quality",
@@ -30335,6 +30411,7 @@
   {
    "name": "constrained-quadratic-ten-run-d-optimal",
    "title": "Ten-run D-optimal design for the two-factor quadratic model on [-1, +1]^2 with x1 + x2 <= 1",
+   "topics": ["general"],
    "kind": "design",
    "exercise": null,
    "group": "design-quality",
@@ -30498,6 +30575,7 @@
   {
    "name": "categorical-four-level-one-run-per-level",
    "title": "A four-level categorical factor, one run per level: the determinant under three codings",
+   "topics": ["general"],
    "kind": "design",
    "exercise": null,
    "group": "design-quality",
@@ -30779,6 +30857,7 @@
   {
    "name": "one-factor-quadratic-base-judging",
    "title": "Base three-run design {-1, 0, +1}: prediction variance, SPV and its row of the four-design table",
+   "topics": ["general"],
    "kind": "design",
    "exercise": null,
    "group": "design-quality",
@@ -31147,6 +31226,7 @@
   {
    "name": "one-factor-quadratic-base-replicated",
    "title": "Base three-run design with all three runs repeated (six runs)",
+   "topics": ["general"],
    "kind": "design",
    "exercise": null,
    "group": "design-quality",
@@ -31392,6 +31472,7 @@
   {
    "name": "one-factor-quadratic-base-plus-two-centre",
    "title": "Base three-run design plus two replicate centre points (five runs)",
+   "topics": ["general"],
    "kind": "design",
    "exercise": null,
    "group": "design-quality",
@@ -31691,6 +31772,7 @@
   {
    "name": "one-factor-quadratic-base-plus-two-extremes",
    "title": "Base three-run design plus one point at x = -1 and one at x = +1 (five runs)",
+   "topics": ["general"],
    "kind": "design",
    "exercise": null,
    "group": "design-quality",
@@ -31990,6 +32072,7 @@
   {
    "name": "dsd-four-factor-nine-run",
    "title": "Nine-run definitive screening design in four factors (the running comparison)",
+   "topics": ["general"],
    "kind": "design",
    "exercise": null,
    "group": "design-quality",
@@ -32425,6 +32508,7 @@
   {
    "name": "omars-four-factor-thirteen-run",
    "title": "Thirteen-run OMARS design in four factors (the running comparison)",
+   "topics": ["general"],
    "kind": "design",
    "exercise": null,
    "group": "design-quality",
@@ -32915,6 +32999,7 @@
   {
    "name": "full-factorial-2-5-plus-two-centre",
    "title": "Full 2^5 factorial plus two centre points, against the 11-term main-effects-and-quadratic model",
+   "topics": ["general"],
    "kind": "design",
    "exercise": null,
    "group": "design-quality",
@@ -33069,6 +33154,7 @@
   {
    "name": "fractional-factorial-2-5-1-plus-two-centre",
    "title": "Resolution-V 2^(5-1) fractional factorial plus two centre points, against the 11-term model",
+   "topics": ["general"],
    "kind": "design",
    "exercise": null,
    "group": "design-quality",
@@ -33225,6 +33311,7 @@
   {
    "name": "ccd-face-centred-five-factor",
    "title": "Face-centred central composite design in five factors on a resolution-V half-fraction cube (32 runs)",
+   "topics": ["general"],
    "kind": "design",
    "exercise": null,
    "group": "design-quality",
@@ -33662,6 +33749,7 @@
   {
    "name": "box-behnken-five-factor",
    "title": "Box-Behnken design in five factors (40 design runs plus 6 centre runs)",
+   "topics": ["general"],
    "kind": "design",
    "exercise": null,
    "group": "design-quality",
@@ -34143,6 +34231,7 @@
   {
    "name": "omars-five-factor-twenty-five-run",
    "title": "Twenty-five-run OMARS design in five factors (24 design runs folded around one centre run)",
+   "topics": ["general"],
    "kind": "design",
    "exercise": null,
    "group": "design-quality",
@@ -34630,6 +34719,7 @@
   {
    "name": "dsd-five-factor-thirteen-run",
    "title": "Thirteen-run definitive screening design in five factors",
+   "topics": ["general"],
    "kind": "design",
    "exercise": null,
    "group": "design-quality",
@@ -35151,6 +35241,7 @@
   {
    "name": "foldover-2f-5run-illustration",
    "title": "Five-run foldover in two factors showing mirror-image pairs repeat the second-order columns",
+   "topics": ["general"],
    "kind": "design",
    "exercise": null,
    "group": "omars",
@@ -35283,6 +35374,7 @@
   {
    "name": "omars-estimability-frontier-table",
    "title": "The estimability frontier of a foldover with one centre run, for three to seven factors",
+   "topics": ["general"],
    "kind": "design",
    "exercise": null,
    "group": "omars",
@@ -35727,6 +35819,7 @@
   {
    "name": "omars-4f-19run-main-quadratic",
    "title": "Four-factor 19-run OMARS foldover, scored against the full second-order model",
+   "topics": ["general"],
    "kind": "design",
    "exercise": null,
    "group": "omars",
@@ -35908,6 +36001,7 @@
   {
    "name": "omars-4f-21run-full-second-order",
    "title": "Four-factor 21-run OMARS foldover at the estimability frontier",
+   "topics": ["general"],
    "kind": "design",
    "exercise": null,
    "group": "omars",
@@ -36111,6 +36205,7 @@
   {
    "name": "omars-4f-19run-nonfoldover",
    "title": "Four-factor 19-run non-foldover OMARS design that estimates the full second-order model",
+   "topics": ["general"],
    "kind": "design",
    "exercise": null,
    "group": "omars",
@@ -36303,6 +36398,7 @@
   {
    "name": "omars-trade-off-table",
    "title": "The OMARS trade-off table: capability class and error df by run count and number of factors",
+   "topics": ["general"],
    "kind": "design",
    "exercise": null,
    "group": "omars",
@@ -37380,6 +37476,7 @@
   {
    "name": "omars-worked-example-6f-17run",
    "title": "Six factors in seventeen runs, read from the OMARS trade-off table",
+   "topics": ["general"],
    "kind": "design",
    "exercise": null,
    "group": "omars",
@@ -37510,6 +37607,7 @@
   {
    "name": "omars-worked-example-5f-13-17-31run",
    "title": "Five factors at 13, 17 and 31 runs, read from the OMARS trade-off table",
+   "topics": ["general"],
    "kind": "design",
    "exercise": null,
    "group": "omars",
@@ -37656,6 +37754,7 @@
   {
    "name": "omars-worked-example-4f-19-21run",
    "title": "Four factors in nineteen runs (inside the band) against twenty-one runs (the frontier)",
+   "topics": ["general"],
    "kind": "design",
    "exercise": null,
    "group": "omars",
@@ -37821,6 +37920,7 @@
   {
    "name": "regular-fractions-8run-4factor",
    "title": "Every regular two-level fraction with eight runs and four factors",
+   "topics": ["general"],
    "kind": "design",
    "exercise": null,
    "group": "omars",
@@ -37968,6 +38068,7 @@
   {
    "name": "regular-fractions-16run-7factor",
    "title": "Every regular two-level fraction with sixteen runs and seven factors",
+   "topics": ["general"],
    "kind": "design",
    "exercise": null,
    "group": "omars",
@@ -38170,6 +38271,7 @@
   {
    "name": "regular-fractions-32run-7factor",
    "title": "Every regular two-level fraction with thirty-two runs and seven factors",
+   "topics": ["general"],
    "kind": "design",
    "exercise": null,
    "group": "omars",
@@ -38336,6 +38438,7 @@
   {
    "name": "omars-3f-twelve-points-1-centre-13run",
    "title": "Twelve three-factor design points with one centre run (13 runs)",
+   "topics": ["general"],
    "kind": "design",
    "exercise": null,
    "group": "omars",
@@ -38519,6 +38622,7 @@
   {
    "name": "bbd-3f-15run",
    "title": "Box-Behnken design in three factors: the twelve points with three centre runs (15 runs)",
+   "topics": ["general"],
    "kind": "design",
    "exercise": null,
    "group": "omars",
@@ -38764,6 +38868,7 @@
   {
    "name": "omars-3f-twelve-points-5-centre-17run",
    "title": "Twelve three-factor design points with five centre runs (17 runs)",
+   "topics": ["general"],
    "kind": "design",
    "exercise": null,
    "group": "omars",
@@ -38951,6 +39056,7 @@
   {
    "name": "omars-3f-twelve-points-4-centre-16run",
    "title": "Twelve three-factor design points with four centre runs (16 runs)",
+   "topics": ["general"],
    "kind": "design",
    "exercise": null,
    "group": "omars",
@@ -39059,6 +39165,7 @@
   {
    "name": "full-three-level-factorial-3f-27run",
    "title": "Full three-level factorial in three factors (27 runs)",
+   "topics": ["general"],
    "kind": "design",
    "exercise": null,
    "group": "omars",
@@ -39131,6 +39238,7 @@
   {
    "name": "dsd-3f-9run",
    "title": "Nine-run definitive screening design in three factors",
+   "topics": ["general"],
    "kind": "design",
    "exercise": null,
    "group": "omars",
@@ -39231,6 +39339,7 @@
   {
    "name": "omars-3f-catalogue-best-values",
    "title": "Best attainable measures over every three-factor OMARS design of each size",
+   "topics": ["general"],
    "kind": "design",
    "exercise": null,
    "group": "omars",
@@ -39555,6 +39664,7 @@
   {
    "name": "omars-4f-catalogue-best-values",
    "title": "Best attainable measures over four-factor OMARS foldovers of each size",
+   "topics": ["general"],
    "kind": "design",
    "exercise": null,
    "group": "omars",
@@ -39704,6 +39814,7 @@
   {
    "name": "dsd-six-factors-minimum-13-run",
    "title": "The smallest definitive screening design for six factors (13 runs)",
+   "topics": ["general"],
    "kind": "design",
    "exercise": null,
    "group": "studies",
@@ -39784,6 +39895,7 @@
   {
    "name": "reactor-face-centred-ccd",
    "title": "Face-centred central composite design in T, t and C, 17 runs, against the heat limit",
+   "topics": ["chemical-processes"],
    "kind": "design",
    "exercise": null,
    "group": "studies",
@@ -39955,6 +40067,7 @@
   {
    "name": "reactor-heat-limit-d-optimal",
    "title": "D-optimal 16-run design for the quadratic model in T, t and C inside the heat limit",
+   "topics": ["chemical-processes"],
    "kind": "design",
    "exercise": null,
    "group": "studies",
@@ -40089,6 +40202,7 @@
   {
    "name": "reactor-heat-limit-g-optimal",
    "title": "G-optimal 16-run design for the quadratic model in T, t and C inside the heat limit",
+   "topics": ["chemical-processes"],
    "kind": "design",
    "exercise": null,
    "group": "studies",
@@ -40223,6 +40337,7 @@
   {
    "name": "d-optimal-2cubed-question",
    "title": "D-optimal objective for a 2^3 factorial, and after moving runs 2 and 3",
+   "topics": ["general"],
    "kind": "design",
    "exercise": null,
    "group": "exercises",
@@ -40367,6 +40482,7 @@
   {
    "name": "soil-treatment-2-7-4",
    "title": "Soil treatment screening: six factors plus soil heap in nine runs",
+   "topics": ["environment"],
    "kind": "design",
    "exercise": null,
    "group": "exercises",
@@ -40593,6 +40709,7 @@
   {
    "name": "2cubed-two-blocks",
    "title": "A 2^3 factorial in two blocks of four, blocks confounded with ABC",
+   "topics": ["general"],
    "kind": "design",
    "exercise": null,
    "group": "exercises",
@@ -40714,6 +40831,7 @@
   {
    "name": "mixed-level-split-plot-i-optimal-48",
    "title": "I-optimal split-plot, 48 runs (quadratic model), compared against the chosen 60-run design",
+   "topics": ["measurement"],
    "kind": "design",
    "exercise": null,
    "group": "mixed-level-profile",
@@ -40957,6 +41075,7 @@
   {
    "name": "mixed-level-split-plot-d-optimal-60",
    "title": "D-optimal split-plot, 60 runs (quadratic model), compared against the I-optimal design",
+   "topics": ["measurement"],
    "kind": "design",
    "exercise": null,
    "group": "mixed-level-profile",
@@ -41200,6 +41319,7 @@
   {
    "name": "mixed-level-split-plot-d-optimal-48",
    "title": "D-optimal split-plot, 48 runs (quadratic model), compared against the I-optimal design",
+   "topics": ["measurement"],
    "kind": "design",
    "exercise": null,
    "group": "mixed-level-profile",
@@ -41458,6 +41578,7 @@
   {
    "name": "mixed-level-split-plot-augmented-g-4-runs",
    "title": "Case-study 60-run design augmented with a four-run block of new compound G (resolution-III fraction in co-solvent, pH, temperature)",
+   "topics": ["measurement"],
    "kind": "design",
    "exercise": null,
    "group": "mixed-level-profile",
@@ -41759,6 +41880,7 @@
   {
    "name": "mixed-level-split-plot-augmented-g-8-runs",
    "title": "Case-study 60-run design augmented with an eight-run 2^3 full-factorial block of new compound G",
+   "topics": ["measurement"],
    "kind": "design",
    "exercise": null,
    "group": "mixed-level-profile",

@@ -18,6 +18,7 @@
   {
    "name": "efi-quiz1-store-profit",
    "title": "A grocery store's hourly profit: cashiers always open C and grocery carts G",
+   "topics": ["business"],
    "kind": "quiz question",
    "where": {
     "quiz": "Quiz for week 1",
@@ -73,6 +74,7 @@
   {
    "name": "efi-quiz1-bread-dough-rise",
    "title": "Bread dough left to rise for an hour: type of sugar S and water temperature T",
+   "topics": ["food-beverages"],
    "kind": "quiz question",
    "where": {
     "quiz": "Quiz for week 1",
@@ -157,6 +159,7 @@
   {
    "name": "efi-quiz1-practice-yogurt-taste",
    "title": "Amir's yogurt: fat content of the starter yogurt F and fermentation time T",
+   "topics": ["food-beverages"],
    "kind": "quiz question",
    "where": {
     "quiz": "Ungraded practice quiz 1",
@@ -369,6 +372,7 @@
   {
    "name": "efi-quiz2-baking-taste-direction",
    "title": "Baking temperature A and mixing time B: the direction in which taste improves",
+   "topics": ["food-beverages"],
    "kind": "quiz question",
    "where": {
     "quiz": "Quiz for module 2",
@@ -496,6 +500,7 @@
   {
    "name": "efi-quiz2-cycling-bike-position",
    "title": "Geoffrey's climb up the mountain: bicycle type A and cycling position B",
+   "topics": ["sport-recreation"],
    "kind": "quiz question",
    "where": {
     "quiz": "Quiz for module 2",
@@ -681,6 +686,7 @@
   {
    "name": "efi-quiz2-cycling-extra-weight",
    "title": "Geoffrey's climb up the mountain: bicycle type A, cycling position B and extra weight C",
+   "topics": ["sport-recreation"],
    "kind": "quiz question",
    "where": {
     "quiz": "Quiz for module 2",
@@ -897,6 +903,7 @@
   {
    "name": "efi-quiz2-spinach-germination",
    "title": "Antowan's spinach seeds: amount of water W and sunlight S, and their interaction plot",
+   "topics": ["agriculture"],
    "kind": "quiz question",
    "where": {
     "quiz": "Quiz for module 2",
@@ -1023,6 +1030,7 @@
   {
    "name": "efi-quiz2-popcorn-kernels",
    "title": "The popcorn: cooking time A and popcorn type B, yellow corn coded low",
+   "topics": ["food-beverages"],
    "kind": "quiz question",
    "where": {
     "quiz": "Quiz for module 2",
@@ -1358,6 +1366,7 @@
   {
    "name": "efi-quiz2-pea-plant-height",
    "title": "Pea plants: amount of soil A and daily water B, and the prediction at the baseline",
+   "topics": ["agriculture"],
    "kind": "quiz question",
    "where": {
     "quiz": "Quiz for module 2",
@@ -1625,6 +1634,7 @@
   {
    "name": "efi-quiz2-reactor-yield-interaction",
    "title": "Reactor yield: jacket temperature T and amount of additive D, and their interaction",
+   "topics": ["chemical-processes"],
    "kind": "quiz question",
    "where": {
     "quiz": "Quiz for module 2",
@@ -2008,6 +2018,7 @@
   {
    "name": "efi-quiz2-practice-blown-film-haze",
    "title": "Jesus's blown-film machine: width A, cooling rate B and film thickness C, with the haze judged hazy or clear",
+   "topics": ["plastics-rubber"],
    "kind": "quiz question",
    "where": {
     "quiz": "Ungraded practice quiz 2",
@@ -2075,6 +2086,7 @@
   {
    "name": "efi-quiz2-practice-airport-wait",
    "title": "Departure wait times at Hamilton airport: check-in staff C, kiosk staff K and security staff S",
+   "topics": ["operations"],
    "kind": "quiz question",
    "where": {
     "quiz": "Ungraded practice quiz 2",
@@ -2432,6 +2444,7 @@
   {
    "name": "efi-quiz3-pizza-delivery",
    "title": "Pizza delivery time: crust A, soft drinks B and garlic bread C, and the Pareto plot of its model",
+   "topics": ["operations"],
    "kind": "quiz question",
    "where": {
     "quiz": "Quiz for week 3",
@@ -2575,6 +2588,7 @@
   {
    "name": "efi-quiz3-boiling-water-pot-size",
    "title": "The cook's soup pots: amount of water W and size of pot P, a destructive interaction on boiling time",
+   "topics": ["household"],
    "kind": "quiz question",
    "where": {
     "quiz": "Quiz for week 3",
@@ -2739,6 +2753,7 @@
   {
    "name": "efi-quiz3-golf-drive",
    "title": "A golfer's drive: tee height T, holes played H, club C and time of day D, sixteen runs",
+   "topics": ["sport-recreation"],
    "kind": "quiz question",
    "where": {
     "quiz": "Quiz for week 3",
@@ -2951,6 +2966,7 @@
   {
    "name": "efi-quiz3-long-jump",
    "title": "A long jumper: running distance R, shoes S and jumping foot F",
+   "topics": ["sport-recreation"],
    "kind": "quiz question",
    "where": {
     "quiz": "Quiz for week 3",
@@ -3035,6 +3051,7 @@
   {
    "name": "efi-quiz3-running-5km",
    "title": "Priya's 5 km run: stretching A, warm up B and water C, and a ninth run at the centre",
+   "topics": ["sport-recreation"],
    "kind": "quiz question",
    "where": {
     "quiz": "Quiz for week 3",
@@ -3484,6 +3501,7 @@
   {
    "name": "efi-quiz3-boiling-water-lid",
    "title": "Michael's boiling water: amount A, lid B and pot size C, eight runs and three more",
+   "topics": ["household"],
    "kind": "quiz question",
    "where": {
     "quiz": "Quiz for week 3",
@@ -3879,6 +3897,7 @@
   {
    "name": "efi-quiz3-practice-flu-prevention",
    "title": "The hospital's flu study: hand-washing demonstration H, information I and sanitizer S",
+   "topics": ["biomedical"],
    "kind": "quiz question",
    "where": {
     "quiz": "Ungraded practice quiz 3",
@@ -4564,6 +4583,7 @@
   {
    "name": "efi-quiz3-practice-exam-scores",
    "title": "Marlissa's accounting sections: delivery D, attempts N and practice quiz P, eight runs and two more",
+   "topics": ["education"],
    "kind": "quiz question",
    "where": {
     "quiz": "Ungraded practice quiz 3",
@@ -5026,6 +5046,7 @@
   {
    "name": "efi-quiz4-breaded-chicken",
    "title": "Aditi's breaded chicken strips: cooking duration D, oven rack R and preheating P",
+   "topics": ["food-beverages"],
    "kind": "quiz question",
    "where": {
     "quiz": "Quiz for module 4",
@@ -5528,6 +5549,7 @@
   {
    "name": "efi-quiz4-fuel-economy",
    "title": "Robert's fuel economy: tire pressure A, air conditioning B, route C and cargo D, with D = ABC",
+   "topics": ["automotive"],
    "kind": "quiz question",
    "where": {
     "quiz": "Quiz for module 4",
@@ -5993,6 +6015,7 @@
   {
    "name": "efi-quiz4-amusement-park",
    "title": "Jordan's amusement park: rides open R, food advertising F and staff per ride P, with P = RF",
+   "topics": ["business"],
    "kind": "quiz question",
    "where": {
     "quiz": "Quiz for module 4",
@@ -6241,6 +6264,7 @@
   {
    "name": "efi-quiz4-reactor-conversion",
    "title": "Emil's reactor: feed F, jacket temperature T and agitator speed S, and its two half fractions",
+   "topics": ["chemical-processes"],
    "kind": "quiz question",
    "where": {
     "quiz": "Quiz for module 4",
@@ -6505,6 +6529,7 @@
   {
    "name": "efi-quiz4-swimming",
    "title": "Hiro's 400 m individual medley: six training factors in eight runs, D = AB, E = AC, F = BC",
+   "topics": ["sport-recreation"],
    "kind": "quiz question",
    "where": {
     "quiz": "Quiz for module 4",
@@ -6769,6 +6794,7 @@
   {
    "name": "efi-quiz4-practice-running-time",
    "title": "Jason's 1 km run: warm up A, water B and time of day C; the half fractions C = AB and C = -AB",
+   "topics": ["sport-recreation"],
    "kind": "quiz question",
    "where": {
     "quiz": "Ungraded practice quiz 4: part 1",
@@ -7087,6 +7113,7 @@
   {
    "name": "efi-quiz4-practice-concrete-strength",
    "title": "Ghassan's concrete: water A, cement B and additives C in four runs, with C = AB",
+   "topics": ["construction"],
    "kind": "quiz question",
    "where": {
     "quiz": "Ungraded practice quiz 4: part 1",
@@ -7358,6 +7385,7 @@
   {
    "name": "efi-quiz4-practice-cake-yield",
    "title": "Cake ovens: baking temperature A, mixing speed B and baking time C in four runs, with C = AB",
+   "topics": ["food-beverages"],
    "kind": "quiz question",
    "where": {
     "quiz": "Ungraded practice quiz 4: part 1",
@@ -7640,6 +7668,7 @@
   {
    "name": "efi-quiz5a-electricity-usage",
    "title": "Arif's summer electricity use: thermostat setting A and window blinds B, and two runs beyond the cube",
+   "topics": ["household", "energy"],
    "kind": "quiz question",
    "where": {
     "quiz": "Quiz for module 5A",
@@ -8086,6 +8115,7 @@
   {
    "name": "efi-quiz5a-stage-mistakes",
    "title": "Michael's mistakes on stage: practice hours P, sleep S and dinner D, and a ninth run at the centre of P and S",
+   "topics": ["human-factors"],
    "kind": "quiz question",
    "where": {
     "quiz": "Quiz for module 5A",
@@ -8515,6 +8545,7 @@
   {
    "name": "efi-quiz5a-rose-life",
    "title": "Rishat's cut roses: sugar S and vodka V in the vase water, a centre point, and a sixth run in V",
+   "topics": ["household"],
    "kind": "quiz question",
    "where": {
     "quiz": "Quiz for module 5A",
@@ -8874,6 +8905,7 @@
   {
    "name": "efi-quiz5b-cake-yield-steepest-ascent",
    "title": "Cake ovens: baking temperature A, baking time B and mixing speed C, the half fraction C = AB, and a step toward the optimum",
+   "topics": ["food-beverages"],
    "kind": "quiz question",
    "where": {
     "quiz": "Quiz for module 5B",
@@ -9181,6 +9213,7 @@
   {
    "name": "efi-quiz5b-cake-yield-near-optimum",
    "title": "Cake ovens near the optimum: baking temperature A from 357.5 to 370 °F and time B from 20 to 25 min, and the axial runs of a CCD",
+   "topics": ["food-beverages"],
    "kind": "quiz question",
    "where": {
     "quiz": "Quiz for module 5B",
@@ -9406,6 +9439,7 @@
   {
    "name": "efi-quiz5b-solarization-contour-plot",
    "title": "Soil solarization: period P and plastic thickness T, and the contour plot of their 2^2 factorial",
+   "topics": ["agriculture"],
    "kind": "quiz question",
    "where": {
     "quiz": "Quiz for module 5B",
@@ -9514,6 +9548,7 @@
   {
    "name": "efi-quiz5b-wind-turbine-ccd",
    "title": "Wind turbine power: rotor diameter D and tensile strength T in a central composite design, and its optimum",
+   "topics": ["energy"],
    "kind": "quiz question",
    "where": {
     "quiz": "Quiz for module 5B",
@@ -9834,6 +9869,7 @@
   {
    "name": "efi-quiz5b-beer-taste-ccd",
    "title": "Nathan's beer: malt M and hops H in a 2^2 factorial with a centre point, then a central composite design",
+   "topics": ["food-beverages"],
    "kind": "quiz question",
    "where": {
     "quiz": "Quiz for module 5B",
@@ -10273,6 +10309,7 @@
   {
    "name": "efi-quiz5a-practice-solarization",
    "title": "Soil solarization: period P and plastic thickness T, then a centre point and a run at 8 weeks in P only",
+   "topics": ["agriculture"],
    "kind": "quiz question",
    "where": {
     "quiz": "Ungraded practice quiz 5A",
@@ -10692,6 +10729,7 @@
   {
    "name": "efi-quiz5a-practice-microblogging",
    "title": "A hospital's microblogging: posts per day N, ratio of original content R and tone T, the half fraction T = NR",
+   "topics": ["business"],
    "kind": "quiz question",
    "where": {
     "quiz": "Ungraded practice quiz 5A",
@@ -11153,6 +11191,7 @@
   {
    "name": "efi-quiz5a-practice-electronics-recycling",
    "title": "A city's electronics recycling: opening hours H and depot sites S, from 2 to 6 sites",
+   "topics": ["environment"],
    "kind": "quiz question",
    "where": {
     "quiz": "Ungraded practice quiz 5A",
@@ -11443,6 +11482,7 @@
   {
    "name": "efi-quiz5a-practice-program-enrollment",
    "title": "An after-school program's enrollment: class length L and program weeks N, and a fifth run outside the cube",
+   "topics": ["education"],
    "kind": "quiz question",
    "where": {
     "quiz": "Ungraded practice quiz 5A",
@@ -11715,6 +11755,7 @@
   {
    "name": "efi-quiz5a-practice-refrigerator",
    "title": "Francisco's refrigerator: compressor power A, volume B and insulation C, the half fraction C = AB, and a run at 700 W",
+   "topics": ["electrical-electronic"],
    "kind": "quiz question",
    "where": {
     "quiz": "Ungraded practice quiz 5A",
@@ -12070,6 +12111,7 @@
   {
    "name": "efi-quiz5b-practice-running-time",
    "title": "Jason's 1 km run: warm up A and water B, a 2^2 factorial with a centre point, and two steps toward the optimum",
+   "topics": ["sport-recreation"],
    "kind": "quiz question",
    "where": {
     "quiz": "Ungraded practice quiz 5B",
@@ -12365,6 +12407,7 @@
   {
    "name": "efi-quiz5b-practice-trading-profit",
    "title": "A trading platform's monthly profit: commission A and brokers B, a 2^2 factorial with a centre point, and the sixth run",
+   "topics": ["business"],
    "kind": "quiz question",
    "where": {
     "quiz": "Ungraded practice quiz 5B",
@@ -12474,6 +12517,7 @@
   {
    "name": "efi-quiz5b-practice-electronics-recycling",
    "title": "A city's electronics recycling: opening hours H and depot sites S, from 2 to 4 sites, with a centre point",
+   "topics": ["environment"],
    "kind": "quiz question",
    "where": {
     "quiz": "Ungraded practice quiz 5B",
@@ -12639,6 +12683,7 @@
   {
    "name": "efi-quiz2-sprinter-three-factors",
    "title": "A 200 m sprinter's training: time of day, shoe type and arm position, at two levels each",
+   "topics": ["sport-recreation"],
    "where": {
     "quiz": "Quiz for module 2",
     "file": "quiz2-2015",
@@ -12754,6 +12799,7 @@
   {
    "name": "efi-quiz2-plastic-roughness-prediction",
    "title": "Roughness of a plastic cover: raw material supplier A and melt temperature B, a prediction from the model",
+   "topics": ["plastics-rubber"],
    "where": {
     "quiz": "Quiz for module 2",
     "file": "quiz2-2015",
@@ -12822,6 +12868,7 @@
   {
    "name": "efi-quiz2-practice-plastic-roughness-interaction",
    "title": "Roughness of a plastic cover: which term of the model y = 7 + 3 x_A - 4 x_B + 2 x_A x_B is the interaction",
+   "topics": ["plastics-rubber"],
    "where": {
     "quiz": "Ungraded practice quiz 2",
     "file": "quiz2-UG-2015",
@@ -12912,6 +12959,7 @@
   {
    "name": "efi-quiz2-practice-coded-temperature",
    "title": "Room temperature A, 30 to 40 degrees, and humidity B, 30 to 50%: the coded value of 45 degrees",
+   "topics": ["general"],
    "where": {
     "quiz": "Ungraded practice quiz 2",
     "file": "quiz2-UG-2015",
@@ -13034,6 +13082,7 @@
   {
    "name": "efi-quiz2-practice-bubble-duration",
    "title": "Tiny Bubbles: water-to-soap ratio A and soap type B, a prediction from the model",
+   "topics": ["household"],
    "where": {
     "quiz": "Ungraded practice quiz 2",
     "file": "quiz2-UG-2015",
@@ -13102,6 +13151,7 @@
   {
    "name": "efi-quiz2-practice-three-level-runs",
    "title": "Two factors A and B at three levels each: the runs in a full, unreplicated factorial",
+   "topics": ["general"],
    "where": {
     "quiz": "Ungraded practice quiz 2",
     "file": "quiz2-UG-2015",
@@ -13189,6 +13239,7 @@
   {
    "name": "efi-quiz3-steam-reagent-profit",
    "title": "James's reactor: steam S and reagent R, a synergistic interaction on profit",
+   "topics": ["chemical-processes"],
    "where": {
     "quiz": "Quiz for week 3",
     "file": "quiz3-2015",
@@ -13288,6 +13339,7 @@
   {
    "name": "efi-quiz3-practice-pareto-of-a-model",
    "title": "The Pareto plot of the model y = 16.5 + 1.25 xA - 4 xB + 0.75 xA xB",
+   "topics": ["general"],
    "where": {
     "quiz": "Ungraded practice quiz 3",
     "file": "quiz3-UG-2015",
@@ -13446,6 +13498,7 @@
   {
    "name": "efi-quiz4-cookie-run-budget",
    "title": "Jeff's chocolate chip cookies: what eight runs allow, in two to five factors",
+   "topics": ["food-beverages"],
    "where": {
     "quiz": "Quiz for module 4",
     "file": "quiz4-full-2015",
@@ -13579,6 +13632,7 @@
   {
    "name": "efi-quiz4-yogurt-half-fraction",
    "title": "Parvin's yogurt: temperature T, sugar S and culture C in four runs, C = TS",
+   "topics": ["food-beverages"],
    "where": {
     "quiz": "Quiz for module 4",
     "file": "quiz4-full-2015",
@@ -13663,6 +13717,7 @@
   {
    "name": "efi-quiz4-cookie-mixing-bowls",
    "title": "Jennifer's cookies: duration D, temperature T and chips N, blocked on the mixing bowl",
+   "topics": ["food-beverages"],
    "where": {
     "quiz": "Quiz for module 4",
     "file": "quiz4-full-2015",
@@ -13765,6 +13820,7 @@
   {
    "name": "efi-quiz4-gas-mileage-half-fraction",
    "title": "Gatei's gas mileage: air conditioning A, road R, time of day T and oil E, with E = ART",
+   "topics": ["automotive"],
    "where": {
     "quiz": "Quiz for module 4",
     "file": "quiz4-full-2015",
@@ -13913,6 +13969,7 @@
   {
    "name": "efi-quiz4-practice-seven-factors",
    "title": "Seven factors A to G at two levels: the full factorial and its half fraction",
+   "topics": ["general"],
    "where": {
     "quiz": "Ungraded practice quiz 4: part 1",
     "file": "quiz4-UG1-2015",
@@ -14045,6 +14102,7 @@
   {
    "name": "efi-quiz4-practice-bike-collapsibility",
    "title": "Philip's bike ride: bike type A, position B and drink C, in a random order; the four rows of a half fraction",
+   "topics": ["sport-recreation"],
    "where": {
     "quiz": "Ungraded practice quiz 4: part 1",
     "file": "quiz4-UG1-2015",
@@ -14124,6 +14182,7 @@
   {
    "name": "efi-quiz4-practice-pqr-half-fraction",
    "title": "The half fraction in P, Q and R whose aliases are P = QR, Q = PR and R = PQ",
+   "topics": ["general"],
    "where": {
     "quiz": "Ungraded practice quiz 4: part 2",
     "file": "quiz4-UG2-2015",
@@ -14244,6 +14303,7 @@
   {
    "name": "efi-quiz4-practice-gas-mileage",
    "title": "Jim's gas mileage: air conditioning A, road R and time of day T, with T = AR",
+   "topics": ["automotive"],
    "where": {
     "quiz": "Ungraded practice quiz 4: part 2",
     "file": "quiz4-UG2-2015",
@@ -14354,6 +14414,7 @@
   {
    "name": "efi-quiz4-practice-seed-germination",
    "title": "Antowan's seeds: sunlight A, soil B and water C in four runs, with C = AB",
+   "topics": ["agriculture"],
    "where": {
     "quiz": "Ungraded practice quiz 4: part 2",
     "file": "quiz4-UG2-2015",
@@ -14434,6 +14495,7 @@
   {
    "name": "efi-quiz4-practice-quarter-fraction",
    "title": "Five factors in eight runs: the quarter fraction with D = AB and E = AC",
+   "topics": ["general"],
    "where": {
     "quiz": "Ungraded practice quiz 4: part 2",
     "file": "quiz4-UG2-2015",
@@ -14583,6 +14645,7 @@
   {
    "name": "efi-quiz4-practice-car-printers",
    "title": "Sandip and Daniele's toy cars: material M, wing length L and stabilizers W, blocked on two 3D printers",
+   "topics": ["household"],
    "where": {
     "quiz": "Ungraded practice quiz 4: part 2",
     "file": "quiz4-UG2-2015",
@@ -14682,6 +14745,7 @@
   {
    "name": "efi-quiz4-practice-cookie-six-factors",
    "title": "Jeff's cookies in six factors A to F and eight runs: the 2^(6-3) fraction",
+   "topics": ["food-beverages"],
    "where": {
     "quiz": "Ungraded practice quiz 4: part 2",
     "file": "quiz4-UG2-2015",
@@ -14780,6 +14844,7 @@
   {
    "name": "efi-quiz4-practice-beach-safety",
    "title": "Beach safety: six factors A to F, one week a run",
+   "topics": ["operations"],
    "where": {
     "quiz": "Ungraded practice quiz 4: part 2",
     "file": "quiz4-UG2-2015",
@@ -14962,6 +15027,7 @@
   {
    "name": "efi-quiz5a-sleep-coded-units",
    "title": "Olga's night's sleep: bedtime A, alarm time B and water drunk C, in coded units",
+   "topics": ["household"],
    "where": {
     "quiz": "Quiz for module 5A",
     "file": "quiz5A-2015",
@@ -15106,6 +15172,7 @@
   {
    "name": "efi-quiz5a-extrapolating-two-models",
    "title": "Daryl's two models, a 2^2 factorial's and a quadratic in A, predicting at A = +3 and B = +2",
+   "topics": ["general"],
    "where": {
     "quiz": "Quiz for module 5A",
     "file": "quiz5A-2015",
@@ -15158,6 +15225,7 @@
   {
    "name": "efi-quiz5a-practice-ipa-extrapolation",
    "title": "Nathan's IPA: two models, a 2^2 factorial's and a quadratic in hops H, predicting at H = +2 and A = +1",
+   "topics": ["food-beverages"],
    "where": {
     "quiz": "Ungraded practice quiz 5A",
     "file": "quiz5A-UG-2015",
