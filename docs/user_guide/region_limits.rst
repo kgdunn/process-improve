@@ -317,10 +317,11 @@ Box-Behnken design has two runs there, which cannot be run.
 The designs are in coded units, and the region's factor ranges define the coding. I is
 averaged over 20000 points drawn uniformly from the region with a fixed seed, and G is
 searched over the region's corners, points on its boundary (on a curved limit too), a
-grid, and the same sample (``comparison.g_points`` describes them). With a curved limit,
-local searches then climb each design's prediction variance from the points where it is
-largest: the largest value usually lies where the curved boundary meets faces of the box,
-which a fixed set of points does not reach. The other measures do not depend on where
+grid, and the same sample (``comparison.g_points`` describes them, and says when a region
+has too many corners to list, more than 65536, so that G can come out low). With a curved
+limit, local searches then climb each design's prediction variance from the points where
+it is largest: the largest value usually lies where the curved boundary meets faces of the
+box, which a fixed set of points does not reach. The other measures do not depend on where
 predictions are made and are the same with or without a region. A mixture region, or one
 that names a factor the designs do not have, is refused.
 
