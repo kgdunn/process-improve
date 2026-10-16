@@ -327,3 +327,12 @@ def test_a_design_s_runs_outside_the_limit_are_marked_and_it_opens_with_the_limi
     assert "outside your limits on the settings: choose the D-optimal or I-optimal design" in page.text_content(
         "#design-summary"
     )
+
+
+def test_a_link_that_names_a_design_in_its_query_opens_it(context, site):
+    """The book links to a design as catalog/?d=<id>: its theme reads a fragment as a CSS selector."""
+    page = context.new_page()
+    page.goto(f"{site}catalog/?d={CCD}")
+    page.wait_for_selector("#detail[open]")
+    assert page.text_content("#detail-title").startswith("Central composite, 3 factors")
+    assert page.url == f"{site}catalog/#d={CCD}", "the address keeps it in the fragment, which no server sees"

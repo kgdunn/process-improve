@@ -1109,7 +1109,10 @@ async function start() {
   const differ = catalog.designs.reduce((n, d) => n + (d.checks?.explained ?? 0), 0);
   $("#errata-open").textContent = `Errata: the ${differ} printed numbers that do not reproduce, with the reasons`;
   buildFacets();
-  state = fromHash(location.hash, catalog.families, catalog.sources);
+  // A link from the book names its design in the query (?d=), which the book's theme leaves alone; the page keeps
+  // what it shows in the fragment, which no server sees, so the address is rewritten that way at once.
+  state = fromHash(location.hash || location.search, catalog.families, catalog.sources);
+  if (!location.hash && location.search) history.replaceState(null, "", location.pathname + toHash(state));
   writeForm();
   wire();
   render();
