@@ -524,13 +524,29 @@ export function insertAt(text, start, end, piece) {
   return { text: `${before}${placed}${after}`, caret: start + lead.length + piece.length };
 }
 
-/** A share of the factors' ranges as the page writes it: a whole percent, a tenth below 1%, and never a false 0% or 100%. */
+/**
+ * A percent to ``digits`` decimals, a half to the even neighbour. Rounding a half up writes an eighth and
+ * the seven eighths it leaves as 13% and 88%; to the even neighbour they are 12% and 88%, so a share and
+ * what it leaves always sum to 100%.
+ */
+function evenPercent(percent, digits) {
+  const scaled = percent * 10 ** digits;
+  const below = Math.floor(scaled);
+  const half = Math.abs(scaled - below - 0.5) < 1e-6;
+  return (half ? below + (below % 2) : Math.round(scaled)) / 10 ** digits;
+}
+
+/**
+ * A share of the factors' ranges as the page writes it: a whole percent, a tenth within 1% of none or of
+ * all, and never a false 0% or 100%. A share and what it leaves sum to 100%, so a lone limit's "rules out"
+ * agrees with the "leave" written beside it.
+ */
 export function shareText(share) {
   if (share <= 0) return "none";
   if (share < 0.001) return "less than 0.1%";
   if (share > 0.999 && share < 1) return "more than 99.9%";
-  if (share < 0.01) return `${(100 * share).toFixed(1)}%`;
-  return `${Math.round(100 * share)}%`;
+  const digits = share < 0.01 || (share > 0.99 && share < 1) ? 1 : 0;
+  return `${evenPercent(100 * share, digits).toFixed(digits)}%`;
 }
 
 /**

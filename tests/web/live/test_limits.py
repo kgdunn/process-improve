@@ -27,7 +27,7 @@ def test_a_limit_typed_proposed_and_kept_to_under_pyodide(own_context, app_url):
     type_limit(page, "T+25*P<=250")
     row = page.locator("#limit-list .limit").first
     assert row.locator("[name=expression]").input_value() == HEAT
-    assert row.locator(".limit-effect").text_content() == "Rules out 13% of your ranges: 2 of the 8 corners."
+    assert row.locator(".limit-effect").text_content() == "Rules out 12% of your ranges: 2 of the 8 corners."
     assert page.locator("#region-panels .region__pick").count() == 3, "a panel for each pair of the three factors"
 
     corners_done(page)

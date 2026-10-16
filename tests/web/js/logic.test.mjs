@@ -577,14 +577,24 @@ describe("limits on the settings", () => {
   });
 
   test("a share is never shown as 0% or 100% when it is not", () => {
-    assert.deepEqual([0, 0.0004, 0.004, 0.126953125, 0.9995, 1].map(shareText), [
+    assert.deepEqual([0, 0.0004, 0.004, 0.126953125, 0.997, 0.9995, 1].map(shareText), [
       "none",
       "less than 0.1%",
       "0.4%",
       "13%",
+      "99.7%",
       "more than 99.9%",
       "100%",
     ]);
+  });
+
+  test("a share and what it leaves sum to 100%, an exact half included", () => {
+    assert.deepEqual([0.125, 0.875, 0.375, 0.625].map(shareText), ["12%", "88%", "38%", "62%"]);
+    for (let k = 1; k < 2000; k += 1) {
+      const [share, left] = [k / 2000, 1 - k / 2000].map(shareText);
+      const sum = [share, left].map((text) => Number(text.replace("%", ""))).reduce((a, b) => a + b);
+      if (!share.includes("than")) assert.equal(Math.round(sum * 10) / 10, 100, `${share} and ${left}`);
+    }
   });
 
   const probes = { center: 8 };

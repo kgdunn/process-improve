@@ -45,8 +45,8 @@ def test_a_typed_limit_says_what_it_rules_out_and_takes_python_s_text(blank_page
     type_limit(page, "T+25*P<=250", note="the product chars")
     row = limit_row(page)
     assert row.locator("[name=expression]").input_value() == HEAT, "the canonical text, once the reader leaves the box"
-    assert row.locator(".limit-effect").text_content() == "Rules out 13% of your ranges: 2 of the 8 corners."
-    assert page.text_content("#limits-summary").startswith("The limits leave 87% of your ranges to run.")
+    assert row.locator(".limit-effect").text_content() == "Rules out 12% of your ranges: 2 of the 8 corners."
+    assert page.text_content("#limits-summary").startswith("The limits leave 88% of your ranges to run.")
     assert page.text_content("#limits-count") == "1"
     assert row.locator("[name=high]").input_value() == "250", "a straight limit's bound, to tune without retyping"
 
@@ -242,7 +242,7 @@ def test_marking_corners_proposes_the_limit_that_rules_out_just_those(blank_page
         {
             "for": "For the 2 corners where T is 200 degC and P is 3 bar:",
             "text": HEAT,
-            "effect": "Rules out 13% of your ranges: 2 of the 8 corners.",
+            "effect": "Rules out 12% of your ranges: 2 of the 8 corners.",
             "also": None,
             "problem": None,
         }
