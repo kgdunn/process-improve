@@ -30,6 +30,7 @@ import {
   CATEGORICAL,
   CATEGORICAL_DESIGNS,
   CHOSEN_TERMS,
+  GIVEN,
   MODES,
   NUMERIC,
   OPTIMAL_MODEL,
@@ -732,6 +733,8 @@ function setForm(spec) {
 
 /** Put a design's type and settings into the plan, leaving the brief as it is. */
 function setDesignForm(spec) {
+  // Runs as given are in the list once a study of given runs is open, so the reader can make them again.
+  if (spec.design_type === GIVEN) $(`#design-type option[value="${GIVEN}"]`).hidden = false;
   $("#design-type").value = spec.design_type;
   const options = spec.options || spec;
   if (options.n_center_points !== undefined) $("#n_center_points").value = options.n_center_points;
@@ -765,9 +768,10 @@ function refreshDesign() {
   const k = factorCount();
   const select = $("#design-type");
   const labelled = readFactors().filter(isCategorical).map((f) => f.name);
-  const numericOnly = (option) => labelled.length > 0 && !CATEGORICAL_DESIGNS.includes(option.value);
+  // Runs as given take categorical factors, and limits on the settings, as they are.
+  const numericOnly = (option) => labelled.length > 0 && !CATEGORICAL_DESIGNS.includes(option.value) && option.value !== GIVEN;
   const limited = hasLimits();
-  const outsideLimits = (option) => limited && !REGION_DESIGNS.includes(option.value);
+  const outsideLimits = (option) => limited && !REGION_DESIGNS.includes(option.value) && option.value !== GIVEN;
   for (const option of select.options) {
     option.disabled =
       k < Number(option.dataset.minFactors) || k > Number(option.dataset.maxFactors) || numericOnly(option) || outsideLimits(option);
@@ -808,7 +812,7 @@ function refreshDesign() {
   } else if (option.disabled) {
     hint.textContent = `${option.textContent} takes ${option.dataset.minFactors} to ${option.dataset.maxFactors} factors on this page; you have ${k}.`;
   } else {
-    hint.replaceChildren(`${option.dataset.hint} `, link(BOOK_PAGES[option.value], "More in the book"));
+    hint.replaceChildren(`${option.dataset.hint} `, BOOK_PAGES[option.value] ? link(BOOK_PAGES[option.value], "More in the book") : "");
   }
   hint.classList.toggle("error", option.disabled);
   showMakeable(showFactorProblems());
@@ -902,6 +906,7 @@ async function generate() {
     budget: Number($("#budget").value),
     model_type: $("#model_type").value,
     constraints: currentLimits(),
+    runs: $("#design-type").value === GIVEN ? givenRuns() : undefined,
   };
   const reply = await call("api_make_design", spec);
   button.disabled = false;
@@ -918,6 +923,14 @@ async function generate() {
   }
   madeRunSheet(reply.result, reply.warnings, key);
   return true;
+}
+
+/** The runs a design of given runs is made again from: the run sheet's, a setting per factor in the design's order. */
+function givenRuns() {
+  const held = state.design;
+  if (!held) return null;
+  const at = held.spec.factors.map((f) => held.columns.indexOf(f.name));
+  return held.rows.map((row) => at.map((i) => row[i]));
 }
 
 /**

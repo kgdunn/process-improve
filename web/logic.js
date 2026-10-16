@@ -97,6 +97,13 @@ export function analysisModel(designModel, aim, fits, factors) {
 /** The designs that take a categorical factor; mirrors bootstrap.CATEGORICAL_DESIGNS. */
 export const CATEGORICAL_DESIGNS = ["full_factorial", "fractional_factorial", "plackett_burman"];
 
+/**
+ * The design the page holds but does not make, as bootstrap.GIVEN names it: runs taken as they are
+ * given, such as a design a book prints, opened from the design catalog. It takes categorical factors
+ * and limits on the settings, and keeps its runs as they are.
+ */
+export const GIVEN = "given";
+
 /** Whether text typed as a level is a label, such as old: neither blank nor a number (nor inf or nan). */
 export function isLabel(text) {
   const t = String(text ?? "").trim();

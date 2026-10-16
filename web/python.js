@@ -49,6 +49,16 @@ function constraintLines(limits) {
 export function designCode(spec) {
   const options = { ...(spec.options || {}) };
   const limits = spec.constraints ?? [];
+  if (spec.design_type === "given") {
+    // Runs as given: the page made none of them, so step 1 holds the factors and step 2 the runs themselves.
+    return [
+      "from process_improve.experiments import Factor",
+      "",
+      factorList(spec.factors),
+      ...constraintLines(limits),
+      "# The runs are taken as they were given: step 2 lists them, in the order given.",
+    ].join("\n");
+  }
   return [
     "from process_improve.experiments import Factor, generate_design",
     "",
