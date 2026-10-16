@@ -1862,6 +1862,10 @@ def plots(request: dict) -> dict:
     results were simulated; the residuals against the fitted values; and, for a
     saturated two-level design, the half-normal plot of the effects with Lenth's
     margins. Each figure is JSON text, for Plotly.js at the version ``plotly_js`` names.
+
+    With limits on the settings, the surfaces are ``shaded`` where a setting cannot be run;
+    when the centre of the ranges cannot be run either, the other factors are held at a
+    central setting that can, which ``held`` lists in their own units.
     """
     from plotly.offline import get_plotlyjs_version  # noqa: PLC0415 - plotly is installed for the first chart
     from plotly.utils import PlotlyJSONEncoder  # noqa: PLC0415
@@ -1883,25 +1887,52 @@ def plots(request: dict) -> dict:
         out = analyze_experiment(coded, y, model=fit["formula"], analysis_type=["coefficients", "residual_diagnostics"])
     rows = coded.assign(**{response: y}).to_dict("records")
     pair = _contour_pair(out["coefficients"], names)
+    shading, held = _shading(spec, pair)
 
     def draw(kind: str, results: dict, **options: Any) -> str:  # noqa: ANN401
         figure = create_plot(kind, analysis_results=results, design_data=rows, response_column=response, **options)
         return json.dumps(_dressed(figure.to_plotly(), kind, spec, pair), cls=PlotlyJSONEncoder)
 
-    figures = {"contour": draw("contour", out, factors_to_plot=pair)}
+    figures = {"contour": draw("contour", out, factors_to_plot=pair, **shading)}
     truth = request.get("truth")
     if truth:
         process = TrueProcess({t["term"]: t["coefficient"] for t in truth}, sigma=1.0)
         missing = [f for f in process.factors if f not in names]
         if missing:
             raise ValueError(f"The true process names factors the design does not have: {missing}.")
-        figures["true_contour"] = draw("contour", {"coefficients": _truth(process)}, factors_to_plot=pair)
+        figures["true_contour"] = draw("contour", {"coefficients": _truth(process)}, factors_to_plot=pair, **shading)
     if fit["out"]["model_summary"]["df_residual"] > 0:
         figures["residuals"] = draw("residuals_vs_fitted", out)
     if fit["lenth"]:
         effects = analyze_experiment(coded, y, model=fit["formula"], analysis_type="effects")["effects"]
         figures["half_normal"] = draw("half_normal", {"effects": effects, "lenth_method": fit["lenth"]})
-    return {"figures": figures, "contour_factors": pair, "plotly_js": get_plotlyjs_version()}
+    return {
+        "figures": figures,
+        "contour_factors": pair,
+        "shaded": bool(shading),
+        "held": held,
+        "plotly_js": get_plotlyjs_version(),
+    }
+
+
+def _shading(spec: dict, pair: list[str]) -> tuple[dict[str, Any], list[dict[str, Any]]]:
+    """Return what a response surface needs to shade the settings that cannot be run, and where it holds the others.
+
+    Without limits on the settings, nothing. With them, the region, and the coded values the
+    factors not plotted are held at: their centre when the centre of the ranges can be run, as
+    without limits, else a central setting that can be (see ``DesignRegion.centroid``), which is
+    listed in the factors' own units for the caption to say.
+    """
+    if not spec.get("constraints"):
+        return {}, []
+    factors = _factors(spec)
+    region = _region(factors, [limit["expression"] for limit in spec["constraints"]])
+    if region.feasible(np.zeros((1, len(region.names))))[0]:
+        return {"region": region}, []
+    centroid = region.centroid() or {}
+    others = [f for f in factors if f.type != "categorical" and f.name not in pair]
+    hold = {f.name: (centroid[f.name] - (f.low + f.high) / 2) / ((f.high - f.low) / 2) for f in others}
+    return {"region": region, "hold_values": hold}, [{"name": f.name, "value": centroid[f.name]} for f in others]
 
 
 def _ticks(factor: dict) -> dict[str, Any]:
@@ -1930,8 +1961,8 @@ def _dressed(figure: dict, kind: str, spec: dict, pair: list[str]) -> dict:
         factors = {f["name"]: f for f in spec["factors"]}
         for axis, name in zip(("xaxis", "yaxis"), pair, strict=False):
             title(axis, _with_units(name, factors[name]["units"]), **_ticks(factors[name]))
-        for trace in figure.get("data", []):
-            if trace.get("type") == "contour":
+        for trace in figure.get("data", []):  # the response's contours; the shading of a region's limits has no scale
+            if trace.get("type") == "contour" and trace.get("contours", {}).get("type") != "constraint":
                 trace["colorbar"] = {**trace.get("colorbar", {}), "title": {"text": _with_units(label, units)}}
     elif kind == "residuals_vs_fitted":
         title("xaxis", _with_units(f"Fitted {label}", units))
@@ -1949,7 +1980,8 @@ def relabel(request: dict) -> dict:
     the design's factors in the same places with the same levels; only their names and units may
     differ, and each new name must be a variable name the run sheet does not use already.
     Everything this module wrote with the old names is written again with the new: the run
-    sheet's columns, the design's facts and notes, the factors outside their ranges and, when
+    sheet's columns, the limits on the settings, the design's facts and notes, the factors
+    outside their ranges and, when
     ``simulation`` is given, the process the results were simulated from, with its equation and
     the factors it leaves out. Renaming a design this way gives what making it under the new
     names would have, which ``tests/web/api/test_relabel.py`` checks for each kind of note.
@@ -1968,6 +2000,8 @@ def relabel(request: dict) -> dict:
             raise ValueError(f"A factor cannot be named {taken}: the run sheet has a {taken} column.")
     names = {old["name"]: new["name"] for old, new in zip(before, after, strict=True)}
     spec = {**spec, "factors": after}
+    if limits := spec.get("constraints"):  # the limits on the settings, written with the new names, all at once
+        spec["constraints"] = [{**limit, "expression": rename_factors(limit["expression"], names)} for limit in limits]
     if isinstance(chosen := spec.get("analysis_model"), dict):  # the terms a workbook was last analysed with
         spec["analysis_model"] = {"terms": [[names.get(n, n) for n in term] for term in chosen["terms"]]}
     reply: dict[str, Any] = {
@@ -2087,6 +2121,9 @@ COMPARE_LABELS = {
     "i_optimal": "I-optimal",
 }
 
+#: What a comparison with limits on the settings says of the designs it lists.
+LIMITED_DESIGNS = "With limits on the settings, only the D-optimal and I-optimal designs keep every run inside them."
+
 #: Points the FDS curves are computed from, and points along each curve.
 FDS_SAMPLES = 4096
 FDS_POINTS = 101
@@ -2099,12 +2136,16 @@ def compare_plan(request: dict) -> dict:
     the optimal designs are built for the comparison's model (see :data:`OPTIMAL_MODEL`).
     The response is the reader's, so a design taken into the plan keeps it. A comparison has
     no results, so when that name is blank or a factor's, the first of y, y1, y2, ... that
-    no factor takes stands in.
+    no factor takes stands in. With limits on the settings (``constraints``), only the designs
+    that keep their runs inside them are listed, each made with the limits.
     """
     model = request.get("model") or "main_quadratic"
     if model not in COMPARISON_MODELS:
         raise ValueError(f"Model must be one of {', '.join(COMPARISON_MODELS)}.")
     factors = _factors(request)
+    limits = _checked_constraints(request.get("constraints"), factors)
+    if limits:
+        _region_refusal(factors, _region(factors, [limit["expression"] for limit in limits]))
     k = len(factors)
     names = {f.name for f in factors}
     candidates = [str(request.get("response") or "").strip(), "y", *(f"y{i}" for i in range(1, k + 1))]
@@ -2117,12 +2158,16 @@ def compare_plan(request: dict) -> dict:
     for design_type, info in DESIGNS.items():
         if not info["min_factors"] <= k <= info["max_factors"] or (labelled and design_type not in CATEGORICAL_DESIGNS):
             continue
+        if limits and design_type not in REGION_DESIGNS:
+            continue
         options = dict(COMPARE_OPTIONS[design_type])
         if "model_type" in info["options"]:
             options["model_type"] = OPTIMAL_MODEL[model]
         spec = {"design_type": design_type, "factors": request["factors"], "response": response, **options, **described}
+        if limits:
+            spec["constraints"] = limits
         plan.append({"design_type": design_type, "label": COMPARE_LABELS[design_type], "spec": spec})
-    notes = []
+    notes = [LIMITED_DESIGNS] if limits else []
     if model != OPTIMAL_MODEL[model] and any("model_type" in DESIGNS[d["design_type"]]["options"] for d in plan):
         notes.append(
             f"The D- and I-optimal designs are built for the {OPTIMAL_MODEL[model]} model, the smallest model "
@@ -2156,7 +2201,9 @@ def compare(request: dict) -> dict:
 
     Each design arrives as the page holds it (its stored specification, columns and rows)
     and is coded from its own ranges. The FDS curve is each design's prediction variance,
-    in units of the noise variance, sorted over points drawn uniformly from the cube.
+    in units of the noise variance, sorted over points drawn uniformly from the cube; with
+    limits on the settings, the first design's, from the settings that meet them, and the
+    measures that average or search the prediction variance do so over those settings too.
     """
     from process_improve.experiments import evaluate_design  # noqa: PLC0415
 
@@ -2164,11 +2211,14 @@ def compare(request: dict) -> dict:
     if model not in COMPARISON_MODELS:
         raise ValueError(f"Model must be one of {', '.join(COMPARISON_MODELS)}.")
     designs = {}
+    region = None
     for item in request.get("designs") or []:
         spec = _checked_spec(item.get("spec") or {})
         designs[str(item["label"])] = _coded(_runs_frame(item, spec), spec["factors"])
+        if region is None and spec.get("constraints"):
+            region = _region(_factors(spec), [limit["expression"] for limit in spec["constraints"]])
     with _listening():
-        comparison = compare_designs(designs, model, effect_size=_effect_size(request))
+        comparison = compare_designs(designs, model, effect_size=_effect_size(request), region=region)
     result = comparison.to_dict()
     table = comparison.table
     result["display"] = {label: table[label].tolist() for label in comparison.designs}
@@ -2186,6 +2236,7 @@ def compare(request: dict) -> dict:
                 n_samples=FDS_SAMPLES,
                 fds_resolution=FDS_POINTS,
                 random_state=1,
+                region=region,
             )["fds"]["curve"]
         fds[sized] = {"fraction": curve["fraction"], "variance": curve["prediction_variance"]}
     result["fds"] = fds
@@ -2206,7 +2257,8 @@ def candidates(request: dict) -> dict:
     the model the reader aims to learn, at the power for the response's smallest change worth
     finding. A design that cannot be made is left out, with a note saying why. With
     :data:`SEARCH_FROM` factors or more and a model beyond main effects, the optimal designs
-    are left out unless ``search`` is true, and listed in ``waiting``.
+    are left out unless ``search`` is true, and listed in ``waiting``; with limits on the
+    settings they are the only designs, so then ``made`` can be empty and ``result`` null.
     """
     plan = compare_plan(request)
     k = len(request.get("factors") or [])
@@ -2224,18 +2276,12 @@ def candidates(request: dict) -> dict:
                 continue
         design.pop("xlsx_base64", None)
         made.append({**item, "design": design, "warnings": list(dict.fromkeys(heard))})
-    if not made:
+    if not made and not waiting:
         raise ValueError("None of the designs this page offers can be made for these factors.")
     info = _response_info(request.get("response_info"))
     scored = [{"label": m["label"], **{key: m["design"][key] for key in ("spec", "columns", "rows")}} for m in made]
-    result = compare(
-        {
-            "model": plan["model"],
-            "designs": scored,
-            "noise": info.get("noise"),
-            "smallest_change": info.get("smallest_change"),
-        }
-    )
+    asked = {"model": plan["model"], "designs": scored, **{k: info.get(k) for k in ("noise", "smallest_change")}}
+    result = compare(asked) if made else None
     return {"model": plan["model"], "made": made, "waiting": waiting, "notes": notes, "result": result}
 
 
