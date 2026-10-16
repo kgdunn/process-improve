@@ -226,7 +226,8 @@ def as_constraints(constraints: Sequence[Constraint | dict | str] | None) -> lis
         return None
     if isinstance(constraints, (str, dict, Constraint)):
         raise TypeError(
-            f"constraints must be a list of limits; wrap a single limit in a list: [{constraints!r}], not {constraints!r}."
+            "constraints must be a list of limits; wrap a single limit in a list: "
+            f"[{constraints!r}], not {constraints!r}."
         )
     out: list[Constraint] = []
     for c in constraints:
