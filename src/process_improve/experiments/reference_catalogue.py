@@ -60,6 +60,7 @@ from process_improve.experiments.omars_trade_off import omars_minimum_runs
 from process_improve.experiments.optimization import optimize_responses
 from process_improve.monitoring.metrics import calculate_cpk
 from process_improve.regression._variance_components import fit_variance_components
+from process_improve.univariate.metrics import t_value, ttest_independent, ttest_paired
 
 _CATALOGUE_DIR = Path(__file__).resolve().parents[1] / "datasets" / "experiments" / "reference_catalogue"
 
@@ -614,6 +615,9 @@ _FIT_KINDS: dict[str, Callable[[dict, dict, dict], float]] = {
     ),
     "observation": lambda out, c, _e: float(out["y"].to_numpy()[_run(c)]),
     "mean": lambda out, _c, _e: float(out["y"].mean()),
+    "median": lambda out, _c, _e: float(out["y"].median()),
+    "minimum": lambda out, _c, _e: float(out["y"].min()),
+    "maximum": lambda out, _c, _e: float(out["y"].max()),
     "std_dev": lambda out, _c, _e: float(out["y"].std(ddof=1)),
     "variance": lambda out, _c, _e: float(out["y"].var(ddof=1)),
     "n_runs": lambda out, _c, _e: float(len(out["y"])),
@@ -965,6 +969,7 @@ _LIBRARY: dict[str, Callable[..., Any]] = {
     "blocking_alpha": blocking_alpha,
     "omars_minimum_runs": omars_minimum_runs,
     "optimize_responses": optimize_responses,
+    "t_value": t_value,
 }
 
 
@@ -997,6 +1002,51 @@ def _difference_of_means(experiment: dict, check: dict) -> float:
     _, before = _coded_runs(experiment, check["minus"], check.get("summary"))
     column = check.get("response") or after.columns[0]
     return float(after[column].mean() - before[column].mean())
+
+
+def _t_test(experiment: dict, check: dict) -> float:
+    """Return a number of the library's t-test of the runs ``check["runs"]`` against the runs ``check["minus"]``.
+
+    ``check["test"]`` is ``"pooled"`` (Student's test, the two groups sharing one variance; the
+    default), ``"welch"`` (each group with its own variance, on the Welch-Satterthwaite degrees of
+    freedom) or ``"paired"`` (the differences of the two lists' runs, taken in the order listed).
+    The difference is the average of ``runs`` less the average of ``minus``. ``check["key"]``
+    names the number: ``"difference"``, ``"t"``, ``"p"``, ``"df"``, ``"std_error"`` (of the
+    difference), ``"ci_low"``, ``"ci_high"`` or ``"half_width"`` of the interval at confidence
+    ``check["confidence"]`` (0.95 by default; a one-sided 95% bound is an end of the two-sided
+    90% interval), ``"pooled_std_dev"``, or for a paired test ``"std_dev"``, of the differences.
+    ``check["alternative"]`` makes the p-value one-sided, as for a coefficient (see :func:`_p_value`).
+    """
+    _, after = _coded_runs(experiment, check["runs"])
+    _, before = _coded_runs(experiment, check["minus"])
+    column = check.get("response") or after.columns[0]
+    runs, minus = after[column].astype(float), before[column].astype(float)
+    confidence = check.get("confidence", 0.95)
+    if check.get("test") == "paired":
+        test = ttest_paired(runs - minus.to_numpy(), conflevel=confidence)
+        found = {
+            "difference": test["Differences mean"],
+            "t": test["z value"],  # the library's paired test names its t statistic "z value"
+            "std_error": test["Standard deviation"],  # and the standard error of the mean difference so
+            "std_dev": test["Standard deviation"] * len(runs) ** 0.5,
+        }
+    else:
+        test = ttest_independent(minus, runs, conflevel=confidence, equal_var=check.get("test") != "welch")
+        found = {
+            "difference": test["Group B average"] - test["Group A average"],
+            "t": test["t value"],
+            "std_error": test["Std error of difference"],
+            "pooled_std_dev": test["Pooled std dev"],
+        }
+    low, high = test["ConfInt: Lo"], test["ConfInt: Hi"]
+    found |= {
+        "df": test["Degrees of freedom"],
+        "ci_low": low,
+        "ci_high": high,
+        "half_width": (high - low) / 2,
+        "p": _p_value({"coefficient": found["t"], "p_value": test["p value"]}, check.get("alternative")),
+    }
+    return float(found[check["key"]])
 
 
 def _capability(experiment: dict, check: dict) -> float:
@@ -1056,6 +1106,7 @@ _VALUE_KINDS: dict[str, Callable[[dict, dict], float]] = {
     "design_property": lambda _e, c: _design_property(c),
     "design_metric": _design_metric,
     "library_value": lambda _e, c: _library_value(c),
+    "t_test": _t_test,
     "variance_component": _variance_component,
 }
 
@@ -1132,8 +1183,8 @@ def reproduce_reference_catalogue(source: str | None = None) -> pd.DataFrame:
     intercepts. A run read several times can be analysed through each run's mean or standard
     deviation of its readings, or with every reading an observation of its own; the setting of a
     factor that brings a fitted model to a target is solved from the library's predictions, and a
-    process capability index is the library's Cpk.
-    The interactions a source confounds with blocks
+    process capability index is the library's Cpk. Two groups of runs are compared with the
+    library's two-sample and paired t-tests. The interactions a source confounds with blocks
     are compared with those of the library's blocking of the same factorial. A number without
     a check is reported with the reason it is not recomputed.
 

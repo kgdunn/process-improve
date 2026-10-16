@@ -16,6 +16,7 @@ import math
 import numpy as np
 import pandas as pd
 import pytest
+from scipy import stats
 
 from process_improve.experiments import reference_catalogue
 from process_improve.experiments.reference_catalogue import (
@@ -691,3 +692,54 @@ def test_the_durbin_watson_statistic_is_read_from_the_library_fit():
     expected = np.sum(np.diff(residuals) ** 2) / np.sum(residuals**2)
     found = reference_catalogue._FIT_KINDS["durbin_watson"](reference_catalogue._Fits()(entry, check), check, entry)
     assert found == pytest.approx(expected)
+
+
+def _two_groups(a, b):
+    """Return an entry of two groups, A in runs 1 to len(a) and B after them."""
+    return {
+        "name": "groups",
+        "factors": [{"name": "group", "type": "categorical", "low": "A", "high": "B", "levels": ["A", "B"]}],
+        "responses": [{"name": "y"}],
+        "runs": {"columns": ["group", "y"], "rows": [["A", y] for y in a] + [["B", y] for y in b], "coded": False},
+    }
+
+
+def test_two_groups_are_compared_with_the_library_t_tests():
+    """B less A by the library's pooled, Welch and paired tests, each as scipy computes it."""
+    from process_improve.experiments.reference_catalogue import _t_test
+
+    a, b = [1.0, 2.0, 4.0, 5.0], [4.0, 3.0, 7.0, 6.0]
+    entry = _two_groups(a, b)
+    groups = {"runs": [5, 6, 7, 8], "minus": [1, 2, 3, 4]}
+    pooled, welch, paired = stats.ttest_ind(b, a), stats.ttest_ind(b, a, equal_var=False), stats.ttest_rel(b, a)
+    assert _t_test(entry, {**groups, "key": "difference"}) == pytest.approx(2.0)
+    assert _t_test(entry, {**groups, "key": "t"}) == pytest.approx(pooled.statistic)
+    assert _t_test(entry, {**groups, "key": "p"}) == pytest.approx(pooled.pvalue)
+    assert _t_test(entry, {**groups, "key": "p", "alternative": "greater"}) == pytest.approx(pooled.pvalue / 2)
+    pooled_variance = (np.var(a, ddof=1) + np.var(b, ddof=1)) / 2  # equal groups: the average of the two
+    assert _t_test(entry, {**groups, "key": "pooled_std_dev"}) == pytest.approx(np.sqrt(pooled_variance))
+    for key, expected in (("t", welch.statistic), ("df", welch.df), ("p", welch.pvalue)):
+        assert _t_test(entry, {**groups, "test": "welch", "key": key}) == pytest.approx(expected)
+    differences = np.subtract(b, a)
+    assert _t_test(entry, {**groups, "test": "paired", "key": "t"}) == pytest.approx(paired.statistic)
+    assert _t_test(entry, {**groups, "test": "paired", "key": "std_dev"}) == pytest.approx(np.std(differences, ddof=1))
+    half = stats.t.ppf(0.95, 3) * np.std(differences, ddof=1) / 2  # a 90% interval on 3 degrees of freedom
+    assert _t_test(entry, {**groups, "test": "paired", "key": "half_width", "confidence": 0.90}) == pytest.approx(half)
+
+
+def test_the_pooled_t_test_is_the_regression_on_the_two_groups_coded():
+    """Student's t is the t of the group's coefficient, coded -1 and +1, and their intervals are the effect's."""
+    entry = _two_groups([1.0, 2.0, 4.0, 5.0], [4.0, 3.0, 7.0, 6.0])
+    fits = reference_catalogue._Fits()
+    groups = {"kind": "t_test", "runs": [5, 6, 7, 8], "minus": [1, 2, 3, 4]}
+    for key, kind in (("t", "t_value"), ("ci_low", "ci_low"), ("std_error", "effect_std_error")):
+        by_test = reference_catalogue._reproduce(entry, {"value": "0"}, {**groups, "key": key}, fits)[0]
+        regression = {"kind": kind, "term": "group", "model": "group", "scale": "effect"}
+        assert reference_catalogue._reproduce(entry, {"value": by_test}, regression, fits)[1], key
+
+
+def test_a_median_minimum_and_maximum_are_read_from_the_runs():
+    entry = _two_groups([3.0, 1.0, 2.0], [10.0])
+    fits = reference_catalogue._Fits()
+    for kind, value in (("median", "2"), ("minimum", "1"), ("maximum", "3")):
+        assert reference_catalogue._reproduce(entry, {"value": value}, {"kind": kind, "runs": [1, 2, 3]}, fits)[1]
