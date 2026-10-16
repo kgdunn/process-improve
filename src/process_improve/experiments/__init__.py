@@ -16,6 +16,7 @@ from process_improve.experiments.designs_omars_ilp import generate_omars
 from process_improve.experiments.evaluate import evaluate_all, evaluate_design
 from process_improve.experiments.factor import Constraint, DesignResult, Factor, Response, ResponseGoal
 from process_improve.experiments.knowledge import doe_knowledge
+from process_improve.experiments.marginal_means import marginal_means_prediction
 from process_improve.experiments.models import Model, lm, predict, summary
 from process_improve.experiments.omars import OmarsResult, analyze_omars
 from process_improve.experiments.omars_trade_off import (
@@ -89,6 +90,7 @@ __all__ = [
     "lm",
     "main_effects_plot",
     "manufacture",
+    "marginal_means_prediction",
     "moment_aberration",
     "omars_anchor_entry",
     "omars_minimum_runs",

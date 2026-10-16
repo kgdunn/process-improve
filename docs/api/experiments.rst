@@ -62,6 +62,9 @@ Designed Experiments
 .. automodule:: process_improve.experiments.omars
    :members: analyze_omars, OmarsResult
 
+.. automodule:: process_improve.experiments.marginal_means
+   :members: marginal_means_prediction
+
 .. automodule:: process_improve.experiments.visualization.api
    :members: visualize_doe, main_effects_plot
 
