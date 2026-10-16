@@ -258,9 +258,7 @@ def _group_share(a: np.ndarray, b: np.ndarray) -> float | None:
         for row in a
     ]
     if all(sides) and d <= CLOSED_FORM_FACTORS:
-        high = min((bi for bi, side in zip(b, sides, strict=True) if side > 0), default=math.inf)
-        low = max((-bi for bi, side in zip(b, sides, strict=True) if side < 0), default=-math.inf)
-        return 0.0 if low >= high else _below(normal, high) - _below(normal, low)
+        return _band_share(normal, b, sides)
     if d > HULL_FACTORS:
         return None
     try:
@@ -275,6 +273,16 @@ def _group_share(a: np.ndarray, b: np.ndarray) -> float | None:
         return None
 
 
+def _band_share(normal: np.ndarray, b: np.ndarray, sides: list[int]) -> float:
+    """Return the share of ``[-1, 1]^d`` between parallel rows, each along ``normal`` (side 1) or against it (-1)."""
+    # The first row is the normal, so there is always a high side; a low one only from an opposite row.
+    high = min(bi for bi, side in zip(b, sides, strict=True) if side > 0)
+    lows = [-bi for bi, side in zip(b, sides, strict=True) if side < 0]
+    if lows and max(lows) >= high:
+        return 0.0
+    return _below(normal, high) - (_below(normal, max(lows)) if lows else 0.0)
+
+
 def _below(normal: np.ndarray, level: float) -> float:
     """Return the share of ``[-1, 1]^d`` where ``normal @ x <= level``: the box cut by one half-space.
 
@@ -283,10 +291,6 @@ def _below(normal: np.ndarray, level: float) -> float:
     volume is ``sum over subsets S of (-1)**|S| max(0, t - w(S))**m / (m! prod w)`` (Barrow
     and Smith 1979). The sum is taken in fractions, which hold the float inputs exactly.
     """
-    if level == math.inf:
-        return 1.0
-    if level == -math.inf:
-        return 0.0
     weights = [Fraction(abs(float(w))) for w in normal if w != 0]
     t = (Fraction(float(level)) + sum(weights, Fraction(0))) / 2
     if t <= 0:

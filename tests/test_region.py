@@ -407,6 +407,12 @@ class TestExactShare:
         assert region._exact_share() is None
         assert region.volume_fraction() == pytest.approx(exact, abs=1e-4)
 
+    def test_straight_limits_too_thin_for_any_point_leave_the_share_to_all_the_points(self):
+        # T within 0.0001 of its top is 2e-6 of the box: no point of the sample lies in it.
+        region = DesignRegion(HEAT_FACTORS, ["T >= 149.9999", "T * D <= 9000"])
+        assert region._straight_share() == pytest.approx(2e-6, rel=1e-6)
+        assert region.volume_fraction() == 0.0
+
     def test_a_region_with_no_volume_keeps_nothing(self):
         assert DesignRegion(HEAT_FACTORS, ["T <= 120", "T >= 120"]).volume_fraction() == 0.0, "a flat slab"
         assert DesignRegion(UNITS[:3], ["A + B <= -1.5", "A - B >= 1.5"]).volume_fraction() == 0.0, "nothing left"
@@ -435,6 +441,25 @@ class TestBoxShare:
         assert box_share(row, np.array([-2.0])) == 0.0
         assert box_share(row, np.array([2.0])) == 1.0
         assert box_share(row, np.array([0.0])) == 0.5
+
+    def test_a_band_between_parallel_rows_and_one_with_no_width(self):
+        row = np.array([[1.0, 0.0], [-1.0, 0.0]])
+        assert box_share(row, np.array([0.5, 0.5])) == 0.5, "-0.5 <= x <= 0.5"
+        assert box_share(row, np.array([0.5, -0.5])) == 0.0, "0.5 <= x <= 0.5 has no width"
+        assert box_share(row[:1].repeat(2, axis=0), np.array([0.5, 0.0])) == 0.5, "the lower of two upper bounds"
+
+    @pytest.mark.parametrize(
+        ("name", "failure"),
+        [("box_vertices", ValueError("too many vertices")), ("ConvexHull", QhullError("a precision failure"))],
+    )
+    def test_a_polytope_whose_volume_cannot_be_had_leaves_the_share_to_the_sample(self, monkeypatch, name, failure):
+        def fail(*_args: object) -> None:
+            raise failure
+
+        monkeypatch.setattr(geometry, name, fail)
+        # Two rows that share the middle factor: the share would come from the polytope's volume.
+        a = np.array([[1.0, 1.0, 0.0], [0.0, 1.0, 1.0]]) / np.sqrt(2)
+        assert box_share(a, np.array([0.5, 0.5])) is None
 
 
 class TestIsEmpty:
