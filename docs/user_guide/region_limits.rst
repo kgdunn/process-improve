@@ -127,8 +127,8 @@ that can be listed:
 
 The vertices are the extreme settings: here the box corners the limit keeps and the two
 ends of the cut, (175, 3) and (200, 2), each at both flows. A D-optimal design for a
-main-effects model puts its runs on them; one for a quadratic model also uses the
-midpoints of edges and the centres of faces.
+main-effects model puts its runs on them; one for a quadratic model also puts runs between
+them, on edges and faces, and with enough runs inside the region.
 
 Renaming a factor inside a limit
 --------------------------------
