@@ -47,6 +47,13 @@ def test_a_run_without_its_response_is_left_out_of_every_mean() -> None:
     np.testing.assert_allclose(with_gap, marginal_means_prediction(runs, [1.0, 2.0, 3.0, 4.0], runs))
 
 
+def test_levels_balanced_one_at_a_time_but_not_in_pairs_are_warned_of() -> None:
+    """A and B each have two runs at each level, but never meet at (1, 2) or (2, 1): B's mean carries A's effect."""
+    runs = pd.DataFrame({"A": [1, 1, 2, 2], "B": [1, 1, 2, 2]})
+    with pytest.warns(UserWarning, match="not balanced"):
+        marginal_means_prediction(runs, [1.0, 2.0, 3.0, 4.0], {"A": 1, "B": 1})
+
+
 @pytest.mark.dataset
 def test_schmidt_and_launsbys_lunar_concrete_prediction_is_reproduced_and_warned_of() -> None:
     """Equation [8] on 18 of 80 combinations: Table 2 prints 3893.40 for run 1 and 2214.17 for run 5."""
