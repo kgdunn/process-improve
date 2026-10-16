@@ -22,9 +22,9 @@ those changes.
   or two `topics`: what it is about (semiconductors, food and beverages, ...), as opposed to how it
   is designed. `reference_topics()` returns the vocabulary of 30 topics, each with its nearest UN
   ISIC Rev. 4 industries and OECD FORD field of research, and `reference_experiments` and
-  `reference_designs` take `topic=` to select by it. Of the 977 entries, 549 state an application;
+  `reference_designs` take `topic=` to select by it. Of the 981 entries, 553 state an application;
   the other 428 (mostly tables of designs) are `"general"`.
-- **The reference catalogue holds chapters 1 to 12 of Montgomery, *Design and Analysis of
+- **The reference catalogue holds chapters 1 to 13 of Montgomery, *Design and Analysis of
   Experiments* (8th edition).** Chapters 1 and 2: the golf 2^2 factorial and its three effects; the
   Portland cement mortar two-sample t-test with Minitab's and JMP's output, its confidence interval
   and Minitab's power table; the nerve and muscle fluorescence compared by Welch's test; the
@@ -108,10 +108,16 @@ those changes.
   its inner array matched to the stored L9; the filtration 2^4 with temperature a noise factor and
   the semiconductor combined array of Example 12.2, each with its response, mean and variance
   models; the 30-run resolution V design, the 23-run D-optimal combined array and the 18-run
-  saturated design of section 12.5; and the alias weights of Problem 12.10's 3^(4-2). The data of the
-  165 problems that have data are kept as data, since the book prints no answers; the totals, means, ranges, standard
+  saturated design of section 12.5; and the alias weights of Problem 12.10's 3^(4-2). Chapter 13: the
+  measurement systems capability study as a two-factor random model and, with the operators fixed,
+  as restricted and unrestricted mixed models, in Minitab and JMP, with the analysis-of-variance and
+  REML variance components, their standard errors, covariances and intervals, and the reduced model;
+  and the pressure drop three-factor mixed model with its exact, approximate (Satterthwaite) and
+  synthesized F tests, restricted and unrestricted, and the Satterthwaite and modified large-sample
+  intervals on a variance component. The data of the
+  167 problems that have data are kept as data, since the book prints no answers; the totals, means, ranges, standard
   deviations, response rates and transformations some of their tables print are checked, and the two
-  models Problem 9.6 prints. 8509 printed numbers, 7954 checked. 274 are recorded as not
+  models Problem 9.6 prints. 8786 printed numbers, 8216 checked. 291 are recorded as not
   reproducing, each explained: the book's rounding (test statistics, P-values, fitted values and
   residuals worked from rounded values, a Tukey critical difference from a table's rounded point,
   three standard deviations in each of Tables 3.7 and P8.3, dispersion statistics from rounded
@@ -121,8 +127,9 @@ those changes.
   rounded to two decimals, a partial F from rounded sums of squares, and Example 10.4's (X'X)^-1
   inverted from X'X rounded to four decimals, and in chapter 11 P-values worked from F rounded, the
   path of steepest ascent stepped by Δx2 rounded to 0.42 and 2°F, the w equations' coefficients and
-  a determinant cut rather than rounded, and chapter 12's variance models worked from coefficients
-  rounded to two decimals), misprints (sums of squares and mean squares, an F of
+  a determinant cut rather than rounded, chapter 12's variance models worked from coefficients
+  rounded to two decimals, and chapter 13's variance components worked from rounded mean squares and
+  its intervals from rounded chi-square and F points), misprints (sums of squares and mean squares, an F of
   3.95 for 3.93, an error degrees of freedom of 19 for 20, a residual of 26.00 for −6.00, a dropped
   sign in two coefficients or limits, a range of 59 for 54, Table 6.28's analysis of variance copied
   from Table 6.26, one row of Table 7.9 that prints the interactions of other generators, a column
@@ -140,7 +147,11 @@ those changes.
   change in mean of 0.02 for −0.02 and 225°F for 255°F, and the desirability solutions, whose D and
   predictions do not match their printed settings; in chapter 12 the outer array of Table 12.2,
   whose sixth column repeats the fifth, Problem 12.9's first mean and variance, 57.75 and 121.19
-  for 57.25 and 161.58, and the alias expression of β11 in Problem 12.10, which leaves out +β34),
+  for 57.25 and 161.58, and the alias expression of β11 in Problem 12.10, which leaves out +β34;
+  in chapter 13 a P-value of 0.01 for 0.00007 in Table 13.10), JMP's REML estimates in chapter 13,
+  which leave a variance component negative where the library's REML, like lme4, keeps every
+  component at or above zero (the analysis-of-variance estimates, JMP's standard errors and its
+  covariances all reproduce from the library's mean squares),
   Design-Expert's equations in actual temperature, whose linear coefficients add the
   quadratic ones, Minitab's Tukey intervals, which use a studentized range point of 4.0504 where the
   library's, like R's, is 4.0461, a residual mean square of "about 109" that no model of the data
@@ -212,7 +223,13 @@ those changes.
   and the canonical analysis holds only the factors its model holds. For chapter 12:
   `transmitted_variance` reads a coefficient of the variance model a fitted response model transmits
   from its noise factors, or the variance or propagation of error at a point, worked from the
-  library's coefficients; and `"exp": true` reads a model of ln(s²) back as a variance.
+  library's coefficients; and `"exp": true` reads a model of ln(s²) back as a variance. For chapter
+  13: `mean_squares` reads a linear combination of the library's mean squares (the
+  analysis-of-variance estimate of a variance component), its Satterthwaite degrees of freedom,
+  standard error, covariance with a second combination, its Wald and chi-square intervals and the
+  modified large-sample lower limit of Ting et al. (1990), and the F test of one combination against
+  another; and a `variance_component` group can be an interaction of factors, such as
+  `part:operator`.
 - **Standardised coefficients.** Each row of `analyze_experiment`'s `"coefficients"` (and
   `coefficients_actual`) now carries `standardised_coefficient`: the coefficient times the standard
   deviation of its column of the model matrix, over the standard deviation of the response, as
