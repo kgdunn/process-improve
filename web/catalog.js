@@ -710,7 +710,7 @@ function detailBody(design, detail) {
   const body = [element("p", { class: "detail__facts", text: factLine(design, catalog) })];
   if (family?.year) body.push(element("p", { class: "hint", text: `${family.label} designs were first published by ${family.reference}.` }));
   if (source) {
-    const cite = element("p", { class: "detail__cite" }, source.url ? element("a", { href: source.url, rel: "noopener", text: source.cite }) : source.cite);
+    const cite = element("p", { class: "detail__cite" }, source.url ? element("a", { href: source.url, target: "_blank", rel: "noopener", text: source.cite }) : source.cite);
     body.push(cite);
     const where = whereText(detail.where);
     if (where) body.push(element("p", { text: `Printed in ${where}.` }));
@@ -738,8 +738,8 @@ function detailBody(design, detail) {
   } else {
     body.push(element("p", { class: "hint", text: `Factorial does not open this design: ${detail.closed}.` }));
   }
+  if (design.compared) actions.append(compareButton(design)); // append() writes a null out as the text "null"
   actions.append(
-    design.compared ? compareButton(design) : null,
     element("button", { type: "button", class: "button", "data-copy-link": design.id, text: "Copy a link to this design" }),
     element("button", { type: "button", class: "button", "data-csv": design.id, text: "Download the runs (CSV)" }),
   );

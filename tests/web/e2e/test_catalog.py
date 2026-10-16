@@ -86,6 +86,9 @@ def test_a_design_s_detail_shows_its_source_and_its_checks(context, site):
     assert "Box, G. E. P., Hunter, W. G. and Hunter, J. S. (1978)" in text
     assert "recomputed numbers agree" in text
     assert "The library makes this design" in text
+    assert page.get_attribute("#detail-body .detail__cite a", "target") == "_blank", "the source opens in a new tab"
+    stray = "a => [...a.childNodes].filter((n) => n.nodeType === Node.TEXT_NODE).map((n) => n.textContent).join('')"
+    assert page.eval_on_selector("#detail-body .actions", stray).strip() == "", "no text between the buttons"
     assert "d=bhh-pilot-plant-2-3" in page.url
     page.keyboard.press("Escape")
     page.wait_for_selector("#detail:not([open])", state="attached")
