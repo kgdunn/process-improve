@@ -635,7 +635,35 @@ function drawMap(list) {
       writeForm();
       update();
     });
+    // A double click clears the box Plotly drew; the runs and factors it kept go with it.
+    div.on("plotly_deselect", () => {
+      if ([...state.factors, ...state.runs].every((v) => v === null)) return;
+      state.factors = [null, null];
+      state.runs = [null, null];
+      writeForm();
+      update();
+    });
   });
+}
+
+/**
+ * Put the map back as it opened: no box drawn, the whole range in view, and no filter on runs or factors.
+ * Plotly keeps a drawn box and a zoom across redraws, so the map is drawn again from nothing.
+ */
+function resetMap() {
+  clearMap();
+  state.factors = [null, null];
+  state.runs = [null, null];
+  writeForm();
+  update();
+}
+
+/** Drop the map's drawing, with any box and zoom on it, so the next render draws it afresh. */
+function clearMap() {
+  const div = $("#map");
+  if (!window.Plotly || !div.data) return;
+  window.Plotly.purge(div);
+  mapWired = false;
 }
 
 function startMap() {
@@ -973,9 +1001,11 @@ function wire() {
   $("#reset").addEventListener("click", (event) => {
     event.preventDefault();
     state = { ...structuredClone({ ...DEFAULT_STATE }), collection: state.collection, sort: state.sort };
+    clearMap();
     writeForm();
     update();
   });
+  $("#map-reset").addEventListener("click", resetMap);
   $("#sort").addEventListener("change", () => {
     state.sort = $("#sort").value;
     update();
