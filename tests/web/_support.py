@@ -88,6 +88,9 @@ ALL_DESIGNS = (
     "i_optimal",
 )
 
+#: The designs the book has no page on: the page shows their hint without a link to it.
+NO_BOOK_PAGE = frozenset({"taguchi"})
+
 #: Every process the page simulates results from; ``test_simulation`` checks it against ``SCENARIOS``.
 ALL_SCENARIOS = ("reactor", "main_effects", "interaction", "optimum", "nothing", "random")
 

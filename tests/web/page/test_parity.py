@@ -12,7 +12,7 @@ import re
 
 import pytest
 
-from tests.web._support import ENTRY_POINT, FACTORS, javascript, page, source
+from tests.web._support import ENTRY_POINT, FACTORS, NO_BOOK_PAGE, javascript, page, source
 
 
 # --------------------------------------------------------------------------- the form's choices
@@ -71,10 +71,6 @@ def test_every_link_to_the_book_is_extensionless_and_one_the_page_checked():
     assert links, "the page links to the book"
     assert not any(".html" in link for link in links)
     assert links <= checked
-
-
-#: The designs the book has no page on, whose hint the page shows without a link.
-NO_BOOK_PAGE = {"taguchi"}
 
 
 def test_every_design_links_to_the_book(bootstrap):

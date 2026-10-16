@@ -813,7 +813,9 @@ function refreshDesign() {
   } else if (option.disabled) {
     hint.textContent = `${option.textContent} takes ${option.dataset.minFactors} to ${option.dataset.maxFactors} factors on this page; you have ${k}.`;
   } else {
-    hint.replaceChildren(`${option.dataset.hint} `, BOOK_PAGES[option.value] ? link(BOOK_PAGES[option.value], "More in the book") : "");
+    // A design the book has no page on (a Taguchi array) shows its hint alone.
+    const book = BOOK_PAGES[option.value];
+    hint.replaceChildren(...(book ? [`${option.dataset.hint} `, link(book, "More in the book")] : [option.dataset.hint]));
   }
   hint.classList.toggle("error", option.disabled);
   showMakeable(showFactorProblems());
