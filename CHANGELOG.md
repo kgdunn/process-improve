@@ -22,79 +22,97 @@ those changes.
   or two `topics`: what it is about (semiconductors, food and beverages, ...), as opposed to how it
   is designed. `reference_topics()` returns the vocabulary of 30 topics, each with its nearest UN
   ISIC Rev. 4 industries and OECD FORD field of research, and `reference_experiments` and
-  `reference_designs` take `topic=` to select by it. Of the 866 entries, 497 state an application;
-  the other 369 (mostly tables of designs) are `"general"`.
-- **The reference catalogue holds chapters 1 to 8 of Montgomery, *Design and Analysis of
+  `reference_designs` take `topic=` to select by it. Of the 911 entries, 510 state an application;
+  the other 401 (mostly tables of designs) are `"general"`.
+- **The reference catalogue holds chapters 1 to 9 of Montgomery, *Design and Analysis of
   Experiments* (8th edition).** Chapters 1 and 2: the golf 2^2 factorial and its three effects; the
   Portland cement mortar two-sample t-test with Minitab's and JMP's output, its confidence interval
-  and Minitab's power table; the nerve and muscle fluorescence compared by Welch's test; the hardness
-  tips' paired t-test beside the pooled test that ignores the specimens; the run counts of the golf
-  factorials and of a 4 x 8 x 6 x 5 x 4 x 3 x 7 web page factorial; and the half fraction of Figure
-  1.8, read from its circled corners and compared run for run with the library's. Chapter 3: the
-  plasma etching one-way analysis of variance by hand and in Design-Expert, Minitab and JMP, with its
-  residuals and case statistics, contrasts, Scheffé's, Tukey's, Fisher's and Dunnett's comparisons,
-  Bartlett's variances and the Kruskal-Wallis ranks; the peak discharge data with the modified Levene
-  test and a square root transformation; dark and milk chocolate; end-aisle displays; the pot noise
-  of aluminum smelting analysed as ln(s); and the looms as a random factor, with JMP's REML variance
-  components, their standard errors, covariances and intervals. Chapter 4: the vascular graft
-  randomized complete block design in Design-Expert and JMP, with the blocks fixed and random, and
-  with one value missing; the rocket propellant Latin and Graeco-Latin squares; and the catalyst
-  balanced incomplete block design, with its adjusted and unadjusted sums of squares, Minitab's
-  output, and the combined intra- and interblock estimates, which the library's REML fit with random
-  blocks reproduces. Chapter 5: the effects of Figures 5.1 and 5.2; the battery life 3^2 factorial
-  by hand and in Design-Expert and JMP, with all 36 rows of case statistics, Tukey's comparisons at
-  70 °F, the analysis without interaction, and Design-Expert's reduced cubic response curves in
-  coded and actual temperature; the impurity data with one observation per cell and Tukey's test for
-  nonadditivity; the soft drink bottling 3 x 2 x 2 factorial with every total and sum of squares;
-  the tool life 3^2 as a categorical analysis and as JMP's second-order and expanded models, with
-  the prediction profiler's optimum; and the radar detection factorial with the operators as fixed
-  and as random blocks (JMP's REML table, its -2 log-likelihood included), then run in a 6 x 6 Latin
-  square. Chapter 6: the chemical process 2^2 with its residuals and its equation in natural units;
-  the plasma etch 2^3 with Design-Expert's full and reduced models, their 16 rows of case statistics,
-  equations in actual factors and lack of fit, and the ranges of Figure 6.8; the filtration 2^4 in a
-  single replicate with its projection on A, C and D, Lenth's method, JMP's screening platform
-  (estimates, pseudo t-ratios and p-values) and fitted model with its lack of fit and profiler, and
-  again with four centre runs and the test for pure quadratic curvature; the drill in ln y; the
-  aircraft panels' dispersion effects; the oxide thickness with duplicate measurements, its ln(s²)
-  model and Design-Expert's tables; the credit card mailing in JMP; the optimality of the 2^2; and
-  the circuit fitted in coded and in engineering units. Chapter 7: the chemical process in three
-  blocks; the filtration 2^4 in two blocks with ABCD confounded, and unblocked with a shift; the 2^5
-  in four blocks and the 2^6 in eight; Table 7.9's blocking arrangements, compared with the library's
-  blocking and with the products of the effects each row chooses; and the plasma etch in two
-  replicates partially confounded. Chapter 8: the half fractions of the 2^3; the filtration 2^(4-1)
-  and its alternate fraction, their sums and differences the effects of the full 2^4; the integrated
-  circuit 2^(5-1); the 2^(6-2)'s construction, alias structure, alternate fraction and two blocks;
-  the injection molding 2^(6-2) with its dispersion effects (Table 8.12's sign columns included);
-  the three 2^(7-2) designs compared by word length pattern; Table 8.14's 29 designs, each compared
-  with the library's fraction for its resolution; the 2^(7-3); the CNC machine 2^(8-3) in four
-  blocks, analysed in ln s; the alias matrix of the 2^(3-1); the 2^(7-4), the 2^(6-3) and the fold
-  over on D; the eye focus 2^(7-4) and its full fold over; the Plackett-Burman designs of 12, 20, 24,
-  28 and 36 runs written from Table 8.23, compared with the library's; a 20-run Plackett-Burman design
-  in 12 factors with JMP's alias matrix (858 entries) and its initial and final stepwise regression
-  tables; the 2^(4-1) by fold over; Table 8.30; the spin coater's single-factor and partial fold
-  overs, with their coefficients' standard errors in units of σ; the smallest resolution V fractions;
-  and the supersaturated design of Table 8.34. The data of the 131 problems that have data are kept as
-  data, since the book prints no answers; the totals, means, ranges, standard deviations, response
-  rates and transformations some of their tables print are checked. 6348 printed numbers, 5953
-  checked. 157 are recorded as not reproducing, each explained: the book's rounding (test statistics,
-  P-values, fitted values and residuals worked from rounded values, a Tukey critical difference from a
-  table's rounded point, three standard deviations in each of Tables 3.7 and P8.3, dispersion
-  statistics from rounded standard deviations, F ratios divided by a rounded error mean square, and
-  Figure 8.22's averages cut off rather than rounded), misprints (sums of squares and mean squares, an F of 3.95 for 3.93, an
-  error degrees of freedom of 19 for 20, a residual of 26.00 for −6.00, a dropped sign in two
-  coefficients or limits, a range of 59 for 54, Table 6.28's analysis of variance copied from Table
-  6.26, one row of Table 7.9 that prints the interactions of other generators, a column of Table 8.12
-  headed BD = CE for BD = CF, a 0 for 0.2 in Table 8.26's alias matrix, three signs of the 12-run
-  Plackett-Burman design's alias weights, Figure 8.25's axis taken from Figure 8.26, and transformed
-  values in Tables P8.13 and P8.14), Design-Expert's equations in actual temperature,
-  whose linear coefficients add the quadratic ones, Minitab's Tukey intervals, which use a
-  studentized range point of 4.0504 where the library's, like R's, is 4.0461, a residual mean square
-  of "about 109" that no model of the data gives, two rows of Table 7.9 that confound one more
-  two-factor interaction than the library's blocking does, and three numbers where the library's
-  design differs from the book's: its 24-run Plackett-Burman design is the 12-run one doubled (11 of
-  its three-column products completely aliased) rather than the cyclic design of Table 8.23, its
-  36-run design is of another class, and its 16-run fraction for 12 factors has one more word of
-  length three than Table 8.14's.
+  and Minitab's power table; the nerve and muscle fluorescence compared by Welch's test; the
+  hardness tips' paired t-test beside the pooled test that ignores the specimens; the run counts of
+  the golf factorials and of a 4 x 8 x 6 x 5 x 4 x 3 x 7 web page factorial; and the half fraction
+  of Figure 1.8, read from its circled corners and compared run for run with the library's. Chapter
+  3: the plasma etching one-way analysis of variance by hand and in Design-Expert, Minitab and JMP,
+  with its residuals and case statistics, contrasts, Scheffé's, Tukey's, Fisher's and Dunnett's
+  comparisons, Bartlett's variances and the Kruskal-Wallis ranks; the peak discharge data with the
+  modified Levene test and a square root transformation; dark and milk chocolate; end-aisle
+  displays; the pot noise of aluminum smelting analysed as ln(s); and the looms as a random factor,
+  with JMP's REML variance components, their standard errors, covariances and intervals. Chapter 4:
+  the vascular graft randomized complete block design in Design-Expert and JMP, with the blocks
+  fixed and random, and with one value missing; the rocket propellant Latin and Graeco-Latin
+  squares; and the catalyst balanced incomplete block design, with its adjusted and unadjusted sums
+  of squares, Minitab's output, and the combined intra- and interblock estimates, which the
+  library's REML fit with random blocks reproduces. Chapter 5: the effects of Figures 5.1 and 5.2;
+  the battery life 3^2 factorial by hand and in Design-Expert and JMP, with all 36 rows of case
+  statistics, Tukey's comparisons at 70 °F, the analysis without interaction, and Design-Expert's
+  reduced cubic response curves in coded and actual temperature; the impurity data with one
+  observation per cell and Tukey's test for nonadditivity; the soft drink bottling 3 x 2 x 2
+  factorial with every total and sum of squares; the tool life 3^2 as a categorical analysis and as
+  JMP's second-order and expanded models, with the prediction profiler's optimum; and the radar
+  detection factorial with the operators as fixed and as random blocks (JMP's REML table, its -2
+  log-likelihood included), then run in a 6 x 6 Latin square. Chapter 6: the chemical process 2^2
+  with its residuals and its equation in natural units; the plasma etch 2^3 with Design-Expert's
+  full and reduced models, their 16 rows of case statistics, equations in actual factors and lack of
+  fit, and the ranges of Figure 6.8; the filtration 2^4 in a single replicate with its projection on
+  A, C and D, Lenth's method, JMP's screening platform (estimates, pseudo t-ratios and p-values) and
+  fitted model with its lack of fit and profiler, and again with four centre runs and the test for
+  pure quadratic curvature; the drill in ln y; the aircraft panels' dispersion effects; the oxide
+  thickness with duplicate measurements, its ln(s²) model and Design-Expert's tables; the credit
+  card mailing in JMP; the optimality of the 2^2; and the circuit fitted in coded and in engineering
+  units. Chapter 7: the chemical process in three blocks; the filtration 2^4 in two blocks with ABCD
+  confounded, and unblocked with a shift; the 2^5 in four blocks and the 2^6 in eight; Table 7.9's
+  blocking arrangements, compared with the library's blocking and with the products of the effects
+  each row chooses; and the plasma etch in two replicates partially confounded. Chapter 8: the half
+  fractions of the 2^3; the filtration 2^(4-1) and its alternate fraction, their sums and
+  differences the effects of the full 2^4; the integrated circuit 2^(5-1); the 2^(6-2)'s
+  construction, alias structure, alternate fraction and two blocks; the injection molding 2^(6-2)
+  with its dispersion effects (Table 8.12's sign columns included); the three 2^(7-2) designs
+  compared by word length pattern; Table 8.14's 29 designs, each compared with the library's
+  fraction for its resolution; the 2^(7-3); the CNC machine 2^(8-3) in four blocks, analysed in ln
+  s; the alias matrix of the 2^(3-1); the 2^(7-4), the 2^(6-3) and the fold over on D; the eye focus
+  2^(7-4) and its full fold over; the Plackett-Burman designs of 12, 20, 24, 28 and 36 runs written
+  from Table 8.23, compared with the library's; a 20-run Plackett-Burman design in 12 factors with
+  JMP's alias matrix (858 entries) and its initial and final stepwise regression tables; the 2^(4-1)
+  by fold over; Table 8.30; the spin coater's single-factor and partial fold overs, with their
+  coefficients' standard errors in units of σ; the smallest resolution V fractions; and the
+  supersaturated design of Table 8.34. Chapter 9: the tool life interaction split into its linear
+  and quadratic components and into its AB and AB² components of interaction; the syrup loss 3^3 run
+  twice, its analysis of variance, the quadratic models of each nozzle in coded and natural units,
+  and the four components of its three-factor interaction; the 3^2, 3^3 and 3^4 in three and nine
+  blocks, the 3^7 in 27 blocks, the one-third fractions of the 3^3, the 3^(4-1) and the 3^(4-2) with
+  its 32 aliases; two- and four-level factors in the 2^3 and 2^4; the five Hall designs and the
+  nonregular no-confounding designs for 6 to 14 factors in 16 runs, with Table 9.23's E(s²),
+  confounded pairs and trace(AA'), and the spin coater on the six-factor design with JMP's stepwise
+  table; and the optimal designs of section 9.6: two categorical factors in 9 and 12 runs, six
+  factors in four days of three runs, the 18- and 12-run resolution IV designs with all 274 alias
+  weights, the 22- and 38-run resolution V designs, and three mixed-level D-optimal designs with
+  JMP's relative variances. The data of the 138 problems that have data are kept as data, since the
+  book prints no answers; the totals, means, ranges, standard deviations, response rates and
+  transformations some of their tables print are checked, and the two models Problem 9.6 prints.
+  7144 printed numbers, 6680 checked. 184 are recorded as not reproducing, each explained: the
+  book's rounding (test statistics, P-values, fitted values and residuals worked from rounded
+  values, a Tukey critical difference from a table's rounded point, three standard deviations in
+  each of Tables 3.7 and P8.3, dispersion statistics from rounded standard deviations, F ratios
+  divided by a rounded error mean square, Figure 8.22's averages cut off rather than rounded, and
+  Table 9.2's P-values worked from F rounded to two decimals and sums of squares cut rather than
+  rounded), misprints (sums of squares and mean squares, an F of 3.95 for 3.93, an error degrees of
+  freedom of 19 for 20, a residual of 26.00 for −6.00, a dropped sign in two coefficients or limits,
+  a range of 59 for 54, Table 6.28's analysis of variance copied from Table 6.26, one row of Table
+  7.9 that prints the interactions of other generators, a column of Table 8.12 headed BD = CE for BD
+  = CF, a 0 for 0.2 in Table 8.26's alias matrix, three signs of the 12-run Plackett-Burman design's
+  alias weights, Figure 8.25's axis taken from Figure 8.26, and transformed values in Tables P8.13
+  and P8.14, one sign in each of the Hall II, III and IV designs, whose Hall II also drops a run at
+  a page break, a block of Figure 9.8 labelled (1,6) for (1,0), the components ABC and ABC² of the
+  syrup loss data exchanged, nozzle 2's models fitted to data other than Table 9.1's, the Hall
+  columns named for Tables 9.21 and 9.22, an E(s²) of 14.20 for 14.22, and two counts of Table
+  9.35's levels exchanged), Design-Expert's equations in actual temperature, whose linear
+  coefficients add the quadratic ones, Minitab's Tukey intervals, which use a studentized range
+  point of 4.0504 where the library's, like R's, is 4.0461, a residual mean square of "about 109"
+  that no model of the data gives, two rows of Table 7.9 that confound one more two-factor
+  interaction than the library's blocking does, and three numbers where the library's design differs
+  from the book's: its 24-run Plackett-Burman design is the 12-run one doubled (11 of its
+  three-column products completely aliased) rather than the cyclic design of Table 8.23, its 36-run
+  design is of another class, and its 16-run fraction for 12 factors has one more word of length
+  three than Table 8.14's.
 
   New checks: `t_test` compares two groups of runs with the library's pooled, Welch and paired
   t-tests; `contrast` weighs a fit's level means (its value, standard error, t, F, sum of squares,
@@ -125,7 +143,20 @@ those changes.
   `freeman_tukey_arcsin`; and `data_rounding` on a `nested_test` and a residual sum of squares or mean
   square, holding a number fitted to unrounded responses to the first-order bound of what the
   printed responses' rounding moves. A design's evaluation and a nested test's fits are made once
-  however many of their numbers are read.
+  however many of their numbers are read. For chapter 9: `component_ss`, a 3^k component of
+  interaction's sum of squares and group totals, the runs grouped by its defining contrast
+  x1 + 2x2 + ... (mod 3); `component_blocks` and `component_fraction`, blocks and fractions made by
+  such contrasts; `component_product` and `component_relation`, generalized interactions, aliases,
+  defining relations and resolutions worked modulo 3; `component_values` and `mod3_sum`, the
+  arithmetic of treatment combinations; `projection`, a design printed as columns of another entry's;
+  `interaction_columns`, Booth and Cox's E(s²), the confounded pairs and the largest correlations of
+  a design's main-effect and two-factor interaction columns; `estimable_projections`, the projections
+  that cannot fit their main effects and interactions; and `run_count`. `unit_std_error` can read
+  one term, a relative variance, a design the library makes, and categorical factors coded as JMP
+  codes them to evaluate a design (each factor's effect-coding columns made orthonormal and scaled to
+  a mean square of 1), with which JMP's relative variances reproduce; `design_metric` can square
+  what it reads, as trace(AA') is the alias matrix's squared norm; `distinct_runs` takes levels
+  printed as names, and a subset of the runs.
 - **Standardised coefficients.** Each row of `analyze_experiment`'s `"coefficients"` (and
   `coefficients_actual`) now carries `standardised_coefficient`: the coefficient times the standard
   deviation of its column of the model matrix, over the standard deviation of the response, as
