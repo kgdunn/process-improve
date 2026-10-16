@@ -13,6 +13,18 @@ those changes.
 
 ### Added
 
+- **Generalized linear models in `analyze_experiment`.** `analysis_type="glm"` fits a response that
+  is a count (`family="poisson"`), a number of successes out of `trials` (`"binomial"`) or a
+  positive amount whose spread grows with its size (`"gamma"`), as well as `"gaussian"` and
+  `"inverse_gaussian"`, with the family's canonical link or another (`link=`). It reports Wald
+  tests and intervals for the coefficients, odds or rate ratios under a logit or log link, the
+  log-likelihood, deviance and Pearson statistic, goodness-of-fit tests (Hosmer and Lemeshow's for
+  a binomial response), and each run's fitted mean with an interval carried through the link.
+  `dispersion=` and `information=` choose between R's conventions (the default) and SAS GENMOD's.
+  The reference catalogue checks 111 printed numbers of Montgomery's section 15.1 with it: the
+  coupon logistic regression as Minitab prints it, and the grill-defect Poisson and worsted-yarn
+  gamma models as GENMOD does; all agree.
+
 - **Studentized residuals.** `analyze_experiment`'s `"residual_diagnostics"` now lists each run's
   `studentized_residuals` (the residual over its own standard error, s √(1 − h), Design-Expert's
   "Student Residual") and `externally_studentized_residuals` (with s from the fit without that run,

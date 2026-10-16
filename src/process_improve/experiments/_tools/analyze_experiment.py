@@ -45,8 +45,10 @@ class AnalyzeExperimentInput(BaseModel):
             "Options: anova, effects, coefficients, significance, "
             "residual_diagnostics, lack_of_fit, curvature_test, "
             "model_selection, box_cox, lenth_method, confidence_intervals, "
-            "prediction, confirmation_test, split_plot. Use split_plot for a design "
-            "with hard-to-change factors: the others treat every run as independent."
+            "prediction, confirmation_test, split_plot, glm. Use split_plot for a design "
+            "with hard-to-change factors: the others treat every run as independent. Use glm, with a "
+            "family, for a response that is a count, a number of successes out of trials, or a positive "
+            "amount whose spread grows with its size."
         ),
     )
     significance_level: float = Field(
@@ -86,6 +88,37 @@ class AnalyzeExperimentInput(BaseModel):
             "Default: the 'WholePlot' column that generate_design adds to a split-plot design."
         ),
     )
+    family: Literal["binomial", "poisson", "gamma", "gaussian", "inverse_gaussian"] | None = Field(
+        None,
+        description=(
+            "For analysis_type='glm': the distribution of the response. 'poisson' for counts, 'binomial' "
+            "for successes out of trials (or 0/1), 'gamma' for a positive amount whose spread grows with its size."
+        ),
+    )
+    link: Literal["logit", "probit", "cloglog", "log", "identity", "inverse", "inverse_squared", "sqrt"] | None = Field(
+        None, description="For analysis_type='glm': the link function. Default: the family's canonical link."
+    )
+    trials: str | float | None = Field(
+        None,
+        description=(
+            "For a binomial glm: the column holding each run's number of trials, or one number for every run; "
+            "the response is then the number of successes. Omitted: the response is 0 or 1."
+        ),
+    )
+    dispersion: Literal["pearson", "deviance", "ml"] | float | None = Field(
+        None,
+        description=(
+            "For analysis_type='glm': how the dispersion is found. Omitted: 1 for binomial and Poisson, Pearson's "
+            "estimate otherwise (R's glm). 'ml' is the maximum-likelihood estimate (SAS GENMOD)."
+        ),
+    )
+    information: Literal["expected", "observed"] = Field(
+        "expected",
+        description=(
+            "For analysis_type='glm': invert the expected information (R's glm) or the observed information "
+            "(SAS GENMOD) for the covariance of the coefficients. They agree under the canonical link."
+        ),
+    )
 
 
 @tool_spec(
@@ -98,7 +131,9 @@ class AnalyzeExperimentInput(BaseModel):
         "stepwise model selection with effect heredity (AICc by default, or AIC/BIC), Box-Cox transformation, "
         "Lenth's method (PSE for unreplicated factorials), confidence intervals, "
         "prediction with prediction intervals, confirmation run testing, and the REML analysis of "
-        "split-plot designs (hard-to-change factors) with Satterthwaite degrees of freedom. "
+        "split-plot designs (hard-to-change factors) with Satterthwaite degrees of freedom, and "
+        "generalized linear models (logistic, Poisson, gamma) with Wald tests, odds ratios, goodness of fit "
+        "and intervals for the fitted means. "
         "Always returns a model summary with R-squared, adj-R-squared, pred-R-squared, and adequate precision. "
         "Factor columns may be coded (-1/+1) or in actual units; for actual units, set coding='auto' to get "
         "coefficients on the -1/+1 scale, as optimize_responses needs. "
@@ -126,6 +161,10 @@ class AnalyzeExperimentInput(BaseModel):
     # "Analyse my split-plot experiment; temperature was hard to change"
         -> ``analyze_experiment(design_matrix=[...], response_column="y",
                 analysis_type="split_plot")``
+
+    # "Each run made 1000 coupons; model how many were redeemed"
+        -> ``analyze_experiment(design_matrix=[...], response_column="redeemed",
+                analysis_type="glm", family="binomial", trials=1000)``
     """,
     category="experiments",
 )
@@ -148,6 +187,11 @@ def analyze_experiment_tool(spec: AnalyzeExperimentInput) -> dict[str, Any]:
             new_points=np_df,
             observed_at_new=spec.observed_at_new,
             whole_plot=spec.whole_plot,
+            family=spec.family,
+            link=spec.link,
+            trials=spec.trials,
+            dispersion=spec.dispersion,
+            information=spec.information,
         )
         return clean(result)
     except _TOOL_EXPECTED_EXCEPTIONS as e:
