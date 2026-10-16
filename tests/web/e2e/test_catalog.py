@@ -171,3 +171,106 @@ def test_it_reads_on_a_phone_without_scrolling_sideways(context, site):
              .map((e) => e.tagName.toLowerCase() + (e.className ? '.' + e.className : ''))"""
     )
     assert wider == []
+
+
+# --------------------------------------------------------------------------- phase 3: the views over the list
+def row(page, label: str) -> list[str]:
+    """Return a row of the comparison: each design's value of the measure with this label."""
+    cells = page.locator("table.compare tr", has=page.locator("th", has_text=label)).locator("td")
+    return cells.all_text_contents()[1:]
+
+
+def toast_text(page) -> str:
+    page.wait_for_selector("#toast.shown")
+    return page.text_content("#toast")
+
+
+def test_two_designs_of_one_size_are_compared_on_the_model_both_fit(context, site):
+    page = open_catalog(context, site)
+    page.click(f"[data-compare='{CCD}']")
+    page.wait_for_selector("#tray:not([hidden])")
+    assert page.is_disabled("#tray-open"), "one design is nothing to compare"
+    page.click(f"[data-compare='{CUBE}']")
+    assert page.text_content("#tray-text") == "2 designs of 3 factors"
+    page.click("#tray-open")
+    page.wait_for_selector("#compare[open] table.compare")
+    assert page.input_value("#compare-model") == "interactions", "the 2^3 cannot fit the quadratic"
+    heads = page.eval_on_selector_all("table.compare thead th", "cells => cells.map((c) => c.textContent)")
+    assert heads[2:] == ["Central composite, 3 factors, face-centered [n=17]", "Full factorial, 3 factors [n=8]"]
+    assert row(page, "Runs") == ["17", "8"]
+    assert "cmp=" in page.url
+    assert "view=compare" in page.url
+    page.wait_for_selector("#compare .compare__fds .scatterlayer")
+    page.select_option("#compare-model", "quadratic")
+    assert row(page, "Fits the model?") == ["yes", "no (rank 7)"], "the squares of a 2^3 are its intercept"
+
+
+def test_a_design_of_another_size_does_not_join_the_comparison(context, site):
+    page = open_catalog(context, site)
+    page.click(f"[data-compare='{CCD}']")
+    page.click(f"[data-compare='{OMARS}']")
+    assert "the designs compared have 3 factors, and this one has 4" in toast_text(page)
+    assert page.locator("#tray-list li").count() == 1
+
+
+def test_a_design_s_projections_say_what_any_two_or_three_factors_estimate(context, site):
+    page = open_catalog(context, site, f"#d={CCD}")
+    page.wait_for_selector("#detail[open] .explorer")
+    text = page.locator(".explorer__text")
+    assert text.text_content() == (
+        "In A, B and C, the runs sit at 15 distinct settings and estimate the full quadratic in them (10 terms). "
+        "They hold all 8 corners: a full 2^3 factorial in these factors."
+    )
+    assert page.locator(".projection__point").count() == 15
+    page.click(".explorer__picks [data-column='2']")
+    assert text.text_content().startswith(
+        "In A and B, the runs sit at 9 distinct settings and estimate the full quadratic"
+    )
+    assert "They hold all 4 corners" in text.text_content()
+    assert "The largest |r| between two second-order terms is 0.51." in page.text_content("#detail-body")
+
+
+def test_a_design_leads_to_the_families_it_can_be_augmented_to(context, site):
+    page = open_catalog(context, site, f"#d={CUBE}")
+    page.wait_for_selector("#detail[open] .detail__steps")
+    page.click(".detail__steps a:text('Central composite')")
+    page.wait_for_selector("#detail:not([open])", state="attached")
+    counted(page, "1 of 5")
+    assert shown(page) == [CCD]
+    assert "fam=ccd" in page.url
+
+
+def test_the_errata_list_every_printed_number_that_does_not_reproduce(context, site):
+    page = open_catalog(context, site)
+    page.click("#errata-open")
+    page.wait_for_selector("#errata[open] .errata__table")
+    total = page.text_content("#errata-count")
+    assert total.startswith(total.split(" of ")[1].split()[0]), "every printed number, before a filter"
+    page.select_option("#errata-source", "box-hunter-hunter-1978")
+    page.fill("#errata-words", "already rounded 3.65")
+    page.wait_for_function("document.querySelector('#errata-count').textContent.startsWith('1 of')")
+    assert "view=errata" in page.url
+    page.click(f"#errata [data-id='{COMPARISON}']")
+    page.wait_for_selector("#detail[open]")
+    assert page.text_content("#detail-title").startswith("An industrial experiment")
+
+
+def test_the_gaps_are_the_generated_designs_no_source_prints(context, site):
+    page = open_catalog(context, site)
+    page.click(".try:text('gaps')")
+    counted(page, "2 of 5")
+    assert set(shown(page)) == {CCD, OMARS}, "the library's 2^3 is Box, Hunter and Hunter's pilot plant"
+    page.fill("#query", "")
+    page.select_option("#source", "box-hunter-hunter-1978")
+    counted(page, "2 of 5")
+    assert set(shown(page)) == {PILOT, COMPARISON}
+    assert "src=box-hunter-hunter-1978" in page.url
+
+
+def test_a_bar_of_the_timeline_keeps_its_years(context, site):
+    page = open_catalog(context, site)
+    page.wait_for_selector("#year-bars .bin")
+    page.locator("#year-bars .bin[data-from='1975']").click()
+    counted(page, "2 of 5")
+    assert (page.input_value("#year-min"), page.input_value("#year-max")) == ("1975", "1979")
+    assert "year=1975-1979" in page.url

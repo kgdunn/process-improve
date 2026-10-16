@@ -139,3 +139,35 @@ def test_the_whole_catalog_opens_every_generated_design_the_page_makes(build_scr
     published = [d for d in designs if d["collection"] == "published"]
     assert sum(d["open"] for d in published) >= 150, "most published factorials and response surfaces open"
     assert all(d["open"] == bool(d["regenerable"]) for d in published)
+
+
+def test_the_index_names_the_measures_designs_are_compared_on(index):
+    from process_improve.experiments.compare import MEASURES
+
+    assert [m["key"] for m in index["measures"]] == [m.key for m in MEASURES]
+    assert {"label", "direction", "group", "description"} <= set(index["measures"][0])
+
+
+def test_a_design_of_numeric_factors_carries_its_measures_for_each_model(index, details):
+    ccd = details["lib-ccd-k3-face-centered"]["compare"]
+    assert _design(index, "lib-ccd-k3-face-centered")["compared"] is True
+    assert set(ccd) == {"main_effects", "interactions", "quadratic"}
+    assert ccd["quadratic"]["fits"] is True
+    assert len(ccd["quadratic"]["fds"]) == 21
+    cube = details["lib-full-factorial-k3"]["compare"]
+    assert (cube["quadratic"]["fits"], cube["quadratic"]["fds"]) == (False, None)
+    two_methods = _design(index, "bhh-plant-trial-two-methods")
+    assert (two_methods["compared"], details[two_methods["id"]]["compare"]) == (False, None)
+
+
+def test_the_errata_and_the_feed_are_written_beside_the_index(catalog):
+    import xml.etree.ElementTree as ET
+
+    errata = json.loads((catalog / "errata.json").read_text())
+    assert errata["version"] == 1
+    assert any(e["id"] == "bhh-plant-trial-two-methods" for e in errata["errata"])
+    feed = ET.fromstring((catalog / "feed.xml").read_bytes())  # noqa: S314 - the feed the build just wrote
+    entries = feed.findall("{http://www.w3.org/2005/Atom}entry")
+    assert [e.find("{http://www.w3.org/2005/Atom}id").text for e in entries] == [
+        "https://factori.al/catalog/#src=box-hunter-hunter-1978"
+    ]

@@ -677,11 +677,6 @@ main.catalog h1 { margin: 8px 0; font-size: 2rem; }
 }
 .facets__range input { width: 100%; min-width: 0; }
 .facets select { width: 100%; margin: 4px 0; }
-.facets__bars { display: block; width: 100%; height: auto; margin: 4px 0; }
-.facets__bars .bar { fill: var(--accent); cursor: pointer; }
-.facets__bars .bar--out { fill: var(--line); }
-.facets__bars .bar:focus-visible { outline: 2px solid var(--accent); }
-.facets__bars .bars__label { fill: var(--muted); font-size: 10px; }
 .facets__added { display: block; font-size: 0.9rem; }
 .facets #reset { width: 100%; margin-top: 12px; }
 .catalog__map {
@@ -725,3 +720,64 @@ dialog.detail { width: min(980px, 100vw - 32px); }
 .detail__twins { margin: 4px 0 12px; padding-left: 1.2em; }
 .detail__twins li { margin: 2px 0; }
 .detail__twins .link { padding: 0; text-align: left; }
+
+/* The catalog's views: the timeline, the comparison tray and table, a design's projections, the errata. */
+.catalog__views { display: flex; flex-wrap: wrap; gap: 6px 18px; margin: -6px 0 12px; font-size: 0.92rem; }
+.catalog__views .link { padding: 0; text-align: left; }
+.catalog__timeline {
+  margin: 0 0 12px; padding: 8px 10px; background: var(--panel); border: 1px solid var(--line); border-radius: 10px;
+}
+.catalog__timeline figcaption { margin: 4px 4px 0; }
+.timeline { display: block; width: 100%; height: auto; touch-action: pan-y; user-select: none; }
+.timeline .bin { cursor: pointer; }
+.timeline .bin--out rect { opacity: 0.22; }
+.timeline .bin__hit { fill: transparent; }
+.timeline .bin:focus { outline: none; }
+.timeline .bin:focus-visible .bin__hit { stroke: var(--accent); stroke-width: 2; }
+.timeline__year { fill: var(--muted); font-size: 11px; }
+.timeline__mark { stroke: var(--panel); stroke-width: 1; }
+.timeline__brush { fill: var(--accent); opacity: 0.18; pointer-events: none; }
+.result__actions { display: flex; flex-direction: column; gap: 6px; }
+.compare-toggle[aria-pressed="true"] { border-color: var(--accent); color: var(--accent); }
+.tray {
+  position: fixed; z-index: 20; left: 50%; bottom: 12px; transform: translateX(-50%); width: min(820px, 100vw - 32px);
+  display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; padding: 10px 14px; background: var(--panel);
+  border: 1px solid var(--accent); border-radius: 10px; box-shadow: 0 6px 24px rgb(0 0 0 / 0.18);
+}
+.tray[hidden] { display: none; }
+.tray__text { margin: 0; flex-basis: 100%; color: var(--muted); font-size: 0.9rem; }
+.tray__list { display: flex; flex: 1 1 auto; flex-wrap: wrap; gap: 6px; min-width: 0; margin: 0; padding: 0; list-style: none; }
+.tray__list li {
+  display: flex; align-items: center; gap: 4px; max-width: 100%; padding: 2px 8px; border: 1px solid var(--line);
+  border-radius: 999px; font-size: 0.86rem;
+}
+.tray__list li span { max-width: 240px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tray__actions { display: flex; align-items: center; gap: 10px; }
+body:has(#tray:not([hidden])) main.catalog { padding-bottom: 130px; }
+#compare-model { margin: 4px 0 8px; }
+.compare th[scope="row"] { font-weight: 500; text-align: left; }
+.compare__group th {
+  padding-top: 10px; color: var(--muted); font-size: 0.78rem; text-align: left; text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.compare__arrow { text-align: center; }
+.explorer__picks { display: flex; flex-wrap: wrap; gap: 6px; margin: 6px 0; }
+.chip { padding: 3px 10px; border-radius: 999px; font-size: 0.86rem; }
+.chip[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: var(--accent-fg); }
+.projection { display: block; width: min(320px, 100%); height: auto; }
+.projection__box { stroke: var(--line); stroke-width: 1.2; }
+.projection__point { fill: var(--accent); fill-opacity: 0.75; stroke: var(--panel); stroke-width: 1; }
+.projection__count { fill: var(--muted); font-size: 10px; }
+.projection__axis { fill: var(--fg); font-size: 12px; font-weight: 600; }
+.detail__steps { margin: 4px 0 12px; padding-left: 1.2em; }
+.errata__controls { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; margin: 8px 0; }
+.errata__controls input[type="search"] { flex: 1 1 240px; min-width: 0; }
+.errata__table td:last-child { min-width: 260px; }
+.timeline__marks { display: flex; flex-wrap: wrap; gap: 4px 14px; margin: 6px 0 0; padding: 0; list-style: none; }
+.timeline__marks li { display: flex; align-items: center; gap: 5px; }
+.errata__table th, .errata__table td { text-align: left; vertical-align: top; }
+.errata__table td:first-child { min-width: 7em; }
+@media (max-width: 640px) {
+  .tray { gap: 6px 10px; padding: 8px 12px; }
+  .tray__list { display: none; }
+}

@@ -13,6 +13,16 @@ those changes.
 
 ### Added
 
+- **Prediction from marginal means, as Taguchi's additive model makes it.**
+  `marginal_means_prediction(design_matrix, responses, at, interactions=())` predicts a response at
+  given settings as the grand mean plus each factor's deviation (the mean of the runs at its level
+  less the grand mean), plus, for each named pair of factors, the deviation of their two-factor
+  mean. On a design whose levels and pairs of levels occur equally often, such as an orthogonal
+  array, the main-effect terms are the least-squares estimates; on any other a `UserWarning` says
+  the prediction is not the least-squares one. The reference catalogue checks it (`marginal_means`)
+  against the 42 predictions and deviations of Schmidt and Launsby's lunar concrete study, which it
+  held as not recomputed until now: 40 agree, and two are the book's errors (run 14's prediction
+  has two digits exchanged, and run 16's deviation does not follow from its values).
 - **`evaluate_design(..., metric="scaled_condition_number")`**: the condition number of the model
   matrix with each column scaled to unit length, so the factors' units do not count: 1 for
   orthogonal columns, whatever their units. RS/Discover prints it as Cond. No.; the nine that
@@ -44,6 +54,19 @@ those changes.
   Plackett-Burman design, which is also Schmidt and Launsby's Taguchi L12 and Table 3.18 of the NIST
   e-Handbook. `estimable_models` and `model_matrix` are here too. The catalog filters on all of them,
   and a design's page draws its runs' leverages.
+- **The design catalog compares designs, explores their projections and lists the errata.** Up to
+  four designs of one size are set side by side on the measures of `compare_designs`, for the model
+  they all fit, with their fraction-of-design-space curves (`design_measures.fds_curve`); 409 designs
+  of numeric factors are scored at build time (`design_catalog.catalog_comparisons`). A design's
+  page projects its runs onto any two or three of its factors, says whether that projection
+  estimates the full quadratic, draws its correlation map, and links to the families it can be
+  augmented to (`catalog_families` reads them from the knowledge base). A timeline under the map
+  counts the published designs by year in their families' colours, marks the year each family was
+  first published, and keeps the years a reader drags across. The errata list the 887 printed
+  numbers the library does not reproduce, each with the value printed, its page and the recorded
+  reason (`catalog_errata`). A source filter and a "no source prints it" filter find the generated
+  designs no source in the catalogue prints. `catalog/feed.xml` is an Atom feed with an entry for
+  each source as it enters the catalogue (`catalog_feed`).
 - **Standardised coefficients.** Each row of `analyze_experiment`'s `"coefficients"` (and
   `coefficients_actual`) now carries `standardised_coefficient`: the coefficient times the standard
   deviation of its column of the model matrix, over the standard deviation of the response, as
@@ -85,7 +108,7 @@ those changes.
   solderability L18 with a dummy-level column, a 2^4 on chemiluminescence with centre runs, and the
   run counts of a 136-run Plackett-Burman design for 134 inputs and a mixed-level full factorial of
   49152 cases. Appendix J's answers are checked against the problems they answer. 4520 printed
-  numbers, 4211 checked. 398 are recorded as not reproducing, each explained: most come from the
+  numbers, 4253 checked. 400 are recorded as not reproducing, each explained: most come from the
   book's rounding (run averages and standard deviations that do not follow from their readings,
   squares of rounded effects, coefficients that are halves of rounded effects, values cut rather
   than rounded), some are misprints (a wrong sign, two exchanged digits, rows swapped, Yates's
