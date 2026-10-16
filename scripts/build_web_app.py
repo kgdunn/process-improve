@@ -51,6 +51,7 @@ APP_FILES = (
     "catalog/index.html",
     "catalog.js",
     "catalog-logic.js",
+    "catalog-views.js",
     "app.js",
     "logic.js",
     "limits.js",

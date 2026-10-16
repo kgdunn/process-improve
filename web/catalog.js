@@ -6,7 +6,7 @@
 // index.html, so the page works wherever the app is served from.
 
 import { LINK_KEY, packCampaign } from "./campaign.js";
-import { draw, palette } from "./charts.js";
+import { correlationFigure, draw, fdsFigure, palette } from "./charts.js";
 import {
   DEFAULT_STATE,
   FAMILY_COLOURS,
@@ -15,23 +15,33 @@ import {
   SORTS,
   checkIndex,
   checkLine,
+  compareRefusal,
+  correlationMap,
   csvText,
   decodeGlyph,
+  errataCounts,
+  errataShown,
   factLine,
   familyCounts,
+  familyMarks,
   fromHash,
+  largestSecondOrderR,
   minimumRuns,
+  nextSteps,
   projectionLines,
   pythonCode,
   results,
   runLossLine,
   sameDesigns,
   settingColour,
+  sharedModel,
   sourceLine,
   switchCount,
   toHash,
+  toggled,
   yearBins,
 } from "./catalog-logic.js";
+import { compareTable, drawTimeline, element, errataTable, projectionExplorer, table } from "./catalog-views.js";
 
 const $ = (selector, root = document) => root.querySelector(selector);
 const $$ = (selector, root = document) => [...root.querySelectorAll(selector)];
@@ -45,28 +55,22 @@ const PAGE = 48;
 const TWINS_SHOWN = 15;
 /** The most factors the map draws: a design with more is in the list, and the map says how many. */
 const MAP_FACTORS = 16;
+/** The most factors of a design whose correlation map the detail draws: 12 factors have 90 terms. */
+const MAP_TERMS_FACTORS = 12;
+/** How many errata the table shows at first. */
+const ERRATA_SHOWN = 200;
 
 let catalog = null;
 let state = structuredClone({ ...DEFAULT_STATE });
 let shown = PAGE;
 let plotlyVersion = null;
+/** Resolves to the Plotly.js version once the app's manifest is read, or to null when it cannot be. */
+let plotlyReady = Promise.resolve(null);
 let mapWired = false;
+let errata = null;
 const shards = new Map();
 
 // ---------------------------------------------------------------- small pieces of the document
-function element(tag, attributes = {}, ...children) {
-  const node = document.createElement(tag);
-  for (const [key, value] of Object.entries(attributes)) {
-    if (value === null || value === undefined || value === false) continue;
-    if (key === "class") node.className = value;
-    else if (key === "text") node.textContent = value;
-    else if (key.includes("-")) node.setAttribute(key, value);
-    else node[key] = value;
-  }
-  node.append(...children.filter((c) => c !== null && c !== undefined && c !== false));
-  return node;
-}
-
 let toastTimer = null;
 function toast(text, kind = "ok") {
   const box = $("#toast");
@@ -123,6 +127,7 @@ function readForm() {
   state.categorical = { none: [null, 0], some: [1, null] }[$("#categorical").value] ?? [null, null];
   for (const box of $$("[data-switch]")) state[box.dataset.switch] = box.checked;
   state.addedSince = $("#added").value;
+  state.source = $("#source").value;
 }
 
 function writeForm() {
@@ -143,6 +148,7 @@ function writeForm() {
   $("#categorical").value = high === 0 ? "none" : low !== null && low >= 1 ? "some" : "";
   for (const box of $$("[data-switch]")) box.checked = state[box.dataset.switch];
   $("#added").value = state.addedSince;
+  $("#source").value = state.source;
   $("#sort").value = state.sort;
 }
 
@@ -169,6 +175,8 @@ function buildFacets() {
   const added = [...new Set(catalog.designs.map((d) => d.added).filter(Boolean))].sort().reverse();
   $("#added").append(...added.map((date) => element("option", { value: date, text: date })));
   $("#sort").replaceChildren(...Object.entries(SORTS).map(([value, text]) => element("option", { value, text })));
+  const sources = Object.entries(catalog.sources).sort(([, a], [, b]) => a.year - b.year);
+  $("#source").append(...sources.map(([key, source]) => element("option", { value: key, text: `${source.short} (${source.year})` })));
 }
 
 function renderCounts() {
@@ -183,41 +191,9 @@ function renderCounts() {
   }
 }
 
-function renderYearBars() {
-  const svg = $("#year-bars");
+function renderTimeline() {
   const bins = yearBins(catalog, state);
-  const height = 44;
-  const width = 240;
-  svg.setAttribute("viewBox", `0 0 ${width} ${height + 14}`);
-  if (!bins.length) return svg.replaceChildren();
-  const most = Math.max(...bins.map((b) => b.count), 1);
-  const step = width / bins.length;
-  const [from, to] = state.years;
-  const NS = "http://www.w3.org/2000/svg";
-  const bars = bins.map((bin, i) => {
-    const h = bin.count ? Math.max(2, (height * bin.count) / most) : 0;
-    const rect = document.createElementNS(NS, "rect");
-    const chosen = (from === null || bin.to >= from) && (to === null || bin.from <= to);
-    Object.entries({ x: i * step + 1, y: height - h, width: Math.max(step - 2, 1), height: h, class: chosen ? "bar" : "bar bar--out" }).forEach(
-      ([k, v]) => rect.setAttribute(k, v),
-    );
-    rect.setAttribute("tabindex", "0");
-    rect.setAttribute("role", "button");
-    rect.setAttribute("aria-label", `${bin.from} to ${bin.to}: ${bin.count} designs`);
-    rect.dataset.from = bin.from;
-    rect.dataset.to = bin.to;
-    const title = document.createElementNS(NS, "title");
-    title.textContent = `${bin.from} to ${bin.to}: ${bin.count} designs`;
-    rect.append(title);
-    return rect;
-  });
-  const label = (x, text, anchor) => {
-    const t = document.createElementNS(NS, "text");
-    Object.entries({ x, y: height + 12, "text-anchor": anchor, class: "bars__label" }).forEach(([k, v]) => t.setAttribute(k, v));
-    t.textContent = text;
-    return t;
-  };
-  svg.replaceChildren(...bars, label(0, bins[0].from, "start"), label(width, bins.at(-1).to, "end"));
+  drawTimeline($("#year-bars"), bins, familyMarks(catalog, bins), state.years);
 }
 
 // ---------------------------------------------------------------- the list
@@ -235,6 +211,7 @@ function card(design) {
     : null;
   const twins = sameDesigns(catalog, design).length;
   const elsewhere = twins ? element("span", { class: "badge", text: `same design in ${twins} more ${twins === 1 ? "place" : "places"}` }) : null;
+  const gap = design.collection === "generated" && !design.in_source ? element("span", { class: "badge", text: "no source prints it" }) : null;
   return element(
     "li",
     { class: "result" },
@@ -251,6 +228,7 @@ function card(design) {
         robust,
         projects,
         elsewhere,
+        gap,
       ),
       element("p", { class: "result__facts", text: factLine(design, catalog) }),
       element("p", { class: "result__source", text: [sourceLine(design, catalog), checks].filter(Boolean).join(" · ") }),
@@ -261,8 +239,21 @@ function card(design) {
       design.open
         ? element("button", { type: "button", class: "button primary", "data-open": design.id, text: "Open in Factorial" })
         : element("button", { type: "button", class: "button", "data-id": design.id, text: "Details" }),
+      design.compared ? compareButton(design) : null,
     ),
   );
+}
+
+/** The button that puts a design in the comparison, or takes it out: pressed while the design is in it. */
+function compareButton(design) {
+  const chosen = state.compare.includes(design.id);
+  return element("button", {
+    type: "button",
+    class: "button compare-toggle",
+    "data-compare": design.id,
+    "aria-pressed": String(chosen),
+    text: chosen ? "In the comparison" : "Compare",
+  });
 }
 
 function renderList(list) {
@@ -278,8 +269,9 @@ function render() {
   const sentence = `${list.length} of ${catalog.designs.length} designs`;
   $("#count").textContent = list.length ? `${sentence}: ${published} published, ${list.length - published} generated` : `${sentence}: change a filter or the search to see more`;
   renderCounts();
-  renderYearBars();
+  renderTimeline();
   renderList(list);
+  renderTray();
   drawMap(list);
 }
 
@@ -287,6 +279,172 @@ function update({ keepPage = false } = {}) {
   if (!keepPage) shown = PAGE;
   history.replaceState(null, "", toHash(state) || location.pathname + location.search);
   render();
+}
+
+// ---------------------------------------------------------------- designs side by side
+const comparedDesigns = () => state.compare.map((id) => catalog.designs.find((d) => d.id === id)).filter(Boolean);
+
+function renderTray() {
+  const chosen = comparedDesigns();
+  $("#tray").hidden = !chosen.length;
+  $("#tray-text").textContent = chosen.length < 2
+    ? "Choose another design with the same factors to compare it with."
+    : `${chosen.length} designs of ${chosen[0].n_factors} factors`;
+  $("#tray-list").replaceChildren(
+    ...chosen.map((d) =>
+      element(
+        "li",
+        {},
+        element("span", { text: d.title }),
+        element("button", { type: "button", class: "link", "data-compare": d.id, "aria-label": `Take ${d.title} out of the comparison`, text: "✕" }),
+      ),
+    ),
+  );
+  $("#tray-open").disabled = chosen.length < 2;
+}
+
+function toggleCompare(id) {
+  if (!state.compare.includes(id)) {
+    const refusal = compareRefusal(catalog, state.compare, id);
+    if (refusal) return toast(`This design cannot join the comparison: ${refusal}.`, "error");
+  }
+  state.compare = toggled(state.compare, id);
+  update({ keepPage: true });
+  for (const button of $$(`#detail-body [data-compare="${id}"]`)) button.replaceWith(compareButton(catalog.designs.find((d) => d.id === id)));
+}
+
+/** A label for each design compared, with its runs, numbered when two would read the same. */
+function compareLabels(designs) {
+  const labels = [];
+  for (const d of designs) {
+    const base = `${d.title} [n=${d.n_runs}]`;
+    let label = base;
+    for (let i = 2; labels.includes(label); i++) label = `${base} (${i})`;
+    labels.push(label);
+  }
+  return labels;
+}
+
+async function openCompare() {
+  const chosen = comparedDesigns();
+  if (chosen.length < 2) return;
+  try {
+    const scored = await Promise.all(chosen.map(async (d) => (await detailOf(d.id)).detail.compare));
+    let model = sharedModel(scored);
+    const labels = compareLabels(chosen);
+    const select = element(
+      "select",
+      { id: "compare-model", "aria-label": "The model the designs are compared on" },
+      ...Object.entries(MODELS).map(([value, text]) => element("option", { value, text: `Model: ${text}` })),
+    );
+    select.value = model;
+    const holder = element("div", { class: "compare__table" });
+    const plot = element("div", { class: "compare__fds", "aria-hidden": "true" });
+    const show = () => {
+      holder.replaceChildren(compareTable(catalog.measures, chosen.map((d, i) => ({ ...d, title: labels[i] })), scored, model));
+      const curves = {};
+      chosen.forEach((d, i) => {
+        const curve = scored[i]?.[model]?.fds;
+        if (curve) curves[labels[i]] = { fraction: curve.map((_, j) => j / (curve.length - 1)), variance: curve };
+      });
+      plot.hidden = !Object.keys(curves).length;
+      plotlyReady.then((version) => {
+        if (!version) plot.hidden = true;
+        else if (!plot.hidden) draw(plot, () => fdsFigure(curves), version, 320);
+      });
+    };
+    select.addEventListener("change", () => {
+      model = select.value;
+      show();
+    });
+    $("#compare-body").replaceChildren(
+      element("p", {
+        class: "hint",
+        text: "Each design is scored at its own size for the model chosen, over the cube from -1 to +1 in every factor, as compare_designs in process-improve scores it. The arrow says which direction a measure prefers; no single design is best on every row. Power is for a coefficient of one noise standard deviation, tested at the 5% level.",
+      }),
+      select,
+      holder,
+      element("h3", { text: "Fraction of design space" }),
+      element("p", {
+        class: "hint",
+        text: "Each curve is the prediction variance, in units of the noise variance, that a fraction of the cube does not exceed, read at 4096 points drawn uniformly from it. A curve that lies lower predicts with less variance over more of the cube.",
+      }),
+      plot,
+    );
+    show();
+    if (!$("#compare").open) $("#compare").showModal();
+    state.view = "compare";
+    history.replaceState(null, "", toHash(state));
+  } catch (err) {
+    toast(`The designs could not be compared: ${err.message}.`, "error");
+  }
+}
+
+// ---------------------------------------------------------------- the errata
+function loadErrata() {
+  errata ??= fetch(app("catalog/errata.json"), { cache: "no-cache" })
+    .then((res) => {
+      if (!res.ok) throw new Error(`the server answered ${res.status}`);
+      return res.json();
+    })
+    .then((data) => data.errata)
+    .catch((err) => {
+      errata = null;
+      throw err;
+    });
+  return errata;
+}
+
+async function openErrata() {
+  try {
+    const all = await loadErrata();
+    const counts = errataCounts(all);
+    const source = element(
+      "select",
+      { "aria-label": "The source", id: "errata-source" },
+      element("option", { value: "", text: `Every source: ${all.length}` }),
+      ...Object.keys(counts).map((key) => {
+        const s = catalog.sources[key];
+        return element("option", { value: key, text: `${s ? `${s.short} (${s.year})` : key}: ${counts[key]}` });
+      }),
+    );
+    if (counts[state.source]) source.value = state.source;
+    const words = element("input", { type: "search", id: "errata-words", placeholder: "Words to find: a page, a quantity, a reason", "aria-label": "Words to find" });
+    const rounding = element("input", { type: "checkbox", id: "errata-rounding", checked: true });
+    const count = element("p", { class: "hint", role: "status", id: "errata-count" });
+    const holder = element("div");
+    let limit = ERRATA_SHOWN;
+    const more = element("button", { type: "button", class: "button", text: "Show them all" });
+    const show = () => {
+      const shown = errataShown(all, { source: source.value, words: words.value, rounding: rounding.checked });
+      count.textContent = `${shown.length} of ${all.length} printed numbers`;
+      holder.replaceChildren(errataTable(shown.slice(0, limit), catalog));
+      more.hidden = shown.length <= limit;
+    };
+    for (const control of [source, words, rounding]) control.addEventListener("input", () => {
+      limit = ERRATA_SHOWN;
+      show();
+    });
+    more.addEventListener("click", () => {
+      limit = Infinity;
+      show();
+    });
+    $("#errata-body").replaceChildren(
+      element("p", {
+        text: "Every number a source prints that process-improve recomputes and does not reproduce, with the reason the catalogue records: the source's rounding, a misprint, or a method that differs from the library's. The catalogue's tests require every other recomputed number to agree with its source.",
+      }),
+      element("div", { class: "errata__controls" }, source, words, element("label", { class: "facets__switch" }, rounding, " Include the reasons that mention rounding")),
+      count,
+      holder,
+      more,
+    );
+    show();
+    if (!$("#errata").open) $("#errata").showModal();
+    state.view = "errata";
+    history.replaceState(null, "", toHash(state));
+  } catch (err) {
+    toast(`The errata could not be read: ${err.message}.`, "error");
+  }
 }
 
 // ---------------------------------------------------------------- the map
@@ -394,15 +552,19 @@ function drawMap(list) {
   });
 }
 
-async function startMap() {
-  try {
-    const manifest = await (await fetch(app("wheels/manifest.json"), { cache: "no-cache" })).json();
-    plotlyVersion = manifest.plotly_js;
-    if (!plotlyVersion) throw new Error("no Plotly.js version");
-    drawMap(results(catalog, state));
-  } catch {
-    $(".catalog__map").hidden = true; // the list holds every design the map would show
-  }
+function startMap() {
+  plotlyReady = fetch(app("wheels/manifest.json"), { cache: "no-cache" })
+    .then((res) => res.json())
+    .then((manifest) => {
+      if (!manifest.plotly_js) throw new Error("no Plotly.js version");
+      plotlyVersion = manifest.plotly_js;
+      return plotlyVersion;
+    })
+    .catch(() => null);
+  plotlyReady.then((version) => {
+    if (version) drawMap(results(catalog, state));
+    else $(".catalog__map").hidden = true; // the list holds every design the map would show
+  });
 }
 
 // ---------------------------------------------------------------- one design
@@ -440,19 +602,6 @@ function copy(text, what) {
   navigator.clipboard.writeText(text).then(
     () => toast(`${what} copied.`),
     () => toast(`${what} could not be copied: select it and copy it yourself.`, "error"),
-  );
-}
-
-function table(head, rows, className = "data") {
-  return element(
-    "div",
-    { class: "scroll" },
-    element(
-      "table",
-      { class: className },
-      element("thead", {}, element("tr", {}, ...head.map((h) => element("th", { scope: "col", text: h })))),
-      element("tbody", {}, ...rows.map((row) => element("tr", {}, ...row.map((cell) => element("td", { text: cell ?? "" }))))),
-    ),
   );
 }
 
@@ -495,12 +644,13 @@ function detailBody(design, detail) {
     body.push(element("p", { class: "hint", text: `Factorial does not open this design: ${detail.closed}.` }));
   }
   actions.append(
+    design.compared ? compareButton(design) : null,
     element("button", { type: "button", class: "button", "data-copy-link": design.id, text: "Copy a link to this design" }),
     element("button", { type: "button", class: "button", "data-csv": design.id, text: "Download the runs (CSV)" }),
   );
   body.push(actions);
 
-  body.push(...measures(design, detail));
+  body.push(...measures(design, detail), ...projections(design, detail), ...steps(design));
 
   const runs = detail.coded_runs ?? [];
   if (runs.length) {
@@ -615,6 +765,55 @@ function measures(design, detail) {
   return out;
 }
 
+/** Whether a design's runs are all numeric settings, every one given: what the projections and correlations need. */
+function numericRuns(design, detail) {
+  const runs = detail.coded_runs ?? [];
+  const complete = runs.length && runs.every((row) => row.every((v) => v !== null && v !== undefined));
+  return complete && design.n_factors >= 2 && design.n_numeric === design.n_factors ? runs : null;
+}
+
+/** The projection explorer, and the correlation map, of a design whose factors are all numeric. */
+function projections(design, detail) {
+  const runs = numericRuns(design, detail);
+  if (!runs) return [];
+  const names = (detail.factors ?? []).map((f) => f.name);
+  const out = [element("h3", { text: "Its projections" }), projectionExplorer(runs, names)];
+  if (design.n_factors <= MAP_TERMS_FACTORS) {
+    const map = correlationMap(runs, names);
+    const most = largestSecondOrderR(map);
+    out.push(
+      element("h3", { text: "Correlations between its terms" }),
+      element("p", {
+        class: "hint",
+        text: "The absolute correlation |r| between the main effects, squares and two-factor interactions, from white at 0 to dark at 1, as compare_designs reads them. A term that does not vary, such as the square of a two-level factor, is blank.",
+      }),
+    );
+    if (most !== null) out.push(element("p", { text: `The largest |r| between two second-order terms is ${most.toFixed(2)}.` }));
+    const plot = element("div", { class: "detail__correlations", "aria-hidden": "true" });
+    out.push(plot);
+    const height = Math.min(560, 160 + 9 * map.terms.length);
+    plotlyReady.then((version) => {
+      if (version && plot.isConnected) draw(plot, () => correlationFigure(map.terms, map.matrix, design.n_factors), version, height);
+      else plot.remove();
+    });
+  }
+  return out;
+}
+
+/** The families a design can lead to, each a link to the catalog filtered to their designs. */
+function steps(design) {
+  const next = nextSteps(design, catalog);
+  if (!next.length) return [];
+  return [
+    element("h3", { text: "Where it can lead" }),
+    element(
+      "ul",
+      { class: "detail__steps" },
+      ...next.map((step) => element("li", {}, element("a", { href: step.hash, text: step.label }), element("span", { class: "hint", text: `: ${step.how}` }))),
+    ),
+  ];
+}
+
 async function openDetail(id) {
   const dialog = $("#detail");
   try {
@@ -673,19 +872,6 @@ function wire() {
     writeForm();
     update();
   });
-  $("#year-bars").addEventListener("click", (event) => {
-    const bar = event.target.closest("rect");
-    if (!bar) return;
-    state.years = [Number(bar.dataset.from), Number(bar.dataset.to)];
-    writeForm();
-    update();
-  });
-  $("#year-bars").addEventListener("keydown", (event) => {
-    if (event.key === "Enter" || event.key === " ") {
-      event.preventDefault();
-      event.target.dispatchEvent(new MouseEvent("click", { bubbles: true }));
-    }
-  });
   $("#sort").addEventListener("change", () => {
     state.sort = $("#sort").value;
     update();
@@ -695,10 +881,12 @@ function wire() {
     update({ keepPage: true });
   });
   document.addEventListener("click", (event) => {
-    const target = event.target.closest("[data-id], [data-open], [data-copy-link], [data-copy-code], [data-csv]");
+    const target = event.target.closest("[data-id], [data-open], [data-copy-link], [data-copy-code], [data-csv], [data-compare], [data-close]");
     if (!target) return;
-    const { id, open, copyLink, copyCode, csv } = target.dataset;
-    if (open) openInFactorial(open);
+    const { id, open, copyLink, copyCode, csv, compare, close } = target.dataset;
+    if (close) $(`#${close}`).close();
+    else if (compare) toggleCompare(compare);
+    else if (open) openInFactorial(open);
     else if (copyLink) copy(new URL(`#d=${copyLink}`, location.href).href, "The link");
     else if (copyCode) copy($("#detail-body .detail__code").textContent, "The code");
     else if (csv) downloadCsv(csv);
@@ -709,11 +897,79 @@ function wire() {
     state.design = "";
     history.replaceState(null, "", toHash(state) || location.pathname + location.search);
   });
+  for (const view of ["compare", "errata"]) {
+    $(`#${view}`).addEventListener("close", () => {
+      if (state.view === view) state.view = "";
+      history.replaceState(null, "", toHash(state) || location.pathname + location.search);
+    });
+  }
+  $("#tray-open").addEventListener("click", openCompare);
+  $("#tray-clear").addEventListener("click", () => {
+    state.compare = [];
+    update({ keepPage: true });
+  });
+  $("#errata-open").addEventListener("click", openErrata);
+  wireTimeline();
   window.addEventListener("hashchange", () => {
-    state = fromHash(location.hash, catalog.families);
+    state = fromHash(location.hash, catalog.families, catalog.sources);
     writeForm();
     render();
-    if (state.design) openDetail(state.design);
+    for (const dialog of $$("dialog[open]")) dialog.close();
+    openViews();
+  });
+}
+
+/** Open what the address names: a design's detail, the comparison or the errata. */
+function openViews() {
+  if (state.view === "compare") openCompare();
+  if (state.view === "errata") openErrata();
+  if (state.design) openDetail(state.design);
+}
+
+/**
+ * Let a reader choose years on the timeline: a drag across it keeps the years it spans, and a bar,
+ * clicked or chosen with the keyboard, keeps its own.
+ */
+function wireTimeline() {
+  const svg = $("#year-bars");
+  let start = null;
+  const yearAt = (clientX) => {
+    const box = svg.getBoundingClientRect();
+    const [first, last] = [Number(svg.dataset.first), Number(svg.dataset.last)];
+    return Math.round(first + ((clientX - box.left) / box.width) * (last - first));
+  };
+  const keep = (years) => {
+    state.years = years;
+    writeForm();
+    update();
+  };
+  svg.addEventListener("pointerdown", (event) => {
+    start = event.clientX;
+    svg.setPointerCapture?.(event.pointerId);
+  });
+  svg.addEventListener("pointermove", (event) => {
+    const brush = $(".timeline__brush", svg);
+    if (start === null || !brush || Math.abs(event.clientX - start) < 4) return;
+    const box = svg.getBoundingClientRect();
+    const [a, b] = [start, event.clientX].sort((p, q) => p - q);
+    const scale = 720 / box.width;
+    brush.setAttribute("x", (a - box.left) * scale);
+    brush.setAttribute("width", (b - a) * scale);
+    brush.setAttribute("visibility", "visible");
+  });
+  svg.addEventListener("pointerup", (event) => {
+    if (start === null) return;
+    const [a, b] = [start, event.clientX].sort((p, q) => p - q);
+    start = null;
+    if (b - a >= 4) return keep([yearAt(a), yearAt(b)]);
+    const bin = document.elementFromPoint(event.clientX, event.clientY)?.closest("[data-from]");
+    if (bin) keep([Number(bin.dataset.from), Number(bin.dataset.to)]);
+  });
+  svg.addEventListener("keydown", (event) => {
+    const bin = event.target.closest("[data-from]");
+    if (!bin || (event.key !== "Enter" && event.key !== " ")) return;
+    event.preventDefault();
+    keep([Number(bin.dataset.from), Number(bin.dataset.to)]);
   });
 }
 
@@ -745,13 +1001,15 @@ async function start() {
     `and ${catalog.designs.length - published} designs process-improve makes. Search them, filter them, see where each ` +
     "one sits, and open it in Factorial.";
   if (window.matchMedia("(max-width: 900px)").matches) $("#facets-box").open = false;
+  const differ = catalog.designs.reduce((n, d) => n + (d.checks?.explained ?? 0), 0);
+  $("#errata-open").textContent = `Errata: the ${differ} printed numbers that do not reproduce, with the reasons`;
   buildFacets();
-  state = fromHash(location.hash, catalog.families);
+  state = fromHash(location.hash, catalog.families, catalog.sources);
   writeForm();
   wire();
   render();
-  if (state.design) openDetail(state.design);
   startMap();
+  openViews();
 }
 
 start();
