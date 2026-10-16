@@ -384,6 +384,29 @@ class TestExactShare:
     def test_a_curved_limit_is_sampled(self):
         assert DesignRegion(UNIT_SQUARE, ["A**2 + B**2 <= 1"])._exact_share() is None
 
+    @pytest.mark.parametrize(
+        ("ceiling", "exact"),
+        [
+            # Integrated in closed form over T, with P and F held to the lengths the two limits allow.
+            (3600, (500 + 95 + (810000 * math.log(10 / 9) - 79000) / 25) / 1000),
+            (3990, 0.875 - (2247.5 - 897750 * math.log(400 / 399)) / 25 / 1000),
+        ],
+    )
+    def test_beside_a_curved_limit_the_straight_share_stays_exact(self, ceiling, exact):
+        """The points count only what ``T*F <= ceiling`` takes from the heat limit's exact 7/8.
+
+        Counted over all of them, the share is off by about 2e-3 in both cases; the sliver
+        ``T*F <= 3990`` takes 1.3e-5, which the points miss altogether.
+        """
+        factors = [
+            Factor(name="T", low=150, high=200),
+            Factor(name="P", low=1, high=3),
+            Factor(name="F", low=10, high=20),
+        ]
+        region = DesignRegion(factors, ["T + 25*P <= 250", f"T*F <= {ceiling}"])
+        assert region._exact_share() is None
+        assert region.volume_fraction() == pytest.approx(exact, abs=1e-4)
+
     def test_a_region_with_no_volume_keeps_nothing(self):
         assert DesignRegion(HEAT_FACTORS, ["T <= 120", "T >= 120"]).volume_fraction() == 0.0, "a flat slab"
         assert DesignRegion(UNITS[:3], ["A + B <= -1.5", "A - B >= 1.5"]).volume_fraction() == 0.0, "nothing left"

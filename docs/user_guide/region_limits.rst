@@ -57,7 +57,7 @@ each one removes:
 
 .. code-block:: python
 
-   print(f"{region.volume_fraction():.3f}")  # 0.847
+   print(f"{region.volume_fraction():.3f}")  # 0.849
    for constraint in region.constraints:
        alone = DesignRegion(factors, [constraint])
        print(constraint.expression, f"{1 - alone.volume_fraction():.3f}")
@@ -74,7 +74,9 @@ With straight limits only, the share is exact: in closed form for factors one li
 together, and from the volume of the polytope the limits leave for up to five factors tied
 together by several. A curved limit's share is counted over a fixed Sobol sample of 16384
 points instead, so it is the same on every run and within about 0.005 of the exact value
-(0.042 here, against 0.041 exactly).
+(0.042 here, against 0.041 exactly). Beside straight limits, the sample counts only what
+the curved limit takes from the exact share the straight ones leave, so the two limits
+together keep 0.849, as they do exactly.
 :meth:`~process_improve.experiments.region.DesignRegion.is_empty` says whether any
 setting is left at all, and
 :meth:`~process_improve.experiments.region.DesignRegion.centroid` gives a central setting

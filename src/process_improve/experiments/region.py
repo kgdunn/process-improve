@@ -409,11 +409,15 @@ class DesignRegion:
         :func:`~process_improve.experiments._region_geometry.box_share`).
 
         Otherwise (a curved constraint, or six factors or more that several constraints tie
-        together), the share is the fraction of ``n_samples`` points of the unscrambled Sobol
-        sequence (moved to the midpoints of their cells) that meet every constraint. The
-        points are fixed, so the result is the same on every run and on every platform;
-        with the default ``2**14`` points it is within about 0.005 of the exact share for
-        the regions of a few factors that limits describe.
+        together), the share is counted over ``n_samples`` points of the unscrambled Sobol
+        sequence (moved to the midpoints of their cells). Beside a curved constraint, the
+        share the straight ones leave is still exact, and the points count only what the
+        curved ones take from it: the share is that exact share times the fraction of the
+        points inside the straight constraints that meet every constraint. Else it is the
+        fraction of all the points that meet every constraint. The points are fixed, so the
+        result is the same on every run and on every platform; with the default ``2**14``
+        points it is within about 0.005 of the exact share for the regions of a few factors
+        that limits describe.
 
         Parameters
         ----------
@@ -445,16 +449,25 @@ class DesignRegion:
         exact = self._exact_share()
         if exact is not None:
             return exact
-        if n_samples == _N_SAMPLES:
-            return float(np.mean(self._sample_allowed()))
-        return float(np.mean(self.feasible(self._unit_sample(n_samples))))
+        sample = self._unit_sample(n_samples)
+        allowed = self._sample_allowed() if n_samples == _N_SAMPLES else self.feasible(sample)
+        rows = self._linear()
+        straight = self._straight_share()
+        inside = np.all(sample @ rows.a.T <= rows.b + _TOL, axis=1)
+        if straight is None or not inside.any():
+            return float(np.mean(allowed))
+        return straight * float(np.mean(allowed[inside]))
 
     def _exact_share(self) -> float | None:
-        """Return the exact share of the box with straight constraints only, or None when it is sampled (cached)."""
-        if "exact_share" not in self._cache:
+        """Return the exact share of the box with straight constraints only, or None when it is sampled."""
+        return None if self._linear().nonlinear else self._straight_share()
+
+    def _straight_share(self) -> float | None:
+        """Return the exact share of the box its straight constraints leave, or None when not had fast (cached)."""
+        if "straight_share" not in self._cache:
             rows = self._linear()
-            self._cache["exact_share"] = None if rows.nonlinear else box_share(rows.a, rows.b)
-        return self._cache["exact_share"]
+            self._cache["straight_share"] = box_share(rows.a, rows.b)
+        return self._cache["straight_share"]
 
     def _sample_allowed(self) -> np.ndarray:
         """Return whether each point of the default Sobol sample is allowed (cached)."""
