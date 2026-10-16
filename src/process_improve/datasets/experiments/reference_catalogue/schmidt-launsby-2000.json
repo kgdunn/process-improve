@@ -18516,13 +18516,16 @@
      "what": "standardised coefficient",
      "term": "x1",
      "value": "0.026",
+     "analysis": "the coefficient times the standard deviation of its column of the model matrix, over the standard deviation of the response, as MYSTAT prints it",
      "where": {
       "page": "4-39",
       "source_kind": "table",
       "quote": "Table 4.18 Computer Output for the Model ŷ = b0 + b1x1 + b2x2 ... x1 ... Std Coeff 0.026"
      },
      "check": {
-      "manual": "a coefficient in standard deviations of the response per standard deviation of the term, which the library does not compute; the coefficient itself is checked"
+      "kind": "standardised_coefficient",
+      "model": "x1 + x2",
+      "term": "x1"
      }
     },
     {
@@ -18607,13 +18610,16 @@
      "what": "standardised coefficient",
      "term": "x2",
      "value": "0.105",
+     "analysis": "the coefficient times the standard deviation of its column of the model matrix, over the standard deviation of the response, as MYSTAT prints it",
      "where": {
       "page": "4-39",
       "source_kind": "table",
       "quote": "Table 4.18 Computer Output for the Model ŷ = b0 + b1x1 + b2x2 ... x2 ... Std Coeff 0.105"
      },
      "check": {
-      "manual": "a coefficient in standard deviations of the response per standard deviation of the term, which the library does not compute; the coefficient itself is checked"
+      "kind": "standardised_coefficient",
+      "model": "x1 + x2",
+      "term": "x2"
      }
     },
     {
@@ -19022,13 +19028,16 @@
      "what": "standardised coefficient",
      "term": "x1",
      "value": "-0.203",
+     "analysis": "the coefficient times the standard deviation of its column of the model matrix, over the standard deviation of the response, as MYSTAT prints it",
      "where": {
       "page": "4-41",
       "source_kind": "table",
       "quote": "Table 4.19 Computer Output for Full Second-Order Regression Model ... x1 ... Std Coeff -0.203"
      },
      "check": {
-      "manual": "a coefficient in standard deviations of the response per standard deviation of the term, which the library does not compute; the coefficient itself is checked"
+      "kind": "standardised_coefficient",
+      "model": "x1 + x2 + x1:x2 + I(x1 ** 2)",
+      "term": "x1"
      }
     },
     {
@@ -19113,13 +19122,16 @@
      "what": "standardised coefficient",
      "term": "x2",
      "value": "-0.054",
+     "analysis": "the coefficient times the standard deviation of its column of the model matrix, over the standard deviation of the response, as MYSTAT prints it",
      "where": {
       "page": "4-41",
       "source_kind": "table",
       "quote": "Table 4.19 Computer Output for Full Second-Order Regression Model ... x2 ... Std Coeff -0.054"
      },
      "check": {
-      "manual": "a coefficient in standard deviations of the response per standard deviation of the term, which the library does not compute; the coefficient itself is checked"
+      "kind": "standardised_coefficient",
+      "model": "x1 + x2 + x1:x2 + I(x1 ** 2)",
+      "term": "x2"
      }
     },
     {
@@ -19204,13 +19216,16 @@
      "what": "standardised coefficient",
      "term": "x1·x2",
      "value": "0.194",
+     "analysis": "the coefficient times the standard deviation of its column of the model matrix, over the standard deviation of the response, as MYSTAT prints it",
      "where": {
       "page": "4-41",
       "source_kind": "table",
       "quote": "Table 4.19 Computer Output for Full Second-Order Regression Model ... x1·x2 ... Std Coeff 0.194"
      },
      "check": {
-      "manual": "a coefficient in standard deviations of the response per standard deviation of the term, which the library does not compute; the coefficient itself is checked"
+      "kind": "standardised_coefficient",
+      "model": "x1 + x2 + x1:x2 + I(x1 ** 2)",
+      "term": "x1·x2"
      }
     },
     {
@@ -19295,13 +19310,16 @@
      "what": "standardised coefficient",
      "term": "x1²",
      "value": "0.124",
+     "analysis": "the coefficient times the standard deviation of its column of the model matrix, over the standard deviation of the response, as MYSTAT prints it",
      "where": {
       "page": "4-41",
       "source_kind": "table",
       "quote": "Table 4.19 Computer Output for Full Second-Order Regression Model ... x1² ... Std Coeff 0.124"
      },
      "check": {
-      "manual": "a coefficient in standard deviations of the response per standard deviation of the term, which the library does not compute; the coefficient itself is checked"
+      "kind": "standardised_coefficient",
+      "model": "x1 + x2 + x1:x2 + I(x1 ** 2)",
+      "term": "x1²"
      }
     },
     {
@@ -19639,13 +19657,16 @@
      "what": "standardised coefficient",
      "term": "x1",
      "value": "-26.984",
+     "analysis": "the coefficient times the standard deviation of its column of the model matrix, over the standard deviation of the response, as MYSTAT prints it",
      "where": {
       "page": "4-42",
       "source_kind": "table",
       "quote": "Table 4.20 Computer Output for Quadratic Interaction Model ... x1 ... Std Coeff -26.984"
      },
      "check": {
-      "manual": "a coefficient in standard deviations of the response per standard deviation of the term, which the library does not compute; the coefficient itself is checked"
+      "kind": "standardised_coefficient",
+      "model": "x1 + x2 + x1:x2 + I(x1 ** 2) + I(x1 ** 2):x2",
+      "term": "x1"
      }
     },
     {
@@ -19726,13 +19747,16 @@
      "what": "standardised coefficient",
      "term": "x2",
      "value": "-18.337",
+     "analysis": "the coefficient times the standard deviation of its column of the model matrix, over the standard deviation of the response, as MYSTAT prints it",
      "where": {
       "page": "4-42",
       "source_kind": "table",
       "quote": "Table 4.20 Computer Output for Quadratic Interaction Model ... x2 ... Std Coeff -18.337"
      },
      "check": {
-      "manual": "a coefficient in standard deviations of the response per standard deviation of the term, which the library does not compute; the coefficient itself is checked"
+      "kind": "standardised_coefficient",
+      "model": "x1 + x2 + x1:x2 + I(x1 ** 2) + I(x1 ** 2):x2",
+      "term": "x2"
      }
     },
     {
@@ -19813,13 +19837,16 @@
      "what": "standardised coefficient",
      "term": "x1·x2",
      "value": "49.539",
+     "analysis": "the coefficient times the standard deviation of its column of the model matrix, over the standard deviation of the response, as MYSTAT prints it",
      "where": {
       "page": "4-42",
       "source_kind": "table",
       "quote": "Table 4.20 Computer Output for Quadratic Interaction Model ... x1·x2 ... Std Coeff 49.539"
      },
      "check": {
-      "manual": "a coefficient in standard deviations of the response per standard deviation of the term, which the library does not compute; the coefficient itself is checked"
+      "kind": "standardised_coefficient",
+      "model": "x1 + x2 + x1:x2 + I(x1 ** 2) + I(x1 ** 2):x2",
+      "term": "x1·x2"
      }
     },
     {
@@ -19900,13 +19927,16 @@
      "what": "standardised coefficient",
      "term": "x1²",
      "value": "27.053",
+     "analysis": "the coefficient times the standard deviation of its column of the model matrix, over the standard deviation of the response, as MYSTAT prints it",
      "where": {
       "page": "4-42",
       "source_kind": "table",
       "quote": "Table 4.20 Computer Output for Quadratic Interaction Model ... x1² ... Std Coeff 27.053"
      },
      "check": {
-      "manual": "a coefficient in standard deviations of the response per standard deviation of the term, which the library does not compute; the coefficient itself is checked"
+      "kind": "standardised_coefficient",
+      "model": "x1 + x2 + x1:x2 + I(x1 ** 2) + I(x1 ** 2):x2",
+      "term": "x1²"
      }
     },
     {
@@ -19987,13 +20017,16 @@
      "what": "standardised coefficient",
      "term": "x1²·x2",
      "value": "-36.030",
+     "analysis": "the coefficient times the standard deviation of its column of the model matrix, over the standard deviation of the response, as MYSTAT prints it",
      "where": {
       "page": "4-42",
       "source_kind": "table",
       "quote": "Table 4.20 Computer Output for Quadratic Interaction Model ... x1²·x2 ... Std Coeff -36.030"
      },
      "check": {
-      "manual": "a coefficient in standard deviations of the response per standard deviation of the term, which the library does not compute; the coefficient itself is checked"
+      "kind": "standardised_coefficient",
+      "model": "x1 + x2 + x1:x2 + I(x1 ** 2) + I(x1 ** 2):x2",
+      "term": "x1²·x2"
      }
     },
     {
@@ -20558,13 +20591,16 @@
      "what": "standardised coefficient",
      "term": "A",
      "value": "-1.113",
+     "analysis": "the coefficient times the standard deviation of its column of the model matrix, over the standard deviation of the response, as MYSTAT prints it",
      "where": {
       "page": "4-44",
       "source_kind": "table",
       "quote": "Table 4.22 Computer Output Using Actual Data in Table 4.21 ... A ... Std Coeff -1.113"
      },
      "check": {
-      "manual": "a coefficient in standard deviations of the response per standard deviation of the term, which the library does not compute; the coefficient itself is checked"
+      "kind": "standardised_coefficient",
+      "model": "A + B + C + I(A ** 2) + I(B ** 2) + I(C ** 2) + A:B + A:C + B:C",
+      "term": "A"
      }
     },
     {
@@ -20649,13 +20685,16 @@
      "what": "standardised coefficient",
      "term": "B",
      "value": "0.752",
+     "analysis": "the coefficient times the standard deviation of its column of the model matrix, over the standard deviation of the response, as MYSTAT prints it",
      "where": {
       "page": "4-44",
       "source_kind": "table",
       "quote": "Table 4.22 Computer Output Using Actual Data in Table 4.21 ... B ... Std Coeff 0.752"
      },
      "check": {
-      "manual": "a coefficient in standard deviations of the response per standard deviation of the term, which the library does not compute; the coefficient itself is checked"
+      "kind": "standardised_coefficient",
+      "model": "A + B + C + I(A ** 2) + I(B ** 2) + I(C ** 2) + A:B + A:C + B:C",
+      "term": "B"
      }
     },
     {
@@ -20740,13 +20779,16 @@
      "what": "standardised coefficient",
      "term": "C",
      "value": "7.696",
+     "analysis": "the coefficient times the standard deviation of its column of the model matrix, over the standard deviation of the response, as MYSTAT prints it",
      "where": {
       "page": "4-44",
       "source_kind": "table",
       "quote": "Table 4.22 Computer Output Using Actual Data in Table 4.21 ... C ... Std Coeff 7.696"
      },
      "check": {
-      "manual": "a coefficient in standard deviations of the response per standard deviation of the term, which the library does not compute; the coefficient itself is checked"
+      "kind": "standardised_coefficient",
+      "model": "A + B + C + I(A ** 2) + I(B ** 2) + I(C ** 2) + A:B + A:C + B:C",
+      "term": "C"
      }
     },
     {
@@ -20831,13 +20873,16 @@
      "what": "standardised coefficient",
      "term": "A²",
      "value": "-2.365",
+     "analysis": "the coefficient times the standard deviation of its column of the model matrix, over the standard deviation of the response, as MYSTAT prints it",
      "where": {
       "page": "4-44",
       "source_kind": "table",
       "quote": "Table 4.22 Computer Output Using Actual Data in Table 4.21 ... A² ... Std Coeff -2.365"
      },
      "check": {
-      "manual": "a coefficient in standard deviations of the response per standard deviation of the term, which the library does not compute; the coefficient itself is checked"
+      "kind": "standardised_coefficient",
+      "model": "A + B + C + I(A ** 2) + I(B ** 2) + I(C ** 2) + A:B + A:C + B:C",
+      "term": "A²"
      }
     },
     {
@@ -20922,13 +20967,16 @@
      "what": "standardised coefficient",
      "term": "B²",
      "value": "-7.416",
+     "analysis": "the coefficient times the standard deviation of its column of the model matrix, over the standard deviation of the response, as MYSTAT prints it",
      "where": {
       "page": "4-44",
       "source_kind": "table",
       "quote": "Table 4.22 Computer Output Using Actual Data in Table 4.21 ... B² ... Std Coeff -7.416"
      },
      "check": {
-      "manual": "a coefficient in standard deviations of the response per standard deviation of the term, which the library does not compute; the coefficient itself is checked"
+      "kind": "standardised_coefficient",
+      "model": "A + B + C + I(A ** 2) + I(B ** 2) + I(C ** 2) + A:B + A:C + B:C",
+      "term": "B²"
      }
     },
     {
@@ -21013,13 +21061,16 @@
      "what": "standardised coefficient",
      "term": "C²",
      "value": "-14.876",
+     "analysis": "the coefficient times the standard deviation of its column of the model matrix, over the standard deviation of the response, as MYSTAT prints it",
      "where": {
       "page": "4-44",
       "source_kind": "table",
       "quote": "Table 4.22 Computer Output Using Actual Data in Table 4.21 ... C² ... Std Coeff -14.876"
      },
      "check": {
-      "manual": "a coefficient in standard deviations of the response per standard deviation of the term, which the library does not compute; the coefficient itself is checked"
+      "kind": "standardised_coefficient",
+      "model": "A + B + C + I(A ** 2) + I(B ** 2) + I(C ** 2) + A:B + A:C + B:C",
+      "term": "C²"
      }
     },
     {
@@ -21104,13 +21155,16 @@
      "what": "standardised coefficient",
      "term": "A·B",
      "value": "-0.171",
+     "analysis": "the coefficient times the standard deviation of its column of the model matrix, over the standard deviation of the response, as MYSTAT prints it",
      "where": {
       "page": "4-44",
       "source_kind": "table",
       "quote": "Table 4.22 Computer Output Using Actual Data in Table 4.21 ... A·B ... Std Coeff -0.171"
      },
      "check": {
-      "manual": "a coefficient in standard deviations of the response per standard deviation of the term, which the library does not compute; the coefficient itself is checked"
+      "kind": "standardised_coefficient",
+      "model": "A + B + C + I(A ** 2) + I(B ** 2) + I(C ** 2) + A:B + A:C + B:C",
+      "term": "A·B"
      }
     },
     {
@@ -21195,13 +21249,16 @@
      "what": "standardised coefficient",
      "term": "A·C",
      "value": "4.207",
+     "analysis": "the coefficient times the standard deviation of its column of the model matrix, over the standard deviation of the response, as MYSTAT prints it",
      "where": {
       "page": "4-44",
       "source_kind": "table",
       "quote": "Table 4.22 Computer Output Using Actual Data in Table 4.21 ... A·C ... Std Coeff 4.207"
      },
      "check": {
-      "manual": "a coefficient in standard deviations of the response per standard deviation of the term, which the library does not compute; the coefficient itself is checked"
+      "kind": "standardised_coefficient",
+      "model": "A + B + C + I(A ** 2) + I(B ** 2) + I(C ** 2) + A:B + A:C + B:C",
+      "term": "A·C"
      }
     },
     {
@@ -21286,13 +21343,16 @@
      "what": "standardised coefficient",
      "term": "B·C",
      "value": "8.539",
+     "analysis": "the coefficient times the standard deviation of its column of the model matrix, over the standard deviation of the response, as MYSTAT prints it",
      "where": {
       "page": "4-44",
       "source_kind": "table",
       "quote": "Table 4.22 Computer Output Using Actual Data in Table 4.21 ... B·C ... Std Coeff 8.539"
      },
      "check": {
-      "manual": "a coefficient in standard deviations of the response per standard deviation of the term, which the library does not compute; the coefficient itself is checked"
+      "kind": "standardised_coefficient",
+      "model": "A + B + C + I(A ** 2) + I(B ** 2) + I(C ** 2) + A:B + A:C + B:C",
+      "term": "B·C"
      }
     },
     {
@@ -21605,13 +21665,16 @@
      "what": "standardised coefficient",
      "term": "x1",
      "value": "-0.082",
+     "analysis": "the coefficient times the standard deviation of its column of the model matrix, over the standard deviation of the response, as MYSTAT prints it",
      "where": {
       "page": "4-46",
       "source_kind": "table",
       "quote": "Table 4.23 Computer Output Using Coded Data in Table 4.21 ... x1 ... Std Coeff -0.082"
      },
      "check": {
-      "manual": "a coefficient in standard deviations of the response per standard deviation of the term, which the library does not compute; the coefficient itself is checked"
+      "kind": "standardised_coefficient",
+      "model": "x1 + x2 + x3 + I(x1 ** 2) + I(x2 ** 2) + I(x3 ** 2) + x1:x2 + x1:x3 + x2:x3",
+      "term": "x1"
      }
     },
     {
@@ -21696,13 +21759,16 @@
      "what": "standardised coefficient",
      "term": "x2",
      "value": "0.615",
+     "analysis": "the coefficient times the standard deviation of its column of the model matrix, over the standard deviation of the response, as MYSTAT prints it",
      "where": {
       "page": "4-46",
       "source_kind": "table",
       "quote": "Table 4.23 Computer Output Using Coded Data in Table 4.21 ... x2 ... Std Coeff 0.615"
      },
      "check": {
-      "manual": "a coefficient in standard deviations of the response per standard deviation of the term, which the library does not compute; the coefficient itself is checked"
+      "kind": "standardised_coefficient",
+      "model": "x1 + x2 + x3 + I(x1 ** 2) + I(x2 ** 2) + I(x3 ** 2) + x1:x2 + x1:x3 + x2:x3",
+      "term": "x2"
      }
     },
     {
@@ -21787,13 +21853,16 @@
      "what": "standardised coefficient",
      "term": "x3",
      "value": "-0.610",
+     "analysis": "the coefficient times the standard deviation of its column of the model matrix, over the standard deviation of the response, as MYSTAT prints it",
      "where": {
       "page": "4-46",
       "source_kind": "table",
       "quote": "Table 4.23 Computer Output Using Coded Data in Table 4.21 ... x3 ... Std Coeff -0.610"
      },
      "check": {
-      "manual": "a coefficient in standard deviations of the response per standard deviation of the term, which the library does not compute; the coefficient itself is checked"
+      "kind": "standardised_coefficient",
+      "model": "x1 + x2 + x3 + I(x1 ** 2) + I(x2 ** 2) + I(x3 ** 2) + x1:x2 + x1:x3 + x2:x3",
+      "term": "x3"
      }
     },
     {
@@ -21878,13 +21947,16 @@
      "what": "standardised coefficient",
      "term": "x1²",
      "value": "-0.054",
+     "analysis": "the coefficient times the standard deviation of its column of the model matrix, over the standard deviation of the response, as MYSTAT prints it",
      "where": {
       "page": "4-46",
       "source_kind": "table",
       "quote": "Table 4.23 Computer Output Using Coded Data in Table 4.21 ... x1² ... Std Coeff -0.054"
      },
      "check": {
-      "manual": "a coefficient in standard deviations of the response per standard deviation of the term, which the library does not compute; the coefficient itself is checked"
+      "kind": "standardised_coefficient",
+      "model": "x1 + x2 + x3 + I(x1 ** 2) + I(x2 ** 2) + I(x3 ** 2) + x1:x2 + x1:x3 + x2:x3",
+      "term": "x1²"
      }
     },
     {
@@ -21969,13 +22041,16 @@
      "what": "standardised coefficient",
      "term": "x2²",
      "value": "-0.195",
+     "analysis": "the coefficient times the standard deviation of its column of the model matrix, over the standard deviation of the response, as MYSTAT prints it",
      "where": {
       "page": "4-46",
       "source_kind": "table",
       "quote": "Table 4.23 Computer Output Using Coded Data in Table 4.21 ... x2² ... Std Coeff -0.195"
      },
      "check": {
-      "manual": "a coefficient in standard deviations of the response per standard deviation of the term, which the library does not compute; the coefficient itself is checked"
+      "kind": "standardised_coefficient",
+      "model": "x1 + x2 + x3 + I(x1 ** 2) + I(x2 ** 2) + I(x3 ** 2) + x1:x2 + x1:x3 + x2:x3",
+      "term": "x2²"
      }
     },
     {
@@ -22060,13 +22135,16 @@
      "what": "standardised coefficient",
      "term": "x3²",
      "value": "-0.224",
+     "analysis": "the coefficient times the standard deviation of its column of the model matrix, over the standard deviation of the response, as MYSTAT prints it",
      "where": {
       "page": "4-46",
       "source_kind": "table",
       "quote": "Table 4.23 Computer Output Using Coded Data in Table 4.21 ... x3² ... Std Coeff -0.224"
      },
      "check": {
-      "manual": "a coefficient in standard deviations of the response per standard deviation of the term, which the library does not compute; the coefficient itself is checked"
+      "kind": "standardised_coefficient",
+      "model": "x1 + x2 + x3 + I(x1 ** 2) + I(x2 ** 2) + I(x3 ** 2) + x1:x2 + x1:x3 + x2:x3",
+      "term": "x3²"
      }
     },
     {
@@ -22151,13 +22229,16 @@
      "what": "standardised coefficient",
      "term": "x1·x2",
      "value": "-0.006",
+     "analysis": "the coefficient times the standard deviation of its column of the model matrix, over the standard deviation of the response, as MYSTAT prints it",
      "where": {
       "page": "4-46",
       "source_kind": "table",
       "quote": "Table 4.23 Computer Output Using Coded Data in Table 4.21 ... x1·x2 ... Std Coeff -0.006"
      },
      "check": {
-      "manual": "a coefficient in standard deviations of the response per standard deviation of the term, which the library does not compute; the coefficient itself is checked"
+      "kind": "standardised_coefficient",
+      "model": "x1 + x2 + x3 + I(x1 ** 2) + I(x2 ** 2) + I(x3 ** 2) + x1:x2 + x1:x3 + x2:x3",
+      "term": "x1·x2"
      }
     },
     {
@@ -22242,13 +22323,16 @@
      "what": "standardised coefficient",
      "term": "x1·x3",
      "value": "0.109",
+     "analysis": "the coefficient times the standard deviation of its column of the model matrix, over the standard deviation of the response, as MYSTAT prints it",
      "where": {
       "page": "4-46",
       "source_kind": "table",
       "quote": "Table 4.23 Computer Output Using Coded Data in Table 4.21 ... x1·x3 ... Std Coeff 0.109"
      },
      "check": {
-      "manual": "a coefficient in standard deviations of the response per standard deviation of the term, which the library does not compute; the coefficient itself is checked"
+      "kind": "standardised_coefficient",
+      "model": "x1 + x2 + x3 + I(x1 ** 2) + I(x2 ** 2) + I(x3 ** 2) + x1:x2 + x1:x3 + x2:x3",
+      "term": "x1·x3"
      }
     },
     {
@@ -22333,13 +22417,16 @@
      "what": "standardised coefficient",
      "term": "x2·x3",
      "value": "0.231",
+     "analysis": "the coefficient times the standard deviation of its column of the model matrix, over the standard deviation of the response, as MYSTAT prints it",
      "where": {
       "page": "4-46",
       "source_kind": "table",
       "quote": "Table 4.23 Computer Output Using Coded Data in Table 4.21 ... x2·x3 ... Std Coeff 0.231"
      },
      "check": {
-      "manual": "a coefficient in standard deviations of the response per standard deviation of the term, which the library does not compute; the coefficient itself is checked"
+      "kind": "standardised_coefficient",
+      "model": "x1 + x2 + x3 + I(x1 ** 2) + I(x2 ** 2) + I(x3 ** 2) + x1:x2 + x1:x3 + x2:x3",
+      "term": "x2·x3"
      }
     },
     {
@@ -22652,13 +22739,16 @@
      "what": "standardised coefficient",
      "term": "x2",
      "value": "0.615",
+     "analysis": "the coefficient times the standard deviation of its column of the model matrix, over the standard deviation of the response, as MYSTAT prints it",
      "where": {
       "page": "4-46",
       "source_kind": "table",
       "quote": "Table 4.24 Computer Output Using Coded Data in Table 4.21 ... x2 ... Std Coeff 0.615"
      },
      "check": {
-      "manual": "a coefficient in standard deviations of the response per standard deviation of the term, which the library does not compute; the coefficient itself is checked"
+      "kind": "standardised_coefficient",
+      "model": "x2 + x3",
+      "term": "x2"
      }
     },
     {
@@ -22743,13 +22833,16 @@
      "what": "standardised coefficient",
      "term": "x3",
      "value": "-0.610",
+     "analysis": "the coefficient times the standard deviation of its column of the model matrix, over the standard deviation of the response, as MYSTAT prints it",
      "where": {
       "page": "4-46",
       "source_kind": "table",
       "quote": "Table 4.24 Computer Output Using Coded Data in Table 4.21 ... x3 ... Std Coeff -0.610"
      },
      "check": {
-      "manual": "a coefficient in standard deviations of the response per standard deviation of the term, which the library does not compute; the coefficient itself is checked"
+      "kind": "standardised_coefficient",
+      "model": "x2 + x3",
+      "term": "x3"
      }
     },
     {
@@ -29528,91 +29621,161 @@
      "what": "standardised coefficient",
      "term": "A",
      "value": "0.039",
+     "analysis": "the coefficient times the standard deviation of its column of the model matrix, over the standard deviation of the response, as MYSTAT prints it",
      "where": {
       "page": "5-11",
       "source_kind": "table",
       "quote": "Table 5.4 ... A ... Std Coef 0.039"
      },
      "check": {
-      "manual": "a coefficient in standard deviations of the response per standard deviation of the term, which the library does not compute"
+      "kind": "standardised_coefficient",
+      "term": "A",
+      "model": "A + B + C + D + E + F + G",
+      "summary": {
+       "of": [
+        "y1",
+        "y2"
+       ],
+       "statistic": "each"
+      }
      }
     },
     {
      "what": "standardised coefficient",
      "term": "B",
      "value": "0.118",
+     "analysis": "the coefficient times the standard deviation of its column of the model matrix, over the standard deviation of the response, as MYSTAT prints it",
      "where": {
       "page": "5-11",
       "source_kind": "table",
       "quote": "Table 5.4 ... B ... Std Coef 0.118"
      },
      "check": {
-      "manual": "a coefficient in standard deviations of the response per standard deviation of the term, which the library does not compute"
+      "kind": "standardised_coefficient",
+      "term": "B",
+      "model": "A + B + C + D + E + F + G",
+      "summary": {
+       "of": [
+        "y1",
+        "y2"
+       ],
+       "statistic": "each"
+      }
      }
     },
     {
      "what": "standardised coefficient",
      "term": "C",
      "value": "-0.906",
+     "analysis": "the coefficient times the standard deviation of its column of the model matrix, over the standard deviation of the response, as MYSTAT prints it",
      "where": {
       "page": "5-11",
       "source_kind": "table",
       "quote": "Table 5.4 ... C ... Std Coef -0.906"
      },
      "check": {
-      "manual": "a coefficient in standard deviations of the response per standard deviation of the term, which the library does not compute"
+      "kind": "standardised_coefficient",
+      "term": "C",
+      "model": "A + B + C + D + E + F + G",
+      "summary": {
+       "of": [
+        "y1",
+        "y2"
+       ],
+       "statistic": "each"
+      }
      }
     },
     {
      "what": "standardised coefficient",
      "term": "D",
      "value": "-0.092",
+     "analysis": "the coefficient times the standard deviation of its column of the model matrix, over the standard deviation of the response, as MYSTAT prints it",
      "where": {
       "page": "5-11",
       "source_kind": "table",
       "quote": "Table 5.4 ... D ... Std Coef -0.092"
      },
      "check": {
-      "manual": "a coefficient in standard deviations of the response per standard deviation of the term, which the library does not compute"
+      "kind": "standardised_coefficient",
+      "term": "D",
+      "model": "A + B + C + D + E + F + G",
+      "summary": {
+       "of": [
+        "y1",
+        "y2"
+       ],
+       "statistic": "each"
+      }
      }
     },
     {
      "what": "standardised coefficient",
      "term": "E",
      "value": "-0.013",
+     "analysis": "the coefficient times the standard deviation of its column of the model matrix, over the standard deviation of the response, as MYSTAT prints it",
      "where": {
       "page": "5-11",
       "source_kind": "table",
       "quote": "Table 5.4 ... E ... Std Coef -0.013"
      },
      "check": {
-      "manual": "a coefficient in standard deviations of the response per standard deviation of the term, which the library does not compute"
+      "kind": "standardised_coefficient",
+      "term": "E",
+      "model": "A + B + C + D + E + F + G",
+      "summary": {
+       "of": [
+        "y1",
+        "y2"
+       ],
+       "statistic": "each"
+      }
      }
     },
     {
      "what": "standardised coefficient",
      "term": "F",
      "value": "0.013",
+     "analysis": "the coefficient times the standard deviation of its column of the model matrix, over the standard deviation of the response, as MYSTAT prints it",
      "where": {
       "page": "5-11",
       "source_kind": "table",
       "quote": "Table 5.4 ... F ... Std Coef 0.013"
      },
      "check": {
-      "manual": "a coefficient in standard deviations of the response per standard deviation of the term, which the library does not compute"
+      "kind": "standardised_coefficient",
+      "term": "F",
+      "model": "A + B + C + D + E + F + G",
+      "summary": {
+       "of": [
+        "y1",
+        "y2"
+       ],
+       "statistic": "each"
+      }
      }
     },
     {
      "what": "standardised coefficient",
      "term": "G",
      "value": "-0.066",
+     "analysis": "the coefficient times the standard deviation of its column of the model matrix, over the standard deviation of the response, as MYSTAT prints it",
      "where": {
       "page": "5-11",
       "source_kind": "table",
       "quote": "Table 5.4 ... G ... Std Coef -0.066"
      },
      "check": {
-      "manual": "a coefficient in standard deviations of the response per standard deviation of the term, which the library does not compute"
+      "kind": "standardised_coefficient",
+      "term": "G",
+      "model": "A + B + C + D + E + F + G",
+      "summary": {
+       "of": [
+        "y1",
+        "y2"
+       ],
+       "statistic": "each"
+      }
      }
     },
     {
@@ -35491,39 +35654,48 @@
      "what": "standardised coefficient",
      "term": "A",
      "value": "0.262",
+     "analysis": "the coefficient times the standard deviation of its column of the model matrix, over the standard deviation of the response, as MYSTAT prints it",
      "where": {
       "page": "5-31",
       "source_kind": "table",
       "quote": "Table 5.15 ... A ... Std Coef 0.262"
      },
      "check": {
-      "manual": "a coefficient in standard deviations of the response per standard deviation of the term, which the library does not compute"
+      "kind": "standardised_coefficient",
+      "term": "A",
+      "model": "A + B + A:B"
      }
     },
     {
      "what": "standardised coefficient",
      "term": "B",
      "value": "0.670",
+     "analysis": "the coefficient times the standard deviation of its column of the model matrix, over the standard deviation of the response, as MYSTAT prints it",
      "where": {
       "page": "5-31",
       "source_kind": "table",
       "quote": "Table 5.15 ... B ... Std Coef 0.670"
      },
      "check": {
-      "manual": "a coefficient in standard deviations of the response per standard deviation of the term, which the library does not compute"
+      "kind": "standardised_coefficient",
+      "term": "B",
+      "model": "A + B + A:B"
      }
     },
     {
      "what": "standardised coefficient",
      "term": "A·B",
      "value": "0.603",
+     "analysis": "the coefficient times the standard deviation of its column of the model matrix, over the standard deviation of the response, as MYSTAT prints it",
      "where": {
       "page": "5-31",
       "source_kind": "table",
       "quote": "Table 5.15 ... A·B ... Std Coef 0.603"
      },
      "check": {
-      "manual": "a coefficient in standard deviations of the response per standard deviation of the term, which the library does not compute"
+      "kind": "standardised_coefficient",
+      "term": "A·B",
+      "model": "A + B + A:B"
      }
     },
     {
@@ -58732,13 +58904,16 @@
      "what": "standardised coefficient",
      "term": "Intercept",
      "value": "0.000",
+     "analysis": "the coefficient times the standard deviation of its column of the model matrix, over the standard deviation of the response, as MYSTAT prints it",
      "where": {
       "page": "7-10",
       "source_kind": "table",
       "quote": "Table 7.1 Regression Analysis Table for Initial Experimental Region ... Constant ... Std Coef 0.000"
      },
      "check": {
-      "manual": "a coefficient in standard deviations of the response per standard deviation of the term; no check computes it"
+      "kind": "standardised_coefficient",
+      "term": "Intercept",
+      "model": "x1 + x2 + x1:x2 + I(x1 ** 2)"
      }
     },
     {
@@ -58819,13 +58994,16 @@
      "what": "standardised coefficient",
      "term": "x1",
      "value": "0.888",
+     "analysis": "the coefficient times the standard deviation of its column of the model matrix, over the standard deviation of the response, as MYSTAT prints it",
      "where": {
       "page": "7-10",
       "source_kind": "table",
       "quote": "Table 7.1 Regression Analysis Table for Initial Experimental Region ... x1 ... Std Coef 0.888"
      },
      "check": {
-      "manual": "a coefficient in standard deviations of the response per standard deviation of the term; no check computes it"
+      "kind": "standardised_coefficient",
+      "term": "x1",
+      "model": "x1 + x2 + x1:x2 + I(x1 ** 2)"
      }
     },
     {
@@ -58910,13 +59088,16 @@
      "what": "standardised coefficient",
      "term": "x2",
      "value": "-0.283",
+     "analysis": "the coefficient times the standard deviation of its column of the model matrix, over the standard deviation of the response, as MYSTAT prints it",
      "where": {
       "page": "7-10",
       "source_kind": "table",
       "quote": "Table 7.1 Regression Analysis Table for Initial Experimental Region ... x2 ... Std Coef -0.283"
      },
      "check": {
-      "manual": "a coefficient in standard deviations of the response per standard deviation of the term; no check computes it"
+      "kind": "standardised_coefficient",
+      "term": "x2",
+      "model": "x1 + x2 + x1:x2 + I(x1 ** 2)"
      }
     },
     {
@@ -59001,13 +59182,16 @@
      "what": "standardised coefficient",
      "term": "x1·x2",
      "value": "-0.322",
+     "analysis": "the coefficient times the standard deviation of its column of the model matrix, over the standard deviation of the response, as MYSTAT prints it",
      "where": {
       "page": "7-10",
       "source_kind": "table",
       "quote": "Table 7.1 Regression Analysis Table for Initial Experimental Region ... x1 · x2 ... Std Coef -0.322"
      },
      "check": {
-      "manual": "a coefficient in standard deviations of the response per standard deviation of the term; no check computes it"
+      "kind": "standardised_coefficient",
+      "term": "x1·x2",
+      "model": "x1 + x2 + x1:x2 + I(x1 ** 2)"
      }
     },
     {
@@ -59092,13 +59276,16 @@
      "what": "standardised coefficient",
      "term": "x1²",
      "value": "-0.163",
+     "analysis": "the coefficient times the standard deviation of its column of the model matrix, over the standard deviation of the response, as MYSTAT prints it",
      "where": {
       "page": "7-10",
       "source_kind": "table",
       "quote": "Table 7.1 Regression Analysis Table for Initial Experimental Region ... quadratic term ... Std Coef -0.163"
      },
      "check": {
-      "manual": "a coefficient in standard deviations of the response per standard deviation of the term; no check computes it"
+      "kind": "standardised_coefficient",
+      "term": "x1²",
+      "model": "x1 + x2 + x1:x2 + I(x1 ** 2)"
      }
     },
     {
@@ -59642,13 +59829,16 @@
      "what": "standardised coefficient",
      "term": "Intercept",
      "value": "0.000",
+     "analysis": "the coefficient times the standard deviation of its column of the model matrix, over the standard deviation of the response, as MYSTAT prints it",
      "where": {
       "page": "7-13",
       "source_kind": "table",
       "quote": "Table 7.2 Regression Analysis Table for Final Experimental Region (without α points) ... Constant ... Std Coef 0.000"
      },
      "check": {
-      "manual": "a coefficient in standard deviations of the response per standard deviation of the term; no check computes it"
+      "kind": "standardised_coefficient",
+      "term": "Intercept",
+      "model": "w1 + w2 + w1:w2 + I(w1 ** 2)"
      }
     },
     {
@@ -59729,13 +59919,16 @@
      "what": "standardised coefficient",
      "term": "w1",
      "value": "0.299",
+     "analysis": "the coefficient times the standard deviation of its column of the model matrix, over the standard deviation of the response, as MYSTAT prints it",
      "where": {
       "page": "7-13",
       "source_kind": "table",
       "quote": "Table 7.2 Regression Analysis Table for Final Experimental Region (without α points) ... w1 ... Std Coef 0.299"
      },
      "check": {
-      "manual": "a coefficient in standard deviations of the response per standard deviation of the term; no check computes it"
+      "kind": "standardised_coefficient",
+      "term": "w1",
+      "model": "w1 + w2 + w1:w2 + I(w1 ** 2)"
      }
     },
     {
@@ -59820,13 +60013,16 @@
      "what": "standardised coefficient",
      "term": "w2",
      "value": "-0.291",
+     "analysis": "the coefficient times the standard deviation of its column of the model matrix, over the standard deviation of the response, as MYSTAT prints it",
      "where": {
       "page": "7-13",
       "source_kind": "table",
       "quote": "Table 7.2 Regression Analysis Table for Final Experimental Region (without α points) ... w2 ... Std Coef -0.291"
      },
      "check": {
-      "manual": "a coefficient in standard deviations of the response per standard deviation of the term; no check computes it"
+      "kind": "standardised_coefficient",
+      "term": "w2",
+      "model": "w1 + w2 + w1:w2 + I(w1 ** 2)"
      }
     },
     {
@@ -59911,13 +60107,16 @@
      "what": "standardised coefficient",
      "term": "w1·w2",
      "value": "0.602",
+     "analysis": "the coefficient times the standard deviation of its column of the model matrix, over the standard deviation of the response, as MYSTAT prints it",
      "where": {
       "page": "7-13",
       "source_kind": "table",
       "quote": "Table 7.2 Regression Analysis Table for Final Experimental Region (without α points) ... w1 × w2 ... Std Coef 0.602"
      },
      "check": {
-      "manual": "a coefficient in standard deviations of the response per standard deviation of the term; no check computes it"
+      "kind": "standardised_coefficient",
+      "term": "w1·w2",
+      "model": "w1 + w2 + w1:w2 + I(w1 ** 2)"
      }
     },
     {
@@ -60002,13 +60201,16 @@
      "what": "standardised coefficient",
      "term": "w1²",
      "value": "-0.679",
+     "analysis": "the coefficient times the standard deviation of its column of the model matrix, over the standard deviation of the response, as MYSTAT prints it",
      "where": {
       "page": "7-13",
       "source_kind": "table",
       "quote": "Table 7.2 Regression Analysis Table for Final Experimental Region (without α points) ... quadratic ... Std Coef -0.679"
      },
      "check": {
-      "manual": "a coefficient in standard deviations of the response per standard deviation of the term; no check computes it"
+      "kind": "standardised_coefficient",
+      "term": "w1²",
+      "model": "w1 + w2 + w1:w2 + I(w1 ** 2)"
      }
     },
     {
@@ -60431,13 +60633,16 @@
      "what": "standardised coefficient",
      "term": "Intercept",
      "value": "0.000",
+     "analysis": "the coefficient times the standard deviation of its column of the model matrix, over the standard deviation of the response, as MYSTAT prints it",
      "where": {
       "page": "7-15",
       "source_kind": "table",
       "quote": "Table 7.3 Regression Analysis Table for Final Experimental Region (with α points) ... Constant ... Std Coef 0.000"
      },
      "check": {
-      "manual": "a coefficient in standard deviations of the response per standard deviation of the term; no check computes it"
+      "kind": "standardised_coefficient",
+      "term": "Intercept",
+      "model": "w1 + w2 + w1:w2 + I(w1 ** 2) + I(w2 ** 2)"
      }
     },
     {
@@ -60518,13 +60723,16 @@
      "what": "standardised coefficient",
      "term": "w1",
      "value": "0.399",
+     "analysis": "the coefficient times the standard deviation of its column of the model matrix, over the standard deviation of the response, as MYSTAT prints it",
      "where": {
       "page": "7-15",
       "source_kind": "table",
       "quote": "Table 7.3 Regression Analysis Table for Final Experimental Region (with α points) ... w1 ... Std Coef 0.399"
      },
      "check": {
-      "manual": "a coefficient in standard deviations of the response per standard deviation of the term; no check computes it"
+      "kind": "standardised_coefficient",
+      "term": "w1",
+      "model": "w1 + w2 + w1:w2 + I(w1 ** 2) + I(w2 ** 2)"
      }
     },
     {
@@ -60609,13 +60817,16 @@
      "what": "standardised coefficient",
      "term": "w2",
      "value": "-0.063",
+     "analysis": "the coefficient times the standard deviation of its column of the model matrix, over the standard deviation of the response, as MYSTAT prints it",
      "where": {
       "page": "7-15",
       "source_kind": "table",
       "quote": "Table 7.3 Regression Analysis Table for Final Experimental Region (with α points) ... w2 ... Std Coef -0.063"
      },
      "check": {
-      "manual": "a coefficient in standard deviations of the response per standard deviation of the term; no check computes it"
+      "kind": "standardised_coefficient",
+      "term": "w2",
+      "model": "w1 + w2 + w1:w2 + I(w1 ** 2) + I(w2 ** 2)"
      }
     },
     {
@@ -60700,13 +60911,16 @@
      "what": "standardised coefficient",
      "term": "w1·w2",
      "value": "0.460",
+     "analysis": "the coefficient times the standard deviation of its column of the model matrix, over the standard deviation of the response, as MYSTAT prints it",
      "where": {
       "page": "7-15",
       "source_kind": "table",
       "quote": "Table 7.3 Regression Analysis Table for Final Experimental Region (with α points) ... w1 × w2 ... Std Coef 0.460"
      },
      "check": {
-      "manual": "a coefficient in standard deviations of the response per standard deviation of the term; no check computes it"
+      "kind": "standardised_coefficient",
+      "term": "w1·w2",
+      "model": "w1 + w2 + w1:w2 + I(w1 ** 2) + I(w2 ** 2)"
      }
     },
     {
@@ -60791,13 +61005,16 @@
      "what": "standardised coefficient",
      "term": "w1²",
      "value": "-0.546",
+     "analysis": "the coefficient times the standard deviation of its column of the model matrix, over the standard deviation of the response, as MYSTAT prints it",
      "where": {
       "page": "7-15",
       "source_kind": "table",
       "quote": "Table 7.3 Regression Analysis Table for Final Experimental Region (with α points) ... (w1)² ... Std Coef -0.546"
      },
      "check": {
-      "manual": "a coefficient in standard deviations of the response per standard deviation of the term; no check computes it"
+      "kind": "standardised_coefficient",
+      "term": "w1²",
+      "model": "w1 + w2 + w1:w2 + I(w1 ** 2) + I(w2 ** 2)"
      }
     },
     {
@@ -60882,13 +61099,16 @@
      "what": "standardised coefficient",
      "term": "w2²",
      "value": "-0.730",
+     "analysis": "the coefficient times the standard deviation of its column of the model matrix, over the standard deviation of the response, as MYSTAT prints it",
      "where": {
       "page": "7-15",
       "source_kind": "table",
       "quote": "Table 7.3 Regression Analysis Table for Final Experimental Region (with α points) ... (w2)² ... Std Coef -0.730"
      },
      "check": {
-      "manual": "a coefficient in standard deviations of the response per standard deviation of the term; no check computes it"
+      "kind": "standardised_coefficient",
+      "term": "w2²",
+      "model": "w1 + w2 + w1:w2 + I(w1 ** 2) + I(w2 ** 2)"
      }
     },
     {
