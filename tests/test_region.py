@@ -817,7 +817,7 @@ class TestVertices:
         ],
     )
     def test_the_corners_it_reports_can_be_run_however_the_limit_is_scaled(self, factors, limit):
-        """Rounded to 12 figures, a corner lies up to 1e-12 off its boundary; times a steep limit's gradient, over 1e-9.
+        """Rounded for a reader, a corner lies up to 1e-12 off its boundary; times a steep limit's gradient, over 1e-9.
 
         feasible() used to compare the limit's value in its own units with 1e-9, so the
         corners of these regions, and the same limit divided by 100 did not, failed it.
@@ -836,6 +836,58 @@ class TestVertices:
         probes = np.random.default_rng(0).uniform(-1, 1, (2000, len(factors)))
         probes = np.vstack([probes, (region.vertices() - region._centre) / region._half + 1e-11])
         np.testing.assert_array_equal(region.feasible(probes), scaled.feasible(probes))
+
+    @pytest.mark.parametrize(
+        ("ranges", "limit"),
+        [
+            ({"Year": (2020, 2026), "X": (0, 1)}, "3*Year - X <= 6066.73"),
+            ({"P": (101.3, 101.5), "T": (20, 30)}, "30*P - 0.13*T <= 3040.41"),  # kPa
+            ({"P": (101000, 101500), "T": (20, 40)}, "3*P + 7*T <= 304000"),
+            ({"Pa": (101000, 101650), "TK": (300, 300.9)}, "Pa + 333*TK <= 200952.326903595"),
+            ({"t": (1.7e9, 1.7e9 + 3600), "F": (0, 10)}, "t + 100*F <= 1700003000.127"),
+            ({"Pa": (101325, 101425), "T": (20, 40), "F": (1, 7)}, "3*Pa + T + 3*F <= 304233"),
+            ({"t": (1.7e9, 1.7e9 + 3600), "F": (0, 10), "G": (0, 10)}, "3*t + F + G <= 5100009000"),
+        ],
+    )
+    def test_the_corners_of_a_range_narrow_next_to_its_values_can_be_run(self, ranges, limit):
+        """Twelve figures of a value move it by up to 5e-12 of the value: up to 5e-6 in coded units for a time stamp.
+
+        The corners of these regions failed feasible(), each by more than its tolerance.
+        """
+        factors = [Factor(name=n, low=lo, high=hi) for n, (lo, hi) in ranges.items()]
+        region = DesignRegion(factors, [limit])
+        assert region.feasible((region.vertices() - region._centre) / region._half).all()
+        for x, y in itertools.combinations(region.names, 2):
+            others = [name for name in region.names if name not in (x, y)]
+            for held in [{n: ranges[n][end] for n in others} for end in (0, 1)] if others else [{}]:
+                pictures = [region.slice_polygon(x, y, held)] + ([] if others else [region.shadow(x, y)])
+                for picture in (p for p in pictures if p["points"]):  # a slice at a held corner can be empty
+                    full = np.tile(region._centre, (len(picture["points"]), 1))
+                    full[:, [region.names.index(x), region.names.index(y)]] = picture["points"]
+                    for name, value in held.items():
+                        full[:, region.names.index(name)] = value
+                    assert region.feasible((full - region._centre) / region._half).all(), (x, y, held, picture)
+
+    def test_a_range_narrow_next_to_its_values_is_reported_to_the_digits_it_needs(self):
+        clock = [Factor(name="t", low=1.7e9, high=1.7e9 + 3600), Factor(name="F", low=0, high=10)]
+        region = DesignRegion(clock, ["t + 100*F <= 1700003000.127"])
+        assert region.vertices().tolist() == [
+            [1.7e9, 0.0],
+            [1.7e9, 10.0],
+            [1700002000.127, 10.0],
+            [1700003000.127, 0.0],
+        ]
+        assert region.implied_bounds() == {"t": (1.7e9, 1700003000.127), "F": (0.0, 10.0)}
+        pressure = [Factor(name="P", low=101000, high=101500), Factor(name="T", low=20, high=40)]
+        assert DesignRegion(pressure, ["3*P + 7*T <= 304000"]).vertices()[-1].tolist() == [101286.66666667, 20.0]
+        heat = DesignRegion(HEAT_FACTORS, ["3*T + 3*D <= 580"]).vertices()  # 12 figures for ordinary ranges
+        assert heat.tolist() == [
+            [100.0, 20.0],
+            [100.0, 60.0],
+            [133.333333333, 60.0],
+            [150.0, 20.0],
+            [150.0, 43.3333333333],
+        ]
 
     @_settings
     @given(linear_regions())

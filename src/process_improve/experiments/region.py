@@ -69,6 +69,10 @@ _SLICE_POINTS = 61
 #: coefficient or a coordinate is taken to be zero.
 _DIGITS = 12
 _SNAP = 1e-9
+#: A setting reported in actual units is rounded no coarser than this share of its factor's range, which
+#: takes more than 12 figures for a range narrow next to its values, up to 16 figures (see ``_actual``).
+_RESOLUTION = 1e-10
+_MOST_DIGITS = 16
 #: ``scipy.optimize.linprog`` status of a problem with no feasible point.
 _INFEASIBLE = 2
 
@@ -209,11 +213,12 @@ class DesignRegion:
         tol : float
             How far a point may lie outside. For a straight limit of a box region whose
             coded gradient is longer than 1 it is a distance in coded units (the limit's
-            value divided by that length), so a limit multiplied through by a constant
-            accepts the same points, and the corners the region reports
-            (:meth:`vertices`, :meth:`shadow`, :meth:`slice_polygon`), rounded within
-            ``1e-12`` of their boundaries, pass; otherwise it is in the limit's own units,
-            as for a curved limit.
+            value divided by that length); otherwise it is in the limit's own units, as for
+            a curved limit. Either way a point within ``tol`` of a straight limit's
+            boundary, in coded units, passes, however the limit is scaled. So do the
+            corners the region reports (:meth:`vertices`, :meth:`shadow`,
+            :meth:`slice_polygon`): their rounding moves each coordinate by at most
+            ``1e-10`` in coded units.
 
         Returns
         -------
@@ -367,13 +372,23 @@ class DesignRegion:
         return self._cache["allowed"]
 
     def _actual(self, coded: np.ndarray, columns: list[int] | None = None) -> np.ndarray:
-        """Return coded values in actual units, exact at the box faces, rounded to 12 significant figures."""
+        """Return coded values in actual units, exact at the box faces and rounded as :meth:`vertices` describes.
+
+        Twelve figures alone are not enough for a factor whose range is narrow next to its
+        values: they move a time stamp near ``1.7e9`` with a range of an hour by up to
+        ``0.005``, ``3e-6`` in coded units, which takes a corner on a limit's boundary well
+        outside the tolerance of :meth:`feasible`.
+        """
         cols = list(range(len(self.names))) if columns is None else columns
         low, high, centre, half = self._low[cols], self._high[cols], self._centre[cols], self._half[cols]
         coded = np.asarray(coded, dtype=float)
         actual = np.where(coded == -1.0, low, np.where(coded == 1.0, high, centre + coded * half))
         actual = np.where(np.abs(actual) <= _SNAP * (high - low), 0.0, actual)
-        return round_significant(actual, _DIGITS)
+        with np.errstate(divide="ignore", invalid="ignore"):
+            places = np.ceil(-np.log10(_RESOLUTION * (high - low)))  # decimal places that resolve 1e-10 of the range
+            figures = np.floor(np.log10(np.abs(actual))) + 1 + places  # -inf for a zero, which keeps 12 figures
+        figures = np.clip(np.nan_to_num(figures, nan=_DIGITS), _DIGITS, _MOST_DIGITS)
+        return round_significant(actual, figures.astype(int))
 
     def _columns(self, x: str, y: str) -> tuple[int, int]:
         """Return the positions of the factors ``x`` and ``y``, which must be two different numeric factors."""
@@ -489,8 +504,8 @@ class DesignRegion:
         Returns
         -------
         dict[str, float] or None
-            ``{name: value}`` for every numeric factor, rounded to 12 significant figures;
-            ``None`` when no allowed point is found (see :meth:`is_empty`).
+            ``{name: value}`` for every numeric factor, rounded as :meth:`vertices`
+            describes; ``None`` when no allowed point is found (see :meth:`is_empty`).
 
         Raises
         ------
@@ -561,8 +576,9 @@ class DesignRegion:
         Returns
         -------
         dict[str, tuple[float, float]] or None
-            ``{name: (low, high)}`` for every numeric factor, in factor order, rounded to
-            12 significant figures; ``None`` when the linear constraints leave no setting.
+            ``{name: (low, high)}`` for every numeric factor, in factor order, rounded as
+            :meth:`vertices` describes; ``None`` when the linear constraints leave no
+            setting.
 
         Raises
         ------
@@ -763,8 +779,12 @@ class DesignRegion:
         -------
         np.ndarray
             ``(n, k)`` vertices, one column per numeric factor, without duplicates,
-            sorted row by row in coded order and rounded to 12 significant figures; no
-            rows when the region is empty.
+            sorted row by row in coded order; no rows when the region is empty. Each
+            value is rounded to 12 significant figures, so that ``250.00000000000009``
+            reads ``250.0``, or to more where its factor's range is narrow next to its
+            values (a year, an absolute pressure, a time stamp): to the decimal place of
+            ``1e-10`` times the range, up to 16 figures, about what a double holds.
+            Every vertex then passes :meth:`feasible`.
 
         Raises
         ------

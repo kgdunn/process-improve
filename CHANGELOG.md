@@ -235,11 +235,13 @@ those changes.
   used eigenvectors of a covariance, and those have no fixed sign: native Python and
   Pyodide took different steps, so I-optimal designs and averages over such a region
   differed. The directions now use the Cholesky factor, which is unique.
-- **`DesignRegion.feasible` does not depend on how a straight limit is scaled.** It
-  compared a limit's value with `1e-9` in the limit's own units, so a point on the
-  boundary of `120*T + 33*D + 450*F <= 17000` could fail where the same limit divided by
-  100 passed. For a straight limit whose coded gradient is longer than 1, the tolerance
-  is now a distance of `1e-9` in coded units; nothing that passed before fails.
+- **`DesignRegion.feasible` accepts a point on a straight limit's boundary however the
+  limit is scaled.** It compared a limit's value with `1e-9` in the limit's own units, so
+  a point on the boundary of `120*T + 33*D + 450*F <= 17000` could fail where the same
+  limit divided by 100 passed. For a straight limit whose coded gradient is longer than 1,
+  the tolerance is now a distance of `1e-9` in coded units; a gentler limit keeps its
+  tolerance in its own units, which is the wider of the two, so nothing that passed before
+  fails.
 - **A single limit passed outside a list is refused with a clear message.**
   `constraints="T <= 160"` was read character by character and reported that a limit
   named `'T'` is not an inequality; a lone string, dict or `Constraint` now raises a

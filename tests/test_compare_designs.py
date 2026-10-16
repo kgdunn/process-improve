@@ -686,12 +686,31 @@ def test_runs_outside_the_region_are_noted():
     )
 
 
-def test_a_design_of_the_regions_own_vertices_lies_inside_it():
-    """A steep limit's corners are rounded within 1e-12 of its boundary; they used to be noted as outside."""
-    steep = [Factor(name="T", low=100, high=150), Factor(name="D", low=20, high=60), Factor(name="F", low=1, high=7)]
-    region = DesignRegion(steep, ["120*T + 33*D + 450*F <= 17000"])
+@pytest.mark.parametrize(
+    ("factors", "limit"),
+    [
+        (
+            [Factor(name="T", low=100, high=150), Factor(name="D", low=20, high=60), Factor(name="F", low=1, high=7)],
+            "120*T + 33*D + 450*F <= 17000",
+        ),
+        ([Factor(name="P", low=100000, high=100100), Factor(name="T", low=0, high=1)], "3*P + 7*T <= 300251"),
+        (
+            [Factor(name="t", low=1.7e9, high=1.7e9 + 3600), Factor(name="F", low=0, high=10)],
+            "t + 77*F <= 1700000908.5892",
+        ),
+    ],
+)
+def test_a_design_of_the_regions_own_vertices_lies_inside_it(factors, limit):
+    """A reported corner lies within about 1e-10 (coded) of its boundary; these used to be noted as outside.
+
+    The first, a steep limit, failed the tolerance in the limit's own units; the others, factors
+    whose range is narrow next to their values (a 100 Pa window at 1 bar, an hour of a time
+    stamp), failed after their corners were rounded to 12 significant figures.
+    """
+    region = DesignRegion(factors, [limit])
     design = pd.DataFrame((region.vertices() - region._centre) / region._half, columns=region.names)
-    assert compare_designs({"corners": design}, "main_effects", region=region).notes["corners [n=8]"] == ()
+    notes = compare_designs({"corners": design}, "main_effects", region=region).notes
+    assert not any("outside" in note for note in notes[f"corners [n={len(design)}]"])
 
 
 def test_the_region_can_be_given_as_its_dict_and_is_deterministic():
