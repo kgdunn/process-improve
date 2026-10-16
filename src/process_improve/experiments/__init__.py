@@ -29,6 +29,11 @@ from process_improve.experiments.omars_trade_off import (
     omars_trade_off_table,
 )
 from process_improve.experiments.optimization import optimize_responses
+from process_improve.experiments.random_effects import (
+    expected_mean_squares,
+    intraclass_correlation_interval,
+    variance_components,
+)
 from process_improve.experiments.region import DesignRegion
 from process_improve.experiments.separating import (
     NotSeparableError,
@@ -79,6 +84,7 @@ __all__ = [
     "evaluate_all",
     "evaluate_design",
     "expand_grid",
+    "expected_mean_squares",
     "full_factorial",
     "gather",
     "generate_design",
@@ -86,6 +92,7 @@ __all__ = [
     "get_omars_trade_off_table_entry",
     "get_trade_off_table_entry",
     "grocery",
+    "intraclass_correlation_interval",
     "is_omars",
     "lm",
     "main_effects_plot",
@@ -105,5 +112,6 @@ __all__ = [
     "summary",
     "supplement",
     "trade_off_table",
+    "variance_components",
     "visualize_doe",
 ]

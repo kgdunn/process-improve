@@ -13,6 +13,22 @@ those changes.
 
 ### Added
 
+- **Random effects** (`process_improve.experiments`). `variance_components` fits random
+  intercepts (`"a"`, `"a:b"`, or `"b(a)"` for a factor nested in another) beside sum-coded fixed
+  factors by REML, and reports the components with their share of the total, standard errors and
+  intervals (chi-squared for the error variance), the restricted log-likelihood, the fixed
+  effects with their Satterthwaite F tests, the best linear unbiased predictions of the random
+  effects, and the R-square JMP reports for a REML fit. `bounded=False` lets a component go below
+  zero, as JMP's unbounded REML does; in a balanced design that gives the analysis-of-variance
+  estimates. `expected_mean_squares` derives the expected mean squares of a balanced crossed or
+  nested design under the restricted or the unrestricted mixed model, a reduced model's too, with
+  each term's degrees of freedom and the term that tests it, and `intraclass_correlation_interval`
+  gives the exact interval of a one-way random model. The reference catalogue checks 98 more of
+  Montgomery's numbers with them: JMP's unbounded gauge study (resolving 10 recorded
+  disagreements), JMP's REML R-squares of seven studies, and Minitab's and Montgomery's
+  expected-mean-square tables and error terms of the gauge study, the purity and the assembly
+  experiments.
+
 - **Studentized residuals.** `analyze_experiment`'s `"residual_diagnostics"` now lists each run's
   `studentized_residuals` (the residual over its own standard error, s √(1 − h), Design-Expert's
   "Student Residual") and `externally_studentized_residuals` (with s from the fit without that run,
