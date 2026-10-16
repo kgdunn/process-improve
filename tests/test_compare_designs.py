@@ -651,12 +651,20 @@ def test_the_region_can_be_given_as_its_dict_and_is_deterministic():
 
 
 def test_a_factor_the_region_does_not_name_is_free_over_its_range():
-    """Limits on A and B leave C free: the region over A, B and C is the A-B region times C's range."""
+    """Limits on A and B leave C free: the region over A, B and C is the A-B region times C's range.
+
+    The region over B, A and C lists its factors in another order than the design's columns,
+    and the limit is not symmetric in A and B, so reading the design's A column as the
+    region's B would change the numbers.
+    """
     design = generate_design(factors(), "box_behnken", n_center_points=3)
-    partial = compare_designs({"BBD": design}, region=DesignRegion(factors("AB"), ["A + B <= 1"]))
-    full = compare_designs({"BBD": design}, region=DesignRegion(factors("BAC"), ["A + B <= 1"]))
+    partial = compare_designs({"BBD": design}, region=DesignRegion(factors("AB"), ["A + 0.5*B <= 0.5"]))
+    full = compare_designs({"BBD": design}, region=DesignRegion(factors("BAC"), ["A + 0.5*B <= 0.5"]))
     assert partial.values["BBD [n=15]"] == full.values["BBD [n=15]"]
+    assert partial.notes["BBD [n=15]"] == full.notes["BBD [n=15]"]
     assert partial.region.names == ["A", "B"]
+    swapped = compare_designs({"BBD": design}, region=DesignRegion(factors("AB"), ["B + 0.5*A <= 0.5"]))
+    assert swapped.values["BBD [n=15]"]["i"] != partial.values["BBD [n=15]"]["i"], "the test can tell A from B"
 
 
 @pytest.mark.parametrize(
