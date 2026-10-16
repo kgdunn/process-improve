@@ -127,7 +127,8 @@ those changes.
   any setting is left (`is_empty()`); the range each factor can still reach
   (`implied_bounds()`); a central setting that can be run, to hold unplotted factors at
   (`centroid()`); the limits that remove nothing the others do not
-  (`redundant_constraints()`); each limit's affine form, rounded so no floating-point residue
+  (`redundant_constraints()`); the limits that are curved over the box rather than straight
+  (`curved_constraints()`); each limit's affine form, rounded so no floating-point residue
   shows (`linear_forms()`); its corners (`vertices()`); and pictures on any two factors: the
   shadow of the region (`shadow(x, y)`), a slice through it at given values of the others
   (`slice_polygon`, `slice_lines`) and the slack of a grid, at or below zero exactly where a
@@ -172,6 +173,21 @@ those changes.
   limits as text, what they leave of the factor ranges, renaming a factor inside them,
   proposing a limit from the settings that cannot be run, pictures of the region, and
   comparing designs and plotting a response over it; its examples run with the test suite.
+- **Factorial takes limits on the settings that can be run.** Under the factors, "Settings you
+  cannot run" holds up to 8 limits, each an inequality in the factors' own units over any number
+  of factors (`T + 25*P <= 250`, `0.5 <= A/B <= 2`, `T*F <= 3600`), with buttons that type the
+  factors' names and the signs a phone lacks. Python reads each limit as the library will and says
+  what it rules out, or what to change in it; together, the limits say what share of the ranges
+  they leave, whether the center can still be run, and how far each factor can still go. A limit
+  can also be had by marking the corners of the ranges that cannot be run: the page proposes the
+  straight limit that rules out just those, to add as it is or to adjust factor by factor from
+  its corner. A picture shows, for each pair of factors, the settings that can be run, each
+  straight limit's boundary and the run sheet's runs, and opens to look inside at values of the
+  other factors the reader sets; a curved limit is traced smoothly. With limits, only the
+  D-optimal and I-optimal designs are offered, every run is checked to be inside, the designs are
+  compared over the settings that can be run, Learn greys the response surface outside them, and
+  the Python shown, the notebook, the workbook, saved studies and links all carry them. Renaming a
+  factor renames it inside the limits, and the run sheet keeps its runs.
 
 ### Fixed
 

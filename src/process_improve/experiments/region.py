@@ -640,6 +640,35 @@ class DesignRegion:
         removed_here = np.any(~within[:, limit_of == i], axis=1)
         return not bool(np.any(kept_by_others & removed_here))
 
+    def curved_constraints(self) -> list[int]:
+        """Return the indices of the constraints that are curved: not affine over the factor box.
+
+        A constraint is straight when each of its comparisons is affine over the box, by
+        the test the design engines use, so ``"400 <= 3*T + 5*D <= 600"`` and ``"T <= 2*D"``
+        are straight, and so is ``"abs(T) <= 3"`` over a box where ``T`` keeps one sign. The
+        diagnostics treat the straight ones exactly and the curved ones by sampling (see
+        :meth:`is_empty`); :meth:`implied_bounds` leaves the curved ones out, and
+        :meth:`vertices` refuses a region that has any.
+
+        Returns
+        -------
+        list[int]
+            Indices into ``constraints``, in order.
+
+        Raises
+        ------
+        ValueError
+            For a mixture region.
+
+        Examples
+        --------
+        >>> T, D = Factor(name="T", low=100, high=150), Factor(name="D", low=20, high=60)
+        >>> DesignRegion([T, D], ["3*T + 5*D <= 600", "T * D <= 7000", "T <= 2*D"]).curved_constraints()
+        [1]
+        """
+        self._require_box("curved_constraints")
+        return sorted(set(self._linear().nonlinear_limit))
+
     def linear_forms(self) -> list[tuple[dict[str, float], float | None, float | None] | None]:
         """Return each constraint as ``(coefficients, low, high)`` in actual units, or None where it is not affine.
 

@@ -7,6 +7,7 @@ more and a model beyond main effects, the optimal designs' slow search waits to 
 
 from __future__ import annotations
 
+import numpy as np
 import pytest
 
 from tests.web._support import FACTORS, factors_named, held_of
@@ -81,3 +82,22 @@ def test_a_design_that_cannot_be_made_is_left_out_with_a_note(api, bootstrap, mo
     listed = api.ok("api_candidates", {"factors": FACTORS, "model": "main_quadratic"})
     assert "ccd" not in [m["design_type"] for m in listed["made"]]
     assert "CCD could not be made: the axial runs could not be placed" in listed["notes"]
+
+
+# --------------------------------------------------------------------------- limits on the settings
+def test_with_limits_the_candidates_are_the_optimal_designs_inside_them(api):
+    request = {"factors": FACTORS, "model": "main_quadratic", "constraints": [{"expression": "T + 25 * P <= 250"}]}
+    listed = api.ok("api_candidates", request)
+    assert [m["design_type"] for m in listed["made"]] == ["d_optimal", "i_optimal"]
+    for item in listed["made"]:
+        t, p = (np.array([row[item["design"]["columns"].index(n)] for row in item["design"]["rows"]]) for n in "TP")
+        assert np.all(t + 25 * p <= 250 + 1e-9), item["label"]
+    assert listed["result"]["region"] is not None
+
+
+def test_with_limits_from_five_factors_every_design_waits_for_the_search(api):
+    """With limits every design is an optimal one, so with five factors all of them wait to be asked for."""
+    request = {"factors": factors_named(*"ABCDE"), "model": "quadratic", "constraints": [{"expression": "A + B <= 1"}]}
+    listed = api.ok("api_candidates", request)
+    assert (listed["made"], listed["result"]) == ([], None)
+    assert [w["design_type"] for w in listed["waiting"]] == ["d_optimal", "i_optimal"]

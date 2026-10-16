@@ -6,6 +6,18 @@ import { describe, test } from "node:test";
 
 import {
   AXIAL_DISTANCE,
+  alsoRuledOut,
+  cornersWords,
+  cutWords,
+  filterCorners,
+  settingLabel,
+  insertAt,
+  limitEffect,
+  limitsSummary,
+  positional,
+  renameLimit,
+  shareText,
+  withBounds,
   CAPTIONS,
   CATEGORICAL,
   MODES,
@@ -188,6 +200,20 @@ describe("words and numbers", () => {
 
   test("the captions name the factors drawn", () => {
     assert.match(CAPTIONS.contour(["T", "P"]), /over T and P, the two factors/);
+  });
+
+  test("with limits, the caption says what is grey, and where the others are held when the center cannot be run", () => {
+    const factors = [{ name: "F", units: "L/min" }];
+    assert.equal(
+      CAPTIONS.contour(["T", "P"], { shaded: true, held: [], factors }),
+      "Drawn over T and P, the two factors with the largest main effects, with the others at their center; grey: " +
+        "settings outside your limits; the dots are the runs.",
+    );
+    assert.equal(
+      CAPTIONS.contour(["T", "P"], { shaded: true, held: [{ name: "F", value: 16.666666667 }], factors }),
+      "Drawn over T and P, the two factors with the largest main effects, with F at 16.67 L/min, since the center " +
+        "of the ranges cannot be run; grey: settings outside your limits; the dots are the runs.",
+    );
   });
 });
 
@@ -506,5 +532,210 @@ describe("the designs that can learn the brief", () => {
     assert.equal(runBadge([]), "");
     assert.equal(runBadge([null, null]), "2 runs");
     assert.equal(runBadge([1, null, 3]), "2 of 3");
+  });
+});
+
+describe("limits on the settings", () => {
+  const names = ["T", "P", "F"];
+
+  test("a limit's key names each factor by its place, so a rename leaves it and an edit changes it", () => {
+    const typed = "T + 25*P <= 250";
+    assert.equal(positional(typed, names), "#0+25*#1<=250");
+    const renamed = renameLimit(typed, { T: "Temp" });
+    assert.equal(positional(renamed, ["Temp", "P", "F"]), positional(typed, names));
+    assert.notEqual(positional("T + 25*P <= 240", names), positional(typed, names));
+    assert.notEqual(positional(typed, ["P", "T", "F"]), positional(typed, names), "the factors' order is part of it");
+  });
+
+  test("the key reads spaces and the signs a phone types as the canonical text does", () => {
+    assert.equal(positional("T+25·P ≤ 250", names), positional("T + 25 * P <= 250", names));
+    assert.equal(positional("T^2 − P ≥ 1", names), positional("T ** 2 - P >= 1", names));
+  });
+
+  test("a function's name, a number's exponent and a longer name are not taken for a factor", () => {
+    assert.equal(positional("sqrt(T) + 1e5*F + T1 <= 3", ["T", "F", "T1", "e5"]), "sqrt(#0)+1e5*#1+#2<=3");
+    assert.equal(positional("log(F) <= 2", ["log", "F"]), "log(#1)<=2");
+  });
+
+  test("renaming swaps two names at once, and keeps the spacing and the functions as typed", () => {
+    assert.equal(renameLimit("T + 25*P <= sqrt(T)", { T: "P", P: "T" }), "P + 25*T <= sqrt(P)");
+    assert.equal(renameLimit("Tank_T  <=  T", { T: "Temp" }), "Tank_T  <=  Temp");
+    assert.equal(renameLimit("exp(exp) <= 3", { exp: "E" }), "exp(E) <= 3", "a factor may share a function's name");
+  });
+
+  test("a bound box rebuilds the limit from its left side", () => {
+    assert.equal(withBounds("T + 25 * P", null, 240), "T + 25 * P <= 240");
+    assert.equal(withBounds("-T + 20 * P", -140, null), "-T + 20 * P >= -140");
+    assert.equal(withBounds("3 * T + 5 * P", 400, 600), "400 <= 3 * T + 5 * P <= 600");
+  });
+
+  test("a name tapped in is set apart from a name or number beside it, and the caret goes after it", () => {
+    assert.deepEqual(insertAt("T+", 2, 2, "P"), { text: "T+P", caret: 3 });
+    assert.deepEqual(insertAt("T", 1, 1, "<="), { text: "T <=", caret: 4 });
+    assert.deepEqual(insertAt("T + P <= 3", 4, 5, "F"), { text: "T + F <= 3", caret: 5 });
+    assert.deepEqual(insertAt("", 0, 0, "T"), { text: "T", caret: 1 });
+  });
+
+  test("a share is never shown as 0% or 100% when it is not", () => {
+    assert.deepEqual([0, 0.0004, 0.004, 0.126953125, 0.997, 0.9995, 1].map(shareText), [
+      "none",
+      "less than 0.1%",
+      "0.4%",
+      "13%",
+      "99.7%",
+      "more than 99.9%",
+      "100%",
+    ]);
+  });
+
+  test("a share and what it leaves sum to 100%, an exact half included", () => {
+    assert.deepEqual([0.125, 0.875, 0.375, 0.625].map(shareText), ["12%", "88%", "38%", "62%"]);
+    for (let k = 1; k < 2000; k += 1) {
+      const [share, left] = [k / 2000, 1 - k / 2000].map(shareText);
+      const sum = [share, left].map((text) => Number(text.replace("%", ""))).reduce((a, b) => a + b);
+      if (!share.includes("than")) assert.equal(Math.round(sum * 10) / 10, 100, `${share} and ${left}`);
+    }
+  });
+
+  const probes = { center: 8 };
+
+  test("what a limit rules out: its share of the ranges, and the corners", () => {
+    assert.equal(
+      limitEffect({ removed: 0.127, removes: [6, 7], redundant: null }, probes),
+      "Rules out 13% of your ranges: 2 of the 8 corners.",
+    );
+    assert.equal(
+      limitEffect({ removed: 0.68, removes: [2, 3, 8], redundant: null }, probes),
+      "Rules out 68% of your ranges: 2 of the 8 corners, and their center.",
+    );
+    assert.equal(limitEffect({ removed: 0.04, removes: [], redundant: null }, probes), "Rules out 4% of your ranges: none of the 8 corners.");
+    assert.equal(limitEffect({ removed: 0.1, removes: null, redundant: null }, null), "Rules out 10% of your ranges.");
+  });
+
+  test("a limit that rules out nothing says so, and one that cannot be read says nothing here", () => {
+    assert.equal(limitEffect({ removed: 0, removes: [], redundant: "alone" }, probes), "Rules out nothing within your ranges.");
+    assert.equal(limitEffect({ removed: 0.05, removes: [7], redundant: "others" }, probes), "Rules out nothing the other limits do not.");
+    assert.equal(limitEffect({ expression: "T +", problem: "The limit 'T +' cannot be read." }, probes), "");
+  });
+
+  test("a limit that rules out corners never rules out none, however thin a part the sample sees", () => {
+    // T * F <= 3990 cuts about 0.003% off the corners where T and F are high: too little for the fixed sample.
+    assert.equal(
+      limitEffect({ removed: 0, removes: [5, 7], redundant: null }, probes),
+      "Rules out less than 0.1% of your ranges: 2 of the 8 corners.",
+    );
+  });
+
+  const factors = [
+    { name: "T", low: 150, high: 200, units: "degC" },
+    { name: "P", low: 1, high: 3, units: "bar" },
+  ];
+  const reply = (change) => ({
+    constraints: [{ expression: "T + 25 * P <= 215" }],
+    kept: 0.31689453125,
+    empty: false,
+    center_allowed: true,
+    bounds: [],
+    refusal: null,
+    ...change,
+  });
+
+  test("what all the limits leave: the share, the center, and each range narrowed, in its units", () => {
+    const said = limitsSummary(
+      reply({
+        center_allowed: false,
+        bounds: [
+          { name: "T", low: null, high: 190 },
+          { name: "P", low: 1.25, high: 2.6 },
+        ],
+      }),
+      factors,
+    ).map((s) => s.text);
+    assert.deepEqual(said, [
+      "The limits leave 32% of your ranges to run.",
+      "The center of the ranges cannot be run.",
+      "So T never goes above 190 degC.",
+      "So P stays between 1.25 and 2.6 bar.",
+    ]);
+    const below = limitsSummary(reply({ bounds: [{ name: "T", low: 155.55555, high: null }] }), factors);
+    assert.equal(below.at(-1).text, "So T never goes below 155.6 degC.");
+  });
+
+  test("a refusal comes first, as an error, and nothing left says only that", () => {
+    const refusal = "Limits on the settings work with numeric factors only on this page, and S is categorical.";
+    assert.deepEqual(limitsSummary(reply({ refusal }), factors)[0], { text: refusal, error: true });
+    const problem = "The limit 'Z <= 3' names Z, which is not one of your factors: T and P.";
+    const own = reply({ constraints: [{ expression: "Z <= 3", problem }, { expression: "T <= 190" }], refusal: problem });
+    assert.deepEqual(limitsSummary(own, factors)[0], { text: "The limits leave 32% of your ranges to run.", error: false }, "said under the limit, not twice");
+    const empty = limitsSummary(reply({ empty: true, kept: 0, refusal: "No setting in your ranges meets every limit." }), factors);
+    assert.deepEqual(empty, [{ text: "No setting in your ranges meets every limit.", error: true }]);
+    assert.deepEqual(limitsSummary(reply({ constraints: [] }), factors), []);
+  });
+
+  test("what the limits leave is never all while one rules something out, nor none while a setting can be run", () => {
+    const leave = (change) => limitsSummary(reply(change), factors)[0].text;
+    const sliver = [{ expression: "T * F <= 3990", redundant: null }];
+    assert.equal(leave({ constraints: sliver, kept: 1 }), "The limits leave more than 99.9% of your ranges to run.");
+    const nothing = [{ expression: "T <= 200", redundant: "alone" }];
+    assert.equal(leave({ constraints: nothing, kept: 1 }), "The limits leave 100% of your ranges to run.");
+    assert.equal(leave({ kept: 0 }), "The limits leave less than 0.1% of your ranges to run.");
+  });
+});
+
+describe("the table of corners", () => {
+  const factors = [
+    { name: "T", low: 150, high: 200, units: "degC" },
+    { name: "P", low: 1, high: 3, units: "bar" },
+    { name: "F", low: 10, high: 20, units: "" },
+  ];
+  const columns = ["T", "P", "F"];
+  const rows = [
+    [150, 1, 10],
+    [150, 1, 20],
+    [150, 3, 10],
+    [150, 3, 20],
+    [200, 1, 10],
+    [200, 1, 20],
+    [200, 3, 10],
+    [200, 3, 20],
+  ];
+
+  test("a setting is named factor by factor, in its units, as a screen reader says it", () => {
+    assert.equal(settingLabel([200, 3, 20], columns, factors), "T 200 degC, P 3 bar, F 20");
+    assert.equal(settingLabel([175, 2.0000001, 15], columns, factors), "T 175 degC, P 2 bar, F 15");
+  });
+
+  test("the filters leave the corners at the ends asked for", () => {
+    assert.deepEqual(filterCorners(rows, columns, factors, { T: "high" }), [4, 5, 6, 7]);
+    assert.deepEqual(filterCorners(rows, columns, factors, { T: "high", F: "low" }), [4, 6]);
+    assert.deepEqual(filterCorners(rows, columns, factors, {}), [0, 1, 2, 3, 4, 5, 6, 7]);
+  });
+
+  test("a cut is asked from the corner's end of the factor", () => {
+    assert.equal(cutWords({ name: "T", at: 200, cut: 175 }, factors[0]), "can go up to");
+    assert.equal(cutWords({ name: "T", at: 150, cut: 175 }, factors[0]), "must be at least");
+  });
+
+  test("a proposal flags the corners it rules out that were not marked, unless a limit rules them out already", () => {
+    const ruledOutBy = [[], [], [], [], [], [], [], [0], []];
+    assert.deepEqual(alsoRuledOut({ removes: [5, 6, 7] }, [6], ruledOutBy), [5]);
+    assert.deepEqual(alsoRuledOut({ problem: "no cut" }, [6], ruledOutBy), []);
+  });
+
+  test("corners are named one by one, or by the face of the ranges they make up", () => {
+    const probes = { columns, rows: [...rows, [175, 2, 15]], center: 8 };
+    const words = (marked) => cornersWords(marked, probes, factors);
+    assert.equal(words([7]), "the corner T 200 degC, P 3 bar, F 20");
+    assert.equal(words([6, 7]), "the 2 corners where T is 200 degC and P is 3 bar");
+    assert.equal(words([4, 5, 6, 7, 8]), "the 4 corners where T is 200 degC, and the center of the ranges");
+    assert.equal(words([0, 1, 2, 3, 4, 5, 6, 7]), "every corner");
+    assert.equal(words([8]), "the center of the ranges");
+    assert.equal(
+      words([3, 6, 7]),
+      "the 3 corners (T 150 degC, P 3 bar, F 20; T 200 degC, P 3 bar, F 10; T 200 degC, P 3 bar, F 20)",
+      "three corners that are not a face are named one by one",
+    );
+    assert.equal(words([0, 3, 5, 6]), "the 4 corners (T 150 degC, P 1 bar, F 10; T 150 degC, P 3 bar, F 20; and 2 more)");
+    assert.equal(words([0, 7]), "the 2 corners (T 150 degC, P 1 bar, F 10; T 200 degC, P 3 bar, F 20)");
   });
 });

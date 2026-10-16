@@ -602,6 +602,26 @@ class TestRedundantConstraints:
         assert DesignRegion(cat, ["2 <= 1", "3 <= 1"]).redundant_constraints() == [0, 1]
 
 
+class TestCurvedConstraints:
+    def test_straight_limits_are_not_curved_whatever_their_form(self):
+        straight = [HEAT, "600 >= 3*T + 5*D", "T <= 2*D", "400 <= 3*T + 5*D <= 600", "T/2 + D <= 90", "1 <= 2"]
+        assert DesignRegion(HEAT_FACTORS, straight).curved_constraints() == []
+
+    def test_a_chain_of_two_straight_comparisons_is_straight_though_it_has_no_one_affine_form(self):
+        region = DesignRegion(HEAT_FACTORS, ["D <= T <= 140"])
+        assert region.linear_forms() == [None]
+        assert region.curved_constraints() == []
+
+    def test_curved_limits_by_index(self):
+        limits = ["T * D <= 7000", HEAT, "sqrt(T) + D <= 50", "D <= T**2 / 300 <= 60"]
+        assert DesignRegion(HEAT_FACTORS, limits).curved_constraints() == [0, 2, 3]
+
+    def test_a_function_that_is_affine_over_the_box_is_straight(self):
+        """``abs(T)`` is ``T`` over a box where ``T`` is positive, as the design engines see it."""
+        assert DesignRegion(HEAT_FACTORS, ["abs(T) + D <= 180"]).curved_constraints() == []
+        assert DesignRegion(UNIT_SQUARE, ["abs(A) + B <= 1"]).curved_constraints() == [0]
+
+
 # ---------------------------------------------------------------------------
 # Affine forms of the limits
 # ---------------------------------------------------------------------------
@@ -1118,6 +1138,7 @@ class TestSliceSlack:
         ("is_empty", ()),
         ("implied_bounds", ()),
         ("redundant_constraints", ()),
+        ("curved_constraints", ()),
         ("vertices", ()),
         ("shadow", ("x0", "x1")),
         ("slice_polygon", ("x0", "x1")),

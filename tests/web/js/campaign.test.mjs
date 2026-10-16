@@ -11,6 +11,7 @@ import {
   campaignTitle,
   checkBookExample,
   checkCampaign,
+  checkConstraints,
   designKey,
   indexedName,
   mergeResults,
@@ -239,6 +240,47 @@ describe("a campaign read back keeps only what the page uses", () => {
     const back = checkCampaign({ ...campaign(), simulation });
     assert.deepEqual(back.simulation.truth, simulation.truth);
     assert.equal(back.simulation.responses, undefined, "the results are kept once, as the campaign's");
+  });
+});
+
+describe("the limits on a study's settings", () => {
+  const limits = [
+    { expression: "T + 25 * P <= 250", type: "linear", note: "the product chars" },
+    { expression: "T * F <= 3600", type: "nonlinear" },
+  ];
+
+  test("a study's limits are kept with its design, each with its type and note", () => {
+    const data = campaign();
+    data.design.spec.constraints = limits;
+    assert.deepEqual(checkCampaign(data).design.spec.constraints, limits);
+  });
+
+  test("a study without limits, or with none, keeps no list of them", () => {
+    assert.equal(checkCampaign(campaign()).design.spec.constraints, undefined);
+    const data = campaign();
+    data.design.spec.constraints = [];
+    assert.equal(checkCampaign(data).design.spec.constraints, undefined);
+  });
+
+  test("only the shape is checked here: Python reads each limit when it is used", () => {
+    assert.deepEqual(checkConstraints([{ expression: "Z + import <= 3", type: "curved", colour: "red", note: "" }]), [
+      { expression: "Z + import <= 3" },
+    ]);
+  });
+
+  test("a list that is not one of limits is refused, saying which limit is wrong", () => {
+    for (const [value, why] of [
+      ["T <= 190", /limits on the settings is not a list/],
+      [Array.from({ length: 9 }, () => ({ expression: "T <= 190" })), /limits on the settings is too long/],
+      [["T <= 190"], /limit 1 is not a limit/],
+      [[{ expression: 190 }], /limit 1 is not text/],
+      [[{ expression: "T".repeat(501) }], /limit 1 is not text/],
+      [[{ expression: "T <= 190\nP <= 2" }], /limit 1 is not one line of text/],
+      [[{ expression: "T <= 190" }, { expression: "P <= 2", note: "x".repeat(81) }], /limit 2's note is not text/],
+      [[{ expression: "T <= 190", note: "a\tb" }], /limit 1's note is not one line of text/],
+    ]) {
+      assert.throws(() => checkConstraints(value), why, JSON.stringify(value).slice(0, 60));
+    }
   });
 });
 

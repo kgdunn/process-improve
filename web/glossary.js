@@ -19,6 +19,9 @@ export const GLOSSARY = {
   categorical:
     "A factor with two labels rather than a range of numbers, such as supplier A and B: the first is coded -1, " +
     "the second +1. Only the two-level designs take one.",
+  limit:
+    "Some combinations of settings are unsafe, infeasible or not of interest. A limit rules them out: an " +
+    "inequality in the factors' own units, such as T + 25*P <= 250, which every run must meet.",
   "main-effect":
     "How much the response changes, on average over the other factors, when one factor goes from its low setting " +
     "to its high one.",
