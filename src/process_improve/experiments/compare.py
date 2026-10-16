@@ -266,10 +266,11 @@ class DesignComparison:
         Returns
         -------
         tuple[Measure, ...]
-            :data:`MEASURES` without a region; with one, the same rows with the
+            :data:`MEASURES` without a region, or with one that has no constraints (the
+            cube's exact moments are used then); otherwise the same rows with the
             descriptions of I and G saying they are taken over the region.
         """
-        if self.region is None:
+        if self.region is None or not self.region.is_constrained:
             return MEASURES
         return tuple(dataclasses.replace(m, description=_OVER_THE_REGION.get(m.key, m.description)) for m in MEASURES)
 

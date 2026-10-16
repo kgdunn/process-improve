@@ -538,10 +538,8 @@ def test_a_region_without_constraints_is_the_cube_exactly():
     region = result.pop("region")
     assert region == DesignRegion(HEAT).to_dict()
     over_cube.pop("region")
-    i_and_g = {"i", "g"}
-    measures, cube_measures = result.pop("measures"), over_cube.pop("measures")
-    assert [m for m in measures if m["key"] not in i_and_g] == [m for m in cube_measures if m["key"] not in i_and_g]
-    assert result == over_cube
+    assert result == over_cube, "the definitions of I and G too: they are the cube's exact moments and grid"
+    assert "uniform sample" not in {m.key: m.description for m in unlimited.measures}["i"]
 
 
 def test_the_comparison_records_its_region_and_says_what_i_and_g_are_over():
