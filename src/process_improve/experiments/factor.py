@@ -219,10 +219,16 @@ def as_constraints(constraints: Sequence[Constraint | dict | str] | None) -> lis
     Raises
     ------
     TypeError
-        For an item that is none of the three forms.
+        For an item that is none of the three forms, or a single limit passed on its
+        own instead of in a list (a string is itself a sequence, of its characters).
     """
     if constraints is None:
         return None
+    if isinstance(constraints, (str, dict, Constraint)):
+        raise TypeError(
+            "constraints must be a list of limits; wrap a single limit in a list: "
+            f"[{constraints!r}], not {constraints!r}."
+        )
     out: list[Constraint] = []
     for c in constraints:
         if isinstance(c, Constraint):

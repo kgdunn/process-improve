@@ -17,9 +17,9 @@ in actual units, written for a person to read (``"T + 25 * P <= 250"``):
 When no straight cut separates the two sets of settings, :func:`separating_constraint`
 raises :class:`NotSeparableError`, which names the settings that lie inside the other set.
 
-Only numpy, ``scipy.optimize`` (``linprog`` with HiGHS, ``nnls`` and SLSQP) and the
-standard library are used, and every step is deterministic, so a proposal is the same on
-every platform, Pyodide included.
+Only numpy, ``scipy.optimize`` (``linprog`` with HiGHS, ``nnls`` and SLSQP), pandas (to
+accept the settings as a DataFrame) and the standard library are used, and every step is
+deterministic, so a proposal is the same on every platform, Pyodide included.
 """
 
 from __future__ import annotations
@@ -57,6 +57,10 @@ _SNAP = 1e-6
 _MOVE = 0.01
 #: Most significant digits tried for the coefficients: at 15 digits a float is written as it is.
 _MAX_DIGITS = 15
+#: Significant digits the scaled coefficients are rounded to before fewer are tried. The solver's last-bit noise
+#: differs between platforms, so a coefficient exactly halfway between two candidates (22.5, rounded to two digits)
+#: would otherwise round up on one and down on another, and two equal coefficients could round apart.
+_CLEAN_DIGITS = 10
 #: Most significant digits a number of the limit through cut points is written with.
 _CUT_DIGITS = 12
 #: Distance (coded units) within which a point counts as a corner of the box or as equal to another point.
@@ -488,9 +492,15 @@ def _round_scaling(
     :func:`_gap`). The right-hand side is then the roundest number in the middle fifth of
     the gap between the two (see :func:`_roundest`), so every point lies strictly on its
     side.
+
+    Up to ``_CLEAN_DIGITS`` digits, the coefficients rounded are ``scaled`` first rounded to
+    ``_CLEAN_DIGITS`` digits, which removes the solver's last-bit noise: an exact tie then
+    rounds the same way on every platform (half to even), and equal coefficients round
+    alike. Only a cut that needs more digits than that is rounded from ``scaled`` itself.
     """
+    clean = round_significant(scaled, _CLEAN_DIGITS)
     for digits in range(1, _MAX_DIGITS + 1):
-        coefficients = round_significant(scaled, digits)
+        coefficients = round_significant(clean if digits <= _CLEAN_DIGITS else scaled, digits)
         coded = coefficients * half
         if np.abs(coded / np.abs(coded).sum() - target).sum() > _MOVE + 1e-12:
             continue
@@ -553,10 +563,14 @@ def separating_constraint(
     the smallest is 1, and also so the largest is 1, and each scaling is rounded to the
     fewest significant digits at which the coefficients (coded, scaled to a sum of sizes of
     1) move by at most 1% in total and every setting stays on its side; the scaling whose
-    coefficients take fewer digits to write is kept. The right-hand side is the roundest
-    number (a multiple of 1, 2 or 5 times a power of ten, as large as fits) in the middle
-    fifth of the gap between the two sets, nearest its middle. Every setting is then
-    checked, in exact decimal arithmetic, to be strictly on its side.
+    coefficients take fewer digits to write is kept. The rounding starts from the
+    coefficients rounded to 10 significant digits, so the solver's last-bit noise, which
+    differs between platforms, cannot decide which way a coefficient exactly halfway
+    between two candidates goes: it goes to the even one, and equal coefficients stay
+    equal. The right-hand side is the roundest number (a multiple of 1, 2 or 5 times a
+    power of ten, as large as fits) in the middle fifth of the gap between the two sets,
+    nearest its middle. Every setting is then checked, in exact decimal arithmetic, to be
+    strictly on its side.
 
     Parameters
     ----------

@@ -118,7 +118,10 @@ those changes.
 - **A region that describes its limits, in actual units.** `DesignRegion` now takes its
   constraints as `Constraint` objects, their dict form or bare expressions such as
   `"3*T + 5*D <= 600"`, and a box region reports: the share of the box it keeps
-  (`volume_fraction()`, from a fixed Sobol sample, so the same on every platform); whether
+  (`volume_fraction()`: exact for straight limits, in closed form for the factors one limit
+  ties together and from the polytope's volume for up to five tied together by several;
+  else from a fixed Sobol sample, so the same on every platform, which beside straight
+  limits counts only what the curved ones take from the share the straight ones leave); whether
   any setting is left (`is_empty()`); the range each factor can still reach
   (`implied_bounds()`); a central setting that can be run, to hold unplotted factors at
   (`centroid()`); the limits that remove nothing the others do not
@@ -149,8 +152,8 @@ those changes.
 - **Designs compared over the settings that can be run.** `compare_designs(...,
   region=)` takes a `DesignRegion` (or its dict) and computes I and G over it rather than
   over the cube: I averages the prediction variance over 20000 points drawn uniformly from
-  the region with a fixed seed, and G searches the region's support points, the grid's
-  points inside it and that sample. The other measures do not depend on where predictions
+  the region with a fixed seed, and G searches the region's vertices, its support points,
+  points on the boundary of a curved limit, the grid's points inside it and that sample. The other measures do not depend on where predictions
   are made and do not change. `DesignComparison` gains `region` (also in `to_dict()`) and a
   `measures` property whose definitions of I and G say "over the region"; a design with
   runs outside the region is noted. A mixture region, or one that names a factor the
@@ -192,6 +195,26 @@ those changes.
   function, so every linear constraint was treated as curved: the candidate set of a
   constrained optimal design lost the region's vertices, and its sampler fell back to a
   slower method.
+- **A constraint that cannot be evaluated over part of the factor box is treated as
+  curved.** Where `sqrt` or `log` of a negative number, or a division by zero, made the
+  constraint infinite or `NaN` at some probe point, the test for an affine constraint
+  passed it, and the secant plane through the points where it was finite stood in for it:
+  `0.5 <= A/B <= 2` with `B` from 0, or `sqrt(A - 120) + B <= 70` with `A` from 100, got
+  vertices, bounds and a hit-and-run sampler cut by a plane the constraint does not have.
+- **Samples of a thin region are the same on every platform.** When a region keeps under
+  about 1% of the box, its uniform samples come from hit-and-run chains whose directions
+  used eigenvectors of a covariance, and those have no fixed sign: native Python and
+  Pyodide took different steps, so I-optimal designs and averages over such a region
+  differed. The directions now use the Cholesky factor, which is unique.
+- **`DesignRegion.feasible` does not depend on how a straight limit is scaled.** It
+  compared a limit's value with `1e-9` in the limit's own units, so a point on the
+  boundary of `120*T + 33*D + 450*F <= 17000` could fail where the same limit divided by
+  100 passed. For a straight limit whose coded gradient is longer than 1, the tolerance
+  is now a distance of `1e-9` in coded units; nothing that passed before fails.
+- **A single limit passed outside a list is refused with a clear message.**
+  `constraints="T <= 160"` was read character by character and reported that a limit
+  named `'T'` is not an inequality; a lone string, dict or `Constraint` now raises a
+  `TypeError` that shows the list to write.
 
 ## [1.99.0] - 2026-10-15
 

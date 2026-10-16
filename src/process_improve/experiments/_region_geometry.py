@@ -8,6 +8,7 @@ so one tolerance (a distance) serves every row. They are kept free of other
 they run unchanged under Pyodide.
 
 - :func:`box_vertices`: every vertex of the cut box, by the double-description method;
+- :func:`box_share`: the share of the box the rows leave, exactly, when it can be had fast;
 - :func:`clip_square`: the square ``[-1, 1]^2`` clipped by half-planes (Sutherland-Hodgman);
 - :func:`convex_polygon`: the counter-clockwise hull of points in the plane, or the one
   or two points a degenerate hull reduces to;
@@ -19,6 +20,8 @@ they run unchanged under Pyodide.
 from __future__ import annotations
 
 import itertools
+import math
+from fractions import Fraction
 
 import numpy as np
 from scipy.spatial import ConvexHull, QhullError
@@ -30,6 +33,8 @@ TOL = 1e-9
 MAX_VERTICES = 2**16
 #: Pairs of vertices tested for adjacency at once (bounds the memory of the test).
 _PAIR_CHUNK = 512
+#: Entries of the (kept x removed) count of shared boundaries computed at once: 32 MB of float64.
+_PRODUCT_CELLS = 2**22
 #: The square ``[-1, 1]^2``, counter-clockwise from its lower-left corner.
 _SQUARE = np.array([[-1.0, -1.0], [1.0, -1.0], [1.0, 1.0], [-1.0, 1.0]])
 
@@ -51,8 +56,8 @@ def round_significant(values: np.ndarray, digits: int = 12) -> np.ndarray:
 
     Examples
     --------
-    >>> round_significant(np.array([250.00000000000009, 1.65e-14, -0.30000000000000004]))
-    array([ 2.5e+02,  1.65e-14, -3.0e-01])
+    >>> round_significant(np.array([250.00000000000009, 1.65e-14, -0.30000000000000004])).tolist()
+    [250.0, 1.65e-14, -0.3]
     """
     v = np.asarray(values, dtype=float)
     with np.errstate(divide="ignore"):
@@ -60,8 +65,10 @@ def round_significant(values: np.ndarray, digits: int = 12) -> np.ndarray:
     exponent = digits - 1 - np.where(np.isfinite(magnitude), magnitude, 0.0)
     power = 10.0 ** np.abs(exponent)
     # Dividing by an exact power of ten rounds once, so a whole number of units in the last kept digit comes
-    # back as the double nearest that decimal (multiplying by 10**-n would not: 10**-n is inexact).
-    return np.where(exponent >= 0, np.round(v * power) / power, np.round(v / power) * power)
+    # back as the double nearest that decimal (multiplying by 10**-n would not: 10**-n is inexact). Both
+    # branches are computed, and the one not taken can overflow for numbers near 1e300.
+    with np.errstate(over="ignore", invalid="ignore"):
+        return np.where(exponent >= 0, np.round(v * power) / power, np.round(v / power) * power)
 
 
 def box_vertices(a: np.ndarray, b: np.ndarray) -> np.ndarray:
@@ -130,9 +137,18 @@ def _cut(
     inner, outer = np.flatnonzero(inside), np.flatnonzero(outside)
     k = vertices.shape[1]
     weights = active.astype(float)
-    shared = weights[inner] @ weights[outer].T  # boundaries each (kept, removed) pair has in common
-    i, j = np.nonzero(shared >= k - 1)
-    u, w = inner[i], outer[j]
+    # The boundaries each (kept, removed) pair has in common, a block of kept vertices at a time: the whole
+    # (kept x removed) matrix would take gigabytes from 15 factors, where a cut through the centre leaves
+    # tens of thousands of vertices on each side.
+    rows_per_block = max(1, _PRODUCT_CELLS // len(outer))
+    removed = weights[outer].T
+    u_parts, w_parts = [np.zeros(0, dtype=int)], [np.zeros(0, dtype=int)]
+    for start in range(0, len(inner), rows_per_block):
+        block = inner[start : start + rows_per_block]
+        i, j = np.nonzero(weights[block] @ removed >= k - 1)
+        u_parts.append(block[i])
+        w_parts.append(outer[j])
+    u, w = np.concatenate(u_parts), np.concatenate(w_parts)
     common = active[u] & active[w]
     # A vertex on exactly k boundaries (a simple vertex) shares k - 1 independent ones with any vertex it is
     # joined to, and those k - 1 cut out a line holding just the two: the third-vertex test is needed only
@@ -155,6 +171,138 @@ def _no_third_vertex(weights: np.ndarray, common: np.ndarray) -> np.ndarray:
     need = common.sum(axis=1)
     holders = (weights @ common.T.astype(float)) >= need  # (vertices, pairs)
     return holders.sum(axis=0) == 2
+
+
+#: Up to this many factors, a group of factors that several rows tie together has its share from the
+#: volume of the convex hull of its vertices; from six, the hull takes from tenths of a second to many.
+HULL_FACTORS = 5
+
+#: Up to this many factors, a group under one row (or two parallel ones) has its share in closed form,
+#: a sum of ``2**k`` terms.
+CLOSED_FORM_FACTORS = 12
+
+
+def box_share(a: np.ndarray, b: np.ndarray) -> float | None:
+    """Return the share of the box ``[-1, 1]^k`` where ``a @ x <= b``, exactly, or None when it is not had fast.
+
+    The factors are split into the groups the rows tie together: a factor no row names
+    keeps its whole range, and the share is the product of the groups' shares. A group
+    under one row, or two parallel ones (a chained limit such as ``400 <= 3*T + 5*D <=
+    600``), has its share in closed form: the volume of a box cut by a half-space (Barrow
+    and Smith 1979), summed in exact rational arithmetic so that no term cancels another's
+    digits. A group of at most :data:`HULL_FACTORS` factors under several rows has the
+    volume of the convex hull of its vertices (see :func:`box_vertices`). Any other group
+    (more factors under several rows, or more than :data:`CLOSED_FORM_FACTORS` under one)
+    has no share here, and the caller samples the box instead.
+
+    Parameters
+    ----------
+    a : np.ndarray
+        Rows ``(m, k)`` of unit length (a zero row with ``b = -1`` stands for a row that
+        no point meets).
+    b : np.ndarray
+        Right-hand sides ``(m,)``.
+
+    Returns
+    -------
+    float or None
+        The share of the box's volume, between 0 and 1, rounded to 12 significant figures
+        so that the floating-point residue of the rows does not show (0.875, not
+        0.8749999999999998); None when no exact share is had.
+    """
+    a = np.atleast_2d(np.asarray(a, dtype=float))
+    b = np.asarray(b, dtype=float).reshape(-1)
+    named = a.any(axis=1)
+    if np.any(~named & (b < 0)):  # a row no point meets
+        return 0.0
+    a, b = a[named], b[named]
+    share = 1.0
+    for columns, rows in _groups(a):
+        part = _group_share(a[np.ix_(rows, columns)], b[rows])
+        if part is None:
+            return None
+        share *= part
+    return float(round_significant(np.array([share]))[0])
+
+
+def _groups(a: np.ndarray) -> list[tuple[np.ndarray, np.ndarray]]:
+    """Return the groups of columns that rows tie together, each with its rows; a column no row names is in none."""
+    parent = list(range(a.shape[1]))
+
+    def root(j: int) -> int:
+        while parent[j] != j:
+            parent[j] = parent[parent[j]]
+            j = parent[j]
+        return j
+
+    for row in a:
+        named = np.flatnonzero(row)
+        for j in named[1:]:
+            parent[root(int(j))] = root(int(named[0]))
+    rows: dict[int, list[int]] = {}
+    for r, row in enumerate(a):
+        rows.setdefault(root(int(np.flatnonzero(row)[0])), []).append(r)
+    return [(np.flatnonzero(a[members].any(axis=0)), np.array(members)) for members in rows.values()]
+
+
+def _group_share(a: np.ndarray, b: np.ndarray) -> float | None:
+    """Return the share of ``[-1, 1]^d`` where one group's rows hold, over its ``d`` columns; None when not had fast."""
+    d = a.shape[1]
+    normal = a[0]
+    sides = [
+        1
+        if np.allclose(row, normal, rtol=0, atol=1e-12)
+        else -1
+        if np.allclose(row, -normal, rtol=0, atol=1e-12)
+        else 0
+        for row in a
+    ]
+    if all(sides) and d <= CLOSED_FORM_FACTORS:
+        return _band_share(normal, b, sides)
+    if d > HULL_FACTORS:
+        return None
+    try:
+        vertices = box_vertices(a, b)
+    except ValueError:  # too many vertices to list
+        return None
+    if len(vertices) <= d or np.linalg.matrix_rank(vertices - vertices[0], tol=1e-9) < d:
+        return 0.0  # empty, or flat: no volume
+    try:
+        return min(1.0, float(ConvexHull(vertices).volume) / 2.0**d)
+    except QhullError:  # a precision failure the rank test did not foresee
+        return None
+
+
+def _band_share(normal: np.ndarray, b: np.ndarray, sides: list[int]) -> float:
+    """Return the share of ``[-1, 1]^d`` between parallel rows, each along ``normal`` (side 1) or against it (-1)."""
+    # The first row is the normal, so there is always a high side; a low one only from an opposite row.
+    high = min(bi for bi, side in zip(b, sides, strict=True) if side > 0)
+    lows = [-bi for bi, side in zip(b, sides, strict=True) if side < 0]
+    if lows and max(lows) >= high:
+        return 0.0
+    return _below(normal, high) - (_below(normal, max(lows)) if lows else 0.0)
+
+
+def _below(normal: np.ndarray, level: float) -> float:
+    """Return the share of ``[-1, 1]^d`` where ``normal @ x <= level``: the box cut by one half-space.
+
+    With ``x = 2u - 1``, and ``u_i`` turned into ``1 - u_i`` where the normal is negative,
+    the half-space is ``w @ u <= t`` with ``w = |normal| > 0`` over the unit cube, whose
+    volume is ``sum over subsets S of (-1)**|S| max(0, t - w(S))**m / (m! prod w)`` (Barrow
+    and Smith 1979). The sum is taken in fractions, which hold the float inputs exactly.
+    """
+    weights = [Fraction(abs(float(w))) for w in normal if w != 0]
+    t = (Fraction(float(level)) + sum(weights, Fraction(0))) / 2
+    if t <= 0:
+        return 0.0
+    if t >= sum(weights, Fraction(0)):
+        return 1.0
+    sums: list[tuple[Fraction, int]] = [(Fraction(0), 1)]
+    for w in weights:
+        sums += [(s + w, -sign) for s, sign in sums]
+    m = len(weights)
+    total = sum((sign * (t - s) ** m for s, sign in sums if s < t), Fraction(0))
+    return float(min(Fraction(1), max(Fraction(0), total / (math.factorial(m) * math.prod(weights)))))
 
 
 def clip_square(rows: list[tuple[np.ndarray, float]]) -> np.ndarray:
