@@ -5,8 +5,10 @@ The log has one line per request, written with the reader's address cut to its n
 (``factorial.caddy``). From it, for each day (UTC):
 
     visits     the page loaded in a browser
-    readers    distinct networks and browsers among those visits: approximate, since one network
-               can hold many readers and one reader can move between networks
+    catalog    the design catalog (factori.al/catalog/) loaded in a browser: a visit to the app,
+               counted apart from the page's
+    readers    distinct networks and browsers among the visits and the catalog's: approximate, since
+               one network can hold many readers and one reader can move between networks
     python     Python started in the page, which fetches bootstrap.py once Pyodide has loaded
     previews   the link card fetched by a chat or a social site, to show a link to the app
 
@@ -36,6 +38,8 @@ if TYPE_CHECKING:
 LOGS = "/var/log/caddy/factorial-access*.log*"
 SITE = "factori.al"
 PAGE = {"/", "/index.html"}
+#: The design catalog's page. factori.al/catalog is redirected to factori.al/catalog/, so it is not counted twice.
+CATALOG = {"/catalog/", "/catalog/index.html"}
 PYTHON = "/bootstrap.py"
 CARD = "/og-card.png"
 #: User agents that are not a reader at a browser: robots, link-preview fetchers, monitors, and
@@ -58,6 +62,7 @@ class Day:
     """What one day's requests add up to."""
 
     visits: int = 0
+    catalog: int = 0
     readers: set[tuple[str, str]] = field(default_factory=set)
     python: int = 0
     previews: int = 0
@@ -101,8 +106,11 @@ def tally(entries: Iterable[dict], since: datetime) -> tuple[dict[str, Day], Cou
             day.previews += 1
         elif NOT_A_READER.search(agent):
             continue
-        elif path in PAGE:
-            day.visits += 1
+        elif path in PAGE or path in CATALOG:
+            if path in CATALOG:
+                day.catalog += 1
+            else:
+                day.visits += 1
             day.readers.add((request.get("client_ip") or request.get("remote_ip", ""), agent))
             came_from = urlsplit(header(request, "Referer")).hostname
             if came_from and came_from != SITE and not came_from.endswith(f".{SITE}"):
@@ -114,18 +122,18 @@ def tally(entries: Iterable[dict], since: datetime) -> tuple[dict[str, Day], Cou
 
 def report(days: dict[str, Day], referrers: Counter[str], first: date, last: date) -> str:
     """Lay out one row per day from ``first`` to ``last``, the period's totals, and where visits came from."""
-    rows = [("Day", "Visits", "Readers", "Python", "Previews")]
+    rows = [("Day", "Visits", "Catalog", "Readers", "Python", "Previews")]
     everyone: set[tuple[str, str]] = set()
-    totals = [0, 0, 0]
+    totals = [0, 0, 0, 0]
     for n in range((last - first).days + 1):
         name = (first + timedelta(days=n)).isoformat()
         day = days.get(name, Day())
         everyone |= day.readers
-        counts = [day.visits, day.python, day.previews]
+        counts = [day.visits, day.catalog, day.python, day.previews]
         totals = [a + b for a, b in zip(totals, counts, strict=True)]
-        rows.append((name, str(day.visits), str(len(day.readers)), str(day.python), str(day.previews)))
-    rows.append(("All", str(totals[0]), str(len(everyone)), str(totals[1]), str(totals[2])))
-    width = [max(len(row[i]) for row in rows) for i in range(5)]
+        rows.append((name, *map(str, counts[:2]), str(len(day.readers)), *map(str, counts[2:])))
+    rows.append(("All", *map(str, totals[:2]), str(len(everyone)), *map(str, totals[2:])))
+    width = [max(len(row[i]) for row in rows) for i in range(len(rows[0]))]
     table = [
         "  ".join([row[0].ljust(width[0]), *(cell.rjust(w) for cell, w in zip(row[1:], width[1:], strict=True))])
         for row in rows
