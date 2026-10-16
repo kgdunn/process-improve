@@ -915,6 +915,39 @@ class TestLinearForms:
             assert not shadow[20:, :].any(), "nothing above B = 0.5 can be run"
 
 
+class TestFeasible:
+    @pytest.mark.parametrize(
+        ("limit", "length"),
+        [
+            ("300*T + 500*D <= 60000", 12500.0),
+            ("3*T + 5*D <= 600", 125.0),
+            ("(3*T + 5*D) / 100 <= 6", 1.25),
+            ("(3*T + 5*D) / 1000 <= 0.6", 0.125),
+            ("(3*T + 5*D) / 1e5 <= 0.006", 0.00125),
+        ],
+    )
+    def test_a_point_within_the_tolerance_passes_however_a_straight_limit_is_scaled(self, limit, length):
+        """One limit written five ways: within 1e-9 of its boundary, in coded units, a point passes every one.
+
+        Beyond that the scaling matters once the coded gradient is shorter than 1, where the tolerance stays
+        1e-9 in the limit's own units, a coded distance of 1e-9 divided by that length. The changelog and
+        feasible() once said that a limit multiplied through by any constant accepts the same points; a
+        point 2e-9 (coded) outside fails the first three forms and passes the last two.
+        """
+        region = DesignRegion(HEAT_FACTORS, [limit])
+        assert region._linear().scale[0] == pytest.approx(length)
+
+        # Coded, 3*T + 5*D - 600 is 75*t + 100*d - 25: its boundary passes through (0.5, -0.125), normal (0.6, 0.8).
+        def passes(distance: float) -> bool:
+            return bool(region.feasible(np.array([[0.5 + 0.6 * distance, -0.125 + 0.8 * distance]]))[0])
+
+        reach = 1e-9 / min(length, 1.0)  # how far outside, in coded units, a point still passes
+        assert passes(0.5e-9)
+        assert passes(0.9 * reach)
+        assert not passes(1.1 * reach)
+        assert passes(2e-9) == (length < 1)
+
+
 # ---------------------------------------------------------------------------
 # Vertices
 # ---------------------------------------------------------------------------
@@ -985,6 +1018,8 @@ class TestVertices:
             assert each.feasible((full - each._centre) / each._half).all()
         probes = np.random.default_rng(0).uniform(-1, 1, (2000, len(factors)))
         probes = np.vstack([probes, (region.vertices() - region._centre) / region._half + 1e-11])
+        # Equal only because divided by 100 these coded gradients stay longer than 1 (see TestFeasible).
+        assert min(region._linear().scale[0], scaled._linear().scale[0]) > 1
         np.testing.assert_array_equal(region.feasible(probes), scaled.feasible(probes))
 
     @pytest.mark.parametrize(
