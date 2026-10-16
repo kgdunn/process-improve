@@ -27,7 +27,7 @@ from process_improve.experiments import (
     generate_design,
 )
 from process_improve.experiments import _region_geometry as geometry
-from process_improve.experiments.compare import MEASURES, _curved_boundary, _model_exponents, _moments
+from process_improve.experiments.compare import MEASURES, _curved_boundary, _model_exponents, _moments, _within
 from process_improve.experiments.visualization.plots import create_plot
 
 #: The twelve design points behind the book's centre-run example: six half-rows and their negations.
@@ -570,6 +570,18 @@ def test_evaluate_design_reaches_every_vertex_of_a_region_with_many_limits():
         pd.DataFrame(runs, columns=region.names), "interactions", "g_efficiency", region=region, random_state=1
     )
     assert result["max_prediction_variance"] == pytest.approx(variance.max(), rel=1e-9)
+
+
+def test_a_climb_that_ends_outside_the_region_is_pulled_back_to_its_boundary():
+    """A local search's end a little outside a curved limit, or not a number, gives a setting the region accepts."""
+    region = DesignRegion(factors("AB"), ["A**2 + B**2 <= 1"])
+    start, inside = np.zeros(2), np.array([0.3, 0.4])
+    back = _within(region, start, np.array([1.0, 1.0]))
+    assert region.feasible(back[None, :])[0]
+    assert np.hypot(*back) == pytest.approx(1.0, abs=1e-9), "where the segment from the start leaves the disc"
+    assert back[0] == pytest.approx(back[1]), "on the segment back to the start"
+    assert _within(region, start, inside) is inside
+    assert _within(region, start, np.array([np.nan, 0.5])) is start
 
 
 @pytest.mark.parametrize("seed", range(10))
