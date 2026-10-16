@@ -5,9 +5,11 @@ from __future__ import annotations
 import doctest
 import importlib
 import itertools
+import json
 import math
 import time
 import tracemalloc
+import warnings
 from fractions import Fraction
 
 import numpy as np
@@ -700,6 +702,23 @@ class TestLinearForms:
             expression = f"{c1}*A - {c2}*B <= {rhs}"
             assert DesignRegion(factors, [expression]).linear_forms() == [({"A": c1, "B": -c2}, None, rhs)], expression
 
+    @pytest.mark.parametrize(
+        ("ranges", "expression", "form"),
+        [
+            ({"A": (0, 1)}, "2 <= 3 <= A * 1e-300", ({"A": 1e-300}, 3.0, None)),  # the coefficient came back NaN
+            ({"A": (0, 1), "B": (0, 1)}, "1e-300*A + 1e-300*B <= 2e-300", ({"A": 1e-300, "B": 1e-300}, None, 2e-300)),
+            ({"A": (0, 1), "B": (0, 1e12)}, "A + 1e-12*B <= 1", ({"A": 1.0, "B": 1e-12}, None, 1.0)),  # 1.0...02e-12
+            ({"T": (100, 150), "D": (20, 60)}, "T <= 1e40", ({"T": 1.0}, None, 1e40)),  # 9.999999999999999e+39
+        ],
+    )
+    def test_tiny_and_huge_numbers_are_the_ones_written(self, ranges, expression, form):
+        factors = [Factor(name=n, low=lo, high=hi) for n, (lo, hi) in ranges.items()]
+        with warnings.catch_warnings():
+            warnings.simplefilter("error")
+            forms = DesignRegion(factors, [expression]).linear_forms()
+        assert forms == [form]
+        json.dumps(forms, allow_nan=False)
+
     def test_a_huge_constant_is_handled(self):
         """The coded fit of ``T <= 1e300`` overflows; its rows then divided by a zero length."""
         region = DesignRegion(HEAT_FACTORS, ["T <= 1e300"])
@@ -1163,6 +1182,24 @@ class TestGeometry:
     def test_round_significant(self):
         got = geometry.round_significant(np.array([250.00000000000009, 1.65e-14, -0.30000000000000004, 0.0, 1e22 / 3]))
         assert got.tolist() == [250.0, 1.65e-14, -0.3, 0.0, 3.33333333333e21]
+
+    def test_round_significant_at_every_magnitude(self):
+        """Beyond 10**22 a power of ten is not a double, and beyond 10**308 it overflowed: 1e-300 came back NaN."""
+        values = [1e-300, 2.5e-297, 1e-290, 1e-12, 2e-12, 2.5e-12, 1e34, 1e40, 1e170, -1e300, 5e-324]
+        with warnings.catch_warnings():
+            warnings.simplefilter("error")
+            got = geometry.round_significant(np.array(values))
+            special = geometry.round_significant(np.array([math.inf, -math.inf, math.nan]))
+        assert got.tolist() == values
+        assert special[:2].tolist() == [math.inf, -math.inf]
+        assert math.isnan(special[2])
+        assert geometry.round_significant(np.array(1 / 3e-300), 3).item() == 3.33e299
+
+    def test_round_significant_to_figures_that_differ_by_value(self):
+        values = np.array([[1.23456789, 9.87654321], [1 / 3e-300, 2 / 3e-300]])
+        got = geometry.round_significant(values, np.array([2, 4]))
+        assert got.tolist() == [[1.2, 9.877], [3.3e299, 6.667e299]]
+        assert geometry.round_significant(np.array(2 / 3), 3).item() == 0.667  # a single number too
 
     def test_box_vertices_match_every_choice_of_k_boundaries(self):
         rng = np.random.default_rng(3)
