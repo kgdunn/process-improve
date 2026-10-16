@@ -85,12 +85,10 @@ def _affine_form(g: _Inequality, low: np.ndarray, high: np.ndarray) -> tuple[np.
         return None
     design = np.column_stack([points, np.ones(len(points))])
     coef = np.linalg.lstsq(design[: len(fit)], values[: len(fit)], rcond=None)[0]
-    if not np.all(np.isfinite(coef)):
-        return None
     with np.errstate(all="ignore"):
         error = float(np.max(np.abs(design @ coef - values)))
         tolerance = 1e-9 * (1.0 + float(np.max(np.abs(values))))
-    if not error <= tolerance:  # written so that a NaN fails the test too
+    if not error <= tolerance:  # written so that a NaN fails the test too, as from a coefficient that overflowed
         return None
     return coef[:k], -float(coef[k])
 

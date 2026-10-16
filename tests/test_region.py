@@ -647,13 +647,46 @@ class TestLinearForms:
             ("T <= 140 <= 200", ({"T": 1.0}, None, 140.0)),
             ("T <= 140 >= T", ({"T": 1.0}, None, 140.0)),
             ("abs(T) <= 140", ({"T": 1.0}, None, 140.0)),  # affine over the box, where T > 0
+            # Parts without factors: abs exactly, a fractional or large power in floating point
+            ("abs(-3)*T + 5*D <= 600", ({"T": 3.0, "D": 5.0}, None, 600.0)),
+            ("T + 2**0.5*D <= 300", ({"T": 1.0, "D": 1.41421356237}, None, 300.0)),
+            ("T <= 2**70 / 2**63", ({"T": 1.0}, None, 128.0)),
+            ("T <= 10**100 / 10**98", ({"T": 1.0}, None, 100.0)),
+            ("T + 0**0*D <= 300", ({"T": 1.0, "D": 1.0}, None, 300.0)),
         ],
     )
     def test_affine_limits(self, expression, form):
         assert DesignRegion(HEAT_FACTORS, [expression]).linear_forms() == [form]
 
     @pytest.mark.parametrize(
-        "expression", ["T*D <= 6000", "T <= D <= 2", "T <= 140 <= 100", "1 <= 2", "2 <= 1", "abs(T - 125) <= 10"]
+        ("ranges", "expression", "form"),
+        [
+            ({"T": (100, 150), "D": (20, 60)}, "T**2 - (T - 1)**2 <= 250", ({"T": 2.0}, None, 251.0)),
+            ({"T": (100, 150), "D": (20, 60)}, "T**1 + D <= 190", ({"T": 1.0, "D": 1.0}, None, 190.0)),
+            ({"T": (100, 150), "D": (1, 1 + 1e-12)}, "T*D <= 140", ({"T": 1.0}, None, 140.0)),
+            ({"T": (100, 150), "D": (1, 1 + 1e-12)}, "T/(D + 1) <= 70", ({"T": 0.5}, None, 70.0)),
+            # A number a double cannot hold, or cannot compute at all, on the way to one it can
+            ({"T": (100, 150), "D": (20, 60)}, "T + 1/exp(1000) <= 140", ({"T": 1.0}, None, 140.0)),
+            ({"T": (100, 150), "D": (20, 60)}, "T + 1/10**400 <= 140", ({"T": 1.0}, None, 140.0)),
+            ({"T": (100, 150), "D": (20, 60)}, "T + 1/(0**-1) <= 140", ({"T": 1.0}, None, 140.0)),
+        ],
+    )
+    def test_a_limit_affine_over_the_box_only_is_read_off_a_fit(self, ranges, expression, form):
+        """A product, quotient or power of factors, and a number past a double's range, are not read off the text."""
+        factors = [Factor(name=n, low=lo, high=hi) for n, (lo, hi) in ranges.items()]
+        assert DesignRegion(factors, [expression]).linear_forms() == [form]
+
+    @pytest.mark.parametrize(
+        "expression",
+        [
+            "T*D <= 6000",
+            "T <= D <= 2",
+            "T <= 140 <= 100",
+            "1 <= 2",
+            "2 <= 1",
+            "abs(T - 125) <= 10",
+            "1.7e308*(2*abs(abs(2*(T - 125)/25) - 1) - 1) <= 0",  # a zigzag whose fit overflows
+        ],
     )
     def test_limits_without_one_affine_form(self, expression):
         assert DesignRegion(HEAT_FACTORS, [expression]).linear_forms() == [None]
@@ -687,6 +720,17 @@ class TestLinearForms:
             ),
             ({"T": (100, 150), "D": (20, 60)}, "T <= 3e10", ({"T": 1.0}, None, 3e10)),  # was None: snapped against 3e10
             ({"T": (100, 150), "D": (20, 60)}, "sqrt(4)*T - 2**-1*D <= 10**2*3", ({"T": 2.0, "D": -0.5}, None, 300.0)),
+            # 2**0.5 is computed in floating point, then taken as its shortest decimal; a fit gives P 0.00999999999999
+            (
+                {"TK": (298, 348), "P": (1, 3)},
+                "TK + 0.01*P <= 240 * 2**0.5",
+                ({"TK": 1.0, "P": 0.01}, None, 339.41125497),
+            ),
+            (
+                {"Pa": (1e5, 2e5), "T": (20, 40)},
+                "Pa + 2**0.5*T <= 180000",
+                ({"Pa": 1.0, "T": 1.41421356237}, None, 180000.0),
+            ),
         ],
     )
     def test_the_coefficients_are_the_ones_written(self, ranges, expression, form):

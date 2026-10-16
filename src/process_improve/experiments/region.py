@@ -1144,7 +1144,7 @@ def _exact_affine(node: ast.expr) -> _Exact | None:
     if isinstance(node, ast.Call) and isinstance(node.func, ast.Name) and len(node.args) == 1:
         argument = _exact_affine(node.args[0])
         return None if argument is None or _varies(argument) else _exact_function(node.func.id, argument[1])
-    return None
+    return None  # pragma: no cover - parse_constraint has refused every other node before the text is read here
 
 
 def _varies(form: _Exact) -> bool:
