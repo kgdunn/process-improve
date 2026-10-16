@@ -1062,6 +1062,59 @@ def test_a_path_into_a_library_result_may_hold_keys_with_a_dot():
     assert reference_catalogue._read({"q": [1.0, 3.0]}, "q.max") == pytest.approx(3.0)
 
 
+BBD3 = [
+    *[[a, b, 0] for b in (-1, 1) for a in (-1, 1)],
+    *[[a, 0, c] for c in (-1, 1) for a in (-1, 1)],
+    *[[0, b, c] for c in (-1, 1) for b in (-1, 1)],
+    *[[0, 0, 0]] * 3,
+]  # the Box-Behnken design in three factors, three centre runs
+
+
+def test_a_design_is_checked_by_its_structure_projections_measures_and_whole_arrays(monkeypatch, tmp_path):
+    """Each design check kind on the Box-Behnken design, and a printed array compared entry by entry."""
+
+    def item(value, check):
+        return {"what": "x", "term": None, "value": value, "where": {"page": 1, "quote": "x"}, "check": check}
+
+    y = [1, 3, 2, 6, 2, 4, 3, 5, 1, 2, 3, 4, 3, 3, 3]
+    runs = {"columns": ["A", "B", "C", "y"], "rows": [[*r, v] for r, v in zip(BBD3, y, strict=True)], "coded": True}
+    info = {"kind": "design_metric", "metric": "information_matrix", "model": "A + B + C"}
+    cube = {"design_type": "full_factorial", "k": 3, "options": {"n_center_points": 0}}
+    expected = [
+        item("3", {"kind": "design_structure", "key": "n_center_runs"}),
+        item("7", {"kind": "design_structure", "key": "level_counts.0.min"}),  # four edge runs and three centres
+        item("6", {"kind": "design_structure", "key": "mirror_pairs"}),
+        item("1", {"kind": "projections", "size": 2, "key": "fraction_estimable"}),
+        item("3", {"kind": "projections", "size": 2, "key": "n_projections"}),
+        item("3", {"kind": "design_measure", "measure": "quadratic_projection"}),
+        item("3", {"kind": "design_measure", "measure": "projectivity", "design": cube}),
+        item([15, 8, 8, 8], {"kind": "normal_equations", "model": "A + B + C", "key": "xtx", "diagonal": True}),
+        item("0.125", info | {"key": "coefficient_variances", "terms": "[A-C]", "reduce": "max"}),
+        item("0.354", info | {"key": "coefficient_variances", "terms": "[A-C]", "reduce": "max", "root": True}),
+        item("0.442", info | {"metric": "g_efficiency", "result": "max_prediction_variance"}),
+        item("8", {"kind": "library_value", "function": "allocate_runs", "args": [1, 4], "key": "best.runs_b"}),
+        item("0.498", {"kind": "ci_half_width", "term": "A", "model": "A + B + C"}),
+        item([[8, 0], [0, 8]], info | {"key": "xtx"}),  # the wrong shape: X'X is 4 by 4
+        item("2", {"kind": "design_measure", "measure": "projectivity"}),  # not a two-level design: no projectivity
+        item("1", info | {"key": "n_runs", "terms": "A"}),  # a count, not a table of terms
+    ]
+    experiment = {
+        "name": "small",
+        "factors": [{"name": n, "type": "numeric", "low": -1, "high": 1} for n in "ABC"],
+        "responses": [{"name": "y"}],
+        "runs": runs,
+        "expected": expected,
+    }
+    source = {"key": "small", "authors": ["A"], "title": "t", "url": "u", "year": 2026, "read": "r"}
+    (tmp_path / "small.json").write_text(json.dumps({"source": source, "experiments": [experiment]}), encoding="utf-8")
+    monkeypatch.setattr(reference_catalogue, "_CATALOGUE_DIR", tmp_path)
+    report = reproduce_reference_catalogue("small")
+    assert report["agrees"].tolist() == [True] * 13 + [False] * 3
+    assert "shape (4, 4), printed (2, 2)" in report["found"].iloc[13]
+    assert report["found"].iloc[14] == "nan"
+    assert report["reason"].iloc[15].startswith("ValueError")
+
+
 def test_a_fraction_s_word_lengths_and_clear_effects_are_read_from_its_defining_relation():
     """Montgomery's design C for seven factors has the word lengths {4, 5, 5}; in I = BCDF, BC is aliased with DF."""
     from process_improve.experiments.reference_catalogue import _design_check
