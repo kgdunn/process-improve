@@ -9,7 +9,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from process_improve.experiments import Constraint, Factor, evaluate_design, generate_design
+from process_improve.experiments import Constraint, DesignRegion, Factor, evaluate_design, generate_design
 from process_improve.experiments.augment import augment_design
 from process_improve.experiments.designs_constrained import (
     _CHUNK_ROWS,
@@ -144,6 +144,49 @@ class TestCandidates:
         region = _Region(factors, [], [g for limit in limits for g in parse_constraint(limit, set(names))])
         _coded, _cats, counts = build_candidates(region, n_levels=3)
         assert counts["n_vertex_points"] == 758
+
+    @pytest.mark.parametrize(
+        ("ranges", "limit"),
+        [
+            ({"T": (100, 150), "D": (20, 60), "F": (1, 7)}, "120*T + 33*D + 450*F <= 17000"),
+            ({"T": (100, 150), "D": (20, 60)}, "30*T + 70*D <= 7000"),
+            ({"P": (101000, 101500), "T": (20, 40)}, "3*P + 7*T <= 304000"),
+        ],
+    )
+    def test_the_corners_of_a_steep_limit_are_kept(self, ranges, limit, caplog) -> None:
+        """A tolerance of 1e-9 in the limit's own units dropped corners lying 1e-12 (coded) off a steep boundary.
+
+        The first limit lost 3 of its 8 vertices from the candidates; given as candidates, the corners
+        DesignRegion reports lost as many, and given as fixed runs, one was said to lie outside.
+        """
+        factors = [Factor(name=n, low=lo, high=hi) for n, (lo, hi) in ranges.items()]
+        names = list(ranges)
+        reported = DesignRegion(factors, [limit])
+        corners = pd.DataFrame(reported.vertices(), columns=names)
+        coded = pd.DataFrame((reported.vertices() - reported._centre) / reported._half, columns=names)
+        region = _Region(factors, [], parse_constraint(limit, set(names)))
+        candidates, _cats, _counts = build_candidates(region)
+        held = {tuple(point) for point in candidates.round(9)}
+        assert all(tuple(vertex) in held for vertex in coded.to_numpy().round(9))
+        supplied = generate_design(
+            factors,
+            "d_optimal",
+            budget=len(names) + 1,
+            constraints=[limit],
+            model_type="main_effects",
+            candidates=corners,
+        )
+        assert supplied.metadata["n_candidates"] == len(corners)
+        with caplog.at_level(logging.WARNING):
+            generate_design(
+                factors,
+                "d_optimal",
+                budget=len(coded) + 1,
+                constraints=[limit],
+                model_type="main_effects",
+                fixed_runs=coded,
+            )
+        assert "outside the constrained region" not in caplog.text
 
     def test_a_region_with_too_many_vertices_lists_none(self) -> None:
         """Past the cap the exchange's cost would grow with every vertex, so none are taken, as before."""

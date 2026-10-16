@@ -33,7 +33,7 @@ import keyword
 import logging
 import math
 from collections.abc import Callable, Iterator, Mapping
-from dataclasses import dataclass, replace
+from dataclasses import dataclass, field, replace
 from typing import TYPE_CHECKING, Any
 
 import numpy as np
@@ -42,7 +42,7 @@ from scipy.stats import qmc
 
 from process_improve._random import check_random_state
 from process_improve.experiments._region_geometry import box_vertices
-from process_improve.experiments._uniform_sampling import UniformSampler
+from process_improve.experiments._uniform_sampling import UniformSampler, _affine_form
 from process_improve.experiments.factor import FactorType
 
 if TYPE_CHECKING:
@@ -282,6 +282,7 @@ class _Region:
     continuous: list[Factor]
     categorical: list[Factor]
     inequalities: list[_Evaluator]
+    _lengths: np.ndarray | None = field(default=None, init=False, repr=False, compare=False)
 
     def actual(self, coded: np.ndarray) -> dict[str, np.ndarray]:
         """Map coded continuous columns to ``{name: actual values}``."""
@@ -291,10 +292,34 @@ class _Region:
         }
 
     def slack(self, coded: np.ndarray) -> np.ndarray:
-        """Return the largest ``g`` per row: the point is feasible where this is ``<= 0``."""
+        """Return the largest ``g`` per row: the point is feasible where this is ``<= 0``.
+
+        A straight constraint whose gradient in coded units is longer than 1 has its value
+        divided by that length, a distance in coded units, so ``_FEASIBILITY_TOL`` allows the
+        same distance however the constraint is scaled, as
+        :meth:`~process_improve.experiments.region.DesignRegion.feasible` does. In the
+        constraint's own units, ``1e-9`` dropped vertices that lie ``1e-12`` (coded) from a
+        steep boundary such as ``120*T + 33*D + 450*F <= 17000``.
+        """
         env = self.actual(coded)
-        g = [np.broadcast_to(ineq(env), (coded.shape[0],)) for ineq in self.inequalities]
+        rows = coded.shape[0]
+        g = [
+            np.broadcast_to(ineq(env), (rows,)) / size
+            for ineq, size in zip(self.inequalities, self._gradient_lengths(), strict=True)
+        ]
         return np.max(g, axis=0) if g else np.full(coded.shape[0], -np.inf)
+
+    def _gradient_lengths(self) -> np.ndarray:
+        """Return per constraint its coded gradient's length when straight and longer than 1, else 1 (cached)."""
+        if self._lengths is None:
+            k = len(self.continuous)
+            ones = np.ones(k)
+            lengths = []
+            for g in self.inequalities:
+                form = _affine_form(_coded_inequality(self, g), -ones, ones) if k else None
+                lengths.append(max(math.hypot(*form[0]), 1.0) if form is not None else 1.0)
+            self._lengths = np.array(lengths, dtype=float)
+        return self._lengths
 
 
 #: The automatic grid holds at most ``max(_MIN_CANDIDATE_CAP, _CANDIDATES_PER_COEFFICIENT * p)`` candidates for a
@@ -439,8 +464,6 @@ def _polytope_vertices(region: _Region) -> np.ndarray:
     there is no linear constraint, or when the region has more than
     ``_MAX_VERTEX_CANDIDATES`` vertices.
     """
-    from process_improve.experiments._uniform_sampling import _affine_form  # noqa: PLC0415
-
     k = len(region.continuous)
     ones = np.ones(k)
     forms = [_affine_form(_coded_inequality(region, g), -ones, ones) for g in region.inequalities]

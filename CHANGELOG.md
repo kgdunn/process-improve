@@ -234,6 +234,15 @@ those changes.
   variance at a vertex. They are now found by cutting the box with one limit at a time, as
   `DesignRegion` finds them: the same vertices wherever the old way finished, and every
   one up to 8192 of them.
+- **Constrained optimal designs keep the corners of a steep straight limit.** Candidates,
+  supplied candidates and fixed runs were held to each limit with a tolerance of `1e-9` in
+  the limit's own units, so a corner lying `1e-12` (coded) off the boundary of a steep limit
+  failed it: `120*T + 33*D + 450*F <= 17000` lost 3 of its 8 vertices from the candidates,
+  the corners that `DesignRegion.vertices()` reports were dropped when supplied as
+  candidates (`30*T + 70*D <= 7000` then kept too few to fit a model), and one of them, as
+  a fixed run, was said to lie outside the region. As in `DesignRegion.feasible`, the
+  tolerance is now a distance of `1e-9` in coded units for a straight limit whose coded
+  gradient is longer than 1.
 - **A constraint that cannot be evaluated over part of the factor box is treated as
   curved.** Where `sqrt` or `log` of a negative number, or a division by zero, made the
   constraint infinite or `NaN` at some probe point, the test for an affine constraint
