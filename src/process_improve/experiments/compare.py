@@ -44,8 +44,9 @@ from typing import TYPE_CHECKING, Any
 
 import numpy as np
 import pandas as pd
+from scipy.optimize import minimize
 
-from process_improve.experiments._uniform_sampling import _TOL
+from process_improve.experiments._uniform_sampling import _TOL, _Inequality
 from process_improve.experiments.designs_utils import RESERVED_COLUMN_NAMES
 from process_improve.experiments.evaluate import _coefficient_power
 from process_improve.experiments.factor import DesignResult, Factor, FactorType
@@ -83,6 +84,18 @@ _REGION_SEED = 0
 #: sample, a ray in a random direction (a generator seeded with :data:`_REGION_SEED` + 1) to the
 #: box's surface, bisected this many times where the region rejects its far end.
 _BISECTIONS = 40
+
+#: Over a region with a curved limit, each design's G is then refined by local searches (SLSQP)
+#: for a larger prediction variance: at most this many, each of at most :data:`_ASCENT_STEPS`
+#: iterations. They start from the :data:`_CANDIDATES` points of G's search where the design's
+#: variance is largest, each start farther than :data:`_APART` (in coded units) from those before it.
+_ASCENTS = 8
+_ASCENT_STEPS = 100
+_CANDIDATES = 1024
+_APART = 0.5
+
+#: The step of the differences a curved limit's slope is taken from, in coded units.
+_SLOPE_STEP = 1e-6
 
 #: A column whose centred norm is below this, relative to the run count, is constant.
 _CONSTANT = 1e-9
@@ -248,7 +261,8 @@ class DesignComparison:
         column that does not vary. The block of squares and interactions is the one
         ``"max_r"`` reads.
     g_points : str
-        The points over which G was searched, shared by every design.
+        The points over which G was searched, shared by every design, and over a region
+        with a curved limit the local searches that go on from them for each design.
     region : DesignRegion or None
         The region I and G were taken over, as it was given; ``None`` for the cube
         :math:`[-1, 1]^k`.
@@ -379,7 +393,8 @@ class _Model:
     terms: tuple[str, ...]
     kinds: tuple[str, ...]  # "intercept", "main", "interaction" or "quadratic"
     moments: np.ndarray  # (p, p) averages of the products of the terms over the cube, or over the region
-    grid: np.ndarray  # (n_points, p) the model's columns at the points G is searched over
+    points: np.ndarray  # (n_points, k) the points G is searched over, in coded units
+    grid: np.ndarray  # (n_points, p) the model's columns at those points
     g_points: str
     region: DesignRegion | None = None  # the region over the designs' factors, None for the cube
 
@@ -453,7 +468,9 @@ def _region_points(region: DesignRegion, k: int) -> tuple[np.ndarray, np.ndarray
     cube's own grid (see :func:`_g_points`) that lie in the region, and the sample. The
     support points alone miss vertices once there are too many ways of choosing ``k``
     boundaries to try (8 factors and 5 limits), and G, a maximum, usually sits at one.
-    With a curved limit, G is also searched on its boundary (see :func:`_curved_boundary`).
+    With a curved limit, G is also searched on its boundary (see :func:`_curved_boundary`),
+    and then by local searches from the points where each design's variance is largest
+    (see :func:`_ascent`).
     """
     sample = region.sample(_REGION_SAMPLES, np.random.default_rng(_REGION_SEED))
     grid, described = _g_points(k)
@@ -471,6 +488,11 @@ def _region_points(region: DesignRegion, k: int) -> tuple[np.ndarray, np.ndarray
         parts.append(f"{len(boundary)} points on its boundary")
     parts.append(f"{len(sample)} points drawn uniformly from it")
     description = ", ".join(parts[:-1]) + " and " + parts[-1]
+    if region._linear().nonlinear:
+        description += (
+            f"; then, for each design, local searches for a larger variance from up to {_ASCENTS} of those "
+            "points where its variance is largest"
+        )
     return sample, np.vstack([corners, support, boundary, inside, sample]), description
 
 
@@ -532,6 +554,7 @@ def _build_model(k: int, model: str, names: Sequence[str], region: DesignRegion 
         terms=tuple(n for n, _ in named),
         kinds=tuple(kind for _, kind in named),
         moments=moments,
+        points=points,
         grid=_expand_in_chunks(points, exponents),
         g_points=description,
         region=region,
@@ -632,10 +655,146 @@ def _criteria(matrix: np.ndarray, model: _Model) -> tuple[dict[str, float], np.n
         "a": float(np.trace(inverse) / p),
         "i": float(np.sum(inverse * model.moments)),
         "e": float(np.linalg.eigvalsh(information).min()),
-        "g": float(prediction.max()),
+        "g": float(max(prediction.max(), _ascent(inverse, prediction, model))),
         "d": float(math.exp(log_det / p)),
     }
     return criteria, np.diag(inverse)
+
+
+def _ascent(inverse: np.ndarray, prediction: np.ndarray, model: _Model) -> float:
+    """Return the largest prediction variance that local searches find over a region with a curved limit.
+
+    There the largest variance usually sits where the curved boundary meets faces of the
+    box. With a limit on three of five factors, that is on the curved surface with the other
+    two factors at their bounds, or with one of them at a setting inside its range. A fixed
+    set of points does not reach such places, and the largest variance over G's points came
+    out up to 12% below theirs. So from the points of G's search where this design's
+    variance is largest (see :func:`_starts`), SLSQP climbs the variance
+    :math:`f(x)^T M^{-1} f(x)`, with its exact gradient, inside the box and the limits. A
+    search may end a few 1e-9 outside a limit; it then counts at the last point of the region
+    on its way back to where it started (see :func:`_within`), so a search that fails leaves
+    G as the largest variance over its points.
+
+    Parameters
+    ----------
+    inverse : np.ndarray
+        :math:`M^{-1}`, ``(p, p)``.
+    prediction : np.ndarray
+        The design's prediction variance at each of ``model.points``.
+    model : _Model
+        The model, with the region the variance is searched over.
+
+    Returns
+    -------
+    float
+        The largest variance found, or ``-inf`` without a region with a curved limit.
+    """
+    region = model.region
+    if region is None or not region._linear().nonlinear:
+        return -math.inf
+    rows = region._linear()
+    k = model.exponents.shape[1]
+    constraints = [_curved_limit(g, k) for g in rows.nonlinear]
+    if len(rows.b):
+        constraints.append({"type": "ineq", "fun": lambda x: rows.b - rows.a @ x, "jac": lambda _: -rows.a})
+    largest = -math.inf
+    for start in _starts(model.points, prediction):
+        with np.errstate(all="ignore"):
+            found = minimize(
+                _negative_variance,
+                model.points[start],
+                args=(inverse, model.exponents, prediction[start]),
+                jac=True,
+                method="SLSQP",
+                bounds=[(-1.0, 1.0)] * k,
+                constraints=constraints,
+                options={"maxiter": _ASCENT_STEPS, "ftol": 1e-12},
+            )
+            end = _within(region, model.points[start], np.clip(found.x, -1.0, 1.0))
+        terms = _expand(end[None, :], model.exponents)[0]
+        largest = max(largest, float(terms @ inverse @ terms))
+    return largest
+
+
+def _within(region: DesignRegion, start: np.ndarray, end: np.ndarray) -> np.ndarray:
+    """Return ``end`` where the region accepts it, else a point it accepts on the segment back to ``start``.
+
+    :data:`_BISECTIONS` halvings of the segment from ``start``, a point of the region, to
+    ``end`` keep one of its ends in the region and the other out of it. Where the segment
+    leaves the region once, as it does in a convex region, the point is where it leaves,
+    next to ``end``. An ``end`` that is not finite gives ``start``.
+    """
+    if not np.all(np.isfinite(end)):
+        return start
+    if region.feasible(end[None, :])[0]:
+        return end
+    inside, outside = start, end
+    for _ in range(_BISECTIONS):
+        middle = (inside + outside) / 2.0
+        if region.feasible(middle[None, :])[0]:
+            inside = middle
+        else:
+            outside = middle
+    return inside
+
+
+def _starts(points: np.ndarray, prediction: np.ndarray) -> list[int]:
+    """Return where the local searches of :func:`_ascent` start: points of large variance, kept apart.
+
+    Going down the points from the largest variance, a point is taken when it lies farther
+    than :data:`_APART` from every point taken before it, until :data:`_ASCENTS` are taken,
+    so that the searches climb towards different local maxima rather than all towards one.
+    """
+    remaining = np.argsort(-prediction, kind="stable")[:_CANDIDATES]
+    taken: list[int] = []
+    while len(remaining) and len(taken) < _ASCENTS:
+        taken.append(int(remaining[0]))
+        remaining = remaining[np.linalg.norm(points[remaining] - points[taken[-1]], axis=1) > _APART]
+    return taken
+
+
+def _negative_variance(
+    x: np.ndarray, inverse: np.ndarray, exponents: np.ndarray, scale: float
+) -> tuple[float, np.ndarray]:
+    """Return minus the prediction variance at ``x`` and its gradient, both divided by ``scale``.
+
+    With :math:`v(x) = f(x)^T M^{-1} f(x)`, the gradient is :math:`2 J(x)^T M^{-1} f(x)`,
+    where :math:`J` holds the derivative of each model term with respect to each factor.
+    """
+    terms = _expand(x[None, :], exponents)[0]
+    weighted = inverse @ terms
+    return -float(terms @ weighted) / scale, -2.0 * (_term_slopes(x, exponents).T @ weighted) / scale
+
+
+def _term_slopes(x: np.ndarray, exponents: np.ndarray) -> np.ndarray:
+    r"""Return the derivative of each model term with respect to each factor at one point, ``(p, k)``.
+
+    The term :math:`\prod_l x_l^{e_l}` has the derivative
+    :math:`e_j x_j^{e_j - 1} \prod_{l \ne j} x_l^{e_l}` with respect to :math:`x_j`; a power
+    lowered below zero is only ever multiplied by :math:`e_j = 0`, so it is taken as zero.
+    """
+    k = exponents.shape[1]
+    lowered = np.clip(exponents[None, :, :] - np.eye(k, dtype=int)[:, None, :], 0, None)  # (k, p, k)
+    return (exponents.T * np.prod(x[None, None, :] ** lowered, axis=2)).T
+
+
+def _curved_limit(g: _Inequality, k: int) -> dict[str, Any]:
+    """Return a curved limit ``g(x) <= 0`` as an SLSQP inequality, its slope taken by differences inside the box.
+
+    Each factor is moved :data:`_SLOPE_STEP` up and down, but not past its bounds, where a
+    limit such as ``sqrt(T - 100)`` with ``T`` from 100 may not be evaluated.
+    """
+    moved = np.eye(k, dtype=bool)
+
+    def value(x: np.ndarray) -> np.ndarray:
+        return -np.asarray(g(x[None, :]), dtype=float).reshape(1)
+
+    def slope(x: np.ndarray) -> np.ndarray:
+        up, down = np.minimum(x + _SLOPE_STEP, 1.0), np.maximum(x - _SLOPE_STEP, -1.0)
+        values = np.asarray(g(np.vstack([np.where(moved, up, x), np.where(moved, down, x)])), dtype=float)
+        return ((values[k:] - values[:k]) / (up - down))[None, :]
+
+    return {"type": "ineq", "fun": value, "jac": slope}
 
 
 def _power(c: np.ndarray, df_residual: int, model: _Model, effect_size: float, alpha: float) -> dict[str, float | None]:
@@ -820,8 +979,11 @@ def compare_designs(
     :math:`G` is searched over the region's vertices, its support points (where its
     limits cross the edges of a 3-level grid), points on the boundary of a curved limit
     (one on a ray from each point of the sample), the points of the grid above that lie
-    in it, and the same sample. The other measures do not depend on where predictions are
-    made, and are the same with or without a region. A design with runs outside the
+    in it, and the same sample. With a curved limit, local searches (SLSQP) then climb
+    each design's prediction variance from up to 8 of those points where it is largest:
+    the largest variance usually sits where the curved boundary meets faces of the box,
+    which no fixed set of points reaches. The other measures do not depend on where
+    predictions are made, and are the same with or without a region. A design with runs outside the
     region is noted. Without a region, or with one that has no constraints, the cube's
     exact moments are used.
 

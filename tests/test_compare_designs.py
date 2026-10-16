@@ -563,6 +563,60 @@ def test_g_reaches_a_curved_boundary(seed):
     assert "points on its boundary" in comparison.g_points
 
 
+def sphere_meets_faces(free_levels: int) -> np.ndarray:
+    """Return points where the sphere A**2 + B**2 + C**2 = 1.5 meets faces of the box of A to E.
+
+    These are the sphere's surface inside the box with D and E at their bounds, and the arcs
+    where it meets a face of A, B or C (the other two on a circle of radius sqrt(0.5)) with D at
+    ``free_levels`` settings across its range and E at its bounds. Each point is moved inside
+    the sphere by a relative 1e-12, so that every one of them can be run.
+    """
+    radius = math.sqrt(1.5) * (1 - 1e-12)
+    polar, turn = (a.ravel() for a in np.meshgrid(np.linspace(0, np.pi, 181), np.linspace(0, 2 * np.pi, 361)))
+    surface = radius * np.column_stack([np.sin(polar) * np.cos(turn), np.sin(polar) * np.sin(turn), np.cos(polar)])
+    surface = surface[np.all(np.abs(surface) <= 1, axis=1)]
+    parts = [
+        np.column_stack([surface, np.tile(corner, (len(surface), 1))]) for corner in itertools.product([-1, 1], [-1, 1])
+    ]
+    angle = np.linspace(0, 2 * np.pi, 361)
+    circle = math.sqrt(0.5) * (1 - 1e-12) * np.column_stack([np.cos(angle), np.sin(angle)])
+    for face, sign, d, e in itertools.product(range(3), [-1, 1], np.linspace(-1, 1, free_levels), [-1, 1]):
+        arc = np.empty((len(circle), 5))
+        arc[:, face], arc[:, [j for j in range(3) if j != face]], arc[:, 3], arc[:, 4] = sign, circle, d, e
+        parts.append(arc)
+    return np.vstack(parts)
+
+
+@pytest.mark.parametrize(("model", "n_runs"), [("quadratic", 30), ("main_quadratic", 16)])
+def test_g_reaches_where_a_curved_limit_meets_faces_of_the_box(model, n_runs):
+    """With a limit on three of five factors, G sits where the curved boundary meets faces of the box.
+
+    For these designs that is on the sphere with D and E at their bounds (quadratic model), and
+    on an arc where it meets the face C = 1 with D inside its range (main effects and squares).
+    The boundary points, each on a ray from a point inside the region, reach the sphere with D
+    and E inside their ranges, and G came out 12% and 5% below the largest variance there; the
+    local searches from the points of largest variance now reach it.
+    """
+    names = list("ABCDE")
+    region = DesignRegion(factors(names), ["A**2 + B**2 + C**2 <= 1.5"])
+    runs = region.sample(n_runs, np.random.default_rng(1))
+    comparison = compare_designs({"inside": pd.DataFrame(runs, columns=names)}, model, region=region)
+    g = comparison.values[f"inside [n={n_runs}]"]["g"]
+    points = sphere_meets_faces(free_levels=41)
+    assert region.feasible(points).all()
+
+    def expand(x):
+        pairs = [x[:, i] * x[:, j] for i, j in itertools.combinations(range(5), 2)] if model == "quadratic" else []
+        return np.column_stack([np.ones(len(x)), x, *pairs, x**2])
+
+    f, design = expand(points), expand(runs)
+    densest = ((f @ np.linalg.inv(design.T @ design)) * f).sum(axis=1).max()
+    assert densest * (1 - 1e-12) <= g <= densest * (1 + 1e-3), "at least the scan's largest, and within 0.1% of it"
+    assert "local searches" in comparison.g_points
+    again = compare_designs({"inside": pd.DataFrame(runs, columns=names)}, model, region=region)
+    assert again.values[f"inside [n={n_runs}]"]["g"] == g, "the same on every run"
+
+
 def test_a_region_changes_only_i_and_g():
     region = DesignRegion(HEAT, [HEAT_LIMIT])
     designs = heat_designs()
