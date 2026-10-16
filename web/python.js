@@ -2,7 +2,20 @@
 // step, written from the page's state. Each panel shows its step after the steps it builds on,
 // so the code copied from any one of them runs as it is, in a script or a notebook.
 
-const repr = (value) => (typeof value === "string" ? JSON.stringify(value) : JSON.stringify(value).replace(/\btrue\b/g, "True").replace(/\bfalse\b/g, "False").replace(/\bnull\b/g, "None"));
+/**
+ * A value as Python reads it back: a string in double quotes, True, False and None, a number as
+ * the shortest text with its value, and a list or a dict with its items written the same way. A
+ * string is never rewritten, so a label such as "true or null" stays as it was typed.
+ */
+function repr(value) {
+  if (value === null || value === undefined) return "None";
+  if (typeof value === "boolean") return value ? "True" : "False";
+  if (typeof value === "number") return Number.isFinite(value) ? String(value) : "None";
+  if (typeof value === "string") return JSON.stringify(value);
+  if (Array.isArray(value)) return `[${value.map(repr).join(", ")}]`;
+  const items = Object.entries(value).filter(([, v]) => v !== undefined);
+  return `{${items.map(([key, v]) => `${JSON.stringify(key)}: ${repr(v)}`).join(", ")}}`;
+}
 
 /** Python keyword arguments from an object, in the order given, skipping undefined values. */
 const kwargs = (options) =>

@@ -23,6 +23,19 @@ describe("the design", () => {
     const code = designCode({ design_type: "d_optimal", factors: FACTORS, options: { a: true, b: false, c: null, d: undefined } });
     assert.match(code, /a=True, b=False\)/);
   });
+
+  test("a string is written as typed, even when it holds the words true, false or null", () => {
+    const factors = [{ name: "S", low: "true", high: "null or false", units: "" }];
+    const code = designCode({ design_type: "full_factorial", factors, options: { note: 'said "null"' } });
+    assert.match(code, /levels=\["true", "null or false"\]/);
+    assert.match(code, /note="said \\"null\\""\)/);
+  });
+
+  test("lists and dicts written item by item, as Python writes them", () => {
+    const options = { a: [1, 2.5, null, true], b: { x: [false], y: "null", z: undefined }, c: [[]] };
+    const code = designCode({ design_type: "d_optimal", factors: FACTORS, options });
+    assert.match(code, /a=\[1, 2\.5, None, True\], b=\{"x": \[False\], "y": "null"\}, c=\[\[\]\]\)/);
+  });
 });
 
 describe("the results", () => {
