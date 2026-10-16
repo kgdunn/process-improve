@@ -80,6 +80,7 @@ ALL_DESIGNS = (
     "full_factorial",
     "fractional_factorial",
     "plackett_burman",
+    "taguchi",
     "dsd",
     "box_behnken",
     "ccd",

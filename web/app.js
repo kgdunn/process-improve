@@ -748,6 +748,7 @@ function setDesignForm(spec) {
   // do not carry over.
   $("#n_replicates").value = options.n_replicates ?? 1;
   $("#n_blocks").value = options.n_blocks ?? 1;
+  $("#n_levels").value = String(options.n_levels ?? 2); // a Taguchi array at two levels stores none
   if (options.model_type) $("#model_type").value = options.model_type;
   // A resolution or a number of runs other than the page's own pick is kept, as if the reader had chosen it.
   const k = factorCount();
@@ -808,7 +809,7 @@ function refreshDesign() {
   } else if (option.disabled && numericOnly(option)) {
     hint.textContent =
       `${option.textContent} needs numeric factors, and ${listNames(labelled)} ${labelled.length === 1 ? "is" : "are"} ` +
-      "categorical: choose a full factorial, fractional factorial or Plackett-Burman design.";
+      "categorical: choose a full factorial, fractional factorial, Plackett-Burman or Taguchi design.";
   } else if (option.disabled) {
     hint.textContent = `${option.textContent} takes ${option.dataset.minFactors} to ${option.dataset.maxFactors} factors on this page; you have ${k}.`;
   } else {
@@ -840,6 +841,7 @@ function planKey() {
     n_center_points: $("#n_center_points").value,
     alpha: axialDistance($("#alpha").value, $("#alpha_value").value),
     resolution: $("#resolution").value,
+    n_levels: $("#n_levels").value,
     budget: $("#budget").value,
     n_replicates: $("#n_replicates").value,
     n_blocks: $("#n_blocks").value,
@@ -903,6 +905,7 @@ async function generate() {
     n_replicates: Number($("#n_replicates").value),
     n_blocks: Number($("#n_blocks").value),
     resolution: Number($("#resolution").value),
+    n_levels: Number($("#n_levels").value),
     budget: Number($("#budget").value),
     model_type: $("#model_type").value,
     constraints: currentLimits(),
@@ -2668,6 +2671,7 @@ $("#resolution").onchange = () => {
   resolutionEdited = true;
   markStale();
 };
+$("#n_levels").onchange = markStale;
 for (const id of ["#n_center_points", "#n_replicates", "#n_blocks"]) $(id).addEventListener("input", markStale);
 $("#generate").onclick = async () => {
   // While practising, the new runs are simulated from the same process, noise and seed, so the true process

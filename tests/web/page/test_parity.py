@@ -73,9 +73,15 @@ def test_every_link_to_the_book_is_extensionless_and_one_the_page_checked():
     assert links <= checked
 
 
+#: The designs the book has no page on, whose hint the page shows without a link.
+NO_BOOK_PAGE = {"taguchi"}
+
+
 def test_every_design_links_to_the_book(bootstrap):
     block = re.search(r"const BOOK_PAGES = \{(.*?)\};", source("app.js"), re.DOTALL).group(1)
-    assert set(bootstrap.DESIGNS) <= set(re.findall(r"^\s*(\w+):", block, re.MULTILINE))
+    linked = set(re.findall(r"^\s*(\w+):", block, re.MULTILINE))
+    assert set(bootstrap.DESIGNS) - NO_BOOK_PAGE <= linked
+    assert not NO_BOOK_PAGE & linked, "a design the book now covers links to its page"
 
 
 # --------------------------------------------------------------------------- the design settings
@@ -108,6 +114,14 @@ def test_the_replicates_and_blocks_boxes_take_what_bootstrap_takes(api, bootstra
 def test_the_resolutions_are_bootstrap_s(bootstrap):
     assert page().values("resolution") == [str(r) for r in bootstrap.RESOLUTIONS]
     assert page().selected("resolution") == str(bootstrap.DEFAULT_RESOLUTION)
+
+
+def test_the_levels_of_a_taguchi_array_are_bootstrap_s(api, bootstrap):
+    """The page offers the levels bootstrap takes, and opens on the one a design made without the option has."""
+    assert page().values("n_levels") == [str(n) for n in bootstrap.TAGUCHI_LEVELS]
+    made = api.ok("api_make_design", {"design_type": "taguchi", "factors": FACTORS})
+    assert "n_levels" not in made["spec"]["options"]
+    assert page().selected("n_levels") == str(bootstrap.TAGUCHI_LEVELS[0])
 
 
 def test_the_models_to_design_for_are_bootstrap_s(api, bootstrap):

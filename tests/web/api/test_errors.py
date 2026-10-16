@@ -165,7 +165,7 @@ REFUSALS: dict[str, tuple[str, Callable[[Example], dict], str]] = {
         _make(factors=[*FACTORS[:2], {"name": "S", "low": "A", "high": "B", "units": ""}]),
         (
             "The Box-Behnken design needs numeric factors, and S is categorical: choose a full factorial, "
-            "fractional factorial or Plackett-Burman design."
+            "fractional factorial, Plackett-Burman or Taguchi design."
         ),
     ),
     "a run at neither label": (
@@ -195,6 +195,16 @@ REFUSALS: dict[str, tuple[str, Callable[[Example], dict], str]] = {
         "api_make_design",
         lambda _: {"design_type": "dsd", "factors": factors_named("A", "B")},
         "The Definitive screening (DSD) design takes 3 to 12 factors on this page; you have 2.",
+    ),
+    "more factors than a Taguchi array on this page takes": (
+        "api_make_design",
+        lambda _: {"design_type": "taguchi", "factors": factors_named(*(f"X{i}" for i in range(13)))},
+        "The Taguchi orthogonal array design takes 2 to 12 factors on this page; you have 13.",
+    ),
+    "a Taguchi array at levels the page does not offer": (
+        "api_make_design",
+        _make(design_type="taguchi", n_levels=4),
+        "A Taguchi array runs each numeric factor at 2 levels or at 3 on this page.",
     ),
     "unknown axial distance": (
         "api_make_design",
@@ -359,11 +369,11 @@ REFUSALS: dict[str, tuple[str, Callable[[Example], dict], str]] = {
     ),
     "unknown process": ("api_simulate", _runs(scenario="rocket"), "Unknown process 'rocket'."),
     "no noise": ("api_simulate", _runs(sigma=0), "The noise standard deviation must be a number above 0."),
-    "no design for these factors": (
+    "no design for these factors": (  # 13 factors, one more than any design on the page takes
         "api_candidates",
         lambda _: {
             "factors": [
-                *({"name": f"X{i}", "low": -1, "high": 1} for i in range(11)),
+                *({"name": f"X{i}", "low": -1, "high": 1} for i in range(12)),
                 {"name": "S", "low": "A", "high": "B"},
             ],
         },

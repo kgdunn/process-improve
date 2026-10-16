@@ -244,6 +244,8 @@
                   data-hint="A fraction of the full factorial; its resolution says what is aliased with what.">Fractional factorial (2-level)</option>
                 <option value="plackett_burman" data-options="n_center_points n_replicates n_blocks" data-min-factors="2" data-max-factors="11"
                   data-hint="Main effects only, in a multiple of 4 runs plus center points; each main effect is partly or fully aliased with two-factor interactions.">Plackett-Burman screening</option>
+                <option value="taguchi" data-options="n_levels n_replicates n_blocks" data-min-factors="2" data-max-factors="12"
+                  data-hint="Main effects in a standard array of 4 to 36 runs, and at three levels each numeric factor's square; interactions are aliased with them. A categorical factor stays at its two levels.">Taguchi orthogonal array</option>
                 <option value="dsd" data-options="n_center_points n_replicates n_blocks" data-min-factors="3" data-max-factors="12"
                   data-hint="Three levels in 2k+1 runs (2k+3 for odd k); main effects clear of interactions and quadratics.">Definitive screening (DSD)</option>
                 <option value="box_behnken" data-options="n_center_points n_replicates n_blocks" data-min-factors="3" data-max-factors="7" selected
@@ -283,6 +285,12 @@
                 <option value="3">III: main effects aliased with two-factor interactions</option>
                 <option value="4" selected>IV: main effects clear of two-factor interactions</option>
                 <option value="5">V: two-factor interactions clear as well</option>
+              </select>
+            </label>
+            <label data-option="n_levels">Levels of each numeric factor
+              <select id="n_levels">
+                <option value="2" selected>2: low and high</option>
+                <option value="3">3: low, center and high</option>
               </select>
             </label>
             <label data-option="budget">Runs
