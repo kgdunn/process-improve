@@ -532,3 +532,110 @@ def design_classes(designs: dict[str, np.ndarray]) -> dict[str, str]:
             index = firsts.index(match)
             classes[name] = found if index == 0 else f"{found}-{index + 1}"
     return classes
+
+
+# --------------------------------------------------------------------------- what the runs are made of
+def _zero_count(column: np.ndarray) -> int:
+    """Return how many entries of a column are zero."""
+    return int(np.isclose(column, 0).sum())
+
+
+def _same_or_none(counts: list[int]) -> int | None:
+    """Return the one value every count shares, or ``None`` when they differ (or there are none)."""
+    return counts[0] if counts and all(c == counts[0] for c in counts) else None
+
+
+def design_structure(
+    coded: np.ndarray, names: Sequence[str] | None = None, blocks: np.ndarray | None = None
+) -> dict[str, Any]:
+    """Describe what a design's runs are made of: levels, middle-level zeros, centre runs, mirror pairs, replicates.
+
+    These are the counts a three-level screening design is described by (Núñez Ares and Goos,
+    2020): how often each factor sits at its middle level, and how often each product of two
+    three-level factors is zero, both counted over the runs that are not centre runs (``n0ME`` and
+    ``n0IE``). A centre run has every three-level factor at 0; a two-level factor, which has no
+    middle level, may take any value in it.
+
+    Parameters
+    ----------
+    coded : np.ndarray
+        The runs in coded units, one column per factor.
+    names : Sequence[str] or None
+        The factors' names; ``"x1"``, ``"x2"``, ... by default.
+    blocks : np.ndarray or None
+        Each run's block label, to count the runs in each block and say whether every factor is
+        balanced across the blocks (the same average level in every block, so the blocks are
+        orthogonal to the main effects).
+
+    Returns
+    -------
+    dict[str, Any]
+        - ``n_runs``, ``n_factors``, ``n_distinct_runs``;
+        - ``levels`` and ``level_counts``: each factor's distinct levels, and how often each occurs;
+        - ``n_two_level``, ``n_three_level``: how many factors have two and three levels;
+        - ``n_center_runs``: the runs with every three-level factor at 0;
+        - ``zeros``: ``main_effects``, each three-level factor's zeros, and ``interactions``, each
+          product of two three-level factors' zeros, both over the runs that are not centre runs,
+          with ``n0ME`` and ``n0IE``, the value they all share (``None`` when they differ);
+        - ``mirror_pairs``: how many pairs of the runs that are not centre runs are each other's
+          negative, and ``foldover``, whether every such run is in one;
+        - ``replicated``: the groups of runs (0-based) with the same settings, each of two or more;
+        - with ``blocks``, ``block_sizes`` (runs per block) and ``blocks_balanced``.
+
+    Examples
+    --------
+    >>> import numpy as np
+    >>> dsd = np.array([[0, 1, 1], [0, -1, -1], [1, 0, -1], [-1, 0, 1], [1, 1, 0], [-1, -1, 0], [0, 0, 0]])
+    >>> found = design_structure(dsd)
+    >>> found["n_center_runs"], found["zeros"]["n0ME"], found["mirror_pairs"], found["foldover"]
+    (1, 2, 3, True)
+    """
+    coded = np.asarray(coded, dtype=float)
+    n_runs, n_factors = coded.shape
+    names = list(names) if names is not None else [f"x{j + 1}" for j in range(n_factors)]
+    rounded = np.round(coded, 9)
+    levels = {name: sorted(set(rounded[:, j].tolist())) for j, name in enumerate(names)}
+    three = [j for j, name in enumerate(names) if len(levels[name]) == 3 and 0.0 in levels[name]]
+    centre = np.all(np.isclose(coded[:, three], 0), axis=1) if three else np.zeros(n_runs, dtype=bool)
+    rest = coded[~centre]
+    main = {names[j]: _zero_count(rest[:, j]) for j in three}
+    pairs = {
+        f"{names[a]}:{names[b]}": _zero_count(rest[:, a] * rest[:, b]) for a, b in itertools.combinations(three, 2)
+    }
+    remaining = Counter(map(tuple, np.round(rest, 9)))
+    mirror = 0
+    for row in list(remaining):
+        negative = tuple(0.0 - v + 0.0 for v in row)
+        while remaining[row] > 0 and remaining[negative] > 0 and (negative != row or remaining[row] > 1):
+            remaining[row] -= 1
+            remaining[negative] -= 1
+            mirror += 1
+    groups: dict[tuple[float, ...], list[int]] = {}
+    for i, row in enumerate(map(tuple, rounded)):
+        groups.setdefault(row, []).append(i)
+    out: dict[str, Any] = {
+        "n_runs": n_runs,
+        "n_factors": n_factors,
+        "n_distinct_runs": len(groups),
+        "levels": levels,
+        "level_counts": {name: dict(Counter(rounded[:, j].tolist())) for j, name in enumerate(names)},
+        "n_two_level": sum(len(v) == 2 for v in levels.values()),
+        "n_three_level": sum(len(v) == 3 for v in levels.values()),
+        "n_center_runs": int(centre.sum()),
+        "zeros": {
+            "main_effects": main,
+            "interactions": pairs,
+            "n0ME": _same_or_none(list(main.values())),
+            "n0IE": _same_or_none(list(pairs.values())),
+        },
+        "mirror_pairs": mirror,
+        "foldover": bool(len(rest) > 0 and 2 * mirror == len(rest)),
+        "replicated": [runs for runs in groups.values() if len(runs) > 1],
+    }
+    if blocks is not None:
+        labels = np.asarray(blocks)
+        sizes = Counter(labels.tolist())
+        means = [coded[labels == label].mean(axis=0) for label in sizes]
+        out["block_sizes"] = dict(sizes)
+        out["blocks_balanced"] = bool(np.allclose(means, coded.mean(axis=0)))
+    return out

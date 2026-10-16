@@ -76,6 +76,16 @@ These summarise the information matrix :math:`X^\top X` for the fitted model.
 - ``condition_number`` - conditioning of the model matrix.
 - ``scaled_condition_number`` - the same with each column scaled to unit length, so
   the factors' units do not count: 1 for orthogonal columns.
+- ``information_matrix`` - :math:`X^\top X` itself, entry by entry, with what is
+  read from it: its determinant, the D-criterion :math:`\det(X^\top X)^{1/p}`, the
+  eigenvalues and the E-criterion, the rank of :math:`X` and the residual degrees of
+  freedom :math:`N - \operatorname{rank}(X)`, and for an estimable model the inverse,
+  whose entries are the coefficients' variances and covariances in units of
+  :math:`\sigma^2`, its trace (the A-criterion) and that trace over :math:`p`. It needs
+  no responses, so a design's residual degrees of freedom are known before it is run.
+- ``estimable_interactions`` - how many of the two-factor interactions left out of the
+  model the design can estimate beside it: the rank the omitted interaction columns add
+  to :math:`X`.
 
 Term correlation
 ~~~~~~~~~~~~~~~~~
@@ -121,6 +131,48 @@ same region sample it reports:
 
 ``i_efficiency`` and ``g_efficiency`` are derived from this same region
 machinery, so they are consistent with the ``fds`` payload.
+
+Two options make the region average and maximum exact rather than sampled:
+
+- ``integration="exact"`` works out the average prediction variance over the cube as
+  :math:`\operatorname{trace}((X^\top X)^{-1} W)`, with :math:`W` the cube's moment
+  matrix, by Gauss-Legendre quadrature. It is exact for a model of degree up to four in
+  each factor, and independent of the random sample.
+- ``max_search="optimize"`` climbs from the best sampled and corner points by a compass
+  search inside the cube. The largest prediction variance of a design's projection often
+  lies inside a face or an edge, where a sample can miss it and overstate the
+  G-efficiency.
+
+.. code-block:: python
+
+   exact = evaluate_design(
+       design,
+       model=model,
+       metric=["average_prediction_variance", "g_efficiency", "information_matrix"],
+       integration="exact",
+       max_search="optimize",
+   )
+
+Projections
+~~~~~~~~~~~
+
+A screening design is often judged by what it can do once most factors turn out not
+to matter: the runs already made are then a design in the few that do.
+:func:`~process_improve.experiments.evaluate_projections` evaluates a design on every
+projection onto a given number of its factors, or on a given number from each group
+of factors, and reports how many projections estimate the model (the projection
+estimation capacity) and each metric's average over them:
+
+.. code-block:: python
+
+   from process_improve.experiments import evaluate_projections
+
+   found = evaluate_projections(design, 3, model="quadratic", metric=["d_efficiency", "g_efficiency"])
+   found["n_estimable"], found["n_projections"], found["mean"]["d_efficiency"]
+
+Under ``model="quadratic"`` a projection's model squares only the factors it runs at
+three or more levels, so a mixed-level design's two-level factors enter by their main
+effects and interactions alone.
 
 Power
 ~~~~~

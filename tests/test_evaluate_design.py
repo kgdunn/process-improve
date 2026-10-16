@@ -1392,3 +1392,102 @@ def test_generate_and_evaluate_mixed_level_design() -> None:
     assert metrics["degrees_of_freedom"]["model"] > 0
     assert metrics["fds"] is not None
     assert metrics["fds"]["average_prediction_variance"] > 0
+
+
+# ---------------------------------------------------------------------------
+# The information matrix, the estimable interactions, and exact region values
+# ---------------------------------------------------------------------------
+
+THREE_RUNS = pd.DataFrame({"x": [-1.0, 0.0, 1.0]})
+ONE_FACTOR_QUADRATIC = "x + I(x ** 2)"
+
+
+class TestInformationMatrix:
+    def test_a_saturated_quadratic_in_one_factor(self) -> None:
+        """Three runs at -1, 0 and +1: |M| = 4, trace(M^-1) = 3 and the smallest eigenvalue 0.44."""
+        found = evaluate_design(THREE_RUNS, model=ONE_FACTOR_QUADRATIC, metric="information_matrix")[
+            "information_matrix"
+        ]
+        assert found["xtx"] == [[3.0, 0.0, 2.0], [0.0, 2.0, 0.0], [2.0, 0.0, 2.0]]
+        assert found["determinant"] == pytest.approx(4.0)
+        assert found["d_criterion"] == pytest.approx(4.0 ** (1 / 3))
+        assert found["a_criterion"] == pytest.approx(3.0)
+        assert found["e_criterion"] == pytest.approx(0.4384, abs=1e-4)
+        np.testing.assert_allclose(found["inverse"], [[1.0, 0.0, -1.0], [0.0, 0.5, 0.0], [-1.0, 0.0, 1.5]], atol=1e-12)
+        assert found["coefficient_variances"]["I(x ** 2)"] == pytest.approx(1.5)
+        assert (found["rank"], found["n_parameters"], found["residual_df"]) == (3, 3, 0)
+        assert not found["is_diagonal"]
+
+    def test_a_model_the_runs_cannot_estimate_has_no_inverse(self) -> None:
+        """The full 2^3 model on the half fraction's four runs: rank 4 of 8 columns, determinant 0."""
+        half = pd.DataFrame({"A": [-1, 1, -1, 1], "B": [-1, -1, 1, 1], "C": [1, -1, -1, 1]}, dtype=float)
+        found = evaluate_design(half, model="A * B * C", metric="information_matrix")["information_matrix"]
+        assert (found["rank"], found["n_parameters"], found["determinant"], found["d_criterion"]) == (4, 8, 0.0, 0.0)
+        assert "inverse" not in found
+        assert found["residual_df"] == 0
+
+    def test_an_orthogonal_design_has_a_diagonal_information_matrix(self) -> None:
+        found = evaluate_design(_full_factorial_df(3), model="interactions", metric="information_matrix")
+        assert found["information_matrix"]["is_diagonal"]
+        assert found["information_matrix"]["determinant"] == pytest.approx(8.0**7)
+
+
+class TestEstimableInteractions:
+    def test_a_full_factorial_estimates_every_interaction_beside_its_main_effects(self) -> None:
+        found = evaluate_design(_full_factorial_df(3), model="main_effects", metric="estimable_interactions")
+        assert found["estimable_interactions"]["n_estimable"] == 3
+        assert found["estimable_interactions"]["n_omitted"] == 3
+
+    def test_a_resolution_iii_fraction_estimates_none(self) -> None:
+        """In the 2^(3-1), AB is C: the interactions add nothing to the main effects' columns."""
+        half = pd.DataFrame({"A": [-1, 1, -1, 1], "B": [-1, -1, 1, 1], "C": [1, -1, -1, 1]}, dtype=float)
+        found = evaluate_design(half, model="main_effects", metric="estimable_interactions")
+        assert found["estimable_interactions"]["n_estimable"] == 0
+
+
+class TestExactRegionValues:
+    def test_the_exact_average_of_a_quadratic_in_one_factor(self) -> None:
+        """d(x) = 1 - 1.5x^2 + 1.5x^4 averages 1 - 0.5 + 0.3 = 0.8 over [-1, 1]."""
+        found = evaluate_design(
+            THREE_RUNS, model=ONE_FACTOR_QUADRATIC, metric="average_prediction_variance", integration="exact"
+        )
+        assert found["average_prediction_variance"] == pytest.approx(0.8, abs=1e-12)
+
+    def test_the_exact_average_of_a_square_with_a_categorical_factor(self) -> None:
+        """A 2^2 in x and a two-level label: d = (1 + x^2 + c^2... ) averaged exactly, the label's levels equally."""
+        square = _full_factorial_df(2)
+        found = evaluate_design(square, model="main_effects", metric="average_prediction_variance", integration="exact")
+        assert found["average_prediction_variance"] == pytest.approx(5 / 12, abs=1e-12)
+        labelled = square.assign(C=["lo", "hi", "hi", "lo"])
+        exact = evaluate_design(
+            labelled, model="main_effects", metric="average_prediction_variance", integration="exact"
+        )
+        sampled = evaluate_design(labelled, model="main_effects", metric="average_prediction_variance")
+        assert exact["average_prediction_variance"] == pytest.approx(sampled["average_prediction_variance"], rel=0.01)
+
+    def test_exact_integration_falls_back_to_the_sample_over_a_sphere(self) -> None:
+        found = evaluate_design(
+            _full_factorial_df(2),
+            model="main_effects",
+            metric="average_prediction_variance",
+            integration="exact",
+            region="spherical",
+        )
+        assert "sampled" in found["notes"]["average_prediction_variance"]
+
+    def test_the_searched_maximum_finds_a_peak_inside_the_region(self) -> None:
+        """Runs at the ends and near them, none in the middle: the variance peaks at x = 0, between samples."""
+        runs = pd.DataFrame({"x": [-1.0, -0.8, 0.8, 1.0]})
+        grid = np.linspace(-1, 1, 200_001)
+        model = np.column_stack([np.ones_like(grid), grid, grid**2])
+        design = np.column_stack([np.ones(4), runs["x"], runs["x"] ** 2])
+        largest = float(np.max(np.sum((model @ np.linalg.inv(design.T @ design)) * model, axis=1)))
+        searched = evaluate_design(runs, model=ONE_FACTOR_QUADRATIC, metric="g_efficiency", max_search="optimize")
+        sampled = evaluate_design(runs, model=ONE_FACTOR_QUADRATIC, metric="g_efficiency", n_samples=50)
+        assert searched["max_prediction_variance"] == pytest.approx(largest, rel=1e-9)
+        assert sampled["max_prediction_variance"] <= searched["max_prediction_variance"]
+
+    @pytest.mark.parametrize(("option", "value"), [("integration", "quadrature"), ("max_search", "grid")])
+    def test_an_unknown_option_is_refused(self, option: str, value: str) -> None:
+        with pytest.raises(ValueError, match=option):
+            evaluate_design(THREE_RUNS, model=ONE_FACTOR_QUADRATIC, **{option: value})

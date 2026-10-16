@@ -29,6 +29,7 @@ from process_improve.experiments.omars_trade_off import (
     omars_trade_off_table,
 )
 from process_improve.experiments.optimization import optimize_responses
+from process_improve.experiments.projections import evaluate_projections
 from process_improve.experiments.region import DesignRegion
 from process_improve.experiments.separating import (
     NotSeparableError,
@@ -78,6 +79,7 @@ __all__ = [
     "doe_knowledge",
     "evaluate_all",
     "evaluate_design",
+    "evaluate_projections",
     "expand_grid",
     "full_factorial",
     "gather",
