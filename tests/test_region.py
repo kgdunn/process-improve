@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import doctest
+import importlib
 import itertools
 import math
 
@@ -781,6 +783,14 @@ class TestSliceSlack:
 def test_box_diagnostics_refuse_a_mixture(method, args):
     with pytest.raises(ValueError, match="mixture proportions"):
         getattr(DesignRegion(MIXTURE, ["x0 <= 0.5"]), method)(*args)
+
+
+@pytest.mark.parametrize("module", ["_region_geometry", "region", "compare", "separating", "designs_constrained"])
+def test_the_examples_in_the_docstrings_print_what_they_show(module):
+    """No CI step runs doctests, so an example whose output drifted (an array repr, say) would go unnoticed."""
+    result = doctest.testmod(importlib.import_module(f"process_improve.experiments.{module}"), report=False)
+    assert result.attempted > 0
+    assert result.failed == 0
 
 
 class TestGeometry:

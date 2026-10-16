@@ -51,8 +51,8 @@ def round_significant(values: np.ndarray, digits: int = 12) -> np.ndarray:
 
     Examples
     --------
-    >>> round_significant(np.array([250.00000000000009, 1.65e-14, -0.30000000000000004]))
-    array([ 2.5e+02,  1.65e-14, -3.0e-01])
+    >>> round_significant(np.array([250.00000000000009, 1.65e-14, -0.30000000000000004])).tolist()
+    [250.0, 1.65e-14, -0.3]
     """
     v = np.asarray(values, dtype=float)
     with np.errstate(divide="ignore"):
