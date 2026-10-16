@@ -61,7 +61,7 @@ each one removes:
    for constraint in region.constraints:
        alone = DesignRegion(factors, [constraint])
        print(constraint.expression, f"{1 - alone.volume_fraction():.3f}")
-   # T + 25*P <= 250 0.127
+   # T + 25*P <= 250 0.125
    # T*F <= 3600 0.042
 
    print(region.is_empty())  # False
@@ -69,9 +69,12 @@ each one removes:
    print({name: round(value, 1) for name, value in middle.items()})  # {'T': 172.0, 'P': 1.9, 'F': 14.9}
 
 The straight limit removes the corner where temperature and pressure are both high, a
-prism whose exact share is 0.125, and the curved one a sliver at high temperature and
-high flow (0.041 exactly). The share is counted over a fixed Sobol sample of 16384
-points, so it is the same on every run and within about 0.005 of the exact value.
+prism whose share is 0.125, and the curved one a sliver at high temperature and high flow.
+With straight limits only, the share is exact: in closed form for factors one limit ties
+together, and from the volume of the polytope the limits leave for up to five factors tied
+together by several. A curved limit's share is counted over a fixed Sobol sample of 16384
+points instead, so it is the same on every run and within about 0.005 of the exact value
+(0.042 here, against 0.041 exactly).
 :meth:`~process_improve.experiments.region.DesignRegion.is_empty` says whether any
 setting is left at all, and
 :meth:`~process_improve.experiments.region.DesignRegion.centroid` gives a central setting

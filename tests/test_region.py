@@ -6,7 +6,9 @@ import doctest
 import importlib
 import itertools
 import math
+import time
 import tracemalloc
+from fractions import Fraction
 
 import numpy as np
 import pytest
@@ -16,6 +18,7 @@ from scipy.spatial import ConvexHull, QhullError
 
 from process_improve.experiments import Constraint, DesignRegion, Factor, rename_factors
 from process_improve.experiments import _region_geometry as geometry
+from process_improve.experiments._region_geometry import box_share
 from process_improve.experiments.designs import _as_constraints
 from process_improve.experiments.factor import as_constraints
 
@@ -266,7 +269,7 @@ def linear_regions(draw, max_factors: int = 4, max_limits: int = 4):
 
 class TestVolumeFraction:
     def test_the_heat_limit_keeps_five_eighths_of_the_box(self):
-        assert DesignRegion(HEAT_FACTORS, [HEAT]).volume_fraction() == pytest.approx(0.625, abs=0.005)
+        assert DesignRegion(HEAT_FACTORS, [HEAT]).volume_fraction() == 0.625, "exact, as for every straight limit"
 
     def test_a_circle_keeps_a_quarter_of_pi(self):
         kept = DesignRegion(UNIT_SQUARE, ["A**2 + B**2 <= 1"]).volume_fraction()
@@ -283,9 +286,10 @@ class TestVolumeFraction:
         assert DesignRegion(HEAT_FACTORS).volume_fraction() == 1.0
         assert DesignRegion(HEAT_FACTORS, ["T <= 110", "T >= 140"]).volume_fraction() == 0.0
 
-    def test_another_sample_size(self):
-        kept = DesignRegion(HEAT_FACTORS, [HEAT]).volume_fraction(n_samples=1000)
-        assert kept == pytest.approx(0.625, abs=0.01)
+    def test_another_sample_size_for_a_curved_limit(self):
+        kept = DesignRegion(UNIT_SQUARE, ["A**2 + B**2 <= 1"]).volume_fraction(n_samples=1000)
+        assert kept == pytest.approx(math.pi / 4, abs=0.01)
+        assert DesignRegion(HEAT_FACTORS, [HEAT]).volume_fraction(n_samples=1000) == 0.625, "a straight one is exact"
 
     def test_a_sample_size_below_one_is_refused(self):
         with pytest.raises(ValueError, match="at least 1"):
@@ -313,7 +317,101 @@ class TestVolumeFraction:
             exact = ConvexHull(vertices).volume / np.prod(highs - lows) if len(vertices) > len(lows) else 0.0
         except QhullError:  # a flat region: no volume
             exact = 0.0
-        assert DesignRegion(factors, expressions).volume_fraction() == pytest.approx(exact, abs=0.005)
+        assert DesignRegion(factors, expressions).volume_fraction() == pytest.approx(exact, abs=1e-9)
+
+
+#: Eight factors from -1 to +1, so a setting and its coded value agree.
+UNITS = [Factor(name=n, low=-1, high=1) for n in "ABCDEFGH"]
+
+
+def irwin_hall(m: int, t: float) -> float:
+    """Return the chance that the sum of ``m`` uniforms on [0, 1] is at most ``t``, in exact fractions."""
+    terms = (Fraction((-1) ** j * math.comb(m, j)) * (Fraction(t) - j) ** m for j in range(math.floor(t) + 1))
+    return float(sum(terms, Fraction(0)) / math.factorial(m))
+
+
+def hull_share(region: DesignRegion) -> float:
+    """Return the share of the box a region of straight limits leaves, from the hull of its vertices."""
+    coded = (region.vertices() - region._centre) / region._half
+    return ConvexHull(coded).volume / 2 ** len(region.names)
+
+
+class TestExactShare:
+    """With straight limits only, the share of the box is exact: in closed form, or from the polytope's hull."""
+
+    def test_a_corner_cut_off_is_exact_where_a_sample_is_not(self):
+        factors = [
+            Factor(name="T", low=150, high=200),
+            Factor(name="P", low=1, high=3),
+            Factor(name="F", low=10, high=20),
+        ]
+        region = DesignRegion(factors, ["T + 25*P <= 250"])
+        assert region.volume_fraction() == 0.875
+        assert float(np.mean(region._sample_allowed())) != 0.875, "the fixed sample is close, not exact"
+
+    def test_a_chained_limit_is_exact(self):
+        region = DesignRegion(HEAT_FACTORS, ["500 <= 3*T + 5*D <= 600"])
+        assert region.volume_fraction() == pytest.approx(11 / 24, abs=1e-12)
+        assert region.volume_fraction() == pytest.approx(hull_share(region), abs=1e-9), "corners rounded to 12 figures"
+
+    def test_factors_no_limit_ties_together_multiply_their_shares(self):
+        region = DesignRegion(UNITS[:4], ["A + B <= 1", "C + D <= 0"])
+        assert region.volume_fraction() == 7 / 16, "7/8 of A and B, and half of C and D"
+        assert DesignRegion(UNITS, ["A + B <= 1"]).volume_fraction() == 7 / 8, "factors no limit names keep it all"
+
+    def test_one_limit_over_eight_factors_is_in_closed_form(self):
+        """The sum of eight coded factors at most 2 is the sum of eight uniforms on [0, 1] at most 5."""
+        region = DesignRegion(UNITS, ["A + B + C + D + E + F + G + H <= 2"])
+        assert region.volume_fraction() == pytest.approx(irwin_hall(8, 5), rel=1e-12)
+        assert DesignRegion(UNITS, ["2 <= A + B + C + D + E + F + G + H"]).volume_fraction() == pytest.approx(
+            1 - irwin_hall(8, 5), rel=1e-12
+        )
+        assert DesignRegion(UNITS, ["A - B + 0.5*C - 2*D <= 0.3"]).volume_fraction() == pytest.approx(
+            float(np.mean(DesignRegion(UNITS, ["A - B + 0.5*C - 2*D <= 0.3"]).feasible(_uniform(400_000, 8)))),
+            abs=0.003,
+        ), "signs and weights of every size"
+
+    def test_up_to_five_factors_under_several_limits_it_is_the_hull_volume(self):
+        region = DesignRegion(UNITS[:5], ["A + B + C <= 1", "C - D + E >= -1", "A - E <= 1.5"])
+        assert region._exact_share() is not None
+        assert region.volume_fraction() == pytest.approx(hull_share(region), abs=1e-9)
+
+    def test_six_factors_under_several_limits_are_sampled(self):
+        region = DesignRegion(UNITS[:6], ["A + B + C <= 1", "C - D + E >= -1", "A - F <= 1.5"])
+        assert region._exact_share() is None, "the hull would take tenths of a second"
+        assert region.volume_fraction() == pytest.approx(hull_share(region), abs=0.005)
+
+    def test_a_curved_limit_is_sampled(self):
+        assert DesignRegion(UNIT_SQUARE, ["A**2 + B**2 <= 1"])._exact_share() is None
+
+    def test_a_region_with_no_volume_keeps_nothing(self):
+        assert DesignRegion(HEAT_FACTORS, ["T <= 120", "T >= 120"]).volume_fraction() == 0.0, "a flat slab"
+        assert DesignRegion(UNITS[:3], ["A + B <= -1.5", "A - B >= 1.5"]).volume_fraction() == 0.0, "nothing left"
+        assert DesignRegion(UNITS[:3], ["A + B + C <= 3", "A + B <= -2"]).volume_fraction() == 0.0, "a corner only"
+
+    def test_the_share_is_had_fast_in_eight_factors(self):
+        start = time.perf_counter()
+        DesignRegion(UNITS, ["A + B + C + D + E + F + G + H <= 2"]).volume_fraction()
+        DesignRegion(UNITS, ["A + B <= 1", "C + D + E <= 0", "C - E <= 1", "F - G + H <= 0.5"]).volume_fraction()
+        assert time.perf_counter() - start < 2.0
+
+
+def _uniform(n: int, k: int) -> np.ndarray:
+    """Return ``n`` settings drawn uniformly from the coded box ``[-1, 1]^k``, with a fixed seed."""
+    return np.random.default_rng(7).uniform(-1, 1, (n, k))
+
+
+class TestBoxShare:
+    def test_rows_no_point_meets_and_rows_naming_no_factor(self):
+        assert box_share(np.zeros((1, 2)), np.array([-1.0])) == 0.0
+        assert box_share(np.zeros((1, 2)), np.array([0.5])) == 1.0, "0 <= 0.5 holds everywhere"
+        assert box_share(np.zeros((0, 2)), np.zeros(0)) == 1.0
+
+    def test_a_half_space_that_misses_the_box_or_holds_all_of_it(self):
+        row = np.array([[1.0, 0.0]])
+        assert box_share(row, np.array([-2.0])) == 0.0
+        assert box_share(row, np.array([2.0])) == 1.0
+        assert box_share(row, np.array([0.0])) == 0.5
 
 
 class TestIsEmpty:
