@@ -618,6 +618,14 @@ describe("limits on the settings", () => {
     assert.equal(limitEffect({ expression: "T +", problem: "The limit 'T +' cannot be read." }, probes), "");
   });
 
+  test("a limit that rules out corners never rules out none, however thin a part the sample sees", () => {
+    // T * F <= 3990 cuts about 0.003% off the corners where T and F are high: too little for the fixed sample.
+    assert.equal(
+      limitEffect({ removed: 0, removes: [5, 7], redundant: null }, probes),
+      "Rules out less than 0.1% of your ranges: 2 of the 8 corners.",
+    );
+  });
+
   const factors = [
     { name: "T", low: 150, high: 200, units: "degC" },
     { name: "P", low: 1, high: 3, units: "bar" },
@@ -662,6 +670,15 @@ describe("limits on the settings", () => {
     const empty = limitsSummary(reply({ empty: true, kept: 0, refusal: "No setting in your ranges meets every limit." }), factors);
     assert.deepEqual(empty, [{ text: "No setting in your ranges meets every limit.", error: true }]);
     assert.deepEqual(limitsSummary(reply({ constraints: [] }), factors), []);
+  });
+
+  test("what the limits leave is never all while one rules something out, nor none while a setting can be run", () => {
+    const leave = (change) => limitsSummary(reply(change), factors)[0].text;
+    const sliver = [{ expression: "T * F <= 3990", redundant: null }];
+    assert.equal(leave({ constraints: sliver, kept: 1 }), "The limits leave more than 99.9% of your ranges to run.");
+    const nothing = [{ expression: "T <= 200", redundant: "alone" }];
+    assert.equal(leave({ constraints: nothing, kept: 1 }), "The limits leave 100% of your ranges to run.");
+    assert.equal(leave({ kept: 0 }), "The limits leave less than 0.1% of your ranges to run.");
   });
 });
 

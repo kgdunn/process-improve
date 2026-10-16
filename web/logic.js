@@ -558,7 +558,8 @@ export function limitEffect(entry, probes) {
   if (entry.problem) return "";
   if (entry.redundant === "alone") return "Rules out nothing within your ranges.";
   if (entry.redundant === "others") return "Rules out nothing the other limits do not.";
-  const share = `Rules out ${shareText(entry.removed)} of your ranges`;
+  // From here the limit rules out a part of the ranges, even one too thin for the sample or the rounding to see.
+  const share = `Rules out ${entry.removed > 0 ? shareText(entry.removed) : "less than 0.1%"} of your ranges`;
   if (!probes || !entry.removes) return `${share}.`;
   const corners = entry.removes.filter((row) => row !== probes.center).length;
   const centre = entry.removes.includes(probes.center) ? ", and their center" : "";
@@ -579,7 +580,11 @@ export function limitsSummary(reply, factors) {
   const own = reply.constraints.some((c) => c.problem === reply.refusal);
   const said = reply.refusal && !own ? [{ text: reply.refusal, error: true }] : [];
   if (!read.length || reply.empty) return said;
-  said.push({ text: `The limits leave ${shareText(reply.kept)} of your ranges to run.`, error: false });
+  // Some setting can be run, and a limit that rules out anything leaves less than all, however thin either part.
+  const cuts = read.some((c) => c.redundant !== "alone");
+  const kept =
+    reply.kept <= 0 ? "less than 0.1%" : cuts && reply.kept >= 1 ? "more than 99.9%" : shareText(reply.kept);
+  said.push({ text: `The limits leave ${kept} of your ranges to run.`, error: false });
   if (!reply.center_allowed) said.push({ text: "The center of the ranges cannot be run.", error: false });
   const units = Object.fromEntries(factors.map((f) => [f.name, f.units ?? ""]));
   for (const b of reply.bounds ?? []) {
