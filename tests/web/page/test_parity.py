@@ -12,7 +12,7 @@ import re
 
 import pytest
 
-from tests.web._support import ENTRY_POINT, FACTORS, javascript, page, source
+from tests.web._support import ENTRY_POINT, FACTORS, factors_named, javascript, page, source
 
 
 # --------------------------------------------------------------------------- the form's choices
@@ -257,6 +257,99 @@ def test_the_page_asks_for_a_center_run_where_bootstrap_needs_one(bootstrap, nod
     needed = [design == "dsd" or bootstrap._needs_center_run(design, alpha, k) for design, alpha, k in cases]
     assert asked == needed
     assert sum(needed) > len(bootstrap.DESIGNS) * 3, "the cases include typed distances that need a center run"
+
+
+# --------------------------------------------------------------------------- the trade-off grid
+#: Factor names for the grid's widest column, eleven factors; ``I`` is left out, as a defining relation uses it.
+GRID_NAMES = "ABCDEFGHJKL"
+
+#: The grid's columns, by number of factors: the library's searches take several seconds in the last two.
+GRID_COLUMNS = [pytest.param(k, marks=pytest.mark.slow) if k >= 10 else k for k in range(3, 12)]
+
+
+def trade_off_grid(node: str) -> tuple[list[int], list[int], list[list], str]:
+    """Return the grid ``web/logic.js`` holds: its run counts, its numbers of factors, its cells, and its Full."""
+    names = ["TRADE_OFF_RUNS", "TRADE_OFF_FACTORS", "TRADE_OFF", "FULL"]
+    runs, factors, cells, full = javascript(node, source("logic.js"), [(name, []) for name in names])
+    return runs, factors, cells, full
+
+
+def library_cell(label: str, full: str) -> int | str | None:
+    """Read a cell of ``trade_off_table`` as the grid holds it: a resolution, Full, or None.
+
+    The library writes a fraction ``2^(5-2) III``, the full factorial ``2^5 (full)``, and a run count
+    that repeats it ``2^5 (twice)``; the grid leaves those blank, as it does a design that does not exist.
+    """
+    from process_improve.experiments.trade_off import _ROMAN
+
+    if fraction := re.fullmatch(r"2\^\(\d+-\d+\) ([IVX]+)", label):
+        return next(r for r, roman in _ROMAN.items() if roman == fraction.group(1))
+    if re.fullmatch(r"2\^\d+ \(full\)", label):
+        return full
+    assert label == "" or re.fullmatch(r"2\^\d+ \((twice|\d+ times)\)", label), f"a cell the grid cannot show: {label}"
+    return None
+
+
+def test_the_trade_off_grid_spans_the_fractions_the_page_makes(bootstrap, node):
+    runs, factors, _cells, _full = trade_off_grid(node)
+    fraction = bootstrap.DESIGNS["fractional_factorial"]
+    assert factors == list(range(fraction["min_factors"], fraction["max_factors"] + 1))
+    assert runs == [4, 8, 16, 32, 64, 128]
+    assert javascript(node, source("logic.js"), [("RESOLUTIONS", [])]) == [list(bootstrap.RESOLUTIONS)]
+
+
+@pytest.mark.parametrize("k", GRID_COLUMNS)
+def test_the_trade_off_grid_is_the_library_s_trade_off_table(node, k):
+    """Each cell of the grid's column for k factors is what ``trade_off_table`` finds, so the two cannot drift."""
+    from process_improve.experiments.trade_off import trade_off_table
+
+    runs, factors, cells, full = trade_off_grid(node)
+    table = trade_off_table(runs=runs, factors=(k,), display=False)
+    column = factors.index(k)
+    assert [row[column] for row in cells] == [library_cell(table.loc[n, k], full) for n in runs]
+
+
+def test_each_cell_a_reader_can_pick_makes_exactly_its_runs_and_resolution(api, node):
+    """A pick sets a resolution or the full factorial; the design made from it has the cell's runs and resolution."""
+    runs, factors, cells, full = trade_off_grid(node)
+    places = [(n, k) for k in factors for n in runs]
+    picks = javascript(node, source("logic.js"), [("cellDesign", [n, k]) for n, k in places])
+    picked = 0
+    for (n, k), design in zip(places, picks, strict=True):
+        if design is None:
+            continue
+        cell = cells[runs.index(n)][factors.index(k)]
+        spec = {**design, "factors": factors_named(*GRID_NAMES[:k]), "n_center_points": 0}
+        made = api.ok("api_make_design", spec)
+        assert (made["n_runs"], made["facts"]["resolution"]) == (n, None if cell == full else cell), (n, k)
+        picked += 1
+    assert picked == 26, "every column offers the cells the page makes, and only those"
+
+
+def test_a_column_offers_every_design_the_page_makes_there_and_marks_it(api, bootstrap, node):
+    """The cells offered in a column are the page's fraction at each resolution it offers, and the full factorial.
+
+    A cell the page cannot make in its runs (resolution IV in 32 runs in seven factors, which the page makes
+    in 16) is not offered, and the cell the form's resolution makes is the one the grid marks.
+    """
+    runs, factors, _cells, _full = trade_off_grid(node)
+    places = [(n, k) for k in factors for n in runs]
+    offered = javascript(node, source("logic.js"), [("cellDesign", [n, k]) for n, k in places])
+    for k in factors:
+        resolutions = [r for r in bootstrap.RESOLUTIONS if r <= k]
+        made = [
+            api.ok(
+                "api_make_design",
+                {"design_type": "fractional_factorial", "factors": factors_named(*GRID_NAMES[:k]), "resolution": r},
+            )
+            for r in resolutions
+        ]
+        fractions = [m["n_runs"] - m["facts"]["center_runs"] for m in made]
+        marked = javascript(node, source("logic.js"), [("fractionRuns", [k, r]) for r in resolutions])
+        assert marked == fractions, f"{k} factors"
+        full_factorial = {2**k} if k <= bootstrap.DESIGNS["full_factorial"]["max_factors"] and 2**k in runs else set()
+        column = {n for (n, j), design in zip(places, offered, strict=True) if j == k and design is not None}
+        assert column == set(fractions) | full_factorial, f"{k} factors"
 
 
 # --------------------------------------------------------------------------- what the worker answers

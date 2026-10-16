@@ -14,6 +14,76 @@ export function nTerms(k, model) {
 /** The resolution a fraction in k factors opens on: IV, or III when three factors allow no more. */
 export const defaultResolution = (k) => Math.max(3, Math.min(4, k));
 
+/** The resolutions the page offers a fraction, lowest first; mirrors bootstrap.RESOLUTIONS. */
+export const RESOLUTIONS = [3, 4, 5];
+
+/** A resolution in roman numerals, as a fraction's is written. */
+export const ROMAN = { 3: "III", 4: "IV", 5: "V", 6: "VI", 7: "VII", 8: "VIII" };
+
+/** A cell of the trade-off grid whose runs are the full factorial's 2^k. */
+export const FULL = "full";
+
+/** The trade-off grid's rows, run counts, and its columns, numbers of factors: a fraction takes 3 to 11 on the page. */
+export const TRADE_OFF_RUNS = [4, 8, 16, 32, 64, 128];
+export const TRADE_OFF_FACTORS = [3, 4, 5, 6, 7, 8, 9, 10, 11];
+
+const F = FULL;
+const _ = null;
+
+/**
+ * The trade-off of a two-level fraction, a row per run count and a column per number of factors, as
+ * process_improve.experiments.trade_off.trade_off_table finds it: each cell is the resolution of the
+ * minimum-aberration fraction, FULL where the runs are the full factorial's, and null where the factors
+ * do not fit in the runs. Below the full factorial the runs would only repeat it, which Replicates does,
+ * so those cells are null too. tests/web/page/test_parity.py compares every cell with the library's.
+ */
+export const TRADE_OFF = [
+  // 3  4  5  6  7  8  9 10 11 factors
+  [3, _, _, _, _, _, _, _, _], // 4 runs
+  [F, 4, 3, 3, 3, _, _, _, _], // 8 runs
+  [_, F, 5, 4, 4, 4, 3, 3, 3], // 16 runs
+  [_, _, F, 6, 4, 4, 4, 4, 4], // 32 runs
+  [_, _, _, F, 7, 5, 4, 4, 4], // 64 runs
+  [_, _, _, _, F, 8, 6, 5, 5], // 128 runs
+];
+
+/** The grid's cell at a run count and a number of factors: a resolution, FULL, or null. */
+export function tradeOffCell(runs, k) {
+  const row = TRADE_OFF_RUNS.indexOf(runs);
+  const column = TRADE_OFF_FACTORS.indexOf(k);
+  return row < 0 || column < 0 ? null : TRADE_OFF[row][column];
+}
+
+/** What a cell shows: Full, its resolution in roman numerals, or nothing. */
+export const cellText = (cell) => (cell === FULL ? "Full" : cell === null ? "" : ROMAN[cell]);
+
+/** The band a cell is coloured by: the full factorial or resolution V and above, IV, III; null for no design. */
+export const cellBand = (cell) => (cell === null ? null : cell === FULL || cell >= 5 ? "high" : cell === 4 ? "iv" : "iii");
+
+/**
+ * The runs of the fraction the page makes in k factors at a resolution: the fewest of the grid's whose
+ * fraction reaches it, as the library takes the minimum-aberration fraction with the fewest runs that does.
+ * Null when the grid has no column for k.
+ */
+export function fractionRuns(k, resolution) {
+  const reaches = (runs) => typeof tradeOffCell(runs, k) === "number" && tradeOffCell(runs, k) >= resolution;
+  return TRADE_OFF_RUNS.find(reaches) ?? null;
+}
+
+/**
+ * The design a pick of a cell sets, or null for a cell the page cannot make: the full factorial for a FULL
+ * cell; else a fraction at the cell's resolution, or at the highest the page offers (V) for a higher one,
+ * when the page makes that resolution in exactly the cell's runs. In seven factors resolution IV takes 16
+ * runs, so the 32-run cell of resolution IV is not offered.
+ */
+export function cellDesign(runs, k) {
+  const cell = tradeOffCell(runs, k);
+  if (cell === null) return null;
+  if (cell === FULL) return { design_type: "full_factorial" };
+  const resolution = Math.min(cell, Math.max(...RESOLUTIONS));
+  return fractionRuns(k, resolution) === runs ? { design_type: "fractional_factorial", resolution } : null;
+}
+
 /** The select value that asks for an axial distance typed as a number. */
 export const AXIAL_DISTANCE = "distance";
 
