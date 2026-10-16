@@ -1166,6 +1166,187 @@ def _product_column(experiment: dict, check: dict, printed: str) -> tuple[str, b
     return found, not failing
 
 
+# --------------------------------------------------------------------------- the 3^k system, worked modulo 3
+_SUPERSCRIPTS = str.maketrans("²³⁴⁵", "2345")
+
+
+def _powers(word: str) -> tuple[int, ...]:
+    """Return a 3^k effect word's exponents, one per factor letter, reduced modulo 3: AB²C as (1, 2, 1).
+
+    The word may print its exponents as superscripts or digits (AB2C); a letter with none has 1.
+    """
+    exponents = [0] * len(_LETTERS)
+    for letter, exponent in re.findall(r"([A-Z])(\d*)", _plain(word).translate(_SUPERSCRIPTS)):
+        exponents[_LETTERS.index(letter)] += int(exponent or 1)
+    used = max((i for i, e in enumerate(exponents) if e % 3), default=-1) + 1
+    return tuple(e % 3 for e in exponents[:used])
+
+
+def _component(powers: tuple[int, ...]) -> tuple[int, ...]:
+    """Return a component of interaction in the book's form, its first exponent 1: A²B is squared to AB².
+
+    A word and its square name the same two-degree-of-freedom component, as L and 2L (mod 3) split
+    the runs into the same three groups.
+    """
+    first = next((e for e in powers if e), 1)
+    scaled = tuple(e * first % 3 for e in powers)  # the first exponent is 1 or 2, and 2 * 2 = 1 (mod 3)
+    return scaled[: max((i + 1 for i, e in enumerate(scaled) if e), default=0)]
+
+
+def _word_product(words: list[tuple[int, ...]], powers: list[int] | tuple[int, ...]) -> tuple[int, ...]:
+    """Return the product of 3^k effect words, each raised to its power: their exponents added modulo 3."""
+    size = max(map(len, words))
+    return tuple(
+        sum(p * (w[i] if i < len(w) else 0) for w, p in zip(words, powers, strict=True)) % 3 for i in range(size)
+    )
+
+
+def _component_text(powers: tuple[int, ...]) -> str:
+    return "".join(_LETTERS[i] + ("²" if e == 2 else "") for i, e in enumerate(powers) if e) or "I"
+
+
+def _component_product(_experiment: dict, check: dict, printed: str) -> tuple[str, bool]:
+    """Check a product of 3^k effect words, the exponents added modulo 3, as a generalized interaction or an alias.
+
+    ``check["words"]`` are multiplied, each raised to its ``check["powers"]`` (1 by default): the
+    aliases of A in a fraction with I = AB²C² are A(AB²C²) and A(AB²C²)².
+    """
+    words = [_powers(w) for w in check["words"]]
+    found = _component(_word_product(words, check.get("powers") or [1] * len(words)))
+    return _component_text(found), found == _component(_powers(printed))
+
+
+def _component_relation(_experiment: dict, check: dict, printed: str) -> tuple[str, bool]:
+    """Check the defining relation of a 3^(k-p) fraction made by the components ``check["words"]``, or its resolution.
+
+    The relation holds every product of the p words, each to the power 0, 1 or 2, but not all 0:
+    (3^p - 1)/2 components, as a word and its square are one. ``check["key"]`` is ``"relation"``,
+    compared with the printed ``I = AB²C = BCD = ...`` in any order, or ``"resolution"``, the
+    length of its shortest word, printed as a Roman numeral.
+    """
+    words = [_powers(w) for w in check["words"]]
+    products = (_word_product(words, powers) for powers in itertools.product(range(3), repeat=len(words)))
+    relation = {_component(product) for product in products if any(product)}
+    if check.get("key") == "resolution":
+        resolution = min(sum(1 for e in word if e) for word in relation)
+        return str(resolution), _ROMAN.get(printed.strip()) == resolution
+    listed = {_component(_powers(w)) for w in re.split(r"[=,]", printed) if _plain(w) not in ("", "I")}
+    return " = ".join(["I", *sorted(map(_component_text, relation))]), listed == relation
+
+
+def _levels_of(experiment: dict, names: list[str], positions: list[int] | None = None) -> np.ndarray:
+    """Return the runs' levels of three-level factors as 0, 1 and 2: each value's place in its factor's ``levels``."""
+    runs = experiment["runs"]
+    table = pd.DataFrame(runs["rows"], columns=runs["columns"])
+    if positions is not None:
+        table = table.iloc[[p - 1 for p in positions]]
+    factors = {f["name"]: [str(level) for level in f["levels"]] for f in experiment["factors"]}
+    return np.column_stack([table[name].map(lambda v, n=name: factors[n].index(str(v))) for name in names])
+
+
+def _contrast_values(experiment: dict, check: dict, positions: list[int] | None = None) -> np.ndarray:
+    """Return each run's values of the defining contrasts L = a1 x1 + a2 x2 + ... (mod 3) of ``check["words"]``.
+
+    The factor letters A, B, C, ... are the entry's factors in order, or ``check["factors"]``.
+    """
+    names = check.get("factors") or [f["name"] for f in experiment["factors"]]
+    levels = _levels_of(experiment, names, positions)
+    words = [_powers(w) for w in check.get("words") or [check["word"]]]
+    return np.column_stack([levels[:, : len(w)] @ np.asarray(w) % 3 for w in words])
+
+
+def _component_blocks(experiment: dict, check: dict, printed: str) -> tuple[str, bool]:
+    """Check that a 3^k design's blocks are the groups of runs with one value of each defining contrast (mod 3).
+
+    Confounding the components ``check["words"]`` with blocks puts two runs in the same block when
+    they have the same values of their defining contrasts. ``check["block"]`` is the column of the
+    printed blocks; the blocks agree when each holds one set of values and no two hold the same.
+    With ``check["of"]``, a block's label, the check is of the values printed for that block alone:
+    ``(0, 2)`` for L1 = 0 and L2 = 2.
+    """
+    runs = experiment["runs"]
+    blocks = [str(row[runs["columns"].index(check["block"])]) for row in runs["rows"]]
+    values: dict[str, set[tuple[int, ...]]] = {}
+    for block, contrast in zip(blocks, map(tuple, _contrast_values(experiment, check).tolist()), strict=True):
+        values.setdefault(block, set()).add(contrast)
+    if "of" in check:
+        found = values[str(check["of"])]
+        wanted = tuple(int(n) for n in re.findall(r"\d+", printed))
+        return ", ".join(map(str, sorted(found))), found == {wanted}
+    single = all(len(v) == 1 for v in values.values())
+    distinct = len({next(iter(v)) for v in values.values()}) == len(values)
+    shown = "; ".join(f"{block}: {sorted(v)}" for block, v in values.items())
+    return shown, single and distinct
+
+
+def _component_fraction(experiment: dict, check: dict, _printed: str) -> tuple[str, bool]:
+    """Check that the runs of a 3^(k-p) fraction share one value of each defining contrast of ``check["words"]``.
+
+    ``check["u"]`` names the values, L = 0 for the principal fraction by default when given;
+    ``check["runs"]`` keeps some of the runs, as one fraction of a table that prints all three.
+    """
+    values = {tuple(v) for v in _contrast_values(experiment, check, check.get("runs")).tolist()}
+    wanted = check.get("u")
+    same = len(values) == 1 and (wanted is None or values == {tuple(wanted)})
+    return ", ".join(map(str, sorted(values))), same
+
+
+def _component_values(_experiment: dict, check: dict, printed: str) -> tuple[str, bool]:
+    """Check the values of a defining contrast the source works out for treatment combinations, ``01: 2, 21: 1``.
+
+    Each treatment combination is written with one digit per factor, its level 0, 1 or 2; the
+    contrast is ``check["word"]``, whose exponents are the contrast's coefficients.
+    """
+    word = _powers(check["word"])
+    pairs = re.findall(r"(\d+)\s*:\s*(\d+)", printed)
+    found = {run: sum(int(x) * a for x, a in zip(run, word, strict=False)) % 3 for run, _ in pairs}
+    return ", ".join(f"{run}: {v}" for run, v in found.items()), bool(pairs) and all(
+        found[run] == int(v) for run, v in pairs
+    )
+
+
+def _mod3_sum(_experiment: dict, check: dict, printed: str) -> tuple[str, bool]:
+    """Check a sum of treatment combinations modulo 3, digit by digit, as ``101 + 021 = 122``.
+
+    The runs of a principal block form a group under this addition; the other blocks are found by
+    adding a run not in it to each of its runs.
+    """
+    *terms, result = re.findall(r"\d+", str(check.get("printed", printed)))
+    found = "".join(str(sum(int(t[i]) for t in terms) % 3) for i in range(len(result)))
+    return found, found == result
+
+
+@functools.cache
+def _entry_runs(directory: str, name: str) -> tuple[list[str], list[list[Any]]]:
+    """Return the runs of the catalogue's entry ``name``: its columns and its rows."""
+    for path in sorted(Path(directory).glob("*.json")):
+        found = json.loads(path.read_text(encoding="utf-8"))
+        for entry in [*found.get("experiments", []), *found.get("designs", [])]:
+            if entry.get("name") == name:
+                return entry["runs"]["columns"], entry["runs"]["rows"]
+    raise KeyError(f"The catalogue has no entry {name!r}.")
+
+
+def _projection(experiment: dict, check: dict, printed: str) -> tuple[str, bool]:
+    """Check that printed columns are columns of another printed design, run by run: a projection of it.
+
+    ``check["of"]`` names the other entry (this one by default) and ``check["columns"]`` its
+    columns; ``check["into"]`` names this entry's columns they must equal, its factors by default.
+    A design printed twice, as a table and again with a response, is the same check.
+    """
+    runs = experiment["runs"]
+    columns, rows = (
+        _entry_runs(str(_CATALOGUE_DIR), check["of"]) if check.get("of") else (runs["columns"], runs["rows"])
+    )
+    into = check.get("into") or [f["name"] for f in experiment["factors"]]
+    other = pd.DataFrame(rows, columns=columns)[check["columns"]].astype(str).to_numpy()
+    mine = pd.DataFrame(runs["rows"], columns=runs["columns"])[into].astype(str).to_numpy()
+    if other.shape != mine.shape:
+        return f"{other.shape[0]} runs and {other.shape[1]} columns against {mine.shape[0]} and {mine.shape[1]}", False
+    differ = sorted({int(i) + 1 for i in np.nonzero(other != mine)[0]})
+    return ("every run" if not differ else f"not in runs {', '.join(map(str, differ))}"), not differ
+
+
 def _fraction_runs(experiment: dict, check: dict) -> list[int]:
     """Return the 1-based positions of the runs that make the fraction of a generator: C = AB, or C = \u2212AB.
 
@@ -1208,6 +1389,8 @@ def _design_metric(experiment: dict, check: dict) -> float:
     a dict's values or a list. ``"reciprocal": true`` returns one over the number read, as a source
     prints a term's tolerance, one over its variance inflation factor; ``"complement": true`` then
     returns one less it, as the squared multiple correlation of a term with the others, 1 - 1/VIF.
+    ``"squared": true`` returns its square, as trace(AA') is the square of the alias matrix's
+    Frobenius norm.
     """
     if check.get("design"):
         source = json.dumps({"design": check["design"]}, sort_keys=True)
@@ -1216,6 +1399,7 @@ def _design_metric(experiment: dict, check: dict) -> float:
         source = json.dumps({"columns": list(settings.columns), "runs": settings.to_dict("list")}, sort_keys=True)
     asked = json.dumps({k: check.get(k) for k in ("model", "metric", "options")}, sort_keys=True)
     value = _read(_evaluated(source, asked)[check["metric"]], check.get("key"))
+    value = value**2 if check.get("squared") else value
     value = 1 / value if check.get("reciprocal") else value
     return 1 - value if check.get("complement") else value
 
@@ -1526,25 +1710,150 @@ def _dot_product(experiment: dict, check: dict) -> float:
     return float(_printed_matrix(experiment, check["columns"], None).prod(axis=1).sum())
 
 
+def _jmp_coded(settings: pd.DataFrame, experiment: dict, names: list[str]) -> pd.DataFrame:
+    """Return the settings with categorical factors coded as JMP codes them to evaluate a design.
+
+    A factor of k levels becomes k - 1 columns, named for it and numbered (A1, A2): its effect
+    coding (level i is 1 in column i, the last level -1 in each) made orthonormal column by column,
+    then scaled so each column's squares average 1 over the levels. For three levels these are the
+    linear and quadratic contrasts. JMP reports relative variances, and the tables of a source that
+    prints them, for this coding.
+    """
+    coded = settings.drop(columns=names)
+    for name in names:
+        levels = [str(level) for level in next(f["levels"] for f in experiment["factors"] if f["name"] == name)]
+        k = len(levels)
+        basis = np.linalg.qr(np.vstack([np.eye(k - 1), -np.ones(k - 1)]))[0] * math.sqrt(k)
+        place = settings[name].astype(str).map(levels.index).to_numpy()
+        for j in range(k - 1):
+            coded[f"{name}{j + 1}"] = basis[place, j]
+    return coded
+
+
 def _unit_std_error(experiment: dict, check: dict) -> float:
     """Return the standard error of a model's coefficients in units of sigma: the root of the diagonal of (X'X)^-1.
 
     A property of the runs and ``check["model"]``, not of any response: a source compares designs
     by it, as an orthogonal design's coefficients all have 1/sqrt(N). ``check["exclude"]`` names
     factors whose columns are left out (a block's, say), and ``check["key"]`` reduces the rest:
-    ``"min"`` or ``"max"``.
+    ``"min"`` or ``"max"``; ``check["term"]`` reads one column's instead. ``"variance": true``
+    returns the square, the relative variance a source prints. The runs are the entry's, or those
+    of the design ``check["design"]`` names; ``check["jmp_coded"]`` names categorical factors coded
+    as :func:`_jmp_coded` codes them.
     """
-    settings, _ = _coded_runs(experiment, check.get("runs"))
+    if check.get("design"):
+        made = _made(json.dumps(check["design"], sort_keys=True))
+        settings = made.design[made.factor_names].astype(float)
+    else:
+        settings, _ = _coded_runs(experiment, check.get("runs"))
+    if check.get("jmp_coded"):
+        settings = _jmp_coded(settings, experiment, check["jmp_coded"])
     matrix = dmatrix(check["model"], settings, return_type="dataframe")
     errors = np.sqrt(np.diag(np.linalg.pinv(matrix.to_numpy().T @ matrix.to_numpy())))
+    errors = errors**2 if check.get("variance") else errors
+    if "term" in check:
+        return float(errors[list(matrix.columns).index(check["term"])])
     excluded = tuple(check.get("exclude", []))
     kept = [e for name, e in zip(matrix.columns, errors, strict=True) if not name.startswith(excluded)]
     return float(_REDUCE[check.get("key", "max")](kept))
 
 
 def _distinct_runs(experiment: dict, check: dict) -> float:
-    """Return how many different runs the design has in the printed columns ``check["columns"]``: its projection."""
-    return float(len(_run_counts(_printed_matrix(experiment, check["columns"], None))))
+    """Return how many different runs the design has in the printed columns ``check["columns"]``: its projection.
+
+    ``check["runs"]`` keeps the runs at these 1-based positions. A level may be printed as a name.
+    """
+    runs = experiment["runs"]
+    table = pd.DataFrame(runs["rows"], columns=runs["columns"])[check["columns"]]
+    if check.get("runs"):
+        table = table.iloc[[p - 1 for p in check["runs"]]]
+    return float(len(set(map(tuple, table.astype(str).to_numpy().tolist()))))
+
+
+def _run_count(experiment: dict, check: dict) -> float:
+    """Return how many runs have the settings ``check["at"]``, a column and its printed level each."""
+    runs = experiment["runs"]
+    table = pd.DataFrame(runs["rows"], columns=runs["columns"]).astype(str)
+    kept = np.ones(len(table), dtype=bool)
+    for column, level in check["at"].items():
+        kept &= (table[column] == str(level)).to_numpy()
+    return float(kept.sum())
+
+
+def _component_ss(experiment: dict, check: dict) -> float:
+    """Return a 3^k component of interaction: its sum of squares, or a total of the runs in one of its three groups.
+
+    The component ``check["word"]``, AB²C say, groups the runs by its defining contrast
+    L = x1 + 2 x2 + x3 (mod 3), each x a factor's level 0, 1 or 2; its sum of squares is that of the
+    three group totals, sum T_u^2 / n_u - T^2 / N, on two degrees of freedom. ``check["key"]`` is
+    ``"ss"`` (the default), ``"total.<u>"`` or ``"count.<u>"`` for the group with L = u.
+    ``check["runs"]`` keeps some runs, as the totals of one level of a third factor.
+    """
+    positions = check.get("runs")
+    contrast = _contrast_values(experiment, check, positions)[:, 0]
+    _, responses = _coded_runs(experiment, positions)
+    y = responses[check.get("response") or responses.columns[0]].to_numpy(dtype=float)
+    totals = [float(y[contrast == u].sum()) for u in range(3)]
+    counts = [int((contrast == u).sum()) for u in range(3)]
+    kind, _, group = check.get("key", "ss").partition(".")
+    if kind == "total":
+        return totals[int(group)]
+    if kind == "count":
+        return float(counts[int(group)])
+    return sum(t * t / n for t, n in zip(totals, counts, strict=True) if n) - y.sum() ** 2 / len(y)
+
+
+def _design_columns(experiment: dict, check: dict) -> np.ndarray:
+    """Return a two-level design's columns: the entry's ``check["columns"]``, or a design ``check["design"]`` names."""
+    if check.get("design"):
+        made = _made(json.dumps(check["design"], sort_keys=True))
+        return made.design[made.factor_names].to_numpy(dtype=float)
+    return _printed_matrix(experiment, check.get("columns") or [f["name"] for f in experiment["factors"]], None)
+
+
+def _interaction_columns(experiment: dict, check: dict) -> float:
+    """Return a measure of how a two-level design's main-effect and two-factor interaction columns overlap.
+
+    The columns are the k factors' and their k(k - 1)/2 products, without the intercept, as a
+    screening design is compared on them. ``check["key"]`` is one of:
+
+    - ``"e_s2"``: Booth and Cox's E(s²), the average over the pairs of columns of the square of
+      their inner product s = Xi'Xj;
+    - ``"confounded_pairs"``: the pairs of columns that are equal or opposite, completely confounded;
+    - ``"max_abs_r"``: the largest correlation of two of the columns, in size, and
+      ``"max_abs_r_main_interaction"`` that of a main effect with a two-factor interaction.
+    """
+    matrix = _design_columns(experiment, check)
+    k = matrix.shape[1]
+    products = [matrix[:, i] * matrix[:, j] for i, j in itertools.combinations(range(k), 2)]
+    columns = np.column_stack([matrix, *products])
+    upper = np.triu_indices(columns.shape[1], 1)
+    with np.errstate(invalid="ignore", divide="ignore"):
+        r = np.nan_to_num(np.corrcoef(columns, rowvar=False))
+    found = {
+        "e_s2": lambda: float(np.mean((columns.T @ columns)[upper] ** 2)),
+        "confounded_pairs": lambda: float(np.sum(np.isclose(np.abs(r[upper]), 1))),
+        "max_abs_r": lambda: float(np.abs(r[upper]).max()),
+        "max_abs_r_main_interaction": lambda: float(np.abs(r[:k, k:]).max()),
+    }
+    return found[check["key"]]()
+
+
+def _estimable_projections(experiment: dict, check: dict) -> float:
+    """Return how many projections of a design onto ``check["order"]`` columns cannot fit main effects and interactions.
+
+    A design projects onto any r of its columns; the model of their main effects and two-factor
+    interactions is estimable in a projection when its model matrix has full column rank. A source
+    that says a design supports that model in any r factors claims this count is 0.
+    """
+    matrix = _design_columns(experiment, check)
+    failing = 0
+    for subset in itertools.combinations(range(matrix.shape[1]), check["order"]):
+        part = matrix[:, subset]
+        products = [part[:, i] * part[:, j] for i, j in itertools.combinations(range(len(subset)), 2)]
+        model = np.column_stack([np.ones(len(part)), part, *products])
+        failing += int(np.linalg.matrix_rank(model) < model.shape[1])
+    return float(failing)
 
 
 def _sum_coded(column: pd.Series, name: str) -> pd.DataFrame:
@@ -1655,15 +1964,19 @@ def _variance_component(experiment: dict, check: dict) -> float:
 _VALUE_KINDS: dict[str, Callable[[dict, dict], float]] = {
     "capability": _capability,
     "column_correlation": _column_correlation,
+    "component_ss": _component_ss,
     "difference_of_means": _difference_of_means,
     "distinct_runs": _distinct_runs,
     "dot_product": _dot_product,
+    "estimable_projections": _estimable_projections,
+    "interaction_columns": _interaction_columns,
     "log_variance_ratio": _log_variance_ratio,
     "design_property": lambda _e, c: _design_property(c),
     "design_metric": _design_metric,
     "library_value": lambda _e, c: _library_value(c),
     "nested_test": _nested_test,
     "nonadditivity": _nonadditivity,
+    "run_count": _run_count,
     "t_test": _t_test,
     "tukey": _tukey,
     "unit_std_error": _unit_std_error,
@@ -1673,6 +1986,13 @@ _VALUE_KINDS: dict[str, Callable[[dict, dict], float]] = {
 
 _STRUCTURE_KINDS: dict[str, Callable[[dict, dict, str], tuple[str, bool]]] = {
     "block_confounding": lambda _e, c, printed: _block_confounding(c, printed),
+    "component_blocks": _component_blocks,
+    "component_fraction": _component_fraction,
+    "component_product": _component_product,
+    "component_relation": _component_relation,
+    "component_values": _component_values,
+    "mod3_sum": _mod3_sum,
+    "projection": _projection,
     "same_runs": _same_runs,
     "generator_holds": _generator_holds,
     "generalized_interactions": _generalized_interactions,
@@ -1759,8 +2079,11 @@ def reproduce_reference_catalogue(source: str | None = None) -> pd.DataFrame:
     relation of the library's fraction made from its generators; a printed column of signs is the
     product of the factor columns it is headed with; a Plackett-Burman design is matched to the
     library's by its projections onto one, two and three columns; and a stepwise regression's tests
-    are nested tests, held to what the rounding of responses printed rounded carries. A number
-    without a check is reported with the reason it is not recomputed.
+    are nested tests, held to what the rounding of responses printed rounded carries. A 3^k design's
+    components of interaction, blocks and fractions are worked from their defining contrasts modulo
+    3; screening designs are compared on their main-effect and two-factor interaction columns; and
+    JMP's relative variances code a categorical factor as JMP does. A number without a check is
+    reported with the reason it is not recomputed.
 
     Parameters
     ----------

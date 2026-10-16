@@ -1171,3 +1171,145 @@ def test_an_alias_matrix_is_read_entry_by_entry_from_one_evaluation():
     assert _design_metric(entry, {**check, "key": "matrix.1.2"}) == pytest.approx(1)
     assert _design_metric(entry, {**check, "key": "matrix.1.0"}) == pytest.approx(0)
     assert _design_metric(entry, {**check, "key": "matrix.3.0"}) == pytest.approx(1)
+
+
+TOOL_LIFE = {  # Montgomery's Example 5.5: (angle, speed) -> the two readings of each cell
+    (15, 125): [-2, -1],
+    (15, 150): [-3, 0],
+    (15, 175): [2, 3],
+    (20, 125): [0, 2],
+    (20, 150): [1, 3],
+    (20, 175): [4, 6],
+    (25, 125): [-1, 0],
+    (25, 150): [5, 6],
+    (25, 175): [0, -1],
+}
+
+
+def _three_level(columns, rows, responses=()):
+    """Return an entry of a 3^k design, its factors' levels 0, 1 and 2 as a source writes them."""
+    factors = [{"name": c, "type": "numeric", "low": 0, "high": 2, "levels": [0, 1, 2]} for c in columns]
+    return {
+        "name": "three-level",
+        "factors": factors,
+        "responses": [{"name": r} for r in responses],
+        "runs": {"columns": [*columns, *responses], "rows": rows, "coded": False},
+    }
+
+
+def test_a_3k_component_groups_the_runs_by_its_defining_contrast_modulo_3():
+    """The tool life data split the AB interaction into AB (x1 + x2) and AB² (x1 + 2x2): 33.33 and 28.00 of 61.33."""
+    from process_improve.experiments.reference_catalogue import _component_ss
+
+    level = {15: 0, 20: 1, 25: 2, 125: 0, 150: 1, 175: 2}
+    rows = [[level[a], level[s], y] for (a, s), ys in TOOL_LIFE.items() for y in ys]
+    entry = _three_level(["A", "B"], rows, ["y"])
+    assert _component_ss(entry, {"word": "AB"}) == pytest.approx(100 / 3)
+    assert _component_ss(entry, {"word": "AB²"}) == pytest.approx(28)
+    assert [_component_ss(entry, {"word": "AB", "key": f"total.{u}"}) for u in range(3)] == [18, -2, 8]
+    assert [_component_ss(entry, {"word": "AB2", "key": f"total.{u}"}) for u in range(3)] == [0, 18, 6]
+    assert _component_ss(entry, {"word": "A2B", "key": "count.0"}) == 6  # A²B is AB², squared
+    interaction = _component_ss(entry, {"word": "AB"}) + _component_ss(entry, {"word": "AB2"})
+    assert interaction == pytest.approx(61 + 1 / 3)
+
+
+def test_3k_words_multiply_modulo_3_into_aliases_and_a_defining_relation():
+    from process_improve.experiments.reference_catalogue import _component_product, _component_relation
+
+    assert _component_product({}, {"words": ["A", "AB2C2"]}, "ABC")[1]
+    assert _component_product({}, {"words": ["A", "AB2C2"], "powers": [1, 2]}, "BC")[1]
+    assert _component_product({}, {"words": ["ABC", "AB²D²"]}, "AC²D")[1]
+    assert not _component_product({}, {"words": ["ABC", "AB²D²"]}, "ACD")[1]
+    relation = {"words": ["AB2C", "BCD"]}
+    assert _component_relation({}, relation, "I = AB²C = BCD = AC²D = ABD²")[1]
+    assert not _component_relation({}, relation, "I = AB²C = BCD = AC²D")[1]
+    assert _component_relation({}, {**relation, "key": "resolution"}, "III")[1]
+    assert _component_relation({}, {"words": ["AB2CD"], "key": "resolution"}, "IV")[1]
+
+
+def test_3k_blocks_and_fractions_are_the_runs_with_one_value_of_each_defining_contrast():
+    """Montgomery's Figure 9.6: the 3^2 in three blocks with AB² confounded, and the 3^(4-2) of Table 9.7."""
+    from process_improve.experiments.reference_catalogue import (
+        _component_blocks,
+        _component_fraction,
+        _component_values,
+        _mod3_sum,
+    )
+
+    blocks = {"00": 1, "11": 1, "22": 1, "10": 2, "21": 2, "02": 2, "01": 3, "12": 3, "20": 3}
+    entry = _three_level(["A", "B"], [[int(r[0]), int(r[1])] for r in blocks], [])
+    entry["runs"] = {
+        "columns": ["A", "B", "block"],
+        "rows": [[int(r[0]), int(r[1]), b] for r, b in blocks.items()],
+        "coded": False,
+    }
+    entry["factors"].append({"name": "block", "type": "categorical", "levels": ["1", "2", "3"]})
+    check = {"words": ["AB2"], "block": "block"}
+    assert _component_blocks(entry, check, "")[1]
+    assert _component_blocks(entry, {**check, "of": "2"}, "1")[1]
+    assert not _component_blocks(entry, {**check, "words": ["AB"]}, "")[1]
+    assert _component_values({}, {"word": "AB2"}, "01: 2, 21: 1, 22: 0")[1]
+    assert not _component_values({}, {"word": "AB2"}, "01: 1")[1]
+    assert _mod3_sum({}, {}, "101 + 021 = 122")[1]
+    assert not _mod3_sum({}, {}, "101 + 021 = 120")[1]
+    runs = ["0000", "0111", "0222", "1021", "1102", "1210", "2012", "2120", "2201"]
+    fraction = _three_level(list("ABCD"), [[int(c) for c in r] for r in runs])
+    assert _component_fraction(fraction, {"words": ["AB2C", "BCD"], "u": [0, 0]}, "")[1]
+    assert not _component_fraction(fraction, {"words": ["ABC"]}, "")[1]
+
+
+def test_a_design_printed_as_columns_of_another_is_a_projection_of_it(tmp_path, monkeypatch):
+    from process_improve.experiments.reference_catalogue import _projection
+
+    rows = _cyclic(PB12_ROW)
+    whole = {**_printed_design(list("ABCDEFGHJKL"), rows), "name": "whole", "expected": []}
+    (tmp_path / "whole.json").write_text(json.dumps({"experiments": [], "designs": [whole]}), encoding="utf-8")
+    monkeypatch.setattr(reference_catalogue, "_CATALOGUE_DIR", tmp_path)
+    part = _printed_design(["X", "Y"], [[r[2], r[5]] for r in rows])
+    assert _projection(part, {"of": "whole", "columns": ["C", "F"]}, "")[1]
+    found, same = _projection(part, {"of": "whole", "columns": ["C", "G"]}, "")
+    assert not same
+    assert found.startswith("not in runs")
+    twice = _printed_design(["A", "B", "A again"], [[r[0], r[1], r[0]] for r in rows])
+    assert _projection(twice, {"columns": ["A again"], "into": ["A"]}, "")[1]
+
+
+def test_screening_designs_are_compared_on_their_main_effect_and_interaction_columns():
+    """Montgomery's Table 9.23: the regular 2^(6-2) of resolution IV confounds nine pairs, and E(s²) = 9 * 16²/210."""
+    from process_improve.experiments.reference_catalogue import _estimable_projections, _interaction_columns
+
+    regular = {
+        "design": {"design_type": "fractional_factorial", "k": 6, "options": {"resolution": 4, "n_center_points": 0}}
+    }
+    assert _interaction_columns({}, {**regular, "key": "confounded_pairs"}) == 9
+    assert _interaction_columns({}, {**regular, "key": "e_s2"}) == pytest.approx(9 * 256 / 210)
+    assert _interaction_columns({}, {**regular, "key": "max_abs_r_main_interaction"}) == pytest.approx(0)
+    pb12 = _printed_design(list("ABCDEFGHJKL"), _cyclic(PB12_ROW))
+    assert _interaction_columns(pb12, {"key": "max_abs_r_main_interaction"}) == pytest.approx(1 / 3)
+    library_pb = {"design": {"design_type": "plackett_burman", "k": 11, "options": {"n_center_points": 0}}}
+    assert _estimable_projections({}, {**library_pb, "order": 4}) == 0  # any four factors fit their 2FI model
+    assert _estimable_projections({}, {**library_pb, "order": 5}) == 462  # 16 terms in 12 runs never do
+
+
+def test_relative_variances_code_a_categorical_factor_as_jmp_does():
+    """Montgomery's Tables 9.43 and 9.44: a 14-run D-optimal design, each three-level factor in two columns."""
+    from process_improve.experiments.reference_catalogue import _run_count, _unit_std_error
+
+    a = ["L1", "L3", "L1", "L1", "L3", "L2", "L1", "L3", "L2", "L3", "L2", "L2", "L1", "L3"]  # Table 9.43
+    b = ["L3", "L2", "L1", "L2", "L3", "L3", "L1", "L1", "L3", "L3", "L2", "L1", "L2", "L1"]
+    c = [-1, 1, 1, 1, 1, 1, -1, 1, -1, -1, 1, 1, -1, -1]
+    levels = ["L1", "L2", "L3"]
+    entry = {
+        "name": "jmp",
+        "factors": [{"name": n, "type": "categorical", "low": "L1", "high": "L3", "levels": levels} for n in "AB"]
+        + [{"name": "C", "type": "numeric", "low": -1, "high": 1, "levels": [-1, 1]}],
+        "responses": [],
+        "runs": {"columns": ["A", "B", "C"], "rows": [list(run) for run in zip(a, b, c, strict=True)], "coded": False},
+    }
+    model = "A1 + A2 + B1 + B2 + C + A1:B1 + A2:B1 + A1:B2 + A2:B2 + A1:C + A2:C + B1:C + B2:C"
+    check = {"model": model, "jmp_coded": ["A", "B"], "variance": True}
+    printed = {"Intercept": 0.340, "A1": 0.093, "A2": 0.179, "C": 0.167, "A2:B2": 0.136, "A2:C": 0.278}
+    for term, value in printed.items():
+        assert _unit_std_error(entry, {**check, "term": term}) == pytest.approx(value, abs=5e-4), term
+    assert _unit_std_error(entry, {**check, "key": "len"}) == 14
+    assert _run_count(entry, {"at": {"A": "L1", "C": 1}}) == 2
