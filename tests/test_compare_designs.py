@@ -539,7 +539,9 @@ def test_g_reaches_a_curved_boundary(seed):
     """G usually sits on the boundary, which a uniform sample rarely reaches and a 3-level grid touches at a few points.
 
     Over the cylinder A**2 + B**2 <= 1 G used to come out up to 12% below the variance at a
-    point of its surface; it is now within 1% of a dense search of that surface and its caps.
+    point of its surface. With the points on the boundary it came within 1% of a dense search
+    of that surface and its caps, and with the local searches from the best of them it is at
+    least the search's largest value and within 0.1% of it.
     """
     region = DesignRegion(factors("ABC"), ["A**2 + B**2 <= 1"])
     runs = region.sample(14, np.random.default_rng(seed))
@@ -559,7 +561,7 @@ def test_g_reaches_a_curved_boundary(seed):
 
     f, design = expand(surface), expand(runs)
     densest = np.einsum("ij,jk,ik->i", f, np.linalg.inv(design.T @ design), f).max()
-    assert g == pytest.approx(max(densest, g), rel=0.01)
+    assert densest * (1 - 1e-12) <= g <= densest * (1 + 1e-3)
     assert "points on its boundary" in comparison.g_points
 
 
