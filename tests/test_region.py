@@ -705,6 +705,66 @@ class TestLinearForms:
     @pytest.mark.parametrize(
         ("ranges", "expression", "form"),
         [
+            # A's effect over its range is 1e-10 of B's: it is dropped, held at its centre, not at zero (bound 6)
+            ({"A": (1, 1 + 1e-9), "B": (0, 10)}, "A + B <= 6", ({"B": 1.0}, None, 4.9999999995)),
+            (
+                {"t1": (1.7e9, 1.7e9 + 3600), "t2": (1.7e9, 1.7e9 + 3600)},
+                "t1 - t2 <= 1",
+                ({"t1": 1.0, "t2": -1.0}, None, 1.0),
+            ),
+            (
+                {"A": (1e6 - 5, 1e6 + 5), "C": (1e6 - 5e-4, 1e6 + 5e-4)},
+                "-1 <= 1000*A - 1000*C <= 0",
+                ({"A": 1000.0, "C": -1000.0}, -1.0, 0.0),
+            ),
+        ],
+    )
+    def test_a_bound_read_off_the_expression_is_kept(self, ranges, expression, form):
+        """The last two bounds were snapped to zero as a fit's residue would be; the chain became an equality."""
+        factors = [Factor(name=n, low=lo, high=hi) for n, (lo, hi) in ranges.items()]
+        region = DesignRegion(factors, [expression])
+        assert region.linear_forms() == [form]
+        if len(form[0]) == 1:  # the dropped factor's bound agrees with the region's own
+            assert region.implied_bounds()["B"] == (0.0, form[2])  # type: ignore[index]
+
+    def test_each_form_agrees_with_the_region(self):
+        """A setting meets a form's bounds where the region holds it, but for a sliver along the boundary.
+
+        Random straight limits over factors whose ranges are narrow or wide next to their values,
+        with coefficients from 1e-6 to 1e3. A term held at zero rather than at its factor's centre
+        once made the form and the region disagree on up to 10% of the box.
+        """
+        rng = np.random.default_rng(5)
+        checked = 0
+        for _ in range(120):
+            k = int(rng.integers(2, 4))
+            centres = rng.choice([0.0, 1.0, 40.0, 300.0, 1e5, 1.7e9], size=k)
+            halves = np.maximum(np.abs(centres), 1.0) * rng.choice([1e-9, 1e-6, 1e-3, 0.2, 1.0], size=k)
+            names = [f"X{j}" for j in range(k)]
+            factors = [Factor(name=n, low=c - h, high=c + h) for n, c, h in zip(names, centres, halves, strict=True)]
+            sizes, signs = rng.choice([1e-6, 0.01, 1.0, 7.0, 1e3], size=k), rng.choice([-1, 1], size=k)
+            coefficients = [float(c) for c in sizes * signs]
+            inside = centres + rng.uniform(-0.5, 0.5, size=k) * halves
+            rhs = float(f"{sum(c * x for c, x in zip(coefficients, inside, strict=True)):.12g}")
+            expression = " + ".join(f"({c!r})*{n}" for c, n in zip(coefficients, names, strict=True)) + f" <= {rhs!r}"
+            region = DesignRegion(factors, [expression])
+            form = region.linear_forms()[0]
+            # Skip a limit the affine test cannot tell from a curved one in double precision, and one that changes
+            # by less than 1e-5 over the box, where feasible()'s tolerance of 1e-9 in its own units is wide.
+            if form is None or region._linear().scale[0] < 1e-5:
+                continue
+            checked += 1
+            coded = rng.uniform(-1, 1, size=(4000, k))
+            actual = region._centre + coded * region._half
+            lhs = actual @ np.array([form[0].get(n, 0.0) for n in names])
+            assert form[1] is None
+            agree = (lhs <= form[2]) == region.feasible(coded)
+            assert agree.mean() >= 0.999, expression
+        assert checked >= 60
+
+    @pytest.mark.parametrize(
+        ("ranges", "expression", "form"),
+        [
             ({"A": (0, 1)}, "2 <= 3 <= A * 1e-300", ({"A": 1e-300}, 3.0, None)),  # the coefficient came back NaN
             ({"A": (0, 1), "B": (0, 1)}, "1e-300*A + 1e-300*B <= 2e-300", ({"A": 1e-300, "B": 1e-300}, None, 2e-300)),
             ({"A": (0, 1), "B": (0, 1e12)}, "A + 1e-12*B <= 1", ({"A": 1.0, "B": 1e-12}, None, 1.0)),  # 1.0...02e-12

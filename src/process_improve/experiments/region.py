@@ -698,8 +698,9 @@ class DesignRegion:
         off the expression in exact arithmetic, with each number taken as written, so
         ``"TK + 0.01*P <= 340"`` gives ``0.01`` and not ``0.00999999999999``; where the
         expression is affine over the box only (``abs(T)`` with ``T`` positive), it is read
-        off a fit there. Coefficients whose effect over the box is below ``1e-9`` of the
-        largest are set to zero, and every number is rounded to 12 significant figures, so
+        off a fit there. A coefficient whose effect over the box is below ``1e-9`` of the
+        largest is set to zero, its factor held at the centre of its range, where its term's
+        value joins the bound; and every number is rounded to 12 significant figures, so
         floating-point residue such as ``1.65e-14`` or ``250.00000000000009`` does not
         appear.
 
@@ -754,14 +755,20 @@ class DesignRegion:
         if exact is not None:
             coef, rhs = exact
             effect = np.abs(coef) * half
-            coef = np.where(effect <= _SNAP * effect.max(initial=0.0), 0.0, coef)
+            dropped = effect <= _SNAP * effect.max(initial=0.0)
+            # A term dropped for its effect is held at its factor's centre, as the fit below and the coded rows
+            # behind vertices() hold it: its value there moves into the bound. (Held at zero, it moved the bound
+            # of A + B <= 6 with A from 1 to 1 + 1e-9 from 4.9999999995 to 6.)
+            rhs -= float(coef[dropped] @ centre[dropped])
+            coef = np.where(dropped, 0.0, coef)
         else:
             a, b = form
             a = np.where(np.abs(a) <= _SNAP * (np.abs(a).sum() + abs(b)), 0.0, a)  # effect on g below 1e-9 of its size
             coef = a / half
             rhs = b + float(coef @ centre)
-        scale = float(np.abs(coef) @ np.maximum(np.abs(self._low), np.abs(self._high))) + abs(rhs)
-        rhs = 0.0 if abs(rhs) <= _SNAP * scale else rhs
+            # A fitted bound of zero carries the fit's residue; the bound read off the expression has none.
+            scale = float(np.abs(coef) @ np.maximum(np.abs(self._low), np.abs(self._high))) + abs(rhs)
+            rhs = 0.0 if abs(rhs) <= _SNAP * scale else rhs
         return round_significant(coef, _DIGITS), float(round_significant(np.array(rhs), _DIGITS))
 
     def vertices(self) -> np.ndarray:
