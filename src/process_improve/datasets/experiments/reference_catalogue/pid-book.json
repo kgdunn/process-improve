@@ -1155,8 +1155,11 @@
       "quote": "\\begin{bmatrix} 4   & 0   & 0   & 0\\\\"
      },
      "check": {
-      "manual": "X^T X of the coded design, a matrix no check kind computes; its diagonal of 4 is the number of runs, checked at line 25, and the coefficients it gives are checked at line 84"
-     }
+      "kind": "normal_equations",
+      "model": "T*S",
+      "key": "xtx"
+     },
+     "analysis": "X'X of the coded runs, from the library's normal equations"
     },
     {
      "what": "other",
@@ -1169,8 +1172,11 @@
       "quote": "\\mathbf{X}^T\\mathbf{y} &= \\begin{bmatrix} 246 \\\\ -20 \\\\ -12 \\\\ -2\\end{bmatrix}"
      },
      "check": {
-      "manual": "X^T y, the signed sums of the responses (four times each coefficient), which no check kind computes; the coefficients it gives, 61.5, -5, -3 and -0.5, are checked at line 84"
-     }
+      "kind": "normal_equations",
+      "model": "T*S",
+      "key": "xty"
+     },
+     "analysis": "X'y of the coded runs, from the library's normal equations"
     },
     {
      "what": "coefficient",
@@ -3610,8 +3616,13 @@
       "quote": "Notice that the :math:`\\mathbf{X}^T\\mathbf{X}` matrix will be diagonal."
      },
      "check": {
-      "manual": "a property of the matrix X'X (that it is diagonal), stated in words; no check kind computes X'X"
-     }
+      "kind": "design_metric",
+      "metric": "information_matrix",
+      "model": "A + B + C + D + E + F + G",
+      "key": "is_diagonal",
+      "printed": "1"
+     },
+     "analysis": "X'X is diagonal (1 for true), from the library's information_matrix"
     },
     {
      "what": "residual_df",
@@ -13823,16 +13834,29 @@
      "what": "other",
      "term": "X^T X",
      "value": "16 I",
-     "analysis": "reduced model: B, C, D, BC, CD and intercept (R: lm(y ~ B + C + D + B*C + C*D))",
+     "analysis": "every eigenvalue of X'X is 16, so X'X = 16 I, from the library's information_matrix",
      "where": {
       "file": "design-analysis-experiments/design-analysis-experiments-exercises.rst",
       "line": 262,
       "source_kind": "math",
       "quote": "\\mathbf{X}^T\\mathbf{X} = 16\\mathbf{I}"
      },
-     "check": {
-      "manual": "the X^T X matrix of the coded 2^4 design, which no check here computes"
-     }
+     "check": [
+      {
+       "kind": "design_metric",
+       "metric": "information_matrix",
+       "model": "A*B*C*D",
+       "key": "eigenvalues.min",
+       "printed": "16"
+      },
+      {
+       "kind": "design_metric",
+       "metric": "information_matrix",
+       "model": "A*B*C*D",
+       "key": "eigenvalues.max",
+       "printed": "16"
+      }
+     ]
     },
     {
      "what": "std_error",
@@ -14532,8 +14556,11 @@
       "quote": "Its projectivity is :math:`R - 1 = 3`"
      },
      "check": {
-      "manual": "a projectivity, which no check here computes (the book takes it as R - 1 from the resolution)"
-     }
+      "kind": "design_measure",
+      "measure": "projectivity",
+      "printed": "3"
+     },
+     "analysis": "the library's projectivity: the most factors whose every projection holds all their level combinations"
     },
     {
      "what": "coefficient",
@@ -14896,7 +14923,7 @@
      "what": "other",
      "term": "X'X (diagonal; off-diagonals 0)",
      "value": ["6", "4", "4", "4"],
-     "analysis": "least squares, intercept + A + B + AB on all 6 runs (coded)",
+     "analysis": "the diagonal of X'X of the coded runs, from the library's normal equations",
      "where": {
       "file": "design-analysis-experiments/design-analysis-experiments-exercises.rst",
       "line": 598,
@@ -14904,14 +14931,17 @@
       "quote": "\\mathbf{X'X} & = \\begin{bmatrix} 6 & 0 & 0 & 0 \\\\ 0 & 4 & 0 & 0 \\\\ 0 & 0 & 4 & 0 \\\\ 0 & 0 & 0 & 4 \\end{bmatrix}"
      },
      "check": {
-      "manual": "the X'X matrix of the coded design with its two centre runs, which no check here computes"
+      "kind": "normal_equations",
+      "model": "A*B",
+      "key": "xtx",
+      "diagonal": true
      }
     },
     {
      "what": "other",
      "term": "X'y (Intercept, A, B, AB)",
      "value": ["1395", "448", "270", "90"],
-     "analysis": "least squares, intercept + A + B + AB on all 6 runs (coded)",
+     "analysis": "X'y of the coded runs, from the library's normal equations",
      "where": {
       "file": "design-analysis-experiments/design-analysis-experiments-exercises.rst",
       "line": 603,
@@ -14919,7 +14949,9 @@
       "quote": "\\begin{bmatrix} 1395 \\\\  448 \\\\ 270 \\\\ 90 \\end{bmatrix}"
      },
      "check": {
-      "manual": "the sums X'y, an intermediate step; no check here computes them, and the coefficients they give are checked at line 604"
+      "kind": "normal_equations",
+      "model": "A*B",
+      "key": "xty"
      }
     },
     {
@@ -16456,16 +16488,36 @@
      "what": "other",
      "term": "X^T X",
      "value": "diagonal, with 8's on the diagonal",
-     "analysis": "main effects only, 8 coefficients (R: lm(y ~ A + B + C + D + E + F + G))",
+     "analysis": "X'X is diagonal (1 for true) and every eigenvalue is 8, from the library's information_matrix",
      "where": {
       "file": "design-analysis-experiments/design-analysis-experiments-exercises.rst",
       "line": 1000,
       "source_kind": "prose",
       "quote": "will be diagonal, with 8's on the diagonal."
      },
-     "check": {
-      "manual": "the X^T X matrix of the coded design, which no check here computes"
-     }
+     "check": [
+      {
+       "kind": "design_metric",
+       "metric": "information_matrix",
+       "model": "A + B + C + D + E + F + G",
+       "key": "is_diagonal",
+       "printed": "1"
+      },
+      {
+       "kind": "design_metric",
+       "metric": "information_matrix",
+       "model": "A + B + C + D + E + F + G",
+       "key": "eigenvalues.min",
+       "printed": "8"
+      },
+      {
+       "kind": "design_metric",
+       "metric": "information_matrix",
+       "model": "A + B + C + D + E + F + G",
+       "key": "eigenvalues.max",
+       "printed": "8"
+      }
+     ]
     },
     {
      "what": "coefficient",
@@ -17683,8 +17735,11 @@
       "quote": "1 & -1.4 & 0 & 0 & 1.96 & 0 \\\\"
      },
      "check": {
-      "manual": "the model matrix of the coded settings, which no check here computes; its settings are the runs'"
-     }
+      "kind": "normal_equations",
+      "model": "M + H + M:H + I(M**2) + I(H**2)",
+      "key": "model_matrix"
+     },
+     "analysis": "the model matrix of the coded runs, from the library's normal equations"
     },
     {
      "what": "residual_df",
@@ -24967,8 +25022,12 @@
       "quote": "# 0.0"
      },
      "check": {
-      "manual": "the determinant of X'X for the 8-column model on these 4 runs, which no check kind computes; the book's CI (tools/check_code_blocks.py, --strict-output) checks this echoed value"
-     }
+      "kind": "design_metric",
+      "metric": "information_matrix",
+      "model": "A*B*C",
+      "key": "determinant"
+     },
+     "analysis": "|X'X| of the full model's eight columns on the four runs, from the library's information_matrix"
     },
     {
      "what": "aliases",
@@ -27933,8 +27992,18 @@
       "quote": "was a case of projectivity = 2"
      },
      "check": {
-      "manual": "a projectivity, which no check kind returns; the book's rule P = resolution - 1 makes it 2 from the resolution III checked at line 62"
-     }
+      "kind": "design_measure",
+      "measure": "projectivity",
+      "design": {
+       "design_type": "fractional_factorial",
+       "k": 3,
+       "options": {
+        "generators": ["C=AB"],
+        "n_center_points": 0
+       }
+      }
+     },
+     "analysis": "the library's projectivity: the most factors whose every projection holds all their level combinations"
     }
    ]
   },
@@ -28049,8 +28118,20 @@
       "quote": "then it has projectivity = :math:`P = 4 - 1`, implying that it contains a full factorial in 3 factors"
      },
      "check": {
-      "manual": "a projectivity, which no check kind returns; the book's rule P = resolution - 1 is arithmetic on the resolution IV"
-     }
+      "kind": "design_measure",
+      "measure": "projectivity",
+      "design": {
+       "design_type": "fractional_factorial",
+       "k": 6,
+       "options": {
+        "resolution": 4,
+        "n_center_points": 0
+       }
+      },
+      "printed": "4 - 1",
+      "expression": true
+     },
+     "analysis": "the library's projectivity: the most factors whose every projection holds all their level combinations, on the library's resolution IV fraction in six factors"
     },
     {
      "what": "other",
@@ -29865,8 +29946,11 @@
       "quote": "\\mathbf{X} = \\begin{bmatrix} 1 & -1 & 1 \\\\ 1 & 0 & 0 \\\\ 1 & 1 & 1 \\end{bmatrix},"
      },
      "check": {
-      "manual": "the model matrix X written out from the printed runs, a construction rather than a computed result; no check kind compares a matrix"
-     }
+      "kind": "normal_equations",
+      "model": "x + I(x**2)",
+      "key": "model_matrix"
+     },
+     "analysis": "the model matrix X of the printed runs under y = b0 + b1 x + b2 x^2, from the library's normal equations"
     },
     {
      "what": "design_metric",
@@ -29883,8 +29967,11 @@
       "quote": "= \\begin{bmatrix} 3 & 0 & 2 \\\\ 0 & 2 & 0 \\\\ 2 & 0 & 2 \\end{bmatrix}"
      },
      "check": {
-      "manual": "the information matrix M = X'X of the printed runs, or an entry of it, which no check here computes"
-     }
+      "kind": "normal_equations",
+      "model": "x + I(x**2)",
+      "key": "xtx"
+     },
+     "analysis": "M = X'X of the printed runs under y = b0 + b1 x + b2 x^2, from the library's normal equations"
     },
     {
      "what": "design_metric",
@@ -29896,9 +29983,21 @@
       "source_kind": "prose",
       "quote": "The off-diagonal :math:`M_{01} = M_{12} = 0` tells us the linear term is orthogonal to both the"
      },
-     "check": {
-      "manual": "the information matrix M = X'X of the printed runs, or an entry of it, which no check here computes"
-     }
+     "check": [
+      {
+       "kind": "normal_equations",
+       "model": "x + I(x**2)",
+       "key": "xtx.0.1",
+       "printed": "0"
+      },
+      {
+       "kind": "normal_equations",
+       "model": "x + I(x**2)",
+       "key": "xtx.1.2",
+       "printed": "0"
+      }
+     ],
+     "analysis": "the entries M_01 and M_12 of X'X of the printed runs under y = b0 + b1 x + b2 x^2, from the library's normal equations"
     },
     {
      "what": "design_metric",
@@ -29911,8 +30010,11 @@
       "quote": "But :math:`M_{02} = 2 \\neq 0`: the"
      },
      "check": {
-      "manual": "the information matrix M = X'X of the printed runs, or an entry of it, which no check here computes"
-     }
+      "kind": "normal_equations",
+      "model": "x + I(x**2)",
+      "key": "xtx.0.2"
+     },
+     "analysis": "the entry M_02 of X'X of the printed runs under y = b0 + b1 x + b2 x^2, from the library's normal equations"
     },
     {
      "what": "design_metric",
@@ -29929,8 +30031,11 @@
       "quote": "\\mathbf{M}^{-1} = \\begin{bmatrix} 1 & 0 & -1 \\\\ 0 & 0.5 & 0 \\\\ -1 & 0 & 1.5 \\end{bmatrix}"
      },
      "check": {
-      "manual": "an entry of M^-1, a coefficient variance or covariance in units of sigma^2 that depends on the runs alone, which no check here computes (the fit kinds need responses)"
-     }
+      "kind": "normal_equations",
+      "model": "x + I(x**2)",
+      "key": "inverse"
+     },
+     "analysis": "M^-1 of the printed runs under y = b0 + b1 x + b2 x^2, from the library's normal equations"
     },
     {
      "what": "design_metric",
@@ -29943,8 +30048,11 @@
       "quote": ":math:`\\text{Var}(b_0) = 1.0\\,\\sigma^2`, :math:`\\text{Var}(b_1) = 0.5\\,\\sigma^2`, and"
      },
      "check": {
-      "manual": "an entry of M^-1, a coefficient variance or covariance in units of sigma^2 that depends on the runs alone, which no check here computes (the fit kinds need responses)"
-     }
+      "kind": "normal_equations",
+      "model": "x + I(x**2)",
+      "key": "inverse.0.0"
+     },
+     "analysis": "a diagonal entry of M^-1 of the printed runs under y = b0 + b1 x + b2 x^2, from the library's normal equations"
     },
     {
      "what": "design_metric",
@@ -29957,8 +30065,11 @@
       "quote": ":math:`\\text{Var}(b_1) = 0.5\\,\\sigma^2`, and"
      },
      "check": {
-      "manual": "an entry of M^-1, a coefficient variance or covariance in units of sigma^2 that depends on the runs alone, which no check here computes (the fit kinds need responses)"
-     }
+      "kind": "normal_equations",
+      "model": "x + I(x**2)",
+      "key": "inverse.1.1"
+     },
+     "analysis": "a diagonal entry of M^-1 of the printed runs under y = b0 + b1 x + b2 x^2, from the library's normal equations"
     },
     {
      "what": "design_metric",
@@ -29971,8 +30082,11 @@
       "quote": ":math:`\\text{Var}(b_2) = 1.5\\,\\sigma^2`. The quadratic is the least precise (curvature is the hardest"
      },
      "check": {
-      "manual": "an entry of M^-1, a coefficient variance or covariance in units of sigma^2 that depends on the runs alone, which no check here computes (the fit kinds need responses)"
-     }
+      "kind": "normal_equations",
+      "model": "x + I(x**2)",
+      "key": "inverse.2.2"
+     },
+     "analysis": "a diagonal entry of M^-1 of the printed runs under y = b0 + b1 x + b2 x^2, from the library's normal equations"
     },
     {
      "what": "other",
@@ -29999,8 +30113,11 @@
       "quote": "the :math:`-1` off-diagonal is the intercept-quadratic correlation we anticipated from :math:`M_{02}`"
      },
      "check": {
-      "manual": "an entry of M^-1, a coefficient variance or covariance in units of sigma^2 that depends on the runs alone, which no check here computes (the fit kinds need responses)"
-     }
+      "kind": "normal_equations",
+      "model": "x + I(x**2)",
+      "key": "inverse.0.2"
+     },
+     "analysis": "an off-diagonal entry of M^-1 of the printed runs under y = b0 + b1 x + b2 x^2, from the library's normal equations"
     },
     {
      "what": "design_metric",
@@ -30013,8 +30130,12 @@
       "quote": ":math:`\\det(\\mathbf{M}) = 4`. The A-criterion is"
      },
      "check": {
-      "manual": "a D-criterion, the determinant of the information matrix X'X, which no check here computes"
-     }
+      "kind": "design_metric",
+      "metric": "information_matrix",
+      "model": "x + I(x**2)",
+      "key": "determinant"
+     },
+     "analysis": "|X'X|, from the library's information_matrix"
     },
     {
      "what": "design_metric",
@@ -30027,8 +30148,12 @@
       "quote": ":math:`\\text{trace}(\\mathbf{M}^{-1}) = 1.0 + 0.5 + 1.5 = 3.0`, the sum of the three coefficient"
      },
      "check": {
-      "manual": "an A-criterion, trace(M^-1), the summed coefficient variances in units of sigma^2, which no check here computes"
-     }
+      "kind": "design_metric",
+      "metric": "information_matrix",
+      "model": "x + I(x**2)",
+      "key": "a_criterion"
+     },
+     "analysis": "trace((X'X)^-1), from the library's information_matrix"
     },
     {
      "what": "design_metric",
@@ -30041,8 +30166,12 @@
       "quote": "The E-criterion is the smallest eigenvalue of :math:`\\mathbf{M}`, here about :math:`0.44`."
      },
      "check": {
-      "manual": "an E-criterion, the smallest eigenvalue of M = X'X, which no check here computes"
-     }
+      "kind": "design_metric",
+      "metric": "information_matrix",
+      "model": "x + I(x**2)",
+      "key": "e_criterion"
+     },
+     "analysis": "the smallest eigenvalue of X'X, from the library's information_matrix"
     }
    ]
   },
@@ -30128,9 +30257,23 @@
       "source_kind": "math",
       "quote": ":math:`\\mathbf{X}^T\\mathbf{X} = 4\\,\\mathbf{I}` and :math:`\\det(\\mathbf{M}) = 4^4 = 256`"
      },
-     "check": {
-      "manual": "the information matrix M = X'X of the printed runs, or an entry of it, which no check here computes"
-     }
+     "check": [
+      {
+       "kind": "design_metric",
+       "metric": "information_matrix",
+       "model": "x1*x2",
+       "key": "eigenvalues.min",
+       "printed": "4"
+      },
+      {
+       "kind": "design_metric",
+       "metric": "information_matrix",
+       "model": "x1*x2",
+       "key": "eigenvalues.max",
+       "printed": "4"
+      }
+     ],
+     "analysis": "every eigenvalue of X'X is 4, so X'X = 4I, from the library's information_matrix"
     },
     {
      "what": "design_metric",
@@ -30143,8 +30286,12 @@
       "quote": ":math:`\\det(\\mathbf{M}) = 4^4 = 256`"
      },
      "check": {
-      "manual": "a D-criterion, the determinant of the information matrix X'X, which no check here computes"
-     }
+      "kind": "design_metric",
+      "metric": "information_matrix",
+      "model": "x1*x2",
+      "key": "determinant"
+     },
+     "analysis": "|X'X| of the four corners, from the library's information_matrix"
     },
     {
      "what": "other",
@@ -30185,8 +30332,12 @@
       "quote": "Pass 1: each coordinate is driven to its best value, every one lands on :math:`\\pm 1`, giving :math:`\\det\\mathbf{M} = 256`."
      },
      "check": {
-      "manual": "a D-criterion, the determinant of the information matrix X'X, which no check here computes"
-     }
+      "kind": "design_metric",
+      "metric": "information_matrix",
+      "model": "x1*x2",
+      "key": "determinant"
+     },
+     "analysis": "|X'X| of the four corners, from the library's information_matrix"
     },
     {
      "what": "design_metric",
@@ -30199,8 +30350,12 @@
       "quote": "- Swap run 3: :math:`(1,0) \\to (1,-1)`, giving :math:`\\det\\mathbf{M} = 256`. - Pass 2: nothing changes; already converged."
      },
      "check": {
-      "manual": "a D-criterion, the determinant of the information matrix X'X, which no check here computes"
-     }
+      "kind": "design_metric",
+      "metric": "information_matrix",
+      "model": "x1*x2",
+      "key": "determinant"
+     },
+     "analysis": "|X'X| of the four corners, from the library's information_matrix"
     },
     {
      "what": "other",
@@ -30227,8 +30382,12 @@
       "quote": "- Final: the four corners, :math:`\\det\\mathbf{M} = 256`. - Final: the four corners, :math:`\\det\\mathbf{M} = 256`."
      },
      "check": {
-      "manual": "a D-criterion, the determinant of the information matrix X'X, which no check here computes"
-     }
+      "kind": "design_metric",
+      "metric": "information_matrix",
+      "model": "x1*x2",
+      "key": "determinant"
+     },
+     "analysis": "|X'X| of the four corners, from the library's information_matrix"
     },
     {
      "what": "design_metric",
@@ -30241,8 +30400,12 @@
       "quote": "- Final: the four corners, :math:`\\det\\mathbf{M} = 256`. - Final: the four corners, :math:`\\det\\mathbf{M} = 256`."
      },
      "check": {
-      "manual": "a D-criterion, the determinant of the information matrix X'X, which no check here computes"
-     }
+      "kind": "design_metric",
+      "metric": "information_matrix",
+      "model": "x1*x2",
+      "key": "determinant"
+     },
+     "analysis": "|X'X| of the four corners, from the library's information_matrix"
     },
     {
      "what": "other",
@@ -30329,8 +30492,12 @@
       "quote": "- Start :math:`\\{(-1,-1), (0,1), (1,0), (1,1)\\}`, :math:`\\det\\mathbf{M} = 16`. - Start from four random points, :math:`\\det\\mathbf{M} = 0.3`."
      },
      "check": {
-      "manual": "a D-criterion, the determinant of the information matrix X'X, which no check here computes"
-     }
+      "kind": "design_metric",
+      "metric": "information_matrix",
+      "model": "x1*x2",
+      "key": "determinant"
+     },
+     "analysis": "|X'X| of the printed runs, from the library's information_matrix"
     }
    ]
   },
@@ -30403,8 +30570,12 @@
       "quote": "Swap run 2: :math:`(0,1) \\to (-1,1)`, giving :math:`\\det\\mathbf{M} = 64`."
      },
      "check": {
-      "manual": "a D-criterion, the determinant of the information matrix X'X, which no check here computes"
-     }
+      "kind": "design_metric",
+      "metric": "information_matrix",
+      "model": "x1*x2",
+      "key": "determinant"
+     },
+     "analysis": "|X'X| of the printed runs, from the library's information_matrix"
     }
    ]
   },
@@ -30915,9 +31086,49 @@
       "source_kind": "math",
       "quote": "\\text{Var}\\big(\\widehat{y}(x)\\big) = \\sigma^2 \\left(1 - 1.5\\,x^2 + 1.5\\,x^4\\right)"
      },
-     "check": {
-      "manual": "the prediction variance x_m' M^-1 x_m of the printed runs, as a function of x or at a point (sigma^2 units), which no check here computes"
-     }
+     "check": [
+      {
+       "kind": "normal_equations",
+       "model": "x + I(x**2)",
+       "key": "leverage",
+       "point": {
+        "x": 0.0
+       },
+       "printed": "1 - 1.5*0.0**2 + 1.5*0.0**4",
+       "expression": true
+      },
+      {
+       "kind": "normal_equations",
+       "model": "x + I(x**2)",
+       "key": "leverage",
+       "point": {
+        "x": 0.25
+       },
+       "printed": "1 - 1.5*0.25**2 + 1.5*0.25**4",
+       "expression": true
+      },
+      {
+       "kind": "normal_equations",
+       "model": "x + I(x**2)",
+       "key": "leverage",
+       "point": {
+        "x": 0.5
+       },
+       "printed": "1 - 1.5*0.5**2 + 1.5*0.5**4",
+       "expression": true
+      },
+      {
+       "kind": "normal_equations",
+       "model": "x + I(x**2)",
+       "key": "leverage",
+       "point": {
+        "x": 0.9
+       },
+       "printed": "1 - 1.5*0.9**2 + 1.5*0.9**4",
+       "expression": true
+      }
+     ],
+     "analysis": "x0'(X'X)^-1 x0 at x = 0, 0.25, 0.5 and 0.9, against the printed formula there"
     },
     {
      "what": "design_metric",
@@ -30929,9 +31140,36 @@
       "source_kind": "prose",
       "quote": "At the three design points (:math:`x = -1, 0, +1`) this equals :math:`\\sigma^2`, as it"
      },
-     "check": {
-      "manual": "the prediction variance x_m' M^-1 x_m of the printed runs, as a function of x or at a point (sigma^2 units), which no check here computes"
-     }
+     "check": [
+      {
+       "kind": "normal_equations",
+       "model": "x + I(x**2)",
+       "key": "leverage",
+       "point": {
+        "x": -1.0
+       },
+       "printed": "1"
+      },
+      {
+       "kind": "normal_equations",
+       "model": "x + I(x**2)",
+       "key": "leverage",
+       "point": {
+        "x": 0.0
+       },
+       "printed": "1"
+      },
+      {
+       "kind": "normal_equations",
+       "model": "x + I(x**2)",
+       "key": "leverage",
+       "point": {
+        "x": 1.0
+       },
+       "printed": "1"
+      }
+     ],
+     "analysis": "x0'(X'X)^-1 x0 at the three design points"
     },
     {
      "what": "design_metric",
@@ -30944,8 +31182,12 @@
       "quote": "minimum of :math:`0.625\\,\\sigma^2` at :math:`x = \\pm 0.707`"
      },
      "check": {
-      "manual": "the prediction variance x_m' M^-1 x_m of the printed runs, as a function of x or at a point (sigma^2 units), which no check here computes"
-     }
+      "kind": "design_metric",
+      "metric": "fds",
+      "model": "x + I(x**2)",
+      "key": "quantiles.0"
+     },
+     "analysis": "the smallest prediction variance over the library's sample of [-1, 1]"
     },
     {
      "what": "design_metric",
@@ -30972,8 +31214,14 @@
       "quote": "climbs steeply (already :math:`5.2\\,\\sigma^2` at :math:`x = 1.5`)"
      },
      "check": {
-      "manual": "the prediction variance x_m' M^-1 x_m of the printed runs, as a function of x or at a point (sigma^2 units), which no check here computes"
-     }
+      "kind": "normal_equations",
+      "model": "x + I(x**2)",
+      "key": "leverage",
+      "point": {
+       "x": 1.5
+      }
+     },
+     "analysis": "x0'(X'X)^-1 x0 at x = 1.5"
     },
     {
      "what": "design_metric",
@@ -30985,9 +31233,36 @@
       "source_kind": "caption",
       "quote": "Prediction variance for the three-run quadratic design. It equals :math:`\\sigma^2` at the three"
      },
-     "check": {
-      "manual": "the prediction variance x_m' M^-1 x_m of the printed runs, as a function of x or at a point (sigma^2 units), which no check here computes"
-     }
+     "check": [
+      {
+       "kind": "normal_equations",
+       "model": "x + I(x**2)",
+       "key": "leverage",
+       "point": {
+        "x": -1.0
+       },
+       "printed": "1"
+      },
+      {
+       "kind": "normal_equations",
+       "model": "x + I(x**2)",
+       "key": "leverage",
+       "point": {
+        "x": 0.0
+       },
+       "printed": "1"
+      },
+      {
+       "kind": "normal_equations",
+       "model": "x + I(x**2)",
+       "key": "leverage",
+       "point": {
+        "x": 1.0
+       },
+       "printed": "1"
+      }
+     ],
+     "analysis": "x0'(X'X)^-1 x0 at the three design points"
     },
     {
      "what": "design_metric",
@@ -31000,8 +31275,12 @@
       "quote": "design points, dips to :math:`0.625\\,\\sigma^2` midway between them"
      },
      "check": {
-      "manual": "the prediction variance x_m' M^-1 x_m of the printed runs, as a function of x or at a point (sigma^2 units), which no check here computes"
-     }
+      "kind": "design_metric",
+      "metric": "fds",
+      "model": "x + I(x**2)",
+      "key": "quantiles.0"
+     },
+     "analysis": "the smallest prediction variance over the library's sample of [-1, 1]"
     },
     {
      "what": "design_metric",
@@ -31014,8 +31293,12 @@
       "quote": "- Base :math:`\\{-1, 0, +1\\}` - 3 - 4 - 3.00 - 0.44 - 1.0 - 0.80"
      },
      "check": {
-      "manual": "the number of runs of a design the book lists run by run; no check kind counts the runs of a design entry, which has no responses to fit"
-     }
+      "kind": "design_metric",
+      "metric": "information_matrix",
+      "model": "x + I(x**2)",
+      "key": "n_runs"
+     },
+     "analysis": "the runs, from the library's information_matrix"
     },
     {
      "what": "design_metric",
@@ -31028,8 +31311,12 @@
       "quote": "- Base :math:`\\{-1, 0, +1\\}` - 3 - 4 - 3.00 - 0.44 - 1.0 - 0.80"
      },
      "check": {
-      "manual": "a D-criterion, the determinant of the information matrix X'X, which no check here computes"
-     }
+      "kind": "design_metric",
+      "metric": "information_matrix",
+      "model": "x + I(x**2)",
+      "key": "determinant"
+     },
+     "analysis": "|X'X|, from the library's information_matrix"
     },
     {
      "what": "design_metric",
@@ -31042,8 +31329,12 @@
       "quote": "- Base :math:`\\{-1, 0, +1\\}` - 3 - 4 - 3.00 - 0.44 - 1.0 - 0.80"
      },
      "check": {
-      "manual": "an A-criterion, trace(M^-1), the summed coefficient variances in units of sigma^2, which no check here computes"
-     }
+      "kind": "design_metric",
+      "metric": "information_matrix",
+      "model": "x + I(x**2)",
+      "key": "a_criterion"
+     },
+     "analysis": "trace((X'X)^-1), from the library's information_matrix"
     },
     {
      "what": "design_metric",
@@ -31056,8 +31347,12 @@
       "quote": "- Base :math:`\\{-1, 0, +1\\}` - 3 - 4 - 3.00 - 0.44 - 1.0 - 0.80"
      },
      "check": {
-      "manual": "an E-criterion, the smallest eigenvalue of M = X'X, which no check here computes"
-     }
+      "kind": "design_metric",
+      "metric": "information_matrix",
+      "model": "x + I(x**2)",
+      "key": "e_criterion"
+     },
+     "analysis": "the smallest eigenvalue of X'X, from the library's information_matrix"
     },
     {
      "what": "design_metric",
@@ -31070,8 +31365,15 @@
       "quote": "- Base :math:`\\{-1, 0, +1\\}` - 3 - 4 - 3.00 - 0.44 - 1.0 - 0.80"
      },
      "check": {
-      "manual": "a G-criterion, the maximum over x in [-1, +1] of the prediction variance x_m' M^-1 x_m (sigma^2 units), which no check here computes"
-     }
+      "kind": "design_metric",
+      "metric": "g_efficiency",
+      "result": "max_prediction_variance",
+      "model": "x + I(x**2)",
+      "options": {
+       "max_search": "optimize"
+      }
+     },
+     "analysis": "the largest prediction variance over [-1, 1], searched"
     },
     {
      "what": "design_metric",
@@ -31084,8 +31386,14 @@
       "quote": "- Base :math:`\\{-1, 0, +1\\}` - 3 - 4 - 3.00 - 0.44 - 1.0 - 0.80"
      },
      "check": {
-      "manual": "an I-criterion, the average over x in [-1, +1] of the prediction variance x_m' M^-1 x_m (sigma^2 units), which no check here computes"
-     }
+      "kind": "design_metric",
+      "metric": "average_prediction_variance",
+      "model": "x + I(x**2)",
+      "options": {
+       "integration": "exact"
+      }
+     },
+     "analysis": "the exact average prediction variance over [-1, 1]"
     },
     {
      "what": "other",
@@ -31102,8 +31410,11 @@
       "quote": "\\mathbf{X}_1 = \\begin{bmatrix} 1 & -1 & 1 \\\\ 1 & 0 & 0 \\\\ 1 & 1 & 1 \\end{bmatrix},"
      },
      "check": {
-      "manual": "the model matrix X written out from the printed runs, a construction rather than a computed result; no check kind compares a matrix"
-     }
+      "kind": "normal_equations",
+      "model": "x + I(x**2)",
+      "key": "model_matrix"
+     },
+     "analysis": "the model matrix X of the printed runs under y = b0 + b1 x + b2 x^2, from the library's normal equations"
     },
     {
      "what": "design_metric",
@@ -31120,8 +31431,11 @@
       "quote": "= \\begin{bmatrix} 3 & 0 & 2 \\\\ 0 & 2 & 0 \\\\ 2 & 0 & 2 \\end{bmatrix}"
      },
      "check": {
-      "manual": "the information matrix M = X'X of the printed runs, or an entry of it, which no check here computes"
-     }
+      "kind": "normal_equations",
+      "model": "x + I(x**2)",
+      "key": "xtx"
+     },
+     "analysis": "M = X'X of the printed runs under y = b0 + b1 x + b2 x^2, from the library's normal equations"
     },
     {
      "what": "design_metric",
@@ -31134,8 +31448,11 @@
       "quote": "base design is the intercept-quadratic pair: the two are correlated (:math:`M_{02} = 2`) and the"
      },
      "check": {
-      "manual": "the information matrix M = X'X of the printed runs, or an entry of it, which no check here computes"
-     }
+      "kind": "normal_equations",
+      "model": "x + I(x**2)",
+      "key": "xtx.0.2"
+     },
+     "analysis": "the entry M_02 of X'X of the printed runs under y = b0 + b1 x + b2 x^2, from the library's normal equations"
     },
     {
      "what": "design_metric",
@@ -31148,8 +31465,11 @@
       "quote": "quadratic is the least precise coefficient (:math:`\\text{Var}(b_2) = 1.5\\,\\sigma^2`)"
      },
      "check": {
-      "manual": "an entry of M^-1, a coefficient variance or covariance in units of sigma^2 that depends on the runs alone, which no check here computes (the fit kinds need responses)"
-     }
+      "kind": "normal_equations",
+      "model": "x + I(x**2)",
+      "key": "inverse.2.2"
+     },
+     "analysis": "a diagonal entry of M^-1 of the printed runs under y = b0 + b1 x + b2 x^2, from the library's normal equations"
     },
     {
      "what": "design_metric",
@@ -31162,8 +31482,11 @@
       "quote": "it raises :math:`M_{00}` from 3 to 5 while leaving the entangling cross-term :math:`M_{02}`"
      },
      "check": {
-      "manual": "the information matrix M = X'X of the printed runs, or an entry of it, which no check here computes"
-     }
+      "kind": "normal_equations",
+      "model": "x + I(x**2)",
+      "key": "xtx.0.0"
+     },
+     "analysis": "the entry M_00 of X'X of the printed runs under y = b0 + b1 x + b2 x^2, from the library's normal equations"
     },
     {
      "what": "design_metric",
@@ -31176,8 +31499,12 @@
       "quote": "value of 0.44."
      },
      "check": {
-      "manual": "an E-criterion, the smallest eigenvalue of M = X'X, which no check here computes"
-     }
+      "kind": "design_metric",
+      "metric": "information_matrix",
+      "model": "x + I(x**2)",
+      "key": "e_criterion"
+     },
+     "analysis": "the smallest eigenvalue of X'X, from the library's information_matrix"
     },
     {
      "what": "design_metric",
@@ -31189,9 +31516,42 @@
       "source_kind": "math",
       "quote": ":math:`\\text{SPV}(x) = 3\\,(1 - 1.5\\,x^2 + 1.5\\,x^4)`, with a maximum of :math:`3` at the design"
      },
-     "check": {
-      "manual": "the scaled prediction variance N x_m' M^-1 x_m of the printed runs (its formula, maximum or average over [-1, +1]), which no check here computes"
-     }
+     "check": [
+      {
+       "kind": "normal_equations",
+       "model": "x + I(x**2)",
+       "key": "leverage",
+       "point": {
+        "x": 0.0
+       },
+       "scaled": true,
+       "printed": "3*(1 - 1.5*0.0**2 + 1.5*0.0**4)",
+       "expression": true
+      },
+      {
+       "kind": "normal_equations",
+       "model": "x + I(x**2)",
+       "key": "leverage",
+       "point": {
+        "x": 0.5
+       },
+       "scaled": true,
+       "printed": "3*(1 - 1.5*0.5**2 + 1.5*0.5**4)",
+       "expression": true
+      },
+      {
+       "kind": "normal_equations",
+       "model": "x + I(x**2)",
+       "key": "leverage",
+       "point": {
+        "x": 0.9
+       },
+       "scaled": true,
+       "printed": "3*(1 - 1.5*0.9**2 + 1.5*0.9**4)",
+       "expression": true
+      }
+     ],
+     "analysis": "N x0'(X'X)^-1 x0 at x = 0, 0.5 and 0.9, against the printed formula there"
     },
     {
      "what": "design_metric",
@@ -31204,8 +31564,12 @@
       "quote": "with a maximum of :math:`3` at the design"
      },
      "check": {
-      "manual": "the scaled prediction variance N x_m' M^-1 x_m of the printed runs (its formula, maximum or average over [-1, +1]), which no check here computes"
-     }
+      "kind": "design_metric",
+      "metric": "fds",
+      "model": "x + I(x**2)",
+      "key": "scaled_max_prediction_variance"
+     },
+     "analysis": "N times the largest prediction variance over [-1, 1]"
     },
     {
      "what": "design_metric",
@@ -31218,8 +31582,12 @@
       "quote": "points and an average of :math:`2.4` over the region."
      },
      "check": {
-      "manual": "the scaled prediction variance N x_m' M^-1 x_m of the printed runs (its formula, maximum or average over [-1, +1]), which no check here computes"
-     }
+      "kind": "design_metric",
+      "metric": "fds",
+      "model": "x + I(x**2)",
+      "key": "scaled_average_prediction_variance"
+     },
+     "analysis": "N times the average prediction variance over the library's sample of [-1, 1]"
     }
    ]
   },
@@ -31285,8 +31653,12 @@
       "quote": "- Base, all three runs repeated - 6 - 32 - 1.50 - 0.88 - 0.5 - 0.40"
      },
      "check": {
-      "manual": "the number of runs of a design the book lists run by run; no check kind counts the runs of a design entry, which has no responses to fit"
-     }
+      "kind": "design_metric",
+      "metric": "information_matrix",
+      "model": "x + I(x**2)",
+      "key": "n_runs"
+     },
+     "analysis": "the runs, from the library's information_matrix"
     },
     {
      "what": "design_metric",
@@ -31299,8 +31671,12 @@
       "quote": "- Base, all three runs repeated - 6 - 32 - 1.50 - 0.88 - 0.5 - 0.40"
      },
      "check": {
-      "manual": "a D-criterion, the determinant of the information matrix X'X, which no check here computes"
-     }
+      "kind": "design_metric",
+      "metric": "information_matrix",
+      "model": "x + I(x**2)",
+      "key": "determinant"
+     },
+     "analysis": "|X'X|, from the library's information_matrix"
     },
     {
      "what": "design_metric",
@@ -31313,8 +31689,12 @@
       "quote": "- Base, all three runs repeated - 6 - 32 - 1.50 - 0.88 - 0.5 - 0.40"
      },
      "check": {
-      "manual": "an A-criterion, trace(M^-1), the summed coefficient variances in units of sigma^2, which no check here computes"
-     }
+      "kind": "design_metric",
+      "metric": "information_matrix",
+      "model": "x + I(x**2)",
+      "key": "a_criterion"
+     },
+     "analysis": "trace((X'X)^-1), from the library's information_matrix"
     },
     {
      "what": "design_metric",
@@ -31327,8 +31707,12 @@
       "quote": "- Base, all three runs repeated - 6 - 32 - 1.50 - 0.88 - 0.5 - 0.40"
      },
      "check": {
-      "manual": "an E-criterion, the smallest eigenvalue of M = X'X, which no check here computes"
-     }
+      "kind": "design_metric",
+      "metric": "information_matrix",
+      "model": "x + I(x**2)",
+      "key": "e_criterion"
+     },
+     "analysis": "the smallest eigenvalue of X'X, from the library's information_matrix"
     },
     {
      "what": "design_metric",
@@ -31341,8 +31725,15 @@
       "quote": "- Base, all three runs repeated - 6 - 32 - 1.50 - 0.88 - 0.5 - 0.40"
      },
      "check": {
-      "manual": "a G-criterion, the maximum over x in [-1, +1] of the prediction variance x_m' M^-1 x_m (sigma^2 units), which no check here computes"
-     }
+      "kind": "design_metric",
+      "metric": "g_efficiency",
+      "result": "max_prediction_variance",
+      "model": "x + I(x**2)",
+      "options": {
+       "max_search": "optimize"
+      }
+     },
+     "analysis": "the largest prediction variance over [-1, 1], searched"
     },
     {
      "what": "design_metric",
@@ -31355,8 +31746,14 @@
       "quote": "- Base, all three runs repeated - 6 - 32 - 1.50 - 0.88 - 0.5 - 0.40"
      },
      "check": {
-      "manual": "an I-criterion, the average over x in [-1, +1] of the prediction variance x_m' M^-1 x_m (sigma^2 units), which no check here computes"
-     }
+      "kind": "design_metric",
+      "metric": "average_prediction_variance",
+      "model": "x + I(x**2)",
+      "options": {
+       "integration": "exact"
+      }
+     },
+     "analysis": "the exact average prediction variance over [-1, 1]"
     },
     {
      "what": "other",
@@ -31376,8 +31773,11 @@
       "quote": "\\mathbf{X}_2 = \\begin{bmatrix} 1 & -1 & 1 \\\\ 1 & 0 & 0 \\\\ 1 & 1 & 1 \\\\"
      },
      "check": {
-      "manual": "the model matrix X written out from the printed runs, a construction rather than a computed result; no check kind compares a matrix"
-     }
+      "kind": "normal_equations",
+      "model": "x + I(x**2)",
+      "key": "model_matrix"
+     },
+     "analysis": "the model matrix X of the printed runs under y = b0 + b1 x + b2 x^2, from the library's normal equations"
     },
     {
      "what": "design_metric",
@@ -31394,8 +31794,11 @@
       "quote": "\\mathbf{M}_2 = \\begin{bmatrix} 6 & 0 & 4 \\\\ 0 & 4 & 0 \\\\ 4 & 0 & 4 \\end{bmatrix}"
      },
      "check": {
-      "manual": "the information matrix M = X'X of the printed runs, or an entry of it, which no check here computes"
-     }
+      "kind": "normal_equations",
+      "model": "x + I(x**2)",
+      "key": "xtx"
+     },
+     "analysis": "M = X'X of the printed runs under y = b0 + b1 x + b2 x^2, from the library's normal equations"
     },
     {
      "what": "design_metric",
@@ -31449,9 +31852,42 @@
       "source_kind": "math",
       "quote": ":math:`6 \\times \\tfrac{1}{2}(1 - 1.5\\,x^2 + 1.5\\,x^4)`, the *identical* curve."
      },
-     "check": {
-      "manual": "the scaled prediction variance N x_m' M^-1 x_m of the printed runs (its formula, maximum or average over [-1, +1]), which no check here computes"
-     }
+     "check": [
+      {
+       "kind": "normal_equations",
+       "model": "x + I(x**2)",
+       "key": "leverage",
+       "point": {
+        "x": 0.0
+       },
+       "scaled": true,
+       "printed": "6*0.5*(1 - 1.5*0.0**2 + 1.5*0.0**4)",
+       "expression": true
+      },
+      {
+       "kind": "normal_equations",
+       "model": "x + I(x**2)",
+       "key": "leverage",
+       "point": {
+        "x": 0.5
+       },
+       "scaled": true,
+       "printed": "6*0.5*(1 - 1.5*0.5**2 + 1.5*0.5**4)",
+       "expression": true
+      },
+      {
+       "kind": "normal_equations",
+       "model": "x + I(x**2)",
+       "key": "leverage",
+       "point": {
+        "x": 0.9
+       },
+       "scaled": true,
+       "printed": "6*0.5*(1 - 1.5*0.9**2 + 1.5*0.9**4)",
+       "expression": true
+      }
+     ],
+     "analysis": "N x0'(X'X)^-1 x0 against the printed formula"
     },
     {
      "what": "other",
@@ -31530,8 +31966,12 @@
       "quote": "- Base + two centre points - 5 - 12 - 1.67 - 1.00 - 1.0 - 0.44"
      },
      "check": {
-      "manual": "the number of runs of a design the book lists run by run; no check kind counts the runs of a design entry, which has no responses to fit"
-     }
+      "kind": "design_metric",
+      "metric": "information_matrix",
+      "model": "x + I(x**2)",
+      "key": "n_runs"
+     },
+     "analysis": "the runs, from the library's information_matrix"
     },
     {
      "what": "design_metric",
@@ -31544,8 +31984,12 @@
       "quote": "- Base + two centre points - 5 - 12 - 1.67 - 1.00 - 1.0 - 0.44"
      },
      "check": {
-      "manual": "a D-criterion, the determinant of the information matrix X'X, which no check here computes"
-     }
+      "kind": "design_metric",
+      "metric": "information_matrix",
+      "model": "x + I(x**2)",
+      "key": "determinant"
+     },
+     "analysis": "|X'X|, from the library's information_matrix"
     },
     {
      "what": "design_metric",
@@ -31558,8 +32002,12 @@
       "quote": "- Base + two centre points - 5 - 12 - 1.67 - 1.00 - 1.0 - 0.44"
      },
      "check": {
-      "manual": "an A-criterion, trace(M^-1), the summed coefficient variances in units of sigma^2, which no check here computes"
-     }
+      "kind": "design_metric",
+      "metric": "information_matrix",
+      "model": "x + I(x**2)",
+      "key": "a_criterion"
+     },
+     "analysis": "trace((X'X)^-1), from the library's information_matrix"
     },
     {
      "what": "design_metric",
@@ -31572,8 +32020,12 @@
       "quote": "- Base + two centre points - 5 - 12 - 1.67 - 1.00 - 1.0 - 0.44"
      },
      "check": {
-      "manual": "an E-criterion, the smallest eigenvalue of M = X'X, which no check here computes"
-     }
+      "kind": "design_metric",
+      "metric": "information_matrix",
+      "model": "x + I(x**2)",
+      "key": "e_criterion"
+     },
+     "analysis": "the smallest eigenvalue of X'X, from the library's information_matrix"
     },
     {
      "what": "design_metric",
@@ -31586,8 +32038,15 @@
       "quote": "- Base + two centre points - 5 - 12 - 1.67 - 1.00 - 1.0 - 0.44"
      },
      "check": {
-      "manual": "a G-criterion, the maximum over x in [-1, +1] of the prediction variance x_m' M^-1 x_m (sigma^2 units), which no check here computes"
-     }
+      "kind": "design_metric",
+      "metric": "g_efficiency",
+      "result": "max_prediction_variance",
+      "model": "x + I(x**2)",
+      "options": {
+       "max_search": "optimize"
+      }
+     },
+     "analysis": "the largest prediction variance over [-1, 1], searched"
     },
     {
      "what": "design_metric",
@@ -31600,8 +32059,14 @@
       "quote": "- Base + two centre points - 5 - 12 - 1.67 - 1.00 - 1.0 - 0.44"
      },
      "check": {
-      "manual": "an I-criterion, the average over x in [-1, +1] of the prediction variance x_m' M^-1 x_m (sigma^2 units), which no check here computes"
-     }
+      "kind": "design_metric",
+      "metric": "average_prediction_variance",
+      "model": "x + I(x**2)",
+      "options": {
+       "integration": "exact"
+      }
+     },
+     "analysis": "the exact average prediction variance over [-1, 1]"
     },
     {
      "what": "other",
@@ -31620,8 +32085,11 @@
       "quote": "\\mathbf{X}_3 = \\begin{bmatrix} 1 & -1 & 1 \\\\ 1 & 0 & 0 \\\\ 1 & 1 & 1 \\\\"
      },
      "check": {
-      "manual": "the model matrix X written out from the printed runs, a construction rather than a computed result; no check kind compares a matrix"
-     }
+      "kind": "normal_equations",
+      "model": "x + I(x**2)",
+      "key": "model_matrix"
+     },
+     "analysis": "the model matrix X of the printed runs under y = b0 + b1 x + b2 x^2, from the library's normal equations"
     },
     {
      "what": "design_metric",
@@ -31638,8 +32106,11 @@
       "quote": "\\mathbf{M}_3 = \\begin{bmatrix} 5 & 0 & 2 \\\\ 0 & 2 & 0 \\\\ 2 & 0 & 2 \\end{bmatrix}"
      },
      "check": {
-      "manual": "the information matrix M = X'X of the printed runs, or an entry of it, which no check here computes"
-     }
+      "kind": "normal_equations",
+      "model": "x + I(x**2)",
+      "key": "xtx"
+     },
+     "analysis": "M = X'X of the printed runs under y = b0 + b1 x + b2 x^2, from the library's normal equations"
     },
     {
      "what": "design_metric",
@@ -31652,8 +32123,11 @@
       "quote": "share the same intercept information (:math:`M_{00} = 5`, since each adds two"
      },
      "check": {
-      "manual": "the information matrix M = X'X of the printed runs, or an entry of it, which no check here computes"
-     }
+      "kind": "normal_equations",
+      "model": "x + I(x**2)",
+      "key": "xtx.0.0"
+     },
+     "analysis": "an entry of X'X or of its inverse of the printed runs under y = b0 + b1 x + b2 x^2, from the library's normal equations"
     },
     {
      "what": "design_metric",
@@ -31666,8 +32140,11 @@
       "quote": "runs to the base), but the centre-point design holds the intercept-quadratic cross-term down at :math:`M_{02} = 2`"
      },
      "check": {
-      "manual": "the information matrix M = X'X of the printed runs, or an entry of it, which no check here computes"
-     }
+      "kind": "normal_equations",
+      "model": "x + I(x**2)",
+      "key": "xtx.0.2"
+     },
+     "analysis": "an entry of X'X or of its inverse of the printed runs under y = b0 + b1 x + b2 x^2, from the library's normal equations"
     },
     {
      "what": "design_metric",
@@ -31680,8 +32157,12 @@
       "quote": "Adding the two extreme points maximises :math:`D` (16 versus 12 when adding two replicate"
      },
      "check": {
-      "manual": "a D-criterion, the determinant of the information matrix X'X, which no check here computes"
-     }
+      "kind": "design_metric",
+      "metric": "information_matrix",
+      "model": "x + I(x**2)",
+      "key": "determinant"
+     },
+     "analysis": "|X'X|, from the library's information_matrix"
     },
     {
      "what": "design_metric",
@@ -31694,8 +32175,12 @@
       "quote": "Adding the two centre points instead reduces :math:`A` (1.67 versus 2.50) because it lowers the"
      },
      "check": {
-      "manual": "an A-criterion, trace(M^-1), the summed coefficient variances in units of sigma^2, which no check here computes"
-     }
+      "kind": "design_metric",
+      "metric": "information_matrix",
+      "model": "x + I(x**2)",
+      "key": "a_criterion"
+     },
+     "analysis": "trace((X'X)^-1), from the library's information_matrix"
     },
     {
      "what": "design_metric",
@@ -31708,8 +32193,11 @@
       "quote": "it raises :math:`M_{00}` from 3 to 5 while leaving the entangling cross-term :math:`M_{02}`"
      },
      "check": {
-      "manual": "the information matrix M = X'X of the printed runs, or an entry of it, which no check here computes"
-     }
+      "kind": "normal_equations",
+      "model": "x + I(x**2)",
+      "key": "xtx.0.0"
+     },
+     "analysis": "an entry of X'X or of its inverse of the printed runs under y = b0 + b1 x + b2 x^2, from the library's normal equations"
     },
     {
      "what": "design_metric",
@@ -31722,8 +32210,11 @@
       "quote": ":math:`\\text{Var}(b_2)` from :math:`1.5\\,\\sigma^2` down to :math:`0.83\\,\\sigma^2`, and that drop in"
      },
      "check": {
-      "manual": "an entry of M^-1, a coefficient variance or covariance in units of sigma^2 that depends on the runs alone, which no check here computes (the fit kinds need responses)"
-     }
+      "kind": "normal_equations",
+      "model": "x + I(x**2)",
+      "key": "inverse.2.2"
+     },
+     "analysis": "an entry of X'X or of its inverse of the printed runs under y = b0 + b1 x + b2 x^2, from the library's normal equations"
     },
     {
      "what": "design_metric",
@@ -31736,8 +32227,12 @@
       "quote": "The centre points also maximise :math:`E` (1.00 versus 0.47), the smallest eigenvalue of"
      },
      "check": {
-      "manual": "an E-criterion, the smallest eigenvalue of M = X'X, which no check here computes"
-     }
+      "kind": "design_metric",
+      "metric": "information_matrix",
+      "model": "x + I(x**2)",
+      "key": "e_criterion"
+     },
+     "analysis": "the smallest eigenvalue of X'X, from the library's information_matrix"
     },
     {
      "what": "design_metric",
@@ -31750,8 +32245,14 @@
       "quote": "Finally the centre points minimise :math:`I` (0.44 versus 0.67), the average prediction variance"
      },
      "check": {
-      "manual": "an I-criterion, the average over x in [-1, +1] of the prediction variance x_m' M^-1 x_m (sigma^2 units), which no check here computes"
-     }
+      "kind": "design_metric",
+      "metric": "average_prediction_variance",
+      "model": "x + I(x**2)",
+      "options": {
+       "integration": "exact"
+      }
+     },
+     "analysis": "the exact average prediction variance over [-1, 1]"
     },
     {
      "what": "other",
@@ -31830,8 +32331,12 @@
       "quote": "- Base + two points at :math:`\\pm 1` - 5 - 16 - 2.50 - 0.47 - 1.0 - 0.67"
      },
      "check": {
-      "manual": "the number of runs of a design the book lists run by run; no check kind counts the runs of a design entry, which has no responses to fit"
-     }
+      "kind": "design_metric",
+      "metric": "information_matrix",
+      "model": "x + I(x**2)",
+      "key": "n_runs"
+     },
+     "analysis": "the runs, from the library's information_matrix"
     },
     {
      "what": "design_metric",
@@ -31844,8 +32349,12 @@
       "quote": "- Base + two points at :math:`\\pm 1` - 5 - 16 - 2.50 - 0.47 - 1.0 - 0.67"
      },
      "check": {
-      "manual": "a D-criterion, the determinant of the information matrix X'X, which no check here computes"
-     }
+      "kind": "design_metric",
+      "metric": "information_matrix",
+      "model": "x + I(x**2)",
+      "key": "determinant"
+     },
+     "analysis": "|X'X|, from the library's information_matrix"
     },
     {
      "what": "design_metric",
@@ -31858,8 +32367,12 @@
       "quote": "- Base + two points at :math:`\\pm 1` - 5 - 16 - 2.50 - 0.47 - 1.0 - 0.67"
      },
      "check": {
-      "manual": "an A-criterion, trace(M^-1), the summed coefficient variances in units of sigma^2, which no check here computes"
-     }
+      "kind": "design_metric",
+      "metric": "information_matrix",
+      "model": "x + I(x**2)",
+      "key": "a_criterion"
+     },
+     "analysis": "trace((X'X)^-1), from the library's information_matrix"
     },
     {
      "what": "design_metric",
@@ -31872,8 +32385,12 @@
       "quote": "- Base + two points at :math:`\\pm 1` - 5 - 16 - 2.50 - 0.47 - 1.0 - 0.67"
      },
      "check": {
-      "manual": "an E-criterion, the smallest eigenvalue of M = X'X, which no check here computes"
-     }
+      "kind": "design_metric",
+      "metric": "information_matrix",
+      "model": "x + I(x**2)",
+      "key": "e_criterion"
+     },
+     "analysis": "the smallest eigenvalue of X'X, from the library's information_matrix"
     },
     {
      "what": "design_metric",
@@ -31886,8 +32403,15 @@
       "quote": "- Base + two points at :math:`\\pm 1` - 5 - 16 - 2.50 - 0.47 - 1.0 - 0.67"
      },
      "check": {
-      "manual": "a G-criterion, the maximum over x in [-1, +1] of the prediction variance x_m' M^-1 x_m (sigma^2 units), which no check here computes"
-     }
+      "kind": "design_metric",
+      "metric": "g_efficiency",
+      "result": "max_prediction_variance",
+      "model": "x + I(x**2)",
+      "options": {
+       "max_search": "optimize"
+      }
+     },
+     "analysis": "the largest prediction variance over [-1, 1], searched"
     },
     {
      "what": "design_metric",
@@ -31900,8 +32424,14 @@
       "quote": "- Base + two points at :math:`\\pm 1` - 5 - 16 - 2.50 - 0.47 - 1.0 - 0.67"
      },
      "check": {
-      "manual": "an I-criterion, the average over x in [-1, +1] of the prediction variance x_m' M^-1 x_m (sigma^2 units), which no check here computes"
-     }
+      "kind": "design_metric",
+      "metric": "average_prediction_variance",
+      "model": "x + I(x**2)",
+      "options": {
+       "integration": "exact"
+      }
+     },
+     "analysis": "the exact average prediction variance over [-1, 1]"
     },
     {
      "what": "other",
@@ -31920,8 +32450,11 @@
       "quote": "\\mathbf{X}_4 = \\begin{bmatrix} 1 & -1 & 1 \\\\ 1 & 0 & 0 \\\\ 1 & 1 & 1 \\\\"
      },
      "check": {
-      "manual": "the model matrix X written out from the printed runs, a construction rather than a computed result; no check kind compares a matrix"
-     }
+      "kind": "normal_equations",
+      "model": "x + I(x**2)",
+      "key": "model_matrix"
+     },
+     "analysis": "the model matrix X of the printed runs under y = b0 + b1 x + b2 x^2, from the library's normal equations"
     },
     {
      "what": "design_metric",
@@ -31938,8 +32471,11 @@
       "quote": "\\mathbf{M}_4 = \\begin{bmatrix} 5 & 0 & 4 \\\\ 0 & 4 & 0 \\\\ 4 & 0 & 4 \\end{bmatrix}"
      },
      "check": {
-      "manual": "the information matrix M = X'X of the printed runs, or an entry of it, which no check here computes"
-     }
+      "kind": "normal_equations",
+      "model": "x + I(x**2)",
+      "key": "xtx"
+     },
+     "analysis": "M = X'X of the printed runs under y = b0 + b1 x + b2 x^2, from the library's normal equations"
     },
     {
      "what": "design_metric",
@@ -31952,8 +32488,11 @@
       "quote": "share the same intercept information (:math:`M_{00} = 5`, since each adds two"
      },
      "check": {
-      "manual": "the information matrix M = X'X of the printed runs, or an entry of it, which no check here computes"
-     }
+      "kind": "normal_equations",
+      "model": "x + I(x**2)",
+      "key": "xtx.0.0"
+     },
+     "analysis": "an entry of X'X or of its inverse of the printed runs under y = b0 + b1 x + b2 x^2, from the library's normal equations"
     },
     {
      "what": "design_metric",
@@ -31966,8 +32505,11 @@
       "quote": "whereas doubling the boundary runs drives it up to :math:`M_{02} = 4`"
      },
      "check": {
-      "manual": "the information matrix M = X'X of the printed runs, or an entry of it, which no check here computes"
-     }
+      "kind": "normal_equations",
+      "model": "x + I(x**2)",
+      "key": "xtx.0.2"
+     },
+     "analysis": "an entry of X'X or of its inverse of the printed runs under y = b0 + b1 x + b2 x^2, from the library's normal equations"
     },
     {
      "what": "design_metric",
@@ -31980,8 +32522,12 @@
       "quote": "Adding the two extreme points maximises :math:`D` (16 versus 12 when adding two replicate"
      },
      "check": {
-      "manual": "a D-criterion, the determinant of the information matrix X'X, which no check here computes"
-     }
+      "kind": "design_metric",
+      "metric": "information_matrix",
+      "model": "x + I(x**2)",
+      "key": "determinant"
+     },
+     "analysis": "|X'X|, from the library's information_matrix"
     },
     {
      "what": "design_metric",
@@ -31994,8 +32540,12 @@
       "quote": "Adding the two centre points instead reduces :math:`A` (1.67 versus 2.50) because it lowers the"
      },
      "check": {
-      "manual": "an A-criterion, trace(M^-1), the summed coefficient variances in units of sigma^2, which no check here computes"
-     }
+      "kind": "design_metric",
+      "metric": "information_matrix",
+      "model": "x + I(x**2)",
+      "key": "a_criterion"
+     },
+     "analysis": "trace((X'X)^-1), from the library's information_matrix"
     },
     {
      "what": "design_metric",
@@ -32008,8 +32558,12 @@
       "quote": "The centre points also maximise :math:`E` (1.00 versus 0.47), the smallest eigenvalue of"
      },
      "check": {
-      "manual": "an E-criterion, the smallest eigenvalue of M = X'X, which no check here computes"
-     }
+      "kind": "design_metric",
+      "metric": "information_matrix",
+      "model": "x + I(x**2)",
+      "key": "e_criterion"
+     },
+     "analysis": "the smallest eigenvalue of X'X, from the library's information_matrix"
     },
     {
      "what": "design_metric",
@@ -32022,8 +32576,11 @@
       "quote": "(the cross-term grows to :math:`M_{02} = 4`), which is why :math:`E` barely moves from the base"
      },
      "check": {
-      "manual": "the information matrix M = X'X of the printed runs, or an entry of it, which no check here computes"
-     }
+      "kind": "normal_equations",
+      "model": "x + I(x**2)",
+      "key": "xtx.0.2"
+     },
+     "analysis": "an entry of X'X or of its inverse of the printed runs under y = b0 + b1 x + b2 x^2, from the library's normal equations"
     },
     {
      "what": "other",
@@ -32050,8 +32607,14 @@
       "quote": "Finally the centre points minimise :math:`I` (0.44 versus 0.67), the average prediction variance"
      },
      "check": {
-      "manual": "an I-criterion, the average over x in [-1, +1] of the prediction variance x_m' M^-1 x_m (sigma^2 units), which no check here computes"
-     }
+      "kind": "design_metric",
+      "metric": "average_prediction_variance",
+      "model": "x + I(x**2)",
+      "options": {
+       "integration": "exact"
+      }
+     },
+     "analysis": "the exact average prediction variance over [-1, 1]"
     },
     {
      "what": "other",
@@ -32184,7 +32747,7 @@
      "what": "design_metric",
      "term": "G, maximum SPV, interior sample without the cube vertices",
      "value": "8.98",
-     "analysis": "FDS sample without cube vertices",
+     "analysis": "the library's evaluate_design on the design it makes (design_type dsd), under the main-effects-and-quadratics model: N times the largest prediction variance over the sample, the vertices left out (the book's sample: 80,000 points, seed 1, with the cube's vertices)",
      "where": {
       "file": "design-analysis-experiments/judging-and-comparing-designs.rst",
       "line": 469,
@@ -32192,7 +32755,20 @@
       "quote": "Including them lifts the nine-run DSD's :math:`G` from :math:`8.98`"
      },
      "check": {
-      "manual": "the maximum scaled prediction variance over evaluate_design's seeded uniform sample without the cube vertices, which no check here computes"
+      "kind": "design_metric",
+      "design": {
+       "design_type": "dsd",
+       "k": 4,
+       "options": {}
+      },
+      "metric": "fds",
+      "model": "A + B + C + D + I(A**2) + I(B**2) + I(C**2) + I(D**2)",
+      "options": {
+       "n_samples": 80000,
+       "random_state": 1,
+       "include_vertices": false
+      },
+      "key": "scaled_max_prediction_variance"
      }
     },
     {
@@ -32206,8 +32782,21 @@
       "quote": "to :math:`9.00`, a maximum that turns out to sit precisely at a corner"
      },
      "check": {
-      "manual": "a G-criterion, the maximum scaled prediction variance over the region, which evaluate_design takes over a seeded uniform sample plus the cube vertices; no check here computes it"
-     }
+      "kind": "design_metric",
+      "design": {
+       "design_type": "dsd",
+       "k": 4,
+       "options": {}
+      },
+      "metric": "fds",
+      "model": "A + B + C + D + I(A**2) + I(B**2) + I(C**2) + I(D**2)",
+      "options": {
+       "n_samples": 80000,
+       "random_state": 1
+      },
+      "key": "scaled_max_prediction_variance"
+     },
+     "analysis": "the library's evaluate_design on the design it makes (design_type dsd), under the main-effects-and-quadratics model: N times the largest prediction variance over the cube (the book's sample: 80,000 points, seed 1, with the cube's vertices)"
     },
     {
      "what": "design_metric",
@@ -32220,8 +32809,17 @@
       "quote": "comparison table, the definitive screening design has a worst-pair value of :math:`0.707` (a"
      },
      "check": {
-      "manual": "a correlation summary |r| between model-term columns of the generated design, which no check here computes"
-     }
+      "kind": "design_metric",
+      "design": {
+       "design_type": "dsd",
+       "k": 4,
+       "options": {}
+      },
+      "metric": "correlation",
+      "model": "quadratic",
+      "key": "max_abs_r"
+     },
+     "analysis": "the library's evaluate_design on the design it makes (design_type dsd), under the main-effects-and-quadratics model: the largest |r| between two second-order terms of the full quadratic model"
     },
     {
      "what": "design_metric",
@@ -32234,8 +32832,17 @@
       "quote": "the mean values, :math:`0.322`"
      },
      "check": {
-      "manual": "a correlation summary |r| between model-term columns of the generated design, which no check here computes"
-     }
+      "kind": "design_metric",
+      "design": {
+       "design_type": "dsd",
+       "k": 4,
+       "options": {}
+      },
+      "metric": "correlation",
+      "model": "quadratic",
+      "key": "mean_abs_r"
+     },
+     "analysis": "the library's evaluate_design on the design it makes (design_type dsd), under the main-effects-and-quadratics model: the average |r| between two second-order terms of the full quadratic model"
     },
     {
      "what": "design_metric",
@@ -32248,8 +32855,17 @@
       "quote": "The definitive screening design shows :math:`\\text{VIF} = 1.0` throughout"
      },
      "check": {
-      "manual": "a variance inflation factor of the generated design, which no check here computes"
-     }
+      "kind": "design_metric",
+      "design": {
+       "design_type": "dsd",
+       "k": 4,
+       "options": {}
+      },
+      "metric": "vif",
+      "model": "A + B + C + D + I(A**2) + I(B**2) + I(C**2) + I(D**2)",
+      "key": "max"
+     },
+     "analysis": "the library's evaluate_design on the design it makes (design_type dsd), under the main-effects-and-quadratics model: the largest variance inflation factor"
     },
     {
      "what": "other",
@@ -32276,8 +32892,17 @@
       "quote": "This is not in tension with the worst-pair :math:`|r| = 0.707`"
      },
      "check": {
-      "manual": "a correlation summary |r| between model-term columns of the generated design, which no check here computes"
-     }
+      "kind": "design_metric",
+      "design": {
+       "design_type": "dsd",
+       "k": 4,
+       "options": {}
+      },
+      "metric": "correlation",
+      "model": "quadratic",
+      "key": "max_abs_r"
+     },
+     "analysis": "the library's evaluate_design on the design it makes (design_type dsd), under the main-effects-and-quadratics model: the largest |r| between two second-order terms of the full quadratic model"
     },
     {
      "what": "aliases",
@@ -32290,8 +32915,19 @@
       "quote": "orthogonal to every second-order term, so the main-effect rows of :math:`\\mathbf{A}` are exactly zero"
      },
      "check": {
-      "manual": "an entry, or the largest entry, of the alias matrix A = (X1'X1)^-1 X1'X2 for the omitted two-factor interactions, which no check here computes"
-     }
+      "kind": "design_metric",
+      "design": {
+       "design_type": "dsd",
+       "k": 4,
+       "options": {}
+      },
+      "metric": "alias_matrix",
+      "model": "A + B + C + D + I(A**2) + I(B**2) + I(C**2) + I(D**2)",
+      "key": "max_abs_main_effect_rows",
+      "printed": "0",
+      "expression": true
+     },
+     "analysis": "the library's evaluate_design on the design it makes (design_type dsd), under the main-effects-and-quadratics model: the largest entry of the alias matrix's main-effect rows, the omitted two-factor interactions"
     },
     {
      "what": "residual_df",
@@ -32304,8 +32940,17 @@
       "quote": "design with :math:`\\nu = 0` supplies none."
      },
      "check": {
-      "manual": "the residual degrees of freedom N - rank(X) of the model on the generated design; residual_df is a fit kind that needs responses, which a design entry has not, so no check here computes it"
-     }
+      "kind": "design_metric",
+      "design": {
+       "design_type": "dsd",
+       "k": 4,
+       "options": {}
+      },
+      "metric": "information_matrix",
+      "model": "A + B + C + D + I(A**2) + I(B**2) + I(C**2) + I(D**2)",
+      "key": "residual_df"
+     },
+     "analysis": "the library's evaluate_design on the design it makes (design_type dsd), under the main-effects-and-quadratics model: N - rank(X)"
     },
     {
      "what": "other",
@@ -32332,8 +32977,16 @@
       "quote": "- :math:`\\uparrow` D-efficiency - 42.8% - 39.0%"
      },
      "check": {
-      "manual": "a D-efficiency, 100 |X'X|^(1/p) / N of the generated design, which no check here computes"
-     }
+      "kind": "design_metric",
+      "design": {
+       "design_type": "dsd",
+       "k": 4,
+       "options": {}
+      },
+      "metric": "d_efficiency",
+      "model": "A + B + C + D + I(A**2) + I(B**2) + I(C**2) + I(D**2)"
+     },
+     "analysis": "the library's evaluate_design on the design it makes (design_type dsd), under the main-effects-and-quadratics model: the D-efficiency, 100 |X'X|^(1/p) / N"
     },
     {
      "what": "design_metric",
@@ -32346,8 +32999,16 @@
       "quote": "- :math:`\\downarrow\\ A`, summed coefficient variance - 3.67 - 2.52"
      },
      "check": {
-      "manual": "an A-criterion, trace((X'X)^-1) of the generated design on the main-effects-and-quadratic model, which no check here computes"
-     }
+      "kind": "design_metric",
+      "design": {
+       "design_type": "dsd",
+       "k": 4,
+       "options": {}
+      },
+      "metric": "a_optimality",
+      "model": "A + B + C + D + I(A**2) + I(B**2) + I(C**2) + I(D**2)"
+     },
+     "analysis": "the library's evaluate_design on the design it makes (design_type dsd), under the main-effects-and-quadratics model: trace((X'X)^-1)"
     },
     {
      "what": "design_metric",
@@ -32360,8 +33021,21 @@
       "quote": "- :math:`\\downarrow\\ I`, average SPV - 6.59 - 6.19"
      },
      "check": {
-      "manual": "an I-criterion, the average scaled prediction variance N x' (X'X)^-1 x over the region, which evaluate_design estimates from a seeded uniform sample of the region; no check here computes it"
-     }
+      "kind": "design_metric",
+      "design": {
+       "design_type": "dsd",
+       "k": 4,
+       "options": {}
+      },
+      "metric": "fds",
+      "model": "A + B + C + D + I(A**2) + I(B**2) + I(C**2) + I(D**2)",
+      "options": {
+       "n_samples": 80000,
+       "random_state": 1
+      },
+      "key": "scaled_average_prediction_variance"
+     },
+     "analysis": "the library's evaluate_design on the design it makes (design_type dsd), under the main-effects-and-quadratics model: N times the average prediction variance over the cube (the book's sample: 80,000 points, seed 1, with the cube's vertices)"
     },
     {
      "what": "design_metric",
@@ -32374,8 +33048,21 @@
       "quote": "- :math:`\\downarrow\\ G`, maximum SPV - 9.00 - 12.50"
      },
      "check": {
-      "manual": "a G-criterion, the maximum scaled prediction variance over the region, which evaluate_design takes over a seeded uniform sample plus the cube vertices; no check here computes it"
-     }
+      "kind": "design_metric",
+      "design": {
+       "design_type": "dsd",
+       "k": 4,
+       "options": {}
+      },
+      "metric": "fds",
+      "model": "A + B + C + D + I(A**2) + I(B**2) + I(C**2) + I(D**2)",
+      "options": {
+       "n_samples": 80000,
+       "random_state": 1
+      },
+      "key": "scaled_max_prediction_variance"
+     },
+     "analysis": "the library's evaluate_design on the design it makes (design_type dsd), under the main-effects-and-quadratics model: N times the largest prediction variance over the cube (the book's sample: 80,000 points, seed 1, with the cube's vertices)"
     },
     {
      "what": "design_metric",
@@ -32388,8 +33075,17 @@
       "quote": "- :math:`\\downarrow` Maximum :math:`|r|` - 0.707 - 0.570"
      },
      "check": {
-      "manual": "a correlation summary |r| between model-term columns of the generated design, which no check here computes"
-     }
+      "kind": "design_metric",
+      "design": {
+       "design_type": "dsd",
+       "k": 4,
+       "options": {}
+      },
+      "metric": "correlation",
+      "model": "quadratic",
+      "key": "max_abs_r"
+     },
+     "analysis": "the library's evaluate_design on the design it makes (design_type dsd), under the main-effects-and-quadratics model: the largest |r| between two second-order terms of the full quadratic model"
     },
     {
      "what": "design_metric",
@@ -32402,8 +33098,17 @@
       "quote": "- :math:`\\downarrow` Mean :math:`|r|` - 0.322 - 0.307"
      },
      "check": {
-      "manual": "a correlation summary |r| between model-term columns of the generated design, which no check here computes"
-     }
+      "kind": "design_metric",
+      "design": {
+       "design_type": "dsd",
+       "k": 4,
+       "options": {}
+      },
+      "metric": "correlation",
+      "model": "quadratic",
+      "key": "mean_abs_r"
+     },
+     "analysis": "the library's evaluate_design on the design it makes (design_type dsd), under the main-effects-and-quadratics model: the average |r| between two second-order terms of the full quadratic model"
     },
     {
      "what": "design_metric",
@@ -32416,8 +33121,17 @@
       "quote": "- :math:`\\downarrow` Maximum VIF - 1.00 - 1.18"
      },
      "check": {
-      "manual": "a variance inflation factor of the generated design, which no check here computes"
-     }
+      "kind": "design_metric",
+      "design": {
+       "design_type": "dsd",
+       "k": 4,
+       "options": {}
+      },
+      "metric": "vif",
+      "model": "A + B + C + D + I(A**2) + I(B**2) + I(C**2) + I(D**2)",
+      "key": "max"
+     },
+     "analysis": "the library's evaluate_design on the design it makes (design_type dsd), under the main-effects-and-quadratics model: the largest variance inflation factor"
     },
     {
      "what": "design_metric",
@@ -32430,8 +33144,17 @@
       "quote": "- :math:`\\downarrow` Mean VIF - 1.00 - 1.08"
      },
      "check": {
-      "manual": "a variance inflation factor of the generated design, which no check here computes"
-     }
+      "kind": "design_metric",
+      "design": {
+       "design_type": "dsd",
+       "k": 4,
+       "options": {}
+      },
+      "metric": "vif",
+      "model": "A + B + C + D + I(A**2) + I(B**2) + I(C**2) + I(D**2)",
+      "key": "mean"
+     },
+     "analysis": "the library's evaluate_design on the design it makes (design_type dsd), under the main-effects-and-quadratics model: the average variance inflation factor"
     },
     {
      "what": "residual_df",
@@ -32444,8 +33167,17 @@
       "quote": "- :math:`\\uparrow` Residual degrees of freedom - 0 - 4"
      },
      "check": {
-      "manual": "the residual degrees of freedom N - rank(X) of the model on the generated design; residual_df is a fit kind that needs responses, which a design entry has not, so no check here computes it"
-     }
+      "kind": "design_metric",
+      "design": {
+       "design_type": "dsd",
+       "k": 4,
+       "options": {}
+      },
+      "metric": "information_matrix",
+      "model": "A + B + C + D + I(A**2) + I(B**2) + I(C**2) + I(D**2)",
+      "key": "residual_df"
+     },
+     "analysis": "the library's evaluate_design on the design it makes (design_type dsd), under the main-effects-and-quadratics model: N - rank(X)"
     },
     {
      "what": "design_metric",
@@ -32486,8 +33218,17 @@
       "quote": "- :math:`\\uparrow` Two-factor interactions estimable - 0 - 2"
      },
      "check": {
-      "manual": "the number of two-factor interactions the generated design can estimate beside the model (a rank count), which no check here computes"
-     }
+      "kind": "design_metric",
+      "design": {
+       "design_type": "dsd",
+       "k": 4,
+       "options": {}
+      },
+      "metric": "estimable_interactions",
+      "model": "A + B + C + D + I(A**2) + I(B**2) + I(C**2) + I(D**2)",
+      "key": "n_estimable"
+     },
+     "analysis": "the library's evaluate_design on the design it makes (design_type dsd), under the main-effects-and-quadratics model: the omitted two-factor interactions the design estimates beside the model (a rank count)"
     },
     {
      "what": "other",
@@ -32599,8 +33340,22 @@
       "quote": "surface* (OMARS) design that uses its four extra runs to make two two-factor interactions"
      },
      "check": {
-      "manual": "the number of two-factor interactions the generated design can estimate beside the model (a rank count), which no check here computes"
-     }
+      "kind": "design_metric",
+      "design": {
+       "design_type": "generate_omars",
+       "k": 4,
+       "options": {
+        "n_runs": 13,
+        "model": "main_quadratic",
+        "selection_criterion": "a_optimal"
+       }
+      },
+      "metric": "estimable_interactions",
+      "model": "A + B + C + D + I(A**2) + I(B**2) + I(C**2) + I(D**2)",
+      "key": "n_estimable",
+      "printed": "2"
+     },
+     "analysis": "the library's evaluate_design on the design it makes (design_type generate_omars), under the main-effects-and-quadratics model: the omitted two-factor interactions the design estimates beside the model (a rank count)"
     },
     {
      "what": "other",
@@ -32669,8 +33424,25 @@
       "quote": "OMARS value at :math:`12.50` because its worst case does not sit at a vertex."
      },
      "check": {
-      "manual": "a G-criterion, the maximum scaled prediction variance over the region, which evaluate_design takes over a seeded uniform sample plus the cube vertices; no check here computes it"
-     }
+      "kind": "design_metric",
+      "design": {
+       "design_type": "generate_omars",
+       "k": 4,
+       "options": {
+        "n_runs": 13,
+        "model": "main_quadratic",
+        "selection_criterion": "a_optimal"
+       }
+      },
+      "metric": "fds",
+      "model": "A + B + C + D + I(A**2) + I(B**2) + I(C**2) + I(D**2)",
+      "options": {
+       "n_samples": 80000,
+       "random_state": 1
+      },
+      "key": "scaled_max_prediction_variance"
+     },
+     "analysis": "the library's evaluate_design on the design it makes (design_type generate_omars), under the main-effects-and-quadratics model: N times the largest prediction variance over the cube (the book's sample: 80,000 points, seed 1, with the cube's vertices)"
     },
     {
      "what": "design_metric",
@@ -32683,8 +33455,21 @@
       "quote": "thirteen-run OMARS design improves to :math:`0.570`; the mean values, :math:`0.322`"
      },
      "check": {
-      "manual": "a correlation summary |r| between model-term columns of the generated design, which no check here computes"
-     }
+      "kind": "design_metric",
+      "design": {
+       "design_type": "generate_omars",
+       "k": 4,
+       "options": {
+        "n_runs": 13,
+        "model": "main_quadratic",
+        "selection_criterion": "a_optimal"
+       }
+      },
+      "metric": "correlation",
+      "model": "quadratic",
+      "key": "max_abs_r"
+     },
+     "analysis": "the library's evaluate_design on the design it makes (design_type generate_omars), under the main-effects-and-quadratics model: the largest |r| between two second-order terms of the full quadratic model"
     },
     {
      "what": "design_metric",
@@ -32697,8 +33482,21 @@
       "quote": "against :math:`0.307`, are much closer"
      },
      "check": {
-      "manual": "a correlation summary |r| between model-term columns of the generated design, which no check here computes"
-     }
+      "kind": "design_metric",
+      "design": {
+       "design_type": "generate_omars",
+       "k": 4,
+       "options": {
+        "n_runs": 13,
+        "model": "main_quadratic",
+        "selection_criterion": "a_optimal"
+       }
+      },
+      "metric": "correlation",
+      "model": "quadratic",
+      "key": "mean_abs_r"
+     },
+     "analysis": "the library's evaluate_design on the design it makes (design_type generate_omars), under the main-effects-and-quadratics model: the average |r| between two second-order terms of the full quadratic model"
     },
     {
      "what": "design_metric",
@@ -32711,8 +33509,21 @@
       "quote": "OMARS design carries a maximum VIF of :math:`1.18`"
      },
      "check": {
-      "manual": "a variance inflation factor of the generated design, which no check here computes"
-     }
+      "kind": "design_metric",
+      "design": {
+       "design_type": "generate_omars",
+       "k": 4,
+       "options": {
+        "n_runs": 13,
+        "model": "main_quadratic",
+        "selection_criterion": "a_optimal"
+       }
+      },
+      "metric": "vif",
+      "model": "A + B + C + D + I(A**2) + I(B**2) + I(C**2) + I(D**2)",
+      "key": "max"
+     },
+     "analysis": "the library's evaluate_design on the design it makes (design_type generate_omars), under the main-effects-and-quadratics model: the largest variance inflation factor"
     },
     {
      "what": "design_metric",
@@ -32725,8 +33536,21 @@
       "quote": ":math:`1.08`, which inflates the worst standard error"
      },
      "check": {
-      "manual": "a variance inflation factor of the generated design, which no check here computes"
-     }
+      "kind": "design_metric",
+      "design": {
+       "design_type": "generate_omars",
+       "k": 4,
+       "options": {
+        "n_runs": 13,
+        "model": "main_quadratic",
+        "selection_criterion": "a_optimal"
+       }
+      },
+      "metric": "vif",
+      "model": "A + B + C + D + I(A**2) + I(B**2) + I(C**2) + I(D**2)",
+      "key": "mean"
+     },
+     "analysis": "the library's evaluate_design on the design it makes (design_type generate_omars), under the main-effects-and-quadratics model: the average variance inflation factor"
     },
     {
      "what": "design_metric",
@@ -32767,8 +33591,23 @@
       "quote": "orthogonal to every second-order term, so the main-effect rows of :math:`\\mathbf{A}` are exactly zero"
      },
      "check": {
-      "manual": "an entry, or the largest entry, of the alias matrix A = (X1'X1)^-1 X1'X2 for the omitted two-factor interactions, which no check here computes"
-     }
+      "kind": "design_metric",
+      "design": {
+       "design_type": "generate_omars",
+       "k": 4,
+       "options": {
+        "n_runs": 13,
+        "model": "main_quadratic",
+        "selection_criterion": "a_optimal"
+       }
+      },
+      "metric": "alias_matrix",
+      "model": "A + B + C + D + I(A**2) + I(B**2) + I(C**2) + I(D**2)",
+      "key": "max_abs_main_effect_rows",
+      "printed": "0",
+      "expression": true
+     },
+     "analysis": "the library's evaluate_design on the design it makes (design_type generate_omars), under the main-effects-and-quadratics model: the largest entry of the alias matrix's main-effect rows, the omitted two-factor interactions"
     },
     {
      "what": "residual_df",
@@ -32781,8 +33620,21 @@
       "quote": "The four extra runs of the thirteen-run OMARS design supply :math:`\\nu = 4`"
      },
      "check": {
-      "manual": "the residual degrees of freedom N - rank(X) of the model on the generated design; residual_df is a fit kind that needs responses, which a design entry has not, so no check here computes it"
-     }
+      "kind": "design_metric",
+      "design": {
+       "design_type": "generate_omars",
+       "k": 4,
+       "options": {
+        "n_runs": 13,
+        "model": "main_quadratic",
+        "selection_criterion": "a_optimal"
+       }
+      },
+      "metric": "information_matrix",
+      "model": "A + B + C + D + I(A**2) + I(B**2) + I(C**2) + I(D**2)",
+      "key": "residual_df"
+     },
+     "analysis": "the library's evaluate_design on the design it makes (design_type generate_omars), under the main-effects-and-quadratics model: N - rank(X)"
     },
     {
      "what": "design_metric",
@@ -32795,8 +33647,25 @@
       "quote": "the thirteen-run OMARS design has roughly a :math:`0.46` chance of flagging a true"
      },
      "check": {
-      "manual": "a power (the non-central F test of one coefficient, delta = sigma, alpha = 0.05) of the generated design, which no check here computes"
-     }
+      "kind": "design_metric",
+      "design": {
+       "design_type": "generate_omars",
+       "k": 4,
+       "options": {
+        "n_runs": 13,
+        "model": "main_quadratic",
+        "selection_criterion": "a_optimal"
+       }
+      },
+      "metric": "power",
+      "model": "A + B + C + D + I(A**2) + I(B**2) + I(C**2) + I(D**2)",
+      "options": {
+       "effect_size": 1.0
+      },
+      "terms": "[A-E]",
+      "reduce": "min"
+     },
+     "analysis": "the library's evaluate_design on the design it makes (design_type generate_omars), under the main-effects-and-quadratics model: the smallest power of a main effect's test at delta = sigma, alpha 0.05, the weakest of them"
     },
     {
      "what": "design_metric",
@@ -32809,8 +33678,25 @@
       "quote": ":math:`0.25` for a quadratic of the same size."
      },
      "check": {
-      "manual": "a power (the non-central F test of one coefficient, delta = sigma, alpha = 0.05) of the generated design, which no check here computes"
-     }
+      "kind": "design_metric",
+      "design": {
+       "design_type": "generate_omars",
+       "k": 4,
+       "options": {
+        "n_runs": 13,
+        "model": "main_quadratic",
+        "selection_criterion": "a_optimal"
+       }
+      },
+      "metric": "power",
+      "model": "A + B + C + D + I(A**2) + I(B**2) + I(C**2) + I(D**2)",
+      "options": {
+       "effect_size": 1.0
+      },
+      "terms": "I\\(.*\\)",
+      "reduce": "min"
+     },
+     "analysis": "the library's evaluate_design on the design it makes (design_type generate_omars), under the main-effects-and-quadratics model: the smallest power of a quadratic's test at delta = sigma, alpha 0.05, the weakest of them"
     },
     {
      "what": "design_metric",
@@ -32823,8 +33709,20 @@
       "quote": "- :math:`\\uparrow` D-efficiency - 42.8% - 39.0%"
      },
      "check": {
-      "manual": "a D-efficiency, 100 |X'X|^(1/p) / N of the generated design, which no check here computes"
-     }
+      "kind": "design_metric",
+      "design": {
+       "design_type": "generate_omars",
+       "k": 4,
+       "options": {
+        "n_runs": 13,
+        "model": "main_quadratic",
+        "selection_criterion": "a_optimal"
+       }
+      },
+      "metric": "d_efficiency",
+      "model": "A + B + C + D + I(A**2) + I(B**2) + I(C**2) + I(D**2)"
+     },
+     "analysis": "the library's evaluate_design on the design it makes (design_type generate_omars), under the main-effects-and-quadratics model: the D-efficiency, 100 |X'X|^(1/p) / N"
     },
     {
      "what": "design_metric",
@@ -32837,8 +33735,20 @@
       "quote": "- :math:`\\downarrow\\ A`, summed coefficient variance - 3.67 - 2.52"
      },
      "check": {
-      "manual": "an A-criterion, trace((X'X)^-1) of the generated design on the main-effects-and-quadratic model, which no check here computes"
-     }
+      "kind": "design_metric",
+      "design": {
+       "design_type": "generate_omars",
+       "k": 4,
+       "options": {
+        "n_runs": 13,
+        "model": "main_quadratic",
+        "selection_criterion": "a_optimal"
+       }
+      },
+      "metric": "a_optimality",
+      "model": "A + B + C + D + I(A**2) + I(B**2) + I(C**2) + I(D**2)"
+     },
+     "analysis": "the library's evaluate_design on the design it makes (design_type generate_omars), under the main-effects-and-quadratics model: trace((X'X)^-1)"
     },
     {
      "what": "design_metric",
@@ -32851,8 +33761,25 @@
       "quote": "- :math:`\\downarrow\\ I`, average SPV - 6.59 - 6.19"
      },
      "check": {
-      "manual": "an I-criterion, the average scaled prediction variance N x' (X'X)^-1 x over the region, which evaluate_design estimates from a seeded uniform sample of the region; no check here computes it"
-     }
+      "kind": "design_metric",
+      "design": {
+       "design_type": "generate_omars",
+       "k": 4,
+       "options": {
+        "n_runs": 13,
+        "model": "main_quadratic",
+        "selection_criterion": "a_optimal"
+       }
+      },
+      "metric": "fds",
+      "model": "A + B + C + D + I(A**2) + I(B**2) + I(C**2) + I(D**2)",
+      "options": {
+       "n_samples": 80000,
+       "random_state": 1
+      },
+      "key": "scaled_average_prediction_variance"
+     },
+     "analysis": "the library's evaluate_design on the design it makes (design_type generate_omars), under the main-effects-and-quadratics model: N times the average prediction variance over the cube (the book's sample: 80,000 points, seed 1, with the cube's vertices)"
     },
     {
      "what": "design_metric",
@@ -32865,8 +33792,25 @@
       "quote": "- :math:`\\downarrow\\ G`, maximum SPV - 9.00 - 12.50"
      },
      "check": {
-      "manual": "a G-criterion, the maximum scaled prediction variance over the region, which evaluate_design takes over a seeded uniform sample plus the cube vertices; no check here computes it"
-     }
+      "kind": "design_metric",
+      "design": {
+       "design_type": "generate_omars",
+       "k": 4,
+       "options": {
+        "n_runs": 13,
+        "model": "main_quadratic",
+        "selection_criterion": "a_optimal"
+       }
+      },
+      "metric": "fds",
+      "model": "A + B + C + D + I(A**2) + I(B**2) + I(C**2) + I(D**2)",
+      "options": {
+       "n_samples": 80000,
+       "random_state": 1
+      },
+      "key": "scaled_max_prediction_variance"
+     },
+     "analysis": "the library's evaluate_design on the design it makes (design_type generate_omars), under the main-effects-and-quadratics model: N times the largest prediction variance over the cube (the book's sample: 80,000 points, seed 1, with the cube's vertices)"
     },
     {
      "what": "design_metric",
@@ -32879,8 +33823,21 @@
       "quote": "- :math:`\\downarrow` Maximum :math:`|r|` - 0.707 - 0.570"
      },
      "check": {
-      "manual": "a correlation summary |r| between model-term columns of the generated design, which no check here computes"
-     }
+      "kind": "design_metric",
+      "design": {
+       "design_type": "generate_omars",
+       "k": 4,
+       "options": {
+        "n_runs": 13,
+        "model": "main_quadratic",
+        "selection_criterion": "a_optimal"
+       }
+      },
+      "metric": "correlation",
+      "model": "quadratic",
+      "key": "max_abs_r"
+     },
+     "analysis": "the library's evaluate_design on the design it makes (design_type generate_omars), under the main-effects-and-quadratics model: the largest |r| between two second-order terms of the full quadratic model"
     },
     {
      "what": "design_metric",
@@ -32893,8 +33850,21 @@
       "quote": "- :math:`\\downarrow` Mean :math:`|r|` - 0.322 - 0.307"
      },
      "check": {
-      "manual": "a correlation summary |r| between model-term columns of the generated design, which no check here computes"
-     }
+      "kind": "design_metric",
+      "design": {
+       "design_type": "generate_omars",
+       "k": 4,
+       "options": {
+        "n_runs": 13,
+        "model": "main_quadratic",
+        "selection_criterion": "a_optimal"
+       }
+      },
+      "metric": "correlation",
+      "model": "quadratic",
+      "key": "mean_abs_r"
+     },
+     "analysis": "the library's evaluate_design on the design it makes (design_type generate_omars), under the main-effects-and-quadratics model: the average |r| between two second-order terms of the full quadratic model"
     },
     {
      "what": "design_metric",
@@ -32907,8 +33877,21 @@
       "quote": "- :math:`\\downarrow` Maximum VIF - 1.00 - 1.18"
      },
      "check": {
-      "manual": "a variance inflation factor of the generated design, which no check here computes"
-     }
+      "kind": "design_metric",
+      "design": {
+       "design_type": "generate_omars",
+       "k": 4,
+       "options": {
+        "n_runs": 13,
+        "model": "main_quadratic",
+        "selection_criterion": "a_optimal"
+       }
+      },
+      "metric": "vif",
+      "model": "A + B + C + D + I(A**2) + I(B**2) + I(C**2) + I(D**2)",
+      "key": "max"
+     },
+     "analysis": "the library's evaluate_design on the design it makes (design_type generate_omars), under the main-effects-and-quadratics model: the largest variance inflation factor"
     },
     {
      "what": "design_metric",
@@ -32921,8 +33904,21 @@
       "quote": "- :math:`\\downarrow` Mean VIF - 1.00 - 1.08"
      },
      "check": {
-      "manual": "a variance inflation factor of the generated design, which no check here computes"
-     }
+      "kind": "design_metric",
+      "design": {
+       "design_type": "generate_omars",
+       "k": 4,
+       "options": {
+        "n_runs": 13,
+        "model": "main_quadratic",
+        "selection_criterion": "a_optimal"
+       }
+      },
+      "metric": "vif",
+      "model": "A + B + C + D + I(A**2) + I(B**2) + I(C**2) + I(D**2)",
+      "key": "mean"
+     },
+     "analysis": "the library's evaluate_design on the design it makes (design_type generate_omars), under the main-effects-and-quadratics model: the average variance inflation factor"
     },
     {
      "what": "residual_df",
@@ -32935,8 +33931,21 @@
       "quote": "- :math:`\\uparrow` Residual degrees of freedom - 0 - 4"
      },
      "check": {
-      "manual": "the residual degrees of freedom N - rank(X) of the model on the generated design; residual_df is a fit kind that needs responses, which a design entry has not, so no check here computes it"
-     }
+      "kind": "design_metric",
+      "design": {
+       "design_type": "generate_omars",
+       "k": 4,
+       "options": {
+        "n_runs": 13,
+        "model": "main_quadratic",
+        "selection_criterion": "a_optimal"
+       }
+      },
+      "metric": "information_matrix",
+      "model": "A + B + C + D + I(A**2) + I(B**2) + I(C**2) + I(D**2)",
+      "key": "residual_df"
+     },
+     "analysis": "the library's evaluate_design on the design it makes (design_type generate_omars), under the main-effects-and-quadratics model: N - rank(X)"
     },
     {
      "what": "design_metric",
@@ -32949,8 +33958,25 @@
       "quote": "- :math:`\\uparrow` Power, main effect at :math:`\\delta = \\sigma` - n/a - 0.46"
      },
      "check": {
-      "manual": "a power (the non-central F test of one coefficient, delta = sigma, alpha = 0.05) of the generated design, which no check here computes"
-     }
+      "kind": "design_metric",
+      "design": {
+       "design_type": "generate_omars",
+       "k": 4,
+       "options": {
+        "n_runs": 13,
+        "model": "main_quadratic",
+        "selection_criterion": "a_optimal"
+       }
+      },
+      "metric": "power",
+      "model": "A + B + C + D + I(A**2) + I(B**2) + I(C**2) + I(D**2)",
+      "options": {
+       "effect_size": 1.0
+      },
+      "terms": "[A-E]",
+      "reduce": "min"
+     },
+     "analysis": "the library's evaluate_design on the design it makes (design_type generate_omars), under the main-effects-and-quadratics model: the smallest power of a main effect's test at delta = sigma, alpha 0.05, the weakest of them"
     },
     {
      "what": "design_metric",
@@ -32963,8 +33989,25 @@
       "quote": "- :math:`\\uparrow` Power, quadratic at :math:`\\delta = \\sigma` - n/a - 0.25"
      },
      "check": {
-      "manual": "a power (the non-central F test of one coefficient, delta = sigma, alpha = 0.05) of the generated design, which no check here computes"
-     }
+      "kind": "design_metric",
+      "design": {
+       "design_type": "generate_omars",
+       "k": 4,
+       "options": {
+        "n_runs": 13,
+        "model": "main_quadratic",
+        "selection_criterion": "a_optimal"
+       }
+      },
+      "metric": "power",
+      "model": "A + B + C + D + I(A**2) + I(B**2) + I(C**2) + I(D**2)",
+      "options": {
+       "effect_size": 1.0
+      },
+      "terms": "I\\(.*\\)",
+      "reduce": "min"
+     },
+     "analysis": "the library's evaluate_design on the design it makes (design_type generate_omars), under the main-effects-and-quadratics model: the smallest power of a quadratic's test at delta = sigma, alpha 0.05, the weakest of them"
     },
     {
      "what": "design_metric",
@@ -32977,8 +34020,21 @@
       "quote": "- :math:`\\uparrow` Two-factor interactions estimable - 0 - 2"
      },
      "check": {
-      "manual": "the number of two-factor interactions the generated design can estimate beside the model (a rank count), which no check here computes"
-     }
+      "kind": "design_metric",
+      "design": {
+       "design_type": "generate_omars",
+       "k": 4,
+       "options": {
+        "n_runs": 13,
+        "model": "main_quadratic",
+        "selection_criterion": "a_optimal"
+       }
+      },
+      "metric": "estimable_interactions",
+      "model": "A + B + C + D + I(A**2) + I(B**2) + I(C**2) + I(D**2)",
+      "key": "n_estimable"
+     },
+     "analysis": "the library's evaluate_design on the design it makes (design_type generate_omars), under the main-effects-and-quadratics model: the omitted two-factor interactions the design estimates beside the model (a rank count)"
     },
     {
      "what": "other",
@@ -33146,8 +34202,19 @@
       "quote": "the eleven-term model collapses to rank 7 (the intercept, five linear"
      },
      "check": {
-      "manual": "the rank of the eleven-term model matrix of the generated design (whether it can fit the model), which no check here computes"
-     }
+      "kind": "design_metric",
+      "design": {
+       "design_type": "full_factorial",
+       "k": 5,
+       "options": {
+        "n_center_points": 2
+       }
+      },
+      "metric": "information_matrix",
+      "model": "A + B + C + D + E + I(A**2) + I(B**2) + I(C**2) + I(D**2) + I(E**2)",
+      "key": "rank"
+     },
+     "analysis": "the library's evaluate_design on the design it makes (design_type full_factorial), under the main-effects-and-quadratics model: the rank of X"
     }
    ]
   },
@@ -33303,8 +34370,20 @@
       "quote": "the eleven-term model collapses to rank 7 (the intercept, five linear"
      },
      "check": {
-      "manual": "the rank of the eleven-term model matrix of the generated design (whether it can fit the model), which no check here computes"
-     }
+      "kind": "design_metric",
+      "design": {
+       "design_type": "fractional_factorial",
+       "k": 5,
+       "options": {
+        "resolution": 5,
+        "n_center_points": 2
+       }
+      },
+      "metric": "information_matrix",
+      "model": "A + B + C + D + E + I(A**2) + I(B**2) + I(C**2) + I(D**2) + I(E**2)",
+      "key": "rank"
+     },
+     "analysis": "the library's evaluate_design on the design it makes (design_type fractional_factorial), under the main-effects-and-quadratics model: the rank of X"
     }
    ]
   },
@@ -33437,8 +34516,21 @@
       "quote": "- CCD, face-centred - 32 - yes - 21"
      },
      "check": {
-      "manual": "the residual degrees of freedom N - rank(X) of the model on the generated design; residual_df is a fit kind that needs responses, which a design entry has not, so no check here computes it"
-     }
+      "kind": "design_metric",
+      "design": {
+       "design_type": "ccd",
+       "k": 5,
+       "options": {
+        "cube": "fractional",
+        "alpha": "face_centered",
+        "n_center_points": 6
+       }
+      },
+      "metric": "information_matrix",
+      "model": "A + B + C + D + E + I(A**2) + I(B**2) + I(C**2) + I(D**2) + I(E**2)",
+      "key": "residual_df"
+     },
+     "analysis": "the library's evaluate_design on the design it makes (design_type ccd), under the main-effects-and-quadratics model: N - rank(X)"
     },
     {
      "what": "design_metric",
@@ -33465,8 +34557,24 @@
       "quote": "- :math:`\\uparrow` Power, main effect at :math:`\\delta = \\sigma` - 0.97 - 0.98 - 0.96 - 0.42"
      },
      "check": {
-      "manual": "a power (the non-central F test of one coefficient, delta = sigma, alpha = 0.05) of the generated design, which no check here computes"
-     }
+      "kind": "design_metric",
+      "design": {
+       "design_type": "ccd",
+       "k": 5,
+       "options": {
+        "cube": "fractional",
+        "alpha": "face_centered",
+        "n_center_points": 6
+       }
+      },
+      "metric": "power",
+      "model": "A + B + C + D + E + I(A**2) + I(B**2) + I(C**2) + I(D**2) + I(E**2)",
+      "options": {
+       "effect_size": 1.0
+      },
+      "key": "A"
+     },
+     "analysis": "the library's evaluate_design on the design it makes (design_type ccd), under the main-effects-and-quadratics model: the power of A's test at delta = sigma, alpha 0.05"
     },
     {
      "what": "design_metric",
@@ -33479,8 +34587,24 @@
       "quote": "- :math:`\\uparrow` Power, quadratic at :math:`\\delta = \\sigma` - 0.82 - 0.32 - 0.53 - 0.15"
      },
      "check": {
-      "manual": "a power (the non-central F test of one coefficient, delta = sigma, alpha = 0.05) of the generated design, which no check here computes"
-     }
+      "kind": "design_metric",
+      "design": {
+       "design_type": "ccd",
+       "k": 5,
+       "options": {
+        "cube": "fractional",
+        "alpha": "face_centered",
+        "n_center_points": 6
+       }
+      },
+      "metric": "power",
+      "model": "A + B + C + D + E + I(A**2) + I(B**2) + I(C**2) + I(D**2) + I(E**2)",
+      "options": {
+       "effect_size": 1.0
+      },
+      "key": "I(A ** 2)"
+     },
+     "analysis": "the library's evaluate_design on the design it makes (design_type ccd), under the main-effects-and-quadratics model: the power of A's quadratic's test at delta = sigma, alpha 0.05"
     },
     {
      "what": "design_metric",
@@ -33493,8 +34617,25 @@
       "quote": "- :math:`\\downarrow` Average prediction variance, :math:`\\sigma^2` units - 0.18 - 0.31 - 0.29 - 0.71"
      },
      "check": {
-      "manual": "an average prediction variance over the region (sigma^2 units), which evaluate_design estimates from a seeded uniform sample of the region; no check here computes it"
-     }
+      "kind": "design_metric",
+      "design": {
+       "design_type": "ccd",
+       "k": 5,
+       "options": {
+        "cube": "fractional",
+        "alpha": "face_centered",
+        "n_center_points": 6
+       }
+      },
+      "metric": "fds",
+      "model": "A + B + C + D + E + I(A**2) + I(B**2) + I(C**2) + I(D**2) + I(E**2)",
+      "options": {
+       "n_samples": 120000,
+       "random_state": 1
+      },
+      "key": "average_prediction_variance"
+     },
+     "analysis": "the library's evaluate_design on the design it makes (design_type ccd), under the main-effects-and-quadratics model: the average prediction variance over the cube (the book's sample: 120,000 points, seed 1, with the cube's vertices)"
     },
     {
      "what": "design_metric",
@@ -33507,8 +34648,25 @@
       "quote": "- :math:`\\downarrow` Maximum prediction variance, :math:`\\sigma^2` units - 0.84 - 0.77 - 0.51 - 1.05"
      },
      "check": {
-      "manual": "a maximum prediction variance over the region (sigma^2 units), which evaluate_design takes over a seeded uniform sample plus the cube vertices; no check here computes it"
-     }
+      "kind": "design_metric",
+      "design": {
+       "design_type": "ccd",
+       "k": 5,
+       "options": {
+        "cube": "fractional",
+        "alpha": "face_centered",
+        "n_center_points": 6
+       }
+      },
+      "metric": "fds",
+      "model": "A + B + C + D + E + I(A**2) + I(B**2) + I(C**2) + I(D**2) + I(E**2)",
+      "options": {
+       "n_samples": 120000,
+       "random_state": 1
+      },
+      "key": "max_prediction_variance"
+     },
+     "analysis": "the library's evaluate_design on the design it makes (design_type ccd), under the main-effects-and-quadratics model: the largest prediction variance over the cube (the book's sample: 120,000 points, seed 1, with the cube's vertices)"
     },
     {
      "what": "design_metric",
@@ -33521,8 +34679,25 @@
       "quote": "- :math:`\\downarrow` Maximum scaled prediction variance :math:`G` - 38.8 - 24.6 - 12.7 - 13.6"
      },
      "check": {
-      "manual": "a G-criterion, the maximum scaled prediction variance over the region, which evaluate_design takes over a seeded uniform sample plus the cube vertices; no check here computes it"
-     }
+      "kind": "design_metric",
+      "design": {
+       "design_type": "ccd",
+       "k": 5,
+       "options": {
+        "cube": "fractional",
+        "alpha": "face_centered",
+        "n_center_points": 6
+       }
+      },
+      "metric": "fds",
+      "model": "A + B + C + D + E + I(A**2) + I(B**2) + I(C**2) + I(D**2) + I(E**2)",
+      "options": {
+       "n_samples": 120000,
+       "random_state": 1
+      },
+      "key": "scaled_max_prediction_variance"
+     },
+     "analysis": "the library's evaluate_design on the design it makes (design_type ccd), under the main-effects-and-quadratics model: N times the largest prediction variance over the cube (the book's sample: 120,000 points, seed 1, with the cube's vertices)"
     },
     {
      "what": "design_metric",
@@ -33535,8 +34710,20 @@
       "quote": "- :math:`\\downarrow` Summed coefficient variance :math:`A` - 1.05 - 2.39 - 1.61 - 3.70"
      },
      "check": {
-      "manual": "an A-criterion, trace((X'X)^-1) of the generated design on the main-effects-and-quadratic model, which no check here computes"
-     }
+      "kind": "design_metric",
+      "design": {
+       "design_type": "ccd",
+       "k": 5,
+       "options": {
+        "cube": "fractional",
+        "alpha": "face_centered",
+        "n_center_points": 6
+       }
+      },
+      "metric": "a_optimality",
+      "model": "A + B + C + D + E + I(A**2) + I(B**2) + I(C**2) + I(D**2) + I(E**2)"
+     },
+     "analysis": "the library's evaluate_design on the design it makes (design_type ccd), under the main-effects-and-quadratics model: trace((X'X)^-1)"
     },
     {
      "what": "design_metric",
@@ -33549,8 +34736,20 @@
       "quote": "- :math:`\\uparrow\\ E`, smallest eigenvalue of :math:`\\mathbf{X}^T\\mathbf{X}` - 2.54 - 2.00 - 2.64 - 0.85"
      },
      "check": {
-      "manual": "an E-criterion, the smallest eigenvalue of X'X of the generated design, which no check here computes"
-     }
+      "kind": "design_metric",
+      "design": {
+       "design_type": "ccd",
+       "k": 5,
+       "options": {
+        "cube": "fractional",
+        "alpha": "face_centered",
+        "n_center_points": 6
+       }
+      },
+      "metric": "e_optimality",
+      "model": "A + B + C + D + E + I(A**2) + I(B**2) + I(C**2) + I(D**2) + I(E**2)"
+     },
+     "analysis": "the library's evaluate_design on the design it makes (design_type ccd), under the main-effects-and-quadratics model: the smallest eigenvalue of X'X"
     },
     {
      "what": "design_metric",
@@ -33563,8 +34762,21 @@
       "quote": "- :math:`\\downarrow` Maximum :math:`|r|` among model terms - 0.15 - 0.75 - 0.31 - 0.13"
      },
      "check": {
-      "manual": "a correlation summary |r| between model-term columns of the generated design, which no check here computes"
-     }
+      "kind": "design_metric",
+      "design": {
+       "design_type": "ccd",
+       "k": 5,
+       "options": {
+        "cube": "fractional",
+        "alpha": "face_centered",
+        "n_center_points": 6
+       }
+      },
+      "metric": "correlation",
+      "model": "A + B + C + D + E + I(A**2) + I(B**2) + I(C**2) + I(D**2) + I(E**2)",
+      "key": "max_abs_r"
+     },
+     "analysis": "the library's evaluate_design on the design it makes (design_type ccd), under the main-effects-and-quadratics model: the largest |r| between two second-order terms of the fitted model"
     },
     {
      "what": "design_metric",
@@ -33577,8 +34789,21 @@
       "quote": "- :math:`\\downarrow` Maximum VIF - 1.20 - 3.20 - 1.21 - 1.05"
      },
      "check": {
-      "manual": "a variance inflation factor of the generated design, which no check here computes"
-     }
+      "kind": "design_metric",
+      "design": {
+       "design_type": "ccd",
+       "k": 5,
+       "options": {
+        "cube": "fractional",
+        "alpha": "face_centered",
+        "n_center_points": 6
+       }
+      },
+      "metric": "vif",
+      "model": "A + B + C + D + E + I(A**2) + I(B**2) + I(C**2) + I(D**2) + I(E**2)",
+      "key": "max"
+     },
+     "analysis": "the library's evaluate_design on the design it makes (design_type ccd), under the main-effects-and-quadratics model: the largest variance inflation factor"
     },
     {
      "what": "aliases",
@@ -33591,8 +34816,21 @@
       "quote": "- :math:`\\downarrow` Maximum alias :math:`|\\mathbf{A}|`, omitted interactions - 0.00 - 0.00 - 0.77 - 1.09"
      },
      "check": {
-      "manual": "an entry, or the largest entry, of the alias matrix A = (X1'X1)^-1 X1'X2 for the omitted two-factor interactions, which no check here computes"
-     }
+      "kind": "design_metric",
+      "design": {
+       "design_type": "ccd",
+       "k": 5,
+       "options": {
+        "cube": "fractional",
+        "alpha": "face_centered",
+        "n_center_points": 6
+       }
+      },
+      "metric": "alias_matrix",
+      "model": "A + B + C + D + E + I(A**2) + I(B**2) + I(C**2) + I(D**2) + I(E**2)",
+      "key": "max_abs"
+     },
+     "analysis": "the library's evaluate_design on the design it makes (design_type ccd), under the main-effects-and-quadratics model: the largest entry of the alias matrix for the omitted two-factor interactions"
     },
     {
      "what": "design_metric",
@@ -33605,8 +34843,21 @@
       "quote": "- :math:`\\uparrow` D-optimal information :math:`|\\mathbf{X}^T\\mathbf{X}|^{1/p}` - 14.0 - 8.97 - 10.0 - 5.19"
      },
      "check": {
-      "manual": "the D-criterion |X'X|^(1/p) of the generated design, which no check here computes"
-     }
+      "kind": "design_metric",
+      "design": {
+       "design_type": "ccd",
+       "k": 5,
+       "options": {
+        "cube": "fractional",
+        "alpha": "face_centered",
+        "n_center_points": 6
+       }
+      },
+      "metric": "information_matrix",
+      "model": "A + B + C + D + E + I(A**2) + I(B**2) + I(C**2) + I(D**2) + I(E**2)",
+      "key": "d_criterion"
+     },
+     "analysis": "the library's evaluate_design on the design it makes (design_type ccd), under the main-effects-and-quadratics model: the D-criterion |X'X|^(1/p)"
     },
     {
      "what": "design_metric",
@@ -33619,8 +34870,20 @@
       "quote": "- :math:`\\uparrow` D-efficiency, per run (see note) - 30.5% - 28.0% - 40.1% - 39.9%"
      },
      "check": {
-      "manual": "a D-efficiency, 100 |X'X|^(1/p) / N of the generated design, which no check here computes"
-     }
+      "kind": "design_metric",
+      "design": {
+       "design_type": "ccd",
+       "k": 5,
+       "options": {
+        "cube": "fractional",
+        "alpha": "face_centered",
+        "n_center_points": 6
+       }
+      },
+      "metric": "d_efficiency",
+      "model": "A + B + C + D + E + I(A**2) + I(B**2) + I(C**2) + I(D**2) + I(E**2)"
+     },
+     "analysis": "the library's evaluate_design on the design it makes (design_type ccd), under the main-effects-and-quadratics model: the D-efficiency, 100 |X'X|^(1/p) / N"
     },
     {
      "what": "aliases",
@@ -33633,8 +34896,23 @@
       "quote": "at zero on this model (:math:`|\\mathbf{A}| = 0`): their quadratics are balanced against the"
      },
      "check": {
-      "manual": "an entry, or the largest entry, of the alias matrix A = (X1'X1)^-1 X1'X2 for the omitted two-factor interactions, which no check here computes"
-     }
+      "kind": "design_metric",
+      "design": {
+       "design_type": "ccd",
+       "k": 5,
+       "options": {
+        "cube": "fractional",
+        "alpha": "face_centered",
+        "n_center_points": 6
+       }
+      },
+      "metric": "alias_matrix",
+      "model": "A + B + C + D + E + I(A**2) + I(B**2) + I(C**2) + I(D**2) + I(E**2)",
+      "key": "max_abs",
+      "printed": "0",
+      "expression": true
+     },
+     "analysis": "the library's evaluate_design on the design it makes (design_type ccd), under the main-effects-and-quadratics model: the largest entry of the alias matrix for the omitted two-factor interactions"
     },
     {
      "what": "aliases",
@@ -33647,8 +34925,23 @@
       "quote": "The Box-Behnken and composite designs hold every entry at zero on this model"
      },
      "check": {
-      "manual": "an entry, or the largest entry, of the alias matrix A = (X1'X1)^-1 X1'X2 for the omitted two-factor interactions, which no check here computes"
-     }
+      "kind": "design_metric",
+      "design": {
+       "design_type": "ccd",
+       "k": 5,
+       "options": {
+        "cube": "fractional",
+        "alpha": "face_centered",
+        "n_center_points": 6
+       }
+      },
+      "metric": "alias_matrix",
+      "model": "A + B + C + D + E + I(A**2) + I(B**2) + I(C**2) + I(D**2) + I(E**2)",
+      "key": "max_abs",
+      "printed": "0",
+      "expression": true
+     },
+     "analysis": "the library's evaluate_design on the design it makes (design_type ccd), under the main-effects-and-quadratics model: the largest entry of the alias matrix for the omitted two-factor interactions"
     },
     {
      "what": "design_metric",
@@ -33661,8 +34954,21 @@
       "quote": "(:math:`0.15`, :math:`0.75`, :math:`0.31`, :math:`0.13`); the stronger correlations,"
      },
      "check": {
-      "manual": "a correlation summary |r| between model-term columns of the generated design, which no check here computes"
-     }
+      "kind": "design_metric",
+      "design": {
+       "design_type": "ccd",
+       "k": 5,
+       "options": {
+        "cube": "fractional",
+        "alpha": "face_centered",
+        "n_center_points": 6
+       }
+      },
+      "metric": "correlation",
+      "model": "A + B + C + D + E + I(A**2) + I(B**2) + I(C**2) + I(D**2) + I(E**2)",
+      "key": "max_abs_r"
+     },
+     "analysis": "the library's evaluate_design on the design it makes (design_type ccd), under the main-effects-and-quadratics model: the largest |r| between two second-order terms of the fitted model"
     },
     {
      "what": "design_metric",
@@ -33675,8 +34981,21 @@
       "quote": "weaker curvature precision (its :math:`|r| = 0.75` and VIF of :math:`3.20`)"
      },
      "check": {
-      "manual": "a correlation summary |r| between model-term columns of the generated design, which no check here computes"
-     }
+      "kind": "design_metric",
+      "design": {
+       "design_type": "ccd",
+       "k": 5,
+       "options": {
+        "cube": "fractional",
+        "alpha": "face_centered",
+        "n_center_points": 6
+       }
+      },
+      "metric": "correlation",
+      "model": "A + B + C + D + E + I(A**2) + I(B**2) + I(C**2) + I(D**2) + I(E**2)",
+      "key": "max_abs_r"
+     },
+     "analysis": "the library's evaluate_design on the design it makes (design_type ccd), under the main-effects-and-quadratics model: the largest |r| between two second-order terms of the fitted model"
     },
     {
      "what": "design_metric",
@@ -33689,8 +35008,21 @@
       "quote": "weaker curvature precision (its :math:`|r| = 0.75` and VIF of :math:`3.20`)"
      },
      "check": {
-      "manual": "a variance inflation factor of the generated design, which no check here computes"
-     }
+      "kind": "design_metric",
+      "design": {
+       "design_type": "ccd",
+       "k": 5,
+       "options": {
+        "cube": "fractional",
+        "alpha": "face_centered",
+        "n_center_points": 6
+       }
+      },
+      "metric": "vif",
+      "model": "A + B + C + D + E + I(A**2) + I(B**2) + I(C**2) + I(D**2) + I(E**2)",
+      "key": "max"
+     },
+     "analysis": "the library's evaluate_design on the design it makes (design_type ccd), under the main-effects-and-quadratics model: the largest variance inflation factor"
     },
     {
      "what": "other",
@@ -33873,8 +35205,19 @@
       "quote": "- Box-Behnken - 46 - yes - 35"
      },
      "check": {
-      "manual": "the residual degrees of freedom N - rank(X) of the model on the generated design; residual_df is a fit kind that needs responses, which a design entry has not, so no check here computes it"
-     }
+      "kind": "design_metric",
+      "design": {
+       "design_type": "box_behnken",
+       "k": 5,
+       "options": {
+        "n_center_points": 6
+       }
+      },
+      "metric": "information_matrix",
+      "model": "A + B + C + D + E + I(A**2) + I(B**2) + I(C**2) + I(D**2) + I(E**2)",
+      "key": "residual_df"
+     },
+     "analysis": "the library's evaluate_design on the design it makes (design_type box_behnken), under the main-effects-and-quadratics model: N - rank(X)"
     },
     {
      "what": "design_metric",
@@ -33901,8 +35244,22 @@
       "quote": "chance on curvature at :math:`0.82`"
      },
      "check": {
-      "manual": "a power (the non-central F test of one coefficient, delta = sigma, alpha = 0.05) of the generated design, which no check here computes"
-     }
+      "kind": "design_metric",
+      "design": {
+       "design_type": "box_behnken",
+       "k": 5,
+       "options": {
+        "n_center_points": 6
+       }
+      },
+      "metric": "power",
+      "model": "A + B + C + D + E + I(A**2) + I(B**2) + I(C**2) + I(D**2) + I(E**2)",
+      "options": {
+       "effect_size": 1.0
+      },
+      "key": "I(A ** 2)"
+     },
+     "analysis": "the library's evaluate_design on the design it makes (design_type box_behnken), under the main-effects-and-quadratics model: the power of A's quadratic's test at delta = sigma, alpha 0.05"
     },
     {
      "what": "design_metric",
@@ -33915,8 +35272,22 @@
       "quote": "- :math:`\\uparrow` Power, main effect at :math:`\\delta = \\sigma` - 0.97 - 0.98 - 0.96 - 0.42"
      },
      "check": {
-      "manual": "a power (the non-central F test of one coefficient, delta = sigma, alpha = 0.05) of the generated design, which no check here computes"
-     }
+      "kind": "design_metric",
+      "design": {
+       "design_type": "box_behnken",
+       "k": 5,
+       "options": {
+        "n_center_points": 6
+       }
+      },
+      "metric": "power",
+      "model": "A + B + C + D + E + I(A**2) + I(B**2) + I(C**2) + I(D**2) + I(E**2)",
+      "options": {
+       "effect_size": 1.0
+      },
+      "key": "A"
+     },
+     "analysis": "the library's evaluate_design on the design it makes (design_type box_behnken), under the main-effects-and-quadratics model: the power of A's test at delta = sigma, alpha 0.05"
     },
     {
      "what": "design_metric",
@@ -33929,8 +35300,22 @@
       "quote": "- :math:`\\uparrow` Power, quadratic at :math:`\\delta = \\sigma` - 0.82 - 0.32 - 0.53 - 0.15"
      },
      "check": {
-      "manual": "a power (the non-central F test of one coefficient, delta = sigma, alpha = 0.05) of the generated design, which no check here computes"
-     }
+      "kind": "design_metric",
+      "design": {
+       "design_type": "box_behnken",
+       "k": 5,
+       "options": {
+        "n_center_points": 6
+       }
+      },
+      "metric": "power",
+      "model": "A + B + C + D + E + I(A**2) + I(B**2) + I(C**2) + I(D**2) + I(E**2)",
+      "options": {
+       "effect_size": 1.0
+      },
+      "key": "I(A ** 2)"
+     },
+     "analysis": "the library's evaluate_design on the design it makes (design_type box_behnken), under the main-effects-and-quadratics model: the power of A's quadratic's test at delta = sigma, alpha 0.05"
     },
     {
      "what": "design_metric",
@@ -33943,8 +35328,23 @@
       "quote": "- :math:`\\downarrow` Average prediction variance, :math:`\\sigma^2` units - 0.18 - 0.31 - 0.29 - 0.71"
      },
      "check": {
-      "manual": "an average prediction variance over the region (sigma^2 units), which evaluate_design estimates from a seeded uniform sample of the region; no check here computes it"
-     }
+      "kind": "design_metric",
+      "design": {
+       "design_type": "box_behnken",
+       "k": 5,
+       "options": {
+        "n_center_points": 6
+       }
+      },
+      "metric": "fds",
+      "model": "A + B + C + D + E + I(A**2) + I(B**2) + I(C**2) + I(D**2) + I(E**2)",
+      "options": {
+       "n_samples": 120000,
+       "random_state": 1
+      },
+      "key": "average_prediction_variance"
+     },
+     "analysis": "the library's evaluate_design on the design it makes (design_type box_behnken), under the main-effects-and-quadratics model: the average prediction variance over the cube (the book's sample: 120,000 points, seed 1, with the cube's vertices)"
     },
     {
      "what": "design_metric",
@@ -33957,8 +35357,23 @@
       "quote": "- :math:`\\downarrow` Maximum prediction variance, :math:`\\sigma^2` units - 0.84 - 0.77 - 0.51 - 1.05"
      },
      "check": {
-      "manual": "a maximum prediction variance over the region (sigma^2 units), which evaluate_design takes over a seeded uniform sample plus the cube vertices; no check here computes it"
-     }
+      "kind": "design_metric",
+      "design": {
+       "design_type": "box_behnken",
+       "k": 5,
+       "options": {
+        "n_center_points": 6
+       }
+      },
+      "metric": "fds",
+      "model": "A + B + C + D + E + I(A**2) + I(B**2) + I(C**2) + I(D**2) + I(E**2)",
+      "options": {
+       "n_samples": 120000,
+       "random_state": 1
+      },
+      "key": "max_prediction_variance"
+     },
+     "analysis": "the library's evaluate_design on the design it makes (design_type box_behnken), under the main-effects-and-quadratics model: the largest prediction variance over the cube (the book's sample: 120,000 points, seed 1, with the cube's vertices)"
     },
     {
      "what": "design_metric",
@@ -33971,8 +35386,23 @@
       "quote": "- :math:`\\downarrow` Maximum scaled prediction variance :math:`G` - 38.8 - 24.6 - 12.7 - 13.6"
      },
      "check": {
-      "manual": "a G-criterion, the maximum scaled prediction variance over the region, which evaluate_design takes over a seeded uniform sample plus the cube vertices; no check here computes it"
-     }
+      "kind": "design_metric",
+      "design": {
+       "design_type": "box_behnken",
+       "k": 5,
+       "options": {
+        "n_center_points": 6
+       }
+      },
+      "metric": "fds",
+      "model": "A + B + C + D + E + I(A**2) + I(B**2) + I(C**2) + I(D**2) + I(E**2)",
+      "options": {
+       "n_samples": 120000,
+       "random_state": 1
+      },
+      "key": "scaled_max_prediction_variance"
+     },
+     "analysis": "the library's evaluate_design on the design it makes (design_type box_behnken), under the main-effects-and-quadratics model: N times the largest prediction variance over the cube (the book's sample: 120,000 points, seed 1, with the cube's vertices)"
     },
     {
      "what": "design_metric",
@@ -33985,8 +35415,18 @@
       "quote": "- :math:`\\downarrow` Summed coefficient variance :math:`A` - 1.05 - 2.39 - 1.61 - 3.70"
      },
      "check": {
-      "manual": "an A-criterion, trace((X'X)^-1) of the generated design on the main-effects-and-quadratic model, which no check here computes"
-     }
+      "kind": "design_metric",
+      "design": {
+       "design_type": "box_behnken",
+       "k": 5,
+       "options": {
+        "n_center_points": 6
+       }
+      },
+      "metric": "a_optimality",
+      "model": "A + B + C + D + E + I(A**2) + I(B**2) + I(C**2) + I(D**2) + I(E**2)"
+     },
+     "analysis": "the library's evaluate_design on the design it makes (design_type box_behnken), under the main-effects-and-quadratics model: trace((X'X)^-1)"
     },
     {
      "what": "design_metric",
@@ -33999,8 +35439,18 @@
       "quote": "- :math:`\\uparrow\\ E`, smallest eigenvalue of :math:`\\mathbf{X}^T\\mathbf{X}` - 2.54 - 2.00 - 2.64 - 0.85"
      },
      "check": {
-      "manual": "an E-criterion, the smallest eigenvalue of X'X of the generated design, which no check here computes"
-     }
+      "kind": "design_metric",
+      "design": {
+       "design_type": "box_behnken",
+       "k": 5,
+       "options": {
+        "n_center_points": 6
+       }
+      },
+      "metric": "e_optimality",
+      "model": "A + B + C + D + E + I(A**2) + I(B**2) + I(C**2) + I(D**2) + I(E**2)"
+     },
+     "analysis": "the library's evaluate_design on the design it makes (design_type box_behnken), under the main-effects-and-quadratics model: the smallest eigenvalue of X'X"
     },
     {
      "what": "design_metric",
@@ -34013,8 +35463,19 @@
       "quote": "- :math:`\\downarrow` Maximum :math:`|r|` among model terms - 0.15 - 0.75 - 0.31 - 0.13"
      },
      "check": {
-      "manual": "a correlation summary |r| between model-term columns of the generated design, which no check here computes"
-     }
+      "kind": "design_metric",
+      "design": {
+       "design_type": "box_behnken",
+       "k": 5,
+       "options": {
+        "n_center_points": 6
+       }
+      },
+      "metric": "correlation",
+      "model": "A + B + C + D + E + I(A**2) + I(B**2) + I(C**2) + I(D**2) + I(E**2)",
+      "key": "max_abs_r"
+     },
+     "analysis": "the library's evaluate_design on the design it makes (design_type box_behnken), under the main-effects-and-quadratics model: the largest |r| between two second-order terms of the fitted model"
     },
     {
      "what": "design_metric",
@@ -34027,8 +35488,19 @@
       "quote": "- :math:`\\downarrow` Maximum VIF - 1.20 - 3.20 - 1.21 - 1.05"
      },
      "check": {
-      "manual": "a variance inflation factor of the generated design, which no check here computes"
-     }
+      "kind": "design_metric",
+      "design": {
+       "design_type": "box_behnken",
+       "k": 5,
+       "options": {
+        "n_center_points": 6
+       }
+      },
+      "metric": "vif",
+      "model": "A + B + C + D + E + I(A**2) + I(B**2) + I(C**2) + I(D**2) + I(E**2)",
+      "key": "max"
+     },
+     "analysis": "the library's evaluate_design on the design it makes (design_type box_behnken), under the main-effects-and-quadratics model: the largest variance inflation factor"
     },
     {
      "what": "aliases",
@@ -34041,8 +35513,19 @@
       "quote": "- :math:`\\downarrow` Maximum alias :math:`|\\mathbf{A}|`, omitted interactions - 0.00 - 0.00 - 0.77 - 1.09"
      },
      "check": {
-      "manual": "an entry, or the largest entry, of the alias matrix A = (X1'X1)^-1 X1'X2 for the omitted two-factor interactions, which no check here computes"
-     }
+      "kind": "design_metric",
+      "design": {
+       "design_type": "box_behnken",
+       "k": 5,
+       "options": {
+        "n_center_points": 6
+       }
+      },
+      "metric": "alias_matrix",
+      "model": "A + B + C + D + E + I(A**2) + I(B**2) + I(C**2) + I(D**2) + I(E**2)",
+      "key": "max_abs"
+     },
+     "analysis": "the library's evaluate_design on the design it makes (design_type box_behnken), under the main-effects-and-quadratics model: the largest entry of the alias matrix for the omitted two-factor interactions"
     },
     {
      "what": "design_metric",
@@ -34055,8 +35538,19 @@
       "quote": "- :math:`\\uparrow` D-optimal information :math:`|\\mathbf{X}^T\\mathbf{X}|^{1/p}` - 14.0 - 8.97 - 10.0 - 5.19"
      },
      "check": {
-      "manual": "the D-criterion |X'X|^(1/p) of the generated design, which no check here computes"
-     }
+      "kind": "design_metric",
+      "design": {
+       "design_type": "box_behnken",
+       "k": 5,
+       "options": {
+        "n_center_points": 6
+       }
+      },
+      "metric": "information_matrix",
+      "model": "A + B + C + D + E + I(A**2) + I(B**2) + I(C**2) + I(D**2) + I(E**2)",
+      "key": "d_criterion"
+     },
+     "analysis": "the library's evaluate_design on the design it makes (design_type box_behnken), under the main-effects-and-quadratics model: the D-criterion |X'X|^(1/p)"
     },
     {
      "what": "design_metric",
@@ -34069,8 +35563,18 @@
       "quote": "- :math:`\\uparrow` D-efficiency, per run (see note) - 30.5% - 28.0% - 40.1% - 39.9%"
      },
      "check": {
-      "manual": "a D-efficiency, 100 |X'X|^(1/p) / N of the generated design, which no check here computes"
-     }
+      "kind": "design_metric",
+      "design": {
+       "design_type": "box_behnken",
+       "k": 5,
+       "options": {
+        "n_center_points": 6
+       }
+      },
+      "metric": "d_efficiency",
+      "model": "A + B + C + D + E + I(A**2) + I(B**2) + I(C**2) + I(D**2) + I(E**2)"
+     },
+     "analysis": "the library's evaluate_design on the design it makes (design_type box_behnken), under the main-effects-and-quadratics model: the D-efficiency, 100 |X'X|^(1/p) / N"
     },
     {
      "what": "design_metric",
@@ -34083,8 +35587,19 @@
       "quote": "puts the Box-Behnken design highest at :math:`14.0` and the"
      },
      "check": {
-      "manual": "the D-criterion |X'X|^(1/p) of the generated design, which no check here computes"
-     }
+      "kind": "design_metric",
+      "design": {
+       "design_type": "box_behnken",
+       "k": 5,
+       "options": {
+        "n_center_points": 6
+       }
+      },
+      "metric": "information_matrix",
+      "model": "A + B + C + D + E + I(A**2) + I(B**2) + I(C**2) + I(D**2) + I(E**2)",
+      "key": "d_criterion"
+     },
+     "analysis": "the library's evaluate_design on the design it makes (design_type box_behnken), under the main-effects-and-quadratics model: the D-criterion |X'X|^(1/p)"
     },
     {
      "what": "design_metric",
@@ -34097,8 +35612,19 @@
       "quote": "ahead of the forty-six-run Box-Behnken at :math:`30.5\\,\\%`."
      },
      "check": {
-      "manual": "a D-efficiency, 100 |X'X|^(1/p) / N of the generated design, which no check here computes"
-     }
+      "kind": "design_metric",
+      "design": {
+       "design_type": "box_behnken",
+       "k": 5,
+       "options": {
+        "n_center_points": 6
+       }
+      },
+      "metric": "d_efficiency",
+      "model": "A + B + C + D + E + I(A**2) + I(B**2) + I(C**2) + I(D**2) + I(E**2)",
+      "printed": "30.5%"
+     },
+     "analysis": "the library's evaluate_design on the design it makes (design_type box_behnken), under the main-effects-and-quadratics model: the D-efficiency, 100 |X'X|^(1/p) / N"
     },
     {
      "what": "other",
@@ -34125,8 +35651,23 @@
       "quote": "unscaled maximum of :math:`0.84`, has the highest :math:`G` at :math:`38.8`."
      },
      "check": {
-      "manual": "a maximum prediction variance over the region (sigma^2 units), which evaluate_design takes over a seeded uniform sample plus the cube vertices; no check here computes it"
-     }
+      "kind": "design_metric",
+      "design": {
+       "design_type": "box_behnken",
+       "k": 5,
+       "options": {
+        "n_center_points": 6
+       }
+      },
+      "metric": "fds",
+      "model": "A + B + C + D + E + I(A**2) + I(B**2) + I(C**2) + I(D**2) + I(E**2)",
+      "options": {
+       "n_samples": 120000,
+       "random_state": 1
+      },
+      "key": "max_prediction_variance"
+     },
+     "analysis": "the library's evaluate_design on the design it makes (design_type box_behnken), under the main-effects-and-quadratics model: the largest prediction variance over the cube (the book's sample: 120,000 points, seed 1, with the cube's vertices)"
     },
     {
      "what": "design_metric",
@@ -34139,8 +35680,23 @@
       "quote": "unscaled maximum of :math:`0.84`, has the highest :math:`G` at :math:`38.8`."
      },
      "check": {
-      "manual": "a G-criterion, the maximum scaled prediction variance over the region, which evaluate_design takes over a seeded uniform sample plus the cube vertices; no check here computes it"
-     }
+      "kind": "design_metric",
+      "design": {
+       "design_type": "box_behnken",
+       "k": 5,
+       "options": {
+        "n_center_points": 6
+       }
+      },
+      "metric": "fds",
+      "model": "A + B + C + D + E + I(A**2) + I(B**2) + I(C**2) + I(D**2) + I(E**2)",
+      "options": {
+       "n_samples": 120000,
+       "random_state": 1
+      },
+      "key": "scaled_max_prediction_variance"
+     },
+     "analysis": "the library's evaluate_design on the design it makes (design_type box_behnken), under the main-effects-and-quadratics model: N times the largest prediction variance over the cube (the book's sample: 120,000 points, seed 1, with the cube's vertices)"
     },
     {
      "what": "aliases",
@@ -34153,8 +35709,21 @@
       "quote": "at zero on this model (:math:`|\\mathbf{A}| = 0`): their quadratics are balanced against the"
      },
      "check": {
-      "manual": "an entry, or the largest entry, of the alias matrix A = (X1'X1)^-1 X1'X2 for the omitted two-factor interactions, which no check here computes"
-     }
+      "kind": "design_metric",
+      "design": {
+       "design_type": "box_behnken",
+       "k": 5,
+       "options": {
+        "n_center_points": 6
+       }
+      },
+      "metric": "alias_matrix",
+      "model": "A + B + C + D + E + I(A**2) + I(B**2) + I(C**2) + I(D**2) + I(E**2)",
+      "key": "max_abs",
+      "printed": "0",
+      "expression": true
+     },
+     "analysis": "the library's evaluate_design on the design it makes (design_type box_behnken), under the main-effects-and-quadratics model: the largest entry of the alias matrix for the omitted two-factor interactions"
     },
     {
      "what": "aliases",
@@ -34167,8 +35736,21 @@
       "quote": "The Box-Behnken and composite designs hold every entry at zero on this model"
      },
      "check": {
-      "manual": "an entry, or the largest entry, of the alias matrix A = (X1'X1)^-1 X1'X2 for the omitted two-factor interactions, which no check here computes"
-     }
+      "kind": "design_metric",
+      "design": {
+       "design_type": "box_behnken",
+       "k": 5,
+       "options": {
+        "n_center_points": 6
+       }
+      },
+      "metric": "alias_matrix",
+      "model": "A + B + C + D + E + I(A**2) + I(B**2) + I(C**2) + I(D**2) + I(E**2)",
+      "key": "max_abs",
+      "printed": "0",
+      "expression": true
+     },
+     "analysis": "the library's evaluate_design on the design it makes (design_type box_behnken), under the main-effects-and-quadratics model: the largest entry of the alias matrix for the omitted two-factor interactions"
     },
     {
      "what": "design_metric",
@@ -34181,8 +35763,19 @@
       "quote": "(:math:`0.15`, :math:`0.75`, :math:`0.31`, :math:`0.13`); the stronger correlations,"
      },
      "check": {
-      "manual": "a correlation summary |r| between model-term columns of the generated design, which no check here computes"
-     }
+      "kind": "design_metric",
+      "design": {
+       "design_type": "box_behnken",
+       "k": 5,
+       "options": {
+        "n_center_points": 6
+       }
+      },
+      "metric": "correlation",
+      "model": "A + B + C + D + E + I(A**2) + I(B**2) + I(C**2) + I(D**2) + I(E**2)",
+      "key": "max_abs_r"
+     },
+     "analysis": "the library's evaluate_design on the design it makes (design_type box_behnken), under the main-effects-and-quadratics model: the largest |r| between two second-order terms of the fitted model"
     },
     {
      "what": "design_metric",
@@ -34195,8 +35788,18 @@
       "quote": "(:math:`2.64` versus :math:`2.54`)"
      },
      "check": {
-      "manual": "an E-criterion, the smallest eigenvalue of X'X of the generated design, which no check here computes"
-     }
+      "kind": "design_metric",
+      "design": {
+       "design_type": "box_behnken",
+       "k": 5,
+       "options": {
+        "n_center_points": 6
+       }
+      },
+      "metric": "e_optimality",
+      "model": "A + B + C + D + E + I(A**2) + I(B**2) + I(C**2) + I(D**2) + I(E**2)"
+     },
+     "analysis": "the library's evaluate_design on the design it makes (design_type box_behnken), under the main-effects-and-quadratics model: the smallest eigenvalue of X'X"
     },
     {
      "what": "other",
@@ -34347,8 +35950,21 @@
       "quote": "- OMARS - 25 - yes - 14"
      },
      "check": {
-      "manual": "the residual degrees of freedom N - rank(X) of the model on the generated design; residual_df is a fit kind that needs responses, which a design entry has not, so no check here computes it"
-     }
+      "kind": "design_metric",
+      "design": {
+       "design_type": "generate_omars",
+       "k": 5,
+       "options": {
+        "n_runs": 25,
+        "model": "main_quadratic",
+        "selection_criterion": "a_optimal"
+       }
+      },
+      "metric": "information_matrix",
+      "model": "A + B + C + D + E + I(A**2) + I(B**2) + I(C**2) + I(D**2) + I(E**2)",
+      "key": "residual_df"
+     },
+     "analysis": "the library's evaluate_design on the design it makes (design_type generate_omars), under the main-effects-and-quadratics model: N - rank(X)"
     },
     {
      "what": "other",
@@ -34389,8 +36005,24 @@
       "quote": "with the twenty-five-run OMARS design next at :math:`0.53`."
      },
      "check": {
-      "manual": "a power (the non-central F test of one coefficient, delta = sigma, alpha = 0.05) of the generated design, which no check here computes"
-     }
+      "kind": "design_metric",
+      "design": {
+       "design_type": "generate_omars",
+       "k": 5,
+       "options": {
+        "n_runs": 25,
+        "model": "main_quadratic",
+        "selection_criterion": "a_optimal"
+       }
+      },
+      "metric": "power",
+      "model": "A + B + C + D + E + I(A**2) + I(B**2) + I(C**2) + I(D**2) + I(E**2)",
+      "options": {
+       "effect_size": 1.0
+      },
+      "key": "I(A ** 2)"
+     },
+     "analysis": "the library's evaluate_design on the design it makes (design_type generate_omars), under the main-effects-and-quadratics model: the power of A's quadratic's test at delta = sigma, alpha 0.05"
     },
     {
      "what": "other",
@@ -34417,8 +36049,24 @@
       "quote": "- :math:`\\uparrow` Power, main effect at :math:`\\delta = \\sigma` - 0.97 - 0.98 - 0.96 - 0.42"
      },
      "check": {
-      "manual": "a power (the non-central F test of one coefficient, delta = sigma, alpha = 0.05) of the generated design, which no check here computes"
-     }
+      "kind": "design_metric",
+      "design": {
+       "design_type": "generate_omars",
+       "k": 5,
+       "options": {
+        "n_runs": 25,
+        "model": "main_quadratic",
+        "selection_criterion": "a_optimal"
+       }
+      },
+      "metric": "power",
+      "model": "A + B + C + D + E + I(A**2) + I(B**2) + I(C**2) + I(D**2) + I(E**2)",
+      "options": {
+       "effect_size": 1.0
+      },
+      "key": "A"
+     },
+     "analysis": "the library's evaluate_design on the design it makes (design_type generate_omars), under the main-effects-and-quadratics model: the power of A's test at delta = sigma, alpha 0.05"
     },
     {
      "what": "design_metric",
@@ -34431,8 +36079,24 @@
       "quote": "- :math:`\\uparrow` Power, quadratic at :math:`\\delta = \\sigma` - 0.82 - 0.32 - 0.53 - 0.15"
      },
      "check": {
-      "manual": "a power (the non-central F test of one coefficient, delta = sigma, alpha = 0.05) of the generated design, which no check here computes"
-     }
+      "kind": "design_metric",
+      "design": {
+       "design_type": "generate_omars",
+       "k": 5,
+       "options": {
+        "n_runs": 25,
+        "model": "main_quadratic",
+        "selection_criterion": "a_optimal"
+       }
+      },
+      "metric": "power",
+      "model": "A + B + C + D + E + I(A**2) + I(B**2) + I(C**2) + I(D**2) + I(E**2)",
+      "options": {
+       "effect_size": 1.0
+      },
+      "key": "I(A ** 2)"
+     },
+     "analysis": "the library's evaluate_design on the design it makes (design_type generate_omars), under the main-effects-and-quadratics model: the power of A's quadratic's test at delta = sigma, alpha 0.05"
     },
     {
      "what": "design_metric",
@@ -34445,8 +36109,25 @@
       "quote": "- :math:`\\downarrow` Average prediction variance, :math:`\\sigma^2` units - 0.18 - 0.31 - 0.29 - 0.71"
      },
      "check": {
-      "manual": "an average prediction variance over the region (sigma^2 units), which evaluate_design estimates from a seeded uniform sample of the region; no check here computes it"
-     }
+      "kind": "design_metric",
+      "design": {
+       "design_type": "generate_omars",
+       "k": 5,
+       "options": {
+        "n_runs": 25,
+        "model": "main_quadratic",
+        "selection_criterion": "a_optimal"
+       }
+      },
+      "metric": "fds",
+      "model": "A + B + C + D + E + I(A**2) + I(B**2) + I(C**2) + I(D**2) + I(E**2)",
+      "options": {
+       "n_samples": 120000,
+       "random_state": 1
+      },
+      "key": "average_prediction_variance"
+     },
+     "analysis": "the library's evaluate_design on the design it makes (design_type generate_omars), under the main-effects-and-quadratics model: the average prediction variance over the cube (the book's sample: 120,000 points, seed 1, with the cube's vertices)"
     },
     {
      "what": "design_metric",
@@ -34459,8 +36140,25 @@
       "quote": "- :math:`\\downarrow` Maximum prediction variance, :math:`\\sigma^2` units - 0.84 - 0.77 - 0.51 - 1.05"
      },
      "check": {
-      "manual": "a maximum prediction variance over the region (sigma^2 units), which evaluate_design takes over a seeded uniform sample plus the cube vertices; no check here computes it"
-     }
+      "kind": "design_metric",
+      "design": {
+       "design_type": "generate_omars",
+       "k": 5,
+       "options": {
+        "n_runs": 25,
+        "model": "main_quadratic",
+        "selection_criterion": "a_optimal"
+       }
+      },
+      "metric": "fds",
+      "model": "A + B + C + D + E + I(A**2) + I(B**2) + I(C**2) + I(D**2) + I(E**2)",
+      "options": {
+       "n_samples": 120000,
+       "random_state": 1
+      },
+      "key": "max_prediction_variance"
+     },
+     "analysis": "the library's evaluate_design on the design it makes (design_type generate_omars), under the main-effects-and-quadratics model: the largest prediction variance over the cube (the book's sample: 120,000 points, seed 1, with the cube's vertices)"
     },
     {
      "what": "design_metric",
@@ -34473,8 +36171,25 @@
       "quote": "- :math:`\\downarrow` Maximum scaled prediction variance :math:`G` - 38.8 - 24.6 - 12.7 - 13.6"
      },
      "check": {
-      "manual": "a G-criterion, the maximum scaled prediction variance over the region, which evaluate_design takes over a seeded uniform sample plus the cube vertices; no check here computes it"
-     }
+      "kind": "design_metric",
+      "design": {
+       "design_type": "generate_omars",
+       "k": 5,
+       "options": {
+        "n_runs": 25,
+        "model": "main_quadratic",
+        "selection_criterion": "a_optimal"
+       }
+      },
+      "metric": "fds",
+      "model": "A + B + C + D + E + I(A**2) + I(B**2) + I(C**2) + I(D**2) + I(E**2)",
+      "options": {
+       "n_samples": 120000,
+       "random_state": 1
+      },
+      "key": "scaled_max_prediction_variance"
+     },
+     "analysis": "the library's evaluate_design on the design it makes (design_type generate_omars), under the main-effects-and-quadratics model: N times the largest prediction variance over the cube (the book's sample: 120,000 points, seed 1, with the cube's vertices)"
     },
     {
      "what": "design_metric",
@@ -34487,8 +36202,20 @@
       "quote": "- :math:`\\downarrow` Summed coefficient variance :math:`A` - 1.05 - 2.39 - 1.61 - 3.70"
      },
      "check": {
-      "manual": "an A-criterion, trace((X'X)^-1) of the generated design on the main-effects-and-quadratic model, which no check here computes"
-     }
+      "kind": "design_metric",
+      "design": {
+       "design_type": "generate_omars",
+       "k": 5,
+       "options": {
+        "n_runs": 25,
+        "model": "main_quadratic",
+        "selection_criterion": "a_optimal"
+       }
+      },
+      "metric": "a_optimality",
+      "model": "A + B + C + D + E + I(A**2) + I(B**2) + I(C**2) + I(D**2) + I(E**2)"
+     },
+     "analysis": "the library's evaluate_design on the design it makes (design_type generate_omars), under the main-effects-and-quadratics model: trace((X'X)^-1)"
     },
     {
      "what": "design_metric",
@@ -34501,8 +36228,20 @@
       "quote": "- :math:`\\uparrow\\ E`, smallest eigenvalue of :math:`\\mathbf{X}^T\\mathbf{X}` - 2.54 - 2.00 - 2.64 - 0.85"
      },
      "check": {
-      "manual": "an E-criterion, the smallest eigenvalue of X'X of the generated design, which no check here computes"
-     }
+      "kind": "design_metric",
+      "design": {
+       "design_type": "generate_omars",
+       "k": 5,
+       "options": {
+        "n_runs": 25,
+        "model": "main_quadratic",
+        "selection_criterion": "a_optimal"
+       }
+      },
+      "metric": "e_optimality",
+      "model": "A + B + C + D + E + I(A**2) + I(B**2) + I(C**2) + I(D**2) + I(E**2)"
+     },
+     "analysis": "the library's evaluate_design on the design it makes (design_type generate_omars), under the main-effects-and-quadratics model: the smallest eigenvalue of X'X"
     },
     {
      "what": "design_metric",
@@ -34515,8 +36254,21 @@
       "quote": "- :math:`\\downarrow` Maximum :math:`|r|` among model terms - 0.15 - 0.75 - 0.31 - 0.13"
      },
      "check": {
-      "manual": "a correlation summary |r| between model-term columns of the generated design, which no check here computes"
-     }
+      "kind": "design_metric",
+      "design": {
+       "design_type": "generate_omars",
+       "k": 5,
+       "options": {
+        "n_runs": 25,
+        "model": "main_quadratic",
+        "selection_criterion": "a_optimal"
+       }
+      },
+      "metric": "correlation",
+      "model": "A + B + C + D + E + I(A**2) + I(B**2) + I(C**2) + I(D**2) + I(E**2)",
+      "key": "max_abs_r"
+     },
+     "analysis": "the library's evaluate_design on the design it makes (design_type generate_omars), under the main-effects-and-quadratics model: the largest |r| between two second-order terms of the fitted model"
     },
     {
      "what": "design_metric",
@@ -34529,8 +36281,21 @@
       "quote": "- :math:`\\downarrow` Maximum VIF - 1.20 - 3.20 - 1.21 - 1.05"
      },
      "check": {
-      "manual": "a variance inflation factor of the generated design, which no check here computes"
-     }
+      "kind": "design_metric",
+      "design": {
+       "design_type": "generate_omars",
+       "k": 5,
+       "options": {
+        "n_runs": 25,
+        "model": "main_quadratic",
+        "selection_criterion": "a_optimal"
+       }
+      },
+      "metric": "vif",
+      "model": "A + B + C + D + E + I(A**2) + I(B**2) + I(C**2) + I(D**2) + I(E**2)",
+      "key": "max"
+     },
+     "analysis": "the library's evaluate_design on the design it makes (design_type generate_omars), under the main-effects-and-quadratics model: the largest variance inflation factor"
     },
     {
      "what": "aliases",
@@ -34543,8 +36308,21 @@
       "quote": "- :math:`\\downarrow` Maximum alias :math:`|\\mathbf{A}|`, omitted interactions - 0.00 - 0.00 - 0.77 - 1.09"
      },
      "check": {
-      "manual": "an entry, or the largest entry, of the alias matrix A = (X1'X1)^-1 X1'X2 for the omitted two-factor interactions, which no check here computes"
-     }
+      "kind": "design_metric",
+      "design": {
+       "design_type": "generate_omars",
+       "k": 5,
+       "options": {
+        "n_runs": 25,
+        "model": "main_quadratic",
+        "selection_criterion": "a_optimal"
+       }
+      },
+      "metric": "alias_matrix",
+      "model": "A + B + C + D + E + I(A**2) + I(B**2) + I(C**2) + I(D**2) + I(E**2)",
+      "key": "max_abs"
+     },
+     "analysis": "the library's evaluate_design on the design it makes (design_type generate_omars), under the main-effects-and-quadratics model: the largest entry of the alias matrix for the omitted two-factor interactions"
     },
     {
      "what": "design_metric",
@@ -34557,8 +36335,21 @@
       "quote": "- :math:`\\uparrow` D-optimal information :math:`|\\mathbf{X}^T\\mathbf{X}|^{1/p}` - 14.0 - 8.97 - 10.0 - 5.19"
      },
      "check": {
-      "manual": "the D-criterion |X'X|^(1/p) of the generated design, which no check here computes"
-     }
+      "kind": "design_metric",
+      "design": {
+       "design_type": "generate_omars",
+       "k": 5,
+       "options": {
+        "n_runs": 25,
+        "model": "main_quadratic",
+        "selection_criterion": "a_optimal"
+       }
+      },
+      "metric": "information_matrix",
+      "model": "A + B + C + D + E + I(A**2) + I(B**2) + I(C**2) + I(D**2) + I(E**2)",
+      "key": "d_criterion"
+     },
+     "analysis": "the library's evaluate_design on the design it makes (design_type generate_omars), under the main-effects-and-quadratics model: the D-criterion |X'X|^(1/p)"
     },
     {
      "what": "design_metric",
@@ -34571,8 +36362,20 @@
       "quote": "- :math:`\\uparrow` D-efficiency, per run (see note) - 30.5% - 28.0% - 40.1% - 39.9%"
      },
      "check": {
-      "manual": "a D-efficiency, 100 |X'X|^(1/p) / N of the generated design, which no check here computes"
-     }
+      "kind": "design_metric",
+      "design": {
+       "design_type": "generate_omars",
+       "k": 5,
+       "options": {
+        "n_runs": 25,
+        "model": "main_quadratic",
+        "selection_criterion": "a_optimal"
+       }
+      },
+      "metric": "d_efficiency",
+      "model": "A + B + C + D + E + I(A**2) + I(B**2) + I(C**2) + I(D**2) + I(E**2)"
+     },
+     "analysis": "the library's evaluate_design on the design it makes (design_type generate_omars), under the main-effects-and-quadratics model: the D-efficiency, 100 |X'X|^(1/p) / N"
     },
     {
      "what": "design_metric",
@@ -34585,8 +36388,21 @@
       "quote": ":math:`40.1\\,\\%` and :math:`39.9\\,\\%`, ahead of the forty-six-run Box-Behnken at :math:`30.5\\,\\%`."
      },
      "check": {
-      "manual": "a D-efficiency, 100 |X'X|^(1/p) / N of the generated design, which no check here computes"
-     }
+      "kind": "design_metric",
+      "design": {
+       "design_type": "generate_omars",
+       "k": 5,
+       "options": {
+        "n_runs": 25,
+        "model": "main_quadratic",
+        "selection_criterion": "a_optimal"
+       }
+      },
+      "metric": "d_efficiency",
+      "model": "A + B + C + D + E + I(A**2) + I(B**2) + I(C**2) + I(D**2) + I(E**2)",
+      "printed": "40.1%"
+     },
+     "analysis": "the library's evaluate_design on the design it makes (design_type generate_omars), under the main-effects-and-quadratics model: the D-efficiency, 100 |X'X|^(1/p) / N"
     },
     {
      "what": "design_metric",
@@ -34599,8 +36415,25 @@
       "quote": "design has the lowest (:math:`0.51`)."
      },
      "check": {
-      "manual": "a maximum prediction variance over the region (sigma^2 units), which evaluate_design takes over a seeded uniform sample plus the cube vertices; no check here computes it"
-     }
+      "kind": "design_metric",
+      "design": {
+       "design_type": "generate_omars",
+       "k": 5,
+       "options": {
+        "n_runs": 25,
+        "model": "main_quadratic",
+        "selection_criterion": "a_optimal"
+       }
+      },
+      "metric": "fds",
+      "model": "A + B + C + D + E + I(A**2) + I(B**2) + I(C**2) + I(D**2) + I(E**2)",
+      "options": {
+       "n_samples": 120000,
+       "random_state": 1
+      },
+      "key": "max_prediction_variance"
+     },
+     "analysis": "the library's evaluate_design on the design it makes (design_type generate_omars), under the main-effects-and-quadratics model: the largest prediction variance over the cube (the book's sample: 120,000 points, seed 1, with the cube's vertices)"
     },
     {
      "what": "design_metric",
@@ -34613,8 +36446,25 @@
       "quote": "just above the OMARS design's :math:`12.7`"
      },
      "check": {
-      "manual": "a G-criterion, the maximum scaled prediction variance over the region, which evaluate_design takes over a seeded uniform sample plus the cube vertices; no check here computes it"
-     }
+      "kind": "design_metric",
+      "design": {
+       "design_type": "generate_omars",
+       "k": 5,
+       "options": {
+        "n_runs": 25,
+        "model": "main_quadratic",
+        "selection_criterion": "a_optimal"
+       }
+      },
+      "metric": "fds",
+      "model": "A + B + C + D + E + I(A**2) + I(B**2) + I(C**2) + I(D**2) + I(E**2)",
+      "options": {
+       "n_samples": 120000,
+       "random_state": 1
+      },
+      "key": "scaled_max_prediction_variance"
+     },
+     "analysis": "the library's evaluate_design on the design it makes (design_type generate_omars), under the main-effects-and-quadratics model: N times the largest prediction variance over the cube (the book's sample: 120,000 points, seed 1, with the cube's vertices)"
     },
     {
      "what": "aliases",
@@ -34627,8 +36477,23 @@
       "quote": "definitive screening and OMARS designs instead protect the main effects, whose alias is"
      },
      "check": {
-      "manual": "an entry, or the largest entry, of the alias matrix A = (X1'X1)^-1 X1'X2 for the omitted two-factor interactions, which no check here computes"
-     }
+      "kind": "design_metric",
+      "design": {
+       "design_type": "generate_omars",
+       "k": 5,
+       "options": {
+        "n_runs": 25,
+        "model": "main_quadratic",
+        "selection_criterion": "a_optimal"
+       }
+      },
+      "metric": "alias_matrix",
+      "model": "A + B + C + D + E + I(A**2) + I(B**2) + I(C**2) + I(D**2) + I(E**2)",
+      "key": "max_abs_main_effect_rows",
+      "printed": "0",
+      "expression": true
+     },
+     "analysis": "the library's evaluate_design on the design it makes (design_type generate_omars), under the main-effects-and-quadratics model: the largest entry of the alias matrix's main-effect rows, the omitted two-factor interactions"
     },
     {
      "what": "aliases",
@@ -34641,8 +36506,21 @@
       "quote": ":math:`0.77` here for the OMARS design and :math:`1.09` for the definitive screening design."
      },
      "check": {
-      "manual": "an entry, or the largest entry, of the alias matrix A = (X1'X1)^-1 X1'X2 for the omitted two-factor interactions, which no check here computes"
-     }
+      "kind": "design_metric",
+      "design": {
+       "design_type": "generate_omars",
+       "k": 5,
+       "options": {
+        "n_runs": 25,
+        "model": "main_quadratic",
+        "selection_criterion": "a_optimal"
+       }
+      },
+      "metric": "alias_matrix",
+      "model": "A + B + C + D + E + I(A**2) + I(B**2) + I(C**2) + I(D**2) + I(E**2)",
+      "key": "max_abs"
+     },
+     "analysis": "the library's evaluate_design on the design it makes (design_type generate_omars), under the main-effects-and-quadratics model: the largest entry of the alias matrix for the omitted two-factor interactions, on a quadratic's row"
     },
     {
      "what": "aliases",
@@ -34655,8 +36533,21 @@
       "quote": "main-effect rows at zero and carry the bias on the quadratic rows, up to :math:`0.77` and"
      },
      "check": {
-      "manual": "an entry, or the largest entry, of the alias matrix A = (X1'X1)^-1 X1'X2 for the omitted two-factor interactions, which no check here computes"
-     }
+      "kind": "design_metric",
+      "design": {
+       "design_type": "generate_omars",
+       "k": 5,
+       "options": {
+        "n_runs": 25,
+        "model": "main_quadratic",
+        "selection_criterion": "a_optimal"
+       }
+      },
+      "metric": "alias_matrix",
+      "model": "A + B + C + D + E + I(A**2) + I(B**2) + I(C**2) + I(D**2) + I(E**2)",
+      "key": "max_abs"
+     },
+     "analysis": "the library's evaluate_design on the design it makes (design_type generate_omars), under the main-effects-and-quadratics model: the largest entry of the alias matrix for the omitted two-factor interactions, on a quadratic's row"
     },
     {
      "what": "design_metric",
@@ -34669,8 +36560,21 @@
       "quote": "(:math:`0.15`, :math:`0.75`, :math:`0.31`, :math:`0.13`); the stronger correlations,"
      },
      "check": {
-      "manual": "a correlation summary |r| between model-term columns of the generated design, which no check here computes"
-     }
+      "kind": "design_metric",
+      "design": {
+       "design_type": "generate_omars",
+       "k": 5,
+       "options": {
+        "n_runs": 25,
+        "model": "main_quadratic",
+        "selection_criterion": "a_optimal"
+       }
+      },
+      "metric": "correlation",
+      "model": "A + B + C + D + E + I(A**2) + I(B**2) + I(C**2) + I(D**2) + I(E**2)",
+      "key": "max_abs_r"
+     },
+     "analysis": "the library's evaluate_design on the design it makes (design_type generate_omars), under the main-effects-and-quadratics model: the largest |r| between two second-order terms of the fitted model"
     },
     {
      "what": "design_metric",
@@ -34683,8 +36587,21 @@
       "quote": ":math:`0.83` for the OMARS design and :math:`0.50` for the definitive screening design, sit in"
      },
      "check": {
-      "manual": "a correlation summary |r| between model-term columns of the generated design, which no check here computes"
-     }
+      "kind": "design_metric",
+      "design": {
+       "design_type": "generate_omars",
+       "k": 5,
+       "options": {
+        "n_runs": 25,
+        "model": "main_quadratic",
+        "selection_criterion": "a_optimal"
+       }
+      },
+      "metric": "correlation",
+      "model": "quadratic",
+      "key": "max_abs_r"
+     },
+     "analysis": "the library's evaluate_design on the design it makes (design_type generate_omars), under the main-effects-and-quadratics model: the largest |r| between two second-order terms of the full quadratic model, the omitted interactions included"
     },
     {
      "what": "design_metric",
@@ -34697,8 +36614,20 @@
       "quote": "though at the top it ranks the OMARS design marginally above the Box-Behnken (:math:`2.64` versus"
      },
      "check": {
-      "manual": "an E-criterion, the smallest eigenvalue of X'X of the generated design, which no check here computes"
-     }
+      "kind": "design_metric",
+      "design": {
+       "design_type": "generate_omars",
+       "k": 5,
+       "options": {
+        "n_runs": 25,
+        "model": "main_quadratic",
+        "selection_criterion": "a_optimal"
+       }
+      },
+      "metric": "e_optimality",
+      "model": "A + B + C + D + E + I(A**2) + I(B**2) + I(C**2) + I(D**2) + I(E**2)"
+     },
+     "analysis": "the library's evaluate_design on the design it makes (design_type generate_omars), under the main-effects-and-quadratics model: the smallest eigenvalue of X'X"
     },
     {
      "what": "design_metric",
@@ -34711,8 +36640,25 @@
       "quote": "design at :math:`12.7`, with the DSD just behind at :math:`13.6`."
      },
      "check": {
-      "manual": "a G-criterion, the maximum scaled prediction variance over the region, which evaluate_design takes over a seeded uniform sample plus the cube vertices; no check here computes it"
-     }
+      "kind": "design_metric",
+      "design": {
+       "design_type": "generate_omars",
+       "k": 5,
+       "options": {
+        "n_runs": 25,
+        "model": "main_quadratic",
+        "selection_criterion": "a_optimal"
+       }
+      },
+      "metric": "fds",
+      "model": "A + B + C + D + E + I(A**2) + I(B**2) + I(C**2) + I(D**2) + I(E**2)",
+      "options": {
+       "n_samples": 120000,
+       "random_state": 1
+      },
+      "key": "scaled_max_prediction_variance"
+     },
+     "analysis": "the library's evaluate_design on the design it makes (design_type generate_omars), under the main-effects-and-quadratics model: N times the largest prediction variance over the cube (the book's sample: 120,000 points, seed 1, with the cube's vertices)"
     }
    ]
   },
@@ -34841,8 +36787,17 @@
       "quote": "- DSD - 13 - yes - 2"
      },
      "check": {
-      "manual": "the residual degrees of freedom N - rank(X) of the model on the generated design; residual_df is a fit kind that needs responses, which a design entry has not, so no check here computes it"
-     }
+      "kind": "design_metric",
+      "design": {
+       "design_type": "dsd",
+       "k": 5,
+       "options": {}
+      },
+      "metric": "information_matrix",
+      "model": "A + B + C + D + E + I(A**2) + I(B**2) + I(C**2) + I(D**2) + I(E**2)",
+      "key": "residual_df"
+     },
+     "analysis": "the library's evaluate_design on the design it makes (design_type dsd), under the main-effects-and-quadratics model: N - rank(X)"
     },
     {
      "what": "design_metric",
@@ -34869,8 +36824,20 @@
       "quote": "The thirteen-run DSD is visibly underpowered: a :math:`0.42` chance on a one-sigma main effect and"
      },
      "check": {
-      "manual": "a power (the non-central F test of one coefficient, delta = sigma, alpha = 0.05) of the generated design, which no check here computes"
-     }
+      "kind": "design_metric",
+      "design": {
+       "design_type": "dsd",
+       "k": 5,
+       "options": {}
+      },
+      "metric": "power",
+      "model": "A + B + C + D + E + I(A**2) + I(B**2) + I(C**2) + I(D**2) + I(E**2)",
+      "options": {
+       "effect_size": 1.0
+      },
+      "key": "A"
+     },
+     "analysis": "the library's evaluate_design on the design it makes (design_type dsd), under the main-effects-and-quadratics model: the power of A's test at delta = sigma, alpha 0.05"
     },
     {
      "what": "design_metric",
@@ -34883,8 +36850,20 @@
       "quote": "only :math:`0.15` on a quadratic of the same size."
      },
      "check": {
-      "manual": "a power (the non-central F test of one coefficient, delta = sigma, alpha = 0.05) of the generated design, which no check here computes"
-     }
+      "kind": "design_metric",
+      "design": {
+       "design_type": "dsd",
+       "k": 5,
+       "options": {}
+      },
+      "metric": "power",
+      "model": "A + B + C + D + E + I(A**2) + I(B**2) + I(C**2) + I(D**2) + I(E**2)",
+      "options": {
+       "effect_size": 1.0
+      },
+      "key": "I(A ** 2)"
+     },
+     "analysis": "the library's evaluate_design on the design it makes (design_type dsd), under the main-effects-and-quadratics model: the power of A's quadratic's test at delta = sigma, alpha 0.05"
     },
     {
      "what": "design_metric",
@@ -34897,8 +36876,20 @@
       "quote": "- :math:`\\uparrow` Power, main effect at :math:`\\delta = \\sigma` - 0.97 - 0.98 - 0.96 - 0.42"
      },
      "check": {
-      "manual": "a power (the non-central F test of one coefficient, delta = sigma, alpha = 0.05) of the generated design, which no check here computes"
-     }
+      "kind": "design_metric",
+      "design": {
+       "design_type": "dsd",
+       "k": 5,
+       "options": {}
+      },
+      "metric": "power",
+      "model": "A + B + C + D + E + I(A**2) + I(B**2) + I(C**2) + I(D**2) + I(E**2)",
+      "options": {
+       "effect_size": 1.0
+      },
+      "key": "A"
+     },
+     "analysis": "the library's evaluate_design on the design it makes (design_type dsd), under the main-effects-and-quadratics model: the power of A's test at delta = sigma, alpha 0.05"
     },
     {
      "what": "design_metric",
@@ -34911,8 +36902,20 @@
       "quote": "- :math:`\\uparrow` Power, quadratic at :math:`\\delta = \\sigma` - 0.82 - 0.32 - 0.53 - 0.15"
      },
      "check": {
-      "manual": "a power (the non-central F test of one coefficient, delta = sigma, alpha = 0.05) of the generated design, which no check here computes"
-     }
+      "kind": "design_metric",
+      "design": {
+       "design_type": "dsd",
+       "k": 5,
+       "options": {}
+      },
+      "metric": "power",
+      "model": "A + B + C + D + E + I(A**2) + I(B**2) + I(C**2) + I(D**2) + I(E**2)",
+      "options": {
+       "effect_size": 1.0
+      },
+      "key": "I(A ** 2)"
+     },
+     "analysis": "the library's evaluate_design on the design it makes (design_type dsd), under the main-effects-and-quadratics model: the power of A's quadratic's test at delta = sigma, alpha 0.05"
     },
     {
      "what": "design_metric",
@@ -34925,8 +36928,21 @@
       "quote": "- :math:`\\downarrow` Average prediction variance, :math:`\\sigma^2` units - 0.18 - 0.31 - 0.29 - 0.71"
      },
      "check": {
-      "manual": "an average prediction variance over the region (sigma^2 units), which evaluate_design estimates from a seeded uniform sample of the region; no check here computes it"
-     }
+      "kind": "design_metric",
+      "design": {
+       "design_type": "dsd",
+       "k": 5,
+       "options": {}
+      },
+      "metric": "fds",
+      "model": "A + B + C + D + E + I(A**2) + I(B**2) + I(C**2) + I(D**2) + I(E**2)",
+      "options": {
+       "n_samples": 120000,
+       "random_state": 1
+      },
+      "key": "average_prediction_variance"
+     },
+     "analysis": "the library's evaluate_design on the design it makes (design_type dsd), under the main-effects-and-quadratics model: the average prediction variance over the cube (the book's sample: 120,000 points, seed 1, with the cube's vertices)"
     },
     {
      "what": "design_metric",
@@ -34939,8 +36955,21 @@
       "quote": "- :math:`\\downarrow` Maximum prediction variance, :math:`\\sigma^2` units - 0.84 - 0.77 - 0.51 - 1.05"
      },
      "check": {
-      "manual": "a maximum prediction variance over the region (sigma^2 units), which evaluate_design takes over a seeded uniform sample plus the cube vertices; no check here computes it"
-     }
+      "kind": "design_metric",
+      "design": {
+       "design_type": "dsd",
+       "k": 5,
+       "options": {}
+      },
+      "metric": "fds",
+      "model": "A + B + C + D + E + I(A**2) + I(B**2) + I(C**2) + I(D**2) + I(E**2)",
+      "options": {
+       "n_samples": 120000,
+       "random_state": 1
+      },
+      "key": "max_prediction_variance"
+     },
+     "analysis": "the library's evaluate_design on the design it makes (design_type dsd), under the main-effects-and-quadratics model: the largest prediction variance over the cube (the book's sample: 120,000 points, seed 1, with the cube's vertices)"
     },
     {
      "what": "design_metric",
@@ -34953,8 +36982,21 @@
       "quote": "- :math:`\\downarrow` Maximum scaled prediction variance :math:`G` - 38.8 - 24.6 - 12.7 - 13.6"
      },
      "check": {
-      "manual": "a G-criterion, the maximum scaled prediction variance over the region, which evaluate_design takes over a seeded uniform sample plus the cube vertices; no check here computes it"
-     }
+      "kind": "design_metric",
+      "design": {
+       "design_type": "dsd",
+       "k": 5,
+       "options": {}
+      },
+      "metric": "fds",
+      "model": "A + B + C + D + E + I(A**2) + I(B**2) + I(C**2) + I(D**2) + I(E**2)",
+      "options": {
+       "n_samples": 120000,
+       "random_state": 1
+      },
+      "key": "scaled_max_prediction_variance"
+     },
+     "analysis": "the library's evaluate_design on the design it makes (design_type dsd), under the main-effects-and-quadratics model: N times the largest prediction variance over the cube (the book's sample: 120,000 points, seed 1, with the cube's vertices)"
     },
     {
      "what": "design_metric",
@@ -34967,8 +37009,16 @@
       "quote": "- :math:`\\downarrow` Summed coefficient variance :math:`A` - 1.05 - 2.39 - 1.61 - 3.70"
      },
      "check": {
-      "manual": "an A-criterion, trace((X'X)^-1) of the generated design on the main-effects-and-quadratic model, which no check here computes"
-     }
+      "kind": "design_metric",
+      "design": {
+       "design_type": "dsd",
+       "k": 5,
+       "options": {}
+      },
+      "metric": "a_optimality",
+      "model": "A + B + C + D + E + I(A**2) + I(B**2) + I(C**2) + I(D**2) + I(E**2)"
+     },
+     "analysis": "the library's evaluate_design on the design it makes (design_type dsd), under the main-effects-and-quadratics model: trace((X'X)^-1)"
     },
     {
      "what": "design_metric",
@@ -34981,8 +37031,16 @@
       "quote": "- :math:`\\uparrow\\ E`, smallest eigenvalue of :math:`\\mathbf{X}^T\\mathbf{X}` - 2.54 - 2.00 - 2.64 - 0.85"
      },
      "check": {
-      "manual": "an E-criterion, the smallest eigenvalue of X'X of the generated design, which no check here computes"
-     }
+      "kind": "design_metric",
+      "design": {
+       "design_type": "dsd",
+       "k": 5,
+       "options": {}
+      },
+      "metric": "e_optimality",
+      "model": "A + B + C + D + E + I(A**2) + I(B**2) + I(C**2) + I(D**2) + I(E**2)"
+     },
+     "analysis": "the library's evaluate_design on the design it makes (design_type dsd), under the main-effects-and-quadratics model: the smallest eigenvalue of X'X"
     },
     {
      "what": "design_metric",
@@ -34995,8 +37053,17 @@
       "quote": "- :math:`\\downarrow` Maximum :math:`|r|` among model terms - 0.15 - 0.75 - 0.31 - 0.13"
      },
      "check": {
-      "manual": "a correlation summary |r| between model-term columns of the generated design, which no check here computes"
-     }
+      "kind": "design_metric",
+      "design": {
+       "design_type": "dsd",
+       "k": 5,
+       "options": {}
+      },
+      "metric": "correlation",
+      "model": "A + B + C + D + E + I(A**2) + I(B**2) + I(C**2) + I(D**2) + I(E**2)",
+      "key": "max_abs_r"
+     },
+     "analysis": "the library's evaluate_design on the design it makes (design_type dsd), under the main-effects-and-quadratics model: the largest |r| between two second-order terms of the fitted model"
     },
     {
      "what": "design_metric",
@@ -35009,8 +37076,17 @@
       "quote": "- :math:`\\downarrow` Maximum VIF - 1.20 - 3.20 - 1.21 - 1.05"
      },
      "check": {
-      "manual": "a variance inflation factor of the generated design, which no check here computes"
-     }
+      "kind": "design_metric",
+      "design": {
+       "design_type": "dsd",
+       "k": 5,
+       "options": {}
+      },
+      "metric": "vif",
+      "model": "A + B + C + D + E + I(A**2) + I(B**2) + I(C**2) + I(D**2) + I(E**2)",
+      "key": "max"
+     },
+     "analysis": "the library's evaluate_design on the design it makes (design_type dsd), under the main-effects-and-quadratics model: the largest variance inflation factor"
     },
     {
      "what": "aliases",
@@ -35023,8 +37099,17 @@
       "quote": "- :math:`\\downarrow` Maximum alias :math:`|\\mathbf{A}|`, omitted interactions - 0.00 - 0.00 - 0.77 - 1.09"
      },
      "check": {
-      "manual": "an entry, or the largest entry, of the alias matrix A = (X1'X1)^-1 X1'X2 for the omitted two-factor interactions, which no check here computes"
-     }
+      "kind": "design_metric",
+      "design": {
+       "design_type": "dsd",
+       "k": 5,
+       "options": {}
+      },
+      "metric": "alias_matrix",
+      "model": "A + B + C + D + E + I(A**2) + I(B**2) + I(C**2) + I(D**2) + I(E**2)",
+      "key": "max_abs"
+     },
+     "analysis": "the library's evaluate_design on the design it makes (design_type dsd), under the main-effects-and-quadratics model: the largest entry of the alias matrix for the omitted two-factor interactions"
     },
     {
      "what": "design_metric",
@@ -35037,8 +37122,17 @@
       "quote": "- :math:`\\uparrow` D-optimal information :math:`|\\mathbf{X}^T\\mathbf{X}|^{1/p}` - 14.0 - 8.97 - 10.0 - 5.19"
      },
      "check": {
-      "manual": "the D-criterion |X'X|^(1/p) of the generated design, which no check here computes"
-     }
+      "kind": "design_metric",
+      "design": {
+       "design_type": "dsd",
+       "k": 5,
+       "options": {}
+      },
+      "metric": "information_matrix",
+      "model": "A + B + C + D + E + I(A**2) + I(B**2) + I(C**2) + I(D**2) + I(E**2)",
+      "key": "d_criterion"
+     },
+     "analysis": "the library's evaluate_design on the design it makes (design_type dsd), under the main-effects-and-quadratics model: the D-criterion |X'X|^(1/p)"
     },
     {
      "what": "design_metric",
@@ -35051,8 +37145,16 @@
       "quote": "- :math:`\\uparrow` D-efficiency, per run (see note) - 30.5% - 28.0% - 40.1% - 39.9%"
      },
      "check": {
-      "manual": "a D-efficiency, 100 |X'X|^(1/p) / N of the generated design, which no check here computes"
-     }
+      "kind": "design_metric",
+      "design": {
+       "design_type": "dsd",
+       "k": 5,
+       "options": {}
+      },
+      "metric": "d_efficiency",
+      "model": "A + B + C + D + E + I(A**2) + I(B**2) + I(C**2) + I(D**2) + I(E**2)"
+     },
+     "analysis": "the library's evaluate_design on the design it makes (design_type dsd), under the main-effects-and-quadratics model: the D-efficiency, 100 |X'X|^(1/p) / N"
     },
     {
      "what": "design_metric",
@@ -35065,8 +37167,17 @@
       "quote": "thirteen-run DSD lowest at :math:`5.19`, the ranking the real-unit rows broadly agree on."
      },
      "check": {
-      "manual": "the D-criterion |X'X|^(1/p) of the generated design, which no check here computes"
-     }
+      "kind": "design_metric",
+      "design": {
+       "design_type": "dsd",
+       "k": 5,
+       "options": {}
+      },
+      "metric": "information_matrix",
+      "model": "A + B + C + D + E + I(A**2) + I(B**2) + I(C**2) + I(D**2) + I(E**2)",
+      "key": "d_criterion"
+     },
+     "analysis": "the library's evaluate_design on the design it makes (design_type dsd), under the main-effects-and-quadratics model: the D-criterion |X'X|^(1/p)"
     },
     {
      "what": "design_metric",
@@ -35079,8 +37190,17 @@
       "quote": ":math:`40.1\\,\\%` and :math:`39.9\\,\\%`, ahead of the forty-six-run Box-Behnken at :math:`30.5\\,\\%`."
      },
      "check": {
-      "manual": "a D-efficiency, 100 |X'X|^(1/p) / N of the generated design, which no check here computes"
-     }
+      "kind": "design_metric",
+      "design": {
+       "design_type": "dsd",
+       "k": 5,
+       "options": {}
+      },
+      "metric": "d_efficiency",
+      "model": "A + B + C + D + E + I(A**2) + I(B**2) + I(C**2) + I(D**2) + I(E**2)",
+      "printed": "39.9%"
+     },
+     "analysis": "the library's evaluate_design on the design it makes (design_type dsd), under the main-effects-and-quadratics model: the D-efficiency, 100 |X'X|^(1/p) / N"
     },
     {
      "what": "design_metric",
@@ -35093,8 +37213,21 @@
       "quote": "the highest maximum (:math:`1.05`), the worst single-point prediction at the bench"
      },
      "check": {
-      "manual": "a maximum prediction variance over the region (sigma^2 units), which evaluate_design takes over a seeded uniform sample plus the cube vertices; no check here computes it"
-     }
+      "kind": "design_metric",
+      "design": {
+       "design_type": "dsd",
+       "k": 5,
+       "options": {}
+      },
+      "metric": "fds",
+      "model": "A + B + C + D + E + I(A**2) + I(B**2) + I(C**2) + I(D**2) + I(E**2)",
+      "options": {
+       "n_samples": 120000,
+       "random_state": 1
+      },
+      "key": "max_prediction_variance"
+     },
+     "analysis": "the library's evaluate_design on the design it makes (design_type dsd), under the main-effects-and-quadratics model: the largest prediction variance over the cube (the book's sample: 120,000 points, seed 1, with the cube's vertices)"
     },
     {
      "what": "design_metric",
@@ -35107,8 +37240,21 @@
       "quote": "moves the DSD from worst to nearly best: it sits at :math:`13.6`,"
      },
      "check": {
-      "manual": "a G-criterion, the maximum scaled prediction variance over the region, which evaluate_design takes over a seeded uniform sample plus the cube vertices; no check here computes it"
-     }
+      "kind": "design_metric",
+      "design": {
+       "design_type": "dsd",
+       "k": 5,
+       "options": {}
+      },
+      "metric": "fds",
+      "model": "A + B + C + D + E + I(A**2) + I(B**2) + I(C**2) + I(D**2) + I(E**2)",
+      "options": {
+       "n_samples": 120000,
+       "random_state": 1
+      },
+      "key": "scaled_max_prediction_variance"
+     },
+     "analysis": "the library's evaluate_design on the design it makes (design_type dsd), under the main-effects-and-quadratics model: N times the largest prediction variance over the cube (the book's sample: 120,000 points, seed 1, with the cube's vertices)"
     },
     {
      "what": "aliases",
@@ -35121,8 +37267,19 @@
       "quote": "definitive screening and OMARS designs instead protect the main effects, whose alias is"
      },
      "check": {
-      "manual": "an entry, or the largest entry, of the alias matrix A = (X1'X1)^-1 X1'X2 for the omitted two-factor interactions, which no check here computes"
-     }
+      "kind": "design_metric",
+      "design": {
+       "design_type": "dsd",
+       "k": 5,
+       "options": {}
+      },
+      "metric": "alias_matrix",
+      "model": "A + B + C + D + E + I(A**2) + I(B**2) + I(C**2) + I(D**2) + I(E**2)",
+      "key": "max_abs_main_effect_rows",
+      "printed": "0",
+      "expression": true
+     },
+     "analysis": "the library's evaluate_design on the design it makes (design_type dsd), under the main-effects-and-quadratics model: the largest entry of the alias matrix's main-effect rows, the omitted two-factor interactions"
     },
     {
      "what": "aliases",
@@ -35135,8 +37292,17 @@
       "quote": ":math:`0.77` here for the OMARS design and :math:`1.09` for the definitive screening design."
      },
      "check": {
-      "manual": "an entry, or the largest entry, of the alias matrix A = (X1'X1)^-1 X1'X2 for the omitted two-factor interactions, which no check here computes"
-     }
+      "kind": "design_metric",
+      "design": {
+       "design_type": "dsd",
+       "k": 5,
+       "options": {}
+      },
+      "metric": "alias_matrix",
+      "model": "A + B + C + D + E + I(A**2) + I(B**2) + I(C**2) + I(D**2) + I(E**2)",
+      "key": "max_abs"
+     },
+     "analysis": "the library's evaluate_design on the design it makes (design_type dsd), under the main-effects-and-quadratics model: the largest entry of the alias matrix for the omitted two-factor interactions, on a quadratic's row"
     },
     {
      "what": "aliases",
@@ -35149,8 +37315,17 @@
       "quote": ":math:`1.09` respectively."
      },
      "check": {
-      "manual": "an entry, or the largest entry, of the alias matrix A = (X1'X1)^-1 X1'X2 for the omitted two-factor interactions, which no check here computes"
-     }
+      "kind": "design_metric",
+      "design": {
+       "design_type": "dsd",
+       "k": 5,
+       "options": {}
+      },
+      "metric": "alias_matrix",
+      "model": "A + B + C + D + E + I(A**2) + I(B**2) + I(C**2) + I(D**2) + I(E**2)",
+      "key": "max_abs"
+     },
+     "analysis": "the library's evaluate_design on the design it makes (design_type dsd), under the main-effects-and-quadratics model: the largest entry of the alias matrix for the omitted two-factor interactions, on a quadratic's row"
     },
     {
      "what": "design_metric",
@@ -35163,8 +37338,17 @@
       "quote": "(:math:`0.15`, :math:`0.75`, :math:`0.31`, :math:`0.13`); the stronger correlations,"
      },
      "check": {
-      "manual": "a correlation summary |r| between model-term columns of the generated design, which no check here computes"
-     }
+      "kind": "design_metric",
+      "design": {
+       "design_type": "dsd",
+       "k": 5,
+       "options": {}
+      },
+      "metric": "correlation",
+      "model": "A + B + C + D + E + I(A**2) + I(B**2) + I(C**2) + I(D**2) + I(E**2)",
+      "key": "max_abs_r"
+     },
+     "analysis": "the library's evaluate_design on the design it makes (design_type dsd), under the main-effects-and-quadratics model: the largest |r| between two second-order terms of the fitted model"
     },
     {
      "what": "design_metric",
@@ -35177,8 +37361,17 @@
       "quote": ":math:`0.83` for the OMARS design and :math:`0.50` for the definitive screening design, sit in"
      },
      "check": {
-      "manual": "a correlation summary |r| between model-term columns of the generated design, which no check here computes"
-     }
+      "kind": "design_metric",
+      "design": {
+       "design_type": "dsd",
+       "k": 5,
+       "options": {}
+      },
+      "metric": "correlation",
+      "model": "quadratic",
+      "key": "max_abs_r"
+     },
+     "analysis": "the library's evaluate_design on the design it makes (design_type dsd), under the main-effects-and-quadratics model: the largest |r| between two second-order terms of the full quadratic model, the omitted interactions included"
     },
     {
      "what": "design_metric",
@@ -35191,8 +37384,16 @@
       "quote": "it places the DSD clearly last (:math:`E = 0.85`),"
      },
      "check": {
-      "manual": "an E-criterion, the smallest eigenvalue of X'X of the generated design, which no check here computes"
-     }
+      "kind": "design_metric",
+      "design": {
+       "design_type": "dsd",
+       "k": 5,
+       "options": {}
+      },
+      "metric": "e_optimality",
+      "model": "A + B + C + D + E + I(A**2) + I(B**2) + I(C**2) + I(D**2) + I(E**2)"
+     },
+     "analysis": "the library's evaluate_design on the design it makes (design_type dsd), under the main-effects-and-quadratics model: the smallest eigenvalue of X'X"
     },
     {
      "what": "other",
@@ -35219,8 +37420,21 @@
       "quote": "design at :math:`12.7`, with the DSD just behind at :math:`13.6`."
      },
      "check": {
-      "manual": "a G-criterion, the maximum scaled prediction variance over the region, which evaluate_design takes over a seeded uniform sample plus the cube vertices; no check here computes it"
-     }
+      "kind": "design_metric",
+      "design": {
+       "design_type": "dsd",
+       "k": 5,
+       "options": {}
+      },
+      "metric": "fds",
+      "model": "A + B + C + D + E + I(A**2) + I(B**2) + I(C**2) + I(D**2) + I(E**2)",
+      "options": {
+       "n_samples": 120000,
+       "random_state": 1
+      },
+      "key": "scaled_max_prediction_variance"
+     },
+     "analysis": "the library's evaluate_design on the design it makes (design_type dsd), under the main-effects-and-quadratics model: N times the largest prediction variance over the cube (the book's sample: 120,000 points, seed 1, with the cube's vertices)"
     },
     {
      "what": "other",
@@ -40416,8 +42630,14 @@
       "quote": ":math:`8^8 = 16777216`"
      },
      "check": {
-      "manual": "the determinant of X^T X, the D-optimal objective, which no check here computes (numpy gives 16777216 for the coded 2^3)"
-     }
+      "kind": "design_metric",
+      "metric": "information_matrix",
+      "model": "A*B*C",
+      "key": "determinant",
+      "printed": "8**8",
+      "expression": true
+     },
+     "analysis": "|X'X| of the coded 2^3 under its full model, from the library's information_matrix"
     },
     {
      "what": "other",
@@ -40701,8 +42921,12 @@
       "quote": "The projectivity is :math:`R-1 = 2`."
      },
      "check": {
-      "manual": "a projectivity, which no check here computes (the book takes it as R - 1 from the resolution)"
-     }
+      "kind": "design_measure",
+      "measure": "projectivity",
+      "runs": [1, 2, 3, 4, 5, 6, 7, 8],
+      "printed": "2"
+     },
+     "analysis": "the library's projectivity: the most factors whose every projection holds all their level combinations, over the eight runs of the fraction (the ninth, every factor at its centre, set aside)"
     }
    ]
   },
