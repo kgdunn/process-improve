@@ -89,7 +89,8 @@ those changes.
   any setting is left (`is_empty()`); the range each factor can still reach
   (`implied_bounds()`); a central setting that can be run, to hold unplotted factors at
   (`centroid()`); the limits that remove nothing the others do not
-  (`redundant_constraints()`); each limit's affine form, rounded so no floating-point residue
+  (`redundant_constraints()`); the limits that are curved over the box rather than straight
+  (`curved_constraints()`); each limit's affine form, rounded so no floating-point residue
   shows (`linear_forms()`); its corners (`vertices()`); and pictures on any two factors: the
   shadow of the region (`shadow(x, y)`), a slice through it at given values of the others
   (`slice_polygon`, `slice_lines`) and the slack of a grid, at or below zero exactly where a
