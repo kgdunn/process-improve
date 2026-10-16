@@ -116,6 +116,10 @@ Designed Experiments
    :members:
    :show-inheritance:
 
+.. automodule:: process_improve.experiments.design_catalog
+   :members:
+   :show-inheritance:
+
 Strategy Recommender
 ~~~~~~~~~~~~~~~~~~~~
 

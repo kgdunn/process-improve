@@ -2,11 +2,11 @@
 
 Each test gets a fresh page. Its worker is never started: ``harness.js`` answers every call in
 this process, from ``web/bootstrap.py``, through the binding ``window.__piNative``, so these
-tests need neither Pyodide nor the network. ``demo.json``, the book's examples, the manifest
-and Plotly.js are served from here too, and any other request leaving the page is refused: a page that starts
-reaching for another site fails here until the tests serve what it asks for. A test about the
-worker itself parametrizes ``transport`` to ``worker``: the page's own worker then runs, and
-finds Pyodide's download refused.
+tests need neither Pyodide nor the network. ``demo.json``, the book's examples, the catalog of a
+few designs, the manifest and Plotly.js are served from here too, and any other request leaving
+the page is refused: a page that starts reaching for another site fails here until the tests
+serve what it asks for. A test about the worker itself parametrizes ``transport`` to ``worker``:
+the page's own worker then runs, and finds Pyodide's download refused.
 """
 
 from __future__ import annotations
@@ -18,8 +18,9 @@ from typing import TYPE_CHECKING, Any
 
 import pytest
 
+from process_improve.experiments import design_catalog
 from tests.web._browser import Console, keep_artifacts, serve
-from tests.web._support import ENTRY_POINT, FACTORS, WEB, no_bytecode
+from tests.web._support import ENTRY_POINT, FACTORS, WEB, catalog_sample, no_bytecode
 from tests.web.e2e._page import candidates_done, first_paint_done, set_factors
 
 if TYPE_CHECKING:
@@ -77,6 +78,26 @@ def _native(bootstrap: ModuleType) -> Callable[[str, str], str]:
     return answer
 
 
+@pytest.fixture(scope="session")
+def catalog_files(build_script: ModuleType, tmp_path_factory: pytest.TempPathFactory) -> Path:
+    """Write the catalog as the build does, for a few designs (``CATALOG_SAMPLE``), and return its folder."""
+    out = tmp_path_factory.mktemp("catalog")
+    sample = catalog_sample()
+    with pytest.MonkeyPatch.context() as patch, no_bytecode():
+        patch.setattr(design_catalog, "catalog_records", lambda: sample)
+        build_script.write_catalog(out)
+    return out / "catalog"
+
+
+def _catalog(route: Any, folder: Path) -> None:  # noqa: ANN401 - a Playwright Route
+    """Answer ``catalog/index.json`` and ``catalog/detail/<name>.json`` from what the build wrote, or 404."""
+    path = folder / route.request.url.split("/catalog/", 1)[1].split("?")[0]
+    if path.resolve().is_relative_to(folder.resolve()) and path.is_file():
+        route.fulfill(body=path.read_bytes(), content_type="application/json")
+    else:
+        route.fulfill(status=404, body="Not Found")
+
+
 def _book(route: Any, book_files: dict[str, Any]) -> None:  # noqa: ANN401 - a Playwright Route
     """Answer ``book/<name>.json`` and ``book/index.json`` as the published app does: what the build wrote, or 404."""
     name = route.request.url.rsplit("/", 1)[1].removesuffix(".json")
@@ -113,6 +134,7 @@ def open_context(  # noqa: PLR0913 - a fixture's arguments are the fixtures it n
     site: str,
     first_paint: dict[str, Any],
     book_files: dict[str, Any],
+    catalog_files: Path,
     plotly_js: tuple[str, bytes],
     console: Console,
     request: pytest.FixtureRequest,
@@ -137,6 +159,9 @@ def open_context(  # noqa: PLR0913 - a fixture's arguments are the fixtures it n
         )
         context.route(f"{site}demo.json", lambda route: route.fulfill(json=first_paint))
         context.route(re.compile(re.escape(f"{site}book/") + r"[^/]+\.json$"), lambda route: _book(route, book_files))
+        context.route(
+            re.compile(re.escape(f"{site}catalog/") + r".+\.json$"), lambda route: _catalog(route, catalog_files)
+        )
         context.route(f"{site}wheels/manifest.json", lambda route: route.fulfill(json={"plotly_js": version}))
         context.route(
             re.compile(r"/plotly\.min\.js$"), lambda route: route.fulfill(body=script, content_type="text/javascript")
