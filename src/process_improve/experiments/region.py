@@ -688,8 +688,9 @@ class DesignRegion:
         """Return the vertices of the region, in actual units, when every constraint is linear.
 
         The region is then a convex polytope: the box cut by the constraints. Its vertices
-        are where the extreme settings (and the runs of a D-optimal design) lie. They are
-        found by cutting the box one constraint at a time (see
+        are the extreme settings, where a D-optimal design for a main-effects model puts
+        its runs (one for a quadratic model also uses edge midpoints and face centres).
+        They are found by cutting the box one constraint at a time (see
         :func:`~process_improve.experiments._region_geometry.box_vertices`), so the work
         grows with the number of vertices rather than with the ways of choosing ``k``
         boundaries.

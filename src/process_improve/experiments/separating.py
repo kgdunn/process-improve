@@ -17,9 +17,9 @@ in actual units, written for a person to read (``"T + 25 * P <= 250"``):
 When no straight cut separates the two sets of settings, :func:`separating_constraint`
 raises :class:`NotSeparableError`, which names the settings that lie inside the other set.
 
-Only numpy, ``scipy.optimize`` (``linprog`` with HiGHS, ``nnls`` and SLSQP) and the
-standard library are used, and every step is deterministic, so a proposal is the same on
-every platform, Pyodide included.
+Only numpy, ``scipy.optimize`` (``linprog`` with HiGHS, ``nnls`` and SLSQP), pandas (to
+accept the settings as a DataFrame) and the standard library are used, and every step is
+deterministic, so a proposal is the same on every platform, Pyodide included.
 """
 
 from __future__ import annotations

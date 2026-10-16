@@ -11,10 +11,14 @@ settings that can be run, the *region*. :ref:`constrained-designs` shows how
 with limits: writing them, checking what they leave, proposing one from the settings
 known to fail, drawing the region, and comparing designs and plotting a response over it.
 
-Every function here takes and returns the factors' actual units, and rounds what it
-returns to 12 significant figures, so ``250.00000000000009`` prints as ``250.0``. Each
-one is deterministic and uses only numpy and scipy, so it gives the same answer on every
-platform, a browser running Python included.
+The region's diagnostics and the two functions that propose a limit take and return the
+factors' actual units, and round what they return to 12 significant figures, so
+``250.00000000000009`` prints as ``250.0``. ``slice_slack``, the comparison of designs and
+the plots work in coded units instead, as noted where they appear. Every function is
+deterministic and uses only numpy, scipy and pandas, so it gives the same answer on every
+run, and on every platform (a browser running Python included) to within the last of
+those 12 figures: a value whose 13th figure sits next to a 5 can round either way when two
+platforms' arithmetic differs in its last bit.
 
 Writing limits as text
 ----------------------
@@ -116,9 +120,10 @@ that can be listed:
    print(len(corners), corners[corners[:, 2] == 10].tolist())
    # 10 [[150.0, 1.0, 10.0], [150.0, 3.0, 10.0], [175.0, 3.0, 10.0], [200.0, 1.0, 10.0], [200.0, 2.0, 10.0]]
 
-The vertices are where the extreme settings, and the runs of a D-optimal design, lie: here
-the box corners the limit keeps and the two ends of the cut, (175, 3) and (200, 2), each
-at both flows.
+The vertices are the extreme settings: here the box corners the limit keeps and the two
+ends of the cut, (175, 3) and (200, 2), each at both flows. A D-optimal design for a
+main-effects model puts its runs on them; one for a quadratic model also uses the
+midpoints of edges and the centres of faces.
 
 Renaming a factor inside a limit
 --------------------------------
@@ -287,12 +292,12 @@ Over the region, the I-optimal design has the lowest average prediction variance
 D-optimal design the lowest worst case. Over the whole cube (the same call without
 ``region``) the Box-Behnken design has the lowest I: the cube includes the part the limits
 remove, where the two optimal designs have no runs and must extrapolate, while the
-Box-Behnken design has runs there, two of which cannot be run.
+Box-Behnken design has two runs there, which cannot be run.
 
 The designs are in coded units, and the region's factor ranges define the coding. I is
 averaged over 20000 points drawn uniformly from the region with a fixed seed, and G is
-searched over the region's corners and boundary points, a grid, and the same sample
-(``comparison.g_points`` lists them). The other measures do not depend on where
+searched over the region's corners, points on its boundary (on a curved limit too), a
+grid, and the same sample (``comparison.g_points`` describes them). The other measures do not depend on where
 predictions are made and are the same with or without a region. A mixture region, or one
 that names a factor the designs do not have, is refused.
 
