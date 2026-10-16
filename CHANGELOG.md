@@ -13,7 +13,7 @@ those changes.
 
 ### Added
 
-- **A design catalog, at factori.al/catalog.html.** It lists the reference catalogue's 665 published
+- **A design catalog, at factori.al/catalog.** It lists the reference catalogue's 665 published
   experiments and designs, and 118 designs the library makes. A reader searches them in words ("4
   factors, <=30 runs, quadratic, since 1990"); filters them by family, runs, factors, the model they
   estimate in full, categorical factors, blocks, split plot, mixture, printed results, recomputed

@@ -1,4 +1,4 @@
-"""The design catalog's files: ``write_catalog`` describes each design for ``catalog.html``, and opens some in the page.
+"""The design catalog's files: ``write_catalog`` describes each design for the catalog page, and opens some in the app.
 
 ``catalog/index.json`` holds what the catalog page reads of every design at once; a detail file per
 source holds what it shows on opening one, with the campaign that opens it in Factorial where the page

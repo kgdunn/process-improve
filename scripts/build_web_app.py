@@ -47,7 +47,7 @@ WEB_SRC = ROOT / "web"
 APP_FILES = (
     "index.html",
     "about.html",
-    "catalog.html",
+    "catalog/index.html",
     "catalog.js",
     "catalog-logic.js",
     "app.js",
@@ -517,6 +517,7 @@ def assemble(out_dir: Path, dist: Path = ROOT / "dist" / "web") -> str:
     shutil.rmtree(out_dir, ignore_errors=True)
     (out_dir / "wheels").mkdir(parents=True)
     for name in APP_FILES:
+        (out_dir / name).parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(WEB_SRC / name, out_dir / name)
     wheel = build_wheel(dist)
     published = Path(hashlib.sha256(wheel.read_bytes()).hexdigest()[:16]) / wheel.name

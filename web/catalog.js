@@ -1,7 +1,9 @@
-// The design catalog's page: it reads catalog/index.json once, then filters, counts, maps and lists
-// the designs as the reader chooses, and opens one in Factorial from the campaign its detail file
-// holds. The rules are in catalog-logic.js; this module draws them. No Python runs here: the build
-// computed every facet, so the page is ready as soon as the index arrives.
+// The design catalog's page (catalog/index.html, at factori.al/catalog/): it reads catalog/index.json
+// once, then filters, counts, maps and lists the designs as the reader chooses, and opens one in
+// Factorial from the campaign its detail file holds. The rules are in catalog-logic.js; this module
+// draws them. No Python runs here: the build computed every facet, so the page is ready as soon as
+// the index arrives. Every address is taken from this module's own, which sits beside the app's
+// index.html, so the page works wherever the app is served from.
 
 import { LINK_KEY, packCampaign } from "./campaign.js";
 import { draw, palette } from "./charts.js";
@@ -30,6 +32,9 @@ import {
 
 const $ = (selector, root = document) => root.querySelector(selector);
 const $$ = (selector, root = document) => [...root.querySelectorAll(selector)];
+
+/** An address of the app, from this module's own: the catalog page sits one folder below it. */
+const app = (path) => new URL(path, import.meta.url).href;
 
 /** How many designs the list shows at first, and adds with each press of "Show more". */
 const PAGE = 48;
@@ -367,7 +372,7 @@ function drawMap(list) {
 
 async function startMap() {
   try {
-    const manifest = await (await fetch("wheels/manifest.json", { cache: "no-cache" })).json();
+    const manifest = await (await fetch(app("wheels/manifest.json"), { cache: "no-cache" })).json();
     plotlyVersion = manifest.plotly_js;
     if (!plotlyVersion) throw new Error("no Plotly.js version");
     drawMap(results(catalog, state));
@@ -381,7 +386,7 @@ function shard(name) {
   if (!shards.has(name)) {
     shards.set(
       name,
-      fetch(`catalog/detail/${encodeURIComponent(name)}.json`, { cache: "no-cache" }).then((res) => {
+      fetch(app(`catalog/detail/${encodeURIComponent(name)}.json`), { cache: "no-cache" }).then((res) => {
         if (!res.ok) throw new Error(`the design's file could not be read (${res.status})`);
         return res.json();
       }),
@@ -401,7 +406,7 @@ async function openInFactorial(id) {
   try {
     const { detail } = await detailOf(id);
     if (!detail.campaign) throw new Error(detail.closed || "the page does not open this design");
-    location.assign(`./${LINK_KEY}${await packCampaign(detail.campaign)}`);
+    location.assign(app(`./${LINK_KEY}${await packCampaign(detail.campaign)}`));
   } catch (err) {
     toast(`This design could not be opened: ${err.message}.`, "error");
   }
@@ -629,7 +634,7 @@ async function downloadCsv(id) {
 
 async function start() {
   try {
-    const res = await fetch("catalog/index.json", { cache: "no-cache" });
+    const res = await fetch(app("catalog/index.json"), { cache: "no-cache" });
     if (!res.ok) throw new Error(`the server answered ${res.status}`);
     catalog = checkIndex(await res.json());
   } catch (err) {

@@ -71,8 +71,12 @@ BUILT = {"demo.json", "wheels/manifest.json"}
 
 
 def _local(references: list[str]) -> set[str]:
-    """Keep the references to files of the app itself: not other sites, not data: URLs."""
-    return {ref for ref in references if "://" not in ref and not ref.startswith(("data:", "#", "$"))}
+    """Keep the references to files of the app itself: not other sites, not data: URLs.
+
+    A folder's address, such as ``catalog/``, is its ``index.html``, as the server answers it.
+    """
+    local = {ref for ref in references if "://" not in ref and not ref.startswith(("data:", "#", "$"))}
+    return {f"{ref}index.html" if ref.endswith("/") else ref for ref in local}
 
 
 def test_every_file_the_page_loads_is_published(build_script):

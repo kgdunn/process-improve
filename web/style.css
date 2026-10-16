@@ -538,7 +538,7 @@ table.stack th { width: 34%; font-weight: 600; }
   .flow__arrow--side::after { content: "\00a0\2193"; }
 }
 
-/* The design catalog (catalog.html): the published and generated designs, filtered beside a map of them. */
+/* The design catalog (catalog/index.html): the published and generated designs, filtered beside a map of them. */
 .visually-hidden {
   position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap;
 }

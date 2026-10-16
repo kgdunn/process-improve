@@ -18,7 +18,7 @@ PILOT, COMPARISON, CCD, OMARS = CATALOG_SAMPLE
 def open_catalog(context, site: str, fragment: str = "") -> object:
     """Open the catalog, and wait until it lists its designs."""
     page = context.new_page()
-    page.goto(f"{site}catalog.html{fragment}")
+    page.goto(f"{site}catalog/{fragment}")
     page.wait_for_selector(".result")
     return page
 
@@ -34,11 +34,19 @@ def counted(page, text: str) -> None:
 
 def test_the_app_s_header_opens_the_catalog(fresh_page):
     fresh_page.click("#catalog-link")
-    fresh_page.wait_for_url("**/catalog.html")
+    fresh_page.wait_for_url("**/catalog/")
     fresh_page.wait_for_selector(".result")
     assert fresh_page.text_content("#count") == "4 of 4 designs: 2 published, 2 generated"
     assert set(shown(fresh_page)) == {PILOT, COMPARISON, CCD, OMARS}
     assert shown(fresh_page)[-1] == COMPARISON, "a comparison is listed after the designs"
+
+
+def test_its_address_without_the_slash_leads_to_it(context, site):
+    """factori.al/catalog is the folder's address: the server sends it on to factori.al/catalog/."""
+    page = context.new_page()
+    page.goto(f"{site}catalog")
+    page.wait_for_selector(".result")
+    assert page.url == f"{site}catalog/"
 
 
 def test_the_toggle_and_the_search_narrow_the_list_and_the_address_keeps_them(context, site):
