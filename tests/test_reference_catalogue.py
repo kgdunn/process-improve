@@ -1115,6 +1115,42 @@ def test_a_design_is_checked_by_its_structure_projections_measures_and_whole_arr
     assert report["reason"].iloc[15].startswith("ValueError")
 
 
+def test_a_library_label_or_a_line_it_displays_is_compared_word_for_word():
+    from process_improve.experiments.reference_catalogue import _library_text
+
+    cell = {"function": "get_omars_trade_off_table_entry", "args": [17, 4]}
+    assert _library_text({}, cell | {"key": "label"}, "Quad df=8") == ("Quad df=8", True)
+    assert _library_text({}, cell | {"line": 0}, "OMARS:  17 runs, 4 factors")[1]  # runs of spaces count as one
+    assert not _library_text({}, cell | {"key": "tag"}, "Full")[1]
+
+
+def test_a_number_the_construction_records_is_a_design_property():
+    from process_improve.experiments.reference_catalogue import _design_property
+
+    screen = {"design_type": "dsd", "k": 6, "options": {"budget": 17, "random_state": 1}}
+    assert _design_property({"property": "metadata.conference_order", "design": screen}) == 8
+    assert _design_property({"property": "metadata.fake_factors", "design": screen}) == 2
+
+
+def test_the_setting_of_greatest_desirability_is_the_library_search_on_the_fitted_responses():
+    """The PID book's bioreactor: profit ramped 725 to 740, purity 90 to 96 (T 339.8 K, S 1.64 g/L, D 0.532)."""
+    from process_improve.experiments.reference_catalogue import _desirability_optimum
+
+    source = json.loads((reference_catalogue._CATALOGUE_DIR / "pid-book.json").read_text(encoding="utf-8"))
+    entry = next(e for e in source["experiments"] if e["name"] == "multi-response-desirability")
+    model = "T + S + T:S + I(T**2) + I(S**2)"
+    goals = [
+        {"response": "Profit", "goal": "maximize", "low": 725, "high": 740, "model": model},
+        {"response": "Purity", "goal": "maximize", "low": 90, "high": 96, "model": model},
+    ]
+    assert _desirability_optimum(entry, {"goals": goals, "key": "optimal_actual.T"}) == pytest.approx(339.8, abs=0.05)
+    assert _desirability_optimum(entry, {"goals": goals, "key": "composite_desirability"}) == pytest.approx(
+        0.532, abs=5e-4
+    )
+    low = _desirability_optimum(entry, {"goals": goals, "key": "response_intervals.Profit.prediction_interval.0"})
+    assert low == pytest.approx(727.1, abs=0.05)
+
+
 def test_a_fraction_s_word_lengths_and_clear_effects_are_read_from_its_defining_relation():
     """Montgomery's design C for seven factors has the word lengths {4, 5, 5}; in I = BCDF, BC is aliased with DF."""
     from process_improve.experiments.reference_catalogue import _design_check

@@ -36,8 +36,10 @@ True
 from __future__ import annotations
 
 import ast
+import contextlib
 import dataclasses
 import functools
+import io
 import itertools
 import json
 import math
@@ -56,6 +58,7 @@ import pandas as pd
 from patsy import build_design_matrices, dmatrix
 from scipy.stats import chi2 as chi2_distribution
 from scipy.stats import f as f_distribution
+from statsmodels.formula.api import ols
 
 from process_improve.experiments._analyses.box_cox import _scaled_power
 from process_improve.experiments._analyses.transforms import transform_response
@@ -1310,11 +1313,17 @@ def _design_property(check: dict) -> float:
     A resolution may be printed as a Roman numeral. ``"squared": true`` returns its square, as a
     source compares the square of a rotatable design's axial distance. The property ``"fraction"``
     is the share of the full factorial a fraction runs, printed as 1/4, and ``"blocks": b`` divides
-    the property among b blocks, as a source gives the runs in each block.
+    the property among b blocks, as a source gives the runs in each block. ``"metadata.<key>"`` reads a
+    number the construction records, such as a definitive screening design's ``conference_order``.
     """
     made = _made(json.dumps(check["design"], sort_keys=True))
     prop = check["property"]
-    value = made.n_runs / 2**made.n_factors if prop == "fraction" else float(getattr(made, prop))
+    if prop == "fraction":
+        value = made.n_runs / 2**made.n_factors
+    elif prop.startswith("metadata."):  # a number the construction records, such as a DSD's conference order
+        value = float(made.metadata[prop.removeprefix("metadata.")])
+    else:
+        value = float(getattr(made, prop))
     value = value / check.get("blocks", 1)
     return value**2 if check.get("squared") else value
 
@@ -1881,11 +1890,39 @@ def _library_value(check: dict) -> float:
     frontier, without building a design to read it from, or the canonical analysis of a fitted
     equation a source prints without its data. ``"squared": true`` returns the square of the number read.
     """
-    result = _LIBRARY[check["function"]](*check.get("args", []), **check.get("kwargs", {}))
-    if dataclasses.is_dataclass(result) and not isinstance(result, type):  # a record, read by its fields' names
-        result = dataclasses.asdict(result)
-    found = _read(result, check.get("key"))
+    found = _read(_library_result(check), check.get("key"))
     return found**2 if check.get("squared") else found
+
+
+def _library_call(check: dict) -> tuple[Any, str]:
+    """Call the library function ``check["function"]`` on its arguments; return its result and what it printed."""
+    shown = io.StringIO()
+    with contextlib.redirect_stdout(shown):  # a function that displays its result as well as returning it
+        result = _LIBRARY[check["function"]](*check.get("args", []), **check.get("kwargs", {}))
+    return result, shown.getvalue()
+
+
+def _library_result(check: dict) -> Any:  # noqa: ANN401 - whatever the named library function returns
+    """Return what the library function ``check["function"]`` gives; a dataclass comes back as a dict."""
+    result = _library_call(check)[0]
+    if dataclasses.is_dataclass(result) and not isinstance(result, type):  # a record, read by its fields' names
+        return dataclasses.asdict(result)
+    return result
+
+
+def _library_text(_experiment: dict, check: dict, printed: str) -> tuple[str, bool]:
+    """Compare a label or a line of text a library function gives with the printed text, word for word.
+
+    ``check["key"]`` reads a field of the result, such as an OMARS trade-off cell's ``"label"``
+    (``"Quad df=8"``) or ``"tag"``; ``check["line"]`` (0-based) instead reads one line of what the
+    function displays, or of the result as text if it displays nothing. Runs of white space count as one space.
+    """
+    if "line" in check:
+        result, shown = _library_call(check)
+        text = (shown or str(result)).splitlines()[check["line"]]
+    else:
+        text = str(_walk(_library_result(check), check.get("key")))
+    return text, " ".join(text.split()) == " ".join(str(printed).split())
 
 
 def _active(out: dict, check: dict) -> tuple[str, bool]:
@@ -2419,6 +2456,35 @@ def _desirability(experiment: dict, check: dict) -> float:
     return float(composite_desirability(scores)) if kind == "composite" else float(scores[int(which)])
 
 
+def _desirability_optimum(experiment: dict, check: dict) -> float:
+    """Return a number of the library's search for the setting of greatest overall desirability.
+
+    ``check["goals"]`` are as for :func:`_desirability`, each with its response's ``model``; the
+    fitted models go to :func:`optimize_responses` with ``method="desirability"`` over the factors'
+    ranges, with ``check["importance"]`` as the responses' importances if given, and
+    ``check["key"]`` reads into its result: ``"optimal_actual.T"``, ``"predicted_responses.Profit"``,
+    ``"composite_desirability"`` or ``"response_intervals.Profit.prediction_interval.0"``.
+    """
+    fits = _Fits()
+    outs = [fits(experiment, goal) for goal in check["goals"]]
+    goals = [{k: v for k, v in goal.items() if k not in ("model", "settings")} for goal in check["goals"]]
+    results = [  # the least-squares fits themselves, which carry what the intervals at the optimum need
+        ols(f"y ~ {goal['model']}", data=out["settings"].assign(y=out["y"].to_numpy())).fit()
+        for goal, out in zip(check["goals"], outs, strict=True)
+    ]
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        found = optimize_responses(
+            [_response_model(out, experiment) for out in outs],
+            goals=goals,
+            method="desirability",
+            factor_ranges=_factor_ranges(experiment),
+            fitted_results=results,
+            response_importance=check.get("importance"),
+        )["desirability"]
+    return _read(found, check["key"])
+
+
 def _sum_coded(column: pd.Series, name: str) -> pd.DataFrame:
     """Return a factor's columns coded to sum to zero: one per level but the last, which takes -1 in each."""
     values = column.astype(str)
@@ -2560,6 +2626,7 @@ _VALUE_KINDS: dict[str, Callable[[dict, dict], float]] = {
     "blocks_orthogonal": _blocks_orthogonal,
     "capability": _capability,
     "desirability": _desirability,
+    "desirability_optimum": _desirability_optimum,
     "column_correlation": _column_correlation,
     "component_ss": _component_ss,
     "difference_of_means": _difference_of_means,
@@ -2600,6 +2667,7 @@ _STRUCTURE_KINDS: dict[str, Callable[[dict, dict, str], tuple[str, bool]]] = {
     "projection": _projection,
     "same_runs": _same_runs,
     "generator_holds": _generator_holds,
+    "library_text": _library_text,
     "generalized_interactions": _generalized_interactions,
     "product_column": _product_column,
     "same_projections": _same_projections,
