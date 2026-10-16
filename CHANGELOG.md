@@ -482,6 +482,18 @@ those changes.
   the Python shown, the notebook, the workbook, saved studies and links all carry them. Renaming a
   factor renames it inside the limits, and the run sheet keeps its runs.
 
+### Changed
+
+- **Factorial warns when the model's terms are correlated.** Runs as given, or runs left blank,
+  can leave the fitted terms correlated: their standard errors grow, and the model as a whole can
+  explain the response while no single term looks active. Each coefficient in Learn now carries its
+  variance inflation factor (VIF), from the runs fitted. When a term's VIF is above 5, a note names
+  each such term with its VIF, says that its standard error is about √VIF times what uncorrelated
+  runs would give, and suggests adding runs that separate the terms or dropping one; the
+  coefficients table then shows a VIF column, defined on request, and the Python shown and the
+  notebook work the VIFs out with `evaluate_design`. An orthogonal design, every VIF 1, shows
+  neither.
+
 ### Fixed
 
 - **`evaluate_design` no longer calls a full-rank model rank-deficient because of its factors'
