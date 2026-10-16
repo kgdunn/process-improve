@@ -502,9 +502,10 @@ def write_catalog(out_dir: Path) -> None:
         "designs": designs,
     }
     (out_dir / "catalog" / "detail").mkdir(parents=True)
-    (out_dir / "catalog" / "index.json").write_text(json.dumps(index, separators=(",", ":")) + "\n")
+    # The page reads these with JSON.parse, which refuses NaN: a value that is no number stops the build here.
+    (out_dir / "catalog" / "index.json").write_text(json.dumps(index, separators=(",", ":"), allow_nan=False) + "\n")
     for shard, held in details.items():
-        text = json.dumps({"version": CATALOG_VERSION, "designs": held}, separators=(",", ":"))
+        text = json.dumps({"version": CATALOG_VERSION, "designs": held}, separators=(",", ":"), allow_nan=False)
         (out_dir / "catalog" / "detail" / f"{shard}.json").write_text(text + "\n")
 
 

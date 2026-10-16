@@ -7,7 +7,7 @@ import warnings
 import numpy as np
 import pytest
 
-from process_improve.experiments import generate_design
+from process_improve.experiments import design_catalog, generate_design
 from process_improve.experiments.design_catalog import (
     FAMILIES,
     GENERATED,
@@ -176,6 +176,16 @@ def test_printed_settings_are_coded_from_the_factor_s_range():
     assert coded is not None
     np.testing.assert_array_equal(coded[:2], [[-1.0, -1.0], [0.0, 1.0]])
     assert np.isnan(coded[2]).all(), "a blank and an unknown label are no settings"
+
+
+def test_where_a_source_prints_an_entry_is_said_in_a_few_words():
+    assert design_catalog._where(None) == ""
+    assert design_catalog._where("Table 3, p. 12") == "Table 3, p. 12"
+    assert design_catalog._where({"pages": "12", "tables": ["Table 2"], "figures": ["Figure 1"]}) == (
+        "p. 12; Table 2; Figure 1"
+    )
+    assert design_catalog._where({"pages": "12-14"}) == "pp. 12-14"
+    assert design_catalog._where({"section": "4.1"}) == "section 4.1"
 
 
 def test_an_entry_without_runs_or_factors_has_no_coded_runs():

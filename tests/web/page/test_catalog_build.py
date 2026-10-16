@@ -13,33 +13,15 @@ from pathlib import Path
 import pytest
 
 from process_improve.experiments import design_catalog
-from process_improve.experiments.reference_catalogue import reference_experiments, reference_sources
-from tests.web._support import coded, javascript, no_bytecode, run_sheet, source
+from tests.web._support import CATALOG_SAMPLE, catalog_sample, coded, javascript, no_bytecode, run_sheet, source
 
-#: Published entries and generated designs that show each way a design is opened, or not.
-PUBLISHED = ("bhh-pilot-plant-2-3", "bhh-plant-trial-two-methods")
-GENERATED = ("lib-ccd-k3-face-centered", "lib-omars-k4")
+PUBLISHED, GENERATED = CATALOG_SAMPLE[:2], CATALOG_SAMPLE[2:]
 
 
 @pytest.fixture(scope="module")
 def few() -> list[dict]:
     """Describe a few designs as ``catalog_records`` does: two published entries and two generated designs."""
-    sources = reference_sources()
-    entries = [e for e in reference_experiments("box-hunter-hunter-1978") if e["name"] in PUBLISHED]
-    published = [
-        {
-            **design_catalog._published_record(e, sources[e["source"]]),
-            "checks": design_catalog.printed_checks(e),
-            "listed": "experiments",
-        }
-        for e in entries
-    ]
-    generated = [
-        {**design_catalog._generated_record(spec), "checks": None, "listed": None}
-        for spec in design_catalog.GENERATED
-        if design_catalog._spec_id(spec) in GENERATED
-    ]
-    return [*published, *generated]
+    return catalog_sample()
 
 
 @pytest.fixture(scope="module")

@@ -327,3 +327,36 @@ def javascript(node: str, module_source: str, calls: list[tuple[str, list]]) -> 
     )
     assert done.returncode == 0, done.stderr
     return json.loads(done.stdout)
+
+
+# --------------------------------------------------------------------------- the design catalog
+#: Published entries and generated designs that show each way the catalog opens a design, or does not:
+#: a published experiment the page regenerates, with its results; a comparison, no design the page makes;
+#: a generated design the page makes; and one it does not.
+CATALOG_SAMPLE = ("bhh-pilot-plant-2-3", "bhh-plant-trial-two-methods", "lib-ccd-k3-face-centered", "lib-omars-k4")
+
+
+def catalog_sample() -> list[dict]:
+    """Describe the designs of :data:`CATALOG_SAMPLE` as ``catalog_records`` does."""
+    from process_improve.experiments import design_catalog
+    from process_improve.experiments.reference_catalogue import (
+        reference_experiments,
+        reference_sources,
+    )
+
+    sources = reference_sources()
+    published = [
+        {
+            **design_catalog._published_record(e, sources[e["source"]]),
+            "checks": design_catalog.printed_checks(e),
+            "listed": "experiments",
+        }
+        for e in reference_experiments("box-hunter-hunter-1978")
+        if e["name"] in CATALOG_SAMPLE
+    ]
+    generated = [
+        {**design_catalog._generated_record(spec), "checks": None, "listed": None}
+        for spec in design_catalog.GENERATED
+        if design_catalog._spec_id(spec) in CATALOG_SAMPLE
+    ]
+    return [*published, *generated]

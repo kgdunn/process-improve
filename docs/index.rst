@@ -129,7 +129,8 @@ Try it without installing anything
       Design an experiment, download the run sheet, fill in your results, and upload it for
       the analysis, with nothing to install.
 
-      `Open the app <app/>`__
+      `Open the app <app/>`__, or `browse the design catalog <app/catalog.html>`__: the designs of
+      textbooks, handbooks and papers, and those the library makes, each opened in the app with a click.
 
 
 Sixteen designs, one function call

@@ -13,6 +13,18 @@ those changes.
 
 ### Added
 
+- **A design catalog, at factori.al/catalog.html.** It lists the reference catalogue's 665 published
+  experiments and designs, and 118 designs the library makes. A reader searches them in words ("4
+  factors, <=30 runs, quadratic, since 1990"); filters them by family, runs, factors, the model they
+  estimate in full, categorical factors, blocks, split plot, mixture, printed results, recomputed
+  numbers, and the year the source appeared or the date the entry was added; and sees each one on a
+  map of runs against factors, beside the fewest runs each model needs. A design opens in Factorial
+  with one click: 183 published designs, which the library regenerates run for run, and every
+  generated design of the eight types the app makes. The filters are kept in the address, so a
+  filtered view can be shared. `process_improve.experiments.design_catalog` makes the records:
+  `catalog_records`, `normalise_family` (a source's free-text design type, read into a family),
+  `estimable_models`, `design_facets`, `glyph`, `printed_checks`, `short_citation`,
+  `catalog_sources` and `catalog_families`.
 - **Standardised coefficients.** Each row of `analyze_experiment`'s `"coefficients"` (and
   `coefficients_actual`) now carries `standardised_coefficient`: the coefficient times the standard
   deviation of its column of the model matrix, over the standard deviation of the response, as
