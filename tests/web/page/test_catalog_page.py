@@ -15,6 +15,7 @@ import posixpath
 import re
 from collections import Counter
 
+import numpy as np
 import pytest
 
 from process_improve.experiments import design_catalog
@@ -123,3 +124,32 @@ def test_every_search_the_page_suggests_finds_designs(node, build_script):
     )
     for query, designs_found in zip([*tries, placeholder], found, strict=True):
         assert designs_found, f"the search {query!r} finds nothing"
+
+
+@pytest.mark.parametrize(
+    "limit",
+    ["A + B <= 1", "-0.5 <= A - 2*C <= 0.5", "A^2 + B^2 <= 1", "(A + C) / 2 >= -0.25", "A*B < 0.3"],
+)
+def test_a_limit_opened_in_factorial_rules_out_the_runs_the_catalog_marks(bootstrap, node, limit):
+    """The catalog writes a limit on the coded settings in a design's own units; Factorial must read it alike.
+
+    The page's Python reads the text the catalog writes, as it reads a limit typed in the brief, and its
+    inequalities on the design's coded runs rule out exactly the runs the catalog marks.
+    """
+    factors = [
+        {"name": "T", "low": 150, "high": 200},
+        {"name": "P", "low": 1, "high": 3},
+        {"name": "F", "low": -2, "high": 2},
+    ]
+    runs = [[a, b, c] for a in (-1, 0, 1) for b in (-1, 0.5, 1) for c in (-1, 0, 1.68)]
+    logic = source(LOGIC)
+    (parsed,) = javascript(node, logic, [("parseLimit", [limit])])
+    text, outcome = javascript(
+        node, logic, [("limitInUnits", [parsed, factors]), ("limitOutcome", [parsed, runs, ["numeric"] * 3])]
+    )
+    held = bootstrap._factors({"factors": factors})
+    canonical, _ = bootstrap._read_limit(text, held)
+    region = bootstrap._region(held, [canonical])
+    points = np.array(runs, dtype=float)[:, [["T", "P", "F"].index(n) for n in region.names]]
+    meets = np.all([g(points) <= bootstrap.LIMIT_TOLERANCE for g in region.inequalities], axis=0)
+    assert np.flatnonzero(~meets).tolist() == outcome["outside"], text
