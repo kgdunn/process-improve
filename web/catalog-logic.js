@@ -687,33 +687,34 @@ export function projectionText(summary, names) {
 // ---------------------------------------------------------------- a design's correlations
 /**
  * The absolute correlation between a design's main effects, squares and two-factor interactions, as
- * compare_designs reads them: each column centred and scaled to length 1. A column that does not
- * vary, such as the square of a two-level factor, is left out.
+ * compare_designs reads them (its correlations) and names them: each column centred and scaled to
+ * length 1, in that order. A column that does not vary, such as the square of a two-level factor, has
+ * no correlation: its row and column are null, as the app's correlation map leaves them blank.
  */
 export function correlationMap(runs, names) {
   const rows = runs.filter((row) => row.every((v) => v !== null && v !== undefined));
   const k = names.length;
   const columns = [];
-  for (let j = 0; j < k; j++) columns.push({ label: names[j], kind: "main", values: rows.map((r) => r[j]) });
-  for (let j = 0; j < k; j++) columns.push({ label: `${names[j]}²`, kind: "square", values: rows.map((r) => r[j] ** 2) });
+  for (let j = 0; j < k; j++) columns.push({ term: names[j], kind: "main", values: rows.map((r) => r[j]) });
+  for (let j = 0; j < k; j++) columns.push({ term: `I(${names[j]} ** 2)`, kind: "square", values: rows.map((r) => r[j] ** 2) });
   for (let i = 0; i < k; i++) {
-    for (let j = i + 1; j < k; j++) columns.push({ label: `${names[i]}${names[j]}`, kind: "interaction", values: rows.map((r) => r[i] * r[j]) });
+    for (let j = i + 1; j < k; j++) columns.push({ term: `${names[i]}:${names[j]}`, kind: "interaction", values: rows.map((r) => r[i] * r[j]) });
   }
   const n = rows.length;
-  const kept = [];
-  for (const column of columns) {
-    const mean = column.values.reduce((a, b) => a + b, 0) / n;
-    const centred = column.values.map((v) => v - mean);
+  const units = columns.map(({ values }) => {
+    const mean = values.reduce((a, b) => a + b, 0) / n;
+    const centred = values.map((v) => v - mean);
     const norm = Math.sqrt(centred.reduce((a, v) => a + v * v, 0));
-    if (norm > 1e-9 * Math.sqrt(n)) kept.push({ label: column.label, kind: column.kind, unit: centred.map((v) => v / norm) });
-  }
-  const r = kept.map((a) =>
-    kept.map((b) => {
-      const v = Math.min(1, Math.abs(a.unit.reduce((sum, x, i) => sum + x * b.unit[i], 0)));
+    return norm > 1e-9 * Math.sqrt(n) ? centred.map((v) => v / norm) : null;
+  });
+  const matrix = units.map((a) =>
+    units.map((b) => {
+      if (!a || !b) return null;
+      const v = Math.min(1, Math.abs(a.reduce((sum, x, i) => sum + x * b[i], 0)));
       return v < 1e-9 ? 0 : v;
     }),
   );
-  return { labels: kept.map((c) => c.label), kinds: kept.map((c) => c.kind), r };
+  return { terms: columns.map((c) => c.term), kinds: columns.map((c) => c.kind), matrix };
 }
 
 /** The largest |r| between two different second-order terms (squares and interactions); null without a pair. */
@@ -721,7 +722,8 @@ export function largestSecondOrderR(map) {
   let most = null;
   map.kinds.forEach((a, i) =>
     map.kinds.forEach((b, j) => {
-      if (i !== j && a !== "main" && b !== "main") most = Math.max(most ?? 0, map.r[i][j]);
+      const r = map.matrix[i][j];
+      if (i !== j && a !== "main" && b !== "main" && r !== null) most = Math.max(most ?? 0, r);
     }),
   );
   return most;

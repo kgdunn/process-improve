@@ -773,3 +773,11 @@ body:has(#tray:not([hidden])) main.catalog { padding-bottom: 130px; }
 .errata__controls { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; margin: 8px 0; }
 .errata__controls input[type="search"] { flex: 1 1 240px; min-width: 0; }
 .errata__table td:last-child { min-width: 260px; }
+.timeline__marks { display: flex; flex-wrap: wrap; gap: 4px 14px; margin: 6px 0 0; padding: 0; list-style: none; }
+.timeline__marks li { display: flex; align-items: center; gap: 5px; }
+.errata__table th, .errata__table td { text-align: left; vertical-align: top; }
+.errata__table td:first-child { min-width: 7em; }
+@media (max-width: 640px) {
+  .tray { gap: 6px 10px; padding: 8px 12px; }
+  .tray__list { display: none; }
+}

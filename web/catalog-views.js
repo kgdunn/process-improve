@@ -89,10 +89,12 @@ export function projectionPlot(runs, columns, names) {
     corners.slice(i + 1).filter((b) => a.filter((v, j) => v !== b[j]).length === 1).map((b) => edge(a, b)),
   );
   svg.append(...edges);
-  const origin = corners[0];
-  const axisEnds = columns.map((_, j) => origin.map((v, i) => (i === j ? 1 : v)));
-  axisEnds.forEach((end, j) => {
-    const [x, y] = px(place(end.map((v, i) => (i === j ? v + 0.18 * reach : v))));
+  // Each factor's name beside the middle of an edge along it, outside the box: below, to the left, and,
+  // for the depth, to the right of the cube's near right edge.
+  const out = 1 + 0.2 * reach;
+  const labels = three ? [[0, -out, -1], [-out, 0, -1], [out, -1, 0]] : [[0, -out], [-out, 0]];
+  labels.forEach((at, j) => {
+    const [x, y] = px(place(at));
     svg.append(shape("text", { x, y, class: "projection__axis", "text-anchor": "middle", "dominant-baseline": "middle" }, names[j]));
   });
   // Far points first, so a nearer point is drawn over them.

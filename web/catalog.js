@@ -193,7 +193,15 @@ function renderCounts() {
 
 function renderTimeline() {
   const bins = yearBins(catalog, state);
-  drawTimeline($("#year-bars"), bins, familyMarks(catalog, bins), state.years);
+  const marks = familyMarks(catalog, bins);
+  drawTimeline($("#year-bars"), bins, marks, state.years);
+  $("#timeline-marks").replaceChildren(
+    ...marks.map((mark) => {
+      const swatch = element("span", { class: "swatch" });
+      swatch.style.background = FAMILY_COLOURS[mark.family] ?? OTHER_COLOUR;
+      return element("li", {}, swatch, `${mark.label} ${mark.year}`);
+    }),
+  );
 }
 
 // ---------------------------------------------------------------- the list
@@ -357,6 +365,12 @@ async function openCompare() {
       model = select.value;
       show();
     });
+    const one = [];
+    chosen.forEach((d, i) =>
+      chosen.slice(i + 1).forEach((e, j) => {
+        if (d.design_class && d.design_class === e.design_class) one.push(`${labels[i]} and ${labels[i + 1 + j]} are one design, with their runs, factors or signs in another order: their measures are the same.`);
+      }),
+    );
     $("#compare-body").replaceChildren(
       element("p", {
         class: "hint",
@@ -364,6 +378,7 @@ async function openCompare() {
       }),
       select,
       holder,
+      ...one.map((text) => element("p", { class: "hint", text })),
       element("h3", { text: "Fraction of design space" }),
       element("p", {
         class: "hint",
@@ -791,7 +806,7 @@ function projections(design, detail) {
     if (most !== null) out.push(element("p", { text: `The largest |r| between two second-order terms is ${most.toFixed(2)}.` }));
     const plot = element("div", { class: "detail__correlations", "aria-hidden": "true" });
     out.push(plot);
-    const height = Math.min(560, 160 + 9 * map.terms.length);
+    const height = Math.min(820, 160 + 15 * map.terms.length); // room for every term's label
     plotlyReady.then((version) => {
       if (version && plot.isConnected) draw(plot, () => correlationFigure(map.terms, map.matrix, design.n_factors), version, height);
       else plot.remove();
