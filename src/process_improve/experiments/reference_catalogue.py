@@ -2310,11 +2310,11 @@ def reproduce_reference_catalogue(source: str | None = None) -> pd.DataFrame:
     carries. A 3^k design's components of interaction, blocks and fractions are worked from their
     defining contrasts modulo 3; screening designs are compared on their main-effect and two-factor
     interaction columns; and JMP's relative variances code a categorical factor as JMP does. A
-    response surface design is compared on |(X'X)^-1|, its trace and the prediction variance at a
-    point, and on how far its runs lie from the centre, whether its blocks are orthogonal and
-    whether its runs are fold-over pairs; several fitted responses are scored at a point by the
-    library's desirability functions, and a mixture is fitted in pseudocomponents. A number
-    without a check is reported with the reason it is not recomputed.
+    response surface design is compared on the determinant of (X'X)^-1, its trace and the
+    prediction variance at a point, and on how far its runs lie from the centre, whether its blocks
+    are orthogonal and whether its runs are fold-over pairs; several fitted responses are scored at
+    a point by the library's desirability functions, and a mixture is fitted in pseudocomponents. A
+    number without a check is reported with the reason it is not recomputed.
 
     Parameters
     ----------
