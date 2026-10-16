@@ -573,6 +573,14 @@ def test_runs_outside_the_region_are_noted():
     )
 
 
+def test_a_design_of_the_regions_own_vertices_lies_inside_it():
+    """A steep limit's corners are rounded within 1e-12 of its boundary; they used to be noted as outside."""
+    steep = [Factor(name="T", low=100, high=150), Factor(name="D", low=20, high=60), Factor(name="F", low=1, high=7)]
+    region = DesignRegion(steep, ["120*T + 33*D + 450*F <= 17000"])
+    design = pd.DataFrame((region.vertices() - region._centre) / region._half, columns=region.names)
+    assert compare_designs({"corners": design}, "main_effects", region=region).notes["corners [n=8]"] == ()
+
+
 def test_the_region_can_be_given_as_its_dict_and_is_deterministic():
     region = DesignRegion(HEAT, [HEAT_LIMIT])
     designs = heat_designs()

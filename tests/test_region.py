@@ -581,6 +581,35 @@ class TestVertices:
         expected = _brute_vertices([150, 1, 10], [200, 3, 20], coefficients, [152, -125, 152, -50])
         assert _same_rows(region.vertices(), expected)
 
+    @pytest.mark.parametrize(
+        ("factors", "limit"),
+        [
+            ([Factor(name="Flow", low=1000, high=5000), Factor(name="Temp", low=50, high=90)], "Flow + 70*Temp <= 9e3"),
+            (HEAT_FACTORS, "30*T + 70*D <= 7000"),
+            ([*HEAT_FACTORS, Factor(name="F", low=1, high=7)], "120*T + 33*D + 450*F <= 17000"),
+        ],
+    )
+    def test_the_corners_it_reports_can_be_run_however_the_limit_is_scaled(self, factors, limit):
+        """Rounded to 12 figures, a corner lies up to 1e-12 off its boundary; times a steep limit's gradient, over 1e-9.
+
+        feasible() used to compare the limit's value in its own units with 1e-9, so the
+        corners of these regions, and the same limit divided by 100 did not, failed it.
+        """
+        region = DesignRegion(factors, [limit])
+        lhs, rhs = limit.split("<=")
+        scaled = DesignRegion(factors, [f"({lhs}) / 100 <= {rhs} / 100"])
+        for each in (region, scaled):
+            coded = (each.vertices() - each._centre) / each._half
+            assert each.feasible(coded).all()
+            x, y = each.names[:2]
+            at = {each.names[-1]: factors[-1].high} if len(factors) > 2 else None
+            corners = np.array(each.slice_polygon(x, y, at)["points"])
+            full = np.column_stack([corners, np.full(len(corners), factors[-1].high)]) if at else corners
+            assert each.feasible((full - each._centre) / each._half).all()
+        probes = np.random.default_rng(0).uniform(-1, 1, (2000, len(factors)))
+        probes = np.vstack([probes, (region.vertices() - region._centre) / region._half + 1e-11])
+        np.testing.assert_array_equal(region.feasible(probes), scaled.feasible(probes))
+
     @_settings
     @given(linear_regions())
     def test_they_match_every_choice_of_k_boundaries(self, case):
@@ -951,7 +980,7 @@ class TestEightFactors:
         region = DesignRegion(EIGHT, EIGHT_LIMITS)
         vertices = region.vertices()
         coded = (vertices - region._centre) / region._half
-        assert region.feasible(coded, tol=1e-7).all()
+        assert region.feasible(coded).all()
         bounds = region.implied_bounds()
         assert bounds is not None
         np.testing.assert_allclose(np.array(list(bounds.values())), np.column_stack([vertices.min(0), vertices.max(0)]))

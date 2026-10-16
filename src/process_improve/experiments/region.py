@@ -198,15 +198,46 @@ class DesignRegion:
         return [(-1.0, 1.0)] * len(self.names)
 
     def feasible(self, x: np.ndarray, tol: float = _TOL) -> np.ndarray:
-        """Return a boolean per row of ``x`` (design units): inside the bounds and every constraint."""
+        """Return a boolean per row of ``x`` (design units): inside the bounds and every constraint.
+
+        Parameters
+        ----------
+        x : np.ndarray
+            Points ``(n, k)`` in design units (coded for a box, proportions for a mixture).
+        tol : float
+            How far a point may lie outside. For a straight limit of a box region whose
+            coded gradient is longer than 1 it is a distance in coded units (the limit's
+            value divided by that length), so a limit multiplied through by a constant
+            accepts the same points, and the corners the region reports
+            (:meth:`vertices`, :meth:`shadow`, :meth:`slice_polygon`), rounded within
+            ``1e-12`` of their boundaries, pass; otherwise it is in the limit's own units,
+            as for a curved limit.
+
+        Returns
+        -------
+        np.ndarray
+            A boolean per row.
+        """
         x = np.atleast_2d(np.asarray(x, dtype=float))
         low, high = np.array(self.bounds, dtype=float).reshape(-1, 2).T
         ok = np.all((x >= low - tol) & (x <= high + tol), axis=1)
         if self.kind == "mixture":
             ok &= np.abs(x.sum(axis=1) - 1.0) <= 1e-6
-        for g in self._inequalities:
-            ok &= g(x) <= tol
+        for g, widen in zip(self._inequalities, self._widen(), strict=True):
+            ok &= g(x) <= tol * widen
         return ok
+
+    def _widen(self) -> np.ndarray:
+        """Return, per inequality, what the tolerance on its value is multiplied by (cached).
+
+        For a straight limit of a box region it is the length of its coded gradient when
+        above 1, which turns the tolerance into a distance; else 1, which keeps the
+        tolerance of a gently sloped or curved limit in its own units.
+        """
+        if "widen" not in self._cache:
+            scale = self._linear().scale if self.kind == "box" else [1.0] * len(self._inequalities)
+            self._cache["widen"] = np.maximum(np.asarray(scale, dtype=float), 1.0).reshape(len(self._inequalities))
+        return self._cache["widen"]
 
     def sample(self, n: int, rng: np.random.Generator) -> np.ndarray:
         """Draw ``n`` points uniformly from the region, in design units: an ``(n, 0)`` array without continuous factors.
@@ -330,7 +361,7 @@ class DesignRegion:
     def _cloud_allowed(self) -> np.ndarray:
         """Return the :meth:`_cloud` points that meet every constraint (cached; all lie in the box)."""
         if "allowed" not in self._cache:
-            self._cache["allowed"] = self._cloud()[np.all(self._cloud_slack() <= _TOL, axis=1)]
+            self._cache["allowed"] = self._cloud()[np.all(self._cloud_slack() <= _TOL * self._widen(), axis=1)]
         return self._cache["allowed"]
 
     def _actual(self, coded: np.ndarray, columns: list[int] | None = None) -> np.ndarray:
@@ -568,8 +599,9 @@ class DesignRegion:
                 return False
         slack = self._cloud_slack()
         limit_of = np.array(self._limit_of, dtype=int)
-        kept_by_others = np.all(slack[:, limit_of != i] <= _TOL, axis=1)
-        removed_here = np.any(~(slack[:, limit_of == i] <= _TOL), axis=1)  # NaN, where it is undefined, removes
+        within = slack <= _TOL * self._widen()  # NaN, where a limit is undefined, is not within: it removes
+        kept_by_others = np.all(within[:, limit_of != i], axis=1)
+        removed_here = np.any(~within[:, limit_of == i], axis=1)
         return not bool(np.any(kept_by_others & removed_here))
 
     def linear_forms(self) -> list[tuple[dict[str, float], float | None, float | None] | None]:
@@ -839,8 +871,9 @@ class DesignRegion:
         distance from its boundary in coded units, so it varies linearly over the grid and
         a contour of it at zero draws a straight limit straight; a curved constraint's
         slack is its own value (the left side minus the right), and ``+inf`` where it cannot
-        be evaluated. A value within ``1e-9`` of zero is returned as zero, the tolerance
-        :meth:`feasible` uses, so ``<= 0`` here agrees with :meth:`feasible` at every point.
+        be evaluated. A value within the default tolerance of :meth:`feasible` (``1e-9``,
+        as a coded distance for a steep straight limit) is returned as zero, so ``<= 0``
+        here agrees with :meth:`feasible` at every point.
 
         Parameters
         ----------
@@ -891,11 +924,11 @@ class DesignRegion:
         """
         rows = self._linear()
         parts = []
-        for g, scale in zip(self._inequalities, rows.scale, strict=True):
+        for g, scale, widen in zip(self._inequalities, rows.scale, self._widen(), strict=True):
             with np.errstate(invalid="ignore", divide="ignore"):
                 value = g(coded)
             value = np.where(np.isnan(value), np.inf, value)
-            parts.append(np.where(np.abs(value) <= _TOL, 0.0, value / scale)[:, None])
+            parts.append(np.where(np.abs(value) <= _TOL * widen, 0.0, value / scale)[:, None])
         if not parts:
             return np.full(len(coded), -np.inf)
         return np.max(np.hstack(parts), axis=1)
