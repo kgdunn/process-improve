@@ -207336,9 +207336,72 @@
       "source_kind": "table",
       "quote": "Table 15.2 Minitab Output for the Coupon Redemption Experiment ... full ... A                    0.169208            0.0255092            6.63         0.000   1.18    1.13    1.25"
      },
-     "check": {
-      "manual": "a generalized linear model, which the library does not fit"
-     }
+     "check": [
+      {
+       "kind": "glm",
+       "model": "A + B + C + A:B + A:C + B:C",
+       "family": "binomial",
+       "trials": 1000,
+       "term": "A",
+       "key": "coefficient",
+       "printed": "0.169208"
+      },
+      {
+       "kind": "glm",
+       "model": "A + B + C + A:B + A:C + B:C",
+       "family": "binomial",
+       "trials": 1000,
+       "term": "A",
+       "key": "std_error",
+       "printed": "0.0255092"
+      },
+      {
+       "kind": "glm",
+       "model": "A + B + C + A:B + A:C + B:C",
+       "family": "binomial",
+       "trials": 1000,
+       "term": "A",
+       "key": "z_value",
+       "printed": "6.63"
+      },
+      {
+       "kind": "glm",
+       "model": "A + B + C + A:B + A:C + B:C",
+       "family": "binomial",
+       "trials": 1000,
+       "term": "A",
+       "key": "p_value",
+       "printed": "0.000"
+      },
+      {
+       "kind": "glm",
+       "model": "A + B + C + A:B + A:C + B:C",
+       "family": "binomial",
+       "trials": 1000,
+       "term": "A",
+       "key": "exp_coefficient",
+       "printed": "1.18"
+      },
+      {
+       "kind": "glm",
+       "model": "A + B + C + A:B + A:C + B:C",
+       "family": "binomial",
+       "trials": 1000,
+       "term": "A",
+       "key": "exp_ci_low",
+       "printed": "1.13"
+      },
+      {
+       "kind": "glm",
+       "model": "A + B + C + A:B + A:C + B:C",
+       "family": "binomial",
+       "trials": 1000,
+       "term": "A",
+       "key": "exp_ci_high",
+       "printed": "1.25"
+      }
+     ],
+     "analysis": "the library's analyze_experiment, analysis_type 'glm', family binomial (logit link) on the redeemed coupons out of 1000 trials per run, model A + B + C + A:B + A:C + B:C: the coefficient, its standard error, Wald z and p-value, and the odds ratio e^b with its 95% interval"
     },
     {
      "what": "logistic regression",
@@ -207349,9 +207412,72 @@
       "source_kind": "table",
       "quote": "Table 15.2 Minitab Output for the Coupon Redemption Experiment ... full ... B                    0.169622            0.0255150            6.65         0.000   1.18    1.13    1.25"
      },
-     "check": {
-      "manual": "a generalized linear model, which the library does not fit"
-     }
+     "check": [
+      {
+       "kind": "glm",
+       "model": "A + B + C + A:B + A:C + B:C",
+       "family": "binomial",
+       "trials": 1000,
+       "term": "B",
+       "key": "coefficient",
+       "printed": "0.169622"
+      },
+      {
+       "kind": "glm",
+       "model": "A + B + C + A:B + A:C + B:C",
+       "family": "binomial",
+       "trials": 1000,
+       "term": "B",
+       "key": "std_error",
+       "printed": "0.0255150"
+      },
+      {
+       "kind": "glm",
+       "model": "A + B + C + A:B + A:C + B:C",
+       "family": "binomial",
+       "trials": 1000,
+       "term": "B",
+       "key": "z_value",
+       "printed": "6.65"
+      },
+      {
+       "kind": "glm",
+       "model": "A + B + C + A:B + A:C + B:C",
+       "family": "binomial",
+       "trials": 1000,
+       "term": "B",
+       "key": "p_value",
+       "printed": "0.000"
+      },
+      {
+       "kind": "glm",
+       "model": "A + B + C + A:B + A:C + B:C",
+       "family": "binomial",
+       "trials": 1000,
+       "term": "B",
+       "key": "exp_coefficient",
+       "printed": "1.18"
+      },
+      {
+       "kind": "glm",
+       "model": "A + B + C + A:B + A:C + B:C",
+       "family": "binomial",
+       "trials": 1000,
+       "term": "B",
+       "key": "exp_ci_low",
+       "printed": "1.13"
+      },
+      {
+       "kind": "glm",
+       "model": "A + B + C + A:B + A:C + B:C",
+       "family": "binomial",
+       "trials": 1000,
+       "term": "B",
+       "key": "exp_ci_high",
+       "printed": "1.25"
+      }
+     ],
+     "analysis": "the library's analyze_experiment, analysis_type 'glm', family binomial (logit link) on the redeemed coupons out of 1000 trials per run, model A + B + C + A:B + A:C + B:C: the coefficient, its standard error, Wald z and p-value, and the odds ratio e^b with its 95% interval"
     },
     {
      "what": "logistic regression",
@@ -207362,9 +207488,72 @@
       "source_kind": "table",
       "quote": "Table 15.2 Minitab Output for the Coupon Redemption Experiment ... full ... C                   0.0233173            0.0255099            0.91         0.361   1.02    0.97    1.08"
      },
-     "check": {
-      "manual": "a generalized linear model, which the library does not fit"
-     }
+     "check": [
+      {
+       "kind": "glm",
+       "model": "A + B + C + A:B + A:C + B:C",
+       "family": "binomial",
+       "trials": 1000,
+       "term": "C",
+       "key": "coefficient",
+       "printed": "0.0233173"
+      },
+      {
+       "kind": "glm",
+       "model": "A + B + C + A:B + A:C + B:C",
+       "family": "binomial",
+       "trials": 1000,
+       "term": "C",
+       "key": "std_error",
+       "printed": "0.0255099"
+      },
+      {
+       "kind": "glm",
+       "model": "A + B + C + A:B + A:C + B:C",
+       "family": "binomial",
+       "trials": 1000,
+       "term": "C",
+       "key": "z_value",
+       "printed": "0.91"
+      },
+      {
+       "kind": "glm",
+       "model": "A + B + C + A:B + A:C + B:C",
+       "family": "binomial",
+       "trials": 1000,
+       "term": "C",
+       "key": "p_value",
+       "printed": "0.361"
+      },
+      {
+       "kind": "glm",
+       "model": "A + B + C + A:B + A:C + B:C",
+       "family": "binomial",
+       "trials": 1000,
+       "term": "C",
+       "key": "exp_coefficient",
+       "printed": "1.02"
+      },
+      {
+       "kind": "glm",
+       "model": "A + B + C + A:B + A:C + B:C",
+       "family": "binomial",
+       "trials": 1000,
+       "term": "C",
+       "key": "exp_ci_low",
+       "printed": "0.97"
+      },
+      {
+       "kind": "glm",
+       "model": "A + B + C + A:B + A:C + B:C",
+       "family": "binomial",
+       "trials": 1000,
+       "term": "C",
+       "key": "exp_ci_high",
+       "printed": "1.08"
+      }
+     ],
+     "analysis": "the library's analyze_experiment, analysis_type 'glm', family binomial (logit link) on the redeemed coupons out of 1000 trials per run, model A + B + C + A:B + A:C + B:C: the coefficient, its standard error, Wald z and p-value, and the odds ratio e^b with its 95% interval"
     },
     {
      "what": "logistic regression",
@@ -207375,9 +207564,72 @@
       "source_kind": "table",
       "quote": "Table 15.2 Minitab Output for the Coupon Redemption Experiment ... full ... A*B               −0.0062854             0.0255122           −0.25         0.805   0.99    0.95    1.04"
      },
-     "check": {
-      "manual": "a generalized linear model, which the library does not fit"
-     }
+     "check": [
+      {
+       "kind": "glm",
+       "model": "A + B + C + A:B + A:C + B:C",
+       "family": "binomial",
+       "trials": 1000,
+       "term": "A:B",
+       "key": "coefficient",
+       "printed": "-0.0062854"
+      },
+      {
+       "kind": "glm",
+       "model": "A + B + C + A:B + A:C + B:C",
+       "family": "binomial",
+       "trials": 1000,
+       "term": "A:B",
+       "key": "std_error",
+       "printed": "0.0255122"
+      },
+      {
+       "kind": "glm",
+       "model": "A + B + C + A:B + A:C + B:C",
+       "family": "binomial",
+       "trials": 1000,
+       "term": "A:B",
+       "key": "z_value",
+       "printed": "-0.25"
+      },
+      {
+       "kind": "glm",
+       "model": "A + B + C + A:B + A:C + B:C",
+       "family": "binomial",
+       "trials": 1000,
+       "term": "A:B",
+       "key": "p_value",
+       "printed": "0.805"
+      },
+      {
+       "kind": "glm",
+       "model": "A + B + C + A:B + A:C + B:C",
+       "family": "binomial",
+       "trials": 1000,
+       "term": "A:B",
+       "key": "exp_coefficient",
+       "printed": "0.99"
+      },
+      {
+       "kind": "glm",
+       "model": "A + B + C + A:B + A:C + B:C",
+       "family": "binomial",
+       "trials": 1000,
+       "term": "A:B",
+       "key": "exp_ci_low",
+       "printed": "0.95"
+      },
+      {
+       "kind": "glm",
+       "model": "A + B + C + A:B + A:C + B:C",
+       "family": "binomial",
+       "trials": 1000,
+       "term": "A:B",
+       "key": "exp_ci_high",
+       "printed": "1.04"
+      }
+     ],
+     "analysis": "the library's analyze_experiment, analysis_type 'glm', family binomial (logit link) on the redeemed coupons out of 1000 trials per run, model A + B + C + A:B + A:C + B:C: the coefficient, its standard error, Wald z and p-value, and the odds ratio e^b with its 95% interval"
     },
     {
      "what": "logistic regression",
@@ -207388,9 +207640,72 @@
       "source_kind": "table",
       "quote": "Table 15.2 Minitab Output for the Coupon Redemption Experiment ... full ... A*C               −0.0027726             0.0254324           −0.11         0.913   1.00    0.95    1.05"
      },
-     "check": {
-      "manual": "a generalized linear model, which the library does not fit"
-     }
+     "check": [
+      {
+       "kind": "glm",
+       "model": "A + B + C + A:B + A:C + B:C",
+       "family": "binomial",
+       "trials": 1000,
+       "term": "A:C",
+       "key": "coefficient",
+       "printed": "-0.0027726"
+      },
+      {
+       "kind": "glm",
+       "model": "A + B + C + A:B + A:C + B:C",
+       "family": "binomial",
+       "trials": 1000,
+       "term": "A:C",
+       "key": "std_error",
+       "printed": "0.0254324"
+      },
+      {
+       "kind": "glm",
+       "model": "A + B + C + A:B + A:C + B:C",
+       "family": "binomial",
+       "trials": 1000,
+       "term": "A:C",
+       "key": "z_value",
+       "printed": "-0.11"
+      },
+      {
+       "kind": "glm",
+       "model": "A + B + C + A:B + A:C + B:C",
+       "family": "binomial",
+       "trials": 1000,
+       "term": "A:C",
+       "key": "p_value",
+       "printed": "0.913"
+      },
+      {
+       "kind": "glm",
+       "model": "A + B + C + A:B + A:C + B:C",
+       "family": "binomial",
+       "trials": 1000,
+       "term": "A:C",
+       "key": "exp_coefficient",
+       "printed": "1.00"
+      },
+      {
+       "kind": "glm",
+       "model": "A + B + C + A:B + A:C + B:C",
+       "family": "binomial",
+       "trials": 1000,
+       "term": "A:C",
+       "key": "exp_ci_low",
+       "printed": "0.95"
+      },
+      {
+       "kind": "glm",
+       "model": "A + B + C + A:B + A:C + B:C",
+       "family": "binomial",
+       "trials": 1000,
+       "term": "A:C",
+       "key": "exp_ci_high",
+       "printed": "1.05"
+      }
+     ],
+     "analysis": "the library's analyze_experiment, analysis_type 'glm', family binomial (logit link) on the redeemed coupons out of 1000 trials per run, model A + B + C + A:B + A:C + B:C: the coefficient, its standard error, Wald z and p-value, and the odds ratio e^b with its 95% interval"
     },
     {
      "what": "logistic regression",
@@ -207401,9 +207716,72 @@
       "source_kind": "table",
       "quote": "Table 15.2 Minitab Output for the Coupon Redemption Experiment ... full ... B*C               −0.0410198             0.0254339           −1.61         0.107   0.96    0.91    1.01"
      },
-     "check": {
-      "manual": "a generalized linear model, which the library does not fit"
-     }
+     "check": [
+      {
+       "kind": "glm",
+       "model": "A + B + C + A:B + A:C + B:C",
+       "family": "binomial",
+       "trials": 1000,
+       "term": "B:C",
+       "key": "coefficient",
+       "printed": "-0.0410198"
+      },
+      {
+       "kind": "glm",
+       "model": "A + B + C + A:B + A:C + B:C",
+       "family": "binomial",
+       "trials": 1000,
+       "term": "B:C",
+       "key": "std_error",
+       "printed": "0.0254339"
+      },
+      {
+       "kind": "glm",
+       "model": "A + B + C + A:B + A:C + B:C",
+       "family": "binomial",
+       "trials": 1000,
+       "term": "B:C",
+       "key": "z_value",
+       "printed": "-1.61"
+      },
+      {
+       "kind": "glm",
+       "model": "A + B + C + A:B + A:C + B:C",
+       "family": "binomial",
+       "trials": 1000,
+       "term": "B:C",
+       "key": "p_value",
+       "printed": "0.107"
+      },
+      {
+       "kind": "glm",
+       "model": "A + B + C + A:B + A:C + B:C",
+       "family": "binomial",
+       "trials": 1000,
+       "term": "B:C",
+       "key": "exp_coefficient",
+       "printed": "0.96"
+      },
+      {
+       "kind": "glm",
+       "model": "A + B + C + A:B + A:C + B:C",
+       "family": "binomial",
+       "trials": 1000,
+       "term": "B:C",
+       "key": "exp_ci_low",
+       "printed": "0.91"
+      },
+      {
+       "kind": "glm",
+       "model": "A + B + C + A:B + A:C + B:C",
+       "family": "binomial",
+       "trials": 1000,
+       "term": "B:C",
+       "key": "exp_ci_high",
+       "printed": "1.01"
+      }
+     ],
+     "analysis": "the library's analyze_experiment, analysis_type 'glm', family binomial (logit link) on the redeemed coupons out of 1000 trials per run, model A + B + C + A:B + A:C + B:C: the coefficient, its standard error, Wald z and p-value, and the odds ratio e^b with its 95% interval"
     },
     {
      "what": "logistic regression",
@@ -207415,8 +207793,14 @@
       "quote": "Table 15.2 Minitab Output for the Coupon Redemption Experiment ... full ... Log-Likelihood \u0005 −4615.310"
      },
      "check": {
-      "manual": "a generalized linear model, which the library does not fit"
-     }
+      "kind": "glm",
+      "model": "A + B + C + A:B + A:C + B:C",
+      "family": "binomial",
+      "trials": 1000,
+      "key": "log_likelihood_trials",
+      "printed": "-4615.310"
+     },
+     "analysis": "the library's analyze_experiment, analysis_type 'glm', family binomial (logit link) on the redeemed coupons out of 1000 trials per run, model A + B + C + A:B + A:C + B:C: the log-likelihood of the 8000 individual trials, without the binomial coefficients, as Minitab gives it"
     },
     {
      "what": "log-likelihood",
@@ -207428,8 +207812,14 @@
       "quote": "Table 15.2 Minitab Output for the Coupon Redemption Experiment ... Log-Likelihood = −4615.310"
      },
      "check": {
-      "manual": "a generalized linear model, which the library does not fit"
-     }
+      "kind": "glm",
+      "model": "A + B + C + A:B + A:C + B:C",
+      "family": "binomial",
+      "trials": 1000,
+      "key": "log_likelihood_trials",
+      "printed": "-4615.310"
+     },
+     "analysis": "the library's analyze_experiment, analysis_type 'glm', family binomial (logit link) on the redeemed coupons out of 1000 trials per run, model A + B + C + A:B + A:C + B:C: the log-likelihood of the 8000 individual trials, without the binomial coefficients, as Minitab gives it"
     },
     {
      "what": "goodness of fit",
@@ -207440,9 +207830,33 @@
       "source_kind": "table",
       "quote": "Table 15.2 Minitab Output for the Coupon Redemption Experiment ... Pearson 1.46458 1 0.226"
      },
-     "check": {
-      "manual": "a generalized linear model, which the library does not fit"
-     }
+     "check": [
+      {
+       "kind": "glm",
+       "model": "A + B + C + A:B + A:C + B:C",
+       "family": "binomial",
+       "trials": 1000,
+       "key": "goodness_of_fit.pearson.statistic",
+       "printed": "1.46458"
+      },
+      {
+       "kind": "glm",
+       "model": "A + B + C + A:B + A:C + B:C",
+       "family": "binomial",
+       "trials": 1000,
+       "key": "goodness_of_fit.pearson.df",
+       "printed": "1"
+      },
+      {
+       "kind": "glm",
+       "model": "A + B + C + A:B + A:C + B:C",
+       "family": "binomial",
+       "trials": 1000,
+       "key": "goodness_of_fit.pearson.p_value",
+       "printed": "0.226"
+      }
+     ],
+     "analysis": "the library's analyze_experiment, analysis_type 'glm', family binomial (logit link) on the redeemed coupons out of 1000 trials per run, model A + B + C + A:B + A:C + B:C: the Pearson goodness-of-fit test, its statistic, degrees of freedom and p-value"
     },
     {
      "what": "goodness of fit",
@@ -207453,9 +207867,33 @@
       "source_kind": "table",
       "quote": "Table 15.2 Minitab Output for the Coupon Redemption Experiment ... Deviance 1.46451 1 0.226"
      },
-     "check": {
-      "manual": "a generalized linear model, which the library does not fit"
-     }
+     "check": [
+      {
+       "kind": "glm",
+       "model": "A + B + C + A:B + A:C + B:C",
+       "family": "binomial",
+       "trials": 1000,
+       "key": "goodness_of_fit.deviance.statistic",
+       "printed": "1.46451"
+      },
+      {
+       "kind": "glm",
+       "model": "A + B + C + A:B + A:C + B:C",
+       "family": "binomial",
+       "trials": 1000,
+       "key": "goodness_of_fit.deviance.df",
+       "printed": "1"
+      },
+      {
+       "kind": "glm",
+       "model": "A + B + C + A:B + A:C + B:C",
+       "family": "binomial",
+       "trials": 1000,
+       "key": "goodness_of_fit.deviance.p_value",
+       "printed": "0.226"
+      }
+     ],
+     "analysis": "the library's analyze_experiment, analysis_type 'glm', family binomial (logit link) on the redeemed coupons out of 1000 trials per run, model A + B + C + A:B + A:C + B:C: the Deviance goodness-of-fit test, its statistic, degrees of freedom and p-value"
     },
     {
      "what": "goodness of fit",
@@ -207466,9 +207904,33 @@
       "source_kind": "table",
       "quote": "Table 15.2 Minitab Output for the Coupon Redemption Experiment ... Hosmer–Lemeshow 1.46458 6 0.962"
      },
-     "check": {
-      "manual": "a generalized linear model, which the library does not fit"
-     }
+     "check": [
+      {
+       "kind": "glm",
+       "model": "A + B + C + A:B + A:C + B:C",
+       "family": "binomial",
+       "trials": 1000,
+       "key": "goodness_of_fit.hosmer_lemeshow.statistic",
+       "printed": "1.46458"
+      },
+      {
+       "kind": "glm",
+       "model": "A + B + C + A:B + A:C + B:C",
+       "family": "binomial",
+       "trials": 1000,
+       "key": "goodness_of_fit.hosmer_lemeshow.df",
+       "printed": "6"
+      },
+      {
+       "kind": "glm",
+       "model": "A + B + C + A:B + A:C + B:C",
+       "family": "binomial",
+       "trials": 1000,
+       "key": "goodness_of_fit.hosmer_lemeshow.p_value",
+       "printed": "0.962"
+      }
+     ],
+     "analysis": "the library's analyze_experiment, analysis_type 'glm', family binomial (logit link) on the redeemed coupons out of 1000 trials per run, model A + B + C + A:B + A:C + B:C: the Hosmer-Lemeshow goodness-of-fit test, its statistic, degrees of freedom and p-value (each of the eight distinct runs is its own group)"
     },
     {
      "what": "logistic regression",
@@ -207479,9 +207941,72 @@
       "source_kind": "table",
       "quote": "Table 15.2 Minitab Output for the Coupon Redemption Experiment ... reduced ... A                    0.168675            0.0254235            6.63         0.000   1.18    1.13    1.24"
      },
-     "check": {
-      "manual": "a generalized linear model, which the library does not fit"
-     }
+     "check": [
+      {
+       "kind": "glm",
+       "model": "A + B + C + B:C",
+       "family": "binomial",
+       "trials": 1000,
+       "term": "A",
+       "key": "coefficient",
+       "printed": "0.168675"
+      },
+      {
+       "kind": "glm",
+       "model": "A + B + C + B:C",
+       "family": "binomial",
+       "trials": 1000,
+       "term": "A",
+       "key": "std_error",
+       "printed": "0.0254235"
+      },
+      {
+       "kind": "glm",
+       "model": "A + B + C + B:C",
+       "family": "binomial",
+       "trials": 1000,
+       "term": "A",
+       "key": "z_value",
+       "printed": "6.63"
+      },
+      {
+       "kind": "glm",
+       "model": "A + B + C + B:C",
+       "family": "binomial",
+       "trials": 1000,
+       "term": "A",
+       "key": "p_value",
+       "printed": "0.000"
+      },
+      {
+       "kind": "glm",
+       "model": "A + B + C + B:C",
+       "family": "binomial",
+       "trials": 1000,
+       "term": "A",
+       "key": "exp_coefficient",
+       "printed": "1.18"
+      },
+      {
+       "kind": "glm",
+       "model": "A + B + C + B:C",
+       "family": "binomial",
+       "trials": 1000,
+       "term": "A",
+       "key": "exp_ci_low",
+       "printed": "1.13"
+      },
+      {
+       "kind": "glm",
+       "model": "A + B + C + B:C",
+       "family": "binomial",
+       "trials": 1000,
+       "term": "A",
+       "key": "exp_ci_high",
+       "printed": "1.24"
+      }
+     ],
+     "analysis": "the library's analyze_experiment, analysis_type 'glm', family binomial (logit link) on the redeemed coupons out of 1000 trials per run, model A + B + C + B:C: the coefficient, its standard error, Wald z and p-value, and the odds ratio e^b with its 95% interval"
     },
     {
      "what": "logistic regression",
@@ -207492,9 +208017,72 @@
       "source_kind": "table",
       "quote": "Table 15.2 Minitab Output for the Coupon Redemption Experiment ... reduced ... B                    0.169116            0.0254321            6.65         0.000   1.18    1.13    1.24"
      },
-     "check": {
-      "manual": "a generalized linear model, which the library does not fit"
-     }
+     "check": [
+      {
+       "kind": "glm",
+       "model": "A + B + C + B:C",
+       "family": "binomial",
+       "trials": 1000,
+       "term": "B",
+       "key": "coefficient",
+       "printed": "0.169116"
+      },
+      {
+       "kind": "glm",
+       "model": "A + B + C + B:C",
+       "family": "binomial",
+       "trials": 1000,
+       "term": "B",
+       "key": "std_error",
+       "printed": "0.0254321"
+      },
+      {
+       "kind": "glm",
+       "model": "A + B + C + B:C",
+       "family": "binomial",
+       "trials": 1000,
+       "term": "B",
+       "key": "z_value",
+       "printed": "6.65"
+      },
+      {
+       "kind": "glm",
+       "model": "A + B + C + B:C",
+       "family": "binomial",
+       "trials": 1000,
+       "term": "B",
+       "key": "p_value",
+       "printed": "0.000"
+      },
+      {
+       "kind": "glm",
+       "model": "A + B + C + B:C",
+       "family": "binomial",
+       "trials": 1000,
+       "term": "B",
+       "key": "exp_coefficient",
+       "printed": "1.18"
+      },
+      {
+       "kind": "glm",
+       "model": "A + B + C + B:C",
+       "family": "binomial",
+       "trials": 1000,
+       "term": "B",
+       "key": "exp_ci_low",
+       "printed": "1.13"
+      },
+      {
+       "kind": "glm",
+       "model": "A + B + C + B:C",
+       "family": "binomial",
+       "trials": 1000,
+       "term": "B",
+       "key": "exp_ci_high",
+       "printed": "1.24"
+      }
+     ],
+     "analysis": "the library's analyze_experiment, analysis_type 'glm', family binomial (logit link) on the redeemed coupons out of 1000 trials per run, model A + B + C + B:C: the coefficient, its standard error, Wald z and p-value, and the odds ratio e^b with its 95% interval"
     },
     {
      "what": "logistic regression",
@@ -207505,9 +208093,72 @@
       "source_kind": "table",
       "quote": "Table 15.2 Minitab Output for the Coupon Redemption Experiment ... reduced ... C                   0.0230825            0.0254306            0.91         0.364   1.02    0.97    1.08"
      },
-     "check": {
-      "manual": "a generalized linear model, which the library does not fit"
-     }
+     "check": [
+      {
+       "kind": "glm",
+       "model": "A + B + C + B:C",
+       "family": "binomial",
+       "trials": 1000,
+       "term": "C",
+       "key": "coefficient",
+       "printed": "0.0230825"
+      },
+      {
+       "kind": "glm",
+       "model": "A + B + C + B:C",
+       "family": "binomial",
+       "trials": 1000,
+       "term": "C",
+       "key": "std_error",
+       "printed": "0.0254306"
+      },
+      {
+       "kind": "glm",
+       "model": "A + B + C + B:C",
+       "family": "binomial",
+       "trials": 1000,
+       "term": "C",
+       "key": "z_value",
+       "printed": "0.91"
+      },
+      {
+       "kind": "glm",
+       "model": "A + B + C + B:C",
+       "family": "binomial",
+       "trials": 1000,
+       "term": "C",
+       "key": "p_value",
+       "printed": "0.364"
+      },
+      {
+       "kind": "glm",
+       "model": "A + B + C + B:C",
+       "family": "binomial",
+       "trials": 1000,
+       "term": "C",
+       "key": "exp_coefficient",
+       "printed": "1.02"
+      },
+      {
+       "kind": "glm",
+       "model": "A + B + C + B:C",
+       "family": "binomial",
+       "trials": 1000,
+       "term": "C",
+       "key": "exp_ci_low",
+       "printed": "0.97"
+      },
+      {
+       "kind": "glm",
+       "model": "A + B + C + B:C",
+       "family": "binomial",
+       "trials": 1000,
+       "term": "C",
+       "key": "exp_ci_high",
+       "printed": "1.08"
+      }
+     ],
+     "analysis": "the library's analyze_experiment, analysis_type 'glm', family binomial (logit link) on the redeemed coupons out of 1000 trials per run, model A + B + C + B:C: the coefficient, its standard error, Wald z and p-value, and the odds ratio e^b with its 95% interval"
     },
     {
      "what": "logistic regression",
@@ -207518,9 +208169,72 @@
       "source_kind": "table",
       "quote": "Table 15.2 Minitab Output for the Coupon Redemption Experiment ... reduced ... B*C               −0.0409711             0.0254307           −1.61         0.107   0.96    0.91    1.01"
      },
-     "check": {
-      "manual": "a generalized linear model, which the library does not fit"
-     }
+     "check": [
+      {
+       "kind": "glm",
+       "model": "A + B + C + B:C",
+       "family": "binomial",
+       "trials": 1000,
+       "term": "B:C",
+       "key": "coefficient",
+       "printed": "-0.0409711"
+      },
+      {
+       "kind": "glm",
+       "model": "A + B + C + B:C",
+       "family": "binomial",
+       "trials": 1000,
+       "term": "B:C",
+       "key": "std_error",
+       "printed": "0.0254307"
+      },
+      {
+       "kind": "glm",
+       "model": "A + B + C + B:C",
+       "family": "binomial",
+       "trials": 1000,
+       "term": "B:C",
+       "key": "z_value",
+       "printed": "-1.61"
+      },
+      {
+       "kind": "glm",
+       "model": "A + B + C + B:C",
+       "family": "binomial",
+       "trials": 1000,
+       "term": "B:C",
+       "key": "p_value",
+       "printed": "0.107"
+      },
+      {
+       "kind": "glm",
+       "model": "A + B + C + B:C",
+       "family": "binomial",
+       "trials": 1000,
+       "term": "B:C",
+       "key": "exp_coefficient",
+       "printed": "0.96"
+      },
+      {
+       "kind": "glm",
+       "model": "A + B + C + B:C",
+       "family": "binomial",
+       "trials": 1000,
+       "term": "B:C",
+       "key": "exp_ci_low",
+       "printed": "0.91"
+      },
+      {
+       "kind": "glm",
+       "model": "A + B + C + B:C",
+       "family": "binomial",
+       "trials": 1000,
+       "term": "B:C",
+       "key": "exp_ci_high",
+       "printed": "1.01"
+      }
+     ],
+     "analysis": "the library's analyze_experiment, analysis_type 'glm', family binomial (logit link) on the redeemed coupons out of 1000 trials per run, model A + B + C + B:C: the coefficient, its standard error, Wald z and p-value, and the odds ratio e^b with its 95% interval"
     },
     {
      "what": "logistic regression",
@@ -207532,8 +208246,14 @@
       "quote": "Table 15.2 Minitab Output for the Coupon Redemption Experiment ... reduced ... Log-Likelihood \u0005 −4615.346"
      },
      "check": {
-      "manual": "a generalized linear model, which the library does not fit"
-     }
+      "kind": "glm",
+      "model": "A + B + C + B:C",
+      "family": "binomial",
+      "trials": 1000,
+      "key": "log_likelihood_trials",
+      "printed": "-4615.346"
+     },
+     "analysis": "the library's analyze_experiment, analysis_type 'glm', family binomial (logit link) on the redeemed coupons out of 1000 trials per run, model A + B + C + B:C: the log-likelihood of the 8000 individual trials, without the binomial coefficients, as Minitab gives it"
     },
     {
      "what": "log-likelihood",
@@ -207545,8 +208265,14 @@
       "quote": "Table 15.2 Minitab Output for the Coupon Redemption Experiment ... Log-Likelihood = −4615.346"
      },
      "check": {
-      "manual": "a generalized linear model, which the library does not fit"
-     }
+      "kind": "glm",
+      "model": "A + B + C + B:C",
+      "family": "binomial",
+      "trials": 1000,
+      "key": "log_likelihood_trials",
+      "printed": "-4615.346"
+     },
+     "analysis": "the library's analyze_experiment, analysis_type 'glm', family binomial (logit link) on the redeemed coupons out of 1000 trials per run, model A + B + C + B:C: the log-likelihood of the 8000 individual trials, without the binomial coefficients, as Minitab gives it"
     },
     {
      "what": "goodness of fit",
@@ -207557,9 +208283,33 @@
       "source_kind": "table",
       "quote": "Table 15.2 Minitab Output for the Coupon Redemption Experiment ... Pearson 1.53593 3 0.674"
      },
-     "check": {
-      "manual": "a generalized linear model, which the library does not fit"
-     }
+     "check": [
+      {
+       "kind": "glm",
+       "model": "A + B + C + B:C",
+       "family": "binomial",
+       "trials": 1000,
+       "key": "goodness_of_fit.pearson.statistic",
+       "printed": "1.53593"
+      },
+      {
+       "kind": "glm",
+       "model": "A + B + C + B:C",
+       "family": "binomial",
+       "trials": 1000,
+       "key": "goodness_of_fit.pearson.df",
+       "printed": "3"
+      },
+      {
+       "kind": "glm",
+       "model": "A + B + C + B:C",
+       "family": "binomial",
+       "trials": 1000,
+       "key": "goodness_of_fit.pearson.p_value",
+       "printed": "0.674"
+      }
+     ],
+     "analysis": "the library's analyze_experiment, analysis_type 'glm', family binomial (logit link) on the redeemed coupons out of 1000 trials per run, model A + B + C + B:C: the Pearson goodness-of-fit test, its statistic, degrees of freedom and p-value"
     },
     {
      "what": "goodness of fit",
@@ -207570,9 +208320,33 @@
       "source_kind": "table",
       "quote": "Table 15.2 Minitab Output for the Coupon Redemption Experiment ... Deviance 1.53602 3 0.674"
      },
-     "check": {
-      "manual": "a generalized linear model, which the library does not fit"
-     }
+     "check": [
+      {
+       "kind": "glm",
+       "model": "A + B + C + B:C",
+       "family": "binomial",
+       "trials": 1000,
+       "key": "goodness_of_fit.deviance.statistic",
+       "printed": "1.53602"
+      },
+      {
+       "kind": "glm",
+       "model": "A + B + C + B:C",
+       "family": "binomial",
+       "trials": 1000,
+       "key": "goodness_of_fit.deviance.df",
+       "printed": "3"
+      },
+      {
+       "kind": "glm",
+       "model": "A + B + C + B:C",
+       "family": "binomial",
+       "trials": 1000,
+       "key": "goodness_of_fit.deviance.p_value",
+       "printed": "0.674"
+      }
+     ],
+     "analysis": "the library's analyze_experiment, analysis_type 'glm', family binomial (logit link) on the redeemed coupons out of 1000 trials per run, model A + B + C + B:C: the Deviance goodness-of-fit test, its statistic, degrees of freedom and p-value"
     },
     {
      "what": "goodness of fit",
@@ -207583,9 +208357,33 @@
       "source_kind": "table",
       "quote": "Table 15.2 Minitab Output for the Coupon Redemption Experiment ... Hosmer–Lemeshow 1.53593 6 0.957"
      },
-     "check": {
-      "manual": "a generalized linear model, which the library does not fit"
-     }
+     "check": [
+      {
+       "kind": "glm",
+       "model": "A + B + C + B:C",
+       "family": "binomial",
+       "trials": 1000,
+       "key": "goodness_of_fit.hosmer_lemeshow.statistic",
+       "printed": "1.53593"
+      },
+      {
+       "kind": "glm",
+       "model": "A + B + C + B:C",
+       "family": "binomial",
+       "trials": 1000,
+       "key": "goodness_of_fit.hosmer_lemeshow.df",
+       "printed": "6"
+      },
+      {
+       "kind": "glm",
+       "model": "A + B + C + B:C",
+       "family": "binomial",
+       "trials": 1000,
+       "key": "goodness_of_fit.hosmer_lemeshow.p_value",
+       "printed": "0.957"
+      }
+     ],
+     "analysis": "the library's analyze_experiment, analysis_type 'glm', family binomial (logit link) on the redeemed coupons out of 1000 trials per run, model A + B + C + B:C: the Hosmer-Lemeshow goodness-of-fit test, its statistic, degrees of freedom and p-value (each of the eight distinct runs is its own group)"
     },
     {
      "what": "fitted model",
@@ -207596,9 +208394,54 @@
       "source_kind": "prose",
       "quote": "ŷ = 1/{1 + exp[−(−1.01 + 0.169x1 + 0.169x2 + 0.023x3 − 0.041x2x3)]}"
      },
-     "check": {
-      "manual": "a generalized linear model, which the library does not fit"
-     }
+     "check": [
+      {
+       "kind": "glm",
+       "model": "A + B + C + B:C",
+       "family": "binomial",
+       "trials": 1000,
+       "term": "Intercept",
+       "key": "coefficient",
+       "printed": "-1.01"
+      },
+      {
+       "kind": "glm",
+       "model": "A + B + C + B:C",
+       "family": "binomial",
+       "trials": 1000,
+       "term": "A",
+       "key": "coefficient",
+       "printed": "0.169"
+      },
+      {
+       "kind": "glm",
+       "model": "A + B + C + B:C",
+       "family": "binomial",
+       "trials": 1000,
+       "term": "B",
+       "key": "coefficient",
+       "printed": "0.169"
+      },
+      {
+       "kind": "glm",
+       "model": "A + B + C + B:C",
+       "family": "binomial",
+       "trials": 1000,
+       "term": "C",
+       "key": "coefficient",
+       "printed": "0.023"
+      },
+      {
+       "kind": "glm",
+       "model": "A + B + C + B:C",
+       "family": "binomial",
+       "trials": 1000,
+       "term": "B:C",
+       "key": "coefficient",
+       "printed": "-0.041"
+      }
+     ],
+     "analysis": "the library's analyze_experiment, analysis_type 'glm', family binomial (logit link) on the redeemed coupons out of 1000 trials per run, model A + B + C + B:C: the fitted equation's coefficients"
     },
     {
      "what": "odds ratio",
@@ -207610,8 +208453,14 @@
       "quote": "The computed value of the odds ratio is e^β̂1 = e^0.168765 = 1.18. The quantity e^2β̂1 = e^2(0.168765) = 1.40 ... a high-value coupon increases the odds of redemption by about 40 percent"
      },
      "check": {
-      "manual": "e^0.168765, arithmetic on a coefficient of a generalized linear model, which the library does not fit"
-     }
+      "kind": "glm",
+      "model": "A + B + C + B:C",
+      "family": "binomial",
+      "trials": 1000,
+      "term": "A",
+      "key": "exp_coefficient"
+     },
+     "analysis": "the library's analyze_experiment, analysis_type 'glm', family binomial (logit link) on the redeemed coupons out of 1000 trials per run, model A + B + C + B:C: the odds ratio of A, e^b"
     },
     {
      "what": "odds ratio",
@@ -207623,8 +208472,15 @@
       "quote": "The computed value of the odds ratio is e^β̂1 = e^0.168765 = 1.18. The quantity e^2β̂1 = e^2(0.168765) = 1.40 ... a high-value coupon increases the odds of redemption by about 40 percent"
      },
      "check": {
-      "manual": "e^0.33753, arithmetic on a coefficient of a generalized linear model, which the library does not fit"
-     }
+      "kind": "glm",
+      "model": "A + B + C + B:C",
+      "family": "binomial",
+      "trials": 1000,
+      "term": "A",
+      "key": "exp_coefficient",
+      "squared": true
+     },
+     "analysis": "the library's analyze_experiment, analysis_type 'glm', family binomial (logit link) on the redeemed coupons out of 1000 trials per run, model A + B + C + B:C: the odds ratio across A's range, e^(2b), the square of e^b"
     },
     {
      "what": "odds increase",
@@ -208278,9 +209134,30 @@
       "source_kind": "table",
       "quote": "Table 15.3 Least Squares and Generalized Linear Model Analysis for the Grill Opening Panels Experiment ... 1            5.50         (4.14, 6.85)      29.70      (16.65, 46.41)      51.26     (42.45, 61.90)     29.76     19.45"
      },
-     "check": {
-      "manual": "a generalized linear model, which the library does not fit"
-     }
+     "check": [
+      {
+       "kind": "glm",
+       "model": "D + F + B:G",
+       "family": "poisson",
+       "key": "fitted.0.predicted",
+       "printed": "51.26"
+      },
+      {
+       "kind": "glm",
+       "model": "D + F + B:G",
+       "family": "poisson",
+       "key": "fitted.0.ci_low",
+       "printed": "42.45"
+      },
+      {
+       "kind": "glm",
+       "model": "D + F + B:G",
+       "family": "poisson",
+       "key": "fitted.0.ci_high",
+       "printed": "61.90"
+      }
+     ],
+     "analysis": "the library's analyze_experiment, analysis_type 'glm', family poisson (log link), model D + F + B:G: the fitted mean of observation 1 and its 95% interval, exp of the linear predictor's"
     },
     {
      "what": "interval length",
@@ -208292,8 +209169,13 @@
       "quote": "Table 15.3 Least Squares and Generalized Linear Model Analysis for the Grill Opening Panels Experiment ... 1            5.50         (4.14, 6.85)      29.70      (16.65, 46.41)      51.26     (42.45, 61.90)     29.76     19.45"
      },
      "check": {
-      "manual": "a generalized linear model, which the library does not fit"
-     }
+      "kind": "glm",
+      "model": "D + F + B:G",
+      "family": "poisson",
+      "key": "fitted.0.ci_length",
+      "printed": "19.45"
+     },
+     "analysis": "the library's analyze_experiment, analysis_type 'glm', family poisson (log link), model D + F + B:G: the length of observation 1's 95% interval for the mean"
     },
     {
      "what": "predicted",
@@ -208488,9 +209370,30 @@
       "source_kind": "table",
       "quote": "Table 15.3 Least Squares and Generalized Linear Model Analysis for the Grill Opening Panels Experiment ... 2            3.95         (2.60, 5.31)      15.12       (6.25, 27.65)      11.74      (8.14, 16.94)     21.39      8.80"
      },
-     "check": {
-      "manual": "a generalized linear model, which the library does not fit"
-     }
+     "check": [
+      {
+       "kind": "glm",
+       "model": "D + F + B:G",
+       "family": "poisson",
+       "key": "fitted.1.predicted",
+       "printed": "11.74"
+      },
+      {
+       "kind": "glm",
+       "model": "D + F + B:G",
+       "family": "poisson",
+       "key": "fitted.1.ci_low",
+       "printed": "8.14"
+      },
+      {
+       "kind": "glm",
+       "model": "D + F + B:G",
+       "family": "poisson",
+       "key": "fitted.1.ci_high",
+       "printed": "16.94"
+      }
+     ],
+     "analysis": "the library's analyze_experiment, analysis_type 'glm', family poisson (log link), model D + F + B:G: the fitted mean of observation 2 and its 95% interval, exp of the linear predictor's"
     },
     {
      "what": "interval length",
@@ -208502,8 +209405,13 @@
       "quote": "Table 15.3 Least Squares and Generalized Linear Model Analysis for the Grill Opening Panels Experiment ... 2            3.95         (2.60, 5.31)      15.12       (6.25, 27.65)      11.74      (8.14, 16.94)     21.39      8.80"
      },
      "check": {
-      "manual": "a generalized linear model, which the library does not fit"
-     }
+      "kind": "glm",
+      "model": "D + F + B:G",
+      "family": "poisson",
+      "key": "fitted.1.ci_length",
+      "printed": "8.80"
+     },
+     "analysis": "the library's analyze_experiment, analysis_type 'glm', family poisson (log link), model D + F + B:G: the length of observation 2's 95% interval for the mean"
     },
     {
      "what": "predicted",
@@ -208699,9 +209607,30 @@
       "source_kind": "table",
       "quote": "Table 15.3 Least Squares and Generalized Linear Model Analysis for the Grill Opening Panels Experiment ... 3            1.52         (0.17, 2.88)       1.84        (1.69, 7.78)       1.12       (0.60, 2.08)      6.09      1.47"
      },
-     "check": {
-      "manual": "a generalized linear model, which the library does not fit"
-     }
+     "check": [
+      {
+       "kind": "glm",
+       "model": "D + F + B:G",
+       "family": "poisson",
+       "key": "fitted.2.predicted",
+       "printed": "1.12"
+      },
+      {
+       "kind": "glm",
+       "model": "D + F + B:G",
+       "family": "poisson",
+       "key": "fitted.2.ci_low",
+       "printed": "0.60"
+      },
+      {
+       "kind": "glm",
+       "model": "D + F + B:G",
+       "family": "poisson",
+       "key": "fitted.2.ci_high",
+       "printed": "2.08"
+      }
+     ],
+     "analysis": "the library's analyze_experiment, analysis_type 'glm', family poisson (log link), model D + F + B:G: the fitted mean of observation 3 and its 95% interval, exp of the linear predictor's"
     },
     {
      "what": "interval length",
@@ -208713,8 +209642,13 @@
       "quote": "Table 15.3 Least Squares and Generalized Linear Model Analysis for the Grill Opening Panels Experiment ... 3            1.52         (0.17, 2.88)       1.84        (1.69, 7.78)       1.12       (0.60, 2.08)      6.09      1.47"
      },
      "check": {
-      "manual": "a generalized linear model, which the library does not fit"
-     }
+      "kind": "glm",
+      "model": "D + F + B:G",
+      "family": "poisson",
+      "key": "fitted.2.ci_length",
+      "printed": "1.47"
+     },
+     "analysis": "the library's analyze_experiment, analysis_type 'glm', family poisson (log link), model D + F + B:G: the length of observation 3's 95% interval for the mean"
     },
     {
      "what": "predicted",
@@ -208908,9 +209842,30 @@
       "source_kind": "table",
       "quote": "Table 15.3 Least Squares and Generalized Linear Model Analysis for the Grill Opening Panels Experiment ... 4            3.07         (1.71, 4.42)       8.91       (2.45, 19.04)       4.88       (2.87, 8.32)     16.59      5.45"
      },
-     "check": {
-      "manual": "a generalized linear model, which the library does not fit"
-     }
+     "check": [
+      {
+       "kind": "glm",
+       "model": "D + F + B:G",
+       "family": "poisson",
+       "key": "fitted.3.predicted",
+       "printed": "4.88"
+      },
+      {
+       "kind": "glm",
+       "model": "D + F + B:G",
+       "family": "poisson",
+       "key": "fitted.3.ci_low",
+       "printed": "2.87"
+      },
+      {
+       "kind": "glm",
+       "model": "D + F + B:G",
+       "family": "poisson",
+       "key": "fitted.3.ci_high",
+       "printed": "8.32"
+      }
+     ],
+     "analysis": "the library's analyze_experiment, analysis_type 'glm', family poisson (log link), model D + F + B:G: the fitted mean of observation 4 and its 95% interval, exp of the linear predictor's"
     },
     {
      "what": "interval length",
@@ -208922,8 +209877,13 @@
       "quote": "Table 15.3 Least Squares and Generalized Linear Model Analysis for the Grill Opening Panels Experiment ... 4            3.07         (1.71, 4.42)       8.91       (2.45, 19.04)       4.88       (2.87, 8.32)     16.59      5.45"
      },
      "check": {
-      "manual": "a generalized linear model, which the library does not fit"
-     }
+      "kind": "glm",
+      "model": "D + F + B:G",
+      "family": "poisson",
+      "key": "fitted.3.ci_length",
+      "printed": "5.45"
+     },
+     "analysis": "the library's analyze_experiment, analysis_type 'glm', family poisson (log link), model D + F + B:G: the length of observation 4's 95% interval for the mean"
     },
     {
      "what": "predicted",
@@ -209119,9 +210079,30 @@
       "source_kind": "table",
       "quote": "Table 15.3 Least Squares and Generalized Linear Model Analysis for the Grill Opening Panels Experiment ... 5            1.52         (0.17, 2.88)       1.84        (1.69, 7.78)       1.12       (0.60, 2.08)      6.09      1.47"
      },
-     "check": {
-      "manual": "a generalized linear model, which the library does not fit"
-     }
+     "check": [
+      {
+       "kind": "glm",
+       "model": "D + F + B:G",
+       "family": "poisson",
+       "key": "fitted.4.predicted",
+       "printed": "1.12"
+      },
+      {
+       "kind": "glm",
+       "model": "D + F + B:G",
+       "family": "poisson",
+       "key": "fitted.4.ci_low",
+       "printed": "0.60"
+      },
+      {
+       "kind": "glm",
+       "model": "D + F + B:G",
+       "family": "poisson",
+       "key": "fitted.4.ci_high",
+       "printed": "2.08"
+      }
+     ],
+     "analysis": "the library's analyze_experiment, analysis_type 'glm', family poisson (log link), model D + F + B:G: the fitted mean of observation 5 and its 95% interval, exp of the linear predictor's"
     },
     {
      "what": "interval length",
@@ -209133,8 +210114,13 @@
       "quote": "Table 15.3 Least Squares and Generalized Linear Model Analysis for the Grill Opening Panels Experiment ... 5            1.52         (0.17, 2.88)       1.84        (1.69, 7.78)       1.12       (0.60, 2.08)      6.09      1.47"
      },
      "check": {
-      "manual": "a generalized linear model, which the library does not fit"
-     }
+      "kind": "glm",
+      "model": "D + F + B:G",
+      "family": "poisson",
+      "key": "fitted.4.ci_length",
+      "printed": "1.47"
+     },
+     "analysis": "the library's analyze_experiment, analysis_type 'glm', family poisson (log link), model D + F + B:G: the length of observation 5's 95% interval for the mean"
     },
     {
      "what": "predicted",
@@ -209328,9 +210314,30 @@
       "source_kind": "table",
       "quote": "Table 15.3 Least Squares and Generalized Linear Model Analysis for the Grill Opening Panels Experiment ... 6            3.07         (1.71, 4.42)       8.91       (2.45, 19.04)       4.88       (2.87, 8.32)     16.59      5.45"
      },
-     "check": {
-      "manual": "a generalized linear model, which the library does not fit"
-     }
+     "check": [
+      {
+       "kind": "glm",
+       "model": "D + F + B:G",
+       "family": "poisson",
+       "key": "fitted.5.predicted",
+       "printed": "4.88"
+      },
+      {
+       "kind": "glm",
+       "model": "D + F + B:G",
+       "family": "poisson",
+       "key": "fitted.5.ci_low",
+       "printed": "2.87"
+      },
+      {
+       "kind": "glm",
+       "model": "D + F + B:G",
+       "family": "poisson",
+       "key": "fitted.5.ci_high",
+       "printed": "8.32"
+      }
+     ],
+     "analysis": "the library's analyze_experiment, analysis_type 'glm', family poisson (log link), model D + F + B:G: the fitted mean of observation 6 and its 95% interval, exp of the linear predictor's"
     },
     {
      "what": "interval length",
@@ -209342,8 +210349,13 @@
       "quote": "Table 15.3 Least Squares and Generalized Linear Model Analysis for the Grill Opening Panels Experiment ... 6            3.07         (1.71, 4.42)       8.91       (2.45, 19.04)       4.88       (2.87, 8.32)     16.59      5.45"
      },
      "check": {
-      "manual": "a generalized linear model, which the library does not fit"
-     }
+      "kind": "glm",
+      "model": "D + F + B:G",
+      "family": "poisson",
+      "key": "fitted.5.ci_length",
+      "printed": "5.45"
+     },
+     "analysis": "the library's analyze_experiment, analysis_type 'glm', family poisson (log link), model D + F + B:G: the length of observation 6's 95% interval for the mean"
     },
     {
      "what": "predicted",
@@ -209540,9 +210552,30 @@
       "source_kind": "table",
       "quote": "Table 15.3 Least Squares and Generalized Linear Model Analysis for the Grill Opening Panels Experiment ... 7            5.50         (4.14, 6.85)      29.70      (16.65, 46.41)      51.26     (42.45, 61.90)     29.76     19.45"
      },
-     "check": {
-      "manual": "a generalized linear model, which the library does not fit"
-     }
+     "check": [
+      {
+       "kind": "glm",
+       "model": "D + F + B:G",
+       "family": "poisson",
+       "key": "fitted.6.predicted",
+       "printed": "51.26"
+      },
+      {
+       "kind": "glm",
+       "model": "D + F + B:G",
+       "family": "poisson",
+       "key": "fitted.6.ci_low",
+       "printed": "42.45"
+      },
+      {
+       "kind": "glm",
+       "model": "D + F + B:G",
+       "family": "poisson",
+       "key": "fitted.6.ci_high",
+       "printed": "61.90"
+      }
+     ],
+     "analysis": "the library's analyze_experiment, analysis_type 'glm', family poisson (log link), model D + F + B:G: the fitted mean of observation 7 and its 95% interval, exp of the linear predictor's"
     },
     {
      "what": "interval length",
@@ -209554,8 +210587,13 @@
       "quote": "Table 15.3 Least Squares and Generalized Linear Model Analysis for the Grill Opening Panels Experiment ... 7            5.50         (4.14, 6.85)      29.70      (16.65, 46.41)      51.26     (42.45, 61.90)     29.76     19.45"
      },
      "check": {
-      "manual": "a generalized linear model, which the library does not fit"
-     }
+      "kind": "glm",
+      "model": "D + F + B:G",
+      "family": "poisson",
+      "key": "fitted.6.ci_length",
+      "printed": "19.45"
+     },
+     "analysis": "the library's analyze_experiment, analysis_type 'glm', family poisson (log link), model D + F + B:G: the length of observation 7's 95% interval for the mean"
     },
     {
      "what": "predicted",
@@ -209750,9 +210788,30 @@
       "source_kind": "table",
       "quote": "Table 15.3 Least Squares and Generalized Linear Model Analysis for the Grill Opening Panels Experiment ... 8            3.95         (2.60, 5.31)      15.12       (6.25, 27.65)      11.74      (8.14, 16.94)     21.39      8.80"
      },
-     "check": {
-      "manual": "a generalized linear model, which the library does not fit"
-     }
+     "check": [
+      {
+       "kind": "glm",
+       "model": "D + F + B:G",
+       "family": "poisson",
+       "key": "fitted.7.predicted",
+       "printed": "11.74"
+      },
+      {
+       "kind": "glm",
+       "model": "D + F + B:G",
+       "family": "poisson",
+       "key": "fitted.7.ci_low",
+       "printed": "8.14"
+      },
+      {
+       "kind": "glm",
+       "model": "D + F + B:G",
+       "family": "poisson",
+       "key": "fitted.7.ci_high",
+       "printed": "16.94"
+      }
+     ],
+     "analysis": "the library's analyze_experiment, analysis_type 'glm', family poisson (log link), model D + F + B:G: the fitted mean of observation 8 and its 95% interval, exp of the linear predictor's"
     },
     {
      "what": "interval length",
@@ -209764,8 +210823,13 @@
       "quote": "Table 15.3 Least Squares and Generalized Linear Model Analysis for the Grill Opening Panels Experiment ... 8            3.95         (2.60, 5.31)      15.12       (6.25, 27.65)      11.74      (8.14, 16.94)     21.39      8.80"
      },
      "check": {
-      "manual": "a generalized linear model, which the library does not fit"
-     }
+      "kind": "glm",
+      "model": "D + F + B:G",
+      "family": "poisson",
+      "key": "fitted.7.ci_length",
+      "printed": "8.80"
+     },
+     "analysis": "the library's analyze_experiment, analysis_type 'glm', family poisson (log link), model D + F + B:G: the length of observation 8's 95% interval for the mean"
     },
     {
      "what": "predicted",
@@ -209918,9 +210982,30 @@
       "source_kind": "table",
       "quote": "Table 15.3 Least Squares and Generalized Linear Model Analysis for the Grill Opening Panels Experiment ... 9            1.08       (−0.28, 2.43)        0.71           (*, 5.41)       0.81       (0.42, 1.56)         *      1.13"
      },
-     "check": {
-      "manual": "a generalized linear model, which the library does not fit"
-     }
+     "check": [
+      {
+       "kind": "glm",
+       "model": "D + F + B:G",
+       "family": "poisson",
+       "key": "fitted.8.predicted",
+       "printed": "0.81"
+      },
+      {
+       "kind": "glm",
+       "model": "D + F + B:G",
+       "family": "poisson",
+       "key": "fitted.8.ci_low",
+       "printed": "0.42"
+      },
+      {
+       "kind": "glm",
+       "model": "D + F + B:G",
+       "family": "poisson",
+       "key": "fitted.8.ci_high",
+       "printed": "1.56"
+      }
+     ],
+     "analysis": "the library's analyze_experiment, analysis_type 'glm', family poisson (log link), model D + F + B:G: the fitted mean of observation 9 and its 95% interval, exp of the linear predictor's"
     },
     {
      "what": "interval length",
@@ -209932,8 +211017,13 @@
       "quote": "Table 15.3 Least Squares and Generalized Linear Model Analysis for the Grill Opening Panels Experiment ... 9            1.08       (−0.28, 2.43)        0.71           (*, 5.41)       0.81       (0.42, 1.56)         *      1.13"
      },
      "check": {
-      "manual": "a generalized linear model, which the library does not fit"
-     }
+      "kind": "glm",
+      "model": "D + F + B:G",
+      "family": "poisson",
+      "key": "fitted.8.ci_length",
+      "printed": "1.13"
+     },
+     "analysis": "the library's analyze_experiment, analysis_type 'glm', family poisson (log link), model D + F + B:G: the length of observation 9's 95% interval for the mean"
     },
     {
      "what": "predicted",
@@ -210054,9 +211144,30 @@
       "source_kind": "table",
       "quote": "Table 15.3 Least Squares and Generalized Linear Model Analysis for the Grill Opening Panels Experiment ... 10           −0.47       (−1.82, 0.89)           *           (*, 0.36)       0.19       (0.09, 0.38)         *      0.29"
      },
-     "check": {
-      "manual": "a generalized linear model, which the library does not fit"
-     }
+     "check": [
+      {
+       "kind": "glm",
+       "model": "D + F + B:G",
+       "family": "poisson",
+       "key": "fitted.9.predicted",
+       "printed": "0.19"
+      },
+      {
+       "kind": "glm",
+       "model": "D + F + B:G",
+       "family": "poisson",
+       "key": "fitted.9.ci_low",
+       "printed": "0.09"
+      },
+      {
+       "kind": "glm",
+       "model": "D + F + B:G",
+       "family": "poisson",
+       "key": "fitted.9.ci_high",
+       "printed": "0.38"
+      }
+     ],
+     "analysis": "the library's analyze_experiment, analysis_type 'glm', family poisson (log link), model D + F + B:G: the fitted mean of observation 10 and its 95% interval, exp of the linear predictor's"
     },
     {
      "what": "interval length",
@@ -210068,8 +211179,13 @@
       "quote": "Table 15.3 Least Squares and Generalized Linear Model Analysis for the Grill Opening Panels Experiment ... 10           −0.47       (−1.82, 0.89)           *           (*, 0.36)       0.19       (0.09, 0.38)         *      0.29"
      },
      "check": {
-      "manual": "a generalized linear model, which the library does not fit"
-     }
+      "kind": "glm",
+      "model": "D + F + B:G",
+      "family": "poisson",
+      "key": "fitted.9.ci_length",
+      "printed": "0.29"
+     },
+     "analysis": "the library's analyze_experiment, analysis_type 'glm', family poisson (log link), model D + F + B:G: the length of observation 10's 95% interval for the mean"
     },
     {
      "what": "predicted",
@@ -210264,9 +211380,30 @@
       "source_kind": "table",
       "quote": "Table 15.3 Least Squares and Generalized Linear Model Analysis for the Grill Opening Panels Experiment ... 11            1.96         (0.61, 3.31)       3.36       (0.04, 10.49)       1.96       (1.16, 3.30)     10.45      2.14"
      },
-     "check": {
-      "manual": "a generalized linear model, which the library does not fit"
-     }
+     "check": [
+      {
+       "kind": "glm",
+       "model": "D + F + B:G",
+       "family": "poisson",
+       "key": "fitted.10.predicted",
+       "printed": "1.96"
+      },
+      {
+       "kind": "glm",
+       "model": "D + F + B:G",
+       "family": "poisson",
+       "key": "fitted.10.ci_low",
+       "printed": "1.16"
+      },
+      {
+       "kind": "glm",
+       "model": "D + F + B:G",
+       "family": "poisson",
+       "key": "fitted.10.ci_high",
+       "printed": "3.30"
+      }
+     ],
+     "analysis": "the library's analyze_experiment, analysis_type 'glm', family poisson (log link), model D + F + B:G: the fitted mean of observation 11 and its 95% interval, exp of the linear predictor's"
     },
     {
      "what": "interval length",
@@ -210278,8 +211415,13 @@
       "quote": "Table 15.3 Least Squares and Generalized Linear Model Analysis for the Grill Opening Panels Experiment ... 11            1.96         (0.61, 3.31)       3.36       (0.04, 10.49)       1.96       (1.16, 3.30)     10.45      2.14"
      },
      "check": {
-      "manual": "a generalized linear model, which the library does not fit"
-     }
+      "kind": "glm",
+      "model": "D + F + B:G",
+      "family": "poisson",
+      "key": "fitted.10.ci_length",
+      "printed": "2.14"
+     },
+     "analysis": "the library's analyze_experiment, analysis_type 'glm', family poisson (log link), model D + F + B:G: the length of observation 11's 95% interval for the mean"
     },
     {
      "what": "predicted",
@@ -210476,9 +211618,30 @@
       "source_kind": "table",
       "quote": "Table 15.3 Least Squares and Generalized Linear Model Analysis for the Grill Opening Panels Experiment ... 12            3.50         (2.15, 4.86)      11.78       (4.13, 23.10)       8.54      (5.62, 12.98)     18.96      7.35"
      },
-     "check": {
-      "manual": "a generalized linear model, which the library does not fit"
-     }
+     "check": [
+      {
+       "kind": "glm",
+       "model": "D + F + B:G",
+       "family": "poisson",
+       "key": "fitted.11.predicted",
+       "printed": "8.54"
+      },
+      {
+       "kind": "glm",
+       "model": "D + F + B:G",
+       "family": "poisson",
+       "key": "fitted.11.ci_low",
+       "printed": "5.62"
+      },
+      {
+       "kind": "glm",
+       "model": "D + F + B:G",
+       "family": "poisson",
+       "key": "fitted.11.ci_high",
+       "printed": "12.98"
+      }
+     ],
+     "analysis": "the library's analyze_experiment, analysis_type 'glm', family poisson (log link), model D + F + B:G: the fitted mean of observation 12 and its 95% interval, exp of the linear predictor's"
     },
     {
      "what": "interval length",
@@ -210490,8 +211653,13 @@
       "quote": "Table 15.3 Least Squares and Generalized Linear Model Analysis for the Grill Opening Panels Experiment ... 12            3.50         (2.15, 4.86)      11.78       (4.13, 23.10)       8.54      (5.62, 12.98)     18.96      7.35"
      },
      "check": {
-      "manual": "a generalized linear model, which the library does not fit"
-     }
+      "kind": "glm",
+      "model": "D + F + B:G",
+      "family": "poisson",
+      "key": "fitted.11.ci_length",
+      "printed": "7.35"
+     },
+     "analysis": "the library's analyze_experiment, analysis_type 'glm', family poisson (log link), model D + F + B:G: the length of observation 12's 95% interval for the mean"
     },
     {
      "what": "predicted",
@@ -210686,9 +211854,30 @@
       "source_kind": "table",
       "quote": "Table 15.3 Least Squares and Generalized Linear Model Analysis for the Grill Opening Panels Experiment ... 13            1.96         (0.61, 3.31)       3.36       (0.04, 10.49)       1.96       (1.16, 3.30)     10.45      2.14"
      },
-     "check": {
-      "manual": "a generalized linear model, which the library does not fit"
-     }
+     "check": [
+      {
+       "kind": "glm",
+       "model": "D + F + B:G",
+       "family": "poisson",
+       "key": "fitted.12.predicted",
+       "printed": "1.96"
+      },
+      {
+       "kind": "glm",
+       "model": "D + F + B:G",
+       "family": "poisson",
+       "key": "fitted.12.ci_low",
+       "printed": "1.16"
+      },
+      {
+       "kind": "glm",
+       "model": "D + F + B:G",
+       "family": "poisson",
+       "key": "fitted.12.ci_high",
+       "printed": "3.30"
+      }
+     ],
+     "analysis": "the library's analyze_experiment, analysis_type 'glm', family poisson (log link), model D + F + B:G: the fitted mean of observation 13 and its 95% interval, exp of the linear predictor's"
     },
     {
      "what": "interval length",
@@ -210700,8 +211889,13 @@
       "quote": "Table 15.3 Least Squares and Generalized Linear Model Analysis for the Grill Opening Panels Experiment ... 13            1.96         (0.61, 3.31)       3.36       (0.04, 10.49)       1.96       (1.16, 3.30)     10.45      2.14"
      },
      "check": {
-      "manual": "a generalized linear model, which the library does not fit"
-     }
+      "kind": "glm",
+      "model": "D + F + B:G",
+      "family": "poisson",
+      "key": "fitted.12.ci_length",
+      "printed": "2.14"
+     },
+     "analysis": "the library's analyze_experiment, analysis_type 'glm', family poisson (log link), model D + F + B:G: the length of observation 13's 95% interval for the mean"
     },
     {
      "what": "predicted",
@@ -210898,9 +212092,30 @@
       "source_kind": "table",
       "quote": "Table 15.3 Least Squares and Generalized Linear Model Analysis for the Grill Opening Panels Experiment ... 14            3.50         (2.15, 4.86)      11.78       (4.13, 23.10)       8.54      (5.62, 12.98)     18.97      7.35"
      },
-     "check": {
-      "manual": "a generalized linear model, which the library does not fit"
-     }
+     "check": [
+      {
+       "kind": "glm",
+       "model": "D + F + B:G",
+       "family": "poisson",
+       "key": "fitted.13.predicted",
+       "printed": "8.54"
+      },
+      {
+       "kind": "glm",
+       "model": "D + F + B:G",
+       "family": "poisson",
+       "key": "fitted.13.ci_low",
+       "printed": "5.62"
+      },
+      {
+       "kind": "glm",
+       "model": "D + F + B:G",
+       "family": "poisson",
+       "key": "fitted.13.ci_high",
+       "printed": "12.98"
+      }
+     ],
+     "analysis": "the library's analyze_experiment, analysis_type 'glm', family poisson (log link), model D + F + B:G: the fitted mean of observation 14 and its 95% interval, exp of the linear predictor's"
     },
     {
      "what": "interval length",
@@ -210912,8 +212127,13 @@
       "quote": "Table 15.3 Least Squares and Generalized Linear Model Analysis for the Grill Opening Panels Experiment ... 14            3.50         (2.15, 4.86)      11.78       (4.13, 23.10)       8.54      (5.62, 12.98)     18.97      7.35"
      },
      "check": {
-      "manual": "a generalized linear model, which the library does not fit"
-     }
+      "kind": "glm",
+      "model": "D + F + B:G",
+      "family": "poisson",
+      "key": "fitted.13.ci_length",
+      "printed": "7.35"
+     },
+     "analysis": "the library's analyze_experiment, analysis_type 'glm', family poisson (log link), model D + F + B:G: the length of observation 14's 95% interval for the mean"
     },
     {
      "what": "predicted",
@@ -211066,9 +212286,30 @@
       "source_kind": "table",
       "quote": "Table 15.3 Least Squares and Generalized Linear Model Analysis for the Grill Opening Panels Experiment ... 15            1.08       (−0.28, 2.43)        0.71           (*, 5.41)       0.81       (0.42, 1.56)         *      1.13"
      },
-     "check": {
-      "manual": "a generalized linear model, which the library does not fit"
-     }
+     "check": [
+      {
+       "kind": "glm",
+       "model": "D + F + B:G",
+       "family": "poisson",
+       "key": "fitted.14.predicted",
+       "printed": "0.81"
+      },
+      {
+       "kind": "glm",
+       "model": "D + F + B:G",
+       "family": "poisson",
+       "key": "fitted.14.ci_low",
+       "printed": "0.42"
+      },
+      {
+       "kind": "glm",
+       "model": "D + F + B:G",
+       "family": "poisson",
+       "key": "fitted.14.ci_high",
+       "printed": "1.56"
+      }
+     ],
+     "analysis": "the library's analyze_experiment, analysis_type 'glm', family poisson (log link), model D + F + B:G: the fitted mean of observation 15 and its 95% interval, exp of the linear predictor's"
     },
     {
      "what": "interval length",
@@ -211080,8 +212321,13 @@
       "quote": "Table 15.3 Least Squares and Generalized Linear Model Analysis for the Grill Opening Panels Experiment ... 15            1.08       (−0.28, 2.43)        0.71           (*, 5.41)       0.81       (0.42, 1.56)         *      1.13"
      },
      "check": {
-      "manual": "a generalized linear model, which the library does not fit"
-     }
+      "kind": "glm",
+      "model": "D + F + B:G",
+      "family": "poisson",
+      "key": "fitted.14.ci_length",
+      "printed": "1.13"
+     },
+     "analysis": "the library's analyze_experiment, analysis_type 'glm', family poisson (log link), model D + F + B:G: the length of observation 15's 95% interval for the mean"
     },
     {
      "what": "predicted",
@@ -211202,9 +212448,30 @@
       "source_kind": "table",
       "quote": "Table 15.3 Least Squares and Generalized Linear Model Analysis for the Grill Opening Panels Experiment ... 16           −0.47       (−1.82, 0.89)           *           (*, 0.36)       0.19       (0.09, 0.38)         *      0.29"
      },
-     "check": {
-      "manual": "a generalized linear model, which the library does not fit"
-     }
+     "check": [
+      {
+       "kind": "glm",
+       "model": "D + F + B:G",
+       "family": "poisson",
+       "key": "fitted.15.predicted",
+       "printed": "0.19"
+      },
+      {
+       "kind": "glm",
+       "model": "D + F + B:G",
+       "family": "poisson",
+       "key": "fitted.15.ci_low",
+       "printed": "0.09"
+      },
+      {
+       "kind": "glm",
+       "model": "D + F + B:G",
+       "family": "poisson",
+       "key": "fitted.15.ci_high",
+       "printed": "0.38"
+      }
+     ],
+     "analysis": "the library's analyze_experiment, analysis_type 'glm', family poisson (log link), model D + F + B:G: the fitted mean of observation 16 and its 95% interval, exp of the linear predictor's"
     },
     {
      "what": "interval length",
@@ -211216,8 +212483,13 @@
       "quote": "Table 15.3 Least Squares and Generalized Linear Model Analysis for the Grill Opening Panels Experiment ... 16           −0.47       (−1.82, 0.89)           *           (*, 0.36)       0.19       (0.09, 0.38)         *      0.29"
      },
      "check": {
-      "manual": "a generalized linear model, which the library does not fit"
-     }
+      "kind": "glm",
+      "model": "D + F + B:G",
+      "family": "poisson",
+      "key": "fitted.15.ci_length",
+      "printed": "0.29"
+     },
+     "analysis": "the library's analyze_experiment, analysis_type 'glm', family poisson (log link), model D + F + B:G: the length of observation 16's 95% interval for the mean"
     },
     {
      "what": "fitted model",
@@ -211228,9 +212500,41 @@
       "source_kind": "prose",
       "quote": "ŷ = e^(1.128 − 0.896x4 − 1.176x6 − 0.737x2x7)"
      },
-     "check": {
-      "manual": "a generalized linear model, which the library does not fit"
-     }
+     "check": [
+      {
+       "kind": "glm",
+       "model": "D + F + B:G",
+       "family": "poisson",
+       "term": "Intercept",
+       "key": "coefficient",
+       "printed": "1.128"
+      },
+      {
+       "kind": "glm",
+       "model": "D + F + B:G",
+       "family": "poisson",
+       "term": "D",
+       "key": "coefficient",
+       "printed": "-0.896"
+      },
+      {
+       "kind": "glm",
+       "model": "D + F + B:G",
+       "family": "poisson",
+       "term": "F",
+       "key": "coefficient",
+       "printed": "-1.176"
+      },
+      {
+       "kind": "glm",
+       "model": "D + F + B:G",
+       "family": "poisson",
+       "term": "B:G",
+       "key": "coefficient",
+       "printed": "-0.737"
+      }
+     ],
+     "analysis": "the library's analyze_experiment, analysis_type 'glm', family poisson (log link), model D + F + B:G: the fitted equation's coefficients"
     }
    ]
   },
@@ -212104,9 +213408,39 @@
       "source_kind": "table",
       "quote": "Table 15.5 Least Squares and Generalized Linear Model Analysis for the Worsted Yarn Experiment ... 1   2.83      (2.76, 2.91)        682.50        (573.85, 811.52)    680.52       (583.83, 793.22)      237.67 209.39"
      },
-     "check": {
-      "manual": "a generalized linear model, which the library does not fit"
-     }
+     "check": [
+      {
+       "kind": "glm",
+       "model": "x1 + x2 + x3",
+       "family": "gamma",
+       "link": "log",
+       "dispersion": "ml",
+       "information": "observed",
+       "key": "fitted.0.predicted",
+       "printed": "680.52"
+      },
+      {
+       "kind": "glm",
+       "model": "x1 + x2 + x3",
+       "family": "gamma",
+       "link": "log",
+       "dispersion": "ml",
+       "information": "observed",
+       "key": "fitted.0.ci_low",
+       "printed": "583.83"
+      },
+      {
+       "kind": "glm",
+       "model": "x1 + x2 + x3",
+       "family": "gamma",
+       "link": "log",
+       "dispersion": "ml",
+       "information": "observed",
+       "key": "fitted.0.ci_high",
+       "printed": "793.22"
+      }
+     ],
+     "analysis": "the library's analyze_experiment, analysis_type 'glm', family gamma with a log link, model x1 + x2 + x3, with SAS GENMOD's conventions: the dispersion by maximum likelihood and the covariance from the observed information (R's defaults, Pearson's dispersion and the expected information, give wider intervals): the fitted mean of observation 1 and its 95% interval, exp of the linear predictor's"
     },
     {
      "what": "interval length",
@@ -212118,8 +213452,16 @@
       "quote": "Table 15.5 Least Squares and Generalized Linear Model Analysis for the Worsted Yarn Experiment ... 1   2.83      (2.76, 2.91)        682.50        (573.85, 811.52)    680.52       (583.83, 793.22)      237.67 209.39"
      },
      "check": {
-      "manual": "a generalized linear model, which the library does not fit"
-     }
+      "kind": "glm",
+      "model": "x1 + x2 + x3",
+      "family": "gamma",
+      "link": "log",
+      "dispersion": "ml",
+      "information": "observed",
+      "key": "fitted.0.ci_length",
+      "printed": "209.39"
+     },
+     "analysis": "the library's analyze_experiment, analysis_type 'glm', family gamma with a log link, model x1 + x2 + x3, with SAS GENMOD's conventions: the dispersion by maximum likelihood and the covariance from the observed information (R's defaults, Pearson's dispersion and the expected information, give wider intervals): the length of observation 1's 95% interval for the mean"
     },
     {
      "what": "predicted",
@@ -212278,9 +213620,39 @@
       "source_kind": "table",
       "quote": "Table 15.5 Least Squares and Generalized Linear Model Analysis for the Worsted Yarn Experiment ... 2   2.66      (2.60, 2.73)        460.26        (397.01, 533.46)    463.00       (407.05, 526.64)      136.45 119.59"
      },
-     "check": {
-      "manual": "a generalized linear model, which the library does not fit"
-     }
+     "check": [
+      {
+       "kind": "glm",
+       "model": "x1 + x2 + x3",
+       "family": "gamma",
+       "link": "log",
+       "dispersion": "ml",
+       "information": "observed",
+       "key": "fitted.1.predicted",
+       "printed": "463.00"
+      },
+      {
+       "kind": "glm",
+       "model": "x1 + x2 + x3",
+       "family": "gamma",
+       "link": "log",
+       "dispersion": "ml",
+       "information": "observed",
+       "key": "fitted.1.ci_low",
+       "printed": "407.05"
+      },
+      {
+       "kind": "glm",
+       "model": "x1 + x2 + x3",
+       "family": "gamma",
+       "link": "log",
+       "dispersion": "ml",
+       "information": "observed",
+       "key": "fitted.1.ci_high",
+       "printed": "526.64"
+      }
+     ],
+     "analysis": "the library's analyze_experiment, analysis_type 'glm', family gamma with a log link, model x1 + x2 + x3, with SAS GENMOD's conventions: the dispersion by maximum likelihood and the covariance from the observed information (R's defaults, Pearson's dispersion and the expected information, give wider intervals): the fitted mean of observation 2 and its 95% interval, exp of the linear predictor's"
     },
     {
      "what": "interval length",
@@ -212292,8 +213664,16 @@
       "quote": "Table 15.5 Least Squares and Generalized Linear Model Analysis for the Worsted Yarn Experiment ... 2   2.66      (2.60, 2.73)        460.26        (397.01, 533.46)    463.00       (407.05, 526.64)      136.45 119.59"
      },
      "check": {
-      "manual": "a generalized linear model, which the library does not fit"
-     }
+      "kind": "glm",
+      "model": "x1 + x2 + x3",
+      "family": "gamma",
+      "link": "log",
+      "dispersion": "ml",
+      "information": "observed",
+      "key": "fitted.1.ci_length",
+      "printed": "119.59"
+     },
+     "analysis": "the library's analyze_experiment, analysis_type 'glm', family gamma with a log link, model x1 + x2 + x3, with SAS GENMOD's conventions: the dispersion by maximum likelihood and the covariance from the observed information (R's defaults, Pearson's dispersion and the expected information, give wider intervals): the length of observation 2's 95% interval for the mean"
     },
     {
      "what": "predicted",
@@ -212452,9 +213832,39 @@
       "source_kind": "table",
       "quote": "Table 15.5 Least Squares and Generalized Linear Model Analysis for the Worsted Yarn Experiment ... 3   2.49      (2.42, 2.57)        310.38        (260.98, 369.06)    315.01       (271.49, 365.49)      108.09   94.00"
      },
-     "check": {
-      "manual": "a generalized linear model, which the library does not fit"
-     }
+     "check": [
+      {
+       "kind": "glm",
+       "model": "x1 + x2 + x3",
+       "family": "gamma",
+       "link": "log",
+       "dispersion": "ml",
+       "information": "observed",
+       "key": "fitted.2.predicted",
+       "printed": "315.01"
+      },
+      {
+       "kind": "glm",
+       "model": "x1 + x2 + x3",
+       "family": "gamma",
+       "link": "log",
+       "dispersion": "ml",
+       "information": "observed",
+       "key": "fitted.2.ci_low",
+       "printed": "271.49"
+      },
+      {
+       "kind": "glm",
+       "model": "x1 + x2 + x3",
+       "family": "gamma",
+       "link": "log",
+       "dispersion": "ml",
+       "information": "observed",
+       "key": "fitted.2.ci_high",
+       "printed": "365.49"
+      }
+     ],
+     "analysis": "the library's analyze_experiment, analysis_type 'glm', family gamma with a log link, model x1 + x2 + x3, with SAS GENMOD's conventions: the dispersion by maximum likelihood and the covariance from the observed information (R's defaults, Pearson's dispersion and the expected information, give wider intervals): the fitted mean of observation 3 and its 95% interval, exp of the linear predictor's"
     },
     {
      "what": "interval length",
@@ -212466,8 +213876,16 @@
       "quote": "Table 15.5 Least Squares and Generalized Linear Model Analysis for the Worsted Yarn Experiment ... 3   2.49      (2.42, 2.57)        310.38        (260.98, 369.06)    315.01       (271.49, 365.49)      108.09   94.00"
      },
      "check": {
-      "manual": "a generalized linear model, which the library does not fit"
-     }
+      "kind": "glm",
+      "model": "x1 + x2 + x3",
+      "family": "gamma",
+      "link": "log",
+      "dispersion": "ml",
+      "information": "observed",
+      "key": "fitted.2.ci_length",
+      "printed": "94.00"
+     },
+     "analysis": "the library's analyze_experiment, analysis_type 'glm', family gamma with a log link, model x1 + x2 + x3, with SAS GENMOD's conventions: the dispersion by maximum likelihood and the covariance from the observed information (R's defaults, Pearson's dispersion and the expected information, give wider intervals): the length of observation 3's 95% interval for the mean"
     },
     {
      "what": "predicted",
@@ -212626,9 +214044,39 @@
       "source_kind": "table",
       "quote": "Table 15.5 Least Squares and Generalized Linear Model Analysis for the Worsted Yarn Experiment ... 4   2.56      (2.50, 2.62)        363.25        (313.33, 421.11)    361.96       (317.75, 412.33)      107.79   94.58"
      },
-     "check": {
-      "manual": "a generalized linear model, which the library does not fit"
-     }
+     "check": [
+      {
+       "kind": "glm",
+       "model": "x1 + x2 + x3",
+       "family": "gamma",
+       "link": "log",
+       "dispersion": "ml",
+       "information": "observed",
+       "key": "fitted.3.predicted",
+       "printed": "361.96"
+      },
+      {
+       "kind": "glm",
+       "model": "x1 + x2 + x3",
+       "family": "gamma",
+       "link": "log",
+       "dispersion": "ml",
+       "information": "observed",
+       "key": "fitted.3.ci_low",
+       "printed": "317.75"
+      },
+      {
+       "kind": "glm",
+       "model": "x1 + x2 + x3",
+       "family": "gamma",
+       "link": "log",
+       "dispersion": "ml",
+       "information": "observed",
+       "key": "fitted.3.ci_high",
+       "printed": "412.33"
+      }
+     ],
+     "analysis": "the library's analyze_experiment, analysis_type 'glm', family gamma with a log link, model x1 + x2 + x3, with SAS GENMOD's conventions: the dispersion by maximum likelihood and the covariance from the observed information (R's defaults, Pearson's dispersion and the expected information, give wider intervals): the fitted mean of observation 4 and its 95% interval, exp of the linear predictor's"
     },
     {
      "what": "interval length",
@@ -212640,8 +214088,16 @@
       "quote": "Table 15.5 Least Squares and Generalized Linear Model Analysis for the Worsted Yarn Experiment ... 4   2.56      (2.50, 2.62)        363.25        (313.33, 421.11)    361.96       (317.75, 412.33)      107.79   94.58"
      },
      "check": {
-      "manual": "a generalized linear model, which the library does not fit"
-     }
+      "kind": "glm",
+      "model": "x1 + x2 + x3",
+      "family": "gamma",
+      "link": "log",
+      "dispersion": "ml",
+      "information": "observed",
+      "key": "fitted.3.ci_length",
+      "printed": "94.58"
+     },
+     "analysis": "the library's analyze_experiment, analysis_type 'glm', family gamma with a log link, model x1 + x2 + x3, with SAS GENMOD's conventions: the dispersion by maximum likelihood and the covariance from the observed information (R's defaults, Pearson's dispersion and the expected information, give wider intervals): the length of observation 4's 95% interval for the mean"
     },
     {
      "what": "predicted",
@@ -212800,9 +214256,39 @@
       "source_kind": "table",
       "quote": "Table 15.5 Least Squares and Generalized Linear Model Analysis for the Worsted Yarn Experiment ... 5   2.39      (2.34, 2.44)        244.96        (217.92, 275.30)    246.26       (222.55, 272.51)       57.37   49.96"
      },
-     "check": {
-      "manual": "a generalized linear model, which the library does not fit"
-     }
+     "check": [
+      {
+       "kind": "glm",
+       "model": "x1 + x2 + x3",
+       "family": "gamma",
+       "link": "log",
+       "dispersion": "ml",
+       "information": "observed",
+       "key": "fitted.4.predicted",
+       "printed": "246.26"
+      },
+      {
+       "kind": "glm",
+       "model": "x1 + x2 + x3",
+       "family": "gamma",
+       "link": "log",
+       "dispersion": "ml",
+       "information": "observed",
+       "key": "fitted.4.ci_low",
+       "printed": "222.55"
+      },
+      {
+       "kind": "glm",
+       "model": "x1 + x2 + x3",
+       "family": "gamma",
+       "link": "log",
+       "dispersion": "ml",
+       "information": "observed",
+       "key": "fitted.4.ci_high",
+       "printed": "272.51"
+      }
+     ],
+     "analysis": "the library's analyze_experiment, analysis_type 'glm', family gamma with a log link, model x1 + x2 + x3, with SAS GENMOD's conventions: the dispersion by maximum likelihood and the covariance from the observed information (R's defaults, Pearson's dispersion and the expected information, give wider intervals): the fitted mean of observation 5 and its 95% interval, exp of the linear predictor's"
     },
     {
      "what": "interval length",
@@ -212814,8 +214300,16 @@
       "quote": "Table 15.5 Least Squares and Generalized Linear Model Analysis for the Worsted Yarn Experiment ... 5   2.39      (2.34, 2.44)        244.96        (217.92, 275.30)    246.26       (222.55, 272.51)       57.37   49.96"
      },
      "check": {
-      "manual": "a generalized linear model, which the library does not fit"
-     }
+      "kind": "glm",
+      "model": "x1 + x2 + x3",
+      "family": "gamma",
+      "link": "log",
+      "dispersion": "ml",
+      "information": "observed",
+      "key": "fitted.4.ci_length",
+      "printed": "49.96"
+     },
+     "analysis": "the library's analyze_experiment, analysis_type 'glm', family gamma with a log link, model x1 + x2 + x3, with SAS GENMOD's conventions: the dispersion by maximum likelihood and the covariance from the observed information (R's defaults, Pearson's dispersion and the expected information, give wider intervals): the length of observation 5's 95% interval for the mean"
     },
     {
      "what": "predicted",
@@ -212974,9 +214468,39 @@
       "source_kind": "table",
       "quote": "Table 15.5 Least Squares and Generalized Linear Model Analysis for the Worsted Yarn Experiment ... 6   2.22      (2.15, 2.28)        165.20        (142.50, 191.47)    167.55       (147.67, 190.10)       48.97   42.42"
      },
-     "check": {
-      "manual": "a generalized linear model, which the library does not fit"
-     }
+     "check": [
+      {
+       "kind": "glm",
+       "model": "x1 + x2 + x3",
+       "family": "gamma",
+       "link": "log",
+       "dispersion": "ml",
+       "information": "observed",
+       "key": "fitted.5.predicted",
+       "printed": "167.55"
+      },
+      {
+       "kind": "glm",
+       "model": "x1 + x2 + x3",
+       "family": "gamma",
+       "link": "log",
+       "dispersion": "ml",
+       "information": "observed",
+       "key": "fitted.5.ci_low",
+       "printed": "147.67"
+      },
+      {
+       "kind": "glm",
+       "model": "x1 + x2 + x3",
+       "family": "gamma",
+       "link": "log",
+       "dispersion": "ml",
+       "information": "observed",
+       "key": "fitted.5.ci_high",
+       "printed": "190.10"
+      }
+     ],
+     "analysis": "the library's analyze_experiment, analysis_type 'glm', family gamma with a log link, model x1 + x2 + x3, with SAS GENMOD's conventions: the dispersion by maximum likelihood and the covariance from the observed information (R's defaults, Pearson's dispersion and the expected information, give wider intervals): the fitted mean of observation 6 and its 95% interval, exp of the linear predictor's"
     },
     {
      "what": "interval length",
@@ -212988,8 +214512,16 @@
       "quote": "Table 15.5 Least Squares and Generalized Linear Model Analysis for the Worsted Yarn Experiment ... 6   2.22      (2.15, 2.28)        165.20        (142.50, 191.47)    167.55       (147.67, 190.10)       48.97   42.42"
      },
      "check": {
-      "manual": "a generalized linear model, which the library does not fit"
-     }
+      "kind": "glm",
+      "model": "x1 + x2 + x3",
+      "family": "gamma",
+      "link": "log",
+      "dispersion": "ml",
+      "information": "observed",
+      "key": "fitted.5.ci_length",
+      "printed": "42.42"
+     },
+     "analysis": "the library's analyze_experiment, analysis_type 'glm', family gamma with a log link, model x1 + x2 + x3, with SAS GENMOD's conventions: the dispersion by maximum likelihood and the covariance from the observed information (R's defaults, Pearson's dispersion and the expected information, give wider intervals): the length of observation 6's 95% interval for the mean"
     },
     {
      "what": "predicted",
@@ -213148,9 +214680,39 @@
       "source_kind": "table",
       "quote": "Table 15.5 Least Squares and Generalized Linear Model Analysis for the Worsted Yarn Experiment ... 7   2.29      (2.21, 2.36)        193.33        (162.55, 229.93)    192.52       (165.69, 223.70)       67.38   58.01"
      },
-     "check": {
-      "manual": "a generalized linear model, which the library does not fit"
-     }
+     "check": [
+      {
+       "kind": "glm",
+       "model": "x1 + x2 + x3",
+       "family": "gamma",
+       "link": "log",
+       "dispersion": "ml",
+       "information": "observed",
+       "key": "fitted.6.predicted",
+       "printed": "192.52"
+      },
+      {
+       "kind": "glm",
+       "model": "x1 + x2 + x3",
+       "family": "gamma",
+       "link": "log",
+       "dispersion": "ml",
+       "information": "observed",
+       "key": "fitted.6.ci_low",
+       "printed": "165.69"
+      },
+      {
+       "kind": "glm",
+       "model": "x1 + x2 + x3",
+       "family": "gamma",
+       "link": "log",
+       "dispersion": "ml",
+       "information": "observed",
+       "key": "fitted.6.ci_high",
+       "printed": "223.70"
+      }
+     ],
+     "analysis": "the library's analyze_experiment, analysis_type 'glm', family gamma with a log link, model x1 + x2 + x3, with SAS GENMOD's conventions: the dispersion by maximum likelihood and the covariance from the observed information (R's defaults, Pearson's dispersion and the expected information, give wider intervals): the fitted mean of observation 7 and its 95% interval, exp of the linear predictor's"
     },
     {
      "what": "interval length",
@@ -213162,8 +214724,16 @@
       "quote": "Table 15.5 Least Squares and Generalized Linear Model Analysis for the Worsted Yarn Experiment ... 7   2.29      (2.21, 2.36)        193.33        (162.55, 229.93)    192.52       (165.69, 223.70)       67.38   58.01"
      },
      "check": {
-      "manual": "a generalized linear model, which the library does not fit"
-     }
+      "kind": "glm",
+      "model": "x1 + x2 + x3",
+      "family": "gamma",
+      "link": "log",
+      "dispersion": "ml",
+      "information": "observed",
+      "key": "fitted.6.ci_length",
+      "printed": "58.01"
+     },
+     "analysis": "the library's analyze_experiment, analysis_type 'glm', family gamma with a log link, model x1 + x2 + x3, with SAS GENMOD's conventions: the dispersion by maximum likelihood and the covariance from the observed information (R's defaults, Pearson's dispersion and the expected information, give wider intervals): the length of observation 7's 95% interval for the mean"
     },
     {
      "what": "predicted",
@@ -213322,9 +214892,39 @@
       "source_kind": "table",
       "quote": "Table 15.5 Least Squares and Generalized Linear Model Analysis for the Worsted Yarn Experiment ... 8   2.12      (2.05, 2.18)        130.38        (112.46, 151.15)    130.98       (115.43, 148.64)       38.69   33.22"
      },
-     "check": {
-      "manual": "a generalized linear model, which the library does not fit"
-     }
+     "check": [
+      {
+       "kind": "glm",
+       "model": "x1 + x2 + x3",
+       "family": "gamma",
+       "link": "log",
+       "dispersion": "ml",
+       "information": "observed",
+       "key": "fitted.7.predicted",
+       "printed": "130.98"
+      },
+      {
+       "kind": "glm",
+       "model": "x1 + x2 + x3",
+       "family": "gamma",
+       "link": "log",
+       "dispersion": "ml",
+       "information": "observed",
+       "key": "fitted.7.ci_low",
+       "printed": "115.43"
+      },
+      {
+       "kind": "glm",
+       "model": "x1 + x2 + x3",
+       "family": "gamma",
+       "link": "log",
+       "dispersion": "ml",
+       "information": "observed",
+       "key": "fitted.7.ci_high",
+       "printed": "148.64"
+      }
+     ],
+     "analysis": "the library's analyze_experiment, analysis_type 'glm', family gamma with a log link, model x1 + x2 + x3, with SAS GENMOD's conventions: the dispersion by maximum likelihood and the covariance from the observed information (R's defaults, Pearson's dispersion and the expected information, give wider intervals): the fitted mean of observation 8 and its 95% interval, exp of the linear predictor's"
     },
     {
      "what": "interval length",
@@ -213336,8 +214936,16 @@
       "quote": "Table 15.5 Least Squares and Generalized Linear Model Analysis for the Worsted Yarn Experiment ... 8   2.12      (2.05, 2.18)        130.38        (112.46, 151.15)    130.98       (115.43, 148.64)       38.69   33.22"
      },
      "check": {
-      "manual": "a generalized linear model, which the library does not fit"
-     }
+      "kind": "glm",
+      "model": "x1 + x2 + x3",
+      "family": "gamma",
+      "link": "log",
+      "dispersion": "ml",
+      "information": "observed",
+      "key": "fitted.7.ci_length",
+      "printed": "33.22"
+     },
+     "analysis": "the library's analyze_experiment, analysis_type 'glm', family gamma with a log link, model x1 + x2 + x3, with SAS GENMOD's conventions: the dispersion by maximum likelihood and the covariance from the observed information (R's defaults, Pearson's dispersion and the expected information, give wider intervals): the length of observation 8's 95% interval for the mean"
     },
     {
      "what": "predicted",
@@ -213497,9 +215105,39 @@
       "source_kind": "table",
       "quote": "Table 15.5 Least Squares and Generalized Linear Model Analysis for the Worsted Yarn Experiment ... 9   1.94      (1.87, 2.02)         87.92         (73.93, 104.54)     89.12        (76.87, 103.32)       30.62   26.45"
      },
-     "check": {
-      "manual": "a generalized linear model, which the library does not fit"
-     }
+     "check": [
+      {
+       "kind": "glm",
+       "model": "x1 + x2 + x3",
+       "family": "gamma",
+       "link": "log",
+       "dispersion": "ml",
+       "information": "observed",
+       "key": "fitted.8.predicted",
+       "printed": "89.12"
+      },
+      {
+       "kind": "glm",
+       "model": "x1 + x2 + x3",
+       "family": "gamma",
+       "link": "log",
+       "dispersion": "ml",
+       "information": "observed",
+       "key": "fitted.8.ci_low",
+       "printed": "76.87"
+      },
+      {
+       "kind": "glm",
+       "model": "x1 + x2 + x3",
+       "family": "gamma",
+       "link": "log",
+       "dispersion": "ml",
+       "information": "observed",
+       "key": "fitted.8.ci_high",
+       "printed": "103.32"
+      }
+     ],
+     "analysis": "the library's analyze_experiment, analysis_type 'glm', family gamma with a log link, model x1 + x2 + x3, with SAS GENMOD's conventions: the dispersion by maximum likelihood and the covariance from the observed information (R's defaults, Pearson's dispersion and the expected information, give wider intervals): the fitted mean of observation 9 and its 95% interval, exp of the linear predictor's"
     },
     {
      "what": "interval length",
@@ -213511,8 +215149,16 @@
       "quote": "Table 15.5 Least Squares and Generalized Linear Model Analysis for the Worsted Yarn Experiment ... 9   1.94      (1.87, 2.02)         87.92         (73.93, 104.54)     89.12        (76.87, 103.32)       30.62   26.45"
      },
      "check": {
-      "manual": "a generalized linear model, which the library does not fit"
-     }
+      "kind": "glm",
+      "model": "x1 + x2 + x3",
+      "family": "gamma",
+      "link": "log",
+      "dispersion": "ml",
+      "information": "observed",
+      "key": "fitted.8.ci_length",
+      "printed": "26.45"
+     },
+     "analysis": "the library's analyze_experiment, analysis_type 'glm', family gamma with a log link, model x1 + x2 + x3, with SAS GENMOD's conventions: the dispersion by maximum likelihood and the covariance from the observed information (R's defaults, Pearson's dispersion and the expected information, give wider intervals): the length of observation 9's 95% interval for the mean"
     },
     {
      "what": "predicted",
@@ -213671,9 +215317,39 @@
       "source_kind": "table",
       "quote": "Table 15.5 Least Squares and Generalized Linear Model Analysis for the Worsted Yarn Experiment ... 10   3.20      (3.13, 3.26)       1569.28      (1353.94, 1819.28)   1580.00     (1390.00, 1797.00)      465.34 407.00"
      },
-     "check": {
-      "manual": "a generalized linear model, which the library does not fit"
-     }
+     "check": [
+      {
+       "kind": "glm",
+       "model": "x1 + x2 + x3",
+       "family": "gamma",
+       "link": "log",
+       "dispersion": "ml",
+       "information": "observed",
+       "key": "fitted.9.predicted",
+       "printed": "1580"
+      },
+      {
+       "kind": "glm",
+       "model": "x1 + x2 + x3",
+       "family": "gamma",
+       "link": "log",
+       "dispersion": "ml",
+       "information": "observed",
+       "key": "fitted.9.ci_low",
+       "printed": "1390"
+      },
+      {
+       "kind": "glm",
+       "model": "x1 + x2 + x3",
+       "family": "gamma",
+       "link": "log",
+       "dispersion": "ml",
+       "information": "observed",
+       "key": "fitted.9.ci_high",
+       "printed": "1797"
+      }
+     ],
+     "analysis": "the library's analyze_experiment, analysis_type 'glm', family gamma with a log link, model x1 + x2 + x3, with SAS GENMOD's conventions: the dispersion by maximum likelihood and the covariance from the observed information (R's defaults, Pearson's dispersion and the expected information, give wider intervals): the fitted mean of observation 10 and its 95% interval, exp of the linear predictor's; a value above 1000 is printed to four significant figures (1580.00 for 1580.3), and is compared at that precision"
     },
     {
      "what": "interval length",
@@ -213685,8 +215361,17 @@
       "quote": "Table 15.5 Least Squares and Generalized Linear Model Analysis for the Worsted Yarn Experiment ... 10   3.20      (3.13, 3.26)       1569.28      (1353.94, 1819.28)   1580.00     (1390.00, 1797.00)      465.34 407.00"
      },
      "check": {
-      "manual": "a generalized linear model, which the library does not fit"
-     }
+      "kind": "glm",
+      "model": "x1 + x2 + x3",
+      "family": "gamma",
+      "link": "log",
+      "dispersion": "ml",
+      "information": "observed",
+      "key": "fitted.9.ci_length",
+      "printed": "407",
+      "of_rounded": 2
+     },
+     "analysis": "the library's analyze_experiment, analysis_type 'glm', family gamma with a log link, model x1 + x2 + x3, with SAS GENMOD's conventions: the dispersion by maximum likelihood and the covariance from the observed information (R's defaults, Pearson's dispersion and the expected information, give wider intervals): the length of observation 10's 95% interval for the mean; a limit above 1000 is printed to four significant figures, so the length, the difference of two printed limits, is compared to the unit with both roundings"
     },
     {
      "what": "predicted",
@@ -213846,9 +215531,39 @@
       "source_kind": "table",
       "quote": "Table 15.5 Least Squares and Generalized Linear Model Analysis for the Worsted Yarn Experiment ... 11   3.02      (2.97, 3.08)       1058.28       (941.67, 1189.60)   1075.00      (972.52, 1189.00)      247.92 216.48"
      },
-     "check": {
-      "manual": "a generalized linear model, which the library does not fit"
-     }
+     "check": [
+      {
+       "kind": "glm",
+       "model": "x1 + x2 + x3",
+       "family": "gamma",
+       "link": "log",
+       "dispersion": "ml",
+       "information": "observed",
+       "key": "fitted.10.predicted",
+       "printed": "1075"
+      },
+      {
+       "kind": "glm",
+       "model": "x1 + x2 + x3",
+       "family": "gamma",
+       "link": "log",
+       "dispersion": "ml",
+       "information": "observed",
+       "key": "fitted.10.ci_low",
+       "printed": "972.52"
+      },
+      {
+       "kind": "glm",
+       "model": "x1 + x2 + x3",
+       "family": "gamma",
+       "link": "log",
+       "dispersion": "ml",
+       "information": "observed",
+       "key": "fitted.10.ci_high",
+       "printed": "1189"
+      }
+     ],
+     "analysis": "the library's analyze_experiment, analysis_type 'glm', family gamma with a log link, model x1 + x2 + x3, with SAS GENMOD's conventions: the dispersion by maximum likelihood and the covariance from the observed information (R's defaults, Pearson's dispersion and the expected information, give wider intervals): the fitted mean of observation 11 and its 95% interval, exp of the linear predictor's; a value above 1000 is printed to four significant figures (1580.00 for 1580.3), and is compared at that precision"
     },
     {
      "what": "interval length",
@@ -213860,8 +215575,17 @@
       "quote": "Table 15.5 Least Squares and Generalized Linear Model Analysis for the Worsted Yarn Experiment ... 11   3.02      (2.97, 3.08)       1058.28       (941.67, 1189.60)   1075.00      (972.52, 1189.00)      247.92 216.48"
      },
      "check": {
-      "manual": "a generalized linear model, which the library does not fit"
-     }
+      "kind": "glm",
+      "model": "x1 + x2 + x3",
+      "family": "gamma",
+      "link": "log",
+      "dispersion": "ml",
+      "information": "observed",
+      "key": "fitted.10.ci_length",
+      "printed": "216",
+      "of_rounded": 2
+     },
+     "analysis": "the library's analyze_experiment, analysis_type 'glm', family gamma with a log link, model x1 + x2 + x3, with SAS GENMOD's conventions: the dispersion by maximum likelihood and the covariance from the observed information (R's defaults, Pearson's dispersion and the expected information, give wider intervals): the length of observation 11's 95% interval for the mean; a limit above 1000 is printed to four significant figures, so the length, the difference of two printed limits, is compared to the unit with both roundings"
     },
     {
      "what": "predicted",
@@ -214020,9 +215744,39 @@
       "source_kind": "table",
       "quote": "Table 15.5 Least Squares and Generalized Linear Model Analysis for the Worsted Yarn Experiment ... 12   2.85      (2.79, 2.92)        713.67        (615.60, 827.37)    731.50       (644.35, 830.44)      211.77 186.09"
      },
-     "check": {
-      "manual": "a generalized linear model, which the library does not fit"
-     }
+     "check": [
+      {
+       "kind": "glm",
+       "model": "x1 + x2 + x3",
+       "family": "gamma",
+       "link": "log",
+       "dispersion": "ml",
+       "information": "observed",
+       "key": "fitted.11.predicted",
+       "printed": "731.50"
+      },
+      {
+       "kind": "glm",
+       "model": "x1 + x2 + x3",
+       "family": "gamma",
+       "link": "log",
+       "dispersion": "ml",
+       "information": "observed",
+       "key": "fitted.11.ci_low",
+       "printed": "644.35"
+      },
+      {
+       "kind": "glm",
+       "model": "x1 + x2 + x3",
+       "family": "gamma",
+       "link": "log",
+       "dispersion": "ml",
+       "information": "observed",
+       "key": "fitted.11.ci_high",
+       "printed": "830.44"
+      }
+     ],
+     "analysis": "the library's analyze_experiment, analysis_type 'glm', family gamma with a log link, model x1 + x2 + x3, with SAS GENMOD's conventions: the dispersion by maximum likelihood and the covariance from the observed information (R's defaults, Pearson's dispersion and the expected information, give wider intervals): the fitted mean of observation 12 and its 95% interval, exp of the linear predictor's"
     },
     {
      "what": "interval length",
@@ -214034,8 +215788,16 @@
       "quote": "Table 15.5 Least Squares and Generalized Linear Model Analysis for the Worsted Yarn Experiment ... 12   2.85      (2.79, 2.92)        713.67        (615.60, 827.37)    731.50       (644.35, 830.44)      211.77 186.09"
      },
      "check": {
-      "manual": "a generalized linear model, which the library does not fit"
-     }
+      "kind": "glm",
+      "model": "x1 + x2 + x3",
+      "family": "gamma",
+      "link": "log",
+      "dispersion": "ml",
+      "information": "observed",
+      "key": "fitted.11.ci_length",
+      "printed": "186.09"
+     },
+     "analysis": "the library's analyze_experiment, analysis_type 'glm', family gamma with a log link, model x1 + x2 + x3, with SAS GENMOD's conventions: the dispersion by maximum likelihood and the covariance from the observed information (R's defaults, Pearson's dispersion and the expected information, give wider intervals): the length of observation 12's 95% interval for the mean"
     },
     {
      "what": "predicted",
@@ -214194,9 +215956,39 @@
       "source_kind": "table",
       "quote": "Table 15.5 Least Squares and Generalized Linear Model Analysis for the Worsted Yarn Experiment ... 13   2.92      (2.87, 2.97)        835.41        (743.19, 938.86)    840.54       (759.65, 930.04)      195.67 170.39"
      },
-     "check": {
-      "manual": "a generalized linear model, which the library does not fit"
-     }
+     "check": [
+      {
+       "kind": "glm",
+       "model": "x1 + x2 + x3",
+       "family": "gamma",
+       "link": "log",
+       "dispersion": "ml",
+       "information": "observed",
+       "key": "fitted.12.predicted",
+       "printed": "840.54"
+      },
+      {
+       "kind": "glm",
+       "model": "x1 + x2 + x3",
+       "family": "gamma",
+       "link": "log",
+       "dispersion": "ml",
+       "information": "observed",
+       "key": "fitted.12.ci_low",
+       "printed": "759.65"
+      },
+      {
+       "kind": "glm",
+       "model": "x1 + x2 + x3",
+       "family": "gamma",
+       "link": "log",
+       "dispersion": "ml",
+       "information": "observed",
+       "key": "fitted.12.ci_high",
+       "printed": "930.04"
+      }
+     ],
+     "analysis": "the library's analyze_experiment, analysis_type 'glm', family gamma with a log link, model x1 + x2 + x3, with SAS GENMOD's conventions: the dispersion by maximum likelihood and the covariance from the observed information (R's defaults, Pearson's dispersion and the expected information, give wider intervals): the fitted mean of observation 13 and its 95% interval, exp of the linear predictor's"
     },
     {
      "what": "interval length",
@@ -214208,8 +216000,16 @@
       "quote": "Table 15.5 Least Squares and Generalized Linear Model Analysis for the Worsted Yarn Experiment ... 13   2.92      (2.87, 2.97)        835.41        (743.19, 938.86)    840.54       (759.65, 930.04)      195.67 170.39"
      },
      "check": {
-      "manual": "a generalized linear model, which the library does not fit"
-     }
+      "kind": "glm",
+      "model": "x1 + x2 + x3",
+      "family": "gamma",
+      "link": "log",
+      "dispersion": "ml",
+      "information": "observed",
+      "key": "fitted.12.ci_length",
+      "printed": "170.39"
+     },
+     "analysis": "the library's analyze_experiment, analysis_type 'glm', family gamma with a log link, model x1 + x2 + x3, with SAS GENMOD's conventions: the dispersion by maximum likelihood and the covariance from the observed information (R's defaults, Pearson's dispersion and the expected information, give wider intervals): the length of observation 13's 95% interval for the mean"
     },
     {
      "what": "predicted",
@@ -214368,9 +216168,39 @@
       "source_kind": "table",
       "quote": "Table 15.5 Least Squares and Generalized Linear Model Analysis for the Worsted Yarn Experiment ... 14   2.75      (2.72, 2.78)        563.25        (523.24, 606.46)    571.87       (536.67, 609.38)       83.22   72.70"
      },
-     "check": {
-      "manual": "a generalized linear model, which the library does not fit"
-     }
+     "check": [
+      {
+       "kind": "glm",
+       "model": "x1 + x2 + x3",
+       "family": "gamma",
+       "link": "log",
+       "dispersion": "ml",
+       "information": "observed",
+       "key": "fitted.13.predicted",
+       "printed": "571.87"
+      },
+      {
+       "kind": "glm",
+       "model": "x1 + x2 + x3",
+       "family": "gamma",
+       "link": "log",
+       "dispersion": "ml",
+       "information": "observed",
+       "key": "fitted.13.ci_low",
+       "printed": "536.67"
+      },
+      {
+       "kind": "glm",
+       "model": "x1 + x2 + x3",
+       "family": "gamma",
+       "link": "log",
+       "dispersion": "ml",
+       "information": "observed",
+       "key": "fitted.13.ci_high",
+       "printed": "609.38"
+      }
+     ],
+     "analysis": "the library's analyze_experiment, analysis_type 'glm', family gamma with a log link, model x1 + x2 + x3, with SAS GENMOD's conventions: the dispersion by maximum likelihood and the covariance from the observed information (R's defaults, Pearson's dispersion and the expected information, give wider intervals): the fitted mean of observation 14 and its 95% interval, exp of the linear predictor's"
     },
     {
      "what": "interval length",
@@ -214382,8 +216212,16 @@
       "quote": "Table 15.5 Least Squares and Generalized Linear Model Analysis for the Worsted Yarn Experiment ... 14   2.75      (2.72, 2.78)        563.25        (523.24, 606.46)    571.87       (536.67, 609.38)       83.22   72.70"
      },
      "check": {
-      "manual": "a generalized linear model, which the library does not fit"
-     }
+      "kind": "glm",
+      "model": "x1 + x2 + x3",
+      "family": "gamma",
+      "link": "log",
+      "dispersion": "ml",
+      "information": "observed",
+      "key": "fitted.13.ci_length",
+      "printed": "72.70"
+     },
+     "analysis": "the library's analyze_experiment, analysis_type 'glm', family gamma with a log link, model x1 + x2 + x3, with SAS GENMOD's conventions: the dispersion by maximum likelihood and the covariance from the observed information (R's defaults, Pearson's dispersion and the expected information, give wider intervals): the length of observation 14's 95% interval for the mean"
     },
     {
      "what": "predicted",
@@ -214542,9 +216380,39 @@
       "source_kind": "table",
       "quote": "Table 15.5 Least Squares and Generalized Linear Model Analysis for the Worsted Yarn Experiment ... 15   2.58      (2.53, 2.63)        379.84        (337.99, 426.97)    389.08       (351.64, 430.51)       88.99   78.87"
      },
-     "check": {
-      "manual": "a generalized linear model, which the library does not fit"
-     }
+     "check": [
+      {
+       "kind": "glm",
+       "model": "x1 + x2 + x3",
+       "family": "gamma",
+       "link": "log",
+       "dispersion": "ml",
+       "information": "observed",
+       "key": "fitted.14.predicted",
+       "printed": "389.08"
+      },
+      {
+       "kind": "glm",
+       "model": "x1 + x2 + x3",
+       "family": "gamma",
+       "link": "log",
+       "dispersion": "ml",
+       "information": "observed",
+       "key": "fitted.14.ci_low",
+       "printed": "351.64"
+      },
+      {
+       "kind": "glm",
+       "model": "x1 + x2 + x3",
+       "family": "gamma",
+       "link": "log",
+       "dispersion": "ml",
+       "information": "observed",
+       "key": "fitted.14.ci_high",
+       "printed": "430.51"
+      }
+     ],
+     "analysis": "the library's analyze_experiment, analysis_type 'glm', family gamma with a log link, model x1 + x2 + x3, with SAS GENMOD's conventions: the dispersion by maximum likelihood and the covariance from the observed information (R's defaults, Pearson's dispersion and the expected information, give wider intervals): the fitted mean of observation 15 and its 95% interval, exp of the linear predictor's"
     },
     {
      "what": "interval length",
@@ -214556,8 +216424,16 @@
       "quote": "Table 15.5 Least Squares and Generalized Linear Model Analysis for the Worsted Yarn Experiment ... 15   2.58      (2.53, 2.63)        379.84        (337.99, 426.97)    389.08       (351.64, 430.51)       88.99   78.87"
      },
      "check": {
-      "manual": "a generalized linear model, which the library does not fit"
-     }
+      "kind": "glm",
+      "model": "x1 + x2 + x3",
+      "family": "gamma",
+      "link": "log",
+      "dispersion": "ml",
+      "information": "observed",
+      "key": "fitted.14.ci_length",
+      "printed": "78.87"
+     },
+     "analysis": "the library's analyze_experiment, analysis_type 'glm', family gamma with a log link, model x1 + x2 + x3, with SAS GENMOD's conventions: the dispersion by maximum likelihood and the covariance from the observed information (R's defaults, Pearson's dispersion and the expected information, give wider intervals): the length of observation 15's 95% interval for the mean"
     },
     {
      "what": "predicted",
@@ -214716,9 +216592,39 @@
       "source_kind": "table",
       "quote": "Table 15.5 Least Squares and Generalized Linear Model Analysis for the Worsted Yarn Experiment ... 16   2.65      (2.58, 2.71)        444.63        (383.53, 515.35)    447.07       (393.81, 507.54)      131.82 113.74"
      },
-     "check": {
-      "manual": "a generalized linear model, which the library does not fit"
-     }
+     "check": [
+      {
+       "kind": "glm",
+       "model": "x1 + x2 + x3",
+       "family": "gamma",
+       "link": "log",
+       "dispersion": "ml",
+       "information": "observed",
+       "key": "fitted.15.predicted",
+       "printed": "447.07"
+      },
+      {
+       "kind": "glm",
+       "model": "x1 + x2 + x3",
+       "family": "gamma",
+       "link": "log",
+       "dispersion": "ml",
+       "information": "observed",
+       "key": "fitted.15.ci_low",
+       "printed": "393.81"
+      },
+      {
+       "kind": "glm",
+       "model": "x1 + x2 + x3",
+       "family": "gamma",
+       "link": "log",
+       "dispersion": "ml",
+       "information": "observed",
+       "key": "fitted.15.ci_high",
+       "printed": "507.54"
+      }
+     ],
+     "analysis": "the library's analyze_experiment, analysis_type 'glm', family gamma with a log link, model x1 + x2 + x3, with SAS GENMOD's conventions: the dispersion by maximum likelihood and the covariance from the observed information (R's defaults, Pearson's dispersion and the expected information, give wider intervals): the fitted mean of observation 16 and its 95% interval, exp of the linear predictor's"
     },
     {
      "what": "interval length",
@@ -214730,8 +216636,16 @@
       "quote": "Table 15.5 Least Squares and Generalized Linear Model Analysis for the Worsted Yarn Experiment ... 16   2.65      (2.58, 2.71)        444.63        (383.53, 515.35)    447.07       (393.81, 507.54)      131.82 113.74"
      },
      "check": {
-      "manual": "a generalized linear model, which the library does not fit"
-     }
+      "kind": "glm",
+      "model": "x1 + x2 + x3",
+      "family": "gamma",
+      "link": "log",
+      "dispersion": "ml",
+      "information": "observed",
+      "key": "fitted.15.ci_length",
+      "printed": "113.74"
+     },
+     "analysis": "the library's analyze_experiment, analysis_type 'glm', family gamma with a log link, model x1 + x2 + x3, with SAS GENMOD's conventions: the dispersion by maximum likelihood and the covariance from the observed information (R's defaults, Pearson's dispersion and the expected information, give wider intervals): the length of observation 16's 95% interval for the mean"
     },
     {
      "what": "predicted",
@@ -214890,9 +216804,39 @@
       "source_kind": "table",
       "quote": "Table 15.5 Least Squares and Generalized Linear Model Analysis for the Worsted Yarn Experiment ... 17   2.48      (2.43, 2.53)        299.85        (266.75, 336.98)    304.17       (275.13, 336.28)       70.23   61.15"
      },
-     "check": {
-      "manual": "a generalized linear model, which the library does not fit"
-     }
+     "check": [
+      {
+       "kind": "glm",
+       "model": "x1 + x2 + x3",
+       "family": "gamma",
+       "link": "log",
+       "dispersion": "ml",
+       "information": "observed",
+       "key": "fitted.16.predicted",
+       "printed": "304.17"
+      },
+      {
+       "kind": "glm",
+       "model": "x1 + x2 + x3",
+       "family": "gamma",
+       "link": "log",
+       "dispersion": "ml",
+       "information": "observed",
+       "key": "fitted.16.ci_low",
+       "printed": "275.13"
+      },
+      {
+       "kind": "glm",
+       "model": "x1 + x2 + x3",
+       "family": "gamma",
+       "link": "log",
+       "dispersion": "ml",
+       "information": "observed",
+       "key": "fitted.16.ci_high",
+       "printed": "336.28"
+      }
+     ],
+     "analysis": "the library's analyze_experiment, analysis_type 'glm', family gamma with a log link, model x1 + x2 + x3, with SAS GENMOD's conventions: the dispersion by maximum likelihood and the covariance from the observed information (R's defaults, Pearson's dispersion and the expected information, give wider intervals): the fitted mean of observation 17 and its 95% interval, exp of the linear predictor's"
     },
     {
      "what": "interval length",
@@ -214904,8 +216848,16 @@
       "quote": "Table 15.5 Least Squares and Generalized Linear Model Analysis for the Worsted Yarn Experiment ... 17   2.48      (2.43, 2.53)        299.85        (266.75, 336.98)    304.17       (275.13, 336.28)       70.23   61.15"
      },
      "check": {
-      "manual": "a generalized linear model, which the library does not fit"
-     }
+      "kind": "glm",
+      "model": "x1 + x2 + x3",
+      "family": "gamma",
+      "link": "log",
+      "dispersion": "ml",
+      "information": "observed",
+      "key": "fitted.16.ci_length",
+      "printed": "61.15"
+     },
+     "analysis": "the library's analyze_experiment, analysis_type 'glm', family gamma with a log link, model x1 + x2 + x3, with SAS GENMOD's conventions: the dispersion by maximum likelihood and the covariance from the observed information (R's defaults, Pearson's dispersion and the expected information, give wider intervals): the length of observation 17's 95% interval for the mean"
     },
     {
      "what": "predicted",
@@ -215064,9 +217016,39 @@
       "source_kind": "table",
       "quote": "Table 15.5 Least Squares and Generalized Linear Model Analysis for the Worsted Yarn Experiment ... 18   2.31      (2.24, 2.37)        202.16        (174.42, 234.37)    206.95       (182.03, 235.27)       59.95   53.23"
      },
-     "check": {
-      "manual": "a generalized linear model, which the library does not fit"
-     }
+     "check": [
+      {
+       "kind": "glm",
+       "model": "x1 + x2 + x3",
+       "family": "gamma",
+       "link": "log",
+       "dispersion": "ml",
+       "information": "observed",
+       "key": "fitted.17.predicted",
+       "printed": "206.95"
+      },
+      {
+       "kind": "glm",
+       "model": "x1 + x2 + x3",
+       "family": "gamma",
+       "link": "log",
+       "dispersion": "ml",
+       "information": "observed",
+       "key": "fitted.17.ci_low",
+       "printed": "182.03"
+      },
+      {
+       "kind": "glm",
+       "model": "x1 + x2 + x3",
+       "family": "gamma",
+       "link": "log",
+       "dispersion": "ml",
+       "information": "observed",
+       "key": "fitted.17.ci_high",
+       "printed": "235.27"
+      }
+     ],
+     "analysis": "the library's analyze_experiment, analysis_type 'glm', family gamma with a log link, model x1 + x2 + x3, with SAS GENMOD's conventions: the dispersion by maximum likelihood and the covariance from the observed information (R's defaults, Pearson's dispersion and the expected information, give wider intervals): the fitted mean of observation 18 and its 95% interval, exp of the linear predictor's"
     },
     {
      "what": "interval length",
@@ -215078,8 +217060,16 @@
       "quote": "Table 15.5 Least Squares and Generalized Linear Model Analysis for the Worsted Yarn Experiment ... 18   2.31      (2.24, 2.37)        202.16        (174.42, 234.37)    206.95       (182.03, 235.27)       59.95   53.23"
      },
      "check": {
-      "manual": "a generalized linear model, which the library does not fit"
-     }
+      "kind": "glm",
+      "model": "x1 + x2 + x3",
+      "family": "gamma",
+      "link": "log",
+      "dispersion": "ml",
+      "information": "observed",
+      "key": "fitted.17.ci_length",
+      "printed": "53.23"
+     },
+     "analysis": "the library's analyze_experiment, analysis_type 'glm', family gamma with a log link, model x1 + x2 + x3, with SAS GENMOD's conventions: the dispersion by maximum likelihood and the covariance from the observed information (R's defaults, Pearson's dispersion and the expected information, give wider intervals): the length of observation 18's 95% interval for the mean"
     },
     {
      "what": "predicted",
@@ -215238,9 +217228,39 @@
       "source_kind": "table",
       "quote": "Table 15.5 Least Squares and Generalized Linear Model Analysis for the Worsted Yarn Experiment ... 19   3.56      (3.48, 3.63)       3609.11      (3034.59, 4292.40)   3670.00     (3165.00, 4254.00)     1257.81 1089.00"
      },
-     "check": {
-      "manual": "a generalized linear model, which the library does not fit"
-     }
+     "check": [
+      {
+       "kind": "glm",
+       "model": "x1 + x2 + x3",
+       "family": "gamma",
+       "link": "log",
+       "dispersion": "ml",
+       "information": "observed",
+       "key": "fitted.18.predicted",
+       "printed": "3670"
+      },
+      {
+       "kind": "glm",
+       "model": "x1 + x2 + x3",
+       "family": "gamma",
+       "link": "log",
+       "dispersion": "ml",
+       "information": "observed",
+       "key": "fitted.18.ci_low",
+       "printed": "3165"
+      },
+      {
+       "kind": "glm",
+       "model": "x1 + x2 + x3",
+       "family": "gamma",
+       "link": "log",
+       "dispersion": "ml",
+       "information": "observed",
+       "key": "fitted.18.ci_high",
+       "printed": "4254"
+      }
+     ],
+     "analysis": "the library's analyze_experiment, analysis_type 'glm', family gamma with a log link, model x1 + x2 + x3, with SAS GENMOD's conventions: the dispersion by maximum likelihood and the covariance from the observed information (R's defaults, Pearson's dispersion and the expected information, give wider intervals): the fitted mean of observation 19 and its 95% interval, exp of the linear predictor's; a value above 1000 is printed to four significant figures (1580.00 for 1580.3), and is compared at that precision"
     },
     {
      "what": "interval length",
@@ -215252,8 +217272,17 @@
       "quote": "Table 15.5 Least Squares and Generalized Linear Model Analysis for the Worsted Yarn Experiment ... 19   3.56      (3.48, 3.63)       3609.11      (3034.59, 4292.40)   3670.00     (3165.00, 4254.00)     1257.81 1089.00"
      },
      "check": {
-      "manual": "a generalized linear model, which the library does not fit"
-     }
+      "kind": "glm",
+      "model": "x1 + x2 + x3",
+      "family": "gamma",
+      "link": "log",
+      "dispersion": "ml",
+      "information": "observed",
+      "key": "fitted.18.ci_length",
+      "printed": "1089",
+      "of_rounded": 2
+     },
+     "analysis": "the library's analyze_experiment, analysis_type 'glm', family gamma with a log link, model x1 + x2 + x3, with SAS GENMOD's conventions: the dispersion by maximum likelihood and the covariance from the observed information (R's defaults, Pearson's dispersion and the expected information, give wider intervals): the length of observation 19's 95% interval for the mean; a limit above 1000 is printed to four significant figures, so the length, the difference of two printed limits, is compared to the unit with both roundings"
     },
     {
      "what": "predicted",
@@ -215412,9 +217441,39 @@
       "source_kind": "table",
       "quote": "Table 15.5 Least Squares and Generalized Linear Model Analysis for the Worsted Yarn Experiment ... 20   3.39      (3.32, 3.45)       2433.88      (2099.42, 2821.63)   2497.00     (2200.00, 2833.00)      722.21 633.00"
      },
-     "check": {
-      "manual": "a generalized linear model, which the library does not fit"
-     }
+     "check": [
+      {
+       "kind": "glm",
+       "model": "x1 + x2 + x3",
+       "family": "gamma",
+       "link": "log",
+       "dispersion": "ml",
+       "information": "observed",
+       "key": "fitted.19.predicted",
+       "printed": "2497"
+      },
+      {
+       "kind": "glm",
+       "model": "x1 + x2 + x3",
+       "family": "gamma",
+       "link": "log",
+       "dispersion": "ml",
+       "information": "observed",
+       "key": "fitted.19.ci_low",
+       "printed": "2200"
+      },
+      {
+       "kind": "glm",
+       "model": "x1 + x2 + x3",
+       "family": "gamma",
+       "link": "log",
+       "dispersion": "ml",
+       "information": "observed",
+       "key": "fitted.19.ci_high",
+       "printed": "2833"
+      }
+     ],
+     "analysis": "the library's analyze_experiment, analysis_type 'glm', family gamma with a log link, model x1 + x2 + x3, with SAS GENMOD's conventions: the dispersion by maximum likelihood and the covariance from the observed information (R's defaults, Pearson's dispersion and the expected information, give wider intervals): the fitted mean of observation 20 and its 95% interval, exp of the linear predictor's; a value above 1000 is printed to four significant figures (1580.00 for 1580.3), and is compared at that precision"
     },
     {
      "what": "interval length",
@@ -215426,8 +217485,17 @@
       "quote": "Table 15.5 Least Squares and Generalized Linear Model Analysis for the Worsted Yarn Experiment ... 20   3.39      (3.32, 3.45)       2433.88      (2099.42, 2821.63)   2497.00     (2200.00, 2833.00)      722.21 633.00"
      },
      "check": {
-      "manual": "a generalized linear model, which the library does not fit"
-     }
+      "kind": "glm",
+      "model": "x1 + x2 + x3",
+      "family": "gamma",
+      "link": "log",
+      "dispersion": "ml",
+      "information": "observed",
+      "key": "fitted.19.ci_length",
+      "printed": "633",
+      "of_rounded": 2
+     },
+     "analysis": "the library's analyze_experiment, analysis_type 'glm', family gamma with a log link, model x1 + x2 + x3, with SAS GENMOD's conventions: the dispersion by maximum likelihood and the covariance from the observed information (R's defaults, Pearson's dispersion and the expected information, give wider intervals): the length of observation 20's 95% interval for the mean; a limit above 1000 is printed to four significant figures, so the length, the difference of two printed limits, is compared to the unit with both roundings"
     },
     {
      "what": "predicted",
@@ -215586,9 +217654,39 @@
       "source_kind": "table",
       "quote": "Table 15.5 Least Squares and Generalized Linear Model Analysis for the Worsted Yarn Experiment ... 21   3.22      (3.14, 3.29)       1641.35      (1380.07, 1951.64)   1699.00     (1462.00, 1974.00)      571.57 512.00"
      },
-     "check": {
-      "manual": "a generalized linear model, which the library does not fit"
-     }
+     "check": [
+      {
+       "kind": "glm",
+       "model": "x1 + x2 + x3",
+       "family": "gamma",
+       "link": "log",
+       "dispersion": "ml",
+       "information": "observed",
+       "key": "fitted.20.predicted",
+       "printed": "1699"
+      },
+      {
+       "kind": "glm",
+       "model": "x1 + x2 + x3",
+       "family": "gamma",
+       "link": "log",
+       "dispersion": "ml",
+       "information": "observed",
+       "key": "fitted.20.ci_low",
+       "printed": "1462"
+      },
+      {
+       "kind": "glm",
+       "model": "x1 + x2 + x3",
+       "family": "gamma",
+       "link": "log",
+       "dispersion": "ml",
+       "information": "observed",
+       "key": "fitted.20.ci_high",
+       "printed": "1974"
+      }
+     ],
+     "analysis": "the library's analyze_experiment, analysis_type 'glm', family gamma with a log link, model x1 + x2 + x3, with SAS GENMOD's conventions: the dispersion by maximum likelihood and the covariance from the observed information (R's defaults, Pearson's dispersion and the expected information, give wider intervals): the fitted mean of observation 21 and its 95% interval, exp of the linear predictor's; a value above 1000 is printed to four significant figures (1580.00 for 1580.3), and is compared at that precision"
     },
     {
      "what": "interval length",
@@ -215600,8 +217698,17 @@
       "quote": "Table 15.5 Least Squares and Generalized Linear Model Analysis for the Worsted Yarn Experiment ... 21   3.22      (3.14, 3.29)       1641.35      (1380.07, 1951.64)   1699.00     (1462.00, 1974.00)      571.57 512.00"
      },
      "check": {
-      "manual": "a generalized linear model, which the library does not fit"
-     }
+      "kind": "glm",
+      "model": "x1 + x2 + x3",
+      "family": "gamma",
+      "link": "log",
+      "dispersion": "ml",
+      "information": "observed",
+      "key": "fitted.20.ci_length",
+      "printed": "512",
+      "of_rounded": 2
+     },
+     "analysis": "the library's analyze_experiment, analysis_type 'glm', family gamma with a log link, model x1 + x2 + x3, with SAS GENMOD's conventions: the dispersion by maximum likelihood and the covariance from the observed information (R's defaults, Pearson's dispersion and the expected information, give wider intervals): the length of observation 21's 95% interval for the mean; a limit above 1000 is printed to four significant figures, so the length, the difference of two printed limits, is compared to the unit with both roundings"
     },
     {
      "what": "predicted",
@@ -215760,9 +217867,39 @@
       "source_kind": "table",
       "quote": "Table 15.5 Least Squares and Generalized Linear Model Analysis for the Worsted Yarn Experiment ... 22   3.28      (3.22, 3.35)       1920.88      (1656.91, 2226.90)   1952.00     (1720.00, 2215.00)      569.98 495.00"
      },
-     "check": {
-      "manual": "a generalized linear model, which the library does not fit"
-     }
+     "check": [
+      {
+       "kind": "glm",
+       "model": "x1 + x2 + x3",
+       "family": "gamma",
+       "link": "log",
+       "dispersion": "ml",
+       "information": "observed",
+       "key": "fitted.21.predicted",
+       "printed": "1952"
+      },
+      {
+       "kind": "glm",
+       "model": "x1 + x2 + x3",
+       "family": "gamma",
+       "link": "log",
+       "dispersion": "ml",
+       "information": "observed",
+       "key": "fitted.21.ci_low",
+       "printed": "1720"
+      },
+      {
+       "kind": "glm",
+       "model": "x1 + x2 + x3",
+       "family": "gamma",
+       "link": "log",
+       "dispersion": "ml",
+       "information": "observed",
+       "key": "fitted.21.ci_high",
+       "printed": "2215"
+      }
+     ],
+     "analysis": "the library's analyze_experiment, analysis_type 'glm', family gamma with a log link, model x1 + x2 + x3, with SAS GENMOD's conventions: the dispersion by maximum likelihood and the covariance from the observed information (R's defaults, Pearson's dispersion and the expected information, give wider intervals): the fitted mean of observation 22 and its 95% interval, exp of the linear predictor's; a value above 1000 is printed to four significant figures (1580.00 for 1580.3), and is compared at that precision"
     },
     {
      "what": "interval length",
@@ -215774,8 +217911,17 @@
       "quote": "Table 15.5 Least Squares and Generalized Linear Model Analysis for the Worsted Yarn Experiment ... 22   3.28      (3.22, 3.35)       1920.88      (1656.91, 2226.90)   1952.00     (1720.00, 2215.00)      569.98 495.00"
      },
      "check": {
-      "manual": "a generalized linear model, which the library does not fit"
-     }
+      "kind": "glm",
+      "model": "x1 + x2 + x3",
+      "family": "gamma",
+      "link": "log",
+      "dispersion": "ml",
+      "information": "observed",
+      "key": "fitted.21.ci_length",
+      "printed": "495",
+      "of_rounded": 2
+     },
+     "analysis": "the library's analyze_experiment, analysis_type 'glm', family gamma with a log link, model x1 + x2 + x3, with SAS GENMOD's conventions: the dispersion by maximum likelihood and the covariance from the observed information (R's defaults, Pearson's dispersion and the expected information, give wider intervals): the length of observation 22's 95% interval for the mean; a limit above 1000 is printed to four significant figures, so the length, the difference of two printed limits, is compared to the unit with both roundings"
     },
     {
      "what": "predicted",
@@ -215934,9 +218080,39 @@
       "source_kind": "table",
       "quote": "Table 15.5 Least Squares and Generalized Linear Model Analysis for the Worsted Yarn Experiment ... 23   3.11      (3.06, 3.16)       1295.39      (1152.66, 1455.79)   1328.00     (1200.00, 1470.00)      303.14 270.00"
      },
-     "check": {
-      "manual": "a generalized linear model, which the library does not fit"
-     }
+     "check": [
+      {
+       "kind": "glm",
+       "model": "x1 + x2 + x3",
+       "family": "gamma",
+       "link": "log",
+       "dispersion": "ml",
+       "information": "observed",
+       "key": "fitted.22.predicted",
+       "printed": "1328"
+      },
+      {
+       "kind": "glm",
+       "model": "x1 + x2 + x3",
+       "family": "gamma",
+       "link": "log",
+       "dispersion": "ml",
+       "information": "observed",
+       "key": "fitted.22.ci_low",
+       "printed": "1200"
+      },
+      {
+       "kind": "glm",
+       "model": "x1 + x2 + x3",
+       "family": "gamma",
+       "link": "log",
+       "dispersion": "ml",
+       "information": "observed",
+       "key": "fitted.22.ci_high",
+       "printed": "1470"
+      }
+     ],
+     "analysis": "the library's analyze_experiment, analysis_type 'glm', family gamma with a log link, model x1 + x2 + x3, with SAS GENMOD's conventions: the dispersion by maximum likelihood and the covariance from the observed information (R's defaults, Pearson's dispersion and the expected information, give wider intervals): the fitted mean of observation 23 and its 95% interval, exp of the linear predictor's; a value above 1000 is printed to four significant figures (1580.00 for 1580.3), and is compared at that precision"
     },
     {
      "what": "interval length",
@@ -215948,8 +218124,17 @@
       "quote": "Table 15.5 Least Squares and Generalized Linear Model Analysis for the Worsted Yarn Experiment ... 23   3.11      (3.06, 3.16)       1295.39      (1152.66, 1455.79)   1328.00     (1200.00, 1470.00)      303.14 270.00"
      },
      "check": {
-      "manual": "a generalized linear model, which the library does not fit"
-     }
+      "kind": "glm",
+      "model": "x1 + x2 + x3",
+      "family": "gamma",
+      "link": "log",
+      "dispersion": "ml",
+      "information": "observed",
+      "key": "fitted.22.ci_length",
+      "printed": "270",
+      "of_rounded": 2
+     },
+     "analysis": "the library's analyze_experiment, analysis_type 'glm', family gamma with a log link, model x1 + x2 + x3, with SAS GENMOD's conventions: the dispersion by maximum likelihood and the covariance from the observed information (R's defaults, Pearson's dispersion and the expected information, give wider intervals): the length of observation 23's 95% interval for the mean; a limit above 1000 is printed to four significant figures, so the length, the difference of two printed limits, is compared to the unit with both roundings"
     },
     {
      "what": "predicted",
@@ -216108,9 +218293,39 @@
       "source_kind": "table",
       "quote": "Table 15.5 Least Squares and Generalized Linear Model Analysis for the Worsted Yarn Experiment ... 24   2.94      (2.88, 3.01)        873.57       (753.53, 1012.74)    903.51      (793.15, 1029.00)      259.22 235.85"
      },
-     "check": {
-      "manual": "a generalized linear model, which the library does not fit"
-     }
+     "check": [
+      {
+       "kind": "glm",
+       "model": "x1 + x2 + x3",
+       "family": "gamma",
+       "link": "log",
+       "dispersion": "ml",
+       "information": "observed",
+       "key": "fitted.23.predicted",
+       "printed": "903.51"
+      },
+      {
+       "kind": "glm",
+       "model": "x1 + x2 + x3",
+       "family": "gamma",
+       "link": "log",
+       "dispersion": "ml",
+       "information": "observed",
+       "key": "fitted.23.ci_low",
+       "printed": "793.15"
+      },
+      {
+       "kind": "glm",
+       "model": "x1 + x2 + x3",
+       "family": "gamma",
+       "link": "log",
+       "dispersion": "ml",
+       "information": "observed",
+       "key": "fitted.23.ci_high",
+       "printed": "1029"
+      }
+     ],
+     "analysis": "the library's analyze_experiment, analysis_type 'glm', family gamma with a log link, model x1 + x2 + x3, with SAS GENMOD's conventions: the dispersion by maximum likelihood and the covariance from the observed information (R's defaults, Pearson's dispersion and the expected information, give wider intervals): the fitted mean of observation 24 and its 95% interval, exp of the linear predictor's; a value above 1000 is printed to four significant figures (1580.00 for 1580.3), and is compared at that precision"
     },
     {
      "what": "interval length",
@@ -216122,8 +218337,17 @@
       "quote": "Table 15.5 Least Squares and Generalized Linear Model Analysis for the Worsted Yarn Experiment ... 24   2.94      (2.88, 3.01)        873.57       (753.53, 1012.74)    903.51      (793.15, 1029.00)      259.22 235.85"
      },
      "check": {
-      "manual": "a generalized linear model, which the library does not fit"
-     }
+      "kind": "glm",
+      "model": "x1 + x2 + x3",
+      "family": "gamma",
+      "link": "log",
+      "dispersion": "ml",
+      "information": "observed",
+      "key": "fitted.23.ci_length",
+      "printed": "236",
+      "of_rounded": 2
+     },
+     "analysis": "the library's analyze_experiment, analysis_type 'glm', family gamma with a log link, model x1 + x2 + x3, with SAS GENMOD's conventions: the dispersion by maximum likelihood and the covariance from the observed information (R's defaults, Pearson's dispersion and the expected information, give wider intervals): the length of observation 24's 95% interval for the mean; a limit above 1000 is printed to four significant figures, so the length, the difference of two printed limits, is compared to the unit with both roundings"
     },
     {
      "what": "predicted",
@@ -216282,9 +218506,39 @@
       "source_kind": "table",
       "quote": "Table 15.5 Least Squares and Generalized Linear Model Analysis for the Worsted Yarn Experiment ... 25   3.01      (2.93, 3.08)       1022.35       (859.81, 1215.91)   1038.00      (894.79, 1205.00)      356.10 310.21"
      },
-     "check": {
-      "manual": "a generalized linear model, which the library does not fit"
-     }
+     "check": [
+      {
+       "kind": "glm",
+       "model": "x1 + x2 + x3",
+       "family": "gamma",
+       "link": "log",
+       "dispersion": "ml",
+       "information": "observed",
+       "key": "fitted.24.predicted",
+       "printed": "1038"
+      },
+      {
+       "kind": "glm",
+       "model": "x1 + x2 + x3",
+       "family": "gamma",
+       "link": "log",
+       "dispersion": "ml",
+       "information": "observed",
+       "key": "fitted.24.ci_low",
+       "printed": "894.79"
+      },
+      {
+       "kind": "glm",
+       "model": "x1 + x2 + x3",
+       "family": "gamma",
+       "link": "log",
+       "dispersion": "ml",
+       "information": "observed",
+       "key": "fitted.24.ci_high",
+       "printed": "1205"
+      }
+     ],
+     "analysis": "the library's analyze_experiment, analysis_type 'glm', family gamma with a log link, model x1 + x2 + x3, with SAS GENMOD's conventions: the dispersion by maximum likelihood and the covariance from the observed information (R's defaults, Pearson's dispersion and the expected information, give wider intervals): the fitted mean of observation 25 and its 95% interval, exp of the linear predictor's; a value above 1000 is printed to four significant figures (1580.00 for 1580.3), and is compared at that precision"
     },
     {
      "what": "interval length",
@@ -216296,8 +218550,17 @@
       "quote": "Table 15.5 Least Squares and Generalized Linear Model Analysis for the Worsted Yarn Experiment ... 25   3.01      (2.93, 3.08)       1022.35       (859.81, 1215.91)   1038.00      (894.79, 1205.00)      356.10 310.21"
      },
      "check": {
-      "manual": "a generalized linear model, which the library does not fit"
-     }
+      "kind": "glm",
+      "model": "x1 + x2 + x3",
+      "family": "gamma",
+      "link": "log",
+      "dispersion": "ml",
+      "information": "observed",
+      "key": "fitted.24.ci_length",
+      "printed": "310",
+      "of_rounded": 2
+     },
+     "analysis": "the library's analyze_experiment, analysis_type 'glm', family gamma with a log link, model x1 + x2 + x3, with SAS GENMOD's conventions: the dispersion by maximum likelihood and the covariance from the observed information (R's defaults, Pearson's dispersion and the expected information, give wider intervals): the length of observation 25's 95% interval for the mean; a limit above 1000 is printed to four significant figures, so the length, the difference of two printed limits, is compared to the unit with both roundings"
     },
     {
      "what": "predicted",
@@ -216456,9 +218719,39 @@
       "source_kind": "table",
       "quote": "Table 15.5 Least Squares and Generalized Linear Model Analysis for the Worsted Yarn Experiment ... 26   2.84      (2.77, 2.90)        689.45        (594.70, 799.28)    706.34       (620.99, 803.43)      204.58 182.44"
      },
-     "check": {
-      "manual": "a generalized linear model, which the library does not fit"
-     }
+     "check": [
+      {
+       "kind": "glm",
+       "model": "x1 + x2 + x3",
+       "family": "gamma",
+       "link": "log",
+       "dispersion": "ml",
+       "information": "observed",
+       "key": "fitted.25.predicted",
+       "printed": "706.34"
+      },
+      {
+       "kind": "glm",
+       "model": "x1 + x2 + x3",
+       "family": "gamma",
+       "link": "log",
+       "dispersion": "ml",
+       "information": "observed",
+       "key": "fitted.25.ci_low",
+       "printed": "620.99"
+      },
+      {
+       "kind": "glm",
+       "model": "x1 + x2 + x3",
+       "family": "gamma",
+       "link": "log",
+       "dispersion": "ml",
+       "information": "observed",
+       "key": "fitted.25.ci_high",
+       "printed": "803.43"
+      }
+     ],
+     "analysis": "the library's analyze_experiment, analysis_type 'glm', family gamma with a log link, model x1 + x2 + x3, with SAS GENMOD's conventions: the dispersion by maximum likelihood and the covariance from the observed information (R's defaults, Pearson's dispersion and the expected information, give wider intervals): the fitted mean of observation 26 and its 95% interval, exp of the linear predictor's"
     },
     {
      "what": "interval length",
@@ -216470,8 +218763,16 @@
       "quote": "Table 15.5 Least Squares and Generalized Linear Model Analysis for the Worsted Yarn Experiment ... 26   2.84      (2.77, 2.90)        689.45        (594.70, 799.28)    706.34       (620.99, 803.43)      204.58 182.44"
      },
      "check": {
-      "manual": "a generalized linear model, which the library does not fit"
-     }
+      "kind": "glm",
+      "model": "x1 + x2 + x3",
+      "family": "gamma",
+      "link": "log",
+      "dispersion": "ml",
+      "information": "observed",
+      "key": "fitted.25.ci_length",
+      "printed": "182.44"
+     },
+     "analysis": "the library's analyze_experiment, analysis_type 'glm', family gamma with a log link, model x1 + x2 + x3, with SAS GENMOD's conventions: the dispersion by maximum likelihood and the covariance from the observed information (R's defaults, Pearson's dispersion and the expected information, give wider intervals): the length of observation 26's 95% interval for the mean"
     },
     {
      "what": "predicted",
@@ -216630,9 +218931,39 @@
       "source_kind": "table",
       "quote": "Table 15.5 Least Squares and Generalized Linear Model Analysis for the Worsted Yarn Experiment ... 27   2.67      (2.59, 2.74)        464.94        (390.93, 552.97)    480.57       (412.29, 560.15)      162.04 147.86"
      },
-     "check": {
-      "manual": "a generalized linear model, which the library does not fit"
-     }
+     "check": [
+      {
+       "kind": "glm",
+       "model": "x1 + x2 + x3",
+       "family": "gamma",
+       "link": "log",
+       "dispersion": "ml",
+       "information": "observed",
+       "key": "fitted.26.predicted",
+       "printed": "480.57"
+      },
+      {
+       "kind": "glm",
+       "model": "x1 + x2 + x3",
+       "family": "gamma",
+       "link": "log",
+       "dispersion": "ml",
+       "information": "observed",
+       "key": "fitted.26.ci_low",
+       "printed": "412.29"
+      },
+      {
+       "kind": "glm",
+       "model": "x1 + x2 + x3",
+       "family": "gamma",
+       "link": "log",
+       "dispersion": "ml",
+       "information": "observed",
+       "key": "fitted.26.ci_high",
+       "printed": "560.15"
+      }
+     ],
+     "analysis": "the library's analyze_experiment, analysis_type 'glm', family gamma with a log link, model x1 + x2 + x3, with SAS GENMOD's conventions: the dispersion by maximum likelihood and the covariance from the observed information (R's defaults, Pearson's dispersion and the expected information, give wider intervals): the fitted mean of observation 27 and its 95% interval, exp of the linear predictor's"
     },
     {
      "what": "interval length",
@@ -216644,8 +218975,16 @@
       "quote": "Table 15.5 Least Squares and Generalized Linear Model Analysis for the Worsted Yarn Experiment ... 27   2.67      (2.59, 2.74)        464.94        (390.93, 552.97)    480.57       (412.29, 560.15)      162.04 147.86"
      },
      "check": {
-      "manual": "a generalized linear model, which the library does not fit"
-     }
+      "kind": "glm",
+      "model": "x1 + x2 + x3",
+      "family": "gamma",
+      "link": "log",
+      "dispersion": "ml",
+      "information": "observed",
+      "key": "fitted.26.ci_length",
+      "printed": "147.86"
+     },
+     "analysis": "the library's analyze_experiment, analysis_type 'glm', family gamma with a log link, model x1 + x2 + x3, with SAS GENMOD's conventions: the dispersion by maximum likelihood and the covariance from the observed information (R's defaults, Pearson's dispersion and the expected information, give wider intervals): the length of observation 27's 95% interval for the mean"
     },
     {
      "what": "fitted model",
@@ -216656,9 +218995,53 @@
       "source_kind": "prose",
       "quote": "ŷ = e^(6.35 + 0.84x1 − 0.63x2 − 0.39x3)"
      },
-     "check": {
-      "manual": "a generalized linear model, which the library does not fit"
-     }
+     "check": [
+      {
+       "kind": "glm",
+       "model": "x1 + x2 + x3",
+       "family": "gamma",
+       "link": "log",
+       "dispersion": "ml",
+       "information": "observed",
+       "term": "Intercept",
+       "key": "coefficient",
+       "printed": "6.35"
+      },
+      {
+       "kind": "glm",
+       "model": "x1 + x2 + x3",
+       "family": "gamma",
+       "link": "log",
+       "dispersion": "ml",
+       "information": "observed",
+       "term": "x1",
+       "key": "coefficient",
+       "printed": "0.84"
+      },
+      {
+       "kind": "glm",
+       "model": "x1 + x2 + x3",
+       "family": "gamma",
+       "link": "log",
+       "dispersion": "ml",
+       "information": "observed",
+       "term": "x2",
+       "key": "coefficient",
+       "printed": "-0.63"
+      },
+      {
+       "kind": "glm",
+       "model": "x1 + x2 + x3",
+       "family": "gamma",
+       "link": "log",
+       "dispersion": "ml",
+       "information": "observed",
+       "term": "x3",
+       "key": "coefficient",
+       "printed": "-0.39"
+      }
+     ],
+     "analysis": "the library's analyze_experiment, analysis_type 'glm', family gamma with a log link, model x1 + x2 + x3, with SAS GENMOD's conventions: the dispersion by maximum likelihood and the covariance from the observed information (R's defaults, Pearson's dispersion and the expected information, give wider intervals): the fitted equation's coefficients"
     }
    ]
   },
