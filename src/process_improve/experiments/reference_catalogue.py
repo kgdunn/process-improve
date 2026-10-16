@@ -70,6 +70,7 @@ from process_improve.experiments.factor import Factor
 from process_improve.experiments.marginal_means import marginal_means_prediction
 from process_improve.experiments.omars_trade_off import omars_minimum_runs
 from process_improve.experiments.optimization import optimize_responses
+from process_improve.experiments.run_order import run_order_trends
 from process_improve.monitoring.metrics import calculate_cpk
 from process_improve.regression._variance_components import fit_variance_components
 from process_improve.sensory.designed import tukey_hsd
@@ -2253,6 +2254,25 @@ def _run_radius(experiment: dict, check: dict) -> float:
     return float(_REDUCE[check.get("key", "max")](radii.tolist()))
 
 
+def _run_order_trends(experiment: dict, check: dict) -> float:
+    """Return a number of the library's measure of how far a run order's terms follow the time trends.
+
+    The runs are taken in the order the entry prints them (``check["runs"]`` picks some, in that
+    order), with the factors ``check["factors"]`` (all of the entry's by default), under
+    ``check["model"]`` (``"quadratic"`` by default) and trends up to ``check["degree"]`` (3).
+    ``check["key"]`` reads into :func:`~process_improve.experiments.run_order.run_order_trends`,
+    as ``"summary.linear.interactions.max_cosine"``, ``"time_count_dot.X1"`` or ``"terms.0.angle.linear"``.
+    """
+    settings = _coded_runs(experiment, check.get("runs"))[0]
+    found = run_order_trends(
+        settings,
+        model=check.get("model", "quadratic"),
+        degree=check.get("degree", 3),
+        factors=check.get("factors"),
+    )
+    return _read(found, check["key"])
+
+
 def _blocks_orthogonal(experiment: dict, check: dict) -> float:
     """Return 1 when a second-order design's blocks are orthogonal to its model, 0 when they are not.
 
@@ -2451,6 +2471,7 @@ _VALUE_KINDS: dict[str, Callable[[dict, dict], float]] = {
     "nonadditivity": _nonadditivity,
     "run_count": _run_count,
     "run_radius": _run_radius,
+    "run_order_trends": _run_order_trends,
     "t_test": _t_test,
     "tukey": _tukey,
     "unit_std_error": _unit_std_error,
