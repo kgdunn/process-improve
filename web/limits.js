@@ -4,7 +4,8 @@
 // text. The panel holds the limits as the reader types them; the page asks it for them when it
 // makes the run sheet or lists the designs, and waits while a limit cannot be read. The settings
 // marked "cannot run" in the table of corners (corners.js) go with each request, and Python
-// proposes a limit for them.
+// proposes a limit for them; the picture of the settings that can be run (picture.js) is drawn
+// from each reply.
 
 import {
   MAX_CONSTRAINTS,
@@ -18,6 +19,7 @@ import {
   withBounds,
 } from "./logic.js";
 import { clearMarks, cutsAsked, forgetCuts, installCorners, markedRows, renderCorners } from "./corners.js";
+import { closePicture, installPicture, pictureAsked, renameInPicture, renderPicture } from "./picture.js";
 
 const $ = (sel) => document.querySelector(sel);
 
@@ -71,11 +73,15 @@ export const limitsKey = (names) => currentLimits().map((limit) => positional(li
 /** The factors and limits Python reads: what makes the brief ready or not. */
 const limitsRequest = () => ({ factors: hooks.factors(), constraints: currentLimits() });
 
-/** The request api_limits answers: the limits, and the settings marked "cannot run", with a proposal being adjusted. */
+/**
+ * The request api_limits answers: the limits; the settings marked "cannot run", with a proposal
+ * being adjusted; and what the picture is asked to show.
+ */
 function request() {
   const marked = markedRows();
   const cuts = cutsAsked();
-  return { ...limitsRequest(), ...(marked.length ? { marked } : {}), ...(cuts ? { cuts } : {}) };
+  const asked = limitsRequest();
+  return { ...asked, ...(marked.length ? { marked } : {}), ...(cuts ? { cuts } : {}), ...pictureAsked(asked.factors) };
 }
 
 /** Whether Python has read the limits as they are now. */
@@ -124,6 +130,7 @@ export function renameInLimits(names) {
     const box = field(row, "expression");
     box.value = renameLimit(box.value, names);
   }
+  renameInPicture(names);
   changed();
 }
 
@@ -136,8 +143,10 @@ export function factorsChangedForLimits() {
   const factors = hooks.factors();
   const nowKinds = factors.map((f) => (isCategorical(f) ? "c" : "n")).join("");
   const nowRanges = JSON.stringify(factors.map((f) => (isCategorical(f) ? null : [f.low, f.high])));
-  if (kinds !== null && nowKinds !== kinds) clearMarks();
-  else if (ranges !== null && nowRanges !== ranges) forgetCuts();
+  if (kinds !== null && nowKinds !== kinds) {
+    clearMarks();
+    closePicture();
+  } else if (ranges !== null && nowRanges !== ranges) forgetCuts();
   kinds = nowKinds;
   ranges = nowRanges;
   renderNames();
@@ -281,6 +290,7 @@ async function check() {
     answered = null;
     answeredLimits = null;
     render();
+    renderPicture(null, [], false);
     return;
   }
   const sent = request();
@@ -295,14 +305,17 @@ async function check() {
   asking = key;
   const got = await hooks.call("api_limits", sent);
   if (mine !== ticket) return; // the limits changed again while Python read them
-  const before = answeredLimits;
   asking = null;
+  if (JSON.stringify(hooks.factors()) !== JSON.stringify(sent.factors)) return; // so did the factors: the next request is on its way
+  const before = answeredLimits;
   reply = got;
   answered = key;
   answeredLimits = JSON.stringify({ factors: sent.factors, constraints: sent.constraints });
   for (const row of rows()) if (document.activeElement !== field(row, "expression")) takeCanonical(row);
   render();
   renderCorners(reply.ok ? reply.result : null, sent.factors);
+  const pictured = reply.ok && reply.result.constraints.some((limit) => !limit.problem);
+  renderPicture(reply.ok ? reply.result : null, sent.factors, pictured);
   if (answeredLimits !== before) hooks.changed(); // the marks alone change nothing the page shows
 }
 
@@ -376,9 +389,13 @@ function typeInto(piece) {
   changed();
 }
 
-/** Wire the panel to the page: ``call`` reaches Python, ``factors`` reads the brief's, ``changed`` is told of every change. */
-export function installLimits({ call, factors, changed: onChange }) {
+/**
+ * Wire the panel to the page: ``call`` reaches Python, ``factors`` reads the brief's, ``changed`` is
+ * told of every change, and ``runs`` gives the run sheet's runs for the picture to draw.
+ */
+export function installLimits({ call, factors, changed: onChange, runs }) {
   hooks = { call, factors, changed: onChange };
+  installPicture({ changed: schedule, runs });
   installCorners({
     changed: schedule,
     add: (expression) => {

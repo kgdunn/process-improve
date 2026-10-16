@@ -46,6 +46,7 @@ APP_SOURCES = (
     "logic.js",
     "limits.js",
     "corners.js",
+    "picture.js",
     "charts.js",
     "python.js",
     "campaign.js",

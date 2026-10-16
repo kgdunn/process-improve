@@ -161,6 +161,28 @@
             <span id="limits-full" class="hint" hidden>A study can have at most 8 limits.</span>
           </p>
           <p id="limits-summary" class="hint" role="status" aria-live="polite" hidden></p>
+          <!-- The picture of the settings that can be run (picture.js): a panel per pair of numeric factors. -->
+          <div id="region" class="region" hidden>
+            <svg class="region__defs" width="0" height="0" aria-hidden="true">
+              <defs>
+                <pattern id="region-hatch" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+                  <rect width="6" height="6" class="region__hatch-ground"></rect>
+                  <line x1="0" y1="0" x2="0" y2="6" class="region__hatch"></line>
+                </pattern>
+              </defs>
+            </svg>
+            <h3 id="h-region">The settings you can run</h3>
+            <p id="region-key" class="hint"></p>
+            <div id="region-panels" class="region-panels"></div>
+            <p id="region-legend" class="hint"></p>
+            <p class="actions"><button type="button" id="every-pair" class="link" aria-pressed="false" hidden></button></p>
+            <div id="region-slice" class="region-slice" role="group" aria-labelledby="h-slice" hidden>
+              <h4 id="h-slice"></h4>
+              <div id="slice-held" class="slice-held"></div>
+              <div id="slice-panel" class="slice-panel"></div>
+              <p class="actions"><button type="button" id="slice-close" class="link">Back to every pair</button></p>
+            </div>
+          </div>
           <!-- The corners of the ranges (corners.js): mark those that cannot be run, and a limit is proposed. -->
           <div id="corners" class="corners" hidden>
             <h3 id="h-corners">Or mark the settings you cannot run</h3>

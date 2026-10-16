@@ -108,6 +108,7 @@ import {
   renameInLimits,
   setLimits,
 } from "./limits.js";
+import { redrawRuns } from "./picture.js";
 import { analyseCode, compareCode, cumulative, designCode, notebook, resultsCode } from "./python.js";
 import { forgetCampaign, saveCampaign, savedCampaigns } from "./store.js";
 import { GLOSSARY, MARKED } from "./glossary.js";
@@ -855,6 +856,14 @@ function markStale() {
   $("#plan-note").hidden = !stale;
   $("#plan-note").textContent = stale ? "The run sheet in Run is from an earlier design." : "";
   renderBadges();
+  redrawRuns(); // the picture of the limits draws the runs of the run sheet made for them
+}
+
+/** The run sheet's runs as the picture of the limits draws them, each setting by its factor's name; none while it is from an earlier plan. */
+function picturedRuns() {
+  const d = state.design;
+  if (!d || planIsStale()) return [];
+  return d.rows.map((row) => Object.fromEntries(d.columns.map((name, j) => [name, Number(row[j])])));
 }
 
 /** Make the run sheet the plan describes; resolves to true when it is on the page. */
@@ -2723,7 +2732,7 @@ drop.ondrop = (e) => {
 document.addEventListener("visibilitychange", () => {
   if (document.visibilityState === "hidden") flushSave();
 });
-installLimits({ call, factors: readFactors, changed: limitsChanged });
+installLimits({ call, factors: readFactors, changed: limitsChanged, runs: picturedRuns });
 addFactor();
 addFactor();
 setAim(defaultAim(0));
