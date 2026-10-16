@@ -343,11 +343,11 @@ def test_on_a_parabola_the_setting_nearer_the_centre_is_taken():
         reference_catalogue._reproduce(entry, {"value": "0"}, out_of_reach, reference_catalogue._Fits())
 
 
-def test_the_rounding_of_the_data_is_carried_into_a_coefficient_only():
-    """A coefficient is a weighted sum of the responses, so their rounding bounds it; no other statistic gets it."""
+def test_the_rounding_of_the_data_is_carried_into_a_coefficient_or_a_residual_sum_of_squares_only():
+    """A coefficient and a residual sum of squares have a first-order bound from the rounding; no other statistic."""
     entry = _replicated_2x2([[1, 1], [1, 1], [3, 3], [7, 7]])
     check = {"kind": "r_squared", "model": "A + B", "response": "y1", "data_rounding": {"decimals": 1}}
-    with pytest.raises(ValueError, match="carried into a coefficient, not a 'r_squared'"):
+    with pytest.raises(ValueError, match="carried into a coefficient or a residual sum of squares, not a 'r_squared'"):
         reference_catalogue._reproduce(entry, {"value": "0.9"}, check, reference_catalogue._Fits())
 
 
