@@ -461,7 +461,7 @@ table.corner-table .col-unit { padding: 0; }
 .region__edge--only { stroke-width: 3; }
 .region__dot { fill: var(--accent); }
 .region__frame { fill: none; stroke: var(--muted); stroke-width: 1; }
-.region__limit { stroke: var(--fg); stroke-width: 1.4; stroke-dasharray: 5 3; }
+.region__limit { fill: none; stroke: var(--fg); stroke-width: 1.4; stroke-dasharray: 5 3; stroke-linejoin: round; }
 .region__tag circle { fill: var(--panel); stroke: var(--fg); stroke-width: 1; }
 .region__tag text { fill: var(--fg); font-size: 11px; font-weight: 700; text-anchor: middle; dominant-baseline: central; }
 .region__tick { fill: var(--muted); font-size: 12px; }

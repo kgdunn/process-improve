@@ -91,7 +91,20 @@ def test_a_curved_limit_is_traced_through_where_it_crosses_the_grid(fresh_page):
     type_limit(page, "T * P <= 450")
     [panel] = panels(page)
     assert panel["traced"], "a smooth boundary, not the steps of a mask"
-    assert panel["description"].endswith("the settings that can be run are shaded, inside a curved limit.")
+    assert panel["limits"] == ["1"], "the curve is numbered as the list numbers it"
+    assert "the settings that can be run are shaded, inside a curved limit; limit 1 curves from" in panel["description"]
+    for end in ("T 150 degC, P 3 bar", "T 200 degC, P 2.25 bar"):
+        assert end in panel["description"], end
+
+
+def test_a_curved_limit_that_names_two_of_three_factors_is_traced_on_their_panel(blank_page):
+    page = blank_page
+    type_limit(page, HEAT)
+    type_limit(page, "T * F <= 3600")
+    shown = {tuple(p["pair"]): p for p in panels(page)}
+    assert shown[("T", "F")]["traced"]
+    assert shown[("T", "F")]["limits"] == ["2"]
+    assert not shown[("T", "P")]["traced"], "the curve names F, which the panel of T and P leaves out"
 
 
 def test_from_five_factors_the_picture_shows_every_pair_on_request(fresh_page):

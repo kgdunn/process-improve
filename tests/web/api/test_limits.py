@@ -458,9 +458,31 @@ def test_looking_inside_a_curved_region_traces_its_boundary_there(api):
     assert {round(t, 6) for t, _p in crossed(shown["trace"])} == {187.5}, "T * 16 <= 3000 is T <= 187.5"
 
 
+def test_a_curved_limit_on_a_pair_of_three_factors_is_traced_on_that_pair(api):
+    """T * F <= 3600 names T and F alone, so their shadow is exact: the straight limit's shadow, cut by the curve."""
+    pairs = {(p["x"], p["y"]): p for p in described(api, HEAT, "T * F <= 3600")["picture"]["pairs"]}
+    t_f = pairs[("T", "F")]
+    assert all(abs(t * f - 3600) <= 1e-2 for t, f in crossed(t_f["trace"])), "the shadow's boundary is the curve"
+    [curve] = t_f["curves"]
+    assert curve["limit"] == 1, "numbered by its place in the list"
+    assert crossed(curve["trace"]) == crossed(t_f["trace"]), "here the curve is all the shadow's boundary"
+    for other in [("T", "P"), ("P", "F")]:
+        assert (pairs[other]["trace"], pairs[other]["curves"]) == (None, []), "the curve names a factor the pair lacks"
+        assert pairs[other]["shadow"]["kind"] == "mask"
+
+
+def test_looking_inside_draws_each_curved_limit_s_boundary_there(api):
+    shown = described(api, HEAT, "T * F <= 3000", slice={"x": "T", "y": "F", "at": {"P": 2}})["slice"]
+    [curve] = shown["curves"]
+    assert curve["limit"] == 1
+    assert all(abs(t * f - 3000) <= 1e-2 for t, f in crossed(curve["trace"]))
+    beyond = described(api, "T * F <= 9000", slice={"x": "T", "y": "P", "at": {"F": 15}})["slice"]
+    assert beyond["curves"] == [], "a boundary that misses the rectangle is not drawn"
+
+
 def test_straight_limits_are_drawn_exactly_with_nothing_to_trace(api):
     shown = described(api, HEAT, slice={"x": "T", "y": "P", "at": {"F": 15}})
-    assert shown["slice"]["trace"] is None
-    assert [pair["trace"] for pair in shown["picture"]["pairs"]] == [None, None, None]
+    assert (shown["slice"]["trace"], shown["slice"]["curves"]) == (None, [])
+    assert [(pair["trace"], pair["curves"]) for pair in shown["picture"]["pairs"]] == [(None, [])] * 3
     [pair] = described(api, HEAT, factors=FACTORS[:2])["picture"]["pairs"]
     assert pair["trace"] is None

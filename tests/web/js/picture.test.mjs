@@ -3,7 +3,7 @@
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
 
-import { traced } from "../../../web/picture.js";
+import { chains, traced } from "../../../web/picture.js";
 
 /** The area of the polygons, by the shoelace formula; each runs counter-clockwise, so each counts positive. */
 const area = (polygons) =>
@@ -51,5 +51,42 @@ describe("tracing the settings that can be run", () => {
   test("a crossing the grid does not give is taken halfway along", () => {
     const { fill } = traced({ x: [0, 1], y: [0, 1], z: [[1, 0], [1, 0]], crossings: [] });
     assert.equal(area(fill), 0.5);
+  });
+});
+
+describe("joining a traced boundary into lines", () => {
+  const ranges = [[0, 10], [0, 10]];
+
+  test("pieces that share an end are one line, from one open end to the other, whichever way each runs", () => {
+    const pieces = [[[0, 5], [1, 4]], [[2, 3], [1, 4]], [[2, 3], [3, 2.5]]];
+    assert.deepEqual(chains(pieces, ...ranges), [[[0, 5], [1, 4], [2, 3], [3, 2.5]]]);
+  });
+
+  test("a loop is walked once round", () => {
+    const pieces = [[[4, 4], [6, 4]], [[6, 4], [5, 6]], [[5, 6], [4, 4]]];
+    assert.deepEqual(chains(pieces, ...ranges), [[[4, 4], [6, 4], [5, 6], [4, 4]]]);
+  });
+
+  test("ends the same to a millionth of the range are one end, and a piece of no length is dropped", () => {
+    const pieces = [[[0, 5], [1, 4]], [[1, 4], [1, 4]], [[1 + 1e-9, 4], [2, 3]]];
+    assert.equal(chains(pieces, ...ranges).length, 1);
+  });
+
+  test("a curve traced on a grid comes back as one line across the rectangle", () => {
+    // x * y <= 2 on [0, 2] x [0, 2], traced on a grid of 0, 0.5, ..., 2 with exact crossings.
+    const x = [0, 0.5, 1, 1.5, 2];
+    const y = [0, 0.5, 1, 1.5, 2];
+    const z = y.map((yi) => x.map((xj) => Number(xj * yi <= 2)));
+    const crossings = [];
+    y.forEach((yi, i) => x.slice(0, -1).forEach((xj, j) => {
+      if (z[i][j] !== z[i][j + 1]) crossings.push([i, j, 0, (2 / yi - xj) / 0.5]);
+    }));
+    y.slice(0, -1).forEach((yi, i) => x.forEach((xj, j) => {
+      if (z[i][j] !== z[i + 1][j]) crossings.push([i, j, 1, (2 / xj - yi) / 0.5]);
+    }));
+    const [line, ...more] = chains(traced({ x, y, z, crossings }).edge, [0, 2], [0, 2]);
+    assert.deepEqual(more, []);
+    for (const [px, py] of line) assert.ok(Math.abs(px * py - 2) < 0.15, `${px}, ${py} lies near the curve`);
+    assert.deepEqual([line[0], line.at(-1)].map(([px, py]) => Math.round(px * py * 100) / 100).sort(), [2, 2]);
   });
 });

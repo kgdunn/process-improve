@@ -258,6 +258,7 @@ READS: dict[str, list[str]] = {
         "picture.pairs[].lines[].limit: int",
         "picture.pairs[].lines[].points[].[]: number",
         "picture.pairs[].trace: any?",
+        "picture.pairs[].curves: list",
         "picture.shown[]: str",
         "picture.center{}: number",
         "slice.x: str",
@@ -268,6 +269,7 @@ READS: dict[str, list[str]] = {
         "slice.lines[].limit: int",
         "slice.lines[].points[].[]: number",
         "slice.trace: any?",
+        "slice.curves: list",
     ],
     "curved picture": [
         "picture.pairs[].shadow.kind: str",
@@ -278,6 +280,9 @@ READS: dict[str, list[str]] = {
         "picture.pairs[].trace.y[]: number",
         "picture.pairs[].trace.z[].[]: int",
         "picture.pairs[].trace.crossings[].[]: number",
+        "picture.pairs[].curves[].limit: int",
+        "picture.pairs[].curves[].trace.z[].[]: int",
+        "picture.pairs[].curves[].trace.crossings[].[]: number",
     ],
     "curved slice": [
         "slice.region.kind: str",
@@ -286,6 +291,9 @@ READS: dict[str, list[str]] = {
         "slice.trace.y[]: number",
         "slice.trace.z[].[]: int",
         "slice.trace.crossings[].[]: number",
+        "slice.curves[].limit: int",
+        "slice.curves[].trace.x[]: number",
+        "slice.curves[].trace.crossings[].[]: number",
     ],
 }
 
@@ -408,7 +416,7 @@ def reply(api, worked_example: dict[str, Any]) -> Callable[[str], dict]:
         "curved slice": lambda: {
             "factors": FACTORS,
             "constraints": [{"expression": "T * F <= 3000"}],
-            "slice": {"x": "T", "y": "P", "at": {"F": 16}},
+            "slice": {"x": "T", "y": "F", "at": {"P": 2}},
         },
     }
     return functools.cache(lambda kind: api.ok(ENTRY_POINTS[kind], requests[kind]()))

@@ -2663,9 +2663,10 @@ def _picture(
 
     Each pair's ``shadow`` is the settings of the two that some setting of the others can run
     (see :meth:`~process_improve.experiments.DesignRegion.shadow`), and ``lines`` the boundary of
-    each straight limit that names no other factor, numbered by its place in the list. With two
-    numeric factors and a curved limit, ``trace`` is the grid a smooth boundary is traced on (see
-    :func:`_traced`); else it is null. Every pair
+    each straight limit that names no other factor, numbered by its place in the list. With
+    curved limits that name no factor but the pair's, ``trace`` traces the shadow exactly (see
+    :func:`_trace`), and ``curves`` the boundary of each, numbered alike; else ``trace`` is null,
+    and the shadow is a mask. Every pair
     is shown up to :data:`PICTURE_EVERY_PAIR` numeric factors, or with ``every_pair``; from more,
     the pairs of the factors the limits name. ``center`` is where the page holds the other factors
     when it looks inside: the centre of the ranges when it can be run, else a central setting
@@ -2675,6 +2676,10 @@ def _picture(
     names = [f.name for f in numeric]
     named = {name for i in alone for name in entries[i]["factors"]}
     shown = names if every_pair or len(names) <= PICTURE_EVERY_PAIR else [n for n in names if n in named]
+    curved = [i for i in alone if entries[i]["type"] == "nonlinear"]
+    straight = DesignRegion(numeric, [entries[i]["expression"] for i in alone if entries[i]["type"] == "linear"])
+    within = DesignRegion(numeric, [entries[i]["expression"] for i in curved])
+    ends = {f.name: f for f in numeric}
     pairs = []
     for x, y in itertools.combinations(shown, 2):
         lines = [
@@ -2683,8 +2688,15 @@ def _picture(
             if entries[i]["type"] == "linear" and set(entries[i]["factors"]) <= {x, y}
             for line in own.slice_lines(x, y)
         ]
-        trace = _traced(region, numeric, x, y) if len(names) == 2 else None  # the shadow of two factors is the region
-        pairs.append({"x": x, "y": y, "shadow": region.shadow(x, y), "lines": lines, "trace": trace})
+        on_pair = [i for i in curved if set(entries[i]["factors"]) <= {x, y}]
+        trace = None
+        if curved and len(on_pair) == len(curved):
+            # The curved limits name no other factor, so the shadow is the straight limits' shadow cut by them.
+            inside = _inside_polygon(straight.shadow(x, y)["points"], ends[x], ends[y])
+            meets = _runnable_at(within, numeric, x, y)
+            trace = _trace(lambda u, v, inside=inside, meets=meets: inside(u, v) & meets(u, v), numeric, x, y)
+        curves = _curves(alone, on_pair, lambda own, x=x, y=y: _trace(_runnable_at(own, numeric, x, y), numeric, x, y))
+        pairs.append({"x": x, "y": y, "shadow": region.shadow(x, y), "lines": lines, "trace": trace, "curves": curves})
     middle = {f.name: (f.low + f.high) / 2 for f in numeric}
     center = middle if region.feasible(np.zeros((1, len(numeric))))[0] else region.centroid()
     return {"pairs": pairs, "shown": shown, "center": center}
@@ -2701,8 +2713,9 @@ def _sliced(
 
     ``region`` is the settings of ``x`` and ``y`` that can be run there (see
     :meth:`~process_improve.experiments.DesignRegion.slice_polygon`), ``lines`` each straight
-    limit's boundary there, numbered by its place in the list, and ``trace`` the grid a curved
-    limit's boundary is traced on, or null (see :func:`_traced`).
+    limit's boundary there, numbered by its place in the list. With a curved limit, ``trace``
+    traces the settings that can be run (see :func:`_trace`), else it is null, and ``curves`` is
+    the boundary of each curved limit there (see :func:`_curves`).
     """
     names = [f.name for f in factors if f.type != "categorical"]
     at = raw.get("at") if isinstance(raw, dict) else None
@@ -2722,72 +2735,101 @@ def _sliced(
         for line in own.slice_lines(x, y, held)
     ]
     numeric = [f for f in factors if f.type != "categorical"]
+    curved = [i for i in alone if entries[i]["type"] == "nonlinear"]
     return {
         "x": x,
         "y": y,
         "at": held,
         "region": region.slice_polygon(x, y, held),
         "lines": lines,
-        "trace": _traced(region, numeric, x, y, held),
+        "trace": _trace(_runnable_at(region, numeric, x, y, held), numeric, x, y) if curved else None,
+        "curves": _curves(alone, curved, lambda own: _trace(_runnable_at(own, numeric, x, y, held), numeric, x, y)),
     }
 
 
-def _traced(
-    region: DesignRegion, numeric: list[Factor], x: str, y: str, held: dict[str, float] | None = None
-) -> dict[str, Any] | None:
-    """Return the settings of two factors that can be run on a grid, and where its boundary crosses the grid's lines.
+def _curves(
+    alone: dict[int, DesignRegion], limits: list[int], trace: Callable[[DesignRegion], dict]
+) -> list[dict[str, Any]]:
+    """Return the boundary of each of these curved limits, as ``trace`` traces the limit on its own.
 
-    The page traces a curved limit's boundary through the crossings, smooth where a mask of the
-    settings that can be run would be stepped; with straight limits only, a polygon is exact
-    already and this is null. ``x`` and ``y`` are :data:`TRACE_POINTS` values from each factor's
-    low end to its high end, the other factors held at ``held`` (at the centre of the range when
-    not given), and ``z[i][j]`` is 1 where ``(x[j], y[i])`` can be run. Each crossing is
-    ``[i, j, along, t]``: on the grid line from point ``(i, j)`` to ``(i, j + 1)`` (``along`` 0) or
-    to ``(i + 1, j)`` (``along`` 1), the share ``t`` of the way along it where the setting changes
-    between can and cannot be run, found by halving the step with the region's own test of a
-    setting (see :meth:`~process_improve.experiments.DesignRegion.feasible`).
+    Each is ``{"limit": i, "trace": ...}`` (see :func:`_trace`), numbered by its place in the list;
+    a limit whose boundary misses the rectangle of the two factors' ranges has none.
     """
-    if not region.curved_constraints():
-        return None
-    names = [f.name for f in numeric]
-    ix, iy = names.index(x), names.index(y)
-    given = held or {}
-    base = np.array([_coded_value(f, given[f.name]) if f.name in given else 0.0 for f in numeric])
+    curves = [{"limit": i, "trace": trace(alone[i])} for i in limits]
+    return [curve for curve in curves if curve["trace"]["crossings"]]
+
+
+def _trace(runnable: Callable[[np.ndarray, np.ndarray], np.ndarray], numeric: list[Factor], x: str, y: str) -> dict:
+    """Return which settings of two factors can be run on a grid, and where the boundary crosses the grid's lines.
+
+    ``runnable`` takes coded values of ``x`` and ``y``, two arrays of one shape, and says which of
+    those settings can be run. In the result, ``x`` and ``y`` are :data:`TRACE_POINTS` values from
+    each factor's low end to its high end, and ``z[i][j]`` is 1 where ``(x[j], y[i])`` can be run.
+    Each crossing is ``[i, j, along, t]``: on the grid line from point ``(i, j)`` to ``(i, j + 1)``
+    (``along`` 0) or to ``(i + 1, j)`` (``along`` 1), the share ``t`` of the way along it where the
+    setting changes between can and cannot be run, found by halving the step
+    :data:`TRACE_HALVINGS` times. The page draws a smooth boundary through the crossings, where a
+    mask of the settings that can be run would be stepped.
+    """
     grid = np.linspace(-1.0, 1.0, TRACE_POINTS)
-
-    def settings(u: np.ndarray, v: np.ndarray) -> np.ndarray:
-        points = np.tile(base, (u.size, 1))
-        points[:, ix], points[:, iy] = u.ravel(), v.ravel()
-        return points
-
+    step = grid[1] - grid[0]
     gx, gy = np.meshgrid(grid, grid)
-    runnable = region.feasible(settings(gx, gy)).reshape(gx.shape)
+    can = runnable(gx, gy)
     crossings = []
     for along, (di, dj) in enumerate([(0, 1), (1, 0)]):
-        first = runnable[: TRACE_POINTS - di, : TRACE_POINTS - dj]
-        rows, cols = np.nonzero(first != runnable[di:, dj:])
-        start = np.stack([grid[cols], grid[rows]], axis=1)
-        step = np.array([dj, di], dtype=float) * (grid[1] - grid[0])
+        first = can[: TRACE_POINTS - di, : TRACE_POINTS - dj]
+        rows, cols = np.nonzero(first != can[di:, dj:])
         lo, hi = np.zeros(len(rows)), np.ones(len(rows))  # the share of the step, from the end that can be run
-        inside_first = first[rows, cols]
+        from_first = first[rows, cols]
         for _ in range(TRACE_HALVINGS):
             middle = (lo + hi) / 2
-            share = np.where(inside_first, middle, 1.0 - middle)
-            point = start + share[:, np.newaxis] * step
-            ok = region.feasible(settings(point[:, 0], point[:, 1]))
+            share = np.where(from_first, middle, 1.0 - middle)
+            ok = runnable(grid[cols] + share * step * dj, grid[rows] + share * step * di)
             lo, hi = np.where(ok, middle, lo), np.where(ok, hi, middle)
-        share = np.where(inside_first, (lo + hi) / 2, 1.0 - (lo + hi) / 2)
+        share = np.where(from_first, (lo + hi) / 2, 1.0 - (lo + hi) / 2)
         crossings += [[int(i), int(j), along, round(float(t), 6)] for i, j, t in zip(rows, cols, share, strict=True)]
+    ends = {f.name: f for f in numeric}
 
     def actual(factor: Factor) -> list[float]:
         return [float(f"{(factor.low + factor.high) / 2 + c * (factor.high - factor.low) / 2:.12g}") for c in grid]
 
-    return {
-        "x": actual(numeric[ix]),
-        "y": actual(numeric[iy]),
-        "z": runnable.astype(int).tolist(),
-        "crossings": crossings,
-    }
+    return {"x": actual(ends[x]), "y": actual(ends[y]), "z": can.astype(int).tolist(), "crossings": crossings}
+
+
+def _runnable_at(
+    region: DesignRegion, numeric: list[Factor], x: str, y: str, held: dict[str, float] | None = None
+) -> Callable[[np.ndarray, np.ndarray], np.ndarray]:
+    """Return the region's test of settings of ``x`` and ``y``, the others held at ``held`` (else at their centre)."""
+    names = [f.name for f in numeric]
+    ix, iy = names.index(x), names.index(y)
+    given = held or {}
+    base = np.array([_coded_value(f, given[f.name]) if f.name in given else 0.0 for f in numeric])
+
+    def runnable(u: np.ndarray, v: np.ndarray) -> np.ndarray:
+        points = np.tile(base, (u.size, 1))
+        points[:, ix], points[:, iy] = u.ravel(), v.ravel()
+        return region.feasible(points).reshape(u.shape)
+
+    return runnable
+
+
+def _inside_polygon(
+    polygon: list[list[float]], fx: Factor, fy: Factor
+) -> Callable[[np.ndarray, np.ndarray], np.ndarray]:
+    """Return the test of settings of two factors, in coded units, against a convex polygon in actual units.
+
+    The polygon's corners run counter-clockwise, as :meth:`~process_improve.experiments.DesignRegion.shadow`
+    gives them; a setting on an edge is inside. A segment or a point holds no setting.
+    """
+    corners = np.array([[_coded_value(fx, px), _coded_value(fy, py)] for px, py in polygon]).reshape(-1, 2)
+
+    def inside(u: np.ndarray, v: np.ndarray) -> np.ndarray:
+        held = np.full(u.shape, len(corners) >= 3)
+        for (ax, ay), (bx, by) in zip(corners, np.roll(corners, -1, axis=0), strict=True):
+            held &= (bx - ax) * (v - ay) - (by - ay) * (u - ax) >= -1e-9
+        return held
+
+    return inside
 
 
 def _coded_value(factor: Factor, value: float) -> float:

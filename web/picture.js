@@ -152,8 +152,9 @@ function renderPanels(picture, numeric) {
   holder.replaceChildren(
     ...picture.pairs.map((pair) => {
       const region = pair.trace ? { kind: "trace", ...pair.trace } : pair.shadow;
-      const drawing = panel(pair.x, pair.y, region, pair.lines, runs, SMALL);
-      const description = describe(pair.x, pair.y, pair.shadow, pair.lines, numeric);
+      const bounds = boundaryLines(pair.lines, pair.curves ?? [], pair.x, pair.y);
+      const drawing = panel(pair.x, pair.y, region, bounds, runs, SMALL);
+      const description = describe(pair.x, pair.y, pair.shadow, bounds, numeric);
       if (numeric === 2) {
         drawing.setAttribute("role", "img");
         drawing.setAttribute("aria-label", description);
@@ -194,11 +195,28 @@ export function redrawRuns() {
 }
 
 /**
- * One panel: the square of two factors' ranges, hatched where nothing can be run, the settings that
- * can be run shaded over it, each straight limit's boundary with its number, the center of the
- * ranges, and the runs given.
+ * Each limit's boundary over two factors, as lines in the factors' units: a straight limit's one
+ * segment, and a curved limit's boundary traced on its own, its pieces joined into lines.
  */
-function panel(x, y, region, lines, runs, box, { centred = true } = {}) {
+function boundaryLines(lines, curves, x, y) {
+  const ex = endsOf(x);
+  const ey = endsOf(y);
+  return [
+    ...lines.map((line) => ({ limit: line.limit, curved: false, lines: [line.points] })),
+    ...curves.map((curve) => ({
+      limit: curve.limit,
+      curved: true,
+      lines: chains(traced(curve.trace).edge, [ex.low, ex.high], [ey.low, ey.high]),
+    })),
+  ].filter((bound) => bound.lines.length);
+}
+
+/**
+ * One panel: the square of two factors' ranges, hatched where nothing can be run, the settings that
+ * can be run shaded over it, each limit's boundary with its number, the center of the ranges, and
+ * the runs given.
+ */
+function panel(x, y, region, bounds, runs, box, { centred = true } = {}) {
   const sx = scale(x, box.left, box.left + box.size);
   const sy = scale(y, box.top + box.size, box.top);
   const width = box.left + box.size + box.right;
@@ -208,13 +226,16 @@ function panel(x, y, region, lines, runs, box, { centred = true } = {}) {
   const square = { x: box.left, y: box.top, width: box.size, height: box.size };
   root.append(svg("rect", { ...square, class: "region__out" }));
   root.append(allowed(region, sx, sy, x, y));
-  for (const line of lines) root.append(boundary(line, sx, sy));
+  const onPanel = bounds.map((bound) => ({ ...bound, lines: bound.lines.map((points) => points.map(([px, py]) => [sx(px), sy(py)])) }));
+  for (const bound of onPanel) {
+    root.append(svg("path", { d: bound.lines.map((points) => `M${points.map((pt) => pt.join(",")).join("L")}`).join(""), class: "region__limit" }));
+  }
   root.append(runsLayer(x, y, runs, box));
   const centre = [sx((endsOf(x).low + endsOf(x).high) / 2), sy((endsOf(y).low + endsOf(y).high) / 2)];
   if (centred) root.append(svg("path", { d: diamond(centre[0], centre[1], 6.5), class: "region__centre" })); // over a run there
   root.append(svg("rect", { ...square, class: "region__frame" }));
   root.append(...axes(x, y, box));
-  root.append(...tags(lines, sx, sy, centred ? centre : [-99, -99]));
+  root.append(...tags(onPanel, centred ? centre : null));
   return root;
 }
 
@@ -336,9 +357,43 @@ export function traced({ x, y, z, crossings }) {
   return { fill, edge };
 }
 
-function boundary(line, sx, sy) {
-  const [[x1, y1], [x2, y2]] = line.points;
-  return svg("line", { x1: sx(x1), y1: sy(y1), x2: sx(x2), y2: sy(y2), class: "region__limit" });
+/**
+ * Join the pieces of a traced boundary into lines, each from one end to the other, or once round a
+ * loop. Two pieces join where they share an end, to a millionth of each factor's range (``xs`` and
+ * ``ys`` are the ranges' ends), so a dashed boundary is dashed evenly along its whole length.
+ */
+export function chains(edge, [x0, x1], [y0, y1]) {
+  const key = ([px, py]) => `${Math.round(((px - x0) / (x1 - x0 || 1)) * 1e6)} ${Math.round(((py - y0) / (y1 - y0 || 1)) * 1e6)}`;
+  const pieces = edge.filter(([a, b]) => key(a) !== key(b));
+  const ends = new Map();
+  pieces.forEach(([a, b], n) => {
+    for (const [point, end] of [
+      [a, 0],
+      [b, 1],
+    ]) {
+      ends.set(key(point), [...(ends.get(key(point)) ?? []), [n, end]]);
+    }
+  });
+  const used = new Set();
+  const walk = (n, end) => {
+    used.add(n);
+    const line = [pieces[n][end], pieces[n][1 - end]];
+    for (;;) {
+      const next = (ends.get(key(line.at(-1))) ?? []).find(([m]) => !used.has(m));
+      if (!next) return line;
+      used.add(next[0]);
+      line.push(pieces[next[0]][1 - next[1]]);
+    }
+  };
+  const alone = (point) => ends.get(key(point)).length === 1;
+  const lines = [];
+  pieces.forEach(([a, b], n) => {
+    if (!used.has(n) && (alone(a) || alone(b))) lines.push(walk(n, alone(a) ? 0 : 1)); // from an open end
+  });
+  pieces.forEach((_, n) => {
+    if (!used.has(n)) lines.push(walk(n, 0)); // a loop
+  });
+  return lines;
 }
 
 /** The distance from a point to a segment, in the panel's units. */
@@ -348,27 +403,41 @@ function distance([px, py], [[ax, ay], [bx, by]]) {
   return Math.hypot(px - (ax + t * dx), py - (ay + t * dy));
 }
 
+/** The pieces of a line, each from one point to the next. */
+const piecesOf = (points) => points.slice(1).map((point, k) => [points[k], point]);
+
+/** The length of a line. */
+const lengthOf = (points) => piecesOf(points).reduce((sum, [a, b]) => sum + Math.hypot(b[0] - a[0], b[1] - a[1]), 0);
+
+/** The point a share ``t`` of the way along a line. */
+function along(points, t) {
+  let left = t * lengthOf(points);
+  for (const [a, b] of piecesOf(points)) {
+    const step = Math.hypot(b[0] - a[0], b[1] - a[1]);
+    if (left <= step) return [a[0] + (left / (step || 1)) * (b[0] - a[0]), a[1] + (left / (step || 1)) * (b[1] - a[1])];
+    left -= step;
+  }
+  return points.at(-1);
+}
+
 /**
  * Each limit's number, on its boundary, where it sits clear of the other boundaries, the numbers
- * already placed and the center's marker: halfway along when it can, else nearer an end.
+ * already placed and the center's marker: halfway along its longest line when it can, else nearer
+ * an end.
  */
-function tags(lines, sx, sy, centre) {
-  const segments = lines.map(({ points: [[x1, y1], [x2, y2]] }) => [
-    [sx(x1), sy(y1)],
-    [sx(x2), sy(y2)],
-  ]);
+function tags(bounds, centre) {
   const placed = [];
-  return lines.map((line, n) => {
-    const [[ax, ay], [bx, by]] = segments[n];
-    const spots = [0.5, 0.32, 0.68, 0.18, 0.82].map((t) => [ax + t * (bx - ax), ay + t * (by - ay)]);
+  return bounds.map((bound, n) => {
+    const longest = bound.lines.reduce((best, points) => (lengthOf(points) > lengthOf(best) ? points : best));
+    const spots = [0.5, 0.32, 0.68, 0.18, 0.82].map((t) => along(longest, t));
     const clear = (spot) =>
-      segments.every((segment, m) => m === n || distance(spot, segment) >= 10) &&
+      bounds.every((other, m) => m === n || other.lines.every((points) => piecesOf(points).every((piece) => distance(spot, piece) >= 10))) &&
       placed.every((other) => Math.hypot(spot[0] - other[0], spot[1] - other[1]) >= 18) &&
-      Math.hypot(spot[0] - centre[0], spot[1] - centre[1]) >= 12;
+      (!centre || Math.hypot(spot[0] - centre[0], spot[1] - centre[1]) >= 12);
     const [cx, cy] = spots.find(clear) ?? spots[0];
     placed.push([cx, cy]);
     const group = svg("g", { class: "region__tag" });
-    group.append(svg("circle", { cx, cy, r: 8 }), svg("text", { x: cx, y: cy }, String(line.limit + 1)));
+    group.append(svg("circle", { cx, cy, r: 8 }), svg("text", { x: cx, y: cy }, String(bound.limit + 1)));
     return group;
   });
 }
@@ -404,7 +473,7 @@ function axes(x, y, box) {
 }
 
 /** What a panel shows, for a reader who cannot see it: the settings that can be run, and where each boundary crosses. */
-function describe(x, y, region, lines, numeric, held = null) {
+function describe(x, y, region, bounds, numeric, held = null) {
   const at = (point) => `${x} ${inUnits(x, point[0])}, ${y} ${inUnits(y, point[1])}`;
   const whose = held
     ? `with ${listNames(Object.entries(held).map(([name, value]) => `${name} at ${inUnits(name, value)}`))}`
@@ -420,7 +489,11 @@ function describe(x, y, region, lines, numeric, held = null) {
       : region.kind === "polygon"
         ? `only ${region.points.map(at).join(" to ")} can be run`
         : "the settings that can be run are shaded, inside a curved limit";
-  const crossings = lines.map((line) => `limit ${line.limit + 1} crosses from ${at(line.points[0])} to ${at(line.points[1])}`);
+  const crossings = bounds.map((bound) => {
+    const longest = bound.lines.reduce((best, points) => (points.length > best.length ? points : best));
+    const how = bound.curved ? "curves" : "crosses";
+    return `limit ${bound.limit + 1} ${how} from ${at(longest[0])} to ${at(longest.at(-1))}`;
+  });
   return `${head}${[shape, ...crossings].join("; ")}.`;
 }
 
@@ -484,9 +557,10 @@ function renderInside(result) {
   if (!slice || slice.x !== inside.x || slice.y !== inside.y) return; // the reply is for another view: the next one draws it
   renderHeld();
   const region = slice.trace ? { kind: "trace", ...slice.trace } : slice.region;
-  const drawing = panel(slice.x, slice.y, region, slice.lines, [], LARGE, { centred: false });
+  const bounds = boundaryLines(slice.lines, slice.curves ?? [], slice.x, slice.y);
+  const drawing = panel(slice.x, slice.y, region, bounds, [], LARGE, { centred: false });
   drawing.setAttribute("role", "img");
-  drawing.setAttribute("aria-label", describe(slice.x, slice.y, slice.region, slice.lines, 3, slice.at));
+  drawing.setAttribute("aria-label", describe(slice.x, slice.y, slice.region, bounds, 3, slice.at));
   $("#slice-panel").replaceChildren(drawing);
 }
 
