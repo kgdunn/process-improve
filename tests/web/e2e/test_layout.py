@@ -10,7 +10,8 @@ from __future__ import annotations
 
 import pytest
 
-from tests.web.e2e._page import reveal
+from tests.web._support import FACTORS
+from tests.web.e2e._page import candidates_done, corners_done, mark_corners, reveal, set_factors, settled, type_limit
 
 SIDEWAYS = "#comparison p.hint >> text=Scroll the table sideways"
 PHASES = ("plan", "run", "learn")
@@ -94,3 +95,22 @@ def test_the_study_bar_stays_in_view_and_names_the_study(page):
     assert page.text_content("#study-title") == "Yield (%), maximise"
     assert page.text_content("#study-about") == "· Box-Behnken, 15 runs"
     assert page.text_content("#badge-run") == "15 of 15"
+
+
+@pytest.mark.parametrize("context_options", [{"viewport": {"width": 390, "height": 844}, "is_mobile": True}])
+def test_on_a_phone_the_limits_their_picture_and_the_corners_fit(fresh_page):
+    """The table of corners scrolls in its own box; the panels of the picture and the slice view take the width."""
+    page = fresh_page
+    page.add_style_tag(content=WIDE_FONT)
+    set_factors(page, [*FACTORS, {"name": "Stir", "low": 100, "high": 400, "units": "rpm"}])
+    candidates_done(page)
+    type_limit(page, "T + 25 * P + 5 * F <= 350")
+    corners_done(page)
+    mark_corners(page, 1)
+    page.get_by_role("button", name="Adjust it factor by factor").click()
+    assert overflowing(page) == []
+    page.get_by_role("button", name="Look inside T and P").click()
+    page.wait_for_timeout(400)
+    settled(page)
+    assert overflowing(page) == []
+    assert page.evaluate("document.documentElement.scrollWidth <= document.documentElement.clientWidth")

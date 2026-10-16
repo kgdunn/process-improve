@@ -124,8 +124,8 @@ export function renderPicture(result, factors, shown) {
 function keyText(numeric) {
   if (inside) return "Shaded: what you can run with the other factors held as set here; hatched: what you cannot.";
   return numeric === 2
-    ? "Shaded: the settings you can run; hatched: those you cannot. A dashed line is a limit's boundary, numbered as in the list."
-    : "Shaded: the settings of two factors that some setting of the others can run. Choose a pair to look inside it.";
+    ? "Shaded: what you can run; hatched: what you cannot. Each dashed line is a limit, numbered as in the list."
+    : "Shaded: where some setting of the other factors can be run. Choose a pair to look inside.";
 }
 
 /** Say what the markers are: the center of the ranges, and the runs when there are some. */
