@@ -13,6 +13,11 @@ those changes.
 
 ### Added
 
+- **Standardised coefficients.** Each row of `analyze_experiment`'s `"coefficients"` (and
+  `coefficients_actual`) now carries `standardised_coefficient`: the coefficient times the standard
+  deviation of its column of the model matrix, over the standard deviation of the response, as
+  MYSTAT prints it in its STD COEF column. It has no units, so terms measured in different units
+  compare; the intercept's is 0, and it is not a number when the response does not vary.
 - **The reference catalogue holds chapters 1 to 8 of Schmidt and Launsby, *Understanding Industrial
   Designed Experiments* (4th edition), with the answers of its Appendix J.** Chapters 1 and 2: bond
   strengths confounded with batches, a twenty-week mileage record with its Cpk, a control chart's

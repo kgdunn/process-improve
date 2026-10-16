@@ -1710,3 +1710,40 @@ class TestDefaultCoding:
         assert "coding_note" not in auto
         assert auto["coding"] == "coded"
         assert "coefficients_actual" in auto
+
+
+class TestStandardisedCoefficients:
+    """Each coefficient's ``standardised_coefficient``: the coefficient times s(its column) / s(response)."""
+
+    @staticmethod
+    def _rows(result: dict) -> dict[str, dict]:
+        return {row["term"]: row for row in result["coefficients"]}
+
+    def test_it_is_the_coefficient_in_standard_deviations_and_the_intercept_has_none(self) -> None:
+        data = pd.DataFrame({"T": [150, 200, 150, 200, 175], "P": [1, 1, 3, 3, 2], "y": [10, 14, 11, 19, 13]})
+        result = analyze_experiment(
+            data, response_column="y", model="y ~ T + P", analysis_type="coefficients", coding="actual"
+        )
+        rows = self._rows(result)
+        spread = data["y"].std(ddof=1)
+        for term in ("T", "P"):
+            expected = rows[term]["coefficient"] * data[term].std(ddof=1) / spread
+            assert rows[term]["standardised_coefficient"] == pytest.approx(expected)
+        assert rows["Intercept"]["standardised_coefficient"] == 0.0
+
+    def test_it_does_not_depend_on_the_units_of_a_main_effect(self) -> None:
+        """Without interactions or squares, coding a factor rescales its coefficient and column alike."""
+        data = pd.DataFrame({"T": [150, 200, 150, 200, 175], "P": [1, 1, 3, 3, 2], "y": [10, 14, 11, 19, 13]})
+        common = {"response_column": "y", "model": "y ~ T + P", "analysis_type": "coefficients"}
+        actual = self._rows(analyze_experiment(data, coding="actual", **common))
+        coded = self._rows(analyze_experiment(data, coding="coded", **common))
+        assert actual["T"]["coefficient"] != pytest.approx(coded["T"]["coefficient"])
+        for term in ("T", "P"):
+            assert actual[term]["standardised_coefficient"] == pytest.approx(coded[term]["standardised_coefficient"])
+
+    def test_a_response_that_does_not_vary_has_none(self) -> None:
+        data = _two_factor_data().assign(y=5.0)
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            result = analyze_experiment(data, response_column="y", model="y ~ A + B", analysis_type="coefficients")
+        assert all(np.isnan(row["standardised_coefficient"]) for row in result["coefficients"])
