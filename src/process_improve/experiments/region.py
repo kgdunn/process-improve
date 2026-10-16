@@ -413,7 +413,8 @@ class DesignRegion:
         sequence (moved to the midpoints of their cells). Beside a curved constraint, the
         share the straight ones leave is still exact, and the points count only what the
         curved ones take from it: the share is that exact share times the fraction of the
-        points inside the straight constraints that meet every constraint. Else it is the
+        points inside the straight constraints that meet every constraint. Else (or when the
+        straight constraints leave too thin a region for any point to lie in it) it is the
         fraction of all the points that meet every constraint. The points are fixed, so the
         result is the same on every run and on every platform; with the default ``2**14``
         points it is within about 0.005 of the exact share for the regions of a few factors
