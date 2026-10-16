@@ -85,7 +85,9 @@ those changes.
 - **A region that describes its limits, in actual units.** `DesignRegion` now takes its
   constraints as `Constraint` objects, their dict form or bare expressions such as
   `"3*T + 5*D <= 600"`, and a box region reports: the share of the box it keeps
-  (`volume_fraction()`, from a fixed Sobol sample, so the same on every platform); whether
+  (`volume_fraction()`: exact for straight limits, in closed form for the factors one limit
+  ties together and from the polytope's volume for up to five tied together by several;
+  else from a fixed Sobol sample, so the same on every platform); whether
   any setting is left (`is_empty()`); the range each factor can still reach
   (`implied_bounds()`); a central setting that can be run, to hold unplotted factors at
   (`centroid()`); the limits that remove nothing the others do not

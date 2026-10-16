@@ -22,16 +22,16 @@ Two kinds of region exist, and each works in its own *design units*:
 as a plain dict, which :meth:`DesignRegion.from_dict` turns back into a region.
 
 A box region also describes itself, in actual units, for someone writing limits on
-the settings: the share of the box it keeps (:meth:`~DesignRegion.volume_fraction`),
-whether anything is left (:meth:`~DesignRegion.is_empty`), the range each factor can
-still reach (:meth:`~DesignRegion.implied_bounds`), a central setting to hold other
-factors at (:meth:`~DesignRegion.centroid`), the limits that remove nothing
-(:meth:`~DesignRegion.redundant_constraints`), each limit's affine form
-(:meth:`~DesignRegion.linear_forms`), its corners (:meth:`~DesignRegion.vertices`),
-and pictures of it on any two factors: its shadow (:meth:`~DesignRegion.shadow`), a
-slice through it (:meth:`~DesignRegion.slice_polygon`, :meth:`~DesignRegion.slice_lines`)
-and the slack of a grid (:meth:`~DesignRegion.slice_slack`). Every answer is
-deterministic, and fast enough to recompute on each edit of 8 limits on 8 factors.
+the settings: the share of the box it keeps (:meth:`~DesignRegion.volume_fraction`,
+exact for straight limits), whether anything is left (:meth:`~DesignRegion.is_empty`),
+the range each factor can still reach (:meth:`~DesignRegion.implied_bounds`), a central
+setting to hold other factors at (:meth:`~DesignRegion.centroid`), the limits that remove
+nothing (:meth:`~DesignRegion.redundant_constraints`), each limit's affine form
+(:meth:`~DesignRegion.linear_forms`), its corners (:meth:`~DesignRegion.vertices`), and
+pictures of it on any two factors: its shadow (:meth:`~DesignRegion.shadow`), a slice
+through it (:meth:`~DesignRegion.slice_polygon`, :meth:`~DesignRegion.slice_lines`) and
+the slack of a grid (:meth:`~DesignRegion.slice_slack`). Every answer is deterministic,
+and fast enough to recompute on each edit of 8 limits on 8 factors.
 """
 
 from __future__ import annotations
@@ -48,6 +48,7 @@ from scipy.optimize import linprog
 from scipy.stats import qmc
 
 from process_improve.experiments._region_geometry import (
+    box_share,
     box_vertices,
     clip_square,
     convex_polygon,
@@ -399,16 +400,26 @@ class DesignRegion:
     def volume_fraction(self, n_samples: int = 2**14) -> float:
         """Return the share of the factor box that the constraints leave: 1 without constraints, 0 when empty.
 
-        The share is the fraction of ``n_samples`` points of the unscrambled Sobol
+        With straight constraints only, the share is exact, to rounding. The factors are
+        split into the groups the constraints tie together (a factor no constraint names
+        keeps its whole range), and the share is the product of the groups' shares: in
+        closed form for a group under one constraint, a chained one such as ``"400 <= 3*T +
+        5*D <= 600"`` included, and from the volume of the polytope's convex hull for a group
+        of up to five factors under several (see
+        :func:`~process_improve.experiments._region_geometry.box_share`).
+
+        Otherwise (a curved constraint, or six factors or more that several constraints tie
+        together), the share is the fraction of ``n_samples`` points of the unscrambled Sobol
         sequence (moved to the midpoints of their cells) that meet every constraint. The
         points are fixed, so the result is the same on every run and on every platform;
-        with the default ``2**14`` points it is within about 0.005 of the exact share
-        for the regions of a few factors that limits describe.
+        with the default ``2**14`` points it is within about 0.005 of the exact share for
+        the regions of a few factors that limits describe.
 
         Parameters
         ----------
         n_samples : int
-            Number of points; a power of two keeps the sequence balanced.
+            Number of points, when the share is sampled; a power of two keeps the sequence
+            balanced.
 
         Returns
         -------
@@ -431,9 +442,19 @@ class DesignRegion:
             raise ValueError(f"n_samples must be at least 1; got {n_samples}.")
         if not self.constraints:
             return 1.0
+        exact = self._exact_share()
+        if exact is not None:
+            return exact
         if n_samples == _N_SAMPLES:
             return float(np.mean(self._sample_allowed()))
         return float(np.mean(self.feasible(self._unit_sample(n_samples))))
+
+    def _exact_share(self) -> float | None:
+        """Return the exact share of the box with straight constraints only, or None when it is sampled (cached)."""
+        if "exact_share" not in self._cache:
+            rows = self._linear()
+            self._cache["exact_share"] = None if rows.nonlinear else box_share(rows.a, rows.b)
+        return self._cache["exact_share"]
 
     def _sample_allowed(self) -> np.ndarray:
         """Return whether each point of the default Sobol sample is allowed (cached)."""
