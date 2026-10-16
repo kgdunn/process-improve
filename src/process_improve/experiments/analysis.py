@@ -896,6 +896,11 @@ def analyze_experiment(  # noqa: PLR0913
         - ``df_model`` - model degrees of freedom.
         - ``df_residual`` - residual degrees of freedom.
         - ``mse_residual`` - mean squared error of the residuals.
+        - ``f_statistic`` and ``f_p_value`` - the overall F test of the model against the
+          intercept alone (against zero, on uncorrected sums of squares, with no intercept).
+        - ``log_likelihood``, ``aic`` and ``bic`` - the Gaussian log-likelihood and the criteria
+          that count the error variance as a parameter, as R's ``AIC`` does; ``aic_step``,
+          n ln(RSS/n) + 2p, as R's ``step`` prints it.
 
         Notes from individual analyses are kept apart, as ``anova_note``,
         ``effects_note``, ``lenth_note``, ``significance_note`` and
@@ -1100,4 +1105,29 @@ def _model_summary(
         "df_model": int(ols_result.df_model),
         "df_residual": int(ols_result.df_resid),
         "mse_residual": float(ols_result.mse_resid),
+        **_fit_criteria(ols_result),
+    }
+
+
+def _fit_criteria(ols_result: RegressionResultsWrapper) -> dict[str, float]:
+    """Return the overall F test of the model and its likelihood criteria, as R's summary, AIC and step give them.
+
+    The F test compares the model with the intercept alone (with no intercept, with zero, on the
+    uncorrected sums of squares, as R does). ``aic`` and ``bic`` count the error variance among the
+    parameters, -2 ln L + 2(p + 1), as R's ``AIC`` and the library's model selection do;
+    ``aic_step`` is n ln(RSS/n) + 2p, which R's ``step`` and ``extractAIC`` print. The two
+    AICs differ by a constant for a given number of runs, so they rank models alike.
+    """
+    n, p = float(ols_result.nobs), float(ols_result.df_model + ols_result.k_constant)
+    rss = max(float(ols_result.ssr), 1e-300)
+    log_likelihood = -n / 2 * (np.log(2 * np.pi * rss / n) + 1)
+    with np.errstate(divide="ignore", invalid="ignore"):
+        f_statistic, f_p_value = float(ols_result.fvalue), float(ols_result.f_pvalue)
+    return {
+        "f_statistic": f_statistic,
+        "f_p_value": f_p_value,
+        "log_likelihood": float(log_likelihood),
+        "aic": float(-2 * log_likelihood + 2 * (p + 1)),
+        "bic": float(-2 * log_likelihood + np.log(n) * (p + 1)),
+        "aic_step": float(n * np.log(rss / n) + 2 * p),
     }

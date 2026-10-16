@@ -13,6 +13,18 @@ those changes.
 
 ### Added
 
+- **The overall F test and likelihood criteria in `analyze_experiment`'s model summary.**
+  `model_summary` now carries `f_statistic` and `f_p_value` (the model against the intercept
+  alone; against zero, on uncorrected sums of squares, for a model without an intercept whose
+  columns do not span one, as R's summary does), `log_likelihood`, `aic` and `bic` (counting the
+  error variance as a parameter, as R's `AIC` and the library's model selection do) and
+  `aic_step`, n ln(RSS/n) + 2p, as R's `step` prints it. The reference catalogue reads them,
+  with new fit kinds for residual quartiles and the uncorrected F, and checks 94 more of the NIST
+  e-Handbook's printed numbers: overall F tests and their p-values, lack-of-fit and pure-error
+  sums of squares, residual quartiles, R's stepwise AICs, Dataplot's model F tests and the
+  sequential sums of squares of a central composite design. Four disagree, each explained
+  (Dataplot truncates two F values, and a p-value no pair of degrees of freedom gives).
+
 - **Studentized residuals.** `analyze_experiment`'s `"residual_diagnostics"` now lists each run's
   `studentized_residuals` (the residual over its own standard error, s √(1 − h), Design-Expert's
   "Student Residual") and `externally_studentized_residuals` (with s from the fit without that run,
