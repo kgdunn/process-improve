@@ -159,6 +159,12 @@ those changes.
   function, so every linear constraint was treated as curved: the candidate set of a
   constrained optimal design lost the region's vertices, and its sampler fell back to a
   slower method.
+- **A constraint that cannot be evaluated over part of the factor box is treated as
+  curved.** Where `sqrt` or `log` of a negative number, or a division by zero, made the
+  constraint infinite or `NaN` at some probe point, the test for an affine constraint
+  passed it, and the secant plane through the points where it was finite stood in for it:
+  `0.5 <= A/B <= 2` with `B` from 0, or `sqrt(A - 120) + B <= 70` with `A` from 100, got
+  vertices, bounds and a hit-and-run sampler cut by a plane the constraint does not have.
 
 ## [1.99.0] - 2026-10-15
 

@@ -503,6 +503,40 @@ class TestLinearForms:
     def test_mixture_limits_have_forms_too(self):
         assert DesignRegion(MIXTURE, ["x0 + 2*x1 <= 0.8"]).linear_forms() == [({"x0": 1.0, "x1": 2.0}, None, 0.8)]
 
+    @pytest.mark.parametrize(
+        ("ranges", "expression"),
+        [
+            ({"A": (0, 1), "B": (0, 1)}, "A/B >= 10"),  # infinite (and 0/0) where B is 0
+            ({"A": (0, 1), "B": (0, 1)}, "0.5 <= A/B <= 2"),
+            ({"A": (100, 150), "B": (20, 60)}, "sqrt(A - 120) + B <= 70"),  # undefined below A = 120
+            ({"A": (-1, 1), "B": (-1, 1)}, "log(A) + B <= 0"),
+            ({"A": (-1, 3), "B": (0, 4)}, "sqrt(A) <= 5"),
+        ],
+    )
+    def test_a_limit_undefined_over_part_of_the_box_is_curved(self, ranges, expression):
+        """Where it cannot be evaluated it cannot be run, so no plane can stand in for it."""
+        region = DesignRegion([Factor(name=n, low=lo, high=hi) for n, (lo, hi) in ranges.items()], [expression])
+        with np.errstate(all="ignore"):
+            assert region.linear_forms() == [None]
+            with pytest.raises(ValueError, match="curved constraints"):
+                region.vertices()
+            assert region.shadow("A", "B")["kind"] == "mask"
+            assert region.slice_polygon("A", "B")["kind"] == "mask"
+            assert region.slice_lines("A", "B") == []
+            assert not region.is_empty()
+            region.redundant_constraints()  # a NaN plane made the linear program raise
+
+    def test_a_ratio_limit_is_found_where_it_holds(self):
+        """``A/B >= 10`` keeps a thin wedge along B = 0; it used to be reported empty, with no shadow."""
+        region = DesignRegion([Factor(name="A", low=0, high=1), Factor(name="B", low=0, high=1)], ["A/B >= 10"])
+        with np.errstate(all="ignore"):
+            assert region.volume_fraction() == pytest.approx(0.05, abs=0.005)
+            assert not region.is_empty()
+            assert region.implied_bounds() == {"A": (0.0, 1.0), "B": (0.0, 1.0)}  # outer bounds: no linear limits
+            shadow = np.array(region.shadow("A", "B")["z"])
+            assert shadow.any()
+            assert not shadow[20:, :].any(), "nothing above B = 0.5 can be run"
+
 
 # ---------------------------------------------------------------------------
 # Vertices

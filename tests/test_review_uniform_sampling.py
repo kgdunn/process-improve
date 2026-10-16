@@ -78,3 +78,18 @@ def test_affine_constraints_are_recognised_in_any_number_of_factors() -> None:
         assert form[1] == pytest.approx(1.0)
         curved = _affine_form(lambda x: (np.atleast_2d(x) ** 2).sum(axis=1) - 1.0, -np.ones(k), np.ones(k))
         assert curved is None, k
+
+
+@pytest.mark.parametrize(
+    "g",
+    [
+        lambda x: np.where(np.atleast_2d(x)[:, 0] > 0.5, np.inf, np.atleast_2d(x)[:, 0]),  # the tolerance was inf
+        lambda x: np.where(np.atleast_2d(x)[:, 0] < -0.5, np.nan, np.atleast_2d(x)[:, 0]),  # nan > tol was False
+        lambda x: np.sqrt(np.atleast_2d(x)[:, 0]) + np.atleast_2d(x)[:, 1],  # undefined where the first is negative
+        lambda x: np.full(len(np.atleast_2d(x)), 1e308) * np.atleast_2d(x)[:, 0] * 10,  # overflows to inf
+    ],
+)
+def test_a_constraint_undefined_somewhere_in_the_box_is_not_affine(g) -> None:
+    """A secant plane through the points where it is finite used to stand in for such a constraint."""
+    with np.errstate(all="ignore"):
+        assert _affine_form(g, -np.ones(2), np.ones(2)) is None

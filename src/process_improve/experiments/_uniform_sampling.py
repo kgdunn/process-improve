@@ -69,14 +69,28 @@ def _affine_form(g: _Inequality, low: np.ndarray, high: np.ndarray) -> tuple[np.
     a kink near a face of the box (``abs(a - 0.95) >= 0.01``). Misclassifying a
     constraint never yields an infeasible point, only a part of the region the
     hit-and-run chains do not visit.
+
+    A constraint that cannot be evaluated somewhere in the box (``sqrt`` or ``log`` of
+    a negative number, a division by zero) is not affine there: any probe value that is
+    not finite, and any fitted coefficient that overflows, gives ``None``. (Before this
+    was checked, an infinite value made the tolerance infinite and a NaN made the test
+    false, so such a limit passed and its secant plane stood in for it.)
     """
     k = len(low)
     fit, check = _probe_points(low, high)
     points = np.vstack([fit, check])
-    values = np.asarray(g(points), dtype=float)
+    with np.errstate(all="ignore"):
+        values = np.broadcast_to(np.asarray(g(points), dtype=float), (len(points),))
+    if not np.all(np.isfinite(values)):
+        return None
     design = np.column_stack([points, np.ones(len(points))])
     coef = np.linalg.lstsq(design[: len(fit)], values[: len(fit)], rcond=None)[0]
-    if np.max(np.abs(design @ coef - values)) > 1e-9 * (1.0 + np.max(np.abs(values))):
+    if not np.all(np.isfinite(coef)):
+        return None
+    with np.errstate(all="ignore"):
+        error = float(np.max(np.abs(design @ coef - values)))
+        tolerance = 1e-9 * (1.0 + float(np.max(np.abs(values))))
+    if not error <= tolerance:  # written so that a NaN fails the test too
         return None
     return coef[:k], -float(coef[k])
 
