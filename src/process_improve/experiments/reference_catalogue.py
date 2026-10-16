@@ -52,7 +52,7 @@ from typing import Any
 
 import numpy as np
 import pandas as pd
-from patsy import dmatrix
+from patsy import build_design_matrices, dmatrix
 from scipy.stats import f as f_distribution
 
 from process_improve.experiments._analyses.transforms import transform_response
@@ -571,8 +571,9 @@ def _prediction(out: dict, check: dict, experiment: dict) -> float:
 
     A factor ``check["point"]`` leaves out, as one the model does not hold, sits at its centre.
     ``check["bound"]`` reads a limit of its 95% interval instead: ``"pi_low"`` or ``"pi_high"`` for
-    a new observation, ``"ci_low"`` or ``"ci_high"`` for the mean, or ``"ci_half_width"``, the
-    interval's half-width, as a prediction profiler prints it beside the prediction.
+    a new observation, ``"ci_low"`` or ``"ci_high"`` for the mean, or ``"ci_half_width"`` and
+    ``"pi_half_width"``, an interval's half-width, as a prediction profiler prints it beside the
+    prediction. ``"leverage"`` is x0'(X'X)^-1 x0, the variance of the predicted mean in units of σ².
     """
     names = [f["name"] for f in experiment["factors"]]
     point = pd.DataFrame([dict.fromkeys(names, 0.0) | check["point"]])[names]
@@ -582,9 +583,15 @@ def _prediction(out: dict, check: dict, experiment: dict) -> float:
             out["settings"], out["y"], model=check["model"], analysis_type="prediction", new_points=point
         )
     prediction = found["predictions"][0]
-    if check.get("bound") == "ci_half_width":
-        return float(prediction["ci_high"] - prediction["ci_low"]) / 2
-    return float(prediction[check.get("bound", "predicted")])
+    bound = check.get("bound", "predicted")
+    if bound in ("ci_half_width", "pi_half_width"):
+        interval = bound[:2]
+        return float(prediction[f"{interval}_high"] - prediction[f"{interval}_low"]) / 2
+    if bound == "leverage":
+        matrix = dmatrix(check["model"], out["settings"], return_type="dataframe")
+        at = np.asarray(build_design_matrices([matrix.design_info], point)[0])[0]
+        return float(at @ np.linalg.pinv(matrix.to_numpy().T @ matrix.to_numpy()) @ at)
+    return float(prediction[bound])
 
 
 def _target_setting(out: dict, check: dict, experiment: dict) -> float:
@@ -1706,8 +1713,30 @@ def _column_correlation(experiment: dict, check: dict) -> float:
 
 
 def _dot_product(experiment: dict, check: dict) -> float:
-    """Return the sum over the runs of the product of the printed columns ``check["columns"]``: zero when orthogonal."""
-    return float(_printed_matrix(experiment, check["columns"], None).prod(axis=1).sum())
+    """Return the sum over the runs of the product of the printed columns ``check["columns"]``: zero when orthogonal.
+
+    ``check["runs"]`` keeps the runs at these 1-based positions, as the runs of a design before it is augmented.
+    """
+    return float(_printed_matrix(experiment, check["columns"], None, check.get("runs")).prod(axis=1).sum())
+
+
+def _normal_equations(experiment: dict, check: dict) -> float:
+    """Return an entry of the least squares normal equations of ``check["model"]``: of X'X, of X'y, or of (X'X)^-1.
+
+    ``check["key"]`` is ``"xtx.<i>.<j>"``, ``"xty.<i>"`` or ``"inverse.<i>.<j>"``, the indices
+    0-based in the order of the model matrix's columns, the intercept first. The factors are in
+    coded units, or their own for a factor marked ``"coding": "none"``, as for a fit.
+    """
+    settings, responses = _coded_runs(experiment, check.get("runs"))
+    matrix = dmatrix(check["model"], settings, return_type="dataframe").to_numpy()
+    y = responses[check.get("response") or responses.columns[0]].to_numpy(dtype=float)
+    kind, *place = check["key"].split(".")
+    found = {
+        "xtx": lambda: matrix.T @ matrix,
+        "xty": lambda: matrix.T @ y,
+        "inverse": lambda: np.linalg.inv(matrix.T @ matrix),
+    }
+    return float(found[kind]()[tuple(int(i) for i in place)])
 
 
 def _jmp_coded(settings: pd.DataFrame, experiment: dict, names: list[str]) -> pd.DataFrame:
@@ -1971,6 +2000,7 @@ _VALUE_KINDS: dict[str, Callable[[dict, dict], float]] = {
     "estimable_projections": _estimable_projections,
     "interaction_columns": _interaction_columns,
     "log_variance_ratio": _log_variance_ratio,
+    "normal_equations": _normal_equations,
     "design_property": lambda _e, c: _design_property(c),
     "design_metric": _design_metric,
     "library_value": lambda _e, c: _library_value(c),

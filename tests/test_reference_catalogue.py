@@ -1313,3 +1313,35 @@ def test_relative_variances_code_a_categorical_factor_as_jmp_does():
         assert _unit_std_error(entry, {**check, "term": term}) == pytest.approx(value, abs=5e-4), term
     assert _unit_std_error(entry, {**check, "key": "len"}) == 14
     assert _run_count(entry, {"at": {"A": "L1", "C": 1}}) == 2
+
+
+def test_the_normal_equations_are_read_entry_by_entry():
+    """Montgomery's Examples 10.2 and 10.3: the 2^3 with four centre runs is orthogonal, and not with run 8 gone."""
+    from process_improve.experiments.reference_catalogue import _normal_equations
+
+    entry = _factorial(3, [32, 46, 57, 65, 36, 48, 57, 68], centre=[50, 44, 53, 56])
+    model = "A + B + C"
+    assert _normal_equations(entry, {"model": model, "key": "xtx.0.0"}) == 12
+    assert _normal_equations(entry, {"model": model, "key": "xtx.1.2"}) == 0
+    assert _normal_equations(entry, {"model": model, "key": "xty.1"}) == 45
+    assert _normal_equations(entry, {"model": model, "key": "inverse.1.1"}) == pytest.approx(1 / 8)
+    without = {"model": model, "runs": [r for r in range(1, 13) if r != 8]}
+    assert _normal_equations(entry, {**without, "key": "xtx.1.2"}) == -1
+    assert _normal_equations(entry, {**without, "key": "inverse.0.1"}) == pytest.approx(1 / 52)
+
+
+def test_a_prediction_interval_is_read_as_its_half_width_and_the_point_s_leverage():
+    """At a corner of the 2^4 fitted with A and B, x0'(X'X)^-1 x0 = 3/16; the interval is t s sqrt(1 + 3/16) wide."""
+    from process_improve.experiments.reference_catalogue import _dot_product
+
+    entry = _factorial(4, FILTRATION)
+    fits = reference_catalogue._Fits()
+    check = {"model": "A + B", "point": {"A": 1, "B": 1}}
+    out = fits(entry, check)
+    leverage = reference_catalogue._prediction(out, {**check, "bound": "leverage"}, entry)
+    assert leverage == pytest.approx(3 / 16)
+    half = reference_catalogue._prediction(out, {**check, "bound": "pi_half_width"}, entry)
+    mse = out["model_summary"]["mse_residual"]
+    assert half == pytest.approx(stats.t.ppf(0.975, 13) * math.sqrt(mse * (1 + 3 / 16)))
+    assert _dot_product(entry, {"columns": ["A", "B"]}) == 0
+    assert _dot_product(entry, {"columns": ["A"], "runs": [1, 2, 4]}) == 1
