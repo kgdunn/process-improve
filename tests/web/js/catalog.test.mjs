@@ -508,16 +508,18 @@ describe("a design's projections", () => {
 describe("a design's correlations", () => {
   test("a half fraction aliases each main effect with an interaction", () => {
     const map = correlationMap(HALF, ["A", "B", "C"]);
-    assert.deepEqual(map.labels, ["A", "B", "C", "AB", "AC", "BC"], "the squares of a two-level design do not vary");
-    assert.equal(map.r[map.labels.indexOf("A")][map.labels.indexOf("BC")], 1);
-    assert.equal(map.r[map.labels.indexOf("A")][map.labels.indexOf("B")], 0);
+    const at = (a, b) => map.matrix[map.terms.indexOf(a)][map.terms.indexOf(b)];
+    assert.deepEqual(map.terms, ["A", "B", "C", "I(A ** 2)", "I(B ** 2)", "I(C ** 2)", "A:B", "A:C", "B:C"]);
+    assert.equal(at("A", "B:C"), 1);
+    assert.equal(at("A", "B"), 0);
+    assert.equal(at("I(A ** 2)", "A"), null, "the squares of a two-level design do not vary");
     assert.equal(largestSecondOrderR(map), 0, "AB is C and AC is B: aliased with main effects, not with each other");
   });
 
   test("a full factorial's terms are uncorrelated; the face-centred CCD's are as compare_designs finds", () => {
     assert.equal(largestSecondOrderR(correlationMap(CUBE, ["A", "B", "C"])), 0);
     const ccd = correlationMap(CCD, ["A", "B", "C"]);
-    assert.equal(ccd.labels.length, 9);
+    assert.ok(ccd.matrix.flat().every((r) => r !== null), "every term varies in a CCD");
     assert.ok(Math.abs(largestSecondOrderR(ccd) - 0.5143) < 1e-4, "max |r| 0.5143, between two squares");
   });
 });
