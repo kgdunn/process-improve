@@ -340,8 +340,17 @@
       "quote": "the number of unique ways to split these 17 experiments into two groups of 8 (A) and 9 (B) is 24,310 ways"
      },
      "check": {
-      "manual": "the number of ways to choose the 8 A runs of 17, the binomial coefficient C(17, 8), which no check here computes"
-     }
+      "kind": "classical_test",
+      "function": "randomization_test",
+      "x": {
+       "Case": "A"
+      },
+      "y": {
+       "Case": "B"
+      },
+      "key": "n_arrangements"
+     },
+     "analysis": "the library's randomization_test of the 17 brittleness values, case A (8) against case B (9), every split enumerated: the number of splits"
     },
     {
      "what": "other",
@@ -354,8 +363,17 @@
       "quote": "# 24310 63.2 4956 79.6%"
      },
      "check": {
-      "manual": "the number of splits the book's code enumerates, the binomial coefficient C(17, 8), which no check here computes; the book's CI (tools/check_code_blocks.py, --strict-output) checks this echoed value"
-     }
+      "kind": "classical_test",
+      "function": "randomization_test",
+      "x": {
+       "Case": "A"
+      },
+      "y": {
+       "Case": "B"
+      },
+      "key": "n_arrangements"
+     },
+     "analysis": "the library's randomization_test of the 17 brittleness values, case A (8) against case B (9), every split enumerated: the number of splits"
     },
     {
      "what": "effect",
@@ -385,8 +403,17 @@
       "quote": "There are 4956 permutations that had a greater difference than the one actually realized"
      },
      "check": {
-      "manual": "a count from the randomization test, which enumerates all 24,310 splits of the 17 runs into 8 A and 9 B; no check here performs a randomization test; the same number is echoed at line 223, where the book's CI checks it"
-     }
+      "kind": "classical_test",
+      "function": "randomization_test",
+      "x": {
+       "Case": "A"
+      },
+      "y": {
+       "Case": "B"
+      },
+      "key": "n_greater"
+     },
+     "analysis": "the library's randomization_test of the 17 brittleness values, case A (8) against case B (9), every split enumerated: the splits whose difference B - A exceeds the observed one"
     },
     {
      "what": "other",
@@ -399,8 +426,17 @@
       "quote": "# 24310 63.2 4956 79.6%"
      },
      "check": {
-      "manual": "a count from the randomization test, which enumerates all 24,310 splits of the 17 runs into 8 A and 9 B; no check here performs a randomization test; the book's CI (tools/check_code_blocks.py, --strict-output) checks this echoed value"
-     }
+      "kind": "classical_test",
+      "function": "randomization_test",
+      "x": {
+       "Case": "A"
+      },
+      "y": {
+       "Case": "B"
+      },
+      "key": "n_greater"
+     },
+     "analysis": "the library's randomization_test of the 17 brittleness values, case A (8) against case B (9), every split enumerated: the splits whose difference B - A exceeds the observed one"
     },
     {
      "what": "other",
@@ -413,8 +449,18 @@
       "quote": "that is, 79.6% of the combinations had a difference no greater than it."
      },
      "check": {
-      "manual": "a fraction from the randomization test (1 - 4956/24,310), which enumerates all 24,310 splits of the 17 runs; no check here performs a randomization test; the same number is echoed at line 223, where the book's CI checks it"
-     }
+      "kind": "classical_test",
+      "function": "randomization_test",
+      "x": {
+       "Case": "A"
+      },
+      "y": {
+       "Case": "B"
+      },
+      "key": "p_value_less",
+      "printed": "0.796"
+     },
+     "analysis": "the library's randomization_test of the 17 brittleness values, case A (8) against case B (9), every split enumerated: the share of splits with a difference no greater than the observed one, printed as a percentage"
     },
     {
      "what": "other",
@@ -427,8 +473,18 @@
       "quote": "# 24310 63.2 4956 79.6%"
      },
      "check": {
-      "manual": "a fraction from the randomization test (1 - 4956/24,310), which enumerates all 24,310 splits of the 17 runs; no check here performs a randomization test; the book's CI (tools/check_code_blocks.py, --strict-output) checks this echoed value"
-     }
+      "kind": "classical_test",
+      "function": "randomization_test",
+      "x": {
+       "Case": "A"
+      },
+      "y": {
+       "Case": "B"
+      },
+      "key": "p_value_less",
+      "printed": "0.796"
+     },
+     "analysis": "the library's randomization_test of the 17 brittleness values, case A (8) against case B (9), every split enumerated: the share of splits with a difference no greater than the observed one, printed as a percentage"
     },
     {
      "what": "t_value",
@@ -13808,7 +13864,7 @@
      "what": "other",
      "term": "critical t-value, 95% confidence, 10 df",
      "value": "2.23",
-     "analysis": "reduced model: B, C, D, BC, CD and intercept (R: lm(y ~ B + C + D + B*C + C*D))",
+     "analysis": "the library's t_value, the 97.5% point of the t distribution on 10 degrees of freedom",
      "where": {
       "file": "design-analysis-experiments/design-analysis-experiments-exercises.rst",
       "line": 261,
@@ -13816,7 +13872,9 @@
       "quote": "The critical :math:`t`-value for the 95% confidence level = 2.23"
      },
      "check": {
-      "manual": "a critical value of the t distribution (95%, 10 degrees of freedom), a table value rather than a result of the runs; the confidence intervals it gives are checked at lines 268-272"
+      "kind": "library_value",
+      "function": "t_value",
+      "args": [0.975, 10]
      }
     },
     {

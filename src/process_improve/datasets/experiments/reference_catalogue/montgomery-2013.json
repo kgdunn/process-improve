@@ -1983,8 +1983,17 @@
       "quote": "all [20!/(10!10!)] = 184,756 possible ways that the 20 observations could occur"
      },
      "check": {
-      "manual": "the number of ways to divide the 20 observations into two groups of 10, C(20, 10), for a randomization test the book does not carry out; arithmetic, which no check computes (it reproduces)"
-     }
+      "kind": "classical_test",
+      "function": "randomization_test",
+      "x": {
+       "mortar": "modified"
+      },
+      "y": {
+       "mortar": "unmodified"
+      },
+      "key": "n_arrangements"
+     },
+     "analysis": "the library's randomization_test of the two mortars: the number of ways to split the 20 observations into two groups of 10, every one enumerated"
     },
     {
      "what": "ci_low",
@@ -7560,8 +7569,15 @@
       "quote": "F0.05,3,16 = 3.24"
      },
      "check": {
-      "manual": "a percentage point of the F distribution from Appendix Table IV, which the library does not compute (it is 3.2389)"
-     }
+      "kind": "library_value",
+      "function": "f_value",
+      "args": [
+       0.95,
+       3,
+       16
+      ]
+     },
+     "analysis": "the library's f_value, the point below which 0.95 of the F distribution on 3 and 16 degrees of freedom lies, the book's upper 0.05 point"
     },
     {
      "what": "F percentage point",
@@ -7573,8 +7589,15 @@
       "quote": "F0.01,3,16 = 5.29"
      },
      "check": {
-      "manual": "a percentage point of the F distribution from Appendix Table IV, which the library does not compute (it is 5.2922)"
-     }
+      "kind": "library_value",
+      "function": "f_value",
+      "args": [
+       0.99,
+       3,
+       16
+      ]
+     },
+     "analysis": "the library's f_value, the point below which 0.99 of the F distribution on 3 and 16 degrees of freedom lies, the book's upper 0.01 point"
     },
     {
      "what": "anova_p",
@@ -8538,8 +8561,14 @@
       "quote": "χ²0.05,3 = 7.81"
      },
      "check": {
-      "manual": "a percentage point of the chi-square distribution from Appendix Table III, which the library does not compute (it is 7.8147)"
-     }
+      "kind": "library_value",
+      "function": "chi2_value",
+      "args": [
+       0.95,
+       3
+      ]
+     },
+     "analysis": "the library's chi2_value, the point below which 0.95 of the chi-squared distribution on 3 degrees of freedom lies, the book's upper 0.05 point"
     },
     {
      "what": "p_value",
@@ -9375,8 +9404,15 @@
       "quote": "d0.05(3, 16) = 2.59"
      },
      "check": {
-      "manual": "Dunnett's critical value from Appendix Table VIII; the library's dunnett_vs_control gives p-values, not the critical difference"
-     }
+      "kind": "library_value",
+      "function": "dunnett_value",
+      "args": [
+       0.95,
+       3,
+       16
+      ]
+     },
+     "analysis": "the library's dunnett_value: the two-sided 5% critical value of the largest of 3 comparisons with a control on 16 error degrees of freedom, equal numbers of runs"
     },
     {
      "what": "Dunnett critical difference",
@@ -13710,8 +13746,14 @@
       "quote": "χ²0.01,3 = 11.34"
      },
      "check": {
-      "manual": "a percentage point of the chi-square distribution, which the library does not compute (it is 11.345)"
-     }
+      "kind": "library_value",
+      "function": "chi2_value",
+      "args": [
+       0.99,
+       3
+      ]
+     },
+     "analysis": "the library's chi2_value, the point below which 0.99 of the chi-squared distribution on 3 degrees of freedom lies, the book's upper 0.01 point"
     },
     {
      "what": "p_value",
@@ -17107,8 +17149,15 @@
       "quote": "χ²0.025,12 = 23,3367"
      },
      "check": {
-      "manual": "a percentage point of the chi-square distribution, which the library does not compute (it is 23.3367; the book prints a comma for the decimal point)"
-     }
+      "kind": "library_value",
+      "function": "chi2_value",
+      "args": [
+       0.975,
+       12
+      ],
+      "printed": "23.3367"
+     },
+     "analysis": "the library's chi2_value, the point below which 0.975 of the chi-squared distribution on 12 degrees of freedom lies; the book prints a comma for the decimal point, the book's upper 0.025 point"
     },
     {
      "what": "chi-square percentage point",
@@ -17120,8 +17169,14 @@
       "quote": "χ²0.975,12 = 4.4038"
      },
      "check": {
-      "manual": "a percentage point of the chi-square distribution, which the library does not compute (it is 4.4038)"
-     }
+      "kind": "library_value",
+      "function": "chi2_value",
+      "args": [
+       0.025,
+       12
+      ]
+     },
+     "analysis": "the library's chi2_value, the point below which 0.025 of the chi-squared distribution on 12 degrees of freedom lies, the book's upper 0.975 point"
     },
     {
      "what": "ci_low",
@@ -17159,8 +17214,15 @@
       "quote": "F0.025,3,12 = 4.47"
      },
      "check": {
-      "manual": "a percentage point of the F distribution from Appendix Table IV, which the library does not compute (it is 4.4742)"
-     }
+      "kind": "library_value",
+      "function": "f_value",
+      "args": [
+       0.975,
+       3,
+       12
+      ]
+     },
+     "analysis": "the library's f_value, the point below which 0.975 of the F distribution on 3 and 12 degrees of freedom lies, the book's upper 0.025 point"
     },
     {
      "what": "F percentage point",
@@ -17172,8 +17234,15 @@
       "quote": "F0.975,3,12 = 1/F0.025,12,3 = 1/14.34 = 0.070"
      },
      "check": {
-      "manual": "a percentage point of the F distribution from Appendix Table IV, which the library does not compute (it is 0.0698)"
-     }
+      "kind": "library_value",
+      "function": "f_value",
+      "args": [
+       0.025,
+       3,
+       12
+      ]
+     },
+     "analysis": "the library's f_value, the point below which 0.025 of the F distribution on 3 and 12 degrees of freedom lies, the book's upper 0.975 point"
     },
     {
      "what": "L",
@@ -22370,8 +22439,15 @@
       "quote": "the critical value of F is F0.05,3,15 = 3.29"
      },
      "check": {
-      "manual": "a percentage point of the F distribution from Appendix Table IV, which the library does not compute (it is 3.2874)"
-     }
+      "kind": "library_value",
+      "function": "f_value",
+      "args": [
+       0.95,
+       3,
+       15
+      ]
+     },
+     "analysis": "the library's f_value, the point below which 0.95 of the F distribution on 3 and 15 degrees of freedom lies, the book's upper 0.05 point"
     },
     {
      "what": "anova_sum_sq",
@@ -35039,8 +35115,15 @@
       "quote": "Because F0.05,4,27 = 2.73"
      },
      "check": {
-      "manual": "a percentage point of the F distribution from Appendix Table IV, which the library does not compute (it is 2.7278)"
-     }
+      "kind": "library_value",
+      "function": "f_value",
+      "args": [
+       0.95,
+       4,
+       27
+      ]
+     },
+     "analysis": "the library's f_value, the point below which 0.95 of the F distribution on 4 and 27 degrees of freedom lies, the book's upper 0.05 point"
     },
     {
      "what": "F percentage point",
@@ -35052,8 +35135,15 @@
       "quote": "F0.05,2,27 = 3.35"
      },
      "check": {
-      "manual": "a percentage point of the F distribution from Appendix Table IV, which the library does not compute (it is 3.3541)"
-     }
+      "kind": "library_value",
+      "function": "f_value",
+      "args": [
+       0.95,
+       2,
+       27
+      ]
+     },
+     "analysis": "the library's f_value, the point below which 0.95 of the F distribution on 2 and 27 degrees of freedom lies, the book's upper 0.05 point"
     },
     {
      "what": "anova_sum_sq",
@@ -157720,8 +157810,15 @@
       "quote": "Now, because F0.05,1,13 = 4.67, we would reject H0: β2 = 0"
      },
      "check": {
-      "manual": "a percentage point of the F distribution from Appendix Table IV, which the library does not compute"
-     }
+      "kind": "library_value",
+      "function": "f_value",
+      "args": [
+       0.95,
+       1,
+       13
+      ]
+     },
+     "analysis": "the library's f_value, the point below which 0.95 of the F distribution on 1 and 13 degrees of freedom lies, the book's upper 0.05 point"
     },
     {
      "what": "t_value",
@@ -188161,8 +188258,15 @@
       "quote": "Comparing F = 2.22 to F0.05,2,8 = 4.46, we cannot reject H0"
      },
      "check": {
-      "manual": "a percentage point of the F distribution, from the Appendix, which the library does not compute"
-     }
+      "kind": "library_value",
+      "function": "f_value",
+      "args": [
+       0.95,
+       2,
+       8
+      ]
+     },
+     "analysis": "the library's f_value, the point below which 0.95 of the F distribution on 2 and 8 degrees of freedom lies, the book's upper 0.05 point"
     },
     {
      "what": "p",
@@ -218543,8 +218647,15 @@
       "quote": "SS′E − SSE = 41.27 − 27.99 = 13.28 with a − 1 = 3 − 1 = 2 degrees of freedom ... F0 = (13.28/2)/(27.99/11) = 6.64/2.54 = 2.61. Comparing this to F0.10,2,11 = 2.86 ... The P-value of this test statistic is 0.1181"
      },
      "check": {
-      "manual": "a percentage point of the F distribution from the Appendix, which the library does not compute"
-     }
+      "kind": "library_value",
+      "function": "f_value",
+      "args": [
+       0.9,
+       2,
+       11
+      ]
+     },
+     "analysis": "the library's f_value, the point below which 0.9 of the F distribution on 2 and 11 degrees of freedom lies, the book's upper 0.1 point"
     },
     {
      "what": "anova_p",
@@ -218602,8 +218713,15 @@
       "quote": "β̂ = Exy/Exx = 186.60/195.60 = 0.9540 ... F0 = [(Exy)²/Exx]/MSE = [(186.60)²/195.60]/2.54 = 70.08 and because F0.01,1,11 = 9.65"
      },
      "check": {
-      "manual": "a percentage point of the F distribution from the Appendix, which the library does not compute"
-     }
+      "kind": "library_value",
+      "function": "f_value",
+      "args": [
+       0.99,
+       1,
+       11
+      ]
+     },
+     "analysis": "the library's f_value, the point below which 0.99 of the F distribution on 1 and 11 degrees of freedom lies, the book's upper 0.01 point"
     },
     {
      "what": "mean",
@@ -218857,8 +218975,15 @@
       "quote": "F0 = (66.13/2)/(195.60/12) = 33.07/16.30 = 2.03 which is less than F0.10,2,12 = 2.81"
      },
      "check": {
-      "manual": "a percentage point of the F distribution from the Appendix, which the library does not compute"
-     }
+      "kind": "library_value",
+      "function": "f_value",
+      "args": [
+       0.9,
+       2,
+       12
+      ]
+     },
+     "analysis": "the library's f_value, the point below which 0.9 of the F distribution on 2 and 12 degrees of freedom lies, the book's upper 0.1 point"
     },
     {
      "what": "fitted",

@@ -24284,9 +24284,13 @@
       "quote": "since F0.05,1,6 = 5.99."
      },
      "check": {
-      "manual": "a percentage point of the F distribution, a table value"
+      "kind": "library_value",
+      "function": "f_value",
+      "args": [0.95, 1, 6],
+      "printed": "5.99"
      },
-     "note": "n - p is 5 in the ANOVA whose residual mean square gives s_b^2 (F0.05,1,5 = 6.61); the page uses 6 degrees of freedom, those of the first-order model's residual"
+     "note": "n - p is 5 in the ANOVA whose residual mean square gives s_b^2 (F0.05,1,5 = 6.61); the page uses 6 degrees of freedom, those of the first-order model's residual",
+     "analysis": "the library's f_value, the point below which 0.95 of the F distribution on 1 and 6 degrees of freedom lies, the upper 0.05 point"
     },
     {
      "what": "confidence-cone measure",
